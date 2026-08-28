@@ -89,6 +89,42 @@ TEST(PathSecurity, WriteRejectsRelativeEscape) {
     EXPECT_FALSE(std::filesystem::exists(tmp.join("traversal_proof.txt")));
 }
 
+TEST(PathSecurity, RecursiveFileLimitIgnoresDirectoryNodes) {
+    TestTempDir tmp("recursive_file_limit");
+    for (int index = 0; index < 5; ++index) {
+        const auto path = tmp.join(
+            "nested_" + std::to_string(index) + "/deeper/file.bin");
+        std::filesystem::create_directories(path.parent_path());
+        std::ofstream(path, std::ios::binary) << index;
+    }
+    std::filesystem::create_directories(tmp.join("empty/a/b/c"));
+
+    EXPECT_EQ(CountRecursiveRegularFiles(ToUtf8(tmp.path()), 5), 5U);
+    EXPECT_EQ(CountRecursiveRegularFiles(ToUtf8(tmp.path()), 4), 5U);
+    EXPECT_EQ(CountRecursiveRegularFiles(ToUtf8(tmp.join("empty")), 5), 0U);
+}
+
+#ifdef _WIN32
+TEST(PathSecurity, ExtendedAbsolutePathRoundtripSupportsMoreThanMaxPath) {
+    TestTempDir tmp("extended_long_path");
+    auto path = ToFsPath(ToUtf8(tmp.path()));
+    path /= ToFsPath("relative/with/forward/slashes");
+    for (int level = 0; level < 8; ++level) {
+        path /= ToFsPath(
+            "segment_" + std::to_string(level) +
+            "_abcdefghijklmnopqrstuvwxyz");
+    }
+    path /= ToFsPath("long-path-file.bin");
+    ASSERT_GT(path.native().size(), 260U);
+    ASSERT_TRUE(path.native().starts_with(L"\\\\?\\"));
+
+    std::filesystem::create_directories(path.parent_path());
+    std::ofstream(path, std::ios::binary) << "long-path";
+    ASSERT_TRUE(std::filesystem::exists(path));
+    EXPECT_FALSE(ToUtf8(path).starts_with("\\\\?\\"));
+}
+#endif
+
 // fs.rs:1619 path_traversal_e2e_write_rejects_absolute_path
 TEST(PathSecurity, WriteRejectsAbsolutePath) {
     TestTempDir tmp("rustdesk_e2e_absolute");

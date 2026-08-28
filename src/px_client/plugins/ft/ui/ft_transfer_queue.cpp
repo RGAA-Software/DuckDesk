@@ -10,15 +10,52 @@
 #include <QHeaderView>
 #include <QIcon>
 #include <QLabel>
+#include <QPointer>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QTableWidget>
 #include <QVBoxLayout>
 
+#include "px_ft_engine/ft_terminal.h"
 #include "translator/px_translator.h"
 
 namespace px
 {
+    namespace
+    {
+        QString TerminalReasonText(const ft::FtTerminalInfo& terminal) {
+            if (terminal.reason == "integrity_mismatch" ||
+                terminal.reason == "integrity_hash_missing" ||
+                terminal.reason == "block_sequence_mismatch") {
+                return tcTr("id_file_trans_failed_cause_verify");
+            }
+            if (terminal.reason == "permission_denied") {
+                return tcTr("id_file_trans_failed_cause_permission");
+            }
+            if (terminal.reason == "file_count_limit") {
+                return tcTr("id_file_trans_failed_cause_file_limit");
+            }
+            if (terminal.reason == "source_not_found") {
+                return tcTr("id_file_trans_failed_cause_file_no_exists");
+            }
+            if (terminal.reason == "destination_busy") {
+                return tcTr("id_file_trans_failed_cause_destination_busy");
+            }
+            if (terminal.reason == "io_error") {
+                return tcTr("id_file_trans_failed_cause_file_write");
+            }
+            if (terminal.reason == "transport_timeout") {
+                return tcTr("id_file_trans_failed_cause_time_out");
+            }
+            if (terminal.reason == "session_interrupted" ||
+                terminal.reason == "transport_disconnected" ||
+                terminal.reason == "route_unavailable" ||
+                terminal.reason == "transport_error") {
+                return tcTr("id_file_trans_net_error");
+            }
+            return tcTr("id_file_trans_failed_cause_unknow");
+        }
+    }
 
     // 表格样式与文件表一致(队列表不可选)
     static const char* kQueueTableStyle = R"(
@@ -215,26 +252,34 @@ namespace px
     void FtTransferQueue::FinishJob(int id, const QString& error_or_empty) {
         const int row = RowOf(id);
         if (row < 0) return;
-        auto* holder = table_->cellWidget(row, 2);
-        auto* bar = holder ? holder->findChild<QProgressBar*>() : nullptr;
-        auto* state_item = table_->item(row, 4);
+        const QPointer<QWidget> holder(table_->cellWidget(row, 2));
+        const QPointer<QProgressBar> bar(
+            holder ? holder->findChild<QProgressBar*>() : nullptr);
         QString state;
         if (error_or_empty.isEmpty()) {
             if (bar) bar->setValue(1000);
             state = tcTr("id_file_trans_success");
-        } else if (error_or_empty == "cancel") {
-            state = tcTr("id_file_trans_state_cancel");
-        } else if (error_or_empty == "skipped") {
-            state = tcTr("id_file_trans_failed_cause_skip");
         } else {
-            state = tcTr("id_file_trans_state_failed") + error_or_empty;
+            const auto terminal = ft::ClassifyTerminal(error_or_empty.toStdString());
+            if (terminal.status == "cancelled") {
+                state = tcTr("id_file_trans_state_cancel");
+            } else if (terminal.status == "skipped") {
+                state = tcTr("id_file_trans_failed_cause_skip");
+            } else {
+                state = tcTr("id_file_trans_state_failed") + TerminalReasonText(terminal);
+                if (terminal.resumable) {
+                    state += QString(" (%1)").arg(tcTr("id_file_trans_resume_available"));
+                }
+            }
         }
-        if (state_item) state_item->setText(state);
+        if (table_->item(row, 4)) table_->item(row, 4)->setText(state);
         states_[id] = state;
         if (id == latest_id_) UpdateStrip();
         // 完成后禁掉取消按钮
-        if (auto* btn = qobject_cast<QPushButton*>(table_->cellWidget(row, 5))) {
-            btn->setEnabled(false);
+        const QPointer<QPushButton> cancel_button(
+            qobject_cast<QPushButton*>(table_->cellWidget(row, 5)));
+        if (cancel_button) {
+            cancel_button->setEnabled(false);
         }
     }
 

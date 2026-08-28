@@ -12,6 +12,11 @@ import { connTypeTagType, formatConnTypeLabel } from '@/util/conn_type.ts'
 import type { Visit } from '@/entity/visit.ts'
 import axiosHttp from '@/http.ts'
 import type { FileTransfer } from '@/entity/file_transfer.ts'
+import {
+  fileTransferReasonLabel,
+  fileTransferStatusColor as statusColor,
+  fileTransferStatusLabel as statusLabel,
+} from '@/util/file_transfer_terminal'
 import { copyText } from '@/util/clipboard.ts'
 import { notification } from 'ant-design-vue'
 import type { ConsoleEvent } from '@/entity/console_event.ts'
@@ -157,23 +162,6 @@ const handleCopyFileTransferInfo = (index: number, ft: FileTransfer) => {
 const handleCopyAuditInfo = (event: ConsoleEvent) => {
   copyText(JSON.stringify(event, null, 2))
   notification.success({ message: '复制成功' })
-}
-
-const normalizedStatus = (record: { status?: string; end?: number; success?: boolean }) => {
-  if (record.status) return record.status
-  if (!record.end) return 'running'
-  if (record.success === false) return 'failed'
-  return 'succeeded'
-}
-
-const statusLabel = (record: { status?: string; end?: number; success?: boolean }) => {
-  const status = normalizedStatus(record)
-  return ({ running: '进行中', succeeded: '已完成', failed: '失败', aborted: '异常结束' } as Record<string, string>)[status] || status
-}
-
-const statusColor = (record: { status?: string; end?: number; success?: boolean }) => {
-  const status = normalizedStatus(record)
-  return ({ running: 'processing', succeeded: 'success', failed: 'error', aborted: 'warning' } as Record<string, string>)[status] || 'default'
 }
 
 const totalText = (total: number) => `共 ${total} 条`
@@ -338,7 +326,7 @@ const handleRefresh = async () => {
             <a-table-column title="连接时长" :width="120"><template #default="{ record }">{{ formatDuration(record.duration) }}</template></a-table-column>
             <a-table-column title="状态" :width="110" align="center"><template #default="{ record }"><a-tag :color="statusColor(record)">{{ statusLabel(record) }}</a-tag></template></a-table-column>
             <a-table-column title="结束原因" :width="220" ellipsis>
-              <template #default="{ record }"><div class="reason-cell"><span>{{ record.end_reason || '-' }}</span><a-tag v-if="record.recovered" color="warning">恢复补录</a-tag></div></template>
+              <template #default="{ record }"><div class="reason-cell"><span>{{ fileTransferReasonLabel(record.end_reason) }}</span><a-tag v-if="record.recovered" color="warning">恢复补录</a-tag></div></template>
             </a-table-column>
             <a-table-column title="发起设备" :width="180" ellipsis><template #default="{ record }"><strong class="device-id">{{ record.visitor_device }}</strong></template></a-table-column>
             <a-table-column title="目标设备" :width="180" ellipsis><template #default="{ record }"><strong class="device-id">{{ record.target_device }}</strong></template></a-table-column>
@@ -384,7 +372,7 @@ const handleRefresh = async () => {
             <a-table-column title="开始时间" :width="190"><template #default="{ record }">{{ formatTimestamp(record.begin) }}</template></a-table-column>
             <a-table-column title="结束时间" :width="190"><template #default="{ record }">{{ record.end > 0 ? formatTimestamp(record.end) : '-' }}</template></a-table-column>
             <a-table-column title="状态" :width="110" align="center"><template #default="{ record }"><a-tag :color="statusColor(record)">{{ statusLabel(record) }}</a-tag></template></a-table-column>
-            <a-table-column title="结束原因" :width="210" ellipsis><template #default="{ record }"><div class="reason-cell"><span>{{ record.end_reason || '-' }}</span><a-tag v-if="record.recovered" color="warning">恢复补录</a-tag></div></template></a-table-column>
+            <a-table-column title="结束原因" :width="210" ellipsis><template #default="{ record }"><div class="reason-cell"><span>{{ fileTransferReasonLabel(record.end_reason) }}</span><a-tag v-if="record.recovered" color="warning">恢复补录</a-tag></div></template></a-table-column>
             <a-table-column title="耗时" :width="110"><template #default="{ record }">{{ record.duration > 0 ? formatDuration(record.duration) : record.end > 0 && record.begin > 0 ? formatDuration(record.end - record.begin) : '-' }}</template></a-table-column>
             <a-table-column title="方向" :width="90" align="center"><template #default="{ record }"><a-tag :color="record.direction === 'In' ? 'success' : 'processing'">{{ record.direction === 'In' ? '传入' : '传出' }}</a-tag></template></a-table-column>
             <a-table-column title="文件路径" :width="220" ellipsis><template #default="{ record }"><a-tooltip :title="record.file_detail"><span>{{ record.file_detail || '-' }}</span></a-tooltip></template></a-table-column>

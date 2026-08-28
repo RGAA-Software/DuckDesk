@@ -15,11 +15,13 @@
 #include <fstream>
 #include <functional>
 #include <optional>
+#include <span>
 #include <string>
 #include <variant>
 #include <vector>
 
 #include "ft_path.h"
+#include "ft_sha256.h"
 #include "px_file_transfer.pb.h"
 #include "px_message.pb.h"
 
@@ -27,6 +29,10 @@ namespace px::ft {
 
 // 每块载荷字节数(fs.rs:953 BUF_SIZE=128KB,此处定 120KB 避免 TLV 边界分片)
 inline constexpr size_t kBlockPayloadSize = 120 * 1024;
+inline constexpr std::uint64_t kFtCapabilityBlockSequence = 1ULL << 0U;
+inline constexpr std::uint64_t kFtCapabilitySha256 = 1ULL << 1U;
+inline constexpr std::uint64_t kFtCurrentCapabilities =
+    kFtCapabilityBlockSequence | kFtCapabilitySha256;
 
 // fs.rs:262 JobType
 enum class JobType : int32_t { Generic = 0, Printer = 1 };
@@ -65,8 +71,8 @@ public:
 
     bool IsFile() const { return std::holds_alternative<std::fstream>(stream_); }
 
-    void WriteAll(const uint8_t* data, size_t len); // 失败抛异常
-    size_t ReadSome(uint8_t* buf, size_t len);      // 返回实际读取数,0 = EOF
+    void WriteAll(std::span<const uint8_t> data); // 失败抛异常
+    size_t ReadSome(std::span<uint8_t> buffer);   // 返回实际读取数,0 = EOF
     bool SeekStart(uint64_t offset);                // 文件流定位(读或写游标)
     void SyncAll();                                 // 落盘(fsync 语义)
 
@@ -180,6 +186,11 @@ public:
     void set_overwrite_strategy(std::optional<bool> v) { default_overwrite_strategy_ = v; }
     std::optional<bool> default_overwrite_strategy() const { return default_overwrite_strategy_; }
 
+    void set_peer_capabilities(std::uint64_t capabilities) {
+        peer_capabilities_ = capabilities;
+    }
+    [[nodiscard]] std::uint64_t peer_capabilities() const { return peer_capabilities_; }
+
     bool show_hidden = false;
     bool is_remote = false;
     bool is_last_job = false;
@@ -221,13 +232,21 @@ private:
     bool file_is_waiting_ = false;
     std::optional<bool> default_overwrite_strategy_;
     FileDigest digest_;
+    std::optional<Sha256Hasher> read_hasher_;
+    std::optional<Sha256Hasher> write_hasher_;
+    std::uint32_t next_read_block_id_ = 1;
+    std::uint32_t next_write_block_id_ = 1;
+    std::uint64_t peer_capabilities_ = 0;
+    bool write_integrity_verified_ = false;
 };
 
 // ---------------- 作业表操作(fs.rs:1306-1319) ----------------
 
 std::optional<TransferJob> RemoveJob(int32_t id, std::vector<TransferJob>& jobs);
-TransferJob* GetJob(int32_t id, std::vector<TransferJob>& jobs);
-const TransferJob* GetJob(int32_t id, const std::vector<TransferJob>& jobs);
+std::optional<std::reference_wrapper<TransferJob>> GetJob(
+    int32_t id, std::vector<TransferJob>& jobs);
+std::optional<std::reference_wrapper<const TransferJob>> GetJob(
+    int32_t id, const std::vector<TransferJob>& jobs);
 
 // ---------------- Digest 覆盖决策(fs.rs:1442-1510) ----------------
 

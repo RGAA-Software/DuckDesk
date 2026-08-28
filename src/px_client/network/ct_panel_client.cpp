@@ -252,10 +252,12 @@ namespace px
         pxcp::CpMessage cp_msg;
         cp_msg.set_type(pxcp::CpMessageType::kCpFileTransferEnd);
         cp_msg.set_stream_id(settings->stream_id_);
-        auto sub = cp_msg.mutable_ft_transfer_end();
-        sub->set_the_file_id(msg.the_file_id_);
-        sub->set_end_timestamp(msg.end_timestamp_);
-        sub->set_success(msg.success_);
+        auto& terminal = *cp_msg.mutable_ft_transfer_end();
+        terminal.set_the_file_id(msg.the_file_id_);
+        terminal.set_end_timestamp(msg.end_timestamp_);
+        terminal.set_success(msg.success_);
+        terminal.set_status(msg.status_);
+        terminal.set_end_reason(msg.end_reason_);
         client->async_send(cp_msg.SerializeAsString());
     }
 

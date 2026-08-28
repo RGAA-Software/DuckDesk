@@ -976,6 +976,19 @@ function exposeFtDebug() {
       const job = ft.uploadFile(file, targetDir)
       return { jobId: job.id, sha256: await sha256Hex(bytes), size: bytes.length }
     },
+    uploadPattern: (name: string, targetDir: string, size: number) => {
+      const client = ft.client()
+      if (!client) throw new Error('ft not ready')
+      if (!Number.isSafeInteger(size) || size <= 0) throw new Error('invalid upload size')
+      const file = new File([new Uint8Array(size).buffer], name)
+      const job = ft.uploadFile(file, targetDir)
+      return { jobId: job.id, size }
+    },
+    cancel: (jobId: number) => {
+      const client = ft.client()
+      if (!client) throw new Error('ft not ready')
+      client.cancel(jobId)
+    },
     download: async (path: string) => {
       const files = await ft.downloadToMemory(path)
       const f = files[0]

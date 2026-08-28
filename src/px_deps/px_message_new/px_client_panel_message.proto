@@ -50,6 +50,10 @@ message CpFileTransferEnd {
   int64 end_timestamp = 2;
   int64 duration = 3;
   bool success = 4;
+  // Stable terminal semantics. Empty fields mean a legacy sender; receivers
+  // derive succeeded/failed from success in that case.
+  string status = 5;
+  string end_reason = 6;
 }
 
 message CpRtcIceRestart {

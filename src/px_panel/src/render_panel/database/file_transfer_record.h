@@ -34,7 +34,7 @@ namespace px
         std::string file_detail_;
         bool success_ = false;
         int64_t duration_{0};
-        // running / succeeded / failed / aborted
+        // running / succeeded / failed / cancelled / skipped / aborted
         std::string status_{"running"};
         std::string end_reason_;
         bool recovered_{false};

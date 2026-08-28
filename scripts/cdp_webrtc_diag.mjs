@@ -17,6 +17,7 @@ const EXPECT_RELAY_PROTOCOL = process.env.EXPECT_RELAY_PROTOCOL || ''
 const FORCE_RELAY = process.env.FORCE_RELAY === '1'
 const QUIET = process.env.QUIET === '1'
 const FT_E2E_BYTES = Number(process.env.FT_E2E_BYTES || 0)
+const FT_CANCEL_E2E_BYTES = Number(process.env.FT_CANCEL_E2E_BYTES || 0)
 const FT_TARGET_DIR = process.env.FT_TARGET_DIR || 'C:\\Windows\\Temp'
 const FT_TIMEOUT_MS = Number(process.env.FT_TIMEOUT_MS || 300000)
 
@@ -103,20 +104,39 @@ async function waitFtJob(jobId, label) {
   throw new Error(`${label} timed out: ${JSON.stringify(last)}`)
 }
 
-async function runFileTransferE2E() {
-  if (!Number.isSafeInteger(FT_E2E_BYTES) || FT_E2E_BYTES <= 0) return null
-  console.log(`FT_PHASE: waiting-ready bytes=${FT_E2E_BYTES}`)
+async function waitFtReady() {
   const readyDeadline = Date.now() + 30000
   while (Date.now() < readyDeadline) {
     const remaining = Math.max(1, readyDeadline - Date.now())
     if (await evaluate(
       `window.__ft?.ready?.() === true`, Math.min(1000, remaining),
-    ).catch(() => false)) break
+    ).catch(() => false)) return
     await sleep(250)
   }
-  if (!(await evaluate(`window.__ft?.ready?.() === true`, 1000).catch(() => false))) {
-    throw new Error('file-transfer data channel did not become ready')
+  throw new Error('file-transfer data channel did not become ready')
+}
+
+async function waitFtCancelled(jobId) {
+  const deadline = Date.now() + FT_TIMEOUT_MS
+  let last = null
+  while (Date.now() < deadline) {
+    last = await evaluate(
+      `window.__ft?.jobs?.().find((job) => job.id === ${Number(jobId)}) ?? null`,
+      2000,
+    )
+    if (last?.state === 'cancelled') return last
+    if (last?.state === 'done' || last?.state === 'error') {
+      throw new Error(`cancel reached unexpected terminal state: ${JSON.stringify(last)}`)
+    }
+    await sleep(100)
   }
+  throw new Error(`cancel timed out: ${JSON.stringify(last)}`)
+}
+
+async function runFileTransferE2E() {
+  if (!Number.isSafeInteger(FT_E2E_BYTES) || FT_E2E_BYTES <= 0) return null
+  console.log(`FT_PHASE: waiting-ready bytes=${FT_E2E_BYTES}`)
+  await waitFtReady()
 
   const name = `px_ft_backpressure_${Date.now()}.bin`
   const targetPath = `${FT_TARGET_DIR}\\${name}`
@@ -156,6 +176,27 @@ async function runFileTransferE2E() {
   }
   console.log('FT_E2E: PASS', JSON.stringify(result))
   return result
+}
+
+async function runFileTransferCancelE2E() {
+  if (!Number.isSafeInteger(FT_CANCEL_E2E_BYTES) || FT_CANCEL_E2E_BYTES <= 0) return null
+  await waitFtReady()
+  const name = `px_ft_cancel_${Date.now()}.bin`
+  const targetPath = `${FT_TARGET_DIR}\\${name}`
+  console.log(`FT_CANCEL_PHASE: upload-start bytes=${FT_CANCEL_E2E_BYTES} path=${targetPath}`)
+  const started = await evaluate(
+    `window.__ft.uploadPattern(${JSON.stringify(name)}, ${JSON.stringify(FT_TARGET_DIR)}, ${FT_CANCEL_E2E_BYTES})`,
+    FT_TIMEOUT_MS,
+  )
+  await evaluate(`window.__ft.cancel(${Number(started.jobId)})`, 5000)
+  const cancelled = await waitFtCancelled(started.jobId)
+  console.log(`FT_CANCEL_E2E: PASS ${JSON.stringify({
+    jobId: started.jobId,
+    state: cancelled.state,
+    transferred: cancelled.transferred,
+    remotePath: targetPath,
+  })}`)
+  return { jobId: started.jobId, state: cancelled.state, remotePath: targetPath }
 }
 async function waitDevtools() {
   for (let i = 0; i < 60; i++) {
@@ -348,6 +389,7 @@ async function main() {
     throw new Error(`selected TURN transport 不是 ${EXPECT_RELAY_PROTOCOL}: ${JSON.stringify(selected)}`)
   }
   const fileTransfer = await runFileTransferE2E()
+  const fileTransferCancel = await runFileTransferCancelE2E()
   console.log('RESULT: PASS', JSON.stringify({
     frameDelta,
     staticFrameHold,
@@ -362,6 +404,7 @@ async function main() {
     localCandidate: lastWithPair.localCand,
     remoteCandidate: lastWithPair.remoteCand,
     fileTransfer,
+    fileTransferCancel,
   }))
 }
 

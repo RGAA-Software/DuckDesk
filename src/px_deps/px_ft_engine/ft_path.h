@@ -14,6 +14,7 @@
 // - 失败统一抛 std::runtime_error(对应 fs.rs 的 bail!/anyhow),调用边界负责捕获。
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -45,6 +46,11 @@ std::vector<px::FileEntry> GetRecursiveFiles(const std::string& path, bool inclu
 
 // fs.rs:244 get_empty_dirs_recursive
 std::vector<px::FileDirectory> GetEmptyDirsRecursive(const std::string& path, bool include_hidden);
+
+// Count only transferable regular files. Directory nodes and links are not part of
+// GetRecursiveFiles(), so they must not consume the validated-file limit either.
+// Stops as soon as the result exceeds limit.
+std::size_t CountRecursiveRegularFiles(const std::string& path, std::size_t limit);
 
 bool IsFileExists(const std::string& file_path);
 

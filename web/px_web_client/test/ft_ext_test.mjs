@@ -375,6 +375,7 @@ async function main() {
   const chrome = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${CDP_PORT}`, `--user-data-dir=${userDataDir}`,
     '--no-first-run', '--disable-gpu', 'about:blank'])
   const cleanup = async () => {
+    try { ws?.close() } catch { /* ignore */ }
     try { chrome.kill() } catch { /* ignore */ }
     server.close()
     await import('node:fs/promises').then((fs) => fs.rm(userDataDir, { recursive: true, force: true }).catch(() => {}))
@@ -512,7 +513,11 @@ async function main() {
     // 传输中现场:.download/.digest 是否都已落盘(等 2s 让被控 worker 把缓冲块写完)
     await sleep(2000)
     const dirMid = await link.listDir(REMOTE_DIR)
-    console.log('  中断后(页面未关)远端条目:', dirMid.entries.map((e) => `${e.name}(${Number(e.size)})`).join(' | '))
+    const resumeEntries = dirMid.entries.filter((e) => e.name === bigName
+      || e.name === `${bigName}.download`
+      || e.name === `${bigName}.digest`)
+    console.log(`  中断后(页面未关)目录共 ${dirMid.entries.length} 项,本次断点条目:`,
+      resumeEntries.map((e) => `${e.name}(${Number(e.size)})`).join(' | '))
     console.log('  关闭页面(杀 WebRTC 连接) ...')
     await fetch(`http://127.0.0.1:${CDP_PORT}/json/close/${target.id}`).catch(() => {})
     await sleep(4000)
@@ -564,13 +569,15 @@ async function main() {
     } // end ONLY 4
 
     console.log(`\n结果: PASS=${PASS} FAIL=${FAIL}`)
-    process.exit(FAIL > 0 ? 1 : 0)
+    return FAIL > 0 ? 1 : 0
   } finally {
     await cleanup()
   }
 }
 
-main().catch((err) => {
-  console.error(`\n测试失败(PASS=${PASS} FAIL=${FAIL}):`, err)
-  process.exit(1)
-})
+main()
+  .then((exitCode) => { process.exitCode = exitCode })
+  .catch((err) => {
+    console.error(`\n测试失败(PASS=${PASS} FAIL=${FAIL}):`, err)
+    process.exitCode = 1
+  })

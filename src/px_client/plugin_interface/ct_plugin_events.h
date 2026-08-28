@@ -133,7 +133,9 @@ namespace px
         std::string task_id_;
         std::string file_path_;
         std::string direction_;
-        bool success_;
+        bool success_ = false;
+        std::string status_;
+        std::string end_reason_;
     };
 
     // kPluginRemoteClipboardResp

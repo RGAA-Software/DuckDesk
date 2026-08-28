@@ -8,7 +8,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace px::ft {
@@ -17,21 +19,21 @@ namespace px::ft {
 inline constexpr size_t kMaxDecompressedSize = 256 * 1024 * 1024;
 
 // fs.rs:454 is_compressed_file:已压缩格式后缀跳过压缩(xz/gz/zip/7z/rar/bz2/tgz/png/jpg)
-bool IsCompressedFile(const std::string& name);
+bool IsCompressedFile(std::string_view name);
 
 // compress.rs:17 compress:失败返回空 vector(调用方按未压缩处理)
-std::vector<uint8_t> Compress(const void* data, size_t len);
+std::vector<uint8_t> Compress(std::span<const uint8_t> data);
 inline std::vector<uint8_t> Compress(const std::vector<uint8_t>& data) {
-    return Compress(data.data(), data.size());
+    return Compress(std::span<const uint8_t>(data));
 }
 
 // compress.rs:37 decompress:带 256MB 上限,失败/超限返回空 vector
-std::vector<uint8_t> Decompress(const void* data, size_t len);
+std::vector<uint8_t> Decompress(std::span<const uint8_t> data);
 inline std::vector<uint8_t> Decompress(const std::vector<uint8_t>& data) {
-    return Decompress(data.data(), data.size());
+    return Decompress(std::span<const uint8_t>(data));
 }
 
 // compress.rs:41 decompress_with_limit:自定义上限(测试可用小上限验证拒绝逻辑)
-std::vector<uint8_t> DecompressWithLimit(const void* data, size_t len, size_t limit);
+std::vector<uint8_t> DecompressWithLimit(std::span<const uint8_t> data, size_t limit);
 
 } // namespace px::ft

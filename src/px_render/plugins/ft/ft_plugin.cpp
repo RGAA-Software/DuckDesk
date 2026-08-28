@@ -12,6 +12,7 @@
 #include "ft_async_session.h"
 #include "ft_engine.h"
 #include "ft_path.h"
+#include "ft_terminal.h"
 #include "transfer_job.h"
 #include "px_message_new/proto_converter.h"
 #include "px_common_new/log.h"
@@ -516,23 +517,6 @@ namespace px
         }
     }
 
-    static size_t CountEntriesRecursive(const std::string& path, size_t limit) {
-        namespace fs = std::filesystem;
-        std::error_code ec;
-        const auto p = px::ft::ToFsPath(path);
-        if (!fs::is_directory(p, ec)) {
-            return fs::exists(p, ec) ? 1 : 0;
-        }
-        size_t count = 0;
-        fs::recursive_directory_iterator it(p, fs::directory_options::skip_permission_denied, ec);
-        for (const fs::recursive_directory_iterator end; !ec && it != end; it.increment(ec)) {
-            if (++count > limit) {
-                break;
-            }
-        }
-        return count;
-    }
-
     bool FtPlugin::CheckFileCountLimit(const px::FileAction& action, const std::string& stream_id) {
         using U = px::FileAction::UnionCase;
         int32_t id = 0;
@@ -544,12 +528,14 @@ namespace px
                 // 避免引擎递归展开超大目录。
                 id = action.send().id();
                 file_num = action.send().file_num();
-                count = CountEntriesRecursive(action.send().path(), kMaxTransferFileCount);
+                count = px::ft::CountRecursiveRegularFiles(
+                    action.send().path(), kMaxTransferFileCount);
                 break;
             case U::kAllFiles:
                 // connection.rs:3472
                 id = action.all_files().id();
-                count = CountEntriesRecursive(action.all_files().path(), kMaxTransferFileCount);
+                count = px::ft::CountRecursiveRegularFiles(
+                    action.all_files().path(), kMaxTransferFileCount);
                 break;
             case U::kReceive:
                 // 对端已展开,直接数列表。
@@ -619,7 +605,10 @@ namespace px
         event->the_file_id_ = it->second.the_file_id_;
         event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->duration_ = event->end_timestamp_ - it->second.begin_timestamp_;
-        event->success_ = error_or_empty.empty();
+        const auto terminal = px::ft::ClassifyTerminal(error_or_empty);
+        event->success_ = terminal.success;
+        event->status_ = terminal.status;
+        event->end_reason_ = terminal.reason;
         CallbackEvent(event);
         audits_.erase(it);
     }

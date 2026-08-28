@@ -121,7 +121,10 @@ void FtEngine::Tick() {
     for (auto& job : read_jobs_) {
         if (job.is_last_job) continue;
         try {
-            job.InitDataStream([this](const px::Message& m) { return Send(m); });
+            auto& engine = *this;
+            job.InitDataStream([&engine](const px::Message& message) {
+                return engine.Send(message);
+            });
         } catch (const std::exception& e) {
             Send(NewError(job.id(), e.what(), job.file_num()));
         }
@@ -224,9 +227,9 @@ void FtEngine::HandleFileAction(const px::FileAction& action, const std::string&
             try {
                 auto fds = GetEmptyDirsRecursive(rd.path(), rd.include_hidden());
                 px::Message msg;
-                auto* resp = msg.mutable_file_response()->mutable_empty_dirs();
-                resp->set_path(rd.path());
-                for (auto& fd : fds) *resp->add_empty_dirs() = std::move(fd);
+                auto& response = *msg.mutable_file_response()->mutable_empty_dirs();
+                response.set_path(rd.path());
+                for (auto& fd : fds) *response.add_empty_dirs() = std::move(fd);
                 Send(msg);
             } catch (const std::exception& e) {
                 Log(std::string("read_empty_dirs failed: ") + e.what());
@@ -344,10 +347,10 @@ void FtEngine::HandleFileAction(const px::FileAction& action, const std::string&
             // 读侧作业(我方在发送)直接确认;否则落到写侧作业
             // (上传方向:主控 UI 决策后回 send_confirm,定位 .download 写流,
             // 对应 rustdesk CM 的 ipc::FS::SendConfirm 处理,ui_cm_interface.rs:1138)
-            if (auto* job = GetJob(r.id(), read_jobs_)) {
-                job->Confirm(r);
-            } else if (auto* job = GetJob(r.id(), write_jobs_)) {
-                job->Confirm(r);
+            if (auto job = GetJob(r.id(), read_jobs_)) {
+                job->get().Confirm(r);
+            } else if (auto job = GetJob(r.id(), write_jobs_)) {
+                job->get().Confirm(r);
             }
             break;
         }
@@ -383,11 +386,11 @@ void FtEngine::HandleFileResponse(const px::FileResponse& resp) {
         case U::kDir: {
             // io_loop.rs:1520 - 若是对应写作业的文件列表(下载流程),先喂给作业
             const auto& fd = resp.dir();
-            if (auto* job = GetJob(fd.id(), write_jobs_)) {
+            if (auto job = GetJob(fd.id(), write_jobs_)) {
                 try {
-                    job->SetFiles(
+                    job->get().SetFiles(
                         std::vector<px::FileEntry>(fd.entries().begin(), fd.entries().end()));
-                    job->SetFinishedSizeOnResume();
+                    job->get().SetFinishedSizeOnResume();
                 } catch (const std::exception& e) {
                     Log("Reject unsafe file list from remote peer for job " +
                         std::to_string(fd.id()) + ": " + e.what());
@@ -409,9 +412,10 @@ void FtEngine::HandleFileResponse(const px::FileResponse& resp) {
 
 void FtEngine::HandleBlock(const px::FileTransferBlock& block) {
     // io_loop.rs:1701
-    if (auto* job = GetJob(block.id(), write_jobs_)) {
+    if (auto job_ref = GetJob(block.id(), write_jobs_)) {
+        auto& job = job_ref->get();
         try {
-            job->Write(block);
+            job.Write(block);
         } catch (const std::exception& e) {
             // 写失败(含 Write 内收尾上一文件的 rename 失败):作业以错误终结,
             // .download/.digest 保留供续传,回 new_error 通知对端。
@@ -423,7 +427,7 @@ void FtEngine::HandleBlock(const px::FileTransferBlock& block) {
             }
             return;
         }
-        if (job->type() == JobType::Generic) {
+        if (job.type() == JobType::Generic) {
             UpdateJobsStatus(); // io_loop.rs:1707
         }
     }
@@ -457,25 +461,26 @@ void FtEngine::HandleDigest(const px::FileTransferDigest& digest) {
     // io_loop.rs:1570-1699
     if (digest.is_upload()) {
         // 上传方向:我方是读侧;对端(写侧)报回它本地的同名文件情况
-        auto* job = GetJob(digest.id(), read_jobs_);
-        if (!job) return;
+        auto job_ref = GetJob(digest.id(), read_jobs_);
+        if (!job_ref) return;
+        auto& job = job_ref->get();
         if (digest.file_num() < 0 ||
-            static_cast<size_t>(digest.file_num()) >= job->files().size()) {
+            static_cast<size_t>(digest.file_num()) >= job.files().size()) {
             return;
         }
-        const auto* p = std::get_if<std::filesystem::path>(&job->data_source());
-        if (!p) return;
+        if (!std::holds_alternative<std::filesystem::path>(job.data_source())) return;
+        const auto& base = std::get<std::filesystem::path>(job.data_source());
         std::string read_path =
-            ToUtf8(TransferJob::Join(*p, job->files()[digest.file_num()].name()));
-        std::optional<bool> overwrite_strategy = job->default_overwrite_strategy();
+            ToUtf8(TransferJob::Join(base, job.files()[digest.file_num()].name()));
+        std::optional<bool> overwrite_strategy = job.default_overwrite_strategy();
         uint64_t offset = 0;
-        if (digest.is_identical() && job->is_resume && digest.transferred_size() > 0) {
+        if (digest.is_identical() && job.is_resume && digest.transferred_size() > 0) {
             overwrite_strategy = true;
             offset = digest.transferred_size();
         }
         if (overwrite_strategy) {
             auto req = MakeConfirm(digest.id(), digest.file_num(), *overwrite_strategy, offset);
-            job->Confirm(req);
+            job.Confirm(req);
             Send(NewSendConfirm(req));
         } else if (overwrite_confirm_cb_) {
             overwrite_confirm_cb_(digest.id(), digest.file_num(), read_path, true,
@@ -483,22 +488,24 @@ void FtEngine::HandleDigest(const px::FileTransferDigest& digest) {
         }
     } else {
         // 下载方向:我方是写侧;对端(读侧)发来源文件 digest,本地做覆盖/续传决策
-        auto* job = GetJob(digest.id(), write_jobs_);
-        if (!job) return;
+        auto job_ref = GetJob(digest.id(), write_jobs_);
+        if (!job_ref) return;
+        auto& job = job_ref->get();
         if (digest.file_num() < 0 ||
-            static_cast<size_t>(digest.file_num()) >= job->files().size()) {
+            static_cast<size_t>(digest.file_num()) >= job.files().size()) {
             return;
         }
-        const auto* p = std::get_if<std::filesystem::path>(&job->data_source());
-        if (!p) return;
+        if (!std::holds_alternative<std::filesystem::path>(job.data_source())) return;
+        const auto& base = std::get<std::filesystem::path>(job.data_source());
         // io_loop.rs:1618 - 此处用普通 join(写盘前 Write 内还会再过校验)
         std::string write_path =
-            ToUtf8(TransferJob::Join(*p, job->files()[digest.file_num()].name()));
-        job->set_digest(digest.file_size(), digest.last_modified());
+            ToUtf8(TransferJob::Join(base, job.files()[digest.file_num()].name()));
+        job.set_digest(digest.file_size(), digest.last_modified());
+        job.set_peer_capabilities(digest.capabilities());
         // 续传判定:被控侧写作业 is_resume 恒 false,必须用 digest 里的 is_resume
         // (ui_cm_interface.rs:1106 CheckDigest 参数语义);主控下载侧本地写作业可能带
         // is_resume(io_loop.rs ResumeJob),两者取或
-        const bool is_resume = digest.is_resume() || job->is_resume;
+        const bool is_resume = digest.is_resume() || job.is_resume;
         DigestCheckResult res;
         try {
             res = IsWriteNeedConfirmation(is_resume, write_path, digest);
@@ -509,12 +516,12 @@ void FtEngine::HandleDigest(const px::FileTransferDigest& digest) {
         switch (res.kind) {
             case DigestCheckResult::Kind::IsSame: {
                 auto req = MakeConfirm(digest.id(), digest.file_num(), false, 0);
-                job->Confirm(req);
+                job.Confirm(req);
                 Send(NewSendConfirm(req));
                 break;
             }
             case DigestCheckResult::Kind::NeedConfirm: {
-                std::optional<bool> overwrite_strategy = job->default_overwrite_strategy();
+                std::optional<bool> overwrite_strategy = job.default_overwrite_strategy();
                 uint64_t offset = 0;
                 if (res.digest.is_identical() && is_resume &&
                     res.digest.transferred_size() > 0) {
@@ -524,9 +531,9 @@ void FtEngine::HandleDigest(const px::FileTransferDigest& digest) {
                 if (overwrite_strategy) {
                     auto req =
                         MakeConfirm(digest.id(), digest.file_num(), *overwrite_strategy, offset);
-                    job->Confirm(req);
+                    job.Confirm(req);
                     Send(NewSendConfirm(req));
-                } else if (job->is_remote) {
+                } else if (job.is_remote) {
                     // 本端是主控(下载方向,io_loop.rs:1615 写侧语义):本地 UI 决策
                     if (overwrite_confirm_cb_) {
                         overwrite_confirm_cb_(digest.id(), digest.file_num(), write_path, false,
@@ -537,17 +544,18 @@ void FtEngine::HandleDigest(const px::FileTransferDigest& digest) {
                     // 回发 digest(is_upload=true)给主控,由主控 UI 弹框决策;
                     // 主控决策后回 send_confirm,经 kSendConfirm 落到本写作业
                     px::Message msg;
-                    auto* out = msg.mutable_file_response()->mutable_digest();
-                    *out = res.digest;
-                    out->set_is_upload(true);
-                    out->set_is_resume(digest.is_resume());
+                    auto& outgoing = *msg.mutable_file_response()->mutable_digest();
+                    outgoing = res.digest;
+                    outgoing.set_is_upload(true);
+                    outgoing.set_is_resume(digest.is_resume());
+                    outgoing.set_capabilities(digest.capabilities());
                     Send(msg);
                 }
                 break;
             }
             case DigestCheckResult::Kind::NoSuchFile: {
                 auto req = MakeConfirm(digest.id(), digest.file_num(), true, 0);
-                job->Confirm(req);
+                job.Confirm(req);
                 Send(NewSendConfirm(req));
                 break;
             }
@@ -594,61 +602,61 @@ int32_t FtEngine::ReceiveFiles(const std::string& remote_path, bool include_hidd
 
 void FtEngine::ReadDir(const std::string& path, bool include_hidden) {
     px::Message msg;
-    auto* rd = msg.mutable_file_action()->mutable_read_dir();
-    rd->set_path(path);
-    rd->set_include_hidden(include_hidden);
+    auto& request = *msg.mutable_file_action()->mutable_read_dir();
+    request.set_path(path);
+    request.set_include_hidden(include_hidden);
     Send(msg);
 }
 
 void FtEngine::ReadAllFiles(int32_t id, const std::string& path, bool include_hidden) {
     px::Message msg;
-    auto* f = msg.mutable_file_action()->mutable_all_files();
-    f->set_id(id);
-    f->set_path(path);
-    f->set_include_hidden(include_hidden);
+    auto& request = *msg.mutable_file_action()->mutable_all_files();
+    request.set_id(id);
+    request.set_path(path);
+    request.set_include_hidden(include_hidden);
     Send(msg);
 }
 
 void FtEngine::ReadEmptyDirs(const std::string& path, bool include_hidden) {
     px::Message msg;
-    auto* rd = msg.mutable_file_action()->mutable_read_empty_dirs();
-    rd->set_path(path);
-    rd->set_include_hidden(include_hidden);
+    auto& request = *msg.mutable_file_action()->mutable_read_empty_dirs();
+    request.set_path(path);
+    request.set_include_hidden(include_hidden);
     Send(msg);
 }
 
 void FtEngine::CreateDir(int32_t id, const std::string& path) {
     px::Message msg;
-    auto* c = msg.mutable_file_action()->mutable_create();
-    c->set_id(id);
-    c->set_path(path);
+    auto& request = *msg.mutable_file_action()->mutable_create();
+    request.set_id(id);
+    request.set_path(path);
     Send(msg);
 }
 
 void FtEngine::RemoveDir(int32_t id, const std::string& path, bool recursive) {
     px::Message msg;
-    auto* d = msg.mutable_file_action()->mutable_remove_dir();
-    d->set_id(id);
-    d->set_path(path);
-    d->set_recursive(recursive);
+    auto& request = *msg.mutable_file_action()->mutable_remove_dir();
+    request.set_id(id);
+    request.set_path(path);
+    request.set_recursive(recursive);
     Send(msg);
 }
 
 void FtEngine::RemoveFile(int32_t id, const std::string& path, int32_t file_num) {
     px::Message msg;
-    auto* f = msg.mutable_file_action()->mutable_remove_file();
-    f->set_id(id);
-    f->set_path(path);
-    f->set_file_num(file_num);
+    auto& request = *msg.mutable_file_action()->mutable_remove_file();
+    request.set_id(id);
+    request.set_path(path);
+    request.set_file_num(file_num);
     Send(msg);
 }
 
 void FtEngine::RenameFile(int32_t id, const std::string& path, const std::string& new_name) {
     px::Message msg;
-    auto* r = msg.mutable_file_action()->mutable_rename();
-    r->set_id(id);
-    r->set_path(path);
-    r->set_new_name(new_name);
+    auto& request = *msg.mutable_file_action()->mutable_rename();
+    request.set_id(id);
+    request.set_path(path);
+    request.set_new_name(new_name);
     Send(msg);
 }
 
@@ -678,15 +686,15 @@ void FtEngine::DisconnectCleanup(const std::string& conn_id) {
 }
 
 void FtEngine::SetOverwriteStrategy(int32_t id, std::optional<bool> overwrite) {
-    if (auto* job = GetJob(id, read_jobs_)) job->set_overwrite_strategy(overwrite);
-    if (auto* job = GetJob(id, write_jobs_)) job->set_overwrite_strategy(overwrite);
+    if (auto job = GetJob(id, read_jobs_)) job->get().set_overwrite_strategy(overwrite);
+    if (auto job = GetJob(id, write_jobs_)) job->get().set_overwrite_strategy(overwrite);
 }
 
 void FtEngine::ConfirmFile(int32_t id, int32_t file_num, bool overwrite, uint64_t offset_bytes) {
     auto req = MakeConfirm(id, file_num, overwrite, offset_bytes);
     // 回喂本地作业状态(io_loop.rs override_file_confirm 后 confirm 语义)
-    if (auto* job = GetJob(id, read_jobs_)) job->Confirm(req);
-    if (auto* job = GetJob(id, write_jobs_)) job->Confirm(req);
+    if (auto job = GetJob(id, read_jobs_)) job->get().Confirm(req);
+    if (auto job = GetJob(id, write_jobs_)) job->get().Confirm(req);
     Send(NewSendConfirm(req));
 }
 

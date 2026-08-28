@@ -343,10 +343,12 @@ namespace px
             }
             pxrp::RpMessage msg;
             msg.set_type(pxrp::kRpFileTransferEnd);
-            auto sub = msg.mutable_ft_end();
-            sub->set_the_file_id(event->the_file_id_);
-            sub->set_end_timestamp(event->end_timestamp_);
-            sub->set_success(event->success_);
+            auto& terminal = *msg.mutable_ft_end();
+            terminal.set_the_file_id(event->the_file_id_);
+            terminal.set_end_timestamp(event->end_timestamp_);
+            terminal.set_success(event->success_);
+            terminal.set_status(event->status_);
+            terminal.set_end_reason(event->end_reason_);
             auto buffer = RpProtoAsData(&msg);
             self->app_->PostPanelMessage(buffer);
         });

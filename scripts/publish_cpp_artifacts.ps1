@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("render", "client", "panel", "render_plugins", "render_plugin")]
+    [ValidateSet("render", "client", "panel", "render_plugins", "render_plugin", "ft_protocol")]
     [string]$Component,
     [string]$PluginTarget = "",
     [string]$BuildDir = "build_official"
@@ -167,5 +167,33 @@ switch ($Component) {
         foreach ($target in $renderPluginMap.Keys | Sort-Object) {
             Publish-RenderPlugin -Target $target
         }
+    }
+    "ft_protocol" {
+        # px_file_transfer.proto objects cross these executable/plugin boundaries.
+        # Publish them as one compatibility unit so generated protobuf layouts cannot be mixed.
+        Publish-VerifiedFile `
+            -Source (Join-Path $buildRoot "src\px_deps\px_panel.exe") `
+            -Destination (Join-Path $distRoot "px_panel.exe") `
+            -ProcessName "px_panel"
+        Publish-VerifiedFile `
+            -Source (Join-Path $buildRoot "src\px_render\px_render.exe") `
+            -Destination (Join-Path $distRoot "px_render.exe") `
+            -ProcessName "px_render"
+        foreach ($target in @("ft", "net_ws", "net_relay", "net_rtc", "net_rtc_local", "net_udp")) {
+            Publish-RenderPlugin -Target $target
+        }
+        Publish-VerifiedFile `
+            -Source (Join-Path $buildRoot "src\px_client\px_client.exe") `
+            -Destination (Join-Path $distRoot "px_client.exe") `
+            -ProcessName "px_client"
+        Publish-VerifiedFile `
+            -Source (Join-Path $buildRoot "src\px_deps\px_webrtc_client\px_rtc_client.dll") `
+            -Destination (Join-Path $distRoot "px_client_rtc.dll") `
+            -ProcessName "px_client"
+        Publish-VerifiedFile `
+            -Source (Join-Path $buildRoot "src\px_client\plugins\ft\ft.dll") `
+            -Destination (Join-Path $distRoot "deps\ct_plugins\ft.dll") `
+            -ProcessName "px_client"
+        Publish-LanguageResources
     }
 }

@@ -7,6 +7,10 @@ param(
     [int]$SampleSeconds = 9,
     [ValidateRange(0, 60)]
     [int]$InterRoundDelaySeconds = 0,
+    [ValidateRange(0, 1073741824)]
+    [long]$FtE2eBytes = 0,
+    [ValidateRange(0, 1073741824)]
+    [long]$FtCancelE2eBytes = 0,
     [string]$ConsoleBase = 'https://127.0.0.1:30500',
     [string]$TargetHost = '10.0.0.90',
     [string]$DeviceId = '001190520',
@@ -60,6 +64,12 @@ function Invoke-JsonPost([string]$Uri, [object]$Body, [string]$Bearer = '', [int
 }
 
 try {
+    if ($FtE2eBytes -gt 0) {
+        $env:FT_E2E_BYTES = [string]$FtE2eBytes
+    }
+    if ($FtCancelE2eBytes -gt 0) {
+        $env:FT_CANCEL_E2E_BYTES = [string]$FtCancelE2eBytes
+    }
     $guest = Invoke-JsonPost "$ConsoleBase/api/v1/session/guest" `
         @{ client_nonce = "stability_guest_$suffix"; client_type = 'panel' } '' 9
     if ($guest.code -ne 200 -or -not $guest.data.access_token) { throw 'guest session failed' }
@@ -113,6 +123,8 @@ try {
     }
 }
 finally {
+    Remove-Item Env:\FT_E2E_BYTES -ErrorAction SilentlyContinue
+    Remove-Item Env:\FT_CANCEL_E2E_BYTES -ErrorAction SilentlyContinue
     if ($uid -and $uid -match '^[A-Za-z0-9_-]+$' -and (Test-Path -LiteralPath $MongoExe)) {
         $cleanup = @"
 var u='$uid';

@@ -364,6 +364,8 @@ namespace px
         std::string the_file_id_;
         int64_t end_timestamp_ = 0;
         int64_t duration_ = 0;
+        std::string status_;
+        std::string end_reason_;
     };
 
     // data sent size

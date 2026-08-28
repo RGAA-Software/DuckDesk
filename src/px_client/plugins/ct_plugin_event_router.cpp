@@ -82,6 +82,8 @@ namespace px
                 .end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp(),
                 .duration_ = 0,
                 .success_ = target_event->success_,
+                .status_ = target_event->status_,
+                .end_reason_ = target_event->end_reason_,
             });
         }
         else if (ClientPluginEventType::kPluginRemoteClipboardResp == event->event_type_) {

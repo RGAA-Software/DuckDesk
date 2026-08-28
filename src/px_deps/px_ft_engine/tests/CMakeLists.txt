@@ -13,3 +13,8 @@ add_ft_test(test_ft_engine test_ft_engine.cpp)
 add_ft_test(test_ft_send_contract test_ft_send_contract.cpp)
 add_ft_test(test_ft_two_phase_send test_ft_two_phase_send.cpp)
 add_ft_test(test_ft_async_session test_ft_async_session.cpp)
+add_ft_test(test_ft_integrity test_ft_integrity.cpp)
+
+add_executable(test_ft_terminal test_ft_terminal.cpp)
+target_link_libraries(test_ft_terminal PRIVATE
+    px_ft_engine px_cp_message px_rp_message GTest::gtest GTest::gtest_main)

@@ -13,6 +13,7 @@
 #include "px_message_new/proto_converter.h"
 #include "px_common_new/log.h"
 #include "px_common_new/time_util.h"
+#include "ft_terminal.h"
 #include "px_client/plugin_interface/ct_plugin_ids.h"
 #include "px_client/plugin_interface/ct_plugin_events.h"
 #include "no_margin_layout.h"
@@ -197,7 +198,10 @@ namespace px
         event->task_id_ = std::format("{}#{}", it->second.toStdString(), job_id);
         event->file_path_ = it->second.toStdString();
         event->direction_ = ""; // router 不回填 direction,Begin 已定
-        event->success_ = error_or_empty.isEmpty();
+        const auto terminal = px::ft::ClassifyTerminal(error_or_empty.toStdString());
+        event->success_ = terminal.success;
+        event->status_ = terminal.status;
+        event->end_reason_ = terminal.reason;
         CallbackEvent(event);
         audit_jobs_.erase(it);
     }

@@ -2,7 +2,7 @@ use crate::console_api_error::ConsoleApiError;
 use crate::gConsoleDatabase;
 use crate::record::console_file_transfer::{ConsoleFileTransfer, ConsoleUpdateFileTransfer};
 use futures_util::StreamExt;
-use mongodb::bson::{doc, Bson};
+use mongodb::bson::{Bson, doc};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -279,6 +279,8 @@ fn normalize_file_terminal_status(
         "succeeded" if success => Ok("succeeded"),
         "failed" if !success => Ok("failed"),
         "aborted" if !success => Ok("aborted"),
+        "cancelled" if !success => Ok("cancelled"),
+        "skipped" if !success => Ok("skipped"),
         _ => Err(ConsoleApiError::InvalidParams),
     }
 }
@@ -328,7 +330,19 @@ mod lifecycle_tests {
             Ok("aborted")
         );
         assert_eq!(
+            normalize_file_terminal_status("cancelled", false),
+            Ok("cancelled")
+        );
+        assert_eq!(
+            normalize_file_terminal_status("skipped", false),
+            Ok("skipped")
+        );
+        assert_eq!(
             normalize_file_terminal_status("failed", true),
+            Err(ConsoleApiError::InvalidParams)
+        );
+        assert_eq!(
+            normalize_file_terminal_status("cancelled", true),
             Err(ConsoleApiError::InvalidParams)
         );
     }

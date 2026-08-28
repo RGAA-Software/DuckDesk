@@ -589,7 +589,14 @@ namespace px
                 }
                 auto sub = proto_msg->ft_transfer_end();
                 self->TrackPanelTransfer(socket_fd, sub.the_file_id(), false);
-                self->ft_record_op_->UpdateFileTransferRecord(sub.the_file_id(), sub.end_timestamp(), sub.success());
+                const auto status = sub.status().empty()
+                    ? (sub.success() ? "succeeded" : "failed")
+                    : sub.status();
+                const auto reason = sub.end_reason().empty()
+                    ? (sub.success() ? "completed" : "transfer_failed")
+                    : sub.end_reason();
+                self->ft_record_op_->UpdateFileTransferRecord(
+                    sub.the_file_id(), sub.end_timestamp(), sub.success(), status, reason);
 
                 if (const auto opt = self->ft_record_op_->GetFileTransferRecordByFileId(sub.the_file_id()); opt.has_value()) {
                     self->NotifyUpdateFileTransferRecordToConsole(opt.value());
@@ -753,7 +760,14 @@ namespace px
                 }
                 auto sub = proto_msg->ft_end();
                 self->TrackRendererTransfer(socket_fd, sub.the_file_id(), false);
-                self->ft_record_op_->UpdateFileTransferRecord(sub.the_file_id(), sub.end_timestamp(), sub.success());
+                const auto status = sub.status().empty()
+                    ? (sub.success() ? "succeeded" : "failed")
+                    : sub.status();
+                const auto reason = sub.end_reason().empty()
+                    ? (sub.success() ? "completed" : "transfer_failed")
+                    : sub.end_reason();
+                self->ft_record_op_->UpdateFileTransferRecord(
+                    sub.the_file_id(), sub.end_timestamp(), sub.success(), status, reason);
 
                 if (const auto opt = self->ft_record_op_->GetFileTransferRecordByFileId(sub.the_file_id()); opt.has_value()) {
                     self->NotifyUpdateFileTransferRecordToConsole(opt.value());

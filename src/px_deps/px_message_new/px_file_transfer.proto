@@ -104,8 +104,11 @@ message FileTransferDigest {
   bool is_resume = 8;          // 续传用:本次是否为恢复传输
                                // is_resume=false 且 .digest 存在但正式文件不存在时,
                                // 接收侧不消费 .digest,按新传输重新确认
-  // 相对上游的增强(预留):文件内容哈希(如 sha256),用于续传强校验。
-  // 第一版只透传不强制校验;上游仅靠 size+mtime 判断同一文件。
+  // 相对上游的增强:发送端支持的文件传输能力。按位协商，未知位必须忽略。
+  // bit 0: FileTransferBlock.blk_id 严格连续校验。
+  // bit 1: 每个文件 EOF block 的 file_hash 为 SHA-256，接收端校验成功后才 rename。
+  uint64 capabilities = 10;
+  // 预留给续传前的来源文件强身份校验；当前最终完整性由 EOF block.file_hash 保证。
   bytes file_hash = 9;
 }
 
@@ -114,7 +117,8 @@ message FileTransferBlock {
   sint32 file_num = 2;
   bytes data = 3;
   bool compressed = 4;
-  uint32 blk_id = 5; // 上游闲置字段,保留编号对齐
+  uint32 blk_id = 5; // 支持能力 bit 0 时从 1 开始，每个文件严格连续（含 EOF 空块）
+  bytes file_hash = 6; // 支持能力 bit 1 时，仅 EOF 空块携带原始文件内容的 SHA-256
 }
 
 message FileTransferError {

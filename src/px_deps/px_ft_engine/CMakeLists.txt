@@ -12,6 +12,8 @@ find_package(nlohmann_json CONFIG REQUIRED)
 add_library(px_ft_engine STATIC
     ft_path.cpp
     ft_compress.cpp
+    ft_sha256.cpp
+    ft_terminal.cpp
     transfer_job.cpp
     ft_engine.cpp
     ft_async_session.cpp
@@ -29,6 +31,8 @@ set(PX_FT_PROTO_HEADERS
 set_property(SOURCE
     ft_path.cpp
     ft_compress.cpp
+    ft_sha256.cpp
+    ft_terminal.cpp
     transfer_job.cpp
     ft_engine.cpp
     ft_async_session.cpp

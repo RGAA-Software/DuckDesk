@@ -286,7 +286,9 @@ namespace px
         std::string the_file_id_;
         int64_t end_timestamp_;
         int64_t duration_;
-        bool success_;
+        bool success_ = false;
+        std::string status_;
+        std::string end_reason_;
     };
 
     // notification

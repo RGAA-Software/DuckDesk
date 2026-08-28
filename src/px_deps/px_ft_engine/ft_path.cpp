@@ -163,7 +163,20 @@ std::filesystem::path ToFsPath(const std::string& utf8) {
 #ifdef _WIN32
     // UTF-8 -> UTF-16,避免 ANSI 代码页丢字符
     std::u8string u8(reinterpret_cast<const char8_t*>(utf8.data()), utf8.size());
-    return std::filesystem::path(u8);
+    std::filesystem::path path(u8);
+    path.make_preferred();
+    const auto native = path.native();
+    if (native.starts_with(L"\\\\?\\")) {
+        return path;
+    }
+    if (native.starts_with(L"\\\\")) {
+        return std::filesystem::path(L"\\\\?\\UNC\\" + native.substr(2));
+    }
+    if (native.size() >= 3 && native[1] == L':' &&
+        (native[2] == L'\\' || native[2] == L'/')) {
+        return std::filesystem::path(L"\\\\?\\" + native);
+    }
+    return path;
 #else
     return std::filesystem::path(utf8);
 #endif
@@ -171,7 +184,14 @@ std::filesystem::path ToFsPath(const std::string& utf8) {
 
 std::string ToUtf8(const std::filesystem::path& p) {
 #ifdef _WIN32
-    std::u8string u8 = p.u8string();
+    const auto native = p.native();
+    std::filesystem::path external = p;
+    if (native.starts_with(L"\\\\?\\UNC\\")) {
+        external = std::filesystem::path(L"\\\\" + native.substr(8));
+    } else if (native.starts_with(L"\\\\?\\")) {
+        external = std::filesystem::path(native.substr(4));
+    }
+    std::u8string u8 = external.u8string();
     return std::string(reinterpret_cast<const char*>(u8.data()), u8.size());
 #else
     return p.string();
@@ -294,6 +314,38 @@ std::vector<px::FileDirectory> GetEmptyDirsRecursive(const std::string& path, bo
     std::vector<px::FileDirectory> dirs;
     ReadEmptyDirsRecursive(ToFsPath(path), std::filesystem::path(), include_hidden, &dirs);
     return dirs;
+}
+
+std::size_t CountRecursiveRegularFiles(const std::string& path, std::size_t limit) {
+    namespace fs = std::filesystem;
+    std::error_code error;
+    const auto fs_path = ToFsPath(path);
+    const auto root_status = fs::symlink_status(fs_path, error);
+    if (error) {
+        return 0;
+    }
+    if (root_status.type() == fs::file_type::regular) {
+        return 1;
+    }
+    if (root_status.type() != fs::file_type::directory) {
+        return 0;
+    }
+
+    std::size_t count = 0;
+    fs::recursive_directory_iterator iterator(
+        fs_path, fs::directory_options::skip_permission_denied, error);
+    const fs::recursive_directory_iterator end;
+    while (!error && iterator != end) {
+        const auto status = iterator->symlink_status(error);
+        if (error) {
+            break;
+        }
+        if (status.type() == fs::file_type::regular && ++count > limit) {
+            break;
+        }
+        iterator.increment(error);
+    }
+    return count;
 }
 
 bool IsFileExists(const std::string& file_path) {

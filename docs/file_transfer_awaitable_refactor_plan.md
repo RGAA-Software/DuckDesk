@@ -1,8 +1,9 @@
 # 文件传输 Awaitable 改造与项目级异步语义演进方案
 
-> 状态：实施中；Phase 0–3 的生产 Session、Phase 5 唯一路由和标准 RTC
-> 实机 10 轮已完成；其余 transport adapter、Phase 6 协议完整性扩展、
-> 大文件矩阵和 Phase 7 项目级推广仍待完成
+> 状态：实施中；Phase 0–6 在当前 HTTP/WS 产品拓扑和内网环境内已完成，
+> 包含生产 Session、唯一路由、完整性、结构化终态、数据规模矩阵、断点续传和
+> 真实 FT DLL 卸载屏障；Phase 7 已完成认证/Service 请求的第一批迁移，
+> RTC 配置更新、Panel/Console 其余请求流和其他高收益工作流仍按批次推进
 >
 > 日期：2026-08-28
 >
@@ -545,11 +546,11 @@ MessageNotifier 或等待可靠文件队列。
 
 ### Phase 6：协议完整性
 
-- capability；
-- `blk_id`；
-- SHA-256；
-- 清晰的错误与续传 UI；
-- Console 审计结束原因对齐实际结果。
+- capability（已完成）；
+- `blk_id`（已完成）；
+- SHA-256（已完成）；
+- 清晰的错误与续传 UI（已完成）；
+- Console 审计结束原因对齐实际结果（已完成）。
 
 ### Phase 7：推广 await 语义
 
@@ -759,7 +760,7 @@ RTC 回包只允许交给完全匹配的 server 实例。旧实例即使仍在 m
   HTTPS，Render 继续提供 HTTP/WS，不能把未启用的 WSS 写成实机通过。
 - Windows 原生 FT UI 的双向实机操作、64 MiB/1 GiB、10000 小文件、全覆盖/跳过/
   取消/断点续传矩阵仍需执行。
-- `blk_id` capability 和接收端最终文件 SHA-256 门禁尚未完成；插件真实
+- `blk_id` capability 和接收端最终文件 SHA-256 门禁已在 12.11 完成；插件真实
   load/transfer/stop/unload 外部加载器矩阵仍需补齐，尚未达到本文第 11 节的最终
   完成定义。
 
@@ -960,3 +961,189 @@ pending gate 合并并发 refresh，用 callback 作为拓扑重建兜底，再�
 的临时版本号改动已逐项恢复，被清空的 Web/Console dist 目录也已从现有构建产物恢复，且
 其输出不计入本批验收。本文结果全部来自 `build_cpp_*.bat` 的局部 C++ 构建。这里不把
 “局部 C++ 与实机功能通过”写成“发版整体验收通过”；公网 TURN 仍受环境限制。
+
+### 12.11 Phase 6 capability、块序号与最终 SHA-256 门禁
+
+协议完整性核心已完成，采用向后兼容的按位能力协商：
+
+- `FileTransferDigest.capabilities` bit 0 表示严格块序号，bit 1 表示最终 SHA-256；未知位
+  必须忽略，未声明 capability 的旧端继续按原协议工作。
+- 新端的 `FileTransferBlock.blk_id` 从 1 开始，按文件独立递增，EOF 空块也占用序号；
+  接收端在写盘前拒绝重复、缺失和乱序块。
+- SHA-256 对解压后的原始文件内容增量计算，只放在每个文件的 EOF 空块中。接收端只有在
+  哈希一致后才允许把 `.download` rename 为正式文件；缺失或不一致时保留
+  `.download/.digest`，不得报告完成。
+- 断点续传双方都会先读取已存在的前缀并注入增量 SHA 状态，再从续传偏移处理剩余内容，
+  因而最终摘要覆盖完整文件而非仅覆盖后缀。
+- SHA-256 使用项目内纯 C++ 实现，不增加 OpenSSL 运行依赖；已用空串和 `abc` 的 RFC
+  已知向量校验。
+
+专项自动化新增 9 个完整性用例，覆盖能力声明、发送端序号/EOF hash、1000 个严格有序块、
+重复/缺失/乱序拒绝、损坏摘要保留临时文件、缺少 EOF 摘要、旧端兼容、多文件逐文件重置，
+以及断点续传前缀参与哈希。最终 8 个 FT 原生测试程序连续 10 轮，共 780 个 test-case
+执行全部 PASS；ownership 门禁和 `git diff --check` 同步通过。
+
+90 实机验收结果：
+
+| 路径 | 内容 | 结果 |
+| --- | --- | --- |
+| WS | 每轮 1 MiB 上传、下载、SHA-256、删除 | 10/10 PASS |
+| Relay | 每轮 1 MiB 上传、下载、SHA-256、删除 | 10/10 PASS |
+| UDP Direct 可靠 FT 控制通道 | 每轮 1 MiB 上传、下载、SHA-256、删除 | 10/10 PASS |
+| 标准 RTC | 1 MiB 双向 FT，同时验证 1920×1080 画面、host UDP、RTT | PASS |
+| Direct RTC 最终发布冒烟 | 1 MiB 双向 FT、SHA-256、35 帧增量、无丢帧/冻结 | PASS |
+
+上述 1 MiB 内容摘要均为
+`c87f2edbd8e31bf4d83d444691dbb2cf7cc0185720e8e0a2badc6ff0f8f1abe0`。
+测试结束后临时 Console user/session/ticket 为 0，远端测试文件已删除；`px_service` 为
+Running，20371 可达。
+
+本批只执行 C++ 按需构建，没有调用 `build_official.bat`。最终 FT 运行产物已发布到
+`build_official\dist` 并部署到 90，build tree/dist/90 三方 SHA-256 一致：
+
+| 产物 | SHA-256 |
+| --- | --- |
+| `deps\rd_plugins\ft.dll` | `5AFD5C1FA2690FC2AF6DCF5CE354385645A66D9894FB6C85E882BF6DBAD419F6` |
+| `deps\ct_plugins\ft.dll` | `D9CF963C1BE6F8ADCF38814EB4F2098C0533930D74E39AB8EF07C62F9B7C4ADC` |
+
+部署探索还确认了一项必须执行的兼容性门禁：protobuf 生成类型会跨 Render 和网络插件 DLL
+边界传递；修改 `.proto` 后，不允许只替换 FT DLL。`px_render.exe`、FT 插件及所有消费该
+protobuf 对象布局的网络插件必须由同一生成版本构建并原子发布。混用新旧 DLL 会导致消息
+已到 FT 插件但确认无法返回。90 已同步部署 `px_render.exe`、Client/Render FT、
+`net_ws`、`net_relay`、`net_rtc`、`net_rtc_local` 和 `net_udp` 后完成上述实机矩阵；以后
+发布脚本必须把这组产物视为同一协议兼容单元。仓库新增
+`build_cpp_ft_protocol.bat` 作为唯一的 FT `.proto` 变更按需入口：它同时覆盖 Panel 的
+Cp/Rp 审计消息消费者，只构建上述 C++ 目标，不运行 npm/Cargo、不递增版本，也不触发
+`build_official.bat`，随后整组发布到 dist 并逐项执行 SHA-256 门禁。
+
+### 12.12 Phase 6 结构化终态、Windows 提示与 Console 审计
+
+文件传输结束不再只有一个 `success` 布尔值。`ClassifyTerminal` 把 Engine 实际错误
+统一归一为稳定的 `status + end_reason + resumable`：
+
+- status 为 `succeeded / failed / cancelled / skipped / aborted`；
+- reason 覆盖完成、用户取消/跳过、会话中断、SHA-256/块序号异常、权限、
+  文件数限制、源文件不存在、目标占用、I/O、超时、断线和路由/传输通道错误；
+- Cp/Rp 结束消息增加 `status` 和 `end_reason`，空字段仍按旧端 `success` 兼容；
+- Client/Render 从 FT Engine 生成终态，Panel 落库并推送 Console，Console Server 校验
+  status/success 一致性，Web 展示本地化状态和结束原因；
+- Windows FT 队列不再直接展示底层英文错误，改为本地化原因，对可恢复错误
+  明确标注“可续传”。
+
+专项门禁结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 9 个 FT C++ 测试程序 | 83 tests × 10 轮，共 830 次，全部 PASS |
+| 终态/新旧 Cp/Rp 兼容 | 5 tests × 10 轮 PASS |
+| Console Rust 终态一致性 | PASS，包含 cancelled/skipped 成功值冲突拒绝 |
+| Console Web | `vue-tsc` PASS；终态显示 3 tests PASS |
+| 真实标准 RTC | 10/10 PASS；每轮 1 MiB 双向 FT、SHA-256、1920×1080 画面与 RTC 统计 |
+| Console 实际审计 | 20/20 条 In/Out 记录均为 `succeeded + completed` |
+| 真实取消链 | 10/10 PASS；WebClient 取消 64 MiB 作业，审计 10/10 为 `cancelled + user_cancelled` |
+| 资源清理 | 临时 user/session/ticket 均为 0，CDP Chrome 为 0，90 无取消文件或临时文件残留 |
+
+原稳定性脚本默认没有设置 FT 字节数，过去会输出 `fileTransfer:null`，不能当作
+文件传输验收。`run_rtc_lan_stability.ps1` 现增加显式 `-FtE2eBytes`；本批使用
+`1048576`，10 轮下载内容的 SHA-256 均为
+`c87f2edbd8e31bf4d83d444691dbb2cf7cc0185720e8e0a2badc6ff0f8f1abe0`。
+
+本批只使用 FT C++、Console Web 和 Console Rust 的独立按需入口，没有运行
+`build_official.bat`。C++ 协议兼容单元和三份语言资源已发布到
+`build_official\dist`；同一批 14 个 C++ 运行文件部署到 90 后逐文件 SHA-256 全部一致。
+为验证取消终态，WebClient 调试 API 增加受控的 pattern upload/cancel 入口，WebClient
+生产包 5 个文件也已完成 source/dist/90 逐文件 SHA-256 门禁；
+`px_service` 为 Running，20371 可达。
+
+### 12.13 Phase 6 数据规模、边界、冲突和断点续传验收
+
+在结构化终态与完整性门禁基础上，本批继续使用生产 FT 协议和 90 实机补齐数据矩阵。
+所有内容均在接收端重新下载并计算 SHA-256，不能以“进度到 100%”代替内容正确；每个
+成功用例最后删除正式文件，并检查 `.download/.digest` 临时文件和测试账号、Session、
+Ticket 是否残留。
+
+| 场景 | 链路与内容 | 结果 |
+| --- | --- | --- |
+| 大文件 | 原生 WS，1 GiB 上传、下载、SHA-256、删除 | PASS；234.3 秒，摘要 `d83ae5d31fa85b557f229e13c07ef55fb5698ecd943df34b856588f8100d8f8c` |
+| 中等文件连续回归 | 原生 WS，64 MiB 双向校验和删除 | 10/10 PASS；摘要 `82695bf4430b56c0035444eace35b5abd10f89d524a5455a1247b781ae0e3b0e` |
+| 其他可靠链路 | Relay、UDP Direct 的可靠 FT 旁路，64 MiB 双向校验和删除 | 各 1/1 PASS；摘要同上 |
+| 文件大小边界 | 0、1、122879、122880、122881 字节 | 每个大小 10/10 PASS，共 50 轮；覆盖空文件、块边界前后 |
+| 大量小文件 | 10000 个文件、108 个目录，含 Unicode、空格、嵌套和空目录 | PASS；约 8.3 分钟，目录清单摘要 `544ffabfac210f11d512adc29f9aba2c8a527a3264325f2d23d590f88684189c` |
+| 覆盖冲突 | 1 MiB 已存在目标选择 overwrite | 10/10 PASS；最终内容为新摘要 `3d43395ab3efbb331714fb652ca3376b6ff4f7b53a5b9a36c1ef9a6e448d8d7e` |
+| 跳过冲突 | 1 MiB 已存在目标选择 skip | 10/10 PASS；目标保持原摘要 `c87f2edbd8e31bf4d83d444691dbb2cf7cc0185720e8e0a2badc6ff0f8f1abe0` |
+| Windows 长路径 | 100 个文件、18 个目录，包含真实超过 260 字符的路径 | PASS；摘要 `0b1913996b1c21bb020858124687132c64f6b8a0046381dc9dec157109887d18` |
+| RTC 断点续传 | WebClient 标准 RTC，50 MiB 在 20 MiB 主动断开，重建 RTC 后续传、回读、删除 | 10/10 PASS；每轮恢复 offset 为 20971520，摘要 `8e8e32c397d40862...`，临时文件 0 |
+
+数据矩阵定位并修复了四项边界问题：
+
+- Console Ticket 有效期为 30 秒。10000 文件用例原先在建连前生成并哈希全部输入，导致
+  Ticket 在真正兑换前过期；测试和生产流程现在都要求先完成授权/建连，再准备耗时数据。
+- Render 的 10000 文件限制原先把目录也计入总数，导致“恰好 10000 个文件加若干目录”
+  被错误拒绝。`CountRecursiveRegularFiles` 现在只统计可传输的普通文件，目录不消耗文件
+  配额，路径安全测试覆盖了该语义。
+- Windows 长路径现在在文件系统边界统一转换为 `\\?\` 或 `\\?\UNC\` 扩展路径，
+  同时先执行 `make_preferred()`，避免扩展路径前缀与 `/` 混用；对外协议仍返回普通 UTF-8
+  路径，不泄漏 Windows 内部前缀。
+- 原生目录测试的清理曾只调用 `RemoveDir`，非空目录不会被删除。测试现在与产品行为一致：
+  先遍历删除普通文件，再自底向上删除空目录；10000 文件和长路径用例最终均无已知残留。
+
+最终自动化门禁：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 9 个 FT C++ 测试程序 | 85 tests × 10 轮，共 850 次，全部 PASS |
+| 路径安全专项 | 22 tests × 10 轮，包含超 260 字符路径，全部 PASS |
+| Console Web 终态测试 | 3 tests PASS；`vue-tsc --build` PASS |
+| C++ ownership | 无新增裸指针、手工所有权或 `[this]` 捕获，PASS |
+| `git diff --check` | PASS |
+| 90 服务状态 | `px_service` Running，TCP 20371 可达，`resume50_*` 残留 0 |
+
+本批只运行 `build_cpp_ft_protocol.bat` 和明确测试目标，没有调用 `build_official.bat`。
+最终 FT DLL 的 build tree、`build_official\dist` 和 90 安装目录三方 SHA-256 一致：
+
+| 产物 | SHA-256 |
+| --- | --- |
+| `deps\rd_plugins\ft.dll` | `E5C0F5F7F7F2ABAAC662BBBCD5FF64BBD88AF0C2CE95823E0DF67916511B76D3` |
+| `deps\ct_plugins\ft.dll` | `E0473BAEA45028D009ACD8D52D2129E6555769369E183CAEFA9F7D3575271F84` |
+
+当前 Render 实机部署为 HTTP/WS，因此 WSS 只保留代码能力，不伪造实机通过结果；公网
+跨网 TURN UDP/TCP 也仍受环境限制。本节验收结论只覆盖当前可用的本机到 90 内网链路。
+
+### 12.14 真实 FT DLL 卸载屏障与共享插件上下文修复
+
+新增 `test_ft_plugin_dll_lifecycle`，不改变 `GetInstance` 或插件实例 ABI。每轮执行真实
+`LoadLibrary(ft.dll)`，创建插件并连续投递 64 个目录请求，使 Session/插件工作线程存在
+排队回调；随后调用既有 `OnStop`、`OnDestroy`，释放动态库，并用
+`GetModuleHandleW(L"ft.dll") == nullptr` 证明模块确实卸载，而不是只完成对象级单测。
+
+首轮门禁稳定复现 `0xC0000409 / FAST_FAIL_FATAL_APP_EXIT`。CDB 栈确认根因位于
+`asio2::timer`：`PxPluginContext::OnDestroy()` 原先只调用 `stop_all_timers()`，该接口仅向
+timer IO 线程投递异步取消；主线程随后立即释放最后一个 `shared_ptr`，handler 持有的最后
+引用会在 IO 线程内触发 timer/iopool 析构，此时内部 `std::thread` 仍为 joinable，最终
+进入 `std::terminate`。
+
+修复后，插件上下文在非 IO 的正常宿主卸载路径调用同步 `timer->stop()`。它会完成取消、
+停止 IO pool 并 join timer worker，之后才清空智能指针和工作线程，因此
+`OnDestroy -> FreeLibrary` 之间形成真实卸载屏障。若 shutdown 恰好由 timer callback
+发起，则把 timer 的最后一个 `shared_ptr` 移交给独立 RAII `PluginTimerReaper`；回调返回后
+由非 IO 线程执行相同 stop/join，避免 self-join。Reaper 自身在 DLL 卸载时停止并 join，
+不使用 detached thread。修复没有新增裸指针；测试中的 `GetInstance` 函数和实例转换仅
+位于文档明确允许的既有插件 ABI 边界。
+
+最终结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 真实 FT DLL load/queued work/stop/destroy/unload | 10/10 PASS；每轮 64 个排队请求，单轮约 1.8 秒 |
+| 插件上下文异步销毁 | 4 tests ×10 轮 PASS；覆盖 timer/work callback 内 shutdown、64 个排队延时任务取消、重复构造/销毁 |
+| 全部 Render 插件按需重链 | 24/24 PASS；未运行 Rust、Web 或 `build_official.bat` |
+| Render 插件 build tree/dist | 24/24 SHA-256 一致 |
+| Render 插件 dist/90 | 24/24 SHA-256 一致，missing=0、mismatch=0 |
+| `px_render.exe` build tree/dist/90 | 一致：`D2300A6D487278B0EA2EF487C9AD2F91555F230AE7C8146FFE49538D16E3BC3C` |
+| 最终部署后 90 原生 WS FT | 1 MiB 上传、下载、SHA-256、删除连续 10/10 PASS |
+| 测试资源 | 临时 user/session/ticket 为 0；90 测试文件残留 0 |
+
+共享 `px_plugin` 被静态链接到 Render 主程序和各 Render 插件，因此本次没有只发布
+`ft.dll`：先由 `build_cpp_render_plugins.bat` 重链并发布全部 24 个插件，再由
+`build_cpp_render.bat` 重链并发布 `px_render.exe`，最后在 90 的停服窗口原子替换并恢复
+`px_service`。最终服务为 Running，20371 可达。

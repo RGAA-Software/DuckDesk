@@ -3,8 +3,12 @@ param(
     [string]$Transport = 'ws',
     [ValidateRange(1, 1000)]
     [int]$Rounds = 1,
-    [ValidateRange(1, 1073741824)]
+    [ValidateRange(0, 1073741824)]
     [int64]$Bytes = 16777216,
+    [ValidateRange(0, 10000)]
+    [int]$SmallFiles = 0,
+    [ValidateSet('none', 'overwrite', 'skip')]
+    [string]$ConflictMode = 'none',
     [ValidateRange(1000, 900000)]
     [int]$TimeoutMs = 300000,
     [string]$ConsoleBase = 'https://127.0.0.1:30500',
@@ -39,7 +43,6 @@ if ($ConsoleBase.StartsWith('https://') -and
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     [Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
 }
-
 function Invoke-JsonPost([string]$Uri, [object]$Body, [string]$Bearer = '', [int]$Attempts = 1) {
     $headers = @{}
     if ($Bearer) { $headers.Authorization = "Bearer $Bearer" }
@@ -54,6 +57,7 @@ function Invoke-JsonPost([string]$Uri, [object]$Body, [string]$Bearer = '', [int
     if ($Uri.StartsWith('https://') -and
         (Get-Command Invoke-RestMethod).Parameters.ContainsKey('SkipCertificateCheck')) {
         $request.SkipCertificateCheck = $true
+        $request.SslProtocol = 'Tls12'
     }
     for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
         try {
@@ -61,7 +65,16 @@ function Invoke-JsonPost([string]$Uri, [object]$Body, [string]$Bearer = '', [int
         }
         catch {
             $status = [int]$_.Exception.Response.StatusCode
-            if ($status -ne 429 -or $attempt -eq $Attempts) { throw }
+            $transientTransportError = $status -eq 0 -and (
+                $_.Exception.Message -match 'SSL connection|connection.*(closed|reset|refused)|timed out')
+            if ($transientTransportError -and $attempt -lt $Attempts) {
+                Start-Sleep -Seconds 1
+                continue
+            }
+            if ($status -ne 429 -or $attempt -eq $Attempts) {
+                $detail = if ($_.ErrorDetails.Message) { $_.ErrorDetails.Message } else { '' }
+                throw "POST $Uri failed: $($_.Exception.ToString()) $detail"
+            }
             Start-Sleep -Seconds 15
         }
     }
@@ -72,7 +85,8 @@ $testEnvironmentNames = @(
     'PX_FT_E2E_RELAY_HOST', 'PX_FT_E2E_RELAY_PORT',
     'PX_FT_E2E_REMOTE_DEVICE_ID', 'PX_FT_E2E_VISITOR_DEVICE_ID',
     'PX_FT_E2E_TICKET', 'PX_FT_E2E_NONCE', 'PX_FT_E2E_BYTES',
-    'PX_FT_E2E_TIMEOUT_MS', 'PX_FT_E2E_REMOTE_DIR', 'PX_FT_E2E_REQUIRE_BUSY'
+    'PX_FT_E2E_TIMEOUT_MS', 'PX_FT_E2E_REMOTE_DIR', 'PX_FT_E2E_REQUIRE_BUSY',
+    'PX_FT_E2E_SMALL_FILES', 'PX_FT_E2E_CONFLICT_MODE'
 )
 
 try {
@@ -123,6 +137,8 @@ try {
             $env:PX_FT_E2E_TICKET = [string]$issued.data.ticket
             $env:PX_FT_E2E_NONCE = $nonce
             $env:PX_FT_E2E_BYTES = [string]$Bytes
+            $env:PX_FT_E2E_SMALL_FILES = [string]$SmallFiles
+            $env:PX_FT_E2E_CONFLICT_MODE = $ConflictMode
             $env:PX_FT_E2E_TIMEOUT_MS = [string]$TimeoutMs
             $env:PX_FT_E2E_REMOTE_DIR = $RemoteDir
             $env:PX_FT_E2E_REQUIRE_BUSY = if ($RequireBusy) { '1' } else { '0' }

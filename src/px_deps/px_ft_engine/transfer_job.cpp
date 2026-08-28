@@ -23,16 +23,14 @@ void WriteDigestFile(const std::string& digest_path, const FileDigest& digest) {
     if (ofs) ofs << j.dump();
 }
 
-bool ReadDigestFile(const std::string& digest_path, FileDigest* out) {
+std::optional<FileDigest> ReadDigestFile(const std::string& digest_path) {
     std::ifstream ifs(ToFsPath(digest_path), std::ios::binary);
-    if (!ifs) return false;
+    if (!ifs) return std::nullopt;
     std::string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
     nlohmann::json j = nlohmann::json::parse(content, nullptr, false);
-    if (j.is_discarded() || !j.is_object()) return false;
-    if (!j.contains("size") || !j.contains("modified")) return false;
-    out->size = j["size"].get<uint64_t>();
-    out->modified = j["modified"].get<uint64_t>();
-    return true;
+    if (j.is_discarded() || !j.is_object()) return std::nullopt;
+    if (!j.contains("size") || !j.contains("modified")) return std::nullopt;
+    return FileDigest{j["size"].get<uint64_t>(), j["modified"].get<uint64_t>()};
 }
 
 } // namespace
@@ -66,37 +64,42 @@ DataStream DataStream::FromMemory(MemoryCursor&& cursor) {
     return DataStream(std::move(cursor));
 }
 
-void DataStream::WriteAll(const uint8_t* data, size_t len) {
-    if (auto* fs = std::get_if<std::fstream>(&stream_)) {
-        fs->write(reinterpret_cast<const char*>(data), static_cast<std::streamsize>(len));
-        if (!*fs) Bail("file write failed");
+void DataStream::WriteAll(std::span<const uint8_t> data) {
+    if (std::holds_alternative<std::fstream>(stream_)) {
+        auto& fs = std::get<std::fstream>(stream_);
+        fs.write(reinterpret_cast<const char*>(data.data()),
+                 static_cast<std::streamsize>(data.size()));
+        if (!fs) Bail("file write failed");
     } else {
         auto& c = std::get<MemoryCursor>(stream_);
-        c.data.insert(c.data.end(), data, data + len);
+        c.data.insert(c.data.end(), data.begin(), data.end());
     }
 }
 
-size_t DataStream::ReadSome(uint8_t* buf, size_t len) {
-    if (auto* fs = std::get_if<std::fstream>(&stream_)) {
-        fs->read(reinterpret_cast<char*>(buf), static_cast<std::streamsize>(len));
-        return static_cast<size_t>(fs->gcount());
+size_t DataStream::ReadSome(std::span<uint8_t> buffer) {
+    if (std::holds_alternative<std::fstream>(stream_)) {
+        auto& fs = std::get<std::fstream>(stream_);
+        fs.read(reinterpret_cast<char*>(buffer.data()),
+                static_cast<std::streamsize>(buffer.size()));
+        return static_cast<size_t>(fs.gcount());
     }
     auto& c = std::get<MemoryCursor>(stream_);
     size_t remain = c.data.size() - c.read_pos;
-    size_t n = remain < len ? remain : len;
+    size_t n = remain < buffer.size() ? remain : buffer.size();
     if (n > 0) {
-        std::memcpy(buf, c.data.data() + c.read_pos, n);
+        std::copy_n(c.data.begin() + c.read_pos, n, buffer.begin());
         c.read_pos += n;
     }
     return n;
 }
 
 bool DataStream::SeekStart(uint64_t offset) {
-    if (auto* fs = std::get_if<std::fstream>(&stream_)) {
-        fs->clear();
-        fs->seekg(static_cast<std::streamoff>(offset), std::ios::beg);
-        fs->seekp(static_cast<std::streamoff>(offset), std::ios::beg);
-        return !fs->fail();
+    if (std::holds_alternative<std::fstream>(stream_)) {
+        auto& fs = std::get<std::fstream>(stream_);
+        fs.clear();
+        fs.seekg(static_cast<std::streamoff>(offset), std::ios::beg);
+        fs.seekp(static_cast<std::streamoff>(offset), std::ios::beg);
+        return !fs.fail();
     }
     auto& c = std::get<MemoryCursor>(stream_);
     if (offset > c.data.size()) return false;
@@ -105,8 +108,8 @@ bool DataStream::SeekStart(uint64_t offset) {
 }
 
 void DataStream::SyncAll() {
-    if (auto* fs = std::get_if<std::fstream>(&stream_)) {
-        fs->flush();
+    if (std::holds_alternative<std::fstream>(stream_)) {
+        std::get<std::fstream>(stream_).flush();
     }
 }
 
@@ -133,8 +136,9 @@ TransferJob TransferJob::NewRead(int32_t id, JobType type, std::string remote,
     TransferJob job = NewWrite(id, type, std::move(remote), std::move(data_source), file_num,
                                show_hidden, is_remote, enable_overwrite_detection);
     // fs.rs:607 - FilePath 递归展开;MemoryCursor 无文件列表,total_size = 数据长度
-    if (auto* p = std::get_if<std::filesystem::path>(&job.data_source_)) {
-        job.files_ = GetRecursiveFiles(ToUtf8(*p), show_hidden);
+    if (std::holds_alternative<std::filesystem::path>(job.data_source_)) {
+        const auto& path = std::get<std::filesystem::path>(job.data_source_);
+        job.files_ = GetRecursiveFiles(ToUtf8(path), show_hidden);
         uint64_t total = 0;
         for (const auto& f : job.files_) total += f.size();
         job.total_size_ = total;
@@ -147,9 +151,10 @@ TransferJob TransferJob::NewRead(int32_t id, JobType type, std::string remote,
 void TransferJob::SetFiles(std::vector<px::FileEntry> files) {
     // fs.rs:646 set_files
     ValidateTransferFileNames(files);
-    if (auto* base = std::get_if<std::filesystem::path>(&data_source_)) {
+    if (std::holds_alternative<std::filesystem::path>(data_source_)) {
+        const auto& base = std::get<std::filesystem::path>(data_source_);
         for (const auto& file : files) {
-            ValidateNoSymlinkComponents(*base, file.name());
+            ValidateNoSymlinkComponents(base, file.name());
         }
     }
     uint64_t total = 0;
@@ -163,13 +168,14 @@ void TransferJob::SetFiles(std::vector<px::FileEntry> files) {
 bool TransferJob::OpenDataStream() {
     // fs.rs:842
     size_t file_num = static_cast<size_t>(file_num_);
-    if (auto* p = std::get_if<std::filesystem::path>(&data_source_)) {
+    if (std::holds_alternative<std::filesystem::path>(data_source_)) {
+        const auto& path = std::get<std::filesystem::path>(data_source_);
         if (file_num >= files_.size()) {
             data_stream_.reset();
             return true; // job done
         }
         if (!data_stream_) {
-            std::filesystem::path file_path = Join(*p, files_[file_num].name());
+            std::filesystem::path file_path = Join(path, files_[file_num].name());
             try {
                 data_stream_ = DataStream::OpenForRead(file_path);
             } catch (...) {
@@ -180,6 +186,8 @@ bool TransferJob::OpenDataStream() {
                 throw;
             }
             current_file_path_ = std::move(file_path);
+            read_hasher_.emplace();
+            next_read_block_id_ = 1;
             file_confirmed_ = false;
             file_is_waiting_ = false;
         }
@@ -209,13 +217,13 @@ bool TransferJob::SendCurrentDigest(const SendFunc& send) {
     // fs.rs:1011
     auto [last_modified, file_size] = GetCurrentDigest();
     px::Message msg;
-    px::FileResponse* resp = msg.mutable_file_response();
-    px::FileTransferDigest* digest = resp->mutable_digest();
-    digest->set_id(id_);
-    digest->set_file_num(file_num_);
-    digest->set_last_modified(last_modified);
-    digest->set_file_size(file_size);
-    digest->set_is_resume(is_resume);
+    auto& digest = *msg.mutable_file_response()->mutable_digest();
+    digest.set_id(id_);
+    digest.set_file_num(file_num_);
+    digest.set_last_modified(last_modified);
+    digest.set_file_size(file_size);
+    digest.set_is_resume(is_resume);
+    digest.set_capabilities(kFtCurrentCapabilities);
     return send(msg);
 }
 
@@ -267,7 +275,7 @@ std::optional<px::FileTransferBlock> TransferJob::Read() {
     while (true) {
         size_t n = 0;
         try {
-            n = data_stream_->ReadSome(buf.data() + offset, buf.size() - offset);
+            n = data_stream_->ReadSome(std::span<uint8_t>(buf).subspan(offset));
         } catch (...) {
             file_num_ += 1;
             data_stream_.reset();
@@ -292,6 +300,8 @@ std::optional<px::FileTransferBlock> TransferJob::Read() {
         file_is_waiting_ = false;
     } else {
         finished_size_ += offset;
+        if (!read_hasher_) read_hasher_.emplace();
+        read_hasher_->Update(buf);
         bool compressed = false;
         if (is_file_source && !IsCompressedFile(name)) {
             std::vector<uint8_t> tmp = Compress(buf);
@@ -307,6 +317,7 @@ std::optional<px::FileTransferBlock> TransferJob::Read() {
         block.set_file_num(file_num);
         block.set_data(buf.data(), buf.size());
         block.set_compressed(compressed);
+        block.set_blk_id(next_read_block_id_++);
         return block;
     }
     // fs.rs:1001 - 文件 EOF 时也返回一个**空数据块**(file_num 为旧值),
@@ -315,6 +326,10 @@ std::optional<px::FileTransferBlock> TransferJob::Read() {
     block.set_id(id_);
     block.set_file_num(file_num);
     block.set_compressed(false);
+    block.set_blk_id(next_read_block_id_++);
+    if (!read_hasher_) read_hasher_.emplace();
+    block.set_file_hash(Sha256Bytes(read_hasher_->Finalize()));
+    read_hasher_.reset();
     return block;
 }
 
@@ -343,11 +358,11 @@ bool TransferJob::Confirm(const px::FileTransferSendConfirmRequest& req) {
 
 void TransferJob::SetStreamOffset(int32_t file_num, uint64_t offset_bytes) {
     // fs.rs:1105
-    auto* p = std::get_if<std::filesystem::path>(&data_source_);
-    if (!p) return;
+    if (!std::holds_alternative<std::filesystem::path>(data_source_)) return;
+    const auto& base = std::get<std::filesystem::path>(data_source_);
     size_t idx = static_cast<size_t>(file_num);
     if (idx >= files_.size()) return;
-    auto path = ResolveEntryPath(*p, files_[idx].name());
+    auto path = ResolveEntryPath(base, files_[idx].name());
     if (!path) return;
     std::string file_path = ToUtf8(*path);
     std::string download_path = file_path + ".download";
@@ -361,9 +376,37 @@ void TransferJob::SetStreamOffset(int32_t file_num, uint64_t offset_bytes) {
         if (download_exists && digest_exists) {
             // 写侧续传:.download + .digest 都在 -> 打开 .download 写流并定位
             f = DataStream::OpenForWriteNoTrunc(ToFsPath(download_path));
+            write_hasher_.emplace();
+            std::ifstream prefix(ToFsPath(download_path), std::ios::binary);
+            std::array<std::uint8_t, 64 * 1024> buffer{};
+            std::uint64_t remaining = offset_bytes;
+            while (remaining > 0 && prefix) {
+                const auto request = static_cast<std::streamsize>(
+                    std::min<std::uint64_t>(remaining, buffer.size()));
+                prefix.read(reinterpret_cast<char*>(buffer.data()), request);
+                const auto count = static_cast<std::size_t>(prefix.gcount());
+                write_hasher_->Update(std::span<const std::uint8_t>(buffer).first(count));
+                remaining -= count;
+                if (count == 0) break;
+            }
+            if (remaining != 0) return;
         } else if (std::filesystem::exists(*path, ec)) {
             // 读侧续传:正式文件存在 -> 打开读流并定位
             f = DataStream::OpenForRead(*path);
+            read_hasher_.emplace();
+            std::ifstream prefix(*path, std::ios::binary);
+            std::array<std::uint8_t, 64 * 1024> buffer{};
+            std::uint64_t remaining = offset_bytes;
+            while (remaining > 0 && prefix) {
+                const auto request = static_cast<std::streamsize>(
+                    std::min<std::uint64_t>(remaining, buffer.size()));
+                prefix.read(reinterpret_cast<char*>(buffer.data()), request);
+                const auto count = static_cast<std::size_t>(prefix.gcount());
+                read_hasher_->Update(std::span<const std::uint8_t>(buffer).first(count));
+                remaining -= count;
+                if (count == 0) break;
+            }
+            if (remaining != 0) return;
         } else {
             return; // 文件不存在,无法定位
         }
@@ -382,7 +425,8 @@ void TransferJob::SetStreamOffset(int32_t file_num, uint64_t offset_bytes) {
 void TransferJob::Write(const px::FileTransferBlock& block) {
     // fs.rs:760
     if (block.id() != id_) Bail("Wrong id");
-    if (auto* p = std::get_if<std::filesystem::path>(&data_source_)) {
+    if (std::holds_alternative<std::filesystem::path>(data_source_)) {
+        const auto& base = std::get<std::filesystem::path>(data_source_);
         size_t file_num = static_cast<size_t>(block.file_num());
         if (file_num >= files_.size()) Bail("Wrong file number");
         if (file_num != static_cast<size_t>(file_num_) || !data_stream_) {
@@ -393,11 +437,11 @@ void TransferJob::Write(const px::FileTransferBlock& block) {
             std::string path;
             std::optional<std::string> digest_path;
             if (type_ == JobType::Printer) {
-                path = ToUtf8(*p);
+                path = ToUtf8(base);
             } else {
                 // 注意:与上游一致保留"路径校验 + 普通打开"方式,
                 // 仍存在已知 TOCTOU 窗口(fs.rs:781 注释),后续加固需句柄级 no-follow 打开。
-                std::filesystem::path joined = JoinValidatedPath(*p, entry.name());
+                std::filesystem::path joined = JoinValidatedPath(base, entry.name());
                 std::error_code ec;
                 std::filesystem::path parent = joined.parent_path();
                 if (!parent.empty()) std::filesystem::create_directories(parent, ec);
@@ -411,6 +455,9 @@ void TransferJob::Write(const px::FileTransferBlock& block) {
             }
             data_stream_ = DataStream::CreateForWrite(ToFsPath(path));
             if (digest_path) WriteDigestFile(*digest_path, digest_);
+            write_hasher_.emplace();
+            next_write_block_id_ = 1;
+            write_integrity_verified_ = false;
         }
     } else {
         if (!data_stream_) {
@@ -422,28 +469,49 @@ void TransferJob::Write(const px::FileTransferBlock& block) {
         }
     }
     if (!data_stream_) Bail("data stream is None");
-    if (block.compressed()) {
-        std::vector<uint8_t> tmp = Decompress(reinterpret_cast<const uint8_t*>(block.data().data()),
-                                              block.data().size());
-        data_stream_->WriteAll(tmp.data(), tmp.size());
-        finished_size_ += tmp.size();
-    } else {
-        data_stream_->WriteAll(reinterpret_cast<const uint8_t*>(block.data().data()),
-                               block.data().size());
-        finished_size_ += block.data().size();
+    if ((peer_capabilities_ & kFtCapabilityBlockSequence) != 0) {
+        if (block.blk_id() != next_write_block_id_) {
+            Bail("file transfer block sequence mismatch: expected " +
+                 std::to_string(next_write_block_id_) + ", got " +
+                 std::to_string(block.blk_id()));
+        }
+        ++next_write_block_id_;
     }
+    std::vector<uint8_t> uncompressed;
+    if (block.compressed()) {
+        const std::vector<std::uint8_t> compressed(block.data().begin(), block.data().end());
+        uncompressed = Decompress(compressed);
+    } else {
+        uncompressed.assign(block.data().begin(), block.data().end());
+    }
+    data_stream_->WriteAll(uncompressed);
+    finished_size_ += uncompressed.size();
+    if (!write_hasher_) write_hasher_.emplace();
+    write_hasher_->Update(uncompressed);
     transferred_ += block.data().size();
+
+    if (block.data().empty() && (peer_capabilities_ & kFtCapabilitySha256) != 0) {
+        if (block.file_hash().size() != kSha256Size) {
+            Bail("file transfer SHA-256 is missing from EOF block");
+        }
+        const auto actual = Sha256Bytes(write_hasher_->Finalize());
+        write_hasher_.reset();
+        if (actual != block.file_hash()) {
+            Bail("file transfer SHA-256 mismatch");
+        }
+        write_integrity_verified_ = true;
+    }
 }
 
 void TransferJob::ModifyTime() {
     // fs.rs:704
     if (type_ == JobType::Printer) return;
-    auto* p = std::get_if<std::filesystem::path>(&data_source_);
-    if (!p) return;
+    if (!std::holds_alternative<std::filesystem::path>(data_source_)) return;
+    const auto& base = std::get<std::filesystem::path>(data_source_);
     size_t file_num = static_cast<size_t>(file_num_);
     if (file_num >= files_.size()) return;
     const px::FileEntry& entry = files_[file_num];
-    auto path = ResolveEntryPath(*p, entry.name());
+    auto path = ResolveEntryPath(base, entry.name());
     if (!path) return;
     std::string file_path = ToUtf8(*path);
     // Windows 下打开中的文件不能 rename/delete:先关闭流(偏离 fs.rs 处说明:
@@ -451,6 +519,10 @@ void TransferJob::ModifyTime() {
     std::filesystem::path download = ToFsPath(file_path + ".download");
     std::error_code ec;
     const bool had_download = std::filesystem::exists(download, ec);
+    if (had_download && (peer_capabilities_ & kFtCapabilitySha256) != 0 &&
+        !write_integrity_verified_) {
+        Bail("file transfer completed before SHA-256 verification");
+    }
     if (data_stream_ && had_download) {
         data_stream_->SyncAll();
         data_stream_.reset();
@@ -469,16 +541,18 @@ void TransferJob::ModifyTime() {
     }
     std::filesystem::remove(ToFsPath(file_path + ".digest"), ec);
     SetFileMtimeSecs(*path, entry.modified_time());
+    write_hasher_.reset();
+    write_integrity_verified_ = false;
 }
 
 void TransferJob::RemoveDownloadFile() {
     // fs.rs:728
     if (type_ == JobType::Printer) return;
-    auto* p = std::get_if<std::filesystem::path>(&data_source_);
-    if (!p) return;
+    if (!std::holds_alternative<std::filesystem::path>(data_source_)) return;
+    const auto& base = std::get<std::filesystem::path>(data_source_);
     size_t file_num = static_cast<size_t>(file_num_);
     if (file_num >= files_.size()) return;
-    auto path = ResolveEntryPath(*p, files_[file_num].name());
+    auto path = ResolveEntryPath(base, files_[file_num].name());
     if (!path) return;
     std::string file_path = ToUtf8(*path);
     // 同上:先关闭流再删除
@@ -544,18 +618,20 @@ std::optional<TransferJob> RemoveJob(int32_t id, std::vector<TransferJob>& jobs)
     return std::nullopt;
 }
 
-TransferJob* GetJob(int32_t id, std::vector<TransferJob>& jobs) {
+std::optional<std::reference_wrapper<TransferJob>> GetJob(
+    int32_t id, std::vector<TransferJob>& jobs) {
     for (auto& job : jobs) {
-        if (job.id() == id) return &job;
+        if (job.id() == id) return std::ref(job);
     }
-    return nullptr;
+    return std::nullopt;
 }
 
-const TransferJob* GetJob(int32_t id, const std::vector<TransferJob>& jobs) {
+std::optional<std::reference_wrapper<const TransferJob>> GetJob(
+    int32_t id, const std::vector<TransferJob>& jobs) {
     for (const auto& job : jobs) {
-        if (job.id() == id) return &job;
+        if (job.id() == id) return std::cref(job);
     }
-    return nullptr;
+    return std::nullopt;
 }
 
 // ---------------- Digest 覆盖决策 ----------------
@@ -573,10 +649,9 @@ DigestCheckResult IsWriteNeedConfirmation(bool is_resume, const std::string& fil
     bool download_exists = fs::exists(ToFsPath(download_file), ec);
     if (is_resume && digest_exists && download_exists) {
         // .digest 存在说明该文件此前传过,用凭证比对是否同一文件
-        FileDigest local_digest;
-        if (ReadDigestFile(digest_file, &local_digest)) {
-            bool is_identical = local_digest.modified == digest.last_modified() &&
-                                local_digest.size == digest.file_size();
+        if (const auto local_digest = ReadDigestFile(digest_file)) {
+            bool is_identical = local_digest->modified == digest.last_modified() &&
+                                local_digest->size == digest.file_size();
             if (is_identical) {
                 uint64_t transferred_size = fs::file_size(ToFsPath(download_file), ec);
                 if (!ec && transferred_size > 0) {
@@ -620,19 +695,19 @@ DigestCheckResult IsWriteNeedConfirmation(bool is_resume, const std::string& fil
 
 px::Message NewError(int32_t id, const std::string& err, int32_t file_num) {
     px::Message msg;
-    px::FileTransferError* e = msg.mutable_file_response()->mutable_error();
-    e->set_id(id);
-    e->set_error(err);
-    e->set_file_num(file_num);
+    auto& error = *msg.mutable_file_response()->mutable_error();
+    error.set_id(id);
+    error.set_error(err);
+    error.set_file_num(file_num);
     return msg;
 }
 
 px::Message NewDir(int32_t id, std::string path, std::vector<px::FileEntry> files) {
     px::Message msg;
-    px::FileDirectory* dir = msg.mutable_file_response()->mutable_dir();
-    dir->set_id(id);
-    dir->set_path(std::move(path));
-    for (auto& f : files) *dir->add_entries() = std::move(f);
+    auto& dir = *msg.mutable_file_response()->mutable_dir();
+    dir.set_id(id);
+    dir.set_path(std::move(path));
+    for (auto& f : files) *dir.add_entries() = std::move(f);
     return msg;
 }
 
@@ -651,34 +726,34 @@ px::Message NewSendConfirm(px::FileTransferSendConfirmRequest req) {
 px::Message NewReceive(int32_t id, std::string path, int32_t file_num,
                        std::vector<px::FileEntry> files, uint64_t total_size) {
     px::Message msg;
-    px::FileTransferReceiveRequest* r = msg.mutable_file_action()->mutable_receive();
-    r->set_id(id);
-    r->set_path(std::move(path));
-    r->set_file_num(file_num);
-    r->set_total_size(total_size);
-    for (auto& f : files) *r->add_files() = std::move(f);
+    auto& request = *msg.mutable_file_action()->mutable_receive();
+    request.set_id(id);
+    request.set_path(std::move(path));
+    request.set_file_num(file_num);
+    request.set_total_size(total_size);
+    for (auto& f : files) *request.add_files() = std::move(f);
     return msg;
 }
 
 px::Message NewSend(int32_t id, JobType type, std::string path, int32_t file_num,
                     bool include_hidden) {
     px::Message msg;
-    px::FileTransferSendRequest* s = msg.mutable_file_action()->mutable_send();
-    s->set_id(id);
-    s->set_path(std::move(path));
-    s->set_include_hidden(include_hidden);
-    s->set_file_num(file_num);
-    s->set_file_type(type == JobType::Printer
-                         ? px::FileTransferSendRequest_FileType_Printer
-                         : px::FileTransferSendRequest_FileType_Generic);
+    auto& request = *msg.mutable_file_action()->mutable_send();
+    request.set_id(id);
+    request.set_path(std::move(path));
+    request.set_include_hidden(include_hidden);
+    request.set_file_num(file_num);
+    request.set_file_type(type == JobType::Printer
+                              ? px::FileTransferSendRequest_FileType_Printer
+                              : px::FileTransferSendRequest_FileType_Generic);
     return msg;
 }
 
 px::Message NewDone(int32_t id, int32_t file_num) {
     px::Message msg;
-    px::FileTransferDone* d = msg.mutable_file_response()->mutable_done();
-    d->set_id(id);
-    d->set_file_num(file_num);
+    auto& done = *msg.mutable_file_response()->mutable_done();
+    done.set_id(id);
+    done.set_file_num(file_num);
     return msg;
 }
 
