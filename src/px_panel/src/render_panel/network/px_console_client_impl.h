@@ -30,6 +30,8 @@
 #include "render_panel/px_application.h"
 #include "render_panel/user/px_user_manager.h"
 #include "network/ct_auth_token.h"
+#include "panel_rtc_config_refresh_gate.h"
+#include "px_common_new/async_operation.h"
 
 #include <chrono>
 #include <filesystem>
@@ -39,6 +41,11 @@ using namespace console_panel;
 namespace px
 {
     namespace fs = std::filesystem;
+
+    struct PanelRtcConfigHttpResponse {
+        int status = 0;
+        std::string body;
+    };
 
     // loopback / link-local addresses are useless for lan-direct access (design 5.2)
     static bool IsUsableLanIp(const std::string& ip) {
@@ -57,7 +64,6 @@ namespace px
                                  const std::string& host,
                                  int port,
                                  const std::string& device_id) {
-            settings_ = PxSettings::Instance();
             context_ = ctx;
             host_ = host;
             port_ = port;
@@ -96,6 +102,12 @@ namespace px
                 }
                 self->sys_info_ = info.sys_info_;
             });
+
+            if (const auto notifier = context_->GetMessageNotifier()) {
+                if (const auto runtime = notifier->GetAsyncRuntime()) {
+                    rtc_config_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kWorker);
+                }
+            }
 
             client_ = std::make_shared<ClientType>();
             client_->set_auto_reconnect(true);
@@ -193,6 +205,16 @@ namespace px
                 msg_listener_->UnListenAll();
                 msg_listener_.reset();
             }
+            rtc_config_refresh_gate_->Stop();
+            if (rtc_config_scope_) {
+                if (rtc_config_scope_->IsScopeThread()) {
+                    rtc_config_scope_->BeginStop();
+                }
+                else if (!rtc_config_scope_->StopAndWait(std::chrono::milliseconds(2000))) {
+                    LOGW("Panel RTC config refresh scope did not drain within 2 seconds");
+                }
+                rtc_config_scope_.reset();
+            }
             if (fetch_queue_) {
                 fetch_queue_->Stop();
             }
@@ -243,7 +265,7 @@ namespace px
             sub->set_device_id(device_id_);
             auto user_id = grApp->GetUserManager()->GetUserId();
             sub->set_user_id(user_id);
-            sub->set_device_name(settings_->GetDeviceName());
+            sub->set_device_name(PxSettings::Instance()->GetDeviceName());
 
             // report local NIC IPv4 list for the console render-records view (design 5.2);
             // the tunnel source ip is unreliable across routers/NAT
@@ -252,7 +274,7 @@ namespace px
                     sub->add_panel_lan_ips(eth.ip_addr_);
                 }
             }
-            sub->set_panel_http_port(settings_->GetPanelServerPort());
+            sub->set_panel_http_port(PxSettings::Instance()->GetPanelServerPort());
             PostBinMessage(msg.SerializeAsString());
         }
 
@@ -289,7 +311,7 @@ namespace px
             if (!ips.empty()) {
                 sub->set_device_ip_addr(ips[0].ip_addr_);
             }
-            sub->set_device_name(settings_->GetDeviceName());
+            sub->set_device_name(PxSettings::Instance()->GetDeviceName());
             PostBinMessage(msg.SerializeAsString());
             if ((hb_idx_.load() % 60) == 0) {
                 RefreshRtcConfigAsync(0);
@@ -330,32 +352,108 @@ namespace px
         }
 
         void RefreshRtcConfigAsync(uint64_t expected_revision) {
-            if (rtc_config_refreshing_.exchange(true)) {
+            const auto request = rtc_config_refresh_gate_->Request(expected_revision);
+            if (request != PanelRtcConfigRefreshRequest::kStarted) {
+                return;
+            }
+            const auto scope = rtc_config_scope_;
+            if (!scope) {
+                rtc_config_refresh_gate_->AbortStart();
+                LOGW("Panel RTC config refresh ignored because async scope is unavailable");
                 return;
             }
             auto weak_self = this->weak_from_this();
-            std::thread([weak_self, expected_revision]() {
-                const auto self = weak_self.lock();
-                if (!self) return;
-                auto client = HttpClient::MakeSSL(
-                    self->host_, self->port_, "/api/v1/rtc/ice-config", 5000);
-                client->SetHeader("x-px-appkey", grApp->GetAppkey());
-                const auto response = client->Request();
-                if (response.status == 200) {
+            if (!scope->Spawn("panel-rtc-config-refresh", [weak_self]() {
+                    return RunRtcConfigRefresh(weak_self);
+                })) {
+                rtc_config_refresh_gate_->AbortStart();
+                LOGW("Panel RTC config refresh was rejected by the async scope");
+            }
+        }
+
+        static PxAwaitable<PxResult<PanelRtcConfigHttpResponse>> FetchRtcConfig(
+            std::shared_ptr<PxContext> context,
+            asio::any_io_executor executor,
+            std::string host,
+            int port,
+            std::string appkey) {
+            const auto operation = PxAsyncOneShot<PanelRtcConfigHttpResponse>::Create(executor);
+            context->PostNetworkTask([operation, host = std::move(host), port,
+                                      appkey = std::move(appkey)]() {
+                try {
+                    const auto client = HttpClient::MakeSSL(
+                        host, port, "/api/v1/rtc/ice-config", 5000);
+                    client->SetHeader("x-px-appkey", appkey);
+                    const auto response = client->Request();
+                    static_cast<void>(operation->TryComplete(
+                        PxResult<PanelRtcConfigHttpResponse>::Success({
+                            .status = response.status,
+                            .body = response.body,
+                        })));
+                }
+                catch (const std::exception& error) {
+                    static_cast<void>(operation->TryFail(MakePxAsyncError(
+                        PxAsyncErrorCode::kProtocolError,
+                        "panel_rtc_config_http",
+                        error.what(),
+                        true)));
+                }
+            });
+            co_return co_await PxAsyncOneShot<PanelRtcConfigHttpResponse>::WaitUntil(
+                operation, std::chrono::steady_clock::now() + std::chrono::seconds(6));
+        }
+
+        static PxAwaitable<void> RunRtcConfigRefresh(
+            std::weak_ptr<PxConsoleClientImpl<ClientType>> weak_self) {
+            while (true) {
+                PanelRtcConfigRefreshAttempt attempt;
+                std::shared_ptr<PanelRtcConfigRefreshGate> gate;
+                std::shared_ptr<PxContext> context;
+                asio::any_io_executor executor;
+                std::string host;
+                int port = 0;
+                {
+                    const auto current = weak_self.lock();
+                    if (!current || current->stopping_ || !current->rtc_config_scope_) {
+                        co_return;
+                    }
+                    gate = current->rtc_config_refresh_gate_;
+                    attempt = gate->CurrentAttempt();
+                    context = current->context_;
+                    executor = current->rtc_config_scope_->Executor();
+                    host = current->host_;
+                    port = current->port_;
+                }
+                auto result = co_await FetchRtcConfig(
+                    std::move(context), std::move(executor),
+                    std::move(host), port, grApp->GetAppkey());
+                const auto current = weak_self.lock();
+                if (!current || current->stopping_) {
+                    static_cast<void>(gate->FinishAttempt(attempt.sequence));
+                    co_return;
+                }
+                if (!result.HasValue()) {
+                    LOGW("Pull Panel RTC ICE configuration failed: code={}, stage={}, reason={}",
+                         result.Error().StableCode(), result.Error().stage, result.Error().message);
+                }
+                else if (const auto response = result.TakeValue(); response.status != 200) {
+                    LOGW("Pull Panel RTC ICE configuration failed, status={}", response.status);
+                }
+                else {
                     try {
                         const auto envelope = nlohmann::json::parse(response.body);
                         const auto data = envelope.at("data");
                         const auto revision = data.value("revision", 0ULL);
                         if (envelope.value("code", -1) == 200
-                            && revision >= expected_revision
-                            && revision > self->rtc_config_revision_.load()) {
+                            && revision >= attempt.expected_revision
+                            && revision > current->rtc_config_revision_.load()) {
                             {
-                                std::scoped_lock lock(self->rtc_config_mutex_);
-                                self->rtc_config_json_ = data.dump();
+                                std::scoped_lock lock(current->rtc_config_mutex_);
+                                current->rtc_config_json_ = data.dump();
                             }
-                            self->rtc_config_revision_ = revision;
+                            current->rtc_config_revision_ = revision;
                             LOGI("Panel RTC ICE configuration updated, revision={}", revision);
-                            self->context_->SendAppMessage(MsgRtcIceConfigUpdated {
+                            current->context_->SendAppMessage(MsgRtcIceConfigUpdated {
                                 .revision_ = revision,
                             });
                         }
@@ -364,11 +462,11 @@ namespace px
                         LOGE("Parse Panel RTC ICE configuration failed: {}", error.what());
                     }
                 }
-                else {
-                    LOGW("Pull Panel RTC ICE configuration failed, status={}", response.status);
+                if (!gate->FinishAttempt(attempt.sequence)) {
+                    co_return;
                 }
-                self->rtc_config_refreshing_ = false;
-            }).detach();
+            }
+            co_return;
         }
 
         void HandleRecordListReq(const console_panel::RecordListReq& req) {
@@ -519,7 +617,6 @@ namespace px
         }
 
     private:
-        PxSettings* settings_ = nullptr;
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<ClientType> client_ = nullptr;
         std::string host_;
@@ -530,7 +627,9 @@ namespace px
         std::atomic_int64_t hb_idx_ = 0;
         std::atomic_bool use_legacy_cms_path_ = false;
         std::atomic_bool stopping_ = false;
-        std::atomic_bool rtc_config_refreshing_ = false;
+        std::shared_ptr<PxAsyncScope> rtc_config_scope_ = nullptr;
+        std::shared_ptr<PanelRtcConfigRefreshGate> rtc_config_refresh_gate_ =
+            PanelRtcConfigRefreshGate::Create();
         std::atomic_uint64_t rtc_config_revision_ = 0;
         std::mutex rtc_config_mutex_;
         std::string rtc_config_json_;

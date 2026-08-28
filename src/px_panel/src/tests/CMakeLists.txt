@@ -54,3 +54,10 @@ add_executable(test_stream_item_display test_stream_item_display.cpp)
 target_link_libraries(test_stream_item_display PRIVATE
         GTest::gtest GTest::gtest_main px_console_client px_common_new)
 add_test(NAME panel_stream_item_display COMMAND test_stream_item_display)
+
+add_executable(test_panel_rtc_config_refresh_gate
+        test_panel_rtc_config_refresh_gate.cpp
+        ../render_panel/network/panel_rtc_config_refresh_gate.cpp)
+target_link_libraries(test_panel_rtc_config_refresh_gate PRIVATE
+        GTest::gtest GTest::gtest_main)
+add_test(NAME panel_rtc_config_refresh_gate COMMAND test_panel_rtc_config_refresh_gate)

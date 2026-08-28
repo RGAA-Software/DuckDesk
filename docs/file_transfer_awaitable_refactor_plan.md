@@ -1212,3 +1212,38 @@ Mongo 数据未重启。自签名 HTTPS 由 curl `--insecure` 访问，请求 JS
 权限依赖。10 轮均出现 Panel command、restart started、ICE completed，随后 duplicate/stale
 保护生效；视频帧、音频和 FT 通道验收同时通过。真实 Console 管理端“修改配置并广播”
 仍属于管理控制面的独立验收项，不再阻塞客户端活跃会话热更新结论。
+
+### 12.16 Phase 7 Panel RTC 配置拉取的 awaitable 收敛
+
+Panel 收到 Console 的 RTC 配置 revision 通知后，原实现通过 detached thread 同步访问
+HTTPS API。该线程不属于任何可停止作用域，Panel Stop 无法等待它；拉取期间的新 revision
+会被一个 atomic refreshing 标志直接丢弃，可能使 Panel 永久停留在旧配置。
+
+本批将该上游拉取链迁移到共享 `PxAsyncRuntime`：
+
+- `PanelRtcConfigRefreshGate` 保证同一时刻只有一个 HTTP 拉取；拉取期间到达的请求合并为
+  恰好一次后续拉取，并携带所见最大 expected revision；
+- 既有同步 `HttpClient` 作为 5 秒超时的阻塞叶子投递到网络线程，结果通过
+  `PxAsyncOneShot` 回到协程；整个 await 另有 6 秒 deadline；
+- Panel Stop 先关闭 gate，再取消并最多等待异步 scope 2 秒，取消后的迟到 HTTP 结果不能
+  访问已销毁的 Panel，也不能再发布 `MsgRtcIceConfigUpdated`；
+- 协程不会跨 `co_await` 持有 Panel 的 shared ownership，恢复时重新 `weak_ptr::lock()`；
+  同时删除了 `PxConsoleClientImpl` 内长期保存的 `PxSettings*`；
+- 没有修改 libwebrtc 借用指针边界或插件 instance ABI，也没有引入 detached thread、
+  裸指针和 `[this]` 捕获。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| Panel refresh gate | 7 tests × 10 轮，共 70 次 PASS |
+| gate 覆盖 | 首次启动、并发合并、最新 revision、启动回滚、Stop/迟到完成、32 线程并发、10 次重复生命周期 |
+| 共享 PxAsyncRuntime | 11 tests × 10 轮，共 110 次 PASS；包含排队取消、callback 内 Stop 和重复 start/stop |
+| Panel 按需编译 | `px_panel` PASS；只编译 Panel 相关 C++，未运行 `build_official.bat` |
+| dist 启动 smoke | `px_panel.exe` 从 `build_official\dist` 启动并保持 15 秒；Service WebSocket、Render WebSocket 与 HTTPS Console 均连接成功 |
+| C++ ownership / `git diff --check` | PASS |
+
+Panel build tree 与 `build_official\dist` 的 `px_panel.exe` SHA-256 一致：
+`B72D77FB2CCE9DA8C859D91069C0D08DC1DD4B5FBBEDA7C7F35C2C2359E4981D`。
+本批没有 Console 管理员凭据，因此没有改动生产 RTC 配置来触发真实管理端广播；该项仍保留
+为管理控制面验收，不影响本批对 Panel 拉取并发、取消和生命周期安全的结论。
