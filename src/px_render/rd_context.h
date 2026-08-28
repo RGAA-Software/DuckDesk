@@ -24,6 +24,7 @@ namespace px
     class PluginManager;
     class TaskRuntime;
     class AppBaseEvent;
+    class PxAsyncRuntime;
 
     class RdContext : public std::enable_shared_from_this<RdContext> {
     public:
@@ -36,6 +37,7 @@ namespace px
         void SetPluginManager(const std::shared_ptr<PluginManager>& pm);
 
         std::shared_ptr<MessageNotifier> GetMessageNotifier();
+        std::shared_ptr<PxAsyncRuntime> GetAsyncRuntime() const;
         std::shared_ptr<MessageListener> CreateMessageListener(
             MessageExecutionLane lane = MessageExecutionLane::kControl);
         std::shared_ptr<PluginManager> GetPluginManager();
@@ -57,6 +59,7 @@ namespace px
         void DispatchAppEvent2Plugins(const std::shared_ptr<AppBaseEvent>& event);
 
     private:
+        std::shared_ptr<PxAsyncRuntime> async_runtime_ = nullptr;
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
         std::shared_ptr<TaskRuntime> task_rt_ = nullptr;
         std::weak_ptr<PluginManager> plugin_manager_;

@@ -88,7 +88,10 @@ namespace px
             : max_pending_messages_(std::max<std::size_t>(1, options.max_pending_messages)),
               max_state_callbacks_(std::max<std::size_t>(1, options.max_state_callbacks)),
               max_worker_callbacks_(std::max<std::size_t>(1, options.max_worker_callbacks)),
-              runtime_(PxAsyncRuntime::Create({.worker_threads = options.worker_threads})) {
+              owns_runtime_(!options.runtime),
+              runtime_(options.runtime
+                  ? std::move(options.runtime)
+                  : PxAsyncRuntime::Create({.worker_threads = options.worker_threads})) {
             static_assert(ASIO_VERSION == PX_ASIO_VERSION,
                           "GammaRay and asio2 must use the configured standalone Asio version");
             runtime_->Start();
@@ -371,7 +374,12 @@ namespace px
                         cancel_requested_ = true;
                     }
                     queue_idle_cv_.notify_all();
-                    runtime_->RequestStop();
+                    if (owns_runtime_) {
+                        runtime_->RequestStop();
+                    }
+                    else {
+                        stopped_.store(true, std::memory_order_release);
+                    }
                 }
                 else if (IsDispatchThread()) {
                     {
@@ -386,11 +394,18 @@ namespace px
                     // queued state/worker callbacks have finished.
                     (void)Flush(std::chrono::seconds(10));
                     DeactivateListeners();
-                    runtime_->RequestDrain();
+                    if (owns_runtime_) {
+                        runtime_->RequestDrain();
+                    }
+                    else {
+                        stopped_.store(true, std::memory_order_release);
+                    }
                 }
             }
 
-            runtime_->Join();
+            if (owns_runtime_) {
+                runtime_->Join();
+            }
             if (!runtime_->IsRuntimeThread()) {
                 stopped_.store(true, std::memory_order_release);
                 queue_idle_cv_.notify_all();
@@ -570,7 +585,9 @@ namespace px
             }
             if (finish) {
                 DeactivateListeners();
-                runtime_->RequestDrain();
+                if (owns_runtime_) {
+                    runtime_->RequestDrain();
+                }
                 stopped_.store(true, std::memory_order_release);
                 queue_idle_cv_.notify_all();
             }
@@ -589,6 +606,7 @@ namespace px
         const std::size_t max_pending_messages_;
         const std::size_t max_state_callbacks_;
         const std::size_t max_worker_callbacks_;
+        const bool owns_runtime_;
         std::shared_ptr<PxAsyncRuntime> runtime_;
         Dispatcher dispatcher_;
 

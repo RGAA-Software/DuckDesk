@@ -4,6 +4,9 @@ add_subdirectory(settings)
 add_subdirectory(plugin_interface)
 add_subdirectory(plugins)
 add_subdirectory(hook_capture)
+if(TESTS_ENABLED)
+    add_subdirectory(tests)
+endif()
 
 #find_package(OpenCV CONFIG REQUIRED)
 

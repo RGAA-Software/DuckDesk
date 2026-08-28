@@ -6,6 +6,7 @@
 #include <format>
 #include "px_common_new/task_runtime.h"
 #include "px_common_new/message_notifier.h"
+#include "px_common_new/async_runtime.h"
 #include "px_common_new/log.h"
 #include "px_common_new/win32/dynamic_library.h"
 #include "px_common_new/win32/win_helper.h"
@@ -21,7 +22,12 @@ namespace px
     }
 
     RdContext::RdContext() {
-        msg_notifier_ = std::make_shared<MessageNotifier>();
+        async_runtime_ = PxAsyncRuntime::Create({.worker_threads = 2});
+        async_runtime_->Start();
+        msg_notifier_ = std::make_shared<MessageNotifier>(MessageNotifierOptions{
+            .worker_threads = 2,
+            .runtime = async_runtime_,
+        });
         task_rt_ = std::make_shared<TaskRuntime>(8);
 
         stream_plugin_thread_ = Thread::Make("stream plugin thread", 128);
@@ -51,6 +57,12 @@ namespace px
         if (stream_plugin_thread_) {
             stream_plugin_thread_->Exit();
         }
+        if (async_runtime_) {
+            async_runtime_->RequestDrain();
+            async_runtime_->RequestStop();
+            async_runtime_->Join();
+            async_runtime_.reset();
+        }
     }
 
     bool RdContext::Init() {
@@ -59,6 +71,10 @@ namespace px
 
     std::shared_ptr<MessageNotifier> RdContext::GetMessageNotifier() {
         return msg_notifier_;
+    }
+
+    std::shared_ptr<PxAsyncRuntime> RdContext::GetAsyncRuntime() const {
+        return async_runtime_;
     }
 
     std::shared_ptr<MessageListener> RdContext::CreateMessageListener(MessageExecutionLane lane) {

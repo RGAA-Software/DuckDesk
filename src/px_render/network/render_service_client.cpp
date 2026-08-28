@@ -11,6 +11,8 @@
 #include "px_common_new/log.h"
 #include "px_common_new/md5.h"
 #include "px_common_new/message_notifier.h"
+#include "px_common_new/async_operation.h"
+#include "px_common_new/virtual_display_timeouts.h"
 #include "rd_app.h"
 #include "app/app_messages.h"
 #include "px_service_message.pb.h"
@@ -21,10 +23,127 @@ namespace px
 
     const int kMaxClientQueuedMessage = 4096;
 
+    namespace {
+
+        constexpr auto kTicketRedemptionTimeout = std::chrono::seconds(5);
+
+        template<typename T>
+        PxAwaitable<PxResult<T>> ReadyAsyncResult(PxResult<T> result) {
+            co_return std::move(result);
+        }
+
+        template<typename T>
+        PxAwaitable<PxResult<T>> WaitForRegisteredRequest(
+            std::shared_ptr<PxAsyncRequestRegistry<T>> registry,
+            std::string request_id,
+            std::shared_ptr<PxAsyncOneShot<T>> operation,
+            std::chrono::steady_clock::time_point deadline) {
+            auto result = co_await PxAsyncOneShot<T>::WaitUntil(operation, deadline);
+            static_cast<void>(registry->RemoveIf(request_id, operation));
+            co_return result;
+        }
+
+        std::chrono::steady_clock::duration VirtualDisplayResponseTimeout(int operation) {
+            switch (operation) {
+            case kVirtualDisplayQuery:
+                return kVirtualDisplayQueryRenderTimeout;
+            case kVirtualDisplayResetOwned:
+                return kVirtualDisplayResetRenderTimeout;
+            case kVirtualDisplayCreate:
+            case kVirtualDisplayRemoveLast:
+            default:
+                return kVirtualDisplayMutationRenderTimeout;
+            }
+        }
+
+        using TicketCallback = std::function<void(
+            bool,
+            const std::string&,
+            const std::vector<std::string>&,
+            const std::string&)>;
+
+        PxAwaitable<void> CompleteLegacyTicketRequest(
+            std::weak_ptr<RenderServiceClient> weak_client,
+            std::string ticket,
+            std::string client_nonce,
+            std::string instance_id,
+            std::shared_ptr<TicketCallback> callback) {
+            auto client = weak_client.lock();
+            if (!client) {
+                (*callback)(false, "SERVICE_STOPPED", {}, {});
+                co_return;
+            }
+            auto request = client->RedeemConnectionTicketAsync(
+                std::move(ticket),
+                std::move(client_nonce),
+                std::move(instance_id),
+                std::chrono::steady_clock::now() + kTicketRedemptionTimeout);
+            client.reset();
+            auto result = co_await std::move(request);
+            if (result.HasValue()) {
+                auto value = result.TakeValue();
+                (*callback)(true, {}, value.permissions, value.rtc_ice_config_json);
+            }
+            else {
+                const auto& error = result.Error();
+                (*callback)(false, error.StableCode(), {}, {});
+            }
+            co_return;
+        }
+
+        using VirtualDisplayCallback =
+            std::function<void(const MsgVirtualDisplayServiceResult&)>;
+
+        PxAwaitable<void> CompleteLegacyVirtualDisplayRequest(
+            std::weak_ptr<RenderServiceClient> weak_client,
+            std::string request_id,
+            int operation,
+            uint32_t width,
+            uint32_t height,
+            uint32_t refresh_hz,
+            std::shared_ptr<VirtualDisplayCallback> callback) {
+            auto client = weak_client.lock();
+            if (!client) {
+                MsgVirtualDisplayServiceResult stopped;
+                stopped.request_id_ = std::move(request_id);
+                stopped.error_code_ = "SERVICE_STOPPED";
+                stopped.error_message_ = "Render Service client was destroyed";
+                (*callback)(stopped);
+                co_return;
+            }
+            auto request = client->RequestVirtualDisplayAsync(
+                request_id,
+                operation,
+                width,
+                height,
+                refresh_hz,
+                std::chrono::steady_clock::now() + VirtualDisplayResponseTimeout(operation));
+            client.reset();
+            auto result = co_await std::move(request);
+            if (result.HasValue()) {
+                (*callback)(result.Value());
+            }
+            else {
+                MsgVirtualDisplayServiceResult legacy_result;
+                legacy_result.request_id_ = std::move(request_id);
+                legacy_result.error_code_ = result.Error().StableCode();
+                legacy_result.error_message_ = result.Error().message;
+                (*callback)(legacy_result);
+            }
+            co_return;
+        }
+
+    } // namespace
+
     RenderServiceClient::RenderServiceClient(const std::shared_ptr<RdApplication>& app) {
         statistics_ = RdStatistics::Instance();
         app_ = app;
         context_ = app_->GetContext();
+        if (context_ && context_->GetAsyncRuntime()) {
+            async_scope_ = PxAsyncScope::Create(
+                context_->GetAsyncRuntime(), PxAsyncLane::kState);
+            rpc_state_ = std::make_shared<RenderServiceRpcState>(async_scope_->Executor());
+        }
     }
 
     RenderServiceClient::~RenderServiceClient() {
@@ -79,6 +198,11 @@ namespace px
         .bind_disconnect([weak_self]() {
             if (auto self = weak_self.lock()) {
                 self->websocket_upgraded_ = false;
+                self->FailPendingRequests(MakePxAsyncError(
+                    PxAsyncErrorCode::kServiceNotConnected,
+                    "service_websocket",
+                    "Render disconnected from Service",
+                    true));
             }
             LOGE("RenderServiceClient disconnected");
         })
@@ -125,10 +249,21 @@ namespace px
     void RenderServiceClient::ParseMessage(const std::string& msg) {
         px::ServiceMessage sm;
         try {
-            sm.ParseFromString(msg);
+            if (!sm.ParseFromString(msg)) {
+                LOGE("RenderServiceClient received an invalid Service protobuf message");
+                FailPendingRequests(MakePxAsyncError(
+                    PxAsyncErrorCode::kProtocolError,
+                    "parse_service_message",
+                    "Service returned an invalid protobuf message"));
+                return;
+            }
         }
         catch(...) {
-            LOGE("ParseMessage failed!");
+            LOGE("RenderServiceClient failed to parse a Service protobuf message");
+            FailPendingRequests(MakePxAsyncError(
+                PxAsyncErrorCode::kProtocolError,
+                "parse_service_message",
+                "Service response parsing threw an exception"));
             return;
         }
 
@@ -145,22 +280,28 @@ namespace px
         }
         else if (sm.type() == ServiceMessageType::kSrvRedeemConnectionTicketResp) {
             const auto& sub = sm.redeem_connection_ticket_resp();
-            std::function<void(bool, const std::string&, const std::vector<std::string>&,
-                               const std::string&)> callback;
-            {
-                std::scoped_lock lock(ticket_callbacks_mtx_);
-                const auto it = ticket_callbacks_.find(sub.request_id());
-                if (it == ticket_callbacks_.end()) {
-                    return;
+            PxResult<RedeemedConnectionTicket> result = [&sub]() {
+                if (!sub.ok()) {
+                    return PxResult<RedeemedConnectionTicket>::Failure(MakePxAsyncError(
+                        PxAsyncErrorCode::kServiceRejected,
+                        "redeem_ticket",
+                        "Service rejected the connection ticket",
+                        false,
+                        sub.code()));
                 }
-                callback = std::move(it->second);
-                ticket_callbacks_.erase(it);
+                RedeemedConnectionTicket ticket;
+                if (sub.has_grant()) {
+                    ticket.permissions.assign(
+                        sub.grant().permissions().begin(),
+                        sub.grant().permissions().end());
+                }
+                ticket.rtc_ice_config_json = sub.rtc_ice_config_json();
+                return PxResult<RedeemedConnectionTicket>::Success(std::move(ticket));
+            }();
+            if (!rpc_state_ || !rpc_state_->ticket_requests_->Complete(
+                    sub.request_id(), std::move(result))) {
+                LOGW("Ignore late or unknown ticket response: request_id={}", sub.request_id());
             }
-            std::vector<std::string> permissions;
-            if (sub.has_grant()) {
-                permissions.assign(sub.grant().permissions().begin(), sub.grant().permissions().end());
-            }
-            callback(sub.ok(), sub.code(), permissions, sub.rtc_ice_config_json());
         }
         else if (sm.type() == ServiceMessageType::kSrvVirtualDisplayResult) {
             const auto& sub = sm.virtual_display_result();
@@ -179,17 +320,11 @@ namespace px
             result.removal_safe_ = sub.removal_safe();
             result.phase_ = sub.phase();
 
-            std::function<void(const MsgVirtualDisplayServiceResult&)> callback;
-            {
-                std::scoped_lock lock(virtual_display_callbacks_mtx_);
-                const auto it = virtual_display_callbacks_.find(result.request_id_);
-                if (it != virtual_display_callbacks_.end()) {
-                    callback = std::move(it->second);
-                    virtual_display_callbacks_.erase(it);
-                }
-            }
-            if (callback) {
-                callback(result);
+            if (!rpc_state_ || !rpc_state_->virtual_display_requests_->Complete(
+                    result.request_id_,
+                    PxResult<MsgVirtualDisplayServiceResult>::Success(result))) {
+                LOGW("Ignore late or unknown virtual display response: request_id={}",
+                     result.request_id_);
             }
             if (context_) {
                 context_->PostTask([weak_self = weak_from_this(), result]() {
@@ -210,21 +345,15 @@ namespace px
             msg_listener_->UnListenAll();
             msg_listener_.reset();
         }
-        std::unordered_map<std::string,
-            std::function<void(bool, const std::string&, const std::vector<std::string>&,
-                               const std::string&)>> ticket_callbacks;
-        {
-            std::scoped_lock lock(ticket_callbacks_mtx_);
-            ticket_callbacks.swap(ticket_callbacks_);
-        }
-        for (auto& [request_id, callback] : ticket_callbacks) {
-            if (callback) {
-                callback(false, "SERVICE_STOPPED", {}, {});
+        FailPendingRequests(MakePxAsyncError(
+            PxAsyncErrorCode::kServiceStopped,
+            "service_shutdown",
+            "Render Service client is stopping"));
+        if (async_scope_) {
+            async_scope_->BeginStop();
+            if (!async_scope_->IsScopeThread()) {
+                static_cast<void>(async_scope_->WaitFor(std::chrono::seconds(5)));
             }
-        }
-        {
-            std::scoped_lock lock(virtual_display_callbacks_mtx_);
-            virtual_display_callbacks_.clear();
         }
         auto client = std::move(client_);
         if (!client) {
@@ -256,20 +385,69 @@ namespace px
     }
 
     void RenderServiceClient::PostNetMessage(const std::string& msg) {
-        if (client_ && client_->is_started()) {
-            if (queuing_message_count_ > kMaxClientQueuedMessage) {
-                LOGW("too many message in queue, discard the message in RenderServiceClient");
+        const auto result = TryPostNetMessage(msg);
+        if (!result.HasValue()) {
+            LOGW("RenderServiceClient rejected outgoing message: code={}, stage={}, reason={}",
+                 result.Error().StableCode(), result.Error().stage, result.Error().message);
+        }
+    }
+
+    PxResult<void> RenderServiceClient::TryPostNetMessage(const std::string& msg) {
+        const auto client = client_;
+        if (exiting_.load(std::memory_order_acquire)) {
+            return PxResult<void>::Failure(MakePxAsyncError(
+                PxAsyncErrorCode::kServiceStopped,
+                "queue_service_message",
+                "Render Service client is stopping"));
+        }
+        if (!client || !client->is_started() ||
+            !websocket_upgraded_.load(std::memory_order_acquire)) {
+            return PxResult<void>::Failure(MakePxAsyncError(
+                PxAsyncErrorCode::kServiceNotConnected,
+                "queue_service_message",
+                "Render is not connected to Service",
+                true));
+        }
+
+        const auto previous = queuing_message_count_.fetch_add(1, std::memory_order_acq_rel);
+        if (previous >= kMaxClientQueuedMessage) {
+            queuing_message_count_.fetch_sub(1, std::memory_order_acq_rel);
+            return PxResult<void>::Failure(MakePxAsyncError(
+                PxAsyncErrorCode::kQueueFull,
+                "queue_service_message",
+                "Render Service message queue is full",
+                true));
+        }
+
+        const auto weak_self = weak_from_this();
+        client->async_send(msg, [weak_self]() {
+            const auto send_error = asio2::get_last_error();
+            const auto self = weak_self.lock();
+            if (!self) {
                 return;
             }
-            ++queuing_message_count_;
-            auto weak_self = weak_from_this();
-            client_->async_send(msg, [weak_self]() {
-                auto self = weak_self.lock();
-                if (!self) {
-                    return;
-                }
-                --self->queuing_message_count_;
-            });
+            self->queuing_message_count_.fetch_sub(1, std::memory_order_acq_rel);
+            if (send_error) {
+                self->FailPendingRequests(MakePxAsyncError(
+                    PxAsyncErrorCode::kServiceNotConnected,
+                    "send_service_message",
+                    "failed to send a message to Service",
+                    true,
+                    std::to_string(send_error.value())));
+            }
+        });
+        return PxResult<void>::Success();
+    }
+
+    void RenderServiceClient::FailPendingRequests(const PxAsyncError& error) {
+        if (!rpc_state_) {
+            return;
+        }
+        const auto ticket_count = rpc_state_->ticket_requests_->FailAll(error);
+        const auto display_count = rpc_state_->virtual_display_requests_->FailAll(error);
+        if (ticket_count != 0 || display_count != 0) {
+            LOGW("Render Service pending requests failed: tickets={}, virtual_displays={}, code={}",
+                 ticket_count, display_count, error.StableCode());
         }
     }
 
@@ -309,9 +487,44 @@ namespace px
         const std::string& instance_id,
         std::function<void(bool, const std::string&, const std::vector<std::string>&,
                            const std::string&)>&& callback) {
-        if (!IsAlive() || ticket.empty() || client_nonce.empty()) {
-            callback(false, "INVALID_ARGUMENT", {}, "");
+        if (!callback) {
             return;
+        }
+        if (!async_scope_ || !async_scope_->IsAccepting()) {
+            callback(false, "SERVICE_STOPPED", {}, "");
+            return;
+        }
+        const auto callback_state = std::make_shared<TicketCallback>(std::move(callback));
+        const auto weak_self = weak_from_this();
+        if (!async_scope_->Spawn("redeem-connection-ticket",
+                [weak_self, ticket, client_nonce, instance_id, callback_state]() {
+                    return CompleteLegacyTicketRequest(
+                        weak_self, ticket, client_nonce, instance_id, callback_state);
+                })) {
+            (*callback_state)(false, "SERVICE_STOPPED", {}, "");
+        }
+    }
+
+    PxAwaitable<PxResult<RedeemedConnectionTicket>>
+    RenderServiceClient::RedeemConnectionTicketAsync(
+        std::string ticket,
+        std::string client_nonce,
+        std::string instance_id,
+        std::chrono::steady_clock::time_point deadline) {
+        if (ticket.empty() || client_nonce.empty()) {
+            return ReadyAsyncResult(PxResult<RedeemedConnectionTicket>::Failure(
+                MakePxAsyncError(
+                    PxAsyncErrorCode::kInvalidArgument,
+                    "redeem_ticket",
+                    "ticket and client nonce are required")));
+        }
+        if (!IsAlive() || !websocket_upgraded_.load(std::memory_order_acquire) || !rpc_state_) {
+            return ReadyAsyncResult(PxResult<RedeemedConnectionTicket>::Failure(
+                MakePxAsyncError(
+                    PxAsyncErrorCode::kServiceNotConnected,
+                    "redeem_ticket",
+                    "Render is not connected to Service",
+                    true)));
         }
         // The Direct RTC signaling flow may legitimately redeem the same ticket
         // twice: the first allocation reports kOccupied and the second retries
@@ -324,10 +537,12 @@ namespace px
             "render-{}-{}",
             RdSettings::Instance()->transmission_.listening_port_,
             redemption_fingerprint);
-        {
-            std::scoped_lock lock(ticket_callbacks_mtx_);
-            ticket_callbacks_[request_id] = std::move(callback);
+        auto registered = rpc_state_->ticket_requests_->Register(request_id);
+        if (!registered.HasValue()) {
+            return ReadyAsyncResult(PxResult<RedeemedConnectionTicket>::Failure(
+                registered.Error()));
         }
+        const auto operation = registered.Value();
         px::ServiceMessage message;
         message.set_type(ServiceMessageType::kSrvRedeemConnectionTicket);
         auto* request = message.mutable_redeem_connection_ticket();
@@ -335,7 +550,14 @@ namespace px
         request->set_ticket(ticket);
         request->set_client_nonce(client_nonce);
         request->set_instance_id(instance_id);
-        PostNetMessage(message.SerializeAsString());
+        const auto send_result = TryPostNetMessage(message.SerializeAsString());
+        if (!send_result.HasValue()) {
+            static_cast<void>(rpc_state_->ticket_requests_->Complete(
+                request_id,
+                PxResult<RedeemedConnectionTicket>::Failure(send_result.Error())));
+        }
+        return WaitForRegisteredRequest(
+            rpc_state_->ticket_requests_, request_id, operation, deadline);
     }
 
     void RenderServiceClient::RequestVirtualDisplay(
@@ -345,34 +567,63 @@ namespace px
         uint32_t height,
         uint32_t refresh_hz,
         std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback) {
-        if (!IsAlive() || request_id.empty() || operation < kVirtualDisplayCreate ||
+        if (!callback) {
+            return;
+        }
+        if (!async_scope_ || !async_scope_->IsAccepting()) {
+            MsgVirtualDisplayServiceResult result;
+            result.request_id_ = request_id;
+            result.error_code_ = "SERVICE_STOPPED";
+            result.error_message_ = "Render Service client is stopping";
+            callback(result);
+            return;
+        }
+        const auto callback_state =
+            std::make_shared<VirtualDisplayCallback>(std::move(callback));
+        const auto weak_self = weak_from_this();
+        if (!async_scope_->Spawn("virtual-display-service-request",
+                [weak_self, request_id, operation, width, height, refresh_hz, callback_state]() {
+                    return CompleteLegacyVirtualDisplayRequest(
+                        weak_self, request_id, operation, width, height, refresh_hz, callback_state);
+                })) {
+            MsgVirtualDisplayServiceResult result;
+            result.request_id_ = request_id;
+            result.error_code_ = "SERVICE_STOPPED";
+            result.error_message_ = "Render Service async scope rejected the request";
+            (*callback_state)(result);
+        }
+    }
+
+    PxAwaitable<PxResult<MsgVirtualDisplayServiceResult>>
+    RenderServiceClient::RequestVirtualDisplayAsync(
+        std::string request_id,
+        int operation,
+        uint32_t width,
+        uint32_t height,
+        uint32_t refresh_hz,
+        std::chrono::steady_clock::time_point deadline) {
+        if (request_id.empty() || operation < kVirtualDisplayCreate ||
             operation > kVirtualDisplayResetOwned) {
-            MsgVirtualDisplayServiceResult result;
-            result.request_id_ = request_id;
-            result.error_code_ = "INVALID_ARGUMENT";
-            result.error_message_ = "service is unavailable or virtual display request is invalid";
-            callback(result);
-            return;
+            return ReadyAsyncResult(PxResult<MsgVirtualDisplayServiceResult>::Failure(
+                MakePxAsyncError(
+                    PxAsyncErrorCode::kInvalidArgument,
+                    "virtual_display",
+                    "virtual display request is invalid")));
         }
-        bool duplicate = false;
-        {
-            std::scoped_lock lock(virtual_display_callbacks_mtx_);
-            if (virtual_display_callbacks_.contains(request_id)) {
-                duplicate = true;
-            }
-            else {
-                virtual_display_callbacks_[request_id] = std::move(callback);
-            }
+        if (!IsAlive() || !websocket_upgraded_.load(std::memory_order_acquire) || !rpc_state_) {
+            return ReadyAsyncResult(PxResult<MsgVirtualDisplayServiceResult>::Failure(
+                MakePxAsyncError(
+                    PxAsyncErrorCode::kServiceNotConnected,
+                    "virtual_display",
+                    "Render is not connected to Service",
+                    true)));
         }
-        // Never invoke an external callback while holding the callback-map lock.
-        if (duplicate) {
-            MsgVirtualDisplayServiceResult result;
-            result.request_id_ = request_id;
-            result.error_code_ = "REQUEST_IN_PROGRESS";
-            result.error_message_ = "the same virtual display request is already pending";
-            callback(result);
-            return;
+        auto registered = rpc_state_->virtual_display_requests_->Register(request_id);
+        if (!registered.HasValue()) {
+            return ReadyAsyncResult(PxResult<MsgVirtualDisplayServiceResult>::Failure(
+                registered.Error()));
         }
+        const auto request_operation = registered.Value();
 
         px::ServiceMessage message;
         message.set_type(ServiceMessageType::kSrvVirtualDisplayRequest);
@@ -382,7 +633,14 @@ namespace px
         request->set_width(width);
         request->set_height(height);
         request->set_refresh_hz(refresh_hz);
-        PostNetMessage(message.SerializeAsString());
+        const auto send_result = TryPostNetMessage(message.SerializeAsString());
+        if (!send_result.HasValue()) {
+            static_cast<void>(rpc_state_->virtual_display_requests_->Complete(
+                request_id,
+                PxResult<MsgVirtualDisplayServiceResult>::Failure(send_result.Error())));
+        }
+        return WaitForRegisteredRequest(
+            rpc_state_->virtual_display_requests_, request_id, request_operation, deadline);
     }
 
 }

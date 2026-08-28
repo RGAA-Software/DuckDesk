@@ -14,6 +14,10 @@
 #include <vector>
 #include <asio2/websocket/wss_client.hpp>
 
+#include "px_common_new/async_result.h"
+#include "px_common_new/async_runtime.h"
+#include "network/render_service_rpc_state.h"
+
 namespace px
 {
 
@@ -21,8 +25,6 @@ namespace px
     class RdApplication;
     class RdStatistics;
     class MessageListener;
-    class MsgVirtualDisplayServiceResult;
-
     class RenderServiceClient : public std::enable_shared_from_this<RenderServiceClient> {
     public:
 
@@ -40,6 +42,11 @@ namespace px
             const std::string& instance_id,
             std::function<void(bool, const std::string&, const std::vector<std::string>&,
                                const std::string&)>&& callback);
+        PxAwaitable<PxResult<RedeemedConnectionTicket>> RedeemConnectionTicketAsync(
+            std::string ticket,
+            std::string client_nonce,
+            std::string instance_id,
+            std::chrono::steady_clock::time_point deadline);
         void RequestVirtualDisplay(
             const std::string& request_id,
             int operation,
@@ -47,11 +54,20 @@ namespace px
             uint32_t height,
             uint32_t refresh_hz,
             std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback);
+        PxAwaitable<PxResult<MsgVirtualDisplayServiceResult>> RequestVirtualDisplayAsync(
+            std::string request_id,
+            int operation,
+            uint32_t width,
+            uint32_t height,
+            uint32_t refresh_hz,
+            std::chrono::steady_clock::time_point deadline);
 
     private:
         void HeartBeat();
         void ParseMessage(const std::string& msg);
         void SendPendingAppInstanceReady();
+        PxResult<void> TryPostNetMessage(const std::string& msg);
+        void FailPendingRequests(const PxAsyncError& error);
 
     private:
         std::shared_ptr<RdStatistics> statistics_ = nullptr;
@@ -60,17 +76,10 @@ namespace px
         std::shared_ptr<asio2::ws_client> client_ = nullptr;
         std::atomic_bool websocket_upgraded_ = false;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        std::shared_ptr<PxAsyncScope> async_scope_ = nullptr;
+        std::shared_ptr<RenderServiceRpcState> rpc_state_ = nullptr;
         std::atomic_bool exiting_ = false;
         std::atomic_int queuing_message_count_ = 0;
-        std::mutex ticket_callbacks_mtx_;
-        std::unordered_map<std::string,
-            std::function<void(bool, const std::string&, const std::vector<std::string>&,
-                               const std::string&)>>
-            ticket_callbacks_;
-        std::mutex virtual_display_callbacks_mtx_;
-        std::unordered_map<std::string,
-            std::function<void(const MsgVirtualDisplayServiceResult&)>>
-            virtual_display_callbacks_;
         std::mutex ready_mtx_;
         std::string ready_instance_id_;
         std::string ready_error_;

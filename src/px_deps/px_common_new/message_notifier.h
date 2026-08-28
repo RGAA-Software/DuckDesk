@@ -20,6 +20,7 @@ namespace px
 
     class MessageNotifierCore;
     class MessageListenerState;
+    class PxAsyncRuntime;
 
     enum class MessageBusStopMode {
         kDrain,
@@ -60,6 +61,7 @@ namespace px
         std::size_t max_state_callbacks = 1024;
         std::size_t max_worker_callbacks = 1024;
         std::size_t worker_threads = 2;
+        std::shared_ptr<PxAsyncRuntime> runtime;
     };
 
     class MessageListener {

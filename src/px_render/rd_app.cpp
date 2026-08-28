@@ -1599,9 +1599,14 @@ namespace px
             return;
         }
         const auto current_generation = virtual_display_topology_generation_.load();
+        const auto current_owned_count = virtual_display_owned_count_.load();
         if (result.topology_generation_ < current_generation) {
             LOGW("Ignore stale virtual display status: request={}, incoming={}, current={}",
                  result.request_id_, result.topology_generation_, current_generation);
+            return;
+        }
+        if (result.topology_generation_ == current_generation &&
+            result.owned_display_count_ == current_owned_count) {
             return;
         }
         virtual_display_owned_count_.store(result.owned_display_count_);
@@ -1615,8 +1620,17 @@ namespace px
         if (exit_app_ || !settings_->virtual_display_enabled_ || settings_->IsGameHookMode()) {
             return;
         }
+        if (virtual_display_refresh_pending_.exchange(true, std::memory_order_acq_rel)) {
+            return;
+        }
+        const auto request_sequence =
+            virtual_display_request_sequence_.fetch_add(1, std::memory_order_relaxed) + 1;
         const auto request_id = std::format(
-            "{}-{}-{}", request_prefix, GetCurrentProcessId(), GetTickCount64());
+            "{}-{}-{}-{}",
+            request_prefix,
+            GetCurrentProcessId(),
+            GetTickCount64(),
+            request_sequence);
         const auto weak_self = weak_from_this();
         RequestVirtualDisplay(
             request_id, kVirtualDisplayQuery, 1920, 1080, 60,
@@ -1625,6 +1639,11 @@ namespace px
                 if (!self || self->exit_app_) {
                     return;
                 }
+                self->virtual_display_refresh_pending_.store(false, std::memory_order_release);
+                // Keep the callback as a topology-rebuild-safe fallback. The
+                // message-bus copy can be discarded when the state lane is
+                // rebuilt; UpdateVirtualDisplayStatus is idempotent for the
+                // same generation/count, so callback and broadcast may race.
                 self->PostGlobalTask([weak_self, result]() {
                     if (const auto self = weak_self.lock(); self && !self->exit_app_) {
                         self->UpdateVirtualDisplayStatus(result);

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "px_common_new/message_notifier.h"
+#include "px_common_new/async_runtime.h"
 
 #include <atomic>
 #include <chrono>
@@ -839,6 +840,40 @@ TEST(MessageNotifierTest, CancelFromWorkerDropsQueuedWorkerCallbacks) {
     ASSERT_TRUE(notifier->PublishAppMessage(IntMessage{2}));
     ASSERT_EQ(stopped_future.wait_for(2s), std::future_status::ready);
     EXPECT_EQ(calls->load(std::memory_order_relaxed), 1);
+}
+
+TEST(MessageNotifierTest, ExternalRuntimeRemainsUsableAfterNotifierStops) {
+    for (int round = 0; round < 10; ++round) {
+        const auto runtime = PxAsyncRuntime::Create({.worker_threads = 2});
+        ASSERT_TRUE(runtime->Start());
+        auto notifier = std::make_shared<MessageNotifier>(MessageNotifierOptions{
+            .worker_threads = 2,
+            .runtime = runtime,
+        });
+        auto listener = notifier->CreateListener(MessageExecutionLane::kState);
+        auto delivered = std::make_shared<std::promise<void>>();
+        auto delivered_future = delivered->get_future();
+        listener->Listen<IntMessage>([delivered](const IntMessage&) {
+            delivered->set_value();
+        });
+
+        ASSERT_TRUE(notifier->PublishAppMessage(IntMessage{round}));
+        ASSERT_EQ(delivered_future.wait_for(2s), std::future_status::ready)
+            << "round=" << round;
+        notifier->Stop(MessageBusStopMode::kDrain);
+
+        auto runtime_alive = std::make_shared<std::promise<void>>();
+        auto runtime_alive_future = runtime_alive->get_future();
+        asio::post(runtime->Executor(PxAsyncLane::kState), [runtime_alive]() {
+            runtime_alive->set_value();
+        });
+        EXPECT_EQ(runtime_alive_future.wait_for(2s), std::future_status::ready)
+            << "round=" << round;
+
+        notifier.reset();
+        runtime->RequestStop();
+        runtime->Join();
+    }
 }
 
 } // namespace

@@ -246,6 +246,8 @@ namespace px
         std::atomic_bool monitor_changed_ = false;
         std::atomic_uint32_t virtual_display_owned_count_ = 0;
         std::atomic_uint64_t virtual_display_topology_generation_ = 0;
+        std::atomic_uint64_t virtual_display_request_sequence_ = 0;
+        std::atomic_bool virtual_display_refresh_pending_ = false;
         bool init_failed_ = false;
         std::string init_error_;
 

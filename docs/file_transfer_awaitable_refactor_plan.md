@@ -644,12 +644,14 @@ MessageNotifier 或等待可靠文件队列。
 1. 运行 `check_cpp_ownership`，新代码零裸指针、零异步裸 `this`；
 2. 运行 AsyncRuntime、Scope、FT Engine、各 transport focused tests；
 3. 关键 suite 连续 10 轮；
-4. 使用 `build_official` 做全项目编译；
-5. 同批构建 Client EXE、SDK/RTC DLL 和所有受影响插件 DLL；
+4. 使用 `build_cpp_*.bat` 或 `scripts/build_cpp_target.bat` 只构建本批受影响的
+   CMake target；日常开发不得调用 `build_official.bat`；
+5. 同批按需构建 Client EXE、SDK/RTC DLL 和所有受影响插件 DLL；
 6. 将所有变化的 EXE、DLL、语言资源和 Web 资源同步到
    `build_official\dist`；
 7. 比对 build tree 与 dist 的 SHA-256；
-8. 部署到 90 后再次比对 SHA-256并执行实机矩阵。
+8. 部署到 90 后再次比对 SHA-256并执行实机矩阵；
+9. 只有用户明确要求发版/整体编译时，才运行 `build_official.bat` 作为最终发布门禁。
 
 只编译通过、只替换 EXE、只完成 Engine 单测或只在一种 transport 上传一个小文件，
 都不构成交付完成。
@@ -679,7 +681,8 @@ MessageNotifier 或等待可靠文件队列。
 - touched scope 满足智能指针标准；
 - 文件完整性、进度、续传和错误 UI 通过测试；
 - 本机和 90 的关键矩阵连续 10 轮通过；
-- `build_official` 成功，dist 和 90 的运行产物 hash 与构建产物一致。
+- 日常批次的受影响 C++ target 编译成功，dist 和 90 的运行产物 hash 与构建产物一致；
+- 用户明确进入发版阶段后，`build_official` 最终整编成功。
 
 项目级 callback-to-await 迁移是后续分批工作，不以“全仓无 callback”为完成目标；
 其完成标准是所有适合结构化等待的业务流程具备统一 executor、取消、deadline、
@@ -907,3 +910,53 @@ dist 收集。26 个受影响 C++ 运行产物的 build tree/dist SHA-256 一致
 UI 的人工双向操作、64 MiB/1 GiB、10000 小文件、覆盖/跳过/取消/断点续传、真实 DLL
 load/transfer/stop/unload，以及公网跨网 TURN UDP/TCP 场景仍需单独执行。当前没有公网
 环境，不能把跨网 TURN 项写成已通过。
+
+### 12.10 第一批通用 await 基础设施与按需编译门禁
+
+本批把后续消除回调链需要的通用能力落到 `px_common_new`，并先迁移 Render 与
+`px_service` 之间两个边界清晰、可独立验证的请求：连接 Ticket 兑换和虚拟显示器操作。
+
+- 新增稳定的 `PxResult<T>`/`PxAsyncError`，错误包含固定错误码、阶段、可读信息、
+  可重试标志和可选业务明细码，不再依赖模糊字符串判断状态。
+- 新增一次完成的 `PxAsyncOneShot<T>` 和按 request id 管理的
+  `PxAsyncRequestRegistry<T>`。完成、超时、取消、断连和服务退出竞争时只有一个终态；
+  重复 request id 会在入队前拒绝，连接断开会一次性结束所有未完成请求。
+- coroutine frame 只持有 `shared_ptr`；等待入口为静态 coroutine，不隐含保存裸
+  `this`。兼容旧调用方的 callback 包装使用 `weak_ptr + lock()`，新旧接口共用同一状态机。
+- `RdContext` 统一拥有进程级 `PxAsyncRuntime`，`MessageNotifier` 使用外部 runtime 时不再
+  越权停止它，避免每个模块各建线程池及析构顺序互相影响。
+- Render Service 发送前完成参数、连接状态和队列容量检查；协议解析失败、服务停止、
+  disconnect、deadline 和业务拒绝均返回可区分错误，并保证 registry 清理。
+
+本批同时新增仓库根目录的 C++ 增量入口：Render、Windows Client、Panel、公共库、SDK、
+单个 Render 插件、全部 Render 插件和任意测试目标都可以单独构建。统一底层脚本只调用
+现有 Ninja 构建树中的明确 CMake target，不递增版本、不运行 npm、不调用 Cargo、不重建
+Web，也不收集整个 dist。需要运行的 EXE/DLL 仅按组件发布到 `build_official\\dist`，随后
+逐文件比较 SHA-256。`build_official.bat` 明确保留为用户要求发版时才执行的全量门禁。
+
+本地验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| `build_cpp_render.bat` | `px_render` 增量编译和 dist 发布 PASS |
+| `build_cpp_tests.bat` | 3 个相关测试目标增量编译 PASS |
+| 异步运行时 | 11 tests × 10 轮 PASS |
+| MessageNotifier | 32 tests × 10 轮 PASS（错误日志为异常/背压预期用例） |
+| Render Service RPC 状态机 | 3 tests × 10 轮 PASS |
+| C++ ownership / diff whitespace | PASS |
+| 构建脚本 target 校验 | 46/46 个声明目标存在 |
+| `px_render.exe` build/dist/90 SHA-256 | 一致：`F137C87DAD45702178253BAB1A86D1502C0487DC513D564F89452275E440A0C5` |
+| 90 原生账号 Ticket + Direct RTC | 10/10 PASS；画面、音频、文件通道均就绪 |
+| 90 WebClient 虚拟显示器 | 最终修正版连续 10/10 PASS；新增、发现、切换、持续解码、切回、删除和单屏恢复 |
+| 测试数据清理 | 每轮临时 user/session/ticket 均为 0，最终虚拟屏 owned=0 |
+
+90 的第一阶段探索回归发现：同一毫秒内的两次拓扑通知会生成相同查询 id；同时，删除屏幕
+引发状态 lane 重建时，单靠消息总线可能丢掉最后一次 owned 状态。最终实现用原子序号和
+pending gate 合并并发 refresh，用 callback 作为拓扑重建兜底，再按
+`topology_generation + owned_display_count` 幂等应用。最终 10 轮日志中 20 个客户端新增/
+删除请求均有 20 个 Service 结果，`REQUEST_IN_PROGRESS`、超时、断连和 pending 泄漏为 0。
+
+最终验收没有使用 `build_official.bat`。实现过程中曾误触发该入口，发现后立即终止；它造成
+的临时版本号改动已逐项恢复，被清空的 Web/Console dist 目录也已从现有构建产物恢复，且
+其输出不计入本批验收。本文结果全部来自 `build_cpp_*.bat` 的局部 C++ 构建。这里不把
+“局部 C++ 与实机功能通过”写成“发版整体验收通过”；公网 TURN 仍受环境限制。
