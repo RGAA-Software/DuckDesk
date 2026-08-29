@@ -26,7 +26,7 @@ namespace px
     class RelayConnectedClientInfo;
     class FileTransferWritableSignal;
 
-    class RelayServerSdk {
+    class RelayServerSdk : public std::enable_shared_from_this<RelayServerSdk> {
     public:
         explicit RelayServerSdk(const RelayServerSdkParam& param);
         void Start();

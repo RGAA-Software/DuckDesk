@@ -1612,3 +1612,51 @@ Panel 的 Console 自动发现原先使用一条独立 `Thread`：UDP socket 被
 
 Panel build tree 与 `build_official\dist` 的 `px_panel.exe` SHA-256 一致：
 `8D365A6BF2C3A66A4C1ECE3B043530FF3465D6AC0FE6CDEEC17D2D82CBF9F9BC`。
+
+### 12.27 Phase 7 Relay 插件后台生命周期与无裸指针事件源收敛
+
+Render 的 Relay 插件原先在 `OnCreate` 中启动永久 detached 线程，并在监控线程、Relay SDK
+收包回调及媒体发送任务中直接捕获插件 `this`。`OnDestroy` 只能停止当时可见的 SDK，不能停止
+监控线程；线程随后仍可重建 SDK、访问已卸载 DLL 中的插件实例。2 秒连接轮询和 500 ms 重试
+也不可取消。该问题会直接放大为 Render 退出卡死、重复连接后崩溃或文件传输状态串线。
+
+本批在不修改 `GetInstance`、插件实例身份、加载/卸载 ABI 和 libwebrtc 结构的前提下完成以下
+收敛：
+
+- 新增 `RelayPluginRuntime` 共享运行态；Relay 插件本身只保留
+  `atomic<shared_ptr<RelayPluginRuntime>>` 适配入口；
+- 永久 detached loop 改为 owned `jthread`，所有等待可由 stop token 和 condition variable
+  唤醒；Stop 将线程移出锁区后 request-stop、join，再同步停止媒体/文件 SDK，避免 join 持锁
+  死锁；
+- SDK 收包、心跳、房间、暂停/恢复、通知及发送队列回调全部捕获 `weak_ptr`；SDK 自身改为
+  `enable_shared_from_this`，不再在 WebSocket 异步回调中捕获裸 `this`；
+- 媒体与文件通道各有 generation。配置更新或重连会先废弃旧 generation，旧 SDK 的迟到
+  回调不能再发布事件、修改路由或产生 ACK；host、port、device ID、appkey 更新均会唤醒并
+  重建连接；
+- `PxPluginNetClientEvent` 增加值语义 `source_plugin_id_` 和 owned ACK callback。新 Relay
+  路径不再为了路由和 ACK 保留插件指针；原 `from_plugin_` 仅保留给既有插件 ABI；
+- 文件传输 connection instance generation、严格消息序列检查、独立 FT 发送通道和背压信号
+  保持原语义；媒体 pause 不会阻断独立文件传输。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| Relay DLL 真实生命周期 | 单次测试内 10 轮真实 LoadLibrary / Start / 配置更新 / Stop / OnDestroy / FreeLibrary，10/10 PASS；每轮模块句柄归零 |
+| 故障覆盖 | 连接建立中停止、host/port/appkey 活跃更新、旧 generation 失效、重复创建销毁、排队回调销毁及 join 锁序 |
+| 公共异步/插件回归 | `test_async_runtime` 11 tests、`test_plugin_context_lifecycle` 4 tests、`test_ft_plugin_dll_lifecycle` 1 test，全部 PASS；其中公共运行时与 Context 自带 10 轮重复生命周期 |
+| focused C++ build | `net_relay`、`net_ws`、`net_udp`、`net_rtc`、`net_rtc_local`、`px_render` PASS；未运行 `build_official.bat`，未编译 Rust/Web |
+| ownership 门禁 | `check_cpp_ownership.ps1` PASS；新 Relay 运行态、SDK 回调和测试没有新增裸指针、手工 ownership 或 `[this]` 捕获；测试中的插件指针仅为已标注的加载 ABI 边界 |
+| 真实 dist 服务回归 | 本机 `px_service` 启停 10 轮，10/10 从 `build_official\dist` 拉起新 Render；每轮均恢复两条到 `10.0.0.16:30502` 的 Established Relay 连接（媒体 + 文件） |
+| 最终状态 | `px_service` Running；dist Render 正常运行，Relay 媒体/文件双通道 Established |
+
+由于事件结构增加了值语义来源和 ACK sink，本批把所有使用 `px_net_plugin` 的网络插件作为同一
+兼容单元增量重编译并发布，避免新 Render 与旧插件混用结构布局。build tree 与
+`build_official\dist` 的 SHA-256 均一致：
+
+- `px_render.exe`：`B496790EA171C87D3C4FD3D6D1D594AD4621098ADAEFE0CA85D37A66D054B423`；
+- `net_relay.dll`：`3D8E0E925338A530C2AE301C47BDE5A87E25C733948551613A39362FA0743396`；
+- `net_ws.dll`：`A07F69EBB81248640F4EE8D43FDD32FE4DC5555488A39744C8AA0F5F6C0404E3`；
+- `net_udp.dll`：`BA6C9E20C197753E4DC186DE52CF0337A95E04A9E2319F8AA765BF5BF07DF790`；
+- `net_rtc.dll`：`72A08A5491781932499CF1AF91D0AD64726AFCC851DB315BC1A6A4C5E1ED345E`；
+- `net_rtc_local.dll`：`564F958BDF73E4673B5EE42D8A84843597259E47B6B104AFDC3FDC6EC4A72889`。

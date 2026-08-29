@@ -1,588 +1,130 @@
-//
-// Created RGAA on 15/11/2024.
-//
-
 #include "relay_plugin.h"
-#include "px_common_new/log.h"
-#include "px_common_new/file.h"
-#include "px_common_new/data.h"
-#include "px_common_new/image.h"
-#include "px_common_new/ip_util.h"
-#include "px_common_new/hardware.h"
-#include "px_common_new/string_util.h"
-#include "px_common_new/client_id_extractor.h"
-#include "px_render/plugins/plugin_ids.h"
-#include "px_relay_client/relay_server_sdk.h"
-#include "px_relay_client/relay_server_sdk_param.h"
-#include "px_relay_client/relay_room.h"
-#include "px_relay_client/relay_connected_info.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
-#include "px_render/plugin_interface/px_plugin_context.h"
-#include "relay_message.pb.h"
 
-using namespace px_relay;
+#include <cstdlib>
+
+#include "px_render/plugins/net_relay/relay_plugin_runtime.h"
+#include "px_render/plugins/plugin_ids.h"
 
 PX_PLUGIN_EXPORT(px::RelayPlugin)
 
-namespace px
-{
+namespace px {
 
-    std::string RelayPlugin::GetPluginId() {
-        return kRelayPluginId;
-    }
+std::string RelayPlugin::GetPluginId() { return kRelayPluginId; }
+std::string RelayPlugin::GetPluginName() { return "Net Relay"; }
+std::string RelayPlugin::GetVersionName() { return "1.2.0"; }
+uint32_t RelayPlugin::GetVersionCode() { return 120; }
+std::string RelayPlugin::GetPluginDescription() {
+    return "Network via relay server";
+}
 
-    std::string RelayPlugin::GetPluginName() {
-        return "Net Relay";
-    }
-
-    std::string RelayPlugin::GetVersionName() {
-        return "1.1.0";
-    }
-
-    uint32_t RelayPlugin::GetVersionCode() {
-        return 110;
-    }
-
-    std::string RelayPlugin::GetPluginDescription() {
-        return "Network via relay server";
-    }
-
-    std::shared_ptr<RelayServerSdk> RelayPlugin::GetMediaSdk() {
-        std::lock_guard<std::mutex> lock(sdks_mtx_);
-        return relay_media_sdk_;
-    }
-
-    std::shared_ptr<RelayServerSdk> RelayPlugin::GetFtSdk() {
-        std::lock_guard<std::mutex> lock(sdks_mtx_);
-        return relay_ft_sdk_;
-    }
-
-    void RelayPlugin::SetMediaSdk(const std::shared_ptr<RelayServerSdk>& sdk) {
-        // destroy the replaced sdk outside the lock, its callbacks may re-enter the getters
-        std::shared_ptr<RelayServerSdk> old_sdk;
-        {
-            std::lock_guard<std::mutex> lock(sdks_mtx_);
-            old_sdk = std::move(relay_media_sdk_);
-            relay_media_sdk_ = sdk;
-        }
-    }
-
-    void RelayPlugin::SetFtSdk(const std::shared_ptr<RelayServerSdk>& sdk) {
-        std::shared_ptr<RelayServerSdk> old_sdk;
-        {
-            std::lock_guard<std::mutex> lock(sdks_mtx_);
-            old_sdk = std::move(relay_ft_sdk_);
-            relay_ft_sdk_ = sdk;
-        }
-    }
-
-    void RelayPlugin::On1Second() {
-        PxPluginInterface::On1Second();
-
-    }
-
-    bool RelayPlugin::OnCreate(const px::PxPluginParam &param) {
-        PxNetPlugin::OnCreate(param);
-        relay_device_id_ = GetConfigParam<std::string>("relay_device_id");
-
-        std::thread([=, this]() {
-            int connect_count = 0;
-            auto ips = IPUtil::ScanIPs();
-            std::vector<RelayDeviceNetInfo> net_info_;
-            for (const auto& info : ips) {
-                net_info_.push_back(RelayDeviceNetInfo {
-                    .ip_ = info.ip_addr_,
-                    .mac_ = info.mac_address_,
-                });
-            }
-
-            for (;;) {
-                const auto& relay_identity = relay_device_id_.empty()
-                    ? sys_settings_.device_id_
-                    : relay_device_id_;
-                auto srv_device_id = "server_" + relay_identity;
-                auto relay_host = GetConfigParam<std::string>("relay_host");
-                auto relay_port = std::atoi(GetConfigParam<std::string>("relay_port").c_str());
-
-                if (relay_host != sys_settings_.relay_host_ && !sys_settings_.relay_host_.empty()) {
-                    relay_host = sys_settings_.relay_host_;
-                }
-
-                auto sys_relay_port = std::atoi(sys_settings_.relay_port_.c_str());
-                if (relay_port != sys_relay_port && sys_relay_port > 0) {
-                    relay_port = sys_relay_port;
-                }
-
-                if (sys_settings_.appkey_.empty()) {
-                    LOGW("Appkey is empty.");
-                }
-
-                if (sys_settings_.device_id_.empty() || relay_host.empty() || relay_port <= 0 || sys_settings_.appkey_.empty()) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-                    continue;
-                }
-
-                // release the connection
-                auto fn_release_sdk = [=, this]() {
-                    LOGI("Will retry to connect relay server.");
-                    if (auto sdk = GetMediaSdk(); sdk) {
-                        sdk->Stop();
-                    }
-                    if (auto sdk = GetFtSdk(); sdk) {
-                        sdk->Stop();
-                    }
-                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-                };
-
-                if (need_reconnect_) {
-                    LOGW("Need to recreate connection!");
-                    fn_release_sdk();
-                    need_reconnect_ = false;
-                }
-
-                auto media_sdk = GetMediaSdk();
-                if (!media_sdk || !media_sdk->IsAlive()) {
-                    LOGI("OnCreate try to connect, connect count: {}; device id: {}, relay host: {}, relay port: {}, appkey configured: {}",
-                     connect_count++, srv_device_id, relay_host, relay_port, !sys_settings_.appkey_.empty());
-
-                    // using appkey
-                    using_appkey_ = sys_settings_.appkey_;
-
-                    // todo: check device id, empty? try to retry
-                    media_sdk = std::make_shared<RelayServerSdk>(RelayServerSdkParam{
-                        .host_ = relay_host,
-                        .port_ = relay_port,
-                        .ssl_ = false,
-                        .device_id_ = srv_device_id,
-                        .net_info_ = net_info_,
-                        .appkey_ = sys_settings_.appkey_,
-                    });
-                    SetMediaSdk(media_sdk);
-
-                    media_sdk->SetOnConnectedCallback([=, this]() {
-
-                    });
-
-                    media_sdk->SetOnDisConnectedCallback([=, this]() {
-
-                    });
-
-                    media_sdk->SetOnRelayHelloCallback([=, this](const std::string& device_id) {
-                        this->ReportRelayAlive(device_id);
-                    });
-
-                    media_sdk->SetOnRelayHeartbeatCallback([=, this](const std::string& device_id, int64_t hb_index) {
-                        this->ReportRelayAlive(device_id);
-                    });
-
-                    media_sdk->SetOnRequestControlCallback([=, this](std::shared_ptr<RelayMessage> msg) {
-                        const auto& sub = msg->request_control();
-                        LOGI("Request Control:");
-                        LOGI("Device ID: {}", sub.device_id());
-                        LOGI("Remote Device ID: {}", sub.remote_device_id());
-                        LOGI("Stream ID: {}", sub.stream_id());
-                        LOGI("Force GDI: {}", sub.force_gdi());
-
-                        const auto event = std::make_shared<PxPluginReqParamsBeginStreaming>();
-                        event->stream_id_ = sub.stream_id();
-                        event->force_gdi_ = sub.force_gdi();
-                        this->CallbackEvent(event);
-                    });
-
-                    media_sdk->SetOnRoomPreparedCallback([this](std::shared_ptr<RelayMessage> msg) {
-                        auto sub = msg->room_prepared();
-                        const auto& room_id = sub.room_id();
-
-                        auto media_sdk = GetMediaSdk();
-                        if (!media_sdk) {
-                            return;
-                        }
-                        auto room = media_sdk->GetRoomById(room_id);
-                        if (!room) {
-                            return;
-                        }
-
-                        const auto& device_id = sub.device_id();
-                        std::string visitor_device_id = ExtractClientId(device_id);
-
-                        // TEST //
-                        if (room->creator_stream_id_.empty()) {
-                            LOGE("!!!MUST HAVE STREAM ID!!!");
-                            media_sdk->Stop();
-                            return;
-                        }
-                        // TEST //
-
-                        this->NotifyMediaClientConnected(room->conn_id_, room->creator_stream_id_, visitor_device_id);
-                    });
-
-                    media_sdk->SetOnRoomDestroyedCallback([this](std::shared_ptr<RelayMessage> msg) {
-                        auto sub = msg->room_destroyed();
-                        const auto& room_id = sub.room_id();
-
-                        auto media_sdk = GetMediaSdk();
-                        if (!media_sdk) {
-                            return;
-                        }
-                        auto room = media_sdk->GetRoomById(room_id);
-                        if (!room) {
-                            LOGE("Can't find room for id: {}", room_id);
-                            return;
-                        }
-
-                        const auto& device_id = sub.device_id();
-                        std::string visitor_device_id = ExtractClientId(device_id);
-
-                        auto begin_timestamp = room ? room->created_timestamp_ : 0;
-                        this->NotifyMediaClientDisConnected(room->conn_id_, room->creator_stream_id_, visitor_device_id, begin_timestamp);
-                        if (!media_sdk->HasRelayRooms()) {
-                            paused_stream = true;
-                            LOGW("No active rooms, paused stream.");
-                        }
-                    });
-
-                    media_sdk->SetOnRequestPauseStreamCallback([this]() {
-                        paused_stream = true;
-
-                        auto event = std::make_shared<PxPluginRelayPausedEvent>();
-                        this->CallbackEvent(event);
-                        LOGI("==> Pause stream.");
-                    });
-
-                    media_sdk->SetOnRequestResumeStreamCallback([this]() {
-                        paused_stream = false;
-
-                        auto event = std::make_shared<PxPluginRelayResumedEvent>();
-                        this->CallbackEvent(event);
-                        LOGI("==> Resume stream.");
-                    });
-
-                    media_sdk->SetOnRelayProtoMessageCallback([this](std::shared_ptr<RelayMessage> msg) {
-                        auto type = msg->type();
-                        if (type == RelayMessageType::kRelayTargetMessage) {
-                            auto sub = msg->relay();
-                            auto relay_msg_index = sub.relay_msg_index();
-                            const auto &payload = sub.payload();
-                            auto payload_msg = Data::Make(payload.data(), payload.size());
-                            this->OnClientEventCame(true, 0, NetPluginType::kWebSocket, NetChannelType::kMedia, payload_msg);
-                            //LOGI("Relay in-message size: {}", payload_msg.size());
-                        }
-                    });
-
-                    media_sdk->SetOnNotificationCallback([this](std::shared_ptr<RelayMessage> msg) {
-                        const auto sub = msg->notification();
-                        auto event = std::make_shared<PxPluginPanelStreamMessage>();
-                        event->body_ = Data::From(sub.body());
-                        CallbackEvent(event);
-                    });
-
-                    media_sdk->Start();
-                }
-
-                std::this_thread::sleep_for(std::chrono::seconds(2));
-
-                // firstly, the media sdk should be connected.
-                media_sdk = GetMediaSdk();
-                if (media_sdk && media_sdk->IsAlive()) {
-                    auto ft_sdk = GetFtSdk();
-                    if (!ft_sdk || !ft_sdk->IsAlive()) {
-                        LOGI("SDK Connected to server, connect file transfer channel");
-                        const auto& relay_identity = relay_device_id_.empty()
-                            ? sys_settings_.device_id_
-                            : relay_device_id_;
-                        auto ft_device_id = "ft_server_" + relay_identity;
-                        ft_sdk = std::make_shared<RelayServerSdk>(RelayServerSdkParam{
-                            .host_ = relay_host,
-                            .port_ = relay_port,
-                            .ssl_ = false,
-                            .device_id_ = ft_device_id,
-                            .net_info_ = net_info_,
-                            .device_name_ = Hardware::GetDesktopName(),
-                            .stream_id_ = ft_device_id, //
-                            .appkey_ = sys_settings_.appkey_,
-                        });
-                        SetFtSdk(ft_sdk);
-
-                        ft_sdk->SetOnRelayHelloCallback([=, this](const std::string& device_id) {
-                            this->ReportRelayAlive(device_id);
-                        });
-
-                        ft_sdk->SetOnRelayHeartbeatCallback([=, this](const std::string& device_id, int64_t hb_index) {
-                            this->ReportRelayAlive(device_id);
-                        });
-
-                        ft_sdk->SetOnRelayProtoMessageCallback([this](std::shared_ptr<RelayMessage> msg) {
-                            auto type = msg->type();
-                            if (type == RelayMessageType::kRelayTargetMessage) {
-                                auto sub = msg->relay();
-                                const auto room_id = sub.room_ids_size() > 0
-                                    ? sub.room_ids(0)
-                                    : std::string{};
-                                std::string connection_instance_id;
-                                if (!room_id.empty()) {
-                                    std::lock_guard lock(ft_route_mtx_);
-                                    auto [route_it, inserted] = ft_routes_.try_emplace(room_id);
-                                    auto& route = route_it->second;
-                                    if (inserted || route.connection_instance_id.empty()) {
-                                        route.connection_instance_id = room_id + "#" +
-                                            std::to_string(++ft_route_generation_);
-                                    }
-                                    const auto relay_msg_index = sub.relay_msg_index();
-                                    if (route.has_recv_msg_index &&
-                                        relay_msg_index != route.last_recv_msg_index + 1) {
-                                        LOGE("FT error sequence, room: {}, current: {}, last: {}",
-                                             room_id, relay_msg_index,
-                                             route.last_recv_msg_index);
-                                    }
-                                    route.last_recv_msg_index = relay_msg_index;
-                                    route.has_recv_msg_index = true;
-                                    connection_instance_id = route.connection_instance_id;
-                                }
-                                const auto &payload = sub.payload();
-                                auto payload_msg = Data::Make(payload.data(), payload.size());
-                                this->OnClientEventCameDirectly(
-                                    true, 0, NetPluginType::kWebSocket,
-                                    NetChannelType::kFileTransfer, std::move(payload_msg),
-                                    connection_instance_id);
-                            } else if (type == RelayMessageType::kRelayRoomPrepared) {
-                                const auto& prepared = msg->room_prepared();
-                                std::lock_guard lock(ft_route_mtx_);
-                                auto [route_it, inserted] =
-                                    ft_routes_.try_emplace(prepared.room_id());
-                                auto& route = route_it->second;
-                                if (inserted || route.connection_instance_id.empty()) {
-                                    route.connection_instance_id = prepared.room_id() + "#" +
-                                        std::to_string(++ft_route_generation_);
-                                }
-                                route.stream_id = prepared.creator_stream_id();
-                                route.visitor_device_id = ExtractClientId(
-                                    prepared.creator_device_id().starts_with("ft_")
-                                        ? prepared.creator_device_id().substr(3)
-                                        : prepared.creator_device_id());
-                                if (route.created_timestamp == 0) {
-                                    route.created_timestamp = static_cast<int64_t>(
-                                        TimeUtil::GetCurrentTimestamp());
-                                }
-                            } else if (type == RelayMessageType::kRelayRoomDestroyed) {
-                                const auto& destroyed = msg->room_destroyed();
-                                FtRelayRouteInfo route;
-                                bool found = false;
-                                {
-                                    std::lock_guard lock(ft_route_mtx_);
-                                    if (const auto current = ft_routes_.find(destroyed.room_id());
-                                        current != ft_routes_.end()) {
-                                        route = current->second;
-                                        ft_routes_.erase(current);
-                                        found = true;
-                                    }
-                                }
-                                if (found) {
-                                    NotifyMediaClientDisConnected(
-                                        route.connection_instance_id, route.stream_id,
-                                        route.visitor_device_id,
-                                        route.created_timestamp);
-                                }
-                            }
-                        });
-
-                        ft_sdk->Start();
-                    }
-                }
-                else {
-                    LOGE("Media not connected, will release and reconnect.");
-                    fn_release_sdk();
-                }
-            }
-        }).detach();
-
-        return true;
-    }
-
-    bool RelayPlugin::OnDestroy() {
-        PxNetPlugin::OnStop();
-        if (auto sdk = GetMediaSdk(); sdk) {
-            sdk->Stop();
-        }
-        SetMediaSdk(nullptr);
-        if (auto sdk = GetFtSdk(); sdk) {
-            sdk->Stop();
-        }
-        SetFtSdk(nullptr);
-        return PxNetPlugin::OnDestroy();
-    }
-
-    void RelayPlugin::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
-        if (!IsWorking() || !msg) {
-            return;
-        }
-        if (!paused_stream || run_through) {
-            auto media_sdk = GetMediaSdk();
-            if (!media_sdk) {
-                return;
-            }
-            // make messages in order
-            plugin_context_->PostWorkTask([=, this]() {
-                media_sdk->RelayProtoMessage("", msg);
-            });
-
-            // report sent size
-            ReportSentDataSize((int)msg->Size());
-        }
-    }
-
-    bool RelayPlugin::PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
-        // todo: stream id --> device id
-        if (!IsWorking() || !msg) {
-            return false;
-        }
-        if (!paused_stream || run_through) {
-            auto media_sdk = GetMediaSdk();
-            if (!media_sdk) {
-                return false;
-            }
-            // make messages in order
-            plugin_context_->PostWorkTask([=, this]() {
-                media_sdk->RelayProtoMessage(stream_id, msg);
-            });
-            // report sent size
-            ReportSentDataSize(msg->Size());
-
-        }
-        return true;
-    }
-
-    FileTransferSendResult RelayPlugin::PostTargetFileTransferProtoMessage(
-        const std::string& stream_id,
-        std::shared_ptr<Data> msg,
-        bool run_through,
-        const std::string& connection_instance_id) {
-        if (!msg) {
-            return FileTransferSendResult::TransportError(
-                "relay file-transfer payload is empty");
-        }
-        if (!IsWorking()) {
-            return FileTransferSendResult::Disconnected(
-                "relay transport is not working");
-        }
-        auto ft_sdk = GetFtSdk();
-        if (!ft_sdk) {
-            return FileTransferSendResult::Disconnected(
-                "relay file-transfer connection is unavailable");
-        }
-        // Media pause/resume controls screen streaming only. A standalone FT
-        // room intentionally has no media room, so paused_stream remains true
-        // and must not block its independent reliable channel.
-        static_cast<void>(run_through);
-        if (ft_sdk->GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages) {
-            return FileTransferSendResult::Busy(
-                "relay file-transfer queue is full",
-                ft_sdk->AcquireFileTransferWritableSignal());
-        }
-        ft_sdk->RelayProtoMessage(stream_id, msg);
-        ReportSentDataSize(msg->Size());
-        return FileTransferSendResult::Accepted();
-    }
-
-    int RelayPlugin::GetConnectedClientsCount() {
-        //LOGI("IsWorking ? {}, ConnectedPeerCount: {}", IsWorking(), relay_media_sdk_->GetConnectedClientsCount());
-        auto media_sdk = GetMediaSdk();
-        return IsWorking() && media_sdk ? media_sdk->GetConnectedClientsCount() : 0;
-    }
-
-    bool RelayPlugin::IsOnlyAudioClients() {
+bool RelayPlugin::OnCreate(const PxPluginParam& param) {
+    if (!PxNetPlugin::OnCreate(param)) {
         return false;
     }
-
-    bool RelayPlugin::IsWorking() {
-        auto media_sdk = GetMediaSdk();
-        return media_sdk && media_sdk->IsAlive() && sys_settings_.relay_enabled_;
-    }
-
-    void RelayPlugin::SyncInfo(const px::NetSyncInfo &info) {
-        PxNetPlugin::SyncInfo(info);
-    }
-
-    void RelayPlugin::NotifyMediaClientConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id) {
-        auto event = std::make_shared<PxPluginClientConnectedEvent>();
-        event->conn_id_ = conn_id;
-        event->stream_id_ = stream_id;
-        event->conn_type_ = "Relay";
-        event->visitor_device_id_ = visitor_device_id;
-        event->begin_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
-        this->CallbackEvent(event);
-        LOGI("Conn id: {}, visitor device id: {}", stream_id, visitor_device_id);
-    }
-
-    void RelayPlugin::NotifyMediaClientDisConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id, int64_t begin_timestamp) {
-        auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
-        event->conn_id_ = conn_id;
-        event->stream_id_ = stream_id;
-        event->visitor_device_id_ = visitor_device_id;
-        event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
-        event->duration_ = event->end_timestamp_ - begin_timestamp;
-        this->CallbackEvent(event);
-        LOGI("DisConn id: {}, visitor device id: {}, duration: {}, begin ts: {}", stream_id, visitor_device_id, event->duration_, begin_timestamp);
-    }
-
-    void RelayPlugin::OnSyncPluginSettingsInfo(const px::PxPluginSettingsInfo &settings) {
-        PxPluginInterface::OnSyncPluginSettingsInfo(settings);
-        if (!sys_settings_.appkey_.empty() && sys_settings_.appkey_ != using_appkey_) {
-            need_reconnect_ = true;
-            LOGW("Appkey changed, need to recreate connection.");
-        }
-    }
-
-    int64_t RelayPlugin::GetQueuingMediaMsgCount() {
-        auto media_sdk = GetMediaSdk();
-        return media_sdk ? media_sdk->GetQueuingMsgCount() : 0;
-    }
-
-    int64_t RelayPlugin::GetQueuingFtMsgCount() {
-        auto ft_sdk = GetFtSdk();
-        return ft_sdk ? ft_sdk->GetQueuingMsgCount() : 0;
-    }
-
-    bool RelayPlugin::HasEnoughBufferForQueuingMediaMessages() {
-        return true;
-    }
-
-    bool RelayPlugin::HasEnoughBufferForQueuingFtMessages() {
-        return true;
-    }
-
-    std::vector<std::shared_ptr<PxConnectedClientInfo>> RelayPlugin::GetConnectedClientInfo() {
-        auto media_sdk = GetMediaSdk();
-        if (IsWorking() && media_sdk) {
-            auto r = media_sdk->GetConnectedClientInfo();
-            std::vector<std::shared_ptr<PxConnectedClientInfo>> clients_info;
-            for (const auto& item : r) {
-                clients_info.push_back(std::make_shared<PxConnectedClientInfo>(PxConnectedClientInfo {
-                    .device_id_ = item->device_id_,
-                    .stream_id_ = item->stream_id_,
-                    .relay_room_id_ = item->room_id_,
-                    .device_name_ = item->device_name_,
-                }));
-            }
-            return clients_info;
-        }
-        return {};
-    }
-
-    void RelayPlugin::OnMessageAck(const std::shared_ptr<NetMessageAck> &ack) {
-        //LOGI("OnMessage ack, type: {}, channel: {}, resp time: {}", ack->msg_type_, (int)ack->ch_type_, ack->resp_time_);
-        if (ack->ch_type_ == NetChannelType::kFileTransfer) {
-            if (last_ack_) {
-                auto diff = (int64_t) ack->resp_time_ - (int64_t) last_ack_->resp_time_;
-                LOGI("OnMessage ack: {}ms, now: {}, last: {}", (diff), ack->resp_time_, last_ack_->resp_time_);
-            }
-            last_ack_ = ack;
-        }
-    }
-
-    void RelayPlugin::ReportRelayAlive(const std::string& device_id) {
-        auto event = std::make_shared<PxPluginRelayAlive>();
-        event->device_id_ = device_id;
-        this->CallbackEvent(event);
-    }
-
+    runtime_.store(RelayPluginRuntime::Create(RelayPluginRuntimeConfig{
+        .relay_device_id = GetConfigParam<std::string>("relay_device_id"),
+        .configured_host = GetConfigParam<std::string>("relay_host"),
+        .configured_port = std::atoi(
+            GetConfigParam<std::string>("relay_port").c_str()),
+        .settings = sys_settings_,
+    }));
+    return true;
 }
+
+void RelayPlugin::On1Second() {
+    PxPluginInterface::On1Second();
+    const auto runtime = runtime_.load();
+    if (!runtime) {
+        return;
+    }
+    runtime->UpdateSettings(sys_settings_);
+    runtime->Start(plugin_context_, event_cbk_);
+}
+
+bool RelayPlugin::OnDestroy() {
+    PxNetPlugin::OnStop();
+    const auto runtime = runtime_.exchange({});
+    if (runtime) {
+        runtime->Stop();
+    }
+    return PxNetPlugin::OnDestroy();
+}
+
+void RelayPlugin::PostProtoMessage(
+    std::shared_ptr<Data> message, bool run_through) {
+    if (const auto runtime = runtime_.load()) {
+        runtime->PostMedia(std::move(message), run_through);
+    }
+}
+
+bool RelayPlugin::PostTargetStreamProtoMessage(
+    const std::string& stream_id, std::shared_ptr<Data> message,
+    bool run_through) {
+    const auto runtime = runtime_.load();
+    return runtime && runtime->PostTargetMedia(
+        stream_id, std::move(message), run_through);
+}
+
+FileTransferSendResult RelayPlugin::PostTargetFileTransferProtoMessage(
+    const std::string& stream_id, std::shared_ptr<Data> message,
+    bool run_through, const std::string& connection_instance_id) {
+    static_cast<void>(run_through);
+    const auto runtime = runtime_.load();
+    return runtime
+        ? runtime->PostFileTransfer(
+              stream_id, std::move(message), connection_instance_id)
+        : FileTransferSendResult::Disconnected(
+              "relay runtime is not available");
+}
+
+int RelayPlugin::GetConnectedClientsCount() {
+    const auto runtime = runtime_.load();
+    return runtime ? runtime->ConnectedClientsCount() : 0;
+}
+
+bool RelayPlugin::IsOnlyAudioClients() { return false; }
+
+bool RelayPlugin::IsWorking() {
+    const auto runtime = runtime_.load();
+    return runtime && runtime->IsWorking();
+}
+
+void RelayPlugin::SyncInfo(const NetSyncInfo& info) {
+    PxNetPlugin::SyncInfo(info);
+}
+
+void RelayPlugin::OnSyncPluginSettingsInfo(
+    const PxPluginSettingsInfo& settings) {
+    PxPluginInterface::OnSyncPluginSettingsInfo(settings);
+    if (const auto runtime = runtime_.load()) {
+        runtime->UpdateSettings(settings);
+    }
+}
+
+int64_t RelayPlugin::GetQueuingMediaMsgCount() {
+    const auto runtime = runtime_.load();
+    return runtime ? runtime->QueuingMediaMessageCount() : 0;
+}
+
+int64_t RelayPlugin::GetQueuingFtMsgCount() {
+    const auto runtime = runtime_.load();
+    return runtime ? runtime->QueuingFileTransferMessageCount() : 0;
+}
+
+bool RelayPlugin::HasEnoughBufferForQueuingMediaMessages() { return true; }
+bool RelayPlugin::HasEnoughBufferForQueuingFtMessages() { return true; }
+
+std::vector<std::shared_ptr<PxConnectedClientInfo>>
+RelayPlugin::GetConnectedClientInfo() {
+    const auto runtime = runtime_.load();
+    return runtime ? runtime->ConnectedClientInfo()
+                   : std::vector<std::shared_ptr<PxConnectedClientInfo>>{};
+}
+
+void RelayPlugin::OnMessageAck(const std::shared_ptr<NetMessageAck>& ack) {
+    if (const auto runtime = runtime_.load()) {
+        runtime->OnMessageAck(ack);
+    }
+}
+
+} // namespace px

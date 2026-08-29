@@ -471,8 +471,9 @@ namespace px {
             const bool is_input = msg->type() == MessageType::kMouseEvent ||
                                   msg->type() == MessageType::kKeyEvent ||
                                   msg->type() == MessageType::kTextInput;
-            const std::string source_plugin_id =
-                event->from_plugin_ ? event->from_plugin_->GetPluginId() : std::string{};
+            const std::string source_plugin_id = !event->source_plugin_id_.empty()
+                ? event->source_plugin_id_
+                : (event->from_plugin_ ? event->from_plugin_->GetPluginId() : std::string{});
             const std::string source_connection_id = event->connection_instance_id_;
             const auto weak_self = weak_from_this();
             plugin_manager_->VisitAllPlugins([weak_self, msg, hook_inner, is_input, source_plugin_id, source_connection_id](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
@@ -1309,6 +1310,11 @@ namespace px {
         ack->resp_time_ = sub.resp_time();
         ack->ch_type_ = ev->nt_channel_type_;
         ack->msg_type_ = m->type();
-        ev->from_plugin_->OnMessageAck(ack);
+        if (ev->ack_callback_) {
+            ev->ack_callback_(ack);
+        }
+        else if (ev->from_plugin_) {
+            ev->from_plugin_->OnMessageAck(ack);
+        }
     }
 }

@@ -11,6 +11,7 @@
 #include "px_common_new/data.h"
 #include "px_common_new/uuid.h"
 #include "relay_connected_info.h"
+#include <utility>
 
 using namespace px_relay;
 
@@ -43,28 +44,44 @@ namespace px
     }
 
     void RelayServerSdk::SetOnConnectedCallback(OnRelayServerConnected&& cbk) {
-        ws_client_->SetOnRelayServerConnectedCallback([=, this]() {
-            cbk();
-            connected_ = true;
+        const auto weak_self = weak_from_this();
+        ws_client_->SetOnRelayServerConnectedCallback(
+            [weak_self, callback = std::move(cbk)]() {
+            if (const auto self = weak_self.lock()) {
+                if (callback) {
+                    callback();
+                }
+                self->connected_ = true;
+            }
         });
     }
 
     void RelayServerSdk::SetOnDisConnectedCallback(OnRelayServerDisConnected&& cbk) {
-        ws_client_->SetOnRelayServerDisConnectedCallback([=, this]() {
-            cbk();
-            connected_ = false;
-            rooms_.Clear();
+        const auto weak_self = weak_from_this();
+        ws_client_->SetOnRelayServerDisConnectedCallback(
+            [weak_self, callback = std::move(cbk)]() {
+            if (const auto self = weak_self.lock()) {
+                if (callback) {
+                    callback();
+                }
+                self->connected_ = false;
+                self->rooms_.Clear();
+            }
         });
     }
 
     void RelayServerSdk::SetOnRelayProtoMessageCallback(std::function<void(const std::shared_ptr<RelayMessage>&)>&& cbk) {
-        ws_client_->SetOnRelayProtoMessageCallback([=, this](std::shared_ptr<Data> msg) {
-            auto proto_msg = ProcessProtoMessage(msg);
-            if (proto_msg) {
-                cbk(proto_msg);
-            }
-            else {
-                LOGE("Parse relay proto message failed!");
+        const auto weak_self = weak_from_this();
+        ws_client_->SetOnRelayProtoMessageCallback(
+            [weak_self, callback = std::move(cbk)](std::shared_ptr<Data> msg) {
+            if (const auto self = weak_self.lock()) {
+                auto proto_msg = self->ProcessProtoMessage(std::move(msg));
+                if (proto_msg && callback) {
+                    callback(proto_msg);
+                }
+                else {
+                    LOGE("Parse relay proto message failed!");
+                }
             }
         });
     }
@@ -107,14 +124,19 @@ namespace px
             return;
         }
 
-        ws_client_->PostNetTask([=, this]() {
+        const auto weak_self = weak_from_this();
+        ws_client_->PostNetTask([weak_self, stream_id, msg = std::move(msg)]() {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
             RelayMessage rl_msg;
-            rl_msg.set_from_device_id(sdk_param_.device_id_);
+            rl_msg.set_from_device_id(self->sdk_param_.device_id_);
             rl_msg.set_type(RelayMessageType::kRelayTargetMessage);
             auto relay = rl_msg.mutable_relay();
-            relay->set_relay_msg_index(relay_msg_index_++);
+            relay->set_relay_msg_index(self->relay_msg_index_++);
             auto room_ids = relay->mutable_room_ids();
-            rooms_.ApplyAll([&](const auto& k, const std::shared_ptr<RelayRoom>& r) {
+            self->rooms_.ApplyAll([&](const auto& k, const std::shared_ptr<RelayRoom>& r) {
                 if ((stream_id == r->creator_stream_id_ && !stream_id.empty()) || stream_id.empty()) {
                     room_ids->Add(r->room_id_.c_str());
                 }
@@ -126,7 +148,7 @@ namespace px
                 return;
             }
 
-            this->PostBinMessage(rl_msg.SerializeAsString());
+            self->PostBinMessage(rl_msg.SerializeAsString());
         });
     }
 

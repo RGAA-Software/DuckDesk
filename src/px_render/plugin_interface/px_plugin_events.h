@@ -107,6 +107,11 @@ namespace px
         NetPluginType nt_plugin_type_;
         NetChannelType nt_channel_type_;
         PxNetPlugin* from_plugin_ = nullptr;
+        // New transports use value identity and an owned acknowledgement sink
+        // so their asynchronous receive path never has to retain a plug-in
+        // instance. from_plugin_ remains only for the established plug-in ABI.
+        std::string source_plugin_id_;
+        std::function<void(const std::shared_ptr<NetMessageAck>&)> ack_callback_;
         // Value identity of the concrete transport connection. It is copied
         // into FT routing state and never used as an ownership handle.
         std::string connection_instance_id_;
