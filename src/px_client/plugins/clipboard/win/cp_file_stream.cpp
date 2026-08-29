@@ -26,6 +26,7 @@ namespace px
     }
 
     HRESULT STDMETHODCALLTYPE CpFileStream::Read(void *pv, ULONG cb, ULONG *pcbRead) {
+        std::unique_lock read_lock(read_mtx_);
         if (!pv) {
             return STG_E_INVALIDPOINTER;
         }
@@ -50,9 +51,12 @@ namespace px
 
         std::unique_lock lk(wait_data_mtx_);
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        const auto exit_state = std::ref(exit_);
+        const auto response_state = std::ref(resp_buffer_);
         while (true) {
-            data_cv_.wait_until(lk, deadline, [this]() -> bool {
-                return exit_ || resp_buffer_.has_value();
+            data_cv_.wait_until(lk, deadline, [exit_state, response_state]() {
+                return exit_state.get().load() ||
+                    response_state.get().has_value();
             });
 
             if (exit_) {
@@ -129,6 +133,19 @@ namespace px
 
     void CpFileStream::OnClipboardRespBuffer(const ClipboardRespBuffer& rb) {
         std::unique_lock lk(wait_data_mtx_);
+        const auto expected_index = req_index_.load();
+        if (rb.req_index() < expected_index) {
+            LOGW("ignore completed clipboard resp index {}, expected {}",
+                 rb.req_index(), expected_index);
+            return;
+        }
+        if (resp_buffer_.has_value() &&
+            resp_buffer_->req_index() == expected_index &&
+            rb.req_index() != expected_index) {
+            LOGW("keep matching clipboard resp index {}, ignore incoming {}",
+                 expected_index, rb.req_index());
+            return;
+        }
         ClipboardRespBuffer buffer;
         buffer.CopyFrom(rb);
         resp_buffer_ = buffer;
@@ -150,5 +167,16 @@ namespace px
 
     std::string CpFileStream::GetFullPath() {
         return cp_file_.file_.full_path();
+    }
+
+    Microsoft::WRL::ComPtr<CpFileStream> CreateClipboardFileStream(
+        CpFileStream::RequestBufferCallback request_buffer_callback,
+        std::shared_ptr<std::atomic_bool> lifetime_token,
+        const ClipboardFileWrapper& file_wrapper) {
+        Microsoft::WRL::ComPtr<CpFileStream> stream;
+        stream.Attach(new CpFileStream( // NOLINT(gammaray-raw-pointer-boundary): COM object is immediately adopted by ComPtr
+            std::move(request_buffer_callback), std::move(lifetime_token),
+            file_wrapper));
+        return stream;
     }
 }

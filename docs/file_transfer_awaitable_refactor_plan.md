@@ -2140,3 +2140,37 @@ Client `clipboard` 插件原先把 loader-owned 插件地址传入 `ClipboardMan
 - `px_client.exe`: `0BE53D959AFDD46C7F8955DFC602BB398ACC148174173F98C1E9BC27AB312D68`
 - `px_client_rtc.dll`: `D3B497D805C1A059403BF87E0BA73E39BFB9DDFCBF08883BF8FE8CCEC94E5C8E`
 - `clipboard.dll`: `11F95B4851B5B08293D3FD2B78B20DE3ECE61307E39266F2B100C73180C73CFF`
+
+### 12.41 Phase 7 Client clipboard COM stream 所有权与分块等待收敛
+
+完成插件外层 Runtime 收敛后，虚拟文件的 `IStream` 路径仍以
+`map<string, CpFileStream*>` 保存活动流，并让引用计数降到零的 stream 通过 callback
+反向删除自己。该模型把 map 锁、COM `Release()` 和 owner 析构顺序耦合在一起；单槽响应
+还允许已经匹配的分块被随后到达的无关响应覆盖。
+
+本批完成：
+
+- 活动流表改为 `map<string, WRL::ComPtr<CpFileStream>>`，GetData 创建后立即由 ComPtr
+  接管，向 `STGMEDIUM` 只在 COM ABI 边界 `Detach` 一次；
+- 删除 stream cleanup callback 和 owner token，查找、移除、批量退出全部返回/移动
+  ComPtr snapshot，锁外执行通知和 `Exit()`；
+- `Read()` 增加串行门禁，避免同一 COM stream 的并发读取共用 request index/响应槽；
+- 条件变量谓词不再捕获 `this`；Exit 通过原子状态和 notify 同步唤醒正在等待的 Read；
+- 响应接收拒绝已经完成的 index；当前匹配响应已经入槽时，后到的 future/无关响应不能
+  覆盖它；
+- 新增 focused `test_client_clipboard_file_stream`，直接验证真实 `IStream::Read` 分块状态机。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 分块读取 | 256 KiB 调用被限制为 128 KiB 请求；连续两次 Read 的 index/offset 为 0/0、1/4，数据和 read size 正确 |
+| 乱序/重复 | 过期 index 不完成当前 Read；匹配响应入槽后不被无关 index 覆盖，PASS |
+| 停止 | pending Read 在 `Exit()` 后立即返回 `S_FALSE`；失效 lifetime 和 request rejection 均不进入 10 秒等待 |
+| 10 轮 | 5-test stream suite 连续执行 10/10 PASS，共 50 项；真实 clipboard DLL create/stop/destroy/unload 10/10 PASS |
+| Client 插件组 | event、record、FT、clipboard lifecycle 与 stream 共 5 个 CTest 目标全部 PASS |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；活动流无裸容器元素、自删除 callback 或 `[this]` |
+| focused build/dist | 仅定向编译 clipboard/test；dist `clipboard.dll` 与 build tree SHA-256 一致，未运行发版整编 |
+
+`clipboard.dll` build/dist SHA-256：
+`01207CD8405D7D1F45BFB2C10124595C6C5B355CAF058B548F3EFA68AC5F4217`。

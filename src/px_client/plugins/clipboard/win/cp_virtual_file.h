@@ -73,11 +73,14 @@ namespace px
     private:
         using EventCallback = std::function<void(const std::shared_ptr<ClientPluginBaseEvent>&)>;
 
-        void ReportFileTransferBegin(CpFileStream* stream);
-        void ReportFileTransferEnd(CpFileStream* stream);
+        void ReportFileTransferBegin(
+            const Microsoft::WRL::ComPtr<CpFileStream>& stream);
+        void ReportFileTransferEnd(
+            const Microsoft::WRL::ComPtr<CpFileStream>& stream);
         void ExitAllStreams();
         void RemoveStreamByPath(const std::string& full_path);
-        CpFileStream* FindStreamByPath(const std::string& full_path);
+        Microsoft::WRL::ComPtr<CpFileStream> FindStreamByPath(
+            const std::string& full_path);
 
     private:
         uint32_t clip_format_filedesc_ = 0;
@@ -87,11 +90,10 @@ namespace px
         BOOL in_async_op_ = false;
         std::shared_ptr<std::atomic_bool> plugin_lifetime_token_ = nullptr;
         std::shared_ptr<ClipboardRuntimeBridge> runtime_bridge_ = nullptr;
-        std::shared_ptr<std::atomic_bool> stream_owner_alive_ = std::make_shared<std::atomic_bool>(true);
         EventCallback event_cbk_ = nullptr;
         std::function<bool(const ClipboardFileWrapper&, int64_t, int64_t, ULONG)> request_buffer_cbk_ = nullptr;
         mutable std::mutex active_streams_mtx_;
-        std::map<std::string, CpFileStream*> active_streams_;
+        std::map<std::string, Microsoft::WRL::ComPtr<CpFileStream>> active_streams_;
         std::vector<ClipboardFile> menu_files_;
         std::vector<ClipboardFileWrapper> task_files_;
     };

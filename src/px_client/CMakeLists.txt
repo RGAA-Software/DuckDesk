@@ -203,6 +203,13 @@ target_compile_definitions(test_client_clipboard_plugin_dll_lifecycle PRIVATE
     PX_CLIENT_CLIPBOARD_PLUGIN_DLL_PATH="$<TARGET_FILE:client_clipboard>")
 add_dependencies(test_client_clipboard_plugin_dll_lifecycle client_clipboard)
 
+add_executable(test_client_clipboard_file_stream
+    tests/test_client_clipboard_file_stream.cpp
+    plugins/clipboard/win/cp_file_stream.cpp
+)
+target_link_libraries(test_client_clipboard_file_stream PRIVATE
+    px_common_new px_message GTest::gtest GTest::gtest_main)
+
 if(BUILD_TESTING)
     add_executable(test_client_latest_frame_dispatch_queue
         tests/test_latest_frame_dispatch_queue.cpp
@@ -217,6 +224,7 @@ if(BUILD_TESTING)
     add_test(NAME client_record_plugin_dll_lifecycle COMMAND test_client_record_plugin_dll_lifecycle)
     add_test(NAME client_ft_plugin_dll_lifecycle COMMAND test_client_ft_plugin_dll_lifecycle)
     add_test(NAME client_clipboard_plugin_dll_lifecycle COMMAND test_client_clipboard_plugin_dll_lifecycle)
+    add_test(NAME client_clipboard_file_stream COMMAND test_client_clipboard_file_stream)
 endif()
 
 if (PX_PROTECTION_ENABLED)

@@ -57,7 +57,6 @@ namespace px
     }
 
     CpVirtualFile::~CpVirtualFile() {
-        stream_owner_alive_->store(false);
         ExitAllStreams();
     }
 
@@ -143,21 +142,8 @@ namespace px
                 const auto full_path = fw.file_.full_path();
                 RemoveStreamByPath(full_path);
 
-                auto* file_stream = new CpFileStream(
-                    request_buffer_cbk_,
-                    plugin_lifetime_token_,
-                    [this, full_path, token = stream_owner_alive_](CpFileStream* stream) {
-                        if (!token || !token->load()) {
-                            return;
-                        }
-                        std::lock_guard<std::mutex> lock(active_streams_mtx_);
-                        auto it = active_streams_.find(full_path);
-                        if (it != active_streams_.end() && it->second == stream) {
-                            active_streams_.erase(it);
-                        }
-                    },
-                    fw
-                );
+                auto file_stream = CreateClipboardFileStream(
+                    request_buffer_cbk_, plugin_lifetime_token_, fw);
                 {
                     std::lock_guard<std::mutex> lock(active_streams_mtx_);
                     active_streams_[full_path] = file_stream;
@@ -165,7 +151,7 @@ namespace px
 
                 ReportFileTransferBegin(file_stream);
 
-                pmedium->pstm = file_stream;
+                pmedium->pstm = file_stream.Detach();
                 pmedium->tymed = TYMED_ISTREAM;
                 hr = S_OK;
             }
@@ -312,16 +298,16 @@ namespace px
     }
 
     void CpVirtualFile::OnClipboardRespBuffer(const ClipboardRespBuffer& resp_buffer) {
-        auto* stream = FindStreamByPath(resp_buffer.full_name());
+        const auto stream = FindStreamByPath(resp_buffer.full_name());
         if (!stream) {
             LOGW("clipboard response has no matching stream: {}", resp_buffer.full_name());
             return;
         }
         stream->OnClipboardRespBuffer(resp_buffer);
-        stream->Release();
     }
 
-    void CpVirtualFile::ReportFileTransferBegin(CpFileStream* stream) {
+    void CpVirtualFile::ReportFileTransferBegin(
+        const Microsoft::WRL::ComPtr<CpFileStream>& stream) {
         if (!stream || !event_cbk_ || !plugin_lifetime_token_ || !plugin_lifetime_token_->load()) {
             return;
         }
@@ -357,7 +343,8 @@ namespace px
         //plugin_->DispatchTargetFileTransferMessage(file_stream_->GetStreamId(), buffer, false);
     }
 
-    void CpVirtualFile::ReportFileTransferEnd(CpFileStream* stream) {
+    void CpVirtualFile::ReportFileTransferEnd(
+        const Microsoft::WRL::ComPtr<CpFileStream>& stream) {
         if (!stream || !event_cbk_ || !plugin_lifetime_token_ || !plugin_lifetime_token_->load()) {
             return;
         }
@@ -393,34 +380,28 @@ namespace px
     }
 
     void CpVirtualFile::ExitAllStreams() {
-        std::vector<CpFileStream*> streams;
+        std::vector<Microsoft::WRL::ComPtr<CpFileStream>> streams;
         {
             std::lock_guard<std::mutex> lock(active_streams_mtx_);
-            for (const auto& [_, stream] : active_streams_) {
-                if (stream) {
-                    stream->AddRef();
-                    streams.push_back(stream);
-                }
+            streams.reserve(active_streams_.size());
+            for (auto& [_, stream] : active_streams_) {
+                streams.emplace_back(std::move(stream));
             }
             active_streams_.clear();
         }
-        for (auto* stream : streams) {
+        for (const auto& stream : streams) {
             ReportFileTransferEnd(stream);
             stream->Exit();
-            stream->Release();
         }
     }
 
     void CpVirtualFile::RemoveStreamByPath(const std::string& full_path) {
-        CpFileStream* stream = nullptr;
+        Microsoft::WRL::ComPtr<CpFileStream> stream;
         {
             std::lock_guard<std::mutex> lock(active_streams_mtx_);
             auto it = active_streams_.find(full_path);
             if (it != active_streams_.end()) {
-                stream = it->second;
-                if (stream) {
-                    stream->AddRef();
-                }
+                stream = std::move(it->second);
                 active_streams_.erase(it);
             }
         }
@@ -429,16 +410,15 @@ namespace px
         }
         ReportFileTransferEnd(stream);
         stream->Exit();
-        stream->Release();
     }
 
-    CpFileStream* CpVirtualFile::FindStreamByPath(const std::string& full_path) {
+    Microsoft::WRL::ComPtr<CpFileStream> CpVirtualFile::FindStreamByPath(
+        const std::string& full_path) {
         std::lock_guard<std::mutex> lock(active_streams_mtx_);
         auto it = active_streams_.find(full_path);
         if (it == active_streams_.end() || !it->second) {
-            return nullptr;
+            return {};
         }
-        it->second->AddRef();
         return it->second;
     }
 
