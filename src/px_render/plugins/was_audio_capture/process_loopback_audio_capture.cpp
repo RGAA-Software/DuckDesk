@@ -4,6 +4,9 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <Windows.h>
+#include <wrl.h>
+#include <wrl/client.h>
+#include <wrl/implements.h>
 #include <initguid.h>
 #include <audioclient.h>
 #include <audioclientactivationparams.h>
@@ -13,7 +16,9 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <memory>
 #include <string>
+#include <utility>
 
 #include "px_common_new/data.h"
 #include "px_common_new/log.h"
@@ -52,90 +57,58 @@ bool IsFatalCaptureError(HRESULT hr) {
            hr == AUDCLNT_E_RESOURCES_INVALIDATED;
 }
 
-class ActivateHandler final : public IActivateAudioInterfaceCompletionHandler,
-                              public IAgileObject {
+struct WinHandleCloser final {
+    void operator()(void* handle) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): Win32 HANDLE boundary
+        if (handle) {
+            CloseHandle(handle);
+        }
+    }
+};
+
+using UniqueWinHandle = std::unique_ptr<void, WinHandleCloser>;
+using Microsoft::WRL::ClassicCom;
+using Microsoft::WRL::ComPtr;
+using Microsoft::WRL::RuntimeClass;
+using Microsoft::WRL::RuntimeClassFlags;
+
+class ActivateHandler final : public RuntimeClass<
+                                  RuntimeClassFlags<ClassicCom>,
+                                  IActivateAudioInterfaceCompletionHandler,
+                                  IAgileObject> {
 public:
     ActivateHandler()
         : activate_done_(CreateEventW(nullptr, TRUE, FALSE, nullptr)),
           sample_ready_(CreateEventW(nullptr, FALSE, FALSE, nullptr)) {}
 
-    ~ActivateHandler() {
-        if (cap_) {
-            cap_->Release();
-        }
-        if (client_) {
-            client_->Release();
-        }
-        if (sample_ready_) {
-            CloseHandle(sample_ready_);
-        }
-        if (activate_done_) {
-            CloseHandle(activate_done_);
-        }
+    [[nodiscard]] bool Ready() const {
+        return activate_done_ && sample_ready_;
     }
 
-    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** ppv) override {
-        if (!ppv) {
-            return E_POINTER;
-        }
-        if (riid == __uuidof(IUnknown) ||
-            riid == __uuidof(IActivateAudioInterfaceCompletionHandler)) {
-            *ppv = static_cast<IActivateAudioInterfaceCompletionHandler*>(this);
-            AddRef();
-            return S_OK;
-        }
-        if (riid == __uuidof(IAgileObject)) {
-            *ppv = static_cast<IAgileObject*>(this);
-            AddRef();
-            return S_OK;
-        }
-        *ppv = nullptr;
-        return E_NOINTERFACE;
-    }
-    ULONG STDMETHODCALLTYPE AddRef() override { return ref_.fetch_add(1) + 1; }
-    ULONG STDMETHODCALLTYPE Release() override {
-        const ULONG n = ref_.fetch_sub(1) - 1;
-        if (n == 0) {
-            delete this;
-        }
-        return n;
-    }
-
+    // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): COM completion ABI
     HRESULT STDMETHODCALLTYPE ActivateCompleted(
         IActivateAudioInterfaceAsyncOperation* op) override {
-        // Self-reference: the capture thread took an extra AddRef when activation
-        // was kicked off; it is released here so a late callback (after a
-        // WaitActivate timeout) can never run against a deleted handler.
-        struct SelfRef {
-            ActivateHandler* h;
-            ~SelfRef() { h->Release(); }
-        } self_ref{this};
-
         if (cancelled_.load()) {
-            // Waiter already gave up: do not touch any external state, just
-            // drop the self-reference (this may delete the handler).
             return S_OK;
         }
 
         activate_hr_ = E_FAIL;
         HRESULT hr_activate = E_FAIL;
-        IUnknown* unk = nullptr;
+        ComPtr<IUnknown> unknown;
         if (!op) {
-            SetEvent(activate_done_);
+            SetEvent(activate_done_.get());
             return S_OK;
         }
-        op->GetActivateResult(&hr_activate, &unk);
-        if (FAILED(hr_activate) || !unk) {
+        op->GetActivateResult(&hr_activate, unknown.GetAddressOf());
+        if (FAILED(hr_activate) || !unknown) {
             activate_hr_ = FAILED(hr_activate) ? hr_activate : E_FAIL;
-            SetEvent(activate_done_);
+            SetEvent(activate_done_.get());
             return S_OK;
         }
 
-        HRESULT hr = unk->QueryInterface(IID_PPV_ARGS(&client_));
-        unk->Release();
+        HRESULT hr = unknown.As(&client_);
         if (FAILED(hr) || !client_) {
             activate_hr_ = hr;
-            SetEvent(activate_done_);
+            SetEvent(activate_done_.get());
             return S_OK;
         }
 
@@ -156,19 +129,20 @@ public:
         hr = client_->Initialize(AUDCLNT_SHAREMODE_SHARED, flags, 200000, 0, &format_, nullptr);
         if (FAILED(hr)) {
             activate_hr_ = hr;
-            SetEvent(activate_done_);
+            SetEvent(activate_done_.get());
             return S_OK;
         }
 
         // With AUTOCONVERTPCM, GetBuffer delivers frames already converted to the
         // requested client format above; log the engine mix format for diagnosis.
-        WAVEFORMATEX* mix = nullptr;
-        hr = client_->GetMixFormat(&mix);
+        WAVEFORMATEX* mix_value = nullptr; // NOLINT(gammaray-raw-pointer-boundary): COM allocated output boundary
+        hr = client_->GetMixFormat(&mix_value);
+        const std::unique_ptr<WAVEFORMATEX, decltype(&CoTaskMemFree)> mix(
+            mix_value, &CoTaskMemFree);
         if (SUCCEEDED(hr) && mix) {
             LOGI("[ProcessLoopback] mix format: tag={} {}Hz {}ch {}bit align={}",
                  mix->wFormatTag, mix->nSamplesPerSec, mix->nChannels,
                  mix->wBitsPerSample, mix->nBlockAlign);
-            CoTaskMemFree(mix);
         } else {
             LOGW("[ProcessLoopback] GetMixFormat failed 0x{:08x}; using requested format",
                  static_cast<unsigned>(hr));
@@ -180,95 +154,122 @@ public:
             LOGE("[ProcessLoopback] unsupported client format: tag={} bits={} (expect PCM16)",
                  format_.wFormatTag, format_.wBitsPerSample);
             activate_hr_ = E_FAIL;
-            SetEvent(activate_done_);
+            SetEvent(activate_done_.get());
             return S_OK;
         }
 
-        hr = client_->GetService(__uuidof(IAudioCaptureClient), reinterpret_cast<void**>(&cap_));
+        hr = client_->GetService(
+            __uuidof(IAudioCaptureClient),
+            reinterpret_cast<void**>(cap_.ReleaseAndGetAddressOf()));
         if (FAILED(hr) || !cap_) {
             activate_hr_ = FAILED(hr) ? hr : E_FAIL;
-            SetEvent(activate_done_);
+            SetEvent(activate_done_.get());
             return S_OK;
         }
 
-        hr = client_->SetEventHandle(sample_ready_);
+        hr = client_->SetEventHandle(sample_ready_.get());
         if (FAILED(hr)) {
             activate_hr_ = hr;
-            SetEvent(activate_done_);
+            SetEvent(activate_done_.get());
             return S_OK;
         }
 
         activate_hr_ = S_OK;
-        SetEvent(activate_done_);
+        SetEvent(activate_done_.get());
         return S_OK;
     }
 
     bool WaitActivate(DWORD ms) {
-        return WaitForSingleObject(activate_done_, ms) == WAIT_OBJECT_0;
+        return WaitForSingleObject(activate_done_.get(), ms) == WAIT_OBJECT_0;
+    }
+    bool WaitSample(DWORD ms) {
+        return WaitForSingleObject(sample_ready_.get(), ms) == WAIT_OBJECT_0;
     }
     // Marks the wait as given up: a late ActivateCompleted must not touch state.
     void Cancel() {
         cancelled_ = true;
-        SetEvent(activate_done_);
+        SetEvent(activate_done_.get());
     }
     HRESULT activate_hr() const { return activate_hr_; }
-    IAudioClient* client() const { return client_; }
-    IAudioCaptureClient* capture() const { return cap_; }
-    HANDLE sample_event() const { return sample_ready_; }
+    [[nodiscard]] ComPtr<IAudioClient> client() const { return client_; }
+    [[nodiscard]] ComPtr<IAudioCaptureClient> capture() const { return cap_; }
     const WAVEFORMATEX& format() const { return format_; }
 
 private:
-    std::atomic<ULONG> ref_{1};
     std::atomic<bool> cancelled_{false};
-    HANDLE activate_done_ = nullptr;
-    HANDLE sample_ready_ = nullptr;
+    UniqueWinHandle activate_done_;
+    UniqueWinHandle sample_ready_;
     HRESULT activate_hr_ = E_FAIL;
-    IAudioClient* client_ = nullptr;
-    IAudioCaptureClient* cap_ = nullptr;
+    ComPtr<IAudioClient> client_;
+    ComPtr<IAudioCaptureClient> cap_;
     WAVEFORMATEX format_{};
 };
 
 }  // namespace
+
+struct ProcessLoopbackAudioCapture::State final {
+    State(
+        uint32_t process_id,
+        std::shared_ptr<IAudioCapture::CallbackState> callback_channel)
+        : pid(process_id), callbacks(std::move(callback_channel)) {}
+
+    const uint32_t pid;
+    const std::shared_ptr<IAudioCapture::CallbackState> callbacks;
+    std::mutex mutex;
+    std::atomic_bool want_running = false;
+    std::atomic_bool running = false;
+    std::atomic_bool stop_notified = false;
+    std::atomic_bool fatal_stop = false;
+    std::jthread worker;
+    std::atomic_int samples = 48000;
+    std::atomic_int channels = 2;
+    std::atomic_int bits = 16;
+};
 
 AudioCapturePtr ProcessLoopbackAudioCapture::Make(uint32_t process_id) {
     return std::make_shared<ProcessLoopbackAudioCapture>(process_id);
 }
 
 ProcessLoopbackAudioCapture::ProcessLoopbackAudioCapture(uint32_t process_id)
-    : pid_(process_id) {}
+    : state_(std::make_shared<State>(process_id, callback_state_)) {}
 
 ProcessLoopbackAudioCapture::~ProcessLoopbackAudioCapture() {
     Stop();
 }
 
 int ProcessLoopbackAudioCapture::Start() {
-    if (pid_ == 0) {
+    const auto state = state_;
+    if (state->pid == 0) {
         LOGE("[ProcessLoopback] Start failed: pid=0");
         return -1;
     }
     {
-        std::lock_guard lock(mu_);
-        if (running_.load() || worker_.joinable()) {
+        std::lock_guard lock(state->mutex);
+        if (state->running.load() || state->worker.joinable()) {
             // Idempotent: already running, or the worker is still starting up.
             LOGI("[ProcessLoopback] Start ignored: {} pid={}",
-                 running_.load() ? "already running" : "already starting", pid_);
+                 state->running.load() ? "already running" : "already starting",
+                 state->pid);
             return 0;
         }
-        want_running_ = true;
-        stop_notified_ = false;
-        fatal_stop_ = false;
-        worker_ = std::thread([this] { CaptureThreadMain(); });
+        state->want_running = true;
+        state->stop_notified = false;
+        state->fatal_stop = false;
+        state->worker = std::jthread(
+            [state](std::stop_token stop_token) {
+                CaptureThreadMain(state, stop_token);
+            });
     }
     // Wait for activate success/fail so caller can trust IsProviding().
-    for (int i = 0; i < 200 && want_running_.load(); ++i) {
-        if (running_.load()) {
+    for (int i = 0; i < 200 && state->want_running.load(); ++i) {
+        if (state->running.load()) {
             return 0;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
-    if (!running_.load()) {
+    if (!state->running.load()) {
         Stop();
-        LOGE("[ProcessLoopback] Start failed/timeout pid={}", pid_);
+        LOGE("[ProcessLoopback] Start failed/timeout pid={}", state->pid);
         return -2;
     }
     return 0;
@@ -279,29 +280,42 @@ int ProcessLoopbackAudioCapture::Pause() {
 }
 
 int ProcessLoopbackAudioCapture::Stop() {
-    want_running_ = false;
-    std::thread joined;
+    const auto state = state_;
+    state->want_running = false;
+    std::jthread joined;
     {
-        std::lock_guard lock(mu_);
-        if (worker_.joinable()) {
-            joined = std::move(worker_);
+        std::lock_guard lock(state->mutex);
+        if (state->worker.joinable()) {
+            joined = std::move(state->worker);
         }
     }
     if (joined.joinable()) {
-        joined.join();
+        joined.request_stop();
+        if (joined.get_id() == std::this_thread::get_id()) {
+            joined.detach();
+        } else {
+            joined.join();
+        }
     }
-    running_ = false;
-    NotifyStopOnce();
+    state->running = false;
+    NotifyStopOnce(state);
     return 0;
 }
 
-void ProcessLoopbackAudioCapture::NotifyStopOnce() {
-    if (!stop_notified_.exchange(true) && stop_callback_) {
-        stop_callback_();
+bool ProcessLoopbackAudioCapture::IsFatalStop() const {
+    return state_->fatal_stop.load();
+}
+
+void ProcessLoopbackAudioCapture::NotifyStopOnce(
+    const std::shared_ptr<State>& state) {
+    const auto callback = SnapshotCallbacks(state->callbacks).stop;
+    if (!state->stop_notified.exchange(true) && callback) {
+        callback();
     }
 }
 
-void ProcessLoopbackAudioCapture::CaptureThreadMain() {
+void ProcessLoopbackAudioCapture::CaptureThreadMain(
+    const std::shared_ptr<State>& state, std::stop_token stop_token) {
     const CoInitGuard co_init;
     if (!co_init.ok()) {
         LOGE("[ProcessLoopback] CoInitializeEx failed 0x{:08x}",
@@ -311,7 +325,7 @@ void ProcessLoopbackAudioCapture::CaptureThreadMain() {
 
     AUDIOCLIENT_ACTIVATION_PARAMS ap{};
     ap.ActivationType = AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK;
-    ap.ProcessLoopbackParams.TargetProcessId = pid_;
+    ap.ProcessLoopbackParams.TargetProcessId = state->pid;
     ap.ProcessLoopbackParams.ProcessLoopbackMode =
         PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE;
 
@@ -321,88 +335,96 @@ void ProcessLoopbackAudioCapture::CaptureThreadMain() {
     pv.blob.cbSize = sizeof(ap);
     pv.blob.pBlobData = reinterpret_cast<BYTE*>(&ap);
 
-    auto* handler = new ActivateHandler();
-    // Self-reference: keeps the handler alive until ActivateCompleted runs, even
-    // if we give up waiting below (timeout/stop) and release our own reference.
-    handler->AddRef();
-    IActivateAudioInterfaceAsyncOperation* async_op = nullptr;
+    const auto handler = Microsoft::WRL::Make<ActivateHandler>();
+    if (!handler || !handler->Ready()) {
+        LOGE("[ProcessLoopback] failed to create activation events pid={}",
+             state->pid);
+        state->want_running = false;
+        return;
+    }
+    ComPtr<IActivateAudioInterfaceAsyncOperation> async_operation;
     HRESULT hr = ActivateAudioInterfaceAsync(VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
-                                             __uuidof(IAudioClient), &pv, handler, &async_op);
+                                             __uuidof(IAudioClient), &pv,
+                                             handler.Get(),
+                                             async_operation.GetAddressOf());
     if (FAILED(hr)) {
         LOGE("[ProcessLoopback] ActivateAudioInterfaceAsync failed 0x{:08x} pid={}",
-             static_cast<unsigned>(hr), pid_);
-        handler->Release();  // self-ref (no callback will arrive)
-        handler->Release();  // caller ref
+             static_cast<unsigned>(hr), state->pid);
+        state->want_running = false;
         return;
     }
 
     // Wait in slices so Stop() (want_running_ = false) breaks out quickly
     // instead of blocking on the full 15s timeout.
     bool activated = false;
-    for (int waited = 0; waited < 15000 && want_running_.load(); waited += 100) {
+    for (int waited = 0;
+         waited < 15000 && state->want_running.load() &&
+         !stop_token.stop_requested();
+         waited += 100) {
         if (handler->WaitActivate(100)) {
             activated = true;
             break;
         }
     }
-    if (!want_running_.load() || !activated || FAILED(handler->activate_hr())) {
-        if (want_running_.load()) {
+    if (!state->want_running.load() || stop_token.stop_requested() ||
+        !activated || FAILED(handler->activate_hr())) {
+        if (state->want_running.load() && !stop_token.stop_requested()) {
             LOGE("[ProcessLoopback] activate/init failed 0x{:08x} pid={}",
-                 static_cast<unsigned>(handler->activate_hr()), pid_);
+                 static_cast<unsigned>(handler->activate_hr()), state->pid);
         } else {
-            LOGI("[ProcessLoopback] activate cancelled by stop pid={}", pid_);
+            LOGI("[ProcessLoopback] activate cancelled by stop pid={}", state->pid);
         }
         handler->Cancel();
-        if (async_op) {
-            async_op->Release();
-        }
-        handler->Release();  // caller ref; the self-ref goes with ActivateCompleted
+        state->want_running = false;
         return;
     }
-    if (async_op) {
-        async_op->Release();
-    }
 
-    IAudioClient* client = handler->client();
-    IAudioCaptureClient* cap = handler->capture();
+    const auto client = handler->client();
+    const auto capture_client = handler->capture();
     const WAVEFORMATEX& fmt = handler->format();
-    samples_ = static_cast<int>(fmt.nSamplesPerSec);
-    channels_ = static_cast<int>(fmt.nChannels);
-    bits_ = static_cast<int>(fmt.wBitsPerSample);
+    state->samples = static_cast<int>(fmt.nSamplesPerSec);
+    state->channels = static_cast<int>(fmt.nChannels);
+    state->bits = static_cast<int>(fmt.wBitsPerSample);
     // Bytes per frame come from the negotiated client format, never assumed.
     const int frame_bytes = static_cast<int>(fmt.nBlockAlign);
 
-    if (format_callback_) {
-        format_callback_(samples_, channels_, bits_);
+    const auto format_callback = SnapshotCallbacks(state->callbacks).format;
+    if (format_callback) {
+        format_callback(
+            state->samples.load(), state->channels.load(), state->bits.load());
     }
 
     hr = client->Start();
     if (FAILED(hr)) {
         LOGE("[ProcessLoopback] client->Start failed 0x{:08x}", static_cast<unsigned>(hr));
-        handler->Release();
+        state->want_running = false;
         return;
     }
 
-    running_ = true;
-    LOGI("[ProcessLoopback] capturing pid={} {}Hz {}ch {}bit", pid_, samples_, channels_, bits_);
+    state->running = true;
+    LOGI("[ProcessLoopback] capturing pid={} {}Hz {}ch {}bit",
+         state->pid, state->samples.load(), state->channels.load(),
+         state->bits.load());
 
     uint64_t packets = 0;
     uint64_t transient_errors = 0;
     HRESULT loop_hr = S_OK;
-    while (want_running_.load()) {
-        WaitForSingleObject(handler->sample_event(), 50);
+    while (state->want_running.load() && !stop_token.stop_requested()) {
+        handler->WaitSample(50);
         UINT32 packet = 0;
-        HRESULT hr_size = cap->GetNextPacketSize(&packet);
+        HRESULT hr_size = capture_client->GetNextPacketSize(&packet);
         while (SUCCEEDED(hr_size) && packet > 0) {
             BYTE* data = nullptr;
             UINT32 frames = 0;
             DWORD flags = 0;
-            const HRESULT hr_buf = cap->GetBuffer(&data, &frames, &flags, nullptr, nullptr);
+            const HRESULT hr_buf = capture_client->GetBuffer(
+                &data, &frames, &flags, nullptr, nullptr);
             if (FAILED(hr_buf)) {
                 hr_size = hr_buf;
                 break;
             }
-            if (frames > 0 && data_callback_) {
+            const auto data_callback = SnapshotCallbacks(state->callbacks).data;
+            if (frames > 0 && data_callback) {
                 const int bytes = static_cast<int>(frames) * frame_bytes;
                 if (!data || (flags & AUDCLNT_BUFFERFLAGS_SILENT) != 0) {
                     // Keep the sample clock continuous (OBS style): push an
@@ -410,18 +432,19 @@ void ProcessLoopbackAudioCapture::CaptureThreadMain() {
                     auto silent = Data::Make(nullptr, bytes);
                     if (silent && silent->DataAddr()) {
                         memset(silent->DataAddr(), 0, bytes);
-                        data_callback_(silent);
+                        data_callback(silent);
                     }
                 } else {
-                    data_callback_(Data::Make(reinterpret_cast<const char*>(data), bytes));
+                    data_callback(Data::Make(
+                        reinterpret_cast<const char*>(data), bytes));
                 }
                 ++packets;
                 if (packets == 1 || (packets % 200) == 0) {
                     LOGI("[ProcessLoopback] packets={} last_bytes={}", packets, bytes);
                 }
             }
-            cap->ReleaseBuffer(frames);
-            hr_size = cap->GetNextPacketSize(&packet);
+            capture_client->ReleaseBuffer(frames);
+            hr_size = capture_client->GetNextPacketSize(&packet);
         }
         if (FAILED(hr_size)) {
             if (IsFatalCaptureError(hr_size)) {
@@ -430,7 +453,7 @@ void ProcessLoopbackAudioCapture::CaptureThreadMain() {
             }
             if (++transient_errors == 1 || (transient_errors % 100) == 0) {
                 LOGW("[ProcessLoopback] transient capture error 0x{:08x} n={} pid={}",
-                     static_cast<unsigned>(hr_size), transient_errors, pid_);
+                     static_cast<unsigned>(hr_size), transient_errors, state->pid);
             }
         }
     }
@@ -439,15 +462,15 @@ void ProcessLoopbackAudioCapture::CaptureThreadMain() {
         // Fatal device error: leave the thread instead of spinning forever, and
         // surface the stop so the plugin layer can schedule an auto-restart.
         LOGE("[ProcessLoopback] fatal capture error 0x{:08x} pid={}, capture thread exits",
-             static_cast<unsigned>(loop_hr), pid_);
-        fatal_stop_ = true;
-        NotifyStopOnce();
+             static_cast<unsigned>(loop_hr), state->pid);
+        state->fatal_stop = true;
+        NotifyStopOnce(state);
     }
 
     client->Stop();
-    running_ = false;
-    handler->Release();
-    LOGI("[ProcessLoopback] stopped pid={} packets={}", pid_, packets);
+    state->running = false;
+    state->want_running = false;
+    LOGI("[ProcessLoopback] stopped pid={} packets={}", state->pid, packets);
 }
 
 }  // namespace px

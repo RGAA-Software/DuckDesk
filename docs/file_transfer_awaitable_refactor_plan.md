@@ -1882,3 +1882,43 @@ worker 捕获插件 `this`；Format/Stream/Codec/FIFO/Resampler/Packet/Frame 又
 
 `enc_opus.dll` 的 build tree 与 `build_official\dist` SHA-256 一致：
 `4979370609386D08959ADFD4BC532AF7A8AF85D497DC6D04C45760C3E3F38243`。
+
+### 12.34 Phase 7 WAS 音频 backend 回调与进程内录线程收敛
+
+外层 `WasAudioCaptureRuntime` 已经不依赖插件实例生命周期，但两个实际 backend 仍有
+底层债务：MiniAudio 把 `MiniAudioCapture this` 作为 `pUserData` 交给第三方回调；原生
+process-loopback 用 `std::thread([this])`，同时手工维护 COM 引用计数、接口指针和事件
+HANDLE。单独看正常 Stop 可工作，但无法从类型上证明对象销毁、回调替换、异步激活迟到
+以及回调线程停止的安全性。
+
+本批完成以下改造：
+
+- `IAudioCapture` 的六类回调统一进入共享、加锁的 callback state；派发前复制 snapshot，
+  外部回调在无锁状态执行，允许派发中替换/注销且不会重入死锁；
+- MiniAudio `pUserData` 改为专用共享 bridge，C ABI 回调只通过 `weak_ptr::lock()` 获取
+  capture；Stop 在释放 device/context 前先关闭 bridge，第三方源码和 ABI 均未修改；
+- PCM 内部接口改为 `span<const int16_t>`，只在 miniaudio C 缓冲区边界瞬时构造；
+- `ProcessLoopbackAudioCapture` 的 flags、worker、格式与 callback channel 移入共享
+  `State`；`jthread` 只捕获 State，支持 stop-token、外部 join 及工作线程内 Stop 的
+  self-detach 收尾，不再捕获 capture 对象；
+- COM 异步激活对象改为 WRL `RuntimeClass`/`ComPtr`，事件改为带 `CloseHandle` deleter
+  的 RAII handle；手工 `new/delete/AddRef/Release` 和长期裸 COM 成员全部移除；
+- 新增真实 `test_process_loopback_lifecycle`，以测试进程自身 PID 验证 Windows
+  `ActivateAudioInterfaceAsync`，不依赖保存的外部 PID。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| callback 并发 | 派发阻塞期间替换 callback，旧 snapshot 完成、下一帧只进入新 callback，10/10 PASS |
+| process-loopback | 真实 COM 激活、48 kHz/2 ch/16 bit 格式回调、Stop、重复 Stop，10/10 PASS |
+| Runtime 生命周期 | 致命停止重试、pending 取消、回调内 Stop、Shutdown 后迟到消息、重复启停全部 PASS |
+| MiniAudio 真实回环 | Realtek 默认扬声器播放 880 Hz，2 秒采集 384000 bytes、峰值 8191，主动重建后继续采集，PASS |
+| MiniAudio 取消 | pending reinit 后立即 Stop 10/10 PASS |
+| DLL 生命周期 | LoadLibrary / OnCreate / Start / Stop / OnDestroy / FreeLibrary 10/10 PASS |
+| focused build | `build_cpp_was_audio_tests.bat` 覆盖 Runtime、process-loopback、reinit、真实回环、DLL 和 `cap_was_audio`；未运行 `build_official.bat` |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；新代码无项目裸指针、manual ownership 或 `[this]`，仅保留显式标注的 Win32/COM/miniaudio 瞬时 ABI 边界 |
+| dist | `cap_was_audio.dll` 已同步并由 dist Render 实际加载；build/dist SHA-256 一致 |
+
+`cap_was_audio.dll` SHA-256：
+`F29903B5BFF6EF1597F54102CF31FAA4602351B6429C6D5FED63445EBDBA3014`。

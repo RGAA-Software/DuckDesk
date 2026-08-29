@@ -82,6 +82,13 @@ same focused-build, 10-round lifecycle and dist-publication gates.
 - The outer WAS audio plug-in now delegates capture, retry and event delivery
   to `WasAudioCaptureRuntime`. Capture callbacks and the retry worker hold only
   weak/shared ownership and no longer retain the loader-owned plug-in instance.
+- The maintained WAS audio backends now share a synchronized callback channel.
+  MiniAudio gives its C ABI a short-lived bridge that locks a weak owner, while
+  process-loopback runs on a shared state `jthread` and uses WRL `ComPtr` plus
+  RAII event handles for asynchronous activation. Neither backend worker or C
+  callback retains a capture object. Callback replacement during an in-flight
+  dispatch, pending reinit cancellation, real process-loopback activation,
+  repeated Stop and DLL unload each pass ten rounds.
 - Client monitor refresh now uses the cancellable context delay lane, and its
   redundant detached exit watchdog has been removed. Panel exit/uninstall now
   uses a tested staged sequence instead of UI sleeps and a detached thread.
@@ -110,8 +117,8 @@ same focused-build, 10-round lifecycle and dist-publication gates.
   `px_client.exe`, `voice_call.dll`, and `px_voice_apm.dll` are publication-gated
   by matching build/dist SHA-256 hashes. This is lifecycle hardening evidence,
   not a replacement for the two-machine audio-quality and device matrix.
-- The next in-scope batch is the remaining owned capture/process callback
-  lifecycle audit. libwebrtc adapters and established plug-in instance ABI
+- The next in-scope batch is GDI capture worker ownership and stop/restart
+  sequencing. libwebrtc adapters and established plug-in instance ABI
   boundaries remain excluded.
 
 ## Target execution architecture

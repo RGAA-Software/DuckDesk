@@ -10,22 +10,31 @@
 namespace px
 {
 
-	const char* MiniAudioCapture::ResultStr(ma_result result) {
-		const char* desc = ma_result_description(result);
-		return desc ? desc : "unknown";
+	std::string MiniAudioCapture::ResultText(ma_result result) {
+		const char* description = ma_result_description(result); // NOLINT(gammaray-raw-pointer-boundary): borrowed miniaudio result text
+		return description ? std::string(description) : std::string("unknown");
 	}
 
-	MiniAudioCapture::MiniAudioCapture(uint32_t loopback_process_id)
+	MiniAudioCapture::MiniAudioCapture(
+		ConstructionToken, uint32_t loopback_process_id)
 		: loopback_process_id_(loopback_process_id) {}
 
+	void MiniAudioCapture::InitializeCallbackBridge() {
+		callback_bridge_ = std::make_shared<CallbackBridge>();
+		callback_bridge_->owner = weak_from_this();
+	}
+
 	AudioCapturePtr MiniAudioCapture::Make() {
-		auto capture = std::shared_ptr<MiniAudioCapture>(new MiniAudioCapture(0));
+		auto capture = std::make_shared<MiniAudioCapture>(ConstructionToken{}, 0);
+		capture->InitializeCallbackBridge();
 		LOGI("[MiniAudioCapture] Make (OS default playback loopback)");
 		return capture;
 	}
 
 	AudioCapturePtr MiniAudioCapture::MakeForProcess(uint32_t process_id) {
-		auto capture = std::shared_ptr<MiniAudioCapture>(new MiniAudioCapture(process_id));
+		auto capture = std::make_shared<MiniAudioCapture>(
+			ConstructionToken{}, process_id);
+		capture->InitializeCallbackBridge();
 		LOGI("[MiniAudioCapture] MakeForProcess pid={}", process_id);
 		return capture;
 	}
@@ -33,6 +42,7 @@ namespace px
 	MiniAudioCapture::~MiniAudioCapture() {
 		want_running_ = false;
 		Stop();
+		callback_bridge_.reset();
 	}
 
 	void MiniAudioCapture::EnsureReinitWorker() {
@@ -93,11 +103,14 @@ namespace px
 	}
 
 	void MiniAudioCapture::CleanupUnlocked() {
+		if (callback_bridge_) {
+			callback_bridge_->accepting = false;
+		}
 		if (device_inited_) {
 			if (running_) {
 				ma_result r = ma_device_stop(&device_);
 				if (r != MA_SUCCESS) {
-					LOGW("[MiniAudioCapture] ma_device_stop failed: {} ({})", (int)r, ResultStr(r));
+					LOGW("[MiniAudioCapture] ma_device_stop failed: {} ({})", (int)r, ResultText(r));
 				}
 				running_ = false;
 			}
@@ -120,7 +133,7 @@ namespace px
 		ma_context_config context_config = ma_context_config_init();
 		ma_result result = ma_context_init(backends, 1, &context_config, &context_);
 		if (result != MA_SUCCESS) {
-			LOGE("[MiniAudioCapture] ma_context_init(WASAPI) failed: {} ({})", (int)result, ResultStr(result));
+			LOGE("[MiniAudioCapture] ma_context_init(WASAPI) failed: {} ({})", (int)result, ResultText(result));
 			return (int)result;
 		}
 		context_inited_ = true;
@@ -131,7 +144,14 @@ namespace px
 		device_config.sampleRate = kSampleRate;
 		device_config.dataCallback = DataCallback;
 		device_config.notificationCallback = NotificationCallback;
-		device_config.pUserData = this;
+		const auto callback_bridge = callback_bridge_;
+		if (!callback_bridge) {
+			LOGE("[MiniAudioCapture] callback bridge is unavailable");
+			CleanupUnlocked();
+			return MA_INVALID_OPERATION;
+		}
+		callback_bridge->accepting = true;
+		device_config.pUserData = callback_bridge.get(); // NOLINT(gammaray-raw-pointer-boundary): miniaudio retains userdata only until device uninit
 		// nullptr => current OS default render endpoint (or process-loopback virtual device).
 		device_config.capture.pDeviceID = nullptr;
 		if (loopback_process_id_ != 0) {
@@ -148,7 +168,8 @@ namespace px
 		if (result != MA_SUCCESS) {
 			LOGE("[MiniAudioCapture] ma_device_init(loopback{}) failed: {} ({}) pid={}",
 				 loopback_process_id_ ? " process" : " default",
-				 (int)result, ResultStr(result), loopback_process_id_);
+				 (int)result, ResultText(result), loopback_process_id_);
+			callback_bridge->accepting = false;
 			CleanupUnlocked();
 			return (int)result;
 		}
@@ -158,8 +179,9 @@ namespace px
 			 device_.capture.name[0] ? device_.capture.name : "<unnamed>",
 			 loopback_process_id_, kSampleRate, kChannels, kBits);
 
-		if (format_callback_) {
-			format_callback_(kSampleRate, kChannels, kBits);
+		const auto callbacks = SnapshotCallbacks();
+		if (callbacks.format) {
+			callbacks.format(kSampleRate, kChannels, kBits);
 		} else {
 			LOGW("[MiniAudioCapture] format_callback_ is null");
 		}
@@ -169,7 +191,8 @@ namespace px
 		result = ma_device_start(&device_);
 		if (result != MA_SUCCESS) {
 			running_ = false;
-			LOGE("[MiniAudioCapture] ma_device_start failed: {} ({})", (int)result, ResultStr(result));
+			LOGE("[MiniAudioCapture] ma_device_start failed: {} ({})", (int)result, ResultText(result));
+			callback_bridge->accepting = false;
 			CleanupUnlocked();
 			return (int)result;
 		}
@@ -206,14 +229,15 @@ namespace px
 		}
 		ma_result r = ma_device_stop(&device_);
 		if (r != MA_SUCCESS) {
-			LOGE("[MiniAudioCapture] Pause ma_device_stop failed: {} ({})", (int)r, ResultStr(r));
+			LOGE("[MiniAudioCapture] Pause ma_device_stop failed: {} ({})", (int)r, ResultText(r));
 			return (int)r;
 		}
 		running_ = false;
 		LOGI("[MiniAudioCapture] paused, frames={}, bytes={}, peak={}",
 			 total_frames_.load(), total_bytes_.load(), peak_abs_.load());
-		if (pause_callback_) {
-			pause_callback_();
+		const auto callback = SnapshotCallbacks().pause;
+		if (callback) {
+			callback();
 		}
 		return 0;
 	}
@@ -230,9 +254,13 @@ namespace px
 
 		LOGI("[MiniAudioCapture] Stop begin, frames={}, bytes={}, peak={}",
 			 total_frames_.load(), total_bytes_.load(), peak_abs_.load());
+		if (callback_bridge_) {
+			callback_bridge_->accepting = false;
+		}
 		CleanupUnlocked();
-		if (stop_callback_) {
-			stop_callback_();
+		const auto callback = SnapshotCallbacks().stop;
+		if (callback) {
+			callback();
 		}
 		LOGI("[MiniAudioCapture] stopped");
 		return 0;
@@ -279,10 +307,13 @@ namespace px
 	}
 
 	void MiniAudioCapture::NotificationCallback(const ma_device_notification* notification) {
-		if (!notification || !notification->pDevice) {
+		if (!notification || !notification->pDevice ||
+			!notification->pDevice->pUserData) {
 			return;
 		}
-		auto* self = static_cast<MiniAudioCapture*>(notification->pDevice->pUserData);
+		auto& bridge = *static_cast<CallbackBridge*>(
+			notification->pDevice->pUserData); // NOLINT(gammaray-raw-pointer-boundary): miniaudio userdata boundary
+		const auto self = bridge.accepting ? bridge.owner.lock() : nullptr;
 		if (!self) {
 			return;
 		}
@@ -315,24 +346,32 @@ namespace px
 
 	void MiniAudioCapture::DataCallback(ma_device* device, void* output, const void* input, ma_uint32 frame_count) {
 		(void)output;
-		auto* self = static_cast<MiniAudioCapture*>(device->pUserData);
-		if (!self || !self->running_ || !input || frame_count == 0) {
+		if (!device || !device->pUserData || !input || frame_count == 0) {
 			return;
 		}
-		self->EmitPcm(input, frame_count);
+		auto& bridge = *static_cast<CallbackBridge*>(
+			device->pUserData); // NOLINT(gammaray-raw-pointer-boundary): miniaudio userdata boundary
+		const auto self = bridge.accepting ? bridge.owner.lock() : nullptr;
+		if (!self || !self->running_) {
+			return;
+		}
+		self->EmitPcm(
+			std::span<const int16_t>(
+				static_cast<const int16_t*>(input), // NOLINT(gammaray-raw-pointer-boundary): miniaudio PCM buffer boundary
+				static_cast<size_t>(frame_count) * kChannels),
+			frame_count);
 	}
 
-	void MiniAudioCapture::EmitPcm(const void* input, ma_uint32 frame_count) {
+	void MiniAudioCapture::EmitPcm(
+		std::span<const int16_t> input, ma_uint32 frame_count) {
 		const auto bytes_to_write = static_cast<size_t>(frame_count) * kChannels * (kBits / 8);
 		if (bytes_to_write == 0) {
 			return;
 		}
 
-		const auto* samples = static_cast<const int16_t*>(input);
-		const size_t sample_count = bytes_to_write / sizeof(int16_t);
 		int local_peak = 0;
-		for (size_t i = 0; i < sample_count; ++i) {
-			const int a = samples[i] < 0 ? -samples[i] : samples[i];
+		for (const auto sample : input) {
+			const int a = sample < 0 ? -sample : sample;
 			if (a > local_peak) {
 				local_peak = a;
 			}
@@ -349,24 +388,26 @@ namespace px
 				 frame_count, bytes_to_write, local_peak);
 		}
 
-		if (data_callback_) {
-			auto data = Data::Make((char*)input, (int)bytes_to_write);
-			data_callback_(data);
+		const auto callbacks = SnapshotCallbacks();
+		if (callbacks.data) {
+			auto data = Data::Make(
+				reinterpret_cast<const char*>(input.data()), bytes_to_write);
+			callbacks.data(data);
 		}
 
-		if (split_data_callback_) {
+		if (callbacks.split_data) {
 			auto left_data = Data::Make(nullptr, (int)(bytes_to_write / 2));
 			auto right_data = Data::Make(nullptr, (int)(bytes_to_write / 2));
 			if (!left_data || !right_data || !left_data->DataAddr() || !right_data->DataAddr()) {
 				LOGE("[MiniAudioCapture] split buffer alloc failed, bytes={}", bytes_to_write);
 				return;
 			}
-			const auto* pcm = static_cast<const char*>(input);
+			const auto pcm = std::as_bytes(input);
 			for (size_t i = 0; i < bytes_to_write; i += 4) {
-				memcpy(left_data->DataAddr() + i / 4 * 2, pcm + i, 2);
-				memcpy(right_data->DataAddr() + i / 4 * 2, pcm + i + 2, 2);
+				memcpy(left_data->DataAddr() + i / 4 * 2, pcm.data() + i, 2);
+				memcpy(right_data->DataAddr() + i / 4 * 2, pcm.data() + i + 2, 2);
 			}
-			split_data_callback_(left_data, right_data);
+			callbacks.split_data(left_data, right_data);
 		}
 	}
 

@@ -6,6 +6,7 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <span>
 #include <string>
 #include <thread>
 
@@ -16,11 +17,16 @@ namespace px
 
 	class MiniAudioCapture : public IAudioCapture,
 	                         public std::enable_shared_from_this<MiniAudioCapture> {
+	private:
+		struct ConstructionToken final {};
+
 	public:
 		// Desktop: OS default playback device loopback (mixed system audio).
 		static AudioCapturePtr Make();
 		// Game-hook: WASAPI process-loopback for a single PID (multi-instance safe).
 		static AudioCapturePtr MakeForProcess(uint32_t process_id);
+		explicit MiniAudioCapture(
+			ConstructionToken, uint32_t loopback_process_id);
 
 		~MiniAudioCapture();
 
@@ -38,8 +44,15 @@ namespace px
 #endif
 
 	private:
-		explicit MiniAudioCapture(uint32_t loopback_process_id);
+		struct CallbackBridge final {
+			std::weak_ptr<MiniAudioCapture> owner;
+			std::atomic_bool accepting = false;
+		};
+
+		void InitializeCallbackBridge();
+		// NOLINTNEXTLINE(gammaray-raw-pointer-boundary): miniaudio callback ABI
 		static void DataCallback(ma_device* device, void* output, const void* input, ma_uint32 frame_count);
+		// NOLINTNEXTLINE(gammaray-raw-pointer-boundary): miniaudio callback ABI
 		static void NotificationCallback(const ma_device_notification* notification);
 
 		int OpenAndStartUnlocked();
@@ -48,8 +61,8 @@ namespace px
 		void ReinitForDefaultDevice(const std::string& reason);
 		void EnsureReinitWorker();
 		void StopReinitWorker();
-		void EmitPcm(const void* input, ma_uint32 frame_count);
-		static const char* ResultStr(ma_result result);
+		void EmitPcm(std::span<const int16_t> input, ma_uint32 frame_count);
+		static std::string ResultText(ma_result result);
 
 		ma_context context_{};
 		ma_device device_{};
@@ -73,6 +86,7 @@ namespace px
 		};
 		std::shared_ptr<ReinitWorkerState> reinit_worker_state_ =
 			std::make_shared<ReinitWorkerState>();
+		std::shared_ptr<CallbackBridge> callback_bridge_;
 		std::mutex reinit_worker_mutex_;
 		std::jthread reinit_worker_;
 		uint32_t loopback_process_id_ = 0;

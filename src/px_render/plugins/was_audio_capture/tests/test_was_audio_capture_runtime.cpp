@@ -23,8 +23,9 @@ public:
 
     int Start() override {
         running_ = start_result_ == 0;
-        if (running_ && format_callback_) {
-            format_callback_(48000, 2, 16);
+        const auto callback = SnapshotCallbacks().format;
+        if (running_ && callback) {
+            callback(48000, 2, 16);
         }
         return start_result_;
     }
@@ -45,8 +46,9 @@ public:
     }
 
     void EmitData() {
-        if (data_callback_) {
-            data_callback_(px::Data::From("runtime-audio-frame"));
+        const auto callback = SnapshotCallbacks().data;
+        if (callback) {
+            callback(px::Data::From("runtime-audio-frame"));
         }
     }
 
@@ -58,8 +60,9 @@ public:
 
 private:
     void NotifyStopOnce() {
-        if (!stop_notified_.exchange(true) && stop_callback_) {
-            stop_callback_();
+        const auto callback = SnapshotCallbacks().stop;
+        if (!stop_notified_.exchange(true) && callback) {
+            callback();
         }
     }
 
@@ -223,6 +226,47 @@ bool TestRepeatedStartStopTenRounds() {
     return factory->Count() == 10;
 }
 
+bool TestCallbackReplacementDuringDispatchTenRounds() {
+    for (int round = 1; round <= 10; ++round) {
+        const auto capture = std::make_shared<FakeAudioCapture>();
+        const auto entered = std::make_shared<std::atomic_bool>(false);
+        const auto release = std::make_shared<std::atomic_bool>(false);
+        const auto first_deliveries = std::make_shared<std::atomic_int>(0);
+        const auto replacement_deliveries = std::make_shared<std::atomic_int>(0);
+        capture->RegisterDataCallback(
+            [entered, release, first_deliveries](const px::DataPtr&) {
+                ++(*first_deliveries);
+                *entered = true;
+                while (!release->load()) {
+                    std::this_thread::yield();
+                }
+            });
+
+        std::jthread dispatch([capture]() { capture->EmitData(); });
+        if (!WaitUntil([entered]() { return entered->load(); }, 500ms)) {
+            std::printf("FAIL callback replacement round %d: no entry\n", round);
+            return false;
+        }
+        capture->RegisterDataCallback(
+            [replacement_deliveries](const px::DataPtr&) {
+                ++(*replacement_deliveries);
+            });
+        *release = true;
+        dispatch.join();
+
+        capture->EmitData();
+        if (first_deliveries->load() != 1 ||
+            replacement_deliveries->load() != 1) {
+            std::printf(
+                "FAIL callback replacement round %d: first=%d replacement=%d\n",
+                round, first_deliveries->load(),
+                replacement_deliveries->load());
+            return false;
+        }
+    }
+    return true;
+}
+
 }  // namespace
 
 int main() {
@@ -242,8 +286,12 @@ int main() {
     if (!TestRepeatedStartStopTenRounds()) {
         return 5;
     }
+    if (!TestCallbackReplacementDuringDispatchTenRounds()) {
+        return 6;
+    }
     std::printf(
         "PASS: audio runtime fatal restart, cancellation, callback shutdown, "
-        "post-destroy invalidation and repeated start/stop\n");
+        "post-destroy invalidation, callback replacement during dispatch and "
+        "repeated start/stop\n");
     return 0;
 }

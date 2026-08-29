@@ -2,9 +2,9 @@
 
 #include "audio_capture.h"
 
-#include <atomic>
 #include <cstdint>
-#include <mutex>
+#include <memory>
+#include <stop_token>
 #include <thread>
 
 namespace px {
@@ -23,22 +23,15 @@ public:
     int Start() override;
     int Pause() override;
     int Stop() override;
-    bool IsFatalStop() const override { return fatal_stop_.load(); }
+    bool IsFatalStop() const override;
 
 private:
-    void CaptureThreadMain();
-    void NotifyStopOnce();
+    struct State;
+    static void CaptureThreadMain(
+        const std::shared_ptr<State>& state, std::stop_token stop_token);
+    static void NotifyStopOnce(const std::shared_ptr<State>& state);
 
-    uint32_t pid_ = 0;
-    std::mutex mu_;
-    std::atomic<bool> want_running_{false};
-    std::atomic<bool> running_{false};
-    std::atomic<bool> stop_notified_{false};
-    std::atomic<bool> fatal_stop_{false};
-    std::thread worker_;
-    int samples_ = 48000;
-    int channels_ = 2;
-    int bits_ = 16;
+    std::shared_ptr<State> state_;
 };
 
 }  // namespace px

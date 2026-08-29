@@ -53,6 +53,17 @@ target_include_directories(test_was_audio_capture_runtime PRIVATE ${CMAKE_CURREN
 target_link_libraries(test_was_audio_capture_runtime PRIVATE
         px_common_new px_message px_plugin ole32 mmdevapi)
 
+# Real Windows process-loopback activation/lifecycle gate. The test captures
+# its own process, so it does not depend on another application or saved PID.
+add_executable(test_process_loopback_lifecycle
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_process_loopback_lifecycle.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/process_loopback_audio_capture.cpp
+)
+target_include_directories(test_process_loopback_lifecycle PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(test_process_loopback_lifecycle PRIVATE
+        px_common_new ole32 mmdevapi)
+
 # Diagnose MiniAudio PID loopback vs ActivateAudioInterfaceAsync.
 add_executable(test_miniaudio_pid_loopback
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_miniaudio_pid_loopback.cpp
