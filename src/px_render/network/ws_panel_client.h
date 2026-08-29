@@ -19,6 +19,7 @@ namespace px
     class MessageListener;
     class RdSettings;
     class PluginManager;
+    class PxConnectionAttemptWorkflow;
 
     class WsPanelClient : public std::enable_shared_from_this<WsPanelClient> {
     public:
@@ -46,6 +47,7 @@ namespace px
         std::shared_ptr<asio2::ws_client> client_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::shared_ptr<MessageListener> state_msg_listener_ = nullptr;
+        std::shared_ptr<PxConnectionAttemptWorkflow> connection_workflow_ = nullptr;
         std::atomic_int queuing_message_count_ = 0;
         std::shared_ptr<PluginManager> plugin_mgr_ = nullptr;
         std::atomic_bool exiting_ = false;

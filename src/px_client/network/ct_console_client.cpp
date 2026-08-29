@@ -13,6 +13,7 @@
 #include "thunder_sdk.h"
 #include "px_common_new/time_util.h"
 #include "ct_auth_token.h"
+#include "px_common_new/connection_attempt_workflow.h"
 
 namespace px
 {
@@ -41,6 +42,12 @@ namespace px
         void Start() override {
             exiting_ = false;
             client_ = std::make_shared<ClientT>();
+            connection_workflow_ = PxConnectionAttemptWorkflow::Create(
+                context_->GetMessageNotifier()->GetAsyncRuntime(), std::chrono::seconds(10));
+            if (!connection_workflow_) {
+                LOGE("Cannot start Console connection workflow");
+                return;
+            }
             client_->set_auto_reconnect(true);
             client_->keep_alive(true);
             client_->set_timeout(std::chrono::milliseconds(3000));
@@ -72,24 +79,42 @@ namespace px
                     auto path = std::format("{}?appkey={}&token={}&ts={}&nonce={}&device_id={}&remote_device_id={}&remote_device_ip={}",
                         endpoint, self->appkey_, token.token, token.ts, token.nonce, self->device_id_, self->remote_device_id_, self->remote_device_ip_);
                     self->client_->set_upgrade_target(path);
+                    const bool started = self->connection_workflow_->BeginAttempt(
+                        [weak_self](PxConnectionAttemptResult result) {
+                            auto self = weak_self.lock();
+                            if (!self || self->exiting_) {
+                                return;
+                            }
+                            if (!result) {
+                                LOGW("Console connection attempt ended: stage={}, code={}",
+                                     result.Error().stage, result.Error().StableCode());
+                                return;
+                            }
+                            LOGI("Console websocket ready, generation={}",
+                                 result.Value().generation);
+                            self->Hello();
+                        });
+                    if (!started) {
+                        LOGW("Console connection attempt was rejected during shutdown");
+                    }
                 }
 
             })
             .bind_connect([weak_self]() {
                 if (asio2::get_last_error()) {
                     LOGE("connect failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
+                    if (auto self = weak_self.lock(); self && !self->exiting_
+                        && self->connection_workflow_) {
+                        static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                            PxAsyncErrorCode::kServiceNotConnected,
+                            "console.connect",
+                            asio2::last_error_msg(),
+                            true)));
+                    }
                 } else {
                     if (auto self = weak_self.lock(); self && !self->exiting_ && self->client_) {
                         LOGI("connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
                     }
-                }
-
-                if (auto self = weak_self.lock(); self && !self->exiting_ && self->client_) {
-                    self->client_->post_queued_event([weak_self]() {
-                        if (auto self = weak_self.lock(); self && !self->exiting_) {
-                            self->Hello();
-                        }
-                    });
                 }
 
             })
@@ -99,11 +124,31 @@ namespace px
                     if (auto self = weak_self.lock(); self && !self->use_legacy_cms_path_.exchange(true)) {
                         LOGW("Console route unavailable; falling back to legacy /cms/client");
                     }
+                    if (auto self = weak_self.lock(); self && !self->exiting_
+                        && self->connection_workflow_) {
+                        static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                            PxAsyncErrorCode::kProtocolError,
+                            "console.upgrade",
+                            asio2::last_error_msg(),
+                            true)));
+                    }
+                    return;
+                }
+                if (auto self = weak_self.lock(); self && !self->exiting_
+                    && self->connection_workflow_) {
+                    static_cast<void>(self->connection_workflow_->MarkReady());
                 }
             })
             .bind_disconnect([weak_self]() {
                 if (auto self = weak_self.lock(); self && !self->exiting_) {
                     LOGE("*** Disconnected for console-client: {}", self->device_id_);
+                    if (self->connection_workflow_) {
+                        static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                            PxAsyncErrorCode::kServiceNotConnected,
+                            "console.disconnect",
+                            "Console websocket disconnected",
+                            true)));
+                    }
                 }
             })
             .bind_recv([weak_self](std::string_view data) {
@@ -128,11 +173,16 @@ namespace px
                 client_->stop();
                 client_.reset();
             }
+            if (connection_workflow_) {
+                connection_workflow_->Stop();
+                connection_workflow_.reset();
+            }
         }
 
     private:
         bool IsAlive() const {
-            return client_ && client_->is_started();
+            return client_ && client_->is_started()
+                && connection_workflow_ && connection_workflow_->IsReady();
         }
 
         void Hello() {
@@ -185,6 +235,7 @@ namespace px
         std::shared_ptr<ThunderSdk> sdk_;
         std::shared_ptr<ClientContext> context_ = nullptr;
         std::shared_ptr<ClientT> client_ = nullptr;
+        std::shared_ptr<PxConnectionAttemptWorkflow> connection_workflow_ = nullptr;
         std::string host_;
         int port_ = 0;
         std::string device_id_;

@@ -137,12 +137,29 @@ function ConvertTo-Sha256([string]$Value) {
 # a read-only page request; do not consume a rate-limited guest session.
 $tlsReady = $false
 foreach ($warmupAttempt in 1..3) {
-    & curl.exe --insecure --silent --max-time 10 --user-agent 'GammaRay-Native-Acceptance' `
-        "$ConsoleBase/" | Out-Null
-    if ($LASTEXITCODE -eq 0) {
+    $warmupInfo = [Diagnostics.ProcessStartInfo]::new()
+    $warmupInfo.FileName = 'curl.exe'
+    $warmupInfo.UseShellExecute = $false
+    $warmupInfo.CreateNoWindow = $true
+    $warmupInfo.RedirectStandardError = $true
+    foreach ($value in @(
+        '--insecure', '--ssl-auto-client-cert', '--silent', '--show-error', '--max-time', '10',
+        '--user-agent', 'GammaRay-Native-Acceptance', '--output', 'NUL', "$ConsoleBase/"
+    )) {
+        [void]$warmupInfo.ArgumentList.Add($value)
+    }
+    $warmupProcess = [Diagnostics.Process]::new()
+    $warmupProcess.StartInfo = $warmupInfo
+    [void]$warmupProcess.Start()
+    $warmupError = $warmupProcess.StandardError.ReadToEnd()
+    $warmupProcess.WaitForExit()
+    $warmupExitCode = $warmupProcess.ExitCode
+    $warmupProcess.Dispose()
+    if ($warmupExitCode -eq 0) {
         $tlsReady = $true
         break
     }
+    Write-Host "TLS_WARMUP_RETRY attempt=$warmupAttempt exit_code=$warmupExitCode detail=$warmupError"
     Start-Sleep -Milliseconds 250
 }
 if (-not $tlsReady) {

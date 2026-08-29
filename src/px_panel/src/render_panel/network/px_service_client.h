@@ -18,6 +18,7 @@ namespace px
     class PxStatistics;
     class MessageListener;
     class MsgAuthInfo;
+    class PxConnectionAttemptWorkflow;
 
     class PxServiceClient : public std::enable_shared_from_this<PxServiceClient> {
     public:
@@ -32,7 +33,7 @@ namespace px
         void HeartBeat();
         void ParseMessage(const std::string& msg);
         void SendAuthInfo();
-        void FillAuthInfo(MsgAuthInfo* auth_info);
+        void FillAuthInfo(MsgAuthInfo& auth_info);
 
     private:
         std::shared_ptr<PxStatistics> statistics_ = nullptr;
@@ -40,6 +41,7 @@ namespace px
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<asio2::ws_client> client_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        std::shared_ptr<PxConnectionAttemptWorkflow> connection_workflow_ = nullptr;
         std::atomic_int queuing_message_count_ = 0;
         std::atomic_bool exiting_ = false;
     };

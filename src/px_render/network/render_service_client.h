@@ -25,6 +25,7 @@ namespace px
     class RdApplication;
     class RdStatistics;
     class MessageListener;
+    class PxConnectionAttemptWorkflow;
     class RenderServiceClient : public std::enable_shared_from_this<RenderServiceClient> {
     public:
 
@@ -78,6 +79,7 @@ namespace px
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::shared_ptr<PxAsyncScope> async_scope_ = nullptr;
         std::shared_ptr<RenderServiceRpcState> rpc_state_ = nullptr;
+        std::shared_ptr<PxConnectionAttemptWorkflow> connection_workflow_ = nullptr;
         std::atomic_bool exiting_ = false;
         std::atomic_int queuing_message_count_ = 0;
         std::mutex ready_mtx_;

@@ -15,6 +15,7 @@ namespace px
 
     class ClientContext;
     class MessageListener;
+    class PxConnectionAttemptWorkflow;
 
     class CtPanelClient : public std::enable_shared_from_this<CtPanelClient> {
     public:
@@ -35,6 +36,7 @@ namespace px
         std::shared_ptr<ClientContext> context_ = nullptr;
         std::shared_ptr<asio2::ws_client> client_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        std::shared_ptr<PxConnectionAttemptWorkflow> connection_workflow_ = nullptr;
         std::atomic_bool exiting_ = false;
     };
 

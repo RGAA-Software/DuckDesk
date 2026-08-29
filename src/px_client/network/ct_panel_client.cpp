@@ -10,6 +10,7 @@
 #include "px_client_sdk_new/sdk_statistics.h"
 #include "px_client_sdk_new/sdk_messages.h"
 #include "px_common_new/message_notifier.h"
+#include "px_common_new/connection_attempt_workflow.h"
 #include "px_client_panel_message.pb.h"
 
 namespace px
@@ -60,6 +61,12 @@ namespace px
             }
         });
         client_ = std::make_shared<asio2::ws_client>();
+        connection_workflow_ = PxConnectionAttemptWorkflow::Create(
+            context_->GetMessageNotifier()->GetAsyncRuntime(), std::chrono::seconds(10));
+        if (!connection_workflow_) {
+            LOGE("Cannot start Panel connection workflow");
+            return;
+        }
         client_->set_auto_reconnect(true);
         client_->keep_alive(true);
         client_->set_timeout(std::chrono::milliseconds(3000));
@@ -78,7 +85,23 @@ namespace px
             }
             self->client_->ws_stream().binary(true);
             self->client_->set_no_delay(true);
-
+            const bool started = self->connection_workflow_->BeginAttempt(
+                [weak_self](PxConnectionAttemptResult result) {
+                    auto self = weak_self.lock();
+                    if (!self || self->exiting_) {
+                        return;
+                    }
+                    if (!result) {
+                        LOGW("Panel connection attempt ended: stage={}, code={}",
+                             result.Error().stage, result.Error().StableCode());
+                        return;
+                    }
+                    LOGI("Panel websocket ready, generation={}", result.Value().generation);
+                    self->Hello();
+                });
+            if (!started) {
+                LOGW("Panel connection attempt was rejected during shutdown");
+            }
         }).bind_connect([weak_self]() {
             auto self = weak_self.lock();
             if (!self || self->exiting_ || !self->client_) {
@@ -86,18 +109,14 @@ namespace px
             }
             if (asio2::get_last_error()) {
                 LOGE("connect failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
+                static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                    PxAsyncErrorCode::kServiceNotConnected,
+                    "panel.connect",
+                    asio2::last_error_msg(),
+                    true)));
             } else {
                 LOGI("connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
             }
-
-            self->client_->post_queued_event([weak_self]() {
-                auto self = weak_self.lock();
-                if (!self || self->exiting_) {
-                    return;
-                }
-                self->Hello();
-            });
-
         }).bind_upgrade([weak_self]() {
             auto self = weak_self.lock();
             if (!self || self->exiting_) {
@@ -105,13 +124,25 @@ namespace px
             }
             if (asio2::get_last_error()) {
                 LOGE("upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
+                static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                    PxAsyncErrorCode::kProtocolError,
+                    "panel.upgrade",
+                    asio2::last_error_msg(),
+                    true)));
+                return;
             }
+            static_cast<void>(self->connection_workflow_->MarkReady());
         }).bind_disconnect([weak_self]() {
             auto self = weak_self.lock();
             if (!self || self->exiting_) {
                 return;
             }
             LOGE("CtPanelClient disconnected");
+            static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                PxAsyncErrorCode::kServiceNotConnected,
+                "panel.disconnect",
+                "Panel websocket disconnected",
+                true)));
         }).bind_recv([weak_self](std::string_view data) {
             auto self = weak_self.lock();
             if (!self || self->exiting_) {
@@ -137,10 +168,15 @@ namespace px
             client_->stop();
             client_.reset();
         }
+        if (connection_workflow_) {
+            connection_workflow_->Stop();
+            connection_workflow_.reset();
+        }
     }
 
     bool CtPanelClient::IsAlive() {
-        return !exiting_ && client_ && client_->is_started();
+        return !exiting_ && client_ && client_->is_started()
+            && connection_workflow_ && connection_workflow_->IsReady();
     }
 
     void CtPanelClient::ParseMessage(std::string_view data) {

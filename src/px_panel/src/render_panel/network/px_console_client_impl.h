@@ -32,6 +32,7 @@
 #include "network/ct_auth_token.h"
 #include "panel_rtc_config_refresh_gate.h"
 #include "px_common_new/async_operation.h"
+#include "px_common_new/connection_attempt_workflow.h"
 
 #include <chrono>
 #include <filesystem>
@@ -105,6 +106,8 @@ namespace px
 
             if (const auto notifier = context_->GetMessageNotifier()) {
                 if (const auto runtime = notifier->GetAsyncRuntime()) {
+                    connection_workflow_ = PxConnectionAttemptWorkflow::Create(
+                        runtime, std::chrono::seconds(10));
                     rtc_config_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kWorker);
                     record_fetch_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kWorker);
                     record_list_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kWorker);
@@ -113,6 +116,11 @@ namespace px
             fetch_queue_ = std::make_shared<RecordFetchQueue>();
             record_fetch_blocking_runtime_ = std::make_shared<TaskRuntime>(1);
             record_list_blocking_runtime_ = std::make_shared<TaskRuntime>(1);
+
+            if (!connection_workflow_) {
+                LOGE("Cannot start Panel Console connection workflow");
+                return;
+            }
 
             client_ = std::make_shared<ClientType>();
             client_->set_auto_reconnect(true);
@@ -141,6 +149,25 @@ namespace px
                 auto path = std::format("{}?appkey={}&token={}&ts={}&nonce={}&device_id={}&user_id={}",
                                          endpoint, grApp->GetAppkey(), token.token, token.ts, token.nonce, self->device_id_, user_id);
                 self->client_->set_upgrade_target(path);
+                const bool started = self->connection_workflow_->BeginAttempt(
+                    [weak_self](PxConnectionAttemptResult result) {
+                        auto self = weak_self.lock();
+                        if (!self || self->stopping_) {
+                            return;
+                        }
+                        if (!result) {
+                            LOGW("Panel Console attempt ended: stage={}, code={}",
+                                 result.Error().stage, result.Error().StableCode());
+                            return;
+                        }
+                        LOGI("Panel Console websocket ready, generation={}",
+                             result.Value().generation);
+                        self->Hello();
+                        self->RefreshRtcConfigAsync(0);
+                    });
+                if (!started) {
+                    LOGW("Panel Console attempt was rejected during shutdown");
+                }
             })
             .bind_connect([weak_self]() {
                 auto self = weak_self.lock();
@@ -149,19 +176,14 @@ namespace px
                 }
                 if (asio2::get_last_error()) {
                     LOGE("connect failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
+                    static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                        PxAsyncErrorCode::kServiceNotConnected,
+                        "panel-console.connect",
+                        asio2::last_error_msg(),
+                        true)));
                 } else {
                     LOGI("connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
                 }
-
-                self->client_->post_queued_event([weak_self]() {
-                    auto self = weak_self.lock();
-                    if (!self) {
-                        return;
-                    }
-                    self->Hello();
-                    self->RefreshRtcConfigAsync(0);
-                });
-
             })
             .bind_upgrade([weak_self]() {
                 if (asio2::get_last_error()) {
@@ -169,6 +191,19 @@ namespace px
                     if (auto self = weak_self.lock(); self && !self->use_legacy_cms_path_.exchange(true)) {
                         LOGW("Console route unavailable; falling back to legacy /cms/panel");
                     }
+                    if (auto self = weak_self.lock(); self && !self->stopping_
+                        && self->connection_workflow_) {
+                        static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                            PxAsyncErrorCode::kProtocolError,
+                            "panel-console.upgrade",
+                            asio2::last_error_msg(),
+                            true)));
+                    }
+                    return;
+                }
+                if (auto self = weak_self.lock(); self && !self->stopping_
+                    && self->connection_workflow_) {
+                    static_cast<void>(self->connection_workflow_->MarkReady());
                 }
             })
             .bind_disconnect([weak_self]() {
@@ -177,6 +212,13 @@ namespace px
                     return;
                 }
                 LOGE("*** Disconnected for console-client: {}", self->device_id_);
+                if (self->connection_workflow_) {
+                    static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                        PxAsyncErrorCode::kServiceNotConnected,
+                        "panel-console.disconnect",
+                        "Panel disconnected from Console",
+                        true)));
+                }
             })
             .bind_recv([weak_self](std::string_view data) {
                 auto self = weak_self.lock();
@@ -251,6 +293,10 @@ namespace px
                 client_->stop();
                 client_.reset();
             }
+            if (connection_workflow_) {
+                connection_workflow_->Stop();
+                connection_workflow_.reset();
+            }
         }
 
         bool IsStarted() override {
@@ -258,7 +304,8 @@ namespace px
         }
 
         bool IsActive() override {
-            return IsStarted() && client_->is_started();
+            return IsStarted() && client_->is_started()
+                && connection_workflow_ && connection_workflow_->IsReady();
         }
 
         void PostBinMessage(const std::string& m) override {
@@ -872,6 +919,7 @@ namespace px
     private:
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<ClientType> client_ = nullptr;
+        std::shared_ptr<PxConnectionAttemptWorkflow> connection_workflow_ = nullptr;
         std::string host_;
         int port_ = 0;
         std::string device_id_;

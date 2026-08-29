@@ -12,6 +12,7 @@
 #include "render_panel/px_settings.h"
 #include "render_panel/companion/panel_companion.h"
 #include "px_service_message.pb.h"
+#include "px_common_new/connection_attempt_workflow.h"
 
 namespace px
 {
@@ -43,48 +44,88 @@ namespace px
         });
 
         client_ = std::make_shared<asio2::ws_client>();
+        connection_workflow_ = PxConnectionAttemptWorkflow::Create(
+            context_->GetMessageNotifier()->GetAsyncRuntime(), std::chrono::seconds(10));
+        if (!connection_workflow_) {
+            LOGE("Cannot start Service connection workflow");
+            return;
+        }
         client_->set_auto_reconnect(true);
         client_->keep_alive(true);
         client_->set_timeout(std::chrono::milliseconds(2000));
 
         client_->bind_init([weak_self]() {
             auto self = weak_self.lock();
-            if (!self || !self->client_) {
+            if (!self || self->exiting_ || !self->client_ || !self->connection_workflow_) {
                 return;
             }
             self->client_->ws_stream().binary(true);
             self->client_->set_no_delay(true);
-
+            const bool started = self->connection_workflow_->BeginAttempt(
+                [weak_self](PxConnectionAttemptResult result) {
+                    auto self = weak_self.lock();
+                    if (!self || self->exiting_ || !self->context_) {
+                        return;
+                    }
+                    if (!result) {
+                        LOGW("Panel Service attempt ended: stage={}, code={}",
+                             result.Error().stage, result.Error().StableCode());
+                        return;
+                    }
+                    LOGI("Panel Service websocket ready, generation={}",
+                         result.Value().generation);
+                    self->context_->SendAppMessage(MsgConnectedToService{});
+                    self->SendAuthInfo();
+                });
+            if (!started) {
+                LOGW("Panel Service attempt was rejected during shutdown");
+            }
         })
         .bind_connect([weak_self]() {
             auto self = weak_self.lock();
-            if (!self || !self->client_ || !self->context_) {
+            if (!self || self->exiting_ || !self->client_ || !self->context_
+                || !self->connection_workflow_) {
                 return;
             }
             if (asio2::get_last_error()) {
                 LOGE("connect failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
+                static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                    PxAsyncErrorCode::kServiceNotConnected,
+                    "panel-service.connect",
+                    asio2::last_error_msg(),
+                    true)));
                 return;
             }
             LOGI("tcp connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
         })
         .bind_upgrade([weak_self]() {
             auto self = weak_self.lock();
-            if (!self || !self->client_ || !self->context_) {
+            if (!self || self->exiting_ || !self->client_ || !self->context_
+                || !self->connection_workflow_) {
                 return;
             }
             if (asio2::get_last_error()) {
                 LOGE("upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
+                static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                    PxAsyncErrorCode::kProtocolError,
+                    "panel-service.upgrade",
+                    asio2::last_error_msg(),
+                    true)));
                 return;
             }
             LOGI("websocket upgrade success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
-            self->context_->PostTask([weak_self]() {
-                auto self = weak_self.lock();
-                if (!self || !self->context_) {
-                    return;
-                }
-                self->context_->SendAppMessage(MsgConnectedToService{});
-            });
-            self->SendAuthInfo();
+            static_cast<void>(self->connection_workflow_->MarkReady());
+        })
+        .bind_disconnect([weak_self]() {
+            auto self = weak_self.lock();
+            if (!self || self->exiting_ || !self->connection_workflow_) {
+                return;
+            }
+            static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                PxAsyncErrorCode::kServiceNotConnected,
+                "panel-service.disconnect",
+                "Panel disconnected from Service",
+                true)));
         })
         .bind_recv([weak_self](std::string_view data) {
             auto self = weak_self.lock();
@@ -134,13 +175,18 @@ namespace px
             client_->stop();
             client_.reset();
         }
+        if (connection_workflow_) {
+            connection_workflow_->Stop();
+            connection_workflow_.reset();
+        }
         statistics_.reset();
         context_.reset();
         app_.reset();
     }
 
     bool PxServiceClient::IsAlive() {
-        return client_ && client_->is_started();
+        return client_ && client_->is_started()
+            && connection_workflow_ && connection_workflow_->IsReady();
     }
 
     void PxServiceClient::HeartBeat() {
@@ -150,44 +196,41 @@ namespace px
         auto sub = msg.mutable_heart_beat();
         sub->set_index(hb_idx++);
         sub->set_from("panel");
-        FillAuthInfo(sub->mutable_auth_info());
+        FillAuthInfo(*sub->mutable_auth_info());
         PostNetMessage(msg.SerializeAsString());
     }
 
     void PxServiceClient::SendAuthInfo() {
         px::ServiceMessage msg;
         msg.set_type(ServiceMessageType::kSrvAuthInfo);
-        FillAuthInfo(msg.mutable_auth_info());
+        FillAuthInfo(*msg.mutable_auth_info());
         PostNetMessage(msg.SerializeAsString());
     }
 
-    void PxServiceClient::FillAuthInfo(MsgAuthInfo* auth_info) {
-        if (!auth_info) {
-            return;
-        }
+    void PxServiceClient::FillAuthInfo(MsgAuthInfo& auth_info) {
         auto settings = PxSettings::Instance();
-        auth_info->set_device_id(settings->GetDeviceId());
-        auth_info->set_console_host(settings->GetConsoleServerHost());
-        auth_info->set_console_port(settings->GetConsoleServerPort());
-        auth_info->set_console_ssl(settings->IsConsoleSslEnabled());
+        auth_info.set_device_id(settings->GetDeviceId());
+        auth_info.set_console_host(settings->GetConsoleServerHost());
+        auth_info.set_console_port(settings->GetConsoleServerPort());
+        auth_info.set_console_ssl(settings->IsConsoleSslEnabled());
         auto companion = app_->GetCompanion();
         auto auth = companion ? companion->GetAuth() : nullptr;
         if (!auth) {
             // auth may not be pulled from server yet, send with empty auth fields
             return;
         }
-        auth_info->set_auth_id(auth->auth_id_);
-        auth_info->set_auth_name(auth->auth_name_);
-        auth_info->set_machine_code(auth->machine_code_);
-        auth_info->set_appkey(auth->appkey_);
-        auth_info->set_role(static_cast<int>(auth->role_));
-        auth_info->set_days(auth->days_);
-        auth_info->set_max_streams(auth->max_streams_);
-        auth_info->set_end_timestamp_ms(auth->end_timestamp_ms_);
+        auth_info.set_auth_id(auth->auth_id_);
+        auth_info.set_auth_name(auth->auth_name_);
+        auth_info.set_machine_code(auth->machine_code_);
+        auth_info.set_appkey(auth->appkey_);
+        auth_info.set_role(static_cast<int>(auth->role_));
+        auth_info.set_days(auth->days_);
+        auth_info.set_max_streams(auth->max_streams_);
+        auth_info.set_end_timestamp_ms(auth->end_timestamp_ms_);
     }
 
     void PxServiceClient::PostNetMessage(const std::string& msg) {
-        if (client_ && client_->is_started()) {
+        if (IsAlive()) {
             if (queuing_message_count_ > kMaxClientQueuedMessage) {
                 LOGW("too many message in queue, discard the message in PxServiceClient");
                 return;

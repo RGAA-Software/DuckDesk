@@ -12,6 +12,7 @@
 #include "px_common_new/md5.h"
 #include "px_common_new/message_notifier.h"
 #include "px_common_new/async_operation.h"
+#include "px_common_new/connection_attempt_workflow.h"
 #include "px_common_new/virtual_display_timeouts.h"
 #include "rd_app.h"
 #include "app/app_messages.h"
@@ -143,6 +144,8 @@ namespace px
             async_scope_ = PxAsyncScope::Create(
                 context_->GetAsyncRuntime(), PxAsyncLane::kState);
             rpc_state_ = std::make_shared<RenderServiceRpcState>(async_scope_->Executor());
+            connection_workflow_ = PxConnectionAttemptWorkflow::Create(
+                context_->GetAsyncRuntime(), std::chrono::seconds(10));
         }
     }
 
@@ -151,6 +154,10 @@ namespace px
     }
 
     void RenderServiceClient::Start() {
+        if (!connection_workflow_) {
+            LOGE("Cannot start Render Service connection workflow");
+            return;
+        }
         auto weak_self = weak_from_this();
         exiting_ = false;
         msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
@@ -169,12 +176,36 @@ namespace px
 
         client_->bind_init([weak_self]() {
             auto self = weak_self.lock();
-            if (!self || !self->client_) {
+            if (!self || self->exiting_ || !self->client_ || !self->connection_workflow_) {
                 return;
             }
             self->websocket_upgraded_ = false;
             self->client_->ws_stream().binary(true);
             self->client_->set_no_delay(true);
+            const bool started = self->connection_workflow_->BeginAttempt(
+                [weak_self](PxConnectionAttemptResult result) {
+                    const auto self = weak_self.lock();
+                    if (!self || self->exiting_ || !self->context_) {
+                        return;
+                    }
+                    if (!result) {
+                        LOGW("Render Service attempt ended: stage={}, code={}",
+                             result.Error().stage, result.Error().StableCode());
+                        return;
+                    }
+                    LOGI("Render Service websocket ready, generation={}",
+                         result.Value().generation);
+                    self->SendPendingAppInstanceReady();
+                    self->context_->PostTask([weak_self]() {
+                        const auto self = weak_self.lock();
+                        if (self && self->context_ && !self->exiting_) {
+                            self->context_->SendAppMessage(MsgRenderConnected2Service{});
+                        }
+                    });
+                });
+            if (!started) {
+                LOGW("Render Service attempt was rejected during shutdown");
+            }
             const auto ipc_token = RdSettings::Instance()->service_ipc_token_;
             self->client_->ws_stream().set_option(
                 websocket::stream_base::decorator([ipc_token](websocket::request_type &req) {
@@ -184,13 +215,19 @@ namespace px
         })
         .bind_connect([weak_self]() {
             auto self = weak_self.lock();
-            if (!self || !self->client_ || !self->context_) {
+            if (!self || self->exiting_ || !self->client_ || !self->context_
+                || !self->connection_workflow_) {
                 return;
             }
             if (asio2::get_last_error()) {
                 auto wstr = StringUtil::ToWString(asio2::last_error_msg());
                 auto str = StringUtil::ToUTF8(wstr);
                 LOGE("RenderServiceClient, connect failure : {} {}", asio2::last_error_val(), str);
+                static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                    PxAsyncErrorCode::kServiceNotConnected,
+                    "render-service.connect",
+                    str,
+                    true)));
                 return;
             }
             LOGI("RenderServiceClient, tcp connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
@@ -198,6 +235,13 @@ namespace px
         .bind_disconnect([weak_self]() {
             if (auto self = weak_self.lock()) {
                 self->websocket_upgraded_ = false;
+                if (self->connection_workflow_) {
+                    static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                        PxAsyncErrorCode::kServiceNotConnected,
+                        "render-service.disconnect",
+                        "Render disconnected from Service",
+                        true)));
+                }
                 self->FailPendingRequests(MakePxAsyncError(
                     PxAsyncErrorCode::kServiceNotConnected,
                     "service_websocket",
@@ -208,23 +252,21 @@ namespace px
         })
         .bind_upgrade([weak_self]() {
             auto self = weak_self.lock();
-            if (!self || !self->context_) {
+            if (!self || self->exiting_ || !self->context_ || !self->connection_workflow_) {
                 return;
             }
             if (asio2::get_last_error()) {
                 LOGE("RenderServiceClient, upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
+                static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                    PxAsyncErrorCode::kProtocolError,
+                    "render-service.upgrade",
+                    asio2::last_error_msg(),
+                    true)));
                 return;
             }
             self->websocket_upgraded_ = true;
             LOGI("RenderServiceClient, websocket upgrade success");
-            self->SendPendingAppInstanceReady();
-            self->context_->PostTask([weak_self]() {
-                auto self = weak_self.lock();
-                if (!self || !self->context_) {
-                    return;
-                }
-                self->context_->SendAppMessage(MsgRenderConnected2Service{});
-            });
+            static_cast<void>(self->connection_workflow_->MarkReady());
         })
         .bind_recv([weak_self](std::string_view data) {
             auto self = weak_self.lock();
@@ -355,6 +397,10 @@ namespace px
                 static_cast<void>(async_scope_->WaitFor(std::chrono::seconds(5)));
             }
         }
+        if (connection_workflow_) {
+            connection_workflow_->Stop();
+            connection_workflow_.reset();
+        }
         auto client = std::move(client_);
         if (!client) {
             return;
@@ -371,7 +417,9 @@ namespace px
     }
 
     bool RenderServiceClient::IsAlive() const {
-        return client_ != nullptr && client_->is_started();
+        return client_ != nullptr && client_->is_started()
+            && websocket_upgraded_.load(std::memory_order_acquire)
+            && connection_workflow_ && connection_workflow_->IsReady();
     }
 
     void RenderServiceClient::HeartBeat() {

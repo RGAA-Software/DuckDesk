@@ -1405,3 +1405,44 @@ Console 普通用户 API 注册、登录并签发真实 ticket，再使用 Windo
 Rust 或 Web。按需重链的 Render `ft.dll` 已在停止对应 Render 进程后同步到 dist，服务自动
 拉起新 Render；build tree 与 `build_official\dist\deps\rd_plugins\ft.dll` 的 SHA-256 均为
 `CF89AE9D203190811A0E5CB97A160DED7C969CA1818A04942B43FE9BF51317C7`。
+
+### 12.22 Phase 7 连接、认证前置与自动重连的 awaitable 收敛
+
+本批新增公共 `PxConnectionAttemptWorkflow`，把“TCP 已连接”“WebSocket upgrade 已完成”以及
+“上层可以发送 Hello、认证或业务消息”从分散回调收敛为一条带 generation 的有界 awaitable
+状态流。每次 asio2 `bind_init` 创建一代 attempt；只有 upgrade 成功才能 `MarkReady`，连接失败、
+upgrade 失败、断开、超时、替换和 Stop 都产生类型化终态。旧 generation 被新连接替换时立即取消，
+迟到事件不能再次完成；ready 后断开会清除可发送状态，但不会重复调用已完成回调。
+
+接入范围：
+
+- Windows Client → Panel：ready 后才发送 Panel Hello；
+- Windows Client → Console：每代连接重新生成短期 token，ready 后才发送 Console Hello；
+- Panel → Console：ready 后才发送 Hello 并启动 RTC 配置刷新；
+- Panel → Service：ready 后才发布已连接事件和认证信息，心跳及普通消息不能在 upgrade 前发送；
+- Render → Service：ready 后才发送待处理 instance-ready 并发布 `MsgRenderConnected2Service`；
+  断线同时使所有待处理 ticket/虚拟显示器 RPC 以可重试错误结束；
+- Render → Panel：ready 后才发布首轮统计和插件信息，普通消息发送同时受 ready 状态门禁。
+
+所有网络、timer、scope completion 和 UI/task queue 回调继续使用 `weak_ptr::lock()`；新 workflow
+只保存 `shared_ptr`，没有裸指针或 `[this]` 捕获。libwebrtc 借用 ABI 与插件 instance ABI 未改动。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| connection workflow | 9 tests × 10 轮，共 90 次 PASS |
+| 状态覆盖 | ready 单终态、类型化失败、新代替换、可重试超时、ready 后断线清状态、ready 前 Stop、析构时排队完成、completion 内 Stop、10 次重复生命周期 |
+| Panel / Render 按需编译 | `px_panel`、`px_render`、`test_connection_attempt_workflow` PASS；未运行整体 `build_official.bat`，未编译 Rust/Web |
+| Render → Panel 真实重连 | 显式从 dist 重启 Panel 10 轮，10/10 ready；Render PID 全程不变，generation 15→24 |
+| Service 托管重启 | 重启 Windows `px_service` 10 轮；每轮 Service 和托管 Render 均换新 PID，20371 恢复监听，Render→Service Established 且新增 await-ready 日志，10/10 PASS |
+| 标准 RTC 功能回归 | dist Windows Client、账号 ticket、90 机器、标准 RTC 10/10 PASS；每轮视频 UI、音频初始化、FT 通道均正常，临时 user/session/ticket/guest-session 均为 0 |
+| C++ ownership / `git diff --check` | PASS；无新增裸指针、手工所有权或 `[this]` 捕获 |
+
+发布后的 build tree 与 `build_official\dist` 哈希一致：
+
+- `px_panel.exe`：`7BFA6CD2BADC4A50E79D132D13187E96C46A1B7C06108140AE6F111D1C307BC6`；
+- `px_render.exe`：`7D5B2B2D6E907F461319A01C1E93476EC6400E2C2FFAFE51274C07F4817C3920`。
+
+该批关闭的是连接和自动重连的回调状态错位；登录后的 Console `StartApp → QueryApps →
+IssueTicket → endpoint probe` 仍包含 UI 线程轮询与同步等待，作为下一批认证编排迁移范围。

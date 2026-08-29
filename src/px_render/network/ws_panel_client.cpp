@@ -11,6 +11,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
 #include "px_common_new/message_notifier.h"
+#include "px_common_new/connection_attempt_workflow.h"
 #include "px_message.pb.h"
 #include "px_render_panel_message.pb.h"
 #include "px_render/plugins/plugin_manager.h"
@@ -75,13 +76,43 @@ namespace px
         });
 
         client_ = std::make_shared<asio2::ws_client>();
+        connection_workflow_ = PxConnectionAttemptWorkflow::Create(
+            context_->GetAsyncRuntime(), std::chrono::seconds(10));
+        if (!connection_workflow_) {
+            LOGE("Cannot start Render Panel connection workflow");
+            return;
+        }
         client_->set_auto_reconnect(true);
         client_->set_timeout(std::chrono::milliseconds(2000));
         //client_->set_verify_mode(asio::ssl::verify_peer);
         client_->bind_init([weak_self]() {
-            if (auto self = weak_self.lock(); self && !self->exiting_ && self->client_) {
+            if (auto self = weak_self.lock(); self && !self->exiting_ && self->client_
+                && self->connection_workflow_) {
                 self->client_->ws_stream().binary(true);
                 self->client_->set_no_delay(true);
+                const bool started = self->connection_workflow_->BeginAttempt(
+                    [weak_self](PxConnectionAttemptResult result) {
+                        const auto self = weak_self.lock();
+                        if (!self || self->exiting_ || !self->context_) {
+                            return;
+                        }
+                        if (!result) {
+                            LOGW("Render Panel attempt ended: stage={}, code={}",
+                                 result.Error().stage, result.Error().StableCode());
+                            return;
+                        }
+                        LOGI("Render Panel websocket ready, generation={}",
+                             result.Value().generation);
+                        self->context_->PostTask([weak_self]() {
+                            const auto self = weak_self.lock();
+                            if (self && !self->exiting_) {
+                                self->ReportStatistics();
+                            }
+                        });
+                    });
+                if (!started) {
+                    LOGW("Render Panel attempt was rejected during shutdown");
+                }
                 self->client_->ws_stream().set_option(
                     websocket::stream_base::decorator([](websocket::request_type &req) {
                         req.set(http::field::authorization, "websocket-client-authorization");}
@@ -95,6 +126,14 @@ namespace px
                 auto wstr = StringUtil::ToWString(asio2::last_error_msg());
                 auto str = StringUtil::ToUTF8(wstr);
                 LOGE("WsPanelClient, connect failure : {} {}", asio2::last_error_val(), str);
+                if (auto self = weak_self.lock(); self && !self->exiting_
+                    && self->connection_workflow_) {
+                    static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                        PxAsyncErrorCode::kServiceNotConnected,
+                        "render-panel.connect",
+                        str,
+                        true)));
+                }
             } else {
                 if (auto self = weak_self.lock(); self && !self->exiting_ && self->client_) {
                     LOGI("WsPanelClient, connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
@@ -104,11 +143,31 @@ namespace px
         .bind_disconnect([weak_self]() {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
                 LOGE("WsPanelClient disconnected");
+                if (self->connection_workflow_) {
+                    static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                        PxAsyncErrorCode::kServiceNotConnected,
+                        "render-panel.disconnect",
+                        "Render disconnected from Panel",
+                        true)));
+                }
             }
         })
-        .bind_upgrade([]() {
+        .bind_upgrade([weak_self]() {
             if (asio2::get_last_error()) {
                 LOGE("WsPanelClient,upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
+                if (auto self = weak_self.lock(); self && !self->exiting_
+                    && self->connection_workflow_) {
+                    static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                        PxAsyncErrorCode::kProtocolError,
+                        "render-panel.upgrade",
+                        asio2::last_error_msg(),
+                        true)));
+                }
+                return;
+            }
+            if (auto self = weak_self.lock(); self && !self->exiting_
+                && self->connection_workflow_) {
+                static_cast<void>(self->connection_workflow_->MarkReady());
             }
         })
         .bind_recv([weak_self](std::string_view data) {
@@ -141,13 +200,18 @@ namespace px
             client_->stop();
             client_.reset();
         }
+        if (connection_workflow_) {
+            connection_workflow_->Stop();
+            connection_workflow_.reset();
+        }
         plugin_mgr_.reset();
         context_.reset();
         statistics_.reset();
     }
 
     bool WsPanelClient::Alive() const {
-        return client_ && client_->is_started();
+        return client_ && client_->is_started()
+            && connection_workflow_ && connection_workflow_->IsReady();
     }
 
     void WsPanelClient::ReportStatistics() {
@@ -191,7 +255,8 @@ namespace px
             return false;
         }
         auto client = client_;
-        if (client && client->is_started()) {
+        if (client && client->is_started() && connection_workflow_
+            && connection_workflow_->IsReady()) {
             if (queuing_message_count_ >= kMaxClientQueuedMessage) {
                 return false;
             }

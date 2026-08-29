@@ -48,6 +48,7 @@ set(SRCS
     thread.cpp
     task_runtime.cpp
     async_runtime.cpp
+    connection_attempt_workflow.cpp
     file_transfer_route_registry.cpp
     base64.cpp
     file.cpp
