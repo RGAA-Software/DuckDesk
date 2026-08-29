@@ -68,6 +68,24 @@ complete**. The evidence and exact limits are recorded in
 `docs/asio_notify_concurrency_acceptance_report_20260826.md`. True cross-public-
 network TURN/NAT tests remain an explicit environment gap and are not claimed.
 
+## Post-acceptance hardening on 2026-08-29
+
+The acceptance baseline remains valid, but subsequent repository-wide ownership
+audits continue to close legacy asynchronous paths found outside the original
+notification inventory. These are treated as Phase 7 hardening and receive the
+same focused-build, 10-round lifecycle and dist-publication gates.
+
+- Relay plug-in monitoring and SDK callbacks now use an owned shared runtime,
+  cancellable worker and generation invalidation.
+- MiniAudio default-device reinitialization now uses an owned cancellable
+  `jthread`; Stop joins it before releasing the device.
+- The outer WAS audio plug-in now delegates capture, retry and event delivery
+  to `WasAudioCaptureRuntime`. Capture callbacks and the retry worker hold only
+  weak/shared ownership and no longer retain the loader-owned plug-in instance.
+- The next in-scope batch is the client/Panel delayed shutdown and monitor
+  refresh paths. libwebrtc adapters and established plug-in instance ABI
+  boundaries remain excluded.
+
 ## Target execution architecture
 
 ```text

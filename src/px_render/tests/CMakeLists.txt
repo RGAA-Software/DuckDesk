@@ -21,3 +21,11 @@ target_link_libraries(test_relay_plugin_dll_lifecycle
 target_compile_definitions(test_relay_plugin_dll_lifecycle
     PRIVATE PX_RELAY_PLUGIN_DLL_PATH="$<TARGET_FILE:net_relay>")
 add_dependencies(test_relay_plugin_dll_lifecycle net_relay)
+
+add_executable(test_was_audio_plugin_dll_lifecycle
+        test_was_audio_plugin_dll_lifecycle.cpp)
+target_link_libraries(test_was_audio_plugin_dll_lifecycle
+        PRIVATE GTest::gtest_main px_common_new px_plugin)
+target_compile_definitions(test_was_audio_plugin_dll_lifecycle
+        PRIVATE PX_WAS_AUDIO_PLUGIN_DLL_PATH="$<TARGET_FILE:cap_was_audio>")
+add_dependencies(test_was_audio_plugin_dll_lifecycle cap_was_audio)

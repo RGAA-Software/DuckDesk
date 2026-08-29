@@ -1692,3 +1692,40 @@ Render 的 Relay 插件原先在 `OnCreate` 中启动永久 detached 线程，�
 
 `cap_was_audio.dll` 的 build tree 与 `build_official\dist` SHA-256 一致：
 `1875E2C7BAD9BD4B5F0D5A998DE3CDB95AC296EB19680749A930488966405FDB`。
+
+### 12.29 Phase 7 WAS 音频外层插件生命周期收敛
+
+12.28 已经关闭 MiniAudio 内部设备重建的 detached worker，但插件外层仍在
+`WasAudioCapturePlugin` 上直接保存采集状态和重启线程，重启 worker、格式/数据/
+停止回调均捕获插件 `this`，致命停止判断还保留了 `IAudioCapture*`。这使
+`OnDestroy`/DLL 卸载对排队回调的失效和 worker 退出缺少可独立验证的屏障。
+
+本批保持 `GetInstance` 插件单例、加载/卸载 ABI 和 WebRTC 结构不变，完成以下收敛：
+
+- 新增 `WasAudioCaptureRuntime`，采集实例、格式状态、PID、重试 generation、事件通道
+  和 owned `jthread` 全部归共享 Runtime 所有；插件对象只同步转发生命周期方法；
+- 格式、PCM、分声道和 stop 回调只捕获 `weak_ptr`；致命停止判断使用
+  `weak_ptr<IAudioCapture>::lock()`，不再保存或捕获裸指针；
+- Stop、PID 变更、外部 Start 和 Shutdown 都递增 generation 并取消 pending retry；
+  旧 capture 的迟到 stop 回调不能复活新会话；
+- `Shutdown` 先禁用事件通道，再取消 worker、停止 capture 并 join；返回后旧 PCM/
+  stop 回调即使被人工触发也不能再访问插件或发布事件；
+- 新增 `build_cpp_was_audio_tests.bat`，只增量编译 WAS 音频插件及相关 C++
+  测试，不运行 `build_official.bat`、Rust 或 Web 构建。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| Runtime 致命停止 | 进程存活时自动重启 10/10 PASS；进程已退出时正确放弃 |
+| pending 取消 | 致命停止后立即 Stop，延迟窗口内取消 10/10 PASS，无取消后重启 |
+| 回调/销毁 | 事件回调内 Stop 10/10 PASS；Shutdown 后触发旧 PCM/致命 stop 回调 10/10 无投递、无崩溃 |
+| 重复启停 | 同一 Runtime 连续 Start/Stop 10/10 PASS |
+| 真实音频 | 本机 Realtek 默认扬声器，880 Hz 回环采集和主动设备重建 10/10 PASS；48 kHz / 2 ch / 16 bit，峰值 8191 |
+| DLL 真实生命周期 | 10 轮 LoadLibrary / OnCreate / Start / Stop / OnStop / OnDestroy / FreeLibrary PASS；每轮模块句柄归零 |
+| focused build | `cap_was_audio`、`test_was_audio_capture_runtime`、`test_was_audio_plugin_dll_lifecycle`、`test_plugin_was_audio_capture`、`test_miniaudio_reinit_cancel` PASS |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；新 Runtime 和测试无新增裸指针、`[this]` 或 detached thread；DLL 测试中的指针仅为已标注的插件 ABI 边界 |
+| dist smoke | 新 DLL 已发布到 dist；`px_service` Running，dist Render 已实际加载该 DLL，Relay 媒体/文件两条 30502 连接 Established |
+
+`cap_was_audio.dll` 的 build tree 与 `build_official\dist` SHA-256 一致：
+`6B0F400DDA9FC3AF9E6D7BB6D4DC181EC28832792CC158AC9F50EB5A6800F20C`。
