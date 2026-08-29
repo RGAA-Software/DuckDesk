@@ -41,6 +41,10 @@ add_executable(test_record_transfer test_record_transfer.cpp
         ../render_panel/network/record_transfer.cpp)
 target_link_libraries(test_record_transfer PRIVATE GTest::gtest GTest::gtest_main)
 
+add_executable(test_sqlite_storage_config test_sqlite_storage_config.cpp)
+target_link_libraries(test_sqlite_storage_config PRIVATE
+        GTest::gtest GTest::gtest_main sqlite_orm::sqlite_orm unofficial::sqlite3::sqlite3)
+
 add_executable(test_connection_policy test_connection_policy.cpp)
 target_link_libraries(test_connection_policy PRIVATE GTest::gtest GTest::gtest_main)
 add_test(NAME panel_connection_policy COMMAND test_connection_policy)

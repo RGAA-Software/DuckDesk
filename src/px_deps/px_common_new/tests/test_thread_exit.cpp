@@ -3,6 +3,7 @@
 #include <chrono>
 #include <future>
 #include <memory>
+#include <stdexcept>
 
 #include "px_common_new/thread.h"
 
@@ -81,6 +82,44 @@ namespace px
             worker->Exit();
             EXPECT_TRUE(worker->IsExit());
         }
+    }
+
+    TEST(ThreadExitTest, StandardExceptionDoesNotTerminateWorkerOrBlockNextTask) {
+        auto worker = Thread::Make("standard-exception", 4);
+        auto completed = std::make_shared<std::promise<void>>();
+        auto future = completed->get_future();
+
+        worker->Poll();
+        worker->Post([]() { throw std::runtime_error("expected test failure"); });
+        worker->Post([completed]() { completed->set_value(); });
+
+        ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+        worker->Exit();
+        EXPECT_EQ(worker->ExecCount(), 2UL);
+    }
+
+    TEST(ThreadExitTest, NonStandardExceptionDoesNotTerminateWorkerOrBlockNextTask) {
+        auto worker = Thread::Make("non-standard-exception", 4);
+        auto completed = std::make_shared<std::promise<void>>();
+        auto future = completed->get_future();
+
+        worker->Poll();
+        worker->Post([]() { throw 7; });
+        worker->Post([completed]() { completed->set_value(); });
+
+        ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+        worker->Exit();
+        EXPECT_EQ(worker->ExecCount(), 2UL);
+    }
+
+    TEST(ThreadExitTest, OnceTaskExceptionIsContainedAndCompletionIsReported) {
+        auto worker = Thread::MakeOnceTask(
+            []() { throw std::runtime_error("expected once-task failure"); },
+            "once-exception", true);
+
+        EXPECT_TRUE(worker->IsLastTaskReturned());
+        EXPECT_TRUE(worker->IsExit());
+        worker->Exit();
     }
 
 }

@@ -1325,3 +1325,37 @@ Panel build tree 与 `build_official\dist` 的 `px_panel.exe` SHA-256 一致：
 `4A0326D3907E49DDF5F743418FFBDDFE9FED9CE08D8C8A2DE8059DC8F5849381`。
 本批验证了真实目录扫描、并发/取消状态和生产 Panel 启动链；没有使用 Console 管理页面下发
 真实 `RecordListReq`，因此管理页面端到端列表展示仍保留为独立功能验收项。
+
+### 12.19 公共任务异常边界与 Panel SQLite 锁争用修复
+
+发布 12.18 后的延长 smoke 发现 Panel 在资源刷新线程中退出。Windows WER 与本机 dump
+确认异常链为 `AppStreamList::RefreshRemoteDevices -> StreamDBOperator::UpdateStream ->
+sqlite_orm::throw_translated_sqlite_error -> std::terminate`，SQLite 原因是 `database is
+locked`。历史 CrashDumps 中在本批改动前已有多次相同进程退出，因此该问题不是录像列表
+awaitable 引入，但会干扰所有 Panel 长时间验收。
+
+本批增加两层处理：
+
+- `Thread` 的队列任务与一次性任务入口捕获标准和非标准异常，记录线程名、任务 ID 和错误，
+  并保证任务状态、执行计数及后续队列继续推进；任意业务任务异常不再越过线程入口触发
+  `std::terminate`；
+- Panel 创建 sqlite_orm storage 时统一配置 3 秒 busy timeout。sqlite_orm 会把 `on_open`
+  策略复制到每个 storage 副本，因此所有惰性创建的 SQLite 连接都会有一致、有界的锁等待，
+  短暂写锁不再立即失败；
+- 数据库损坏备份辅助函数同时移除了旧的输出裸指针参数，改为 `optional<string>` 结果，
+  新增代码没有裸指针或 `[this]` 捕获。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| Thread 异常边界 | 7 tests × 10 轮，共 70 次 PASS；覆盖标准异常、非标准异常、后续任务继续、once task、self-stop 和 10 次生命周期 |
+| SQLite 锁等待 | 2 tests × 10 轮，共 20 次 PASS；真实双连接写锁等待 100 ms，释放后第二写入成功；storage copy 的 busy timeout 为 3000 ms |
+| 公共异步回归 | TaskRuntime、MessageNotifier、PxAsyncRuntime 各 10/10 轮 PASS |
+| Panel 按需编译 | `px_panel` PASS；未运行 `build_official.bat`，未编译 Rust/Web |
+| dist 延长 smoke | 真实复现旧锁异常后，防崩版本同 PID 110 秒；根治版本同 PID 120 秒，Console hello 与设备链接更新正常 |
+| 日志与系统事件 | 根治版本启动后无 `database is locked`、未捕获任务异常、terminate/fatal 或新的 WER/Application Error |
+| C++ ownership / `git diff --check` | PASS |
+
+最终 `px_panel.exe` 已同步到 `build_official\dist`，build tree 与 dist 的 SHA-256 均为
+`D087006FF8D2830B9C0CE155DE2A664F0502A7CFB4E695AB72D761654C6992FD`。

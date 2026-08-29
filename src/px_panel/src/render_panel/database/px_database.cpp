@@ -8,6 +8,7 @@
 #include "file_transfer_record_operator.h"
 #include "stream_db_operator.h"
 #include "db_game_operator.h"
+#include "sqlite_storage_config.h"
 #include "px_common_new/folder_util.h"
 #include "px_common_new/string_util.h"
 #include "px_common_new/log.h"
@@ -18,11 +19,11 @@
 namespace px
 {
     namespace {
-        bool BackupBrokenDatabaseFile(const std::string& db_path, std::string* backup_path_out) {
+        std::optional<std::string> BackupBrokenDatabaseFile(const std::string& db_path) {
             std::error_code ec;
             std::filesystem::path source = PathFromUTF8(db_path);
             if (!std::filesystem::exists(source, ec)) {
-                return true;
+                return std::string{};
             }
 
             const auto ts = QDateTime::currentDateTimeUtc().toString("yyyyMMddHHmmsszzz").toStdString();
@@ -31,14 +32,10 @@ namespace px
             std::filesystem::rename(source, backup, ec);
             if (ec) {
                 LOGE("Backup broken database failed, path: {}, error: {}", db_path, ec.message());
-                return false;
+                return std::nullopt;
             }
 
-            if (backup_path_out) {
-                const auto u8 = backup.u8string();
-                *backup_path_out = std::string(reinterpret_cast<const char*>(u8.data()), u8.size());
-            }
-            return true;
+            return QString::fromStdWString(backup.wstring()).toStdString();
         }
     }
 
@@ -65,22 +62,24 @@ namespace px
 
         try {
             auto storage = InitAppDatabase(db_path);
+            ConfigureSqliteStorage(storage);
             storage.sync_schema();
             db_storage_ = storage;
         } catch (const std::exception& e) {
             LOGE("Init database failed, path: {}, error: {}", db_path, e.what());
 
-            std::string backup_path;
-            if (!BackupBrokenDatabaseFile(db_path, &backup_path)) {
+            const auto backup_path = BackupBrokenDatabaseFile(db_path);
+            if (!backup_path.has_value()) {
                 last_error_ = std::format("Init database failed and backup failed: {}", e.what());
                 return false;
             }
-            if (!backup_path.empty()) {
-                LOGE("Database was backed up and will be rebuilt, backup: {}", backup_path);
+            if (!backup_path->empty()) {
+                LOGE("Database was backed up and will be rebuilt, backup: {}", *backup_path);
             }
 
             try {
                 auto storage = InitAppDatabase(db_path);
+                ConfigureSqliteStorage(storage);
                 storage.sync_schema();
                 db_storage_ = storage;
             } catch (const std::exception& rebuild_error) {

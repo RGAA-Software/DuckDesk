@@ -59,7 +59,17 @@ namespace px
                     self->SetNativeThreadId();
                     auto task = std::move(self->once_task_);
                     if (task) {
-                        task();
+                        try {
+                            task();
+                        }
+                        catch (const std::exception& error) {
+                            LOGE("Uncaught exception in once thread task '{}': {}",
+                                 self->name_, error.what());
+                        }
+                        catch (...) {
+                            LOGE("Uncaught non-standard exception in once thread task '{}'",
+                                 self->name_);
+                        }
                     }
                     self->last_task_returned_.store(true, std::memory_order_release);
                     self->exit_loop_.store(true, std::memory_order_release);
@@ -220,7 +230,17 @@ namespace px
 
                 if (task) {
                     task->state_ = ThreadTaskState::kRunning;
-                    task->Run();
+                    try {
+                        task->Run();
+                    }
+                    catch (const std::exception& error) {
+                        LOGE("Uncaught exception in thread task '{}', task_id={}: {}",
+                             name_, task->task_id_, error.what());
+                    }
+                    catch (...) {
+                        LOGE("Uncaught non-standard exception in thread task '{}', task_id={}",
+                             name_, task->task_id_);
+                    }
                     task->state_ = ThreadTaskState::kReady;
                     task_exec_count_.fetch_add(1, std::memory_order_relaxed);
                 }
