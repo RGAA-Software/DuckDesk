@@ -1446,3 +1446,47 @@ upgrade 失败、断开、超时、替换和 Stop 都产生类型化终态。旧
 
 该批关闭的是连接和自动重连的回调状态错位；登录后的 Console `StartApp → QueryApps →
 IssueTicket → endpoint probe` 仍包含 UI 线程轮询与同步等待，作为下一批认证编排迁移范围。
+
+### 12.23 Phase 7 Panel 启动授权编排的 awaitable 收敛
+
+本批新增 `StreamLaunchAuthWorkflow`，把登录态设备和云应用启动前的同步链路从 Qt UI
+线程迁移到共享 `PxAsyncRuntime` 的 worker lane。设备路径按顺序执行 `IssueDeviceTicket →
+resolve endpoint → optional direct probe`；应用路径执行 `StartApp → cancellable timer poll
+QueryApps → IssueInstanceTicket → resolve endpoint → optional direct probe`。独立文件传输入口复用
+同一 workflow，但只申请 `file` 权限并继续使用可靠 WebSocket 直连或 Relay。
+
+- 每次启动分配 generation；新请求取消旧请求，UI 只接受当前 generation，迟到结果不能启动
+  客户端或覆盖卡片状态；
+- 应用轮询使用 Asio timer，不再在 UI 线程 `sleep_for`；同步 Console HTTP 和 endpoint probe
+  作为有界阻塞叶子投递到 Panel 既有任务运行时；
+- Stop 先置位取消标志，再停止并等待 scope。阻塞叶子不捕获 widget/workflow，有限超时后的
+  迟到完成只会尝试结束 one-shot，不能访问已销毁 UI；
+- Console API 错误保留 stage、稳定错误码和服务端信息；空 instance ID、非法 endpoint、超时、
+  替换和 Stop 都有类型化终态；
+- 游客/显式 IP 密码直连不进入 ticket workflow。登录态 Console 设备和云应用仍只使用 ticket；
+- 新增和本次触及的异步回调使用 `QPointer`、`shared_ptr` 或 `weak_ptr`，没有新增裸指针、
+  `[this]` 捕获，也没有改动 libwebrtc 或插件 instance ABI。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 启动授权 workflow | 11 tests × 10 轮，共 110 次 PASS |
+| 状态覆盖 | 设备 ticket、应用 starting→running、空 instance ID、配置关闭探测、强制 Direct、强制 Relay、Console 类型化失败、deadline、新代替换、Stop/迟到完成、10 次重复生命周期 |
+| 连接策略与 Console 错误兼容 | `test_connection_policy`、`test_console_api_error` 各 10 轮 PASS |
+| Panel 按需编译 | `test_stream_launch_auth_workflow`、`px_panel` PASS；仅使用 C++ focused target，未运行整体 `build_official.bat`，未编译 Rust/Web |
+| 账号设备真实连接 | 本机登录态 Panel 点击 90 的 `001190520` 卡片连续 10/10 PASS；generation 1→10，零授权失败，每轮客户端响应且建立两条到 `10.0.0.90:20371` 的连接；首轮实拍确认 90 桌面画面，不是白屏 |
+| 显式 IP 直连回归 | `10.0.0.90` 卡片以 `conn_type=direct` 启动，未增加 Console workflow generation；视频首帧进入 UI、FT 通道连接，证明密码直连分支未被强制改成 ticket |
+| 独立文件传输入口 | generation 11 完成 file ticket 与探测，`dist` 客户端打开；本机和 90 两侧真实目录均成功列出 |
+| 云应用授权链 | `baidu` 的 StartApp、实例状态、QueryApps、实例 ticket、endpoint probe 和客户端启动通过；Panel 轮询期间 0 次无响应，实例 ID 正确传给客户端 |
+| C++ ownership / `git diff --check` | PASS |
+
+云应用的完整数据面验收没有通过：90 上实例进入 `running`，端口 `32010` 的配置探测成功，
+但客户端随后停在“等待配置信息”，没有远端画面；90 同期创建的 `rec_webview` 文件为 0 字节。
+这发生在本批 awaitable 授权链完成之后，不能否定 UI 解阻和 ticket 编排结果，但也不能把云应用
+画面宣称为通过。测试实例 `inst-6-e4db6968` 已通过 Console Stop API 恢复为 `stopped`；后续应
+独立排查 90 的 WebView capture / inner Render `32010` 数据面以及 Direct RTC 实际建连失败后的
+标准 RTC 回退。
+
+新 `px_panel.exe` 已同步到 `build_official\dist`，build tree 与 dist 的 SHA-256 均为
+`6A6C9FA0023947FDB807603F2C4F5A74965942BC7F3C41A29F18B093E3D531A5`。

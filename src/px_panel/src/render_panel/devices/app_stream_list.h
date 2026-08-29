@@ -20,11 +20,14 @@
 #include <map>
 #include <unordered_map>
 #include <QProcess>
+#include <QPointer>
 #include <mutex>
 #include <atomic>
 #include <functional>
+#include <optional>
 
 #include "px_console_client/console_stream.h"
+#include "stream_launch_auth_workflow.h"
 
 namespace px
 {
@@ -35,6 +38,7 @@ namespace px
     class MessageListener;
     class RunningStreamManager;
     class StreamStateChecker;
+    class StreamItemWidget;
 
     enum class AppStreamListMode {
         kRemoteDevices,
@@ -55,18 +59,37 @@ namespace px
         void RefreshResources();
 
     private:
-        QListWidgetItem* AddItem(const std::shared_ptr<px_console::ConsoleStream>& item, int index);
-        QWidget* GetItemByStreamId(const std::string& stream_id);
-        void RegisterActions(int index, QListWidgetItem* cur_item);
-        void ProcessAction(int index, QListWidgetItem* cur_item, const std::shared_ptr<px_console::ConsoleStream>& item);
+        void AddItem(const std::shared_ptr<px_console::ConsoleStream>& item, int index);
+        QPointer<StreamItemWidget> GetItemByStreamId(const std::string& stream_id);
+        void RegisterActions(int index);
+        void ProcessAction(int index, const std::shared_ptr<px_console::ConsoleStream>& item);
 
         void CreateLayout();
         void Init();
 
         void DeleteStream(const std::shared_ptr<px_console::ConsoleStream>& item);
-        void StartStream(QListWidgetItem* cur_item, const std::shared_ptr<px_console::ConsoleStream>& item, bool force_only_viewing);
+        void StartStream(const std::shared_ptr<px_console::ConsoleStream>& item, bool force_only_viewing);
         void StartFileTransfer(const std::shared_ptr<px_console::ConsoleStream>& item);
-        void StartStreamInternal(QListWidgetItem* cur_item, const std::shared_ptr<px_console::ConsoleStream>& item, bool force_only_viewing);
+        void StartFileTransferTicketLaunch(
+            const std::shared_ptr<px_console::ConsoleStream>& target_item);
+        void CompleteFileTransferTicketLaunch(
+            const std::shared_ptr<px_console::ConsoleStream>& target_item,
+            std::uint64_t generation,
+            StreamLaunchAuthResult result);
+        void StartStreamInternal(const std::shared_ptr<px_console::ConsoleStream>& item, bool force_only_viewing);
+        void StartConsoleTicketLaunch(
+            const std::shared_ptr<px_console::ConsoleStream>& target_item,
+            bool uses_console_app_ticket);
+        void CompleteConsoleTicketLaunch(
+            const std::shared_ptr<px_console::ConsoleStream>& target_item,
+            bool uses_console_app_ticket,
+            std::uint64_t generation,
+            StreamLaunchAuthResult result);
+        void ContinueStartStream(
+            const std::shared_ptr<px_console::ConsoleStream>& target_item,
+            bool uses_console_ticket,
+            std::optional<bool> authenticated_direct_available = std::nullopt);
+        StreamLaunchAuthHooks MakeStreamLaunchAuthHooks() const;
         bool StopStream(const std::shared_ptr<px_console::ConsoleStream>& item);
         void LockDevice(const std::shared_ptr<px_console::ConsoleStream>& item);
         void RestartDevice(const std::shared_ptr<px_console::ConsoleStream>& item);
@@ -92,6 +115,7 @@ namespace px
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         QListWidget* stream_list_ = nullptr;
         std::shared_ptr<RunningStreamManager> running_stream_mgr_ = nullptr;
+        std::shared_ptr<StreamLaunchAuthWorkflow> stream_launch_auth_workflow_ = nullptr;
         // online state checker
         std::shared_ptr<StreamStateChecker> state_checker_ = nullptr;
         std::atomic_bool resource_refresh_inflight_ {false};

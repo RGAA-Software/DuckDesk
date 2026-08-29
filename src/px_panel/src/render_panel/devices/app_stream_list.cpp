@@ -15,7 +15,6 @@
 #include <QUuid>
 #include <algorithm>
 #include <chrono>
-#include <thread>
 #include <unordered_set>
 
 #include "px_dialog.h"
@@ -39,6 +38,7 @@
 #include "start_stream_loading.h"
 #include "input_remote_pwd_dialog.h"
 #include "stream_state_checker.h"
+#include "stream_launch_auth_workflow.h"
 #include "px_console_client/console_user.h"
 #include "px_console_client/console_device.h"
 #include "px_console_client/console_user_device.h"
@@ -77,6 +77,8 @@ namespace px
         settings_ = PxSettings::Instance();
         db_mgr_ = context_->GetStreamDBManager();
         running_stream_mgr_ = context_->GetRunningStreamManager();
+        stream_launch_auth_workflow_ = StreamLaunchAuthWorkflow::Create(
+            context_->GetMessageNotifier()->GetAsyncRuntime());
         if (mode_ == AppStreamListMode::kRemoteDevices) {
             constexpr auto kExclusiveConnectionModeMigration =
                 "exclusive_connection_mode_migration_v1";
@@ -194,6 +196,10 @@ namespace px
     }
 
     AppStreamList::~AppStreamList() {
+        if (stream_launch_auth_workflow_) {
+            stream_launch_auth_workflow_->Stop();
+            stream_launch_auth_workflow_.reset();
+        }
         if (state_checker_) {
             state_checker_->Exit();
         }
@@ -231,17 +237,25 @@ namespace px
             }
         )");
 
-        connect(stream_list_, &QListWidget::customContextMenuRequested, this, [=, this](const QPoint& pos) {
-            QListWidgetItem* cur_item = stream_list_->itemAt(pos);
-            if (cur_item == nullptr) { return; }
-            int index = stream_list_->row(cur_item);
-            RegisterActions(index, cur_item);
+        QPointer<AppStreamList> self(this);
+        connect(stream_list_, &QListWidget::customContextMenuRequested, this, [self](const QPoint& pos) {
+            if (!self) {
+                return;
+            }
+            const auto item = self->stream_list_->itemAt(pos);
+            if (!item) {
+                return;
+            }
+            self->RegisterActions(self->stream_list_->row(item));
         });
 
-        connect(stream_list_, &QListWidget::itemDoubleClicked, this, [=, this](QListWidgetItem *item) {
-            const int index = stream_list_->row(item);
-            const auto stream_item = streams_.at(index);
-            StartStream(item, stream_item, false);
+        connect(stream_list_, &QListWidget::itemDoubleClicked, this,
+                [self](QListWidgetItem* item) { // NOLINT(gammaray-raw-pointer-boundary) Qt signal ABI; used only during delivery.
+            if (!self || !item) {
+                return;
+            }
+            const int index = self->stream_list_->row(item);
+            self->StartStream(self->streams_.at(index), false);
         });
 
         root_layout->addSpacing(10);
@@ -343,7 +357,7 @@ namespace px
                     return;
                 }
                 if (auto_start) {
-                    self->StartStream(nullptr, exist_stream_item, false);
+                    self->StartStream(exist_stream_item, false);
                 }
             }, 70);
             });
@@ -422,8 +436,9 @@ namespace px
         });
     }
 
-    void AppStreamList::RegisterActions(int index, QListWidgetItem* cur_item) {
+    void AppStreamList::RegisterActions(int index) {
         const auto stream = streams_.at(index);
+        QPointer<AppStreamList> self(this);
         if (stream->connect_type_ == connection_policy::kConsoleAppTicket) {
             auto menu = new QMenu();
             auto connect_action = menu->addAction(tcTr(
@@ -433,11 +448,11 @@ namespace px
             auto view_action = menu->addAction(tcTr("id_only_viewing"));
             auto stop_action = menu->addAction(tcTr("id_stop_application"));
             connect(connect_action, &QAction::triggered, this,
-                    [=, this]() { StartStream(cur_item, stream, false); });
+                    [self, stream]() { if (self) self->StartStream(stream, false); });
             connect(view_action, &QAction::triggered, this,
-                    [=, this]() { StartStream(cur_item, stream, true); });
+                    [self, stream]() { if (self) self->StartStream(stream, true); });
             connect(stop_action, &QAction::triggered, this,
-                    [=, this]() { StopStream(stream); });
+                    [self, stream]() { if (self) self->StopStream(stream); });
             menu->exec(QCursor::pos());
             delete menu;
             return;
@@ -466,18 +481,21 @@ namespace px
 
             auto action = new QAction(action_name, menu);
             menu->addAction(action);
-            connect(action, &QAction::triggered, this, [=, this]() {
-                ProcessAction(i, cur_item, streams_.at(index));
+            connect(action, &QAction::triggered, this, [self, i, index]() {
+                if (self && index >= 0 && index < self->streams_.size()) {
+                    self->ProcessAction(i, self->streams_.at(index));
+                }
             });
         }
         menu->exec(QCursor::pos());
         delete menu;
     }
 
-    void AppStreamList::ProcessAction(int index, QListWidgetItem* cur_item, const std::shared_ptr<px_console::ConsoleStream>& item) {
+    void AppStreamList::ProcessAction(
+        int index, const std::shared_ptr<px_console::ConsoleStream>& item) {
         if (index == 0) {
             // connect
-            StartStream(cur_item, item, false);
+            StartStream(item, false);
         }
         else if (index == 1) {
             // stop
@@ -485,7 +503,7 @@ namespace px
         }
         else if (index == 2) {
             // only viewing
-            StartStream(cur_item, item, true);
+            StartStream(item, true);
         }
         else if (index == 3) {
             StartFileTransfer(item);
@@ -517,22 +535,24 @@ namespace px
         }
     }
 
-    void AppStreamList::StartStream(QListWidgetItem* cur_item, const std::shared_ptr<px_console::ConsoleStream>& item, bool force_only_viewing) {
-        if (cur_item) {
-            if (const auto widget = static_cast<StreamItemWidget *>(stream_list_->itemWidget(cur_item))) {
-                widget->ShowConnecting();
-            }
+    void AppStreamList::StartStream(
+        const std::shared_ptr<px_console::ConsoleStream>& item,
+        bool force_only_viewing) {
+        if (const auto widget = GetItemByStreamId(item->stream_id_)) {
+            widget->ShowConnecting();
         }
         QPointer<AppStreamList> self(this);
-        context_->PostUIDelayTask([self, cur_item, item, force_only_viewing]() {
+        context_->PostUIDelayTask([self, item, force_only_viewing]() {
             if (!self) {
                 return;
             }
-            self->StartStreamInternal(cur_item, item, force_only_viewing);
+            self->StartStreamInternal(item, force_only_viewing);
         }, 40);
     }
 
-    void AppStreamList::StartStreamInternal(QListWidgetItem* cur_item, const std::shared_ptr<px_console::ConsoleStream>& item, bool force_only_viewing) {
+    void AppStreamList::StartStreamInternal(
+        const std::shared_ptr<px_console::ConsoleStream>& item,
+        bool force_only_viewing) {
         std::shared_ptr<px_console::ConsoleStream> target_item;
         const bool uses_console_app_ticket = item->connect_type_ == connection_policy::kConsoleAppTicket;
         if (uses_console_app_ticket) {
@@ -572,127 +592,283 @@ namespace px
         }
         const bool uses_console_ticket = launch_policy == connection_policy::LaunchPolicy::kConsoleTicket;
         if (uses_console_ticket) {
-            const auto nonce = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
-            std::vector<std::string> permissions {"view"};
-            // File transfer is a separate authenticated capability, not an
-            // input-control capability. A signed-in user's view-only session
-            // must still be reusable by the Panel file-transfer entry.
-            if (grApp->GetUserManager()->IsLoggedIn()) {
-                permissions.push_back("file");
-            }
-            if (!target_item->only_viewing_) {
-                permissions.push_back("input");
-                // Anonymous public-app sessions deliberately remain view/input
-                // only. Sensitive capabilities are granted only to an
-                // authenticated user and are still enforced by the render end.
-                if (grApp->GetUserManager()->IsLoggedIn()) {
-                    permissions.insert(permissions.end(), {"clipboard", "audio"});
-                }
-            }
-            px::Result<px_console::ConsoleConnectionTicket, px_console::ConsoleApiError> ticket_result =
-                TcErr(px_console::ConsoleApiError::kInvalidParams);
-            if (uses_console_app_ticket) {
-                if (target_item->console_instance_id_.empty()) {
-                    auto start_result = grApp->GetUserManager()->StartApp(target_item->console_app_id_, nonce);
-                    if (!start_result.has_value()) {
-                        LOGE("Console application start failed or did not reach running");
-                        const auto error_message = px_console::ConsoleApiLastErrorMessage();
-                        TcDialog dialog(tcTr("id_connect_failed"),
-                                        MakeConsoleErrorMessage(
-                                            ConsoleErrorOperation::kStartApplication,
-                                            start_result.error(), error_message,
-                                            MakeConsoleEndpoint(settings_->GetConsoleServerHost(),
-                                                                settings_->GetConsoleServerPort())),
-                                        grWorkspace.get());
-                        dialog.exec();
-                        return;
-                    }
-                    auto instance = start_result.value();
-                    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
-                    while (instance.state == "starting" && std::chrono::steady_clock::now() < deadline) {
-                        std::this_thread::sleep_for(std::chrono::milliseconds(800));
-                        const auto apps_result = grApp->GetUserManager()->QueryApps();
-                        if (!apps_result.has_value()) continue;
-                        const auto app_it = std::find_if(apps_result.value().begin(), apps_result.value().end(),
-                            [&target_item](const px_console::ConsoleUserApplication& app) {
-                                return app.app_id == target_item->console_app_id_;
-                            });
-                        if (app_it != apps_result.value().end() && app_it->running_instance
-                            && app_it->running_instance->instance_id == instance.instance_id) {
-                            instance = *app_it->running_instance;
-                        }
-                    }
-                    if (instance.state != "running") {
-                        LOGE("Console application instance did not reach running, state: {}", instance.state);
-                        TcDialog dialog(tcTr("id_connect_failed"),
-                                        tcTr("id_application_start_timeout"),
-                                        grWorkspace.get());
-                        dialog.exec();
-                        return;
-                    }
-                    target_item->console_instance_id_ = instance.instance_id;
-                    target_item->console_instance_state_ = instance.state;
-                    target_item->console_online_ = true;
-                    target_item->direct_online_ = true;
-                }
-                ticket_result = grApp->GetUserManager()->IssueInstanceTicket(
-                    target_item->console_instance_id_, nonce, permissions);
-            } else {
-                ticket_result = grApp->GetUserManager()->IssueDeviceTicket(
-                    target_item->remote_device_id_, nonce, permissions);
-            }
-            if (!ticket_result.has_value()) {
-                LOGE("Console connection ticket request failed: {}", static_cast<int>(ticket_result.error()));
-                if (uses_console_app_ticket) {
-                    // The instance may have stopped or belonged to an expired
-                    // guest session. A subsequent click should start a fresh
-                    // owned instance instead of retrying the stale id.
-                    target_item->console_instance_id_.clear();
-                }
-                const auto error_message = px_console::ConsoleApiLastErrorMessage();
-                TcDialog dialog(tcTr("id_connect_failed"),
-                                MakeConsoleErrorMessage(
-                                    ConsoleErrorOperation::kConnectRemote,
-                                    ticket_result.error(), error_message,
-                                    MakeConsoleEndpoint(settings_->GetConsoleServerHost(),
-                                                        settings_->GetConsoleServerPort())),
-                                grWorkspace.get());
-                dialog.exec();
-                return;
-            }
-            const auto& ticket = ticket_result.value();
-            const QUrl launch_url(QString::fromStdString(ticket.launch_url));
-            if (!launch_url.isValid() || launch_url.host().isEmpty() || launch_url.port() <= 0) {
-                LOGE("Console returned an invalid device launch endpoint");
-                TcDialog dialog(tcTr("id_connect_failed"),
-                                tcTr("id_invalid_console_endpoint"), grWorkspace.get());
-                dialog.exec();
-                return;
-            }
-            target_item->stream_host_ = launch_url.host().toStdString();
-            target_item->stream_port_ = launch_url.port();
-            if (uses_console_app_ticket) {
-                const QUrlQuery query(launch_url);
-                target_item->remote_device_id_ = query.queryItemValue("deviceId").toStdString();
-            }
-            target_item->connection_ticket_ = ticket.ticket;
-            target_item->connection_nonce_ = nonce;
-            target_item->rtc_ice_config_json_ = ticket.rtc_ice_config_json;
-            // Console tickets may be issued for newly scheduled instances
-            // that have no persisted stream row yet. Standard RTC still needs
-            // the Console Relay for SDP/ICE signaling, so fill it from the
-            // authenticated Console access configuration when absent.
-            target_item->relay_host_ = !ticket.relay_host.empty()
-                ? ticket.relay_host : settings_->GetRelayServerHost();
-            target_item->relay_port_ = ticket.relay_port > 0
-                ? ticket.relay_port : settings_->GetRelayServerPort();
-            const auto has_permission = [&ticket](const char* permission) {
-                return std::find(ticket.permissions.begin(), ticket.permissions.end(), permission)
-                    != ticket.permissions.end();
-            };
-            target_item->clipboard_enabled_ = has_permission("clipboard");
-            target_item->audio_enabled_ = has_permission("audio");
+            StartConsoleTicketLaunch(target_item, uses_console_app_ticket);
+            return;
         }
+
+        ContinueStartStream(target_item, false);
+    }
+
+    StreamLaunchAuthHooks AppStreamList::MakeStreamLaunchAuthHooks() const {
+        const auto user_manager = grApp->GetUserManager();
+        const auto context = context_;
+        StreamLaunchAuthHooks hooks;
+        hooks.post_blocking = [context](std::function<void()> task) {
+            context->PostTask(std::move(task));
+        };
+        hooks.start_app = [user_manager](
+            const std::string& app_id, const std::string& nonce) {
+            auto result = user_manager->StartApp(app_id, nonce);
+            if (result.has_value()) {
+                return StreamLaunchConsoleCall<px_console::ConsoleUserAppInstance>::Success(
+                    result.value());
+            }
+            return StreamLaunchConsoleCall<px_console::ConsoleUserAppInstance>::Failure(
+                result.error(), px_console::ConsoleApiLastErrorMessage());
+        };
+        hooks.query_apps = [user_manager]() {
+            auto result = user_manager->QueryApps();
+            if (result.has_value()) {
+                return StreamLaunchConsoleCall<
+                    std::vector<px_console::ConsoleUserApplication>>::Success(
+                        result.value());
+            }
+            return StreamLaunchConsoleCall<
+                std::vector<px_console::ConsoleUserApplication>>::Failure(
+                    result.error(), px_console::ConsoleApiLastErrorMessage());
+        };
+        hooks.issue_instance_ticket = [user_manager](
+            const std::string& instance_id,
+            const std::string& nonce,
+            const std::vector<std::string>& permissions) {
+            auto result = user_manager->IssueInstanceTicket(
+                instance_id, nonce, permissions);
+            if (result.has_value()) {
+                return StreamLaunchConsoleCall<px_console::ConsoleConnectionTicket>::Success(
+                    result.value());
+            }
+            return StreamLaunchConsoleCall<px_console::ConsoleConnectionTicket>::Failure(
+                result.error(), px_console::ConsoleApiLastErrorMessage());
+        };
+        hooks.issue_device_ticket = [user_manager](
+            const std::string& device_id,
+            const std::string& nonce,
+            const std::vector<std::string>& permissions) {
+            auto result = user_manager->IssueDeviceTicket(
+                device_id, nonce, permissions);
+            if (result.has_value()) {
+                return StreamLaunchConsoleCall<px_console::ConsoleConnectionTicket>::Success(
+                    result.value());
+            }
+            return StreamLaunchConsoleCall<px_console::ConsoleConnectionTicket>::Failure(
+                result.error(), px_console::ConsoleApiLastErrorMessage());
+        };
+        hooks.resolve_ticket = [](
+            px_console::ConsoleConnectionTicket ticket,
+            StreamLaunchTicketTarget target) {
+            const QUrl launch_url(QString::fromStdString(ticket.launch_url));
+            if (!launch_url.isValid() || launch_url.host().isEmpty()
+                || launch_url.port() <= 0) {
+                return PxResult<StreamLaunchResolvedTicket>::Failure(MakePxAsyncError(
+                    PxAsyncErrorCode::kProtocolError,
+                    "stream-launch.resolve-ticket",
+                    "Console returned an invalid launch endpoint",
+                    false,
+                    "INVALID_CONSOLE_ENDPOINT"));
+            }
+            std::string remote_device_id;
+            if (target == StreamLaunchTicketTarget::kApplicationInstance) {
+                const QUrlQuery query(launch_url);
+                remote_device_id = query.queryItemValue("deviceId").toStdString();
+                if (remote_device_id.empty()) {
+                    return PxResult<StreamLaunchResolvedTicket>::Failure(MakePxAsyncError(
+                        PxAsyncErrorCode::kProtocolError,
+                        "stream-launch.resolve-ticket",
+                        "Console application endpoint has no device ID",
+                        false,
+                        "INVALID_CONSOLE_ENDPOINT"));
+                }
+            }
+            bool direct_probe_enabled = true;
+            try {
+                if (!ticket.rtc_ice_config_json.empty()) {
+                    direct_probe_enabled = nlohmann::json::parse(
+                        ticket.rtc_ice_config_json).value("direct_probe_enabled", true);
+                }
+            }
+            catch (const std::exception& error) {
+                LOGW("Invalid RTC ICE config in ticket response: {}", error.what());
+                direct_probe_enabled = false;
+            }
+            return PxResult<StreamLaunchResolvedTicket>::Success({
+                .ticket = std::move(ticket),
+                .host = launch_url.host().toStdString(),
+                .port = launch_url.port(),
+                .remote_device_id = std::move(remote_device_id),
+                .direct_probe_enabled = direct_probe_enabled,
+            });
+        };
+        hooks.probe_direct = [](const std::string& host, int port) {
+            return RenderApi::GetRenderConfiguration(host, port).has_value();
+        };
+        return hooks;
+    }
+
+    void AppStreamList::StartConsoleTicketLaunch(
+        const std::shared_ptr<px_console::ConsoleStream>& target_item,
+        bool uses_console_app_ticket) {
+        if (!stream_launch_auth_workflow_) {
+            TcDialog dialog(tcTr("id_connect_failed"),
+                            tcTr("id_console_reason_internal"), grWorkspace.get());
+            dialog.exec();
+            return;
+        }
+
+        if (connection_policy::NormalizeConnectionMode(
+                target_item->force_relay_, target_item->force_direct_,
+                target_item->use_webrtc_, target_item->use_udp_)) {
+            LOGW("Ambiguous persisted connection mode reset to automatic: {}",
+                 target_item->stream_id_);
+            if (target_item->_id > 0) {
+                db_mgr_->UpdateStream(target_item);
+            }
+        }
+        const auto mode = connection_policy::ResolveConnectionMode(
+            target_item->force_relay_, target_item->force_direct_,
+            target_item->use_webrtc_, target_item->use_udp_);
+        const bool logged_in = grApp->GetUserManager()->IsLoggedIn();
+        std::vector<std::string> permissions{"view"};
+        if (logged_in) {
+            permissions.push_back("file");
+        }
+        if (!target_item->only_viewing_) {
+            permissions.push_back("input");
+            if (logged_in) {
+                permissions.insert(permissions.end(), {"clipboard", "audio"});
+            }
+        }
+
+        StreamLaunchAuthRequest request{
+            .target = uses_console_app_ticket
+                ? StreamLaunchTicketTarget::kApplicationInstance
+                : StreamLaunchTicketTarget::kDevice,
+            .device_id = target_item->remote_device_id_,
+            .app_id = target_item->console_app_id_,
+            .instance_id = target_item->console_instance_id_,
+            .client_nonce = QUuid::createUuid().toString(
+                QUuid::WithoutBraces).toStdString(),
+            .permissions = std::move(permissions),
+            .force_relay = mode == connection_policy::ConnectionMode::kRelay,
+            .force_direct_transport = mode == connection_policy::ConnectionMode::kDirect
+                || mode == connection_policy::ConnectionMode::kRtc
+                || mode == connection_policy::ConnectionMode::kUdpDirect,
+            .deadline = std::chrono::steady_clock::now() + std::chrono::seconds(65),
+        };
+        QPointer<AppStreamList> self(this);
+        const auto context = context_;
+        const auto generation = stream_launch_auth_workflow_->Start(
+            std::move(request), MakeStreamLaunchAuthHooks(),
+            [self, context, target_item, uses_console_app_ticket](
+                std::uint64_t completed_generation,
+                StreamLaunchAuthResult result) mutable {
+                context->PostUITask([
+                    self, target_item, uses_console_app_ticket,
+                    completed_generation, result = std::move(result)]() mutable {
+                    if (self) {
+                        self->CompleteConsoleTicketLaunch(
+                            target_item, uses_console_app_ticket,
+                            completed_generation, std::move(result));
+                    }
+                });
+            });
+        if (!generation) {
+            TcDialog dialog(tcTr("id_connect_failed"),
+                            tcTr("id_console_reason_internal"), grWorkspace.get());
+            dialog.exec();
+        }
+    }
+
+    void AppStreamList::CompleteConsoleTicketLaunch(
+        const std::shared_ptr<px_console::ConsoleStream>& target_item,
+        bool uses_console_app_ticket,
+        std::uint64_t generation,
+        StreamLaunchAuthResult result) {
+        if (!stream_launch_auth_workflow_
+            || !stream_launch_auth_workflow_->IsCurrent(generation)) {
+            return;
+        }
+        if (!result) {
+            const auto& error = result.Error();
+            if (error.code == PxAsyncErrorCode::kCancelled) {
+                return;
+            }
+            LOGE("Console stream launch failed: stage={}, code={}, reason={}",
+                 error.stage, error.StableCode(), error.message);
+            if (uses_console_app_ticket
+                && error.stage == "stream-launch.issue-instance-ticket") {
+                target_item->console_instance_id_.clear();
+            }
+            QString message;
+            if (error.stage == "stream-launch.resolve-ticket") {
+                message = tcTr("id_invalid_console_endpoint");
+            }
+            else if (error.code == PxAsyncErrorCode::kTimeout
+                && error.stage == "stream-launch.wait-running") {
+                message = tcTr("id_application_start_timeout");
+            }
+            else {
+                auto api_error = px_console::ConsoleApiError::kInternalError;
+                try {
+                    api_error = static_cast<px_console::ConsoleApiError>(
+                        std::stoi(error.detail_code));
+                }
+                catch (...) {
+                }
+                const auto operation = error.stage == "stream-launch.start-app"
+                    || error.stage == "stream-launch.query-apps"
+                    || error.stage == "stream-launch.wait-running"
+                    ? ConsoleErrorOperation::kStartApplication
+                    : ConsoleErrorOperation::kConnectRemote;
+                message = MakeConsoleErrorMessage(
+                    operation, api_error, error.message,
+                    MakeConsoleEndpoint(settings_->GetConsoleServerHost(),
+                                        settings_->GetConsoleServerPort()));
+            }
+            TcDialog dialog(tcTr("id_connect_failed"), message, grWorkspace.get());
+            dialog.exec();
+            return;
+        }
+
+        auto payload = result.TakeValue();
+        LOGI("Console stream authorization ready: generation={}, target={}, device={}, direct_available={}",
+             generation,
+             uses_console_app_ticket ? "application" : "device",
+             target_item->remote_device_id_,
+             payload.direct_available);
+        if (payload.instance) {
+            target_item->console_instance_id_ = payload.instance->instance_id;
+            target_item->console_instance_state_ = payload.instance->state;
+            target_item->console_online_ = true;
+            target_item->direct_online_ = true;
+        }
+        auto& resolved = payload.resolved;
+        target_item->stream_host_ = resolved.host;
+        target_item->stream_port_ = resolved.port;
+        if (uses_console_app_ticket) {
+            target_item->remote_device_id_ = resolved.remote_device_id;
+        }
+        target_item->connection_ticket_ = resolved.ticket.ticket;
+        target_item->connection_nonce_ = payload.client_nonce;
+        target_item->rtc_ice_config_json_ = resolved.ticket.rtc_ice_config_json;
+        target_item->relay_host_ = !resolved.ticket.relay_host.empty()
+            ? resolved.ticket.relay_host : settings_->GetRelayServerHost();
+        target_item->relay_port_ = resolved.ticket.relay_port > 0
+            ? resolved.ticket.relay_port : settings_->GetRelayServerPort();
+        const auto has_permission = [&resolved](std::string_view permission) {
+            return std::find(
+                resolved.ticket.permissions.begin(),
+                resolved.ticket.permissions.end(),
+                permission) != resolved.ticket.permissions.end();
+        };
+        target_item->clipboard_enabled_ = has_permission("clipboard");
+        target_item->audio_enabled_ = has_permission("audio");
+        ContinueStartStream(target_item, true, payload.direct_available);
+    }
+
+    void AppStreamList::ContinueStartStream(
+        const std::shared_ptr<px_console::ConsoleStream>& target_item,
+        bool uses_console_ticket,
+        std::optional<bool> authenticated_direct_available) {
 
         if (connection_policy::NormalizeConnectionMode(
                 target_item->force_relay_, target_item->force_direct_,
@@ -730,7 +906,10 @@ namespace px
         const bool should_probe_direct =
             connection_mode != connection_policy::ConnectionMode::kRelay
             && (force_direct_transport || !uses_console_ticket || direct_probe_enabled);
-        if (should_probe_direct) {
+        if (authenticated_direct_available.has_value()) {
+            direct_available = *authenticated_direct_available;
+        }
+        else if (should_probe_direct) {
             direct_available = RenderApi::GetRenderConfiguration(
                 target_item->stream_host_, target_item->stream_port_).has_value();
         }
@@ -959,17 +1138,23 @@ namespace px
         dialog->exec();
     }
 
-    QListWidgetItem* AppStreamList::AddItem(const std::shared_ptr<px_console::ConsoleStream>& stream, int index) {
+    void AppStreamList::AddItem(
+        const std::shared_ptr<px_console::ConsoleStream>& stream, int index) {
         auto item = new QListWidgetItem(stream_list_);
         item->setSizeHint(QSize(230, 150));
         auto widget = new StreamItemWidget(stream, stream->bg_color_, stream_list_);
         widget->setObjectName(stream->stream_id_.c_str());
         WidgetHelper::AddShadow(widget, 0xbbbbbb, 8);
-        widget->SetOnConnectListener([=, this]() {
-            StartStream(item, stream, false);
+        QPointer<AppStreamList> self(this);
+        widget->SetOnConnectListener([self, stream]() {
+            if (self) {
+                self->StartStream(stream, false);
+            }
         });
-        widget->SetOnMenuListener([=, this]() {
-            RegisterActions(index, item);
+        widget->SetOnMenuListener([self, index]() {
+            if (self) {
+                self->RegisterActions(index);
+            }
         });
         widget->SetDirectConnectedState(stream->direct_online_);
         widget->SetRelayConnectedState(stream->relay_online_);
@@ -1041,19 +1226,20 @@ namespace px
         //layout->addSpacing(6);
         widget->setLayout(root_layout);
         stream_list_->setItemWidget(item, widget);
-        return item;
     }
 
-    QWidget* AppStreamList::GetItemByStreamId(const std::string& stream_id) {
+    QPointer<StreamItemWidget> AppStreamList::GetItemByStreamId(
+        const std::string& stream_id) {
         int count = stream_list_->count();
         for (int i = 0; i < count; i++) {
-            auto item = stream_list_->item(i);
-            auto widget = stream_list_->itemWidget(item);
-            if (widget->objectName().toStdString() == stream_id) {
+            const QPointer<StreamItemWidget> widget(
+                static_cast<StreamItemWidget*>(
+                    stream_list_->itemWidget(stream_list_->item(i))));
+            if (widget && widget->objectName().toStdString() == stream_id) {
                 return widget;
             }
         }
-        return nullptr;
+        return {};
     }
 
     void AppStreamList::LoadStreamItems() {
@@ -1126,43 +1312,116 @@ namespace px
             return;
         }
         auto target = db_mgr_->GetStreamByStreamId(item->stream_id_);
-        if (!target.has_value()) return;
-        auto launch = target.value();
-        const auto nonce = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
-        auto ticket = grApp->GetUserManager()->IssueDeviceTicket(launch->remote_device_id_, nonce, {"file"});
-        if (!ticket.has_value()) {
-            const auto message = ticket.error() == px_console::ConsoleApiError::kNotFound
+        if (!target.has_value()) {
+            return;
+        }
+        StartFileTransferTicketLaunch(target.value());
+    }
+
+    void AppStreamList::StartFileTransferTicketLaunch(
+        const std::shared_ptr<px_console::ConsoleStream>& target_item) {
+        if (!stream_launch_auth_workflow_) {
+            context_->NotifyAppErrMessage(
+                tcTr("id_error"), tcTr("id_console_reason_internal"));
+            return;
+        }
+        StreamLaunchAuthRequest request{
+            .target = StreamLaunchTicketTarget::kDevice,
+            .device_id = target_item->remote_device_id_,
+            .client_nonce = QUuid::createUuid().toString(
+                QUuid::WithoutBraces).toStdString(),
+            .permissions = {"file"},
+            .force_relay = target_item->force_relay_,
+            // Standalone FT historically probes whenever Relay is not forced;
+            // this is independent of automatic remote-control route policy.
+            .force_direct_transport = !target_item->force_relay_,
+            .deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10),
+        };
+        QPointer<AppStreamList> self(this);
+        const auto context = context_;
+        const auto generation = stream_launch_auth_workflow_->Start(
+            std::move(request), MakeStreamLaunchAuthHooks(),
+            [self, context, target_item](
+                std::uint64_t completed_generation,
+                StreamLaunchAuthResult result) mutable {
+                context->PostUITask([
+                    self, target_item, completed_generation,
+                    result = std::move(result)]() mutable {
+                    if (self) {
+                        self->CompleteFileTransferTicketLaunch(
+                            target_item, completed_generation, std::move(result));
+                    }
+                });
+            });
+        if (!generation) {
+            context_->NotifyAppErrMessage(
+                tcTr("id_error"), tcTr("id_console_reason_internal"));
+        }
+    }
+
+    void AppStreamList::CompleteFileTransferTicketLaunch(
+        const std::shared_ptr<px_console::ConsoleStream>& target_item,
+        std::uint64_t generation,
+        StreamLaunchAuthResult result) {
+        if (!stream_launch_auth_workflow_
+            || !stream_launch_auth_workflow_->IsCurrent(generation)) {
+            return;
+        }
+        if (!result) {
+            const auto& error = result.Error();
+            if (error.code == PxAsyncErrorCode::kCancelled) {
+                return;
+            }
+            if (error.stage == "stream-launch.resolve-ticket") {
+                context_->NotifyAppErrMessage(
+                    tcTr("id_error"), tcTr("id_invalid_console_endpoint"));
+                return;
+            }
+            auto api_error = px_console::ConsoleApiError::kInternalError;
+            try {
+                api_error = static_cast<px_console::ConsoleApiError>(
+                    std::stoi(error.detail_code));
+            }
+            catch (...) {
+            }
+            const auto message = api_error == px_console::ConsoleApiError::kNotFound
                 ? tcTr("id_file_transfer_device_unavailable")
-                : MakeConsoleErrorMessage(ConsoleErrorOperation::kFileTransfer,
-                    ticket.error(), px_console::ConsoleApiLastErrorMessage(),
+                : MakeConsoleErrorMessage(
+                    ConsoleErrorOperation::kFileTransfer,
+                    api_error,
+                    error.message,
                     MakeConsoleEndpoint(settings_->GetConsoleServerHost(),
                                         settings_->GetConsoleServerPort()));
             context_->NotifyAppErrMessage(tcTr("id_error"), message);
             return;
         }
-        const QUrl url(QString::fromStdString(ticket.value().launch_url));
-        if (!url.isValid() || url.host().isEmpty() || url.port() <= 0) {
-            context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_invalid_console_endpoint"));
-            return;
-        }
-        launch->stream_host_ = url.host().toStdString(); launch->stream_port_ = url.port();
-        launch->connection_ticket_ = ticket.value().ticket; launch->connection_nonce_ = nonce;
-        const bool direct_available = RenderApi::GetRenderConfiguration(
-            launch->stream_host_, launch->stream_port_).has_value();
-        if (!launch->force_relay_ && direct_available) {
+
+        auto payload = result.TakeValue();
+        LOGI("Console file-transfer authorization ready: generation={}, device={}, direct_available={}",
+             generation, target_item->remote_device_id_, payload.direct_available);
+        target_item->stream_host_ = payload.resolved.host;
+        target_item->stream_port_ = payload.resolved.port;
+        target_item->connection_ticket_ = payload.resolved.ticket.ticket;
+        target_item->connection_nonce_ = payload.client_nonce;
+        target_item->relay_host_ = !payload.resolved.ticket.relay_host.empty()
+            ? payload.resolved.ticket.relay_host : settings_->GetRelayServerHost();
+        target_item->relay_port_ = payload.resolved.ticket.relay_port > 0
+            ? payload.resolved.ticket.relay_port : settings_->GetRelayServerPort();
+        if (!target_item->force_relay_ && payload.direct_available) {
             // Standalone file transfer uses the reliable WS endpoint. RTC LAN
             // on the Render side is single-session; trying to create another
             // RTC client can take over an active control connection and consume
             // the one-time ticket during its retry. When a normal RTC client is
             // present, the branch above reuses that RTC transport instead.
-            running_stream_mgr_->StartFileTransfer(launch, kStreamItemNtTypeWebSocket);
+            running_stream_mgr_->StartFileTransfer(
+                target_item, kStreamItemNtTypeWebSocket);
             return;
         }
-        if (!launch->HasRelayInfo()) {
+        if (!target_item->HasRelayInfo()) {
             context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_cant_get_remote_device_info"));
             return;
         }
-        running_stream_mgr_->StartFileTransfer(launch, kStreamItemNtTypeRelay);
+        running_stream_mgr_->StartFileTransfer(target_item, kStreamItemNtTypeRelay);
     }
 
     void AppStreamList::RefreshResources() {
