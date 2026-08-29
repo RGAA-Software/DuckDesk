@@ -107,10 +107,12 @@ namespace px
                 if (const auto runtime = notifier->GetAsyncRuntime()) {
                     rtc_config_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kWorker);
                     record_fetch_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kWorker);
+                    record_list_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kWorker);
                 }
             }
             fetch_queue_ = std::make_shared<RecordFetchQueue>();
             record_fetch_blocking_runtime_ = std::make_shared<TaskRuntime>(1);
+            record_list_blocking_runtime_ = std::make_shared<TaskRuntime>(1);
 
             client_ = std::make_shared<ClientType>();
             client_->set_auto_reconnect(true);
@@ -199,6 +201,20 @@ namespace px
             if (msg_listener_) {
                 msg_listener_->UnListenAll();
                 msg_listener_.reset();
+            }
+            record_list_request_gate_->Stop();
+            if (record_list_scope_) {
+                if (record_list_scope_->IsScopeThread()) {
+                    record_list_scope_->BeginStop();
+                }
+                else if (!record_list_scope_->StopAndWait(std::chrono::milliseconds(2000))) {
+                    LOGW("Panel record list scope did not drain within 2 seconds");
+                }
+                record_list_scope_.reset();
+            }
+            if (record_list_blocking_runtime_) {
+                record_list_blocking_runtime_->Exit();
+                record_list_blocking_runtime_.reset();
             }
             if (fetch_queue_) {
                 fetch_queue_->Stop();
@@ -475,24 +491,121 @@ namespace px
 
         void HandleRecordListReq(const console_panel::RecordListReq& req) {
             LOGI("RecordListReq: {}", req.req_id());
+            const auto attempt = record_list_request_gate_->TryStart();
+            if (attempt.result == RecordListRequestStartResult::kLimitReached) {
+                SendRecordListResponse(req.req_id(), {}, "too many record list requests");
+                return;
+            }
+            if (attempt.result != RecordListRequestStartResult::kStarted) {
+                SendRecordListResponse(req.req_id(), {}, "record list service is stopping");
+                return;
+            }
+            const auto scope = record_list_scope_;
+            if (!scope) {
+                record_list_request_gate_->Finish(attempt.sequence);
+                SendRecordListResponse(req.req_id(), {}, "record list worker is unavailable");
+                return;
+            }
+            const auto weak_self = this->weak_from_this();
+            const auto gate = record_list_request_gate_;
+            const auto req_id = req.req_id();
+            if (!scope->Spawn("panel-record-list", [weak_self, gate, attempt, req_id]() {
+                    return RunRecordListRequest(weak_self, gate, attempt, req_id);
+                })) {
+                record_list_request_gate_->Finish(attempt.sequence);
+                SendRecordListResponse(req_id, {}, "record list request was rejected");
+            }
+        }
+
+        static PxAwaitable<PxResult<std::vector<RecordFileInfo>>> ScanRecordFilesAsync(
+            std::shared_ptr<TaskRuntime> blocking_runtime,
+            asio::any_io_executor executor,
+            fs::path records_dir,
+            std::shared_ptr<std::atomic_bool> cancellation_signal) {
+            const auto operation = PxAsyncOneShot<std::vector<RecordFileInfo>>::Create(executor);
+            const auto task_id = blocking_runtime->Post(SimpleThreadTask::Make(
+                [operation, records_dir = std::move(records_dir), cancellation_signal]() {
+                    try {
+                        static_cast<void>(operation->TryComplete(
+                            PxResult<std::vector<RecordFileInfo>>::Success(
+                                ScanRecordFiles(records_dir, cancellation_signal))));
+                    }
+                    catch (const std::exception& error) {
+                        static_cast<void>(operation->TryFail(MakePxAsyncError(
+                            PxAsyncErrorCode::kProtocolError,
+                            "panel_record_list_scan",
+                            error.what(),
+                            true)));
+                    }
+                }));
+            if (task_id == 0) {
+                static_cast<void>(operation->TryFail(MakePxAsyncError(
+                    PxAsyncErrorCode::kCancelled,
+                    "panel_record_list_scan",
+                    "record list worker is stopping")));
+            }
+            co_return co_await PxAsyncOneShot<std::vector<RecordFileInfo>>::WaitUntil(
+                operation, std::chrono::steady_clock::now() + std::chrono::seconds(30));
+        }
+
+        static PxAwaitable<void> RunRecordListRequest(
+            std::weak_ptr<PxConsoleClientImpl<ClientType>> weak_self,
+            std::shared_ptr<RecordListRequestGate> gate,
+            RecordListRequestAttempt attempt,
+            std::string req_id) {
+            std::shared_ptr<TaskRuntime> blocking_runtime;
+            asio::any_io_executor executor;
+            {
+                const auto current = weak_self.lock();
+                if (!current || current->stopping_ || !current->record_list_scope_
+                    || !current->record_list_blocking_runtime_) {
+                    gate->Finish(attempt.sequence);
+                    co_return;
+                }
+                blocking_runtime = current->record_list_blocking_runtime_;
+                executor = current->record_list_scope_->Executor();
+            }
+            auto result = co_await ScanRecordFilesAsync(
+                std::move(blocking_runtime), std::move(executor),
+                fs::path(GetRenderRecordsDir()), attempt.cancellation_signal);
+            attempt.cancellation_signal->store(true, std::memory_order_release);
+            gate->Finish(attempt.sequence);
+
+            const auto cancellation = co_await asio::this_coro::cancellation_state;
+            if (cancellation.cancelled() != asio::cancellation_type::none) {
+                co_return;
+            }
+            const auto current = weak_self.lock();
+            if (!current || current->stopping_) {
+                co_return;
+            }
+            if (!result.HasValue()) {
+                current->SendRecordListResponse(
+                    req_id, {}, std::format("{}: {}", result.Error().StableCode(),
+                                            result.Error().message));
+                co_return;
+            }
+            current->SendRecordListResponse(req_id, result.TakeValue(), "");
+            co_return;
+        }
+
+        void SendRecordListResponse(
+            const std::string& req_id,
+            const std::vector<RecordFileInfo>& files,
+            const std::string& error) {
             console_panel::ConsolePanelMessage msg;
             msg.set_msg_type(console_panel::ConsolePanelMessageType::kRecordListResp);
-            auto sub = msg.mutable_record_list_resp();
-            sub->set_device_id(device_id_);
-            sub->set_req_id(req.req_id());
-            try {
-                for (const auto& info : ScanRecordFiles(fs::path(GetRenderRecordsDir()))) {
-                    auto* f = sub->add_files();
-                    f->set_name(info.name);
-                    f->set_size(static_cast<int64_t>(info.size));
-                    f->set_mtime(info.mtime);
-                    f->set_monitor(info.monitor);
-                    f->set_codec(info.codec);
-                }
-            }
-            catch (const std::exception& e) {
-                LOGE("RecordListReq scan failed: {}", e.what());
-                sub->set_error(e.what());
+            auto& sub = *msg.mutable_record_list_resp();
+            sub.set_device_id(device_id_);
+            sub.set_req_id(req_id);
+            sub.set_error(error);
+            for (const auto& info : files) {
+                auto& file = *sub.add_files();
+                file.set_name(info.name);
+                file.set_size(static_cast<int64_t>(info.size));
+                file.set_mtime(info.mtime);
+                file.set_monitor(info.monitor);
+                file.set_codec(info.codec);
             }
             PostBinMessage(msg.SerializeAsString());
         }
@@ -781,6 +894,10 @@ namespace px
         std::shared_ptr<PxAsyncScope> record_fetch_scope_ = nullptr;
         std::shared_ptr<TaskRuntime> record_fetch_blocking_runtime_ = nullptr;
         std::atomic<std::shared_ptr<std::atomic_bool>> active_record_upload_cancellation_;
+        std::shared_ptr<PxAsyncScope> record_list_scope_ = nullptr;
+        std::shared_ptr<TaskRuntime> record_list_blocking_runtime_ = nullptr;
+        std::shared_ptr<RecordListRequestGate> record_list_request_gate_ =
+            RecordListRequestGate::Create();
     };
 
 }

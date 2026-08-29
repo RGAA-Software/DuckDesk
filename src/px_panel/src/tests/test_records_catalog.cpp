@@ -4,10 +4,14 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <string>
+#include <thread>
+#include <vector>
 
 #include "render_panel/network/records_catalog.h"
 
@@ -140,6 +144,94 @@ TEST_F(RecordsCatalogTest, HasRecordingSidecar) {
 TEST_F(RecordsCatalogTest, ScanNonExistDir) {
     auto files = px::ScanRecordFiles(dir_ / "no_such_dir");
     EXPECT_TRUE(files.empty());
+}
+
+TEST_F(RecordsCatalogTest, PreCancelledScanReturnsNoFiles) {
+    Touch("rec_DISPLAY1_20260817_10.30.00.mp4", "finished");
+    const auto cancellation = std::make_shared<std::atomic_bool>(true);
+    EXPECT_TRUE(px::ScanRecordFiles(dir_, cancellation).empty());
+}
+
+TEST(RecordListRequestGate, EnforcesOutstandingLimit) {
+    const auto gate = px::RecordListRequestGate::Create(2);
+    const auto first = gate->TryStart();
+    const auto second = gate->TryStart();
+    const auto rejected = gate->TryStart();
+    EXPECT_EQ(first.result, px::RecordListRequestStartResult::kStarted);
+    EXPECT_EQ(second.result, px::RecordListRequestStartResult::kStarted);
+    EXPECT_EQ(rejected.result, px::RecordListRequestStartResult::kLimitReached);
+    EXPECT_EQ(gate->Outstanding(), 2u);
+}
+
+TEST(RecordListRequestGate, FinishFreesCapacityAndSequenceAdvances) {
+    const auto gate = px::RecordListRequestGate::Create(1);
+    const auto first = gate->TryStart();
+    ASSERT_EQ(first.result, px::RecordListRequestStartResult::kStarted);
+    gate->Finish(first.sequence);
+    const auto second = gate->TryStart();
+    EXPECT_EQ(second.result, px::RecordListRequestStartResult::kStarted);
+    EXPECT_GT(second.sequence, first.sequence);
+}
+
+TEST(RecordListRequestGate, StopCancelsActiveAndRejectsNewRequests) {
+    const auto gate = px::RecordListRequestGate::Create(2);
+    const auto first = gate->TryStart();
+    const auto second = gate->TryStart();
+    ASSERT_TRUE(first.cancellation_signal);
+    ASSERT_TRUE(second.cancellation_signal);
+    gate->Stop();
+    EXPECT_TRUE(first.cancellation_signal->load(std::memory_order_acquire));
+    EXPECT_TRUE(second.cancellation_signal->load(std::memory_order_acquire));
+    EXPECT_EQ(gate->TryStart().result, px::RecordListRequestStartResult::kStopped);
+    EXPECT_EQ(gate->Outstanding(), 0u);
+    gate->Finish(first.sequence);
+    gate->Finish(second.sequence);
+    EXPECT_EQ(gate->Outstanding(), 0u);
+}
+
+TEST(RecordListRequestGate, ConcurrentRequestsNeverExceedLimit) {
+    const auto gate = px::RecordListRequestGate::Create(4);
+    const auto started = std::make_shared<std::atomic_int>(0);
+    std::vector<std::thread> threads;
+    for (int index = 0; index < 32; ++index) {
+        threads.emplace_back([gate, started]() {
+            if (gate->TryStart().result == px::RecordListRequestStartResult::kStarted) {
+                ++(*started);
+            }
+        });
+    }
+    for (auto& thread : threads) {
+        thread.join();
+    }
+    EXPECT_EQ(started->load(), 4);
+    EXPECT_EQ(gate->Outstanding(), 4u);
+}
+
+TEST(RecordListRequestGate, ZeroCapacityIsClampedToOne) {
+    const auto gate = px::RecordListRequestGate::Create(0);
+    EXPECT_EQ(gate->TryStart().result, px::RecordListRequestStartResult::kStarted);
+    EXPECT_EQ(gate->TryStart().result, px::RecordListRequestStartResult::kLimitReached);
+}
+
+TEST(RecordListRequestGate, LateAndDuplicateFinishAreHarmless) {
+    const auto gate = px::RecordListRequestGate::Create();
+    const auto attempt = gate->TryStart();
+    gate->Finish(attempt.sequence);
+    gate->Finish(attempt.sequence);
+    gate->Finish(attempt.sequence + 100);
+    EXPECT_EQ(gate->Outstanding(), 0u);
+}
+
+TEST(RecordListRequestGate, RepeatedStartStopCyclesAreDeterministic) {
+    for (int round = 0; round < 10; ++round) {
+        const auto gate = px::RecordListRequestGate::Create();
+        const auto attempt = gate->TryStart();
+        ASSERT_EQ(attempt.result, px::RecordListRequestStartResult::kStarted);
+        gate->Stop();
+        EXPECT_TRUE(attempt.cancellation_signal->load(std::memory_order_acquire));
+        gate->Finish(attempt.sequence);
+        EXPECT_EQ(gate->Outstanding(), 0u);
+    }
 }
 
 // ---- Range parsing ----

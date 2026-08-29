@@ -1287,3 +1287,41 @@ Panel build tree 与 `build_official\dist` 的 `px_panel.exe` SHA-256 一致：
 真实 HTTP 测试使用本机慢速 TCP 接收端和 32 MiB multipart 文件，验证的是 CPR 的实际
 传输中断与 worker join，不是 mock。当前没有使用 Console 管理端触发生产录像回传命令，
 因此“Console 页面请求真实录像并完整下载”仍作为功能级独立验收项保留。
+
+### 12.18 Phase 7 Panel 录像列表请求的 awaitable 收敛
+
+`RecordListReq` 原先直接在 asio2 WebSocket `bind_recv` 回调中调用
+`ScanRecordFiles`。录像目录中文件较多或磁盘响应慢时，同一 Console 连接上的 Hello、心跳、
+RTC 配置通知和录像回传命令都会被同步扫盘阻塞。
+
+本批把录像列表变成有界请求流程：
+
+- `RecordListRequestGate` 最多允许 4 个在途请求；超过上限立即返回明确错误，Stop 原子拒绝
+  新请求并置位所有扫描取消信号；
+- `ScanRecordFiles` 接受共享原子取消信号，在开始和每个目录项之间检查，取消后不返回半份
+  文件列表；
+- 每个请求由独立 `PxAsyncScope` coroutine 编排，实际文件系统扫描投递到 Panel 自有的
+  单线程 `TaskRuntime`，不会占用 Console WebSocket、RTC 配置或录像上传 worker；
+- 单次 await deadline 为 30 秒；完成、异常、超时、Stop 和迟到结果只产生一个终态，
+  request sequence 的重复/迟到 Finish 为幂等；
+- coroutine 跨 `co_await` 不持有 Panel，阻塞叶子只持有目录、one-shot 和取消信号；
+  protobuf 返回对象只在第三方 ABI 边界瞬时解引用，没有新增裸指针或 `[this]` 捕获。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 录像目录与请求 gate | 33 tests × 10 轮，共 330 次 PASS |
+| gate 覆盖 | 4 请求上限、容量恢复、32 线程竞争、Stop 全取消、迟到/重复 Finish、零容量钳制、10 次重复生命周期 |
+| 可取消扫描 | 预取消不读取/返回文件；既有 sidecar、文件名、时间、Range 行为全部回归 |
+| 录像上传回归 | 24 tests × 10 轮，共 240 次 PASS |
+| 真实 HTTP 取消 | 3 tests × 10 轮，共 30 次 PASS |
+| 共享 PxAsyncRuntime | 11 tests × 10 轮，共 110 次 PASS |
+| Panel 按需编译 | `px_panel` PASS；未运行 `build_official.bat`，未编译 Rust/Web |
+| dist 启动 smoke | 新 Panel 保持运行 15 秒；Service、Render、HTTPS Console 均连接成功，两个隔离 worker 均启动 |
+| C++ ownership / `git diff --check` | PASS |
+
+Panel build tree 与 `build_official\dist` 的 `px_panel.exe` SHA-256 一致：
+`4A0326D3907E49DDF5F743418FFBDDFE9FED9CE08D8C8A2DE8059DC8F5849381`。
+本批验证了真实目录扫描、并发/取消状态和生产 Panel 启动链；没有使用 Console 管理页面下发
+真实 `RecordListReq`，因此管理页面端到端列表展示仍保留为独立功能验收项。

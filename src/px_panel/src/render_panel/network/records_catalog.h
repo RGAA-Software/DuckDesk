@@ -9,10 +9,14 @@
 #ifndef TC_APPLICATION_RECORDS_CATALOG_H
 #define TC_APPLICATION_RECORDS_CATALOG_H
 
+#include <atomic>
 #include <cstdint>
-#include <string>
-#include <vector>
 #include <filesystem>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace px
 {
@@ -40,7 +44,42 @@ namespace px
     // Scan the records directory for finished .mp4 files.
     // Files with a .recording sidecar (still being written) and the sidecar files
     // themselves are filtered out.
-    std::vector<RecordFileInfo> ScanRecordFiles(const std::filesystem::path& dir);
+    std::vector<RecordFileInfo> ScanRecordFiles(
+        const std::filesystem::path& dir,
+        const std::shared_ptr<std::atomic_bool>& cancellation_signal = {});
+
+    enum class RecordListRequestStartResult {
+        kStarted,
+        kLimitReached,
+        kStopped,
+    };
+
+    struct RecordListRequestAttempt {
+        RecordListRequestStartResult result = RecordListRequestStartResult::kStopped;
+        std::uint64_t sequence = 0;
+        std::shared_ptr<std::atomic_bool> cancellation_signal;
+    };
+
+    // Bounds concurrent Console record-list scans and owns their cancellation
+    // signals. Stop atomically rejects new work and cancels every active scan.
+    class RecordListRequestGate final {
+    public:
+        static std::shared_ptr<RecordListRequestGate> Create(std::size_t maximum_outstanding = 4);
+
+        explicit RecordListRequestGate(std::size_t maximum_outstanding);
+
+        [[nodiscard]] RecordListRequestAttempt TryStart();
+        void Finish(std::uint64_t sequence);
+        void Stop();
+        [[nodiscard]] std::size_t Outstanding() const;
+
+    private:
+        const std::size_t maximum_outstanding_;
+        mutable std::mutex mutex_;
+        std::uint64_t next_sequence_ = 1;
+        bool stopped_ = false;
+        std::unordered_map<std::uint64_t, std::shared_ptr<std::atomic_bool>> active_;
+    };
 
     // ---- HTTP Range (single range only) ----
 

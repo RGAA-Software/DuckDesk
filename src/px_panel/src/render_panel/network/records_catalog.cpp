@@ -139,14 +139,24 @@ namespace px
         return fs::exists(sidecar, ec);
     }
 
-    std::vector<RecordFileInfo> ScanRecordFiles(const fs::path& dir) {
+    std::vector<RecordFileInfo> ScanRecordFiles(
+        const fs::path& dir,
+        const std::shared_ptr<std::atomic_bool>& cancellation_signal) {
         std::vector<RecordFileInfo> result;
+        if (cancellation_signal
+            && cancellation_signal->load(std::memory_order_acquire)) {
+            return result;
+        }
         std::error_code ec;
         if (!fs::exists(dir, ec) || !fs::is_directory(dir, ec)) {
             return result;
         }
         for (auto it = fs::directory_iterator(dir, fs::directory_options::skip_permission_denied, ec);
              !ec && it != fs::directory_iterator(); it.increment(ec)) {
+            if (cancellation_signal
+                && cancellation_signal->load(std::memory_order_acquire)) {
+                return {};
+            }
             const auto& entry = *it;
             if (!entry.is_regular_file(ec)) {
                 continue;
@@ -185,6 +195,62 @@ namespace px
             return a.mtime > b.mtime;
         });
         return result;
+    }
+
+    std::shared_ptr<RecordListRequestGate> RecordListRequestGate::Create(
+        std::size_t maximum_outstanding) {
+        return std::make_shared<RecordListRequestGate>(maximum_outstanding);
+    }
+
+    RecordListRequestGate::RecordListRequestGate(std::size_t maximum_outstanding)
+        : maximum_outstanding_(std::max<std::size_t>(1, maximum_outstanding)) {}
+
+    RecordListRequestAttempt RecordListRequestGate::TryStart() {
+        std::lock_guard lock(mutex_);
+        if (stopped_) {
+            return {.result = RecordListRequestStartResult::kStopped};
+        }
+        if (active_.size() >= maximum_outstanding_) {
+            return {.result = RecordListRequestStartResult::kLimitReached};
+        }
+        const auto sequence = next_sequence_++;
+        const auto cancellation_signal = std::make_shared<std::atomic_bool>(false);
+        active_.emplace(sequence, cancellation_signal);
+        return {
+            .result = RecordListRequestStartResult::kStarted,
+            .sequence = sequence,
+            .cancellation_signal = cancellation_signal,
+        };
+    }
+
+    void RecordListRequestGate::Finish(std::uint64_t sequence) {
+        std::lock_guard lock(mutex_);
+        active_.erase(sequence);
+    }
+
+    void RecordListRequestGate::Stop() {
+        std::vector<std::shared_ptr<std::atomic_bool>> cancellations;
+        {
+            std::lock_guard lock(mutex_);
+            if (stopped_) {
+                return;
+            }
+            stopped_ = true;
+            cancellations.reserve(active_.size());
+            for (const auto& [sequence, cancellation] : active_) {
+                static_cast<void>(sequence);
+                cancellations.push_back(cancellation);
+            }
+            active_.clear();
+        }
+        for (const auto& cancellation : cancellations) {
+            cancellation->store(true, std::memory_order_release);
+        }
+    }
+
+    std::size_t RecordListRequestGate::Outstanding() const {
+        std::lock_guard lock(mutex_);
+        return active_.size();
     }
 
     // ---- Range parsing ----
