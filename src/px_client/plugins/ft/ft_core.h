@@ -16,7 +16,7 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
-#include <QVector>
+#include <QList>
 
 #include "px_common_new/file_transfer_send_result.h"
 
@@ -44,6 +44,8 @@ namespace px
         // 绝对路径(仅根视图常用文件夹项携带):name 是本地化显示名,导航用 abs_path_
         QString abs_path_;
     };
+
+    using FtEntryList = QList<FtEntryInfo>;
 
     // 作业进度快照(对齐引擎 TransferJobStatus,Qt 元类型化)
     class FtJobStatusInfo {
@@ -93,7 +95,7 @@ namespace px
 
     signals:
         // 远程目录列表响应(read_dir 回包,含 "/" 盘符列表)
-        void SigRemoteDir(const QString& path, const QVector<px::FtEntryInfo>& entries);
+        void SigRemoteDir(const QString& path, const px::FtEntryList& entries);
         // 作业新增(UI 建行)
         void SigJobAdded(int id, const QString& name, bool is_download);
         // 每秒进度
@@ -118,7 +120,7 @@ namespace px
         // 下载目录后:远端空目录在本地落地
         void CreateLocalEmptyDirs(const px::ReadEmptyDirsResponse& resp, const QString& local_dir);
 
-        static QVector<FtEntryInfo> ConvertEntries(const px::FileDirectory& dir);
+        static FtEntryList ConvertEntries(const px::FileDirectory& dir);
 
     private:
         SendCallback send_callback_;
@@ -133,7 +135,7 @@ namespace px
 }
 
 Q_DECLARE_METATYPE(px::FtEntryInfo)
-Q_DECLARE_METATYPE(QVector<px::FtEntryInfo>)
+Q_DECLARE_METATYPE(px::FtEntryList)
 Q_DECLARE_METATYPE(px::FtJobStatusInfo)
 
 #endif //PX_CLIENT_FT_CORE_H

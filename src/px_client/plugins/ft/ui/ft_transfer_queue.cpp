@@ -65,8 +65,9 @@ namespace px
         QTableWidget::item { border: none; padding-left: 4px; }
     )";
 
-    FtTransferQueue::FtTransferQueue(FtCore* core, QWidget* parent)
-        : QWidget(parent), core_(core) {
+    FtTransferQueue::FtTransferQueue(
+        std::shared_ptr<FtCore> core, QWidget* parent)  // NOLINT(gammaray-raw-pointer-boundary): Qt parent ownership API
+        : QWidget(parent), core_(std::move(core)) {
         setAttribute(Qt::WA_StyledBackground, true); // 圆角卡片背景(#ftCard)需要显式开启自绘
         auto* root = new QVBoxLayout(this);
         root->setContentsMargins(6, 4, 6, 6);
@@ -128,10 +129,13 @@ namespace px
         root->addWidget(strip_);
         strip_icon_->hide();
 
-        connect(expand_btn_, &QPushButton::clicked, this, [this]() {
-            SetExpanded(!expanded_);
-        });
+        connect(expand_btn_.get(), &QPushButton::clicked, this,
+                &FtTransferQueue::ToggleExpanded);
         SetExpanded(false);
+    }
+
+    void FtTransferQueue::ToggleExpanded() {
+        SetExpanded(!expanded_);
     }
 
     void FtTransferQueue::SetExpanded(bool expanded) {

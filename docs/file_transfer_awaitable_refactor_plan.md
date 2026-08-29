@@ -2174,3 +2174,44 @@ Client `clipboard` 插件原先把 loader-owned 插件地址传入 `ClipboardMan
 
 `clipboard.dll` build/dist SHA-256：
 `01207CD8405D7D1F45BFB2C10124595C6C5B355CAF058B548F3EFA68AC5F4217`。
+
+### 12.42 Phase 7 Client FT UI Core 与跨线程 Qt 投递收敛
+
+FT 引擎 Runtime 已与插件解耦，但 UI 链仍把插件独占的 `FtCore` 裸地址长期传给
+`FtWindow`、两侧 `FtFilePanel` 和 `FtTransferQueue`，并用多个 `[this]` signal lambda
+维护作业和覆盖确认状态。增强 DLL 测试后还发现：Qt 6 会把 `QVector<FtEntryInfo>` 规范化
+为 `QList<FtEntryInfo>`，插件内注册名称与 signal 名称不一致时，worker 发出的远端目录
+结果被 Qt 拒绝排队，真实 UI 可能收不到目录刷新。
+
+本批完成：
+
+- `FtCore` 由插件 `shared_ptr` 持有，窗口、文件面板和队列共享同一 Core 生命周期；
+  插件仍保持先 Stop、再销毁 Qt 树、最后释放 Core 的卸载顺序；
+- FT UI 中长期保存的 panel、queue、layout、table、button 和 label 观察引用改为
+  `QPointer`，Qt parent 仍负责实际对象销毁；
+- 上传、下载、作业新增/完成、覆盖确认、目录操作、展开切换、上级目录和双击处理均改为
+  receiver 成员函数连接，不再由持久 signal callback 捕获窗口 `this`；
+- 远端目录和作业进度这两个自定义类型 signal 使用 Direct bridge，把值快照放入
+  `QMetaObject::invokeMethod` functor；排队 functor 只捕获 `QPointer<FtWindow>`，窗口销毁
+  自动删除待处理调用，不再依赖可卸载 DLL 的全局 metatype 名称注册状态；
+- `FtEntryList` 为目录列表建立明确类型名，保留同一线程/非卸载场景的元类型支持；
+- 真实 FT DLL 测试每轮额外排队 64 个远端目录响应后立即 Stop/Destroy/FreeLibrary，覆盖
+  worker signal 尚在飞行时的窗口销毁。
+- Client 主菜单的子项观察容器同步由裸元素改为 `QPointer`，子项点击 callback 只捕获
+  guarded menu；菜单销毁后不会再进入已释放的父对象。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| FT DLL | Create、64 个 worker 目录响应、Stop、Qt 树销毁、Core 释放、FreeLibrary 10/10 PASS，模块句柄每轮归零 |
+| Qt 投递 | 修复前每轮稳定出现 `Cannot queue arguments`；改造后 10 轮无 metatype/queued-connection 警告 |
+| FT engine | async session、compress、engine、integrity、path security、send contract、terminal、transfer job、two-phase send 九组（85 项）全部 PASS |
+| Client 插件组 | event、record、FT、clipboard lifecycle 与 clipboard stream 共 5 个 CTest 目标全部 PASS |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；新增代码无项目裸指针、manual ownership 或 `[this]` |
+| focused build/dist | `ft_client`、Client focused targets 编译通过；dist Client/RTC/三插件/语言资源逐文件 SHA-256 一致，未运行发版整编 |
+
+本批主要 build/dist SHA-256：
+
+- `px_client.exe`: `CA9F3E2BF4306423FFBC2E3105B5542FE237E1F9F06FA54ACBE745287B80AAE6`
+- `ft.dll`: `A90BCA910AA6BB95A0ECAA599CDDCEAD3843DA11CC0C7DA7AA55B3E1B4CE7420`

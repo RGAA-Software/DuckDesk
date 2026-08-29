@@ -13,6 +13,8 @@
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include <QPointer>
+#include <memory>
 
 #include "../ft_core.h"
 
@@ -52,13 +54,15 @@ namespace px
     class FtFilePanel : public QWidget {
         Q_OBJECT
     public:
-        FtFilePanel(FtCore* core, bool is_local, QWidget* parent = nullptr);
+        FtFilePanel(
+            std::shared_ptr<FtCore> core, bool is_local,
+            QWidget* parent = nullptr);  // NOLINT(gammaray-raw-pointer-boundary): Qt parent ownership API
 
         QString CurrentDir() const { return current_dir_; }
         bool IsLocal() const { return is_local_; }
 
         // 远程栏:read_dir 回包回显(UI 线程)
-        void ShowDir(const QString& path, const QVector<FtEntryInfo>& entries);
+        void ShowDir(const QString& path, const FtEntryList& entries);
         // 两侧一致:回到根视图("此电脑",本地 "" 对应远程 "/")
         void NavigateHome();
         void Refresh();
@@ -81,6 +85,8 @@ namespace px
         QString ParentDirOf(const QString& path) const;
         QStringList SelectedPaths() const;
         void OnDoubleClick(int row);
+        void NavigateParent();
+        void OnCellDoubleClicked(int row, int column);
         void OnContextMenu(const QPoint& pos);
         void UpdateTransferBtn(); // 按选中状态切换高亮(蓝)/普通(灰)
         void DoNewFolder();
@@ -94,19 +100,19 @@ namespace px
         void resizeEvent(QResizeEvent* event) override; // 宽度变化时重算面包屑折叠
 
     private:
-        FtCore* core_ = nullptr;
+        std::shared_ptr<FtCore> core_;
         bool is_local_ = false;
         QString current_dir_; // 本地:"" 表示根视图(此电脑);远程:"/" 表示盘符列表
 
-        QHBoxLayout* crumb_bar_ = nullptr; // 面包屑(重建式)
-        FtFileTable* table_ = nullptr;
-        QPushButton* transfer_btn_ = nullptr;
-        QLabel* title_label_ = nullptr;
+        QPointer<QHBoxLayout> crumb_bar_; // 面包屑(重建式)
+        QPointer<FtFileTable> table_;
+        QPointer<QPushButton> transfer_btn_;
+        QPointer<QLabel> title_label_;
 
         // 排序状态(两栏各自独立):默认按名称升序,目录/盘符恒排前
         int sort_col_ = 0;
         Qt::SortOrder sort_order_ = Qt::AscendingOrder;
-        QVector<FtEntryInfo> last_entries_; // 远程栏最近回包,排序刷新用
+        FtEntryList last_entries_; // 远程栏最近回包,排序刷新用
     };
 
 }

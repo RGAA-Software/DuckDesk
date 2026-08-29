@@ -10,6 +10,8 @@
 #include <QSplitter>
 #include <QVBoxLayout>
 #include <QHash>
+#include <QMetaObject>
+#include <QPointer>
 
 #include "px_common_new/log.h"
 #include "translator/px_translator.h"
@@ -17,8 +19,8 @@
 namespace px
 {
 
-    FtWindow::FtWindow(FtCore* core, QWidget* parent)
-        : QWidget(parent), core_(core) {
+    FtWindow::FtWindow(std::shared_ptr<FtCore> core, QWidget* parent)  // NOLINT(gammaray-raw-pointer-boundary): Qt parent ownership API
+        : QWidget(parent), core_(std::move(core)) {
         // 窗口灰底 + 白色圆角卡片(左右文件栏 / 底部传输条)
         setObjectName("ftRoot");
         setAttribute(Qt::WA_StyledBackground, true); // 裸 QWidget 子类需显式开启,样式表背景才会自绘
@@ -26,11 +28,13 @@ namespace px
                       "#ftCard { background: #ffffff; border-radius: 10px; }"
                       "QSplitter::handle { background: transparent; }");
         auto* root = new QVBoxLayout(this);
+        root_layout_ = root;
         root->setContentsMargins(8, 8, 8, 8);
         root->setSpacing(8);
 
         // 上:本地 | 远程(圆角卡片,中间仅 8px 缝,不可上下拖动)
         auto* pane_split = new QSplitter(Qt::Horizontal, this);
+        pane_split_ = pane_split;
         pane_split->setHandleWidth(8);
         local_panel_ = new FtFilePanel(core_, true, pane_split);
         remote_panel_ = new FtFilePanel(core_, false, pane_split);
@@ -47,66 +51,145 @@ namespace px
 
         root->addWidget(pane_split, 1);
         root->addWidget(queue_, 0);
-        connect(queue_, &FtTransferQueue::SigExpandedToggled, this,
-                [this, root, pane_split](bool expanded) {
-            pane_split->setVisible(!expanded);
-            root->setStretch(1, expanded ? 1 : 0); // 展开后队列占满窗口
-        });
+        connect(queue_.get(), &FtTransferQueue::SigExpandedToggled, this,
+                &FtWindow::OnExpandedToggled);
 
         // ---------------- 传输请求接线 ----------------
-        connect(local_panel_, &FtFilePanel::SigUploadRequested, this, [this](const QStringList& paths) {
-            const QString remote_dir = remote_panel_->CurrentDir();
-            if (remote_dir.isEmpty() || remote_dir == "/") {
-                LOGW("ft upload rejected: remote dir is drive list");
-                return;
-            }
-            core_->StartUpload(paths, remote_dir);
-        });
-        connect(remote_panel_, &FtFilePanel::SigDownloadRequested, this, [this](const QStringList& paths) {
-            const QString local_dir = local_panel_->CurrentDir();
-            if (local_dir.isEmpty()) {
-                LOGW("ft download rejected: local dir is drive list");
-                return;
-            }
-            core_->StartDownload(paths, local_dir);
-        });
+        connect(local_panel_.get(), &FtFilePanel::SigUploadRequested, this,
+                &FtWindow::OnUploadRequested);
+        connect(remote_panel_.get(), &FtFilePanel::SigDownloadRequested, this,
+                &FtWindow::OnDownloadRequested);
 
         // ---------------- core 信号 ----------------
-        connect(core_, &FtCore::SigRemoteDir, this,
-                [this](const QString& path, const QVector<FtEntryInfo>& entries) {
-            remote_panel_->ShowDir(path, entries);
-        });
-        connect(core_, &FtCore::SigJobAdded, this,
-                [this](int id, const QString& name, bool is_download) {
-            job_download_[id] = is_download;
-            queue_->AddJob(id, name, is_download);
-        });
-        connect(core_, &FtCore::SigJobProgress, queue_, &FtTransferQueue::UpdateJob);
-        connect(core_, &FtCore::SigJobDone, this, [this](int id, const QString& err) {
-            queue_->FinishJob(id, err);
-            // 传输结束自动刷新接收侧:上传->远程栏,下载->本地栏
-            const bool is_download = job_download_.take(id);
-            if (err.isEmpty()) {
-                if (is_download) {
-                    local_panel_->Refresh();
-                } else {
-                    remote_panel_->Refresh();
-                }
-            }
-        });
-        connect(core_, &FtCore::SigOverwriteConfirm, this,
-                [this](int job_id, int file_num, const QString& path, bool is_upload, bool is_identical) {
-            pending_confirms_.push_back({job_id, file_num, path, is_upload, is_identical});
-            ShowNextOverwriteConfirm();
-        });
+        const QPointer<FtWindow> guarded_self(this);
+        connect(core_.get(), &FtCore::SigRemoteDir, this,
+                [guarded_self](
+                    const QString& path, const FtEntryList& entries) {
+                    if (!guarded_self) {
+                        return;
+                    }
+                    QMetaObject::invokeMethod(
+                        guarded_self.data(),
+                        [guarded_self, path, entries]() {
+                            if (guarded_self) {
+                                guarded_self->OnRemoteDir(path, entries);
+                            }
+                        },
+                        Qt::QueuedConnection);
+                },
+                Qt::DirectConnection);
+        connect(core_.get(), &FtCore::SigJobAdded, this,
+                &FtWindow::OnJobAdded);
+        connect(core_.get(), &FtCore::SigJobProgress, this,
+                [guarded_self](const FtJobStatusInfo& status) {
+                    if (!guarded_self) {
+                        return;
+                    }
+                    QMetaObject::invokeMethod(
+                        guarded_self.data(),
+                        [guarded_self, status]() {
+                            if (guarded_self) {
+                                guarded_self->OnJobProgress(status);
+                            }
+                        },
+                        Qt::QueuedConnection);
+                },
+                Qt::DirectConnection);
+        connect(core_.get(), &FtCore::SigJobDone, this,
+                &FtWindow::OnJobDone);
+        connect(core_.get(), &FtCore::SigOverwriteConfirm, this,
+                &FtWindow::OnOverwriteConfirm);
         // 目录操作回执:刷新远程栏(失败提示经日志,错误详情已由对端 error 携带)
-        connect(core_, &FtCore::SigDirOpDone, this, [this](int op_id, const QString& error_or_empty) {
-            (void)op_id;
-            if (!error_or_empty.isEmpty()) {
-                LOGW("ft dir op failed: {}", error_or_empty.toStdString());
-            }
+        connect(core_.get(), &FtCore::SigDirOpDone, this,
+                &FtWindow::OnDirOpDone);
+    }
+
+    void FtWindow::OnExpandedToggled(bool expanded) {
+        if (pane_split_) {
+            pane_split_->setVisible(!expanded);
+        }
+        if (root_layout_) {
+            root_layout_->setStretch(1, expanded ? 1 : 0);
+        }
+    }
+
+    void FtWindow::OnUploadRequested(const QStringList& paths) {
+        if (!remote_panel_ || !core_) {
+            return;
+        }
+        const QString remote_dir = remote_panel_->CurrentDir();
+        if (remote_dir.isEmpty() || remote_dir == "/") {
+            LOGW("ft upload rejected: remote dir is drive list");
+            return;
+        }
+        core_->StartUpload(paths, remote_dir);
+    }
+
+    void FtWindow::OnDownloadRequested(const QStringList& paths) {
+        if (!local_panel_ || !core_) {
+            return;
+        }
+        const QString local_dir = local_panel_->CurrentDir();
+        if (local_dir.isEmpty()) {
+            LOGW("ft download rejected: local dir is drive list");
+            return;
+        }
+        core_->StartDownload(paths, local_dir);
+    }
+
+    void FtWindow::OnRemoteDir(
+        const QString& path, const FtEntryList& entries) {
+        if (remote_panel_) {
+            remote_panel_->ShowDir(path, entries);
+        }
+    }
+
+    void FtWindow::OnJobAdded(
+        int id, const QString& name, bool is_download) {
+        job_download_[id] = is_download;
+        if (queue_) {
+            queue_->AddJob(id, name, is_download);
+        }
+    }
+
+    void FtWindow::OnJobProgress(const FtJobStatusInfo& status) {
+        if (queue_) {
+            queue_->UpdateJob(status);
+        }
+    }
+
+    void FtWindow::OnJobDone(int id, const QString& error) {
+        if (queue_) {
+            queue_->FinishJob(id, error);
+        }
+        const bool is_download = job_download_.take(id);
+        if (!error.isEmpty()) {
+            return;
+        }
+        if (is_download && local_panel_) {
+            local_panel_->Refresh();
+        }
+        else if (!is_download && remote_panel_) {
             remote_panel_->Refresh();
-        });
+        }
+    }
+
+    void FtWindow::OnOverwriteConfirm(
+        int job_id, int file_num, const QString& path,
+        bool is_upload, bool is_identical) {
+        pending_confirms_.push_back(
+            {job_id, file_num, path, is_upload, is_identical});
+        ShowNextOverwriteConfirm();
+    }
+
+    void FtWindow::OnDirOpDone(int operation_id, const QString& error) {
+        (void)operation_id;
+        if (!error.isEmpty()) {
+            LOGW("ft dir op failed: {}", error.toStdString());
+        }
+        if (remote_panel_) {
+            remote_panel_->Refresh();
+        }
     }
 
     void FtWindow::SetRemoteDeviceName(const QString& name) {

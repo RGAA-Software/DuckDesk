@@ -9,6 +9,8 @@
 
 #include <QWidget>
 #include <QHash>
+#include <QPointer>
+#include <memory>
 
 #include "../ft_core.h"
 
@@ -22,7 +24,9 @@ namespace px
     class FtTransferQueue : public QWidget {
         Q_OBJECT
     public:
-        explicit FtTransferQueue(FtCore* core, QWidget* parent = nullptr);
+        explicit FtTransferQueue(
+            std::shared_ptr<FtCore> core,
+            QWidget* parent = nullptr);  // NOLINT(gammaray-raw-pointer-boundary): Qt parent ownership API
 
         void AddJob(int id, const QString& name, bool is_download);
         void UpdateJob(const FtJobStatusInfo& st);
@@ -36,19 +40,20 @@ namespace px
         int RowOf(int id) const;
         void UpdateStrip(); // 摘要条跟随 latest_id_
         void SetExpanded(bool expanded);
+        void ToggleExpanded();
         static QString FormatSpeed(double bytes_per_sec);
 
     private:
-        FtCore* core_ = nullptr;
-        QTableWidget* table_ = nullptr;
+        std::shared_ptr<FtCore> core_;
+        QPointer<QTableWidget> table_;
         QHash<int, int> rows_; // job id -> row
 
         // 折叠摘要条
-        QWidget* strip_ = nullptr;
-        QLabel* strip_icon_ = nullptr;
-        QLabel* strip_text_ = nullptr;
-        QLabel* strip_state_ = nullptr;
-        QPushButton* expand_btn_ = nullptr;
+        QPointer<QWidget> strip_;
+        QPointer<QLabel> strip_icon_;
+        QPointer<QLabel> strip_text_;
+        QPointer<QLabel> strip_state_;
+        QPointer<QPushButton> expand_btn_;
         bool expanded_ = false; // 默认折叠(参考 UI)
 
         // 作业信息(摘要条显示用)

@@ -144,6 +144,7 @@ namespace px
         item_layout->addSpacing(35);
 
         int idx = 0;
+        const QPointer<AppMenu> guarded_self(this);
         for (const auto& item : items) {
 
             auto app_item = new AppMenuItem(item.name_, idx++, item.url_, this);
@@ -153,17 +154,21 @@ namespace px
 
             app_items.push_back(app_item);
             app_item->setFixedSize(180, 40);
-            app_item->SetOnItemClickedCallback([=, this](const QString& name, int idx) {
-                if (callback_) {
-                    callback_(name, idx);
-                }
-
-                for (const auto& it : app_items) {
-                    if (it->GetName() != name) {
-                        it->UnSelect();
+            app_item->SetOnItemClickedCallback(
+                [guarded_self](const QString& name, int idx) {
+                    if (!guarded_self) {
+                        return;
                     }
-                }
-            });
+                    if (guarded_self->callback_) {
+                        guarded_self->callback_(name, idx);
+                    }
+
+                    for (const auto& it : guarded_self->app_items) {
+                        if (it && it->GetName() != name) {
+                            it->UnSelect();
+                        }
+                    }
+                });
             item_layout->addWidget(app_item);
             item_layout->addSpacing(10);
         }

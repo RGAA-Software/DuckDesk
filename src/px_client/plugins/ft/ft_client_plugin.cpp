@@ -119,7 +119,7 @@ namespace px
             plugin_settings_, MakeDirectEventDispatcher());
         const auto weak_transport =
             std::weak_ptr<FtClientTransportState>(transport_state_);
-        core_ = std::make_unique<FtCore>(
+        core_ = std::make_shared<FtCore>(
             [weak_transport](const Message& message) {
                 if (const auto transport = weak_transport.lock()) {
                     return transport->Send(message);
@@ -133,7 +133,7 @@ namespace px
         root_widget_->resize(1280, 760);
         root_widget_->hide();
         auto window =
-            std::make_unique<FtWindow>(core_.get(), root_widget_.get());
+            std::make_unique<FtWindow>(core_, root_widget_.get());
         window_ = window.get();
         auto layout = std::make_unique<NoMarginHLayout>();
         layout->addWidget(window.release());

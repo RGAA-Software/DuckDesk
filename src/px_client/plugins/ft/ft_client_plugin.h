@@ -48,7 +48,7 @@ namespace px
         void TrackJobEnd(int32_t job_id, const QString& error_or_empty);
 
     private:
-        std::unique_ptr<FtCore> core_;
+        std::shared_ptr<FtCore> core_;
         QPointer<FtWindow> window_;  // root_widget_ owns the Qt child
         std::shared_ptr<FtClientTransportState> transport_state_;
 

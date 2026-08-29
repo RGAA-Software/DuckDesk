@@ -45,7 +45,7 @@ namespace px
     FtCore::FtCore(SendCallback send_callback)
         : send_callback_(std::move(send_callback)) {
         qRegisterMetaType<px::FtEntryInfo>("px::FtEntryInfo");
-        qRegisterMetaType<QVector<px::FtEntryInfo>>("QVector<px::FtEntryInfo>");
+        qRegisterMetaType<px::FtEntryList>("px::FtEntryList");
         qRegisterMetaType<px::FtJobStatusInfo>("px::FtJobStatusInfo");
     }
 
@@ -331,8 +331,8 @@ namespace px
         }
     }
 
-    QVector<FtEntryInfo> FtCore::ConvertEntries(const px::FileDirectory& dir) {
-        QVector<FtEntryInfo> out;
+    FtEntryList FtCore::ConvertEntries(const px::FileDirectory& dir) {
+        FtEntryList out;
         out.reserve(dir.entries().size());
         for (const auto& e : dir.entries()) {
             FtEntryInfo info;

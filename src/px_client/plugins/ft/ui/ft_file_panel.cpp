@@ -240,8 +240,9 @@ namespace px
 
     // ---------------- FtFilePanel ----------------
 
-    FtFilePanel::FtFilePanel(FtCore* core, bool is_local, QWidget* parent)
-        : QWidget(parent), core_(core), is_local_(is_local) {
+    FtFilePanel::FtFilePanel(
+        std::shared_ptr<FtCore> core, bool is_local, QWidget* parent)  // NOLINT(gammaray-raw-pointer-boundary): Qt parent ownership API
+        : QWidget(parent), core_(std::move(core)), is_local_(is_local) {
         setAcceptDrops(true);
         setAttribute(Qt::WA_StyledBackground, true); // 圆角卡片背景(#ftCard)需要显式开启自绘
         setStyleSheet(kPanelStyle);
@@ -310,20 +311,30 @@ namespace px
                                            tcTr("id_file_trans_type")});
         root->addWidget(table_, 1);
 
-        connect(up_btn, &QPushButton::clicked, this, [this]() {
-            NavigateTo(ParentDirOf(current_dir_));
-        });
+        connect(up_btn, &QPushButton::clicked, this,
+                &FtFilePanel::NavigateParent);
         connect(refresh_btn, &QPushButton::clicked, this, &FtFilePanel::Refresh);
         connect(new_folder_btn, &QPushButton::clicked, this, &FtFilePanel::DoNewFolder);
-        connect(transfer_btn_, &QPushButton::clicked, this, &FtFilePanel::DoTransferSelected);
-        connect(table_, &QTableWidget::cellDoubleClicked, this, [this](int row, int) {
-            OnDoubleClick(row);
-        });
-        connect(table_, &QTableWidget::customContextMenuRequested, this, &FtFilePanel::OnContextMenu);
+        connect(transfer_btn_.get(), &QPushButton::clicked, this,
+                &FtFilePanel::DoTransferSelected);
+        connect(table_.get(), &QTableWidget::cellDoubleClicked, this,
+                &FtFilePanel::OnCellDoubleClicked);
+        connect(table_.get(), &QTableWidget::customContextMenuRequested, this,
+                &FtFilePanel::OnContextMenu);
         connect(table_->horizontalHeader(), &QHeaderView::sectionClicked, this, &FtFilePanel::OnSortRequested);
-        connect(table_, &QTableWidget::itemSelectionChanged, this, &FtFilePanel::UpdateTransferBtn);
+        connect(table_.get(), &QTableWidget::itemSelectionChanged, this,
+                &FtFilePanel::UpdateTransferBtn);
         UpdateTransferBtn();
         RebuildBreadcrumb();
+    }
+
+    void FtFilePanel::NavigateParent() {
+        NavigateTo(ParentDirOf(current_dir_));
+    }
+
+    void FtFilePanel::OnCellDoubleClicked(int row, int column) {
+        (void)column;
+        OnDoubleClick(row);
     }
 
     void FtFilePanel::UpdateTransferBtn() {
@@ -620,7 +631,7 @@ namespace px
         }
     }
 
-    void FtFilePanel::ShowDir(const QString& path, const QVector<FtEntryInfo>& entries) {
+    void FtFilePanel::ShowDir(const QString& path, const FtEntryList& entries) {
         if (is_local_) return;
         current_dir_ = path;
         last_entries_ = entries;

@@ -59,6 +59,15 @@ TEST(ClientFtPluginDllLifecycle, TenCreateStopDestroyAndUnloadRounds) {
                         network->send_result_ = FileTransferSendResult::Accepted();
                     }
                 });
+            for (int index = 0; index < 64; ++index) {
+                auto message = std::make_shared<Message>();
+                message->set_type(MessageType::kFileResponse);
+                auto directory =
+                    message->mutable_file_response()->mutable_dir();
+                directory->set_id(index);
+                directory->set_path("/");
+                plugin.get().OnMessage(std::move(message));
+            }
             EXPECT_FALSE(plugin.get().HasProcessingTasks()) << "round " << round;
             EXPECT_TRUE(plugin.get().OnStop()) << "round " << round;
             EXPECT_TRUE(plugin.get().OnDestroy()) << "round " << round;

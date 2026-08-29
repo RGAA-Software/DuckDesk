@@ -8,6 +8,7 @@
 #include <QWidget>
 #include <QString>
 #include <QLabel>
+#include <QPointer>
 
 #include <memory>
 #include <functional>
@@ -75,7 +76,7 @@ namespace px
     private:
 
         OnItemClickedCallback callback_;
-        std::vector<AppMenuItem*> app_items;
+        std::vector<QPointer<AppMenuItem>> app_items;
 
     };
 

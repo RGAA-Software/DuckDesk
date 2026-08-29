@@ -7,11 +7,14 @@
 
 #include <QWidget>
 #include <QHash>
+#include <QPointer>
 #include <deque>
+#include <memory>
 
 #include "../ft_core.h"
 
 class QSplitter;
+class QVBoxLayout;
 
 namespace px
 {
@@ -22,7 +25,9 @@ namespace px
     class FtWindow : public QWidget {
         Q_OBJECT
     public:
-        FtWindow(FtCore* core, QWidget* parent = nullptr);
+        FtWindow(
+            std::shared_ptr<FtCore> core,
+            QWidget* parent = nullptr);  // NOLINT(gammaray-raw-pointer-boundary): Qt parent ownership API
 
         // 插件 ShowRootWidget 时调用:首显初始化两侧目录
         void OnShow();
@@ -33,12 +38,26 @@ namespace px
 
     private:
         void ShowNextOverwriteConfirm();
+        void OnExpandedToggled(bool expanded);
+        void OnUploadRequested(const QStringList& paths);
+        void OnDownloadRequested(const QStringList& paths);
+        void OnRemoteDir(
+            const QString& path, const FtEntryList& entries);
+        void OnJobAdded(int id, const QString& name, bool is_download);
+        void OnJobProgress(const FtJobStatusInfo& status);
+        void OnJobDone(int id, const QString& error);
+        void OnOverwriteConfirm(
+            int job_id, int file_num, const QString& path,
+            bool is_upload, bool is_identical);
+        void OnDirOpDone(int operation_id, const QString& error);
 
     private:
-        FtCore* core_ = nullptr;
-        FtFilePanel* local_panel_ = nullptr;
-        FtFilePanel* remote_panel_ = nullptr;
-        FtTransferQueue* queue_ = nullptr;
+        std::shared_ptr<FtCore> core_;
+        QPointer<FtFilePanel> local_panel_;
+        QPointer<FtFilePanel> remote_panel_;
+        QPointer<FtTransferQueue> queue_;
+        QPointer<QSplitter> pane_split_;
+        QPointer<QVBoxLayout> root_layout_;
         bool first_show_ = true;
 
         // 覆盖确认串行弹框队列
