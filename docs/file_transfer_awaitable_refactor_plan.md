@@ -2215,3 +2215,28 @@ FT 引擎 Runtime 已与插件解耦，但 UI 链仍把插件独占的 `FtCore` 
 
 - `px_client.exe`: `CA9F3E2BF4306423FFBC2E3105B5542FE237E1F9F06FA54ACBE745287B80AAE6`
 - `ft.dll`: `A90BCA910AA6BB95A0ECAA599CDDCEAD3843DA11CC0C7DA7AA55B3E1B4CE7420`
+
+### 12.43 Phase 7 Panel Companion 网络统计任务生命周期收敛
+
+`PanelCompanionImpl::OnTimer5S()` 原先把 companion `this` 直接排入独立网络线程；Panel
+关闭与上报任务重叠时，队列任务可能在 companion 析构后继续调用统计成员。
+
+本批保持 AuthManager、StatManager 和 PanelCompanion 接口不变，只收敛异步边界：
+
+- `PanelCompanionImpl` 增加 `enable_shared_from_this`；现有创建点本来就是
+  `make_shared<PanelCompanionImpl>()`，不改变实例身份；
+- 两个统计上报任务只捕获同一个 `weak_ptr`，执行时 `lock()`，owner 已释放则直接返回；
+- 任务成功 lock 时 shared lifetime 覆盖完整上报调用，网络线程收尾不再依赖 Panel 外部
+  严格延迟销毁。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| focused build | `px_panel` 与四个 skin target 编译成功；未运行发版整编 |
+| Panel shutdown | owner 失效、helper 成功/失败、异常 fallback 4/4；完整 suite 连续 10/10 PASS，共 40 项 |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；网络任务无 `[this]` 或裸观察捕获 |
+| dist | Panel EXE、skin DLL、配置和语言资源同步完成并逐文件 SHA-256 一致 |
+
+`px_panel.exe` build/dist SHA-256：
+`5755FBB7683A6256BFD7FCA7AEE6D91685154C85B9A4AACEF6F8361AD4923954`。

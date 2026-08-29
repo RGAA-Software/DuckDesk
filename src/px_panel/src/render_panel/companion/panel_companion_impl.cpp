@@ -70,12 +70,17 @@ namespace px
 
     void PanelCompanionImpl::OnTimer5S() {
         auth_mgr_->OnTimer5S();
-        this->PostNetTask([this]() {
-            ReportWorkingAuthIfNeeded();
+        const auto weak_self = weak_from_this();
+        PostNetTask([weak_self]() {
+            if (const auto self = weak_self.lock()) {
+                self->ReportWorkingAuthIfNeeded();
+            }
         });
 
-        this->PostNetTask([this]() {
-            ReportOpenUpIfNeeded();
+        PostNetTask([weak_self]() {
+            if (const auto self = weak_self.lock()) {
+                self->ReportOpenUpIfNeeded();
+            }
         });
     }
 

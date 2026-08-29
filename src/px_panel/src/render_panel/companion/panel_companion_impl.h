@@ -20,7 +20,8 @@ namespace px
     class SharedPreference;
     class StatManager;
 
-    class PanelCompanionImpl : public PanelCompanion {
+    class PanelCompanionImpl : public PanelCompanion,
+                               public std::enable_shared_from_this<PanelCompanionImpl> {
     public:
         ~PanelCompanionImpl() override;
 
