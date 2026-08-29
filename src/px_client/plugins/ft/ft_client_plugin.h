@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <unordered_map>
+#include <QPointer>
 
 namespace px
 {
@@ -54,7 +55,7 @@ namespace px
 
     private:
         FtCore* core_ = nullptr;      // QObject 父子树管理
-        FtWindow* window_ = nullptr;  // root_widget_ 的子控件
+        QPointer<FtWindow> window_;  // root_widget_ owns the Qt child
 
         // 审计配对(UI 线程)
         std::unordered_map<int32_t, QString> audit_jobs_;

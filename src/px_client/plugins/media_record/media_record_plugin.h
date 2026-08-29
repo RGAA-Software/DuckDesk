@@ -6,13 +6,11 @@
 #define PX_CLIENT_MEDIA_RECORD_PLUGIN_H
 
 #include "px_client/plugin_interface/ct_media_record_plugin_interface.h"
-#include <map>
 #include <memory>
-#include <vector>
 
 namespace px
 {
-    class MediaRecorder;
+    class MediaRecordRuntime;
 
     class MediaRecordPluginClient : public MediaRecordPluginClientInterface {
     public:
@@ -22,6 +20,8 @@ namespace px
         uint32_t GetVersionCode() override;
 
         bool OnCreate(const px::ClientPluginParam& param) override;
+        bool OnStop() override;
+        bool OnDestroy() override;
         void On1Second() override;
         void OnMessage(std::shared_ptr<Message> msg) override;
         void DispatchAppEvent(const std::shared_ptr<ClientAppBaseEvent> &event) override;
@@ -31,12 +31,7 @@ namespace px
 
         [[nodiscard]] std::string GetScreenRecordingPath() const;
     private:
-        std::map<std::string, QLabel*> previewers_;
-        
-        //因为要同时录制多个屏幕的视频，所以要创建多个MediaRecorder
-        std::vector<std::shared_ptr<MediaRecorder>> media_recorders_;
-
-        std::atomic<bool> recording_ = false;
+        std::shared_ptr<MediaRecordRuntime> runtime_;
     };
 }
 

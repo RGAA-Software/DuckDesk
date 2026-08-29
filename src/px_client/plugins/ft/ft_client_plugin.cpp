@@ -64,11 +64,12 @@ namespace px
         // UI:三栏文件管理窗口
         root_widget_->resize(1280, 760);
         root_widget_->hide();
-        window_ = new FtWindow(core_, root_widget_);
-        auto layout = new NoMarginHLayout();
-        layout->addWidget(window_);
-        root_widget_->setLayout(layout);
-        WidgetHelper::SetTitleBarColor(root_widget_);
+        auto window = std::make_unique<FtWindow>(core_, root_widget_.get());
+        window_ = window.get();
+        auto layout = std::make_unique<NoMarginHLayout>();
+        layout->addWidget(window.release());
+        root_widget_->setLayout(layout.release());
+        WidgetHelper::SetTitleBarColor(root_widget_.get());
         const QString remote_name = !plugin_settings_.stream_name_.empty()
             ? QString::fromStdString(plugin_settings_.stream_name_)
             : QString::fromStdString(plugin_settings_.device_id_);

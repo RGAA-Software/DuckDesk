@@ -6,6 +6,7 @@
 #include "px_message.pb.h"
 #include "px_common_new/log.h"
 #include "px_common_new/file.h"
+#include "px_common_new/folder_util.h"
 #include "px_common_new/image.h"
 #include "px_client/plugin_interface/ct_plugin_context.h"
 #include "px_client/plugin_interface/ct_plugin_ids.h"
@@ -16,10 +17,82 @@
 
 #include <qpushbutton.h>
 
+#include <algorithm>
+#include <mutex>
+#include <optional>
+#include <utility>
+#include <vector>
+
 PX_PLUGIN_EXPORT(px::MediaRecordPluginClient)
 
 namespace px
 {
+
+    class MediaRecordRuntime final {
+    public:
+        explicit MediaRecordRuntime(const std::string& record_path) {
+            for (int index = 0; index < kMaxRenderViewCount; ++index) {
+                auto recorder = MediaRecorder::Make(record_path);
+                recorder->SetIndex(index);
+                recorders_.emplace_back(std::move(recorder));
+            }
+        }
+
+        void Start() {
+            std::lock_guard lock(mutex_);
+            recording_ = true;
+        }
+
+        void OnMessage(const std::shared_ptr<Message>& message) {
+            if (!message) {
+                return;
+            }
+            std::lock_guard lock(mutex_);
+            if (!recording_) {
+                return;
+            }
+            if (message->type() == px::kVideoFrame) {
+                const auto& video_frame = message->video_frame();
+                if (video_frame.key()) {
+                    LOGI("video frame index: {}, {}x{}, key: {}",
+                         video_frame.frame_index(), video_frame.frame_width(),
+                         video_frame.frame_height(), video_frame.key());
+                }
+                const auto index = static_cast<std::size_t>(
+                    std::max(video_frame.mon_index(), 0));
+                if (index < recorders_.size()) {
+                    recorders_[index]->RecvVideoFrame(video_frame);
+                }
+                else {
+                    LOGW("video_frame index: {}, exceeded the maximum limit",
+                         index);
+                }
+            }
+            else if (message->type() == px::kAudioFrame) {
+                const auto& audio_frame = message->audio_frame();
+                for (const auto& recorder : recorders_) {
+                    recorder->RecvAudioFrame(audio_frame);
+                }
+            }
+        }
+
+        [[nodiscard]] std::vector<std::string> End() {
+            std::lock_guard lock(mutex_);
+            recording_ = false;
+            std::vector<std::string> recorded_directories;
+            for (const auto& recorder : recorders_) {
+                if (auto directory = recorder->EndRecord()) {
+                    recorded_directories.emplace_back(std::move(*directory));
+                }
+            }
+            return recorded_directories;
+        }
+
+    private:
+        std::mutex mutex_;
+        std::vector<std::shared_ptr<MediaRecorder>> recorders_;
+        bool recording_ = false;
+    };
 
     std::string MediaRecordPluginClient::GetPluginId() {
         return kClientMediaRecordPluginId;
@@ -49,53 +122,44 @@ namespace px
             return true;
         }
 
-        for (int index = 0; index < kMaxRenderViewCount; ++index) {
-            auto recorder = MediaRecorder::Make(this);
-            recorder->SetIndex(index);
-            media_recorders_.emplace_back(recorder);
-        }
+        runtime_ = std::make_shared<MediaRecordRuntime>(screen_recording_path_);
 
         root_widget_->hide();
         root_widget_->setWindowTitle("Media Record");
-        auto layout = new QVBoxLayout(root_widget_);
-        auto btn = new QPushButton("Start Record", root_widget_);
-        btn->setFixedSize(80, 40);
-        layout->addWidget(btn);
+        auto layout = std::make_unique<QVBoxLayout>();
+        auto button =
+            std::make_unique<QPushButton>("Start Record", root_widget_.get());
+        button->setFixedSize(80, 40);
+        layout->addWidget(button.release());
+        root_widget_->setLayout(layout.release());
 
         return true;
     }
 
+    bool MediaRecordPluginClient::OnStop() {
+        if (runtime_) {
+            (void)runtime_->End();
+        }
+        return ClientPluginInterface::OnStop();
+    }
+
+    bool MediaRecordPluginClient::OnDestroy() {
+        if (runtime_) {
+            (void)runtime_->End();
+            runtime_.reset();
+        }
+        return ClientPluginInterface::OnDestroy();
+    }
+
     void MediaRecordPluginClient::OnMessage(std::shared_ptr<Message> msg) {
         ClientPluginInterface::OnMessage(msg);
-        if (!recording_) {
+        const auto runtime = runtime_;
+        const auto context = plugin_context_;
+        if (!runtime || !context || IsStoppingOrDestroyed()) {
             return;
         }
-
-        plugin_context_->PostWorkTask([this, msg]() {
-            if (msg->type() == px::kVideoFrame) {
-                const auto& video_frame = msg->video_frame();
-                if (video_frame.key()) {
-                    LOGI("video frame index: {}, {}x{}, key: {}", video_frame.frame_index(),
-                        video_frame.frame_width(), video_frame.frame_height(), video_frame.key());
-                }
-
-                int v_idx = video_frame.mon_index();
-                if(v_idx < 0) {
-                    v_idx = 0;
-                }
-                if (media_recorders_.size() > v_idx) {
-                    media_recorders_[v_idx]->RecvVideoFrame(video_frame);
-                }
-                else {
-                    LOGW("video_frame index : {}, Exceeded the maximum limit", v_idx);
-                }
-            }
-            else if (msg->type() == px::kAudioFrame) {
-                const auto& audio_frame = msg->audio_frame();
-                for (auto& media_recorder: media_recorders_) {
-                    media_recorder->RecvAudioFrame(audio_frame);
-                }
-            }
+        context->PostWorkTask([runtime, message = std::move(msg)]() {
+            runtime->OnMessage(message);
         });
     }
 
@@ -105,16 +169,31 @@ namespace px
     }
 
     void MediaRecordPluginClient::StartRecord() {
-        recording_ = true;
+        if (runtime_) {
+            runtime_->Start();
+        }
     }
 
     void MediaRecordPluginClient::EndRecord() {
-        recording_ = false;
-        plugin_context_->PostWorkTask([=, this]() {
-            for (auto& media_recorder : media_recorders_) {
-                media_recorder->EndRecord();
-            } 
-        });
+        if (!runtime_) {
+            return;
+        }
+        const auto directories = runtime_->End();
+        const auto weak_context = std::weak_ptr<ClientPluginContext>(plugin_context_);
+        for (const auto& directory : directories) {
+            auto event = std::make_shared<ClientPluginNotifyMsgEvent>();
+            event->title_ = "Screen recording success";
+            event->message_ = directory;
+            event->clicked_cbk_ = [weak_context, directory]() {
+                LOGI("Screen recording ended: {}", directory);
+                if (const auto context = weak_context.lock()) {
+                    context->PostUITask([directory]() {
+                        FolderUtil::OpenDir(PathFromUTF8(directory));
+                    });
+                }
+            };
+            CallbackEvent(event);
+        }
     }
 
     std::string MediaRecordPluginClient::GetScreenRecordingPath() const {

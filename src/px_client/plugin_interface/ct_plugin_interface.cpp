@@ -167,7 +167,7 @@ namespace px
             }
         }
 
-        root_widget_ = new QWidget(nullptr, Qt::Window);
+        root_widget_ = std::make_unique<QWidget>(nullptr, Qt::Window);
         root_widget_->resize(960, 540);
         root_widget_->hide();
         root_widget_->installEventFilter(this);
@@ -210,7 +210,7 @@ namespace px
             root_widget_->removeEventFilter(this);
             root_widget_->hide();
             root_widget_->close();
-            root_widget_ = nullptr;
+            root_widget_.reset();
         }
         if (plugin_context_) {
             plugin_context_->OnDestroy();
@@ -274,15 +274,15 @@ namespace px
     }
 
     QWidget* ClientPluginInterface::GetRootWidget() {
-        return root_widget_;
+        return root_widget_.get(); // NOLINT(gammaray-raw-pointer-boundary): Qt widget observer ABI
     }
 
     bool ClientPluginInterface::eventFilter(QObject *watched, QEvent *event) {
-        if (watched == root_widget_) {
+        if (watched == root_widget_.get()) {
             if (event->type() == QEvent::Type::Close) {
                 LOGI("Event: {}", (int) event->type());
                 event->ignore();
-                ((QWidget*)watched)->hide();
+                root_widget_->hide();
                 return true;
             }
         }

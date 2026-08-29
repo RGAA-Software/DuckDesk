@@ -2027,3 +2027,38 @@ IO 线程。后者已经由新增测试稳定复现为首轮 Context 销毁后�
 - `clipboard.dll`: `71692814208C91101A286DAEE9684235A1B7CC9DBC4A128A92B8AD09159F007F`
 - `ft.dll`: `492F2192D2D154816A2C89617F9BAE29CC7BB1662B6FE43FE1B2198ED46E853E`
 - `record.dll`: `95FA7BA98E05B64B433B465EC9E7C9F41F339BBD4E723E0792D6ED3DDAA71610`
+
+### 12.38 Phase 7 Client record 插件 Runtime 与真实 DLL 卸载收敛
+
+Client `record` 插件原先把插件裸地址保存到每个 `MediaRecorder`，并在 Context worker
+任务、EndRecord 任务和通知点击回调中捕获插件 `this`。此外 Client 插件基类的顶层
+`root_widget_` 只 `close` 后置空、从不销毁；真实 DLL 测试虽完成 10 轮业务断言，随后
+在 `QApplication` 清理泄漏窗口时稳定访问异常。
+
+本批完成：
+
+- 新增共享 `MediaRecordRuntime`，统一串行化 recording 状态、8 路 recorder、媒体消息和
+  writer End；worker 任务只捕获 Runtime `shared_ptr` 和 Message `shared_ptr`；
+- `MediaRecorder` 只保存配置路径，不再保存插件地址；`EndRecord` 返回成功目录，由仍然
+  存活的插件同步生成通知；点击回调只持 Context `weak_ptr`；
+- `OnStop`/`OnDestroy` 幂等结束全部 writer，销毁 Runtime 后再进入公共 Context 屏障；
+- Client 顶层插件窗口改为 `unique_ptr<QWidget>`，OnDestroy 在 DLL 卸载前同步销毁；
+  FT 子窗口兼容改为 `unique_ptr` 创建、Qt parent 接管，并以 `QPointer` 观察；
+- 新增真实 `record.dll` lifecycle 测试：每轮 LoadLibrary、OnCreate、StartRecord、排队
+  64 条音频消息、End、Stop、Destroy、FreeLibrary，并验证模块句柄归零。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| record DLL | 完整生命周期与真实卸载 10/10 PASS；gtest 结束后 `QApplication` 正常退出，修复前 exit access violation 已消失 |
+| shared writer | `test_record_writer` 6/6、Render recorder Runtime 5/5 PASS |
+| Client 公共层 | Context/event 8/8 PASS |
+| focused build | Client、RTC、clipboard、ft、record 全部编译成功；未触发 Rust/npm/发版整编 |
+| ownership | 新代码无项目裸指针、manual ownership 或 `[this]`；GetInstance/main 仅保留明确 ABI 标注 |
+| dist | Client 及 3 个插件再次同步并通过 build/dist SHA-256 比对 |
+
+本批主要 SHA-256：
+
+- `px_client.exe`: `DF03DFACAA07CEDABF0BF9409ED9A5F3A24C385C57357C5ADE272E4D74A45DC8`
+- `record.dll`: `3016276DAA7FC8D2432F0E50E574F73DBF399C95C71B9E5A2C53D648AA8DDCE2`

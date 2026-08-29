@@ -179,7 +179,7 @@ namespace px
         std::shared_ptr<ClientPluginEventChannel> event_channel_;
         std::string plugin_file_name_;
         ClientPluginType plugin_type_ = ClientPluginType::kUtil;
-        QWidget* root_widget_ = nullptr;
+        std::unique_ptr<QWidget> root_widget_;
         std::string plugin_author_;
         std::string plugin_desc_;
         std::string plugin_version_name_;
