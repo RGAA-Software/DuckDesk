@@ -155,6 +155,17 @@ int main(int argc, char** argv) {
         return 4;
     }
 
+    const auto mini_capture =
+        std::dynamic_pointer_cast<px::MiniAudioCapture>(capture);
+    if (!mini_capture) {
+        std::printf("FAIL: capture implementation is not MiniAudioCapture\n");
+        ma_device_stop(&playback);
+        ma_device_uninit(&playback);
+        capture->Stop();
+        return 8;
+    }
+    mini_capture->RequestReinitForTesting("lifecycle-smoke");
+
     std::printf("Capturing loopback for %d seconds while playing 880Hz tone...\n", kCaptureSeconds);
     std::this_thread::sleep_for(std::chrono::seconds(kCaptureSeconds));
 
@@ -203,6 +214,10 @@ int main(int argc, char** argv) {
     if (peak < kPeakThreshold) {
         std::printf("FAIL: captured audio looks silent (peak too low). Check mute/volume.\n");
         return 7;
+    }
+    if (mini_capture->SuccessfulReinitCountForTesting() == 0) {
+        std::printf("FAIL: scheduled default-device reinit did not complete\n");
+        return 9;
     }
 
     std::printf("PASS: MiniAudioCapture loopback OK\n");

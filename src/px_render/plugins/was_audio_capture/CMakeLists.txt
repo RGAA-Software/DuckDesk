@@ -28,6 +28,17 @@ add_executable(test_plugin_was_audio_capture
 )
 target_include_directories(test_plugin_was_audio_capture PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(test_plugin_was_audio_capture PRIVATE px_common_new ole32 mmdevapi)
+target_compile_definitions(test_plugin_was_audio_capture PRIVATE PX_AUDIO_CAPTURE_TESTING=1)
+
+add_executable(test_miniaudio_reinit_cancel
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_miniaudio_reinit_cancel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/miniaudio_audio_capture.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/miniaudio/miniaudio.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/miniaudio/miniaudio_desktop_process_loopback.cpp
+)
+target_include_directories(test_miniaudio_reinit_cancel PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(test_miniaudio_reinit_cancel PRIVATE px_common_new ole32 mmdevapi)
+target_compile_definitions(test_miniaudio_reinit_cancel PRIVATE PX_AUDIO_CAPTURE_TESTING=1)
 
 # Diagnose MiniAudio PID loopback vs ActivateAudioInterfaceAsync.
 add_executable(test_miniaudio_pid_loopback

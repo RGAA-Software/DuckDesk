@@ -35,6 +35,63 @@ namespace px
 		Stop();
 	}
 
+	void MiniAudioCapture::EnsureReinitWorker() {
+		std::lock_guard worker_lock(reinit_worker_mutex_);
+		if (reinit_worker_.joinable()) {
+			return;
+		}
+		const auto state = reinit_worker_state_;
+		const auto weak_self = weak_from_this();
+		reinit_worker_ = std::jthread(
+			[state, weak_self](std::stop_token stop_token) {
+				std::unique_lock lock(state->mutex);
+				while (!stop_token.stop_requested()) {
+					state->condition.wait(lock, stop_token, [state]() {
+						return state->pending;
+					});
+					if (stop_token.stop_requested()) {
+						break;
+					}
+					const auto reason = state->reason;
+					// Leave the WASAPI notification callback before tearing
+					// down the device. Stop() cancels this wait immediately.
+					static_cast<void>(state->condition.wait_for(
+						lock, stop_token, std::chrono::milliseconds(80), []() {
+							return false;
+						}));
+					if (stop_token.stop_requested()) {
+						break;
+					}
+					state->pending = false;
+					lock.unlock();
+					if (const auto self = weak_self.lock()) {
+						self->ReinitForDefaultDevice(reason);
+						self->reinit_pending_ = false;
+					}
+					lock.lock();
+				}
+			});
+	}
+
+	void MiniAudioCapture::StopReinitWorker() {
+		std::jthread worker;
+		{
+			std::lock_guard worker_lock(reinit_worker_mutex_);
+			worker = std::move(reinit_worker_);
+		}
+		if (worker.joinable()) {
+			worker.request_stop();
+			reinit_worker_state_->condition.notify_all();
+			worker.join();
+		}
+		{
+			std::lock_guard state_lock(reinit_worker_state_->mutex);
+			reinit_worker_state_->pending = false;
+			reinit_worker_state_->reason.clear();
+		}
+		reinit_pending_ = false;
+	}
+
 	void MiniAudioCapture::CleanupUnlocked() {
 		if (device_inited_) {
 			if (running_) {
@@ -124,6 +181,8 @@ namespace px
 	}
 
 	int MiniAudioCapture::Start() {
+		std::lock_guard operation_lock(operation_mutex_);
+		EnsureReinitWorker();
 		std::lock_guard<std::mutex> lock(lifecycle_mutex_);
 		want_running_ = true;
 		if (running_) {
@@ -160,7 +219,9 @@ namespace px
 	}
 
 	int MiniAudioCapture::Stop() {
+		std::lock_guard operation_lock(operation_mutex_);
 		want_running_ = false;
+		StopReinitWorker();
 		std::lock_guard<std::mutex> lock(lifecycle_mutex_);
 		const bool was_active = device_inited_ || context_inited_;
 		if (!was_active) {
@@ -177,40 +238,41 @@ namespace px
 		return 0;
 	}
 
-	void MiniAudioCapture::RequestReinit(const char* reason) {
+	void MiniAudioCapture::RequestReinit(std::string reason) {
 		if (!want_running_) {
 			return;
 		}
 		if (reinit_pending_.exchange(true)) {
-			LOGI("[MiniAudioCapture] reinit already pending, skip ({})", reason ? reason : "");
+			LOGI("[MiniAudioCapture] reinit already pending, skip ({})", reason);
 			return;
 		}
-		LOGI("[MiniAudioCapture] schedule reinit: {}", reason ? reason : "unknown");
-		std::weak_ptr<MiniAudioCapture> weak = shared_from_this();
-		std::thread([weak, reason_str = std::string(reason ? reason : "unknown")]() {
-			// Leave the WASAPI notification callback before tearing down the device.
-			std::this_thread::sleep_for(std::chrono::milliseconds(80));
-			if (auto self = weak.lock()) {
-				self->ReinitForDefaultDevice(reason_str.c_str());
-				self->reinit_pending_ = false;
-			}
-		}).detach();
+		if (reason.empty()) {
+			reason = "unknown";
+		}
+		LOGI("[MiniAudioCapture] schedule reinit: {}", reason);
+		{
+			std::lock_guard lock(reinit_worker_state_->mutex);
+			reinit_worker_state_->reason = std::move(reason);
+			reinit_worker_state_->pending = true;
+		}
+		reinit_worker_state_->condition.notify_all();
 	}
 
-	void MiniAudioCapture::ReinitForDefaultDevice(const char* reason) {
+	void MiniAudioCapture::ReinitForDefaultDevice(const std::string& reason) {
 		std::lock_guard<std::mutex> lock(lifecycle_mutex_);
 		if (!want_running_) {
-			LOGI("[MiniAudioCapture] reinit aborted (stopped): {}", reason ? reason : "");
+			LOGI("[MiniAudioCapture] reinit aborted (stopped): {}", reason);
 			return;
 		}
 		LOGW("[MiniAudioCapture] reinit for OS default device, reason={}, old_name=\"{}\"",
-			 reason ? reason : "",
+			 reason,
 			 device_inited_ && device_.capture.name[0] ? device_.capture.name : "<none>");
 		CleanupUnlocked();
 		const int ret = OpenAndStartUnlocked();
 		if (ret != 0) {
 			LOGE("[MiniAudioCapture] reinit failed: {}", ret);
 		} else {
+			++successful_reinit_count_;
 			LOGI("[MiniAudioCapture] reinit OK, name=\"{}\"",
 				 device_.capture.name[0] ? device_.capture.name : "<unnamed>");
 		}

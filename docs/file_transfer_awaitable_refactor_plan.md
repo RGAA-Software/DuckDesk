@@ -1660,3 +1660,35 @@ Render 的 Relay 插件原先在 `OnCreate` 中启动永久 detached 线程，�
 - `net_udp.dll`：`BA6C9E20C197753E4DC186DE52CF0337A95E04A9E2319F8AA765BF5BF07DF790`；
 - `net_rtc.dll`：`72A08A5491781932499CF1AF91D0AD64726AFCC851DB315BC1A6A4C5E1ED345E`；
 - `net_rtc_local.dll`：`564F958BDF73E4673B5EE42D8A84843597259E47B6B104AFDC3FDC6EC4A72889`。
+
+### 12.28 Phase 7 MiniAudio 默认设备重建生命周期收敛
+
+桌面系统音频使用 MiniAudio/WASAPI loopback。默认播放设备 reroute 或 interruption 恢复时，
+原实现从第三方通知回调启动一条 detached 线程，固定 sleep 80 ms 后重建采集设备。即使采集
+已经 Stop，该线程和 DLL 中的函数体仍可能继续运行，插件关闭无法证明延迟任务已经收敛。
+
+本批保留 miniaudio 的第三方 C 回调和设备结构，不修改其源码或 ABI，只调整项目维护的
+`MiniAudioCapture`：
+
+- 每个活动 capture 拥有一条 `jthread` 重建 worker；worker 捕获共享状态和 owner 的
+  `weak_ptr`，不捕获裸 `this`；
+- 80 ms 离开通知回调窗口改为 stop-token 可取消等待；重复 reroute 在已有 pending 请求时
+  合并，不创建额外线程；
+- `Stop()` 先取消并 join worker，再释放 WASAPI device/context，因此 Stop 返回即是 DLL
+  延迟代码的生命周期屏障；再次 Start 会创建新的 worker，支持重复启停；
+- 重建 reason 改为 `std::string` 值语义，不在项目异步接口中传递临时 C 字符指针；
+- 测试构建提供受宏保护的触发和计数入口，生产 DLL 不暴露额外测试 API。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 真实音频重建 | 本机 Realtek 默认扬声器，播放 880 Hz 测试音期间主动重建；重建后继续输出 48 kHz / 2 ch / 16 bit PCM，峰值 8191，非静音 |
+| 完整重建稳定性 | 启动、触发重建、继续采集、停止连续 10/10 PASS |
+| Stop 取消 | 测试程序内 10 轮在 80 ms pending delay 内立即 Stop；每轮均在 500 ms 内返回，successful reinit 保持 0 |
+| focused build | `cap_was_audio`、`test_plugin_was_audio_capture`、`test_miniaudio_reinit_cancel` PASS；未运行 `build_official.bat`，未编译 Rust/Web |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；项目代码无新增裸指针、manual ownership、detached thread 或 `[this]` 捕获 |
+| dist smoke | build tree 与 dist 插件哈希一致；`px_service` Running，dist Render 已实际加载新版 `cap_was_audio.dll`，原 Relay 媒体/文件双通道仍 Established |
+
+`cap_was_audio.dll` 的 build tree 与 `build_official\dist` SHA-256 一致：
+`1875E2C7BAD9BD4B5F0D5A998DE3CDB95AC296EB19680749A930488966405FDB`。

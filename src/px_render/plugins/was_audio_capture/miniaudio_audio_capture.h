@@ -3,8 +3,11 @@
 #include "audio_capture.h"
 
 #include <atomic>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <string>
+#include <thread>
 
 #include "third_party/miniaudio/miniaudio.h"
 
@@ -25,6 +28,15 @@ namespace px
 		int Pause() override;
 		int Stop() override;
 
+#if defined(PX_AUDIO_CAPTURE_TESTING)
+		void RequestReinitForTesting(const std::string& reason) {
+			RequestReinit(reason);
+		}
+		[[nodiscard]] uint64_t SuccessfulReinitCountForTesting() const {
+			return successful_reinit_count_.load();
+		}
+#endif
+
 	private:
 		explicit MiniAudioCapture(uint32_t loopback_process_id);
 		static void DataCallback(ma_device* device, void* output, const void* input, ma_uint32 frame_count);
@@ -32,8 +44,10 @@ namespace px
 
 		int OpenAndStartUnlocked();
 		void CleanupUnlocked();
-		void RequestReinit(const char* reason);
-		void ReinitForDefaultDevice(const char* reason);
+		void RequestReinit(std::string reason);
+		void ReinitForDefaultDevice(const std::string& reason);
+		void EnsureReinitWorker();
+		void StopReinitWorker();
 		void EmitPcm(const void* input, ma_uint32 frame_count);
 		static const char* ResultStr(ma_result result);
 
@@ -47,8 +61,20 @@ namespace px
 		std::atomic<bool> first_data_logged_{false};
 		std::atomic<uint64_t> total_frames_{0};
 		std::atomic<uint64_t> total_bytes_{0};
+		std::atomic<uint64_t> successful_reinit_count_{0};
 		std::atomic<int> peak_abs_{0};
+		std::mutex operation_mutex_;
 		std::mutex lifecycle_mutex_;
+		struct ReinitWorkerState final {
+			std::mutex mutex;
+			std::condition_variable_any condition;
+			bool pending = false;
+			std::string reason;
+		};
+		std::shared_ptr<ReinitWorkerState> reinit_worker_state_ =
+			std::make_shared<ReinitWorkerState>();
+		std::mutex reinit_worker_mutex_;
+		std::jthread reinit_worker_;
 		uint32_t loopback_process_id_ = 0;
 
 		static constexpr int kSampleRate = 48000;
