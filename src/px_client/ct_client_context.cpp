@@ -107,6 +107,20 @@ namespace px
         });
     }
 
+    void ClientContext::PostDelayTask(std::function<void()>&& task, int ms) {
+        if (exiting_ || !task) {
+            return;
+        }
+        const auto weak_self = weak_from_this();
+        PostDelayUITask([weak_self, task = std::move(task)]() mutable {
+            const auto self = weak_self.lock();
+            if (!self || self->exiting_) {
+                return;
+            }
+            self->PostTask(std::move(task));
+        }, ms);
+    }
+
     std::shared_ptr<MessageNotifier> ClientContext::GetMessageNotifier() {
         return msg_notifier_;
     }

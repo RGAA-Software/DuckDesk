@@ -82,9 +82,12 @@ same focused-build, 10-round lifecycle and dist-publication gates.
 - The outer WAS audio plug-in now delegates capture, retry and event delivery
   to `WasAudioCaptureRuntime`. Capture callbacks and the retry worker hold only
   weak/shared ownership and no longer retain the loader-owned plug-in instance.
-- The next in-scope batch is the client/Panel delayed shutdown and monitor
-  refresh paths. libwebrtc adapters and established plug-in instance ABI
-  boundaries remain excluded.
+- Client monitor refresh now uses the cancellable context delay lane, and its
+  redundant detached exit watchdog has been removed. Panel exit/uninstall now
+  uses a tested staged sequence instead of UI sleeps and a detached thread.
+- The next in-scope batch is the remaining owned media-recorder/live-pusher
+  callback lifecycle audit. libwebrtc adapters and established plug-in instance
+  ABI boundaries remain excluded.
 
 ## Target execution architecture
 

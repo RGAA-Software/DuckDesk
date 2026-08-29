@@ -65,6 +65,7 @@ set(PANEL_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/px_application.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/px_context.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/px_workspace.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/panel_shutdown_sequence.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/px_settings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/px_statistics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/px_system_monitor.cpp

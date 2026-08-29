@@ -31,6 +31,7 @@ namespace px
         void PostTask(std::function<void()>&& task);
         void PostUITask(std::function<void()>&& task);
         void PostDelayUITask(std::function<void()>&& task, int ms);
+        void PostDelayTask(std::function<void()>&& task, int ms);
         std::shared_ptr<MessageNotifier> GetMessageNotifier();
         std::shared_ptr<MessageListener> ObtainMessageListener();
         std::shared_ptr<MessageListener> ObtainUIMessageListener();

@@ -3,6 +3,7 @@
 //
 
 #include "px_workspace.h"
+#include "panel_shutdown_sequence.h"
 #include "px_exe_names.h"
 #include "px_application.h"
 #include "px_common_new/privacy_log.h"
@@ -20,8 +21,7 @@
 #include <QPointer>
 #include <QEventLoop>
 #include <QDateTime>
-#include <thread>
-#include <chrono>
+#include <utility>
 
 #include "px_qt_widget/custom_tab_btn.h"
 #include "px_qt_widget/widget_helper.h"
@@ -792,35 +792,45 @@ namespace px
                 LOGI("Request service StopDesktop before exit (clear persisted launch).");
                 render_ctrl->StopServer();
             }
-            // StopServer 走 async_send;必须等消息发出并被 service 处理后再断开 client,
-            // 否则 PrepareForShutdown 会立刻掐掉连接,StopDesktop 丢失。
+            // StopServer 走 async_send；延迟关闭 service client，但不阻塞 Qt UI。
             QApplication::processEvents(QEventLoop::AllEvents, 100);
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-            app_->PrepareForShutdown();
-            this->hide();
-            this->setEnabled(false);
-            auto srv_mgr = this->app_->GetContext()->GetServiceManager();
+            const auto app = app_;
+            const auto context = app_->GetContext();
+            const auto srv_mgr = context->GetServiceManager();
             const auto current_pid = px::ProcessHelper::GetCurrentProcessId();
-            std::thread([srv_mgr, uninstall_service, current_pid]() {
-                // 再等一会,确保 service 侧已杀 render + persist clear
-                std::this_thread::sleep_for(std::chrono::milliseconds(800));
-
-                if (srv_mgr) {
-                    // stop(+optional uninstall) service, then kill leftovers including panel.
-                    // 比单纯 Stop()+本进程 Terminate 更可靠:ServiceManager 有权限清托管进程。
-                    LOGI("ShutdownDetached uninstall={}, panel_pid={}", uninstall_service, current_pid);
-                    srv_mgr->ShutdownDetached(uninstall_service, current_pid);
-                    // 兜底:若 ServiceManager 未能提权/启动失败,本进程再杀一轮
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1500));
-                }
-
-                px::ProcessHelper::CloseProcessesByName(px::kPxRenderExeName);
-                px::ProcessHelper::CloseProcessesByName(px::kPxFunctionExeName);
-                px::ProcessHelper::CloseProcessesByName(px::kPxOsInfoExeName);
-                LOGI("Force close current px_panel process, pid={}", current_pid);
-                px::ProcessHelper::CloseProcess(current_pid);
-            }).detach();
+            const QPointer<PxWorkspace> guarded_workspace(this);
+            shutdown_sequence_ = PanelShutdownSequence::Make(
+                [context](PanelShutdownSequence::Task task, int delay_ms) {
+                    context->PostUIDelayTask(std::move(task), delay_ms);
+                },
+                [context](PanelShutdownSequence::Task task, int delay_ms) {
+                    context->PostDelayTask(std::move(task), delay_ms);
+                },
+                PanelShutdownSequence::Hooks{
+                .prepare = [app, guarded_workspace]() {
+                    app->PrepareForShutdown();
+                    if (guarded_workspace) {
+                        guarded_workspace->hide();
+                        guarded_workspace->setEnabled(false);
+                    }
+                },
+                .launch_service_helper = [srv_mgr, uninstall_service, current_pid]() {
+                    if (!srv_mgr) {
+                        return false;
+                    }
+                    LOGI("ShutdownDetached uninstall={}, panel_pid={}",
+                         uninstall_service, current_pid);
+                    return srv_mgr->ShutdownDetached(uninstall_service, current_pid);
+                },
+                .fallback_cleanup = [current_pid]() {
+                    px::ProcessHelper::CloseProcessesByName(px::kPxRenderExeName);
+                    px::ProcessHelper::CloseProcessesByName(px::kPxFunctionExeName);
+                    px::ProcessHelper::CloseProcessesByName(px::kPxOsInfoExeName);
+                    LOGI("Force close current px_panel process, pid={}", current_pid);
+                    px::ProcessHelper::CloseProcess(current_pid);
+                },
+            });
+            shutdown_sequence_->Start();
         }
     }
 

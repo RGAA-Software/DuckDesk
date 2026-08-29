@@ -138,7 +138,7 @@ namespace px
         }
     }
 
-    void ServiceManager::ShutdownDetached(bool uninstall_service, uint32_t current_pid) {
+    bool ServiceManager::ShutdownDetached(bool uninstall_service, uint32_t current_pid) {
         std::vector<std::string> args = {
             "shutdown",
             "--current-pid",
@@ -147,9 +147,11 @@ namespace px
         if (uninstall_service) {
             args.insert(args.begin() + 1, "--uninstall-service");
         }
-        if (!RunServiceManagerDetached(args)) {
+        const bool launched = RunServiceManagerDetached(args);
+        if (!launched) {
             LOGE("ShutdownDetached service by rust manager failed.");
         }
+        return launched;
     }
 
     ServiceStatus ServiceManager::QueryStatus() {

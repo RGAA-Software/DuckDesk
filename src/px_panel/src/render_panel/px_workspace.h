@@ -47,6 +47,7 @@ namespace px
     class RoundImageDisplay;
     class UpgradeHelperWidget;
     class VoiceCallConsentDialog;
+    class PanelShutdownSequence;
     class MsgPanelVoiceCallConsentRequest;
     class MsgPanelVoiceCallConsentCancel;
     struct VoiceCallConsentInfo;
@@ -119,6 +120,7 @@ namespace px
         // jump to github
         QWidget* jump_to_github_widget_ = nullptr;
         QPointer<VoiceCallConsentDialog> voice_call_consent_dialog_;
+        std::shared_ptr<PanelShutdownSequence> shutdown_sequence_;
     };
 
     extern std::shared_ptr<PxWorkspace> grWorkspace;

@@ -85,3 +85,10 @@ add_executable(test_stream_launch_auth_workflow
 target_link_libraries(test_stream_launch_auth_workflow PRIVATE
         GTest::gtest GTest::gtest_main px_console_client px_common_new)
 add_test(NAME panel_stream_launch_auth_workflow COMMAND test_stream_launch_auth_workflow)
+
+add_executable(test_panel_shutdown_sequence
+        test_panel_shutdown_sequence.cpp
+        ../render_panel/panel_shutdown_sequence.cpp)
+target_link_libraries(test_panel_shutdown_sequence PRIVATE
+        GTest::gtest GTest::gtest_main px_common_new)
+add_test(NAME panel_shutdown_sequence COMMAND test_panel_shutdown_sequence)

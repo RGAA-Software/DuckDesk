@@ -29,7 +29,7 @@ namespace px
         void StopDetached();
         void Remove(bool uninstall_service);
         void RemoveDetached(bool uninstall_service);
-        void ShutdownDetached(bool uninstall_service, uint32_t current_pid);
+        [[nodiscard]] bool ShutdownDetached(bool uninstall_service, uint32_t current_pid);
         std::optional<std::string> GetServiceExecutablePath();
         ServiceStatus QueryStatus();
 

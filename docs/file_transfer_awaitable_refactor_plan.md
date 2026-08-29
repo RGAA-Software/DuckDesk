@@ -1729,3 +1729,43 @@ Render 的 Relay 插件原先在 `OnCreate` 中启动永久 detached 线程，�
 
 `cap_was_audio.dll` 的 build tree 与 `build_official\dist` SHA-256 一致：
 `6B0F400DDA9FC3AF9E6D7BB6D4DC181EC28832792CC158AC9F50EB5A6800F20C`。
+
+### 12.30 Phase 7 Client/Panel 延迟任务与退出链路收敛
+
+客户端切换显示器后的二次桌面刷新原先占用 context worker `sleep_for(200ms)`；
+`BaseWorkspace::Exit` 在同步清理前启动一条 500 ms detached 强杀线程，但清理后又会
+立即执行同一强杀，因此前者不提供额外完成保证，反而是不可回收的重复退出路径。
+
+Panel 的“退出所有程序/卸载”路径更复杂：Qt UI 线程先 sleep 500 ms，再启动
+detached 线程依次 sleep 800 ms、启动 service helper、sleep 1500 ms 并强制清理进程。
+这会卡住 UI，而且 Panel 自身无法验证 detached 阶段的顺序、失败兜底和对象失效。
+
+本批完成以下收敛：
+
+- `ClientContext` 新增 `PostDelayTask`，由 Qt 可取消 timer 计时后投递回 client task
+  lane；切屏的 200 ms 刷新不再占用 worker sleep，且 Context Exit 后自动失效；
+- 删除 `BaseWorkspace::Exit` 中重复的 detached 强杀 worker，保留原有“完成插件/连接/
+  Context 清理后立即结束当前客户端”语义；
+- 新增 `PanelShutdownSequence`，将 500/800/1500 ms 三阶段改为 UI/worker scheduler
+  上的明确状态链；回调仅通过 `weak_ptr`、`shared_ptr` 和 `QPointer` 边界访问状态；
+- `ServiceManager::ShutdownDetached` 返回 helper 是否成功启动；启动成功时保留 1.5s
+  兜底窗口，启动失败时立即进入本地清理；
+- 新增 `build_cpp_panel_shutdown_tests.bat`，只编译 Panel 关闭测试和 `px_panel`，
+  不运行发版整编。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| Panel 关闭状态链 | 4 tests 连续 10 轮，40/40 PASS |
+| 顺序/时序 | prepare 500 ms → helper 800 ms → 成功后 fallback 1500 ms；重复 Start 幂等 |
+| 故障覆盖 | helper 启动失败的 0 ms 兜底、排队时 owner 销毁、prepare/helper 抛异常后继续兜底，全部 PASS |
+| focused build | `px_client`、客户端三个运行时插件、`px_rtc_client`、`px_panel`、`test_panel_shutdown_sequence` PASS；未运行 `build_official.bat` |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；本批无新增裸指针、`[this]`、detached thread 或阻塞 sleep |
+| dist smoke | 最终 Client/Panel 已发布到 dist 并启动 Panel；`px_service` Running，dist Render 存活，Relay 媒体/文件两条 30502 连接 Established |
+
+最终 build tree 与 `build_official\dist` SHA-256 一致：
+
+- `px_client.exe`：`E037898363A7A08DF76C0C6D8F24822C321017507ACB8C90F205953DC5FBDBE2`；
+- `clipboard.dll`：`D392EDC069ACA24237B670806D357E1125FF20CB5AABA813C69E34FAE5CE43D9`；
+- `px_panel.exe`：`C22C36251C51EE56EAD7DCF892FE286B306177AEE12E115C2E1D2643AFB1FDD8`。

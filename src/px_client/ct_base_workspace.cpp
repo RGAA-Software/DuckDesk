@@ -308,12 +308,11 @@ namespace px
             }
             self->SendSwitchMonitorMessage(msg.name_);
             self->SendUpdateDesktopMessage();
-            self->context_->PostTask([weak_self]() {
-                std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            self->context_->PostDelayTask([weak_self]() {
                 if (const auto task_self = weak_self.lock()) {
                     task_self->SendUpdateDesktopMessage();
                 }
-            });
+            }, 200);
         });
 
         msg_listener_->Listen<MsgClientSwitchWorkMode>([](const MsgClientSwitchWorkMode&) {
@@ -1799,11 +1798,6 @@ namespace px
     }
 
     void BaseWorkspace::Exit() {
-        std::thread t([]() {
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-            ProcessUtil::KillProcess(QApplication::applicationPid());
-        });
-        t.detach();
         if (media_record_plugin_) {
             media_record_plugin_->EndRecord();
         }
