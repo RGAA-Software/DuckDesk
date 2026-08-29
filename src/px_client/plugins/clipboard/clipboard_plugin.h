@@ -14,6 +14,7 @@ namespace px
 {
 
     class ClipboardManager;
+    class ClipboardRuntimeBridge;
 
     class ClientClipboardPlugin : public ClientPluginInterface {
     public:
@@ -22,23 +23,19 @@ namespace px
         std::string GetVersionName() override;
         uint32_t GetVersionCode() override;
         bool OnCreate(const px::ClientPluginParam& param) override;
+        bool OnStop() override;
         bool OnDestroy() override;
         void On1Second() override;
         void OnMessage(std::shared_ptr<Message> msg) override;
         void DispatchAppEvent(const std::shared_ptr<ClientAppBaseEvent> &event) override;
+        void SyncClientPluginSettings(const ClientPluginSettings& settings) override;
 
         void OnLocalClipboardUpdated();
         bool IsClipboardEnabled();
-        std::shared_ptr<std::atomic_bool> GetLifetimeToken() const { return lifetime_token_; }
-
-    private:
-        void OnRequestFileBegin(const std::shared_ptr<Message>& msg);
-        void OnRequestFileBuffer(const std::shared_ptr<Message>& msg);
-        void OnRequestFileEnd(const std::shared_ptr<Message>& msg);
 
     private:
         std::shared_ptr<ClipboardManager> clipboard_mgr_ = nullptr;
-        std::shared_ptr<std::atomic_bool> lifetime_token_ = std::make_shared<std::atomic_bool>(true);
+        std::shared_ptr<ClipboardRuntimeBridge> runtime_bridge_;
     };
 
 }

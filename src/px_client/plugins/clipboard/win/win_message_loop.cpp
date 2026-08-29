@@ -2,6 +2,7 @@
 #include <iostream>
 #include <wtsapi32.h>
 #include <ole2.h>
+#include <utility>
 #include "px_common_new/log.h"
 #include "win_message_window.h"
 
@@ -17,21 +18,26 @@ namespace px
         }
     }
 
-    std::shared_ptr<WinMessageLoop> WinMessageLoop::Make(ClientClipboardPlugin* plugin) {
-        return std::make_shared<WinMessageLoop>(plugin);
+    std::shared_ptr<WinMessageLoop> WinMessageLoop::Make(
+        ClipboardUpdatedCallback clipboard_updated_callback) {
+        return std::make_shared<WinMessageLoop>(
+            std::move(clipboard_updated_callback));
     }
 
-    WinMessageLoop::WinMessageLoop(ClientClipboardPlugin* plugin) {
-        plugin_ = plugin;
+    WinMessageLoop::WinMessageLoop(
+        ClipboardUpdatedCallback clipboard_updated_callback)
+        : clipboard_updated_callback_(
+              std::move(clipboard_updated_callback)) {
     }
 
     WinMessageLoop::~WinMessageLoop() {
-
+        Stop();
     }
 
     void WinMessageLoop::CreateMessageWindow() {
         //构造函数内 不能使用shared_from_this();
-        message_window_ = WinMessageWindow::Make(plugin_, shared_from_this());
+        message_window_ =
+            WinMessageWindow::Make(clipboard_updated_callback_);
     }
 
     void WinMessageLoop::OnWinSessionChange(uint32_t message) {
@@ -42,42 +48,69 @@ namespace px
 
     }
 
-    void WinMessageLoop::Start() {
+    bool WinMessageLoop::Start() {
+        if (thread_.joinable()) {
+            return true;
+        }
         CreateMessageWindow();
-        thread_ = std::thread(std::bind(&WinMessageLoop::ThreadFunc, this));
+        const auto message_window = message_window_;
+        const auto startup_signal = std::make_shared<std::promise<bool>>();
+        auto startup_result = startup_signal->get_future();
+        thread_ = std::jthread([message_window, startup_signal]() {
+            ThreadFunc(message_window, startup_signal);
+        });
+        const bool started = startup_result.get();
+        if (!started && thread_.joinable()) {
+            thread_.join();
+            message_window_.reset();
+        }
+        return started;
     }
 
     void WinMessageLoop::Stop() {
         LOGI("WinMessageLoop stopping...");
-        message_window_->CloseWindow();
+        if (message_window_) {
+            message_window_->CloseWindow();
+        }
         if (thread_.joinable()) {
             thread_.join();
         }
+        message_window_.reset();
         LOGI("WinMessageLoop stoped.");
     }
 
-    void WinMessageLoop::ThreadFunc() {
+    void WinMessageLoop::ThreadFunc(
+        const std::shared_ptr<WinMessageWindow>& message_window,
+        const std::shared_ptr<std::promise<bool>>& startup_signal) {
         // Make this thread an STA so OleSetClipboard'ed data objects can be
         // marshaled cross-process (Explorer queries them on paste). Must run the
         // message pump below to dispatch those incoming COM calls.
         OleInitialize(nullptr);
 
-        if (!message_window_->Create(kWindowName)) {
+        if (!message_window || !message_window->Create(kWindowName)) {
             LOGE("WinMessageLoop create window error.");
+            startup_signal->set_value(false);
+            OleUninitialize();
             return;
         }
         LOGI("WinMessageWindow create success");
         HWND hwnd = nullptr;
-        hwnd = message_window_->GetHwnd();
+        hwnd = message_window->GetHwnd();
         if (!hwnd) {
             LOGE("WinMessageLoop hwnd is nullptr.");
+            startup_signal->set_value(false);
+            OleUninitialize();
             return;
         }
 
         if (!AddClipboardFormatListener(hwnd)) {
             LOGE("AddClipboardFormatListener failed, error: {}", GetLastError());
+            DestroyWindow(hwnd);
+            startup_signal->set_value(false);
+            OleUninitialize();
             return;
         }
+        startup_signal->set_value(true);
         LOGI("AddClipboardFormatListener ok, hwnd={}", reinterpret_cast<void*>(hwnd));
 
         /* 

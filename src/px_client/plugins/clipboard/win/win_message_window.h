@@ -8,15 +8,16 @@
 namespace px
 {
 
-    class WinMessageLoop;
-    class ClientClipboardPlugin;
-
     using MessageCallback = std::function<bool(UINT message, WPARAM wparam, LPARAM lparam, LRESULT& result)>;
 
     class WinMessageWindow {
     public:
-        static std::shared_ptr<WinMessageWindow> Make(ClientClipboardPlugin* plugin, std::shared_ptr<WinMessageLoop> message_loop);
-        explicit WinMessageWindow(ClientClipboardPlugin* plugin, std::shared_ptr<WinMessageLoop> message_loop);
+        using ClipboardUpdatedCallback = std::function<void()>;
+
+        static std::shared_ptr<WinMessageWindow> Make(
+            ClipboardUpdatedCallback clipboard_updated_callback);
+        explicit WinMessageWindow(
+            ClipboardUpdatedCallback clipboard_updated_callback);
         ~WinMessageWindow();
         bool Create(const std::string& window_name);
         HWND GetHwnd() const;
@@ -29,6 +30,7 @@ namespace px
 
     private:
         static bool registerWindowClass(HINSTANCE instance);
+        static void UnregisterWindowClass();
         static LRESULT CALLBACK windowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam);
 
         /*剪切板更新*/
@@ -40,12 +42,10 @@ namespace px
         void RunPostedTask();
 
     private:
-        ClientClipboardPlugin* plugin_ = nullptr;
+        ClipboardUpdatedCallback clipboard_updated_callback_;
         MessageCallback message_callback_;
         HWND mHwnd = nullptr;
         std::string window_name_;
-
-        std::weak_ptr<WinMessageLoop> message_loop_;
 
         std::mutex task_mutex_;
         std::function<void()> pending_task_;
@@ -54,5 +54,6 @@ namespace px
         static std::atomic<int> current_create_window_count_;
         static std::string class_name_;
         static std::atomic<bool> class_registered_;
+        std::atomic_bool close_requested_ = false;
     };
 }

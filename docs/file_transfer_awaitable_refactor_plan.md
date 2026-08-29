@@ -2096,3 +2096,47 @@ Qt 审计信号也通过 `[this]` lambda 回到插件。这使正确性依赖 St
 
 - `px_client.exe`: `598151B50D65A7C4C6C096F19351990D8D22625E5D905AF3F99097075C6F9E11`
 - `ft.dll`: `7A5B8E1B91B61DE68C28FAF946E9C06ABBFCFB0A21969E8C3F5A47B5418B713C`
+
+### 12.40 Phase 7 Client clipboard 插件 Runtime、消息泵与 COM 生命周期收敛
+
+Client `clipboard` 插件原先把 loader-owned 插件地址传入 `ClipboardManager`、
+`WinMessageLoop`、`WinMessageWindow` 和 `CpVirtualFile`；Context worker、Windows 消息回调、
+虚拟文件流请求又反向调用插件。`OnStop` 没有停止消息线程，COM data object 以两个未释放
+的裸成员保存，DLL 卸载安全完全依赖外部调用顺序。真实反复加载还暴露了窗口类没有注销、
+类名拼接未生效以及第二轮开始无法真正创建消息窗口的问题。
+
+本批完成：
+
+- 新增共享 `ClipboardRuntimeBridge`，集中保存线程安全的连接配置快照、失效 token、
+  网络/文件事件派发和远端文件分块响应；所有 worker 只捕获 bridge/manager 的
+  `shared_ptr` 或 `weak_ptr`，不再捕获插件实例；
+- Client 公共插件层新增 `MakeQueuedEventDispatcher()`，返回值只持 Context 和 event
+  channel 的弱引用；停止或销毁后，已排队事件不能越过 channel 门禁；
+- Windows clipboard 消息线程改为 `jthread`，只持共享 message window；Start 使用
+  promise/future 等待窗口和 clipboard listener 真实就绪，Stop 幂等关闭并 join；
+- message window 改为值语义 callback，不再持插件或 message-loop 反向引用；窗口类名
+  带进程 ID，最后一个窗口退出后同步注销，保证 DLL 反复卸载/加载仍能真正创建窗口；
+- `CpVirtualFile` 只依赖 runtime bridge；COM factory 返回 WRL `ComPtr`，Manager 删除
+  `CpVirtualFile*`/`IDataObject*` 长期成员；Stop 先收敛消息队列，再释放 OLE clipboard
+  ownership 和 `ComPtr`；
+- clipboard 插件补充 `OnStop`，同步停止消息泵和清理 COM clipboard，再进入公共事件
+  channel 停止屏障；OnDestroy 先使 bridge 失效，再销毁 Manager/Context；
+- 新增真实 `clipboard.dll` lifecycle 测试，每轮创建 128 个停止前后交错的异步消息，
+  覆盖 LoadLibrary、真实窗口启动、Stop、Destroy、FreeLibrary 和模块句柄归零。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| clipboard DLL | 真实消息窗口 create/listen/stop/destroy/unregister 与 DLL unload 10/10 PASS；停止后的 64 个事件无回调逃逸 |
+| Client 插件组 | 公共 event、record、FT、clipboard 四组 lifecycle 全部 PASS；record/FT/clipboard 各自执行真实 10 轮 DLL 生命周期 |
+| clipboard common | echo 9/9、file builder 8/8、Windows platform 14/14 PASS，包含真实 Unicode/多行文本、文件 drop 和 Clear |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；新代码无项目裸指针、manual ownership 或 `[this]`，仅保留明确标注的 Win32/COM/插件 ABI 瞬时边界 |
+| focused build | 仅使用 `build_cpp_*.bat` 定向编译 Client、RTC 和三个 Client 插件；未运行 `build_official.bat` |
+| dist | Client EXE、RTC DLL、clipboard/FT/record 插件和语言资源已同步，发布脚本逐文件 SHA-256 一致 |
+
+本批主要 build/dist SHA-256：
+
+- `px_client.exe`: `0BE53D959AFDD46C7F8955DFC602BB398ACC148174173F98C1E9BC27AB312D68`
+- `px_client_rtc.dll`: `D3B497D805C1A059403BF87E0BA73E39BFB9DDFCBF08883BF8FE8CCEC94E5C8E`
+- `clipboard.dll`: `11F95B4851B5B08293D3FD2B78B20DE3ECE61307E39266F2B100C73180C73CFF`

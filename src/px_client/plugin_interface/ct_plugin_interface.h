@@ -172,6 +172,7 @@ namespace px
         // Safe for project-owned async runtimes: the returned function retains
         // only the independent event channel, never the loader-owned plug-in.
         ClientPluginEventCallback MakeDirectEventDispatcher() const;
+        ClientPluginEventCallback MakeQueuedEventDispatcher() const;
 
     protected:
         std::shared_ptr<ClientPluginContext> plugin_context_ = nullptr;

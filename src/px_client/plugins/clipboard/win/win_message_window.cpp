@@ -1,11 +1,10 @@
 #include "win_message_window.h"
 #include <iostream>
 #include <atomic>
+#include <utility>
 #include "px_common_new/log.h"
-#include "win_message_loop.h"
 #include "px_client/ct_client_context.h"
 #include "px_client/ct_app_message.h"
-#include "px_client/plugins/clipboard/clipboard_plugin.h"
 
 namespace px
 {
@@ -17,17 +16,21 @@ namespace px
     std::atomic<bool> WinMessageWindow::class_registered_ = false;
     std::mutex WinMessageWindow::register_mutex_;
 
-    std::shared_ptr<WinMessageWindow> WinMessageWindow::Make(ClientClipboardPlugin* plugin, std::shared_ptr<WinMessageLoop> message_loop) {
-        return std::make_shared<WinMessageWindow>(plugin, message_loop);
+    std::shared_ptr<WinMessageWindow> WinMessageWindow::Make(
+        ClipboardUpdatedCallback clipboard_updated_callback) {
+        return std::make_shared<WinMessageWindow>(
+            std::move(clipboard_updated_callback));
     }
 
-    WinMessageWindow::WinMessageWindow(ClientClipboardPlugin* plugin, std::shared_ptr<WinMessageLoop> message_loop) {
-        plugin_ = plugin;
-        message_loop_ = message_loop;
+    WinMessageWindow::WinMessageWindow(
+        ClipboardUpdatedCallback clipboard_updated_callback)
+        : clipboard_updated_callback_(
+              std::move(clipboard_updated_callback)) {
     }
 
     WinMessageWindow::~WinMessageWindow() {
         CloseWindow();
+        UnregisterWindowClass();
     }
 
     // static
@@ -63,6 +66,10 @@ namespace px
         case WM_DESTROY: {
             SetLastError(ERROR_SUCCESS);
             LONG_PTR result = SetWindowLongPtrA(window, GWLP_USERDATA, 0);
+            if (self) {
+                self->mHwnd = nullptr;
+                --current_create_window_count_;
+            }
             PostQuitMessage(0);
             break;
         }
@@ -169,8 +176,8 @@ namespace px
         static std::once_flag flag;
         std::call_once(flag, []() {
             DWORD pid = GetCurrentProcessId();
-            class_name_ = kWindowClassName;
-            class_name_ + "_" + std::to_string(pid);
+            class_name_ = std::string(kWindowClassName) + "_" +
+                std::to_string(pid);
         });
         window_class.lpszClassName = class_name_.c_str();
         window_class.hInstance = instance;
@@ -184,6 +191,23 @@ namespace px
 
         class_registered_ = true;
         return true;
+    }
+
+    void WinMessageWindow::UnregisterWindowClass() {
+        std::lock_guard lock(register_mutex_);
+        if (!class_registered_ || current_create_window_count_ != 0) {
+            return;
+        }
+        HINSTANCE instance = nullptr;  // NOLINT(gammaray-raw-pointer-boundary): transient Win32 module handle
+        if (!GetModuleHandleExA(
+                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                    GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                reinterpret_cast<char*>(&windowProc), &instance)) {
+            return;
+        }
+        if (UnregisterClassA(class_name_.c_str(), instance)) {
+            class_registered_ = false;
+        }
     }
 
 
@@ -204,7 +228,7 @@ namespace px
             return false;
 
         HWND pHwnd = CreateWindowA(
-                kWindowClassName,
+                class_name_.c_str(),
                 window_name_.c_str(),
                 0, 0, 0, 0, 0,
                 nullptr,
@@ -227,10 +251,9 @@ namespace px
     }
 
     void WinMessageWindow::CloseWindow() {
-        if (mHwnd) {
+        if (mHwnd && !close_requested_.exchange(true)) {
             PostMessage(mHwnd, WM_CLOSE, 0, 0);
         }
-        --current_create_window_count_;
     }
 
     void WinMessageWindow::PostTask(std::function<void()> task) {
@@ -255,15 +278,12 @@ namespace px
     }
 
     void WinMessageWindow::OnLocalClipboardUpdated(HWND hwnd) {
-        plugin_->OnLocalClipboardUpdated();
+        if (clipboard_updated_callback_) {
+            clipboard_updated_callback_();
+        }
     }
 
     void WinMessageWindow::OnDisplayChange() {
-        auto message_loop = message_loop_.lock();
-        if (!message_loop) {
-            return;
-        }
-        message_loop->OnDisplayDeviceChange();
     }
 
 }

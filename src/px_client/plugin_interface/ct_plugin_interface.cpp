@@ -283,6 +283,28 @@ namespace px
         };
     }
 
+    ClientPluginEventCallback ClientPluginInterface::MakeQueuedEventDispatcher() const {
+        const auto weak_context =
+            std::weak_ptr<ClientPluginContext>(plugin_context_);
+        const auto weak_channel =
+            std::weak_ptr<ClientPluginEventChannel>(event_channel_);
+        return [weak_context, weak_channel](
+            const std::shared_ptr<ClientPluginBaseEvent>& event) {
+            if (!event) {
+                return;
+            }
+            const auto context = weak_context.lock();
+            if (!context) {
+                return;
+            }
+            context->PostWorkTask([weak_channel, event]() {
+                if (const auto channel = weak_channel.lock()) {
+                    channel->Deliver(event);
+                }
+            });
+        };
+    }
+
     void ClientPluginInterface::On1Second() {
 
     }

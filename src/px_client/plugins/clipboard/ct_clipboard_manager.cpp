@@ -9,37 +9,52 @@
 #include "px_message.pb.h"
 #include "win/win_message_loop.h"
 #include "win/cp_virtual_file.h"
-#include "clipboard_plugin.h"
-#include "px_client/plugin_interface/ct_plugin_context.h"
+#include "clipboard_runtime_bridge.h"
 #include "px_client/plugin_interface/ct_plugin_events.h"
 
 namespace px
 {
 
-    ClipboardManager::ClipboardManager(ClientClipboardPlugin* plugin) : QObject(nullptr) {
-        plugin_ = plugin;
-        context_ = plugin->GetPluginContext();
+    ClipboardManager::ClipboardManager(
+        std::shared_ptr<ClipboardRuntimeBridge> runtime_bridge)
+        : QObject(nullptr), runtime_bridge_(std::move(runtime_bridge)) {
         clipboard_platform_ = clipboard::CreatePlatform();
     }
 
-    void ClipboardManager::Start() {
-        msg_loop_ = WinMessageLoop::Make(plugin_);
-        msg_loop_->Start();
+    bool ClipboardManager::Start() {
+        if (msg_loop_) {
+            return true;
+        }
+        const auto weak_self = weak_from_this();
+        msg_loop_ = WinMessageLoop::Make([weak_self]() {
+            if (const auto self = weak_self.lock()) {
+                self->OnLocalClipboardUpdated();
+            }
+        });
+        if (!msg_loop_->Start()) {
+            msg_loop_.reset();
+            return false;
+        }
+        return true;
     }
 
     void ClipboardManager::Stop() {
+        if (msg_loop_) {
+            msg_loop_->Stop();
+            msg_loop_.reset();
+        }
         if (clipboard_platform_) {
             clipboard_platform_->Clear();
         }
-        if (msg_loop_) {
-            msg_loop_->Stop();
-        }
+        virtual_file_.Reset();
     }
 
     void ClipboardManager::OnLocalClipboardUpdated() {
-        if (!plugin_->IsClipboardEnabled() || !clipboard_platform_) {
+        if (!runtime_bridge_ || !runtime_bridge_->IsEnabled() ||
+            !clipboard_platform_) {
             LOGI("OnLocalClipboardUpdated skipped: enabled={}, platform={}",
-                 plugin_->IsClipboardEnabled(), clipboard_platform_ != nullptr);
+                 runtime_bridge_ && runtime_bridge_->IsEnabled(),
+                 clipboard_platform_ != nullptr);
             return;
         }
         if (echo_filter_.IsOutboundSuppressed()) {
@@ -64,7 +79,7 @@ namespace px
                 cf.set_total_size(file.total_size_);
                 event->cp_files_.push_back(cf);
             }
-            plugin_->CallbackEvent(event);
+            runtime_bridge_->Dispatch(event);
             return;
         }
 
@@ -77,7 +92,7 @@ namespace px
             auto event = std::make_shared<ClientPluginClipboardEvent>();
             event->type_ = ClipboardType::kClipboardText;
             event->text_msg_ = content.text_;
-            plugin_->CallbackEvent(event);
+            runtime_bridge_->Dispatch(event);
             return;
         }
 
@@ -85,7 +100,8 @@ namespace px
     }
 
     void ClipboardManager::OnRemoteClipboardMessage(std::shared_ptr<px::Message> msg) {
-        if (!plugin_->IsClipboardEnabled() || !clipboard_platform_) {
+        if (!runtime_bridge_ || !runtime_bridge_->IsEnabled() ||
+            !clipboard_platform_) {
             return;
         }
 
@@ -112,7 +128,7 @@ namespace px
             auto event = std::make_shared<ClientPluginRemoteClipboardResp>();
             event->content_type_ = 0;
             event->remote_info_ = in_text;
-            plugin_->CallbackEvent(event);
+            runtime_bridge_->Dispatch(event);
         }
         else if (info.type() == ClipboardType::kClipboardFiles) {
             const auto &files = info.files();
@@ -142,9 +158,9 @@ namespace px
 
                 if (!self->virtual_file_) {
                     self->virtual_file_ = px::CreateVirtualFile(
-                        IID_IDataObject, (void **) &self->data_object_, self->plugin_);
+                        self->runtime_bridge_);
                 }
-                if (!self->data_object_) {
+                if (!self->virtual_file_) {
                     LOGE("DataObject is null!");
                     return;
                 }
@@ -166,7 +182,7 @@ namespace px
 
                 bool set_clipboard = false;
                 for (int i = 0; i < 20; i++) {
-                    auto hr = ::OleSetClipboard(self->data_object_);
+                    auto hr = ::OleSetClipboard(self->virtual_file_.Get());
                     if (hr == S_OK) {
                         set_clipboard = true;
                         break;
@@ -184,7 +200,7 @@ namespace px
     }
 
     void ClipboardManager::OnRemoteClipboardRespMessage(std::shared_ptr<px::Message> msg) {
-        if (!plugin_->IsClipboardEnabled()) {
+        if (!runtime_bridge_ || !runtime_bridge_->IsEnabled()) {
             return;
         }
         if (msg->type() != MessageType::kClipboardInfoResp) {

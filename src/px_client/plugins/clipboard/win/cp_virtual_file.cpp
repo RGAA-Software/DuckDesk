@@ -17,46 +17,41 @@
 #include "ct_base_workspace.h"
 #include "px_client/plugin_interface/ct_plugin_events.h"
 #include "px_message_new/proto_converter.h"
-#include "px_client/plugins/clipboard/clipboard_plugin.h"
+#include "px_client/plugins/clipboard/clipboard_runtime_bridge.h"
 
 #pragma comment(lib, "Wininet.lib")
 
 namespace px
 {
 
-    CpVirtualFile::CpVirtualFile(ClientClipboardPlugin* plugin) {
-        plugin_ = plugin;
-        plugin_lifetime_token_ = plugin ? plugin->GetLifetimeToken() : nullptr;
-        if (plugin) {
-            event_cbk_ = [plugin, token = plugin_lifetime_token_](const std::shared_ptr<ClientPluginBaseEvent>& event) {
-                if (!plugin || !token || !token->load()) {
+    CpVirtualFile::CpVirtualFile(
+        std::shared_ptr<ClipboardRuntimeBridge> runtime_bridge) {
+        runtime_bridge_ = runtime_bridge;
+        plugin_lifetime_token_ = runtime_bridge
+            ? runtime_bridge->LifetimeToken()
+            : nullptr;
+        if (runtime_bridge) {
+            const auto weak_bridge =
+                std::weak_ptr<ClipboardRuntimeBridge>(runtime_bridge);
+            event_cbk_ = [weak_bridge, token = plugin_lifetime_token_](
+                const std::shared_ptr<ClientPluginBaseEvent>& event) {
+                const auto bridge = weak_bridge.lock();
+                if (!bridge || !token || !token->load()) {
                     return;
                 }
-                plugin->CallbackEvent(event);
+                bridge->Dispatch(event);
             };
-            request_buffer_cbk_ = [plugin, token = plugin_lifetime_token_](const ClipboardFileWrapper& file_wrapper,
-                                                                            int64_t req_index,
-                                                                            int64_t req_start,
-                                                                            ULONG req_size) -> bool {
-                if (!plugin || !token || !token->load()) {
+            request_buffer_cbk_ =
+                [weak_bridge, token = plugin_lifetime_token_](
+                    const ClipboardFileWrapper& file_wrapper,
+                    int64_t req_index, int64_t req_start,
+                    ULONG req_size) -> bool {
+                const auto bridge = weak_bridge.lock();
+                if (!bridge || !token || !token->load()) {
                     return false;
                 }
-                auto settings = plugin->GetPluginSettings();
-                px::Message msg;
-                msg.set_device_id(settings.device_id_);
-                msg.set_stream_id(settings.stream_id_);
-                msg.set_type(MessageType::kClipboardReqBuffer);
-                auto req_buffer = msg.mutable_cp_req_buffer();
-                req_buffer->set_req_index(req_index);
-                req_buffer->set_req_size(req_size);
-                req_buffer->set_req_start(req_start);
-                req_buffer->set_full_name(file_wrapper.file_.full_path());
-
-                auto event = std::make_shared<ClientPluginNetworkEvent>();
-                event->media_channel_ = false;
-                event->buf_ = px::ProtoAsData(&msg);
-                plugin->CallbackEvent(event);
-                return true;
+                return bridge->RequestBuffer(
+                    file_wrapper, req_index, req_start, req_size);
             };
         }
     }
@@ -331,7 +326,7 @@ namespace px
             return;
         }
 
-        const auto& settings = plugin_->GetPluginSettings();
+        const auto settings = runtime_bridge_->SettingsSnapshot();
 
 //        auto event = std::make_shared<PxPluginFileTransferBegin>();
 //        event->the_file_id_ = file_stream_->GetFileId();
@@ -372,7 +367,7 @@ namespace px
 //        event->success_ = true;
 //        plugin_->CallbackEvent(event);
 
-        const auto& settings = plugin_->GetPluginSettings();
+        const auto settings = runtime_bridge_->SettingsSnapshot();
 
         auto event = std::make_shared<ClientPluginFileTransferEndEvent>();
         event->task_id_ = stream->GetFileId();
@@ -447,14 +442,12 @@ namespace px
         return it->second;
     }
 
-    CpVirtualFile* CreateVirtualFile(REFIID riid, void **ppv, ClientClipboardPlugin* plugin) {
-        *ppv = nullptr;
-        auto p = new CpVirtualFile(plugin);
-        p->Init();
-        auto hr = p->QueryInterface(riid, ppv);
-        if (SUCCEEDED(hr)) {
-            p->Release();
-        }
-        return p;
+    Microsoft::WRL::ComPtr<CpVirtualFile> CreateVirtualFile(
+        std::shared_ptr<ClipboardRuntimeBridge> runtime_bridge) {
+        Microsoft::WRL::ComPtr<CpVirtualFile> virtual_file;
+        virtual_file.Attach(
+            new CpVirtualFile(std::move(runtime_bridge))); // NOLINT(gammaray-raw-pointer-boundary): COM object is immediately adopted by ComPtr
+        virtual_file->Init();
+        return virtual_file;
     }
 };

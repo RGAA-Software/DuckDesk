@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/clipboard_plugin.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/clipboard_runtime_bridge.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ct_clipboard_manager.cpp
 )
 

@@ -11,6 +11,7 @@
 #include <QString>
 #include <QFile>
 #include <QFileInfo>
+#include <wrl/client.h>
 #include "cp_data_object.h"
 #include "cp_file_struct.h"
 
@@ -18,12 +19,13 @@ namespace px
 {
 
     class CpFileStream;
-    class ClientClipboardPlugin;
+    class ClipboardRuntimeBridge;
     class ClientPluginBaseEvent;
 
     class CpVirtualFile : public CpDataObject, public IDataObjectAsyncCapability {
     public:
-        explicit CpVirtualFile(ClientClipboardPlugin* ws);
+        explicit CpVirtualFile(
+            std::shared_ptr<ClipboardRuntimeBridge> runtime_bridge);
         ~CpVirtualFile() override;
 
         void Init();
@@ -83,8 +85,8 @@ namespace px
         uint32_t clip_format_preferred_ = 0;
         uint32_t clip_format_hdrop_ = CF_HDROP;
         BOOL in_async_op_ = false;
-        ClientClipboardPlugin* plugin_ = nullptr;
         std::shared_ptr<std::atomic_bool> plugin_lifetime_token_ = nullptr;
+        std::shared_ptr<ClipboardRuntimeBridge> runtime_bridge_ = nullptr;
         std::shared_ptr<std::atomic_bool> stream_owner_alive_ = std::make_shared<std::atomic_bool>(true);
         EventCallback event_cbk_ = nullptr;
         std::function<bool(const ClipboardFileWrapper&, int64_t, int64_t, ULONG)> request_buffer_cbk_ = nullptr;
@@ -94,7 +96,7 @@ namespace px
         std::vector<ClipboardFileWrapper> task_files_;
     };
 
-    CpVirtualFile* CreateVirtualFile(REFIID riid, void **ppv, ClientClipboardPlugin* plugin);
+    Microsoft::WRL::ComPtr<CpVirtualFile> CreateVirtualFile(
+        std::shared_ptr<ClipboardRuntimeBridge> runtime_bridge);
 
 };
-

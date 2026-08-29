@@ -193,6 +193,16 @@ target_compile_definitions(test_client_ft_plugin_dll_lifecycle PRIVATE
     PX_CLIENT_FT_PLUGIN_DLL_PATH="$<TARGET_FILE:ft_client>")
 add_dependencies(test_client_ft_plugin_dll_lifecycle ft_client)
 
+add_executable(test_client_clipboard_plugin_dll_lifecycle
+    tests/test_client_clipboard_plugin_dll_lifecycle.cpp
+)
+target_link_libraries(test_client_clipboard_plugin_dll_lifecycle PRIVATE
+    px_client_plugin px_common_new px_message
+    Qt6::Core Qt6::Widgets GTest::gtest)
+target_compile_definitions(test_client_clipboard_plugin_dll_lifecycle PRIVATE
+    PX_CLIENT_CLIPBOARD_PLUGIN_DLL_PATH="$<TARGET_FILE:client_clipboard>")
+add_dependencies(test_client_clipboard_plugin_dll_lifecycle client_clipboard)
+
 if(BUILD_TESTING)
     add_executable(test_client_latest_frame_dispatch_queue
         tests/test_latest_frame_dispatch_queue.cpp
@@ -206,6 +216,7 @@ if(BUILD_TESTING)
     add_test(NAME client_plugin_event_lifecycle COMMAND test_client_plugin_event_lifecycle)
     add_test(NAME client_record_plugin_dll_lifecycle COMMAND test_client_record_plugin_dll_lifecycle)
     add_test(NAME client_ft_plugin_dll_lifecycle COMMAND test_client_ft_plugin_dll_lifecycle)
+    add_test(NAME client_clipboard_plugin_dll_lifecycle COMMAND test_client_clipboard_plugin_dll_lifecycle)
 endif()
 
 if (PX_PROTECTION_ENABLED)

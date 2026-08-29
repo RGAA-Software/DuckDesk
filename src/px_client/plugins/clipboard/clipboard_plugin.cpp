@@ -11,6 +11,7 @@
 #include "px_client/plugin_interface/ct_plugin_events.h"
 #include "px_client/plugin_interface/ct_app_events.h"
 #include "ct_clipboard_manager.h"
+#include "clipboard_runtime_bridge.h"
 #include "px_client/plugin_interface/ct_plugin_context.h"
 #include "px_common_new/md5.h"
 #include "px_message_new/proto_converter.h"
@@ -40,7 +41,6 @@ namespace px
     
     bool ClientClipboardPlugin::OnCreate(const px::ClientPluginParam& param) {
         ClientPluginInterface::OnCreate(param);
-        lifetime_token_->store(true);
         plugin_type_ = ClientPluginType::kUtil;
 
         if (!IsPluginEnabled()) {
@@ -48,19 +48,38 @@ namespace px
         }
         root_widget_->hide();
 
-        clipboard_mgr_ = std::make_shared<ClipboardManager>(this);
-        clipboard_mgr_->Start();
+        runtime_bridge_ = std::make_shared<ClipboardRuntimeBridge>(
+            plugin_settings_, MakeQueuedEventDispatcher());
+        clipboard_mgr_ = std::make_shared<ClipboardManager>(runtime_bridge_);
+        if (!clipboard_mgr_->Start()) {
+            clipboard_mgr_.reset();
+            runtime_bridge_->Deactivate();
+            runtime_bridge_.reset();
+            ClientPluginInterface::OnDestroy();
+            return false;
+        }
 
         return true;
     }
 
     bool ClientClipboardPlugin::OnDestroy() {
-        lifetime_token_->store(false);
+        if (runtime_bridge_) {
+            runtime_bridge_->Deactivate();
+        }
         if (clipboard_mgr_) {
             clipboard_mgr_->Stop();
             clipboard_mgr_.reset();
         }
+        runtime_bridge_.reset();
         return ClientPluginInterface::OnDestroy();
+    }
+
+    bool ClientClipboardPlugin::OnStop() {
+        const bool stopped = ClientPluginInterface::OnStop();
+        if (clipboard_mgr_) {
+            clipboard_mgr_->Stop();
+        }
+        return stopped;
     }
 
     void ClientClipboardPlugin::OnMessage(std::shared_ptr<Message> msg) {
@@ -78,29 +97,39 @@ namespace px
         else if (msg->type() == px::kClipboardReqAtBegin) {
             // begin; server -> client
             // copy files from client -> server
-            plugin_context_->PostWorkTask([=, this]() {
-                this->OnRequestFileBegin(msg);
+            const auto bridge = runtime_bridge_;
+            plugin_context_->PostWorkTask([bridge, msg]() {
+                if (bridge) {
+                    bridge->OnRequestFileBegin(msg);
+                }
             });
         }
         else if (msg->type() == px::kClipboardReqBuffer) {
             // transferring
             // server -> request a part of data in the file -> client -> response -> server
-            plugin_context_->PostWorkTask([=, this]() {
-                this->OnRequestFileBuffer(msg);
+            const auto bridge = runtime_bridge_;
+            plugin_context_->PostWorkTask([bridge, msg]() {
+                if (bridge) {
+                    bridge->OnRequestFileBuffer(msg);
+                }
             });
         }
         else if (msg->type() == px::kClipboardReqAtEnd) {
             // end; server -> client
             // copy files from client -> server
-            plugin_context_->PostWorkTask([=, this]() {
-                this->OnRequestFileEnd(msg);
+            const auto bridge = runtime_bridge_;
+            plugin_context_->PostWorkTask([bridge, msg]() {
+                if (bridge) {
+                    bridge->OnRequestFileEnd(msg);
+                }
             });
         }
         else if (msg->type() == MessageType::kClipboardRespBuffer) {
             // server -> response a part of data in the file -> client
-            plugin_context_->PostWorkTask([=, this]() {
-                if (clipboard_mgr_) {
-                    clipboard_mgr_->OnRemoteFileRespMessage(msg);
+            const auto manager = clipboard_mgr_;
+            plugin_context_->PostWorkTask([manager, msg]() {
+                if (manager) {
+                    manager->OnRemoteFileRespMessage(msg);
                 }
             });
         }
@@ -110,6 +139,14 @@ namespace px
         ClientPluginInterface::DispatchAppEvent(event);
     }
 
+    void ClientClipboardPlugin::SyncClientPluginSettings(
+        const ClientPluginSettings& settings) {
+        ClientPluginInterface::SyncClientPluginSettings(settings);
+        if (runtime_bridge_) {
+            runtime_bridge_->UpdateSettings(plugin_settings_);
+        }
+    }
+
     void ClientClipboardPlugin::OnLocalClipboardUpdated() {
         if (clipboard_mgr_) {
             clipboard_mgr_->OnLocalClipboardUpdated();
@@ -117,61 +154,7 @@ namespace px
     }
 
     bool ClientClipboardPlugin::IsClipboardEnabled() {
-        return plugin_settings_.clipboard_enabled_;
-    }
-
-    void ClientClipboardPlugin::OnRequestFileBegin(const std::shared_ptr<Message>& msg) {
-        auto sub = msg->cp_req_at_begin();
-        auto event = std::make_shared<ClientPluginFileTransferBeginEvent>();
-        event->task_id_ = MD5::Hex(sub.full_name());
-        event->file_path_ = sub.full_name();
-        event->direction_ = "Out";
-        CallbackEvent(event);
-    }
-
-    void ClientClipboardPlugin::OnRequestFileBuffer(const std::shared_ptr<Message>& in_msg) {
-        const auto& buffer = in_msg->cp_req_buffer();
-        auto req_index = buffer.req_index();
-        auto req_start = buffer.req_start();
-        auto req_size = buffer.req_size();
-        auto full_filename = buffer.full_name();
-
-        auto file = File::OpenForReadB(U8Path(full_filename));
-        DataPtr data = nullptr;
-        if (file->Exists()) {
-            uint64_t read_size = 0;
-            data = file->Read(req_start, req_size, read_size);
-        }
-
-        px::Message msg;
-        msg.set_device_id(plugin_settings_.device_id_);
-        msg.set_stream_id(plugin_settings_.stream_id_);
-        msg.set_type(MessageType::kClipboardRespBuffer);
-        auto sub = msg.mutable_cp_resp_buffer();
-        sub->set_full_name(full_filename);
-        sub->set_req_size(req_size);
-        sub->set_req_start(req_start);
-        sub->set_req_index(req_index);
-        if (data) {
-            sub->set_read_size(data->Size());
-            sub->set_buffer(data->AsString());
-        }
-        LOGI("[LAT-clip] OnRequestFileBuffer, full: {}, index: {}, start: {}, size: {}, read: {}, exists: {}",
-             full_filename, req_index, req_start, req_size, data ? data->Size() : 0, file->Exists());
-        auto event = std::make_shared<ClientPluginNetworkEvent>();
-        event->media_channel_ = false;
-        event->buf_ = px::ProtoAsData(&msg);
-        CallbackEvent(event);
-    }
-
-    void ClientClipboardPlugin::OnRequestFileEnd(const std::shared_ptr<Message>& msg) {
-        auto sub = msg->cp_req_at_end();
-        auto event = std::make_shared<ClientPluginFileTransferEndEvent>();
-        event->task_id_ = MD5::Hex(sub.full_name());
-        event->file_path_ = sub.full_name();
-        event->direction_ = "Out";
-        event->success_ = sub.success();
-        CallbackEvent(event);
+        return runtime_bridge_ && runtime_bridge_->IsEnabled();
     }
 }
 

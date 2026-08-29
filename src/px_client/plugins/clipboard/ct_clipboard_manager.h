@@ -8,6 +8,7 @@
 #include <memory>
 #include <QObject>
 #include <objidl.h>
+#include <wrl/client.h>
 #include "px_common_new/clipboard/clipboard_echo.h"
 #include "px_common_new/clipboard/clipboard_platform.h"
 #include "px_message.pb.h"
@@ -18,14 +19,14 @@ namespace px
     class WinMessageLoop;
     class MessageListener;
     class CpVirtualFile;
-    class ClientPluginContext;
-    class ClientClipboardPlugin;
+    class ClipboardRuntimeBridge;
 
     class ClipboardManager : public QObject,
                              public std::enable_shared_from_this<ClipboardManager> {
     public:
-        explicit ClipboardManager(ClientClipboardPlugin* plugin);
-        void Start();
+        explicit ClipboardManager(
+            std::shared_ptr<ClipboardRuntimeBridge> runtime_bridge);
+        [[nodiscard]] bool Start();
         void Stop();
         void OnRemoteClipboardMessage(std::shared_ptr<px::Message> msg);
         void OnRemoteClipboardRespMessage(std::shared_ptr<px::Message> msg);
@@ -33,14 +34,12 @@ namespace px
         void OnLocalClipboardUpdated();
 
     private:
-        ClientClipboardPlugin* plugin_ = nullptr;
-        std::shared_ptr<ClientPluginContext> context_ = nullptr;
+        std::shared_ptr<ClipboardRuntimeBridge> runtime_bridge_;
         clipboard::EchoFilter echo_filter_;
         std::unique_ptr<clipboard::IPlatform> clipboard_platform_;
         std::shared_ptr<WinMessageLoop> msg_loop_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
-        CpVirtualFile* virtual_file_ = nullptr;
-        IDataObject* data_object_ = nullptr;
+        Microsoft::WRL::ComPtr<CpVirtualFile> virtual_file_;
     };
 
 }
