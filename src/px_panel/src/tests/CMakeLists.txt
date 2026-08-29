@@ -72,6 +72,13 @@ target_link_libraries(test_direct_rtc_fallback_state PRIVATE
         GTest::gtest GTest::gtest_main px_cp_message)
 add_test(NAME panel_direct_rtc_fallback_state COMMAND test_direct_rtc_fallback_state)
 
+add_executable(test_console_datagram_receiver
+        test_console_datagram_receiver.cpp
+        ../render_panel/console_scanner/console_datagram_receiver.cpp)
+target_link_libraries(test_console_datagram_receiver PRIVATE
+        GTest::gtest GTest::gtest_main px_common_new)
+add_test(NAME panel_console_datagram_receiver COMMAND test_console_datagram_receiver)
+
 add_executable(test_stream_launch_auth_workflow
         test_stream_launch_auth_workflow.cpp
         ../render_panel/devices/stream_launch_auth_workflow.cpp)

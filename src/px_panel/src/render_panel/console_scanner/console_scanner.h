@@ -5,6 +5,7 @@
 #ifndef GAMMARAYPREMIUM_CONSOLE_SCANNER_H
 #define GAMMARAYPREMIUM_CONSOLE_SCANNER_H
 
+#include <atomic>
 #include <map>
 #include <memory>
 #include <string>
@@ -13,9 +14,9 @@
 namespace px
 {
 
-    class Thread;
     class PxApplication;
     class MessageListener;
+    class ConsoleDatagramReceiver;
 
     class StNetworkConsoleAccessInfo {
     public:
@@ -38,12 +39,12 @@ namespace px
         std::map<std::string, std::shared_ptr<StNetworkConsoleAccessInfo>> GetConsoleAccessInfo();
 
     private:
+        void HandleDatagram(std::string message);
         void ClearInactiveServer();
 
     private:
         std::weak_ptr<PxApplication> app_;
-        // udp receiver thread
-        std::shared_ptr<Thread> udp_receiver_thread_ = nullptr;
+        std::shared_ptr<ConsoleDatagramReceiver> datagram_receiver_ = nullptr;
         std::atomic_bool exit_udp_receiver_ = false;
         std::mutex ac_mtx_;
         std::map<std::string, std::shared_ptr<StNetworkConsoleAccessInfo>> access_info_;

@@ -1578,3 +1578,37 @@ focused build。没有重新编译 Rust 或 Web。
 
 - `px_client.exe`：`2381937BB1D7E1B1C00FE817E0738E118980186D61187AB291304B869E65C36B`；
 - `px_panel.exe`：`01674FE78C0D4ED6D082DC3FADC641E4D524187F303752748F6E8AF5A168A7F4`。
+
+### 12.26 Phase 7 Console UDP 发现接收器的 awaitable 收敛
+
+Panel 的 Console 自动发现原先使用一条独立 `Thread`：UDP socket 被设为 non-blocking 后，
+每 100 ms 轮询一次；端口或接收异常时再阻塞 sleep 2 秒。退出依赖轮询观察 atomic 标志，
+接收、重试、消息解析和对象销毁没有同一个可取消生命周期。
+
+本批新增 `ConsoleDatagramReceiver`，将这条链迁移到 MessageNotifier 已有的共享
+`PxAsyncRuntime` state lane：
+
+- coroutine 使用 `async_receive_from` 挂起等待，不再轮询或占用独立线程；
+- bind/receive 失败后用可取消 `steady_timer` 有界重试，不再 `sleep_for`；
+- socket、timer、buffer 和 sender endpoint 都由智能指针持有；Stop 会先置位停止状态，再在
+  同一 executor 上 cancel/close socket 和 timer，最后停止并等待 `PxAsyncScope`；
+- handler 只负责把一个完整 datagram 交回 `ConsoleScanner`。解析、设备表更新和消息发布保留
+  原语义；handler 异常被隔离，不会结束接收器；
+- 回调内 Stop 不同步等待所在 scope，外部随后 Stop/析构会完成收敛；重复 Start 被拒绝；
+- 没有修改 Console 广播格式、`console://access##`/`cms://access##` 兼容解析、插件 instance、
+  WebRTC 或任何第三方代码。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 真实 UDP receiver | 9 tests × 10 轮，共 90 次 PASS |
+| receiver 覆盖 | loopback datagram、重复 Start、挂起 receive 时 Stop/析构、回调内 Stop、端口占用后恢复、重试 timer 中 Stop、handler 异常后继续、10 次内部生命周期 |
+| 公共异步回归 | `test_async_runtime` 11 tests × 10、`test_message_notifier` 32 tests × 10，共 430 次 PASS |
+| Panel focused build | `px_panel` PASS；未运行 `build_official.bat`，未编译 Rust/Web |
+| 真实 dist 生命周期 | `build_official\dist\px_panel.exe` 启动、PID 持有 UDP 30501、退出释放端口连续 10/10 PASS |
+| 生产 smoke | 最终 dist Panel 绑定 UDP 30501，Console WebSocket ready，Service Running |
+| 旧实现残留 | `udp_receiver_thread_`、non-blocking receive、100 ms/2 秒 polling sleep 均为 0 |
+
+Panel build tree 与 `build_official\dist` 的 `px_panel.exe` SHA-256 一致：
+`8D365A6BF2C3A66A4C1ECE3B043530FF3465D6AC0FE6CDEEC17D2D82CBF9F9BC`。
