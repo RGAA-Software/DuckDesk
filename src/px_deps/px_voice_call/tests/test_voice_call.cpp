@@ -17,7 +17,9 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstdlib>
+#include <future>
 #include <mutex>
+#include <span>
 #include <string_view>
 #include <thread>
 
@@ -199,7 +201,7 @@ TEST(VoiceAudioEndpointTest, CaptureEncodeDecodeAndPlayoutRunWithDummyAudioDevic
         [&endpoint](uint32_t sequence, uint64_t capture_time_ms,
                     const std::vector<uint8_t>& opus) {
             endpoint.ReceiveOpus(
-                sequence, capture_time_ms, opus.data(), opus.size());
+                sequence, capture_time_ms, std::span<const uint8_t>(opus));
         }, &error)) << error;
 
     std::this_thread::sleep_for(std::chrono::milliseconds(350));
@@ -221,7 +223,7 @@ TEST(VoiceAudioEndpointTest, MuteControlsKeepTransportAliveAndRecover) {
         [&endpoint](uint32_t sequence, uint64_t capture_time_ms,
                     const std::vector<uint8_t>& opus) {
             endpoint.ReceiveOpus(
-                sequence, capture_time_ms, opus.data(), opus.size());
+                sequence, capture_time_ms, std::span<const uint8_t>(opus));
         }, &error)) << error;
 
     std::this_thread::sleep_for(std::chrono::milliseconds(160));
@@ -252,7 +254,7 @@ TEST(VoiceAudioEndpointTest, ConcurrentStopIsIdempotent) {
         [&endpoint](uint32_t sequence, uint64_t capture_time_ms,
                     const std::vector<uint8_t>& opus) {
             endpoint.ReceiveOpus(
-                sequence, capture_time_ms, opus.data(), opus.size());
+                sequence, capture_time_ms, std::span<const uint8_t>(opus));
         }, &error)) << error;
     std::this_thread::sleep_for(std::chrono::milliseconds(120));
 
@@ -323,7 +325,7 @@ TEST(VoiceAudioEndpointTest, WebRtcPcmUsesEndpointPlayoutAndAecReference) {
         stereo[frame * 2] = 1'000;
         stereo[frame * 2 + 1] = 3'000;
     }
-    ASSERT_TRUE(endpoint.ReceivePcm(stereo.data(), stereo.size(), 48'000, 2));
+    ASSERT_TRUE(endpoint.ReceivePcm(std::span<const int16_t>(stereo), 48'000, 2));
     EXPECT_EQ(endpoint.Stats().received_pcm_samples, 480u);
     const auto played = raw_backend->PullPlayout(480);
     ASSERT_EQ(played.size(), 480u);
@@ -337,13 +339,13 @@ TEST(VoiceAudioEndpointTest, WebRtcPcmUsesEndpointPlayoutAndAecReference) {
     EXPECT_GT(endpoint.Stats().apm_render_frames, 0u);
 
     endpoint.SetSpeakerMuted(true);
-    EXPECT_TRUE(endpoint.ReceivePcm(stereo.data(), stereo.size(), 48'000, 2));
+    EXPECT_TRUE(endpoint.ReceivePcm(std::span<const int16_t>(stereo), 48'000, 2));
     EXPECT_EQ(endpoint.Stats().received_pcm_samples, 480u);
     const auto muted = raw_backend->PullPlayout(480);
     EXPECT_TRUE(std::all_of(muted.begin(), muted.end(), [](int16_t value) {
         return value == 0;
     }));
-    EXPECT_FALSE(endpoint.ReceivePcm(stereo.data(), stereo.size(), 44'100, 2));
+    EXPECT_FALSE(endpoint.ReceivePcm(std::span<const int16_t>(stereo), 44'100, 2));
     EXPECT_EQ(endpoint.Stats().received_pcm_samples, 480u);
     endpoint.Stop();
 }
@@ -378,7 +380,7 @@ TEST(VoiceAudioEndpointTest, ConfigurableLongRunningStability) {
         [&endpoint](uint32_t sequence, uint64_t capture_time_ms,
                     const std::vector<uint8_t>& opus) {
             endpoint.ReceiveOpus(
-                sequence, capture_time_ms, opus.data(), opus.size());
+                sequence, capture_time_ms, std::span<const uint8_t>(opus));
         }, &error)) << error;
 
     // Exclude one-time DLL, codec and audio subsystem initialization from the
@@ -643,6 +645,42 @@ TEST(VoicePacketTransportTest, KeepsLatestSpeechUnderBlockedNetwork) {
     EXPECT_EQ(stats.sent, 2u);
     EXPECT_EQ(stats.congestion_drops, 19u);
     EXPECT_LE(stats.peak_queued, VoicePacketTransport::kMaxQueuedPackets);
+}
+
+TEST(VoicePacketTransportTest, StopFromDeliveryCallbackDoesNotSelfJoin) {
+    auto transport = std::make_shared<VoicePacketTransport>();
+    const auto weak_transport = std::weak_ptr<VoicePacketTransport>(transport);
+    auto stopped = std::make_shared<std::promise<void>>();
+    auto stopped_future = stopped->get_future();
+    ASSERT_TRUE(transport->Start(
+        [weak_transport, stopped](const VoiceTransportPacket&) {
+            if (const auto active = weak_transport.lock()) {
+                active->Stop();
+            }
+            stopped->set_value();
+        }));
+    ASSERT_TRUE(transport->Enqueue({.sequence = 1, .opus = {1}}));
+    EXPECT_EQ(stopped_future.wait_for(std::chrono::seconds(1)),
+              std::future_status::ready);
+    EXPECT_FALSE(transport->Enqueue({.sequence = 2, .opus = {1}}));
+}
+
+TEST(VoicePacketTransportTest, RepeatedStartStopIsStableForTenRounds) {
+    VoicePacketTransport transport;
+    for (uint32_t round = 0; round < 10; ++round) {
+        auto delivered = std::make_shared<std::promise<uint32_t>>();
+        auto delivered_future = delivered->get_future();
+        ASSERT_TRUE(transport.Start(
+            [delivered](const VoiceTransportPacket& packet) {
+                delivered->set_value(packet.sequence);
+            }));
+        ASSERT_TRUE(transport.Enqueue({.sequence = round, .opus = {1}}));
+        ASSERT_EQ(delivered_future.wait_for(std::chrono::seconds(1)),
+                  std::future_status::ready);
+        EXPECT_EQ(delivered_future.get(), round);
+        transport.Stop();
+        EXPECT_FALSE(transport.Enqueue({.sequence = round, .opus = {1}}));
+    }
 }
 
 TEST(VoiceConsentDecisionCacheTest, LookupRequiresExactCallAndRequest) {

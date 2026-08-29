@@ -202,6 +202,7 @@ Windows 原生 MVP、正式 Panel 来电 UI 的核心 Console 路径和 WebClien
 | M2真实声卡 | 90号机交互 Console 下 WASAPI 48 kHz mono 双工采集/播放回调通过；系统麦克风总开关为Deny时可复现并诊断为capture permission denied，临时Allow后通过，测试后恢复原值。详见 [M2测试报告](voice_call_m2_test_report_20260823.md)。 |
 | Web实现与90号机E2E | `npm run test:voice` 19项关联/格式/每次通话前提示/安全上下文断言通过；`vue-tsc --noEmit && vite build` 生产构建通过。90号机 Chrome 实际连接正式 Render/Panel，接受、拒绝、30秒超时、双向 RTP、麦克风静音、通话扬声器独立静音、挂断清理和再次提示均通过。为隔离服务器 HTTP 限制，媒体正向 E2E 使用 Chrome 的仅测试安全源开关；正常 `http://IP` 另测为明确禁用并提示 HTTPS/localhost，不能把测试开关视作生产 HTTPS 验收。 |
 | 2026-08-24 Web上行PCM闭环 | 浏览器麦克风 outbound bytes `95→7506`；90端收到48kHz/mono/16-bit/480-frame首个PCM，RTC统计153包/7506字节/0丢包，通话端点结束统计 `rx_pcm_samples=207840`。挂断后同一远控连接继续120秒并以1998帧/connected结束。详见 [RTC验收报告](webrtc_rtc_acceptance_report_20260824.md)。 |
+| 2026-08-30 生命周期加固 | Render插件改为薄 ABI 适配器，`VoiceCallRuntime` 以共享所有权持有状态、端点和传输；设备丢失、PCM、Opus及传输发送回调不再捕获插件实例。新增回调内注销、回调内Shutdown、外部Shutdown等待在途投递、销毁后迟到消息、10轮Runtime生命周期、传输回调内Stop及10轮DLL加载/卸载测试。`test_voice_call` 35项中33通过，2项仅因2小时/真实WASAPI环境门禁跳过；Runtime 5/5、传输3/3、DLL 10/10通过。focused构建已发布`px_render.exe`和`voice_call.dll`到`build_official\dist`并校验SHA-256一致。 |
 
 尚未完成的验收项是双物理机 AEC/扬声器主观回声、设备热插拔、Relay/UDP/KCP专项弱网、生产 HTTPS/Edge/真实浏览器麦克风异常矩阵以及Android；这些不能由当前自动化结果替代。
 

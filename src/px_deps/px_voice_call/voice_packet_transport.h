@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -44,15 +45,15 @@ public:
     [[nodiscard]] VoicePacketTransportStats Stats() const;
 
 private:
-    void Worker();
+    struct WorkerState;
 
-    mutable std::mutex mutex_;
-    std::condition_variable cv_;
-    std::deque<VoiceTransportPacket> queue_;
-    SendCallback callback_;
+    static void WorkerMain(const std::shared_ptr<WorkerState>& state);
+    void StopLocked();
+
+    mutable std::mutex lifecycle_mutex_;
+    std::shared_ptr<WorkerState> state_;
     std::thread worker_;
-    bool running_ = false;
-    VoicePacketTransportStats stats_;
+    VoicePacketTransportStats last_stats_;
 };
 
 }  // namespace px

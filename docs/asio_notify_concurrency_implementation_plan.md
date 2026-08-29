@@ -91,6 +91,19 @@ same focused-build, 10-round lifecycle and dist-publication gates.
 - The shared Opus encoder path now uses an independently owned runtime and
   guarded event-delivery channel; encoder/cache/debug state no longer belongs
   to a loader-owned plug-in object.
+- On 2026-08-30 the Render voice-call plug-in was reduced to a synchronous ABI
+  adapter. `VoiceCallRuntime` now owns session state, endpoint lifetime,
+  consent correlation, RTC PCM envelopes and the bounded non-RTC transport.
+  Endpoint, transport and delayed device-failure callbacks retain only weak or
+  shared state. Voice media reaches Render through owned routing events rather
+  than retained plug-in/network addresses. The packet transport also supports
+  stop from its delivery callback without a self-join.
+- Voice focused evidence now includes 35 core tests (33 passed and two
+  explicitly environment/long-duration skipped), five runtime concurrency
+  tests, three packet-transport tests, and ten DLL create/destroy/unload rounds.
+  `px_render.exe` and `voice_call.dll` were published to `build_official\dist`
+  with matching build/dist SHA-256 hashes. This is lifecycle hardening evidence,
+  not a replacement for the two-machine audio-quality and device matrix.
 - The next in-scope batch is the remaining owned encoder/capture plug-in callback
   lifecycle audit. libwebrtc adapters and established plug-in instance ABI
   boundaries remain excluded.

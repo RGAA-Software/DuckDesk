@@ -215,16 +215,15 @@ public:
 
     bool ReceiveOpus(
         uint32_t sequence, uint64_t capture_time_ms,
-        const void* data, size_t size) {
-        if (!running_ || !data || size == 0) {
+        std::span<const uint8_t> data) {
+        if (!running_ || data.empty()) {
             return false;
         }
-        const auto* begin = static_cast<const uint8_t*>(data);
         VoiceEncodedPacket packet{
             .sequence = sequence,
             .capture_time_ms = capture_time_ms,
             .arrival_time_ms = MonotonicMillis(),
-            .opus = std::vector<uint8_t>(begin, begin + size),
+            .opus = std::vector<uint8_t>(data.begin(), data.end()),
         };
         VoiceJitterPushResult result;
         {
@@ -239,21 +238,21 @@ public:
     }
 
     bool ReceivePcm(
-        const int16_t* samples, size_t sample_count,
+        std::span<const int16_t> samples,
         int sample_rate, int channels) {
-        if (!running_ || !samples || sample_count == 0 ||
+        if (!running_ || samples.empty() ||
             sample_rate != kSampleRate || channels <= 0 || channels > 8 ||
-            sample_count % static_cast<size_t>(channels) != 0) {
+            samples.size() % static_cast<size_t>(channels) != 0) {
             return false;
         }
         if (speaker_muted_) {
             return true;
         }
-        const size_t frame_count = sample_count / static_cast<size_t>(channels);
+        const size_t frame_count = samples.size() / static_cast<size_t>(channels);
         stats_received_pcm_samples_.fetch_add(frame_count, std::memory_order_relaxed);
         if (channels == 1) {
             stats_playout_dropped_.fetch_add(
-                playout_queue_.Write(samples, frame_count),
+                playout_queue_.Write(samples.data(), frame_count),
                 std::memory_order_relaxed);
             return true;
         }
@@ -433,7 +432,7 @@ private:
                 capture.fill(0);
             }
             if (processed_capture_callback_) {
-                processed_capture_callback_(capture.data(), capture.size());
+                processed_capture_callback_(std::span<const int16_t>(capture));
             }
             std::copy(capture.begin(), capture.end(), encoded_frame.begin() + encoded_offset);
             encoded_offset += capture.size();
@@ -588,13 +587,13 @@ bool VoiceAudioEndpoint::Start(
 void VoiceAudioEndpoint::Stop() { impl_->Stop(); }
 bool VoiceAudioEndpoint::ReceiveOpus(
     uint32_t sequence, uint64_t capture_time_ms,
-    const void* data, size_t size) {
-    return impl_->ReceiveOpus(sequence, capture_time_ms, data, size);
+    std::span<const uint8_t> data) {
+    return impl_->ReceiveOpus(sequence, capture_time_ms, data);
 }
 bool VoiceAudioEndpoint::ReceivePcm(
-    const int16_t* samples, size_t sample_count,
+    std::span<const int16_t> samples,
     int sample_rate, int channels) {
-    return impl_->ReceivePcm(samples, sample_count, sample_rate, channels);
+    return impl_->ReceivePcm(samples, sample_rate, channels);
 }
 void VoiceAudioEndpoint::SetMicrophoneMuted(bool muted) {
     impl_->SetMicrophoneMuted(muted);

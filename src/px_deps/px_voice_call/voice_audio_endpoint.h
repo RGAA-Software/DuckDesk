@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -44,7 +45,7 @@ public:
         std::function<void(uint32_t sequence, uint64_t capture_time_ms,
                            const std::vector<uint8_t>& opus)>;
     using ProcessedCaptureCallback =
-        std::function<void(const int16_t* samples, size_t sample_count)>;
+        std::function<void(std::span<const int16_t> samples)>;
     using FatalErrorCallback = std::function<void(const std::string& reason)>;
 
     explicit VoiceAudioEndpoint(BackendFactory backend_factory = {});
@@ -63,9 +64,9 @@ public:
     void Stop();
     bool ReceiveOpus(
         uint32_t sequence, uint64_t capture_time_ms,
-        const void* data, size_t size);
+        std::span<const uint8_t> data);
     bool ReceivePcm(
-        const int16_t* samples, size_t sample_count,
+        std::span<const int16_t> samples,
         int sample_rate, int channels);
     void SetMicrophoneMuted(bool muted);
     void SetSpeakerMuted(bool muted);

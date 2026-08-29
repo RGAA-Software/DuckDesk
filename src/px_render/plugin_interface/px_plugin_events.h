@@ -6,6 +6,7 @@
 #define PX_RENDER_PLUGIN_EVENTS_H
 
 #include <string>
+#include <atomic>
 #include <memory>
 #include <functional>
 #include <vector>
@@ -51,6 +52,7 @@ namespace px
         kPluginReqParamsBeginStreaming,
         kPluginRedeemConnectionTicket,
         kPluginVoiceCallConsent,
+        kPluginVoiceCallMedia,
     };
 
     class PxPluginBaseEvent {
@@ -92,6 +94,31 @@ namespace px
         uint64_t request_id_ = 0;
         uint64_t expires_at_unix_ms_ = 0;
         std::string reason_;
+    };
+
+    enum class PxVoiceCallMediaAction {
+        kStreamMessage,
+        kRtcAuthorization,
+        kRtcPcm,
+    };
+
+    // Owned envelope used by the voice runtime. Audio and serialized messages
+    // remain valid until routing completes; no plug-in instance or borrowed
+    // network pointer crosses the asynchronous boundary.
+    class PxPluginVoiceCallMediaEvent : public PxPluginBaseEvent {
+    public:
+        PxPluginVoiceCallMediaEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginVoiceCallMedia;
+        }
+        PxVoiceCallMediaAction action_ = PxVoiceCallMediaAction::kStreamMessage;
+        std::string stream_id_;
+        std::string call_id_;
+        std::shared_ptr<Data> message_;
+        bool authorized_ = false;
+        std::shared_ptr<std::atomic_bool> authorization_applied_;
+        std::vector<int16_t> pcm_;
+        int sample_rate_ = 0;
+        int channels_ = 0;
     };
 
     // kPluginNetClientEvent

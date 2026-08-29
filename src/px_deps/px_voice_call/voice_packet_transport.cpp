@@ -5,85 +5,148 @@
 
 namespace px {
 
+struct VoicePacketTransport::WorkerState final {
+    mutable std::mutex mutex;
+    std::condition_variable condition;
+    std::deque<VoiceTransportPacket> queue;
+    SendCallback callback;
+    bool running = false;
+    VoicePacketTransportStats stats;
+};
+
 VoicePacketTransport::~VoicePacketTransport() { Stop(); }
 
 bool VoicePacketTransport::Start(SendCallback callback) {
-    Stop();
-    if (!callback) return false;
-    {
-        std::scoped_lock lock(mutex_);
-        callback_ = std::move(callback);
-        queue_.clear();
-        stats_ = {};
-        running_ = true;
+    if (!callback) {
+        return false;
     }
-    worker_ = std::thread([this] { Worker(); });
+    std::scoped_lock lifecycle_lock(lifecycle_mutex_);
+    StopLocked();
+    last_stats_ = {};
+    auto state = std::make_shared<WorkerState>();
+    {
+        std::scoped_lock lock(state->mutex);
+        state->callback = std::move(callback);
+        state->running = true;
+    }
+    state_ = state;
+    worker_ = std::thread([state] { WorkerMain(state); });
     return true;
 }
 
 void VoicePacketTransport::Stop() {
-    {
-        std::scoped_lock lock(mutex_);
-        running_ = false;
-        queue_.clear();
-        stats_.queued = 0;
+    std::scoped_lock lifecycle_lock(lifecycle_mutex_);
+    StopLocked();
+}
+
+void VoicePacketTransport::StopLocked() {
+    const auto state = std::move(state_);
+    if (!state) {
+        if (worker_.joinable()) {
+            worker_.join();
+        }
+        return;
     }
-    cv_.notify_all();
-    if (worker_.joinable()) worker_.join();
-    std::scoped_lock lock(mutex_);
-    callback_ = {};
+    {
+        std::scoped_lock lock(state->mutex);
+        state->running = false;
+        state->queue.clear();
+        state->stats.queued = 0;
+    }
+    state->condition.notify_all();
+    if (worker_.joinable()) {
+        if (worker_.get_id() == std::this_thread::get_id()) {
+            // The worker retains only WorkerState, so detaching here is safe
+            // and lets a delivery callback stop or destroy its owner without
+            // attempting to join itself.
+            worker_.detach();
+        }
+        else {
+            worker_.join();
+        }
+    }
+    std::scoped_lock lock(state->mutex);
+    state->callback = {};
+    last_stats_ = state->stats;
+    last_stats_.queued = state->queue.size();
 }
 
 bool VoicePacketTransport::Enqueue(VoiceTransportPacket packet) {
-    if (packet.opus.empty()) return false;
-    {
-        std::scoped_lock lock(mutex_);
-        if (!running_) return false;
-        ++stats_.enqueued;
-        if (queue_.size() >= kMaxQueuedPackets) {
-            queue_.pop_front();
-            ++stats_.congestion_drops;
-        }
-        queue_.push_back(std::move(packet));
-        stats_.queued = queue_.size();
-        stats_.peak_queued = std::max(stats_.peak_queued, queue_.size());
+    if (packet.opus.empty()) {
+        return false;
     }
-    cv_.notify_one();
+    std::shared_ptr<WorkerState> state;
+    {
+        std::scoped_lock lifecycle_lock(lifecycle_mutex_);
+        state = state_;
+    }
+    if (!state) {
+        return false;
+    }
+    {
+        std::scoped_lock lock(state->mutex);
+        if (!state->running) {
+            return false;
+        }
+        ++state->stats.enqueued;
+        if (state->queue.size() >= kMaxQueuedPackets) {
+            state->queue.pop_front();
+            ++state->stats.congestion_drops;
+        }
+        state->queue.push_back(std::move(packet));
+        state->stats.queued = state->queue.size();
+        state->stats.peak_queued = std::max(
+            state->stats.peak_queued, state->queue.size());
+    }
+    state->condition.notify_one();
     return true;
 }
 
 VoicePacketTransportStats VoicePacketTransport::Stats() const {
-    std::scoped_lock lock(mutex_);
-    auto result = stats_;
-    result.queued = queue_.size();
+    std::shared_ptr<WorkerState> state;
+    {
+        std::scoped_lock lifecycle_lock(lifecycle_mutex_);
+        state = state_;
+    }
+    if (!state) {
+        return last_stats_;
+    }
+    std::scoped_lock lock(state->mutex);
+    auto result = state->stats;
+    result.queued = state->queue.size();
     return result;
 }
 
-void VoicePacketTransport::Worker() {
+void VoicePacketTransport::WorkerMain(
+    const std::shared_ptr<WorkerState>& state) {
     for (;;) {
         VoiceTransportPacket packet;
         SendCallback callback;
         {
-            std::unique_lock lock(mutex_);
-            cv_.wait(lock, [this] { return !running_ || !queue_.empty(); });
-            if (!running_ && queue_.empty()) return;
+            std::unique_lock lock(state->mutex);
+            state->condition.wait(lock, [state] {
+                return !state->running || !state->queue.empty();
+            });
+            if (!state->running && state->queue.empty()) {
+                return;
+            }
             // When congested, jump directly to the newest packet. Speech is
             // time-sensitive and old frames are less useful than continuity.
-            if (queue_.size() > 1) {
-                stats_.congestion_drops += queue_.size() - 1;
-                packet = std::move(queue_.back());
-                queue_.clear();
+            if (state->queue.size() > 1) {
+                state->stats.congestion_drops += state->queue.size() - 1;
+                packet = std::move(state->queue.back());
+                state->queue.clear();
             } else {
-                packet = std::move(queue_.front());
-                queue_.pop_front();
+                packet = std::move(state->queue.front());
+                state->queue.pop_front();
             }
-            stats_.queued = queue_.size();
-            callback = callback_;
+            state->stats.queued = state->queue.size();
+            callback = state->callback;
         }
         if (callback) {
             callback(packet);
-            std::scoped_lock lock(mutex_);
-            ++stats_.sent;
+            std::scoped_lock lock(state->mutex);
+            ++state->stats.sent;
         }
     }
 }

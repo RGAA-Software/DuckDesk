@@ -53,3 +53,11 @@ target_link_libraries(test_opus_encoder_plugin_dll_lifecycle
 target_compile_definitions(test_opus_encoder_plugin_dll_lifecycle
         PRIVATE PX_OPUS_ENCODER_PLUGIN_DLL_PATH="$<TARGET_FILE:enc_opus>")
 add_dependencies(test_opus_encoder_plugin_dll_lifecycle enc_opus)
+
+add_executable(test_voice_call_plugin_dll_lifecycle
+        test_voice_call_plugin_dll_lifecycle.cpp)
+target_link_libraries(test_voice_call_plugin_dll_lifecycle
+        PRIVATE GTest::gtest_main px_common_new px_plugin)
+target_compile_definitions(test_voice_call_plugin_dll_lifecycle
+        PRIVATE PX_VOICE_CALL_PLUGIN_DLL_PATH="$<TARGET_FILE:voice_call>")
+add_dependencies(test_voice_call_plugin_dll_lifecycle voice_call)

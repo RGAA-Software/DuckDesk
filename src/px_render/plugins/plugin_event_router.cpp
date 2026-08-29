@@ -23,6 +23,7 @@
 #include "px_render/plugin_interface/px_stream_plugin.h"
 #include "px_render/plugin_interface/px_video_encoder_plugin.h"
 #include "plugin_stream_event_router.h"
+#include "plugin_ids.h"
 #include "px_capture_new/capture_message.h"
 
 using namespace nlohmann;
@@ -261,6 +262,58 @@ namespace px
                 decision->accepted_ = false;
                 decision->reason_ = "panel_unavailable";
                 context_->DispatchAppEvent2Plugins(decision);
+            }
+        }
+        else if (event->event_type_ == PxPluginEventType::kPluginVoiceCallMedia) {
+            const auto target_event =
+                std::dynamic_pointer_cast<PxPluginVoiceCallMediaEvent>(event);
+            if (!target_event || target_event->stream_id_.empty()) {
+                return;
+            }
+            if (target_event->action_ == PxVoiceCallMediaAction::kStreamMessage) {
+                if (!target_event->message_) {
+                    return;
+                }
+                const auto stream_id = target_event->stream_id_;
+                const auto message = target_event->message_;
+                plugin_manager_->VisitNetPlugins(
+                    [stream_id, message](PxNetPlugin* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
+                    plugin->PostTargetStreamProtoMessage(stream_id, message, true);
+                });
+            }
+            else if (target_event->action_ ==
+                     PxVoiceCallMediaAction::kRtcAuthorization) {
+                const auto stream_id = target_event->stream_id_;
+                const auto call_id = target_event->call_id_;
+                const bool authorized = target_event->authorized_;
+                const auto applied = target_event->authorization_applied_;
+                plugin_manager_->VisitNetPlugins(
+                    [stream_id, call_id, authorized, applied](PxNetPlugin* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
+                    if (plugin->GetPluginId() == kNetRtcLocalPluginId) {
+                        const bool accepted = plugin->SetVoiceCallAuthorization(
+                            stream_id, call_id, authorized);
+                        if (accepted && applied) {
+                            applied->store(true, std::memory_order_release);
+                        }
+                    }
+                });
+            }
+            else if (target_event->action_ == PxVoiceCallMediaAction::kRtcPcm &&
+                     !target_event->pcm_.empty()) {
+                const auto stream_id = target_event->stream_id_;
+                const auto call_id = target_event->call_id_;
+                const int sample_rate = target_event->sample_rate_;
+                const int channels = target_event->channels_;
+                plugin_manager_->VisitNetPlugins(
+                    [stream_id, call_id, target_event, sample_rate, channels](PxNetPlugin* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
+                    if (plugin->GetPluginId() == kNetRtcLocalPluginId) {
+                        // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): synchronous libwebrtc PCM ABI
+                        plugin->OnVoiceCallPcm(
+                            stream_id, call_id, target_event->pcm_.data(),
+                            target_event->pcm_.size(),
+                            sample_rate, channels);
+                    }
+                });
             }
         }
     }

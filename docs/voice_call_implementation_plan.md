@@ -222,6 +222,21 @@
 
 ## 9. 交付与评审清单
 
+### 2026-08-30 owned-runtime checkpoint
+
+- `VoiceCallRuntime` 已接管 Render 侧会话状态、授权关联、音频端点、RTC
+  PCM owned envelope 与非 RTC 有界传输队列；插件实例只保留同步 ABI 转发。
+- Render 新增 voice media 路由事件，由 `PluginEventRouter` 在插件管理器的
+  受保护访问窗口内调用网络插件，后台音频线程不再保存网络插件地址。
+- `VoicePacketTransport` 工作线程只持有共享 `WorkerState`，支持发送回调内
+  Stop，且连续启停 10 轮通过。
+- focused 自动化结果：core 33 passed / 2 environment skips，runtime 5/5，
+  transport 3/3，DLL create/destroy/unload 10/10。真实 WASAPI、双物理机 AEC、
+  热插拔和长稳仍按 M2/M6 门禁执行，不能因本 checkpoint 自动标记完成。
+
+下一批处理 `VoiceAudioEndpoint::Impl` 与具体 WASAPI/SDL backend 内部仍存在的
+legacy callback ownership；不得修改 libwebrtc 或插件实例 ABI 例外。
+
 每个里程碑交付应包含：
 
 - 设计或 ADR 变更，以及涉及模块和线程模型。

@@ -2,6 +2,7 @@
 // Created by RGAA on 2023-12-27.
 //
 #include "px_client/ct_base_workspace.h"
+#include <span>
 #include <QHBoxLayout>
 #include <QApplication>
 #include <QGraphicsDropShadowEffect>
@@ -1665,7 +1666,9 @@ namespace px
             if (endpoint && !frame.opus().empty()) {
                 endpoint->ReceiveOpus(
                     frame.sequence(), frame.capture_time_ms(),
-                    frame.opus().data(), frame.opus().size());
+                    std::span<const uint8_t>(
+                        reinterpret_cast<const uint8_t*>(frame.opus().data()),
+                        frame.opus().size())); // NOLINT(gammaray-raw-pointer-boundary): protobuf byte-view boundary
             }
         }
     }
