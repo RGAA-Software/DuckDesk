@@ -965,7 +965,7 @@ namespace px
         auto backend = CreateDefaultVoiceAudioBackend();
         VoiceAudioDeviceInventory inventory;
         std::string error;
-        if (!backend || !backend->EnumerateDevices(&inventory, &error) ||
+        if (!backend || !backend->EnumerateDevices(inventory, error) ||
             inventory.capture_devices.empty() || inventory.playout_devices.empty()) {
             context_->NotifyAppWarningMessage(
                 tcTr("id_voice_call"),

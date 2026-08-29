@@ -29,12 +29,12 @@ class BoundedPcmQueue {
 public:
     explicit BoundedPcmQueue(size_t capacity_samples) : storage_(capacity_samples) {}
 
-    uint64_t Write(const int16_t* samples, size_t count) {
-        if (!samples || count == 0 || storage_.empty()) {
+    uint64_t Write(std::span<const int16_t> samples) {
+        if (samples.empty() || storage_.empty()) {
             return 0;
         }
         std::scoped_lock lock(mutex_);
-        return WriteLocked(samples, count);
+        return WriteLocked(samples);
     }
 
     uint64_t WriteSilence(size_t count) {
@@ -45,18 +45,19 @@ public:
         uint64_t dropped = 0;
         while (count > 0) {
             const size_t chunk = std::min(count, silence_.size());
-            dropped += WriteLocked(silence_.data(), chunk);
+            dropped += WriteLocked(
+                std::span<const int16_t>(silence_).first(chunk));
             count -= chunk;
         }
         return dropped;
     }
 
-    size_t Read(int16_t* destination, size_t count) {
-        if (!destination || count == 0) {
+    size_t Read(std::span<int16_t> destination) {
+        if (destination.empty()) {
             return 0;
         }
         std::scoped_lock lock(mutex_);
-        const auto available = std::min(count, size_);
+        const auto available = std::min(destination.size(), size_);
         for (size_t i = 0; i < available; ++i) {
             destination[i] = storage_[read_];
             read_ = (read_ + 1) % storage_.size();
@@ -76,25 +77,24 @@ public:
     }
 
 private:
-    uint64_t WriteLocked(const int16_t* samples, size_t count) {
+    uint64_t WriteLocked(std::span<const int16_t> samples) {
         uint64_t dropped = 0;
-        if (count >= storage_.size()) {
-            dropped += size_ + count - storage_.size();
-            samples += count - storage_.size();
-            count = storage_.size();
+        if (samples.size() >= storage_.size()) {
+            dropped += size_ + samples.size() - storage_.size();
+            samples = samples.last(storage_.size());
             read_ = write_ = size_ = 0;
         }
-        else if (size_ + count > storage_.size()) {
-            const auto remove = size_ + count - storage_.size();
+        else if (size_ + samples.size() > storage_.size()) {
+            const auto remove = size_ + samples.size() - storage_.size();
             read_ = (read_ + remove) % storage_.size();
             size_ -= remove;
             dropped += remove;
         }
-        for (size_t i = 0; i < count; ++i) {
+        for (size_t i = 0; i < samples.size(); ++i) {
             storage_[write_] = samples[i];
             write_ = (write_ + 1) % storage_.size();
         }
-        size_ += count;
+        size_ += samples.size();
         return dropped;
     }
 
@@ -108,7 +108,8 @@ private:
 
 }  // namespace
 
-class VoiceAudioEndpoint::Impl {
+class VoiceAudioEndpoint::Impl final :
+    public std::enable_shared_from_this<VoiceAudioEndpoint::Impl> {
 public:
     static constexpr size_t kTenMsSamples = kSampleRate / 100;
 
@@ -122,7 +123,7 @@ public:
 
     bool Start(
         PacketCallback callback, const VoiceAudioBackendConfig& backend_config,
-        std::string* error,
+        std::string& error,
         FatalErrorCallback fatal_error_callback,
         ProcessedCaptureCallback processed_capture_callback) {
         std::scoped_lock lifecycle_lock(lifecycle_mutex_);
@@ -162,24 +163,34 @@ public:
         resolved_backend_config.sample_rate = kSampleRate;
         resolved_backend_config.channels = kChannels;
         resolved_backend_config.frames_per_callback = static_cast<uint32_t>(kTenMsSamples);
+        const auto weak_self = weak_from_this();
         if (!backend_ || !backend_->Start(
                 resolved_backend_config,
-                [this](const int16_t* samples, size_t count) {
-                    OnCapture(samples, count);
+                [weak_self](std::span<const int16_t> samples) {
+                    if (const auto self = weak_self.lock()) {
+                        self->OnCapture(samples);
+                    }
                 },
-                [this](int16_t* samples, size_t count) {
-                    OnPlayout(samples, count);
+                [weak_self](std::span<int16_t> samples) {
+                    if (const auto self = weak_self.lock()) {
+                        self->OnPlayout(samples);
+                    }
                 },
-                [this](VoiceAudioBackendEvent event, const std::string& reason) {
-                    OnBackendEvent(event, reason);
+                [weak_self](
+                    VoiceAudioBackendEvent event,
+                    const std::string& reason) {
+                    if (const auto self = weak_self.lock()) {
+                        self->OnBackendEvent(event, reason);
+                    }
                 }, error)) {
             running_ = false;
             backend_.reset();
             ResetProcessing();
             return false;
         }
-        encode_worker_ = std::thread([this] { EncodeWorker(); });
-        decode_worker_ = std::thread([this] { DecodeWorker(); });
+        const auto self = shared_from_this();
+        encode_worker_ = std::thread([self] { self->EncodeWorker(); });
+        decode_worker_ = std::thread([self] { self->DecodeWorker(); });
         return true;
     }
 
@@ -196,10 +207,20 @@ public:
         capture_cv_.notify_all();
         jitter_cv_.notify_all();
         if (encode_worker_.joinable()) {
-            encode_worker_.join();
+            if (encode_worker_.get_id() == std::this_thread::get_id()) {
+                encode_worker_.detach();
+            }
+            else {
+                encode_worker_.join();
+            }
         }
         if (decode_worker_.joinable()) {
-            decode_worker_.join();
+            if (decode_worker_.get_id() == std::this_thread::get_id()) {
+                decode_worker_.detach();
+            }
+            else {
+                decode_worker_.join();
+            }
         }
         if (was_running || encoder_ || decoder_) {
             capture_queue_.Clear();
@@ -252,7 +273,7 @@ public:
         stats_received_pcm_samples_.fetch_add(frame_count, std::memory_order_relaxed);
         if (channels == 1) {
             stats_playout_dropped_.fetch_add(
-                playout_queue_.Write(samples.data(), frame_count),
+                playout_queue_.Write(samples.first(frame_count)),
                 std::memory_order_relaxed);
             return true;
         }
@@ -268,7 +289,8 @@ public:
                 mono[frame] = static_cast<int16_t>(mixed / channels);
             }
             stats_playout_dropped_.fetch_add(
-                playout_queue_.Write(mono.data(), chunk),
+                playout_queue_.Write(
+                    std::span<const int16_t>(mono).first(chunk)),
                 std::memory_order_relaxed);
             offset += chunk;
         }
@@ -330,38 +352,36 @@ public:
     }
 
 private:
-    static void SetError(std::string* error, std::string value) {
-        if (error) {
-            *error = std::move(value);
-        }
+    static void SetError(std::string& error, std::string value) {
+        error = std::move(value);
     }
 
-    void OnCapture(const int16_t* samples, size_t sample_count) {
-        if (!running_ || !samples || sample_count == 0) {
+    void OnCapture(std::span<const int16_t> samples) {
+        if (!running_ || samples.empty()) {
             return;
         }
         const uint64_t dropped = microphone_muted_
-            ? capture_queue_.WriteSilence(sample_count)
-            : capture_queue_.Write(samples, sample_count);
+            ? capture_queue_.WriteSilence(samples.size())
+            : capture_queue_.Write(samples);
         stats_capture_dropped_.fetch_add(dropped, std::memory_order_relaxed);
         capture_cv_.notify_one();
     }
 
-    void OnPlayout(int16_t* samples, size_t sample_count) {
-        if (!samples || sample_count == 0) {
+    void OnPlayout(std::span<int16_t> samples) {
+        if (samples.empty()) {
             return;
         }
-        std::fill(samples, samples + sample_count, 0);
+        std::fill(samples.begin(), samples.end(), 0);
         if (running_ && !speaker_muted_) {
-            const auto read = playout_queue_.Read(samples, sample_count);
-            if (read < sample_count) {
+            const auto read = playout_queue_.Read(samples);
+            if (read < samples.size()) {
                 stats_playout_underruns_.fetch_add(1, std::memory_order_relaxed);
             }
         }
         if (running_) {
             // The buffer now contains exactly what is sent to the output
             // device, including local mute and underrun silence.
-            reverse_queue_.Write(samples, sample_count);
+            reverse_queue_.Write(samples);
             capture_cv_.notify_one();
         }
     }
@@ -391,8 +411,11 @@ private:
     }
 
     void SignalFatalError(const std::string& reason) {
-        if (!fatal_error_signaled_.exchange(true) && fatal_error_callback_) {
-            fatal_error_callback_(reason);
+        if (!fatal_error_signaled_.exchange(true)) {
+            const auto callback = fatal_error_callback_;
+            if (callback) {
+                callback(reason);
+            }
         }
     }
 
@@ -401,6 +424,7 @@ private:
         std::array<int16_t, kTenMsSamples> render{};
         std::array<int16_t, kFrameSamples> encoded_frame{};
         size_t encoded_offset = 0;
+        const auto weak_self = weak_from_this();
 
         while (running_) {
             if (apm_reinitialize_requested_.exchange(false)) {
@@ -411,28 +435,38 @@ private:
             }
             if (capture_queue_.Size() < capture.size()) {
                 std::unique_lock lock(capture_wait_mutex_);
-                capture_cv_.wait_for(lock, std::chrono::milliseconds(10), [this, &capture] {
-                    return !running_ || capture_queue_.Size() >= capture.size();
+                capture_cv_.wait_for(lock, std::chrono::milliseconds(10),
+                    [weak_self, &capture] {
+                    const auto self = weak_self.lock();
+                    return !self || !self->running_ ||
+                        self->capture_queue_.Size() >= capture.size();
                 });
                 if (!running_) {
                     break;
                 }
             }
-            if (capture_queue_.Read(capture.data(), capture.size()) != capture.size()) {
+            if (capture_queue_.Read(std::span<int16_t>(capture)) != capture.size()) {
                 continue;
             }
 
             while (reverse_queue_.Size() >= render.size()) {
-                if (reverse_queue_.Read(render.data(), render.size()) != render.size()) {
+                if (reverse_queue_.Read(std::span<int16_t>(render)) != render.size()) {
                     break;
                 }
-                audio_processing_.ProcessRender(render.data(), render.size());
+                audio_processing_.ProcessRender(
+                    std::span<const int16_t>(render));
             }
-            if (!audio_processing_.ProcessCapture(capture.data(), capture.size())) {
+            if (!audio_processing_.ProcessCapture(std::span<int16_t>(capture))) {
                 capture.fill(0);
             }
-            if (processed_capture_callback_) {
-                processed_capture_callback_(std::span<const int16_t>(capture));
+            const auto processed_capture_callback =
+                processed_capture_callback_;
+            if (processed_capture_callback) {
+                processed_capture_callback(
+                    std::span<const int16_t>(capture));
+            }
+            if (!running_) {
+                break;
             }
             std::copy(capture.begin(), capture.end(), encoded_frame.begin() + encoded_offset);
             encoded_offset += capture.size();
@@ -450,18 +484,25 @@ private:
                     continue;
                 }
                 stats_encoded_packets_.fetch_add(1, std::memory_order_relaxed);
-                callback_(next_sequence_++, MonotonicMillis(), packet);
+                const auto callback = callback_;
+                if (callback) {
+                    callback(next_sequence_++, MonotonicMillis(), packet);
+                }
             }
         }
     }
 
     void DecodeWorker() {
         auto next_tick = std::chrono::steady_clock::now();
+        const auto weak_self = weak_from_this();
         while (running_) {
             next_tick += std::chrono::milliseconds(kFrameMs);
             {
                 std::unique_lock lock(jitter_wait_mutex_);
-                jitter_cv_.wait_until(lock, next_tick, [this] { return !running_; });
+                jitter_cv_.wait_until(lock, next_tick, [weak_self] {
+                    const auto self = weak_self.lock();
+                    return !self || !self->running_;
+                });
             }
             if (!running_) {
                 break;
@@ -489,7 +530,7 @@ private:
             }
             if (!pcm.empty() && !speaker_muted_) {
                 stats_playout_dropped_.fetch_add(
-                    playout_queue_.Write(pcm.data(), pcm.size()),
+                    playout_queue_.Write(std::span<const int16_t>(pcm)),
                     std::memory_order_relaxed);
             }
 
@@ -563,11 +604,15 @@ private:
 };
 
 VoiceAudioEndpoint::VoiceAudioEndpoint(BackendFactory backend_factory)
-    : impl_(std::make_unique<Impl>(std::move(backend_factory))) {}
-VoiceAudioEndpoint::~VoiceAudioEndpoint() = default;
+    : impl_(std::make_shared<Impl>(std::move(backend_factory))) {}
+VoiceAudioEndpoint::~VoiceAudioEndpoint() {
+    if (impl_) {
+        impl_->Stop();
+    }
+}
 
 bool VoiceAudioEndpoint::Start(
-    PacketCallback callback, std::string* error,
+    PacketCallback callback, std::string& error,
     FatalErrorCallback fatal_error_callback,
     ProcessedCaptureCallback processed_capture_callback) {
     return Start(
@@ -577,7 +622,7 @@ bool VoiceAudioEndpoint::Start(
 
 bool VoiceAudioEndpoint::Start(
     PacketCallback callback, const VoiceAudioBackendConfig& backend_config,
-    std::string* error, FatalErrorCallback fatal_error_callback,
+    std::string& error, FatalErrorCallback fatal_error_callback,
     ProcessedCaptureCallback processed_capture_callback) {
     return impl_->Start(
         std::move(callback), backend_config, error,

@@ -2,9 +2,11 @@
 
 #if defined(_WIN32)
 
+#include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <mutex>
+#include <string_view>
 #include <utility>
 
 #include "miniaudio/miniaudio.h"
@@ -21,7 +23,7 @@ public:
         CaptureCallback capture_callback,
         PlayoutCallback playout_callback,
         EventCallback event_callback,
-        std::string* error) override {
+        std::string& error) override {
         std::scoped_lock lock(lifecycle_mutex_);
         StopLocked();
         if ((!config.capture_enabled && !config.playout_enabled) ||
@@ -33,9 +35,11 @@ public:
             return false;
         }
 
-        capture_callback_ = std::move(capture_callback);
-        playout_callback_ = std::move(playout_callback);
-        event_callback_ = std::move(event_callback);
+        auto callback_state = std::make_shared<CallbackState>();
+        callback_state->capture_callback = std::move(capture_callback);
+        callback_state->playout_callback = std::move(playout_callback);
+        callback_state->event_callback = std::move(event_callback);
+        callback_state_ = callback_state;
 
         const ma_backend backends[] = {ma_backend_wasapi};
         const ma_context_config context_config = ma_context_config_init();
@@ -70,12 +74,14 @@ public:
         device_config.dataCallback = &WasapiVoiceAudioBackend::DataCallback;
         device_config.notificationCallback =
             &WasapiVoiceAudioBackend::NotificationCallback;
-        device_config.pUserData = this;
+        device_config.pUserData = callback_state.get(); // NOLINT(gammaray-raw-pointer-boundary): miniaudio retains userdata only until ma_device_uninit
 
         ma_device_id capture_id{};
         ma_device_id playout_id{};
-        if ((config.capture_enabled && !SetDeviceId(config.capture_device_id, &capture_id, error)) ||
-            (config.playout_enabled && !SetDeviceId(config.playout_device_id, &playout_id, error))) {
+        if ((config.capture_enabled &&
+             !SetDeviceId(config.capture_device_id, capture_id, error)) ||
+            (config.playout_enabled &&
+             !SetDeviceId(config.playout_device_id, playout_id, error))) {
             StopLocked();
             return false;
         }
@@ -109,7 +115,8 @@ public:
                                             : "default communications output"),
         };
 
-        stopping_ = false;
+        callback_state->stopping = false;
+        callback_state->running = true;
         running_ = true;
         result = ma_device_start(&device_);
         if (result != MA_SUCCESS) {
@@ -127,12 +134,8 @@ public:
     }
 
     bool EnumerateDevices(
-        VoiceAudioDeviceInventory* inventory, std::string* error) override {
-        if (!inventory) {
-            SetError(error, "audio device inventory is null");
-            return false;
-        }
-        *inventory = {};
+        VoiceAudioDeviceInventory& inventory, std::string& error) override {
+        inventory = {};
         const ma_backend backends[] = {ma_backend_wasapi};
         ma_context context{};
         const ma_context_config context_config = ma_context_config_init();
@@ -141,8 +144,8 @@ public:
             SetError(error, ResultError("ma_context_init(WASAPI enumeration)", result));
             return false;
         }
-        ma_device_info* playback = nullptr;
-        ma_device_info* capture = nullptr;
+        ma_device_info* playback = nullptr; // NOLINT(gammaray-raw-pointer-boundary): miniaudio enumeration output
+        ma_device_info* capture = nullptr; // NOLINT(gammaray-raw-pointer-boundary): miniaudio enumeration output
         ma_uint32 playback_count = 0;
         ma_uint32 capture_count = 0;
         result = ma_context_get_devices(
@@ -152,13 +155,13 @@ public:
             ma_context_uninit(&context);
             return false;
         }
-        inventory->capture_devices.push_back({
+        inventory.capture_devices.push_back({
             .id = {}, .name = "Default communications capture", .is_default = true});
-        inventory->playout_devices.push_back({
+        inventory.playout_devices.push_back({
             .id = {}, .name = "Default communications output", .is_default = true});
         for (ma_uint32 i = 0; i < capture_count; ++i) {
             if (const auto id = DeviceIdString(capture[i].id); !id.empty()) {
-                inventory->capture_devices.push_back({
+                inventory.capture_devices.push_back({
                     .id = id,
                     .name = capture[i].name,
                     .is_default = capture[i].isDefault == MA_TRUE,
@@ -167,7 +170,7 @@ public:
         }
         for (ma_uint32 i = 0; i < playback_count; ++i) {
             if (const auto id = DeviceIdString(playback[i].id); !id.empty()) {
-                inventory->playout_devices.push_back({
+                inventory.playout_devices.push_back({
                     .id = id,
                     .name = playback[i].name,
                     .is_default = playback[i].isDefault == MA_TRUE,
@@ -186,6 +189,15 @@ public:
     }
 
 private:
+    struct CallbackState final {
+        std::mutex mutex;
+        CaptureCallback capture_callback;
+        PlayoutCallback playout_callback;
+        EventCallback event_callback;
+        std::atomic_bool running = false;
+        std::atomic_bool stopping = false;
+    };
+
     static std::string DeviceIdString(const ma_device_id& id) {
         std::string result;
         for (const auto value : id.wasapi) {
@@ -214,7 +226,9 @@ private:
             probe_config.playback.channels = config.channels;
             probe_config.playback.shareMode = ma_share_mode_shared;
             ma_device_id id{};
-            if (!SetDeviceId(config.playout_device_id, &id, nullptr)) {
+            std::string ignored_error;
+            if (!SetDeviceId(
+                    config.playout_device_id, id, ignored_error)) {
                 return "invalid endpoint ID";
             }
             if (!config.playout_device_id.empty()) {
@@ -227,7 +241,9 @@ private:
             probe_config.capture.channels = config.channels;
             probe_config.capture.shareMode = ma_share_mode_shared;
             ma_device_id id{};
-            if (!SetDeviceId(config.capture_device_id, &id, nullptr)) {
+            std::string ignored_error;
+            if (!SetDeviceId(
+                    config.capture_device_id, id, ignored_error)) {
                 return "invalid endpoint ID";
             }
             if (!config.capture_device_id.empty()) {
@@ -253,10 +269,10 @@ private:
     }
 
     static bool SetDeviceId(
-        const std::string& value, ma_device_id* destination,
-        std::string* error) {
-        if (!destination || value.size() >=
-                sizeof(destination->wasapi) / sizeof(destination->wasapi[0])) {
+        const std::string& value, ma_device_id& destination,
+        std::string& error) {
+        if (value.size() >=
+                sizeof(destination.wasapi) / sizeof(destination.wasapi[0])) {
             SetError(error, "WASAPI endpoint ID is too long");
             return false;
         }
@@ -266,59 +282,79 @@ private:
                 SetError(error, "WASAPI endpoint ID must be ASCII");
                 return false;
             }
-            destination->wasapi[i] = static_cast<ma_wchar_win32>(byte);
+            destination.wasapi[i] = static_cast<ma_wchar_win32>(byte);
         }
-        destination->wasapi[value.size()] = 0;
+        destination.wasapi[value.size()] = 0;
         return true;
     }
 
+    // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): miniaudio data callback ABI
     static void DataCallback(
         ma_device* device, void* output, const void* input,
         ma_uint32 frame_count) {
-        auto* self = device
-            ? static_cast<WasapiVoiceAudioBackend*>(device->pUserData)
-            : nullptr;
-        if (!self || frame_count == 0) {
+        if (!device || !device->pUserData || frame_count == 0) {
             return;
         }
-        auto* output_samples = static_cast<int16_t*>(output);
-        if (output_samples) {
-            std::memset(output_samples, 0, frame_count * sizeof(int16_t));
+        auto& state = *static_cast<CallbackState*>(
+            device->pUserData); // NOLINT(gammaray-raw-pointer-boundary): miniaudio callback userdata boundary
+        const auto output_samples = output
+            ? std::span<int16_t>(
+                  static_cast<int16_t*>(output), frame_count) // NOLINT(gammaray-raw-pointer-boundary): miniaudio buffer boundary
+            : std::span<int16_t>{};
+        if (!output_samples.empty()) {
+            std::fill(output_samples.begin(), output_samples.end(), 0);
         }
-        if (!self->running_) {
+        if (!state.running) {
             return;
         }
-        if (input && self->capture_callback_) {
-            self->capture_callback_(static_cast<const int16_t*>(input), frame_count);
+        CaptureCallback capture_callback;
+        PlayoutCallback playout_callback;
+        {
+            std::scoped_lock lock(state.mutex);
+            capture_callback = state.capture_callback;
+            playout_callback = state.playout_callback;
         }
-        if (output_samples && self->playout_callback_) {
-            self->playout_callback_(output_samples, frame_count);
+        if (input && capture_callback) {
+            capture_callback(std::span<const int16_t>(
+                static_cast<const int16_t*>(input), frame_count));
+        }
+        if (!output_samples.empty() && playout_callback) {
+            playout_callback(output_samples);
         }
     }
 
+    // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): miniaudio notification callback ABI
     static void NotificationCallback(const ma_device_notification* notification) {
         if (!notification || !notification->pDevice) {
             return;
         }
-        auto* self = static_cast<WasapiVoiceAudioBackend*>(
-            notification->pDevice->pUserData);
-        if (!self || self->stopping_ || !self->event_callback_) {
+        if (!notification->pDevice->pUserData) {
             return;
+        }
+        auto& state = *static_cast<CallbackState*>(
+            notification->pDevice->pUserData); // NOLINT(gammaray-raw-pointer-boundary): miniaudio callback userdata boundary
+        EventCallback event_callback;
+        {
+            std::scoped_lock lock(state.mutex);
+            if (state.stopping || !state.event_callback) {
+                return;
+            }
+            event_callback = state.event_callback;
         }
         switch (notification->type) {
         case ma_device_notification_type_rerouted:
-            self->event_callback_(VoiceAudioBackendEvent::kRerouted, "rerouted");
+            event_callback(VoiceAudioBackendEvent::kRerouted, "rerouted");
             break;
         case ma_device_notification_type_interruption_began:
-            self->event_callback_(
+            event_callback(
                 VoiceAudioBackendEvent::kInterruptionBegan, "interruption_began");
             break;
         case ma_device_notification_type_interruption_ended:
-            self->event_callback_(
+            event_callback(
                 VoiceAudioBackendEvent::kInterruptionEnded, "interruption_ended");
             break;
         case ma_device_notification_type_stopped:
-            self->event_callback_(VoiceAudioBackendEvent::kStopped, "device_stopped");
+            event_callback(VoiceAudioBackendEvent::kStopped, "device_stopped");
             break;
         default:
             break;
@@ -326,8 +362,12 @@ private:
     }
 
     void StopLocked() {
-        stopping_ = true;
         running_ = false;
+        const auto callback_state = callback_state_;
+        if (callback_state) {
+            callback_state->stopping = true;
+            callback_state->running = false;
+        }
         if (device_initialized_) {
             ma_device_stop(&device_);
             ma_device_uninit(&device_);
@@ -339,26 +379,32 @@ private:
         }
         info_ = {};
         ClearCallbacks();
-        stopping_ = false;
     }
 
     void ClearCallbacks() {
-        capture_callback_ = {};
-        playout_callback_ = {};
-        event_callback_ = {};
+        const auto callback_state = std::move(callback_state_);
+        if (!callback_state) {
+            return;
+        }
+        std::scoped_lock lock(callback_state->mutex);
+        callback_state->running = false;
+        callback_state->stopping = true;
+        callback_state->capture_callback = {};
+        callback_state->playout_callback = {};
+        callback_state->event_callback = {};
     }
 
-    static std::string ResultError(const char* operation, ma_result result) {
-        const char* description = ma_result_description(result);
-        return std::string(operation) + " failed: " +
-            (description ? description : "unknown") +
+    static std::string ResultError(
+        std::string_view operation, ma_result result) {
+        // ma_result_description returns a borrowed process-lifetime string.
+        const std::string description = ma_result_description(result)
+            ? ma_result_description(result) : "unknown";
+        return std::string(operation) + " failed: " + description +
             " (" + std::to_string(static_cast<int>(result)) + ")";
     }
 
-    static void SetError(std::string* error, std::string value) {
-        if (error) {
-            *error = std::move(value);
-        }
+    static void SetError(std::string& error, std::string value) {
+        error = std::move(value);
     }
 
     mutable std::mutex lifecycle_mutex_;
@@ -367,10 +413,7 @@ private:
     bool context_initialized_ = false;
     bool device_initialized_ = false;
     std::atomic_bool running_ = false;
-    std::atomic_bool stopping_ = false;
-    CaptureCallback capture_callback_;
-    PlayoutCallback playout_callback_;
-    EventCallback event_callback_;
+    std::shared_ptr<CallbackState> callback_state_;
     VoiceAudioBackendInfo info_;
 };
 

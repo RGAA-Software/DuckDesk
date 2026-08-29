@@ -111,6 +111,12 @@ function Publish-RenderPlugin {
     $source = Join-Path $buildRoot ("src\px_render\plugins\" + $relativeSource)
     $destination = Join-Path $distRoot ("deps\rd_plugins\" + (Split-Path -Leaf $relativeSource))
     Publish-VerifiedFile -Source $source -Destination $destination -ProcessName "px_render"
+    if ($Target -eq "voice_call") {
+        Publish-VerifiedFile `
+            -Source (Join-Path $buildRoot "src\px_deps\px_voice_call\px_voice_apm.dll") `
+            -Destination (Join-Path $distRoot "px_voice_apm.dll") `
+            -ProcessName "px_render"
+    }
 }
 
 switch ($Component) {

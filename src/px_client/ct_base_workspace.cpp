@@ -1577,7 +1577,7 @@ namespace px
                         if (const auto self = weak_self.lock()) {
                             self->QueueVoiceAudioFrame(call_id, sequence, capture_time_ms, opus);
                         }
-                    }, backend_config, &error,
+                    }, backend_config, error,
                     [weak_self, call_id = response.call_id(), weak_endpoint](
                         const std::string& reason) {
                         const auto self = weak_self.lock();

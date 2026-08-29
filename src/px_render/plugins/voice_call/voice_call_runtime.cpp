@@ -431,7 +431,7 @@ void VoiceCallRuntime::ApplyConsentDecision(
                 }
             }
         },
-        &error, // NOLINT(gammaray-raw-pointer-boundary): synchronous error output API
+        error,
         [weak_self, call_id = decision.call_id_, weak_endpoint](
             const std::string& reason) {
             if (const auto self = weak_self.lock()) {

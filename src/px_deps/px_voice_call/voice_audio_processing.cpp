@@ -57,8 +57,8 @@ public:
         apm_ = nullptr;
     }
 
-    bool ProcessCapture(int16_t* samples, size_t sample_count) {
-        if (!samples || sample_count != kFrameSamples) {
+    bool ProcessCapture(std::span<int16_t> samples) {
+        if (samples.size() != kFrameSamples) {
             capture_failures_.fetch_add(1, std::memory_order_relaxed);
             return false;
         }
@@ -68,7 +68,8 @@ public:
             return false;
         }
         const webrtc::StreamConfig stream(kSampleRate, 1);
-        const int result = apm_->ProcessStream(samples, stream, stream, samples);
+        const int result = apm_->ProcessStream(
+            samples.data(), stream, stream, samples.data()); // NOLINT(gammaray-raw-pointer-boundary): synchronous libwebrtc buffer ABI
         if (result != webrtc::AudioProcessing::kNoError) {
             capture_failures_.fetch_add(1, std::memory_order_relaxed);
             return false;
@@ -77,8 +78,8 @@ public:
         return true;
     }
 
-    bool ProcessRender(const int16_t* samples, size_t sample_count) {
-        if (!samples || sample_count != kFrameSamples) {
+    bool ProcessRender(std::span<const int16_t> samples) {
+        if (samples.size() != kFrameSamples) {
             render_failures_.fetch_add(1, std::memory_order_relaxed);
             return false;
         }
@@ -90,7 +91,7 @@ public:
         const webrtc::StreamConfig stream(kSampleRate, 1);
         std::array<int16_t, kFrameSamples> processed{};
         const int result = apm_->ProcessReverseStream(
-            samples, stream, stream, processed.data());
+            samples.data(), stream, stream, processed.data()); // NOLINT(gammaray-raw-pointer-boundary): synchronous libwebrtc buffer ABI
         if (result != webrtc::AudioProcessing::kNoError) {
             render_failures_.fetch_add(1, std::memory_order_relaxed);
             return false;
@@ -137,13 +138,13 @@ bool VoiceAudioProcessing::Initialize(const VoiceAudioProcessingConfig& config) 
 
 void VoiceAudioProcessing::Reset() { impl_->Reset(); }
 
-bool VoiceAudioProcessing::ProcessCapture(int16_t* samples, size_t sample_count) {
-    return impl_->ProcessCapture(samples, sample_count);
+bool VoiceAudioProcessing::ProcessCapture(std::span<int16_t> samples) {
+    return impl_->ProcessCapture(samples);
 }
 
 bool VoiceAudioProcessing::ProcessRender(
-    const int16_t* samples, size_t sample_count) {
-    return impl_->ProcessRender(samples, sample_count);
+    std::span<const int16_t> samples) {
+    return impl_->ProcessRender(samples);
 }
 
 bool VoiceAudioProcessing::IsInitialized() const { return impl_->IsInitialized(); }

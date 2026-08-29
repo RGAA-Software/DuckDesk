@@ -222,7 +222,7 @@
 
 ## 9. 交付与评审清单
 
-### 2026-08-30 owned-runtime checkpoint
+### 2026-08-30 owned-runtime and audio-endpoint checkpoints
 
 - `VoiceCallRuntime` 已接管 Render 侧会话状态、授权关联、音频端点、RTC
   PCM owned envelope 与非 RTC 有界传输队列；插件实例只保留同步 ABI 转发。
@@ -230,12 +230,17 @@
   受保护访问窗口内调用网络插件，后台音频线程不再保存网络插件地址。
 - `VoicePacketTransport` 工作线程只持有共享 `WorkerState`，支持发送回调内
   Stop，且连续启停 10 轮通过。
-- focused 自动化结果：core 33 passed / 2 environment skips，runtime 5/5，
-  transport 3/3，DLL create/destroy/unload 10/10。真实 WASAPI、双物理机 AEC、
-  热插拔和长稳仍按 M2/M6 门禁执行，不能因本 checkpoint 自动标记完成。
+- `VoiceAudioEndpoint::Impl` 与 SDL/WASAPI backend 已使用共享回调状态；工作线程
+  捕获共享端点状态，backend 回调只持有弱引用，音频缓冲区接口统一为 `span`。
+  `px_voice_apm.dll` 已加入 voice-call 插件发布与 SHA-256 校验清单。
+- focused 自动化结果：core 39项（真实WASAPI矩阵38通过、仅2小时门禁跳过，
+  2秒真实WASAPI→APM→Opus端点测试另行通过），runtime 6/6，transport 3/3，
+  client protocol 5/5，DLL create/destroy/unload 10/10，WASAPI smoke 10/10。
+  双物理机 AEC、热插拔和正式长稳仍按 M2/M6 门禁执行，不能因本 checkpoint
+  自动标记完成。
 
-下一批处理 `VoiceAudioEndpoint::Impl` 与具体 WASAPI/SDL backend 内部仍存在的
-legacy callback ownership；不得修改 libwebrtc 或插件实例 ABI 例外。
+下一批处理其余 GammaRay-owned capture/process callback 生命周期；不得修改
+libwebrtc 或插件实例 ABI 例外。
 
 每个里程碑交付应包含：
 

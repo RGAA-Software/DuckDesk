@@ -31,58 +31,114 @@
 namespace px {
 namespace {
 
-class TestVoiceAudioBackend final : public IVoiceAudioBackend {
+class TestVoiceAudioBackendProbe final {
 public:
-    bool Start(
-        const VoiceAudioBackendConfig&, CaptureCallback capture_callback,
-        PlayoutCallback playout_callback, EventCallback event_callback,
-        std::string*) override {
+    void SetCallbacks(
+        IVoiceAudioBackend::CaptureCallback capture_callback,
+        IVoiceAudioBackend::PlayoutCallback playout_callback,
+        IVoiceAudioBackend::EventCallback event_callback) {
+        std::scoped_lock lock(mutex_);
         capture_callback_ = std::move(capture_callback);
         playout_callback_ = std::move(playout_callback);
         event_callback_ = std::move(event_callback);
         running_ = true;
+    }
+
+    void Stop() {
+        std::scoped_lock lock(mutex_);
+        running_ = false;
+    }
+
+    [[nodiscard]] bool IsRunning() const {
+        std::scoped_lock lock(mutex_);
+        return running_;
+    }
+
+    void Emit(VoiceAudioBackendEvent event, const std::string& reason = {}) {
+        IVoiceAudioBackend::EventCallback callback;
+        {
+            std::scoped_lock lock(mutex_);
+            callback = event_callback_;
+        }
+        if (callback) {
+            callback(event, reason);
+        }
+    }
+
+    void FeedCapture(std::span<const int16_t> samples) {
+        const auto callback = CopyCaptureCallback();
+        if (callback) {
+            callback(samples);
+        }
+    }
+
+    std::vector<int16_t> PullPlayout(size_t count) {
+        std::vector<int16_t> output(count, 0);
+        IVoiceAudioBackend::PlayoutCallback callback;
+        {
+            std::scoped_lock lock(mutex_);
+            if (running_) {
+                callback = playout_callback_;
+            }
+        }
+        if (callback) {
+            callback(std::span<int16_t>(output));
+        }
+        return output;
+    }
+
+    [[nodiscard]] IVoiceAudioBackend::CaptureCallback
+    CopyCaptureCallback() const {
+        std::scoped_lock lock(mutex_);
+        return running_ ? capture_callback_
+                        : IVoiceAudioBackend::CaptureCallback{};
+    }
+
+private:
+    mutable std::mutex mutex_;
+    bool running_ = false;
+    IVoiceAudioBackend::CaptureCallback capture_callback_;
+    IVoiceAudioBackend::PlayoutCallback playout_callback_;
+    IVoiceAudioBackend::EventCallback event_callback_;
+};
+
+class TestVoiceAudioBackend final : public IVoiceAudioBackend {
+public:
+    explicit TestVoiceAudioBackend(
+        std::shared_ptr<TestVoiceAudioBackendProbe> probe)
+        : probe_(std::move(probe)) {}
+
+    bool Start(
+        const VoiceAudioBackendConfig&, CaptureCallback capture_callback,
+        PlayoutCallback playout_callback, EventCallback event_callback,
+        std::string&) override {
+        probe_->SetCallbacks(
+            std::move(capture_callback), std::move(playout_callback),
+            std::move(event_callback));
         return true;
     }
 
-    void Stop() override { running_ = false; }
+    void Stop() override { probe_->Stop(); }
 
     bool EnumerateDevices(
-        VoiceAudioDeviceInventory* inventory, std::string*) override {
-        if (!inventory) {
-            return false;
-        }
-        inventory->capture_devices.push_back({.name = "test capture", .is_default = true});
-        inventory->playout_devices.push_back({.name = "test playout", .is_default = true});
+        VoiceAudioDeviceInventory& inventory, std::string&) override {
+        inventory.capture_devices.push_back(
+            {.name = "test capture", .is_default = true});
+        inventory.playout_devices.push_back(
+            {.name = "test playout", .is_default = true});
         return true;
     }
 
-    [[nodiscard]] bool IsRunning() const override { return running_; }
+    [[nodiscard]] bool IsRunning() const override {
+        return probe_->IsRunning();
+    }
     [[nodiscard]] VoiceAudioBackendInfo Info() const override {
         return {.backend = "test", .capture_device = "test capture",
                 .playout_device = "test playout"};
     }
 
-    void Emit(VoiceAudioBackendEvent event, const std::string& reason = {}) {
-        if (event_callback_) {
-            event_callback_(event, reason);
-        }
-    }
-
-    void FeedCapture(const int16_t* samples, size_t count) {
-        if (running_ && capture_callback_) capture_callback_(samples, count);
-    }
-
-    std::vector<int16_t> PullPlayout(size_t count) {
-        std::vector<int16_t> output(count, 0);
-        if (running_ && playout_callback_) playout_callback_(output.data(), count);
-        return output;
-    }
-
 private:
-    bool running_ = false;
-    CaptureCallback capture_callback_;
-    PlayoutCallback playout_callback_;
-    EventCallback event_callback_;
+    std::shared_ptr<TestVoiceAudioBackendProbe> probe_;
 };
 
 }  // namespace
@@ -202,7 +258,7 @@ TEST(VoiceAudioEndpointTest, CaptureEncodeDecodeAndPlayoutRunWithDummyAudioDevic
                     const std::vector<uint8_t>& opus) {
             endpoint.ReceiveOpus(
                 sequence, capture_time_ms, std::span<const uint8_t>(opus));
-        }, &error)) << error;
+        }, error)) << error;
 
     std::this_thread::sleep_for(std::chrono::milliseconds(350));
     const auto stats = endpoint.Stats();
@@ -224,7 +280,7 @@ TEST(VoiceAudioEndpointTest, MuteControlsKeepTransportAliveAndRecover) {
                     const std::vector<uint8_t>& opus) {
             endpoint.ReceiveOpus(
                 sequence, capture_time_ms, std::span<const uint8_t>(opus));
-        }, &error)) << error;
+        }, error)) << error;
 
     std::this_thread::sleep_for(std::chrono::milliseconds(160));
     const auto before_mute = endpoint.Stats();
@@ -255,7 +311,7 @@ TEST(VoiceAudioEndpointTest, ConcurrentStopIsIdempotent) {
                     const std::vector<uint8_t>& opus) {
             endpoint.ReceiveOpus(
                 sequence, capture_time_ms, std::span<const uint8_t>(opus));
-        }, &error)) << error;
+        }, error)) << error;
     std::this_thread::sleep_for(std::chrono::milliseconds(120));
 
     std::thread first([&endpoint] { endpoint.Stop(); });
@@ -267,13 +323,85 @@ TEST(VoiceAudioEndpointTest, ConcurrentStopIsIdempotent) {
     EXPECT_FALSE(endpoint.IsRunning());
 }
 
+TEST(VoiceAudioEndpointTest, StopFromProcessedCaptureCallbackDoesNotSelfJoin) {
+    ASSERT_EQ(SDL_setenv("SDL_AUDIODRIVER", "dummy", 1), 0);
+    const auto endpoint = std::make_shared<VoiceAudioEndpoint>(
+        [] { return CreateSdlVoiceAudioBackend(); });
+    const auto weak_endpoint = std::weak_ptr<VoiceAudioEndpoint>(endpoint);
+    auto stopped = std::make_shared<std::promise<void>>();
+    auto stopped_future = stopped->get_future();
+    auto stop_once = std::make_shared<std::atomic_bool>(false);
+    std::string error;
+    ASSERT_TRUE(endpoint->Start(
+        [](uint32_t, uint64_t, const std::vector<uint8_t>&) {}, error, {},
+        [weak_endpoint, stopped, stop_once](std::span<const int16_t>) {
+            if (!stop_once->exchange(true)) {
+                if (const auto active = weak_endpoint.lock()) {
+                    active->Stop();
+                }
+                stopped->set_value();
+            }
+        })) << error;
+    EXPECT_EQ(stopped_future.wait_for(std::chrono::seconds(1)),
+              std::future_status::ready);
+    EXPECT_FALSE(endpoint->IsRunning());
+}
+
+TEST(VoiceAudioEndpointTest, LateBackendCallbackAfterDestructionIsIgnored) {
+    const auto probe = std::make_shared<TestVoiceAudioBackendProbe>();
+    IVoiceAudioBackend::CaptureCallback late_capture;
+    {
+        VoiceAudioEndpoint endpoint([probe] {
+            return std::make_unique<TestVoiceAudioBackend>(probe);
+        });
+        std::string error;
+        ASSERT_TRUE(endpoint.Start(
+            [](uint32_t, uint64_t, const std::vector<uint8_t>&) {},
+            error)) << error;
+        late_capture = probe->CopyCaptureCallback();
+        ASSERT_TRUE(late_capture);
+    }
+    std::array<int16_t, 480> samples{};
+    EXPECT_NO_THROW(late_capture(std::span<const int16_t>(samples)));
+}
+
+TEST(VoiceAudioEndpointTest, RepeatedStartStopIsStableForTenRounds) {
+    const auto probe = std::make_shared<TestVoiceAudioBackendProbe>();
+    VoiceAudioEndpoint endpoint([probe] {
+        return std::make_unique<TestVoiceAudioBackend>(probe);
+    });
+    for (int round = 0; round < 10; ++round) {
+        std::string error;
+        ASSERT_TRUE(endpoint.Start(
+            [](uint32_t, uint64_t, const std::vector<uint8_t>&) {},
+            error)) << "round " << round << ": " << error;
+        EXPECT_TRUE(endpoint.IsRunning()) << "round " << round;
+        endpoint.Stop();
+        EXPECT_FALSE(endpoint.IsRunning()) << "round " << round;
+    }
+}
+
+TEST(VoiceAudioEndpointTest, SdlBackendRepeatedStartStopIsStableForTenRounds) {
+    ASSERT_EQ(SDL_setenv("SDL_AUDIODRIVER", "dummy", 1), 0);
+    VoiceAudioEndpoint endpoint([] { return CreateSdlVoiceAudioBackend(); });
+    for (int round = 0; round < 10; ++round) {
+        std::string error;
+        ASSERT_TRUE(endpoint.Start(
+            [](uint32_t, uint64_t, const std::vector<uint8_t>&) {},
+            error)) << "round " << round << ": " << error;
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        endpoint.Stop();
+        EXPECT_FALSE(endpoint.IsRunning()) << "round " << round;
+    }
+}
+
 TEST(VoiceAudioBackendTest, SdlDummyEnumeratesDefaultDevices) {
     ASSERT_EQ(SDL_setenv("SDL_AUDIODRIVER", "dummy", 1), 0);
     auto backend = CreateSdlVoiceAudioBackend();
     ASSERT_NE(backend, nullptr);
     VoiceAudioDeviceInventory inventory;
     std::string error;
-    ASSERT_TRUE(backend->EnumerateDevices(&inventory, &error)) << error;
+    ASSERT_TRUE(backend->EnumerateDevices(inventory, error)) << error;
     ASSERT_FALSE(inventory.capture_devices.empty());
     ASSERT_FALSE(inventory.playout_devices.empty());
     EXPECT_TRUE(inventory.capture_devices.front().is_default);
@@ -281,45 +409,37 @@ TEST(VoiceAudioBackendTest, SdlDummyEnumeratesDefaultDevices) {
 }
 
 TEST(VoiceAudioEndpointTest, DeviceEventsRebuildApmAndSignalFatalOnce) {
-    TestVoiceAudioBackend* raw_backend = nullptr;
-    VoiceAudioEndpoint endpoint([&raw_backend] {
-        auto backend = std::make_unique<TestVoiceAudioBackend>();
-        raw_backend = backend.get();
-        return backend;
+    const auto probe = std::make_shared<TestVoiceAudioBackendProbe>();
+    VoiceAudioEndpoint endpoint([probe] {
+        return std::make_unique<TestVoiceAudioBackend>(probe);
     });
     std::atomic_uint32_t fatal_count = 0;
     std::string fatal_reason;
     std::string error;
     ASSERT_TRUE(endpoint.Start(
-        [](uint32_t, uint64_t, const std::vector<uint8_t>&) {}, &error,
+        [](uint32_t, uint64_t, const std::vector<uint8_t>&) {}, error,
         [&fatal_count, &fatal_reason](const std::string& reason) {
             ++fatal_count;
             fatal_reason = reason;
         })) << error;
-    ASSERT_NE(raw_backend, nullptr);
-
-    raw_backend->Emit(VoiceAudioBackendEvent::kRerouted, "default_changed");
+    probe->Emit(VoiceAudioBackendEvent::kRerouted, "default_changed");
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
     EXPECT_EQ(endpoint.Stats().device_rebuilds, 1u);
-    raw_backend->Emit(VoiceAudioBackendEvent::kStopped, "first");
-    raw_backend->Emit(VoiceAudioBackendEvent::kStopped, "duplicate");
+    probe->Emit(VoiceAudioBackendEvent::kStopped, "first");
+    probe->Emit(VoiceAudioBackendEvent::kStopped, "duplicate");
     EXPECT_EQ(fatal_count.load(), 1u);
     EXPECT_EQ(fatal_reason, "device_lost");
     endpoint.Stop();
 }
 
 TEST(VoiceAudioEndpointTest, WebRtcPcmUsesEndpointPlayoutAndAecReference) {
-    TestVoiceAudioBackend* raw_backend = nullptr;
-    VoiceAudioEndpoint endpoint([&raw_backend] {
-        auto backend = std::make_unique<TestVoiceAudioBackend>();
-        raw_backend = backend.get();
-        return backend;
+    const auto probe = std::make_shared<TestVoiceAudioBackendProbe>();
+    VoiceAudioEndpoint endpoint([probe] {
+        return std::make_unique<TestVoiceAudioBackend>(probe);
     });
     std::string error;
     ASSERT_TRUE(endpoint.Start(
-        [](uint32_t, uint64_t, const std::vector<uint8_t>&) {}, &error)) << error;
-    ASSERT_NE(raw_backend, nullptr);
-
+        [](uint32_t, uint64_t, const std::vector<uint8_t>&) {}, error)) << error;
     std::array<int16_t, 960> stereo{};
     for (size_t frame = 0; frame < 480; ++frame) {
         stereo[frame * 2] = 1'000;
@@ -327,21 +447,21 @@ TEST(VoiceAudioEndpointTest, WebRtcPcmUsesEndpointPlayoutAndAecReference) {
     }
     ASSERT_TRUE(endpoint.ReceivePcm(std::span<const int16_t>(stereo), 48'000, 2));
     EXPECT_EQ(endpoint.Stats().received_pcm_samples, 480u);
-    const auto played = raw_backend->PullPlayout(480);
+    const auto played = probe->PullPlayout(480);
     ASSERT_EQ(played.size(), 480u);
     EXPECT_TRUE(std::all_of(played.begin(), played.end(), [](int16_t value) {
         return value == 2'000;
     }));
 
     std::array<int16_t, 480> capture{};
-    raw_backend->FeedCapture(capture.data(), capture.size());
+    probe->FeedCapture(std::span<const int16_t>(capture));
     std::this_thread::sleep_for(std::chrono::milliseconds(40));
     EXPECT_GT(endpoint.Stats().apm_render_frames, 0u);
 
     endpoint.SetSpeakerMuted(true);
     EXPECT_TRUE(endpoint.ReceivePcm(std::span<const int16_t>(stereo), 48'000, 2));
     EXPECT_EQ(endpoint.Stats().received_pcm_samples, 480u);
-    const auto muted = raw_backend->PullPlayout(480);
+    const auto muted = probe->PullPlayout(480);
     EXPECT_TRUE(std::all_of(muted.begin(), muted.end(), [](int16_t value) {
         return value == 0;
     }));
@@ -381,7 +501,7 @@ TEST(VoiceAudioEndpointTest, ConfigurableLongRunningStability) {
                     const std::vector<uint8_t>& opus) {
             endpoint.ReceiveOpus(
                 sequence, capture_time_ms, std::span<const uint8_t>(opus));
-        }, &error)) << error;
+        }, error)) << error;
 
     // Exclude one-time DLL, codec and audio subsystem initialization from the
     // leak baseline. Long-term growth is measured while the call is active.
@@ -478,7 +598,7 @@ TEST(VoiceAudioBackendTest, WasapiCommunicationDuplexHardwareSmoke) {
     ASSERT_NE(backend, nullptr);
     VoiceAudioDeviceInventory inventory;
     std::string enumeration_error;
-    ASSERT_TRUE(backend->EnumerateDevices(&inventory, &enumeration_error))
+    ASSERT_TRUE(backend->EnumerateDevices(inventory, enumeration_error))
         << enumeration_error;
     ASSERT_GT(inventory.capture_devices.size(), 1u);
     ASSERT_GT(inventory.playout_devices.size(), 1u);
@@ -494,15 +614,15 @@ TEST(VoiceAudioBackendTest, WasapiCommunicationDuplexHardwareSmoke) {
     }
     ASSERT_TRUE(backend->Start(
         config,
-        [&captured_samples](const int16_t*, size_t count) {
-            captured_samples.fetch_add(count, std::memory_order_relaxed);
+        [&captured_samples](std::span<const int16_t> samples) {
+            captured_samples.fetch_add(samples.size(), std::memory_order_relaxed);
         },
-        [&rendered_samples](int16_t* output, size_t count) {
-            std::fill(output, output + count, 0);
-            rendered_samples.fetch_add(count, std::memory_order_relaxed);
+        [&rendered_samples](std::span<int16_t> output) {
+            std::fill(output.begin(), output.end(), 0);
+            rendered_samples.fetch_add(output.size(), std::memory_order_relaxed);
         },
         [](VoiceAudioBackendEvent, const std::string&) {},
-        &error)) << error;
+        error)) << error;
     std::this_thread::sleep_for(std::chrono::milliseconds(600));
     const auto info = backend->Info();
     backend->Stop();
@@ -529,9 +649,10 @@ TEST(VoiceAudioProcessingTest, ConfiguresAndProcessesTenMillisecondFrames) {
     for (size_t i = 0; i < capture.size(); ++i) {
         capture[i] = static_cast<int16_t>((i % 64) * 40 - 1'280);
     }
-    EXPECT_TRUE(processing.ProcessRender(render.data(), render.size()));
-    EXPECT_TRUE(processing.ProcessCapture(capture.data(), capture.size()));
-    EXPECT_FALSE(processing.ProcessCapture(capture.data(), capture.size() - 1));
+    EXPECT_TRUE(processing.ProcessRender(std::span<const int16_t>(render)));
+    EXPECT_TRUE(processing.ProcessCapture(std::span<int16_t>(capture)));
+    EXPECT_FALSE(processing.ProcessCapture(
+        std::span<int16_t>(capture).first(capture.size() - 1)));
 
     const auto stats = processing.Stats();
     EXPECT_EQ(stats.render_frames, 1u);

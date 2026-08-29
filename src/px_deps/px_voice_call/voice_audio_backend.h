@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -47,8 +48,10 @@ enum class VoiceAudioBackendEvent {
 
 class IVoiceAudioBackend {
 public:
-    using CaptureCallback = std::function<void(const int16_t*, size_t)>;
-    using PlayoutCallback = std::function<void(int16_t*, size_t)>;
+    using CaptureCallback =
+        std::function<void(std::span<const int16_t> samples)>;
+    using PlayoutCallback =
+        std::function<void(std::span<int16_t> samples)>;
     using EventCallback =
         std::function<void(VoiceAudioBackendEvent, const std::string&)>;
 
@@ -58,10 +61,10 @@ public:
         CaptureCallback capture_callback,
         PlayoutCallback playout_callback,
         EventCallback event_callback,
-        std::string* error) = 0;
+        std::string& error) = 0;
     virtual void Stop() = 0;
     virtual bool EnumerateDevices(
-        VoiceAudioDeviceInventory* inventory, std::string* error) = 0;
+        VoiceAudioDeviceInventory& inventory, std::string& error) = 0;
     [[nodiscard]] virtual bool IsRunning() const = 0;
     [[nodiscard]] virtual VoiceAudioBackendInfo Info() const = 0;
 };

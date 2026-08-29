@@ -54,12 +54,12 @@ public:
     VoiceAudioEndpoint& operator=(const VoiceAudioEndpoint&) = delete;
 
     bool Start(
-        PacketCallback callback, std::string* error,
+        PacketCallback callback, std::string& error,
         FatalErrorCallback fatal_error_callback = {},
         ProcessedCaptureCallback processed_capture_callback = {});
     bool Start(
         PacketCallback callback, const VoiceAudioBackendConfig& backend_config,
-        std::string* error, FatalErrorCallback fatal_error_callback = {},
+        std::string& error, FatalErrorCallback fatal_error_callback = {},
         ProcessedCaptureCallback processed_capture_callback = {});
     void Stop();
     bool ReceiveOpus(
@@ -83,7 +83,7 @@ public:
 
 private:
     class Impl;
-    std::unique_ptr<Impl> impl_;
+    std::shared_ptr<Impl> impl_;
 };
 
 }  // namespace px

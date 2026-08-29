@@ -98,13 +98,19 @@ same focused-build, 10-round lifecycle and dist-publication gates.
   shared state. Voice media reaches Render through owned routing events rather
   than retained plug-in/network addresses. The packet transport also supports
   stop from its delivery callback without a self-join.
-- Voice focused evidence now includes 35 core tests (33 passed and two
-  explicitly environment/long-duration skipped), five runtime concurrency
-  tests, three packet-transport tests, and ten DLL create/destroy/unload rounds.
-  `px_render.exe` and `voice_call.dll` were published to `build_official\dist`
-  with matching build/dist SHA-256 hashes. This is lifecycle hardening evidence,
+- Voice focused evidence now includes 39 core tests, six runtime concurrency
+  tests, three packet-transport tests, five client-protocol tests, and ten DLL
+  create/destroy/unload rounds. The environment-gated real WASAPI smoke was
+  repeated ten times, and the real WASAPI -> APM -> Opus endpoint path passed
+  its separately enabled run. The endpoint and both maintained backends now
+  route callbacks through shared state, use spans for owned audio buffers, and
+  stop/join their workers without retaining an endpoint or back-end object.
+  Tests cover callback-initiated Stop, repeated start/stop, destruction followed
+  by a late callback, and accepted-media shutdown without late delivery.
+  `px_client.exe`, `voice_call.dll`, and `px_voice_apm.dll` are publication-gated
+  by matching build/dist SHA-256 hashes. This is lifecycle hardening evidence,
   not a replacement for the two-machine audio-quality and device matrix.
-- The next in-scope batch is the remaining owned encoder/capture plug-in callback
+- The next in-scope batch is the remaining owned capture/process callback
   lifecycle audit. libwebrtc adapters and established plug-in instance ABI
   boundaries remain excluded.
 

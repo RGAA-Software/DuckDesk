@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <gtest/gtest.h>
+#include <SDL2/SDL.h>
 
 #include "px_message.pb.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
@@ -135,6 +136,46 @@ TEST(VoiceCallRuntimeTest, ExternalShutdownWaitsForInFlightDelivery) {
     EXPECT_EQ(shutdown.wait_for(std::chrono::seconds(1)),
               std::future_status::ready);
     producer.join();
+}
+
+TEST(VoiceCallRuntimeTest, AcceptedUdpMediaStopsWithoutLateDelivery) {
+    ASSERT_EQ(SDL_setenv("SDL_AUDIODRIVER", "dummy", 1), 0);
+    const auto runtime = VoiceCallRuntime::Make(
+        true, {}, [] {
+            return std::make_shared<VoiceAudioEndpoint>([] {
+                return CreateSdlVoiceAudioBackend();
+            });
+        });
+    std::atomic_int media_deliveries = 0;
+    runtime->SetEventDelivery(
+        [&media_deliveries](
+            const std::shared_ptr<PxPluginBaseEvent>& event) {
+            if (const auto media =
+                    std::dynamic_pointer_cast<PxPluginVoiceCallMediaEvent>(event);
+                media &&
+                media->action_ == PxVoiceCallMediaAction::kStreamMessage) {
+                ++media_deliveries;
+            }
+        });
+    runtime->OnClientConnected("visitor", "stream", "UDP");
+    runtime->OnMessage(MakeCallRequest("stream", "call", 9));
+    MsgVoiceCallConsentDecision decision;
+    decision.stream_id_ = "stream";
+    decision.call_id_ = "call";
+    decision.request_id_ = 9;
+    decision.accepted_ = true;
+    runtime->ApplyConsentDecision(decision);
+
+    for (int attempt = 0;
+         attempt < 50 && media_deliveries.load() < 3;
+         ++attempt) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    EXPECT_GE(media_deliveries.load(), 3);
+    runtime->Shutdown("accepted_media_test");
+    const int stopped_deliveries = media_deliveries.load();
+    std::this_thread::sleep_for(std::chrono::milliseconds(80));
+    EXPECT_EQ(media_deliveries.load(), stopped_deliveries);
 }
 
 TEST(VoiceCallRuntimeTest, TenRepeatedLifecyclesDropLateWork) {

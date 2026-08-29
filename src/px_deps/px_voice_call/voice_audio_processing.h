@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <string>
 
 namespace px {
@@ -45,8 +46,8 @@ public:
 
     bool Initialize(const VoiceAudioProcessingConfig& config);
     void Reset();
-    bool ProcessCapture(int16_t* samples, size_t sample_count);
-    bool ProcessRender(const int16_t* samples, size_t sample_count);
+    bool ProcessCapture(std::span<int16_t> samples);
+    bool ProcessRender(std::span<const int16_t> samples);
 
     [[nodiscard]] bool IsInitialized() const;
     [[nodiscard]] VoiceAudioProcessingConfig Config() const;
