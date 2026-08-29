@@ -9,12 +9,52 @@
 #include "px_common_new/thread.h"
 #include "px_common_new/log.h"
 #include "px_common_new/snowflake_id.h"
-#include <QtCore/QTimer>
 #include <QtCore/QEvent>
 #include <px_common_new/string_util.h>
 
 namespace px
 {
+
+    class ClientPluginEventChannel {
+    public:
+        void Register(const ClientPluginEventCallback& callback) {
+            std::lock_guard lock(mutex_);
+            callback_ = callback;
+            accepting_ = static_cast<bool>(callback_);
+        }
+
+        void Deactivate() {
+            std::lock_guard lock(mutex_);
+            accepting_ = false;
+            callback_ = nullptr;
+        }
+
+        [[nodiscard]] bool CanDeliver() const {
+            std::lock_guard lock(mutex_);
+            return accepting_ && static_cast<bool>(callback_);
+        }
+
+        void Deliver(const std::shared_ptr<ClientPluginBaseEvent>& event) const {
+            ClientPluginEventCallback callback;
+            {
+                std::lock_guard lock(mutex_);
+                if (!accepting_ || !callback_) {
+                    return;
+                }
+                callback = callback_;
+            }
+            callback(event);
+        }
+
+    private:
+        mutable std::mutex mutex_;
+        ClientPluginEventCallback callback_;
+        bool accepting_ = false;
+    };
+
+    ClientPluginInterface::ClientPluginInterface()
+        : event_channel_(std::make_shared<ClientPluginEventChannel>()) {
+    }
 
     std::shared_ptr<ClientPluginContext> ClientPluginInterface::GetPluginContext() {
         return plugin_context_;
@@ -153,6 +193,7 @@ namespace px
         }
         lifecycle_state_ = ClientPluginLifecycleState::Stopping;
         this->stopped_ = true;
+        event_channel_->Deactivate();
         event_cbk_ = nullptr;
         return true;
     }
@@ -163,6 +204,7 @@ namespace px
         }
         lifecycle_state_ = ClientPluginLifecycleState::Stopping;
         stopped_ = true;
+        event_channel_->Deactivate();
         event_cbk_ = nullptr;
         if (root_widget_) {
             root_widget_->removeEventFilter(this);
@@ -193,43 +235,37 @@ namespace px
     }
 
     void ClientPluginInterface::PostUITask(std::function<void()>&& task) {
-        if (IsStoppingOrDestroyed()) {
-            return;
+        if (plugin_context_ && !IsStoppingOrDestroyed()) {
+            plugin_context_->PostUITask(std::move(task));
         }
-        QMetaObject::invokeMethod(this, [=, this]() {
-            if (IsStoppingOrDestroyed()) {
-                return;
-            }
-            task();
-        });
     }
 
     void ClientPluginInterface::PostUIDelayTask(int ms, std::function<void()>&& task) {
-        this->PostUITask([ms, t = std::move(task)]() {
-            QTimer::singleShot(ms, [=]() {
-                t();
-            });
-        });
+        if (plugin_context_ && !IsStoppingOrDestroyed()) {
+            plugin_context_->PostDelayTask(std::move(task), ms);
+        }
     }
 
     void ClientPluginInterface::RegisterEventCallback(const ClientPluginEventCallback& cbk) {
         event_cbk_ = cbk;
+        event_channel_->Register(cbk);
     }
 
     void ClientPluginInterface::CallbackEvent(const std::shared_ptr<ClientPluginBaseEvent>& event) {
-        if (!event_cbk_ || IsStoppingOrDestroyed()) {
+        if (!event || IsStoppingOrDestroyed() || !event_channel_->CanDeliver()) {
             return;
         }
-        PostWorkTask([=, this]() {
-            if (event_cbk_ && !IsStoppingOrDestroyed()) {
-                event_cbk_(event);
+        const auto weak_channel = std::weak_ptr<ClientPluginEventChannel>(event_channel_);
+        PostWorkTask([weak_channel, event]() {
+            if (const auto channel = weak_channel.lock()) {
+                channel->Deliver(event);
             }
         });
     }
 
     void ClientPluginInterface::CallbackEventDirectly(const std::shared_ptr<ClientPluginBaseEvent>& event) {
-        if (event_cbk_ && !IsStoppingOrDestroyed()) {
-            event_cbk_(event);
+        if (event && !IsStoppingOrDestroyed()) {
+            event_channel_->Deliver(event);
         }
     }
 

@@ -167,6 +167,12 @@ add_executable(test_client_voice_call_protocol
 target_link_libraries(test_client_voice_call_protocol PRIVATE
     px_message px_voice_call GTest::gtest GTest::gtest_main)
 
+add_executable(test_client_plugin_event_lifecycle
+    tests/test_client_plugin_event_lifecycle.cpp
+)
+target_link_libraries(test_client_plugin_event_lifecycle PRIVATE
+    px_client_plugin Qt6::Core Qt6::Widgets GTest::gtest)
+
 if(BUILD_TESTING)
     add_executable(test_client_latest_frame_dispatch_queue
         tests/test_latest_frame_dispatch_queue.cpp
@@ -177,6 +183,7 @@ if(BUILD_TESTING)
     add_test(NAME client_voice_call_protocol COMMAND test_client_voice_call_protocol)
     add_test(NAME client_virtual_display COMMAND test_client_virtual_display)
     add_test(NAME client_latest_frame_dispatch_queue COMMAND test_client_latest_frame_dispatch_queue)
+    add_test(NAME client_plugin_event_lifecycle COMMAND test_client_plugin_event_lifecycle)
 endif()
 
 if (PX_PROTECTION_ENABLED)

@@ -1989,3 +1989,41 @@ GDI fallback capture 原先把 `std::thread([this])`、三个裸 GDI handle 和�
 
 `px_render.exe` build/dist SHA-256：
 `3F5A42F5561A38B567CEDF77C02112534925A3119356540C8EFCB2705B9BBBF7`。
+
+### 12.37 Phase 7 Client 插件 Context 与事件投递生命周期收敛
+
+Client 公共插件层保留着与 Render 旧实现相同的两个问题：事件排队捕获插件 `this`；
+`ClientPluginContext::OnDestroy` 只调用 `stop_all_timers()`，没有同步停止 asio timer 的
+IO 线程。后者已经由新增测试稳定复现为首轮 Context 销毁后进程以 code 3 终止。
+
+本批完成：
+
+- Client 事件排队改为独立共享 channel，worker 仅持 `weak_ptr`；Stop/Destroy 先关闭
+  channel，锁外执行 callback snapshot，支持回调内注销和回调内停止；
+- `ClientPluginContext` 增加幂等析构屏障；普通线程同步 `timer->stop()`，timer callback
+  内销毁则把最后一个 timer 共享引用交给专用 reaper，避免 self-join/terminate；
+- work、timer、delay 和 Qt UI 投递均增加 destroyed 门禁；timer callback 只捕获
+  Context `weak_ptr`；原 `QTimer::singleShot` 无接收者的延迟路径改为 Context asio delay；
+- `ClientPluginInterface::PostUITask` 不再排队捕获插件 `this`，统一委托 Context；
+- 新增 `build_cpp_client_plugin_event_tests.bat` 和 8 个 Context/event 生命周期用例，
+  测试入口显式创建 `QCoreApplication`；仅 `main` 参数保留进程 ABI 标注例外。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| Context | timer/work 回调内销毁、64 个 delay 取消、64 个跨线程 Qt UI 排队后销毁全部 PASS |
+| Event | 排队后 Stop、回调内注销、回调内 Stop、create/deliver/stop/destroy 10 轮全部 PASS |
+| 10 轮稳定性 | 完整 8-test suite 连续执行 10/10 PASS，共 80 项测试通过 |
+| Client 回归 | virtual display 32/32、voice protocol 5/5、latest-frame queue 5/5 PASS |
+| FT transport E2E | 测试目标编译并可运行；因未配置 `PX_FT_E2E_TRANSPORT` 明确 SKIP，不计为通过 |
+| focused build | `px_client`、`px_rtc_client`、clipboard、ft、record 全部成功；未运行 `build_official.bat` |
+| ownership | 新代码无项目裸指针、manual ownership 或 `[this]`；测试 `main` 仅为系统 ABI 边界 |
+| dist | Client EXE、RTC DLL、3 个插件及语言资源同步完成并逐文件 SHA-256 一致 |
+
+主要 build/dist SHA-256：
+
+- `px_client.exe`: `FF93754A9232FAB659D1E839EDD52E3C8A4065746162B7C82336878806BF0865`
+- `clipboard.dll`: `71692814208C91101A286DAEE9684235A1B7CC9DBC4A128A92B8AD09159F007F`
+- `ft.dll`: `492F2192D2D154816A2C89617F9BAE29CC7BB1662B6FE43FE1B2198ED46E853E`
+- `record.dll`: `95FA7BA98E05B64B433B465EC9E7C9F41F339BBD4E723E0792D6ED3DDAA71610`

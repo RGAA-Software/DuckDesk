@@ -9,6 +9,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <atomic>
 
 namespace asio2
 {
@@ -20,16 +21,18 @@ namespace px
 
     class Thread;
 
-    class ClientPluginContext : public QObject {
+    class ClientPluginContext : public QObject,
+                                public std::enable_shared_from_this<ClientPluginContext> {
     public:
         explicit ClientPluginContext(const std::string& plugin_name);
-        ~ClientPluginContext() override = default;
+        ~ClientPluginContext() override;
 
         void OnDestroy();
 
         // tasks
         void PostWorkTask(std::function<void()>&& task);
         void PostUITask(std::function<void()>&& task);
+        void PostDelayTask(std::function<void()>&& task, int delay_ms);
 
         // timer
         void StartTimer(int millis, std::function<void()>&& cbk);
@@ -37,6 +40,8 @@ namespace px
     private:
         std::shared_ptr<Thread> work_thread_ = nullptr;
         std::shared_ptr<asio2::timer> timer_ = nullptr;
+        std::atomic<int> delay_task_id_ = 0;
+        std::atomic_bool destroyed_ = false;
     };
 
 }

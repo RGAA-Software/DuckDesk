@@ -42,6 +42,7 @@ namespace px
     class Message;
     class ClientPluginBaseEvent;
     class ClientPluginContext;
+    class ClientPluginEventChannel;
     class ClientAppBaseEvent;
 
     // param
@@ -71,7 +72,7 @@ namespace px
     // interface
     class ClientPluginInterface : public QObject {
     public:
-        ClientPluginInterface() = default;
+        ClientPluginInterface();
         ~ClientPluginInterface() override = default;
 
         ClientPluginInterface(const ClientPluginInterface&) = delete;
@@ -175,6 +176,7 @@ namespace px
         std::atomic<ClientPluginLifecycleState> lifecycle_state_ = ClientPluginLifecycleState::Created;
         ClientPluginParam param_;
         ClientPluginEventCallback event_cbk_ = nullptr;
+        std::shared_ptr<ClientPluginEventChannel> event_channel_;
         std::string plugin_file_name_;
         ClientPluginType plugin_type_ = ClientPluginType::kUtil;
         QWidget* root_widget_ = nullptr;
