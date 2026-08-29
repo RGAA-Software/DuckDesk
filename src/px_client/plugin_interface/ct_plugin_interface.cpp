@@ -269,6 +269,20 @@ namespace px
         }
     }
 
+    ClientPluginEventCallback ClientPluginInterface::MakeDirectEventDispatcher() const {
+        const auto weak_channel =
+            std::weak_ptr<ClientPluginEventChannel>(event_channel_);
+        return [weak_channel](
+            const std::shared_ptr<ClientPluginBaseEvent>& event) {
+            if (!event) {
+                return;
+            }
+            if (const auto channel = weak_channel.lock()) {
+                channel->Deliver(event);
+            }
+        };
+    }
+
     void ClientPluginInterface::On1Second() {
 
     }

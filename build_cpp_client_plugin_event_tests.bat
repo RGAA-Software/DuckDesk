@@ -1,4 +1,4 @@
 @echo off
 setlocal
-call "%~dp0scripts\build_cpp_target.bat" test_client_plugin_event_lifecycle test_client_record_plugin_dll_lifecycle media_record_client
+call "%~dp0scripts\build_cpp_target.bat" test_client_plugin_event_lifecycle test_client_record_plugin_dll_lifecycle test_client_ft_plugin_dll_lifecycle media_record_client ft_client
 exit /b %errorlevel%

@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <format>
+#include <mutex>
 
 #include "px_message.pb.h"
 #include "px_message_new/proto_converter.h"
@@ -24,6 +25,62 @@ PX_PLUGIN_EXPORT(px::FtClientPlugin)
 
 namespace px
 {
+
+    class FtClientTransportState final {
+    public:
+        FtClientTransportState(
+            const ClientPluginSettings& settings,
+            ClientPluginEventCallback event_dispatcher)
+            : event_dispatcher_(std::move(event_dispatcher)) {
+            UpdateSettings(settings);
+        }
+
+        void UpdateSettings(const ClientPluginSettings& settings) {
+            std::lock_guard lock(mutex_);
+            device_id_ = settings.device_id_;
+            stream_id_ = settings.stream_id_;
+        }
+
+        FileTransferSendResult Send(const px::Message& message) const {
+            px::Message output = message;
+            if (output.has_file_response()) {
+                output.set_type(MessageType::kFileResponse);
+            }
+            else if (output.has_file_action()) {
+                output.set_type(MessageType::kFileAction);
+            }
+            {
+                std::lock_guard lock(mutex_);
+                output.set_stream_id(stream_id_);
+                output.set_device_id(device_id_);
+            }
+
+            auto event = std::make_shared<ClientPluginNetworkEvent>();
+            event->media_channel_ = false;
+            event->buf_ = px::ProtoAsData(&output);
+            event_dispatcher_(event);
+            if (!event->send_result_.accepted()) {
+                static std::atomic<std::uint64_t> last_deferred_log_ms{0};
+                const auto now = TimeUtil::GetCurrentTimestamp();
+                auto previous =
+                    last_deferred_log_ms.load(std::memory_order_relaxed);
+                if (now - previous >= 10000 &&
+                    last_deferred_log_ms.compare_exchange_strong(
+                        previous, now, std::memory_order_relaxed)) {
+                    LOGW("File-transfer send deferred, status: {}, detail: {}",
+                         static_cast<int>(event->send_result_.status()),
+                         event->send_result_.detail());
+                }
+            }
+            return event->send_result_;
+        }
+
+    private:
+        mutable std::mutex mutex_;
+        std::string device_id_;
+        std::string stream_id_;
+        ClientPluginEventCallback event_dispatcher_;
+    };
 
     std::string FtClientPlugin::GetPluginId() {
         return kClientFtPluginId;
@@ -58,13 +115,25 @@ namespace px
         tcTrMgr()->InitLanguage();
 
         // core:引擎薄适配层(worker 线程模型,见 ft_core.h)
-        core_ = new FtCore(this);
+        transport_state_ = std::make_shared<FtClientTransportState>(
+            plugin_settings_, MakeDirectEventDispatcher());
+        const auto weak_transport =
+            std::weak_ptr<FtClientTransportState>(transport_state_);
+        core_ = std::make_unique<FtCore>(
+            [weak_transport](const Message& message) {
+                if (const auto transport = weak_transport.lock()) {
+                    return transport->Send(message);
+                }
+                return FileTransferSendResult::Disconnected(
+                    "FT client transport was destroyed");
+            });
         core_->Start();
 
         // UI:三栏文件管理窗口
         root_widget_->resize(1280, 760);
         root_widget_->hide();
-        auto window = std::make_unique<FtWindow>(core_, root_widget_.get());
+        auto window =
+            std::make_unique<FtWindow>(core_.get(), root_widget_.get());
         window_ = window.get();
         auto layout = std::make_unique<NoMarginHLayout>();
         layout->addWidget(window.release());
@@ -79,12 +148,10 @@ namespace px
         window_->SetRemoteDeviceName(remote_name);
 
         // 审计:对接 Console 传输记录链路(旧插件同款事件)
-        connect(core_, &FtCore::SigJobAdded, this, [this](int id, const QString& name, bool is_download) {
-            TrackJobBegin(id, name, is_download);
-        });
-        connect(core_, &FtCore::SigJobDone, this, [this](int id, const QString& error_or_empty) {
-            TrackJobEnd(id, error_or_empty);
-        });
+        connect(core_.get(), &FtCore::SigJobAdded, this,
+                &FtClientPlugin::TrackJobBegin);
+        connect(core_.get(), &FtCore::SigJobDone, this,
+                &FtClientPlugin::TrackJobEnd);
 
         LOGI("ft client plugin created.");
         return true;
@@ -100,10 +167,12 @@ namespace px
     bool FtClientPlugin::OnDestroy() {
         if (core_) {
             core_->Stop();
-            core_ = nullptr;
         }
         window_ = nullptr;
-        return ClientPluginInterface::OnDestroy();
+        const auto destroyed = ClientPluginInterface::OnDestroy();
+        core_.reset();
+        transport_state_.reset();
+        return destroyed;
     }
 
     void FtClientPlugin::OnMessage(std::shared_ptr<Message> msg) {
@@ -144,40 +213,13 @@ namespace px
     void FtClientPlugin::SyncClientPluginSettings(const px::ClientPluginSettings& st) {
         ClientPluginInterface::SyncClientPluginSettings(st);
         plugin_settings_.max_transmit_speed_ = st.max_transmit_speed_;
+        if (transport_state_) {
+            transport_state_->UpdateSettings(plugin_settings_);
+        }
         if (core_) {
             // max_transmit_speed_ 为 bit/s,引擎限速按 byte/s
             core_->SetRateLimitBytesPerSec(st.max_transmit_speed_ / 8);
         }
-    }
-
-    FileTransferSendResult FtClientPlugin::SendToChannel(const px::Message& msg) {
-        // 线程:ft core worker。引擎不感知通道,type/stream_id/device_id 由壳补齐。
-        px::Message out = msg;
-        if (out.has_file_response()) {
-            out.set_type(MessageType::kFileResponse);
-        } else if (out.has_file_action()) {
-            out.set_type(MessageType::kFileAction);
-        }
-        out.set_stream_id(plugin_settings_.stream_id_);
-        out.set_device_id(plugin_settings_.device_id_);
-        auto data = px::ProtoAsData(&out);
-
-        auto event = std::make_shared<ClientPluginNetworkEvent>();
-        event->media_channel_ = false;
-        event->buf_ = std::move(data);
-        CallbackEventDirectly(event);
-        if (!event->send_result_.accepted()) {
-            static std::atomic<std::uint64_t> last_deferred_log_ms{0};
-            const auto now = TimeUtil::GetCurrentTimestamp();
-            auto previous = last_deferred_log_ms.load(std::memory_order_relaxed);
-            if (now - previous >= 10000 && last_deferred_log_ms.compare_exchange_strong(
-                    previous, now, std::memory_order_relaxed)) {
-                LOGW("File-transfer send deferred, status: {}, detail: {}",
-                     static_cast<int>(event->send_result_.status()),
-                     event->send_result_.detail());
-            }
-        }
-        return event->send_result_;
     }
 
     void FtClientPlugin::TrackJobBegin(int32_t job_id, const QString& name, bool is_download) {

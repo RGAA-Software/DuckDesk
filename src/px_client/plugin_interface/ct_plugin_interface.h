@@ -169,6 +169,10 @@ namespace px
         bool GetConfigBoolParam(const std::string& k) {return GetConfigParam<bool>(k); }
         double GetConfigDoubleParam(const std::string& k) { return GetConfigParam<double>(k); }
 
+        // Safe for project-owned async runtimes: the returned function retains
+        // only the independent event channel, never the loader-owned plug-in.
+        ClientPluginEventCallback MakeDirectEventDispatcher() const;
+
     protected:
         std::shared_ptr<ClientPluginContext> plugin_context_ = nullptr;
         std::atomic_bool stopped_ = false;

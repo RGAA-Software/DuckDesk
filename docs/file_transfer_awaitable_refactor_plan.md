@@ -2062,3 +2062,37 @@ Client `record` 插件原先把插件裸地址保存到每个 `MediaRecorder`，
 
 - `px_client.exe`: `DF03DFACAA07CEDABF0BF9409ED9A5F3A24C385C57357C5ADE272E4D74A45DC8`
 - `record.dll`: `3016276DAA7FC8D2432F0E50E574F73DBF399C95C71B9E5A2C53D648AA8DDCE2`
+
+### 12.39 Phase 7 Client FT core 反向插件依赖移除
+
+Client `FtCore` 原先在异步 session 的发送回调中长期保存并调用 `FtClientPlugin*`；插件
+Qt 审计信号也通过 `[this]` lambda 回到插件。这使正确性依赖 Stop 必须先于所有 session
+回调，类型上无法证明迟到发送不会访问已卸载 DLL 实例。
+
+本批完成：
+
+- 公共 Client 插件事件层提供 `MakeDirectEventDispatcher()`：返回函数只持事件 channel
+  的 `weak_ptr`，不持插件实例，且继续读取 channel 当前注册的 callback；
+- 新增共享 `FtClientTransportState`，在 mutex 下保存 device/stream 路由快照，并负责
+  protobuf 补全、事件派发和 `FileTransferSendResult` 回传；
+- `FtCore` 构造参数改为值语义 SendCallback，不再包含/保存/调用 `FtClientPlugin*`；
+  session 发送泵只通过 transport state 的 `weak_ptr` 工作；
+- 插件以 `unique_ptr<FtCore>` 管理 core；OnDestroy 先 Stop session，再销毁 Qt 窗口，
+  最后释放 core 与 transport state；审计信号改为 Qt 成员函数连接，无 `[this]` lambda；
+- 新增真实 `ft.dll` lifecycle 测试，覆盖 10 轮 session Start/Stop、窗口销毁、core 销毁、
+  DLL unload 和模块句柄归零。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| Client FT DLL | Load/OnCreate/session Start/Stop/OnDestroy/FreeLibrary 10/10 PASS，进程正常退出 |
+| FT async/engine | async session 13、compress 7、engine 15、integrity 9、path security 22、send contract 1、terminal 5、transfer job 9、two-phase send 4，共 85/85 PASS |
+| Client 公共/record | Context/event 8/8、record DLL 10 轮 PASS |
+| ownership | 新代码无项目裸指针、manual ownership 或 `[this]`；插件加载测试仅保留 GetInstance/main ABI 标注 |
+| focused build/dist | Client、RTC、clipboard、ft、record 编译发布成功，逐文件 SHA-256 一致；未运行发版整编 |
+
+本批主要 SHA-256：
+
+- `px_client.exe`: `598151B50D65A7C4C6C096F19351990D8D22625E5D905AF3F99097075C6F9E11`
+- `ft.dll`: `7A5B8E1B91B61DE68C28FAF946E9C06ABBFCFB0A21969E8C3F5A47B5418B713C`

@@ -18,6 +18,8 @@
 #include <QStringList>
 #include <QVector>
 
+#include "px_common_new/file_transfer_send_result.h"
+
 namespace px::ft
 {
     class FtAsyncSession;
@@ -30,7 +32,6 @@ namespace px
     class FileResponse;
     class FileDirectory;
     class ReadEmptyDirsResponse;
-    class FtClientPlugin;
 
     // 目录项(本地/远程面板共用)
     class FtEntryInfo {
@@ -62,7 +63,10 @@ namespace px
     class FtCore : public QObject {
         Q_OBJECT
     public:
-        explicit FtCore(FtClientPlugin* plugin);
+        using SendCallback =
+            std::function<FileTransferSendResult(const Message&)>;
+
+        explicit FtCore(SendCallback send_callback);
         ~FtCore() override;
 
         void Start();
@@ -117,7 +121,7 @@ namespace px
         static QVector<FtEntryInfo> ConvertEntries(const px::FileDirectory& dir);
 
     private:
-        FtClientPlugin* plugin_ = nullptr;
+        SendCallback send_callback_;
         std::atomic<std::shared_ptr<px::ft::FtAsyncSession>> session_;
         std::atomic_bool accepting_ = false;
         // 目录操作 id(负值,避开引擎作业 id 空间)

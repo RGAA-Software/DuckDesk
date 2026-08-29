@@ -22,6 +22,7 @@ namespace px
 {
 
     class FtCore;
+    class FtClientTransportState;
     class FtWindow;
 
     class FtClientPlugin : public ClientPluginInterface {
@@ -42,20 +43,14 @@ namespace px
         void OnTransportConnected() override;
         void SyncClientPluginSettings(const px::ClientPluginSettings& st) override;
 
-        // 引擎发送回调(ft core 的 worker 线程调用):
-        // 补 type/stream_id/device_id 后经 ClientPluginNetworkEvent 走
-        // ct_plugin_event_router -> ThunderSdk::PostFileTransferMessage 的既有路径。
-        // 只有底层通道已经接收消息时才返回 true。繁忙、断开或发送错误均返回
-        // false,由引擎的单一 outbox 保序重试;消息绝不会同时存在于两个队列。
-        FileTransferSendResult SendToChannel(const px::Message& msg);
-
     private:
         void TrackJobBegin(int32_t job_id, const QString& name, bool is_download);
         void TrackJobEnd(int32_t job_id, const QString& error_or_empty);
 
     private:
-        FtCore* core_ = nullptr;      // QObject 父子树管理
+        std::unique_ptr<FtCore> core_;
         QPointer<FtWindow> window_;  // root_widget_ owns the Qt child
+        std::shared_ptr<FtClientTransportState> transport_state_;
 
         // 审计配对(UI 线程)
         std::unordered_map<int32_t, QString> audit_jobs_;

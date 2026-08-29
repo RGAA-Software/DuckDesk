@@ -3,11 +3,11 @@
 //
 
 #include "ft_core.h"
-#include "ft_client_plugin.h"
 
 #include <QDir>
 #include <QFileInfo>
 #include <QPointer>
+#include <utility>
 
 #include "px_message.pb.h"
 #include "ft_async_session.h"
@@ -42,7 +42,8 @@ namespace px
         return d + "/" + name;
     }
 
-    FtCore::FtCore(FtClientPlugin* plugin) : plugin_(plugin) {
+    FtCore::FtCore(SendCallback send_callback)
+        : send_callback_(std::move(send_callback)) {
         qRegisterMetaType<px::FtEntryInfo>("px::FtEntryInfo");
         qRegisterMetaType<QVector<px::FtEntryInfo>>("QVector<px::FtEntryInfo>");
         qRegisterMetaType<px::FtJobStatusInfo>("px::FtJobStatusInfo");
@@ -56,9 +57,11 @@ namespace px
         const QPointer<FtCore> self(this);
         const auto session = px::ft::FtAsyncSession::Create(
             [self](const auto& message) {
-                return self
-                    ? self->plugin_->SendToChannel(*message)
-                    : FileTransferSendResult::Disconnected("FT client core was destroyed");
+                if (!self || !self->send_callback_) {
+                    return FileTransferSendResult::Disconnected(
+                        "FT client core was destroyed");
+                }
+                return self->send_callback_(*message);
             },
             [self](const auto& engine) {
                 engine->SetLogCallback([](const std::string& message) {
