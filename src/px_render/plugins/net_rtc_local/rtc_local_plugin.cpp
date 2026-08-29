@@ -682,6 +682,35 @@ namespace px
                 break;
             }
         }
+        // Inner capture has no desktop-monitor plug-in. Its encoded cache is
+        // already populated before a client normally asks for an answer, so use
+        // those observed sources to keep the answer's track mapping identical to
+        // the server's pre-negotiated slots. The later ServerConfiguration is a
+        // second, race-safe update path when the first frame arrives after offer.
+        if (result.empty()) {
+            std::lock_guard<std::mutex> lock(encoded_video_frames_mtx_);
+            for (const auto& [key, frame] : encoded_video_frames_) {
+                if (!frame || key.first.empty()
+                    || frame->frame_width_ <= 0 || frame->frame_height_ <= 0
+                    || (!result.empty() && result.back().name_ == key.first)) {
+                    continue;
+                }
+                CaptureMonitorInfo monitor;
+                monitor.name_ = key.first;
+                monitor.primary_ = result.empty();
+                monitor.attached_desktop_ = true;
+                monitor.right_ = frame->frame_width_;
+                monitor.bottom_ = frame->frame_height_;
+                result.push_back(std::move(monitor));
+                if (result.size() >= kMaxRtcVideoTracks) {
+                    break;
+                }
+            }
+            if (!result.empty()) {
+                LOGI("RTC track topology recovered from {} observed inner capture source(s)",
+                     result.size());
+            }
+        }
         if ((int)result.size() > kMaxRtcVideoTracks) {
             result.resize(kMaxRtcVideoTracks);
         }

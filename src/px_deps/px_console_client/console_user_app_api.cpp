@@ -147,6 +147,7 @@ ConsoleUserAppApi::IssueInstanceTicket(const std::string& host, int port,
             ? data.at("rtc_ice_config").dump() : "";
         ticket.relay_host = data.value("relay_host", "");
         ticket.relay_port = data.value("relay_port", 0);
+        ticket.signal_device_id = data.value("signal_device_id", "");
         if (ticket.ticket.empty() || ticket.launch_url.empty()) {
             return TcErr(ConsoleApiError::kParseJsonFailed);
         }

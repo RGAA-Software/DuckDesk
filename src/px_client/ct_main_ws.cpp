@@ -30,6 +30,7 @@
 #include "px_common_new/time_util.h"
 #include "px_common_new/folder_util.h"
 #include "px_common_new/snowflake_id.h"
+#include "px_common_new/rtc_signal_identity.h"
 #include "ct_game_overlay.h"
 #include "version_config.h"
 #include "front_render/vulkan/ct_vulkan_checker.h"
@@ -100,6 +101,10 @@ bool ParseCommandLine(QApplication& app) {
 
     QCommandLineOption opt_remote_device_id("remote_device_id", "remote_device id", "value", "");
     parser.addOption(opt_remote_device_id);
+
+    QCommandLineOption opt_signal_remote_device_id(
+        "signal_remote_device_id", "exact Console RTC/Relay target identity", "value", "");
+    parser.addOption(opt_signal_remote_device_id);
 
     QCommandLineOption opt_remote_device_rp("remote_device_rp", "remote_device rp", "value", "");
     parser.addOption(opt_remote_device_rp);
@@ -285,6 +290,8 @@ bool ParseCommandLine(QApplication& app) {
     }
 
     settings->remote_device_id_ = parser.value(opt_remote_device_id).toStdString();
+    settings->signal_remote_device_id_ =
+        parser.value(opt_signal_remote_device_id).toStdString();
     settings->remote_device_random_pwd_ = parser.value(opt_remote_device_rp).toStdString();
     if (!settings->remote_device_random_pwd_.empty()) {
         settings->remote_device_random_pwd_ = Base64::Base64Decode(settings->remote_device_random_pwd_);
@@ -571,6 +578,7 @@ int main(int argc, char** argv) {
     LOGI("device id: {}", settings->device_id_);
     LOGI("device random password configured: {}", !settings->device_random_pwd_.empty());
     LOGI("remote device id: {}", settings->remote_device_id_);
+    LOGI("signal remote device id: {}", settings->signal_remote_device_id_);
     LOGI("remote device password configured: {}", !settings->remote_device_random_pwd_.empty() || !settings->remote_device_safety_pwd_.empty());
     LOGI("stream id: {}", settings->stream_id_);
     LOGI("network type: {} => {}", g_nt_type_, (int)settings->network_type_);
@@ -608,10 +616,12 @@ int main(int argc, char** argv) {
     auto target_device_id = settings->device_id_.empty() ? settings->my_host_ : settings->device_id_;
     auto device_id = "client_" + target_device_id + "_" + MD5::Hex(settings->remote_device_id_);
     settings->full_device_id_ = device_id;
-    auto remote_device_id = "server_" + settings->remote_device_id_;
+    auto remote_device_id = ResolveRtcSignalRemoteDeviceId(
+        settings->remote_device_id_, settings->signal_remote_device_id_);
     settings->full_remote_device_id_ = remote_device_id;
     auto ft_device_id = "ft_" + device_id;
-    auto ft_remote_device_id = "ft_" + remote_device_id;
+    auto ft_remote_device_id = ResolveRtcFileTransferSignalRemoteDeviceId(
+        settings->remote_device_id_, settings->signal_remote_device_id_);
 
     LOGI("full device id: {}", settings->full_device_id_);
     LOGI("full remote device id: {}", settings->full_remote_device_id_);

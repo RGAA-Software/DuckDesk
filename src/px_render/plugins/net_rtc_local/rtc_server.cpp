@@ -1126,6 +1126,7 @@ namespace px
                 for (const auto& monitor : monitors) {
                     active_monitor_names.push_back(monitor.name_);
                 }
+                IncludeObservedRtcMonitor(active_monitor_names, mon_name);
 
                 std::lock_guard<std::mutex> guard(video_tracks_mutex_);
                 std::vector<std::string> track_slots;

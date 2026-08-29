@@ -1240,6 +1240,21 @@ namespace px
 
         std::vector<CaptureMonitorInfo> monitors;
         std::string capturing_name;
+        const auto append_synthetic_monitor = [&monitors, &capturing_name](
+            const std::string& name, int width, int height) {
+            capturing_name = name;
+            CaptureMonitorInfo monitor;
+            monitor.name_ = name;
+            monitor.primary_ = true;
+            monitor.attached_desktop_ = true;
+            monitor.right_ = width;
+            monitor.bottom_ = height;
+            monitor.supported_res_.push_back(SupportedResolution {
+                .width_ = static_cast<unsigned long>(width),
+                .height_ = static_cast<unsigned long>(height),
+            });
+            monitors.push_back(std::move(monitor));
+        };
         if (capture_plugin) {
             monitors = capture_plugin->GetCaptureMonitorInfo();
             capturing_name = capture_plugin->GetCapturingMonitorName();
@@ -1261,19 +1276,14 @@ namespace px
                     height = client_rect.bottom - client_rect.top;
                 }
             }
-            capturing_name = "Application";
-            CaptureMonitorInfo monitor;
-            monitor.name_ = capturing_name;
-            monitor.primary_ = true;
-            monitor.attached_desktop_ = true;
-            monitor.right_ = width;
-            monitor.bottom_ = height;
-            monitor.supported_res_.push_back(SupportedResolution {
-                .width_ = static_cast<unsigned long>(width),
-                .height_ = static_cast<unsigned long>(height),
-            });
-            monitors.push_back(std::move(monitor));
+            append_synthetic_monitor("Application", width, height);
             LOGI("Use synthetic game-hook monitor configuration: {}x{}", width, height);
+        }
+        else if (settings_->IsWebViewMode()) {
+            append_synthetic_monitor(
+                "webview", settings_->webview_width_, settings_->webview_height_);
+            LOGI("Use synthetic WebView monitor configuration: {}x{}",
+                 settings_->webview_width_, settings_->webview_height_);
         }
         else {
             LOGE("SendConfigurationBack failed, working monitor capture plugin is null.");

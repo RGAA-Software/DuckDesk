@@ -82,6 +82,9 @@ namespace px
         std::string device_safety_pwd_;
         // remote device
         std::string remote_device_id_;
+        // Exact standard-RTC/Relay target identity supplied by Console. Empty
+        // retains the historical server_<remote_device_id> convention.
+        std::string signal_remote_device_id_;
         // full remote device id
         // server_xxx_xxx
         std::string full_remote_device_id_;

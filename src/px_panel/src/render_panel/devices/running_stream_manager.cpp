@@ -133,6 +133,7 @@ namespace px
         item->connection_ticket_ = ticket.ticket;
         item->connection_nonce_ = nonce;
         item->rtc_ice_config_json_ = ticket.rtc_ice_config_json;
+        item->console_signal_device_id_ = ticket.signal_device_id;
         if (!ticket.relay_host.empty()) {
             item->relay_host_ = ticket.relay_host;
         }
@@ -323,6 +324,7 @@ namespace px
             << std::format("--device_rp={}", Base64::Base64Encode(settings_->GetDeviceRandomPwd())).c_str()
             << std::format("--device_sp={}", Base64::Base64Encode(settings_->GetDeviceSecurityPwd())).c_str()
             << std::format("--remote_device_id={}", item->remote_device_id_).c_str()
+            << std::format("--signal_remote_device_id={}", item->console_signal_device_id_).c_str()
             << std::format("--remote_device_rp={}", Base64::Base64Encode(item->remote_device_random_pwd_)).c_str()
             << std::format("--remote_device_sp={}", Base64::Base64Encode(item->remote_device_safety_pwd_)).c_str()
             << std::format("--enable_p2p={}", item->enable_p2p_).c_str()
@@ -467,6 +469,7 @@ namespace px
              << std::format("--network_type={}", network_type).c_str()
              << std::format("--device_id={}", settings_->GetDeviceId()).c_str()
              << std::format("--remote_device_id={}", item->remote_device_id_).c_str()
+             << std::format("--signal_remote_device_id={}", item->console_signal_device_id_).c_str()
              << std::format("--stream_name={}", Base64::Base64Encode(item->stream_name_)).c_str()
              << std::format("--connection_ticket={}", Base64::Base64Encode(item->connection_ticket_)).c_str()
              << std::format("--connection_nonce={}", item->connection_nonce_).c_str()

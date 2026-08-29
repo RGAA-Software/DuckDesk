@@ -139,6 +139,9 @@ namespace px_console
         std::string connection_ticket_;
         std::string connection_nonce_;
         std::string rtc_ice_config_json_;
+        // Full standard-RTC/Relay target identity returned by Console. This
+        // differs from remote_device_id_ for scheduled application instances.
+        std::string console_signal_device_id_;
         std::string console_app_id_;
         std::string console_instance_id_;
         std::string console_access_mode_;

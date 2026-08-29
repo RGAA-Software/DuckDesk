@@ -182,9 +182,11 @@ namespace px
             av_dict_set(&param, "tune", "zerolatency", 0);
         }
 
-        if (encoder_id == AV_CODEC_ID_H264 && codec_name_ == "libx264") {
-            // 不能再设 crf:会与 VBV 码控冲突导致码率失控(见上方 VBV 注释)
-            // (x264 私有参数,硬编不认识,只给软编)
+        if (encoder_id == AV_CODEC_ID_H264
+            && ShouldEnableForcedH264Idr(codec_name_)) {
+            // 不能再设 crf:会与 VBV 码控冲突导致码率失控(见上方 VBV 注释)。
+            // libx264 与 h264_nvenc 均支持 forced-idr；没有它时 NVENC 会把
+            // AV_PICTURE_TYPE_I 请求编码为非 IDR I 帧，新接收端仍无法解码。
             av_dict_set(&param, "forced-idr", "1", 0);
         }
         if (encoder_id == AV_CODEC_ID_H265) {

@@ -28,6 +28,10 @@ namespace px_console
         std::string rtc_ice_config_json;
         std::string relay_host;
         int relay_port = 0;
+        // Exact Relay/standard-RTC registration identity. Application
+        // instances use an instance-scoped identity while ticket redemption
+        // continues to use the base device ID from launch_url.
+        std::string signal_device_id;
     };
 
     class ConsoleUserDeviceApi {

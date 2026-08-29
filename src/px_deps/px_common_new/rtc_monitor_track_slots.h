@@ -65,6 +65,21 @@ namespace px
             || sequence_result.disposition_ == RtcFrameSequenceDisposition::kReset;
     }
 
+    // Inner application capture (for example CEF/WebView accelerated paint)
+    // can produce frames before the monitor-capture plug-in exposes topology.
+    // Treat the frame's source name as authoritative for the current dispatch,
+    // so a pre-negotiated empty RTC track can be claimed immediately.
+    inline void IncludeObservedRtcMonitor(
+        std::vector<std::string>& active_monitors,
+        const std::string& observed_monitor) {
+        if (observed_monitor.empty()
+            || std::find(active_monitors.begin(), active_monitors.end(), observed_monitor)
+                != active_monitors.end()) {
+            return;
+        }
+        active_monitors.push_back(observed_monitor);
+    }
+
     // Keep negotiated RTC track identities stable while monitors are hot-added or
     // removed. Existing active monitor assignments are preserved; disappeared
     // monitors release their slots and new monitors take the first free slot.

@@ -850,6 +850,7 @@ namespace px
         target_item->connection_ticket_ = resolved.ticket.ticket;
         target_item->connection_nonce_ = payload.client_nonce;
         target_item->rtc_ice_config_json_ = resolved.ticket.rtc_ice_config_json;
+        target_item->console_signal_device_id_ = resolved.ticket.signal_device_id;
         target_item->relay_host_ = !resolved.ticket.relay_host.empty()
             ? resolved.ticket.relay_host : settings_->GetRelayServerHost();
         target_item->relay_port_ = resolved.ticket.relay_port > 0

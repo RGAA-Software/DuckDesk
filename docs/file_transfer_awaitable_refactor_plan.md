@@ -1490,3 +1490,49 @@ QueryApps → IssueInstanceTicket → resolve endpoint → optional direct probe
 
 新 `px_panel.exe` 已同步到 `build_official\dist`，build tree 与 dist 的 SHA-256 均为
 `6A6C9FA0023947FDB807603F2C4F5A74965942BC7F3C41A29F18B093E3D531A5`。
+
+### 12.24 WebView 云应用 RTC 数据面与标准 RTC 回退闭环
+
+12.23 记录的云应用无画面由四个相互独立的问题叠加造成，本批逐层关闭：
+
+- inner WebView capture 启动时 Windows 显示器枚举可能为空。Render 现在允许首个真实捕获源
+  认领一个预协商 RTC track slot，并在后续拓扑枚举到达时保持稳定映射；拓扑重绑会重置帧序，
+  不再把新流的低帧号误判为旧帧；
+- WebView 的 NVENC H.264 新订阅者需要可独立解码的首帧。软件编码和 NVENC 都执行统一的
+  join-safe IDR 策略，避免 Direct RTC 已连接但长期等待关键帧；
+- Console 实例 ticket 已经返回精确的 `signal_device_id`，但原生 Panel/Client 原先丢弃该字段。
+  现在 endpoint 的基础设备 ID 仍用于 ticket、探测和显示，RTC/Relay 信令单独使用精确的
+  `server_<device>__instance__<instance>`；Direct 失败后的标准 RTC 不再错误进入桌面 Render；
+- 标准 RTC 由 libwebrtc 输出 CPU I420，原 D3D11 控件却无条件要求帧自带 GPU device/texture，
+  因而出现“首帧进入 UI”后持续白屏。CPU 帧现在复用 Client 初始化阶段持有的
+  `D3D11DeviceWrapper`，把 Y/U/V 平面上传到动态纹理；硬解 D3D11 texture 路径保持不变。
+
+本批没有执行 `build_official.bat`，仅用 C++ focused target 构建
+`test_client_virtual_display`、`test_stream_launch_auth_workflow`、`test_connection_policy`、
+`test_console_api_error`、`px_panel` 和 `px_client`，并沿用前一阶段已经完成的 Render/插件
+focused build。没有重新编译 Rust 或 Web。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| RTC identity / topology / keyframe / virtual-display 单测 | 32 tests × 10 轮，共 320 次 PASS |
+| 启动授权、连接策略、Console 错误回归 | 3 个测试程序各 10/10 PASS |
+| C++ ownership / `git diff --check` | PASS；无新增裸指针、手工 ownership 或异步 `[this]` |
+| ticket 自动回退路由 | 主动终止 Direct 客户端后，Panel 自动启动标准 RTC；room remote 精确为 `server_001190520__instance__inst-11-a204a9c4`，配置为 `webview 1920×1080` |
+| 修复后真实标准 RTC 画面 | 本机 dist Client 以游客密码连接 90 的同一 WebView 子实例；实际百度页面可见，D3D11 I420 初始化成功，旧 `No device with texture`/新缺少 device 错误均为 0 |
+| 真实重复连接 | 同一 WebView 子实例标准 RTC 建连、1920×1080 首帧、D3D11 上传、客户端响应和关闭连续 10/10 PASS |
+| 90 状态 | WebView instance `inst-11-a204a9c4` 运行，Render 数据端口 32010 可用；`px_service` 正常 |
+
+发布和部署哈希如下，所有 build tree 与 `build_official\dist` 对应项一致；三个 Render 产物
+同时与 90 安装目录一致：
+
+- `px_client.exe`：`5AF8A1D5041A83BE097CE77A721AE03353D02783E0C72A3C28BB6278C6BA8C45`；
+- `px_panel.exe`：`8FEA11803FC2A424097A50E47FE23752FB812569973A5CFFB1D326D25C0D5BDD`；
+- `px_render.exe`：`ED83F7BF9ECDC5C61420AEBB566971BAD8A447265FB5A9F7B87FC5A6A59BCDD2`；
+- `net_rtc_local.dll`：`ACF0ABA449F176322B83D939696D06C7270697F21215C49492B3A04001753001`；
+- `enc_ffmpeg.dll`：`23461781E7CB0FCA307967126A895176D3C53D33BED643E4AA3BC8CDA7E2EA3A`。
+
+因此 12.23 的“云应用数据面未通过”已经关闭。Panel 在发布客户端时被重启，内存中的登录
+会话随之退出，所以修复后 10 轮使用了产品支持的游客密码分支；ticket 自动回退的实例路由和
+游客标准 RTC 的最终画面分别完成了实机验证，两者进入相同的 Client 标准 RTC 解码/渲染路径。

@@ -106,6 +106,7 @@ namespace px_console
                 ? data.at("rtc_ice_config").dump() : "";
             result.relay_host = data.value("relay_host", "");
             result.relay_port = data.value("relay_port", 0);
+            result.signal_device_id = data.value("signal_device_id", "");
             if (result.ticket.empty() || result.launch_url.empty()) {
                 return TcErr(ConsoleApiError::kParseJsonFailed);
             }

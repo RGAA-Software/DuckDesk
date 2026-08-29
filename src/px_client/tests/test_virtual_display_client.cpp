@@ -3,10 +3,28 @@
 #include "ct_virtual_display_protocol.h"
 #include "render_view_capacity.h"
 #include "px_common_new/rtc_monitor_track_slots.h"
+#include "px_render/plugins/ffmpeg_encoder/ffmpeg_encoder_defs.h"
 #include "ui/virtual_display_ui_state.h"
 #include "px_common_new/virtual_display_timeouts.h"
+#include "px_common_new/rtc_signal_identity.h"
 
 namespace px {
+
+    TEST(RtcSignalIdentityTest, DesktopFallsBackToHistoricalServerPrefix) {
+        EXPECT_EQ(ResolveRtcSignalRemoteDeviceId("001190520", ""),
+                  "server_001190520");
+        EXPECT_EQ(ResolveRtcFileTransferSignalRemoteDeviceId("001190520", ""),
+                  "ft_server_001190520");
+    }
+
+    TEST(RtcSignalIdentityTest, CloudApplicationUsesConsoleInstanceIdentityExactly) {
+        const std::string signal_id =
+            "server_001190520__instance__inst-11-a204a9c4";
+        EXPECT_EQ(ResolveRtcSignalRemoteDeviceId("001190520", signal_id), signal_id);
+        EXPECT_EQ(ResolveRtcFileTransferSignalRemoteDeviceId(
+                      "001190520", signal_id),
+                  "ft_server_001190520__instance__inst-11-a204a9c4");
+    }
 
     TEST(VirtualDisplayTimeoutTest, BudgetsCoverEachSlowerDownstreamPhase) {
         EXPECT_GT(kVirtualDisplayQueryRenderTimeout, kVirtualDisplayQueryServiceTimeout);
@@ -214,6 +232,34 @@ namespace px {
 
         EXPECT_TRUE(ReconcileRtcMonitorTrackSlots(slots, { "DISPLAY1", "DISPLAY44" }));
         EXPECT_EQ(slots, (std::vector<std::string> { "DISPLAY1", "DISPLAY44", "", "" }));
+    }
+
+    TEST(RtcMonitorTrackSlotsTest, ObservedInnerCaptureClaimsSlotWhenTopologyIsEmpty) {
+        std::vector<std::string> slots { "", "", "", "" };
+        std::vector<std::string> active_monitors;
+
+        IncludeObservedRtcMonitor(active_monitors, "webview");
+
+        ASSERT_EQ(active_monitors, (std::vector<std::string> { "webview" }));
+        EXPECT_TRUE(ReconcileRtcMonitorTrackSlots(slots, active_monitors));
+        EXPECT_EQ(slots, (std::vector<std::string> { "webview", "", "", "" }));
+    }
+
+    TEST(RtcMonitorTrackSlotsTest, ObservedMonitorDoesNotDuplicateEnumeratedTopology) {
+        std::vector<std::string> active_monitors { "DISPLAY1", "webview" };
+
+        IncludeObservedRtcMonitor(active_monitors, "webview");
+        IncludeObservedRtcMonitor(active_monitors, "");
+
+        EXPECT_EQ(active_monitors,
+                  (std::vector<std::string> { "DISPLAY1", "webview" }));
+    }
+
+    TEST(RtcEncoderKeyframePolicyTest, ForcesJoinSafeIdrForSoftwareAndNvencH264) {
+        EXPECT_TRUE(ShouldEnableForcedH264Idr("libx264"));
+        EXPECT_TRUE(ShouldEnableForcedH264Idr("h264_nvenc"));
+        EXPECT_FALSE(ShouldEnableForcedH264Idr("h264_qsv"));
+        EXPECT_FALSE(ShouldEnableForcedH264Idr("hevc_nvenc"));
     }
 
     TEST(RtcMonitorTrackSlotsTest, RemovalReleasesSlotWithoutMovingActiveTracks) {

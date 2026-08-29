@@ -9,9 +9,16 @@
 #include "px_common_new/thread.h"
 #include "px_common_new/time_util.h"
 #include "px_common_new/file.h"
+#include "px_common_new/win32/d3d11_wrapper.h"
+#include "px_client_sdk_new/sdk_params.h"
+#include "px_client_sdk_new/thunder_sdk.h"
 #include "d3d11_render_manager.h"
 #include "raw_sdl_widget.h"
 #include <atomic>
+#include <cstddef>
+#include <cstring>
+#include <span>
+#include <string_view>
 
 namespace px
 {
@@ -37,6 +44,49 @@ namespace px
             auto mx = g_render_us_max.exchange(0);
             LOGI("[LAT-render] frames={} avg_us={} max_us={}",
                  n, n > 0 ? (sum / n) : 0, mx);
+        }
+
+        bool UploadCpuPlane(
+            const ComPtr<ID3D11DeviceContext>& context,
+            const ComPtr<ID3D11Texture2D>& texture,
+            const std::shared_ptr<RawImage>& image,
+            std::size_t source_offset,
+            int source_stride,
+            int row_bytes,
+            int row_count,
+            std::string_view plane_name) {
+            if (!context || !texture || !image || !image->Data()
+                || source_offset + static_cast<std::size_t>(source_stride) * row_count
+                    > static_cast<std::size_t>(image->Size())) {
+                LOGE("Invalid CPU {} plane: offset={}, stride={}, rows={}, image_bytes={}",
+                     plane_name, source_offset, source_stride, row_count,
+                     image ? image->Size() : 0);
+                return false;
+            }
+
+            D3D11_MAPPED_SUBRESOURCE resource{};
+            const auto result = context->Map(
+                texture.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &resource);
+            if (FAILED(result) || !resource.pData || resource.RowPitch < row_bytes) {
+                LOGE("Failed to map CPU {} plane: hr={}, row_pitch={}, row_bytes={}",
+                     plane_name, static_cast<long>(result), resource.RowPitch, row_bytes);
+                if (SUCCEEDED(result) && resource.pData) {
+                    context->Unmap(texture.Get(), 0);
+                }
+                return false;
+            }
+
+            const auto mapped = std::span(
+                static_cast<std::byte*>(resource.pData),
+                static_cast<std::size_t>(resource.RowPitch) * row_count);
+            for (int row = 0; row < row_count; ++row) {
+                std::memcpy(
+                    mapped.data() + static_cast<std::size_t>(resource.RowPitch) * row,
+                    image->Data() + source_offset + static_cast<std::size_t>(source_stride) * row,
+                    row_bytes);
+            }
+            context->Unmap(texture.Get(), 0);
+            return true;
         }
     }
 
@@ -92,6 +142,7 @@ namespace px
             this->init = true;
             this->tex_width_ = fw;
             this->tex_height_ = fh;
+            this->raw_image_format_ = raw_format;
             LOGI("D3D11 render init success by size: {}x{}", fw, fh);
         }
         else {
@@ -115,17 +166,34 @@ namespace px
         auto beg = TimeUtil::GetCurrentTimestamp();
         auto beg_us = TimeUtil::GetCurrentTimePointUS();
 
-        if (!image->device_) {
-            LOGE("No device with texture");
+        if (!image) {
+            LOGE("Cannot render an empty image");
             return;
         }
 
-        if (!image->device_context_) {
-            LOGE("No device context with texture");
+        const bool is_cpu_yuv = image->Format() == RawImageFormat::kRawImageI420
+            || image->Format() == RawImageFormat::kRawImageI444;
+        auto render_device = image->device_;
+        auto render_context = image->device_context_;
+        if ((!render_device || !render_context)
+            && is_cpu_yuv
+            && sdk_) {
+            const auto params = sdk_->GetSdkParams();
+            const auto wrapper = params ? params->d3d11_wrapper_ : nullptr;
+            if (wrapper && wrapper->IsValid()) {
+                render_device = wrapper->d3d11_device_;
+                render_context = wrapper->d3d11_device_context_;
+            }
+        }
+
+        if (!render_device || !render_context) {
+            LOGE("Cannot render frame format {} because no D3D11 device/context is available",
+                 static_cast<int>(image->Format()));
             return;
         }
 
-        if (!InitD3DEnvIfNeeded(image->Format(), image->img_width, image->img_height, image->device_, image->device_context_)) {
+        if (!InitD3DEnvIfNeeded(image->Format(), image->img_width, image->img_height,
+                                render_device, render_context)) {
             LOGE("Don't have d3d environment.");
             return;
         }
@@ -159,58 +227,25 @@ namespace px
         }
         else {
             // Flush to GPU memory directly
-            if (image->Format() == RawImageFormat::kRawImageI420  || raw_image_format_ == RawImageFormat::kRawImageI444) {
-                // Y
-                {
-                    D3D11_MAPPED_SUBRESOURCE resource;
-                    UINT subresource = D3D11CalcSubresource(0, 0, 0);
-                    image->device_context_->Map(render_mgr_->GetYPlane().Get(), subresource, D3D11_MAP_WRITE_DISCARD, 0, &resource);
-                    BYTE* dptr = reinterpret_cast<BYTE*>(resource.pData);
-                    for (int i = 0; i < image->img_height; i++) {
-                        memcpy(dptr + resource.RowPitch * i, image->Data() + image->img_width * i, image->img_width);
-                    }
-                    image->device_context_->Unmap(render_mgr_->GetYPlane().Get(), subresource);
-                }
-
-                // U
-                {
-                    int y_offset = image->img_width * image->img_height;
-                    D3D11_MAPPED_SUBRESOURCE resource;
-                    UINT subresource = D3D11CalcSubresource(0, 0, 0);
-                    image->device_context_->Map(render_mgr_->GetUPlane().Get(), subresource, D3D11_MAP_WRITE_DISCARD, 0, &resource);
-                    BYTE* dptr = reinterpret_cast<BYTE*>(resource.pData);
-                    if (raw_image_format_ == RawImageFormat::kRawImageI420) {
-                        for (int i = 0; i < image->img_height / 2; i++) {
-                            memcpy(dptr + resource.RowPitch * i, image->Data() + y_offset + image->img_width / 2 * i, image->img_width / 2);
-                        }
-                    }
-                    else if (raw_image_format_ == RawImageFormat::kRawImageI444) {
-                        for (int i = 0; i < image->img_height; i++) {
-                            memcpy(dptr + resource.RowPitch * i, image->Data() + y_offset + image->img_width * i, image->img_width);
-                        }
-                    }
-                    image->device_context_->Unmap(render_mgr_->GetUPlane().Get(), subresource);
-                }
-
-                // V
-                {
-                    D3D11_MAPPED_SUBRESOURCE resource;
-                    UINT subresource = D3D11CalcSubresource(0, 0, 0);
-                    image->device_context_->Map(render_mgr_->GetVPlane().Get(), subresource, D3D11_MAP_WRITE_DISCARD, 0, &resource);
-                    BYTE* dptr = reinterpret_cast<BYTE*>(resource.pData);
-                    if (raw_image_format_ == RawImageFormat::kRawImageI420) {
-                        int y_u_offset = image->img_width * image->img_height * (1 + 1.0f/4);
-                        for (int i = 0; i < image->img_height / 2; i++) {
-                            memcpy(dptr + resource.RowPitch * i, image->Data() + y_u_offset + image->img_width / 2 * i, image->img_width / 2);
-                        }
-                    }
-                    else if (raw_image_format_ == RawImageFormat::kRawImageI444) {
-                        int y_u_offset = image->img_width * image->img_height * 2;
-                        for (int i = 0; i < image->img_height; i++) {
-                            memcpy(dptr + resource.RowPitch * i, image->Data() + y_u_offset + image->img_width * i, image->img_width);
-                        }
-                    }
-                    image->device_context_->Unmap(render_mgr_->GetVPlane().Get(), subresource);
+            if (is_cpu_yuv) {
+                const int chroma_width = image->Format() == RawImageFormat::kRawImageI420
+                    ? image->img_width / 2 : image->img_width;
+                const int chroma_height = image->Format() == RawImageFormat::kRawImageI420
+                    ? image->img_height / 2 : image->img_height;
+                const std::size_t y_bytes = static_cast<std::size_t>(image->img_width)
+                    * image->img_height;
+                const std::size_t chroma_bytes = static_cast<std::size_t>(chroma_width)
+                    * chroma_height;
+                if (!UploadCpuPlane(render_context, render_mgr_->GetYPlane(), image,
+                                    0, image->img_width, image->img_width,
+                                    image->img_height, "Y")
+                    || !UploadCpuPlane(render_context, render_mgr_->GetUPlane(), image,
+                                       y_bytes, chroma_width, chroma_width,
+                                       chroma_height, "U")
+                    || !UploadCpuPlane(render_context, render_mgr_->GetVPlane(), image,
+                                       y_bytes + chroma_bytes, chroma_width, chroma_width,
+                                       chroma_height, "V")) {
+                    return;
                 }
             }
 
