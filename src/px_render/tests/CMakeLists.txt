@@ -30,6 +30,14 @@ target_compile_definitions(test_was_audio_plugin_dll_lifecycle
         PRIVATE PX_WAS_AUDIO_PLUGIN_DLL_PATH="$<TARGET_FILE:cap_was_audio>")
 add_dependencies(test_was_audio_plugin_dll_lifecycle cap_was_audio)
 
+add_executable(test_gdi_capture_plugin_dll_lifecycle
+        test_gdi_capture_plugin_dll_lifecycle.cpp)
+target_link_libraries(test_gdi_capture_plugin_dll_lifecycle
+        PRIVATE GTest::gtest_main px_common_new px_plugin)
+target_compile_definitions(test_gdi_capture_plugin_dll_lifecycle
+        PRIVATE PX_GDI_CAPTURE_PLUGIN_DLL_PATH="$<TARGET_FILE:cap_gdi>")
+add_dependencies(test_gdi_capture_plugin_dll_lifecycle cap_gdi)
+
 add_executable(test_media_recorder_plugin_dll_lifecycle
         test_media_recorder_plugin_dll_lifecycle.cpp)
 target_link_libraries(test_media_recorder_plugin_dll_lifecycle

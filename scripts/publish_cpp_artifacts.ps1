@@ -10,9 +10,39 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $buildRoot = Join-Path $repoRoot $BuildDir
 $distRoot = Join-Path $buildRoot "dist"
+$restartRenderService = $false
 
 if (-not (Test-Path -LiteralPath $distRoot -PathType Container)) {
     throw "dist directory does not exist: $distRoot"
+}
+
+function Stop-RenderServiceForPublish {
+    $service = Get-Service -Name "px_service" -ErrorAction SilentlyContinue
+    if ($service -and $service.Status -eq [ServiceProcess.ServiceControllerStatus]::Running) {
+        Write-Host "Stopping px_service while publishing Render artifacts."
+        Stop-Service -Name "px_service" -Force
+        (Get-Service -Name "px_service").WaitForStatus(
+            [ServiceProcess.ServiceControllerStatus]::Stopped,
+            [TimeSpan]::FromSeconds(15))
+        $script:restartRenderService = $true
+    }
+    $renderProcesses = Get-Process -Name "px_render" -ErrorAction SilentlyContinue
+    if ($renderProcesses) {
+        $renderProcesses | Stop-Process -Force
+        $renderProcesses | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+    }
+}
+
+function Restore-RenderServiceAfterPublish {
+    if (-not $script:restartRenderService) {
+        return
+    }
+    Write-Host "Restarting px_service after Render artifact publication."
+    Start-Service -Name "px_service"
+    (Get-Service -Name "px_service").WaitForStatus(
+        [ServiceProcess.ServiceControllerStatus]::Running,
+        [TimeSpan]::FromSeconds(15))
+    $script:restartRenderService = $false
 }
 
 function Get-Sha256Hex {
@@ -47,14 +77,35 @@ function Publish-VerifiedFile {
         if ([string]::IsNullOrWhiteSpace($ProcessName)) {
             throw
         }
+        if ($ProcessName -eq "px_render") {
+            Stop-RenderServiceForPublish
+        }
         $running = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
-        if (-not $running) {
+        if (-not $running -and $ProcessName -ne "px_render") {
             throw
         }
-        Write-Host "Stopping $ProcessName because its runtime artifact is in use."
-        $running | Stop-Process -Force
-        $running | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
-        Copy-Item -LiteralPath $Source -Destination $Destination -Force
+        if ($running) {
+            Write-Host "Stopping $ProcessName because its runtime artifact is in use."
+            $running | Stop-Process -Force
+            $running | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+        }
+        $copied = $false
+        for ($attempt = 1; $attempt -le 20; ++$attempt) {
+            try {
+                Copy-Item -LiteralPath $Source -Destination $Destination -Force
+                $copied = $true
+                break
+            }
+            catch {
+                if ($attempt -eq 20) {
+                    throw
+                }
+                Start-Sleep -Milliseconds 100
+            }
+        }
+        if (-not $copied) {
+            throw "failed to publish artifact after retry: $Destination"
+        }
     }
 
     $sourceHash = Get-Sha256Hex -Path $Source
@@ -119,6 +170,7 @@ function Publish-RenderPlugin {
     }
 }
 
+try {
 switch ($Component) {
     "render" {
         Publish-VerifiedFile `
@@ -202,4 +254,8 @@ switch ($Component) {
             -ProcessName "px_client"
         Publish-LanguageResources
     }
+}
+}
+finally {
+    Restore-RenderServiceAfterPublish
 }

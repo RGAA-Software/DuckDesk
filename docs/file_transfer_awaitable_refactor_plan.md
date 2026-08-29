@@ -1922,3 +1922,39 @@ HANDLE。单独看正常 Stop 可工作，但无法从类型上证明对象销�
 
 `cap_was_audio.dll` SHA-256：
 `F29903B5BFF6EF1597F54102CF31FAA4602351B6429C6D5FED63445EBDBA3014`。
+
+### 12.35 Phase 7 GDI 采集 worker 与 GDI handle 生命周期收敛
+
+GDI fallback capture 原先把 `std::thread([this])`、三个裸 GDI handle 和插件借用地址
+集中在 `GdiCapture` 上；析构函数不 Stop，重复 Start 会覆盖 joinable thread，退出只依赖
+插件外层严格按顺序调用。资源清理还先删除仍选入 memory DC 的 bitmap，并错误地对
+`CreateCompatibleDC` 结果调用 `ReleaseDC`。
+
+本批保持 loader-owned `GdiCapturePlugin` 实例和插件 ABI 不变，完成以下改造：
+
+- capture worker 改为 `jthread`；线程只捕获 `weak_ptr<GdiCapture>`，每次循环锁定一次，
+  Stop 使用 stop-token 并 join，工作线程内 Stop 使用 self-detach，析构复用同一幂等屏障；
+- HDC/HBITMAP 改为带 `DeleteDC`/`DeleteObject` deleter 的 `unique_ptr` typed handle；
+  先销毁 memory DC，再释放被选 bitmap，最后释放 screen DC；
+- 显示器枚举不再把 capture `this` 放入 `LPARAM`，只同步填写栈上 geometry snapshot；
+- BitBlt/GetObject/GetDIBits 增加明确失败诊断。非交互测试桌面无法 BitBlt 时，为兼容
+  原行为仍交付 fallback bitmap，但失败循环固定等待 17 ms，避免满 CPU 重建和刷日志；
+- `publish_cpp_artifacts.ps1` 在 Render DLL 被占用时会临时停止 `px_service`，等待/终止
+  旧 Render、复制并校验 SHA-256，最后在 `finally` 中恢复服务，解决服务自动拉起导致
+  focused 发布反复失败的问题；
+- 新增 `build_cpp_gdi_capture_tests.bat` 和真实 DLL lifecycle 测试。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 活动中销毁 | 正在采集时直接 OnDestroy，worker 收敛后 FreeLibrary，10/10 PASS，每轮模块句柄归零 |
+| 重复启停 | 同一插件实例 Start/采集事件/Stop 连续 10/10 PASS，Stop 均低于 2 秒 |
+| GDI 资源 | 每轮枚举真实显示器并创建 DC/bitmap；RAII 顺序清理，无 joinable thread 或 GDI owned raw member |
+| 非交互桌面 | 当前测试会话 `SelectInputDesktop`/BitBlt 不可用被明确记录；fallback 事件可用且失败路径限速。本项不是像素内容验收 |
+| focused build | `test_gdi_capture_plugin_dll_lifecycle`、`cap_gdi` PASS；未运行 `build_official.bat` |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；无新增项目裸指针、manual ownership 或 `[this]`，插件实例与 Win32 ABI 边界已标注 |
+| dist | focused 发布自动停止/恢复服务成功；dist Render 已实际加载新版 DLL，build/dist SHA-256 一致 |
+
+`cap_gdi.dll` SHA-256：
+`0A23B3E570758D267A5880A4C6D4F491E9B7E6913B41D0EA96713DBE1E7F4906`。

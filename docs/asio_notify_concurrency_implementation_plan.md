@@ -89,6 +89,13 @@ same focused-build, 10-round lifecycle and dist-publication gates.
   callback retains a capture object. Callback replacement during an in-flight
   dispatch, pending reinit cancellation, real process-loopback activation,
   repeated Stop and DLL unload each pass ten rounds.
+- GDI capture workers now use `jthread` stop tokens and lock a weak capture only
+  for one iteration at a time. Destruction calls the same idempotent stop/join
+  barrier, including safe self-thread detach. Screen DC, memory DC and bitmap
+  ownership use typed RAII deleters, and the memory DC is released before its
+  selected bitmap. Ten active-destroy/DLL-unload rounds and ten repeated
+  start/stop rounds pass. In non-interactive test sessions, failed BitBlt keeps
+  the legacy fallback-frame behavior but is throttled to avoid a full-CPU loop.
 - Client monitor refresh now uses the cancellable context delay lane, and its
   redundant detached exit watchdog has been removed. Panel exit/uninstall now
   uses a tested staged sequence instead of UI sleeps and a detached thread.
@@ -117,8 +124,8 @@ same focused-build, 10-round lifecycle and dist-publication gates.
   `px_client.exe`, `voice_call.dll`, and `px_voice_apm.dll` are publication-gated
   by matching build/dist SHA-256 hashes. This is lifecycle hardening evidence,
   not a replacement for the two-machine audio-quality and device matrix.
-- The next in-scope batch is GDI capture worker ownership and stop/restart
-  sequencing. libwebrtc adapters and established plug-in instance ABI
+- The next in-scope batch is the Render application/encoder queued-task
+  ownership inventory. libwebrtc adapters and established plug-in instance ABI
   boundaries remain excluded.
 
 ## Target execution architecture

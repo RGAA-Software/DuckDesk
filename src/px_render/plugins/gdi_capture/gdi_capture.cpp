@@ -21,30 +21,47 @@
 namespace px
 {
 
+    void GdiCapture::DcDeleter::operator()(
+        std::remove_pointer_t<HDC>* dc) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): typed Win32 HDC RAII boundary
+        if (dc) {
+            DeleteDC(dc);
+        }
+    }
+
+    void GdiCapture::BitmapDeleter::operator()(
+        std::remove_pointer_t<HBITMAP>* bitmap) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): typed Win32 HBITMAP RAII boundary
+        if (bitmap) {
+            DeleteObject(bitmap);
+        }
+    }
+
+    struct MonitorGeometry final {
+        std::wstring target_name;
+        bool found = false;
+        int left = 0;
+        int top = 0;
+        int right = 0;
+        int bottom = 0;
+    };
+
+    // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): synchronous Win32 enumeration ABI
     static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData) {
-        auto gdi_capture = (GdiCapture*)dwData;
+        auto& geometry = *reinterpret_cast<MonitorGeometry*>(
+            dwData); // NOLINT(gammaray-raw-pointer-boundary): synchronous LPARAM boundary
         MONITORINFOEX monitorInfo;
         monitorInfo.cbSize = sizeof(MONITORINFOEX);
         GetMonitorInfoW(hMonitor, &monitorInfo);
 
         auto it_mon_name = std::wstring(monitorInfo.szDevice);
-        if (it_mon_name != gdi_capture->mon_name_) {
+        if (it_mon_name != geometry.target_name) {
             return TRUE;
         }
 
-        int screen_width = lprcMonitor->right - lprcMonitor->left;
-        int screen_height = lprcMonitor->bottom - lprcMonitor->top;
-
-        gdi_capture->left_ = lprcMonitor->left;
-        gdi_capture->top_ = lprcMonitor->top;
-        gdi_capture->right_ = lprcMonitor->right;
-        gdi_capture->bottom_ = lprcMonitor->bottom;
-        if ((screen_width != gdi_capture->width_ && gdi_capture->width_ > 0) || (screen_height != gdi_capture->height_ && gdi_capture->height_ > 0)) {
-            gdi_capture->reinit_ = true;
-            LOGW("GDI Screen size changed, origin: {}x{}, now: {}x{}", gdi_capture->width_, gdi_capture->height_, screen_width, screen_height);
-        }
-        gdi_capture->width_ = screen_width;
-        gdi_capture->height_ = screen_height;
+        geometry.found = true;
+        geometry.left = lprcMonitor->left;
+        geometry.top = lprcMonitor->top;
+        geometry.right = lprcMonitor->right;
+        geometry.bottom = lprcMonitor->bottom;
 
         //LOGI("screen_width: {}, screen_height: {}", screen_width, screen_height);
         return TRUE;
@@ -64,6 +81,7 @@ namespace px
     }
 
     GdiCapture::~GdiCapture() {
+       StopCapture();
        LOGW("GDI Released: {}", my_monitor_info_.name_);
     }
 
@@ -92,41 +110,73 @@ namespace px
 
     bool GdiCapture::InitInternal() {
         init_success_ = false;
+        Exit();
 
-        EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, (LPARAM)this);
+        if (!RefreshMonitorGeometry()) {
+            width_ = 0;
+            height_ = 0;
+            LOGE("monitor is no longer available: {}", my_monitor_info_.name_);
+            return false;
+        }
         if (width_ <= 0 || height_ <= 0) {
             LOGE("monitor size error: {}x{}", width_, height_);
             return false;
         }
 
         //screen_dc_ = GetDC(NULL); // 整个虚拟屏幕的设备上下文, GetDC 是采集整个虚拟屏幕的画面,GDI 作为托底采集,就采集整个虚拟桌面就可以
-        screen_dc_ = CreateDCW(nullptr, mon_name_.c_str(), nullptr, nullptr); // CreateDC 可以采集特定屏幕的画面
+        screen_dc_.reset(CreateDCW(nullptr, mon_name_.c_str(), nullptr, nullptr)); // CreateDC 可以采集特定屏幕的画面
         if (!screen_dc_) {
             LOGW("GdiCapture GetDC failed.");
             return false;
         }
 
-        memory_dc_ = CreateCompatibleDC(screen_dc_);
+        memory_dc_.reset(CreateCompatibleDC(screen_dc_.get()));
         if (!memory_dc_) {
             LOGW("GdiCapture CreateCompatibleDC failed.");
             return false;
         }
 
-        if (SetStretchBltMode(memory_dc_, COLORONCOLOR) == 0) { // 使用 COLORONCOLOR 可以提高图像缩放的速度，适合在不需要透明效果的情况下使用。
+        if (SetStretchBltMode(memory_dc_.get(), COLORONCOLOR) == 0) { // 使用 COLORONCOLOR 可以提高图像缩放的速度，适合在不需要透明效果的情况下使用。
             LOGW("SetStretchBltMode failed.");
         }
 
         // 创建兼容位图
-        bit_map_ = CreateCompatibleBitmap(screen_dc_, my_monitor_info_.Width(), my_monitor_info_.Height());
+        bit_map_.reset(CreateCompatibleBitmap(
+            screen_dc_.get(), my_monitor_info_.Width(), my_monitor_info_.Height()));
         if (!bit_map_) {
             LOGW("CreateCompatibleBitmap failed.");
             return false;
         }
 
         // 选择位图到内存 DC 中
-        SelectObject(memory_dc_, bit_map_);
+        SelectObject(memory_dc_.get(), bit_map_.get());
         init_success_ = true;
         LOGI("GdiCapture Init OK.");
+        return true;
+    }
+
+    bool GdiCapture::RefreshMonitorGeometry() {
+        MonitorGeometry geometry{.target_name = mon_name_};
+        EnumDisplayMonitors(
+            nullptr, nullptr, MonitorEnumProc,
+            reinterpret_cast<LPARAM>(std::addressof(geometry)));
+        if (!geometry.found) {
+            return false;
+        }
+        const int screen_width = geometry.right - geometry.left;
+        const int screen_height = geometry.bottom - geometry.top;
+        if ((screen_width != width_ && width_ > 0) ||
+            (screen_height != height_ && height_ > 0)) {
+            reinit_ = true;
+            LOGW("GDI Screen size changed, origin: {}x{}, now: {}x{}",
+                 width_, height_, screen_width, screen_height);
+        }
+        left_ = geometry.left;
+        top_ = geometry.top;
+        right_ = geometry.right;
+        bottom_ = geometry.bottom;
+        width_ = screen_width;
+        height_ = screen_height;
         return true;
     }
 
@@ -137,25 +187,34 @@ namespace px
     bool GdiCapture::Exit() {
         init_success_ = false;
 
-        DeleteObject(bit_map_);
-        bit_map_ = nullptr;
-
-        DeleteDC(screen_dc_);
-        screen_dc_ = nullptr;
-
-        ReleaseDC(NULL, memory_dc_);
-        memory_dc_ = nullptr;
+        // Destroy the memory DC before its selected bitmap. DeleteObject fails
+        // while a bitmap is still selected into a live DC.
+        memory_dc_.reset();
+        bit_map_.reset();
+        screen_dc_.reset();
 
         return true;
     }
 
     bool GdiCapture::CaptureNextFrame() {
         // 复制整个虚拟屏幕的内容到内存 DC
-        BitBlt(memory_dc_, 0, 0, my_monitor_info_.Width(), my_monitor_info_.Height(), screen_dc_, 0, 0, SRCCOPY);
-        BITMAP bmp;
-        GetObject(bit_map_, sizeof(BITMAP), &bmp);
+        if (!memory_dc_ || !screen_dc_ || !bit_map_) {
+            return false;
+        }
+        const bool copied = BitBlt(
+            memory_dc_.get(), 0, 0, my_monitor_info_.Width(),
+            my_monitor_info_.Height(), screen_dc_.get(), 0, 0,
+            SRCCOPY) != FALSE;
+        if (!copied) {
+            LOGW("GDI BitBlt failed for monitor: {}", my_monitor_info_.name_);
+        }
+        BITMAP bmp{};
+        if (GetObject(bit_map_.get(), sizeof(BITMAP), &bmp) == 0) {
+            LOGW("GDI GetObject failed for monitor: {}", my_monitor_info_.name_);
+            return false;
+        }
         
-        BITMAPINFOHEADER bi;
+        BITMAPINFOHEADER bi{};
         bi.biSize = sizeof(BITMAPINFOHEADER);
         bi.biWidth = bmp.bmWidth;
         bi.biHeight = -bmp.bmHeight; // 负值表示位图是自上而下的
@@ -190,13 +249,17 @@ namespace px
             return false;
         }
 
-        auto* data_addr = data_ptr->DataAddr();
-        if (!data_addr) {
+        if (!data_ptr->DataAddr()) {
             LOGE("bitmap data address is null, size: {}", dwBmpSize);
             return false;
         }
 
-        int ret = GetDIBits(memory_dc_, bit_map_, 0, (UINT)bmp.bmHeight, data_addr, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
+        int ret = GetDIBits(
+            memory_dc_.get(), bit_map_.get(), 0, (UINT)bmp.bmHeight,
+            data_ptr->DataAddr(),
+            reinterpret_cast<BITMAPINFO*>(
+                std::addressof(bi)), // NOLINT(gammaray-raw-pointer-boundary): Win32 BITMAPINFO ABI boundary
+            DIB_RGB_COLORS);
         if (ret == 0) {
             LOGW("GetDIBits failed.");
             return false;
@@ -257,39 +320,69 @@ namespace px
         WriteFile(hFile, data_ptr->DataAddr(), dwBmpSize, &dwBytesWritten, NULL);
 #endif
 
-        return true;
+        return copied;
     }
 
     void GdiCapture::Start() {
         LOGI("GdiCapture::Start() stop flag : {}", stop_flag_.load());
-        capture_thread_ = std::thread([this] {
-            Capture();
-        });
+        const auto weak_capture = weak_from_this();
+        std::scoped_lock lock(capture_thread_mutex_);
+        if (capture_thread_.joinable()) {
+            LOGW("GdiCapture::Start ignored: capture worker is already active");
+            return;
+        }
+        capture_thread_ = std::jthread(
+            [weak_capture](std::stop_token stop_token) {
+                CaptureWorker(weak_capture, stop_token);
+            });
     }
 
-    void GdiCapture::Capture() {
-        LOGI("GdiCapture::Capture(), stop_flag_: {}", stop_flag_.load());
-        while (!stop_flag_) {
-            if (pausing_ || plugin_->DontHaveConnectedClientsNow()) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(17));
-                continue;
+    void GdiCapture::CaptureWorker(
+        const std::weak_ptr<GdiCapture>& weak_capture,
+        std::stop_token stop_token) {
+        while (!stop_token.stop_requested()) {
+            const auto capture = weak_capture.lock();
+            if (!capture || capture->stop_flag_) {
+                break;
             }
+            capture->CaptureIteration(stop_token);
+        }
+    }
 
-            // check display size
-            EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, (LPARAM)this);
+    void GdiCapture::CaptureIteration(std::stop_token stop_token) {
+        if (stop_token.stop_requested() || stop_flag_) {
+            return;
+        }
+        if (pausing_ || plugin_->DontHaveConnectedClientsNow()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(17));
+            return;
+        }
 
-            if (!WinHelper::InputDesktopSelected() || reinit_) {
-                if (!WinHelper::SelectInputDesktop()) {
-                    LOGE("GDI capture SelectInputDesktop error.");
-                }
-                // 切换桌面后，需要重新初始化 GDI相关
-                this->Exit();
-                this->Init();
+        // check display size
+        if (!RefreshMonitorGeometry()) {
+            reinit_ = true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(17));
+            return;
+        }
+
+        if (!WinHelper::InputDesktopSelected() || reinit_) {
+            if (!WinHelper::SelectInputDesktop()) {
+                LOGE("GDI capture SelectInputDesktop error.");
+            }
+            // 切换桌面后，需要重新初始化 GDI相关
+            Exit();
+            if (!stop_token.stop_requested() && !stop_flag_) {
+                Init();
                 plugin_->InsertIdr();
-
-                reinit_ = false;
             }
-            CaptureNextFrame();
+
+            reinit_ = false;
+        }
+        if (!stop_token.stop_requested() && !stop_flag_ &&
+            !CaptureNextFrame()) {
+            // Keep the legacy fallback frame delivery semantics, but do not
+            // spin at full CPU when the interactive desktop is unavailable.
+            std::this_thread::sleep_for(std::chrono::milliseconds(17));
         }
     }
 
@@ -316,10 +409,21 @@ namespace px
 
     void GdiCapture::StopCapture() {
         stop_flag_ = true;
-        if (capture_thread_.joinable()) {
-            capture_thread_.join();
+        std::jthread worker;
+        {
+            std::scoped_lock lock(capture_thread_mutex_);
+            worker = std::move(capture_thread_);
         }
-        this->Exit();
+        if (worker.joinable()) {
+            worker.request_stop();
+            if (worker.get_id() == std::this_thread::get_id()) {
+                worker.detach();
+            }
+            else {
+                worker.join();
+            }
+        }
+        Exit();
     }
 
     void GdiCapture::RefreshScreen() {
