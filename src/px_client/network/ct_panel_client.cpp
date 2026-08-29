@@ -60,6 +60,25 @@ namespace px
                 });
             }
         });
+        msg_listener_->Listen<SdkMsgNetworkConnected>([weak_self](const SdkMsgNetworkConnected&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exiting_ || !self->context_) {
+                return;
+            }
+            self->transport_connected_ = true;
+            self->context_->PostTask([weak_self]() {
+                if (const auto self = weak_self.lock(); self && !self->exiting_) {
+                    self->ReportTransportConnected();
+                }
+            });
+        });
+        msg_listener_->Listen<SdkMsgNetworkDisConnected>(
+            [weak_self](const SdkMsgNetworkDisConnected&) {
+                if (const auto self = weak_self.lock(); self && !self->exiting_) {
+                    self->transport_connected_ = false;
+                    self->transport_reported_ = false;
+                }
+            });
         client_ = std::make_shared<asio2::ws_client>();
         connection_workflow_ = PxConnectionAttemptWorkflow::Create(
             context_->GetMessageNotifier()->GetAsyncRuntime(), std::chrono::seconds(10));
@@ -83,6 +102,7 @@ namespace px
             if (!self || self->exiting_ || !self->client_) {
                 return;
             }
+            self->transport_reported_ = false;
             self->client_->ws_stream().binary(true);
             self->client_->set_no_delay(true);
             const bool started = self->connection_workflow_->BeginAttempt(
@@ -137,6 +157,7 @@ namespace px
             if (!self || self->exiting_) {
                 return;
             }
+            self->transport_reported_ = false;
             LOGE("CtPanelClient disconnected");
             static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
                 PxAsyncErrorCode::kServiceNotConnected,
@@ -153,15 +174,17 @@ namespace px
         });
 
         // the /ws is the websocket upgraged target
-        auto settings = Settings::Instance();
-        auto path = std::format("/panel?stream_id={}", settings->stream_id_);
-        if (!client_->async_start("127.0.0.1", settings->panel_server_port_, path)) {
+        const auto& settings = *Settings::Instance();
+        auto path = std::format("/panel?stream_id={}", settings.stream_id_);
+        if (!client_->async_start("127.0.0.1", settings.panel_server_port_, path)) {
             LOGE("connect websocket server failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
         }
     }
 
     void CtPanelClient::Exit() {
         exiting_ = true;
+        transport_connected_ = false;
+        transport_reported_ = false;
         msg_listener_ = nullptr;
         if (client_) {
             client_->stop_all_timers();
@@ -211,16 +234,38 @@ namespace px
         if (!client) {
             return;
         }
-        auto settings = Settings::Instance();
+        const auto& settings = *Settings::Instance();
 
         pxcp::CpMessage cp_msg;
         cp_msg.set_type(pxcp::CpMessageType::kCpHello);
-        cp_msg.set_stream_id(settings->stream_id_);
-        auto sub = cp_msg.mutable_hello();
+        cp_msg.set_stream_id(settings.stream_id_);
+        auto& sub = *cp_msg.mutable_hello();
 #ifdef WIN32
-        sub->set_type(pxcp::CpSessionType::kWindowsClient);
+        sub.set_type(pxcp::CpSessionType::kWindowsClient);
 #endif
         client->async_send(cp_msg.SerializeAsString());
+        ReportTransportConnected();
+    }
+
+    void CtPanelClient::ReportTransportConnected() {
+        if (!transport_connected_ || !IsAlive()) {
+            return;
+        }
+        bool expected = false;
+        if (!transport_reported_.compare_exchange_strong(expected, true)) {
+            return;
+        }
+        const auto client = client_;
+        if (!client) {
+            transport_reported_ = false;
+            return;
+        }
+        pxcp::CpMessage cp_msg;
+        cp_msg.set_type(pxcp::CpMessageType::kCpTransportConnected);
+        const auto& settings = *Settings::Instance();
+        cp_msg.set_stream_id(settings.stream_id_);
+        client->async_send(cp_msg.SerializeAsString());
+        LOGI("Reported remote transport connected to Panel");
     }
 
     void CtPanelClient::HeartBeat() {
@@ -232,15 +277,15 @@ namespace px
             return;
         }
 
-        auto stat = px::SdkStatistics::Instance();
-        auto settings = Settings::Instance();
+        const auto& stat = *px::SdkStatistics::Instance();
+        const auto& settings = *Settings::Instance();
 
         pxcp::CpMessage cp_msg;
         cp_msg.set_type(pxcp::CpMessageType::kCpHeartBeat);
-        cp_msg.set_stream_id(settings->stream_id_);
-        auto sub = cp_msg.mutable_heartbeat();
-        sub->set_remote_device_desktop_name(stat->remote_desktop_name_.Clone());
-        sub->set_remote_os_name(stat->remote_os_name_.Clone());
+        cp_msg.set_stream_id(settings.stream_id_);
+        auto& sub = *cp_msg.mutable_heartbeat();
+        sub.set_remote_device_desktop_name(stat.remote_desktop_name_.Clone());
+        sub.set_remote_os_name(stat.remote_os_name_.Clone());
         client->async_send(cp_msg.SerializeAsString());
     }
 
@@ -251,7 +296,8 @@ namespace px
         }
         pxcp::CpMessage cp_msg;
         cp_msg.set_type(pxcp::CpMessageType::kCpRtcIceRestartRequest);
-        cp_msg.set_stream_id(Settings::Instance()->stream_id_);
+        const auto& settings = *Settings::Instance();
+        cp_msg.set_stream_id(settings.stream_id_);
         client_->async_send(cp_msg.SerializeAsString());
     }
 
@@ -263,16 +309,16 @@ namespace px
         if (!client) {
             return;
         }
-        auto settings = Settings::Instance();
+        const auto& settings = *Settings::Instance();
         pxcp::CpMessage cp_msg;
         cp_msg.set_type(pxcp::CpMessageType::kCpFileTransferBegin);
-        cp_msg.set_stream_id(settings->stream_id_);
-        auto sub = cp_msg.mutable_ft_transfer_beg();
-        sub->set_the_file_id(msg.the_file_id_);
-        sub->set_begin_timestamp(msg.begin_timestamp_);
-        sub->set_direction(msg.direction_);
-        sub->set_file_detail(msg.file_detail_);
-        sub->set_remote_device_id(msg.remote_device_id_);
+        cp_msg.set_stream_id(settings.stream_id_);
+        auto& sub = *cp_msg.mutable_ft_transfer_beg();
+        sub.set_the_file_id(msg.the_file_id_);
+        sub.set_begin_timestamp(msg.begin_timestamp_);
+        sub.set_direction(msg.direction_);
+        sub.set_file_detail(msg.file_detail_);
+        sub.set_remote_device_id(msg.remote_device_id_);
         client->async_send(cp_msg.SerializeAsString());
     }
 
@@ -284,10 +330,10 @@ namespace px
         if (!client) {
             return;
         }
-        auto settings = Settings::Instance();
+        const auto& settings = *Settings::Instance();
         pxcp::CpMessage cp_msg;
         cp_msg.set_type(pxcp::CpMessageType::kCpFileTransferEnd);
-        cp_msg.set_stream_id(settings->stream_id_);
+        cp_msg.set_stream_id(settings.stream_id_);
         auto& terminal = *cp_msg.mutable_ft_transfer_end();
         terminal.set_the_file_id(msg.the_file_id_);
         terminal.set_end_timestamp(msg.end_timestamp_);

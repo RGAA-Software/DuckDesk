@@ -66,6 +66,12 @@ target_link_libraries(test_panel_rtc_config_refresh_gate PRIVATE
         GTest::gtest GTest::gtest_main)
 add_test(NAME panel_rtc_config_refresh_gate COMMAND test_panel_rtc_config_refresh_gate)
 
+add_executable(test_direct_rtc_fallback_state
+        test_direct_rtc_fallback_state.cpp)
+target_link_libraries(test_direct_rtc_fallback_state PRIVATE
+        GTest::gtest GTest::gtest_main px_cp_message)
+add_test(NAME panel_direct_rtc_fallback_state COMMAND test_direct_rtc_fallback_state)
+
 add_executable(test_stream_launch_auth_workflow
         test_stream_launch_auth_workflow.cpp
         ../render_panel/devices/stream_launch_auth_workflow.cpp)

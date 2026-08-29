@@ -173,6 +173,14 @@ namespace px
         int sess_type_{-1};
     };
 
+    // The client process has completed its remote transport handshake. This
+    // must not be inferred from MsgClientConnectedPanel, which only represents
+    // the local Panel websocket.
+    class MsgClientTransportConnectedPanel {
+    public:
+        std::string stream_id_;
+    };
+
     class MsgRtcIceConfigUpdated {
     public:
         uint64_t revision_ = 0;

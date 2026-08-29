@@ -29,9 +29,9 @@
 namespace px
 {
 
-    RunningStreamManager::RunningStreamManager(const std::shared_ptr<PxContext>& ctx) {
+    RunningStreamManager::RunningStreamManager(const std::shared_ptr<PxContext>& ctx)
+        : settings_(*PxSettings::Instance()) {
         context_ = ctx;
-        settings_ = PxSettings::Instance();
         msg_listener_ = context_->ObtainMessageListener(MessageExecutionLane::kControl);
     }
 
@@ -44,9 +44,29 @@ namespace px
             }
             {
                 std::scoped_lock lock(self->running_mutex_);
-                self->running_connected_[msg.stream_id_] = true;
+                const auto state = self->running_connection_states_.find(msg.stream_id_);
+                if (state != self->running_connection_states_.end()) {
+                    state->second.MarkPanelChannelConnected();
+                }
             }
-            // clear loading dialog
+        });
+
+        msg_listener_->Listen<MsgClientTransportConnectedPanel>(
+            [weak_self](const MsgClientTransportConnectedPanel& msg) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            {
+                std::scoped_lock lock(self->running_mutex_);
+                const auto state = self->running_connection_states_.find(msg.stream_id_);
+                if (state == self->running_connection_states_.end()) {
+                    return;
+                }
+                state->second.MarkTransportConnected();
+            }
+            // The loading dialog reflects the remote transport, not merely the
+            // local Panel websocket.
             self->context_->PostUIDelayTask([weak_self, msg]() {
                 const auto self = weak_self.lock();
                 if (!self) {
@@ -177,12 +197,12 @@ namespace px
         pxcp::CpMessage command;
         command.set_type(pxcp::CpMessageType::kCpRtcIceRestart);
         command.set_stream_id(item->stream_id_);
-        auto* restart = command.mutable_rtc_ice_restart();
-        restart->set_connection_ticket(item->connection_ticket_);
-        restart->set_client_nonce(item->connection_nonce_);
-        restart->set_instance_id(item->console_instance_id_);
-        restart->set_ice_config_json(item->rtc_ice_config_json_);
-        restart->set_revision(revision);
+        auto& restart = *command.mutable_rtc_ice_restart();
+        restart.set_connection_ticket(item->connection_ticket_);
+        restart.set_client_nonce(item->connection_nonce_);
+        restart.set_instance_id(item->console_instance_id_);
+        restart.set_ice_config_json(item->rtc_ice_config_json_);
+        restart.set_revision(revision);
         if (!panel_server->PostPanelMessageToStream(
                 item->stream_id_, command.SerializeAsString())) {
             LOGW("Active RTC ICE restart could not reach stream: {}", item->stream_id_);
@@ -190,14 +210,15 @@ namespace px
     }
 
     void RunningStreamManager::FallbackDirectRtc(const std::string& stream_id,
-                                                  const char* reason) {
+                                                  std::string_view reason) {
         std::shared_ptr<px_console::ConsoleStream> item;
         std::shared_ptr<QProcess> process;
         {
             std::scoped_lock lock(running_mutex_);
             if (!running_network_types_.contains(stream_id)
                 || running_network_types_.at(stream_id) != kStreamItemNtTypeWebRTCDirect
-                || running_connected_[stream_id]) {
+                || !running_connection_states_.contains(stream_id)
+                || !running_connection_states_.at(stream_id).ShouldFallback()) {
                 return;
             }
             running_network_types_[stream_id] = "rtc_fallback_pending";
@@ -229,7 +250,7 @@ namespace px
             std::scoped_lock lock(running_mutex_);
             running_items_[stream_id] = item;
             running_network_types_[stream_id] = network_type;
-            running_connected_[stream_id] = false;
+            running_connection_states_[stream_id] = DirectRtcFallbackState {};
         }
         loading_dialogs_.insert({stream_id, loading});
         const auto weak_self = weak_from_this();
@@ -286,7 +307,7 @@ namespace px
             return;
         }
 
-        std::string screen_recording_path = settings_->GetScreenRecordingPath();
+        std::string screen_recording_path = settings_.GetScreenRecordingPath();
         if (screen_recording_path.empty()) {
             // 默认: C:\Users\Public\Pixels\px_client_records (与数据根同约定)
             screen_recording_path =
@@ -311,27 +332,27 @@ namespace px
             << std::format("--host={}", item->stream_host_).c_str()
             << std::format("--port={}", item->stream_port_).c_str()
             << std::format("--appkey={}", grApp->GetAppkey()).c_str()
-            << std::format("--console_host={}", settings_->GetConsoleServerHost()).c_str()
-            << std::format("--console_port={}", settings_->GetConsoleServerPort()).c_str()
-            << std::format("--console_ssl={}", settings_->IsConsoleSslEnabled()).c_str()
+            << std::format("--console_host={}", settings_.GetConsoleServerHost()).c_str()
+            << std::format("--console_port={}", settings_.GetConsoleServerPort()).c_str()
+            << std::format("--console_ssl={}", settings_.IsConsoleSslEnabled()).c_str()
             << std::format("--audio={}", item->audio_enabled_).c_str()
             << std::format("--clipboard={}", item->clipboard_enabled_).c_str()
             << std::format("--stream_id={}", item->stream_id_).c_str()
             << std::format("--conn_type={}", item->connect_type_).c_str()
             << std::format("--network_type={}", network_type).c_str()
             << std::format("--stream_name={}", Base64::Base64Encode(item->stream_name_)).c_str()
-            << std::format("--device_id={}", settings_->GetDeviceId()).c_str()
-            << std::format("--device_rp={}", Base64::Base64Encode(settings_->GetDeviceRandomPwd())).c_str()
-            << std::format("--device_sp={}", Base64::Base64Encode(settings_->GetDeviceSecurityPwd())).c_str()
+            << std::format("--device_id={}", settings_.GetDeviceId()).c_str()
+            << std::format("--device_rp={}", Base64::Base64Encode(settings_.GetDeviceRandomPwd())).c_str()
+            << std::format("--device_sp={}", Base64::Base64Encode(settings_.GetDeviceSecurityPwd())).c_str()
             << std::format("--remote_device_id={}", item->remote_device_id_).c_str()
             << std::format("--signal_remote_device_id={}", item->console_signal_device_id_).c_str()
             << std::format("--remote_device_rp={}", Base64::Base64Encode(item->remote_device_random_pwd_)).c_str()
             << std::format("--remote_device_sp={}", Base64::Base64Encode(item->remote_device_safety_pwd_)).c_str()
             << std::format("--enable_p2p={}", item->enable_p2p_).c_str()
-            << std::format("--auto_layout_screens={}", settings_->IsMaxWindowEnabled() ? 1 : 0).c_str()
+            << std::format("--auto_layout_screens={}", settings_.IsMaxWindowEnabled() ? 1 : 0).c_str()
             << std::format("--display_name={}", [=, this]() -> std::string {
                 if (network_type == kStreamItemNtTypeRelay) {
-                    return settings_->GetDeviceId();
+                    return settings_.GetDeviceId();
                 }
                 else {
                     return "My Computer";
@@ -345,7 +366,7 @@ namespace px
                     return item->stream_name_.empty() ? item->stream_host_ : item->stream_name_;
                 }
             } ()).c_str()
-            << std::format("--panel_server_port={}", settings_->GetPanelServerPort()).c_str()
+            << std::format("--panel_server_port={}", settings_.GetPanelServerPort()).c_str()
             << std::format("--screen_recording_path={}", screen_recording_path).c_str()
             << std::format("--my_host={}", [=, this]() -> std::string {
                 auto ips = context_->GetIps();
@@ -357,11 +378,11 @@ namespace px
             << std::format("--language={}", (int)tcTrMgr()->GetSelectedLanguage()).c_str()
             << std::format("--only_viewing={}", item->only_viewing_).c_str()
             << std::format("--split_windows={}", item->split_windows_).c_str()
-            << std::format("--max_num_of_screen={}", settings_->GetMaxNumOfScreen()).c_str()
-            << std::format("--display_logo={}", settings_->IsClientLogoDisplaying() ? 1 : 0).c_str()
-            << std::format("--develop_mode={}", settings_->IsDevelopMode() ? 1 : 0).c_str()
-            << std::format("--titlebar_color={}", settings_->IsColorfulTitleBarEnabled() ? item->bg_color_ : -1).c_str()
-            << std::format("--decoder={}", settings_->GetPreferDecoder()).c_str()
+            << std::format("--max_num_of_screen={}", settings_.GetMaxNumOfScreen()).c_str()
+            << std::format("--display_logo={}", settings_.IsClientLogoDisplaying() ? 1 : 0).c_str()
+            << std::format("--develop_mode={}", settings_.IsDevelopMode() ? 1 : 0).c_str()
+            << std::format("--titlebar_color={}", settings_.IsColorfulTitleBarEnabled() ? item->bg_color_ : -1).c_str()
+            << std::format("--decoder={}", settings_.GetPreferDecoder()).c_str()
             << std::format("--relay_host={}", item->relay_host_).c_str()
             << std::format("--relay_port={}", item->relay_port_).c_str()
             << std::format("--relay_appkey={}", grApp->GetAppkey()).c_str() //item->relay_appkey_
@@ -370,7 +391,7 @@ namespace px
             << std::format("--force_gdi_capture={}", item->force_gdi_capture_ ? 1 : 0).c_str()
             << std::format("--disable_vulkan_render={}", item->disable_vulkan_render_ ? 1 : 0).c_str()
             << std::format("--show_watermark={}", show_watermark ? 1 : 0).c_str()
-            << std::format("--gl_backend={}", settings_->gl_backend_).c_str()
+            << std::format("--gl_backend={}", settings_.gl_backend_).c_str()
             << std::format("--force_direct={}", item->force_direct_ ? 1 : 0).c_str()
             ;
         if (!item->connection_ticket_.empty()) {
@@ -424,7 +445,7 @@ namespace px
                 std::scoped_lock lock(running_mutex_);
                 running_items_.erase(item->stream_id_);
                 running_network_types_.erase(item->stream_id_);
-                running_connected_.erase(item->stream_id_);
+                running_connection_states_.erase(item->stream_id_);
             }
         }
         context_->SendAppMessage(ClearWorkspace {
@@ -462,12 +483,12 @@ namespace px
              << std::format("--host={}", item->stream_host_).c_str()
              << std::format("--port={}", item->stream_port_).c_str()
              << std::format("--appkey={}", grApp->GetAppkey()).c_str()
-             << std::format("--console_host={}", settings_->GetConsoleServerHost()).c_str()
-             << std::format("--console_port={}", settings_->GetConsoleServerPort()).c_str()
-             << std::format("--console_ssl={}", settings_->IsConsoleSslEnabled()).c_str()
+             << std::format("--console_host={}", settings_.GetConsoleServerHost()).c_str()
+             << std::format("--console_port={}", settings_.GetConsoleServerPort()).c_str()
+             << std::format("--console_ssl={}", settings_.IsConsoleSslEnabled()).c_str()
              << std::format("--stream_id={}", session_id).c_str()
              << std::format("--network_type={}", network_type).c_str()
-             << std::format("--device_id={}", settings_->GetDeviceId()).c_str()
+             << std::format("--device_id={}", settings_.GetDeviceId()).c_str()
              << std::format("--remote_device_id={}", item->remote_device_id_).c_str()
              << std::format("--signal_remote_device_id={}", item->console_signal_device_id_).c_str()
              << std::format("--stream_name={}", Base64::Base64Encode(item->stream_name_)).c_str()

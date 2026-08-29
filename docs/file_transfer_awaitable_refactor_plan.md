@@ -1536,3 +1536,45 @@ focused build。没有重新编译 Rust 或 Web。
 因此 12.23 的“云应用数据面未通过”已经关闭。Panel 在发布客户端时被重启，内存中的登录
 会话随之退出，所以修复后 10 轮使用了产品支持的游客密码分支；ticket 自动回退的实例路由和
 游客标准 RTC 的最终画面分别完成了实机验证，两者进入相同的 Client 标准 RTC 解码/渲染路径。
+
+### 12.25 登录态 Direct RTC 实际失败后的标准 RTC 自动重开
+
+12.24 已分别验证 ticket 路由和游客标准 RTC 画面，但登录态端到端测试暴露出一个状态判定
+问题：Client 启动后会先连本机 Panel WebSocket 并发送 `kCpHello`，而
+`RunningStreamManager` 原先把这个本地进程握手当作远端 RTC 已经建连。于是 Direct probe
+虽然成功，只要 Direct RTC 在实际建连阶段失败或进程退出，Panel 也会因为“已连接”而抑制
+标准 RTC 回退。
+
+本批把两个状态明确分开：
+
+- `kCpHello` 只表示本机 Client 与 Panel 的控制通道可用；
+- Client 收到 SDK 的 `SdkMsgNetworkConnected` 后，才发送新的
+  `kCpTransportConnected`；该消息是 Panel 关闭加载框和禁止 Direct 回退的唯一远端传输
+  就绪依据；
+- 网络断开、Panel WebSocket 重连和 Client 退出均会重置上报门闩；如果远端传输先于 Panel
+  WebSocket 就绪，`Hello()` 会补发已锁存的传输就绪状态；
+- Panel 连接状态由 `DirectRtcFallbackState` 封装并受既有 mutex 保护，避免本地控制通道和
+  远端数据通道再次混用。
+
+本批仍未执行 `build_official.bat`。仅使用 focused C++ target 构建
+`test_direct_rtc_fallback_state`、`px_client` 和 `px_panel`，随后按发布规则同步到
+`build_official\dist`。
+
+专项验收如下：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 状态门单测 | 5 tests × 10 轮，共 50 次 PASS；覆盖初始状态、仅 Panel 通道、真实传输就绪、protobuf 往返和 10 次状态重建 |
+| 相关 C++ 回归 | `test_connection_policy`、`test_stream_launch_auth_workflow`、`test_panel_rtc_config_refresh_gate`、`test_client_virtual_display` 各 10/10 PASS；连同状态门共 650 个测试通过 |
+| 登录态 ticket 路由 | Panel 使用既有登录账号，从 Console 获取 90 上 `baidu` 实例 ticket；标准 RTC 的信令目标连续保持为 `server_001190520__instance__inst-11-a204a9c4` |
+| Direct 实际失败注入 | 每轮等待 `webrtc_direct` Client 启动后终止该进程，模拟 probe 成功但实际建连失败；Panel 自动刷新 ticket 并重开 `network_type=webrtc` |
+| 真实传输就绪 | 标准 RTC Client 每轮均向 Panel 上报 `Client remote transport connected`，加载状态不再被本地 Panel WebSocket 提前结束 |
+| 真实画面 | 标准 RTC 回退后的 dist Client 显示 90 上实际百度 WebView，非白屏；无 `No device with texture`、`Cannot render frame format`、`Invalid CPU`、`Failed to map CPU` |
+| 重复验收 | 成功轮次 10/10 PASS；另观察到一次未主动终止时的 Direct connect timeout，同样自动重开标准 RTC 并成功上报传输就绪 |
+| 环境说明 | 本机 Windows Firewall 的 Domain/Private/Public profile 均为关闭，因此未把防火墙规则作为有效故障注入；本轮没有遗留临时阻断规则 |
+| 测试数据清理 | 未使用的临时 Console 用户、ticket、session、group member、device 和 event 均已删除，复查计数为 0 |
+
+最终发布哈希（build tree 与 `build_official\dist` 对应项一致）：
+
+- `px_client.exe`：`2381937BB1D7E1B1C00FE817E0738E118980186D61187AB291304B869E65C36B`；
+- `px_panel.exe`：`01674FE78C0D4ED6D082DC3FADC641E4D524187F303752748F6E8AF5A168A7F4`。

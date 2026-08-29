@@ -531,6 +531,13 @@ namespace px
                 .sess_type_ = hello.type(),
             });
         }
+        else if (proto_msg->type() == pxcp::CpMessageType::kCpTransportConnected
+                 && !proto_msg->stream_id().empty()) {
+            LOGI("Client remote transport connected: {}", proto_msg->stream_id());
+            context_->SendAppMessage(MsgClientTransportConnectedPanel {
+                .stream_id_ = proto_msg->stream_id(),
+            });
+        }
         else if (proto_msg->type() == pxcp::CpMessageType::kCpHeartBeat) {
             auto hb = proto_msg->heartbeat();
             //LOGI("HB: stream id: {} remote desktop: {} os: {}", proto_msg->stream_id(), hb.remote_device_desktop_name(), hb.remote_os_name());

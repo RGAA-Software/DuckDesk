@@ -6,6 +6,10 @@ enum CpMessageType {
   kCpHello = 0;
   kCpHeartBeat = 1;
   kCpOnHeartBeat = 2;
+  // Client -> Panel. The remote transport is actually usable. This is
+  // deliberately separate from kCpHello, which only means that the local
+  // client process reached the Panel websocket.
+  kCpTransportConnected = 3;
   kCpFileTransferBegin = 10;
   kCpFileTransferEnd = 20;
   // Panel -> an already connected desktop client. The client opens its

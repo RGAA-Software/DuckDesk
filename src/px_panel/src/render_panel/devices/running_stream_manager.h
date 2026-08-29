@@ -7,8 +7,10 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <map>
 #include <mutex>
+#include "direct_rtc_fallback_state.h"
 
 #include <QProcess>
 #include "px_console_client/console_stream.h"
@@ -36,16 +38,16 @@ namespace px
         bool RefreshConsoleTicket(const std::shared_ptr<px_console::ConsoleStream>& item);
         void RestartActiveRtcSessions(uint64_t revision);
         void RestartRtcSession(const std::string& stream_id, uint64_t revision);
-        void FallbackDirectRtc(const std::string& stream_id, const char* reason);
+        void FallbackDirectRtc(const std::string& stream_id, std::string_view reason);
 
-        PxSettings* settings_ = nullptr;
+        PxSettings& settings_;
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::map<std::string, std::shared_ptr<QProcess>> running_processes_;
         std::map<std::string, std::shared_ptr<StartStreamLoading>> loading_dialogs_;
         std::map<std::string, std::shared_ptr<px_console::ConsoleStream>> running_items_;
         std::map<std::string, std::string> running_network_types_;
-        std::map<std::string, bool> running_connected_;
+        std::map<std::string, DirectRtcFallbackState> running_connection_states_;
         std::mutex running_mutex_;
     };
 

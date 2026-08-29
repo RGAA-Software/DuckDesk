@@ -28,6 +28,7 @@ namespace px
         void ParseMessage(std::string_view data);
         void Hello();
         void HeartBeat();
+        void ReportTransportConnected();
         void ReportFileTransferBegin(const MsgClientFileTransmissionBegin& msg);
         void ReportFileTransferEnd(const MsgClientFileTransmissionEnd& msg);
         void RequestRtcIceRestart();
@@ -38,6 +39,8 @@ namespace px
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::shared_ptr<PxConnectionAttemptWorkflow> connection_workflow_ = nullptr;
         std::atomic_bool exiting_ = false;
+        std::atomic_bool transport_connected_ = false;
+        std::atomic_bool transport_reported_ = false;
     };
 
 }
