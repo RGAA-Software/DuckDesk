@@ -37,3 +37,11 @@ target_link_libraries(test_media_recorder_plugin_dll_lifecycle
 target_compile_definitions(test_media_recorder_plugin_dll_lifecycle
         PRIVATE PX_MEDIA_RECORDER_PLUGIN_DLL_PATH="$<TARGET_FILE:media_recorder>")
 add_dependencies(test_media_recorder_plugin_dll_lifecycle media_recorder)
+
+add_executable(test_live_pusher_plugin_dll_lifecycle
+        test_live_pusher_plugin_dll_lifecycle.cpp)
+target_link_libraries(test_live_pusher_plugin_dll_lifecycle
+        PRIVATE GTest::gtest_main px_common_new px_plugin)
+target_compile_definitions(test_live_pusher_plugin_dll_lifecycle
+        PRIVATE PX_LIVE_PUSHER_PLUGIN_DLL_PATH="$<TARGET_FILE:live_pusher>")
+add_dependencies(test_live_pusher_plugin_dll_lifecycle live_pusher)

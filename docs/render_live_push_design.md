@@ -336,6 +336,17 @@ HLS 切片建议 1 秒，预期端到端延迟约 3–6 秒；HTTP-FLV 预期约
 - H265 已用同一 CarGame、真实浏览器远控连接和本机 `px_media.exe` 验证。对 RTX 3060 的 D3D11 设备在启动游戏前预热并按真实 adapter LUID 缓存，避开首次 HEVC 帧到达时的驱动阻塞；随后选中 NVENC。推流器会从 VPS/SPS/PPS 构建 hvcC，再以 enhanced-RTMP 发布。ZLM 已注册 `live/debug1__app__cargame_debug`，日志确认 `H265[1352/760/60] + AAC[48000/2]`，没有再出现 5 字节 RTMP 包拒绝。
 - Console 已完成 HLS 观看端、ZLM `getMediaList` 状态查询及 Console 短期票据 HLS 代理；Rust 单元测试覆盖流/切片路径校验与 manifest 重写，Web 生产构建通过。H.264 端到端推流此前已实测；H.265 推流已端到端注册，浏览器播放仍按编码兼容性提示处理。
 
+### 11.1.2 异步生命周期与 RAII 回归（2026-08-30）
+
+- 插件已拆为 loader-owned 适配层、独立 `LivePusherRuntime` 和 FFmpeg processor；
+  worker 不再捕获插件实例，停止会排空 48 项短队列并关闭 processor；
+- FFmpeg Format/Codec/FIFO/Resampler/Packet/Frame/动态缓冲均由 RAII 句柄管理，
+  Stream 仅保存索引；失败打开、未写 header、写失败和重复关闭使用同一清理路径；
+- RTMP connect/header/write/trailer 均有 1 秒 interrupt deadline；连接失败中 Runtime
+  Shutdown 实测约 1.09 秒，不再出现默认约 5.4 秒的单次阻塞；
+- 本机 `px_media.exe:1935` 真实发布 `live/codex_lifecycle_raii` 成功，H264 avcC +
+  AAC 48 kHz 双声道建立并正常关闭；Runtime、FFmpeg 失败路径和 DLL 卸载均完成 10 轮验收。
+
 ### 11.2 game-hook 与多实例
 
 | 场景 | 预期 |

@@ -1808,3 +1808,43 @@ build tree 与 `build_official\dist` SHA-256 一致：
 
 - Render `media_recorder.dll`：`59EBB55206E3CA77693D7BF46C400589D1801DC29B9D4D5F997926A00A68D5D9`；
 - Client `record.dll`：`C6157D8D4A778E404C0819C065D57E8A5CBE124E4E78CF25D173F5C6765E823C`。
+
+### 12.32 Phase 7 Live Pusher worker 与 FFmpeg 生命周期收敛
+
+`live_pusher` 原先把队列、线程和全部 FFmpeg 状态直接放在 loader-owned 插件对象中，
+worker 捕获插件 `this`；Format/Stream/Codec/FIFO/Resampler/Packet/Frame 又由多组裸指针
+和分支式清理管理。RTMP 连接或写入阻塞时，插件停止时间也没有上限。
+
+本批完成以下改造：
+
+- 新增 `LivePusherRuntime` 和 `LivePushProcessor` 边界；Runtime 独立持有 `jthread`、
+  48 项低延迟队列、主屏选择和 processor，worker 只捕获共享 WorkerState；
+- Shutdown 停止接收后排空已接收媒体并关闭 processor；支持重复 Shutdown，也支持
+  processor/关键帧回调所在 worker 内触发 Shutdown 而不发生 self-join；
+- 队列满时普通帧直接丢弃，新关键帧优先替换已排队非关键帧，保持直播恢复能力；
+- 关键帧请求经可禁用共享通道和 `weak_ptr` 回到插件 Context，旧回调在 Shutdown 后
+  自动失效，插件异步链路不再捕获 `this`；
+- FFmpeg Format/Codec/FIFO/Resampler/Packet/Frame/动态 hvcC 缓冲全部改为带专用 deleter
+  的 `unique_ptr`；借用 Stream 改为索引，不再作为裸成员保存；
+- RTMP connect、header、packet write、trailer 使用无线程对象指针的 FFmpeg interrupt
+  callback 和 thread-local 1 秒 deadline，失败连接的 10 轮测试由原先约 54 秒降至
+  约 10.8 秒，Runtime 在连接失败中 Shutdown 为约 1.09 秒；
+- 新增 `build_cpp_live_pusher_tests.bat`，只构建 Runtime、FFmpeg、DLL 生命周期测试与
+  `live_pusher`，不触发发版整编。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| Runtime 生命周期 | 10 轮创建、32 项音视频排空、关闭 PASS；重复 Shutdown 和 worker 回调内 Shutdown PASS |
+| 队列/多屏 | 指定主屏过滤 PASS；48 项满队列中新 IDR 替换非关键帧并最终消费 PASS |
+| 回调销毁 | Shutdown 后触发 processor 保留的关键帧回调无投递、无崩溃 |
+| FFmpeg 失败路径 | 10 轮 AAC 初始化、H264 avcC、RTMP 失败打开、重复 Close PASS；异常 PCM/Annex-B 输入 PASS |
+| 阻塞上限 | 连接失败单轮约 1.08 秒；连接进行中 Runtime Shutdown 约 1.09 秒，低于 2 秒门禁 |
+| 本地真实 RTMP | 本机 `px_media.exe:1935` 成功发布并关闭 `live/codex_lifecycle_raii`，H264 avcC + AAC 48 kHz/双声道，52 ms PASS |
+| DLL 生命周期 | 10 轮 LoadLibrary / OnCreate / OnStop / OnDestroy / FreeLibrary PASS；每轮模块句柄归零 |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；新增代码无项目裸指针、`[this]` 或 detached thread，FFmpeg/插件 ABI 边界均显式标注 |
+| dist smoke | `live_pusher.dll` 已发布到 dist；`px_service` Running，dist Render 已实际加载新 DLL |
+
+`live_pusher.dll` 的 build tree 与 `build_official\dist` SHA-256 一致：
+`151C4AAF8D3076DBE71F5B872AD05C059726727125542ECB9A222860F2CDD7C8`。
