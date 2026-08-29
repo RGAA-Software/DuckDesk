@@ -1848,3 +1848,37 @@ worker 捕获插件 `this`；Format/Stream/Codec/FIFO/Resampler/Packet/Frame 又
 
 `live_pusher.dll` 的 build tree 与 `build_official\dist` SHA-256 一致：
 `151C4AAF8D3076DBE71F5B872AD05C059726727125542ECB9A222860F2CDD7C8`。
+
+### 12.33 Phase 7 Opus 公共音频编码链生命周期收敛
+
+`enc_opus` 原先在插件回调线程初始化编码器和缓存，再向插件 Context 投递捕获 `this`
+的编码任务；编码器、缓存、调试 decoder 和静态文件对象均属于 loader-owned 插件。
+插件停止/卸载与排队编码竞争时，存在旧任务访问插件状态和 DLL 无法干净卸载的风险。
+
+本批完成以下改造：
+
+- 新增 `OpusEncoderRuntime`，独立 `jthread` 串行持有 Opus encoder/decoder、PCM 缓存和
+  调试文件 RAII 句柄；worker 只捕获共享 WorkerState；
+- 输入使用 64 项有界队列；Shutdown 停止接收、禁用事件交付、排空已接收输入并 join，
+  支持重复调用和编码交付回调内触发 Shutdown 而不 self-join；
+- 编码结果经共享 DeliveryChannel 和插件侧 `weak_ptr` 双重门禁投递；已经排到 Context
+  的事件在 Runtime 停止后也会被拒绝，不访问插件实例；
+- 输入采样率、声道或位深变化时清空半帧缓存并重建 encoder/decoder；frame size 改为
+  根据实际位深和声道计算，不再硬编码双声道；
+- 调试 PCM 文件不再使用函数静态对象，随 Runtime worker 关闭；新增
+  `build_cpp_opus_encoder_tests.bat`，不触发发版整编。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 真实编码 | 48 kHz/双声道/16 bit 两个 10 ms PCM 合并为 960-sample Opus；连续 10 轮交付 10/10 PASS |
+| 格式变化 | 48 kHz 双声道半帧后切换 24 kHz 单声道，旧缓存丢弃，新 encoder 输出 480-sample 帧且元数据正确 |
+| 回调/销毁 | delivery 回调内 Shutdown 无 self-join；无效输入、Shutdown 后 Enqueue、重复 Shutdown 全部 PASS |
+| DLL 生命周期 | 10 轮 LoadLibrary / OnCreate / 两段真实 Encode / event / OnStop / OnDestroy / FreeLibrary PASS；每轮模块句柄归零 |
+| focused build | `enc_opus`、`test_opus_encoder_runtime`、`test_opus_encoder_plugin_dll_lifecycle` PASS；未运行 `build_official.bat` |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；新增代码无项目裸指针、`[this]` 或 detached thread，DLL 测试仅保留插件 ABI 例外 |
+| dist smoke | `enc_opus.dll` 已发布到 dist；`px_service` Running，dist Render 已实际加载新 DLL |
+
+`enc_opus.dll` 的 build tree 与 `build_official\dist` SHA-256 一致：
+`4979370609386D08959ADFD4BC532AF7A8AF85D497DC6D04C45760C3E3F38243`。

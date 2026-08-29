@@ -45,3 +45,11 @@ target_link_libraries(test_live_pusher_plugin_dll_lifecycle
 target_compile_definitions(test_live_pusher_plugin_dll_lifecycle
         PRIVATE PX_LIVE_PUSHER_PLUGIN_DLL_PATH="$<TARGET_FILE:live_pusher>")
 add_dependencies(test_live_pusher_plugin_dll_lifecycle live_pusher)
+
+add_executable(test_opus_encoder_plugin_dll_lifecycle
+        test_opus_encoder_plugin_dll_lifecycle.cpp)
+target_link_libraries(test_opus_encoder_plugin_dll_lifecycle
+        PRIVATE GTest::gtest_main px_common_new px_plugin)
+target_compile_definitions(test_opus_encoder_plugin_dll_lifecycle
+        PRIVATE PX_OPUS_ENCODER_PLUGIN_DLL_PATH="$<TARGET_FILE:enc_opus>")
+add_dependencies(test_opus_encoder_plugin_dll_lifecycle enc_opus)

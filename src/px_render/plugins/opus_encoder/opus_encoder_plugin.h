@@ -1,46 +1,38 @@
-//
-// Created by RGAA on 15/11/2024.
-//
+#pragma once
 
-#ifndef PX_RENDER_OPUS_ENCODER_PLUGIN_H
-#define PX_RENDER_OPUS_ENCODER_PLUGIN_H
+#include <memory>
 
 #include "px_render/plugin_interface/px_audio_encoder_plugin.h"
 
-namespace px
-{
+namespace px {
 
-    class Data;
-    class OpusAudioEncoder;
-    class OpusAudioDecoder;
+class Data;
+class OpusEncoderRuntime;
 
-    class OpusEncoderPlugin : public PxAudioEncoderPlugin {
-    public:
-        std::string GetPluginId() override;
-        std::string GetPluginName() override;
-        std::string GetVersionName() override;
-        uint32_t GetVersionCode() override;
-        std::string GetPluginDescription() override;
-        void On1Second() override;
+class OpusEncoderPlugin final : public PxAudioEncoderPlugin {
+public:
+    ~OpusEncoderPlugin() override;
 
-        bool OnCreate(const px::PxPluginParam &param) override;
-        bool OnDestroy() override;
-        void Encode(const std::shared_ptr<Data> &data, int sample, int channels, int bits) override;
+    std::string GetPluginId() override;
+    std::string GetPluginName() override;
+    std::string GetVersionName() override;
+    uint32_t GetVersionCode() override;
+    std::string GetPluginDescription() override;
+    void On1Second() override;
+    bool OnCreate(const PxPluginParam& param) override;
+    bool OnStop() override;
+    bool OnDestroy() override;
+    void Encode(
+        const std::shared_ptr<Data>& data,
+        int sample_rate,
+        int channels,
+        int bits) override;
 
-    private:
-        std::shared_ptr<OpusAudioEncoder> opus_encoder_ = nullptr;
-        bool debug_opus_decoder_ = false;
-        std::shared_ptr<OpusAudioDecoder> opus_decoder_ = nullptr;
+private:
+    void RefreshDelivery();
+    std::shared_ptr<OpusEncoderRuntime> runtime_;
+};
 
-        std::shared_ptr<Data> audio_cache_ = nullptr;
-        int audio_callback_count_ = 0;
-
-    };
-
-}
-
+}  // namespace px
 
 PX_PLUGIN_EXPORT(px::OpusEncoderPlugin)
-
-
-#endif //PX_UDP_PLUGIN_H

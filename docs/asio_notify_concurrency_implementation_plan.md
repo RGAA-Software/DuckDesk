@@ -85,9 +85,15 @@ same focused-build, 10-round lifecycle and dist-publication gates.
 - Client monitor refresh now uses the cancellable context delay lane, and its
   redundant detached exit watchdog has been removed. Panel exit/uninstall now
   uses a tested staged sequence instead of UI sleeps and a detached thread.
-- The next in-scope batch is the remaining owned media-recorder/live-pusher
-  callback lifecycle audit. libwebrtc adapters and established plug-in instance
-  ABI boundaries remain excluded.
+- Media recorder and live pusher now use independently owned runtimes. Recorder
+  Stop has a tested FIFO finalize barrier; live push owns its FFmpeg state with
+  RAII handles and bounds RTMP blocking operations with interrupt deadlines.
+- The shared Opus encoder path now uses an independently owned runtime and
+  guarded event-delivery channel; encoder/cache/debug state no longer belongs
+  to a loader-owned plug-in object.
+- The next in-scope batch is the remaining owned encoder/capture plug-in callback
+  lifecycle audit. libwebrtc adapters and established plug-in instance ABI
+  boundaries remain excluded.
 
 ## Target execution architecture
 
