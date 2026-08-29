@@ -41,6 +41,49 @@ extern "C"
 namespace px
 {
 
+    class PxPluginEventChannel {
+    public:
+        void Register(const PxPluginEventCallback& callback) {
+            std::lock_guard lock(mutex_);
+            callback_ = callback;
+            accepting_ = static_cast<bool>(callback_);
+        }
+
+        void Deactivate() {
+            std::lock_guard lock(mutex_);
+            accepting_ = false;
+            callback_ = nullptr;
+        }
+
+        [[nodiscard]] bool CanDeliver() const {
+            std::lock_guard lock(mutex_);
+            return accepting_ && static_cast<bool>(callback_);
+        }
+
+        void Deliver(const std::shared_ptr<PxPluginBaseEvent>& event) const {
+            PxPluginEventCallback callback;
+            {
+                std::lock_guard lock(mutex_);
+                if (!accepting_ || !callback_) {
+                    return;
+                }
+                callback = callback_;
+            }
+            // Invoke outside the mutex. A callback is allowed to unregister
+            // itself or stop the plug-in without deadlocking delivery.
+            callback(event);
+        }
+
+    private:
+        mutable std::mutex mutex_;
+        PxPluginEventCallback callback_;
+        bool accepting_ = false;
+    };
+
+    PxPluginInterface::PxPluginInterface()
+        : event_channel_(std::make_shared<PxPluginEventChannel>()) {
+    }
+
     std::shared_ptr<PxPluginContext> PxPluginInterface::GetPluginContext() {
         return plugin_context_;
     }
@@ -167,6 +210,7 @@ namespace px
         }
         lifecycle_state_ = PxPluginLifecycleState::Stopping;
         this->stopped_ = true;
+        event_channel_->Deactivate();
         event_cbk_ = nullptr;
         return true;
     }
@@ -177,6 +221,7 @@ namespace px
         }
         lifecycle_state_ = PxPluginLifecycleState::Stopping;
         stopped_ = true;
+        event_channel_->Deactivate();
         event_cbk_ = nullptr;
         if (plugin_context_) {
             plugin_context_->OnDestroy();
@@ -219,23 +264,25 @@ namespace px
 
     void PxPluginInterface::RegisterEventCallback(const PxPluginEventCallback& cbk) {
         event_cbk_ = cbk;
+        event_channel_->Register(cbk);
     }
 
     void PxPluginInterface::CallbackEvent(const std::shared_ptr<PxPluginBaseEvent>& event) {
-        if (!event_cbk_ || IsStoppingOrDestroyed()) {
+        if (!event || IsStoppingOrDestroyed() || !event_channel_->CanDeliver()) {
             return;
         }
         event->plugin_name_ = GetPluginId();
-        PostWorkTask([=, this]() {
-            if (event_cbk_ && !IsStoppingOrDestroyed()) {
-                event_cbk_(event);
+        const auto weak_channel = std::weak_ptr<PxPluginEventChannel>(event_channel_);
+        PostWorkTask([weak_channel, event]() {
+            if (const auto channel = weak_channel.lock()) {
+                channel->Deliver(event);
             }
         });
     }
 
     void PxPluginInterface::CallbackEventDirectly(const std::shared_ptr<PxPluginBaseEvent>& event) {
-        if (event_cbk_ && !IsStoppingOrDestroyed()) {
-            event_cbk_(event);
+        if (event && !IsStoppingOrDestroyed()) {
+            event_channel_->Deliver(event);
         }
     }
 

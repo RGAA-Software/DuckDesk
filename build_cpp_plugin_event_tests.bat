@@ -1,0 +1,4 @@
+@echo off
+setlocal
+call "%~dp0scripts\build_cpp_target.bat" test_plugin_context_lifecycle test_ft_plugin_dll_lifecycle test_gdi_capture_plugin_dll_lifecycle test_live_pusher_plugin_dll_lifecycle test_media_recorder_plugin_dll_lifecycle test_opus_encoder_plugin_dll_lifecycle test_relay_plugin_dll_lifecycle test_voice_call_plugin_dll_lifecycle test_was_audio_plugin_dll_lifecycle
+exit /b %errorlevel%

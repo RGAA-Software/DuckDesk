@@ -44,6 +44,7 @@ namespace px
     class Image;
     class PxPluginBaseEvent;
     class PxPluginContext;
+    class PxPluginEventChannel;
     class PxNetPlugin;
     class Message;
 
@@ -83,7 +84,7 @@ namespace px
     // interface
     class PxPluginInterface {
     public:
-        PxPluginInterface() = default;
+        PxPluginInterface();
         virtual ~PxPluginInterface() = default;
 
         PxPluginInterface(const PxPluginInterface&) = delete;
@@ -260,6 +261,10 @@ namespace px
         std::atomic<PxPluginLifecycleState> lifecycle_state_ = PxPluginLifecycleState::Created;
         PxPluginParam param_;
         PxPluginEventCallback event_cbk_ = nullptr;
+        // Queued event delivery must not retain the loader-owned plug-in
+        // instance. The channel has an independent shared lifetime and is
+        // invalidated before the plug-in context drains its pending work.
+        std::shared_ptr<PxPluginEventChannel> event_channel_;
         std::string plugin_file_name_;
         PxPluginType plugin_type_ = PxPluginType::kUtil;
         std::string plugin_author_ = "RGAA";

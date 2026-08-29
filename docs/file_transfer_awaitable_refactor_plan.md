@@ -1958,3 +1958,34 @@ GDI fallback capture 原先把 `std::thread([this])`、三个裸 GDI handle 和�
 
 `cap_gdi.dll` SHA-256：
 `0A23B3E570758D267A5880A4C6D4F491E9B7E6913B41D0EA96713DBE1E7F4906`。
+
+### 12.36 Phase 7 Render 公共插件事件队列生命周期收敛
+
+`PxPluginInterface::CallbackEvent` 原先向插件 Context 排队时直接捕获 loader-owned
+插件 `this`。即使 `OnDestroy` 会停止 Context，这个写法仍把“任务必须先排空”作为插件
+对象安全的隐含前提，也无法安全覆盖排队后停止、回调内注销以及回调内停止。
+
+本批不改变 `GetInstance`、静态插件实例、虚表或 DLL 加载/卸载约定，只在公共插件基类
+内部增加独立共享的 `PxPluginEventChannel`：
+
+- 队列任务仅捕获 channel 的 `weak_ptr` 和事件的 `shared_ptr`，不再捕获插件实例；
+- `OnStop`/`OnDestroy` 在清理 Context 前先关闭 channel，已排队但尚未执行的事件自动丢弃；
+- channel 在锁内复制 callback snapshot、锁外执行回调，允许回调中注销自身或停止插件，
+  不会重入同一互斥锁；
+- `CallbackEventDirectly` 也复用同一失效门禁；空事件和停止后的投递直接拒绝；
+- 新增 `build_cpp_plugin_event_tests.bat`，重编公共 Context 测试及全部 Render 插件 DLL
+  生命周期测试，防止公共基类布局变化后误用旧测试程序。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 公共 Context/event | timer/worker 回调内销毁、delay cancel、排队后停止、回调内注销、回调内停止共 8/8 PASS |
+| 10 轮 | 插件事件 create/deliver/stop/destroy 10/10 PASS；GDI active unload 与 repeated start/stop 均 10/10 PASS |
+| DLL 生命周期 | FT、GDI、live pusher、record、Opus、Relay、voice call、WAS audio 全部 PASS；voice call 测试使用 dist 依赖搜索路径 |
+| ABI 一致性 | 公共基类的所有 Render 插件与 `px_render` 均由 focused C++ 脚本重编，无旧 DLL/EXE 混用 |
+| ownership | 新代码无项目裸指针、manual ownership 或 `[this]`；插件实例 ABI 例外未修改 |
+| dist | 24 个 Render 插件及 `px_render.exe` 均同步到 dist 并逐文件通过 SHA-256 比对；`px_service` 已恢复 Running |
+
+`px_render.exe` build/dist SHA-256：
+`3F5A42F5561A38B567CEDF77C02112534925A3119356540C8EFCB2705B9BBBF7`。
