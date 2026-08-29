@@ -1359,3 +1359,49 @@ awaitable 引入，但会干扰所有 Panel 长时间验收。
 
 最终 `px_panel.exe` 已同步到 `build_official\dist`，build tree 与 dist 的 SHA-256 均为
 `D087006FF8D2830B9C0CE155DE2A664F0502A7CFB4E695AB72D761654C6992FD`。
+
+### 12.20 Console 录像管理真实页面与隧道验收
+
+12.18 只关闭了 Panel 侧列表并发和取消状态机，没有覆盖 Console 管理页面。后续将
+`scripts/cdp_records_e2e.mjs` 改为生产级页面验收，不再注入伪 token 或测试 appkey：
+
+- 使用当前管理员账号从真实登录页登录，依靠 Cookie 和 CSRF 完成后续操作；密码只从环境
+  变量读取，不写入仓库、日志或截图；
+- 调用真实 `/record/list`，并在 CDP 中仅阻断 Panel 的 20369 直连，强制走
+  `Console -> RecordFetchReq -> Panel multipart upload -> Console cache` 生产隧道；
+- 删除既有 Console 缓存后重新拉取，验证 HTTPS 视频请求返回 200/206、可以播放并 seek；
+- 在页面上执行保留、删除并复查最终列表，同时收集浏览器异常和网络失败；
+- 每轮结束清理 Chrome profile、Console 上传缓存和测试进程，不输出 query ticket。
+
+真实 Console 页面连续 10/10 PASS。90 Panel 日志对应出现 50 次 `RecordListReq`、10 次
+`RecordFetchReq`、10 次上传成功和 10 次协程回到 idle，错误为 0；Console 本轮错误为 0，
+上传暂存目录为空。该结果关闭了 12.18 中保留的“管理页面端到端列表、回传、播放和删除”
+验收项。
+
+### 12.21 Windows 原生 FT UI、并行会话与取消验收
+
+新增 `scripts/run_native_ft_ui_e2e.ps1`，所有功能验收强制从
+`build_official\dist\px_client.exe` 启动真实 `--mode=file-transfer` Qt 窗口。脚本通过
+Console 普通用户 API 注册、登录并签发真实 ticket，再使用 Windows UI Automation 和物理
+鼠标操作两侧文件栏、传输箭头、冲突弹窗和传输队列；不能绕过 UI 直接调用 FT 引擎。
+
+| 场景 | 结果 |
+| --- | --- |
+| 1 MiB 双向上传、下载、SHA-256、删除 | 10/10 PASS |
+| 64 MiB 双向上传、下载、SHA-256、删除 | 10/10 PASS；累计约 1.28 GiB |
+| 10000 小文件 | PASS；100 个 Unicode/空格目录、空目录，上传下载聚合摘要 `8FD720ECE1B0B808D14A3D68519B9761B3ED45977AB30678216F5693A1CA4C2E` |
+| 真实覆盖弹窗 | 10/10 PASS；目标最终为新内容 SHA-256 |
+| 真实跳过弹窗 | 10/10 PASS；目标保持预置内容 SHA-256，并可从 UI 下载回读 |
+| 真实取消按钮 | 10/10 PASS；每轮启动 1 GiB 上传后从展开的队列点击取消，客户端存活且没有完整目标落盘 |
+| 标准 RTC 与独立 FT 窗口并存 | PASS；远控视频解码、音频初始化和 FT 通道保持工作，同时 FT 窗口 1 MiB 双向 10/10 |
+| 真实 DLL 卸载复核 | 10/10 PASS；每轮 `LoadLibrary`、64 个排队请求、`OnStop/OnDestroy/FreeLibrary` |
+
+脚本支持 `Normal / Overwrite / Skip / Cancel` 四种模式，失败和成功路径都会停止测试客户端，
+等待文件句柄释放，并重试清理正式文件、`.download` 和 `.digest`。最终本机与 90 的
+`px_ft_ui_*` 文件残留均为 0，临时 user/session/ticket 均为 0。90 的 C 盘可用空间不足 2 GiB，
+因此没有重复 12.13 已完成的 1 GiB 双向完整传输；本节 1 GiB 只用于即时取消，避免填满测试机。
+
+本批只按需构建 `test_ft_plugin_dll_lifecycle`，没有执行 `build_official.bat`，也没有编译
+Rust 或 Web。按需重链的 Render `ft.dll` 已在停止对应 Render 进程后同步到 dist，服务自动
+拉起新 Render；build tree 与 `build_official\dist\deps\rd_plugins\ft.dll` 的 SHA-256 均为
+`CF89AE9D203190811A0E5CB97A160DED7C969CA1818A04942B43FE9BF51317C7`。

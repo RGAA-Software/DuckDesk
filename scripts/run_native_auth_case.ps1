@@ -17,6 +17,8 @@ param(
     [int]$ExpectedMonitorCount = 1,
     [ValidateRange(10, 90)]
     [int]$TimeoutSeconds = 40,
+    [ValidateRange(0, 900)]
+    [int]$HoldSeconds = 0,
     [switch]$RtcRestartAcceptance,
     [ValidateRange(0, 65535)]
     [int]$PanelProbePort = 0,
@@ -395,6 +397,18 @@ try {
 
     $restartResult = if ($RtcRestartAcceptance) { ' restart=completed guards=passed' } else { '' }
     Write-Host "NATIVE_AUTH_CASE PASS mode=$Mode route=$NetworkType target=$DeviceId monitors=$ExpectedMonitorCount rtc=connected video=ui-rendered audio=initialized file=connected$restartResult"
+    if ($HoldSeconds -gt 0) {
+        Write-Host "NATIVE_AUTH_CASE HOLD seconds=$HoldSeconds"
+        $holdDeadline = (Get-Date).AddSeconds($HoldSeconds)
+        do {
+            Start-Sleep -Milliseconds 500
+            $process.Refresh()
+            if ($process.HasExited) {
+                throw "native client exited during coexistence hold, code=$($process.ExitCode)"
+            }
+        } while ((Get-Date) -lt $holdDeadline)
+        Write-Host 'NATIVE_AUTH_CASE HOLD_COMPLETE'
+    }
     $exitCode = 0
 }
 finally {
