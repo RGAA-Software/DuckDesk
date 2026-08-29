@@ -1769,3 +1769,42 @@ detached 线程依次 sleep 800 ms、启动 service helper、sleep 1500 ms 并�
 - `px_client.exe`：`E037898363A7A08DF76C0C6D8F24822C321017507ACB8C90F205953DC5FBDBE2`；
 - `clipboard.dll`：`D392EDC069ACA24237B670806D357E1125FF20CB5AABA813C69E34FAE5CE43D9`；
 - `px_panel.exe`：`C22C36251C51EE56EAD7DCF892FE286B306177AEE12E115C2E1D2643AFB1FDD8`。
+
+### 12.31 Phase 7 Render 录制异步生命周期收敛
+
+Render 端 `media_recorder` 原先把 `Drain` 和 `Finalize` 投递到插件 Context worker，
+且回调捕获插件 `this`。插件销毁时 Context 会取消尚未执行的任务，因此停止/卸载与
+队列排空竞争时，可能丢失待写帧、跳过 MP4 trailer 和文件关闭；滚动分段的关键帧回调
+也可能在插件生命周期结束后访问旧实例。
+
+本批完成以下改造：
+
+- 新增独立的 `MediaRecorderRuntime`，以 `jthread`、有界 FIFO 和共享 WorkerState 串行
+  管理每个显示器的 writer；worker 不持有插件实例；
+- `StopRecord` 使用 FIFO finalize barrier：停止接收新帧后，等待此前已接收音视频全部
+  写入、所有 writer 写 trailer 并关闭，完成后才允许插件继续销毁；
+- `Shutdown` 可重复调用，并覆盖“仍在录制、已有排队帧、旧回调仍被外部保存”等路径；
+- 关键帧请求通过可禁用的共享通道和 `weak_ptr` 回到插件 Context，异步任务不捕获插件
+  `this`；销毁后的旧 writer 回调会立即失效；
+- `RecordWriter` 的项目接口统一改为 `std::span<const uint8_t>`，移除调用链中的裸缓冲区
+  参数；客户端和 Render 适配层仅在既有 `Data`/FFmpeg ABI 边界瞬时包装；
+- 新增 `build_cpp_media_recorder_tests.bat`，仅构建录制核心、Runtime、DLL 生命周期测试
+  与插件，不触发 Rust、npm、版本升级或发版整编。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| Runtime 启停排空 | 10 轮 start/32 视频帧/32 音频帧/stop，320/320 视频和 320/320 音频全部消费，每轮 writer 仅关闭一次 |
+| 销毁与回调 | 带 200 个排队帧 Shutdown 全量排空；Shutdown 后触发保留的滚动关键帧回调无投递、无崩溃 |
+| 自动录制/幂等 | 首个客户端开始、最后客户端断开停止；重复 Stop/Shutdown 全部 PASS |
+| 真实 remux 回归 | `test_record_writer` 6/6 PASS，覆盖音视频同步、滚动清理、sidecar、提前停止、命名和纯音频无文件 |
+| DLL 生命周期 | 10 轮 LoadLibrary / OnCreate / start / stop / OnStop / OnDestroy / FreeLibrary PASS；每轮模块句柄归零 |
+| focused build | `media_recorder`、`media_record_client`、Runtime/DLL/RecordWriter 测试 PASS；未运行 `build_official.bat` |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；新增 Runtime 无裸指针、`[this]` 或 detached thread；DLL 测试仅保留标注的插件 ABI 例外 |
+| dist smoke | Client 录屏插件和 Render 录制插件均发布到 dist；`px_service` Running，dist Render 已实际加载新 `media_recorder.dll` |
+
+build tree 与 `build_official\dist` SHA-256 一致：
+
+- Render `media_recorder.dll`：`59EBB55206E3CA77693D7BF46C400589D1801DC29B9D4D5F997926A00A68D5D9`；
+- Client `record.dll`：`C6157D8D4A778E404C0819C065D57E8A5CBE124E4E78CF25D173F5C6765E823C`。

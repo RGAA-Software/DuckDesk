@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <span>
 #include <string>
 
 namespace px {
@@ -41,6 +42,9 @@ struct RecordWriterConfig {
 };
 
 class RecordWriter {
+private:
+    struct ConstructionToken final {};
+
 public:
     static std::shared_ptr<RecordWriter> Make(const RecordWriterConfig& cfg);
     ~RecordWriter();
@@ -49,10 +53,10 @@ public:
     RecordWriter& operator=(const RecordWriter&) = delete;
 
     // 编码视频帧（Annex-B，含起始码；宽高以首次到达为准）
-    void OnEncodedVideo(const uint8_t* data, size_t size,
+    void OnEncodedVideo(std::span<const uint8_t> data,
                         RecordVideoCodec codec, int width, int height, bool key);
     // 编码音频包（Opus，约定 48kHz/立体声/20ms）
-    void OnEncodedAudio(const uint8_t* data, size_t size);
+    void OnEncodedAudio(std::span<const uint8_t> data);
 
     // 结束录制：写 trailer、关文件、执行滚动清理。已入队数据由适配层先排空再调用。
     void Stop();
@@ -60,8 +64,9 @@ public:
     // 是否处于录制会话中（含等待关键帧阶段）
     bool IsRecording() const;
 
+    RecordWriter(ConstructionToken, const RecordWriterConfig& cfg);
+
 private:
-    explicit RecordWriter(const RecordWriterConfig& cfg);
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

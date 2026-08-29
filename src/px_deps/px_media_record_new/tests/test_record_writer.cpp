@@ -278,7 +278,7 @@ void FeedAV(RecordWriter& w, H264Gen& gen, VirtualClock& clk,
             bool key = (frame_no % gop == 0);
             auto pkt = EncodeOneFrame(gen, frame_no, key);
             if (!pkt.empty()) {
-                w.OnEncodedVideo(pkt.data(), pkt.size(), RecordVideoCodec::kH264,
+                w.OnEncodedVideo(std::span<const uint8_t>(pkt), RecordVideoCodec::kH264,
                                  gen.ctx->width, gen.ctx->height, key);
             }
             video_next_ms += frame_dur;
@@ -286,7 +286,7 @@ void FeedAV(RecordWriter& w, H264Gen& gen, VirtualClock& clk,
         else {
             clk.ms = base + audio_next_ms;
             auto a = FakeOpusPacket(40, (uint8_t)audio_idx++);
-            w.OnEncodedAudio(a.data(), a.size());
+            w.OnEncodedAudio(std::span<const uint8_t>(a));
             audio_next_ms += 20;
         }
     }
@@ -463,7 +463,7 @@ TEST(RecordWriter, NamingAndSanitize) {
     clk.ms += 33;
     auto pkt = EncodeOneFrame(gen, 0, true);
     ASSERT_FALSE(pkt.empty());
-    w->OnEncodedVideo(pkt.data(), pkt.size(), RecordVideoCodec::kH264, 320, 240, true);
+    w->OnEncodedVideo(std::span<const uint8_t>(pkt), RecordVideoCodec::kH264, 320, 240, true);
     w->Stop();
     CloseH264Encoder(gen);
 
@@ -498,7 +498,7 @@ TEST(RecordWriter, AudioOnlyNoFile) {
     for (int i = 0; i < 100; ++i) {
         clk.ms += 20;
         auto a = FakeOpusPacket(40, (uint8_t)i);
-        w->OnEncodedAudio(a.data(), a.size());
+        w->OnEncodedAudio(std::span<const uint8_t>(a));
     }
     w->Stop();
     EXPECT_TRUE(ListMp4(dir).empty()) << "audio-only must not create a file";

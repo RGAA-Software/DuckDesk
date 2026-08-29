@@ -58,7 +58,10 @@ void MediaRecorder::RecvVideoFrame(const VideoFrame& frame) {
         return;
     }
     auto codec = (frame.type() == px::VideoType::kNetHevc) ? RecordVideoCodec::kH265 : RecordVideoCodec::kH264;
-    writer_->OnEncodedVideo((const uint8_t*)d.data(), d.size(), codec,
+    writer_->OnEncodedVideo(
+                            std::span<const uint8_t>(
+                                reinterpret_cast<const uint8_t*>(d.data()), d.size()),
+                            codec,
                             frame.frame_width(), frame.frame_height(), frame.key());
 }
 
@@ -71,7 +74,8 @@ void MediaRecorder::RecvAudioFrame(const AudioFrame& frame) {
     if (d.empty()) {
         return;
     }
-    writer_->OnEncodedAudio((const uint8_t*)d.data(), d.size());
+    writer_->OnEncodedAudio(std::span<const uint8_t>(
+        reinterpret_cast<const uint8_t*>(d.data()), d.size()));
 }
 
 void MediaRecorder::EndRecord() {

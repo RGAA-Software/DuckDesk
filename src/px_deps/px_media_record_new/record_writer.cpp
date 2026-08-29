@@ -240,9 +240,9 @@ struct RecordWriter::Impl {
         return !sps_.empty() && !pps_.empty();
     }
 
-    void OnEncodedVideo(const uint8_t* data, size_t size,
+    void OnEncodedVideo(std::span<const uint8_t> data,
                         RecordVideoCodec codec, int width, int height, bool key) {
-        if (!recording_ || !data || size == 0) {
+        if (!recording_ || data.empty()) {
             return;
         }
         codec_ = codec;
@@ -251,7 +251,7 @@ struct RecordWriter::Impl {
 
         // 1. 收集参数集（任何时候出现都更新缓存）
         //    注意: PPS 最短只有 4 字节(1 字节 NAL 头 + 3 字节), 过滤条件不能用 size>4
-        for (const auto& nal : SplitNals(data, size)) {
+        for (const auto& nal : SplitNals(data.data(), data.size())) {
             if (codec_ == RecordVideoCodec::kH264) {
                 int t = H264NalType(nal);
                 if (t == 7 && nal.size > 1) {
@@ -279,7 +279,7 @@ struct RecordWriter::Impl {
             if (!OpenFile()) {
                 return;
             }
-            WriteVideo(data, size, /*prepend_params=*/true);
+            WriteVideo(data.data(), data.size(), /*prepend_params=*/true);
             return;
         }
 
@@ -295,15 +295,15 @@ struct RecordWriter::Impl {
             if (!OpenFile()) {
                 return;
             }
-            WriteVideo(data, size, /*prepend_params=*/true);
+            WriteVideo(data.data(), data.size(), /*prepend_params=*/true);
             return;
         }
 
-        WriteVideo(data, size, /*prepend_params=*/false);
+        WriteVideo(data.data(), data.size(), /*prepend_params=*/false);
     }
 
-    void OnEncodedAudio(const uint8_t* data, size_t size) {
-        if (!recording_ || !data || size == 0) {
+    void OnEncodedAudio(std::span<const uint8_t> data) {
+        if (!recording_ || data.empty()) {
             return;
         }
         if (!writing_) {
@@ -311,10 +311,10 @@ struct RecordWriter::Impl {
             if (audio_buffer_.size() >= kMaxAudioBufferPackets) {
                 audio_buffer_.erase(audio_buffer_.begin());
             }
-            audio_buffer_.emplace_back(data, data + size);
+            audio_buffer_.emplace_back(data.begin(), data.end());
             return;
         }
-        WriteAudio(data, size);
+        WriteAudio(data.data(), data.size());
     }
 
     void Stop() {
@@ -550,22 +550,22 @@ private:
     }
 };
 
-RecordWriter::RecordWriter(const RecordWriterConfig& cfg)
+RecordWriter::RecordWriter(ConstructionToken, const RecordWriterConfig& cfg)
     : impl_(std::make_unique<Impl>(cfg)) {}
 
 RecordWriter::~RecordWriter() = default;
 
 std::shared_ptr<RecordWriter> RecordWriter::Make(const RecordWriterConfig& cfg) {
-    return std::shared_ptr<RecordWriter>(new RecordWriter(cfg));
+    return std::make_shared<RecordWriter>(ConstructionToken{}, cfg);
 }
 
-void RecordWriter::OnEncodedVideo(const uint8_t* data, size_t size,
+void RecordWriter::OnEncodedVideo(std::span<const uint8_t> data,
                                   RecordVideoCodec codec, int width, int height, bool key) {
-    impl_->OnEncodedVideo(data, size, codec, width, height, key);
+    impl_->OnEncodedVideo(data, codec, width, height, key);
 }
 
-void RecordWriter::OnEncodedAudio(const uint8_t* data, size_t size) {
-    impl_->OnEncodedAudio(data, size);
+void RecordWriter::OnEncodedAudio(std::span<const uint8_t> data) {
+    impl_->OnEncodedAudio(data);
 }
 
 void RecordWriter::Stop() {
