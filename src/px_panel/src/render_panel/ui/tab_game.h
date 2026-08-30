@@ -6,18 +6,27 @@
 #define TC_SERVER_STEAM_TABGAME_H
 
 #include "tab_base.h"
-#include <functional>
 #include "render_panel/database/db_game.h"
 #include <QListWidget>
 #include <QListWidgetItem>
-#include <QProcess>
 #include <QLabel>
+#include <QPointer>
+
+#include <cstdint>
+#include <string>
+#include <vector>
 
 namespace px
 {
 
     class SteamApp;
     class SteamManager;
+    class GameCatalogRefreshState;
+
+    struct GameCatalogEntry final {
+        TcDBGamePtr game;
+        std::string cover_path;
+    };
 
     class TabGame : public TabBase {
     public:
@@ -32,22 +41,30 @@ namespace px
 
     private:
         void ScanInstalledGames();
-        QListWidgetItem* AddItem(const TcDBGamePtr& game);
+        void RequestCatalog(bool scan_installed_games);
+        void ApplyCatalog(
+            std::uint64_t generation,
+            std::vector<GameCatalogEntry> entries,
+            bool final_result);
+        void AddItem(const TcDBGamePtr& game);
         static QSize GetItemSize();
-        void AddItems(const std::vector<TcDBGamePtr>& games);
-        void LoadCover(const TcDBGamePtr& game);
+        void ReplaceItems(std::vector<GameCatalogEntry> entries);
         void UpdateRunningStatus(const std::vector<uint64_t>& game_ids);
-        void VisitListWidget(std::function<void(QListWidgetItem* item, QWidget* item_widget)>&& cbk);
+        void ShowContextMenu(const QPoint& position);
+        void StartGame(const TcDBGamePtr& game);
+        void StopGame(const TcDBGamePtr& game);
+        void ShowStartError(const QString& message);
         void ShowAddGamePanel();
         void RefreshGames();
         void ShowEmptyTip();
         void HideEmptyTip();
 
     private:
-        QListWidget* list_widget_ = nullptr;
+        QPointer<QListWidget> list_widget_;
         std::shared_ptr<SteamManager> steam_mgr_ = nullptr;
+        std::shared_ptr<GameCatalogRefreshState> refresh_state_;
         std::vector<TcDBGamePtr> games_;
-        QLabel* empty_tip_ = nullptr;
+        QPointer<QLabel> empty_tip_;
     };
 
 }

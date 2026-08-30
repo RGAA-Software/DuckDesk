@@ -4,18 +4,21 @@
 
 #include "tab_game.h"
 #include <QPointer>
-#include <QScrollBar>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QHBoxLayout>
-#include <QVBoxLayout>
 #include <QMenu>
 #include <QAction>
 #include <QStyledItemDelegate>
 #include <QFile>
+#include <QDesktopServices>
+#include <QUrl>
+
+#include <algorithm>
+#include <filesystem>
+#include <format>
+#include <mutex>
 #include <utility>
-#include "shellapi.h"
 #include "render_panel/database/db_game.h"
 #include "render_panel/database/db_game_operator.h"
 #include "render_panel/px_context.h"
@@ -23,19 +26,17 @@
 #include "px_qt_widget/round_img_display.h"
 #include "px_qt_widget/cover_widget.h"
 #include "px_qt_widget/widget_helper.h"
+#include "render_panel/ui/game_catalog_refresh_state.h"
+#include "render_panel/ui/qt_lifetime_guard.h"
 #include "px_common_new/log.h"
-#include "px_common_new/task_runtime.h"
 #include "px_common_new/message_notifier.h"
 #include "px_steam_manager_new/steam_manager.h"
 #include "px_steam_manager_new/steam_entities.h"
 #include "game_info_preview.h"
 #include "px_common_new/folder_util.h"
 #include "render_panel/px_run_game_manager.h"
-#include "px_common_new/process_util.h"
 #include "px_qt_widget/no_margin_layout.h"
 #include "add_game_panel.h"
-#include "px_qt_widget/sized_msg_box.h"
-#include "px_common_new/folder_util.h"
 #include "px_common_new/file_util.h"
 #include "px_dialog.h"
 #include "px_label.h"
@@ -43,6 +44,75 @@
 
 namespace px
 {
+
+    namespace {
+
+        std::mutex& GameCatalogSteamScanMutex() {
+            static std::mutex mutex;
+            return mutex;
+        }
+
+        std::string ResolveGameCoverPath(
+            const TcDBGamePtr& game,
+            const std::string& steam_image_cache_path,
+            const std::string& cover_folder_path) {
+            if (!game) {
+                return {};
+            }
+            if (!game->cover_url_.empty()
+                && std::filesystem::exists(PathFromUTF8(game->cover_url_))) {
+                return game->cover_url_;
+            }
+            if (game->game_id_ == 0) {
+                return {};
+            }
+
+            const auto source_path = std::format(
+                "{}/{}/library_600x900.jpg",
+                steam_image_cache_path,
+                game->game_id_);
+            const auto target_path = std::format(
+                "{}/{}_library_600x900.jpg",
+                cover_folder_path,
+                game->game_id_);
+            FileUtil::CopyFileExt(
+                PathFromUTF8(source_path), PathFromUTF8(target_path), false);
+            if (std::filesystem::exists(PathFromUTF8(target_path))) {
+                return target_path;
+            }
+            return {};
+        }
+
+        std::vector<GameCatalogEntry> BuildCatalogEntries(
+            std::vector<TcDBGamePtr> games,
+            const std::string& steam_image_cache_path,
+            const std::string& cover_folder_path) {
+            std::vector<GameCatalogEntry> entries;
+            entries.reserve(games.size());
+            for (auto& game : games) {
+                auto cover_path = ResolveGameCoverPath(
+                    game, steam_image_cache_path, cover_folder_path);
+                entries.push_back({
+                    .game = std::move(game),
+                    .cover_path = std::move(cover_path),
+                });
+            }
+            return entries;
+        }
+
+        std::vector<TcDBGamePtr> ConvertSteamGames(
+            const std::vector<std::shared_ptr<SteamApp>>& steam_games) {
+            std::vector<TcDBGamePtr> games;
+            games.reserve(steam_games.size());
+            for (const auto& steam_game : steam_games) {
+                const auto game = std::make_shared<TcDBGame>();
+                game->CopyFrom(steam_game);
+                games.push_back(game);
+            }
+            return games;
+        }
+
+    }
 
     class MainItemDelegate : public QStyledItemDelegate {
     public:
@@ -56,6 +126,8 @@ namespace px
 
     TabGame::TabGame(const std::shared_ptr<PxApplication>& app, QWidget* parent) : TabBase(app, parent) {
         steam_mgr_ = context_->GetSteamManager();
+        refresh_state_ = std::make_shared<GameCatalogRefreshState>();
+        const QPointer<TabGame> self(this);
         auto root_layout = new QVBoxLayout();
         WidgetHelper::ClearMargins(root_layout);
         // title margin
@@ -70,9 +142,10 @@ namespace px
             btn->setFixedSize(btn_size);
             op_layout->addSpacing(15);
             op_layout->addWidget(btn);
-            connect(btn, &QPushButton::clicked, this, [=, this]() {
-                ShowAddGamePanel();
-            });
+            connect(btn, &QPushButton::clicked, this,
+                    MakeQtLifetimeAction(self, [](const QPointer<TabGame>& tab) {
+                        tab->ShowAddGamePanel();
+                    }));
         }
         {
             auto btn = new TcPushButton(this);
@@ -80,9 +153,10 @@ namespace px
             btn->setFixedSize(btn_size);
             op_layout->addSpacing(15);
             op_layout->addWidget(btn);
-            connect(btn, &QPushButton::clicked, this, [=, this]() {
-                RefreshGames();
-            });
+            connect(btn, &QPushButton::clicked, this,
+                    MakeQtLifetimeAction(self, [](const QPointer<TabGame>& tab) {
+                        tab->RefreshGames();
+                    }));
         }
         op_layout->addStretch();
         root_layout->addLayout(op_layout);
@@ -99,107 +173,14 @@ namespace px
         list_widget_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         list_widget_->setSpacing(10);
         list_widget_->setResizeMode(QListWidget::Adjust);
-        //
-        QObject::connect(list_widget_, &QListWidget::clicked, this, [=, this](const QModelIndex& index) {
-            int row = index.row();
-            if (row >= this->games_.size()) {
-                return;
-            }
-        });
-
-        QObject::connect(list_widget_, &QListWidget::doubleClicked, this, [=, this](const QModelIndex& index) {
-            int row = index.row();
-            if (row >= this->games_.size()) {
-                return;
-            }
-        });
-
         list_widget_->setContextMenuPolicy(Qt::CustomContextMenu);
-        QObject::connect(list_widget_, &QListWidget::customContextMenuRequested, this, [=, this](const QPoint& pos) {
-            QListWidgetItem* cur_item = list_widget_->itemAt(pos);
-            if (cur_item == nullptr) {
-                return;
-            }
-
-            int index = list_widget_->row(cur_item);
-            if (index < 0 || index >= games_.size()) {
-                return;
-            }
-            auto game = games_.at(index);
-
-            std::vector<QString> actions {
-                tcTr("id_game_info"),
-                tcTr("id_start_game"),
-                tcTr("id_stop_game"),
-                tcTr("id_installed_location"),
-            };
-            auto pop_menu = new QMenu();
-            for (int i = 0; i < actions.size(); i++) {
-                auto action = new QAction(actions.at(i), pop_menu);
-                pop_menu->addAction(action);
-
-                if (i == 0) {
-                    QObject::connect(action, &QAction::triggered, this, [=, this]() {
-                        GameInfoPreview preview(app_, game);
-                        preview.setFixedSize(640, 480);
-                        preview.exec();
-                    });
-                } else if (i == 1) {
-                    QObject::connect(action, &QAction::triggered, this, [=, this]() {
-                        if (!game->steam_url_.empty()) {
-                            ShellExecuteA(nullptr, nullptr, game->steam_url_.c_str(), nullptr, nullptr, SW_SHOW);
-                        } else {
-                            auto func_start_error = [this](const QString& msg) {
-                                QString target_msg = tcTr("id_start_process_error") + msg;
-                                TcDialog dialog(tcTr("id_error"), target_msg, nullptr);
-                                dialog.exec();
-                            };
-
-                            if (game->exes_.empty()) {
-                                func_start_error(tcTr("id_dont_have_exe"));
-                                return;
-                            }
-                            auto exe_path = game->exes_.at(0);
-                            if (!QFile::exists(exe_path.c_str())) {
-                                func_start_error(tcTr("id_file_not_exist"));
-                                return;
-                            }
-
-                            context_->PostTask([=, this]() {
-                                LOGI("Will start: {}", exe_path);
-                                auto resp = context_->GetRunGameManager()->StartGame(exe_path, {});
-                                if (!resp.ok_) {
-                                    func_start_error(tcTr("id_start_failed"));
-                                }
-                            });
-                        }
-                    });
-                } else if (i == 2) {
-                    QObject::connect(action, &QAction::triggered, this, [=, this]() {
-                        this->context_->PostTask([=, this]() {
-                            auto rgm = this->context_->GetRunGameManager();
-                            auto running_games = rgm->GetRunningGames();
-                            for (const auto& rg : running_games) {
-                                if (rg->game_->game_id_ != game->game_id_) {
-                                    continue;
-                                }
-                                for (auto pid : rg->pids_) {
-                                    ProcessUtil::KillProcess(pid);
-                                }
-                            }
-                        });
-                    });
-                } else if (i == 3) {
-                    QObject::connect(action, &QAction::triggered, this, [=, this]() {
-                        FolderUtil::OpenDir(PathFromUTF8(game->game_installed_dir_));
-                    });
-                }
-            }
-
-            pop_menu->exec(QCursor::pos());
-            delete pop_menu;
-
-        });
+        QObject::connect(
+            list_widget_, &QListWidget::customContextMenuRequested, this,
+            MakeQtLifetimeCallback(
+                self,
+                [](const QPointer<TabGame>& tab, const QPoint& position) {
+                    tab->ShowContextMenu(position);
+                }));
 
         list_widget_->setStyleSheet("QListWidget {background-color:none;}");
         list_widget_->show();
@@ -207,7 +188,6 @@ namespace px
         setLayout(root_layout);
 
         // listeners
-        QPointer<TabGame> self(this);
         msg_listener_->Listen<MsgRunningGameIds>([self](const MsgRunningGameIds& rgs) {
             if (self) {
                 self->UpdateRunningStatus(rgs.game_ids_);
@@ -225,7 +205,9 @@ namespace px
         ScanInstalledGames();
     }
 
-    TabGame::~TabGame() = default;
+    TabGame::~TabGame() {
+        refresh_state_->Stop();
+    }
 
     void TabGame::OnTabShow() {
 
@@ -236,61 +218,112 @@ namespace px
     }
 
     void TabGame::ScanInstalledGames() {
-        context_->PostTask([=, this]() {
-            // 1. load from database
-            auto gm = context_->GetDBGameManager();
-            games_ = gm->GetAllGames();
-            if (!games_.empty()) {
-                for (auto& game : games_) {
-                    this->LoadCover(game);
-                }
-                AddItems(games_);
-            } else {
-                // todo: 1.loading ....
-            }
-
-            steam_mgr_->ScanInstalledGames(false);
-            //steam_mgr_->DumpGamesInfo();
-
-            auto steam_apps = steam_mgr_->GetInstalledGames();
-            std::vector<TcDBGamePtr> scan_games;
-
-            for (auto& app : steam_apps) {
-                auto game = std::make_shared<TcDBGame>();
-                game->CopyFrom(app);
-                scan_games.push_back(game);
-            }
-            gm->BatchSaveOrUpdateGames(scan_games);
-
-            if (games_.empty() && scan_games.empty()) {
-                // todo 2.show empty
-                context_->PostUITask([=, this]() {
-                    this->ShowEmptyTip();
-                });
-            } else {
-                // todo 3.hide loading
-                context_->PostUITask([=, this]() {
-                    this->HideEmptyTip();
-                });
-            }
-
-            if (games_.empty()) {
-                games_ = scan_games;
-                for (auto& game : games_) {
-                    this->LoadCover(game);
-                }
-                AddItems(games_);
-            }
-
-            context_->PostTask([=, this]() {
-                steam_mgr_->RescanRecursively();
-            });
-
-        });
-
+        RequestCatalog(true);
     }
 
-    QListWidgetItem* TabGame::AddItem(const TcDBGamePtr& game) {
+    void TabGame::RequestCatalog(bool scan_installed_games) {
+        const auto request = refresh_state_->Begin();
+        if (request.generation == 0 || !request.cancellation) {
+            return;
+        }
+        const auto context = context_;
+        const auto database = context->GetDBGameManager();
+        const auto steam_manager = steam_mgr_;
+        const auto state = refresh_state_;
+        const auto steam_image_cache_path = steam_manager
+            ? steam_manager->GetSteamImageCachePath() : std::string{};
+        const auto cover_folder_path =
+            context->GetCurrentExeFolder() + "/resources/steam_covers";
+        if (!database) {
+            static_cast<void>(refresh_state_->Complete(request.generation));
+            return;
+        }
+        FolderUtil::CreateDir(PathFromUTF8(cover_folder_path));
+        const QPointer<TabGame> self(this);
+
+        context->PostTask(
+            [context, database, steam_manager, state,
+             generation = request.generation,
+             cancellation = request.cancellation,
+             steam_image_cache_path, cover_folder_path,
+             scan_installed_games, self]() {
+                auto database_games = database->GetAllGames();
+                auto initial_entries = BuildCatalogEntries(
+                    std::move(database_games),
+                    steam_image_cache_path,
+                    cover_folder_path);
+                if (!scan_installed_games || !steam_manager) {
+                    context->PostUITask(
+                        [self, generation,
+                         entries = std::move(initial_entries)]() mutable {
+                            if (self) {
+                                self->ApplyCatalog(
+                                    generation, std::move(entries), true);
+                            }
+                        });
+                    return;
+                }
+
+                context->PostUITask(
+                    [self, state, generation,
+                     entries = std::move(initial_entries)]() mutable {
+                        if (self && state->IsCurrent(generation)) {
+                            self->ApplyCatalog(
+                                generation, std::move(entries), false);
+                        }
+                    });
+                if (cancellation->load(std::memory_order_acquire)) {
+                    return;
+                }
+
+                std::vector<TcDBGamePtr> scanned_games;
+                {
+                    std::lock_guard lock(GameCatalogSteamScanMutex());
+                    if (cancellation->load(std::memory_order_acquire)) {
+                        return;
+                    }
+                    steam_manager->ScanInstalledGames(false);
+                    scanned_games = ConvertSteamGames(
+                        steam_manager->GetInstalledGames());
+                    if (!cancellation->load(std::memory_order_acquire)) {
+                        // Preserve the existing process-owned deep executable
+                        // discovery without capturing the tab or posting UI.
+                        steam_manager->RescanRecursively();
+                    }
+                }
+                if (cancellation->load(std::memory_order_acquire)) {
+                    return;
+                }
+                database->BatchSaveOrUpdateGames(scanned_games);
+                auto final_entries = BuildCatalogEntries(
+                    database->GetAllGames(),
+                    steam_manager->GetSteamImageCachePath(),
+                    cover_folder_path);
+                context->PostUITask(
+                    [self, generation,
+                     entries = std::move(final_entries)]() mutable {
+                        if (self) {
+                            self->ApplyCatalog(
+                                generation, std::move(entries), true);
+                        }
+                    });
+            });
+    }
+
+    void TabGame::ApplyCatalog(
+        std::uint64_t generation,
+        std::vector<GameCatalogEntry> entries,
+        bool final_result) {
+        const bool accepted = final_result
+            ? refresh_state_->Complete(generation)
+            : refresh_state_->IsCurrent(generation);
+        if (!accepted) {
+            return;
+        }
+        ReplaceItems(std::move(entries));
+    }
+
+    void TabGame::AddItem(const TcDBGamePtr& game) {
         auto item = new QListWidgetItem(list_widget_);
         int margin = 0;
         auto item_size = GetItemSize();
@@ -340,7 +373,6 @@ namespace px
         }
 
         list_widget_->setItemWidget(item, widget);
-        return item;
     }
 
     QSize TabGame::GetItemSize() {
@@ -349,64 +381,167 @@ namespace px
         return {item_width, item_height};
     }
 
-    void TabGame::AddItems(const std::vector<TcDBGamePtr>& games) {
-        context_->PostUITask([=, this]() {
-            for (const auto& game : games) {
-                AddItem(game);
+    void TabGame::ReplaceItems(std::vector<GameCatalogEntry> entries) {
+        list_widget_->clear();
+        games_.clear();
+        games_.reserve(entries.size());
+        const auto item_size = GetItemSize();
+        for (auto& entry : entries) {
+            if (!entry.game) {
+                continue;
             }
-        });
-    }
-
-    void TabGame::LoadCover(const px::TcDBGamePtr& game) {
-        auto steam_manager = context_->GetSteamManager();
-        if (!steam_manager) {
-            return;
+            if (!entry.cover_path.empty()) {
+                QImage image;
+                if (image.load(QString::fromStdString(entry.cover_path))) {
+                    auto pixmap = QPixmap::fromImage(image).scaled(
+                        item_size.width(), item_size.height(),
+                        Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                    if (!pixmap.isNull()) {
+                        entry.game->cover_pixmap_ = std::move(pixmap);
+                    }
+                }
+            }
+            games_.push_back(entry.game);
+            AddItem(entry.game);
         }
-        auto image_cache_path = steam_manager->GetSteamImageCachePath();
-        std::string from_cover_path = std::format("{}/{}/library_600x900.jpg", image_cache_path, game->game_id_);
-        LOGI("cover path: {}", from_cover_path);
-
-        std::string steam_cover_folder_path = this->context_->GetCurrentExeFolder() + "/resources/steam_covers";
-        FolderUtil::CreateDir(PathFromUTF8(steam_cover_folder_path));
-        std::string target_cover_name = std::format("{}_library_600x900.jpg", game->game_id_);
-        std::string target_cover_path = std::format("{}/{}", steam_cover_folder_path, target_cover_name);
-        FileUtil::CopyFileExt(PathFromUTF8(from_cover_path), PathFromUTF8(target_cover_path), false);
-
-        QImage image;
-        if (!image.load(QString::fromStdString(target_cover_path))) {
-            LOGI("not find cover: {}", target_cover_path);
-            return;
+        if (games_.empty()) {
+            ShowEmptyTip();
+        } else {
+            HideEmptyTip();
         }
-        auto item_size = GetItemSize();
-        auto pixmap = QPixmap::fromImage(image);
-        pixmap = pixmap.scaled(item_size.width(), item_size.height(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-        game->cover_pixmap_ = pixmap;
     }
 
     void TabGame::UpdateRunningStatus(const std::vector<uint64_t>& game_ids) {
-        this->VisitListWidget([=, this](QListWidgetItem* item, QWidget* item_widget) {
-            auto cover_widget = item_widget->findChild<CoverWidget*>("cover_mask");
-            cover_widget->SetRunningStatus(false);
-        });
-        this->VisitListWidget([=, this](QListWidgetItem* item, QWidget* item_widget) {
-            auto cover_widget = item_widget->findChild<CoverWidget*>("cover_mask");
-            auto game_id = item_widget->objectName().toStdString();
-            for (auto rgid : game_ids) {
-                if (std::to_string(rgid) == game_id) {
-                    //LOGI("running game id: {}", rgid);
-                    cover_widget->SetRunningStatus(true);
-                }
+        for (int index = 0; index < list_widget_->count(); ++index) {
+            const QPointer<QWidget> item_widget(
+                list_widget_->itemWidget(list_widget_->item(index)));
+            if (!item_widget) {
+                continue;
             }
+            const QPointer<CoverWidget> cover_widget(
+                item_widget->findChild<CoverWidget*>("cover_mask"));
+            if (!cover_widget) {
+                continue;
+            }
+            const auto game_id = item_widget->objectName().toStdString();
+            const auto running = std::ranges::any_of(
+                game_ids,
+                [&game_id](std::uint64_t running_game_id) {
+                    return std::to_string(running_game_id) == game_id;
+                });
+            cover_widget->SetRunningStatus(running);
+        }
+    }
+
+    void TabGame::ShowContextMenu(const QPoint& position) {
+        const auto index = list_widget_->indexAt(position).row();
+        if (index < 0 || static_cast<std::size_t>(index) >= games_.size()) {
+            return;
+        }
+        const auto game = games_.at(index);
+        QMenu menu(this);
+        const std::vector<QString> actions{
+            tcTr("id_game_info"),
+            tcTr("id_start_game"),
+            tcTr("id_stop_game"),
+            tcTr("id_installed_location"),
+        };
+        const QPointer<TabGame> self(this);
+        for (int action_index = 0;
+             action_index < static_cast<int>(actions.size());
+             ++action_index) {
+            const QPointer<QAction> action(menu.addAction(actions.at(action_index)));
+            QObject::connect(
+                action, &QAction::triggered, this,
+                MakeQtLifetimeAction(
+                    self,
+                    [game, action_index](const QPointer<TabGame>& tab) {
+                        switch (action_index) {
+                        case 0: {
+                            GameInfoPreview preview(tab->app_, game);
+                            preview.setFixedSize(640, 480);
+                            preview.exec();
+                            break;
+                        }
+                        case 1:
+                            tab->StartGame(game);
+                            break;
+                        case 2:
+                            tab->StopGame(game);
+                            break;
+                        case 3:
+                            FolderUtil::OpenDir(
+                                PathFromUTF8(game->game_installed_dir_));
+                            break;
+                        default:
+                            break;
+                        }
+                    }));
+        }
+        menu.exec(QCursor::pos());
+    }
+
+    void TabGame::StartGame(const TcDBGamePtr& game) {
+        if (!game) {
+            return;
+        }
+        if (!game->steam_url_.empty()) {
+            if (!QDesktopServices::openUrl(
+                    QUrl(QString::fromStdString(game->steam_url_)))) {
+                ShowStartError(tcTr("id_start_failed"));
+            }
+            return;
+        }
+        if (game->exes_.empty()) {
+            ShowStartError(tcTr("id_dont_have_exe"));
+            return;
+        }
+        const auto executable_path = game->exes_.front();
+        if (!QFile::exists(QString::fromStdString(executable_path))) {
+            ShowStartError(tcTr("id_file_not_exist"));
+            return;
+        }
+
+        const auto context = context_;
+        const auto run_game_manager = context->GetRunGameManager();
+        if (!run_game_manager) {
+            ShowStartError(tcTr("id_start_failed"));
+            return;
+        }
+        const QPointer<TabGame> self(this);
+        context->PostTask(
+            [context, run_game_manager, executable_path, self]() {
+                LOGI("Will start: {}", executable_path);
+                const auto response = run_game_manager->StartGame(
+                    executable_path, {});
+                if (!response.ok_) {
+                    context->PostUITask([self]() {
+                        if (self) {
+                            self->ShowStartError(tcTr("id_start_failed"));
+                        }
+                    });
+                }
+            });
+    }
+
+    void TabGame::StopGame(const TcDBGamePtr& game) {
+        if (!game) {
+            return;
+        }
+        const auto run_game_manager = context_->GetRunGameManager();
+        if (!run_game_manager) {
+            return;
+        }
+        const auto game_id = std::to_string(game->game_id_);
+        context_->PostTask([run_game_manager, game_id]() {
+            static_cast<void>(run_game_manager->StopGame(game_id));
         });
     }
 
-    void TabGame::VisitListWidget(std::function<void(QListWidgetItem* item, QWidget* item_widget)>&& cbk) {
-        auto item_counts = list_widget_->count();
-        for (int i = 0; i < item_counts; i++) {
-            QListWidgetItem *item = list_widget_->item(i);
-            auto item_widget = list_widget_->itemWidget(item);
-            cbk(item, item_widget);
-        }
+    void TabGame::ShowStartError(const QString& message) {
+        const auto target_message = tcTr("id_start_process_error") + message;
+        TcDialog dialog(tcTr("id_error"), target_message, this);
+        dialog.exec();
     }
 
     void TabGame::ShowAddGamePanel() {
@@ -416,34 +551,7 @@ namespace px
     }
 
     void TabGame::RefreshGames() {
-        context_->PostTask([=, this]() {
-            auto db_mgr = context_->GetDBGameManager();
-            auto rescan_games = db_mgr->GetAllGames();
-            for (auto& rg : rescan_games) {
-                bool find = false;
-                for (auto& exist_game : games_) {
-                    if (exist_game->game_id_ == rg->game_id_) {
-                        find = true;
-                        break;
-                    }
-                }
-
-                if (!find) {
-                    context_->PostUITask([=, this]() {
-                        QImage image;
-                        image.load(rg->cover_url_.c_str());
-                        auto pixmap = QPixmap::fromImage(image);
-                        auto item_size = GetItemSize();
-                        pixmap = pixmap.scaled(item_size.width(), item_size.height(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-                        if (!pixmap.isNull()) {
-                            rg->cover_pixmap_ = pixmap;
-                        }
-                        AddItem(rg);
-                    });
-                    games_.push_back(rg);
-                }
-            }
-        });
+        RequestCatalog(false);
     }
 
     void TabGame::resizeEvent(QResizeEvent *event) {

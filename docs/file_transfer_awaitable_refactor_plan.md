@@ -2594,3 +2594,39 @@ Panel 主窗口原先从 worker 直接回调 `CheckOffSiteUpdate(this)`，启动
 
 `px_panel.exe` build/dist SHA-256：
 `9495859917D8BA90B75CFB2199BB1F1CE9E64765A844D548441B4C5048AE77C0`。
+
+### 12.54 Phase 7 Panel 游戏目录刷新与启动停止回调收敛
+
+游戏页原先从普通 worker 捕获 `this`，直接读写 `games_`、加载 `QImage/QPixmap`，并在后台
+失败路径创建对话框。首次扫描还会嵌套投递 Steam 深度扫描，刷新只追加新项目，旧请求与
+新请求、页面析构及重复刷新之间没有统一的取消和结果顺序保证。
+
+本批完成：
+
+- 新增 `GameCatalogRefreshState`，每次扫描或刷新生成新代次并取消上一代；中间数据库快照不
+  消耗代次，只有最新最终结果能够完成；页面析构 Stop 后排队结果和未来请求全部失效；
+- worker 只取得数据库、SteamManager、Context 和路径值快照，并生成不含 Qt 图形资源的
+  `GameCatalogEntry` DTO；`games_`、列表控件和 `QPixmap` 统一只在 UI completion 中替换；
+- 首次进入先展示数据库快照，再串行执行 Steam 扫描和既有深度可执行文件发现；各阶段检查
+  cancellation，扫描结果复制为独立数据库实体，晚到旧代次不能覆盖新刷新；
+- 刷新改为原子替换完整目录，不再只追加新项目，因此数据库中已删除的游戏也会从 UI 消失，
+  并避免重复卡片；封面解析和文件复制留在 worker，图片解码与缩放留在 UI 线程；
+- 添加、刷新、菜单 action 和运行状态通知全部使用 `QPointer` guard；列表与空状态控件成员
+  改为 `QPointer`，菜单使用栈 RAII，页面析构后回调不再访问 QWidget；
+- 启动与停止 worker 只捕获共享 RunGameManager 和值快照；启动失败通过 guarded
+  `PostUITask` 显示，Steam URL 改由 `QDesktopServices` 打开，不再使用 ShellExecute；
+- Steam 扫描由进程内互斥量串行化，重复触发不会并发修改 SteamManager 的扫描状态。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 代次替换 | 新 Begin 取消旧请求，旧 completion 被拒绝；中间结果保持当前代次，PASS |
+| 析构/晚到结果 | Stop 取消活动请求并拒绝排队 completion 与未来 Begin，PASS |
+| 重复与并发 | 重复 Begin/Complete/Stop 及 24 路并发 Begin 均仅一个最终完成；专项 CTest 连续 10/10 PASS |
+| Qt owner / runtime 退出 | `panel_qt_lifetime_guard` 连续 10/10 PASS；`test_task_runtime_exit` 直接连续 10/10 PASS |
+| ownership / whitespace | `check_cpp_ownership` 与 `git diff --check` PASS；新增异步路径无裸指针声明、手工 ownership 或 `[this]` 捕获 |
+| focused build/dist | 定向编译 `test_game_catalog_refresh_state`、相关生命周期测试与 `px_panel`；未运行发版整编；Panel build/dist 哈希一致 |
+
+`px_panel.exe` build/dist SHA-256：
+`CC16359D3A72883C3099C6AB0200129A104DC346B5D7B28B2589E2C2AB280293`。
