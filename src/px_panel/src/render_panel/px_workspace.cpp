@@ -7,6 +7,7 @@
 #include "px_exe_names.h"
 #include "px_application.h"
 #include "px_common_new/privacy_log.h"
+#include "px_common_new/weak_callback.h"
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -19,6 +20,7 @@
 #include <QPainter>
 #include <QStandardPaths>
 #include <QPointer>
+#include <QScreen>
 #include <QEventLoop>
 #include <QDateTime>
 #include <utility>
@@ -446,15 +448,9 @@ namespace px
                 vlayout->addWidget(btn, 0, Qt::AlignCenter);
                 w->hide();
 
-                connect(btn, &QPushButton::clicked, this, [=, this]() {
-                    auto pc = grApp->GetCompanion();
-                    if (pc) {
-                        pc->JumpToGithub();
-                    }
-                });
-
-                app_->GetContext()->PostTask([=, this]() {
-                    CheckOffSiteUpdate();
+                const auto app = app_;
+                connect(btn, &QPushButton::clicked, this, [app]() {
+                    app->JumpToOffSiteUpdate();
                 });
             }
            
@@ -506,9 +502,6 @@ namespace px
 
             root_layout->addLayout(layout);
 
-            QTimer::singleShot(2000, this, [this]() {
-                this->InitUpdate();
-            });
         }
 
         // right panels
@@ -569,17 +562,6 @@ namespace px
 
         ChangeTab(TabName::kTabServer);
 
-        // adjust window's position
-        QTimer::singleShot(50, this, [this]() {
-            auto screen = qApp->primaryScreen();
-            if (!screen) {return;}
-
-            auto screen_size = screen->size();
-            auto x = (screen_size.width() - this->size().width())/2;
-            auto y = (screen_size.height() - this->size().height() - 48)/2;
-            this->move(x, y);
-        });
-
         // last works
         app_->RequestNewClientId(false);
 
@@ -593,6 +575,33 @@ namespace px
 
     void PxWorkspace::Init() {
         grWorkspace = shared_from_this();
+        const auto weak_workspace = weak_from_this();
+
+        QTimer::singleShot(
+            2000, this,
+            MakeWeakVoidCallback(
+                weak_workspace,
+                [](const std::shared_ptr<PxWorkspace>& workspace) {
+                    workspace->InitUpdate();
+                }));
+
+        QTimer::singleShot(
+            50, this,
+            MakeWeakVoidCallback(
+                weak_workspace,
+                [](const std::shared_ptr<PxWorkspace>& workspace) {
+                    QPointer<QScreen> screen(qApp->primaryScreen());
+                    if (!screen) {
+                        return;
+                    }
+
+                    const auto screen_size = screen->size();
+                    const auto x = (screen_size.width() - workspace->size().width()) / 2;
+                    const auto y = (screen_size.height() - workspace->size().height() - 48) / 2;
+                    workspace->move(x, y);
+                }));
+
+        ScheduleOffSiteUpdateCheck(app_, context_, weak_workspace);
     }
 
     void PxWorkspace::ChangeTab(const TabName& tn) {
@@ -612,7 +621,7 @@ namespace px
         if (upgrade_helper_widget_) {
             upgrade_helper_widget_->done(QDialog::Rejected);
             upgrade_helper_widget_->close();
-            upgrade_helper_widget_ = nullptr;
+            upgrade_helper_widget_.reset();
         }
         event->ignore();
         TcDialog dialog(tcTr("id_hide"), tcTr("id_hide_gammaray_msg"), this);
@@ -671,11 +680,11 @@ namespace px
             if (!self) {
                 return;
             }
-            self->CheckAppUpdate(false);
+            CheckAppUpdate(false);
             context->PostTask([]() {
                 px::ClearOldDumps();
             });
-            self->CheckOffSiteUpdate();
+            ScheduleOffSiteUpdateCheck(self->app_, context, self->weak_from_this());
         });
 
         msg_listener_->Listen<MsgPanelVoiceCallConsentRequest>(
@@ -1040,60 +1049,72 @@ namespace px
 
 
     void PxWorkspace::InitUpdate() {
-        QObject::connect(UpdateManager::GetInstance(), &UpdateManager::SigFindUpdate, [this](const QVariantMap& data) {
-            this->showNormal();
-            
-            if (upgrade_helper_widget_) {
-                upgrade_helper_widget_->close();
-                upgrade_helper_widget_ = nullptr;
-            }
-            
-            upgrade_helper_widget_ = QPointer<UpgradeHelperWidget>(new UpgradeHelperWidget());
-            upgrade_helper_widget_->SetRemoteVersion(data["version"].toString());
-            upgrade_helper_widget_->SetRemoteUpdateDesc(data["desc"].toString());
-            upgrade_helper_widget_->SetForced(data["forced"].toBool());
-            upgrade_helper_widget_->raise();
-            upgrade_helper_widget_->exec();
-            if (upgrade_helper_widget_->exit_app_) {
-                this->close();
-            }
-        });
+        if (update_callbacks_registered_) {
+            return;
+        }
+        update_callbacks_registered_ = true;
 
-        QObject::connect(UpdateManager::GetInstance(), &UpdateManager::SigUpdateHint, [this](QString info) {
-            this->showNormal();
-            TcDialog dialog(tcTr("id_tips"), info, this);
-            dialog.exec();
-        });
+        const auto weak_workspace = weak_from_this();
+        auto& update_manager = UpdateManager::Instance();
+        QObject::connect(
+            &update_manager, &UpdateManager::SigFindUpdate, this,
+            MakeWeakVoidCallback(
+                weak_workspace,
+                [](const std::shared_ptr<PxWorkspace>& workspace,
+                   const QVariantMap& data) {
+                    workspace->showNormal();
 
-        UpdateManager::GetInstance()->CheckUpdate(true, false);
+                    if (workspace->upgrade_helper_widget_) {
+                        workspace->upgrade_helper_widget_->done(QDialog::Rejected);
+                        workspace->upgrade_helper_widget_->close();
+                        workspace->upgrade_helper_widget_.reset();
+                    }
+
+                    const auto dialog = std::make_shared<UpgradeHelperWidget>();
+                    workspace->upgrade_helper_widget_ = dialog;
+                    dialog->SetRemoteVersion(data["version"].toString());
+                    dialog->SetRemoteUpdateDesc(data["desc"].toString());
+                    dialog->SetForced(data["forced"].toBool());
+                    dialog->raise();
+                    dialog->exec();
+                    if (dialog->exit_app_) {
+                        workspace->close();
+                    }
+                    if (workspace->upgrade_helper_widget_ == dialog) {
+                        workspace->upgrade_helper_widget_.reset();
+                    }
+                }));
+
+        QObject::connect(
+            &update_manager, &UpdateManager::SigUpdateHint, this,
+            MakeWeakVoidCallback(
+                weak_workspace,
+                [](const std::shared_ptr<PxWorkspace>& workspace, const QString& info) {
+                    workspace->showNormal();
+                    TcDialog dialog(tcTr("id_tips"), info, workspace.get());
+                    dialog.exec();
+                }));
+
+        update_manager.CheckUpdate(true, false);
     }
 
     void PxWorkspace::CheckAppUpdate(bool from_user_clicked) {
-        px::UpdateManager::GetInstance()->CheckUpdate(true, from_user_clicked);
+        UpdateManager::Instance().CheckUpdate(true, from_user_clicked);
     }
 
-    void PxWorkspace::CheckOffSiteUpdate() {
-        auto pc = grApp->GetCompanion();
-        if (!pc) {
-            return;
-        }
-        if (pc->HasUpdateForOffSite()) {
-            QPointer<PxWorkspace> self(this);
-            app_->GetContext()->PostUITask([self]() {
-                if (!self) {
-                    return;
-                }
-                self->jump_to_github_widget_->show();
-             });
-        }
-        else {
-            QPointer<PxWorkspace> self(this);
-            app_->GetContext()->PostUITask([self]() {
-                if (!self) {
-                    return;
-                }
-                self->jump_to_github_widget_->hide();
-            });
-        }
+    void PxWorkspace::ScheduleOffSiteUpdateCheck(
+        const std::shared_ptr<PxApplication>& app,
+        const std::shared_ptr<PxContext>& context,
+        std::weak_ptr<PxWorkspace> weak_workspace) {
+        context->PostTask([app, context, weak_workspace = std::move(weak_workspace)]() {
+            const bool has_update = app->HasOffSiteUpdate();
+            context->PostUITask(MakeWeakVoidCallback(
+                weak_workspace,
+                [has_update](const std::shared_ptr<PxWorkspace>& workspace) {
+                    if (workspace->jump_to_github_widget_) {
+                        workspace->jump_to_github_widget_->setVisible(has_update);
+                    }
+                }));
+        });
     }
 }

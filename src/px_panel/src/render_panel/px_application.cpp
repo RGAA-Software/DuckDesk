@@ -602,6 +602,16 @@ namespace px
         return companion_.get();
     }
 
+    void PxApplication::JumpToOffSiteUpdate() {
+        if (companion_) {
+            companion_->JumpToGithub();
+        }
+    }
+
+    bool PxApplication::HasOffSiteUpdate() {
+        return companion_ && companion_->HasUpdateForOffSite();
+    }
+
     std::string PxApplication::GetAppkey() {
         if (companion_ && companion_->GetAuth()) {
             return companion_->GetAuth()->appkey_;

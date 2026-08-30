@@ -2521,3 +2521,42 @@ WinMessageLoop` 强引用环，消息线程使用成员 `std::thread` 并在回�
 
 `px_panel.exe` build/dist SHA-256：
 `C232F6863314C331265B0D0725B96F5253594E405B51291EA81C9C665FAE764A`。
+
+### 12.52 Phase 7 Panel 主窗口更新回调与弹窗所有权收敛
+
+Panel 主窗口原先从 worker 直接回调 `CheckOffSiteUpdate(this)`，启动更新检查与窗口居中使用
+定时裸 `this`；`InitUpdate` 又通过无 receiver context 的进程单例信号长期捕获 Workspace。
+更新弹窗由无 parent 的手工 `new` 创建，却只保存 `QPointer`，关闭、重复通知与主窗口退出之间
+缺少明确 owner。弹窗自身的 queued close 提示和下载状态信号同样捕获裸 `this`。
+
+本批完成：
+
+- 需要 `shared_from_this()` 的初始站外检查、2 秒更新初始化和 50 ms 居中动作移到
+  `PxWorkspace::Init()`；timer 与 UpdateManager 信号统一使用 `MakeWeakVoidCallback`，owner
+  销毁后不再执行，回调期间由 locked owner 覆盖完整调用；
+- UpdateManager 的发现/提示信号增加 Workspace receiver context，Qt 销毁时自动断开；增加
+  `update_callbacks_registered_`，重复初始化不会叠加信号连接；
+- 站外更新 worker 只捕获共享 Application、Context 与 Workspace weak owner；Companion 的
+  同步查询/跳转由 `PxApplication` 无裸返回包装，保持既有插件实例身份与销毁合同；
+- UpdateManager 单例新增引用式 `Instance()` 并删除项目自有裸指针 `GetInstance()`，仓内调用
+  全部迁移到同一静态实例，不改变单例身份；
+- 更新弹窗改为 `shared_ptr` owner；重复通知先结束旧 modal，再创建新弹窗，嵌套事件循环中的
+  旧 callback 仍持有局部 owner；主窗口关闭和 callback 返回均安全、幂等地释放成员 owner；
+- `MakeQtLifetimeCallback` 为 QPointer guard 增加 signal 参数转发；更新弹窗按钮、下载状态、
+  queued close 确认全部通过 action/callback guard 访问 UI，不再捕获裸 `this`。
+
+本批不改造 UpdateManager 下载传输内部的 reply/timer/file ownership；该网络 I/O 子链仍作为
+后续升级模块专项，不能据此把整个升级模块标记为完成。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| guarded 参数 | owner 存活时参数值 42 正确转发；owner 销毁后值 99 被拒绝，PASS |
+| weak owner | 排队后销毁、并发销毁和 callback 内释放最后 owner 的 common 测试连续 10 轮 PASS |
+| Panel 生命周期回归 | common weak callback、shutdown、pipe、auth、消息窗与 Qt guard 六个 CTest 各连续 10 轮，共 60 次 PASS |
+| ownership / whitespace | `check_cpp_ownership` 与 `git diff --check` PASS；新增路径无裸指针声明、手工 ownership 或 `[this]` 捕获 |
+| focused build/dist | `build_cpp_panel_shutdown_tests.bat` 定向编译测试与 `px_panel`；未运行发版整编；Panel build/dist 哈希一致 |
+
+`px_panel.exe` build/dist SHA-256：
+`19C63292539A04A0D845FF3F1C20D2E1C8AB7F48B3FFFA410A06FDA9C82E2CB8`。

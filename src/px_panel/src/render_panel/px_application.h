@@ -83,6 +83,8 @@ namespace px
 
         // companion for private logics
         PanelCompanion* GetCompanion();
+        void JumpToOffSiteUpdate();
+        bool HasOffSiteUpdate();
 
         // get appkey from companion
         std::string GetAppkey();

@@ -43,4 +43,21 @@ namespace px
         EXPECT_EQ(*deliveries, 0);
     }
 
+    TEST(PanelQtLifetimeGuard, ForwardsSignalArgumentsOnlyWhileObjectIsAlive) {
+        const auto observed_value = std::make_shared<int>(0);
+        auto owner = std::make_unique<QObject>();
+        auto callback = MakeQtLifetimeCallback(
+            QPointer<QObject>(owner.get()),
+            [observed_value](const QPointer<QObject>&, int value) {
+                *observed_value = value;
+            });
+
+        callback(42);
+        EXPECT_EQ(*observed_value, 42);
+
+        owner.reset();
+        callback(99);
+        EXPECT_EQ(*observed_value, 42);
+    }
+
 }

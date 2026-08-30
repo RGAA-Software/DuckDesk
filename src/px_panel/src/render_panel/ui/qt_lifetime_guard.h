@@ -19,6 +19,19 @@ namespace px
         };
     }
 
+    template<typename Object, typename Callback>
+    auto MakeQtLifetimeCallback(QPointer<Object> object, Callback callback) {
+        return [object, callback = std::move(callback)](auto&&... args) mutable {
+            if (!object) {
+                return;
+            }
+            std::invoke(
+                callback,
+                object,
+                std::forward<decltype(args)>(args)...);
+        };
+    }
+
 }
 
 #endif // PX_QT_LIFETIME_GUARD_H

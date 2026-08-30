@@ -1,4 +1,5 @@
 #include "upgrade_helper.h"
+#include "render_panel/ui/qt_lifetime_guard.h"
 #include <qwindow.h>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -88,15 +89,19 @@ namespace px {
 			event->ignore();
 			event->accept();
 			if (!forced_) {
-				QMetaObject::invokeMethod(this, [this]() {
-					TcDialog dialog(tcTr("id_tips"), tcTr("id_upgrade_are_you_sure_exit"), this);
-					if (QDialog::Rejected == dialog.exec()) {
-						return;
-					}
-					else {
-						this->done(QDialog::Rejected);
-					}
-				});
+				QMetaObject::invokeMethod(
+					this,
+					MakeQtLifetimeAction(
+						QPointer<UpgradeHelperWidget>(this),
+						[](const QPointer<UpgradeHelperWidget>& widget) {
+							TcDialog dialog(
+								tcTr("id_tips"),
+								tcTr("id_upgrade_are_you_sure_exit"),
+								widget);
+							if (QDialog::Rejected != dialog.exec()) {
+								widget->done(QDialog::Rejected);
+							}
+						}));
 			}
 			return;
 		}
@@ -109,15 +114,19 @@ namespace px {
 		}
 		event->ignore();
 		if (!forced_) {
-			QMetaObject::invokeMethod(this, [this]() {
-				TcDialog dialog(tcTr("id_tips"), tcTr("id_upgrade_are_you_sure_exit"), this);
-				if (QDialog::Rejected == dialog.exec()) {
-					return;
-				}
-				else {
-					this->done(QDialog::Rejected);
-				}
-			});
+			QMetaObject::invokeMethod(
+				this,
+				MakeQtLifetimeAction(
+					QPointer<UpgradeHelperWidget>(this),
+					[](const QPointer<UpgradeHelperWidget>& widget) {
+						TcDialog dialog(
+							tcTr("id_tips"),
+							tcTr("id_upgrade_are_you_sure_exit"),
+							widget);
+						if (QDialog::Rejected != dialog.exec()) {
+							widget->done(QDialog::Rejected);
+						}
+					}));
 		}
 	}
 
@@ -421,68 +430,83 @@ namespace px {
 	}
 
 	void UpgradeHelperWidget::InitSigChannel() {
-		connect(cancel_btn_, &QPushButton::clicked, this, [this]() {
-			this->done(QDialog::Rejected);
-		});
+		const QPointer<UpgradeHelperWidget> self(this);
+		connect(cancel_btn_, &QPushButton::clicked, this,
+			MakeQtLifetimeAction(self, [](const QPointer<UpgradeHelperWidget>& widget) {
+				widget->done(QDialog::Rejected);
+			}));
 
-		connect(exit_app_btn_, &QPushButton::clicked, this, [this]() {
-			exit_app_ = true;
-			this->done(QDialog::Rejected);
-		});
+		connect(exit_app_btn_, &QPushButton::clicked, this,
+			MakeQtLifetimeAction(self, [](const QPointer<UpgradeHelperWidget>& widget) {
+				widget->exit_app_ = true;
+				widget->done(QDialog::Rejected);
+			}));
 
-		connect(confirm_btn_, &QPushButton::clicked, this, [this]() {
-			UpdateManager::GetInstance()->Download();
-			stack_widget_->setCurrentWidget(download_widget_);
-		});
+		connect(confirm_btn_, &QPushButton::clicked, this,
+			MakeQtLifetimeAction(self, [](const QPointer<UpgradeHelperWidget>& widget) {
+				UpdateManager::Instance().Download();
+				widget->stack_widget_->setCurrentWidget(widget->download_widget_);
+			}));
 
-		connect(retry_btn_, &QPushButton::clicked, this, [this]() {
-			UpdateManager::GetInstance()->Download();
-			stack_widget_->setCurrentWidget(download_widget_);
-		});
+		connect(retry_btn_, &QPushButton::clicked, this,
+			MakeQtLifetimeAction(self, [](const QPointer<UpgradeHelperWidget>& widget) {
+				UpdateManager::Instance().Download();
+				widget->stack_widget_->setCurrentWidget(widget->download_widget_);
+			}));
 
-		connect(exit_btn_, &QPushButton::clicked, this, [this]() {
-			this->done(QDialog::Rejected);
-		});
+		connect(exit_btn_, &QPushButton::clicked, this,
+			MakeQtLifetimeAction(self, [](const QPointer<UpgradeHelperWidget>& widget) {
+				widget->done(QDialog::Rejected);
+			}));
 
-		connect(install_confirm_btn_, &QPushButton::clicked, this, [this]() {
-			UpdateManager::GetInstance()->OpenInstallFile();
-		});
+		connect(install_confirm_btn_, &QPushButton::clicked, this,
+			MakeQtLifetimeAction(self, [](const QPointer<UpgradeHelperWidget>&) {
+				UpdateManager::Instance().OpenInstallFile();
+			}));
 
-		connect(forced_confirm_btn_, &QPushButton::clicked, this, [this]() {
-			UpdateManager::GetInstance()->Download();
-			stack_widget_->setCurrentWidget(download_widget_);
-		});
+		connect(forced_confirm_btn_, &QPushButton::clicked, this,
+			MakeQtLifetimeAction(self, [](const QPointer<UpgradeHelperWidget>& widget) {
+				UpdateManager::Instance().Download();
+				widget->stack_widget_->setCurrentWidget(widget->download_widget_);
+			}));
 
-		connect(UpdateManager::GetInstance(), &UpdateManager::SigDownloadProgressValue, this, [this](int value) {
-			if (stack_widget_->currentWidget() != download_widget_) {
-				stack_widget_->setCurrentWidget(download_widget_);
-			}
-			if (!retry_btn_->isHidden() || !exit_btn_->isHidden()) {
-				retry_btn_->hide();
-				exit_btn_->hide();
-			}
-			download_hint_lab_->setText(tcTr("id_upgrade_downloading"));
-            progress_bar_->setValue(value);
-		});
+		connect(&UpdateManager::Instance(), &UpdateManager::SigDownloadProgressValue, this,
+			MakeQtLifetimeCallback(self,
+				[](const QPointer<UpgradeHelperWidget>& widget, int value) {
+					if (widget->stack_widget_->currentWidget() != widget->download_widget_) {
+						widget->stack_widget_->setCurrentWidget(widget->download_widget_);
+					}
+					if (!widget->retry_btn_->isHidden() || !widget->exit_btn_->isHidden()) {
+						widget->retry_btn_->hide();
+						widget->exit_btn_->hide();
+					}
+					widget->download_hint_lab_->setText(tcTr("id_upgrade_downloading"));
+					widget->progress_bar_->setValue(value);
+				}));
 
-		connect(UpdateManager::GetInstance(), &UpdateManager::SigDownloadComplete, this, [this](bool res, QString reson) {
-			if (!res) {
-				if (stack_widget_->currentWidget() != download_widget_) {
-					stack_widget_->setCurrentWidget(download_widget_);
-				}
-                download_hint_lab_->setText(QStringLiteral("id_upgrade_down_error") + reson);
-				retry_btn_->show();
-				exit_btn_->show();
-				return;
-			}
-			stack_widget_->setCurrentWidget(install_widget_);
-		});
+		connect(&UpdateManager::Instance(), &UpdateManager::SigDownloadComplete, this,
+			MakeQtLifetimeCallback(self,
+				[](const QPointer<UpgradeHelperWidget>& widget, bool result, const QString& reason) {
+					if (!result) {
+						if (widget->stack_widget_->currentWidget() != widget->download_widget_) {
+							widget->stack_widget_->setCurrentWidget(widget->download_widget_);
+						}
+						widget->download_hint_lab_->setText(
+							QStringLiteral("id_upgrade_down_error") + reason);
+						widget->retry_btn_->show();
+						widget->exit_btn_->show();
+						return;
+					}
+					widget->stack_widget_->setCurrentWidget(widget->install_widget_);
+				}));
 
-		connect(UpdateManager::GetInstance(), &UpdateManager::SigOpenInstallFileError, this, [this]() {
-			TcDialog dialog(tcTr("id_tips"), tcTr("id_upgrade_cannot_open_file_for_exit"), this);
-			dialog.exec();
-			this->done(QDialog::Rejected);
-		});
+		connect(&UpdateManager::Instance(), &UpdateManager::SigOpenInstallFileError, this,
+			MakeQtLifetimeAction(self, [](const QPointer<UpgradeHelperWidget>& widget) {
+				TcDialog dialog(
+					tcTr("id_tips"), tcTr("id_upgrade_cannot_open_file_for_exit"), widget);
+				dialog.exec();
+				widget->done(QDialog::Rejected);
+			}));
 	}
 
 	void UpgradeHelperWidget::mousePressEvent(QMouseEvent* event) {

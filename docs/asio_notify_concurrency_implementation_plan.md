@@ -279,6 +279,8 @@ reconnect tests pass with video/audio continuity.
   并发切页和重复启停已有 common 门控及 10 轮专项测试。
 - Panel 安全设置页的同步 action、延迟提示与日志归档任务已改为服务快照和 QPointer guard；
   页面/控件销毁后的排队 action 已有独立 Qt 生命周期适配器及 10 轮专项测试。
+- Panel 主窗口更新提示、站外更新检查和启动定时器已改为 weak owner；UpdateManager 信号以
+  receiver context 和 guarded 参数回调接入，更新弹窗由 shared owner 管理并拒绝重复注册。
 - Migrate SDK/native Android/relay/service listeners and timers using weak
   ownership without changing plugin or WebRTC ABI boundaries.
 - Audit the repository again and resolve all in-scope notification lifetime

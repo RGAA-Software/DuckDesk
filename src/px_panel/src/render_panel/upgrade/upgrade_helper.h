@@ -69,9 +69,9 @@ namespace px {
 	{
 		Q_OBJECT
 	public:
-		static UpdateManager* GetInstance() {
+		static UpdateManager& Instance() {
 			static UpdateManager self;
-			return &self;
+			return self;
 		}
 
 		explicit UpdateManager(QObject* parent = nullptr);

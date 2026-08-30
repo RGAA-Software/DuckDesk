@@ -75,8 +75,11 @@ namespace px
         void SetAvatar(const std::string& filepath);
         void ClearAvatar();
         void InitUpdate();
-        void CheckAppUpdate(bool from_user_clicked);
-        void CheckOffSiteUpdate();
+        static void CheckAppUpdate(bool from_user_clicked);
+        static void ScheduleOffSiteUpdateCheck(
+            const std::shared_ptr<PxApplication>& app,
+            const std::shared_ptr<PxContext>& context,
+            std::weak_ptr<PxWorkspace> weak_workspace);
         void ShowVoiceCallConsent(const MsgPanelVoiceCallConsentRequest& msg);
         void CancelVoiceCallConsent(const MsgPanelVoiceCallConsentCancel& msg);
         void SendVoiceCallConsentDecision(
@@ -115,7 +118,8 @@ namespace px
         TcLabel* lbl_username_ = nullptr;
 
         // update
-        QPointer<UpgradeHelperWidget> upgrade_helper_widget_;
+        std::shared_ptr<UpgradeHelperWidget> upgrade_helper_widget_;
+        bool update_callbacks_registered_ = false;
 
         // jump to github
         QWidget* jump_to_github_widget_ = nullptr;
