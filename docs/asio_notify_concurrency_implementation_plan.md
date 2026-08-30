@@ -130,11 +130,14 @@ same focused-build, 10-round lifecycle and dist-publication gates.
   single-instance named-pipe listener now has cancellable overlapped I/O and a
   synchronous stop barrier. Panel authorization refresh no longer stores its
   companion address or queues a `this` capture: queued refresh work locks a weak
-  AuthManager and storage lifetime is shared independently. The next in-scope
-  batches continue with remaining active Panel service/network workers; disabled
-  legacy clipboard code is retained only until that migration branch is removed.
-  libwebrtc adapters and established plug-in instance ABI boundaries remain
-  excluded.
+  AuthManager and storage lifetime is shared independently. Panel's active
+  Windows hidden-message loop also has no Loop/Window ownership cycle or
+  self-thread detach: a weak callback bridge, common Thread shutdown barrier and
+  idempotent HWND teardown cover callback-close and repeated-close tests. The next
+  in-scope batches continue with remaining active Panel network/server workers;
+  disabled legacy clipboard code is retained only until that migration branch is
+  removed. libwebrtc adapters and established plug-in instance ABI boundaries
+  remain excluded.
 
 ## Target execution architecture
 

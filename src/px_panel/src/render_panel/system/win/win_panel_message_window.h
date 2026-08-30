@@ -4,35 +4,45 @@
 #include <functional>
 #include <atomic>
 #include <mutex>
+#include <cstdint>
+#include <memory>
 
 namespace px
 {
 
-    class PxContext;
-    class WinMessageLoop;
-
-    using MessageCallback = std::function<bool(UINT message, WPARAM wparam, LPARAM lparam, LRESULT& result)>;
-
-    class WinMessageWindow {
+    class WinMessageWindow : public std::enable_shared_from_this<WinMessageWindow> {
     public:
-        static std::shared_ptr<WinMessageWindow> Make(const std::shared_ptr<PxContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop);
-        explicit WinMessageWindow(const std::shared_ptr<PxContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop);
+        using ClipboardUpdatedCallback = std::function<void()>;
+
+        static std::shared_ptr<WinMessageWindow> Make(
+            ClipboardUpdatedCallback clipboard_updated_callback);
+        explicit WinMessageWindow(
+            ClipboardUpdatedCallback clipboard_updated_callback);
         ~WinMessageWindow();
         bool Create(const std::string& window_name);
-        HWND GetHwnd() const;
-        void CloseWindow();
+        HWND GetHwnd() const; // NOLINT(gammaray-raw-pointer-boundary): transient Win32 HWND boundary
+        [[nodiscard]] bool CloseWindow();
     private:
-        static bool registerWindowClass(HINSTANCE instance);
-        static LRESULT CALLBACK windowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam);
-        void OnClipboardUpdate(HWND hwnd);
+        struct CallbackBridge;
+
+        static bool RegisterWindowClass(
+            HINSTANCE instance); // NOLINT(gammaray-raw-pointer-boundary): transient Win32 module handle
+        static void UnregisterWindowClass();
+        static std::shared_ptr<WinMessageWindow> LockOwner(LONG_PTR bridge_value);
+        static std::shared_ptr<WinMessageWindow> LockOwnerFromCreate(LPARAM create_value);
+        static LRESULT CALLBACK WindowProc(
+            HWND window, UINT msg, WPARAM w_param, LPARAM l_param); // NOLINT(gammaray-raw-pointer-boundary): Win32 callback ABI
+        bool StoreWindow(
+            HWND window); // NOLINT(gammaray-raw-pointer-boundary): transient Win32 HWND boundary
+        bool ClearWindow();
+        void OnClipboardUpdate();
 
     private:
-        std::shared_ptr<PxContext> context_ = nullptr;
-        MessageCallback message_callback_;
-        HWND mHwnd = nullptr;
+        ClipboardUpdatedCallback clipboard_updated_callback_;
+        std::shared_ptr<CallbackBridge> callback_bridge_;
+        std::atomic_uintptr_t window_handle_{0};
+        std::atomic_bool close_requested_{false};
         std::string window_name_;
-
-        std::shared_ptr<WinMessageLoop> message_loop_;
 
         static std::mutex register_mutex_;
         static std::atomic<int> current_create_window_count_;

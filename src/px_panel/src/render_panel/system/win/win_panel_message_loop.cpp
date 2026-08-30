@@ -1,5 +1,6 @@
 #include "win_panel_message_loop.h"
 #include <iostream>
+#include <type_traits>
 #include <wtsapi32.h>
 #include "px_common_new/log.h"
 #include "render_panel/px_context.h"
@@ -8,8 +9,24 @@
 #include "win_panel_message_window.h"
 #include "px_render_panel_message.pb.h"
 #include "px_message_new/rp_proto_converter.h"
+#include "px_common_new/thread.h"
 
 using namespace pxrp;
+
+namespace
+{
+    struct WinEventHookReleaser {
+        void operator()(
+            std::remove_pointer_t<HWINEVENTHOOK>* hook) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): typed Win32 hook RAII boundary
+            if (hook) {
+                UnhookWinEvent(hook);
+            }
+        }
+    };
+
+    using ScopedWinEventHook = std::unique_ptr<
+        std::remove_pointer_t<HWINEVENTHOOK>, WinEventHookReleaser>;
+}
 
 namespace px
 {
@@ -17,7 +34,10 @@ namespace px
     constexpr char kWindowName[] = "PxPanel_MessageWindow";
 
 
-    void CALLBACK WinMessageLoop::WinEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime)
+    void CALLBACK WinMessageLoop::WinEventProc(
+        HWINEVENTHOOK event_hook, DWORD event, HWND window, LONG object_id,
+        LONG child_id, DWORD event_thread,
+        DWORD event_time) // NOLINT(gammaray-raw-pointer-boundary): Win32 callback ABI
     {
         if (event == EVENT_SYSTEM_DESKTOPSWITCH)
         {
@@ -48,12 +68,16 @@ namespace px
     }
 
     void WinMessageLoop::CreateMessageWindow() {
-        message_window_ = WinMessageWindow::Make(context_, shared_from_this());
+        const auto weak_self = weak_from_this();
+        message_window_ = WinMessageWindow::Make([weak_self]() {
+            if (const auto self = weak_self.lock(); self && !self->stopped_) {
+                self->OnClipboardUpdate();
+            }
+        });
     }
 
-    void WinMessageLoop::OnClipboardUpdate(HWND hwnd) {
+    void WinMessageLoop::OnClipboardUpdate() {
         // USER_PROXY_MIGRATION: clipboard path disabled, see px_user_proxy
-        (void)hwnd;
 #if 0
         if (!app_->IsRendererConnected()) {
             return;
@@ -129,9 +153,9 @@ namespace px
         });
         CreateMessageWindow();
         const auto message_window = message_window_;
-        thread_ = std::thread([message_window]() {
+        thread_ = Thread::MakeOnceTask([message_window]() {
             ThreadFunc(message_window);
-        });
+        }, "panel_win_message_loop", false);
     }
 
     void WinMessageLoop::Stop() {
@@ -147,15 +171,15 @@ namespace px
             clipboard_platform_->Clear();
         }
         if (message_window_) {
-            message_window_->CloseWindow();
+            const bool close_posted = message_window_->CloseWindow();
+            if (!close_posted && thread_ && thread_->GetTid() != 0) {
+                static_cast<void>(PostThreadMessageW(
+                    thread_->GetTid(), WM_QUIT, 0, 0));
+            }
         }
-        if (thread_.joinable()) {
-            if (thread_.get_id() == std::this_thread::get_id()) {
-                thread_.detach();
-            }
-            else {
-                thread_.join();
-            }
+        if (thread_) {
+            thread_->Exit();
+            thread_.reset();
         }
         message_window_.reset();
         context_.reset();
@@ -169,22 +193,33 @@ namespace px
             return;
         }
         LOGI("WinMessageWindow create success");
-        HWND hwnd = message_window->GetHwnd();
-        if (!hwnd) {
+        const auto window_value = reinterpret_cast<std::uintptr_t>(
+            message_window->GetHwnd()); // NOLINT(gammaray-raw-pointer-boundary): transient Win32 HWND boundary
+        if (window_value == 0) {
             LOGE("WinMessageLoop hwnd is nullptr.");
             return;
         }
 
-        AddClipboardFormatListener(hwnd);
+        AddClipboardFormatListener(
+            reinterpret_cast<HWND>(window_value)); // NOLINT(gammaray-raw-pointer-boundary): transient Win32 HWND boundary
         LOGI("AddClipboardFormatListener already add WinMessageWindow");
 
-        if (!WTSRegisterSessionNotification(hwnd, NOTIFY_FOR_ALL_SESSIONS)) {
+        if (!WTSRegisterSessionNotification(
+                reinterpret_cast<HWND>(window_value), // NOLINT(gammaray-raw-pointer-boundary): transient Win32 HWND boundary
+                NOTIFY_FOR_ALL_SESSIONS)) {
             LOGE("WTSRegisterSessionNotification error: %d", GetLastError());
         }
 
-        HWINEVENTHOOK hEventHook = SetWinEventHook(EVENT_SYSTEM_DESKTOPSWITCH, EVENT_SYSTEM_DESKTOPSWITCH, nullptr, &WinMessageLoop::WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
+        ScopedWinEventHook event_hook(SetWinEventHook(
+            EVENT_SYSTEM_DESKTOPSWITCH,
+            EVENT_SYSTEM_DESKTOPSWITCH,
+            nullptr,
+            &WinMessageLoop::WinEventProc,
+            0,
+            0,
+            WINEVENT_OUTOFCONTEXT));
 
-        if (hEventHook == nullptr)
+        if (!event_hook)
         {
             std::cout << "Failed to set event hook." << std::endl;
         }
@@ -201,9 +236,13 @@ namespace px
             }
         }
 
-        RemoveClipboardFormatListener(hwnd);
-        if (hEventHook != nullptr) {
-            UnhookWinEvent(hEventHook);
+        WTSUnRegisterSessionNotification(
+            reinterpret_cast<HWND>(window_value)); // NOLINT(gammaray-raw-pointer-boundary): transient Win32 HWND boundary
+        RemoveClipboardFormatListener(
+            reinterpret_cast<HWND>(window_value)); // NOLINT(gammaray-raw-pointer-boundary): transient Win32 HWND boundary
+        if (message_window->GetHwnd()) {
+            DestroyWindow(
+                message_window->GetHwnd()); // NOLINT(gammaray-raw-pointer-boundary): destroy residual window on its creating thread
         }
     }
 

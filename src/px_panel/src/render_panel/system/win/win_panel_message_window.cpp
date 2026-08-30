@@ -1,168 +1,133 @@
 #include "win_panel_message_window.h"
+
 #include <iostream>
-#include <atomic>
+#include <utility>
+
 #include "px_common_new/log.h"
-#include "win_panel_message_loop.h"
-#include "render_panel/px_context.h"
 
 namespace px
 {
+    namespace
+    {
+        constexpr char kWindowClassName[] = "PxPanel_MessageWindowClass";
+    }
 
-    constexpr char kWindowClassName[] = "PxPanel_MessageWindowClass";
+    struct WinMessageWindow::CallbackBridge {
+        std::weak_ptr<WinMessageWindow> owner_;
+    };
 
     std::atomic<int> WinMessageWindow::current_create_window_count_ = 0;
     std::string WinMessageWindow::class_name_;
     std::atomic<bool> WinMessageWindow::class_registered_ = false;
     std::mutex WinMessageWindow::register_mutex_;
 
-    std::shared_ptr<WinMessageWindow> WinMessageWindow::Make(const std::shared_ptr<PxContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop) {
-        return std::make_shared<WinMessageWindow>(ctx, message_loop);
+    std::shared_ptr<WinMessageWindow> WinMessageWindow::Make(
+        ClipboardUpdatedCallback clipboard_updated_callback) {
+        return std::make_shared<WinMessageWindow>(
+            std::move(clipboard_updated_callback));
     }
 
-    WinMessageWindow::WinMessageWindow(const std::shared_ptr<PxContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop) {
-        context_ = ctx;
-        message_loop_ = message_loop;
+    WinMessageWindow::WinMessageWindow(
+        ClipboardUpdatedCallback clipboard_updated_callback)
+        : clipboard_updated_callback_(std::move(clipboard_updated_callback)),
+          callback_bridge_(std::make_shared<CallbackBridge>()) {
     }
 
     WinMessageWindow::~WinMessageWindow() {
-        CloseWindow();
+        static_cast<void>(CloseWindow());
+        UnregisterWindowClass();
     }
 
-    // static
-    LRESULT CALLBACK WinMessageWindow::windowProc(HWND window, UINT msg, WPARAM wParam, LPARAM lParam)
-    {
-        auto self = reinterpret_cast<WinMessageWindow*>(GetWindowLongPtrW(window, GWLP_USERDATA));
+    std::shared_ptr<WinMessageWindow> WinMessageWindow::LockOwner(
+        LONG_PTR bridge_value) {
+        if (bridge_value == 0) {
+            return nullptr;
+        }
+        return reinterpret_cast<CallbackBridge*>(bridge_value) // NOLINT(gammaray-raw-pointer-boundary): Win32 user-data boundary
+            ->owner_.lock();
+    }
 
-        switch (msg)
-        {
-            // Set up the self before handling WM_CREATE.
+    std::shared_ptr<WinMessageWindow> WinMessageWindow::LockOwnerFromCreate(
+        LPARAM create_value) {
+        const auto bridge_value = reinterpret_cast<LONG_PTR>(
+            reinterpret_cast<LPCREATESTRUCT>(create_value) // NOLINT(gammaray-raw-pointer-boundary): Win32 create-message boundary
+                ->lpCreateParams);
+        return LockOwner(bridge_value);
+    }
+
+    LRESULT CALLBACK WinMessageWindow::WindowProc(
+        HWND window, UINT msg, WPARAM w_param, LPARAM l_param) { // NOLINT(gammaray-raw-pointer-boundary): Win32 callback ABI
+        auto self = LockOwner(GetWindowLongPtrW(window, GWLP_USERDATA));
+
+        switch (msg) {
         case WM_CREATE: {
-            // lParam from function CreateWindowA(..., this)
-            LPCREATESTRUCT cs = reinterpret_cast<LPCREATESTRUCT>(lParam);
-            self = reinterpret_cast<WinMessageWindow*>(cs->lpCreateParams);
-
-            // Make |hwnd| available to the message handler. At this point the
-            // control hasn't returned from CreateWindow() yet.
-            self->mHwnd = window;
-
-            // Store pointer to the self to the window's user data.
+            self = LockOwnerFromCreate(l_param);
+            if (!self) {
+                return -1;
+            }
+            if (self->StoreWindow(window)) {
+                ++current_create_window_count_;
+            }
             SetLastError(ERROR_SUCCESS);
-            LONG_PTR result =
-                SetWindowLongPtrA(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
+            static_cast<void>(SetWindowLongPtrA(
+                window,
+                GWLP_USERDATA,
+                reinterpret_cast<LONG_PTR>(self->callback_bridge_.get()))); // NOLINT(gammaray-raw-pointer-boundary): bridge is retained until WM_DESTROY
             break;
         }
-        case WM_CLOSE: {
+        case WM_CLOSE:
             DestroyWindow(window);
-            break;
-        }
+            return 0;
 
-        // Clear the pointer to stop calling the self once WM_DESTROY is
-        // received.
-        case WM_DESTROY: {
+        case WM_DESTROY:
             SetLastError(ERROR_SUCCESS);
-            LONG_PTR result = SetWindowLongPtrA(window, GWLP_USERDATA, 0);
+            static_cast<void>(SetWindowLongPtrA(window, GWLP_USERDATA, 0));
+            if (self && self->ClearWindow()) {
+                --current_create_window_count_;
+            }
             PostQuitMessage(0);
-            break;
-        }
+            return 0;
 
-        case WM_CLIPBOARDUPDATE: {
-            self->OnClipboardUpdate(window);
-            break;
-        }
+        case WM_CLIPBOARDUPDATE:
+            if (self) {
+                self->OnClipboardUpdate();
+            }
+            return 0;
 
-        case WM_WTSSESSION_CHANGE: {
-            if (wParam == WTS_CONSOLE_CONNECT)
-            {
-                LOGI("WTS_CONSOLE_CONNECT");
-                //self->session_change_delegate_(WTS_CONSOLE_CONNECT);
-            }
-            if (wParam == WTS_CONSOLE_DISCONNECT)
-            {
-                LOGI("WTS_CONSOLE_DISCONNECT");
-                //self->session_change_delegate_(WTS_CONSOLE_DISCONNECT);
-            }
-            if (wParam == WTS_REMOTE_CONNECT)
-            {
-                LOGI("WTS_REMOTE_CONNECT");
-                //self->session_change_delegate_(WTS_REMOTE_CONNECT);
-            }
-            if (wParam == WTS_REMOTE_DISCONNECT)
-            {
-                LOGI("WTS_REMOTE_DISCONNECT");
-                //self->session_change_delegate_(WTS_REMOTE_DISCONNECT);
-            }
-            if (wParam == WTS_SESSION_LOGON)
-            {
-                LOGI("WTS_SESSION_LOGON");
-                //self->session_change_delegate_(WTS_SESSION_LOGON);
-            }
-            if (wParam == WTS_SESSION_LOGOFF)
-            {
-                LOGI("WTS_SESSION_LOGOFF");
-                //self->session_change_delegate_(WTS_SESSION_LOGOFF);
-            }
-            if (wParam == WTS_SESSION_LOCK)
-            {
-                LOGI("WTS_SESSION_LOCK");
-                //self->session_change_delegate_(WTS_SESSION_LOCK);
-            }
-            if (wParam == WTS_SESSION_UNLOCK)
-            {
-                LOGI("WTS_SESSION_UNLOCK");
-                //self->session_change_delegate_(WTS_SESSION_UNLOCK);
-            }
-            if (wParam == WTS_SESSION_REMOTE_CONTROL)
-            {
-                LOGI("WTS_SESSION_REMOTE_CONTROL");
-                //self->session_change_delegate_(WTS_SESSION_REMOTE_CONTROL);
-            }
-            if (wParam == WTS_SESSION_CREATE)
-            {
-                LOGI("WTS_SESSION_CREATE");
-                //self->session_change_delegate_(WTS_SESSION_CREATE);
-            }
-            if (wParam == WTS_SESSION_TERMINATE)
-            {
-                LOGI("WTS_SESSION_TERMINATE");
-                //self->session_change_delegate_(WTS_SESSION_TERMINATE);
-            }
-            break;
-        }
+        case WM_WTSSESSION_CHANGE:
+            LOGI("Panel session state changed: {}", w_param);
+            return 0;
 
-        case WM_DISPLAYCHANGE: {
-            break;
-        }
-
+        case WM_DISPLAYCHANGE:
+            return 0;
 
         default:
             break;
         }
-        return DefWindowProcA(window, msg, wParam, lParam);
+        return DefWindowProcA(window, msg, w_param, l_param);
     }
 
-    // static
-    bool WinMessageWindow::registerWindowClass(HINSTANCE instance)
-    {
-        std::lock_guard<std::mutex> lck{register_mutex_};
-        if (class_registered_)
+    bool WinMessageWindow::RegisterWindowClass(
+        HINSTANCE instance) { // NOLINT(gammaray-raw-pointer-boundary): transient Win32 module handle
+        std::lock_guard lock(register_mutex_);
+        if (class_registered_) {
             return true;
+        }
 
-        WNDCLASSEXA window_class;
-        memset(&window_class, 0, sizeof(window_class));
+        WNDCLASSEXA window_class{};
         window_class.cbSize = sizeof(window_class);
         static std::once_flag flag;
         std::call_once(flag, []() {
-            DWORD pid = GetCurrentProcessId();
-            class_name_ = kWindowClassName;
-            class_name_ + "_" + std::to_string(pid);
+            class_name_ = std::string(kWindowClassName) + "_" +
+                std::to_string(GetCurrentProcessId());
         });
         window_class.lpszClassName = class_name_.c_str();
         window_class.hInstance = instance;
-        window_class.lpfnWndProc = windowProc;
+        window_class.lpfnWndProc = WindowProc;
 
-        if (!RegisterClassExA(&window_class))
-        {
-            std::cout << "RegisterClassExW failed GetLastError = " << GetLastError() << std::endl;
+        if (!RegisterClassExA(&window_class)) {
+            std::cout << "RegisterClassExA failed GetLastError = "
+                      << GetLastError() << std::endl;
             return false;
         }
 
@@ -170,57 +135,105 @@ namespace px
         return true;
     }
 
+    void WinMessageWindow::UnregisterWindowClass() {
+        std::lock_guard lock(register_mutex_);
+        if (!class_registered_ || current_create_window_count_ != 0) {
+            return;
+        }
+        HINSTANCE instance = nullptr; // NOLINT(gammaray-raw-pointer-boundary): transient Win32 module handle
+        if (!GetModuleHandleExA(
+                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                    GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                reinterpret_cast<char*>(&WindowProc), // NOLINT(gammaray-raw-pointer-boundary): Win32 module lookup boundary
+                &instance)) {
+            return;
+        }
+        if (UnregisterClassA(class_name_.c_str(), instance)) {
+            class_registered_ = false;
+        }
+    }
 
     bool WinMessageWindow::Create(const std::string& window_name) {
+        if (GetHwnd()) {
+            return true;
+        }
 
-        HINSTANCE instance = nullptr;
+        HINSTANCE instance = nullptr; // NOLINT(gammaray-raw-pointer-boundary): transient Win32 module handle
         window_name_ = window_name;
-        if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-            GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-            reinterpret_cast<char*>(&windowProc),
-            &instance))
-        {
-            std::cout << "GetModuleHandleExA failed" << std::endl;
+        if (!GetModuleHandleExA(
+                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                    GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                reinterpret_cast<char*>(&WindowProc), // NOLINT(gammaray-raw-pointer-boundary): Win32 module lookup boundary
+                &instance)) {
+            LOGE("GetModuleHandleExA failed: {}", GetLastError());
             return false;
         }
 
-        if (!registerWindowClass(instance))
+        if (!RegisterWindowClass(instance)) {
             return false;
+        }
 
-        mHwnd = CreateWindowA(
-            kWindowClassName,
+        close_requested_.store(false, std::memory_order_release);
+        callback_bridge_->owner_ = weak_from_this();
+        static_cast<void>(CreateWindowA(
+            class_name_.c_str(),
             window_name_.c_str(),
-            0, 0, 0, 0, 0,
+            0,
+            0,
+            0,
+            0,
+            0,
             nullptr,
             nullptr,
             instance,
-            this);
+            callback_bridge_.get())); // NOLINT(gammaray-raw-pointer-boundary): Win32 retains bridge only for the window lifetime
 
-        if (!mHwnd)
-        {
-            std::cout << "CreateWindowA failed" << std::endl;
+        if (!GetHwnd()) {
+            callback_bridge_->owner_.reset();
+            LOGE("CreateWindowA failed: {}", GetLastError());
             return false;
         }
-        ++current_create_window_count_;
         return true;
     }
 
-    HWND WinMessageWindow::GetHwnd() const {
-        return mHwnd;
+    bool WinMessageWindow::StoreWindow(
+        HWND window) { // NOLINT(gammaray-raw-pointer-boundary): transient Win32 HWND boundary
+        std::uintptr_t expected = 0;
+        return window_handle_.compare_exchange_strong(
+            expected,
+            reinterpret_cast<std::uintptr_t>(window),
+            std::memory_order_acq_rel);
     }
 
-    void WinMessageWindow::CloseWindow() {
-        if (mHwnd) {
-            PostMessage(mHwnd, WM_CLOSE, 0, 0);
+    bool WinMessageWindow::ClearWindow() {
+        callback_bridge_->owner_.reset();
+        return window_handle_.exchange(0, std::memory_order_acq_rel) != 0;
+    }
+
+    HWND WinMessageWindow::GetHwnd() const { // NOLINT(gammaray-raw-pointer-boundary): transient Win32 HWND boundary
+        return reinterpret_cast<HWND>(
+            window_handle_.load(std::memory_order_acquire));
+    }
+
+    bool WinMessageWindow::CloseWindow() {
+        const auto window_value = window_handle_.load(std::memory_order_acquire);
+        if (window_value == 0 || close_requested_.exchange(true)) {
+            return true;
         }
-        --current_create_window_count_;
-    }
-
-    void WinMessageWindow::OnClipboardUpdate(HWND hwnd) {
-        if (!message_loop_) {
-            return;
+        if (PostMessageA(
+                reinterpret_cast<HWND>(window_value), // NOLINT(gammaray-raw-pointer-boundary): transient Win32 HWND boundary
+                WM_CLOSE,
+                0,
+                0)) {
+            return true;
         }
-        message_loop_->OnClipboardUpdate(hwnd);
+        close_requested_.store(false, std::memory_order_release);
+        return false;
     }
 
+    void WinMessageWindow::OnClipboardUpdate() {
+        if (clipboard_updated_callback_) {
+            clipboard_updated_callback_();
+        }
+    }
 }

@@ -107,3 +107,12 @@ add_executable(test_panel_auth_manager_lifecycle
 target_link_libraries(test_panel_auth_manager_lifecycle PRIVATE
         GTest::gtest GTest::gtest_main px_common_new)
 add_test(NAME panel_auth_manager_lifecycle COMMAND test_panel_auth_manager_lifecycle)
+
+add_executable(test_panel_win_message_window_lifecycle
+        test_panel_win_message_window_lifecycle.cpp
+        ../render_panel/system/win/win_panel_message_window.cpp)
+target_link_libraries(test_panel_win_message_window_lifecycle PRIVATE
+        GTest::gtest GTest::gtest_main px_common_new user32)
+add_test(NAME panel_win_message_window_lifecycle
+        COMMAND test_panel_win_message_window_lifecycle)
+set_tests_properties(panel_win_message_window_lifecycle PROPERTIES TIMEOUT 20)

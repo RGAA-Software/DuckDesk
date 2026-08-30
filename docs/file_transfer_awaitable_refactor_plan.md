@@ -2347,3 +2347,37 @@ AuthManager 和 SharedPreference 析构，形成悬空访问；该双向引用�
 
 `px_panel.exe` build/dist SHA-256：
 `DEF246ADA7A70B4EA1C642BD292B6998DD2461FBCA0D16D4330A2CBD733D9F92`。
+
+### 12.47 Phase 7 Panel Windows 隐藏消息窗生命周期收敛
+
+Panel 的 Windows 消息监听原先形成 `WinMessageLoop -> WinMessageWindow ->
+WinMessageLoop` 强引用环，消息线程使用成员 `std::thread` 并在回调线程关闭时 detach。
+窗口 HWND 在 UI/消息线程间以普通裸成员读写，`CloseWindow()` 与析构还会重复递减全局
+窗口计数；异常退出消息泵时也没有保证在创建线程销毁残留窗口。
+
+本批完成：
+
+- Window 不再持有 Loop，只保存一个事件函数；生产回调仅捕获 `weak_ptr<WinMessageLoop>`，
+  执行时 lock，彻底断开强引用环；
+- OS 的 `GWLP_USERDATA` 不再保存业务对象地址，而是保存由 Window 持有的 CallbackBridge；
+  Win32 回调通过 bridge weak-lock owner，`WM_DESTROY` 先清除 user data 和 bridge；
+- HWND 状态封装为原子整数句柄，只有 Win32 API 瞬时边界转换；关闭请求幂等，窗口计数只在
+  第一次 `WM_DESTROY` 清句柄时递减；
+- 消息线程统一使用公共 `Thread::MakeOnceTask`，删除 self-thread detach；关闭先投递
+  `WM_CLOSE`，失败时以线程 `WM_QUIT` 解阻塞，消息泵返回后仍在创建线程销毁残留窗口；
+- WinEvent hook 改为 typed RAII handle，并在退出时补齐 WTS session notification 注销；
+- 窗口类名现在真正包含进程 PID，最后一个实例销毁后安全注销类；
+- Application 关闭先 join 外层启动任务，再停止消息 Loop，消除启动/退出交叠时的字段竞态。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 回调内关闭 | 真实隐藏窗口收到 `WM_CLIPBOARDUPDATE`，回调内投递关闭，owner 完整释放，10/10 PASS |
+| 重复关闭 | 同一真实窗口连续调用 Close 5 次，只销毁一次、线程正常退出，10/10 PASS |
+| Panel 回归 | shutdown、named-pipe、auth、message-window 四个 CTest 目标 4/4 PASS |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；Win32 裸值只存在于标注的同步 ABI 边界 |
+| focused build/dist | `test_panel_win_message_window_lifecycle` 与 `px_panel` 定向编译；未运行发版整编 |
+
+`px_panel.exe` build/dist SHA-256：
+`B1D8D09D7B1E70F7B0A96F3FCDC6D33C8752917A5B61FF03AEF4C6F63E960439`。

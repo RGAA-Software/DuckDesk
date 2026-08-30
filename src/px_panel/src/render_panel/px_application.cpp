@@ -217,11 +217,11 @@ namespace px
         }
         PxStatistics::Instance()->Exit();
         PrepareForShutdown();
-        if (win_msg_loop_) {
-            win_msg_loop_->Stop();
-        }
         if (win_msg_thread_ && win_msg_thread_->IsJoinable()) {
             win_msg_thread_->Join();
+        }
+        if (win_msg_loop_) {
+            win_msg_loop_->Stop();
         }
         if (monitor_refresher_) {
             monitor_refresher_->Exit();

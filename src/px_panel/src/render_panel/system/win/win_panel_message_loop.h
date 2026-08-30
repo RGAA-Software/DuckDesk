@@ -1,7 +1,6 @@
 #pragma once
 #include <Windows.h>
 #include <memory>
-#include <thread>
 #include <atomic>
 #include "px_common_new/clipboard/clipboard_echo.h"
 #include "px_common_new/clipboard/clipboard_platform.h"
@@ -13,6 +12,7 @@ namespace px
     class PxApplication;
     class WinMessageWindow;
     class MessageListener;
+    class Thread;
 
     class WinMessageLoop : public std::enable_shared_from_this<WinMessageLoop> {
     public:
@@ -21,7 +21,7 @@ namespace px
         void Start();
         void Stop();
 
-        void OnClipboardUpdate(HWND hwnd);
+        void OnClipboardUpdate();
         void SetRemoteClipboardEcho(const std::string& text);
         void BeginSuppressOutboundClipboard();
         void EndSuppressOutboundClipboard();
@@ -31,9 +31,12 @@ namespace px
         void CreateMessageWindow();
         static void ThreadFunc(const std::shared_ptr<WinMessageWindow>& message_window);
         void OnWinSessionChange(uint32_t msg);
-        static void CALLBACK WinEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime);
+        static void CALLBACK WinEventProc(
+            HWINEVENTHOOK event_hook, DWORD event, HWND window, LONG object_id,
+            LONG child_id, DWORD event_thread,
+            DWORD event_time); // NOLINT(gammaray-raw-pointer-boundary): Win32 callback ABI
     private:
-        std::thread thread_;
+        std::shared_ptr<Thread> thread_;
         clipboard::EchoFilter echo_filter_;
         std::unique_ptr<clipboard::IPlatform> clipboard_platform_;
         std::shared_ptr<PxApplication> app_ = nullptr;
