@@ -5,25 +5,30 @@
 #ifndef PX_RUNNING_PIPE_H
 #define PX_RUNNING_PIPE_H
 
-#include <memory>
-#include <thread>
 #include <functional>
-#include <Windows.h>
+#include <memory>
+#include <string>
 
 namespace px
 {
+    class Thread;
 
     class PxRunningPipe {
     public:
-        explicit PxRunningPipe();
+        explicit PxRunningPipe(std::string pipe_name = R"(\\.\pipe\running\render_panel)");
         ~PxRunningPipe();
         void StartListening(std::function<void()>&& cbk);
+        void StopListening();
         bool SendHello();
 
     private:
-        std::shared_ptr<std::thread> recv_thread_ = nullptr;
-        HANDLE recv_handle_ = nullptr;
-        bool exit_receiving_ = false;
+        class State;
+
+        static void ReceiveLoop(const std::shared_ptr<State>& state);
+
+        std::string pipe_name_;
+        std::shared_ptr<State> state_;
+        std::shared_ptr<Thread> recv_thread_;
     };
 
 }

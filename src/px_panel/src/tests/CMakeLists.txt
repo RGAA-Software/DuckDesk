@@ -92,3 +92,10 @@ add_executable(test_panel_shutdown_sequence
 target_link_libraries(test_panel_shutdown_sequence PRIVATE
         GTest::gtest GTest::gtest_main px_common_new)
 add_test(NAME panel_shutdown_sequence COMMAND test_panel_shutdown_sequence)
+
+add_executable(test_panel_running_pipe_lifecycle
+        test_panel_running_pipe_lifecycle.cpp
+        ../render_panel/px_running_pipe.cpp)
+target_link_libraries(test_panel_running_pipe_lifecycle PRIVATE
+        GTest::gtest GTest::gtest_main px_common_new)
+add_test(NAME panel_running_pipe_lifecycle COMMAND test_panel_running_pipe_lifecycle)

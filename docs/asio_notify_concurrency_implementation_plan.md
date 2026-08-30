@@ -124,9 +124,13 @@ same focused-build, 10-round lifecycle and dist-publication gates.
   `px_client.exe`, `voice_call.dll`, and `px_voice_apm.dll` are publication-gated
   by matching build/dist SHA-256 hashes. This is lifecycle hardening evidence,
   not a replacement for the two-machine audio-quality and device matrix.
-- The next in-scope batch is the Render application/encoder queued-task
-  ownership inventory. libwebrtc adapters and established plug-in instance ABI
-  boundaries remain excluded.
+- The Render application/encoder queued-task inventory now uses guarded weak
+  ownership for maintained queues. Hook Audio mixer/share workers additionally
+  use independent shared state and pass callback-destruction tests. Panel's
+  single-instance named-pipe listener now has cancellable overlapped I/O and a
+  synchronous stop barrier. The next in-scope batches continue with remaining
+  Panel network/clipboard workers. libwebrtc adapters and established plug-in
+  instance ABI boundaries remain excluded.
 
 ## Target execution architecture
 

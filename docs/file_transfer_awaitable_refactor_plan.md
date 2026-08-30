@@ -2279,3 +2279,38 @@ FT 引擎 Runtime 已与插件解耦，但 UI 链仍把插件独占的 `FtCore` 
 
 `px_gh.dll` build/dist SHA-256：
 `7A6EE9479F58BB22366D46D7CE8566593B17FBDC45633DEC44B1C38329372DC5`。
+
+### 12.45 Phase 7 Panel 单实例命名管道生命周期收敛
+
+Panel 单实例通知原先由 `PxRunningPipe` 以 `shared_ptr<std::thread>` 启动捕获 `this` 的
+接收线程。析构只关闭管道 handle，不 join 线程；线程 wrapper 随后析构时可能直接
+`std::terminate`。成员 handle 和普通 bool 退出标记还被 UI/worker 两线程无同步读写，
+阻塞中的 Connect/Read 也没有可证明的停止屏障。
+
+本批完成：
+
+- 接收 callback、管道名和停止标记移入独立 `shared_ptr<State>`；worker 只捕获 State，
+  不再访问 `PxRunningPipe` 对象地址；
+- 接收线程统一使用公共 `Thread`，`StopListening()` 幂等关闭入口并在外部线程同步 join；
+  回调内释放最后一个 pipe owner 时使用公共线程延迟回收，不发生 self-join；
+- Named Pipe 的 Connect/Read 改为 overlapped operation，每 50 ms 检查停止状态；停止后
+  worker 自己 `CancelIoEx` 当前 operation，避免跨线程关闭同一个 handle 的竞态；
+- 管道 handle 和 operation event 使用 ATL `CHandle` RAII，所有 Win32 handle 只以瞬时
+  API 边界值出现；失败、停止和正常退出都自动关闭；
+- 构造函数允许注入测试管道名，生产默认名保持
+  `\\.\pipe\running\render_panel` 不变；Start 前会先完整停止上一轮，可重复启动；
+- `build_cpp_panel_shutdown_tests.bat` 增加该专项目标，仍只做 C++ 定向构建。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 真实往返 | 每轮创建唯一 Windows Named Pipe，SendHello/Connect/Read/callback 完整闭环，10/10 PASS |
+| 重复启停 | 同一对象 Stop 后立即 Start 并完成第二次真实往返，10/10 PASS |
+| 阻塞退出 | worker 等待下一客户端时 Stop/析构在 500 ms 门限内完成，10/10 PASS |
+| 回调内销毁 | receive callback 内释放最后一个 owner，无死锁、崩溃或 joinable-thread terminate，10/10 PASS |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；无项目裸 handle 成员或 `[this]` worker |
+| focused build/dist | `test_panel_running_pipe_lifecycle` 与 `px_panel` 定向编译；Panel 发布脚本逐文件校验，未运行发版整编 |
+
+`px_panel.exe` build/dist SHA-256：
+`13BCFD844C0DD3885AD5312F6DDDE33A6526516595EF647DF61C6CBD455FB93A`。
