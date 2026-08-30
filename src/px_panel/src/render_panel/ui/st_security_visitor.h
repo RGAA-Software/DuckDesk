@@ -8,6 +8,7 @@
 #include "tab_base.h"
 #include <memory>
 #include <QListWidget>
+#include <QPointer>
 
 namespace px
 {
@@ -17,14 +18,18 @@ namespace px
     class VisitRecord;
     class VisitRecordOperator;
     class StSecurityVisitorItemWidget;
+    class LatestAsyncGeneration;
 
     class StSecurityVisitor : public TabBase {
     public:
-        StSecurityVisitor(const std::shared_ptr<PxApplication>& app, QWidget *parent);
+        StSecurityVisitor(
+            const std::shared_ptr<PxApplication>& app,
+            QWidget* parent); // NOLINT(gammaray-raw-pointer-boundary) Qt parent ABI.
+        ~StSecurityVisitor() override;
         void OnTranslate() override;
 
     private:
-        QListWidgetItem* AddItem(const std::shared_ptr<VisitRecord>& record);
+        void AddItem(const std::shared_ptr<VisitRecord>& record);
         void LoadPage(int page);
         void RegisterActions(int index);
         void ProcessCopy(const std::shared_ptr<VisitRecord>& record);
@@ -32,11 +37,12 @@ namespace px
         void ProcessDelete(const std::shared_ptr<VisitRecord>& record);
 
     private:
-        PageWidget* page_widget_ = nullptr;
-        QListWidget* list_widget_ = nullptr;
+        QPointer<PageWidget> page_widget_;
+        QPointer<QListWidget> list_widget_;
         std::shared_ptr<VisitRecordOperator> visit_op_ = nullptr;
         std::vector<std::shared_ptr<VisitRecord>> records_;
-        StSecurityVisitorItemWidget* header_item_ = nullptr;
+        QPointer<StSecurityVisitorItemWidget> header_item_;
+        std::shared_ptr<LatestAsyncGeneration> load_generation_ = nullptr;
     };
 
 }

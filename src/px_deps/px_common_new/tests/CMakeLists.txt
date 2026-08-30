@@ -34,6 +34,8 @@ add_tc_test(test_http_client_cancellation test_http_client_cancellation.cpp)
 add_tc_test(test_file_transfer_route_registry test_file_transfer_route_registry.cpp)
 add_tc_test(test_weak_callback test_weak_callback.cpp)
 add_test(NAME common_weak_callback COMMAND test_weak_callback)
+add_tc_test(test_latest_async_generation test_latest_async_generation.cpp)
+add_test(NAME common_latest_async_generation COMMAND test_latest_async_generation)
 
 add_executable(test_common test.cpp)
 target_link_libraries(test_common PRIVATE px_common_new ${Boost_LIBRARIES} GTest::gtest GTest::gtest_main GTest::gmock GTest::gmock_main)

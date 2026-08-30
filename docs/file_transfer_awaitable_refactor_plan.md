@@ -2453,3 +2453,38 @@ WinMessageLoop` 强引用环，消息线程使用成员 `std::thread` 并在回�
 
 `px_panel.exe` build/dist SHA-256：
 `7AADF50209EF69319BD12D68B544BF9C401E0F128186AD250B54547215A15AFE`。
+
+### 12.50 Phase 7 Panel 安全历史页异步 DB/UI 分离
+
+访问历史与文件传输历史页面原先在 `PostDBTask([this])` 中直接初始化 operator、清空并填充
+页面 `records_`，再以 `[this]` 投递 UI。删除全部记录还会从普通 worker 读取分页 QWidget；
+单条删除则在 UI 线程同步访问 SQLite。窗口关闭、快速切页和删除/刷新交叠时均缺少生命周期
+与结果顺序保证。
+
+本批完成：
+
+- 两页构造时取得 shared DB operator；DB 任务只查询或修改数据库并生成独立 shared 结果
+  快照，不再访问 QWidget 或页面成员；
+- UI completion 只通过 `QPointer` 观察页面，存活时才一次性替换 `records_`、分页和列表；
+- 新增 common `LatestAsyncGeneration`：每次 LoadPage 生成新代次，只有最新请求允许应用；
+  页面析构 Stop 后，排队 completion 与未来 Begin 全部失效；
+- 清空全部与单条删除统一进入固定 DB 队列，完成后再回 UI 发起新页查询，不再阻塞 UI 或从
+  worker 读取分页控件；
+- 刷新、分页、延时加载、列表双击和菜单 action 全部删除 `[this]` 捕获；Qt 子控件成员改为
+  `QPointer`，菜单改为栈 RAII，并删除无实际行为的两个 delegate；
+- `AddItem` 不再返回借用的 `QListWidgetItem*`，剪贴板地址只在 Qt 同步 API 边界使用。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 最新请求 | 连续 Begin 后仅最后代次可应用，PASS |
+| 析构/晚到结果 | Stop 拒绝已排队 completion、未来 Begin 与 generation 0，PASS |
+| 并发请求 | 32 路并发 Begin 仅一个最终代次可应用，连续 10 轮 PASS |
+| 重复启停 | Begin/Complete/Stop/late Complete 连续 10 轮 PASS |
+| 完整专项 | 4 个 GTest 场景连续运行 10/10 PASS，共 40 项；相关 CTest 3/3 PASS |
+| ownership / whitespace | `check_cpp_ownership` 与 `git diff --check` PASS；新增异步路径无 `[this]`、手工所有权或裸成员 |
+| focused build/dist | 仅定向编译 `test_latest_async_generation` 与 `px_panel`；未运行发版整编；Panel build/dist 哈希一致 |
+
+`px_panel.exe` build/dist SHA-256：
+`680F94825B1ECE09204CB64381118562556CF1E799A968DE6E4602F3BAFC3369`。

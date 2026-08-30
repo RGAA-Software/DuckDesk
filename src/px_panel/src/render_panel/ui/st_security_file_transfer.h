@@ -9,6 +9,7 @@
 #include <memory>
 #include <vector>
 #include <QListWidget>
+#include <QPointer>
 
 namespace px
 {
@@ -17,13 +18,17 @@ namespace px
     class PxApplication;
     class FileTransferRecord;
     class FileTransferRecordOperator;
+    class LatestAsyncGeneration;
 
     class StSecurityFileTransfer : public TabBase {
     public:
-        StSecurityFileTransfer(const std::shared_ptr<PxApplication>& app, QWidget *parent);
+        StSecurityFileTransfer(
+            const std::shared_ptr<PxApplication>& app,
+            QWidget* parent); // NOLINT(gammaray-raw-pointer-boundary) Qt parent ABI.
+        ~StSecurityFileTransfer() override;
 
     private:
-        QListWidgetItem* AddItem(const std::shared_ptr<FileTransferRecord>& item_info);
+        void AddItem(const std::shared_ptr<FileTransferRecord>& item_info);
         void LoadPage(int page);
         void RegisterActions(int index);
         void ProcessCopy(const std::shared_ptr<FileTransferRecord>& record);
@@ -31,10 +36,11 @@ namespace px
         void ProcessDelete(const std::shared_ptr<FileTransferRecord>& record);
 
     private:
-        PageWidget* page_widget_ = nullptr;
-        QListWidget* list_widget_ = nullptr;
+        QPointer<PageWidget> page_widget_;
+        QPointer<QListWidget> list_widget_;
         std::shared_ptr<FileTransferRecordOperator> ft_record_op_ = nullptr;
         std::vector<std::shared_ptr<FileTransferRecord>> records_;
+        std::shared_ptr<LatestAsyncGeneration> load_generation_ = nullptr;
     };
 
 }

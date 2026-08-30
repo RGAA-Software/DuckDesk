@@ -16,7 +16,7 @@
 #include "px_dialog.h"
 #include "px_image_button.h"
 #include "security_password_checker.h"
-#include <QStyledItemDelegate>
+#include "px_common_new/latest_async_generation.h"
 #include <QMenu>
 #include <QClipboard>
 #include <QApplication>
@@ -26,17 +26,13 @@ namespace px
 
     constexpr int kPageSize = 20;
 
-    class StSecurityVisitorItemDelegate : public QStyledItemDelegate {
-    public:
-        explicit StSecurityVisitorItemDelegate(QObject* pParent) {}
-        ~StSecurityVisitorItemDelegate() override = default;
-
-        void updateEditorGeometry(QWidget* editor, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
-            editor->setGeometry(option.rect);
-        }
-    };
-
-    StSecurityVisitor::StSecurityVisitor(const std::shared_ptr<PxApplication>& app, QWidget *parent) : TabBase(app, parent) {
+    StSecurityVisitor::StSecurityVisitor(
+        const std::shared_ptr<PxApplication>& app,
+        QWidget* parent) // NOLINT(gammaray-raw-pointer-boundary) Qt parent ABI; TabBase retains ownership.
+        : TabBase(app, parent) {
+        QPointer<StSecurityVisitor> self(this);
+        visit_op_ = context_->GetDatabase()->GetVisitRecordOp();
+        load_generation_ = LatestAsyncGeneration::Create();
         auto root_layout = new NoMarginVLayout();
 
         {
@@ -55,8 +51,10 @@ namespace px
                 btn_refresh->SetRoundRadius(13);
                 btn_refresh->setFixedSize(26, 26);
                 layout->addWidget(btn_refresh, 0, Qt::AlignVCenter);
-                btn_refresh->SetOnImageButtonClicked([=, this]() {
-                    LoadPage(page_widget_->getCurrentPage());
+                btn_refresh->SetOnImageButtonClicked([self]() {
+                    if (self && self->page_widget_) {
+                        self->LoadPage(self->page_widget_->getCurrentPage());
+                    }
                 });
             }
 
@@ -67,7 +65,8 @@ namespace px
                 btn_clear_all->setFixedSize(26, 26);
                 layout->addSpacing(10);
                 layout->addWidget(btn_clear_all, 0, Qt::AlignVCenter);
-                btn_clear_all->SetOnImageButtonClicked([=, this]() {
+                btn_clear_all->SetOnImageButtonClicked([self]() {
+                    if (!self || !self->page_widget_) return;
                     //
                     if (!SecurityPasswordChecker::ShowNoSecurityPasswordDialog()) {
                         auto input_pwd = SecurityPasswordChecker::GetSecurityPasswordDialog();
@@ -75,9 +74,15 @@ namespace px
                             //
                             TcDialog dialog(tcTr("id_warning"), tcTr("id_delete_all_records"));
                             if (dialog.exec() == kDoneOk) {
-                                context_->PostTask([=, this]() {
-                                    visit_op_->DeleteAll();
-                                    LoadPage(page_widget_->getCurrentPage());
+                                const auto page = self->page_widget_->getCurrentPage();
+                                const auto context = self->context_;
+                                const auto record_operator = self->visit_op_;
+                                context->PostDBTask([
+                                    context, record_operator, self, page]() {
+                                    record_operator->DeleteAll();
+                                    context->PostUITask([self, page]() {
+                                        if (self) self->LoadPage(page);
+                                    });
                                 });
                             }
                         }
@@ -93,9 +98,7 @@ namespace px
         }
 
         {
-            auto delegate = new StSecurityVisitorItemDelegate(this);
             list_widget_ = new QListWidget(this);
-            list_widget_->setItemDelegate(delegate);
 
             list_widget_->setMovement(QListView::Static);
             list_widget_->setViewMode(QListView::ListMode);
@@ -125,17 +128,18 @@ namespace px
                 }
             )");
 
-            QObject::connect(list_widget_, &QListWidget::customContextMenuRequested, this, [=, this](const QPoint& pos) {
-                QListWidgetItem* cur_item = list_widget_->itemAt(pos);
-                if (cur_item == nullptr) { return; }
-                int index = list_widget_->row(cur_item);
-                RegisterActions(index);
+            QObject::connect(list_widget_, &QListWidget::customContextMenuRequested, this, [self](const QPoint& pos) {
+                if (!self || !self->list_widget_) return;
+                const auto index = self->list_widget_->indexAt(pos);
+                if (!index.isValid()) return;
+                self->RegisterActions(index.row());
             });
 
-            QObject::connect(list_widget_, &QListWidget::itemDoubleClicked, this, [=, this](QListWidgetItem *item) {
-                int index = list_widget_->row(item);
-                auto record = records_.at(index);
-                ProcessCopy(record);
+            QObject::connect(list_widget_, &QListWidget::itemDoubleClicked, this,
+                [self](QListWidgetItem* item) { // NOLINT(gammaray-raw-pointer-boundary) Qt signal ABI; never retained.
+                if (!self || !self->list_widget_ || !item) return;
+                const int index = self->list_widget_->row(item);
+                self->ProcessCopy(self->records_.at(index));
             });
 
             root_layout->addWidget(list_widget_);
@@ -154,18 +158,24 @@ namespace px
         setObjectName("StSecurityVisitor");
         setStyleSheet("#StSecurityVisitor {background-color: #ffffff;}");
 
-        page_widget_->setSelectedCallback([=, this](int page) {
-            LOGI("Will load page: {}", page);
-            LoadPage(page);
+        page_widget_->setSelectedCallback([self](int page) {
+            if (self) {
+                LOGI("Will load page: {}", page);
+                self->LoadPage(page);
+            }
         });
 
         // Load Page 1
-        context_->PostUIDelayTask([=, this]() {
-            LoadPage(1);
+        context_->PostUIDelayTask([self]() {
+            if (self) self->LoadPage(1);
         }, 500);
     }
 
-    QListWidgetItem* StSecurityVisitor::AddItem(const std::shared_ptr<VisitRecord>& item_info) {
+    StSecurityVisitor::~StSecurityVisitor() {
+        load_generation_->Stop();
+    }
+
+    void StSecurityVisitor::AddItem(const std::shared_ptr<VisitRecord>& item_info) {
         auto item = new QListWidgetItem(list_widget_);
         auto item_size = QSize(995, 45);
         item->setSizeHint(item_size);
@@ -175,7 +185,6 @@ namespace px
         }
         widget->setFixedSize(item_size);
         list_widget_->setItemWidget(item, widget);
-        return item;
     }
 
     void StSecurityVisitor::LoadPage(int page) {
@@ -183,15 +192,18 @@ namespace px
             return;
         }
 
-        context_->PostDBTask([=, this]() {
-            if (!visit_op_) {
-                visit_op_ = context_->GetDatabase()->GetVisitRecordOp();
-            }
-            records_.clear();
-            header_item_ = nullptr;
-            auto total_count = visit_op_->GetTotalCounts();
-
-            records_.push_back(std::make_shared<VisitRecord>(VisitRecord {
+        const auto context = context_;
+        const auto record_operator = visit_op_;
+        const auto load_generation = load_generation_;
+        const auto generation = load_generation->Begin();
+        if (generation == 0) return;
+        QPointer<StSecurityVisitor> self(this);
+        context->PostDBTask([
+            context, record_operator, load_generation, self, page, generation]() {
+            const auto total_count = record_operator->GetTotalCounts();
+            const auto page_result =
+                std::make_shared<std::vector<std::shared_ptr<VisitRecord>>>();
+            page_result->push_back(std::make_shared<VisitRecord>(VisitRecord {
                 .id_ = 0,
                 .conn_type_ = "",
                 .begin_ = 1,
@@ -201,24 +213,26 @@ namespace px
                 .target_device_ = "",
             }));
 
-            auto records = visit_op_->QueryVisitRecords(page, kPageSize);
+            auto records = record_operator->QueryVisitRecords(page, kPageSize);
             for (const auto& r : records) {
-                records_.push_back(r);
+                page_result->push_back(r);
             }
 
-            context_->PostUITask([=, this]() {
-
-                page_widget_->setMaxPage(total_count/kPageSize+1);
-
-                auto index = 0;
-                int count = list_widget_->count();
+            context->PostUITask([
+                load_generation, self, page_result, total_count, generation]() {
+                if (!load_generation->Complete(generation) || !self
+                    || !self->page_widget_ || !self->list_widget_) return;
+                self->records_ = *page_result;
+                self->header_item_.clear();
+                self->page_widget_->setMaxPage(total_count/kPageSize+1);
+                const int count = self->list_widget_->count();
                 for (int i = 0; i < count; i++) {
-                    auto item = list_widget_->takeItem(0);
+                    auto item = self->list_widget_->takeItem(0);
                     delete item;
                 }
 
-                for (const auto& item_info : records_) {
-                    AddItem(item_info);
+                for (const auto& item_info : self->records_) {
+                    self->AddItem(item_info);
                 }
             });
         });
@@ -232,28 +246,29 @@ namespace px
                 "",
                 tcTr("id_delete"),
         };
-        QMenu* menu = new QMenu();
+        QMenu menu;
+        QPointer<StSecurityVisitor> self(this);
         for (int i = 0; i < actions.size(); i++) {
             QString action_name = actions.at(i);
             if (action_name.isEmpty()) {
-                menu->addSeparator();
+                menu.addSeparator();
                 continue;
             }
 
-            QAction* action = new QAction(action_name, menu);
-            menu->addAction(action);
-            QObject::connect(action, &QAction::triggered, this, [=, this]() {
+            const QPointer<QAction> action(menu.addAction(action_name));
+            QObject::connect(action, &QAction::triggered, this, [self, record, i]() {
+                if (!self) return;
                 if (i == 0) {
-                    ProcessCopy(record);
+                    self->ProcessCopy(record);
                 }
                 else if (i == 1) {
-                    ProcessCopyAsJson(record);
+                    self->ProcessCopyAsJson(record);
                 }
                 else if (i == 3) {
                     if (!SecurityPasswordChecker::ShowNoSecurityPasswordDialog()) {
                         auto input_pwd = SecurityPasswordChecker::GetSecurityPasswordDialog();
                         if (SecurityPasswordChecker::IsInputSecurityPasswordOk(input_pwd)) {
-                            ProcessDelete(record);
+                            self->ProcessDelete(record);
                         }
                         else {
                             SecurityPasswordChecker::ShowSecurityPasswordInvalidDialog();
@@ -262,30 +277,34 @@ namespace px
                 }
             });
         }
-        menu->exec(QCursor::pos());
-        delete menu;
+        menu.exec(QCursor::pos());
     }
 
     void StSecurityVisitor::ProcessCopy(const std::shared_ptr<VisitRecord>& record) {
         auto msg = record->AsString();
-        QClipboard* clipboard = QApplication::clipboard();
-        clipboard->setText(QString::fromStdString(msg));
+        QApplication::clipboard()->setText(QString::fromStdString(msg));
         context_->NotifyAppMessage(tcTr("id_copy_success"), tcTr("id_copy_success_clipboard"));
     }
 
     void StSecurityVisitor::ProcessCopyAsJson(const std::shared_ptr<VisitRecord>& record) {
         auto msg = record->AsJson();
-        QClipboard* clipboard = QApplication::clipboard();
-        clipboard->setText(QString::fromStdString(msg));
+        QApplication::clipboard()->setText(QString::fromStdString(msg));
         context_->NotifyAppMessage(tcTr("id_copy_success"), tcTr("id_copy_success_clipboard"));
     }
 
     void StSecurityVisitor::ProcessDelete(const std::shared_ptr<VisitRecord>& record) {
         TcDialog dialog(tcTr("id_warning"), tcTr("id_delete_this_record"));
         if (dialog.exec() == kDoneOk) {
-            visit_op_->Delete(record->id_);
-            auto current_page = page_widget_->getCurrentPage();
-            LoadPage(current_page);
+            const auto page = page_widget_->getCurrentPage();
+            const auto context = context_;
+            const auto record_operator = visit_op_;
+            QPointer<StSecurityVisitor> self(this);
+            context->PostDBTask([context, record_operator, self, record, page]() {
+                record_operator->Delete(record->id_);
+                context->PostUITask([self, page]() {
+                    if (self) self->LoadPage(page);
+                });
+            });
         }
     }
 
