@@ -3,10 +3,11 @@
 #include <qevent.h>
 #include <qstackedwidget.h>
 #include <QObject>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
 #include <qpointer.h>
 #include <qdialog.h>
+
+#include <functional>
+#include <memory>
 
 class QLabel;
 class QTextEdit;
@@ -15,6 +16,9 @@ class GDButton;
 class GDCustomProgressBar;
 
 namespace px {
+
+	class HttpResponse;
+	class UpgradeRequestState;
 
 	using GetRemoteUpdateVersionCallbackFuncType = std::function<void(const QString&)>;
 
@@ -74,11 +78,13 @@ namespace px {
 			return self;
 		}
 
-		explicit UpdateManager(QObject* parent = nullptr);
+		UpdateManager();
+		~UpdateManager() override;
 
 		void CheckUpdate(bool need_notify = true, bool from_user_clicked = false);
 
 		void Download();
+		void Shutdown();
 
 		void OpenInstallFile();
 
@@ -91,11 +97,11 @@ namespace px {
 		void SigOpenInstallFileError();
 		void SigUpdateHint(QString info);
 	private:
-		void OnCheckUpdateReplyFinished(QPointer<QNetworkReply> reply, bool need_notify = true, bool from_user_clicked = false);
+		void OnCheckUpdateResponse(const HttpResponse& response, bool need_notify, bool from_user_clicked);
 		void ParseUpdateConfig(const QVariantMap& data, bool need_notify = true, bool from_user_clicked = false);
 		int CompareVersion(const QString& version1, const QString& version2);
 	private:
-		QNetworkAccessManager manager_;
+		std::shared_ptr<UpgradeRequestState> request_state_;
 		QString download_url_;
 		QString remote_file_md5_;
 		QString file_name_;

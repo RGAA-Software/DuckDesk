@@ -1,10 +1,12 @@
 #pragma once 
 
 #include <atomic>
-#include <map>
-#include <string>
-#include <memory>
+#include <cstdint>
 #include <functional>
+#include <map>
+#include <memory>
+#include <string>
+#include <string_view>
 
 #include <cpr/error.h>
 #include "cpr/cpr.h"
@@ -21,6 +23,16 @@ namespace px
         std::string body;
         int error_code = 0;
         std::string error_message;
+    };
+
+    struct HttpDownloadOptions {
+        int timeout_ms = 5000;
+        bool verify_ssl = false;
+        std::map<std::string, std::string> query;
+        std::map<std::string, std::string> headers;
+        std::shared_ptr<std::atomic_bool> cancellation_signal;
+        std::function<bool(std::string_view)> write_callback;
+        std::function<bool(std::uint64_t total, std::uint64_t current)> progress_callback;
     };
 
     class HttpClient {
@@ -47,6 +59,7 @@ namespace px
                                   const std::map<std::string, std::string>& file_parts);
 
         static HttpResponse Download(const std::string& url, std::function<void(const std::string& body)>&& download_cbk);
+        static HttpResponse Download(const std::string& url, HttpDownloadOptions options);
         void SetVerifySsl(bool verify_ssl);
         void SetCancellationSignal(std::shared_ptr<std::atomic_bool> cancellation_signal);
         void SetHeader(const std::string& key, const std::string& value);

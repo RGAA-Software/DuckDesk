@@ -10,19 +10,17 @@
 #include <qpushbutton.h>
 #include <qdir.h>
 #include <qtextedit.h>
-#include <qfile.h>
-#include <qfiledevice.h>
 #include <qfileinfo.h>
-#include <qtimer.h>
+#include <qdesktopservices.h>
 #include <qpainter.h>
 #include <qpixmap.h>
-#include <qprocess.h>
 #include <qurl.h>
-#include <qurlquery.h>
 #include <qjsonarray.h>
 #include <qstandardpaths.h>
+#include <px_common_new/http_client.h>
 #include <px_common_new/log.h>
 #include <px_common_new/gd_md5.h>
+#include <px_common_new/string_util.h>
 #include "px_qt_widget/px_dialog.h"
 #include "translator/px_translator.h"
 #include "gd_button.h"
@@ -30,6 +28,13 @@
 #include "version_config.h"
 #include "render_panel/px_settings.h"
 #include "render_panel/px_application.h"
+#include "render_panel/px_context.h"
+#include "render_panel/upgrade/upgrade_request_state.h"
+
+#include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <optional>
 
 
 
@@ -38,6 +43,129 @@ namespace px {
     static const std::string kUpgradeBaseUrl = "/api/v1/update";
 	static const std::string kUpgradeQueryPath = kUpgradeBaseUrl + "/query_update_info";
 	static const std::string kUpgradeDownloadPath = kUpgradeBaseUrl + "/download";
+
+	namespace {
+		constexpr int kUpgradeCheckTimeoutMs = 10'000;
+		constexpr int kUpgradeDownloadTimeoutMs = 180'000;
+
+		struct UpgradeEndpoint final {
+			std::string host;
+			int port = 0;
+			bool ssl = false;
+			std::string root_url;
+			std::string appkey;
+		};
+
+		enum class UpgradeDownloadError {
+			None,
+			Network,
+			Timeout,
+			SaveFile,
+			Corrupt,
+		};
+
+		struct UpgradeDownloadResult final {
+			UpgradeDownloadError error = UpgradeDownloadError::None;
+			std::string detail;
+		};
+
+		class UpgradeDownloadSink final {
+		public:
+			explicit UpgradeDownloadSink(const std::filesystem::path& path)
+				: stream_(path, std::ios::binary | std::ios::trunc) {}
+
+			[[nodiscard]] bool IsOpen() const {
+				return stream_.is_open();
+			}
+
+			[[nodiscard]] bool Write(std::string_view chunk) {
+				stream_.write(chunk.data(), static_cast<std::streamsize>(chunk.size()));
+				if (!stream_) {
+					write_failed_ = true;
+					return false;
+				}
+				md5_.update(chunk.data(), chunk.size());
+				return true;
+			}
+
+			void Close() {
+				stream_.close();
+				if (stream_.fail()) {
+					write_failed_ = true;
+				}
+			}
+
+			[[nodiscard]] bool WriteFailed() const {
+				return write_failed_;
+			}
+
+			[[nodiscard]] std::string Md5() {
+				return md5_.toString();
+			}
+
+		private:
+			std::ofstream stream_;
+			px_gd::MD5 md5_;
+			bool write_failed_ = false;
+		};
+
+		std::optional<UpgradeEndpoint> GetUpgradeEndpoint() {
+			const auto app = grApp;
+			const auto settings = PxSettings::Instance();
+			if (!app || !settings) {
+				return std::nullopt;
+			}
+			const auto host = settings->GetConsoleServerHost();
+			const auto port = settings->GetConsoleServerPort();
+			const auto scheme = PxSettings::GetConsoleHttpScheme();
+			if (host.empty() || port <= 0) {
+				return std::nullopt;
+			}
+			return UpgradeEndpoint{
+				.host = host,
+				.port = port,
+				.ssl = scheme == "https",
+				.root_url = std::format("{}://{}:{}", scheme, host, port),
+				.appkey = app->GetAppkey(),
+			};
+		}
+
+		void RemovePartialDownload(const std::filesystem::path& path) {
+			std::error_code ignored;
+			std::filesystem::remove(path, ignored);
+		}
+
+		UpgradeDownloadResult PublishDownload(
+			const std::filesystem::path& partial_path,
+			const std::filesystem::path& save_path) {
+			// MoveFileExW is the Windows boundary that atomically replaces an old
+			// installer only after the new package has passed its digest check.
+			if (!::MoveFileExW(
+					partial_path.c_str(), save_path.c_str(),
+					MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+				const auto error = std::error_code(
+					static_cast<int>(::GetLastError()), std::system_category());
+				return {UpgradeDownloadError::SaveFile, error.message()};
+			}
+			return {};
+		}
+
+		QString DownloadErrorText(UpgradeDownloadError error) {
+			switch (error) {
+			case UpgradeDownloadError::Timeout:
+				return tcTr("id_upgrade_time_out");
+			case UpgradeDownloadError::Corrupt:
+				return tcTr("id_upgrade_file_corrupted");
+			case UpgradeDownloadError::SaveFile:
+				return tcTr("id_upgrade_failed_open_file");
+			case UpgradeDownloadError::Network:
+				return tcTr("id_upgrade_network_error");
+			case UpgradeDownloadError::None:
+				return {};
+			}
+			return tcTr("id_upgrade_network_error");
+		}
+	}
 
 	void UpgradeHelperWidget::paintEvent(QPaintEvent* event) {
 		QPainter painter(this);
@@ -541,67 +669,76 @@ namespace px {
 			&compositionEnabled, sizeof(compositionEnabled));
 	}
 
-	//UpdateChecker
-	std::string GetUpgradeRootAddr() {
-        auto settings = PxSettings::Instance();
-		std::string upgrade_host = settings->GetConsoleServerHost();
-		std::string upgrade_addr = std::format("{}://{}:{}", PxSettings::GetConsoleHttpScheme(), upgrade_host, settings->GetConsoleServerPort());
-		return upgrade_addr;
+	UpdateManager::UpdateManager()
+		: request_state_(std::make_shared<UpgradeRequestState>()) {}
+
+	UpdateManager::~UpdateManager() {
+		Shutdown();
 	}
 
-	void AddAppKeyQueryItem(QUrlQuery& url_query) {
-		auto appkey = QString::fromStdString(grApp->GetAppkey());
-		url_query.addQueryItem("appkey", appkey);
-	}
-
-	UpdateManager::UpdateManager(QObject* parent) : QObject(parent) {
-	
+	void UpdateManager::Shutdown() {
+		request_state_->Stop();
 	}
 
 	void UpdateManager::CheckUpdate(bool need_notify, bool from_user_clicked) {
-		std::string root_addr = GetUpgradeRootAddr();
-
-		LOGI("root_addr: {}", root_addr);
-
-		QUrl url(QString::fromStdString(root_addr + kUpgradeQueryPath));
-		QUrlQuery url_query;
-		url_query.addQueryItem("page", "1");
-		url_query.addQueryItem("page_size", "1");
-		url_query.addQueryItem("sort_time", "-1");
-		AddAppKeyQueryItem(url_query);
-		url.setQuery(url_query);
-
-		QNetworkRequest request(url);
-		QSslConfiguration config;
-		config.setPeerVerifyMode(QSslSocket::VerifyNone);
-		config.setProtocol(QSsl::AnyProtocol);
-		request.setSslConfiguration(config);
-		request.setHeader(QNetworkRequest::UserAgentHeader, "GammaRay");
-		
-		QPointer<QNetworkReply> reply = manager_.get(request);
-
-		connect(reply, &QNetworkReply::finished, this, [thiz = QPointer(this), reply, need_notify, from_user_clicked]() {
-			qDebug() << "OnCheckUpdateReplyFinished";
-			LOGI("OnCheckUpdateReplyFinished");
-			thiz->OnCheckUpdateReplyFinished(reply, need_notify, from_user_clicked);
-
-			
-		});
-	}
-
-	void UpdateManager::OnCheckUpdateReplyFinished(QPointer<QNetworkReply> reply, bool need_notify, bool from_user_clicked) {
-		if (reply->error() != QNetworkReply::NoError) {
-			emit SigGetUpdateConfigError("Network error: " + reply->errorString());
-			LOGE("Network error: {}", reply->errorString().toStdString());
-			reply->deleteLater();
+		const auto endpoint = GetUpgradeEndpoint();
+		const auto app = grApp;
+		const auto context = app ? app->GetContext() : nullptr;
+		if (!endpoint || !context) {
+			emit SigGetUpdateConfigError("Upgrade endpoint is unavailable");
 			if (from_user_clicked) {
 				emit SigUpdateHint(tcTr("id_upgrade_check_error") + tcTr("id_upgrade_network_error"));
 			}
 			return;
 		}
 
-		QByteArray data = reply->readAll();
-		reply->deleteLater();
+		const auto request = request_state_->BeginCheck();
+		if (request.generation == 0 || !request.cancellation) {
+			return;
+		}
+		const auto client = endpoint->ssl
+			? HttpClient::MakeSSL(endpoint->host, endpoint->port, kUpgradeQueryPath, kUpgradeCheckTimeoutMs)
+			: HttpClient::Make(endpoint->host, endpoint->port, kUpgradeQueryPath, kUpgradeCheckTimeoutMs);
+		client->SetHeader("User-Agent", "GammaRay");
+		client->SetCancellationSignal(request.cancellation);
+		const std::map<std::string, std::string> query{
+			{"page", "1"},
+			{"page_size", "1"},
+			{"sort_time", "-1"},
+			{"appkey", endpoint->appkey},
+		};
+		const auto state = request_state_;
+		context->PostNetworkTask(
+			[client, context, state, generation = request.generation, query,
+			 need_notify, from_user_clicked]() {
+				auto response = client->Request(query);
+				context->PostUITask(
+					[state, generation, response = std::move(response),
+					 need_notify, from_user_clicked]() {
+						if (!state->CompleteCheck(generation)) {
+							return;
+						}
+						UpdateManager::Instance().OnCheckUpdateResponse(
+							response, need_notify, from_user_clicked);
+					});
+			});
+	}
+
+	void UpdateManager::OnCheckUpdateResponse(
+		const HttpResponse& response, bool need_notify, bool from_user_clicked) {
+		if (response.error_code != 0 || response.status < 200 || response.status >= 300) {
+			const auto error = QString::fromStdString(std::format(
+				"Network error: status={}, code={}, message={}",
+				response.status, response.error_code, response.error_message));
+			emit SigGetUpdateConfigError(error);
+			LOGE("{}", error.toStdString());
+			if (from_user_clicked) {
+				emit SigUpdateHint(tcTr("id_upgrade_check_error") + tcTr("id_upgrade_network_error"));
+			}
+			return;
+		}
+
+		const auto data = QByteArray::fromStdString(response.body);
 
 		QJsonParseError err;
 		QJsonDocument doc = QJsonDocument::fromJson(data, &err);
@@ -660,7 +797,7 @@ namespace px {
 					file_md5 = obj.value("file_md5").toString("");
 					file_name = obj.value("file_name").toString("");
 					forced = obj.value("forced").toBool(false);
-					file_size_ = obj.value("file_size").toInt();
+					file_size_ = obj.value("file_size").toVariant().toULongLong();
 					break;
 				}
 			}
@@ -691,9 +828,18 @@ namespace px {
 		result["forced"] = forced;
 		qDebug() << "UpdateChecker::onReplyFinished: " << result;
 
-		download_url_ = QString::fromStdString(GetUpgradeRootAddr() + kUpgradeDownloadPath);
+		const auto endpoint = GetUpgradeEndpoint();
+		if (!endpoint) {
+			emit SigGetUpdateConfigError("Upgrade endpoint is unavailable");
+			return;
+		}
+		download_url_ = QString::fromStdString(endpoint->root_url + kUpgradeDownloadPath);
 		remote_file_md5_ = file_md5;
-		file_name_ = file_name;
+		file_name_ = QFileInfo(file_name).fileName();
+		if (file_name_.isEmpty()) {
+			emit SigGetUpdateConfigError("Invalid json: missing download file name");
+			return;
+		}
 
 		if (get_remote_update_version_callback_func_) {
 			get_remote_update_version_callback_func_(version);
@@ -739,7 +885,15 @@ namespace px {
 		if (download_url_.isEmpty()) {
 			return;
 		}
-		
+
+		const auto endpoint = GetUpgradeEndpoint();
+		const auto app = grApp;
+		const auto context = app ? app->GetContext() : nullptr;
+		if (!endpoint || !context) {
+			emit SigDownloadComplete(false, tcTr("id_upgrade_network_error"));
+			return;
+		}
+
 		QString dir_path = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
 		QDir dir{ dir_path };
         if (!dir.exists()) {
@@ -753,75 +907,101 @@ namespace px {
 		QString save_path = dir_path + "/" + file_name_;
 		save_path_ = save_path;
 
-		QPointer<QFile> file_ptr = new QFile(save_path);
-		if (!file_ptr->open(QIODevice::WriteOnly)) {
-			qDebug() << "open " << "" << "error";
-			LOGE("Failed to open file: {}", save_path.toStdString());
-			emit SigDownloadComplete(false, tcTr("id_upgrade_failed_open_file"));
+		const auto request = request_state_->BeginDownload();
+		if (request.generation == 0 || !request.cancellation) {
 			return;
 		}
-		QUrl url(download_url_);
-		QUrlQuery url_query;
-		url_query.addQueryItem("down_file", file_name_);
-		AddAppKeyQueryItem(url_query);
-		url.setQuery(url_query);
-		QNetworkRequest request(url);
+		const auto state = request_state_;
+		const auto url = download_url_.toStdString();
+		const auto file_name = file_name_.toStdString();
+		const auto remote_md5 = StringUtil::ToLowerCpy(remote_file_md5_.toStdString());
+		const auto expected_size = file_size_;
+		const auto save_file_path = std::filesystem::path(save_path.toStdWString());
+		const auto partial_path = std::filesystem::path(
+			save_path.toStdWString() + L".download." + std::to_wstring(request.generation));
+		const auto last_progress = std::make_shared<std::atomic_int>(-1);
 
-		QSslConfiguration config;
-		config.setPeerVerifyMode(QSslSocket::VerifyNone);
-		config.setProtocol(QSsl::AnyProtocol);
-		request.setSslConfiguration(config);
-		QPointer<QNetworkReply> reply = manager_.get(request);
-		
-		//add timer for timeout
-		QPointer<QTimer> timer = new QTimer(this);
-		timer->setSingleShot(true);
-		std::shared_ptr<px_gd::MD5> file_md5_ptr = std::make_shared<px_gd::MD5>();
-		connect(timer, &QTimer::timeout, this, [reply, timer, this]() {
-			disconnect(reply, nullptr, nullptr, nullptr);
-			reply->abort();
-			reply->close();
-			reply->deleteLater();
-			timer->deleteLater();
-			emit SigDownloadComplete(false, tcTr("id_upgrade_time_out"));
-		});
+		context->PostNetworkTask(
+			[context, state, generation = request.generation,
+			 cancellation = request.cancellation, url, file_name,
+			 appkey = endpoint->appkey, remote_md5, expected_size,
+			 save_file_path, partial_path, last_progress]() {
+				const auto sink = std::make_shared<UpgradeDownloadSink>(partial_path);
+				if (!sink->IsOpen()) {
+					context->PostUITask([state, generation]() {
+						if (state->CompleteDownload(generation)) {
+							emit UpdateManager::Instance().SigDownloadComplete(
+								false, tcTr("id_upgrade_failed_open_file"));
+						}
+					});
+					return;
+				}
 
-		connect(reply, &QNetworkReply::finished, this, [timer, file_ptr, reply, file_md5_ptr, this]() {
-			if (timer->isActive())
-			{
-				timer->stop();
-			}
-			auto part_content = reply->readAll();
-			file_ptr->write(part_content);
-			file_ptr->close();
-			reply->deleteLater();
-			timer->deleteLater();
-			file_md5_ptr->update(part_content.data(), part_content.size());
-			const QString file_md5_value = QString::fromStdString(file_md5_ptr->toString());
-			bool res = file_md5_value == this->remote_file_md5_;
-			emit SigDownloadComplete(res, res ? QStringLiteral("") : tcTr("id_upgrade_file_corrupted"));
-		});
+				HttpDownloadOptions options;
+				options.timeout_ms = kUpgradeDownloadTimeoutMs;
+				options.verify_ssl = false;
+				options.query = {{"down_file", file_name}, {"appkey", appkey}};
+				options.headers = {{"User-Agent", "GammaRay"}};
+				options.cancellation_signal = cancellation;
+				options.write_callback = [sink](std::string_view chunk) {
+					return sink->Write(chunk);
+				};
+				options.progress_callback =
+					[context, state, generation, expected_size, last_progress](
+						std::uint64_t total, std::uint64_t current) {
+						const auto effective_total = total > 0 ? total : expected_size;
+						if (effective_total == 0) {
+							return state->IsDownloadCurrent(generation);
+						}
+						const auto progress = static_cast<int>(std::min<std::uint64_t>(
+							100, current * 100 / effective_total));
+						if (last_progress->exchange(progress, std::memory_order_acq_rel) != progress) {
+							context->PostUITask([state, generation, progress]() {
+								if (state->IsDownloadCurrent(generation)) {
+									emit UpdateManager::Instance().SigDownloadProgressValue(progress);
+								}
+							});
+						}
+						return state->IsDownloadCurrent(generation);
+					};
 
-		connect(reply, &QIODevice::readyRead, this, [file_ptr, reply, file_md5_ptr]() {
-			auto part_content = reply->readAll();
-			file_ptr->write(part_content);
-			file_md5_ptr->update(part_content.data(), part_content.size());
-		});
+				const auto response = HttpClient::Download(url, std::move(options));
+				sink->Close();
+				UpgradeDownloadResult result;
+				if (cancellation->load(std::memory_order_acquire)) {
+					result = {UpgradeDownloadError::Network, "cancelled"};
+				} else if (sink->WriteFailed()) {
+					result = {UpgradeDownloadError::SaveFile, "write failed"};
+				} else if (response.error_code == static_cast<int>(cpr::ErrorCode::OPERATION_TIMEDOUT)) {
+					result = {UpgradeDownloadError::Timeout, response.error_message};
+				} else if (response.error_code != 0 || response.status < 200 || response.status >= 300) {
+					result = {UpgradeDownloadError::Network, std::format(
+						"status={}, code={}, message={}", response.status,
+						response.error_code, response.error_message)};
+				} else if (StringUtil::ToLowerCpy(sink->Md5()) != remote_md5) {
+					result = {UpgradeDownloadError::Corrupt, "md5 mismatch"};
+				} else {
+					result = PublishDownload(partial_path, save_file_path);
+				}
 
-		connect(reply, &QNetworkReply::downloadProgress, this, [=](qint64 bytesReceived, qint64 bytesTotal) {
-			auto size = bytesTotal > 0 ? bytesTotal : file_size_;
-			if (size > 0) {
-				emit SigDownloadProgressValue(100 * (bytesReceived * 1.0 / size));
-			}
-		});
-
-		const int kTimeout = 180;
-		timer->start(std::chrono::seconds(kTimeout));
+				if (result.error != UpgradeDownloadError::None) {
+					RemovePartialDownload(partial_path);
+					LOGE("Upgrade download failed: {}", result.detail);
+				}
+				context->PostUITask(
+					[state, generation, result = std::move(result)]() {
+						if (!state->CompleteDownload(generation)) {
+							return;
+						}
+						const bool success = result.error == UpgradeDownloadError::None;
+						emit UpdateManager::Instance().SigDownloadComplete(
+							success, DownloadErrorText(result.error));
+					});
+			});
 	}
 
 	void UpdateManager::OpenInstallFile() {
-		QString work_dir = QFileInfo(save_path_).absolutePath();
-		bool res = QProcess::startDetached("cmd.exe", {"/c", "start", save_path_}, work_dir);
+		const bool res = QDesktopServices::openUrl(QUrl::fromLocalFile(save_path_));
 		if (!res) {
 			emit SigOpenInstallFileError();
 		}

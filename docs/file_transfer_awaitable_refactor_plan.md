@@ -2560,3 +2560,37 @@ Panel 主窗口原先从 worker 直接回调 `CheckOffSiteUpdate(this)`，启动
 
 `px_panel.exe` build/dist SHA-256：
 `19C63292539A04A0D845FF3F1C20D2E1C8AB7F48B3FFFA410A06FDA9C82E2CB8`。
+
+### 12.53 Phase 7 UpdateManager common HTTP 与可取消下载收敛
+
+12.52 保留的 UpdateManager 网络子链仍依赖 `QNetworkAccessManager`、reply、timer 和手工创建的
+`QFile`。检查更新在 UI 线程发起，下载的 reply/timeout/readyRead/finished 多路回调共享可变对象；
+重复检查、重复下载和退出期间既没有统一 generation，也无法让底层阻塞请求及时取消。
+
+本批完成：
+
+- common `HttpClient` 的 GET/POST/PATCH 正式接入既有 cancellation signal；新增流式下载选项，
+  统一提供 query、headers、SSL 策略、总超时、取消、chunk 写入和进度回调，旧下载重载继续兼容；
+- UpdateManager 检查与下载全部改用 common HTTP API，并放到 `PxContext::PostNetworkTask`；
+  UI 线程只解析检查结果、更新状态和发信号，不再持有 Qt network reply/timer/file；
+- 新增独立 check/download generation state；新请求主动取消同类旧请求，worker 与已排队 UI
+  completion 均复核 generation，迟到结果、重复完成和 shutdown 后回调不会再触碰 UI；
+- 下载使用带 generation 的临时文件，流式写入同时计算 MD5；HTTP 状态、CPR 错误、超时、
+  写失败和摘要不匹配分别收敛为单一终态，失败会清理临时文件；校验通过后才通过 Windows
+  原子替换边界发布安装包，不先删除已有的有效安装包；
+- `PxApplication::PrepareForShutdown()` 在任务 runtime 退出前停止 UpdateManager 并触发 CPR
+  cancellation；安装包打开改为 `QDesktopServices` 本地 URL，避免经 `cmd /c start` 解释文件名；
+- 服务端文件名先收敛为 basename，下载 query 由 CPR 参数编码，避免路径穿越和手工 URL 拼接。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| common HTTP | GET 运行中取消、multipart 取消、流式下载 body/进度和下载中取消连续 10/10 PASS |
+| generation / shutdown | check/download 独立、替换取消、迟到 completion、Stop 和重复 start/stop 连续 10/10 PASS |
+| Panel shutdown 回归 | `panel_shutdown_sequence` 连续 10/10 PASS |
+| ownership / whitespace | `check_cpp_ownership` 与 `git diff --check` PASS；新增路径无裸指针声明、手工 ownership 或 `[this]` 捕获 |
+| focused build/dist | `build_cpp_panel.bat` 定向编译并发布；未运行发版整编；Panel build/dist 哈希一致 |
+
+`px_panel.exe` build/dist SHA-256：
+`9495859917D8BA90B75CFB2199BB1F1CE9E64765A844D548441B4C5048AE77C0`。

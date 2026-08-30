@@ -92,6 +92,9 @@ namespace px
         session.SetBody(body);
         session.SetVerifySsl(verify_ssl_);
         session.SetTimeout(cpr::Timeout{this->timeout_ms_});
+        if (cancellation_signal_) {
+            session.SetCancellationParam(cancellation_signal_);
+        }
         if (!headers_.empty()) {
             session.SetHeader(ToCprHeader(headers_));
         }
@@ -121,6 +124,9 @@ namespace px
         session.SetVerifySsl(verify_ssl_);
         session.SetBody(body);
         session.SetTimeout(cpr::Timeout{this->timeout_ms_});
+        if (cancellation_signal_) {
+            session.SetCancellationParam(cancellation_signal_);
+        }
         auto headers = headers_;
         if (!content_type.empty()) {
             headers["Content-Type"] = content_type;
@@ -147,6 +153,9 @@ namespace px
         session.SetVerifySsl(verify_ssl_);
         session.SetBody(body);
         session.SetTimeout(cpr::Timeout{this->timeout_ms_});
+        if (cancellation_signal_) {
+            session.SetCancellationParam(cancellation_signal_);
+        }
         auto headers = headers_;
         if (!content_type.empty()) {
             headers["Content-Type"] = content_type;
@@ -269,22 +278,61 @@ namespace px
     }
 
     HttpResponse HttpClient::Download(const std::string& path, std::function<void(const std::string& body)>&& download_cbk) {
-        LOGI("Download: {}", path.c_str());
-        cpr::Url url{path};
-        cpr::Session session;
-        session.SetHeader(cpr::Header{{"Accept-Encoding", "gzip"}});
-        session.SetUrl(url);
-        session.SetVerifySsl(path.starts_with("https://"));
-        session.SetTimeout(cpr::Timeout{5000});
-
-        auto fn_cbk = [=](std::string_view data, intptr_t /*userdata*/) -> bool {
-            LOGI("Download size: {}", data.size());
-            auto cpy = std::string(data.data(), data.size());
-            download_cbk(cpy);
+        HttpDownloadOptions options;
+        options.verify_ssl = path.starts_with("https://");
+        options.headers.emplace("Accept-Encoding", "gzip");
+        options.write_callback = [callback = std::move(download_cbk)](std::string_view data) {
+            callback(std::string(data));
             return true;
         };
+        return Download(path, std::move(options));
+    }
 
-        cpr::Response response = session.Download(cpr::WriteCallback{fn_cbk, 0});
+    HttpResponse HttpClient::Download(const std::string& path, HttpDownloadOptions options) {
+        LOGI("Download: {}", path.c_str());
+        cpr::Session session;
+        session.SetUrl(cpr::Url{path});
+        session.SetVerifySsl(options.verify_ssl);
+        session.SetTimeout(cpr::Timeout{options.timeout_ms});
+        if (!options.headers.empty()) {
+            session.SetHeader(ToCprHeader(options.headers));
+        }
+        if (!options.query.empty()) {
+            cpr::Parameters parameters;
+            for (const auto& [key, value] : options.query) {
+                parameters.Add({key, value});
+            }
+            session.SetParameters(parameters);
+        }
+        if (options.cancellation_signal) {
+            session.SetCancellationParam(options.cancellation_signal);
+        }
+        if (options.progress_callback) {
+            session.SetProgressCallback(cpr::ProgressCallback{
+                [callback = std::move(options.progress_callback)](
+                    cpr::cpr_pf_arg_t download_total,
+                    cpr::cpr_pf_arg_t download_current,
+                    cpr::cpr_pf_arg_t,
+                    cpr::cpr_pf_arg_t,
+                    intptr_t) {
+                    const auto total = download_total > 0
+                        ? static_cast<std::uint64_t>(download_total) : 0;
+                    const auto current = download_current > 0
+                        ? static_cast<std::uint64_t>(download_current) : 0;
+                    return callback(total, current);
+                }});
+        }
+
+        auto write_callback = std::move(options.write_callback);
+        if (!write_callback) {
+            write_callback = [](std::string_view) { return true; };
+        }
+        const auto response = session.Download(cpr::WriteCallback{
+            [callback = std::move(write_callback)](
+                const std::string_view& data, intptr_t) {
+                return callback(data);
+            }});
+
         return ToHttpResponse(response);
     }
 

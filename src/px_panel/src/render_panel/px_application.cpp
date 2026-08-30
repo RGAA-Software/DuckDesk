@@ -48,6 +48,7 @@
 #include "render_panel/clipboard/panel_clipboard_manager.h"
 #include "render_panel/user/px_user_manager.h"
 #include "render_panel/devices/px_device_manager.h"
+#include "render_panel/upgrade/upgrade_helper.h"
 
 #include <shellapi.h>
 
@@ -192,6 +193,8 @@ namespace px
         if (shutdown_prepared_.exchange(true)) {
             return;
         }
+
+        UpdateManager::Instance().Shutdown();
 
         if (service_client_) {
             service_client_->Exit();

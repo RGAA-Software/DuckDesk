@@ -129,4 +129,10 @@ add_executable(test_panel_qt_lifetime_guard
         test_panel_qt_lifetime_guard.cpp)
 target_link_libraries(test_panel_qt_lifetime_guard PRIVATE
         GTest::gtest GTest::gtest_main Qt${QT_VERSION_MAJOR}::Core)
+
+add_executable(test_upgrade_request_state
+        test_upgrade_request_state.cpp)
+target_link_libraries(test_upgrade_request_state PRIVATE
+        GTest::gtest GTest::gtest_main)
+add_test(NAME panel_upgrade_request_state COMMAND test_upgrade_request_state)
 add_test(NAME panel_qt_lifetime_guard COMMAND test_panel_qt_lifetime_guard)
