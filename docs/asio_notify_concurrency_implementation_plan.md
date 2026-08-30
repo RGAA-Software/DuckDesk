@@ -128,9 +128,13 @@ same focused-build, 10-round lifecycle and dist-publication gates.
   ownership for maintained queues. Hook Audio mixer/share workers additionally
   use independent shared state and pass callback-destruction tests. Panel's
   single-instance named-pipe listener now has cancellable overlapped I/O and a
-  synchronous stop barrier. The next in-scope batches continue with remaining
-  Panel network/clipboard workers. libwebrtc adapters and established plug-in
-  instance ABI boundaries remain excluded.
+  synchronous stop barrier. Panel authorization refresh no longer stores its
+  companion address or queues a `this` capture: queued refresh work locks a weak
+  AuthManager and storage lifetime is shared independently. The next in-scope
+  batches continue with remaining active Panel service/network workers; disabled
+  legacy clipboard code is retained only until that migration branch is removed.
+  libwebrtc adapters and established plug-in instance ABI boundaries remain
+  excluded.
 
 ## Target execution architecture
 

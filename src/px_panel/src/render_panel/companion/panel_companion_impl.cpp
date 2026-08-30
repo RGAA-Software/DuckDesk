@@ -29,7 +29,13 @@ namespace px
 {
 
     PanelCompanionImpl::~PanelCompanionImpl() {
-
+        auth_mgr_.reset();
+        if (net_thread_) {
+            net_thread_->Exit();
+            net_thread_.reset();
+        }
+        stat_mgr_.reset();
+        sp_.reset();
     }
 
     bool PanelCompanionImpl::Init() {
@@ -48,9 +54,8 @@ namespace px
             return false;
         }
 
-        console_settings_ = ConsoleSettings::Instance();
         // auth
-        auth_mgr_ = std::make_shared<AuthManager>(this);
+        auth_mgr_ = std::make_shared<AuthManager>(sp_);
         auth_mgr_->LoadFromStorage();
 
         // stat
@@ -69,7 +74,7 @@ namespace px
     }
 
     void PanelCompanionImpl::OnTimer5S() {
-        auth_mgr_->OnTimer5S();
+        PostNetTask(MakeAuthRefreshTask(auth_mgr_));
         const auto weak_self = weak_from_this();
         PostNetTask([weak_self]() {
             if (const auto self = weak_self.lock()) {
@@ -85,7 +90,7 @@ namespace px
     }
 
     void PanelCompanionImpl::UpdateConsoleServerConfig(const std::string &host, int port, bool ssl_enable) {
-        console_settings_->UpdateServerConfig(host, port, ssl_enable);
+        ConsoleSettings::Instance()->UpdateServerConfig(host, port, ssl_enable);
     }
 
     void PanelCompanionImpl::UpdateAppkey(const std::string& appkey) {
@@ -124,7 +129,10 @@ namespace px
     ///
 
     void PanelCompanionImpl::PostNetTask(std::function<void()> &&task) const {
-        net_thread_->Post(std::move(task));
+        const auto thread = net_thread_;
+        if (thread) {
+            thread->Post(std::move(task));
+        }
     }
 
     bool PanelCompanionImpl::EncQRCode(std::string origin_content, std::vector<uint8_t>& cipher_data) {

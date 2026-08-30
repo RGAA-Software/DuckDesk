@@ -4,14 +4,15 @@
 
 #include "auth_manager.h"
 #include "console_setting.h"
+#include "render_panel/companion/panel_companion.h"
 #include <nlohmann/json.hpp>
+#include <utility>
 #include "auth_defs.h"
 #include "px_common_new/log.h"
 #include "px_common_new/http_client.h"
 #include "px_common_new/shared_preference.h"
 #include "px_common_new/const_auto.h"
 #include "px_common_new/time_util.h"
-#include "../panel_companion_impl.h"
 
 namespace px
 {
@@ -32,28 +33,31 @@ namespace px
     }
     // auth end
 
-    AuthManager::AuthManager(PanelCompanionImpl* pc) {
-        pc_ = pc;
-    }
+    AuthManager::AuthManager(std::shared_ptr<SharedPreference> storage)
+        : storage_(std::move(storage)) {}
 
-    void AuthManager::OnTimer5S() {
-        pc_->PostNetTask([=, this]() {
-            if (const auto auth = this->RequestAuth(); auth && !auth->appkey_.empty()) {
-                this->auth_.Update(auth);
-                this->FlushToStorage();
+    std::function<void()> MakeAuthRefreshTask(
+        const std::shared_ptr<AuthManager>& manager) {
+        const std::weak_ptr<AuthManager> weak_manager = manager;
+        return [weak_manager]() {
+            if (const auto locked = weak_manager.lock()) {
+                locked->RequestAuth();
             }
-        });
+        };
     }
 
     void AuthManager::LoadFromStorage() {
-        cat auth_id = pc_->GetSP()->Get(kAuthId);
-        cat auth_name = pc_->GetSP()->Get(kAuthName);
-        cat machine_code = pc_->GetSP()->Get(kAuthMachineCode);
-        cat appkey = pc_->GetSP()->Get(kAuthAppkey);
-        cat role = pc_->GetSP()->GetInt(kAuthRole);
-        cat days = pc_->GetSP()->GetInt(kAuthDays);
-        cat max_streams = pc_->GetSP()->GetInt(kAuthMaxStreams);
-        cat end_timestamp_ms = pc_->GetSP()->GetInt64(kAuthEndTimestampMs);
+        if (!storage_) {
+            return;
+        }
+        cat auth_id = storage_->Get(kAuthId);
+        cat auth_name = storage_->Get(kAuthName);
+        cat machine_code = storage_->Get(kAuthMachineCode);
+        cat appkey = storage_->Get(kAuthAppkey);
+        cat role = storage_->GetInt(kAuthRole);
+        cat days = storage_->GetInt(kAuthDays);
+        cat max_streams = storage_->GetInt(kAuthMaxStreams);
+        cat end_timestamp_ms = storage_->GetInt64(kAuthEndTimestampMs);
         if (auth_id.empty() || appkey.empty()) {
             LOGW("No auth loaded from storage, id: {}, role: {}", auth_id, role);
             return;
@@ -69,19 +73,22 @@ namespace px
     }
 
     void AuthManager::FlushToStorage() {
-        this->auth_.WithLock([=, this](const std::shared_ptr<Authorization>& auth) {
+        const auto storage = storage_;
+        if (!storage) {
+            return;
+        }
+        auth_.WithLock([storage](const std::shared_ptr<Authorization>& auth) {
             if (!auth || auth->auth_id_.empty() || auth->appkey_.empty()) {
                 return;
             }
-            const auto sp = pc_->GetSP();
-            sp->Put(kAuthId, auth->auth_id_);
-            sp->Put(kAuthName, auth->auth_name_);
-            sp->Put(kAuthMachineCode, auth->machine_code_);
-            sp->Put(kAuthAppkey, auth->appkey_);
-            sp->PutInt(kAuthRole, static_cast<int>(auth->role_));
-            sp->PutInt(kAuthDays, auth->days_);
-            sp->PutInt(kAuthMaxStreams, auth->max_streams_);
-            sp->PutInt64(kAuthEndTimestampMs, auth->end_timestamp_ms_);
+            storage->Put(kAuthId, auth->auth_id_);
+            storage->Put(kAuthName, auth->auth_name_);
+            storage->Put(kAuthMachineCode, auth->machine_code_);
+            storage->Put(kAuthAppkey, auth->appkey_);
+            storage->PutInt(kAuthRole, static_cast<int>(auth->role_));
+            storage->PutInt(kAuthDays, auth->days_);
+            storage->PutInt(kAuthMaxStreams, auth->max_streams_);
+            storage->PutInt64(kAuthEndTimestampMs, auth->end_timestamp_ms_);
         });
     }
 

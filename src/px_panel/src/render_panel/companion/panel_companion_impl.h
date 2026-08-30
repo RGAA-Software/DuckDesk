@@ -16,7 +16,6 @@ namespace px
 
     class Thread;
     class AuthManager;
-    class ConsoleSettings;
     class SharedPreference;
     class StatManager;
 
@@ -72,7 +71,6 @@ namespace px
         void ReportOpenUpIfNeeded();
 
     private:
-        ConsoleSettings* console_settings_ = nullptr;
         std::shared_ptr<AuthManager> auth_mgr_ = nullptr;
         std::shared_ptr<Thread> net_thread_ = nullptr;
         std::shared_ptr<SharedPreference> sp_ = nullptr;

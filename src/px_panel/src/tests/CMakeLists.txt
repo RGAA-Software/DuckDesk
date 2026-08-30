@@ -99,3 +99,11 @@ add_executable(test_panel_running_pipe_lifecycle
 target_link_libraries(test_panel_running_pipe_lifecycle PRIVATE
         GTest::gtest GTest::gtest_main px_common_new)
 add_test(NAME panel_running_pipe_lifecycle COMMAND test_panel_running_pipe_lifecycle)
+
+add_executable(test_panel_auth_manager_lifecycle
+        test_panel_auth_manager_lifecycle.cpp
+        ../render_panel/companion/console/auth_manager.cpp
+        ../render_panel/companion/console/console_setting.cpp)
+target_link_libraries(test_panel_auth_manager_lifecycle PRIVATE
+        GTest::gtest GTest::gtest_main px_common_new)
+add_test(NAME panel_auth_manager_lifecycle COMMAND test_panel_auth_manager_lifecycle)

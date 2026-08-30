@@ -2314,3 +2314,36 @@ Panel 单实例通知原先由 `PxRunningPipe` 以 `shared_ptr<std::thread>` 启
 
 `px_panel.exe` build/dist SHA-256：
 `13BCFD844C0DD3885AD5312F6DDDE33A6526516595EF647DF61C6CBD455FB93A`。
+
+### 12.46 Phase 7 Panel 授权刷新任务生命周期收敛
+
+Panel 每 5 秒授权刷新原先由 `AuthManager` 保存 `PanelCompanionImpl*`，再把捕获
+`this` 的任务排入 companion 网络线程。Panel 退出或初始化失败时，排队任务可能晚于
+AuthManager 和 SharedPreference 析构，形成悬空访问；该双向引用也让关闭顺序无法独立
+验证。
+
+本批完成：
+
+- `AuthManager` 只共享持有实际需要的 `SharedPreference`，不再保存 companion 地址；
+- 授权刷新任务由 `MakeAuthRefreshTask()` 创建，只捕获 `weak_ptr<AuthManager>`，执行时
+  `lock()`，owner 已销毁便直接返回；
+- 存储 flush 回调只捕获存储快照，不捕获 `this`；授权请求成功后由 `RequestAuth()` 自身
+  完成内存更新和持久化，不再由定时器重复更新；
+- companion 析构先撤销 AuthManager owner，再停止并 join 网络线程；已排队任务 no-op，
+  已进入的请求则以 shared lifetime 完成后再退出；
+- 删除 companion 中缓存的 `ConsoleSettings*`；配置更新在同步调用边界访问现有 ABI 单例，
+  不把该地址存入项目对象；
+- `build_cpp_panel_shutdown_tests.bat` 纳入授权生命周期目标，仍仅做 C++ 定向构建。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 排队后销毁 | 任务排队后释放 AuthManager，任务不保活、不访问已销毁 owner，10/10 PASS |
+| 并发销毁 | worker 已启动但尚未执行刷新时释放 owner，解除闸门后安全返回，10/10 PASS |
+| Panel 回归 | shutdown、named-pipe、auth lifecycle 三个 CTest 目标 3/3 PASS |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；新增异步路径无裸指针或 `[this]` 捕获 |
+| focused build/dist | `test_panel_auth_manager_lifecycle` 与 `px_panel` 定向编译；发布脚本逐文件校验，未运行发版整编 |
+
+`px_panel.exe` build/dist SHA-256：
+`DEF246ADA7A70B4EA1C642BD292B6998DD2461FBCA0D16D4330A2CBD733D9F92`。
