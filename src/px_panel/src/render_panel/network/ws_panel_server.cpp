@@ -30,6 +30,7 @@
 #include "px_message_new/rp_proto_converter.h"
 #include "px_common_new/url_helper.h"
 #include "px_common_new/message_notifier.h"
+#include "px_common_new/weak_callback.h"
 #include "px_qt_widget/translator/px_translator.h"
 #include "render_panel/companion/panel_companion.h"
 #include "render_panel/px_statistics.h"
@@ -98,7 +99,6 @@ namespace px
         context_ = app_->GetContext();
         http_handler_ = std::make_shared<HttpHandler>(app_);
         records_http_handler_ = std::make_shared<RecordsHttpHandler>(app_);
-        settings_ = PxSettings::Instance();
         visit_record_op_ = context_->GetDatabase()->GetVisitRecordOp();
         ft_record_op_ = context_->GetDatabase()->GetFileTransferRecordOp();
 
@@ -142,7 +142,8 @@ namespace px
             if (auto self = weak_self.lock(); self && !self->exiting_) {
                 self->context_->PostTask([weak_self]() {
                     if (auto self = weak_self.lock(); self && !self->exiting_ && self->panel_sessions_.Size() > 0) {
-                        self->app_->GetDeviceManager()->UpdateUsedTime(5000);
+                        static_cast<void>(
+                            self->app_->GetDeviceManager()->UpdateUsedTime(5000));
                     }
                 });
             }
@@ -206,74 +207,116 @@ namespace px
         //server_->set_verify_mode(asio::ssl::verify_peer);
 
         // response a "Pong" for checking server state
-        AddHttpGetRouter(kPathPing, [=, this](const auto& path, auto& req, auto& rep) {
-            http_handler_->HandlePing(req, rep);
-        });
+        AddHttpGetRouter(kPathPing, MakeWeakVoidCallback(weak_self,
+            [](const auto& self, const auto&, auto& req, auto& rep) {
+            if (!self->exiting_) {
+                self->http_handler_->HandlePing(req, rep);
+            }
+        }));
 
         // response the information that equals to the QR Code
-        AddHttpGetRouter(kPathSimpleInfo, [=, this](const auto& path, auto& req, auto& rep) {
-            http_handler_->HandleSimpleInfo(req, rep);
-        });
+        AddHttpGetRouter(kPathSimpleInfo, MakeWeakVoidCallback(weak_self,
+            [](const auto& self, const auto&, auto& req, auto& rep) {
+            if (!self->exiting_) {
+                self->http_handler_->HandleSimpleInfo(req, rep);
+            }
+        }));
 
         // response all apps that we found in system and added by user
-        AddHttpGetRouter(kPathGames, [=, this](const auto& path, auto& req, auto& rep) {
-            http_handler_->HandleGames(req, rep);
-        });
+        AddHttpGetRouter(kPathGames, MakeWeakVoidCallback(weak_self,
+            [](const auto& self, const auto&, auto& req, auto& rep) {
+            if (!self->exiting_) {
+                self->http_handler_->HandleGames(req, rep);
+            }
+        }));
 
         // start game
-        AddHttpPostRouter(kPathGameStart, [=, this](const auto& path, auto& req, auto& rep) {
-            http_handler_->HandleGameStart(req, rep);
-        });
+        AddHttpPostRouter(kPathGameStart, MakeWeakVoidCallback(weak_self,
+            [](const auto& self, const auto&, auto& req, auto& rep) {
+            if (!self->exiting_) {
+                self->http_handler_->HandleGameStart(req, rep);
+            }
+        }));
 
         // stop game
-        AddHttpPostRouter(kPathGameStop, [=, this](const auto& path, auto& req, auto& rep) {
-            http_handler_->HandleGameStop(req, rep);
-        });
+        AddHttpPostRouter(kPathGameStop, MakeWeakVoidCallback(weak_self,
+            [](const auto& self, const auto&, auto& req, auto& rep) {
+            if (!self->exiting_) {
+                self->http_handler_->HandleGameStop(req, rep);
+            }
+        }));
 
         // running games
-        AddHttpGetRouter(kPathRunningGames, [=, this](const auto& path, auto& req, auto& rep) {
-            http_handler_->HandleRunningGames(req, rep);
-        });
+        AddHttpGetRouter(kPathRunningGames, MakeWeakVoidCallback(weak_self,
+            [](const auto& self, const auto&, auto& req, auto& rep) {
+            if (!self->exiting_) {
+                self->http_handler_->HandleRunningGames(req, rep);
+            }
+        }));
 
         // stop the px_render.exe
-        AddHttpGetRouter(kPathStopServer, [=, this](const auto& path, auto& req, auto& rep) {
-            http_handler_->HandleStopServer(req, rep);
-        });
+        AddHttpGetRouter(kPathStopServer, MakeWeakVoidCallback(weak_self,
+            [](const auto& self, const auto&, auto& req, auto& rep) {
+            if (!self->exiting_) {
+                self->http_handler_->HandleStopServer(req, rep);
+            }
+        }));
 
         // all running processes in th PC, equals the process list in TaskManager
-        AddHttpGetRouter(kPathAllRunningProcesses, [=, this](const auto& path, auto& req, auto& rep) {
-            http_handler_->HandleAllRunningProcesses(req, rep);
-        });
+        AddHttpGetRouter(kPathAllRunningProcesses, MakeWeakVoidCallback(weak_self,
+            [](const auto& self, const auto&, auto& req, auto& rep) {
+            if (!self->exiting_) {
+                self->http_handler_->HandleAllRunningProcesses(req, rep);
+            }
+        }));
 
         // kill a process by pid
-        AddHttpPostRouter(kPathKillProcess, [=, this](const auto& path, auto& req, auto& rep) {
-            http_handler_->HandleKillProcess(req, rep);
-        });
+        AddHttpPostRouter(kPathKillProcess, MakeWeakVoidCallback(weak_self,
+            [](const auto& self, const auto&, auto& req, auto& rep) {
+            if (!self->exiting_) {
+                self->http_handler_->HandleKillProcess(req, rep);
+            }
+        }));
 
         // res
-        AddHttpGetRouter("/res/*", [=, this](const auto& path, auto& req, auto& rep) {
-            http_handler_->HandleResourcesFile(req, rep);
-        });
+        AddHttpGetRouter("/res/*", MakeWeakVoidCallback(weak_self,
+            [](const auto& self, const auto&, auto& req, auto& rep) {
+            if (!self->exiting_) {
+                self->http_handler_->HandleResourcesFile(req, rep);
+            }
+        }));
 
         // render records: file list (docs/console_render_records_view_design.md 5.1)
-        AddHttpGetRouter("/records", [=, this](const auto& path, auto& req, auto& rep) {
-            records_http_handler_->HandleRecordsList(req, rep);
-        });
+        AddHttpGetRouter("/records", MakeWeakVoidCallback(weak_self,
+            [](const auto& self, const auto&, auto& req, auto& rep) {
+            if (!self->exiting_) {
+                self->records_http_handler_->HandleRecordsList(req, rep);
+            }
+        }));
 
         // render records: dir/space info (lightweight, for web topology probing)
-        AddHttpGetRouter("/records/info", [=, this](const auto& path, auto& req, auto& rep) {
-            records_http_handler_->HandleRecordsInfo(req, rep);
-        });
+        AddHttpGetRouter("/records/info", MakeWeakVoidCallback(weak_self,
+            [](const auto& self, const auto&, auto& req, auto& rep) {
+            if (!self->exiting_) {
+                self->records_http_handler_->HandleRecordsInfo(req, rep);
+            }
+        }));
 
         // render records: file download with manual Range support
-        AddHttpGetRouter("/records/*", [=, this](const auto& path, auto& req, auto& rep) {
-            records_http_handler_->HandleRecordFile(req, rep);
-        });
+        AddHttpGetRouter("/records/*", MakeWeakVoidCallback(weak_self,
+            [](const auto& self, const auto&, auto& req, auto& rep) {
+            if (!self->exiting_) {
+                self->records_http_handler_->HandleRecordFile(req, rep);
+            }
+        }));
 
         // cache
-        AddHttpGetRouter("/steam/cache/*", [=, this](const auto& path, auto& req, auto& rep) {
-            http_handler_->HandleSteamCacheFile(req, rep);
-        });
+        AddHttpGetRouter("/steam/cache/*", MakeWeakVoidCallback(weak_self,
+            [](const auto& self, const auto&, auto& req, auto& rep) {
+            if (!self->exiting_) {
+                self->http_handler_->HandleSteamCacheFile(req, rep);
+            }
+        }));
 
         // default
         server_->bind<http::verb::get, http::verb::post>("/", [](http::web_request& req, http::web_response& rep) {
@@ -294,8 +337,9 @@ namespace px
         // sys info
         AddWebsocketRouter(kUrlSysInfo);
 
-        bool ret = server_->start("0.0.0.0", settings_->GetPanelServerPort());
-        LOGI("App server start result: {}, port: {}", ret, settings_->GetPanelServerPort());
+        const auto panel_port = PxSettings::Instance()->GetPanelServerPort();
+        bool ret = server_->start("0.0.0.0", panel_port);
+        LOGI("App server start result: {}, port: {}", ret, panel_port);
 
         context_->PostDBTask([weak_self]() {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
@@ -471,20 +515,20 @@ namespace px
 
     void WsPanelServer::AddHttpGetRouter(const std::string &path,
         std::function<void(const std::string& path, http::web_request &req, http::web_response &rep)>&& cbk) {
-        server_->bind<http::verb::get>(path, [=, this](http::web_request &req, http::web_response &rep) {
-            cbk(path, req, rep);
+        server_->bind<http::verb::get>(path, [path, callback = std::move(cbk)](http::web_request &req, http::web_response &rep) {
+            callback(path, req, rep);
         }, aop_log{});
     }
 
     void WsPanelServer::AddHttpPostRouter(const std::string& path,
         std::function<void(const std::string& path, http::web_request &req, http::web_response &rep)>&& cbk) {
-        server_->bind<http::verb::post>(path, [=, this](http::web_request &req, http::web_response &rep) {
-            cbk(path, req, rep);
+        server_->bind<http::verb::post>(path, [path, callback = std::move(cbk)](http::web_request &req, http::web_response &rep) {
+            callback(path, req, rep);
         }, aop_log{});
     }
 
     void WsPanelServer::PostPanelMessage(const std::string& msg, bool only_inner) {
-        panel_sessions_.VisitAll([=, this](uint64_t fd, std::shared_ptr<WSSession>& sess) {
+        panel_sessions_.VisitAll([msg, only_inner](uint64_t, std::shared_ptr<WSSession>& sess) {
             if (only_inner && sess->session_type_ != pxcp::CpSessionType::kInnerServer) {
                 return;
             }
@@ -514,13 +558,16 @@ namespace px
         }
         if (proto_msg->type() == pxcp::CpMessageType::kCpHello) {
             auto hello = proto_msg->hello();
-            panel_sessions_.VisitAll([=, this](uint64_t k, std::shared_ptr<WSSession>& v) {
+            const auto weak_self = weak_from_this();
+            panel_sessions_.VisitAll([weak_self, socket_fd, hello, proto_msg](uint64_t, std::shared_ptr<WSSession>& v) {
                 if (v->socket_fd_ == socket_fd) {
                     v->session_type_ = hello.type();
                     if (!v->audit_registered_ && !proto_msg->stream_id().empty()) {
                         v->stream_id_ = proto_msg->stream_id();
                         v->audit_registered_ = true;
-                        PanelSocketOpened(v->stream_id_);
+                        if (const auto self = weak_self.lock(); self && !self->exiting_) {
+                            self->PanelSocketOpened(v->stream_id_);
+                        }
                     }
                     LOGI("Update session type: {} for socket: {}", v->session_type_, socket_fd);
                 }
@@ -571,12 +618,13 @@ namespace px
                 if (!ips.empty()) {
                     ip_address = ips[0].ip_addr_;
                 }
+                const auto device_id = PxSettings::Instance()->GetDeviceId();
 
                 auto record = std::make_shared<FileTransferRecord>(FileTransferRecord{
                     .the_file_id_ = sub.the_file_id(),
                     .begin_ = sub.begin_timestamp(),
                     .end_ = 0,
-                    .visitor_device_ = self->settings_->GetDeviceId().empty() ? ip_address : self->settings_->GetDeviceId(),
+                    .visitor_device_ = device_id.empty() ? ip_address : device_id,
                     .target_device_ = sub.remote_device_id(),
                     .direction_ = sub.direction(),
                     .file_detail_ = sub.file_detail(),
@@ -617,16 +665,16 @@ namespace px
         pxrp::RpMessage m;
         m.set_type(pxrp::RpMessageType::kSyncPanelInfo);
         auto sub = m.mutable_sync_panel_info();
-        sub->set_device_id(settings_->GetDeviceId());
-        sub->set_device_random_pwd(settings_->GetDeviceRandomPwd());
-        sub->set_device_safety_pwd(settings_->GetDeviceSecurityPwd());
-        sub->set_relay_host(settings_->GetRelayServerHost());
-        sub->set_relay_port(std::to_string(settings_->GetRelayServerPort()));
-        sub->set_can_be_operated(settings_->IsBeingOperatedEnabled());
-        sub->set_relay_enabled(settings_->IsRelayEnabled());
+        sub->set_device_id(PxSettings::Instance()->GetDeviceId());
+        sub->set_device_random_pwd(PxSettings::Instance()->GetDeviceRandomPwd());
+        sub->set_device_safety_pwd(PxSettings::Instance()->GetDeviceSecurityPwd());
+        sub->set_relay_host(PxSettings::Instance()->GetRelayServerHost());
+        sub->set_relay_port(std::to_string(PxSettings::Instance()->GetRelayServerPort()));
+        sub->set_can_be_operated(PxSettings::Instance()->IsBeingOperatedEnabled());
+        sub->set_relay_enabled(PxSettings::Instance()->IsRelayEnabled());
         sub->set_language((int)tcTrMgr()->GetSelectedLanguage());
-        sub->set_file_transfer_enabled(settings_->IsFileTransferEnabled());
-        sub->set_audio_enabled(settings_->IsCaptureAudioEnabled());
+        sub->set_file_transfer_enabled(PxSettings::Instance()->IsFileTransferEnabled());
+        sub->set_audio_enabled(PxSettings::Instance()->IsCaptureAudioEnabled());
         sub->set_appkey(grApp->GetAppkey());
         sub->set_max_transmit_speed(this->max_transmit_speed_);
         sub->set_max_receive_speed(this->max_receive_speed_);
@@ -694,6 +742,7 @@ namespace px
                 if (!ips.empty()) {
                     ip_address = ips[0].ip_addr_;
                 }
+                const auto device_id = PxSettings::Instance()->GetDeviceId();
                 auto sub = proto_msg->client_connected();
                 if (sub.visitor_device_id().empty()) {
                     return;
@@ -706,7 +755,7 @@ namespace px
                     .end_ = 0,
                     .duration_ = 0,
                     .visitor_device_ = sub.visitor_device_id(),
-                    .target_device_ = self->settings_->GetDeviceId().empty() ? ip_address : self->settings_->GetDeviceId(),
+                    .target_device_ = device_id.empty() ? ip_address : device_id,
                 });
                 self->visit_record_op_->InsertVisitRecord(record);
                 self->TrackRendererVisit(socket_fd, sub.conn_id(), true);
@@ -743,13 +792,14 @@ namespace px
                 if (!ips.empty()) {
                     ip_address = ips[0].ip_addr_;
                 }
+                const auto device_id = PxSettings::Instance()->GetDeviceId();
 
                 auto record = std::make_shared<FileTransferRecord>(FileTransferRecord {
                     .the_file_id_ = sub.the_file_id(),
                     .begin_ = sub.begin_timestamp(),
                     .end_ = 0,
                     .visitor_device_ = sub.visitor_device_id(),
-                    .target_device_ = self->settings_->GetDeviceId().empty() ? ip_address : self->settings_->GetDeviceId(),
+                    .target_device_ = device_id.empty() ? ip_address : device_id,
                     .direction_ = sub.direction(),
                     .file_detail_ = sub.file_detail(),
                 });

@@ -2381,3 +2381,36 @@ WinMessageLoop` 强引用环，消息线程使用成员 `std::thread` 并在回�
 
 `px_panel.exe` build/dist SHA-256：
 `B1D8D09D7B1E70F7B0A96F3FCDC6D33C8752917A5B61FF03AEF4C6F63E960439`。
+
+### 12.48 Phase 7 Panel HTTP/WebSocket server callback 生命周期收敛
+
+`WsPanelServer` 的 WebSocket open/message/close 路径已经使用 weak owner，但 14 条 HTTP
+路由、路由包装器以及两处 session 遍历仍捕获 `this`。Server 停止会释放 asio2 callback，
+若 handler 与退出交叠，旧回调依赖 Server 对象地址继续有效。类中还长期保存项目 Settings
+单例的裸地址。
+
+本批完成：
+
+- 新增 header-only `MakeWeakVoidCallback`：callback 只保存 `weak_ptr`，调用时 lock，并以
+  shared owner 覆盖完整同步分发；owner 不存在时 callback 无副作用返回；
+- 14 条 Panel HTTP 路由全部使用该公共边界，并继续在 owner lock 后检查 `exiting_`；
+- GET/POST 的 asio2 包装器仅按值保存 path 与 callback，不再捕获 Server 地址；
+- session 广播只按值捕获消息和过滤条件；Hello session 更新需要调用 Server 方法时改为
+  weak-lock；
+- 删除 `PxSettings*` 成员，端口和设备配置只在同步单例调用边界读取；异步数据库任务先把
+  device ID 复制为字符串快照，避免一条记录内重复读取发生不一致；
+- 相关 `nodiscard` 结果显式处理，定向编译不再产生该处丢弃返回值警告。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| owner 销毁 | callback 排队后释放 owner，晚到调用不执行，10/10 PASS |
+| 并发排队 | worker 等待期间释放 owner，解除闸门后安全跳过，10/10 PASS |
+| 回调内释放 | callback 内释放最后一个外部 owner，shared lock 覆盖调用，返回后正常析构，10/10 PASS |
+| Panel 回归 | common weak callback 与四个 Panel lifecycle CTest 目标 5/5 PASS |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；WsPanelServer 无 `[this]` 或 Settings 裸成员 |
+| focused build/dist | `test_weak_callback` 与 `px_panel` 定向编译；未运行发版整编 |
+
+`px_panel.exe` build/dist SHA-256：
+`5DB99AE250DDD45E4484CE371FE5A5FC2DCCD7762425B5F1DE05188DDCA4B4C6`。

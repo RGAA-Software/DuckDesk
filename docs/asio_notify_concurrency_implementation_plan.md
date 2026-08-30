@@ -133,11 +133,14 @@ same focused-build, 10-round lifecycle and dist-publication gates.
   AuthManager and storage lifetime is shared independently. Panel's active
   Windows hidden-message loop also has no Loop/Window ownership cycle or
   self-thread detach: a weak callback bridge, common Thread shutdown barrier and
-  idempotent HWND teardown cover callback-close and repeated-close tests. The next
-  in-scope batches continue with remaining active Panel network/server workers;
-  disabled legacy clipboard code is retained only until that migration branch is
-  removed. libwebrtc adapters and established plug-in instance ABI boundaries
-  remain excluded.
+  idempotent HWND teardown cover callback-close and repeated-close tests. Panel's
+  HTTP/WebSocket server now also uses the tested common weak-callback boundary for
+  all HTTP routes; its wrappers and session traversals no longer retain a Server
+  address, and it no longer caches the Settings singleton address. The next
+  in-scope batches continue with remaining active UI/network callbacks; disabled
+  legacy clipboard code is retained only until that migration branch is removed.
+  libwebrtc adapters and established plug-in instance ABI boundaries remain
+  excluded.
 
 ## Target execution architecture
 
