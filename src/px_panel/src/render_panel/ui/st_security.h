@@ -5,6 +5,8 @@
 #ifndef PX_ST_SECURITY_H
 #define PX_ST_SECURITY_H
 
+#include <functional>
+
 #include <QLabel>
 #include "tab_base.h"
 
@@ -22,7 +24,7 @@ namespace px
         void OnTabHide() override;
 
     private:
-        PxSettings* settings_ = nullptr;
+        std::reference_wrapper<PxSettings> security_settings_;
     };
 
 }

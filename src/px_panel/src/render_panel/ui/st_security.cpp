@@ -11,6 +11,7 @@
 #include <QDebug>
 #include <QFileDialog>
 #include <QStandardPaths>
+#include <QPointer>
 #include "px_dialog.h"
 #include "px_label.h"
 #include "px_pushbutton.h"
@@ -34,12 +35,15 @@
 #include "px_common_new/file_util.h"
 #include "render_panel/user/px_user_manager.h"
 #include "render_panel/database/stream_db_operator.h"
+#include "render_panel/ui/qt_lifetime_guard.h"
 
 namespace px
 {
 
-    StSecurity::StSecurity(const std::shared_ptr<PxApplication>& app, QWidget* parent) : TabBase(app, parent) {
-        settings_ = PxSettings::Instance();
+    StSecurity::StSecurity(const std::shared_ptr<PxApplication>& app,
+                           QWidget* parent) // NOLINT(gammaray-raw-pointer-boundary) Qt parent ABI; QWidget owns the child.
+        : TabBase(app, parent),
+          security_settings_(*PxSettings::Instance()) {
         auto root_layout = new NoMarginHLayout();
         auto column1_layout = new NoMarginVLayout();
         root_layout->addLayout(column1_layout);
@@ -84,10 +88,13 @@ namespace px
                 layout->addStretch();
                 segment_layout->addSpacing(5);
                 segment_layout->addLayout(layout);
-                connect(edit, &QPushButton::clicked, this, [=, this]() {
-                    InputSafetyPwdDialog dialog(app_, this);
-                    dialog.exec();
-                });
+                const auto app_snapshot = app_;
+                connect(edit, &QPushButton::clicked, this,
+                        MakeQtLifetimeAction(QPointer<StSecurity>(this),
+                            [app_snapshot](const QPointer<StSecurity>& self) {
+                                InputSafetyPwdDialog dialog(app_snapshot, self);
+                                dialog.exec();
+                            }));
             }
 
             // Mouse&Keyboard
@@ -105,9 +112,10 @@ namespace px
                 layout->addStretch();
                 segment_layout->addSpacing(5);
                 segment_layout->addLayout(layout);
-                edit->setChecked(settings_->IsBeingOperatedEnabled());
-                connect(edit, &QCheckBox::checkStateChanged, this, [=, this](Qt::CheckState state) {
-                    settings_->SetCanBeOperated(state == Qt::CheckState::Checked);
+                edit->setChecked(security_settings_.get().IsBeingOperatedEnabled());
+                const auto settings = security_settings_;
+                connect(edit, &QCheckBox::checkStateChanged, this, [settings](Qt::CheckState state) {
+                    settings.get().SetCanBeOperated(state == Qt::CheckState::Checked);
                 });
             }
 
@@ -126,9 +134,10 @@ namespace px
                 layout->addStretch();
                 segment_layout->addSpacing(5);
                 segment_layout->addLayout(layout);
-                edit->setChecked(settings_->IsFileTransferEnabled());
-                connect(edit, &QCheckBox::checkStateChanged, this, [=, this](Qt::CheckState state) {
-                    settings_->SetFileTransferEnabled(state == Qt::CheckState::Checked);
+                edit->setChecked(security_settings_.get().IsFileTransferEnabled());
+                const auto settings = security_settings_;
+                connect(edit, &QCheckBox::checkStateChanged, this, [settings](Qt::CheckState state) {
+                    settings.get().SetFileTransferEnabled(state == Qt::CheckState::Checked);
                 });
             }
 
@@ -147,16 +156,23 @@ namespace px
                 layout->addStretch();
                 segment_layout->addSpacing(5);
                 segment_layout->addLayout(layout);
-                edit->setChecked(settings_->IsSSLConnectionEnabled());
+                edit->setChecked(security_settings_.get().IsSSLConnectionEnabled());
 
-                connect(edit, &QCheckBox::stateChanged, this, [=, this](int state) {
-                    bool enabled = state == 2;
+                const auto context = context_;
+                const auto settings = security_settings_;
+                QPointer<QCheckBox> edit_guard(edit);
+                connect(edit, &QCheckBox::stateChanged, this,
+                        [context, edit_guard, settings](int state) {
+                    const bool enabled = state == 2;
                     if (!enabled) {
-                        context_->PostUIDelayTask([=, this]() {
-                            TcDialog dialog(tcTr("id_tips"), tcTr("id_dialog_ssl_always_on"));
-                            dialog.exec();
-                            edit->setChecked(settings_->IsSSLConnectionEnabled());
-                        }, 50);
+                        context->PostUIDelayTask(
+                            MakeQtLifetimeAction(edit_guard,
+                                [settings](const QPointer<QCheckBox>& checkbox) {
+                                    TcDialog dialog(tcTr("id_tips"), tcTr("id_dialog_ssl_always_on"));
+                                    dialog.exec();
+                                    checkbox->setChecked(settings.get().IsSSLConnectionEnabled());
+                                }),
+                            50);
                     }
                 });
             }
@@ -176,16 +192,23 @@ namespace px
                 layout->addStretch();
                 segment_layout->addSpacing(5);
                 segment_layout->addLayout(layout);
-                edit->setChecked(settings_->IsVisitHistoryEnabled());
+                edit->setChecked(security_settings_.get().IsVisitHistoryEnabled());
 
-                connect(edit, &QCheckBox::stateChanged, this, [=, this](int state) {
-                    bool enabled = state == 2;
+                const auto context = context_;
+                const auto settings = security_settings_;
+                QPointer<QCheckBox> edit_guard(edit);
+                connect(edit, &QCheckBox::stateChanged, this,
+                        [context, edit_guard, settings](int state) {
+                    const bool enabled = state == 2;
                     if (!enabled) {
-                        context_->PostUIDelayTask([=, this]() {
-                            TcDialog dialog(tcTr("id_tips"), tcTr("id_dialog_record_visitor_always_on"));
-                            dialog.exec();
-                            edit->setChecked(settings_->IsVisitHistoryEnabled());
-                        }, 50);
+                        context->PostUIDelayTask(
+                            MakeQtLifetimeAction(edit_guard,
+                                [settings](const QPointer<QCheckBox>& checkbox) {
+                                    TcDialog dialog(tcTr("id_tips"), tcTr("id_dialog_record_visitor_always_on"));
+                                    dialog.exec();
+                                    checkbox->setChecked(settings.get().IsVisitHistoryEnabled());
+                                }),
+                            50);
                     }
                 });
             }
@@ -205,16 +228,23 @@ namespace px
                 layout->addStretch();
                 segment_layout->addSpacing(5);
                 segment_layout->addLayout(layout);
-                edit->setChecked(settings_->IsFileTransferHistoryEnabled());
+                edit->setChecked(security_settings_.get().IsFileTransferHistoryEnabled());
 
-                connect(edit, &QCheckBox::stateChanged, this, [=, this](int state) {
-                    bool enabled = state == 2;
+                const auto context = context_;
+                const auto settings = security_settings_;
+                QPointer<QCheckBox> edit_guard(edit);
+                connect(edit, &QCheckBox::stateChanged, this,
+                        [context, edit_guard, settings](int state) {
+                    const bool enabled = state == 2;
                     if (!enabled) {
-                        context_->PostUIDelayTask([=, this]() {
-                            TcDialog dialog(tcTr("id_tips"), tcTr("id_dialog_record_file_transfer_always_on"));
-                            dialog.exec();
-                            edit->setChecked(settings_->IsFileTransferHistoryEnabled());
-                        }, 50);
+                        context->PostUIDelayTask(
+                            MakeQtLifetimeAction(edit_guard,
+                                [settings](const QPointer<QCheckBox>& checkbox) {
+                                    TcDialog dialog(tcTr("id_tips"), tcTr("id_dialog_record_file_transfer_always_on"));
+                                    dialog.exec();
+                                    checkbox->setChecked(settings.get().IsFileTransferHistoryEnabled());
+                                }),
+                            50);
                     }
                 });
             }
@@ -234,10 +264,11 @@ namespace px
                 layout->addStretch();
                 segment_layout->addSpacing(5);
                 segment_layout->addLayout(layout);
-                edit->setChecked(settings_->IsDisconnectAutoLockScreenEnabled());
+                edit->setChecked(security_settings_.get().IsDisconnectAutoLockScreenEnabled());
 
-                connect(edit, &QCheckBox::checkStateChanged, this, [=, this](Qt::CheckState state) {
-                    settings_->SetDisconnectAutoLockScreen(state == Qt::CheckState::Checked);
+                const auto settings = security_settings_;
+                connect(edit, &QCheckBox::checkStateChanged, this, [settings](Qt::CheckState state) {
+                    settings.get().SetDisconnectAutoLockScreen(state == Qt::CheckState::Checked);
                 });
             }
 
@@ -259,16 +290,23 @@ namespace px
                 layout->addStretch();
                 segment_layout->addSpacing(5);
                 segment_layout->addLayout(layout);
-                connect(edit, &QPushButton::clicked, this, [=, this]() {
-                    TcDialog dialog(tcTr("id_clear"), tcTr("id_ask_clear_data"), this);
-                    if (dialog.exec() == kDoneOk) {
-                        // clear
-                        settings_->ClearData();
-                        grApp->GetUserManager()->Clear();
-                        context_->GetStreamDBManager()->Clear();
-                        context_->SendAppMessage(MsgForceClearProgramData{});
-                    }
-                });
+                const auto context = context_;
+                const auto settings = security_settings_;
+                const auto user_manager = app_->GetUserManager();
+                const auto db_manager = context_->GetStreamDBManager();
+                connect(edit, &QPushButton::clicked, this,
+                        MakeQtLifetimeAction(QPointer<StSecurity>(this),
+                            [context, db_manager, settings, user_manager](
+                                const QPointer<StSecurity>& self) {
+                                TcDialog dialog(tcTr("id_clear"), tcTr("id_ask_clear_data"), self);
+                                if (dialog.exec() == kDoneOk) {
+                                    // clear
+                                    settings.get().ClearData();
+                                    user_manager->Clear();
+                                    db_manager->Clear();
+                                    context->SendAppMessage(MsgForceClearProgramData{});
+                                }
+                            }));
             }
 
             ///
@@ -296,11 +334,14 @@ namespace px
                 layout->addStretch();
                 segment_layout->addSpacing(5);
                 segment_layout->addLayout(layout);
-                edit->setChecked(settings_->IsDevelopMode());
-                connect(edit, &QCheckBox::checkStateChanged, this, [=, this](Qt::CheckState state) {
-                    auto enabled = state == Qt::CheckState::Checked;
-                    settings_->SetDevelopModeEnabled(enabled);
-                    context_->SendAppMessage(MsgDevelopModeUpdated {
+                edit->setChecked(security_settings_.get().IsDevelopMode());
+                const auto context = context_;
+                const auto settings = security_settings_;
+                connect(edit, &QCheckBox::checkStateChanged, this,
+                        [context, settings](Qt::CheckState state) {
+                    const auto enabled = state == Qt::CheckState::Checked;
+                    settings.get().SetDevelopModeEnabled(enabled);
+                    context->SendAppMessage(MsgDevelopModeUpdated {
                         .enabled_ = enabled,
                     });
                 });
@@ -324,75 +365,80 @@ namespace px
                 layout->addStretch();
                 segment_layout->addSpacing(5);
                 segment_layout->addLayout(layout);
-                connect(edit, &QPushButton::clicked, this, [=, this]() {
-                    auto desktop_path = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
-                    auto target_dir = TcDialogUtil::SelectDirectory(tcTr("id_save_path"), desktop_path, nullptr);
-                    LOGI("Select target dir: {}", target_dir.toStdString());
-                    if (target_dir.isEmpty()) {
-                        return;
-                    }
-                    target_dir += "/px_dat_logs.zip";
-
-                    auto from = FolderUtil::GetProgramDataPath();
-                    auto to = from + L"/../back";
-
-                    // delete old backup files
-                    FolderUtil::DeleteDir(std::filesystem::path(to));
-
-                    auto dialog = std::make_shared<InfiniteLoading>(context_, tcTr("id_collecting"));
-                    dialog->show();
-                    auto fn_close_dialog = [=, this]() {
-                        context_->PostUITask([=, this]() {
-                            dialog->Close();
-                        });
-                    };
-
-                    context_->PostTask([=, this]() {
-                        std::vector<std::string> ignore_suffix = {
-                            "h264", "h265", "jpg", "png"
-                        };
-                        if (!FolderUtil::CopyDir(from, to, [&](const std::string& path, const std::string& filename) {
-                            // suffix filter
-                            auto suffix = FileUtil::GetFileSuffix(filename);
-                            suffix = StringUtil::ToLowerCpy(suffix);
-                            bool need_ignore_it = false;
-                            for (const auto& sf : ignore_suffix) {
-                                if (suffix.find(sf) != std::string::npos) {
-                                    need_ignore_it = true;
-                                    break;
+                connect(edit, &QPushButton::clicked, this,
+                        MakeQtLifetimeAction(QPointer<StSecurity>(this),
+                            [](const QPointer<StSecurity>& self) {
+                                auto desktop_path = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+                                auto target_dir = TcDialogUtil::SelectDirectory(tcTr("id_save_path"), desktop_path, nullptr);
+                                LOGI("Select target dir: {}", target_dir.toStdString());
+                                if (target_dir.isEmpty()) {
+                                    return;
                                 }
-                            }
-                            if (need_ignore_it) {
-                                return true;
-                            }
+                                target_dir += "/px_dat_logs.zip";
 
-                            // dump filter
-                            if (suffix.find("dmp") != std::string::npos) {
-                                need_ignore_it = true;
-                                LOGI("===> dump file: {}", filename);
-                                if (filename.find("px_") != std::string::npos) {
-                                    need_ignore_it = false;
-                                }
-                            }
+                                auto from = FolderUtil::GetProgramDataPath();
+                                auto to = from + L"/../back";
 
-                            return need_ignore_it;
-                        }, true)) {
-                            LOGE("CopyDirectory failed: {} -> {}", QString::fromStdWString(from).toStdString(), QString::fromStdWString(to).toStdString());
-                            return;
-                        }
+                                // delete old backup files
+                                FolderUtil::DeleteDir(std::filesystem::path(to));
 
-                        const auto& zip_folder = to;
-                        const auto target_zip_file = target_dir.toStdWString();
-                        LOGE("Zip folder: {} -> {}", QString::fromStdWString(zip_folder).toStdString(), QString::fromStdWString(target_zip_file).toStdString());
-                        if (!ZipUtil::ZipFolder(zip_folder, target_zip_file)) {
-                            fn_close_dialog();
-                            LOGE("Zip folder failed!");
-                            return;
-                        }
-                        fn_close_dialog();
-                        FileUtil::SelectFileInExplorer(std::filesystem::path(target_dir.toStdWString()));
-                    });
-                });
+                                const auto context = self->context_;
+                                auto dialog = std::make_shared<InfiniteLoading>(context, tcTr("id_collecting"));
+                                dialog->show();
+                                auto fn_close_dialog = [context, dialog]() {
+                                    context->PostUITask([dialog]() {
+                                        dialog->Close();
+                                    });
+                                };
+
+                                context->PostTask([from, to, target_dir, fn_close_dialog]() {
+                                    const std::vector<std::string> ignore_suffix = {
+                                        "h264", "h265", "jpg", "png"
+                                    };
+                                    if (!FolderUtil::CopyDir(from, to, [ignore_suffix](
+                                        const std::string&, const std::string& filename) {
+                                            // suffix filter
+                                            auto suffix = FileUtil::GetFileSuffix(filename);
+                                            suffix = StringUtil::ToLowerCpy(suffix);
+                                            bool need_ignore_it = false;
+                                            for (const auto& sf : ignore_suffix) {
+                                                if (suffix.find(sf) != std::string::npos) {
+                                                    need_ignore_it = true;
+                                                    break;
+                                                }
+                                            }
+                                            if (need_ignore_it) {
+                                                return true;
+                                            }
+
+                                            // dump filter
+                                            if (suffix.find("dmp") != std::string::npos) {
+                                                need_ignore_it = true;
+                                                LOGI("===> dump file: {}", filename);
+                                                if (filename.find("px_") != std::string::npos) {
+                                                    need_ignore_it = false;
+                                                }
+                                            }
+
+                                            return need_ignore_it;
+                                    }, true)) {
+                                        LOGE("CopyDirectory failed: {} -> {}", QString::fromStdWString(from).toStdString(), QString::fromStdWString(to).toStdString());
+                                        fn_close_dialog();
+                                        return;
+                                    }
+
+                                    const auto& zip_folder = to;
+                                    const auto target_zip_file = target_dir.toStdWString();
+                                    LOGE("Zip folder: {} -> {}", QString::fromStdWString(zip_folder).toStdString(), QString::fromStdWString(target_zip_file).toStdString());
+                                    if (!ZipUtil::ZipFolder(zip_folder, target_zip_file)) {
+                                        fn_close_dialog();
+                                        LOGE("Zip folder failed!");
+                                        return;
+                                    }
+                                    fn_close_dialog();
+                                    FileUtil::SelectFileInExplorer(std::filesystem::path(target_dir.toStdWString()));
+                                });
+                            }));
             }
 
             // Exit All Programs
@@ -413,8 +459,9 @@ namespace px
                 layout->addStretch();
                 segment_layout->addSpacing(5);
                 segment_layout->addLayout(layout);
-                connect(edit, &QPushButton::clicked, this, [=, this]() {
-                    context_->SendAppMessage(MsgForceStopAllPrograms{
+                const auto context = context_;
+                connect(edit, &QPushButton::clicked, this, [context]() {
+                    context->SendAppMessage(MsgForceStopAllPrograms{
                         .uninstall_service_ = false,
                     });
                 });
@@ -438,8 +485,9 @@ namespace px
                 layout->addStretch();
                 segment_layout->addSpacing(5);
                 segment_layout->addLayout(layout);
-                connect(edit, &QPushButton::clicked, this, [=, this]() {
-                    context_->SendAppMessage(MsgForceStopAllPrograms{
+                const auto context = context_;
+                connect(edit, &QPushButton::clicked, this, [context]() {
+                    context->SendAppMessage(MsgForceStopAllPrograms{
                         .uninstall_service_ = true,
                     });
                 });

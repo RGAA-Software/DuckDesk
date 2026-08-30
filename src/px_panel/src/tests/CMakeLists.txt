@@ -124,3 +124,9 @@ target_link_libraries(test_panel_win_message_window_lifecycle PRIVATE
 add_test(NAME panel_win_message_window_lifecycle
         COMMAND test_panel_win_message_window_lifecycle)
 set_tests_properties(panel_win_message_window_lifecycle PROPERTIES TIMEOUT 20)
+
+add_executable(test_panel_qt_lifetime_guard
+        test_panel_qt_lifetime_guard.cpp)
+target_link_libraries(test_panel_qt_lifetime_guard PRIVATE
+        GTest::gtest GTest::gtest_main Qt${QT_VERSION_MAJOR}::Core)
+add_test(NAME panel_qt_lifetime_guard COMMAND test_panel_qt_lifetime_guard)

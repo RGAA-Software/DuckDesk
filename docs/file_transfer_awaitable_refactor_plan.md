@@ -2488,3 +2488,36 @@ WinMessageLoop` 强引用环，消息线程使用成员 `std::thread` 并在回�
 
 `px_panel.exe` build/dist SHA-256：
 `680F94825B1ECE09204CB64381118562556CF1E799A968DE6E4602F3BAFC3369`。
+
+### 12.51 Phase 7 Panel 安全设置页回调与日志归档生命周期收敛
+
+安全设置页原先所有 Qt action 都捕获页面 `this`，三个“必须保持启用”的安全开关还会把
+页面、CheckBox 和 Settings 裸地址带入 50 ms 延迟任务。日志归档 worker 同样捕获页面，
+复制失败时不会关闭 loading；清理数据路径则通过全局应用对象和页面成员临时寻找服务。
+
+本批完成：
+
+- 新增 header-only `MakeQtLifetimeAction`，以 `QPointer` 观察 Qt owner；对象存活时执行 action，
+  对象销毁后已排队 action 直接返回，Qt signal 附带但业务不需要的参数不会进入 action；
+- SSL、访问历史和文件传输历史三个延迟恢复动作只捕获 CheckBox guard 与
+  `reference_wrapper<PxSettings>`；页面或控件在 50 ms 内销毁时不再显示对话框或访问旧控件；
+- 设置写入、开发模式通知、停止与卸载程序等同步 action 只捕获 Settings 引用或共享 Context；
+  密码和清理确认对话框通过页面 `QPointer` 取得 Qt parent；
+- 清理数据在连接 action 前取得 UserManager、数据库与 Context 的共享快照，不再依赖全局应用
+  指针或回调中的页面成员；`StSecurity` 自身重复保存的 `PxSettings*` 改为 `reference_wrapper`；
+- 日志归档 worker 只捕获路径、共享 Context、loading 和过滤器值快照；UI 关闭经
+  `PostUITask` 返回 UI 线程，复制和压缩失败都会关闭 loading，任务不再依赖页面寿命；
+- `StSecurity` 整页异步与 Qt action 删除全部 `[this]` 捕获，没有新增 raw owner。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| Qt owner 存活 | guarded action 恰好派发一次，PASS |
+| owner 销毁/排队 action | QObject 销毁后连续触发 10 个已保存 action，零派发；专项 CTest 连续 10/10 PASS |
+| Panel 生命周期回归 | common weak callback、shutdown、pipe、auth、消息窗与 Qt guard 六个 CTest 各连续 10 轮，共 60 次 PASS |
+| ownership / whitespace | `check_cpp_ownership` 与 `git diff --check` PASS；本批无新增裸指针声明、手工 ownership 或 `[this]` 捕获 |
+| focused build/dist | `build_cpp_panel_shutdown_tests.bat` 定向编译测试与 `px_panel`；未运行发版整编；运行中的 Panel 已停止并发布，build/dist 哈希一致 |
+
+`px_panel.exe` build/dist SHA-256：
+`C232F6863314C331265B0D0725B96F5253594E405B51291EA81C9C665FAE764A`。
