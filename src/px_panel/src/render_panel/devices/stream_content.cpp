@@ -23,7 +23,8 @@
 namespace px
 {
 
-    AddButton::AddButton(QWidget* parent) : QLabel(parent) {
+    AddButton::AddButton(QWidget* parent) // NOLINT(gammaray-raw-pointer-boundary) Qt parent ABI; QLabel retains ownership.
+        : QLabel(parent) {
         setFixedSize(50, 50);
         setStyleSheet("background:#00000000;");
         auto ps = new QGraphicsDropShadowEffect();
@@ -101,8 +102,12 @@ namespace px
 
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - //
 
-    StreamContent::StreamContent(const std::shared_ptr<PxContext>& ctx, QWidget* parent) : QWidget(parent) {
+    StreamContent::StreamContent(
+        const std::shared_ptr<PxContext>& ctx,
+        QWidget* parent) // NOLINT(gammaray-raw-pointer-boundary) Qt parent ABI; QWidget retains ownership.
+        : QWidget(parent) {
         context_ = ctx;
+        QPointer<StreamContent> self(this);
         auto root_layout = new QVBoxLayout();
         WidgetHelper::ClearMargins(root_layout);
 
@@ -131,21 +136,22 @@ namespace px
             root_layout->addLayout(layout);
 
             //
-            btn_refresh->SetOnImageButtonClicked([=, this]() {
-                if (!stream_list_) {
+            btn_refresh->SetOnImageButtonClicked([self]() {
+                if (!self || !self->stream_list_) {
                     return;
                 }
-                context_->PostTask([=, this]() {
-                    stream_list_->RefreshResources();
-                });
+                self->stream_list_->RefreshResources();
             });
         }
 
         auto stream_list = new AppStreamList(
             ctx,
             AppStreamListMode::kRemoteDevices,
-            [this](bool empty) {
-                if (empty) ShowEmptyTip(); else HideEmptyTip();
+            [self](bool empty) {
+                if (!self) {
+                    return;
+                }
+                if (empty) self->ShowEmptyTip(); else self->HideEmptyTip();
             },
             this);
         stream_list_ = stream_list;
@@ -154,18 +160,21 @@ namespace px
         setLayout(root_layout);
 
         add_btn_ = new AddButton(this);
-        add_btn_->SetOnClickCallback([=, this]() {
+        add_btn_->SetOnClickCallback([self, ctx]() {
+            if (!self) {
+                return;
+            }
 
-            SelectStreamTypeDialog select_stream_dialog(ctx, this);
+            SelectStreamTypeDialog select_stream_dialog(ctx, self);
             auto r = select_stream_dialog.exec();
             if (r == 1) {
                 // create by link://
-                CreateStreamConnInfoDialog dialog(ctx, this);
+                CreateStreamConnInfoDialog dialog(ctx, self);
                 dialog.exec();
             }
             else if (r == 2) {
                 // create by host/port
-                CreateStreamDialog dialog(ctx, this);
+                CreateStreamDialog dialog(ctx, self);
                 dialog.exec();
             }
         });

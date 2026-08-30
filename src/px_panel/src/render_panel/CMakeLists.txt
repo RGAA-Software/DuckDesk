@@ -77,6 +77,7 @@ set(PANEL_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/px_render_msg_processor.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/devices/app_stream_list.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/stream_resource_refresh_gate.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/devices/stream_launch_auth_workflow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/devices/create_stream_dialog.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/devices/stream_item_widget.cpp

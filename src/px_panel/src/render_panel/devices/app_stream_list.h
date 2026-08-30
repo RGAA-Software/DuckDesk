@@ -19,10 +19,8 @@
 #include <QPaintEvent>
 #include <map>
 #include <unordered_map>
-#include <QProcess>
 #include <QPointer>
 #include <mutex>
-#include <atomic>
 #include <functional>
 #include <optional>
 
@@ -39,6 +37,7 @@ namespace px
     class RunningStreamManager;
     class StreamStateChecker;
     class StreamItemWidget;
+    class StreamResourceRefreshGate;
 
     enum class AppStreamListMode {
         kRemoteDevices,
@@ -66,6 +65,7 @@ namespace px
 
         void CreateLayout();
         void Init();
+        void StartResourceRefresh(bool identity_changed);
 
         void DeleteStream(const std::shared_ptr<px_console::ConsoleStream>& item);
         void StartStream(const std::shared_ptr<px_console::ConsoleStream>& item, bool force_only_viewing);
@@ -98,12 +98,10 @@ namespace px
         void ShowSettings(const std::shared_ptr<px_console::ConsoleStream>& item);
 
         std::vector<std::shared_ptr<px_console::ConsoleStream>> CopyStreams();
-        void RefreshRemoteDevices();
-        void RefreshCloudApplications();
         void ClearIdentityResources();
 
     private:
-        PxSettings* settings_ = nullptr;
+        std::reference_wrapper<PxSettings> settings_;
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<StreamDBOperator> db_mgr_ = nullptr;
         std::mutex streams_mtx_;
@@ -113,12 +111,12 @@ namespace px
         AppStreamListMode mode_ = AppStreamListMode::kRemoteDevices;
         std::function<void(bool)> on_empty_changed_;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
-        QListWidget* stream_list_ = nullptr;
+        QPointer<QListWidget> stream_list_;
         std::shared_ptr<RunningStreamManager> running_stream_mgr_ = nullptr;
         std::shared_ptr<StreamLaunchAuthWorkflow> stream_launch_auth_workflow_ = nullptr;
         // online state checker
         std::shared_ptr<StreamStateChecker> state_checker_ = nullptr;
-        std::atomic_bool resource_refresh_inflight_ {false};
+        std::shared_ptr<StreamResourceRefreshGate> resource_refresh_gate_ = nullptr;
 
     };
 

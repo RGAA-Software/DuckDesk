@@ -273,6 +273,8 @@ reconnect tests pass with video/audio continuity.
 ### Phase 7 - migrate Panel, SDK and remaining native consumers
 
 - Migrate Panel QObject listeners to guarded UI executors.
+- Panel 设备/云应用目录刷新已拆为共享后台状态与 guarded UI completion；普通请求合并、
+  身份代次替换、串行数据库投影、析构后晚到 completion 均已有 10 轮专项测试。
 - Migrate SDK/native Android/relay/service listeners and timers using weak
   ownership without changing plugin or WebRTC ABI boundaries.
 - Audit the repository again and resolve all in-scope notification lifetime

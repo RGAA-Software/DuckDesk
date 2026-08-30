@@ -86,6 +86,14 @@ target_link_libraries(test_stream_launch_auth_workflow PRIVATE
         GTest::gtest GTest::gtest_main px_console_client px_common_new)
 add_test(NAME panel_stream_launch_auth_workflow COMMAND test_stream_launch_auth_workflow)
 
+add_executable(test_stream_resource_refresh_gate
+        test_stream_resource_refresh_gate.cpp
+        ../render_panel/devices/stream_resource_refresh_gate.cpp)
+target_link_libraries(test_stream_resource_refresh_gate PRIVATE
+        GTest::gtest GTest::gtest_main)
+add_test(NAME panel_stream_resource_refresh_gate
+        COMMAND test_stream_resource_refresh_gate)
+
 add_executable(test_panel_shutdown_sequence
         test_panel_shutdown_sequence.cpp
         ../render_panel/panel_shutdown_sequence.cpp)

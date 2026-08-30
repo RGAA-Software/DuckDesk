@@ -2414,3 +2414,42 @@ WinMessageLoop` 强引用环，消息线程使用成员 `std::thread` 并在回�
 
 `px_panel.exe` build/dist SHA-256：
 `5DB99AE250DDD45E4484CE371FE5A5FC2DCCD7762425B5F1DE05188DDCA4B4C6`。
+
+### 12.49 Phase 7 Panel 资源列表异步刷新生命周期与线程归属收敛
+
+远程设备与云应用列表原先从 UI 回调再次投递 `PostTask([self])`，随后在后台线程通过
+`AppStreamList` 访问 Context、Settings、数据库、状态检查器和 Qt 状态。最终重绘虽然会
+再次投递 UI，但请求阶段仍会与 QWidget 析构并发；登录/退出还可能让旧身份响应晚于新身份
+响应落库。云应用 Tab 和手动刷新按钮也沿用了同一条后台访问 QWidget 的路径。
+
+本批完成：
+
+- 新增 `StreamResourceRefreshGate`，普通 5 秒轮询与手动刷新在已有请求活动时合并，避免
+  重复 Console HTTP 查询；登录/退出使用新代次替代旧请求，旧代次完成不能更新 UI；
+- 门控为实际后台操作增加串行执行屏障：旧身份操作若已开始，新身份清理与刷新一定排在其
+  后面并成为最终数据库投影；尚未开始的旧操作会在代次检查处直接跳过；
+- Console 查询、设备投影数据库更新和应用目录解析只捕获共享 UserManager、数据库、
+  Context、门控与配置值快照，不再捕获或访问 QWidget；结果只通过 `PostUITask` 应用；
+- AppStreamList 析构先 Stop 门控，已排队或晚到结果无条件失效；状态检查任务先在 UI 线程
+  复制数据，再只用共享 StateChecker 在后台工作；
+- 登录/退出在 UI 线程立即清空身份相关展示，新身份数据库清理和查询在同一个串行网络操作
+  内完成，避免旧/新账号设备卡片相互覆盖；
+- 停止云应用与保存安全密码的后台任务改为只使用共享服务，成功/失败展示回到 UI 线程；
+- StreamContent 与 TabCloudApps 的异步 `[this]` 捕获删除，Qt 子控件观察成员改为
+  `QPointer`；Settings 单例观察成员改为 `reference_wrapper`，不再长期保存裸地址；
+- 删除无实际定制行为的 MainItemDelegate，避免新增手工 Qt 对象所有权。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 请求合并 | 活动刷新期间普通请求只有一个 starter，16 路并发请求连续 10 轮均为 1，PASS |
+| 身份替换 | 新代次使旧完成失效；已开始的旧/新操作严格按 1、2 顺序执行，新代次最终完成，10/10 PASS |
+| 析构/晚到结果 | Stop 后排队 completion、普通 Begin 与 supersede Begin 全部被拒绝，PASS |
+| 重复启停 | Begin/Complete/Begin/Stop/late Complete 连续 10 轮确定性通过 |
+| 完整专项 | 6 个 GTest 场景连续运行 10/10 PASS，共 60 项 |
+| ownership / whitespace | `check_cpp_ownership` PASS；新增代码无裸成员、手工所有权或 `[this]` 捕获 |
+| focused build/dist | 仅定向编译 `test_stream_resource_refresh_gate` 与 `px_panel`；未运行发版整编；Panel build/dist 哈希一致 |
+
+`px_panel.exe` build/dist SHA-256：
+`7AADF50209EF69319BD12D68B544BF9C401E0F128186AD250B54547215A15AFE`。

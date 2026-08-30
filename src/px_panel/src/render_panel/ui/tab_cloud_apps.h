@@ -4,6 +4,7 @@
 #include "tab_base.h"
 
 #include <QLabel>
+#include <QPointer>
 
 namespace px
 {
@@ -12,18 +13,20 @@ namespace px
 
     class TabCloudApps : public TabBase {
     public:
-        explicit TabCloudApps(const std::shared_ptr<PxApplication>& app, QWidget* parent = nullptr);
+        explicit TabCloudApps(
+            const std::shared_ptr<PxApplication>& app,
+            QWidget* parent = nullptr); // NOLINT(gammaray-raw-pointer-boundary) Qt parent ABI.
         ~TabCloudApps() override;
 
         void OnTabShow() override;
-        void resizeEvent(QResizeEvent* event) override;
+        void resizeEvent(QResizeEvent* event) override; // NOLINT(gammaray-raw-pointer-boundary) Qt virtual ABI.
 
     private:
         void RefreshApplications();
         void SetEmpty(bool empty);
 
-        AppStreamList* app_list_ = nullptr;
-        QLabel* empty_tip_ = nullptr;
+        QPointer<AppStreamList> app_list_;
+        QPointer<QLabel> empty_tip_;
     };
 }
 

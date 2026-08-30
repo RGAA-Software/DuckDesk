@@ -4,11 +4,8 @@
 
 #include "app_stream_list.h"
 
-#include <QStyledItemDelegate>
-#include <QStyleOptionViewItem>
 #include <QtWidgets/QMenu>
 #include <QWidget>
-#include <QProcess>
 #include <QPointer>
 #include <QUrl>
 #include <QUrlQuery>
@@ -39,6 +36,7 @@
 #include "input_remote_pwd_dialog.h"
 #include "stream_state_checker.h"
 #include "stream_launch_auth_workflow.h"
+#include "stream_resource_refresh_gate.h"
 #include "px_console_client/console_user.h"
 #include "px_console_client/console_device.h"
 #include "px_console_client/console_user_device.h"
@@ -56,27 +54,159 @@
 namespace px
 {
 
-    class MainItemDelegate : public QStyledItemDelegate {
-    public:
-        explicit MainItemDelegate(QObject* pParent) {}
-        ~MainItemDelegate() override = default;
+    namespace {
 
-        void updateEditorGeometry(QWidget* editor, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
-            editor->setGeometry(option.rect);
+        struct StreamResourceRefreshResult {
+            std::optional<ConsoleDeviceOnlineStates> online_states;
+            std::optional<std::vector<std::shared_ptr<px_console::ConsoleStream>>>
+                application_streams;
+        };
+
+        void RemoveIdentityDeviceProjections(
+            const std::shared_ptr<StreamDBOperator>& db_manager) {
+            for (const auto& stream : db_manager->GetAllStreamsSortByCreatedTime()) {
+                if (stream
+                    && stream->connect_type_ == connection_policy::kConsoleDeviceTicket) {
+                    db_manager->DeleteStream(stream->_id);
+                }
+            }
         }
-    };
+
+        void RefreshRemoteDeviceResources(
+            const std::shared_ptr<PxUserManager>& user_manager,
+            const std::shared_ptr<StreamDBOperator>& db_manager,
+            StreamResourceRefreshResult& refresh_result) {
+            const auto user_devices_result =
+                user_manager->QueryBindDevices(1, 200, false);
+            if (!user_devices_result.has_value()) {
+                LOGW("Keep current Console device cards because resource refresh failed: {}",
+                     static_cast<int>(user_devices_result.error()));
+                return;
+            }
+
+            const auto& user_devices = user_devices_result.value();
+            std::unordered_set<std::string> available_device_ids;
+            ConsoleDeviceOnlineStates online_states;
+            for (const auto& user_device : user_devices) {
+                if (!user_device->device_id_.empty() && user_device->device_) {
+                    available_device_ids.insert(user_device->device_id_);
+                    online_states[user_device->device_id_] =
+                        user_device->device_->active_;
+                }
+            }
+
+            // Console-sourced devices project the current identity. Reconcile
+            // only after a successful response so a network failure cannot be
+            // mistaken for an empty catalog.
+            for (const auto& stream : db_manager->GetAllStreamsSortByCreatedTime()) {
+                if (stream
+                    && stream->connect_type_ == connection_policy::kConsoleDeviceTicket
+                    && !available_device_ids.contains(stream->remote_device_id_)) {
+                    db_manager->DeleteStream(stream->_id);
+                }
+            }
+            for (const auto& user_device : user_devices) {
+                if (user_device->device_id_.empty() || !user_device->device_) {
+                    LOGE("Invalid user-device, user-device: {}", user_device->Dump());
+                    continue;
+                }
+
+                const auto existing = db_manager->GetStreamByRemoteDeviceId(
+                    user_device->device_id_);
+                if (existing.has_value()) {
+                    const auto& stream = existing.value();
+                    stream->stream_name_ = user_device->device_->device_name_;
+                    stream->remote_device_random_pwd_.clear();
+                    stream->remote_device_safety_pwd_.clear();
+                    stream->stream_host_.clear();
+                    stream->stream_port_ = 0;
+                    stream->relay_host_.clear();
+                    stream->relay_port_ = 0;
+                    stream->connect_type_ = connection_policy::kConsoleDeviceTicket;
+                    stream->console_online_ = user_device->device_->active_;
+                    db_manager->UpdateStream(stream);
+                    continue;
+                }
+
+                auto stream = std::make_shared<px_console::ConsoleStream>();
+                stream->remote_device_id_ = user_device->device_id_;
+                stream->stream_name_ = user_device->device_->device_name_;
+                stream->encode_bps_ = 0;
+                stream->encode_fps_ = 0;
+                stream->clipboard_enabled_ = false;
+                stream->audio_enabled_ = false;
+                stream->connect_type_ = connection_policy::kConsoleDeviceTicket;
+                stream->console_online_ = user_device->device_->active_;
+                db_manager->AddStream(stream);
+            }
+            refresh_result.online_states = std::move(online_states);
+        }
+
+        void RefreshCloudApplicationResources(
+            const std::shared_ptr<PxUserManager>& user_manager,
+            const std::string& console_host,
+            int console_port,
+            StreamResourceRefreshResult& refresh_result) {
+            const auto applications_result = user_manager->QueryApps();
+            if (!applications_result.has_value()) {
+                LOGW("Keep current Console application cards because catalog refresh failed: {}",
+                     static_cast<int>(applications_result.error()));
+                return;
+            }
+
+            std::vector<std::shared_ptr<px_console::ConsoleStream>> application_streams;
+            for (const auto& application : applications_result.value()) {
+                auto stream = std::make_shared<px_console::ConsoleStream>();
+                stream->stream_id_ = "console-app-" + application.app_id;
+                stream->stream_name_ = application.name;
+                stream->connect_type_ = connection_policy::kConsoleAppTicket;
+                stream->console_app_id_ = application.app_id;
+                stream->console_access_mode_ = application.access_mode;
+                stream->console_instance_state_ = "stopped";
+                if (!application.cover_url.empty()) {
+                    QUrl cover_url(QString::fromStdString(application.cover_url));
+                    if (cover_url.isRelative()) {
+                        QUrl console_base;
+                        console_base.setScheme("https");
+                        console_base.setHost(QString::fromStdString(console_host));
+                        console_base.setPort(console_port);
+                        console_base.setPath("/");
+                        cover_url = console_base.resolved(cover_url);
+                    }
+                    stream->console_cover_url_ = cover_url.toString().toStdString();
+                }
+                stream->audio_enabled_ = false;
+                stream->clipboard_enabled_ = false;
+                stream->console_online_ = true;
+                if (application.running_instance) {
+                    stream->console_instance_id_ =
+                        application.running_instance->instance_id;
+                    stream->console_instance_state_ =
+                        application.running_instance->state;
+                    stream->direct_online_ =
+                        application.running_instance->state == "running";
+                }
+                application_streams.push_back(std::move(stream));
+            }
+            refresh_result.application_streams = std::move(application_streams);
+        }
+
+    } // namespace
 
     // - - -- - - -- - - - -- -
 
     AppStreamList::AppStreamList(const std::shared_ptr<PxContext>& ctx,
                                  AppStreamListMode mode,
                                  std::function<void(bool)> on_empty_changed,
-                                 QWidget* parent)
-        : QWidget(parent), mode_(mode), on_empty_changed_(std::move(on_empty_changed)) {
+                                 QWidget* parent) // NOLINT(gammaray-raw-pointer-boundary) Qt parent ABI; QWidget owns the child.
+        : QWidget(parent),
+          settings_(*PxSettings::Instance()),
+          mode_(mode),
+          on_empty_changed_(std::move(on_empty_changed)) {
         context_ = ctx;
-        settings_ = PxSettings::Instance();
         db_mgr_ = context_->GetStreamDBManager();
         running_stream_mgr_ = context_->GetRunningStreamManager();
+        resource_refresh_gate_ = StreamResourceRefreshGate::Create();
         stream_launch_auth_workflow_ = StreamLaunchAuthWorkflow::Create(
             context_->GetMessageNotifier()->GetAsyncRuntime());
         if (mode_ == AppStreamListMode::kRemoteDevices) {
@@ -166,15 +296,13 @@ namespace px
             });
             state_checker_->Start();
             context_->PostUIDelayTask([self, ctx = context_]() {
-                if (!self) {
+                if (!self || !self->state_checker_) {
                     return;
                 }
-                ctx->PostTask([self]() {
-                    if (!self || !self->state_checker_) {
-                        return;
-                    }
-                    cat streams = self->CopyStreams();
-                    self->state_checker_->UpdateCurrentStreamItems(streams);
+                const auto state_checker = self->state_checker_;
+                auto streams = self->CopyStreams();
+                ctx->PostTask([state_checker, streams = std::move(streams)]() mutable {
+                    state_checker->UpdateCurrentStreamItems(streams);
                 });
             }, 2200);
         }
@@ -183,19 +311,18 @@ namespace px
         // sessions. Public applications must be visible on the first screen;
         // requiring a login event or a manual refresh leaves guest access
         // unreachable.
-        context_->PostUIDelayTask([self, ctx = context_]() {
+        context_->PostUIDelayTask([self]() {
             if (!self) {
                 return;
             }
-            ctx->PostTask([self]() {
-                if (self) {
-                    self->RefreshResources();
-                }
-            });
+            self->RefreshResources();
         }, 300);
     }
 
     AppStreamList::~AppStreamList() {
+        if (resource_refresh_gate_) {
+            resource_refresh_gate_->Stop();
+        }
         if (stream_launch_auth_workflow_) {
             stream_launch_auth_workflow_->Stop();
             stream_launch_auth_workflow_.reset();
@@ -209,9 +336,7 @@ namespace px
         auto root_layout = new QHBoxLayout();
         WidgetHelper::ClearMargins(root_layout);
 
-        auto delegate = new MainItemDelegate(this);
         stream_list_ = new QListWidget(this);
-        stream_list_->setItemDelegate(delegate);
 
         stream_list_->setMovement(QListView::Static);
         stream_list_->setViewMode(QListView::IconMode);
@@ -403,36 +528,31 @@ namespace px
             if (!self) {
                 return;
             }
-            self->context_->PostTask([self]() {
-                if (!self) {
-                    return;
-                }
-                if (self->state_checker_) {
-                    cat streams = self->CopyStreams();
-                    self->state_checker_->UpdateCurrentStreamItems(streams);
-                }
-                self->RefreshResources();
-            });
+            if (self->state_checker_) {
+                const auto state_checker = self->state_checker_;
+                auto streams = self->CopyStreams();
+                self->context_->PostTask([
+                    state_checker, streams = std::move(streams)]() mutable {
+                    state_checker->UpdateCurrentStreamItems(streams);
+                });
+            }
+            self->RefreshResources();
         });
 
-        msg_listener_->Listen<MsgUserLoggedIn>([self, ctx = context_](const MsgUserLoggedIn& msg) {
-            ctx->PostTask([self]() {
-                if (!self) {
-                    return;
-                }
-                self->ClearIdentityResources();
-                self->RefreshResources();
-            });
+        msg_listener_->Listen<MsgUserLoggedIn>([self](const MsgUserLoggedIn&) {
+            if (!self) {
+                return;
+            }
+            self->ClearIdentityResources();
+            self->StartResourceRefresh(true);
         });
 
-        msg_listener_->Listen<MsgUserLoggedOut>([self, ctx = context_](const MsgUserLoggedOut& msg) {
-            ctx->PostTask([self]() {
-                if (!self) {
-                    return;
-                }
-                self->ClearIdentityResources();
-                self->RefreshResources();
-            });
+        msg_listener_->Listen<MsgUserLoggedOut>([self](const MsgUserLoggedOut&) {
+            if (!self) {
+                return;
+            }
+            self->ClearIdentityResources();
+            self->StartResourceRefresh(true);
         });
     }
 
@@ -821,8 +941,8 @@ namespace px
                     : ConsoleErrorOperation::kConnectRemote;
                 message = MakeConsoleErrorMessage(
                     operation, api_error, error.message,
-                    MakeConsoleEndpoint(settings_->GetConsoleServerHost(),
-                                        settings_->GetConsoleServerPort()));
+                    MakeConsoleEndpoint(settings_.get().GetConsoleServerHost(),
+                                        settings_.get().GetConsoleServerPort()));
             }
             TcDialog dialog(tcTr("id_connect_failed"), message, grWorkspace.get());
             dialog.exec();
@@ -852,9 +972,9 @@ namespace px
         target_item->rtc_ice_config_json_ = resolved.ticket.rtc_ice_config_json;
         target_item->console_signal_device_id_ = resolved.ticket.signal_device_id;
         target_item->relay_host_ = !resolved.ticket.relay_host.empty()
-            ? resolved.ticket.relay_host : settings_->GetRelayServerHost();
+            ? resolved.ticket.relay_host : settings_.get().GetRelayServerHost();
         target_item->relay_port_ = resolved.ticket.relay_port > 0
-            ? resolved.ticket.relay_port : settings_->GetRelayServerPort();
+            ? resolved.ticket.relay_port : settings_.get().GetRelayServerPort();
         const auto has_permission = [&resolved](std::string_view permission) {
             return std::find(
                 resolved.ticket.permissions.begin(),
@@ -985,13 +1105,17 @@ namespace px
                     target_item->remote_device_safety_pwd_ = pwd_md5;
                     // update to database
                     QPointer<AppStreamList> self(this);
-                    context_->PostDBTask([self, target_item, pwd_md5]() {
-                        if (!self) {
-                            return;
-                        }
-                        auto mgr = self->context_->GetStreamDBManager();
-                        mgr->UpdateStreamSafetyPwd(target_item->stream_id_, pwd_md5);
-                        self->LoadStreamItems();
+                    const auto context = context_;
+                    const auto database = db_mgr_;
+                    context->PostDBTask([
+                        context, database, self, target_item, pwd_md5]() {
+                        database->UpdateStreamSafetyPwd(
+                            target_item->stream_id_, pwd_md5);
+                        context->PostUITask([self]() {
+                            if (self) {
+                                self->LoadStreamItems();
+                            }
+                        });
                     });
                     break;
                 }
@@ -1024,23 +1148,39 @@ namespace px
             if (item->console_instance_id_.empty()) return true;
             const auto instance_id = item->console_instance_id_;
             QPointer<AppStreamList> self(this);
-            context_->PostTask([self, item, instance_id]() {
-                if (!self) return;
-                const auto result = grApp->GetUserManager()->StopInstance(instance_id);
+            const auto context = context_;
+            const auto user_manager = grApp->GetUserManager();
+            const auto console_endpoint = MakeConsoleEndpoint(
+                settings_.get().GetConsoleServerHost(),
+                settings_.get().GetConsoleServerPort());
+            context->PostNetworkTask([
+                context, user_manager, self, item, instance_id,
+                console_endpoint]() {
+                const auto result = user_manager->StopInstance(instance_id);
                 if (result.has_value()) {
-                    item->console_instance_id_.clear();
-                    item->console_instance_state_ = "stopped";
-                    self->RefreshResources();
-                } else {
-                    const auto error = result.error();
-                    const auto error_message = px_console::ConsoleApiLastErrorMessage();
+                    context->PostUITask([self, item]() {
+                        if (!self) {
+                            return;
+                        }
+                        item->console_instance_id_.clear();
+                        item->console_instance_state_ = "stopped";
+                        self->RefreshResources();
+                    });
+                    return;
+                }
+                const auto error = result.error();
+                const auto error_message = px_console::ConsoleApiLastErrorMessage();
+                context->PostUITask([
+                    self, error, error_message, console_endpoint]() {
+                    if (!self) {
+                        return;
+                    }
                     self->context_->NotifyAppErrMessage(
                         tcTr("id_error"),
-                        MakeConsoleErrorMessage(ConsoleErrorOperation::kStopApplication,
-                            error, error_message, MakeConsoleEndpoint(
-                                self->settings_->GetConsoleServerHost(),
-                                self->settings_->GetConsoleServerPort())));
-                }
+                        MakeConsoleErrorMessage(
+                            ConsoleErrorOperation::kStopApplication, error,
+                            error_message, console_endpoint));
+                });
             });
             return true;
         }
@@ -1284,7 +1424,7 @@ namespace px
 
                 int index = 0;
                 for (auto& stream : self->streams_) {
-                    stream->device_id_ = self->settings_->GetDeviceId();
+                    stream->device_id_ = self->settings_.get().GetDeviceId();
                     self->AddItem(stream, index++);
                 }
 
@@ -1391,8 +1531,8 @@ namespace px
                     ConsoleErrorOperation::kFileTransfer,
                     api_error,
                     error.message,
-                    MakeConsoleEndpoint(settings_->GetConsoleServerHost(),
-                                        settings_->GetConsoleServerPort()));
+                    MakeConsoleEndpoint(settings_.get().GetConsoleServerHost(),
+                                        settings_.get().GetConsoleServerPort()));
             context_->NotifyAppErrMessage(tcTr("id_error"), message);
             return;
         }
@@ -1405,9 +1545,9 @@ namespace px
         target_item->connection_ticket_ = payload.resolved.ticket.ticket;
         target_item->connection_nonce_ = payload.client_nonce;
         target_item->relay_host_ = !payload.resolved.ticket.relay_host.empty()
-            ? payload.resolved.ticket.relay_host : settings_->GetRelayServerHost();
+            ? payload.resolved.ticket.relay_host : settings_.get().GetRelayServerHost();
         target_item->relay_port_ = payload.resolved.ticket.relay_port > 0
-            ? payload.resolved.ticket.relay_port : settings_->GetRelayServerPort();
+            ? payload.resolved.ticket.relay_port : settings_.get().GetRelayServerPort();
         if (!target_item->force_relay_ && payload.direct_available) {
             // Standalone file transfer uses the reliable WS endpoint. RTC LAN
             // on the Render side is single-session; trying to create another
@@ -1426,20 +1566,69 @@ namespace px
     }
 
     void AppStreamList::RefreshResources() {
-        if (resource_refresh_inflight_.exchange(true)) {
+        StartResourceRefresh(false);
+    }
+
+    void AppStreamList::StartResourceRefresh(bool identity_changed) {
+        const auto generation = resource_refresh_gate_->Begin(identity_changed);
+        if (!generation.has_value()) {
             return;
         }
-        struct RefreshGuard {
-            std::atomic_bool& flag;
-            ~RefreshGuard() { flag.store(false); }
-        } refresh_guard {resource_refresh_inflight_};
 
-        if (mode_ == AppStreamListMode::kCloudApplications) {
-            RefreshCloudApplications();
-        } else {
-            RefreshRemoteDevices();
-        }
-        LoadStreamItems();
+        const auto mode = mode_;
+        const auto context = context_;
+        const auto database = db_mgr_;
+        const auto user_manager = grApp->GetUserManager();
+        const auto refresh_gate = resource_refresh_gate_;
+        const auto console_host = settings_.get().GetConsoleServerHost();
+        const auto console_port = settings_.get().GetConsoleServerPort();
+        QPointer<AppStreamList> self(this);
+
+        context->PostNetworkTask([
+            context, database, user_manager, refresh_gate, self, mode,
+            identity_changed, generation = *generation, console_host,
+            console_port]() mutable {
+            const auto refresh_result =
+                std::make_shared<StreamResourceRefreshResult>();
+            (void)refresh_gate->RunIfCurrent(generation, [
+                database, user_manager, refresh_result, mode,
+                identity_changed, console_host, console_port]() {
+                if (identity_changed
+                    && mode == AppStreamListMode::kRemoteDevices) {
+                    RemoveIdentityDeviceProjections(database);
+                }
+                if (mode == AppStreamListMode::kCloudApplications) {
+                    RefreshCloudApplicationResources(
+                        user_manager, console_host, console_port, *refresh_result);
+                }
+                else {
+                    RefreshRemoteDeviceResources(
+                        user_manager, database, *refresh_result);
+                }
+            });
+
+            context->PostUITask([
+                refresh_gate, self, mode, generation,
+                refresh_result]() mutable {
+                if (!refresh_gate->Complete(generation) || !self) {
+                    return;
+                }
+                {
+                    std::lock_guard lock(self->streams_mtx_);
+                    if (mode == AppStreamListMode::kCloudApplications
+                        && refresh_result->application_streams.has_value()) {
+                        self->console_app_streams_ = std::move(
+                            *refresh_result->application_streams);
+                    }
+                    else if (mode == AppStreamListMode::kRemoteDevices
+                        && refresh_result->online_states.has_value()) {
+                        self->console_device_online_states_ = std::move(
+                            *refresh_result->online_states);
+                    }
+                }
+                self->LoadStreamItems();
+            });
+        });
     }
 
     void AppStreamList::ClearIdentityResources() {
@@ -1457,127 +1646,7 @@ namespace px
             console_device_online_states_.clear();
         }
 
-        for (const auto& stream : db_mgr_->GetAllStreamsSortByCreatedTime()) {
-            if (stream && stream->connect_type_ == connection_policy::kConsoleDeviceTicket) {
-                // Identity changes revoke future ticket creation but do not
-                // terminate an already-established client process.
-                db_mgr_->DeleteStream(stream->_id);
-            }
-        }
         LoadStreamItems();
-    }
-
-    void AppStreamList::RefreshRemoteDevices() {
-        auto user_mgr = grApp->GetUserManager();
-        const auto user_devices_result = user_mgr->QueryBindDevices(1, 200, false);
-        if (user_devices_result.has_value()) {
-            const auto& user_devices = user_devices_result.value();
-            std::unordered_set<std::string> available_device_ids;
-            ConsoleDeviceOnlineStates online_states;
-            for (const auto& ud : user_devices) {
-                if (!ud->device_id_.empty() && ud->device_) {
-                    available_device_ids.insert(ud->device_id_);
-                    online_states[ud->device_id_] = ud->device_->active_;
-                }
-            }
-            {
-                std::lock_guard<std::mutex> guard(streams_mtx_);
-                console_device_online_states_ = std::move(online_states);
-            }
-
-            // Console-sourced devices are a projection of the current identity, not a
-            // permanent local address-book entry. Only reconcile after a successful
-            // response; a network error must not look like an empty Console catalog.
-            for (const auto& stream : db_mgr_->GetAllStreamsSortByCreatedTime()) {
-                if (stream->connect_type_ == connection_policy::kConsoleDeviceTicket
-                    && !available_device_ids.contains(stream->remote_device_id_)) {
-                    // The device was removed from Console. Remove only the projected
-                    // card; do not interrupt an already-established local client.
-                    db_mgr_->DeleteStream(stream->_id);
-                }
-            }
-            for (const auto& ud : user_devices) {
-                if (ud->device_id_.empty() || !ud->device_) {
-                    LOGE("Invalid user-device, user-device: {}", ud->Dump());
-                    continue;
-                }
-
-                auto db_mgr = context_->GetStreamDBManager();
-                auto opt_device = db_mgr->GetStreamByRemoteDeviceId(ud->device_id_);
-                if (opt_device.has_value()) {
-                    const auto& stream = opt_device.value();
-                    stream->stream_name_ = ud->device_->device_name_;
-                    stream->remote_device_random_pwd_.clear();
-                    stream->remote_device_safety_pwd_.clear();
-                    stream->stream_host_.clear();
-                    stream->stream_port_ = 0;
-                    stream->relay_host_.clear();
-                    stream->relay_port_ = 0;
-                    stream->connect_type_ = connection_policy::kConsoleDeviceTicket;
-                    stream->console_online_ = ud->device_->active_;
-                    db_mgr->UpdateStream(stream);
-                }
-                else {
-                    auto item = std::make_shared<px_console::ConsoleStream>();
-                    item->remote_device_id_ = ud->device_id_;
-                    item->stream_name_ = ud->device_->device_name_;
-                    item->encode_bps_ = 0;
-                    item->encode_fps_ = 0;
-                    item->clipboard_enabled_ = false;
-                    item->audio_enabled_ = false;
-                    item->connect_type_ = connection_policy::kConsoleDeviceTicket;
-                    item->console_online_ = ud->device_->active_;
-                    db_mgr->AddStream(item);
-                }
-            }
-        } else {
-            LOGW("Keep current Console device cards because resource refresh failed: {}",
-                 static_cast<int>(user_devices_result.error()));
-        }
-    }
-
-    void AppStreamList::RefreshCloudApplications() {
-        auto user_mgr = grApp->GetUserManager();
-        if (const auto apps_result = user_mgr->QueryApps(); apps_result.has_value()) {
-            std::vector<std::shared_ptr<px_console::ConsoleStream>> app_streams;
-            for (const auto& app : apps_result.value()) {
-                auto stream = std::make_shared<px_console::ConsoleStream>();
-                stream->stream_id_ = "console-app-" + app.app_id;
-                stream->stream_name_ = app.name;
-                stream->connect_type_ = connection_policy::kConsoleAppTicket;
-                stream->console_app_id_ = app.app_id;
-                stream->console_access_mode_ = app.access_mode;
-                stream->console_instance_state_ = "stopped";
-                if (!app.cover_url.empty()) {
-                    QUrl cover_url(QString::fromStdString(app.cover_url));
-                    if (cover_url.isRelative()) {
-                        QUrl console_base;
-                        console_base.setScheme("https");
-                        console_base.setHost(QString::fromStdString(settings_->GetConsoleServerHost()));
-                        console_base.setPort(settings_->GetConsoleServerPort());
-                        console_base.setPath("/");
-                        cover_url = console_base.resolved(cover_url);
-                    }
-                    stream->console_cover_url_ = cover_url.toString().toStdString();
-                }
-                stream->audio_enabled_ = false;
-                stream->clipboard_enabled_ = false;
-                stream->console_online_ = true;
-                if (app.running_instance) {
-                    stream->console_instance_id_ = app.running_instance->instance_id;
-                    stream->console_instance_state_ = app.running_instance->state;
-                    stream->direct_online_ = app.running_instance->state == "running";
-                }
-                app_streams.push_back(std::move(stream));
-            }
-            {
-                std::lock_guard<std::mutex> guard(streams_mtx_);
-                console_app_streams_ = std::move(app_streams);
-            }
-        } else {
-            LOGW("Keep current Console application cards because catalog refresh failed: {}",
-                 static_cast<int>(apps_result.error()));
-        }
     }
 
     std::vector<std::shared_ptr<px_console::ConsoleStream>> AppStreamList::CopyStreams() {

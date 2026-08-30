@@ -13,8 +13,11 @@
 
 namespace px
 {
-    TabCloudApps::TabCloudApps(const std::shared_ptr<PxApplication>& app, QWidget* parent)
+    TabCloudApps::TabCloudApps(
+        const std::shared_ptr<PxApplication>& app,
+        QWidget* parent) // NOLINT(gammaray-raw-pointer-boundary) Qt parent ABI; TabBase retains ownership.
         : TabBase(app, parent) {
+        QPointer<TabCloudApps> self(this);
         auto root_layout = new QVBoxLayout();
         WidgetHelper::ClearMargins(root_layout);
         root_layout->addSpacing(kTabContentMarginTop + 20);
@@ -41,7 +44,11 @@ namespace px
         app_list_ = new AppStreamList(
             context_,
             AppStreamListMode::kCloudApplications,
-            [this](bool empty) { SetEmpty(empty); },
+            [self](bool empty) {
+                if (self) {
+                    self->SetEmpty(empty);
+                }
+            },
             this);
         root_layout->addWidget(app_list_);
         setLayout(root_layout);
@@ -54,7 +61,11 @@ namespace px
                                             Qt::KeepAspectRatio, Qt::SmoothTransformation));
         empty_tip_->show();
 
-        refresh->SetOnImageButtonClicked([this]() { RefreshApplications(); });
+        refresh->SetOnImageButtonClicked([self]() {
+            if (self) {
+                self->RefreshApplications();
+            }
+        });
         app_list_->LoadStreamItems();
     }
 
@@ -65,12 +76,9 @@ namespace px
     }
 
     void TabCloudApps::RefreshApplications() {
-        QPointer<AppStreamList> list(app_list_);
-        context_->PostTask([list]() {
-            if (list) {
-                list->RefreshResources();
-            }
-        });
+        if (app_list_) {
+            app_list_->RefreshResources();
+        }
     }
 
     void TabCloudApps::SetEmpty(bool empty) {
