@@ -2240,3 +2240,42 @@ FT 引擎 Runtime 已与插件解耦，但 UI 链仍把插件独占的 `FtCore` 
 
 `px_panel.exe` build/dist SHA-256：
 `5755FBB7683A6256BFD7FCA7AEE6D91685154C85B9A4AACEF6F8361AD4923954`。
+
+### 12.44 Phase 7 Render Hook Audio worker 生命周期收敛
+
+游戏内音频 Hook 的 `AudioMixer` 与 `AudioShare` 原先各自用 `std::thread([this])` 启动
+长期 worker。虽然普通析构路径会设置停止标记并 join，但安全性仍依赖承载对象必须活到
+线程完全返回；特别是 IPC sender 回调内触发停止或最后一个 owner 释放时，成员线程与对象
+地址会形成自等待或析构后访问风险。
+
+本批完成：
+
+- Mixer 与 Share 分别建立独立 `shared_ptr<State>`，队列、条件变量、格式快照、统计和发送器
+  全部归入共享状态；worker 只捕获 State，不再捕获 `this`；
+- 两条线程统一使用项目公共 `Thread::MakeOnceTask`，外部 Stop 会同步 join；worker 回调内
+  释放最后一个 owner 时走公共线程的延迟回收路径，不自 join、不访问已析构对象；
+- Stop 设为幂等操作，先关闭入口、再唤醒 worker；生产者在持队列锁后再次检查停止状态，
+  关闭与入队并发时不会留下永远无人消费的数据；
+- 保留原有队列排空语义：外部 Stop 返回时，停止前已接受的音频包已经处理完成；停止后
+  的 Mixer Push / Share Post 被拒绝；
+- Mixer 的内部数据入口由借用裸地址改为 `span<const byte>` 和 `string_view`；Hook 回调只在
+  ABI 边界把系统提供的瞬时地址转成有长度视图，Mixer 不保存该地址；
+- 删除已经由编译开关永久禁用的 WAV `FILE*` 状态与死代码，不再在维护代码中保留手工文件
+  所有权；
+- 新增 `build_cpp_hook_audio.bat`，只编译 Hook Audio 生命周期测试与 `px_gh`，并发布、校验
+  `dist/px_gh.dll`，不触发 Rust、npm 或发版整编。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 队列关闭 | 停止前 2 个已接受包全部发送；Stop 返回后无遗留 worker，PASS |
+| 分发中注销 | 首个 IPC sender 回调内注销 sender，后续 7 个排队包不再进入旧回调，PASS |
+| 回调内销毁 | IPC sender 回调内释放 AudioShare 最后 owner，无死锁、崩溃或析构后访问，PASS |
+| Mixer 停止 | 20 ms PCM 完整混合发送；Stop 后迟到 Push 不增加计数，PASS |
+| 10 轮 | 上述 4 个场景连续执行 10/10 PASS，共 40 项；CTest 注册运行 PASS |
+| ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；worker 无 `[this]` 或裸观察捕获 |
+| focused build/dist | 只用 `build_cpp_hook_audio.bat` 定向编译发布；未运行 `build_official.bat` |
+
+`px_gh.dll` build/dist SHA-256：
+`7A6EE9479F58BB22366D46D7CE8566593B17FBDC45633DEC44B1C38329372DC5`。

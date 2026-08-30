@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("render", "client", "panel", "render_plugins", "render_plugin", "ft_protocol")]
+    [ValidateSet("render", "client", "panel", "render_plugins", "render_plugin", "hook_audio", "ft_protocol")]
     [string]$Component,
     [string]$PluginTarget = "",
     [string]$BuildDir = "build_official"
@@ -220,6 +220,12 @@ switch ($Component) {
             throw "PluginTarget is required for render_plugin"
         }
         Publish-RenderPlugin -Target $PluginTarget
+    }
+    "hook_audio" {
+        Publish-VerifiedFile `
+            -Source (Join-Path $buildRoot "src\px_render\hook_capture\win\hk_obs\px_gh.dll") `
+            -Destination (Join-Path $distRoot "px_gh.dll") `
+            -ProcessName "px_render"
     }
     "render_plugins" {
         foreach ($target in $renderPluginMap.Keys | Sort-Object) {

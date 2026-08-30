@@ -5,6 +5,7 @@
 
 #include <cstring>
 #include <memory>
+#include <span>
 
 #include "AudioMixer.h"
 #include "SimpleAudioFormatConverter.h"
@@ -52,7 +53,10 @@ inline void PushHookedPcm(const void* data,
         NoteFallbackSuppressed(tag);
         return;
     }
-    mix->Push(data, bytes, format, sample_rate, channels, tag);
+    // Hook callback parameters are borrowed ABI values. Convert them to a
+    // bounded view immediately; AudioMixer never stores the borrowed address.
+    mix->Push(std::span(static_cast<const std::byte*>(data), static_cast<size_t>(bytes)),
+              format, sample_rate, channels, tag ? tag : "?");
 }
 
 bool BufferHasEnergy(const void* data, int bytes, SimpleAudioFormat fmt);

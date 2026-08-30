@@ -106,3 +106,23 @@ target_compile_definitions(test_wasapi_tone PRIVATE UNICODE _UNICODE WIN32_LEAN_
 set_target_properties(test_wasapi_tone PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}"
 )
+
+if(BUILD_TESTING)
+    add_executable(test_hook_audio_worker_lifecycle
+            test_hook_audio_worker_lifecycle.cpp
+            ../hk_audio/AudioMixer.cpp
+            ../hk_audio/AudioShare.cpp
+            ../hk_audio/SimpleAudioFormatConverter.cpp
+    )
+    target_include_directories(test_hook_audio_worker_lifecycle PRIVATE ../hk_audio)
+    target_link_libraries(test_hook_audio_worker_lifecycle PRIVATE
+            px_common_new
+            px_capture_new
+            px_message
+            protobuf::libprotobuf
+    )
+    set_target_properties(test_hook_audio_worker_lifecycle PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}"
+    )
+    add_test(NAME hook_audio_worker_lifecycle COMMAND test_hook_audio_worker_lifecycle)
+endif()
