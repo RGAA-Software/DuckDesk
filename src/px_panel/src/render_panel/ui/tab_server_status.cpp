@@ -5,43 +5,43 @@
 #include "tab_server_status.h"
 #include <QPointer>
 
-#include <QScrollBar>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QHBoxLayout>
-#include <QVBoxLayout>
-#include <QMenu>
-#include <QAction>
-#include <QLineEdit>
-#include <utility>
-#include <QComboBox>
+#include <format>
 #include "render_panel/px_context.h"
 #include "render_panel/px_settings.h"
-#include "px_common_new/qrcode/qr_generator.h"
-#include "px_qt_widget/widget_helper.h"
 #include "px_qt_widget/no_margin_layout.h"
-#include "px_qt_widget/round_img_display.h"
 #include "px_qt_widget/px_label.h"
 #include "px_qt_widget/px_pushbutton.h"
 #include "rn_app.h"
-#include "rn_empty.h"
 #include "px_common_new/message_notifier.h"
 #include "render_panel/px_app_messages.h"
-#include "px_common_new/log.h"
-#include "qt_circle.h"
 #include "qt_vertical.h"
 #include "render_panel/px_statistics.h"
 #include "render_panel/px_application.h"
-#include "px_qt_widget/sized_msg_box.h"
 #include "render_panel/px_render_controller.h"
+#include "render_panel/ui/qt_lifetime_guard.h"
 #include "service/service_manager.h"
-#include "px_common_new/uid_spacer.h"
-#include "render_panel/px_run_game_manager.h"
-#include "render_panel/database/db_game.h"
 #include "px_qt_widget/px_dialog.h"
 
 namespace px
 {
+
+    namespace {
+
+        void ScheduleRenderRestart(const std::shared_ptr<PxContext>& context) {
+            if (!context) {
+                return;
+            }
+            const auto render_controller = context->GetRenderController();
+            if (!render_controller) {
+                return;
+            }
+            context->PostTask([context, render_controller]() {
+                render_controller->ReStart();
+                context->SendAppMessage(MsgServerAlive{.alive_ = false});
+            });
+        }
+
+    }
 
     static QString GetItemIconStyleSheet(const QString &url) {
         QString style = R"(background-image: url(%1);
@@ -52,6 +52,7 @@ namespace px
     }
 
     TabServerStatus::TabServerStatus(const std::shared_ptr<PxApplication>& app, QWidget *parent) : TabBase(app, parent) {
+        const QPointer<TabServerStatus> self(this);
         auto content_root = new NoMarginHLayout();
 
         // LEFT
@@ -113,12 +114,18 @@ namespace px
                 item_layout->addWidget(btn_remove);
                 item_layout->addStretch();
 
-                connect(btn_install, &TcPushButton::clicked, this, [=, this]() {
-                    TcDialog dialog(tcTr("id_install_joystick_driver"), tcTr("id_install_joystick_driver_msg"), this);
-                    if (dialog.exec() == kDoneOk) {
-                        context_->SendAppMessage(MsgInstallViGEm{});
-                    }
-                });
+                const auto context = context_;
+                connect(btn_install, &TcPushButton::clicked, this,
+                        MakeQtLifetimeAction(
+                            self,
+                            [context](const QPointer<TabServerStatus>& tab) {
+                                TcDialog dialog(
+                                    tcTr("id_install_joystick_driver"),
+                                    tcTr("id_install_joystick_driver_msg"), tab);
+                                if (dialog.exec() == kDoneOk) {
+                                    context->SendAppMessage(MsgInstallViGEm{});
+                                }
+                            }));
 
                 layout->addLayout(item_layout);
             }
@@ -159,14 +166,18 @@ namespace px
                 item_layout->addWidget(btn_remove);
                 item_layout->addStretch();
 
-                connect(btn_restart, &TcPushButton::clicked, this, [=, this]() {
-                    TcDialog dialog(tcTr("id_restart_renderer"), tcTr("id_restart_renderer_msg"), this);
-                    if (dialog.exec() == kDoneOk) {
-                        this->context_->PostTask([=, this]() {
-                            RpRestartServer();
-                        });
-                    }
-                });
+                const auto context = context_;
+                connect(btn_restart, &TcPushButton::clicked, this,
+                        MakeQtLifetimeAction(
+                            self,
+                            [context](const QPointer<TabServerStatus>& tab) {
+                                TcDialog dialog(
+                                    tcTr("id_restart_renderer"),
+                                    tcTr("id_restart_renderer_msg"), tab);
+                                if (dialog.exec() == kDoneOk) {
+                                    ScheduleRenderRestart(context);
+                                }
+                            }));
 
                 layout->addLayout(item_layout);
             }
@@ -200,12 +211,25 @@ namespace px
                 item_layout->addWidget(btn_install);
                 item_layout->addStretch();
 
-                connect(btn_install, &TcPushButton::clicked, this, [=, this]() {
-                    TcDialog dialog(tcTr("id_install_service"), tcTr("id_install_service_msg"), this);
-                    if (dialog.exec() == kDoneOk) {
-                        this->context_->GetServiceManager()->Install();
-                    }
-                });
+                const auto context = context_;
+                connect(btn_install, &TcPushButton::clicked, this,
+                        MakeQtLifetimeAction(
+                            self,
+                            [context](const QPointer<TabServerStatus>& tab) {
+                                TcDialog dialog(
+                                    tcTr("id_install_service"),
+                                    tcTr("id_install_service_msg"), tab);
+                                if (dialog.exec() != kDoneOk) {
+                                    return;
+                                }
+                                const auto service_manager =
+                                    context->GetServiceManager();
+                                if (service_manager) {
+                                    context->PostTask([service_manager]() {
+                                        service_manager->Install();
+                                    });
+                                }
+                            }));
 
                 layout->addLayout(item_layout);
             }
@@ -352,38 +376,6 @@ namespace px
                 layout->addLayout(sc_layout);
             }
 
-            // Running apps
-            if (0) {
-                auto label_size = QSize(220, 35);
-                auto wrap_layout = new NoMarginHLayout();
-                auto running_layout = new NoMarginVLayout();
-                wrap_layout->addSpacing(margin_left + 9);
-                wrap_layout->addLayout(running_layout);
-                {
-                    auto label = new TcLabel(this);
-                    label->setFixedSize(label_size);
-                    label->setText("Running Apps");
-                    label->setStyleSheet(R"(font-size: 22px; font-weight:700;)");
-                    running_layout->addWidget(label);
-                }
-                {
-                    auto item_layout = new NoMarginHLayout();
-                    auto label = new TcLabel(this);
-                    lbl_running_games_ = label;
-                    label->setFixedSize(label_size);
-                    label->setText("");
-                    label->setStyleSheet("font-size: 14px;");
-                    item_layout->addWidget(label);
-                    item_layout->addStretch();
-                    running_layout->addSpacing(10);
-                    running_layout->addLayout(item_layout);
-                }
-                running_layout->addStretch();
-
-                layout->addSpacing(20);
-                layout->addLayout(wrap_layout);
-            }
-
             layout->addStretch();
         }
 
@@ -420,8 +412,6 @@ namespace px
         rn_stack_->setCurrentIndex(0);
 
         // messages
-        msg_listener_ = context_->ObtainUIMessageListener();
-        QPointer<TabServerStatus> self(this);
         msg_listener_->Listen<MsgViGEmState>([self](const MsgViGEmState& state) {
             if (self) {
                 self->RefreshVigemState(state.ok_);
@@ -447,38 +437,11 @@ namespace px
         });
 
         msg_listener_->Listen<AppMsgRestartServer>([context = context_](const AppMsgRestartServer&) {
-            context->PostTask([context]() {
-                const auto srv_mgr = context->GetRenderController();
-                if (srv_mgr) {
-                    srv_mgr->ReStart();
-                    context->SendAppMessage(MsgServerAlive {.alive_ = false});
-                }
-            });
-        });
-
-       msg_listener_->Listen<MsgRunningGameIds>([self](const MsgRunningGameIds&) {
-           if (!self || !self->lbl_running_games_) {
-               return;
-           }
-            auto rgm = self->context_->GetRunGameManager();
-            auto running_games = rgm->GetRunningGames();
-            std::string running_games_name;
-            for (const auto& rg : running_games) {
-                running_games_name = running_games_name
-                        .append(std::to_string(rg->game_->game_id_))
-                        .append(" - ")
-                        .append(rg->game_->game_name_).append("\n");
-            }
-            if (running_games_name.empty()) {
-                running_games_name = "None";
-            }
-            self->lbl_running_games_->setText(running_games_name.c_str());
+            ScheduleRenderRestart(context);
         });
     }
 
-    TabServerStatus::~TabServerStatus() {
-
-    }
+    TabServerStatus::~TabServerStatus() = default;
 
     void TabServerStatus::OnTabShow() {
 
@@ -488,19 +451,8 @@ namespace px
 
     }
 
-    void TabServerStatus::RpRestartServer() {
-        auto srv_mgr = this->context_->GetRenderController();
-        //srv_mgr->StopServer();
-        srv_mgr->ReStart();
-        this->context_->SendAppMessage(MsgServerAlive {
-            .alive_ = false,
-        });
-    }
-
     void TabServerStatus::RefreshVigemState(bool ok) {
-        if (lbl_vigem_state_) {
-            RefreshIndicatorState(lbl_vigem_state_, ok);
-        }
+        RefreshIndicatorState(lbl_vigem_state_, ok);
     }
 
     void TabServerStatus::RefreshServerState(bool ok) {
@@ -511,7 +463,11 @@ namespace px
         RefreshIndicatorState(lbl_service_state_, ok);
     }
 
-    void TabServerStatus::RefreshIndicatorState(TcLabel* indicator, bool ok) {
+    void TabServerStatus::RefreshIndicatorState(
+        const QPointer<TcLabel>& indicator, bool ok) {
+        if (!indicator) {
+            return;
+        }
         if (ok) {
             indicator->setStyleSheet("font-size: 13px; font-weight: bold; color:#ffffff; background:#00cc00; border-radius:13px");
             indicator->setText("OK");
@@ -522,10 +478,10 @@ namespace px
     }
 
     void TabServerStatus::RefreshUIEverySecond() {
-        if (!this->lbl_audio_format_) {
+        if (!lbl_audio_format_) {
             return;
         }
-        this->lbl_audio_format_->setText(
+        lbl_audio_format_->setText(
                 std::format("Format: {}/{}/{}", statistics_->audio_samples_.load(), statistics_->audio_channels_.load(), statistics_->audio_bits_.load()).c_str());
     }
 

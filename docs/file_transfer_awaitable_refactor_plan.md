@@ -2664,3 +2664,40 @@ Panel 主窗口原先从 worker 直接回调 `CheckOffSiteUpdate(this)`，启动
 
 `px_panel.exe` build/dist SHA-256：
 `FF0B3A543194AF5C23995FA4AFB6518BE064077440FDD5048550CB3FD3D11DC0`。
+
+### 12.56 Phase 7 Panel 服务状态操作与 UI 消息生命周期收敛
+
+服务状态页的驱动安装、Renderer 重启和服务安装按钮均捕获页面 `this`。Renderer 重启又把
+页面带入 worker，Service 安装则在 UI 线程同步等待外部管理器进程。页面还重复创建了一套
+UI listener，并为 `if (0)` 永远不会创建的运行游戏标签注册长期消息回调。
+
+本批完成：
+
+- 驱动安装、Renderer 重启和 Service 安装按钮统一使用 `MakeQtLifetimeAction`；确认对话框只
+  在页面 `QPointer` 存活时创建，Qt receiver 销毁后 action 自动失效；
+- Renderer 重启收敛到 `ScheduleRenderRestart`：投递前取得共享 RenderController，worker 只
+  捕获共享 Context/Controller，完成后发送状态消息，不再调用页面成员；按钮与
+  `AppMsgRestartServer` 复用同一条安全路径；
+- Service 安装从 UI 线程移到普通 worker，只捕获共享 ServiceManager；等待外部服务管理器
+  进程期间不再阻塞 Panel 事件循环，页面关闭不影响 manager 生命周期；
+- 直接复用 TabBase 已创建的 UI listener，ViGEm、Renderer、Service 和统计状态继续在 UI lane
+  更新；状态标签、频谱、统计页和 stack 观察成员全部改为 `QPointer`；
+- `RefreshIndicatorState` 接受 `QPointer` 并在每次写 UI 前检查；删除空析构和不再需要的页面
+  成员重启函数；
+- 删除 `if (0)` 的运行游戏 UI 及其仍在活动的消息监听，避免为永不可见控件持续查询
+  RunGameManager。`TabServer` 的设备连接和二维码逻辑保留为下一独立批次。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| Panel shutdown | `panel_shutdown_sequence` 连续 10/10 PASS |
+| Qt owner 销毁 | `panel_qt_lifetime_guard` 连续 10/10 PASS |
+| 消息与 runtime | `test_message_notifier`、`test_task_runtime_exit` 完整套件各连续 10/10 PASS |
+| ownership / whitespace | `check_cpp_ownership` 与 `git diff --check` PASS；新增路径无裸指针声明、手工 ownership 或 `[this]` 捕获 |
+| focused build/dist | 仅定向编译相关测试与 `px_panel`；未运行发版整编；Panel build/dist 哈希一致 |
+
+自动测试未实际执行系统服务安装或 Renderer 重启；这些外部状态变更保留给用户侧功能验证。
+
+`px_panel.exe` build/dist SHA-256：
+`0582DFA61FFC59E548EC96F6ECB8A823BFE693D86964A157CFDE86A43709F80A`。

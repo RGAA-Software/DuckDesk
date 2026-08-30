@@ -7,11 +7,8 @@
 
 #include "tab_base.h"
 
-#include <QListWidget>
-#include <QListWidgetItem>
-#include <QPixmap>
+#include <QPointer>
 #include <QStackedWidget>
-#include <QLabel>
 
 namespace px
 {
@@ -33,23 +30,21 @@ namespace px
         void OnTabHide() override;
 
     private:
-        void RpRestartServer();
         void RefreshVigemState(bool ok);
         void RefreshServerState(bool ok);
         void RefreshServiceState(bool ok);
-        void RefreshIndicatorState(TcLabel* indicator, bool ok);
+        static void RefreshIndicatorState(
+            const QPointer<TcLabel>& indicator, bool ok);
         void RefreshUIEverySecond();
 
     private:
-        TcLabel* lbl_vigem_state_ = nullptr;
-        TcLabel* lbl_renderer_state_ = nullptr;
-        TcLabel* lbl_service_state_ = nullptr;
-        TcLabel* lbl_audio_format_ = nullptr;
-        TcLabel* lbl_running_games_ = nullptr;
-        //QtCircle* spectrum_circle_ = nullptr;
-        QtVertical* spectrum_vertical_ = nullptr;
-        QStackedWidget* rn_stack_ = nullptr;
-        RnApp* rn_app_ = nullptr;
+        QPointer<TcLabel> lbl_vigem_state_;
+        QPointer<TcLabel> lbl_renderer_state_;
+        QPointer<TcLabel> lbl_service_state_;
+        QPointer<TcLabel> lbl_audio_format_;
+        QPointer<QtVertical> spectrum_vertical_;
+        QPointer<QStackedWidget> rn_stack_;
+        QPointer<RnApp> rn_app_;
 
     };
 
