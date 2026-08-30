@@ -2630,3 +2630,37 @@ Panel 主窗口原先从 worker 直接回调 `CheckOffSiteUpdate(this)`，启动
 
 `px_panel.exe` build/dist SHA-256：
 `CC16359D3A72883C3099C6AB0200129A104DC346B5D7B28B2589E2C2AB280293`。
+
+### 12.55 Phase 7 Panel 插件列表与统计图 UI lane 收敛
+
+插件信息与统计定时器原本已经通过 `ObtainUIMessageListener()` 进入 UI lane，但两个消费端又
+额外调用 `PostUITask([this])`。这会让每次状态消息产生第二层排队，页面销毁后仍可能留下
+捕获 QWidget 的 completion；统计图每秒更新还会持续积累不必要的队列延迟。
+
+本批完成：
+
+- `StPlugins` 在 UI message callback 内深复制完整 protobuf 插件快照并同步应用，不再把页面
+  `this` 或可变 `items_info_` 带入第二层 UI 队列；空消息在解引用前拒绝；
+- 插件 id 与顺序不变时只更新既有共享信息和状态标签，保留录制按钮等瞬时 UI 状态；插件
+  增删或顺序变化时才原子替换目录并重建列表，补齐旧实现无法反映增删插件的问题；
+- 删除无行为的 context menu、double-click callback 和 delegate；列表清理由 Qt owner 的
+  `clear()` 完成，不再逐项借出裸 item 并手工 delete；`AddItem` 不再返回借用指针；
+- 插件启用、禁用与录制按钮统一使用 `MakeQtLifetimeAction` 和 `QPointer` guard；列表、状态
+  标签、Chart、ChartView、坐标轴与 series 的观察成员改为 `QPointer`；
+- `StatChart::UpdateLines` 直接在调用方已有的 UI lane 更新 series，删除冗余 Context owner、
+  `[this]` completion 和每秒一次的二次排队；
+- `TabProfile` 审计确认 Workspace 入口、查询调用均被禁用，且 AccountSdk 从未初始化；本批
+  不激活这条休眠功能，后续恢复入口时必须连同 SDK 创建、请求代次和错误状态一起设计。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| Qt owner 销毁 | `panel_qt_lifetime_guard` 连续 10/10 PASS，销毁 owner 后 guarded action 零派发 |
+| 消息注销/并发 | `test_message_notifier` 完整套件直接连续 10/10 PASS |
+| runtime 退出 | `test_task_runtime_exit` 完整套件直接连续 10/10 PASS |
+| ownership / whitespace | `check_cpp_ownership` 与 `git diff --check` PASS；新增路径无裸指针声明、手工 ownership 或 `[this]` 捕获 |
+| focused build/dist | 仅定向编译相关测试与 `px_panel`；未运行发版整编；Panel build/dist 哈希一致 |
+
+`px_panel.exe` build/dist SHA-256：
+`FF0B3A543194AF5C23995FA4AFB6518BE064077440FDD5048550CB3FD3D11DC0`。

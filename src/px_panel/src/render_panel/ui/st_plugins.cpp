@@ -2,43 +2,30 @@
 // Created by RGAA on 29/04/2025.
 //
 
-#include <QStyledItemDelegate>
 #include "st_plugins.h"
 #include <QPointer>
 #include "render_panel/px_application.h"
-#include "render_panel/px_context.h"
 #include "render_panel/px_app_messages.h"
 #include "px_common_new/message_notifier.h"
 #include "px_render_panel_message.pb.h"
-#include "px_common_new/log.h"
 #include "st_plugin_item_widget.h"
 #include "no_margin_layout.h"
+
+#include <algorithm>
+#include <utility>
 
 namespace px
 {
 
-    class PluginInfoItemDelegate : public QStyledItemDelegate {
-    public:
-        explicit PluginInfoItemDelegate(QObject* pParent) {}
-        ~PluginInfoItemDelegate() override = default;
-
-        void updateEditorGeometry(QWidget* editor, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
-            editor->setGeometry(option.rect);
-        }
-    };
-
     StPlugins::StPlugins(const std::shared_ptr<PxApplication>& app, QWidget* parent) : TabBase(app, parent) {
         auto root_layout = new NoMarginVLayout();
-        auto delegate = new PluginInfoItemDelegate(this);
         stream_list_ = new QListWidget(this);
-        stream_list_->setItemDelegate(delegate);
 
         stream_list_->setMovement(QListView::Static);
         stream_list_->setViewMode(QListView::ListMode);
         stream_list_->setFlow(QListView::TopToBottom);
         stream_list_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         stream_list_->setResizeMode(QListWidget::Adjust);
-        stream_list_->setContextMenuPolicy(Qt::CustomContextMenu);
         stream_list_->setSpacing(0);
         stream_list_->setStyleSheet(R"(
             QListWidget {
@@ -60,52 +47,26 @@ namespace px
             }
         )");
 
-        QObject::connect(stream_list_, &QListWidget::customContextMenuRequested, this, [=, this](const QPoint& pos) {
-            QListWidgetItem* cur_item = stream_list_->itemAt(pos);
-            if (cur_item == nullptr) { return; }
-            int index = stream_list_->row(cur_item);
-
-        });
-
-        QObject::connect(stream_list_, &QListWidget::itemDoubleClicked, this, [=, this](QListWidgetItem *item) {
-            int index = stream_list_->row(item);
-            auto item_info = items_info_.at(index);
-
-        });
-
         root_layout->addWidget(stream_list_);
 
         setLayout(root_layout);
 
         QPointer<StPlugins> self(this);
         msg_listener_->Listen<MsgPluginsInfo>([self](const MsgPluginsInfo& m_info) {
-            if (!self) {
+            if (!self || !m_info.plugins_info_) {
                 return;
             }
-            auto plugins_info = m_info.plugins_info_->plugins_info();
-            if (self->items_info_.empty()) {
-                for (const auto& new_info : plugins_info) {
-                    auto plugin_info = std::make_shared<pxrp::RpPluginInfo>();
-                    plugin_info->CopyFrom(new_info);
-                    self->items_info_.push_back(std::make_shared<PluginItemInfo>(PluginItemInfo{
-                        .id_ = new_info.id(),
-                        .info_ = plugin_info,
-                    }));
-
-                }
-                self->RefreshListWidget();
+            std::vector<std::shared_ptr<PluginItemInfo>> items;
+            items.reserve(m_info.plugins_info_->plugins_info_size());
+            for (const auto& new_info : m_info.plugins_info_->plugins_info()) {
+                auto plugin_info = std::make_shared<pxrp::RpPluginInfo>();
+                plugin_info->CopyFrom(new_info);
+                items.push_back(std::make_shared<PluginItemInfo>(PluginItemInfo{
+                    .id_ = new_info.id(),
+                    .info_ = std::move(plugin_info),
+                }));
             }
-            else {
-                for (const auto& new_info : plugins_info) {
-                    for (const auto &item_info: self->items_info_) {
-                        if (item_info->id_ == new_info.id()) {
-                            item_info->info_->set_enabled(new_info.enabled());
-                            break;
-                        }
-                    }
-                }
-                self->UpdateItemStatus();
-            }
+            self->ApplyItems(std::move(items));
         });
 
         setObjectName("StPlugins");
@@ -120,47 +81,57 @@ namespace px
 
     }
 
-    QListWidgetItem* StPlugins::AddItem(const std::shared_ptr<PluginItemInfo>& item_info, int index) {
+    void StPlugins::AddItem(const std::shared_ptr<PluginItemInfo>& item_info, int index) {
         auto item = new QListWidgetItem(stream_list_);
         auto item_size = QSize(955, 60);
         item->setSizeHint(item_size);
         auto widget = new StPluginItemWidget(app_, item_info, index, stream_list_);
         widget->setFixedSize(item_size);
         stream_list_->setItemWidget(item, widget);
-        return item;
     }
 
-    void StPlugins::RefreshListWidget() {
+    void StPlugins::ApplyItems(
+        std::vector<std::shared_ptr<PluginItemInfo>> items) {
         if (!stream_list_) {
             return;
         }
-        context_->PostUITask([=, this]() {
-            auto index = 0;
-            int count = stream_list_->count();
-            for (int i = 0; i < count; i++) {
-                auto item = stream_list_->takeItem(0);
-                delete item;
+        const bool same_layout = items.size() == items_info_.size()
+            && std::equal(
+                items.begin(), items.end(), items_info_.begin(),
+                [](const auto& incoming, const auto& existing) {
+                    return incoming && existing && incoming->id_ == existing->id_;
+                });
+        if (same_layout) {
+            for (std::size_t index = 0; index < items.size(); ++index) {
+                if (items_info_.at(index)->info_ && items.at(index)->info_) {
+                    items_info_.at(index)->info_->CopyFrom(
+                        *items.at(index)->info_);
+                }
             }
-
-            for (const auto& item_info : items_info_) {
-                AddItem(item_info, index++);
-            }
-        });
-    }
-
-    void StPlugins::UpdateItemStatus() {
-        if (stream_list_->count() != items_info_.size()) {
-            LOGE("Invalid plugins count: {} => {}", stream_list_->count(), items_info_.size());
+            UpdateItemStatuses();
             return;
         }
-        context_->PostUITask([=, this]() {
-            int count = stream_list_->count();
-            for (int i = 0; i < count; i++) {
-                QListWidgetItem *item = stream_list_->item(i);
-                auto item_widget = (StPluginItemWidget*)stream_list_->itemWidget(item);
+
+        items_info_ = std::move(items);
+        stream_list_->clear();
+        int index = 0;
+        for (const auto& item_info : items_info_) {
+            AddItem(item_info, index++);
+        }
+    }
+
+    void StPlugins::UpdateItemStatuses() {
+        if (!stream_list_) {
+            return;
+        }
+        for (int index = 0; index < stream_list_->count(); ++index) {
+            const QPointer<StPluginItemWidget> item_widget(
+                static_cast<StPluginItemWidget*>(
+                    stream_list_->itemWidget(stream_list_->item(index))));
+            if (item_widget) {
                 item_widget->UpdateStatus();
             }
-        });
+        }
     }
 
 }

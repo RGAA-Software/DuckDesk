@@ -11,11 +11,11 @@
 #include <QBrush>
 #include <QPen>
 #include <QLabel>
+#include <QPointer>
 
 namespace px
 {
 
-    class PxContext;
     class PxApplication;
     class PluginItemInfo;
 
@@ -36,8 +36,7 @@ namespace px
     private:
         std::shared_ptr<PluginItemInfo> item_info_;
         std::shared_ptr<PxApplication> app_ = nullptr;
-        std::shared_ptr<PxContext> context_ = nullptr;
-        QLabel* lbl_enabled_ = nullptr;
+        QPointer<QLabel> lbl_enabled_;
     };
 
 }

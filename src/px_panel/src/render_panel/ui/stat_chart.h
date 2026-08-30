@@ -12,6 +12,7 @@
 #include <QCategoryAxis>
 #include <QSplineSeries>
 #include <QLineSeries>
+#include <QPointer>
 
 #include <memory>
 #include <map>
@@ -31,12 +32,11 @@ namespace px
         void UpdateLines(const std::map<QString, std::vector<int32_t>>& value);
 
     private:
-        std::shared_ptr<PxContext> ctx_ = nullptr;
-        QChart* chart_ = nullptr;
-        QChartView* chart_view_ = nullptr;
-        QValueAxis* x_axis_ = nullptr;
-        QValueAxis* y_axis_ = nullptr;
-        std::map<QString, QLineSeries*> series_;
+        QPointer<QChart> chart_;
+        QPointer<QChartView> chart_view_;
+        QPointer<QValueAxis> x_axis_;
+        QPointer<QValueAxis> y_axis_;
+        std::map<QString, QPointer<QLineSeries>> series_;
 
     };
 

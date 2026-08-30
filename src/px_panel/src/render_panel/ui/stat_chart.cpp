@@ -3,23 +3,15 @@
 //
 
 #include "stat_chart.h"
-#include "render_panel/px_context.h"
 #include "px_qt_widget/no_margin_layout.h"
-#include "px_common_new/log.h"
-#include "px_common_new/time_util.h"
-
-#include <QTime>
-#include <QTimer>
-#include <QRandomGenerator>
 
 namespace px
 {
 
-    StatChart::StatChart(const std::shared_ptr<PxContext>& ctx,
+    StatChart::StatChart(const std::shared_ptr<PxContext>&,
                          const QString& title,
                          const std::vector<QString>& line_names,
                          QWidget* parent) : QWidget(parent) {
-        ctx_ = ctx;
         setStyleSheet("background-color:#ffffff; border: 1px solid #eeeeee;");
         auto layout = new NoMarginVLayout();
         chart_ = new QChart();
@@ -65,25 +57,24 @@ namespace px
     }
 
     void StatChart::UpdateLines(const std::map<QString, std::vector<int32_t>>& value) {
-        ctx_->PostUITask([=, this]() {
-            auto beg = TimeUtil::GetCurrentTimestamp();
-            for (auto& [in_n, in_v] : value) {
-                for (auto& [n, s] : series_) {
-                    if (in_n == n) {
-                        QList<QPointF> points;
-                        for (int i = 0; i < in_v.size(); i++) {
-                            points.push_back(QPointF(i, in_v.at(i)));
-                        }
-                        ///s->clear();
-                        s->replace(points);
-                        break;
+        for (const auto& [input_name, input_values] : value) {
+            for (const auto& [name, series] : series_) {
+                if (input_name == name && series) {
+                    QList<QPointF> points;
+                    for (std::size_t index = 0;
+                         index < input_values.size(); ++index) {
+                        points.push_back(QPointF(
+                            static_cast<qreal>(index),
+                            input_values.at(index)));
                     }
+                    series->replace(points);
+                    break;
                 }
             }
+        }
+        if (chart_view_) {
             chart_view_->update();
-            auto end = TimeUtil::GetCurrentTimestamp();
-            //LOGI("UpdateLines UI, {}ms", (end-beg));
-        });
+        }
     }
 
 }

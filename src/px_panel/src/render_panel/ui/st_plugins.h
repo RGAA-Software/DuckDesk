@@ -5,20 +5,13 @@
 #ifndef PX_ST_PLUGINS_H
 #define PX_ST_PLUGINS_H
 
-#include <QLabel>
 #include "tab_base.h"
-#include <QtWidgets/QWidget>
-#include <QtWidgets/QPushButton>
-#include <QtWidgets/QLabel>
-#include <QtWidgets/QHBoxLayout>
-#include <QtWidgets/QVBoxLayout>
-#include <QtWidgets/QListWidget>
-#include <QtWidgets/QListWidgetItem>
-#include <QPainter>
-#include <QPen>
-#include <QBrush>
-#include <QString>
-#include <QPaintEvent>
+#include <QListWidget>
+#include <QPointer>
+
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace pxrp
 {
@@ -43,12 +36,12 @@ namespace px
         void OnTabHide() override;
 
     private:
-        void RefreshListWidget();
-        void UpdateItemStatus();
-        QListWidgetItem* AddItem(const std::shared_ptr<PluginItemInfo>& item, int index);
+        void ApplyItems(std::vector<std::shared_ptr<PluginItemInfo>> items);
+        void UpdateItemStatuses();
+        void AddItem(const std::shared_ptr<PluginItemInfo>& item, int index);
 
     private:
-        QListWidget* stream_list_ = nullptr;
+        QPointer<QListWidget> stream_list_;
         std::vector<std::shared_ptr<PluginItemInfo>> items_info_;
     };
 

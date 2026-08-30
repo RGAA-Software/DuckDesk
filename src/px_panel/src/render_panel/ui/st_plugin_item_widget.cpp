@@ -6,11 +6,11 @@
 #include "no_margin_layout.h"
 #include "st_plugins.h"
 #include "px_render_panel_message.pb.h"
-#include "render_panel/px_context.h"
 #include "render_panel/px_application.h"
-#include "render_panel/px_app_messages.h"
+#include "render_panel/ui/qt_lifetime_guard.h"
 #include "px_message_new/rp_proto_converter.h"
 #include "px_render/plugins/plugin_ids.h"
+#include <QPointer>
 #include <QLabel>
 #include <QPushButton>
 
@@ -25,8 +25,8 @@ namespace px
                        int index,
                        QWidget* parent) : QWidget(parent) {
         app_ = app;
-        context_ = app->GetContext();
         item_info_ = item_info;
+        const QPointer<StPluginItemWidget> self(this);
 
         this->setObjectName("StPluginItemWidget");
         this->setStyleSheet("#StPluginItemWidget {background:#ffffffff;}");
@@ -99,9 +99,12 @@ namespace px
             btn->setText("Disable");
             content_layout->addWidget(btn);
             content_layout->addSpacing(10);
-            connect(btn, &QPushButton::clicked, this, [=, this]() {
-                SwitchPluginStatusInner(false);
-            });
+            connect(btn, &QPushButton::clicked, this,
+                    MakeQtLifetimeAction(
+                        self,
+                        [](const QPointer<StPluginItemWidget>& item) {
+                            item->SwitchPluginStatusInner(false);
+                        }));
         }
         {
             auto btn = new QPushButton(this);
@@ -109,9 +112,12 @@ namespace px
             btn->setText("Enable");
             content_layout->addWidget(btn);
             content_layout->addSpacing(10);
-            connect(btn, &QPushButton::clicked, this, [=, this]() {
-                SwitchPluginStatusInner(true);
-            });
+            connect(btn, &QPushButton::clicked, this,
+                    MakeQtLifetimeAction(
+                        self,
+                        [](const QPointer<StPluginItemWidget>& item) {
+                            item->SwitchPluginStatusInner(true);
+                        }));
         }
 
         // server-side screen recording: 只有 media_recorder 插件显示录制按钮
@@ -121,16 +127,18 @@ namespace px
             btn->setText("Start Record");
             content_layout->addWidget(btn);
             content_layout->addSpacing(10);
-            connect(btn, &QPushButton::clicked, this, [=, this]() {
-                if (btn->text() == "Start Record") {
-                    btn->setText("Stop Record");
-                    SendRecordCommand(true);
-                }
-                else {
-                    btn->setText("Start Record");
-                    SendRecordCommand(false);
-                }
-            });
+            const QPointer<QPushButton> button(btn);
+            connect(btn, &QPushButton::clicked, this,
+                    MakeQtLifetimeAction(
+                        self,
+                        [button](const QPointer<StPluginItemWidget>& item) {
+                            if (!button) {
+                                return;
+                            }
+                            const bool start = button->text() == "Start Record";
+                            button->setText(start ? "Stop Record" : "Start Record");
+                            item->SendRecordCommand(start);
+                        }));
         }
 
         content_layout->addSpacing(10);
