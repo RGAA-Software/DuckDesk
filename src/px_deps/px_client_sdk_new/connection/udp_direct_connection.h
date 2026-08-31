@@ -57,6 +57,10 @@ namespace px
         // render 通过 UDP 控制包踢人(kCtrlKick),reason 原样上报
         void SetOnKickCallback(std::function<void(const std::string& reason)> cbk);
 
+        // UDP connect() 不表示对端可达。第一个可交付的音频/视频媒体帧会触发它，
+        // 供 NetClient 结束首媒体探测并避免误回退。
+        void SetOnMediaReadyCallback(std::function<void()> cbk);
+
         bool IsAlive() override;
 
     private:
@@ -87,6 +91,8 @@ namespace px
         std::function<void(std::shared_ptr<px::Message>)> video_msg_cbk_;
         std::function<void(std::shared_ptr<px::Message>)> audio_msg_cbk_;
         std::function<void(const std::string& reason)> on_kick_cbk_;
+        std::function<void()> media_ready_cbk_;
+        bool media_ready_reported_ = false;
 
         std::atomic_bool connected_ = false;
         std::atomic_bool stopped_ = false;

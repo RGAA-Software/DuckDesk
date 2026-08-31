@@ -7,8 +7,10 @@
 
 #include "px_message.pb.h"
 #include <atomic>
+#include <mutex>
 #include "sdk_params.h"
 #include "px_common_new/file_transfer_send_result.h"
+#include "connection/udp_media_fallback_state.h"
 
 namespace asio2 {
     class ws_client;
@@ -102,9 +104,22 @@ namespace px
     private:
         std::shared_ptr<px::Message> ParseMessage(std::shared_ptr<Data> msg);
         void HeartBeat();
+        void CheckUdpMediaProbeTimeout();
+        void OnUdpMediaReady();
+        void BeginUdpWebSocketFallback();
+        std::shared_ptr<Connection> MakeDirectWebSocketMediaConnection(bool udp_media) const;
+        void StartManagedUdpMediaConnection(const std::shared_ptr<Connection>& connection,
+                                            uint64_t generation);
+        [[nodiscard]] bool IsCurrentManagedMediaConnection(uint64_t generation) const;
+        [[nodiscard]] std::shared_ptr<Connection> CurrentMediaConnection() const;
+        void ReplaceMediaConnection(std::shared_ptr<Connection> connection);
+        [[nodiscard]] std::shared_ptr<UdpDirectConnection> CurrentUdpDirectConnection() const;
+        void ReplaceUdpDirectConnection(std::shared_ptr<UdpDirectConnection> connection);
 
     private:
+        mutable std::mutex media_connection_mutex_;
         std::shared_ptr<Connection> media_conn_ = nullptr;
+        mutable std::mutex udp_direct_connection_mutex_;
         std::shared_ptr<Connection> ft_conn_ = nullptr;
         std::shared_ptr<WebRtcConnection> rtc_conn_ = nullptr;
         std::shared_ptr<WebRtcLocalConnection> rtc_local_conn_ = nullptr;
@@ -136,6 +151,14 @@ namespace px
 
         std::atomic_int queuing_message_count_ = 0;
         std::atomic_bool exited_{false};
+        // kUdpDirect starts with a WS control session whose media is filtered by
+        // udp_media=1. Once UDP is proven unavailable this state latches a
+        // one-shot, generation-protected WS media reconnection.
+        UdpMediaFallbackState udp_media_fallback_state_;
+        std::atomic_uint64_t managed_media_generation_{0};
+        std::atomic_int64_t udp_media_probe_deadline_ms_{0};
+        std::atomic_bool connection_notified_{false};
+        static constexpr int64_t kUdpMediaProbeTimeoutMs = 4000;
         uint64_t hb_idx_ = 0;
 
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;

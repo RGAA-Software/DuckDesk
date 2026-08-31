@@ -100,4 +100,12 @@ if(BUILD_TESTING AND NOT ANDROID)
         GTest::gtest_main
     )
     add_test(NAME test_ft_transport_e2e COMMAND test_ft_transport_e2e)
+    add_executable(test_udp_media_fallback_state
+        tests/test_udp_media_fallback_state.cpp
+    )
+    target_link_libraries(test_udp_media_fallback_state PRIVATE
+        GTest::gtest
+        GTest::gtest_main
+    )
+    add_test(NAME test_udp_media_fallback_state COMMAND test_udp_media_fallback_state)
 endif()

@@ -359,7 +359,7 @@ TEST(PxUdpProtocol, FecRecoversUpToParityCount) {
     EXPECT_EQ(std::memcmp(frames[0].data_->CStr(), frame.data(), frame.size()), 0);
 }
 
-TEST(PxUdpProtocol, FecLossBeyondParityDeclaresLoss) {
+TEST(PxUdpProtocol, FecLossBeyondParityDeclaresLossAtEof) {
     auto frame_n = MakeFrameBytes(12000);
     auto meta_n = MakeMeta(40, false);
     auto pkts_n = ShardFec(meta_n, frame_n, 20);
@@ -376,17 +376,18 @@ TEST(PxUdpProtocol, FecLossBeyondParityDeclaresLoss) {
     reasm.on_frame_ = [&](const PxUdpFrameReassembler::CompleteFrame& f) { frames.push_back(f); };
     reasm.on_frame_lost_ = [&](uint8_t, uint32_t idx) { lost.push_back(idx); };
 
-    // 丢 parity+1 个数据 shard -> 恢复不了,帧卡住
+    // 丢 parity+1 个数据 shard。EOF 到达说明发送端数据 shard 已发完，
+    // 即使后续全部 parity 到达也不够恢复，因此不等待下一帧就必须判丢。
     for (size_t i = parity + 1; i < pkts_n.size(); i++) {
         reasm.AddPacket(pkts_n[i]->CStr(), pkts_n[i]->Size());
     }
     EXPECT_TRUE(frames.empty());
-    EXPECT_TRUE(lost.empty());
-
-    // 新帧到达 -> 旧帧判丢;key 帧正常交付,流恢复
-    for (auto& p : pkts_key) reasm.AddPacket(p->CStr(), p->Size());
     ASSERT_EQ(lost.size(), 1u);
     EXPECT_EQ(lost[0], 40u);
+
+    // 迟到的旧帧包不得重复判丢；后续 key 帧正常交付，流恢复。
+    for (auto& p : pkts_key) reasm.AddPacket(p->CStr(), p->Size());
+    EXPECT_EQ(lost.size(), 1u);
     ASSERT_EQ(frames.size(), 1u);
     EXPECT_TRUE(frames[0].key_);
     EXPECT_EQ(frames[0].frame_index_, 41u);

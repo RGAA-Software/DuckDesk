@@ -449,9 +449,12 @@ namespace px
     // 已收 distinct 块数(数据+parity)达到 data_shards 且有数据块缺失时立刻 RS 恢复,
     // 重组帧按 SOF 扩展里的 frame_size 精确截断(去掉零填充)。
     // Loss policy: a newer frame_index for the same mon_slot declares the in-progress
-    // frame lost (recovery attempted first); after any loss, P frames are dropped
-    // until a key frame completes (mirrors the webrtc_local convention that the
-    // first delivered frame must be an IDR).
+    // frame lost (recovery attempted first). For FEC frames, receipt of EOF proves
+    // the sender has emitted every data shard; if the missing-data count already
+    // exceeds the entire parity budget, declare that frame lost immediately instead
+    // of waiting for the next frame. After any loss, P frames are dropped until a key
+    // frame completes (mirrors the webrtc_local convention that the first delivered
+    // frame must be an IDR).
     class PxUdpFrameReassembler {
     public:
         struct CompleteFrame {
@@ -627,6 +630,19 @@ namespace px
             }
             if (data_filled == cur.data_shards_) {
                 CompleteWithStatus(shard.mon_slot_, cur);
+                MarkFinished(shard.mon_slot_, cur.frame_index_);
+                cur = Assembly{};
+            }
+            else if ((shard.flags_ & PxUdpProtocol::kFlagEof) &&
+                     cur.shards_.size() > (size_t)cur.data_shards_ &&
+                     data_filled + (int)(cur.shards_.size() - cur.data_shards_) < cur.data_shards_) {
+                // EOF 是发送端已发完所有数据 shard 的明确边界。此时即便后续所有 parity
+                // 都到达，当前缺失的数据块仍超过 FEC 能恢复的上限；直接上报 RFI，不等下一帧。
+                // 只在 EOF 上判定而非“首个 parity”上判定，保留 UDP 包乱序时 parity 先到、
+                // 数据块随后到达的正常恢复路径。
+                DeclareLoss(shard.mon_slot_, cur.frame_index_,
+                            (uint16_t)cur.net_data_received_,
+                            (uint16_t)(cur.data_shards_ - cur.net_data_received_));
                 MarkFinished(shard.mon_slot_, cur.frame_index_);
                 cur = Assembly{};
             }

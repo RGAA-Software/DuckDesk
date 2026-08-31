@@ -4,6 +4,7 @@
 
 #include "sdk_net_client.h"
 
+#include <string_view>
 #include <utility>
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
@@ -60,6 +61,111 @@ namespace px
         Exit();
     }
 
+    std::shared_ptr<Connection> NetClient::MakeDirectWebSocketMediaConnection(bool udp_media) const {
+        std::string path = media_path_;
+        constexpr std::string_view kUdpMediaQuery = "&udp_media=1";
+        if (!udp_media) {
+            const auto query = path.find(kUdpMediaQuery);
+            if (query != std::string::npos) {
+                path.erase(query, kUdpMediaQuery.size());
+            }
+        }
+        if (sdk_params_->ssl_) {
+            return std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_,
+                                                   sdk_params_->port_, path);
+        }
+        return std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_,
+                                              sdk_params_->port_, path);
+    }
+
+    bool NetClient::IsCurrentManagedMediaConnection(uint64_t generation) const {
+        return !exited_.load() && managed_media_generation_.load() == generation;
+    }
+
+    std::shared_ptr<Connection> NetClient::CurrentMediaConnection() const {
+        std::lock_guard lock(media_connection_mutex_);
+        return media_conn_;
+    }
+
+    void NetClient::ReplaceMediaConnection(std::shared_ptr<Connection> connection) {
+        std::lock_guard lock(media_connection_mutex_);
+        media_conn_ = std::move(connection);
+    }
+
+    std::shared_ptr<UdpDirectConnection> NetClient::CurrentUdpDirectConnection() const {
+        std::lock_guard lock(udp_direct_connection_mutex_);
+        return udp_direct_conn_;
+    }
+
+    void NetClient::ReplaceUdpDirectConnection(std::shared_ptr<UdpDirectConnection> connection) {
+        std::lock_guard lock(udp_direct_connection_mutex_);
+        udp_direct_conn_ = std::move(connection);
+    }
+
+    void NetClient::StartManagedUdpMediaConnection(const std::shared_ptr<Connection>& connection,
+                                                    uint64_t generation) {
+        const auto weak_self = weak_from_this();
+        const std::weak_ptr<Connection> weak_connection = connection;
+        connection->RegisterOnConnectedCallback([weak_self, generation]() {
+            const auto self = weak_self.lock();
+            if (!self || !self->IsCurrentManagedMediaConnection(generation)) return;
+            if (self->connection_notified_.exchange(true)) return;
+            if (self->conn_cbk_) self->conn_cbk_();
+        });
+        connection->RegisterOnDisConnectedCallback([weak_self, generation]() {
+            const auto self = weak_self.lock();
+            if (!self || !self->IsCurrentManagedMediaConnection(generation)) return;
+            // UDP->WS 切换期间旧连接的 disconnect 已由 generation 拦截；只有当前
+            // 回退后的 WS 连接断开才上报用户可见的媒体断线。
+            if (self->dis_conn_cbk_) self->dis_conn_cbk_();
+        });
+        connection->RegisterOnMessageCallback([weak_self, weak_connection, generation](std::shared_ptr<Data> data) {
+            const auto self = weak_self.lock();
+            if (!self || !self->IsCurrentManagedMediaConnection(generation)) return;
+            self->stat_->AppendRecvDataSize(data->Size());
+            if (auto message = self->ParseMessage(data); message) {
+                if (const auto active_connection = weak_connection.lock()) {
+                    active_connection->PostBinaryMessage(ProtoMessageMaker::MakeAck(
+                        message->device_id(), message->stream_id(), message->send_time(), message->type()));
+                }
+            }
+        });
+        connection->Start();
+    }
+
+    void NetClient::OnUdpMediaReady() {
+        if (udp_media_fallback_state_.MarkUdpMediaReady()) {
+            udp_media_probe_deadline_ms_ = 0;
+            LOGI("Udp direct first media received; keep UDP media transport.");
+        }
+    }
+
+    void NetClient::CheckUdpMediaProbeTimeout() {
+        if (network_type_ != ClientNetworkType::kUdpDirect || exited_) return;
+        const auto deadline = udp_media_probe_deadline_ms_.load();
+        if (deadline <= 0 || TimeUtil::GetCurrentTimestamp() < deadline) return;
+        BeginUdpWebSocketFallback();
+    }
+
+    void NetClient::BeginUdpWebSocketFallback() {
+        if (!udp_media_fallback_state_.BeginFallback()) return;
+        udp_media_probe_deadline_ms_ = 0;
+        LOGW("Udp direct media unavailable; reconnecting the media channel as direct WebSocket.");
+
+        const auto previous_udp = CurrentUdpDirectConnection();
+        if (previous_udp) previous_udp->Stop();
+
+        const auto previous_media = CurrentMediaConnection();
+        const auto fallback_media = MakeDirectWebSocketMediaConnection(false);
+        const auto generation = managed_media_generation_.fetch_add(1) + 1;
+        ReplaceMediaConnection(fallback_media);
+        // Advance generation before stopping the old WS so its queued disconnect
+        // callback cannot turn a successful fallback into a false global disconnect.
+        if (previous_media) previous_media->Stop();
+        udp_media_fallback_state_.MarkWebSocketFallbackActive();
+        StartManagedUdpMediaConnection(fallback_media, generation);
+    }
+
     void NetClient::Start() {
         const auto weak_self = weak_from_this();
         if (!msg_listener_) {
@@ -81,7 +187,7 @@ namespace px
             LOGI("file transfer: {}", ft_path_);
             if (sdk_params_->ssl_) {
                 if (!sdk_params_->file_transfer_only_) {
-                    media_conn_ = std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, media_path_);
+                    ReplaceMediaConnection(std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, media_path_));
                 }
                 auto ft_path = ft_path_;
                 if (sdk_params_->file_transfer_only_ && !sdk_params_->connection_ticket_.empty()) {
@@ -91,7 +197,7 @@ namespace px
             }
             else {
                 if (!sdk_params_->file_transfer_only_) {
-                    media_conn_ = std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, media_path_);
+                    ReplaceMediaConnection(std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, media_path_));
                 }
                 auto ft_path = ft_path_;
                 if (sdk_params_->file_transfer_only_ && !sdk_params_->connection_ticket_.empty()) {
@@ -102,17 +208,17 @@ namespace px
         }
         else if (network_type_ == ClientNetworkType::kUdpKcp) {
             LOGI("Will connect by UDP");
-            media_conn_ = std::make_shared<UdpConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_);
+            ReplaceMediaConnection(std::make_shared<UdpConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_));
         }
         else if (network_type_ == ClientNetworkType::kRelay) {
             auto auto_relay = !sdk_params_->enable_p2p_;
             if (!sdk_params_->file_transfer_only_) {
-                media_conn_ = std::make_shared<RelayConnection>(sdk_params_, msg_notifier_, sdk_params_->relay_host_, sdk_params_->relay_port_, device_id_,remote_device_id_, auto_relay, kRoomTypeMedia);
+                ReplaceMediaConnection(std::make_shared<RelayConnection>(sdk_params_, msg_notifier_, sdk_params_->relay_host_, sdk_params_->relay_port_, device_id_,remote_device_id_, auto_relay, kRoomTypeMedia));
             }
             ft_conn_ = std::make_shared<RelayConnection>(sdk_params_, msg_notifier_, sdk_params_->relay_host_, sdk_params_->relay_port_, ft_device_id_, ft_remote_device_id_, auto_relay, kRoomTypeFileTransfer);
 
             if (sdk_params_->enable_p2p_ && !sdk_params_->file_transfer_only_) {
-                auto relay_conn = std::dynamic_pointer_cast<RelayConnection>(media_conn_);
+                auto relay_conn = std::dynamic_pointer_cast<RelayConnection>(CurrentMediaConnection());
                 rtc_conn_ = WebRtcConnection::Make(relay_conn, sdk_params_, msg_notifier_);
             }
         }
@@ -126,7 +232,7 @@ namespace px
             auto relay_conn = std::make_shared<RelayConnection>(
                 sdk_params_, msg_notifier_, sdk_params_->relay_host_, sdk_params_->relay_port_,
                 device_id_, remote_device_id_, false, kRoomTypeMedia);
-            media_conn_ = relay_conn;
+            ReplaceMediaConnection(relay_conn);
             // File traffic uses the RTC FT data channel as well. Creating the
             // legacy file Relay here would consume a standalone file ticket
             // before the Render can redeem it for the RTC offer.
@@ -137,7 +243,7 @@ namespace px
             // Specialized direct-only path backed by net_rtc_local.
             LOGI("Will connect by WebRTC direct, ip: {}, port: {}", sdk_params_->ip_, sdk_params_->port_);
             rtc_local_conn_ = std::make_shared<WebRtcLocalConnection>(sdk_params_, msg_notifier_);
-            media_conn_ = rtc_local_conn_;
+            ReplaceMediaConnection(rtc_local_conn_);
         }
         else if (network_type_ == ClientNetworkType::kUdpDirect) {
             // GameStream 风格双通道:ws 控制面(可靠消息/状态机全复用) + 裸 UDP 媒体面,
@@ -154,9 +260,7 @@ namespace px
             }
             if (sdk_params_->ssl_) {
                 if (!sdk_params_->file_transfer_only_) {
-                    media_conn_ = std::make_shared<WssConnection>(
-                        sdk_params_, msg_notifier_, sdk_params_->ip_,
-                        sdk_params_->port_, media_path_);
+                    ReplaceMediaConnection(MakeDirectWebSocketMediaConnection(true));
                 }
                 ft_conn_ = std::make_shared<WssConnection>(
                     sdk_params_, msg_notifier_, sdk_params_->ip_,
@@ -164,17 +268,15 @@ namespace px
             }
             else {
                 if (!sdk_params_->file_transfer_only_) {
-                    media_conn_ = std::make_shared<WsConnection>(
-                        sdk_params_, msg_notifier_, sdk_params_->ip_,
-                        sdk_params_->port_, media_path_);
+                    ReplaceMediaConnection(MakeDirectWebSocketMediaConnection(true));
                 }
                 ft_conn_ = std::make_shared<WsConnection>(
                     sdk_params_, msg_notifier_, sdk_params_->ip_,
                     sdk_params_->port_, ft_path);
             }
             if (!sdk_params_->file_transfer_only_) {
-                udp_direct_conn_ = std::make_shared<UdpDirectConnection>(
-                    sdk_params_, msg_notifier_);
+                ReplaceUdpDirectConnection(std::make_shared<UdpDirectConnection>(
+                    sdk_params_, msg_notifier_));
             }
         }
         else {
@@ -200,42 +302,54 @@ namespace px
                 });
         }
 
-        // In full WebRTC mode Relay is only the signaling/bootstrap path. The
-        // user-visible connection becomes ready after ICE plus the required
-        // RTC data channel, not when the Relay room is merely established.
-        std::shared_ptr<Connection> primary_conn = network_type_ == ClientNetworkType::kWebRtc
-            ? std::static_pointer_cast<Connection>(rtc_conn_)
-            : (media_conn_ ? media_conn_ : ft_conn_);
-        if (!primary_conn) {
-            LOGE("Start failed: no transport connection was created");
-            return;
+        const auto media_connection = CurrentMediaConnection();
+        const bool managed_udp_media = network_type_ == ClientNetworkType::kUdpDirect && media_connection;
+        if (managed_udp_media) {
+            udp_media_fallback_state_.BeginProbe();
+            udp_media_probe_deadline_ms_ = TimeUtil::GetCurrentTimestamp() + kUdpMediaProbeTimeoutMs;
+            const auto generation = managed_media_generation_.fetch_add(1) + 1;
+            StartManagedUdpMediaConnection(media_connection, generation);
         }
-        primary_conn->RegisterOnConnectedCallback([weak_self]() {
-            if (const auto self = weak_self.lock(); self && self->conn_cbk_) {
-                self->conn_cbk_();
+        else {
+            // In full WebRTC mode Relay is only the signaling/bootstrap path. The
+            // user-visible connection becomes ready after ICE plus the required
+            // RTC data channel, not when the Relay room is merely established.
+            std::shared_ptr<Connection> primary_conn = network_type_ == ClientNetworkType::kWebRtc
+                ? std::static_pointer_cast<Connection>(rtc_conn_)
+                : (media_connection ? media_connection : ft_conn_);
+            if (!primary_conn) {
+                LOGE("Start failed: no transport connection was created");
+                return;
             }
-        });
-
-        primary_conn->RegisterOnDisConnectedCallback([weak_self]() {
-            if (const auto self = weak_self.lock(); self && self->dis_conn_cbk_) {
-                self->dis_conn_cbk_();
-            }
-        });
-
-        if (media_conn_) {
-            media_conn_->RegisterOnMessageCallback([weak_self](std::shared_ptr<Data> data) {
-                const auto self = weak_self.lock();
-                if (!self) return;
-                // statistics
-                self->stat_->AppendRecvDataSize(data->Size());
-                // parse
-                if (auto m = self->ParseMessage(data); m) {
-                    // ack
-                    auto ack = ProtoMessageMaker::MakeAck(m->device_id(), m->stream_id(), m->send_time(), m->type());
-                    if (self->media_conn_) self->media_conn_->PostBinaryMessage(ack);
+            primary_conn->RegisterOnConnectedCallback([weak_self]() {
+                if (const auto self = weak_self.lock(); self && self->conn_cbk_) {
+                    self->conn_cbk_();
                 }
             });
-            media_conn_->Start();
+
+            primary_conn->RegisterOnDisConnectedCallback([weak_self]() {
+                if (const auto self = weak_self.lock(); self && self->dis_conn_cbk_) {
+                    self->dis_conn_cbk_();
+                }
+            });
+
+            if (media_connection) {
+                media_connection->RegisterOnMessageCallback([weak_self](std::shared_ptr<Data> data) {
+                    const auto self = weak_self.lock();
+                    if (!self) return;
+                    // statistics
+                    self->stat_->AppendRecvDataSize(data->Size());
+                    // parse
+                    if (auto m = self->ParseMessage(data); m) {
+                        // ack
+                        auto ack = ProtoMessageMaker::MakeAck(m->device_id(), m->stream_id(), m->send_time(), m->type());
+                        if (const auto active_connection = self->CurrentMediaConnection()) {
+                            active_connection->PostBinaryMessage(ack);
+                        }
+                    }
+                });
+                media_connection->Start();
+            }
         }
         if (ft_conn_) {
             ft_conn_->RegisterOnMessageCallback([weak_self](std::shared_ptr<Data> data) {
@@ -318,12 +432,13 @@ namespace px
             });
         }
 
-        if (udp_direct_conn_) {
+        if (const auto udp_connection = CurrentUdpDirectConnection()) {
             // UDP 媒体面:组帧后合成的 kVideoFrame,与上面 rtc_local 相同的上送路径,
             // 同样不回 Ack(裸 UDP 无应用层确认,丢帧走 IDR 请求恢复)
-            udp_direct_conn_->SetOnVideoMessageCallback([weak_self](std::shared_ptr<px::Message> m) {
+            udp_connection->SetOnVideoMessageCallback([weak_self](std::shared_ptr<px::Message> m) {
                 const auto self = weak_self.lock();
                 if (!self) return;
+                self->OnUdpMediaReady();
                 self->stat_->AppendRecvDataSize((int64_t)m->ByteSizeLong());
                 if (self->raw_msg_cbk_) {
                     self->raw_msg_cbk_(m);
@@ -334,29 +449,34 @@ namespace px
             });
             // UDP 音频:jitter buffer 按序交付/丢帧信号(空 data)都从这里上送,
             // 与 ws 路径一样直接进 audio_frame_cbk_(音频本就不走 raw_msg_cbk_)
-            udp_direct_conn_->SetOnAudioMessageCallback([weak_self](std::shared_ptr<px::Message> m) {
+            udp_connection->SetOnAudioMessageCallback([weak_self](std::shared_ptr<px::Message> m) {
                 const auto self = weak_self.lock();
                 if (!self) return;
+                self->OnUdpMediaReady();
                 self->stat_->AppendRecvDataSize((int64_t)m->ByteSizeLong());
                 if (self->audio_frame_cbk_) {
                     self->audio_frame_cbk_(m);
                 }
             });
             // UDP 控制包踢人(kCtrlKick):复用"被接管"逻辑,与 kConnectionTakenOver 一致
-            udp_direct_conn_->SetOnKickCallback([weak_self](const std::string& reason) {
+            udp_connection->SetOnKickCallback([weak_self](const std::string& reason) {
                 LOGW("Udp direct connection kicked, reason: {}", reason);
                 if (const auto self = weak_self.lock()) {
                     self->msg_notifier_->SendAppMessage(SdkMsgConnectionTakenOver{});
                 }
             });
-            // UDP watchdog 断线:走与媒体连接相同的断线回调路径
-            udp_direct_conn_->RegisterOnDisConnectedCallback([weak_self]() {
-                LOGW("Udp direct media channel lost.");
-                if (const auto self = weak_self.lock(); self && self->dis_conn_cbk_) {
-                    self->dis_conn_cbk_();
+            udp_connection->SetOnMediaReadyCallback([weak_self]() {
+                if (const auto self = weak_self.lock()) self->OnUdpMediaReady();
+            });
+            // UDP watchdog 断线:若媒体已被证明可用后又中断，仍可回退到同一 Render
+            // 的直连 WS 媒体会话；非 UDP 模式沿用原有断线语义。
+            udp_connection->RegisterOnDisConnectedCallback([weak_self]() {
+                if (const auto self = weak_self.lock()) {
+                    LOGW("Udp direct media channel lost; request WebSocket fallback.");
+                    self->BeginUdpWebSocketFallback();
                 }
             });
-            udp_direct_conn_->Start(sdk_params_->ip_, sdk_params_->udp_port_, device_id_, stream_id_);
+            udp_connection->Start(sdk_params_->ip_, sdk_params_->udp_port_, device_id_, stream_id_);
         }
     }
 
@@ -365,9 +485,12 @@ namespace px
             return;
         }
         msg_listener_.reset();
-        if (media_conn_) {
+        udp_media_fallback_state_.Stop();
+        udp_media_probe_deadline_ms_ = 0;
+        managed_media_generation_.fetch_add(1);
+        if (const auto media_connection = CurrentMediaConnection()) {
             LOGI("Queued message count: {}", queuing_message_count_.load());
-            media_conn_->Stop();
+            media_connection->Stop();
         }
         if (ft_conn_) {
             ft_conn_->Stop();
@@ -375,13 +498,13 @@ namespace px
         if (rtc_conn_) {
             rtc_conn_->Stop();
         }
-        if (udp_direct_conn_) {
-            udp_direct_conn_->Stop();
+        if (const auto udp_connection = CurrentUdpDirectConnection()) {
+            udp_connection->Stop();
         }
         rtc_local_conn_.reset();
         rtc_conn_.reset();
-        udp_direct_conn_.reset();
-        media_conn_.reset();
+        ReplaceUdpDirectConnection(nullptr);
+        ReplaceMediaConnection(nullptr);
         ft_conn_.reset();
         LOGI("WS has exited...");
     }
@@ -399,7 +522,7 @@ namespace px
         }
 
         if (net_msg->type() == px::kVideoFrame) {
-            if (network_type_ == ClientNetworkType::kUdpDirect) {
+            if (network_type_ == ClientNetworkType::kUdpDirect && udp_media_fallback_state_.UsesUdpMedia()) {
                 // udp_direct 模式下视频走 UDP 媒体面,ws 控制面不应携带;
                 // 收到说明 render 未按 udp_media=1 过滤,直接丢弃防重复解码
                 return net_msg;
@@ -418,7 +541,7 @@ namespace px
             }
         }
         else if (net_msg->type() == px::kAudioFrame) {
-            if (network_type_ == ClientNetworkType::kUdpDirect) {
+            if (network_type_ == ClientNetworkType::kUdpDirect && udp_media_fallback_state_.UsesUdpMedia()) {
                 // udp_direct 模式下音频走 UDP 媒体面,ws 控制面不应携带;
                 // 收到说明 render 未按 udp_media=1 过滤,直接丢弃防重复解码
                 return net_msg;
@@ -553,16 +676,17 @@ namespace px
             rtc_local_conn_->PostMediaMessage(msg);
         }
         else {
-            auto queuing_msg_count = this->GetQueuingMediaMsgCount();
+            const auto media_connection = CurrentMediaConnection();
+            auto queuing_msg_count = media_connection ? media_connection->GetQueuingMsgCount() : 0;
             int wait_count = 0;
             while (queuing_msg_count >= kMaxFileTransferQueuedMessages && wait_count < 200) {
-                if (!media_conn_ || !media_conn_->IsAlive()) {
+                if (!media_connection || !media_connection->IsAlive()) {
                     LOGW("===> [Media] connection not alive, drop the message, queuing: {}", queuing_msg_count);
                     return;
                 }
                 //LOGI("===> queue too many msgs, count: {}, wait for 1ms", queuing_msg_count);
                 TimeUtil::DelayBySleep(1);
-                queuing_msg_count = this->GetQueuingMediaMsgCount();
+                queuing_msg_count = media_connection->GetQueuingMsgCount();
                 wait_count++;
             }
             if (wait_count >= 200) {
@@ -570,8 +694,8 @@ namespace px
                 return;
             }
 
-            if (media_conn_) {
-                media_conn_->PostBinaryMessage(msg);
+            if (media_connection) {
+                media_connection->PostBinaryMessage(msg);
             }
         }
 
@@ -690,6 +814,7 @@ namespace px
     }
 
     void NetClient::HeartBeat() {
+        CheckUdpMediaProbeTimeout();
         auto msg = std::make_shared<Message>();
         msg->set_type(px::kHeartBeat);
         msg->set_device_id(device_id_);
@@ -711,8 +836,8 @@ namespace px
         else if (rtc_local_conn_) {
             return rtc_local_conn_->GetQueuingMediaMsgCount();
         }
-        else if (media_conn_) {
-            return media_conn_->GetQueuingMsgCount();
+        else if (const auto media_connection = CurrentMediaConnection()) {
+            return media_connection->GetQueuingMsgCount();
         }
         else {
             return 0;
@@ -744,14 +869,14 @@ namespace px
         if (ft_conn_) {
             ft_conn_->On16msTimeout();
         }
-        if (media_conn_) {
-            media_conn_->On16msTimeout();
+        if (const auto media_connection = CurrentMediaConnection()) {
+            media_connection->On16msTimeout();
         }
     }
 
     void NetClient::RetryConnection() {
-        if (media_conn_) {
-            media_conn_->RetryConnection();
+        if (const auto media_connection = CurrentMediaConnection()) {
+            media_connection->RetryConnection();
         }
         if (ft_conn_) {
             ft_conn_->RetryConnection();
@@ -759,9 +884,9 @@ namespace px
         if (rtc_conn_) {
             rtc_conn_->RetryConnection();
         }
-        if (udp_direct_conn_) {
+        if (const auto udp_connection = CurrentUdpDirectConnection()) {
             // 裸 UDP 无重连概念,先空实现(ws 控制面断线即整体断线)
-            udp_direct_conn_->RetryConnection();
+            udp_connection->RetryConnection();
         }
     }
 

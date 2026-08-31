@@ -64,6 +64,10 @@ namespace px
                 return;
             }
             self->audio_lost_log_count_ = 0; // 恢复正常交付,下一次判丢重新计数
+            if (!self->media_ready_reported_) {
+                self->media_ready_reported_ = true;
+                if (self->media_ready_cbk_) self->media_ready_cbk_();
+            }
             auto msg = std::make_shared<px::Message>();
             msg->set_type(px::kAudioFrame);
             auto* audio = msg->mutable_audio_frame();
@@ -123,6 +127,7 @@ namespace px
         last_idr_time_.clear();
         last_rfi_time_.clear();
         audio_lost_log_count_ = 0;
+        media_ready_reported_ = false;
         reassembler_.Reset();
         audio_jitter_.Reset();
 
@@ -266,6 +271,10 @@ namespace px
         if (stopped_ || !video_msg_cbk_ || !frame.data_ || frame.data_->Size() == 0) {
             return;
         }
+        if (!media_ready_reported_) {
+            media_ready_reported_ = true;
+            if (media_ready_cbk_) media_ready_cbk_();
+        }
 
         // 合成与 relay/ws 路径完全一致的标准 kVideoFrame proto,
         // 让 sdk 的按屏解码链原样接上(reassembler 保证首帧必为 IDR)
@@ -344,6 +353,10 @@ namespace px
 
     void UdpDirectConnection::SetOnKickCallback(std::function<void(const std::string& reason)> cbk) {
         on_kick_cbk_ = std::move(cbk);
+    }
+
+    void UdpDirectConnection::SetOnMediaReadyCallback(std::function<void()> cbk) {
+        media_ready_cbk_ = std::move(cbk);
     }
 
     bool UdpDirectConnection::IsAlive() {

@@ -17,14 +17,14 @@
 | 丢包修复(socket 缓冲) | ✅ 完成 | 客户端 RCVBUF 8MB / render SNDBUF 4MB |
 | 发送 pacing | ✅ 完成(2026-08-13 重做) | Sunshine 同款:80Mbps 速率上限 + 10 shard/批 + 高精度 waitable timer(`CreateWaitableTimerEx`) |
 | IDR 请求节流 | ✅ 完成 | 客户端 per mon_slot 1s 去重(moonlight 同款) |
-| 音频迁 UDP | ⚠️ 已实现,未通过实测 | Opus 裸帧 + seq + jitter buffer + PLC + inband FEC(15%);wire 正常(探针 50pps),客户端侧仍无声 |
+| 音频迁 UDP | ⏸️ 验收暂缓 | Opus 裸帧 + seq + jitter buffer + PLC 已实现；wire 探针已确认 50pps，原生客户端实际扬声器听音验收按 2026-08-31 决定暂缓 |
 | 音频 jitter buffer 死循环修复 | ✅ 完成(2026-08-13) | 判丢看最新包 + 满时丢新包 + 对端重启 resync;单测 30/30 |
 | 加密 | ❌ 未做 | 按规划放最后 |
 | RFI 参考帧失效 | ✅ 已实现(NVENC) | 丢整帧优先发 RFI,NVENC `NvEncInvalidateRefFrames`;DPB 16 + range 16,恢复帧再丢则重发 RFI,2s 无帧才回退 IDR |
-| 投机式判丢 | ❌ 未做 | 缺包数>可用 parity 立即上报,不等新帧 |
+| 投机式判丢 | ✅ 完成(2026-08-31) | FEC 帧收到 EOF 后，若缺失数据 shard 已超过全量 parity 能力，立即上报 RFI，不等待下一帧；仅以 EOF 为触发边界，保留 parity 先到时的乱序恢复 |
 | 输入迁 UDP | ⏸️ 暂缓 | 控制输入继续走直连 WebSocket；仅在实测存在可感知瓶颈时重新评估 |
 | MTU 钳 1024 | ✅ 已配置化 | `mtu` 参数,LAN 默认 1400,公网可配 1024；公网默认与实机矩阵仍待收口 |
-| UDP 不通回退 ws | ❌ 未做 | |
+| UDP 不通回退 WS | ⚠️ 已实现，待 LAN 黑洞验收 | UDP 首媒体 4 秒超时或运行中 watchdog 超时时，一次性重建不带 `udp_media=1` 的直连 WS 媒体会话；generation 忽略旧回调 |
 
 构建:`build_client.bat`(`PX_SKIP_SERVERS=1`,只编安装包内容,跳过 3 个 rust server)。
 探针:`scripts/udp_fec_probe.mjs`(视频 shard/FEC 统计)、`scripts/udp_audio_probe.mjs`(音频 seq/间隔统计)。
@@ -186,7 +186,7 @@
 | 音频 RS(4,2) 固定 FEC | `Sunshine/src/stream.cpp:1800` | ❌ 未做(增强项) | — |
 | Opus inband FEC | Sunshine Opus 配置 | ✅ 已开 15% | `px_opus_codec_new/opus_codec.cpp`、`opus_encoder_plugin.cpp` |
 | RFI 参考帧失效(丢 P 不请 IDR) | `nvenc_base.cpp:795` | ✅ NVENC DPB16+range16,RFI 重试;AMF 回退 IDR | `px_udp_protocol.h`、`nvenc_video_encoder.cpp`、`udp_direct_connection.cpp` |
-| 投机式判丢(缺包>parity 立即上报) | `RtpVideoQueue.c:213-219` | ❌ 未做 | — |
+| 投机式判丢(缺包>parity 立即上报) | `RtpVideoQueue.c:213-219` | ✅ EOF 到达即判 | `PxUdpFrameReassembler`；EOF 证明数据 shard 已发完，缺失超过 parity 上限即请求 RFI |
 | 输入走 UDP + 1ms 微批处理 | `InputStream.c:54-60` | ⏸️ 暂缓；输入继续走直连 WS | 不为控制面重造可靠 UDP |
 | 公网包大小钳 1024 防分片 | `Connection.c:388-411` | ✅ 已可配置；公网默认与实机矩阵待收口 | `mtu` 参数 |
 | AES-128-GCM 加密 | `crypto.cpp` | ❌ 未做,按规划最后做 | — |
@@ -195,9 +195,9 @@
 
 ## 5. 剩余规划(按优先级)
 
-1. **音频端到端有声实测**(panel 打开音频开关后验证)。
+1. **音频端到端有声实测（暂缓）**：在本机 100Mbps LAN 以 UDP Direct 启动一个有声音的应用，确认原生客户端扬声器有声。验收不能只看 `udp_audio_probe.mjs` 的 50pps；客户端日志应出现 `Init audio player`，且 UDP Direct 已在启动时强制打开本地音频，避免旧 `--audio=0` 静默关闭播放。
 2. **物理链路丢包排查**:客户端仍 100Mbps,换 CAT5e/6 网线 / 千兆交换机口,或写 UDP 打流测速工具定位满速丢包拐点。
-3. **投机式判丢**:缺包数 > 可用 parity 立即上报,不等新帧到达。
+3. **UDP 回退 LAN 黑洞验收**：人为阻断客户端到 Render 的 UDP 媒体端口，确认 4 秒内重建直连 WS 媒体会话且音视频恢复；正常 UDP 场景不得误回退。
 4. **公网 UDP 收口**:确认公网默认 MTU=1024、UDP 不通时媒体面回退 WS，并完成相应实机矩阵。
 5. **加密(AES-128-GCM)**:按既定顺序最后做；公网部署前必须完成。
 
@@ -214,10 +214,10 @@
 
 - 协议/组帧/FEC/音频 jitter:`src/px_deps/px_common_new/px_udp_protocol.h`、`reedsolomon/`、`px_fec.h`
 - render 发送端:`src/px_render/plugins/net_udp/udp_plugin.cpp`
-- 客户端接收端:`src/px_deps/px_client_sdk_new/connection/udp_direct_connection.cpp`
+- 客户端接收端及回退状态机:`src/px_deps/px_client_sdk_new/connection/udp_direct_connection.cpp`、`udp_media_fallback_state.h`、`sdk_net_client.cpp`
 - 音频解码/PLC:`src/px_deps/px_client_sdk_new/thunder_sdk.cpp:316-345`
 - 编码诊断:`src/px_render/app/encoder_thread.cpp:69-74`
-- 单测:`src/px_deps/px_common_new/tests/test_px_udp_protocol.cpp`(31 例)
+- 单测:`src/px_deps/px_common_new/tests/test_px_udp_protocol.cpp`(31 例)、`px_client_sdk_new/tests/test_udp_media_fallback_state.cpp`(首媒体、竞争回退、停止后迟到回调)
 - 探针:`scripts/udp_fec_probe.mjs`、`scripts/udp_audio_probe.mjs`
 - 网卡检查/优化:`scripts/check_net_udp.ps1`、`scripts/fix_net_udp.ps1`
 
