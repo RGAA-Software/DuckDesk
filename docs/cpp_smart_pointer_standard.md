@@ -57,13 +57,48 @@ an explicit repository decision; it must not be inferred from its location.
 
 ## QObject and plugin considerations
 
+Qt parent ownership and C++ smart-pointer ownership are two alternative
+ownership models. They must never be layered on the same object:
+
+```cpp
+// Correct: Qt owns deletion; QPointer is only a guarded observer.
+QPointer<QWidget> tooltip =
+    new QWidget(parent); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it.
+
+// Correct: no Qt parent; unique_ptr is the sole owner.
+auto detached = std::make_unique<QWidget>();
+```
+
+The following patterns are prohibited:
+
+```cpp
+auto tooltip = std::make_unique<QWidget>();
+tooltip->setParent(parent);
+QPointer<QWidget> observed = tooltip.get();
+tooltip.release(); // Prohibited ownership transfer.
+
+auto duplicate_owner =
+    std::unique_ptr<QWidget>(new QWidget(parent)); // Two deletion authorities.
+```
+
+A Qt-parented object must be created directly at the smallest annotated Qt API
+boundary, immediately given its parent, and retained only through `QPointer`
+when observation is needed. Do not use `setParent()` plus `release()` to hand a
+smart-owned object to Qt. Do not put a parented object into `unique_ptr` or
+`shared_ptr`. Conversely, `QPointer` is non-owning and cannot be the only
+lifetime authority for a parentless object. These rules apply equally to
+widgets, layouts, actions, timers and project-defined `QObject` subclasses.
+
 Qt parent ownership does not make a raw pointer safe for queued work. QObject
 callbacks use a smart-owned controller/model plus a guarded Qt reference where
-Qt requires one. Existing plug-in instance boundaries are a compatibility
-exception: do not change `GetInstance`, loader-owned library handles, ABI
-singleton pointers, instance identity, unload timing, or their established
-creation/destruction contract. Project-owned work around that boundary should
-still use safe lifetime guards without altering the plug-in instance model.
+Qt requires one. Before every queued use, test the `QPointer`; never capture the
+transient boundary pointer.
+
+Existing plug-in instance boundaries are a compatibility exception: do not
+change `GetInstance`, loader-owned library handles, ABI singleton pointers,
+instance identity, unload timing, or their established creation/destruction
+contract. Project-owned work around that boundary should still use safe
+lifetime guards without altering the plug-in instance model.
 
 ## Change policy for legacy code
 
@@ -79,8 +114,9 @@ Reviews must explicitly check construction, destruction, unregister, shutdown,
 reconnect and callback ordering. Tests must include callbacks queued before
 destruction, owner expiry, repeated start/stop, concurrent unregister and
 shutdown invoked from inside a callback. Static checks reject newly added
-raw-pointer declarations, `[this]` captures and manual ownership. A reviewed
-external-ABI declaration is the only annotated exception.
+raw-pointer declarations, `[this]` captures, manual ownership and
+smart-pointer-to-Qt-parent `release()` transfers. A reviewed external-ABI or
+direct Qt-parent construction boundary is the only annotated exception.
 
 Run `cmake --build build_official --target check_cpp_ownership` before native
 code review. The checker examines added lines in the working tree and rejects

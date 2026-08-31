@@ -16,6 +16,8 @@
 #include <QComboBox>
 #include <QPainter>
 #include <QTextEdit>
+#include <QPointer>
+#include <functional>
 #include "px_qt_widget/px_custom_titlebar_dialog.h"
 
 namespace px
@@ -24,6 +26,8 @@ namespace px
     class PxContext;
     class PxApplication;
     class TcPasswordInput;
+    class PxSettings;
+    class LatestSerialRequestGate;
 
     class InputSafetyPwdDialog : public TcCustomTitleBarDialog {
     public:
@@ -39,8 +43,10 @@ namespace px
     private:
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<PxApplication> app_ = nullptr;
-        TcPasswordInput* pwd_input_ = nullptr;
-        TcPasswordInput* pwd_input_again_ = nullptr;
+        std::reference_wrapper<PxSettings> settings_;
+        QPointer<TcPasswordInput> pwd_input_;
+        QPointer<TcPasswordInput> pwd_input_again_;
+        std::shared_ptr<LatestSerialRequestGate> update_gate_;
 
     };
 

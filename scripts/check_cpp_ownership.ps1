@@ -31,6 +31,7 @@ try {
         }
     }
     else {
+        $addedCodeByFile = @{}
         $diffArgs = @("diff", "--unified=0", "--no-ext-diff")
         if ($Staged) {
             $diffArgs += "--cached"
@@ -57,6 +58,11 @@ try {
                 continue
             }
             $added = $line.Substring(1)
+            if (-not $addedCodeByFile.ContainsKey($currentFile)) {
+                $addedCodeByFile[$currentFile] =
+                    [System.Collections.Generic.List[string]]::new()
+            }
+            $addedCodeByFile[$currentFile].Add($added)
             # Comment-only additions cannot introduce ownership or lifetime
             # behavior. Ignoring them also prevents prose such as "new path"
             # from being mistaken for a C++ new-expression.
@@ -82,6 +88,21 @@ try {
                 -not $isReviewedRawPointerBoundary) {
                 $violations.Add("${currentFile}: $added")
             }
+            if ($added -match '\.release\s*\(\s*\)' -and
+                -not $isReviewedRawPointerBoundary) {
+                $violations.Add(
+                    "${currentFile}: smart-pointer release() requires a reviewed external ABI boundary and must never transfer ownership to a Qt parent: $added")
+            }
+        }
+
+        foreach ($entry in $addedCodeByFile.GetEnumerator()) {
+            $addedBlock = $entry.Value -join "`n"
+            $smartPointerQtTransfer =
+                $addedBlock -match '(?s)(?:make_unique|make_shared|unique_ptr|shared_ptr).{0,1200}?setParent\s*\(.{0,1200}?\.release\s*\('
+            if ($smartPointerQtTransfer) {
+                $violations.Add(
+                    "$($entry.Key): smart-pointer ownership must not be transferred to a Qt parent with setParent()/release(); construct directly under the Qt parent and observe with QPointer")
+            }
         }
     }
 
@@ -89,7 +110,7 @@ try {
         Write-Error ("C++ ownership check failed ({0} violation(s)):`n{1}" -f
             $violations.Count, ($violations -join "`n"))
     }
-    Write-Host "C++ ownership check passed: no new raw-pointer declarations, manual ownership, or [this] captures."
+    Write-Host "C++ ownership check passed: no new raw-pointer declarations, manual ownership, Qt parent ownership transfers, or [this] captures."
 }
 finally {
     Pop-Location

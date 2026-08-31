@@ -7,6 +7,7 @@
 #include <QButtonGroup>
 #include <QRadioButton>
 #include <QTextEdit>
+#include <optional>
 #include "px_dialog.h"
 #include "px_label.h"
 #include "px_pushbutton.h"
@@ -23,25 +24,31 @@
 #include "px_qt_widget/px_password_input.h"
 #include "px_console_client/console_device_api.h"
 #include "px_console_client/console_device.h"
+#include "px_common_new/latest_serial_request_gate.h"
 
 namespace px
 {
 
-    InputSafetyPwdDialog::InputSafetyPwdDialog(const std::shared_ptr<PxApplication>& app, QWidget* parent) : TcCustomTitleBarDialog("", parent) {
-        app_ = app;
-        context_ = app_->GetContext();
+    InputSafetyPwdDialog::InputSafetyPwdDialog(
+        const std::shared_ptr<PxApplication>& app,
+        QWidget* parent) // NOLINT(gammaray-raw-pointer-boundary) Qt parent API
+        : TcCustomTitleBarDialog("", parent),
+          context_(app->GetContext()),
+          app_(app),
+          settings_(*PxSettings::Instance()),
+          update_gate_(LatestSerialRequestGate::Create()) {
         setFixedSize(375, 300);
         CreateLayout();
 
         CenterDialog(this);
     }
 
-    InputSafetyPwdDialog::~InputSafetyPwdDialog() = default;
+    InputSafetyPwdDialog::~InputSafetyPwdDialog() {
+        update_gate_->Stop();
+    }
 
     void InputSafetyPwdDialog::CreateLayout() {
         setWindowTitle(tcTr("id_input_security_password"));
-        auto settings = PxSettings::Instance();
-
         auto item_width = 320;
         auto edit_size = QSize(item_width, 35);
 
@@ -68,7 +75,8 @@ namespace px
 
             pwd_input_ = new TcPasswordInput(this);
             pwd_input_->setFixedSize(edit_size);
-            pwd_input_->SetPassword(settings->GetDeviceSecurityPwd().c_str());
+            pwd_input_->SetPassword(
+                settings_.get().GetDeviceSecurityPwd().c_str());
 
             layout->addWidget(pwd_input_);
             layout->addStretch();
@@ -92,7 +100,8 @@ namespace px
 
             pwd_input_again_ = new TcPasswordInput(this);
             pwd_input_again_->setFixedSize(edit_size);
-            pwd_input_again_->SetPassword(settings->GetDeviceSecurityPwd().c_str());
+            pwd_input_again_->SetPassword(
+                settings_.get().GetDeviceSecurityPwd().c_str());
             layout->addWidget(pwd_input_again_);
             layout->addStretch();
 
@@ -106,17 +115,24 @@ namespace px
             auto layout = new NoMarginVLayout();
             auto btn_sure = new TcPushButton();
             btn_sure->SetTextId("id_ok");
-            connect(btn_sure, &QPushButton::clicked, this, [=, this] () {
+            const QPointer<InputSafetyPwdDialog> self(this);
+            connect(btn_sure, &QPushButton::clicked, this, [self]() {
+                if (!self || !self->pwd_input_ || !self->pwd_input_again_) {
+                    return;
+                }
                 //if (settings->device_id_.empty()) {
                 //    TcDialog warn_dialog(tcTr("id_warning"), tcTr("id_unmanaged_device"), this);
                 //    warn_dialog.exec();
                 //    return;
                 //}
 
-                auto pwd = pwd_input_->GetPassword();
-                auto pwd_again = pwd_input_again_->GetPassword();
+                auto pwd = self->pwd_input_->GetPassword();
+                auto pwd_again = self->pwd_input_again_->GetPassword();
                 if (pwd.isEmpty() || (pwd != pwd_again)) {
-                    TcDialog warn_dialog(tcTr("id_warning"), tcTr("id_password_invalid_msg"), this);
+                    TcDialog warn_dialog(
+                        tcTr("id_warning"),
+                        tcTr("id_password_invalid_msg"),
+                        self);
                     warn_dialog.exec();
                     return;
                 }
@@ -125,41 +141,72 @@ namespace px
                 auto pwd_md5 = MD5::Hex(pwd.toStdString());
 
                 // save to local db
-                settings->SetDeviceSecurityPwd(pwd_md5);
-                context_->NotifyAppMessage(tcTr("id_update_security_success"), tcTr("id_local_security_password_updated"));
+                auto& settings = self->settings_.get();
+                settings.SetDeviceSecurityPwd(pwd_md5);
+                self->context_->NotifyAppMessage(
+                    tcTr("id_update_security_success"),
+                    tcTr("id_local_security_password_updated"));
 
                 // update to renderer
-                context_->SendAppMessage(MsgSecurityPasswordUpdated {
+                self->context_->SendAppMessage(MsgSecurityPasswordUpdated {
                     .security_password_ = pwd_md5,
                 });
 
                 // Supervisor server unconfigured
-                if (settings->GetDeviceId().empty()) {
-                    done(0);
+                if (settings.GetDeviceId().empty()) {
+                    self->done(0);
                     return;
                 }
-
-                // update safety pwd
-                auto opt_device = px_console::ConsoleDeviceApi::UpdateSafetyPwd(settings->GetConsoleServerHost(),
-                                                                 settings->GetConsoleServerPort(),
-                                                                 grApp->GetAppkey(),
-                                                                 settings->GetDeviceId(),
-                                                                 pwd_md5);
-                bool update_server_password_result = false;
-                if (opt_device.has_value()) {
-                    auto device = opt_device.value();
-                    if (device->safety_pwd_md5_ == pwd_md5) {
-                        update_server_password_result = true;
-                        context_->NotifyAppMessage(tcTr("id_update_security_success"), tcTr("id_remote_security_password_updated"));
-                        done(0);
-                    }
+                const auto request = self->update_gate_->Begin();
+                if (!request) {
+                    return;
                 }
-
-                if (!update_server_password_result) {
-                    TcDialog warn_dialog(tcTr("id_warning"), tcTr("id_security_password_update_local_but_failed_server"), this);
-                    warn_dialog.exec();
-                }
-
+                const auto gate = self->update_gate_;
+                const auto context = self->context_;
+                const auto application = self->app_;
+                const auto host = settings.GetConsoleServerHost();
+                const auto port = settings.GetConsoleServerPort();
+                const auto device_id = settings.GetDeviceId();
+                context->PostNetworkTask([
+                    self, gate, request, context, application, host, port,
+                    device_id, pwd_md5]() {
+                    std::optional<Result<
+                        std::shared_ptr<px_console::ConsoleDevice>,
+                        px_console::ConsoleApiError>> result;
+                    static_cast<void>(gate->RunIfCurrent(
+                        request.generation,
+                        [&result, &request, &application, &host, &port,
+                         &device_id, &pwd_md5]() {
+                            result.emplace(
+                                px_console::ConsoleDeviceApi::UpdateSafetyPwd(
+                                    host,
+                                    port,
+                                    application->GetAppkey(),
+                                    device_id,
+                                    pwd_md5,
+                                    request.cancellation));
+                        }));
+                    context->PostUITask([
+                        self, gate, generation = request.generation,
+                        pwd_md5, result = std::move(result)]() mutable {
+                        if (!self || !gate->Complete(generation) || !result) {
+                            return;
+                        }
+                        if (result->has_value() && result->value()
+                            && result->value()->safety_pwd_md5_ == pwd_md5) {
+                            self->context_->NotifyAppMessage(
+                                tcTr("id_update_security_success"),
+                                tcTr("id_remote_security_password_updated"));
+                            self->done(0);
+                            return;
+                        }
+                        TcDialog warn_dialog(
+                            tcTr("id_warning"),
+                            tcTr("id_security_password_update_local_but_failed_server"),
+                            self);
+                        warn_dialog.exec();
+                    });
+                });
             });
 
             layout->addWidget(btn_sure);

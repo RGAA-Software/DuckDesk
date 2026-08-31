@@ -16,6 +16,7 @@
 #include "ct_const_def.h"
 
 #include <qpushbutton.h>
+#include <QPointer>
 
 #include <algorithm>
 #include <mutex>
@@ -126,12 +127,12 @@ namespace px
 
         root_widget_->hide();
         root_widget_->setWindowTitle("Media Record");
-        auto layout = std::make_unique<QVBoxLayout>();
-        auto button =
-            std::make_unique<QPushButton>("Start Record", root_widget_.get());
+        const QPointer<QVBoxLayout> layout =
+            new QVBoxLayout(root_widget_.get()); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
+        const QPointer<QPushButton> button =
+            new QPushButton("Start Record", root_widget_.get()); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
         button->setFixedSize(80, 40);
-        layout->addWidget(button.release());
-        root_widget_->setLayout(layout.release());
+        layout->addWidget(button);
 
         return true;
     }

@@ -9,6 +9,7 @@
 #include <atomic>
 #include <format>
 #include <mutex>
+#include <QHBoxLayout>
 
 #include "px_message.pb.h"
 #include "px_message_new/proto_converter.h"
@@ -17,7 +18,6 @@
 #include "ft_terminal.h"
 #include "px_client/plugin_interface/ct_plugin_ids.h"
 #include "px_client/plugin_interface/ct_plugin_events.h"
-#include "no_margin_layout.h"
 #include "translator/px_translator.h"
 #include "widget_helper.h"
 
@@ -132,12 +132,13 @@ namespace px
         // UI:三栏文件管理窗口
         root_widget_->resize(1280, 760);
         root_widget_->hide();
-        auto window =
-            std::make_unique<FtWindow>(core_, root_widget_.get());
-        window_ = window.get();
-        auto layout = std::make_unique<NoMarginHLayout>();
-        layout->addWidget(window.release());
-        root_widget_->setLayout(layout.release());
+        window_ = new FtWindow( // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
+            core_, root_widget_.get());
+        const QPointer<QHBoxLayout> layout =
+            new QHBoxLayout(root_widget_.get()); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
+        layout->setSpacing(0);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->addWidget(window_);
         WidgetHelper::SetTitleBarColor(root_widget_.get());
         const QString remote_name = !plugin_settings_.stream_name_.empty()
             ? QString::fromStdString(plugin_settings_.stream_name_)

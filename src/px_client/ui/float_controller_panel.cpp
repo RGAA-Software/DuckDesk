@@ -735,11 +735,9 @@ namespace px
                     if (!owner) {
                         return;
                     }
-                    auto owned_panel = std::make_unique<SubDisplayPanel>(ctx, owner.data());
-                    const QPointer<SubDisplayPanel> display_panel(owned_panel.get());
+                    const QPointer<SubDisplayPanel> display_panel =
+                        new SubDisplayPanel(ctx, owner.data()); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
                     guarded_self->sub_panels_[SubPanelType::kDisplay] = display_panel;
-                    // QWidget parent ownership takes over at this boundary.
-                    (void)owned_panel.release();
                     display_panel->Hide();
                     panel = display_panel;
                 }

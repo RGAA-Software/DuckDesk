@@ -13,6 +13,8 @@
 #include <QPixmap>
 #include <QPushButton>
 #include <QLabel>
+#include <QPointer>
+#include <atomic>
 #include <memory>
 
 namespace px_console
@@ -59,17 +61,18 @@ namespace px
         bool enter_ = false;
         QBitmap mask_;
         int radius_ = 10;
-        TcPushButton* btn_conn_ = nullptr;
-        TcLabel* lbl_connecting_ = nullptr;
-        QWidget* btn_option_ = nullptr;
+        QPointer<TcPushButton> btn_conn_;
+        QPointer<TcLabel> lbl_connecting_;
+        QPointer<QWidget> btn_option_;
         OnConnectListener conn_listener_;
         OnMenuListener menu_listener_;
         bool direct_connected_ = false;
         bool relay_connected_ = false;
         bool console_connected_ = false;
-        TcLabel* work_mode_ = nullptr;
-        QLabel* state_tooltip_ = nullptr;
-        QWidget* state_tooltip_container_ = nullptr;
+        QPointer<TcLabel> work_mode_;
+        QPointer<QLabel> state_tooltip_;
+        QPointer<QWidget> state_tooltip_container_;
+        std::shared_ptr<std::atomic_bool> cover_cancellation_;
     };
 
 }

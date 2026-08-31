@@ -3,6 +3,8 @@
 #include <QWidget>
 #include <qpainter.h>
 #include <qevent.h>
+#include <QPointer>
+#include <functional>
 class QCheckBox;
 
 namespace pxrp
@@ -33,41 +35,41 @@ namespace px {
         void InitSigChannel();
         void ShowAccessHint();
     private:
-        NoMarginVLayout* root_vbox_layout_ = nullptr;
+        QPointer<NoMarginVLayout> root_vbox_layout_;
 
-        NoMarginHLayout* logo_hbox_layout_ = nullptr;
-        TcLabel* logo_lab_ = nullptr;
-        TcLabel* logo_name_lab_ = nullptr;
+        QPointer<NoMarginHLayout> logo_hbox_layout_;
+        QPointer<TcLabel> logo_lab_;
+        QPointer<TcLabel> logo_name_lab_;
 
-        NoMarginHLayout* avatar_name_hbox_layout_ = nullptr;
+        QPointer<NoMarginHLayout> avatar_name_hbox_layout_;
         // 头像
-        TcLabel* avatar_lab_ = nullptr;
+        QPointer<TcLabel> avatar_lab_;
         // 名字
-        TcLabel* key_1_lab_ = nullptr;
-        TcLabel* key_2_lab_ = nullptr;
-        TcLabel* conn_prompt_lab_ = nullptr;
+        QPointer<TcLabel> key_1_lab_;
+        QPointer<TcLabel> key_2_lab_;
+        QPointer<TcLabel> conn_prompt_lab_;
         // 断开连接
-        TcPushButton* disconnect_btn_ = nullptr;
+        QPointer<TcPushButton> disconnect_btn_;
 
-        NoMarginHLayout* promtp_hbox_layout_ = nullptr;
-        TcLabel* prompt_lab_ = nullptr;
+        QPointer<NoMarginHLayout> promtp_hbox_layout_;
+        QPointer<TcLabel> prompt_lab_;
         // 提示用户去设置面板界面
-        TcLabel* access_hint_lab_ = nullptr;
+        QPointer<TcLabel> access_hint_lab_;
 
-        NoMarginHLayout* access_control_hbox_layout_ = nullptr;
+        QPointer<NoMarginHLayout> access_control_hbox_layout_;
         // 声音
-        QCheckBox* voice_cbox_ = nullptr;
-        TcLabel* voice_lab_ = nullptr;
+        QPointer<QCheckBox> voice_cbox_;
+        QPointer<TcLabel> voice_lab_;
         // 键鼠
-        QCheckBox* key_mouse_cbox_ = nullptr;
-        TcLabel* key_mouse_lab_ = nullptr;
+        QPointer<QCheckBox> key_mouse_cbox_;
+        QPointer<TcLabel> key_mouse_lab_;
         // 文件
-        QCheckBox* file_cbox_ = nullptr;
-        TcLabel* file_lab_ = nullptr;
+        QPointer<QCheckBox> file_cbox_;
+        QPointer<TcLabel> file_lab_;
         
         std::shared_ptr<PxContext> ctx_ = nullptr;
         std::shared_ptr<pxrp::RpConnectedClientInfo> info_ = nullptr;
-        PxSettings* settings_ = nullptr;
+        std::reference_wrapper<PxSettings> settings_;
     };
 
 

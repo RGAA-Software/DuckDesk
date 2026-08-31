@@ -13,10 +13,6 @@
 #include <QLabel>
 #include <QGraphicsDropShadowEffect>
 #include <QVBoxLayout>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QNetworkRequest>
-#include <QUrl>
 
 #include "px_console_client/console_stream.h"
 #include "px_common_new/uid_spacer.h"
@@ -27,6 +23,9 @@
 #include "px_qt_widget/translator/px_translator.h"
 #include "px_base/ct_stream_item_net_type.h"
 #include "stream_item_display.h"
+#include "px_common_new/http_client.h"
+#include "render_panel/px_application.h"
+#include "render_panel/px_context.h"
 
 namespace px
 {
@@ -62,7 +61,11 @@ namespace px
         }
     };
 
-    StreamItemWidget::StreamItemWidget(const std::shared_ptr<px_console::ConsoleStream>& item, int bg_color, QWidget* parent) : QWidget(parent) {
+    StreamItemWidget::StreamItemWidget(
+        const std::shared_ptr<px_console::ConsoleStream>& item,
+        int bg_color,
+        QWidget* parent) // NOLINT(gammaray-raw-pointer-boundary) Qt parent API
+        : QWidget(parent) {
         this->item_ = item;
         this->bg_color_ = bg_color;
         this->setStyleSheet("background:#00000000;");
@@ -72,7 +75,7 @@ namespace px
         // 自定义 tooltip:白底黑字 + 边框 + 阴影
         // 顶层窗口尺寸即 label 大小,阴影画在窗口外会被裁掉,
         // 所以外套一层带透明边距的容器,把阴影画在容器内。
-        state_tooltip_container_ = new QWidget(nullptr);
+        state_tooltip_container_ = new QWidget(this); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
         state_tooltip_container_->setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint);
         state_tooltip_container_->setAttribute(Qt::WA_TranslucentBackground);
         state_tooltip_container_->setAttribute(Qt::WA_ShowWithoutActivating);
@@ -111,17 +114,46 @@ namespace px
             bg_pixmap_ = bg_pixmap_.scaled(230, bg_pixmap_.height()*0.65, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         }
         if (IsConsoleApplication(item) && !item->console_cover_url_.empty()) {
-            auto manager = new QNetworkAccessManager(this);
-            auto reply = manager->get(QNetworkRequest(QUrl(QString::fromStdString(item->console_cover_url_))));
-            connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-                QPixmap downloaded;
-                if (reply->error() == QNetworkReply::NoError
-                    && downloaded.loadFromData(reply->readAll())) {
-                    bg_pixmap_ = downloaded.scaled(230, 150, Qt::KeepAspectRatioByExpanding,
-                                                   Qt::SmoothTransformation);
-                    update();
-                }
-                reply->deleteLater();
+            const auto context = grApp->GetContext();
+            const QPointer<StreamItemWidget> self(this);
+            cover_cancellation_ = std::make_shared<std::atomic_bool>(false);
+            const auto cancellation = cover_cancellation_;
+            const auto cover_url = item->console_cover_url_;
+            context->PostNetworkTask([context, self, cancellation, cover_url]() {
+                const auto body = std::make_shared<std::string>();
+                HttpDownloadOptions options {
+                    .timeout_ms = 5000,
+                    .cancellation_signal = cancellation,
+                    .write_callback = [body](std::string_view chunk) {
+                        constexpr std::size_t kMaxCoverBytes = 8 * 1024 * 1024;
+                        if (body->size() + chunk.size() > kMaxCoverBytes) {
+                            return false;
+                        }
+                        body->append(chunk);
+                        return true;
+                    },
+                };
+                const auto response = HttpClient::Download(
+                    cover_url, std::move(options));
+                context->PostUITask([self, cancellation, response, body]() {
+                    if (!self
+                        || cancellation->load(std::memory_order_acquire)
+                        || response.status < 200
+                        || response.status >= 300) {
+                        return;
+                    }
+                    QPixmap downloaded;
+                    if (downloaded.loadFromData(
+                            reinterpret_cast<const uchar*>(body->data()),
+                            static_cast<uint>(body->size()))) {
+                        self->bg_pixmap_ = downloaded.scaled(
+                            230,
+                            150,
+                            Qt::KeepAspectRatioByExpanding,
+                            Qt::SmoothTransformation);
+                        self->update();
+                    }
+                });
             });
         }
 
@@ -153,9 +185,10 @@ namespace px
         lbl_connecting_->SetTextId("id_connecting");
         lbl_connecting_->hide();
 
-        connect(btn_conn, &QPushButton::clicked, this, [=, this]() {
-            if (conn_listener_) {
-                conn_listener_();
+        const QPointer<StreamItemWidget> self(this);
+        connect(btn_conn, &QPushButton::clicked, this, [self]() {
+            if (self && self->conn_listener_) {
+                self->conn_listener_();
             }
         });
 
@@ -164,9 +197,9 @@ namespace px
         btn_option->SetRoundRadius(15);
         btn_option->setFixedSize(25, 25);
         btn_option_ = btn_option;
-        btn_option->SetOnImageButtonClicked([=, this]() {
-            if (menu_listener_) {
-                menu_listener_();
+        btn_option->SetOnImageButtonClicked([self]() {
+            if (self && self->menu_listener_) {
+                self->menu_listener_();
             }
         });
 
@@ -185,13 +218,18 @@ namespace px
     }
 
     StreamItemWidget::~StreamItemWidget() {
-
+        if (cover_cancellation_) {
+            cover_cancellation_->store(true, std::memory_order_release);
+        }
     }
 
     void StreamItemWidget::ShowConnecting() {
         lbl_connecting_->show();
-        QTimer::singleShot(2000, this, [this]() {
-            lbl_connecting_->hide();
+        const QPointer<StreamItemWidget> self(this);
+        QTimer::singleShot(2000, this, [self]() {
+            if (self && self->lbl_connecting_) {
+                self->lbl_connecting_->hide();
+            }
         });
     }
 

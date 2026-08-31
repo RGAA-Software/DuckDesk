@@ -2043,7 +2043,7 @@ Client `record` 插件原先把插件裸地址保存到每个 `MediaRecorder`，
   存活的插件同步生成通知；点击回调只持 Context `weak_ptr`；
 - `OnStop`/`OnDestroy` 幂等结束全部 writer，销毁 Runtime 后再进入公共 Context 屏障；
 - Client 顶层插件窗口改为 `unique_ptr<QWidget>`，OnDestroy 在 DLL 卸载前同步销毁；
-  FT 子窗口兼容改为 `unique_ptr` 创建、Qt parent 接管，并以 `QPointer` 观察；
+  FT 子窗口直接在 Qt parent ownership 边界创建，并以 `QPointer` 观察；
 - 新增真实 `record.dll` lifecycle 测试：每轮 LoadLibrary、OnCreate、StartRecord、排队
   64 条音频消息、End、Stop、Destroy、FreeLibrary，并验证模块句柄归零。
 
@@ -2769,3 +2769,47 @@ UI listener，并为 `if (0)` 永远不会创建的运行游戏标签注册长�
 
 `px_panel.exe` build/dist SHA-256：
 `A9C324DC09705C645B6B9C5E1EAA85E85EA926F79F111EE1E671821AF96D2E06`。
+
+### 12.59 Phase 7 Panel 封面下载、安全密码与连接提示生命周期收敛
+
+本批处理三条独立但长期暴露在页面销毁/退出竞态中的 UI 异步路径：Console 应用封面原先由
+每个卡片私有 `QNetworkAccessManager/QNetworkReply` 捕获裸 widget；安全密码在确认按钮中同步
+更新 Console；连接信息卡片的断开按钮和 3 秒提示 timer 均捕获裸页面。
+
+本批完成：
+
+- Console 应用封面改用 common `HttpClient::Download` 并投递到 network worker；下载具有 5 秒
+  timeout、析构 cancellation signal 和 8 MiB 上限，worker 只积累字节，`QPixmap` 解码/缩放
+  回到 UI；页面销毁或 HTTP 非 2xx 时 completion 安静失效；
+- `InputSafetyPwdDialog` 本地密码保存和 Render 通知仍即时完成，远端安全密码更新改到 network
+  worker；独立 latest gate 取消重复提交并拒绝迟到结果，析构 Stop 后不再弹窗或关闭新页面；
+- `ConnectedInfoPanel` 的断开操作、权限提示 timer 和 checkbox callbacks 全部改用 `QPointer`
+  owner guard；所有 Qt 观察成员改为 `QPointer`，settings singleton 改为 `reference_wrapper`；
+- `StreamItemWidget` 的 Qt 观察成员改为 `QPointer`，tooltip 容器直接交由 Qt parent 管理，
+  `QPointer` 只负责观察，不叠加第二套 ownership；连接、菜单和 connecting timer 均不再捕获
+  裸 owner；
+- 仓库根规则和完整 C++ 标准新增 Qt ownership 二选一约束：有 parent 时仅由 Qt 销毁并以
+  `QPointer` 观察，无 parent 时才允许智能指针唯一拥有；审计门禁拒绝新增 `release()` 转交和
+  `make_unique/setParent/release` 组合；
+- 全仓同类模式扫描后，media record、FT Client 插件和浮动显示器面板的现存 Qt `release()`
+  转交同步移除，均改为直接在 Qt parent 边界创建；OpenGL 资源对象和 VDF parser 的同名
+  `release()` 不属于 Qt ownership，保持其既有 RAII/解析器语义。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| HTTP cancel | common HTTP 下载/运行中取消专项连续 10/10 PASS |
+| Qt owner / shutdown | `panel_qt_lifetime_guard`、`panel_shutdown_sequence` 各连续 10/10 PASS |
+| Qt plug-in ownership | `client_record_plugin_dll_lifecycle`、`client_ft_plugin_dll_lifecycle` 各连续 10/10 PASS |
+| ownership / async audit | `check_cpp_ownership`、`check_async_lifetime` 与 `git diff --check` PASS |
+| focused build/dist | `build_cpp_panel.bat`、`build_cpp_client.bat` 定向编译并发布；未运行发版整编；所有相关 build/dist 哈希一致 |
+
+`px_panel.exe` build/dist SHA-256：
+`9D4956FF2250E2B6DBDFB018D06DCD47B20CA93AB532284BDBE23F949B33F86D`。
+
+Client 本批 build/dist SHA-256：
+
+- `px_client.exe`：`6BC80164B27BE0B48038CBAA081A545B1EA0288ECF67C32F2C9F0D76BA92698C`；
+- `deps/ct_plugins/ft.dll`：`1142BD6577EA6B41867397735AD9D640364D12E61407B088B7A75901920288FF`；
+- `deps/ct_plugins/record.dll`：`37F641B19E25397084E024C2048F1155E5434EBA612E37FFCFF4C74169BB9712`。

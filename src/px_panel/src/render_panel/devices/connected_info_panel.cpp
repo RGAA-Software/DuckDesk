@@ -17,12 +17,10 @@
 
 namespace px {
 
-	ConnectedInfoPanel::ConnectedInfoPanel(const std::shared_ptr<PxContext>& ctx, QWidget* parent) : QWidget(parent), ctx_(ctx) {
-		PxSettings* settings = PxSettings::Instance();
-		if (!settings) {
-			return;
-		}
-		settings_ = settings;
+	ConnectedInfoPanel::ConnectedInfoPanel(
+        const std::shared_ptr<PxContext>& ctx,
+        QWidget* parent) // NOLINT(gammaray-raw-pointer-boundary) Qt parent API
+        : QWidget(parent), ctx_(ctx), settings_(*PxSettings::Instance()) {
 		InitView();
 		WidgetHelper::AddShadow(this, 0xbbbbbb, 8);
 		InitData();
@@ -81,18 +79,20 @@ namespace px {
 		disconnect_btn_ = new TcPushButton(this);
 		disconnect_btn_->setFixedWidth(90);
 		disconnect_btn_->SetTextId("id_disconnect");
-        connect(disconnect_btn_, &QPushButton::clicked, this, [=, this]() {
-            if (!info_) {
+        const QPointer<ConnectedInfoPanel> self(this);
+        connect(disconnect_btn_, &QPushButton::clicked, this, [self]() {
+            if (!self || !self->info_) {
                 return;
             }
             pxrp::RpMessage msg;
             msg.set_type(pxrp::kRpDisconnectConnection);
             auto sub = msg.mutable_disconnect_connection();
-            sub->set_device_id(info_->device_id());
-            sub->set_stream_id(info_->stream_id());
-            sub->set_room_id(info_->room_id());
-            sub->set_device_name(info_->device_name());
-            ctx_->GetApplication()->PostMessage2Renderer(px::RpProtoAsData(&msg));
+            sub->set_device_id(self->info_->device_id());
+            sub->set_stream_id(self->info_->stream_id());
+            sub->set_room_id(self->info_->room_id());
+            sub->set_device_name(self->info_->device_name());
+            self->ctx_->GetApplication()->PostMessage2Renderer(
+                px::RpProtoAsData(&msg));
         });
 		disconnect_btn_->setProperty("class", "danger");
 
@@ -188,46 +188,47 @@ namespace px {
 	}
 
 	void ConnectedInfoPanel::InitData() {
-		if (!settings_) {
-			return;
-		}
-		bool audio_access = settings_->IsCaptureAudioEnabled();
+		bool audio_access = settings_.get().IsCaptureAudioEnabled();
 		voice_cbox_->setChecked(audio_access);
 
-		bool file_access = settings_->IsFileTransferEnabled();
+		bool file_access = settings_.get().IsFileTransferEnabled();
 		file_cbox_->setChecked(file_access);
 
-		bool key_mouse_access = settings_->IsBeingOperatedEnabled();
+		bool key_mouse_access = settings_.get().IsBeingOperatedEnabled();
 		key_mouse_cbox_->setChecked(key_mouse_access);
 	}
 
 	void ConnectedInfoPanel::InitSigChannel() {
-		if (!settings_) {
-			return;
-		}
-		connect(voice_cbox_, &QCheckBox::toggled, this, [=] {
-			bool audio_access = settings_->IsCaptureAudioEnabled();
-			voice_cbox_->setChecked(audio_access);
-			ShowAccessHint();
+		const QPointer<ConnectedInfoPanel> self(this);
+		connect(voice_cbox_, &QCheckBox::toggled, this, [self] {
+			if (!self) return;
+			bool audio_access = self->settings_.get().IsCaptureAudioEnabled();
+			self->voice_cbox_->setChecked(audio_access);
+			self->ShowAccessHint();
 		});
 		
-		connect(file_cbox_, &QCheckBox::toggled, this, [=] {
-			bool file_access = settings_->IsFileTransferEnabled();
-			file_cbox_->setChecked(file_access);
-			ShowAccessHint();
+		connect(file_cbox_, &QCheckBox::toggled, this, [self] {
+			if (!self) return;
+			bool file_access = self->settings_.get().IsFileTransferEnabled();
+			self->file_cbox_->setChecked(file_access);
+			self->ShowAccessHint();
 		});
 
-		connect(key_mouse_cbox_, &QCheckBox::toggled, this, [=] {
-			bool key_mouse_access = settings_->IsBeingOperatedEnabled();
-			key_mouse_cbox_->setChecked(key_mouse_access);
-			ShowAccessHint();
+		connect(key_mouse_cbox_, &QCheckBox::toggled, this, [self] {
+			if (!self) return;
+			bool key_mouse_access = self->settings_.get().IsBeingOperatedEnabled();
+			self->key_mouse_cbox_->setChecked(key_mouse_access);
+			self->ShowAccessHint();
 		});
 	}
 
 	void ConnectedInfoPanel::ShowAccessHint() {
 		access_hint_lab_->show();
-		QTimer::singleShot(3000, this, [=, this] {
-			access_hint_lab_->hide();
+		const QPointer<ConnectedInfoPanel> self(this);
+		QTimer::singleShot(3000, this, [self] {
+			if (self && self->access_hint_lab_) {
+				self->access_hint_lab_->hide();
+			}
 		});
 	}
 
@@ -235,4 +236,3 @@ namespace px {
 		return info_ ? info_->stream_id() : "";
 	}
 }
-
