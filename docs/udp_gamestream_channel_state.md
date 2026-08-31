@@ -3,7 +3,7 @@
 > 关联文档:
 > [udp_gamestream_channel_plan.md](udp_gamestream_channel_plan.md)(分阶段实施规划)
 > [gamestream_protocol_analysis.md](gamestream_protocol_analysis.md)(Moonlight/Sunshine 协议分析,含许可证结论)
-> 最后更新:2026-08-13
+> 最后更新:2026-08-31
 
 ## 1. 实现状态总览
 
@@ -22,8 +22,8 @@
 | 加密 | ❌ 未做 | 按规划放最后 |
 | RFI 参考帧失效 | ✅ 已实现(NVENC) | 丢整帧优先发 RFI,NVENC `NvEncInvalidateRefFrames`;DPB 16 + range 16,恢复帧再丢则重发 RFI,2s 无帧才回退 IDR |
 | 投机式判丢 | ❌ 未做 | 缺包数>可用 parity 立即上报,不等新帧 |
-| 输入迁 UDP | ❌ 未做 | 目前输入仍走 ws |
-| MTU 钳 1024 | ✅ 已配置化 | `mtu` 参数,LAN 默认 1400,公网可配 1024 |
+| 输入迁 UDP | ⏸️ 暂缓 | 控制输入继续走直连 WebSocket；仅在实测存在可感知瓶颈时重新评估 |
+| MTU 钳 1024 | ✅ 已配置化 | `mtu` 参数,LAN 默认 1400,公网可配 1024；公网默认与实机矩阵仍待收口 |
 | UDP 不通回退 ws | ❌ 未做 | |
 
 构建:`build_client.bat`(`PX_SKIP_SERVERS=1`,只编安装包内容,跳过 3 个 rust server)。
@@ -187,8 +187,8 @@
 | Opus inband FEC | Sunshine Opus 配置 | ✅ 已开 15% | `px_opus_codec_new/opus_codec.cpp`、`opus_encoder_plugin.cpp` |
 | RFI 参考帧失效(丢 P 不请 IDR) | `nvenc_base.cpp:795` | ✅ NVENC DPB16+range16,RFI 重试;AMF 回退 IDR | `px_udp_protocol.h`、`nvenc_video_encoder.cpp`、`udp_direct_connection.cpp` |
 | 投机式判丢(缺包>parity 立即上报) | `RtpVideoQueue.c:213-219` | ❌ 未做 | — |
-| 输入走 UDP + 1ms 微批处理 | `InputStream.c:54-60` | ❌ 未做(输入仍走 ws) | — |
-| 公网包大小钳 1024 防分片 | `Connection.c:388-411` | ❌ 未做 | — |
+| 输入走 UDP + 1ms 微批处理 | `InputStream.c:54-60` | ⏸️ 暂缓；输入继续走直连 WS | 不为控制面重造可靠 UDP |
+| 公网包大小钳 1024 防分片 | `Connection.c:388-411` | ✅ 已可配置；公网默认与实机矩阵待收口 | `mtu` 参数 |
 | AES-128-GCM 加密 | `crypto.cpp` | ❌ 未做,按规划最后做 | — |
 | ENet 可靠 UDP 控制通道 | `ControlStream.c` | 不采用:控制面复用现有 ws | — |
 | 拥塞控制(刻意没有,码率锁死) | GameStream 设计 | 跟随:固定码率 + pacing,不做 GCC | — |
@@ -198,8 +198,17 @@
 1. **音频端到端有声实测**(panel 打开音频开关后验证)。
 2. **物理链路丢包排查**:客户端仍 100Mbps,换 CAT5e/6 网线 / 千兆交换机口,或写 UDP 打流测速工具定位满速丢包拐点。
 3. **投机式判丢**:缺包数 > 可用 parity 立即上报,不等新帧到达。
-4. P3:输入迁 UDP(1ms 微批处理)、公网 MTU 钳 1024、UDP 不通回退 ws。
-5. **加密(AES-128-GCM)**:按既定顺序最后做;公网部署前必须完成。
+4. **公网 UDP 收口**:确认公网默认 MTU=1024、UDP 不通时媒体面回退 WS，并完成相应实机矩阵。
+5. **加密(AES-128-GCM)**:按既定顺序最后做；公网部署前必须完成。
+
+### 5.1 控制输入传输决策（2026-08-31）
+
+控制输入**继续使用现有直连 WebSocket**，不纳入当前 UDP P3 开发范围。
+
+- 直连已经消除了 Relay 绕行；同一 LAN/NAT 可达路径上的 WebSocket 延迟足以满足键盘、鼠标、剪贴板与会话控制。
+- WebSocket 提供按序、可靠交付和既有的断线处理，不会产生丢按键、重复点击、乱序或粘键风险。
+- 若迁移到 UDP，必须额外实现关键事件确认/重传、去重、完整输入状态快照、超时释放与 WS 可靠降级；在尚无可量化延迟收益的前提下，复杂度和回归风险不成立。
+- UDP 继续专用于视频、音频和低层媒体反馈。只有性能剖析证明 WebSocket 控制面是可感知瓶颈时，才重新立项输入 UDP，并以“UDP 主通道 + ACK/状态快照 + WS 可靠降级”为最低设计门槛。
 
 ## 6. 关键文件索引
 
