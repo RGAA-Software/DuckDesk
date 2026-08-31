@@ -7,6 +7,7 @@
 
 #include <QTimer>
 #include <QWidget>
+#include <QPointer>
 
 #include <mutex>
 #include "render_panel/px_statistics.h"
@@ -19,24 +20,28 @@ namespace px
 
     class EffectWidget : public QWidget {
     public:
-        explicit EffectWidget(QWidget *parent = nullptr) : QWidget(parent) {
-            timer_ = new QTimer(this);
+        explicit EffectWidget(
+            QWidget* parent = nullptr) // NOLINT(gammaray-raw-pointer-boundary) Qt parent API
+            : QWidget(parent) {
+            timer_ = new QTimer(this); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
             timer_->setInterval(17);
-            timer_conn_ = QObject::connect(timer_, &QTimer::timeout, this, [this] {
+            const QPointer<EffectWidget> self(this);
+            timer_conn_ = QObject::connect(timer_, &QTimer::timeout, this, [self] {
+                if (!self) {
+                    return;
+                }
                 auto st = PxStatistics::Instance();
-                this->OnDataComing(st->GetLeftSpectrum(), {}/*st->GetRightSpectrum()*/);
-                this->repaint();
+                self->OnDataComing(st->GetLeftSpectrum(), {}/*st->GetRightSpectrum()*/);
+                self->repaint();
             });
             timer_->start();
         }
 
         ~EffectWidget() {
             disconnect(timer_conn_);
-            timer_->stop();
-        }
-
-        virtual QWidget *AsWidget() {
-            return this;
+            if (timer_) {
+                timer_->stop();
+            }
         }
 
         static void FallDownBars(std::vector<double> &bars, std::vector<double> &new_bars) {
@@ -87,10 +92,8 @@ namespace px
         std::vector<double> origin_right_bars_;
         long counts_ = 0;
         QMetaObject::Connection timer_conn_;
-        QTimer* timer_ = nullptr;
+        QPointer<QTimer> timer_;
     };
-
-    typedef std::shared_ptr<EffectWidget> EffectWidgetPtr;
 
 }
 

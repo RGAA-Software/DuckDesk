@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <QPointer>
 
 #include "px_qt_widget/px_custom_titlebar_dialog.h"
 
@@ -31,7 +32,7 @@ public:
 
     VoiceCallConsentDialog(
         VoiceCallConsentInfo info, DecisionCallback callback,
-        QWidget* parent = nullptr);
+        QWidget* parent = nullptr); // NOLINT(gammaray-raw-pointer-boundary) Qt parent API
 
     [[nodiscard]] const VoiceCallConsentInfo& Info() const { return info_; }
     [[nodiscard]] bool Matches(
@@ -41,7 +42,7 @@ public:
     void ShowProminently();
 
 protected:
-    void closeEvent(QCloseEvent* event) override;
+    void closeEvent(QCloseEvent* event) override; // NOLINT(gammaray-raw-pointer-boundary) Qt event ABI
 
 private:
     void UpdateCountdown();
@@ -49,8 +50,8 @@ private:
 
     VoiceCallConsentInfo info_;
     DecisionCallback callback_;
-    QLabel* countdown_label_ = nullptr;
-    QTimer* timer_ = nullptr;
+    QPointer<QLabel> countdown_label_;
+    QPointer<QTimer> timer_;
     bool resolved_ = false;
 };
 

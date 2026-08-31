@@ -25,7 +25,8 @@ bool VoiceCallConsentInfo::Matches(
 }
 
 VoiceCallConsentDialog::VoiceCallConsentDialog(
-    VoiceCallConsentInfo info, DecisionCallback callback, QWidget* parent)
+    VoiceCallConsentInfo info, DecisionCallback callback,
+    QWidget* parent) // NOLINT(gammaray-raw-pointer-boundary) Qt parent API
     : TcCustomTitleBarDialog(tcTr("id_voice_call_incoming"), parent),
       info_(std::move(info)), callback_(std::move(callback)) {
     setObjectName("voice_call_consent_dialog");
@@ -37,10 +38,13 @@ VoiceCallConsentDialog::VoiceCallConsentDialog(
     setAccessibleDescription("px_voice_call_consent_v1");
 
     root_layout_->addSpacing(18);
-    auto* content = new NoMarginVLayout();
+    const QPointer<NoMarginVLayout> content =
+        new NoMarginVLayout(); // NOLINT(gammaray-raw-pointer-boundary) Immediately adopted by root Qt layout; QPointer observes it
+    root_layout_->addLayout(content);
     content->setContentsMargins(30, 0, 30, 0);
 
-    auto* request_label = new QLabel(this);
+    const QPointer<QLabel> request_label =
+        new QLabel(this); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
     request_label->setTextFormat(Qt::PlainText);
     request_label->setWordWrap(true);
     request_label->setStyleSheet("font-size: 16px; font-weight: 700; color: #222222;");
@@ -50,7 +54,8 @@ VoiceCallConsentDialog::VoiceCallConsentDialog(
     content->addWidget(request_label);
     content->addSpacing(16);
 
-    auto* warning_label = new QLabel(this);
+    const QPointer<QLabel> warning_label =
+        new QLabel(this); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
     warning_label->setTextFormat(Qt::PlainText);
     warning_label->setWordWrap(true);
     warning_label->setStyleSheet("font-size: 14px; color: #B54708;");
@@ -59,16 +64,18 @@ VoiceCallConsentDialog::VoiceCallConsentDialog(
     content->addWidget(warning_label);
     content->addSpacing(12);
 
-    countdown_label_ = new QLabel(this);
+    countdown_label_ = new QLabel(this); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
     countdown_label_->setStyleSheet("font-size: 13px; color: #666666;");
     countdown_label_->setAccessibleName(tcTr("id_voice_call_consent_countdown_accessible"));
     content->addWidget(countdown_label_);
-    root_layout_->addLayout(content);
     root_layout_->addStretch();
 
-    auto* buttons = new NoMarginHLayout();
+    const QPointer<NoMarginHLayout> buttons =
+        new NoMarginHLayout(); // NOLINT(gammaray-raw-pointer-boundary) Immediately adopted by root Qt layout; QPointer observes it
+    root_layout_->addLayout(buttons);
     buttons->addStretch();
-    auto* reject = new TcPushButton(this);
+    const QPointer<TcPushButton> reject =
+        new TcPushButton(this); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
     reject->setObjectName("voice_call_reject");
     reject->setText(tcTr("id_voice_call_reject"));
     reject->setAccessibleName(tcTr("id_voice_call_reject"));
@@ -78,7 +85,8 @@ VoiceCallConsentDialog::VoiceCallConsentDialog(
     buttons->addWidget(reject);
     buttons->addSpacing(18);
 
-    auto* accept = new TcPushButton(this);
+    const QPointer<TcPushButton> accept =
+        new TcPushButton(this); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
     accept->setObjectName("voice_call_accept");
     accept->setText(tcTr("id_voice_call_accept"));
     accept->setAccessibleName(tcTr("id_voice_call_accept"));
@@ -88,20 +96,28 @@ VoiceCallConsentDialog::VoiceCallConsentDialog(
     accept->setDefault(false);
     buttons->addWidget(accept);
     buttons->addStretch();
-    root_layout_->addLayout(buttons);
     root_layout_->addSpacing(24);
 
-    connect(reject, &QPushButton::clicked, this, [this]() {
-        Finish(false, "rejected");
+    const QPointer<VoiceCallConsentDialog> self(this);
+    connect(reject, &QPushButton::clicked, this, [self]() {
+        if (self) {
+            self->Finish(false, "rejected");
+        }
     });
-    connect(accept, &QPushButton::clicked, this, [this]() {
-        Finish(true, "");
+    connect(accept, &QPushButton::clicked, this, [self]() {
+        if (self) {
+            self->Finish(true, "");
+        }
     });
     reject->setFocus(Qt::OtherFocusReason);
 
-    timer_ = new QTimer(this);
+    timer_ = new QTimer(this); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
     timer_->setInterval(250);
-    connect(timer_, &QTimer::timeout, this, [this]() { UpdateCountdown(); });
+    connect(timer_, &QTimer::timeout, this, [self]() {
+        if (self) {
+            self->UpdateCountdown();
+        }
+    });
     timer_->start();
     UpdateCountdown();
 }
@@ -132,7 +148,8 @@ void VoiceCallConsentDialog::ShowProminently() {
     QApplication::alert(this, 0);
 }
 
-void VoiceCallConsentDialog::closeEvent(QCloseEvent* event) {
+void VoiceCallConsentDialog::closeEvent(
+    QCloseEvent* event) { // NOLINT(gammaray-raw-pointer-boundary) Qt event ABI
     if (!resolved_) {
         Finish(false, "rejected");
     }

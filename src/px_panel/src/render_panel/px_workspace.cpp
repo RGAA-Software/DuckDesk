@@ -734,8 +734,9 @@ namespace px
             return;
         }
 
-        QPointer<PxWorkspace> self(this);
-        auto* dialog = new VoiceCallConsentDialog(
+        const QPointer<PxWorkspace> self(this);
+        voice_call_consent_dialog_ =
+            new VoiceCallConsentDialog( // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
             info,
             [self, info](bool accepted, const std::string& reason) {
                 if (!self) {
@@ -743,9 +744,9 @@ namespace px
                 }
                 self->voice_call_consent_dialog_ = nullptr;
                 self->SendVoiceCallConsentDecision(info, accepted, reason);
-            });
-        voice_call_consent_dialog_ = dialog;
-        dialog->ShowProminently();
+            },
+            this);
+        voice_call_consent_dialog_->ShowProminently();
     }
 
     void PxWorkspace::CancelVoiceCallConsent(const MsgPanelVoiceCallConsentCancel& msg) {
@@ -754,7 +755,8 @@ namespace px
                 msg.stream_id_, msg.call_id_, msg.request_id_)) {
             return;
         }
-        auto* dialog = voice_call_consent_dialog_.data();
+        const QPointer<VoiceCallConsentDialog> dialog =
+            voice_call_consent_dialog_;
         voice_call_consent_dialog_ = nullptr;
         LOGI("[VoiceCall] closing consent dialog without decision, call={}, stream={}, request={}",
              PrivacyLogId(msg.call_id_), msg.stream_id_, msg.request_id_);

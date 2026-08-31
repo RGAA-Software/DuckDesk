@@ -12,32 +12,19 @@
 #include "px_common_new/log.h"
 #include "px_qt_widget/clickable_widget.h"
 #include "render_panel/px_context.h"
-#include "px_account_sdk/acc_sdk.h"
-#include "px_account_sdk/acc_profile.h"
-#include "px_account_sdk/acc_device.h"
-#include "tab_profile_device_item.h"
 #ifdef WIN32
 #include <Windows.h>
 #include <shellapi.h>
 #endif
 #include <QLabel>
 #include <QListWidget>
-#include <QStyledItemDelegate>
 
 namespace px
 {
 
-    class MyDeviceItemDelegate : public QStyledItemDelegate {
-    public:
-        explicit MyDeviceItemDelegate(QObject* pParent) {}
-        ~MyDeviceItemDelegate() override = default;
-
-        void updateEditorGeometry(QWidget* editor, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
-            editor->setGeometry(option.rect);
-        }
-    };
-
-    TabProfile::TabProfile(const std::shared_ptr<PxApplication>& app, QWidget *parent)
+    TabProfile::TabProfile(
+        const std::shared_ptr<PxApplication>& app,
+        QWidget* parent) // NOLINT(gammaray-raw-pointer-boundary) Qt parent API
         : TabBase(app, parent) {
 #ifdef WIN32
         auto hwnd = HWND(winId());
@@ -48,15 +35,13 @@ namespace px
         setAcceptDrops(true);
 #endif
 
-        stacked_widget_ = new QStackedWidget(this);
+        stacked_widget_ = new QStackedWidget(this); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
 
-        root_layout_ = new NoMarginHLayout();
+        root_layout_ = new QHBoxLayout(this); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
+        root_layout_->setSpacing(0);
+        root_layout_->setContentsMargins(0, 0, 0, 0);
         AddLeftProfileInfo();
         AddRightDetailInfo();
-        setLayout(root_layout_);
-
-        //
-        // QueryMyDevices();
     }
 
     void TabProfile::OnTabShow() {
@@ -67,7 +52,8 @@ namespace px
 
     }
 
-    void TabProfile::dragEnterEvent(QDragEnterEvent *event) {
+    void TabProfile::dragEnterEvent(
+        QDragEnterEvent* event) { // NOLINT(gammaray-raw-pointer-boundary) Qt event ABI
         event->accept();
         if (event->mimeData()->hasUrls()) {
             event->acceptProposedAction();
@@ -75,12 +61,14 @@ namespace px
         LOGI("DragEventEnter....");
     }
 
-    void TabProfile::dragMoveEvent(QDragMoveEvent *event) {
+    void TabProfile::dragMoveEvent(
+        QDragMoveEvent* event) { // NOLINT(gammaray-raw-pointer-boundary) Qt event ABI
         event->accept();
         LOGI("DragEventMove....");
     }
 
-    void TabProfile::dropEvent(QDropEvent *event) {
+    void TabProfile::dropEvent(
+        QDropEvent* event) { // NOLINT(gammaray-raw-pointer-boundary) Qt event ABI
         QList<QUrl> urls = event->mimeData()->urls();
         LOGI("DragEventDrop....{}", urls.size());
         if (urls.isEmpty()) {
@@ -356,10 +344,8 @@ namespace px
 
         // my device list
         {
-            auto delegate = new MyDeviceItemDelegate(this);
             list_widget_ = new QListWidget(this);
             list_widget_->setFixedWidth(512);
-            list_widget_->setItemDelegate(delegate);
 
             list_widget_->setMovement(QListView::Static);
             list_widget_->setViewMode(QListView::ListMode);
@@ -389,19 +375,6 @@ namespace px
                 }
             )");
 
-            QObject::connect(list_widget_, &QListWidget::customContextMenuRequested, this, [=, this](const QPoint& pos) {
-                QListWidgetItem* cur_item = list_widget_->itemAt(pos);
-                if (cur_item == nullptr) { return; }
-                int index = list_widget_->row(cur_item);
-
-            });
-
-            QObject::connect(list_widget_, &QListWidget::itemDoubleClicked, this, [=, this](QListWidgetItem *item) {
-                int index = list_widget_->row(item);
-                //auto item_info = records_.at(index);
-
-            });
-
             // list content
             auto content_layout = new NoMarginHLayout();
             content_layout->addWidget(list_widget_);
@@ -420,63 +393,23 @@ namespace px
         root_layout_->addWidget(widget);
     }
 
-    QListWidgetItem* TabProfile::AddItem(const std::shared_ptr<AccountDevice>& item_info, int index) {
-        auto item = new QListWidgetItem(list_widget_);
-        auto item_size = QSize(475, 60);
-        item->setSizeHint(item_size);
-        auto widget = new TabProfileDeviceItemWidget(app_, item_info, list_widget_);
-        widget->setFixedSize(item_size);
-        list_widget_->setItemWidget(item, widget);
-
-        widget->SetOnItemClickListener([=, this](QWidget* w, const std::shared_ptr<AccountDevice>& device) {
-            if (index == 0) {
-                stacked_widget_->setCurrentIndex(0);
-            }
-            else if (index == 1) {
-                stacked_widget_->setCurrentIndex(1);
-            }
-            else if (index == 2) {
-                stacked_widget_->setCurrentIndex(2);
-            }
-        });
-
-        return item;
-    }
-
-    void TabProfile::QueryMyDevices() {
-        context_->PostTask([=, this]() {
-            auto devices = acc_sdk_->QueryDevices("", 0, 0);
-            context_->PostUITask([=, this]() {
-                int count = list_widget_->count();
-                for (int i = 0; i < count; i++) {
-                    auto item = list_widget_->takeItem(0);
-                    delete item;
-                }
-
-                int index = 0;
-                for (const auto& item_info : devices) {
-                    AddItem(item_info, index++);
-                }
-            });
-        });
-    }
-
-    QWidget* TabProfile::AddEmptyWidget() {
-        auto w = new QWidget(this);
+    QPointer<QWidget> TabProfile::AddEmptyWidget() {
+        const QPointer<QWidget> w =
+            new QWidget(this); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
         w->setStyleSheet("background-color:#ffffff;");
         return w;
     }
 
-    QWidget* TabProfile::AddOnlineInfoWidget() {
-        auto w = new QWidget(this);
+    QPointer<QWidget> TabProfile::AddOnlineInfoWidget() {
+        const QPointer<QWidget> w =
+            new QWidget(this); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
         w->setStyleSheet("background-color:#eeeeee;");
-        auto root_layout = new NoMarginVLayout();
-
         return w;
     }
 
-    QWidget* TabProfile::AddOfflineInfoWidget() {
-        auto w = new QWidget(this);
+    QPointer<QWidget> TabProfile::AddOfflineInfoWidget() {
+        const QPointer<QWidget> w =
+            new QWidget(this); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it; QPointer observes it
         w->setStyleSheet("background-color:#cccccc;");
         return w;
     }

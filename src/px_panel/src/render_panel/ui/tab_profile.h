@@ -6,7 +6,9 @@
 #define PX_TAB_PROFILE_H
 
 #include "tab_base.h"
+#include <QHBoxLayout>
 #include <QListWidget>
+#include <QPointer>
 #include <QStackedWidget>
 
 namespace px
@@ -14,35 +16,30 @@ namespace px
 
     class NoMarginHLayout;
     class NoMarginVLayout;
-    class AccountSdk;
-    class AccountDevice;
-    class AccountProfile;
-
     class TabProfile : public TabBase {
     public:
-        TabProfile(const std::shared_ptr<PxApplication>& app, QWidget *parent);
+        TabProfile(
+            const std::shared_ptr<PxApplication>& app,
+            QWidget* parent); // NOLINT(gammaray-raw-pointer-boundary) Qt parent API
 
         void OnTabShow() override;
         void OnTabHide() override;
 
-        void dragEnterEvent(QDragEnterEvent *event) override;
-        void dragMoveEvent(QDragMoveEvent *event) override;
-        void dropEvent(QDropEvent *event) override;
+        void dragEnterEvent(QDragEnterEvent* event) override; // NOLINT(gammaray-raw-pointer-boundary) Qt event ABI
+        void dragMoveEvent(QDragMoveEvent* event) override; // NOLINT(gammaray-raw-pointer-boundary) Qt event ABI
+        void dropEvent(QDropEvent* event) override; // NOLINT(gammaray-raw-pointer-boundary) Qt event ABI
 
     private:
         void AddLeftProfileInfo();
         void AddRightDetailInfo();
-        void QueryMyDevices();
-        QListWidgetItem* AddItem(const std::shared_ptr<AccountDevice>& item_info, int index);
-        QWidget* AddEmptyWidget();
-        QWidget* AddOnlineInfoWidget();
-        QWidget* AddOfflineInfoWidget();
+        QPointer<QWidget> AddEmptyWidget();
+        QPointer<QWidget> AddOnlineInfoWidget();
+        QPointer<QWidget> AddOfflineInfoWidget();
 
     private:
-        NoMarginHLayout* root_layout_ = nullptr;
-        QListWidget* list_widget_ = nullptr;
-        QStackedWidget* stacked_widget_ = nullptr;
-        std::shared_ptr<AccountSdk> acc_sdk_ = nullptr;
+        QPointer<QHBoxLayout> root_layout_;
+        QPointer<QListWidget> list_widget_;
+        QPointer<QStackedWidget> stacked_widget_;
     };
 
 }

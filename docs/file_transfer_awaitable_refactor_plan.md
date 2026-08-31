@@ -2813,3 +2813,30 @@ Client 本批 build/dist SHA-256：
 - `px_client.exe`：`6BC80164B27BE0B48038CBAA081A545B1EA0288ECF67C32F2C9F0D76BA92698C`；
 - `deps/ct_plugins/ft.dll`：`1142BD6577EA6B41867397735AD9D640364D12E61407B088B7A75901920288FF`；
 - `deps/ct_plugins/record.dll`：`37F641B19E25397084E024C2048F1155E5434EBA612E37FFCFF4C74169BB9712`。
+
+### 12.60 Phase 7 Panel timer、语音确认与 Profile 死链收敛
+
+全仓异步审计在 Panel 仍报告三个裸 owner callback：音频频谱的 17 ms timer、语音通话确认
+弹窗的倒计时/按钮，以及从未启用且 SDK 未初始化的 Profile 设备查询原型。
+
+本批完成：
+
+- `EffectWidget` 的 Qt timer 改为 parent ownership + `QPointer` 观察，timeout callback 只捕获
+  guarded owner；移除未使用的裸 `AsWidget()` 返回和未使用的 shared ownership 类型别名；
+- `VoiceCallConsentDialog` 的按钮、倒计时、label 和 layout 边界全部明确 Qt ownership，成员与
+  callback 使用 `QPointer`；Workspace 将弹窗直接挂到自身 Qt 树，取消路径不再保留裸 dialog；
+- `TabProfile` 删除两个无行为 signal handler、从未调用且 `acc_sdk_` 从未初始化的设备查询和
+  列表构造死链，以及一个从未挂入 Qt 树的 layout；长期 Qt 观察成员改为 `QPointer`，根 layout
+  在 QWidget parent 边界直接创建；
+- `check_async_lifetime -ReportAll` 的全仓命中由 27 降到 24，Panel 路径命中归零。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| Panel 生命周期 | `panel_shutdown_sequence`、`panel_qt_lifetime_guard` 各连续 10/10 PASS |
+| ownership / async audit | 增量 `check_cpp_ownership`、`check_async_lifetime` 与 `git diff --check` PASS；全仓报告无 Panel 命中 |
+| focused build/dist | `build_cpp_panel.bat` 定向编译并发布；未运行发版整编；Panel 与主题/语言资源 build/dist 哈希一致 |
+
+`px_panel.exe` build/dist SHA-256：
+`DBBC5F93B7A0B020E80F7E7935AEF0A36B4C83F832169B56D158EF72DD83D06F`。
