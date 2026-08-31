@@ -499,7 +499,6 @@ public:
         CEF_REQUIRE_UI_THREAD();
         if (frame && frame->IsMain()) {
             main_load_failed_ = false;
-            main_load_succeeded_ = false;
             paint_seen_for_load_ = false;
             // A keyboard event (for example Enter in a form) may synchronously
             // start navigation before CefBrowserHost::SendKeyEvent returns.
@@ -520,7 +519,6 @@ public:
                     callbacks_.on_failed("WebView main page returned an HTTP error");
                 }
             } else {
-                main_load_succeeded_ = true;
                 TryNotifyFirstFrame();
             }
         }
@@ -786,7 +784,14 @@ private:
     }
 
     void TryNotifyFirstFrame() {
-        if (main_load_succeeded_ && paint_seen_for_load_ && !main_load_failed_ &&
+        // A modern page can keep its main navigation open indefinitely (for
+        // example while streaming data or waiting on a long-lived resource)
+        // after it has already painted a usable document.  Service startup is
+        // intentionally waiting for an encodable frame, not network-idle or
+        // OnLoadEnd, so the actual first main-view paint is the readiness
+        // boundary.  A reported main-frame error still wins and suppresses
+        // the successful acknowledgement.
+        if (paint_seen_for_load_ && !main_load_failed_ &&
             !first_frame_.exchange(true) && callbacks_.on_first_frame) {
             callbacks_.on_first_frame();
         }
@@ -1061,7 +1066,6 @@ private:
     std::atomic_bool active_{false};
     std::atomic_bool first_frame_{false};
     std::atomic_bool main_load_failed_{false};
-    std::atomic_bool main_load_succeeded_{false};
     std::atomic_bool paint_seen_for_load_{false};
     std::atomic_int audio_sample_rate_{48000};
     std::atomic_int audio_channels_{2};
