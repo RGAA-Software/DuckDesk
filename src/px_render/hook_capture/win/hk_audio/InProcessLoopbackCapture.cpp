@@ -150,6 +150,12 @@ private:
 
 }  // namespace
 
+struct InProcessLoopbackCapture::State {
+    std::shared_ptr<AudioShare> share;
+    std::atomic_bool stop{false};
+    std::atomic_bool running{false};
+};
+
 InProcessLoopbackCapture::~InProcessLoopbackCapture() {
     Stop();
 }
@@ -158,31 +164,46 @@ bool InProcessLoopbackCapture::Start(std::shared_ptr<AudioShare> share, uint32_t
     if (thread_.joinable() || !share || pid == 0) {
         return false;
     }
-    share_ = std::move(share);
-    stop_.store(false, std::memory_order_release);
+    state_ = std::make_shared<State>();
+    state_->share = std::move(share);
     // Async: do not wait for activate. Init often runs while the game is still
     // CREATE_SUSPENDED; ThreadMain delays then activates after the game is live.
-    thread_ = std::thread([this, pid] { ThreadMain(pid); });
+    const auto state = state_;
+    thread_ = std::thread([state, pid] { ThreadMain(state, pid); });
     return true;
 }
 
 void InProcessLoopbackCapture::Stop() {
-    stop_.store(true, std::memory_order_release);
+    const auto state = state_;
+    if (state) {
+        state->stop.store(true, std::memory_order_release);
+    }
     if (thread_.joinable()) {
         thread_.join();
     }
-    running_.store(false, std::memory_order_release);
-    share_.reset();
+    if (state) {
+        state->running.store(false, std::memory_order_release);
+        state->share.reset();
+    }
+    state_.reset();
 }
 
-void InProcessLoopbackCapture::ThreadMain(uint32_t pid) {
+bool InProcessLoopbackCapture::running() const {
+    const auto state = state_;
+    return state && state->running.load(std::memory_order_acquire);
+}
+
+void InProcessLoopbackCapture::ThreadMain(
+    const std::shared_ptr<State>& state, uint32_t pid) {
     // Game is often still CREATE_SUSPENDED when the DLL loads. Wait so the audio
     // engine has real output before activating process-loopback (early activate
     // has been observed to yield an all-silent capture for the rest of the session).
-    for (int i = 0; i < 120 && !stop_.load(std::memory_order_acquire); i++) {
+    for (int i = 0;
+         i < 120 && !state->stop.load(std::memory_order_acquire);
+         ++i) {
         Sleep(100);  // ~12s total
     }
-    if (stop_.load(std::memory_order_acquire)) {
+    if (state->stop.load(std::memory_order_acquire)) {
         return;
     }
 
@@ -238,7 +259,7 @@ void InProcessLoopbackCapture::ThreadMain(uint32_t pid) {
     IAudioClient* client = handler->client();
     IAudioCaptureClient* cap = handler->capture();
     const WAVEFORMATEX& fmt = handler->format();
-    if (!client || !cap || !share_) {
+    if (!client || !cap || !state->share) {
         handler->Release();
         if (need_uninit) {
             CoUninitialize();
@@ -246,10 +267,12 @@ void InProcessLoopbackCapture::ThreadMain(uint32_t pid) {
         return;
     }
 
-    share_->SetAudioFormat(SimpleAudioFormat::kPCM_S16, static_cast<int>(fmt.nSamplesPerSec),
-                           static_cast<int>(fmt.nChannels), 16);
+    state->share->SetAudioFormat(
+        SimpleAudioFormat::kPCM_S16,
+        static_cast<int>(fmt.nSamplesPerSec),
+        static_cast<int>(fmt.nChannels), 16);
 
-    if (stop_.load(std::memory_order_acquire)) {
+    if (state->stop.load(std::memory_order_acquire)) {
         handler->Release();
         if (need_uninit) {
             CoUninitialize();
@@ -267,11 +290,11 @@ void InProcessLoopbackCapture::ThreadMain(uint32_t pid) {
         return;
     }
 
-    running_.store(true, std::memory_order_release);
+    state->running.store(true, std::memory_order_release);
     LOGI("InProcLoopback capturing pid={} {}Hz {}ch", pid, fmt.nSamplesPerSec, fmt.nChannels);
 
     uint64_t packets = 0;
-    while (!stop_.load(std::memory_order_acquire)) {
+    while (!state->stop.load(std::memory_order_acquire)) {
         WaitForSingleObject(handler->sample_event(), 50);
         UINT32 packet = 0;
         while (SUCCEEDED(cap->GetNextPacketSize(&packet)) && packet > 0) {
@@ -281,11 +304,14 @@ void InProcessLoopbackCapture::ThreadMain(uint32_t pid) {
             if (FAILED(cap->GetBuffer(&data, &frames, &flags, nullptr, nullptr))) {
                 break;
             }
-            if (frames > 0 && data && (flags & AUDCLNT_BUFFERFLAGS_SILENT) == 0 && share_) {
+            if (frames > 0 && data
+                && (flags & AUDCLNT_BUFFERFLAGS_SILENT) == 0
+                && state->share) {
                 const int bytes =
                     static_cast<int>(frames) * static_cast<int>(fmt.nBlockAlign);
                 if (bytes > 0) {
-                    share_->PostAudioData(Data::Make(reinterpret_cast<const char*>(data), bytes));
+                    state->share->PostAudioData(
+                        Data::Make(reinterpret_cast<const char*>(data), bytes));
                     packets++;
                 }
             }
@@ -297,7 +323,7 @@ void InProcessLoopbackCapture::ThreadMain(uint32_t pid) {
     }
 
     client->Stop();
-    running_.store(false, std::memory_order_release);
+    state->running.store(false, std::memory_order_release);
     LOGI("InProcLoopback stopped packets={}", packets);
     handler->Release();
     if (need_uninit) {

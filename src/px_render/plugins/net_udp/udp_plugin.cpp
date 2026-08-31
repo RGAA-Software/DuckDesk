@@ -17,6 +17,63 @@
 
 namespace px
 {
+    void UdpWinHandleCloser::operator()(void* handle) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): Win32 HANDLE boundary
+        if (handle) {
+            CloseHandle(handle);
+        }
+    }
+
+    class UdpRuntimeState final
+        : public std::enable_shared_from_this<UdpRuntimeState> {
+    public:
+        UdpRuntimeState(PxPluginEventCallback event_dispatcher, int fec_percent)
+            : event_dispatcher_(std::move(event_dispatcher)),
+              fec_percent_(fec_percent),
+              configured_fec_percent_(fec_percent) {
+        }
+
+        void Start(int listen_port);
+        void Stop();
+        void HandleCtrlPacket(
+            const std::shared_ptr<UdpSession>& udp_session,
+            const char* data, size_t size); // NOLINT(gammaray-raw-pointer-boundary) Synchronous UDP byte-view boundary
+        void HandleHello(
+            const std::shared_ptr<UdpSession>& udp_session,
+            const std::string& device_id, const std::string& stream_id);
+        void HandleHeartbeat(
+            const std::shared_ptr<UdpSession>& udp_session,
+            const std::string& stream_id);
+        void HandleFrameStatus(
+            uint32_t frame_index, uint16_t received, uint16_t lost);
+        void AdjustFecWindow();
+        bool HasBoundSession();
+        void SweepDeadSessions();
+        void NotifyMediaClientConnected(
+            const std::string& connection_id, const std::string& stream_id,
+            const std::string& visitor_device_id, int64_t begin_timestamp);
+        void NotifyMediaClientDisconnected(
+            const std::string& connection_id, const std::string& stream_id,
+            const std::string& visitor_device_id, int64_t begin_timestamp);
+
+        std::shared_ptr<asio2::udp_server> server_;
+        ConcurrentHashMap<std::string, std::shared_ptr<UdpSession>> sessions_;
+        std::mutex bind_mutex_;
+        std::atomic_int bound_count_{0};
+        std::atomic_int fec_percent_{20};
+        std::atomic_int stat_complete_frames_{0};
+        std::atomic_int stat_lost_frames_{0};
+        std::atomic_int stat_recovered_shards_{0};
+        std::atomic_uint64_t stat_sent_shards_{0};
+        std::atomic_uint64_t stat_send_short_writes_{0};
+        std::atomic_bool rfi_pending_{false};
+
+    private:
+        PxPluginEventCallback event_dispatcher_;
+        int configured_fec_percent_ = 20;
+        static constexpr int64_t kHeartbeatTimeoutMs = 10000;
+        static constexpr int64_t kUnboundSessionTimeoutMs = 10000;
+        static constexpr int kFecMaxPercent = 60;
+    };
 
     std::string UdpPlugin::GetPluginId() {
         return kNetUdpPluginId;
@@ -40,6 +97,7 @@ namespace px
 
     bool UdpPlugin::OnCreate(const px::PxPluginParam &param) {
         PxNetPlugin::OnCreate(param);
+        int fec_percent = 20;
         udp_listen_port_ = (int)GetConfigIntParam("udp-listen-port");
         auto config_listen_port = (int)GetConfigIntParam("listen-port");
         if (config_listen_port > 0) {
@@ -47,7 +105,7 @@ namespace px
         }
         if (HasParam("fec-percent")) {
             // 0 = 关闭 FEC;缺省保持默认 20%
-            fec_percent_ = (int)GetConfigIntParam("fec-percent");
+            fec_percent = (int)GetConfigIntParam("fec-percent");
         }
         if (HasParam("mtu")) {
             auto mtu = (int)GetConfigIntParam("mtu");
@@ -55,27 +113,36 @@ namespace px
                 udp_mtu_ = mtu;
             }
         }
-        configured_fec_percent_ = fec_percent_.load();
+        runtime_ = std::make_shared<UdpRuntimeState>(
+            MakeDirectEventDispatcher(), fec_percent);
         // Windows sleep 默认 15.6ms 粒度,先把计时器分辨率提到 1ms(高精度 waitable timer 不受此限)
         timeBeginPeriod(1);
         // Sunshine 同款高精度 pacing 定时器(Win10 1809+;失败退回普通 waitable timer)
-        pace_timer_ = CreateWaitableTimerEx(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+        pace_timer_.reset(CreateWaitableTimerEx(
+            nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
+            TIMER_ALL_ACCESS));
         if (!pace_timer_) {
-            pace_timer_ = CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
+            pace_timer_.reset(CreateWaitableTimerEx(
+                nullptr, nullptr, 0, TIMER_ALL_ACCESS));
         }
         LOGI("Listen port: {}, fec percent: {}, mtu: {}, pacing: {}Mbps rate-limited (sunshine), timer={}",
-             udp_listen_port_, fec_percent_.load(), udp_mtu_, kRateControlBitsPerSec / 1000000,
+             udp_listen_port_, runtime_->fec_percent_.load(), udp_mtu_, kRateControlBitsPerSec / 1000000,
              pace_timer_ ? "ok" : "none");
-        StartInternal();
+        runtime_->Start(udp_listen_port_);
 
         // 心跳扫描:超 10s 无心跳的绑定会话判定掉线
         if (plugin_context_) {
-            plugin_context_->StartTimer(kHeartbeatScanIntervalMs, [=, this]() {
-                SweepDeadSessions();
+            const auto weak_runtime = std::weak_ptr<UdpRuntimeState>(runtime_);
+            plugin_context_->StartTimer(kHeartbeatScanIntervalMs, [weak_runtime]() {
+                if (const auto runtime = weak_runtime.lock()) {
+                    runtime->SweepDeadSessions();
+                }
             });
             // FRAME_STATUS 窗口:5s 一个窗口,按判丢率动态调 FEC 百分比
-            plugin_context_->StartTimer(kFecWindowMs, [=, this]() {
-                AdjustFecWindow();
+            plugin_context_->StartTimer(kFecWindowMs, [weak_runtime]() {
+                if (const auto runtime = weak_runtime.lock()) {
+                    runtime->AdjustFecWindow();
+                }
             });
         }
         return true;
@@ -83,16 +150,12 @@ namespace px
 
     bool UdpPlugin::OnDestroy() {
         PxNetPlugin::OnStop();
-        if (server_) {
-            server_->stop();
-            server_.reset();
+        if (runtime_) {
+            runtime_->Stop();
+            runtime_.reset();
         }
-        sessions_.Clear();
         timeEndPeriod(1);
-        if (pace_timer_) {
-            CloseHandle(pace_timer_);
-            pace_timer_ = nullptr;
-        }
+        pace_timer_.reset();
         return PxNetPlugin::OnDestroy();
     }
 
@@ -229,7 +292,8 @@ namespace px
         if (!ExtractAudioPayload(msg, payload, payload_len)) {
             return;
         }
-        if (!HasBoundSession()) {
+        const auto runtime = runtime_;
+        if (!runtime || !runtime->HasBoundSession()) {
             return;
         }
         // 与视频同一时钟源:steady_clock 单调毫秒
@@ -240,7 +304,7 @@ namespace px
             return;
         }
         int64_t total_sent = 0;
-        sessions_.ApplyAll([&](const std::string& k, const std::shared_ptr<UdpSession>& us) {
+        runtime->sessions_.ApplyAll([&](const std::string& k, const std::shared_ptr<UdpSession>& us) {
             if (!us->bound_ || !us->sess_) {
                 return;
             }
@@ -258,14 +322,23 @@ namespace px
         return false;
     }
 
-    void UdpPlugin::StartInternal() {
-        auto fn_conn_id = [](std::shared_ptr<asio2::udp_session> &sess_ptr) -> std::string {
-            return sess_ptr->remote_address() + ":" + std::to_string(sess_ptr->remote_port());
+    void UdpRuntimeState::Start(int listen_port) {
+        const auto connection_id = [](
+            const std::shared_ptr<asio2::udp_session>& session) {
+            return session->remote_address() + ":"
+                + std::to_string(session->remote_port());
         };
 
         server_ = std::make_shared<asio2::udp_server>();
-        server_->bind_recv([=, this](std::shared_ptr<asio2::udp_session>& session_ptr, std::string_view data) {
-            auto opt_sess = sessions_.TryGet(fn_conn_id(session_ptr));
+        const auto weak_runtime = weak_from_this();
+        server_->bind_recv([weak_runtime, connection_id](
+            std::shared_ptr<asio2::udp_session>& session,
+            std::string_view data) {
+            const auto runtime = weak_runtime.lock();
+            if (!runtime) {
+                return;
+            }
+            auto opt_sess = runtime->sessions_.TryGet(connection_id(session));
             if (!opt_sess.has_value()) {
                 // bind_connect 正常先于首包到达,拿不到说明时序异常,直接丢
                 return;
@@ -273,32 +346,42 @@ namespace px
             opt_sess.value()->last_seen_ms_ = (int64_t)TimeUtil::GetCurrentTimestamp();
             // ParseCommon 分流:只处理控制包(上行视频/音频 P2 才启用)
             if (PxUdpProtocol::ParseCommon(data.data(), data.size()) == PxUdpProtocol::kPktCtrl) {
-                HandleCtrlPacket(opt_sess.value(), data.data(), data.size());
+                runtime->HandleCtrlPacket(
+                    opt_sess.value(), data.data(), data.size());
             }
 
-        }).bind_connect([=, this](std::shared_ptr<asio2::udp_session>& session_ptr) {
-            auto conn_id = fn_conn_id(session_ptr);
+        }).bind_connect([weak_runtime, connection_id](
+            std::shared_ptr<asio2::udp_session>& session) {
+            const auto runtime = weak_runtime.lock();
+            if (!runtime) {
+                return;
+            }
+            auto conn_id = connection_id(session);
             auto udp_sess = std::make_shared<UdpSession>();
             udp_sess->conn_id_ = conn_id;
-            udp_sess->sess_ = session_ptr;
+            udp_sess->sess_ = session;
             udp_sess->last_seen_ms_ = (int64_t)TimeUtil::GetCurrentTimestamp();
-            sessions_.Insert(conn_id, udp_sess);
+            runtime->sessions_.Insert(conn_id, udp_sess);
             LOGI("udp client enter : {} {} ; {} {}",
-                   session_ptr->remote_address().c_str(), session_ptr->remote_port(),
-                   session_ptr->local_address().c_str(), session_ptr->local_port());
+                   session->remote_address().c_str(), session->remote_port(),
+                   session->local_address().c_str(), session->local_port());
 
-        }).bind_disconnect([=, this](auto &session_ptr) {
-            auto conn_id = fn_conn_id(session_ptr);
+        }).bind_disconnect([weak_runtime, connection_id](auto& session) {
+            const auto runtime = weak_runtime.lock();
+            if (!runtime) {
+                return;
+            }
+            auto conn_id = connection_id(session);
             std::shared_ptr<UdpSession> removed;
             {
-                std::lock_guard<std::mutex> lk(bind_mtx_);
-                auto opt_sess = sessions_.RemoveIf(conn_id, [&](const std::shared_ptr<UdpSession>& cur) {
-                    return cur && cur->sess_ == session_ptr;
+                std::lock_guard lock(runtime->bind_mutex_);
+                auto opt_sess = runtime->sessions_.RemoveIf(conn_id, [&](const std::shared_ptr<UdpSession>& cur) {
+                    return cur && cur->sess_ == session;
                 });
                 if (opt_sess.has_value()) {
                     removed = opt_sess.value();
                     if (removed->bound_.exchange(false)) {
-                        bound_count_--;
+                        runtime->bound_count_--;
                     }
                     else {
                         removed.reset(); // 未绑定会话不算媒体客户端,不发断开事件
@@ -312,24 +395,26 @@ namespace px
                 return;
             }
             if (removed) {
-                NotifyMediaClientDisConnected(removed->conn_id_, removed->stream_id_,
-                                              removed->device_id_, removed->begin_timestamp_);
+                runtime->NotifyMediaClientDisconnected(
+                    removed->conn_id_, removed->stream_id_,
+                    removed->device_id_, removed->begin_timestamp_);
             }
             LOGI("udp client leave : {} {} {}",
-                   session_ptr->remote_address().c_str(), session_ptr->remote_port(),
+                   session->remote_address().c_str(), session->remote_port(),
                    asio2::last_error_msg().c_str());
-        }).bind_start([&]() {
+        }).bind_start([weak_runtime]() {
             if (asio2::get_last_error()) {
                 LOGE("start udp server failure : {} {}",
                        asio2::last_error_val(), asio2::last_error_msg().c_str());
             }
-            else {
+            else if (const auto runtime = weak_runtime.lock()) {
                 LOGI("start udp server success : {} {}",
-                       server_->listen_address().c_str(), server_->listen_port());
+                       runtime->server_->listen_address().c_str(),
+                       runtime->server_->listen_port());
                 // 一帧 ~89 个包(~125KB)毫秒内突发下发,默认发送缓冲易满;
                 // 发送缓冲调 4MB、接收 1MB,读回值打出来(Windows 上可能与设置值不同)
                 asio::error_code ec;
-                auto& sock = server_->acceptor();
+                auto& sock = runtime->server_->acceptor();
                 sock.set_option(asio::socket_base::send_buffer_size(4 * 1024 * 1024), ec);
                 if (ec) LOGW("udp server set sndbuf 4MB failed: {}", ec.message());
                 sock.set_option(asio::socket_base::receive_buffer_size(1 * 1024 * 1024), ec);
@@ -340,18 +425,29 @@ namespace px
                 sock.get_option(rcv, ec);
                 LOGI("udp server socket buffer: snd = {}, rcv = {}", snd.value(), rcv.value());
             }
-        }).bind_stop([&]() {
+        }).bind_stop([]() {
             LOGI("stop udp server : {} {}",
                    asio2::last_error_val(), asio2::last_error_msg().c_str());
-        }).bind_init([&]() {
+        }).bind_init([]() {
 
         });
 
         // 裸 UDP(不再 use_kcp):视频重传是负优化,丢了靠客户端报 IDR 恢复
-        server_->start("0.0.0.0", udp_listen_port_);
+        server_->start("0.0.0.0", listen_port);
     }
 
-    void UdpPlugin::HandleCtrlPacket(const std::shared_ptr<UdpSession>& udp_sess, const char* data, size_t size) {
+    void UdpRuntimeState::Stop() {
+        if (server_) {
+            server_->stop();
+            server_.reset();
+        }
+        sessions_.Clear();
+    }
+
+    void UdpRuntimeState::HandleCtrlPacket(
+        const std::shared_ptr<UdpSession>& udp_sess,
+        const char* data, // NOLINT(gammaray-raw-pointer-boundary) Synchronous UDP byte-view boundary
+        size_t size) {
         // kCtrlFrameStatus 是定长二进制体,ParseCtrl 不解析,走专门解析
         uint32_t fs_frame = 0;
         uint16_t fs_received = 0, fs_lost = 0;
@@ -374,7 +470,7 @@ namespace px
                 stat_lost_frames_++;
                 auto event = std::make_shared<PxPluginInsertIdrEvent>();
                 event->mon_name_ = s1;
-                this->CallbackEvent(event);
+                event_dispatcher_(event);
                 break;
             }
             case PxUdpProtocol::kCtrlIdrKeepalive: {
@@ -382,7 +478,7 @@ namespace px
                 // 否则客户端刚连上自动补几发 IDR 就会把动态 FEC 刷到上限。
                 auto event = std::make_shared<PxPluginInsertIdrEvent>();
                 event->mon_name_ = s1;
-                this->CallbackEvent(event);
+                event_dispatcher_(event);
                 break;
             }
             case PxUdpProtocol::kCtrlRfi: {
@@ -398,7 +494,7 @@ namespace px
                 event->mon_name_ = s2;
                 LOGI("udp rfi request: invalid_frame={}, mon={}", event->invalid_frame_index_, event->mon_name_);
                 rfi_pending_ = true;
-                this->CallbackEvent(event);
+                event_dispatcher_(event);
                 break;
             }
             default:
@@ -406,14 +502,14 @@ namespace px
         }
     }
 
-    void UdpPlugin::HandleFrameStatus(uint32_t frame_index, uint16_t received, uint16_t lost) {
+    void UdpRuntimeState::HandleFrameStatus(uint32_t frame_index, uint16_t received, uint16_t lost) {
         (void)frame_index;
         (void)received;
         stat_complete_frames_++;
         stat_recovered_shards_ += lost;
     }
 
-    void UdpPlugin::AdjustFecWindow() {
+    void UdpRuntimeState::AdjustFecWindow() {
         int complete = stat_complete_frames_.exchange(0);
         int lost = stat_lost_frames_.exchange(0);
         int recovered = stat_recovered_shards_.exchange(0);
@@ -441,7 +537,7 @@ namespace px
         }
     }
 
-    bool UdpPlugin::HasBoundSession() {
+    bool UdpRuntimeState::HasBoundSession() {
         bool has_bound = false;
         sessions_.ApplyAll([&](const std::string&, const std::shared_ptr<UdpSession>& us) {
             if (us && us->bound_ && us->sess_) {
@@ -451,8 +547,9 @@ namespace px
         return has_bound;
     }
 
-    void UdpPlugin::HandleHello(const std::shared_ptr<UdpSession>& udp_sess,
-                                const std::string& device_id, const std::string& stream_id) {
+    void UdpRuntimeState::HandleHello(
+        const std::shared_ptr<UdpSession>& udp_sess,
+        const std::string& device_id, const std::string& stream_id) {
         if (udp_sess->kicked_) {
             LOGW("kicked udp endpoint tries to hello again, ignore: {}", udp_sess->conn_id_);
             return;
@@ -464,7 +561,7 @@ namespace px
         auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
         std::shared_ptr<UdpSession> old_bound;
         {
-            std::lock_guard<std::mutex> lk(bind_mtx_);
+            std::lock_guard lock(bind_mutex_);
             if (udp_sess->bound_ && udp_sess->stream_id_ == stream_id) {
                 // 同会话重复 Hello:刷新心跳即可
                 udp_sess->last_heartbeat_ms_ = now;
@@ -495,15 +592,18 @@ namespace px
             // 通知旧客户端"被接管",再补一条断开事件让统计/状态机闭环
             auto kick = PxUdpProtocol::BuildKick("taken over");
             old_bound->sess_->async_send(kick->CStr(), kick->Size(), [kick](std::size_t) {});
-            NotifyMediaClientDisConnected(old_bound->conn_id_, old_bound->stream_id_,
-                                          old_bound->device_id_, old_bound->begin_timestamp_);
+            NotifyMediaClientDisconnected(
+                old_bound->conn_id_, old_bound->stream_id_,
+                old_bound->device_id_, old_bound->begin_timestamp_);
         }
         // 绑定成功:路由器收到连接事件会自动触发全屏 IDR,不用再单独请求
         NotifyMediaClientConnected(udp_sess->conn_id_, stream_id, device_id, now);
         LOGI("udp media session bound: {} => device: {}, stream: {}", udp_sess->conn_id_, device_id, stream_id);
     }
 
-    void UdpPlugin::HandleHeartbeat(const std::shared_ptr<UdpSession>& udp_sess, const std::string& stream_id) {
+    void UdpRuntimeState::HandleHeartbeat(
+        const std::shared_ptr<UdpSession>& udp_sess,
+        const std::string& stream_id) {
         // 被新连接互踢的旧 endpoint 不得再凭 stream_id 抢回绑定
         if (udp_sess->kicked_) {
             return;
@@ -515,7 +615,7 @@ namespace px
         }
         // 当前会话未绑定但 stream_id 匹配已绑定会话:NAT 换端口重建了底层会话,
         // 把绑定迁到当前会话(同一逻辑客户端,不发连接/断开事件)
-        std::lock_guard<std::mutex> lk(bind_mtx_);
+        std::lock_guard lock(bind_mutex_);
         std::shared_ptr<UdpSession> bound_sess;
         sessions_.ApplyAll([&](const std::string& k, const std::shared_ptr<UdpSession>& us) {
             if (us != udp_sess && us->bound_ && us->stream_id_ == stream_id) {
@@ -535,12 +635,12 @@ namespace px
         bound_sess->bound_ = false;
     }
 
-    void UdpPlugin::SweepDeadSessions() {
+    void UdpRuntimeState::SweepDeadSessions() {
         auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
         std::vector<std::shared_ptr<UdpSession>> dead_sessions;
         std::vector<std::shared_ptr<UdpSession>> stale_sessions;
         {
-            std::lock_guard<std::mutex> lk(bind_mtx_);
+            std::lock_guard lock(bind_mutex_);
             sessions_.ApplyAll([&](const std::string& k, const std::shared_ptr<UdpSession>& us) {
                 if (us->kicked_ || (!us->bound_ && now - us->last_seen_ms_.load() > kUnboundSessionTimeoutMs)) {
                     // 被踢/从未绑定且已无流量:直接摘除并停止底层会话,不发断开事件
@@ -555,8 +655,9 @@ namespace px
         }
         for (const auto& us : dead_sessions) {
             LOGW("udp media session heartbeat timeout: {} (stream: {})", us->conn_id_, us->stream_id_);
-            NotifyMediaClientDisConnected(us->conn_id_, us->stream_id_,
-                                          us->device_id_, us->begin_timestamp_);
+            NotifyMediaClientDisconnected(
+                us->conn_id_, us->stream_id_,
+                us->device_id_, us->begin_timestamp_);
             // 摘掉会话并停掉底层 session(bind_disconnect 再进来时 bound_ 已是 false,不会重复发事件)
             sessions_.RemoveIf(us->conn_id_, [&](const std::shared_ptr<UdpSession>& cur) {
                 return cur == us;
@@ -601,8 +702,12 @@ namespace px
         }
         LARGE_INTEGER due_time;
         due_time.QuadPart = ns / -100;  // 100ns 单位,负数 = 相对时间
-        SetWaitableTimer(pace_timer_, &due_time, 0, nullptr, nullptr, false);
-        WaitForSingleObject(pace_timer_, INFINITE);
+        SetWaitableTimer(
+            pace_timer_.get(), &due_time, 0, nullptr, nullptr,
+            false); // NOLINT(gammaray-raw-pointer-boundary): transient Win32 HANDLE boundary
+        WaitForSingleObject(
+            pace_timer_.get(),
+            INFINITE); // NOLINT(gammaray-raw-pointer-boundary): transient Win32 HANDLE boundary
     }
 
     // data: encode video frame, h264/h265/...
@@ -613,14 +718,17 @@ namespace px
                                         int frame_width,
                                         int frame_height,
                                         bool key) {
-        if (!data || data->Size() <= 0 || !HasBoundSession()) {
+        const auto runtime = runtime_;
+        if (!runtime || !data || data->Size() <= 0
+            || !runtime->HasBoundSession()) {
             return;
         }
         static std::atomic_uint64_t s_udp_enc_frames{0};
         auto enc_n = ++s_udp_enc_frames;
         if (enc_n == 1 || enc_n % 300 == 0) {
             LOGI("udp OnEncodedVideoFrame #{}, bound_count={}, sessions={}, frame_index={}, key={}, bytes={}",
-                 enc_n, bound_count_.load(), sessions_.Size(), frame_index, key, data->Size());
+                 enc_n, runtime->bound_count_.load(), runtime->sessions_.Size(),
+                 frame_index, key, data->Size());
         }
         uint8_t codec;
         if (video_type == PxPluginEncodedVideoType::kH264) {
@@ -646,10 +754,10 @@ namespace px
         meta.frame_height_ = (uint16_t)frame_height;
         meta.mon_slot_ = MonSlotOf(mon_name);
         meta.mon_name_ = mon_name;
-        meta.rfi_recover_ = rfi_pending_.exchange(false);
+        meta.rfi_recover_ = runtime->rfi_pending_.exchange(false);
 
         auto shards = PxUdpProtocol::ShardVideoFrame(meta, data->CStr(), (size_t)data->Size(),
-                                                     udp_mtu_, fec_percent_);
+                                                     udp_mtu_, runtime->fec_percent_);
         if (shards.empty()) {
             return;
         }
@@ -685,7 +793,7 @@ namespace px
                     ratecontrol_group_packets_sent = 0;
                 }
                 const size_t current_batch_size = x - next_shard_to_send + 1;
-                sessions_.ApplyAll([&](const std::string&, const std::shared_ptr<UdpSession>& us) {
+                runtime->sessions_.ApplyAll([&](const std::string&, const std::shared_ptr<UdpSession>& us) {
                     if (!us->bound_ || !us->sess_) {
                         return;
                     }
@@ -693,10 +801,16 @@ namespace px
                         const auto& shard = shards[i];
                         total_sent += shard->Size();
                         // shard 捕获进回调保活,直到 asio 拷进发件缓冲
-                        stat_sent_shards_++;
-                        us->sess_->async_send(shard->CStr(), shard->Size(), [shard, this](std::size_t bytes_sent) {
+                        runtime->stat_sent_shards_++;
+                        const auto weak_runtime =
+                            std::weak_ptr<UdpRuntimeState>(runtime);
+                        us->sess_->async_send(
+                            shard->CStr(), shard->Size(),
+                            [shard, weak_runtime](std::size_t bytes_sent) {
                             if (bytes_sent != shard->Size()) {
-                                stat_send_short_writes_++;
+                                if (const auto locked = weak_runtime.lock()) {
+                                    locked->stat_send_short_writes_++;
+                                }
                             }
                         });
                     }
@@ -716,30 +830,35 @@ namespace px
         }
     }
 
-    void UdpPlugin::NotifyMediaClientConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id, int64_t begin_timestamp) {
+    void UdpRuntimeState::NotifyMediaClientConnected(
+        const std::string& conn_id, const std::string& stream_id,
+        const std::string& visitor_device_id, int64_t begin_timestamp) {
         auto event = std::make_shared<PxPluginClientConnectedEvent>();
         event->conn_id_ = conn_id;
         event->stream_id_ = stream_id;
         event->conn_type_ = "UDP";
         event->visitor_device_id_ = visitor_device_id;
         event->begin_timestamp_ = begin_timestamp;
-        this->CallbackEvent(event);
+        event_dispatcher_(event);
         LOGI("Conn id: {}, visitor device id: {}", stream_id, visitor_device_id);
     }
 
-    void UdpPlugin::NotifyMediaClientDisConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id, int64_t begin_timestamp) {
+    void UdpRuntimeState::NotifyMediaClientDisconnected(
+        const std::string& conn_id, const std::string& stream_id,
+        const std::string& visitor_device_id, int64_t begin_timestamp) {
         auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
         event->conn_id_ = conn_id;
         event->stream_id_ = stream_id;
         event->visitor_device_id_ = visitor_device_id;
         event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->duration_ = event->end_timestamp_ - begin_timestamp;
-        this->CallbackEvent(event);
+        event_dispatcher_(event);
         LOGI("DisConn id: {}, visitor device id: {}, duration: {}", stream_id, visitor_device_id, event->duration_);
     }
 
     int UdpPlugin::GetConnectedClientsCount() {
-        return bound_count_;
+        const auto runtime = runtime_;
+        return runtime ? runtime->bound_count_.load() : 0;
     }
 
     bool UdpPlugin::IsOnlyAudioClients() {

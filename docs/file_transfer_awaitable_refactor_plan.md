@@ -2899,3 +2899,34 @@ loader-owned 插件裸地址的 `ClipboardManager`；Mock Video 的 worker 与 3
 
 - `clipboard.dll`：`2D565553C79A3227D25CC427F273397E4B589969C792DE5B22FFA19E8F5E1C60`；
 - `mock_video_stream.dll`：`8A5453D8C532045397991C233132892924C0C545D3021049FC102371FD73C2D9`。
+
+### 12.63 Phase 7 Hook Audio 与 UDP Runtime 生命周期收敛
+
+Hook Audio 的 `InProcessLoopbackCapture` 和 UDP 插件都存在后台执行体直接依赖外层 owner 的问题；
+UDP 同时把 server callback、周期 timer 和异步发送完成回调绑定到了 loader-owned 插件实例。
+
+本批完成：
+
+- 完整保留 `InProcessLoopbackCapture` 实现，只把 worker 所需的 stop/running 状态和
+  `AudioShare` 放入共享 `State`；线程只捕获 state，`Stop` 发停止信号并 join 后释放状态，不再
+  捕获 capture owner；该实现当前未列入任何 CMake target，因此明确保留源代码但不虚报编译覆盖；
+- UDP server、session、绑定状态、FEC 窗口统计和插件事件 dispatcher 进入共享
+  `UdpRuntimeState`；asio callback、Panel timer 和发送完成回调只捕获 weak runtime，并在使用前
+  `lock()`；插件 Destroy 先停 server、清 session，再释放自身 runtime 引用；
+- UDP pacing timer 改为 `UdpWinHandle` 独占 RAII，Win32 API 只在调用边界短暂取得 handle；
+- 新增真实 `net_udp.dll` 生命周期测试，覆盖注册 callback 后反复 OnStop/OnDestroy 与卸载；
+  全仓异步报告由 17 降到 16，Hook Audio 和 UDP 路径归零。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| UDP DLL 生命周期 | 10 次 gtest 重复 × 每次 10 轮，共 100 次创建/停止/销毁/卸载 PASS |
+| Hook worker 生命周期 | 现有 `hook_audio_worker_lifecycle` 内部 10 轮 PASS；`InProcessLoopbackCapture` 当前无 CMake 编译目标，未宣称其已被该测试编译 |
+| ownership / async audit | 增量 ownership 与 whitespace PASS；全仓报告剩余 16 处，本批路径无命中 |
+| focused build/dist | `build_cpp_hook_audio.bat` 和 `build_cpp_render_plugin.bat net_udp` 定向构建；未运行发版整编；运行时 DLL 已发布且 build/dist 哈希一致 |
+
+本批 DLL build/dist SHA-256：
+
+- `px_gh.dll`：`37C155002BB070546EBB2FE01765D245C21DC81FB8A2D9AE410F053520FC7A56`；
+- `net_udp.dll`：`A2760754BCC72664B0906434CCE0E2564A916A0DDF4F031AB08063BECBFDB491`。

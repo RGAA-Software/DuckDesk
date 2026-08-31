@@ -21,15 +21,14 @@ public:
 
     bool Start(std::shared_ptr<AudioShare> share, uint32_t pid);
     void Stop();
-    bool running() const { return running_.load(std::memory_order_acquire); }
+    bool running() const;
 
 private:
-    void ThreadMain(uint32_t pid);
+    struct State;
+    static void ThreadMain(const std::shared_ptr<State>& state, uint32_t pid);
 
-    std::shared_ptr<AudioShare> share_;
+    std::shared_ptr<State> state_;
     std::thread thread_;
-    std::atomic<bool> stop_{false};
-    std::atomic<bool> running_{false};
 };
 
 }  // namespace px
