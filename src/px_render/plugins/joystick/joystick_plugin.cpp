@@ -11,10 +11,70 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
+#include <mutex>
+
 PX_PLUGIN_EXPORT(px::JoystickPlugin)
 
 namespace px
 {
+    class JoystickRuntime final {
+    public:
+        void PrepareConnection() {
+            std::lock_guard lock(mutex_);
+            if (controller_ && !controller_->IsConnected()) {
+                controller_->Exit();
+                controller_.reset();
+            }
+            if (!controller_) {
+                controller_ =
+                    std::make_shared<VigemController>(JoystickType::kJsX360);
+            }
+            if (!controller_->Connect()) {
+                LOGE("Connect VIGEM failed!");
+                return;
+            }
+            LOGI("Connect VIGEM success.");
+        }
+
+        void AllocateController(const std::string& stream_id) {
+            PrepareConnection();
+            std::lock_guard lock(mutex_);
+            if (controller_ && controller_->IsConnected()
+                && !controller_->AllocController(stream_id)) {
+                LOGE("Alloc controller failed: {}", stream_id);
+            }
+        }
+
+        void ReplayJoystickEvent(
+            const std::string& stream_id,
+            const std::shared_ptr<Message>& msg) {
+            const auto& gamepad_state = msg->gamepad_state();
+            XInputGamepadState state;
+            state.wButtons = gamepad_state.buttons();
+            state.bLeftTrigger = gamepad_state.left_trigger();
+            state.bRightTrigger = gamepad_state.right_trigger();
+            state.sThumbLX = gamepad_state.thumb_lx();
+            state.sThumbLY = gamepad_state.thumb_ly();
+            state.sThumbRX = gamepad_state.thumb_rx();
+            state.sThumbRY = gamepad_state.thumb_ry();
+
+            std::lock_guard lock(mutex_);
+            if (controller_) {
+                controller_->SendGamepadState(stream_id, state);
+            }
+        }
+
+        void RemoveController(const std::string& stream_id) {
+            std::lock_guard lock(mutex_);
+            if (controller_) {
+                controller_->RemoveController(stream_id);
+            }
+        }
+
+    private:
+        std::mutex mutex_;
+        std::shared_ptr<VigemController> controller_;
+    };
 
     std::string JoystickPlugin::GetPluginId() {
         return kJoystickPluginId;
@@ -47,9 +107,16 @@ namespace px
         if (!IsPluginEnabled()) {
             return true;
         }
-        PrepareConnection();
+        runtime_ = std::make_shared<JoystickRuntime>();
+        runtime_->PrepareConnection();
 
         return true;
+    }
+
+    bool JoystickPlugin::OnDestroy() {
+        PxPluginInterface::OnStop();
+        runtime_.reset();
+        return PxPluginInterface::OnDestroy();
     }
 
     void JoystickPlugin::OnMessage(std::shared_ptr<Message> msg) {
@@ -58,64 +125,31 @@ namespace px
         if (msg->type() == px::MessageType::kHello) {
             auto sub = msg->hello();
             if (sub.enable_controller()) {
-                plugin_context_->PostWorkTask([=, this]() {
-                    PrepareConnection();
-                    if (controller_->IsConnected()) {
-                        if (!controller_->AllocController(stream_id)) {
-                            LOGE("Alloc controller failed: {}", stream_id);
-                        }
+                const auto runtime = runtime_;
+                plugin_context_->PostWorkTask([runtime, stream_id]() {
+                    if (runtime) {
+                        runtime->AllocateController(stream_id);
                     }
                 });
             }
         }
         else if (msg->type() == px::MessageType::kGamepadState) {
             // replay gamepad state
-            plugin_context_->PostWorkTask([=, this]() {
-                ReplayJoystickEvent(stream_id, msg);
+            const auto runtime = runtime_;
+            plugin_context_->PostWorkTask([runtime, stream_id, msg = std::move(msg)]() {
+                if (runtime) {
+                    runtime->ReplayJoystickEvent(stream_id, msg);
+                }
             });
         }
     }
 
     void JoystickPlugin::OnClientDisconnected(const std::string &visitor_device_id, const std::string &stream_id) {
         LOGW("will release joystick controller for stream: {}, device id: {}", stream_id, visitor_device_id);
-        if (controller_) {
-            controller_->RemoveController(stream_id);
+        const auto runtime = runtime_;
+        if (runtime) {
+            runtime->RemoveController(stream_id);
         }
-    }
-
-    void JoystickPlugin::PrepareConnection() {
-        // create controller
-        if (controller_ && !controller_->IsConnected()) {
-            controller_->Exit();
-            controller_ = nullptr;
-        }
-        if (!controller_) {
-            controller_ = std::make_shared<VigemController>(JoystickType::kJsX360);
-        }
-        if (!controller_->Connect()) {
-            LOGE("Connect VIGEM failed!");
-            return;
-        }
-        LOGI("Connect VIGEM success.");
-    }
-
-    void JoystickPlugin::ReplayJoystickEvent(const std::string& stream_id, std::shared_ptr<Message> msg) {
-        const auto& gamepad_state = msg->gamepad_state();
-        // convert to XINPUT_STATE
-        // LOGI("----Gamepad state----");
-        // LOGI("button: {:x}, left trigger: {}, right trigger: {}", gamepad_state.buttons(), gamepad_state.left_trigger(), gamepad_state.right_trigger());
-        // LOGI("Left thumb: {},{}", gamepad_state.thumb_lx(), gamepad_state.thumb_ly());
-        // LOGI("Right thumb: {},{}", gamepad_state.thumb_rx(), gamepad_state.thumb_ry());
-
-        XInputGamepadState state;
-        state.wButtons = gamepad_state.buttons();
-        state.bLeftTrigger = gamepad_state.left_trigger();
-        state.bRightTrigger = gamepad_state.right_trigger();
-        state.sThumbLX = gamepad_state.thumb_lx();
-        state.sThumbLY = gamepad_state.thumb_ly();
-        state.sThumbRX = gamepad_state.thumb_rx();
-        state.sThumbRY = gamepad_state.thumb_ry();
-        controller_->SendGamepadState(stream_id, state);
     }
 
 }

@@ -16,7 +16,6 @@
 #include "cursor_capture.h"
 #include "px_common_new/log.h"
 #include "px_common_new/thread.h"
-#include "px_common_new/memory_stat.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
@@ -457,12 +456,6 @@ namespace px
         // reconnects race with capture-backend switching. Real duplication
         // failures are handled in DDACapture::Capture by their HRESULTs.
 
-#if MEMORY_STST_ON
-        plugin_context_->PostWorkTask([=, this]() {
-            auto info = MemoryStat::Instance()->GetStatInfo();
-            LOGI("Memory usage: {}", info.Dump());
-        });
-#endif
     }
 
     void DDACapturePlugin::On16MilliSecond() {

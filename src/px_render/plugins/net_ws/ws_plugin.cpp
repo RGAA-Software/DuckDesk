@@ -6,7 +6,6 @@
 #include "ws_server.h"
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
-#include "px_common_new/memory_stat.h"
 #include "px_render/plugins/plugin_ids.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
@@ -67,12 +66,6 @@ namespace px
         if (IsWorking() && ws_server_) {
             ws_server_->SweepDeadIpcPids();
         }
-#if MEMORY_STST_ON
-        plugin_context_->PostWorkTask([=, this]() {
-            auto info = MemoryStat::Instance()->GetStatInfo();
-            LOGI("Memory usage: {}", info.Dump());
-        });
-#endif
     }
 
     bool WsPlugin::IsWorking() {
@@ -81,11 +74,11 @@ namespace px
 
     void WsPlugin::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
         if (IsWorking() && HasConnectedClients() && msg) {
-            plugin_context_->PostWorkTask([=, this]() {
-                if (IsStoppingOrDestroyed() || !ws_server_) {
-                    return;
+            const auto server = ws_server_;
+            plugin_context_->PostWorkTask([server, msg = std::move(msg)]() {
+                if (server && server->IsWorking()) {
+                    server->PostNetMessage(msg);
                 }
-                ws_server_->PostNetMessage(msg);
             });
         }
     }
@@ -120,11 +113,11 @@ namespace px
 
     void WsPlugin::PostUserProxyMessage(std::shared_ptr<Data> msg) {
         if (IsWorking() && msg && ws_server_) {
-            plugin_context_->PostWorkTask([=, this]() {
-                if (IsStoppingOrDestroyed() || !ws_server_) {
-                    return;
+            const auto server = ws_server_;
+            plugin_context_->PostWorkTask([server, msg = std::move(msg)]() {
+                if (server && server->IsWorking()) {
+                    server->PostUserProxyMessage(msg);
                 }
-                ws_server_->PostUserProxyMessage(msg);
             });
         }
     }
@@ -133,11 +126,11 @@ namespace px
         if (!IsWorking() || !msg || !ws_server_) {
             return;
         }
-        plugin_context_->PostWorkTask([=, this]() {
-            if (IsStoppingOrDestroyed() || !ws_server_) {
-                return;
+        const auto server = ws_server_;
+        plugin_context_->PostWorkTask([server, msg = std::move(msg)]() {
+            if (server && server->IsWorking()) {
+                server->PostIpcBinaryMessage(msg);
             }
-            ws_server_->PostIpcBinaryMessage(msg);
         });
     }
 
@@ -145,11 +138,11 @@ namespace px
         if (!IsWorking() || !ws_server_) {
             return;
         }
-        plugin_context_->PostWorkTask([=, this]() {
-            if (IsStoppingOrDestroyed() || !ws_server_) {
-                return;
+        const auto server = ws_server_;
+        plugin_context_->PostWorkTask([server, pid]() {
+            if (server && server->IsWorking()) {
+                server->RegisterIpcPid(pid);
             }
-            ws_server_->RegisterIpcPid(pid);
         });
     }
 

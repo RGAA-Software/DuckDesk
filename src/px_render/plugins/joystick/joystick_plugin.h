@@ -11,7 +11,7 @@
 namespace px
 {
 
-    class VigemController;
+    class JoystickRuntime;
 
     class JoystickPlugin : public PxPluginInterface {
     public:
@@ -21,16 +21,13 @@ namespace px
         uint32_t GetVersionCode() override;
         std::string GetPluginDescription() override;
         bool OnCreate(const px::PxPluginParam& param) override;
+        bool OnDestroy() override;
         void On1Second() override;
         void OnMessage(std::shared_ptr<Message> msg) override;
         void OnClientDisconnected(const std::string &visitor_device_id, const std::string &stream_id) override;
 
     private:
-        void PrepareConnection();
-        void ReplayJoystickEvent(const std::string& stream_id, std::shared_ptr<Message> msg);
-
-    private:
-        std::shared_ptr<VigemController> controller_;
+        std::shared_ptr<JoystickRuntime> runtime_;
     };
 
 }

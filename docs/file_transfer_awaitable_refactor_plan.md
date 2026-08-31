@@ -2840,3 +2840,32 @@ Client 本批 build/dist SHA-256：
 
 `px_panel.exe` build/dist SHA-256：
 `DBBC5F93B7A0B020E80F7E7935AEF0A36B4C83F832169B56D158EF72DD83D06F`。
+
+### 12.61 Phase 7 Render WS、Joystick 与停用诊断回调收敛
+
+Render 非 RTC 全仓报告的第一批包含 WS 消息任务、Joystick VIGEM 操作，以及 DDA/NVENC 中
+被编译开关关闭但仍保留裸 owner task 的内存诊断代码。
+
+本批完成：
+
+- WS 的网络消息、user proxy、IPC 消息和 PID 注册任务只捕获共享 `WsPluginServer`；任务执行
+  时重新检查 server working 状态，插件卸载后不再访问 loader-owned singleton；
+- Joystick 的 VIGEM controller 抽入 `shared_ptr<JoystickRuntime>`，连接、分配、状态回放和移除
+  在 runtime mutex 下串行；worker 捕获 runtime，插件 OnDestroy 先 Stop 再释放自身引用，已在
+  执行的任务可安全完成而不反向访问插件；
+- 删除 DDA、NVENC 和 WS 中 `MEMORY_STST_ON` 关闭分支内的旧 PostWorkTask 诊断 callback；
+- 全仓 `check_async_lifetime -ReportAll` 命中由 24 降到 20，本批四个插件路径归零。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| ownership / async audit | 增量门禁与 whitespace PASS；全仓报告本批路径无命中 |
+| focused build/dist | `build_cpp_render_plugin.bat` 分别构建并发布 `net_ws`、`joystick`、`cap_dda`、`enc_nvenc`；未运行发版整编；DLL build/dist 哈希一致 |
+
+本批 DLL build/dist SHA-256：
+
+- `net_ws.dll`：`DA62A67C368DFDE913FBFC3AF801458499061E0E66C667D06910B45C8712EDF2`；
+- `joystick.dll`：`17BF605282ADF1855C5104F272662211EE7D2436DF5254F03D15F8283559CE16`；
+- `cap_dda.dll`：`4A469DDAAEC16044F38B5C84FD3F6CAB6EC718CAD78D92D714481E4B6CC401C9`；
+- `enc_nvenc.dll`：`ADFF67F687E18394EDF547C6ADF45AB343BFC1C8108CA91F1B575A7D2F4407EB`。

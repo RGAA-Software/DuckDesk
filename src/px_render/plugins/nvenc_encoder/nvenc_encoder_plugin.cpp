@@ -6,7 +6,6 @@
 #include "px_common_new/log.h"
 #include "nvenc_encoder_defs.h"
 #include "nvenc_video_encoder.h"
-#include "px_common_new/memory_stat.h"
 #include "px_render/plugins/plugin_ids.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
@@ -37,12 +36,6 @@ namespace px
 
     void NvencEncoderPlugin::On1Second() {
         PxVideoEncoderPlugin::On1Second();
-#if MEMORY_STST_ON
-        plugin_context_->PostWorkTask([=, this]() {
-            auto info = MemoryStat::Instance()->GetStatInfo();
-            LOGI("Memory usage: {}", info.Dump());
-        });
-#endif
     }
 
     bool NvencEncoderPlugin::OnCreate(const px::PxPluginParam& param) {
