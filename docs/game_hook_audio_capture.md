@@ -401,7 +401,7 @@ Game-hook 音频在 Win10 19041+ 上走 **Host 原生 WASAPI PID process-loopbac
 4. 多源抑制集中化：WASAPI 活跃窗口放宽到 1000ms，期间 XAudio2/WaveOut/DirectSound 来源帧直接丢弃 + 计数（AudioMixer 仍是拼接语义，真时间轴混音未做——保留为已知限制）。
 5. 队列按字节限流 16MB 丢最旧 + 计数；XAudio2 单 buffer 按 ~1s 音频分块。
 6. 格式未知/不支持（8/24/32-bit int、压缩）丢帧计数，不再硬编码 48k/f32 兜底；`WAVEFORMATEXTENSIBLE` 展开 SubFormat；`g_mixer` 改 atomic `shared_ptr`。
-7. `InProcessLoopbackCapture` 目前是无调用者的死代码（保留注明）。
+7. `InProcessLoopbackCapture` 是必须保留的项目实现；当前尚未接入主调用链，但不得按无调用者代码删除、替换、置空或排除，只能在保留完整采集路径的前提下原地修改。
 
 ### 13.5 第二轮追加（2026-08-08）
 
