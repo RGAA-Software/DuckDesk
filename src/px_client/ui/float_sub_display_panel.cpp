@@ -26,6 +26,7 @@ namespace px
         auto item_height = 38;
         int border_spacing = 10;
         auto item_size = QSize(ContentWidth() - 2*offset, item_height);
+        const QPointer<SubDisplayPanel> guarded_self(this);
         auto root_layout = new NoMarginVLayout();
         root_layout->setContentsMargins(kShadowMargin + offset, kShadowMargin + offset,
                                         kShadowMargin + offset, kShadowMargin + offset);
@@ -57,14 +58,18 @@ namespace px
             root_layout->addSpacing(5);
             root_layout->addWidget(widget);
             //
-            widget->SetOnClickListener([=, this](auto w) {
-                auto panel = GetSubPanel(SubDisplayType::kScale);
-                if (!panel) {
-                    panel = (BaseWidget*)(new ThirdScalePanel(ctx, OverlayOwner()));
-                    sub_panels_[SubDisplayType::kScale] = panel;
+            widget->SetOnClickListener([guarded_self, ctx](auto anchor) { // NOLINT(gammaray-raw-pointer-boundary) Existing click-listener ABI.
+                if (!guarded_self) {
+                    return;
                 }
-                HideAllSubPanels();
-                ShowSubPanel(static_cast<FloatOverlayWindow*>(panel), w);
+                auto panel = guarded_self->GetSubPanel(SubDisplayType::kScale);
+                if (!panel) {
+                    panel = QPointer<ThirdScalePanel>(
+                        new ThirdScalePanel(ctx, guarded_self->OverlayOwner())); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns the panel.
+                    guarded_self->sub_panels_[SubDisplayType::kScale] = panel;
+                }
+                guarded_self->HideAllSubPanels();
+                guarded_self->ShowSubPanel(panel, QPointer<QWidget>(anchor));
             });
         }
         {
@@ -94,27 +99,32 @@ namespace px
             root_layout->addSpacing(5);
             root_layout->addWidget(widget);
 
-            widget->SetOnClickListener([=, this](auto w) {
-                auto panel = GetSubPanel(SubDisplayType::kResolution);
-                if (!panel) {
-                    panel = (BaseWidget*)(new ThirdResolutionPanel(ctx, OverlayOwner()));
-                    sub_panels_[SubDisplayType::kResolution] = panel;
+            widget->SetOnClickListener([guarded_self, ctx](auto anchor) { // NOLINT(gammaray-raw-pointer-boundary) Existing click-listener ABI.
+                if (!guarded_self) {
+                    return;
                 }
-                HideAllSubPanels();
-                if (cap_monitors_info_.monitors_.empty()) {
+                auto panel = guarded_self->GetSubPanel(SubDisplayType::kResolution);
+                if (!panel) {
+                    panel = QPointer<ThirdResolutionPanel>(
+                        new ThirdResolutionPanel(ctx, guarded_self->OverlayOwner())); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns the panel.
+                    guarded_self->sub_panels_[SubDisplayType::kResolution] = panel;
+                }
+                guarded_self->HideAllSubPanels();
+                if (guarded_self->cap_monitors_info_.monitors_.empty()) {
                     LOGE("Error monitor index, can not get MsgClientCaptureMonitor.");
-                    const auto task_context = context_;
-                    context_->PostUITask([task_context]() {
+                    const auto task_context = guarded_self->context_;
+                    task_context->PostUITask([task_context]() {
                         task_context->NotifyAppWarningMessage(
                             tcTr("id_warning"), tcTr("id_modify_display_settings_of_controlled"));
                     });
                     return;
                 }
                 //auto capture_monitor = cap_monitors_info_.GetCaptureMonitorByName(capturing_monitor_name);
-                auto capture_monitor = cap_monitors_info_.GetCaptureMonitorByName(capture_monitor_name_);
+                auto capture_monitor = guarded_self->cap_monitors_info_.GetCaptureMonitorByName(
+                    guarded_self->capture_monitor_name_);
                 if (capture_monitor.IsValid()) {
-                    ((ThirdResolutionPanel *) panel)->UpdateMonitor(capture_monitor);
-                    ShowSubPanel(static_cast<FloatOverlayWindow*>(panel), w);
+                    static_cast<ThirdResolutionPanel&>(*panel).UpdateMonitor(capture_monitor);
+                    guarded_self->ShowSubPanel(panel, QPointer<QWidget>(anchor));
                 }
             });
 
@@ -143,16 +153,24 @@ namespace px
             layout->addWidget(sb);
 
             auto timer = new QTimer(this);
-            connect(timer, &QTimer::timeout, [=]() {
-                sb->setEnabled(true);
+            const QPointer<SwitchButton> guarded_button(sb);
+            const QPointer<QTimer> guarded_timer(timer);
+            connect(timer, &QTimer::timeout, this, [guarded_button]() {
+                if (guarded_button) {
+                    guarded_button->setEnabled(true);
+                }
             });
             timer->setInterval(3000);
             timer->setSingleShot(true);
 
-            sb->SetClickCallback([=, this](bool enabled) {
-                sb->setEnabled(false);
-                timer->start();
-                context_->SendAppMessage(MsgClientSwitchFullColor {
+            sb->SetClickCallback(
+                [guarded_self, guarded_button, guarded_timer](bool enabled) {
+                if (!guarded_self || !guarded_button || !guarded_timer) {
+                    return;
+                }
+                guarded_button->setEnabled(false);
+                guarded_timer->start();
+                guarded_self->context_->SendAppMessage(MsgClientSwitchFullColor {
                   .enable_ = enabled,
                 });
             });
@@ -191,14 +209,18 @@ namespace px
             root_layout->addSpacing(5);
             root_layout->addWidget(widget);
 
-            widget->SetOnClickListener([=, this](auto w) {
-                auto panel = GetSubPanel(SubDisplayType::kFps);
-                if (!panel) {
-                    panel = (BaseWidget*)(new SubFpsPanel(ctx, OverlayOwner()));
-                    sub_panels_[SubDisplayType::kFps] = panel;
+            widget->SetOnClickListener([guarded_self, ctx](auto anchor) { // NOLINT(gammaray-raw-pointer-boundary) Existing click-listener ABI.
+                if (!guarded_self) {
+                    return;
                 }
-                HideAllSubPanels();
-                ShowSubPanel(static_cast<FloatOverlayWindow*>(panel), w);
+                auto panel = guarded_self->GetSubPanel(SubDisplayType::kFps);
+                if (!panel) {
+                    panel = QPointer<SubFpsPanel>(
+                        new SubFpsPanel(ctx, guarded_self->OverlayOwner())); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns the panel.
+                    guarded_self->sub_panels_[SubDisplayType::kFps] = panel;
+                }
+                guarded_self->HideAllSubPanels();
+                guarded_self->ShowSubPanel(panel, QPointer<QWidget>(anchor));
             });
         }
 
@@ -206,7 +228,6 @@ namespace px
         setLayout(root_layout);
 
         msg_listener_ = context_->ObtainUIMessageListener();
-        const QPointer<SubDisplayPanel> guarded_self(this);
         msg_listener_->Listen<MsgClientFullscreen>([guarded_self](const MsgClientFullscreen&) {
             if (guarded_self) {
                 guarded_self->HideAllSubPanels();
@@ -218,14 +239,16 @@ namespace px
         FloatOverlayWindow::paintEvent(event);
     }
 
-    BaseWidget* SubDisplayPanel::GetSubPanel(const SubDisplayType& type) {
+    QPointer<FloatOverlayWindow> SubDisplayPanel::GetSubPanel(const SubDisplayType& type) {
         if (sub_panels_.count(type) > 0) {
             return sub_panels_[type];
         }
-        return nullptr;
+        return {};
     }
 
-    void SubDisplayPanel::ShowSubPanel(FloatOverlayWindow* panel, QWidget* anchor) {
+    void SubDisplayPanel::ShowSubPanel(
+        const QPointer<FloatOverlayWindow>& panel,
+        const QPointer<QWidget>& anchor) {
         if (panel && anchor) {
             panel->ShowFlyout(this, anchor, true);
         }
@@ -233,7 +256,9 @@ namespace px
 
     void SubDisplayPanel::HideAllSubPanels() {
         for (const auto& [k, v] : sub_panels_) {
-            v->Hide();
+            if (v) {
+                v->Hide();
+            }
         }
     }
 
@@ -258,7 +283,8 @@ namespace px
         //将当前分辨率同步给分辨率面板,这样才会更新显示出正确的当前分辨率
         auto panel = GetSubPanel(SubDisplayType::kResolution);
         if (!panel) {
-            panel = (BaseWidget*)(new ThirdResolutionPanel(context_, OverlayOwner()));
+            panel = QPointer<ThirdResolutionPanel>(
+                new ThirdResolutionPanel(context_, OverlayOwner())); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns the panel.
             sub_panels_[SubDisplayType::kResolution] = panel;
             panel->Hide();
         }
@@ -268,7 +294,7 @@ namespace px
         }
         auto capture_monitor = cap_monitors_info_.GetCaptureMonitorByName(capture_monitor_name_);
         if (capture_monitor.IsValid()) {
-            ((ThirdResolutionPanel*)panel)->UpdateMonitor(capture_monitor);
+            static_cast<ThirdResolutionPanel&>(*panel).UpdateMonitor(capture_monitor);
         }
     }
 
@@ -278,7 +304,9 @@ namespace px
 
     void SubDisplayPanel::UpdateStatus(const MsgClientFloatControllerPanelUpdate& msg) {
         if (MsgClientFloatControllerPanelUpdate::EUpdate::kFullColorStatus == msg.update_type_) {
-            full_color_btn_->SetStatus(Settings::Instance()->IsFullColorEnabled());
+            if (full_color_btn_) {
+                full_color_btn_->SetStatus(Settings::Instance()->IsFullColorEnabled());
+            }
         }
     }
 

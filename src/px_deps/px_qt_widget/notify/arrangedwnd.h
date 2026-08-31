@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QMouseEvent>
+#include <QPointer>
 #include <QPropertyAnimation>
 
 namespace px
@@ -23,7 +24,7 @@ namespace px
         void visibleChanged(bool visible);
 
     protected:
-        NotifyManager *m_manager;
+        QPointer<NotifyManager> m_manager;
         int m_posIndex;
     };
 

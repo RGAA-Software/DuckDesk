@@ -53,8 +53,11 @@ namespace px
         closeBtn->setObjectName("notify-close-btn");
         closeBtn->setFixedSize(28, 28);
         closeBtn->move(background->width() - closeBtn->width() - 5, 5);
-        closeBtn->SetOnImageButtonClicked([=, this]() {
-            this->deleteLater();
+        const QPointer<NotifyWnd> guarded_self(this);
+        closeBtn->SetOnImageButtonClicked([guarded_self]() {
+            if (guarded_self) {
+                guarded_self->deleteLater();
+            }
         });
 
         setStyleSheet(m_manager->styleSheet());
@@ -64,13 +67,22 @@ namespace px
         shadow->setBlurRadius(5);
         background->setGraphicsEffect(shadow);
 
-        connect(this, &ArrangedWnd::visibleChanged, [this](bool visible) {
+        connect(this, &ArrangedWnd::visibleChanged, this,
+            [guarded_self](bool visible) {
+            if (!guarded_self || !guarded_self->m_manager) {
+                return;
+            }
             if (visible) {
-                int displayTime = m_manager->displayTime();//m_data.value("displayTime", m_manager->displayTime()).toInt();
-                QTimer::singleShot(displayTime, this, [this]() {
-                    showArranged(0);
+                const int display_time = guarded_self->m_manager->displayTime();
+                QTimer::singleShot(display_time, guarded_self,
+                    [guarded_self]() {
+                    if (guarded_self) {
+                        guarded_self->showArranged(0);
+                    }
                 });
-            } else deleteLater();
+            } else {
+                guarded_self->deleteLater();
+            }
         });
     }
 
@@ -137,9 +149,14 @@ namespace px
         flickerAnim->setDuration(2000);
         flickerAnim->setLoopCount(-1);
 
-        connect(this, &ArrangedWnd::visibleChanged, [this](bool visible) {
-            if (visible) flickerAnim->start();
-            else flickerAnim->stop();
+        const QPointer<NotifyCountWnd> guarded_self(this);
+        connect(this, &ArrangedWnd::visibleChanged, this,
+            [guarded_self](bool visible) {
+            if (!guarded_self || !guarded_self->flickerAnim) {
+                return;
+            }
+            if (visible) guarded_self->flickerAnim->start();
+            else guarded_self->flickerAnim->stop();
         });
     }
 

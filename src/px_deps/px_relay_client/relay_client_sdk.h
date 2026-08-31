@@ -26,9 +26,11 @@ namespace px
     class FileTransferWritableSignal;
 
     // Only connect to one remote
-    class RelayClientSdk {
+    class RelayClientSdk : public std::enable_shared_from_this<RelayClientSdk> {
     public:
         explicit RelayClientSdk(const RelayClientSdkParam& param);
+        RelayClientSdk(const RelayClientSdkParam& param,
+                       std::shared_ptr<RelayNetClient> net_client);
         void Start();
         void Stop();
         void SetOnRelayServerConnectedCallback(OnRelayServerConnected&& cbk);

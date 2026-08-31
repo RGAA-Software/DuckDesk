@@ -77,7 +77,9 @@ namespace px
         this->params_ = params;
         cursor_ = QCursor(Qt::ArrowCursor);
         retry_conn_dialog_ = std::make_shared<RetryConnDialog>(tcTr("id_warning"));
-        QTimer::singleShot(1000, [self = QPointer<BaseWorkspace>(this)]() {
+        const QPointer<BaseWorkspace> raise_target(this);
+        QTimer::singleShot(1000, [raise_target]() {
+            const auto self = raise_target;
             if (!self) {
                 return;
             }

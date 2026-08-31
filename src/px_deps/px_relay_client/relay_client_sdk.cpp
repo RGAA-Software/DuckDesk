@@ -8,36 +8,49 @@
 #include "relay_room.h"
 #include "px_common_new/data.h"
 
+#include <utility>
+
 using namespace px_relay;
 
 namespace px
 {
 
-    RelayClientSdk::RelayClientSdk(const RelayClientSdkParam& param) {
-        sdk_param_ = param;
-        ws_client_ = std::make_shared<RelayWsClient>(sdk_param_.host_,
-                                                     sdk_param_.port_,
-                                                     sdk_param_.device_id_,
-                                                     sdk_param_.device_name_,
-                                                     sdk_param_.stream_id_,
-                                                     sdk_param_.appkey_,
-                                                     sdk_param_.force_gdi_,
-                                                     sdk_param_.remote_device_id_,
-                                                     sdk_param_.connection_ticket_,
-                                                     sdk_param_.connection_nonce_);
-    }
+    RelayClientSdk::RelayClientSdk(const RelayClientSdkParam& param)
+        : RelayClientSdk(
+            param,
+            std::make_shared<RelayWsClient>(
+                param.host_, param.port_, param.device_id_, param.device_name_,
+                param.stream_id_, param.appkey_, param.force_gdi_,
+                param.remote_device_id_, param.connection_ticket_,
+                param.connection_nonce_)) {}
+
+    RelayClientSdk::RelayClientSdk(
+        const RelayClientSdkParam& param,
+        std::shared_ptr<RelayNetClient> net_client)
+        : sdk_param_(param), ws_client_(std::move(net_client)) {}
 
     void RelayClientSdk::SetOnRelayServerConnectedCallback(OnRelayServerConnected&& cbk) {
-        ws_client_->SetOnRelayServerConnectedCallback([=, this]() {
-            cbk();
+        const auto weak_self = weak_from_this();
+        ws_client_->SetOnRelayServerConnectedCallback(
+            [weak_self, callback = std::move(cbk)]() {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            callback();
             LOGI("connected to relay server, will create room.");
-            this->RequestCreateRoom();
+            self->RequestCreateRoom();
         });
     }
 
     void RelayClientSdk::SetOnRelayServerDisConnectedCallback(OnRelayServerDisConnected&& cbk) {
-        ws_client_->SetOnRelayServerDisConnectedCallback([=, this]() {
-            cbk();
+        const auto weak_self = weak_from_this();
+        ws_client_->SetOnRelayServerDisConnectedCallback(
+            [weak_self, callback = std::move(cbk)]() {
+            if (!weak_self.lock()) {
+                return;
+            }
+            callback();
         });
     }
 
@@ -58,10 +71,16 @@ namespace px
     }
 
     void RelayClientSdk::SetOnRelayProtoMessageCallback(std::function<void(const std::shared_ptr<RelayMessage>&)>&& cbk) {
-        ws_client_->SetOnRelayProtoMessageCallback([=, this](std::shared_ptr<Data> msg) {
-            auto rl_msg = ProcessProtoMessage(msg);
+        const auto weak_self = weak_from_this();
+        ws_client_->SetOnRelayProtoMessageCallback(
+            [weak_self, callback = std::move(cbk)](std::shared_ptr<Data> msg) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            auto rl_msg = self->ProcessProtoMessage(std::move(msg));
             if (rl_msg) {
-                cbk(rl_msg);
+                callback(rl_msg);
             }
             else {
                 LOGE("Parse relay proto message failed!");
@@ -70,24 +89,24 @@ namespace px
 
             auto type = rl_msg->type();
             if (type == RelayMessageType::kRelayCreateRoomResp) {
-                this->OnCreatedRoomResp(rl_msg);
+                self->OnCreatedRoomResp(rl_msg);
                 LOGI("will request control.");
-                this->RequestControl();
+                self->RequestControl();
             }
             else if (type == RelayMessageType::kRelayRequestControlResp) {
-                this->OnRequestControlResp(rl_msg);
+                self->OnRequestControlResp(rl_msg);
             }
             else if (type == RelayMessageType::kRelayRequestStopResp) {
-                this->OnRequestStopRelayResp(rl_msg);
+                self->OnRequestStopRelayResp(rl_msg);
             }
             else if (type == RelayMessageType::kRelayError) {
-                this->OnErrorMessage(rl_msg);
+                self->OnErrorMessage(rl_msg);
             }
             else if (type == RelayMessageType::kRelayRoomPrepared) {
-                this->OnRoomPrepared(rl_msg);
+                self->OnRoomPrepared(rl_msg);
             }
             else if (type == RelayMessageType::kRelayRemoteDeviceOffline) {
-                this->OnRemoteDeviceOffline(rl_msg);
+                self->OnRemoteDeviceOffline(rl_msg);
             }
         });
     }
@@ -117,25 +136,37 @@ namespace px
     }
 
     void RelayClientSdk::RelayProtoMessage(std::shared_ptr<Data> msg) {
-        std::lock_guard<std::mutex> lk(relay_mtx_);
-        if (!room_ || !room_->IsValid() || !ws_client_) {
-            //LOGE("Can't relay message, room is null.");
-            return;
+        std::string room_id;
+        std::shared_ptr<RelayNetClient> net_client;
+        {
+            std::lock_guard<std::mutex> lk(relay_mtx_);
+            if (!room_ || !room_->IsValid() || !ws_client_) {
+                //LOGE("Can't relay message, room is null.");
+                return;
+            }
+            room_id = room_->room_id_;
+            net_client = ws_client_;
         }
 
-        ws_client_->PostNetTask([=, this]() {
+        const auto weak_self = weak_from_this();
+        net_client->PostNetTask(
+            [weak_self, msg = std::move(msg), room_id = std::move(room_id)]() {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
             // msg : px::Message
             // rl_msg : px::RelayMessage
             RelayMessage rl_msg;
-            rl_msg.set_from_device_id(sdk_param_.device_id_);
+            rl_msg.set_from_device_id(self->sdk_param_.device_id_);
             rl_msg.set_type(RelayMessageType::kRelayTargetMessage);
             auto relay = rl_msg.mutable_relay();
-            relay->set_relay_msg_index(relay_msg_index_++);
+            relay->set_relay_msg_index(self->relay_msg_index_++);
             auto room_ids = relay->mutable_room_ids();
-            room_ids->Add(room_->room_id_.c_str());
+            room_ids->Add(room_id.c_str());
             relay->set_payload(msg->AsString());
 
-            this->PostBinMessage(rl_msg.SerializeAsString());
+            self->PostBinMessage(rl_msg.SerializeAsString());
             //LOGI("Relay from: {} to room: {}, relay index: {}", sdk_param_.device_id_, room_->room_id_, relay_msg_index_);
         });
     }

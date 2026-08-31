@@ -3,6 +3,7 @@
 
 #include "arrangedwnd.h"
 #include <QLabel>
+#include <QPointer>
 #include <QPushButton>
 #include "notify_defs.h"
 
@@ -20,11 +21,11 @@ namespace px
 
     private:
         NotifyItem m_data;
-        QFrame *background;
-        QLabel *iconLabel;
-        QLabel *titleLabel;
-        QLabel *bodyLabel;
-        TcImageButton *closeBtn;
+        QPointer<QFrame> background;
+        QPointer<QLabel> iconLabel;
+        QPointer<QLabel> titleLabel;
+        QPointer<QLabel> bodyLabel;
+        QPointer<TcImageButton> closeBtn;
     };
 
     class NotifyCountWnd : public ArrangedWnd {
@@ -34,9 +35,9 @@ namespace px
         void setCount(int count);
 
     private:
-        QLabel *iconLabel;
-        QLabel *countLabel;
-        QPropertyAnimation *flickerAnim;
+        QPointer<QLabel> iconLabel;
+        QPointer<QLabel> countLabel;
+        QPointer<QPropertyAnimation> flickerAnim;
     };
 
 }

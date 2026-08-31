@@ -41,7 +41,8 @@ namespace px
         m_isShowQueueCount = true;
 
         setCornerMargins(10, 10);
-        m_notifyCount = new NotifyCountWnd(this);
+        m_notifyCount = new NotifyCountWnd( // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns the window.
+            this, parent);
     }
 
     void NotifyManager::notify(const NotifyItem& item) {
@@ -127,7 +128,7 @@ namespace px
 
     void NotifyManager::setShowQueueCount(bool isShowQueueCount) {
         m_isShowQueueCount = isShowQueueCount;
-        if (!m_isShowQueueCount) m_notifyCount->showArranged(0);
+        if (!m_isShowQueueCount && m_notifyCount) m_notifyCount->showArranged(0);
     }
 
     void NotifyManager::showNext() {
@@ -136,27 +137,52 @@ namespace px
             return;
         }
 
-        auto notify = new NotifyWnd(this, (QWidget*)parent());
+        const QPointer<NotifyWnd> notify(
+            new NotifyWnd(this, qobject_cast<QWidget*>(parent()))); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns the window.
         m_notifyList.append(notify);
         notify->showArranged(m_notifyList.size());
         notify->setData(m_dataQueue.dequeue());
         showQueueCount();
 
-        connect(notify, &QObject::destroyed, this, [notify, this]() {
-            int index = m_notifyList.indexOf(notify);
-            m_notifyList.removeAt(index);
-            for (; index < m_notifyList.size(); index++)
-                m_notifyList[index]->showArranged(index + 1);
-            QTimer::singleShot(m_animateTime, this, [this]() {
-                showNext();
+        const QPointer<NotifyManager> guarded_self(this);
+        connect(notify, &QObject::destroyed, this, [guarded_self]() {
+            if (!guarded_self) {
+                return;
+            }
+            qsizetype first_removed = guarded_self->m_notifyList.size();
+            for (qsizetype index = guarded_self->m_notifyList.size(); index > 0;) {
+                --index;
+                if (!guarded_self->m_notifyList[index]) {
+                    first_removed = index;
+                    guarded_self->m_notifyList.removeAt(index);
+                }
+            }
+            for (qsizetype index = first_removed;
+                 index < guarded_self->m_notifyList.size(); ++index) {
+                if (guarded_self->m_notifyList[index]) {
+                    guarded_self->m_notifyList[index]->showArranged(
+                        static_cast<int>(index + 1));
+                }
+            }
+            const int animate_time = guarded_self->m_animateTime;
+            QTimer::singleShot(animate_time, guarded_self, [guarded_self]() {
+                if (guarded_self) {
+                    guarded_self->showNext();
+                }
             });
         });
 
-        connect(notify, &ArrangedWnd::clicked, this, [notify, this]() {
+        connect(notify, &ArrangedWnd::clicked, this, [notify, guarded_self]() {
+            if (!notify || !guarded_self) {
+                return;
+            }
+            const auto data = notify->data();
             notify->deleteLater();
-            auto data = notify->data();
-            QTimer::singleShot(0, this, [this, data]() {
-                emit notifyDetail(data); // 保证窗口先销毁，避免模式窗口阻塞事件
+            QTimer::singleShot(0, guarded_self, [guarded_self, data]() {
+                if (!guarded_self) {
+                    return;
+                }
+                emit guarded_self->notifyDetail(data); // 保证窗口先销毁，避免模式窗口阻塞事件
                 if (data.cbk_) {
                     data.cbk_();
                 }
@@ -164,12 +190,15 @@ namespace px
         });
 
         connect(notify, &ArrangedWnd::rclicked, this, [notify]() {
-            notify->deleteLater();
+            if (notify) {
+                notify->deleteLater();
+            }
         });
     }
 
     void NotifyManager::showQueueCount() {
         if (!m_isShowQueueCount) return;
+        if (!m_notifyCount) return;
         if (!m_dataQueue.isEmpty()) {
             m_notifyCount->showArranged(m_maxCount + 1);
             m_notifyCount->setCount(m_dataQueue.size());

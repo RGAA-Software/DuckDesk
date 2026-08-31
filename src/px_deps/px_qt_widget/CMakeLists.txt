@@ -58,3 +58,16 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets
         Qt6::Svg
 )
 target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_translator px_widget_loadings)
+
+add_executable(test_notify_lifecycle test/test_notify_lifecycle.cpp)
+target_link_libraries(test_notify_lifecycle PRIVATE
+        px_qt_widget GTest::gtest Qt6::Core Qt6::Widgets)
+if (WIN32)
+    add_custom_command(TARGET test_notify_lifecycle POST_BUILD
+        COMMAND ${QT_ROOT}/bin/windeployqt.exe
+            $<TARGET_FILE:test_notify_lifecycle>
+            --no-translations --release
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${QT_ROOT}/plugins/platforms/qoffscreen.dll"
+            "$<TARGET_FILE_DIR:test_notify_lifecycle>/platforms/qoffscreen.dll")
+endif ()

@@ -392,11 +392,13 @@ namespace px
             case QEvent::Resize:
             case QEvent::Show:
             case QEvent::Hide:
-            case QEvent::WindowStateChange:
+            case QEvent::WindowStateChange: {
                 if (controller_panel_) {
                     controller_panel_->Hide();
                 }
-                QTimer::singleShot(0, this, [self = QPointer<PxRenderView>(this)]() {
+                const QPointer<PxRenderView> guarded_self(this);
+                QTimer::singleShot(0, this, [guarded_self]() {
+                    const auto self = guarded_self;
                     if (!self || !self->float_controller_) {
                         return;
                     }
@@ -409,6 +411,7 @@ namespace px
                     self->float_controller_->ShowWithoutActivating();
                 });
                 break;
+            }
             default:
                 break;
             }
@@ -520,7 +523,9 @@ namespace px
         if (width() > 0 && height() > 0) {
             resize(width() + 1, height() + 1);
         }
-        QTimer::singleShot(60, this, [self = QPointer<PxRenderView>(this)]() {
+        const QPointer<PxRenderView> guarded_self(this);
+        QTimer::singleShot(60, this, [guarded_self]() {
+            const auto self = guarded_self;
             if (!self) {
                 return;
             }
@@ -529,7 +534,8 @@ namespace px
         if (overlay_widget_) {
             overlay_widget_->show();
         }
-        QTimer::singleShot(0, this, [self = QPointer<PxRenderView>(this)]() {
+        QTimer::singleShot(0, this, [guarded_self]() {
+            const auto self = guarded_self;
             if (!self || self->isHidden() || !self->float_controller_) {
                 return;
             }

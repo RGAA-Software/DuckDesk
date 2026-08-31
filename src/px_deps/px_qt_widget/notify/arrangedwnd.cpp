@@ -4,9 +4,14 @@
 namespace px
 {
 
-    static QPropertyAnimation *
-    propertyAnimationOnTarget(QObject *target, const QByteArray &propertyName, const QVariant &endValue, int duration) {
-        QPropertyAnimation *animation = new QPropertyAnimation(target, propertyName, target);
+    static QPointer<QPropertyAnimation> propertyAnimationOnTarget(
+        const QPointer<ArrangedWnd>& target, const QByteArray& propertyName,
+        const QVariant& endValue, int duration) {
+        if (!target) {
+            return {};
+        }
+        const QPointer<QPropertyAnimation> animation(
+            new QPropertyAnimation(target, propertyName, target)); // NOLINT(gammaray-raw-pointer-boundary) Qt target owns the animation.
         animation->setStartValue(target->property(propertyName));
         animation->setEndValue(endValue);
         animation->setDuration(duration);
@@ -16,9 +21,15 @@ namespace px
 
     template<typename func>
     static inline void
-    propertyAnimationOnTarget(QObject *target, const QByteArray &propertyName, const QVariant &endValue, int duration,
+    propertyAnimationOnTarget(const QPointer<ArrangedWnd>& target,
+                              const QByteArray& propertyName,
+                              const QVariant& endValue, int duration,
                               func onFinished) {
-        QPropertyAnimation *animation = propertyAnimationOnTarget(target, propertyName, endValue, duration);
+        const auto animation = propertyAnimationOnTarget(
+            target, propertyName, endValue, duration);
+        if (!animation || !target) {
+            return;
+        }
         QObject::connect(animation, &QPropertyAnimation::finished, target, onFinished);
     }
 
@@ -48,34 +59,47 @@ namespace px
     }
 
     void ArrangedWnd::showArranged(int posIndex) {
+        const QPointer<ArrangedWnd> guarded_self(this);
+        const auto manager = m_manager;
+        if (!manager) {
+            return;
+        }
         if (m_posIndex == posIndex) return;
         m_posIndex = posIndex;
         if (posIndex <= 0) // 隐藏
         {
             if (!isVisible()) return;
-            propertyAnimationOnTarget(this, "windowOpacity", 0, m_manager->animateTime(), [this]() {
-                hide();
-                emit visibleChanged(false);
+            propertyAnimationOnTarget(guarded_self, "windowOpacity", 0,
+                manager->animateTime(), [guarded_self]() {
+                if (!guarded_self) {
+                    return;
+                }
+                guarded_self->hide();
+                emit guarded_self->visibleChanged(false);
             });
             return;
         }
 
         // 计算提醒框的位置
-        QSize wndsize = m_manager->notifyWndSize();
-        QSize offset = QSize(wndsize.width(), wndsize.height() * posIndex + m_manager->spacing() * (posIndex - 1));
-        QPoint pos = m_manager->cornerPos() - QPoint(offset.width(), offset.height());
+        QSize wndsize = manager->notifyWndSize();
+        QSize offset = QSize(wndsize.width(), wndsize.height() * posIndex + manager->spacing() * (posIndex - 1));
+        QPoint pos = manager->cornerPos() - QPoint(offset.width(), offset.height());
 
         if (!isVisible()) // 显示
         {
             show();
             move(pos);
             setWindowOpacity(0);
-            propertyAnimationOnTarget(this, "windowOpacity", 1, m_manager->animateTime(), [this]() {
-                emit visibleChanged(true);
+            propertyAnimationOnTarget(guarded_self, "windowOpacity", 1,
+                manager->animateTime(), [guarded_self]() {
+                if (guarded_self) {
+                    emit guarded_self->visibleChanged(true);
+                }
             });
         } else // 移动位置
         {
-            propertyAnimationOnTarget(this, "pos", pos, m_manager->animateTime());
+            propertyAnimationOnTarget(
+                guarded_self, "pos", pos, manager->animateTime());
         }
     }
 

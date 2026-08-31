@@ -47,8 +47,8 @@ namespace px
         void showQueueCount();
 
         QQueue<NotifyItem> m_dataQueue;
-        QList<NotifyWnd *> m_notifyList;
-        NotifyCountWnd *m_notifyCount;
+        QList<QPointer<NotifyWnd>> m_notifyList;
+        QPointer<NotifyCountWnd> m_notifyCount;
 
         int m_maxCount;
         bool m_isShowQueueCount;

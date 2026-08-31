@@ -2966,3 +2966,37 @@ UDP 同时把 server callback、周期 timer 和异步发送完成回调绑定�
 
 - `net_rtc.dll`：`178B8ACC90EF0B7DFE4469EC5E0445AD6A6838F1C4FDD1CF50865E30EBC14BE5`；
 - `net_rtc_local.dll`：`2F4908B977D4732A3DF9858BCF97D198B222A4C4CA85E11D939C8C2B634588C6`。
+
+### 12.65 Phase 7 Client、Qt Notify 与 Relay 最终收敛
+
+全仓异步报告最后 6 处位于 Client Qt 延迟任务、浮动显示面板、Notify 动画/定时器和 Relay
+长生命周期网络 callback。本批在不删除功能实现的前提下完成最终收敛：
+
+- `BaseWorkspace`、`PxRenderView` 在投递 Qt 延迟任务前建立 `QPointer`，lambda 只捕获观察句柄；
+  Qt context 负责取消排队调用，执行时再次检查观察对象；
+- `SubDisplayPanel` 的子面板、全彩按钮和 timer 继续由 Qt parent 树拥有，长期观察成员及 callback
+  改为 `QPointer`；不再以裸 owner 捕获面板，也不引入 smart pointer 与 Qt parent 双重所有权；
+- Notify manager、窗口、child widget 和动画统一遵循“Qt parent 独占所有权、`QPointer` 非拥有观察”；
+  动画 finished、visibleChanged、singleShot、点击和 destroyed callback 均先检查观察对象；测试目标
+  单独部署 Qt 运行库和 offscreen 插件，不修改产品 dist；
+- `RelayClientSdk` 使用 `enable_shared_from_this`，连接、断开、协议消息和排队发送任务只捕获
+  `weak_ptr` 并在执行点 `lock()`；发送排队前在锁内快照 room id，任务不再跨线程访问可变 room；
+  新增可注入 `RelayNetClient` 的构造边界用于无网络生命周期测试；
+- `check_async_lifetime -ReportAll` 由 6 降到 0，Phase 7 跟踪的活跃异步边界全部归零。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| Notify Qt 生命周期 | 1 test × 20 次 gtest 重复 × 每次 20 组父树销毁，共 400 组 queued animation/timer destroy PASS |
+| Relay 生命周期 | 3 tests × 20 次 gtest 重复，共 60 项 PASS；覆盖销毁后 callback、销毁后排队发送和每次测试内 20 轮 Start/Stop |
+| ownership / async audit | 增量 ownership、全仓 async 与 whitespace PASS；全仓异步报告 0 命中 |
+| focused build/dist | `build_cpp_client.bat` 与 `build_cpp_tests.bat` PASS；未运行发版整编；Client 及关联 DLL/语言资源已发布且 build/dist 哈希一致 |
+
+最终 Client build/dist SHA-256：
+
+- `px_client.exe`：`7CF1B718D3A136BEB455FBCD53643BF7CFF34869CA64EEA4F43C5EC6E0721078`；
+- `px_client_rtc.dll`：`9308F584DEFCF889ADF903BB5D96196CB418AFB1A689FCFC551DBB4C9F30F13C`；
+- `deps/ct_plugins/clipboard.dll`：`92945E4857256B95A80F212AE4274DC8E116381C35377304F1393D12AE6E454A`；
+- `deps/ct_plugins/ft.dll`：`5E783BDABCDD9668B7FED5299054CE725E738D5082023943376A5EC86BFCECAC`；
+- `deps/ct_plugins/record.dll`：`37F641B19E25397084E024C2048F1155E5434EBA612E37FFCFF4C74169BB9712`。

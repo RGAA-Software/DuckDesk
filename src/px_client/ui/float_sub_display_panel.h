@@ -7,6 +7,7 @@
 
 #include "float_overlay_window.h"
 #include <QPainter>
+#include <QPointer>
 #include <string>
 #include "px_client/ct_app_message.h"
 
@@ -31,18 +32,19 @@ namespace px
         void UpdateMonitorInfo(const MsgClientCaptureMonitor& m);
         void SetCaptureMonitorName(const std::string& name);
     private:
-        BaseWidget* GetSubPanel(const SubDisplayType& type);
-        void ShowSubPanel(FloatOverlayWindow* panel, QWidget* anchor);
+        QPointer<FloatOverlayWindow> GetSubPanel(const SubDisplayType& type);
+        void ShowSubPanel(const QPointer<FloatOverlayWindow>& panel,
+                          const QPointer<QWidget>& anchor);
         void HideAllSubPanels();
         void UpdateStatus(const MsgClientFloatControllerPanelUpdate& msg) override;
     private:
-        std::map<SubDisplayType, BaseWidget*> sub_panels_;
+        std::map<SubDisplayType, QPointer<FloatOverlayWindow>> sub_panels_;
         MsgClientCaptureMonitor cap_monitors_info_;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
 
         std::string capture_monitor_name_;
 
-        SwitchButton* full_color_btn_ = nullptr;
+        QPointer<SwitchButton> full_color_btn_;
     };
 
 }
