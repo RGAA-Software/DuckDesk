@@ -30,6 +30,16 @@ target_compile_definitions(test_udp_plugin_dll_lifecycle
         PRIVATE PX_UDP_PLUGIN_DLL_PATH="$<TARGET_FILE:net_udp>")
 add_dependencies(test_udp_plugin_dll_lifecycle net_udp)
 
+add_executable(test_rtc_plugins_dll_lifecycle
+        test_rtc_plugins_dll_lifecycle.cpp)
+target_link_libraries(test_rtc_plugins_dll_lifecycle
+        PRIVATE px_common_new px_plugin GTest::gtest GTest::gtest_main)
+target_compile_definitions(test_rtc_plugins_dll_lifecycle
+        PRIVATE
+        PX_RTC_PLUGIN_DLL_PATH="$<TARGET_FILE:net_rtc>"
+        PX_RTC_LOCAL_PLUGIN_DLL_PATH="$<TARGET_FILE:net_rtc_local>")
+add_dependencies(test_rtc_plugins_dll_lifecycle net_rtc net_rtc_local)
+
 add_executable(test_was_audio_plugin_dll_lifecycle
         test_was_audio_plugin_dll_lifecycle.cpp)
 target_link_libraries(test_was_audio_plugin_dll_lifecycle

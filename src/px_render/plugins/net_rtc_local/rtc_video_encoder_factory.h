@@ -8,14 +8,12 @@
 namespace px
 {
     class RtcServer;
-    class RtcLocalPlugin;
 
     // Implementation of video encoder factory
     class RtcVideoEncoderFactory : public webrtc::VideoEncoderFactory {
     public:
-        RtcVideoEncoderFactory(RtcLocalPlugin* plugin, const std::shared_ptr<RtcServer>& server) : supported_formats_(webrtc::SupportedH264Codecs()) {
-            this->plugin_ = plugin;
-            this->server_ = server;
+        explicit RtcVideoEncoderFactory(const std::shared_ptr<RtcServer>& server)
+            : server_(server), supported_formats_(webrtc::SupportedH264Codecs()) {
             supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileBaseline, webrtc::H264Level::kLevel3_1, "1"));
             supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileBaseline, webrtc::H264Level::kLevel3_1, "0"));
             supported_formats_.push_back(webrtc::CreateH264Format(webrtc::H264Profile::kProfileConstrainedBaseline, webrtc::H264Level::kLevel3_1, "1"));
@@ -40,7 +38,6 @@ namespace px
         }
 
     private:
-        RtcLocalPlugin* plugin_ = nullptr;
         std::shared_ptr<RtcServer> server_ = nullptr;
         std::vector<webrtc::SdpVideoFormat> supported_formats_;
 

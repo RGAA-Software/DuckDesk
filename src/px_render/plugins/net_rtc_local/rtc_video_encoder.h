@@ -17,11 +17,10 @@ namespace px
     extern bool gAdapterBitrate;
 
     class RtcServer;
-    class RtcLocalPlugin;
 
     class RtcSharedVideoEncoder : public webrtc::VideoEncoder {
     public:
-        RtcSharedVideoEncoder(RtcLocalPlugin* plugin, const std::shared_ptr<RtcServer>& server);
+        explicit RtcSharedVideoEncoder(const std::shared_ptr<RtcServer>& server);
         ~RtcSharedVideoEncoder() override;
         int32_t InitEncode(const webrtc::VideoCodec* codec_settings, const webrtc::VideoEncoder::Settings& settings) override;
         int32_t Release() override;
@@ -49,7 +48,6 @@ namespace px
         void RequestIdrThrottled();
 
     private:
-        RtcLocalPlugin* plugin_ = nullptr;
         std::shared_ptr<RtcServer> server_ = nullptr;
         webrtc::EncodedImageCallback* mEncodedImageCallback;
         uint16_t mLastVideoFrameIndex = 0;

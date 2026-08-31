@@ -18,12 +18,16 @@ namespace px
     class CreateSessCallback;
     class SetSessCallback;
     class RtcLocalPlugin;
+    class RtcLocalPluginRuntime;
     class RtcDataChannel;
     class FileTransferWritableSignal;
     class AudioSourceImpl;
     class VideoSourceImpl;
     class VideoTrackSourceImpl;
     class RemoteAudioSink;
+    class RtcLocalEncodedVideoFrame;
+    class PxPluginContext;
+    class PxPluginBaseEvent;
     enum class PxLocalRtcSessionRole;
 
     // 一路 video track 对应一台显示器:每条 track 只发自己那块屏的帧
@@ -40,9 +44,13 @@ namespace px
 
     class RtcServer : public std::enable_shared_from_this<RtcServer> {
     public:
-        static std::shared_ptr<RtcServer> Make(RtcLocalPlugin* plugin);
-        explicit RtcServer(RtcLocalPlugin* plugin);
-        RtcLocalPlugin* GetPlugin();
+        static std::shared_ptr<RtcServer> Make(
+            const std::shared_ptr<RtcLocalPluginRuntime>& runtime);
+        explicit RtcServer(
+            const std::shared_ptr<RtcLocalPluginRuntime>& runtime);
+        [[nodiscard]] std::shared_ptr<PxPluginContext> GetPluginContext() const;
+        void DispatchEvent(const std::shared_ptr<PxPluginBaseEvent>& event) const;
+        void NotifyTerminal();
 
         bool Start(const std::string& stream_id, const std::string& offer_sdp,
                    PxLocalRtcSessionRole session_role,
@@ -100,6 +108,17 @@ namespace px
 
         void On100msTimeout();
 
+        void QueueEvent(const std::shared_ptr<PxPluginBaseEvent>& event) const;
+        void RequestEncodedIdr(const std::string& mon_name);
+        [[nodiscard]] uint64_t GetLatestEncodedSeq(const std::string& mon_name);
+        [[nodiscard]] size_t GetCachedFrameCount(
+            const std::string& mon_name, uint64_t after_seq);
+        [[nodiscard]] std::shared_ptr<RtcLocalEncodedVideoFrame>
+        ReadNextEncodedVideoFrame(
+            const std::string& mon_name, uint64_t after_seq, bool& out_gap);
+        [[nodiscard]] bool WaitForEncodedFrame(
+            const std::string& mon_name, uint64_t after_seq, int timeout_ms);
+
         std::string GetAnswerSdp();
         void SetOnAnswerCallback(std::function<void(const std::string& answer_sdp)>&& callback);
 
@@ -136,7 +155,7 @@ namespace px
         void OnRemoteAudioTrackRemoved(rtc::scoped_refptr<webrtc::AudioTrackInterface> track);
 
     private:
-        RtcLocalPlugin* plugin_ = nullptr;
+        std::shared_ptr<RtcLocalPluginRuntime> runtime_;
         std::unique_ptr<rtc::Thread> network_thread_;
         std::unique_ptr<rtc::Thread> worker_thread_;
         std::unique_ptr<rtc::Thread> sig_thread_;

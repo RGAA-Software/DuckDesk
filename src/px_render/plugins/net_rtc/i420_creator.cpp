@@ -7,39 +7,44 @@
 
 namespace px
 {
+    I420Creator::I420Creator(I420FrameObserver&& observer)
+        : state_(std::make_shared<State>()) {
+        state_->observer = std::move(observer);
+    }
 
     I420Creator::~I420Creator() {
-        running_ = false;
+        state_->running = false;
         if (thread_.joinable()) {
             thread_.join();
         }
     }
 
     void I420Creator::run(int fps) {
-        if (running_ || fps == 0) {
+        if (state_->running || fps == 0) {
             assert(false);
             return;
         }
-        running_ = true;
-        std::promise<bool> promise;
-        auto future = promise.get_future();
-        thread_ = std::thread([this, fps, &promise]() {
-            promise.set_value(true);
-            while (running_) {
+        state_->running = true;
+        const auto state = state_;
+        const auto started = std::make_shared<std::promise<bool>>();
+        auto future = started->get_future();
+        thread_ = std::thread([state, fps, started]() {
+            started->set_value(true);
+            while (state->running) {
                 auto duration_ms = 1000 / fps;
                 using namespace std::chrono_literals;
                 std::this_thread::sleep_for(1ms * duration_ms);
-                if (observer_) {
+                if (state->observer) {
                     //i420_frame_ = process();
-                    if (i420_frame_ == nullptr) {
-                        i420_frame_ = ReadI420File();
+                    if (state->frame == nullptr) {
+                        state->frame = ReadI420File(state);
                     }
                     //i420_frame_ = ReadI420File();
-                    if (!i420_frame_) {
+                    if (!state->frame) {
                         std::cout << "i420 frame is null\n";
                         return;
                     }
-                    observer_(i420_frame_);
+                    state->observer(state->frame);
                 }
             }
         });
@@ -99,9 +104,10 @@ namespace px
 //        return frame;
 //    }
 
-    I420Creator::I420Frame I420Creator::ReadI420File() {
+    I420Creator::I420Frame I420Creator::ReadI420File(
+        const std::shared_ptr<State>& state) {
         auto frame = std::make_shared<std::vector<uint8_t>>();
-        frame->resize(static_cast<size_t>(w_ * h_ * 1.5));
+        frame->resize(static_cast<size_t>(state->width * state->height * 1.5));
         std::ifstream file("origin_frame.yuv", std::ios::binary|std::ios::ate);
         if (file.bad()) {
             return nullptr;

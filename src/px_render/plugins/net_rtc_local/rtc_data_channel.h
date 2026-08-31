@@ -17,10 +17,10 @@ namespace px
 
     class Data;
     class RtcServer;
-    class RtcLocalPlugin;
     class PxPluginContext;
 
-    class RtcDataChannel :  public webrtc::DataChannelObserver {
+    class RtcDataChannel : public webrtc::DataChannelObserver,
+                           public std::enable_shared_from_this<RtcDataChannel> {
     public:
         RtcDataChannel(const std::string& name, const std::shared_ptr<RtcServer>& rtc_server, rtc::scoped_refptr<webrtc::DataChannelInterface> ch);
         ~RtcDataChannel() override;
@@ -45,11 +45,10 @@ namespace px
         bool IsFtChannel();
 
     private:
-        RtcLocalPlugin* plugin_;
         std::shared_ptr<PxPluginContext> plugin_ctx_ = nullptr;
         std::string name_;
         rtc::scoped_refptr<webrtc::DataChannelInterface> data_channel_ = nullptr;
-        std::shared_ptr<RtcServer> rtc_server_ = nullptr;
+        std::weak_ptr<RtcServer> rtc_server_;
         std::atomic<bool> connected_ = false;
         std::atomic<int> pending_data_count_ = 0;
         std::atomic<uint64_t> send_pkt_index_ = 0;
@@ -66,6 +65,7 @@ namespace px
 
         void NotifyFileTransferWritable();
         void NotifyFileTransferClosed();
+        void FlushCachedMessages();
 
     public:
         std::string the_conn_id_;

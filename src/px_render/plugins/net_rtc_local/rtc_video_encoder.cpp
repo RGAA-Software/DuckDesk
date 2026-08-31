@@ -18,9 +18,9 @@ namespace px
 
     bool gAdapterBitrate = true;
 
-    RtcSharedVideoEncoder::RtcSharedVideoEncoder(RtcLocalPlugin* plugin, const std::shared_ptr<RtcServer>& server) {
-        plugin_ = plugin;
-        server_ = server;
+    RtcSharedVideoEncoder::RtcSharedVideoEncoder(
+        const std::shared_ptr<RtcServer>& server)
+        : server_(server) {
     }
 
     RtcSharedVideoEncoder::~RtcSharedVideoEncoder() {
@@ -76,7 +76,7 @@ namespace px
         event->mon_name_ = last_mon_name_;
         event->bps_ = parameters.bitrate.get_sum_bps();
         event->fps_ = parameters.framerate_fps;
-        plugin_->CallbackEvent(event);
+        server_->QueueEvent(event);
     }
 
     int32_t RtcSharedVideoEncoder::Encode(const webrtc::VideoFrame& frame, const std::vector<webrtc::VideoFrameType>* frame_types)
@@ -107,7 +107,7 @@ namespace px
                     ++win_idr_requested_;
                     // 请求主编码管线产一个 IDR,本次 Encode 继续等这个关键帧。
                     // 按屏定向:多 track 时只给本 track 的屏补 IDR,其它屏不受 PLI 波及。
-                    plugin_->InsertIdr(native_buffer->GetMonName());
+                    server_->RequestEncodedIdr(native_buffer->GetMonName());
                 }
             }
         }
@@ -131,7 +131,7 @@ namespace px
             }
             last_mon_name_ = mon_name;
             mWaitIDRFrame = true;
-            consumed_seq_ = plugin_->GetLatestEncodedSeq(mon_name);
+            consumed_seq_ = server_->GetLatestEncodedSeq(mon_name);
             // 新屏 frame_index 序号空间不同,旧时间戳日志作废
             input_ts_log_.clear();
             has_last_sent_ts_ = false;
@@ -154,15 +154,15 @@ namespace px
             LOGI("Encode call #{}, mon={}, consumed_seq={}", encode_calls.load(), mon_name, consumed_seq_);
         }
         bool seq_gap = false;
-        auto encoded_video_frame = plugin_->ReadNextEncodedVideoFrame(mon_name, consumed_seq_, seq_gap);
+        auto encoded_video_frame = server_->ReadNextEncodedVideoFrame(mon_name, consumed_seq_, seq_gap);
         if (!encoded_video_frame || !encoded_video_frame->data_) {
             // 有界等待(≠忙等):Encode 由采集帧驱动,此刻本采集帧的编码通常
             // 即将完成(NVENC 管线延迟 ~10ms)。等它产出立即发出,把"只能搬
             // 上一帧"的固有拾取延迟(实测 age_avg 26ms)压到管线延迟以内。
             // 8ms < 16.6ms 帧周期,给 encoder queue 留有余量;超时按现状
             // 空转返回,不打乱 pacing。新帧到达时插件侧 cv 会立即唤醒。
-            if (plugin_->WaitForEncodedFrame(mon_name, consumed_seq_, 8)) {
-                encoded_video_frame = plugin_->ReadNextEncodedVideoFrame(mon_name, consumed_seq_, seq_gap);
+            if (server_->WaitForEncodedFrame(mon_name, consumed_seq_, 8)) {
+                encoded_video_frame = server_->ReadNextEncodedVideoFrame(mon_name, consumed_seq_, seq_gap);
             }
         }
         if (!encoded_video_frame || !encoded_video_frame->data_) {
@@ -173,12 +173,12 @@ namespace px
         // 应急阀:缓存积压超过 ~0.5s(正常应趋近 0)说明生产持续快于消费,
         // 继续发陈旧帧只会让浏览器抖动缓冲把延迟越抬越高(BWE 随之崩盘)。
         // 快进到最新帧;跳过未发 delta 导致断链则补 IDR(节流)等关键帧。
-        auto pending = plugin_->GetCachedFrameCount(mon_name, consumed_seq_);
+        auto pending = server_->GetCachedFrameCount(mon_name, consumed_seq_);
         bool skipped_unsent = seq_gap;
         if (pending > kMaxBacklogFrames) {
             while (true) {
                 bool gap = false;
-                auto f = plugin_->ReadNextEncodedVideoFrame(mon_name, consumed_seq_, gap);
+                auto f = server_->ReadNextEncodedVideoFrame(mon_name, consumed_seq_, gap);
                 if (!f || !f->data_) {
                     break;
                 }
@@ -313,7 +313,7 @@ namespace px
                  sent_frames.load(), encoded_video_frame->seq_, encoded_video_frame->key_,
                  encoded_video_frame->data_->Size(), (int)cb_result.error, ts_lookup_miss_, input_ts_log_.size(),
                  send_age_count_ > 0 ? send_age_sum_ / send_age_count_ : 0, send_age_max_,
-                 plugin_->GetCachedFrameCount(mon_name, consumed_seq_),
+                 server_->GetCachedFrameCount(mon_name, consumed_seq_),
                  win_key_sent_, win_chain_broken_, win_idr_requested_, win_pre_idr_drops_, win_backlog_skips_);
             send_age_sum_ = 0;
             send_age_max_ = 0;
@@ -446,7 +446,7 @@ namespace px
             mLastInsertIDRTime = now;
             ++win_idr_requested_;
             // 按屏定向:断链重建只给本 track 的屏补 IDR
-            plugin_->InsertIdr(last_mon_name_);
+            server_->RequestEncodedIdr(last_mon_name_);
         }
     }
 

@@ -24,12 +24,27 @@ namespace px
 
     class VideoSourceMock : public rtc::VideoSourceInterface<webrtc::VideoFrame> {
     public:
-        VideoSourceMock() : i420_creator_(std::bind(&VideoSourceMock::on_frame, this, std::placeholders::_1)) {
+        VideoSourceMock()
+            : state_(std::make_shared<State>()),
+              i420_creator_([weak_state = std::weak_ptr<State>(state_)](
+                  I420Creator::I420Frame frame) {
+                  if (const auto state = weak_state.lock()) {
+                      OnFrame(state, std::move(frame));
+                  }
+              }) {
             i420_creator_.set_resolution(kFrameWidth, kFrameHeight);
             i420_creator_.run();
         }
 
-        void on_frame(I420Creator::I420Frame frame) {
+    private:
+        struct State {
+            rtc::VideoBroadcaster broadcaster;
+            cricket::VideoAdapter video_adapter;
+        };
+
+        static void OnFrame(
+            const std::shared_ptr<State>& state,
+            I420Creator::I420Frame frame) {
             static int i = 0;
             //std::cout << "[info] sending frame, no:" << i++ << std::endl;
 
@@ -49,24 +64,22 @@ namespace px
                     .set_rotation(webrtc::kVideoRotation_0).build();
             captureFrame.set_ntp_time_ms(cur_time());
             //TODO:convert i420 to 'videoframe'
-            broadcaster_.OnFrame(captureFrame);
+            state->broadcaster.OnFrame(captureFrame);
         }
 
-    private:
         void AddOrUpdateSink(rtc::VideoSinkInterface<webrtc::VideoFrame> *sink,
                              const rtc::VideoSinkWants &wants) override {
-            broadcaster_.AddOrUpdateSink(sink, wants);
-            (void) video_adapter_; //we willn't use adapter at this demo
+            state_->broadcaster.AddOrUpdateSink(sink, wants);
+            (void) state_->video_adapter; //we willn't use adapter at this demo
         }
 
         void RemoveSink(rtc::VideoSinkInterface<webrtc::VideoFrame> *sink) override {
-            broadcaster_.RemoveSink(sink);
-            (void) video_adapter_; //we willn't use adapter at this demo
+            state_->broadcaster.RemoveSink(sink);
+            (void) state_->video_adapter; //we willn't use adapter at this demo
         }
 
     private:
-        rtc::VideoBroadcaster broadcaster_;
-        cricket::VideoAdapter video_adapter_;
+        std::shared_ptr<State> state_;
         I420Creator i420_creator_;
 
     };

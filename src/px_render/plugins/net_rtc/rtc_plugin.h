@@ -5,6 +5,10 @@
 #ifndef PX_RENDER_RTC_PLUGIN_H
 #define PX_RENDER_RTC_PLUGIN_H
 
+#include <functional>
+#include <mutex>
+#include <optional>
+
 #include "px_render/plugin_interface/px_net_plugin.h"
 #include "rtc_messages.h"
 #include "px_common_new/concurrent_hashmap.h"
@@ -13,6 +17,32 @@ namespace px
 {
 
     class RtcServer;
+    class RtcPlugin;
+    class PxPluginContext;
+
+    class RtcPluginRuntime final {
+    public:
+        RtcPluginRuntime(
+            RtcPlugin& owner,
+            std::weak_ptr<PxPluginContext> context,
+            PxPluginEventCallback dispatcher);
+
+        void DeactivateOwner();
+        [[nodiscard]] std::shared_ptr<PxPluginContext> GetContext() const;
+        void QueueEvent(const std::shared_ptr<PxPluginBaseEvent>& event) const;
+        void DispatchClientEvent(
+            bool direct, const NetChannelType& channel_type,
+            std::shared_ptr<Data> message,
+            const std::string& connection_instance_id = {});
+
+        ConcurrentHashMap<std::string, std::shared_ptr<RtcServer>> servers;
+
+    private:
+        std::mutex owner_mutex_;
+        std::optional<std::reference_wrapper<RtcPlugin>> owner_;
+        std::weak_ptr<PxPluginContext> context_;
+        PxPluginEventCallback dispatcher_;
+    };
 
     class RtcPlugin : public PxNetPlugin {
     public:
@@ -45,7 +75,7 @@ namespace px
         void WaitForMediaChannelActive();
 
     private:
-        ConcurrentHashMap<std::string, std::shared_ptr<RtcServer>> rtc_servers_;
+        std::shared_ptr<RtcPluginRuntime> runtime_;
     };
 
 }

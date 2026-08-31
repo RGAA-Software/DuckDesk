@@ -14,10 +14,148 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
+#include <functional>
+#include <optional>
+
 PX_PLUGIN_EXPORT(px::RtcLocalPlugin)
 
 namespace px
 {
+    RtcLocalPluginRuntime::RtcLocalPluginRuntime(
+        RtcLocalPlugin& owner, std::weak_ptr<PxPluginContext> context,
+        PxPluginEventCallback dispatcher)
+        : owner_(owner), context_(std::move(context)),
+          dispatcher_(std::move(dispatcher)) {}
+
+    void RtcLocalPluginRuntime::WithOwner(
+        const std::function<void(RtcLocalPlugin&)>& operation) {
+        std::scoped_lock lock(owner_mutex_);
+        if (owner_ && operation) {
+            operation(owner_->get());
+        }
+    }
+
+    void RtcLocalPluginRuntime::DeactivateOwner() {
+        std::scoped_lock lock(owner_mutex_);
+        owner_.reset();
+    }
+
+    std::shared_ptr<PxPluginContext> RtcLocalPluginRuntime::GetContext() const {
+        return context_.lock();
+    }
+
+    void RtcLocalPluginRuntime::QueueEvent(
+        const std::shared_ptr<PxPluginBaseEvent>& event) const {
+        const auto context = context_.lock();
+        if (!context || !event) {
+            return;
+        }
+        event->plugin_name_ = kNetRtcLocalPluginId;
+        const auto dispatcher = dispatcher_;
+        context->PostWorkTask([dispatcher, event]() {
+            dispatcher(event);
+        });
+    }
+
+    void RtcLocalPluginRuntime::DispatchClientEvent(
+        bool direct, const NetChannelType& channel_type,
+        std::shared_ptr<Data> message,
+        const std::string& connection_instance_id) {
+        std::scoped_lock lock(owner_mutex_);
+        if (!owner_) {
+            return;
+        }
+        if (direct) {
+            owner_->get().OnClientEventCameDirectly(
+                true, 0, NetPluginType::kWebRtc, channel_type,
+                std::move(message), connection_instance_id);
+        }
+        else {
+            owner_->get().OnClientEventCame(
+                true, 0, NetPluginType::kWebRtc, channel_type,
+                std::move(message), connection_instance_id);
+        }
+    }
+
+    void RtcLocalPluginRuntime::NotifyTerminal(
+        const std::string& conn_id,
+        const std::shared_ptr<RtcServer>& target) {
+        LOGW("Rtc server terminal notified, conn_id: {}, will be swept.", conn_id);
+        servers.Apply(conn_id, [target](const std::shared_ptr<RtcServer>& server) {
+            if (server == target) {
+                server->RequestExit();
+            }
+        });
+    }
+
+    std::vector<CaptureMonitorInfo>
+    RtcLocalPluginRuntime::GetRtcTrackMonitors() {
+        std::vector<CaptureMonitorInfo> monitors;
+        WithOwner([&](RtcLocalPlugin& owner) {
+            monitors = owner.GetRtcTrackMonitors();
+        });
+        return monitors;
+    }
+
+    void RtcLocalPluginRuntime::EnableAllMonitorCapture() {
+        WithOwner([](RtcLocalPlugin& owner) {
+            owner.EnableAllMonitorCapture();
+        });
+    }
+
+    void RtcLocalPluginRuntime::InsertIdr(const std::string& mon_name) {
+        WithOwner([&](RtcLocalPlugin& owner) {
+            owner.InsertIdr(mon_name);
+        });
+    }
+
+    void RtcLocalPluginRuntime::OnRemoteVoiceCallPcm(
+        const std::string& stream_id, const std::string& call_id,
+        const int16_t* samples, // NOLINT(gammaray-raw-pointer-boundary): synchronous PCM sample view
+        size_t sample_count, int sample_rate, int channels) {
+        WithOwner([&](RtcLocalPlugin& owner) {
+            owner.OnRemoteVoiceCallPcm(
+                stream_id, call_id, samples, sample_count,
+                sample_rate, channels);
+        });
+    }
+
+    uint64_t RtcLocalPluginRuntime::GetLatestEncodedSeq(
+        const std::string& mon_name) {
+        uint64_t sequence = 0;
+        WithOwner([&](RtcLocalPlugin& owner) {
+            sequence = owner.GetLatestEncodedSeq(mon_name);
+        });
+        return sequence;
+    }
+
+    size_t RtcLocalPluginRuntime::GetCachedFrameCount(
+        const std::string& mon_name, uint64_t after_seq) {
+        size_t count = 0;
+        WithOwner([&](RtcLocalPlugin& owner) {
+            count = owner.GetCachedFrameCount(mon_name, after_seq);
+        });
+        return count;
+    }
+
+    std::shared_ptr<RtcLocalEncodedVideoFrame>
+    RtcLocalPluginRuntime::ReadNextEncodedVideoFrame(
+        const std::string& mon_name, uint64_t after_seq, bool& out_gap) {
+        std::shared_ptr<RtcLocalEncodedVideoFrame> frame;
+        WithOwner([&](RtcLocalPlugin& owner) {
+            frame = owner.ReadNextEncodedVideoFrame(mon_name, after_seq, out_gap);
+        });
+        return frame;
+    }
+
+    bool RtcLocalPluginRuntime::WaitForEncodedFrame(
+        const std::string& mon_name, uint64_t after_seq, int timeout_ms) {
+        bool ready = false;
+        WithOwner([&](RtcLocalPlugin& owner) {
+            ready = owner.WaitForEncodedFrame(mon_name, after_seq, timeout_ms);
+        });
+        return ready;
+    }
 
     std::string RtcLocalPlugin::GetPluginId() {
         return kNetRtcLocalPluginId;
@@ -44,25 +182,22 @@ namespace px
         SweepDeadRtcServers();
     }
 
-    void RtcLocalPlugin::NotifyRtcServerTerminal(const std::string& conn_id, RtcServer* target) {
-        LOGW("Rtc server terminal notified, conn_id: {}, will be swept.", conn_id);
-        rtc_servers_.Apply(conn_id, [target](const std::shared_ptr<RtcServer>& srv) {
-            if (srv.get() == target) {
-                srv->RequestExit();
-            }
-        });
+    void RtcLocalPlugin::NotifyRtcServerTerminal(
+        const std::string& conn_id,
+        const std::shared_ptr<RtcServer>& target) {
+        runtime_->NotifyTerminal(conn_id, target);
     }
 
     void RtcLocalPlugin::SweepDeadRtcServers() {
         std::vector<std::pair<std::string, std::shared_ptr<RtcServer>>> dead_servers;
-        rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
             if (srv->IsExitRequested()) {
                 dead_servers.emplace_back(k, srv);
             }
         });
         for (const auto& [k, srv] : dead_servers) {
             // 只删除扫描到的旧对象；同 key 已被新会话复用时保持新值不动。
-            rtc_servers_.RemoveIf(k, [srv](const std::shared_ptr<RtcServer>& current) {
+            runtime_->servers.RemoveIf(k, [srv](const std::shared_ptr<RtcServer>& current) {
                 return current == srv;
             });
             LOGI("Sweep dead rtc server: {}", k);
@@ -73,6 +208,8 @@ namespace px
     bool RtcLocalPlugin::OnCreate(const px::PxPluginParam &param) {
         PxPluginInterface::OnCreate(param);
         plugin_type_ = PxPluginType::kNet;
+        runtime_ = std::make_shared<RtcLocalPluginRuntime>(
+            *this, plugin_context_, MakeDirectEventDispatcher());
 
         if (!IsPluginEnabled()) {
             return true;
@@ -84,10 +221,13 @@ namespace px
             return false;
         }
 
-        plugin_context_->StartTimer(100, [=, this]() {
-            rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
-                srv->On100msTimeout();
-            });
+        const auto weak_runtime = std::weak_ptr<RtcLocalPluginRuntime>(runtime_);
+        plugin_context_->StartTimer(100, [weak_runtime]() {
+            if (const auto runtime = weak_runtime.lock()) {
+                runtime->servers.ApplyAll([](const std::string&, const std::shared_ptr<RtcServer>& server) {
+                    server->On100msTimeout();
+                });
+            }
         });
 
         return true;
@@ -97,13 +237,19 @@ namespace px
         // 先进入 Stopping,阻止后续回调/事件继续向外投递;再逐路关闭 RtcServer。
         PxNetPlugin::OnStop();
 
+        const auto runtime = runtime_;
+        if (!runtime) {
+            return PxNetPlugin::OnDestroy();
+        }
+        runtime->DeactivateOwner();
+
         std::vector<std::shared_ptr<RtcServer>> servers;
-        rtc_servers_.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+        runtime->servers.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             if (srv) {
                 servers.push_back(srv);
             }
         });
-        rtc_servers_.Clear();
+        runtime->servers.Clear();
 
         for (const auto& srv : servers) {
             srv->Exit();
@@ -124,6 +270,8 @@ namespace px
             ssl_initialized_ = false;
         }
 
+        runtime_.reset();
+
         return PxNetPlugin::OnDestroy();
     }
 
@@ -137,53 +285,67 @@ namespace px
     }
 
     void RtcLocalPlugin::OnRemoteSdp(const MsgRtcRemoteSdp& message) {
-        PostWorkTask([=, this]() {
-            const auto conn_id = message.device_id_ + ":" + message.stream_id_;
-            auto send_answer = [this, stream_id = message.stream_id_](const std::string& answer_sdp) {
-                if (answer_sdp.empty()) {
-                    LOGE("Standard RTC produced an empty answer, stream={}", stream_id);
-                    return;
-                }
-                auto event = std::make_shared<PxPluginRtcAnswerSdpEvent>();
-                event->stream_id_ = stream_id;
-                event->sdp_ = answer_sdp;
-                CallbackEvent(event);
-            };
-
-            if (auto existing = rtc_servers_.TryGet(conn_id); existing.has_value()) {
-                const auto& server = existing.value();
-                server->SetPermissions(true, message.permissions_);
-                server->SetOnAnswerCallback(send_answer);
-                if (server->RestartWithOffer(message.sdp_, message.ice_config_json_)) {
-                    LOGI("Reused RTC media peer for standard ICE restart: {}", conn_id);
-                    return;
-                }
-                LOGW("Standard RTC in-place restart failed, replacing peer: {}", conn_id);
-                rtc_servers_.RemoveIf(conn_id, [server](const std::shared_ptr<RtcServer>& current) {
-                    return current == server;
-                });
-                std::thread([server]() { server->Exit(); }).detach();
-            }
-
-            auto server = RtcServer::Make(this);
-            server->SetConnId(conn_id);
-            server->SetPermissions(true, message.permissions_);
-            server->SetOnAnswerCallback(send_answer);
-            if (!server->Start(message.stream_id_, message.sdp_,
-                               PxLocalRtcSessionRole::kInteractive,
-                               message.ice_config_json_)) {
-                LOGE("Failed to start standard RTC media peer: {}", conn_id);
+        const auto weak_runtime = std::weak_ptr<RtcLocalPluginRuntime>(runtime_);
+        PostWorkTask([weak_runtime, message]() {
+            const auto runtime = weak_runtime.lock();
+            if (!runtime) {
                 return;
             }
-            rtc_servers_.Insert(conn_id, server);
-            LOGI("Started standard RTC media peer: {}", conn_id);
+            runtime->WithOwner([&](RtcLocalPlugin& owner) {
+                const auto conn_id = message.device_id_ + ":" + message.stream_id_;
+                auto send_answer = [weak_runtime, stream_id = message.stream_id_](const std::string& answer_sdp) {
+                    if (answer_sdp.empty()) {
+                        LOGE("Standard RTC produced an empty answer, stream={}", stream_id);
+                        return;
+                    }
+                    auto event = std::make_shared<PxPluginRtcAnswerSdpEvent>();
+                    event->stream_id_ = stream_id;
+                    event->sdp_ = answer_sdp;
+                    if (const auto locked = weak_runtime.lock()) {
+                        locked->QueueEvent(event);
+                    }
+                };
+
+                if (auto existing = runtime->servers.TryGet(conn_id); existing.has_value()) {
+                    const auto& server = existing.value();
+                    server->SetPermissions(true, message.permissions_);
+                    server->SetOnAnswerCallback(send_answer);
+                    if (server->RestartWithOffer(message.sdp_, message.ice_config_json_)) {
+                        LOGI("Reused RTC media peer for standard ICE restart: {}", conn_id);
+                        return;
+                    }
+                    LOGW("Standard RTC in-place restart failed, replacing peer: {}", conn_id);
+                    runtime->servers.RemoveIf(conn_id, [server](const std::shared_ptr<RtcServer>& current) {
+                        return current == server;
+                    });
+                    std::thread([server]() { server->Exit(); }).detach();
+                }
+
+                auto server = RtcServer::Make(runtime);
+                server->SetConnId(conn_id);
+                server->SetPermissions(true, message.permissions_);
+                server->SetOnAnswerCallback(send_answer);
+                if (!server->Start(message.stream_id_, message.sdp_,
+                                   PxLocalRtcSessionRole::kInteractive,
+                                   message.ice_config_json_)) {
+                    LOGE("Failed to start standard RTC media peer: {}", conn_id);
+                    return;
+                }
+                runtime->servers.Insert(conn_id, server);
+                LOGI("Started standard RTC media peer: {}", conn_id);
+            });
         });
     }
 
     void RtcLocalPlugin::OnRemoteIce(const MsgRtcRemoteIce& message) {
-        PostWorkTask([=, this]() {
+        const auto weak_runtime = std::weak_ptr<RtcLocalPluginRuntime>(runtime_);
+        PostWorkTask([weak_runtime, message]() {
+            const auto runtime = weak_runtime.lock();
+            if (!runtime) {
+                return;
+            }
             const auto conn_id = message.device_id_ + ":" + message.stream_id_;
-            if (auto server = rtc_servers_.TryGet(conn_id); server.has_value()) {
+            if (auto server = runtime->servers.TryGet(conn_id); server.has_value()) {
                 server.value()->OnRemoteIce(
                     message.ice_, message.mid_, message.sdp_mline_index_);
             }
@@ -260,7 +422,7 @@ namespace px
         }
         WaitForMediaChannelActive();
 
-        rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([msg, run_through](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             srv->PostProtoMessage(msg, run_through);
         });
     }
@@ -271,7 +433,7 @@ namespace px
         }
         WaitForMediaChannelActive();
 
-        rtc_servers_.ApplyAll([=, this](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&stream_id, msg, run_through](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             if (srv && srv->GetStreamId() == stream_id) {
                 srv->PostTargetStreamProtoMessage(stream_id, msg, run_through);
             }
@@ -289,7 +451,7 @@ namespace px
                 "direct RTC file-transfer payload is empty");
         }
         if (!connection_instance_id.empty()) {
-            const auto target = rtc_servers_.TryGet(connection_instance_id);
+            const auto target = runtime_->servers.TryGet(connection_instance_id);
             if (!target || !*target || (*target)->GetStreamId() != stream_id) {
                 return FileTransferSendResult::Disconnected(
                     "direct RTC file-transfer session was not found");
@@ -315,7 +477,7 @@ namespace px
         bool disconnected = false;
         bool accepted = false;
         std::shared_ptr<FileTransferWritableSignal> writable_signal;
-        rtc_servers_.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             if (accepted || !srv || srv->GetStreamId() != stream_id) {
                 return;
             }
@@ -351,7 +513,7 @@ namespace px
     }
 
     void RtcLocalPlugin::WaitForMediaChannelActive() {
-        if (rtc_servers_.Empty()) {
+        if (!runtime_ || runtime_->servers.Empty()) {
             return;
         }
         // 媒体路径最多等 100ms:此函数运行在帧分发线程上,长时间自旋会堵死
@@ -361,7 +523,7 @@ namespace px
         auto has_buffer = this->HasEnoughBufferForQueuingMediaMessages();
         auto wait_count = 0;
         while ((queuing_msg_count > 256 || !has_buffer) && wait_count < kMaxWaitMs) {
-            if (rtc_servers_.Empty()) {
+            if (!runtime_ || runtime_->servers.Empty()) {
                 LOGW("===> Send media, no alive rtc server, drop the message.");
                 return;
             }
@@ -383,7 +545,7 @@ namespace px
 
     int RtcLocalPlugin::GetConnectedClientsCount() {
         int count = 0;
-        rtc_servers_.ApplyAll([&](const auto&, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const auto&, const std::shared_ptr<RtcServer>& srv) {
             if (!srv->IsWallObserver() && srv->IsDataChannelConnected()) {
                 count++;
             }
@@ -393,7 +555,7 @@ namespace px
 
     int RtcLocalPlugin::GetMediaConsumersCount() {
         int count = 0;
-        rtc_servers_.ApplyAll([&](const auto&, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const auto&, const std::shared_ptr<RtcServer>& srv) {
             if (srv && srv->IsMediaConsumerActive()) {
                 ++count;
             }
@@ -403,7 +565,7 @@ namespace px
 
     int64_t RtcLocalPlugin::GetQueuingMediaMsgCount() {
         uint32_t total_pending_messages = 0;
-        rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             // 跳过死连接:其 pending 计数不会再变化,统计进来只会造成误判
             if (!srv->IsDataChannelConnected()) {
                 return;
@@ -415,7 +577,7 @@ namespace px
 
     int64_t RtcLocalPlugin::GetQueuingFtMsgCount() {
         uint32_t total_pending_messages = 0;
-        rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             // 跳过死连接:其 pending 计数不会再变化,统计进来只会造成误判
             if (!srv->IsFtDataChannelConnected()) {
                 return;
@@ -427,7 +589,7 @@ namespace px
 
     bool RtcLocalPlugin::HasEnoughBufferForQueuingMediaMessages() {
         bool flag = true;
-        rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             // 跳过死连接:死连接的 channel 缓冲永远是满的,会全票否决所有投递
             if (!srv->IsDataChannelConnected()) {
                 return;
@@ -439,7 +601,7 @@ namespace px
 
     bool RtcLocalPlugin::HasEnoughBufferForQueuingFtMessages() {
         bool flag = true;
-        rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             // 跳过死连接:死连接的 channel 缓冲永远是满的,会全票否决所有投递
             if (!srv->IsFtDataChannelConnected()) {
                 return;
@@ -506,10 +668,10 @@ namespace px
         static std::atomic_uint64_t raw_frame_count = 0;
         auto cnt = ++raw_frame_count;
         if (cnt == 1 || cnt % 300 == 0) {
-            LOGI("OnRawVideoFrameSharedTexture #{}, idx={}, {}x{}, handle={}, servers={}", cnt, frame_idx, frame_width, frame_height, handle, rtc_servers_.Size());
+            LOGI("OnRawVideoFrameSharedTexture #{}, idx={}, {}x{}, handle={}, servers={}", cnt, frame_idx, frame_width, frame_height, handle, runtime_->servers.Size());
         }
         last_shared_tex_ts_ = TimeUtil::GetCurrentTimestamp();
-        rtc_servers_.ApplyAll([=, this](const auto&, const std::shared_ptr<RtcServer>& rtc_server) {
+        runtime_->servers.ApplyAll([&](const auto&, const std::shared_ptr<RtcServer>& rtc_server) {
             if (!rtc_server || rtc_server->IsExitRequested()) {
                 return;
             }
@@ -536,9 +698,9 @@ namespace px
         static std::atomic_uint64_t raw_yuv_count = 0;
         auto cnt = ++raw_yuv_count;
         if (cnt == 1 || cnt % 300 == 0) {
-            LOGI("OnRawVideoFrameYuv notify webrtc #{}, idx={}, {}x{}, servers={}", cnt, frame_idx, frame_width, frame_height, rtc_servers_.Size());
+            LOGI("OnRawVideoFrameYuv notify webrtc #{}, idx={}, {}x{}, servers={}", cnt, frame_idx, frame_width, frame_height, runtime_->servers.Size());
         }
-        rtc_servers_.ApplyAll([=, this](const auto&, const std::shared_ptr<RtcServer>& rtc_server) {
+        runtime_->servers.ApplyAll([&](const auto&, const std::shared_ptr<RtcServer>& rtc_server) {
             if (!rtc_server || rtc_server->IsExitRequested()) {
                 return;
             }
@@ -554,9 +716,9 @@ namespace px
         auto cnt = ++audio_cb_count;
         if (cnt == 1 || cnt % 500 == 0) {
             LOGI("OnRawAudioData #{}, bytes={}, rate={} ch={} bits={}, peers={}",
-                 cnt, data->Size(), samples, channels, bits, rtc_servers_.Size());
+                 cnt, data->Size(), samples, channels, bits, runtime_->servers.Size());
         }
-        rtc_servers_.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             if (!srv || srv->IsExitRequested() || srv->IsWallObserver()) {
                 return;
             }
@@ -568,7 +730,7 @@ namespace px
         const std::string& stream_id, const std::string& call_id,
         bool authorized) {
         bool applied = false;
-        rtc_servers_.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             if (srv && srv->GetStreamId() == stream_id) {
                 applied = srv->SetVoiceCallAuthorization(call_id, authorized) || applied;
             }
@@ -580,7 +742,7 @@ namespace px
         const std::string& stream_id, const std::string& call_id,
         const int16_t* samples, size_t sample_count,
         int sample_rate, int channels) {
-        rtc_servers_.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             if (srv && srv->GetStreamId() == stream_id) {
                 srv->OnVoiceCallPcm(call_id, samples, sample_count, sample_rate, channels);
             }
@@ -745,7 +907,7 @@ namespace px
         // takeover flow.
         std::vector<std::pair<std::string, std::shared_ptr<RtcServer>>> old_servers;
         size_t observer_count = 0;
-        rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
             if (!srv || srv->IsExitRequested()) {
                 return;
             }
@@ -757,7 +919,7 @@ namespace px
             }
         });
         if (is_observer) {
-            const bool duplicate = rtc_servers_.HasKey(conn_id);
+            const bool duplicate = runtime_->servers.HasKey(conn_id);
             if (observer_count >= kMaxWallObservers || duplicate) {
                 LOGW("Reject wall observer, count: {}, duplicate: {}", observer_count, duplicate);
                 return PxLocalRtcAllocResult::kFailed;
@@ -803,7 +965,7 @@ namespace px
             // Exit() 里 webrtc 线程 Stop() 可能因对端会话繁忙而长时间阻塞,
             // 绝不能跑在调用方线程(HTTP 信令线程)上,否则 takeover 请求会挂死信令
             for (const auto& [k, srv] : old_servers) {
-                rtc_servers_.RemoveIf(k, [srv](const std::shared_ptr<RtcServer>& current) {
+                runtime_->servers.RemoveIf(k, [srv](const std::shared_ptr<RtcServer>& current) {
                     return current == srv;
                 });
             }
@@ -818,32 +980,45 @@ namespace px
             }).detach();
         }
 
-        auto rtc_server = RtcServer::Make(this);
+        const auto runtime = runtime_;
+        auto rtc_server = RtcServer::Make(runtime);
         rtc_server->SetConnId(conn_id);
         rtc_server->SetClientNonce(req->client_nonce_);
         rtc_server->SetPermissions(req->capability_enforced_, req->permissions_);
         rtc_server->Start(req->stream_id_, req->sdp_, req->session_role_);
-        rtc_server->SetOnAnswerCallback([=, this](const std::string& answer_sdp) {
-            auto answer = rtc_server->GetAnswerSdp();
+        const auto weak_runtime = std::weak_ptr<RtcLocalPluginRuntime>(runtime);
+        const auto weak_server = std::weak_ptr<RtcServer>(rtc_server);
+        rtc_server->SetOnAnswerCallback(
+            [weak_runtime, weak_server, req, callback = std::move(callback)](
+                const std::string& answer_sdp) {
+            const auto server = weak_server.lock();
+            if (!server) {
+                return;
+            }
+            auto answer = server->GetAnswerSdp();
             auto new_answer = AddCandidateIpToAnswer(req->req_ip_, answer);
             auto reply = std::make_shared<PxLocalRtcReplyInfo>(PxLocalRtcReplyInfo {
                 .answer_sdp_ = new_answer,
             });
             // 显示器列表(与 video track 同序),多 track 客户端据此做 track→mon_name 映射
-            for (const auto& m : GetRtcTrackMonitors()) {
-                reply->monitors_.push_back(PxLocalRtcMonitorInfo {
-                    .name_ = m.name_,
-                    .width_ = (int)m.Width(),
-                    .height_ = (int)m.Height(),
-                    .left_ = (int)m.left_,
-                    .top_ = (int)m.top_,
-                    .right_ = (int)m.right_,
-                    .bottom_ = (int)m.bottom_,
+            if (const auto locked = weak_runtime.lock()) {
+                locked->WithOwner([&](RtcLocalPlugin& owner) {
+                    for (const auto& m : owner.GetRtcTrackMonitors()) {
+                        reply->monitors_.push_back(PxLocalRtcMonitorInfo {
+                            .name_ = m.name_,
+                            .width_ = (int)m.Width(),
+                            .height_ = (int)m.Height(),
+                            .left_ = (int)m.left_,
+                            .top_ = (int)m.top_,
+                            .right_ = (int)m.right_,
+                            .bottom_ = (int)m.bottom_,
+                        });
+                    }
                 });
+                callback(reply);
             }
-            callback(reply);
         });
-        rtc_servers_.Insert(conn_id, rtc_server);
+        runtime_->servers.Insert(conn_id, rtc_server);
         LOGI("Insert to map, will return information");
 
         return PxLocalRtcAllocResult::kOk;

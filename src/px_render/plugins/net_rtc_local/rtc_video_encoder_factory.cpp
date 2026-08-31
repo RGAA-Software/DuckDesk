@@ -6,7 +6,7 @@ namespace px
 {
 
     std::unique_ptr<webrtc::VideoEncoder> RtcVideoEncoderFactory::CreateVideoEncoder(const webrtc::SdpVideoFormat& format)  {
-        return std::make_unique<RtcSharedVideoEncoder>(plugin_, server_);
+        return std::make_unique<RtcSharedVideoEncoder>(server_);
     }
 
     webrtc::VideoEncoderFactory::CodecSupport RtcVideoEncoderFactory::QueryCodecSupport(const webrtc::SdpVideoFormat& format,

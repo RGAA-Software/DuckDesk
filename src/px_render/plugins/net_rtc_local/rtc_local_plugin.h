@@ -10,6 +10,8 @@
 #include <chrono>
 #include <mutex>
 #include <condition_variable>
+#include <functional>
+#include <optional>
 #include "px_render/plugin_interface/px_net_plugin.h"
 #include "px_capture_new/monitor_util.h"
 #include "px_common_new/concurrent_hashmap.h"
@@ -21,6 +23,52 @@
 namespace px
 {
     class RtcServer;
+    class RtcLocalPlugin;
+    class PxPluginContext;
+
+    class RtcLocalPluginRuntime final {
+    public:
+        RtcLocalPluginRuntime(
+            RtcLocalPlugin& owner,
+            std::weak_ptr<PxPluginContext> context,
+            PxPluginEventCallback dispatcher);
+
+        void WithOwner(const std::function<void(RtcLocalPlugin&)>& operation);
+        void DeactivateOwner();
+        [[nodiscard]] std::shared_ptr<PxPluginContext> GetContext() const;
+        void QueueEvent(const std::shared_ptr<PxPluginBaseEvent>& event) const;
+        void DispatchClientEvent(
+            bool direct, const NetChannelType& channel_type,
+            std::shared_ptr<Data> message,
+            const std::string& connection_instance_id = {});
+        void NotifyTerminal(
+            const std::string& conn_id,
+            const std::shared_ptr<RtcServer>& target);
+        [[nodiscard]] std::vector<CaptureMonitorInfo> GetRtcTrackMonitors();
+        void EnableAllMonitorCapture();
+        void InsertIdr(const std::string& mon_name = {});
+        void OnRemoteVoiceCallPcm(
+            const std::string& stream_id, const std::string& call_id,
+            const int16_t* samples, // NOLINT(gammaray-raw-pointer-boundary): synchronous PCM sample view
+            size_t sample_count,
+            int sample_rate, int channels);
+        [[nodiscard]] uint64_t GetLatestEncodedSeq(const std::string& mon_name);
+        [[nodiscard]] size_t GetCachedFrameCount(
+            const std::string& mon_name, uint64_t after_seq);
+        [[nodiscard]] std::shared_ptr<RtcLocalEncodedVideoFrame>
+        ReadNextEncodedVideoFrame(
+            const std::string& mon_name, uint64_t after_seq, bool& out_gap);
+        [[nodiscard]] bool WaitForEncodedFrame(
+            const std::string& mon_name, uint64_t after_seq, int timeout_ms);
+
+        ConcurrentHashMap<std::string, std::shared_ptr<RtcServer>> servers;
+
+    private:
+        std::mutex owner_mutex_;
+        std::optional<std::reference_wrapper<RtcLocalPlugin>> owner_;
+        std::weak_ptr<PxPluginContext> context_;
+        PxPluginEventCallback dispatcher_;
+    };
 
     class RtcLocalPlugin : public PxNetPlugin {
     public:
@@ -104,8 +152,10 @@ namespace px
 
         // RtcServer 在 ICE 终态(Failed/Closed)时回调,标记该连接待清理
         // conn_id 只是 map key;重连时同一个 key 会被新 RtcServer 复用,
-        // 必须同时比对 RtcServer 指针,避免旧连接的迟到回调把新连接误杀。
-        void NotifyRtcServerTerminal(const std::string& conn_id, RtcServer* target);
+        // 必须同时比对 RtcServer 实例,避免旧连接的迟到回调把新连接误杀。
+        void NotifyRtcServerTerminal(
+            const std::string& conn_id,
+            const std::shared_ptr<RtcServer>& target);
 
         // 本机显示器列表(枚举顺序,上限 kMaxRtcVideoTracks),供 RtcServer 建多 track
         // 及信令返回 monitors 列表;空表示采集插件未就绪(回退单 track 旧行为)
@@ -124,7 +174,7 @@ namespace px
         static std::string AddCandidateIpToAnswer(const std::string& ip, const std::string& answer);
 
     private:
-        px::ConcurrentHashMap<std::string, std::shared_ptr<RtcServer>> rtc_servers_;
+        std::shared_ptr<RtcLocalPluginRuntime> runtime_;
         // encoded_video_frames_ 会被编码回调线程(OnEncodedVideoFrame)和
         // webrtc 编码线程(ReadNextEncodedVideoFrame)并发访问,必须加锁。
         // key = (mon_name, seq):按屏隔离 + 按产出序号数值有序

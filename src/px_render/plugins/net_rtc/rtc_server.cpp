@@ -19,17 +19,25 @@ using namespace webrtc;
 namespace px
 {
 
-    std::shared_ptr<RtcServer> RtcServer::Make(RtcPlugin* plugin) {
-        return std::make_shared<RtcServer>(plugin);
+    std::shared_ptr<RtcServer> RtcServer::Make(
+        const std::shared_ptr<RtcPluginRuntime>& runtime) {
+        return std::make_shared<RtcServer>(runtime);
     }
 
-    RtcServer::RtcServer(RtcPlugin* plugin) {
-        plugin_ = plugin;
+    RtcServer::RtcServer(const std::shared_ptr<RtcPluginRuntime>& runtime)
+        : runtime_(runtime) {
         connection_instance_id_ = MD5::Hex(px::GetUUID());
     }
 
-    RtcPlugin* RtcServer::GetPlugin() {
-        return plugin_;
+    std::shared_ptr<PxPluginContext> RtcServer::GetPluginContext() const {
+        return runtime_ ? runtime_->GetContext() : nullptr;
+    }
+
+    void RtcServer::DispatchEvent(
+        const std::shared_ptr<PxPluginBaseEvent>& event) const {
+        if (runtime_) {
+            runtime_->QueueEvent(event);
+        }
     }
 
     bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp,
@@ -47,113 +55,144 @@ namespace px
         set_local_answer_sdp_callback_ = SetSessCallback::Make(shared_from_this());
         create_answer_callback_ = CreateSessCallback::Make(shared_from_this());
         peer_callback_ = PeerCallback::Make(shared_from_this());
+        const auto weak_server = weak_from_this();
 
         // set remote offer sdp
-        set_remote_offer_sdp_callback_->SetSdpSuccessCallback([=]() {
+        set_remote_offer_sdp_callback_->SetSdpSuccessCallback([weak_server]() {
+            const auto server = weak_server.lock();
+            if (!server) {
+                return;
+            }
             LOGI("Set remote sdp success");
-            if (!peer_conn_) {
+            if (!server->peer_conn_) {
                 return;
             }
             LOGI("Will create answer sdp.");
             webrtc::PeerConnectionInterface::RTCOfferAnswerOptions options;
             options.offer_to_receive_audio = true;
             options.offer_to_receive_video = true;
-            peer_conn_->CreateAnswer(create_answer_callback_.get(), options);
+            server->peer_conn_->CreateAnswer(
+                server->create_answer_callback_.get(), options);
         });
 
-        set_remote_offer_sdp_callback_->SetSdpFailedCallback([=](const std::string& m) {
+        set_remote_offer_sdp_callback_->SetSdpFailedCallback([](const std::string& m) {
             LOGE("Set remote sdp failed: {}", m);
         });
 
         // set local answer sdp
-        set_local_answer_sdp_callback_->SetSdpSuccessCallback([=]() {
+        set_local_answer_sdp_callback_->SetSdpSuccessCallback([]() {
             LOGI("Set local answer sdp success.");
         });
 
-        set_local_answer_sdp_callback_->SetSdpFailedCallback([=, this](const std::string& m) {
+        set_local_answer_sdp_callback_->SetSdpFailedCallback([](const std::string& m) {
             LOGI("Set local answer sdp failed:{}", m);
         });
 
         // create answer sdp callback
-        create_answer_callback_->SetOnCreateSdpSuccessCallback([=, this](webrtc::SessionDescriptionInterface* desc) {
+        create_answer_callback_->SetOnCreateSdpSuccessCallback([weak_server](webrtc::SessionDescriptionInterface* desc) { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc SDP callback ABI
+            const auto server = weak_server.lock();
+            if (!server) {
+                return;
+            }
             LOGI("Create answer sdp success, will set local sdp.");
             std::string sdp;
             desc->ToString(&sdp);
-            this->sdp_ = sdp;
-            peer_conn_->SetLocalDescription(this->set_local_answer_sdp_callback_.get(), desc);
+            server->sdp_ = sdp;
+            server->peer_conn_->SetLocalDescription(
+                server->set_local_answer_sdp_callback_.get(), desc);
             // send to remote
-            this->SendSdpToRemote(sdp);
+            server->SendSdpToRemote(sdp);
         });
 
-        create_answer_callback_->SetOnCreateSdpFailedCallback([=, this](const std::string& m) {
+        create_answer_callback_->SetOnCreateSdpFailedCallback([](const std::string& m) {
             LOGE("Create answer sdp failed: {}", m);
         });
 
         // peer connection
-        peer_callback_->SetOnIceCallback([=, this](const std::string& ice, const std::string& mid, int sdp_mline_index) {
+        peer_callback_->SetOnIceCallback([weak_server](const std::string& ice, const std::string& mid, int sdp_mline_index) {
             LOGI("ICE: {}", ice);
-            this->SendIceToRemote(ice, mid, sdp_mline_index);
+            if (const auto server = weak_server.lock()) {
+                server->SendIceToRemote(ice, mid, sdp_mline_index);
+            }
         });
 
-        peer_callback_->SetOnDataChannelCallback([=, this](const std::string& name, rtc::scoped_refptr<webrtc::DataChannelInterface> ch) {
-            const bool may_view = std::find(permissions_.begin(), permissions_.end(), "view")
-                != permissions_.end();
-            const bool may_file = std::find(permissions_.begin(), permissions_.end(), "file")
-                != permissions_.end();
+        peer_callback_->SetOnDataChannelCallback([weak_server](const std::string& name, rtc::scoped_refptr<webrtc::DataChannelInterface> ch) {
+            const auto server = weak_server.lock();
+            if (!server) {
+                ch->Close();
+                return;
+            }
+            const bool may_view = std::find(server->permissions_.begin(), server->permissions_.end(), "view")
+                != server->permissions_.end();
+            const bool may_file = std::find(server->permissions_.begin(), server->permissions_.end(), "file")
+                != server->permissions_.end();
             if (name == "media_data_channel" && may_view) {
-                media_data_channel_ = std::make_shared<RtcDataChannel>(name, shared_from_this(), ch);
+                server->media_data_channel_ = std::make_shared<RtcDataChannel>(name, server, ch);
 
                 // data callback
-                media_data_channel_->SetOnDataCallback([=, this](const std::string& data) {
-                    if (!IsRtcPayloadAuthorized(data, permissions_)) {
+                server->media_data_channel_->SetOnDataCallback([weak_server](const std::string& data) {
+                    const auto locked = weak_server.lock();
+                    if (!locked) {
+                        return;
+                    }
+                    if (!IsRtcPayloadAuthorized(data, locked->permissions_)) {
                         LOGW("Drop unauthorized or malformed full RTC media payload");
                         return;
                     }
                     auto payload_msg = Data::Make(data.data(), data.size());
-                    plugin_->OnClientEventCame(true, 0, NetPluginType::kWebRtc, NetChannelType::kMedia, payload_msg);
+                    locked->runtime_->DispatchClientEvent(
+                        false, NetChannelType::kMedia, std::move(payload_msg));
                 });
             }
             else if (name == "ft_data_channel" && may_file) {
-                ft_data_channel_ = std::make_shared<RtcDataChannel>(name, shared_from_this(), ch);
+                server->ft_data_channel_ = std::make_shared<RtcDataChannel>(name, server, ch);
 
                 // data callback
-                ft_data_channel_->SetOnDataCallback([=, this](const std::string& data) {
-                    if (!IsRtcPayloadAuthorized(data, permissions_)) {
+                server->ft_data_channel_->SetOnDataCallback([weak_server](const std::string& data) {
+                    const auto locked = weak_server.lock();
+                    if (!locked) {
+                        return;
+                    }
+                    if (!IsRtcPayloadAuthorized(data, locked->permissions_)) {
                         LOGW("Drop unauthorized or malformed full RTC file payload");
                         return;
                     }
                     auto payload_msg = Data::Make(data.data(), data.size());
-                    plugin_->OnClientEventCame(
-                        true, 0, NetPluginType::kWebRtc,
-                        NetChannelType::kFileTransfer, payload_msg,
-                        connection_instance_id_);
+                    locked->runtime_->DispatchClientEvent(
+                        false, NetChannelType::kFileTransfer, std::move(payload_msg),
+                        locked->connection_instance_id_);
                 });
             }
             else if (name == "input_data_channel") {
-                const bool may_input = std::find(permissions_.begin(), permissions_.end(), "input")
-                    != permissions_.end();
+                const bool may_input = std::find(server->permissions_.begin(), server->permissions_.end(), "input")
+                    != server->permissions_.end();
                 if (!may_input) {
                     LOGW("Close full RTC input channel: permission not granted");
                     ch->Close();
                     return;
                 }
-                input_data_channel_ = std::make_shared<RtcDataChannel>(name, shared_from_this(), ch);
-                input_data_channel_->SetOnDataCallback([=, this](const std::string& data) {
+                server->input_data_channel_ = std::make_shared<RtcDataChannel>(name, server, ch);
+                server->input_data_channel_->SetOnDataCallback([weak_server](const std::string& data) {
+                    const auto locked = weak_server.lock();
+                    if (!locked) {
+                        return;
+                    }
                     auto payload_msg = Data::Make(data.data(), data.size());
-                    plugin_->OnClientEventCameDirectly(
-                        true, 0, NetPluginType::kWebRtc,
-                        NetChannelType::kMedia, std::move(payload_msg));
+                    locked->runtime_->DispatchClientEvent(
+                        true, NetChannelType::kMedia, std::move(payload_msg));
                 });
             }
         });
 
         // network state
-        peer_callback_->SetOnIceConnectedCallback([=, this]() {
+        peer_callback_->SetOnIceConnectedCallback([]() {
 
         });
 
-        peer_callback_->SetOnIceDisConnectedCallback([=, this]() {
-            EmitClientDisconnectedEvent();
+        peer_callback_->SetOnIceDisConnectedCallback([weak_server]() {
+            if (const auto server = weak_server.lock()) {
+                server->EmitClientDisconnectedEvent();
+            }
         });
 
         CreatePeerConnectionFactory();
@@ -328,7 +367,7 @@ namespace px
         auto event = std::make_shared<PxPluginRtcAnswerSdpEvent>();
         event->stream_id_ = stream_id_;
         event->sdp_ = sdp;
-        plugin_->CallbackEvent(event);
+        runtime_->QueueEvent(event);
     }
 
     void RtcServer::SendIceToRemote(const std::string& ice, const std::string& mid, int sdp_mline_index) {
@@ -337,13 +376,17 @@ namespace px
         event->ice_ = ice;
         event->mid_ = mid;
         event->sdp_mline_index_ = sdp_mline_index;
-        plugin_->CallbackEvent(event);
+        runtime_->QueueEvent(event);
     }
 
     void RtcServer::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
         if (network_thread_ && media_data_channel_ && !exit_) {
-            network_thread_->PostTask([=, this]() {
-                media_data_channel_->SendData(msg);
+            const auto weak_server = weak_from_this();
+            network_thread_->PostTask([weak_server, msg]() {
+                if (const auto server = weak_server.lock();
+                    server && server->media_data_channel_ && !server->exit_) {
+                    server->media_data_channel_->SendData(msg);
+                }
             });
         }
     }
@@ -353,8 +396,12 @@ namespace px
             return false;
         }
         if (network_thread_ && media_data_channel_ && !exit_) {
-            network_thread_->PostTask([=, this]() {
-                media_data_channel_->SendData(msg);
+            const auto weak_server = weak_from_this();
+            network_thread_->PostTask([weak_server, msg]() {
+                if (const auto server = weak_server.lock();
+                    server && server->media_data_channel_ && !server->exit_) {
+                    server->media_data_channel_->SendData(msg);
+                }
             });
         }
         return true;
@@ -420,7 +467,7 @@ namespace px
         if (disconnect_event_sent_.exchange(true)) {
             return;
         }
-        if (!plugin_) {
+        if (!runtime_) {
             return;
         }
         auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
@@ -432,7 +479,7 @@ namespace px
         event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->duration_ = media_data_channel_
             ? event->end_timestamp_ - media_data_channel_->created_timestamp_ : 0;
-        plugin_->CallbackEvent(event);
+        runtime_->QueueEvent(event);
         LOGW("Client disconnected event emitted, stream: {}", event->stream_id_);
     }
 

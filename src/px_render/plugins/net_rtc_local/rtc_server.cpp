@@ -20,6 +20,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <functional>
 #include <optional>
 #include <format>
 #include <mutex>
@@ -38,6 +39,7 @@ namespace px
         // the only authorization-gated physical playout path.
         class PullAudioDeviceModule : public webrtc::AudioDeviceModule {
         public:
+            PullAudioDeviceModule() : playout_(std::make_shared<PlayoutState>()) {}
             ~PullAudioDeviceModule() override { StopPlayout(); }
 
             int32_t ActiveAudioLayer(AudioLayer* layer) const override {
@@ -45,8 +47,13 @@ namespace px
                 return 0;
             }
             int32_t RegisterAudioCallback(webrtc::AudioTransport* callback) override {
-                std::scoped_lock lock(callback_mutex_);
-                callback_ = callback;
+                std::scoped_lock lock(playout_->callback_mutex);
+                if (callback) {
+                    playout_->callback = std::ref(*callback);
+                }
+                else {
+                    playout_->callback.reset();
+                }
                 LOGI("PullAudioDeviceModule audio callback {}",
                      callback ? "registered" : "cleared");
                 return 0;
@@ -85,29 +92,28 @@ namespace px
             int32_t InitRecording() override { return -1; }
             bool RecordingIsInitialized() const override { return false; }
             int32_t StartPlayout() override {
-                if (playing_.exchange(true)) return 0;
+                const auto playout = playout_;
+                if (playout->playing.exchange(true)) return 0;
                 LOGI("PullAudioDeviceModule playout clock started");
-                playout_thread_ = std::thread([this]() {
+                playout_thread_ = std::thread([playout]() {
                     auto next = std::chrono::steady_clock::now();
                     std::array<int16_t, 480> samples{};
-                    while (playing_) {
+                    while (playout->playing) {
                         next += std::chrono::milliseconds(10);
-                        webrtc::AudioTransport* callback = nullptr;
                         {
-                            std::scoped_lock lock(callback_mutex_);
-                            callback = callback_;
-                        }
-                        if (callback) {
-                            size_t samples_out = 0;
-                            int64_t elapsed_ms = 0;
-                            int64_t ntp_ms = 0;
-                            callback->NeedMorePlayData(
-                                480, sizeof(int16_t), 1, 48'000,
-                                samples.data(), samples_out, &elapsed_ms, &ntp_ms);
-                            const auto count = ++pull_count_;
-                            if (count == 1 || count % 3000 == 0) {
-                                LOGI("PullAudioDeviceModule pulled 10ms #{} samples_out={}",
-                                     count, samples_out);
+                            std::scoped_lock lock(playout->callback_mutex);
+                            if (playout->callback) {
+                                size_t samples_out = 0;
+                                int64_t elapsed_ms = 0;
+                                int64_t ntp_ms = 0;
+                                playout->callback->get().NeedMorePlayData(
+                                    480, sizeof(int16_t), 1, 48'000,
+                                    samples.data(), samples_out, &elapsed_ms, &ntp_ms);
+                                const auto count = ++playout->pull_count;
+                                if (count == 1 || count % 3000 == 0) {
+                                    LOGI("PullAudioDeviceModule pulled 10ms #{} samples_out={}",
+                                         count, samples_out);
+                                }
                             }
                         }
                         std::this_thread::sleep_until(next);
@@ -116,13 +122,13 @@ namespace px
                 return 0;
             }
             int32_t StopPlayout() override {
-                if (!playing_.exchange(false)) return 0;
+                if (!playout_->playing.exchange(false)) return 0;
                 if (playout_thread_.joinable()) playout_thread_.join();
                 LOGI("PullAudioDeviceModule playout clock stopped after {} pulls",
-                     pull_count_.load());
+                     playout_->pull_count.load());
                 return 0;
             }
-            bool Playing() const override { return playing_; }
+            bool Playing() const override { return playout_->playing; }
             int32_t StartRecording() override { return -1; }
             int32_t StopRecording() override { return 0; }
             bool Recording() const override { return false; }
@@ -164,17 +170,21 @@ namespace px
             int32_t EnableBuiltInNS(bool) override { return -1; }
 
         private:
+            struct PlayoutState {
+                std::mutex callback_mutex;
+                std::optional<std::reference_wrapper<webrtc::AudioTransport>> callback;
+                std::atomic_bool playing{false};
+                std::atomic_uint64_t pull_count{0};
+            };
+
             static int32_t Unavailable(bool* value) { if (value) *value = false; return 0; }
             static int32_t False(bool* value) { if (value) *value = false; return 0; }
             static int32_t Zero(uint32_t* value) { if (value) *value = 0; return 0; }
 
-            mutable std::mutex callback_mutex_;
-            webrtc::AudioTransport* callback_ = nullptr;
+            std::shared_ptr<PlayoutState> playout_;
             std::thread playout_thread_;
             std::atomic_bool initialized_ = false;
             std::atomic_bool playout_initialized_ = false;
-            std::atomic_bool playing_ = false;
-            std::atomic_uint64_t pull_count_ = 0;
         };
 
         class VoiceInboundStatsCallback
@@ -303,16 +313,59 @@ namespace px
         }
     }
 
-    std::shared_ptr<RtcServer> RtcServer::Make(RtcLocalPlugin* plugin) {
-        return std::make_shared<RtcServer>(plugin);
+    std::shared_ptr<RtcServer> RtcServer::Make(
+        const std::shared_ptr<RtcLocalPluginRuntime>& runtime) {
+        return std::make_shared<RtcServer>(runtime);
     }
 
-    RtcServer::RtcServer(RtcLocalPlugin* plugin) {
-        plugin_ = plugin;
+    RtcServer::RtcServer(
+        const std::shared_ptr<RtcLocalPluginRuntime>& runtime)
+        : runtime_(runtime) {}
+
+    std::shared_ptr<PxPluginContext> RtcServer::GetPluginContext() const {
+        return runtime_ ? runtime_->GetContext() : nullptr;
     }
 
-    RtcLocalPlugin* RtcServer::GetPlugin() {
-        return plugin_;
+    void RtcServer::DispatchEvent(
+        const std::shared_ptr<PxPluginBaseEvent>& event) const {
+        if (runtime_) {
+            runtime_->QueueEvent(event);
+        }
+    }
+
+    void RtcServer::QueueEvent(
+        const std::shared_ptr<PxPluginBaseEvent>& event) const {
+        DispatchEvent(event);
+    }
+
+    void RtcServer::RequestEncodedIdr(const std::string& mon_name) {
+        runtime_->InsertIdr(mon_name);
+    }
+
+    uint64_t RtcServer::GetLatestEncodedSeq(const std::string& mon_name) {
+        return runtime_->GetLatestEncodedSeq(mon_name);
+    }
+
+    size_t RtcServer::GetCachedFrameCount(
+        const std::string& mon_name, uint64_t after_seq) {
+        return runtime_->GetCachedFrameCount(mon_name, after_seq);
+    }
+
+    std::shared_ptr<RtcLocalEncodedVideoFrame>
+    RtcServer::ReadNextEncodedVideoFrame(
+        const std::string& mon_name, uint64_t after_seq, bool& out_gap) {
+        return runtime_->ReadNextEncodedVideoFrame(mon_name, after_seq, out_gap);
+    }
+
+    bool RtcServer::WaitForEncodedFrame(
+        const std::string& mon_name, uint64_t after_seq, int timeout_ms) {
+        return runtime_->WaitForEncodedFrame(mon_name, after_seq, timeout_ms);
+    }
+
+    void RtcServer::NotifyTerminal() {
+        if (runtime_) {
+            runtime_->NotifyTerminal(conn_id_, shared_from_this());
+        }
     }
 
     bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp,
@@ -331,26 +384,36 @@ namespace px
         set_local_answer_sdp_callback_ = SetSessCallback::Make(shared_from_this());
         create_answer_callback_ = CreateSessCallback::Make(shared_from_this());
         peer_callback_ = PeerCallback::Make(shared_from_this());
+        const auto weak_server = weak_from_this();
 
         // set remote offer sdp
-        set_remote_offer_sdp_callback_->SetSdpSuccessCallback([=, this]() {
+        set_remote_offer_sdp_callback_->SetSdpSuccessCallback([weak_server]() {
+            const auto server = weak_server.lock();
+            if (!server) {
+                return;
+            }
             LOGI("Set remote sdp success");
-            if (!peer_conn_) {
+            if (!server->peer_conn_) {
                 return;
             }
             webrtc::PeerConnectionInterface::RTCOfferAnswerOptions options;
-            options.offer_to_receive_audio = !IsWallObserver() && HasPermission("audio");
-            options.offer_to_receive_video = HasPermission("view");
+            options.offer_to_receive_audio = !server->IsWallObserver() && server->HasPermission("audio");
+            options.offer_to_receive_video = server->HasPermission("view");
             LOGI("Will create answer sdp.");
-            peer_conn_->CreateAnswer(this->create_answer_callback_.get(), options);
+            server->peer_conn_->CreateAnswer(
+                server->create_answer_callback_.get(), options);
         });
 
-        set_remote_offer_sdp_callback_->SetSdpFailedCallback([=](const std::string& m) {
+        set_remote_offer_sdp_callback_->SetSdpFailedCallback([](const std::string& m) {
             LOGE("Set remote sdp failed: {}", m);
         });
 
         // set local answer sdp
-        set_local_answer_sdp_callback_->SetSdpSuccessCallback([=, this]() {
+        set_local_answer_sdp_callback_->SetSdpSuccessCallback([weak_server]() {
+            const auto server = weak_server.lock();
+            if (!server) {
+                return;
+            }
             LOGI("Set local answer sdp success.");
             // Standard RTC always trickles ICE over Console Relay.  Returning
             // the answer as soon as SetLocalDescription succeeds is required
@@ -358,100 +421,121 @@ namespace px
             // gathering state open for tens of seconds while TCP candidates
             // are still perfectly usable.  The legacy direct HTTP flow has no
             // trickle channel, so it continues to wait for gathering complete.
-            if (standard_rtc_ && peer_conn_ && peer_conn_->local_description()) {
+            if (server->standard_rtc_ && server->peer_conn_
+                && server->peer_conn_->local_description()) {
                 std::string answer_sdp;
-                if (!peer_conn_->local_description()->ToString(&answer_sdp)) {
+                if (!server->peer_conn_->local_description()->ToString(&answer_sdp)) {
                     LOGE("Get local standard RTC answer failed");
-                    if (answer_sdp_callback_) {
-                        answer_sdp_callback_("");
+                    if (server->answer_sdp_callback_) {
+                        server->answer_sdp_callback_("");
                     }
                     return;
                 }
-                answer_sdp_ = answer_sdp;
+                server->answer_sdp_ = answer_sdp;
                 LOGI("Get standard RTC answer success before ICE gathering completes");
-                if (answer_sdp_callback_) {
-                    answer_sdp_callback_(answer_sdp);
+                if (server->answer_sdp_callback_) {
+                    server->answer_sdp_callback_(answer_sdp);
                 }
             }
         });
 
-        set_local_answer_sdp_callback_->SetSdpFailedCallback([=, this](const std::string& m) {
+        set_local_answer_sdp_callback_->SetSdpFailedCallback([](const std::string& m) {
             LOGI("Set local answer sdp failed:{}", m);
         });
 
         // create answer sdp callback
-        create_answer_callback_->SetOnCreateSdpSuccessCallback([=, this](webrtc::SessionDescriptionInterface* desc) {
-            peer_conn_->SetLocalDescription(this->set_local_answer_sdp_callback_.get(), desc);
+        create_answer_callback_->SetOnCreateSdpSuccessCallback([weak_server](webrtc::SessionDescriptionInterface* desc) { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc SDP callback ABI
+            if (const auto server = weak_server.lock()) {
+                server->peer_conn_->SetLocalDescription(
+                    server->set_local_answer_sdp_callback_.get(), desc);
+            }
         });
 
-        create_answer_callback_->SetOnCreateSdpFailedCallback([=, this](const std::string& m) {
+        create_answer_callback_->SetOnCreateSdpFailedCallback([weak_server](const std::string& m) {
             LOGE("Create answer sdp failed: {}", m);
-            if (answer_sdp_callback_) {
-                answer_sdp_callback_("");
+            if (const auto server = weak_server.lock();
+                server && server->answer_sdp_callback_) {
+                server->answer_sdp_callback_("");
             }
         });
 
         // peer connection
-        peer_callback_->SetOnIceCallback([=, this](const std::string& ice, const std::string& mid, int sdp_mline_index) {
+        peer_callback_->SetOnIceCallback([weak_server](const std::string& ice, const std::string& mid, int sdp_mline_index) {
             LOGI("ICE: {}", ice);
-            this->SendIceToRemote(ice, mid, sdp_mline_index);
+            if (const auto server = weak_server.lock()) {
+                server->SendIceToRemote(ice, mid, sdp_mline_index);
+            }
         });
 
-        peer_callback_->SetOnDataChannelCallback([=, this](const std::string& name, rtc::scoped_refptr<webrtc::DataChannelInterface> ch) {
+        peer_callback_->SetOnDataChannelCallback([weak_server](const std::string& name, rtc::scoped_refptr<webrtc::DataChannelInterface> ch) {
+            const auto server = weak_server.lock();
+            if (!server) {
+                ch->Close();
+                return;
+            }
             // A wall observer is receive-only. Even a crafted offer must not
             // obtain an input, file-transfer or protocol channel.
-            if (IsWallObserver()) {
+            if (server->IsWallObserver()) {
                 LOGW("Ignore data channel from wall observer: {}", name);
                 ch->Close();
                 return;
             }
             if (name == "media_data_channel") {
-                if (capability_enforced_ && !HasPermission("view")) {
+                if (server->capability_enforced_ && !server->HasPermission("view")) {
                     LOGW("Close media channel: ticket grants file-only access");
                     ch->Close();
                     return;
                 }
-                media_data_channel_ = std::make_shared<RtcDataChannel>(name, shared_from_this(), ch);
+                server->media_data_channel_ = std::make_shared<RtcDataChannel>(name, server, ch);
 
                 // data callback
-                media_data_channel_->SetOnDataCallback([=, this](const std::string& data) {
-                    if (capability_enforced_) {
+                server->media_data_channel_->SetOnDataCallback([weak_server](const std::string& data) {
+                    const auto locked = weak_server.lock();
+                    if (!locked) {
+                        return;
+                    }
+                    if (locked->capability_enforced_) {
                         const auto message_type = ExtractMessageType(data);
                         if (!message_type) {
                             LOGW("Drop malformed media control message from capability session");
                             return;
                         }
-                        if (IsClipboardMessage(*message_type) && !HasPermission("clipboard")) {
+                        if (IsClipboardMessage(*message_type) && !locked->HasPermission("clipboard")) {
                             LOGW("Drop clipboard message: ticket does not grant clipboard permission");
                             return;
                         }
-                        if (IsInteractiveControlMessage(*message_type) && !HasPermission("input")) {
+                        if (IsInteractiveControlMessage(*message_type) && !locked->HasPermission("input")) {
                             LOGW("Drop interactive control message: ticket does not grant input permission");
                             return;
                         }
                     }
                     auto payload_msg = Data::Make(data.data(), data.size());
-                    plugin_->OnClientEventCame(true, 0, NetPluginType::kWebRtc, NetChannelType::kMedia, payload_msg);
+                    locked->runtime_->DispatchClientEvent(
+                        false, NetChannelType::kMedia, std::move(payload_msg));
                 });
             }
             else if (name == "ft_data_channel") {
-                if (!HasPermission("file")) {
+                if (!server->HasPermission("file")) {
                     LOGW("Close file-transfer channel: ticket does not grant file permission");
                     ch->Close();
                     return;
                 }
-                ft_data_channel_ = std::make_shared<RtcDataChannel>(name, shared_from_this(), ch);
+                server->ft_data_channel_ = std::make_shared<RtcDataChannel>(name, server, ch);
 
                 // data callback
-                ft_data_channel_->SetOnDataCallback([=, this](const std::string& data) {
+                server->ft_data_channel_->SetOnDataCallback([weak_server](const std::string& data) {
+                    const auto locked = weak_server.lock();
+                    if (!locked) {
+                        return;
+                    }
                     auto payload_msg = Data::Make(data.data(), data.size());
-                    plugin_->OnClientEventCameDirectly(
-                        true, 0, NetPluginType::kWebRtc,
-                        NetChannelType::kFileTransfer, std::move(payload_msg), conn_id_);
+                    locked->runtime_->DispatchClientEvent(
+                        true, NetChannelType::kFileTransfer,
+                        std::move(payload_msg), locked->conn_id_);
                 });
             }
             else if (name == "input_data_channel") {
-                if (!HasPermission("input")) {
+                if (!server->HasPermission("input")) {
                     LOGW("Close input channel: ticket does not grant input permission");
                     ch->Close();
                     return;
@@ -461,84 +545,95 @@ namespace px
                 // 排队(插件 work 线程在高负载时可能多等数 ms),在 WebRTC
                 // 回调线程直接投递到 event_replayer→SendInput。
                 // 鼠标消息解析+SendInput 极轻量,不阻塞网络线程。
-                input_data_channel_ = std::make_shared<RtcDataChannel>(name, shared_from_this(), ch);
+                server->input_data_channel_ = std::make_shared<RtcDataChannel>(name, server, ch);
 
-                input_data_channel_->SetOnDataCallback([=, this](const std::string& data) {
+                server->input_data_channel_->SetOnDataCallback([weak_server](const std::string& data) {
+                    const auto locked = weak_server.lock();
+                    if (!locked) {
+                        return;
+                    }
                     auto payload_msg = Data::Make(data.data(), data.size());
-                    auto event = std::make_shared<PxPluginNetClientEvent>();
-                    event->is_proto_ = true;
-                    event->socket_fd_ = 0;
-                    event->nt_plugin_type_ = NetPluginType::kWebRtc;
-                    event->nt_channel_type_ = NetChannelType::kMedia;
-                    event->message_ = payload_msg;
-                    event->from_plugin_ = plugin_;
-                    plugin_->CallbackEventDirectly(event);
+                    locked->runtime_->DispatchClientEvent(
+                        true, NetChannelType::kMedia, std::move(payload_msg));
                 });
             }
             else if (name == "ping_data_channel") {
                 // 诊断通道:RtcDataChannel::OnMessage 里收到即原样回显
-                ping_data_channel_ = std::make_shared<RtcDataChannel>(name, shared_from_this(), ch);
+                server->ping_data_channel_ = std::make_shared<RtcDataChannel>(name, server, ch);
             }
         });
 
         // network state
-        peer_callback_->SetOnIceConnectedCallback([=, this]() {
-            ice_connected_ = true;
-            ice_ever_connected_ = true;
-            ice_disconnected_since_ms_ = 0;
+        peer_callback_->SetOnIceConnectedCallback([weak_server]() {
+            if (const auto server = weak_server.lock()) {
+                server->ice_connected_ = true;
+                server->ice_ever_connected_ = true;
+                server->ice_disconnected_since_ms_ = 0;
+            }
         });
 
         // 远端音频轨(浏览器麦克风上行):接收解码后经 WASAPI 播放
-        peer_callback_->SetOnAudioTrackCallback([=, this](rtc::scoped_refptr<webrtc::AudioTrackInterface> track) {
-            if (IsWallObserver()) {
+        peer_callback_->SetOnAudioTrackCallback([weak_server](rtc::scoped_refptr<webrtc::AudioTrackInterface> track) {
+            const auto server = weak_server.lock();
+            if (!server || server->IsWallObserver()) {
                 return;
             }
-            this->OnRemoteAudioTrack(std::move(track));
+            server->OnRemoteAudioTrack(std::move(track));
         });
 
-        peer_callback_->SetOnRemoveAudioTrackCallback([=, this](rtc::scoped_refptr<webrtc::AudioTrackInterface> track) {
-            this->OnRemoteAudioTrackRemoved(std::move(track));
+        peer_callback_->SetOnRemoveAudioTrackCallback([weak_server](rtc::scoped_refptr<webrtc::AudioTrackInterface> track) {
+            if (const auto server = weak_server.lock()) {
+                server->OnRemoteAudioTrackRemoved(std::move(track));
+            }
         });
 
-        peer_callback_->SetOnIceDisConnectedCallback([=, this]() {
-            ice_connected_ = false;
+        peer_callback_->SetOnIceDisConnectedCallback([weak_server]() {
+            const auto server = weak_server.lock();
+            if (!server) {
+                return;
+            }
+            server->ice_connected_ = false;
             // 记录 Disconnected 起始时刻,On100msTimeout 负责超时判死。
             // 若 ICE 在 5 秒宽限期内恢复为 Connected,回调会清零该标记。
             int64_t expect = 0;
             auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
-            ice_disconnected_since_ms_.compare_exchange_strong(expect, now);
+            server->ice_disconnected_since_ms_.compare_exchange_strong(expect, now);
         });
 
         // ICE 终态(Failed/Closed):立即置退出标记停止收发,并通知 plugin 将其
         // 从 rtc_servers_ 中清除。注意:此回调运行在 libwebrtc 线程上,不能在此
         // 直接 Exit()(会 Stop/join 当前线程),真正的资源回收由 plugin 延迟 Sweep。
-        peer_callback_->SetOnIceTerminalCallback([=, this]() {
-            ice_connected_ = false;
-            LOGW("Rtc server terminal, conn_id: {}, will be swept by plugin.", conn_id_);
-            exit_ = true;
-            EmitClientDisconnectedEvent();
-            if (plugin_) {
-                plugin_->NotifyRtcServerTerminal(conn_id_, this);
+        peer_callback_->SetOnIceTerminalCallback([weak_server]() {
+            if (const auto server = weak_server.lock()) {
+                server->ice_connected_ = false;
+                LOGW("Rtc server terminal, conn_id: {}, will be swept by plugin.", server->conn_id_);
+                server->exit_ = true;
+                server->EmitClientDisconnectedEvent();
+                server->NotifyTerminal();
             }
         });
 
-        peer_callback_->SetOnIceGatherCompletedCallback([=, this]() {
+        peer_callback_->SetOnIceGatherCompletedCallback([weak_server]() {
+            const auto server = weak_server.lock();
+            if (!server) {
+                return;
+            }
             LOGI("Ice Gather completed.");
-            if (standard_rtc_) {
+            if (server->standard_rtc_) {
                 return;
             }
             std::string answer_sdp;
-            if (!this->peer_conn_->local_description()->ToString(&answer_sdp)) {
+            if (!server->peer_conn_->local_description()->ToString(&answer_sdp)) {
                 LOGE("Get local answer failed");
-                if (answer_sdp_callback_) {
-                    answer_sdp_callback_("");
+                if (server->answer_sdp_callback_) {
+                    server->answer_sdp_callback_("");
                 }
             }
             else {
-                this->answer_sdp_ = answer_sdp;
+                server->answer_sdp_ = answer_sdp;
                 LOGI("Get answer sdp success");
-                if (answer_sdp_callback_) {
-                    answer_sdp_callback_(answer_sdp);
+                if (server->answer_sdp_callback_) {
+                    server->answer_sdp_callback_(answer_sdp);
                 }
             }
         });
@@ -578,7 +673,8 @@ namespace px
         media_deps.audio_decoder_factory =
                 webrtc::CreateAudioDecoderFactory<webrtc::AudioDecoderOpus>();
         // custom encoders
-        media_deps.video_encoder_factory = std::make_unique<RtcVideoEncoderFactory>(plugin_, shared_from_this()),
+        media_deps.video_encoder_factory =
+            std::make_unique<RtcVideoEncoderFactory>(shared_from_this()),
         // default encoders
         // media_deps.video_encoder_factory = std::make_unique<VideoEncoderFactoryTemplate<
         //         LibvpxVp8EncoderTemplateAdapter, LibvpxVp9EncoderTemplateAdapter,
@@ -700,7 +796,7 @@ namespace px
                 pos += 7;
             }
         }
-        auto monitors = plugin_->GetRtcTrackMonitors();
+        auto monitors = runtime_->GetRtcTrackMonitors();
         multi_track_mode_ = allow_video && offer_video_mlines > 1;
         static constexpr const char* kMediaStreamId = "pixels_media";
         if (allow_video && multi_track_mode_) {
@@ -711,8 +807,8 @@ namespace px
                 if (track_index < static_cast<int>(monitors.size())) {
                     mvt.mon_name_ = monitors[track_index].name_;
                 }
-                mvt.source_ = std::make_shared<VideoSourceImpl>(plugin_);
-                mvt.track_source_ = rtc::make_ref_counted<VideoTrackSourceImpl>(plugin_, mvt.source_);
+                mvt.source_ = std::make_shared<VideoSourceImpl>();
+                mvt.track_source_ = rtc::make_ref_counted<VideoTrackSourceImpl>(mvt.source_);
                 auto video_track = peer_conn_factory_->CreateVideoTrack(mvt.track_source_, std::format("video_track_{}", track_index));
                 // 每条 track 独立 stream id,客户端按 receiver->stream_ids() 区分屏
                 auto rtc_error_or = peer_conn_->AddTrack(video_track, { std::format("{}_{}", kMediaStreamId, track_index) });
@@ -726,12 +822,12 @@ namespace px
                  video_tracks_.size(), monitors.size(), offer_video_mlines);
             // 多 track = 客户端声明要多屏:让采集端产出所有显示器的帧,
             // 否则非当前屏的 track 永远等不到帧(采集端默认只采当前屏)
-            plugin_->EnableAllMonitorCapture();
+            runtime_->EnableAllMonitorCapture();
         }
         else if (allow_video) {
             MonitorVideoTrack mvt;  // mon_name_ 为空 = 接收所有屏的动态 track(旧行为)
-            mvt.source_ = std::make_shared<VideoSourceImpl>(plugin_);
-            mvt.track_source_ = rtc::make_ref_counted<VideoTrackSourceImpl>(plugin_, mvt.source_);
+            mvt.source_ = std::make_shared<VideoSourceImpl>();
+            mvt.track_source_ = rtc::make_ref_counted<VideoTrackSourceImpl>(mvt.source_);
             // video/audio 必须挂同一 MediaStream id,否则 web 端若直接用
             // ontrack.streams[0] 赋值 srcObject,后到的轨会覆盖先到的(有画面无声)。
             auto video_track = peer_conn_factory_->CreateVideoTrack(mvt.track_source_, "video_track_source_1");
@@ -813,7 +909,7 @@ namespace px
         // 建连前的旧帧无需清理:Encode 首次执行时会以当前产出序号引导
         // (consumed_seq_ = GetLatestEncodedSeq),只消费之后新产的帧,
         // 配合 mWaitIDRFrame 保证首帧必为关键帧。
-        plugin_->InsertIdr();
+        runtime_->InsertIdr();
 
         SetRemoteOffer(offer_sdp_);
 
@@ -858,7 +954,7 @@ namespace px
         event->ice_ = ice;
         event->mid_ = mid;
         event->sdp_mline_index_ = sdp_mline_index;
-        plugin_->CallbackEvent(event);
+        runtime_->QueueEvent(event);
     }
 
     void RtcServer::OnRemoteAudioTrack(rtc::scoped_refptr<webrtc::AudioTrackInterface> track) {
@@ -878,8 +974,8 @@ namespace px
         auto sink = RemoteAudioSink::Make(
             [weak_self](const std::string& call_id, const int16_t* samples,
                         size_t sample_count, int sample_rate, int channels) {
-                if (const auto self = weak_self.lock(); self && self->plugin_) {
-                    self->plugin_->OnRemoteVoiceCallPcm(
+                if (const auto self = weak_self.lock(); self && self->runtime_) {
+                    self->runtime_->OnRemoteVoiceCallPcm(
                         self->stream_id_, call_id, samples, sample_count,
                         sample_rate, channels);
                 }
@@ -964,8 +1060,12 @@ namespace px
 
     void RtcServer::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
         if (network_thread_ && media_data_channel_ && !exit_) {
-            network_thread_->PostTask([=, this]() {
-                media_data_channel_->SendData(msg);
+            const auto weak_server = weak_from_this();
+            network_thread_->PostTask([weak_server, msg]() {
+                if (const auto server = weak_server.lock();
+                    server && server->media_data_channel_ && !server->exit_) {
+                    server->media_data_channel_->SendData(msg);
+                }
             });
         }
     }
@@ -975,8 +1075,12 @@ namespace px
             return false;
         }
         if (network_thread_ && media_data_channel_ && !exit_) {
-            network_thread_->PostTask([=, this]() {
-                media_data_channel_->SendData(msg);
+            const auto weak_server = weak_from_this();
+            network_thread_->PostTask([weak_server, msg]() {
+                if (const auto server = weak_server.lock();
+                    server && server->media_data_channel_ && !server->exit_) {
+                    server->media_data_channel_->SendData(msg);
+                }
             });
         }
         return true;
@@ -1048,9 +1152,7 @@ namespace px
             if (now - created_timestamp_ms_ >= kWallObserverConnectTimeoutMs) {
                 LOGW("Wall observer connect timeout, conn_id: {}, will be swept.", conn_id_);
                 exit_ = true;
-                if (plugin_) {
-                    plugin_->NotifyRtcServerTerminal(conn_id_, this);
-                }
+                NotifyTerminal();
             }
         }
         if (!exit_ && ice_disconnected_since_ms_.load() != 0) {
@@ -1059,9 +1161,7 @@ namespace px
                 LOGW("Rtc server ice disconnected timeout, conn_id: {}, will be swept.", conn_id_);
                 exit_ = true;
                 EmitClientDisconnectedEvent();
-                if (plugin_) {
-                    plugin_->NotifyRtcServerTerminal(conn_id_, this);
-                }
+                NotifyTerminal();
             }
         }
         if (ft_data_channel_ && !exit_) {
@@ -1120,7 +1220,7 @@ namespace px
                     [&mon_name](const auto& track) { return track.mon_name_ == mon_name; });
             }
             if (!monitor_is_mapped) {
-                const auto monitors = plugin_->GetRtcTrackMonitors();
+                const auto monitors = runtime_->GetRtcTrackMonitors();
                 std::vector<std::string> active_monitor_names;
                 active_monitor_names.reserve(monitors.size());
                 for (const auto& monitor : monitors) {
@@ -1235,7 +1335,7 @@ namespace px
         if (disconnect_event_sent_.exchange(true)) {
             return;
         }
-        if (!plugin_) {
+        if (!runtime_) {
             return;
         }
         auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
@@ -1251,7 +1351,7 @@ namespace px
         event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->duration_ = media_data_channel_
             ? event->end_timestamp_ - media_data_channel_->created_timestamp_ : 0;
-        plugin_->CallbackEvent(event);
+        runtime_->QueueEvent(event);
         LOGW("Client disconnected event emitted, conn: {}, stream: {}", conn_id_, event->stream_id_);
     }
 

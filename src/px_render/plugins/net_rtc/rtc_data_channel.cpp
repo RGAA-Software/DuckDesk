@@ -20,8 +20,7 @@ namespace px
     RtcDataChannel::RtcDataChannel(const std::string& name, const std::shared_ptr<RtcServer>& rtc_server, rtc::scoped_refptr<webrtc::DataChannelInterface> ch) {
         this->name_ = name;
         this->rtc_server_ = rtc_server;
-        this->plugin_ = rtc_server->GetPlugin();
-        this->plugin_ctx_ = this->plugin_->GetPluginContext();
+        this->plugin_ctx_ = rtc_server->GetPluginContext();
         this->data_channel_ = ch;
         this->data_channel_->RegisterObserver(this);
         this->the_conn_id_ = MD5::Hex(px::GetUUID());
@@ -43,7 +42,9 @@ namespace px
                 event->visitor_device_id_ = name_;
                 event->conn_type_ = "RTC";
                 event->begin_timestamp_ = created_timestamp_;
-                this->plugin_->CallbackEvent(event);
+                if (const auto rtc_server = rtc_server_.lock()) {
+                    rtc_server->DispatchEvent(event);
+                }
             }
 
         } else if (data_channel_->state() == webrtc::DataChannelInterface::kClosed) {
@@ -53,8 +54,10 @@ namespace px
             }
             // datachannel 独立关闭(浏览器页面被杀等):通知插件层清理该连接状态
             // (ft 文件传输作业等);媒体面是否退出由 ICE 终态/超时判死路径负责
-            if ((name_ == "media_data_channel" || name_ == "ft_data_channel") && rtc_server_) {
-                rtc_server_->EmitClientDisconnectedEvent();
+            if (const auto rtc_server = rtc_server_.lock();
+                (name_ == "media_data_channel" || name_ == "ft_data_channel")
+                && rtc_server) {
+                rtc_server->EmitClientDisconnectedEvent();
             }
         }
 
@@ -108,46 +111,52 @@ namespace px
     }
 
     void RtcDataChannel::On100msTimeout() {
-        this->plugin_->PostWorkTask([=, this]() {
-            std::lock_guard<std::mutex> guard(cached_messages_mtx_);
-            uint64_t beg_idx = 0;
-            bool lack_messages = false;
-            for (const auto& [k, data] : cached_ft_messages_) {
-                if (beg_idx == 0) {
-                    beg_idx = k;
-                }
-                if (k - beg_idx > 1) {
-                    lack_messages = true;
-                    break;
-                }
+        if (!plugin_ctx_) {
+            return;
+        }
+        const auto weak_channel = weak_from_this();
+        plugin_ctx_->PostWorkTask([weak_channel]() {
+            if (const auto channel = weak_channel.lock()) {
+                channel->FlushCachedMessages();
+            }
+        });
+    }
+
+    void RtcDataChannel::FlushCachedMessages() {
+        std::lock_guard<std::mutex> guard(cached_messages_mtx_);
+        uint64_t beg_idx = 0;
+        bool lack_messages = false;
+        for (const auto& [k, data] : cached_ft_messages_) {
+            if (beg_idx == 0) {
                 beg_idx = k;
             }
-
-            if (lack_messages) {
-                LOGW("Lack messages! cached message size: {}", cached_ft_messages_.size());
-                std::stringstream ss;
-                for (const auto& [k, data] : cached_ft_messages_) {
-                    ss << k << ",";
-                }
-                LOGW("cached message sort: {}", ss.str());
-                if (cached_ft_messages_.size() > 1024*8) {
-                    // clear it
-                    LOGE("Clear all cached messages, count: {}", cached_ft_messages_.size());
-                    cached_ft_messages_.clear();
-
-                    // TODO: Notify error
-                }
-                return;
+            if (k - beg_idx > 1) {
+                lack_messages = true;
+                break;
             }
+            beg_idx = k;
+        }
 
-            //LOGI("Cached message size: {}", cached_ft_messages_.size());
+        if (lack_messages) {
+            LOGW("Lack messages! cached message size: {}", cached_ft_messages_.size());
+            std::stringstream ss;
             for (const auto& [k, data] : cached_ft_messages_) {
-                if (data_cbk_) {
-                    data_cbk_(data);
-                }
+                ss << k << ",";
             }
-            cached_ft_messages_.clear();
-        });
+            LOGW("cached message sort: {}", ss.str());
+            if (cached_ft_messages_.size() > 1024*8) {
+                LOGE("Clear all cached messages, count: {}", cached_ft_messages_.size());
+                cached_ft_messages_.clear();
+            }
+            return;
+        }
+
+        for (const auto& [k, data] : cached_ft_messages_) {
+            if (data_cbk_) {
+                data_cbk_(data);
+            }
+        }
+        cached_ft_messages_.clear();
     }
 
     void RtcDataChannel::OnBufferedAmountChange(uint64_t sent_data_size) {

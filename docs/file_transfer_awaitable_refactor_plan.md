@@ -2930,3 +2930,39 @@ UDP 同时把 server callback、周期 timer 和异步发送完成回调绑定�
 
 - `px_gh.dll`：`37C155002BB070546EBB2FE01765D245C21DC81FB8A2D9AE410F053520FC7A56`；
 - `net_udp.dll`：`A2760754BCC72664B0906434CCE0E2564A916A0DDF4F031AB08063BECBFDB491`。
+
+### 12.64 Phase 7 RTC / Local RTC Runtime 与 DLL 卸载收敛
+
+两套 RTC 插件原有 WebRTC observer、SDP/ICE/data-channel callback、周期 timer 和网络线程任务
+直接捕获 `RtcServer` 或 loader-owned 插件；local encoder/source 还长期保存插件裸地址，full RTC
+的 I420/mock/desktop capture worker 也依赖外层 owner。
+
+本批完成：
+
+- full/local 插件分别建立共享 runtime，server map、Qt-free work timer、事件 dispatcher 与受保护
+  owner 边界统一进入 runtime；插件 Stop/Destroy 先关闭事件通道并使 owner 失活，再清 map、逐路
+  Exit，迟到 callback 只能锁 weak runtime/server，不能访问已销毁插件；
+- 两套 `RtcServer` 不再保存插件裸地址；SDP、ICE、peer/data-channel、音轨和 ICE 终态 callback
+  全部捕获 weak server，网络线程发送任务使用 weak lock；data channel 对 server 改为 weak 引用，
+  自身 work task 使用 `enable_shared_from_this`，消除 server/channel/callback 环；
+- local video encoder/factory/source 改为经 `RtcServer`/runtime 访问共享编码缓存和 IDR 请求，不再
+  保存插件裸指针；WebRTC 规定的 SDP、observer、sink 和 sample view 裸指针只保留在同步 ABI
+  边界并加注释；
+- I420 creator、mock video source、desktop capture 和 dummy audio playout worker 均改为独立共享
+  state；线程不捕获 owner，desktop capturer callback state 由 worker 保活，析构先停 worker 再释放
+  capturer；
+- 新增 full/local 两个真实 DLL 生命周期回归；全仓异步报告由 16 降到 6，RTC 与 local RTC 路径
+  归零。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| RTC DLL 生命周期 | 2 tests × 10 次 gtest 重复 × 每次 10 轮，共 200 次创建/停止/销毁/卸载 PASS |
+| ownership / async audit | ownership 与 whitespace PASS；全仓异步报告剩余 6 处，RTC 路径无命中 |
+| focused build/dist | `build_cpp_target.bat net_rtc net_rtc_local` 定向编译；未运行发版整编；两个 DLL 已发布且 build/dist 哈希一致 |
+
+本批 DLL build/dist SHA-256：
+
+- `net_rtc.dll`：`178B8ACC90EF0B7DFE4469EC5E0445AD6A6838F1C4FDD1CF50865E30EBC14BE5`；
+- `net_rtc_local.dll`：`2F4908B977D4732A3DF9858BCF97D198B222A4C4CA85E11D939C8C2B634588C6`。

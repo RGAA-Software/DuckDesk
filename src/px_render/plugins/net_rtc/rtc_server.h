@@ -16,15 +16,20 @@ namespace px
     class SetSessCallback;
     class DesktopCapture;
     class RtcPlugin;
+    class RtcPluginRuntime;
     class RtcDataChannel;
     class FileTransferWritableSignal;
+    class PxPluginContext;
+    class PxPluginBaseEvent;
 
     class RtcServer : public std::enable_shared_from_this<RtcServer> {
     public:
 
-        static std::shared_ptr<RtcServer> Make(RtcPlugin* plugin);
-        explicit RtcServer(RtcPlugin* plugin);
-        RtcPlugin* GetPlugin();
+        static std::shared_ptr<RtcServer> Make(
+            const std::shared_ptr<RtcPluginRuntime>& runtime);
+        explicit RtcServer(const std::shared_ptr<RtcPluginRuntime>& runtime);
+        [[nodiscard]] std::shared_ptr<PxPluginContext> GetPluginContext() const;
+        void DispatchEvent(const std::shared_ptr<PxPluginBaseEvent>& event) const;
 
         bool Start(const std::string& stream_id, const std::string& offer_sdp,
                    const std::string& ice_config_json,
@@ -71,7 +76,7 @@ namespace px
         void SendIceToRemote(const std::string& ice, const std::string& mid, int sdp_mline_index);
 
     private:
-        RtcPlugin* plugin_ = nullptr;
+        std::shared_ptr<RtcPluginRuntime> runtime_;
         std::unique_ptr<rtc::Thread> network_thread_;
         std::unique_ptr<rtc::Thread> worker_thread_;
         std::unique_ptr<rtc::Thread> sig_thread_;

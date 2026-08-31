@@ -20,8 +20,7 @@ namespace px
     RtcDataChannel::RtcDataChannel(const std::string& name, const std::shared_ptr<RtcServer>& rtc_server, rtc::scoped_refptr<webrtc::DataChannelInterface> ch) {
         this->name_ = name;
         this->rtc_server_ = rtc_server;
-        this->plugin_ = rtc_server->GetPlugin();
-        this->plugin_ctx_ = this->plugin_->GetPluginContext();
+        this->plugin_ctx_ = rtc_server->GetPluginContext();
         this->data_channel_ = ch;
         this->data_channel_->RegisterObserver(this);
         this->the_conn_id_ = MD5::Hex(px::GetUUID());
@@ -38,6 +37,10 @@ namespace px
 
             // notify
             if (this->name_ == "media_data_channel") {
+                const auto rtc_server = rtc_server_.lock();
+                if (!rtc_server) {
+                    return;
+                }
                 auto event = std::make_shared<PxPluginClientConnectedEvent>();
                 // 与断开事件保持一致:stream_id/visitor_device_id 都用真实访客
                 // stream id(信令传入),不用 datachannel 内部 UUID——否则按 id
@@ -45,12 +48,12 @@ namespace px
                 // EmitClientDisconnectedEvent uses the RtcServer map key as its
                 // connection id. Carry the same id here so the game-hook lifecycle
                 // can pair the final disconnect with this established client.
-                event->conn_id_ = rtc_server_->GetConnId();
-                event->stream_id_ = rtc_server_->GetStreamId();
-                event->visitor_device_id_ = rtc_server_->GetStreamId();
+                event->conn_id_ = rtc_server->GetConnId();
+                event->stream_id_ = rtc_server->GetStreamId();
+                event->visitor_device_id_ = rtc_server->GetStreamId();
                 event->conn_type_ = "RTC";
                 event->begin_timestamp_ = created_timestamp_;
-                this->plugin_->CallbackEvent(event);
+                rtc_server->DispatchEvent(event);
             }
 
         } else if (data_channel_->state() == webrtc::DataChannelInterface::kClosed) {
@@ -61,20 +64,19 @@ namespace px
             // 媒体 datachannel 独立关闭(客户端退出 SCTP、浏览器关闭页面等)时,
             // ICE 未必会立刻进入 Failed/Closed,必须从这里触发 RtcServer 退出,
             // 否则该 RtcServer 会变成"ICE 仍在但媒体面已死"的僵尸连接。
-            if (name_ == "media_data_channel" && rtc_server_ && !rtc_server_->IsExitRequested()) {
-                LOGW("media_data_channel closed independently, request rtc server exit: {}", rtc_server_->GetConnId());
+            const auto rtc_server = rtc_server_.lock();
+            if (name_ == "media_data_channel" && rtc_server && !rtc_server->IsExitRequested()) {
+                LOGW("media_data_channel closed independently, request rtc server exit: {}", rtc_server->GetConnId());
                 // 先通知插件层(含 ft 文件传输清理),再走退出流程
-                rtc_server_->EmitClientDisconnectedEvent();
-                rtc_server_->RequestExit();
-                if (plugin_) {
-                    plugin_->NotifyRtcServerTerminal(rtc_server_->GetConnId(), rtc_server_.get());
-                }
+                rtc_server->EmitClientDisconnectedEvent();
+                rtc_server->RequestExit();
+                rtc_server->NotifyTerminal();
             }
             // ft 通道独立关闭(媒体面还活着):只通知插件层清理该连接的传输作业,
             // 不退出整条连接
-            else if (name_ == "ft_data_channel" && rtc_server_) {
-                LOGW("ft_data_channel closed independently, conn: {}", rtc_server_->GetConnId());
-                rtc_server_->EmitClientDisconnectedEvent();
+            else if (name_ == "ft_data_channel" && rtc_server) {
+                LOGW("ft_data_channel closed independently, conn: {}", rtc_server->GetConnId());
+                rtc_server->EmitClientDisconnectedEvent();
             }
         }
 
@@ -135,46 +137,52 @@ namespace px
     }
 
     void RtcDataChannel::On100msTimeout() {
-        this->plugin_->PostWorkTask([=, this]() {
-            std::lock_guard<std::mutex> guard(cached_messages_mtx_);
-            uint64_t beg_idx = 0;
-            bool lack_messages = false;
-            for (const auto& [k, data] : cached_ft_messages_) {
-                if (beg_idx == 0) {
-                    beg_idx = k;
-                }
-                if (k - beg_idx > 1) {
-                    lack_messages = true;
-                    break;
-                }
+        if (!plugin_ctx_) {
+            return;
+        }
+        const auto weak_channel = weak_from_this();
+        plugin_ctx_->PostWorkTask([weak_channel]() {
+            if (const auto channel = weak_channel.lock()) {
+                channel->FlushCachedMessages();
+            }
+        });
+    }
+
+    void RtcDataChannel::FlushCachedMessages() {
+        std::lock_guard<std::mutex> guard(cached_messages_mtx_);
+        uint64_t beg_idx = 0;
+        bool lack_messages = false;
+        for (const auto& [k, data] : cached_ft_messages_) {
+            if (beg_idx == 0) {
                 beg_idx = k;
             }
-
-            if (lack_messages) {
-                LOGW("Lack messages! cached message size: {}", cached_ft_messages_.size());
-                std::stringstream ss;
-                for (const auto& [k, data] : cached_ft_messages_) {
-                    ss << k << ",";
-                }
-                LOGW("cached message sort: {}", ss.str());
-                if (cached_ft_messages_.size() > 1024*8) {
-                    // clear it
-                    LOGE("Clear all cached messages, count: {}", cached_ft_messages_.size());
-                    cached_ft_messages_.clear();
-
-                    // TODO: Notify error
-                }
-                return;
+            if (k - beg_idx > 1) {
+                lack_messages = true;
+                break;
             }
+            beg_idx = k;
+        }
 
-            //LOGI("Cached message size: {}", cached_ft_messages_.size());
+        if (lack_messages) {
+            LOGW("Lack messages! cached message size: {}", cached_ft_messages_.size());
+            std::stringstream ss;
             for (const auto& [k, data] : cached_ft_messages_) {
-                if (data_cbk_) {
-                    data_cbk_(data);
-                }
+                ss << k << ",";
             }
-            cached_ft_messages_.clear();
-        });
+            LOGW("cached message sort: {}", ss.str());
+            if (cached_ft_messages_.size() > 1024*8) {
+                LOGE("Clear all cached messages, count: {}", cached_ft_messages_.size());
+                cached_ft_messages_.clear();
+            }
+            return;
+        }
+
+        for (const auto& [k, data] : cached_ft_messages_) {
+            if (data_cbk_) {
+                data_cbk_(data);
+            }
+        }
+        cached_ft_messages_.clear();
     }
 
     void RtcDataChannel::OnBufferedAmountChange(uint64_t sent_data_size) {

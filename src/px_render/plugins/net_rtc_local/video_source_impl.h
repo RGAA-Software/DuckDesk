@@ -16,8 +16,6 @@
 namespace px
 {
 
-    class RtcLocalPlugin;
-
     class NotifyFrameFrameBuffer : public webrtc::VideoFrameBuffer {
     public:
         NotifyFrameFrameBuffer(const std::string& mon_name, uint64_t frame_idx, int width, int height, uint64_t handle, int64_t adapter_uid, uint64_t frame_format, bool stream_reset) {
@@ -85,9 +83,7 @@ namespace px
 
     class VideoSourceImpl : public rtc::VideoSourceInterface<webrtc::VideoFrame> {
     public:
-        VideoSourceImpl(RtcLocalPlugin* plugin) {
-            plugin_ = plugin;
-        }
+        VideoSourceImpl() = default;
 
         void OnNotifyFrame(webrtc::VideoFrame& notify_frame) {
             // 诊断:broadcaster 会按下游(VideoStreamEncoder)上报的 VideoSinkWants
@@ -122,7 +118,6 @@ namespace px
         }
 
     private:
-        RtcLocalPlugin* plugin_ = nullptr;
         rtc::VideoBroadcaster broadcaster_;
         cricket::VideoAdapter video_adapter_;
 
@@ -132,10 +127,9 @@ namespace px
 
     class VideoTrackSourceImpl : public webrtc::VideoTrackSource {
     public:
-        VideoTrackSourceImpl(RtcLocalPlugin* plugin, const std::shared_ptr<rtc::VideoSourceInterface<webrtc::VideoFrame>>& source) : webrtc::VideoTrackSource(false) {
-            this->plugin_ = plugin;
-            this->source_ = source;
-        }
+        explicit VideoTrackSourceImpl(
+            const std::shared_ptr<rtc::VideoSourceInterface<webrtc::VideoFrame>>& source)
+            : webrtc::VideoTrackSource(false), source_(source) {}
 
         bool HasMockVideoSource() {
             return source_ != nullptr && std::dynamic_pointer_cast<VideoSourceImpl>(source_) != nullptr;
@@ -151,7 +145,6 @@ namespace px
         }
 
     public:
-        RtcLocalPlugin* plugin_;
         std::shared_ptr<rtc::VideoSourceInterface<webrtc::VideoFrame>> source_ = nullptr;
     };
 

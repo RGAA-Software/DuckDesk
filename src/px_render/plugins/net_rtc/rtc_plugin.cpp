@@ -10,12 +10,63 @@
 #include "rtc_server.h"
 #include "px_common_new/time_util.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
+#include "px_render/plugin_interface/px_plugin_events.h"
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
+#include <mutex>
+#include <optional>
 
 namespace px
 {
+    RtcPluginRuntime::RtcPluginRuntime(
+        RtcPlugin& owner, std::weak_ptr<PxPluginContext> context,
+        PxPluginEventCallback dispatcher)
+        : owner_(owner), context_(std::move(context)),
+          dispatcher_(std::move(dispatcher)) {}
+
+    void RtcPluginRuntime::DeactivateOwner() {
+        std::scoped_lock lock(owner_mutex_);
+        owner_.reset();
+    }
+
+    std::shared_ptr<PxPluginContext> RtcPluginRuntime::GetContext() const {
+        return context_.lock();
+    }
+
+    void RtcPluginRuntime::QueueEvent(
+        const std::shared_ptr<PxPluginBaseEvent>& event) const {
+        const auto context = context_.lock();
+        if (!context || !event) {
+            return;
+        }
+        event->plugin_name_ = kNetRtcPluginId;
+        const auto dispatcher = dispatcher_;
+        context->PostWorkTask([dispatcher, event]() {
+            dispatcher(event);
+        });
+    }
+
+    void RtcPluginRuntime::DispatchClientEvent(
+        bool direct, const NetChannelType& channel_type,
+        std::shared_ptr<Data> message,
+        const std::string& connection_instance_id) {
+        std::scoped_lock lock(owner_mutex_);
+        if (!owner_) {
+            return;
+        }
+        if (direct) {
+            owner_->get().OnClientEventCameDirectly(
+                true, 0, NetPluginType::kWebRtc, channel_type,
+                std::move(message), connection_instance_id);
+        }
+        else {
+            owner_->get().OnClientEventCame(
+                true, 0, NetPluginType::kWebRtc, channel_type,
+                std::move(message), connection_instance_id);
+        }
+    }
 
     namespace {
         bool ReadVarint(const std::string& payload, size_t& offset, uint64_t& value) {
@@ -127,22 +178,34 @@ namespace px
 
     bool RtcPlugin::OnCreate(const px::PxPluginParam &param) {
         PxNetPlugin::OnCreate(param);
+        runtime_ = std::make_shared<RtcPluginRuntime>(
+            *this, plugin_context_, MakeDirectEventDispatcher());
 
         //
-        plugin_context_->StartTimer(100, [=, this]() {
-            rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
-                srv->On100msTimeout();
-            });
+        const auto weak_runtime = std::weak_ptr<RtcPluginRuntime>(runtime_);
+        plugin_context_->StartTimer(100, [weak_runtime]() {
+            if (const auto runtime = weak_runtime.lock()) {
+                runtime->servers.ApplyAll([](const std::string&, const std::shared_ptr<RtcServer>& server) {
+                    server->On100msTimeout();
+                });
+            }
         });
 
         return true;
     }
 
     bool RtcPlugin::OnDestroy() {
-        rtc_servers_.ApplyAll([](const auto&, const std::shared_ptr<RtcServer>& server) {
+        PxNetPlugin::OnStop();
+        const auto runtime = runtime_;
+        if (!runtime) {
+            return PxNetPlugin::OnDestroy();
+        }
+        runtime->DeactivateOwner();
+        runtime->servers.ApplyAll([](const auto&, const std::shared_ptr<RtcServer>& server) {
             server->Exit();
         });
-        rtc_servers_.Clear();
+        runtime->servers.Clear();
+        runtime_.reset();
         return PxNetPlugin::OnDestroy();
     }
 
@@ -160,7 +223,7 @@ namespace px
     void RtcPlugin::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
         WaitForMediaChannelActive();
 
-        rtc_servers_.ApplyAll([=, this](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([msg, run_through](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             srv->PostProtoMessage(msg, run_through);
         });
     }
@@ -168,7 +231,7 @@ namespace px
     bool RtcPlugin::PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
         WaitForMediaChannelActive();
 
-        rtc_servers_.ApplyAll([=, this](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&stream_id, msg, run_through](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             if (srv && srv->GetStreamId() == stream_id) {
                 srv->PostTargetStreamProtoMessage(stream_id, msg, run_through);
             }
@@ -190,7 +253,7 @@ namespace px
         bool disconnected = false;
         bool accepted = false;
         std::shared_ptr<FileTransferWritableSignal> writable_signal;
-        rtc_servers_.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             const bool matches_connection = connection_instance_id.empty() ||
                 (srv && srv->GetConnectionInstanceId() == connection_instance_id);
             if (accepted || !matches_connection || !srv || srv->GetStreamId() != stream_id) {
@@ -232,7 +295,7 @@ namespace px
         auto has_buffer = this->HasEnoughBufferForQueuingMediaMessages();
         auto wait_count = 0;
         while ((queuing_msg_count > 256 || !has_buffer) && wait_count < 2000) {
-            if (rtc_servers_.Empty()) {
+            if (!runtime_ || runtime_->servers.Empty()) {
                 LOGW("===> Send media, no alive rtc server, drop the message.");
                 return;
             }
@@ -250,45 +313,53 @@ namespace px
     }
 
     void RtcPlugin::OnRemoteSdp(const MsgRtcRemoteSdp& m) {
-        PostWorkTask([=, this]() {
-            auto conn_id = m.device_id_ + ":" + m.stream_id_;
-            LOGI("==>OnRemote Offer sdp {} => {}", conn_id, m.sdp_.size());
-            auto opt_rtc_server = rtc_servers_.TryGet(conn_id);
-            if (opt_rtc_server.has_value()) {
-                if (opt_rtc_server.value()->RestartWithOffer(
-                        m.sdp_, m.ice_config_json_, m.permissions_)) {
-                    LOGI("Reused full RTC peer connection for ICE restart: {}", conn_id);
-                    return;
-                }
-                LOGW("In-place RTC restart failed; replacing peer connection: {}", conn_id);
-                opt_rtc_server.value()->Exit();
-                rtc_servers_.Remove(conn_id);
-            }
+        const auto weak_runtime = std::weak_ptr<RtcPluginRuntime>(runtime_);
+        PostWorkTask([weak_runtime, m]() {
+            if (const auto runtime = weak_runtime.lock()) {
+                {
+                    auto conn_id = m.device_id_ + ":" + m.stream_id_;
+                    LOGI("==>OnRemote Offer sdp {} => {}", conn_id, m.sdp_.size());
+                    auto opt_rtc_server = runtime->servers.TryGet(conn_id);
+                    if (opt_rtc_server.has_value()) {
+                        if (opt_rtc_server.value()->RestartWithOffer(
+                                m.sdp_, m.ice_config_json_, m.permissions_)) {
+                            LOGI("Reused full RTC peer connection for ICE restart: {}", conn_id);
+                            return;
+                        }
+                        LOGW("In-place RTC restart failed; replacing peer connection: {}", conn_id);
+                        opt_rtc_server.value()->Exit();
+                        runtime->servers.Remove(conn_id);
+                    }
 
-            auto rtc_server = RtcServer::Make(this);
-            if (rtc_server->Start(
-                    m.stream_id_, m.sdp_, m.ice_config_json_, m.permissions_)) {
-                rtc_servers_.Insert(conn_id, rtc_server);
-            }
-            else {
-                LOGE("Failed to start full RTC server: {}", conn_id);
+                    auto rtc_server = RtcServer::Make(runtime);
+                    if (rtc_server->Start(
+                            m.stream_id_, m.sdp_, m.ice_config_json_, m.permissions_)) {
+                        runtime->servers.Insert(conn_id, rtc_server);
+                    }
+                    else {
+                        LOGE("Failed to start full RTC server: {}", conn_id);
+                    }
+                }
             }
         });
     }
 
     void RtcPlugin::OnRemoteIce(const MsgRtcRemoteIce& m) {
-        PostWorkTask([=, this]() {
-            auto conn_id = m.device_id_ + ":" + m.stream_id_;
-            if (auto opt_rtc_server = rtc_servers_.TryGet(conn_id); opt_rtc_server.has_value()) {
-                auto rtc_server = opt_rtc_server.value();
-                rtc_server->OnRemoteIce(m.ice_, m.mid_, m.sdp_mline_index_);
+        const auto weak_runtime = std::weak_ptr<RtcPluginRuntime>(runtime_);
+        PostWorkTask([weak_runtime, m]() {
+            if (const auto runtime = weak_runtime.lock()) {
+                auto conn_id = m.device_id_ + ":" + m.stream_id_;
+                if (auto opt_rtc_server = runtime->servers.TryGet(conn_id); opt_rtc_server.has_value()) {
+                    auto rtc_server = opt_rtc_server.value();
+                    rtc_server->OnRemoteIce(m.ice_, m.mid_, m.sdp_mline_index_);
+                }
             }
         });
     }
 
     int RtcPlugin::GetConnectedClientsCount() {
         bool has_connected_channel_ = false;
-        rtc_servers_.ApplyAll([&](const auto&, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const auto&, const std::shared_ptr<RtcServer>& srv) {
             if (srv->IsDataChannelConnected()) {
                 has_connected_channel_ = true;
             }
@@ -298,7 +369,7 @@ namespace px
 
     int64_t RtcPlugin::GetQueuingMediaMsgCount() {
         uint32_t total_pending_messages = 0;
-        rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             total_pending_messages += srv->GetMediaPendingMessages();
         });
         return total_pending_messages;
@@ -307,7 +378,7 @@ namespace px
     int64_t RtcPlugin::GetQueuingFtMsgCount() {
         // TODO: 连接断开之后，清空srv中的计数
         uint32_t total_pending_messages = 0;
-        rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             total_pending_messages += srv->GetFtPendingMessages();
         });
         return total_pending_messages;
@@ -315,7 +386,7 @@ namespace px
 
     bool RtcPlugin::HasEnoughBufferForQueuingMediaMessages() {
         bool flag = true;
-        rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             flag &= srv->HasEnoughBufferForQueuingMediaMessages();
         });
         return flag;
@@ -323,7 +394,7 @@ namespace px
 
     bool RtcPlugin::HasEnoughBufferForQueuingFtMessages() {
         bool flag = true;
-        rtc_servers_.ApplyAll([&](const std::string& k, const std::shared_ptr<RtcServer>& srv) {
+        runtime_->servers.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
             flag &= srv->HasEnoughBufferForQueuingFtMessages();
         });
         return flag;
