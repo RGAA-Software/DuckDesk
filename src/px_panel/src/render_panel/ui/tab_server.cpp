@@ -22,6 +22,8 @@
 #include <QCheckBox>
 #include <QDesktopServices>
 #include <QUrl>
+#include <chrono>
+#include <optional>
 #include "render_panel/px_context.h"
 #include "render_panel/px_settings.h"
 #include "render_panel/px_app_messages.h"
@@ -60,13 +62,76 @@
 #include "render_panel/devices/connection_policy.h"
 #include "render_panel/console/console_error_presenter.h"
 #include "px_common_new/const_auto.h"
+#include "px_common_new/async_blocking_call.h"
+#include "px_common_new/async_runtime.h"
+#include "px_common_new/latest_serial_request_gate.h"
+#include "render_panel/ui/qt_lifetime_guard.h"
 
 namespace px
 {
+    namespace
+    {
+        using DeviceApiResult = Result<
+            std::shared_ptr<px_console::ConsoleDevice>,
+            px_console::ConsoleApiError>;
 
-    TabServer::TabServer(const std::shared_ptr<PxApplication>& app, QWidget *parent) : TabBase(app, parent) {
-        settings_ = PxSettings::Instance();
+        struct DeviceRequestCompletion final {
+            DeviceApiResult result;
+            std::string server_message;
+        };
+
+        using DeviceRequestCall = std::function<DeviceApiResult(
+            const std::shared_ptr<std::atomic_bool>&)>;
+        using DeviceRequestDone = std::function<void(
+            PxResult<std::optional<DeviceRequestCompletion>>)>;
+
+        PxAwaitable<void> RunLatestDeviceRequest(
+            std::shared_ptr<LatestSerialRequestGate> gate,
+            LatestSerialRequestGate::Request request,
+            PxBlockingTaskPoster poster,
+            std::chrono::steady_clock::time_point deadline,
+            std::string stage,
+            DeviceRequestCall call,
+            DeviceRequestDone done) {
+            const auto executor = co_await asio::this_coro::executor;
+            auto result = co_await AwaitBlockingCall<
+                std::optional<DeviceRequestCompletion>>(
+                poster,
+                executor,
+                deadline,
+                request.cancellation,
+                std::move(stage),
+                [gate, request, call = std::move(call)](
+                    const std::shared_ptr<std::atomic_bool>& cancellation) mutable {
+                    std::optional<DeviceRequestCompletion> completion;
+                    static_cast<void>(gate->RunIfCurrent(
+                        request.generation,
+                        [&completion, &call, &cancellation]() {
+                            completion.emplace(DeviceRequestCompletion {
+                                .result = call(cancellation),
+                                .server_message = px_console::ConsoleApiLastErrorMessage(),
+                            });
+                        }));
+                    return completion;
+                });
+            done(std::move(result));
+            co_return;
+        }
+    }
+
+    TabServer::TabServer(
+        const std::shared_ptr<PxApplication>& app,
+        QWidget* parent) // NOLINT(gammaray-raw-pointer-boundary) Qt parent API
+        : TabBase(app, parent),
+          server_settings_(*PxSettings::Instance()),
+          random_password_gate_(LatestSerialRequestGate::Create()),
+          device_name_gate_(LatestSerialRequestGate::Create()),
+          desktop_link_gate_(LatestSerialRequestGate::Create()) {
         stream_db_mgr_ = context_->GetStreamDBManager();
+        if (const auto notifier = context_->GetMessageNotifier()) {
+            device_request_scope_ = PxAsyncScope::Create(
+                notifier->GetAsyncRuntime(), PxAsyncLane::kControl);
+        }
 
         UpdateQRCode();
 
@@ -142,14 +207,19 @@ namespace px
                     layout->addLayout(code_layout);
                     machine_code_qr_layout->addLayout(layout);
 
-                    btn_cpy->SetOnImageButtonClicked([=, this]() {
-                        if (settings_->GetDeviceId().empty()) {
-                            return;
-                        }
-                        QClipboard* clipboard = QApplication::clipboard();
-                        clipboard->setText(msg->text());
-                        context_->NotifyAppMessage(tcTr("id_copy_success"), tcTr("id_copy_success_clipboard"));
-                    });
+                    btn_cpy->SetOnImageButtonClicked(MakeQtLifetimeAction(
+                        QPointer<TabServer>(this),
+                        [](const QPointer<TabServer>& tab) {
+                            if (tab->server_settings_.get().GetDeviceId().empty()
+                                || !tab->lbl_machine_code_) {
+                                return;
+                            }
+                            QApplication::clipboard()->setText(
+                                tab->lbl_machine_code_->text());
+                            tab->context_->NotifyAppMessage(
+                                tcTr("id_copy_success"),
+                                tcTr("id_copy_success_clipboard"));
+                        }));
                 }
 
                 // Temporary Password
@@ -197,46 +267,22 @@ namespace px
                     machine_code_qr_layout->addLayout(layout);
 
                     // event
-                    btn_refresh->SetOnImageButtonClicked([=, this]() {
-                        if (settings_->GetDeviceId().empty()) {
+                    btn_refresh->SetOnImageButtonClicked(MakeQtLifetimeAction(
+                        QPointer<TabServer>(this),
+                        [](const QPointer<TabServer>& tab) {
+                            tab->RefreshRandomPassword();
+                        }));
+
+                    btn_hide_pwd->SetOnImageButtonClicked(MakeQtLifetimeAction(
+                        QPointer<TabServer>(this),
+                        [](const QPointer<TabServer>& tab) {
+                        auto& settings = tab->server_settings_.get();
+                        if (settings.GetDeviceRandomPwd().empty()) {
                             return;
                         }
-                        context_->PostTask([=, this]() {
-                            auto opt_device = px_console::ConsoleDeviceApi::UpdateRandomPwd(settings_->GetConsoleServerHost(),
-                                                                             settings_->GetConsoleServerPort(),
-                                                                             grApp->GetAppkey(),
-                                                                             settings_->GetDeviceId());
-                            if (!opt_device.has_value()) {
-                                LOGE("Refresh random password failed, code: {}", (int)opt_device.error());
-                                return;
-                            }
-                            auto device = opt_device.value();
-                            if (!device) {
-                                LOGE("Refresh random password failed, nullptr.");
-                                return;
-                            }
-                            settings_->SetDeviceId(device->device_id_);
-                            if (cat comp = grApp->GetCompanion(); comp) {
-                                comp->UpdateDeviceId(device->device_id_);
-                            }
-                            settings_->SetDeviceRandomPwd(device->gen_random_pwd_);
-
-                            context_->SendAppMessage(MsgRandomPasswordUpdated {
-                                .device_id_ = device->device_id_,
-                                .device_random_pwd_ = device->gen_random_pwd_,
-                            });
-
-                            context_->SendAppMessage(MsgSyncSettingsToRender{});
-                        });
-                    });
-
-                    btn_hide_pwd->SetOnImageButtonClicked([=, this]() {
-                        if (settings_->GetDeviceRandomPwd().empty()) {
-                            return;
-                        }
-                        settings_->SetDisplayRandomPwd(!settings_->IsDisplayRandomPwd());
-                        SetDeviceRandomPwdVisibility();
-                    });
+                        settings.SetDisplayRandomPwd(!settings.IsDisplayRandomPwd());
+                        tab->SetDeviceRandomPwdVisibility();
+                    }));
                 }
 
                 {
@@ -270,25 +316,14 @@ namespace px
                     layout->addLayout(code_layout);
                     machine_code_qr_layout->addLayout(layout);
 
-                    btn_save->SetOnImageButtonClicked([=, this]() {
-                        if (msg->text().isEmpty()) {
-                            return;
-                        }
-                        auto device_mgr = grApp->GetDeviceManager();
-                        auto r = device_mgr->UpdateDeviceName(msg->text().toStdString());
-                        if (r.has_value()) {
-                            settings_->SetDeviceName(r.value()->device_name_);
-                            context_->NotifyAppMessage(tcTr("id_tips"), tcTr("id_update_success"));
-                        }
-                        else {
-                            TcDialog dialog(tcTr("id_error"), MakeConsoleErrorMessage(
-                                ConsoleErrorOperation::kUpdateDevice, r.error(),
-                                px_console::ConsoleApiLastErrorMessage(), MakeConsoleEndpoint(
-                                    settings_->GetConsoleServerHost(),
-                                    settings_->GetConsoleServerPort())), this);
-                            dialog.exec();
-                        }
-                    });
+                    btn_save->SetOnImageButtonClicked(MakeQtLifetimeAction(
+                        QPointer<TabServer>(this),
+                        [](const QPointer<TabServer>& tab) {
+                            if (tab->edt_machine_name_
+                                && !tab->edt_machine_name_->text().isEmpty()) {
+                                tab->SaveDeviceName(tab->edt_machine_name_->text());
+                            }
+                        }));
                 }
             }
 
@@ -363,11 +398,19 @@ namespace px
                 btn_conn->setFixedWidth(55);
                 btn_conn->setFixedHeight(35);
                 layout->addWidget(btn_conn);
-                connect(btn_conn, &QPushButton::clicked, this, [=, this]() {
-                    QClipboard* clipboard = QApplication::clipboard();
-                    clipboard->setText(msg->text());
-                    context_->NotifyAppMessage(tcTr("id_copy_success"), tcTr("id_copy_success_clipboard"));
-                });
+                connect(btn_conn, &QPushButton::clicked, this,
+                    MakeQtLifetimeAction(
+                        QPointer<TabServer>(this),
+                        [](const QPointer<TabServer>& tab) {
+                            if (!tab->lbl_detailed_info_) {
+                                return;
+                            }
+                            QApplication::clipboard()->setText(
+                                tab->lbl_detailed_info_->text());
+                            tab->context_->NotifyAppMessage(
+                                tcTr("id_copy_success"),
+                                tcTr("id_copy_success_clipboard"));
+                        }));
 
                 left_root->addSpacing(5);
                 left_root->addLayout(layout);
@@ -410,11 +453,19 @@ namespace px
                 btn_conn->setFixedWidth(55);
                 btn_conn->setFixedHeight(35);
                 layout->addWidget(btn_conn);
-                connect(btn_conn, &QPushButton::clicked, this, [=, this]() {
-                    QClipboard* clipboard = QApplication::clipboard();
-                    clipboard->setText(msg->text());
-                    context_->NotifyAppMessage(tcTr("id_copy_success"), tcTr("id_copy_success_clipboard"));
-                });
+                connect(btn_conn, &QPushButton::clicked, this,
+                    MakeQtLifetimeAction(
+                        QPointer<TabServer>(this),
+                        [](const QPointer<TabServer>& tab) {
+                            if (!tab->edt_web_client_url_) {
+                                return;
+                            }
+                            QApplication::clipboard()->setText(
+                                tab->edt_web_client_url_->text());
+                            tab->context_->NotifyAppMessage(
+                                tcTr("id_copy_success"),
+                                tcTr("id_copy_success_clipboard"));
+                        }));
 
                 layout->addSpacing(6);
 
@@ -423,9 +474,15 @@ namespace px
                 btn_open->setFixedWidth(55);
                 btn_open->setFixedHeight(35);
                 layout->addWidget(btn_open);
-                connect(btn_open, &QPushButton::clicked, this, [=, this]() {
-                    QDesktopServices::openUrl(QUrl(msg->text()));
-                });
+                connect(btn_open, &QPushButton::clicked, this,
+                    MakeQtLifetimeAction(
+                        QPointer<TabServer>(this),
+                        [](const QPointer<TabServer>& tab) {
+                            if (tab->edt_web_client_url_) {
+                                QDesktopServices::openUrl(
+                                    QUrl(tab->edt_web_client_url_->text()));
+                            }
+                        }));
 
                 left_root->addSpacing(5);
                 left_root->addLayout(layout);
@@ -499,8 +556,15 @@ namespace px
                     remote_input_layout->addSpacing(8);
                     remote_input_layout->addLayout(input_layout);
 
-                    connect(btn_conn, &QPushButton::clicked, this, [=, this]() {
-                        auto remote_device_id = remote_devices_->currentText().replace(" ", "").trimmed().toStdString();
+                    connect(btn_conn, &QPushButton::clicked, this,
+                        MakeQtLifetimeAction(
+                            QPointer<TabServer>(this),
+                            [](const QPointer<TabServer>& tab) {
+                        if (!tab->remote_devices_) {
+                            return;
+                        }
+                        auto remote_device_id = tab->remote_devices_->currentText()
+                            .replace(" ", "").trimmed().toStdString();
                         if (remote_device_id.empty()) {
                             return;
                         }
@@ -513,11 +577,11 @@ namespace px
                         item->remote_device_id_ = remote_device_id;
                         item->connect_type_ = connection_policy::kConsoleDeviceTicket;
                         item->bg_color_ = 0xffffff;
-                        context_->SendAppMessage(StreamItemAdded {
+                        tab->context_->SendAppMessage(StreamItemAdded {
                             .item_ = item,
                             .auto_start_ = true,
                         });
-                    });
+                    }));
                 }
 
                 left_root->addLayout(remote_input_layout);
@@ -564,18 +628,28 @@ namespace px
         setLayout(root_layout);
 
         // set client id by settings
-        if (!settings_->GetDeviceId().empty() && !settings_->GetDeviceRandomPwd().empty()) {
-            lbl_machine_code_->setText(px::SpaceId(settings_->GetDeviceId()).c_str());
+        if (!server_settings_.get().GetDeviceId().empty()
+            && !server_settings_.get().GetDeviceRandomPwd().empty()) {
+            lbl_machine_code_->setText(
+                px::SpaceId(server_settings_.get().GetDeviceId()).c_str());
             //lbl_machine_random_pwd_->setText(settings_->GetDeviceRandomPwd().c_str());
             SetDeviceRandomPwdVisibility();
         }
 
-        edt_machine_name_->setText(settings_->GetDeviceName().c_str());
+        edt_machine_name_->setText(server_settings_.get().GetDeviceName().c_str());
 
         RegisterMessageListener();
     }
 
-    TabServer::~TabServer() = default;
+    TabServer::~TabServer() {
+        random_password_gate_->Stop();
+        device_name_gate_->Stop();
+        desktop_link_gate_->Stop();
+        if (device_request_scope_) {
+            static_cast<void>(device_request_scope_->StopAndWait(
+                std::chrono::seconds(2)));
+        }
+    }
 
     void TabServer::OnTabShow() {
         TabBase::OnTabShow();
@@ -595,7 +669,8 @@ namespace px
                 return;
             }
             self->lbl_machine_code_->setText(px::SpaceId(msg.device_id_).c_str());
-            self->edt_machine_name_->setText(self->settings_->GetDeviceName().c_str());
+            self->edt_machine_name_->setText(
+                self->server_settings_.get().GetDeviceName().c_str());
             self->SetDeviceRandomPwdVisibility();
             self->UpdateQRCode();
         });
@@ -626,6 +701,218 @@ namespace px
                 self->UpdateServerState();
             }
         });
+    }
+
+    void TabServer::RefreshRandomPassword() {
+        if (server_settings_.get().GetDeviceId().empty()
+            || !device_request_scope_) {
+            return;
+        }
+        const auto request = random_password_gate_->Begin();
+        if (!request) {
+            return;
+        }
+        const auto device_manager = app_->GetDeviceManager();
+        const auto context = context_;
+        const auto gate = random_password_gate_;
+        const QPointer<TabServer> self(this);
+        const PxBlockingTaskPoster poster = [context](std::function<void()> task) {
+            context->PostNetworkTask(std::move(task));
+        };
+        const bool spawned = device_request_scope_->Spawn(
+            "panel-device-random-password",
+            [device_manager, context, gate, request, poster, self]() {
+                return RunLatestDeviceRequest(
+                    gate,
+                    request,
+                    poster,
+                    std::chrono::steady_clock::now() + std::chrono::seconds(5),
+                    "panel-device.random-password",
+                    [device_manager](
+                        const std::shared_ptr<std::atomic_bool>& cancellation) {
+                        return device_manager->UpdateRandomPassword(cancellation);
+                    },
+                    [context, gate, generation = request.generation, self](
+                        PxResult<std::optional<DeviceRequestCompletion>> result) mutable {
+                        context->PostUITask(
+                            [gate, generation, self, result = std::move(result)]() mutable {
+                                if (!self || !gate->Complete(generation)) {
+                                    return;
+                                }
+                                if (!result) {
+                                    LOGE("Refresh random password failed: stage={}, reason={}",
+                                         result.Error().stage, result.Error().message);
+                                    return;
+                                }
+                                auto completion = result.TakeValue();
+                                if (!completion || !completion->result.has_value()) {
+                                    if (completion) {
+                                        LOGE("Refresh random password failed, code: {}",
+                                             static_cast<int>(completion->result.error()));
+                                    }
+                                    return;
+                                }
+                                const auto device = completion->result.value();
+                                if (!device) {
+                                    LOGE("Refresh random password failed, empty device");
+                                    return;
+                                }
+                                auto& settings = self->server_settings_.get();
+                                settings.SetDeviceId(device->device_id_);
+                                settings.SetDeviceRandomPwd(device->gen_random_pwd_);
+                                if (self->app_->GetCompanion()) {
+                                    self->app_->GetCompanion()->UpdateDeviceId(
+                                        device->device_id_);
+                                }
+                                self->context_->SendAppMessage(MsgRandomPasswordUpdated {
+                                    .device_id_ = device->device_id_,
+                                    .device_random_pwd_ = device->gen_random_pwd_,
+                                });
+                                self->context_->SendAppMessage(MsgSyncSettingsToRender {});
+                            });
+                    });
+            });
+        if (!spawned) {
+            request.cancellation->store(true, std::memory_order_release);
+            static_cast<void>(gate->Complete(request.generation));
+        }
+    }
+
+    void TabServer::SaveDeviceName(const QString& device_name) {
+        if (device_name.isEmpty() || !device_request_scope_) {
+            return;
+        }
+        const auto request = device_name_gate_->Begin();
+        if (!request) {
+            return;
+        }
+        const auto requested_name = device_name.toStdString();
+        const auto device_manager = app_->GetDeviceManager();
+        const auto context = context_;
+        const auto gate = device_name_gate_;
+        const QPointer<TabServer> self(this);
+        const PxBlockingTaskPoster poster = [context](std::function<void()> task) {
+            context->PostNetworkTask(std::move(task));
+        };
+        const bool spawned = device_request_scope_->Spawn(
+            "panel-device-name",
+            [device_manager, context, gate, request, requested_name, poster, self]() {
+                return RunLatestDeviceRequest(
+                    gate,
+                    request,
+                    poster,
+                    std::chrono::steady_clock::now() + std::chrono::seconds(5),
+                    "panel-device.name",
+                    [device_manager, requested_name](
+                        const std::shared_ptr<std::atomic_bool>& cancellation) {
+                        return device_manager->UpdateDeviceName(
+                            requested_name, cancellation);
+                    },
+                    [context, gate, generation = request.generation, self](
+                        PxResult<std::optional<DeviceRequestCompletion>> result) mutable {
+                        context->PostUITask(
+                            [gate, generation, self, result = std::move(result)]() mutable {
+                                if (!self || !gate->Complete(generation)) {
+                                    return;
+                                }
+                                if (!result) {
+                                    LOGE("Update device name failed: stage={}, reason={}",
+                                         result.Error().stage, result.Error().message);
+                                    return;
+                                }
+                                auto completion = result.TakeValue();
+                                if (!completion) {
+                                    return;
+                                }
+                                if (completion->result.has_value()
+                                    && completion->result.value()) {
+                                    self->server_settings_.get().SetDeviceName(
+                                        completion->result.value()->device_name_);
+                                    self->context_->NotifyAppMessage(
+                                        tcTr("id_tips"), tcTr("id_update_success"));
+                                    return;
+                                }
+                                if (completion->result.has_value()) {
+                                    LOGE("Update device name returned an empty device");
+                                    return;
+                                }
+                                auto& settings = self->server_settings_.get();
+                                TcDialog dialog(
+                                    tcTr("id_error"),
+                                    MakeConsoleErrorMessage(
+                                        ConsoleErrorOperation::kUpdateDevice,
+                                        completion->result.error(),
+                                        completion->server_message,
+                                        MakeConsoleEndpoint(
+                                            settings.GetConsoleServerHost(),
+                                            settings.GetConsoleServerPort())),
+                                    self);
+                                dialog.exec();
+                            });
+                    });
+            });
+        if (!spawned) {
+            request.cancellation->store(true, std::memory_order_release);
+            static_cast<void>(gate->Complete(request.generation));
+        }
+    }
+
+    void TabServer::PublishDesktopLink(
+        std::string desktop_link,
+        std::string desktop_link_raw) {
+        if (!device_request_scope_) {
+            return;
+        }
+        const auto request = desktop_link_gate_->Begin();
+        if (!request) {
+            return;
+        }
+        const auto device_manager = app_->GetDeviceManager();
+        const auto context = context_;
+        const auto gate = desktop_link_gate_;
+        const PxBlockingTaskPoster poster = [context](std::function<void()> task) {
+            context->PostNetworkTask(std::move(task));
+        };
+        const bool spawned = device_request_scope_->Spawn(
+            "panel-device-desktop-link",
+            [device_manager, gate, request, poster,
+             desktop_link = std::move(desktop_link),
+             desktop_link_raw = std::move(desktop_link_raw)]() mutable {
+                return RunLatestDeviceRequest(
+                    gate,
+                    request,
+                    poster,
+                    std::chrono::steady_clock::now() + std::chrono::seconds(5),
+                    "panel-device.desktop-link",
+                    [device_manager,
+                     desktop_link = std::move(desktop_link),
+                     desktop_link_raw = std::move(desktop_link_raw)](
+                        const std::shared_ptr<std::atomic_bool>& cancellation) {
+                        return device_manager->UpdateDesktopLink(
+                            desktop_link, desktop_link_raw, cancellation);
+                    },
+                    [gate, generation = request.generation](
+                        PxResult<std::optional<DeviceRequestCompletion>> result) {
+                        if (!gate->Complete(generation)) {
+                            return;
+                        }
+                        if (!result) {
+                            LOGE("Publish desktop link failed: stage={}, reason={}",
+                                 result.Error().stage, result.Error().message);
+                            return;
+                        }
+                        const auto completion = result.TakeValue();
+                        if (completion && !completion->result.has_value()) {
+                            LOGE("Publish desktop link failed, code: {}, reason={}",
+                                 static_cast<int>(completion->result.error()),
+                                 completion->server_message);
+                        }
+                    });
+            });
+        if (!spawned) {
+            request.cancellation->store(true, std::memory_order_release);
+            static_cast<void>(gate->Complete(request.generation));
+        }
     }
 
     void TabServer::UpdateQRCode() {
@@ -666,9 +953,7 @@ namespace px
         UpdateWebClientUrl();
 
         const auto dev_mgr = grApp->GetDeviceManager();
-        context_->PostTask([dev_mgr, desktop_link, desktop_link_raw]() {
-            dev_mgr->UpdateDesktopLink(desktop_link, desktop_link_raw);
-        });
+        PublishDesktopLink(std::move(desktop_link), std::move(desktop_link_raw));
 
     }
 
@@ -684,8 +969,8 @@ namespace px
         // 与 web/px_web_client connect_token 对齐:?c= URL-safe Base64(JSON{d,p})
         // 避免地址栏直接暴露 deviceId/password 明文
         nlohmann::json payload;
-        payload["d"] = settings_->GetDeviceId();
-        payload["p"] = settings_->GetDeviceRandomPwd();
+        payload["d"] = server_settings_.get().GetDeviceId();
+        payload["p"] = server_settings_.get().GetDeviceRandomPwd();
         auto b64 = Base64::Base64Encode(payload.dump());
         for (char& ch : b64) {
             if (ch == '+') ch = '-';
@@ -695,7 +980,7 @@ namespace px
             b64.pop_back();
         }
         auto url = std::format("http://{}:{}/web_client/?c={}",
-                               ip, settings_->GetRenderServerPort(), b64);
+                               ip, server_settings_.get().GetRenderServerPort(), b64);
         edt_web_client_url_->setText(QString::fromStdString(url));
         edt_web_client_url_->setCursorPosition(0);
     }
@@ -705,8 +990,10 @@ namespace px
     }
 
     void TabServer::SetDeviceRandomPwdVisibility() {
-        if (settings_->IsDisplayRandomPwd() && !settings_->GetDeviceRandomPwd().empty()) {
-            lbl_machine_random_pwd_->setText(settings_->GetDeviceRandomPwd().c_str());
+        if (server_settings_.get().IsDisplayRandomPwd()
+            && !server_settings_.get().GetDeviceRandomPwd().empty()) {
+            lbl_machine_random_pwd_->setText(
+                server_settings_.get().GetDeviceRandomPwd().c_str());
             btn_hide_random_pwd_->ToImage1();
         }
         else {

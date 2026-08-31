@@ -2731,3 +2731,41 @@ UI listener，并为 `if (0)` 永远不会创建的运行游戏标签注册长�
 | 重复生命周期 | 两个专项 CTest 均连续 10/10 PASS |
 | ownership / async audit | `check_cpp_ownership`、增量/staged `check_async_lifetime` 与 `git diff --check` PASS |
 | focused build | 仅定向编译两个公共专项测试；未运行发版整编；无运行时产物需要同步 dist |
+
+### 12.58 Phase 7 Panel 设备身份与网络设置请求链收敛
+
+`TabServer` 的随机密码刷新和设备名保存原先直接从按钮进入同步/普通 worker Console 调用，
+桌面链接更新也没有代次；`StNetwork` 则在 UI 线程串行执行 Console Ping、Relay Ping、授权刷新、
+设备查询和设备创建。重复点击、页面析构、全局退出和迟到 HTTP 结果之间没有统一的终态约束。
+
+本批完成：
+
+- `TabServer` 的随机密码、设备名和桌面链接分别使用独立 `LatestSerialRequestGate`；请求经
+  `AwaitBlockingCall` 投递到 network worker，使用总 deadline，完成只通过 `QPointer` 回 UI；
+  同类新请求取消旧 HTTP、跳过排队旧 mutation，并拒绝迟到设置和消息更新；
+- `StNetwork` 验证流程收敛为 Console Ping → Relay Ping await 链，保存流程收敛为授权刷新 →
+  设备查询 → 必要时创建设备 await 链；UI 只负责读取表单、应用本地设置和展示最终结果，
+  不再同步等待网络；验证和保存各自具备 latest generation、总 deadline 和退出取消；
+- common Console device API 与 Relay Ping 增加可选 cancellation signal，并传入现有 common
+  `HttpClient`；`PxDeviceManager` 将同一 signal 下传到设备创建、查询、密码、名称、桌面链接
+  和使用时间请求，同时将 singleton settings 观察成员改为 `reference_wrapper`；
+- `AwaitBlockingCall` 在 deadline 或协程取消时主动置位 transport cancellation signal，保留
+  原始 typed timeout/cancel error，不再只拒绝迟到值；现有启动授权工作流和直连探测统一改用
+  公共 bridge；
+- 所有本批 Qt 观察成员改为 `QPointer`，按钮/延迟任务/消息完成不再捕获裸 owner；析构先 Stop
+  gates 再停止 scope。`PanelCompanion` 虚接口保持原签名，未改变插件 vtable、实例身份或卸载
+  约定；授权请求由外层 await 拒绝迟到结果，既有 2 秒 HTTP timeout 保持不变。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| serial/deadline | common serial gate 与 blocking bridge 各连续 10/10 PASS；deadline 会触发 transport cancellation |
+| 启动授权 | `panel_stream_launch_auth_workflow` 连续 10/10 PASS，Console 调用与直连 probe 均走公共 bridge |
+| shutdown / Qt owner | `panel_shutdown_sequence`、`panel_qt_lifetime_guard` 各连续 10/10 PASS |
+| auth lifecycle | `panel_auth_manager_lifecycle` 连续 10/10 PASS；插件虚接口未变化 |
+| ownership / async audit | `check_cpp_ownership`、`check_async_lifetime` 与 `git diff --check` PASS |
+| focused build/dist | `build_cpp_panel.bat` 定向编译并发布；未运行发版整编；Panel build/dist 哈希一致 |
+
+`px_panel.exe` build/dist SHA-256：
+`A9C324DC09705C645B6B9C5E1EAA85E85EA926F79F111EE1E671821AF96D2E06`。

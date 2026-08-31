@@ -15,8 +15,15 @@ namespace px_relay
 {
 
     // Ping
-    px::Result<bool, int> RelayApi::Ping(const std::string& host, int port, const std::string& appkey) {
+    px::Result<bool, int> RelayApi::Ping(
+        const std::string& host,
+        int port,
+        const std::string& appkey,
+        const std::shared_ptr<std::atomic_bool>& cancellation) {
         auto client = HttpClient::Make(host, port, kRelayPing, 3000);
+        if (cancellation) {
+            client->SetCancellationSignal(cancellation);
+        }
         auto resp = client->Request({
             {"appkey", appkey}
         });

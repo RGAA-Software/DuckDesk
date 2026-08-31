@@ -17,59 +17,90 @@
 namespace px
 {
 
-    PxDeviceManager::PxDeviceManager(const std::shared_ptr<PxContext>& ctx) {
-        context_ = ctx;
-        settings_ = PxSettings::Instance();
-    }
+    PxDeviceManager::PxDeviceManager(const std::shared_ptr<PxContext>& ctx)
+        : settings_(*PxSettings::Instance()), context_(ctx) {}
 
-    Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError> PxDeviceManager::RequestNewDevice(const std::string& def_device_name, const std::string& info) {
-        auto host = settings_->GetConsoleServerHost();
-        auto port = settings_->GetConsoleServerPort();
+    Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError>
+    PxDeviceManager::RequestNewDevice(
+        const std::string& def_device_name,
+        const std::string& info,
+        const std::shared_ptr<std::atomic_bool>& cancellation) {
+        auto host = settings_.get().GetConsoleServerHost();
+        auto port = settings_.get().GetConsoleServerPort();
         auto appkey = grApp->GetAppkey();
-        auto r = px_console::ConsoleDeviceApi::RequestNewDevice(host, port, appkey, def_device_name, info);
+        auto r = px_console::ConsoleDeviceApi::RequestNewDevice(
+            host, port, appkey, def_device_name, info, cancellation);
         return r;
     }
 
-    bool PxDeviceManager::UpdateDesktopLink(const std::string& desktop_link, const std::string& desktop_link_raw) {
-        auto host = settings_->GetConsoleServerHost();
-        auto port = settings_->GetConsoleServerPort();
+    Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError>
+    PxDeviceManager::UpdateDesktopLink(
+        const std::string& desktop_link,
+        const std::string& desktop_link_raw,
+        const std::shared_ptr<std::atomic_bool>& cancellation) {
+        auto host = settings_.get().GetConsoleServerHost();
+        auto port = settings_.get().GetConsoleServerPort();
         auto appkey = grApp->GetAppkey();
-        auto device_id = settings_->GetDeviceId();
-        auto r = px_console::ConsoleDeviceApi::UpdateDesktopLink(host, port, appkey, device_id, desktop_link, desktop_link_raw);
+        auto device_id = settings_.get().GetDeviceId();
+        auto r = px_console::ConsoleDeviceApi::UpdateDesktopLink(
+            host, port, appkey, device_id, desktop_link, desktop_link_raw, cancellation);
         if (r.has_value()) {
             LOGI("UpdateDesktopLink success for device: {} ", device_id);
-            return true;
         }
         else {
             auto err = r.error();
             LOGE("UpdateDesktop link failed, err: {}, msg: {}", (int)err, px_console::ConsoleApiErrorAsString(err));
-            return false;
         }
-    }
-
-    Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError> PxDeviceManager::UpdateDeviceName(const std::string& device_name) {
-        auto host = settings_->GetConsoleServerHost();
-        auto port = settings_->GetConsoleServerPort();
-        auto appkey = grApp->GetAppkey();
-        auto device_id = settings_->GetDeviceId();
-        auto r = px_console::ConsoleDeviceApi::UpdateDeviceName(host, port, appkey, device_id, device_name);
         return r;
     }
 
-    Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError> PxDeviceManager::UpdateUsedTime(int period) {
-        auto host = settings_->GetConsoleServerHost();
-        auto port = settings_->GetConsoleServerPort();
+    Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError>
+    PxDeviceManager::UpdateDeviceName(
+        const std::string& device_name,
+        const std::shared_ptr<std::atomic_bool>& cancellation) {
+        auto host = settings_.get().GetConsoleServerHost();
+        auto port = settings_.get().GetConsoleServerPort();
         auto appkey = grApp->GetAppkey();
-        auto device_id = settings_->GetDeviceId();
-        auto r = px_console::ConsoleDeviceApi::UpdateUsedTime(host, port, appkey, device_id, period);
+        auto device_id = settings_.get().GetDeviceId();
+        auto r = px_console::ConsoleDeviceApi::UpdateDeviceName(
+            host, port, appkey, device_id, device_name, cancellation);
         return r;
     }
 
-    Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError> PxDeviceManager::QueryDevice(const std::string& device_id) {
-        return px_console::ConsoleDeviceApi::QueryDevice(settings_->GetConsoleServerHost(),
-                                                settings_->GetConsoleServerPort(),
-                                                grApp->GetAppkey(),
-                                                device_id);
+    Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError>
+    PxDeviceManager::UpdateUsedTime(
+        int period,
+        const std::shared_ptr<std::atomic_bool>& cancellation) {
+        auto host = settings_.get().GetConsoleServerHost();
+        auto port = settings_.get().GetConsoleServerPort();
+        auto appkey = grApp->GetAppkey();
+        auto device_id = settings_.get().GetDeviceId();
+        auto r = px_console::ConsoleDeviceApi::UpdateUsedTime(
+            host, port, appkey, device_id, period, cancellation);
+        return r;
+    }
+
+    Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError>
+    PxDeviceManager::QueryDevice(
+        const std::string& device_id,
+        const std::shared_ptr<std::atomic_bool>& cancellation) {
+        return px_console::ConsoleDeviceApi::QueryDevice(
+            settings_.get().GetConsoleServerHost(),
+            settings_.get().GetConsoleServerPort(),
+            grApp->GetAppkey(),
+            device_id,
+            cancellation);
+    }
+
+    Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError>
+    PxDeviceManager::UpdateRandomPassword(
+        const std::shared_ptr<std::atomic_bool>& cancellation) {
+        return px_console::ConsoleDeviceApi::UpdateRandomPwd(
+            settings_.get().GetConsoleServerHost(),
+            settings_.get().GetConsoleServerPort(),
+            grApp->GetAppkey(),
+            settings_.get().GetDeviceId(),
+            cancellation);
     }
 
 }

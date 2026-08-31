@@ -5,6 +5,7 @@
 #ifndef PX_CONSOLE_MANAGER_H
 #define PX_CONSOLE_MANAGER_H
 
+#include <atomic>
 #include <string>
 #include <vector>
 #include <tuple>
@@ -29,7 +30,8 @@ namespace px_console
         px::Result<bool, ConsoleApiError>
         Ping(const std::string& host,
              int port,
-             const std::string& appkey);
+             const std::string& appkey,
+             const std::shared_ptr<std::atomic_bool>& cancellation = nullptr);
 
         // create new device
         static
@@ -38,7 +40,8 @@ namespace px_console
                          int port,
                          const std::string& appkey,
                          const std::string& default_name,
-                         const std::string& info);
+                         const std::string& info,
+                         const std::shared_ptr<std::atomic_bool>& cancellation = nullptr);
 
         // update random password
         static
@@ -46,7 +49,8 @@ namespace px_console
         UpdateRandomPwd(const std::string& host,
                         int port,
                         const std::string& appkey,
-                        const std::string& device_id);
+                        const std::string& device_id,
+                        const std::shared_ptr<std::atomic_bool>& cancellation = nullptr);
 
         // update safety password
         static
@@ -55,7 +59,8 @@ namespace px_console
                         int port,
                         const std::string& appkey,
                         const std::string& device_id,
-                        const std::string& safety_pwd_md5);
+                        const std::string& safety_pwd_md5,
+                        const std::shared_ptr<std::atomic_bool>& cancellation = nullptr);
 
         // get device
         static
@@ -63,7 +68,8 @@ namespace px_console
         QueryDevice(const std::string& host,
                     int port,
                     const std::string& appkey,
-                    const std::string& device_id);
+                    const std::string& device_id,
+                    const std::shared_ptr<std::atomic_bool>& cancellation = nullptr);
 
         // whether the device is online right now
         // (it holds a live panel websocket connection to the Console server)
@@ -72,7 +78,8 @@ namespace px_console
         IsDeviceOnline(const std::string& host,
                        int port,
                        const std::string& appkey,
-                       const std::string& device_id);
+                       const std::string& device_id,
+                       const std::shared_ptr<std::atomic_bool>& cancellation = nullptr);
 
         // update desktop link
         static
@@ -82,7 +89,8 @@ namespace px_console
                           const std::string& appkey,
                           const std::string& device_id,
                           const std::string& desktop_link,
-                          const std::string& desktop_link_raw);
+                          const std::string& desktop_link_raw,
+                          const std::shared_ptr<std::atomic_bool>& cancellation = nullptr);
 
 
         // update device name
@@ -92,7 +100,8 @@ namespace px_console
                          int port,
                          const std::string& appkey,
                          const std::string& device_id,
-                         const std::string& device_name);
+                         const std::string& device_name,
+                         const std::shared_ptr<std::atomic_bool>& cancellation = nullptr);
 
         // update device name
         static
@@ -101,7 +110,8 @@ namespace px_console
                          int port,
                          const std::string& appkey,
                          const std::string& device_id,
-                         int period);
+                         int period,
+                         const std::shared_ptr<std::atomic_bool>& cancellation = nullptr);
     };
 
 }

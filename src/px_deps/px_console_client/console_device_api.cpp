@@ -57,10 +57,23 @@ const std::string kApiAppendUsedTime = kConsoleDeviceControl + "/append/used/tim
 
 namespace px_console
 {
+    namespace
+    {
+        void ApplyCancellationSignal(
+            const std::shared_ptr<px::HttpClient>& client,
+            const std::shared_ptr<std::atomic_bool>& cancellation) {
+            if (client && cancellation) {
+                client->SetCancellationSignal(cancellation);
+            }
+        }
+    }
 
     // Ping
-    px::Result<bool, ConsoleApiError> ConsoleDeviceApi::Ping(const std::string& host, int port, const std::string& appkey) {
+    px::Result<bool, ConsoleApiError> ConsoleDeviceApi::Ping(
+        const std::string& host, int port, const std::string& appkey,
+        const std::shared_ptr<std::atomic_bool>& cancellation) {
         auto client = MakeConsoleHttpClient(host, port, kConsolePing, 3000);
+        ApplyCancellationSignal(client, cancellation);
         auto resp = client->Request({
             {"appkey", appkey}
         });
@@ -85,7 +98,8 @@ namespace px_console
                                                                   int port,
                                                                   const std::string& appkey,
                                                                   const std::string& default_name,
-                                                                  const std::string& info) {
+                                                                  const std::string& info,
+                                                                  const std::shared_ptr<std::atomic_bool>& cancellation) {
         std::string hw_info;
         if (info.empty()) {
             auto hardware_desc = Hardware::Instance()->GetHardwareDescription();
@@ -112,6 +126,7 @@ namespace px_console
         }
 
         auto client = MakeConsoleHttpClient(host, port, kApiRequestNewDevice);
+        ApplyCancellationSignal(client, cancellation);
         auto resp = client->Post({
 #ifdef WIN32
             {"platform", "windows"},
@@ -147,8 +162,10 @@ namespace px_console
     Result<ConsoleDevicePtr, ConsoleApiError> ConsoleDeviceApi::UpdateRandomPwd(const std::string& host,
                                                                  int port,
                                                                  const std::string& appkey,
-                                                                 const std::string& target_device_id) {
+                                                                 const std::string& target_device_id,
+                                                                 const std::shared_ptr<std::atomic_bool>& cancellation) {
         auto client = MakeConsoleHttpClient(host, port, kApiUpdateRandomPwd);
+        ApplyCancellationSignal(client, cancellation);
         auto resp = client->Post({
             {"device_id", target_device_id},
             {"appkey", appkey}
@@ -176,8 +193,10 @@ namespace px_console
                                                                  int port,
                                                                  const std::string& appkey,
                                                                  const std::string& target_device_id,
-                                                                 const std::string& safety_pwd_md5) {
+                                                                 const std::string& safety_pwd_md5,
+                                                                 const std::shared_ptr<std::atomic_bool>& cancellation) {
         auto client = MakeConsoleHttpClient(host, port, kApiUpdateSafetyPwd, 2000);
+        ApplyCancellationSignal(client, cancellation);
         auto resp = client->Post({
             {"device_id", target_device_id},
             {"safety_pwd_md5", safety_pwd_md5},
@@ -205,8 +224,10 @@ namespace px_console
     Result<ConsoleDevicePtr, ConsoleApiError> ConsoleDeviceApi::QueryDevice(const std::string& host,
                                                              int port,
                                                              const std::string& appkey,
-                                                             const std::string& device_id) {
+                                                             const std::string& device_id,
+                                                             const std::shared_ptr<std::atomic_bool>& cancellation) {
         auto client = MakeConsoleHttpClient(host, port, kApiQueryDeviceById);
+        ApplyCancellationSignal(client, cancellation);
         auto resp = client->Request({
             {"device_id", device_id},
             {"appkey", appkey}
@@ -235,8 +256,10 @@ namespace px_console
     bool ConsoleDeviceApi::IsDeviceOnline(const std::string& host,
                                        int port,
                                        const std::string& appkey,
-                                       const std::string& device_id) {
+                                       const std::string& device_id,
+                                       const std::shared_ptr<std::atomic_bool>& cancellation) {
         auto client = MakeConsoleHttpClient(host, port, kApiQueryPanelConnByDeviceId);
+        ApplyCancellationSignal(client, cancellation);
         auto resp = client->Request({
             {"device_id", device_id},
             {"appkey", appkey}
@@ -251,8 +274,10 @@ namespace px_console
                                                                              const std::string& appkey,
                                                                              const std::string& device_id,
                                                                              const std::string& desktop_link,
-                                                                             const std::string& desktop_link_raw) {
+                                                                             const std::string& desktop_link_raw,
+                                                                             const std::shared_ptr<std::atomic_bool>& cancellation) {
         auto client = MakeConsoleHttpClient(host, port, kApiUpdateDesktopLink, 2000);
+        ApplyCancellationSignal(client, cancellation);
         json obj;
         obj[kDeviceId] = device_id;
         obj[kDeviceDesktopLink] = desktop_link;
@@ -283,8 +308,10 @@ namespace px_console
                                                                             int port,
                                                                             const std::string& appkey,
                                                                             const std::string& device_id,
-                                                                            const std::string& device_name) {
+                                                                            const std::string& device_name,
+                                                                            const std::shared_ptr<std::atomic_bool>& cancellation) {
         auto client = MakeConsoleHttpClient(host, port, kApiUpdateDeviceName, 2000);
+        ApplyCancellationSignal(client, cancellation);
         json obj;
         obj[kDeviceId] = device_id;
         obj[kDeviceName] = device_name;
@@ -314,8 +341,10 @@ namespace px_console
                                                                           int port,
                                                                           const std::string& appkey,
                                                                           const std::string& device_id,
-                                                                          int period) {
+                                                                          int period,
+                                                                          const std::shared_ptr<std::atomic_bool>& cancellation) {
         auto client = MakeConsoleHttpClient(host, port, kApiAppendUsedTime, 2000);
+        ApplyCancellationSignal(client, cancellation);
         json obj;
         obj[kDeviceId] = device_id;
         obj["period"] = period;

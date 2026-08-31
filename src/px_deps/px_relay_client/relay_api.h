@@ -5,6 +5,7 @@
 #ifndef PX_RELAY_APIS_H
 #define PX_RELAY_APIS_H
 
+#include <atomic>
 #include <string>
 #include <memory>
 #include "relay_errors.h"
@@ -21,7 +22,11 @@ namespace px_relay
 
     class RelayApi {
     public:
-        static px::Result<bool, int> Ping(const std::string& host, int port, const std::string& appkey);
+        static px::Result<bool, int> Ping(
+            const std::string& host,
+            int port,
+            const std::string& appkey,
+            const std::shared_ptr<std::atomic_bool>& cancellation = nullptr);
 
         // id has prefix, eg: server_xxxx
         static px::Result<std::shared_ptr<RelayDeviceInfo>, int>

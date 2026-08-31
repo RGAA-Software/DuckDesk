@@ -113,6 +113,7 @@ TEST(AsyncBlockingCall, DeadlineReturnsTypedTimeout) {
     ASSERT_FALSE(result);
     EXPECT_EQ(result.Error().code, PxAsyncErrorCode::kTimeout);
     EXPECT_EQ(result.Error().stage, "blocking-test");
+    EXPECT_TRUE(cancellation->load(std::memory_order_acquire));
     release->set_value();
     ASSERT_TRUE(scope->WaitFor(2s));
     runtime->RequestStop();

@@ -9,6 +9,8 @@
 #include <QLineEdit>
 #include <QCheckBox>
 #include <QTextEdit>
+#include <QPointer>
+#include <functional>
 #include "tab_base.h"
 
 namespace px
@@ -17,11 +19,13 @@ namespace px
     class PxApplication;
     class MessageListener;
     class ConsoleAccessInfo;
+    class PxAsyncScope;
+    class LatestSerialRequestGate;
 
     class StNetwork : public TabBase {
     public:
         explicit StNetwork(const std::shared_ptr<PxApplication>& app, QWidget* parent = nullptr);
-        ~StNetwork() override = default;
+        ~StNetwork() override;
 
         void OnTabShow() override;
         void OnTabHide() override;
@@ -35,18 +39,21 @@ namespace px
         void Save(bool auto_restart_render);
 
     private:
-        std::shared_ptr<MessageListener> msg_listener_ = nullptr;
-        QTextEdit* edt_console_access_ = nullptr;
-        QLineEdit* edt_console_server_host_ = nullptr;
-        QLineEdit* edt_console_server_port_ = nullptr;
-        QLineEdit* edt_relay_server_host_ = nullptr;
-        QLineEdit* edt_relay_server_port_ = nullptr;
-        QCheckBox* cb_websocket_ = nullptr;
-        QLineEdit* edt_websocket_ = nullptr;
-        QCheckBox* cb_udp_kcp_ = nullptr;
-        QLineEdit* edt_udp_kcp_ = nullptr;
-        QCheckBox* cb_webrtc_ = nullptr;
-        QLineEdit* edt_panel_port_ = nullptr;
+        std::reference_wrapper<PxSettings> network_settings_;
+        QPointer<QTextEdit> edt_console_access_;
+        QPointer<QLineEdit> edt_console_server_host_;
+        QPointer<QLineEdit> edt_console_server_port_;
+        QPointer<QLineEdit> edt_relay_server_host_;
+        QPointer<QLineEdit> edt_relay_server_port_;
+        QPointer<QCheckBox> cb_websocket_;
+        QPointer<QLineEdit> edt_websocket_;
+        QPointer<QCheckBox> cb_udp_kcp_;
+        QPointer<QLineEdit> edt_udp_kcp_;
+        QPointer<QCheckBox> cb_webrtc_;
+        QPointer<QLineEdit> edt_panel_port_;
+        std::shared_ptr<PxAsyncScope> request_scope_;
+        std::shared_ptr<LatestSerialRequestGate> verify_gate_;
+        std::shared_ptr<LatestSerialRequestGate> save_gate_;
     };
 
 }

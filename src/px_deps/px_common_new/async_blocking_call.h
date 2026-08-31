@@ -104,16 +104,22 @@ PxAwaitable<PxResult<T>> AwaitBlockingCall(
     }
 
     auto result = co_await PxAsyncOneShot<T>::WaitUntil(operation, deadline);
+    if (!result) {
+        auto error = result.Error();
+        if (error.code == PxAsyncErrorCode::kTimeout
+            || error.code == PxAsyncErrorCode::kCancelled) {
+            cancellation->store(true, std::memory_order_release);
+        }
+        if (error.stage == "wait") {
+            error.stage = std::move(stage);
+        }
+        co_return PxResult<T>::Failure(std::move(error));
+    }
     if (cancellation->load(std::memory_order_acquire)) {
         co_return PxResult<T>::Failure(MakePxAsyncError(
             PxAsyncErrorCode::kCancelled,
             std::move(stage),
             "blocking operation was cancelled before completion"));
-    }
-    if (!result && result.Error().stage == "wait") {
-        auto error = result.Error();
-        error.stage = std::move(stage);
-        co_return PxResult<T>::Failure(std::move(error));
     }
     co_return result;
 }

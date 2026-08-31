@@ -34,13 +34,306 @@
 #include <QCheckBox>
 #include <QDebug>
 #include <QFileDialog>
+#include <chrono>
+#include <optional>
 
 #include "px_common_new/const_auto.h"
+#include "px_common_new/async_blocking_call.h"
+#include "px_common_new/async_runtime.h"
+#include "px_common_new/latest_serial_request_gate.h"
+#include "render_panel/devices/px_device_manager.h"
+#include "render_panel/ui/qt_lifetime_guard.h"
 
 namespace px
 {
+    namespace
+    {
+        struct NetworkEndpointRequest final {
+            std::string host;
+            int console_port = 0;
+            int relay_port = 0;
+            std::string appkey;
+        };
 
-    StNetwork::StNetwork(const std::shared_ptr<PxApplication>& app, QWidget* parent) : TabBase(app, parent){
+        struct ConsolePingResult final {
+            Result<bool, px_console::ConsoleApiError> result;
+            std::string server_message;
+        };
+
+        struct VerifyNetworkResult final {
+            enum class Failure {
+                kNone,
+                kAsync,
+                kConsole,
+                kRelay,
+            };
+
+            Failure failure = Failure::kNone;
+            PxAsyncError async_error;
+            px_console::ConsoleApiError console_error =
+                px_console::ConsoleApiError::kInternalError;
+            std::string console_message;
+            int relay_error = 0;
+        };
+
+        struct SaveNetworkResult final {
+            enum class Failure {
+                kNone,
+                kAsync,
+                kAuth,
+                kDevice,
+            };
+
+            Failure failure = Failure::kNone;
+            PxAsyncError async_error;
+            px_console::ConsoleApiError device_error =
+                px_console::ConsoleApiError::kInternalError;
+            std::shared_ptr<px_console::ConsoleDevice> new_device;
+        };
+
+        template<typename T>
+        PxAwaitable<PxResult<std::optional<T>>> AwaitGatedBlockingCall(
+            const std::shared_ptr<LatestSerialRequestGate>& gate,
+            LatestSerialRequestGate::Request request,
+            const PxBlockingTaskPoster& poster,
+            std::chrono::steady_clock::time_point deadline,
+            std::string stage,
+            std::function<T(const std::shared_ptr<std::atomic_bool>&)> call) {
+            const auto executor = co_await asio::this_coro::executor;
+            co_return co_await AwaitBlockingCall<std::optional<T>>(
+                poster,
+                executor,
+                deadline,
+                request.cancellation,
+                std::move(stage),
+                [gate, request, call = std::move(call)](
+                    const std::shared_ptr<std::atomic_bool>& cancellation) mutable {
+                    std::optional<T> result;
+                    static_cast<void>(gate->RunIfCurrent(
+                        request.generation,
+                        [&result, &call, &cancellation]() {
+                            result.emplace(call(cancellation));
+                        }));
+                    return result;
+                });
+        }
+
+        PxAwaitable<void> RunVerifyNetwork(
+            std::shared_ptr<LatestSerialRequestGate> gate,
+            LatestSerialRequestGate::Request request,
+            PxBlockingTaskPoster poster,
+            NetworkEndpointRequest endpoint,
+            std::function<void(VerifyNetworkResult)> done) {
+            const auto deadline = std::chrono::steady_clock::now()
+                + std::chrono::seconds(8);
+            auto console_call = co_await AwaitGatedBlockingCall<ConsolePingResult>(
+                gate,
+                request,
+                poster,
+                deadline,
+                "panel-network.verify-console",
+                [endpoint](const std::shared_ptr<std::atomic_bool>& cancellation) {
+                    auto result = px_console::ConsoleDeviceApi::Ping(
+                        endpoint.host,
+                        endpoint.console_port,
+                        endpoint.appkey,
+                        cancellation);
+                    return ConsolePingResult {
+                        .result = std::move(result),
+                        .server_message = px_console::ConsoleApiLastErrorMessage(),
+                    };
+                });
+            if (!console_call) {
+                done(VerifyNetworkResult {
+                    .failure = VerifyNetworkResult::Failure::kAsync,
+                    .async_error = console_call.Error(),
+                });
+                co_return;
+            }
+            auto console_completion = console_call.TakeValue();
+            if (!console_completion) {
+                co_return;
+            }
+            if (!console_completion->result.has_value()
+                || !console_completion->result.value()) {
+                done(VerifyNetworkResult {
+                    .failure = VerifyNetworkResult::Failure::kConsole,
+                    .console_error = console_completion->result.has_value()
+                        ? px_console::ConsoleApiError::kServiceUnavailable
+                        : console_completion->result.error(),
+                    .console_message = std::move(
+                        console_completion->server_message),
+                });
+                co_return;
+            }
+
+            auto relay_call = co_await AwaitGatedBlockingCall<Result<bool, int>>(
+                gate,
+                request,
+                poster,
+                deadline,
+                "panel-network.verify-relay",
+                [endpoint](const std::shared_ptr<std::atomic_bool>& cancellation) {
+                    return px_relay::RelayApi::Ping(
+                        endpoint.host,
+                        endpoint.relay_port,
+                        endpoint.appkey,
+                        cancellation);
+                });
+            if (!relay_call) {
+                done(VerifyNetworkResult {
+                    .failure = VerifyNetworkResult::Failure::kAsync,
+                    .async_error = relay_call.Error(),
+                });
+                co_return;
+            }
+            auto relay_completion = relay_call.TakeValue();
+            if (!relay_completion) {
+                co_return;
+            }
+            if (!relay_completion->has_value() || !relay_completion->value()) {
+                done(VerifyNetworkResult {
+                    .failure = VerifyNetworkResult::Failure::kRelay,
+                    .relay_error = relay_completion->has_value()
+                        ? 0 : relay_completion->error(),
+                });
+                co_return;
+            }
+            done({});
+            co_return;
+        }
+
+        PxAwaitable<void> RunSaveNetwork(
+            std::shared_ptr<LatestSerialRequestGate> gate,
+            LatestSerialRequestGate::Request request,
+            PxBlockingTaskPoster poster,
+            std::function<std::shared_ptr<Authorization>(
+                const std::shared_ptr<std::atomic_bool>&)> request_auth,
+            std::shared_ptr<PxDeviceManager> device_manager,
+            std::string device_id,
+            std::string default_device_name,
+            std::function<void(SaveNetworkResult)> done) {
+            const auto deadline = std::chrono::steady_clock::now()
+                + std::chrono::seconds(10);
+            if (request_auth) {
+                auto auth_call = co_await AwaitGatedBlockingCall<
+                    std::shared_ptr<Authorization>>(
+                    gate,
+                    request,
+                    poster,
+                    deadline,
+                    "panel-network.request-auth",
+                    [request_auth](
+                        const std::shared_ptr<std::atomic_bool>& cancellation) {
+                        return request_auth(cancellation);
+                    });
+                if (!auth_call) {
+                    done(SaveNetworkResult {
+                        .failure = SaveNetworkResult::Failure::kAsync,
+                        .async_error = auth_call.Error(),
+                    });
+                    co_return;
+                }
+                auto auth = auth_call.TakeValue();
+                if (!auth) {
+                    co_return;
+                }
+                if (!*auth) {
+                    done(SaveNetworkResult {
+                        .failure = SaveNetworkResult::Failure::kAuth,
+                    });
+                    co_return;
+                }
+            }
+
+            bool request_new_device = device_id.empty();
+            if (!request_new_device) {
+                auto query_call = co_await AwaitGatedBlockingCall<
+                    Result<std::shared_ptr<px_console::ConsoleDevice>,
+                           px_console::ConsoleApiError>>(
+                    gate,
+                    request,
+                    poster,
+                    deadline,
+                    "panel-network.query-device",
+                    [device_manager, device_id](
+                        const std::shared_ptr<std::atomic_bool>& cancellation) {
+                        return device_manager->QueryDevice(device_id, cancellation);
+                    });
+                if (!query_call) {
+                    done(SaveNetworkResult {
+                        .failure = SaveNetworkResult::Failure::kAsync,
+                        .async_error = query_call.Error(),
+                    });
+                    co_return;
+                }
+                auto query = query_call.TakeValue();
+                if (!query) {
+                    co_return;
+                }
+                request_new_device = !query->has_value()
+                    || !query->value()
+                    || query->value()->device_id_.empty();
+            }
+
+            if (!request_new_device) {
+                done({});
+                co_return;
+            }
+            auto create_call = co_await AwaitGatedBlockingCall<
+                Result<std::shared_ptr<px_console::ConsoleDevice>,
+                       px_console::ConsoleApiError>>(
+                gate,
+                request,
+                poster,
+                deadline,
+                "panel-network.create-device",
+                [device_manager, default_device_name](
+                    const std::shared_ptr<std::atomic_bool>& cancellation) {
+                    return device_manager->RequestNewDevice(
+                        default_device_name, "", cancellation);
+                });
+            if (!create_call) {
+                done(SaveNetworkResult {
+                    .failure = SaveNetworkResult::Failure::kAsync,
+                    .async_error = create_call.Error(),
+                });
+                co_return;
+            }
+            auto created = create_call.TakeValue();
+            if (!created) {
+                co_return;
+            }
+            if (!created->has_value() || !created->value()
+                || created->value()->device_id_.empty()
+                || created->value()->gen_random_pwd_.empty()) {
+                done(SaveNetworkResult {
+                    .failure = SaveNetworkResult::Failure::kDevice,
+                    .device_error = created->has_value()
+                        ? px_console::ConsoleApiError::kInternalError
+                        : created->error(),
+                });
+                co_return;
+            }
+            done(SaveNetworkResult {
+                .new_device = created->value(),
+            });
+            co_return;
+        }
+    }
+
+    StNetwork::StNetwork(
+        const std::shared_ptr<PxApplication>& app,
+        QWidget* parent) // NOLINT(gammaray-raw-pointer-boundary) Qt parent API
+        : TabBase(app, parent),
+          network_settings_(*PxSettings::Instance()),
+          verify_gate_(LatestSerialRequestGate::Create()),
+          save_gate_(LatestSerialRequestGate::Create()) {
+        if (const auto notifier = context_->GetMessageNotifier()) {
+            request_scope_ = PxAsyncScope::Create(
+                notifier->GetAsyncRuntime(), PxAsyncLane::kControl);
+        }
+        const QPointer<StNetwork> self(this);
         auto root_layout = new NoMarginHLayout();
         auto column1_layout = new NoMarginVLayout();
         root_layout->addLayout(column1_layout);
@@ -84,13 +377,24 @@ namespace px
                 edit->setLineWrapMode(QTextEdit::WidgetWidth);
                 edit->setAcceptRichText(false);
                 edt_console_access_ = edit;
-                QObject::connect(edit, &QTextEdit::textChanged, this, [=, this]() {
-                     auto text = edit->toPlainText();
-                     auto info = this->ParseConsoleAccessInfo(text.toStdString());
-                     this->DisplayConsoleAccessInfo(info);
-                 });
+                QObject::connect(
+                    edit,
+                    &QTextEdit::textChanged,
+                    this,
+                    MakeQtLifetimeAction(
+                        self,
+                        [](const QPointer<StNetwork>& page) {
+                            if (!page->edt_console_access_) {
+                                return;
+                            }
+                            const auto text =
+                                page->edt_console_access_->toPlainText();
+                            page->DisplayConsoleAccessInfo(
+                                page->ParseConsoleAccessInfo(text.toStdString()));
+                        }));
                 edit->setFixedSize(input_size.width()*2, input_size.height()*2);
-                edit->setText(settings_->GetConsoleAccessInfo().c_str());
+                edit->setText(
+                    network_settings_.get().GetConsoleAccessInfo().c_str());
                 layout->addWidget(edit);
                 layout->addSpacing(15);
 
@@ -101,9 +405,12 @@ namespace px
                     search->SetTextId("id_file_trans_search");
                     search->setFixedSize(80, 32);
                     search_layout->addWidget(search);
-                    connect(search, &QPushButton::clicked, this, [=, this]() {
-                        this->SearchAccessInfo(false);
-                    });
+                    connect(search, &QPushButton::clicked, this,
+                        MakeQtLifetimeAction(
+                            self,
+                            [](const QPointer<StNetwork>& page) {
+                                page->SearchAccessInfo(false);
+                            }));
 
                     search_layout->addSpacing(5);
 
@@ -111,9 +418,12 @@ namespace px
                     verify->SetTextId("id_verify");
                     verify->setFixedSize(80, 32);
                     search_layout->addWidget(verify);
-                    connect(verify, &QPushButton::clicked, this, [=, this]() {
-                        this->VerifyAccessInfo();
-                    });
+                    connect(verify, &QPushButton::clicked, this,
+                        MakeQtLifetimeAction(
+                            self,
+                            [](const QPointer<StNetwork>& page) {
+                                page->VerifyAccessInfo();
+                            }));
 
                     search_layout->addStretch();
                     layout->addLayout(search_layout);
@@ -138,7 +448,8 @@ namespace px
                 edit->setEnabled(false);
                 edt_console_server_host_ = edit;
                 edit->setFixedSize(input_size);
-                edit->setText(settings_->GetConsoleServerHost().c_str());
+                edit->setText(
+                    network_settings_.get().GetConsoleServerHost().c_str());
                 layout->addWidget(edit);
                 layout->addStretch();
                 segment_layout->addSpacing(5);
@@ -157,7 +468,8 @@ namespace px
                 edt_console_server_port_ = edit;
                 edit->setFixedSize(input_size);
                 edit->setValidator(new QIntValidator);
-                edit->setText(std::to_string(settings_->GetConsoleServerPort()).c_str());
+                edit->setText(std::to_string(
+                    network_settings_.get().GetConsoleServerPort()).c_str());
                 layout->addWidget(edit);
                 layout->addStretch();
                 segment_layout->addSpacing(5);
@@ -177,7 +489,8 @@ namespace px
                 edit->setEnabled(false);
                 edt_relay_server_host_ = edit;
                 edit->setFixedSize(input_size);
-                edit->setText(settings_->GetRelayServerHost().c_str());
+                edit->setText(
+                    network_settings_.get().GetRelayServerHost().c_str());
                 layout->addWidget(edit);
                 layout->addStretch();
                 segment_layout->addSpacing(5);
@@ -196,7 +509,8 @@ namespace px
                 edt_relay_server_port_ = edit;
                 edit->setFixedSize(input_size);
                 edit->setValidator(new QIntValidator);
-                edit->setText(std::to_string(settings_->GetRelayServerPort()).c_str());
+                edit->setText(std::to_string(
+                    network_settings_.get().GetRelayServerPort()).c_str());
                 layout->addWidget(edit);
                 layout->addStretch();
                 segment_layout->addSpacing(5);
@@ -229,19 +543,30 @@ namespace px
                 layout->addStretch();
                 segment_layout->addSpacing(5);
                 segment_layout->addLayout(layout);
-                edit->setChecked(settings_->IsWebSocketEnabled());
-                connect(edit, &QCheckBox::checkStateChanged, this, [=, this](Qt::CheckState state) {
-                    bool enabled = state == Qt::CheckState::Checked;
-                    if (!enabled) {
-                        context_->PostUIDelayTask([=, this]() {
-                            TcDialog dialog(tcTr("id_tips"), tcTr("id_dialog_ssl_streaming_always_on"));
+                edit->setChecked(network_settings_.get().IsWebSocketEnabled());
+                connect(
+                    edit,
+                    &QCheckBox::checkStateChanged,
+                    this,
+                    [self](Qt::CheckState state) {
+                        if (state == Qt::CheckState::Checked || !self) {
+                            return;
+                        }
+                        const auto context = self->context_;
+                        context->PostUIDelayTask([self]() {
+                            if (!self) {
+                                return;
+                            }
+                            TcDialog dialog(
+                                tcTr("id_tips"),
+                                tcTr("id_dialog_ssl_streaming_always_on"));
                             dialog.exec();
-
-                            settings_->SetWebSocketEnabled(true);
-                            cb_websocket_->setChecked(true);
+                            self->network_settings_.get().SetWebSocketEnabled(true);
+                            if (self->cb_websocket_) {
+                                self->cb_websocket_->setChecked(true);
+                            }
                         }, 50);
-                    }
-                });
+                    });
             }
             // Streaming WebSocket port
             {
@@ -255,8 +580,9 @@ namespace px
                 auto edit = new QLineEdit(this);
                 edt_websocket_ = edit;
                 edit->setFixedSize(input_size);
-                edit->setText(std::to_string(settings_->GetRenderServerPort()).c_str());
-                edit->setEnabled(settings_->IsWebSocketEnabled());
+                edit->setText(std::to_string(
+                    network_settings_.get().GetRenderServerPort()).c_str());
+                edit->setEnabled(network_settings_.get().IsWebSocketEnabled());
                 layout->addWidget(edit);
                 layout->addStretch();
                 segment_layout->addSpacing(5);
@@ -278,11 +604,17 @@ namespace px
                 layout->addStretch();
                 segment_layout->addSpacing(5);
                 segment_layout->addLayout(layout);
-                edit->setChecked(settings_->udp_kcp_enabled_ == kStTrue);
-                connect(edit, &QCheckBox::stateChanged, this, [=, this](int state) {
-                    bool enabled = state == 2;
-                    settings_->SetUdpKcpEnabled(enabled);
-                    edt_udp_kcp_->setEnabled(enabled);
+                edit->setChecked(
+                    network_settings_.get().udp_kcp_enabled_ == kStTrue);
+                connect(edit, &QCheckBox::stateChanged, this, [self](int state) {
+                    if (!self) {
+                        return;
+                    }
+                    const bool enabled = state == 2;
+                    self->network_settings_.get().SetUdpKcpEnabled(enabled);
+                    if (self->edt_udp_kcp_) {
+                        self->edt_udp_kcp_->setEnabled(enabled);
+                    }
                 });
             }
             // UdpKcp port
@@ -297,8 +629,10 @@ namespace px
                 auto edit = new QLineEdit(this);
                 edt_udp_kcp_ = edit;
                 edit->setFixedSize(input_size);
-                edit->setText(std::to_string(settings_->udp_listen_port_).c_str());
-                edit->setEnabled(settings_->udp_kcp_enabled_ == kStTrue);
+                edit->setText(std::to_string(
+                    network_settings_.get().udp_listen_port_).c_str());
+                edit->setEnabled(
+                    network_settings_.get().udp_kcp_enabled_ == kStTrue);
                 layout->addWidget(edit);
                 layout->addStretch();
                 segment_layout->addSpacing(5);
@@ -320,10 +654,12 @@ namespace px
                 layout->addStretch();
                 segment_layout->addSpacing(5);
                 segment_layout->addLayout(layout);
-                edit->setChecked(settings_->webrtc_enabled_ == kStTrue);
-                connect(edit, &QCheckBox::stateChanged, this, [=, this](int state) {
-                    bool enabled = state == 2;
-                    settings_->SetWebRTCEnabled(enabled);
+                edit->setChecked(
+                    network_settings_.get().webrtc_enabled_ == kStTrue);
+                connect(edit, &QCheckBox::stateChanged, this, [self](int state) {
+                    if (self) {
+                        self->network_settings_.get().SetWebRTCEnabled(state == 2);
+                    }
                 });
             }
             // Ethernet adapter
@@ -342,7 +678,9 @@ namespace px
                 int index = 0;
                 int target_index_ = -1;
                 for (const auto& et_info : all_et_info) {
-                    if (et_info.ip_addr_ == settings_->network_listening_ip_ && !et_info.ip_addr_.empty()) {
+                    if (et_info.ip_addr_
+                            == network_settings_.get().network_listening_ip_
+                        && !et_info.ip_addr_.empty()) {
                         target_index_ = index;
                     }
                     edit->addItem(std::format("{} {} {}", et_info.ip_addr_, (et_info.nt_type_ == IPNetworkType::kWired ? "WIRED" : "WIRELESS"), et_info.human_readable_name_).c_str());
@@ -351,13 +689,17 @@ namespace px
                 if (target_index_ != -1) {
                     edit->setCurrentIndex(target_index_ + 1);
                 }
-                connect(edit, &QComboBox::currentIndexChanged, this, [=, this](int idx) {
+                connect(edit, &QComboBox::currentIndexChanged, this,
+                    [self, all_et_info](int idx) {
+                    if (!self) {
+                        return;
+                    }
                     if (idx <= 0) {
-                        settings_->SetListeningIp("");
+                        self->network_settings_.get().SetListeningIp("");
                         return;
                     }
                     auto target_ip = all_et_info.at(idx-1).ip_addr_;
-                    settings_->SetListeningIp(target_ip);
+                    self->network_settings_.get().SetListeningIp(target_ip);
                 });
                 layout->addWidget(edit);
                 layout->addStretch();
@@ -376,7 +718,8 @@ namespace px
                 auto edit = new QLineEdit(this);
                 edt_panel_port_ = edit;
                 edit->setFixedSize(input_size);
-                edit->setText(std::to_string(settings_->GetPanelServerPort()).c_str());
+                edit->setText(std::to_string(
+                    network_settings_.get().GetPanelServerPort()).c_str());
                 edit->setEnabled(true);
                 layout->addWidget(edit);
                 layout->addStretch();
@@ -394,9 +737,12 @@ namespace px
             btn->setFixedSize(QSize(220, 35));
             btn->setStyleSheet("font-size: 14px; font-weight: 700;");
             layout->addWidget(btn);
-            connect(btn, &QPushButton::clicked, this, [=, this]() {
-                this->Save(false);
-            });
+            connect(btn, &QPushButton::clicked, this,
+                MakeQtLifetimeAction(
+                    self,
+                    [](const QPointer<StNetwork>& page) {
+                        page->Save(false);
+                    }));
 
             layout->addStretch();
             column1_layout->addSpacing(30);
@@ -409,7 +755,6 @@ namespace px
 
         // messages
         msg_listener_ = context_->ObtainUIMessageListener();
-        QPointer<StNetwork> self(this);
         msg_listener_->Listen<MsgForceClearProgramData>([self](const MsgForceClearProgramData&) {
             if (!self) {
                 return;
@@ -429,6 +774,15 @@ namespace px
         }, 5000);
     }
 
+    StNetwork::~StNetwork() {
+        verify_gate_->Stop();
+        save_gate_->Stop();
+        if (request_scope_) {
+            static_cast<void>(request_scope_->StopAndWait(
+                std::chrono::seconds(2)));
+        }
+    }
+
     void StNetwork::OnTabShow() {
 
     }
@@ -438,11 +792,9 @@ namespace px
     }
 
     std::shared_ptr<ConsoleAccessInfo> StNetwork::ParseConsoleAccessInfo(const std::string& info) {
-        auto companion = grApp->GetCompanion();
-        if (!companion) {
-            return nullptr;
-        }
-        return companion->ParseConsoleAccessInfo(info);
+        return app_->GetCompanion()
+            ? app_->GetCompanion()->ParseConsoleAccessInfo(info)
+            : nullptr;
     }
 
     void StNetwork::DisplayConsoleAccessInfo(const std::shared_ptr<ConsoleAccessInfo>& info) {
@@ -477,7 +829,7 @@ namespace px
 
     void StNetwork::SaveConsoleAccessInfo() {
         auto info = edt_console_access_->toPlainText().trimmed().toStdString();
-        settings_->SetConsoleAccessInfo(info);
+        network_settings_.get().SetConsoleAccessInfo(info);
     }
 
     void StNetwork::SearchAccessInfo(bool auto_restart_render) {
@@ -491,13 +843,17 @@ namespace px
                 info = v;
             }
             if (info) {
-                if (settings_->GetConsoleServerHost() != info->console_ip_ || settings_->GetConsoleServerPort() != info->console_port_
-                    || settings_->GetRelayServerHost() != info->relay_ip_ || settings_->GetRelayServerPort() != info->relay_port_ || !auto_restart_render) {
+                auto& settings = network_settings_.get();
+                if (settings.GetConsoleServerHost() != info->console_ip_
+                    || settings.GetConsoleServerPort() != info->console_port_
+                    || settings.GetRelayServerHost() != info->relay_ip_
+                    || settings.GetRelayServerPort() != info->relay_port_
+                    || !auto_restart_render) {
                     StNetworkAutoJoinDialog dialog(app_, info);
                     if (dialog.exec() == 0) {
                         edt_console_access_->setText(info->origin_info_.c_str());
                         if (auto_restart_render) {
-                            this->Save(auto_restart_render);
+                            Save(auto_restart_render);
                         }
                     }
                 }
@@ -522,159 +878,303 @@ namespace px
     }
 
     void StNetwork::VerifyAccessInfo() {
-        // 1. verify console server
-        auto ac_info = ParseConsoleAccessInfo(edt_console_access_->toPlainText().trimmed().toStdString());
+        const auto ac_info = ParseConsoleAccessInfo(
+            edt_console_access_->toPlainText().trimmed().toStdString());
         if (!ac_info) {
-            LOGE("Parse access info failed: {}", edt_console_access_->toPlainText().toStdString());
+            LOGE("Parse access info failed: {}",
+                 edt_console_access_->toPlainText().toStdString());
             TcDialog dialog(tcTr("id_error"), tcTr("id_console_access_info_invalid"));
             dialog.exec();
             return;
         }
-
-        auto appkey = ac_info->console_config_.srv_appkey_;
-        // Console is TLS-only. Ignore a stale pre-migration access-info flag.
+        if (!request_scope_) {
+            return;
+        }
         px_console::SetConsoleSslEnabled(true);
-        {
-            auto r = px_console::ConsoleDeviceApi::Ping(ac_info->console_config_.srv_w3c_ip_, ac_info->console_config_.srv_console_port_, appkey);
-            if (!r.has_value() || !r.value()) {
-                const auto error = r.has_value()
-                    ? px_console::ConsoleApiError::kServiceUnavailable : r.error();
-                TcDialog dialog(tcTr("id_error"), MakeConsoleErrorMessage(
-                    ConsoleErrorOperation::kCheckConsole, error,
-                    px_console::ConsoleApiLastErrorMessage(), MakeConsoleEndpoint(
-                        ac_info->console_config_.srv_w3c_ip_,
-                        ac_info->console_config_.srv_console_port_)));
-                dialog.exec();
-                return;
-            }
+        const auto request = verify_gate_->Begin();
+        if (!request) {
+            return;
         }
-
-        // 2. verify relay server
-        {
-            auto r = px_relay::RelayApi::Ping(ac_info->console_config_.srv_w3c_ip_, ac_info->console_config_.srv_relay_port_, appkey);
-            if (!r.has_value() || !r.value()) {
-                const auto error_code = r.has_value() ? 0 : r.error();
-                const auto endpoint = QStringLiteral("http://%1:%2")
-                    .arg(QString::fromStdString(ac_info->console_config_.srv_w3c_ip_))
-                    .arg(ac_info->console_config_.srv_relay_port_);
-                const auto message = tcTr("id_verify_relay_failed_actionable")
-                    + "\n" + tcTr("id_error_endpoint_label") + ": " + endpoint
-                    + "\n" + tcTr("id_error_code_label") + ": RELAY-"
-                    + QString::number(error_code);
-                TcDialog dialog(tcTr("id_error"), message);
-                dialog.exec();
-                return;
-            }
+        const NetworkEndpointRequest endpoint {
+            .host = ac_info->console_config_.srv_w3c_ip_,
+            .console_port = ac_info->console_config_.srv_console_port_,
+            .relay_port = ac_info->console_config_.srv_relay_port_,
+            .appkey = ac_info->console_config_.srv_appkey_,
+        };
+        const auto context = context_;
+        const auto gate = verify_gate_;
+        const QPointer<StNetwork> self(this);
+        const PxBlockingTaskPoster poster = [context](std::function<void()> task) {
+            context->PostNetworkTask(std::move(task));
+        };
+        const bool spawned = request_scope_->Spawn(
+            "panel-network-verify",
+            [gate, request, poster, endpoint, context, self]() {
+                return RunVerifyNetwork(
+                    gate,
+                    request,
+                    poster,
+                    endpoint,
+                    [gate, generation = request.generation,
+                     endpoint, context, self](VerifyNetworkResult result) {
+                        context->PostUITask([gate, generation, endpoint,
+                                             self, result = std::move(result)]() {
+                            if (!self || !gate->Complete(generation)) {
+                                return;
+                            }
+                            if (result.failure
+                                == VerifyNetworkResult::Failure::kAsync) {
+                                LOGE("Verify network failed: stage={}, reason={}",
+                                     result.async_error.stage,
+                                     result.async_error.message);
+                                if (result.async_error.code
+                                    == PxAsyncErrorCode::kCancelled) {
+                                    return;
+                                }
+                                TcDialog dialog(
+                                    tcTr("id_error"),
+                                    MakeConsoleErrorMessage(
+                                        ConsoleErrorOperation::kCheckConsole,
+                                        px_console::ConsoleApiError::kNetworkUnavailable,
+                                        result.async_error.message,
+                                        MakeConsoleEndpoint(
+                                            endpoint.host,
+                                            endpoint.console_port)),
+                                    self);
+                                dialog.exec();
+                                return;
+                            }
+                            if (result.failure
+                                == VerifyNetworkResult::Failure::kConsole) {
+                                TcDialog dialog(
+                                    tcTr("id_error"),
+                                    MakeConsoleErrorMessage(
+                                        ConsoleErrorOperation::kCheckConsole,
+                                        result.console_error,
+                                        result.console_message,
+                                        MakeConsoleEndpoint(
+                                            endpoint.host,
+                                            endpoint.console_port)),
+                                    self);
+                                dialog.exec();
+                                return;
+                            }
+                            if (result.failure
+                                == VerifyNetworkResult::Failure::kRelay) {
+                                const auto relay_endpoint =
+                                    QStringLiteral("http://%1:%2")
+                                        .arg(QString::fromStdString(endpoint.host))
+                                        .arg(endpoint.relay_port);
+                                const auto message =
+                                    tcTr("id_verify_relay_failed_actionable")
+                                    + "\n" + tcTr("id_error_endpoint_label")
+                                    + ": " + relay_endpoint
+                                    + "\n" + tcTr("id_error_code_label")
+                                    + ": RELAY-"
+                                    + QString::number(result.relay_error);
+                                TcDialog dialog(tcTr("id_error"), message, self);
+                                dialog.exec();
+                                return;
+                            }
+                            TcDialog dialog(
+                                tcTr("id_tips"), tcTr("id_verify_success"), self);
+                            dialog.exec();
+                        });
+                    });
+            });
+        if (!spawned) {
+            request.cancellation->store(true, std::memory_order_release);
+            static_cast<void>(gate->Complete(request.generation));
         }
-
-        TcDialog dialog(tcTr("id_tips"), tcTr("id_verify_success"));
-        dialog.exec();
     }
 
     void StNetwork::Save(bool auto_restart_render) {
-        auto console_host = edt_console_server_host_->text().toStdString();
-        auto console_port = edt_console_server_port_->text().toStdString();
-        auto relay_host = edt_relay_server_host_->text().toStdString();
-        auto relay_port = edt_relay_server_port_->text().toStdString();
+        if (!request_scope_) {
+            return;
+        }
+        const auto console_host = edt_console_server_host_->text().toStdString();
+        const auto console_port = edt_console_server_port_->text().toStdString();
+        const auto relay_host = edt_relay_server_host_->text().toStdString();
+        const auto relay_port = edt_relay_server_port_->text().toStdString();
+        auto& settings = network_settings_.get();
         bool force_update_device_id = false;
         if (!console_host.empty()
-            && (settings_->GetConsoleServerHost() != console_host || settings_->GetConsoleServerPort() != std::atoi(console_port.c_str()))) {
+            && (settings.GetConsoleServerHost() != console_host
+                || settings.GetConsoleServerPort()
+                    != std::atoi(console_port.c_str()))) {
             force_update_device_id = true;
-            settings_->SetDeviceId("");
-            if (cat comp = grApp->GetCompanion(); comp) {
-                comp->UpdateDeviceId("");
+            settings.SetDeviceId("");
+            if (app_->GetCompanion()) {
+                app_->GetCompanion()->UpdateDeviceId("");
             }
-            settings_->SetDeviceName("");
-            settings_->SetDeviceRandomPwd("");
+            settings.SetDeviceName("");
+            settings.SetDeviceRandomPwd("");
             LOGW("Clear old device id, force updating device id.");
         }
-        settings_->SetConsoleServerHost(console_host);
-        settings_->SetConsoleServerPort(console_port);
-        settings_->SetPanelServerPort(edt_panel_port_->text().toInt());
+        settings.SetConsoleServerHost(console_host);
+        settings.SetConsoleServerPort(console_port);
+        settings.SetPanelServerPort(edt_panel_port_->text().toInt());
 
-        settings_->SetRelayServerHost(relay_host);
-        settings_->SetRelayServerPort(relay_port);
+        settings.SetRelayServerHost(relay_host);
+        settings.SetRelayServerPort(relay_port);
 
         SaveConsoleAccessInfo();
-
-        settings_->SetConsoleSslEnabled(true);
-
-        // Load again
-        settings_->Load();
+        settings.SetConsoleSslEnabled(true);
+        settings.Load();
 
         // companion
-        auto companion = grApp->GetCompanion();
-        if (companion) {
-            companion->UpdateConsoleServerConfig(settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), settings_->IsConsoleSslEnabled());
+        std::function<std::shared_ptr<Authorization>(
+            const std::shared_ptr<std::atomic_bool>&)> request_auth;
+        if (app_->GetCompanion()) {
+            app_->GetCompanion()->UpdateConsoleServerConfig(
+                settings.GetConsoleServerHost(),
+                settings.GetConsoleServerPort(),
+                settings.IsConsoleSslEnabled());
 
-            // Extract the appkey from the pasted access string so
-            // RequestAuth uses the current appkey, not a stale cached one.
-            auto ac_info = ParseConsoleAccessInfo(edt_console_access_->toPlainText().trimmed().toStdString());
+            const auto ac_info = ParseConsoleAccessInfo(
+                edt_console_access_->toPlainText().trimmed().toStdString());
             if (ac_info && !ac_info->console_config_.srv_appkey_.empty()) {
-                companion->UpdateAppkey(ac_info->console_config_.srv_appkey_);
+                app_->GetCompanion()->UpdateAppkey(
+                    ac_info->console_config_.srv_appkey_);
             }
-
-            auto auth = companion->RequestAuth();
-            if (!auth) {
-                TcDialog dialog(tcTr("id_warning"), tcTr("id_cant_request_auth"), nullptr);
-                dialog.exec();
-                return;
-            }
-            LOGI("Requested auth, id: {}", auth->auth_id_);
+            request_auth = [application = app_](
+                const std::shared_ptr<std::atomic_bool>&) {
+                return application->GetCompanion()
+                    ? application->GetCompanion()->RequestAuth()
+                    : nullptr;
+            };
         }
 
-        // refresh settings
-        grApp->RefreshClientManagerSettings();
-
-        // request id if needed
-        auto device_id = settings_->GetDeviceId();
-        // request function
-        auto fn_request_new_device_id = [=, this]() -> bool {
-            if (!grApp->RequestNewClientId(true, true)) {
-                LOGE("Request Device ID failed!");
-                TcDialog dialog(tcTr("id_warning"), tcTr("id_request_device_id_failed"), nullptr);
-                dialog.exec();
-                return false;
+        app_->RefreshClientManagerSettings();
+        std::string default_device_name = "D-NULL";
+        const auto ips = context_->GetIps();
+        if (!ips.empty()) {
+            std::vector<std::string> segments;
+            StringUtil::Split(ips.front().ip_addr_, segments, ".");
+            if (!segments.empty()) {
+                default_device_name = "D-" + segments.back();
             }
-            else {
-                LOGI("Request Device ID success!");
-                return true;
-            }
+        }
+        const auto request = save_gate_->Begin();
+        if (!request) {
+            return;
+        }
+        const auto device_manager = app_->GetDeviceManager();
+        const auto context = context_;
+        const auto gate = save_gate_;
+        const auto device_id = settings.GetDeviceId();
+        const QPointer<StNetwork> self(this);
+        const PxBlockingTaskPoster poster = [context](std::function<void()> task) {
+            context->PostNetworkTask(std::move(task));
         };
-
-        // request a new device id
-        if (device_id.empty()) {
-            if (!fn_request_new_device_id()) {
-                return;
-            }
+        const bool spawned = request_scope_->Spawn(
+            "panel-network-save",
+            [gate, request, poster, request_auth, device_manager, device_id,
+             default_device_name = std::move(default_device_name), context,
+             self, force_update_device_id, auto_restart_render]() mutable {
+                return RunSaveNetwork(
+                    gate,
+                    request,
+                    poster,
+                    request_auth,
+                    device_manager,
+                    std::move(device_id),
+                    std::move(default_device_name),
+                    [gate, generation = request.generation, context, self,
+                     force_update_device_id,
+                     auto_restart_render](SaveNetworkResult result) mutable {
+                        context->PostUITask(
+                            [gate, generation, self,
+                             force_update_device_id,
+                             auto_restart_render,
+                             result = std::move(result)]() mutable {
+                                if (!self || !gate->Complete(generation)) {
+                                    return;
+                                }
+                                if (result.failure
+                                    == SaveNetworkResult::Failure::kAsync) {
+                                    LOGE("Save network failed: stage={}, reason={}",
+                                         result.async_error.stage,
+                                         result.async_error.message);
+                                    if (result.async_error.code
+                                        != PxAsyncErrorCode::kCancelled) {
+                                        TcDialog dialog(
+                                            tcTr("id_warning"),
+                                            QString::fromStdString(
+                                                result.async_error.message),
+                                            self);
+                                        dialog.exec();
+                                    }
+                                    return;
+                                }
+                                if (result.failure
+                                    == SaveNetworkResult::Failure::kAuth) {
+                                    TcDialog dialog(
+                                        tcTr("id_warning"),
+                                        tcTr("id_cant_request_auth"),
+                                        self);
+                                    dialog.exec();
+                                    return;
+                                }
+                                if (result.failure
+                                    == SaveNetworkResult::Failure::kDevice) {
+                                    LOGE("Request Device ID failed, code: {}",
+                                         static_cast<int>(result.device_error));
+                                    TcDialog dialog(
+                                        tcTr("id_warning"),
+                                        tcTr("id_request_device_id_failed"),
+                                        self);
+                                    dialog.exec();
+                                    return;
+                                }
+                                if (result.new_device) {
+                                    auto& settings = self->network_settings_.get();
+                                    settings.SetDeviceId(
+                                        result.new_device->device_id_);
+                                    settings.SetDeviceName(
+                                        result.new_device->device_name_);
+                                    settings.SetDeviceRandomPwd(
+                                        result.new_device->gen_random_pwd_);
+                                    if (self->app_->GetCompanion()) {
+                                        self->app_->GetCompanion()->UpdateDeviceId(
+                                            result.new_device->device_id_);
+                                    }
+                                    self->context_->SendAppMessage(
+                                        MsgRequestedNewDevice {
+                                            .device_id_ =
+                                                result.new_device->device_id_,
+                                            .device_random_pwd_ =
+                                                result.new_device->gen_random_pwd_,
+                                            .force_update_ = true,
+                                        });
+                                    self->context_->SendAppMessage(
+                                        MsgSyncSettingsToRender {});
+                                }
+                                self->context_->SendAppMessage(MsgSettingsChanged {
+                                    .settings_ = PxSettings::Instance(),
+                                    .force_update_device_id_ =
+                                        force_update_device_id,
+                                });
+                                if (auto_restart_render) {
+                                    self->context_->SendAppMessage(
+                                        AppMsgRestartServer {});
+                                    return;
+                                }
+                                TcDialog dialog(
+                                    tcTr("id_tips"),
+                                    tcTr("id_save_settings_restart_renderer"),
+                                    self);
+                                if (dialog.exec() == kDoneOk) {
+                                    self->context_->SendAppMessage(
+                                        AppMsgRestartServer {});
+                                }
+                            });
+                    });
+            });
+        if (!spawned) {
+            request.cancellation->store(true, std::memory_order_release);
+            static_cast<void>(gate->Complete(request.generation));
         }
-        else {
-            // check the device id is valid or not
-            auto r = px_console::ConsoleDeviceApi::QueryDevice(settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), grApp->GetAppkey(), device_id);
-            if (!r.has_value() || r.value()->device_id_.empty()) {
-                // request a new one
-                LOGI("Can't query the device id : {} in server, will request a new one.", settings_->GetDeviceId());
-                if (!fn_request_new_device_id()) {
-                    return;
-                }
-            }
-        }
-
-        this->context_->SendAppMessage(MsgSettingsChanged {
-            .settings_ = settings_,
-            .force_update_device_id_ = force_update_device_id,
-        });
-
-        if (auto_restart_render) {
-            this->context_->SendAppMessage(AppMsgRestartServer{});
-        }
-        else {
-            TcDialog dialog(tcTr("id_tips"), tcTr("id_save_settings_restart_renderer"), nullptr);
-            if (dialog.exec() == kDoneOk) {
-                this->context_->SendAppMessage(AppMsgRestartServer{});
-            }
-        }
-
     }
 
 }

@@ -5,7 +5,7 @@
 
 #include <asio2/external/asio.hpp>
 
-#include "px_common_new/async_operation.h"
+#include "px_common_new/async_blocking_call.h"
 
 namespace px {
 namespace {
@@ -18,46 +18,15 @@ PxAwaitable<PxResult<StreamLaunchConsoleCall<T>>> RunBlockingCall(
     std::shared_ptr<std::atomic_bool> cancelled,
     std::string stage,
     std::function<StreamLaunchConsoleCall<T>()> call) {
-    if (cancelled->load(std::memory_order_acquire)) {
-        co_return PxResult<StreamLaunchConsoleCall<T>>::Failure(MakePxAsyncError(
-            PxAsyncErrorCode::kCancelled, std::move(stage), "stream launch was replaced"));
-    }
-
-    const auto operation = PxAsyncOneShot<StreamLaunchConsoleCall<T>>::Create(executor);
-    try {
-        hooks.post_blocking([operation, cancelled, call = std::move(call), stage]() mutable {
-            if (cancelled->load(std::memory_order_acquire)) {
-                static_cast<void>(operation->TryFail(MakePxAsyncError(
-                    PxAsyncErrorCode::kCancelled, stage, "stream launch was replaced")));
-                return;
-            }
-            try {
-                static_cast<void>(operation->TryComplete(
-                    PxResult<StreamLaunchConsoleCall<T>>::Success(call())));
-            }
-            catch (const std::exception& error) {
-                static_cast<void>(operation->TryFail(MakePxAsyncError(
-                    PxAsyncErrorCode::kProtocolError, stage, error.what(), true)));
-            }
-            catch (...) {
-                static_cast<void>(operation->TryFail(MakePxAsyncError(
-                    PxAsyncErrorCode::kProtocolError, stage,
-                    "blocking Console operation threw a non-standard exception", true)));
-            }
+    co_return co_await AwaitBlockingCall<StreamLaunchConsoleCall<T>>(
+        hooks.post_blocking,
+        std::move(executor),
+        deadline,
+        std::move(cancelled),
+        std::move(stage),
+        [call = std::move(call)](const std::shared_ptr<std::atomic_bool>&) mutable {
+            return call();
         });
-    }
-    catch (const std::exception& error) {
-        co_return PxResult<StreamLaunchConsoleCall<T>>::Failure(MakePxAsyncError(
-            PxAsyncErrorCode::kServiceStopped, std::move(stage), error.what(), true));
-    }
-
-    auto result = co_await PxAsyncOneShot<StreamLaunchConsoleCall<T>>::WaitUntil(
-        operation, deadline);
-    if (cancelled->load(std::memory_order_acquire)) {
-        co_return PxResult<StreamLaunchConsoleCall<T>>::Failure(MakePxAsyncError(
-            PxAsyncErrorCode::kCancelled, std::move(stage), "stream launch was replaced"));
-    }
-    co_return result;
 }
 
 PxAsyncError ConsoleFailure(
@@ -311,37 +280,19 @@ PxAwaitable<void> StreamLaunchAuthWorkflow::Run(
     const bool should_probe = !request.force_relay
         && (request.force_direct_transport || resolved_ticket.direct_probe_enabled);
     if (should_probe) {
-        const auto operation = PxAsyncOneShot<bool>::Create(executor);
-        try {
-            hooks.post_blocking([
-                operation, cancelled, probe = hooks.probe_direct,
-                host = resolved_ticket.host, port = resolved_ticket.port]() {
-                if (cancelled->load(std::memory_order_acquire)) {
-                    static_cast<void>(operation->TryFail(MakePxAsyncError(
-                        PxAsyncErrorCode::kCancelled,
-                        "stream-launch.probe",
-                        "stream launch was replaced")));
-                    return;
-                }
-                static_cast<void>(operation->TryComplete(
-                    PxResult<bool>::Success(probe(host, port))));
+        auto probe_result = co_await AwaitBlockingCall<bool>(
+            hooks.post_blocking,
+            executor,
+            request.deadline,
+            cancelled,
+            "stream-launch.probe",
+            [probe = hooks.probe_direct,
+             host = resolved_ticket.host,
+             port = resolved_ticket.port](const std::shared_ptr<std::atomic_bool>&) {
+                return probe(host, port);
             });
-        }
-        catch (const std::exception& error) {
-            static_cast<void>(operation->TryFail(MakePxAsyncError(
-                PxAsyncErrorCode::kServiceStopped,
-                "stream-launch.probe",
-                error.what(),
-                true)));
-        }
-        auto probe_result = co_await PxAsyncOneShot<bool>::WaitUntil(
-            operation, request.deadline);
-        if (!probe_result || cancelled->load(std::memory_order_acquire)) {
-            completion(generation, StreamLaunchAuthResult::Failure(
-                cancelled->load(std::memory_order_acquire)
-                    ? MakePxAsyncError(PxAsyncErrorCode::kCancelled,
-                        "stream-launch.probe", "stream launch was replaced")
-                    : probe_result.Error()));
+        if (!probe_result) {
+            completion(generation, StreamLaunchAuthResult::Failure(probe_result.Error()));
             co_return;
         }
         direct_available = probe_result.Value();
