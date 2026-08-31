@@ -6,7 +6,8 @@ param(
     [int]$RenderPort = 32994,
     [int]$TimeoutSeconds = 30,
     [switch]$CpuFallback,
-    [switch]$ExpectLoadFailure
+    [switch]$ExpectLoadFailure,
+    [switch]$KeepMainLoadOpen
 )
 
 $ErrorActionPreference = "Stop"
@@ -75,7 +76,16 @@ try {
     } until ($ready -or (Get-Date) -ge $deadline)
     if (-not $ready) { throw "local WebView E2E page server did not become ready" }
 
-    $pagePath = if ($ExpectLoadFailure) { "/missing-page.html" } else { "/" }
+    if ($ExpectLoadFailure -and $KeepMainLoadOpen) {
+        throw "ExpectLoadFailure and KeepMainLoadOpen cannot be used together"
+    }
+    $pagePath = if ($ExpectLoadFailure) {
+        "/missing-page.html"
+    } elseif ($KeepMainLoadOpen) {
+        "/streaming.html"
+    } else {
+        "/"
+    }
     $plainUrl = "http://127.0.0.1:${PagePort}${pagePath}?suite=webview&unicode=云应用&secret=must-not-appear"
     $encodedUrl = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($plainUrl)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
     $renderArgs = @(
@@ -132,7 +142,8 @@ try {
         Write-Host "PASS: failed main document was rejected without a Ready signal; CEF child count=$($children.Count)"
     } else {
         $paintMode = if ($CpuFallback) { "CPU fallback" } else { "D3D11 accelerated" }
-        Write-Host "PASS: $paintMode OSR first frame, page event, and audio callback received; CEF child count=$($children.Count)"
+        $loadMode = if ($KeepMainLoadOpen) { "while main navigation remained open" } else { "after normal navigation" }
+        Write-Host "PASS: $paintMode OSR first frame, page event, and audio callback received $loadMode; CEF child count=$($children.Count)"
     }
 }
 finally {

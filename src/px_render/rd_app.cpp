@@ -1336,6 +1336,10 @@ namespace px
     }
 
     void RdApplication::RequestRestartMe() const {
+        if (!ws_panel_client_) {
+            LOGW("Cannot request Render restart: Panel client is disabled");
+            return;
+        }
         pxrp::RpMessage m;
         m.set_type(pxrp::kRpRestartServer);
         m.mutable_restart_server()->set_reason("restart");

@@ -6,10 +6,33 @@ from __future__ import annotations
 import argparse
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import time
 
 
 class Handler(SimpleHTTPRequestHandler):
     event_file: Path
+
+    def do_GET(self) -> None:  # noqa: N802 - stdlib callback name
+        if self.path.split("?", 1)[0] != "/streaming.html":
+            super().do_GET()
+            return
+
+        # A document can become fully visible while its HTTP navigation stays
+        # open for a long-lived response.  Keep the connection alive after
+        # writing the normal E2E page so the smoke suite verifies that first
+        # frame readiness is based on paint, not OnLoadEnd/network-idle.
+        page = Path(self.directory or ".") / "index.html"
+        self.send_response(200)
+        self.send_header("content-type", "text/html; charset=utf-8")
+        self.end_headers()
+        try:
+            self.wfile.write(page.read_bytes())
+            self.wfile.write(b"\n<!-- keep main navigation open")
+            self.wfile.flush()
+            while True:
+                time.sleep(1)
+        except (BrokenPipeError, ConnectionResetError):
+            return
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib callback name
         if self.path != "/events":

@@ -41,6 +41,15 @@ namespace px
     }
 
     void WsPanelClient::Start() {
+        // Console-scheduled app instances are supervised through px_service
+        // and deliberately have no local Panel endpoint.  A zero port is the
+        // explicit disabled value from RdSettings, not a connectable address.
+        // Do this before creating listeners or reconnect state so shutdown
+        // remains a no-op and no retry loop is left behind.
+        if (settings_->panel_server_port_ <= 0) {
+            LOGI("Render Panel client disabled: no panel server port configured");
+            return;
+        }
         exiting_ = false;
         msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kControl);
         state_msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
