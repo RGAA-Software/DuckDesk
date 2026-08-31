@@ -23,7 +23,9 @@ TEST(Test_Hello, Hello) {
                                                          device_id,
                                                          "Test-Device",
                                                          "Stream-101",
-                                                         "ff785bd3031bc6cf920a782e50f43dcb");
+                                                         "ff785bd3031bc6cf920a782e50f43dcb",
+                                                         false,
+                                                         "");
         ws_client->Start();
 
         std::this_thread::sleep_for(std::chrono::milliseconds(100));

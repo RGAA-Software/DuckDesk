@@ -1,10 +1,8 @@
 # 文件传输 Awaitable 改造与项目级异步语义演进方案
 
-> 状态：实施中；Phase 0–6 在当前 HTTP/WS 产品拓扑和内网环境内已完成，
-> 包含生产 Session、唯一路由、完整性、结构化终态、数据规模矩阵、断点续传和
-> 真实 FT DLL 卸载屏障；Phase 7 已完成认证/Service 请求和 RTC 配置更新状态机的
-> 第一批迁移，活跃会话真实 revision 广播、Panel/Console 其余请求流和其他高收益
-> 工作流仍按批次推进
+> 状态：Phase 0–7 已完成并已完成 3.3.63 正式构建、打包和 90 号机全量部署验证；
+> 活跃异步边界全仓审计为零。RTC/Relay 的真实会话验收仍依赖 Console/Relay 服务端可用，
+> 当前 90 配置的 `10.0.0.16:30500` 与 `:30502` 主动拒绝连接，属于部署外部依赖待恢复项。
 >
 > 日期：2026-08-28
 >
@@ -2813,6 +2811,31 @@ Client 本批 build/dist SHA-256：
 - `px_client.exe`：`6BC80164B27BE0B48038CBAA081A545B1EA0288ECF67C32F2C9F0D76BA92698C`；
 - `deps/ct_plugins/ft.dll`：`1142BD6577EA6B41867397735AD9D640364D12E61407B088B7A75901920288FF`；
 - `deps/ct_plugins/record.dll`：`37F641B19E25397084E024C2048F1155E5434EBA612E37FFCFF4C74169BB9712`。
+
+### 12.66 3.3.63 正式构建、安装包与 90 号机部署
+
+Phase 7 最终收敛后执行正式发布构建。全量构建首先暴露 `test_asio_ws_client` 仍使用旧的
+6 参数 `RelayWsClient` 构造方式；测试已按现有构造契约补齐 `force_gdi` 与
+`remote_device_id` 参数，未绕过或移除该测试。
+
+本次发布完成：
+
+- `build_official.bat full` 生成版本 3.3.63；随后在同一 build tree 完成全部 CMake 目标、
+  客户端 Rust/.NET 组件及三个 Rust 服务端；
+- 运行正式测试脚本 38/38 套件 PASS，并以发布 dist 的 Qt/插件运行时运行 CTest 31/31 PASS；
+- `check_cpp_ownership`、全仓 `check_async_lifetime -ReportAll` 与 `git diff --check` 均 PASS；
+- 生成 `Pixels_3.3.63_Setup.exe`，大小 328,351,641 字节，SHA-256 为
+  `6CC655D1ADAE2BCAF45EFE97BE44074734300A302F02ACA1623E05C4D81D8A85`；
+- build tree 到 `build_official/dist` 的 9 个关键运行产物（含 `cap_was_audio.dll`）哈希一致；
+  安装后 dist 的 410/410 个文件与 90 号机 `C:\Program Files\PixelsRender` 逐文件 SHA-256
+  一致，零缺失、零差异；
+- 90 号机静默安装退出码为 0，安装版本为 3.3.63，`px_service` 为 Automatic/Running，
+  `px_service`、Panel、Render、Function、OsInfo 均运行，20369/20371/20375 在远端本机监听；
+  Parsec 虚拟显示驱动签名、存在且状态 OK。
+
+环境验收限制：90 号机的 Console 与 Relay 外部依赖 `10.0.0.16:30500` 和 `:30502` 当前
+返回连接拒绝，因此标准 RTC 十轮稳定性脚本无法创建会话；这不是本次客户端安装或生命周期
+回归。待该服务端恢复后，应直接重跑十轮 RTC smoke，并确认 Relay media channel 建连。
 
 ### 12.60 Phase 7 Panel timer、语音确认与 Profile 死链收敛
 
