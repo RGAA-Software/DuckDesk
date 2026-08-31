@@ -2701,3 +2701,33 @@ UI listener，并为 `if (0)` 永远不会创建的运行游戏标签注册长�
 
 `px_panel.exe` build/dist SHA-256：
 `0582DFA61FFC59E548EC96F6ECB8A823BFE693D86964A157CFDE86A43709F80A`。
+
+### 12.57 Phase 7 串行请求、阻塞调用 await bridge 与异步审计门禁
+
+后续 Panel/Render 迁移需要重复解决三类问题：远端 mutation 不能并发乱序，既有同步 SDK
+调用不能阻塞 UI/control lane，以及新的异步边界不能重新引入裸 owner 捕获。本批先将这些
+约束收敛为公共基础设施，避免每个业务页面各自实现一套 generation、取消和等待逻辑。
+
+本批完成：
+
+- 新增 `LatestSerialRequestGate`：新请求取消旧代次，所有远端 mutation 经独立执行互斥量
+  串行化；排队中的过期请求在执行前被拒绝，运行中旧请求完成后最新请求才可进入；
+  `Complete`、`Stop` 和后续 `Begin` 都通过 generation 保证单一当前请求；
+- 新增 `AwaitBlockingCall<T>`：把既有阻塞 SDK 调用投递到 worker，并以 `PxAsyncOneShot`
+  回到调用协程；统一处理投递失败、异常、deadline、调用前/调用中取消和迟到结果拒绝，
+  同一 cancellation signal 可继续下传给 common HTTP transport；
+- 新增 `check_async_lifetime.ps1`：增量或 staged 模式检查任务投递、Qt timer/network reply、
+  asio callback 和 Render/relay 长期 listener 的裸 `this` 捕获；全仓报告模式用于最终 Phase 7
+  收口。第三方源码、libwebrtc adapter 和 CMake 已禁用的 Panel legacy 按既定边界排除；
+- 新增串行门禁并发/替换/停止测试，以及 blocking bridge 成功、运行中取消、deadline 测试。
+  本批只产生测试可执行文件，没有改变需要发布到 `build_official/dist` 的运行时产物。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 串行请求 | 替换取消、旧 completion 拒绝、运行中串行、排队过期、Stop 和 32 路并发 Begin 全部 PASS |
+| blocking await | typed value、运行中取消拒绝迟到值、deadline typed timeout 全部 PASS |
+| 重复生命周期 | 两个专项 CTest 均连续 10/10 PASS |
+| ownership / async audit | `check_cpp_ownership`、增量/staged `check_async_lifetime` 与 `git diff --check` PASS |
+| focused build | 仅定向编译两个公共专项测试；未运行发版整编；无运行时产物需要同步 dist |
