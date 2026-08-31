@@ -6,14 +6,12 @@
 #define PX_CLIPBOARD_PLUGIN_H
 
 #include "px_render/plugin_interface/px_plugin_interface.h"
-#include <atomic>
 #include <memory>
 
 namespace px
 {
 
     class Data;
-    class ClipboardManager;
     class CpVirtualFile;
 
     class ClipboardPlugin : public PxPluginInterface {
@@ -27,7 +25,6 @@ namespace px
 
         bool OnCreate(const px::PxPluginParam& param) override;
         bool OnDestroy() override;
-        std::shared_ptr<std::atomic_bool> GetLifetimeToken() const { return lifetime_token_; }
 
         void OnMessage(std::shared_ptr<Message> msg) override;
         void DispatchAppEvent(const std::shared_ptr<AppBaseEvent>& event) override;
@@ -39,11 +36,6 @@ namespace px
         void OnRequestFileBegin(std::shared_ptr<Message> msg);
         void OnRequestFileEnd(std::shared_ptr<Message> msg);
 
-    private:
-        std::shared_ptr<ClipboardManager> clipboard_mgr_ = nullptr;
-        std::shared_ptr<std::atomic_bool> lifetime_token_ = std::make_shared<std::atomic_bool>(true);
-//        CpVirtualFile* virtual_file_ = nullptr;
-//        IDataObject* data_object_ = nullptr;
     };
 
 }

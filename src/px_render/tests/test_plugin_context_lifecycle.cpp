@@ -158,6 +158,25 @@ TEST(PluginEventLifecycle, CallbackCanStopPluginDuringDispatch) {
     EXPECT_TRUE(plugin->OnDestroy());
 }
 
+TEST(PluginEventLifecycle, DirectDispatcherDoesNotRetainDestroyedPlugin) {
+    auto plugin = std::make_shared<TestPlugin>();
+    ASSERT_TRUE(plugin->OnCreate(PxPluginParam{}));
+    const auto callback_count = std::make_shared<std::atomic_int>(0);
+    plugin->RegisterEventCallback(
+        [callback_count](const std::shared_ptr<PxPluginBaseEvent>&) {
+            callback_count->fetch_add(1);
+        });
+    auto dispatcher = plugin->MakeDirectEventDispatcher();
+
+    dispatcher(std::make_shared<PxPluginBaseEvent>());
+    EXPECT_EQ(callback_count->load(), 1);
+
+    ASSERT_TRUE(plugin->OnDestroy());
+    plugin.reset();
+    dispatcher(std::make_shared<PxPluginBaseEvent>());
+    EXPECT_EQ(callback_count->load(), 1);
+}
+
 TEST(PluginEventLifecycle, RepeatedCreateDeliverStopDestroyTenRounds) {
     for (int round = 0; round < 10; ++round) {
         const auto plugin = std::make_shared<TestPlugin>();

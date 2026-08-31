@@ -128,6 +128,7 @@ namespace px
         void RegisterEventCallback(const PxPluginEventCallback& cbk);
         void CallbackEvent(const std::shared_ptr<PxPluginBaseEvent>& event);
         void CallbackEventDirectly(const std::shared_ptr<PxPluginBaseEvent>& event);
+        [[nodiscard]] PxPluginEventCallback MakeDirectEventDispatcher() const;
 
         virtual void On1Second();
 

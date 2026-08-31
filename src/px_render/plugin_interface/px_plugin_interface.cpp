@@ -286,6 +286,18 @@ namespace px
         }
     }
 
+    PxPluginEventCallback PxPluginInterface::MakeDirectEventDispatcher() const {
+        const auto weak_channel =
+            std::weak_ptr<PxPluginEventChannel>(event_channel_);
+        return [weak_channel](const std::shared_ptr<PxPluginBaseEvent>& event) {
+            if (event) {
+                if (const auto channel = weak_channel.lock()) {
+                    channel->Deliver(event);
+                }
+            }
+        };
+    }
+
     void PxPluginInterface::On1Second() {
 
     }

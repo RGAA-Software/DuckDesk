@@ -10,7 +10,6 @@
 #include "px_common_new/data.h"
 #include "px_common_new/file.h"
 #include "px_common_new/time_util.h"
-#include "clipboard_manager.h"
 #include "px_message.pb.h"
 #include "win/cp_virtual_file.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
@@ -47,14 +46,10 @@ namespace px
 
     bool ClipboardPlugin::OnCreate(const px::PxPluginParam &param) {
         PxPluginInterface::OnCreate(param);
-        lifetime_token_->store(true);
-        clipboard_mgr_ = std::make_shared<ClipboardManager>(this);
-
         return true;
     }
 
     bool ClipboardPlugin::OnDestroy() {
-        lifetime_token_->store(false);
         PxPluginInterface::OnStop();
         return PxPluginInterface::OnDestroy();
     }
@@ -72,16 +67,12 @@ namespace px
         else if (msg->type() == px::kClipboardReqAtBegin) {
             // begin; server -> client
             // copy files from server -> client
-            plugin_context_->PostWorkTask([=, this]() {
-                this->OnRequestFileBegin(msg);
-            });
+            OnRequestFileBegin(std::move(msg));
         }
         else if (msg->type() == px::kClipboardReqAtEnd) {
             // end; server -> client
             // copy files from server -> client
-            plugin_context_->PostWorkTask([=, this]() {
-                this->OnRequestFileEnd(msg);
-            });
+            OnRequestFileEnd(std::move(msg));
         }
         else if (msg->type() == MessageType::kClipboardReqBuffer) {
             // copy file buffer, from server -> client
@@ -112,9 +103,31 @@ namespace px
     void ClipboardPlugin::DispatchAppEvent(const std::shared_ptr<AppBaseEvent>& event) {
         if (event->type_ == AppBaseEvent::EType::kClipboardEvent) {
             if (auto ev = std::dynamic_pointer_cast<MsgClipboardEvent>(event); ev) {
-                plugin_context_->PostUITask([=, this]() {
-                    clipboard_mgr_->OnLocalClipboardUpdated(ev);
-                });
+                LOGI("**clipboard update, type : {}, msg: {}, file size: {}",
+                     static_cast<int>(ev->clipboard_type_), ev->text_msg_,
+                     ev->files_.size());
+                px::Message message;
+                message.set_type(px::kClipboardInfo);
+                auto& sub = *message.mutable_clipboard_info(); // NOLINT(gammaray-raw-pointer-boundary) Synchronous protobuf submessage ABI
+                if (ev->clipboard_type_ == MsgClipboardType::kText) {
+                    sub.set_type(ClipboardType::kClipboardText);
+                    sub.set_msg(ev->text_msg_);
+                }
+                else if (ev->clipboard_type_ == MsgClipboardType::kFiles
+                         && !ev->files_.empty()) {
+                    sub.set_type(ClipboardType::kClipboardFiles);
+                    for (const auto& file : ev->files_) {
+                        auto& proto_file = *sub.mutable_files()->Add(); // NOLINT(gammaray-raw-pointer-boundary) Synchronous protobuf repeated-field ABI
+                        proto_file.set_file_name(file.file_name_);
+                        proto_file.set_full_path(file.full_path_);
+                        proto_file.set_ref_path(file.ref_path_);
+                        proto_file.set_total_size(file.total_size_);
+                    }
+                }
+                else {
+                    return;
+                }
+                DispatchAllStreamMessage(ProtoAsData(&message));
             }
         }
     }

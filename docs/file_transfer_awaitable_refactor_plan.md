@@ -2869,3 +2869,33 @@ Render 非 RTC 全仓报告的第一批包含 WS 消息任务、Joystick VIGEM �
 - `joystick.dll`：`17BF605282ADF1855C5104F272662211EE7D2436DF5254F03D15F8283559CE16`；
 - `cap_dda.dll`：`4A469DDAAEC16044F38B5C84FD3F6CAB6EC718CAD78D92D714481E4B6CC401C9`；
 - `enc_nvenc.dll`：`ADFF67F687E18394EDF547C6ADF45AB343BFC1C8108CA91F1B575A7D2F4407EB`。
+
+### 12.62 Phase 7 Render Clipboard 与 Mock Video Runtime 收敛
+
+Render Clipboard 原有 `PostUITask` 在插件实现中实际同步执行，却为此保留了一个反向持有
+loader-owned 插件裸地址的 `ClipboardManager`；Mock Video 的 worker 与 33 ms timer 则直接捕获
+插件 singleton，并同时读写 OpenCV image。
+
+本批完成：
+
+- Clipboard 删除无必要的 Manager 反向依赖和未使用 lifetime token；本地 clipboard event 在
+  同步入口直接构造协议消息，文件 begin/end 事件也不再绕到捕获插件 owner 的 worker；
+- Render 插件公共基类新增非虚 `MakeDirectEventDispatcher`，dispatcher 仅弱观察独立 event
+  channel，保持现有插件 ABI/vtable 不变；Stop/Destroy 后 channel 失活，迟到 runtime 事件安静丢弃；
+- Mock Video 的 image、随机生成、frame index 与 active 状态进入共享 runtime 并由 mutex 串行；
+  timer/worker 只捕获 runtime，Stop 先停 runtime，再释放插件引用；
+- 新增 dispatcher 销毁回归，验证正常派发一次、插件 Destroy/释放后迟到派发为零且不延长插件
+  生命周期；全仓异步报告由 20 降到 18，本批两个插件路径归零。
+
+专项验收结果：
+
+| 门禁 | 结果 |
+| --- | --- |
+| 插件 Context/Event | 9 tests × 10 轮，共 90 次 PASS；覆盖 queued destroy、回调内 Stop、unregister、重复启停和 direct dispatcher owner expiry |
+| ownership / async audit | 增量门禁与 whitespace PASS；全仓报告本批路径无命中 |
+| focused build/dist | `build_cpp_render_plugin.bat clipboard`、`mock_video_stream` 定向编译并发布；未运行发版整编；DLL build/dist 哈希一致 |
+
+本批 DLL build/dist SHA-256：
+
+- `clipboard.dll`：`2D565553C79A3227D25CC427F273397E4B589969C792DE5B22FFA19E8F5E1C60`；
+- `mock_video_stream.dll`：`8A5453D8C532045397991C233132892924C0C545D3021049FC102371FD73C2D9`。
