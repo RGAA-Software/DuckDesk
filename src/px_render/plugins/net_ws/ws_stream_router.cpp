@@ -6,6 +6,7 @@
 #include "px_common_new/data.h"
 #include "px_common_new/log.h"
 #include "px_common_new/thread_util.h"
+#include "px_common_new/ws_control_signal.h"
 #include "ws_plugin.h"
 #include "px_message.pb.h"
 
@@ -17,11 +18,29 @@ namespace px
     }
 
     void WsStreamRouter::OnClose(std::shared_ptr<asio2::http_session> &sess_ptr) {
+        NotifyClosed();
         WsRouter::OnClose(sess_ptr);
     }
 
     void WsStreamRouter::OnMessage(std::shared_ptr<asio2::http_session>& sess_ptr, int64_t socket_fd, std::string_view data) {
         WsRouter::OnMessage(sess_ptr, socket_fd, data);
+        if (IsWsUseWebSocketMediaSignal(data)) {
+            if (udp_media_.exchange(false)) {
+                LOGI("Authenticated WS control switched to WebSocket media, stream={}", stream_id_);
+                if (udp_media_fallback_callback_) {
+                    udp_media_fallback_callback_();
+                }
+            }
+            return;
+        }
+        px::Message parsed;
+        if (parsed.ParsePartialFromArray(data.data(), static_cast<int>(data.size()))
+            && (parsed.type() == MessageType::kFileAction
+                || parsed.type() == MessageType::kFileResponse)
+            && !file_allowed_.load()) {
+            LOGW("Drop file-transfer message on WS control session without file permission");
+            return;
+        }
         auto plugin = Get<WsPlugin*>("plugin");
         auto msg = Data::Make(data.data(), data.size());
         plugin->OnClientEventCame(
@@ -57,7 +76,10 @@ namespace px
             if (!self) {
                 return;
             }
-            self->queuing_message_count_--;
+            const auto remaining = --self->queuing_message_count_;
+            if (remaining <= kFileTransferQueueLowWatermark) {
+                self->NotifyWritable();
+            }
 
             // report data size
             auto plugin = self->Get<WsPlugin*>("plugin");
@@ -100,5 +122,70 @@ namespace px
                 plugin->ReportSentDataSize(byte_sent);
             }
         });
+    }
+
+    FileTransferSendResult WsStreamRouter::TryPostFileTransferMessage(
+        const std::shared_ptr<Data>& data) {
+        if (!file_allowed_.load()) {
+            return FileTransferSendResult::Disconnected(
+                "WebSocket control session has no file-transfer capability");
+        }
+        if (!data) {
+            return FileTransferSendResult::TransportError(
+                "WebSocket file-transfer payload is empty");
+        }
+        if (!session_ || !session_->is_started()) {
+            return FileTransferSendResult::Disconnected(
+                "WebSocket control session is not connected");
+        }
+        if (GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages) {
+            return FileTransferSendResult::Busy(
+                "WebSocket control queue is full",
+                AcquireWritableSignal());
+        }
+        PostBinaryMessage(data);
+        return FileTransferSendResult::Accepted();
+    }
+
+    void WsStreamRouter::SetUdpMediaFallbackCallback(std::function<void()> callback) {
+        udp_media_fallback_callback_ = std::move(callback);
+    }
+
+    std::shared_ptr<FileTransferWritableSignal> WsStreamRouter::AcquireWritableSignal() {
+        std::shared_ptr<FileTransferWritableSignal> signal;
+        {
+            std::lock_guard lock(writable_signal_mutex_);
+            if (!writable_signal_
+                || writable_signal_->outcome() != FileTransferWritableOutcome::kPending) {
+                writable_signal_ = FileTransferWritableSignal::Create();
+            }
+            signal = writable_signal_;
+        }
+        if (GetQueuingMsgCount() <= kFileTransferQueueLowWatermark) {
+            signal->NotifyWritable();
+        }
+        return signal;
+    }
+
+    void WsStreamRouter::NotifyWritable() {
+        std::shared_ptr<FileTransferWritableSignal> signal;
+        {
+            std::lock_guard lock(writable_signal_mutex_);
+            signal = std::move(writable_signal_);
+        }
+        if (signal) {
+            signal->NotifyWritable();
+        }
+    }
+
+    void WsStreamRouter::NotifyClosed() {
+        std::shared_ptr<FileTransferWritableSignal> signal;
+        {
+            std::lock_guard lock(writable_signal_mutex_);
+            signal = std::move(writable_signal_);
+        }
+        if (signal) {
+            signal->Close();
+        }
     }
 }

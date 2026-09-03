@@ -432,7 +432,7 @@ namespace px
                 return;
             }
             // udp_media 客户端的媒体帧走 UDP 通道,ws 只发控制消息
-            if (is_media_frame && router->udp_media_) {
+            if (is_media_frame && router->udp_media_.load()) {
                 return;
             }
             router->PostBinaryMessage(msg);
@@ -447,10 +447,11 @@ namespace px
         const bool file_allowed = std::find(
             update.permissions_.begin(), update.permissions_.end(), "file")
             != update.permissions_.end();
-        stream_routers_.ApplyAll([&update, clipboard_allowed](
+        stream_routers_.ApplyAll([&update, clipboard_allowed, file_allowed](
             const uint64_t&, const std::shared_ptr<WsStreamRouter>& router) {
             if (router && router->stream_id_ == update.stream_id_) {
                 router->clipboard_allowed_.store(clipboard_allowed);
+                router->file_allowed_.store(file_allowed);
             }
         });
         ft_routers_.ApplyAll([&update, file_allowed](
@@ -502,7 +503,7 @@ namespace px
                     return;
                 }
                 // udp_media 客户端的媒体帧走 UDP 通道,ws 只发控制消息
-                if (is_media_frame && router->udp_media_) {
+                if (is_media_frame && router->udp_media_.load()) {
                     return;
                 }
                 router->PostBinaryMessage(msg);
@@ -513,7 +514,8 @@ namespace px
 
     FileTransferSendResult WsPluginServer::PostTargetFileTransferMessage(
         const std::string& stream_id,
-        const std::shared_ptr<Data>& msg) {
+        const std::shared_ptr<Data>& msg,
+        const std::string& connection_instance_id) {
         if (!msg) {
             return FileTransferSendResult::TransportError(
                 "WebSocket file-transfer payload is empty");
@@ -521,8 +523,28 @@ namespace px
         auto result = FileTransferSendResult::Disconnected(
             "WebSocket file-transfer route was not found");
         ft_routers_.ApplyAll([&](const uint64_t& socket_fd, const std::shared_ptr<WsFileTransferRouter>& router) {
-            if (stream_id == router->stream_id_ || stream_id.empty()) {
+            static_cast<void>(socket_fd);
+            const bool matches = !connection_instance_id.empty()
+                ? connection_instance_id == router->binding_id_
+                : (stream_id == router->stream_id_ || stream_id.empty());
+            if (matches) {
                 result = router->TryPostBinaryMessage(msg);
+            }
+        });
+        if (result.status() == FileTransferSendStatus::kAccepted
+            || result.status() == FileTransferSendStatus::kBusy) {
+            return result;
+        }
+        // UDP-direct intentionally multiplexes reliable file traffic over its
+        // authenticated WS control binding. This avoids a second redemption of
+        // the one-time Console ticket and keeps all non-media logic reliable.
+        stream_routers_.ApplyAll([&](const uint64_t& socket_fd, const std::shared_ptr<WsStreamRouter>& router) {
+            static_cast<void>(socket_fd);
+            const bool matches = !connection_instance_id.empty()
+                ? connection_instance_id == router->binding_id_
+                : (stream_id == router->stream_id_ || stream_id.empty());
+            if (matches) {
+                result = router->TryPostFileTransferMessage(msg);
             }
         });
         return result;
@@ -971,14 +993,29 @@ namespace px
                     self->plugin_->CallbackEvent(event);
 
                     auto router = WsStreamRouter::Make(self->ws_data_, only_audio, visitor_device_id, stream_id);
-                    router->udp_media_ = udp_media;
+                    router->udp_media_.store(udp_media);
                     router->logical_session_id_ = admission->logical_session_id_;
                     router->binding_id_ = binding_id;
                     router->clipboard_allowed_.store(std::find(
                         admission->permissions_.begin(), admission->permissions_.end(), "clipboard")
                         != admission->permissions_.end());
+                    router->file_allowed_.store(std::find(
+                        admission->permissions_.begin(), admission->permissions_.end(), "file")
+                        != admission->permissions_.end());
                     router->udp_media_association_code_ = udp_media_association_code;
                     router->force_gdi_ = force_gdi;
+                    const std::weak_ptr<WsStreamRouter> weak_router = router;
+                    router->SetUdpMediaFallbackCallback([weak_self, weak_router]() {
+                        const auto server = weak_self.lock();
+                        const auto active_router = weak_router.lock();
+                        if (!server || !active_router) {
+                            return;
+                        }
+                        server->UpdateUdpMediaAssociation(
+                            active_router->udp_media_association_code_,
+                            active_router->logical_session_id_, active_router->stream_id_,
+                            active_router->force_gdi_, true);
+                    });
                     self->stream_routers_.Insert(socket_fd, router);
                     self->NotifyMediaClientConnected(router->conn_id_, router->stream_id_, visitor_device_id);
                     router->OnOpen(sess_ptr);
@@ -1210,7 +1247,7 @@ namespace px
                 // ClientHello is the application-level acceptance boundary.
                 // Refresh the short-lived media-plane association here so the
                 // UDP endpoint cannot race ahead of WS admission/configuration.
-                if (router->udp_media_ && !router->udp_media_association_code_.empty()) {
+                if (router->udp_media_.load() && !router->udp_media_association_code_.empty()) {
                     UpdateUdpMediaAssociation(router->udp_media_association_code_,
                                               router->logical_session_id_, router->stream_id_,
                                               router->force_gdi_, false);

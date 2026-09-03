@@ -39,7 +39,8 @@ namespace px
         bool PostTargetStreamMessage(const std::string& stream_id, std::shared_ptr<Data> msg);
         FileTransferSendResult PostTargetFileTransferMessage(
             const std::string& stream_id,
-            const std::shared_ptr<Data>& msg);
+            const std::shared_ptr<Data>& msg,
+            const std::string& connection_instance_id = {});
         int GetConnectedClientsCount();
         bool IsOnlyAudioClients();
         bool IsWorking();

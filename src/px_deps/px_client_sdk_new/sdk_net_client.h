@@ -157,7 +157,7 @@ namespace px
         std::atomic_bool exited_{false};
         // kUdpDirect starts with a WS control session whose media is filtered by
         // udp_media=1. Once UDP is proven unavailable this state latches a
-        // one-shot, generation-protected WS media reconnection.
+        // one-shot switch that enables media on that same authenticated socket.
         UdpMediaFallbackState udp_media_fallback_state_;
         std::atomic_uint64_t managed_media_generation_{0};
         std::atomic_int64_t udp_media_probe_deadline_ms_{0};

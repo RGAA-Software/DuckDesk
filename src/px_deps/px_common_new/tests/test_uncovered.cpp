@@ -434,6 +434,10 @@ TEST(TestUncovered, WebSocketControlRejectionSignals) {
               WsControlRejection::kSessionPolicy);
     EXPECT_EQ(ParseWsControlRejection("ordinary protobuf payload"),
               WsControlRejection::kNone);
+    EXPECT_EQ(ParseWsControlRejection(kWsUseWebSocketMediaSignal),
+              WsControlRejection::kNone);
+    EXPECT_TRUE(IsWsUseWebSocketMediaSignal(kWsUseWebSocketMediaSignal));
+    EXPECT_FALSE(IsWsUseWebSocketMediaSignal(kWsAuthorizationRejectedSignal));
 }
 
 } // namespace px

@@ -113,7 +113,7 @@ namespace px
 
         // 支持同实例重连:先停旧 socket,再清空连接态与组帧/jitter 状态。
         // 否则 render 重启/接管后 frame_index 回退,旧 finished_ 水位会把新流全丢。
-        if (udp_client_ && udp_client_->is_started()) {
+        if (udp_client_) {
             udp_client_->stop_all_timers();
             udp_client_->stop();
         }
@@ -223,7 +223,10 @@ namespace px
         if (stopped_.exchange(true)) {
             return;
         }
-        if (udp_client_ && udp_client_->is_started()) {
+        // asio2 may be between a failed connect and its automatic reconnect,
+        // where is_started() is false but a reconnect timer is still armed.
+        // stop() is explicitly safe from callbacks and cancels that timer.
+        if (udp_client_) {
             udp_client_->stop_all_timers();
             udp_client_->stop();
         }

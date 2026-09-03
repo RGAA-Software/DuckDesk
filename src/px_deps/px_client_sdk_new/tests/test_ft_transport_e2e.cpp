@@ -343,13 +343,22 @@ TEST(FileTransferTransportE2E, UploadDownloadAndDelete) {
     params->enable_audio_ = false;
     params->enable_video_ = false;
     params->enable_controller_ = false;
-    // A standalone file manager establishes a Controller logical session, but
-    // its FT binding cannot authorize desktop input.
-    params->file_transfer_only_ = true;
+    // UDP-direct exercises the normal-client topology: reliable file messages
+    // share the authenticated /media control socket while UDP remains media
+    // only. Other transports retain the standalone file-only route here.
+    params->file_transfer_only_ = transport != "udp_direct";
     params->ip_ = host;
     params->port_ = port;
     params->media_path_ = "/media?only_audio=0&remote_device_id=" + remote_device_id
         + "&stream_id=" + stream_id + "&visitor_device_id=" + visitor_device_id;
+    if (transport == "udp_direct") {
+        params->udp_media_association_ = "ft-e2e-" + suffix;
+        params->media_path_ += "&udp_media=1";
+        // Deliberately leave the UDP media endpoint unreachable so this E2E
+        // covers the authenticated in-session WS fallback instead of merely
+        // proving the healthy UDP path. The WS control socket still uses port.
+        params->udp_port_ = port == 65535 ? 1 : port + 1;
+    }
     params->ft_path_ = "/file/transfer?remote_device_id=" + remote_device_id
         + "&stream_id=" + stream_id + "&visitor_device_id=" + visitor_device_id;
     params->client_type_ = px::ClientType::kWindows;
@@ -493,6 +502,14 @@ TEST(FileTransferTransportE2E, UploadDownloadAndDelete) {
 
     client->Start();
     ASSERT_TRUE(WaitConnected(state, 30s));
+    if (transport == "udp_direct") {
+        // The unreachable UDP endpoint makes the probe expire. The same
+        // authenticated WS must then carry media/file traffic without reopening
+        // /media and replaying the consumed Console ticket.
+        std::this_thread::sleep_for(6s);
+        std::scoped_lock lock(state->mutex);
+        ASSERT_FALSE(state->disconnected);
+    }
 
     // Connection tickets are deliberately short-lived. Redeem the ticket before
     // constructing or hashing a large local data set so test preparation cannot

@@ -98,7 +98,7 @@ client 端:
 1. AES-128-GCM(密钥经 ws 下发,IV=序号+方向字节)。
 2. ~~输入迁 UDP 不可靠通道 + 关键事件可靠化~~ **暂缓**：控制输入继续走直连 WebSocket；只有实测证明其为可感知瓶颈时，才以 ACK、状态快照和 WS 可靠降级为前提重新立项。
 3. 编码器低延迟参数(单帧 VBV、无限 GOP、按需 IDR、intra-refresh)——与协议无关,可提前独立做。
-4. ~~包大小公网钳制(1024B)、pacing、UDP 连通性自检与自动回退直连 WebSocket 媒体面~~ **已实现客户端自检与回退**：首个有效媒体帧前 4 秒超时、或运行中 UDP watchdog 超时，均一次性重建不带 `udp_media=1` 的直连 WebSocket 媒体会话；公网 MTU 默认与实机矩阵仍待收口。
+4. ~~包大小公网钳制(1024B)、pacing、UDP 连通性自检与自动回退直连 WebSocket 媒体面~~ **已实现客户端自检与回退**：首个有效媒体帧前 4 秒超时、或运行中 UDP watchdog 超时，客户端通过已认证的 WebSocket 控制通道发送可靠切换信号，Render 在同一连接上恢复音视频下发并撤销 UDP association。回退不新建连接、不重复兑换一次性 Ticket。公网 MTU 默认与实机矩阵仍待收口。
 
 ## 测试计划
 
@@ -108,7 +108,7 @@ client 端:
 ## 风险
 
 - 子模块连锁改动:`px_message_new`、`px_client_sdk_new` 需分别提交。
-- 双通道生命周期:ws 断=会话断;UDP 超时(10s)P1 先走 ws 通知断开。
+- 双通道生命周期：WS 断开等于会话断开；UDP 超时通过原 WS 可靠控制消息切到 WS 媒体，不使用 UDP 承载状态逻辑。普通 UDP-direct 会话的文件传输也复用这条已认证 WS，只有独立 file-only 模式才单独连接 `/file/transfer`。
 - 互踢沿用 takeover 体系(经 ws 发 550),UDP 插件不自创。
 
 ## 方案 B(备选,暂缓):wire 兼容 GameStream

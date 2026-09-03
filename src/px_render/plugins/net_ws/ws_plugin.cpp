@@ -112,7 +112,8 @@ namespace px
                 "WebSocket file-transfer payload is empty");
         }
         if (IsWorking()) {
-            return ws_server_->PostTargetFileTransferMessage(stream_id, msg);
+            return ws_server_->PostTargetFileTransferMessage(
+                stream_id, msg, connection_instance_id);
         }
         return FileTransferSendResult::Disconnected(
             "WebSocket file-transfer server is not working");

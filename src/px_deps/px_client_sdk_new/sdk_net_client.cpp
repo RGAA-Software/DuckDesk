@@ -13,6 +13,7 @@
 #include "px_common_new/thread.h"
 #include "px_common_new/file.h"
 #include "px_common_new/message_notifier.h"
+#include "px_common_new/ws_control_signal.h"
 #include "sdk_messages.h"
 #include "connection/udp_connection.h"
 #include "connection/ws_connection.h"
@@ -168,8 +169,8 @@ namespace px
         connection->RegisterOnDisConnectedCallback([weak_self, generation]() {
             const auto self = weak_self.lock();
             if (!self || !self->IsCurrentManagedMediaConnection(generation)) return;
-            // UDP->WS 切换期间旧连接的 disconnect 已由 generation 拦截；只有当前
-            // 回退后的 WS 连接断开才上报用户可见的媒体断线。
+            // UDP 回退复用这条已认证 WS，因此它仍是会话生命期边界。
+            // generation 只过滤被后续启动或退出替换掉的旧回调。
             if (self->dis_conn_cbk_) self->dis_conn_cbk_();
         });
         connection->RegisterOnMessageCallback([weak_self, weak_connection, generation](std::shared_ptr<Data> data) {
@@ -241,20 +242,22 @@ namespace px
     void NetClient::BeginUdpWebSocketFallback() {
         if (!udp_media_fallback_state_.BeginFallback()) return;
         udp_media_probe_deadline_ms_ = 0;
-        LOGW("Udp direct media unavailable; reconnecting the media channel as direct WebSocket.");
+        LOGW("Udp direct media unavailable; enabling media on the authenticated WebSocket control channel.");
 
         const auto previous_udp = CurrentUdpDirectConnection();
         if (previous_udp) previous_udp->Stop();
 
-        const auto previous_media = CurrentMediaConnection();
-        const auto fallback_media = MakeDirectWebSocketMediaConnection(false);
-        const auto generation = managed_media_generation_.fetch_add(1) + 1;
-        ReplaceMediaConnection(fallback_media);
-        // Advance generation before stopping the old WS so its queued disconnect
-        // callback cannot turn a successful fallback into a false global disconnect.
-        if (previous_media) previous_media->Stop();
+        const auto control_connection = CurrentMediaConnection();
+        if (!control_connection || !control_connection->IsAlive()) {
+            LOGE("Cannot enable WebSocket media fallback: authenticated control channel is offline");
+            return;
+        }
+        // This is a reliable in-session control signal. Reopening /media would
+        // incorrectly try to redeem the original one-time ticket after it had
+        // already authenticated this logical session.
+        control_connection->PostTextMessage(std::string(kWsUseWebSocketMediaSignal));
         udp_media_fallback_state_.MarkWebSocketFallbackActive();
-        StartManagedUdpMediaConnection(fallback_media, generation);
+        LOGI("Requested WebSocket media fallback on the existing authenticated session");
     }
 
     void NetClient::Start() {
@@ -337,25 +340,25 @@ namespace px
             // 见 docs/udp_gamestream_channel_plan.md
             LOGI("Will connect by UDP direct, ws ctrl: {}:{}, udp media: {}:{}", sdk_params_->ip_,
                  sdk_params_->port_, sdk_params_->ip_, sdk_params_->udp_port_);
-            // 文件传输复用 ws 控制面同一条 ws 服务,走独立 /file/transfer 路由;
-            // 之前 kUdpDirect 未建 ft_conn_,导致文件传输(含剪贴板文件)被静默丢弃。
-            const auto ft_path = MakeAuthenticatedWebSocketPath(
-                ft_path_, sdk_params_->file_transfer_only_);
-            if (sdk_params_->ssl_) {
-                if (!sdk_params_->file_transfer_only_) {
-                    ReplaceMediaConnection(MakeDirectWebSocketMediaConnection(true));
-                }
-                ft_conn_ = std::make_shared<WssConnection>(
-                    sdk_params_, msg_notifier_, sdk_params_->ip_,
-                    sdk_params_->port_, ft_path);
+            // Reliable control and file-transfer messages share the already
+            // authenticated /media WebSocket. UDP carries audio/video only.
+            // Opening another route would redeem the one-time ticket again and
+            // later reconnects would be rejected after the ticket expires.
+            if (!sdk_params_->file_transfer_only_) {
+                ReplaceMediaConnection(MakeDirectWebSocketMediaConnection(true));
             }
             else {
-                if (!sdk_params_->file_transfer_only_) {
-                    ReplaceMediaConnection(MakeDirectWebSocketMediaConnection(true));
+                const auto ft_path = MakeAuthenticatedWebSocketPath(ft_path_, true);
+                if (sdk_params_->ssl_) {
+                    ft_conn_ = std::make_shared<WssConnection>(
+                        sdk_params_, msg_notifier_, sdk_params_->ip_,
+                        sdk_params_->port_, ft_path);
                 }
-                ft_conn_ = std::make_shared<WsConnection>(
-                    sdk_params_, msg_notifier_, sdk_params_->ip_,
-                    sdk_params_->port_, ft_path);
+                else {
+                    ft_conn_ = std::make_shared<WsConnection>(
+                        sdk_params_, msg_notifier_, sdk_params_->ip_,
+                        sdk_params_->port_, ft_path);
+                }
             }
             if (!sdk_params_->file_transfer_only_) {
                 ReplaceUdpDirectConnection(std::make_shared<UdpDirectConnection>(
@@ -846,19 +849,22 @@ namespace px
             rtc_local_conn_->PostFtMessage(msg);
         }
         else {
-            if (!ft_conn_ || !ft_conn_->IsAlive()) {
+            const auto file_connection = network_type_ == ClientNetworkType::kUdpDirect
+                && !sdk_params_->file_transfer_only_
+                ? CurrentMediaConnection() : ft_conn_;
+            if (!file_connection || !file_connection->IsAlive()) {
                 return FileTransferSendResult::Disconnected("file-transfer connection is not alive");
             }
-            if (ft_conn_->GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages) {
-                const auto signal = ft_conn_->AcquireFileTransferWritableSignal();
-                if (ft_conn_->GetQueuingMsgCount() <= kFileTransferQueueLowWatermark) {
+            if (file_connection->GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages) {
+                const auto signal = file_connection->AcquireFileTransferWritableSignal();
+                if (file_connection->GetQueuingMsgCount() <= kFileTransferQueueLowWatermark) {
                     signal->NotifyWritable();
                 }
                 return FileTransferSendResult::Busy(
                     "file-transfer connection queue is full",
                     signal);
             }
-            ft_conn_->PostBinaryMessage(msg);
+            file_connection->PostBinaryMessage(msg);
         }
 
         stat_->AppendSentDataSize(msg->Size());
@@ -935,7 +941,10 @@ namespace px
         auto proto_msg = msg->SerializeAsString();
         if (auto buffer = px::ProtoAsData(msg); buffer) {
             this->PostMediaMessage(buffer);
-            static_cast<void>(this->PostFileTransferMessage(buffer));
+            if (network_type_ != ClientNetworkType::kUdpDirect
+                || sdk_params_->file_transfer_only_) {
+                static_cast<void>(this->PostFileTransferMessage(buffer));
+            }
         }
     }
 
@@ -960,6 +969,13 @@ namespace px
         }
         else if (rtc_local_conn_) {
             return rtc_local_conn_->GetQueuingFtMsgCount();
+        }
+        else if (network_type_ == ClientNetworkType::kUdpDirect
+                 && !sdk_params_->file_transfer_only_) {
+            if (const auto media_connection = CurrentMediaConnection()) {
+                return media_connection->GetQueuingMsgCount();
+            }
+            return 0;
         }
         else if (ft_conn_) {
             return ft_conn_->GetQueuingMsgCount();

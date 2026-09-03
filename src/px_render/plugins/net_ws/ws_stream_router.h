@@ -6,9 +6,11 @@
 #define TC_APPLICATION_WS_PLUGIN_ROUTER_H
 
 #include <atomic>
+#include <functional>
 #include <mutex>
 #include "network/ws_router.h"
 #include "px_render/plugin_interface/px_net_plugin_type.h"
+#include "px_common_new/file_transfer_send_result.h"
 //#include "network/wss_router.h"
 
 namespace px
@@ -35,15 +37,25 @@ namespace px
         void PostBinaryMessage(std::shared_ptr<Data> data) override;
         void PostBinaryMessage(const std::string &data) override;
         void PostTextMessage(const std::string& data) override;
+        [[nodiscard]] FileTransferSendResult TryPostFileTransferMessage(
+            const std::shared_ptr<Data>& data);
+        void SetUdpMediaFallbackCallback(std::function<void()> callback);
+
+    private:
+        [[nodiscard]] std::shared_ptr<FileTransferWritableSignal>
+        AcquireWritableSignal();
+        void NotifyWritable();
+        void NotifyClosed();
 
     public:
         bool enable_video_ = true;
         // udp_media=1 的客户端:媒体帧由 net_udp 插件裸 UDP 直发,本 ws 会话
         // 只承担控制面,kVideoFrame/kAudioFrame proto 不再下发(见 ws_server.cpp)
-        bool udp_media_ = false;
+        std::atomic_bool udp_media_ = false;
         // Capability comes from the redeemed logical-session ticket. Outbound
         // clipboard payloads are filtered by WsPluginServer before broadcast.
         std::atomic_bool clipboard_allowed_ = false;
+        std::atomic_bool file_allowed_ = false;
         std::string visitor_device_id_;
         std::string stream_id_;
         std::string logical_session_id_;
@@ -56,6 +68,9 @@ namespace px
         std::mutex device_name_mtx_;
         std::string device_name_;
         NetChannelType nt_channel_type_;
+        std::mutex writable_signal_mutex_;
+        std::shared_ptr<FileTransferWritableSignal> writable_signal_;
+        std::function<void()> udp_media_fallback_callback_;
     };
 
 }
