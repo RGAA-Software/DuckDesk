@@ -9,6 +9,8 @@ export interface ServiceConn {
   auth_info_json: string
   /** Service HeartBeat 上报的本机实例摘要 JSON */
   instances_json?: string
+  /** Render 可靠控制面上报的、按 logical_session_id 去重的会话快照 JSON */
+  logical_sessions_json?: string
 }
 
 // auth_info_json 解析后的授权信息

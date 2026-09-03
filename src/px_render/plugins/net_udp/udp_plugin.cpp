@@ -7,6 +7,7 @@
 #include <chrono>
 #include <algorithm>
 #include <thread>
+#include <unordered_map>
 #include "px_render/plugins/plugin_ids.h"
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
@@ -39,25 +40,32 @@ namespace px
             const char* data, size_t size); // NOLINT(gammaray-raw-pointer-boundary) Synchronous UDP byte-view boundary
         void HandleHello(
             const std::shared_ptr<UdpSession>& udp_session,
-            const std::string& device_id, const std::string& stream_id);
+            const std::string& association_code, const std::string& stream_id);
         void HandleHeartbeat(
             const std::shared_ptr<UdpSession>& udp_session,
-            const std::string& stream_id);
+            const std::string& association_code);
         void HandleFrameStatus(
             uint32_t frame_index, uint16_t received, uint16_t lost);
         void AdjustFecWindow();
         bool HasBoundSession();
         void SweepDeadSessions();
-        void NotifyMediaClientConnected(
-            const std::string& connection_id, const std::string& stream_id,
-            const std::string& visitor_device_id, int64_t begin_timestamp);
-        void NotifyMediaClientDisconnected(
-            const std::string& connection_id, const std::string& stream_id,
-            const std::string& visitor_device_id, int64_t begin_timestamp);
+        void UpdateMediaAssociation(const UdpMediaAssociation& association);
 
         std::shared_ptr<asio2::udp_server> server_;
         ConcurrentHashMap<std::string, std::shared_ptr<UdpSession>> sessions_;
         std::mutex bind_mutex_;
+        struct PendingMediaAssociation {
+            std::string logical_session_id_;
+            std::string stream_id_;
+            int64_t expires_at_ms_ = 0;
+            std::string endpoint_id_;
+            bool force_gdi_ = false;
+        };
+        std::unordered_map<std::string, PendingMediaAssociation> media_associations_;
+        // UDP is a media-only transport. One render instance has at most one
+        // active UDP media endpoint, while WS remains the owner of the logical
+        // session and may revoke the endpoint at any time.
+        std::string active_media_association_code_;
         std::atomic_int bound_count_{0};
         std::atomic_int fec_percent_{20};
         std::atomic_int stat_complete_frames_{0};
@@ -157,6 +165,13 @@ namespace px
         timeEndPeriod(1);
         pace_timer_.reset();
         return PxNetPlugin::OnDestroy();
+    }
+
+    void UdpPlugin::OnMessageRaw(const std::any& msg) {
+        if (!runtime_ || msg.type() != typeid(UdpMediaAssociation)) {
+            return;
+        }
+        runtime_->UpdateMediaAssociation(std::any_cast<UdpMediaAssociation>(msg));
     }
 
     // wire 级扫描 px.Message,提取 kAudioFrame(40) 里 AudioFrame.data(field 5, bytes)
@@ -382,6 +397,16 @@ namespace px
                     removed = opt_sess.value();
                     if (removed->bound_.exchange(false)) {
                         runtime->bound_count_--;
+                        const auto association = runtime->media_associations_.find(
+                            removed->association_code_);
+                        if (association != runtime->media_associations_.end()
+                            && association->second.endpoint_id_ == conn_id) {
+                            association->second.endpoint_id_.clear();
+                        }
+                        if (runtime->active_media_association_code_
+                            == removed->association_code_) {
+                            runtime->active_media_association_code_.clear();
+                        }
                     }
                     else {
                         removed.reset(); // 未绑定会话不算媒体客户端,不发断开事件
@@ -394,12 +419,7 @@ namespace px
                 LOGI("udp stale disconnect ignored: {}", conn_id);
                 return;
             }
-            if (removed) {
-                runtime->NotifyMediaClientDisconnected(
-                    removed->conn_id_, removed->stream_id_,
-                    removed->device_id_, removed->begin_timestamp_);
-            }
-            LOGI("udp client leave : {} {} {}",
+            LOGI("udp media endpoint disconnected: {} {} {}",
                    session->remote_address().c_str(), session->remote_port(),
                    asio2::last_error_msg().c_str());
         }).bind_start([weak_runtime]() {
@@ -442,6 +462,57 @@ namespace px
             server_.reset();
         }
         sessions_.Clear();
+        std::scoped_lock lock(bind_mutex_);
+        media_associations_.clear();
+        active_media_association_code_.clear();
+    }
+
+    void UdpRuntimeState::UpdateMediaAssociation(const UdpMediaAssociation& association) {
+        if (association.association_code_.empty()) {
+            return;
+        }
+        std::scoped_lock lock(bind_mutex_);
+        if (association.revoke_) {
+            const auto existing = media_associations_.find(association.association_code_);
+            if (existing != media_associations_.end()) {
+                if (!existing->second.endpoint_id_.empty()) {
+                    const auto endpoint = sessions_.Remove(existing->second.endpoint_id_);
+                    if (endpoint.has_value() && endpoint.value()->bound_.exchange(false)) {
+                        --bound_count_;
+                    }
+                }
+                media_associations_.erase(existing);
+            }
+            if (active_media_association_code_ == association.association_code_) {
+                active_media_association_code_.clear();
+            }
+            LOGI("udp media association revoked: stream={}, remaining={}",
+                 association.stream_id_, media_associations_.size());
+            return;
+        }
+        if (association.stream_id_.empty() || association.expires_at_ms_ <= 0) {
+            return;
+        }
+        const auto existing = media_associations_.find(association.association_code_);
+        if (existing != media_associations_.end()
+            && existing->second.logical_session_id_ == association.logical_session_id_
+            && existing->second.stream_id_ == association.stream_id_) {
+            // A WS reconnect may refresh the one-time association before the
+            // UDP hello arrives. Preserve a successfully bound endpoint.
+            existing->second.expires_at_ms_ = association.expires_at_ms_;
+            existing->second.force_gdi_ = association.force_gdi_;
+            LOGI("udp media association refreshed: stream={}, pending={}",
+                 association.stream_id_, media_associations_.size());
+            return;
+        }
+        media_associations_.insert_or_assign(association.association_code_, PendingMediaAssociation{
+            .logical_session_id_ = association.logical_session_id_,
+            .stream_id_ = association.stream_id_,
+            .expires_at_ms_ = association.expires_at_ms_,
+            .force_gdi_ = association.force_gdi_,
+        });
+        LOGI("udp media association registered: stream={}, pending={}",
+             association.stream_id_, media_associations_.size());
     }
 
     void UdpRuntimeState::HandleCtrlPacket(
@@ -452,19 +523,24 @@ namespace px
         uint32_t fs_frame = 0;
         uint16_t fs_received = 0, fs_lost = 0;
         if (PxUdpProtocol::ParseFrameStatus(data, size, fs_frame, fs_received, fs_lost)) {
-            HandleFrameStatus(fs_frame, fs_received, fs_lost);
+            if (udp_sess->bound_) {
+                HandleFrameStatus(fs_frame, fs_received, fs_lost);
+            }
             return;
         }
         std::string s1, s2;
         auto subtype = PxUdpProtocol::ParseCtrl(data, size, s1, s2);
         switch (subtype) {
             case PxUdpProtocol::kCtrlHello:
-                HandleHello(udp_sess, s1 /*device_id*/, s2 /*stream_id*/);
+                HandleHello(udp_sess, s1 /*association_code*/, s2 /*stream_id*/);
                 break;
             case PxUdpProtocol::kCtrlHeartbeat:
-                HandleHeartbeat(udp_sess, s1 /*stream_id*/);
+                HandleHeartbeat(udp_sess, s1 /*association_code*/);
                 break;
             case PxUdpProtocol::kCtrlIdrRequest: {
+                if (!udp_sess->bound_) {
+                    return;
+                }
                 // 客户端组帧判丢后请求补 IDR;s1 为 mon_name(空 = 全屏)。
                 // 判丢帧与 IDR 请求 1:1,据此累计窗口判丢帧数(见 udp_plugin.h 注释)
                 stat_lost_frames_++;
@@ -474,6 +550,9 @@ namespace px
                 break;
             }
             case PxUdpProtocol::kCtrlIdrKeepalive: {
+                if (!udp_sess->bound_) {
+                    return;
+                }
                 // 连接初始化/无帧超时补关键帧:行为同 IDR 请求,但不计入丢帧统计,
                 // 否则客户端刚连上自动补几发 IDR 就会把动态 FEC 刷到上限。
                 auto event = std::make_shared<PxPluginInsertIdrEvent>();
@@ -482,6 +561,9 @@ namespace px
                 break;
             }
             case PxUdpProtocol::kCtrlRfi: {
+                if (!udp_sess->bound_) {
+                    return;
+                }
                 // s1 = invalid_frame_index(字符串),s2 = mon_name(空=全屏)。
                 // 丢整帧后优先走参考帧失效,不插 IDR;不支持 RFI 的编码器由上层忽略,
                 // 客户端会在 2s 无完整帧后回退 IDR keepalive。
@@ -549,90 +631,94 @@ namespace px
 
     void UdpRuntimeState::HandleHello(
         const std::shared_ptr<UdpSession>& udp_sess,
-        const std::string& device_id, const std::string& stream_id) {
-        if (udp_sess->kicked_) {
-            LOGW("kicked udp endpoint tries to hello again, ignore: {}", udp_sess->conn_id_);
+        const std::string& association_code, const std::string& stream_id) {
+        if (association_code.empty() || stream_id.empty()) {
+            LOGW("udp media hello missing association or stream from {}", udp_sess->conn_id_);
             return;
         }
-        if (device_id.empty() || stream_id.empty()) {
-            LOGW("kCtrlHello with empty device_id/stream_id, drop. from: {}", udp_sess->conn_id_);
-            return;
-        }
-        auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
-        std::shared_ptr<UdpSession> old_bound;
+        const auto now = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp());
+        std::shared_ptr<UdpSession> replaced_endpoint;
+        bool force_gdi = false;
         {
-            std::lock_guard lock(bind_mutex_);
-            if (udp_sess->bound_ && udp_sess->stream_id_ == stream_id) {
-                // 同会话重复 Hello:刷新心跳即可
+            std::scoped_lock lock(bind_mutex_);
+            const auto association_it = media_associations_.find(association_code);
+            if (association_it == media_associations_.end()
+                || association_it->second.stream_id_ != stream_id
+                // The short expiry gates the first endpoint registration. A
+                // bound WS association may subsequently re-register on a NAT
+                // port change; WS close remains the authoritative revocation.
+                || (association_it->second.expires_at_ms_ <= now
+                    && association_it->second.endpoint_id_.empty())) {
+                const auto stream_match = std::any_of(
+                    media_associations_.begin(), media_associations_.end(),
+                    [&stream_id](const auto& item) {
+                        return item.second.stream_id_ == stream_id;
+                    });
+                LOGW("udp media hello has no active WS association from {} (stream={}, pending={}, stream_match={})",
+                     udp_sess->conn_id_, stream_id, media_associations_.size(), stream_match);
+                return;
+            }
+            if (!active_media_association_code_.empty()
+                && active_media_association_code_ != association_code) {
+                LOGW("udp media hello rejected: another endpoint is active");
+                return;
+            }
+            if (udp_sess->bound_ && udp_sess->association_code_ == association_code) {
                 udp_sess->last_heartbeat_ms_ = now;
                 return;
             }
-            // 互踢:UDP 与 RTC local 保持一致,任意已绑定会话都算占用;
-            // 新 Hello 顶掉旧绑定会话,而不是只在同 stream_id 内互踢。
-            sessions_.ApplyAll([&](const std::string& k, const std::shared_ptr<UdpSession>& us) {
-                if (us != udp_sess && us->bound_) {
-                    old_bound = us;
+            if (!association_it->second.endpoint_id_.empty()
+                && association_it->second.endpoint_id_ != udp_sess->conn_id_) {
+                const auto previous = sessions_.Remove(association_it->second.endpoint_id_);
+                if (previous.has_value()) {
+                    replaced_endpoint = previous.value();
+                    if (replaced_endpoint->bound_.exchange(false)) {
+                        --bound_count_;
+                    }
                 }
-            });
-            if (old_bound) {
-                old_bound->bound_ = false;
-                old_bound->kicked_ = true;
-                bound_count_--;
-                LOGW("stream {} taken over, kick old session: {} (old stream: {})", stream_id, old_bound->conn_id_, old_bound->stream_id_);
             }
-
-            udp_sess->device_id_ = device_id;
+            association_it->second.endpoint_id_ = udp_sess->conn_id_;
+            active_media_association_code_ = association_code;
+            udp_sess->association_code_ = association_code;
             udp_sess->stream_id_ = stream_id;
+            force_gdi = association_it->second.force_gdi_;
             udp_sess->begin_timestamp_ = now;
             udp_sess->last_heartbeat_ms_ = now;
-            udp_sess->bound_ = true;
-            bound_count_++;
+            if (!udp_sess->bound_.exchange(true)) {
+                ++bound_count_;
+            }
         }
-        if (old_bound && old_bound->sess_) {
-            // 通知旧客户端"被接管",再补一条断开事件让统计/状态机闭环
-            auto kick = PxUdpProtocol::BuildKick("taken over");
-            old_bound->sess_->async_send(kick->CStr(), kick->Size(), [kick](std::size_t) {});
-            NotifyMediaClientDisconnected(
-                old_bound->conn_id_, old_bound->stream_id_,
-                old_bound->device_id_, old_bound->begin_timestamp_);
+        if (replaced_endpoint && replaced_endpoint->sess_) {
+            const auto kick = PxUdpProtocol::BuildKick("media endpoint replaced");
+            replaced_endpoint->sess_->async_send(kick->CStr(), kick->Size(), [kick](std::size_t) {});
         }
-        // 绑定成功:路由器收到连接事件会自动触发全屏 IDR,不用再单独请求
-        NotifyMediaClientConnected(udp_sess->conn_id_, stream_id, device_id, now);
-        LOGI("udp media session bound: {} => device: {}, stream: {}", udp_sess->conn_id_, device_id, stream_id);
+        LOGI("udp media endpoint associated: {} stream={}", udp_sess->conn_id_, stream_id);
+        // The capture wake caused by WS open can produce its only initial frame
+        // before the UDP hello binds an endpoint. A static desktop would then
+        // have no later frame to deliver. Re-run the same capture selection only
+        // after binding so the first usable encoded frame cannot fall into that
+        // gap.
+        auto begin_streaming = std::make_shared<PxPluginReqParamsBeginStreaming>();
+        begin_streaming->stream_id_ = stream_id;
+        begin_streaming->force_gdi_ = force_gdi;
+        event_dispatcher_(begin_streaming);
     }
 
     void UdpRuntimeState::HandleHeartbeat(
         const std::shared_ptr<UdpSession>& udp_sess,
-        const std::string& stream_id) {
-        // 被新连接互踢的旧 endpoint 不得再凭 stream_id 抢回绑定
-        if (udp_sess->kicked_) {
+        const std::string& association_code) {
+        if (!udp_sess->bound_ || udp_sess->association_code_ != association_code) {
             return;
         }
-        auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
-        if (udp_sess->bound_ && udp_sess->stream_id_ == stream_id) {
-            udp_sess->last_heartbeat_ms_ = now;
+        const auto now = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp());
+        std::scoped_lock lock(bind_mutex_);
+        const auto association_it = media_associations_.find(association_code);
+        if (association_it == media_associations_.end()
+            || association_it->second.endpoint_id_ != udp_sess->conn_id_
+            || active_media_association_code_ != association_code) {
             return;
         }
-        // 当前会话未绑定但 stream_id 匹配已绑定会话:NAT 换端口重建了底层会话,
-        // 把绑定迁到当前会话(同一逻辑客户端,不发连接/断开事件)
-        std::lock_guard lock(bind_mutex_);
-        std::shared_ptr<UdpSession> bound_sess;
-        sessions_.ApplyAll([&](const std::string& k, const std::shared_ptr<UdpSession>& us) {
-            if (us != udp_sess && us->bound_ && us->stream_id_ == stream_id) {
-                bound_sess = us;
-            }
-        });
-        if (!bound_sess) {
-            return;
-        }
-        LOGI("udp session rebound by heartbeat: {} => {} (stream: {})",
-             bound_sess->conn_id_, udp_sess->conn_id_, stream_id);
-        udp_sess->device_id_ = bound_sess->device_id_;
-        udp_sess->stream_id_ = stream_id;
-        udp_sess->begin_timestamp_ = bound_sess->begin_timestamp_;
         udp_sess->last_heartbeat_ms_ = now;
-        udp_sess->bound_ = true;
-        bound_sess->bound_ = false;
     }
 
     void UdpRuntimeState::SweepDeadSessions() {
@@ -649,16 +735,22 @@ namespace px
                 else if (us->bound_ && now - us->last_heartbeat_ms_.load() > kHeartbeatTimeoutMs) {
                     us->bound_ = false;
                     bound_count_--;
+                    const auto association = media_associations_.find(us->association_code_);
+                    if (association != media_associations_.end()
+                        && association->second.endpoint_id_ == us->conn_id_) {
+                        association->second.endpoint_id_.clear();
+                    }
+                    if (active_media_association_code_ == us->association_code_) {
+                        active_media_association_code_.clear();
+                    }
                     dead_sessions.push_back(us);
                 }
             });
         }
         for (const auto& us : dead_sessions) {
             LOGW("udp media session heartbeat timeout: {} (stream: {})", us->conn_id_, us->stream_id_);
-            NotifyMediaClientDisconnected(
-                us->conn_id_, us->stream_id_,
-                us->device_id_, us->begin_timestamp_);
-            // 摘掉会话并停掉底层 session(bind_disconnect 再进来时 bound_ 已是 false,不会重复发事件)
+            // Media endpoint expiry is diagnostic only: it must never announce
+            // a logical client disconnect or release a controller lease.
             sessions_.RemoveIf(us->conn_id_, [&](const std::shared_ptr<UdpSession>& cur) {
                 return cur == us;
             });
@@ -673,6 +765,20 @@ namespace px
             });
             if (us->sess_) {
                 us->sess_->stop();
+            }
+        }
+        {
+            std::scoped_lock lock(bind_mutex_);
+            for (auto it = media_associations_.begin(); it != media_associations_.end();) {
+                // Expiry protects the first UDP hello. Once the endpoint has
+                // been accepted, WS owns revocation and heartbeat maintains
+                // liveness; expiring this entry would silently break a healthy
+                // media stream after fifteen seconds.
+                if (it->second.endpoint_id_.empty() && it->second.expires_at_ms_ <= now) {
+                    it = media_associations_.erase(it);
+                } else {
+                    ++it;
+                }
             }
         }
     }
@@ -828,32 +934,6 @@ namespace px
         if (total_sent > 0) {
             ReportSentDataSize((int)total_sent);
         }
-    }
-
-    void UdpRuntimeState::NotifyMediaClientConnected(
-        const std::string& conn_id, const std::string& stream_id,
-        const std::string& visitor_device_id, int64_t begin_timestamp) {
-        auto event = std::make_shared<PxPluginClientConnectedEvent>();
-        event->conn_id_ = conn_id;
-        event->stream_id_ = stream_id;
-        event->conn_type_ = "UDP";
-        event->visitor_device_id_ = visitor_device_id;
-        event->begin_timestamp_ = begin_timestamp;
-        event_dispatcher_(event);
-        LOGI("Conn id: {}, visitor device id: {}", stream_id, visitor_device_id);
-    }
-
-    void UdpRuntimeState::NotifyMediaClientDisconnected(
-        const std::string& conn_id, const std::string& stream_id,
-        const std::string& visitor_device_id, int64_t begin_timestamp) {
-        auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
-        event->conn_id_ = conn_id;
-        event->stream_id_ = stream_id;
-        event->visitor_device_id_ = visitor_device_id;
-        event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
-        event->duration_ = event->end_timestamp_ - begin_timestamp;
-        event_dispatcher_(event);
-        LOGI("DisConn id: {}, visitor device id: {}, duration: {}", stream_id, visitor_device_id, event->duration_);
     }
 
     int UdpPlugin::GetConnectedClientsCount() {

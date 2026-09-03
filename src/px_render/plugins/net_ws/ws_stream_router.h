@@ -5,6 +5,7 @@
 #ifndef TC_APPLICATION_WS_PLUGIN_ROUTER_H
 #define TC_APPLICATION_WS_PLUGIN_ROUTER_H
 
+#include <atomic>
 #include <mutex>
 #include "network/ws_router.h"
 #include "px_render/plugin_interface/px_net_plugin_type.h"
@@ -40,8 +41,15 @@ namespace px
         // udp_media=1 的客户端:媒体帧由 net_udp 插件裸 UDP 直发,本 ws 会话
         // 只承担控制面,kVideoFrame/kAudioFrame proto 不再下发(见 ws_server.cpp)
         bool udp_media_ = false;
+        // Capability comes from the redeemed logical-session ticket. Outbound
+        // clipboard payloads are filtered by WsPluginServer before broadcast.
+        std::atomic_bool clipboard_allowed_ = false;
         std::string visitor_device_id_;
         std::string stream_id_;
+        std::string logical_session_id_;
+        std::string binding_id_;
+        std::string udp_media_association_code_;
+        bool force_gdi_ = false;
         unsigned int post_thread_id_ = 0;
         // written on the network thread (client hello), read on the statistics
         // thread (WsPluginServer::GetConnectedClientInfo), guarded by this mutex

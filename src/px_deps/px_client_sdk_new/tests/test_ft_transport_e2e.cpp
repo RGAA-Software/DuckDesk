@@ -295,6 +295,8 @@ TEST(FileTransferTransportE2E, UploadDownloadAndDelete) {
         environment, QStringLiteral("PX_FT_E2E_TICKET"));
     const auto nonce = RequiredEnvironment(
         environment, QStringLiteral("PX_FT_E2E_NONCE"));
+    const auto stream_id = RequiredEnvironment(
+        environment, QStringLiteral("PX_FT_E2E_STREAM_ID"));
     ASSERT_FALSE(HasFailure());
 
     const auto port = static_cast<int>(IntegerEnvironment(
@@ -341,13 +343,15 @@ TEST(FileTransferTransportE2E, UploadDownloadAndDelete) {
     params->enable_audio_ = false;
     params->enable_video_ = false;
     params->enable_controller_ = false;
+    // A standalone file manager establishes a Controller logical session, but
+    // its FT binding cannot authorize desktop input.
     params->file_transfer_only_ = true;
     params->ip_ = host;
     params->port_ = port;
     params->media_path_ = "/media?only_audio=0&remote_device_id=" + remote_device_id
-        + "&stream_id=" + nonce + "&visitor_device_id=" + visitor_device_id;
+        + "&stream_id=" + stream_id + "&visitor_device_id=" + visitor_device_id;
     params->ft_path_ = "/file/transfer?remote_device_id=" + remote_device_id
-        + "&stream_id=" + nonce + "&visitor_device_id=" + visitor_device_id;
+        + "&stream_id=" + stream_id + "&visitor_device_id=" + visitor_device_id;
     params->client_type_ = px::ClientType::kWindows;
     params->nt_type_ = transport == "relay"
         ? px::ClientNetworkType::kRelay
@@ -360,7 +364,7 @@ TEST(FileTransferTransportE2E, UploadDownloadAndDelete) {
     params->remote_device_id_ = "server_" + remote_device_id;
     params->ft_device_id_ = "ft_" + params->device_id_;
     params->ft_remote_device_id_ = "ft_" + params->remote_device_id_;
-    params->stream_id_ = nonce;
+    params->stream_id_ = stream_id;
     params->appkey_ = "test_appkey";
     params->relay_host_ = relay_host;
     params->relay_port_ = relay_port;
@@ -371,13 +375,13 @@ TEST(FileTransferTransportE2E, UploadDownloadAndDelete) {
     const auto client = std::make_shared<px::NetClient>(
         params, notifier, host, port, params->media_path_, params->ft_path_,
         params->nt_type_, params->device_id_, params->remote_device_id_,
-        params->ft_device_id_, params->ft_remote_device_id_, nonce);
+        params->ft_device_id_, params->ft_remote_device_id_, stream_id);
     const auto state = std::make_shared<TransportTestState>();
     const std::weak_ptr<px::NetClient> weak_client = client;
     const std::weak_ptr<TransportTestState> weak_state = state;
 
     const auto session = px::ft::FtAsyncSession::Create(
-        [weak_client, visitor_device_id, nonce](const auto& message) {
+        [weak_client, visitor_device_id, stream_id](const auto& message) {
             const auto client_lock = weak_client.lock();
             if (!client_lock) {
                 return px::FileTransferSendResult::Disconnected(
@@ -388,7 +392,7 @@ TEST(FileTransferTransportE2E, UploadDownloadAndDelete) {
                 ? px::MessageType::kFileResponse
                 : px::MessageType::kFileAction);
             outgoing->set_device_id(visitor_device_id);
-            outgoing->set_stream_id(nonce);
+            outgoing->set_stream_id(stream_id);
             return client_lock->PostFileTransferMessage(px::ProtoAsData(outgoing));
         },
         [weak_state](const auto& engine) {

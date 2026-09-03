@@ -7,6 +7,7 @@ use mongodb::bson::{doc, Bson, DateTime};
 use mongodb::options::ReturnDocument;
 use px_base::hash_util::{compute_hash, HashAlgo};
 use ring::rand::{SecureRandom, SystemRandom};
+use uuid::Uuid;
 
 pub struct ConnectionTicketManager;
 
@@ -33,6 +34,32 @@ impl ConnectionTicketManager {
 
     pub(crate) fn hash(token: &str) -> String {
         compute_hash(HashAlgo::SHA256, token.as_bytes())
+    }
+
+    pub async fn set_remote_session_policy(
+        ticket_hash: &str,
+        join_mode: &str,
+        allow_observer: bool,
+        allow_takeover: bool,
+    ) -> Result<(), ConsoleApiError> {
+        if !matches!(join_mode, "control" | "observe") {
+            return Err(ConsoleApiError::InvalidParams);
+        }
+        let collection = gConsoleDatabase.lock().await.connection_ticket().clone();
+        collection
+            .lock()
+            .await
+            .update_one(
+                doc! { "ticket_hash": ticket_hash },
+                doc! { "$set": {
+                    "join_mode": join_mode,
+                    "allow_observer": allow_observer,
+                    "allow_takeover": allow_takeover,
+                } },
+            )
+            .await
+            .map_err(|_| ConsoleApiError::DatabaseError)?;
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -81,6 +108,11 @@ impl ConnectionTicketManager {
             subject_type: subject_type.to_string(),
             subject_id: subject_id.to_string(),
             session_id: session_id.to_string(),
+            logical_session_id: Uuid::new_v4().to_string(),
+            stream_id: format!("stream-{}", Uuid::new_v4()),
+            join_mode: "control".to_string(),
+            allow_observer: true,
+            allow_takeover: true,
             device_id: device_id.to_string(),
             app_id,
             instance_id,
@@ -334,6 +366,11 @@ impl ConnectionTicketManager {
             instance_id: ticket.instance_id,
             subject_type: ticket.subject_type,
             subject_id: ticket.subject_id,
+            logical_session_id: ticket.logical_session_id,
+            stream_id: ticket.stream_id,
+            join_mode: ticket.join_mode,
+            allow_observer: ticket.allow_observer,
+            allow_takeover: ticket.allow_takeover,
             permissions: ticket.permissions,
             expires_at: ticket.expires_at,
         })

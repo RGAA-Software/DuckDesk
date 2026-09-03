@@ -17,6 +17,7 @@ namespace px
     public:
 
         static std::unordered_map<std::string, std::string> ParseQueryString(const std::string& queryString);
+        static std::string EncodeQueryComponent(const std::string& value);
 
     };
 

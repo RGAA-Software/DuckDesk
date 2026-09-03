@@ -23,6 +23,7 @@ namespace px
         std::string GetPluginDescription() override;
         bool OnCreate(const px::PxPluginParam& param) override;
         bool OnDestroy() override;
+        void OnMessageRaw(const std::any& msg) override;
         void On1Second() override;
         bool IsWorking() override;
 

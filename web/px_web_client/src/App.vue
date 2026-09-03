@@ -115,6 +115,9 @@ async function renewConnectionTicket(updateProgress = true) {
     renewalToken.value,
     clientNonce.value,
   )
+  if (renewed.streamId !== form.streamId) {
+    throw new Error('Console 续期票据的运行时 stream 已改变，请从 Console 重新进入')
+  }
   connectionTicket.value = renewed.ticket
   renewalToken.value = renewed.renewalToken
   if (renewed.permissions.length > 0) grantedPermissions.value = renewed.permissions
@@ -220,11 +223,12 @@ const form = reactive({
   password: '',
 })
 
-// 流 ID 固定由设备 ID 派生,不允许随意填写:同一台设备的 stream_id 恒定,
-// 新连接会在 render 端顶掉同 stream_id 的旧连接(单路独占)。
-// 设备 ID 变化时自动联动更新。
+// Console ticket owns the runtime stream identity. Bare/direct pages retain a
+// device-derived compatibility value, but an authenticated page must never
+// replace its ticket stream with `web_<device>`.
+let consoleTicketStreamId = ''
 watch(() => form.deviceId, (id) => {
-  form.streamId = id ? `web_${id}` : ''
+  form.streamId = consoleTicketStreamId || (id ? `web_${id}` : '')
   applyDocumentTitle(id)
 }, { immediate: true, flush: 'sync' })
 
@@ -1268,6 +1272,11 @@ function loadQueryParams() {
   if (!form.password) form.password = q.get('password') ?? ''
   if (!pwdMd5Override.value) pwdMd5Override.value = q.get('pwd_md5') ?? ''
   connectionTicket.value = fragment.get('ticket') ?? ''
+  const launchStreamId = q.get('stream_id') ?? ''
+  if (connectionTicket.value && launchStreamId) {
+    consoleTicketStreamId = launchStreamId
+    form.streamId = consoleTicketStreamId
+  }
   renewalToken.value = fragment.get('renew') ?? ''
   renewalUrl.value = fragment.get('renew_url') ?? ''
   requestedConnectionType.value = q.get('connType') === 'rtc' ? 'rtc' : 'rtc_direct'
@@ -1783,14 +1792,30 @@ async function connect() {
       const localSdp = pc.localDescription?.sdp
       if (!localSdp || !standardSignaling) throw new Error('标准 RTC 本地 SDP 或信令对象为空')
       setConnectStep('signal', '通过 Console Relay 交换 SDP/Trickle ICE')
-      ticketConsumed = !!connectionTicket.value
-      const answerSdp = await standardSignaling.exchangeOffer(
-        localSdp,
-        connectionTicket.value,
-        clientNonce.value,
-        connectionInstanceId.value,
-        effectivePwdMd5(),
-      )
+      const exchangeStandardOffer = async (takeover = false) => {
+        ticketConsumed = !!connectionTicket.value
+        return standardSignaling!.exchangeOffer(
+          localSdp,
+          connectionTicket.value,
+          clientNonce.value,
+          connectionInstanceId.value,
+          effectivePwdMd5(),
+          takeover,
+        )
+      }
+      let answerSdp: string
+      try {
+        answerSdp = await exchangeStandardOffer()
+      } catch (error) {
+        const code = error instanceof Error ? error.message : String(error)
+        if (code !== 'RTC_OCCUPIED') throw error
+        if (!window.confirm('该设备当前已有主控在线,是否接管?(对方的连接将被断开)')) {
+          throw new Error('设备已被连接,未接管')
+        }
+        addLog('标准 RTC 主控被占用,用户确认接管,带 takeover 重新发起信令')
+        if (connectionTicket.value) await renewConnectionTicket()
+        answerSdp = await exchangeStandardOffer(true)
+      }
       setConnectStep('answer', `standard answer_sdp length=${answerSdp.length}`)
       scanFr('answer', answerSdp)
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
@@ -1836,16 +1861,27 @@ async function connect() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (!resp.ok) {
-        const detail = await resp.text().catch(() => '')
-        throw new Error(`信令请求失败: HTTP ${resp.status}${detail ? ` — ${detail.slice(0, 300)}` : ''}`)
-      }
-      const result = (await resp.json()) as {
+      // net_ws deliberately maps an occupied Controller seat to an HTTP
+      // rejection while retaining the stable product code 704 in the JSON
+      // body. Parse that body before applying generic HTTP failure handling,
+      // otherwise the explicit browser takeover confirmation can never run.
+      const responseText = await resp.text().catch(() => '')
+      type SignalResult = {
         code?: number
         message?: string
         data?: { answer_sdp?: string }
       }
-      if (result.code === SIGNAL_CODE_OCCUPIED) return ''
+      let result: SignalResult | null = null
+      try {
+        result = JSON.parse(responseText) as SignalResult
+      } catch {
+        // A non-JSON gateway error remains a normal failed signal request.
+      }
+      if (result?.code === SIGNAL_CODE_OCCUPIED) return ''
+      if (!resp.ok) {
+        throw new Error(`信令请求失败: HTTP ${resp.status}${responseText ? ` — ${responseText.slice(0, 300)}` : ''}`)
+      }
+      if (!result) throw new Error('信令响应不是 JSON')
       if (result.code !== 200) {
         throw new Error(`信令被拒: ${result.message ?? `code=${result.code}`}`)
       }

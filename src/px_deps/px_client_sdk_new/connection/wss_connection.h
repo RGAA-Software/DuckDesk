@@ -37,6 +37,7 @@ namespace px
         int port_ = 0;
         std::string path_;
         std::shared_ptr<asio2::wss_client> client_ = nullptr;
+        std::atomic_bool terminal_rejection_{false};
 
     };
 

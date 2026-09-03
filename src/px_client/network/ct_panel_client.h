@@ -29,6 +29,7 @@ namespace px
         void Hello();
         void HeartBeat();
         void ReportTransportConnected();
+        void ReportTransportRejected();
         void ReportFileTransferBegin(const MsgClientFileTransmissionBegin& msg);
         void ReportFileTransferEnd(const MsgClientFileTransmissionEnd& msg);
         void RequestRtcIceRestart();
@@ -41,6 +42,7 @@ namespace px
         std::atomic_bool exiting_ = false;
         std::atomic_bool transport_connected_ = false;
         std::atomic_bool transport_reported_ = false;
+        std::atomic_int transport_rejection_ = 0;
     };
 
 }

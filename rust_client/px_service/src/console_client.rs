@@ -138,7 +138,7 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                 tokio::select! {
                     _ = interval.tick() => {
                         hb_index += 1;
-                        let (render_alive, auth_json, instances_json) = {
+                        let (render_alive, auth_json, instances_json, logical_sessions_json) = {
                             let mut guard = hb_runtime.lock().await;
                             guard.reap_dead_app_instances();
                             let has_active = guard.app_registry.list().iter().any(|r| {
@@ -158,6 +158,7 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                                     .map(auth_info_to_json)
                                     .unwrap_or_default(),
                                 guard.app_registry.instances_json(),
+                                guard.state.logical_sessions_json.clone(),
                             )
                         };
                         let frame = encode_message(&heartbeat_message(
@@ -166,6 +167,7 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                             render_alive,
                             &auth_json,
                             &instances_json,
+                            &logical_sessions_json,
                         ));
                         if !send_frame(&hb_sender, frame).await {
                             break;
@@ -202,7 +204,14 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                             match parse_console_inbound(&bin) {
                                 Ok(Some(ConsoleInboundCommand::RedeemTicketResult(result))) => {
                                     if let Some(reply) = pending_tickets.remove(&result.request_id) {
+                                        let grant_present = result.grant.is_some();
                                         let grant = result.grant.unwrap_or_default();
+                                        info!(
+                                            ticket_redemption_ok = result.ok,
+                                            grant_present,
+                                            grant_permission_count = grant.permissions.len(),
+                                            "received connection ticket redemption result from Console"
+                                        );
                                         let _ = reply.send(TicketRedeemResult {
                                             ok: result.ok,
                                             code: result.code,
@@ -212,6 +221,11 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                                             instance_id: grant.instance_id,
                                             subject_type: grant.subject_type,
                                             subject_id: grant.subject_id,
+                                            logical_session_id: grant.logical_session_id,
+                                            stream_id: grant.stream_id,
+                                            join_mode: grant.join_mode,
+                                            allow_observer: grant.allow_observer,
+                                            allow_takeover: grant.allow_takeover,
                                             permissions: grant.permissions,
                                             expires_at: grant.expires_at,
                                             rtc_ice_config_json: result.rtc_ice_config_json,
@@ -517,6 +531,7 @@ fn heartbeat_message(
     render_alive: bool,
     auth_info_json: &str,
     instances_json: &str,
+    logical_sessions_json: &str,
 ) -> ConsoleServiceMessage {
     ConsoleServiceMessage {
         msg_type: ConsoleServiceMessageType::KConsoleServiceHeartBeat as i32,
@@ -528,6 +543,7 @@ fn heartbeat_message(
             render_alive,
             auth_info_json: auth_info_json.to_string(),
             instances_json: instances_json.to_string(),
+            logical_sessions_json: logical_sessions_json.to_string(),
         }),
         start_app_instance: None,
         stop_app_instance: None,
@@ -1129,7 +1145,7 @@ mod tests {
     #[test]
     fn heartbeat_message_carries_index_and_liveness() {
         let message =
-            heartbeat_message(7, "dev-1", true, "{\"a\":1}", "[{\"instance_id\":\"i1\"}]");
+            heartbeat_message(7, "dev-1", true, "{\"a\":1}", "[{\"instance_id\":\"i1\"}]", "[]");
         assert_eq!(
             message.msg_type,
             ConsoleServiceMessageType::KConsoleServiceHeartBeat

@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <QDialog>
+#include <QPointer>
 
 namespace px_console
 {
@@ -23,12 +24,12 @@ namespace px
     class StartStreamLoading : public QDialog {
     public:
         StartStreamLoading(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_console::ConsoleStream>& item, const std::string& network_type);
-        void resizeEvent(QResizeEvent *event) override;
-        void paintEvent(QPaintEvent *event) override;
+        void resizeEvent(QResizeEvent *event) override; // NOLINT(gammaray-raw-pointer-boundary): Qt virtual event ABI
+        void paintEvent(QPaintEvent *event) override; // NOLINT(gammaray-raw-pointer-boundary): Qt virtual event ABI
 
     private:
         std::shared_ptr<px_console::ConsoleStream> stream_item_ = nullptr;
-        Win10HorizontalLoadingWidget* h_loading_widget_ = nullptr;
+        QPointer<Win10HorizontalLoadingWidget> h_loading_widget_;
 
     };
 

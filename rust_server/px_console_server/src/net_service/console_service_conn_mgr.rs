@@ -159,6 +159,7 @@ mod tests {
             render_alive: true,
             auth_info_json: "{}".to_string(),
             instances_json: "[]".to_string(),
+            logical_sessions_json: "[]".to_string(),
         }))
     }
 
@@ -281,6 +282,7 @@ mod tests {
                 render_alive: false,
                 auth_info_json: "{\"a\":1}".to_string(),
                 instances_json: "[]".to_string(),
+                logical_sessions_json: "[]".to_string(),
             });
             assert!(
                 c.process_message(

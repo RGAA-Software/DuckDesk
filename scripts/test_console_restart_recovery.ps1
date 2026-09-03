@@ -148,16 +148,16 @@ try {
     $ticketNonce = [Guid]::NewGuid().ToString('N')
     $ticket = Invoke-ConsoleJson -Path "/api/v1/public/instances/$([Uri]::EscapeDataString($instanceId))/ticket" `
         -Method POST -Session $session -Headers @{ Origin = $ConsoleUrl; 'X-CSRF-Token' = $csrf } `
-        -Body @{ client_nonce = $ticketNonce; requested_permissions = @('view') }
+        -Body @{ client_nonce = $ticketNonce; join_mode = 'observe' }
     if ([string]::IsNullOrWhiteSpace([string]$ticket.data.ticket)) {
         throw 'Restored instance did not issue a new connection ticket'
     }
     $permissions = @($ticket.data.permissions)
-    if ($permissions.Count -ne 1 -or $permissions[0] -ne 'view') {
+    if ($permissions.Count -ne 2 -or $permissions[0] -ne 'view' -or $permissions[1] -ne 'audio') {
         throw "Restored instance returned unexpected ticket permissions: $($ticket.data.permissions -join ',')"
     }
 
-    Write-Host "PASS: instance $instanceId remained running and issued a view-only ticket after Console restart."
+    Write-Host "PASS: instance $instanceId remained running and issued an observer ticket after Console restart."
 }
 finally {
     if (-not $restartCompleted) {

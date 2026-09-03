@@ -35,6 +35,11 @@ namespace px
         }
     }
 
+    bool RtcLocalPluginRuntime::IsOwnerActive() const {
+        std::scoped_lock lock(owner_mutex_);
+        return owner_.has_value();
+    }
+
     void RtcLocalPluginRuntime::DeactivateOwner() {
         std::scoped_lock lock(owner_mutex_);
         owner_.reset();
@@ -282,6 +287,19 @@ namespace px
         else if (HoldsType<MsgRtcRemoteIce>(message)) {
             OnRemoteIce(std::any_cast<MsgRtcRemoteIce>(message));
         }
+        else if (HoldsType<PxLogicalSessionCapabilityUpdate>(message)) {
+            const auto update = std::any_cast<PxLogicalSessionCapabilityUpdate>(message);
+            const auto runtime = runtime_;
+            if (!runtime) {
+                return;
+            }
+            runtime->servers.ApplyAll([&update](const std::string&,
+                                                const std::shared_ptr<RtcServer>& server) {
+                if (server && server->GetStreamId() == update.stream_id_) {
+                    server->SetPermissions(true, update.permissions_);
+                }
+            });
+        }
     }
 
     void RtcLocalPlugin::OnRemoteSdp(const MsgRtcRemoteSdp& message) {
@@ -291,9 +309,17 @@ namespace px
             if (!runtime) {
                 return;
             }
-            runtime->WithOwner([&](RtcLocalPlugin& owner) {
-                const auto conn_id = message.device_id_ + ":" + message.stream_id_;
-                auto send_answer = [weak_runtime, stream_id = message.stream_id_](const std::string& answer_sdp) {
+            // Do not hold runtime->owner_mutex_ while RtcServer::Start().
+            // Start queries the same runtime for monitor topology and IDR
+            // requests; holding that non-recursive mutex here turns a normal
+            // standard-RTC offer into a self-deadlock. The task itself uses no
+            // borrowed owner reference, and every owner-dependent runtime call
+            // below rechecks owner activity under its own short lock.
+            if (!runtime->IsOwnerActive()) {
+                return;
+            }
+            const auto conn_id = message.device_id_ + ":" + message.stream_id_;
+            auto send_answer = [weak_runtime, stream_id = message.stream_id_](const std::string& answer_sdp) {
                     if (answer_sdp.empty()) {
                         LOGE("Standard RTC produced an empty answer, stream={}", stream_id);
                         return;
@@ -306,34 +332,33 @@ namespace px
                     }
                 };
 
-                if (auto existing = runtime->servers.TryGet(conn_id); existing.has_value()) {
-                    const auto& server = existing.value();
-                    server->SetPermissions(true, message.permissions_);
-                    server->SetOnAnswerCallback(send_answer);
-                    if (server->RestartWithOffer(message.sdp_, message.ice_config_json_)) {
-                        LOGI("Reused RTC media peer for standard ICE restart: {}", conn_id);
-                        return;
-                    }
-                    LOGW("Standard RTC in-place restart failed, replacing peer: {}", conn_id);
-                    runtime->servers.RemoveIf(conn_id, [server](const std::shared_ptr<RtcServer>& current) {
-                        return current == server;
-                    });
-                    std::thread([server]() { server->Exit(); }).detach();
-                }
-
-                auto server = RtcServer::Make(runtime);
-                server->SetConnId(conn_id);
+            if (auto existing = runtime->servers.TryGet(conn_id); existing.has_value()) {
+                const auto& server = existing.value();
                 server->SetPermissions(true, message.permissions_);
                 server->SetOnAnswerCallback(send_answer);
-                if (!server->Start(message.stream_id_, message.sdp_,
-                                   PxLocalRtcSessionRole::kInteractive,
-                                   message.ice_config_json_)) {
-                    LOGE("Failed to start standard RTC media peer: {}", conn_id);
+                if (server->RestartWithOffer(message.sdp_, message.ice_config_json_)) {
+                    LOGI("Reused RTC media peer for standard ICE restart: {}", conn_id);
                     return;
                 }
-                runtime->servers.Insert(conn_id, server);
-                LOGI("Started standard RTC media peer: {}", conn_id);
-            });
+                LOGW("Standard RTC in-place restart failed, replacing peer: {}", conn_id);
+                runtime->servers.RemoveIf(conn_id, [server](const std::shared_ptr<RtcServer>& current) {
+                    return current == server;
+                });
+                std::thread([server]() { server->Exit(); }).detach();
+            }
+
+            auto server = RtcServer::Make(runtime);
+            server->SetConnId(conn_id);
+            server->SetPermissions(true, message.permissions_);
+            server->SetOnAnswerCallback(send_answer);
+            if (!server->Start(message.stream_id_, message.sdp_,
+                               PxLocalRtcSessionRole::kInteractive,
+                               message.ice_config_json_)) {
+                LOGE("Failed to start standard RTC media peer: {}", conn_id);
+                return;
+            }
+            runtime->servers.Insert(conn_id, server);
+            LOGI("Started standard RTC media peer: {}", conn_id);
         });
     }
 
@@ -899,7 +924,8 @@ namespace px
         auto conn_id = req->device_id_ + ":" + req->stream_id_;
         LOGI("==>AllocNewLocalRtcInstance Offer sdp {} => {}, takeover: {}", conn_id, req->sdp_.size(), req->takeover_);
 
-        const bool is_observer = req->session_role_ == PxLocalRtcSessionRole::kWallObserver;
+        const bool is_observer = req->session_role_ == PxLocalRtcSessionRole::kObserver
+            || req->session_role_ == PxLocalRtcSessionRole::kWallObserver;
         static constexpr size_t kMaxWallObservers = 16;
 
         // Observer sessions coexist with the single interactive connection.
@@ -911,7 +937,7 @@ namespace px
             if (!srv || srv->IsExitRequested()) {
                 return;
             }
-            if (srv->IsWallObserver()) {
+            if (srv->IsObserver()) {
                 ++observer_count;
             }
             else {
@@ -946,38 +972,42 @@ namespace px
                     return PxLocalRtcAllocResult::kOccupied;
                 }
             }
-            LOGI("** Remove {} old interactive connection(s).", old_servers.size());
-            // 顶掉之前先通知旧客户端"连接被接管"(kConnectionTakenOver),
-            // 让它给出明确提示并停止重连,而不是表现成一次普通断线。
-            // px.Message{ type: kConnectionTakenOver(550) } 的 wire 字节:
-            // type 是 field 10(varint, tag=0x50),550 的 varint 编码为 A6 04;
-            // 两端客户端都只按 type 分发、子消息留空即可。不引 protobuf 头,
-            // 本目标 webrtc 内置 absl 与 vcpkg absl 头文件会冲突(同
-            // IsMediaFrameMessage 的 wire 级处理思路)。
-            static const char kKickMsgBytes[] = { (char)0x50, (char)0xA6, (char)0x04 };
-            auto kick_data = Data::Make(kKickMsgBytes, sizeof(kKickMsgBytes));
-            for (const auto& [k, srv] : old_servers) {
-                if (srv) {
-                    srv->PostProtoMessage(kick_data, true);
-                }
-            }
-            // 先从 map 整体摘除,让新连接立即可建;
-            // Exit() 里 webrtc 线程 Stop() 可能因对端会话繁忙而长时间阻塞,
-            // 绝不能跑在调用方线程(HTTP 信令线程)上,否则 takeover 请求会挂死信令
-            for (const auto& [k, srv] : old_servers) {
-                runtime_->servers.RemoveIf(k, [srv](const std::shared_ptr<RtcServer>& current) {
-                    return current == srv;
-                });
-            }
-            std::thread([old_servers = std::move(old_servers)]() {
-                // 给"被接管"通知留出 SCTP 发送时间,再销毁旧连接
-                std::this_thread::sleep_for(std::chrono::milliseconds(300));
+            if (req->takeover_) {
+                // The logical registry has atomically invalidated the old
+                // controller lease before this allocation. Preserve the
+                // existing RTC media peer as an Observer and revoke its
+                // input/file/clipboard capabilities in place. This lets the
+                // old Controller continue watching while the new Controller
+                // establishes its own peer.
+                LOGI("** Demote {} old interactive connection(s) to observer.",
+                     old_servers.size());
                 for (const auto& [k, srv] : old_servers) {
+                    static_cast<void>(k);
                     if (srv) {
-                        srv->Exit();
+                        srv->DemoteToObserver();
                     }
                 }
-            }).detach();
+            }
+            else {
+                LOGI("** Replace {} old interactive connection(s).", old_servers.size());
+                // Same-nonce reconnects are replacements, not a change of
+                // role. Remove them before creating the new peer; Exit may
+                // block on WebRTC work and must never run on the signaling
+                // thread.
+                for (const auto& [k, srv] : old_servers) {
+                    runtime_->servers.RemoveIf(k, [srv](const std::shared_ptr<RtcServer>& current) {
+                        return current == srv;
+                    });
+                }
+                std::thread([old_servers = std::move(old_servers)]() {
+                    for (const auto& [k, srv] : old_servers) {
+                        static_cast<void>(k);
+                        if (srv) {
+                            srv->Exit();
+                        }
+                    }
+                }).detach();
+            }
         }
 
         const auto runtime = runtime_;

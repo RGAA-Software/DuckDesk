@@ -71,5 +71,32 @@ TEST(FileTransferRouteRegistry, StreamsRemainIndependent) {
     EXPECT_TRUE(registry.Resolve("stream-b").has_value());
 }
 
+TEST(FileTransferRouteRegistry, LogicalSessionsWithSameStreamRemainIsolated) {
+    FileTransferRouteRegistry registry;
+    const auto first = registry.Bind("session-one", "stream-shared", "net_ws", "ws-one");
+    const auto second = registry.Bind("session-two", "stream-shared", "net_ws", "ws-two");
+
+    EXPECT_NE(first.generation, second.generation);
+    ASSERT_EQ(registry.Resolve("session-one", "stream-shared"), first);
+    ASSERT_EQ(registry.Resolve("session-two", "stream-shared"), second);
+    EXPECT_FALSE(registry.ResolveUniqueStream("stream-shared").has_value());
+
+    EXPECT_TRUE(registry.RemoveIfConnectionMatches(
+        "session-one", "stream-shared", "net_ws", "ws-one"));
+    EXPECT_FALSE(registry.Resolve("session-one", "stream-shared").has_value());
+    ASSERT_EQ(registry.ResolveUniqueStream("stream-shared"), second);
+}
+
+TEST(FileTransferRouteRegistry, PluginOnlyDisconnectStaysWithinLogicalSession) {
+    FileTransferRouteRegistry registry;
+    static_cast<void>(registry.Bind("session-one", "stream-shared", "net_ws", "ws-one"));
+    static_cast<void>(registry.Bind("session-two", "stream-shared", "net_ws", "ws-two"));
+
+    EXPECT_TRUE(registry.RemoveIfPluginMatches(
+        "session-one", "stream-shared", "net_ws"));
+    EXPECT_FALSE(registry.Resolve("session-one", "stream-shared").has_value());
+    EXPECT_TRUE(registry.Resolve("session-two", "stream-shared").has_value());
+}
+
 } // namespace
 } // namespace px

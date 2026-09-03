@@ -25,6 +25,7 @@ set(SRCS
         rd_app.cpp
         rd_context.cpp
         rd_statistics.cpp
+        session/logical_session_registry.cpp
         network/ws_media_router.cpp
         network/ws_panel_client.cpp
         network/net_message_maker.cpp

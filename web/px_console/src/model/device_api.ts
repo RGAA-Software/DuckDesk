@@ -57,3 +57,19 @@ export async function updateDeviceActive(device: Device, active: boolean) {
 
   return true
 }
+
+export async function updateRemoteSessionPolicy(
+  device: Device,
+  allowObserver: boolean,
+  allowTakeover: boolean,
+) {
+  const resp = await axiosHttp.post(
+    '/api/v1/device/control/update/device/remote-session-policy',
+    {
+      device_id: device.device_id,
+      allow_observer: allowObserver,
+      allow_takeover: allowTakeover,
+    },
+  )
+  return resp.status === 200 && resp.data?.code === 200
+}

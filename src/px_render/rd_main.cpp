@@ -77,6 +77,8 @@ DEFINE_int32(service_server_port, 20375, "");
 DEFINE_string(service_ipc_token, "", "ephemeral px_service IPC credential");
 // can be operated by mouse / keyboard
 DEFINE_bool(can_be_operated, true, "");
+DEFINE_bool(direct_allow_takeover, true,
+            "allow explicit takeover for no-Console Direct RTC connections");
 DEFINE_bool(enable_virtual_display, true, "allow controlled virtual display management in desktop mode");
 // file transfer enabled
 DEFINE_bool(file_transfer_enabled, true, "");
@@ -180,6 +182,7 @@ void UpdateSettings(RdSettings* settings) {
 
     // can be operated
     settings->can_be_operated_ = FLAGS_can_be_operated;
+    settings->direct_allow_takeover_ = FLAGS_direct_allow_takeover;
     settings->virtual_display_enabled_ = FLAGS_enable_virtual_display;
     // file transfer enabled
     settings->file_transfer_enabled_ = FLAGS_file_transfer_enabled;

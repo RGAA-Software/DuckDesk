@@ -7,6 +7,7 @@ use crate::identity::model::{GroupAppGrant, GroupDeviceGrant, UserGroup, UserGro
 use crate::net_client::console_client_conn::ConsoleClientConnVo;
 use crate::record::console_file_transfer::ConsoleFileTransfer;
 use crate::record::console_render_record::ConsoleRenderRecord;
+use crate::record::console_remote_session::{ConsoleRemoteSession, ConsoleRemoteSessionEvent};
 use crate::record::console_visit::ConsoleVisit;
 use crate::stream::console_stream::ConsoleStream;
 use crate::update::update_info::UpdateInfo;
@@ -45,6 +46,8 @@ pub struct ConsoleDatabase {
     pub c_file_transfer: Option<Arc<Mutex<Collection<ConsoleFileTransfer>>>>,
     // record: render records cache (design doc 6.3)
     pub c_records: Option<Arc<Mutex<Collection<ConsoleRenderRecord>>>>,
+    pub c_remote_session: Option<Arc<Mutex<Collection<ConsoleRemoteSession>>>>,
+    pub c_remote_session_event: Option<Arc<Mutex<Collection<ConsoleRemoteSessionEvent>>>>,
     // user device relationship
     pub c_user_device: Option<Arc<Mutex<Collection<ConsoleUserDevice>>>>,
     // console conn; use adapter
@@ -400,6 +403,34 @@ impl ConsoleDatabase {
                 }
                 self.c_records = Some(Arc::new(Mutex::new(c_records)));
 
+                let c_remote_session: Collection<ConsoleRemoteSession> =
+                    database.collection("c_remote_session");
+                for index in [
+                    IndexModel::builder().keys(doc! { "logical_session_id": 1 }).options(
+                        IndexOptions::builder().unique(true).build()).build(),
+                    IndexModel::builder().keys(doc! { "device_id": 1, "active": 1 }).build(),
+                ] {
+                    if let Err(e) = c_remote_session.create_index(index).await {
+                        tracing::error!("create remote session index failed: {}", e);
+                        return false;
+                    }
+                }
+                self.c_remote_session = Some(Arc::new(Mutex::new(c_remote_session)));
+                let c_remote_session_event: Collection<ConsoleRemoteSessionEvent> =
+                    database.collection("c_remote_session_event");
+                for index in [
+                    IndexModel::builder().keys(doc! { "event_id": 1 }).options(
+                        IndexOptions::builder().unique(true).build()).build(),
+                    IndexModel::builder().keys(doc! { "device_id": 1, "timestamp": -1 }).build(),
+                    IndexModel::builder().keys(doc! { "logical_session_id": 1, "timestamp": -1 }).build(),
+                ] {
+                    if let Err(e) = c_remote_session_event.create_index(index).await {
+                        tracing::error!("create remote session event index failed: {}", e);
+                        return false;
+                    }
+                }
+                self.c_remote_session_event = Some(Arc::new(Mutex::new(c_remote_session_event)));
+
                 let c_user_device: Collection<ConsoleUserDevice> =
                     database.collection("c_user_device");
                 for index in [
@@ -560,6 +591,14 @@ impl ConsoleDatabase {
 
     pub fn records(&self) -> Arc<Mutex<Collection<ConsoleRenderRecord>>> {
         self.c_records.clone().unwrap()
+    }
+
+    pub fn remote_session(&self) -> Arc<Mutex<Collection<ConsoleRemoteSession>>> {
+        self.c_remote_session.clone().unwrap()
+    }
+
+    pub fn remote_session_event(&self) -> Arc<Mutex<Collection<ConsoleRemoteSessionEvent>>> {
+        self.c_remote_session_event.clone().unwrap()
     }
 
     pub fn user_device(&self) -> Arc<Mutex<Collection<ConsoleUserDevice>>> {

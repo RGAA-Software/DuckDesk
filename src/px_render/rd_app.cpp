@@ -59,6 +59,7 @@
 #include "px_common_new/folder_util.h"
 #include "px_common_new/virtual_display_limits.h"
 #include "webview/webview_runtime.h"
+#include "session/logical_session_registry.h"
 
 namespace px
 {
@@ -81,6 +82,7 @@ namespace px
     RdApplication::RdApplication(const AppParams& args) {
         auto settings = RdSettings::Instance();
         settings_ = settings;
+        logical_session_registry_ = std::make_shared<LogicalSessionRegistry>();
 
         // debug
         // MessageBoxA(0, "", "debug", 0);
@@ -1578,9 +1580,11 @@ namespace px
         const std::string& client_nonce,
         const std::string& instance_id,
         std::function<void(bool, const std::string&, const std::vector<std::string>&,
-                           const std::string&)>&& callback) const {
+                           const std::string&, const std::string&, const std::string&,
+                           const std::string&, const std::string&, int64_t,
+                           bool, bool)>&& callback) const {
         if (!service_client_ || !service_client_->IsAlive()) {
-            callback(false, "SERVICE_UNAVAILABLE", {}, "");
+            callback(false, "SERVICE_UNAVAILABLE", {}, "", "", "", "", "", 0, true, true);
             return;
         }
         service_client_->RedeemConnectionTicket(

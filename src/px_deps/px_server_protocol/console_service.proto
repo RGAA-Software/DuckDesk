@@ -41,6 +41,11 @@ message ConsoleServiceHeartBeat {
   // json array of local app instance summaries (may be empty)
   // [{instance_id, app_id, listen_port, pid, state}, ...]
   string instances_json = 5;
+  // Render-owned logical session snapshot. Each item is deduplicated by
+  // logical_session_id and contains role, subject and active transports.
+  // Console derives current status and audit transitions from this reliable
+  // control-plane report; UDP never reports lifecycle state directly.
+  string logical_sessions_json = 6;
 }
 
 message ConsoleServiceStartAppInstance {
@@ -135,6 +140,11 @@ message ConsoleConnectionGrant {
   string subject_id = 6;
   repeated string permissions = 7;
   int64 expires_at = 8;
+  string logical_session_id = 9;
+  string stream_id = 10;
+  string join_mode = 11;
+  bool allow_observer = 12;
+  bool allow_takeover = 13;
 }
 
 message ConsoleServiceRedeemConnectionTicketResult {

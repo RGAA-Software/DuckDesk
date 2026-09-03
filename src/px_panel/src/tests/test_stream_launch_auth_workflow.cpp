@@ -61,7 +61,9 @@ StreamLaunchResolvedTicket Resolve(
 px_console::ConsoleConnectionTicket Ticket() {
     return px_console::ConsoleConnectionTicket{
         .ticket = "short-lived-ticket",
+        .renewal_token = "rotating-renewal-capability",
         .launch_url = "http://10.0.0.90:20371/connect?deviceId=001190520",
+        .stream_id = "stream-ticket-session",
         .permissions = {"view", "input"},
     };
 }

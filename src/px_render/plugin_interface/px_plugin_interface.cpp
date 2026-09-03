@@ -160,6 +160,10 @@ namespace px
 
         capture_audio_device_id_ = GetConfigParam<std::string>("capture_audio_device_id");
         sys_settings_.device_id_ = GetConfigParam<std::string>("device_id");
+        if (param.cluster_.contains("direct_allow_takeover")) {
+            sys_settings_.direct_allow_takeover_ =
+                GetConfigBoolParam("direct_allow_takeover");
+        }
         sys_settings_.relay_enabled_ = GetConfigBoolParam("relay_enabled");
         sys_settings_.language_ = (int)GetConfigIntParam("language");
         sys_settings_.appkey_ = GetConfigStringParam("appkey");
@@ -484,6 +488,7 @@ namespace px
             sys_settings_.relay_port_ = settings.relay_port_;
         }
         sys_settings_.can_be_operated_ = settings.can_be_operated_;
+        sys_settings_.direct_allow_takeover_ = settings.direct_allow_takeover_;
         sys_settings_.relay_enabled_ = settings.relay_enabled_;
         sys_settings_.language_ = settings.language_;
         sys_settings_.file_transfer_enabled_ = settings.file_transfer_enabled_;

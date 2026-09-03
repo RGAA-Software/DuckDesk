@@ -27,6 +27,10 @@ fn now_ms() -> i64 {
         .unwrap_or(0)
 }
 
+fn default_true() -> bool {
+    true
+}
+
 fn reported_active_state(value: &str) -> Option<InstanceState> {
     match value.to_ascii_lowercase().as_str() {
         // Legacy Service builds omitted the field for an active process.
@@ -63,6 +67,15 @@ pub struct Application {
     pub listen_port: i32,
     #[serde(default)]
     pub access_mode: AppAccessMode,
+    /// Whether a running game/WebView instance may issue read-only tickets.
+    /// Legacy rows intentionally retain the product default when this field is
+    /// absent.
+    #[serde(default = "default_true")]
+    pub allow_observer: bool,
+    /// Whether an active Player/Operator may be replaced by an explicit
+    /// takeover request.
+    #[serde(default = "default_true")]
+    pub allow_takeover: bool,
     #[serde(default)]
     pub version: i64,
 }
@@ -125,6 +138,8 @@ pub struct AppRowVo {
     pub encoder_bitrate: i32,
     pub encoder_format: String,
     pub access_mode: AppAccessMode,
+    pub allow_observer: bool,
+    pub allow_takeover: bool,
     pub version: i64,
     pub nodes: Vec<AppNode>,
 }
@@ -145,6 +160,10 @@ pub struct SaveAppReq {
     pub encoder_bitrate: Option<i32>,
     pub encoder_format: Option<String>,
     pub access_mode: Option<AppAccessMode>,
+    #[serde(default)]
+    pub allow_observer: Option<bool>,
+    #[serde(default)]
+    pub allow_takeover: Option<bool>,
     pub version: Option<i64>,
 }
 
@@ -466,6 +485,8 @@ impl AppScheduleManager {
             websocket_enabled: true,
             listen_port: req.listen_port.unwrap_or(0),
             access_mode: AppAccessMode::Public,
+            allow_observer: true,
+            allow_takeover: true,
             version: 1,
         };
         {
@@ -549,6 +570,8 @@ impl AppScheduleManager {
                 encoder_bitrate: app.encoder_bitrate,
                 encoder_format: app.encoder_format.clone(),
                 access_mode: app.access_mode.clone(),
+                allow_observer: app.allow_observer,
+                allow_takeover: app.allow_takeover,
                 version: app.version,
                 nodes,
             });
@@ -744,6 +767,12 @@ impl AppScheduleManager {
                         .map(|e| e.access_mode.clone())
                         .unwrap_or_default()
                 }),
+                allow_observer: req.allow_observer.unwrap_or_else(|| {
+                    existing.as_ref().map(|e| e.allow_observer).unwrap_or(true)
+                }),
+                allow_takeover: req.allow_takeover.unwrap_or_else(|| {
+                    existing.as_ref().map(|e| e.allow_takeover).unwrap_or(true)
+                }),
                 version: existing.as_ref().map(|e| e.version + 1).unwrap_or(1),
             };
             g.apps.insert(app.app_id.clone(), app.clone());
@@ -761,6 +790,8 @@ impl AppScheduleManager {
             encoder_bitrate: app.encoder_bitrate,
             encoder_format: app.encoder_format,
             access_mode: app.access_mode,
+            allow_observer: app.allow_observer,
+            allow_takeover: app.allow_takeover,
             version: app.version,
             nodes: Vec::new(),
         };
@@ -2657,6 +2688,8 @@ mod tests {
                 encoder_bitrate: None,
                 encoder_format: None,
                 access_mode: None,
+                allow_observer: None,
+                allow_takeover: None,
                 version: None,
             })
             .await
@@ -3062,6 +3095,8 @@ mod tests {
                 encoder_bitrate: None,
                 encoder_format: None,
                 access_mode: None,
+                allow_observer: None,
+                allow_takeover: None,
                 version: None,
             })
             .await
@@ -3097,6 +3132,8 @@ mod tests {
                 encoder_bitrate: None,
                 encoder_format: None,
                 access_mode: None,
+                allow_observer: None,
+                allow_takeover: None,
                 version: None,
             })
             .await
@@ -3195,6 +3232,8 @@ mod tests {
                 encoder_bitrate: None,
                 encoder_format: None,
                 access_mode: None,
+                allow_observer: None,
+                allow_takeover: None,
                 version: None,
             })
             .await
@@ -3257,6 +3296,8 @@ mod tests {
                 encoder_bitrate: None,
                 encoder_format: None,
                 access_mode: None,
+                allow_observer: None,
+                allow_takeover: None,
                 version: None,
             })
             .await
@@ -3332,6 +3373,8 @@ mod tests {
                 encoder_bitrate: None,
                 encoder_format: None,
                 access_mode: None,
+                allow_observer: None,
+                allow_takeover: None,
                 version: None,
             })
             .await
@@ -3419,6 +3462,8 @@ mod tests {
                 encoder_bitrate: None,
                 encoder_format: None,
                 access_mode: None,
+                allow_observer: None,
+                allow_takeover: None,
                 version: None,
             })
             .await
@@ -3545,6 +3590,8 @@ mod tests {
                 encoder_bitrate: None,
                 encoder_format: None,
                 access_mode: None,
+                allow_observer: None,
+                allow_takeover: None,
                 version: None,
             })
             .await
@@ -3707,6 +3754,8 @@ mod tests {
                 encoder_bitrate: Some(20),
                 encoder_format: Some("h264".into()),
                 access_mode: None,
+                allow_observer: None,
+                allow_takeover: None,
                 version: None,
             })
             .await

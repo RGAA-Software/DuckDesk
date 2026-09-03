@@ -7,6 +7,9 @@
 #include <asio2/asio2.hpp>
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
+#include "px_common_new/message_notifier.h"
+#include "px_common_new/ws_control_signal.h"
+#include "sdk_messages.h"
 
 namespace px
 {
@@ -27,6 +30,7 @@ namespace px
 
     void WsConnection::Start() {
         const auto weak_self = weak_from_this();
+        terminal_rejection_ = false;
         client_ = std::make_shared<asio2::ws_client>();
         client_->set_auto_reconnect(true);
         client_->set_timeout(std::chrono::milliseconds(2000));
@@ -55,7 +59,8 @@ namespace px
                 });
             }
         }).bind_disconnect([weak_self]() {
-            if (const auto self = weak_self.lock(); self && self->dis_conn_cbk_) {
+            if (const auto self = weak_self.lock(); self && !self->terminal_rejection_
+                && self->dis_conn_cbk_) {
                 self->dis_conn_cbk_();
             }
         }).bind_upgrade([]() {
@@ -63,7 +68,26 @@ namespace px
                 LOGE("upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
             }
         }).bind_recv([weak_self](std::string_view data) {
-            if (const auto self = weak_self.lock(); self && self->msg_cbk_) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            const auto rejection = ParseWsControlRejection(data);
+            if (rejection != WsControlRejection::kNone) {
+                LOGW("WebSocket session rejected; automatic reconnect disabled, reason={}",
+                     static_cast<int>(rejection));
+                self->terminal_rejection_ = true;
+                if (self->client_) {
+                    self->client_->set_auto_reconnect(false);
+                }
+                if (self->msg_notifier_) {
+                    self->msg_notifier_->SendAppMessage(SdkMsgWsConnectionRejected{
+                        .rejection_ = rejection,
+                    });
+                }
+                return;
+            }
+            if (self->msg_cbk_) {
                 auto cpy_data = Data::Make(data.data(), data.size());
                 self->msg_cbk_(cpy_data);
             }

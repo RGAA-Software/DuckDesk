@@ -23,6 +23,12 @@ pub struct ConsoleServiceHeartBeat {
     /// \[{instance_id, app_id, listen_port, pid, state}, ...\]
     #[prost(string, tag = "5")]
     pub instances_json: ::prost::alloc::string::String,
+    /// Render-owned logical session snapshot. Each item is deduplicated by
+    /// logical_session_id and contains role, subject and active transports.
+    /// Console derives current status and audit transitions from this reliable
+    /// control-plane report; UDP never reports lifecycle state directly.
+    #[prost(string, tag = "6")]
+    pub logical_sessions_json: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ConsoleServiceStartAppInstance {
@@ -174,6 +180,16 @@ pub struct ConsoleConnectionGrant {
     pub permissions: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(int64, tag = "8")]
     pub expires_at: i64,
+    #[prost(string, tag = "9")]
+    pub logical_session_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "10")]
+    pub stream_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "11")]
+    pub join_mode: ::prost::alloc::string::String,
+    #[prost(bool, tag = "12")]
+    pub allow_observer: bool,
+    #[prost(bool, tag = "13")]
+    pub allow_takeover: bool,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ConsoleServiceRedeemConnectionTicketResult {

@@ -3,9 +3,11 @@
 //
 
 #include "sdk_net_client.h"
+#include "px_common_new/uuid.h"
 
 #include <string_view>
 #include <utility>
+#include <array>
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
 #include "px_common_new/thread.h"
@@ -20,6 +22,7 @@
 #include "connection/webrtc_local_connection.h"
 #include "connection/udp_direct_connection.h"
 #include "px_common_new/time_util.h"
+#include "px_common_new/url_helper.h"
 #include "sdk_statistics.h"
 #include "px_message_new/proto_converter.h"
 #include "px_message_new/proto_message_maker.h"
@@ -28,6 +31,30 @@
 
 namespace px
 {
+
+    namespace {
+
+        std::string RedactTransportPath(std::string path) {
+            constexpr std::array<std::string_view, 5> kSensitiveKeys{
+                "ticket=", "client_nonce=", "direct_session_grant=",
+                "safety_pwd_md5=", "udp_media_association=",
+            };
+            for (const auto key : kSensitiveKeys) {
+                std::size_t value_begin = 0;
+                while ((value_begin = path.find(key, value_begin)) != std::string::npos) {
+                    value_begin += key.size();
+                    const auto value_end = path.find('&', value_begin);
+                    path.replace(value_begin,
+                                 value_end == std::string::npos
+                                     ? std::string::npos : value_end - value_begin,
+                                 "<redacted>");
+                    value_begin += std::string_view{"<redacted>"}.size();
+                }
+            }
+            return path;
+        }
+
+    } // namespace
 
     NetClient::NetClient(const std::shared_ptr<ThunderSdkParams>& params,
                          const std::shared_ptr<MessageNotifier>& notifier,
@@ -54,11 +81,32 @@ namespace px
         this->ft_device_id_ = ft_device_id;
         this->ft_remote_device_id_ = ft_remote_device_id;
         this->stream_id_ = stream_id;
+        if (nt_type == ClientNetworkType::kUdpDirect
+            && this->sdk_params_->udp_media_association_.empty()) {
+            this->sdk_params_->udp_media_association_ = GetUUID();
+        }
 
     }
 
     NetClient::~NetClient() {
         Exit();
+    }
+
+    std::string NetClient::MakeAuthenticatedWebSocketPath(
+        std::string path, const bool file_only) const {
+        if (sdk_params_->connection_ticket_.empty()) {
+            return path;
+        }
+        path += "&ticket=" + UrlHelper::EncodeQueryComponent(sdk_params_->connection_ticket_)
+            + "&client_nonce=" + UrlHelper::EncodeQueryComponent(sdk_params_->connection_nonce_);
+        if (!sdk_params_->connection_instance_id_.empty()) {
+            path += "&instance_id="
+                + UrlHelper::EncodeQueryComponent(sdk_params_->connection_instance_id_);
+        }
+        if (file_only) {
+            path += "&file_only=1";
+        }
+        return path;
     }
 
     std::shared_ptr<Connection> NetClient::MakeDirectWebSocketMediaConnection(bool udp_media) const {
@@ -70,6 +118,11 @@ namespace px
                 path.erase(query, kUdpMediaQuery.size());
             }
         }
+        else if (!sdk_params_->udp_media_association_.empty()) {
+            path += "&udp_media_association="
+                + UrlHelper::EncodeQueryComponent(sdk_params_->udp_media_association_);
+        }
+        path = MakeAuthenticatedWebSocketPath(std::move(path));
         if (sdk_params_->ssl_) {
             return std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_,
                                                    sdk_params_->port_, path);
@@ -124,12 +177,50 @@ namespace px
             if (!self || !self->IsCurrentManagedMediaConnection(generation)) return;
             self->stat_->AppendRecvDataSize(data->Size());
             if (auto message = self->ParseMessage(data); message) {
+                self->StartFileTransferConnection();
+                // A transport-level WS connected callback can run even when
+                // Render subsequently rejects ticket redemption. Receiving a
+                // valid routed application message proves that Render accepted
+                // this media session and registered its UDP association.
+                if (self->udp_media_fallback_state_.UsesUdpMedia()) {
+                    self->StartUdpDirectMedia();
+                }
                 if (const auto active_connection = weak_connection.lock()) {
                     active_connection->PostBinaryMessage(ProtoMessageMaker::MakeAck(
                         message->device_id(), message->stream_id(), message->send_time(), message->type()));
                 }
             }
         });
+        connection->Start();
+    }
+
+    void NetClient::StartUdpDirectMedia() {
+        bool expected = false;
+        if (!udp_direct_started_.compare_exchange_strong(expected, true)) {
+            return;
+        }
+        const auto udp_connection = CurrentUdpDirectConnection();
+        if (!udp_connection || exited_) {
+            udp_direct_started_ = false;
+            return;
+        }
+        udp_media_probe_deadline_ms_ =
+            TimeUtil::GetCurrentTimestamp() + kUdpMediaProbeTimeoutMs;
+        LOGI("Authenticated WS control ready; start associated UDP media.");
+        udp_connection->Start(sdk_params_->ip_, sdk_params_->udp_port_, stream_id_,
+                              sdk_params_->udp_media_association_);
+    }
+
+    void NetClient::StartFileTransferConnection() {
+        bool expected = false;
+        if (!file_transfer_started_.compare_exchange_strong(expected, true)) {
+            return;
+        }
+        const auto connection = ft_conn_;
+        if (!connection || exited_) {
+            file_transfer_started_ = false;
+            return;
+        }
         connection->Start();
     }
 
@@ -168,6 +259,7 @@ namespace px
 
     void NetClient::Start() {
         const auto weak_self = weak_from_this();
+        connection_notified_ = false;
         if (!msg_listener_) {
             msg_listener_ = msg_notifier_->CreateListener(MessageExecutionLane::kControl);
             msg_listener_->Listen<SdkMsgTimer1000>([weak_self](const auto&) {
@@ -177,31 +269,26 @@ namespace px
             });
         }
         if (network_type_ == ClientNetworkType::kWebsocket) {
+            const auto media_path = MakeAuthenticatedWebSocketPath(media_path_);
+            const auto ft_path = MakeAuthenticatedWebSocketPath(
+                ft_path_, sdk_params_->file_transfer_only_);
             LOGI("Will connect by Websocket, ssl : {}", sdk_params_->ssl_);
             if (!sdk_params_->file_transfer_only_) {
-                LOGI("media: {}", media_path_);
+                LOGI("media: {}", RedactTransportPath(media_path));
             }
             else {
                 LOGI("file-transfer-only: media websocket disabled");
             }
-            LOGI("file transfer: {}", ft_path_);
+            LOGI("file transfer: {}", RedactTransportPath(ft_path));
             if (sdk_params_->ssl_) {
                 if (!sdk_params_->file_transfer_only_) {
-                    ReplaceMediaConnection(std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, media_path_));
-                }
-                auto ft_path = ft_path_;
-                if (sdk_params_->file_transfer_only_ && !sdk_params_->connection_ticket_.empty()) {
-                    ft_path += "&file_only=1&ticket=" + sdk_params_->connection_ticket_ + "&client_nonce=" + sdk_params_->connection_nonce_;
+                    ReplaceMediaConnection(std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, media_path));
                 }
                 ft_conn_ = std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, ft_path);
             }
             else {
                 if (!sdk_params_->file_transfer_only_) {
-                    ReplaceMediaConnection(std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, media_path_));
-                }
-                auto ft_path = ft_path_;
-                if (sdk_params_->file_transfer_only_ && !sdk_params_->connection_ticket_.empty()) {
-                    ft_path += "&file_only=1&ticket=" + sdk_params_->connection_ticket_ + "&client_nonce=" + sdk_params_->connection_nonce_;
+                    ReplaceMediaConnection(std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, media_path));
                 }
                 ft_conn_ = std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, ft_path);
             }
@@ -252,12 +339,8 @@ namespace px
                  sdk_params_->port_, sdk_params_->ip_, sdk_params_->udp_port_);
             // 文件传输复用 ws 控制面同一条 ws 服务,走独立 /file/transfer 路由;
             // 之前 kUdpDirect 未建 ft_conn_,导致文件传输(含剪贴板文件)被静默丢弃。
-            auto ft_path = ft_path_;
-            if (sdk_params_->file_transfer_only_ &&
-                !sdk_params_->connection_ticket_.empty()) {
-                ft_path += "&file_only=1&ticket=" + sdk_params_->connection_ticket_ +
-                    "&client_nonce=" + sdk_params_->connection_nonce_;
-            }
+            const auto ft_path = MakeAuthenticatedWebSocketPath(
+                ft_path_, sdk_params_->file_transfer_only_);
             if (sdk_params_->ssl_) {
                 if (!sdk_params_->file_transfer_only_) {
                     ReplaceMediaConnection(MakeDirectWebSocketMediaConnection(true));
@@ -304,11 +387,37 @@ namespace px
 
         const auto media_connection = CurrentMediaConnection();
         const bool managed_udp_media = network_type_ == ClientNetworkType::kUdpDirect && media_connection;
+        const bool defer_ticketed_websocket_ready =
+            network_type_ == ClientNetworkType::kWebsocket
+            && !sdk_params_->connection_ticket_.empty()
+            && media_connection;
+        const bool defer_ticketed_direct_file_transfer =
+            !sdk_params_->file_transfer_only_
+            && !sdk_params_->connection_ticket_.empty()
+            && media_connection
+            && (network_type_ == ClientNetworkType::kWebsocket
+                || network_type_ == ClientNetworkType::kUdpDirect);
+
+        // Install the file callback before a fast media response can start the
+        // deferred connection. Ticketed direct media and file routes are
+        // deliberately serialized to avoid concurrent one-time redemption.
+        if (ft_conn_) {
+            ft_conn_->RegisterOnMessageCallback([weak_self](std::shared_ptr<Data> data) {
+                const auto self = weak_self.lock();
+                if (!self) return;
+                self->stat_->AppendRecvDataSize(data->Size());
+                if (auto m = self->ParseMessage(data); m) {
+                    auto ack = ProtoMessageMaker::MakeAck(
+                        m->device_id(), m->stream_id(), m->send_time(), m->type());
+                    if (self->ft_conn_) self->ft_conn_->PostBinaryMessage(ack);
+                }
+            });
+        }
+
+        uint64_t managed_udp_generation = 0;
         if (managed_udp_media) {
             udp_media_fallback_state_.BeginProbe();
-            udp_media_probe_deadline_ms_ = TimeUtil::GetCurrentTimestamp() + kUdpMediaProbeTimeoutMs;
-            const auto generation = managed_media_generation_.fetch_add(1) + 1;
-            StartManagedUdpMediaConnection(media_connection, generation);
+            managed_udp_generation = managed_media_generation_.fetch_add(1) + 1;
         }
         else {
             // In full WebRTC mode Relay is only the signaling/bootstrap path. The
@@ -321,8 +430,10 @@ namespace px
                 LOGE("Start failed: no transport connection was created");
                 return;
             }
-            primary_conn->RegisterOnConnectedCallback([weak_self]() {
-                if (const auto self = weak_self.lock(); self && self->conn_cbk_) {
+            primary_conn->RegisterOnConnectedCallback([weak_self, defer_ticketed_websocket_ready]() {
+                if (const auto self = weak_self.lock(); self && !defer_ticketed_websocket_ready
+                    && self->conn_cbk_) {
+                    self->connection_notified_ = true;
                     self->conn_cbk_();
                 }
             });
@@ -334,37 +445,32 @@ namespace px
             });
 
             if (media_connection) {
-                media_connection->RegisterOnMessageCallback([weak_self](std::shared_ptr<Data> data) {
+                media_connection->RegisterOnMessageCallback(
+                    [weak_self, defer_ticketed_websocket_ready](std::shared_ptr<Data> data) {
                     const auto self = weak_self.lock();
                     if (!self) return;
                     // statistics
                     self->stat_->AppendRecvDataSize(data->Size());
                     // parse
                     if (auto m = self->ParseMessage(data); m) {
+                        if (defer_ticketed_websocket_ready
+                            && !self->connection_notified_.exchange(true)
+                            && self->conn_cbk_) {
+                            self->conn_cbk_();
+                        }
+                        self->StartFileTransferConnection();
                         // ack
                         auto ack = ProtoMessageMaker::MakeAck(m->device_id(), m->stream_id(), m->send_time(), m->type());
                         if (const auto active_connection = self->CurrentMediaConnection()) {
                             active_connection->PostBinaryMessage(ack);
                         }
                     }
-                });
+                    });
                 media_connection->Start();
             }
         }
-        if (ft_conn_) {
-            ft_conn_->RegisterOnMessageCallback([weak_self](std::shared_ptr<Data> data) {
-                const auto self = weak_self.lock();
-                if (!self) return;
-                // statistics
-                self->stat_->AppendRecvDataSize(data->Size());
-                // parse
-                if (auto m = self->ParseMessage(data); m) {
-                    // ack
-                    auto ack = ProtoMessageMaker::MakeAck(m->device_id(), m->stream_id(), m->send_time(), m->type());
-                    if (self->ft_conn_) self->ft_conn_->PostBinaryMessage(ack);
-                }
-            });
-            ft_conn_->Start();
+        if (ft_conn_ && !defer_ticketed_direct_file_transfer) {
+            StartFileTransferConnection();
         }
 
         if (sdk_params_->enable_p2p_ && rtc_conn_) {
@@ -476,7 +582,11 @@ namespace px
                     self->BeginUdpWebSocketFallback();
                 }
             });
-            udp_connection->Start(sdk_params_->ip_, sdk_params_->udp_port_, device_id_, stream_id_);
+        }
+        if (managed_udp_media) {
+            // Configure every UDP callback before an accepted WS application
+            // message can prove the association and start the media socket.
+            StartManagedUdpMediaConnection(media_connection, managed_udp_generation);
         }
     }
 

@@ -18,8 +18,21 @@ use std::net::{IpAddr, SocketAddr};
 #[serde(deny_unknown_fields)]
 pub struct TicketRequest {
     pub client_nonce: String,
-    #[serde(default)]
-    pub requested_permissions: Vec<String>,
+    /// `control` asks for the exclusive controller seat; `observe` joins as a
+    /// read-only observer. Render remains the authority that arbitrates it.
+    #[serde(default = "default_join_mode")]
+    pub join_mode: String,
+}
+
+fn default_join_mode() -> String {
+    "control".to_string()
+}
+
+fn validate_join_mode(value: &str) -> Result<&str, ConsoleApiError> {
+    match value {
+        "control" | "observe" => Ok(value),
+        _ => Err(ConsoleApiError::InvalidParams),
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -29,25 +42,14 @@ pub struct TicketRenewRequest {
     pub client_nonce: String,
 }
 
-fn permissions(requested: Vec<String>, allowed: &[&str]) -> Result<Vec<String>, ConsoleApiError> {
-    if requested
+fn permissions_for_join(join_mode: &str, controller_permissions: &[&str]) -> Vec<String> {
+    if join_mode == "observe" {
+        return vec!["view".to_string(), "audio".to_string()];
+    }
+    controller_permissions
         .iter()
-        .any(|item| !allowed.contains(&item.as_str()))
-    {
-        return Err(ConsoleApiError::InvalidParams);
-    }
-    let source: Vec<String> = if requested.is_empty() {
-        allowed.iter().map(|value| value.to_string()).collect()
-    } else {
-        requested
-    };
-    let mut result = Vec::new();
-    for item in source {
-        if !result.contains(&item) {
-            result.push(item);
-        }
-    }
-    Ok(result)
+        .map(|permission| permission.to_string())
+        .collect()
 }
 
 fn host_for_url(host: &str) -> String {
@@ -162,6 +164,9 @@ pub async fn renew_connection_ticket(
         ticket,
         renewal_token,
         expires_at: renewed.expires_at,
+        logical_session_id: renewed.logical_session_id.clone(),
+        stream_id: renewed.stream_id.clone(),
+        join_mode: renewed.join_mode.clone(),
         rtc_ice_config: issue_rtc_config(&renewed).await?,
         permissions: renewed.permissions,
     })))
@@ -172,6 +177,7 @@ pub async fn issue_device_ticket(
     Extension(subject): Extension<AuthenticatedUser>,
     Json(request): Json<TicketRequest>,
 ) -> Result<Json<RespMessage<TicketResponse>>, ConsoleApiError> {
+    validate_join_mode(&request.join_mode)?;
     let device = gDeviceManager
         .query_device_by_id(device_id.clone())
         .await
@@ -179,16 +185,19 @@ pub async fn issue_device_ticket(
     if !device.active {
         return Err(ConsoleApiError::DeviceOffline);
     }
+    if request.join_mode == "observe" && !device.allow_observer {
+        return Err(ConsoleApiError::ResourceNotFound);
+    }
     let (host, port) = device
         .get_render_endpoints()
         .into_iter()
         .next()
         .ok_or(ConsoleApiError::DeviceOffline)?;
-    let granted = permissions(
-        request.requested_permissions,
+    let granted = permissions_for_join(
+        &request.join_mode,
         &["view", "input", "clipboard", "file", "audio"],
-    )?;
-    let (raw, renewal_token, ticket) = ConnectionTicketManager::issue(
+    );
+    let (raw, renewal_token, mut ticket) = ConnectionTicketManager::issue(
         "device",
         "user",
         &subject.uid,
@@ -198,6 +207,14 @@ pub async fn issue_device_ticket(
         None,
         granted.clone(),
         request.client_nonce.clone(),
+    )
+    .await?;
+    ticket.join_mode = request.join_mode;
+    ConnectionTicketManager::set_remote_session_policy(
+        &ticket.ticket_hash,
+        &ticket.join_mode,
+        device.allow_observer,
+        device.allow_takeover,
     )
     .await?;
     audit::record(
@@ -211,13 +228,15 @@ pub async fn issue_device_ticket(
     )
     .await;
     let launch_url = format!(
-        "http://{}:{}/web_client/?deviceId={}#ticket={}&renew={}&nonce={}&perms={}",
+        "http://{}:{}/web_client/?deviceId={}&stream_id={}#ticket={}&renew={}&nonce={}&join_mode={}&perms={}",
         host_for_url(&host),
         port,
         device_id,
+        ticket.stream_id,
         raw,
         renewal_token,
         request.client_nonce,
+        ticket.join_mode,
         granted.join(",")
     );
     let (relay_host, relay_port) = relay_endpoint().await;
@@ -226,6 +245,9 @@ pub async fn issue_device_ticket(
         renewal_token,
         launch_url,
         expires_at: ticket.expires_at,
+        logical_session_id: ticket.logical_session_id.clone(),
+        stream_id: ticket.stream_id.clone(),
+        join_mode: ticket.join_mode.clone(),
         permissions: granted,
         rtc_ice_config: issue_rtc_config(&ticket).await?,
         relay_host,
@@ -239,6 +261,7 @@ pub async fn issue_instance_ticket(
     Extension(subject): Extension<AuthenticatedUser>,
     Json(request): Json<TicketRequest>,
 ) -> Result<Json<RespMessage<TicketResponse>>, ConsoleApiError> {
+    validate_join_mode(&request.join_mode)?;
     let instance = gAppScheduleManager
         .get_instance(&instance_id)
         .await
@@ -251,6 +274,9 @@ pub async fn issue_instance_ticket(
         .get_application(&instance.app_id)
         .await
         .ok_or(ConsoleApiError::ResourceNotFound)?;
+    if request.join_mode == "observe" && !app.allow_observer {
+        return Err(ConsoleApiError::ResourceNotFound);
+    }
     let acl_ids = if app.access_mode == crate::app_schedule::manager::AppAccessMode::Acl {
         crate::identity::manager::IdentityManager::authorized_app_ids(&subject.uid).await?
     } else {
@@ -269,11 +295,8 @@ pub async fn issue_instance_ticket(
         .next()
         .map(|(host, _)| host)
         .ok_or(ConsoleApiError::DeviceOffline)?;
-    let granted = permissions(
-        request.requested_permissions,
-        &["view", "input", "clipboard", "file", "audio"],
-    )?;
-    let (raw, renewal_token, ticket) = ConnectionTicketManager::issue(
+    let granted = permissions_for_join(&request.join_mode, &["view", "input", "audio"]);
+    let (raw, renewal_token, mut ticket) = ConnectionTicketManager::issue(
         "app_instance",
         "user",
         &subject.uid,
@@ -283,6 +306,14 @@ pub async fn issue_instance_ticket(
         Some(instance.instance_id.clone()),
         granted.clone(),
         request.client_nonce.clone(),
+    )
+    .await?;
+    ticket.join_mode = request.join_mode;
+    ConnectionTicketManager::set_remote_session_policy(
+        &ticket.ticket_hash,
+        &ticket.join_mode,
+        app.allow_observer,
+        app.allow_takeover,
     )
     .await?;
     audit::record(
@@ -296,14 +327,16 @@ pub async fn issue_instance_ticket(
     )
     .await;
     let launch_url = format!(
-        "http://{}:{}/web_client/?deviceId={}#ticket={}&renew={}&nonce={}&instance={}&perms={}",
+        "http://{}:{}/web_client/?deviceId={}&stream_id={}#ticket={}&renew={}&nonce={}&instance={}&join_mode={}&perms={}",
         host_for_url(&host),
         instance.listen_port,
         instance.device_id,
+        ticket.stream_id,
         raw,
         renewal_token,
         request.client_nonce,
         instance.instance_id,
+        ticket.join_mode,
         granted.join(",")
     );
     let (relay_host, relay_port) = relay_endpoint().await;
@@ -312,6 +345,9 @@ pub async fn issue_instance_ticket(
         renewal_token,
         launch_url,
         expires_at: ticket.expires_at,
+        logical_session_id: ticket.logical_session_id.clone(),
+        stream_id: ticket.stream_id.clone(),
+        join_mode: ticket.join_mode.clone(),
         permissions: granted,
         rtc_ice_config: issue_rtc_config(&ticket).await?,
         relay_host,
@@ -328,6 +364,7 @@ pub async fn issue_guest_instance_ticket(
     Extension(subject): Extension<AuthenticatedGuest>,
     Json(request): Json<TicketRequest>,
 ) -> Result<Json<RespMessage<TicketResponse>>, ConsoleApiError> {
+    validate_join_mode(&request.join_mode)?;
     let instance = gAppScheduleManager
         .get_instance(&instance_id)
         .await
@@ -338,6 +375,9 @@ pub async fn issue_guest_instance_ticket(
         .await
         .filter(|app| guest_can_access_app(&app.access_mode))
         .ok_or(ConsoleApiError::ResourceNotFound)?;
+    if request.join_mode == "observe" && !app.allow_observer {
+        return Err(ConsoleApiError::ResourceNotFound);
+    }
     let device = gDeviceManager
         .query_device_by_id(instance.device_id.clone())
         .await
@@ -348,10 +388,8 @@ pub async fn issue_guest_instance_ticket(
         .next()
         .map(|(host, _)| host)
         .ok_or(ConsoleApiError::DeviceOffline)?;
-    // Anonymous sessions receive view/input only. More sensitive capabilities
-    // require an authenticated user and an explicit device policy.
-    let granted = permissions(request.requested_permissions, &["view", "input"])?;
-    let (raw, renewal_token, ticket) = ConnectionTicketManager::issue(
+    let granted = permissions_for_join(&request.join_mode, &["view", "input", "audio"]);
+    let (raw, renewal_token, mut ticket) = ConnectionTicketManager::issue(
         "app_instance",
         "guest",
         &subject.guest_id,
@@ -361,6 +399,14 @@ pub async fn issue_guest_instance_ticket(
         Some(instance.instance_id.clone()),
         granted.clone(),
         request.client_nonce.clone(),
+    )
+    .await?;
+    ticket.join_mode = request.join_mode;
+    ConnectionTicketManager::set_remote_session_policy(
+        &ticket.ticket_hash,
+        &ticket.join_mode,
+        app.allow_observer,
+        app.allow_takeover,
     )
     .await?;
     audit::record(
@@ -374,14 +420,16 @@ pub async fn issue_guest_instance_ticket(
     )
     .await;
     let launch_url = format!(
-        "http://{}:{}/web_client/?deviceId={}#ticket={}&renew={}&nonce={}&instance={}&perms={}",
+        "http://{}:{}/web_client/?deviceId={}&stream_id={}#ticket={}&renew={}&nonce={}&instance={}&join_mode={}&perms={}",
         host_for_url(&host),
         instance.listen_port,
         instance.device_id,
+        ticket.stream_id,
         raw,
         renewal_token,
         request.client_nonce,
         instance.instance_id,
+        ticket.join_mode,
         granted.join(",")
     );
     let (relay_host, relay_port) = relay_endpoint().await;
@@ -390,6 +438,9 @@ pub async fn issue_guest_instance_ticket(
         renewal_token,
         launch_url,
         expires_at: ticket.expires_at,
+        logical_session_id: ticket.logical_session_id.clone(),
+        stream_id: ticket.stream_id.clone(),
+        join_mode: ticket.join_mode.clone(),
         permissions: granted,
         rtc_ice_config: issue_rtc_config(&ticket).await?,
         relay_host,
@@ -403,27 +454,21 @@ pub async fn issue_guest_instance_ticket(
 
 #[cfg(test)]
 mod tests {
-    use super::permissions;
+    use super::permissions_for_join;
 
     #[test]
-    fn authenticated_permissions_are_deduplicated_and_validated() {
-        let allowed = ["view", "input", "clipboard", "file", "audio"];
-        let granted = permissions(
-            vec!["view".into(), "clipboard".into(), "clipboard".into()],
-            &allowed,
-        )
-        .unwrap();
-        assert_eq!(granted, vec!["view", "clipboard"]);
-        assert!(permissions(vec!["admin".into()], &allowed).is_err());
+    fn observer_role_has_no_mutating_capabilities() {
+        assert_eq!(
+            permissions_for_join("observe", &["view", "input", "clipboard", "file", "audio"]),
+            vec!["view", "audio"]
+        );
     }
 
     #[test]
-    fn guest_permissions_cannot_escalate_to_sensitive_capabilities() {
-        let allowed = ["view", "input"];
-        assert!(permissions(vec!["view".into(), "file".into()], &allowed).is_err());
+    fn controller_role_receives_the_product_capability_set() {
         assert_eq!(
-            permissions(Vec::new(), &allowed).unwrap(),
-            vec!["view", "input"]
+            permissions_for_join("control", &["view", "input", "audio"]),
+            vec!["view", "input", "audio"]
         );
     }
 }

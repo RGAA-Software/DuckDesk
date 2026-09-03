@@ -1,6 +1,7 @@
 export interface RenewedTicket {
   ticket: string
   renewalToken: string
+  streamId: string
   permissions: string[]
   rtcIceConfig?: RtcSessionIceConfig
 }
@@ -23,6 +24,7 @@ interface RenewalEnvelope {
   data?: {
     ticket?: string
     renewal_token?: string
+    stream_id?: string
     permissions?: string[]
     rtc_ice_config?: RtcSessionIceConfig
   }
@@ -47,12 +49,13 @@ export async function exchangeRenewalTicket(
   })
   if (!response.ok) throw new Error(`重连票据申请失败: HTTP ${response.status}`)
   const payload = (await response.json()) as RenewalEnvelope
-  if (payload.code !== 200 || !payload.data?.ticket || !payload.data.renewal_token) {
+  if (payload.code !== 200 || !payload.data?.ticket || !payload.data.renewal_token || !payload.data.stream_id) {
     throw new Error(payload.message || '重连票据申请失败')
   }
   return {
     ticket: payload.data.ticket,
     renewalToken: payload.data.renewal_token,
+    streamId: payload.data.stream_id,
     permissions: payload.data.permissions ?? [],
     rtcIceConfig: payload.data.rtc_ice_config,
   }

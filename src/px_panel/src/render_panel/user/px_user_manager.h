@@ -37,6 +37,8 @@ namespace px
             const std::string& device_id,
             const std::string& client_nonce,
             const std::vector<std::string>& requested_permissions);
+        px::Result<px_console::ConsoleConnectionTicket, px_console::ConsoleApiError> RenewConnectionTicket(
+            const std::string& renewal_token, const std::string& client_nonce);
         px::Result<std::vector<px_console::ConsoleUserApplication>, px_console::ConsoleApiError> QueryApps();
         px::Result<px_console::ConsoleUserAppInstance, px_console::ConsoleApiError> StartApp(
             const std::string& app_id, const std::string& client_nonce);

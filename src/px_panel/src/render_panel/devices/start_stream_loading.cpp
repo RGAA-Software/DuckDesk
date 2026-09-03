@@ -21,17 +21,19 @@ namespace px
 {
 
     StartStreamLoading::StartStreamLoading(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_console::ConsoleStream>& item, const std::string& network_type)
-        : QDialog(nullptr) {
+        : QDialog() {
 
         setWindowFlags(Qt::FramelessWindowHint|Qt::Dialog);
         setAttribute(Qt::WA_TranslucentBackground);
         //this->setStyleSheet("background:#00000000;");
         setFixedSize(480, 320);
-        auto root_layout = new NoMarginVLayout;
+        QPointer<NoMarginVLayout> root_layout{
+            new NoMarginVLayout}; // NOLINT(gammaray-raw-pointer-boundary): setLayout establishes Qt ownership below
 
         {
             int size = 70;
-            auto lbl_icon = new QLabel(this);
+            QPointer<QLabel> lbl_icon{
+                new QLabel(this)}; // NOLINT(gammaray-raw-pointer-boundary): Qt parent owns the label
             lbl_icon->setFixedSize(size, size);
             lbl_icon->setScaledContents(true);
             QPixmap logo;
@@ -47,7 +49,8 @@ namespace px
             }
             root_layout->addSpacing(60);
 
-            auto layout = new NoMarginHLayout();
+            QPointer<NoMarginHLayout> layout{
+                new NoMarginHLayout}; // NOLINT(gammaray-raw-pointer-boundary): addLayout establishes Qt ownership below
             layout->addStretch();
             layout->addWidget(lbl_icon);
             layout->addStretch();
@@ -56,7 +59,7 @@ namespace px
         }
 
         {
-            auto stream_name = [=]() -> std::string {
+            auto stream_name = [item]() -> std::string {
                 if (!item->stream_name_.empty()) {
                     return item->stream_name_;
                 }
@@ -79,14 +82,15 @@ namespace px
                 nt_type = tcTr("id_relay").toStdString();
             }
             else if (network_type == kStreamItemNtTypeWebRTCDirect) {
-                nt_type = "RTC Local";
+                nt_type = std::format("IP {}", tcTr("id_direct").toStdString());
             }
             else if (network_type == kStreamItemNtTypeUdpDirect) {
                 nt_type = "UDP Local";
             }
 
             QString pre_msg = tcTr("id_start_streaming");
-            auto lbl_title = new QLabel(pre_msg + std::format(R"((<span style="color:#2979ff; font-weight:bold;">{}</span>) <span style="color:#2979ff;">{}</span>)", nt_type, px::SpaceId(stream_name)).c_str());
+            QPointer<QLabel> lbl_title{
+                new QLabel(pre_msg + std::format(R"((<span style="color:#2979ff; font-weight:bold;">{}</span>) <span style="color:#2979ff;">{}</span>)", nt_type, px::SpaceId(stream_name)).c_str(), this)}; // NOLINT(gammaray-raw-pointer-boundary): Qt parent owns the label
             lbl_title->setFixedWidth(this->width());
             lbl_title->setAlignment(Qt::AlignCenter);
             lbl_title->setStyleSheet("font-size: 15px; font-weight:bold; color: #555555;");
@@ -95,8 +99,10 @@ namespace px
         }
 
         {
-            auto layout = new NoMarginHLayout;
-            h_loading_widget_ = new Win10HorizontalLoadingWidget(this);
+            QPointer<NoMarginHLayout> layout{
+                new NoMarginHLayout}; // NOLINT(gammaray-raw-pointer-boundary): addLayout establishes Qt ownership below
+            h_loading_widget_ = QPointer<Win10HorizontalLoadingWidget>{
+                new Win10HorizontalLoadingWidget(this)}; // NOLINT(gammaray-raw-pointer-boundary): Qt parent owns the widget
             h_loading_widget_->setFixedSize(250, 60);
             h_loading_widget_->show();
             h_loading_widget_->setBackgroundColor(QColor("#ffffff"));
@@ -127,11 +133,11 @@ namespace px
         WidgetHelper::AddShadow(this, 0x666666, 30);
     }
 
-    void StartStreamLoading::resizeEvent(QResizeEvent *event) {
+    void StartStreamLoading::resizeEvent(QResizeEvent *event) { // NOLINT(gammaray-raw-pointer-boundary): Qt virtual event ABI
         QWidget::resizeEvent(event);
     }
 
-    void StartStreamLoading::paintEvent(QPaintEvent *event) {
+    void StartStreamLoading::paintEvent(QPaintEvent *event) { // NOLINT(gammaray-raw-pointer-boundary): Qt virtual event ABI
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing);
 

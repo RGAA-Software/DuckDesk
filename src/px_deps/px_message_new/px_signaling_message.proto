@@ -13,12 +13,21 @@ message SigOfferSdpMessage {
   // compatibility with the existing Direct RTC password verifier; logged-in
   // sessions leave this empty and authenticate with connection_ticket.
   string safety_pwd_md5 = 7;
+  // Direct RTC only: an explicitly requested replacement of the current
+  // Controller.  It is evaluated against the device's allow_takeover policy,
+  // never inferred from a reconnect or a client-selected stream id.
+  bool takeover = 8;
 }
 
 message SigAnswerSdpMessage {
   string device_id = 1;
   string room_id = 2;
   string sdp = 3;
+  // A rejected offer is returned through the same relay route as the answer.
+  // Empty means success; a non-empty value is a stable product error code and
+  // must not be treated as an SDP payload.
+  string error_code = 4;
+  string error_message = 5;
 }
 
 message SigIceMessage {

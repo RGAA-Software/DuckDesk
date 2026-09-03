@@ -82,7 +82,7 @@ TEST(ConnectionPolicy, AmbiguousLegacyModeReturnsToAutomatic) {
               policy::ConnectionMode::kAuto);
 }
 
-TEST(ConnectionPolicy, ForcedModeNeverChangesTransportFamily) {
+TEST(ConnectionPolicy, ForcedModesRespectAvailableAuthorization) {
     using Mode = policy::ConnectionMode;
     using Transport = policy::SelectedTransport;
 
@@ -92,6 +92,8 @@ TEST(ConnectionPolicy, ForcedModeNeverChangesTransportFamily) {
               Transport::kUnavailable);
     EXPECT_EQ(policy::SelectTransport(Mode::kDirect, true, true, true),
               Transport::kWebSocket);
+    EXPECT_EQ(policy::SelectTransport(Mode::kDirect, false, true, false),
+              Transport::kWebRtcDirect);
     EXPECT_EQ(policy::SelectTransport(Mode::kDirect, true, false, true),
               Transport::kUnavailable);
     EXPECT_EQ(policy::SelectTransport(Mode::kRtc, true, true, true),
@@ -100,6 +102,8 @@ TEST(ConnectionPolicy, ForcedModeNeverChangesTransportFamily) {
               Transport::kWebRtcStandard);
     EXPECT_EQ(policy::SelectTransport(Mode::kUdpDirect, true, true, true),
               Transport::kUdpDirect);
+    EXPECT_EQ(policy::SelectTransport(Mode::kUdpDirect, false, true, false),
+              Transport::kWebRtcDirect);
     EXPECT_EQ(policy::SelectTransport(Mode::kUdpDirect, true, false, true),
               Transport::kUnavailable);
 }
@@ -113,7 +117,7 @@ TEST(ConnectionPolicy, AutomaticModeUsesAvailabilityAndLoginState) {
     EXPECT_EQ(policy::SelectTransport(Mode::kAuto, true, false, true),
               Transport::kWebRtcStandard);
     EXPECT_EQ(policy::SelectTransport(Mode::kAuto, false, true, true),
-              Transport::kWebSocket);
+              Transport::kWebRtcDirect);
     EXPECT_EQ(policy::SelectTransport(Mode::kAuto, false, false, true),
               Transport::kWebRtcStandard);
     EXPECT_EQ(policy::SelectTransport(Mode::kAuto, false, false, false),

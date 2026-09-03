@@ -9,6 +9,7 @@
 #include "network/ws_router.h"
 #include "px_render/plugin_interface/px_net_plugin_type.h"
 #include "px_common_new/file_transfer_send_result.h"
+#include <atomic>
 #include <mutex>
 
 namespace px
@@ -46,6 +47,9 @@ namespace px
     public:
         std::string device_id_;
         std::string stream_id_;
+        std::string logical_session_id_;
+        std::string binding_id_;
+        std::atomic_bool file_allowed_ = true;
         unsigned int post_thread_id_ = 0;
         NetChannelType nt_channel_type_;
         std::mutex writable_signal_mutex_;

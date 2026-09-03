@@ -13,6 +13,13 @@ namespace px {
 
 struct RedeemedConnectionTicket {
     std::vector<std::string> permissions;
+    std::string logical_session_id;
+    std::string stream_id;
+    std::string join_mode;
+    std::string subject_id;
+    int64_t expires_at_ms = 0;
+    bool allow_observer = true;
+    bool allow_takeover = true;
     std::string rtc_ice_config_json;
 };
 

@@ -408,6 +408,37 @@ namespace px
             }
         });
 
+        // A WebSocket transport can finish its HTTP upgrade before Render's
+        // logical-session admission completes. Terminal business rejections
+        // are delivered explicitly so they do not become a one-second
+        // transport reconnect loop.
+        msg_listener_->Listen<SdkMsgWsConnectionRejected>(
+            [weak_self](const SdkMsgWsConnectionRejected& event) {
+                const auto self = weak_self.lock();
+                if (!self || self->remote_force_closed_) {
+                    return;
+                }
+                self->remote_force_closed_ = true;
+                const auto message_id = [rejection = event.rejection_]() -> std::string {
+                    if (rejection == WsControlRejection::kOccupied) {
+                        return "id_connection_occupied";
+                    }
+                    if (rejection == WsControlRejection::kAuthorization) {
+                        return "id_connection_authorization_rejected";
+                    }
+                    return "id_connection_policy_rejected";
+                }();
+                self->context_->PostUITask([weak_self, message_id]() {
+                    if (!weak_self.lock()) {
+                        return;
+                    }
+                    auto box = SizedMessageBox::MakeErrorOkBox(
+                        tcTr("id_warning"), tcTr(QString::fromStdString(message_id)));
+                    box->exec();
+                    ProcessUtil::KillProcess(QApplication::applicationPid());
+                });
+            });
+
         // render 主动断开本连接:被其它客户端接管。通知在通道关闭前到达,
         // 先置 remote_force_closed_ 抑制随后的断线重连弹窗
         msg_listener_->Listen<SdkMsgConnectionTakenOver>([weak_self](const SdkMsgConnectionTakenOver&) {

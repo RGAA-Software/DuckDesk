@@ -79,6 +79,20 @@ namespace px
                     self->transport_reported_ = false;
                 }
             });
+        msg_listener_->Listen<SdkMsgWsConnectionRejected>(
+            [weak_self](const SdkMsgWsConnectionRejected& event) {
+                const auto self = weak_self.lock();
+                if (!self || self->exiting_ || !self->context_) {
+                    return;
+                }
+                self->transport_rejection_.store(
+                    static_cast<int>(event.rejection_), std::memory_order_release);
+                self->context_->PostTask([weak_self]() {
+                    if (const auto self = weak_self.lock(); self && !self->exiting_) {
+                        self->ReportTransportRejected();
+                    }
+                });
+            });
         client_ = std::make_shared<asio2::ws_client>();
         connection_workflow_ = PxConnectionAttemptWorkflow::Create(
             context_->GetMessageNotifier()->GetAsyncRuntime(), std::chrono::seconds(10));
@@ -185,6 +199,7 @@ namespace px
         exiting_ = true;
         transport_connected_ = false;
         transport_reported_ = false;
+        transport_rejection_ = 0;
         msg_listener_ = nullptr;
         if (client_) {
             client_->stop_all_timers();
@@ -245,6 +260,7 @@ namespace px
 #endif
         client->async_send(cp_msg.SerializeAsString());
         ReportTransportConnected();
+        ReportTransportRejected();
     }
 
     void CtPanelClient::ReportTransportConnected() {
@@ -266,6 +282,39 @@ namespace px
         cp_msg.set_stream_id(settings.stream_id_);
         client->async_send(cp_msg.SerializeAsString());
         LOGI("Reported remote transport connected to Panel");
+    }
+
+    void CtPanelClient::ReportTransportRejected() {
+        if (!IsAlive()) {
+            return;
+        }
+        const auto rejection = static_cast<WsControlRejection>(
+            transport_rejection_.load(std::memory_order_acquire));
+        if (rejection == WsControlRejection::kNone) {
+            return;
+        }
+        const auto client = client_;
+        if (!client) {
+            return;
+        }
+        pxcp::CpMessage cp_msg;
+        cp_msg.set_type(pxcp::CpMessageType::kCpTransportRejected);
+        const auto& settings = *Settings::Instance();
+        cp_msg.set_stream_id(settings.stream_id_);
+        auto& rejected = *cp_msg.mutable_transport_rejected();
+        if (rejection == WsControlRejection::kAuthorization) {
+            rejected.set_reason(pxcp::CpTransportRejection::kCpRejectionAuthorization);
+        }
+        else if (rejection == WsControlRejection::kOccupied) {
+            rejected.set_reason(pxcp::CpTransportRejection::kCpRejectionOccupied);
+        }
+        else {
+            rejected.set_reason(pxcp::CpTransportRejection::kCpRejectionSessionPolicy);
+        }
+        client->async_send(cp_msg.SerializeAsString());
+        transport_rejection_.store(0, std::memory_order_release);
+        LOGI("Reported terminal remote transport rejection to Panel: {}",
+             static_cast<int>(rejection));
     }
 
     void CtPanelClient::HeartBeat() {

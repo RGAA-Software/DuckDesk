@@ -25,7 +25,7 @@ namespace px
 
     // GameStream 风格的裸 UDP 媒体通道(非 KCP),控制面仍走 ws,
     // 由 sdk_net_client.cpp 的 kUdpDirect 分支与 WsConnection 一起启动:
-    // - 上行:hello(按源地址绑定媒体会话)/heartbeat/IDR 请求,均为 PxUdpProtocol 控制包
+    // - 上行:hello(携带 WS 预关联码登记媒体端点)/heartbeat/IDR 请求,均为 PxUdpProtocol 控制包
     // - 下行:视频 shard 经 PxUdpFrameReassembler 组帧后合成标准 kVideoFrame proto 上送,
     //   与 webrtc_local 的 encoded-sink 路径一致(不回 Ack);
     //   音频包经 PxUdpAudioJitterBuffer 按序交付,合成标准 kAudioFrame proto 上送,
@@ -38,9 +38,10 @@ namespace px
                             const std::shared_ptr<MessageNotifier>& notifier);
         ~UdpDirectConnection() override;
 
-        // host/port 为 render 的 UDP 媒体端口;device_id/stream_id 用于 hello 会话绑定
-        void Start(const std::string& host, int udp_port,
-                   const std::string& device_id, const std::string& stream_id);
+        // host/port 为 render 的 UDP 媒体端口;association_code 只能由已授权 WS
+        // 媒体 binding 使用一次，UDP 不以 device_id/stream_id 建立逻辑会话。
+        void Start(const std::string& host, int udp_port, const std::string& stream_id,
+                   const std::string& association_code);
         void Start() override {}
         void Stop() override;
 
@@ -81,8 +82,8 @@ namespace px
 
         std::string host_;
         int udp_port_ = 0;
-        std::string device_id_;
         std::string stream_id_;
+        std::string association_code_;
 
         std::shared_ptr<asio2::udp_client> udp_client_ = nullptr;
         PxUdpFrameReassembler reassembler_;
@@ -105,6 +106,10 @@ namespace px
         std::atomic_uint64_t recv_pkt_count_{0};
         std::atomic_uint64_t recv_video_pkt_count_{0};
         std::atomic_uint64_t malformed_video_pkt_count_{0};
+        // UDP does not guarantee delivery of the endpoint hello. Until any
+        // media packet proves that Render accepted the binding, the periodic
+        // control datagram repeats that idempotent hello instead of heartbeat.
+        std::atomic_bool received_media_packet_{false};
 
         // IDR 请求节流:per mon_slot 上次发 IDR 的时间(仅 udp io 线程访问,无需锁)
         std::map<uint8_t, std::chrono::steady_clock::time_point> last_idr_time_;

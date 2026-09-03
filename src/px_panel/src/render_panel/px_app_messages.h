@@ -181,6 +181,12 @@ namespace px
         std::string stream_id_;
     };
 
+    class MsgClientTransportRejectedPanel {
+    public:
+        std::string stream_id_;
+        int reason_ = 0;
+    };
+
     class MsgRtcIceConfigUpdated {
     public:
         uint64_t revision_ = 0;

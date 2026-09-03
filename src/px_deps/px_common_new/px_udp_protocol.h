@@ -46,8 +46,8 @@ namespace px
     // 50pps(20ms 一帧),客户端经 PxUdpAudioJitterBuffer 按序交付、缺口走 Opus PLC
     //
     // Ctrl packet (pkt_type=3): subtype(u8) + body
-    //   kCtrlHello(1):     device_id_len(u8)+device_id | stream_id_len(u8)+stream_id
-    //   kCtrlHeartbeat(2): stream_id_len(u8)+stream_id
+    //   kCtrlHello(1):     association_len(u8)+association | stream_id_len(u8)+stream_id
+    //   kCtrlHeartbeat(2): association_len(u8)+association
     //   kCtrlIdrRequest(3):mon_name_len(u8)+mon_name   (empty = all monitors)
     //   kCtrlFrameStatus(4): frame_index(u32) | received(u16) | lost(u16)
     //   kCtrlKick(5):      reason_len(u8)+reason   (render -> client, e.g. taken over)
@@ -350,11 +350,12 @@ namespace px
             return buf;
         }
 
-        static std::shared_ptr<Data> BuildHello(const std::string& device_id, const std::string& stream_id) {
-            return BuildCtrlString2(kCtrlHello, device_id, stream_id);
+        static std::shared_ptr<Data> BuildHello(const std::string& association_code,
+                                                const std::string& stream_id) {
+            return BuildCtrlString2(kCtrlHello, association_code, stream_id);
         }
-        static std::shared_ptr<Data> BuildHeartbeat(const std::string& stream_id) {
-            return BuildCtrlString1(kCtrlHeartbeat, stream_id);
+        static std::shared_ptr<Data> BuildHeartbeat(const std::string& association_code) {
+            return BuildCtrlString1(kCtrlHeartbeat, association_code);
         }
         static std::shared_ptr<Data> BuildIdrRequest(const std::string& mon_name) {
             return BuildCtrlString1(kCtrlIdrRequest, mon_name);

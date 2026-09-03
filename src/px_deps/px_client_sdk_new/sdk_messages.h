@@ -10,6 +10,7 @@
 
 #include "sdk_errors.h"
 #include "px_message.pb.h"
+#include "px_common_new/ws_control_signal.h"
 
 namespace px
 {
@@ -66,6 +67,11 @@ namespace px
 
     // webrtc local signaling rejected the device password (HTTP 403)
     class SdkMsgRtcLocalAuthFailed {
+    };
+
+    class SdkMsgWsConnectionRejected {
+    public:
+        WsControlRejection rejection_ = WsControlRejection::kSessionPolicy;
     };
 
     class SdkMsgRtcIceRestartNeeded {

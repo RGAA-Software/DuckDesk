@@ -10,6 +10,7 @@
 #include "px_common_new/rtc_monitor_track_slots.h"
 #include "px_common_new/http_client.h"
 #include "px_common_new/md5.h"
+#include "px_common_new/uuid.h"
 #include "px_common_new/message_notifier.h"
 #include "px_client_sdk_new/sdk_messages.h"
 #include "px_message.pb.h"
@@ -26,6 +27,10 @@ namespace px
 
     // render side error code, see px_render/plugins/net_ws/http_handler.cpp(kHandlerErrRtcLocalOccupied)
     static constexpr int kRtcLocalRespOccupied = 704;
+    static constexpr int kRtcLocalRespPasswordRejected = 700;
+    static constexpr int kRtcLocalRespTicketRejected = 705;
+    static constexpr int kRtcLocalRespDirectGrantRejected = 706;
+    static constexpr int kRtcLocalRespIpDirectAuthorizationRejected = 707;
 
     // webrtc::PeerConnectionInterface::IceConnectionState, mirrored as int
     // to keep webrtc types out of the sdk
@@ -130,7 +135,7 @@ namespace px
             LOGI("Got the final offer sdp, size: {}, will request the answer by http.", sdp.size());
             if (const auto self = weak_self.lock()) {
                 self->RunInRtcThread([weak_self, sdp]() {
-                    if (const auto locked = weak_self.lock()) locked->RequestAnswerSdp(sdp, false);
+                    if (const auto locked = weak_self.lock()) locked->RequestAnswerSdp(sdp);
                 });
             }
         });
@@ -218,27 +223,42 @@ namespace px
         LOGI("Rtc local client init success.");
     }
 
-    void WebRtcLocalConnection::RequestAnswerSdp(const std::string& offer_sdp, bool takeover) {
+    void WebRtcLocalConnection::RequestAnswerSdp(const std::string& offer_sdp) {
         if (stopped_) {
             return;
+        }
+
+        if (sdk_params_->connection_nonce_.empty()) {
+            // Direct access has no Console issuer. Generate and retain one
+            // high-entropy nonce for this SDK connection so offer retries and
+            // reconnects remain the same logical session.
+            sdk_params_->connection_nonce_ = GetUUID();
         }
 
         std::map<std::string, std::string> query;
         query["device_id"] = sdk_params_->bare_remote_device_id_;
         query["stream_id"] = sdk_params_->stream_id_;
-        auto pwd_md5 = MakeSafetyPwdMd5();
-        if (!pwd_md5.empty()) {
-            query["safety_pwd_md5"] = pwd_md5;
+        if (sdk_params_->direct_session_grant_.empty()) {
+            auto pwd_md5 = MakeSafetyPwdMd5();
+            if (!pwd_md5.empty()) {
+                query["safety_pwd_md5"] = pwd_md5;
+            }
         }
-        if (takeover) {
+        if (sdk_params_->direct_takeover_) {
             query["takeover"] = "1";
         }
 
         nlohmann::json body;
         body["sdp"] = offer_sdp;
+        // A direct connection has no Console ticket, but it still needs a
+        // stable, client-generated nonce for its local logical-session grant.
+        // Keeping it in the body avoids exposing it through URL logging.
+        body["client_nonce"] = sdk_params_->connection_nonce_;
+        if (!sdk_params_->direct_session_grant_.empty()) {
+            body["direct_session_grant"] = sdk_params_->direct_session_grant_;
+        }
         if (!sdk_params_->connection_ticket_.empty()) {
             body["ticket"] = sdk_params_->connection_ticket_;
-            body["client_nonce"] = sdk_params_->connection_nonce_;
             if (!sdk_params_->connection_instance_id_.empty()) {
                 body["instance_id"] = sdk_params_->connection_instance_id_;
             }
@@ -246,16 +266,6 @@ namespace px
 
         auto client = HttpClient::Make(sdk_params_->ip_, sdk_params_->port_, "/alloc/local/rtc", 15000);
         auto resp = client->Post(query, body.dump(), "application/json");
-        if (resp.status != 200) {
-            LOGE("Request rtc local answer failed, http status: {}, error: {}", resp.status, resp.error_message);
-            if (resp.status == 403 && msg_notifier_) {
-                // wrong device password(random or safety) - let the UI tell the user instead of hanging
-                msg_notifier_->SendAppMessage(SdkMsgRtcLocalAuthFailed{});
-                this->Stop();
-            }
-            return;
-        }
-
         int code = -1;
         std::string message;
         std::string answer_sdp;
@@ -265,6 +275,14 @@ namespace px
             message = obj.value("message", "");
             if (obj.contains("data") && obj["data"].is_object()) {
                 answer_sdp = obj["data"].value("answer_sdp", "");
+                const auto next_direct_grant = obj["data"].value("direct_session_grant", "");
+                if (!next_direct_grant.empty()) {
+                    sdk_params_->direct_session_grant_ = next_direct_grant;
+                    const auto direct_stream_id = obj["data"].value("stream_id", "");
+                    if (!direct_stream_id.empty()) {
+                        sdk_params_->stream_id_ = direct_stream_id;
+                    }
+                }
                 // track→monitor mapping(multi-track render). missing on old renders,
                 // then the single track falls back to the capturing monitor from config
                 if (obj["data"].contains("monitors") && obj["data"]["monitors"].is_array()) {
@@ -301,10 +319,41 @@ namespace px
             return;
         }
 
-        if (code == kRtcLocalRespOccupied && !takeover) {
-            // occupied by another connection, retry once with takeover=1
-            LOGW("Rtc local connection is occupied, retry with takeover=1.");
-            this->RequestAnswerSdp(offer_sdp, true);
+        if (resp.status != 200) {
+            LOGE("Request rtc local answer failed, http status: {}, code: {}, message: {}, error: {}",
+                 resp.status, code, message, resp.error_message);
+            if (resp.status == 403 && msg_notifier_) {
+                if (code == kRtcLocalRespPasswordRejected) {
+                    msg_notifier_->SendAppMessage(SdkMsgRtcLocalAuthFailed{});
+                }
+                else {
+                    const auto rejection = code == kRtcLocalRespOccupied
+                        ? WsControlRejection::kOccupied
+                        : ((code == kRtcLocalRespTicketRejected
+                            || code == kRtcLocalRespDirectGrantRejected
+                            || code == kRtcLocalRespIpDirectAuthorizationRejected)
+                            ? WsControlRejection::kAuthorization
+                            : WsControlRejection::kSessionPolicy);
+                    msg_notifier_->SendAppMessage(SdkMsgWsConnectionRejected{
+                        .rejection_ = rejection,
+                    });
+                }
+                this->Stop();
+            }
+            return;
+        }
+
+        if (code == kRtcLocalRespOccupied) {
+            // A second Controller may replace the first one only after an
+            // explicit caller decision (ThunderSdkParams::direct_takeover_).
+            // Never silently retry with takeover=1 here.
+            LOGW("Rtc local control seat is occupied; explicit takeover is required.");
+            if (msg_notifier_) {
+                msg_notifier_->SendAppMessage(SdkMsgWsConnectionRejected{
+                    .rejection_ = WsControlRejection::kOccupied,
+                });
+            }
+            this->Stop();
             return;
         }
         if (code != 200) {

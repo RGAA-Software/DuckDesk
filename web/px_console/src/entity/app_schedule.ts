@@ -9,6 +9,8 @@ export interface Application {
   encoder_fps: number
   encoder_bitrate: number
   encoder_format: string
+  allow_observer: boolean
+  allow_takeover: boolean
   webrtc_enabled: boolean
   websocket_enabled: boolean
   listen_port?: number
@@ -65,6 +67,8 @@ export interface AppRow {
   encoder_bitrate: number
   encoder_format: string
   access_mode: 'public' | 'acl'
+  allow_observer: boolean
+  allow_takeover: boolean
   version: number
   nodes: AppNode[]
 }
@@ -79,6 +83,8 @@ export interface SaveAppReq {
   encoder_fps?: number
   encoder_bitrate?: number
   encoder_format?: string
+  allow_observer?: boolean
+  allow_takeover?: boolean
   version?: number
 }
 

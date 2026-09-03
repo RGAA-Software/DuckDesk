@@ -67,6 +67,9 @@ message MsgHeartBeat {
   string from = 2;
   // panel carries its latest authorization info on every heartbeat
   MsgAuthInfo auth_info = 3;
+  // JSON snapshot of Render logical sessions. It is transported only on the
+  // reliable Render-Service control channel and forwarded by Service.
+  string logical_sessions_json = 4;
 }
 
 message MsgHeartBeatResp {
@@ -95,6 +98,11 @@ message MsgConnectionGrant {
   string subject_id = 6;
   repeated string permissions = 7;
   int64 expires_at = 8;
+  string logical_session_id = 9;
+  string stream_id = 10;
+  string join_mode = 11;
+  bool allow_observer = 12;
+  bool allow_takeover = 13;
 }
 
 message MsgRedeemConnectionTicketResp {

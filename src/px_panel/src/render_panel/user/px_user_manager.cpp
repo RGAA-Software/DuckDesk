@@ -215,6 +215,14 @@ namespace px
         return result;
     }
 
+    px::Result<px_console::ConsoleConnectionTicket, px_console::ConsoleApiError>
+    PxUserManager::RenewConnectionTicket(const std::string& renewal_token,
+                                         const std::string& client_nonce) {
+        return px_console::ConsoleUserDeviceApi::RenewConnectionTicket(
+            settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(),
+            renewal_token, client_nonce);
+    }
+
     bool PxUserManager::Register(const std::string& username, const std::string& password) {
         auto [guest_access_token, guest, session_error] = ResourceSession();
         if (guest_access_token.empty() || !guest) {

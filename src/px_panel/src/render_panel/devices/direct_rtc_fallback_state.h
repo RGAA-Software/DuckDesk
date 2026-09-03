@@ -17,8 +17,12 @@ namespace px
             transport_connected_ = true;
         }
 
+        void MarkTerminalRejected() noexcept {
+            terminal_rejected_ = true;
+        }
+
         [[nodiscard]] bool ShouldFallback() const noexcept {
-            return !transport_connected_;
+            return !transport_connected_ && !terminal_rejected_;
         }
 
         [[nodiscard]] bool IsPanelChannelConnected() const noexcept {
@@ -28,6 +32,7 @@ namespace px
     private:
         bool panel_channel_connected_ = false;
         bool transport_connected_ = false;
+        bool terminal_rejected_ = false;
     };
 
 }

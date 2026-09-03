@@ -181,6 +181,9 @@ namespace px
         std::string relay_port_;
         // can be operated
         bool can_be_operated_ = true;
+        // Policy for Direct RTC without a Console-issued session ticket.
+        // Console connections continue to take this policy from their ticket.
+        bool direct_allow_takeover_ = true;
         // Virtual displays are privileged and only supported by desktop capture.
         bool virtual_display_enabled_ = true;
         // relay enabled

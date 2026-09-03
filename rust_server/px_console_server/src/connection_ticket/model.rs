@@ -14,6 +14,24 @@ pub struct ConnectionTicket {
     pub subject_type: String,
     pub subject_id: String,
     pub session_id: String,
+    /// Server-issued remote-control session identity. This is intentionally
+    /// distinct from `session_id`, which identifies the authenticated Console
+    /// login session.
+    #[serde(default)]
+    pub logical_session_id: String,
+    /// Opaque Render routing id, issued by Console and bound to the logical
+    /// session. Peers must never choose this value themselves.
+    #[serde(default)]
+    pub stream_id: String,
+    /// Requested admission mode, not a fine-grained capability grant.
+    #[serde(default = "default_join_mode")]
+    pub join_mode: String,
+    /// Policy is snapshotted into the ticket so the target Render can enforce
+    /// the exact admission contract that Console authorized.
+    #[serde(default = "default_true")]
+    pub allow_observer: bool,
+    #[serde(default = "default_true")]
+    pub allow_takeover: bool,
     pub device_id: String,
     pub app_id: Option<String>,
     pub instance_id: Option<String>,
@@ -40,6 +58,11 @@ pub struct TicketGrant {
     pub instance_id: Option<String>,
     pub subject_type: String,
     pub subject_id: String,
+    pub logical_session_id: String,
+    pub stream_id: String,
+    pub join_mode: String,
+    pub allow_observer: bool,
+    pub allow_takeover: bool,
     pub permissions: Vec<String>,
     pub expires_at: i64,
 }
@@ -50,6 +73,9 @@ pub struct TicketResponse {
     pub renewal_token: String,
     pub launch_url: String,
     pub expires_at: i64,
+    pub logical_session_id: String,
+    pub stream_id: String,
+    pub join_mode: String,
     pub permissions: Vec<String>,
     pub rtc_ice_config: RtcSessionIceConfig,
     pub relay_host: String,
@@ -64,6 +90,17 @@ pub struct TicketRenewResponse {
     pub ticket: String,
     pub renewal_token: String,
     pub expires_at: i64,
+    pub logical_session_id: String,
+    pub stream_id: String,
+    pub join_mode: String,
     pub permissions: Vec<String>,
     pub rtc_ice_config: RtcSessionIceConfig,
+}
+
+fn default_join_mode() -> String {
+    "control".to_string()
+}
+
+fn default_true() -> bool {
+    true
 }

@@ -63,6 +63,11 @@ pub struct TicketRedeemResult {
     pub instance_id: String,
     pub subject_type: String,
     pub subject_id: String,
+    pub logical_session_id: String,
+    pub stream_id: String,
+    pub join_mode: String,
+    pub allow_observer: bool,
+    pub allow_takeover: bool,
     pub permissions: Vec<String>,
     pub expires_at: i64,
     pub rtc_ice_config_json: String,
@@ -209,12 +214,14 @@ impl ServiceRuntime {
                 index,
                 from,
                 auth_info,
+                logical_sessions_json,
             } => {
                 self.sync_process_state()?;
                 // 应用层心跳:render 主循环每秒上报(from = "render_{port}"),
                 // 用于 hang 检测——进程活着但消息循环死掉时心跳会中断。
                 if from.starts_with("render_") {
                     self.state.note_render_heartbeat();
+                    self.state.logical_sessions_json = logical_sessions_json;
                 }
                 if let Some(auth_info) = auth_info {
                     self.state.last_auth_info = Some(auth_info);
@@ -1184,6 +1191,7 @@ mod tests {
             .handle_command(Command::HeartBeat {
                 index: 3,
                 from: "panel".to_string(),
+                logical_sessions_json: String::new(),
                 auth_info: None,
             })
             .unwrap()
@@ -1223,6 +1231,7 @@ mod tests {
             .handle_command(Command::HeartBeat {
                 index: 1,
                 from: "render_20371".to_string(),
+                logical_sessions_json: String::new(),
                 auth_info: None,
             })
             .unwrap();
@@ -1234,6 +1243,7 @@ mod tests {
             .handle_command(Command::HeartBeat {
                 index: 2,
                 from: "panel".to_string(),
+                logical_sessions_json: String::new(),
                 auth_info: None,
             })
             .unwrap();
@@ -1248,6 +1258,7 @@ mod tests {
             .handle_command(Command::HeartBeat {
                 index: 1,
                 from: "panel".to_string(),
+                logical_sessions_json: String::new(),
                 auth_info: Some(auth_info.clone()),
             })
             .unwrap();
@@ -1258,6 +1269,7 @@ mod tests {
             .handle_command(Command::HeartBeat {
                 index: 2,
                 from: "panel".to_string(),
+                logical_sessions_json: String::new(),
                 auth_info: None,
             })
             .unwrap();

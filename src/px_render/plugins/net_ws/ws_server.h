@@ -24,6 +24,7 @@ namespace px
     class WsPlugin;
     class PxConnectedClientInfo;
     class MsgClientHello;
+    class PxLogicalSessionCapabilityUpdate;
 
     class WsPluginServer : public std::enable_shared_from_this<WsPluginServer> {
     public:
@@ -46,6 +47,8 @@ namespace px
         int64_t GetQueuingFtMsgCount();
         std::vector<std::shared_ptr<PxConnectedClientInfo>> GetConnectedClientInfo();
         void OnClientHello(const std::shared_ptr<MsgClientHello>& event);
+        void UpdateLogicalSessionCapabilities(
+            const PxLogicalSessionCapabilityUpdate& update);
 
         void PostUserProxyMessage(std::shared_ptr<Data> msg);
         bool IsUserProxyConnected();
@@ -71,7 +74,17 @@ namespace px
                            std::function<void(const std::string& path, std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep)>&& callback);
 
         void NotifyMediaClientConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id);
-        void NotifyMediaClientDisConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id, int64_t begin_timestamp);
+        void NotifyMediaClientDisConnected(const std::string& conn_id, const std::string& stream_id,
+                                            const std::string& visitor_device_id, int64_t begin_timestamp,
+                                            const std::string& connection_instance_id = {},
+                                            const std::string& logical_session_id = {});
+        void CloseLogicalSessionBinding(const std::string& logical_session_id,
+                                        const std::string& binding_id);
+        void UpdateUdpMediaAssociation(const std::string& association_code,
+                                       const std::string& logical_session_id,
+                                       const std::string& stream_id,
+                                       bool force_gdi,
+                                       bool revoke);
 
     private:
         px::WsPlugin* plugin_ = nullptr;

@@ -97,7 +97,7 @@ export async function openGuestInstance(instance: InstanceView, clientNonce: str
   const result = unwrap<TicketLaunch>(
     await guestHttp.post(
       `/api/v1/public/instances/${encodeURIComponent(instance.instance_id)}/ticket`,
-      { client_nonce: clientNonce, requested_permissions: viewOnly ? ['view'] : ['view', 'input'] },
+      { client_nonce: clientNonce, join_mode: viewOnly ? 'observe' : 'control' },
     ),
   )
   window.location.assign(prepareLaunchUrl(result))

@@ -63,6 +63,7 @@ namespace px
         bool IsFtDataChannelConnected();
         bool IsMediaConsumerActive() const;
         bool IsWallObserver() const { return wall_observer_; }
+        bool IsObserver() const { return wall_observer_ || observer_; }
 
         // conn_id: rtc_servers_ 的 map key(device_id:stream_id),断开清理时回传给 plugin
         void SetConnId(const std::string& conn_id) { conn_id_ = conn_id; }
@@ -78,6 +79,14 @@ namespace px
         void SetPermissions(bool capability_enforced, const std::vector<std::string>& permissions) {
             capability_enforced_ = capability_enforced;
             permissions_ = permissions;
+        }
+        // An explicit logical-session takeover keeps the old RTC media peer
+        // alive as an Observer. Only the Controller capability is revoked;
+        // disconnecting this peer would contradict the one-controller,
+        // many-observer product contract.
+        void DemoteToObserver() {
+            observer_ = true;
+            SetPermissions(true, {"view", "audio"});
         }
         bool HasPermission(const std::string& permission) const {
             return !capability_enforced_
@@ -190,6 +199,7 @@ namespace px
         std::vector<std::string> permissions_;
         bool capability_enforced_ = false;
         bool wall_observer_ = false;
+        bool observer_ = false;
         std::atomic_bool ice_connected_ = false;
         // The initial observer timeout only applies before the first successful
         // ICE connection. Once connected, transient disconnects use the normal

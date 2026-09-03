@@ -62,6 +62,8 @@ const form = ref({
   encoder_fps: 60,
   encoder_bitrate: 20,
   encoder_format: 'h264',
+  allow_observer: true,
+  allow_takeover: true,
 })
 
 const nodeDialogVisible = ref(false)
@@ -285,6 +287,8 @@ function resetFormForCreate() {
     encoder_fps: 60,
     encoder_bitrate: 20,
     encoder_format: 'h264',
+    allow_observer: true,
+    allow_takeover: true,
   }
 }
 
@@ -306,6 +310,8 @@ function openEdit(row: ViewRow) {
     encoder_fps: row.encoder_fps || 60,
     encoder_bitrate: row.encoder_bitrate || 20,
     encoder_format: row.encoder_format || 'h264',
+    allow_observer: row.allow_observer !== false,
+    allow_takeover: row.allow_takeover !== false,
   }
   dialogVisible.value = true
 }
@@ -390,6 +396,8 @@ async function submitSave() {
       encoder_fps: f.encoder_fps,
       encoder_bitrate: f.encoder_bitrate,
       encoder_format: f.encoder_format,
+      allow_observer: f.allow_observer,
+      allow_takeover: f.allow_takeover,
     })
     if (!result.ok) {
       message.error(result.message)
@@ -869,6 +877,13 @@ onUnmounted(() => {
             <a-input-number v-model:value="form.encoder_bitrate" :min="1" :max="200" />
             <span class="text-xs text-gray-400">Mbps</span>
           </div>
+        </a-form-item>
+        <a-form-item label="远控会话">
+          <a-space direction="vertical">
+            <a-switch v-model:checked="form.allow_observer" checked-children="允许观看" un-checked-children="禁止观看" />
+            <a-switch v-model:checked="form.allow_takeover" checked-children="允许接管" un-checked-children="禁止接管" />
+          </a-space>
+          <div class="text-xs text-gray-400 mt-1">观看者只接收音视频；接管会立即替换当前操作员。</div>
         </a-form-item>
       </a-form>
       <div class="mt-4 text-right">

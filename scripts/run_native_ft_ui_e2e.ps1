@@ -526,7 +526,7 @@ try {
     $login = Invoke-JsonPost "$ConsoleBase/api/v1/session/user/login" `
         @{ username = $username; password = $password; client_type = 'panel' }
     $issued = Invoke-JsonPost "$ConsoleBase/api/v1/user/devices/$DeviceId/ticket" `
-        @{ client_nonce = $nonce; requested_permissions = @('view', 'file') } `
+        @{ client_nonce = $nonce; join_mode = 'control' } `
         $login.data.access_token
     if (-not $issued.data.ticket) { throw 'Console returned an empty FT ticket' }
 

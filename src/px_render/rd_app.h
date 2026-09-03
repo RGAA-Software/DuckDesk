@@ -69,6 +69,7 @@ namespace px
     class MouseEvent;
     class KeyEvent;
     class TextInput;
+    class LogicalSessionRegistry;
 
     class RdApplication : public std::enable_shared_from_this<RdApplication> {
     public:
@@ -108,13 +109,18 @@ namespace px
         ComPtr<ID3D11Device> GetD3DDevice(uint64_t adapter_uid);
         ComPtr<ID3D11DeviceContext> GetD3DContext(uint64_t adapter_uid);
         std::shared_ptr<SharedPreference> GetSp() const { return sp_; }
+        std::shared_ptr<LogicalSessionRegistry> GetLogicalSessionRegistry() const {
+            return logical_session_registry_;
+        }
         void ReqCtrlAltDelete(const std::string& device_id, const std::string& stream_id) const;
         void RedeemConnectionTicket(
             const std::string& ticket,
             const std::string& client_nonce,
             const std::string& instance_id,
             std::function<void(bool, const std::string&, const std::vector<std::string>&,
-                               const std::string&)>&& callback) const;
+                               const std::string&, const std::string&, const std::string&,
+                               const std::string&, const std::string&, int64_t,
+                               bool, bool)>&& callback) const;
         // service 经 ws 下发 kSrvStopServer(Console 停止实例):先广播 kInstanceStopped
         // 给所有 RTC 客户端,留出发送时间后自行退出(不等服务强杀)
         void OnServiceRequestedStop();
@@ -192,6 +198,7 @@ namespace px
 
         uint64_t last_post_audio_time_ = 0;
         std::shared_ptr<RdStatistics> statistics_ = nullptr;
+        std::shared_ptr<LogicalSessionRegistry> logical_session_registry_ = nullptr;
         std::shared_ptr<SharedPreference> sp_;
 
         std::shared_ptr<PluginManager> plugin_manager_ = nullptr;

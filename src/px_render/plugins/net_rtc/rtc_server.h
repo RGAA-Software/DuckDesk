@@ -54,6 +54,9 @@ namespace px
         [[nodiscard]] const std::string& GetConnectionInstanceId() const {
             return connection_instance_id_;
         }
+        void SetPermissions(const std::vector<std::string>& permissions) {
+            permissions_ = permissions;
+        }
 
         uint32_t GetMediaPendingMessages();
         uint32_t GetFtPendingMessages();

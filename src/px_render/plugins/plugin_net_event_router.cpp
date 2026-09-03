@@ -70,7 +70,43 @@ namespace px {
         std::unordered_map<std::string, CachedVirtualDisplayResponse> completed;
     };
 
+    void PluginNetEventRouter::SendRtcSignalingError(const std::string& stream_id,
+                                                      const std::string& code,
+                                                      const std::string& message) const {
+        if (stream_id.empty() || !plugin_manager_) {
+            return;
+        }
+        Message response;
+        response.set_type(MessageType::kSigAnswerSdpMessage);
+        response.mutable_sig_answer_sdp()->set_error_code(code);
+        response.mutable_sig_answer_sdp()->set_error_message(message);
+        const auto serialized = ProtoAsData(&response);
+        plugin_manager_->VisitNetPlugins([stream_id, serialized](PxNetPlugin* target) { // NOLINT(gammaray-raw-pointer-boundary): established plug-in visitor ABI
+            if (target && target->GetPluginId() == kRelayPluginId) {
+                target->PostTargetStreamProtoMessage(stream_id, serialized, true);
+            }
+        });
+    }
+
     namespace {
+        int64_t CurrentSystemMilliseconds() {
+            return std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+        }
+
+        bool IsControllerOnlyMessage(const MessageType type) {
+            return type == MessageType::kMouseEvent
+                || type == MessageType::kKeyEvent
+                || type == MessageType::kTextInput
+                || type == kReqCtrlAltDelete
+                || type == kClipboardInfo
+                || type == kClipboardInfoResp
+                || type == MessageType::kClipboardReqAtBegin
+                || type == MessageType::kClipboardReqAtEnd
+                || type == MessageType::kClipboardReqBuffer
+                || type == MessageType::kClipboardRespBuffer;
+        }
+
         std::chrono::steady_clock::duration VirtualDisplayServiceResponseTimeout(
             RemoteVirtualDisplayOperation operation) {
             switch (operation) {
@@ -368,8 +404,6 @@ namespace px {
         if (settings_->IsGameHookMode() && settings_->can_be_operated_) {
             auto reset_msg = CaptureResetInputMessage{};
             PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(reset_msg));
-            pressed_keys_.clear();
-            pressed_mouse_buttons_.clear();
         }
 
         // report it
@@ -394,6 +428,26 @@ namespace px {
     }
 
     void PluginNetEventRouter::ProcessClientDisConnectedEvent(const std::shared_ptr<PxPluginClientDisConnectedEvent>& event) {
+        if (const auto registry = app_->GetLogicalSessionRegistry()) {
+            std::string binding_id;
+            if (event->plugin_name_ == kNetRtcPluginId) {
+                binding_id = std::string("rtc:") + event->stream_id_;
+            }
+            else if (event->plugin_name_ == kNetRtcLocalPluginId) {
+                binding_id = std::string("rtc-local:") + event->stream_id_;
+            }
+            if (!binding_id.empty()) {
+                const auto closed = registry->CloseBindingById(
+                    binding_id, CurrentSystemMilliseconds());
+                if (closed.release_controller_input) {
+                    ReleaseControllerInput(LogicalSessionInputLease{
+                        .logical_session_id = closed.logical_session_id,
+                        .binding_id = binding_id,
+                        .generation = closed.lease_generation,
+                    });
+                }
+            }
+        }
         MsgClientDisconnected msg{};
         msg.conn_id_ = event->conn_id_;
         msg.visitor_device_id_ = event->visitor_device_id_;
@@ -406,37 +460,16 @@ namespace px {
         plugin_manager_->VisitAllPlugins([=](PxPluginInterface* plugin) {
             if (plugin->GetPluginId() == kFtPluginId) {
                 plugin->OnMessageRaw(FtRouteDisconnected{
+                    .logical_session_id_ = event->logical_session_id_,
                     .stream_id_ = event->stream_id_,
                     .source_plugin_id_ = event->plugin_name_,
-                    .source_connection_id_ = event->conn_id_,
+                    .source_connection_id_ = !event->connection_instance_id_.empty()
+                        ? event->connection_instance_id_ : event->conn_id_,
                 });
                 return;
             }
             plugin->OnClientDisconnected(event->visitor_device_id_, event->stream_id_);
         });
-
-        // hook 模式：客户端断开时补发所有按下的键/鼠标键的释放事件，
-        // 否则游戏内按键会一直处于按住状态
-        if (settings_->IsGameHookMode() && settings_->can_be_operated_
-            && (!pressed_keys_.empty() || !pressed_mouse_buttons_.empty())) {
-            if (auto hwnd = this->app_->GetAppManager()->GetWindowHandle();
-                hwnd && IsWindow(static_cast<HWND>(hwnd))) {
-                auto hwnd_ptr = reinterpret_cast<uint64_t>(hwnd);
-                for (auto key : pressed_keys_) {
-                    auto msg = CaptureMessageMaker::MakeKeyboardEventMessage(hwnd_ptr, key, 0, 0, 0);
-                    PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(msg));
-                }
-                for (auto btn : pressed_mouse_buttons_) {
-                    auto msg = CaptureMessageMaker::MakeMouseEventMessage(
-                        hwnd_ptr, last_mouse_x_, last_mouse_y_, btn, 0, false, true);
-                    PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(msg));
-                }
-                LOGI("client disconnected: released {} keys, {} mouse buttons",
-                     pressed_keys_.size(), pressed_mouse_buttons_.size());
-            }
-            pressed_keys_.clear();
-            pressed_mouse_buttons_.clear();
-        }
 
         // report it
         ReportClientDisConnected(event);
@@ -471,12 +504,31 @@ namespace px {
             const bool is_input = msg->type() == MessageType::kMouseEvent ||
                                   msg->type() == MessageType::kKeyEvent ||
                                   msg->type() == MessageType::kTextInput;
+            std::optional<LogicalSessionInputLease> input_lease;
+            if (IsControllerOnlyMessage(msg->type())) {
+                const auto registry = app_->GetLogicalSessionRegistry();
+                const auto now_ms = CurrentSystemMilliseconds();
+                if (registry && !event->connection_instance_id_.empty()) {
+                    // The server-created transport binding, not the client
+                    // supplied protobuf stream_id, is the authority for every
+                    // controller-only payload. This keeps an old RTC peer from
+                    // impersonating a replacement Controller after takeover.
+                    input_lease = registry->FindControllerInputLeaseByBinding(
+                        event->connection_instance_id_, now_ms);
+                }
+                if (!input_lease.has_value()) {
+                    LOGW("Drop controller-only message without an active controller lease");
+                    return;
+                }
+            }
             const std::string source_plugin_id = !event->source_plugin_id_.empty()
                 ? event->source_plugin_id_
                 : (event->from_plugin_ ? event->from_plugin_->GetPluginId() : std::string{});
             const std::string source_connection_id = event->connection_instance_id_;
+            const std::string source_logical_session_id = input_lease
+                ? input_lease->logical_session_id : std::string{};
             const auto weak_self = weak_from_this();
-            plugin_manager_->VisitAllPlugins([weak_self, msg, hook_inner, is_input, source_plugin_id, source_connection_id](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
+            plugin_manager_->VisitAllPlugins([weak_self, msg, hook_inner, is_input, source_plugin_id, source_connection_id, source_logical_session_id](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
                 const auto self = weak_self.lock();
                 if (!self) {
                     return;
@@ -500,6 +552,58 @@ namespace px {
                                 LOGW("Reject guest full RTC offer: device password mismatch");
                                 return;
                             }
+                            const auto registry = self->app_->GetLogicalSessionRegistry();
+                            if (!registry || stream_id.empty()) {
+                                LOGW("Reject direct RTC offer without a local logical-session registry");
+                                return;
+                            }
+                            if (sub.client_nonce().empty()) {
+                                LOGW("Reject direct RTC offer without client nonce");
+                                return;
+                            }
+                            // Direct RTC has no Console issuer, but it still
+                            // enters the same lease registry after the
+                            // device-local password check. The client nonce
+                            // makes SDP re-offers a reconnect of one direct
+                            // session instead of trusting a caller-selected
+                            // stream id as its identity.
+                            const auto now_ms = CurrentSystemMilliseconds();
+                            const auto direct_session_key = MD5::Hex(
+                                device_id + "|" + stream_id + "|" + sub.client_nonce());
+                            const auto direct_admission = registry->Bind(
+                                {.logical_session_id = std::string("direct:") + direct_session_key,
+                                 .stream_id = stream_id,
+                                 .subject_id = std::string("direct:") + direct_session_key,
+                                 .join_mode = "control",
+                                 .expires_at_ms = now_ms + std::chrono::minutes(15).count() * 60 * 1000,
+                                 .allow_observer = true,
+                                 .allow_takeover = true},
+                                LogicalSessionTransport::kRtcLocal,
+                                std::string("rtc-local:") + stream_id,
+                                sub.takeover(), now_ms);
+                            if (direct_admission.code != LogicalSessionAdmissionCode::kAccepted) {
+                                LOGW("Reject direct RTC offer: controller lease is occupied");
+                                return;
+                            }
+                            if (direct_admission.release_previous_controller_input) {
+                                self->ReleaseControllerInput(LogicalSessionInputLease{
+                                    .logical_session_id = direct_admission.previous_controller_session_id,
+                                    .generation = direct_admission.previous_controller_lease_generation,
+                                });
+                                const auto previous_stream = registry->FindStreamId(
+                                    direct_admission.previous_controller_session_id);
+                                if (previous_stream.has_value()) {
+                                    const auto update = PxLogicalSessionCapabilityUpdate{
+                                        .stream_id_ = *previous_stream,
+                                        .permissions_ = {"view", "audio"},
+                                    };
+                                    self->plugin_manager_->VisitNetPlugins([&update](PxNetPlugin* target) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
+                                        if (target) {
+                                            target->OnMessageRaw(update);
+                                        }
+                                    });
+                                }
+                            }
                             // A guest has no Console ticket from which to mint
                             // temporary TURN credentials. An empty server list
                             // still selects standard RTC and permits host ICE;
@@ -519,10 +623,17 @@ namespace px {
                         }
                         self->app_->RedeemConnectionTicket(
                             sub.connection_ticket(), sub.client_nonce(), sub.instance_id(),
-                            [weak_self, stream_id, device_id, sdp](
+                            [weak_self, stream_id, device_id, sdp, takeover = sub.takeover()](
                                 bool ok, const std::string& code,
                                 const std::vector<std::string>& permissions,
-                                const std::string& ice_config_json) {
+                                const std::string& ice_config_json,
+                                const std::string& logical_session_id,
+                                const std::string& ticket_stream_id,
+                                const std::string& join_mode,
+                                const std::string& subject_id,
+                                const int64_t expires_at_ms,
+                                const bool allow_observer,
+                                const bool allow_takeover) {
                                 const auto self = weak_self.lock();
                                 if (!self) {
                                     return;
@@ -535,6 +646,54 @@ namespace px {
                                     LOGW("Reject full RTC ticket: code={}, config_available={}", code,
                                          !ice_config_json.empty());
                                     return;
+                                }
+                                if (stream_id != ticket_stream_id) {
+                                    LOGW("Reject full RTC ticket: stream mismatch");
+                                    return;
+                                }
+                                const auto registry = self->app_->GetLogicalSessionRegistry();
+                                if (!registry) {
+                                    LOGW("Reject full RTC ticket: logical-session registry unavailable");
+                                    return;
+                                }
+                                const auto admission = registry->Bind(
+                                    {.logical_session_id = logical_session_id,
+                                     .stream_id = ticket_stream_id,
+                                     .subject_id = subject_id,
+                                     .join_mode = join_mode,
+                                     .expires_at_ms = expires_at_ms,
+                                    .allow_observer = allow_observer,
+                                    .allow_takeover = allow_takeover},
+                                    LogicalSessionTransport::kRtcLocal,
+                                    std::string("rtc-local:") + ticket_stream_id,
+                                    takeover, CurrentSystemMilliseconds());
+                                if (admission.code != LogicalSessionAdmissionCode::kAccepted) {
+                                    const bool occupied = admission.code == LogicalSessionAdmissionCode::kOccupied;
+                                    LOGW("Reject full RTC ticket: logical-session admission denied, occupied={}", occupied);
+                                    self->SendRtcSignalingError(
+                                        stream_id,
+                                        occupied ? "RTC_OCCUPIED" : "RTC_ACCESS_DENIED",
+                                        occupied ? "Remote controller is occupied" : "Remote session admission denied");
+                                    return;
+                                }
+                                if (admission.release_previous_controller_input) {
+                                    self->ReleaseControllerInput(LogicalSessionInputLease{
+                                        .logical_session_id = admission.previous_controller_session_id,
+                                        .generation = admission.previous_controller_lease_generation,
+                                    });
+                                    const auto previous_stream = registry->FindStreamId(
+                                        admission.previous_controller_session_id);
+                                    if (previous_stream.has_value()) {
+                                        const auto update = PxLogicalSessionCapabilityUpdate{
+                                            .stream_id_ = *previous_stream,
+                                            .permissions_ = {"view", "audio"},
+                                        };
+                                        self->plugin_manager_->VisitNetPlugins([&update](PxNetPlugin* target) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
+                                            if (target) {
+                                                target->OnMessageRaw(update);
+                                            }
+                                        });
+                                    }
                                 }
                                 const auto plugin = self->plugin_manager_->GetRtcLocalPlugin();
                                 if (!plugin) {
@@ -565,8 +724,18 @@ namespace px {
                 if (plugin->GetPluginId() == kFtPluginId &&
                     (msg->type() == MessageType::kFileAction ||
                      msg->type() == MessageType::kFileResponse)) {
+                    const auto registry = self->app_->GetLogicalSessionRegistry();
+                    const auto lease = registry && !source_connection_id.empty()
+                        ? registry->FindControllerLeaseByBinding(
+                            source_connection_id, CurrentSystemMilliseconds())
+                        : std::optional<LogicalSessionInputLease>{};
+                    if (!lease.has_value()) {
+                        LOGW("Drop file-transfer message without an active controller lease");
+                        return;
+                    }
                     plugin->OnMessageRaw(FtInboundMessage{
                         .message_ = msg,
+                        .logical_session_id_ = lease->logical_session_id,
                         .source_plugin_id_ = source_plugin_id,
                         .source_connection_id_ = source_connection_id,
                     });
@@ -749,13 +918,13 @@ namespace px {
                 }
                 case MessageType::kMouseEvent: {
                     if (!settings_->app_.IsGlobalReplayMode()) {
-                        ProcessMouseEvent(std::move(msg));
+                        ProcessMouseEvent(std::move(msg), *input_lease);
                     }
                     break;
                 }
                 case MessageType::kKeyEvent: {
                     if (!settings_->app_.IsGlobalReplayMode()) {
-                        ProcessKeyboardEvent(std::move(msg));
+                        ProcessKeyboardEvent(std::move(msg), *input_lease);
                     }
                     break;
                 }
@@ -816,15 +985,98 @@ namespace px {
         });
     }
 
-    void PluginNetEventRouter::ProcessMouseEvent(std::shared_ptr<Message>&& msg) {
-        if (settings_->app_.IsGlobalReplayMode()) {
-            // Desktop: EventReplayerPlugin handles via OnMessage → SendInput.
+    PluginNetEventRouter::InputLeaseKey PluginNetEventRouter::ToInputLeaseKey(
+        const LogicalSessionInputLease& lease) {
+        return InputLeaseKey{
+            .logical_session_id_ = lease.logical_session_id,
+            .generation_ = lease.generation,
+        };
+    }
+
+    void PluginNetEventRouter::ReleaseControllerInput(const LogicalSessionInputLease& lease) {
+        const auto key = ToInputLeaseKey(lease);
+        const auto found = input_states_.find(key);
+        if (found == input_states_.end()) {
             return;
         }
+        auto input_state = std::move(found->second);
+        input_states_.erase(found);
+        if (!settings_->can_be_operated_
+            || (input_state.pressed_keys_.empty() && input_state.pressed_mouse_buttons_.empty())) {
+            return;
+        }
+        if (settings_->app_.IsGlobalReplayMode()) {
+            // The EventReplayer owns the system SendInput state.  Focus-out is
+            // its value-only plug-in command for releasing all pressed keys
+            // and mouse buttons; it must be sent only after this generation is
+            // removed from input_states_.
+            auto release_message = std::make_shared<Message>();
+            release_message->set_type(MessageType::kFocusOutEvent);
+            plugin_manager_->VisitAllPlugins(
+                [release_message](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
+                    if (plugin->GetPluginId() == kEventReplayerPluginId) {
+                        plugin->OnMessage(release_message);
+                    }
+                });
+            LOGI("controller desktop input released: session={}, generation={}",
+                 lease.logical_session_id, lease.generation);
+            return;
+        }
+        if (settings_->IsWebViewMode()) {
+            for (const auto key_code : input_state.pressed_keys_) {
+                KeyEvent event;
+                event.set_key_code(key_code);
+                event.set_down(false);
+                app_->SendWebViewKeyEvent(event);
+            }
+            // CEF clears any internal pointer capture and IME composition on
+            // focus loss. This is the WebView equivalent of releasing a
+            // desktop lease and does not transfer focus to an Observer.
+            app_->SendWebViewFocusEvent(false);
+            LOGI("controller WebView input released: session={}, generation={}, keys={}, mouse_buttons={}",
+                 lease.logical_session_id, lease.generation, input_state.pressed_keys_.size(),
+                 input_state.pressed_mouse_buttons_.size());
+            return;
+        }
+        const auto hwnd = app_->GetAppManager()->GetWindowHandle();
+        if (!hwnd || !IsWindow(static_cast<HWND>(hwnd))) {
+            LOGW("controller lease released without a valid game HWND: session={}",
+                 lease.logical_session_id);
+            return;
+        }
+        const auto hwnd_value = reinterpret_cast<uint64_t>(hwnd);
+        for (const auto key_code : input_state.pressed_keys_) {
+            const auto message = CaptureMessageMaker::MakeKeyboardEventMessage(
+                hwnd_value, key_code, 0, 0, 0);
+            PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(message));
+        }
+        for (const auto button : input_state.pressed_mouse_buttons_) {
+            const auto message = CaptureMessageMaker::MakeMouseEventMessage(
+                hwnd_value, input_state.last_mouse_x_, input_state.last_mouse_y_, button, 0, false, true);
+            PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(message));
+        }
+        LOGI("controller lease released: session={}, generation={}, keys={}, mouse_buttons={}",
+             lease.logical_session_id, lease.generation, input_state.pressed_keys_.size(),
+             input_state.pressed_mouse_buttons_.size());
+    }
+
+    void PluginNetEventRouter::ProcessMouseEvent(
+        std::shared_ptr<Message>&& msg, const LogicalSessionInputLease& lease) {
         if (!settings_->can_be_operated_) {
             return;
         }
         const auto& mouse_event = msg->mouse_event();
+        auto& input_state = input_states_[ToInputLeaseKey(lease)];
+        if (mouse_event.pressed()) {
+            input_state.pressed_mouse_buttons_.insert(mouse_event.button());
+        } else if (mouse_event.released()) {
+            input_state.pressed_mouse_buttons_.erase(mouse_event.button());
+        }
+        if (settings_->app_.IsGlobalReplayMode()) {
+            // Desktop: EventReplayerPlugin handles the actual SendInput via
+            // OnMessage; the router still owns lease-scoped state above.
+            return;
+        }
         if (settings_->IsWebViewMode()) {
             app_->SendWebViewMouseEvent(mouse_event);
             return;
@@ -854,14 +1106,15 @@ namespace px {
         auto x = rect.left + app_width * mouse_event.x_ratio();
         auto y = rect.top + app_height * mouse_event.y_ratio();
 
-        // 记录当前按下的鼠标键 / 最近一次坐标，用于客户端断开时补发释放事件
+        // 记录当前按下的鼠标键 / 最近一次坐标，用于该 Controller lease
+        // 断开或被接管时补发释放事件。
         if (mouse_event.pressed()) {
-            pressed_mouse_buttons_.insert(mouse_event.button());
+            input_state.pressed_mouse_buttons_.insert(mouse_event.button());
         } else if (mouse_event.released()) {
-            pressed_mouse_buttons_.erase(mouse_event.button());
+            input_state.pressed_mouse_buttons_.erase(mouse_event.button());
         }
-        last_mouse_x_ = (int)x;
-        last_mouse_y_ = (int)y;
+        input_state.last_mouse_x_ = static_cast<int>(x);
+        input_state.last_mouse_y_ = static_cast<int>(y);
 
         auto mouse_event_msg = CaptureMessageMaker::MakeMouseEventMessage(
             hwnd_ptr, (int)x, (int)y, mouse_event.button(), mouse_event.data(),
@@ -878,14 +1131,21 @@ namespace px {
         PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(mouse_event_msg));
     }
 
-    void PluginNetEventRouter::ProcessKeyboardEvent(std::shared_ptr<Message>&& msg) {
-        if (settings_->app_.IsGlobalReplayMode()) {
-            return;
-        }
+    void PluginNetEventRouter::ProcessKeyboardEvent(
+        std::shared_ptr<Message>&& msg, const LogicalSessionInputLease& lease) {
         if (!settings_->can_be_operated_) {
             return;
         }
         const auto& key_event = msg->key_event();
+        auto& input_state = input_states_[ToInputLeaseKey(lease)];
+        if (key_event.down()) {
+            input_state.pressed_keys_.insert(key_event.key_code());
+        } else {
+            input_state.pressed_keys_.erase(key_event.key_code());
+        }
+        if (settings_->app_.IsGlobalReplayMode()) {
+            return;
+        }
         if (settings_->IsWebViewMode()) {
             app_->SendWebViewKeyEvent(key_event);
             return;
@@ -900,11 +1160,11 @@ namespace px {
             return;
         }
 
-        // 记录当前按下的键，用于客户端断开时补发释放事件
+        // 记录当前按下的键，用于该 Controller lease 断开或被接管时补发释放事件。
         if (key_event.down()) {
-            pressed_keys_.insert(key_event.key_code());
+            input_state.pressed_keys_.insert(key_event.key_code());
         } else {
-            pressed_keys_.erase(key_event.key_code());
+            input_state.pressed_keys_.erase(key_event.key_code());
         }
 
         auto keyboard_msg = CaptureMessageMaker::MakeKeyboardEventMessage(

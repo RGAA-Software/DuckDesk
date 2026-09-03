@@ -34,6 +34,7 @@ namespace px
             PxPluginEventCallback dispatcher);
 
         void WithOwner(const std::function<void(RtcLocalPlugin&)>& operation);
+        [[nodiscard]] bool IsOwnerActive() const;
         void DeactivateOwner();
         [[nodiscard]] std::shared_ptr<PxPluginContext> GetContext() const;
         void QueueEvent(const std::shared_ptr<PxPluginBaseEvent>& event) const;
@@ -64,7 +65,7 @@ namespace px
         ConcurrentHashMap<std::string, std::shared_ptr<RtcServer>> servers;
 
     private:
-        std::mutex owner_mutex_;
+        mutable std::mutex owner_mutex_;
         std::optional<std::reference_wrapper<RtcLocalPlugin>> owner_;
         std::weak_ptr<PxPluginContext> context_;
         PxPluginEventCallback dispatcher_;

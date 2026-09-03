@@ -276,6 +276,16 @@ PxAwaitable<void> StreamLaunchAuthWorkflow::Run(
         co_return;
     }
     auto resolved_ticket = resolved.TakeValue();
+    if (resolved_ticket.ticket.stream_id.empty()
+        || resolved_ticket.ticket.renewal_token.empty()) {
+        completion(generation, StreamLaunchAuthResult::Failure(MakePxAsyncError(
+            PxAsyncErrorCode::kProtocolError,
+            "stream-launch.resolve-ticket",
+            "Console returned a ticket without a runtime stream ID or renewal capability",
+            false,
+            "INVALID_CONSOLE_TICKET")));
+        co_return;
+    }
     bool direct_available = false;
     const bool should_probe = !request.force_relay
         && (request.force_direct_transport || resolved_ticket.direct_probe_enabled);

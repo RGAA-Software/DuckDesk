@@ -36,8 +36,8 @@ namespace px
     class UdpSession {
     public:
         std::string conn_id_;           // remote addr:port
-        std::string device_id_;         // kCtrlHello 上报
         std::string stream_id_;         // kCtrlHello 上报
+        std::string association_code_;  // WS-created UDP media association
         std::shared_ptr<asio2::udp_session> sess_ = nullptr;
         // 绑定状态:变迁在 UdpRuntimeState 的 mutex 下做,读用原子(编码线程热路径无锁)
         std::atomic_bool bound_{false};
@@ -59,6 +59,7 @@ namespace px
 
         bool OnCreate(const px::PxPluginParam &param) override;
         bool OnDestroy() override;
+        void OnMessageRaw(const std::any& msg) override;
         // 视频走 OnEncodedVideoFrame 裸 UDP 直发;音频从这里提取 kAudioFrame 的
         // Opus payload 发 UDP(wire 级手扫,不引 protobuf 头);控制消息走 ws 通道
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through = false) override;

@@ -541,27 +541,31 @@ namespace px
     }
 
     void WinEventReplayer::HandleFocusOutEvent() {
+        // A logical Controller lease may disappear without a matching key-up
+        // or mouse-up packet.  Release every key and button injected by the
+        // global replayer; releasing only modifiers leaves ordinary keys and
+        // drag operations stuck after takeover/disconnect.
+        ResetKey();
 
-        std::array<int, 11> keys = {
-            VK_CONTROL,
-            VK_RCONTROL,
-            VK_LCONTROL,
-            VK_SHIFT,
-            VK_RSHIFT,
-            VK_LSHIFT,
-            VK_MENU,
-            VK_RMENU,
-            VK_LMENU,
-            VK_LWIN,
-            VK_RWIN,
-        };
-        
-        for (auto key : keys) {
-            px::KeyEvent event;
-            event.set_down(false);
-            event.set_key_code(key);
-            HandleKeyEvent(event);
+        DWORD release_flags = 0;
+        if (left_held_) {
+            release_flags |= MOUSEEVENTF_LEFTUP;
         }
+        if (middle_held_) {
+            release_flags |= MOUSEEVENTF_MIDDLEUP;
+        }
+        if (right_held_) {
+            release_flags |= MOUSEEVENTF_RIGHTUP;
+        }
+        if (release_flags != 0) {
+            INPUT event{};
+            event.type = INPUT_MOUSE;
+            event.mi.dwFlags = release_flags;
+            static_cast<void>(WinSendEvent(&event));
+        }
+        left_held_ = false;
+        middle_held_ = false;
+        right_held_ = false;
     }
 
     void WinEventReplayer::SimulateCtrlWinShiftB() {

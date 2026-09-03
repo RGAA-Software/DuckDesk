@@ -72,19 +72,27 @@ namespace px::connection_policy
             return relay_available ? SelectedTransport::kRelay
                                    : SelectedTransport::kUnavailable;
         case ConnectionMode::kDirect:
-            return direct_available ? SelectedTransport::kWebSocket
-                                    : SelectedTransport::kUnavailable;
+            if (!direct_available) return SelectedTransport::kUnavailable;
+            // A Console ticket can authorize the reliable WebSocket data
+            // plane directly. Password-only IP connections must use Direct
+            // RTC, whose initial HTTP handshake exchanges the password for a
+            // short-lived Render grant before any data channel is opened.
+            return uses_console_ticket ? SelectedTransport::kWebSocket
+                                       : SelectedTransport::kWebRtcDirect;
         case ConnectionMode::kRtc:
             if (direct_available) return SelectedTransport::kWebRtcDirect;
             return relay_available ? SelectedTransport::kWebRtcStandard
                                    : SelectedTransport::kUnavailable;
         case ConnectionMode::kUdpDirect:
-            return direct_available ? SelectedTransport::kUdpDirect
-                                    : SelectedTransport::kUnavailable;
+            if (!direct_available) return SelectedTransport::kUnavailable;
+            // UDP carries media only and depends on an authenticated WS
+            // control association. Until password-direct WS grants exist,
+            // no-Console launches use the authenticated Direct RTC path.
+            return uses_console_ticket ? SelectedTransport::kUdpDirect
+                                       : SelectedTransport::kWebRtcDirect;
         case ConnectionMode::kAuto:
             if (direct_available) {
-                return uses_console_ticket ? SelectedTransport::kWebRtcDirect
-                                           : SelectedTransport::kWebSocket;
+                return SelectedTransport::kWebRtcDirect;
             }
             return relay_available ? SelectedTransport::kWebRtcStandard
                                    : SelectedTransport::kUnavailable;

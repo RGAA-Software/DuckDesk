@@ -60,6 +60,7 @@ use crate::net_panel::console_panel_conn_mgr::ConsolePanelConnManager;
 use crate::net_service::console_service_conn_mgr::ConsoleServiceConnManager;
 use crate::record::console_file_transfer_manager::ConsoleFileTransferManager;
 use crate::record::console_render_record_manager::ConsoleRenderRecordManager;
+use crate::record::console_remote_session_manager::ConsoleRemoteSessionManager;
 use crate::record::console_visit_manager::ConsoleVisitManager;
 use crate::record::record_tunnel::RecordTunnelManager;
 use crate::rtc::manager::RtcConfigManager;
@@ -95,6 +96,7 @@ lazy_static::lazy_static! {
 
     // Database
     pub static ref gConsoleDatabase: Arc<Mutex<ConsoleDatabase>> = Arc::new(Mutex::new(ConsoleDatabase::new()));
+    pub static ref gRemoteSessionManager: Arc<ConsoleRemoteSessionManager> = ConsoleRemoteSessionManager::new();
     pub static ref gUserManager: Arc<ConsoleUserManager> = ConsoleUserManager::new();
     pub static ref gUserSessionManager: Arc<ConsoleUserSessionManager> = ConsoleUserSessionManager::new();
 

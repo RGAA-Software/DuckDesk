@@ -1,4 +1,6 @@
 pub const KEY_DEVICE_ID: &str = "device_id";
+pub const KEY_ALLOW_OBSERVER: &str = "allow_observer";
+pub const KEY_ALLOW_TAKEOVER: &str = "allow_takeover";
 pub const KEY_DEVICE_IP: &str = "device_ip";
 pub const KEY_DEVICE_NAME: &str = "device_name";
 pub const KEY_DEVICE_DESKTOP_LINK: &str = "desktop_link";

@@ -95,7 +95,16 @@ namespace px
         std::string connection_ticket_;
         std::string connection_nonce_;
         std::string connection_instance_id_;
+        // Opaque, short-lived Render-issued credential for Direct RTC retries.
+        // It is rotated on every use and must never be persisted or logged.
+        std::string direct_session_grant_;
+        // Short-lived opaque key used only to associate the UDP media endpoint
+        // with an already authorized WS binding. It is not a session grant.
+        std::string udp_media_association_;
         std::string rtc_ice_config_json_;
+        // Direct RTC callers set this only after the user requests takeover.
+        // Console tickets already carry the authorized admission mode.
+        bool direct_takeover_ = false;
     };
 
 }

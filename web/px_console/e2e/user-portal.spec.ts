@@ -95,7 +95,9 @@ async function installUserApi(page: Page, initiallyAuthenticated = true) {
       return json(route, ok({
         launch_url: `${origin}/user/apps?opened=1#ticket=ticket-1&renew=renew-1&nonce=nonce-1`,
         renewal_token: 'renew-1',
-        permissions: state.ticketBody?.requested_permissions,
+        permissions: state.ticketBody?.join_mode === 'observe'
+          ? ['view', 'audio']
+          : ['view', 'input', 'clipboard', 'file', 'audio'],
       }))
     }
     if (path === '/api/v1/user/instances') return json(route, ok([]))
@@ -183,13 +185,7 @@ test('a fresh authenticated tab recovers csrf and opens an authorized applicatio
 
   await expect.poll(() => api.ticketCalls).toBe(1)
   expect(api.ticketCsrf).toBe('csrf-recovered')
-  expect(api.ticketBody?.requested_permissions).toEqual([
-    'view',
-    'input',
-    'clipboard',
-    'file',
-    'audio',
-  ])
+  expect(api.ticketBody?.join_mode).toBe('control')
   await expect(page).toHaveURL(/opened=1/)
   const fragment = new URLSearchParams(new URL(page.url()).hash.slice(1))
   expect(fragment.get('renew')).toBe('renew-1')
@@ -212,10 +208,10 @@ test('view-only application entry requests a server-enforced view grant', async 
   await page.getByRole('button', { name: '仅观看' }).click()
 
   await expect.poll(() => api.ticketCalls).toBe(1)
-  expect(api.ticketBody?.requested_permissions).toEqual(['view'])
+  expect(api.ticketBody?.join_mode).toBe('observe')
   await expect(page).toHaveURL(/opened=1/)
   const fragment = new URLSearchParams(new URL(page.url()).hash.slice(1))
-  expect(fragment.get('perms')).toBe('view')
+  expect(fragment.get('perms')).toBe('view,audio')
 })
 
 test('resource polling redirects immediately when the user session expires', async ({ page }) => {

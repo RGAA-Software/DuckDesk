@@ -24,6 +24,13 @@ TEST(DirectRtcFallbackState, RemoteTransportSuppressesFallback) {
     EXPECT_FALSE(state.ShouldFallback());
 }
 
+TEST(DirectRtcFallbackState, TerminalRejectionSuppressesFallback) {
+    DirectRtcFallbackState state;
+    state.MarkPanelChannelConnected();
+    state.MarkTerminalRejected();
+    EXPECT_FALSE(state.ShouldFallback());
+}
+
 TEST(DirectRtcFallbackState, TransportReadyProtocolRoundTrips) {
     pxcp::CpMessage outgoing;
     outgoing.set_type(pxcp::CpMessageType::kCpTransportConnected);
@@ -33,6 +40,21 @@ TEST(DirectRtcFallbackState, TransportReadyProtocolRoundTrips) {
     ASSERT_TRUE(incoming.ParseFromString(outgoing.SerializeAsString()));
     EXPECT_EQ(incoming.type(), pxcp::CpMessageType::kCpTransportConnected);
     EXPECT_EQ(incoming.stream_id(), "rtc-direct-attempt");
+}
+
+TEST(DirectRtcFallbackState, TransportRejectionProtocolRoundTrips) {
+    pxcp::CpMessage outgoing;
+    outgoing.set_type(pxcp::CpMessageType::kCpTransportRejected);
+    outgoing.set_stream_id("ip-direct-attempt");
+    outgoing.mutable_transport_rejected()->set_reason(
+        pxcp::CpTransportRejection::kCpRejectionAuthorization);
+
+    pxcp::CpMessage incoming;
+    ASSERT_TRUE(incoming.ParseFromString(outgoing.SerializeAsString()));
+    EXPECT_EQ(incoming.type(), pxcp::CpMessageType::kCpTransportRejected);
+    EXPECT_EQ(incoming.stream_id(), "ip-direct-attempt");
+    EXPECT_EQ(incoming.transport_rejected().reason(),
+              pxcp::CpTransportRejection::kCpRejectionAuthorization);
 }
 
 TEST(DirectRtcFallbackState, TenRepeatedAttemptsDoNotLeakReadiness) {

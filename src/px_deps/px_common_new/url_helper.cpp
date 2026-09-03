@@ -4,8 +4,32 @@
 
 #include "url_helper.h"
 
+#include <string_view>
+
 namespace px
 {
+
+    std::string UrlHelper::EncodeQueryComponent(const std::string& value) {
+        constexpr std::string_view kHex = "0123456789ABCDEF";
+        std::string encoded;
+        encoded.reserve(value.size());
+        for (const auto ch : value) {
+            const auto byte = static_cast<unsigned char>(ch);
+            const bool unreserved =
+                (byte >= 'A' && byte <= 'Z')
+                || (byte >= 'a' && byte <= 'z')
+                || (byte >= '0' && byte <= '9')
+                || byte == '-' || byte == '.' || byte == '_' || byte == '~';
+            if (unreserved) {
+                encoded.push_back(static_cast<char>(byte));
+                continue;
+            }
+            encoded.push_back('%');
+            encoded.push_back(kHex[(byte >> 4) & 0x0F]);
+            encoded.push_back(kHex[byte & 0x0F]);
+        }
+        return encoded;
+    }
 
     // 解码 URL 编码的特殊字符
     static std::string UrlDecode(const std::string& str) {

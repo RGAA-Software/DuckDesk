@@ -310,6 +310,7 @@ namespace px
                     .relay_host_ = settings_->relay_host_,
                     .relay_port_ = settings_->relay_port_,
                     .can_be_operated_ = settings_->can_be_operated_,
+                    .direct_allow_takeover_ = settings_->direct_allow_takeover_,
                     .relay_enabled_ = settings_->relay_enabled_,
                     .language_ = settings_->language_,
                     .file_transfer_enabled_ = settings_->file_transfer_enabled_,

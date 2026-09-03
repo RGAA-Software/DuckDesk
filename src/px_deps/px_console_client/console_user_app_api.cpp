@@ -1,5 +1,6 @@
 #include "console_user_app_api.h"
 
+#include <algorithm>
 #include <format>
 #include <nlohmann/json.hpp>
 #include <string_view>
@@ -132,7 +133,8 @@ ConsoleUserAppApi::IssueInstanceTicket(const std::string& host, int port,
     const auto client = MakeConsoleHttpClient(host, port, path, 3000);
     client->SetHeader("Authorization", "Bearer " + access_token);
     const auto response = client->Post({}, json{{"client_nonce", client_nonce},
-        {"requested_permissions", requested_permissions}}.dump(), "application/json");
+        {"join_mode", std::find(requested_permissions.begin(), requested_permissions.end(), "input")
+            == requested_permissions.end() ? "observe" : "control"}}.dump(), "application/json");
     if (response.status != 200 || response.body.empty()) {
         return HttpError<ConsoleConnectionTicket>("IssueInstanceTicket", response);
     }
@@ -140,15 +142,20 @@ ConsoleUserAppApi::IssueInstanceTicket(const std::string& host, int port,
         const auto data = json::parse(response.body).at(kResponseData);
         ConsoleConnectionTicket ticket;
         ticket.ticket = data.value("ticket", "");
+        ticket.renewal_token = data.value("renewal_token", "");
         ticket.launch_url = data.value("launch_url", "");
         ticket.expires_at = data.value("expires_at", 0LL);
+        ticket.logical_session_id = data.value("logical_session_id", "");
+        ticket.stream_id = data.value("stream_id", "");
+        ticket.join_mode = data.value("join_mode", "control");
         ticket.permissions = data.value("permissions", std::vector<std::string>{});
         ticket.rtc_ice_config_json = data.contains("rtc_ice_config")
             ? data.at("rtc_ice_config").dump() : "";
         ticket.relay_host = data.value("relay_host", "");
         ticket.relay_port = data.value("relay_port", 0);
         ticket.signal_device_id = data.value("signal_device_id", "");
-        if (ticket.ticket.empty() || ticket.launch_url.empty()) {
+        if (ticket.ticket.empty() || ticket.renewal_token.empty()
+            || ticket.stream_id.empty() || ticket.launch_url.empty()) {
             return TcErr(ConsoleApiError::kParseJsonFailed);
         }
         return ticket;

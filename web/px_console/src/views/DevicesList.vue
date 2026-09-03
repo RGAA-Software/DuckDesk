@@ -34,6 +34,22 @@ const handleDisableDevice = async (index: number, device: Device) => {
   }
 }
 
+const handleRemoteSessionPolicy = async (device: Device) => {
+  const nextObserver = !device.allow_observer
+  if (await updateRemoteSessionPolicy(device, nextObserver, device.allow_takeover)) {
+    device.allow_observer = nextObserver
+    notification.success({ message: nextObserver ? '已允许观看' : '已禁止观看' })
+  }
+}
+
+const handleTakeoverPolicy = async (device: Device) => {
+  const nextTakeover = !device.allow_takeover
+  if (await updateRemoteSessionPolicy(device, device.allow_observer, nextTakeover)) {
+    device.allow_takeover = nextTakeover
+    notification.success({ message: nextTakeover ? '已允许接管' : '已禁止接管' })
+  }
+}
+
 // const handleFeelessMonitor = (index: number, device: Device) => {
 //   console.log('monitor device: ', index, device)
 // }
@@ -97,7 +113,7 @@ import type { Device } from '@/entity/device.ts'
 import { formatTimestamp } from '@/util/time.ts'
 import { copyText } from '@/util/clipboard.ts'
 import { buildWebClientUrl } from '@/util/web_client_url.ts'
-import { queryDevices, updateDeviceActive } from '@/model/device_api.ts'
+import { queryDevices, updateDeviceActive, updateRemoteSessionPolicy } from '@/model/device_api.ts'
 const pageSize = ref(20)
 const currentPage = ref(1)
 const size = ref<'small' | 'default'>('default')
@@ -299,6 +315,19 @@ watch(
           </template>
         </a-table-column>
 
+        <a-table-column title="远控策略" :min-width="130">
+          <template #default="{ record }">
+            <a-space size="small">
+              <a-tag :color="record.allow_observer ? 'success' : 'default'">
+                {{ record.allow_observer ? '允许观看' : '禁止观看' }}
+              </a-tag>
+              <a-tag :color="record.allow_takeover ? 'blue' : 'default'">
+                {{ record.allow_takeover ? '允许接管' : '禁止接管' }}
+              </a-tag>
+            </a-space>
+          </template>
+        </a-table-column>
+
         <a-table-column title="访问链接" :min-width="100">
           <template #default="{ record, index }">
             <a-popover
@@ -376,6 +405,12 @@ watch(
               @click="handleDisableDevice(index, record)"
             >
               禁用
+            </a-button>
+            <a-button size="small" @click="handleRemoteSessionPolicy(record)">
+              {{ record.allow_observer ? '关闭观看' : '允许观看' }}
+            </a-button>
+            <a-button size="small" @click="handleTakeoverPolicy(record)">
+              {{ record.allow_takeover ? '关闭接管' : '允许接管' }}
             </a-button>
 
 <!--            <a-button-->

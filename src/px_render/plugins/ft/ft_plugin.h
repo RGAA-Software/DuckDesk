@@ -52,17 +52,21 @@ namespace px
         class AsyncBridge;
 
         void StopSessions();
-        void RetireSession(const std::string& stream_id, bool close_audits);
+        void RetireSession(const std::string& logical_session_id,
+                           const std::string& stream_id, bool close_audits);
         std::shared_ptr<px::ft::FtAsyncSession> GetOrCreateSession(
-            const std::string& stream_id);
+            const std::string& logical_session_id, const std::string& stream_id);
         void ProcessMessage(const std::shared_ptr<px::ft::FtEngine>& engine,
                             const std::shared_ptr<Message>& msg,
+                            const std::string& logical_session_id,
                             const std::string& source_plugin_id,
                             const std::string& source_connection_id);
-        void ProcessRouteDisconnected(const std::string& stream_id,
+        void ProcessRouteDisconnected(const std::string& logical_session_id,
+                                      const std::string& stream_id,
                                       const std::string& source_plugin_id,
                                       const std::string& source_connection_id);
-        void HandleOverwriteFallback(const std::string& stream_id,
+        void HandleOverwriteFallback(const std::string& logical_session_id,
+                                     const std::string& stream_id,
                                      int32_t job_id,
                                      int32_t file_num);
         // 引擎发送回调(仅 Session state strand):补 type/stream_id/device_id 后经
@@ -78,7 +82,8 @@ namespace px
         //     net_ws 经 ConcurrentHashMap + asio 队列投递;
         //  3) 既有先例:ws_panel_client.cpp 在 panel WS 线程直调,clipboard 在 work 线程调用。
         //  唯一约束:全部 Session 必须先于基类 OnDestroy(清空 net_plugins_)收敛。
-        FileTransferSendResult SendToChannel(const px::Message& msg,
+        FileTransferSendResult SendToChannel(const std::string& logical_session_id,
+                                             const px::Message& msg,
                                              const std::string& stream_id);
 
         // ---- 权限 / 上限 ----
@@ -89,18 +94,27 @@ namespace px
                                const std::string& source_connection_id);
         // 文件数上限预检(Session state strand),超限回 FileTransferError 且不喂引擎。
         // 返回 false 表示已拒绝。对齐 rustdesk check_file_count_limit(ui_cm_interface.rs:112)。
-        bool CheckFileCountLimit(const px::FileAction& action, const std::string& stream_id);
+        bool CheckFileCountLimit(const px::FileAction& action,
+                                 const std::string& logical_session_id,
+                                 const std::string& stream_id);
         // 引擎 NewRead 失败(多为路径不存在)时只回 error 不触发 job_done 回调,
         // 会产生只有 Begin 没有 End 的悬挂审计记录,这里提前拦掉。
-        bool CheckReadPathExists(const px::FileAction& action, const std::string& stream_id);
+        bool CheckReadPathExists(const px::FileAction& action,
+                                 const std::string& logical_session_id,
+                                 const std::string& stream_id);
 
         // ---- 审计(panel Console 链路:kRpFileTransferBegin/End)----
-        void TrackJobBegin(const std::string& stream_id, int32_t job_id, const std::string& direction,
+        void TrackJobBegin(const std::string& logical_session_id, const std::string& stream_id,
+                           int32_t job_id, const std::string& direction,
                            const std::string& path, uint64_t total_size,
                            const std::shared_ptr<Message>& msg);
-        void TrackJobEnd(const std::string& stream_id, int32_t job_id, const std::string& error_or_empty);
-        // 关闭指定连接的悬挂审计;stream_id 为空 = 全部(插件停止时)
-        void CloseAudits(const std::string& stream_id, bool success);
+        void TrackJobEnd(const std::string& logical_session_id, const std::string& stream_id,
+                         int32_t job_id, const std::string& error_or_empty);
+        // 关闭指定逻辑会话/连接的悬挂审计；无 logical_session_id 时关闭全部（插件停止时）。
+        void CloseAudits(const std::optional<std::string>& logical_session_id,
+                         const std::string& stream_id, bool success);
+        [[nodiscard]] static std::string MakeSessionKey(
+            const std::string& logical_session_id, const std::string& stream_id);
 
     private:
         std::shared_ptr<PxAsyncRuntime> async_runtime_;
@@ -114,6 +128,7 @@ namespace px
         struct AuditRecord {
             std::string the_file_id_;
             int64_t begin_timestamp_ = 0;
+            std::string logical_session_id_;
             std::string stream_id_; // 归属连接,断线按连接闭环审计
         };
         std::unordered_map<std::string, AuditRecord> audits_;

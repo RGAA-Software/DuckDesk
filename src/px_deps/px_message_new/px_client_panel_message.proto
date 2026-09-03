@@ -10,6 +10,10 @@ enum CpMessageType {
   // deliberately separate from kCpHello, which only means that the local
   // client process reached the Panel websocket.
   kCpTransportConnected = 3;
+  // Client -> Panel. The remote transport reached a terminal authorization or
+  // session-policy rejection. Panel must stop its launch UI immediately even
+  // while the child keeps its explanatory dialog open.
+  kCpTransportRejected = 4;
   kCpFileTransferBegin = 10;
   kCpFileTransferEnd = 20;
   // Panel -> an already connected desktop client. The client opens its
@@ -39,6 +43,17 @@ message CpPtMsgHeartBeat {
 
 message CpPtMsgOnHeartBeat {
 
+}
+
+enum CpTransportRejection {
+  kCpRejectionUnspecified = 0;
+  kCpRejectionAuthorization = 1;
+  kCpRejectionOccupied = 2;
+  kCpRejectionSessionPolicy = 3;
+}
+
+message CpTransportRejected {
+  CpTransportRejection reason = 1;
 }
 
 message CpFileTransferBegin {
@@ -77,4 +92,5 @@ message CpMessage {
   CpFileTransferBegin ft_transfer_beg = 30;
   CpFileTransferEnd ft_transfer_end = 40;
   CpRtcIceRestart rtc_ice_restart = 50;
+  CpTransportRejected transport_rejected = 60;
 }

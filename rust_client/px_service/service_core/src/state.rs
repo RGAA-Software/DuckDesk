@@ -37,6 +37,9 @@ pub struct ServiceState {
     /// received from the desktop render. Drives hung-render detection: the
     /// process may be alive while its message loop is dead.
     pub last_render_heartbeat: Option<std::time::Instant>,
+    /// Latest reliable snapshot received from the desktop Render. Console
+    /// owns interpretation/auditing; Service only forwards this value.
+    pub logical_sessions_json: String,
     /// When the current desktop render was launched (or first observed).
     /// Used to grant a startup grace period before hung detection kicks in.
     pub desktop_started_at: Option<std::time::Instant>,

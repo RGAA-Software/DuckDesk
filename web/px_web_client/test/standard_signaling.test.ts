@@ -255,6 +255,36 @@ describe('StandardRtcSignaling negotiation', () => {
     signaling.stop()
   })
 
+  it('returns a structured occupied result without closing the Relay, so a confirmed takeover can retry', async () => {
+    const { signaling } = createSignaling()
+    const socket = await connectReady(signaling)
+    const rejected = signaling.exchangeOffer('offer-1', 'ticket-1', 'nonce-1', '')
+    const occupied = PxMessage.encode(PxMessage.create({
+      type: MSG_TYPE_SIG_ANSWER_SDP,
+      sigAnswerSdp: { errorCode: 'RTC_OCCUPIED' },
+    })).finish()
+    socket.relay({
+      type: relayType('kRelayTargetMessage'),
+      relay: { roomIds: ['room-1'], payload: occupied },
+    })
+    await expect(rejected).rejects.toThrow('RTC_OCCUPIED')
+    expect(socket.closeCount).toBe(0)
+
+    const accepted = signaling.exchangeOffer('offer-2', 'ticket-2', 'nonce-2', '', '', true)
+    const offer = targetPayloads(socket).at(-1)
+    expect(offer.sigOfferSdp.takeover).toBe(true)
+    const answer = PxMessage.encode(PxMessage.create({
+      type: MSG_TYPE_SIG_ANSWER_SDP,
+      sigAnswerSdp: { sdp: 'answer-2' },
+    })).finish()
+    socket.relay({
+      type: relayType('kRelayTargetMessage'),
+      relay: { roomIds: ['room-1'], payload: answer },
+    })
+    await expect(accepted).resolves.toBe('answer-2')
+    signaling.stop()
+  })
+
   it('makes answer timeout terminal so a late answer cannot pollute a retry', async () => {
     const { signaling } = createSignaling()
     const socket = await connectReady(signaling)

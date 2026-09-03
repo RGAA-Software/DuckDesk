@@ -199,5 +199,19 @@ TEST(PluginEventLifecycle, RepeatedCreateDeliverStopDestroyTenRounds) {
     }
 }
 
+TEST(PluginSettingsLifecycle, DirectTakeoverPolicySurvivesInitialisationAndSync) {
+    const auto plugin = std::make_shared<TestPlugin>();
+    PxPluginParam parameters;
+    parameters.cluster_["direct_allow_takeover"] = false;
+    ASSERT_TRUE(plugin->OnCreate(parameters));
+    EXPECT_FALSE(plugin->GetPluginSettingsInfo().direct_allow_takeover_);
+
+    PxPluginSettingsInfo synchronized;
+    synchronized.direct_allow_takeover_ = false;
+    plugin->OnSyncPluginSettingsInfo(synchronized);
+    EXPECT_FALSE(plugin->GetPluginSettingsInfo().direct_allow_takeover_);
+    EXPECT_TRUE(plugin->OnDestroy());
+}
+
 } // namespace
 } // namespace px

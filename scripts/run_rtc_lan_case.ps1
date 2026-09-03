@@ -1,6 +1,8 @@
 param(
     [ValidateSet('rtc', 'rtc_direct')]
     [string]$ConnectionMode = 'rtc',
+    [ValidateSet('control', 'observe')]
+    [string]$JoinMode = 'control',
     [ValidateSet('any', 'host', 'relay')]
     [string]$ExpectedCandidate = 'host',
     [ValidateSet('', 'udp', 'tcp')]
@@ -9,11 +11,15 @@ param(
     [switch]$BlockTurnUdp,
     [ValidateRange(6, 600)]
     [int]$SampleSeconds = 15,
+    [ValidateRange(5, 60)]
+    [int]$ConnectTimeoutSeconds = 30,
     [string]$ConsoleBase = 'https://127.0.0.1:30500',
     [string]$TargetHost = '10.0.0.90',
     [string]$DeviceId = '001190520',
     [ValidateSet('cdp_webrtc_diag.mjs', 'cdp_virtual_display_e2e.mjs', 'cdp_game_hook_input.mjs')]
     [string]$DiagnosticScript = 'cdp_webrtc_diag.mjs',
+    [ValidateSet('default', 'accept', 'reject')]
+    [string]$TakeoverConfirmation = 'default',
     [string]$EvidenceDir = '',
     [switch]$Quiet,
     [string]$BearerToken = '',
@@ -87,7 +93,7 @@ try {
 
     $nonce = "${ConnectionMode}_$suffix"
     $ticket = Invoke-JsonPost "$ConsoleBase/api/v1/user/devices/$DeviceId/ticket" `
-        @{ client_nonce = $nonce; requested_permissions = @('view', 'input', 'clipboard', 'file', 'audio') } `
+        @{ client_nonce = $nonce; join_mode = $JoinMode } `
         $accessToken
     if ($ticket.code -ne 200 -or -not $ticket.data.ticket) { throw 'ticket issue failed' }
     $value = $ticket.data
@@ -123,16 +129,18 @@ try {
 
     $env:WEB_URL = $builder.Uri.AbsoluteUri
     $env:SAMPLE_SECONDS = [string]$SampleSeconds
+    $env:CONNECT_TIMEOUT_SECONDS = [string]$ConnectTimeoutSeconds
     $env:EXPECT_CANDIDATE_TYPE = if ($ExpectedCandidate -eq 'any') { '' } else { $ExpectedCandidate }
     $env:EXPECT_RELAY_PROTOCOL = $ExpectedRelayProtocol
     $env:FORCE_RELAY = if ($ExpectedCandidate -eq 'relay') { '1' } else { '0' }
+    $env:TAKEOVER_CONFIRMATION = $TakeoverConfirmation
     $env:RENDER_PORT = [string]$launch.Port
     # A fresh port prevents a detached Chrome from a previous interrupted run
     # from accepting CDP HTTP requests while no longer servicing commands.
     $env:CDP_PORT = [string](Get-Random -Minimum 22000 -Maximum 45000)
     if ($EvidenceDir) { $env:OUT_DIR = $EvidenceDir }
     if ($Quiet) { $env:QUIET = '1' }
-    if (-not $Quiet) { Write-Host "Running RTC LAN gate: mode=$ConnectionMode candidate=$ExpectedCandidate relayProtocol=$ExpectedRelayProtocol samples=${SampleSeconds}s" }
+    if (-not $Quiet) { Write-Host "Running RTC LAN gate: mode=$ConnectionMode join=$JoinMode candidate=$ExpectedCandidate relayProtocol=$ExpectedRelayProtocol samples=${SampleSeconds}s" }
     $nodeStarted = Get-Date
     & node (Join-Path $PSScriptRoot $DiagnosticScript)
     $nodeExitCode = $LASTEXITCODE
@@ -147,7 +155,7 @@ finally {
     foreach ($name in $rules) {
         Remove-NetFirewallRule -Name $name -ErrorAction SilentlyContinue
     }
-    foreach ($name in 'WEB_URL', 'SAMPLE_SECONDS', 'EXPECT_CANDIDATE_TYPE', 'EXPECT_RELAY_PROTOCOL', 'FORCE_RELAY', 'RENDER_PORT', 'CDP_PORT', 'OUT_DIR', 'QUIET') {
+    foreach ($name in 'WEB_URL', 'SAMPLE_SECONDS', 'CONNECT_TIMEOUT_SECONDS', 'EXPECT_CANDIDATE_TYPE', 'EXPECT_RELAY_PROTOCOL', 'FORCE_RELAY', 'TAKEOVER_CONFIRMATION', 'RENDER_PORT', 'CDP_PORT', 'OUT_DIR', 'QUIET') {
         Remove-Item "Env:\$name" -ErrorAction SilentlyContinue
     }
     if ($uid -and $uid -match '^[A-Za-z0-9_-]+$' -and (Test-Path -LiteralPath $MongoExe)) {

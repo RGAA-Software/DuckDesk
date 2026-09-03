@@ -21,8 +21,14 @@ namespace px_console
 
     struct ConsoleConnectionTicket {
         std::string ticket;
+        // Rotating capability used to renew the same logical session. It is
+        // transient launch state and must never be persisted by callers.
+        std::string renewal_token;
         std::string launch_url;
         int64_t expires_at = 0;
+        std::string logical_session_id;
+        std::string stream_id;
+        std::string join_mode;
         std::vector<std::string> permissions;
         // Serialized RtcSessionIceConfig. Kept in memory, never in a URL.
         std::string rtc_ice_config_json;
@@ -52,6 +58,16 @@ namespace px_console
                           const std::string& device_id,
                           const std::string& client_nonce,
                           const std::vector<std::string>& requested_permissions);
+
+        // Renew a previously issued ticket without changing its logical
+        // session or stream identity. No user bearer token is required: the
+        // rotating renewal capability is the authorization boundary.
+        static
+        px::Result<ConsoleConnectionTicket, ConsoleApiError>
+        RenewConnectionTicket(const std::string& host,
+                              int port,
+                              const std::string& renewal_token,
+                              const std::string& client_nonce);
     };
 
 }

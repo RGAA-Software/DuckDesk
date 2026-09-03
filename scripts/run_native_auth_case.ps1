@@ -6,7 +6,7 @@ param(
     [string]$TargetHost = '10.0.0.90',
     [int]$TargetPort = 20371,
     [string]$DeviceId = '001190520',
-    [ValidateSet('webrtc_direct', 'webrtc')]
+    [ValidateSet('webrtc_direct', 'webrtc', 'websocket', 'udp_direct')]
     [string]$NetworkType = 'webrtc_direct',
     [string]$RemotePassword = $env:PX_TEST_REMOTE_PASSWORD,
     [string]$ClientExe = '',
@@ -19,6 +19,9 @@ param(
     [int]$TimeoutSeconds = 40,
     [ValidateRange(0, 900)]
     [int]$HoldSeconds = 0,
+    [switch]$OmitRemoteDeviceId,
+    [switch]$ExpectOccupied,
+    [switch]$BlockTargetUdp,
     [switch]$RtcRestartAcceptance,
     [ValidateRange(0, 65535)]
     [int]$PanelProbePort = 0,
@@ -26,6 +29,22 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Add-ProcessArgument([Diagnostics.ProcessStartInfo]$StartInfo, [string]$Value) {
+    # ArgumentList is available on PowerShell 7/.NET, but Windows PowerShell
+    # exposes no usable collection here. Keep the acceptance script runnable
+    # from both hosts because the launcher itself uses Windows PowerShell.
+    if ($null -ne $StartInfo.PSObject.Properties['ArgumentList']) {
+        [void]$StartInfo.ArgumentList.Add($Value)
+        return
+    }
+    $escaped = '"' + (($Value -replace '(\\*)"', '$1$1\"') -replace '(\\*)$', '$1$1') + '"'
+    if ($StartInfo.Arguments) {
+        $StartInfo.Arguments += ' '
+    }
+    $StartInfo.Arguments += $escaped
+}
+
 $repoRoot = Split-Path $PSScriptRoot -Parent
 if (-not $ClientExe) {
     $ClientExe = Join-Path $repoRoot 'build_official\dist\px_client.exe'
@@ -61,18 +80,18 @@ function Invoke-JsonPost([string]$Uri, [object]$Body, [string]$Bearer = '', [int
             $startInfo.RedirectStandardInput = $true
             $startInfo.RedirectStandardOutput = $true
             $startInfo.RedirectStandardError = $true
-            foreach ($value in @(
+            $curlArgs = @(
                 '--insecure', '--ssl-auto-client-cert', '--silent', '--show-error', '--max-time', '30',
                 '--user-agent', 'GammaRay-Native-Acceptance',
                 '--request', 'POST', '--header', 'Content-Type: application/json',
-                '--data-binary', '@-', '--write-out', "`n%{http_code}", $Uri
-            )) {
-                [void]$startInfo.ArgumentList.Add($value)
-            }
+                '--data-binary', '@-', '--write-out', "`n%{http_code}"
+            )
             if ($authHeaderPath) {
-                [void]$startInfo.ArgumentList.Insert(
-                    $startInfo.ArgumentList.Count - 1, "@$authHeaderPath")
-                [void]$startInfo.ArgumentList.Insert($startInfo.ArgumentList.Count - 2, '--header')
+                $curlArgs += '--header', "@$authHeaderPath"
+            }
+            $curlArgs += $Uri
+            foreach ($value in $curlArgs) {
+                Add-ProcessArgument $startInfo $value
             }
             $curl = [Diagnostics.Process]::new()
             $curl.StartInfo = $startInfo
@@ -146,7 +165,7 @@ foreach ($warmupAttempt in 1..3) {
         '--insecure', '--ssl-auto-client-cert', '--silent', '--show-error', '--max-time', '10',
         '--user-agent', 'GammaRay-Native-Acceptance', '--output', 'NUL', "$ConsoleBase/"
     )) {
-        [void]$warmupInfo.ArgumentList.Add($value)
+        Add-ProcessArgument $warmupInfo $value
     }
     $warmupProcess = [Diagnostics.Process]::new()
     $warmupProcess.StartInfo = $warmupInfo
@@ -177,6 +196,7 @@ $probeConfigPath = $null
 $probeStdoutPath = $null
 $probeStderrPath = $null
 $rtcIceEnvironmentSet = $false
+$firewallRule = $null
 $exitCode = 1
 $logPath = if ($NetworkType -eq 'webrtc') {
     "C:\Users\Public\Pixels\px_logs\app.$DeviceId.log"
@@ -192,6 +212,18 @@ $initialRtcLines = if (Test-Path -LiteralPath $rtcLogPath) {
 } else { 0 }
 
 try {
+    if ($Mode -eq 'guest' -and $NetworkType -ne 'webrtc_direct') {
+        throw 'password-direct native acceptance must use webrtc_direct'
+    }
+    if ($OmitRemoteDeviceId -and $Mode -ne 'guest') {
+        throw '-OmitRemoteDeviceId is only valid for password-direct guest acceptance'
+    }
+    if ($ExpectOccupied -and ($Mode -ne 'account' -or $NetworkType -ne 'websocket')) {
+        throw '-ExpectOccupied requires account mode with -NetworkType websocket'
+    }
+    if ($BlockTargetUdp -and $NetworkType -ne 'udp_direct') {
+        throw '-BlockTargetUdp requires -NetworkType udp_direct'
+    }
     $nonce = "native_$suffix"
     $connectionTicket = ''
     $initialRtcIceConfig = ''
@@ -211,26 +243,24 @@ try {
         $login = Invoke-JsonPost "$ConsoleBase/api/v1/session/user/login" `
             @{ username = $username; password = $password; client_type = 'panel' }
         $issued = Invoke-JsonPost "$ConsoleBase/api/v1/user/devices/$DeviceId/ticket" `
-            @{ client_nonce = $nonce; requested_permissions = @('view', 'input', 'clipboard', 'file', 'audio') } `
+            @{ client_nonce = $nonce; join_mode = 'control' } `
             $login.data.access_token
         $connectionTicket = $issued.data.ticket
+        $streamId = [string]$issued.data.stream_id
         $relayHost = $issued.data.relay_host
         $relayPort = [int]$issued.data.relay_port
         $initialRtcIceConfig = $issued.data.rtc_ice_config | ConvertTo-Json -Compress -Depth 12
-        if (-not $connectionTicket) { throw 'account ticket issue returned an empty ticket' }
+        if (-not $connectionTicket -or -not $streamId) {
+            throw 'account ticket issue returned an empty ticket or runtime stream ID'
+        }
 
         if ($RtcRestartAcceptance) {
             if ($NetworkType -ne 'webrtc') {
                 throw 'RTC restart acceptance requires -NetworkType webrtc'
             }
-            $restartNonce = "restart_$suffix"
-            $restartIssued = Invoke-JsonPost "$ConsoleBase/api/v1/user/devices/$DeviceId/ticket" `
-                @{ client_nonce = $restartNonce; requested_permissions = @('view', 'input', 'clipboard', 'file', 'audio') } `
-                $login.data.access_token
-            $restartTicket = $restartIssued.data.ticket
-            $restartIceConfig = $restartIssued.data.rtc_ice_config | ConvertTo-Json -Compress -Depth 12
-            if (-not $restartTicket -or -not $restartIceConfig -or $restartIceConfig -eq 'null') {
-                throw 'RTC restart ticket did not contain a ticket and ICE configuration'
+            $renewalToken = [string]$issued.data.renewal_token
+            if (-not $renewalToken) {
+                throw 'account ticket issue returned no renewal capability for RTC restart acceptance'
             }
             if ($PanelProbePort -eq 0) {
                 $PanelProbePort = Get-Random -Minimum 32000 -Maximum 39000
@@ -241,10 +271,10 @@ try {
             @{
                 port = $PanelProbePort
                 stream_id = $streamId
-                connection_ticket = $restartTicket
-                client_nonce = $restartNonce
-                instance_id = [string]$restartIssued.data.instance_id
-                ice_config_json = $restartIceConfig
+                console_base = $ConsoleBase
+                renewal_token = $renewalToken
+                client_nonce = $nonce
+                instance_id = [string]$issued.data.instance_id
                 revision = $restartRevision
                 send_delay_ms = 7000
                 guard_delay_ms = 2500
@@ -274,13 +304,14 @@ try {
         throw 'guest mode requires -RemotePassword or PX_TEST_REMOTE_PASSWORD'
     }
 
+    $clientRemoteDeviceId = if ($OmitRemoteDeviceId) { '' } else { $DeviceId }
     $arguments = @(
         "--host=$TargetHost", "--port=$TargetPort",
         "--console_host=$(([uri]$ConsoleBase).Host)", "--console_port=$(([uri]$ConsoleBase).Port)",
         '--console_ssl=true', '--audio=1', '--clipboard=1',
         "--stream_id=$streamId", "--conn_type=$(if ($Mode -eq 'account') {'console_ticket'} else {'direct'})",
         "--network_type=$NetworkType", "--device_id=$clientId",
-        "--remote_device_id=$DeviceId", '--enable_p2p=1', '--only_viewing=0',
+        "--remote_device_id=$clientRemoteDeviceId", '--enable_p2p=1', '--only_viewing=0',
         "--split_windows=$($SplitWindows.IsPresent.ToString().ToLowerInvariant())",
         "--max_num_of_screen=$MaxScreens",
         "--force_direct=$(if ($NetworkType -eq 'webrtc_direct') {1} else {0})",
@@ -300,6 +331,12 @@ try {
         [Environment]::SetEnvironmentVariable('PX_RTC_ICE_CONFIG', $initialRtcIceConfig, 'Process')
         $rtcIceEnvironmentSet = $true
     }
+    if ($BlockTargetUdp) {
+        $firewallRule = "PixelsNativeAcceptance_$PID`_$suffix"
+        New-NetFirewallRule -Name $firewallRule -DisplayName $firewallRule `
+            -Direction Outbound -Action Block -Protocol UDP `
+            -RemoteAddress $TargetHost -RemotePort $TargetPort | Out-Null
+    }
     $process = Start-Process -FilePath $ClientExe -ArgumentList $arguments `
         -WorkingDirectory (Split-Path $ClientExe -Parent) -WindowStyle Hidden -PassThru
     if ($rtcIceEnvironmentSet) {
@@ -318,19 +355,34 @@ try {
                 $rtcEvidence = (@(Get-Content -LiteralPath $rtcLogPath) | Select-Object -Skip $initialRtcLines) -join "`n"
                 $evidence += "`n$rtcEvidence"
             }
-            $transportReady = if ($NetworkType -eq 'webrtc_direct') {
-                $evidence -match 'Rtc local, connected\.' -and
-                $evidence -match 'first key frame'
-            } else {
-                $evidence -match 'Full WebRTC transport is ready' -and
-                $evidence -match 'RtcVideoSink OnFrame #1'
+            if ($ExpectOccupied -and
+                $evidence -match 'WebSocket session rejected; automatic reconnect disabled, reason=2') {
+                break
+            }
+            $transportReady = switch ($NetworkType) {
+                'webrtc_direct' {
+                    $evidence -match 'Rtc local, connected\.' -and
+                    $evidence -match 'first key frame'
+                }
+                'webrtc' {
+                    $evidence -match 'Full WebRTC transport is ready' -and
+                    $evidence -match 'RtcVideoSink OnFrame #1'
+                }
+                'udp_direct' {
+                    if ($BlockTargetUdp) {
+                        $evidence -match 'Udp direct media unavailable; reconnecting the media channel as direct WebSocket\.'
+                    } else {
+                        $evidence -match 'Udp direct first media received; keep UDP media transport\.'
+                    }
+                }
+                default { $evidence -match 'Step: MsgNetworkConnected' }
             }
             $renderViewsReady = $ExpectedMonitorCount -le 1 -or
                 $evidence -match "Render view pool expanded on demand: requested=$ExpectedMonitorCount, active_capacity=$ExpectedMonitorCount"
-            $keyFramePattern = if ($NetworkType -eq 'webrtc_direct') {
-                'first key frame'
-            } else {
-                'RtcVideoSink OnFrame #1'
+            $keyFramePattern = switch ($NetworkType) {
+                'webrtc_direct' { 'first key frame' }
+                'webrtc' { 'RtcVideoSink OnFrame #1' }
+                default { 'First decoded video frame reached UI renderer' }
             }
             $keyFrameCount = ([regex]::Matches($evidence, $keyFramePattern)).Count
             # Direct RTC negotiates one stable track slot per monitor. Standard
@@ -345,26 +397,69 @@ try {
                 $evidence -match "Managed RTC ICE restart completed, generation=.+revision=$restartRevision" -and
                 ([regex]::Matches($evidence, 'Ignore duplicate/stale RTC ICE configuration, revision=')).Count -ge 2
             )
+            # RTC always supplies an audio track and initializes the player as
+            # part of transport setup. WS/UDP initialize it only after the
+            # remote loopback produces a PCM frame, which is not guaranteed on
+            # an otherwise idle acceptance target.
+            $audioReady = $NetworkType -notin @('webrtc_direct', 'webrtc') -or
+                $evidence -match 'Init audio player'
             if ($transportReady -and $renderViewsReady -and
                 $keyFrameCount -ge $expectedKeyFrameCount -and
                 $evidence -match 'First decoded video frame reached UI renderer' -and
                 $evidence -match 'File-transfer transport connected' -and
-                $evidence -match 'Init audio player' -and $restartReady) {
+                $audioReady -and $restartReady) {
                 break
             }
         }
     } while ((Get-Date) -lt $deadline)
 
+    if ($ExpectOccupied) {
+        $rejectionCount = ([regex]::Matches(
+            $evidence,
+            'WebSocket session rejected; automatic reconnect disabled, reason=2')).Count
+        if ($rejectionCount -ne 1) {
+            throw "expected exactly one occupied-session rejection, actual=$rejectionCount"
+        }
+        if ($evidence -match 'Step: MsgNetworkConnected') {
+            throw 'occupied WebSocket was reported as application-connected before admission'
+        }
+        Start-Sleep -Seconds 3
+        $latestEvidence = (@(Get-Content -LiteralPath $logPath) |
+            Select-Object -Skip $initialLines) -join "`n"
+        $latestRejectionCount = ([regex]::Matches(
+            $latestEvidence,
+            'WebSocket session rejected; automatic reconnect disabled, reason=2')).Count
+        if ($latestRejectionCount -ne 1) {
+            throw "occupied WebSocket retried after terminal rejection, count=$latestRejectionCount"
+        }
+        Write-Host "NATIVE_AUTH_CASE PASS mode=$Mode route=$NetworkType target=$DeviceId rejection=occupied retries=0"
+        $exitCode = 0
+        return
+    }
     if ($process.HasExited) { throw "native client exited before acceptance, code=$($process.ExitCode)" }
     if ($evidence -match '(?i)authentication required|resource not found|ticket.+failed|connect failed') {
         throw 'native client log contains an authentication or connection failure'
     }
-    if ($NetworkType -eq 'webrtc_direct') {
-        if ($evidence -notmatch 'Rtc local, connected\.') { throw 'native Direct RTC did not connect' }
-        if ($evidence -notmatch 'first key frame') { throw 'native Direct RTC did not decode the first key frame' }
-    } else {
-        if ($evidence -notmatch 'Full WebRTC transport is ready') { throw 'native standard RTC did not connect' }
-        if ($evidence -notmatch 'RtcVideoSink OnFrame #1') { throw 'native standard RTC sink did not receive the first frame' }
+    switch ($NetworkType) {
+        'webrtc_direct' {
+            if ($evidence -notmatch 'Rtc local, connected\.') { throw 'native Direct RTC did not connect' }
+            if ($evidence -notmatch 'first key frame') { throw 'native Direct RTC did not decode the first key frame' }
+        }
+        'webrtc' {
+            if ($evidence -notmatch 'Full WebRTC transport is ready') { throw 'native standard RTC did not connect' }
+            if ($evidence -notmatch 'RtcVideoSink OnFrame #1') { throw 'native standard RTC sink did not receive the first frame' }
+        }
+        'udp_direct' {
+            if ($BlockTargetUdp -and $evidence -notmatch 'Udp direct media unavailable; reconnecting the media channel as direct WebSocket\.') {
+                throw 'native UDP direct did not fall back to authenticated WebSocket media'
+            }
+            if (-not $BlockTargetUdp -and $evidence -notmatch 'Udp direct first media received; keep UDP media transport\.') {
+                throw 'native UDP direct did not receive media over UDP'
+            }
+        }
+        'websocket' {
+            if ($evidence -notmatch 'Step: MsgNetworkConnected') { throw 'native WebSocket transport did not connect' }
+        }
     }
     if ($evidence -notmatch 'First decoded video frame reached UI renderer') {
         throw 'native client decoded video but did not deliver it to the UI renderer'
@@ -378,16 +473,19 @@ try {
     } else {
         1
     }
-    $keyFramePattern = if ($NetworkType -eq 'webrtc_direct') {
-        'first key frame'
-    } else {
-        'RtcVideoSink OnFrame #1'
+    $keyFramePattern = switch ($NetworkType) {
+        'webrtc_direct' { 'first key frame' }
+        'webrtc' { 'RtcVideoSink OnFrame #1' }
+        default { 'First decoded video frame reached UI renderer' }
     }
     if (([regex]::Matches($evidence, $keyFramePattern)).Count -lt $expectedKeyFrameCount) {
         throw "native RTC received fewer than $expectedKeyFrameCount expected video-track first frames"
     }
     if ($evidence -notmatch 'File-transfer transport connected') { throw 'native file transport did not connect' }
-    if ($evidence -notmatch 'Init audio player') { throw 'native audio player did not initialize' }
+    if ($NetworkType -in @('webrtc_direct', 'webrtc') -and
+        $evidence -notmatch 'Init audio player') {
+        throw 'native audio player did not initialize'
+    }
     if ($RtcRestartAcceptance) {
         if ($evidence -match 'Managed RTC ICE restart failed') {
             throw 'managed RTC ICE restart reached a failed terminal state'
@@ -413,7 +511,13 @@ try {
     }
 
     $restartResult = if ($RtcRestartAcceptance) { ' restart=completed guards=passed' } else { '' }
-    Write-Host "NATIVE_AUTH_CASE PASS mode=$Mode route=$NetworkType target=$DeviceId monitors=$ExpectedMonitorCount rtc=connected video=ui-rendered audio=initialized file=connected$restartResult"
+    $fallbackResult = if ($BlockTargetUdp) { ' udp_fallback=websocket' } else { '' }
+    $audioResult = if ($NetworkType -in @('webrtc_direct', 'webrtc')) {
+        'audio=initialized'
+    } else {
+        'audio=authorized-idle-source'
+    }
+    Write-Host "NATIVE_AUTH_CASE PASS mode=$Mode route=$NetworkType target=$DeviceId monitors=$ExpectedMonitorCount transport=connected video=ui-rendered $audioResult file=connected$restartResult$fallbackResult"
     if ($HoldSeconds -gt 0) {
         Write-Host "NATIVE_AUTH_CASE HOLD seconds=$HoldSeconds"
         $holdDeadline = (Get-Date).AddSeconds($HoldSeconds)
@@ -434,6 +538,9 @@ finally {
     }
     if ($rtcIceEnvironmentSet) {
         [Environment]::SetEnvironmentVariable('PX_RTC_ICE_CONFIG', $null, 'Process')
+    }
+    if ($firewallRule) {
+        Remove-NetFirewallRule -Name $firewallRule -ErrorAction SilentlyContinue
     }
     if ($probeProcess -and -not $probeProcess.HasExited) {
         Stop-Process -Id $probeProcess.Id -Force -ErrorAction SilentlyContinue

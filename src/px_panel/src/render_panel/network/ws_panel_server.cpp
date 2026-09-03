@@ -585,6 +585,17 @@ namespace px
                 .stream_id_ = proto_msg->stream_id(),
             });
         }
+        else if (proto_msg->type() == pxcp::CpMessageType::kCpTransportRejected
+                 && !proto_msg->stream_id().empty()
+                 && proto_msg->has_transport_rejected()) {
+            LOGW("Client remote transport rejected: stream={}, reason={}",
+                 proto_msg->stream_id(),
+                 static_cast<int>(proto_msg->transport_rejected().reason()));
+            context_->SendAppMessage(MsgClientTransportRejectedPanel {
+                .stream_id_ = proto_msg->stream_id(),
+                .reason_ = static_cast<int>(proto_msg->transport_rejected().reason()),
+            });
+        }
         else if (proto_msg->type() == pxcp::CpMessageType::kCpHeartBeat) {
             auto hb = proto_msg->heartbeat();
             //LOGI("HB: stream id: {} remote desktop: {} os: {}", proto_msg->stream_id(), hb.remote_device_desktop_name(), hb.remote_os_name());

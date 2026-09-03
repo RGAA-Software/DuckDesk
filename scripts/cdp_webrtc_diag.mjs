@@ -12,9 +12,11 @@ const PAGE_URL =
   `http://127.0.0.1:${process.env.RENDER_PORT || '32000'}/web_client/?deviceId=${encodeURIComponent(process.env.DEVICE_ID || 'debug1')}`
 const CDP_PORT = Number(process.env.CDP_PORT || 9224)
 const SAMPLE_SECONDS = Number(process.env.SAMPLE_SECONDS || 45)
+const CONNECT_TIMEOUT_SECONDS = Number(process.env.CONNECT_TIMEOUT_SECONDS || 30)
 const EXPECT_CANDIDATE_TYPE = process.env.EXPECT_CANDIDATE_TYPE || ''
 const EXPECT_RELAY_PROTOCOL = process.env.EXPECT_RELAY_PROTOCOL || ''
 const FORCE_RELAY = process.env.FORCE_RELAY === '1'
+const TAKEOVER_CONFIRMATION = process.env.TAKEOVER_CONFIRMATION || 'default'
 const QUIET = process.env.QUIET === '1'
 const FT_E2E_BYTES = Number(process.env.FT_E2E_BYTES || 0)
 const FT_CANCEL_E2E_BYTES = Number(process.env.FT_CANCEL_E2E_BYTES || 0)
@@ -32,6 +34,11 @@ let chromeStderr = ''
 const chrome = spawn(CHROME, [
   '--headless=new', '--disable-gpu', '--disable-gpu-compositing',
   '--disable-gpu-sandbox', '--no-sandbox', '--use-angle=swiftshader',
+  // LAN acceptance uses the bundled development Console certificate for the
+  // cross-origin ticket-renewal endpoint. Production must use a trusted cert;
+  // this keeps the browser harness from turning that local fixture into a
+  // false RTC/takeover failure.
+  '--ignore-certificate-errors',
   '--disable-extensions', '--disable-background-networking',
   '--disable-component-update', '--disable-sync', '--no-proxy-server',
   `--remote-debugging-port=${CDP_PORT}`, `--user-data-dir=${profile}`,
@@ -59,6 +66,8 @@ process.on('exit', cleanupChrome)
 
 let msgId = 0
 const pending = new Map()
+const rtcSignalHttpStatuses = []
+const rtcSignalResponseCodes = []
 let ws
 function cmd(method, params = {}, timeoutMs = 10000) {
   return new Promise((resolve, reject) => {
@@ -264,6 +273,18 @@ async function main() {
   ws = new WebSocket(target.webSocketDebuggerUrl)
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data)
+    if (m.method === 'Network.responseReceived') {
+      const response = m.params?.response
+      if (response?.url?.includes('/alloc/local/rtc')) {
+        rtcSignalHttpStatuses.push(response.status)
+        void cmd('Network.getResponseBody', { requestId: m.params.requestId }, 5000)
+          .then((body) => {
+            const code = JSON.parse(body.body || '{}').code
+            if (Number.isInteger(code)) rtcSignalResponseCodes.push(code)
+          })
+          .catch(() => {})
+      }
+    }
     if (m.id && pending.has(m.id)) {
       const p = pending.get(m.id)
       pending.delete(m.id)
@@ -276,6 +297,7 @@ async function main() {
   ])
   await cmd('Runtime.enable')
   await cmd('Page.enable')
+  await cmd('Network.enable')
   if (FORCE_RELAY) {
     await cmd('Page.addScriptToEvaluateOnNewDocument', {
       source: `(() => {
@@ -289,6 +311,12 @@ async function main() {
       })()`,
     })
   }
+  if (TAKEOVER_CONFIRMATION !== 'default') {
+    const accepted = TAKEOVER_CONFIRMATION === 'accept'
+    await cmd('Page.addScriptToEvaluateOnNewDocument', {
+      source: `window.confirm = () => ${accepted ? 'true' : 'false'}`,
+    })
+  }
   // Under long repeated headless runs Chrome can spend more than ten seconds
   // committing a navigation while cleaning up the previous GPU/network
   // processes.  This is test-runner startup, before any RTC gate is reached;
@@ -297,7 +325,7 @@ async function main() {
 
   console.log('RTC_PHASE: waiting-connected')
   let connected = false
-  const connectDeadline = Date.now() + 30000
+  const connectDeadline = Date.now() + CONNECT_TIMEOUT_SECONDS * 1000
   while (Date.now() < connectDeadline) {
     const remaining = Math.max(1, connectDeadline - Date.now())
     const st = await evaluate(
@@ -313,6 +341,10 @@ async function main() {
       rtcMode: window.__conn?.rtcMode?.() || 'unknown',
       body: (document.body?.innerText || '').slice(-2000),
     })`).catch(() => null)
+    if (rtcSignalHttpStatuses.includes(403) || rtcSignalResponseCodes.includes(704) ||
+        detail?.body?.includes('设备已被连接,未接管')) {
+      console.error('RTC_OCCUPIED_REJECTED')
+    }
     throw new Error(`未连接: ${JSON.stringify(detail)}`)
   }
 
@@ -320,6 +352,7 @@ async function main() {
   let first = null
   let last = null
   let lastWithPair = null
+  let finalSample = null
   let pairSamples = 0
   let missingPairSamples = 0
   for (let t = 0; t < SAMPLE_SECONDS; t += 3) {
@@ -347,11 +380,18 @@ async function main() {
       missingPairSamples += 1
     }
     prev = s
+    finalSample = s
   }
   if (!first?.inbound || !last?.inbound) throw new Error('观测窗口缺少视频统计')
+  // `last` intentionally retains the most recent valid media sample for
+  // bitrate calculations. It must not, however, hide a peer that vanished
+  // near the end of the observation window (notably after takeover).
+  if (!finalSample?.inbound || !finalSample?.pair || !finalSample?.localCand || !finalSample?.remoteCand) {
+    throw new Error(`观测结束时 RTC 媒体或候选统计缺失: ${JSON.stringify(finalSample)}`)
+  }
   if (!lastWithPair?.pair) throw new Error('观测窗口从未出现 selected candidate 统计')
-  if (last.conn !== 'connected' || !['connected', 'completed'].includes(last.ice)) {
-    throw new Error(`观测结束时 RTC 已断开: conn=${last.conn} ice=${last.ice}`)
+  if (finalSample.conn !== 'connected' || !['connected', 'completed'].includes(finalSample.ice)) {
+    throw new Error(`观测结束时 RTC 已断开: conn=${finalSample.conn} ice=${finalSample.ice}`)
   }
   const frameDelta = last.inbound.dec - first.inbound.dec
   const staticFrameHold = frameDelta === 0 &&

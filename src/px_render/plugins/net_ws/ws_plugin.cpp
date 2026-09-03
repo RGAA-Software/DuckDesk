@@ -61,6 +61,13 @@ namespace px
         return PxNetPlugin::OnDestroy();
     }
 
+    void WsPlugin::OnMessageRaw(const std::any& msg) {
+        if (HoldsType<PxLogicalSessionCapabilityUpdate>(msg) && ws_server_) {
+            ws_server_->UpdateLogicalSessionCapabilities(
+                std::any_cast<PxLogicalSessionCapabilityUpdate>(msg));
+        }
+    }
+
     void WsPlugin::On1Second() {
         // 兜底清扫 /ipc 允许集合里进程已死的 pid(断线未触发/异常退出场景)
         if (IsWorking() && ws_server_) {

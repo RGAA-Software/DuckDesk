@@ -968,7 +968,9 @@ namespace px
             target_item->remote_device_id_ = resolved.remote_device_id;
         }
         target_item->connection_ticket_ = resolved.ticket.ticket;
+        target_item->connection_renewal_token_ = resolved.ticket.renewal_token;
         target_item->connection_nonce_ = payload.client_nonce;
+        target_item->active_session_stream_id_ = resolved.ticket.stream_id;
         target_item->rtc_ice_config_json_ = resolved.ticket.rtc_ice_config_json;
         target_item->console_signal_device_id_ = resolved.ticket.signal_device_id;
         target_item->relay_host_ = !resolved.ticket.relay_host.empty()
@@ -1075,8 +1077,34 @@ namespace px
                                      ? target_item->remote_device_safety_pwd_
                                      : (!target_item->remote_device_random_pwd_.empty()
                                         ? MD5::Hex(target_item->remote_device_random_pwd_) : std::string(""));
-            auto ok = uses_console_ticket || RenderApi::VerifySecurityPassword(
-                target_item->stream_host_, target_item->stream_port_, candidate_pwd_md5).value_or(false);
+            const bool idless_ip_direct = !uses_console_ticket
+                && target_item->remote_device_id_.empty();
+            target_item->ip_direct_prevalidated_ = false;
+            if (idless_ip_direct) {
+                target_item->connection_nonce_ = QUuid::createUuid()
+                    .toString(QUuid::WithoutBraces).toStdString();
+            }
+            const auto verify_before_launch = [target_item, idless_ip_direct](
+                const std::string& password_md5) {
+                if (!idless_ip_direct) {
+                    return RenderApi::VerifySecurityPassword(
+                        target_item->stream_host_, target_item->stream_port_, password_md5)
+                        .value_or(false);
+                }
+                auto launch = RenderApi::PrepareIpDirectLaunch(
+                    target_item->stream_host_, target_item->stream_port_, password_md5,
+                    target_item->connection_nonce_);
+                if (!launch.has_value()) {
+                    target_item->active_session_stream_id_.clear();
+                    target_item->ip_direct_prevalidated_ = false;
+                    return false;
+                }
+                target_item->active_session_stream_id_ = launch.value().stream_id_;
+                target_item->ip_direct_prevalidated_ =
+                    !target_item->active_session_stream_id_.empty();
+                return target_item->ip_direct_prevalidated_;
+            };
+            auto ok = uses_console_ticket || verify_before_launch(candidate_pwd_md5);
             for (; !uses_console_ticket;) {
                 LOGI("VerifySecurityPassword result: {}", ok);
                 if (ok) {
@@ -1095,8 +1123,7 @@ namespace px
                 // md5 pwd
                 auto pwd_md5 = MD5::Hex(input_password.toStdString());
 
-                ok = RenderApi::VerifySecurityPassword(target_item->stream_host_, target_item->stream_port_,
-                                                       pwd_md5).value_or(false);
+                ok = verify_before_launch(pwd_md5);
                 if (!ok) {
                     context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_password_invalid_msg"));
                 }

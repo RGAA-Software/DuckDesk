@@ -36,6 +36,8 @@ namespace px
 
     private:
         bool RefreshConsoleTicket(const std::shared_ptr<px_console::ConsoleStream>& item);
+        bool RenewConsoleTicket(const std::shared_ptr<px_console::ConsoleStream>& item,
+                                const std::string& active_stream_id);
         void RestartActiveRtcSessions(uint64_t revision);
         void RestartRtcSession(const std::string& stream_id, uint64_t revision);
         void FallbackDirectRtc(const std::string& stream_id, std::string_view reason);
@@ -46,6 +48,9 @@ namespace px
         std::map<std::string, std::shared_ptr<QProcess>> running_processes_;
         std::map<std::string, std::shared_ptr<StartStreamLoading>> loading_dialogs_;
         std::map<std::string, std::shared_ptr<px_console::ConsoleStream>> running_items_;
+        // Saved Panel stream ID -> per-ticket runtime stream ID. The latter is
+        // what the client, relay, and Panel control channel must use.
+        std::map<std::string, std::string> running_session_stream_ids_;
         std::map<std::string, std::string> running_network_types_;
         std::map<std::string, DirectRtcFallbackState> running_connection_states_;
         std::mutex running_mutex_;

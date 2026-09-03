@@ -35,7 +35,7 @@ namespace px
         auto msg = Data::Make(data.data(), data.size());
         plugin->OnClientEventCameDirectly(
             true, socket_fd, NetPluginType::kWebSocket, nt_channel_type_,
-            std::move(msg), conn_id_);
+            std::move(msg), binding_id_);
     }
 
     void WsFileTransferRouter::OnPing(std::shared_ptr<asio2::http_session> &sess_ptr) {
@@ -52,6 +52,10 @@ namespace px
 
     FileTransferSendResult WsFileTransferRouter::TryPostBinaryMessage(
         const std::shared_ptr<Data>& msg) {
+        if (!file_allowed_.load()) {
+            return FileTransferSendResult::Disconnected(
+                "WebSocket file-transfer capability was revoked");
+        }
         if (!msg) {
             return FileTransferSendResult::TransportError(
                 "WebSocket file-transfer payload is empty");

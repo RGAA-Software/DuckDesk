@@ -42,7 +42,9 @@ namespace px
             const std::string& client_nonce,
             const std::string& instance_id,
             std::function<void(bool, const std::string&, const std::vector<std::string>&,
-                               const std::string&)>&& callback);
+                               const std::string&, const std::string&, const std::string&,
+                               const std::string&, const std::string&, int64_t,
+                               bool, bool)>&& callback);
         PxAwaitable<PxResult<RedeemedConnectionTicket>> RedeemConnectionTicketAsync(
             std::string ticket,
             std::string client_nonce,

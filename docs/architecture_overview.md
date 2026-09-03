@@ -79,17 +79,26 @@ Console Web「启动」→ Console manager 按 (app_id, device_id) 找 placement
 3. **同机互信**：`/ipc` 仅 loopback 不做 token 鉴权（token 管道已整体移除）；Console `force_authorize=false` 时鉴权全放行（测试用，**出包必须 true**）。
 4. **失败快速可观测**：32 位游戏明确拒绝注入；游戏管理员权限 ACCESS_DENIED 明确报错并持续重试；致命错误经 callback 上报。
 
-## 6. 已知缺口（正式化前要补）
+## 6. 逻辑会话与并发产品边界
+
+一个 desktop Render 的正式产品模型是“**一控多观**”：只有一个 Controller，可以有多个 Observer；设备只配置“允许接管”，开启后任一 Observer 接管即获得完整主控能力并使旧主控降为观察者，关闭后不得替换当前主控。该规则同时适用于 Console 授权和无 Console 的直接 IP 访问；不携带设备 ID 的 IP 直连由 Panel 在启动客户端进程前验证本机随机密码或安全密码，并让 Render 预留一个短期 `stream_id`。子进程只使用正常连接参数连接该流，不接收密码或额外授权变量，也不重复校验密码。该路径不回填 Console 设备号、不校验 Console ticket/direct-session grant；只有 Render 在预验证阶段生成的 `stream_id` 有效，调用方自填的值无效。Console 调度的 game-hook/WebView 也可按应用配置开放观看与接管，但只经 Console，控制目标分别是游戏 IPC 与 CEF 页面。
+
+WS、RTC、文件传输是同一逻辑会话的可靠 transport binding；传输切换或单一文件通道关闭不得误报用户离线。UDP Direct 只承载已由可靠控制面关联的音视频与媒体反馈，绝不承担认证、角色、接管、输入或会话生命周期；它目前天然只能服务一个媒体接收端，首期多观察只承诺 RTC Local。完整定义、能力矩阵和改造顺序见 `logical_session_product_definition.md`。
+
+WS + UDP 模式中，WS 在会话准入后记录短期的首次 UDP 媒体端点关联；UDP Hello 只登记对应的 `IP:port`。关联码仅保护首次登记，之后由心跳维持端点、由 WS binding 撤销，并允许同一已关联端点完成 NAT 换端口；UDP 首帧探测失败时客户端重建 WS 媒体 binding。UDP 的丢包、端点更换和超时只影响媒体可用性，不能触发 `ClientConnected`、`ClientDisconnected` 或控制权改变。
+
+## 7. 已知缺口（正式化前要补）
 
 1. **授权链对 panel 的硬依赖**：service 连 Console 的地址/凭据由 panel 经本机 WS 推来——panel 不运行机器就永远离线。目标模型下应改为「安装包写入凭据，service 直连 Console」，panel 降级为可选入口。
 2. **数据面零鉴权**：`/media` 只校验 stream_id 非空、`/alloc/local/rtc` 裸开——同网段知道 IP:port 就能拉流。应由 Console 签发带时效的观看 token，render 校验。
 3. **标准 RTC 的异网生产门禁尚未完成**：Console 托管 Coturn，`net_rtc` 支持动态 ICE、配置热更新/ICE restart、Direct 失败后标准 RTC 回退和候选统计。本机与90号机已经通过强制 TURN UDP、受控 TURN TCP 回退、自动 Direct、全功能和重连验收；仍需两台不同公网/NAT 的真实 relay、对称 NAT、并发 allocation 和端口耗尽门禁。详见 `webrtc_rtc_acceptance_report_20260824.md`。
 4. **本机控制面 :20375 无鉴权**：本机任意进程可推 AuthInfo/StartServer 让 service 拉进程，本地提权面。
 
-## 7. 专题文档索引
+## 8. 专题文档索引
 
 - game-hook 采集/注入总纲：`game_hook_capture_plan.md`（含 §10 UE boot/view、§11 事件重放与焦点保持）
 - 音频采集（PID loopback / 进程内 hook）：`game_hook_audio_capture.md`
 - Console 调度状态与测试：`console_app_schedule_plan.md`、`console_app_schedule_state.md`
 - 构建/部署：`../build_doc.md`、`gammaray/How_to_*.md`
 - WebRTC/Coturn 配置、构建与验收：`webrtc_coturn_implementation_plan.md`
+- 多用户会话、控制租约与无 Console 直连产品契约：`logical_session_product_definition.md`

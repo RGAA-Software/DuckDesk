@@ -218,6 +218,15 @@ namespace px
             auto m = std::any_cast<MsgRtcRemoteIce>(msg);
             this->OnRemoteIce(m);
         }
+        else if (HoldsType<PxLogicalSessionCapabilityUpdate>(msg) && runtime_) {
+            const auto update = std::any_cast<PxLogicalSessionCapabilityUpdate>(msg);
+            runtime_->servers.ApplyAll([&update](const std::string&,
+                                                 const std::shared_ptr<RtcServer>& server) {
+                if (server && server->GetStreamId() == update.stream_id_) {
+                    server->SetPermissions(update.permissions_);
+                }
+            });
+        }
     }
 
     void RtcPlugin::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {

@@ -4,6 +4,18 @@ add_executable(test_render_service_rpc_state test_render_service_rpc_state.cpp)
 target_link_libraries(test_render_service_rpc_state
     PRIVATE px_common_new GTest::gtest GTest::gtest_main)
 
+add_executable(test_logical_session_registry
+    test_logical_session_registry.cpp
+    ../session/logical_session_registry.cpp)
+target_link_libraries(test_logical_session_registry
+    PRIVATE GTest::gtest GTest::gtest_main)
+
+add_executable(test_direct_session_grant_store
+    test_direct_session_grant_store.cpp
+    ../plugins/net_ws/direct_session_grant_store.cpp)
+target_link_libraries(test_direct_session_grant_store
+    PRIVATE px_common_new GTest::gtest GTest::gtest_main)
+
 add_executable(test_ft_plugin_dll_lifecycle test_ft_plugin_dll_lifecycle.cpp)
 target_link_libraries(test_ft_plugin_dll_lifecycle
     PRIVATE px_common_new px_message px_plugin GTest::gtest GTest::gtest_main)

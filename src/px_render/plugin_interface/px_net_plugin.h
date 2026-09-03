@@ -44,6 +44,9 @@ namespace px
     // from the normal visitor lifecycle, controls, audio and audit statistics.
     enum class PxLocalRtcSessionRole {
         kInteractive,
+        // Visible read-only product observer. Unlike the internal wall
+        // observer it retains normal audio and lifecycle accounting.
+        kObserver,
         kWallObserver,
     };
 
@@ -94,6 +97,16 @@ namespace px
         // 显示器列表(枚举顺序,与 video track 顺序一致),供多 track 客户端做
         // track→mon_name 映射;web/旧客户端忽略此字段
         std::vector<PxLocalRtcMonitorInfo> monitors_;
+    };
+
+    // Reliable-control-plane notification used to revoke a previously granted
+    // session capability after a Controller is replaced. Network plug-ins use
+    // the stream only as a routing key; role ownership remains in
+    // LogicalSessionRegistry.
+    class PxLogicalSessionCapabilityUpdate {
+    public:
+        std::string stream_id_;
+        std::vector<std::string> permissions_;
     };
 
     class PxNetPlugin : public PxPluginInterface {

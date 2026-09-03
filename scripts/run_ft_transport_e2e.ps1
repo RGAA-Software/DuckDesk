@@ -84,7 +84,7 @@ $testEnvironmentNames = @(
     'PX_FT_E2E_TRANSPORT', 'PX_FT_E2E_HOST', 'PX_FT_E2E_PORT',
     'PX_FT_E2E_RELAY_HOST', 'PX_FT_E2E_RELAY_PORT',
     'PX_FT_E2E_REMOTE_DEVICE_ID', 'PX_FT_E2E_VISITOR_DEVICE_ID',
-    'PX_FT_E2E_TICKET', 'PX_FT_E2E_NONCE', 'PX_FT_E2E_BYTES',
+    'PX_FT_E2E_TICKET', 'PX_FT_E2E_NONCE', 'PX_FT_E2E_STREAM_ID', 'PX_FT_E2E_BYTES',
     'PX_FT_E2E_TIMEOUT_MS', 'PX_FT_E2E_REMOTE_DIR', 'PX_FT_E2E_REQUIRE_BUSY',
     'PX_FT_E2E_SMALL_FILES', 'PX_FT_E2E_CONFLICT_MODE'
 )
@@ -117,9 +117,9 @@ try {
         $nonce = "ft_${Transport}_${suffix}_$round"
         try {
             $issued = Invoke-JsonPost "$ConsoleBase/api/v1/user/devices/$DeviceId/ticket" `
-                @{ client_nonce = $nonce; requested_permissions = @('view', 'file') } `
+                @{ client_nonce = $nonce; join_mode = 'control' } `
                 $accessToken 9
-            if ($issued.code -ne 200 -or -not $issued.data.ticket) {
+            if ($issued.code -ne 200 -or -not $issued.data.ticket -or -not $issued.data.stream_id) {
                 throw 'ticket issue failed'
             }
             if ($Transport -eq 'relay' -and
@@ -136,6 +136,7 @@ try {
             $env:PX_FT_E2E_VISITOR_DEVICE_ID = $visitorDeviceId
             $env:PX_FT_E2E_TICKET = [string]$issued.data.ticket
             $env:PX_FT_E2E_NONCE = $nonce
+            $env:PX_FT_E2E_STREAM_ID = [string]$issued.data.stream_id
             $env:PX_FT_E2E_BYTES = [string]$Bytes
             $env:PX_FT_E2E_SMALL_FILES = [string]$SmallFiles
             $env:PX_FT_E2E_CONFLICT_MODE = $ConflictMode

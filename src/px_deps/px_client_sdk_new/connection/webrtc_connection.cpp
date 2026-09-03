@@ -7,6 +7,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
 #include "px_common_new/md5.h"
+#include "px_common_new/uuid.h"
 #include "px_common_new/thread.h"
 #include "px_webrtc_client/rtc_client_interface.h"
 #include "px_common_new/message_notifier.h"
@@ -361,6 +362,13 @@ namespace px
     }
 
     void WebRtcConnection::SendSdpToRemote(const std::string& sdp) {
+        if (sdk_params_->connection_ticket_.empty()
+            && sdk_params_->connection_nonce_.empty()) {
+            // Direct signaling has no Console-issued nonce. Keep one for the
+            // lifetime of this SDK session so retries are recognized as a
+            // reconnect rather than a second Controller request.
+            sdk_params_->connection_nonce_ = GetUUID();
+        }
         // pack to proto & send it
         px::Message pt_msg;
         pt_msg.set_device_id(sdk_params_->device_id_);
@@ -372,6 +380,9 @@ namespace px
         sub->set_connection_ticket(sdk_params_->connection_ticket_);
         sub->set_client_nonce(sdk_params_->connection_nonce_);
         sub->set_instance_id(sdk_params_->connection_instance_id_);
+        if (sdk_params_->connection_ticket_.empty()) {
+            sub->set_takeover(sdk_params_->direct_takeover_);
+        }
         if (sdk_params_->connection_ticket_.empty()) {
             if (!sdk_params_->remote_device_safety_pwd_.empty()) {
                 sub->set_safety_pwd_md5(sdk_params_->remote_device_safety_pwd_);

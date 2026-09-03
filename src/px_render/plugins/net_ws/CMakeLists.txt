@@ -9,6 +9,7 @@ set(PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/ws_stream_router.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ws_filetransfer_router.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ws_user_proxy_router.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/direct_session_grant_store.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/http_handler.cpp
 )
 

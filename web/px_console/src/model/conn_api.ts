@@ -2,37 +2,37 @@
 import axiosHttp from '@/http.ts'
 import type { ServiceConn } from '@/entity/service_conn.ts'
 import type { PanelConn } from '@/entity/panel_conn.ts'
+import type { RemoteSession, RemoteSessionEvent } from '@/entity/remote_session.ts'
+
+async function readResponse<T>(request: Promise<{ status: number; data: { code: number; data: T } }>, label: string): Promise<T | null> {
+  const resp = await request
+  if (resp.status !== 200 || resp.data.code !== 200) {
+    console.error(`${label} failed`, resp)
+    return null
+  }
+  return resp.data.data
+}
 
 // query all service connections
 export async function queryAllServiceConn(): Promise<ServiceConn[] | null> {
-  const resp = await axiosHttp.get('/api/v1/service/control/query/all/service/conn')
-  if (resp.status !== 200) {
-    console.error('queryAllServiceConn failed', resp)
-    return null
-  }
-
-  const data = resp.data
-  if (data.code !== 200) {
-    console.error('queryAllServiceConn failed, data:', data)
-    return null
-  }
-  console.log('service conns: ', data.data)
-  return data.data
+  return readResponse(axiosHttp.get('/api/v1/service/control/query/all/service/conn'), 'queryAllServiceConn')
 }
 
 // query all panel connections
 export async function queryAllPanelConn(): Promise<PanelConn[] | null> {
-  const resp = await axiosHttp.get('/api/v1/panel/control/query/all/panel/conn')
-  if (resp.status !== 200) {
-    console.error('queryAllPanelConn failed', resp)
-    return null
-  }
+  return readResponse(axiosHttp.get('/api/v1/panel/control/query/all/panel/conn'), 'queryAllPanelConn')
+}
 
-  const data = resp.data
-  if (data.code !== 200) {
-    console.error('queryAllPanelConn failed, data:', data)
-    return null
-  }
-  console.log('panel conns: ', data.data)
-  return data.data
+export async function queryRemoteSessions(deviceId: string): Promise<RemoteSession[] | null> {
+  return readResponse(
+    axiosHttp.get('/api/v1/service/control/query/remote/sessions', { params: { device_id: deviceId } }),
+    'queryRemoteSessions',
+  )
+}
+
+export async function queryRemoteSessionEvents(deviceId: string): Promise<RemoteSessionEvent[] | null> {
+  return readResponse(
+    axiosHttp.get('/api/v1/service/control/query/remote/session/events', { params: { device_id: deviceId } }),
+    'queryRemoteSessionEvents',
+  )
 }

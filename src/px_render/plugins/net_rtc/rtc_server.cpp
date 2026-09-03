@@ -7,6 +7,7 @@
 #include "desktop_capture.h"
 #include "desktop_capture_source.h"
 #include "rtc_plugin.h"
+#include "rtc_messages.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "rtc_data_channel.h"
 #include "px_common_new/md5.h"
@@ -141,7 +142,8 @@ namespace px
                     }
                     auto payload_msg = Data::Make(data.data(), data.size());
                     locked->runtime_->DispatchClientEvent(
-                        false, NetChannelType::kMedia, std::move(payload_msg));
+                        false, NetChannelType::kMedia, std::move(payload_msg),
+                        std::string("rtc:") + locked->stream_id_);
                 });
             }
             else if (name == "ft_data_channel" && may_file) {
@@ -179,7 +181,8 @@ namespace px
                     }
                     auto payload_msg = Data::Make(data.data(), data.size());
                     locked->runtime_->DispatchClientEvent(
-                        true, NetChannelType::kMedia, std::move(payload_msg));
+                        true, NetChannelType::kMedia, std::move(payload_msg),
+                        std::string("rtc:") + locked->stream_id_);
                 });
             }
         });
@@ -380,6 +383,10 @@ namespace px
     }
 
     void RtcServer::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
+        if (!msg || !IsRtcPayloadAuthorized(msg->AsString(), permissions_)) {
+            LOGW("Drop outbound RTC protocol message: session lacks its required permission");
+            return;
+        }
         if (network_thread_ && media_data_channel_ && !exit_) {
             const auto weak_server = weak_from_this();
             network_thread_->PostTask([weak_server, msg]() {
@@ -392,7 +399,8 @@ namespace px
     }
 
     bool RtcServer::PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
-        if (stream_id.empty() || stream_id != stream_id_) {
+        if (stream_id.empty() || stream_id != stream_id_ || !msg
+            || !IsRtcPayloadAuthorized(msg->AsString(), permissions_)) {
             return false;
         }
         if (network_thread_ && media_data_channel_ && !exit_) {
@@ -408,7 +416,8 @@ namespace px
     }
 
     bool RtcServer::PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
-        if (stream_id.empty() || stream_id != stream_id_) {
+        if (stream_id.empty() || stream_id != stream_id_ || !msg
+            || !IsRtcPayloadAuthorized(msg->AsString(), permissions_)) {
             return false;
         }
         // 与 net_rtc_local 同理:必须投递到 WebRTC 网络线程再 Send,避免跨线程

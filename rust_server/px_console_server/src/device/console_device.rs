@@ -2,6 +2,10 @@ use crate::device::console_desktop_link::DesktopLinkRaw;
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Serialize, Debug, Deserialize, Clone, Default)]
 pub struct ConsoleDevice {
     // device id
@@ -54,6 +58,13 @@ pub struct ConsoleDevice {
 
     #[serde(default)]
     pub active: bool,
+
+    /// Desktop remote-control policy. Missing legacy fields deliberately
+    /// preserve the product defaults instead of deserializing to false.
+    #[serde(default = "default_true")]
+    pub allow_observer: bool,
+    #[serde(default = "default_true")]
+    pub allow_takeover: bool,
 
     // local NIC IPv4 list reported by panel at handshake (design doc 5.2)
     #[serde(default)]

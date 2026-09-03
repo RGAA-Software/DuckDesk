@@ -3,6 +3,7 @@
 //
 
 #include "rd_statistics.h"
+#include "session/logical_session_registry.h"
 #include "rd_context.h"
 #include "rd_app.h"
 #include "app/app_messages.h"
@@ -219,17 +220,22 @@ namespace px
             }
         }
 
-        // connected clients
-        int32_t connected_clients = plugin_mgr_->GetTotalConnectedClientsCount();
-        cst->set_connected_clients_count(connected_clients);
-
-        auto connected_clients_info = plugin_mgr_->GetConnectedClientsInfo();
-        for (const auto& item : connected_clients_info) {
+        // A person can own a WS control binding, a UDP media endpoint and an
+        // RTC/FT binding simultaneously. Report each logical session once;
+        // physical plug-in counts remain transport diagnostics only.
+        const auto registry = app->GetLogicalSessionRegistry();
+        const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        const auto sessions = registry ? registry->SnapshotActive(now_ms)
+                                       : std::vector<LogicalSessionSnapshot>{};
+        cst->set_connected_clients_count(static_cast<int32_t>(sessions.size()));
+        for (const auto& session : sessions) {
             auto cc = cst->mutable_connected_clients()->Add();
-            cc->set_device_id(item->device_id_);
-            cc->set_stream_id(item->stream_id_);
-            cc->set_room_id(item->relay_room_id_);
-            cc->set_device_name(item->device_name_);
+            cc->set_device_id(session.subject_id);
+            cc->set_stream_id(session.stream_id);
+            cc->set_room_id(session.logical_session_id);
+            cc->set_device_name(session.role == LogicalSessionRole::kController
+                ? "Controller" : "Observer");
         }
 
         auto relay_plugin = plugin_mgr_->GetRelayPlugin();

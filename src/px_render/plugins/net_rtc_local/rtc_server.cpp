@@ -376,6 +376,7 @@ namespace px
         this->ice_config_json_ = ice_config_json;
         this->standard_rtc_ = !ice_config_json.empty();
         this->wall_observer_ = session_role == PxLocalRtcSessionRole::kWallObserver;
+        this->observer_ = session_role == PxLocalRtcSessionRole::kObserver;
         this->created_timestamp_ms_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         webrtc::field_trial::InitFieldTrialsFromString("");
         rtc::LogMessage::LogToDebug(rtc::LS_ERROR);
@@ -511,7 +512,8 @@ namespace px
                     }
                     auto payload_msg = Data::Make(data.data(), data.size());
                     locked->runtime_->DispatchClientEvent(
-                        false, NetChannelType::kMedia, std::move(payload_msg));
+                        false, NetChannelType::kMedia, std::move(payload_msg),
+                        std::string("rtc-local:") + locked->stream_id_);
                 });
             }
             else if (name == "ft_data_channel") {
@@ -554,7 +556,8 @@ namespace px
                     }
                     auto payload_msg = Data::Make(data.data(), data.size());
                     locked->runtime_->DispatchClientEvent(
-                        true, NetChannelType::kMedia, std::move(payload_msg));
+                        true, NetChannelType::kMedia, std::move(payload_msg),
+                        std::string("rtc-local:") + locked->stream_id_);
                 });
             }
             else if (name == "ping_data_channel") {
@@ -1059,6 +1062,14 @@ namespace px
     }
 
     void RtcServer::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
+        if (!msg) {
+            return;
+        }
+        const auto message_type = ExtractMessageType(msg->AsString());
+        if (message_type && IsClipboardMessage(*message_type) && !HasPermission("clipboard")) {
+            LOGW("Drop outbound clipboard message: session has no clipboard permission");
+            return;
+        }
         if (network_thread_ && media_data_channel_ && !exit_) {
             const auto weak_server = weak_from_this();
             network_thread_->PostTask([weak_server, msg]() {
@@ -1071,7 +1082,12 @@ namespace px
     }
 
     bool RtcServer::PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
-        if (stream_id.empty() || stream_id != stream_id_) {
+        if (stream_id.empty() || stream_id != stream_id_ || !msg) {
+            return false;
+        }
+        const auto message_type = ExtractMessageType(msg->AsString());
+        if (message_type && IsClipboardMessage(*message_type) && !HasPermission("clipboard")) {
+            LOGW("Drop targeted outbound clipboard message: session has no clipboard permission");
             return false;
         }
         if (network_thread_ && media_data_channel_ && !exit_) {
@@ -1087,7 +1103,7 @@ namespace px
     }
 
     bool RtcServer::PostTargetFileTransferProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) {
-        if (stream_id.empty() || stream_id != stream_id_) {
+        if (stream_id.empty() || stream_id != stream_id_ || !msg || !HasPermission("file")) {
             return false;
         }
         // 必须投递到 WebRTC 网络线程再 Send,否则 data_channel_->Send() 跨线程调用

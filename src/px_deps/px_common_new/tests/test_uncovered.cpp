@@ -14,6 +14,7 @@
 #include "px_common_new/time_util.h"
 #include "px_common_new/key_helper.h"
 #include "px_common_new/math_helper.h"
+#include "px_common_new/ws_control_signal.h"
 
 #include <filesystem>
 #include <fstream>
@@ -167,6 +168,15 @@ TEST(TestUncovered, UrlHelperParseQueryStringEmpty) {
 TEST(TestUncovered, UrlHelperParseQueryStringNoValue) {
     auto params = UrlHelper::ParseQueryString("key=");
     EXPECT_EQ(params["key"], "");
+}
+
+TEST(TestUncovered, UrlHelperQueryComponentRoundTripPreservesBase64Characters) {
+    const std::string value = "ab+C/de=f&g h";
+    const auto encoded = UrlHelper::EncodeQueryComponent(value);
+    EXPECT_EQ(encoded, "ab%2BC%2Fde%3Df%26g%20h");
+    const auto params = UrlHelper::ParseQueryString("association=" + encoded);
+    ASSERT_TRUE(params.contains("association"));
+    EXPECT_EQ(params.at("association"), value);
 }
 
 // ========== MessageNotifier ==========
@@ -413,6 +423,17 @@ TEST(TestUncovered, KeyHelperSmoke) {
 TEST(TestUncovered, MathHelperSmoke) {
     // Currently empty class, just ensure header compiles
     EXPECT_TRUE(true);
+}
+
+TEST(TestUncovered, WebSocketControlRejectionSignals) {
+    EXPECT_EQ(ParseWsControlRejection(kWsAuthorizationRejectedSignal),
+              WsControlRejection::kAuthorization);
+    EXPECT_EQ(ParseWsControlRejection(kWsSessionOccupiedSignal),
+              WsControlRejection::kOccupied);
+    EXPECT_EQ(ParseWsControlRejection(kWsSessionRejectedSignal),
+              WsControlRejection::kSessionPolicy);
+    EXPECT_EQ(ParseWsControlRejection("ordinary protobuf payload"),
+              WsControlRejection::kNone);
 }
 
 } // namespace px

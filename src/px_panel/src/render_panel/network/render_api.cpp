@@ -64,4 +64,38 @@ namespace px
         return ErrInt<bool>(-1);
     }
 
+    Result<IpDirectLaunch, int> RenderApi::PrepareIpDirectLaunch(
+        const std::string& host,
+        const int port,
+        const std::string& safety_pwd_md5,
+        const std::string& client_nonce) {
+        auto client = HttpClient::Make(host, port, kApiVerifySecurityPassword);
+        const auto response = client->Request({
+            {"safety_pwd_md5", safety_pwd_md5},
+            {"client_nonce", client_nonce},
+        });
+        LOGI("IP direct pre-authorization response status: {}", response.status);
+        if (response.status != 200 || response.body.empty()) {
+            return ErrInt<IpDirectLaunch>(response.status);
+        }
+        try {
+            const auto object = json::parse(response.body);
+            if (object.value("code", -1) != 200
+                || !object.contains("data") || !object["data"].is_object()) {
+                return ErrInt<IpDirectLaunch>(-1);
+            }
+            IpDirectLaunch launch;
+            launch.stream_id_ = object["data"].value("stream_id", "");
+            launch.expires_at_ms_ = object["data"].value("expires_at_ms", 0LL);
+            if (launch.stream_id_.empty()) {
+                return ErrInt<IpDirectLaunch>(-1);
+            }
+            return launch;
+        }
+        catch (const std::exception& error) {
+            LOGE("Parse IP direct pre-authorization failed: {}", error.what());
+            return ErrInt<IpDirectLaunch>(-1);
+        }
+    }
+
 }

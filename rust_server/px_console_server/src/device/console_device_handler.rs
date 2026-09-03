@@ -2,7 +2,7 @@ use crate::console_api_error::ConsoleApiError;
 use crate::console_context::ConsoleContext;
 use crate::console_defs::{
     KEY_ACTIVE, KEY_ALL, KEY_DEVICE_DESKTOP_LINK, KEY_DEVICE_DESKTOP_LINK_RAW, KEY_DEVICE_ID,
-    KEY_DEVICE_NAME, KEY_IP, KEY_OFFLINE, KEY_ONLINE, KEY_ONLINE_STATE, KEY_PWD_TYPE,
+    KEY_ALLOW_OBSERVER, KEY_ALLOW_TAKEOVER, KEY_DEVICE_NAME, KEY_IP, KEY_OFFLINE, KEY_ONLINE, KEY_ONLINE_STATE, KEY_PWD_TYPE,
 };
 use crate::console_http_util::{
     get_body, get_body_bool, get_body_str, get_int_param, get_str_param, get_str_param_allow_empty,
@@ -419,4 +419,22 @@ pub async fn update_device_active(
 
     let device = gDeviceManager.query_device_by_id(device_id.clone()).await?;
     Ok(Json(ok_resp(device)))
+}
+
+pub async fn update_remote_session_policy(
+    State(_context): State<Arc<Mutex<ConsoleContext>>>,
+    b: Body,
+) -> Result<Json<RespMessage<ConsoleDevice>>, ConsoleApiError> {
+    let body = get_body(b).await?;
+    let r: Value = serde_json::from_str(body.as_str()).map_err(|_| ConsoleApiError::InvalidParams)?;
+    let device_id = get_body_str(&r, KEY_DEVICE_ID)?;
+    let allow_observer = get_body_bool(&r, KEY_ALLOW_OBSERVER)?;
+    let allow_takeover = get_body_bool(&r, KEY_ALLOW_TAKEOVER)?;
+    gDeviceManager
+        .update_device_field(device_id.clone(), KEY_ALLOW_OBSERVER.to_string(), allow_observer)
+        .await?;
+    gDeviceManager
+        .update_device_field(device_id.clone(), KEY_ALLOW_TAKEOVER.to_string(), allow_takeover)
+        .await?;
+    Ok(Json(ok_resp(gDeviceManager.query_device_by_id(device_id).await?)))
 }

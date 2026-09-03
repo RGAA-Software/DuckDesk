@@ -13,6 +13,9 @@ pub enum Command {
         from: String,
         /// Panel piggybacks its latest authorization info on heartbeats.
         auth_info: Option<MsgAuthInfo>,
+        /// Render-owned logical session snapshot, serialized JSON. It is not
+        /// interpreted by the privileged Service process.
+        logical_sessions_json: String,
     },
     AuthInfo(MsgAuthInfo),
     CtrlAltDelete {
@@ -62,6 +65,7 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
                 index: heart_beat.index,
                 from: heart_beat.from,
                 auth_info: heart_beat.auth_info,
+                logical_sessions_json: heart_beat.logical_sessions_json,
             }
         }
         ServiceMessageType::AuthInfo => {
@@ -177,6 +181,7 @@ mod tests {
                 index: 42,
                 from: "panel".to_string(),
                 auth_info: None,
+                logical_sessions_json: String::new(),
             }
         );
     }
@@ -206,6 +211,7 @@ mod tests {
                 index: 1,
                 from: "panel".to_string(),
                 auth_info: Some(auth_info),
+                logical_sessions_json: String::new(),
             }
         );
     }

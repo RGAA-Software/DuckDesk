@@ -28,6 +28,7 @@ pub struct ConsoleServiceConn {
     pub render_alive: bool,
     pub auth_info_json: String,
     pub instances_json: String,
+    pub logical_sessions_json: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -41,6 +42,8 @@ pub struct ConsoleServiceConnVo {
     pub auth_info_json: String,
     #[serde(default)]
     pub instances_json: String,
+    #[serde(default)]
+    pub logical_sessions_json: String,
 }
 
 impl ConsoleServiceConn {
@@ -63,6 +66,7 @@ impl ConsoleServiceConn {
             render_alive: false,
             auth_info_json: "".to_string(),
             instances_json: "".to_string(),
+            logical_sessions_json: "[]".to_string(),
         }
     }
 
@@ -76,6 +80,7 @@ impl ConsoleServiceConn {
             render_alive: self.render_alive,
             auth_info_json: self.auth_info_json.to_string(),
             instances_json: self.instances_json.to_string(),
+            logical_sessions_json: self.logical_sessions_json.to_string(),
         }
     }
 
@@ -107,6 +112,15 @@ impl ConsoleServiceConn {
             self.render_alive = sub.render_alive;
             self.auth_info_json = sub.auth_info_json;
             self.instances_json = sub.instances_json;
+            self.logical_sessions_json = sub.logical_sessions_json;
+            let database_ready = {
+                let database = crate::gConsoleDatabase.lock().await;
+                database.c_remote_session.is_some() && database.c_remote_session_event.is_some()
+            };
+            if database_ready {
+                crate::gRemoteSessionManager.reconcile_snapshot(
+                    self.device_id.clone(), self.logical_sessions_json.clone(), self.last_update_timestamp).await;
+            }
             crate::app_schedule::gAppScheduleManager
                 .reconcile_from_service_hb(self.device_id.clone(), &self.instances_json)
                 .await;
@@ -145,6 +159,11 @@ impl ConsoleServiceConn {
             .await;
             let response = match result {
                 Ok(grant) => {
+                    let grant_permission_count = grant.permissions.len();
+                    tracing::info!(
+                        grant_permission_count,
+                        "connection ticket redeemed with an authorized grant"
+                    );
                     let rtc_subject = format!("{}:{}", self.device_id, request_id);
                     let rtc_ice_config_json = crate::gRtcConfigManager
                         .issue_session_config(&rtc_subject)
@@ -174,6 +193,11 @@ impl ConsoleServiceConn {
                             subject_id: grant.subject_id,
                             permissions: grant.permissions,
                             expires_at: grant.expires_at,
+                            logical_session_id: grant.logical_session_id,
+                            stream_id: grant.stream_id,
+                            join_mode: grant.join_mode,
+                            allow_observer: grant.allow_observer,
+                            allow_takeover: grant.allow_takeover,
                         }),
                         rtc_ice_config_json,
                     }
@@ -235,6 +259,7 @@ impl ConsoleServiceConn {
             render_alive: false,
             auth_info_json: "".to_string(),
             instances_json: "".to_string(),
+            logical_sessions_json: "".to_string(),
         });
         self.send_bin_message_vec(sv_msg.encode_to_vec()).await;
     }

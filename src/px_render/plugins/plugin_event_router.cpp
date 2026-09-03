@@ -221,6 +221,63 @@ namespace px
                     std::move(target_event->callback_));
             }
         }
+        else if (event->event_type_ == PxPluginEventType::kPluginAdmitLogicalSession) {
+            const auto target_event =
+                std::dynamic_pointer_cast<PxPluginAdmitLogicalSessionEvent>(event);
+            if (!target_event || !target_event->callback_) {
+                return;
+            }
+            const auto registry = app_->GetLogicalSessionRegistry();
+            if (!registry) {
+                target_event->callback_(LogicalSessionAdmission{});
+                return;
+            }
+            const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            const auto admission = registry->Bind(
+                target_event->grant_, target_event->transport_, target_event->binding_id_,
+                target_event->takeover_, now_ms);
+            if (admission.release_previous_controller_input && net_event_router_) {
+                net_event_router_->ReleaseControllerInput(LogicalSessionInputLease{
+                    .logical_session_id = admission.previous_controller_session_id,
+                    .generation = admission.previous_controller_lease_generation,
+                });
+                const auto previous_stream = registry->FindStreamId(
+                    admission.previous_controller_session_id);
+                if (previous_stream.has_value()) {
+                    const auto capability_update = PxLogicalSessionCapabilityUpdate{
+                        .stream_id_ = *previous_stream,
+                        .permissions_ = {"view", "audio"},
+                    };
+                    plugin_manager_->VisitNetPlugins([&capability_update](PxNetPlugin* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
+                        if (plugin) {
+                            plugin->OnMessageRaw(capability_update);
+                        }
+                    });
+                }
+            }
+            target_event->callback_(admission);
+        }
+        else if (event->event_type_ == PxPluginEventType::kPluginCloseLogicalSessionBinding) {
+            const auto target_event =
+                std::dynamic_pointer_cast<PxPluginCloseLogicalSessionBindingEvent>(event);
+            const auto registry = app_->GetLogicalSessionRegistry();
+            if (!target_event || !registry || target_event->logical_session_id_.empty()
+                || target_event->binding_id_.empty()) {
+                return;
+            }
+            const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            const auto closed = registry->CloseBinding(
+                target_event->logical_session_id_, target_event->binding_id_, now_ms);
+            if (closed.release_controller_input && net_event_router_) {
+                net_event_router_->ReleaseControllerInput(LogicalSessionInputLease{
+                    .logical_session_id = closed.logical_session_id,
+                    .binding_id = target_event->binding_id_,
+                    .generation = closed.lease_generation,
+                });
+            }
+        }
         else if (event->event_type_ == PxPluginEventType::kPluginVoiceCallConsent) {
             auto target_event = std::dynamic_pointer_cast<PxPluginVoiceCallConsentEvent>(event);
             if (!target_event) {

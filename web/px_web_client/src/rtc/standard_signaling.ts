@@ -138,6 +138,7 @@ export class StandardRtcSignaling {
     clientNonce: string,
     instanceId: string,
     safetyPwdMd5 = '',
+    takeover = false,
   ): Promise<string> {
     if (!this.roomId) throw new Error('标准 RTC 信令房间尚未准备完成')
     if (this.pendingAnswer) throw new Error('已有 RTC SDP 协商正在进行')
@@ -158,6 +159,7 @@ export class StandardRtcSignaling {
           clientNonce,
           instanceId,
           safetyPwdMd5: ticket ? '' : safetyPwdMd5,
+          takeover,
         },
       })
       for (const candidate of this.pendingLocalIce.splice(0)) this.sendIce(candidate)
@@ -243,6 +245,14 @@ export class StandardRtcSignaling {
   private async onPxSignaling(bytes: Uint8Array) {
     const message = PxMessage.decode(bytes) as unknown as Record<string, any>
     if (message.type === MSG_TYPE_SIG_ANSWER_SDP) {
+      const errorCode = message.sigAnswerSdp?.errorCode || ''
+      if (errorCode && this.pendingAnswer) {
+        const pending = this.pendingAnswer
+        this.pendingAnswer = null
+        window.clearTimeout(pending.timer)
+        pending.reject(new Error(errorCode))
+        return
+      }
       const sdp = message.sigAnswerSdp?.sdp || ''
       if (sdp && this.pendingAnswer) {
         const pending = this.pendingAnswer

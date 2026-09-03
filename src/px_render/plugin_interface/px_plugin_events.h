@@ -10,6 +10,7 @@
 #include <memory>
 #include <functional>
 #include <vector>
+#include "session/logical_session_registry.h"
 #include "px_net_plugin.h"
 #include "px_plugin_interface.h"
 #include "px_common_new/image.h"
@@ -51,6 +52,8 @@ namespace px
         kPluginConfigEncoder,
         kPluginReqParamsBeginStreaming,
         kPluginRedeemConnectionTicket,
+        kPluginAdmitLogicalSession,
+        kPluginCloseLogicalSessionBinding,
         kPluginVoiceCallConsent,
         kPluginVoiceCallMedia,
     };
@@ -77,7 +80,32 @@ namespace px
         std::string client_nonce_;
         std::string instance_id_;
         std::function<void(bool, const std::string&, const std::vector<std::string>&,
-                           const std::string&)> callback_;
+                           const std::string&, const std::string&, const std::string&,
+                           const std::string&, const std::string&, int64_t,
+                           bool, bool)> callback_;
+    };
+
+    // Network plug-ins are separate DLLs and must not link against RdApplication.
+    // They request session arbitration through this event boundary instead.
+    class PxPluginAdmitLogicalSessionEvent : public PxPluginBaseEvent {
+    public:
+        PxPluginAdmitLogicalSessionEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginAdmitLogicalSession;
+        }
+        LogicalSessionGrant grant_;
+        LogicalSessionTransport transport_ = LogicalSessionTransport::kWs;
+        std::string binding_id_;
+        bool takeover_ = false;
+        std::function<void(LogicalSessionAdmission)> callback_;
+    };
+
+    class PxPluginCloseLogicalSessionBindingEvent : public PxPluginBaseEvent {
+    public:
+        PxPluginCloseLogicalSessionBindingEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginCloseLogicalSessionBinding;
+        }
+        std::string logical_session_id_;
+        std::string binding_id_;
     };
 
     // Voice plugin -> Render -> px_panel. show_=false closes only an exactly
@@ -148,6 +176,7 @@ namespace px
     // boundary so file-transfer code never retains or guesses a transport.
     struct FtInboundMessage {
         std::shared_ptr<Message> message_;
+        std::string logical_session_id_;
         std::string source_plugin_id_;
         std::string source_connection_id_;
     };
@@ -156,9 +185,22 @@ namespace px
     // owned by that transport. This avoids a late WS close tearing down an RTC
     // file-transfer route for the same stream.
     struct FtRouteDisconnected {
+        std::string logical_session_id_;
         std::string stream_id_;
         std::string source_plugin_id_;
         std::string source_connection_id_;
+    };
+
+    // A WS-authorized UDP media endpoint. This is deliberately not a session
+    // grant: it only lets the UDP plug-in associate an address with an already
+    // established WS media binding.
+    struct UdpMediaAssociation {
+        std::string association_code_;
+        std::string logical_session_id_;
+        std::string stream_id_;
+        int64_t expires_at_ms_ = 0;
+        bool force_gdi_ = false;
+        bool revoke_ = false;
     };
 
     // PxClientConnectedEvent
@@ -182,7 +224,12 @@ namespace px
             event_type_ = PxPluginEventType::kPluginClientDisConnectedEvent;
         }
     public:
+        // Filled by transports that already admitted a logical session.  It
+        // lets auxiliary-route cleanup remain scoped after the binding has
+        // been removed from the registry.
+        std::string logical_session_id_;
         std::string conn_id_;
+        std::string connection_instance_id_;
         std::string stream_id_;
         std::string visitor_device_id_;
         int64_t end_timestamp_ = 0;

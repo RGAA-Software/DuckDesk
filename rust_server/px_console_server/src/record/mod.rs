@@ -3,6 +3,8 @@ pub mod console_file_transfer_manager;
 pub mod console_record_handle;
 pub mod console_record_router;
 pub mod console_render_record;
+pub mod console_remote_session;
+pub mod console_remote_session_manager;
 pub mod console_render_record_handle;
 pub mod console_render_record_manager;
 pub mod console_visit;

@@ -11,6 +11,7 @@
 #include "console_user_device.h"
 #include "console_device.h"
 #include "console_api.h"
+#include <algorithm>
 #include <format>
 #include <nlohmann/json.hpp>
 #include <string_view>
@@ -25,6 +26,8 @@ namespace px_console
 
     namespace {
 
+        constexpr std::string_view kRenewConnectionTicket = "/api/v1/connection-tickets/renew";
+
         template <typename T>
         px::Result<T, ConsoleApiError> HttpError(std::string_view operation,
                                                 const px::HttpResponse& response) {
@@ -33,6 +36,29 @@ namespace px_console
             LOGE("{} failed: HTTP {}, transport: {}, message: {}", operation, response.status,
                  response.error_code, message.empty() ? "<empty>" : message);
             return TcErr(error);
+        }
+
+        px::Result<ConsoleConnectionTicket, ConsoleApiError> ParseConnectionTicket(
+            const nlohmann::json& data, const bool require_launch_url) {
+            ConsoleConnectionTicket result;
+            result.ticket = data.value("ticket", "");
+            result.renewal_token = data.value("renewal_token", "");
+            result.launch_url = data.value("launch_url", "");
+            result.expires_at = data.value("expires_at", 0LL);
+            result.logical_session_id = data.value("logical_session_id", "");
+            result.stream_id = data.value("stream_id", "");
+            result.join_mode = data.value("join_mode", "control");
+            result.permissions = data.value("permissions", std::vector<std::string>{});
+            result.rtc_ice_config_json = data.contains("rtc_ice_config")
+                ? data.at("rtc_ice_config").dump() : "";
+            result.relay_host = data.value("relay_host", "");
+            result.relay_port = data.value("relay_port", 0);
+            result.signal_device_id = data.value("signal_device_id", "");
+            if (result.ticket.empty() || result.renewal_token.empty() || result.stream_id.empty()
+                || (require_launch_url && result.launch_url.empty())) {
+                return TcErr(ConsoleApiError::kParseJsonFailed);
+            }
+            return result;
         }
 
     }
@@ -88,7 +114,11 @@ namespace px_console
         client->SetHeader("Authorization", "Bearer " + access_token);
         json obj;
         obj["client_nonce"] = client_nonce;
-        obj["requested_permissions"] = requested_permissions;
+        // The server owns capability assignment. The legacy vector remains
+        // only as a UI-intent bridge until callers move to an explicit role.
+        obj["join_mode"] = std::find(
+            requested_permissions.begin(), requested_permissions.end(), "input")
+            == requested_permissions.end() ? "observe" : "control";
         auto resp = client->Post({}, obj.dump(), "application/json");
 
         if (resp.status != 200 || resp.body.empty()) {
@@ -97,23 +127,32 @@ namespace px_console
 
         try {
             auto data = json::parse(resp.body)[kData];
-            ConsoleConnectionTicket result;
-            result.ticket = data.value("ticket", "");
-            result.launch_url = data.value("launch_url", "");
-            result.expires_at = data.value("expires_at", 0LL);
-            result.permissions = data.value("permissions", std::vector<std::string>{});
-            result.rtc_ice_config_json = data.contains("rtc_ice_config")
-                ? data.at("rtc_ice_config").dump() : "";
-            result.relay_host = data.value("relay_host", "");
-            result.relay_port = data.value("relay_port", 0);
-            result.signal_device_id = data.value("signal_device_id", "");
-            if (result.ticket.empty() || result.launch_url.empty()) {
-                return TcErr(ConsoleApiError::kParseJsonFailed);
-            }
-            return result;
+            return ParseConnectionTicket(data, true);
         }
         catch (const std::exception& e) {
             LOGE("IssueDeviceTicket parse failed: {}", e.what());
+            return TcErr(ConsoleApiError::kParseJsonFailed);
+        }
+    }
+
+    px::Result<ConsoleConnectionTicket, ConsoleApiError>
+    ConsoleUserDeviceApi::RenewConnectionTicket(const std::string& host,
+                                                  const int port,
+                                                  const std::string& renewal_token,
+                                                  const std::string& client_nonce) {
+        const auto client = MakeConsoleHttpClient(host, port, std::string(kRenewConnectionTicket), 3000);
+        const auto response = client->Post({}, json{
+            {"renewal_token", renewal_token},
+            {"client_nonce", client_nonce},
+        }.dump(), "application/json");
+        if (response.status != 200 || response.body.empty()) {
+            return HttpError<ConsoleConnectionTicket>("RenewConnectionTicket", response);
+        }
+        try {
+            return ParseConnectionTicket(json::parse(response.body).at(kData), false);
+        }
+        catch (const std::exception& error) {
+            LOGE("RenewConnectionTicket parse failed: {}", error.what());
             return TcErr(ConsoleApiError::kParseJsonFailed);
         }
     }

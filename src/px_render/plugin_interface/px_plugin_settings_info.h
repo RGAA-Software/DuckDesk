@@ -23,6 +23,8 @@ namespace px
         std::string relay_port_;
         // can be operated by mouse and keyboard
         bool can_be_operated_ = true;
+        // Local no-Console Direct RTC takeover policy.
+        bool direct_allow_takeover_ = true;
         // relay enabled
         bool relay_enabled_ = true;
         // language // default is English

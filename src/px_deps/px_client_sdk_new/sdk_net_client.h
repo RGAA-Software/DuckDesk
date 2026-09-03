@@ -107,6 +107,10 @@ namespace px
         void CheckUdpMediaProbeTimeout();
         void OnUdpMediaReady();
         void BeginUdpWebSocketFallback();
+        void StartUdpDirectMedia();
+        void StartFileTransferConnection();
+        [[nodiscard]] std::string MakeAuthenticatedWebSocketPath(
+            std::string path, bool file_only = false) const;
         std::shared_ptr<Connection> MakeDirectWebSocketMediaConnection(bool udp_media) const;
         void StartManagedUdpMediaConnection(const std::shared_ptr<Connection>& connection,
                                             uint64_t generation);
@@ -157,6 +161,8 @@ namespace px
         UdpMediaFallbackState udp_media_fallback_state_;
         std::atomic_uint64_t managed_media_generation_{0};
         std::atomic_int64_t udp_media_probe_deadline_ms_{0};
+        std::atomic_bool udp_direct_started_{false};
+        std::atomic_bool file_transfer_started_{false};
         std::atomic_bool connection_notified_{false};
         static constexpr int64_t kUdpMediaProbeTimeoutMs = 4000;
         uint64_t hb_idx_ = 0;

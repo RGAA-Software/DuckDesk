@@ -62,6 +62,11 @@ pub struct ConsoleDeviceVo {
     #[serde(default)]
     pub active: bool,
 
+    #[serde(default = "default_true")]
+    pub allow_observer: bool,
+    #[serde(default = "default_true")]
+    pub allow_takeover: bool,
+
     #[serde(default)]
     pub sys_info: SysInfo,
 
@@ -92,9 +97,15 @@ impl ConsoleDeviceVo {
             online: false,
             device_ip_addr: device.get_ip_from_link(),
             active: device.active,
+            allow_observer: device.allow_observer,
+            allow_takeover: device.allow_takeover,
             sys_info: Default::default(),
             panel_lan_ips: device.panel_lan_ips.clone(),
             panel_http_port: device.panel_http_port,
         }
     }
+}
+
+fn default_true() -> bool {
+    true
 }

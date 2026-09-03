@@ -244,6 +244,11 @@ fn ticket_response(
     request_id: String,
     result: crate::service_host::TicketRedeemResult,
 ) -> service_core::ServiceMessage {
+    tracing::info!(
+        ticket_redemption_ok = result.ok,
+        grant_permission_count = result.permissions.len(),
+        "forwarding connection ticket redemption result to Render"
+    );
     service_core::ServiceMessage {
         r#type: service_core::ServiceMessageType::RedeemConnectionTicketResp as i32,
         redeem_connection_ticket_resp: Some(service_core::MsgRedeemConnectionTicketResp {
@@ -259,6 +264,11 @@ fn ticket_response(
                 subject_id: result.subject_id,
                 permissions: result.permissions,
                 expires_at: result.expires_at,
+                logical_session_id: result.logical_session_id,
+                stream_id: result.stream_id,
+                join_mode: result.join_mode,
+                allow_observer: result.allow_observer,
+                allow_takeover: result.allow_takeover,
             }),
             rtc_ice_config_json: result.rtc_ice_config_json,
         }),

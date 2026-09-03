@@ -18,6 +18,8 @@
 #include "app/app_messages.h"
 #include "px_service_message.pb.h"
 #include "settings/rd_settings.h"
+#include "session/logical_session_registry.h"
+#include <nlohmann/json.hpp>
 
 namespace px
 {
@@ -27,6 +29,43 @@ namespace px
     namespace {
 
         constexpr auto kTicketRedemptionTimeout = std::chrono::seconds(5);
+
+        std::string LogicalTransportName(const LogicalSessionTransport transport) {
+            switch (transport) {
+            case LogicalSessionTransport::kWs: return "ws";
+            case LogicalSessionTransport::kRtcLocal: return "rtc_local";
+            case LogicalSessionTransport::kRtc: return "rtc";
+            case LogicalSessionTransport::kUdp: return "udp";
+            case LogicalSessionTransport::kFileTransfer: return "file_transfer";
+            }
+            return "unknown";
+        }
+
+        std::string BuildLogicalSessionsJson(
+            const std::shared_ptr<LogicalSessionRegistry>& registry) {
+            nlohmann::json sessions = nlohmann::json::array();
+            if (!registry) {
+                return sessions.dump();
+            }
+            const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            for (const auto& snapshot : registry->SnapshotActive(now_ms)) {
+                nlohmann::json transports = nlohmann::json::array();
+                for (const auto transport : snapshot.transports) {
+                    transports.push_back(LogicalTransportName(transport));
+                }
+                sessions.push_back({
+                    {"logical_session_id", snapshot.logical_session_id},
+                    {"takeover_previous_session_id", snapshot.takeover_previous_session_id},
+                    {"stream_id", snapshot.stream_id},
+                    {"subject_id", snapshot.subject_id},
+                    {"role", snapshot.role == LogicalSessionRole::kController
+                        ? "controller" : "observer"},
+                    {"transports", std::move(transports)},
+                });
+            }
+            return sessions.dump();
+        }
 
         template<typename T>
         PxAwaitable<PxResult<T>> ReadyAsyncResult(PxResult<T> result) {
@@ -61,7 +100,14 @@ namespace px
             bool,
             const std::string&,
             const std::vector<std::string>&,
-            const std::string&)>;
+            const std::string&,
+            const std::string&,
+            const std::string&,
+            const std::string&,
+            const std::string&,
+            int64_t,
+            bool,
+            bool)>;
 
         PxAwaitable<void> CompleteLegacyTicketRequest(
             std::weak_ptr<RenderServiceClient> weak_client,
@@ -71,7 +117,7 @@ namespace px
             std::shared_ptr<TicketCallback> callback) {
             auto client = weak_client.lock();
             if (!client) {
-                (*callback)(false, "SERVICE_STOPPED", {}, {});
+                (*callback)(false, "SERVICE_STOPPED", {}, {}, {}, {}, {}, {}, 0, true, true);
                 co_return;
             }
             auto request = client->RedeemConnectionTicketAsync(
@@ -83,11 +129,14 @@ namespace px
             auto result = co_await std::move(request);
             if (result.HasValue()) {
                 auto value = result.TakeValue();
-                (*callback)(true, {}, value.permissions, value.rtc_ice_config_json);
+                (*callback)(true, {}, value.permissions, value.rtc_ice_config_json,
+                            value.logical_session_id, value.stream_id, value.join_mode,
+                            value.subject_id, value.expires_at_ms,
+                            value.allow_observer, value.allow_takeover);
             }
             else {
                 const auto& error = result.Error();
-                (*callback)(false, error.StableCode(), {}, {});
+                (*callback)(false, error.StableCode(), {}, {}, {}, {}, {}, {}, 0, true, true);
             }
             co_return;
         }
@@ -322,6 +371,9 @@ namespace px
         }
         else if (sm.type() == ServiceMessageType::kSrvRedeemConnectionTicketResp) {
             const auto& sub = sm.redeem_connection_ticket_resp();
+            LOGI("Received connection ticket redemption response: ok={}, grant_present={}, grant_permission_count={}",
+                 sub.ok(), sub.has_grant(),
+                 sub.has_grant() ? sub.grant().permissions_size() : 0);
             PxResult<RedeemedConnectionTicket> result = [&sub]() {
                 if (!sub.ok()) {
                     return PxResult<RedeemedConnectionTicket>::Failure(MakePxAsyncError(
@@ -336,6 +388,13 @@ namespace px
                     ticket.permissions.assign(
                         sub.grant().permissions().begin(),
                         sub.grant().permissions().end());
+                    ticket.logical_session_id = sub.grant().logical_session_id();
+                    ticket.stream_id = sub.grant().stream_id();
+                    ticket.join_mode = sub.grant().join_mode();
+                    ticket.subject_id = sub.grant().subject_id();
+                    ticket.expires_at_ms = sub.grant().expires_at();
+                    ticket.allow_observer = sub.grant().allow_observer();
+                    ticket.allow_takeover = sub.grant().allow_takeover();
                 }
                 ticket.rtc_ice_config_json = sub.rtc_ice_config_json();
                 return PxResult<RedeemedConnectionTicket>::Success(std::move(ticket));
@@ -429,6 +488,8 @@ namespace px
         auto sub = msg.mutable_heart_beat();
         sub->set_index(hb_idx++);
         sub->set_from(std::format("render_{}", RdSettings::Instance()->transmission_.listening_port_));
+        sub->set_logical_sessions_json(BuildLogicalSessionsJson(
+            app_ ? app_->GetLogicalSessionRegistry() : std::shared_ptr<LogicalSessionRegistry>{}));
         PostNetMessage(msg.SerializeAsString());
     }
 
@@ -534,12 +595,14 @@ namespace px
         const std::string& client_nonce,
         const std::string& instance_id,
         std::function<void(bool, const std::string&, const std::vector<std::string>&,
-                           const std::string&)>&& callback) {
+                           const std::string&, const std::string&, const std::string&,
+                           const std::string&, const std::string&, int64_t,
+                           bool, bool)>&& callback) {
         if (!callback) {
             return;
         }
         if (!async_scope_ || !async_scope_->IsAccepting()) {
-            callback(false, "SERVICE_STOPPED", {}, "");
+            callback(false, "SERVICE_STOPPED", {}, "", "", "", "", "", 0, true, true);
             return;
         }
         const auto callback_state = std::make_shared<TicketCallback>(std::move(callback));
@@ -549,7 +612,7 @@ namespace px
                     return CompleteLegacyTicketRequest(
                         weak_self, ticket, client_nonce, instance_id, callback_state);
                 })) {
-            (*callback_state)(false, "SERVICE_STOPPED", {}, "");
+            (*callback_state)(false, "SERVICE_STOPPED", {}, "", "", "", "", "", 0, true, true);
         }
     }
 

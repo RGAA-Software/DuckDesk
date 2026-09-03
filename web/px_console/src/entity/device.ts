@@ -17,6 +17,8 @@ export class Device {
     public online: boolean = false,
     public device_ip_addr: string = '',
     public active: boolean = false,
+    public allow_observer: boolean = true,
+    public allow_takeover: boolean = true,
     public sys_info: SysInfo = new SysInfo(),
   ) {}
 }

@@ -95,7 +95,7 @@ namespace px
     private:
         void LoadRtcLibrary();
         void InitRtcClient();
-        void RequestAnswerSdp(const std::string& offer_sdp, bool takeover);
+        void RequestAnswerSdp(const std::string& offer_sdp);
         void OnEncodedVideoFrame(int track_index, bool key, int w, int h, std::shared_ptr<Data> encoded);
         std::string MakeSafetyPwdMd5();
         void RunInRtcThread(std::function<void()>&& task);

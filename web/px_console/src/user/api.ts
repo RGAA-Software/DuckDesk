@@ -207,15 +207,15 @@ export function prepareLaunchUrl(result: TicketLaunch) {
   return launch.toString()
 }
 
-function requestedPermissions(viewOnly: boolean) {
-  return viewOnly ? ['view'] : ['view', 'input', 'clipboard', 'file', 'audio']
+function joinMode(viewOnly: boolean) {
+  return viewOnly ? 'observe' : 'control'
 }
 
 export async function openDevice(deviceId: string, viewOnly = false) {
   const result = data<TicketLaunch>(
     await userHttp.post(`/api/v1/user/devices/${encodeURIComponent(deviceId)}/ticket`, {
       client_nonce: nonce(`device_${deviceId}`),
-      requested_permissions: requestedPermissions(viewOnly),
+      join_mode: joinMode(viewOnly),
     }),
   )
   window.location.assign(prepareLaunchUrl(result))
@@ -237,7 +237,7 @@ export async function openInstance(instance: InstanceView, clientNonce?: string,
       `/api/v1/user/instances/${encodeURIComponent(instance.instance_id)}/ticket`,
       {
         client_nonce: clientNonce || nonce(`instance_${instance.instance_id}`),
-        requested_permissions: requestedPermissions(viewOnly),
+        join_mode: joinMode(viewOnly),
       },
     ),
   )

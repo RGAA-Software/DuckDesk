@@ -102,14 +102,14 @@ namespace px
         };
     }
 
-    void UdpDirectConnection::Start(const std::string& host, int udp_port,
-                                    const std::string& device_id, const std::string& stream_id) {
+    void UdpDirectConnection::Start(const std::string& host, int udp_port, const std::string& stream_id,
+                                    const std::string& association_code) {
         const auto weak_self = weak_from_this();
         InstallCallbacks();
         host_ = host;
         udp_port_ = udp_port;
-        device_id_ = device_id;
         stream_id_ = stream_id;
+        association_code_ = association_code;
 
         // 支持同实例重连:先停旧 socket,再清空连接态与组帧/jitter 状态。
         // 否则 render 重启/接管后 frame_index 回退,旧 finished_ 水位会把新流全丢。
@@ -128,6 +128,7 @@ namespace px
         last_rfi_time_.clear();
         audio_lost_log_count_ = 0;
         media_ready_reported_ = false;
+        received_media_packet_ = false;
         reassembler_.Reset();
         audio_jitter_.Reset();
 
@@ -160,8 +161,10 @@ namespace px
                     sock.get_option(snd, ec);
                     LOGI("udp direct socket buffer: rcv = {}, snd = {}", rcv.value(), snd.value());
                 }
-                // 立即发 hello,render 按源地址绑定媒体会话并触发该屏 IDR
-                self->PostBinaryMessage(PxUdpProtocol::BuildHello(self->device_id_, self->stream_id_));
+                // The endpoint can only be associated after the matching WS
+                // control binding created this short-lived media association.
+                self->PostBinaryMessage(PxUdpProtocol::BuildHello(
+                    self->association_code_, self->stream_id_));
                 // 显式补一发 IDR 请求。正常路径 render 收到连接事件会自己插 IDR,
                 // 但 render 重启/断线重建时容易出现“hello 已发、关键帧没来”,客户端会
                 // 一直停在“已收到配置信息,等待视频帧”。这里不依赖事件链路,再要一次。
@@ -170,7 +173,14 @@ namespace px
                 // 1s 心跳:保持 NAT 映射,让 render 感知会话在线
                 self->udp_client_->start_timer(kTimerHeartbeat, 1000, [weak_self]() {
                     if (const auto locked = weak_self.lock()) {
-                        locked->PostBinaryMessage(PxUdpProtocol::BuildHeartbeat(locked->stream_id_));
+                        if (locked->received_media_packet_) {
+                            locked->PostBinaryMessage(PxUdpProtocol::BuildHeartbeat(
+                                locked->association_code_));
+                        }
+                        else {
+                            locked->PostBinaryMessage(PxUdpProtocol::BuildHello(
+                                locked->association_code_, locked->stream_id_));
+                        }
                     }
                 });
                 // 无完整视频帧兜底:2s 内没组出帧再请 IDR(节流 1s)。
@@ -237,6 +247,7 @@ namespace px
         auto total = ++recv_pkt_count_;
         auto pkt_type = PxUdpProtocol::ParseCommon(data, size);
         if (pkt_type == PxUdpProtocol::kPktVideo) {
+            received_media_packet_ = true;
             recv_video_pkt_count_++;
             PxUdpProtocol::VideoShardInfo shard;
             if (!PxUdpProtocol::ParseVideoShard(data, size, shard)) {
@@ -245,6 +256,7 @@ namespace px
             reassembler_.AddPacket(data, size);
         }
         else if (pkt_type == PxUdpProtocol::kPktAudio) {
+            received_media_packet_ = true;
             PxUdpProtocol::AudioPacketInfo audio;
             if (PxUdpProtocol::ParseAudioPacket(data, size, audio)) {
                 audio_jitter_.AddPacket(audio.seq_, audio.timestamp_ms_, audio.payload_, audio.payload_len_);
