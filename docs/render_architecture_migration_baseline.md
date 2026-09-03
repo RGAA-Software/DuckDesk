@@ -264,7 +264,7 @@ interface。
 | `net_rtc_local.dll` | 23,812,096 B | `8DAD463F79CE4E9A794DFC8FDB917E915C58CE0EAE26F574A9710AA5969D4645` |
 
 `px_render.exe` 的最终 SHA-256 为
-`8495E7F25A91C7DBA847BEB1D2C59F0C633411E9CAEC2C37348AF9C5109443F1`。以上三项均在
+`98E99368C5F762FB962BCB1F5C82E288BEC22F9F595EBC9F64E991AE1FEE4D27`。以上三项均在
 最后一次构建后重新发布，并独立比较 build tree 与 dist，结果全部相同；
 `render_retired_modules_guard -CheckDist` 通过。
 
@@ -284,6 +284,9 @@ interface。
   callback、shutdown 或 re-entry 在持有组合锁时发生。
 - 架构门禁新增断言：具名 transport getter 不得回到 registry 公共头文件，三个通用 visitor
   不得出现在组合实现以外的 Render C++ 文件。
+- `WebRtcLibraryHost::Load` 的公开结果从 `shared_ptr<PxNetPlugin>` 改为具体
+  `WebRtcLibraryLease`。调用方只能观察固定的 remote/local DLL 身份和持有 RAII 生命周期；
+  旧 ABI 模块对象只能由组合注册表这一兼容友元取得。
 
 本阶段 `px_render` 聚焦构建通过，统一 Render CTest 18/18 通过，ownership、architecture
 guard 和 `git diff --check` 均通过；构建树与 dist 的上述最终哈希重新核对一致。

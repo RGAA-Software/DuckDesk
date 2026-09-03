@@ -105,48 +105,29 @@ TEST(RtcPluginsDllLifecycle, LocalRtcRapidStartStopAndUnload) {
     RunLifecycleRounds(PX_RTC_LOCAL_PLUGIN_DLL_PATH);
 }
 
-TEST(RtcPluginsDllLifecycle, FixedHostKeepsLibrariesAliveUntilLastAliasRelease) {
+TEST(RtcPluginsDllLifecycle, FixedHostKeepsLibrariesAliveUntilLastLeaseRelease) {
     const auto rtc_path = std::filesystem::path(PX_RTC_PLUGIN_DLL_PATH);
     const auto rtc_local_path =
         std::filesystem::path(PX_RTC_LOCAL_PLUGIN_DLL_PATH);
     const ScopedWebRtcLayout layout(rtc_path, rtc_local_path);
 
     auto host = WebRtcLibraryHost::Create(layout.Directory());
-    auto modules = host->Load();
-    ASSERT_EQ(modules.size(), 2U);
+    auto libraries = host->Load();
+    ASSERT_EQ(libraries.size(), 2U);
+    EXPECT_EQ(libraries[0]->Kind(), WebRtcLibraryKind::kRemote);
+    EXPECT_EQ(libraries[0]->BaseName(), "net_rtc");
+    EXPECT_EQ(libraries[1]->Kind(), WebRtcLibraryKind::kLocal);
+    EXPECT_EQ(libraries[1]->BaseName(), "net_rtc_local");
 
-    for (const auto& module : modules) {
-        ASSERT_TRUE(module);
-        PxPluginParam parameters;
-        parameters.cluster_["name"] =
-            module->GetPluginId() == kNetRtcPluginId
-                ? rtc_path.filename().string()
-                : rtc_local_path.filename().string();
-        parameters.cluster_["base_path"] =
-            rtc_path.parent_path().generic_string();
-        parameters.cluster_["base_data_path"] =
-            std::filesystem::temp_directory_path().wstring();
-        parameters.cluster_["device_id"] = std::string("rtc-host-lifecycle");
-        parameters.cluster_["language"] = int64_t{0};
-        parameters.cluster_["appkey"] = std::string("host-lifecycle-key");
-        ASSERT_TRUE(module->OnCreate(parameters));
-        module->RegisterEventCallback(
-            [](const std::shared_ptr<PxPluginBaseEvent>&) {});
-    }
-
-    for (const auto& module : modules) {
-        EXPECT_TRUE(module->OnStop());
-        EXPECT_TRUE(module->OnDestroy());
-    }
     host->Reset();
     host.reset();
 
-    // The returned aliases own the DynamicLibrary handles even after the host
+    // Concrete leases own the DynamicLibrary handles even after the host
     // itself has been destroyed.
     EXPECT_NE(GetModuleHandleW(rtc_path.filename().c_str()), nullptr);
     EXPECT_NE(GetModuleHandleW(rtc_local_path.filename().c_str()), nullptr);
 
-    modules.clear();
+    libraries.clear();
     EXPECT_EQ(GetModuleHandleW(rtc_path.filename().c_str()), nullptr);
     EXPECT_EQ(GetModuleHandleW(rtc_local_path.filename().c_str()), nullptr);
 }

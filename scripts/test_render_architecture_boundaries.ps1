@@ -140,6 +140,13 @@ $webRtcHostHeader = Get-Content -LiteralPath `
 if ($webRtcHostHeader -match "PxPluginInterface") {
     $violations.Add("webrtc_library_host.h: fixed WebRTC host must expose a network component, not the generic plug-in interface")
 }
+if ($webRtcHostHeader -match
+    "vector\s*<\s*std::shared_ptr\s*<\s*PxNetPlugin") {
+    $violations.Add("webrtc_library_host.h: public WebRTC loading must return concrete library leases")
+}
+if ($webRtcHostHeader -notmatch "WebRtcLibraryLease") {
+    $violations.Add("webrtc_library_host.h: missing concrete WebRTC DLL lifetime lease")
+}
 
 $wsBuiltInFiles = Get-ChildItem -LiteralPath `
     (Join-Path $RepoRoot "src\px_render\plugins\net_ws") -Recurse -File |

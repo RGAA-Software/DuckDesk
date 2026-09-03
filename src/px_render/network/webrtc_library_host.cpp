@@ -14,6 +14,41 @@ using WebRtcFactory = void* (*)(); // NOLINT(gammaray-raw-pointer-boundary): est
 
 }  // namespace
 
+class WebRtcLibraryLease::State final {
+public:
+    State(std::string base_name,
+          const WebRtcLibraryKind kind,
+          std::shared_ptr<DynamicLibrary> library,
+          std::shared_ptr<PxNetPlugin> compatibility_module)
+        : base_name_(std::move(base_name)),
+          kind_(kind),
+          library_(std::move(library)),
+          compatibility_module_(std::move(compatibility_module)) {}
+
+    const std::string base_name_;
+    const WebRtcLibraryKind kind_;
+    const std::shared_ptr<DynamicLibrary> library_;
+    const std::shared_ptr<PxNetPlugin> compatibility_module_;
+};
+
+WebRtcLibraryLease::WebRtcLibraryLease(std::shared_ptr<State> state)
+    : state_(std::move(state)) {}
+
+WebRtcLibraryLease::~WebRtcLibraryLease() = default;
+
+WebRtcLibraryKind WebRtcLibraryLease::Kind() const {
+    return state_->kind_;
+}
+
+std::string WebRtcLibraryLease::BaseName() const {
+    return state_->base_name_;
+}
+
+std::shared_ptr<PxNetPlugin>
+WebRtcLibraryLease::CompatibilityModule() const {
+    return state_->compatibility_module_;
+}
+
 std::shared_ptr<WebRtcLibraryHost> WebRtcLibraryHost::Create(
     std::filesystem::path library_directory) {
     return std::make_shared<WebRtcLibraryHost>(
@@ -28,25 +63,26 @@ WebRtcLibraryHost::~WebRtcLibraryHost() {
     Reset();
 }
 
-std::vector<std::shared_ptr<PxNetPlugin>> WebRtcLibraryHost::Load() {
-    if (!loaded_modules_.empty()) {
-        return loaded_modules_;
+std::vector<std::shared_ptr<WebRtcLibraryLease>> WebRtcLibraryHost::Load() {
+    if (!loaded_libraries_.empty()) {
+        return loaded_libraries_;
     }
-    for (const auto& base_name : {std::string("net_rtc"),
-                                  std::string("net_rtc_local")}) {
-        if (auto module = LoadExact(base_name)) {
-            loaded_modules_.push_back(std::move(module));
+    for (const auto& [base_name, kind] : {
+             std::pair{std::string("net_rtc"), WebRtcLibraryKind::kRemote},
+             std::pair{std::string("net_rtc_local"), WebRtcLibraryKind::kLocal}}) {
+        if (auto library = LoadExact(base_name, kind)) {
+            loaded_libraries_.push_back(std::move(library));
         }
     }
-    return loaded_modules_;
+    return loaded_libraries_;
 }
 
 void WebRtcLibraryHost::Reset() {
-    loaded_modules_.clear();
+    loaded_libraries_.clear();
 }
 
-std::shared_ptr<PxNetPlugin> WebRtcLibraryHost::LoadExact(
-    const std::string& base_name) {
+std::shared_ptr<WebRtcLibraryLease> WebRtcLibraryHost::LoadExact(
+    const std::string& base_name, const WebRtcLibraryKind kind) {
 #if defined(_WIN32)
     const auto path = library_directory_ / (base_name + ".dll");
 #else
@@ -80,7 +116,7 @@ std::shared_ptr<PxNetPlugin> WebRtcLibraryHost::LoadExact(
              base_name);
         return {};
     }
-    auto module = std::shared_ptr<PxNetPlugin>(
+    auto compatibility_module = std::shared_ptr<PxNetPlugin>(
         instance,
         [library](PxNetPlugin*) noexcept { // NOLINT(gammaray-raw-pointer-boundary): DLL owns singleton; captured RAII library governs unload
             static_cast<void>(library);
@@ -88,7 +124,9 @@ std::shared_ptr<PxNetPlugin> WebRtcLibraryHost::LoadExact(
     LOGI("event=webrtc.library.load component=webrtc_library_host "
          "library={} outcome=success",
          base_name);
-    return module;
+    auto state = std::make_shared<WebRtcLibraryLease::State>(
+        base_name, kind, library, std::move(compatibility_module));
+    return std::make_shared<WebRtcLibraryLease>(std::move(state));
 }
 
 }  // namespace px

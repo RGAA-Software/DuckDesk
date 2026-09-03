@@ -159,14 +159,15 @@ namespace px
 
         webrtc_library_host_ = WebRtcLibraryHost::Create(
             PathFromUTF8(base_path) / "deps" / "rd_plugins");
-        for (const auto& module : webrtc_library_host_->Load()) {
+        for (const auto& library : webrtc_library_host_->Load()) {
+            const auto module = library
+                ? library->CompatibilityModule()
+                : std::shared_ptr<PxNetPlugin>{};
             if (!module) {
                 continue;
             }
             auto param = base_param;
-            param.cluster_["name"] = module->GetPluginId() == kNetRtcPluginId
-                ? std::string("net_rtc.dll")
-                : std::string("net_rtc_local.dll");
+            param.cluster_["name"] = library->BaseName() + ".dll";
             const auto module_id = module->GetPluginId();
             const auto duplicate = std::ranges::any_of(
                 lifecycle_modules_,
