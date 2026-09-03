@@ -17,6 +17,8 @@ const EXPECT_CANDIDATE_TYPE = process.env.EXPECT_CANDIDATE_TYPE || ''
 const EXPECT_RELAY_PROTOCOL = process.env.EXPECT_RELAY_PROTOCOL || ''
 const FORCE_RELAY = process.env.FORCE_RELAY === '1'
 const TAKEOVER_CONFIRMATION = process.env.TAKEOVER_CONFIRMATION || 'default'
+const EXPECT_INPUT = process.env.EXPECT_INPUT || ''
+const MAX_LOSS_RATE_PERCENT = Number(process.env.MAX_LOSS_RATE_PERCENT || 0)
 const QUIET = process.env.QUIET === '1'
 const FT_E2E_BYTES = Number(process.env.FT_E2E_BYTES || 0)
 const FT_CANCEL_E2E_BYTES = Number(process.env.FT_CANCEL_E2E_BYTES || 0)
@@ -371,7 +373,10 @@ async function main() {
       }
     }
     if (!QUIET) console.log(`[t=${t + 3}s]`, JSON.stringify(s))
-    if (!first?.inbound && s.inbound) first = s
+    if (!first?.inbound && s.inbound) {
+      first = s
+      console.log('RTC_PHASE: media-ready')
+    }
     if (s.inbound) last = s
     if (s.pair && s.localCand && s.remoteCand) {
       lastWithPair = s
@@ -393,6 +398,30 @@ async function main() {
   if (finalSample.conn !== 'connected' || !['connected', 'completed'].includes(finalSample.ice)) {
     throw new Error(`观测结束时 RTC 已断开: conn=${finalSample.conn} ice=${finalSample.ice}`)
   }
+  if (EXPECT_INPUT) {
+    let inputState = null
+    const inputDeadline = Date.now() + (EXPECT_INPUT === 'enabled' ? 15000 : 2000)
+    do {
+      inputState = await evaluate(`({
+        attached: !!window.__input?.attached?.(),
+        viewOnly: window.__input?.viewOnly?.() ?? null,
+      })`).catch(() => null)
+      if (EXPECT_INPUT === 'enabled' && inputState?.attached) break
+      await sleep(250)
+    } while (Date.now() < inputDeadline)
+    if (EXPECT_INPUT === 'enabled') {
+      if (!inputState?.attached) throw new Error('Controller 输入通道未就绪')
+      const probe = await evaluate(`(() => {
+        const result = window.__input?.testSend?.({ x: 0.5, y: 0.5, keyCode: 'None' })
+        return { result }
+      })()`)
+      if (!probe?.result?.ok || probe.result.dc !== 'open') {
+        throw new Error(`Controller 输入探针未发送: ${JSON.stringify(probe)}`)
+      }
+    } else if (inputState?.attached) {
+      throw new Error(`Observer 不应创建输入通道: ${JSON.stringify(inputState)}`)
+    }
+  }
   const frameDelta = last.inbound.dec - first.inbound.dec
   const staticFrameHold = frameDelta === 0 &&
     last.inbound.bytes === first.inbound.bytes &&
@@ -407,6 +436,10 @@ async function main() {
     throw new Error(`视频解码停止但 RTP 状态仍在变化: ${frameDelta}`)
   }
   const observedLost = (last.inbound.lost || 0) - (first.inbound.lost || 0)
+  const observedPackets = Math.max(0, (last.inbound.pkts || 0) - (first.inbound.pkts || 0))
+  const observedLossRatePercent = observedPackets + observedLost > 0
+    ? (observedLost * 100) / (observedPackets + observedLost)
+    : 0
   const observedFreezes = (last.inbound.freezeCount || 0) - (first.inbound.freezeCount || 0)
   const observedFreezeDuration =
     (last.inbound.totalFreezesDuration || 0) - (first.inbound.totalFreezesDuration || 0)
@@ -417,8 +450,8 @@ async function main() {
   // Keep those values as quality evidence; liveness is gated above by decoded
   // progress or a coherent static-frame hold. The deterministic LAN transport
   // failure here is newly lost RTP packets.
-  if (observedLost > 0) {
-    throw new Error(`LAN 稳态观测窗口存在新增丢包: lostDelta=${observedLost} freezeDelta=${observedFreezes} freezeDurationDelta=${observedFreezeDuration}`)
+  if (observedLost > 0 && observedLossRatePercent > MAX_LOSS_RATE_PERCENT) {
+    throw new Error(`LAN 稳态观测窗口丢包率超限: lostDelta=${observedLost} lossRate=${observedLossRatePercent.toFixed(2)}% max=${MAX_LOSS_RATE_PERCENT}% freezeDelta=${observedFreezes} freezeDurationDelta=${observedFreezeDuration}`)
   }
   const selected = [lastWithPair.localCand, lastWithPair.remoteCand].filter(Boolean)
   if (EXPECT_CANDIDATE_TYPE && !selected.some((candidate) => candidate.type === EXPECT_CANDIDATE_TYPE)) {
@@ -435,6 +468,7 @@ async function main() {
     staticFrameHold,
     startupLost: first.inbound.lost || 0,
     observedLost,
+    observedLossRatePercent,
     observedFreezes,
     observedFreezeDuration,
     pairSamples,

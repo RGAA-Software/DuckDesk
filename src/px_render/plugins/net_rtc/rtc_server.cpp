@@ -492,6 +492,18 @@ namespace px
         LOGW("Client disconnected event emitted, stream: {}", event->stream_id_);
     }
 
+    void RtcServer::EmitFileTransferDisconnectedEvent() {
+        if (!runtime_ || stream_id_.empty()) {
+            return;
+        }
+        auto event = std::make_shared<PxPluginFileTransferDisconnectedEvent>();
+        event->stream_id_ = stream_id_;
+        event->connection_instance_id_ = connection_instance_id_;
+        runtime_->QueueEvent(event);
+        LOGI("File-transfer route disconnected, connection: {}, stream: {}",
+             connection_instance_id_, stream_id_);
+    }
+
     void RtcServer::Exit() {
         exit_ = true;
         if (media_data_channel_) {

@@ -116,6 +116,8 @@ public:
         const std::string& binding_id, int64_t now_ms) const;
     std::optional<LogicalSessionInputLease> FindControllerInputLeaseByStream(
         const std::string& stream_id, int64_t now_ms) const;
+    std::optional<std::string> FindLogicalSessionIdByBinding(
+        const std::string& binding_id, int64_t now_ms) const;
 
     std::optional<LogicalSessionRole> FindRole(const std::string& logical_session_id) const;
     std::optional<std::string> FindStreamId(const std::string& logical_session_id) const;
@@ -142,12 +144,11 @@ private:
         std::unordered_map<std::string, Binding> bindings;
     };
 
-    bool IsExpired(const Session& session, int64_t now_ms) const;
     bool HasControllerBinding(const Session& session) const;
     LogicalSessionBindingClosed CloseBindingLocked(
         std::unordered_map<std::string, Session>::iterator session_it,
         const std::string& binding_id, int64_t now_ms);
-    void RemoveExpiredLocked(int64_t now_ms);
+    void RemoveStaleSessionsLocked(int64_t now_ms);
     LogicalSessionAdmission AdoptControllerLocked(const LogicalSessionGrant& grant,
                                                   LogicalSessionTransport transport,
                                                   const std::string& binding_id,

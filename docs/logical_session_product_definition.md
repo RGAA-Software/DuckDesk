@@ -36,7 +36,7 @@ LogicalSession
   transport_bindings[]       WS / RTC / FT 的连接身份及状态；UDP 仅保存其控制面关联的媒体端点
 ```
 
-`stream_id` 是会话的内部路由别名，必须一对一绑定 `session_id`，由 Console 或本机直连签发器生成。每一个 WS、RTC、文件传输连接都必须校验令牌的实例、角色、能力、有效期、服务端签发的 `stream_id` 及连接绑定；旧客户端可能携带的 query `stream_id` 只是兼容输入，不能选择、覆盖或否决 ticket 已绑定的路由。UDP 不携带也不处理 grant：可靠控制面先创建并固定媒体端点/短期媒体密钥，UDP 仅把音视频发往该端点；未知端点或密钥的报文直接丢弃，绝不触发会话建立、接管、断开或重连。
+`stream_id` 是会话的内部路由别名，必须一对一绑定 `session_id`，由 Console 或本机直连签发器生成。每一个新的 WS、RTC、文件传输连接在入场时都必须校验令牌的实例、角色、能力、有效期、服务端签发的 `stream_id` 及连接绑定；令牌有效期只限制新连接入场，已经建立的绑定由连接关闭、接管或服务端策略结束，不能因为短期令牌到期而在会话中途静默失去输入权或统计状态。旧客户端可能携带的 query `stream_id` 只是兼容输入，不能选择、覆盖或否决 ticket 已绑定的路由。UDP 不携带也不处理 grant：可靠控制面先创建并固定媒体端点/短期媒体密钥，UDP 仅把音视频发往该端点；未知端点或密钥的报文直接丢弃，绝不触发会话建立、接管、断开或重连。
 
 媒体运输切换只改变 `transport_bindings`，不改变逻辑会话。UDP 失败而回退 WS、RTC 重协商、或文件通道单独关闭，都不能被解释为“用户离线”，更不能释放另一个仍在线 Controller 的按键或鼠标状态。
 
@@ -104,7 +104,7 @@ Controller 持有 Render 实例范围内唯一的控制租约。所有输入事�
 - **资源优先级**：在机器 100 Mbps 网络等受限环境中，Controller/Player/Operator 的低延迟媒体优先；慢观看者独立降码率/降帧。存在互动会话时，文件传输默认限速至 20 Mbps，且不得挤占互动媒体发送队列。
 - **剪贴板**：系统剪贴板是全局资源，仅 Controller 双向同步；不能向全部 `stream_id` 广播。Observer 不接收剪贴板。
 - **文件传输**：路由键必须包含 `session_id` 和连接实例身份（例如 `connection_instance_id`），不能只使用 `stream_id`。文件通道关闭只能关闭自己的 route，不能触发整个逻辑会话的 disconnect。
-- **生命周期事件**：传输事件与逻辑会话事件分开。只有最后一个必要 binding 离开或 grant 终止时，才发 `LogicalSessionClosed`；媒体切换只发 `TransportChanged`。
+- **生命周期事件**：传输事件与逻辑会话事件分开。只有最后一个必要 binding 离开、显式撤销或服务端策略终止时，才发 `LogicalSessionClosed`；短期 grant 到期只拒绝新的 binding，不能关闭已建立会话，媒体切换只发 `TransportChanged`。
 
 ## 7. 统计、展示与审计
 
@@ -119,7 +119,7 @@ Issued -> Binding -> Active -> TransportSwitching -> Active
                   \-> Draining -> Closed
 ```
 
-文件传输 binding 可以独立进入/离开；它不驱动 `Active` 以外的逻辑会话状态变化。grant 到期、显式断开、控制租约被接管、或所有必需 binding 结束才进入 `Draining/Closed`。
+文件传输 binding 可以独立进入/离开；它不驱动 `Active` 以外的逻辑会话状态变化。显式断开、服务端撤销、控制租约被接管、或所有必需 binding 结束才进入 `Draining/Closed`。短期 grant 到期仅阻止新 binding 入场，已建立 binding 的生命周期仍由连接和服务端策略管理。
 
 ## 9. 对用户可见的产品文案
 
@@ -171,9 +171,9 @@ Panel 启动链正确，也不得记为产品链路通过。生产参数构造�
 
 最低回归集：Controller + Observer 并发、第二 Controller 拒绝/接管、Observer 伪造输入、WS+UDP 回退不触发逻辑离线、FT 关闭不释放输入、两会话并行 FT 不串流、无 ID IP 直连只验证密码、携带 ID 的兼容 direct grant 过期/重放/越权，以及重复 start/stop 与队列回调析构。
 
-## 13. 当前自动化验收基线（2026-09-02）
+## 13. 当前自动化验收基线（2026-09-03）
 
-- `test_logical_session_registry`：10/10，通过唯一 Controller、Observer 隔离、接管、重连窗口、FT 独立关闭和 transport 集合去重。
+- `test_logical_session_registry`：12/12，通过唯一 Controller、Observer 隔离、接管、重连窗口、FT 独立关闭、transport 集合去重，以及“短期 grant 只限制入场、已建立 binding 不会中途失去输入租约”的语义。
 - `test_file_transfer_route_registry`：6/6；WS 文件传输端到端以 1 MiB 文件完成上传、下载 SHA-256 校验和远端删除。
 - `test_direct_session_grant_store`：6/6，通过 grant 轮换、URL 安全的预留流 ID、过期、对端绑定校验及并发重放仅一个成功者。
 - `test_udp_media_fallback_state`：3/3，通过一次性 UDP→可靠 WS 媒体回退和停止后的迟到回调拒绝。
@@ -183,3 +183,7 @@ Panel 启动链正确，也不得记为产品链路通过。生产参数构造�
 - 2026-09-03 在 90 号机补充原生 Windows 客户端回归：无 Console 的 IP 直连显式省略 `remote_device_id` 时，仅验证设备密码且不回填本机 Console 设备号，Direct RTC、首帧、音频和文件通道全部通过；一条 Controller 保持在线时，Console ticket 的直连 WS 收到一次业务级 `occupied` 拒绝，3 秒观察内自动重试为 0，且准入前未上报 `MsgNetworkConnected`；Controller 退出并越过 5 秒保护期后，同一路径正常连接、首帧和文件通道通过。`run_native_auth_case.ps1` 以 `-OmitRemoteDeviceId` 和 `-ExpectOccupied` 固化这两个回归入口。
 - 2026-09-03 根据 Panel、客户端和 90 号机日志修复 IP 直连交替误报：失败样本中 Panel 的 `/verify/security/password` 已返回 200，随后子进程连接请求的 HTTP 403 实际业务码为 `704 occupied`，旧客户端却把所有 403 都显示为密码错误。修复后 Panel 在启动子进程前完成密码验证并让 Render 预留临时 `stream_id`，子进程只按正常参数连接，不再接收远端密码或额外授权环境变量。90 号机实测预留流可完成 IP 直连和视频首帧，子进程密码未配置、额外授权环境变量不存在；双客户端实测第二 Controller 得到 `403/704`、没有 `700`、自动重试 0 次；负向脚本的 `700/706/707` 四项门禁通过。
 - 2026-09-03 复核发现上一条“预留流可连接”的手工子进程脚本绕过了 Panel 参数生成，不能作为 Panel 产品验收。真实 Panel 日志证明旧实现有 `stream_id` 却遗漏 nonce，Render 因而返回 `403/707`。修复后从真实 Panel 的 90 设备卡片启动，日志同时出现同一启动的 `ip-direct` stream ID 与 nonce，随后记录 `Rtc local, connected`、远端 transport connected、首个关键帧和首个 UI 解码帧。参数回归 3/3、终态/回退回归 7/7；授权或占用终态现在由子进程显式通知 Panel 关闭加载层，连接成功也会移除超时任务的 UI 状态。预留 stream ID 改为 32 位十六进制 URL 安全值，90 号机部署后的预验证接口已确认返回 `ip-direct:[0-9a-f]{32}`。
+- 2026-09-03 完成 desktop、游戏和 WebView 的一控多看收敛。游戏 Hook 在无 RTC Peer 时保留最近捕获帧，并在新 Peer 建立时请求 IDR、重放缓存帧，解决游戏失焦停帧导致后加入者只有音频的问题；冷启动无客户端保护期调整为 45 秒。游戏 `app-14-08e37e67` 与 WebView `app-21-2f9cafde` 均在 90 号机通过 Controller+Observer、第二 Controller 业务拒绝、显式接管且原 Controller 降级继续观看三阶段门禁。
+- 2026-09-03 修复 FT data channel 独立关闭误触发整条 RTC 客户端断开的生命周期错误。FT 关闭现在仅按逻辑会话和连接实例移除自己的文件路由，不释放输入租约；路由单测 6/6、插件上下文 10/10、FT DLL 生命周期 1/1、RTC DLL 重复启停卸载 2/2 均通过。
+- 2026-09-03 修复 Service 被不同 Render 心跳互相覆盖 `logical_sessions_json` 的统计错误，改为按 `render_{port}` 聚合并在对应 Render 断开时独立移除。`px_service` 单测 63/63；游戏和 WebView 实际验收各得到 3 个逻辑会话、0 最终活跃、3 次 `SessionOpened`、1 次 `RoleChanged`、1 次带关联会话的 `Takeover`、3 次 `SessionClosed`，三条会话均保留 RTC Local 历史传输证据。Console 重启后运行中的应用实例恢复为 running，并可继续签发 Observer ticket；会话与事件记录永久持久化，不配置 TTL。
+- 2026-09-03 发布版本 3.3.65：客户端完整 C++/Rust/Web dist、Console/Auth/Desk 服务端和 NSIS 安装包均完成；安装包 SHA-256 为 `B53D885F0006F5D07A8922A0F76FACE4493F62EF9D193F6420078399A1DC4F27`。90 号机 SYSTEM 静默安装返回 0，安装版本 3.3.65，服务为 Automatic/Running，20369/20371/20375 均监听，Parsec VDD 已签名且状态正常，安装目录与发布 dist 的 410/410 个文件 SHA-256 全部一致。真实公网/NAT 验收按用户要求暂缓，不计入本轮完成条件。

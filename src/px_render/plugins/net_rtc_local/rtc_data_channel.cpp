@@ -72,11 +72,12 @@ namespace px
                 rtc_server->RequestExit();
                 rtc_server->NotifyTerminal();
             }
-            // ft 通道独立关闭(媒体面还活着):只通知插件层清理该连接的传输作业,
-            // 不退出整条连接
+            // FT can close independently while media remains healthy. Retire
+            // only this transport route; it is not a client disconnect and
+            // must not release the logical session or controller lease.
             else if (name_ == "ft_data_channel" && rtc_server) {
                 LOGW("ft_data_channel closed independently, conn: {}", rtc_server->GetConnId());
-                rtc_server->EmitClientDisconnectedEvent();
+                rtc_server->EmitFileTransferDisconnectedEvent();
             }
         }
 

@@ -102,6 +102,7 @@ namespace px
         // 不用 datachannel 内部 the_conn_id_(MD5)——否则按消息 stream_id 键控的
         // 插件(ft 文件传输、joystick)永远匹配不上断开事件。
         void EmitClientDisconnectedEvent();
+        void EmitFileTransferDisconnectedEvent();
 
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through = false);
         bool PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through = false);

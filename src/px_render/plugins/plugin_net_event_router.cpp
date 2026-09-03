@@ -405,6 +405,20 @@ namespace px {
             auto reset_msg = CaptureResetInputMessage{};
             PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(reset_msg));
         }
+        // The game may have rendered once during boot and paused Present before
+        // RTC setup completed. Re-encode that valid shared-texture snapshot so
+        // an Observer can see the application without sending input first.
+        app_->ReplayLatestGameHookFrame();
+        if (settings_->IsGameHookMode()) {
+            const auto weak_app = std::weak_ptr<RdApplication>(app_);
+            for (const auto delay_ms : {250, 1000}) {
+                context_->PostDelayTask([weak_app]() {
+                    if (const auto app = weak_app.lock()) {
+                        app->ReplayLatestGameHookFrame();
+                    }
+                }, delay_ms);
+            }
+        }
 
         // report it
         ReportClientConnected(event);

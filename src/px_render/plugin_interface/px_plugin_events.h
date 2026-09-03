@@ -56,6 +56,9 @@ namespace px
         kPluginCloseLogicalSessionBinding,
         kPluginVoiceCallConsent,
         kPluginVoiceCallMedia,
+        // Appended to preserve the numeric values of the established plug-in
+        // event ABI above.
+        kPluginFileTransferDisconnectedEvent,
     };
 
     class PxPluginBaseEvent {
@@ -234,6 +237,18 @@ namespace px
         std::string visitor_device_id_;
         int64_t end_timestamp_ = 0;
         int64_t duration_ = 0;
+    };
+
+    // A file-transfer data channel can close while the media peer remains
+    // healthy (for example after capability negotiation). Keep this route
+    // teardown distinct from the whole-client disconnect event.
+    class PxPluginFileTransferDisconnectedEvent : public PxPluginBaseEvent {
+    public:
+        PxPluginFileTransferDisconnectedEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginFileTransferDisconnectedEvent;
+        }
+        std::string stream_id_;
+        std::string connection_instance_id_;
     };
 
     // PxPluginInsertIdrEvent

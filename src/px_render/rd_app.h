@@ -11,6 +11,7 @@
 #include <unordered_set>
 #include <queue>
 #include <mutex>
+#include <optional>
 #include <condition_variable>
 #include <utility>
 #include "rd_context.h"
@@ -91,6 +92,7 @@ namespace px
         std::shared_ptr<RdContext> GetContext() { return context_; }
         std::shared_ptr<AppManager> GetAppManager() { return app_manager_; }
         void OnCapturedVideoFrame(const CaptureVideoFrame& frame) const;
+        void ReplayLatestGameHookFrame() const;
         void OnCapturedAudioFrame(const CaptureAudioFrame& frame);
         void OnCapturedCursorBitmap(const CaptureCursorBitmap& cursor) const;
         void OnIpcVideoFrame(const std::shared_ptr<CaptureVideoFrame>& msg) const;
@@ -249,6 +251,12 @@ namespace px
         // of basing the game lifetime on a transient plugin aggregate.
         mutable std::mutex game_hook_clients_mutex_;
         std::unordered_set<std::string> game_hook_client_ids_;
+        // A game can render its only initial frame before the first viewer
+        // finishes RTC setup, then pause Present while it is unfocused. Keep
+        // that shared-texture descriptor available for the connection event.
+        mutable std::mutex latest_game_hook_frame_mutex_;
+        mutable std::optional<CaptureVideoFrame> latest_game_hook_frame_;
+        mutable uint64_t latest_game_hook_replay_frame_index_ = 0;
 
         std::atomic_bool monitor_changed_ = false;
         std::atomic_uint32_t virtual_display_owned_count_ = 0;

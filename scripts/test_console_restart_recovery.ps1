@@ -1,13 +1,16 @@
 [CmdletBinding()]
 param(
     [string]$ConsoleUrl = 'https://127.0.0.1:30500',
-    [string]$ConsoleExe = (Join-Path $PSScriptRoot '..\output\px_console\px_console.exe'),
+    [string]$ConsoleExe = '',
     [switch]$AllowRestart
 )
 
 $ErrorActionPreference = 'Stop'
 if (-not $AllowRestart) {
     throw 'This live test restarts px_console. Re-run with -AllowRestart.'
+}
+if ([string]::IsNullOrWhiteSpace($ConsoleExe)) {
+    $ConsoleExe = Join-Path $PSScriptRoot '..\output\px_console\px_console.exe'
 }
 
 $consolePath = [IO.Path]::GetFullPath($ConsoleExe)

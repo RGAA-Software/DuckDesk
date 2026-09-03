@@ -13,9 +13,12 @@ param(
     [int]$SampleSeconds = 15,
     [ValidateRange(5, 60)]
     [int]$ConnectTimeoutSeconds = 30,
+    [ValidateRange(0, 100)]
+    [double]$MaxLossRatePercent = 0,
     [string]$ConsoleBase = 'https://127.0.0.1:30500',
     [string]$TargetHost = '10.0.0.90',
     [string]$DeviceId = '001190520',
+    [string]$InstanceId = '',
     [ValidateSet('cdp_webrtc_diag.mjs', 'cdp_virtual_display_e2e.mjs', 'cdp_game_hook_input.mjs')]
     [string]$DiagnosticScript = 'cdp_webrtc_diag.mjs',
     [ValidateSet('default', 'accept', 'reject')]
@@ -92,11 +95,27 @@ try {
     if ($BlockDirectUdp) { Add-BlockRule 'direct_udp' $TargetHost }
 
     $nonce = "${ConnectionMode}_$suffix"
-    $ticket = Invoke-JsonPost "$ConsoleBase/api/v1/user/devices/$DeviceId/ticket" `
+    $ticketPath = if ($InstanceId) {
+        "/api/v1/user/instances/$([Uri]::EscapeDataString($InstanceId))/ticket"
+    } else {
+        "/api/v1/user/devices/$([Uri]::EscapeDataString($DeviceId))/ticket"
+    }
+    $ticket = Invoke-JsonPost "$ConsoleBase$ticketPath" `
         @{ client_nonce = $nonce; join_mode = $JoinMode } `
         $accessToken
     if ($ticket.code -ne 200 -or -not $ticket.data.ticket) { throw 'ticket issue failed' }
     $value = $ticket.data
+    $actualPermissions = @($value.permissions | ForEach-Object { [string]$_ } | Sort-Object -Unique)
+    $expectedPermissions = if ($JoinMode -eq 'observe') {
+        @('audio', 'view')
+    } elseif ($InstanceId) {
+        @('audio', 'input', 'view')
+    } else {
+        @('audio', 'clipboard', 'file', 'input', 'view')
+    }
+    if (($actualPermissions -join ',') -ne ($expectedPermissions -join ',')) {
+        throw "unexpected permissions for join=$JoinMode instance=$InstanceId`: actual=$($actualPermissions -join ',') expected=$($expectedPermissions -join ',')"
+    }
 
     if ($BlockTurnUdp) {
         Add-BlockRule 'turn_udp' $value.relay_host ([string]$value.rtc_ice_config.ice_servers[0].urls[0].Split(':')[-1].Split('?')[0])
@@ -134,6 +153,8 @@ try {
     $env:EXPECT_RELAY_PROTOCOL = $ExpectedRelayProtocol
     $env:FORCE_RELAY = if ($ExpectedCandidate -eq 'relay') { '1' } else { '0' }
     $env:TAKEOVER_CONFIRMATION = $TakeoverConfirmation
+    $env:EXPECT_INPUT = if ($JoinMode -eq 'observe') { 'disabled' } else { 'enabled' }
+    $env:MAX_LOSS_RATE_PERCENT = [string]$MaxLossRatePercent
     $env:RENDER_PORT = [string]$launch.Port
     # A fresh port prevents a detached Chrome from a previous interrupted run
     # from accepting CDP HTTP requests while no longer servicing commands.
@@ -155,7 +176,7 @@ finally {
     foreach ($name in $rules) {
         Remove-NetFirewallRule -Name $name -ErrorAction SilentlyContinue
     }
-    foreach ($name in 'WEB_URL', 'SAMPLE_SECONDS', 'CONNECT_TIMEOUT_SECONDS', 'EXPECT_CANDIDATE_TYPE', 'EXPECT_RELAY_PROTOCOL', 'FORCE_RELAY', 'TAKEOVER_CONFIRMATION', 'RENDER_PORT', 'CDP_PORT', 'OUT_DIR', 'QUIET') {
+    foreach ($name in 'WEB_URL', 'SAMPLE_SECONDS', 'CONNECT_TIMEOUT_SECONDS', 'EXPECT_CANDIDATE_TYPE', 'EXPECT_RELAY_PROTOCOL', 'FORCE_RELAY', 'TAKEOVER_CONFIRMATION', 'EXPECT_INPUT', 'MAX_LOSS_RATE_PERCENT', 'RENDER_PORT', 'CDP_PORT', 'OUT_DIR', 'QUIET') {
         Remove-Item "Env:\$name" -ErrorAction SilentlyContinue
     }
     if ($uid -and $uid -match '^[A-Za-z0-9_-]+$' -and (Test-Path -LiteralPath $MongoExe)) {

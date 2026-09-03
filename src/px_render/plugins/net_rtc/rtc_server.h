@@ -46,6 +46,7 @@ namespace px
         // 全连接生命周期只发一次(去重)。stream_id 用真实访客 stream id
         // (与 px::Message.stream_id 一致),不用 datachannel 内部 the_conn_id_(MD5)。
         void EmitClientDisconnectedEvent();
+        void EmitFileTransferDisconnectedEvent();
 
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through = false);
         bool PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through = false);

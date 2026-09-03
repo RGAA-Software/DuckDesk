@@ -52,12 +52,13 @@ namespace px
             if (IsFtChannel()) {
                 NotifyFileTransferClosed();
             }
-            // datachannel 独立关闭(浏览器页面被杀等):通知插件层清理该连接状态
-            // (ft 文件传输作业等);媒体面是否退出由 ICE 终态/超时判死路径负责
-            if (const auto rtc_server = rtc_server_.lock();
-                (name_ == "media_data_channel" || name_ == "ft_data_channel")
-                && rtc_server) {
-                rtc_server->EmitClientDisconnectedEvent();
+            if (const auto rtc_server = rtc_server_.lock(); rtc_server) {
+                if (name_ == "media_data_channel") {
+                    rtc_server->EmitClientDisconnectedEvent();
+                }
+                else if (name_ == "ft_data_channel") {
+                    rtc_server->EmitFileTransferDisconnectedEvent();
+                }
             }
         }
 

@@ -935,7 +935,11 @@ namespace px
             if (self->HasConnectedPeer()) return;
             LOGI("Game-hook startup grace elapsed with no clients; stopping render.");
             ProcessUtil::KillProcess(GetCurrentProcessId());
-        }, 15000);
+        // Browser startup, Console ticket issuance and game injection can
+        // overlap on a cold machine. Fifteen seconds was shorter than a real
+        // cold Chromium launch and could close the listener while the first
+        // page was already loading.
+        }, 45000);
         LOGI("StartProcessWithHook: game_path={}, capture_method={}",
              settings_->app_.game_path_,
              (int)settings_->app_.inject_method_);
@@ -1079,6 +1083,11 @@ namespace px
         if (exit_app_) {
             return;
         }
+        if (settings_->IsGameHookMode()) {
+            std::lock_guard<std::mutex> lock(latest_game_hook_frame_mutex_);
+            latest_game_hook_frame_ = frame;
+            latest_game_hook_replay_frame_index_ = frame.frame_index_;
+        }
         if (app_manager_) {
             app_manager_->OnCapturedVideoFrame();
         }
@@ -1098,6 +1107,31 @@ namespace px
             }
         }
         encoder_thread_->Encode(frame);
+    }
+
+    void RdApplication::ReplayLatestGameHookFrame() const {
+        if (exit_app_ || !settings_->IsGameHookMode() || !HasConnectedPeer()) {
+            return;
+        }
+        std::optional<CaptureVideoFrame> frame;
+        {
+            std::lock_guard<std::mutex> lock(latest_game_hook_frame_mutex_);
+            frame = latest_game_hook_frame_;
+            if (frame) {
+                frame->frame_index_ = ++latest_game_hook_replay_frame_index_;
+            }
+        }
+        if (!frame) {
+            LOGI("Game-hook viewer connected before the first captured frame");
+            return;
+        }
+        LOGI("Replay cached game-hook frame on viewer connect: index={} size={}x{}",
+             frame->frame_index_, frame->frame_width_, frame->frame_height_);
+        // The encoder may not have existed when ProcessClientConnectedEvent
+        // requested an IDR. Carry the request on the frame itself so a newly
+        // created encoder also produces a decodable first packet.
+        frame->request_idr_ = true;
+        encoder_thread_->Encode(*frame);
     }
 
     void RdApplication::OnCapturedCursorBitmap(const CaptureCursorBitmap& cursor) const {

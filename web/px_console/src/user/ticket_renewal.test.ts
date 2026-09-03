@@ -9,6 +9,7 @@ describe('exchangeRenewalTicket', () => {
       data: {
         ticket: 'ticket-new',
         renewal_token: 'renew-new',
+        stream_id: 'stream-stable',
         permissions: ['view'],
       },
     }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as unknown as typeof fetch
@@ -23,6 +24,7 @@ describe('exchangeRenewalTicket', () => {
     expect(result).toEqual({
       ticket: 'ticket-new',
       renewalToken: 'renew-new',
+      streamId: 'stream-stable',
       permissions: ['view'],
     })
     expect(fetchImpl).toHaveBeenCalledOnce()

@@ -1371,6 +1371,17 @@ namespace px
         LOGW("Client disconnected event emitted, conn: {}, stream: {}", conn_id_, event->stream_id_);
     }
 
+    void RtcServer::EmitFileTransferDisconnectedEvent() {
+        if (!runtime_ || stream_id_.empty()) {
+            return;
+        }
+        auto event = std::make_shared<PxPluginFileTransferDisconnectedEvent>();
+        event->stream_id_ = stream_id_;
+        event->connection_instance_id_ = conn_id_;
+        runtime_->QueueEvent(event);
+        LOGI("File-transfer route disconnected, conn: {}, stream: {}", conn_id_, stream_id_);
+    }
+
     void RtcServer::Exit() {
         // 幂等:ICE 终态 Sweep、takeover 替换、插件销毁等路径可能重复调用
         if (cleaned_up_.exchange(true)) {

@@ -6,6 +6,8 @@ param(
     [string]$ConsoleBase = 'https://127.0.0.1:30500',
     [string]$TargetHost = '10.0.0.90',
     [string]$DeviceId = '001190520',
+    [string]$InstanceId = '',
+    [string]$BearerToken = '',
     [ValidateRange(12, 180)]
     [int]$ControllerSampleSeconds = 30,
     [ValidateRange(6, 120)]
@@ -23,7 +25,8 @@ $caseRoot = if ($EvidenceDir) { $EvidenceDir } else {
 New-Item -ItemType Directory -Path $caseRoot -Force | Out-Null
 
 function Start-Case([string]$Name, [string]$JoinMode, [int]$Seconds,
-                    [string]$Confirmation = 'default', [int]$ConnectTimeoutSeconds = 30) {
+                    [string]$Confirmation = 'default', [int]$ConnectTimeoutSeconds = 30,
+                    [double]$MaxLossRatePercent = 0) {
     $stdout = Join-Path $caseRoot "$Name.stdout.log"
     $stderr = Join-Path $caseRoot "$Name.stderr.log"
     $evidence = Join-Path $caseRoot $Name
@@ -34,12 +37,15 @@ function Start-Case([string]$Name, [string]$JoinMode, [int]$Seconds,
         '-ExpectedCandidate', $ExpectedCandidate,
         '-SampleSeconds', $Seconds,
         '-ConnectTimeoutSeconds', $ConnectTimeoutSeconds,
+        '-MaxLossRatePercent', [string]$MaxLossRatePercent,
         '-ConsoleBase', $ConsoleBase,
         '-TargetHost', $TargetHost,
         '-DeviceId', $DeviceId,
         '-TakeoverConfirmation', $Confirmation,
         '-EvidenceDir', $evidence
     )
+    if ($InstanceId) { $arguments += @('-InstanceId', $InstanceId) }
+    if ($BearerToken) { $arguments += @('-BearerToken', $BearerToken) }
     Start-Process -FilePath $powershell -ArgumentList $arguments -PassThru -WindowStyle Hidden `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr
 }
@@ -81,38 +87,37 @@ function Assert-Pass([string]$Name, [string]$Log) {
 }
 
 $controller = $null
-$takeoverController = $null
 try {
-    # One controller and one observer must remain connected concurrently. The
-    # first controller stays alive while the observer fully completes its
-    # sample; distinct short-lived Console users make the identities explicit.
-    $controller = Start-Case 'controller_observer_controller' 'control' $ControllerSampleSeconds
-    Wait-ForLog $controller 'controller_observer_controller' 'connected:\s+true'
+    # Keep one original Controller alive across the entire scenario. Besides
+    # matching the actual takeover product flow, this avoids creating a gap in
+    # which an on-demand game instance is correctly allowed to stop after its
+    # final viewer leaves.
+    $originalControllerSeconds = [Math]::Max(
+        $ControllerSampleSeconds, ($ObserverSampleSeconds * 2) + 25)
+    # This long-lived peer intentionally spans observer join and takeover IDR
+    # bursts. On a 100 Mbps LAN, accept a small transient media loss rate while
+    # the short observer and replacement-controller gates remain zero-loss.
+    $controller = Start-Case 'controller_observer_controller' 'control' $originalControllerSeconds 'default' 30 3
+    # A game-hook Render may finish signaling before the injected process has
+    # produced its first frame. Start the Observer only after the Controller
+    # proves media readiness, otherwise a slow game boot is misdiagnosed as a
+    # multi-peer fan-out failure.
+    Wait-ForLog $controller 'controller_observer_controller' 'RTC_PHASE: media-ready' 90
     $observer = Start-Case 'controller_observer_observer' 'observe' $ObserverSampleSeconds
     $observerLog = Wait-ForCase $observer 'controller_observer_observer'
     Assert-Pass 'observer' $observerLog
-    $controllerLog = Wait-ForCase $controller 'controller_observer_controller' ($ControllerSampleSeconds + 60)
-    Assert-Pass 'controller' $controllerLog
     Write-Host 'MULTI_PHASE: controller-observer PASS'
-    # A normal Controller close intentionally retains its lease for the
-    # documented five-second reconnect window. Chromium completes its ICE
-    # shutdown asynchronously after the diagnostic process exits, so include
-    # that bounded teardown before starting the independent occupied/takeover
-    # phase rather than mistaking a stale media peer for a product failure.
-    Start-Sleep -Seconds 16
 
     # A second controller must receive the occupied response until its user
     # explicitly approves takeover. Do not accept a transport failure as a
     # substitute for the application-level occupied decision.
-    $takeoverController = Start-Case 'takeover_original_controller' 'control' $ControllerSampleSeconds
-    Wait-ForLog $takeoverController 'takeover_original_controller' 'connected:\s+true'
     $rejected = Start-Case 'takeover_rejected_controller' 'control' $ObserverSampleSeconds 'reject' 8
     $rejectedLog = Wait-ForCase $rejected 'takeover_rejected_controller'
     if ($rejected.ExitCode -eq 0 -or $rejectedLog -notmatch 'RTC_OCCUPIED_REJECTED') {
         throw "second controller was not explicitly rejected: $rejectedLog"
     }
-    if ($takeoverController.HasExited) {
-        throw "original controller ended before rejected contender completed: $((Get-CaseLog 'takeover_original_controller'))"
+    if ($controller.HasExited) {
+        throw "original controller ended before rejected contender completed: $((Get-CaseLog 'controller_observer_controller'))"
     }
     Write-Host 'MULTI_PHASE: second-controller-rejected PASS'
 
@@ -123,13 +128,13 @@ try {
     $accepted = Start-Case 'takeover_accepted_controller' 'control' $ObserverSampleSeconds 'accept'
     $acceptedLog = Wait-ForCase $accepted 'takeover_accepted_controller'
     Assert-Pass 'accepted takeover controller' $acceptedLog
-    $originalLog = Wait-ForCase $takeoverController 'takeover_original_controller' ($ControllerSampleSeconds + 60)
+    $originalLog = Wait-ForCase $controller 'controller_observer_controller' ($originalControllerSeconds + 60)
     Assert-Pass 'demoted observer' $originalLog
     Write-Host 'MULTI_PHASE: explicit-takeover PASS'
     Write-Host "RESULT: PASS evidence=$caseRoot"
 }
 finally {
-    foreach ($process in @($controller, $takeoverController) | Where-Object { $_ -and -not $_.HasExited }) {
+    foreach ($process in @($controller) | Where-Object { $_ -and -not $_.HasExited }) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
     }
 }

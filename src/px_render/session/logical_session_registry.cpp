@@ -17,10 +17,6 @@ void LogicalSessionRegistry::SetPolicy(const bool allow_observer, const bool all
     allow_takeover_ = allow_takeover;
 }
 
-bool LogicalSessionRegistry::IsExpired(const Session& session, const int64_t now_ms) const {
-    return session.expires_at_ms > 0 && now_ms >= session.expires_at_ms;
-}
-
 bool LogicalSessionRegistry::HasControllerBinding(const Session& session) const {
     return std::any_of(session.bindings.begin(), session.bindings.end(),
         [](const auto& item) {
@@ -28,14 +24,13 @@ bool LogicalSessionRegistry::HasControllerBinding(const Session& session) const 
         });
 }
 
-void LogicalSessionRegistry::RemoveExpiredLocked(const int64_t now_ms) {
+void LogicalSessionRegistry::RemoveStaleSessionsLocked(const int64_t now_ms) {
     for (auto it = sessions_.begin(); it != sessions_.end();) {
-        const bool expired = IsExpired(it->second, now_ms);
         const bool stale_controller = it->second.role == LogicalSessionRole::kController
             && it->second.bindings.empty()
             && it->second.controller_disconnected_at_ms > 0
             && now_ms - it->second.controller_disconnected_at_ms > controller_reconnect_grace_ms_;
-        if (expired || stale_controller) {
+        if (stale_controller) {
             if (controller_session_id_ == it->first) {
                 controller_session_id_.clear();
             }
@@ -114,7 +109,7 @@ LogicalSessionAdmission LogicalSessionRegistry::Bind(const LogicalSessionGrant& 
                                                       const bool takeover,
                                                       const int64_t now_ms) {
     std::scoped_lock lock(mutex_);
-    RemoveExpiredLocked(now_ms);
+    RemoveStaleSessionsLocked(now_ms);
     if (grant.logical_session_id.empty() || grant.stream_id.empty() || grant.subject_id.empty()
         || binding_id.empty() || (grant.expires_at_ms > 0 && now_ms >= grant.expires_at_ms)) {
         return {.code = grant.expires_at_ms > 0 && now_ms >= grant.expires_at_ms
@@ -215,12 +210,13 @@ LogicalSessionBindingClosed LogicalSessionRegistry::CloseBindingLocked(
 bool LogicalSessionRegistry::AuthorizeControllerInput(const std::string& logical_session_id,
                                                        const uint64_t lease_generation,
                                                        const int64_t now_ms) const {
+    static_cast<void>(now_ms);
     std::scoped_lock lock(mutex_);
     if (controller_session_id_ != logical_session_id) {
         return false;
     }
     const auto found = sessions_.find(logical_session_id);
-    return found != sessions_.end() && !IsExpired(found->second, now_ms)
+    return found != sessions_.end()
         && found->second.role == LogicalSessionRole::kController
         && found->second.lease_generation == lease_generation
         && HasControllerBinding(found->second);
@@ -238,13 +234,13 @@ bool LogicalSessionRegistry::AuthorizeControllerInputStream(
 
 std::optional<LogicalSessionInputLease> LogicalSessionRegistry::FindControllerInputLeaseByBinding(
     const std::string& binding_id, const int64_t now_ms) const {
+    static_cast<void>(now_ms);
     std::scoped_lock lock(mutex_);
     for (const auto& [logical_session_id, session] : sessions_) {
         if (!session.bindings.contains(binding_id)) {
             continue;
         }
         if (controller_session_id_ == logical_session_id
-            && !IsExpired(session, now_ms)
             && session.role == LogicalSessionRole::kController
             && HasControllerBinding(session)) {
             return LogicalSessionInputLease{
@@ -260,13 +256,13 @@ std::optional<LogicalSessionInputLease> LogicalSessionRegistry::FindControllerIn
 
 std::optional<LogicalSessionInputLease> LogicalSessionRegistry::FindControllerLeaseByBinding(
     const std::string& binding_id, const int64_t now_ms) const {
+    static_cast<void>(now_ms);
     std::scoped_lock lock(mutex_);
     for (const auto& [logical_session_id, session] : sessions_) {
         if (!session.bindings.contains(binding_id)) {
             continue;
         }
         if (controller_session_id_ == logical_session_id
-            && !IsExpired(session, now_ms)
             && session.role == LogicalSessionRole::kController) {
             return LogicalSessionInputLease{
                 .logical_session_id = logical_session_id,
@@ -279,14 +275,27 @@ std::optional<LogicalSessionInputLease> LogicalSessionRegistry::FindControllerLe
     return std::nullopt;
 }
 
+std::optional<std::string> LogicalSessionRegistry::FindLogicalSessionIdByBinding(
+    const std::string& binding_id, const int64_t now_ms) const {
+    static_cast<void>(now_ms);
+    std::scoped_lock lock(mutex_);
+    for (const auto& [logical_session_id, session] : sessions_) {
+        if (session.bindings.contains(binding_id)) {
+            return logical_session_id;
+        }
+    }
+    return std::nullopt;
+}
+
 std::optional<LogicalSessionInputLease> LogicalSessionRegistry::FindControllerInputLeaseByStream(
     const std::string& stream_id, const int64_t now_ms) const {
+    static_cast<void>(now_ms);
     std::scoped_lock lock(mutex_);
     for (const auto& [logical_session_id, session] : sessions_) {
         if (session.stream_id != stream_id) {
             continue;
         }
-        if (controller_session_id_ != logical_session_id || IsExpired(session, now_ms)
+        if (controller_session_id_ != logical_session_id
             || session.role != LogicalSessionRole::kController
             || !HasControllerBinding(session)) {
             return std::nullopt;
@@ -337,8 +346,7 @@ std::vector<LogicalSessionSnapshot> LogicalSessionRegistry::SnapshotActive(
             && session.bindings.empty()
             && session.controller_disconnected_at_ms > 0
             && now_ms - session.controller_disconnected_at_ms <= controller_reconnect_grace_ms_;
-        if (IsExpired(session, now_ms)
-            || (session.bindings.empty() && !controller_reconnecting)) {
+        if (session.bindings.empty() && !controller_reconnecting) {
             continue;
         }
         LogicalSessionSnapshot snapshot{

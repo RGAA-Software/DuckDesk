@@ -179,6 +179,42 @@ TEST(LogicalSessionRegistry, FileTransferCanCreateControllerSessionWithoutInputB
     EXPECT_TRUE(registry.CloseBinding("one", "file-one", 3).release_controller_input);
 }
 
+TEST(LogicalSessionRegistry, FindsAnyActiveRoleByTransportBindingWithoutMutatingIt) {
+    LogicalSessionRegistry registry;
+    auto observer_grant = ControlGrant("observer", "stream-observer", "bob");
+    observer_grant.join_mode = "observe";
+    ASSERT_EQ(registry.Bind(observer_grant, LogicalSessionTransport::kRtcLocal,
+                            "rtc-local:stream-observer", false, 1).code,
+              LogicalSessionAdmissionCode::kAccepted);
+
+    const auto logical_session_id = registry.FindLogicalSessionIdByBinding(
+        "rtc-local:stream-observer", 2);
+    ASSERT_TRUE(logical_session_id.has_value());
+    EXPECT_EQ(*logical_session_id, "observer");
+    EXPECT_EQ(registry.ActiveSessionCount(), 1U);
+    EXPECT_FALSE(registry.FindLogicalSessionIdByBinding("missing", 2).has_value());
+    EXPECT_TRUE(registry.FindLogicalSessionIdByBinding(
+        "rtc-local:stream-observer", 60'001).has_value());
+}
+
+TEST(LogicalSessionRegistry, GrantExpiryOnlyLimitsAdmissionNotAnEstablishedBinding) {
+    LogicalSessionRegistry registry;
+    const auto grant = ControlGrant("one", "stream-one", "alice");
+    const auto admitted = registry.Bind(
+        grant, LogicalSessionTransport::kRtcLocal, "rtc-one", false, 59'999);
+    ASSERT_EQ(admitted.code, LogicalSessionAdmissionCode::kAccepted);
+
+    EXPECT_TRUE(registry.AuthorizeControllerInput(
+        "one", admitted.lease_generation, 120'000));
+    EXPECT_TRUE(registry.FindControllerInputLeaseByBinding(
+        "rtc-one", 120'000).has_value());
+    EXPECT_EQ(registry.SnapshotActive(120'000).size(), 1U);
+
+    EXPECT_EQ(registry.Bind(ControlGrant("two", "stream-two", "bob"),
+                            LogicalSessionTransport::kRtcLocal, "rtc-two", false, 60'000).code,
+              LogicalSessionAdmissionCode::kExpired);
+}
+
 TEST(LogicalSessionRegistry, TicketPolicyRejectsObserverAndTakeover) {
     LogicalSessionRegistry registry;
     auto controller_grant = ControlGrant("one", "stream-one", "alice");

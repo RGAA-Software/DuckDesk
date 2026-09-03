@@ -233,6 +233,7 @@ async fn handle_connection(
         let mut guard = runtime.lock().await;
         for name in &registered_renders {
             guard.render_senders.remove(name);
+            guard.remove_render_logical_sessions(name);
         }
     }
     drop(tx);

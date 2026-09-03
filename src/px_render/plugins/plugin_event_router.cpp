@@ -59,6 +59,41 @@ namespace px
             auto target_event = std::dynamic_pointer_cast<PxPluginClientDisConnectedEvent>(event);
             net_event_router_->ProcessClientDisConnectedEvent(target_event);
         }
+        else if (event->event_type_ == PxPluginEventType::kPluginFileTransferDisconnectedEvent) {
+            const auto target_event =
+                std::dynamic_pointer_cast<PxPluginFileTransferDisconnectedEvent>(event);
+            if (!target_event) {
+                return;
+            }
+            std::string binding_id;
+            if (target_event->plugin_name_ == kNetRtcPluginId) {
+                binding_id = std::string("rtc:") + target_event->stream_id_;
+            }
+            else if (target_event->plugin_name_ == kNetRtcLocalPluginId) {
+                binding_id = std::string("rtc-local:") + target_event->stream_id_;
+            }
+            const auto registry = app_->GetLogicalSessionRegistry();
+            const auto logical_session_id = registry && !binding_id.empty()
+                ? registry->FindLogicalSessionIdByBinding(
+                      binding_id, static_cast<int64_t>(TimeUtil::GetCurrentTimestamp()))
+                : std::nullopt;
+            if (!logical_session_id) {
+                LOGI("Ignore stale FT-only disconnect without a logical binding: stream {}, plugin {}",
+                     target_event->stream_id_, target_event->plugin_name_);
+                return;
+            }
+            const FtRouteDisconnected disconnected{
+                .logical_session_id_ = *logical_session_id,
+                .stream_id_ = target_event->stream_id_,
+                .source_plugin_id_ = target_event->plugin_name_,
+                .source_connection_id_ = target_event->connection_instance_id_,
+            };
+            plugin_manager_->VisitAllPlugins([disconnected](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): established plug-in visitor ABI
+                if (plugin->GetPluginId() == kFtPluginId) {
+                    plugin->OnMessageRaw(disconnected);
+                }
+            });
+        }
         else if (event->event_type_ == PxPluginEventType::kPluginCapturedVideoFrameEvent) {
             auto target_event = std::dynamic_pointer_cast<PxPluginCapturedVideoFrameEvent>(event);
             app_->OnCapturedVideoFrame(target_event->frame_);

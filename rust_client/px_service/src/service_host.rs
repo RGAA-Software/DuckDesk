@@ -31,6 +31,10 @@ pub struct ServiceRuntime {
     /// render ws 下发通道: key = "render_{listen_port}"(心跳 from),
     /// 用于 Console 停止实例时主动给 render 推 kSrvStopServer。
     pub render_senders: std::collections::HashMap<String, mpsc::UnboundedSender<Vec<u8>>>,
+    /// Latest logical-session snapshot per Render endpoint. Desktop and every
+    /// Console application Render heartbeat independently; a single shared
+    /// string would make them overwrite one another nondeterministically.
+    render_logical_sessions: std::collections::HashMap<String, String>,
     /// One-shot Browser/first-frame acknowledgements for WebView starts.
     pub webview_ready_waiters:
         std::collections::HashMap<String, oneshot::Sender<Result<(), String>>>,
@@ -121,6 +125,7 @@ impl ServiceRuntime {
             state: ServiceState::default(),
             app_registry: AppInstanceRegistry::new(),
             render_senders: std::collections::HashMap::new(),
+            render_logical_sessions: std::collections::HashMap::new(),
             webview_ready_waiters: std::collections::HashMap::new(),
             ticket_redeem_tx: None,
             virtual_display_manager,
@@ -155,6 +160,58 @@ impl ServiceRuntime {
 
     pub fn subscribe_stop(&self) -> broadcast::Receiver<()> {
         self.stop_tx.subscribe()
+    }
+
+    fn rebuild_logical_sessions_snapshot(&mut self) -> Result<(), String> {
+        let mut render_names = self
+            .render_logical_sessions
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>();
+        render_names.sort();
+        let mut sessions = std::collections::BTreeMap::<String, serde_json::Value>::new();
+        for render_name in render_names {
+            let snapshot = self
+                .render_logical_sessions
+                .get(&render_name)
+                .ok_or_else(|| format!("missing Render snapshot for {render_name}"))?;
+            let rows =
+                serde_json::from_str::<Vec<serde_json::Value>>(snapshot).map_err(|error| {
+                    format!("invalid logical-session snapshot from {render_name}: {error}")
+                })?;
+            for row in rows {
+                let logical_session_id = row
+                    .get("logical_session_id")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_default();
+                if !logical_session_id.is_empty() {
+                    sessions.insert(logical_session_id.to_string(), row);
+                }
+            }
+        }
+        self.state.logical_sessions_json =
+            serde_json::to_string(&sessions.into_values().collect::<Vec<_>>())
+                .map_err(|error| error.to_string())?;
+        Ok(())
+    }
+
+    fn update_render_logical_sessions(
+        &mut self,
+        render_name: String,
+        snapshot: String,
+    ) -> Result<(), String> {
+        serde_json::from_str::<Vec<serde_json::Value>>(&snapshot).map_err(|error| {
+            format!("invalid logical-session snapshot from {render_name}: {error}")
+        })?;
+        self.render_logical_sessions.insert(render_name, snapshot);
+        self.rebuild_logical_sessions_snapshot()
+    }
+
+    pub fn remove_render_logical_sessions(&mut self, render_name: &str) {
+        self.render_logical_sessions.remove(render_name);
+        if let Err(error) = self.rebuild_logical_sessions_snapshot() {
+            warn!(%render_name, %error, "failed to rebuild logical-session snapshot after Render disconnect");
+        }
     }
 
     pub fn request_stop(&mut self) {
@@ -221,7 +278,11 @@ impl ServiceRuntime {
                 // 用于 hang 检测——进程活着但消息循环死掉时心跳会中断。
                 if from.starts_with("render_") {
                     self.state.note_render_heartbeat();
-                    self.state.logical_sessions_json = logical_sessions_json;
+                    if let Err(error) =
+                        self.update_render_logical_sessions(from.clone(), logical_sessions_json)
+                    {
+                        warn!(%from, %error, "ignore invalid Render logical-session snapshot");
+                    }
                 }
                 if let Some(auth_info) = auth_info {
                     self.state.last_auth_info = Some(auth_info);
@@ -1828,6 +1889,43 @@ mod tests {
             "game-hook must survive desktop stop"
         );
         assert!(!left.iter().any(|p| p.pid == 1));
+    }
+
+    #[test]
+    fn logical_sessions_are_aggregated_per_render_and_removed_independently() {
+        let mut runtime = test_runtime(Vec::new());
+        runtime
+            .update_render_logical_sessions(
+                "render_20371".to_string(),
+                r#"[{"logical_session_id":"desktop","role":"controller"}]"#.to_string(),
+            )
+            .unwrap();
+        runtime
+            .update_render_logical_sessions(
+                "render_32011".to_string(),
+                r#"[{"logical_session_id":"webview","role":"observer"}]"#.to_string(),
+            )
+            .unwrap();
+
+        let aggregated: Vec<serde_json::Value> =
+            serde_json::from_str(&runtime.state.logical_sessions_json).unwrap();
+        assert_eq!(aggregated.len(), 2);
+        assert_eq!(aggregated[0]["logical_session_id"], "desktop");
+        assert_eq!(aggregated[1]["logical_session_id"], "webview");
+
+        runtime.remove_render_logical_sessions("render_32011");
+        let desktop_only: Vec<serde_json::Value> =
+            serde_json::from_str(&runtime.state.logical_sessions_json).unwrap();
+        assert_eq!(desktop_only.len(), 1);
+        assert_eq!(desktop_only[0]["logical_session_id"], "desktop");
+
+        assert!(runtime
+            .update_render_logical_sessions("render_20371".to_string(), "not-json".to_string(),)
+            .is_err());
+        assert_eq!(
+            runtime.state.logical_sessions_json,
+            serde_json::to_string(&desktop_only).unwrap()
+        );
     }
 
     #[tokio::test]
