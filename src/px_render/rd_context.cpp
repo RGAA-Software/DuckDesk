@@ -276,9 +276,7 @@ namespace px
         if (exiting_ || !module_registry || !event) {
             return;
         }
-        module_registry->VisitAllModules([event](const std::shared_ptr<PxPluginInterface>& plugin) {
-            plugin->DispatchAppEvent(event);
-        });
+        module_registry->DispatchAppEventToModules(event);
     }
 
 }

@@ -6,11 +6,14 @@
 #define PX_RENDER_MODULES_RENDER_MODULE_REGISTRY_H
 
 #include <memory>
+#include <cstdint>
 #include <string>
 #include <atomic>
 #include <mutex>
 #include <shared_mutex>
 #include <vector>
+#include <d3d11.h>
+#include <wrl/client.h>
 #include "px_render/plugins/plugin_ids.h"
 #include "px_common_new/concurrent_hashmap.h"
 #include "px_common_new/file_transfer_send_result.h"
@@ -33,6 +36,24 @@ namespace px
     class PxFrameProcessorPlugin;
     class PxConnectedClientInfo;
     class WebRtcLibraryHost;
+    class Image;
+    class Message;
+    class MsgRtcRemoteIce;
+    class MsgRtcRemoteSdp;
+    class CaptureMonitorInfoMessage;
+    class PxPluginEncodedVideoFrameEvent;
+    class AppBaseEvent;
+    class PxLogicalSessionCapabilityUpdate;
+
+    struct RenderModuleInfo final {
+        std::string id;
+        std::string name;
+        std::string author;
+        std::string description;
+        std::string version_name;
+        std::uint32_t version_code{0};
+        bool enabled{false};
+    };
 
     class RenderModuleRegistry : public std::enable_shared_from_this<RenderModuleRegistry> {
     public:
@@ -50,22 +71,82 @@ namespace px
         std::shared_ptr<PxVideoEncoderPlugin> GetAmfEncoder();
         std::shared_ptr<PxMonitorCapturePlugin> GetDdaCapture();
         std::shared_ptr<PxMonitorCapturePlugin> GetGdiCapture();
-        std::shared_ptr<PxNetPlugin> GetRtcTransport();
-        std::shared_ptr<PxNetPlugin> GetUdpTransport();
-        std::shared_ptr<PxNetPlugin> GetRelayTransport();
-        std::shared_ptr<PxNetPlugin> GetRtcLocalTransport();
+        void SyncUdpInfo(
+            std::int64_t socket_fd,
+            const std::string& device_id,
+            const std::string& stream_id);
+        [[nodiscard]] bool IsRelayConnected();
+        void SubmitRtcLocalSharedTexture(
+            const std::string& monitor_name,
+            std::uint64_t frame_index,
+            int frame_width,
+            int frame_height,
+            std::uint64_t shared_handle,
+            std::int64_t adapter_id,
+            std::uint64_t frame_format);
+        void SubmitRtcLocalYuv(
+            const std::string& monitor_name,
+            std::uint64_t frame_index,
+            int frame_width,
+            int frame_height,
+            const std::shared_ptr<Image>& image);
+        void UpdateRtcLocalCaptureMonitorInfo(
+            const CaptureMonitorInfoMessage& message);
+        void ApplyRtcLocalRemoteSdp(const MsgRtcRemoteSdp& message);
+        void ApplyRtcLocalRemoteIce(const MsgRtcRemoteIce& message);
+        void DispatchRtcLocalMessage(const std::shared_ptr<Message>& message);
+        void BroadcastNetworkMessage(
+            const std::shared_ptr<Data>& message, bool run_through);
+        void BroadcastTargetStreamMessage(
+            const std::string& stream_id,
+            const std::shared_ptr<Data>& message,
+            bool run_through);
+        void BroadcastFileTransferMessage(
+            const std::string& stream_id,
+            const std::shared_ptr<Data>& message,
+            bool run_through);
+        void BroadcastRawAudio(
+            const std::shared_ptr<Data>& data,
+            int samples,
+            int channels,
+            int bits);
+        void PublishEncodedVideoMetadata(
+            const std::string& monitor_name,
+            const std::shared_ptr<PxPluginEncodedVideoFrameEvent>& event);
+        void DispatchNetworkAppEvent(
+            const std::shared_ptr<AppBaseEvent>& event);
+        void ApplyLogicalSessionCapabilities(
+            const PxLogicalSessionCapabilityUpdate& update);
+        [[nodiscard]] bool PostRtcLocalMessage(
+            const std::shared_ptr<Data>& message, bool run_through);
+        void SendRelaySignalingMessage(
+            const std::string& stream_id,
+            const std::shared_ptr<Data>& message);
+        void PostWsIpcBinaryMessage(const std::shared_ptr<Data>& message);
+        void RegisterWsIpcPid(std::uint32_t pid);
+        void PostWsUserProxyMessage(const std::shared_ptr<Data>& message);
+        [[nodiscard]] bool IsWsUserProxyConnected();
+        [[nodiscard]] bool HasWorkingVideoClient();
+        [[nodiscard]] std::vector<RenderModuleInfo> SnapshotModuleInfo();
+        [[nodiscard]] bool SetModuleEnabled(
+            const std::string& module_id, bool enabled);
+        void DispatchAppEventToModules(
+            const std::shared_ptr<AppBaseEvent>& event);
+        void UpdateModuleD3DResources(
+            std::uint64_t adapter_uid,
+            const Microsoft::WRL::ComPtr<ID3D11Device>& device,
+            const Microsoft::WRL::ComPtr<ID3D11DeviceContext>& context);
+        void ClearModuleD3DResources(std::uint64_t adapter_uid);
+        void InsertIdr(const std::string& monitor_name = {});
+        [[nodiscard]] bool InvalidateReferenceFrame(
+            const std::string& monitor_name,
+            std::uint64_t invalid_frame_index);
         int64_t GetQueuingMediaMsgCountInNetPlugins();
         int64_t GetQueuingFtMsgCountInNetPlugins();
         int GetTotalConnectedClientsCount();
         int GetTotalMediaConsumersCount();
         std::vector<std::shared_ptr<PxConnectedClientInfo>> GetConnectedClientsInfo();
 
-        void VisitAllModules(const std::function<void(
-            const std::shared_ptr<PxPluginInterface>&)>& visitor);
-        void VisitEncoders(const std::function<void(
-            const std::shared_ptr<PxVideoEncoderPlugin>&)>& visitor);
-        void VisitNetworkTransports(const std::function<void(
-            const std::shared_ptr<PxNetPlugin>&)>& visitor);
         void DumpModuleInfo();
 
         void On1Second();
@@ -105,6 +186,19 @@ namespace px
             const std::shared_ptr<PxMonitorCapturePlugin>& plugin);
 
     private:
+        [[nodiscard]] std::vector<std::shared_ptr<PxNetPlugin>>
+        SnapshotNetworkTransports();
+        [[nodiscard]] std::vector<std::shared_ptr<PxPluginInterface>>
+        SnapshotLifecycleModules();
+        [[nodiscard]] std::vector<std::shared_ptr<PxVideoEncoderPlugin>>
+        SnapshotEncoders();
+        void VisitAllModules(const std::function<void(
+            const std::shared_ptr<PxPluginInterface>&)>& operation);
+        void VisitEncoders(const std::function<void(
+            const std::shared_ptr<PxVideoEncoderPlugin>&)>& operation);
+        void VisitNetworkTransports(const std::function<void(
+            const std::shared_ptr<PxNetPlugin>&)>& operation);
+
         // Process-lifetime settings singleton, represented as a non-null
         // reference so composition never carries a nullable borrowed pointer.
         RdSettings& settings_;
@@ -121,6 +215,7 @@ namespace px
         std::shared_ptr<PxVideoEncoderPlugin> amf_encoder_;
         std::shared_ptr<PxMonitorCapturePlugin> dda_capture_;
         std::shared_ptr<PxMonitorCapturePlugin> gdi_capture_;
+        std::shared_ptr<PxNetPlugin> ws_transport_;
         std::shared_ptr<PxNetPlugin> udp_transport_;
         std::shared_ptr<PxNetPlugin> relay_transport_;
         std::shared_ptr<PxNetPlugin> rtc_transport_;

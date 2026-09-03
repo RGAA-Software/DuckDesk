@@ -145,27 +145,19 @@ namespace px
             auto target_event = std::dynamic_pointer_cast<PxPluginInsertIdrEvent>(event);
             // mon_name_ 为空 = 广播所有屏(旧行为);非空 = 只给目标屏补 IDR
             const auto mon_name = target_event ? target_event->mon_name_ : "";
-            module_registry_->VisitEncoders([mon_name](const std::shared_ptr<PxVideoEncoderPlugin>& plugin) {
-                // TODO:
-                //LOGI("Insert IDR for plugin: {}", plugin->GetPluginName());
-                plugin->InsertIdr(mon_name);
-            });
+            module_registry_->InsertIdr(mon_name);
         }
         else if (event->event_type_ == PxPluginEventType::kPluginInvalidateRefFrameEvent) {
             auto target_event = std::dynamic_pointer_cast<PxPluginInvalidateRefFrameEvent>(event);
             const auto mon_name = target_event ? target_event->mon_name_ : "";
             const auto invalid_index = target_event ? target_event->invalid_frame_index_ : 0;
-            bool accepted = false;
-            module_registry_->VisitEncoders([&](const std::shared_ptr<PxVideoEncoderPlugin>& plugin) {
-                accepted = plugin->InvalidateRefFrame(mon_name, invalid_index) || accepted;
-            });
+            const bool accepted = module_registry_->InvalidateReferenceFrame(
+                mon_name, invalid_index);
             if (!accepted) {
                 // 与 Sunshine 一致:编码器不支持 RFI(例如 FFmpeg 软编)时立即补 IDR,
                 // 不要等客户端 2s 无帧超时再回退。
                 LOGW("RFI not accepted by any encoder, fallback to IDR immediately.");
-                module_registry_->VisitEncoders([&](const std::shared_ptr<PxVideoEncoderPlugin>& plugin) {
-                    plugin->InsertIdr(mon_name);
-                });
+                module_registry_->InsertIdr(mon_name);
             }
         }
         else if (event->event_type_ == PxPluginEventType::kPluginRelayPausedEvent) {
@@ -284,12 +276,8 @@ namespace px
                         .stream_id_ = *previous_stream,
                         .permissions_ = {"view", "audio"},
                     };
-                    module_registry_->VisitNetworkTransports([&capability_update](const std::shared_ptr<PxNetPlugin>& plugin) {
-                        if (plugin) {
-                            plugin->ApplyLogicalSessionCapabilities(
-                                capability_update);
-                        }
-                    });
+                    module_registry_->ApplyLogicalSessionCapabilities(
+                        capability_update);
                 }
             }
             target_event->callback_(admission);
@@ -326,17 +314,8 @@ namespace px
         sub->set_sdp(target_event->sdp_);
         auto msg = ProtoAsData(&pt_msg);
 
-        module_registry_->VisitNetworkTransports([stream_id, msg](const std::shared_ptr<PxNetPlugin>& plugin) {
-            if (plugin->GetPluginId() == kRelayPluginId) {
-                if (stream_id.empty()) {
-                    plugin->PostProtoMessage(msg, true);
-                }
-                else {
-                    plugin->PostTargetStreamProtoMessage(stream_id, msg, true);
-                }
-                LOGI("Send SDP by relay: {}", stream_id);
-            }
-        });
+        module_registry_->SendRelaySignalingMessage(stream_id, msg);
+        LOGI("Send SDP by relay: {}", stream_id);
     }
 
     void RenderEventIngress::SendIceToRemote(const std::shared_ptr<PxPluginBaseEvent>& event) {
@@ -352,17 +331,8 @@ namespace px
         auto msg = ProtoAsData(&pt_msg);//.SerializeAsString();
 
         const auto ice = target_event->ice_;
-        module_registry_->VisitNetworkTransports([stream_id, msg, ice](const std::shared_ptr<PxNetPlugin>& plugin) {
-            if (plugin->GetPluginId() == kRelayPluginId) {
-                if (stream_id.empty()) {
-                    plugin->PostProtoMessage(msg, true);
-                }
-                else {
-                    plugin->PostTargetStreamProtoMessage(stream_id, msg, true);
-                }
-                LOGI("Send ICE by relay: {}", ice);
-            }
-        });
+        module_registry_->SendRelaySignalingMessage(stream_id, msg);
+        LOGI("Send ICE by relay: {}", ice);
     }
 
     void RenderEventIngress::ReportRemoteClipboardResp(const std::shared_ptr<PxPluginRemoteClipboardResp>& event) {

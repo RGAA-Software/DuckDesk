@@ -116,10 +116,7 @@ namespace px
             if (!self || self->exiting_ || !self->module_registry_) {
                 return;
             }
-            // plugins: InsertIdr
-            self->module_registry_->VisitEncoders([](const std::shared_ptr<PxVideoEncoderPlugin>& plugin) {
-                plugin->InsertIdr();
-            });
+            self->module_registry_->InsertIdr();
         });
     }
 
@@ -173,17 +170,14 @@ namespace px
 
                 const auto module_registry = module_registry_;
                 context_->PostMediaTask([module_registry, cap_video_msg]() {
-                    if (const auto rtc_local =
-                            module_registry->GetRtcLocalTransport()) {
-                        rtc_local->OnRawVideoFrameSharedTexture(
-                            cap_video_msg.display_name_,
-                            cap_video_msg.frame_index_,
-                            cap_video_msg.frame_width_,
-                            cap_video_msg.frame_height_,
-                            cap_video_msg.handle_,
-                            cap_video_msg.adapter_uid_,
-                            cap_video_msg.frame_format_);
-                    }
+                    module_registry->SubmitRtcLocalSharedTexture(
+                        cap_video_msg.display_name_,
+                        cap_video_msg.frame_index_,
+                        cap_video_msg.frame_width_,
+                        cap_video_msg.frame_height_,
+                        cap_video_msg.handle_,
+                        cap_video_msg.adapter_uid_,
+                        cap_video_msg.frame_format_);
                 });
             }
 
@@ -360,12 +354,8 @@ namespace px
                     return;
                 }
 
-                // all plugins
-                module_registry_->VisitAllModules(
-                    [adapter_uid, d3d_device, d3d_context](const std::shared_ptr<PxPluginInterface>& plugin) {
-                    plugin->d3d11_devices_[adapter_uid] = d3d_device;
-                    plugin->d3d11_devices_context_[adapter_uid] = d3d_context;
-                });
+                module_registry_->UpdateModuleD3DResources(
+                    adapter_uid, d3d_device, d3d_context);
 
                 // video frame carrier
                 const auto r = frame_carrier_processor_->InitializeMonitor(
@@ -526,16 +516,9 @@ namespace px
                     const bool full_color = settings_->EnableFullColorMode();
                     const std::string reason = full_color ? "full_color" : "encoder_format";
                     auto tip = NetMessageMaker::MakeVideoCodecChanged(px::VideoType::kNetHevc, full_color, reason);
-                    module_registry_->VisitNetworkTransports([=](const std::shared_ptr<PxNetPlugin>& plugin) {
-                        if (!plugin || plugin->GetPluginId() != kNetRtcLocalPluginId) {
-                            return;
-                        }
-                        if (plugin->GetConnectedClientsCount() <= 0) {
-                            return;
-                        }
+                    if (module_registry_->PostRtcLocalMessage(tip, false)) {
                         LOGW("Notify WebRTC clients: pipeline switched to H265 ({})", reason);
-                        plugin->PostProtoMessage(tip, false);
-                    });
+                    }
                 }
             }
 
@@ -740,13 +723,10 @@ namespace px
                     const auto module_registry = self->module_registry_;
                     self->context_->PostMediaTask(
                         [module_registry, monitor_name, cap_video_msg, image]() {
-                        if (const auto rtc_local =
-                                module_registry->GetRtcLocalTransport()) {
-                            rtc_local->OnRawVideoFrameYuv(
-                                monitor_name, cap_video_msg.frame_index_,
-                                cap_video_msg.frame_width_,
-                                cap_video_msg.frame_height_, image);
-                        }
+                        module_registry->SubmitRtcLocalYuv(
+                            monitor_name, cap_video_msg.frame_index_,
+                            cap_video_msg.frame_width_,
+                            cap_video_msg.frame_height_, image);
                     });
                 };
                 static_cast<void>(frame_carrier_processor_->ConvertRawImage(

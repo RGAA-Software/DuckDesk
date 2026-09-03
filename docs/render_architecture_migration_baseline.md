@@ -261,10 +261,10 @@ interface。
 | 产物 | 大小 | 最终 SHA-256 |
 |---|---:|---|
 | `net_rtc.dll` | 28,727,808 B | `217141844791CEC6F470FBCE41AA2C2F3A44BEAB577B2B4518D7EAE4D7E3C139` |
-| `net_rtc_local.dll` | 23,812,096 B | `73D6702754884118CD382ED286576A0520AE4053AAE77B58BFDDA0DBAC3C282B` |
+| `net_rtc_local.dll` | 23,812,096 B | `8DAD463F79CE4E9A794DFC8FDB917E915C58CE0EAE26F574A9710AA5969D4645` |
 
 `px_render.exe` 的最终 SHA-256 为
-`42784D2F5CF7128A5E83B007542298E14E7DAADEC17225FD1B3075767CB2C554`。以上三项均在
+`8495E7F25A91C7DBA847BEB1D2C59F0C633411E9CAEC2C37348AF9C5109443F1`。以上三项均在
 最后一次构建后重新发布，并独立比较 build tree 与 dist，结果全部相同；
 `render_retired_modules_guard -CheckDist` 通过。
 
@@ -272,3 +272,18 @@ interface。
 计划中的真实 GPU/多显示器、弱网/断网、端到端音视频主观质量、长时间 8 小时 soak 以及
 产品日志隐私抽检属于 L4-L6 发布验收，必须在目标硬件与测试网络中执行；本记录不把这些
 外部环境验收误报为已完成。
+
+### 阶段 10：组合 API 与调用锁进一步收口
+
+- Encoder、NetworkIngress、RenderIngress、Panel client、statistics 和 encoded fanout
+  不再取得 RTC/UDP/Relay 对象，也不再调用 `VisitAllModules`、`VisitEncoders` 或
+  `VisitNetworkTransports`；跨组件调用改为具名 typed 操作。
+- WS 专属 IPC/UserProxy、RTC SDP/ICE/媒体、Relay signaling、UDP association、模块信息、
+  D3D resource、IDR/RFI 都由 `RenderModuleRegistry` 在组合边界内完成。
+- 注册表内部 visitor 改为先复制强所有权快照、释放 `modules_mtx_` 后再调用模块，避免模块
+  callback、shutdown 或 re-entry 在持有组合锁时发生。
+- 架构门禁新增断言：具名 transport getter 不得回到 registry 公共头文件，三个通用 visitor
+  不得出现在组合实现以外的 Render C++ 文件。
+
+本阶段 `px_render` 聚焦构建通过，统一 Render CTest 18/18 通过，ownership、architecture
+guard 和 `git diff --check` 均通过；构建树与 dist 的上述最终哈希重新核对一致。

@@ -241,16 +241,16 @@ namespace px
         msg.set_type(pxrp::kRpPluginsInfo);
         auto m_info = msg.mutable_plugins_info();
         auto plugins_info = m_info->mutable_plugins_info();
-        module_registry_->VisitAllModules([&](const std::shared_ptr<PxPluginInterface>& plugin) {
+        for (const auto& module : module_registry_->SnapshotModuleInfo()) {
             auto info = plugins_info->Add();
-            info->set_id(plugin->GetPluginId());
-            info->set_name(plugin->GetPluginName());
-            info->set_author(plugin->GetPluginAuthor());
-            info->set_desc(plugin->GetPluginDescription());
-            info->set_version_name(plugin->GetVersionName());
-            info->set_version_code((int32_t)plugin->GetVersionCode());
-            info->set_enabled(plugin->IsPluginEnabled());
-        });
+            info->set_id(module.id);
+            info->set_name(module.name);
+            info->set_author(module.author);
+            info->set_desc(module.description);
+            info->set_version_name(module.version_name);
+            info->set_version_code(static_cast<int32_t>(module.version_code));
+            info->set_enabled(module.enabled);
+        }
         if (composition_root_) {
             for (const auto& module : composition_root_->SnapshotModules()) {
                 pxrp::RpPluginInfo info;
@@ -413,10 +413,8 @@ namespace px
                 resp_sub->set_device_name(sub.device_name());
                 auto buffer = ProtoAsData(resp_msg);
 
-                // 2. send it to net plugins
-                module_registry_->VisitNetworkTransports([=](const std::shared_ptr<PxNetPlugin>& plugin) {
-                    plugin->PostTargetStreamProtoMessage(sub.stream_id(), buffer, true);
-                });
+                module_registry_->BroadcastTargetStreamMessage(
+                    sub.stream_id(), buffer, true);
             }
             else if (m.type() == pxrp::RpMessageType::kRpVoiceCallConsentDecision) {
                 const auto& sub = m.voice_call_consent_decision();
@@ -429,17 +427,17 @@ namespace px
                 context_->DispatchAppEventToModules(event);
             }
             else if (m.type() == pxrp::RpMessageType::kRpRawRenderMessage) {
-                module_registry_->VisitNetworkTransports([=](const std::shared_ptr<PxNetPlugin>& plugin) {
-                    const auto& sub = m.raw_render_msg();
-                    auto data = Data::From(sub.msg());
-                    LOGI("==> RawRenderMessage--> stream id: {}, data ch: {}", sub.stream_id(), sub.data_channel());
-                    if (sub.data_channel()) {
-                        plugin->PostTargetFileTransferProtoMessage(sub.stream_id(), data, sub.run_through());
-                    }
-                    else {
-                        plugin->PostProtoMessage(data, sub.run_through());
-                    }
-                });
+                const auto& sub = m.raw_render_msg();
+                auto data = Data::From(sub.msg());
+                LOGI("==> RawRenderMessage--> stream id: {}, data ch: {}", sub.stream_id(), sub.data_channel());
+                if (sub.data_channel()) {
+                    module_registry_->BroadcastFileTransferMessage(
+                        sub.stream_id(), data, sub.run_through());
+                }
+                else {
+                    module_registry_->BroadcastNetworkMessage(
+                        data, sub.run_through());
+                }
             }
             else if (m.type() == pxrp::RpMessageType::kRpHardwareInfo) {
                 auto json_msg = m.hw_info().json_msg();
@@ -448,9 +446,7 @@ namespace px
                 net_msg.mutable_hw_info()->set_hw_info(json_msg);
                 net_msg.mutable_hw_info()->set_current_cpu_freq(m.hw_info().current_cpu_freq());
                 auto data = ProtoAsData(&net_msg);
-                module_registry_->VisitNetworkTransports([=](const std::shared_ptr<PxNetPlugin>& plugin) {
-                    plugin->PostProtoMessage(data, true);
-                });
+                module_registry_->BroadcastNetworkMessage(data, true);
             }
 
         } catch(std::exception& e) {
@@ -468,12 +464,7 @@ namespace px
                 }
             }
         }
-        module_registry_->VisitAllModules([&](const std::shared_ptr<PxPluginInterface>& plugin) {
-            if (plugin_id == plugin->GetPluginId()) {
-                LOGI("Enable plugin: {}", plugin->GetPluginName());
-                plugin->EnablePlugin();
-            }
-        });
+        static_cast<void>(module_registry_->SetModuleEnabled(plugin_id, true));
     }
 
     void WsPanelClient::ProcessCommandDisablePlugin(const std::string& plugin_id) {
@@ -486,12 +477,7 @@ namespace px
                 }
             }
         }
-        module_registry_->VisitAllModules([&](const std::shared_ptr<PxPluginInterface>& plugin) {
-            if (plugin_id == plugin->GetPluginId()) {
-                LOGI("Disable plugin: {}", plugin->GetPluginName());
-                plugin->DisablePlugin();
-            }
-        });
+        static_cast<void>(module_registry_->SetModuleEnabled(plugin_id, false));
     }
 
 }

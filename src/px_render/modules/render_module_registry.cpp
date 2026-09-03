@@ -143,6 +143,7 @@ namespace px
         }
         const auto ws_transport = std::make_shared<WsPlugin>();
         if (register_builtin(ws_transport, "net_ws")) {
+            ws_transport_ = ws_transport;
             network_transports_.push_back(ws_transport);
         }
         const auto udp_transport = std::make_shared<UdpPlugin>();
@@ -322,6 +323,7 @@ namespace px
             amf_encoder_.reset();
             dda_capture_.reset();
             gdi_capture_.reset();
+            ws_transport_.reset();
             udp_transport_.reset();
             relay_transport_.reset();
             rtc_transport_.reset();
@@ -371,30 +373,402 @@ namespace px
         return gdi_capture_;
     }
 
-    std::shared_ptr<PxNetPlugin> RenderModuleRegistry::GetUdpTransport() {
-        std::shared_lock lock(modules_mtx_);
-        return udp_transport_;
+    void RenderModuleRegistry::SyncUdpInfo(
+        const std::int64_t socket_fd,
+        const std::string& device_id,
+        const std::string& stream_id) {
+        std::shared_ptr<PxNetPlugin> udp;
+        {
+            std::shared_lock lock(modules_mtx_);
+            udp = udp_transport_;
+        }
+        if (udp) {
+            udp->SyncInfo(NetSyncInfo{
+                .socket_fd_ = socket_fd,
+                .device_id_ = device_id,
+                .stream_id_ = stream_id,
+            });
+        }
     }
 
-    std::shared_ptr<PxNetPlugin> RenderModuleRegistry::GetRtcTransport() {
-        std::shared_lock lock(modules_mtx_);
-        return rtc_transport_;
+    bool RenderModuleRegistry::IsRelayConnected() {
+        std::shared_ptr<PxNetPlugin> relay;
+        {
+            std::shared_lock lock(modules_mtx_);
+            relay = relay_transport_;
+        }
+        return relay && relay->IsWorking();
     }
 
-    std::shared_ptr<PxNetPlugin> RenderModuleRegistry::GetRelayTransport() {
-        std::shared_lock lock(modules_mtx_);
-        return relay_transport_;
+    void RenderModuleRegistry::SubmitRtcLocalSharedTexture(
+        const std::string& monitor_name,
+        const std::uint64_t frame_index,
+        const int frame_width,
+        const int frame_height,
+        const std::uint64_t shared_handle,
+        const std::int64_t adapter_id,
+        const std::uint64_t frame_format) {
+        std::shared_ptr<PxNetPlugin> rtc_local;
+        {
+            std::shared_lock lock(modules_mtx_);
+            rtc_local = rtc_local_transport_;
+        }
+        if (rtc_local) {
+            rtc_local->OnRawVideoFrameSharedTexture(
+                monitor_name, frame_index, frame_width, frame_height,
+                shared_handle, adapter_id, frame_format);
+        }
     }
 
-    std::shared_ptr<PxNetPlugin> RenderModuleRegistry::GetRtcLocalTransport() {
+    void RenderModuleRegistry::SubmitRtcLocalYuv(
+        const std::string& monitor_name,
+        const std::uint64_t frame_index,
+        const int frame_width,
+        const int frame_height,
+        const std::shared_ptr<Image>& image) {
+        std::shared_ptr<PxNetPlugin> rtc_local;
+        {
+            std::shared_lock lock(modules_mtx_);
+            rtc_local = rtc_local_transport_;
+        }
+        if (rtc_local) {
+            rtc_local->OnRawVideoFrameYuv(
+                monitor_name, frame_index, frame_width, frame_height, image);
+        }
+    }
+
+    void RenderModuleRegistry::UpdateRtcLocalCaptureMonitorInfo(
+        const CaptureMonitorInfoMessage& message) {
+        std::shared_ptr<PxNetPlugin> rtc_local;
+        {
+            std::shared_lock lock(modules_mtx_);
+            rtc_local = rtc_local_transport_;
+        }
+        if (rtc_local) {
+            rtc_local->UpdateCaptureMonitorInfo(message);
+        }
+    }
+
+    void RenderModuleRegistry::ApplyRtcLocalRemoteSdp(
+        const MsgRtcRemoteSdp& message) {
+        std::shared_ptr<PxNetPlugin> rtc_local;
+        {
+            std::shared_lock lock(modules_mtx_);
+            rtc_local = rtc_local_transport_;
+        }
+        if (rtc_local) {
+            rtc_local->ApplyRtcRemoteSdp(message);
+        }
+    }
+
+    void RenderModuleRegistry::ApplyRtcLocalRemoteIce(
+        const MsgRtcRemoteIce& message) {
+        std::shared_ptr<PxNetPlugin> rtc_local;
+        {
+            std::shared_lock lock(modules_mtx_);
+            rtc_local = rtc_local_transport_;
+        }
+        if (rtc_local) {
+            rtc_local->ApplyRtcRemoteIce(message);
+        }
+    }
+
+    void RenderModuleRegistry::DispatchRtcLocalMessage(
+        const std::shared_ptr<Message>& message) {
+        std::shared_ptr<PxNetPlugin> rtc_local;
+        {
+            std::shared_lock lock(modules_mtx_);
+            rtc_local = rtc_local_transport_;
+        }
+        if (rtc_local) {
+            rtc_local->OnMessage(message);
+        }
+    }
+
+    void RenderModuleRegistry::BroadcastNetworkMessage(
+        const std::shared_ptr<Data>& message, const bool run_through) {
+        if (!message) {
+            return;
+        }
+        VisitNetworkTransports(
+            [message, run_through](const std::shared_ptr<PxNetPlugin>& transport) {
+                transport->PostProtoMessage(message, run_through);
+            });
+    }
+
+    void RenderModuleRegistry::BroadcastTargetStreamMessage(
+        const std::string& stream_id,
+        const std::shared_ptr<Data>& message,
+        const bool run_through) {
+        if (!message) {
+            return;
+        }
+        VisitNetworkTransports(
+            [&stream_id, &message, run_through](
+                const std::shared_ptr<PxNetPlugin>& transport) {
+                static_cast<void>(transport->PostTargetStreamProtoMessage(
+                    stream_id, message, run_through));
+            });
+    }
+
+    void RenderModuleRegistry::BroadcastFileTransferMessage(
+        const std::string& stream_id,
+        const std::shared_ptr<Data>& message,
+        const bool run_through) {
+        if (!message) {
+            return;
+        }
+        VisitNetworkTransports(
+            [&stream_id, &message, run_through](
+                const std::shared_ptr<PxNetPlugin>& transport) {
+                static_cast<void>(transport->PostTargetFileTransferProtoMessage(
+                    stream_id, message, run_through));
+            });
+    }
+
+    void RenderModuleRegistry::BroadcastRawAudio(
+        const std::shared_ptr<Data>& data,
+        const int samples,
+        const int channels,
+        const int bits) {
+        if (!data) {
+            return;
+        }
+        VisitNetworkTransports(
+            [&data, samples, channels, bits](
+                const std::shared_ptr<PxNetPlugin>& transport) {
+                transport->OnRawAudioData(data, samples, channels, bits);
+            });
+    }
+
+    void RenderModuleRegistry::PublishEncodedVideoMetadata(
+        const std::string& monitor_name,
+        const std::shared_ptr<PxPluginEncodedVideoFrameEvent>& event) {
+        if (!event || !event->data_) {
+            return;
+        }
+        VisitNetworkTransports(
+            [&monitor_name, &event](
+                const std::shared_ptr<PxNetPlugin>& transport) {
+                transport->OnEncodedVideoFrame(
+                    monitor_name, event->type_, event->data_,
+                    event->frame_index_, static_cast<int>(event->frame_width_),
+                    static_cast<int>(event->frame_height_), event->key_frame_);
+            });
+    }
+
+    void RenderModuleRegistry::DispatchNetworkAppEvent(
+        const std::shared_ptr<AppBaseEvent>& event) {
+        if (!event) {
+            return;
+        }
+        VisitNetworkTransports(
+            [&event](const std::shared_ptr<PxNetPlugin>& transport) {
+                transport->DispatchAppEvent(event);
+            });
+    }
+
+    void RenderModuleRegistry::ApplyLogicalSessionCapabilities(
+        const PxLogicalSessionCapabilityUpdate& update) {
+        VisitNetworkTransports(
+            [&update](const std::shared_ptr<PxNetPlugin>& transport) {
+                transport->ApplyLogicalSessionCapabilities(update);
+            });
+    }
+
+    bool RenderModuleRegistry::PostRtcLocalMessage(
+        const std::shared_ptr<Data>& message, const bool run_through) {
+        std::shared_ptr<PxNetPlugin> rtc_local;
+        {
+            std::shared_lock lock(modules_mtx_);
+            rtc_local = rtc_local_transport_;
+        }
+        if (rtc_local && message && rtc_local->GetConnectedClientsCount() > 0) {
+            rtc_local->PostProtoMessage(message, run_through);
+            return true;
+        }
+        return false;
+    }
+
+    void RenderModuleRegistry::SendRelaySignalingMessage(
+        const std::string& stream_id,
+        const std::shared_ptr<Data>& message) {
+        std::shared_ptr<PxNetPlugin> relay;
+        {
+            std::shared_lock lock(modules_mtx_);
+            relay = relay_transport_;
+        }
+        if (!relay || !message) {
+            return;
+        }
+        if (stream_id.empty()) {
+            relay->PostProtoMessage(message, true);
+            return;
+        }
+        static_cast<void>(
+            relay->PostTargetStreamProtoMessage(stream_id, message, true));
+    }
+
+    void RenderModuleRegistry::PostWsIpcBinaryMessage(
+        const std::shared_ptr<Data>& message) {
+        std::shared_ptr<PxNetPlugin> ws;
+        {
+            std::shared_lock lock(modules_mtx_);
+            ws = ws_transport_;
+        }
+        if (ws && message) {
+            ws->PostIpcBinaryMessage(message);
+        }
+    }
+
+    void RenderModuleRegistry::RegisterWsIpcPid(const std::uint32_t pid) {
+        std::shared_ptr<PxNetPlugin> ws;
+        {
+            std::shared_lock lock(modules_mtx_);
+            ws = ws_transport_;
+        }
+        if (ws) {
+            ws->RegisterIpcPid(pid);
+        }
+    }
+
+    void RenderModuleRegistry::PostWsUserProxyMessage(
+        const std::shared_ptr<Data>& message) {
+        std::shared_ptr<PxNetPlugin> ws;
+        {
+            std::shared_lock lock(modules_mtx_);
+            ws = ws_transport_;
+        }
+        if (ws && message) {
+            ws->PostUserProxyMessage(message);
+        }
+    }
+
+    bool RenderModuleRegistry::IsWsUserProxyConnected() {
+        std::shared_ptr<PxNetPlugin> ws;
+        {
+            std::shared_lock lock(modules_mtx_);
+            ws = ws_transport_;
+        }
+        return ws && ws->IsUserProxyConnected();
+    }
+
+    bool RenderModuleRegistry::HasWorkingVideoClient() {
+        for (const auto& transport : SnapshotNetworkTransports()) {
+            if (transport->IsWorking() && !transport->IsOnlyAudioClients()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    std::vector<RenderModuleInfo> RenderModuleRegistry::SnapshotModuleInfo() {
+        std::vector<RenderModuleInfo> result;
+        const auto modules = SnapshotLifecycleModules();
+        result.reserve(modules.size());
+        for (const auto& module : modules) {
+            result.push_back(RenderModuleInfo{
+                .id = module->GetPluginId(),
+                .name = module->GetPluginName(),
+                .author = module->GetPluginAuthor(),
+                .description = module->GetPluginDescription(),
+                .version_name = module->GetVersionName(),
+                .version_code = module->GetVersionCode(),
+                .enabled = module->IsPluginEnabled(),
+            });
+        }
+        return result;
+    }
+
+    bool RenderModuleRegistry::SetModuleEnabled(
+        const std::string& module_id, const bool enabled) {
+        for (const auto& module : SnapshotLifecycleModules()) {
+            if (module->GetPluginId() != module_id) {
+                continue;
+            }
+            LOGI("event=module.enable component=render_module_registry "
+                 "module={} enabled={}",
+                 module->GetPluginName(), enabled);
+            if (enabled) {
+                module->EnablePlugin();
+            }
+            else {
+                module->DisablePlugin();
+            }
+            return true;
+        }
+        return false;
+    }
+
+    void RenderModuleRegistry::DispatchAppEventToModules(
+        const std::shared_ptr<AppBaseEvent>& event) {
+        if (!event) {
+            return;
+        }
+        VisitAllModules(
+            [&event](const std::shared_ptr<PxPluginInterface>& module) {
+                module->DispatchAppEvent(event);
+            });
+    }
+
+    void RenderModuleRegistry::UpdateModuleD3DResources(
+        const std::uint64_t adapter_uid,
+        const Microsoft::WRL::ComPtr<ID3D11Device>& device,
+        const Microsoft::WRL::ComPtr<ID3D11DeviceContext>& context) {
+        VisitAllModules(
+            [adapter_uid, device, context](
+                const std::shared_ptr<PxPluginInterface>& module) {
+                module->d3d11_devices_[adapter_uid] = device;
+                module->d3d11_devices_context_[adapter_uid] = context;
+            });
+    }
+
+    void RenderModuleRegistry::ClearModuleD3DResources(
+        const std::uint64_t adapter_uid) {
+        VisitAllModules(
+            [adapter_uid](const std::shared_ptr<PxPluginInterface>& module) {
+                module->d3d11_devices_.erase(adapter_uid);
+                module->d3d11_devices_context_.erase(adapter_uid);
+            });
+    }
+
+    void RenderModuleRegistry::InsertIdr(
+        const std::string& monitor_name) {
+        VisitEncoders(
+            [&monitor_name](
+                const std::shared_ptr<PxVideoEncoderPlugin>& encoder) {
+                encoder->InsertIdr(monitor_name);
+            });
+    }
+
+    bool RenderModuleRegistry::InvalidateReferenceFrame(
+        const std::string& monitor_name,
+        const std::uint64_t invalid_frame_index) {
+        bool accepted = false;
+        VisitEncoders(
+            [&accepted, &monitor_name, invalid_frame_index](
+                const std::shared_ptr<PxVideoEncoderPlugin>& encoder) {
+                accepted = encoder->InvalidateRefFrame(
+                    monitor_name, invalid_frame_index) || accepted;
+            });
+        return accepted;
+    }
+
+    std::vector<std::shared_ptr<PxPluginInterface>>
+    RenderModuleRegistry::SnapshotLifecycleModules() {
         std::shared_lock lock(modules_mtx_);
-        return rtc_local_transport_;
+        return lifecycle_modules_;
+    }
+
+    std::vector<std::shared_ptr<PxVideoEncoderPlugin>>
+    RenderModuleRegistry::SnapshotEncoders() {
+        std::shared_lock lock(modules_mtx_);
+        return encoders_;
     }
 
     void RenderModuleRegistry::VisitAllModules(const std::function<void(
         const std::shared_ptr<PxPluginInterface>&)>& visitor) {
-        std::shared_lock<std::shared_mutex> lock(modules_mtx_);
-        for (const auto& plugin : lifecycle_modules_) {
+        for (const auto& plugin : SnapshotLifecycleModules()) {
             if (visitor) {
                 visitor(plugin);
             }
@@ -403,18 +777,22 @@ namespace px
 
     void RenderModuleRegistry::VisitEncoders(const std::function<void(
         const std::shared_ptr<PxVideoEncoderPlugin>&)>& visitor) {
-        std::shared_lock<std::shared_mutex> lock(modules_mtx_);
-        for (const auto& encoder : encoders_) {
+        for (const auto& encoder : SnapshotEncoders()) {
             if (visitor) {
                 visitor(encoder);
             }
         }
     }
 
+    std::vector<std::shared_ptr<PxNetPlugin>>
+    RenderModuleRegistry::SnapshotNetworkTransports() {
+        std::shared_lock lock(modules_mtx_);
+        return network_transports_;
+    }
+
     void RenderModuleRegistry::VisitNetworkTransports(const std::function<void(
         const std::shared_ptr<PxNetPlugin>&)>& visitor) {
-        std::shared_lock<std::shared_mutex> lock(modules_mtx_);
-        for (const auto& transport : network_transports_) {
+        for (const auto& transport : SnapshotNetworkTransports()) {
             if (visitor) {
                 visitor(transport);
             }

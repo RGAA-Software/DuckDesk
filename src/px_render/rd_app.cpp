@@ -1245,9 +1245,8 @@ namespace px
                         }
                         // net_rtc_local consumes raw PCM for the WebRTC audio RTP track
                         // (encoded Opus over DataChannel is intentionally dropped there).
-                        self->module_registry_->VisitNetworkTransports([=](const std::shared_ptr<PxNetPlugin>& plugin) {
-                            plugin->OnRawAudioData(data, samples, channels, bits);
-                        });
+                        self->module_registry_->BroadcastRawAudio(
+                            data, samples, channels, bits);
                     });
                 }
                 // statistics
@@ -1347,23 +1346,15 @@ namespace px
             return;
         }
         auto data = Data::From(msg);
-        // Host → injected DLL over /ipc (WsPlugin only). Do not VisitNetworkTransports for this
-        // virtual: unrebuilt net plugin DLLs lack the trailing vtable slot and crash.
-        module_registry_->VisitNetworkTransports([=](const std::shared_ptr<PxNetPlugin>& plugin) {
-            if (!plugin || plugin->GetPluginId() != kNetWsPluginId) {
-                return;
-            }
-            plugin->PostIpcBinaryMessage(data);
-        });
+        // Host -> injected DLL over /ipc is a WS-specific network operation.
+        module_registry_->PostWsIpcBinaryMessage(data);
     }
 
     void RdApplication::PostNetMessage(std::shared_ptr<Data> msg) const {
         if (!msg) {
             return;
         }
-        module_registry_->VisitNetworkTransports([=](const std::shared_ptr<PxNetPlugin>& plugin) {
-            plugin->PostProtoMessage(msg, true);
-        });
+        module_registry_->BroadcastNetworkMessage(msg, true);
     }
 
     void RdApplication::StartProcessWithHook() {
@@ -1541,13 +1532,7 @@ namespace px
             return;
         }
         if (!settings_->IsGameHookMode()) {
-            bool only_audio_clients = true;
-            module_registry_->VisitNetworkTransports([&only_audio_clients](const std::shared_ptr<PxNetPlugin>& plugin) {
-                if (plugin->IsWorking() && !plugin->IsOnlyAudioClients()) {
-                    only_audio_clients = false;
-                }
-            });
-            if (only_audio_clients) {
+            if (!module_registry_->HasWorkingVideoClient()) {
                 LOGI("Only audio clients, ignore video frame.");
                 return;
             }
@@ -1663,12 +1648,7 @@ namespace px
         // Allow this pid on /ipc (net_ws). Game restarts get here again with the new
         // pid, so each live game generation is re-registered; stale games injected by
         // dead renders are never registered and get rejected on connect.
-        module_registry_->VisitNetworkTransports([=](const std::shared_ptr<PxNetPlugin>& plugin) {
-            if (!plugin || plugin->GetPluginId() != kNetWsPluginId) {
-                return;
-            }
-            plugin->RegisterIpcPid(pid);
-        });
+        module_registry_->RegisterWsIpcPid(pid);
     }
 
     void RdApplication::SendAudioSpectrumMessage() const {
@@ -2020,10 +2000,7 @@ namespace px
         if (!module_registry_) {
             return;
         }
-        module_registry_->VisitAllModules([adapter_uid](const std::shared_ptr<PxPluginInterface>& plugin) {
-            plugin->d3d11_devices_.erase(adapter_uid);
-            plugin->d3d11_devices_context_.erase(adapter_uid);
-        });
+        module_registry_->ClearModuleD3DResources(adapter_uid);
     }
 
     void RdApplication::HandleD3DDeviceFailure(uint64_t adapter_uid, const std::string& reason) {
@@ -2288,9 +2265,7 @@ namespace px
         if (!msg || !module_registry_) {
             return;
         }
-        module_registry_->VisitNetworkTransports([&](const std::shared_ptr<PxNetPlugin>& plugin) {
-            plugin->PostUserProxyMessage(msg);
-        });
+        module_registry_->PostWsUserProxyMessage(msg);
     }
 
     void RdApplication::HandleForceGdiEvent(bool force_gdi) {

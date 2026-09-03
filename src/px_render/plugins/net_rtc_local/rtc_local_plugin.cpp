@@ -379,7 +379,7 @@ namespace px
 
     // 视频/音频帧消息不该走 datachannel:RTC 的音视频走 RTP 轨,web 端也不认识
     // 这类 proto 消息。但 app 会把每个编码帧广播给所有 net 插件
-    // (EncodedVideoFanout VisitNetworkTransports -> PostProtoMessage),
+    // (EncodedVideoFanout -> RenderModuleRegistry broadcast),
     // 之前照单全收经 SCTP 转发 => ~9Mbps 的 20KB/帧 消息洪水:
     // render 每帧 PostTask+memcpy、WaitForMediaChannelActive 在帧分发线程自旋,
     // Chrome 主线程每秒 60 次 20KB TLV 重组+proto 解码后丢弃——

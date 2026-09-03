@@ -242,13 +242,7 @@ namespace px
                 ? "Controller" : "Observer");
         }
 
-        auto relay_plugin = module_registry_->GetRelayTransport();
-        if (relay_plugin &&relay_plugin->IsWorking()) {
-            cst->set_relay_connected(true);
-        }
-        else {
-            cst->set_relay_connected(false);
-        }
+        cst->set_relay_connected(module_registry_->IsRelayConnected());
 
         // audio capture
         cst->set_audio_capture_type("WASAPI");

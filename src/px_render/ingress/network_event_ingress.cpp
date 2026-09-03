@@ -88,11 +88,7 @@ namespace px {
         response.mutable_sig_answer_sdp()->set_error_code(code);
         response.mutable_sig_answer_sdp()->set_error_message(message);
         const auto serialized = ProtoAsData(&response);
-        module_registry_->VisitNetworkTransports([stream_id, serialized](const std::shared_ptr<PxNetPlugin>& target) {
-            if (target && target->GetPluginId() == kRelayPluginId) {
-                target->PostTargetStreamProtoMessage(stream_id, serialized, true);
-            }
-        });
+        module_registry_->SendRelaySignalingMessage(stream_id, serialized);
     }
 
     namespace {
@@ -412,10 +408,7 @@ namespace px {
             }
         }
 
-        // tell encoder plugins to insert an I Frame
-        module_registry_->VisitEncoders([](const std::shared_ptr<PxVideoEncoderPlugin>& plugin) {
-            plugin->InsertIdr();
-        });
+        module_registry_->InsertIdr();
 
         // active the password inputting ui
         if (WinHelper::IsSessionLocked()) {
@@ -465,11 +458,8 @@ namespace px {
                 const std::string reason = full_color ? "full_color" : "encoder_format";
                 LOGW("WebRTC connected while pipeline is H265 ({}), notify client", reason);
                 auto tip = NetMessageMaker::MakeVideoCodecChanged(px::VideoType::kNetHevc, full_color, reason);
-                module_registry_->VisitNetworkTransports([=](const std::shared_ptr<PxNetPlugin>& plugin) {
-                    if (plugin && plugin->GetPluginId() == kNetRtcLocalPluginId) {
-                        plugin->PostProtoMessage(tip, false);
-                    }
-                });
+                static_cast<void>(
+                    module_registry_->PostRtcLocalMessage(tip, false));
             }
         }
     }
@@ -543,10 +533,7 @@ namespace px {
                 .virtual_desktop_bound_rectangle_info_ = plugin->GetVirtualDesktopBoundRectangleInfo()
             };
             msg_notifier_->SendAppMessage(cm_msg);
-            if (const auto rtc_local =
-                    module_registry_->GetRtcLocalTransport()) {
-                rtc_local->UpdateCaptureMonitorInfo(cm_msg);
-            }
+            module_registry_->UpdateRtcLocalCaptureMonitorInfo(cm_msg);
         }
     }
 
@@ -615,17 +602,14 @@ namespace px {
                 joystick_service_->HandleMessage(msg);
             }
             const auto weak_self = weak_from_this();
-            if (const auto rtc_local = module_registry_->GetRtcLocalTransport()) {
-                [weak_self, msg](const std::shared_ptr<PxNetPlugin>& plugin) {
-                const auto self = weak_self.lock();
-                if (!self) {
-                    return;
-                }
-                // Standard RTC uses the same media engine as Direct RTC. The
-                // legacy net_rtc transport only had data channels and could
-                // report Connected while delivering no video/audio tracks.
-                if (plugin->GetPluginId() == kNetRtcLocalPluginId) {
-                    if (msg->type() == MessageType::kSigOfferSdpMessage) {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            // Standard RTC uses the same media engine as Direct RTC. The
+            // legacy net_rtc transport only had data channels and could
+            // report Connected while delivering no video/audio tracks.
+            if (msg->type() == MessageType::kSigOfferSdpMessage) {
                         const auto sub = msg->sig_offer_sdp();
                         const auto stream_id = msg->stream_id();
                         const auto device_id = msg->device_id();
@@ -681,19 +665,15 @@ namespace px {
                                         .stream_id_ = *previous_stream,
                                         .permissions_ = {"view", "audio"},
                                     };
-                                    self->module_registry_->VisitNetworkTransports([&update](const std::shared_ptr<PxNetPlugin>& target) {
-                                        if (target) {
-                                            target->ApplyLogicalSessionCapabilities(
-                                                update);
-                                        }
-                                    });
+                                    self->module_registry_->ApplyLogicalSessionCapabilities(
+                                        update);
                                 }
                             }
                             // A guest has no Console ticket from which to mint
                             // temporary TURN credentials. An empty server list
                             // still selects standard RTC and permits host ICE;
                             // managed TURN remains available to ticketed users.
-                            plugin->ApplyRtcRemoteSdp(MsgRtcRemoteSdp {
+                            self->module_registry_->ApplyRtcLocalRemoteSdp(MsgRtcRemoteSdp {
                                 .stream_id_ = stream_id,
                                 .device_id_ = device_id,
                                 .sdp_ = sdp,
@@ -773,19 +753,11 @@ namespace px {
                                             .stream_id_ = *previous_stream,
                                             .permissions_ = {"view", "audio"},
                                         };
-                                        self->module_registry_->VisitNetworkTransports([&update](const std::shared_ptr<PxNetPlugin>& target) {
-                                            if (target) {
-                                                target->ApplyLogicalSessionCapabilities(
-                                                    update);
-                                            }
-                                        });
+                                        self->module_registry_->ApplyLogicalSessionCapabilities(
+                                            update);
                                     }
                                 }
-                                const auto plugin = self->module_registry_->GetRtcLocalTransport();
-                                if (!plugin) {
-                                    return;
-                                }
-                                plugin->ApplyRtcRemoteSdp(MsgRtcRemoteSdp {
+                                self->module_registry_->ApplyRtcLocalRemoteSdp(MsgRtcRemoteSdp {
                                     .stream_id_ = stream_id,
                                     .device_id_ = device_id,
                                     .sdp_ = sdp,
@@ -795,9 +767,9 @@ namespace px {
                             });
                         return;
                     }
-                    if (msg->type() == MessageType::kSigIceMessage) {
+            if (msg->type() == MessageType::kSigIceMessage) {
                         const auto sub = msg->sig_ice();
-                        plugin->ApplyRtcRemoteIce(MsgRtcRemoteIce {
+                        self->module_registry_->ApplyRtcLocalRemoteIce(MsgRtcRemoteIce {
                             .stream_id_ = msg->stream_id(),
                             .device_id_ = msg->device_id(),
                             .ice_ = sub.ice(),
@@ -805,11 +777,8 @@ namespace px {
                             .sdp_mline_index_ = sub.sdp_mline_index(),
                         });
                         return;
-                    }
-                }
-                plugin->OnMessage(msg);
-                }(rtc_local);
             }
+            self->module_registry_->DispatchRtcLocalMessage(msg);
 
 #if PX_USER_PROXY_ENABLED
             if (msg->type() == MessageType::kClipboardInfo) {
@@ -819,13 +788,7 @@ namespace px {
                     if (!self) {
                         return;
                     }
-                    bool user_proxy_connected = false;
-                    self->module_registry_->VisitNetworkTransports([&](const std::shared_ptr<PxNetPlugin>& plugin) {
-                        if (plugin->IsUserProxyConnected()) {
-                            user_proxy_connected = true;
-                        }
-                    });
-                    if (!user_proxy_connected) {
+                    if (!self->module_registry_->IsWsUserProxyConnected()) {
                         LOGW("user-proxy not connected, drop client clipboard, type={}, len={}",
                              (int)msg->clipboard_info().type(), event->message_->Size());
                         return;
@@ -850,13 +813,7 @@ namespace px {
                     if (!self) {
                         return;
                     }
-                    bool user_proxy_connected = false;
-                    self->module_registry_->VisitNetworkTransports([&](const std::shared_ptr<PxNetPlugin>& plugin) {
-                        if (plugin->IsUserProxyConnected()) {
-                            user_proxy_connected = true;
-                        }
-                    });
-                    if (!user_proxy_connected) {
+                    if (!self->module_registry_->IsWsUserProxyConnected()) {
                         LOGW("user-proxy not connected, drop clipboard buffer msg, type={}, len={}",
                              (int)msg->type(), event->message_->Size());
                         return;
@@ -1055,9 +1012,7 @@ namespace px {
         app_->GetContext()->SendAppMessage(event);
 
         auto e = std::make_shared<MsgClientHello>(event);
-        module_registry_->VisitNetworkTransports([e](const std::shared_ptr<PxNetPlugin>& transport) {
-            transport->DispatchAppEvent(e);
-        });
+        module_registry_->DispatchNetworkAppEvent(e);
     }
 
     NetworkEventIngress::InputLeaseKey NetworkEventIngress::ToInputLeaseKey(
@@ -1301,9 +1256,7 @@ namespace px {
         event->stream_id_ = msg->stream_id();
         event->hb_index_ = msg->heartbeat().index();
         event->timestamp_ = msg->heartbeat().timestamp();
-        module_registry_->VisitNetworkTransports([event](const std::shared_ptr<PxNetPlugin>& transport) {
-            transport->DispatchAppEvent(event);
-        });
+        module_registry_->DispatchNetworkAppEvent(event);
     }
 
     void NetworkEventIngress::ProcessClipboardInfo(std::shared_ptr<Message>&& msg) {
@@ -1459,15 +1412,7 @@ namespace px {
     }
 
     void NetworkEventIngress::SyncInfoToUdpPlugin(int64_t socket_fd, const std::string& device_id, const std::string& stream_id) {
-        auto udp_plugin = module_registry_->GetUdpTransport();
-        if (!udp_plugin) {
-            return;
-        }
-        udp_plugin->SyncInfo(NetSyncInfo {
-            .socket_fd_ = socket_fd,
-            .device_id_ = device_id,
-            .stream_id_ = stream_id
-        });
+        module_registry_->SyncUdpInfo(socket_fd, device_id, stream_id);
     }
 
     void NetworkEventIngress::ProcessRtcReportEvent(const std::shared_ptr<PxPluginRtcReportEvent>& event) {

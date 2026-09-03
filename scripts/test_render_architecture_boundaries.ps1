@@ -65,9 +65,35 @@ if ($architectureCmake -match '\bpx_plugin\b') {
 
 $moduleRegistry = Get-Content -LiteralPath `
     (Join-Path $RepoRoot "src\px_render\modules\render_module_registry.h") -Raw
-foreach ($pattern in @("PluginManager", "GetPluginById", "std::map")) {
+foreach ($pattern in @(
+    "PluginManager",
+    "GetPluginById",
+    "GetRtcTransport",
+    "GetRtcLocalTransport",
+    "GetUdpTransport",
+    "GetRelayTransport",
+    "std::map")) {
     if ($moduleRegistry -match $pattern) {
         $violations.Add("render_module_registry.h: explicit Render module composition regressed to $pattern")
+    }
+}
+
+$registryPaths = @(
+    (Join-Path $RepoRoot "src\px_render\modules\render_module_registry.cpp"),
+    (Join-Path $RepoRoot "src\px_render\modules\render_module_registry.h"))
+foreach ($file in $renderNativeFiles) {
+    if ($registryPaths -contains $file.FullName) {
+        continue
+    }
+    $content = Get-Content -LiteralPath $file.FullName -Raw
+    foreach ($visitorName in @(
+        "VisitAllModules",
+        "VisitEncoders",
+        "VisitNetworkTransports")) {
+        if ($content -match $visitorName) {
+            $relative = $file.FullName.Substring($RepoRoot.Length).TrimStart([char]'\')
+            $violations.Add("${relative}: generic $visitorName must remain private to explicit composition")
+        }
     }
 }
 
