@@ -36,7 +36,7 @@ set(PLUGIN_SRCS
 
 add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})
 #add_library(${PROJECT_NAME} ${PLUGIN_SRCS})
-target_link_libraries(${PROJECT_NAME} PUBLIC px_common_new Qt6::Core Qt6::Widgets
+target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new Qt6::Core Qt6::Widgets
         ${WEBRTC_ROOT}/x64/webrtc.lib
         Winmm
         ws2_32

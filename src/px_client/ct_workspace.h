@@ -7,7 +7,6 @@
 
 #include <QWidget>
 #include <QMainWindow>
-#include <QLibrary>
 #include <map>
 #include <memory>
 #include <vector>

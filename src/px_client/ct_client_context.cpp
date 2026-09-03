@@ -170,12 +170,13 @@ namespace px
         return capturing_info_map_;
     }
 
-    void ClientContext::SetPluginManager(const std::shared_ptr<ClientPluginManager>& mgr) {
-        plugin_mgr_ = mgr;
+    void ClientContext::SetModuleManager(
+        const std::shared_ptr<ClientModuleManager>& manager) {
+        module_manager_ = manager;
     }
 
-    std::shared_ptr<ClientPluginManager> ClientContext::GetPluginManager() {
-        return plugin_mgr_;
+    std::shared_ptr<ClientModuleManager> ClientContext::GetModuleManager() {
+        return module_manager_.lock();
     }
 
     void ClientContext::SetRecording(bool recording) {

@@ -12,7 +12,7 @@
 
 #include <gtest/gtest.h>
 
-#include "px_client/plugins/clipboard/win/cp_file_stream.h"
+#include "px_client/modules/clipboard/win/cp_file_stream.h"
 
 namespace px {
 namespace {

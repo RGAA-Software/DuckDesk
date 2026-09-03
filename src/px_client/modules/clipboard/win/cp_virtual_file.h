@@ -1,0 +1,100 @@
+#pragma once
+
+#include <cstdint>
+#include <string>
+#include <vector>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <atomic>
+#include <functional>
+#include <QString>
+#include <QFile>
+#include <QFileInfo>
+#include <wrl/client.h>
+#include "cp_data_object.h"
+#include "cp_file_struct.h"
+
+namespace px
+{
+
+    class CpFileStream;
+    class ClipboardRuntimeBridge;
+
+    class CpVirtualFile : public CpDataObject, public IDataObjectAsyncCapability {
+    public:
+        explicit CpVirtualFile(
+            std::shared_ptr<ClipboardRuntimeBridge> runtime_bridge);
+        ~CpVirtualFile() override;
+
+        void Init();
+
+        IFACEMETHODIMP QueryInterface(REFIID riid, void **ppv) {
+            if (IsEqualIID(IID_IDataObjectAsyncCapability, riid)) {
+                *ppv = (IDataObjectAsyncCapability *) this;
+                AddRef();
+                return S_OK;
+            }
+            return CpDataObject::QueryInterface(riid, ppv);
+        }
+
+        IFACEMETHODIMP_(ULONG) AddRef() {
+            return CpDataObject::AddRef();
+        }
+
+        IFACEMETHODIMP_(ULONG) Release() {
+            return CpDataObject::Release();
+        }
+
+        IFACEMETHODIMP GetData(FORMATETC *pformatetcIn, STGMEDIUM *pmedium);
+
+        IFACEMETHODIMP QueryGetData(FORMATETC *pformatetc);
+
+        IFACEMETHODIMP EnumFormatEtc(DWORD dwDirection, IEnumFORMATETC **ppenumFormatEtc);
+
+        // IDataObjectAsyncCapability
+        virtual HRESULT SetAsyncMode(/* [in] */ BOOL fDoOpAsync);
+
+        virtual HRESULT GetAsyncMode(/* [out] */ __RPC__out BOOL *pfIsOpAsync);
+
+        virtual HRESULT StartOperation(/* [optional][unique][in] */ __RPC__in_opt IBindCtx *pbcReserved);
+
+        virtual HRESULT InOperation(/* [out] */ __RPC__out BOOL *pfInAsyncOp);
+
+        virtual HRESULT EndOperation(
+                /* [in] */ HRESULT hResult,
+                /* [unique][in] */ __RPC__in_opt IBindCtx *pbcReserved,
+                /* [in] */ DWORD dwEffects);
+
+        void OnClipboardFilesInfo(const std::vector<ClipboardFile>& files);
+        void OnClipboardRespBuffer(const ClipboardRespBuffer& resp_buffer);
+
+    private:
+        void ReportFileTransferBegin(
+            const Microsoft::WRL::ComPtr<CpFileStream>& stream);
+        void ReportFileTransferEnd(
+            const Microsoft::WRL::ComPtr<CpFileStream>& stream);
+        void ExitAllStreams();
+        void RemoveStreamByPath(const std::string& full_path);
+        Microsoft::WRL::ComPtr<CpFileStream> FindStreamByPath(
+            const std::string& full_path);
+
+    private:
+        uint32_t clip_format_filedesc_ = 0;
+        uint32_t clip_format_filecontent_ = 0;
+        uint32_t clip_format_preferred_ = 0;
+        uint32_t clip_format_hdrop_ = CF_HDROP;
+        BOOL in_async_op_ = false;
+        std::shared_ptr<std::atomic_bool> module_lifetime_token_ = nullptr;
+        std::shared_ptr<ClipboardRuntimeBridge> runtime_bridge_ = nullptr;
+        std::function<bool(const ClipboardFileWrapper&, int64_t, int64_t, ULONG)> request_buffer_cbk_ = nullptr;
+        mutable std::mutex active_streams_mtx_;
+        std::map<std::string, Microsoft::WRL::ComPtr<CpFileStream>> active_streams_;
+        std::vector<ClipboardFile> menu_files_;
+        std::vector<ClipboardFileWrapper> task_files_;
+    };
+
+    Microsoft::WRL::ComPtr<CpVirtualFile> CreateVirtualFile(
+        std::shared_ptr<ClipboardRuntimeBridge> runtime_bridge);
+
+};

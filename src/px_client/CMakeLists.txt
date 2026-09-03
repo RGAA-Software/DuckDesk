@@ -6,18 +6,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Network Core Core5Compat WebSockets Network Charts Svg)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Network Core Core5Compat WebSockets Network Charts Svg)
 
-set(PLUGIN_SRCS
-        ${CMAKE_CURRENT_SOURCE_DIR}/plugin_interface/ct_plugin_interface.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/plugin_interface/ct_plugin_context.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/plugin_interface/ct_media_record_plugin_interface.cpp
+add_library(px_client_module_runtime STATIC
+        modules/client_module_context.cpp
 )
-
-add_library(px_client_plugin ${PLUGIN_SRCS})
-target_link_libraries(px_client_plugin PRIVATE Qt6::Widgets Qt6::Network Qt6::Core Qt6::Core5Compat
-        Qt6::WebSockets Qt6::Network Qt6::Charts Qt6::Svg px_common_new)
-
-target_include_directories(px_client_plugin PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/plugin_interface
+target_link_libraries(px_client_module_runtime PRIVATE
+        Qt6::Core px_common_new)
+target_include_directories(px_client_module_runtime PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 set(CMAKE_AUTOUIC ON)
@@ -38,7 +33,6 @@ include_directories(${CMAKE_SOURCE_DIR}/src)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_panel/src)
 include_directories(${CMAKE_BINARY_DIR}/src/px_base)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 
 link_directories(${VK_SDK_ROOT}/Lib)
 link_directories(${PX_PROJECT_PATH}/px_3rdparty/libplacebo/lib)
@@ -109,8 +103,7 @@ set(SRCS_WS
     network/ct_console_client.cpp
     network/ct_auth_token.cpp
     network/ct_panel_client.cpp
-    plugins/ct_plugin_manager.cpp
-    plugins/ct_plugin_event_router.cpp
+    modules/client_module_manager.cpp
     api/ct_panel_api.cpp
     api/ct_render_api.cpp
 )
@@ -124,16 +117,10 @@ if (WIN32)
 endif ()
 
 add_subdirectory(anti_hooking)
-add_subdirectory(plugins)
-add_executable(px_client WIN32 ${SRCS_WS} ${CLIPBOARD_SRCS} ${CLIPBOARD_WIN_SRCS} ${SRCS_WIN})
-
-# Keep targeted client builds from packaging plugins compiled against an older
-# ClientPluginInterface ABI. These targets deploy beside px_client at runtime.
-foreach(runtime_plugin IN ITEMS client_clipboard ft_client media_record_client)
-    if(TARGET ${runtime_plugin})
-        add_dependencies(px_client ${runtime_plugin})
-    endif()
-endforeach()
+add_subdirectory(modules/clipboard)
+add_subdirectory(modules/file_transfer)
+add_subdirectory(modules/media_recording)
+add_executable(px_client WIN32 ${SRCS_WS} ${SRCS_WIN})
 
 if (APPLE)
     set_target_properties(px_client PROPERTIES
@@ -148,9 +135,11 @@ endif()
 target_link_libraries(px_client PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Svg Qt6::Charts
         px_common_new px_message px_cp_message px_sdk px_qt_widget OpenSSL::SSL OpenSSL::Crypto
         $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static> Winmm.lib px_server_message
-        px_rtc_client Dwmapi.lib px_client_plugin unofficial::sqlite3::sqlite3 libplacebo vulkan-1 px_hw_info skin_interface skin_loader
+        Dwmapi.lib unofficial::sqlite3::sqlite3 libplacebo vulkan-1 px_hw_info skin_interface skin_loader
+        client_clipboard_module client_file_transfer_module client_media_recording_module
         px_voice_call
 )
+add_dependencies(px_client px_rtc_client)
 
 add_executable(test_client_virtual_display
     tests/test_virtual_display_client.cpp
@@ -167,45 +156,36 @@ add_executable(test_client_voice_call_protocol
 target_link_libraries(test_client_voice_call_protocol PRIVATE
     px_message px_voice_call GTest::gtest GTest::gtest_main)
 
-add_executable(test_client_plugin_event_lifecycle
-    tests/test_client_plugin_event_lifecycle.cpp
+add_executable(test_client_module_context_lifecycle
+    tests/test_client_module_context_lifecycle.cpp
 )
-target_link_libraries(test_client_plugin_event_lifecycle PRIVATE
-    px_client_plugin Qt6::Core Qt6::Widgets GTest::gtest)
+target_link_libraries(test_client_module_context_lifecycle PRIVATE
+    px_client_module_runtime Qt6::Core GTest::gtest)
 
-add_executable(test_client_record_plugin_dll_lifecycle
-    tests/test_client_record_plugin_dll_lifecycle.cpp
+add_executable(test_client_recording_module_lifecycle
+    tests/test_client_recording_module_lifecycle.cpp
 )
-target_link_libraries(test_client_record_plugin_dll_lifecycle PRIVATE
-    px_client_plugin px_common_new px_message
-    Qt6::Core Qt6::Widgets GTest::gtest)
-target_compile_definitions(test_client_record_plugin_dll_lifecycle PRIVATE
-    PX_CLIENT_RECORD_PLUGIN_DLL_PATH="$<TARGET_FILE:media_record_client>")
-add_dependencies(test_client_record_plugin_dll_lifecycle media_record_client)
+target_link_libraries(test_client_recording_module_lifecycle PRIVATE
+    client_media_recording_module px_common_new px_message
+    Qt6::Core GTest::gtest)
 
-add_executable(test_client_ft_plugin_dll_lifecycle
-    tests/test_client_ft_plugin_dll_lifecycle.cpp
+add_executable(test_client_file_transfer_module_lifecycle
+    tests/test_client_file_transfer_module_lifecycle.cpp
 )
-target_link_libraries(test_client_ft_plugin_dll_lifecycle PRIVATE
-    px_client_plugin px_common_new px_message
+target_link_libraries(test_client_file_transfer_module_lifecycle PRIVATE
+    client_file_transfer_module px_common_new px_message
     Qt6::Core Qt6::Widgets GTest::gtest)
-target_compile_definitions(test_client_ft_plugin_dll_lifecycle PRIVATE
-    PX_CLIENT_FT_PLUGIN_DLL_PATH="$<TARGET_FILE:ft_client>")
-add_dependencies(test_client_ft_plugin_dll_lifecycle ft_client)
 
-add_executable(test_client_clipboard_plugin_dll_lifecycle
-    tests/test_client_clipboard_plugin_dll_lifecycle.cpp
+add_executable(test_client_clipboard_module_lifecycle
+    tests/test_client_clipboard_module_lifecycle.cpp
 )
-target_link_libraries(test_client_clipboard_plugin_dll_lifecycle PRIVATE
-    px_client_plugin px_common_new px_message
+target_link_libraries(test_client_clipboard_module_lifecycle PRIVATE
+    client_clipboard_module px_common_new px_message
     Qt6::Core Qt6::Widgets GTest::gtest)
-target_compile_definitions(test_client_clipboard_plugin_dll_lifecycle PRIVATE
-    PX_CLIENT_CLIPBOARD_PLUGIN_DLL_PATH="$<TARGET_FILE:client_clipboard>")
-add_dependencies(test_client_clipboard_plugin_dll_lifecycle client_clipboard)
 
 add_executable(test_client_clipboard_file_stream
     tests/test_client_clipboard_file_stream.cpp
-    plugins/clipboard/win/cp_file_stream.cpp
+    modules/clipboard/win/cp_file_stream.cpp
 )
 target_link_libraries(test_client_clipboard_file_stream PRIVATE
     px_common_new px_message GTest::gtest GTest::gtest_main)
@@ -220,10 +200,10 @@ if(BUILD_TESTING)
     add_test(NAME client_voice_call_protocol COMMAND test_client_voice_call_protocol)
     add_test(NAME client_virtual_display COMMAND test_client_virtual_display)
     add_test(NAME client_latest_frame_dispatch_queue COMMAND test_client_latest_frame_dispatch_queue)
-    add_test(NAME client_plugin_event_lifecycle COMMAND test_client_plugin_event_lifecycle)
-    add_test(NAME client_record_plugin_dll_lifecycle COMMAND test_client_record_plugin_dll_lifecycle)
-    add_test(NAME client_ft_plugin_dll_lifecycle COMMAND test_client_ft_plugin_dll_lifecycle)
-    add_test(NAME client_clipboard_plugin_dll_lifecycle COMMAND test_client_clipboard_plugin_dll_lifecycle)
+    add_test(NAME client_module_context_lifecycle COMMAND test_client_module_context_lifecycle)
+    add_test(NAME client_recording_module_lifecycle COMMAND test_client_recording_module_lifecycle)
+    add_test(NAME client_file_transfer_module_lifecycle COMMAND test_client_file_transfer_module_lifecycle)
+    add_test(NAME client_clipboard_module_lifecycle COMMAND test_client_clipboard_module_lifecycle)
     add_test(NAME client_clipboard_file_stream COMMAND test_client_clipboard_file_stream)
 endif()
 

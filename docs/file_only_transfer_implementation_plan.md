@@ -16,7 +16,7 @@
 3. 没有连接时，Panel 才向 Console 申请一张仅含 `file` 权限、绑定目标设备
    和 nonce 的一次性 ticket，并启动同一份
    `px_client.exe --mode=file-transfer`（不是新增第二种客户端程序）。
-4. 独立进程只显示文件管理窗口，只加载 `ft_client` 插件；不显示远控画面，
+4. 独立进程只显示文件管理窗口，只创建内置文件传输模块；不显示远控画面，
    不接受键鼠、音频、剪贴板或媒体消息。其进程键为唯一
    `ft_<stream>_<timestamp>`，不会覆盖普通画面客户端。
 
@@ -60,8 +60,8 @@ RTC LAN 时，文件窗口复用它已有的 `ft_data_channel`，因此 RTC LAN 
 - ticket 和 nonce 都不能为空；只允许 `websocket`、`webrtc_direct`、`relay` 三种网络类型；
 - `enable_video=false`、audio/clipboard/input 关闭；不安装全局键盘 hook；
 - 跳过 Vulkan 能力探测、播放器、解码器、音频播放器和画面 UI；
-- 插件管理器只保留 `ft.dll`；
-- 保留一个隐藏的最小 Workspace 作为既有消息总线/插件宿主，避免异步监听器访问已销毁 UI；
+- 模块管理器只创建 `ClientFileTransferModule`；
+- 保留一个隐藏的最小 Workspace 作为网络与模块宿主，避免异步监听器访问已销毁 UI；
 - WS 和 Relay 都不创建媒体连接；RTC offer 不声明音频/视频 m-line，也不创建 media/input data channel；
 - FT 窗口关闭后只终止该独立文件会话，不影响画面会话或 Render。
 
@@ -120,7 +120,7 @@ Render 的 FT 插件按 `stream_id` 保存独立 `FtEngine`。画面会话、多
 | Panel 命令与进程 | `src/px_panel/src/render_panel/devices/running_stream_manager.cpp` | 定向打开现有窗口；否则生成唯一会话并启动同一 `px_client.exe` |
 | Panel 本机通道 | `src/px_panel/src/render_panel/network/ws_panel_server.cpp` | 按 `stream_id` 定向发送命令 |
 | Panel/Client 协议 | `src/px_deps/px_message_new/px_client_panel_message.proto` | `kCpOpenFileTransfer` 命令 |
-| 客户端模式 | `src/px_client/ct_main_ws.cpp`、`ct_base_workspace.cpp` | 参数约束、轻量 UI/插件宿主 |
+| 客户端模式 | `src/px_client/ct_main_ws.cpp`、`ct_base_workspace.cpp` | 参数约束、轻量 UI/模块宿主 |
 | 客户端 Panel 接收 | `src/px_client/network/ct_panel_client.cpp` | 把定向命令转换成客户端打开 FT 事件 |
 | 通道创建 | `src/px_deps/px_client_sdk_new/sdk_net_client.cpp` | file-only 不创建媒体连接 |
 | RTC data-only | `src/px_deps/px_webrtc_client/rtc_connection.cpp` | 只协商 FT data channel |
@@ -130,7 +130,7 @@ Render 的 FT 插件按 `stream_id` 保存独立 `FtEngine`。画面会话、多
 
 ## 7. 编译与发布
 
-客户端专用脚本会自动发现 Visual Studio，构建并发布客户端、RTC DLL 和 FT 插件：
+客户端专用脚本会自动发现 Visual Studio，构建并发布客户端和所需链接库；FT 已静态编入客户端：
 
 ```bat
 scripts\build_px_client.bat build_official 8
@@ -141,7 +141,6 @@ scripts\build_px_client.bat build_official 8
 ```text
 build_official\dist\px_client.exe
 build_official\dist\px_client_rtc.dll
-build_official\dist\deps\ct_plugins\ft.dll
 ```
 
 Console：

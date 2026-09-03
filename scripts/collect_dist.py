@@ -233,31 +233,27 @@ def main():
                     copy_file(os.path.join(plugin_build_dir, f), os.path.join(px_plugins_dst, f))
 
     # ------------------------------------------------------------------
-    # 4. Client plugins  →  dist/deps/ct_plugins/
+    # 4. Retired Client plug-ins and the temporary recording-core DLL
     # ------------------------------------------------------------------
-    client_plugin_files = [
-        ("clipboard", "clipboard.dll"),
-        ("ft", "ft.dll"),
-        ("media_record", "record.dll"),
-    ]
+    stale_recording_core = os.path.join(dist_dir, "px_client_recording_core.dll")
+    if os.path.isfile(stale_recording_core):
+        os.remove(stale_recording_core)
+        print("  - px_client_recording_core.dll  (recording core is static)")
     px_plugins_client_dst = os.path.join(dist_dir, "deps", "ct_plugins")
-    os.makedirs(px_plugins_client_dst, exist_ok=True)
     for stale_name in [
+        "clipboard.dll",
+        "ft.dll",
+        "record.dll",
         "client_clipboard.dll",
         "ft_client.dll",
         "media_record_client.dll",
-        "multi_screens.dll",
     ]:
         stale_path = os.path.join(px_plugins_client_dst, stale_name)
         if os.path.isfile(stale_path):
             os.remove(stale_path)
-            print(f"  - deps/ct_plugins/{stale_name}  (obsolete client plugin)")
-    for plugin_dir, plugin_file in client_plugin_files:
-        plugin_build_dir = os.path.join(build_dir, "src", "px_client", "plugins", plugin_dir)
-        plugin_src = os.path.join(plugin_build_dir, plugin_file)
-        if not os.path.isfile(plugin_src):
-            continue
-        copy_file(plugin_src, os.path.join(px_plugins_client_dst, plugin_file))
+            print(f"  - deps/ct_plugins/{stale_name}  (retired client plug-in)")
+    if os.path.isdir(px_plugins_client_dst) and not os.listdir(px_plugins_client_dst):
+        os.rmdir(px_plugins_client_dst)
 
     # ------------------------------------------------------------------
     # 5. Skins  →  dist/deps/theme/

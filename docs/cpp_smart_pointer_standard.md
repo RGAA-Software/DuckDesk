@@ -100,6 +100,12 @@ instance identity, unload timing, or their established creation/destruction
 contract. Project-owned work around that boundary should still use safe
 lifetime guards without altering the plug-in instance model.
 
+The Client `clipboard.dll`, `ft.dll`, and `record.dll` boundaries are explicitly
+retired by product decision. Their implementations are internal, statically
+linked Client modules and are not covered by the compatibility exception. This
+authorization is limited to those three Client features; Render plug-ins and all
+other established plug-in ABIs keep their existing contracts.
+
 ## Change policy for legacy code
 
 Any legacy code touched by a feature or fix must migrate the affected ownership

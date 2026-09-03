@@ -1,7 +1,7 @@
 # 剪贴板文件传输：双向打通与踩坑记录
 
 > **2026-08 注**：独立的"文件传输"功能已整体替换为 rustdesk 方案（见
-> `docs/rustdesk_file_transfer_migration_plan.md`，新插件 `ft` + 引擎 `px_ft_engine`）。
+> `docs/rustdesk_file_transfer_migration_plan.md`，内置 FT 模块 + 引擎 `px_ft_engine`）。
 > 本文描述的**剪贴板**文件传输不受影响：消息（`kClipboardInfo`/`kClipboardReqBuffer` 等）
 > 定义在 `px_message.proto`，与 FT 协议解耦；承载继续走 ft 通道（`PostFileTransferMessage`），
 > 该通道在新方案下保留。
@@ -15,7 +15,7 @@
 | 方向 | 谁复制 | 谁粘贴 | 虚拟文件对象在哪 | 对象实现 |
 |------|--------|--------|------------------|----------|
 | client → host | 客户端(16) | 主机(90) | 主机 90 | Rust `px_user_proxy` (`win_clipboard.rs`) |
-| host → client | 主机(90) | 客户端(16) | 客户端 16 | C++ 客户端插件 `CpVirtualFile` |
+| host → client | 主机(90) | 客户端(16) | 客户端 16 | C++ 客户端内置模块 `CpVirtualFile` |
 
 数据链路：
 
@@ -106,6 +106,6 @@ host → client 方向的取数链路原本是断的：
 
 ## 调试方法
 
-- 客户端日志：`C:\Users\Public\GoDesk\px_logs\ct_clipboard.dll.log`（注意 `Get-Content -Tail` 对它可能返回空，用 `Select-String`）。
+- 客户端日志：`C:\Users\Public\GoDesk\px_logs\app.*.log`；剪贴板模块与客户端共用日志，不再生成独立 DLL 日志。
 - 主机日志：`\\10.0.0.90\C$\Users\Public\GoDesk\px_logs\godesk_user_proxy.log`、`godesk_render_20371.log`、`plugin_net_ws.dll.log`。
 - 验证剪贴板格式：`OpenClipboard` + `EnumClipboardFormats` + `IsClipboardFormatAvailable`；验证跨进程取数用 `GetClipboardData` 是否返回 NULL（NULL 即 marshal 断了）。

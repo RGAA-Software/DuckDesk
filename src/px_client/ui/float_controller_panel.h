@@ -79,7 +79,7 @@ namespace px
 
         std::string monitor_name_;
 
-        QLabel* media_record_lab_ = nullptr;
+        QPointer<QLabel> media_record_lab_;
 
         QLabel* virtual_display_label_ = nullptr;
         QPushButton* virtual_display_add_btn_ = nullptr;

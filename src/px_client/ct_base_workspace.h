@@ -4,7 +4,6 @@
 #pragma once
 
 #include <QWidget>
-#include <QLibrary>
 #include <QMainWindow>
 #include <map>
 #include <mutex>
@@ -44,8 +43,8 @@ namespace px
     class PxRenderView;
     class RtcClientInterface;
     class CtPanelClient;
-    class ClientPluginManager;
-    class MediaRecordPluginClientInterface;
+    class ClientModuleManager;
+    class ClientMediaRecordingModule;
     class RetryConnDialog;
     class D3D11DeviceWrapper;
     class HWInfoWidget;
@@ -89,7 +88,7 @@ namespace px
     protected:
         explicit BaseWorkspace(const std::shared_ptr<ClientContext>& ctx, const std::shared_ptr<ThunderSdkParams>& params, QWidget* parent = nullptr);
         virtual void Init();
-        void InitPluginsManager();
+        void InitModuleManager();
         void InitTheme();
         void InitSampleWidget();
         virtual void InitListener();
@@ -192,10 +191,8 @@ namespace px
         //
         std::shared_ptr<CtPanelClient> panel_client_ = nullptr;
 
-        // plugin manager
-        std::shared_ptr<ClientPluginManager> plugin_manager_ = nullptr;
-
-        MediaRecordPluginClientInterface* media_record_plugin_ = nullptr;
+        std::shared_ptr<ClientModuleManager> module_manager_;
+        std::shared_ptr<ClientMediaRecordingModule> media_recording_module_;
 
         QCursor cursor_;
 

@@ -1,5 +1,9 @@
 # Render 端音视频录制插件设计方案（共享库 + 滚动录制 + 自动录制）
 
+> Client 侧录屏和 remux 核心已静态编入 `px_client.exe`，不再生成
+> `record.dll`。WebRTC 私有实现保留在运行时加载的 `px_client_rtc.dll`
+> 内，不向主程序传播 `webrtc.lib`。本文其余插件描述仅指 Render 端。
+
 > 状态：待评审（未动工）
 > 范围：PC 客户端（px_client）与 Render 端（px_render）共用一套录制核心；Android 客户端不在本次范围。
 > 约定：所有文件均为计划内容，未修改任何代码。
@@ -11,7 +15,7 @@
 ### 1.1 背景
 
 - Render 端采集屏幕 + 系统声音，经编码器（AMF / NVENC / FFmpeg）编码为 H264/H265，经 Opus 编码器编码音频，再经 net 插件发往客户端。
-- PC 客户端已有"录屏"功能（`px_client/plugins/media_record`）：把收到的**已编码流**直接 remux 成 MP4，不解码不重编码。
+- PC 客户端已有"录屏"功能（`px_client/modules/media_recording`）：把收到的**已编码流**直接 remux 成 MP4，不解码不重编码。
 - Render 端 `px_render/plugins/media_recorder` 目前是一个**空壳插件**（只有元数据，无任何实现）。
 
 ### 1.2 目标
@@ -45,7 +49,7 @@
 
 ### 2.2 客户端现有录制实现（参考对象，含 bug）
 
-`px_client/plugins/media_record/media_recorder.cpp`：
+`px_client/modules/media_recording/media_recorder.cpp`：
 
 - 视频：`video_stream_->time_base = {1, 90000}`，pts = 录制起始后毫秒 × 90 —— **正确**。
 - 音频：**未设置 time_base**（`avformat_new_stream` 默认 `{1, 1000000}`），pts = `960 × 帧号`。
@@ -83,7 +87,7 @@
 │   • 命名 record_ 前缀 + 滚动清理（保留最新 N 个，只删自己的文件）                     │
 └──────────────┬──────────────────────────────────────┬────────────────────────────────┘
        客户端适配层（薄壳）                      Render 适配层（薄壳）
-  px_client/plugins/media_record              px_render/plugins/media_recorder
+  px_client/modules/media_recording           px_render/plugins/media_recorder
   • proto VideoFrame/AudioFrame → core        • OnEncodedVideoFrame / OnEncodedAudioFrame
   • 保留：录像路径(面板设置/视频文件夹)          → core
   • 保留：结束通知、多屏 index 分流            • 保留：OnCommand、auto 配置、连接事件
@@ -256,9 +260,9 @@ rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4
 | `src/px_render/network/ws_panel_client.cpp` | 新面板命令 → `OnCommand` |
 | `src/px_deps/px_message_new/px_render_panel_message.proto` | `RpPanelCommand` + 2 个枚举值 |
 | `src/px_panel/src/render_panel/ui/st_plugin_item_widget.cpp` | + Record 按钮 |
-| `src/px_client/plugins/media_record/media_recorder.h/.cpp` | 改造为适配层：proto 帧 → `RecordWriter`，删除 ffmpeg 内部逻辑 |
-| `src/px_client/plugins/media_record/CMakeLists.txt` | 链接 `px_media_record_new`（去掉直接 ffmpeg 链接） |
-| `src/px_client/plugins/media_record/media_record_plugin.cpp` | 适配层接线（目录、通知、多屏分流） |
+| `src/px_client/modules/media_recording/media_recorder.h/.cpp` | 改造为适配层：proto 帧 → `RecordWriter`，删除 ffmpeg 内部逻辑 |
+| `src/px_client/modules/media_recording/CMakeLists.txt` | 链接录制核心（Client 侧使用普通导入库隔离 FFmpeg 符号） |
+| `src/px_client/modules/media_recording/media_recording_module.cpp` | 内置模块接线（目录、通知、多屏分流） |
 | `src/px_render/plugins/plugins/CMakeLists.txt`（如需要） | 确保 `media_recorder` 已 add_subdirectory（已存在） |
 
 ### 5.3 删除 / 不改
@@ -271,7 +275,7 @@ rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4
 
 ## 6. 构建与验证
 
-1. **构建**：根工程 x64 Release（`px_build_premium_all`），确认生成 `media_recorder.dll`、`record.dll`。
+1. **构建**：根工程 x64 Release（`px_build_premium_all`），确认生成 Render 的 `media_recorder.dll` 与包含录制核心的 Client `px_client.exe`。
 2. **Render 手动录制**：面板 Enable Media Recorder → Start Record → 客户端连上跑 1~2 分钟（含音频）→ Stop。
 3. **同步验证**：`ffprobe` 检查 MP4 两轨 duration 基本相等；播放器试听 A/V 对齐。
 4. **滚动验证**：临时调小 `max_segment_bytes`（如 20MB）验证分段 + 关键帧首帧 + 音频连续；验证超过 `max_file_count` 后最旧文件被删。

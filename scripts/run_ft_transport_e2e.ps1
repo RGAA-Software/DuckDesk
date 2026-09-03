@@ -110,7 +110,7 @@ try {
 
     $qtBin = 'C:\Qt6.8.3\6.8.3\msvc2022_64\bin'
     $dist = Join-Path $repoRoot 'build_official\dist'
-    $env:PATH = "$dist;$dist\deps;$dist\deps\ct_plugins;$qtBin;$env:PATH"
+    $env:PATH = "$dist;$dist\deps;$qtBin;$env:PATH"
 
     for ($round = 1; $round -le $Rounds; $round++) {
         $roundStart = Get-Date

@@ -14,8 +14,8 @@
 #include "thunder_sdk.h"
 #include "px_client/ct_client_context.h"
 #include "ct_base_workspace.h"
-#include "plugins/ct_plugin_manager.h"
-#include "plugin_interface/ct_plugin_interface.h"
+#include "modules/client_module_manager.h"
+#include "modules/file_transfer/file_transfer_module.h"
 #include "px_client/ct_workspace.h"
 #include "px_client/ct_application.h"
 #include "px_common_new/md5.h"
@@ -679,8 +679,10 @@ int main(int argc, char** argv) {
     static auto ws = Workspace::Make(ctx, params);
     if (settings->file_transfer_only_) {
         ws->hide();
-        if (auto plugin = ctx->GetPluginManager()->GetFileTransferPlugin(); plugin) {
-            plugin->ShowRootWidget();
+        if (const auto manager = ctx->GetModuleManager()) {
+            if (const auto module = manager->GetFileTransferModule()) {
+                module->ShowWindow();
+            }
         }
     } else {
         ws->show();

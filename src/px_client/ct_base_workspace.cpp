@@ -43,13 +43,12 @@
 #include "network/ct_panel_client.h"
 #include "px_common_new/md5.h"
 #include "px_common_new/time_util.h"
-#include "px_client/plugins/ct_plugin_manager.h"
-#include "px_client/plugin_interface/ct_app_events.h"
-#include "px_client/plugin_interface/ct_plugin_interface.h"
+#include "px_client/modules/client_module_manager.h"
+#include "px_client/modules/file_transfer/file_transfer_module.h"
+#include "px_client/modules/media_recording/media_recording_module.h"
 #include "ct_virtual_display_protocol.h"
 #include "ct_voice_call_protocol.h"
 #include "px_voice_call/voice_audio_endpoint.h"
-#include "px_client/plugin_interface/ct_media_record_plugin_interface.h"
 #include "px_qt_widget/notify/notifymanager.h"
 #include "px_relay_client/relay_api.h"
 #include "px_message_new/proto_converter.h"
@@ -117,8 +116,7 @@ namespace px
     void BaseWorkspace::Init() {
         // shared_from_this() below requires this object to be created by Workspace::Make().
         gWorkspace = shared_from_this();
-        // plugins
-        InitPluginsManager();
+        InitModuleManager();
 
         // skin
         skin_ = SkinLoader::LoadSkin(settings_->skin_name_);
@@ -200,12 +198,10 @@ namespace px
         LOGI("Init .3 used: {}ms", (end - beg));
     }
 
-    void BaseWorkspace::InitPluginsManager() {
-        plugin_manager_ = ClientPluginManager::Make(shared_from_this());
-        context_->SetPluginManager(plugin_manager_);
-        plugin_manager_->LoadAllPlugins();
-        plugin_manager_->RegisterPluginEventsCallback();
-        plugin_manager_->DumpPluginInfo();
+    void BaseWorkspace::InitModuleManager() {
+        module_manager_ = ClientModuleManager::Make(shared_from_this());
+        context_->SetModuleManager(module_manager_);
+        module_manager_->Start();
     }
 
     void BaseWorkspace::InitSampleWidget() {
@@ -355,9 +351,9 @@ namespace px
                 if (!task_self) {
                     return;
                 }
-                if (auto plugin = task_self->plugin_manager_->GetFileTransferPlugin(); plugin) {
-                    LOGI("File-transfer transport connected; notify plugin");
-                    plugin->OnTransportConnected();
+                if (task_self->module_manager_) {
+                    LOGI("File-transfer transport connected; notify module");
+                    task_self->module_manager_->OnTransportConnected();
                 }
             });
         });
@@ -615,6 +611,11 @@ namespace px
         if (msg_listener_) {
             msg_listener_->UnListenAll();
         }
+        media_recording_module_.reset();
+        if (module_manager_) {
+            module_manager_->Stop();
+            module_manager_.reset();
+        }
     }
 
     void BaseWorkspace::RegisterSdkMsgCallbacks() {
@@ -783,10 +784,9 @@ namespace px
             if (!self || self->remote_force_closed_) {
                 return;
             }
-            self->plugin_manager_->VisitAllPlugins(
-                [msg](ClientPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary) Plug-in callback ABI.
-                plugin->OnMessage(msg);
-            });
+            if (self->module_manager_) {
+                self->module_manager_->HandleMessage(msg);
+            }
 
             // parse it
             self->ProcessNetworkMessage(msg);
@@ -840,9 +840,9 @@ namespace px
             });
         });
 
-        media_record_plugin_ = plugin_manager_->GetMediaRecordPlugin();
-        if (!media_record_plugin_ && !settings_->file_transfer_only_) {
-            LOGE("media_record_plugin_ is nullptr!!!");
+        media_recording_module_ = module_manager_->GetMediaRecordingModule();
+        if (!media_recording_module_ && !settings_->file_transfer_only_) {
+            LOGE("Client media-recording module is unavailable");
         }
         
         msg_listener_->Listen<SdkMsgChangeMonitorResolutionResult>(
@@ -875,19 +875,21 @@ namespace px
             }
             self->force_update_cursor_ = true;
 
-            const ClientPluginSettings plugin_settings {
+            const ClientModuleSettings module_settings {
                 .clipboard_enabled_ = self->settings_->clipboard_on_,
+                .device_id_ = self->settings_->device_id_.empty()
+                    ? self->settings_->my_host_ : self->settings_->device_id_,
+                .stream_id_ = self->settings_->stream_id_,
+                .language_ = static_cast<int>(self->settings_->language_),
+                .stream_name_ = self->settings_->stream_name_,
+                .display_name_ = self->settings_->display_name_,
+                .display_remote_name_ = self->settings_->display_remote_name_,
                 .max_transmit_speed_ = self->settings_->max_transmit_speed_,
                 .max_receive_speed_ = self->settings_->max_receive_speed_,
             };
-            self->plugin_manager_->VisitAllPlugins(
-                [plugin_settings](ClientPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary) Plug-in callback ABI.
-                // callback
-                plugin->On1Second();
-
-                // sync settings
-                plugin->SyncClientPluginSettings(plugin_settings);
-            });
+            if (self->module_manager_) {
+                self->module_manager_->UpdateSettings(module_settings);
+            }
         });
 
         msg_listener_->Listen<MsgClientFullscreen>([weak_self](const MsgClientFullscreen&) {
@@ -914,7 +916,7 @@ namespace px
 
         msg_listener_->Listen<MsgClientMediaRecord>([weak_self](const MsgClientMediaRecord&) {
             const auto self = weak_self.lock();
-            if (!self || !self->sdk_ || !self->media_record_plugin_) {
+            if (!self || !self->sdk_ || !self->media_recording_module_) {
                 return;
             }
             px::Message m;
@@ -924,12 +926,12 @@ namespace px
             if (res) {
                 LOGI("StartRecord");
                 m.set_type(px::kStartMediaRecordClientSide);
-                self->media_record_plugin_->StartRecord();
+                self->media_recording_module_->StartRecording();
             }
             else {
                 LOGI("EndRecord");
                 m.set_type(px::kStopMediaRecordClientSide);
-                self->media_record_plugin_->EndRecord();
+                self->media_recording_module_->StopRecording();
             }
             if (auto buffer = px::ProtoAsData(&m); buffer) {
                 self->sdk_->PostMediaMessage(buffer);
@@ -1046,15 +1048,16 @@ namespace px
 
     void BaseWorkspace::ExitClientWithDialog() {
         QString msg = tcTr("id_exit_client");
-        if (auto plugin = plugin_manager_->GetFileTransferPlugin(); plugin) {
-            if (plugin->HasProcessingTasks()) {
+        if (module_manager_) {
+            if (const auto module = module_manager_->GetFileTransferModule();
+                module && module->HasProcessingTasks()) {
                 msg = tcTr("id_file_transfer_busy") + msg;
             }
         }
         TcDialog dialog(tcTr("id_exit"), msg, this);
         if (dialog.exec() == kDoneOk) {
-            if (media_record_plugin_) {
-                media_record_plugin_->EndRecord();
+            if (media_recording_module_) {
+                media_recording_module_->StopRecording();
             }
             Exit();
         }
@@ -1197,8 +1200,11 @@ namespace px
                         "Warning", "Controlled side file transfer version incompatible.");
                     return;
                 }
-                if (auto plugin = task_self->plugin_manager_->GetFileTransferPlugin(); plugin) {
-                    plugin->ShowRootWidget();
+                if (task_self->module_manager_) {
+                    if (const auto module =
+                            task_self->module_manager_->GetFileTransferModule()) {
+                        module->ShowWindow();
+                    }
                 }
             });
         });
@@ -1834,8 +1840,13 @@ namespace px
     }
 
     void BaseWorkspace::Exit() {
-        if (media_record_plugin_) {
-            media_record_plugin_->EndRecord();
+        if (media_recording_module_) {
+            media_recording_module_->StopRecording();
+            media_recording_module_.reset();
+        }
+        if (module_manager_) {
+            module_manager_->Stop();
+            module_manager_.reset();
         }
         if (panel_client_) {
             panel_client_->Exit();

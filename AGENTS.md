@@ -26,6 +26,12 @@
 - Qt parent ownership and C++ smart-pointer ownership are mutually exclusive. A `QObject` owned by a Qt parent must be created directly at the annotated Qt boundary and observed with `QPointer`; never place it in `unique_ptr`/`shared_ptr`, call `setParent()`, and then `release()`, and never leave both a Qt parent and a smart pointer responsible for deletion. A parentless `QObject` may instead remain exclusively smart-owned, but `QPointer` alone is never an owner.
 - Do not redesign `src/px_deps/px_webrtc_client` to remove libwebrtc's borrowed ABI, observer, track, SDP or callback pointers. That adapter follows libwebrtc's own lifetime contract and is excluded from the repository smart-pointer migration gate; changes there require a separate WebRTC-specific review.
 - Do not redesign existing plug-in instance boundaries (`GetInstance`, loader-owned library handles, ABI singleton pointers, or their established creation/destruction contract). These are compatibility exceptions and may retain their existing raw-pointer representation. Improvements around them must not change plug-in instance identity, ownership, unload timing, or callback ABI.
+- Product decision: the Windows Client `clipboard.dll`, `ft.dll`, and `record.dll`
+  boundaries are retired and are excluded from the compatibility exception above.
+  Their retained implementations must be built as internal Client modules and linked
+  into `px_client`; do not preserve or reintroduce `GetInstance`, runtime DLL loading,
+  generic plug-in event routing, or independent Client plug-in packaging for these
+  three features. This decision does not apply to Render plug-ins or any other ABI.
 - Apply these rules only to GammaRay-owned code and dependencies explicitly maintained by this project (including the vendored asio2 integration). Other third-party source trees are read-only: do not mechanically reformat, modernize, or change their ownership model.
 - Code review and tests must cover destruction with queued callbacks, unregister during dispatch, shutdown from a callback, and repeated start/stop so that smart-pointer use is verified behaviorally rather than only syntactically.
 - The complete project standard is documented in `docs/cpp_smart_pointer_standard.md` and is mandatory for all client, Panel, Render, service, SDK, RTC, plugin and shared-library code.

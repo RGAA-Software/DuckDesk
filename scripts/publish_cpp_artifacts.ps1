@@ -126,6 +126,27 @@ function Publish-LanguageResources {
     }
 }
 
+function Remove-RetiredClientRecordingCore {
+    $stalePath = Join-Path $distRoot "px_client_recording_core.dll"
+    if (-not (Test-Path -LiteralPath $stalePath -PathType Leaf)) {
+        return
+    }
+    try {
+        Remove-Item -LiteralPath $stalePath -Force
+    }
+    catch {
+        $running = Get-Process -Name "px_client" -ErrorAction SilentlyContinue
+        if (-not $running) {
+            throw
+        }
+        Write-Host "Stopping px_client because the retired recording core is in use."
+        $running | Stop-Process -Force
+        $running | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $stalePath -Force
+    }
+    Write-Host "REMOVED retired Client recording core $stalePath"
+}
+
 $renderPluginMap = @{
     "enc_amf"          = "amf_encoder\enc_amf.dll"
     "clipboard"        = "clipboard\clipboard.dll"
@@ -187,16 +208,21 @@ switch ($Component) {
             -Source (Join-Path $buildRoot "src\px_deps\px_webrtc_client\px_rtc_client.dll") `
             -Destination (Join-Path $distRoot "px_client_rtc.dll") `
             -ProcessName "px_client"
-        $clientPlugins = @(
-            @("clipboard\clipboard.dll", "clipboard.dll"),
-            @("ft\ft.dll", "ft.dll"),
-            @("media_record\record.dll", "record.dll")
-        )
-        foreach ($plugin in $clientPlugins) {
-            Publish-VerifiedFile `
-                -Source (Join-Path $buildRoot ("src\px_client\plugins\" + $plugin[0])) `
-                -Destination (Join-Path $distRoot ("deps\ct_plugins\" + $plugin[1])) `
-                -ProcessName "px_client"
+        Remove-RetiredClientRecordingCore
+        $retiredClientPluginDirectory = Join-Path $distRoot "deps\ct_plugins"
+        foreach ($retiredName in @(
+            "clipboard.dll", "ft.dll", "record.dll",
+            "client_clipboard.dll", "ft_client.dll",
+            "media_record_client.dll")) {
+            $retiredPath = Join-Path $retiredClientPluginDirectory $retiredName
+            if (Test-Path -LiteralPath $retiredPath -PathType Leaf) {
+                Remove-Item -LiteralPath $retiredPath -Force
+                Write-Host "REMOVED retired Client plug-in $retiredPath"
+            }
+        }
+        if ((Test-Path -LiteralPath $retiredClientPluginDirectory -PathType Container) -and
+            -not (Get-ChildItem -LiteralPath $retiredClientPluginDirectory -Force)) {
+            Remove-Item -LiteralPath $retiredClientPluginDirectory
         }
         Publish-LanguageResources
     }
@@ -254,10 +280,22 @@ switch ($Component) {
             -Source (Join-Path $buildRoot "src\px_deps\px_webrtc_client\px_rtc_client.dll") `
             -Destination (Join-Path $distRoot "px_client_rtc.dll") `
             -ProcessName "px_client"
-        Publish-VerifiedFile `
-            -Source (Join-Path $buildRoot "src\px_client\plugins\ft\ft.dll") `
-            -Destination (Join-Path $distRoot "deps\ct_plugins\ft.dll") `
-            -ProcessName "px_client"
+        Remove-RetiredClientRecordingCore
+        $retiredClientPluginDirectory = Join-Path $distRoot "deps\ct_plugins"
+        foreach ($retiredName in @(
+            "clipboard.dll", "ft.dll", "record.dll",
+            "client_clipboard.dll", "ft_client.dll",
+            "media_record_client.dll")) {
+            $retiredPath = Join-Path $retiredClientPluginDirectory $retiredName
+            if (Test-Path -LiteralPath $retiredPath -PathType Leaf) {
+                Remove-Item -LiteralPath $retiredPath -Force
+                Write-Host "REMOVED retired Client plug-in $retiredPath"
+            }
+        }
+        if ((Test-Path -LiteralPath $retiredClientPluginDirectory -PathType Container) -and
+            -not (Get-ChildItem -LiteralPath $retiredClientPluginDirectory -Force)) {
+            Remove-Item -LiteralPath $retiredClientPluginDirectory
+        }
         Publish-LanguageResources
     }
 }

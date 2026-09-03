@@ -16,7 +16,7 @@ Qt 兼容处理(Qt QSvgRenderer 只支持 SVG Tiny 1.2 子集):
 
 用法:
   # 直接列图标(统一颜色):
-  python scripts/download_material_icons.py --out src/px_client/plugins/ft/icons \
+  python scripts/download_material_icons.py --out src/px_client/modules/file_transfer/icons \
       --color "#ffffff" home arrow_upward refresh
 
   # 清单文件(每行: <图标名> [颜色],空行/#注释忽略):

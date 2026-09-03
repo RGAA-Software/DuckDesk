@@ -20,7 +20,7 @@
 #include "float_sub_display_panel.h"
 #include "float_sub_control_panel.h"
 #include "px_client/ct_client_context.h"
-#include "px_client/plugins/ct_plugin_manager.h"
+#include "px_client/modules/client_module_manager.h"
 #include "px_client_sdk_new/sdk_messages.h"
 #include "px_voice_call/voice_audio_backend.h"
 #include "px_common_new/message_notifier.h"
@@ -524,14 +524,22 @@ namespace px
             layout->addStretch();
             root_layout->addWidget(widget);
 
-            widget->SetOnClickListener([=, this](QWidget* w) {
-                auto plugin_mgr = context_->GetPluginManager();
-                if (auto plugin = plugin_mgr->GetFileTransferPlugin(); !plugin) {
-                    context_->NotifyAppMessage("Warning", "Don't have file transfer plugin.");
+            const QPointer<BackgroundWidget> file_transfer_widget(widget);
+            widget->SetOnClickListener(
+                [guarded_self, file_transfer_widget](const auto&) {
+                if (!guarded_self || !file_transfer_widget) {
                     return;
                 }
-                if (file_trans_listener_) {
-                    file_trans_listener_(widget);
+                const auto module_manager =
+                    guarded_self->context_->GetModuleManager();
+                if (!module_manager ||
+                    !module_manager->GetFileTransferModule()) {
+                    guarded_self->context_->NotifyAppMessage(
+                        "Warning", "File transfer module is unavailable.");
+                    return;
+                }
+                if (guarded_self->file_trans_listener_) {
+                    guarded_self->file_trans_listener_(file_transfer_widget);
                 }
             });
         }
@@ -560,28 +568,41 @@ namespace px
             layout->addStretch();
             root_layout->addWidget(widget);
 
-            widget->SetOnClickListener([=, this](QWidget* w) {
-                auto plugin_mgr = context_->GetPluginManager();
-                if (auto plugin = plugin_mgr->GetMediaRecordPlugin(); !plugin) {
-                    context_->NotifyAppMessage("Warning", "Don't have media record plugin.");
+            const QPointer<TcLabel> recording_text(text);
+            widget->SetOnClickListener(
+                [guarded_self, recording_text](const auto&) {
+                if (!guarded_self || !recording_text) {
+                    return;
+                }
+                const auto module_manager =
+                    guarded_self->context_->GetModuleManager();
+                if (!module_manager ||
+                    !module_manager->GetMediaRecordingModule()) {
+                    guarded_self->context_->NotifyAppMessage(
+                        "Warning", "Media recording module is unavailable.");
                     return;
                 }
 
-                bool res = context_->GetRecording();
-                context_->SetRecording(!res);
+                const bool res = guarded_self->context_->GetRecording();
+                guarded_self->context_->SetRecording(!res);
                 if (!res) {
-                    media_record_lab_->setText(tcTr("id_stop_recording"));
-                    text->setStyleSheet(R"(font-weight: bold; color: #dc3545;)");
+                    guarded_self->media_record_lab_->setText(
+                        tcTr("id_stop_recording"));
+                    recording_text->setStyleSheet(
+                        R"(font-weight: bold; color: #dc3545;)");
                 }
                 else {
-                    media_record_lab_->setText(tcTr("id_screen_recording"));
-                    text->setStyleSheet(R"(font-weight: bold;)");
+                    guarded_self->media_record_lab_->setText(
+                        tcTr("id_screen_recording"));
+                    recording_text->setStyleSheet(R"(font-weight: bold;)");
                 }
 
-                context_->SendAppMessage(MsgClientFloatControllerPanelUpdate{ .update_type_ = MsgClientFloatControllerPanelUpdate::EUpdate::kMediaRecordStatus });
-                context_->SendAppMessage(MsgClientMediaRecord{});
-                const auto task_context = context_;
-                context_->PostTask([task_context]() {
+                guarded_self->context_->SendAppMessage(
+                    MsgClientFloatControllerPanelUpdate{
+                        .update_type_ = MsgClientFloatControllerPanelUpdate::EUpdate::kMediaRecordStatus });
+                guarded_self->context_->SendAppMessage(MsgClientMediaRecord{});
+                const auto task_context = guarded_self->context_;
+                guarded_self->context_->PostTask([task_context]() {
                     task_context->SendAppMessage(MsgClientHidePanel{});
                 });
             });

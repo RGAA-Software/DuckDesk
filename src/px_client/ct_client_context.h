@@ -20,7 +20,7 @@ namespace px
     class Thread;
     class StreamDBOperator;
     class SharedPreference;
-    class ClientPluginManager;
+    class ClientModuleManager;
     class NotifyManager;
 
     class ClientContext : public QObject, public std::enable_shared_from_this<ClientContext> {
@@ -40,8 +40,8 @@ namespace px
         void UpdateCapturingMonitorInfo(const SdkCaptureMonitorInfo& info);
         std::map<std::string, SdkCaptureMonitorInfo> GetCapturingMonitorInfoMap();
 
-        void SetPluginManager(const std::shared_ptr<ClientPluginManager>& mgr);
-        std::shared_ptr<ClientPluginManager> GetPluginManager();
+        void SetModuleManager(const std::shared_ptr<ClientModuleManager>& manager);
+        std::shared_ptr<ClientModuleManager> GetModuleManager();
 
         template<class T>
         void SendAppMessage(const T& msg) {
@@ -66,8 +66,7 @@ namespace px
         std::shared_ptr<Thread> task_thread_ = nullptr;
         std::string name_;
         std::map<std::string, SdkCaptureMonitorInfo> capturing_info_map_;
-        // plugin manager
-        std::shared_ptr<ClientPluginManager> plugin_mgr_ = nullptr;
+        std::weak_ptr<ClientModuleManager> module_manager_;
         std::atomic_bool recording_ = false;
         std::shared_ptr<NotifyManager> notify_manager_ = nullptr;
         std::atomic_bool exiting_ = false;
