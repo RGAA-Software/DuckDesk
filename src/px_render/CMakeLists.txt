@@ -4,6 +4,7 @@ add_subdirectory(settings)
 add_subdirectory(plugin_interface)
 add_subdirectory(plugins)
 add_subdirectory(hook_capture)
+add_subdirectory(architecture)
 if(TESTS_ENABLED)
     add_subdirectory(tests)
 endif()
@@ -27,15 +28,16 @@ set(SRCS
         rd_statistics.cpp
         session/logical_session_registry.cpp
         network/ws_media_router.cpp
+        network/webrtc_library_host.cpp
         network/ws_panel_client.cpp
         network/net_message_maker.cpp
         network/server_cast.cpp
         network/render_service_client.cpp
         app/encoder_thread.cpp
-        plugins/plugin_manager.cpp
-        plugins/plugin_event_router.cpp
-        plugins/plugin_stream_event_router.cpp
-        plugins/plugin_net_event_router.cpp
+        modules/render_module_registry.cpp
+        ingress/render_event_ingress.cpp
+        pipeline/encoded_video_fanout.cpp
+        ingress/network_event_ingress.cpp
         webview/webview_runtime.cpp
         #plugins/plugin_desktop_capture.cpp
 )
@@ -53,7 +55,15 @@ else()
     #
 endif()
 
-target_link_libraries(main app_manager protobuf::libprotobuf px_message)
+target_link_libraries(main app_manager protobuf::libprotobuf px_message
+        render_architecture_core render_media_recorder)
+target_link_libraries(main render_live_pusher)
+target_link_libraries(main render_frame_processors)
+target_link_libraries(main render_audio_processors)
+target_link_libraries(main render_audio_sources)
+target_link_libraries(main render_domain_services)
+target_link_libraries(main cap_dda cap_gdi enc_ffmpeg enc_amf enc_nvenc)
+target_link_libraries(main net_ws net_udp net_relay)
 
 if(WIN32)
     add_executable(${PROJECT_NAME} WIN32 rd_main.cpp ${CMAKE_CURRENT_BINARY_DIR}/rd_icon.rc)

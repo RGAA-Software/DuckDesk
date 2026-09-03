@@ -147,31 +147,49 @@ function Remove-RetiredClientRecordingCore {
     Write-Host "REMOVED retired Client recording core $stalePath"
 }
 
+function Remove-NonPackagedRenderPlugins {
+    $pluginDirectory = Join-Path $distRoot "deps\rd_plugins"
+    foreach ($retiredName in @(
+        "mock_video_stream.dll",
+        "obj_detector.dll",
+        "frame_debugger.dll",
+        "media_recorder.dll",
+        "live_pusher.dll",
+        "frame_resizer.dll",
+        "frame_carrier.dll",
+        "enc_opus.dll",
+        "event_replayer.dll",
+        "cap_was_audio.dll",
+        "clipboard.dll",
+        "joystick.dll",
+        "ft.dll",
+        "voice_call.dll",
+        "cap_dda.dll",
+        "cap_gdi.dll",
+        "enc_ffmpeg.dll",
+        "enc_amf.dll",
+        "enc_nvenc.dll",
+        "net_ws.dll",
+        "net_udp.dll",
+        "net_relay.dll")) {
+        $retiredPath = Join-Path $pluginDirectory $retiredName
+        if (-not (Test-Path -LiteralPath $retiredPath -PathType Leaf)) {
+            continue
+        }
+        try {
+            Remove-Item -LiteralPath $retiredPath -Force
+        }
+        catch {
+            Stop-RenderServiceForPublish
+            Remove-Item -LiteralPath $retiredPath -Force
+        }
+        Write-Host "REMOVED non-packaged Render module $retiredPath"
+    }
+}
+
 $renderPluginMap = @{
-    "enc_amf"          = "amf_encoder\enc_amf.dll"
-    "clipboard"        = "clipboard\clipboard.dll"
-    "cap_dda"          = "dda_capture\cap_dda.dll"
-    "event_replayer"   = "event_replayer\event_replayer.dll"
-    "enc_ffmpeg"       = "ffmpeg_encoder\enc_ffmpeg.dll"
-    "frame_carrier"    = "frame_carrier\frame_carrier.dll"
-    "frame_debugger"   = "frame_debugger\frame_debugger.dll"
-    "frame_resizer"    = "frame_resizer\frame_resizer.dll"
-    "ft"               = "ft\ft.dll"
-    "cap_gdi"          = "gdi_capture\cap_gdi.dll"
-    "joystick"         = "joystick\joystick.dll"
-    "live_pusher"      = "live_pusher\live_pusher.dll"
-    "media_recorder"   = "media_recorder\media_recorder.dll"
-    "mock_video_stream"= "mock_video_stream\mock_video_stream.dll"
-    "net_relay"        = "net_relay\net_relay.dll"
     "net_rtc"          = "net_rtc\net_rtc.dll"
     "net_rtc_local"    = "net_rtc_local\net_rtc_local.dll"
-    "net_udp"          = "net_udp\net_udp.dll"
-    "net_ws"           = "net_ws\net_ws.dll"
-    "enc_nvenc"        = "nvenc_encoder\enc_nvenc.dll"
-    "obj_detector"     = "obj_detector\obj_detector.dll"
-    "enc_opus"         = "opus_encoder\enc_opus.dll"
-    "voice_call"       = "voice_call\voice_call.dll"
-    "cap_was_audio"    = "was_audio_capture\cap_was_audio.dll"
 }
 
 function Publish-RenderPlugin {
@@ -183,17 +201,12 @@ function Publish-RenderPlugin {
     $source = Join-Path $buildRoot ("src\px_render\plugins\" + $relativeSource)
     $destination = Join-Path $distRoot ("deps\rd_plugins\" + (Split-Path -Leaf $relativeSource))
     Publish-VerifiedFile -Source $source -Destination $destination -ProcessName "px_render"
-    if ($Target -eq "voice_call") {
-        Publish-VerifiedFile `
-            -Source (Join-Path $buildRoot "src\px_deps\px_voice_call\px_voice_apm.dll") `
-            -Destination (Join-Path $distRoot "px_voice_apm.dll") `
-            -ProcessName "px_render"
-    }
 }
 
 try {
 switch ($Component) {
     "render" {
+        Remove-NonPackagedRenderPlugins
         Publish-VerifiedFile `
             -Source (Join-Path $buildRoot "src\px_render\px_render.exe") `
             -Destination (Join-Path $distRoot "px_render.exe") `
@@ -242,6 +255,7 @@ switch ($Component) {
         Publish-LanguageResources
     }
     "render_plugin" {
+        Remove-NonPackagedRenderPlugins
         if ([string]::IsNullOrWhiteSpace($PluginTarget)) {
             throw "PluginTarget is required for render_plugin"
         }
@@ -254,11 +268,13 @@ switch ($Component) {
             -ProcessName "px_render"
     }
     "render_plugins" {
+        Remove-NonPackagedRenderPlugins
         foreach ($target in $renderPluginMap.Keys | Sort-Object) {
             Publish-RenderPlugin -Target $target
         }
     }
     "ft_protocol" {
+        Remove-NonPackagedRenderPlugins
         # px_file_transfer.proto objects cross these executable/plugin boundaries.
         # Publish them as one compatibility unit so generated protobuf layouts cannot be mixed.
         Publish-VerifiedFile `
@@ -269,7 +285,7 @@ switch ($Component) {
             -Source (Join-Path $buildRoot "src\px_render\px_render.exe") `
             -Destination (Join-Path $distRoot "px_render.exe") `
             -ProcessName "px_render"
-        foreach ($target in @("ft", "net_ws", "net_relay", "net_rtc", "net_rtc_local", "net_udp")) {
+        foreach ($target in @("net_rtc", "net_rtc_local")) {
             Publish-RenderPlugin -Target $target
         }
         Publish-VerifiedFile `

@@ -13,6 +13,9 @@ namespace px
 {
 
     class Data;
+    class MsgRtcRemoteIce;
+    class MsgRtcRemoteSdp;
+    struct UdpMediaAssociation;
 
     class NetSyncInfo {
     public:
@@ -215,6 +218,16 @@ namespace px
             const std::string& stream_id, const std::string& call_id,
             const int16_t* samples, size_t sample_count,
             int sample_rate, int channels);
+
+        // Typed control-plane commands. These are intentionally appended to
+        // the compatibility vtable: Render no longer multiplexes unrelated
+        // network commands through an untyped catch-all entry point.
+        virtual void ApplyRtcRemoteSdp(const MsgRtcRemoteSdp& message);
+        virtual void ApplyRtcRemoteIce(const MsgRtcRemoteIce& message);
+        virtual void ApplyLogicalSessionCapabilities(
+            const PxLogicalSessionCapabilityUpdate& update);
+        virtual void UpdateUdpMediaAssociation(
+            const UdpMediaAssociation& association);
 
     protected:
         NetSyncInfo sync_info_{};

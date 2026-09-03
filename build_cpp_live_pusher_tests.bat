@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-rem Focused live-pusher runtime/plugin tests. This does not build Rust,
-rem web assets, or bump release versions.
-call "%~dp0scripts\build_cpp_target.bat" test_live_pusher_runtime test_live_pusher_ffmpeg test_live_pusher_plugin_dll_lifecycle live_pusher
+rem Focused built-in live-pusher tests. This does not build Rust, web assets,
+rem bump release versions, or produce a live-pusher plug-in DLL.
+call "%~dp0scripts\build_cpp_target.bat" test_live_pusher_sink test_live_pusher_ffmpeg
 exit /b %errorlevel%

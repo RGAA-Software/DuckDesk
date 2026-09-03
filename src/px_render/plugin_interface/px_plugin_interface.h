@@ -142,49 +142,8 @@ namespace px
         // client disconnected
         virtual void OnClientDisconnected(const std::string& visitor_device_id, const std::string& stream_id);
 
-        // net plugins
-        void AttachNetPlugin(const std::string& id, PxNetPlugin* plugin);
-        // total plugins
-        void AttachPlugin(const std::string& id, PxPluginInterface* plugin);
-
-        //
-        bool HasAttachedNetPlugins();
-        // Serialized proto message from Renderer
-        // to see format details in px_message_new/px_message.proto
-        // such as : message VideoFrame { ... }
-        // you can send it to any clients
-        //                       -> client 1
-        // Renderer Messages ->  -> client 2
-        //                       -> client 3
-        // run_through: send the message even if stream was paused
-        // !! Call this function in a NON-NET-PLUGIN !!
-        void DispatchAllStreamMessage(std::shared_ptr<Data> msg, bool run_through = false);
-
-        // Serialized proto message from Renderer
-        // to a specific stream
-        // !! Call this function in a NON-NET-PLUGIN !!
-        void DispatchTargetStreamMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through = false);
-
-        // Serialized proto message from Renderer
-        // to file transfer
-        // !! Call this function in a NON-NET-PLUGIN !!
-        void DispatchTargetFileTransferMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through = false);
-        [[nodiscard]] FileTransferSendResult DispatchTargetFileTransferMessageOnRoute(
-            const std::string& plugin_id,
-            const std::string& stream_id,
-            std::shared_ptr<Data> msg,
-            bool run_through = false,
-            const std::string& connection_instance_id = {});
-
         // messages from remote
         virtual void OnMessage(std::shared_ptr<Message> msg);
-        // msg: Parsed messages
-        virtual void OnMessageRaw(const std::any& msg);
-
-        std::map<std::string, PxNetPlugin*> GetNetPlugins();
-        int64_t GetQueuingMediaMsgCountInNetPlugins();
-        int64_t GetQueuingFtMsgCountInNetPlugins();
-
         // settings from render panel
         // render panel -> render -> plugins
         virtual void OnSyncPluginSettingsInfo(const PxPluginSettingsInfo& settings);
@@ -231,7 +190,6 @@ namespace px
                                          int samples, int channels, int bits) {}
         virtual void OnSplitFFTAudioData(const std::vector<double>& left_fft, const std::vector<double>& right_fft) {}
 
-        PxPluginInterface* GetPluginById(const std::string& plugin_id);
     protected:
         bool HasParam(const std::string& k) {
             return param_.cluster_.count(k) > 0;
@@ -276,10 +234,6 @@ namespace px
         std::string base_path_;
         std::wstring base_data_path_;
         std::string capture_audio_device_id_;
-        // active net plugins...
-        std::map<std::string, PxNetPlugin*> net_plugins_;
-        // total plugins
-        std::map<std::string, PxPluginInterface*> total_plugins_;
         // settings
         PxPluginSettingsInfo sys_settings_{};
         // no connected clients counter

@@ -92,27 +92,19 @@ namespace px
             return;
         }
 
-        // 投递到所有网络插件:ws 走自身;net 插件的 net_plugins_ 为空
-        // (plugin_manager 只给非 net 插件挂载),需经 total_plugins_ 按 id 找到后
-        // 逐个投递。必须覆盖 rtc/rtc_local(WebRTC 网页客户端)和 relay/udp(原生
-        // 客户端主路径)——此前白名单只有 rtc,relay 客户端永远收不到远端消息。
-        auto for_each_net_plugin = [&](const std::function<void(PxNetPlugin*)>& fn) {
-            fn(plugin);
-            for (const auto& id : { kNetRtcPluginId, kNetRtcLocalPluginId,
-                                    kRelayPluginId, kNetUdpPluginId }) {
-                if (auto p = plugin->GetPluginById(id); p && p != plugin) {
-                    if (auto np = dynamic_cast<PxNetPlugin*>(p)) {
-                        fn(np);
-                    }
-                }
+        // Network peers are explicitly injected by the Render composition;
+        // user-proxy traffic never performs service-locator lookup.
+        auto for_each_transport = [plugin](const auto& operation) {
+            for (const auto& peer : plugin->GetNetworkPeers()) {
+                operation(peer);
             }
         };
 
         if (m.type() == pxrp::kRpClipboardEvent) {
             const auto& clipboard_info = m.clipboard_info();
             auto broadcast = [&](const std::shared_ptr<Data>& buffer) {
-                for_each_net_plugin([&](PxNetPlugin* np) {
-                    np->PostProtoMessage(buffer, false);
+                for_each_transport([&](const std::shared_ptr<PxNetPlugin>& transport) {
+                    transport->PostProtoMessage(buffer, false);
                 });
             };
             if (clipboard_info.type() == pxrp::kRpClipboardText) {
@@ -151,11 +143,12 @@ namespace px
             bool inner_parsed = inner.ParseFromArray(sub.msg().data(), (int)sub.msg().size());
             LOGI("[LAT-clip] user-proxy outbound, data_channel={}, stream_id={}, inner_type={}, len={}",
                  sub.data_channel(), sub.stream_id(), inner_parsed ? (int)inner.type() : -1, sub.msg().size());
-            for_each_net_plugin([&](PxNetPlugin* np) {
+            for_each_transport([&](const std::shared_ptr<PxNetPlugin>& transport) {
                 if (sub.data_channel()) {
-                    np->PostTargetFileTransferProtoMessage(sub.stream_id(), buffer, sub.run_through());
+                    transport->PostTargetFileTransferProtoMessage(
+                        sub.stream_id(), buffer, sub.run_through());
                 } else {
-                    np->PostProtoMessage(buffer, sub.run_through());
+                    transport->PostProtoMessage(buffer, sub.run_through());
                 }
             });
             return;

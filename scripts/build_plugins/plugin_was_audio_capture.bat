@@ -1,12 +1,12 @@
 @echo off
 setlocal enabledelayedexpansion
 
-rem Build cap_was_audio against build_official.
+rem WAS audio is a built-in Render Source. Build its focused tests.
 rem Same VS / MSVC environment discovery as build_official.bat.
 
 cd /d "%~dp0..\.."
 
-set "TARGET=cap_was_audio"
+set "TARGET=test_was_audio_capture_source"
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 set "VS_INSTALL_DIR="
 

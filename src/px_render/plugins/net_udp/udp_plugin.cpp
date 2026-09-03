@@ -167,11 +167,12 @@ namespace px
         return PxNetPlugin::OnDestroy();
     }
 
-    void UdpPlugin::OnMessageRaw(const std::any& msg) {
-        if (!runtime_ || msg.type() != typeid(UdpMediaAssociation)) {
+    void UdpPlugin::UpdateUdpMediaAssociation(
+        const UdpMediaAssociation& association) {
+        if (!runtime_) {
             return;
         }
-        runtime_->UpdateMediaAssociation(std::any_cast<UdpMediaAssociation>(msg));
+        runtime_->UpdateMediaAssociation(association);
     }
 
     // wire 级扫描 px.Message,提取 kAudioFrame(40) 里 AudioFrame.data(field 5, bytes)

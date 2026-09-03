@@ -4,6 +4,7 @@
 
 #ifndef PX_DDA_CAPTURE_PLUGIN_H
 #define PX_DDA_CAPTURE_PLUGIN_H
+#include <functional>
 #include <optional>
 #include <mutex>
 #include "px_render/plugin_interface/px_monitor_capture_plugin.h"
@@ -49,6 +50,10 @@ namespace px
         // Capturing target <==> information
         std::map<std::string, WorkingCaptureInfoPtr> GetWorkingCapturesInfo() override;
 
+        using MediaBacklogProbe = std::function<std::int64_t()>;
+        void ConfigureMediaBacklogProbe(MediaBacklogProbe probe);
+        [[nodiscard]] std::int64_t GetNetworkMediaBacklog() const;
+
     private:
         bool InitVideoCaptures();
         void InitCursorCapture();
@@ -71,6 +76,7 @@ namespace px
         std::shared_ptr<Thread> cursor_capture_thread_ = nullptr;
 
         VirtualDesktopBoundRectangleInfo virtual_desktop_bound_rectangle_info_;
+        MediaBacklogProbe media_backlog_probe_;
     };
 
 }

@@ -3,10 +3,12 @@
 //
 
 #include "video_frame_carrier.h"
+#include <algorithm>
 #include <atlcomcli.h>
 #include <d3d11_1.h>
 #include <d3dcompiler.h>
 #include <limits>
+#include <span>
 #include <libyuv/convert.h>
 #include <libyuv/convert_from_argb.h>
 #include "px_common_new/log.h"
@@ -16,22 +18,31 @@
 #include "px_common_new/thread.h"
 #include "px_common_new/defer.h"
 #include "px_common_new/file.h"
-#include "frame_carrier_plugin.h"
-#include "px_render/plugins/plugin_manager.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
-#include "px_render/plugin_interface/px_frame_processor_plugin.h"
 
 namespace px
 {
 
-    VideoFrameCarrier::VideoFrameCarrier(FrameCarrierPlugin* plugin,
+    std::shared_ptr<VideoFrameCarrier> VideoFrameCarrier::Create(
+        VideoFrameCarrierResources resources,
+        const ComPtr<ID3D11Device>& d3d11_device,
+        const ComPtr<ID3D11DeviceContext>& d3d11_device_context,
+        const uint64_t adapter_uid,
+        const std::string& monitor_name,
+        const bool enable_full_color_mode) {
+        return std::make_shared<VideoFrameCarrier>(
+            std::move(resources), d3d11_device, d3d11_device_context,
+            adapter_uid, monitor_name, enable_full_color_mode);
+    }
+
+    VideoFrameCarrier::VideoFrameCarrier(
+                                         VideoFrameCarrierResources resources,
                                          const ComPtr<ID3D11Device>& d3d11_device,
                                          const ComPtr<ID3D11DeviceContext>& d3d11_device_context,
                                          uint64_t adapter_uid,
                                          const std::string& monitor_name,
                                          bool enable_full_color_mode)
     {
-        plugin_ = plugin;
         d3d11_device_ = d3d11_device;
         d3d11_device_context_ = d3d11_device_context;
         adapter_uid_ = adapter_uid;
@@ -40,9 +51,10 @@ namespace px
         yuv_converter_thread_ = Thread::Make("video frame carrier", 1024);
         yuv_converter_thread_->Poll();
         // logo points
-        logo_points_ = plugin_->GetLogoPoints();
-        big_logo_points_ = plugin_->GetBigLogoPoints();
-        cover_points_ = plugin_->GetCoverPoints();
+        logo_image_ = std::move(resources.logo_image);
+        logo_points_ = std::move(resources.logo_points);
+        big_logo_points_ = std::move(resources.big_logo_points);
+        cover_points_ = std::move(resources.cover_points);
 
 #ifdef OPENSOURCE_BUILD
         enable_logo_ = true;
@@ -99,21 +111,8 @@ namespace px
         if (conv_shader_failed_) {
             return false;
         }
-        // d3dcompiler_47.dll 是 Win10+ 系统组件,运行时加载避免新增链接依赖。
-        HMODULE d3dcompiler = LoadLibraryA("d3dcompiler_47.dll");
-        if (!d3dcompiler) {
-            LOGE("EnsureConvertShaders: d3dcompiler_47.dll not found");
-            conv_shader_failed_ = true;
-            return false;
-        }
-        auto d3d_compile = (pD3DCompile) GetProcAddress(d3dcompiler, "D3DCompile");
-        if (!d3d_compile) {
-            LOGE("EnsureConvertShaders: D3DCompile not found");
-            conv_shader_failed_ = true;
-            return false;
-        }
         // 全屏三角形:SV_VertexID 生成,无需 input layout;PS 按像素 Load 做格式转换。
-        const char* hlsl = R"(
+        static constexpr char hlsl[] = R"(
 float4 VSMain(uint vid : SV_VertexID) : SV_Position {
     float2 p = float2((vid << 1) & 2, vid & 2);
     return float4(p.x * 2.0 - 1.0, 1.0 - p.y * 2.0, 0.0, 1.0);
@@ -124,15 +123,17 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
 }
 )";
         ComPtr<ID3DBlob> vs_blob, ps_blob, err_blob;
-        HRESULT hr = d3d_compile(hlsl, strlen(hlsl), nullptr, nullptr, nullptr,
-                                 "VSMain", "vs_4_0", 0, 0, &vs_blob, &err_blob);
+        HRESULT hr = D3DCompile(
+            hlsl, std::size(hlsl) - 1, nullptr, nullptr, nullptr,
+            "VSMain", "vs_4_0", 0, 0, &vs_blob, &err_blob);
         if (FAILED(hr)) {
             LOGE("EnsureConvertShaders: VS compile failed: {:x}", (uint32_t)hr);
             conv_shader_failed_ = true;
             return false;
         }
-        hr = d3d_compile(hlsl, strlen(hlsl), nullptr, nullptr, nullptr,
-                         "PSMain", "ps_4_0", 0, 0, &ps_blob, &err_blob);
+        hr = D3DCompile(
+            hlsl, std::size(hlsl) - 1, nullptr, nullptr, nullptr,
+            "PSMain", "ps_4_0", 0, 0, &ps_blob, &err_blob);
         if (FAILED(hr)) {
             LOGE("EnsureConvertShaders: PS compile failed: {:x}", (uint32_t)hr);
             conv_shader_failed_ = true;
@@ -184,10 +185,8 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
         ctx->HSSetShader(nullptr, nullptr, 0);
         ctx->DSSetShader(nullptr, nullptr, 0);
         ctx->GSSetShader(nullptr, nullptr, 0);
-        ID3D11ShaderResourceView* srvs[] = {srv.Get()};
-        ctx->PSSetShaderResources(0, 1, srvs);
-        ID3D11RenderTargetView* rtvs[] = {rtv.Get()};
-        ctx->OMSetRenderTargets(1, rtvs, nullptr);
+        ctx->PSSetShaderResources(0, 1, srv.GetAddressOf());
+        ctx->OMSetRenderTargets(1, rtv.GetAddressOf(), nullptr);
         ctx->OMSetBlendState(nullptr, nullptr, 0xffffffff);
         ctx->OMSetDepthStencilState(nullptr, 0);
         ctx->RSSetViewports(1, &vp);
@@ -195,10 +194,10 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
         ctx->RSSetState(nullptr);
         ctx->Draw(3, 0);
         // 解除绑定,避免 SRV/RTV 残留影响后续 CopyResource / NVENC。
-        ID3D11ShaderResourceView* null_srvs[] = {nullptr};
-        ctx->PSSetShaderResources(0, 1, null_srvs);
-        ID3D11RenderTargetView* null_rtvs[] = {nullptr};
-        ctx->OMSetRenderTargets(1, null_rtvs, nullptr);
+        ComPtr<ID3D11ShaderResourceView> null_srv;
+        ctx->PSSetShaderResources(0, 1, null_srv.GetAddressOf());
+        ComPtr<ID3D11RenderTargetView> null_rtv;
+        ctx->OMSetRenderTargets(1, null_rtv.GetAddressOf(), nullptr);
         ctx->Flush();
         return true;
     }
@@ -208,7 +207,7 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
             LOGE("D3D11Texture2DLockMutex error");
             return false;
         }
-        std::shared_ptr<void> auto_release_texture2D_mutex((void *) nullptr, [=, this](void *temp) {
+        const auto keyed_mutex_guard = Defer::Make([shared_texture] {
             D3D11Texture2DReleaseMutex(shared_texture);
         });
 
@@ -332,7 +331,10 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
     }
 
     void VideoFrameCarrier::StampLogoOnTexture(const ComPtr<ID3D11Texture2D>& texture, int tex_width, int tex_height) {
-        auto logo_image = plugin_->GetLogoImage();
+        const auto logo_image = logo_image_;
+        if (!logo_image || !logo_image->data) {
+            return;
+        }
         auto logo_width = static_cast<UINT>(logo_image->GetWidth());
         auto logo_height = static_cast<UINT>(logo_image->GetHeight());
 
@@ -426,14 +428,13 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
             if (image->data->Size() <= offset + 3) {
                 return;
             }
-            uint8_t *dst_r = (uint8_t*)&image->data->DataAddr()[offset];
-            uint8_t *dst_g = (uint8_t*)&image->data->DataAddr()[offset+1];
-            uint8_t *dst_b = (uint8_t*)&image->data->DataAddr()[offset+2];
-            uint8_t *dst_a = (uint8_t*)&image->data->DataAddr()[offset+3];
-            *dst_r = 0;
-            *dst_g = 0;
-            *dst_b = 0;
-            *dst_a = 0;
+            const auto pixels = std::span(
+                image->data->DataAddr(),
+                static_cast<std::size_t>(image->data->Size()));
+            pixels[static_cast<std::size_t>(offset)] = 0;
+            pixels[static_cast<std::size_t>(offset + 1)] = 0;
+            pixels[static_cast<std::size_t>(offset + 2)] = 0;
+            pixels[static_cast<std::size_t>(offset + 3)] = 0;
         }
     }
 
@@ -496,7 +497,11 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
         // 用纹理自身的实际格式——10bit 源纹理已在 CopyTexture 里转成 B8G8R8A8,
         // 而调用方传的 format 仍是捕获原始格式(如 R10G10B10A2),直接用会解释错通道。
         raw_image_rgba_format_ = src_desc.Format;
-        bool ok = CopyToRawImage(mapped_rect.pBits, mapped_rect.Pitch, height);
+        const auto mapped_size = static_cast<std::size_t>(mapped_rect.Pitch) *
+            static_cast<std::size_t>(height);
+        const auto mapped_bytes = std::as_bytes(
+            std::span(mapped_rect.pBits, mapped_size));
+        bool ok = CopyToRawImage(mapped_bytes, mapped_rect.Pitch, height);
         if (ok) {
             rgba_cbk(raw_image_rgba_);
         }
@@ -511,8 +516,11 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
         return ok;
     }
 
-    bool VideoFrameCarrier::CopyToRawImage(const uint8_t* data, int row_pitch_bytes, int height) {
-        if (!data) {
+    bool VideoFrameCarrier::CopyToRawImage(
+        const std::span<const std::byte> data,
+        const int row_pitch_bytes,
+        const int height) {
+        if (data.empty()) {
             LOGE("CopyToRawImage failed: data is null");
             return false;
         }
@@ -549,8 +557,10 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
             return false;
         }
 
-        auto* dst = raw_image_rgba_->GetData()->DataAddr();
-        if (!dst) {
+        const auto destination = std::span<char>(
+            raw_image_rgba_->GetData()->DataAddr(),
+            static_cast<std::size_t>(raw_image_rgba_->GetData()->Size()));
+        if (destination.empty()) {
             LOGE("CopyToRawImage failed: raw image buffer address is null");
             return false;
         }
@@ -560,7 +570,11 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
             return false;
         }
 
-        memcpy(dst, data, total_size);
+        std::ranges::transform(
+            data.first(total_size), destination.begin(),
+            [](const std::byte value) {
+                return static_cast<char>(std::to_integer<unsigned char>(value));
+            });
         raw_image_rgba_->raw_img_type_ = (RawImageType)GetRawImageType();
         return true;
     }
@@ -571,22 +585,28 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
         // the converter thread.
         auto rgba = raw_image_rgba_;
         const auto rgba_format = raw_image_rgba_format_;
-        auto task = [this, rgba = std::move(rgba), rgba_format, yuv_cbk = std::move(yuv_cbk)]() mutable {
+        const std::weak_ptr<VideoFrameCarrier> weak_owner = weak_from_this();
+        auto task = [weak_owner, rgba = std::move(rgba), rgba_format,
+                     yuv_cbk = std::move(yuv_cbk)]() mutable {
+            const auto owner = weak_owner.lock();
+            if (!owner) {
+                return;
+            }
             auto beg = TimeUtil::GetCurrentTimestamp();
             if (!rgba || !rgba->GetData()) {
                 return;
             }
-            if (!raw_image_yuv_ ||
-                raw_image_yuv_->GetWidth() != rgba->GetWidth() ||
-                raw_image_yuv_->GetHeight() != rgba->GetHeight() ||
-                raw_image_yuv_->raw_img_type_ != RawImageType::kI420 ||
-                raw_image_yuv_.use_count() > 1)
+            if (!owner->raw_image_yuv_ ||
+                owner->raw_image_yuv_->GetWidth() != rgba->GetWidth() ||
+                owner->raw_image_yuv_->GetHeight() != rgba->GetHeight() ||
+                owner->raw_image_yuv_->raw_img_type_ != RawImageType::kI420 ||
+                owner->raw_image_yuv_.use_count() > 1)
             {
                 const auto yuv_size = static_cast<size_t>(rgba->GetWidth()) * rgba->GetHeight() * 3 / 2;
-                raw_image_yuv_ = Image::Make(Data::Make(nullptr, yuv_size),
+                owner->raw_image_yuv_ = Image::Make(Data::Make(nullptr, yuv_size),
                                              rgba->GetWidth(), rgba->GetHeight(), RawImageType::kI420);
             }
-            auto yuv = raw_image_yuv_;
+            auto yuv = owner->raw_image_yuv_;
             if (!yuv || !yuv->GetData()) {
                 return;
             }
@@ -595,20 +615,33 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
             size_t pixel_size = width * height;
 
             const int uv_stride = width >> 1;
-            uint8_t* y = (uint8_t*)yuv->GetData()->DataAddr();
-            uint8_t* u = y + pixel_size;
-            uint8_t* v = u + (pixel_size >> 2);
-
-            auto pitch = rgba->GetWidth() * 4;
-            auto data_buffer = (uint8_t*)rgba->GetData()->DataAddr();
+            const auto yuv_bytes = std::span(
+                reinterpret_cast<std::uint8_t*>(yuv->GetData()->DataAddr()),
+                static_cast<std::size_t>(yuv->GetData()->Size()));
+            const auto rgba_bytes = std::span(
+                reinterpret_cast<const std::uint8_t*>(rgba->GetData()->DataAddr()),
+                static_cast<std::size_t>(rgba->GetData()->Size()));
+            const auto pitch = rgba->GetWidth() * 4;
             if (DXGI_FORMAT_B8G8R8A8_UNORM == rgba_format) {
-                libyuv::ARGBToI420(data_buffer, pitch, y, width, u, uv_stride, v, uv_stride, width, height);
+                libyuv::ARGBToI420(
+                    rgba_bytes.data(), pitch, yuv_bytes.data(), width,
+                    yuv_bytes.subspan(pixel_size).data(), uv_stride,
+                    yuv_bytes.subspan(pixel_size + (pixel_size >> 2)).data(),
+                    uv_stride, width, height);
             }
             else if (DXGI_FORMAT_R8G8B8A8_UNORM == rgba_format) {
-                libyuv::ABGRToI420(data_buffer, pitch, y, width, u, uv_stride, v, uv_stride, width, height);
+                libyuv::ABGRToI420(
+                    rgba_bytes.data(), pitch, yuv_bytes.data(), width,
+                    yuv_bytes.subspan(pixel_size).data(), uv_stride,
+                    yuv_bytes.subspan(pixel_size + (pixel_size >> 2)).data(),
+                    uv_stride, width, height);
             }
             else {
-                libyuv::ARGBToI420(data_buffer, pitch, y, width, u, uv_stride, v, uv_stride, width, height);
+                libyuv::ARGBToI420(
+                    rgba_bytes.data(), pitch, yuv_bytes.data(), width,
+                    yuv_bytes.subspan(pixel_size).data(), uv_stride,
+                    yuv_bytes.subspan(pixel_size + (pixel_size >> 2)).data(),
+                    uv_stride, width, height);
             }
 
 #if 0   // save to file
@@ -629,24 +662,30 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
     void VideoFrameCarrier::ConvertToYuv444(std::function<void(const std::shared_ptr<Image>&)>&& yuv_cbk) {
         auto rgba = raw_image_rgba_;
         const auto rgba_format = raw_image_rgba_format_;
-        auto task = [this, rgba = std::move(rgba), rgba_format, yuv_cbk = std::move(yuv_cbk)]() mutable {
+        const std::weak_ptr<VideoFrameCarrier> weak_owner = weak_from_this();
+        auto task = [weak_owner, rgba = std::move(rgba), rgba_format,
+                     yuv_cbk = std::move(yuv_cbk)]() mutable {
+            const auto owner = weak_owner.lock();
+            if (!owner) {
+                return;
+            }
             auto beg = TimeUtil::GetCurrentTimestamp();
 
             if (!rgba || !rgba->GetData()) {
                 return;
             }
 
-            if (!raw_image_yuv_ ||
-                raw_image_yuv_->GetWidth() != rgba->GetWidth() ||
-                raw_image_yuv_->GetHeight() != rgba->GetHeight() ||
-                raw_image_yuv_->raw_img_type_ != RawImageType::kI444 ||
-                raw_image_yuv_.use_count() > 1)
+            if (!owner->raw_image_yuv_ ||
+                owner->raw_image_yuv_->GetWidth() != rgba->GetWidth() ||
+                owner->raw_image_yuv_->GetHeight() != rgba->GetHeight() ||
+                owner->raw_image_yuv_->raw_img_type_ != RawImageType::kI444 ||
+                owner->raw_image_yuv_.use_count() > 1)
             {
                 const auto yuv_size = static_cast<size_t>(rgba->GetWidth()) * rgba->GetHeight() * 3;
-                raw_image_yuv_ = Image::Make(Data::Make(nullptr, yuv_size),
+                owner->raw_image_yuv_ = Image::Make(Data::Make(nullptr, yuv_size),
                     rgba->GetWidth(), rgba->GetHeight(), RawImageType::kI444);
             }
-            auto yuv = raw_image_yuv_;
+            auto yuv = owner->raw_image_yuv_;
             if (!yuv || !yuv->GetData()) {
                 return;
             }
@@ -655,20 +694,33 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
             size_t pixel_size = width * height;
 
             const int uv_stride = width;
-            uint8_t* y = (uint8_t*)yuv->GetData()->DataAddr();
-            uint8_t* u = y + pixel_size;
-            uint8_t* v = u + pixel_size;
-
-            auto pitch = rgba->GetWidth() * 4;
-            auto data_buffer = (uint8_t*)rgba->GetData()->DataAddr();
+            const auto yuv_bytes = std::span(
+                reinterpret_cast<std::uint8_t*>(yuv->GetData()->DataAddr()),
+                static_cast<std::size_t>(yuv->GetData()->Size()));
+            const auto rgba_bytes = std::span(
+                reinterpret_cast<const std::uint8_t*>(rgba->GetData()->DataAddr()),
+                static_cast<std::size_t>(rgba->GetData()->Size()));
+            const auto pitch = rgba->GetWidth() * 4;
             if (DXGI_FORMAT_B8G8R8A8_UNORM == rgba_format) {
-                libyuv::ARGBToI444(data_buffer, pitch, y, width, u, uv_stride, v, uv_stride, width, height);
+                libyuv::ARGBToI444(
+                    rgba_bytes.data(), pitch, yuv_bytes.data(), width,
+                    yuv_bytes.subspan(pixel_size).data(), uv_stride,
+                    yuv_bytes.subspan(pixel_size * 2).data(), uv_stride,
+                    width, height);
             }
             else if (DXGI_FORMAT_R8G8B8A8_UNORM == rgba_format) {
-                libyuv::ARGBToI444(data_buffer, pitch, y, width, u, uv_stride, v, uv_stride, width, height);
+                libyuv::ARGBToI444(
+                    rgba_bytes.data(), pitch, yuv_bytes.data(), width,
+                    yuv_bytes.subspan(pixel_size).data(), uv_stride,
+                    yuv_bytes.subspan(pixel_size * 2).data(), uv_stride,
+                    width, height);
             }
             else {
-                libyuv::ARGBToI444(data_buffer, pitch, y, width, u, uv_stride, v, uv_stride, width, height);
+                libyuv::ARGBToI444(
+                    rgba_bytes.data(), pitch, yuv_bytes.data(), width,
+                    yuv_bytes.subspan(pixel_size).data(), uv_stride,
+                    yuv_bytes.subspan(pixel_size * 2).data(), uv_stride,
+                    width, height);
             }
 
 #if 0   // save yuv file

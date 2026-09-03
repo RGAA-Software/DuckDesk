@@ -17,6 +17,7 @@
 #include "px_common_new/string_util.h"
 #include "px_common_new/time_util.h"
 #include "px_encoder_new/video_encoder_factory.h"
+#include "px_encoder_new/encoder_messages.h"
 #include "px_capture_new/capture_message.h"
 #include "px_capture_new/capture_message_maker.h"
 #include "px_capture_new/process_loopback_support.h"
@@ -43,7 +44,7 @@
 #include "px_controller/vigem_driver_manager.h"
 #include "rd_statistics.h"
 #include "network/render_service_client.h"
-#include "px_render/plugins/plugin_manager.h"
+#include "px_render/modules/render_module_registry.h"
 #include "px_render/plugins/plugin_ids.h"
 #include "px_render/plugin_interface/px_stream_plugin.h"
 #include "px_render/plugin_interface/px_net_plugin.h"
@@ -60,6 +61,23 @@
 #include "px_common_new/virtual_display_limits.h"
 #include "webview/webview_runtime.h"
 #include "session/logical_session_registry.h"
+#include "architecture/modules/builtin_module_catalog.h"
+#include "architecture/network/network_transport_hub.h"
+#include "architecture/observers/frame_debugger_observer.h"
+#include "architecture/observers/pipeline_statistics_observer.h"
+#include "architecture/pipeline/encoded_media_bus.h"
+#include "architecture/processors/frame_carrier_processor.h"
+#include "architecture/processors/frame_resizer_processor.h"
+#include "architecture/processors/opus_encoder_processor.h"
+#include "architecture/runtime/render_composition_root.h"
+#include "architecture/sinks/live_pusher_sink.h"
+#include "architecture/sinks/media_recorder_sink.h"
+#include "architecture/services/input_replay_service.h"
+#include "architecture/services/joystick_service.h"
+#include "architecture/services/file_transfer_service.h"
+#include "architecture/services/voice_call_service.h"
+#include "architecture/sources/was_audio_capture_source.h"
+#include "plugins/live_pusher/live_pusher_ffmpeg.h"
 
 namespace px
 {
@@ -122,15 +140,451 @@ namespace px
         context_ = std::make_shared<RdContext>();
         context_->Init();
 
+        const auto builtin_catalog = render::BuiltinModuleCatalog::Create();
+        composition_root_ = render::RenderCompositionRoot::Create(
+            context_->GetAsyncRuntime(), builtin_catalog);
+        encoded_media_bus_ = render::EncodedMediaBus::Create();
+        frame_debugger_observer_ = render::FrameDebuggerObserver::Create(
+            context_->GetAsyncRuntime(),
+            render::FrameDebuggerOptions{
+                .queue_capacity = 120,
+                .save_encoded_video = false,
+                .output_directory =
+                    std::filesystem::path(FolderUtil::GetProgramDataPath()) /
+                    L"px_data" / L"render",
+                .raw_log_interval = std::chrono::seconds(1),
+            });
+        const std::weak_ptr<RdContext> weak_context = context_;
+        auto record_directory = settings_->record_dir_;
+        if (record_directory.empty()) {
+            record_directory =
+                (std::filesystem::path(FolderUtil::GetProgramDataPath()) /
+                 L"px_render_records").string();
+        }
+        media_recorder_sink_ = render::MediaRecorderSink::Create(
+            encoded_media_bus_,
+            render::MediaRecorderOptions{
+                .record_directory = std::move(record_directory),
+                .auto_enabled = settings_->record_auto_,
+                .max_segment_bytes = settings_->record_max_segment_bytes_,
+                .max_file_count = settings_->record_max_file_count_,
+                .queue_capacity = 512,
+            },
+            [weak_context] {
+                if (const auto context = weak_context.lock()) {
+                    context->SendAppMessage(MsgInsertIDR{});
+                }
+            });
+        const auto push_configuration_valid =
+            !settings_->push_rtmp_url_.empty() &&
+            !settings_->live_stream_id_.empty();
+        if (settings_->push_enabled_ && !push_configuration_valid) {
+            LOGE("event=module.configure component=live_pusher "
+                 "outcome=disabled reason=missing_url_or_stream_id");
+        }
+        live_pusher_sink_ = render::LivePusherSink::Create(
+            encoded_media_bus_,
+            render::LivePusherOptions{
+                .enabled = settings_->push_enabled_ &&
+                           push_configuration_valid,
+                .publish_url = render::BuildLivePublishUrl(
+                    settings_->push_rtmp_url_, settings_->live_stream_id_),
+                .primary_monitor = settings_->push_primary_monitor_,
+                .audio_bitrate = settings_->push_audio_bitrate_,
+                .queue_capacity = 48,
+            },
+            [weak_context] {
+                if (const auto context = weak_context.lock()) {
+                    context->SendAppMessage(MsgInsertIDR{});
+                }
+            },
+            render::MakeFfmpegLivePushProcessor);
+        pipeline_statistics_observer_ =
+            render::PipelineStatisticsObserver::Create(encoded_media_bus_);
+        frame_carrier_processor_ = render::FrameCarrierProcessor::Create(
+            RdContext::GetCurrentExeFolder());
+        frame_resizer_processor_ = render::FrameResizerProcessor::Create();
+        const std::weak_ptr<RdApplication> weak_application = weak_from_this();
+        network_transport_hub_ = render::NetworkTransportHub::Create(
+            [weak_application](const render::TransportRoute& route,
+                               const std::shared_ptr<Data>& message,
+                               const bool run_through) {
+                const auto application = weak_application.lock();
+                const auto manager = application
+                    ? application->GetRenderModuleRegistry() : std::shared_ptr<RenderModuleRegistry>{};
+                return manager && manager->SendControlMessageOnRoute(
+                    route.transport_id, route.stream_id, message, run_through);
+            },
+            [weak_application](const render::TransportRoute& route,
+                               const std::shared_ptr<Data>& message) {
+                const auto application = weak_application.lock();
+                const auto manager = application
+                    ? application->GetRenderModuleRegistry() : std::shared_ptr<RenderModuleRegistry>{};
+                return manager
+                    ? manager->SendFileTransferMessageOnRoute(
+                          route.transport_id, route.stream_id, message,
+                          route.connection_id)
+                    : FileTransferSendResult::Disconnected(
+                          "Render network layer is unavailable");
+            },
+            [weak_application](const render::TransportRoute& route,
+                               const std::shared_ptr<Data>& message) {
+                const auto application = weak_application.lock();
+                const auto manager = application
+                    ? application->GetRenderModuleRegistry() : std::shared_ptr<RenderModuleRegistry>{};
+                return manager && manager->SendVoiceMessageOnRoute(
+                    route.transport_id, route.stream_id, message);
+            },
+            [weak_application](const render::TransportRoute& route,
+                               const std::string& call_id,
+                               const bool authorized) {
+                const auto application = weak_application.lock();
+                const auto manager = application
+                    ? application->GetRenderModuleRegistry() : std::shared_ptr<RenderModuleRegistry>{};
+                return manager && manager->SetRtcVoiceAuthorizationOnRoute(
+                    route.stream_id, call_id, authorized);
+            },
+            [weak_application](const render::TransportRoute& route,
+                               const std::string& call_id,
+                               const std::shared_ptr<const std::vector<std::int16_t>>& samples,
+                               const int sample_rate,
+                               const int channels) {
+                const auto application = weak_application.lock();
+                const auto manager = application
+                    ? application->GetRenderModuleRegistry() : std::shared_ptr<RenderModuleRegistry>{};
+                return manager && manager->SendRtcVoicePcmOnRoute(
+                    route.stream_id, call_id, samples, sample_rate, channels);
+            });
+        opus_encoder_processor_ = render::OpusEncoderProcessor::Create(
+            encoded_media_bus_,
+            [weak_application](
+                const std::shared_ptr<const render::EncodedAudioFrame>& frame) {
+                const auto application = weak_application.lock();
+                if (!application || application->exit_app_ || !frame ||
+                    !frame->payload) {
+                    return;
+                }
+                const auto data = Data::From(
+                    render::ImmutableByteBufferAsString(frame->payload));
+                application->PostNetMessage(NetMessageMaker::MakeAudioFrameMsg(
+                    data,
+                    static_cast<int>(frame->samples),
+                    static_cast<int>(frame->channels),
+                    static_cast<int>(frame->bits_per_sample),
+                    static_cast<int>(frame->frame_size)));
+            });
+        audio_capture_source_ = render::WasAudioCaptureSource::Create(
+            [weak_application](const CaptureAudioFrame& frame) {
+                const auto application = weak_application.lock();
+                if (!application || application->exit_app_) {
+                    return;
+                }
+                application->PostGlobalTask([weak_application, frame] {
+                    if (const auto active_application = weak_application.lock();
+                        active_application && !active_application->exit_app_) {
+                        active_application->OnCapturedAudioFrame(frame);
+                    }
+                });
+            });
+        input_replay_service_ = render::InputReplayService::Create();
+        joystick_service_ = render::JoystickService::Create();
+        file_transfer_service_ = render::FileTransferService::Create(
+            render::FileTransferServiceOptions{
+                .device_id = settings_->device_id_,
+                .enabled = settings_->file_transfer_enabled_,
+                .max_transmit_speed_bits_per_second =
+                    settings_->max_transmit_speed_,
+            },
+            [weak_hub = std::weak_ptr<render::NetworkTransportHub>(
+                 network_transport_hub_)](
+                const std::string& transport_id,
+                const std::string& stream_id,
+                const std::shared_ptr<Data>& message,
+                const std::string& connection_id) {
+                const auto hub = weak_hub.lock();
+                return hub
+                    ? hub->SendFileTransfer(render::TransportRoute{
+                          .channel = render::TransportChannelKind::kFileTransfer,
+                          .transport_id = transport_id,
+                          .connection_id = connection_id,
+                          .stream_id = stream_id,
+                      }, message)
+                    : FileTransferSendResult::Disconnected(
+                          "Render network transport hub is unavailable");
+            },
+            [weak_application](const render::FileTransferAuditBegin& audit) {
+                if (const auto application = weak_application.lock()) {
+                    application->ReportFileTransferAuditBegin(audit);
+                }
+            },
+            [weak_application](const render::FileTransferAuditEnd& audit) {
+                if (const auto application = weak_application.lock()) {
+                    application->ReportFileTransferAuditEnd(audit);
+                }
+            });
+        voice_call_service_ = render::VoiceCallService::Create(
+            settings_->voice_call_enabled_,
+            [weak_application](std::function<void()>&& task) {
+                if (const auto application = weak_application.lock()) {
+                    application->PostGlobalTask(std::move(task));
+                }
+            },
+            [weak_application](const render::VoiceCallConsentNotice& notice) {
+                const auto application = weak_application.lock();
+                if (!application) {
+                    return false;
+                }
+                pxrp::RpMessage message;
+                if (notice.show) {
+                    message.set_type(pxrp::kRpVoiceCallConsentRequest);
+                    auto& request = *message.mutable_voice_call_consent_request();
+                    request.set_visitor_device_id(notice.visitor_device_id);
+                    request.set_stream_id(notice.stream_id);
+                    request.set_call_id(notice.call_id);
+                    request.set_request_id(notice.request_id);
+                    request.set_expires_at_unix_ms(notice.expires_at_unix_ms);
+                    request.set_protocol_version(1);
+                }
+                else {
+                    message.set_type(pxrp::kRpVoiceCallConsentCancel);
+                    auto& cancel = *message.mutable_voice_call_consent_cancel();
+                    cancel.set_stream_id(notice.stream_id);
+                    cancel.set_call_id(notice.call_id);
+                    cancel.set_request_id(notice.request_id);
+                    cancel.set_reason(notice.reason);
+                }
+                return application->PostPanelMessage(RpProtoAsData(&message)); // NOLINT(gammaray-raw-pointer-boundary): synchronous protobuf conversion
+            },
+            [weak_hub = std::weak_ptr<render::NetworkTransportHub>(
+                 network_transport_hub_)](
+                const render::TransportRoute& route,
+                const std::shared_ptr<Data>& message) {
+                const auto hub = weak_hub.lock();
+                return hub && hub->SendVoice(route, message);
+            },
+            [weak_hub = std::weak_ptr<render::NetworkTransportHub>(
+                 network_transport_hub_)](
+                const render::TransportRoute& route,
+                const std::string& call_id,
+                const bool authorized) {
+                const auto hub = weak_hub.lock();
+                return hub && hub->SetRtcVoiceAuthorization(
+                    route, call_id, authorized);
+            },
+            [weak_hub = std::weak_ptr<render::NetworkTransportHub>(
+                 network_transport_hub_)](
+                const render::TransportRoute& route,
+                const std::string& call_id,
+                const std::shared_ptr<const std::vector<std::int16_t>>& samples,
+                const int sample_rate,
+                const int channels) {
+                const auto hub = weak_hub.lock();
+                return hub && hub->SendRtcVoicePcm(
+                    route, call_id, samples, sample_rate, channels);
+            });
+        if (!composition_root_ || !encoded_media_bus_ ||
+            !frame_debugger_observer_ || !media_recorder_sink_ ||
+            !live_pusher_sink_ || !pipeline_statistics_observer_) {
+            init_failed_ = true;
+            init_error_ = "Create Render composition root failed";
+            LOGE("event=composition.create component=rd_application "
+                 "code=MODULE_DEPENDENCY_UNAVAILABLE outcome=failed");
+            return -1;
+        }
+        if (!frame_carrier_processor_ || !frame_resizer_processor_ ||
+            !opus_encoder_processor_ || !audio_capture_source_ ||
+            !input_replay_service_ || !joystick_service_ ||
+            !file_transfer_service_ || !network_transport_hub_ ||
+            !voice_call_service_) {
+            init_failed_ = true;
+            init_error_ = "Create frame processing modules failed";
+            return -1;
+        }
+        auto debugger_registration =
+            frame_debugger_observer_->MakeRegistration();
+        if (auto registered =
+                composition_root_->Register(std::move(debugger_registration));
+            !registered) {
+            init_failed_ = true;
+            init_error_ = registered.error().reason;
+            LOGE("event=module.register component=rd_application module={} "
+                 "code={} outcome=failed reason={}",
+                 render::kFrameDebuggerModuleId,
+                 render::StableErrorCode(registered.error().code),
+                 registered.error().reason);
+            return -1;
+        }
+        auto recorder_registration = media_recorder_sink_->MakeRegistration();
+        if (auto registered =
+                composition_root_->Register(std::move(recorder_registration));
+            !registered) {
+            init_failed_ = true;
+            init_error_ = registered.error().reason;
+            LOGE("event=module.register component=rd_application module={} "
+                 "code={} outcome=failed reason={}",
+                 render::kMediaRecorderModuleId,
+                 render::StableErrorCode(registered.error().code),
+                 registered.error().reason);
+            return -1;
+        }
+        auto pusher_registration = live_pusher_sink_->MakeRegistration();
+        if (auto registered =
+                composition_root_->Register(std::move(pusher_registration));
+            !registered) {
+            init_failed_ = true;
+            init_error_ = registered.error().reason;
+            LOGE("event=module.register component=rd_application module={} "
+                 "code={} outcome=failed reason={}",
+                 render::kLivePusherModuleId,
+                 render::StableErrorCode(registered.error().code),
+                 registered.error().reason);
+            return -1;
+        }
+        auto statistics_registration =
+            pipeline_statistics_observer_->MakeRegistration();
+        if (auto registered = composition_root_->Register(
+                std::move(statistics_registration)); !registered) {
+            init_failed_ = true;
+            init_error_ = registered.error().reason;
+            LOGE("event=module.register component=rd_application module={} "
+                 "code={} outcome=failed reason={}",
+                 render::kPipelineStatisticsModuleId,
+                 render::StableErrorCode(registered.error().code),
+                 registered.error().reason);
+            return -1;
+        }
+        auto resizer_registration = frame_resizer_processor_->MakeRegistration();
+        if (auto registered = composition_root_->Register(
+                std::move(resizer_registration)); !registered) {
+            init_failed_ = true;
+            init_error_ = registered.error().reason;
+            LOGE("event=module.register component=rd_application module={} "
+                 "code={} outcome=failed reason={}",
+                 render::kFrameResizerModuleId,
+                 render::StableErrorCode(registered.error().code),
+                 registered.error().reason);
+            return -1;
+        }
+        auto carrier_registration = frame_carrier_processor_->MakeRegistration();
+        if (auto registered = composition_root_->Register(
+                std::move(carrier_registration)); !registered) {
+            init_failed_ = true;
+            init_error_ = registered.error().reason;
+            LOGE("event=module.register component=rd_application module={} "
+                 "code={} outcome=failed reason={}",
+                 render::kFrameCarrierModuleId,
+                 render::StableErrorCode(registered.error().code),
+                 registered.error().reason);
+            return -1;
+        }
+        auto opus_registration = opus_encoder_processor_->MakeRegistration();
+        if (auto registered = composition_root_->Register(
+                std::move(opus_registration)); !registered) {
+            init_failed_ = true;
+            init_error_ = registered.error().reason;
+            LOGE("event=module.register component=rd_application module={} "
+                 "code={} outcome=failed reason={}",
+                 render::kOpusEncoderModuleId,
+                 render::StableErrorCode(registered.error().code),
+                 registered.error().reason);
+            return -1;
+        }
+        auto input_registration = input_replay_service_->MakeRegistration();
+        if (auto registered = composition_root_->Register(
+                std::move(input_registration)); !registered) {
+            init_failed_ = true;
+            init_error_ = registered.error().reason;
+            LOGE("event=module.register component=rd_application module={} "
+                 "code={} outcome=failed reason={}",
+                 render::kInputReplayModuleId,
+                 render::StableErrorCode(registered.error().code),
+                 registered.error().reason);
+            return -1;
+        }
+        auto audio_source_registration =
+            audio_capture_source_->MakeRegistration();
+        if (auto registered = composition_root_->Register(
+                std::move(audio_source_registration)); !registered) {
+            init_failed_ = true;
+            init_error_ = registered.error().reason;
+            LOGE("event=module.register component=rd_application module={} "
+                 "code={} outcome=failed reason={}",
+                 render::kWasAudioCaptureModuleId,
+                 render::StableErrorCode(registered.error().code),
+                 registered.error().reason);
+            return -1;
+        }
+        auto joystick_registration = joystick_service_->MakeRegistration();
+        if (auto registered = composition_root_->Register(
+                std::move(joystick_registration)); !registered) {
+            init_failed_ = true;
+            init_error_ = registered.error().reason;
+            LOGE("event=module.register component=rd_application module={} "
+                 "code={} outcome=failed reason={}",
+                 render::kJoystickModuleId,
+                 render::StableErrorCode(registered.error().code),
+                 registered.error().reason);
+            return -1;
+        }
+        auto file_transfer_registration =
+            file_transfer_service_->MakeRegistration();
+        if (auto registered = composition_root_->Register(
+                std::move(file_transfer_registration)); !registered) {
+            init_failed_ = true;
+            init_error_ = registered.error().reason;
+            LOGE("event=module.register component=rd_application module={} "
+                 "code={} outcome=failed reason={}",
+                 render::kFileTransferModuleId,
+                 render::StableErrorCode(registered.error().code),
+                 registered.error().reason);
+            return -1;
+        }
+        auto voice_call_registration = voice_call_service_->MakeRegistration();
+        if (auto registered = composition_root_->Register(
+                std::move(voice_call_registration)); !registered) {
+            init_failed_ = true;
+            init_error_ = registered.error().reason;
+            LOGE("event=module.register component=rd_application module={} "
+                 "code={} outcome=failed reason={}",
+                 render::kVoiceCallModuleId,
+                 render::StableErrorCode(registered.error().code),
+                 registered.error().reason);
+            return -1;
+        }
+        context_->SetRenderCompositionRoot(composition_root_);
+        context_->SetEncodedMediaBus(encoded_media_bus_);
+        context_->SetFrameDebuggerObserver(frame_debugger_observer_);
+        context_->SetMediaRecorderSink(media_recorder_sink_);
+        context_->SetFrameCarrierProcessor(frame_carrier_processor_);
+        context_->SetFrameResizerProcessor(frame_resizer_processor_);
+        context_->SetInputReplayService(input_replay_service_);
+        context_->SetJoystickService(joystick_service_);
+        context_->SetFileTransferService(file_transfer_service_);
+        context_->SetNetworkTransportHub(network_transport_hub_);
+        context_->SetVoiceCallService(voice_call_service_);
+        if (!composition_root_->RequestStart(
+                [](render::ModuleLifecycleResult result) {
+                    if (!result) {
+                        LOGE("event=composition.start component=rd_application "
+                             "code={} outcome=failed reason={}",
+                             render::StableErrorCode(result.error().code),
+                             result.error().reason);
+                    }
+                })) {
+            init_failed_ = true;
+            init_error_ = "Schedule Render composition start failed";
+            return -1;
+        }
+
         // shared_from_this() below requires this object to be created by RdApplication::Make().
         // Assign early so net_ws /ipc can late-bind OnIpcVideoFrame during plugin Start().
         rdApp = shared_from_this();
-        plugin_manager_ = PluginManager::Make(shared_from_this());
-        context_->SetPluginManager(plugin_manager_);
+        module_registry_ = RenderModuleRegistry::Make(shared_from_this());
+        context_->SetRenderModuleRegistry(module_registry_);
 
-        plugin_manager_->LoadAllPlugins();
-        plugin_manager_->RegisterPluginEventsCallback();
-        plugin_manager_->DumpPluginInfo();
+        module_registry_->StartModules();
+        module_registry_->BindIngressCallbacks();
+        module_registry_->DumpModuleInfo();
 
         // Game-hook first frames can arrive while the target process is still
         // bringing up its D3D device.  On some NVIDIA drivers, creating our
@@ -181,17 +635,12 @@ namespace px
         //control_thread_ = Thread::Make("control", 16);
         //control_thread_->Poll();
         // desktop capture
-        if (settings_->capture_.mock_video_) {
-            LOGI("Use mocking video plugin.");
-            data_provider_plugin = plugin_manager_->GetMockVideoStreamPlugin();
-        }
-        else {
-            if (settings_->capture_.IsVideoInnerCapture()) {
+        if (settings_->capture_.IsVideoInnerCapture()) {
                 LOGI("Use inner capture.");
             }
             else {
-                dda_capture_plugin_ = plugin_manager_->GetDDACapturePlugin();
-                gdi_capture_plugin_ = plugin_manager_->GetGdiCapturePlugin();
+                dda_capture_plugin_ = module_registry_->GetDdaCapture();
+                gdi_capture_plugin_ = module_registry_->GetGdiCapture();
                 if (dda_capture_plugin_) {
                     capture_plugin_ = dda_capture_plugin_;
                 }
@@ -251,7 +700,6 @@ namespace px
                     LOGI("Don't use DDA, will switch to GDI.");
                     SwitchGdiCapture();
                 }
-            }
         }
 
         if (settings_->capture_.enable_video_) {
@@ -347,20 +795,20 @@ namespace px
             // fail, producing no CaptureAudioFrame (video still works on other threads).
             self->PostGlobalTask([weak_self, pid = msg.pid_]() {
                 auto self = weak_self.lock();
-                if (!self || self->exit_app_ || !self->audio_capture_plugin_) {
-                    LOGE("MsgObsInjected: cannot start PID audio (app/plugin missing) pid={}", pid);
+                if (!self || self->exit_app_ || !self->audio_capture_source_) {
+                    LOGE("MsgObsInjected: cannot start PID audio (app/source missing) pid={}", pid);
                     return;
                 }
                 LOGI("MsgObsInjected: schedule PID process-loopback on worker pid={}", pid);
                 if (self->audio_capture_thread_ && self->audio_capture_thread_->IsJoinable()) {
                     LOGI("MsgObsInjected: stopping previous audio worker before restart");
-                    self->audio_capture_plugin_->StopProviding();
+                    self->audio_capture_source_->StopProviding();
                     self->audio_capture_thread_->Join();
                 }
-                self->audio_capture_plugin_->SetAudioLoopbackProcessId(pid);
+                self->audio_capture_source_->SetLoopbackProcessId(pid);
                 self->audio_capture_thread_ = Thread::MakeOnceTask([weak_self, pid]() {
                     auto self = weak_self.lock();
-                    if (!self || self->exit_app_ || !self->audio_capture_plugin_) {
+                    if (!self || self->exit_app_ || !self->audio_capture_source_) {
                         return;
                     }
                     // MiniAudio manages COM itself: ma_context_init CoInitializeEx's the
@@ -373,11 +821,11 @@ namespace px
                     const bool co_init = (co_hr == S_OK || co_hr == S_FALSE);
                     LOGI("PID audio worker: Stop+Start begin pid={} CoInitializeEx=0x{:08x}", pid,
                          static_cast<unsigned>(co_hr));
-                    self->audio_capture_plugin_->StopProviding();
-                    self->audio_capture_plugin_->SetAudioLoopbackProcessId(pid);
-                    self->audio_capture_plugin_->StartProviding();
-                    const bool ok = self->audio_capture_plugin_->IsProviding();
-                    const int err = self->audio_capture_plugin_->GetLastStartError();
+                    self->audio_capture_source_->StopProviding();
+                    self->audio_capture_source_->SetLoopbackProcessId(pid);
+                    self->audio_capture_source_->StartProviding();
+                    const bool ok = self->audio_capture_source_->IsProviding();
+                    const int err = self->audio_capture_source_->GetLastStartError();
                     if (ok) {
                         LOGI("PID audio worker: StartProviding OK pid={}", pid);
                     } else {
@@ -403,7 +851,7 @@ namespace px
                     return;
                 }
                 // notify dda capture
-                auto plugin = self->plugin_manager_->GetDDACapturePlugin();
+                auto plugin = self->module_registry_->GetDdaCapture();
                 if (!plugin) {
                     return;
                 }
@@ -445,8 +893,18 @@ namespace px
             }
             self->statistics_->IncreaseRunningTime();
 
-            auto plugin_manager = self->context_->GetPluginManager();
-            plugin_manager->On1Second();
+            if (self->media_recorder_sink_) {
+                self->media_recorder_sink_->ReportPerformance();
+            }
+            if (self->live_pusher_sink_) {
+                self->live_pusher_sink_->ReportPerformance();
+            }
+            if (self->pipeline_statistics_observer_) {
+                self->pipeline_statistics_observer_->ReportPerformance();
+            }
+
+            auto module_registry = self->context_->GetRenderModuleRegistry();
+            module_registry->On1Second();
 
 #if MEMORY_STST_ON
             self->context_->PostTask([]() {
@@ -737,7 +1195,7 @@ namespace px
 
     void RdApplication::OnCapturedAudioFrame(const CaptureAudioFrame& frame) {
         auto weak_self = weak_from_this();
-        if (exit_app_ || !audio_encoder_plugin_) {
+        if (exit_app_ || !encoded_media_bus_) {
             return;
         }
 
@@ -760,7 +1218,17 @@ namespace px
                     LOGI("CaptureAudioFrame→encode: n={} {}Hz {}ch {}bit bytes={}", s_enc, samples,
                          channels, bits, frame.full_data_->Size());
                 }
-                audio_encoder_plugin_->Encode(frame.full_data_, samples, channels, bits);
+                encoded_media_bus_->PublishCapturedAudio(
+                    std::make_shared<const render::CapturedAudioFrame>(
+                        render::CapturedAudioFrame{
+                            .timestamp_us = static_cast<std::uint64_t>(
+                                TimeUtil::GetCurrentTimestamp()) * 1000U,
+                            .sample_rate_hz = static_cast<std::uint32_t>(samples),
+                            .channels = static_cast<std::uint16_t>(channels),
+                            .bits_per_sample = static_cast<std::uint16_t>(bits),
+                            .payload = render::MakeImmutableByteBuffer(
+                                frame.full_data_->AsString()),
+                        }));
 
                 auto stat = RdStatistics::Instance();
                 stat->audio_samples_ = samples;
@@ -770,17 +1238,14 @@ namespace px
                 // plugins
                 {
                     auto data = frame.full_data_;
-                    context_->PostStreamPluginTask([weak_self, data, samples, channels, bits]() {
+                    context_->PostMediaTask([weak_self, data, samples, channels, bits]() {
                         auto self = weak_self.lock();
-                        if (!self || self->exit_app_ || !self->plugin_manager_) {
+                        if (!self || self->exit_app_ || !self->module_registry_) {
                             return;
                         }
-                        self->plugin_manager_->VisitStreamPlugins([=](PxStreamPlugin *plugin) {
-                            plugin->OnRawAudioData(data, samples, channels, bits);
-                        });
                         // net_rtc_local consumes raw PCM for the WebRTC audio RTP track
                         // (encoded Opus over DataChannel is intentionally dropped there).
-                        self->plugin_manager_->VisitNetPlugins([=](PxNetPlugin *plugin) {
+                        self->module_registry_->VisitNetworkTransports([=](const std::shared_ptr<PxNetPlugin>& plugin) {
                             plugin->OnRawAudioData(data, samples, channels, bits);
                         });
                     });
@@ -821,26 +1286,11 @@ namespace px
                     self->statistics_->CopyRightSpectrum(self->fft_right_, cpy_size);
                 });
 
-                context_->PostStreamPluginTask([weak_self, frame, samples, channels, bits]() {
-                    auto self = weak_self.lock();
-                    if (!self || self->exit_app_ || !self->plugin_manager_) {
-                        return;
-                    }
-                    self->plugin_manager_->VisitStreamPlugins([=](PxStreamPlugin *plugin) {
-                        plugin->OnSplitRawAudioData(frame.left_ch_data_, frame.right_ch_data_, samples, channels, bits);
-                        plugin->OnSplitFFTAudioData(self->fft_left_, self->fft_right_);
-                    });
-                });
             }
     }
 
     void RdApplication::InitAudioCapture() {
         auto weak_self = weak_from_this();
-        audio_encoder_plugin_ = plugin_manager_->GetAudioEncoderPlugin();
-        if (!audio_encoder_plugin_) {
-            return;
-        }
-
         // WebView audio is delivered by CefAudioHandler, never by the OS
         // default device or another process's loopback stream.
         if (settings_->IsWebViewMode()) {
@@ -850,8 +1300,7 @@ namespace px
         if (settings_->capture_.capture_audio_type_ != Capture::CaptureAudioType::kAudioGlobal) {
             return;
         }
-        audio_capture_plugin_ = plugin_manager_->GetAudioCapturePlugin();
-        if (!audio_capture_plugin_) {
+        if (!audio_capture_source_) {
             return;
         }
 
@@ -869,10 +1318,10 @@ namespace px
         } else {
             audio_capture_thread_ = Thread::MakeOnceTask([weak_self]() {
                 const auto self = weak_self.lock();
-                if (!self || self->exit_app_ || !self->audio_capture_plugin_) {
+                if (!self || self->exit_app_ || !self->audio_capture_source_) {
                     return;
                 }
-                self->audio_capture_plugin_->StartProviding();
+                self->audio_capture_source_->StartProviding();
             }, "global audio capture", false);
         }
     }
@@ -898,9 +1347,9 @@ namespace px
             return;
         }
         auto data = Data::From(msg);
-        // Host → injected DLL over /ipc (WsPlugin only). Do not VisitNetPlugins for this
+        // Host → injected DLL over /ipc (WsPlugin only). Do not VisitNetworkTransports for this
         // virtual: unrebuilt net plugin DLLs lack the trailing vtable slot and crash.
-        plugin_manager_->VisitNetPlugins([=](PxNetPlugin* plugin) {
+        module_registry_->VisitNetworkTransports([=](const std::shared_ptr<PxNetPlugin>& plugin) {
             if (!plugin || plugin->GetPluginId() != kNetWsPluginId) {
                 return;
             }
@@ -912,14 +1361,14 @@ namespace px
         if (!msg) {
             return;
         }
-        plugin_manager_->VisitNetPlugins([=](PxNetPlugin* plugin) {
+        module_registry_->VisitNetworkTransports([=](const std::shared_ptr<PxNetPlugin>& plugin) {
             plugin->PostProtoMessage(msg, true);
         });
     }
 
     void RdApplication::StartProcessWithHook() {
         // Frames arrive via /ipc → PxPluginCapturedVideoFrameEvent → CaptureVideoFrame
-        // on the app bus (same event as DDA). Encode → PluginStreamEventRouter → web.
+        // on the app bus (same event as DDA). Encode → EncodedVideoFanout → web.
         if (!settings_->IsGameHookMode()) {
             LOGI("StartProcessWithHook skipped: application.mode is desktop");
             return;
@@ -1073,9 +1522,6 @@ namespace px
                 }
             }
         }
-        if (data_provider_plugin) {
-            data_provider_plugin->StartProviding();
-        }
         app_manager_->StartProcess();
     }
 
@@ -1096,7 +1542,7 @@ namespace px
         }
         if (!settings_->IsGameHookMode()) {
             bool only_audio_clients = true;
-            plugin_manager_->VisitNetPlugins([&only_audio_clients](PxNetPlugin* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
+            module_registry_->VisitNetworkTransports([&only_audio_clients](const std::shared_ptr<PxNetPlugin>& plugin) {
                 if (plugin->IsWorking() && !plugin->IsOnlyAudioClients()) {
                     only_audio_clients = false;
                 }
@@ -1172,7 +1618,7 @@ namespace px
     }
 
     bool RdApplication::HasConnectedPeer() const {
-        if (plugin_manager_->GetTotalMediaConsumersCount()) {
+        if (module_registry_->GetTotalMediaConsumersCount()) {
             return true;
         }
         if (!settings_->IsGameHookMode()) {
@@ -1217,7 +1663,7 @@ namespace px
         // Allow this pid on /ipc (net_ws). Game restarts get here again with the new
         // pid, so each live game generation is re-registered; stale games injected by
         // dead renders are never registered and get rejected on connect.
-        plugin_manager_->VisitNetPlugins([=](PxNetPlugin* plugin) {
+        module_registry_->VisitNetworkTransports([=](const std::shared_ptr<PxNetPlugin>& plugin) {
             if (!plugin || plugin->GetPluginId() != kNetWsPluginId) {
                 return;
             }
@@ -1268,7 +1714,7 @@ namespace px
     }
 
     void RdApplication::SendConfigurationBack() {
-        PxMonitorCapturePlugin* capture_plugin = nullptr;
+        std::shared_ptr<PxMonitorCapturePlugin> capture_plugin;
         {
             std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
             capture_plugin = capture_plugin_;
@@ -1383,6 +1829,48 @@ namespace px
         ws_panel_client_->PostNetMessage(buffer);
     }
 
+    void RdApplication::ReportFileTransferAuditBegin(
+        const render::FileTransferAuditBegin& audit) {
+        const std::weak_ptr<RdApplication> weak_application = weak_from_this();
+        PostGlobalTask([weak_application, audit] {
+            const auto application = weak_application.lock();
+            if (!application || application->exit_app_) {
+                return;
+            }
+            pxrp::RpMessage message;
+            message.set_type(pxrp::kRpFileTransferBegin);
+            auto& begin = *message.mutable_ft_begin();
+            begin.set_the_file_id(audit.file_id);
+            begin.set_begin_timestamp(audit.begin_timestamp);
+            begin.set_direction(audit.direction);
+            begin.set_file_detail(audit.file_detail);
+            begin.set_visitor_device_id(audit.visitor_device_id);
+            static_cast<void>(application->PostPanelMessage(
+                RpProtoAsData(&message)));
+        });
+    }
+
+    void RdApplication::ReportFileTransferAuditEnd(
+        const render::FileTransferAuditEnd& audit) {
+        const std::weak_ptr<RdApplication> weak_application = weak_from_this();
+        PostGlobalTask([weak_application, audit] {
+            const auto application = weak_application.lock();
+            if (!application || application->exit_app_) {
+                return;
+            }
+            pxrp::RpMessage message;
+            message.set_type(pxrp::kRpFileTransferEnd);
+            auto& end = *message.mutable_ft_end();
+            end.set_the_file_id(audit.file_id);
+            end.set_end_timestamp(audit.end_timestamp);
+            end.set_success(audit.success);
+            end.set_status(audit.status);
+            end.set_end_reason(audit.reason);
+            static_cast<void>(application->PostPanelMessage(
+                RpProtoAsData(&message)));
+        });
+    }
+
     void RdApplication::ResetMonitorResolution(const std::string& name, int w, int h) {
         DEVMODE dm;
         dm.dmSize = sizeof(dm);
@@ -1403,16 +1891,18 @@ namespace px
         PostNetMessage(buffer);
     }
 
-    std::shared_ptr<PluginManager> RdApplication::GetPluginManager() {
-        return plugin_manager_;
+    std::shared_ptr<RenderModuleRegistry> RdApplication::GetRenderModuleRegistry() {
+        return module_registry_;
     }
 
-    px::PxMonitorCapturePlugin* RdApplication::GetWorkingMonitorCapturePlugin() {
+    std::shared_ptr<PxMonitorCapturePlugin>
+    RdApplication::GetWorkingMonitorCapturePlugin() {
         std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
         return capture_plugin_;
     }
 
-    std::map<std::string, PxVideoEncoderPlugin*> RdApplication::GetWorkingVideoEncoderPlugins() const {
+    std::map<std::string, std::shared_ptr<PxVideoEncoderPlugin>>
+    RdApplication::GetWorkingVideoEncoderPlugins() const {
         if (encoder_thread_) {
             return encoder_thread_->GetWorkingVideoEncoderPlugins();
         }
@@ -1527,10 +2017,10 @@ namespace px
     }
 
     void RdApplication::ClearPluginD3DState(uint64_t adapter_uid) {
-        if (!plugin_manager_) {
+        if (!module_registry_) {
             return;
         }
-        plugin_manager_->VisitAllPlugins([adapter_uid](PxPluginInterface* plugin) {
+        module_registry_->VisitAllModules([adapter_uid](const std::shared_ptr<PxPluginInterface>& plugin) {
             plugin->d3d11_devices_.erase(adapter_uid);
             plugin->d3d11_devices_context_.erase(adapter_uid);
         });
@@ -1795,10 +2285,10 @@ namespace px
     }
 
     void RdApplication::PostUserProxyMessage(std::shared_ptr<Data> msg) {
-        if (!msg || !plugin_manager_) {
+        if (!msg || !module_registry_) {
             return;
         }
-        plugin_manager_->VisitNetPlugins([&](PxNetPlugin* plugin) {
+        module_registry_->VisitNetworkTransports([&](const std::shared_ptr<PxNetPlugin>& plugin) {
             plugin->PostUserProxyMessage(msg);
         });
     }
@@ -1847,10 +2337,9 @@ namespace px
             return;
         }
 
-        // to event replayer
-        if (const auto erp_plugin = plugin_manager_->GetEventsReplayerPlugin(); erp_plugin) {
-            erp_plugin->UpdateCaptureMonitorInfo(cm_msg);
-            LOGI("Update CaptureMonitorInfo to replayer plugin finished.");
+        if (input_replay_service_) {
+            input_replay_service_->UpdateCaptureMonitorInfo(cm_msg);
+            LOGI("Update CaptureMonitorInfo to input replay service finished.");
         }
     }
 
@@ -1892,7 +2381,7 @@ namespace px
         }
         // stop capturing before tearing down other components.
         // NOTE: plugins are globally loaded and share the process lifetime;
-        // do NOT call ReleaseAllPlugins() here — destroying/unloading them at exit
+        // do NOT call StopModules() here — destroying/unloading them at exit
         // races with encoder/IPC threads that still hold raw plugin pointers.
         {
             std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
@@ -1912,9 +2401,8 @@ namespace px
         }
         // Stop audio capture before teardown: otherwise the capture thread keeps
         // invoking data callbacks into components that are being destroyed.
-        // The plugin object itself is NOT destroyed (it shares the process lifetime).
-        if (audio_capture_plugin_) {
-            audio_capture_plugin_->StopProviding();
+        if (audio_capture_source_) {
+            audio_capture_source_->StopProviding();
         }
         if (audio_capture_thread_ && audio_capture_thread_->IsJoinable()) {
             audio_capture_thread_->Join();
@@ -1927,9 +2415,21 @@ namespace px
             LOGI("RdApplication shutdown: encoder");
             encoder_thread_->Exit();
         }
-        if (plugin_manager_) {
+        if (composition_root_) {
+            LOGI("RdApplication shutdown: built-in modules");
+            static_cast<void>(composition_root_->RequestStop(
+                [](render::ModuleLifecycleResult result) {
+                    if (!result) {
+                        LOGE("event=composition.stop component=rd_application "
+                             "code={} outcome=failed reason={}",
+                             render::StableErrorCode(result.error().code),
+                             result.error().reason);
+                    }
+                }));
+        }
+        if (module_registry_) {
             LOGI("RdApplication shutdown: plug-in event routing");
-            plugin_manager_->StopRouting();
+            module_registry_->StopRouting();
         }
         LOGI("RdApplication shutdown: owners released");
 

@@ -9,7 +9,6 @@
 #include "px_common_new/log.h"
 #include "px_render/plugins/plugin_ids.h"
 
-PX_PLUGIN_EXPORT(px::AmfEncoderPlugin)
 
 namespace px
 {
@@ -88,16 +87,18 @@ namespace px
         return true;
     }
 
-    VideoEncoderError AmfEncoderPlugin::Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, const std::any& extra) {
-        auto cap_video_msg = std::any_cast<CaptureVideoFrame>(extra);
+    VideoEncoderError AmfEncoderPlugin::Encode(
+        const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d,
+        uint64_t frame_index,
+        const CaptureVideoFrame& capture_frame) {
         if (IsWorking()) {
-            auto monitor_name = std::string(cap_video_msg.display_name_);
+            auto monitor_name = std::string(capture_frame.display_name_);
             if (video_encoders_.find(monitor_name) == video_encoders_.end()) {
                 LOGE("Not found video encoder for monitor: {}", monitor_name);
                 return VideoEncoderError::NotFound();
             }
             auto video_encoder = video_encoders_[monitor_name];
-            if (!video_encoder->Encode(tex2d, frame_index, extra)) {
+            if (!video_encoder->Encode(tex2d, frame_index, capture_frame)) {
                 return VideoEncoderError::EncodeFailed();
             }
         }

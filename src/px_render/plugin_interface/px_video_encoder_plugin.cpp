@@ -38,11 +38,17 @@ namespace px
         return true;
     }
 
-    VideoEncoderError PxVideoEncoderPlugin::Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, const std::any& extra) {
+    VideoEncoderError PxVideoEncoderPlugin::Encode(
+        const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d,
+        uint64_t frame_index,
+        const CaptureVideoFrame& capture_frame) {
         return VideoEncoderError::NotImplemented();
     }
 
-    VideoEncoderError PxVideoEncoderPlugin::Encode(const std::shared_ptr<Image>& i420_image, uint64_t frame_index, const std::any& extra) {
+    VideoEncoderError PxVideoEncoderPlugin::Encode(
+        const std::shared_ptr<Image>& i420_image,
+        uint64_t frame_index,
+        const CaptureVideoFrame& capture_frame) {
         return VideoEncoderError::NotImplemented();
     }
 

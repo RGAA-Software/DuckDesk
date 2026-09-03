@@ -9,7 +9,6 @@
 #include <utility>
 #include <vector>
 
-#include "px_common_new/data.h"
 #include "px_common_new/log.h"
 
 extern "C" {
@@ -25,7 +24,7 @@ int ff_isom_write_hvcc(AVIOContext* output, const uint8_t* data, int size,  // N
                        int complete, void* log_context);  // NOLINT(gammaray-raw-pointer-boundary)
 }
 
-namespace px {
+namespace px::render {
 namespace {
 
 struct FormatContextDeleter final {
@@ -266,28 +265,28 @@ bool SetHevcExtradata(
 class FfmpegLivePushProcessor final : public LivePushProcessor {
 public:
     FfmpegLivePushProcessor(
-        LivePusherRuntime::Config config,
-        LivePusherRuntime::KeyframeRequester request_keyframe)
+        LivePusherOptions config,
+        LivePusherSink::KeyframeRequester request_keyframe)
         : config_(std::move(config)),
           request_keyframe_(std::move(request_keyframe)) {}
 
     ~FfmpegLivePushProcessor() override { Close(); }
 
     void ProcessVideo(
-        const std::shared_ptr<Data>& data,
-        PxPluginEncodedVideoType video_type,
-        int width,
-        int height,
-        bool key,
-        int64_t timestamp_ms) override {
-        if (!data || data->Size() <= 0) {
+        const std::shared_ptr<const EncodedVideoFrame>& frame) override {
+        if (!frame || !frame->payload || frame->payload->empty()) {
             return;
         }
+        const auto& video_type = frame->codec;
+        const auto width = static_cast<int>(frame->width);
+        const auto height = static_cast<int>(frame->height);
+        const auto key = frame->key_frame;
+        const auto timestamp_ms =
+            static_cast<std::int64_t>(frame->identity.timestamp_us / 1000U);
         if (!codec_known_ || codec_ != video_type) {
             if (codec_known_) {
                 LOGI("LivePusher video codec switch: {} -> {}",
-                     codec_ == PxPluginEncodedVideoType::kH264 ? "h264" : "h265",
-                     video_type == PxPluginEncodedVideoType::kH264 ? "h264" : "h265");
+                     codec_, video_type);
             }
             codec_ = video_type;
             codec_known_ = true;
@@ -295,17 +294,15 @@ public:
             RequestKeyframe();
         }
 
-        const auto bytes = std::span<const uint8_t>(
-            reinterpret_cast<const uint8_t*>(data->CStr()),
-            static_cast<size_t>(data->Size()));
+        const auto bytes = std::span<const std::uint8_t>(*frame->payload);
         for (const auto nal : SplitAnnexB(bytes)) {
             if (nal.empty()) {
                 continue;
             }
-            const int type = codec_ == PxPluginEncodedVideoType::kH264
+            const int type = codec_ == "h264"
                 ? (nal.front() & 0x1f)
                 : ((nal.front() >> 1) & 0x3f);
-            if (codec_ == PxPluginEncodedVideoType::kH264) {
+            if (codec_ == "h264") {
                 if (type == 7) {
                     sps_.assign(nal.begin(), nal.end());
                 } else if (type == 8) {
@@ -320,7 +317,7 @@ public:
             }
         }
 
-        const bool parameters_ready = codec_ == PxPluginEncodedVideoType::kH264
+        const bool parameters_ready = codec_ == "h264"
             ? (!sps_.empty() && !pps_.empty())
             : (!vps_.empty() && !sps_.empty() && !pps_.empty());
         const auto payload = AnnexBToAvcc(bytes);
@@ -380,13 +377,14 @@ public:
     }
 
     void ProcessAudio(
-        const std::shared_ptr<Data>& data,
-        int sample_rate,
-        int channels,
-        int bits,
-        int64_t timestamp_ms) override {
-        (void)timestamp_ms;
-        if (!data || data->Size() <= 0 ||
+        const std::shared_ptr<const CapturedAudioFrame>& frame) override {
+        if (!frame || !frame->payload || frame->payload->empty()) {
+            return;
+        }
+        const auto sample_rate = static_cast<int>(frame->sample_rate_hz);
+        const auto channels = static_cast<int>(frame->channels);
+        const auto bits = static_cast<int>(frame->bits_per_sample);
+        if (
             !InitAudio(sample_rate, channels, bits)) {
             return;
         }
@@ -394,7 +392,7 @@ public:
             return;
         }
         const int input_samples = static_cast<int>(
-            data->Size() / (channels * (bits / 8)));
+            frame->payload->size() / (channels * (bits / 8)));
         if (input_samples <= 0) {
             return;
         }
@@ -411,7 +409,7 @@ public:
             return;
         }
         const uint8_t* input_planes[] = {  // NOLINT(gammaray-raw-pointer-boundary)
-            reinterpret_cast<const uint8_t*>(data->CStr())};
+            frame->payload->data()};
         const int output_samples = swr_convert(
             resampler_.get(), converted->data, output_capacity,
             input_planes, input_samples);
@@ -572,7 +570,7 @@ private:
         video_stream.time_base = AVRational{1, 90000};
         auto& video_parameters = *video_stream.codecpar;
         video_parameters.codec_type = AVMEDIA_TYPE_VIDEO;
-        video_parameters.codec_id = codec_ == PxPluginEncodedVideoType::kH265
+        video_parameters.codec_id = codec_ == "h265"
             ? AV_CODEC_ID_HEVC
             : AV_CODEC_ID_H264;
         video_parameters.width = video_width_;
@@ -626,8 +624,8 @@ private:
         header_written_ = true;
         session_start_ms_ = pending_key_timestamp_ms_;
         last_video_dts_ = 0;
-        LOGI("LivePusher publishing {} ({})", config_.publish_url,
-             codec_ == PxPluginEncodedVideoType::kH265 ? "h265+aac" : "h264+aac");
+        LOGI("event=sink.publish component=live_pusher outcome=connected "
+             "codec={}", codec_ == "h265" ? "h265+aac" : "h264+aac");
 
         auto packet = PacketHandle(av_packet_alloc());
         if (!packet) {
@@ -698,8 +696,8 @@ private:
         }
     }
 
-    const LivePusherRuntime::Config config_;
-    const LivePusherRuntime::KeyframeRequester request_keyframe_;
+    const LivePusherOptions config_;
+    const LivePusherSink::KeyframeRequester request_keyframe_;
     FormatContextHandle format_;
     CodecContextHandle aac_;
     AudioFifoHandle audio_fifo_;
@@ -707,7 +705,7 @@ private:
     int video_stream_index_ = -1;
     int audio_stream_index_ = -1;
     bool header_written_ = false;
-    PxPluginEncodedVideoType codec_ = PxPluginEncodedVideoType::kH264;
+    std::string codec_ = "h264";
     bool codec_known_ = false;
     bool have_key_ = false;
     int video_width_ = 0;
@@ -726,9 +724,9 @@ private:
 }  // namespace
 
 std::shared_ptr<LivePushProcessor> MakeFfmpegLivePushProcessor(
-    const LivePusherRuntime::Config& config,
-    const LivePusherRuntime::KeyframeRequester& request_keyframe) {
-    return std::make_shared<FfmpegLivePushProcessor>(config, request_keyframe);
+    const LivePusherOptions& options,
+    const LivePusherSink::KeyframeRequester& request_keyframe) {
+    return std::make_shared<FfmpegLivePushProcessor>(options, request_keyframe);
 }
 
-}  // namespace px
+}  // namespace px::render

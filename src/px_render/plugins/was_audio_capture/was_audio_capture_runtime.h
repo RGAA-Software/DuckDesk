@@ -11,14 +11,11 @@
 #include <thread>
 
 #include "audio_capture.h"
+#include "px_capture_new/capture_message.h"
 
 namespace px {
 
-class PxPluginBaseEvent;
-class PxPluginContext;
-
-// Owns every asynchronous resource used by the WAS audio plug-in. The
-// loader-owned plug-in ABI object only forwards synchronous lifecycle calls.
+// Owns every asynchronous resource used by the built-in WAS audio source.
 class WasAudioCaptureRuntime final
     : public std::enable_shared_from_this<WasAudioCaptureRuntime> {
 private:
@@ -27,7 +24,7 @@ private:
 public:
     using CaptureFactory = std::function<AudioCapturePtr(uint32_t)>;
     using ProcessAlivePredicate = std::function<bool(uint32_t)>;
-    using EventCallback = std::function<void(const std::shared_ptr<PxPluginBaseEvent>&)>;
+    using FrameCallback = std::function<void(const CaptureAudioFrame&)>;
 
     static std::shared_ptr<WasAudioCaptureRuntime> Make(
         CaptureFactory capture_factory = {},
@@ -45,10 +42,7 @@ public:
     WasAudioCaptureRuntime(const WasAudioCaptureRuntime&) = delete;
     WasAudioCaptureRuntime& operator=(const WasAudioCaptureRuntime&) = delete;
 
-    void ConfigureDelivery(
-        std::weak_ptr<PxPluginContext> context,
-        EventCallback callback,
-        bool audio_enabled);
+    void ConfigureDelivery(FrameCallback callback, bool audio_enabled);
     void SetAudioEnabled(bool enabled);
     void SetLoopbackProcessId(uint32_t pid);
     [[nodiscard]] uint32_t GetLoopbackProcessId() const;
@@ -68,20 +62,14 @@ private:
         uint64_t generation = 0;
     };
 
-    struct EventChannel final
-        : public std::enable_shared_from_this<EventChannel> {
-        void Configure(
-            std::weak_ptr<PxPluginContext> context,
-            EventCallback callback,
-            bool audio_enabled);
+    struct EventChannel final {
+        void Configure(FrameCallback callback, bool audio_enabled);
         void SetAudioEnabled(bool enabled);
         void Disable();
-        void Publish(const std::shared_ptr<PxPluginBaseEvent>& event);
-        void Deliver(const std::shared_ptr<PxPluginBaseEvent>& event);
+        void Publish(const CaptureAudioFrame& frame);
 
         std::mutex mutex;
-        std::weak_ptr<PxPluginContext> context;
-        EventCallback callback;
+        FrameCallback callback;
         std::atomic<bool> enabled = false;
         std::atomic<bool> accepting = true;
     };
@@ -118,6 +106,7 @@ private:
     std::atomic<bool> desired_running_ = false;
     std::atomic<bool> shutting_down_ = false;
     std::atomic<uint64_t> capture_generation_ = 0;
+    std::atomic<uint64_t> frame_index_ = 0;
     std::jthread restart_thread_;
 };
 

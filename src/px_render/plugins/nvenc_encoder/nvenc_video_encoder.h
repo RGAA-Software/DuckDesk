@@ -15,6 +15,7 @@
 #include <atomic>
 #include <mutex>
 #include "px_common_new/fps_stat.h"
+#include "px_capture_new/capture_message.h"
 
 using namespace Microsoft::WRL;
 
@@ -29,7 +30,9 @@ namespace px
         ~NVENCVideoEncoder();
 
         bool Initialize(const px::EncoderConfig& config);
-        bool Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra);
+        bool Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d,
+                    uint64_t frame_index,
+                    const CaptureVideoFrame& capture_frame);
         void InsertIdr();
         bool InvalidateRefFrame(uint64_t invalid_frame_index);
         void Exit();
@@ -41,7 +44,9 @@ namespace px
         bool SupportHevcYuv444();
 
     private:
-        bool Transmit(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra);
+        bool Transmit(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d,
+                      uint64_t frame_index,
+                      const CaptureVideoFrame& capture_frame);
         void Shutdown();
         void FillEncodeConfig(NV_ENC_INITIALIZE_PARAMS& initialize_params, int refreshRate, int renderWidth, int renderHeight, uint64_t bitrate_bps);
         static NV_ENC_BUFFER_FORMAT DxgiFormatToNvEncFormat(DXGI_FORMAT dxgiFormat);

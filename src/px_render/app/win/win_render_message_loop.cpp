@@ -4,7 +4,7 @@
 #include "px_common_new/log.h"
 #include "win_render_message_window.h"
 #include "rd_context.h"
-#include "px_render/plugins/plugin_manager.h"
+#include "px_render/modules/render_module_registry.h"
 #include "app/app_messages.h"
 #include "px_render/plugin_interface/px_monitor_capture_plugin.h"
 
@@ -26,7 +26,7 @@ namespace px
 
     WinMessageLoop::WinMessageLoop(const std::shared_ptr<RdContext>& ctx) {
         context_ = ctx;
-        plugin_mgr_ = context_->GetPluginManager();
+        module_registry_ = context_->GetRenderModuleRegistry();
     }
 
     WinMessageLoop::~WinMessageLoop() {
@@ -44,7 +44,7 @@ namespace px
     //    bool has_urls = mime_data->hasUrls();
     //    LOGI("has urls: {}", has_urls);
 
-    //    if (auto plugin = plugin_mgr_->GetClipboardPlugin(); plugin) {
+    //    if (auto plugin = module_registry_->GetClipboardPlugin(); plugin) {
     //        auto event = std::make_shared<MsgClipboardEvent>();
     //        plugin->DispatchAppEvent(event);
     //    }
@@ -59,12 +59,12 @@ namespace px
         // All topology-triggered Stop/Start work is queued on the same serial
         // plugin-control thread. Capture plugins also guard their public
         // control methods because other callers can request a switch.
-        context_->PostStreamPluginTask([weak_self]() {
+        context_->PostMediaTask([weak_self]() {
             const auto self = weak_self.lock();
-            if (!self || !self->plugin_mgr_ || !self->context_) {
+            if (!self || !self->module_registry_ || !self->context_) {
                 return;
             }
-            if (auto plugin = self->plugin_mgr_->GetDDACapturePlugin(); plugin) {
+            if (auto plugin = self->module_registry_->GetDdaCapture(); plugin) {
                 if (plugin->IsPluginEnabled()) {
                     auto event = std::make_shared<MsgDisplayDeviceChange>();
                     LOGI("Dispatch debounced display change to DDA capture");
@@ -72,7 +72,7 @@ namespace px
                     return;
                 }
             }
-            if (auto plugin = self->plugin_mgr_->GetGdiCapturePlugin(); plugin) {
+            if (auto plugin = self->module_registry_->GetGdiCapture(); plugin) {
                 if (plugin->IsPluginEnabled()) {
                     auto event = std::make_shared<MsgDisplayDeviceChange>();
                     LOGI("Dispatch debounced display change to GDI capture");

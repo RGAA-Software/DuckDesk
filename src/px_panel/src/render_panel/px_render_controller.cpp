@@ -110,7 +110,6 @@ namespace px
         args.push_back(std::format("--{}={}", kStAppGamePath, ""));
         args.push_back(std::format("--{}={}", kStAppGameArgs, ""));
         args.push_back(std::format("--{}={}", kStDebugBlock, false));
-        args.push_back(std::format("--{}={}", kStMockVideo, false));
         args.push_back(std::format("--{}={}", kStDeviceId, settings->GetDeviceId()));
         args.push_back(std::format("--{}={}", kStDeviceRandomPwd, settings->GetDeviceRandomPwd()));
         args.push_back(std::format("--{}={}", kStDeviceSafetyPwd, settings->GetDeviceSecurityPwd()));

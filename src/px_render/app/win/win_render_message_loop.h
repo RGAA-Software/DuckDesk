@@ -8,7 +8,7 @@ namespace px
 
     class WinMessageWindow;
     class RdContext;
-    class PluginManager;
+    class RenderModuleRegistry;
 
     // 监听windows消息
     class WinMessageLoop : public std::enable_shared_from_this<WinMessageLoop> {
@@ -29,7 +29,7 @@ namespace px
         static void CALLBACK WinEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime);
     private:
         std::shared_ptr<RdContext> context_ = nullptr;
-        std::shared_ptr<PluginManager> plugin_mgr_ = nullptr;
+        std::shared_ptr<RenderModuleRegistry> module_registry_ = nullptr;
         std::thread thread_;
         std::shared_ptr<WinMessageWindow> message_window_ = nullptr;
     };

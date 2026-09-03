@@ -35,7 +35,6 @@ namespace px
     const std::string kJoystickPluginId = "102a229e-295d-444e-9ca0-b6644f3198f6";
     const std::string kEventReplayerPluginId = "b6cb3d88-f397-4182-863c-2aaed752d1a9";
     const std::string kNetRtcLocalPluginId = "bea7bf25-d07f-440a-acef-ac845d748958";
-    const std::string kFtPluginId = "3f6c2a18-7e4b-4d59-9a21-8c0e5b6d7f2a";
     const std::string kVoiceCallPluginId = "5a48bb2e-f98b-4d49-a73a-31e49ae45239";
 
 }

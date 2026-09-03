@@ -9,8 +9,8 @@
 #include <span>
 #include <string>
 #include <thread>
+#include <vector>
 
-#include "px_render/plugin_interface/px_plugin_interface.h"
 #include "px_voice_call/voice_audio_endpoint.h"
 #include "px_voice_call/voice_call_state.h"
 #include "px_voice_call/voice_consent_decision_cache.h"
@@ -18,18 +18,52 @@
 
 namespace px {
 
-class PxPluginContext;
+class Data;
+class Message;
+
+enum class VoiceCallRuntimeEventKind {
+    kConsent,
+    kStreamMessage,
+    kRtcAuthorization,
+    kRtcPcm,
+};
+
+struct VoiceCallRuntimeEvent final {
+    VoiceCallRuntimeEventKind kind{VoiceCallRuntimeEventKind::kConsent};
+    bool show{false};
+    std::string visitor_device_id;
+    std::string stream_id;
+    std::string call_id;
+    std::uint64_t request_id{0};
+    std::uint64_t expires_at_unix_ms{0};
+    std::string reason;
+    std::shared_ptr<Data> message;
+    bool authorized{false};
+    std::shared_ptr<std::atomic_bool> authorization_applied;
+    std::shared_ptr<const std::vector<std::int16_t>> pcm;
+    int sample_rate{0};
+    int channels{0};
+};
+
+struct VoiceCallConsentDecision final {
+    std::string stream_id;
+    std::string call_id;
+    std::uint64_t request_id{0};
+    bool accepted{false};
+    std::string reason;
+};
 
 class VoiceCallRuntime final : public std::enable_shared_from_this<VoiceCallRuntime> {
 public:
     using EventDelivery =
-        std::function<void(const std::shared_ptr<PxPluginBaseEvent>&)>;
+        std::function<void(const VoiceCallRuntimeEvent&)>;
     using EndpointFactory =
         std::function<std::shared_ptr<VoiceAudioEndpoint>()>;
+    using TaskPoster = std::function<void(std::function<void()>&&)>;
 
     static std::shared_ptr<VoiceCallRuntime> Make(
         bool enabled,
-        std::weak_ptr<PxPluginContext> work_context,
+        TaskPoster task_poster = {},
         EndpointFactory endpoint_factory = {});
     ~VoiceCallRuntime();
 
@@ -40,7 +74,7 @@ public:
     void ClearEventDelivery();
     void On1Second();
     void OnMessage(const std::shared_ptr<Message>& message);
-    void ApplyConsentDecision(const MsgVoiceCallConsentDecision& decision);
+    void ApplyConsentDecision(const VoiceCallConsentDecision& decision);
     void OnClientConnected(
         const std::string& visitor_device_id,
         const std::string& stream_id,
@@ -62,7 +96,7 @@ private:
         void Clear();
         void Disable();
         [[nodiscard]] bool Deliver(
-            const std::shared_ptr<PxPluginBaseEvent>& event);
+            const VoiceCallRuntimeEvent& event);
 
         std::mutex mutex;
         std::condition_variable condition;
@@ -76,7 +110,7 @@ public:
     VoiceCallRuntime(
         ConstructionToken,
         bool enabled,
-        std::weak_ptr<PxPluginContext> work_context,
+        TaskPoster task_poster,
         EndpointFactory endpoint_factory,
         std::shared_ptr<DeliveryChannel> delivery_channel);
 
@@ -143,7 +177,7 @@ private:
         const std::string& stream_id) const;
 
     const bool enabled_;
-    const std::weak_ptr<PxPluginContext> work_context_;
+    const TaskPoster task_poster_;
     const EndpointFactory endpoint_factory_;
     const std::shared_ptr<DeliveryChannel> delivery_channel_;
     mutable std::mutex mutex_;

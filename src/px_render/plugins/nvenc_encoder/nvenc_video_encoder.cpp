@@ -113,8 +113,11 @@ namespace px
         }
     }
 
-    bool NVENCVideoEncoder::Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra) {
-        return Transmit(tex2d, frame_index, extra);
+    bool NVENCVideoEncoder::Encode(
+        const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d,
+        uint64_t frame_index,
+        const CaptureVideoFrame& capture_frame) {
+        return Transmit(tex2d, frame_index, capture_frame);
     }
 
     bool NVENCVideoEncoder::ApplyPendingConfigLocked() {
@@ -175,7 +178,10 @@ namespace px
         return true;
     }
 
-    bool NVENCVideoEncoder::Transmit(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra) {
+    bool NVENCVideoEncoder::Transmit(
+        const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d,
+        uint64_t frame_index,
+        const CaptureVideoFrame& capture_frame) {
         std::lock_guard<std::mutex> lk(encode_mtx_);
         if (!ApplyPendingConfigLocked()) {
             return false;
@@ -186,12 +192,10 @@ namespace px
         auto pInputTexture = reinterpret_cast<ID3D11Texture2D*>(input_frame->inputPtr);
         d3d11_device_context_->CopyResource(pInputTexture, tex2d.Get());
 
-        auto cap_video_frame = std::any_cast<CaptureVideoFrame>(extra);
-
         bool is_key_frame = false;
         NV_ENC_PIC_PARAMS picParams = {};
         picParams.inputTimeStamp = frame_index;
-        if (insert_idr_ || cap_video_frame.request_idr_) {
+        if (insert_idr_ || capture_frame.request_idr_) {
             picParams.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR;
             insert_idr_ = false;
             is_key_frame = true;
@@ -232,7 +236,7 @@ namespace px
             event->frame_height_ = desc.Height;
             event->key_frame_ = is_key_frame;
             event->frame_index_ = frame_index;
-            event->extra_ = extra;
+            event->capture_frame_ = capture_frame;
             if (enable_yuv444_) {
                 event->frame_format_ = RawImageType::kI444;
                 //LOGI("event->frame_format_ = RawImageType::kI444;");

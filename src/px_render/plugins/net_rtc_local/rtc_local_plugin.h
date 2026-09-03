@@ -80,7 +80,10 @@ namespace px
         std::string GetPluginDescription() override;
         bool OnCreate(const px::PxPluginParam& param) override;
         bool OnDestroy() override;
-        void OnMessageRaw(const std::any& msg) override;
+        void ApplyRtcRemoteSdp(const MsgRtcRemoteSdp& message) override;
+        void ApplyRtcRemoteIce(const MsgRtcRemoteIce& message) override;
+        void ApplyLogicalSessionCapabilities(
+            const PxLogicalSessionCapabilityUpdate& update) override;
         void On1Second() override;
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;
         bool PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) override;
@@ -121,6 +124,8 @@ namespace px
         // Local loopback PCM → each RtcServer outbound audio track (RTP).
         // samples = sample rate (Hz).
         void OnRawAudioData(const std::shared_ptr<Data>& data, int samples, int channels, int bits) override;
+        void UpdateCaptureMonitorInfo(
+            const CaptureMonitorInfoMessage& message) override;
         bool SetVoiceCallAuthorization(
             const std::string& stream_id, const std::string& call_id,
             bool authorized) override;
@@ -198,6 +203,8 @@ namespace px
         // 重复喂会让 webrtc Encode 双倍消费 seq,断链)。纯 GDI/mock 时没有
         // shared-texture 事件,由 YUV 裸帧路径驱动 webrtc。
         std::atomic<int64_t> last_shared_tex_ts_{0};
+        mutable std::mutex capture_topology_mutex_;
+        std::vector<CaptureMonitorInfo> capture_topology_;
         // libwebrtc 的 SSL 环境是进程级资源。RTC Local 允许多个会话并存后，
         // 不能再由单个 RtcServer 的退出去清理，否则会破坏其余在线连接。
         bool ssl_initialized_ = false;

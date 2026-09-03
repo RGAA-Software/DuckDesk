@@ -11,7 +11,6 @@
 #include <SDL2/SDL.h>
 
 #include "px_message.pb.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
 
 namespace px {
 namespace {
@@ -33,37 +32,30 @@ std::shared_ptr<Message> MakeCallRequest(
 
 TEST(VoiceCallRuntimeTest, RejectClosesConsentAndReturnsResponse) {
     const auto runtime = VoiceCallRuntime::Make(true, {});
-    std::vector<std::shared_ptr<PxPluginBaseEvent>> events;
+    std::vector<VoiceCallRuntimeEvent> events;
     runtime->SetEventDelivery(
-        [&events](const std::shared_ptr<PxPluginBaseEvent>& event) {
+        [&events](const VoiceCallRuntimeEvent& event) {
             events.push_back(event);
         });
     runtime->OnClientConnected("visitor", "stream", "UDP");
     runtime->OnMessage(MakeCallRequest("stream", "call", 7));
     ASSERT_EQ(events.size(), 1u);
-    const auto consent =
-        std::dynamic_pointer_cast<PxPluginVoiceCallConsentEvent>(events.front());
-    ASSERT_TRUE(consent);
-    EXPECT_TRUE(consent->show_);
+    EXPECT_EQ(events.front().kind, VoiceCallRuntimeEventKind::kConsent);
+    EXPECT_TRUE(events.front().show);
 
-    MsgVoiceCallConsentDecision decision;
-    decision.stream_id_ = "stream";
-    decision.call_id_ = "call";
-    decision.request_id_ = 7;
-    decision.accepted_ = false;
-    decision.reason_ = "rejected";
+    VoiceCallConsentDecision decision;
+    decision.stream_id = "stream";
+    decision.call_id = "call";
+    decision.request_id = 7;
+    decision.accepted = false;
+    decision.reason = "rejected";
     runtime->ApplyConsentDecision(decision);
 
     ASSERT_EQ(events.size(), 3u);
-    const auto cancel =
-        std::dynamic_pointer_cast<PxPluginVoiceCallConsentEvent>(events[1]);
-    ASSERT_TRUE(cancel);
-    EXPECT_FALSE(cancel->show_);
-    const auto response =
-        std::dynamic_pointer_cast<PxPluginVoiceCallMediaEvent>(events[2]);
-    ASSERT_TRUE(response);
-    EXPECT_EQ(response->action_, PxVoiceCallMediaAction::kStreamMessage);
-    EXPECT_TRUE(response->message_);
+    EXPECT_EQ(events[1].kind, VoiceCallRuntimeEventKind::kConsent);
+    EXPECT_FALSE(events[1].show);
+    EXPECT_EQ(events[2].kind, VoiceCallRuntimeEventKind::kStreamMessage);
+    EXPECT_TRUE(events[2].message);
 }
 
 TEST(VoiceCallRuntimeTest, DeliveryCanUnregisterItselfDuringDispatch) {
@@ -72,7 +64,7 @@ TEST(VoiceCallRuntimeTest, DeliveryCanUnregisterItselfDuringDispatch) {
     std::atomic_int deliveries = 0;
     runtime->SetEventDelivery(
         [weak_runtime, &deliveries](
-            const std::shared_ptr<PxPluginBaseEvent>&) {
+            const VoiceCallRuntimeEvent&) {
             ++deliveries;
             if (const auto active = weak_runtime.lock()) {
                 active->ClearEventDelivery();
@@ -91,7 +83,7 @@ TEST(VoiceCallRuntimeTest, DeliveryCanShutdownRuntimeDuringCallback) {
     std::atomic_int deliveries = 0;
     runtime->SetEventDelivery(
         [weak_runtime, &deliveries](
-            const std::shared_ptr<PxPluginBaseEvent>&) {
+            const VoiceCallRuntimeEvent&) {
             ++deliveries;
             if (const auto active = weak_runtime.lock()) {
                 active->Shutdown("delivery_callback");
@@ -115,7 +107,7 @@ TEST(VoiceCallRuntimeTest, ExternalShutdownWaitsForInFlightDelivery) {
     auto delivery_count = std::make_shared<std::atomic_int>(0);
     runtime->SetEventDelivery(
         [entered, release_future, delivery_count](
-            const std::shared_ptr<PxPluginBaseEvent>&) {
+            const VoiceCallRuntimeEvent&) {
             if (delivery_count->fetch_add(1) == 0) {
                 entered->set_value();
                 release_future.wait();
@@ -149,21 +141,18 @@ TEST(VoiceCallRuntimeTest, AcceptedUdpMediaStopsWithoutLateDelivery) {
     std::atomic_int media_deliveries = 0;
     runtime->SetEventDelivery(
         [&media_deliveries](
-            const std::shared_ptr<PxPluginBaseEvent>& event) {
-            if (const auto media =
-                    std::dynamic_pointer_cast<PxPluginVoiceCallMediaEvent>(event);
-                media &&
-                media->action_ == PxVoiceCallMediaAction::kStreamMessage) {
+            const VoiceCallRuntimeEvent& event) {
+            if (event.kind == VoiceCallRuntimeEventKind::kStreamMessage) {
                 ++media_deliveries;
             }
         });
     runtime->OnClientConnected("visitor", "stream", "UDP");
     runtime->OnMessage(MakeCallRequest("stream", "call", 9));
-    MsgVoiceCallConsentDecision decision;
-    decision.stream_id_ = "stream";
-    decision.call_id_ = "call";
-    decision.request_id_ = 9;
-    decision.accepted_ = true;
+    VoiceCallConsentDecision decision;
+    decision.stream_id = "stream";
+    decision.call_id = "call";
+    decision.request_id = 9;
+    decision.accepted = true;
     runtime->ApplyConsentDecision(decision);
 
     for (int attempt = 0;
@@ -183,7 +172,7 @@ TEST(VoiceCallRuntimeTest, TenRepeatedLifecyclesDropLateWork) {
         const auto runtime = VoiceCallRuntime::Make(true, {});
         std::atomic_int deliveries = 0;
         runtime->SetEventDelivery(
-            [&deliveries](const std::shared_ptr<PxPluginBaseEvent>&) {
+            [&deliveries](const VoiceCallRuntimeEvent&) {
                 ++deliveries;
             });
         const auto call_id = "call-" + std::to_string(round);

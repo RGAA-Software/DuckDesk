@@ -231,8 +231,6 @@ namespace px
             plugin_context_->OnDestroy();
             plugin_context_.reset();
         }
-        net_plugins_.clear();
-        total_plugins_.clear();
         destroyed_ = true;
         lifecycle_state_ = PxPluginLifecycleState::Destroyed;
         return true;
@@ -323,152 +321,8 @@ namespace px
 
     }
 
-    void PxPluginInterface::AttachNetPlugin(const std::string& id, PxNetPlugin* plugin) {
-        net_plugins_[id] = plugin;
-    }
-
-    void PxPluginInterface::AttachPlugin(const std::string& id, PxPluginInterface* plugin) {
-        total_plugins_[id] = plugin;
-    }
-
-    bool PxPluginInterface::HasAttachedNetPlugins() {
-        return !net_plugins_.empty();
-    }
-
-    // 单插件投递耗时超过该阈值时告警:net 插件串行分发,任一插件在分发线程上
-    // 阻塞都会拖垮整条媒体管线(曾因此导致 render 整体假死)。告警限频,每 10s 一条。
-    static constexpr int64_t kSlowPluginDispatchThresholdMs = 200;
-    static std::atomic<int64_t> last_slow_dispatch_log_ts = 0;
-
-    static void LogSlowPluginDispatch(const std::string& plugin_id, const char* api, int64_t cost_ms) {
-        auto now = (int64_t)px::TimeUtil::GetCurrentTimestamp();
-        auto last = last_slow_dispatch_log_ts.load();
-        if (now - last >= 10000 && last_slow_dispatch_log_ts.compare_exchange_strong(last, now)) {
-            LOGW("Slow net plugin dispatch: {} cost {}ms in {}", plugin_id, cost_ms, api);
-        }
-    }
-
-    // FT 派发失败(该 net 插件不承载此 stream,或对端已断开)本是常态:
-    // 分发循环遍历所有 net 插件,不承载的必然返回 false;对端断开后在插件级
-    // 断线事件清理作业前,引擎还会继续往死通道派几个消息。逐条刷 warn 会淹掉
-    // 日志(实机观察过数十秒刷屏),按 插件+stream 限频,每 10s 一条。
-    static std::mutex ft_dispatch_fail_log_mtx;
-    static std::map<std::string, int64_t> ft_dispatch_fail_log_ts;
-
-    static void LogFtDispatchFailed(const std::string& plugin_id, const std::string& stream_id) {
-        auto now = (int64_t)px::TimeUtil::GetCurrentTimestamp();
-        std::lock_guard<std::mutex> lk(ft_dispatch_fail_log_mtx);
-        if (ft_dispatch_fail_log_ts.size() > 1024) {
-            ft_dispatch_fail_log_ts.clear(); // 防长跑进程慢涨,清了重来即可
-        }
-        auto& last = ft_dispatch_fail_log_ts[plugin_id + "|" + stream_id];
-        if (now - last >= 10000) {
-            last = now;
-            LOGW("DispatchTargetFileTransferMessage failed in plugin: {}, stream: {} (rate limited, 1/10s)",
-                 plugin_id, stream_id);
-        }
-    }
-
-    void PxPluginInterface::DispatchAllStreamMessage(std::shared_ptr<Data> msg, bool run_through) {
-        for (const auto& [plugin_id, plugin] : net_plugins_) {
-            auto begin = px::TimeUtil::GetCurrentTimestamp();
-            plugin->PostProtoMessage(msg, run_through);
-            auto cost = (int64_t)px::TimeUtil::GetCurrentTimestamp() - (int64_t)begin;
-            if (cost > kSlowPluginDispatchThresholdMs) {
-                LogSlowPluginDispatch(plugin_id, "PostProtoMessage", cost);
-            }
-        }
-    }
-
-    void PxPluginInterface::DispatchTargetStreamMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
-        for (const auto& [plugin_id, plugin] : net_plugins_) {
-            auto begin = px::TimeUtil::GetCurrentTimestamp();
-            plugin->PostTargetStreamProtoMessage(stream_id, msg, run_through);
-            auto cost = (int64_t)px::TimeUtil::GetCurrentTimestamp() - (int64_t)begin;
-            if (cost > kSlowPluginDispatchThresholdMs) {
-                LogSlowPluginDispatch(plugin_id, "PostTargetStreamProtoMessage", cost);
-            }
-        }
-    }
-
-    void PxPluginInterface::DispatchTargetFileTransferMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
-        for (const auto& [plugin_id, plugin] : net_plugins_) {
-            auto begin = px::TimeUtil::GetCurrentTimestamp();
-            const auto result = plugin->PostTargetFileTransferProtoMessage(
-                stream_id, msg, run_through);
-            auto cost = (int64_t)px::TimeUtil::GetCurrentTimestamp() - (int64_t)begin;
-            if (cost > kSlowPluginDispatchThresholdMs) {
-                LogSlowPluginDispatch(plugin_id, "PostTargetFileTransferProtoMessage", cost);
-            }
-            if (result.accepted()) {
-                return;
-            }
-            LogFtDispatchFailed(plugin_id, stream_id);
-        }
-    }
-
-    FileTransferSendResult PxPluginInterface::DispatchTargetFileTransferMessageOnRoute(
-        const std::string& plugin_id,
-        const std::string& stream_id,
-        std::shared_ptr<Data> msg,
-        bool run_through,
-        const std::string& connection_instance_id) {
-        if (!msg) {
-            return FileTransferSendResult::TransportError("file-transfer payload is empty");
-        }
-        const auto route = net_plugins_.find(plugin_id);
-        if (route == net_plugins_.end()) {
-            return FileTransferSendResult::Disconnected("file-transfer route is unavailable");
-        }
-        // A standalone file-transfer session intentionally has no media
-        // client.  Each transport owns the authoritative FT-channel liveness
-        // check (WS router, Relay room, or RTC data channel), so a generic
-        // media-client count must not reject the routed send here.
-        const auto begin = px::TimeUtil::GetCurrentTimestamp();
-        const auto result = route->second->PostTargetFileTransferProtoMessage(
-            stream_id, std::move(msg), run_through, connection_instance_id);
-        const auto cost = static_cast<int64_t>(px::TimeUtil::GetCurrentTimestamp()) -
-                          static_cast<int64_t>(begin);
-        if (cost > kSlowPluginDispatchThresholdMs) {
-            LogSlowPluginDispatch(plugin_id, "PostTargetFileTransferProtoMessage", cost);
-        }
-        if (!result.accepted()) {
-            LogFtDispatchFailed(plugin_id, stream_id);
-        }
-        return result;
-    }
-
     void PxPluginInterface::OnMessage(std::shared_ptr<Message> msg) {
 
-    }
-
-    void PxPluginInterface::OnMessageRaw(const std::any& msg) {
-
-    }
-
-    std::map<std::string, PxNetPlugin*> PxPluginInterface::GetNetPlugins() {
-        return net_plugins_;
-    }
-
-    int64_t PxPluginInterface::GetQueuingMediaMsgCountInNetPlugins() {
-        int64_t queuing_msg_count = 0;
-        for (const auto& [plugin_id, plugin] : net_plugins_) {
-            if (plugin->GetConnectedClientsCount() > 0) {
-                queuing_msg_count += plugin->GetQueuingMediaMsgCount();
-                //LOGI("Queuing msg count in [{}] is : {}", plugin_id, plugin->GetQueuingMediaMsgCount());
-            }
-        }
-        return queuing_msg_count;
-    }
-
-    int64_t PxPluginInterface::GetQueuingFtMsgCountInNetPlugins() {
-        int64_t queuing_msg_count = 0;
-        for (const auto& [plugin_id, plugin] : net_plugins_) {
-            if (plugin->GetConnectedClientsCount() > 0) {
-                queuing_msg_count += plugin->GetQueuingFtMsgCount();
-            }
-        }
-        return queuing_msg_count;
     }
 
     void PxPluginInterface::OnSyncPluginSettingsInfo(const px::PxPluginSettingsInfo& settings) {
@@ -525,15 +379,6 @@ namespace px
 
     void PxPluginInterface::UpdateCaptureMonitorInfo(const CaptureMonitorInfoMessage& msg) {
 
-    }
-
-    PxPluginInterface* PxPluginInterface::GetPluginById(const std::string& plugin_id) {
-        for (const auto& [id, plugin] : total_plugins_) {
-            if (plugin_id == plugin->GetPluginId()) {
-                return plugin;
-            }
-        }
-        return nullptr;
     }
 
 }

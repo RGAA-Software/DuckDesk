@@ -44,8 +44,6 @@ namespace px
         kPluginRtcAnswerSdpEvent,
         kPluginRtcIceEvent,
         kPluginRtcReportEvent,
-        kPluginFileTransferBegin,
-        kPluginFileTransferEnd,
         kPluginDataSent,
         kPluginRemoteClipboardResp,
         kPluginPanelStreamMessage,
@@ -59,6 +57,8 @@ namespace px
         // Appended to preserve the numeric values of the established plug-in
         // event ABI above.
         kPluginFileTransferDisconnectedEvent,
+        kPluginWebRtcVoicePcmEvent,
+        kPluginSelectCaptureMonitorEvent,
     };
 
     class PxPluginBaseEvent {
@@ -152,6 +152,29 @@ namespace px
         int channels_ = 0;
     };
 
+    class PxPluginSelectCaptureMonitorEvent : public PxPluginBaseEvent {
+    public:
+        PxPluginSelectCaptureMonitorEvent() : PxPluginBaseEvent() {
+            event_type_ =
+                PxPluginEventType::kPluginSelectCaptureMonitorEvent;
+        }
+        std::string monitor_name_;
+    };
+
+    // Concrete WebRTC dynamic-library boundary. The DLL copies libwebrtc's
+    // borrowed PCM view into this owned value before invoking host code.
+    class PxPluginWebRtcVoicePcmEvent : public PxPluginBaseEvent {
+    public:
+        PxPluginWebRtcVoicePcmEvent() : PxPluginBaseEvent() {
+            event_type_ = PxPluginEventType::kPluginWebRtcVoicePcmEvent;
+        }
+        std::string stream_id_;
+        std::string call_id_;
+        std::vector<int16_t> pcm_;
+        int sample_rate_ = 0;
+        int channels_ = 0;
+    };
+
     // kPluginNetClientEvent
     class PxPluginNetClientEvent : public PxPluginBaseEvent {
     public:
@@ -173,25 +196,6 @@ namespace px
         // Value identity of the concrete transport connection. It is copied
         // into FT routing state and never used as an ownership handle.
         std::string connection_instance_id_;
-    };
-
-    // Value envelope: copy the source id at the established plug-in ABI
-    // boundary so file-transfer code never retains or guesses a transport.
-    struct FtInboundMessage {
-        std::shared_ptr<Message> message_;
-        std::string logical_session_id_;
-        std::string source_plugin_id_;
-        std::string source_connection_id_;
-    };
-
-    // A transport-specific disconnect must only remove the route currently
-    // owned by that transport. This avoids a late WS close tearing down an RTC
-    // file-transfer route for the same stream.
-    struct FtRouteDisconnected {
-        std::string logical_session_id_;
-        std::string stream_id_;
-        std::string source_plugin_id_;
-        std::string source_connection_id_;
     };
 
     // A WS-authorized UDP media endpoint. This is deliberately not a session
@@ -290,6 +294,7 @@ namespace px
         bool key_frame_ = false;
         uint64_t frame_index_ = 0;
         RawImageType frame_format_ = RawImageType::kI420;
+        CaptureVideoFrame capture_frame_;
     };
 
     //
@@ -431,35 +436,6 @@ namespace px
         std::string evt_name_;
         std::string msg_;
         std::string data_channel_name_;
-    };
-
-    // file transfer begin
-    class PxPluginFileTransferBegin : public PxPluginBaseEvent {
-    public:
-        PxPluginFileTransferBegin() {
-            event_type_ = PxPluginEventType::kPluginFileTransferBegin;
-        }
-    public:
-        std::string the_file_id_;
-        int64_t begin_timestamp_ = 0;
-        std::string visitor_device_id_;
-        std::string direction_;
-        std::string file_detail_;
-    };
-
-    // file transfer end
-    class PxPluginFileTransferEnd : public PxPluginBaseEvent {
-    public:
-        PxPluginFileTransferEnd() {
-            event_type_ = PxPluginEventType::kPluginFileTransferEnd;
-        }
-    public:
-        bool success_ = false;
-        std::string the_file_id_;
-        int64_t end_timestamp_ = 0;
-        int64_t duration_ = 0;
-        std::string status_;
-        std::string end_reason_;
     };
 
     // data sent size

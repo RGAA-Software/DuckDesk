@@ -56,11 +56,9 @@ namespace px
     class VigemDriverManager;
     class RdStatistics;
     class WsPanelClient;
-    class PluginManager;
+    class RenderModuleRegistry;
     class PxMonitorCapturePlugin;
     class PxVideoEncoderPlugin;
-    class PxDataProviderPlugin;
-    class PxAudioEncoderPlugin;
     class SharedPreference;
     class RenderServiceClient;
     class MonitorRefresher;
@@ -71,6 +69,25 @@ namespace px
     class KeyEvent;
     class TextInput;
     class LogicalSessionRegistry;
+    namespace render {
+        class EncodedMediaBus;
+        class FileTransferService;
+        struct FileTransferAuditBegin;
+        struct FileTransferAuditEnd;
+        class FrameDebuggerObserver;
+        class FrameCarrierProcessor;
+        class FrameResizerProcessor;
+        class LivePusherSink;
+        class MediaRecorderSink;
+        class NetworkTransportHub;
+        class VoiceCallService;
+        class OpusEncoderProcessor;
+        class InputReplayService;
+        class JoystickService;
+        class PipelineStatisticsObserver;
+        class RenderCompositionRoot;
+        class WasAudioCaptureSource;
+    }
 
     class RdApplication : public std::enable_shared_from_this<RdApplication> {
     public:
@@ -101,9 +118,10 @@ namespace px
         // Sync: write file bootstrap for injected DLL (port + DXGI offsets). Not SHM.
         void PrepareGameHookBoot(uint32_t pid);
         void ResetMonitorResolution(const std::string& name, int w, int h);
-        std::shared_ptr<PluginManager> GetPluginManager();
-        px::PxMonitorCapturePlugin* GetWorkingMonitorCapturePlugin();
-        std::map<std::string, PxVideoEncoderPlugin*> GetWorkingVideoEncoderPlugins() const;
+        std::shared_ptr<RenderModuleRegistry> GetRenderModuleRegistry();
+        std::shared_ptr<PxMonitorCapturePlugin> GetWorkingMonitorCapturePlugin();
+        std::map<std::string, std::shared_ptr<PxVideoEncoderPlugin>>
+            GetWorkingVideoEncoderPlugins() const;
         bool GenerateD3DDevice(uint64_t adapter_uid);
         void ClearD3DDevice(uint64_t adapter_uid);
         void ClearPluginD3DState(uint64_t adapter_uid);
@@ -174,6 +192,10 @@ namespace px
         void SendClipboardMessage(const std::string& msg) const;
         void SendConfigurationBack();
         void RequestRestartMe() const;
+        void ReportFileTransferAuditBegin(
+            const render::FileTransferAuditBegin& audit);
+        void ReportFileTransferAuditEnd(
+            const render::FileTransferAuditEnd& audit);
 
         bool SwitchGdiCapture();
         bool SwitchDdaCapture();
@@ -203,18 +225,31 @@ namespace px
         std::shared_ptr<LogicalSessionRegistry> logical_session_registry_ = nullptr;
         std::shared_ptr<SharedPreference> sp_;
 
-        std::shared_ptr<PluginManager> plugin_manager_ = nullptr;
+        std::shared_ptr<RenderModuleRegistry> module_registry_ = nullptr;
+        std::shared_ptr<render::RenderCompositionRoot> composition_root_;
+        std::shared_ptr<render::EncodedMediaBus> encoded_media_bus_;
+        std::shared_ptr<render::FrameDebuggerObserver> frame_debugger_observer_;
+        std::shared_ptr<render::FrameCarrierProcessor> frame_carrier_processor_;
+        std::shared_ptr<render::FrameResizerProcessor> frame_resizer_processor_;
+        std::shared_ptr<render::LivePusherSink> live_pusher_sink_;
+        std::shared_ptr<render::MediaRecorderSink> media_recorder_sink_;
+        std::shared_ptr<render::OpusEncoderProcessor> opus_encoder_processor_;
+        std::shared_ptr<render::WasAudioCaptureSource> audio_capture_source_;
+        std::shared_ptr<render::InputReplayService> input_replay_service_;
+        std::shared_ptr<render::JoystickService> joystick_service_;
+        std::shared_ptr<render::FileTransferService> file_transfer_service_;
+        std::shared_ptr<render::NetworkTransportHub> network_transport_hub_;
+        std::shared_ptr<render::VoiceCallService> voice_call_service_;
+        std::shared_ptr<render::PipelineStatisticsObserver>
+            pipeline_statistics_observer_;
         std::mutex task_mutex_;
         std::queue<std::shared_ptr<AppMessage>> pending_tasks_;
         DWORD main_thread_id_ = 0;
         // working capture plugin
         std::mutex capture_plugin_mtx_;
-        px::PxMonitorCapturePlugin* capture_plugin_ = nullptr;
-        px::PxMonitorCapturePlugin* gdi_capture_plugin_ = nullptr;
-        px::PxMonitorCapturePlugin* dda_capture_plugin_ = nullptr;
-        px::PxDataProviderPlugin* data_provider_plugin = nullptr;
-        px::PxDataProviderPlugin* audio_capture_plugin_ = nullptr;
-        px::PxAudioEncoderPlugin* audio_encoder_plugin_ = nullptr;
+        std::shared_ptr<PxMonitorCapturePlugin> capture_plugin_;
+        std::shared_ptr<PxMonitorCapturePlugin> gdi_capture_plugin_;
+        std::shared_ptr<PxMonitorCapturePlugin> dda_capture_plugin_;
 
         // uint64_t adapter_uid <==> D3D11Device/D3D11DeviceContext
         std::map<uint64_t, std::shared_ptr<D3D11DeviceWrapper>> d3d11_devices_;

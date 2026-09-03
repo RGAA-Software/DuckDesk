@@ -357,7 +357,8 @@ namespace px
             }
 
             // test beg
-            auto queuing_msg_count = plugin_->GetQueuingMediaMsgCountInNetPlugins();
+            const auto queuing_msg_count =
+                plugin_->GetNetworkMediaBacklog();
             if (queuing_msg_count >= 10) {
                 ++lat_backpressure;
                 TimeUtil::DelayBySleep(1);

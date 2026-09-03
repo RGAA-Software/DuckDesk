@@ -4,7 +4,7 @@
 #include <shellapi.h>
 #include "px_common_new/log.h"
 #include "rd_context.h"
-#include "px_render/plugins/plugin_manager.h"
+#include "px_render/modules/render_module_registry.h"
 #include "win_render_message_loop.h"
 
 namespace px
@@ -24,7 +24,7 @@ namespace px
 
     WinMessageWindow::WinMessageWindow(const std::shared_ptr<RdContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop) {
         context_ = ctx;
-        plugin_mgr_ = ctx->GetPluginManager();
+        module_registry_ = ctx->GetRenderModuleRegistry();
         message_loop_ = message_loop;
     }
 

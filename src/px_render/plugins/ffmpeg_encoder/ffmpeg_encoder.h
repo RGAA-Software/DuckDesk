@@ -5,12 +5,12 @@
 #ifndef PX_FFMPEG_ENCODER_H
 #define PX_FFMPEG_ENCODER_H
 
-#include <any>
 #include <memory>
 #include <mutex>
 #include "ffmpeg_encoder_defs.h"
 #include "px_encoder_new/encoder_config.h"
 #include "px_common_new/fps_stat.h"
+#include "px_capture_new/capture_message.h"
 
 extern "C" {
     #include "libavcodec/avcodec.h"
@@ -29,7 +29,9 @@ namespace px
     public:
         explicit FFmpegEncoder(FFmpegEncoderPlugin* plugin);
         bool Init(const EncoderConfig& config, const std::string& monitor_name);
-        bool Encode(std::shared_ptr<Image> image, uint64_t frame_index, const std::any& extra);
+        bool Encode(std::shared_ptr<Image> image,
+                    uint64_t frame_index,
+                    const CaptureVideoFrame& capture_frame);
         // WebRTC BWE 随动:目标码率(下一次 Encode 时节流重开 x264)与目标帧率(输入侧跳帧)
         void SetTargetBitrate(uint32_t bps) { target_bitrate_ = bps; }
         void SetTargetFps(uint32_t fps) { target_fps_ = fps; }

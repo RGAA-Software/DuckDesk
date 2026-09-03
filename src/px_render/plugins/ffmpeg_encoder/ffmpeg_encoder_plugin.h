@@ -34,7 +34,10 @@ namespace px
         bool HasEncoderForMonitor(const std::string& monitor_name) override;
         bool CanEncodeTexture() override;
         bool Init(const EncoderConfig& config, const std::string& monitor_name) override;
-        VideoEncoderError Encode(const std::shared_ptr<Image>& i420_image, uint64_t frame_index, const std::any& extra) override;
+        VideoEncoderError Encode(
+            const std::shared_ptr<Image>& i420_image,
+            uint64_t frame_index,
+            const CaptureVideoFrame& capture_frame) override;
         void Exit(const std::string& monitor_name) override;
         void ExitAll() override;
         std::map<std::string, WorkingEncoderInfoPtr> GetWorkingCapturesInfo() override;

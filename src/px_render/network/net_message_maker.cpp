@@ -8,7 +8,7 @@
 #include "px_message.pb.h"
 #include "px_common_new/key_helper.h"
 #include "px_common_new/hardware.h"
-#include "px_render/plugins/plugin_manager.h"
+#include "px_render/modules/render_module_registry.h"
 #include "px_render/plugins/plugin_ids.h"
 #include "rd_app.h"
 #include "rd_statistics.h"

@@ -28,6 +28,21 @@ SKIP_EXTS = {".pdb", ".ilk", ".lib", ".exp", ".obj", ".res", ".manifest", ".cmak
 SKIP_NAMES = {
     "avcodec-61.dll", "avdevice-61.dll", "avfilter-10.dll", "avformat-61.dll",
     "avutil-59.dll", "postproc-58.dll", "swresample-5.dll", "swscale-8.dll",
+    # Retired Render modules may remain in an incremental build tree. They must
+    # never be collected into a production distribution.
+    "mock_video_stream.dll", "obj_detector.dll", "frame_debugger.dll",
+    "media_recorder.dll",
+    "live_pusher.dll",
+    "frame_resizer.dll",
+    "frame_carrier.dll",
+    "enc_opus.dll",
+    "event_replayer.dll",
+    "cap_was_audio.dll",
+    "clipboard.dll",
+    "joystick.dll", "ft.dll", "voice_call.dll",
+    "cap_dda.dll", "cap_gdi.dll",
+    "enc_ffmpeg.dll", "enc_amf.dll", "enc_nvenc.dll",
+    "net_ws.dll", "net_udp.dll", "net_relay.dll",
 }
 
 # Test executable prefix

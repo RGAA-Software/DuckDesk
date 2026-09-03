@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 #include <functional>
+#include <type_traits>
 #include <unordered_map>
 #include <Windows.h>
 #include "sdk/ViGEm/Client.h"
@@ -21,16 +22,10 @@ namespace px
         kJsDs4
     };
 
-    //
-    class VigemJoystick {
-    public:
-        std::string stream_id_;
-        PVIGEM_TARGET target_ =  nullptr;
-    };
-
     class VigemController {
     public:
         explicit VigemController(const JoystickType& js_type);
+        ~VigemController();
         bool Connect();
         bool IsConnected();
         bool AllocController(const std::string& stream_id);
@@ -41,9 +36,20 @@ namespace px
         void MockPressB();
 
     private:
+        struct ClientDeleter final {
+            void operator()(std::remove_pointer_t<PVIGEM_CLIENT>* client) const noexcept; // NOLINT(gammaray-raw-pointer-boundary): ViGEm C handle boundary
+        };
+        struct TargetDeleter final {
+            void operator()(std::remove_pointer_t<PVIGEM_TARGET>* target) const noexcept; // NOLINT(gammaray-raw-pointer-boundary): ViGEm C handle boundary
+        };
+        using ClientHandle = std::unique_ptr<
+            std::remove_pointer_t<PVIGEM_CLIENT>, ClientDeleter>;
+        using TargetHandle = std::unique_ptr<
+            std::remove_pointer_t<PVIGEM_TARGET>, TargetDeleter>;
+
         JoystickType js_type_;
-        PVIGEM_CLIENT client_ = nullptr;
-        std::unordered_map<std::string, std::shared_ptr<VigemJoystick>> targets_;
+        ClientHandle client_;
+        std::unordered_map<std::string, TargetHandle> targets_;
     };
 
 }

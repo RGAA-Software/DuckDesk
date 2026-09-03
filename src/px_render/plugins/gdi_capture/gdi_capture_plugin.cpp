@@ -10,7 +10,6 @@
 #include <chrono>
 #include <thread>
 
-PX_PLUGIN_EXPORT(px::GdiCapturePlugin)
 
 namespace px
 {

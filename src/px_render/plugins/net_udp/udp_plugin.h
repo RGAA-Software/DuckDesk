@@ -59,7 +59,8 @@ namespace px
 
         bool OnCreate(const px::PxPluginParam &param) override;
         bool OnDestroy() override;
-        void OnMessageRaw(const std::any& msg) override;
+        void UpdateUdpMediaAssociation(
+            const UdpMediaAssociation& association) override;
         // 视频走 OnEncodedVideoFrame 裸 UDP 直发;音频从这里提取 kAudioFrame 的
         // Opus payload 发 UDP(wire 级手扫,不引 protobuf 头);控制消息走 ws 通道
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through = false) override;
@@ -115,7 +116,6 @@ namespace px
 }
 
 
-PX_PLUGIN_EXPORT(px::UdpPlugin)
 
 
 #endif //PX_UDP_PLUGIN_H

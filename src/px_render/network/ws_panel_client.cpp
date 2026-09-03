@@ -14,12 +14,15 @@
 #include "px_common_new/connection_attempt_workflow.h"
 #include "px_message.pb.h"
 #include "px_render_panel_message.pb.h"
-#include "px_render/plugins/plugin_manager.h"
+#include "px_render/modules/render_module_registry.h"
 #include "px_render/plugin_interface/px_plugin_interface.h"
 #include "px_render/plugin_interface/px_net_plugin.h"
 #include "px_message_new/proto_converter.h"
 #include "px_message_new/rp_proto_converter.h"
 #include "px_common_new/time_util.h"
+#include "architecture/runtime/render_composition_root.h"
+#include "architecture/services/voice_call_service.h"
+#include "architecture/sinks/media_recorder_sink.h"
 #include <Windows.h>
 #include <format>
 
@@ -32,7 +35,8 @@ namespace px
         statistics_ = RdStatistics::Instance();
         settings_ = RdSettings::Instance();
         context_ = ctx;
-        plugin_mgr_ = context_->GetPluginManager();
+        module_registry_ = context_->GetRenderModuleRegistry();
+        composition_root_ = context_->GetRenderCompositionRoot();
         instance_id_ = std::format("{}-{}", GetCurrentProcessId(), TimeUtil::GetCurrentTimestamp());
     }
 
@@ -213,7 +217,7 @@ namespace px
             connection_workflow_->Stop();
             connection_workflow_.reset();
         }
-        plugin_mgr_.reset();
+        module_registry_.reset();
         context_.reset();
         statistics_.reset();
     }
@@ -237,7 +241,7 @@ namespace px
         msg.set_type(pxrp::kRpPluginsInfo);
         auto m_info = msg.mutable_plugins_info();
         auto plugins_info = m_info->mutable_plugins_info();
-        plugin_mgr_->VisitAllPlugins([&](PxPluginInterface* plugin) {
+        module_registry_->VisitAllModules([&](const std::shared_ptr<PxPluginInterface>& plugin) {
             auto info = plugins_info->Add();
             info->set_id(plugin->GetPluginId());
             info->set_name(plugin->GetPluginName());
@@ -247,6 +251,22 @@ namespace px
             info->set_version_code((int32_t)plugin->GetVersionCode());
             info->set_enabled(plugin->IsPluginEnabled());
         });
+        if (composition_root_) {
+            for (const auto& module : composition_root_->SnapshotModules()) {
+                pxrp::RpPluginInfo info;
+                info.set_id(module.descriptor.id);
+                info.set_name(module.descriptor.name);
+                info.set_author(module.descriptor.author);
+                info.set_desc(module.descriptor.description);
+                info.set_version_name(module.descriptor.version_name);
+                info.set_version_code(
+                    static_cast<int32_t>(module.descriptor.version_code));
+                info.set_enabled(module.enabled);
+                // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): protobuf owns
+                // the repeated-message element returned by this transient API.
+                *plugins_info->Add() = std::move(info);
+            }
+        }
         auto buffer = RpProtoAsData(&msg);
         PostNetMessage(buffer);
     }
@@ -303,7 +323,7 @@ namespace px
                 settings_->max_receive_speed_ = sub.max_receive_speed();
                 settings_->role_ = sub.role();
 
-                plugin_mgr_->SyncPluginSettingsInfo(PxPluginSettingsInfo {
+                module_registry_->SyncPluginSettingsInfo(PxPluginSettingsInfo {
                     .device_id_ = settings_->device_id_,
                     .device_random_pwd_ = settings_->device_random_pwd_,
                     .device_safety_pwd_ = settings_->device_safety_pwd_,
@@ -335,12 +355,18 @@ namespace px
                 }
                 else if (sub.command() == pxrp::RpPanelCommand::kStartMediaRecordServerSide ||
                          sub.command() == pxrp::RpPanelCommand::kStopMediaRecordServerSide) {
-                    auto plugin = plugin_mgr_->GetPluginById(plugin_id);
-                    if (plugin) {
-                        auto cmd = (sub.command() == pxrp::RpPanelCommand::kStartMediaRecordServerSide)
-                                       ? "record:start" : "record:stop";
-                        LOGI("CommandRenderer: media record {} -> {}", cmd, plugin_id);
-                        plugin->OnCommand(cmd);
+                    const auto recorder = context_->GetMediaRecorderSink();
+                    if (!recorder || plugin_id != render::kMediaRecorderModuleId) {
+                        LOGE("event=record.command component=ws_panel_client "
+                             "module={} outcome=rejected reason=module_unavailable",
+                             plugin_id);
+                    }
+                    else if (sub.command() ==
+                             pxrp::RpPanelCommand::kStartMediaRecordServerSide) {
+                        recorder->StartRecording();
+                    }
+                    else {
+                        recorder->StopRecording();
                     }
                 }
             }
@@ -368,7 +394,9 @@ namespace px
                         .ref_path_ = file.ref_path(),
                     });
                 }
-                context_->DispatchAppEvent2Plugins(event);
+                if (const auto service = context_->GetVoiceCallService()) {
+                    service->HandleConsentDecision(*event);
+                }
             }
 #endif
             else if (m.type() == pxrp::RpMessageType::kRpDisconnectConnection) {
@@ -386,7 +414,7 @@ namespace px
                 auto buffer = ProtoAsData(resp_msg);
 
                 // 2. send it to net plugins
-                plugin_mgr_->VisitNetPlugins([=](PxNetPlugin* plugin) {
+                module_registry_->VisitNetworkTransports([=](const std::shared_ptr<PxNetPlugin>& plugin) {
                     plugin->PostTargetStreamProtoMessage(sub.stream_id(), buffer, true);
                 });
             }
@@ -398,10 +426,10 @@ namespace px
                 event->request_id_ = sub.request_id();
                 event->accepted_ = sub.accepted();
                 event->reason_ = sub.reason();
-                context_->DispatchAppEvent2Plugins(event);
+                context_->DispatchAppEventToModules(event);
             }
             else if (m.type() == pxrp::RpMessageType::kRpRawRenderMessage) {
-                plugin_mgr_->VisitNetPlugins([=](PxNetPlugin* plugin) {
+                module_registry_->VisitNetworkTransports([=](const std::shared_ptr<PxNetPlugin>& plugin) {
                     const auto& sub = m.raw_render_msg();
                     auto data = Data::From(sub.msg());
                     LOGI("==> RawRenderMessage--> stream id: {}, data ch: {}", sub.stream_id(), sub.data_channel());
@@ -420,7 +448,7 @@ namespace px
                 net_msg.mutable_hw_info()->set_hw_info(json_msg);
                 net_msg.mutable_hw_info()->set_current_cpu_freq(m.hw_info().current_cpu_freq());
                 auto data = ProtoAsData(&net_msg);
-                plugin_mgr_->VisitNetPlugins([=](PxNetPlugin* plugin) {
+                module_registry_->VisitNetworkTransports([=](const std::shared_ptr<PxNetPlugin>& plugin) {
                     plugin->PostProtoMessage(data, true);
                 });
             }
@@ -431,7 +459,16 @@ namespace px
     }
 
     void WsPanelClient::ProcessCommandEnablePlugin(const std::string& plugin_id) {
-        plugin_mgr_->VisitAllPlugins([&](PxPluginInterface* plugin) {
+        if (composition_root_) {
+            for (const auto& module : composition_root_->SnapshotModules()) {
+                if (module.descriptor.id == plugin_id) {
+                    static_cast<void>(
+                        composition_root_->SetEnabled(plugin_id, true));
+                    return;
+                }
+            }
+        }
+        module_registry_->VisitAllModules([&](const std::shared_ptr<PxPluginInterface>& plugin) {
             if (plugin_id == plugin->GetPluginId()) {
                 LOGI("Enable plugin: {}", plugin->GetPluginName());
                 plugin->EnablePlugin();
@@ -440,7 +477,16 @@ namespace px
     }
 
     void WsPanelClient::ProcessCommandDisablePlugin(const std::string& plugin_id) {
-        plugin_mgr_->VisitAllPlugins([&](PxPluginInterface* plugin) {
+        if (composition_root_) {
+            for (const auto& module : composition_root_->SnapshotModules()) {
+                if (module.descriptor.id == plugin_id) {
+                    static_cast<void>(
+                        composition_root_->SetEnabled(plugin_id, false));
+                    return;
+                }
+            }
+        }
+        module_registry_->VisitAllModules([&](const std::shared_ptr<PxPluginInterface>& plugin) {
             if (plugin_id == plugin->GetPluginId()) {
                 LOGI("Disable plugin: {}", plugin->GetPluginName());
                 plugin->DisablePlugin();

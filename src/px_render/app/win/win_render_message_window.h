@@ -9,7 +9,7 @@ namespace px
 {
 
     class RdContext;
-    class PluginManager;
+    class RenderModuleRegistry;
     class WinMessageLoop;
 
     using MessageCallback = std::function<bool(UINT message, WPARAM wparam, LPARAM lparam, LRESULT& result)>;
@@ -35,7 +35,7 @@ namespace px
 
     private:
         std::shared_ptr<RdContext> context_ = nullptr;
-        std::shared_ptr<PluginManager> plugin_mgr_ = nullptr;
+        std::shared_ptr<RenderModuleRegistry> module_registry_ = nullptr;
         MessageCallback message_callback_;
         HWND mHwnd = nullptr;
         std::string window_name_;

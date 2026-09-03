@@ -209,17 +209,17 @@ namespace px
         return PxNetPlugin::OnDestroy();
     }
 
-    void RtcPlugin::OnMessageRaw(const std::any& msg) {
-        if (HoldsType<MsgRtcRemoteSdp>(msg)) {
-            auto m = std::any_cast<MsgRtcRemoteSdp>(msg);
-            this->OnRemoteSdp(m);
-        }
-        else if (HoldsType<MsgRtcRemoteIce>(msg)) {
-            auto m = std::any_cast<MsgRtcRemoteIce>(msg);
-            this->OnRemoteIce(m);
-        }
-        else if (HoldsType<PxLogicalSessionCapabilityUpdate>(msg) && runtime_) {
-            const auto update = std::any_cast<PxLogicalSessionCapabilityUpdate>(msg);
+    void RtcPlugin::ApplyRtcRemoteSdp(const MsgRtcRemoteSdp& message) {
+        OnRemoteSdp(message);
+    }
+
+    void RtcPlugin::ApplyRtcRemoteIce(const MsgRtcRemoteIce& message) {
+        OnRemoteIce(message);
+    }
+
+    void RtcPlugin::ApplyLogicalSessionCapabilities(
+        const PxLogicalSessionCapabilityUpdate& update) {
+        if (runtime_) {
             runtime_->servers.ApplyAll([&update](const std::string&,
                                                  const std::shared_ptr<RtcServer>& server) {
                 if (server && server->GetStreamId() == update.stream_id_) {

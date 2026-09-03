@@ -8,9 +8,6 @@
 #include "px_common_new/time_util.h"
 #include "px_message.pb.h"
 #include "px_message_new/proto_converter.h"
-#include "px_render/plugin_interface/px_plugin_context.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
-#include "px_render/plugins/plugin_ids.h"
 
 namespace px {
 namespace {
@@ -48,7 +45,7 @@ void VoiceCallRuntime::DeliveryChannel::Disable() {
 }
 
 bool VoiceCallRuntime::DeliveryChannel::Deliver(
-    const std::shared_ptr<PxPluginBaseEvent>& event) {
+    const VoiceCallRuntimeEvent& event) {
     EventDelivery active_delivery;
     {
         std::scoped_lock lock(mutex);
@@ -88,7 +85,7 @@ bool VoiceCallRuntime::DeliveryChannel::Deliver(
 
 std::shared_ptr<VoiceCallRuntime> VoiceCallRuntime::Make(
     bool enabled,
-    std::weak_ptr<PxPluginContext> work_context,
+    TaskPoster task_poster,
     EndpointFactory endpoint_factory) {
     if (!endpoint_factory) {
         endpoint_factory = [] {
@@ -96,18 +93,18 @@ std::shared_ptr<VoiceCallRuntime> VoiceCallRuntime::Make(
         };
     }
     return std::make_shared<VoiceCallRuntime>(
-        ConstructionToken{}, enabled, std::move(work_context),
+        ConstructionToken{}, enabled, std::move(task_poster),
         std::move(endpoint_factory), std::make_shared<DeliveryChannel>());
 }
 
 VoiceCallRuntime::VoiceCallRuntime(
     ConstructionToken,
     bool enabled,
-    std::weak_ptr<PxPluginContext> work_context,
+    TaskPoster task_poster,
     EndpointFactory endpoint_factory,
     std::shared_ptr<DeliveryChannel> delivery_channel)
     : enabled_(enabled),
-      work_context_(std::move(work_context)),
+      task_poster_(std::move(task_poster)),
       endpoint_factory_(std::move(endpoint_factory)),
       delivery_channel_(std::move(delivery_channel)) {}
 
@@ -314,16 +311,16 @@ void VoiceCallRuntime::RequestConsent(
     const std::string& stream_id,
     const std::string& call_id,
     uint64_t request_id) {
-    auto event = std::make_shared<PxPluginVoiceCallConsentEvent>();
-    event->plugin_name_ = kVoiceCallPluginId;
-    event->show_ = true;
-    event->visitor_device_id_ = visitor_device_id;
-    event->stream_id_ = stream_id;
-    event->call_id_ = call_id;
-    event->request_id_ = request_id;
-    event->expires_at_unix_ms_ =
-        TimeUtil::GetCurrentTimestamp() + VoiceCallState::kRequestTimeoutMs;
-    (void)delivery_channel_->Deliver(event);
+    (void)delivery_channel_->Deliver(VoiceCallRuntimeEvent{
+        .kind = VoiceCallRuntimeEventKind::kConsent,
+        .show = true,
+        .visitor_device_id = visitor_device_id,
+        .stream_id = stream_id,
+        .call_id = call_id,
+        .request_id = request_id,
+        .expires_at_unix_ms =
+            TimeUtil::GetCurrentTimestamp() + VoiceCallState::kRequestTimeoutMs,
+    });
 }
 
 void VoiceCallRuntime::CancelConsent(
@@ -334,53 +331,53 @@ void VoiceCallRuntime::CancelConsent(
     if (stream_id.empty() || call_id.empty() || request_id == 0) {
         return;
     }
-    auto event = std::make_shared<PxPluginVoiceCallConsentEvent>();
-    event->plugin_name_ = kVoiceCallPluginId;
-    event->show_ = false;
-    event->stream_id_ = stream_id;
-    event->call_id_ = call_id;
-    event->request_id_ = request_id;
-    event->reason_ = reason;
-    (void)delivery_channel_->Deliver(event);
+    (void)delivery_channel_->Deliver(VoiceCallRuntimeEvent{
+        .kind = VoiceCallRuntimeEventKind::kConsent,
+        .show = false,
+        .stream_id = stream_id,
+        .call_id = call_id,
+        .request_id = request_id,
+        .reason = reason,
+    });
 }
 
 void VoiceCallRuntime::ApplyConsentDecision(
-    const MsgVoiceCallConsentDecision& decision) {
-    if (!IsAccepting() || decision.stream_id_.empty() ||
-        decision.call_id_.empty() || decision.request_id_ == 0) {
+    const VoiceCallConsentDecision& decision) {
+    if (!IsAccepting() || decision.stream_id.empty() ||
+        decision.call_id.empty() || decision.request_id == 0) {
         return;
     }
     std::string device_id;
     bool rejected = false;
     bool expired = false;
     const std::string reject_reason =
-        decision.reason_.empty() ? "rejected" : decision.reason_;
+        decision.reason.empty() ? "rejected" : decision.reason;
     {
         std::scoped_lock lock(mutex_);
         if (state_.Phase() != VoiceCallPhase::kIncomingPending ||
-            state_.CallId() != decision.call_id_ ||
-            state_.RequestId() != decision.request_id_ ||
-            active_stream_id_ != decision.stream_id_ ||
-            !connected_clients_.contains(decision.stream_id_)) {
+            state_.CallId() != decision.call_id ||
+            state_.RequestId() != decision.request_id ||
+            active_stream_id_ != decision.stream_id ||
+            !connected_clients_.contains(decision.stream_id)) {
             LOGW("[VoiceCall] stale or forged panel decision dropped, stream={}, call={}",
-                 decision.stream_id_, VoiceCallLogId(decision.call_id_));
+                 decision.stream_id, VoiceCallLogId(decision.call_id));
             return;
         }
         device_id = active_device_id_;
         expired = state_.Expire(MonotonicMillis());
         if (expired) {
             decision_cache_.Put(
-                decision.call_id_, decision.request_id_, false, "timeout",
+                decision.call_id, decision.request_id, false, "timeout",
                 MonotonicMillis());
             active_device_id_.clear();
             active_stream_id_.clear();
         }
-        else if (!decision.accepted_) {
+        else if (!decision.accepted) {
             rejected = state_.RejectIncoming(
-                decision.call_id_, decision.request_id_);
+                decision.call_id, decision.request_id);
             if (rejected) {
                 decision_cache_.Put(
-                    decision.call_id_, decision.request_id_, false,
+                    decision.call_id, decision.request_id, false,
                     reject_reason, MonotonicMillis());
                 active_device_id_.clear();
                 active_stream_id_.clear();
@@ -390,37 +387,37 @@ void VoiceCallRuntime::ApplyConsentDecision(
     if (expired || rejected) {
         const auto reason = expired ? std::string("timeout") : reject_reason;
         CancelConsent(
-            decision.stream_id_, decision.call_id_, decision.request_id_,
+            decision.stream_id, decision.call_id, decision.request_id,
             reason);
         SendResponse(
-            device_id, decision.stream_id_, decision.call_id_,
-            decision.request_id_, false, reason);
+            device_id, decision.stream_id, decision.call_id,
+            decision.request_id, false, reason);
         return;
     }
-    if (!decision.accepted_) {
+    if (!decision.accepted) {
         return;
     }
 
     bool is_webrtc = false;
     {
         std::scoped_lock lock(mutex_);
-        const auto type = connection_types_.find(decision.stream_id_);
+        const auto type = connection_types_.find(decision.stream_id);
         is_webrtc =
             type != connection_types_.end() && type->second == "RTC";
     }
     const auto endpoint = endpoint_factory_();
     if (!endpoint) {
         SendResponse(
-            device_id, decision.stream_id_, decision.call_id_,
-            decision.request_id_, false, "no_mic");
+            device_id, decision.stream_id, decision.call_id,
+            decision.request_id, false, "no_mic");
         return;
     }
     const auto weak_self = weak_from_this();
     const auto weak_endpoint = std::weak_ptr<VoiceAudioEndpoint>(endpoint);
     std::string error;
     const bool started = endpoint->Start(
-        [weak_self, stream_id = decision.stream_id_,
-         call_id = decision.call_id_, is_webrtc](
+        [weak_self, stream_id = decision.stream_id,
+         call_id = decision.call_id, is_webrtc](
             uint32_t sequence,
             uint64_t capture_time_ms,
             const std::vector<uint8_t>& opus) {
@@ -432,7 +429,7 @@ void VoiceCallRuntime::ApplyConsentDecision(
             }
         },
         error,
-        [weak_self, call_id = decision.call_id_, weak_endpoint](
+        [weak_self, call_id = decision.call_id, weak_endpoint](
             const std::string& reason) {
             if (const auto self = weak_self.lock()) {
                 self->ScheduleEndpointFailure(
@@ -440,8 +437,8 @@ void VoiceCallRuntime::ApplyConsentDecision(
                     reason.empty() ? "device_lost" : reason);
             }
         },
-        [weak_self, stream_id = decision.stream_id_,
-         call_id = decision.call_id_, is_webrtc](
+        [weak_self, stream_id = decision.stream_id,
+         call_id = decision.call_id, is_webrtc](
             std::span<const int16_t> samples) {
             if (is_webrtc && !samples.empty()) {
                 if (const auto self = weak_self.lock()) {
@@ -455,10 +452,10 @@ void VoiceCallRuntime::ApplyConsentDecision(
         {
             std::scoped_lock lock(mutex_);
             no_mic = state_.RejectIncoming(
-                decision.call_id_, decision.request_id_);
+                decision.call_id, decision.request_id);
             if (no_mic) {
                 decision_cache_.Put(
-                    decision.call_id_, decision.request_id_, false, "no_mic",
+                    decision.call_id, decision.request_id, false, "no_mic",
                     MonotonicMillis());
                 active_device_id_.clear();
                 active_stream_id_.clear();
@@ -467,11 +464,11 @@ void VoiceCallRuntime::ApplyConsentDecision(
         if (no_mic) {
             LOGE("[VoiceCall] audio endpoint failed after local consent: {}", error);
             CancelConsent(
-                decision.stream_id_, decision.call_id_, decision.request_id_,
+                decision.stream_id, decision.call_id, decision.request_id,
                 "no_mic");
             SendResponse(
-                device_id, decision.stream_id_, decision.call_id_,
-                decision.request_id_, false, "no_mic");
+                device_id, decision.stream_id, decision.call_id,
+                decision.request_id, false, "no_mic");
         }
         return;
     }
@@ -481,24 +478,24 @@ void VoiceCallRuntime::ApplyConsentDecision(
     {
         std::scoped_lock lock(mutex_);
         if (state_.Phase() == VoiceCallPhase::kIncomingPending &&
-            state_.CallId() == decision.call_id_ &&
-            state_.RequestId() == decision.request_id_ &&
-            active_stream_id_ == decision.stream_id_ &&
-            connected_clients_.contains(decision.stream_id_)) {
+            state_.CallId() == decision.call_id &&
+            state_.RequestId() == decision.request_id &&
+            active_stream_id_ == decision.stream_id &&
+            connected_clients_.contains(decision.stream_id)) {
             expired_while_starting = state_.Expire(MonotonicMillis());
             if (!expired_while_starting) {
                 accepted = state_.AcceptIncoming(
-                    decision.call_id_, decision.request_id_);
+                    decision.call_id, decision.request_id);
             }
             if (accepted) {
                 endpoint_ = endpoint;
                 decision_cache_.Put(
-                    decision.call_id_, decision.request_id_, true, "",
+                    decision.call_id, decision.request_id, true, "",
                     MonotonicMillis());
             }
             else if (expired_while_starting) {
                 decision_cache_.Put(
-                    decision.call_id_, decision.request_id_, false, "timeout",
+                    decision.call_id, decision.request_id, false, "timeout",
                     MonotonicMillis());
                 active_device_id_.clear();
                 active_stream_id_.clear();
@@ -509,43 +506,43 @@ void VoiceCallRuntime::ApplyConsentDecision(
         endpoint->Stop();
         if (expired_while_starting) {
             CancelConsent(
-                decision.stream_id_, decision.call_id_, decision.request_id_,
+                decision.stream_id, decision.call_id, decision.request_id,
                 "timeout");
             SendResponse(
-                device_id, decision.stream_id_, decision.call_id_,
-                decision.request_id_, false, "timeout");
+                device_id, decision.stream_id, decision.call_id,
+                decision.request_id, false, "timeout");
         }
         return;
     }
     if (is_webrtc && !SetWebRtcVoiceAuthorization(
-            decision.stream_id_, decision.call_id_, true)) {
-        EndCall(decision.call_id_, false, "webrtc_audio_unavailable");
+            decision.stream_id, decision.call_id, true)) {
+        EndCall(decision.call_id, false, "webrtc_audio_unavailable");
         SendResponse(
-            device_id, decision.stream_id_, decision.call_id_,
-            decision.request_id_, false, "webrtc_audio_unavailable");
+            device_id, decision.stream_id, decision.call_id,
+            decision.request_id, false, "webrtc_audio_unavailable");
         return;
     }
     if (!is_webrtc && !packet_transport_.Start(
-            [weak_self, device_id, stream_id = decision.stream_id_,
-             call_id = decision.call_id_](const VoiceTransportPacket& packet) {
+            [weak_self, device_id, stream_id = decision.stream_id,
+             call_id = decision.call_id](const VoiceTransportPacket& packet) {
                 if (const auto self = weak_self.lock()) {
                     self->DispatchAudioFrame(
                         device_id, stream_id, call_id, packet);
                 }
             })) {
-        EndCall(decision.call_id_, false, "transport_unavailable");
+        EndCall(decision.call_id, false, "transport_unavailable");
         SendResponse(
-            device_id, decision.stream_id_, decision.call_id_,
-            decision.request_id_, false, "transport_unavailable");
+            device_id, decision.stream_id, decision.call_id,
+            decision.request_id, false, "transport_unavailable");
         return;
     }
     CancelConsent(
-        decision.stream_id_, decision.call_id_, decision.request_id_,
+        decision.stream_id, decision.call_id, decision.request_id,
         "accepted");
     SendResponse(
-        device_id, decision.stream_id_, decision.call_id_,
-        decision.request_id_, true, "");
-    SendConfig(device_id, decision.stream_id_, decision.call_id_);
+        device_id, decision.stream_id, decision.call_id,
+        decision.request_id, true, "");
+    SendConfig(device_id, decision.stream_id, decision.call_id);
 }
 
 void VoiceCallRuntime::ReceiveWebRtcPcm(
@@ -681,12 +678,11 @@ void VoiceCallRuntime::SendStreamMessage(
     if (!data || stream_id.empty()) {
         return;
     }
-    auto event = std::make_shared<PxPluginVoiceCallMediaEvent>();
-    event->plugin_name_ = kVoiceCallPluginId;
-    event->action_ = PxVoiceCallMediaAction::kStreamMessage;
-    event->stream_id_ = stream_id;
-    event->message_ = data;
-    (void)delivery_channel_->Deliver(event);
+    (void)delivery_channel_->Deliver(VoiceCallRuntimeEvent{
+        .kind = VoiceCallRuntimeEventKind::kStreamMessage,
+        .stream_id = stream_id,
+        .message = data,
+    });
 }
 
 bool VoiceCallRuntime::SetWebRtcVoiceAuthorization(
@@ -697,14 +693,13 @@ bool VoiceCallRuntime::SetWebRtcVoiceAuthorization(
         return false;
     }
     auto applied = std::make_shared<std::atomic_bool>(false);
-    auto event = std::make_shared<PxPluginVoiceCallMediaEvent>();
-    event->plugin_name_ = kVoiceCallPluginId;
-    event->action_ = PxVoiceCallMediaAction::kRtcAuthorization;
-    event->stream_id_ = stream_id;
-    event->call_id_ = call_id;
-    event->authorized_ = authorized;
-    event->authorization_applied_ = applied;
-    if (!delivery_channel_->Deliver(event)) {
+    if (!delivery_channel_->Deliver(VoiceCallRuntimeEvent{
+            .kind = VoiceCallRuntimeEventKind::kRtcAuthorization,
+            .stream_id = stream_id,
+            .call_id = call_id,
+            .authorized = authorized,
+            .authorization_applied = applied,
+        })) {
         return false;
     }
     return applied->load(std::memory_order_acquire);
@@ -724,33 +719,37 @@ void VoiceCallRuntime::SendWebRtcVoicePcm(
     if (samples.empty()) {
         return;
     }
-    auto event = std::make_shared<PxPluginVoiceCallMediaEvent>();
-    event->plugin_name_ = kVoiceCallPluginId;
-    event->action_ = PxVoiceCallMediaAction::kRtcPcm;
-    event->stream_id_ = stream_id;
-    event->call_id_ = call_id;
-    event->pcm_.assign(samples.begin(), samples.end());
-    event->sample_rate_ = VoiceAudioEndpoint::kSampleRate;
-    event->channels_ = VoiceAudioEndpoint::kChannels;
-    (void)delivery_channel_->Deliver(event);
+    const auto owned_samples =
+        std::make_shared<const std::vector<std::int16_t>>(
+            samples.begin(), samples.end());
+    (void)delivery_channel_->Deliver(VoiceCallRuntimeEvent{
+        .kind = VoiceCallRuntimeEventKind::kRtcPcm,
+        .stream_id = stream_id,
+        .call_id = call_id,
+        .pcm = owned_samples,
+        .sample_rate = VoiceAudioEndpoint::kSampleRate,
+        .channels = VoiceAudioEndpoint::kChannels,
+    });
 }
 
 void VoiceCallRuntime::ScheduleEndpointFailure(
     const std::string& call_id,
     const std::weak_ptr<VoiceAudioEndpoint>& expected_endpoint,
     const std::string& reason) {
-    const auto context = work_context_.lock();
-    if (!context) {
-        return;
-    }
     const auto weak_self = weak_from_this();
-    context->PostWorkTask(
+    auto task =
         [weak_self, call_id, expected_endpoint, reason] {
             if (const auto self = weak_self.lock()) {
                 self->HandleEndpointFailure(
                     call_id, expected_endpoint, reason);
             }
-        });
+        };
+    if (task_poster_) {
+        task_poster_(std::move(task));
+    }
+    else {
+        task();
+    }
 }
 
 void VoiceCallRuntime::HandleEndpointFailure(

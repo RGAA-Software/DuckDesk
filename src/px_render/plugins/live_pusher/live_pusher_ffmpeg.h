@@ -2,12 +2,12 @@
 
 #include <memory>
 
-#include "live_pusher_runtime.h"
+#include "architecture/sinks/live_pusher_sink.h"
 
-namespace px {
+namespace px::render {
 
 std::shared_ptr<LivePushProcessor> MakeFfmpegLivePushProcessor(
-    const LivePusherRuntime::Config& config,
-    const LivePusherRuntime::KeyframeRequester& request_keyframe);
+    const LivePusherOptions& options,
+    const LivePusherSink::KeyframeRequester& request_keyframe);
 
-}  // namespace px
+}  // namespace px::render

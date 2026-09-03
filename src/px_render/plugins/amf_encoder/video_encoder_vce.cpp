@@ -286,17 +286,27 @@ namespace px
         return true;
     }
 
-    bool VideoEncoderVCE::Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra) {
-        extra_ = extra;
-
-        auto cap_video_frame = std::any_cast<CaptureVideoFrame>(extra);
-        if (cap_video_frame.request_idr_) {
+    bool VideoEncoderVCE::Encode(
+        const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d,
+        uint64_t frame_index,
+        const CaptureVideoFrame& capture_frame) {
+        {
+            std::scoped_lock lock(capture_frames_mutex_);
+            capture_frames_[frame_index] = capture_frame;
+        }
+        if (capture_frame.request_idr_) {
             InsertIdr();
         }
 
         D3D11_TEXTURE2D_DESC desc;
         tex2d->GetDesc(&desc);
-        return EncodeTexture(tex2d, desc.Width, desc.Height, frame_index);
+        const auto submitted = EncodeTexture(
+            tex2d, desc.Width, desc.Height, frame_index);
+        if (!submitted) {
+            std::scoped_lock lock(capture_frames_mutex_);
+            capture_frames_.erase(frame_index);
+        }
+        return submitted;
     }
 
     void VideoEncoderVCE::Exit() {
@@ -307,6 +317,10 @@ namespace px
         LOGI("Shutting down VideoEncoderVCE.");
         encoder_->Shutdown();
         converter_->Shutdown();
+        {
+            std::scoped_lock lock(capture_frames_mutex_);
+            capture_frames_.clear();
+        }
         amf_restore_timer_precision();
         LOGI("Successfully shutdown VideoEncoderVCE.");
     }
@@ -392,7 +406,14 @@ namespace px
         event->frame_height_ = frame_height;
         event->key_frame_ = key_frame;
         event->frame_index_ = frame_index;
-        event->extra_ = this->extra_;
+        {
+            std::scoped_lock lock(capture_frames_mutex_);
+            if (const auto it = capture_frames_.find(frame_index);
+                it != capture_frames_.end()) {
+                event->capture_frame_ = std::move(it->second);
+                capture_frames_.erase(it);
+            }
+        }
         this->plugin_->CallbackEvent(event);
 
         fps_stat_->Tick();

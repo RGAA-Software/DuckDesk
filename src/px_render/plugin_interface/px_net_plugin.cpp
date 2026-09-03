@@ -102,6 +102,20 @@ namespace px
         int, int) {
     }
 
+    void PxNetPlugin::ApplyRtcRemoteSdp(const MsgRtcRemoteSdp&) {
+    }
+
+    void PxNetPlugin::ApplyRtcRemoteIce(const MsgRtcRemoteIce&) {
+    }
+
+    void PxNetPlugin::ApplyLogicalSessionCapabilities(
+        const PxLogicalSessionCapabilityUpdate&) {
+    }
+
+    void PxNetPlugin::UpdateUdpMediaAssociation(
+        const UdpMediaAssociation&) {
+    }
+
     void PxNetPlugin::SyncInfo(const NetSyncInfo& info) {
         sync_info_ = info;
     }

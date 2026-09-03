@@ -69,7 +69,7 @@ namespace px
         record_max_file_count_ = (int)result["record"]["max_file_count"].value_or(24LL);
 
         // [push] live streaming. Plugin parameters are still explicitly
-        // injected by PluginManager because DLLs do not share this singleton.
+        // injected by RenderModuleRegistry because DLLs do not share this singleton.
         push_enabled_ = result["push"]["enabled"].value_or(false);
         push_rtmp_url_ = result["push"]["rtmp_url"].value_or("");
         push_audio_bitrate_ = (int)result["push"]["audio_bitrate"].value_or(96000LL);

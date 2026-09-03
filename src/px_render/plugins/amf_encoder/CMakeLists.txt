@@ -26,5 +26,5 @@ set(PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/video_encoder_vce.cpp
 )
 
-add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS} ${EXT_SRCS})
+add_library(${PROJECT_NAME} STATIC ${PLUGIN_SRCS} ${EXT_SRCS})
 target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_plugin winmm.lib amf_encoder_shared SetupAPI.lib)

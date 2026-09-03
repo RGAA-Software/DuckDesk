@@ -1090,7 +1090,7 @@ namespace px
         if (association_code.empty()) {
             return;
         }
-        const auto udp_plugin = plugin_->GetPluginById(kNetUdpPluginId);
+        const auto udp_plugin = plugin_->GetUdpTransport();
         if (!udp_plugin) {
             LOGE("Cannot {} UDP media association: net_udp plugin is unavailable, stream={}",
                  revoke ? "revoke" : "register", stream_id);
@@ -1098,14 +1098,14 @@ namespace px
         }
         const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
-        udp_plugin->OnMessageRaw(UdpMediaAssociation{
+        udp_plugin->UpdateUdpMediaAssociation(UdpMediaAssociation{
             .association_code_ = association_code,
             .logical_session_id_ = logical_session_id,
             .stream_id_ = stream_id,
             .expires_at_ms_ = now_ms + std::chrono::seconds(15).count() * 1000,
             .force_gdi_ = force_gdi,
             .revoke_ = revoke,
-        }); // NOLINT(gammaray-raw-pointer-boundary): established plug-in dispatch ABI
+        });
         LOGI("{} UDP media association through authenticated WS control, stream={}",
              revoke ? "Revoked" : "Registered", stream_id);
     }

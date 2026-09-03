@@ -19,10 +19,18 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-PX_PLUGIN_EXPORT(px::DDACapturePlugin)
 
 namespace px
 {
+
+    void DDACapturePlugin::ConfigureMediaBacklogProbe(
+        MediaBacklogProbe probe) {
+        media_backlog_probe_ = std::move(probe);
+    }
+
+    std::int64_t DDACapturePlugin::GetNetworkMediaBacklog() const {
+        return media_backlog_probe_ ? media_backlog_probe_() : 0;
+    }
 
     DDACapturePlugin::DDACapturePlugin() : PxMonitorCapturePlugin() {
 

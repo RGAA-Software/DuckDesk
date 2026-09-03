@@ -42,8 +42,26 @@ try {
         $diffArgs += "--"
         $diffArgs += $nativeGlobs
 
-        $currentFile = ""
+        $diffLines = [System.Collections.Generic.List[string]]::new()
         foreach ($line in (& git @diffArgs)) {
+            $diffLines.Add($line)
+        }
+        if (-not $Staged -and -not $BaseRef) {
+            $untrackedNativeFiles = & git ls-files --others --exclude-standard -- $nativeGlobs |
+                Where-Object {
+                    $_ -match '^(src|tests)[\\/]' -or $_ -notmatch '[\\/]'
+                }
+            foreach ($untrackedFile in $untrackedNativeFiles) {
+                $normalizedFile = $untrackedFile.Replace('\', '/')
+                $diffLines.Add("+++ b/$normalizedFile")
+                foreach ($untrackedLine in Get-Content -LiteralPath $untrackedFile) {
+                    $diffLines.Add("+$untrackedLine")
+                }
+            }
+        }
+
+        $currentFile = ""
+        foreach ($line in $diffLines) {
             if ($line -match '^\+\+\+ b/(.+)$') {
                 $currentFile = $Matches[1]
                 continue

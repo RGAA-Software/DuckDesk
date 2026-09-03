@@ -23,7 +23,7 @@ namespace px
     class Data;
     class RdContext;
     class MessageListener;
-    class PluginManager;
+    class RenderModuleRegistry;
     class RdApplication;
 
     // video capture/encode info
@@ -88,7 +88,7 @@ namespace px
         std::weak_ptr<RdApplication> app_;
         std::shared_ptr<RdContext> context_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
-        std::shared_ptr<PluginManager> plugin_mgr_ = nullptr;
+        std::shared_ptr<RenderModuleRegistry> module_registry_ = nullptr;
         RdSettings* settings_ = nullptr;
         // unit: S
         std::atomic_int64_t running_time_{};

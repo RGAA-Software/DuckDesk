@@ -280,26 +280,26 @@ namespace px
         return PxNetPlugin::OnDestroy();
     }
 
-    void RtcLocalPlugin::OnMessageRaw(const std::any& message) {
-        if (HoldsType<MsgRtcRemoteSdp>(message)) {
-            OnRemoteSdp(std::any_cast<MsgRtcRemoteSdp>(message));
+    void RtcLocalPlugin::ApplyRtcRemoteSdp(const MsgRtcRemoteSdp& message) {
+        OnRemoteSdp(message);
+    }
+
+    void RtcLocalPlugin::ApplyRtcRemoteIce(const MsgRtcRemoteIce& message) {
+        OnRemoteIce(message);
+    }
+
+    void RtcLocalPlugin::ApplyLogicalSessionCapabilities(
+        const PxLogicalSessionCapabilityUpdate& update) {
+        const auto runtime = runtime_;
+        if (!runtime) {
+            return;
         }
-        else if (HoldsType<MsgRtcRemoteIce>(message)) {
-            OnRemoteIce(std::any_cast<MsgRtcRemoteIce>(message));
-        }
-        else if (HoldsType<PxLogicalSessionCapabilityUpdate>(message)) {
-            const auto update = std::any_cast<PxLogicalSessionCapabilityUpdate>(message);
-            const auto runtime = runtime_;
-            if (!runtime) {
-                return;
+        runtime->servers.ApplyAll([&update](const std::string&,
+                                            const std::shared_ptr<RtcServer>& server) {
+            if (server && server->GetStreamId() == update.stream_id_) {
+                server->SetPermissions(true, update.permissions_);
             }
-            runtime->servers.ApplyAll([&update](const std::string&,
-                                                const std::shared_ptr<RtcServer>& server) {
-                if (server && server->GetStreamId() == update.stream_id_) {
-                    server->SetPermissions(true, update.permissions_);
-                }
-            });
-        }
+        });
     }
 
     void RtcLocalPlugin::OnRemoteSdp(const MsgRtcRemoteSdp& message) {
@@ -379,7 +379,7 @@ namespace px
 
     // 视频/音频帧消息不该走 datachannel:RTC 的音视频走 RTP 轨,web 端也不认识
     // 这类 proto 消息。但 app 会把每个编码帧广播给所有 net 插件
-    // (plugin_stream_event_router.cpp VisitNetPlugins→PostProtoMessage),
+    // (EncodedVideoFanout VisitNetworkTransports -> PostProtoMessage),
     // 之前照单全收经 SCTP 转发 => ~9Mbps 的 20KB/帧 消息洪水:
     // render 每帧 PostTask+memcpy、WaitForMediaChannelActive 在帧分发线程自旋,
     // Chrome 主线程每秒 60 次 20KB TLV 重组+proto 解码后丢弃——
@@ -778,13 +778,17 @@ namespace px
         const std::string& stream_id, const std::string& call_id,
         const int16_t* samples, size_t sample_count,
         int sample_rate, int channels) {
-        if (auto* voice_plugin = GetPluginById(kVoiceCallPluginId); voice_plugin) {
-            if (auto* sink = dynamic_cast<PxWebRtcVoicePcmSink*>(voice_plugin); sink) {
-                sink->OnWebRtcVoicePcm(
-                    stream_id, call_id, samples, sample_count,
-                    sample_rate, channels);
-            }
+        if (!samples || sample_count == 0) {
+            return;
         }
+        auto event = std::make_shared<PxPluginWebRtcVoicePcmEvent>();
+        event->plugin_name_ = kNetRtcLocalPluginId;
+        event->stream_id_ = stream_id;
+        event->call_id_ = call_id;
+        event->pcm_.assign(samples, samples + sample_count);
+        event->sample_rate_ = sample_rate;
+        event->channels_ = channels;
+        CallbackEvent(event);
     }
 
     std::shared_ptr<RtcLocalEncodedVideoFrame> RtcLocalPlugin::ReadNextEncodedVideoFrame(const std::string& mon_name, uint64_t after_seq, bool& out_gap) {
@@ -858,16 +862,9 @@ namespace px
 
     std::vector<CaptureMonitorInfo> RtcLocalPlugin::GetRtcTrackMonitors() {
         std::vector<CaptureMonitorInfo> result;
-        // 插件没有直达 app 的通道,经 total_plugins_ 找工作中的采集插件(DDA 优先,GDI 兜底)
-        for (const auto& plugin_id : { kDdaCapturePluginId, kGdiCapturePluginId }) {
-            auto capture_plugin = dynamic_cast<PxMonitorCapturePlugin*>(GetPluginById(plugin_id));
-            if (!capture_plugin) {
-                continue;
-            }
-            result = capture_plugin->GetCaptureMonitorInfo();
-            if (!result.empty()) {
-                break;
-            }
+        {
+            std::scoped_lock lock(capture_topology_mutex_);
+            result = capture_topology_;
         }
         // Inner capture has no desktop-monitor plug-in. Its encoded cache is
         // already populated before a client normally asks for an answer, so use
@@ -905,18 +902,16 @@ namespace px
     }
 
     void RtcLocalPlugin::EnableAllMonitorCapture() {
-        // 与 GetRtcTrackMonitors 同一选取逻辑(DDA 优先,GDI 兜底)
-        for (const auto& plugin_id : { kDdaCapturePluginId, kGdiCapturePluginId }) {
-            auto capture_plugin = dynamic_cast<PxMonitorCapturePlugin*>(GetPluginById(plugin_id));
-            if (!capture_plugin) {
-                continue;
-            }
-            if (capture_plugin->GetCapturingMonitorName() != kAllMonitorsNameSign) {
-                LOGI("Multi-track session: switch capture to ALL monitors.");
-                capture_plugin->SetCaptureMonitor(kAllMonitorsNameSign);
-            }
-            break;
-        }
+        LOGI("Multi-track session: request capture of ALL monitors.");
+        auto event = std::make_shared<PxPluginSelectCaptureMonitorEvent>();
+        event->monitor_name_ = kAllMonitorsNameSign;
+        CallbackEvent(event);
+    }
+
+    void RtcLocalPlugin::UpdateCaptureMonitorInfo(
+        const CaptureMonitorInfoMessage& message) {
+        std::scoped_lock lock(capture_topology_mutex_);
+        capture_topology_ = message.monitors_;
     }
 
     PxLocalRtcAllocResult RtcLocalPlugin::AllocNewLocalRtcInstance(const std::shared_ptr<PxLocalRtcRequestInfo>& req,

@@ -9,7 +9,7 @@
 #include "app/app_messages.h"
 #include "px_render/plugins/plugin_ids.h"
 #include "settings/rd_settings.h"
-#include "px_render/plugins/plugin_manager.h"
+#include "px_render/modules/render_module_registry.h"
 #include "px_common_new/log.h"
 #include "px_common_new/fps_stat.h"
 #include "px_common_new/time_util.h"
@@ -19,9 +19,9 @@
 #include "px_render/plugin_interface/px_monitor_capture_plugin.h"
 #include "px_render/plugin_interface/px_video_encoder_plugin.h"
 #include "px_render/plugin_interface/px_net_plugin.h"
-#include "px_render/plugin_interface/px_frame_carrier_plugin.h"
 #include "px_render/plugin_interface/px_frame_processor_plugin.h"
 #include "px_message_new/rp_proto_converter.h"
+#include "architecture/processors/frame_resizer_processor.h"
 
 namespace px
 {
@@ -66,7 +66,7 @@ namespace px
     void RdStatistics::SetApplication(const std::shared_ptr<RdApplication>& app) {
         app_ = app;
         context_ = app->GetContext();
-        plugin_mgr_ = context_->GetPluginManager();
+        module_registry_ = context_->GetRenderModuleRegistry();
     }
 
     void RdStatistics::StartMonitor() {
@@ -84,7 +84,7 @@ namespace px
             msg_listener_->UnListenAll();
             msg_listener_.reset();
         }
-        plugin_mgr_.reset();
+        module_registry_.reset();
         context_.reset();
         app_.reset();
     }
@@ -150,8 +150,7 @@ namespace px
         }
         auto video_capture_plugin = app->GetWorkingMonitorCapturePlugin();
         auto video_encoder_plugins = app->GetWorkingVideoEncoderPlugins();
-        auto frame_carrier_plugin = plugin_mgr_->GetFrameCarrierPlugin();
-        auto frame_resize_plugin = plugin_mgr_->GetFrameResizePlugin();
+        const auto frame_resizer = context_->GetFrameResizerProcessor();
         if (video_capture_plugin && !video_encoder_plugins.empty()) {
             // encoder info
 
@@ -205,16 +204,21 @@ namespace px
                 }
 
                 // resize info
-                bool is_gdi_capture = plugin_mgr_->IsGDIMonitorCapturePlugin(app->GetWorkingMonitorCapturePlugin());
+                bool is_gdi_capture = module_registry_->IsGdiCapture(app->GetWorkingMonitorCapturePlugin());
                 if (settings_->encoder_.encode_res_type_ == Encoder::EncodeResolutionType::kOrigin || is_gdi_capture) {
                     item->set_resize_frame_width(0);
                     item->set_resize_frame_height(0);
                 }
                 else {
-                    if (auto resize_info = frame_resize_plugin->GetFrameResizeInfo(info->target_name_); resize_info.has_value()) {
-                        auto frame_resize_info = resize_info.value();
-                        item->set_resize_frame_width(frame_resize_info.resize_width_);
-                        item->set_resize_frame_height(frame_resize_info.resize_height_);
+                    if (frame_resizer) {
+                        const auto resize_info =
+                            frame_resizer->Snapshot(info->target_name_);
+                        if (resize_info) {
+                            item->set_resize_frame_width(
+                                resize_info->target_width);
+                            item->set_resize_frame_height(
+                                resize_info->target_height);
+                        }
                     }
                 }
             }
@@ -238,7 +242,7 @@ namespace px
                 ? "Controller" : "Observer");
         }
 
-        auto relay_plugin = plugin_mgr_->GetRelayPlugin();
+        auto relay_plugin = module_registry_->GetRelayTransport();
         if (relay_plugin &&relay_plugin->IsWorking()) {
             cst->set_relay_connected(true);
         }

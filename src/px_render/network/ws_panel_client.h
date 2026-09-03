@@ -12,13 +12,16 @@
 
 namespace px
 {
+    namespace render {
+        class RenderCompositionRoot;
+    }
 
     class Data;
     class RdContext;
     class RdStatistics;
     class MessageListener;
     class RdSettings;
-    class PluginManager;
+    class RenderModuleRegistry;
     class PxConnectionAttemptWorkflow;
 
     class WsPanelClient : public std::enable_shared_from_this<WsPanelClient> {
@@ -49,7 +52,8 @@ namespace px
         std::shared_ptr<MessageListener> state_msg_listener_ = nullptr;
         std::shared_ptr<PxConnectionAttemptWorkflow> connection_workflow_ = nullptr;
         std::atomic_int queuing_message_count_ = 0;
-        std::shared_ptr<PluginManager> plugin_mgr_ = nullptr;
+        std::shared_ptr<RenderModuleRegistry> module_registry_ = nullptr;
+        std::shared_ptr<render::RenderCompositionRoot> composition_root_;
         std::atomic_bool exiting_ = false;
         // Stable across websocket auto-reconnects, changes when the render process restarts.
         std::string instance_id_;

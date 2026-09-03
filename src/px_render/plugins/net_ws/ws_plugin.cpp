@@ -10,7 +10,6 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-PX_PLUGIN_EXPORT(px::WsPlugin)
 
 namespace px
 {
@@ -61,10 +60,10 @@ namespace px
         return PxNetPlugin::OnDestroy();
     }
 
-    void WsPlugin::OnMessageRaw(const std::any& msg) {
-        if (HoldsType<PxLogicalSessionCapabilityUpdate>(msg) && ws_server_) {
-            ws_server_->UpdateLogicalSessionCapabilities(
-                std::any_cast<PxLogicalSessionCapabilityUpdate>(msg));
+    void WsPlugin::ApplyLogicalSessionCapabilities(
+        const PxLogicalSessionCapabilityUpdate& update) {
+        if (ws_server_) {
+            ws_server_->UpdateLogicalSessionCapabilities(update);
         }
     }
 
@@ -221,11 +220,47 @@ namespace px
         }
     }
 
-    PxNetPlugin* WsPlugin::GetLocalRtcPlugin() {
-        if (auto plugin = GetPluginById(kNetRtcLocalPluginId); plugin) {
-            return (PxNetPlugin*)plugin;
+    void WsPlugin::ConfigureNetworkPeers(
+        const std::vector<std::shared_ptr<PxNetPlugin>>& peers) {
+        std::scoped_lock lock(network_peers_mutex_);
+        network_peers_.clear();
+        network_peers_.reserve(peers.size());
+        for (const auto& peer : peers) {
+            if (peer) {
+                network_peers_.push_back(peer);
+            }
         }
-        return nullptr;
+    }
+
+    std::vector<std::shared_ptr<PxNetPlugin>>
+    WsPlugin::GetNetworkPeers() const {
+        std::vector<std::shared_ptr<PxNetPlugin>> peers;
+        std::scoped_lock lock(network_peers_mutex_);
+        peers.reserve(network_peers_.size());
+        for (const auto& weak_peer : network_peers_) {
+            if (const auto peer = weak_peer.lock()) {
+                peers.push_back(peer);
+            }
+        }
+        return peers;
+    }
+
+    std::shared_ptr<PxNetPlugin> WsPlugin::GetLocalRtcPlugin() const {
+        for (const auto& peer : GetNetworkPeers()) {
+            if (peer->GetPluginId() == kNetRtcLocalPluginId) {
+                return peer;
+            }
+        }
+        return {};
+    }
+
+    std::shared_ptr<PxNetPlugin> WsPlugin::GetUdpTransport() const {
+        for (const auto& peer : GetNetworkPeers()) {
+            if (peer->GetPluginId() == kNetUdpPluginId) {
+                return peer;
+            }
+        }
+        return {};
     }
 
     void WsPlugin::OnMessageAck(const std::shared_ptr<NetMessageAck> &ack) {

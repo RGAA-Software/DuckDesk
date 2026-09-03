@@ -103,11 +103,11 @@ TEST(OpusEncoderRuntimeTest, FormatChangeRecreatesEncoderAndMetadata) {
 TEST(OpusEncoderRuntimeTest, DeliveryCallbackCanRequestShutdownWithoutSelfJoin) {
     auto runtime = OpusEncoderRuntime::Make({});
     const auto weak_runtime = std::weak_ptr<OpusEncoderRuntime>(runtime);
-    std::atomic<int> deliveries = 0;
+    const auto deliveries = std::make_shared<std::atomic_int>(0);
     runtime->SetDelivery(
-        [weak_runtime, &deliveries](const std::shared_ptr<Data>&,
+        [weak_runtime, deliveries](const std::shared_ptr<Data>&,
                                     int, int, int, int) {
-            ++deliveries;
+            ++(*deliveries);
             if (const auto locked = weak_runtime.lock()) {
                 locked->Shutdown();
             }
@@ -116,26 +116,26 @@ TEST(OpusEncoderRuntimeTest, DeliveryCallbackCanRequestShutdownWithoutSelfJoin) 
     runtime->Enqueue(TenMillisecondsOfSilence(48000, 2), 48000, 2, 16);
     const auto deadline = std::chrono::steady_clock::now() +
         std::chrono::seconds(2);
-    while (deliveries.load() == 0 &&
+    while (deliveries->load() == 0 &&
            std::chrono::steady_clock::now() < deadline) {
         std::this_thread::yield();
     }
     runtime->Shutdown();
-    EXPECT_EQ(deliveries.load(), 1);
+    EXPECT_EQ(deliveries->load(), 1);
     EXPECT_FALSE(runtime->IsAccepting());
 }
 
 TEST(OpusEncoderRuntimeTest, InvalidInputAndPostShutdownEnqueueAreIgnored) {
     auto runtime = OpusEncoderRuntime::Make({});
-    std::atomic<int> deliveries = 0;
+    const auto deliveries = std::make_shared<std::atomic_int>(0);
     runtime->SetDelivery(
-        [&deliveries](const std::shared_ptr<Data>&, int, int, int, int) {
-            ++deliveries;
+        [deliveries](const std::shared_ptr<Data>&, int, int, int, int) {
+            ++(*deliveries);
         });
     runtime->Enqueue(Data::From("invalid"), 0, 0, 0);
     runtime->Shutdown();
     runtime->Enqueue(TenMillisecondsOfSilence(48000, 2), 48000, 2, 16);
-    EXPECT_EQ(deliveries.load(), 0);
+    EXPECT_EQ(deliveries->load(), 0);
 }
 
 }  // namespace

@@ -168,7 +168,7 @@ void OpusEncoderRuntime::WorkerMain(
         Entry entry;
         {
             std::unique_lock lock(state->mutex);
-            state->condition.wait(lock, stop_token, [&state] {
+            state->condition.wait(lock, stop_token, [state] {
                 return state->shutting_down || !state->queue.empty();
             });
             if (state->queue.empty()) {

@@ -66,7 +66,6 @@ namespace px
         bool enable_video_ = true;
         CaptureVideoType capture_video_type_ = CaptureVideoType::kVideoInner;
         std::string capture_audio_device_;
-        bool mock_video_ = false;
     };
 
     // Transmission

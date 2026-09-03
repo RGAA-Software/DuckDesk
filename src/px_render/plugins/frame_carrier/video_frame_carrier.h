@@ -8,6 +8,10 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <span>
+#include <string>
+#include <utility>
+#include <vector>
 #ifdef WIN32
 #include <d3d11.h>
 #include <dxgi.h>
@@ -23,18 +27,32 @@ namespace px
 
     class Image;
     class Thread;
-    class FrameCarrierPlugin;
-    class PxFrameProcessorPlugin;
+
+    struct VideoFrameCarrierResources final {
+        std::shared_ptr<Image> logo_image;
+        std::vector<std::pair<int, int>> logo_points;
+        std::vector<std::pair<int, int>> big_logo_points;
+        std::vector<std::pair<int, int>> cover_points;
+    };
 
     // move video frames from provider / capture
-    class VideoFrameCarrier {
+    class VideoFrameCarrier final
+        : public std::enable_shared_from_this<VideoFrameCarrier> {
     public:
-        explicit VideoFrameCarrier(FrameCarrierPlugin* plugin,
-                                   const ComPtr<ID3D11Device>& d3d11_device,
-                                   const ComPtr<ID3D11DeviceContext>& d3d11_device_context,
-                                   uint64_t adapter_uid,
-                                   const std::string& monitor_name,
-                                   bool enable_full_color_mode);
+        [[nodiscard]] static std::shared_ptr<VideoFrameCarrier> Create(
+            VideoFrameCarrierResources resources,
+            const ComPtr<ID3D11Device>& d3d11_device,
+            const ComPtr<ID3D11DeviceContext>& d3d11_device_context,
+            uint64_t adapter_uid,
+            const std::string& monitor_name,
+            bool enable_full_color_mode);
+        explicit VideoFrameCarrier(
+            VideoFrameCarrierResources resources,
+            const ComPtr<ID3D11Device>& d3d11_device,
+            const ComPtr<ID3D11DeviceContext>& d3d11_device_context,
+            uint64_t adapter_uid,
+            const std::string& monitor_name,
+            bool enable_full_color_mode);
 
         bool MapRawTexture(const ComPtr<ID3D11Texture2D>& texture, DXGI_FORMAT format, int height,
                            std::function<void(const std::shared_ptr<Image>&)>&& rgba_cbk,
@@ -63,7 +81,10 @@ namespace px
         // open/close 会导致 GPU device removed (TDR),必须与 OBS 一样长期持有。
         ComPtr<ID3D11Texture2D> opened_shared_texture_ = nullptr;
         uint64_t opened_shared_handle_ = 0;
-        bool CopyToRawImage(const uint8_t* data, int row_pitch_bytes, int height);
+        bool CopyToRawImage(
+            std::span<const std::byte> data,
+            int row_pitch_bytes,
+            int height);
         void ConvertToYuv420(std::function<void(const std::shared_ptr<Image>&)>&& yuv_cbk);
         void ConvertToYuv444(std::function<void(const std::shared_ptr<Image>&)>&& yuv_cbk);
         [[nodiscard]] int GetRawImageType() const;
@@ -71,7 +92,6 @@ namespace px
         void StampLogoOnRGBABuffer(const std::shared_ptr<Image>& image);
 
     private:
-        FrameCarrierPlugin* plugin_ = nullptr;
         ComPtr<ID3D11Device> d3d11_device_ = nullptr;
         ComPtr<ID3D11DeviceContext> d3d11_device_context_ = nullptr;
         ComPtr<ID3D11Texture2D> texture2d_ = nullptr;
@@ -83,6 +103,8 @@ namespace px
         std::shared_ptr<Image> raw_image_rgba_ = nullptr;
         int raw_image_rgba_format_ = -1;
         std::shared_ptr<Image> raw_image_yuv_ = nullptr;
+
+        std::shared_ptr<Image> logo_image_;
 
         // async yuv converter
         std::shared_ptr<Thread> yuv_converter_thread_ = nullptr;

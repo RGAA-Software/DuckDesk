@@ -5,7 +5,6 @@
 #include "px_render/plugins/net_relay/relay_plugin_runtime.h"
 #include "px_render/plugins/plugin_ids.h"
 
-PX_PLUGIN_EXPORT(px::RelayPlugin)
 
 namespace px {
 

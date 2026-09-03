@@ -10,8 +10,6 @@
 #include "audio_capture.h"
 #include "was_audio_capture_runtime.h"
 #include "px_common_new/data.h"
-#include "px_render/plugin_interface/px_plugin_context.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
 
 namespace {
 using namespace std::chrono_literals;
@@ -171,12 +169,14 @@ bool TestCallbackStopAndPostShutdownInvalidationTenRounds() {
     for (int round = 1; round <= 10; ++round) {
         const auto factory = std::make_shared<FactoryState>();
         auto runtime = MakeRuntime(factory);
-        const auto context = std::make_shared<px::PxPluginContext>("audio-runtime-test");
         const auto deliveries = std::make_shared<std::atomic<int>>(0);
         const std::weak_ptr<px::WasAudioCaptureRuntime> weak_runtime = runtime;
         runtime->ConfigureDelivery(
-            context,
-            [weak_runtime, deliveries](const std::shared_ptr<px::PxPluginBaseEvent>&) {
+            [weak_runtime, deliveries](const px::CaptureAudioFrame& frame) {
+                if (!frame.full_data_ || frame.samples_ != 48000 ||
+                    frame.channels_ != 2 || frame.bits_ != 16) {
+                    return;
+                }
                 ++(*deliveries);
                 const auto active_runtime = weak_runtime.lock();
                 if (active_runtime) {
@@ -202,7 +202,6 @@ bool TestCallbackStopAndPostShutdownInvalidationTenRounds() {
             std::printf("FAIL post-shutdown callback round %d\n", round);
             return false;
         }
-        context->OnDestroy();
     }
     return true;
 }

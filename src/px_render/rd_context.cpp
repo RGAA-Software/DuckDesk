@@ -11,8 +11,14 @@
 #include "px_common_new/win32/dynamic_library.h"
 #include "px_common_new/win32/win_helper.h"
 #include "px_common_new/string_util.h"
-#include "px_render/plugins/plugin_manager.h"
+#include "px_render/modules/render_module_registry.h"
 #include "px_render/plugin_interface/px_plugin_interface.h"
+#include "architecture/pipeline/encoded_media_bus.h"
+#include "architecture/processors/frame_carrier_processor.h"
+#include "architecture/processors/frame_resizer_processor.h"
+#include "architecture/sinks/media_recorder_sink.h"
+#include "architecture/services/input_replay_service.h"
+#include "architecture/services/joystick_service.h"
 #include "asio2/asio2.hpp"
 
 namespace px
@@ -30,8 +36,8 @@ namespace px
         });
         task_rt_ = std::make_shared<TaskRuntime>(8);
 
-        stream_plugin_thread_ = Thread::Make("stream plugin thread", 128);
-        stream_plugin_thread_->Poll();
+        media_dispatch_thread_ = Thread::Make("media dispatch thread", 128);
+        media_dispatch_thread_->Poll();
         delay_timer_ = std::make_shared<asio2::timer>();
     }
 
@@ -54,8 +60,8 @@ namespace px
         if (task_rt_) {
             task_rt_->Exit();
         }
-        if (stream_plugin_thread_) {
-            stream_plugin_thread_->Exit();
+        if (media_dispatch_thread_) {
+            media_dispatch_thread_->Exit();
         }
         if (async_runtime_) {
             async_runtime_->RequestDrain();
@@ -81,12 +87,121 @@ namespace px
         return msg_notifier_->CreateListener(lane);
     }
 
-    void RdContext::SetPluginManager(const std::shared_ptr<PluginManager>& pm) {
-        plugin_manager_ = pm;
+    void RdContext::SetRenderModuleRegistry(const std::shared_ptr<RenderModuleRegistry>& pm) {
+        module_registry_ = pm;
     }
 
-    std::shared_ptr<PluginManager> RdContext::GetPluginManager() {
-        return plugin_manager_.lock();
+    std::shared_ptr<RenderModuleRegistry> RdContext::GetRenderModuleRegistry() {
+        return module_registry_.lock();
+    }
+
+    void RdContext::SetRenderCompositionRoot(
+        const std::shared_ptr<render::RenderCompositionRoot>& root) {
+        composition_root_ = root;
+    }
+
+    std::shared_ptr<render::RenderCompositionRoot>
+    RdContext::GetRenderCompositionRoot() {
+        return composition_root_.lock();
+    }
+
+    void RdContext::SetFrameDebuggerObserver(
+        const std::shared_ptr<render::FrameDebuggerObserver>& observer) {
+        frame_debugger_observer_ = observer;
+    }
+
+    std::shared_ptr<render::FrameDebuggerObserver>
+    RdContext::GetFrameDebuggerObserver() {
+        return frame_debugger_observer_.lock();
+    }
+
+    void RdContext::SetEncodedMediaBus(
+        const std::shared_ptr<render::EncodedMediaBus>& media_bus) {
+        encoded_media_bus_ = media_bus;
+    }
+
+    std::shared_ptr<render::EncodedMediaBus> RdContext::GetEncodedMediaBus() {
+        return encoded_media_bus_.lock();
+    }
+
+    void RdContext::SetMediaRecorderSink(
+        const std::shared_ptr<render::MediaRecorderSink>& recorder) {
+        media_recorder_sink_ = recorder;
+    }
+
+    std::shared_ptr<render::MediaRecorderSink>
+    RdContext::GetMediaRecorderSink() {
+        return media_recorder_sink_.lock();
+    }
+
+    void RdContext::SetFrameCarrierProcessor(
+        const std::shared_ptr<render::FrameCarrierProcessor>& processor) {
+        frame_carrier_processor_ = processor;
+    }
+
+    std::shared_ptr<render::FrameCarrierProcessor>
+    RdContext::GetFrameCarrierProcessor() {
+        return frame_carrier_processor_.lock();
+    }
+
+    void RdContext::SetFrameResizerProcessor(
+        const std::shared_ptr<render::FrameResizerProcessor>& processor) {
+        frame_resizer_processor_ = processor;
+    }
+
+    std::shared_ptr<render::FrameResizerProcessor>
+    RdContext::GetFrameResizerProcessor() {
+        return frame_resizer_processor_.lock();
+    }
+
+    void RdContext::SetInputReplayService(
+        const std::shared_ptr<render::InputReplayService>& service) {
+        input_replay_service_ = service;
+    }
+
+    std::shared_ptr<render::InputReplayService>
+    RdContext::GetInputReplayService() {
+        return input_replay_service_.lock();
+    }
+
+    void RdContext::SetJoystickService(
+        const std::shared_ptr<render::JoystickService>& service) {
+        joystick_service_ = service;
+    }
+
+    std::shared_ptr<render::JoystickService>
+    RdContext::GetJoystickService() {
+        return joystick_service_.lock();
+    }
+
+    void RdContext::SetFileTransferService(
+        const std::shared_ptr<render::FileTransferService>& service) {
+        file_transfer_service_ = service;
+    }
+
+    std::shared_ptr<render::FileTransferService>
+    RdContext::GetFileTransferService() {
+        return file_transfer_service_.lock();
+    }
+
+    void RdContext::SetNetworkTransportHub(
+        const std::shared_ptr<render::NetworkTransportHub>& hub) {
+        network_transport_hub_ = hub;
+    }
+
+    std::shared_ptr<render::NetworkTransportHub>
+    RdContext::GetNetworkTransportHub() {
+        return network_transport_hub_.lock();
+    }
+
+    void RdContext::SetVoiceCallService(
+        const std::shared_ptr<render::VoiceCallService>& service) {
+        voice_call_service_ = service;
+    }
+
+    std::shared_ptr<render::VoiceCallService>
+    RdContext::GetVoiceCallService() {
+        return voice_call_service_.lock();
     }
 
     void RdContext::PostTask(std::function<void()>&& task) {
@@ -146,9 +261,9 @@ namespace px
             });
     }
 
-    void RdContext::PostStreamPluginTask(std::function<void()>&& task) {
-        if (!exiting_ && stream_plugin_thread_ && task) {
-            stream_plugin_thread_->Post(std::move(task));
+    void RdContext::PostMediaTask(std::function<void()>&& task) {
+        if (!exiting_ && media_dispatch_thread_ && task) {
+            media_dispatch_thread_->Post(std::move(task));
         }
     }
 
@@ -156,12 +271,12 @@ namespace px
         return WinHelper::GetExeFolderPath();
     }
 
-    void RdContext::DispatchAppEvent2Plugins(const std::shared_ptr<AppBaseEvent>& event) {
-        const auto plugin_manager = plugin_manager_.lock();
-        if (exiting_ || !plugin_manager || !event) {
+    void RdContext::DispatchAppEventToModules(const std::shared_ptr<AppBaseEvent>& event) {
+        const auto module_registry = module_registry_.lock();
+        if (exiting_ || !module_registry || !event) {
             return;
         }
-        plugin_manager->VisitAllPlugins([event](PxPluginInterface* plugin) { // NOLINT(gammaray-raw-pointer-boundary): plug-in visitor ABI
+        module_registry->VisitAllModules([event](const std::shared_ptr<PxPluginInterface>& plugin) {
             plugin->DispatchAppEvent(event);
         });
     }

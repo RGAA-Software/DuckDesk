@@ -60,8 +60,6 @@ DEFINE_string(app_game_view_path, "", "Base64-encoded UTF-8 UE view (real game) 
 DEFINE_string(app_game_args, "", "");
 
 DEFINE_bool(debug_block, false, "block the render process");
-DEFINE_bool(mock_video, false, "use mocking video plugin");
-
 DEFINE_string(device_id, "", "device id");
 DEFINE_string(relay_device_id, "", "independent relay identity for a child render");
 DEFINE_string(device_random_pwd, "", "device random pwd");
@@ -164,8 +162,6 @@ void UpdateSettings(RdSettings* settings) {
     }
 
     settings->block_debug_ = FLAGS_debug_block;
-    settings->capture_.mock_video_ = FLAGS_mock_video;
-
     settings->device_id_ = FLAGS_device_id;
     settings->relay_device_id_ = FLAGS_relay_device_id;
     settings->device_random_pwd_ = FLAGS_device_random_pwd;
@@ -254,7 +250,6 @@ void PrintInputArgs() {
     LOGI("app_game_path: {}", settings->app_.game_path_);
     LOGI("app_game_args: {}", FLAGS_app_game_args);
     LOGI("block debug: {}", FLAGS_debug_block);
-    LOGI("mock video: {}", FLAGS_mock_video);
     LOGI("sig server address: {}", FLAGS_sig_server_address);
     LOGI("sig server port: {}", FLAGS_sig_server_port);
     LOGI("coturn server address: {}", FLAGS_coturn_server_address);

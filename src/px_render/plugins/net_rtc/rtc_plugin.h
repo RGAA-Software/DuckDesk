@@ -55,7 +55,10 @@ namespace px
         std::string GetPluginDescription() override;
         bool OnCreate(const px::PxPluginParam &param) override;
         bool OnDestroy() override;
-        void OnMessageRaw(const std::any &msg) override;
+        void ApplyRtcRemoteSdp(const MsgRtcRemoteSdp& message) override;
+        void ApplyRtcRemoteIce(const MsgRtcRemoteIce& message) override;
+        void ApplyLogicalSessionCapabilities(
+            const PxLogicalSessionCapabilityUpdate& update) override;
         void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;
         bool PostTargetStreamProtoMessage(const std::string &stream_id, std::shared_ptr<Data> msg, bool run_through) override;
         FileTransferSendResult PostTargetFileTransferProtoMessage(

@@ -24,10 +24,13 @@ namespace px
     class RdStatistics;
     class VideoEncoder;
     class RdApplication;
-    class PluginManager;
+    class RenderModuleRegistry;
     class MessageListener;
     class PxVideoEncoderPlugin;
-    class PxFrameCarrierPlugin;
+    namespace render {
+        class FrameCarrierProcessor;
+        class FrameResizerProcessor;
+    }
 
     class EncoderThread : public std::enable_shared_from_this<EncoderThread> {
     public:
@@ -39,7 +42,8 @@ namespace px
         void Encode(const CaptureVideoFrame& msg);
         void HandleD3DDeviceFailure(uint64_t adapter_uid);
         void Exit();
-        std::map<std::string, PxVideoEncoderPlugin*> GetWorkingVideoEncoderPlugins();
+        std::map<std::string, std::shared_ptr<PxVideoEncoderPlugin>>
+            GetWorkingVideoEncoderPlugins();
 
     private:
         void InitListener();
@@ -47,8 +51,13 @@ namespace px
                             const std::shared_ptr<void>& inflight_guard);
         void PostEncTask(std::function<void()>&& task);
         void PrintEncoderConfig(const px::EncoderConfig& config);
+        void ObserveRawFrame(const std::string& monitor_name,
+                             std::uint64_t frame_index,
+                             std::uint32_t width,
+                             std::uint32_t height) const;
         bool HasEncoderForMonitor(const std::string& monitor_name);
-        PxVideoEncoderPlugin* GetEncoderPluginForMonitor(const std::string& monitor_name);
+        std::shared_ptr<PxVideoEncoderPlugin> GetEncoderPluginForMonitor(
+            const std::string& monitor_name);
 
     private:
         RdSettings* settings_ = nullptr;
@@ -62,16 +71,17 @@ namespace px
         std::shared_ptr<File> debug_file_ = nullptr;
 
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
-        std::shared_ptr<PluginManager> plugin_manager_ = nullptr;
-        std::mutex encoder_plugins_mtx_;
-        std::map<std::string, PxVideoEncoderPlugin*> encoder_plugins_;
+        std::shared_ptr<RenderModuleRegistry> module_registry_ = nullptr;
+        std::mutex encoder_modules_mtx_;
+        std::map<std::string, std::shared_ptr<PxVideoEncoderPlugin>>
+            encoder_plugins_;
         std::map<std::string, std::optional<CaptureVideoFrame>> last_video_frames_;
         // Debounce capture size thrash (e.g. game briefly going fullscreen 1920↔3840).
         std::map<std::string, std::pair<uint32_t, uint32_t>> pending_frame_size_;
         std::map<std::string, int64_t> pending_frame_size_since_ms_;
 
-        // frame carrier plugin
-        PxFrameCarrierPlugin* frame_carrier_plugin_ = nullptr;
+        std::shared_ptr<render::FrameCarrierProcessor> frame_carrier_processor_;
+        std::shared_ptr<render::FrameResizerProcessor> frame_resizer_processor_;
 
         // hardware disabled
         std::atomic_bool hardware_disabled_ = false;

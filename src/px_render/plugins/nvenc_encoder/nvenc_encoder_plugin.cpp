@@ -10,7 +10,6 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
 
-PX_PLUGIN_EXPORT(px::NvencEncoderPlugin)
 
 namespace px
 {
@@ -123,13 +122,16 @@ namespace px
         return ok;
     }
 
-    VideoEncoderError NvencEncoderPlugin::Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, const std::any& extra) {
-        auto cap_video_msg = std::any_cast<CaptureVideoFrame>(extra);
-        auto monitor_name = std::string(cap_video_msg.display_name_);
+    VideoEncoderError NvencEncoderPlugin::Encode(
+        const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d,
+        uint64_t frame_index,
+        const CaptureVideoFrame& capture_frame) {
+        auto monitor_name = std::string(capture_frame.display_name_);
         if (!HasEncoderForMonitor(monitor_name)) {
             return VideoEncoderError::NotFound();
         }
-        if (!video_encoders_[monitor_name]->Encode(tex2d, frame_index, extra)) {
+        if (!video_encoders_[monitor_name]->Encode(
+                tex2d, frame_index, capture_frame)) {
             return VideoEncoderError::EncodeFailed();
         }
         return VideoEncoderError::Ok();

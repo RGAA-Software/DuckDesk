@@ -13,5 +13,5 @@ set(PLUGIN_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/http_handler.cpp
 )
 
-add_library(${PROJECT_NAME} SHARED ${PLUGIN_SRCS})
+add_library(${PROJECT_NAME} STATIC ${PLUGIN_SRCS})
 target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_net_plugin protobuf::libprotobuf px_message px_rp_message)

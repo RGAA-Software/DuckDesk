@@ -1,0 +1,7 @@
+@echo off
+setlocal
+if not "%~1"=="" set "CPP_BUILD_JOBS=%~1"
+call "%~dp0scripts\build_cpp_target.bat" test_render_architecture_core test_network_transport_hub test_media_recorder_sink test_live_pusher_sink test_live_pusher_ffmpeg test_frame_resizer_processor test_frame_carrier_processor test_opus_encoder_processor test_opus_encoder_runtime test_input_replay_service test_joystick_service test_file_transfer_service test_was_audio_capture_source test_was_audio_capture_runtime test_rtc_plugins_dll_lifecycle test_render_builtin_linkage check_cpp_ownership
+if errorlevel 1 exit /b %errorlevel%
+ctest --test-dir "%~dp0build_official" -R "^(render_architecture_core|network_transport_hub|media_recorder_sink|live_pusher_sink|live_pusher_ffmpeg|frame_resizer_processor|frame_carrier_processor|opus_encoder_processor|opus_encoder_runtime|input_replay_service|joystick_service|file_transfer_service|was_audio_capture_source|was_audio_capture_runtime|rtc_plugins_dll_lifecycle|render_builtin_linkage|render_architecture_boundary_guard|render_retired_modules_guard)$" --output-on-failure
+exit /b %errorlevel%

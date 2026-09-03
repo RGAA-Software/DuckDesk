@@ -30,5 +30,5 @@ if not "%VC_TOOLS_DIR%"=="" (
 cmake -S . -B build_official -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -Wno-dev
 if errorlevel 1 exit /b %errorlevel%
 
-cmake --build build_official --target test_miniaudio_pid_loopback cap_was_audio -j18
+cmake --build build_official --target test_miniaudio_pid_loopback -j18
 exit /b %errorlevel%

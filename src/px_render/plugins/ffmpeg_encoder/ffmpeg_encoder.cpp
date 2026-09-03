@@ -234,7 +234,9 @@ namespace px
         }
     }
 
-    bool FFmpegEncoder::Encode(std::shared_ptr<Image> image, uint64_t frame_index, const std::any & extra) {
+    bool FFmpegEncoder::Encode(std::shared_ptr<Image> image,
+                               uint64_t frame_index,
+                               const CaptureVideoFrame& capture_frame) {
         auto beg = TimeUtil::GetCurrentTimestamp();
 
         // WebRTC BWE 随动 1:目标码率变化 -> 节流(>=3s 且幅度>15%)重开 x264。
@@ -274,7 +276,6 @@ namespace px
         // 被 webrtc 记为编码器过载。带宽控制只由上面的码率跟随承担。
         last_encode_ts_ = beg;
 
-        auto cap_video_frame = std::any_cast<CaptureVideoFrame>(extra);
         auto img_width = image->width;
         auto img_height = image->height;
         auto image_data = image->data;
@@ -284,7 +285,7 @@ namespace px
         // re-create when width/height changed
         // todo
         frame_->pts = (int64_t)frame_index;
-        if (insert_idr_ || cap_video_frame.request_idr_) {
+        if (insert_idr_ || capture_frame.request_idr_) {
             insert_idr_ = false;
             frame_->flags |= AV_FRAME_FLAG_KEY;
             frame_->pict_type = AV_PICTURE_TYPE_I;
@@ -358,7 +359,7 @@ namespace px
             event->frame_height_ = img_height;
             event->key_frame_ = key_frame;
             event->frame_index_ = frame_index;
-            event->extra_ = extra;
+            event->capture_frame_ = capture_frame;
             if (AV_PIX_FMT_YUV420P == codec_ctx_->pix_fmt) {
                 event->frame_format_ = RawImageType::kI420;
             }

@@ -34,7 +34,6 @@ namespace px
     static const std::string kStAppGamePath = "app_game_path";
     static const std::string kStAppGameArgs = "app_game_args";
     static const std::string kStDebugBlock = "debug_block";
-    static const std::string kStMockVideo = "mock_video";
     static const std::string kStPanelListeningPort = "panel_listen_port";
     static const std::string kStPanelServerHost = "panel_server_host";
     static const std::string kStServiceServerHost = "service_server_host";

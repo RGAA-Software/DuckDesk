@@ -8,10 +8,12 @@
 #include "px_encoder_new/encoder_config.h"
 #include "px_encoder_new/video_encoder.h"
 #include "px_common_new/fps_stat.h"
+#include "px_capture_new/capture_message.h"
 #include <thread>
 #include <fstream>
 #include <functional>
-#include <any>
+#include <map>
+#include <mutex>
 
 typedef std::function<void (amf::AMFData *)> AMFTextureReceiver;
 
@@ -64,7 +66,9 @@ namespace px
         ~VideoEncoderVCE();
 
         bool Initialize(const px::EncoderConfig &config);
-        bool Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, std::any extra);
+        bool Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d,
+                    uint64_t frame_index,
+                    const CaptureVideoFrame& capture_frame);
         void InsertIdr();
         void Exit();
         void Shutdown();
@@ -92,7 +96,8 @@ namespace px
         ComPtr<ID3D11Device> d3d11_device_;
         ComPtr<ID3D11DeviceContext> d3d11_device_context_;
 
-        std::any extra_;
+        std::mutex capture_frames_mutex_;
+        std::map<std::uint64_t, CaptureVideoFrame> capture_frames_;
 
         std::shared_ptr<FpsStat> fps_stat_ = nullptr;
         std::deque<int32_t> encode_durations_;

@@ -10,9 +10,6 @@
 #include "miniaudio_audio_capture.h"
 #include "process_loopback_audio_capture.h"
 #include "px_common_new/log.h"
-#include "px_render/plugin_interface/px_plugin_context.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
-#include "px_render/plugins/plugin_ids.h"
 
 namespace px {
 namespace {
@@ -69,10 +66,9 @@ void WasAudioCaptureRuntime::StartWorker() {
 }
 
 void WasAudioCaptureRuntime::ConfigureDelivery(
-    std::weak_ptr<PxPluginContext> context,
-    EventCallback callback,
+    FrameCallback callback,
     bool audio_enabled) {
-    event_channel_->Configure(std::move(context), std::move(callback), audio_enabled);
+    event_channel_->Configure(std::move(callback), audio_enabled);
 }
 
 void WasAudioCaptureRuntime::SetAudioEnabled(bool enabled) {
@@ -160,12 +156,13 @@ int WasAudioCaptureRuntime::StartCapture(
             if (!runtime || runtime->shutting_down_ || !data || data->Size() <= 0) {
                 return;
             }
-            auto event = std::make_shared<PxPluginRawAudioFrameEvent>();
-            event->full_data_ = data;
-            event->sample_rate_ = runtime->samples_.load();
-            event->channels_ = runtime->channels_.load();
-            event->bits_ = runtime->bits_.load();
-            runtime->event_channel_->Publish(event);
+            CaptureAudioFrame frame;
+            frame.frame_index_ = ++runtime->frame_index_;
+            frame.full_data_ = data;
+            frame.samples_ = static_cast<uint32_t>(runtime->samples_.load());
+            frame.channels_ = static_cast<uint32_t>(runtime->channels_.load());
+            frame.bits_ = static_cast<uint32_t>(runtime->bits_.load());
+            runtime->event_channel_->Publish(frame);
         });
     capture->RegisterSplitDataCallback(
         [weak_runtime](const auto& left, const auto& right) {
@@ -173,13 +170,14 @@ int WasAudioCaptureRuntime::StartCapture(
             if (!runtime || runtime->shutting_down_) {
                 return;
             }
-            auto event = std::make_shared<PxPluginSplitRawAudioFrameEvent>();
-            event->left_ch_data_ = left;
-            event->right_ch_data_ = right;
-            event->sample_rate_ = runtime->samples_.load();
-            event->channels_ = runtime->channels_.load();
-            event->bits_ = runtime->bits_.load();
-            runtime->event_channel_->Publish(event);
+            CaptureAudioFrame frame;
+            frame.frame_index_ = ++runtime->frame_index_;
+            frame.left_ch_data_ = left;
+            frame.right_ch_data_ = right;
+            frame.samples_ = static_cast<uint32_t>(runtime->samples_.load());
+            frame.channels_ = static_cast<uint32_t>(runtime->channels_.load());
+            frame.bits_ = static_cast<uint32_t>(runtime->bits_.load());
+            runtime->event_channel_->Publish(frame);
         });
     capture->RegisterStopCallback(
         [weak_runtime, weak_capture, capture_pid, capture_generation]() {
@@ -373,11 +371,9 @@ WasAudioCaptureRuntime::DefaultProcessAlivePredicate() {
 }
 
 void WasAudioCaptureRuntime::EventChannel::Configure(
-    std::weak_ptr<PxPluginContext> new_context,
-    EventCallback new_callback,
+    FrameCallback new_callback,
     bool audio_enabled) {
     std::lock_guard lock(mutex);
-    context = std::move(new_context);
     callback = std::move(new_callback);
     enabled = audio_enabled;
 }
@@ -391,45 +387,20 @@ void WasAudioCaptureRuntime::EventChannel::Disable() {
     enabled = false;
     std::lock_guard lock(mutex);
     callback = {};
-    context.reset();
 }
 
 void WasAudioCaptureRuntime::EventChannel::Publish(
-    const std::shared_ptr<PxPluginBaseEvent>& event) {
-    if (!event || !accepting || !enabled) {
+    const CaptureAudioFrame& frame) {
+    if (!accepting || !enabled) {
         return;
     }
-    std::weak_ptr<PxPluginContext> weak_context;
-    {
-        std::lock_guard lock(mutex);
-        weak_context = context;
-    }
-    const auto target_context = weak_context.lock();
-    if (!target_context) {
-        return;
-    }
-    event->plugin_name_ = kWasAudioCapturePluginId;
-    const auto weak_channel = weak_from_this();
-    target_context->PostWorkTask([weak_channel, event]() {
-        const auto channel = weak_channel.lock();
-        if (channel) {
-            channel->Deliver(event);
-        }
-    });
-}
-
-void WasAudioCaptureRuntime::EventChannel::Deliver(
-    const std::shared_ptr<PxPluginBaseEvent>& event) {
-    if (!event || !accepting || !enabled) {
-        return;
-    }
-    EventCallback delivery;
+    FrameCallback delivery;
     {
         std::lock_guard lock(mutex);
         delivery = callback;
     }
-    if (delivery) {
-        delivery(event);
+    if (delivery && accepting && enabled) {
+        delivery(frame);
     }
 }
 

@@ -11,6 +11,7 @@
 #include <optional>
 #include "px_plugin_interface.h"
 #include "px_encoder_new/encoder_config.h"
+#include "px_capture_new/capture_message.h"
 
 namespace px
 {
@@ -130,8 +131,14 @@ namespace px
         virtual bool CanEncodeTexture();
         virtual bool HasEncoderForMonitor(const std::string& monitor_name) = 0;
         virtual bool Init(const EncoderConfig& config, const std::string& monitor_name);
-        virtual VideoEncoderError Encode(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d, uint64_t frame_index, const std::any& extra);
-        virtual VideoEncoderError Encode(const std::shared_ptr<Image>& i420_image, uint64_t frame_index, const std::any& extra);
+        virtual VideoEncoderError Encode(
+            const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d,
+            uint64_t frame_index,
+            const CaptureVideoFrame& capture_frame);
+        virtual VideoEncoderError Encode(
+            const std::shared_ptr<Image>& i420_image,
+            uint64_t frame_index,
+            const CaptureVideoFrame& capture_frame);
         virtual void Exit(const std::string& monitor_name);
         virtual void ExitAll();
         // encoding information for monitors/hook
