@@ -5,6 +5,7 @@
 #ifndef PX_WS_PLUGIN_H
 #define PX_WS_PLUGIN_H
 
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -53,12 +54,35 @@ namespace px
         std::vector<std::shared_ptr<PxConnectedClientInfo>> GetConnectedClientInfo() override;
         void DispatchAppEvent(const std::shared_ptr<AppBaseEvent> &event) override;
         void OnMessageAck(const std::shared_ptr<NetMessageAck> &ack) override;
-        void ConfigureNetworkPeers(
-            const std::vector<std::shared_ptr<PxNetPlugin>>& peers);
-        [[nodiscard]] std::vector<std::shared_ptr<PxNetPlugin>>
-        GetNetworkPeers() const;
-        [[nodiscard]] std::shared_ptr<PxNetPlugin> GetLocalRtcPlugin() const;
-        [[nodiscard]] std::shared_ptr<PxNetPlugin> GetUdpTransport() const;
+        using NetworkBroadcaster = std::function<void(
+            const std::shared_ptr<Data>&, bool)>;
+        using FileTransferBroadcaster = std::function<void(
+            const std::string&, const std::shared_ptr<Data>&, bool)>;
+        using LocalRtcCompletion = std::function<void(
+            const std::shared_ptr<PxLocalRtcReplyInfo>&)>;
+        using LocalRtcAllocator = std::function<PxLocalRtcAllocResult(
+            const std::shared_ptr<PxLocalRtcRequestInfo>&,
+            LocalRtcCompletion)>;
+        using UdpAssociationUpdater = std::function<bool(
+            const UdpMediaAssociation&)>;
+
+        void ConfigureNetworkServices(
+            NetworkBroadcaster network_broadcaster,
+            FileTransferBroadcaster file_transfer_broadcaster,
+            LocalRtcAllocator local_rtc_allocator,
+            UdpAssociationUpdater udp_association_updater);
+        void BroadcastNetworkMessage(
+            const std::shared_ptr<Data>& message, bool run_through) const;
+        void BroadcastFileTransferMessage(
+            const std::string& stream_id,
+            const std::shared_ptr<Data>& message,
+            bool run_through) const;
+        [[nodiscard]] PxLocalRtcAllocResult AllocateLocalRtcInstance(
+            const std::shared_ptr<PxLocalRtcRequestInfo>& request,
+            LocalRtcCompletion completion) const;
+        [[nodiscard]] bool HasLocalRtcService() const;
+        [[nodiscard]] bool UpdateUdpAssociation(
+            const UdpMediaAssociation& association) const;
 
         // 记录当前编码输出的显示器名(Web 端输入回放需要 monitor_name)
         void OnEncodedVideoFrame(const std::string& mon_name,
@@ -78,8 +102,11 @@ namespace px
         std::shared_ptr<NetMessageAck> last_ack_ = nullptr;
         std::mutex capturing_mon_mtx_;
         std::string capturing_mon_name_;
-        mutable std::mutex network_peers_mutex_;
-        std::vector<std::weak_ptr<PxNetPlugin>> network_peers_;
+        mutable std::mutex network_services_mutex_;
+        NetworkBroadcaster network_broadcaster_;
+        FileTransferBroadcaster file_transfer_broadcaster_;
+        LocalRtcAllocator local_rtc_allocator_;
+        UdpAssociationUpdater udp_association_updater_;
         // exe 侧通过插件参数下发("app_mode");DLL 内的 RdSettings 单例是独立副本不可用
         bool game_hook_mode_ = false;
     };

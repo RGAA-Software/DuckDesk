@@ -92,20 +92,10 @@ namespace px
             return;
         }
 
-        // Network peers are explicitly injected by the Render composition;
-        // user-proxy traffic never performs service-locator lookup.
-        auto for_each_transport = [plugin](const auto& operation) {
-            for (const auto& peer : plugin->GetNetworkPeers()) {
-                operation(peer);
-            }
-        };
-
         if (m.type() == pxrp::kRpClipboardEvent) {
             const auto& clipboard_info = m.clipboard_info();
             auto broadcast = [&](const std::shared_ptr<Data>& buffer) {
-                for_each_transport([&](const std::shared_ptr<PxNetPlugin>& transport) {
-                    transport->PostProtoMessage(buffer, false);
-                });
+                plugin->BroadcastNetworkMessage(buffer, false);
             };
             if (clipboard_info.type() == pxrp::kRpClipboardText) {
                 LOGI("user-proxy clipboard text outbound, len={}", clipboard_info.msg().size());
@@ -143,14 +133,13 @@ namespace px
             bool inner_parsed = inner.ParseFromArray(sub.msg().data(), (int)sub.msg().size());
             LOGI("[LAT-clip] user-proxy outbound, data_channel={}, stream_id={}, inner_type={}, len={}",
                  sub.data_channel(), sub.stream_id(), inner_parsed ? (int)inner.type() : -1, sub.msg().size());
-            for_each_transport([&](const std::shared_ptr<PxNetPlugin>& transport) {
-                if (sub.data_channel()) {
-                    transport->PostTargetFileTransferProtoMessage(
-                        sub.stream_id(), buffer, sub.run_through());
-                } else {
-                    transport->PostProtoMessage(buffer, sub.run_through());
-                }
-            });
+            if (sub.data_channel()) {
+                plugin->BroadcastFileTransferMessage(
+                    sub.stream_id(), buffer, sub.run_through());
+            }
+            else {
+                plugin->BroadcastNetworkMessage(buffer, sub.run_through());
+            }
             return;
         }
 

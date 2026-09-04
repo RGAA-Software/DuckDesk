@@ -5,6 +5,7 @@
 #ifndef PX_RENDER_MODULES_RENDER_MODULE_REGISTRY_H
 #define PX_RENDER_MODULES_RENDER_MODULE_REGISTRY_H
 
+#include <functional>
 #include <memory>
 #include <cstdint>
 #include <string>
@@ -44,6 +45,10 @@ namespace px
     class PxPluginEncodedVideoFrameEvent;
     class AppBaseEvent;
     class PxLogicalSessionCapabilityUpdate;
+    class PxLocalRtcRequestInfo;
+    class PxLocalRtcReplyInfo;
+    enum class PxLocalRtcAllocResult;
+    struct UdpMediaAssociation;
 
     struct RenderModuleInfo final {
         std::string id;
@@ -95,6 +100,12 @@ namespace px
         void ApplyRtcLocalRemoteSdp(const MsgRtcRemoteSdp& message);
         void ApplyRtcLocalRemoteIce(const MsgRtcRemoteIce& message);
         void DispatchRtcLocalMessage(const std::shared_ptr<Message>& message);
+        [[nodiscard]] PxLocalRtcAllocResult AllocateRtcLocalInstance(
+            const std::shared_ptr<PxLocalRtcRequestInfo>& request,
+            std::function<void(
+                const std::shared_ptr<PxLocalRtcReplyInfo>&)>&& completion);
+        [[nodiscard]] bool UpdateUdpMediaAssociation(
+            const UdpMediaAssociation& association);
         void BroadcastNetworkMessage(
             const std::shared_ptr<Data>& message, bool run_through);
         void BroadcastTargetStreamMessage(

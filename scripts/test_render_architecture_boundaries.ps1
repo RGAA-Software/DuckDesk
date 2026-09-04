@@ -152,8 +152,18 @@ $wsBuiltInFiles = Get-ChildItem -LiteralPath `
     (Join-Path $RepoRoot "src\px_render\plugins\net_ws") -Recurse -File |
     Where-Object { $_.Extension -in @(".h", ".hpp", ".cpp", ".cc", ".cxx") }
 foreach ($file in $wsBuiltInFiles) {
-    if ((Get-Content -LiteralPath $file.FullName -Raw) -match "GetPluginById") {
-        $violations.Add("$($file.FullName): built-in WS transport cannot use the legacy service locator")
+    $content = Get-Content -LiteralPath $file.FullName -Raw
+    foreach ($entry in ([ordered]@{
+        "GetPluginById" = "built-in WS transport cannot use the legacy service locator"
+        "ConfigureNetworkPeers" = "built-in WS transport must inject explicit network capabilities"
+        "GetNetworkPeers" = "built-in WS transport cannot traverse the transport graph"
+        "GetLocalRtcPlugin" = "built-in WS transport cannot expose RTC plug-in instances"
+        "GetUdpTransport" = "built-in WS transport cannot expose UDP plug-in instances"
+        "network_peers_" = "built-in WS transport cannot retain a peer graph"
+    }).GetEnumerator()) {
+        if ($content -match $entry.Key) {
+            $violations.Add("$($file.FullName): $($entry.Value)")
+        }
     }
 }
 

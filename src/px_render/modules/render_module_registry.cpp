@@ -193,7 +193,47 @@ namespace px
                  module_id, module->GetVersionName());
         }
 
-        ws_transport->ConfigureNetworkPeers(network_transports_);
+        WsPlugin::LocalRtcAllocator local_rtc_allocator;
+        if (rtc_local_transport_) {
+            local_rtc_allocator =
+                [weak_registry](
+                    const std::shared_ptr<PxLocalRtcRequestInfo>& request,
+                    WsPlugin::LocalRtcCompletion completion) {
+                    if (const auto registry = weak_registry.lock()) {
+                        return registry->AllocateRtcLocalInstance(
+                            request, std::move(completion));
+                    }
+                    return PxLocalRtcAllocResult::kFailed;
+                };
+        }
+        WsPlugin::UdpAssociationUpdater udp_association_updater;
+        if (udp_transport_) {
+            udp_association_updater =
+                [weak_registry](const UdpMediaAssociation& association) {
+                    if (const auto registry = weak_registry.lock()) {
+                        return registry->UpdateUdpMediaAssociation(association);
+                    }
+                    return false;
+                };
+        }
+
+        ws_transport->ConfigureNetworkServices(
+            [weak_registry](const std::shared_ptr<Data>& message,
+                            const bool run_through) {
+                if (const auto registry = weak_registry.lock()) {
+                    registry->BroadcastNetworkMessage(message, run_through);
+                }
+            },
+            [weak_registry](const std::string& stream_id,
+                            const std::shared_ptr<Data>& message,
+                            const bool run_through) {
+                if (const auto registry = weak_registry.lock()) {
+                    registry->BroadcastFileTransferMessage(
+                        stream_id, message, run_through);
+                }
+            },
+            std::move(local_rtc_allocator),
+            std::move(udp_association_updater));
 
     }
 
@@ -484,6 +524,35 @@ namespace px
         if (rtc_local) {
             rtc_local->OnMessage(message);
         }
+    }
+
+    PxLocalRtcAllocResult RenderModuleRegistry::AllocateRtcLocalInstance(
+        const std::shared_ptr<PxLocalRtcRequestInfo>& request,
+        std::function<void(
+            const std::shared_ptr<PxLocalRtcReplyInfo>&)>&& completion) {
+        std::shared_ptr<PxNetPlugin> rtc_local;
+        {
+            std::shared_lock lock(modules_mtx_);
+            rtc_local = rtc_local_transport_;
+        }
+        return rtc_local
+            ? rtc_local->AllocNewLocalRtcInstance(
+                  request, std::move(completion))
+            : PxLocalRtcAllocResult::kFailed;
+    }
+
+    bool RenderModuleRegistry::UpdateUdpMediaAssociation(
+        const UdpMediaAssociation& association) {
+        std::shared_ptr<PxNetPlugin> udp;
+        {
+            std::shared_lock lock(modules_mtx_);
+            udp = udp_transport_;
+        }
+        if (udp) {
+            udp->UpdateUdpMediaAssociation(association);
+            return true;
+        }
+        return false;
     }
 
     void RenderModuleRegistry::BroadcastNetworkMessage(

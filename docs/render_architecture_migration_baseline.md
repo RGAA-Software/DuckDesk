@@ -264,7 +264,7 @@ interface。
 | `net_rtc_local.dll` | 23,812,096 B | `8DAD463F79CE4E9A794DFC8FDB917E915C58CE0EAE26F574A9710AA5969D4645` |
 
 `px_render.exe` 的最终 SHA-256 为
-`98E99368C5F762FB962BCB1F5C82E288BEC22F9F595EBC9F64E991AE1FEE4D27`。以上三项均在
+`2F0A7845191F5C44BB9586ABABFFB465D5BA863638585727BB34023A1F29F478`。以上三项均在
 最后一次构建后重新发布，并独立比较 build tree 与 dist，结果全部相同；
 `render_retired_modules_guard -CheckDist` 通过。
 
@@ -290,3 +290,27 @@ interface。
 
 本阶段 `px_render` 聚焦构建通过，统一 Render CTest 18/18 通过，ownership、architecture
 guard 和 `git diff --check` 均通过；构建树与 dist 的上述最终哈希重新核对一致。
+
+### 阶段 11：WS 网络能力显式注入
+
+- 静态 WS 模块不再保存 `vector<weak_ptr<PxNetPlugin>>` 网络 peer graph，也不再暴露
+  `ConfigureNetworkPeers`、`GetNetworkPeers`、`GetLocalRtcPlugin` 或 `GetUdpTransport`。
+- 组合根只向 WS 注入其实际需要的四项能力：网络广播、文件传输定向广播、Local RTC
+  分配和 UDP association 更新。每项能力都是具名 typed callback，不允许 WS 枚举、识别
+  或持有具体 transport。
+- 所有注入 callback 只捕获 `weak_ptr<RenderModuleRegistry>`，调用时先 `lock()`；Registry
+  在锁内仅取得目标模块的强所有权快照，释放组合锁后再进入模块，避免异步销毁、重入或
+  shutdown 与组合锁形成生命周期耦合。
+- UDP 更新现在返回真实的可用性结果。Registry 已销毁或 UDP 模块不可用时，WS 会记录
+  明确错误且不再误报 association 已注册。
+- 架构守卫扫描整个静态 WS 源码，禁止旧 peer graph API、具体 RTC/UDP getter 和
+  `network_peers_` 成员重新出现。
+- `render_builtin_linkage` 新增显式能力测试，连续调用 100 轮网络广播、文件传输、RTC 分配
+  和 UDP 更新；能力 owner 释放后继续触发迟到调用，验证 weak lifetime 会安全拒绝 RTC/UDP
+  操作且不会访问已销毁状态。
+
+本阶段使用目标级入口构建 `px_render`、`test_render_builtin_linkage` 和
+`check_cpp_ownership`；关键 linkage 与 architecture guard 各连续 5 轮通过，随后统一
+Render CTest 18/18 通过。发布脚本同步运行产物后，独立复核 build tree 与
+`build_official/dist`：`px_render.exe` 及两个 RTC DLL 的 SHA-256 均逐项相同，插件目录仍
+只包含 `net_rtc.dll` 与 `net_rtc_local.dll`。

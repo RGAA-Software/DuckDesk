@@ -220,47 +220,74 @@ namespace px
         }
     }
 
-    void WsPlugin::ConfigureNetworkPeers(
-        const std::vector<std::shared_ptr<PxNetPlugin>>& peers) {
-        std::scoped_lock lock(network_peers_mutex_);
-        network_peers_.clear();
-        network_peers_.reserve(peers.size());
-        for (const auto& peer : peers) {
-            if (peer) {
-                network_peers_.push_back(peer);
-            }
+    void WsPlugin::ConfigureNetworkServices(
+        NetworkBroadcaster network_broadcaster,
+        FileTransferBroadcaster file_transfer_broadcaster,
+        LocalRtcAllocator local_rtc_allocator,
+        UdpAssociationUpdater udp_association_updater) {
+        std::scoped_lock lock(network_services_mutex_);
+        network_broadcaster_ = std::move(network_broadcaster);
+        file_transfer_broadcaster_ = std::move(file_transfer_broadcaster);
+        local_rtc_allocator_ = std::move(local_rtc_allocator);
+        udp_association_updater_ = std::move(udp_association_updater);
+    }
+
+    void WsPlugin::BroadcastNetworkMessage(
+        const std::shared_ptr<Data>& message,
+        const bool run_through) const {
+        NetworkBroadcaster broadcaster;
+        {
+            std::scoped_lock lock(network_services_mutex_);
+            broadcaster = network_broadcaster_;
+        }
+        if (broadcaster && message) {
+            broadcaster(message, run_through);
         }
     }
 
-    std::vector<std::shared_ptr<PxNetPlugin>>
-    WsPlugin::GetNetworkPeers() const {
-        std::vector<std::shared_ptr<PxNetPlugin>> peers;
-        std::scoped_lock lock(network_peers_mutex_);
-        peers.reserve(network_peers_.size());
-        for (const auto& weak_peer : network_peers_) {
-            if (const auto peer = weak_peer.lock()) {
-                peers.push_back(peer);
-            }
+    void WsPlugin::BroadcastFileTransferMessage(
+        const std::string& stream_id,
+        const std::shared_ptr<Data>& message,
+        const bool run_through) const {
+        FileTransferBroadcaster broadcaster;
+        {
+            std::scoped_lock lock(network_services_mutex_);
+            broadcaster = file_transfer_broadcaster_;
         }
-        return peers;
+        if (broadcaster && message) {
+            broadcaster(stream_id, message, run_through);
+        }
     }
 
-    std::shared_ptr<PxNetPlugin> WsPlugin::GetLocalRtcPlugin() const {
-        for (const auto& peer : GetNetworkPeers()) {
-            if (peer->GetPluginId() == kNetRtcLocalPluginId) {
-                return peer;
-            }
+    PxLocalRtcAllocResult WsPlugin::AllocateLocalRtcInstance(
+        const std::shared_ptr<PxLocalRtcRequestInfo>& request,
+        LocalRtcCompletion completion) const {
+        LocalRtcAllocator allocator;
+        {
+            std::scoped_lock lock(network_services_mutex_);
+            allocator = local_rtc_allocator_;
         }
-        return {};
+        return allocator
+            ? allocator(request, std::move(completion))
+            : PxLocalRtcAllocResult::kFailed;
     }
 
-    std::shared_ptr<PxNetPlugin> WsPlugin::GetUdpTransport() const {
-        for (const auto& peer : GetNetworkPeers()) {
-            if (peer->GetPluginId() == kNetUdpPluginId) {
-                return peer;
-            }
+    bool WsPlugin::HasLocalRtcService() const {
+        std::scoped_lock lock(network_services_mutex_);
+        return static_cast<bool>(local_rtc_allocator_);
+    }
+
+    bool WsPlugin::UpdateUdpAssociation(
+        const UdpMediaAssociation& association) const {
+        UdpAssociationUpdater updater;
+        {
+            std::scoped_lock lock(network_services_mutex_);
+            updater = udp_association_updater_;
         }
-        return {};
+        if (!updater) {
+            return false;
+        }
+        return updater(association);
     }
 
     void WsPlugin::OnMessageAck(const std::shared_ptr<NetMessageAck> &ack) {

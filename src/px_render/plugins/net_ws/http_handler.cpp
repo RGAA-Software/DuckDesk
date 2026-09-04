@@ -437,8 +437,7 @@ namespace px
             ticket_allow_takeover = local_settings.direct_allow_takeover_;
         }
 
-        auto rtc_plugin = this->plugin_->GetLocalRtcPlugin();
-        if (rtc_plugin == nullptr) {
+        if (!plugin_->HasLocalRtcService()) {
             SendErrorJson(resp, kHandlerErrNoRtcLocalPlugin);
             return;
         }
@@ -555,7 +554,7 @@ namespace px
         }
 
         const auto reply_wait_state = std::make_shared<LocalRtcReplyWaitState>();
-        const auto r = rtc_plugin->AllocNewLocalRtcInstance(rtc_req, [reply_wait_state](
+        const auto r = plugin_->AllocateLocalRtcInstance(rtc_req, [reply_wait_state](
             const std::shared_ptr<PxLocalRtcReplyInfo>& reply) {
             {
                 std::scoped_lock lock(reply_wait_state->mutex_);
