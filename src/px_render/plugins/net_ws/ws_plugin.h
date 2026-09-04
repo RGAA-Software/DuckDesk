@@ -14,6 +14,8 @@
 namespace px
 {
 
+    class CaptureAudioFrame;
+    class CaptureVideoFrame;
     class WsPluginServer;
 
     class WsPlugin : public PxNetPlugin {
@@ -65,6 +67,10 @@ namespace px
             LocalRtcCompletion)>;
         using UdpAssociationUpdater = std::function<bool(
             const UdpMediaAssociation&)>;
+        using IpcVideoFrameSink = std::function<void(
+            const CaptureVideoFrame&)>;
+        using IpcAudioFrameSink = std::function<void(
+            const CaptureAudioFrame&)>;
 
         void ConfigureNetworkServices(
             NetworkBroadcaster network_broadcaster,
@@ -83,6 +89,11 @@ namespace px
         [[nodiscard]] bool HasLocalRtcService() const;
         [[nodiscard]] bool UpdateUdpAssociation(
             const UdpMediaAssociation& association) const;
+        void ConfigureIpcMediaIngress(
+            IpcVideoFrameSink video_sink,
+            IpcAudioFrameSink audio_sink);
+        void SubmitIpcVideoFrame(const CaptureVideoFrame& frame) const;
+        void SubmitIpcAudioFrame(const CaptureAudioFrame& frame) const;
 
         // 记录当前编码输出的显示器名(Web 端输入回放需要 monitor_name)
         void OnEncodedVideoFrame(const std::string& mon_name,
@@ -107,6 +118,9 @@ namespace px
         FileTransferBroadcaster file_transfer_broadcaster_;
         LocalRtcAllocator local_rtc_allocator_;
         UdpAssociationUpdater udp_association_updater_;
+        mutable std::mutex ipc_media_ingress_mutex_;
+        IpcVideoFrameSink ipc_video_frame_sink_;
+        IpcAudioFrameSink ipc_audio_frame_sink_;
         // exe 侧通过插件参数下发("app_mode");DLL 内的 RdSettings 单例是独立副本不可用
         bool game_hook_mode_ = false;
     };

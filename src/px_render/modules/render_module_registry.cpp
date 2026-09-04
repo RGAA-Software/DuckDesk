@@ -15,6 +15,7 @@
 #include "px_render/pipeline/encoded_video_fanout.h"
 #include "settings/rd_settings.h"
 #include "px_common_new/folder_util.h"
+#include "px_capture_new/capture_message.h"
 #include "px_render/plugin_interface/px_net_plugin.h"
 #include "px_render/plugin_interface/px_stream_plugin.h"
 #include "px_render/plugin_interface/px_plugin_interface.h"
@@ -234,6 +235,18 @@ namespace px
             },
             std::move(local_rtc_allocator),
             std::move(udp_association_updater));
+        const std::weak_ptr<RdApplication> weak_application = app_;
+        ws_transport->ConfigureIpcMediaIngress(
+            [weak_application](const CaptureVideoFrame& frame) {
+                if (const auto application = weak_application.lock()) {
+                    application->OnCapturedVideoFrame(frame);
+                }
+            },
+            [weak_application](const CaptureAudioFrame& frame) {
+                if (const auto application = weak_application.lock()) {
+                    application->OnIpcAudioFrame(frame);
+                }
+            });
 
     }
 

@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "px_common_new/data.h"
+#include "px_capture_new/capture_message.h"
 #include "amf_encoder/amf_encoder_plugin.h"
 #include "dda_capture/dda_capture_plugin.h"
 #include "ffmpeg_encoder/ffmpeg_encoder_plugin.h"
@@ -121,6 +122,41 @@ TEST(RenderBuiltinLinkageTest, WsUsesExplicitNetworkCapabilitiesWithWeakLifetime
     EXPECT_EQ(ws->AllocateLocalRtcInstance(rtc_request, {}),
               PxLocalRtcAllocResult::kFailed);
     EXPECT_FALSE(ws->UpdateUdpAssociation(UdpMediaAssociation{}));
+}
+
+struct IpcMediaIngressProbe final {
+    std::uint64_t video_frame_index = 0;
+    std::uint64_t audio_frame_index = 0;
+};
+
+TEST(RenderBuiltinLinkageTest, WsIpcMediaUsesTypedWeakIngress) {
+    const auto ws = std::make_shared<WsPlugin>();
+    auto probe = std::make_shared<IpcMediaIngressProbe>();
+    const std::weak_ptr<IpcMediaIngressProbe> weak_probe = probe;
+    ws->ConfigureIpcMediaIngress(
+        [weak_probe](const CaptureVideoFrame& frame) {
+            if (const auto state = weak_probe.lock()) {
+                state->video_frame_index = frame.frame_index_;
+            }
+        },
+        [weak_probe](const CaptureAudioFrame& frame) {
+            if (const auto state = weak_probe.lock()) {
+                state->audio_frame_index = frame.frame_index_;
+            }
+        });
+
+    CaptureVideoFrame video;
+    video.frame_index_ = 41;
+    CaptureAudioFrame audio;
+    audio.frame_index_ = 42;
+    ws->SubmitIpcVideoFrame(video);
+    ws->SubmitIpcAudioFrame(audio);
+    EXPECT_EQ(probe->video_frame_index, 41U);
+    EXPECT_EQ(probe->audio_frame_index, 42U);
+
+    probe.reset();
+    ws->SubmitIpcVideoFrame(video);
+    ws->SubmitIpcAudioFrame(audio);
 }
 
 }  // namespace

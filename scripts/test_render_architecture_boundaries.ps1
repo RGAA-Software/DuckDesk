@@ -102,7 +102,11 @@ $eventIngress = Get-Content -LiteralPath `
 foreach ($eventType in @(
     "kPluginEncodedVideoFrameEvent",
     "kPluginCapturedVideoFrameEvent",
-    "kPluginCursorEvent")) {
+    "kPluginCursorEvent",
+    "kPluginRawVideoFrameEvent",
+    "kPluginRawAudioFrameEvent",
+    "kPluginSplitRawAudioFrameEvent",
+    "kPluginEncodedAudioFrameEvent")) {
     if ($eventIngress -match $eventType) {
         $violations.Add("render_event_ingress.cpp: high-frequency $eventType returned to generic routing")
     }

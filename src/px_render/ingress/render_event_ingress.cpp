@@ -103,44 +103,6 @@ namespace px
             auto target_event = std::dynamic_pointer_cast<PxPluginCapturingMonitorInfoEvent>(event);
             network_ingress_->ProcessCapturingMonitorInfoEvent(target_event);
         }
-        else if (event->event_type_ == PxPluginEventType::kPluginRawVideoFrameEvent) {
-            auto target_event = std::dynamic_pointer_cast<PxPluginRawVideoFrameEvent>(event);
-            auto msg = CaptureVideoFrame{};
-            msg.frame_width_ = target_event->image_->width;
-            msg.frame_height_ = target_event->image_->height;
-            msg.frame_index_ = target_event->frame_index_;
-            msg.raw_image_ = target_event->image_;
-            msg.adapter_uid_ = -1;
-            msg.frame_format_ = target_event->frame_format_;
-            app_->OnCapturedVideoFrame(msg);
-        }
-        else if (event->event_type_ == PxPluginEventType::kPluginRawAudioFrameEvent) {
-            auto target_event = std::dynamic_pointer_cast<PxPluginRawAudioFrameEvent>(event);
-            auto msg = CaptureAudioFrame{};
-            msg.samples_ = target_event->sample_rate_;
-            msg.channels_ = target_event->channels_;
-            msg.bits_ = target_event->bits_;
-            msg.full_data_ = target_event->full_data_;
-            app_->OnCapturedAudioFrame(msg);
-        }
-        else if (event->event_type_ == PxPluginEventType::kPluginSplitRawAudioFrameEvent) {
-            auto target_event = std::dynamic_pointer_cast<PxPluginSplitRawAudioFrameEvent>(event);
-            auto msg = CaptureAudioFrame{};
-            msg.samples_ = target_event->sample_rate_;
-            msg.channels_ = target_event->channels_;
-            msg.bits_ = target_event->bits_;
-            msg.left_ch_data_ = target_event->left_ch_data_;
-            msg.right_ch_data_ = target_event->right_ch_data_;
-            app_->OnCapturedAudioFrame(msg);
-        }
-        else if (event->event_type_ == PxPluginEventType::kPluginEncodedAudioFrameEvent) {
-            auto target_event = std::dynamic_pointer_cast<PxPluginEncodedAudioFrameEvent>(event);
-            network_ingress_->ProcessEncodedAudioFrameEvent(target_event->data_,
-                                                             target_event->sample_rate_,
-                                                             target_event->channels_,
-                                                             target_event->bits_,
-                                                             target_event->frame_size_);
-        }
         else if (event->event_type_ == PxPluginEventType::kPluginInsertIdrEvent) {
             auto target_event = std::dynamic_pointer_cast<PxPluginInsertIdrEvent>(event);
             // mon_name_ 为空 = 广播所有屏(旧行为);非空 = 只给目标屏补 IDR

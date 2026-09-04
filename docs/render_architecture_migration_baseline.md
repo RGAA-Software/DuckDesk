@@ -264,7 +264,7 @@ interface。
 | `net_rtc_local.dll` | 23,812,096 B | `8DAD463F79CE4E9A794DFC8FDB917E915C58CE0EAE26F574A9710AA5969D4645` |
 
 `px_render.exe` 的最终 SHA-256 为
-`2F0A7845191F5C44BB9586ABABFFB465D5BA863638585727BB34023A1F29F478`。以上三项均在
+`BC93AE34BC12C8BD71A55A4CF42D37FFC7103630EE3649166CF355D0F465043D`。以上三项均在
 最后一次构建后重新发布，并独立比较 build tree 与 dist，结果全部相同；
 `render_retired_modules_guard -CheckDist` 通过。
 
@@ -314,3 +314,23 @@ guard 和 `git diff --check` 均通过；构建树与 dist 的上述最终哈希
 Render CTest 18/18 通过。发布脚本同步运行产物后，独立复核 build tree 与
 `build_official/dist`：`px_render.exe` 及两个 RTC DLL 的 SHA-256 均逐项相同，插件目录仍
 只包含 `net_rtc.dll` 与 `net_rtc_local.dll`。
+
+### 阶段 12：GameHook IPC 高频媒体退出通用事件路由
+
+- 静态 WS 的 `/ipc` 输入新增显式 `IpcVideoFrameSink` 与 `IpcAudioFrameSink`；组合根只注入
+  捕获媒体入口，callback 捕获 `weak_ptr<RdApplication>`，不会反向持有应用或形成环。
+- GameHook 视频与音频在 wire 校验完成后直接以 `CaptureVideoFrame`、`CaptureAudioFrame`
+  值进入应用，不再创建 `PxPluginCapturedVideoFrameEvent` 或
+  `PxPluginRawAudioFrameEvent`，减少高频路径的一次堆分配、RTTI 分派和通用路由跳转。
+- wire header 解析不再对 `string_view::data()` 做可能未对齐的 `reinterpret_cast`；固定大小
+  POD 先复制到 `std::array`，再用 `std::bit_cast` 得到 owned 值。PCM payload 也直接构造
+  owned `Data`，不会保留网络接收缓冲区的借用地址。
+- 通用 `RenderEventIngress` 删除已无生产者的 raw video、raw/split audio 和 encoded audio
+  兼容分支。架构守卫新增五类高频事件断言，禁止它们重新进入通用入口。
+- linkage 测试覆盖显式 IPC sink、视频/音频 frame identity 传递以及 sink owner 销毁后的
+  迟到调用安全性；关键 linkage 与 architecture guard 连续 10 轮通过。
+
+本阶段目标级构建和 ownership gate 通过，统一 Render CTest 18/18 通过；发布后
+`px_render.exe` 的 SHA-256 更新为
+`BC93AE34BC12C8BD71A55A4CF42D37FFC7103630EE3649166CF355D0F465043D`，build tree 与 dist
+一致，两个 WebRTC DLL 未变化。

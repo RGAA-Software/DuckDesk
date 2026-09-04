@@ -6,6 +6,7 @@
 #include "ws_server.h"
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
+#include "px_capture_new/capture_message.h"
 #include "px_render/plugins/plugin_ids.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
@@ -288,6 +289,38 @@ namespace px
             return false;
         }
         return updater(association);
+    }
+
+    void WsPlugin::ConfigureIpcMediaIngress(
+        IpcVideoFrameSink video_sink,
+        IpcAudioFrameSink audio_sink) {
+        std::scoped_lock lock(ipc_media_ingress_mutex_);
+        ipc_video_frame_sink_ = std::move(video_sink);
+        ipc_audio_frame_sink_ = std::move(audio_sink);
+    }
+
+    void WsPlugin::SubmitIpcVideoFrame(
+        const CaptureVideoFrame& frame) const {
+        IpcVideoFrameSink sink;
+        {
+            std::scoped_lock lock(ipc_media_ingress_mutex_);
+            sink = ipc_video_frame_sink_;
+        }
+        if (sink) {
+            sink(frame);
+        }
+    }
+
+    void WsPlugin::SubmitIpcAudioFrame(
+        const CaptureAudioFrame& frame) const {
+        IpcAudioFrameSink sink;
+        {
+            std::scoped_lock lock(ipc_media_ingress_mutex_);
+            sink = ipc_audio_frame_sink_;
+        }
+        if (sink) {
+            sink(frame);
+        }
     }
 
     void WsPlugin::OnMessageAck(const std::shared_ptr<NetMessageAck> &ack) {

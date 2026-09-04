@@ -4,8 +4,10 @@
 
 #include "ws_server.h"
 
+#include <array>
 #include <atomic>
 #include <algorithm>
+#include <bit>
 #include <condition_variable>
 #include <memory>
 #include <optional>
@@ -43,6 +45,18 @@ static std::string kUrlWebClientWildcard = "/web_client/*";
 // It must only ever talk to the injected dll on the same machine.
 static bool IsLoopbackAddress(const std::string& addr) {
     return addr == "127.0.0.1" || addr == "::1" || addr == "::ffff:127.0.0.1";
+}
+
+template <typename WireValue>
+static std::optional<WireValue> DecodeWireValue(
+    const std::string_view bytes) {
+    static_assert(std::is_trivially_copyable_v<WireValue>);
+    if (bytes.size() < sizeof(WireValue)) {
+        return std::nullopt;
+    }
+    std::array<char, sizeof(WireValue)> storage{};
+    std::copy_n(bytes.begin(), storage.size(), storage.begin());
+    return std::bit_cast<WireValue>(storage);
 }
 
 // /ipc pid 清扫用:进程是否仍存活(句柄可开且未退出)
@@ -676,15 +690,18 @@ namespace px
                     return;
                 }
                 // POD wire format: first field is magic for video frames.
-                const auto first_u32 = *reinterpret_cast<const uint32_t*>(data.data());
-                if (first_u32 == kIpcCaptureVideoFrameMagic) {
+                const auto first_u32 = DecodeWireValue<std::uint32_t>(data);
+                if (!first_u32) {
+                    return;
+                }
+                if (*first_u32 == kIpcCaptureVideoFrameMagic) {
                     if (data.size() != sizeof(IpcCaptureVideoFrame)) {
                         LOGE("IPC IpcCaptureVideoFrame size mismatch: got {}, expect {}",
                              data.size(), sizeof(IpcCaptureVideoFrame));
                         return;
                     }
-                    const auto* ipc_msg = reinterpret_cast<const IpcCaptureVideoFrame*>(data.data());
-                    if (ipc_msg->version_ != kIpcCaptureVideoFrameVersion
+                    const auto ipc_msg = DecodeWireValue<IpcCaptureVideoFrame>(data);
+                    if (!ipc_msg || ipc_msg->version_ != kIpcCaptureVideoFrameVersion
                         || ipc_msg->type_ != kCaptureVideoFrame) {
                         LOGW("IPC video frame version/type mismatch: ver={} type={:#x}, drop "
                              "(render and px_gh.dll must be updated together)",
@@ -701,8 +718,7 @@ namespace px
                         }
                         return;
                     }
-                    auto event = std::make_shared<PxPluginCapturedVideoFrameEvent>();
-                    auto& frame = event->frame_;
+                    CaptureVideoFrame frame;
                     frame.capture_type_ = ipc_msg->capture_type_;
                     frame.data_length = 0;
                     frame.frame_width_ = ipc_msg->frame_width_;
@@ -711,7 +727,9 @@ namespace px
                     frame.frame_format_ = ipc_msg->frame_format_;
                     frame.handle_ = ipc_msg->handle_;
                     frame.adapter_uid_ = ipc_msg->adapter_uid_;
-                    memcpy(frame.display_name_, ipc_msg->display_name_, sizeof(frame.display_name_));
+                    std::copy(std::begin(ipc_msg->display_name_),
+                              std::end(ipc_msg->display_name_),
+                              std::begin(frame.display_name_));
                     frame.display_name_[sizeof(frame.display_name_) - 1] = 0;
                     frame.monitor_index_ = ipc_msg->monitor_index_;
                     frame.left_ = ipc_msg->left_;
@@ -720,11 +738,10 @@ namespace px
                     frame.bottom_ = ipc_msg->bottom_;
                     frame.request_idr_ = ipc_msg->request_idr_ != 0;
                     // raw_image_ stays null — never deserialized from the wire.
-                    self->plugin_->CallbackEvent(event);
+                    self->plugin_->SubmitIpcVideoFrame(frame);
                     return;
                 }
-                auto base_msg = (const CaptureBaseMessage*)data.data();
-                if (base_msg->type_ == kCaptureVideoFrame) {
+                if (*first_u32 == kCaptureVideoFrame) {
                     // Legacy non-POD blob (old dll): refuse it, it used to memcpy a shared_ptr.
                     static std::atomic<uint64_t> s_legacy{0};
                     const auto n = ++s_legacy;
@@ -734,37 +751,42 @@ namespace px
                     }
                     return;
                 }
-                if (base_msg->type_ == kCaptureAudioFrame) {
+                if (*first_u32 == kCaptureAudioFrame) {
                     if (data.size() < sizeof(IpcCaptureAudioFrame)) {
                         LOGE("IPC audio frame too small: {}", data.size());
                         return;
                     }
-                    const auto* hdr = reinterpret_cast<const IpcCaptureAudioFrame*>(data.data());
+                    const auto hdr = DecodeWireValue<IpcCaptureAudioFrame>(data);
+                    if (!hdr) {
+                        return;
+                    }
                     const size_t expect = sizeof(IpcCaptureAudioFrame) + hdr->data_length;
                     if (data.size() != expect || hdr->data_length == 0) {
                         LOGE("IPC audio size mismatch: got={}, expect={}, pcm={}", data.size(),
                              expect, hdr->data_length);
                         return;
                     }
-                    auto pcm = Data::Make(data.data() + sizeof(IpcCaptureAudioFrame),
-                                          static_cast<int>(hdr->data_length));
+                    auto pcm = Data::From(std::string(
+                        data.substr(sizeof(IpcCaptureAudioFrame))));
                     if (!pcm) {
                         LOGE("IPC audio: Data::Make failed pcm={}", hdr->data_length);
                         return;
                     }
-                    auto event = std::make_shared<PxPluginRawAudioFrameEvent>();
-                    event->full_data_ = pcm;
-                    event->sample_rate_ = static_cast<int>(hdr->samples_);
-                    event->channels_ = static_cast<int>(hdr->channels_);
-                    event->bits_ = static_cast<int>(hdr->bits_);
+                    CaptureAudioFrame frame;
+                    frame.frame_index_ = hdr->frame_index_;
+                    frame.full_data_ = pcm;
+                    frame.samples_ = hdr->samples_;
+                    frame.channels_ = hdr->channels_;
+                    frame.bits_ = hdr->bits_;
                     static std::atomic<uint64_t> s_audio_rx{0};
                     const auto n = ++s_audio_rx;
                     if (n == 1 || (n % 200) == 0) {
-                        LOGI("IPC audio rx→RawAudioEvent: n={} idx={} {}Hz {}ch {}bit pcm={}", n,
-                             hdr->frame_index_, hdr->samples_, hdr->channels_, hdr->bits_,
-                             hdr->data_length);
+                        LOGI("event=ipc.audio.window component=net_ws count={} frame={} "
+                             "sample_rate_hz={} channels={} bits={} bytes={}", n,
+                              hdr->frame_index_, hdr->samples_, hdr->channels_, hdr->bits_,
+                              hdr->data_length);
                     }
-                    self->plugin_->CallbackEvent(event);
+                    self->plugin_->SubmitIpcAudioFrame(frame);
                     return;
                 }
             })
