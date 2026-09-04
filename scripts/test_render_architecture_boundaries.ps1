@@ -368,6 +368,11 @@ foreach ($relativePath in $coroutineOwnedClientFiles) {
             $violations.Add("${relativePath}: coroutine-owned reconnect contract is missing $required")
         }
     }
+    $adapterStop = $content.IndexOf("client->post([client]")
+    $scopeStop = $content.IndexOf("async_scope_->BeginStop")
+    if ($adapterStop -lt 0 -or $scopeStop -lt 0 -or $adapterStop -gt $scopeStop) {
+        $violations.Add("${relativePath}: adapter stop must be requested before waiting for coroutine scope drain")
+    }
 }
 
 $wsServerSource = Get-Content -LiteralPath `

@@ -78,6 +78,7 @@ namespace px
         std::shared_ptr<render::RenderCompositionRoot> composition_root_{};
         std::atomic_int queuing_message_count_{0};
         std::atomic_uint64_t connection_generation_{0};
+        std::atomic_bool started_{false};
         std::atomic_bool exiting_{false};
         // Stable across connection generations and changes when the render process restarts.
         std::string instance_id_{};

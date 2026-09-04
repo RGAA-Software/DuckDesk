@@ -101,6 +101,7 @@ namespace px
         std::shared_ptr<PxReconnectBackoff> connection_backoff_{};
         std::shared_ptr<PxAsyncMailbox<std::string>> incoming_messages_{};
         std::atomic_bool websocket_upgraded_{false};
+        std::atomic_bool started_{false};
         std::atomic_bool exiting_{false};
         std::atomic_int queuing_message_count_{0};
         std::atomic_uint64_t connection_generation_{0};

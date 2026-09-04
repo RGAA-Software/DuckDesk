@@ -46,7 +46,6 @@ namespace px
         context_ = ctx;
         module_registry_ = context_->GetRenderModuleRegistry();
         composition_root_ = context_->GetRenderCompositionRoot();
-        async_scope_ = PxAsyncScope::Create(context_->GetAsyncRuntime(), PxAsyncLane::kState);
         instance_id_ = std::format("{}-{}", GetCurrentProcessId(), TimeUtil::GetCurrentTimestamp());
     }
 
@@ -55,6 +54,9 @@ namespace px
     }
 
     void WsPanelClient::Start() {
+        if (started_.exchange(true, std::memory_order_acq_rel)) {
+            return;
+        }
         // Console-scheduled app instances are supervised through px_service
         // and deliberately have no local Panel endpoint.  A zero port is the
         // explicit disabled value from RdSettings, not a connectable address.
@@ -62,9 +64,18 @@ namespace px
         // remains a no-op and no retry loop is left behind.
         if (settings_.get().panel_server_port_ <= 0) {
             LOGI("Render Panel client disabled: no panel server port configured");
+            started_.store(false, std::memory_order_release);
             return;
         }
-        exiting_ = false;
+        exiting_.store(false, std::memory_order_release);
+        const auto async_runtime = context_ ? context_->GetAsyncRuntime() : std::shared_ptr<PxAsyncRuntime>{};
+        if (!async_runtime || async_runtime->IsStopping()) {
+            LOGE("event=module.start component=render_panel code=ASYNC_RUNTIME_UNAVAILABLE "
+                 "operation=start_client outcome=failed recoverable=false");
+            Exit();
+            return;
+        }
+        async_scope_ = PxAsyncScope::Create(async_runtime, PxAsyncLane::kState);
         msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kControl);
         state_msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
         auto weak_self = weak_from_this();
@@ -98,22 +109,24 @@ namespace px
             }
         });
 
-        if (!async_scope_) {
-            LOGE("Cannot start Render Panel async scope");
-            return;
-        }
         client_ = std::make_shared<asio2::ws_client>();
-        connection_workflow_ = PxConnectionAttemptWorkflow::Create(context_->GetAsyncRuntime(), kPanelConnectionTimeout);
+        connection_workflow_ = PxConnectionAttemptWorkflow::Create(async_runtime, kPanelConnectionTimeout);
         connection_backoff_ = PxReconnectBackoff::Create(kPanelReconnectOptions);
-        incoming_messages_ = PxAsyncMailbox<std::string>::Create(async_scope_->Executor(), kIncomingPanelMessageCapacity);
+        if (async_scope_) {
+            incoming_messages_ = PxAsyncMailbox<std::string>::Create(async_scope_->Executor(), kIncomingPanelMessageCapacity);
+        }
         if (!connection_workflow_ || !connection_backoff_ || !async_scope_ || !incoming_messages_) {
-            LOGE("Cannot start Render Panel connection workflow");
+            LOGE("event=module.start component=render_panel code=ASYNC_WORKFLOW_CREATE_FAILED "
+                 "operation=start_client outcome=failed recoverable=false");
+            Exit();
             return;
         }
         if (!async_scope_->Spawn("render-panel-receive-loop", [weak_self, mailbox = incoming_messages_]() {
                 return RunIncomingMessageLoop(weak_self, mailbox);
             })) {
-            LOGE("Cannot start Render Panel receive coroutine");
+            LOGE("event=module.start component=render_panel code=ASYNC_SCOPE_SPAWN_FAILED "
+                 "operation=start_receive_loop outcome=failed recoverable=false");
+            Exit();
             return;
         }
         client_->set_auto_reconnect(false);
@@ -200,7 +213,9 @@ namespace px
                                   host = settings_.get().panel_server_host_, port = settings_.get().panel_server_port_, panel_path]() mutable {
             return RunConnectionLoop(weak_self, workflow, backoff, client, std::move(host), port, std::move(panel_path));
         })) {
-            LOGE("Cannot start Render Panel connection coroutine");
+            LOGE("event=module.start component=render_panel code=ASYNC_SCOPE_SPAWN_FAILED "
+                 "operation=start_connection_loop outcome=failed recoverable=false");
+            Exit();
         }
     }
 
@@ -307,12 +322,6 @@ namespace px
         if (connection_workflow_) {
             connection_workflow_->Stop();
         }
-        if (async_scope_) {
-            async_scope_->BeginStop();
-            if (!async_scope_->IsScopeThread()) {
-                static_cast<void>(async_scope_->WaitFor(std::chrono::seconds(5)));
-            }
-        }
         const auto client = client_;
         if (client) {
             client->post([client]() {
@@ -320,6 +329,29 @@ namespace px
                 client->stop_all_timers();
                 client->stop();
             });
+        }
+        auto drained = true;
+        if (async_scope_) {
+            async_scope_->BeginStop();
+            const auto called_from_scope = async_scope_->IsScopeThread();
+            drained = called_from_scope ? false : async_scope_->WaitFor(std::chrono::seconds(5));
+            if (!drained && !called_from_scope) {
+                LOGE("event=async.scope_drain component=render_panel code=ASYNC_SCOPE_DRAIN_TIMEOUT "
+                     "operation=stop_client outcome=timeout recoverable=false outstanding={}",
+                     async_scope_->GetStatistics().outstanding);
+            } else if (called_from_scope) {
+                LOGI("event=async.scope_drain component=render_panel operation=stop_client outcome=deferred "
+                     "reason=shutdown_requested_from_callback outstanding={}",
+                     async_scope_->GetStatistics().outstanding);
+            }
+        }
+        if (drained) {
+            client_.reset();
+            incoming_messages_.reset();
+            connection_workflow_.reset();
+            connection_backoff_.reset();
+            async_scope_.reset();
+            started_.store(false, std::memory_order_release);
         }
     }
 

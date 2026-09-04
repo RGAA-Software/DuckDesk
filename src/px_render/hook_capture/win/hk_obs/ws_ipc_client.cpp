@@ -172,12 +172,6 @@ namespace px
         if (connection_workflow_) {
             connection_workflow_->Stop();
         }
-        if (async_scope_) {
-            async_scope_->BeginStop();
-            if (!async_scope_->IsScopeThread()) {
-                static_cast<void>(async_scope_->WaitFor(std::chrono::seconds(2)));
-            }
-        }
         const auto client = ws_client_;
         if (client) {
             client->post([client]() {
@@ -186,11 +180,40 @@ namespace px
                 client->stop();
             });
         }
+        auto drained = true;
+        if (async_scope_) {
+            async_scope_->BeginStop();
+            const auto called_from_scope = async_scope_->IsScopeThread();
+            drained = called_from_scope ? false : async_scope_->WaitFor(std::chrono::seconds(2));
+            if (!drained && !called_from_scope) {
+                LOGE("event=async.scope_drain component=obs_ipc code=ASYNC_SCOPE_DRAIN_TIMEOUT "
+                     "operation=stop_client outcome=timeout recoverable=false outstanding={}",
+                     async_scope_->GetStatistics().outstanding);
+            } else if (called_from_scope) {
+                LOGI("event=async.scope_drain component=obs_ipc operation=stop_client outcome=deferred "
+                     "reason=shutdown_requested_from_callback outstanding={}",
+                     async_scope_->GetStatistics().outstanding);
+            }
+        }
         if (async_runtime_) {
             async_runtime_->RequestStop();
-            async_runtime_->Join();
+            if (!async_runtime_->IsRuntimeThread()) {
+                async_runtime_->Join();
+            } else {
+                drained = false;
+                LOGI("event=async.runtime_stop component=obs_ipc operation=stop_client outcome=deferred "
+                     "reason=shutdown_requested_from_runtime_thread");
+            }
         }
-        started_.store(false, std::memory_order_release);
+        if (drained) {
+            ws_client_.reset();
+            incoming_messages_.reset();
+            connection_workflow_.reset();
+            connection_backoff_.reset();
+            async_scope_.reset();
+            async_runtime_.reset();
+            started_.store(false, std::memory_order_release);
+        }
     }
 
     void WsIpcClient::RegisterIpcMessageCallback(WsIpcMessageCallback&& callback) {

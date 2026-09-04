@@ -199,15 +199,6 @@ namespace px
         statistics_ = RdStatistics::Instance();
         app_ = app;
         context_ = app_->GetContext();
-        if (context_ && context_->GetAsyncRuntime()) {
-            async_scope_ = PxAsyncScope::Create(
-                context_->GetAsyncRuntime(), PxAsyncLane::kState);
-            rpc_state_ = std::make_shared<RenderServiceRpcState>(async_scope_->Executor());
-            connection_workflow_ = PxConnectionAttemptWorkflow::Create(
-                context_->GetAsyncRuntime(), kRenderServiceConnectionTimeout);
-            connection_backoff_ = PxReconnectBackoff::Create(kRenderServiceReconnectOptions);
-            incoming_messages_ = PxAsyncMailbox<std::string>::Create(async_scope_->Executor(), kIncomingServiceMessageCapacity);
-        }
     }
 
     RenderServiceClient::~RenderServiceClient() {
@@ -215,20 +206,37 @@ namespace px
     }
 
     void RenderServiceClient::Start() {
-        if (!connection_workflow_ || !connection_backoff_) {
-            LOGE("Cannot start Render Service connection workflow");
+        if (started_.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
-        if (!async_scope_ || !incoming_messages_) {
-            LOGE("Cannot start Render Service async message workflow");
+        exiting_.store(false, std::memory_order_release);
+        const auto async_runtime = context_ ? context_->GetAsyncRuntime() : std::shared_ptr<PxAsyncRuntime>{};
+        if (!async_runtime || async_runtime->IsStopping()) {
+            LOGE("event=module.start component=render_service code=ASYNC_RUNTIME_UNAVAILABLE "
+                 "operation=start_client outcome=failed recoverable=false");
+            Exit();
+            return;
+        }
+        async_scope_ = PxAsyncScope::Create(async_runtime, PxAsyncLane::kState);
+        if (async_scope_) {
+            rpc_state_ = std::make_shared<RenderServiceRpcState>(async_scope_->Executor());
+            incoming_messages_ = PxAsyncMailbox<std::string>::Create(async_scope_->Executor(), kIncomingServiceMessageCapacity);
+        }
+        connection_workflow_ = PxConnectionAttemptWorkflow::Create(async_runtime, kRenderServiceConnectionTimeout);
+        connection_backoff_ = PxReconnectBackoff::Create(kRenderServiceReconnectOptions);
+        if (!async_scope_ || !rpc_state_ || !incoming_messages_ || !connection_workflow_ || !connection_backoff_) {
+            LOGE("event=module.start component=render_service code=ASYNC_WORKFLOW_CREATE_FAILED "
+                 "operation=start_client outcome=failed recoverable=false");
+            Exit();
             return;
         }
         auto weak_self = weak_from_this();
-        exiting_ = false;
         if (!async_scope_->Spawn("render-service-receive-loop", [weak_self, mailbox = incoming_messages_]() {
                 return RunIncomingMessageLoop(weak_self, mailbox);
             })) {
-            LOGE("Cannot start Render Service receive coroutine");
+            LOGE("event=module.start component=render_service code=ASYNC_SCOPE_SPAWN_FAILED "
+                 "operation=start_receive_loop outcome=failed recoverable=false");
+            Exit();
             return;
         }
         msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
@@ -337,7 +345,9 @@ namespace px
                                   host = settings->service_server_host_, port = settings->service_server_port_]() {
             return RunConnectionLoop(weak_self, workflow, backoff, client, std::move(host), port, "/service/message?from=render");
         })) {
-            LOGE("Cannot start Render Service connection coroutine");
+            LOGE("event=module.start component=render_service code=ASYNC_SCOPE_SPAWN_FAILED "
+                 "operation=start_connection_loop outcome=failed recoverable=false");
+            Exit();
         }
     }
 
@@ -546,25 +556,39 @@ namespace px
         if (connection_workflow_) {
             connection_workflow_->Stop();
         }
+        const auto client = client_;
+        if (client) {
+            client->post([client]() {
+                client->set_auto_reconnect(false);
+                client->stop_all_timers();
+                client->stop();
+            });
+        }
+        auto drained = true;
         if (async_scope_) {
             async_scope_->BeginStop();
-            if (!async_scope_->IsScopeThread()) {
-                static_cast<void>(async_scope_->WaitFor(std::chrono::seconds(5)));
+            const auto called_from_scope = async_scope_->IsScopeThread();
+            drained = called_from_scope ? false : async_scope_->WaitFor(std::chrono::seconds(5));
+            if (!drained && !called_from_scope) {
+                LOGE("event=async.scope_drain component=render_service code=ASYNC_SCOPE_DRAIN_TIMEOUT "
+                     "operation=stop_client outcome=timeout recoverable=false outstanding={}",
+                     async_scope_->GetStatistics().outstanding);
+            } else if (called_from_scope) {
+                LOGI("event=async.scope_drain component=render_service operation=stop_client outcome=deferred "
+                     "reason=shutdown_requested_from_callback outstanding={}",
+                     async_scope_->GetStatistics().outstanding);
             }
         }
-        const auto client = client_;
-        if (!client) {
-            return;
+        if (drained) {
+            client_.reset();
+            incoming_messages_.reset();
+            connection_workflow_.reset();
+            connection_backoff_.reset();
+            rpc_state_.reset();
+            async_scope_.reset();
+            websocket_upgraded_.store(false, std::memory_order_release);
+            started_.store(false, std::memory_order_release);
         }
-        // asio2::tcp_client::stop() is synchronous off its I/O thread and can
-        // wait forever when an auto-reconnect handshake is being torn down.
-        // Dispatch shutdown to the owning I/O thread; the captured shared_ptr
-        // keeps the client alive until stop has completed there.
-        client->post([client]() {
-            client->set_auto_reconnect(false);
-            client->stop_all_timers();
-            client->stop();
-        });
     }
 
     bool RenderServiceClient::IsAlive() const {
