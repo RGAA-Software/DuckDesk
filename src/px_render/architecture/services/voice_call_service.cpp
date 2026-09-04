@@ -5,7 +5,7 @@
 
 #include "px_common_new/log.h"
 #include "app/app_messages.h"
-#include "px_render/plugins/voice_call/voice_call_runtime.h"
+#include "px_render/architecture/services/voice_call/voice_call_runtime.h"
 
 namespace px::render {
 namespace {

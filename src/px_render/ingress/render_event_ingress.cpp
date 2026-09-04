@@ -23,7 +23,7 @@
 #include "px_render/plugin_interface/px_stream_plugin.h"
 #include "px_render/plugin_interface/px_video_encoder_plugin.h"
 #include "px_render/plugin_interface/px_monitor_capture_plugin.h"
-#include "px_render/plugins/plugin_ids.h"
+#include "px_render/modules/module_ids.h"
 #include "px_capture_new/capture_message.h"
 #include "architecture/services/file_transfer_types.h"
 #include "architecture/services/file_transfer_service.h"
@@ -63,10 +63,10 @@ namespace px
                 return;
             }
             std::string binding_id;
-            if (target_event->plugin_name_ == kNetRtcPluginId) {
+            if (target_event->plugin_name_ == kNetWebRtcRemoteLibraryId) {
                 binding_id = std::string("rtc:") + target_event->stream_id_;
             }
-            else if (target_event->plugin_name_ == kNetRtcLocalPluginId) {
+            else if (target_event->plugin_name_ == kNetWebRtcLocalLibraryId) {
                 binding_id = std::string("rtc-local:") + target_event->stream_id_;
             }
             const auto registry = app_->GetLogicalSessionRegistry();

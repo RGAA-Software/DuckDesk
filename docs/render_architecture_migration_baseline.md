@@ -285,8 +285,9 @@ interface。
 - 架构门禁新增断言：具名 transport getter 不得回到 registry 公共头文件，三个通用 visitor
   不得出现在组合实现以外的 Render C++ 文件。
 - `WebRtcLibraryHost::Load` 的公开结果从 `shared_ptr<PxNetPlugin>` 改为具体
-  `WebRtcLibraryLease`。调用方只能观察固定的 remote/local DLL 身份和持有 RAII 生命周期；
-  旧 ABI 模块对象只能由组合注册表这一兼容友元取得。
+  `WebRtcLibraryLease`（该阶段的过渡名称，阶段 17 已替换为 `WebRtcLibrary`）。调用方只能
+  观察固定的 remote/local DLL 身份和持有 RAII 生命周期；旧 ABI 模块对象不离开 host
+  实现文件。
 
 本阶段 `px_render` 聚焦构建通过，统一 Render CTest 18/18 通过，ownership、architecture
 guard 和 `git diff --check` 均通过；构建树与 dist 的上述最终哈希重新核对一致。
@@ -441,3 +442,38 @@ dist 一致，两个 WebRTC DLL 哈希仍保持不变。
 本机可自动化的架构迁移开发到此闭环。真实 WAS/PID 音频、GPU/多显示器、
 LAN 弱网、主观音画、30 分钟压力与 8 小时 soak 仍属于目标硬件上的最终产品验收；
 runner 会将未满足的前置条件明确标成 SKIP/INCOMPLETE，不将其误报为 PASS。
+
+### 阶段 17：源码实体归位与 WebRTC 去插件模型
+
+- 删除 `src/px_render/plugins` 实体目录。编码器、采集器、处理器、观察器、Sink 和领域
+  Service 的保留实现分别迁入 `architecture/encoders`、`sources`、`processors`、
+  `observers`、`sinks`、`services`；WS、UDP、Relay 和 WebRTC 迁入 `network`。
+- `mock_video_stream` 与 `obj_detector` 的源码、构建入口、测试壳和发布入口全部删除；
+  其他产品能力仍由明确 CMake target 构建，未因目录清理而裁剪。
+- WebRTC 不再以 `PxNetPlugin` 暴露给 Registry，也不进入 `lifecycle_modules_` 或
+  `network_transports_`。Registry 明确持有 remote/local 两个 `WebRtcLibrary`，显式处理
+  生命周期、消息、统计、D3D、RTC Local allocation 与 voice PCM。
+- `net_rtc.dll`、`net_rtc_local.dll` 改为发布到 `deps/network`；发布脚本主动删除旧
+  `deps/rd_plugins`。DLL 内保留的 `GetInstance` 仅用于遵守既有 ABI 与卸载契约，裸值在
+  `webrtc_library_host.cpp` 立即由共享 RAII state 封装，不进入产品调用面。
+- WebRTC 实现类和文件由 `RtcPlugin`/`rtc_plugin.*` 改为
+  `WebRtcRemoteLibrary`/`webrtc_remote_library.*` 与对应 Local 命名；生命周期测试也只通过
+  typed facade 驱动，不再直接操作插件接口。
+- 架构门禁新增实体目录、Registry 所有权、公开头文件、固定 DLL 路径和发布目录检查；
+  `webrtc_libraries_lifecycle` 连续十轮覆盖 start/stop/destroy/unload 与 host 先析构场景。
+- Frame Carrier 运行资源移出 `deps/rd_plugins`，改由 Render 发布流程同步到
+  `resources/render/frame_carrier` 并执行 SHA-256 校验。
+
+聚焦构建通过：`px_render`、`net_rtc`、`net_rtc_local` 和
+`test_webrtc_libraries_lifecycle`。统一 `all` runner 的 2 个架构门禁与 28 个 L1-L3 测试
+全部通过，ownership、async lifetime、日志隐私扫描和非预期 ERROR 检查均通过，自动化
+软件门禁结论为 GO。发布后 build tree 与 `build_official/dist` 哈希一致：
+
+| 产物 | SHA-256 |
+|---|---|
+| `px_render.exe` | `5B19C6D1ED0FE17F80C70CBB6B8CD6932FD39A498BC886A3C58E8FE9B2F43FFF` |
+| `deps/network/net_rtc.dll` | `E86D9A48C51DBA6C1F97416E93E36BC572C672DA3C7FBBD36F9DE5CE60D3D997` |
+| `deps/network/net_rtc_local.dll` | `58B6C77CCA3B1053C488E9906949B9FFEC88D0FAD52D688120F05E92735A4126` |
+| `resources/render/frame_carrier/ic_logo_point.png` | `6503B71A5F21A255E4E710646F38C2A11922E3E5E635772A89F37BDFA8D67A91` |
+
+真实硬件音频、GPU/多显示器、LAN 弱网、30 分钟压力与 8 小时 soak 仍由最终验收环境执行。

@@ -1,6 +1,6 @@
 //
 // ft 主控端内置模块 core — px_ft_engine 的薄适配层
-// 模型与 render 壳(src/px_render/plugins/ft)一致:
+// 模型与 Render 内置 file-transfer service 一致:
 //   UI/网络入口只向 FtAsyncSession 投递命令，引擎状态与发送泵全部在 state strand。
 // UI 通信经 Qt 信号(Session 线程 emit,自动 QueuedConnection 到 UI 线程)。
 //

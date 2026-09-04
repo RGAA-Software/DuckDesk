@@ -2,7 +2,20 @@ project(px_render VERSION ${TC_APP_VERSION} LANGUAGES CXX)
 
 add_subdirectory(settings)
 add_subdirectory(plugin_interface)
-add_subdirectory(plugins)
+if(PLUGIN_NET_UDP_ENABLED)
+    add_subdirectory(network/udp)
+else()
+    message(STATUS "net_udp is disabled (PLUGIN_NET_UDP_ENABLED=OFF)")
+endif()
+add_subdirectory(network/ws)
+add_subdirectory(network/relay)
+add_subdirectory(network/webrtc/remote)
+add_subdirectory(network/webrtc/local)
+add_subdirectory(architecture/encoders/ffmpeg)
+add_subdirectory(architecture/encoders/amf)
+add_subdirectory(architecture/encoders/nvenc)
+add_subdirectory(architecture/sources/dda)
+add_subdirectory(architecture/sources/gdi)
 add_subdirectory(hook_capture)
 add_subdirectory(architecture)
 if(TESTS_ENABLED)
@@ -39,7 +52,6 @@ set(SRCS
         pipeline/encoded_video_fanout.cpp
         ingress/network_event_ingress.cpp
         webview/webview_runtime.cpp
-        #plugins/plugin_desktop_capture.cpp
 )
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/app)

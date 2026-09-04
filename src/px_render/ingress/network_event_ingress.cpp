@@ -39,10 +39,10 @@
 #include "px_encoder_new/encoder_messages.h"
 #include "px_message_new/rp_proto_converter.h"
 #include "px_message_new/proto_converter.h"
-#include "px_render/plugins/net_ws/ws_user_proxy_router.h"
+#include "px_render/network/ws/ws_user_proxy_router.h"
 #include "px_render/plugin_interface/px_net_plugin.h"
-#include "px_render/plugins/plugin_ids.h"
-#include "px_render/plugins/net_rtc/rtc_messages.h"
+#include "px_render/modules/module_ids.h"
+#include "px_render/network/webrtc/remote/rtc_messages.h"
 #include "px_common_new/win32/process_helper.h"
 #include "px_common_new/virtual_display_timeouts.h"
 #include "px_capture_new/capture_message_maker.h"
@@ -474,10 +474,10 @@ namespace px {
         }
         if (const auto registry = app_->GetLogicalSessionRegistry()) {
             std::string binding_id;
-            if (event->plugin_name_ == kNetRtcPluginId) {
+            if (event->plugin_name_ == kNetWebRtcRemoteLibraryId) {
                 binding_id = std::string("rtc:") + event->stream_id_;
             }
-            else if (event->plugin_name_ == kNetRtcLocalPluginId) {
+            else if (event->plugin_name_ == kNetWebRtcLocalLibraryId) {
                 binding_id = std::string("rtc-local:") + event->stream_id_;
             }
             if (!binding_id.empty()) {

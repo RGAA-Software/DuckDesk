@@ -37,10 +37,10 @@ target_link_libraries(px_voice_call PUBLIC px_opus_codec_new
 if(WIN32)
     target_sources(px_voice_call PRIVATE
         voice_audio_backend_wasapi.cpp
-        ${CMAKE_SOURCE_DIR}/src/px_render/plugins/was_audio_capture/third_party/miniaudio/miniaudio.c
-        ${CMAKE_SOURCE_DIR}/src/px_render/plugins/was_audio_capture/third_party/miniaudio/miniaudio_desktop_process_loopback.cpp)
+        ${CMAKE_SOURCE_DIR}/src/px_render/architecture/sources/was_audio/third_party/miniaudio/miniaudio.c
+        ${CMAKE_SOURCE_DIR}/src/px_render/architecture/sources/was_audio/third_party/miniaudio/miniaudio_desktop_process_loopback.cpp)
     target_include_directories(px_voice_call PRIVATE
-        ${CMAKE_SOURCE_DIR}/src/px_render/plugins/was_audio_capture/third_party)
+        ${CMAKE_SOURCE_DIR}/src/px_render/architecture/sources/was_audio/third_party)
     target_compile_definitions(px_voice_call PRIVATE
         MA_WASAPI_DEFAULT_ROLE=ma_eCommunications)
     target_link_libraries(px_voice_call PUBLIC px_voice_apm Ole32 Mmdevapi)

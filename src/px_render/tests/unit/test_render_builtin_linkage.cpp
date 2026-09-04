@@ -6,14 +6,14 @@
 
 #include "px_common_new/data.h"
 #include "px_capture_new/capture_message.h"
-#include "amf_encoder/amf_encoder_plugin.h"
-#include "dda_capture/dda_capture_plugin.h"
-#include "ffmpeg_encoder/ffmpeg_encoder_plugin.h"
-#include "gdi_capture/gdi_capture_plugin.h"
-#include "net_relay/relay_plugin.h"
-#include "net_udp/udp_plugin.h"
-#include "net_ws/ws_plugin.h"
-#include "nvenc_encoder/nvenc_encoder_plugin.h"
+#include "px_render/architecture/encoders/amf/amf_encoder_plugin.h"
+#include "px_render/architecture/encoders/ffmpeg/ffmpeg_encoder_plugin.h"
+#include "px_render/architecture/encoders/nvenc/nvenc_encoder_plugin.h"
+#include "px_render/architecture/sources/dda/dda_capture_plugin.h"
+#include "px_render/architecture/sources/gdi/gdi_capture_plugin.h"
+#include "px_render/network/relay/relay_plugin.h"
+#include "px_render/network/udp/udp_plugin.h"
+#include "px_render/network/ws/ws_plugin.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
 
 namespace px {

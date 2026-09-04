@@ -5,7 +5,7 @@
 #include <thread>
 #include <vector>
 
-#include "plugins/net_ws/direct_session_grant_store.h"
+#include "network/ws/direct_session_grant_store.h"
 
 namespace px {
 namespace {

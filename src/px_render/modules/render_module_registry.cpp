@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <mutex>
 #include "rd_app.h"
-#include "px_render/plugins/plugin_ids.h"
+#include "px_render/modules/module_ids.h"
 #include "rd_context.h"
 #include "px_common_new/log.h"
 #include "px_common_new/win32/win_helper.h"
@@ -23,18 +23,42 @@
 #include "px_render/plugin_interface/px_monitor_capture_plugin.h"
 #include "architecture/services/file_transfer_service.h"
 #include "architecture/services/voice_call_service.h"
-#include "px_render/plugins/dda_capture/dda_capture_plugin.h"
-#include "px_render/plugins/gdi_capture/gdi_capture_plugin.h"
-#include "px_render/plugins/ffmpeg_encoder/ffmpeg_encoder_plugin.h"
-#include "px_render/plugins/amf_encoder/amf_encoder_plugin.h"
-#include "px_render/plugins/nvenc_encoder/nvenc_encoder_plugin.h"
-#include "px_render/plugins/net_ws/ws_plugin.h"
-#include "px_render/plugins/net_udp/udp_plugin.h"
-#include "px_render/plugins/net_relay/relay_plugin.h"
+#include "px_render/architecture/sources/dda/dda_capture_plugin.h"
+#include "px_render/architecture/sources/gdi/gdi_capture_plugin.h"
+#include "px_render/architecture/encoders/ffmpeg/ffmpeg_encoder_plugin.h"
+#include "px_render/architecture/encoders/amf/amf_encoder_plugin.h"
+#include "px_render/architecture/encoders/nvenc/nvenc_encoder_plugin.h"
+#include "px_render/network/ws/ws_plugin.h"
+#include "px_render/network/udp/udp_plugin.h"
+#include "px_render/network/relay/relay_plugin.h"
 #include "network/webrtc_library_host.h"
 
 namespace px
 {
+    namespace {
+
+    WebRtcLibrarySettings MakeWebRtcSettings(
+        const PxPluginSettingsInfo& info) {
+        return WebRtcLibrarySettings{
+            .device_id = info.device_id_,
+            .device_random_password = info.device_random_pwd_,
+            .device_safety_password = info.device_safety_pwd_,
+            .relay_host = info.relay_host_,
+            .relay_port = info.relay_port_,
+            .can_be_operated = info.can_be_operated_,
+            .direct_allow_takeover = info.direct_allow_takeover_,
+            .relay_enabled = info.relay_enabled_,
+            .language = info.language_,
+            .file_transfer_enabled = info.file_transfer_enabled_,
+            .audio_enabled = info.audio_enabled_,
+            .appkey = info.appkey_,
+            .max_transmit_speed = info.max_transmit_speed_,
+            .max_receive_speed = info.max_receive_speed_,
+            .role = info.role_,
+        };
+    }
+
+    }  // namespace
 
     std::shared_ptr<RenderModuleRegistry> RenderModuleRegistry::Make(const std::shared_ptr<RdApplication>& app) {
         return std::make_shared<RenderModuleRegistry>(app);
@@ -55,8 +79,8 @@ namespace px
         exiting_ = false;
         auto base_path = WinHelper::GetExeFolderPath();
         auto base_data_path = FolderUtil::GetProgramDataPath();
-        LOGI("plugin base path: {}", base_path);
-        LOGI("plugin base data path: {}", StringUtil::ToUTF8(base_data_path));
+        LOGI("module base path: {}", base_path);
+        LOGI("module base data path: {}", StringUtil::ToUTF8(base_data_path));
 
         const PxPluginParam base_param{
             .cluster_ = {
@@ -159,39 +183,37 @@ namespace px
         }
 
         webrtc_library_host_ = WebRtcLibraryHost::Create(
-            PathFromUTF8(base_path) / "deps" / "rd_plugins");
+            PathFromUTF8(base_path) / "deps" / "network");
+        const WebRtcLibraryConfiguration webrtc_configuration{
+            .base_path = base_path,
+            .base_data_path = base_data_path,
+            .capture_audio_device_id = {},
+            .device_id = settings_.device_id_,
+            .direct_allow_takeover = settings_.direct_allow_takeover_,
+            .relay_enabled = settings_.relay_enabled_,
+            .language = settings_.language_,
+            .appkey = settings_.appkey_,
+        };
         for (const auto& library : webrtc_library_host_->Load()) {
-            const auto module = library
-                ? library->CompatibilityModule()
-                : std::shared_ptr<PxNetPlugin>{};
-            if (!module) {
+            if (!library) {
                 continue;
             }
-            auto param = base_param;
-            param.cluster_["name"] = library->BaseName() + ".dll";
-            const auto module_id = module->GetPluginId();
-            const auto duplicate = std::ranges::any_of(
-                lifecycle_modules_,
-                [&module_id](const std::shared_ptr<PxPluginInterface>& current) {
-                    return current && current->GetPluginId() == module_id;
-                });
-            if (duplicate || !module->OnCreate(param)) {
-                LOGE("event=webrtc.module.start component=render_module_registry "
-                     "module={} outcome=failed",
-                     module_id);
+            if (!library->Start(webrtc_configuration)) {
+                LOGE("event=webrtc.library.start component=render_module_registry "
+                     "library={} outcome=failed recoverable=false",
+                     library->BaseName());
                 continue;
             }
-            lifecycle_modules_.push_back(module);
-            network_transports_.push_back(module);
-            if (module_id == kNetRtcPluginId) {
-                rtc_transport_ = module;
+            if (library->Kind() == WebRtcLibraryKind::kRemote) {
+                rtc_transport_ = library;
             }
-            else if (module_id == kNetRtcLocalPluginId) {
-                rtc_local_transport_ = module;
+            else {
+                rtc_local_transport_ = library;
             }
-            LOGI("event=webrtc.module.start component=render_module_registry "
-                 "module={} version={} outcome=success",
-                 module_id, module->GetVersionName());
+            const auto info = library->Info();
+            LOGI("event=webrtc.library.start component=render_module_registry "
+                 "library={} id={} version={} outcome=success",
+                 library->BaseName(), info.id, info.version_name);
         }
 
         WsPlugin::LocalRtcAllocator local_rtc_allocator;
@@ -278,6 +300,25 @@ namespace px
                 }
             });
         });
+        VisitWebRtcLibraries([weak_self](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            library->SetEventCallback(
+                [weak_self](
+                    const std::shared_ptr<PxPluginBaseEvent>& event) {
+                    const auto self = weak_self.lock();
+                    if (!self || self->exiting_) {
+                        return;
+                    }
+                    std::shared_ptr<RenderEventIngress> router;
+                    {
+                        std::lock_guard lock(self->routing_mtx_);
+                        router = self->control_ingress_;
+                    }
+                    if (router) {
+                        router->ProcessCompatibilityEvent(event);
+                    }
+                });
+        });
         for (const auto& capture : {
                  GetDdaCapture(), GetGdiCapture()}) {
             if (!capture) {
@@ -351,6 +392,10 @@ namespace px
         VisitAllModules([](const std::shared_ptr<PxPluginInterface>& plugin) {
             plugin->RegisterEventCallback({});
         });
+        VisitWebRtcLibraries([](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            library->SetEventCallback({});
+        });
         {
             std::lock_guard lock(routing_mtx_);
             control_ingress_.reset();
@@ -367,6 +412,7 @@ namespace px
         // OnStop/OnDestroy run outside the lock because plugins may fire
         // events which re-enter the visiting functions
         std::vector<std::shared_ptr<PxPluginInterface>> modules;
+        std::vector<std::shared_ptr<WebRtcLibrary>> webrtc_libraries;
         {
             std::unique_lock<std::shared_mutex> lock(modules_mtx_);
             modules.swap(lifecycle_modules_);
@@ -380,8 +426,12 @@ namespace px
             ws_transport_.reset();
             udp_transport_.reset();
             relay_transport_.reset();
-            rtc_transport_.reset();
-            rtc_local_transport_.reset();
+            if (rtc_transport_) {
+                webrtc_libraries.push_back(std::move(rtc_transport_));
+            }
+            if (rtc_local_transport_) {
+                webrtc_libraries.push_back(std::move(rtc_local_transport_));
+            }
         }
         for (const auto& module : modules) {
             module->OnStop();
@@ -389,6 +439,13 @@ namespace px
         for (const auto& module : modules) {
             module->OnDestroy();
         }
+        for (const auto& library : webrtc_libraries) {
+            library->Stop();
+        }
+        for (const auto& library : webrtc_libraries) {
+            library->Destroy();
+        }
+        webrtc_libraries.clear();
         if (webrtc_library_host_) {
             webrtc_library_host_->Reset();
             webrtc_library_host_.reset();
@@ -462,13 +519,13 @@ namespace px
         const std::uint64_t shared_handle,
         const std::int64_t adapter_id,
         const std::uint64_t frame_format) {
-        std::shared_ptr<PxNetPlugin> rtc_local;
+        std::shared_ptr<WebRtcLibrary> rtc_local;
         {
             std::shared_lock lock(modules_mtx_);
             rtc_local = rtc_local_transport_;
         }
         if (rtc_local) {
-            rtc_local->OnRawVideoFrameSharedTexture(
+            rtc_local->SubmitLocalSharedTexture(
                 monitor_name, frame_index, frame_width, frame_height,
                 shared_handle, adapter_id, frame_format);
         }
@@ -480,20 +537,20 @@ namespace px
         const int frame_width,
         const int frame_height,
         const std::shared_ptr<Image>& image) {
-        std::shared_ptr<PxNetPlugin> rtc_local;
+        std::shared_ptr<WebRtcLibrary> rtc_local;
         {
             std::shared_lock lock(modules_mtx_);
             rtc_local = rtc_local_transport_;
         }
         if (rtc_local) {
-            rtc_local->OnRawVideoFrameYuv(
+            rtc_local->SubmitLocalYuv(
                 monitor_name, frame_index, frame_width, frame_height, image);
         }
     }
 
     void RenderModuleRegistry::UpdateRtcLocalCaptureMonitorInfo(
         const CaptureMonitorInfoMessage& message) {
-        std::shared_ptr<PxNetPlugin> rtc_local;
+        std::shared_ptr<WebRtcLibrary> rtc_local;
         {
             std::shared_lock lock(modules_mtx_);
             rtc_local = rtc_local_transport_;
@@ -505,37 +562,37 @@ namespace px
 
     void RenderModuleRegistry::ApplyRtcLocalRemoteSdp(
         const MsgRtcRemoteSdp& message) {
-        std::shared_ptr<PxNetPlugin> rtc_local;
+        std::shared_ptr<WebRtcLibrary> rtc_local;
         {
             std::shared_lock lock(modules_mtx_);
             rtc_local = rtc_local_transport_;
         }
         if (rtc_local) {
-            rtc_local->ApplyRtcRemoteSdp(message);
+            rtc_local->ApplyRemoteSdp(message);
         }
     }
 
     void RenderModuleRegistry::ApplyRtcLocalRemoteIce(
         const MsgRtcRemoteIce& message) {
-        std::shared_ptr<PxNetPlugin> rtc_local;
+        std::shared_ptr<WebRtcLibrary> rtc_local;
         {
             std::shared_lock lock(modules_mtx_);
             rtc_local = rtc_local_transport_;
         }
         if (rtc_local) {
-            rtc_local->ApplyRtcRemoteIce(message);
+            rtc_local->ApplyRemoteIce(message);
         }
     }
 
     void RenderModuleRegistry::DispatchRtcLocalMessage(
         const std::shared_ptr<Message>& message) {
-        std::shared_ptr<PxNetPlugin> rtc_local;
+        std::shared_ptr<WebRtcLibrary> rtc_local;
         {
             std::shared_lock lock(modules_mtx_);
             rtc_local = rtc_local_transport_;
         }
         if (rtc_local) {
-            rtc_local->OnMessage(message);
+            rtc_local->DispatchLocalMessage(message);
         }
     }
 
@@ -543,13 +600,13 @@ namespace px
         const std::shared_ptr<PxLocalRtcRequestInfo>& request,
         std::function<void(
             const std::shared_ptr<PxLocalRtcReplyInfo>&)>&& completion) {
-        std::shared_ptr<PxNetPlugin> rtc_local;
+        std::shared_ptr<WebRtcLibrary> rtc_local;
         {
             std::shared_lock lock(modules_mtx_);
             rtc_local = rtc_local_transport_;
         }
         return rtc_local
-            ? rtc_local->AllocNewLocalRtcInstance(
+            ? rtc_local->AllocateLocalInstance(
                   request, std::move(completion))
             : PxLocalRtcAllocResult::kFailed;
     }
@@ -577,6 +634,10 @@ namespace px
             [message, run_through](const std::shared_ptr<PxNetPlugin>& transport) {
                 transport->PostProtoMessage(message, run_through);
             });
+        VisitWebRtcLibraries([message, run_through](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            library->Send(message, run_through);
+        });
     }
 
     void RenderModuleRegistry::BroadcastTargetStreamMessage(
@@ -592,6 +653,11 @@ namespace px
                 static_cast<void>(transport->PostTargetStreamProtoMessage(
                     stream_id, message, run_through));
             });
+        VisitWebRtcLibraries([&stream_id, &message, run_through](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            static_cast<void>(
+                library->SendToStream(stream_id, message, run_through));
+        });
     }
 
     void RenderModuleRegistry::BroadcastFileTransferMessage(
@@ -607,6 +673,11 @@ namespace px
                 static_cast<void>(transport->PostTargetFileTransferProtoMessage(
                     stream_id, message, run_through));
             });
+        VisitWebRtcLibraries([&stream_id, &message, run_through](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            static_cast<void>(
+                library->SendFileTransfer(stream_id, message, run_through));
+        });
     }
 
     void RenderModuleRegistry::BroadcastRawAudio(
@@ -622,6 +693,10 @@ namespace px
                 const std::shared_ptr<PxNetPlugin>& transport) {
                 transport->OnRawAudioData(data, samples, channels, bits);
             });
+        VisitWebRtcLibraries([&data, samples, channels, bits](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            library->SubmitRawAudio(data, samples, channels, bits);
+        });
     }
 
     void RenderModuleRegistry::PublishEncodedVideoMetadata(
@@ -638,6 +713,13 @@ namespace px
                     event->frame_index_, static_cast<int>(event->frame_width_),
                     static_cast<int>(event->frame_height_), event->key_frame_);
             });
+        VisitWebRtcLibraries([&monitor_name, &event](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            library->SubmitEncodedVideo(
+                monitor_name, event->type_, event->data_,
+                event->frame_index_, static_cast<int>(event->frame_width_),
+                static_cast<int>(event->frame_height_), event->key_frame_);
+        });
     }
 
     void RenderModuleRegistry::DispatchNetworkAppEvent(
@@ -649,6 +731,10 @@ namespace px
             [&event](const std::shared_ptr<PxNetPlugin>& transport) {
                 transport->DispatchAppEvent(event);
             });
+        VisitWebRtcLibraries([&event](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            library->DispatchAppEvent(event);
+        });
     }
 
     void RenderModuleRegistry::ApplyLogicalSessionCapabilities(
@@ -657,17 +743,21 @@ namespace px
             [&update](const std::shared_ptr<PxNetPlugin>& transport) {
                 transport->ApplyLogicalSessionCapabilities(update);
             });
+        VisitWebRtcLibraries([&update](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            library->ApplyLogicalSessionCapabilities(update);
+        });
     }
 
     bool RenderModuleRegistry::PostRtcLocalMessage(
         const std::shared_ptr<Data>& message, const bool run_through) {
-        std::shared_ptr<PxNetPlugin> rtc_local;
+        std::shared_ptr<WebRtcLibrary> rtc_local;
         {
             std::shared_lock lock(modules_mtx_);
             rtc_local = rtc_local_transport_;
         }
-        if (rtc_local && message && rtc_local->GetConnectedClientsCount() > 0) {
-            rtc_local->PostProtoMessage(message, run_through);
+        if (rtc_local && message && rtc_local->ConnectedClientCount() > 0) {
+            rtc_local->Send(message, run_through);
             return true;
         }
         return false;
@@ -742,13 +832,19 @@ namespace px
                 return true;
             }
         }
+        for (const auto& library : SnapshotWebRtcLibraries()) {
+            if (library->HasVideoClient()) {
+                return true;
+            }
+        }
         return false;
     }
 
     std::vector<RenderModuleInfo> RenderModuleRegistry::SnapshotModuleInfo() {
         std::vector<RenderModuleInfo> result;
         const auto modules = SnapshotLifecycleModules();
-        result.reserve(modules.size());
+        const auto webrtc_libraries = SnapshotWebRtcLibraries();
+        result.reserve(modules.size() + webrtc_libraries.size());
         for (const auto& module : modules) {
             result.push_back(RenderModuleInfo{
                 .id = module->GetPluginId(),
@@ -758,6 +854,18 @@ namespace px
                 .version_name = module->GetVersionName(),
                 .version_code = module->GetVersionCode(),
                 .enabled = module->IsPluginEnabled(),
+            });
+        }
+        for (const auto& library : webrtc_libraries) {
+            const auto info = library->Info();
+            result.push_back(RenderModuleInfo{
+                .id = info.id,
+                .name = info.name,
+                .author = info.author,
+                .description = info.description,
+                .version_name = info.version_name,
+                .version_code = info.version_code,
+                .enabled = info.enabled,
             });
         }
         return result;
@@ -780,6 +888,17 @@ namespace px
             }
             return true;
         }
+        for (const auto& library : SnapshotWebRtcLibraries()) {
+            const auto info = library->Info();
+            if (info.id != module_id) {
+                continue;
+            }
+            LOGI("event=module.enable component=render_module_registry "
+                 "module={} delivery=dynamic-network-library enabled={}",
+                 info.name, enabled);
+            library->SetEnabled(enabled);
+            return true;
+        }
         return false;
     }
 
@@ -792,6 +911,10 @@ namespace px
             [&event](const std::shared_ptr<PxPluginInterface>& module) {
                 module->DispatchAppEvent(event);
             });
+        VisitWebRtcLibraries([&event](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            library->DispatchAppEvent(event);
+        });
     }
 
     void RenderModuleRegistry::UpdateModuleD3DResources(
@@ -804,6 +927,10 @@ namespace px
                 module->d3d11_devices_[adapter_uid] = device;
                 module->d3d11_devices_context_[adapter_uid] = context;
             });
+        VisitWebRtcLibraries([adapter_uid, device, context](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            library->UpdateD3DResources(adapter_uid, device, context);
+        });
     }
 
     void RenderModuleRegistry::ClearModuleD3DResources(
@@ -813,6 +940,10 @@ namespace px
                 module->d3d11_devices_.erase(adapter_uid);
                 module->d3d11_devices_context_.erase(adapter_uid);
             });
+        VisitWebRtcLibraries([adapter_uid](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            library->ClearD3DResources(adapter_uid);
+        });
     }
 
     void RenderModuleRegistry::InsertIdr(
@@ -847,6 +978,19 @@ namespace px
     RenderModuleRegistry::SnapshotEncoders() {
         std::shared_lock lock(modules_mtx_);
         return encoders_;
+    }
+
+    std::vector<std::shared_ptr<WebRtcLibrary>>
+    RenderModuleRegistry::SnapshotWebRtcLibraries() {
+        std::vector<std::shared_ptr<WebRtcLibrary>> libraries;
+        std::shared_lock lock(modules_mtx_);
+        if (rtc_transport_) {
+            libraries.push_back(rtc_transport_);
+        }
+        if (rtc_local_transport_) {
+            libraries.push_back(rtc_local_transport_);
+        }
+        return libraries;
     }
 
     void RenderModuleRegistry::VisitAllModules(const std::function<void(
@@ -898,28 +1042,27 @@ namespace px
                 voice_call->On1Second();
             }
 
-            // hold the shared lock for the whole visit, so StopModules
-            // cannot destroy the plugins while they are in use here
-            std::shared_lock<std::shared_mutex> lock(self->modules_mtx_);
-            if (self->lifecycle_modules_.empty()) {
+            // Shared ownership snapshots keep components alive without
+            // holding the registry lock while their callbacks execute.
+            const auto modules_snapshot = self->SnapshotLifecycleModules();
+            const auto transports_snapshot = self->SnapshotNetworkTransports();
+            const auto webrtc_snapshot = self->SnapshotWebRtcLibraries();
+            if (modules_snapshot.empty() && webrtc_snapshot.empty()) {
                 return;
             }
-
-            const auto modules_snapshot = self->lifecycle_modules_;
-            const auto transports_snapshot = self->network_transports_;
 
             int media_consumer_count = 0;
             for (const auto& transport : transports_snapshot) {
                 if (self->exiting_) {
                     return;
                 }
-                // GetMediaConsumersCount is a tail ABI extension currently
-                // implemented only by RTC Local. Other transports use their
-                // ordinary connected-client count.
+                media_consumer_count += transport->GetConnectedClientsCount();
+            }
+            for (const auto& library : webrtc_snapshot) {
                 media_consumer_count +=
-                    transport->GetPluginId() == kNetRtcLocalPluginId
-                    ? transport->GetMediaConsumersCount()
-                    : transport->GetConnectedClientsCount();
+                    library->Kind() == WebRtcLibraryKind::kLocal
+                    ? library->MediaConsumerCount()
+                    : library->ConnectedClientCount();
             }
 
             //LOGI("connected_client_count: {}", connected_client_count);
@@ -939,20 +1082,29 @@ namespace px
                     plugin->DispatchAppEvent(event);
                 }
             }
+            for (const auto& library : webrtc_snapshot) {
+                if (self->exiting_) {
+                    return;
+                }
+                library->On1Second();
+                auto event = std::make_shared<MsgConnectedClientCount>();
+                event->connected_client_count_ = media_consumer_count;
+                library->DispatchAppEvent(event);
+            }
         });
     }
 
     void RenderModuleRegistry::DumpModuleInfo() {
-        std::shared_lock lock(modules_mtx_);
-        LOGI("====> Total modules: {}", lifecycle_modules_.size());
+        const auto module_info = SnapshotModuleInfo();
+        LOGI("====> Total modules: {}", module_info.size());
         int index = 1;
-        for (const auto& plugin : lifecycle_modules_) {
-            LOGI("Plugin {}. [{}] vn: [{}], vc: [{}], enabled: [{}]",
+        for (const auto& module : module_info) {
+            LOGI("Module {}. [{}] vn: [{}], vc: [{}], enabled: [{}]",
                  index++,
-                 plugin->GetPluginName(),
-                 plugin->GetVersionName(),
-                 plugin->GetVersionCode(),
-                 plugin->IsPluginEnabled()
+                 module.name,
+                 module.version_name,
+                 module.version_code,
+                 module.enabled
             );
         }
     }
@@ -964,9 +1116,23 @@ namespace px
         VisitAllModules([&](const std::shared_ptr<PxPluginInterface>& plugin) {
             plugin->OnSyncPluginSettingsInfo(info);
         });
+        const auto webrtc_settings = MakeWebRtcSettings(info);
+        VisitWebRtcLibraries([&webrtc_settings](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            library->UpdateSettings(webrtc_settings);
+        });
         if (const auto service = context_->GetFileTransferService()) {
             static_cast<void>(service->SetEnabled(info.file_transfer_enabled_));
             service->UpdateRateLimit(info.max_transmit_speed_);
+        }
+    }
+
+    void RenderModuleRegistry::VisitWebRtcLibraries(const std::function<void(
+        const std::shared_ptr<WebRtcLibrary>&)>& visitor) {
+        for (const auto& library : SnapshotWebRtcLibraries()) {
+            if (visitor) {
+                visitor(library);
+            }
         }
     }
 
@@ -983,6 +1149,13 @@ namespace px
                     stream_id, message, false, connection_id);
             }
         });
+        VisitWebRtcLibraries([&](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            if (library->Info().id == transport_id) {
+                result = library->SendFileTransfer(
+                    stream_id, message, false, connection_id);
+            }
+        });
         return result;
     }
 
@@ -995,6 +1168,13 @@ namespace px
         VisitNetworkTransports([&](const std::shared_ptr<PxNetPlugin>& plugin) {
             if (plugin && plugin->GetPluginId() == transport_id) {
                 sent = plugin->PostTargetStreamProtoMessage(
+                    stream_id, message, run_through);
+            }
+        });
+        VisitWebRtcLibraries([&](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            if (library->Info().id == transport_id) {
+                sent = library->SendToStream(
                     stream_id, message, run_through);
             }
         });
@@ -1017,12 +1197,24 @@ namespace px
             delivered = plugin->PostTargetStreamProtoMessage(
                 stream_id, message, true) || delivered;
         });
+        VisitWebRtcLibraries([&](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            if (transport_id.empty() || library->Info().id == transport_id) {
+                delivered = library->SendToStream(
+                    stream_id, message, true) || delivered;
+            }
+        });
         if (!delivered && !transport_id.empty()) {
             VisitNetworkTransports([&](const std::shared_ptr<PxNetPlugin>& plugin) {
                 if (plugin) {
                     delivered = plugin->PostTargetStreamProtoMessage(
                         stream_id, message, true) || delivered;
                 }
+            });
+            VisitWebRtcLibraries([&](
+                const std::shared_ptr<WebRtcLibrary>& library) {
+                delivered = library->SendToStream(
+                    stream_id, message, true) || delivered;
             });
         }
         return delivered;
@@ -1032,14 +1224,13 @@ namespace px
         const std::string& stream_id,
         const std::string& call_id,
         const bool authorized) {
-        bool applied = false;
-        VisitNetworkTransports([&](const std::shared_ptr<PxNetPlugin>& plugin) {
-            if (plugin && plugin->GetPluginId() == kNetRtcLocalPluginId) {
-                applied = plugin->SetVoiceCallAuthorization(
-                    stream_id, call_id, authorized) || applied;
-            }
-        });
-        return applied;
+        std::shared_ptr<WebRtcLibrary> rtc_local;
+        {
+            std::shared_lock lock(modules_mtx_);
+            rtc_local = rtc_local_transport_;
+        }
+        return rtc_local && rtc_local->SetVoiceAuthorization(
+            stream_id, call_id, authorized);
     }
 
     bool RenderModuleRegistry::SendRtcVoicePcmOnRoute(
@@ -1051,17 +1242,13 @@ namespace px
         if (!samples || samples->empty()) {
             return false;
         }
-        bool delivered = false;
-        VisitNetworkTransports([&](const std::shared_ptr<PxNetPlugin>& plugin) {
-            if (plugin && plugin->GetPluginId() == kNetRtcLocalPluginId) {
-                // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): synchronous libwebrtc PCM ABI
-                plugin->OnVoiceCallPcm(
-                    stream_id, call_id, samples->data(), samples->size(),
-                    sample_rate, channels);
-                delivered = true;
-            }
-        });
-        return delivered;
+        std::shared_ptr<WebRtcLibrary> rtc_local;
+        {
+            std::shared_lock lock(modules_mtx_);
+            rtc_local = rtc_local_transport_;
+        }
+        return rtc_local && rtc_local->SubmitVoicePcm(
+            stream_id, call_id, samples, sample_rate, channels);
     }
 
     int64_t RenderModuleRegistry::GetQueuingMediaMsgCountInNetPlugins() {
@@ -1069,6 +1256,12 @@ namespace px
         VisitNetworkTransports([&](const std::shared_ptr<PxNetPlugin>& plugin) {
             if (plugin->GetConnectedClientsCount() > 0) {
                 queuing_msg_count += plugin->GetQueuingMediaMsgCount();
+            }
+        });
+        VisitWebRtcLibraries([&](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            if (library->ConnectedClientCount() > 0) {
+                queuing_msg_count += library->QueuedMediaMessageCount();
             }
         });
         return queuing_msg_count;
@@ -1081,6 +1274,13 @@ namespace px
                 queuing_msg_count += plugin->GetQueuingFtMsgCount();
             }
         });
+        VisitWebRtcLibraries([&](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            if (library->ConnectedClientCount() > 0) {
+                queuing_msg_count +=
+                    library->QueuedFileTransferMessageCount();
+            }
+        });
         return queuing_msg_count;
     }
 
@@ -1089,15 +1289,23 @@ namespace px
         VisitNetworkTransports([&](const std::shared_ptr<PxNetPlugin>& plugin) {
             total_size += plugin->GetConnectedClientsCount();
         });
+        VisitWebRtcLibraries([&](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            total_size += library->ConnectedClientCount();
+        });
         return total_size;
     }
 
     int RenderModuleRegistry::GetTotalMediaConsumersCount() {
         int total_size = 0;
         VisitNetworkTransports([&](const std::shared_ptr<PxNetPlugin>& plugin) {
-            total_size += plugin->GetPluginId() == kNetRtcLocalPluginId
-                ? plugin->GetMediaConsumersCount()
-                : plugin->GetConnectedClientsCount();
+            total_size += plugin->GetConnectedClientsCount();
+        });
+        VisitWebRtcLibraries([&](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            total_size += library->Kind() == WebRtcLibraryKind::kLocal
+                ? library->MediaConsumerCount()
+                : library->ConnectedClientCount();
         });
         return total_size;
     }
@@ -1109,6 +1317,12 @@ namespace px
                 for (auto& info : cs) {
                     clients_info.push_back(info);
                 }
+            }
+        });
+        VisitWebRtcLibraries([&](
+            const std::shared_ptr<WebRtcLibrary>& library) {
+            for (const auto& info : library->ConnectedClients()) {
+                clients_info.push_back(info);
             }
         });
         return clients_info;

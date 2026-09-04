@@ -27,11 +27,11 @@ target_link_libraries(render_media_recorder
 
 add_library(render_live_pusher STATIC
     sinks/live_pusher_sink.cpp
-    ../plugins/live_pusher/live_pusher_ffmpeg.cpp)
+    sinks/live_pusher/live_pusher_ffmpeg.cpp)
 target_include_directories(render_live_pusher
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../plugins/live_pusher
+        ${CMAKE_CURRENT_SOURCE_DIR}/sinks/live_pusher
         ${FFMPEG_ROOT}/include)
 target_compile_features(render_live_pusher PUBLIC cxx_std_23)
 target_link_libraries(render_live_pusher
@@ -41,14 +41,14 @@ target_link_libraries(render_live_pusher
 add_library(render_frame_processors STATIC
     processors/frame_carrier_processor.cpp
     processors/frame_resizer_processor.cpp
-    ../plugins/frame_carrier/image_generator.cpp
-    ../plugins/frame_carrier/video_frame_carrier.cpp
-    ../plugins/frame_resizer/frame_render.cpp)
+    processors/frame_carrier/image_generator.cpp
+    processors/frame_carrier/video_frame_carrier.cpp
+    processors/frame_resizer/frame_render.cpp)
 target_include_directories(render_frame_processors
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../plugins/frame_carrier
-        ${CMAKE_CURRENT_SOURCE_DIR}/../plugins/frame_resizer)
+        ${CMAKE_CURRENT_SOURCE_DIR}/processors/frame_carrier
+        ${CMAKE_CURRENT_SOURCE_DIR}/processors/frame_resizer)
 target_compile_features(render_frame_processors PUBLIC cxx_std_23)
 target_link_libraries(render_frame_processors
     PUBLIC render_architecture_core px_common_new
@@ -56,10 +56,10 @@ target_link_libraries(render_frame_processors
 
 add_library(render_audio_processors STATIC
     processors/opus_encoder_processor.cpp
-    ../plugins/opus_encoder/opus_encoder_runtime.cpp)
+    encoders/opus/opus_encoder_runtime.cpp)
 target_include_directories(render_audio_processors
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../plugins/opus_encoder)
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/encoders/opus)
 target_compile_features(render_audio_processors PUBLIC cxx_std_23)
 target_link_libraries(render_audio_processors
     PUBLIC render_architecture_core px_common_new
@@ -67,14 +67,14 @@ target_link_libraries(render_audio_processors
 
 add_library(render_audio_sources STATIC
     sources/was_audio_capture_source.cpp
-    ../plugins/was_audio_capture/was_audio_capture_runtime.cpp
-    ../plugins/was_audio_capture/miniaudio_audio_capture.cpp
-    ../plugins/was_audio_capture/process_loopback_audio_capture.cpp
-    ../plugins/was_audio_capture/third_party/miniaudio/miniaudio.c
-    ../plugins/was_audio_capture/third_party/miniaudio/miniaudio_desktop_process_loopback.cpp)
+    sources/was_audio/was_audio_capture_runtime.cpp
+    sources/was_audio/miniaudio_audio_capture.cpp
+    sources/was_audio/process_loopback_audio_capture.cpp
+    sources/was_audio/third_party/miniaudio/miniaudio.c
+    sources/was_audio/third_party/miniaudio/miniaudio_desktop_process_loopback.cpp)
 target_include_directories(render_audio_sources
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../plugins/was_audio_capture)
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sources/was_audio)
 target_compile_features(render_audio_sources PUBLIC cxx_std_23)
 target_link_libraries(render_audio_sources
     PUBLIC render_architecture_core px_common_new
@@ -86,19 +86,19 @@ add_library(render_domain_services STATIC
     services/input_replay_service.cpp
     services/joystick_service.cpp
     services/voice_call_service.cpp
-    ../plugins/ft/ft_plugin.cpp
-    ../plugins/voice_call/voice_call_runtime.cpp
-    ../plugins/joystick/vigem/vigem_controller.cpp
-    ../plugins/joystick/vigem/sdk/ViGEmClient.cpp
-    ../plugins/event_replayer/win_event_replayer.cpp)
+    services/file_transfer_service.cpp
+    services/voice_call/voice_call_runtime.cpp
+    services/joystick/vigem/vigem_controller.cpp
+    services/joystick/vigem/sdk/ViGEmClient.cpp
+    services/event_replayer/win_event_replayer.cpp)
 target_include_directories(render_domain_services
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../plugins/event_replayer
-        ${CMAKE_CURRENT_SOURCE_DIR}/../plugins/voice_call
-        ${CMAKE_CURRENT_SOURCE_DIR}/../plugins/joystick/vigem
-        ${CMAKE_CURRENT_SOURCE_DIR}/../plugins/joystick/vigem/sdk
-        ${CMAKE_CURRENT_SOURCE_DIR}/../plugins/joystick/vigem/sdk/ViGem)
+        ${CMAKE_CURRENT_SOURCE_DIR}/services/event_replayer
+        ${CMAKE_CURRENT_SOURCE_DIR}/services/voice_call
+        ${CMAKE_CURRENT_SOURCE_DIR}/services/joystick/vigem
+        ${CMAKE_CURRENT_SOURCE_DIR}/services/joystick/vigem/sdk
+        ${CMAKE_CURRENT_SOURCE_DIR}/services/joystick/vigem/sdk/ViGem)
 target_compile_features(render_domain_services PUBLIC cxx_std_23)
 target_link_libraries(render_domain_services
     PUBLIC render_architecture_core px_common_new px_message px_ft_engine px_voice_call
@@ -107,9 +107,9 @@ target_link_libraries(render_domain_services
 if(TESTS_ENABLED)
     find_package(GTest CONFIG REQUIRED)
     add_executable(test_voice_call_runtime
-        ../plugins/voice_call/tests/test_voice_call_runtime.cpp)
+        services/voice_call/tests/test_voice_call_runtime.cpp)
     target_include_directories(test_voice_call_runtime PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../plugins/voice_call)
+        ${CMAKE_CURRENT_SOURCE_DIR}/services/voice_call)
     target_link_libraries(test_voice_call_runtime PRIVATE
         render_domain_services GTest::gtest GTest::gtest_main)
     add_test(NAME render_voice_call_runtime COMMAND test_voice_call_runtime)

@@ -9,7 +9,7 @@
 #include <thread>
 
 #include "px_common_new/async_runtime.h"
-#include "plugins/net_ws/ws_callback_workflow.h"
+#include "network/ws/ws_callback_workflow.h"
 
 namespace px {
 namespace {

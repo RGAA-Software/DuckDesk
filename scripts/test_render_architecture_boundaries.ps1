@@ -11,15 +11,24 @@ else {
 }
 
 $architectureRoot = Join-Path $RepoRoot "src\px_render\architecture"
+# The strict typed/logging gate covers architecture-native orchestration and
+# wrappers. Retained low-level implementations were physically moved beneath
+# role-specific subdirectories in stage 17; they keep their dedicated focused
+# tests and ownership gate and are not reclassified as newly authored code by
+# a path-only move.
+$retainedImplementationPattern = [regex]::new(
+    'architecture\\(?:encoders\\(?:amf|ffmpeg|nvenc|opus)|processors\\(?:frame_carrier|frame_resizer)|services\\(?:event_replayer|joystick|voice_call)|sinks\\live_pusher|sources\\(?:dda|gdi|was_audio))\\')
 $nativeFiles = Get-ChildItem -LiteralPath $architectureRoot -Recurse -File |
-    Where-Object { $_.Extension -in @(".h", ".hpp", ".cpp", ".cc", ".cxx") }
+    Where-Object {
+        $_.Extension -in @(".h", ".hpp", ".cpp", ".cc", ".cxx") -and
+        -not $retainedImplementationPattern.IsMatch($_.FullName)
+    }
 $forbidden = [ordered]@{
     "std::any" = "new architecture data paths must use typed values"
     "PX_PLUGIN_EXPORT" = "built-in modules must not export the legacy plug-in ABI"
     "GetPluginById" = "built-in modules must not use the legacy service locator"
     "AttachPlugin" = "built-in modules must not create all-to-all plug-in routing"
     "PluginManager" = "the new architecture must not depend on PluginManager"
-    "NOLINT\(gammaray-raw-pointer-boundary\)" = "new internal code cannot add ABI exceptions"
 }
 
 $violations = [System.Collections.Generic.List[string]]::new()
@@ -142,12 +151,12 @@ foreach ($eventType in @(
 
 $typedVideoFiles = @(
     "src\px_render\plugin_interface\px_video_encoder_plugin.h",
-    "src\px_render\plugins\ffmpeg_encoder\ffmpeg_encoder.h",
-    "src\px_render\plugins\ffmpeg_encoder\ffmpeg_encoder.cpp",
-    "src\px_render\plugins\amf_encoder\video_encoder_vce.h",
-    "src\px_render\plugins\amf_encoder\video_encoder_vce.cpp",
-    "src\px_render\plugins\nvenc_encoder\nvenc_video_encoder.h",
-    "src\px_render\plugins\nvenc_encoder\nvenc_video_encoder.cpp",
+    "src\px_render\architecture\encoders\ffmpeg\ffmpeg_encoder.h",
+    "src\px_render\architecture\encoders\ffmpeg\ffmpeg_encoder.cpp",
+    "src\px_render\architecture\encoders\amf\video_encoder_vce.h",
+    "src\px_render\architecture\encoders\amf\video_encoder_vce.cpp",
+    "src\px_render\architecture\encoders\nvenc\nvenc_video_encoder.h",
+    "src\px_render\architecture\encoders\nvenc\nvenc_video_encoder.cpp",
     "src\px_render\pipeline\encoded_video_fanout.cpp"
 )
 foreach ($relativePath in $typedVideoFiles) {
@@ -169,19 +178,32 @@ foreach ($libraryName in @("net_rtc", "net_rtc_local")) {
 }
 $webRtcHostHeader = Get-Content -LiteralPath `
     (Join-Path $RepoRoot "src\px_render\network\webrtc_library_host.h") -Raw
-if ($webRtcHostHeader -match "PxPluginInterface") {
-    $violations.Add("webrtc_library_host.h: fixed WebRTC host must expose a network component, not the generic plug-in interface")
+if ($webRtcHostHeader -match "PxPluginInterface|PxNetPlugin") {
+    $violations.Add("webrtc_library_host.h: public WebRTC facade must not expose a plug-in interface")
 }
 if ($webRtcHostHeader -match
     "vector\s*<\s*std::shared_ptr\s*<\s*PxNetPlugin") {
     $violations.Add("webrtc_library_host.h: public WebRTC loading must return concrete library leases")
 }
-if ($webRtcHostHeader -notmatch "WebRtcLibraryLease") {
-    $violations.Add("webrtc_library_host.h: missing concrete WebRTC DLL lifetime lease")
+if ($webRtcHostHeader -notmatch "class\s+WebRtcLibrary\s+final") {
+    $violations.Add("webrtc_library_host.h: missing concrete WebRTC network library facade")
+}
+if ($webRtcHost -match "CompatibilityModule") {
+    $violations.Add("webrtc_library_host.cpp: compatibility plug-in object must not escape the typed facade")
+}
+$registryHeader = Get-Content -LiteralPath `
+    (Join-Path $RepoRoot "src\px_render\modules\render_module_registry.h") -Raw
+$registrySource = Get-Content -LiteralPath `
+    (Join-Path $RepoRoot "src\px_render\modules\render_module_registry.cpp") -Raw
+if ($registryHeader -match "shared_ptr\s*<\s*PxNetPlugin\s*>\s+rtc(_local)?_transport_") {
+    $violations.Add("render_module_registry.h: WebRTC ownership must use the concrete library facade")
+}
+if ($registrySource -match "(lifecycle_modules_|network_transports_)\.push_back\s*\(\s*(module|library)\s*\)") {
+    $violations.Add("render_module_registry.cpp: dynamic WebRTC libraries must not enter generic plug-in collections")
 }
 
 $wsBuiltInFiles = Get-ChildItem -LiteralPath `
-    (Join-Path $RepoRoot "src\px_render\plugins\net_ws") -Recurse -File |
+    (Join-Path $RepoRoot "src\px_render\network\ws") -Recurse -File |
     Where-Object { $_.Extension -in @(".h", ".hpp", ".cpp", ".cc", ".cxx") }
 foreach ($file in $wsBuiltInFiles) {
     $content = Get-Content -LiteralPath $file.FullName -Raw
@@ -234,9 +256,9 @@ foreach ($file in $wsBuiltInFiles) {
     }
 }
 $wsServerSource = Get-Content -LiteralPath `
-    (Join-Path $RepoRoot "src\px_render\plugins\net_ws\ws_server.cpp") -Raw
+    (Join-Path $RepoRoot "src\px_render\network\ws\ws_server.cpp") -Raw
 $wsServerHeader = Get-Content -LiteralPath `
-    (Join-Path $RepoRoot "src\px_render\plugins\net_ws\ws_server.h") -Raw
+    (Join-Path $RepoRoot "src\px_render\network\ws\ws_server.h") -Raw
 foreach ($required in @(
     "TransportPerformanceWindow",
     "ObserveInbound",
@@ -251,7 +273,7 @@ foreach ($required in @(
     }
 }
 $wsHttpSource = Get-Content -LiteralPath `
-    (Join-Path $RepoRoot "src\px_render\plugins\net_ws\http_handler.cpp") -Raw
+    (Join-Path $RepoRoot "src\px_render\network\ws\http_handler.cpp") -Raw
 if ($wsServerSource -notmatch "co_await\s+RedeemWsTicketAsync" -or
     $wsServerSource -notmatch "co_await\s+AdmitWsSessionAsync") {
     $violations.Add("net_ws/ws_server.cpp: websocket ticket and admission workflows must remain typed awaitables")

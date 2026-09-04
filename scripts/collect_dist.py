@@ -179,6 +179,16 @@ def main():
     copy_tree(source_language_dir, os.path.join(dist_dir, "resources", "language"))
     print("  + resources/language/  (authoritative source files)")
 
+    frame_carrier_resource = os.path.join(
+        source_dir, "src", "px_render", "architecture", "processors",
+        "frame_carrier", "resources", "ic_logo_point.png")
+    copy_file(
+        frame_carrier_resource,
+        os.path.join(
+            dist_dir, "resources", "render", "frame_carrier",
+            "ic_logo_point.png"),
+    )
+
     # ------------------------------------------------------------------
     # 2. Supplementary executables / DLLs from native build dirs
     # ------------------------------------------------------------------
@@ -233,19 +243,22 @@ def main():
     copy_tree(cef_locales, os.path.join(dist_dir, "locales"))
 
     # ------------------------------------------------------------------
-    # 3. Render plugins  →  dist/deps/rd_plugins/
+    # 3. Concrete Render network libraries → dist/deps/network/
     # ------------------------------------------------------------------
-    px_plugins_build_dir = os.path.join(build_dir, "src", "px_render", "plugins")
-    px_plugins_dst = os.path.join(dist_dir, "deps", "rd_plugins")
-    if os.path.isdir(px_plugins_build_dir):
-        os.makedirs(px_plugins_dst, exist_ok=True)
-        for plugin_dir in os.listdir(px_plugins_build_dir):
-            plugin_build_dir = os.path.join(px_plugins_build_dir, plugin_dir)
-            if not os.path.isdir(plugin_build_dir):
-                continue
-            for f in os.listdir(plugin_build_dir):
-                if f.endswith(".dll") and should_copy_file(f):
-                    copy_file(os.path.join(plugin_build_dir, f), os.path.join(px_plugins_dst, f))
+    legacy_render_plugins = os.path.join(dist_dir, "deps", "rd_plugins")
+    if os.path.isdir(legacy_render_plugins):
+        shutil.rmtree(legacy_render_plugins)
+        print("  - deps/rd_plugins  (legacy Render plug-in directory)")
+    network_libraries = [
+        ("network/webrtc/remote/net_rtc.dll", "net_rtc.dll"),
+        ("network/webrtc/local/net_rtc_local.dll", "net_rtc_local.dll"),
+    ]
+    network_dst = os.path.join(dist_dir, "deps", "network")
+    os.makedirs(network_dst, exist_ok=True)
+    for relative_source, name in network_libraries:
+        source = os.path.join(
+            build_dir, "src", "px_render", *relative_source.split("/"))
+        copy_file(source, os.path.join(network_dst, name))
 
     # ------------------------------------------------------------------
     # 4. Retired Client plug-ins and the temporary recording-core DLL

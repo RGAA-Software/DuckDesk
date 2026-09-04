@@ -25,7 +25,7 @@ typedef void *(*FnGetInstance)();
 namespace px
 {
 
-    // render side error code, see px_render/plugins/net_ws/http_handler.cpp(kHandlerErrRtcLocalOccupied)
+    // render side error code, see px_render/network/ws/http_handler.cpp(kHandlerErrRtcLocalOccupied)
     static constexpr int kRtcLocalRespOccupied = 704;
     static constexpr int kRtcLocalRespPasswordRejected = 700;
     static constexpr int kRtcLocalRespTicketRejected = 705;

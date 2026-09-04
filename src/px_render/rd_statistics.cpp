@@ -7,7 +7,7 @@
 #include "rd_context.h"
 #include "rd_app.h"
 #include "app/app_messages.h"
-#include "px_render/plugins/plugin_ids.h"
+#include "px_render/modules/module_ids.h"
 #include "settings/rd_settings.h"
 #include "px_render/modules/render_module_registry.h"
 #include "px_common_new/log.h"

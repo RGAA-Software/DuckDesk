@@ -15,7 +15,7 @@
 #include <vector>
 #include <d3d11.h>
 #include <wrl/client.h>
-#include "px_render/plugins/plugin_ids.h"
+#include "px_render/modules/module_ids.h"
 #include "px_common_new/concurrent_hashmap.h"
 #include "px_common_new/file_transfer_send_result.h"
 #include "px_render/plugin_interface/px_plugin_settings_info.h"
@@ -36,6 +36,7 @@ namespace px
     class PxMonitorCapturePlugin;
     class PxFrameProcessorPlugin;
     class PxConnectedClientInfo;
+    class WebRtcLibrary;
     class WebRtcLibraryHost;
     class Image;
     class Message;
@@ -203,12 +204,16 @@ namespace px
         SnapshotLifecycleModules();
         [[nodiscard]] std::vector<std::shared_ptr<PxVideoEncoderPlugin>>
         SnapshotEncoders();
+        [[nodiscard]] std::vector<std::shared_ptr<WebRtcLibrary>>
+        SnapshotWebRtcLibraries();
         void VisitAllModules(const std::function<void(
             const std::shared_ptr<PxPluginInterface>&)>& operation);
         void VisitEncoders(const std::function<void(
             const std::shared_ptr<PxVideoEncoderPlugin>&)>& operation);
         void VisitNetworkTransports(const std::function<void(
             const std::shared_ptr<PxNetPlugin>&)>& operation);
+        void VisitWebRtcLibraries(const std::function<void(
+            const std::shared_ptr<WebRtcLibrary>&)>& operation);
 
         // Process-lifetime settings singleton, represented as a non-null
         // reference so composition never carries a nullable borrowed pointer.
@@ -229,8 +234,10 @@ namespace px
         std::shared_ptr<PxNetPlugin> ws_transport_;
         std::shared_ptr<PxNetPlugin> udp_transport_;
         std::shared_ptr<PxNetPlugin> relay_transport_;
-        std::shared_ptr<PxNetPlugin> rtc_transport_;
-        std::shared_ptr<PxNetPlugin> rtc_local_transport_;
+        // Fixed dynamic network components. They intentionally do not enter
+        // either generic plug-in collection.
+        std::shared_ptr<WebRtcLibrary> rtc_transport_;
+        std::shared_ptr<WebRtcLibrary> rtc_local_transport_;
         std::shared_ptr<WebRtcLibraryHost> webrtc_library_host_;
         std::mutex routing_mtx_;
         std::shared_ptr<RenderEventIngress> control_ingress_ = nullptr;

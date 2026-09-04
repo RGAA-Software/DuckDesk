@@ -1,8 +1,8 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("render", "client", "panel", "render_plugins", "render_plugin", "hook_audio", "ft_protocol")]
+    [ValidateSet("render", "client", "panel", "render_network_libraries", "render_network_library", "hook_audio", "ft_protocol")]
     [string]$Component,
-    [string]$PluginTarget = "",
+    [string]$LibraryTarget = "",
     [string]$BuildDir = "build_official"
 )
 
@@ -147,69 +147,48 @@ function Remove-RetiredClientRecordingCore {
     Write-Host "REMOVED retired Client recording core $stalePath"
 }
 
-function Remove-NonPackagedRenderPlugins {
-    $pluginDirectory = Join-Path $distRoot "deps\rd_plugins"
-    foreach ($retiredName in @(
-        "mock_video_stream.dll",
-        "obj_detector.dll",
-        "frame_debugger.dll",
-        "media_recorder.dll",
-        "live_pusher.dll",
-        "frame_resizer.dll",
-        "frame_carrier.dll",
-        "enc_opus.dll",
-        "event_replayer.dll",
-        "cap_was_audio.dll",
-        "clipboard.dll",
-        "joystick.dll",
-        "ft.dll",
-        "voice_call.dll",
-        "cap_dda.dll",
-        "cap_gdi.dll",
-        "enc_ffmpeg.dll",
-        "enc_amf.dll",
-        "enc_nvenc.dll",
-        "net_ws.dll",
-        "net_udp.dll",
-        "net_relay.dll")) {
-        $retiredPath = Join-Path $pluginDirectory $retiredName
-        if (-not (Test-Path -LiteralPath $retiredPath -PathType Leaf)) {
-            continue
-        }
-        try {
-            Remove-Item -LiteralPath $retiredPath -Force
-        }
-        catch {
-            Stop-RenderServiceForPublish
-            Remove-Item -LiteralPath $retiredPath -Force
-        }
-        Write-Host "REMOVED non-packaged Render module $retiredPath"
+function Remove-LegacyRenderPluginDirectory {
+    $legacyDirectory = Join-Path $distRoot "deps\rd_plugins"
+    if (-not (Test-Path -LiteralPath $legacyDirectory -PathType Container)) {
+        return
     }
+    try {
+        Remove-Item -LiteralPath $legacyDirectory -Recurse -Force
+    }
+    catch {
+        Stop-RenderServiceForPublish
+        Remove-Item -LiteralPath $legacyDirectory -Recurse -Force
+    }
+    Write-Host "REMOVED legacy Render plugin directory $legacyDirectory"
 }
 
-$renderPluginMap = @{
-    "net_rtc"          = "net_rtc\net_rtc.dll"
-    "net_rtc_local"    = "net_rtc_local\net_rtc_local.dll"
+$renderNetworkLibraryMap = @{
+    "net_rtc"       = "network\webrtc\remote\net_rtc.dll"
+    "net_rtc_local" = "network\webrtc\local\net_rtc_local.dll"
 }
 
-function Publish-RenderPlugin {
+function Publish-RenderNetworkLibrary {
     param([Parameter(Mandatory = $true)][string]$Target)
-    if (-not $renderPluginMap.ContainsKey($Target)) {
-        throw "unknown Render plugin target: $Target"
+    if (-not $renderNetworkLibraryMap.ContainsKey($Target)) {
+        throw "unknown Render network library target: $Target"
     }
-    $relativeSource = $renderPluginMap[$Target]
-    $source = Join-Path $buildRoot ("src\px_render\plugins\" + $relativeSource)
-    $destination = Join-Path $distRoot ("deps\rd_plugins\" + (Split-Path -Leaf $relativeSource))
+    $relativeSource = $renderNetworkLibraryMap[$Target]
+    $source = Join-Path $buildRoot ("src\px_render\" + $relativeSource)
+    $destination = Join-Path $distRoot ("deps\network\" + (Split-Path -Leaf $relativeSource))
     Publish-VerifiedFile -Source $source -Destination $destination -ProcessName "px_render"
 }
 
 try {
 switch ($Component) {
     "render" {
-        Remove-NonPackagedRenderPlugins
+        Remove-LegacyRenderPluginDirectory
         Publish-VerifiedFile `
             -Source (Join-Path $buildRoot "src\px_render\px_render.exe") `
             -Destination (Join-Path $distRoot "px_render.exe") `
+            -ProcessName "px_render"
+        Publish-VerifiedFile `
+            -Source (Join-Path $repoRoot "src\px_render\architecture\processors\frame_carrier\resources\ic_logo_point.png") `
+            -Destination (Join-Path $distRoot "resources\render\frame_carrier\ic_logo_point.png") `
             -ProcessName "px_render"
     }
     "client" {
@@ -254,12 +233,12 @@ switch ($Component) {
             }
         Publish-LanguageResources
     }
-    "render_plugin" {
-        Remove-NonPackagedRenderPlugins
-        if ([string]::IsNullOrWhiteSpace($PluginTarget)) {
-            throw "PluginTarget is required for render_plugin"
+    "render_network_library" {
+        Remove-LegacyRenderPluginDirectory
+        if ([string]::IsNullOrWhiteSpace($LibraryTarget)) {
+            throw "LibraryTarget is required for render_network_library"
         }
-        Publish-RenderPlugin -Target $PluginTarget
+        Publish-RenderNetworkLibrary -Target $LibraryTarget
     }
     "hook_audio" {
         Publish-VerifiedFile `
@@ -267,14 +246,14 @@ switch ($Component) {
             -Destination (Join-Path $distRoot "px_gh.dll") `
             -ProcessName "px_render"
     }
-    "render_plugins" {
-        Remove-NonPackagedRenderPlugins
-        foreach ($target in $renderPluginMap.Keys | Sort-Object) {
-            Publish-RenderPlugin -Target $target
+    "render_network_libraries" {
+        Remove-LegacyRenderPluginDirectory
+        foreach ($target in $renderNetworkLibraryMap.Keys | Sort-Object) {
+            Publish-RenderNetworkLibrary -Target $target
         }
     }
     "ft_protocol" {
-        Remove-NonPackagedRenderPlugins
+        Remove-LegacyRenderPluginDirectory
         # px_file_transfer.proto objects cross these executable/plugin boundaries.
         # Publish them as one compatibility unit so generated protobuf layouts cannot be mixed.
         Publish-VerifiedFile `
@@ -286,7 +265,7 @@ switch ($Component) {
             -Destination (Join-Path $distRoot "px_render.exe") `
             -ProcessName "px_render"
         foreach ($target in @("net_rtc", "net_rtc_local")) {
-            Publish-RenderPlugin -Target $target
+            Publish-RenderNetworkLibrary -Target $target
         }
         Publish-VerifiedFile `
             -Source (Join-Path $buildRoot "src\px_client\px_client.exe") `

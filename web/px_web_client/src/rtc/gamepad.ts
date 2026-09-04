@@ -2,7 +2,7 @@
 // 协议对齐:
 //   - px_message.proto: kHello=0(Hello.enable_controller=4), kGamepadState=80,
 //     GamepadState{buttons,left_trigger,right_trigger,thumb_lx/ly/rx/ry,gp_type}
-//   - src/px_render/plugins/joystick/joystick_plugin.cpp:
+//   - src/px_render/architecture/services/joystick_service.cpp:
 //     收到 kHello{enable_controller=true} 后按 stream_id 分配 ViGEm 虚拟 X360 手柄;
 //     收到 kGamepadState 后把字段直接填进 XINPUT_GAMEPAD(=XUSB_REPORT) 回放,
 //     gp_type 在回放路径上被忽略,固定填 kButtons(0)

@@ -37,9 +37,9 @@ target_link_libraries(test_live_pusher_sink
 add_test(NAME live_pusher_sink COMMAND test_live_pusher_sink)
 
 add_executable(test_live_pusher_ffmpeg
-    ../plugins/live_pusher/tests/test_live_pusher_ffmpeg.cpp)
+    ../architecture/sinks/live_pusher/tests/test_live_pusher_ffmpeg.cpp)
 target_include_directories(test_live_pusher_ffmpeg PRIVATE
-    ../plugins/live_pusher)
+    ../architecture/sinks/live_pusher)
 target_link_libraries(test_live_pusher_ffmpeg
     PRIVATE render_live_pusher GTest::gtest GTest::gtest_main)
 add_test(NAME live_pusher_ffmpeg COMMAND test_live_pusher_ffmpeg)
@@ -63,9 +63,9 @@ target_link_libraries(test_opus_encoder_processor
 add_test(NAME opus_encoder_processor COMMAND test_opus_encoder_processor)
 
 add_executable(test_opus_encoder_runtime
-    ../plugins/opus_encoder/tests/test_opus_encoder_runtime.cpp)
+    ../architecture/encoders/opus/tests/test_opus_encoder_runtime.cpp)
 target_include_directories(test_opus_encoder_runtime PRIVATE
-    ../plugins/opus_encoder)
+    ../architecture/encoders/opus)
 target_link_libraries(test_opus_encoder_runtime
     PRIVATE render_audio_processors GTest::gtest GTest::gtest_main)
 add_test(NAME opus_encoder_runtime COMMAND test_opus_encoder_runtime)
@@ -91,47 +91,47 @@ add_test(NAME file_transfer_service COMMAND test_file_transfer_service)
 add_executable(test_was_audio_capture_source
     unit/test_was_audio_capture_source.cpp)
 target_include_directories(test_was_audio_capture_source PRIVATE
-    ../plugins/was_audio_capture)
+    ../architecture/sources/was_audio)
 target_link_libraries(test_was_audio_capture_source
     PRIVATE render_audio_sources GTest::gtest GTest::gtest_main)
 add_test(NAME was_audio_capture_source COMMAND test_was_audio_capture_source)
 
 add_executable(test_was_audio_capture_runtime
-    ../plugins/was_audio_capture/tests/test_was_audio_capture_runtime.cpp)
+    ../architecture/sources/was_audio/tests/test_was_audio_capture_runtime.cpp)
 target_include_directories(test_was_audio_capture_runtime PRIVATE
-    ../plugins/was_audio_capture)
+    ../architecture/sources/was_audio)
 target_link_libraries(test_was_audio_capture_runtime PRIVATE
     render_audio_sources)
 add_test(NAME was_audio_capture_runtime COMMAND test_was_audio_capture_runtime)
 
-add_executable(test_plugin_was_audio_capture
-    ../plugins/was_audio_capture/tests/test_miniaudio_audio_capture.cpp
-    ../plugins/was_audio_capture/miniaudio_audio_capture.cpp
-    ../plugins/was_audio_capture/third_party/miniaudio/miniaudio.c
-    ../plugins/was_audio_capture/third_party/miniaudio/miniaudio_desktop_process_loopback.cpp)
-target_include_directories(test_plugin_was_audio_capture PRIVATE
-    ../plugins/was_audio_capture)
-target_link_libraries(test_plugin_was_audio_capture PRIVATE
+add_executable(test_was_audio_capture_hardware
+    ../architecture/sources/was_audio/tests/test_miniaudio_audio_capture.cpp
+    ../architecture/sources/was_audio/miniaudio_audio_capture.cpp
+    ../architecture/sources/was_audio/third_party/miniaudio/miniaudio.c
+    ../architecture/sources/was_audio/third_party/miniaudio/miniaudio_desktop_process_loopback.cpp)
+target_include_directories(test_was_audio_capture_hardware PRIVATE
+    ../architecture/sources/was_audio)
+target_link_libraries(test_was_audio_capture_hardware PRIVATE
     px_common_new ole32 mmdevapi)
-target_compile_definitions(test_plugin_was_audio_capture PRIVATE
+target_compile_definitions(test_was_audio_capture_hardware PRIVATE
     PX_AUDIO_CAPTURE_TESTING=1)
 add_test(NAME was_audio_capture_hardware
     COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
         -File "${CMAKE_SOURCE_DIR}/scripts/run_render_hardware_test.ps1"
         -Kind was-default
-        -Executable "$<TARGET_FILE:test_plugin_was_audio_capture>")
+        -Executable "$<TARGET_FILE:test_was_audio_capture_hardware>")
 set_tests_properties(was_audio_capture_hardware PROPERTIES
     LABELS "render-hardware"
     SKIP_RETURN_CODE 125
     TIMEOUT 45)
 
 add_executable(test_miniaudio_reinit_cancel
-    ../plugins/was_audio_capture/tests/test_miniaudio_reinit_cancel.cpp
-    ../plugins/was_audio_capture/miniaudio_audio_capture.cpp
-    ../plugins/was_audio_capture/third_party/miniaudio/miniaudio.c
-    ../plugins/was_audio_capture/third_party/miniaudio/miniaudio_desktop_process_loopback.cpp)
+    ../architecture/sources/was_audio/tests/test_miniaudio_reinit_cancel.cpp
+    ../architecture/sources/was_audio/miniaudio_audio_capture.cpp
+    ../architecture/sources/was_audio/third_party/miniaudio/miniaudio.c
+    ../architecture/sources/was_audio/third_party/miniaudio/miniaudio_desktop_process_loopback.cpp)
 target_include_directories(test_miniaudio_reinit_cancel PRIVATE
-    ../plugins/was_audio_capture)
+    ../architecture/sources/was_audio)
 target_link_libraries(test_miniaudio_reinit_cancel PRIVATE
     px_common_new ole32 mmdevapi)
 target_compile_definitions(test_miniaudio_reinit_cancel PRIVATE
@@ -139,17 +139,17 @@ target_compile_definitions(test_miniaudio_reinit_cancel PRIVATE
 add_test(NAME miniaudio_reinit_cancel COMMAND test_miniaudio_reinit_cancel)
 
 add_executable(test_process_loopback_lifecycle
-    ../plugins/was_audio_capture/tests/test_process_loopback_lifecycle.cpp)
+    ../architecture/sources/was_audio/tests/test_process_loopback_lifecycle.cpp)
 target_include_directories(test_process_loopback_lifecycle PRIVATE
-    ../plugins/was_audio_capture)
+    ../architecture/sources/was_audio)
 target_link_libraries(test_process_loopback_lifecycle PRIVATE
     render_audio_sources)
 add_test(NAME process_loopback_lifecycle COMMAND test_process_loopback_lifecycle)
 
 add_executable(test_miniaudio_pid_loopback
-    ../plugins/was_audio_capture/tests/test_miniaudio_pid_loopback.cpp)
+    ../architecture/sources/was_audio/tests/test_miniaudio_pid_loopback.cpp)
 target_include_directories(test_miniaudio_pid_loopback PRIVATE
-    ../plugins/was_audio_capture)
+    ../architecture/sources/was_audio)
 target_link_libraries(test_miniaudio_pid_loopback PRIVATE
     render_audio_sources)
 add_test(NAME miniaudio_pid_loopback_hardware
@@ -176,7 +176,7 @@ add_test(NAME logical_session_registry COMMAND test_logical_session_registry)
 
 add_executable(test_direct_session_grant_store
     test_direct_session_grant_store.cpp
-    ../plugins/net_ws/direct_session_grant_store.cpp)
+    ../network/ws/direct_session_grant_store.cpp)
 target_link_libraries(test_direct_session_grant_store
     PRIVATE px_common_new GTest::gtest GTest::gtest_main)
 add_test(NAME direct_session_grant_store COMMAND test_direct_session_grant_store)
@@ -186,22 +186,21 @@ target_link_libraries(test_plugin_context_lifecycle
     PRIVATE px_common_new px_plugin GTest::gtest GTest::gtest_main)
 add_test(NAME plugin_context_lifecycle COMMAND test_plugin_context_lifecycle)
 
-add_executable(test_rtc_plugins_dll_lifecycle
-        test_rtc_plugins_dll_lifecycle.cpp
+add_executable(test_webrtc_libraries_lifecycle
+        test_webrtc_libraries_lifecycle.cpp
         ../network/webrtc_library_host.cpp)
-target_link_libraries(test_rtc_plugins_dll_lifecycle
+target_link_libraries(test_webrtc_libraries_lifecycle
         PRIVATE px_common_new px_net_plugin px_plugin
         GTest::gtest GTest::gtest_main)
-target_compile_definitions(test_rtc_plugins_dll_lifecycle
+target_compile_definitions(test_webrtc_libraries_lifecycle
         PRIVATE
-        PX_RTC_PLUGIN_DLL_PATH="$<TARGET_FILE:net_rtc>"
-        PX_RTC_LOCAL_PLUGIN_DLL_PATH="$<TARGET_FILE:net_rtc_local>")
-add_dependencies(test_rtc_plugins_dll_lifecycle net_rtc net_rtc_local)
-add_test(NAME rtc_plugins_dll_lifecycle
-    COMMAND test_rtc_plugins_dll_lifecycle)
+        PX_WEBRTC_REMOTE_LIBRARY_PATH="$<TARGET_FILE:net_rtc>"
+        PX_WEBRTC_LOCAL_LIBRARY_PATH="$<TARGET_FILE:net_rtc_local>")
+add_dependencies(test_webrtc_libraries_lifecycle net_rtc net_rtc_local)
+add_test(NAME webrtc_libraries_lifecycle
+    COMMAND test_webrtc_libraries_lifecycle)
 
 add_executable(test_render_builtin_linkage unit/test_render_builtin_linkage.cpp)
-target_include_directories(test_render_builtin_linkage PRIVATE ../plugins)
 target_link_libraries(test_render_builtin_linkage PRIVATE
     cap_dda cap_gdi enc_ffmpeg enc_amf enc_nvenc net_ws net_udp net_relay
     GTest::gtest GTest::gtest_main)
@@ -233,7 +232,7 @@ set_property(TEST
     miniaudio_reinit_cancel
     process_loopback_lifecycle
     plugin_context_lifecycle
-    rtc_plugins_dll_lifecycle
+    webrtc_libraries_lifecycle
     APPEND PROPERTY LABELS "render-lifecycle")
 
 set_property(TEST

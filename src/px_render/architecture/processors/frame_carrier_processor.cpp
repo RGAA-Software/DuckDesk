@@ -274,8 +274,8 @@ bool FrameCarrierProcessor::LoadResources() {
     logo_points_.clear();
     big_logo_points_.clear();
     cover_points_.clear();
-    const auto logo_path = base_path_ / L"deps" / L"rd_plugins" /
-        L"resources" / L"ic_logo_point.png";
+    const auto logo_path = base_path_ / L"resources" / L"render" /
+        L"frame_carrier" / L"ic_logo_point.png";
     if (std::filesystem::exists(logo_path)) {
         const auto file = File::OpenForReadB(
             U8Path(StringUtil::ToUTF8(logo_path.wstring())));

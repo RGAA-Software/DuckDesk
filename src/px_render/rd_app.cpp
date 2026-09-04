@@ -45,7 +45,7 @@
 #include "rd_statistics.h"
 #include "network/render_service_client.h"
 #include "px_render/modules/render_module_registry.h"
-#include "px_render/plugins/plugin_ids.h"
+#include "px_render/modules/module_ids.h"
 #include "px_render/plugin_interface/px_stream_plugin.h"
 #include "px_render/plugin_interface/px_net_plugin.h"
 #include "px_render/plugin_interface/px_monitor_capture_plugin.h"
@@ -79,7 +79,7 @@
 #include "architecture/services/file_transfer_service.h"
 #include "architecture/services/voice_call_service.h"
 #include "architecture/sources/was_audio_capture_source.h"
-#include "plugins/live_pusher/live_pusher_ffmpeg.h"
+#include "architecture/sinks/live_pusher/live_pusher_ffmpeg.h"
 
 namespace px
 {

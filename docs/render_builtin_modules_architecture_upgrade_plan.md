@@ -26,7 +26,8 @@ Render 当前的大多数功能都是产品固定能力，不需要独立发现�
 - 不在此次升级中重写 libwebrtc 或 `src/px_deps/px_webrtc_client` 的借用 ABI。
 - 不把 coroutine frame、STL 类型或 `asio::awaitable` 导出到 WebRTC DLL 边界。
 - 不为 WebRTC 再建立 `IWebRtcTransport` 或通用 `ITransport` 虚接口。
-- 不以“大文件移动”代替架构迁移；实现稳定前保留现有源码目录，减少无意义 diff。
+- 架构稳定前不以“大文件移动”代替迁移；稳定后必须按职责移动实现并删除
+  `src/px_render/plugins`，避免交付形态与源码归属继续矛盾。
 - 不使用 `build_official.bat` 做日常开发或聚焦验证。
 
 ## 3. 目标架构
@@ -136,8 +137,9 @@ Transport 只负责连接、收发、队列和协议边界。控制权限、take
 | `net_rtc`、`net_rtc_local` | Network Transport | 现有 DLL |
 | `mock_video_stream`、`obj_detector` | 无产品用途 | 退出生产构建和发布 |
 
-第一阶段保持两个 WebRTC DLL 的现有身份、`GetInstance` 契约和卸载时机，不把 WebRTC
-ABI 迁移与整体模块化升级绑定在同一风险面上。
+两个 WebRTC DLL 保持现有二进制身份、`GetInstance` 契约和卸载时机，但该契约只允许
+存在于动态库实现与 `webrtc_library_host.cpp` 的最小兼容边界。Registry、消息路由、统计、
+生命周期和测试均只能使用具体 `WebRtcLibrary`；不得把 WebRTC 放回通用插件集合。
 
 ## 5. 建议目录
 
@@ -175,8 +177,8 @@ src/px_render/
 |   |-- render_error.*
 |   |-- rate_limited_log.*
 |   `-- performance_window.*
-`-- compatibility/
-    `-- legacy_webrtc_plugin_host.*
+`-- modules/
+    `-- module_ids.h
 ```
 
 ## 6. 现代 C++ 所有权与 RAII 约束
@@ -312,19 +314,20 @@ ConnectionInstanceId、StreamId 和 ChannelKind。不再遍历所有 transport �
 
 ### 9.2 WebRTC 动态边界
 
-`WebRtcLibrary` 是网络层具体组件，不定义新的通用虚接口。升级期间通过
-`LegacyWebRtcPluginHost` 调用现有 ABI：
+`WebRtcLibrary` 是网络层具体组件，不定义新的通用虚接口。`WebRtcLibraryHost` 在其
+`.cpp` 内部封闭现有 ABI：
 
 ```text
 NetworkTransportHub
         |
         v
-WebRtcLibrary --shared ownership--> LegacyWebRtcPluginHost
+WebRtcLibrary --shared ownership--> WebRtcLibraryHost private state
                                       |
                                       `-- existing GetInstance ABI
 ```
 
-旧裸实例只能留在原兼容实现中，不进入 Composition root、coroutine、callback capture、
+旧裸实例只能留在动态库导出函数和 host `.cpp` 的兼容实现中，不进入 Registry、
+Composition root、coroutine、callback capture、
 route、service 或 frame。DLL callback 到达项目代码后立即复制为 owned/value 数据。
 需要等待结果时，exe 使用 `PxAsyncOneShot` 把现有 callback 转为 awaitable；不把 awaitable
 跨 DLL 导出。
@@ -1182,7 +1185,8 @@ WARN/ERROR。调用链不得为同一个 code 输出多条相同主错误。
 - 工作集和 handle 数不得无解释增长超过 5%；停止后应回到预定稳态范围。
 - 线程数不得高于旧架构基线；目标是消除每插件 context 后明显下降。
 - 所有队列 high watermark 低于容量；达到容量必须有对应 drop/backpressure 证据。
-- 最终 `rd_plugins` 只保留 WebRTC 动态产物，运行目录总 DLL 大小按实际结果登记。
+- 最终不存在 `rd_plugins`；仅两个 WebRTC 动态网络库位于 `deps/network`，运行目录总
+  DLL 大小按实际结果登记。
 
 如固定硬件的自然波动超过上述门槛，先通过阶段 0 数据校准阈值并记录理由，不能在看到
 迁移结果后反向放宽门槛。

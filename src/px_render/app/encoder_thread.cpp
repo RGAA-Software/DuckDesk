@@ -25,7 +25,7 @@
 #include "px_common_new/win32/d3d_render.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
 #include "px_render/modules/render_module_registry.h"
-#include "px_render/plugins/plugin_ids.h"
+#include "px_render/modules/module_ids.h"
 #include "architecture/observers/frame_debugger_observer.h"
 #include "architecture/processors/frame_carrier_processor.h"
 #include "architecture/processors/frame_resizer_processor.h"
