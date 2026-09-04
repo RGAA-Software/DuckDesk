@@ -60,7 +60,7 @@ set(GL_SRCS
 
 add_library(px_sdk ${SDK_SRCS} ${GL_SRCS})
 target_link_libraries(px_sdk PRIVATE Opus::opus glm::glm)#websocketpp::websocketpp
-target_link_libraries(px_sdk PRIVATE px_opus_codec_new px_message)
+target_link_libraries(px_sdk PRIVATE px_opus_codec_new px_message px_common_new)
 
 message("ffmpeg libraries: ${FFMPEG_LIBRARIES}")
 
@@ -108,4 +108,15 @@ if(BUILD_TESTING AND NOT ANDROID)
         GTest::gtest_main
     )
     add_test(NAME test_udp_media_fallback_state COMMAND test_udp_media_fallback_state)
+    add_executable(test_sdk_websocket_reconnect
+        tests/test_sdk_websocket_reconnect.cpp
+    )
+    target_link_libraries(test_sdk_websocket_reconnect PRIVATE
+        px_sdk
+        px_common_new
+        GTest::gtest
+        GTest::gtest_main
+    )
+    add_test(NAME sdk_websocket_reconnect COMMAND test_sdk_websocket_reconnect)
+    set_tests_properties(sdk_websocket_reconnect PROPERTIES LABELS "render-lifecycle")
 endif()

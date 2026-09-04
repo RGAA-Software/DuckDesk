@@ -252,6 +252,7 @@ void RelayTransportRuntime::ConnectMedia(
         .device_id_ = server_device_id,
         .net_info_ = net_info,
         .appkey_ = config.settings.appkey,
+        .async_runtime_ = config.async_runtime,
     });
     const auto generation = ++media_generation_;
     SetMediaSdk(sdk);
@@ -389,6 +390,7 @@ void RelayTransportRuntime::ConnectFileTransfer(
         .device_name_ = Hardware::GetDesktopName(),
         .stream_id_ = device_id,
         .appkey_ = config.settings.appkey,
+        .async_runtime_ = config.async_runtime,
     });
     const auto generation = ++file_transfer_generation_;
     SetFileTransferSdk(sdk);

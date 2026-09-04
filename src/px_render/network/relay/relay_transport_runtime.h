@@ -24,6 +24,7 @@ class FileTransferWritableSignal;
 class NetMessageAck;
 class PxConnectedClientInfo;
 class PxPluginContext;
+class PxAsyncRuntime;
 class RelayServerSdk;
 
 struct RelayTransportRuntimeConfig final {
@@ -31,6 +32,7 @@ struct RelayTransportRuntimeConfig final {
     std::string configured_host;
     int configured_port = 0;
     RenderModuleSettings settings;
+    std::shared_ptr<PxAsyncRuntime> async_runtime;
 };
 
 class RelayTransportRuntime final

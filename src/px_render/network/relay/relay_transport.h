@@ -12,16 +12,17 @@ namespace px
 {
 
     class RelayTransportRuntime;
+    class PxAsyncRuntime;
 
     class RelayTransport final : public RenderModule {
     public:
+        explicit RelayTransport(std::shared_ptr<PxAsyncRuntime> async_runtime = {});
         std::string Id() const override;
         std::string Name() const override;
         std::string VersionName() const override;
         uint32_t VersionCode() const override;
         std::string Description() const override;
         RenderModuleKind Kind() const override { return RenderModuleKind::kNetwork; }
-        void Tick1Second() override;
         bool Start(const RenderModuleConfiguration& configuration) override;
         bool Destroy() override;
         void Broadcast(std::shared_ptr<Data> message, bool run_through);
@@ -44,6 +45,7 @@ namespace px
         void HandleMessageAck(const std::shared_ptr<NetMessageAck>& ack);
 
     private:
+        const std::shared_ptr<PxAsyncRuntime> async_runtime_;
         std::atomic<std::shared_ptr<RelayTransportRuntime>> runtime_;
         NetSyncInfo route_info_;
     };

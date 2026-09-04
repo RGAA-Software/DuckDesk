@@ -12,7 +12,9 @@
 #include "render_panel/px_settings.h"
 #include "render_panel/companion/panel_companion.h"
 #include "px_service_message.pb.h"
-#include "px_common_new/connection_attempt_workflow.h"
+#include "px_common_new/asio_client_shutdown.h"
+#include "px_common_new/reconnect_supervisor.h"
+#include "px_common_new/websocket_reconnect_adapter.h"
 
 namespace px
 {
@@ -44,52 +46,36 @@ namespace px
         });
 
         client_ = std::make_shared<asio2::ws_client>();
-        connection_workflow_ = PxConnectionAttemptWorkflow::Create(
-            context_->GetMessageNotifier()->GetAsyncRuntime(), std::chrono::seconds(10));
-        if (!connection_workflow_) {
-            LOGE("Cannot start Service connection workflow");
+        const auto runtime = context_->GetMessageNotifier()->GetAsyncRuntime();
+        connection_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
+        reconnect_supervisor_ = PxReconnectSupervisor::Create(runtime, MakeWebSocketReconnectOptions("panel_service"));
+        if (!connection_scope_ || !reconnect_supervisor_) {
+            LOGE("event=module.start component=panel_service code=ASYNC_WORKFLOW_CREATE_FAILED "
+                 "operation=start_client outcome=failed recoverable=false");
+            Exit();
             return;
         }
-        client_->set_auto_reconnect(true);
+        client_->set_auto_reconnect(false);
         client_->keep_alive(true);
         client_->set_timeout(std::chrono::milliseconds(2000));
 
         client_->bind_init([weak_self]() {
             auto self = weak_self.lock();
-            if (!self || self->exiting_ || !self->client_ || !self->connection_workflow_) {
+            if (!self || self->exiting_ || !self->client_ || !self->reconnect_supervisor_) {
                 return;
             }
             self->client_->ws_stream().binary(true);
             self->client_->set_no_delay(true);
-            const bool started = self->connection_workflow_->BeginAttempt(
-                [weak_self](PxConnectionAttemptResult result) {
-                    auto self = weak_self.lock();
-                    if (!self || self->exiting_ || !self->context_) {
-                        return;
-                    }
-                    if (!result) {
-                        LOGW("Panel Service attempt ended: stage={}, code={}",
-                             result.Error().stage, result.Error().StableCode());
-                        return;
-                    }
-                    LOGI("Panel Service websocket ready, generation={}",
-                         result.Value().generation);
-                    self->context_->SendAppMessage(MsgConnectedToService{});
-                    self->SendAuthInfo();
-                });
-            if (!started) {
-                LOGW("Panel Service attempt was rejected during shutdown");
-            }
         })
         .bind_connect([weak_self]() {
             auto self = weak_self.lock();
             if (!self || self->exiting_ || !self->client_ || !self->context_
-                || !self->connection_workflow_) {
+                || !self->reconnect_supervisor_) {
                 return;
             }
             if (asio2::get_last_error()) {
                 LOGE("connect failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
-                static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                static_cast<void>(self->reconnect_supervisor_->FailActive(MakePxAsyncError(
                     PxAsyncErrorCode::kServiceNotConnected,
                     "panel-service.connect",
                     asio2::last_error_msg(),
@@ -101,12 +87,12 @@ namespace px
         .bind_upgrade([weak_self]() {
             auto self = weak_self.lock();
             if (!self || self->exiting_ || !self->client_ || !self->context_
-                || !self->connection_workflow_) {
+                || !self->reconnect_supervisor_) {
                 return;
             }
             if (asio2::get_last_error()) {
                 LOGE("upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
-                static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+                static_cast<void>(self->reconnect_supervisor_->FailActive(MakePxAsyncError(
                     PxAsyncErrorCode::kProtocolError,
                     "panel-service.upgrade",
                     asio2::last_error_msg(),
@@ -114,14 +100,14 @@ namespace px
                 return;
             }
             LOGI("websocket upgrade success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
-            static_cast<void>(self->connection_workflow_->MarkReady());
+            static_cast<void>(self->reconnect_supervisor_->MarkReady());
         })
         .bind_disconnect([weak_self]() {
             auto self = weak_self.lock();
-            if (!self || self->exiting_ || !self->connection_workflow_) {
+            if (!self || self->exiting_ || !self->reconnect_supervisor_) {
                 return;
             }
-            static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
+            static_cast<void>(self->reconnect_supervisor_->MarkDisconnected(MakePxAsyncError(
                 PxAsyncErrorCode::kServiceNotConnected,
                 "panel-service.disconnect",
                 "Panel disconnected from Service",
@@ -136,8 +122,26 @@ namespace px
             self->ParseMessage(msg);
         });
 
-        if (!client_->async_start("127.0.0.1", 20375, "/service/message?from=panel")) {
-            LOGE("connect websocket server failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
+        PxReconnectSupervisorHooks hooks{
+            .start_attempt = [client = client_](std::uint64_t) {
+                return StartWebSocketAdapter(client, "127.0.0.1", 20375, "/service/message?from=panel", "panel-service.start");
+            },
+            .stop_attempt = [client = client_](const std::chrono::steady_clock::time_point deadline) {
+                return StopWebSocketAdapter(client, deadline, "panel-service.retry-reset");
+            },
+            .on_ready = [weak_self](std::uint64_t) {
+                if (const auto self = weak_self.lock(); self && !self->exiting_ && self->context_) {
+                    self->context_->SendAppMessage(MsgConnectedToService{});
+                    self->SendAuthInfo();
+                }
+            },
+        };
+        if (!connection_scope_->Spawn("panel-service-reconnect", [supervisor = reconnect_supervisor_, hooks = std::move(hooks)]() mutable {
+                return PxReconnectSupervisor::Run(std::move(supervisor), std::move(hooks));
+            })) {
+            LOGE("event=module.start component=panel_service code=ASYNC_SCOPE_SPAWN_FAILED "
+                 "operation=start_reconnect outcome=failed recoverable=false");
+            Exit();
         }
     }
 
@@ -170,15 +174,25 @@ namespace px
             msg_listener_->UnListenAll();
             msg_listener_.reset();
         }
+        if (reconnect_supervisor_) {
+            reconnect_supervisor_->Stop();
+        }
         if (client_) {
-            client_->stop_all_timers();
-            client_->stop();
-            client_.reset();
+            static_cast<void>(RequestAsioClientStop(client_, "panel-service.stop"));
         }
-        if (connection_workflow_) {
-            connection_workflow_->Stop();
-            connection_workflow_.reset();
+        if (connection_scope_) {
+            connection_scope_->BeginStop();
+            if (connection_scope_->IsScopeThread()) {
+                return;
+            }
+            static_cast<void>(connection_scope_->WaitFor(std::chrono::seconds(5)));
         }
+        static_cast<void>(RequestAsioClientStop(client_, "panel-service.stop-confirm"));
+        static_cast<void>(WaitForAsioClientStoppedBlocking(
+            client_, std::chrono::steady_clock::now() + std::chrono::seconds(3)));
+        client_.reset();
+        reconnect_supervisor_.reset();
+        connection_scope_.reset();
         statistics_.reset();
         context_.reset();
         app_.reset();
@@ -186,7 +200,7 @@ namespace px
 
     bool PxServiceClient::IsAlive() {
         return client_ && client_->is_started()
-            && connection_workflow_ && connection_workflow_->IsReady();
+            && reconnect_supervisor_ && reconnect_supervisor_->IsReady();
     }
 
     void PxServiceClient::HeartBeat() {

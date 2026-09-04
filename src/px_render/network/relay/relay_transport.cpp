@@ -1,12 +1,16 @@
 #include "relay_transport.h"
 
 #include <cstdlib>
+#include <utility>
 
 #include "px_render/network/relay/relay_transport_runtime.h"
 #include "px_render/modules/module_ids.h"
 
 
 namespace px {
+
+RelayTransport::RelayTransport(std::shared_ptr<PxAsyncRuntime> async_runtime)
+    : async_runtime_(std::move(async_runtime)) {}
 
 std::string RelayTransport::Id() const { return kRelayTransportId; }
 std::string RelayTransport::Name() const { return "Net Relay"; }
@@ -20,23 +24,20 @@ bool RelayTransport::Start(const RenderModuleConfiguration& configuration) {
     if (!RenderModule::Start(configuration)) {
         return false;
     }
-    runtime_.store(RelayTransportRuntime::Create(RelayTransportRuntimeConfig{
+    const auto runtime = RelayTransportRuntime::Create(RelayTransportRuntimeConfig{
         .relay_device_id = configuration.relay_device_id,
         .configured_host = configuration.relay_host,
         .configured_port = std::atoi(configuration.relay_port.c_str()),
         .settings = settings_,
-    }));
-    return true;
-}
-
-void RelayTransport::Tick1Second() {
-    RenderModule::Tick1Second();
-    const auto runtime = runtime_.load();
+        .async_runtime = async_runtime_,
+    });
     if (!runtime) {
-        return;
+        RenderModule::Stop();
+        return false;
     }
-    runtime->UpdateSettings(settings_);
+    runtime_.store(runtime);
     runtime->Start(module_context_, MakeImmediateCompatibilityEventDispatcher());
+    return true;
 }
 
 bool RelayTransport::Destroy() {

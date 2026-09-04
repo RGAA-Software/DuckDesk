@@ -16,13 +16,18 @@ namespace px
 {
 
     RelayClientSdk::RelayClientSdk(const RelayClientSdkParam& param)
+        : RelayClientSdk(param, std::shared_ptr<PxAsyncRuntime>{}) {}
+
+    RelayClientSdk::RelayClientSdk(
+        const RelayClientSdkParam& param,
+        std::shared_ptr<PxAsyncRuntime> async_runtime)
         : RelayClientSdk(
             param,
             std::make_shared<RelayWsClient>(
                 param.host_, param.port_, param.device_id_, param.device_name_,
                 param.stream_id_, param.appkey_, param.force_gdi_,
                 param.remote_device_id_, param.connection_ticket_,
-                param.connection_nonce_)) {}
+                param.connection_nonce_, std::move(async_runtime))) {}
 
     RelayClientSdk::RelayClientSdk(
         const RelayClientSdkParam& param,
@@ -207,7 +212,8 @@ namespace px
         room_->room_id_ = cr.room_id();
         room_->device_id_ = cr.device_id();
         room_->remote_device_id_ = cr.remote_device_id();
-        LOGI("on create room response, device id: {}, remote device id: {}, room id: {}", sdk_param_.device_id_, sdk_param_.remote_device_id_, room_->room_id_);
+        LOGI("on create room response, device id: {}, remote device id: {}, room id: {}",
+             sdk_param_.device_id_, sdk_param_.remote_device_id_, room_->room_id_);
     }
 
     // send from client

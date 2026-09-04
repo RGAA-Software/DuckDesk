@@ -172,7 +172,7 @@ namespace px
         if (register_builtin(udp_transport, "net_udp")) {
             udp_transport_ = udp_transport;
         }
-        const auto relay_transport = std::make_shared<RelayTransport>();
+        const auto relay_transport = std::make_shared<RelayTransport>(context_->GetAsyncRuntime());
         if (register_builtin(relay_transport, "net_relay")) {
             relay_transport_ = relay_transport;
         }

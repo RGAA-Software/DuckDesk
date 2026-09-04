@@ -180,11 +180,7 @@ namespace px
         });
 
         server_->support_websocket(true);
-        ws_data_ = std::make_shared<WsData>(WsData{
-            .vars_ = {
-                {"app",  this->app_},
-            }
-        });
+        ws_data_ = std::make_shared<WsData>();
 
         //auto exe_dir = qApp->applicationDirPath().toStdString();
         //auto pwd_file = std::format("{}/certs/password", exe_dir);

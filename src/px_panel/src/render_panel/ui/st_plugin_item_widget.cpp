@@ -120,8 +120,8 @@ namespace px
                         }));
         }
 
-        // server-side screen recording: 只有 media_recorder 插件显示录制按钮
-        if (item_info_->id_ == kMediaRecorderPluginId) {
+        // Server-side screen recording: only the built-in media recorder module exposes this command.
+        if (item_info_->id_ == kMediaRecorderSinkId) {
             auto btn = new QPushButton(this);
             btn->setFixedSize(size);
             btn->setText("Start Record");

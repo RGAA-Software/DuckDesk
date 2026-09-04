@@ -37,12 +37,14 @@ using PxReconnectStartAttempt = std::function<PxResult<void>(std::uint64_t)>;
 using PxReconnectStopAttempt =
     std::function<PxAwaitable<PxResult<void>>(std::chrono::steady_clock::time_point)>;
 using PxReconnectReadyHandler = std::function<void(std::uint64_t)>;
+using PxReconnectLostHandler = std::function<void(std::uint64_t, const PxAsyncError&, bool)>;
 using PxReconnectTerminalHandler = std::function<void(std::uint64_t, const PxAsyncError&)>;
 
 struct PxReconnectSupervisorHooks final {
     PxReconnectStartAttempt start_attempt{};
     PxReconnectStopAttempt stop_attempt{};
     PxReconnectReadyHandler on_ready{};
+    PxReconnectLostHandler on_lost{};
     PxReconnectTerminalHandler on_terminal{};
 };
 

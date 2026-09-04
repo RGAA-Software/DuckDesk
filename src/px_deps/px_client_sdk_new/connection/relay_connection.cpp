@@ -40,7 +40,7 @@ namespace px
             .force_gdi_ = params->force_gdi_,
             .connection_ticket_ = room_type == kRoomTypeFileTransfer ? params->connection_ticket_ : "",
             .connection_nonce_ = room_type == kRoomTypeFileTransfer ? params->connection_nonce_ : "",
-        });
+        }, notifier->GetAsyncRuntime());
 
     }
 

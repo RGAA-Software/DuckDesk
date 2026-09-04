@@ -15,6 +15,8 @@ using namespace std::chrono_literals;
 struct SupervisorTestState final {
     std::atomic_uint32_t starts{0};
     std::atomic_uint32_t stops{0};
+    std::atomic_uint32_t losses{0};
+    std::atomic_bool loss_was_ready{false};
     std::atomic_bool start_during_failed_reset{false};
 };
 
@@ -112,6 +114,10 @@ TEST(ReconnectSupervisor, DisconnectAfterReadyStartsANewGeneration) {
                 reconnected->set_value();
             }
         },
+        .on_lost = [state](std::uint64_t, const PxAsyncError&, const bool was_ready) {
+            state->losses.fetch_add(1, std::memory_order_acq_rel);
+            state->loss_was_ready.store(was_ready, std::memory_order_release);
+        },
     };
     ASSERT_TRUE(scope->Spawn("disconnect-reconnect", [supervisor, hooks = std::move(hooks)]() mutable {
         return PxReconnectSupervisor::Run(supervisor, std::move(hooks));
@@ -120,6 +126,8 @@ TEST(ReconnectSupervisor, DisconnectAfterReadyStartsANewGeneration) {
     ASSERT_EQ(reconnected_future.wait_for(1s), std::future_status::ready);
     EXPECT_EQ(state->starts.load(std::memory_order_acquire), 2U);
     EXPECT_EQ(state->stops.load(std::memory_order_acquire), 1U);
+    EXPECT_EQ(state->losses.load(std::memory_order_acquire), 1U);
+    EXPECT_TRUE(state->loss_was_ready.load(std::memory_order_acquire));
     EXPECT_EQ(supervisor->Generation(), 2U);
     StopRuntime(supervisor, scope, runtime);
 }

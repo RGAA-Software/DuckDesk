@@ -8,6 +8,7 @@
 #include <memory>
 #include <atomic>
 #include "ct_app_message.h"
+#include "px_common_new/async_runtime.h"
 #include <asio2/websocket/wss_client.hpp>
 
 namespace px
@@ -15,11 +16,13 @@ namespace px
 
     class ClientContext;
     class MessageListener;
-    class PxConnectionAttemptWorkflow;
+    class PxAsyncScope;
+    class PxReconnectSupervisor;
 
     class CtPanelClient : public std::enable_shared_from_this<CtPanelClient> {
     public:
         explicit CtPanelClient(const std::shared_ptr<ClientContext>& ctx);
+        ~CtPanelClient();
         void Start();
         void Exit();
 
@@ -33,12 +36,14 @@ namespace px
         void ReportFileTransferBegin(const MsgClientFileTransmissionBegin& msg);
         void ReportFileTransferEnd(const MsgClientFileTransmissionEnd& msg);
         void RequestRtcIceRestart();
+        static PxAwaitable<void> RunHeartbeatLoop(std::weak_ptr<CtPanelClient> weak_client);
 
     private:
         std::shared_ptr<ClientContext> context_ = nullptr;
         std::shared_ptr<asio2::ws_client> client_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
-        std::shared_ptr<PxConnectionAttemptWorkflow> connection_workflow_ = nullptr;
+        std::shared_ptr<PxAsyncScope> connection_scope_{};
+        std::shared_ptr<PxReconnectSupervisor> reconnect_supervisor_{};
         std::atomic_bool exiting_ = false;
         std::atomic_bool transport_connected_ = false;
         std::atomic_bool transport_reported_ = false;

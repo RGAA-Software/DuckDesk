@@ -23,12 +23,15 @@ namespace px
     class RelayRoom;
     class RelayContext;
     class RelayNetClient;
+    class PxAsyncRuntime;
     class FileTransferWritableSignal;
 
     // Only connect to one remote
     class RelayClientSdk : public std::enable_shared_from_this<RelayClientSdk> {
     public:
         explicit RelayClientSdk(const RelayClientSdkParam& param);
+        RelayClientSdk(const RelayClientSdkParam& param,
+                       std::shared_ptr<PxAsyncRuntime> async_runtime);
         RelayClientSdk(const RelayClientSdkParam& param,
                        std::shared_ptr<RelayNetClient> net_client);
         void Start();

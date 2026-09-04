@@ -356,7 +356,9 @@ foreach ($transportDirectory in @("udp", "relay")) {
 $coroutineOwnedClientFiles = @(
     "src\px_render\network\render_service_client.cpp",
     "src\px_render\network\ws_panel_client.cpp",
-    "src\px_render\hook_capture\win\hk_obs\ws_ipc_client.cpp"
+    "src\px_render\hook_capture\win\hk_obs\ws_ipc_client.cpp",
+    "src\px_deps\px_client_sdk_new\connection\ws_connection.cpp",
+    "src\px_deps\px_client_sdk_new\connection\wss_connection.cpp"
 )
 foreach ($relativePath in $coroutineOwnedClientFiles) {
     $content = Get-Content -LiteralPath (Join-Path $RepoRoot $relativePath) -Raw
@@ -385,10 +387,78 @@ foreach ($required in @(
     "WaitUntilDisconnected",
     "failure.retryable",
     "adapter_reset_failures_",
+    "hooks.on_lost",
     "transport.reconnect_wait"
 )) {
     if ($reconnectSupervisorContent -notmatch [regex]::Escape($required)) {
         $violations.Add("src\px_deps\px_common_new\reconnect_supervisor.cpp: reconnect supervisor is missing $required")
+    }
+}
+
+$sdkReconnectHelperPath = "src\px_deps\px_client_sdk_new\connection\sdk_websocket_reconnect.h"
+$sdkReconnectHelper = Get-Content -LiteralPath (Join-Path $RepoRoot $sdkReconnectHelperPath) -Raw
+foreach ($required in @(
+    "websocket_reconnect_adapter.h",
+    "SDK_WEBSOCKET_SESSION_REJECTED",
+    "false"
+)) {
+    if ($sdkReconnectHelper -notmatch [regex]::Escape($required)) {
+        $violations.Add("${sdkReconnectHelperPath}: SDK websocket reconnect policy is missing $required")
+    }
+}
+
+$projectReconnectFiles = @(
+    "src\px_client\network\ct_panel_client.cpp",
+    "src\px_client\network\ct_console_client.cpp",
+    "src\px_panel\src\render_panel\network\px_service_client.cpp",
+    "src\px_panel\src\render_panel\network\px_console_client_impl.h",
+    "src\px_deps\px_relay_client\relay_ws_client.cpp"
+)
+foreach ($relativePath in $projectReconnectFiles) {
+    $content = Get-Content -LiteralPath (Join-Path $RepoRoot $relativePath) -Raw
+    foreach ($required in @(
+        "set_auto_reconnect(false)",
+        "PxReconnectSupervisor::Create",
+        "PxReconnectSupervisor::Run",
+        "StopWebSocketAdapter"
+    )) {
+        if ($content -notmatch [regex]::Escape($required)) {
+            $violations.Add("${relativePath}: project websocket reconnect contract is missing $required")
+        }
+    }
+}
+$ownedSourceRoots = @(
+    "src\px_client",
+    "src\px_panel",
+    "src\px_render",
+    "src\px_deps\px_client_sdk_new",
+    "src\px_deps\px_relay_client"
+)
+foreach ($sourceRoot in $ownedSourceRoots) {
+    Get-ChildItem -LiteralPath (Join-Path $RepoRoot $sourceRoot) -Recurse -File |
+        Where-Object { $_.Extension -in @(".h", ".hpp", ".cpp", ".cc", ".cxx") } |
+        ForEach-Object {
+            $content = Get-Content -LiteralPath $_.FullName -Raw
+            if ($content -match 'set_auto_reconnect\s*\(\s*true') {
+                $relative = $_.FullName.Substring($RepoRoot.Length).TrimStart([char]'\')
+                $violations.Add("${relative}: asio2 automatic reconnect must not own project connection policy")
+            }
+        }
+}
+foreach ($relativePath in @(
+    "src\px_deps\px_client_sdk_new\connection\ws_connection.cpp",
+    "src\px_deps\px_client_sdk_new\connection\wss_connection.cpp"
+)) {
+    $content = Get-Content -LiteralPath (Join-Path $RepoRoot $relativePath) -Raw
+    foreach ($required in @(
+        "MakeSdkWebSocketRejectionError",
+        "MarkDisconnected",
+        "ConnectionGeneration",
+        "was_ready"
+    )) {
+        if ($content -notmatch [regex]::Escape($required)) {
+            $violations.Add("${relativePath}: SDK websocket supervised reconnect is missing $required")
+        }
     }
 }
 

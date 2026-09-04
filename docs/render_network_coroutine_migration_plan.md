@@ -3,7 +3,8 @@
 ## 1. 文档状态
 
 - 决策日期：2026-09-04。
-- 适用范围：`src/px_render`、Render 直接使用的 GammaRay 自维护公共网络/异步组件，以及宿主侧 WebRTC library facade。
+- 适用范围：`src/px_render`、`src/px_client`、`src/px_panel`、`src/px_deps/px_client_sdk_new`和
+  `src/px_deps/px_relay_client` 的 WS/WSS 长连接、GammaRay 自维护公共网络/异步组件，以及宿主侧 WebRTC library facade。
 - 基线：Render 内建模块和流程节点插件迁移已经完成；本阶段继续完成网络控制面的业务请求、连接、重连、准入、超时和关闭协程化。
 - 约束：继续使用 canonical standalone Asio 以及现有 `PxAsyncRuntime`、`PxAsyncScope`、`PxAwaitable`，不切换 asio3。
 - 交付方式：按可独立验证的批次实施，每批必须保持可构建、可测试、可回退；最终由用户在目标环境统一验收。
@@ -22,7 +23,10 @@
 | 异步基础设施 | mailbox、delay、scope drain、adapter stop、callback quiescence 已实现 | 100% | 最终验收环境回归 |
 | WS ticket/准入/RTC Local 分配 | typed awaitable、deadline、迟到补偿和 scope drain 已接入 | 95%～100% | 实机异常矩阵 |
 | Render Service 业务请求 | request registry、FailAll、连接/接收 coroutine 和 StopAsync 已实现 | 100% | 实机 Service 联调 |
-| 连接与重连 | 三个 client 均由统一 supervisor 独占 generation/backoff/adapter reset | 100% | 长稳和真实弱网验收 |
+| Render 连接与重连 | 三个 Render client 均由统一 supervisor 独占 generation/backoff/adapter reset | 100% | 长稳和真实弱网验收 |
+| SDK WS/WSS 长连接 | 统一 supervisor、显式 adapter reset、永久拒绝分流、弱生命周期 callback | 100% | TLS 实服和产品业务联调 |
+| Client/Panel 长连接 | Panel、Console、Service 连接共用 supervisor，心跳使用可取消协程 | 100% | 产品业务联调 |
+| Relay WS | Render/SDK 注入 canonical runtime，初始离线与在线掉线持续重连 | 100% | 真实 Relay 服务联调 |
 | WS/HTTP server 生命周期 | 共享 runtime、准入、停止 ingress 和 absolute-deadline drain 已实现 | 100% | 实机并发验收 |
 | UDP 控制面 | sweep/FEC coroutine、StopAsync、receive-storm 并发测试已实现 | 95%～100% | 固定硬件性能对比 |
 | 应用有序关闭 | 根 deadline、runtime-thread 续体、WebRTC 静默和安全保留已实现 | 100% | 完整客户端验收 |
@@ -45,6 +49,16 @@
   在线断开重连、连接成功后退避复位、可恢复/永久错误分流、连接 deadline、停止时取消、generation 统计，以及重试前强制 adapter 完整 stopped。
   `StartAttemptIfRunning()` 与 `Stop()` 使用同一生命周期门锁，保证停止开始后不会出现迟到 `async_start`；adapter 未静默时只继续 reset，绝不并发启动下一代。
   自动化覆盖连续启动失败后恢复、在线断开后新 generation、adapter reset 失败、永久错误终止、长退避即时取消及服务启动时离线后上线恢复。
+- N2-SDK 已完成：SDK `WsConnection`/`WssConnection` 不再依赖 asio2 的隐式 `set_auto_reconnect(true)`；两者复用相同 supervisor、退避参数、
+  adapter stop/reset awaitable 和结构化错误模型。authorization/occupied/session-policy 明确归类为不可重试终态，其余首次离线、upgrade 失败和在线掉线会无限重试；
+  每次成功 upgrade 才进入 ready，并通过 generation 区分重连代际。所有 asio2 callback 仅捕获 `weak_ptr`，接收数据在 callback 返回前复制为 owned `Data`；
+  异步发送依赖 asio2 `_data_persistence` 在 completion 前保持数据，不再额外分配 `shared_ptr<string>`。真实 WS 自动化覆盖
+  “先启动 client、后启动 server”、连续三轮 server stop/start、连接/断开通知、重复启停以及 ready callback 内关闭后再启动。
+- N2-Client/Panel/Relay 已完成：Client Panel、Client Console、Panel Service、Panel Console 和 Relay WS 全部显式关闭 asio2
+  auto-reconnect，并接入同一 `PxReconnectSupervisor`。Console 每个 generation 重新生成短期 token；Client Panel/Console 心跳从
+  asio2 timer 改为 scope 内可取消协程。Relay 生产路径从 Render 组合根或 SDK `MessageNotifier` 显式注入 canonical
+  `PxAsyncRuntime`，旧构造入口仅保留进程级兼容运行时。真实 Relay server 测试覆盖初始不可用、两轮重启恢复、generation
+  推进和 ready callback 内关闭后再启动。仓库门禁禁止项目所有者目录重新引入 `set_auto_reconnect(true)`。
 - N1/N2 关闭时序已加固：三个 client 都会先拒绝新工作、关闭 mailbox/workflow 并向 asio2 adapter 所在线程发布 stop，再取消和等待组件 scope；不再先等
   scope、后停 adapter。Render Service/Panel 每轮 `Start()` 都重建 scope、workflow、mailbox 和 request state，partial start failure 走同一逆序退出路径；drain
   超时和 callback/runtime 线程内发起关闭均输出结构化日志且不释放仍有 outstanding task 的 owner。Render Service/Panel 的 absolute-deadline
@@ -67,8 +81,9 @@
   real-server reconnect 测试。固定硬件性能、真实弱网和长稳数据由最终验收阶段产生。
 
 当前 focused 结果：callback quiescence、UDP receive storm、OBS repeated lifecycle/真实 server reconnect、WebRTC 连续 10 轮 load/start/StopAsync/unload 均通过；
-OBS lifecycle 额外连续执行 20 轮通过。最终 `Mode all` 自动化门禁通过 34 项、失败 0、跳过 0、unexpected ERROR 0；证据位于
-`test-results/render-architecture/20260904-161507-all`。`px_render.exe`、`px_gh.dll`、`net_rtc.dll`、`net_rtc_local.dll` 的构建树与
+OBS lifecycle 额外连续执行 20 轮通过；SDK WS、Relay WS 和公共 supervisor 聚焦测试通过。最终串行 `Mode all` 自动化门禁通过 36 项、
+失败 0、跳过 0、unexpected ERROR 0；证据位于 `test-results/render-architecture/20260904-172946-all`。`px_render.exe`、`px_gh.dll`、
+`net_rtc.dll`、`net_rtc_local.dll` 的构建树与
 `build_official/dist` SHA-256 均一致。该结果不替代用户最终产品验收。
 
 ## 3. 目标和非目标
@@ -273,7 +288,8 @@ client disconnect、timeout、cancellation 和 late acceptance 都有明确补�
 
 ### 8.1 主连接循环
 
-`RenderServiceClient`、`WsPanelClient` 和 OBS `WsIpcClient` 各自使用一个长生命周期 connection coroutine：
+`RenderServiceClient`、`WsPanelClient`、OBS `WsIpcClient`、SDK `WsConnection`/`WssConnection`、Client/Panel 长连接以及 Relay WS
+各自使用一个长生命周期 connection coroutine：
 
 ```cpp
 PxAwaitable<void> RunConnectionLoop(const std::weak_ptr<ConnectionState>& weak_state) {
@@ -376,6 +392,24 @@ UDP packet receive 是高频数据面，不迁移成逐包 coroutine。`bind_rec
 - stop 分成 reject new work、request close、wait callback quiescence、destroy instance、unload DLL 五步。
 - callback outstanding 不为零时禁止卸载 DLL；deadline 超时记录 ERROR 并保留 library owner，不能冒险卸载。
 
+### 9.7 SDK `WsConnection` / `WssConnection`
+
+- 两种连接使用同一 `PxReconnectSupervisor` 和 `sdk_websocket_reconnect.h` 策略，不复制重连算法，也不调用 asio2 自动重连。
+- start hook 只负责一次 `async_start`；connect/upgrade/disconnect callback 只把 typed 结果交给当前 workflow，成功 upgrade 是唯一 ready 点。
+- 每轮失败后必须先 `RequestAsioClientStop` 并等待 `is_stopped()`，确认 adapter 静默后才进入下一 generation；停止与新 attempt 由同一门锁串行化。
+- authorization、occupied 和 session-policy 控制信号映射为 `SDK_WEBSOCKET_SESSION_REJECTED` 不可重试错误；网络、DNS、握手和瞬时协议错误保持可重试。
+- `Stop()` 先关闭新发送、停止 supervisor 和 adapter，再 drain scope；从 runtime callback 发起时只请求停止，不同步等待自身 executor。
+- 二进制和文本异步发送都持有 owned payload 到 completion；回调只锁定 weak owner 更新有界队列水位，不捕获对象裸指针。
+
+### 9.8 Client / Panel / Relay 长连接
+
+- Client Panel、Client Console、Panel Service和 Panel Console 使用组合根已有 runtime；每个连接只拥有 scope 和 supervisor。
+- Console 的 upgrade target 在每轮 `bind_init` 重建，避免重连复用过期 token；路由兼容回退仍由同一 generation 工作流管理。
+- RelayTransport 只在模块 `Start()` 中创建并启动 runtime 一次；`Tick1Second()` 不再反复执行启动。设置更新通过
+  `UpdateSettings()` 直接传递，改变连接参数时才由 Relay runtime 重建连接。
+- Relay Client SDK 和 Relay Server SDK 把已有 `PxAsyncRuntime` 一直传递到 `RelayWsClient`；不在每个 Relay 连接内创建线程。
+- callback 内关闭时只请求 cancellation，由 RAII 延迟收尾在非 runtime 线程等待 scope/adapter 静默，之后允许安全再启动。
+
 ## 10. 根关闭流程
 
 当前正常退出路径必须补齐 `RenderModuleRegistry::StopModules()`，删除旧插件时代“只 StopRouting、不停止模块”的 workaround。最终由根 shutdown coroutine 执行：
@@ -441,6 +475,11 @@ webrtc.callback_quiescence
 
 高频 callback 只更新无阻塞计数器。默认每 5 秒输出活跃窗口，持续错误按 30 秒汇总；禁止逐消息、逐 packet 和逐帧 INFO/WARN/ERROR。
 
+SDK WS/WSS 沿用同一事件名并分别使用 `sdk_ws`、`sdk_wss` component。永久拒绝固定输出
+`event=transport.connection_terminal code=SDK_WEBSOCKET_SESSION_REJECTED recoverable=false`；日志不得包含 appkey、ticket、authorization header、设备密码或完整会话凭据。
+supervisor 的 `connection_attempts`、`successful_connections`、`reconnect_waits`、`adapter_reset_failures`、`consecutive_failures` 和 `generation` 是统一统计源，
+不得再从 asio2 内建 auto-reconnect 状态推断重连次数。
+
 ## 12. 测试方案
 
 ### 12.1 公共组件单元测试
@@ -466,6 +505,9 @@ webrtc.callback_quiescence
 - client 在 redeem/admit/RTC allocation 任一步骤中断开。
 - response/open exactly once；shutdown 后不得向 session queue 发布新 mutation。
 - Render Service/Panel 连接失败、upgrade 失败、快速断连、弱网抖动和恢复。
+- SDK WS/WSS 首次服务不可用后上线恢复、真实 server 连续三轮 stop/start、每轮 generation 前进、成功/断开通知恰好一次。
+- SDK repeated start/stop、停止与 connect callback 竞争、发送 completion 晚于 Stop、owner 销毁以及永久拒绝后不再发起下一 attempt。
+- Relay 初始离线后上线、真实 server 多轮 stop/start、ready callback 内 Stop、延迟 drain 后再启动。
 - request 发出后断线、重连后收到旧 response、旧 generation disconnect 到达。
 - receive mailbox overload 触发明确连接失败且所有 pending request 被完成。
 
@@ -500,13 +542,14 @@ webrtc.callback_quiescence
 |---|---|---:|---|
 | N0 | 基线、mailbox、awaitable connection workflow、公共测试 | 2～3 天 | common focused tests、ownership/initialization gate 通过 |
 | N1 | RenderServiceClient connection/receive/request/stop | 2～3 天 | 请求、断线、重连、迟到 response 和 100 轮生命周期通过 |
-| N2 | WsPanelClient 和 OBS WsIpcClient | 2～3 天 | 无 `[&]`/`[this]`，generation 和 owner-expiry 测试通过 |
+| N2 | WsPanelClient、OBS WsIpcClient 和 SDK WS/WSS | 2～3 天 | 无 `[&]`/`[this]`，generation、真实重连和 owner-expiry 测试通过 |
 | N3 | WsServer/HttpHandler 共享 runtime、准入和关闭 | 3～5 天 | exactly-once、disconnect-during-await、scope-thread shutdown 通过 |
 | N4 | UDP 控制面和 session timeout/close | 2～3 天 | receive storm shutdown 及性能基线通过 |
 | N5 | Registry/RdApplication 根关闭、WebRTC quiescence/unload | 3～4 天 | StopModules、逆序 drain、DLL unload 顺序测试通过 |
 | N6 | 全量回归、故障注入、日志/性能和 dist 交付 | 3～5 天，可与前批并行 | Render runner、哈希和自动化 Go/No-Go 通过 |
 
-总工期按重叠后估算为 15～22 个工程日。若扩展到 Client、Panel、SDK 和其他 common asio2 使用点，需要单独立项，预计额外 4～8 周。
+总工期按重叠后估算为 15～22 个工程日。本轮已将 SDK WS/WSS、Client/Panel 长连接和 Relay WS 统一纳入；
+仓库中只剩第三方 asio2 示例/测试保留其自身 auto-reconnect 用法。
 
 ## 14. 每批提交原则
 
@@ -518,7 +561,8 @@ webrtc.callback_quiescence
 
 ## 15. 完成标准
 
-- Render Service、Panel、OBS IPC 的连接和重连由单一 coroutine workflow 管理。
+- Render Service、Panel、OBS IPC、SDK WS/WSS、Client/Panel 长连接和 Relay WS 的连接与重连由公共 supervisor 驱动的
+  单一 coroutine workflow 管理。
 - WS/HTTP 业务请求、准入、RTC Local 分配、timeout 和 late compensation 全部是 typed awaitable workflow。
 - asio2 callback 中没有领域业务、同步等待、重连策略、对象销毁和 borrowed payload 排队。
 - UDP 高频数据面性能不回退，控制面启停、session timeout 和关闭可取消、可 drain。

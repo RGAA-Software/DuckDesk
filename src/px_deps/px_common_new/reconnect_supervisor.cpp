@@ -75,8 +75,8 @@ PxAwaitable<bool> PxReconnectSupervisor::ResetAdapterUntilStopped(
 
         supervisor->adapter_reset_failures_.fetch_add(1, std::memory_order_acq_rel);
         const auto step = supervisor->NextBackoff();
-        LOGE("event=transport.adapter_reset component={} generation={} code={} outcome=failed "
-             "recoverable=true attempt={} delay_ms={} reason={}",
+        LOGE("event=transport.adapter_reset component={} generation={} code={} operation=stop_adapter "
+             "outcome=failed recoverable=true attempt={} delay_ms={} reason={}",
              supervisor->options_.component, supervisor->Generation(), stopped.Error().StableCode(),
              step.attempt, step.delay.count(), stopped.Error().message);
         const auto waited = co_await PxReconnectBackoff::Wait(step.delay);
@@ -115,7 +115,9 @@ PxAwaitable<void> PxReconnectSupervisor::Run(
         const auto ready = co_await PxConnectionAttemptWorkflow::WaitUntilReady(
             supervisor->workflow_, ticket, attempt_started_at + supervisor->options_.connection_timeout);
         PxAsyncError failure{};
+        bool was_ready{false};
         if (ready) {
+            was_ready = true;
             supervisor->backoff_->Reset();
             supervisor->consecutive_failures_.store(0, std::memory_order_release);
             supervisor->successful_connections_.fetch_add(1, std::memory_order_acq_rel);
@@ -140,14 +142,19 @@ PxAwaitable<void> PxReconnectSupervisor::Run(
         if (supervisor->IsStopping() || IsStopResult(failure)) {
             co_return;
         }
-        LOGW("event=transport.connection_lost component={} generation={} stage={} code={} recoverable={}",
+        LOGW("event=transport.connection_lost component={} generation={} stage={} code={} operation=supervise "
+             "outcome=failed recoverable={}",
              supervisor->options_.component, ticket.generation, failure.stage, failure.StableCode(), failure.retryable);
+        if (hooks.on_lost) {
+            hooks.on_lost(ticket.generation, failure, was_ready);
+        }
 
         if (!co_await ResetAdapterUntilStopped(supervisor, hooks.stop_attempt)) {
             co_return;
         }
         if (!failure.retryable) {
-            LOGE("event=transport.connection_terminal component={} generation={} stage={} code={} recoverable=false reason={}",
+            LOGE("event=transport.connection_terminal component={} generation={} stage={} code={} operation=supervise "
+                 "outcome=stopped recoverable=false reason={}",
                  supervisor->options_.component, ticket.generation, failure.stage, failure.StableCode(), failure.message);
             if (hooks.on_terminal) {
                 hooks.on_terminal(ticket.generation, failure);

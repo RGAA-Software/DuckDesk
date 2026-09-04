@@ -18,7 +18,8 @@ namespace px
     class PxStatistics;
     class MessageListener;
     class MsgAuthInfo;
-    class PxConnectionAttemptWorkflow;
+    class PxAsyncScope;
+    class PxReconnectSupervisor;
 
     class PxServiceClient : public std::enable_shared_from_this<PxServiceClient> {
     public:
@@ -41,7 +42,8 @@ namespace px
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<asio2::ws_client> client_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
-        std::shared_ptr<PxConnectionAttemptWorkflow> connection_workflow_ = nullptr;
+        std::shared_ptr<PxAsyncScope> connection_scope_{};
+        std::shared_ptr<PxReconnectSupervisor> reconnect_supervisor_{};
         std::atomic_int queuing_message_count_ = 0;
         std::atomic_bool exiting_ = false;
     };

@@ -10,6 +10,7 @@ set(SRCS
 )
 
 add_library(${PROJECT_NAME} ${SRCS})
+target_link_libraries(${PROJECT_NAME} px_common_new)
 if(ANDROID)
     find_package(Protobuf REQUIRED)
     target_link_libraries(${PROJECT_NAME} px_relay_message protobuf::libprotobuf protobuf::libprotobuf-lite)

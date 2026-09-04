@@ -27,7 +27,10 @@ namespace px
                                                      sdk_param_.stream_id_,
                                                      sdk_param_.appkey_,
                                                      false,
-                                                     "");
+                                                     "",
+                                                     "",
+                                                     "",
+                                                     sdk_param_.async_runtime_);
         ws_client_->SetDeviceNetInfo(param.net_info_);
     }
 
