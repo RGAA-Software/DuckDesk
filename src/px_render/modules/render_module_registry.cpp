@@ -418,6 +418,27 @@ namespace px
         co_return PxResult<void>::Success();
     }
 
+    PxAwaitable<PxResult<void>> RenderModuleRegistry::StopWebRtcLibrariesAsync(
+        const std::chrono::steady_clock::time_point deadline) {
+        std::vector<std::shared_ptr<WebRtcLibrary>> libraries;
+        {
+            std::shared_lock lock(modules_mtx_);
+            if (rtc_transport_) {
+                libraries.push_back(rtc_transport_);
+            }
+            if (rtc_local_transport_) {
+                libraries.push_back(rtc_local_transport_);
+            }
+        }
+        for (const auto& library : libraries) {
+            const auto stopped = co_await WebRtcLibrary::StopAsync(library, deadline);
+            if (!stopped) {
+                co_return stopped;
+            }
+        }
+        co_return PxResult<void>::Success();
+    }
+
     void RenderModuleRegistry::StopModules() {
         // reject new visitors first, the event callback registered in
         // BindIngressCallbacks also checks this flag before routing

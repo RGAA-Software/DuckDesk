@@ -186,6 +186,11 @@ target_link_libraries(test_plugin_context_lifecycle
     PRIVATE px_common_new px_plugin GTest::gtest GTest::gtest_main)
 add_test(NAME plugin_context_lifecycle COMMAND test_plugin_context_lifecycle)
 
+add_executable(test_udp_transport_shutdown test_udp_transport_shutdown.cpp)
+target_link_libraries(test_udp_transport_shutdown PRIVATE
+    net_udp render_architecture_core GTest::gtest GTest::gtest_main)
+add_test(NAME udp_transport_shutdown COMMAND test_udp_transport_shutdown)
+
 add_executable(test_webrtc_libraries_lifecycle
         test_webrtc_libraries_lifecycle.cpp
         ../network/webrtc_library_host.cpp)
@@ -232,6 +237,7 @@ set_property(TEST
     miniaudio_reinit_cancel
     process_loopback_lifecycle
     plugin_context_lifecycle
+    udp_transport_shutdown
     webrtc_libraries_lifecycle
     APPEND PROPERTY LABELS "render-lifecycle")
 

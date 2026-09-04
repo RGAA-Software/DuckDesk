@@ -108,6 +108,24 @@ set_target_properties(test_wasapi_tone PROPERTIES
 )
 
 if(BUILD_TESTING)
+    add_executable(test_ws_ipc_client_lifecycle
+            test_ws_ipc_client_lifecycle.cpp
+            ws_ipc_client.cpp
+    )
+    target_link_libraries(test_ws_ipc_client_lifecycle PRIVATE
+            px_common_new
+            px_capture_new
+            px_message
+            protobuf::libprotobuf
+            GTest::gtest
+            GTest::gtest_main
+    )
+    set_target_properties(test_ws_ipc_client_lifecycle PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}"
+    )
+    add_test(NAME ws_ipc_client_lifecycle COMMAND test_ws_ipc_client_lifecycle)
+    set_tests_properties(ws_ipc_client_lifecycle PROPERTIES LABELS "render-lifecycle")
+
     add_executable(test_hook_audio_worker_lifecycle
             test_hook_audio_worker_lifecycle.cpp
             ../hk_audio/AudioMixer.cpp

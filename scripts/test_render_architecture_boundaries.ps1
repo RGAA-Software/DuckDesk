@@ -378,7 +378,8 @@ foreach ($relativePath in $coroutineOwnedClientFiles) {
 
 foreach ($relativePath in @(
     "src\px_render\network\render_service_client.cpp",
-    "src\px_render\network\ws_panel_client.cpp"
+    "src\px_render\network\ws_panel_client.cpp",
+    "src\px_render\hook_capture\win\hk_obs\ws_ipc_client.cpp"
 )) {
     $content = Get-Content -LiteralPath (Join-Path $RepoRoot $relativePath) -Raw
     foreach ($required in @("StopAsync", "WaitForAsyncScopeDrain", "FinishStop")) {
@@ -393,6 +394,25 @@ $applicationSource = Get-Content -LiteralPath `
 foreach ($required in @("shutdown_deadline", "StopApplicationNetworkClients", "future.wait_until(shutdown_deadline)")) {
     if ($applicationSource -notmatch [regex]::Escape($required)) {
         $violations.Add("rd_app.cpp: absolute-deadline application shutdown is missing $required")
+    }
+}
+foreach ($required in @("ApplicationShutdownDispatcher", "StopApplicationWebRtcLibraries", "webrtc.callback_quiescence")) {
+    if ($applicationSource -notmatch [regex]::Escape($required)) {
+        $violations.Add("rd_app.cpp: root shutdown continuation is missing $required")
+    }
+}
+
+$webrtcHostSource = Get-Content -LiteralPath `
+    (Join-Path $RepoRoot "src\px_render\network\webrtc_library_host.cpp") -Raw
+foreach ($required in @(
+    "PxCallbackQuiescence",
+    "StopAsync",
+    "WEBRTC_CALLBACK_QUIESCENCE_TIMEOUT",
+    "WEBRTC_UNSAFE_UNLOAD_PREVENTED",
+    "RetainLibrary"
+)) {
+    if ($webrtcHostSource -notmatch [regex]::Escape($required)) {
+        $violations.Add("webrtc_library_host.cpp: callback-safe unload contract is missing $required")
     }
 }
 

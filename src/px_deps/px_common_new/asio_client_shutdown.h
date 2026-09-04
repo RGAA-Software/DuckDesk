@@ -21,7 +21,6 @@ PxResult<void> RequestAsioClientStop(const std::shared_ptr<Client>& client, cons
     try {
         client->post([client] {
             client->set_auto_reconnect(false);
-            client->stop_all_timers();
             client->stop();
         });
     }

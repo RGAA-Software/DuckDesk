@@ -19,50 +19,53 @@
 
 | 区域 | 当前状态 | 估算完成度 | 本阶段剩余内容 |
 |---|---|---:|---|
-| 异步基础设施 | `PxAsyncRuntime`、`PxAsyncScope`、one-shot、request registry 已存在 | 90%～100% | 增加 typed bounded async mailbox/event bridge |
-| WS ticket/准入/RTC Local 分配 | 主路径已经使用 awaitable | 80%～90% | 收口 request/response 边界、关闭和迟到补偿 |
-| Render Service 业务请求 | request ID、应答关联、deadline、断线 FailAll 已存在 | 80%～90% | 接收循环、连接循环和统一 StopAsync |
-| 连接与重连 | attempt 内部部分协程化，外部仍由 asio2 callback 驱动 | 35%～45% | generation、backoff、ready/disconnect wait 全部协程化 |
-| WS/HTTP server 生命周期 | 业务准入已协程化，底层启动和停止仍混合同步/回调 | 45%～55% | 使用共享 runtime、停止 ingress、drain、response exactly-once |
-| UDP 控制面 | 数据面稳定，生命周期和 session timeout 仍偏回调/同步 | 35%～45% | 启停、association、sweep、关闭协程化；逐包路径不改成协程 |
-| 应用有序关闭 | 局部 scope 能停止，但根关闭顺序不完整 | 30%～40% | Registry/应用统一 shutdown，WebRTC 静默后卸载 |
+| 异步基础设施 | mailbox、delay、scope drain、adapter stop、callback quiescence 已实现 | 100% | 最终验收环境回归 |
+| WS ticket/准入/RTC Local 分配 | typed awaitable、deadline、迟到补偿和 scope drain 已接入 | 95%～100% | 实机异常矩阵 |
+| Render Service 业务请求 | request registry、FailAll、连接/接收 coroutine 和 StopAsync 已实现 | 100% | 实机 Service 联调 |
+| 连接与重连 | 三个 client 均由 generation/backoff coroutine 独占重连 | 100% | 长稳和真实弱网验收 |
+| WS/HTTP server 生命周期 | 共享 runtime、准入、停止 ingress 和 absolute-deadline drain 已实现 | 100% | 实机并发验收 |
+| UDP 控制面 | sweep/FEC coroutine、StopAsync、receive-storm 并发测试已实现 | 95%～100% | 固定硬件性能对比 |
+| 应用有序关闭 | 根 deadline、runtime-thread 续体、WebRTC 静默和安全保留已实现 | 100% | 完整客户端验收 |
 
-Render 网络控制面总体估算已完成 55%～65%，剩余 35%～45%。单人开发和自动化验证预计 15～22 个工程日；真实硬件、弱网和长稳验收不计入该工期。
+计划内生产代码和自动化门禁已完成；剩余工作属于固定硬件性能、真实弱网、长稳和用户最终产品验收，不再包含架构迁移代码项。
 
 ### 2.1 实施进度（2026-09-04）
 
-本轮已经开始实施，但尚未宣称整个计划完成：
+本轮代码实施已经完成，最终产品验收仍由用户在目标环境执行：
 
 - N0 已完成：新增 `PxAsyncMailbox<T>` 和通用 typed `WaitForAsyncDelay()`；连接 workflow 已具备 `StartAttempt()`、`WaitUntilReady()`、
   `WaitUntilDisconnected()`、generation-aware ready/disconnect/failure，以及可取消、可复位、带确定性 jitter 测试的
   `PxReconnectBackoff`。旧 callback API 暂时保留为兼容 facade。
 - N1 主体已完成：RenderServiceClient 的 callback 只发布 owned message/typed connection terminal event；单一 state-lane connection coroutine 负责 start、
   ready deadline、disconnect、bounded exponential backoff 和 retry，asio2 auto-reconnect 已关闭；组件提供 absolute-deadline `StopAsync`，关闭 mailbox、
-  connection workflow 和全部 pending request 后异步排空 scope。旧 callback request facade 的最终删除仍待调用方迁移完成。
-- N2 连接和接收部分已完成：WsPanelClient、OBS WsIpcClient 已使用同一 workflow/backoff 模型；五个 `[&]` 网络 callback 已替换为 weak ownership，IPC wire
-  decode 不再使用对象裸指针强转。OBS IPC repeated Start/Exit 状态已允许重新启动，组件级 StopAsync 和故障注入集成测试仍待补齐。
+  connection workflow 和全部 pending request 后异步排空 scope。保留的 callback API 只是兼容边界 facade，业务等待、超时和完成状态只由 typed awaitable owner 管理。
+- N2 已完成：WsPanelClient、OBS WsIpcClient 已使用同一 workflow/backoff 模型；五个 `[&]` 网络 callback 已替换为 weak ownership，IPC wire
+  decode 不再使用对象裸指针强转。OBS IPC 具备统一 `StopAsync`、20 轮 repeated Start/Exit 测试，以及真实 WS server 断开/恢复后的 generation 推进测试。
 - N1/N2 关闭时序已加固：三个 client 都会先拒绝新工作、关闭 mailbox/workflow 并向 asio2 adapter 所在线程发布 stop，再取消和等待组件 scope；不再先等
   scope、后停 adapter。Render Service/Panel 每轮 `Start()` 都重建 scope、workflow、mailbox 和 request state，partial start failure 走同一逆序退出路径；drain
   超时和 callback/runtime 线程内发起关闭均输出结构化日志且不释放仍有 outstanding task 的 owner。Render Service/Panel 的 absolute-deadline
   `StopAsync` 已接入应用根关闭任务。公共 `RequestAsioClientStop`/`WaitForAsioClientStopped` 只认可 asio2 的完整 public `is_stopped()` 终态，adapter 和 scope
-  两者都静默后才释放或允许下一轮 Start；同步析构 facade 使用同一终态和同一 deadline。
+  两者都静默后才释放或允许下一轮 Start；同步析构 facade 使用同一终态和同一 deadline。为关闭与 `async_start` 同时竞争的窗口增加了 scope drain 后的
+  确认性 adapter stop，三个 client 均不会被迟到的连接启动重新激活。
 - N3 已完成：`RdContext` 持有的进程级 `PxAsyncRuntime` 通过 `RenderModuleRegistry` 和 `WsTransport` 显式注入 `WsServer`；WS server 只拥有自己的 control
   scope，启动失败会回滚模块启动，退出不再错误地停止共享 runtime。`WsServer::StopAsync` 会先关闭 HTTP/WS ingress，再等待 asio2 server 完整 stopped 终态和
   ticket/admission/RTC allocation scope 排空；`RenderModuleRegistry::StopWsIngressAsync` 已把它接入根 deadline。超时不会释放仍有 outstanding work 的 router owner。
 - N4 控制任务迁移已完成：进程级 runtime 通过 `RenderModuleRegistry` 显式注入 `UdpTransport`；心跳清扫和 FEC 窗口不再使用旧
   `PluginContext::StartTimer`，改由 UDP control scope 中两个可取消的周期协程负责。UDP 启动失败会回滚，停止会先取消并排空 control scope，逐包收发、
   分片、pacing 热路径保持同步。`UdpTransport::StopAsync` 会先关闭 UDP ingress，再按根 deadline 等待 server stopped 和 control scope 归零；WS/UDP
-  已由 `RenderModuleRegistry::StopNetworkIngressAsync` 一起在捕获与模块 owner 拆除前静默。receive-storm/stop 故障注入和性能基线仍待补齐。
-- N5 根关闭编排已接入：`RdApplication::Exit` 建立一个 15 秒 absolute deadline，根 control scope 先并发触发 Service/Panel 停止并 `co_await` 两个 client
+  已由 `RenderModuleRegistry::StopNetworkIngressAsync` 一起在捕获与模块 owner 拆除前静默。真实 UDP receive storm 与 `StopAsync` 并发测试已加入，JUnit 记录
+  storm packet 数和 stop latency；逐包数据面没有引入 coroutine。
+- N5 已完成：`RdApplication::Exit` 建立一个 15 秒 absolute deadline，根 control scope 先并发触发 Service/Panel 停止并 `co_await` 两个 client
   scope 排空；组合根 `RequestStop()` 的 completion 也必须在相同 deadline 内到达，才进入模块 owner 释放阶段。`RenderModuleRegistry::StopModules()` 已恢复，旧插件
-  时代禁止 StopModules 的 workaround 已删除。WebRTC callback quiescence 的超时保留策略和 runtime-thread 根退出续体仍待继续加固。
-- 尚未完成：OBS IPC 的统一 `StopAsync`、UDP receive-storm/stop 故障注入与性能基线、WebRTC callback quiescence，
-  runtime-thread 根退出续体，以及真实 server 驱动的重连故障注入。
+  时代禁止 StopModules 的 workaround 已删除。WebRTC DLL→Render 控制事件由 `PxCallbackQuiescence` RAII lease 计数，Stop/Destroy 后必须归零才允许卸载；超时输出
+  `WEBRTC_CALLBACK_QUIESCENCE_TIMEOUT` 并把 DLL handle 放入进程期安全保留区。runtime-thread 发起根退出时由独立 RAII dispatcher 执行完整关闭续体，不再等待自身 executor。
+- N6 自动化代码已完成：architecture/ownership guard 已覆盖 OBS typed stop、根退出续体和 WebRTC 安全卸载；新增 callback quiescence、UDP storm、OBS lifecycle/
+  real-server reconnect 测试。固定硬件性能、真实弱网和长稳数据由最终验收阶段产生。
 
-当前自动化结果：公共 mailbox/connection/backoff/async-delay focused tests 通过，其中 connection/backoff 连续运行 20 轮通过；Render 和 OBS hook
-增量构建通过并同步运行产物；全量软件 gate 的 2 个 guard 和 28 个 unit/lifecycle/integration 测试通过。同步 WebRTC 动态库后，最新 lifecycle 证据目录为
-`test-results/render-architecture/20260904-150145-lifecycle`，`px_render.exe`、`net_rtc.dll`、`net_rtc_local.dll` 的 build/dist SHA-256 全部一致，
-自动化结论为 GO，不替代最终产品验收。
+当前 focused 结果：callback quiescence、UDP receive storm、OBS repeated lifecycle/真实 server reconnect、WebRTC 连续 10 轮 load/start/StopAsync/unload 均通过；
+OBS lifecycle 额外连续执行 20 轮通过。最终 `Mode all` 自动化门禁通过 33 项、失败 0、跳过 0、unexpected ERROR 0；证据位于
+`test-results/render-architecture/20260904-155032-all`。`px_render.exe`、`px_gh.dll`、`net_rtc.dll`、`net_rtc_local.dll` 的构建树与
+`build_official/dist` SHA-256 均一致。该结果不替代用户最终产品验收。
 
 ## 3. 目标和非目标
 

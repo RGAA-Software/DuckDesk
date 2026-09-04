@@ -12,6 +12,7 @@
 #include <type_traits>
 #include "px_common_new/async_mailbox.h"
 #include "px_common_new/asio_client_shutdown.h"
+#include "px_common_new/async_scope_drain.h"
 #include "px_common_new/connection_attempt_workflow.h"
 #include "px_common_new/reconnect_backoff.h"
 #include "px_common_new/log.h"
@@ -39,6 +40,19 @@ namespace px
             return std::bit_cast<T>(storage);
         }
 
+        PxAwaitable<void> StopIpcFromRuntime(
+            const std::shared_ptr<WsIpcClient>& owner,
+            const std::chrono::steady_clock::time_point deadline) {
+            const auto stopped = co_await WsIpcClient::StopAsync(owner, deadline);
+            if (!stopped) {
+                LOGE("event=async.scope_drain component=obs_ipc code={} operation=stop_client "
+                     "outcome=failed recoverable={} reason={}",
+                     stopped.Error().StableCode(), stopped.Error().retryable, stopped.Error().message);
+                co_return;
+            }
+            LOGI("event=async.scope_drain component=obs_ipc operation=stop_client outcome=success");
+        }
+
     }
 
     std::shared_ptr<WsIpcClient> WsIpcClient::Make(int port) {
@@ -51,6 +65,18 @@ namespace px
         Exit();
     }
 
+    bool WsIpcClient::IsStarted() const {
+        return started_.load(std::memory_order_acquire) && !exiting_.load(std::memory_order_acquire);
+    }
+
+    bool WsIpcClient::IsConnected() const {
+        return IsStarted() && ws_client_ && ws_client_->is_started() && connection_workflow_ && connection_workflow_->IsReady();
+    }
+
+    std::uint64_t WsIpcClient::ConnectionGeneration() const {
+        return connection_generation_.load(std::memory_order_acquire);
+    }
+
     void WsIpcClient::Start() {
         if (started_.exchange(true, std::memory_order_acq_rel)) {
             return;
@@ -60,6 +86,8 @@ namespace px
         if (!async_runtime_ || !async_runtime_->Start()) {
             LOGE("ws ipc client failed to start async runtime");
             exiting_.store(true, std::memory_order_release);
+            async_runtime_.reset();
+            started_.store(false, std::memory_order_release);
             return;
         }
         async_scope_ = PxAsyncScope::Create(async_runtime_, PxAsyncLane::kState);
@@ -167,6 +195,83 @@ namespace px
             return;
         }
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        const auto runtime = async_runtime_;
+        const auto owner = weak_from_this().lock();
+        if (runtime && runtime->IsRuntimeThread() && owner) {
+            const auto weak_owner = std::weak_ptr<WsIpcClient>(owner);
+            asio::co_spawn(
+                runtime->Executor(PxAsyncLane::kControl),
+                StopIpcFromRuntime(owner, deadline),
+                [weak_owner](const std::exception_ptr& error) {
+                    if (error) {
+                        LOGE("event=async.scope_drain component=obs_ipc code=ASYNC_SCOPE_DRAIN_EXCEPTION "
+                             "operation=stop_client outcome=failed recoverable=false");
+                        return;
+                    }
+                    if (!weak_owner.lock()) {
+                        LOGI("event=async.scope_drain component=obs_ipc operation=stop_client outcome=success owner=released");
+                    }
+                });
+            LOGI("event=async.scope_drain component=obs_ipc operation=stop_client outcome=deferred "
+                 "reason=shutdown_requested_from_runtime_thread");
+            return;
+        }
+
+        const auto scope = BeginStop();
+        const auto client = ws_client_;
+        const auto remaining = std::max(
+            std::chrono::milliseconds::zero(),
+            std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()));
+        const auto scope_drained = !scope || scope->WaitFor(remaining);
+        static_cast<void>(RequestAsioClientStop(client, "ipc.adapter-stop-confirm"));
+        const auto adapter_stopped = WaitForAsioClientStoppedBlocking(client, deadline);
+        if (!scope_drained || !adapter_stopped) {
+            LOGE("event=async.scope_drain component=obs_ipc code=ASYNC_SCOPE_DRAIN_TIMEOUT "
+                 "operation=stop_client outcome=timeout recoverable=false outstanding={}",
+                 scope ? scope->GetStatistics().outstanding : 0);
+            return;
+        }
+        if (runtime) {
+            runtime->RequestDrain();
+            runtime->Join();
+        }
+        FinishStop();
+    }
+
+    PxAwaitable<PxResult<void>> WsIpcClient::StopAsync(
+        const std::shared_ptr<WsIpcClient>& owner,
+        const std::chrono::steady_clock::time_point deadline) {
+        if (!owner) {
+            co_return PxResult<void>::Failure(MakePxAsyncError(
+                PxAsyncErrorCode::kInvalidArgument, "ipc.stop", "OBS IPC client owner is missing"));
+        }
+        const auto scope = owner->BeginStop();
+        if (scope) {
+            const auto drained = co_await WaitForAsyncScopeDrain(scope, deadline, "ipc.stop");
+            if (!drained) {
+                LOGE("event=async.scope_drain component=obs_ipc code={} operation=stop_client "
+                     "outcome=failed recoverable={} outstanding={} reason={}",
+                     drained.Error().StableCode(), drained.Error().retryable,
+                     scope->GetStatistics().outstanding, drained.Error().message);
+                co_return PxResult<void>::Failure(drained.Error());
+            }
+        }
+        static_cast<void>(RequestAsioClientStop(owner->ws_client_, "ipc.adapter-stop-confirm"));
+        const auto adapter_stopped = co_await WaitForAsioClientStopped(owner->ws_client_, deadline, "ipc.adapter-stop");
+        if (!adapter_stopped) {
+            co_return adapter_stopped;
+        }
+        const auto runtime = owner->async_runtime_;
+        if (runtime) {
+            runtime->RequestDrain();
+            runtime->Join();
+        }
+        owner->FinishStop();
+        co_return PxResult<void>::Success();
+    }
+
+    std::shared_ptr<PxAsyncScope> WsIpcClient::BeginStop() {
+        exiting_.store(true, std::memory_order_release);
         if (incoming_messages_) {
             static_cast<void>(incoming_messages_->Close(
                 MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "ipc.receive", "IPC websocket is stopping")));
@@ -176,48 +281,20 @@ namespace px
         }
         const auto client = ws_client_;
         static_cast<void>(RequestAsioClientStop(client, "ipc.adapter-stop"));
-        auto drained = true;
         if (async_scope_) {
             async_scope_->BeginStop();
-            const auto called_from_scope = async_scope_->IsScopeThread();
-            if (called_from_scope) {
-                drained = false;
-            } else {
-                const auto adapter_stopped = WaitForAsioClientStoppedBlocking(client, deadline);
-                const auto remaining = std::max(
-                    std::chrono::milliseconds::zero(),
-                    std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()));
-                drained = adapter_stopped && async_scope_->WaitFor(remaining);
-            }
-            if (!drained && !called_from_scope) {
-                LOGE("event=async.scope_drain component=obs_ipc code=ASYNC_SCOPE_DRAIN_TIMEOUT "
-                     "operation=stop_client outcome=timeout recoverable=false outstanding={}",
-                     async_scope_->GetStatistics().outstanding);
-            } else if (called_from_scope) {
-                LOGI("event=async.scope_drain component=obs_ipc operation=stop_client outcome=deferred "
-                     "reason=shutdown_requested_from_callback outstanding={}",
-                     async_scope_->GetStatistics().outstanding);
-            }
         }
-        if (async_runtime_) {
-            async_runtime_->RequestStop();
-            if (!async_runtime_->IsRuntimeThread()) {
-                async_runtime_->Join();
-            } else {
-                drained = false;
-                LOGI("event=async.runtime_stop component=obs_ipc operation=stop_client outcome=deferred "
-                     "reason=shutdown_requested_from_runtime_thread");
-            }
-        }
-        if (drained) {
-            ws_client_.reset();
-            incoming_messages_.reset();
-            connection_workflow_.reset();
-            connection_backoff_.reset();
-            async_scope_.reset();
-            async_runtime_.reset();
-            started_.store(false, std::memory_order_release);
-        }
+        return async_scope_;
+    }
+
+    void WsIpcClient::FinishStop() {
+        ws_client_.reset();
+        incoming_messages_.reset();
+        connection_workflow_.reset();
+        connection_backoff_.reset();
+        async_scope_.reset();
+        async_runtime_.reset();
+        started_.store(false, std::memory_order_release);
     }
 
     void WsIpcClient::RegisterIpcMessageCallback(WsIpcMessageCallback&& callback) {

@@ -14,6 +14,7 @@
 #include <mutex>
 #include <asio2/websocket/ws_client.hpp>
 
+#include "px_common_new/async_result.h"
 #include "px_common_new/async_runtime.h"
 
 namespace px
@@ -39,12 +40,20 @@ namespace px
 
         void Start();
         void Exit();
+        [[nodiscard]] bool IsStarted() const;
+        [[nodiscard]] bool IsConnected() const;
+        [[nodiscard]] std::uint64_t ConnectionGeneration() const;
+        [[nodiscard]] static PxAwaitable<PxResult<void>> StopAsync(
+            const std::shared_ptr<WsIpcClient>& owner,
+            std::chrono::steady_clock::time_point deadline);
 
         void PostIpcMessage(const std::string& msg);
         void RegisterIpcMessageCallback(WsIpcMessageCallback&& cbk);
 
     private:
         void DispatchIpcMessage(const std::string& data);
+        std::shared_ptr<PxAsyncScope> BeginStop();
+        void FinishStop();
         static PxAwaitable<void> RunIncomingMessageLoop(
             std::weak_ptr<WsIpcClient> weak_client,
             std::shared_ptr<PxAsyncMailbox<std::string>> mailbox);

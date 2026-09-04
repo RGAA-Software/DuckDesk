@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <filesystem>
+#include <future>
 #include <memory>
 #include <string>
 #include <thread>
@@ -12,6 +13,15 @@
 
 namespace px {
 namespace {
+
+using namespace std::chrono_literals;
+
+PxAwaitable<void> CollectWebRtcStop(
+    const std::shared_ptr<WebRtcLibrary>& library,
+    const std::shared_ptr<std::promise<PxResult<void>>>& completion) {
+    completion->set_value(co_await WebRtcLibrary::StopAsync(
+        library, std::chrono::steady_clock::now() + 5s));
+}
 
 class ScopedWebRtcLayout final {
 public:
@@ -48,6 +58,10 @@ private:
 
 void RunLifecycleRounds(const std::filesystem::path& rtc_path,
                         const std::filesystem::path& rtc_local_path) {
+    const auto runtime = PxAsyncRuntime::Create({.worker_threads = 1});
+    ASSERT_TRUE(runtime->Start());
+    const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kControl);
+    ASSERT_TRUE(scope);
     for (int round = 0; round < 10; ++round) {
         const ScopedWebRtcLayout layout(rtc_path, rtc_local_path);
         auto host = WebRtcLibraryHost::Create(layout.Directory());
@@ -70,9 +84,16 @@ void RunLifecycleRounds(const std::filesystem::path& rtc_path,
 
         const auto stop_started = std::chrono::steady_clock::now();
         for (const auto& library : libraries) {
-            library->SetEventCallback({});
-            library->Stop();
-            library->Destroy();
+            const auto completion = std::make_shared<std::promise<PxResult<void>>>();
+            auto future = completion->get_future();
+            ASSERT_TRUE(scope->Spawn("test-webrtc-stop", [library, completion] {
+                return CollectWebRtcStop(library, completion);
+            }));
+            ASSERT_EQ(future.wait_for(6s), std::future_status::ready);
+            const auto stopped = future.get();
+            if (!stopped) {
+                ADD_FAILURE() << stopped.Error().StableCode() << ": " << stopped.Error().message;
+            }
         }
         libraries.clear();
         host->Reset();
@@ -82,6 +103,10 @@ void RunLifecycleRounds(const std::filesystem::path& rtc_path,
         EXPECT_EQ(GetModuleHandleW(rtc_path.filename().c_str()), nullptr);
         EXPECT_EQ(GetModuleHandleW(rtc_local_path.filename().c_str()), nullptr);
     }
+    scope->BeginStop();
+    EXPECT_TRUE(scope->WaitFor(1s));
+    runtime->RequestDrain();
+    runtime->Join();
 }
 
 TEST(WebRtcLibrariesLifecycle, RapidStartStopAndUnload) {

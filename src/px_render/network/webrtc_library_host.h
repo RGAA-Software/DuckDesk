@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -12,6 +13,8 @@
 #include <wrl/client.h>
 
 #include "px_common_new/file_transfer_send_result.h"
+#include "px_common_new/async_result.h"
+#include "px_common_new/async_runtime.h"
 
 namespace px {
 
@@ -106,6 +109,11 @@ public:
     [[nodiscard]] bool Start(const WebRtcLibraryConfiguration& configuration);
     void Stop();
     void Destroy();
+    [[nodiscard]] static PxAwaitable<PxResult<void>> StopAsync(
+        const std::shared_ptr<WebRtcLibrary>& owner,
+        std::chrono::steady_clock::time_point deadline);
+    [[nodiscard]] std::uint64_t OutstandingCallbacks() const;
+    [[nodiscard]] bool IsSafeToUnload() const;
     void SetEventCallback(WebRtcEventCallback callback);
     void SetEnabled(bool enabled);
     [[nodiscard]] bool IsWorking() const;

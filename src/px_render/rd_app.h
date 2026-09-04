@@ -227,6 +227,7 @@ namespace px
         std::shared_ptr<File> debug_encode_file_ = nullptr;
         std::shared_ptr<AppSharedMessage> app_shared_message_ = nullptr;
         std::atomic_bool exit_app_ = false;
+        std::atomic_bool exit_dispatch_pending_ = false;
 
         std::shared_ptr<Thread> audio_capture_thread_ = nullptr;
         std::shared_ptr<AppSharedInfo> app_shared_info_ = nullptr;

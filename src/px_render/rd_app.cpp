@@ -124,6 +124,58 @@ namespace px
             completion->set_value(std::move(outcome));
         }
 
+        PxAwaitable<void> StopApplicationWebRtcLibraries(
+            const std::shared_ptr<RenderModuleRegistry>& module_registry,
+            const std::chrono::steady_clock::time_point deadline,
+            const std::shared_ptr<std::promise<PxResult<void>>>& completion) {
+            if (!module_registry) {
+                completion->set_value(PxResult<void>::Success());
+                co_return;
+            }
+            completion->set_value(co_await module_registry->StopWebRtcLibrariesAsync(deadline));
+        }
+
+        class ApplicationShutdownDispatcher final {
+        public:
+            static std::shared_ptr<ApplicationShutdownDispatcher> Instance() {
+                static const auto instance = std::make_shared<ApplicationShutdownDispatcher>();
+                return instance;
+            }
+
+            ApplicationShutdownDispatcher()
+                : runtime_(PxAsyncRuntime::Create({.worker_threads = 1})) {
+                if (runtime_ && runtime_->Start()) {
+                    scope_ = PxAsyncScope::Create(runtime_, PxAsyncLane::kWorker);
+                }
+            }
+
+            ~ApplicationShutdownDispatcher() {
+                if (scope_) {
+                    scope_->BeginStop();
+                    static_cast<void>(scope_->WaitFor(std::chrono::seconds(5)));
+                }
+                if (runtime_) {
+                    runtime_->RequestStop();
+                    runtime_->Join();
+                }
+            }
+
+            [[nodiscard]] bool Submit(const std::shared_ptr<RdApplication>& application) const {
+                return scope_ && scope_->Spawn("application-root-shutdown", [application] {
+                    return Run(application);
+                });
+            }
+
+        private:
+            static PxAwaitable<void> Run(const std::shared_ptr<RdApplication>& application) {
+                application->Exit();
+                co_return;
+            }
+
+            std::shared_ptr<PxAsyncRuntime> runtime_{};
+            std::shared_ptr<PxAsyncScope> scope_{};
+        };
+
     } // namespace
 
     std::shared_ptr<RdApplication> RdApplication::Make(const AppParams& args) {
@@ -2582,6 +2634,22 @@ namespace px
     }
 
     void RdApplication::Exit() {
+        const auto application_runtime = context_ ? context_->GetAsyncRuntime() : std::shared_ptr<PxAsyncRuntime>{};
+        if (application_runtime && application_runtime->IsRuntimeThread()) {
+            if (exit_dispatch_pending_.exchange(true, std::memory_order_acq_rel)) {
+                return;
+            }
+            const auto owner = weak_from_this().lock();
+            if (owner && ApplicationShutdownDispatcher::Instance()->Submit(owner)) {
+                LOGI("event=application.shutdown component=rd_application operation=ordered_shutdown outcome=deferred "
+                     "reason=shutdown_requested_from_runtime_thread");
+                return;
+            }
+            exit_dispatch_pending_.store(false, std::memory_order_release);
+            LOGE("event=application.shutdown component=rd_application code=ASYNC_SCOPE_SPAWN_FAILED "
+                 "operation=ordered_shutdown outcome=failed recoverable=false reason=shutdown_dispatch_unavailable");
+            return;
+        }
         if (exit_app_.exchange(true)) {
             return;
         }
@@ -2712,6 +2780,31 @@ namespace px
         if (module_registry_) {
             LOGI("RdApplication shutdown: module event routing");
             module_registry_->StopRouting();
+            const auto async_runtime = context_ ? context_->GetAsyncRuntime() : std::shared_ptr<PxAsyncRuntime>{};
+            if (async_runtime && !async_runtime->IsStopping() && !async_runtime->IsRuntimeThread()) {
+                const auto shutdown_scope = PxAsyncScope::Create(async_runtime, PxAsyncLane::kControl);
+                const auto completion = std::make_shared<std::promise<PxResult<void>>>();
+                auto future = completion->get_future();
+                const auto spawned = shutdown_scope && shutdown_scope->Spawn(
+                    "application-webrtc-shutdown",
+                    [module_registry = module_registry_, shutdown_deadline, completion] {
+                        return StopApplicationWebRtcLibraries(module_registry, shutdown_deadline, completion);
+                    });
+                if (!spawned || future.wait_until(shutdown_deadline) != std::future_status::ready) {
+                    LOGE("event=webrtc.callback_quiescence component=rd_application "
+                         "code=WEBRTC_CALLBACK_QUIESCENCE_TIMEOUT operation=stop outcome=timeout recoverable=false");
+                    if (shutdown_scope) {
+                        shutdown_scope->BeginStop();
+                    }
+                } else if (const auto stopped = future.get(); !stopped) {
+                    LOGE("event=webrtc.callback_quiescence component=rd_application code={} "
+                         "operation=stop outcome=failed recoverable={} reason={}",
+                         stopped.Error().StableCode(), stopped.Error().retryable, stopped.Error().message);
+                }
+            } else {
+                LOGE("event=webrtc.callback_quiescence component=rd_application code=ASYNC_RUNTIME_UNAVAILABLE "
+                     "operation=stop outcome=deferred recoverable=false");
+            }
             LOGI("RdApplication shutdown: concrete modules and WebRTC libraries");
             module_registry_->StopModules();
         }

@@ -107,6 +107,9 @@ $lifecycleTargets = @(
     "test_miniaudio_reinit_cancel",
     "test_process_loopback_lifecycle",
     "test_plugin_context_lifecycle",
+    "test_callback_quiescence",
+    "test_udp_transport_shutdown",
+    "test_ws_ipc_client_lifecycle",
     "test_webrtc_libraries_lifecycle",
     "test_voice_call_runtime"
 )
@@ -266,6 +269,7 @@ $artifactLines = [System.Collections.Generic.List[string]]::new()
 $artifactMismatch = $false
 $artifactPairs = @(
     @("px_render.exe", "src/px_render/px_render.exe", "dist/px_render.exe"),
+    @("px_gh.dll", "src/px_render/hook_capture/win/hk_obs/px_gh.dll", "dist/px_gh.dll"),
     @("net_rtc.dll", "src/px_render/network/webrtc/remote/net_rtc.dll", "dist/deps/network/net_rtc.dll"),
     @("net_rtc_local.dll", "src/px_render/network/webrtc/local/net_rtc_local.dll", "dist/deps/network/net_rtc_local.dll")
 )

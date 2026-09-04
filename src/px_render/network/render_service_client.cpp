@@ -543,25 +543,23 @@ namespace px
     void RenderServiceClient::Exit() {
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
         const auto scope = BeginStop();
-        if (!scope) {
-            FinishStop();
-            return;
-        }
-        if (scope->IsScopeThread()) {
+        if (scope && scope->IsScopeThread()) {
             LOGI("event=async.scope_drain component=render_service operation=stop_client outcome=deferred "
                  "reason=shutdown_requested_from_runtime_thread outstanding={}",
                  scope->GetStatistics().outstanding);
             return;
         }
         const auto client = client_;
-        const auto adapter_stopped = WaitForAsioClientStoppedBlocking(client, deadline);
         const auto remaining = std::max(
             std::chrono::milliseconds::zero(),
             std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()));
-        if (!adapter_stopped || !scope->WaitFor(remaining)) {
+        const auto scope_drained = !scope || scope->WaitFor(remaining);
+        static_cast<void>(RequestAsioClientStop(client, "render-service.adapter-stop-confirm"));
+        const auto adapter_stopped = WaitForAsioClientStoppedBlocking(client, deadline);
+        if (!scope_drained || !adapter_stopped) {
             LOGE("event=async.scope_drain component=render_service code=ASYNC_SCOPE_DRAIN_TIMEOUT "
                  "operation=stop_client outcome=timeout recoverable=false outstanding={}",
-                 scope->GetStatistics().outstanding);
+                 scope ? scope->GetStatistics().outstanding : 0);
             return;
         }
         FinishStop();
@@ -576,10 +574,6 @@ namespace px
         }
         const auto scope = owner->BeginStop();
         if (scope) {
-            const auto adapter_stopped = co_await WaitForAsioClientStopped(owner->client_, deadline, "render-service.adapter-stop");
-            if (!adapter_stopped) {
-                co_return adapter_stopped;
-            }
             const auto drained = co_await WaitForAsyncScopeDrain(scope, deadline, "render-service.stop");
             if (!drained) {
                 LOGE("event=async.scope_drain component=render_service code={} operation=stop_client "
@@ -590,6 +584,12 @@ namespace px
                      drained.Error().message);
                 co_return PxResult<void>::Failure(drained.Error());
             }
+        }
+        static_cast<void>(RequestAsioClientStop(owner->client_, "render-service.adapter-stop-confirm"));
+        const auto adapter_stopped = co_await WaitForAsioClientStopped(
+            owner->client_, deadline, "render-service.adapter-stop");
+        if (!adapter_stopped) {
+            co_return adapter_stopped;
         }
         owner->FinishStop();
         co_return PxResult<void>::Success();
