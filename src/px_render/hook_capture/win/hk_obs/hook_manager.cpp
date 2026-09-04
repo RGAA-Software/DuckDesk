@@ -848,17 +848,22 @@ namespace px
     void HookManager::StartIpcClient() {
         ws_ipc_client_ = WsIpcClient::Make((int)app_shared_msg_->ipc_port_);
         ws_ipc_client_->Start();
-        ws_ipc_client_->RegisterIpcMessageCallback([=, this](const std::shared_ptr<CaptureBaseMessage>& msg) {
-            if (msg->type_ == kCaptureResetInputMessage) {
-                this->ResetInputState();
+        const std::weak_ptr<HookManager> weak_manager = Instance();
+        ws_ipc_client_->RegisterIpcMessageCallback([weak_manager](const std::shared_ptr<CaptureBaseMessage>& msg) {
+            const auto manager = weak_manager.lock();
+            if (!manager) {
                 return;
             }
-            this->PushIpcMessage(msg);
+            if (msg->type_ == kCaptureResetInputMessage) {
+                manager->ResetInputState();
+                return;
+            }
+            manager->PushIpcMessage(msg);
             if (msg->type_ == kMouseEventMessage) {
-                this->GenerateMouseEvent(msg);
+                manager->GenerateMouseEvent(msg);
             }
             else if (msg->type_ == kKeyboardEventMessage) {
-                this->GenerateKeyboardEvent(msg);
+                manager->GenerateKeyboardEvent(msg);
             }
         });
     }

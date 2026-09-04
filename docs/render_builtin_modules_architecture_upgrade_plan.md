@@ -316,6 +316,9 @@ awaitable，并在每个挂起点后重新 `weak_ptr::lock()`；WebRTC DLL ABI �
 
 ## 9. 网络层
 
+网络控制面的后续协程化实施以 `docs/render_network_coroutine_migration_plan.md` 为准。该计划继续使用 canonical Asio 和
+`PxAsyncRuntime`/`PxAsyncScope`，将业务请求、重连、准入、超时和根关闭流程收口为 typed awaitable，同时保留 asio2 作为底层 I/O Adapter。
+
 ### 9.1 显式具体对象
 
 `NetworkTransportHub` 显式持有 WS、UDP、Relay 和 WebRTC 具体对象，不使用
@@ -703,6 +706,13 @@ UserProxy、UDP admission 和 direct session。先剥离业务职责，再改变
 `GetPluginById`、具名 getter、UUID 业务路由、三个 Plugin Router、内部模块
 `GetInstance`、每插件 `PxPluginContext` 和非 WebRTC 发布规则。最终动态加载只处理固定的
 WebRTC DLL，不执行目录中的任意 DLL。
+
+### 阶段 10：网络控制面协程化
+
+按 `docs/render_network_coroutine_migration_plan.md` 实施 typed bounded mailbox、awaitable connection workflow、generation-aware reconnect、
+owned receive loop
+和根 StopAsync。先迁移 RenderServiceClient，再迁移 WsPanelClient、OBS IPC、WS/HTTP 和 UDP 控制面，最后修正 Registry/RdApplication 关闭顺序，并保证 WebRTC callback
+静默后才卸载动态库。底层 asio2 callback 只允许执行弱生命周期检查、owned 数据复制和 typed event 发布；UDP 高频 packet 不建立逐包 coroutine。
 
 ## 12. 详细测试方案
 

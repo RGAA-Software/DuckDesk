@@ -828,7 +828,7 @@ std::wstring GetDllPath(HMODULE module) {
     return L"";
 }
 
-static HookManager *g_hook_manager = HookManager::Instance();
+static const auto g_hook_manager = HookManager::Instance();
 static HANDLE g_hook_init_thread = NULL;
 // Set by DllMain DETACH (FreeLibrary path) so the deferred init thread stops
 // at the next checkpoint instead of touching freed global state.

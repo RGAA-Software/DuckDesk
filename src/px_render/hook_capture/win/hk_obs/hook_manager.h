@@ -27,9 +27,9 @@ namespace px
     class HookManager {
     public:
 
-        static HookManager* Instance() {
-            static HookManager hm;
-            return &hm;
+        static std::shared_ptr<HookManager> Instance() {
+            static const auto instance = std::make_shared<HookManager>();
+            return instance;
         }
 
         void Init();

@@ -1,4 +1,4 @@
-# GammaRay C++ Smart-Pointer and Lifetime Standard
+# GammaRay Modern C++ Ownership, Initialization, and Lifetime Standard
 
 ## Applicability
 
@@ -25,6 +25,107 @@ native modules. It is not limited to the Asio dispatcher implementation.
   `make_shared` or a dedicated RAII handle with a typed deleter.
 - Avoid ownership cycles. The normal asynchronous pattern is an owner-held
   `shared_ptr` plus callback-held `weak_ptr`, not callback-held `shared_ptr`.
+
+Synchronous non-owning access should use a reference, `std::span`, or
+`std::reference_wrapper` when absence is not valid. A nullable relationship must
+use an appropriate smart pointer, `std::optional`, `QPointer` at a Qt-parent
+boundary, or a typed RAII handle. It must not be represented by a project raw
+pointer, integer address, `void*`, or `std::any` ownership bag.
+
+## Deterministic initialization
+
+Every project-owned C++ declaration must have a deterministic value before its
+first use. This is a hard gate for new code and for legacy code in the scope of a
+change.
+
+- Initialize scalar, enum, atomic, handle, array, smart-pointer, and state members
+  at the declaration whenever the value does not depend on constructor input.
+- Use value initialization (`{}`) for local values and aggregate state. Do not
+  declare an uninitialized local and rely on a later branch to assign it.
+- A constructor must establish the complete class invariant. It must not publish
+  the object, register a callback, start a thread, or spawn a coroutine before the
+  object is fully initialized and, when needed, managed by `shared_ptr`.
+- Fallible construction uses a factory returning a typed result or smart pointer.
+  Asynchronous activation uses `StartAsync`; destructors and `StopAsync` must be
+  safe after every partial initialization failure.
+- Use `std::optional<T>` or an explicit state enum for absence and lifecycle state.
+  Do not use uninitialized storage, undocumented sentinel integers, or an invalid
+  enum value as hidden state.
+- Initialize members in declaration order. Do not depend on constructor initializer
+  list order or on zero-filled allocator/debug-build behavior.
+- Do not use `memset` to initialize a non-trivial C++ object. Use constructors,
+  member initializers, or typed factory functions.
+- Output-only values required by a C, Win32, Qt, or third-party API are transient
+  boundary exceptions. Value-initialize their storage before the call, validate the
+  result, and immediately wrap any acquired resource in its RAII owner.
+
+Example:
+
+```cpp
+enum class ConnectionState {
+    kStopped,
+    kConnecting,
+    kReady,
+    kStopping,
+};
+
+class ConnectionWorkflow final {
+public:
+    static PxResult<std::shared_ptr<ConnectionWorkflow>> Create(const std::shared_ptr<PxAsyncRuntime>& runtime);
+
+private:
+    std::weak_ptr<PxAsyncRuntime> runtime_;
+    std::atomic<ConnectionState> state_{ConnectionState::kStopped};
+    std::uint64_t generation_{0};
+    std::optional<std::chrono::steady_clock::time_point> deadline_{};
+};
+```
+
+## Architecture and design constraints
+
+Good design in this repository means that ownership, responsibility, dependency
+direction, and lifecycle are visible in types. Patterns are tools, not a reason to
+add abstraction.
+
+- A composition root creates concrete modules and owns their dependency graph.
+  Business code must not discover dependencies through a service locator, generic
+  plugin registry, mutable global singleton, or string/UUID lookup.
+- Dependencies are supplied explicitly through constructors or typed factories.
+  Optional capabilities use a typed optional object, not a generic property bag.
+- Use an Adapter at C, Win32, Qt, WebRTC, asio2, and other external boundaries.
+  Borrowed ABI values remain inside the adapter and are converted immediately to
+  owned values, smart pointers, or typed RAII handles.
+- Use explicit workflow/state-machine objects for start, reconnect, timeout,
+  cancellation, and shutdown. Do not distribute one lifecycle transition across
+  unrelated callbacks and boolean flags.
+- Use Strategy only for real replaceable algorithms such as encoder backends. Use
+  Observer only with RAII registration tokens, weak callback lifetime, snapshot
+  dispatch, and defined unregister-during-dispatch behavior.
+- Prefer composition over inheritance for built-in modules. A virtual interface is
+  justified only by a stable extension point or multiple independently replaceable
+  implementations; otherwise use a concrete type and capability-specific methods.
+- Keep interfaces small, typed, and cohesive. Generic `OnMessage(void*)`,
+  `std::any` service bags, catch-all managers, and speculative extension layers are
+  prohibited in new project code.
+- A class owns one coherent responsibility. Split transport, protocol parsing,
+  domain decisions, persistence, and diagnostics at explicit boundaries; do not use
+  file length alone as the reason for a split.
+- Resource cleanup follows reverse dependency order. Start/stop are idempotent,
+  partial start is rollback-safe, and no destructor depends on another object that
+  has already been destroyed.
+
+## Formatting
+
+Project-authored C++ uses the repository `.clang-format` and a hard 150-column
+limit. Keep code on one line while it fits within 150 columns; wrap when it exceeds
+that limit or when a deliberate multiline table, initializer, fluent expression,
+or algorithmic grouping is materially clearer. Do not retain legacy 80-column
+wrapping in newly written code merely for consistency with nearby code.
+
+Generated sources, vendored/read-only third-party trees, URLs, and unavoidable
+external literals are exempt. Formatting a touched file must not become a
+repository-wide mechanical rewrite; format the changed declarations and logical
+blocks only.
 
 ## API and ABI boundaries
 
@@ -123,6 +224,17 @@ shutdown invoked from inside a callback. Static checks reject newly added
 raw-pointer declarations, `[this]` captures, manual ownership and
 smart-pointer-to-Qt-parent `release()` transfers. A reviewed external-ABI or
 direct Qt-parent construction boundary is the only annotated exception.
+
+Review must also reject a newly added scalar, enum, atomic, handle, state member,
+or local value that has no deterministic initializer. Every constructor must be
+checked against declaration order and partial-failure cleanup. Architecture review
+must identify the composition owner, injected dependencies, external Adapter,
+lifecycle workflow/state machine, and RAII cleanup token where those concepts
+apply; naming a design pattern without enforcing these invariants is insufficient.
+
+Run `clang-format --style=file --dry-run --Werror` on changed project-owned C++
+files. The root configuration enforces the 150-column policy. Do not include
+generated or read-only third-party sources in a mechanical formatting pass.
 
 Run `cmake --build build_official --target check_cpp_ownership` before native
 code review. The checker examines added lines in the working tree and rejects

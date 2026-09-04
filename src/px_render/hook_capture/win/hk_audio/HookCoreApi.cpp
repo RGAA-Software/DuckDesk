@@ -604,7 +604,7 @@ bool HookCoreApi::Init() {
     audio_share->SetWriteWav(false);  // production: IPC only, no local WAV
     // Live path: dll -> host /ipc (CaptureAudioFrame).
     audio_share->SetIpcSender([](std::string&& msg) {
-        auto* hm = HookManager::Instance();
+        const auto hm = HookManager::Instance();
         if (!hm) {
             static std::atomic<uint64_t> s_n{0};
             if (++s_n == 1 || (s_n.load() % 200) == 0) {

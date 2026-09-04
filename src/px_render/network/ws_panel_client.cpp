@@ -11,6 +11,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
 #include "px_common_new/message_notifier.h"
+#include "px_common_new/async_mailbox.h"
 #include "px_common_new/connection_attempt_workflow.h"
 #include "px_message.pb.h"
 #include "px_render_panel_message.pb.h"
@@ -30,13 +31,15 @@ namespace px
 {
 
     constexpr int kMaxClientQueuedMessage = 1024;
+    constexpr auto kPanelConnectionTimeout = std::chrono::seconds(10);
+    constexpr std::size_t kIncomingPanelMessageCapacity = 1024;
 
-    WsPanelClient::WsPanelClient(const std::shared_ptr<RdContext>& ctx) {
+    WsPanelClient::WsPanelClient(const std::shared_ptr<RdContext>& ctx) : settings_(*RdSettings::Instance()) {
         statistics_ = RdStatistics::Instance();
-        settings_ = RdSettings::Instance();
         context_ = ctx;
         module_registry_ = context_->GetRenderModuleRegistry();
         composition_root_ = context_->GetRenderCompositionRoot();
+        async_scope_ = PxAsyncScope::Create(context_->GetAsyncRuntime(), PxAsyncLane::kState);
         instance_id_ = std::format("{}-{}", GetCurrentProcessId(), TimeUtil::GetCurrentTimestamp());
     }
 
@@ -50,7 +53,7 @@ namespace px
         // explicit disabled value from RdSettings, not a connectable address.
         // Do this before creating listeners or reconnect state so shutdown
         // remains a no-op and no retry loop is left behind.
-        if (settings_->panel_server_port_ <= 0) {
+        if (settings_.get().panel_server_port_ <= 0) {
             LOGI("Render Panel client disabled: no panel server port configured");
             return;
         }
@@ -88,11 +91,21 @@ namespace px
             }
         });
 
+        if (!async_scope_) {
+            LOGE("Cannot start Render Panel async scope");
+            return;
+        }
         client_ = std::make_shared<asio2::ws_client>();
-        connection_workflow_ = PxConnectionAttemptWorkflow::Create(
-            context_->GetAsyncRuntime(), std::chrono::seconds(10));
-        if (!connection_workflow_) {
+        connection_workflow_ = PxConnectionAttemptWorkflow::Create(context_->GetAsyncRuntime(), kPanelConnectionTimeout);
+        incoming_messages_ = PxAsyncMailbox<std::string>::Create(async_scope_->Executor(), kIncomingPanelMessageCapacity);
+        if (!connection_workflow_ || !async_scope_ || !incoming_messages_) {
             LOGE("Cannot start Render Panel connection workflow");
+            return;
+        }
+        if (!async_scope_->Spawn("render-panel-receive-loop", [weak_self, mailbox = incoming_messages_]() {
+                return RunIncomingMessageLoop(weak_self, mailbox);
+            })) {
+            LOGE("Cannot start Render Panel receive coroutine");
             return;
         }
         client_->set_auto_reconnect(true);
@@ -103,28 +116,20 @@ namespace px
                 && self->connection_workflow_) {
                 self->client_->ws_stream().binary(true);
                 self->client_->set_no_delay(true);
-                const bool started = self->connection_workflow_->BeginAttempt(
-                    [weak_self](PxConnectionAttemptResult result) {
-                        const auto self = weak_self.lock();
-                        if (!self || self->exiting_ || !self->context_) {
-                            return;
-                        }
-                        if (!result) {
-                            LOGW("Render Panel attempt ended: stage={}, code={}",
-                                 result.Error().stage, result.Error().StableCode());
-                            return;
-                        }
-                        LOGI("Render Panel websocket ready, generation={}",
-                             result.Value().generation);
-                        self->context_->PostTask([weak_self]() {
-                            const auto self = weak_self.lock();
-                            if (self && !self->exiting_) {
-                                self->ReportStatistics();
-                            }
-                        });
-                    });
-                if (!started) {
+                auto attempt = self->connection_workflow_->StartAttempt();
+                if (!attempt) {
                     LOGW("Render Panel attempt was rejected during shutdown");
+                } else {
+                    const auto ticket = attempt.Value();
+                    self->connection_generation_.store(ticket.generation, std::memory_order_release);
+                    if (!self->async_scope_->Spawn("render-panel-connection-attempt", [weak_self, workflow = self->connection_workflow_, ticket]() {
+                            return WaitForConnectionReady(
+                                weak_self, workflow, ticket, std::chrono::steady_clock::now() + kPanelConnectionTimeout);
+                        })) {
+                        static_cast<void>(self->connection_workflow_->FailActive(
+                            ticket.generation,
+                            MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "render-panel.connect", "connection scope rejected attempt")));
+                    }
                 }
                 self->client_->ws_stream().set_option(
                     websocket::stream_base::decorator([](websocket::request_type &req) {
@@ -141,11 +146,9 @@ namespace px
                 LOGE("WsPanelClient, connect failure : {} {}", asio2::last_error_val(), str);
                 if (auto self = weak_self.lock(); self && !self->exiting_
                     && self->connection_workflow_) {
-                    static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
-                        PxAsyncErrorCode::kServiceNotConnected,
-                        "render-panel.connect",
-                        str,
-                        true)));
+                    const auto generation = self->connection_generation_.load(std::memory_order_acquire);
+                    static_cast<void>(self->connection_workflow_->FailActive(
+                        generation, MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "render-panel.connect", str, true)));
                 }
             } else {
                 if (auto self = weak_self.lock(); self && !self->exiting_ && self->client_) {
@@ -157,11 +160,10 @@ namespace px
             if (auto self = weak_self.lock(); self && !self->exiting_) {
                 LOGE("WsPanelClient disconnected");
                 if (self->connection_workflow_) {
-                    static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
-                        PxAsyncErrorCode::kServiceNotConnected,
-                        "render-panel.disconnect",
-                        "Render disconnected from Panel",
-                        true)));
+                    const auto generation = self->connection_generation_.load(std::memory_order_acquire);
+                    static_cast<void>(self->connection_workflow_->FailActive(
+                        generation,
+                        MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "render-panel.disconnect", "Render disconnected from Panel", true)));
                 }
             }
         })
@@ -170,30 +172,73 @@ namespace px
                 LOGE("WsPanelClient,upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
                 if (auto self = weak_self.lock(); self && !self->exiting_
                     && self->connection_workflow_) {
-                    static_cast<void>(self->connection_workflow_->FailActive(MakePxAsyncError(
-                        PxAsyncErrorCode::kProtocolError,
-                        "render-panel.upgrade",
-                        asio2::last_error_msg(),
-                        true)));
+                    const auto generation = self->connection_generation_.load(std::memory_order_acquire);
+                    static_cast<void>(self->connection_workflow_->FailActive(
+                        generation,
+                        MakePxAsyncError(PxAsyncErrorCode::kProtocolError, "render-panel.upgrade", asio2::last_error_msg(), true)));
                 }
                 return;
             }
             if (auto self = weak_self.lock(); self && !self->exiting_
                 && self->connection_workflow_) {
-                static_cast<void>(self->connection_workflow_->MarkReady());
+                static_cast<void>(
+                    self->connection_workflow_->MarkReady(self->connection_generation_.load(std::memory_order_acquire)));
             }
         })
         .bind_recv([weak_self](std::string_view data) {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
-                self->ParseNetMessage(data);
+                const auto mailbox = self->incoming_messages_;
+                if (!mailbox) {
+                    return;
+                }
+                const auto published = mailbox->TryPush(std::string(data));
+                if (!published) {
+                    LOGE("Render Panel receive mailbox rejected message: code={}, depth={}",
+                         published.Error().StableCode(), mailbox->Statistics().depth);
+                }
             }
         });
 
-        LOGI("Will connect to panel : {}:{}", settings_->panel_server_host_, settings_->panel_server_port_);
+        LOGI("Will connect to panel : {}:{}", settings_.get().panel_server_host_, settings_.get().panel_server_port_);
         const auto panel_path = std::format("/panel/renderer?instance_id={}", instance_id_);
-        if (!client_->async_start(settings_->panel_server_host_, settings_->panel_server_port_, panel_path)) {
+        if (!client_->async_start(settings_.get().panel_server_host_, settings_.get().panel_server_port_, panel_path)) {
             LOGE("WsPanelClient, connect websocket server failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
         }
+    }
+
+    PxAwaitable<void> WsPanelClient::RunIncomingMessageLoop(
+        std::weak_ptr<WsPanelClient> weak_client,
+        std::shared_ptr<PxAsyncMailbox<std::string>> mailbox) {
+        for (;;) {
+            auto message = co_await PxAsyncMailbox<std::string>::ReceiveUntil(mailbox, std::chrono::steady_clock::time_point::max());
+            if (!message) {
+                co_return;
+            }
+            const auto self = weak_client.lock();
+            if (!self || self->exiting_.load(std::memory_order_acquire)) {
+                co_return;
+            }
+            self->ParseNetMessage(message.Value());
+        }
+    }
+
+    PxAwaitable<void> WsPanelClient::WaitForConnectionReady(
+        std::weak_ptr<WsPanelClient> weak_client,
+        std::shared_ptr<PxConnectionAttemptWorkflow> workflow,
+        PxConnectionAttemptTicket ticket,
+        std::chrono::steady_clock::time_point deadline) {
+        auto result = co_await PxConnectionAttemptWorkflow::WaitUntilReady(std::move(workflow), ticket, deadline);
+        const auto self = weak_client.lock();
+        if (!self || self->exiting_.load(std::memory_order_acquire)) {
+            co_return;
+        }
+        if (!result) {
+            LOGW("Render Panel attempt ended: generation={}, stage={}, code={}",
+                 ticket.generation, result.Error().stage, result.Error().StableCode());
+            co_return;
+        }
+        LOGI("Render Panel websocket ready, generation={}", result.Value().generation);
+        self->ReportStatistics();
     }
 
     void WsPanelClient::Exit() {
@@ -208,18 +253,27 @@ namespace px
             state_msg_listener_->UnListenAll();
             state_msg_listener_.reset();
         }
-        if (client_) {
-            client_->stop_all_timers();
-            client_->stop();
-            client_.reset();
+        if (incoming_messages_) {
+            static_cast<void>(incoming_messages_->Close(
+                MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "render-panel.receive", "Render Panel client is stopping")));
+        }
+        if (async_scope_) {
+            async_scope_->BeginStop();
+            if (!async_scope_->IsScopeThread()) {
+                static_cast<void>(async_scope_->WaitFor(std::chrono::seconds(5)));
+            }
         }
         if (connection_workflow_) {
             connection_workflow_->Stop();
-            connection_workflow_.reset();
         }
-        module_registry_.reset();
-        context_.reset();
-        statistics_.reset();
+        const auto client = client_;
+        if (client) {
+            client->post([client]() {
+                client->set_auto_reconnect(false);
+                client->stop_all_timers();
+                client->stop();
+            });
+        }
     }
 
     bool WsPanelClient::Alive() const {
@@ -301,44 +355,44 @@ namespace px
         return false;
     }
 
-    void WsPanelClient::ParseNetMessage(std::string_view _msg) {
+    void WsPanelClient::ParseNetMessage(const std::string& msg) {
         try {
-            std::string msg = std::string(_msg);
             pxrp::RpMessage m;
             m.ParseFromString(msg);
             if (m.type() == pxrp::RpMessageType::kSyncPanelInfo) {
                 const auto& sub = m.sync_panel_info();
-                settings_->device_id_ = sub.device_id();
-                settings_->device_random_pwd_ = sub.device_random_pwd();
-                settings_->device_safety_pwd_ = sub.device_safety_pwd();
-                settings_->relay_host_ = sub.relay_host();
-                settings_->relay_port_ = sub.relay_port();
-                settings_->can_be_operated_ = sub.can_be_operated();
-                settings_->relay_enabled_ = sub.relay_enabled();
-                settings_->language_ = sub.language();
-                settings_->file_transfer_enabled_ = sub.file_transfer_enabled();
-                settings_->audio_enabled_ = sub.audio_enabled();
-                settings_->appkey_ = sub.appkey();
-                settings_->max_transmit_speed_ = sub.max_transmit_speed();
-                settings_->max_receive_speed_ = sub.max_receive_speed();
-                settings_->role_ = sub.role();
+                auto& settings = settings_.get();
+                settings.device_id_ = sub.device_id();
+                settings.device_random_pwd_ = sub.device_random_pwd();
+                settings.device_safety_pwd_ = sub.device_safety_pwd();
+                settings.relay_host_ = sub.relay_host();
+                settings.relay_port_ = sub.relay_port();
+                settings.can_be_operated_ = sub.can_be_operated();
+                settings.relay_enabled_ = sub.relay_enabled();
+                settings.language_ = sub.language();
+                settings.file_transfer_enabled_ = sub.file_transfer_enabled();
+                settings.audio_enabled_ = sub.audio_enabled();
+                settings.appkey_ = sub.appkey();
+                settings.max_transmit_speed_ = sub.max_transmit_speed();
+                settings.max_receive_speed_ = sub.max_receive_speed();
+                settings.role_ = sub.role();
 
                 module_registry_->SyncModuleSettings(PxPluginSettingsInfo {
-                    .device_id_ = settings_->device_id_,
-                    .device_random_pwd_ = settings_->device_random_pwd_,
-                    .device_safety_pwd_ = settings_->device_safety_pwd_,
-                    .relay_host_ = settings_->relay_host_,
-                    .relay_port_ = settings_->relay_port_,
-                    .can_be_operated_ = settings_->can_be_operated_,
-                    .direct_allow_takeover_ = settings_->direct_allow_takeover_,
-                    .relay_enabled_ = settings_->relay_enabled_,
-                    .language_ = settings_->language_,
-                    .file_transfer_enabled_ = settings_->file_transfer_enabled_,
-                    .audio_enabled_ = settings_->audio_enabled_,
-                    .appkey_ = settings_->appkey_,
-                    .max_transmit_speed_ = settings_->max_transmit_speed_,
-                    .max_receive_speed_ = settings_->max_receive_speed_,
-                    .role_ = settings_->role_,
+                    .device_id_ = settings.device_id_,
+                    .device_random_pwd_ = settings.device_random_pwd_,
+                    .device_safety_pwd_ = settings.device_safety_pwd_,
+                    .relay_host_ = settings.relay_host_,
+                    .relay_port_ = settings.relay_port_,
+                    .can_be_operated_ = settings.can_be_operated_,
+                    .direct_allow_takeover_ = settings.direct_allow_takeover_,
+                    .relay_enabled_ = settings.relay_enabled_,
+                    .language_ = settings.language_,
+                    .file_transfer_enabled_ = settings.file_transfer_enabled_,
+                    .audio_enabled_ = settings.audio_enabled_,
+                    .appkey_ = settings.appkey_,
+                    .max_transmit_speed_ = settings.max_transmit_speed_,
+                    .max_receive_speed_ = settings.max_receive_speed_,
+                    .role_ = settings.role_,
                 });
             }
             else if (m.type() == pxrp::RpMessageType::kRpCommandRenderer) {
@@ -374,7 +428,7 @@ namespace px
 #if 0
             else if (m.type() == pxrp::RpMessageType::kRpClipboardEvent) {
                 const auto& clipboard_info = m.clipboard_info();
-                //LOGI("*** Clipboard type: {}, text: {}, file size: {}", (int)clipboard_info.type(), clipboard_info.msg(), clipboard_info.files_size());
+                // Clipboard payload logging is intentionally disabled because the content is sensitive.
 
                 auto event = std::make_shared<MsgClipboardEvent>();
                 event->clipboard_type_ = [&]() {

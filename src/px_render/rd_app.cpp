@@ -384,7 +384,8 @@ namespace px
                     cancel.set_request_id(notice.request_id);
                     cancel.set_reason(notice.reason);
                 }
-                return application->PostPanelMessage(RpProtoAsData(&message)); // NOLINT(gammaray-raw-pointer-boundary): synchronous protobuf conversion
+                // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): synchronous protobuf conversion.
+                return application->PostPanelMessage(RpProtoAsData(&message));
             },
             [weak_hub = std::weak_ptr<render::NetworkTransportHub>(
                  network_transport_hub_)](
@@ -2574,10 +2575,9 @@ namespace px
             webview_runtime_->Stop();
             webview_runtime_.reset();
         }
-        // stop capturing before tearing down other components.
-        // NOTE: plugins are globally loaded and share the process lifetime;
-        // do NOT call StopModules() here — destroying/unloading them at exit
-        // races with encoder/IPC threads that still hold raw module pointers.
+        // Stop capture producers before their concrete module owners. The former
+        // plug-in lifetime workaround is no longer valid after built-in modules
+        // moved to shared RAII ownership.
         {
             std::lock_guard<std::mutex> lk(capture_source_mtx_);
             if (capture_source_) {
@@ -2623,8 +2623,10 @@ namespace px
                 }));
         }
         if (module_registry_) {
-            LOGI("RdApplication shutdown: plug-in event routing");
+            LOGI("RdApplication shutdown: module event routing");
             module_registry_->StopRouting();
+            LOGI("RdApplication shutdown: concrete modules and WebRTC libraries");
+            module_registry_->StopModules();
         }
         LOGI("RdApplication shutdown: owners released");
 

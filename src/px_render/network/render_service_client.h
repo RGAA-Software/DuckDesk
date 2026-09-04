@@ -8,6 +8,8 @@
 #include <memory>
 #include <string>
 #include <atomic>
+#include <chrono>
+#include <cstdint>
 #include <functional>
 #include <mutex>
 #include <unordered_map>
@@ -26,6 +28,9 @@ namespace px
     class RdStatistics;
     class MessageListener;
     class PxConnectionAttemptWorkflow;
+    struct PxConnectionAttemptTicket;
+    template<typename T>
+    class PxAsyncMailbox;
     class RenderServiceClient : public std::enable_shared_from_this<RenderServiceClient> {
     public:
 
@@ -71,25 +76,35 @@ namespace px
         void SendPendingAppInstanceReady();
         PxResult<void> TryPostNetMessage(const std::string& msg);
         void FailPendingRequests(const PxAsyncError& error);
+        static PxAwaitable<void> RunIncomingMessageLoop(
+            std::weak_ptr<RenderServiceClient> weak_client,
+            std::shared_ptr<PxAsyncMailbox<std::string>> mailbox);
+        static PxAwaitable<void> WaitForConnectionReady(
+            std::weak_ptr<RenderServiceClient> weak_client,
+            std::shared_ptr<PxConnectionAttemptWorkflow> workflow,
+            PxConnectionAttemptTicket ticket,
+            std::chrono::steady_clock::time_point deadline);
 
     private:
-        std::shared_ptr<RdStatistics> statistics_ = nullptr;
-        std::shared_ptr<RdApplication> app_ = nullptr;
-        std::shared_ptr<RdContext> context_ = nullptr;
-        std::shared_ptr<asio2::ws_client> client_ = nullptr;
-        std::atomic_bool websocket_upgraded_ = false;
-        std::shared_ptr<MessageListener> msg_listener_ = nullptr;
-        std::shared_ptr<PxAsyncScope> async_scope_ = nullptr;
-        std::shared_ptr<RenderServiceRpcState> rpc_state_ = nullptr;
-        std::shared_ptr<PxConnectionAttemptWorkflow> connection_workflow_ = nullptr;
-        std::atomic_bool exiting_ = false;
-        std::atomic_int queuing_message_count_ = 0;
+        std::shared_ptr<RdStatistics> statistics_{};
+        std::shared_ptr<RdApplication> app_{};
+        std::shared_ptr<RdContext> context_{};
+        std::shared_ptr<asio2::ws_client> client_{};
+        std::shared_ptr<MessageListener> msg_listener_{};
+        std::shared_ptr<PxAsyncScope> async_scope_{};
+        std::shared_ptr<RenderServiceRpcState> rpc_state_{};
+        std::shared_ptr<PxConnectionAttemptWorkflow> connection_workflow_{};
+        std::shared_ptr<PxAsyncMailbox<std::string>> incoming_messages_{};
+        std::atomic_bool websocket_upgraded_{false};
+        std::atomic_bool exiting_{false};
+        std::atomic_int queuing_message_count_{0};
+        std::atomic_uint64_t connection_generation_{0};
         std::mutex ready_mtx_;
         std::string ready_instance_id_;
         std::string ready_error_;
-        int ready_listen_port_ = 0;
-        bool ready_ok_ = false;
-        bool ready_pending_ = false;
+        int ready_listen_port_{0};
+        bool ready_ok_{false};
+        bool ready_pending_{false};
     };
 
 }
