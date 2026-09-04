@@ -20,6 +20,8 @@ struct PipelineStatisticsSnapshot final {
     bool running{false};
     std::uint64_t encoded_video_frames{0};
     std::uint64_t encoded_video_bytes{0};
+    std::uint64_t captured_video_frames{0};
+    std::uint64_t captured_video_bytes{0};
     std::uint64_t encoded_audio_packets{0};
     std::uint64_t encoded_audio_bytes{0};
     std::uint64_t captured_audio_frames{0};
@@ -53,6 +55,8 @@ public:
 private:
     void ResetSubscriptions();
     void OnVideo(const std::shared_ptr<const EncodedVideoFrame>& frame);
+    void OnCapturedVideo(
+        const std::shared_ptr<const CapturedVideoFrame>& frame);
     void OnEncodedAudio(
         const std::shared_ptr<const EncodedAudioFrame>& frame);
     void OnCapturedAudio(
@@ -66,6 +70,8 @@ private:
     std::set<std::string> connected_clients_;
 
     std::shared_ptr<EncodedMediaBus::VideoCallback> video_callback_;
+    std::shared_ptr<EncodedMediaBus::CapturedVideoCallback>
+        captured_video_callback_;
     std::shared_ptr<EncodedMediaBus::EncodedAudioCallback>
         encoded_audio_callback_;
     std::shared_ptr<EncodedMediaBus::CapturedAudioCallback>
@@ -75,6 +81,7 @@ private:
     std::shared_ptr<EncodedMediaBus::ClientDisconnectedCallback>
         client_disconnected_callback_;
     std::shared_ptr<ScopedSubscription> video_subscription_;
+    std::shared_ptr<ScopedSubscription> captured_video_subscription_;
     std::shared_ptr<ScopedSubscription> encoded_audio_subscription_;
     std::shared_ptr<ScopedSubscription> captured_audio_subscription_;
     std::shared_ptr<ScopedSubscription> client_connected_subscription_;
@@ -84,6 +91,8 @@ private:
     std::atomic_bool enabled_{true};
     std::atomic_uint64_t video_frames_{0};
     std::atomic_uint64_t video_bytes_{0};
+    std::atomic_uint64_t captured_video_frames_{0};
+    std::atomic_uint64_t captured_video_bytes_{0};
     std::atomic_uint64_t encoded_audio_packets_{0};
     std::atomic_uint64_t encoded_audio_bytes_{0};
     std::atomic_uint64_t captured_audio_frames_{0};

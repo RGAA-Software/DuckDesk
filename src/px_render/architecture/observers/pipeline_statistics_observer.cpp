@@ -90,6 +90,14 @@ ModuleLifecycleResult PipelineStatisticsObserver::Start() {
                 owner->OnVideo(frame);
             }
         });
+    captured_video_callback_ =
+        std::make_shared<EncodedMediaBus::CapturedVideoCallback>(
+            [weak_owner](
+                const std::shared_ptr<const CapturedVideoFrame>& frame) {
+                if (const auto owner = weak_owner.lock()) {
+                    owner->OnCapturedVideo(frame);
+                }
+            });
     encoded_audio_callback_ =
         std::make_shared<EncodedMediaBus::EncodedAudioCallback>(
             [weak_owner](
@@ -121,6 +129,8 @@ ModuleLifecycleResult PipelineStatisticsObserver::Start() {
                 }
             });
     video_subscription_ = media_bus_->SubscribeVideo(video_callback_);
+    captured_video_subscription_ =
+        media_bus_->SubscribeCapturedVideo(captured_video_callback_);
     encoded_audio_subscription_ =
         media_bus_->SubscribeEncodedAudio(encoded_audio_callback_);
     captured_audio_subscription_ =
@@ -142,9 +152,11 @@ ModuleLifecycleResult PipelineStatisticsObserver::Stop() {
     ResetSubscriptions();
     const auto snapshot = Snapshot();
     LOGI("event=observer.stop component=pipeline_statistics outcome=success "
-         "video_frames={} video_bytes={} encoded_audio_packets={} "
+         "video_frames={} video_bytes={} captured_video_frames={} "
+         "captured_video_bytes={} encoded_audio_packets={} "
          "encoded_audio_bytes={} raw_audio_frames={} raw_audio_bytes={}",
          snapshot.encoded_video_frames, snapshot.encoded_video_bytes,
+         snapshot.captured_video_frames, snapshot.captured_video_bytes,
          snapshot.encoded_audio_packets, snapshot.encoded_audio_bytes,
          snapshot.captured_audio_frames, snapshot.captured_audio_bytes);
     return {};
@@ -166,6 +178,10 @@ PipelineStatisticsSnapshot PipelineStatisticsObserver::Snapshot() const {
         .running = running_.load(std::memory_order_acquire),
         .encoded_video_frames = video_frames_.load(std::memory_order_relaxed),
         .encoded_video_bytes = video_bytes_.load(std::memory_order_relaxed),
+        .captured_video_frames =
+            captured_video_frames_.load(std::memory_order_relaxed),
+        .captured_video_bytes =
+            captured_video_bytes_.load(std::memory_order_relaxed),
         .encoded_audio_packets =
             encoded_audio_packets_.load(std::memory_order_relaxed),
         .encoded_audio_bytes =
@@ -191,14 +207,21 @@ void PipelineStatisticsObserver::ReportPerformance() {
                               last_report_snapshot_.encoded_video_frames;
     const auto video_bytes = current.encoded_video_bytes -
                              last_report_snapshot_.encoded_video_bytes;
+    const auto captured_video_frames = current.captured_video_frames -
+                                       last_report_snapshot_.captured_video_frames;
+    const auto captured_video_bytes = current.captured_video_bytes -
+                                      last_report_snapshot_.captured_video_bytes;
     const auto audio_packets = current.encoded_audio_packets -
                                last_report_snapshot_.encoded_audio_packets;
     LOGI("event=pipeline.performance component=pipeline_statistics "
          "video_fps={:.2f} video_mbps={:.3f} encoded_audio_pps={:.2f} "
+         "captured_video_fps={:.2f} captured_video_mbps={:.3f} "
          "clients={} outcome=sampled",
          static_cast<double>(video_frames) / seconds,
          static_cast<double>(video_bytes) * 8.0 / seconds / 1000000.0,
          static_cast<double>(audio_packets) / seconds,
+         static_cast<double>(captured_video_frames) / seconds,
+         static_cast<double>(captured_video_bytes) * 8.0 / seconds / 1000000.0,
          current.connected_clients);
     last_report_ = now;
     last_report_snapshot_ = current;
@@ -210,12 +233,14 @@ void PipelineStatisticsObserver::ResetSubscriptions() {
         std::lock_guard lock(lifecycle_mutex_);
         subscriptions = {
             std::move(video_subscription_),
+            std::move(captured_video_subscription_),
             std::move(encoded_audio_subscription_),
             std::move(captured_audio_subscription_),
             std::move(client_connected_subscription_),
             std::move(client_disconnected_subscription_),
         };
         video_callback_.reset();
+        captured_video_callback_.reset();
         encoded_audio_callback_.reset();
         captured_audio_callback_.reset();
         client_connected_callback_.reset();
@@ -226,6 +251,17 @@ void PipelineStatisticsObserver::ResetSubscriptions() {
             subscription->Reset();
         }
     }
+}
+
+void PipelineStatisticsObserver::OnCapturedVideo(
+    const std::shared_ptr<const CapturedVideoFrame>& frame) {
+    if (!enabled_.load(std::memory_order_acquire) || !frame ||
+        !frame->Payload()) {
+        return;
+    }
+    captured_video_frames_.fetch_add(1, std::memory_order_relaxed);
+    captured_video_bytes_.fetch_add(
+        frame->Payload()->size(), std::memory_order_relaxed);
 }
 
 void PipelineStatisticsObserver::OnVideo(

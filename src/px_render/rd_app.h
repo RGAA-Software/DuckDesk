@@ -21,6 +21,7 @@
 #include "px_common_new/concurrent_type.h"
 #include "px_common_new/concurrent_queue.h"
 #include "px_common_new/concurrent_hashmap.h"
+#include "architecture/pipeline/captured_media_pipeline.h"
 #ifdef WIN32
 #include <d3d11.h>
 #include <wrl/client.h>
@@ -70,6 +71,8 @@ namespace px
     class TextInput;
     class LogicalSessionRegistry;
     namespace render {
+        class CapturedMediaPipeline;
+        class MediaSourcePort;
         class EncodedMediaBus;
         class FileTransferService;
         struct FileTransferAuditBegin;
@@ -85,6 +88,7 @@ namespace px
         class InputReplayService;
         class JoystickService;
         class PipelineStatisticsObserver;
+        class RateLimitedLogGate;
         class RenderCompositionRoot;
         class WasAudioCaptureSource;
     }
@@ -132,6 +136,7 @@ namespace px
         std::shared_ptr<LogicalSessionRegistry> GetLogicalSessionRegistry() const {
             return logical_session_registry_;
         }
+        std::shared_ptr<render::MediaSourcePort> CreateMediaSourcePort() const;
         void ReqCtrlAltDelete(const std::string& device_id, const std::string& stream_id) const;
         void RedeemConnectionTicket(
             const std::string& ticket,
@@ -202,6 +207,12 @@ namespace px
         bool IsCurrentGdiCapture();
         bool IsCurrentDdaCapture();
         bool TryInitDdaCapture();
+        void DeliverCapturedVideoFrame(const CaptureVideoFrame& frame) const;
+        render::MediaSubmitResult DeliverExtensionVideoFrame(
+            const std::shared_ptr<const render::CapturedVideoFrame>& frame) const;
+        render::MediaSubmitResult DeliverCapturedAudioFrame(
+            const std::shared_ptr<const render::CapturedAudioFrame>& frame,
+            const std::shared_ptr<Data>& source_data = {});
 
     protected:
         RdSettings* settings_ = nullptr;
@@ -228,6 +239,7 @@ namespace px
         std::shared_ptr<RenderModuleRegistry> module_registry_ = nullptr;
         std::shared_ptr<render::RenderCompositionRoot> composition_root_;
         std::shared_ptr<render::EncodedMediaBus> encoded_media_bus_;
+        std::shared_ptr<render::CapturedMediaPipeline> captured_media_pipeline_;
         std::shared_ptr<render::FrameDebuggerObserver> frame_debugger_observer_;
         std::shared_ptr<render::FrameCarrierProcessor> frame_carrier_processor_;
         std::shared_ptr<render::FrameResizerProcessor> frame_resizer_processor_;
@@ -242,6 +254,7 @@ namespace px
         std::shared_ptr<render::VoiceCallService> voice_call_service_;
         std::shared_ptr<render::PipelineStatisticsObserver>
             pipeline_statistics_observer_;
+        std::shared_ptr<render::RateLimitedLogGate> pipeline_error_log_gate_;
         std::mutex task_mutex_;
         std::queue<std::shared_ptr<AppMessage>> pending_tasks_;
         DWORD main_thread_id_ = 0;

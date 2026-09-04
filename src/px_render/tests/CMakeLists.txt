@@ -6,6 +6,12 @@ target_link_libraries(test_render_architecture_core
     PRIVATE render_architecture_core GTest::gtest GTest::gtest_main)
 add_test(NAME render_architecture_core COMMAND test_render_architecture_core)
 
+add_executable(test_captured_media_pipeline
+    unit/test_captured_media_pipeline.cpp)
+target_link_libraries(test_captured_media_pipeline
+    PRIVATE render_architecture_core GTest::gtest GTest::gtest_main)
+add_test(NAME captured_media_pipeline COMMAND test_captured_media_pipeline)
+
 add_executable(test_network_transport_hub
     unit/test_network_transport_hub.cpp)
 target_link_libraries(test_network_transport_hub

@@ -62,10 +62,12 @@
 #include "webview/webview_runtime.h"
 #include "session/logical_session_registry.h"
 #include "architecture/modules/builtin_module_catalog.h"
+#include "architecture/diagnostics/rate_limited_log.h"
 #include "architecture/network/network_transport_hub.h"
 #include "architecture/observers/frame_debugger_observer.h"
 #include "architecture/observers/pipeline_statistics_observer.h"
 #include "architecture/pipeline/encoded_media_bus.h"
+#include "architecture/pipeline/captured_media_pipeline.h"
 #include "architecture/processors/frame_carrier_processor.h"
 #include "architecture/processors/frame_resizer_processor.h"
 #include "architecture/processors/opus_encoder_processor.h"
@@ -139,11 +141,45 @@ namespace px
         // context
         context_ = std::make_shared<RdContext>();
         context_->Init();
+        const std::weak_ptr<RdApplication> weak_application = weak_from_this();
 
         const auto builtin_catalog = render::BuiltinModuleCatalog::Create();
         composition_root_ = render::RenderCompositionRoot::Create(
             context_->GetAsyncRuntime(), builtin_catalog);
         encoded_media_bus_ = render::EncodedMediaBus::Create();
+        pipeline_error_log_gate_ = std::make_shared<render::RateLimitedLogGate>(
+            std::chrono::seconds(5), 16);
+        captured_media_pipeline_ = render::CapturedMediaPipeline::Create(
+            [weak_application](
+                const std::shared_ptr<const render::CapturedVideoFrame>& frame) {
+                const auto application = weak_application.lock();
+                return application
+                    ? application->DeliverExtensionVideoFrame(frame)
+                    : render::MediaSubmitResult(std::unexpected(
+                          render::RenderError{
+                              .code = render::RenderErrorCode::kModuleDependencyUnavailable,
+                              .component = "rd_application",
+                              .operation = "deliver_extension_video",
+                              .stage = "capture_output",
+                              .reason = "application owner expired",
+                              .recoverable = true,
+                          }));
+            },
+            [weak_application](
+                const std::shared_ptr<const render::CapturedAudioFrame>& frame) {
+                const auto application = weak_application.lock();
+                return application
+                    ? application->DeliverCapturedAudioFrame(frame)
+                    : render::MediaSubmitResult(std::unexpected(
+                          render::RenderError{
+                              .code = render::RenderErrorCode::kModuleDependencyUnavailable,
+                              .component = "rd_application",
+                              .operation = "deliver_captured_audio",
+                              .stage = "capture_output",
+                              .reason = "application owner expired",
+                              .recoverable = true,
+                          }));
+            });
         frame_debugger_observer_ = render::FrameDebuggerObserver::Create(
             context_->GetAsyncRuntime(),
             render::FrameDebuggerOptions{
@@ -204,7 +240,6 @@ namespace px
         frame_carrier_processor_ = render::FrameCarrierProcessor::Create(
             RdContext::GetCurrentExeFolder());
         frame_resizer_processor_ = render::FrameResizerProcessor::Create();
-        const std::weak_ptr<RdApplication> weak_application = weak_from_this();
         network_transport_hub_ = render::NetworkTransportHub::Create(
             [weak_application](const render::TransportRoute& route,
                                const std::shared_ptr<Data>& message,
@@ -383,6 +418,7 @@ namespace px
                     route, call_id, samples, sample_rate, channels);
             });
         if (!composition_root_ || !encoded_media_bus_ ||
+            !captured_media_pipeline_ ||
             !frame_debugger_observer_ || !media_recorder_sink_ ||
             !live_pusher_sink_ || !pipeline_statistics_observer_) {
             init_failed_ = true;
@@ -1218,46 +1254,33 @@ namespace px
                     LOGI("CaptureAudioFrame→encode: n={} {}Hz {}ch {}bit bytes={}", s_enc, samples,
                          channels, bits, frame.full_data_->Size());
                 }
-                encoded_media_bus_->PublishCapturedAudio(
+                const auto captured =
                     std::make_shared<const render::CapturedAudioFrame>(
-                        render::CapturedAudioFrame{
-                            .timestamp_us = static_cast<std::uint64_t>(
-                                TimeUtil::GetCurrentTimestamp()) * 1000U,
-                            .sample_rate_hz = static_cast<std::uint32_t>(samples),
-                            .channels = static_cast<std::uint16_t>(channels),
-                            .bits_per_sample = static_cast<std::uint16_t>(bits),
-                            .payload = render::MakeImmutableByteBuffer(
-                                frame.full_data_->AsString()),
-                        }));
-
-                auto stat = RdStatistics::Instance();
-                stat->audio_samples_ = samples;
-                stat->audio_channels_ = channels;
-                stat->audio_bits_ = bits;
-
-                // plugins
-                {
-                    auto data = frame.full_data_;
-                    context_->PostMediaTask([weak_self, data, samples, channels, bits]() {
-                        auto self = weak_self.lock();
-                        if (!self || self->exit_app_ || !self->module_registry_) {
-                            return;
-                        }
-                        // net_rtc_local consumes raw PCM for the WebRTC audio RTP track
-                        // (encoded Opus over DataChannel is intentionally dropped there).
-                        self->module_registry_->BroadcastRawAudio(
-                            data, samples, channels, bits);
+                    render::CapturedAudioFrame{
+                        .timestamp_us = static_cast<std::uint64_t>(
+                            TimeUtil::GetCurrentTimestamp()) * 1000U,
+                        .sample_rate_hz = static_cast<std::uint32_t>(samples),
+                        .channels = static_cast<std::uint16_t>(channels),
+                        .bits_per_sample = static_cast<std::uint16_t>(bits),
+                        .payload = render::MakeImmutableByteBuffer(
+                            frame.full_data_->AsString()),
                     });
-                }
-                // statistics
-                {
-                    auto current_time = TimeUtil::GetCurrentTimestamp();
-                    if (last_post_audio_time_ == 0) {
-                        last_post_audio_time_ = current_time;
+                const auto result = captured_media_pipeline_->HasAudioProcessors()
+                    ? captured_media_pipeline_->SubmitAudio(captured)
+                    : DeliverCapturedAudioFrame(captured, frame.full_data_);
+                if (!result && pipeline_error_log_gate_) {
+                    const auto code = render::StableErrorCode(result.error().code);
+                    const auto decision = pipeline_error_log_gate_->Evaluate(
+                        std::string(code) + ":audio",
+                        std::chrono::steady_clock::now());
+                    if (decision.emit) {
+                        LOGW("event=pipeline.submit component=rd_application code={} "
+                             "operation=audio outcome=dropped recoverable={} "
+                             "suppressed={} reason={}",
+                             code, result.error().recoverable,
+                             decision.suppressed_since_last_emit,
+                             result.error().reason);
                     }
-                    auto diff = current_time - last_post_audio_time_;
-                    last_post_audio_time_ = current_time;
-                    statistics_->AppendAudioFrameGap(diff);
                 }
             }
             else if (frame.left_ch_data_ && frame.right_ch_data_) {
@@ -1358,8 +1381,8 @@ namespace px
     }
 
     void RdApplication::StartProcessWithHook() {
-        // Frames arrive via /ipc → PxPluginCapturedVideoFrameEvent → CaptureVideoFrame
-        // on the app bus (same event as DDA). Encode → EncodedVideoFanout → web.
+        // Frames arrive via /ipc through the typed WS media ingress and enter
+        // the same capture/encode path as desktop sources.
         if (!settings_->IsGameHookMode()) {
             LOGI("StartProcessWithHook skipped: application.mode is desktop");
             return;
@@ -1517,6 +1540,78 @@ namespace px
     }
 
     void RdApplication::OnCapturedVideoFrame(const CaptureVideoFrame& frame) const {
+        if (captured_media_pipeline_ &&
+            captured_media_pipeline_->HasVideoProcessors() &&
+            frame.raw_image_ &&
+            frame.raw_image_->data) {
+            auto pixel_format = render::VideoPixelFormat::kBgra8;
+            switch (frame.raw_image_->raw_img_type_) {
+                case RawImageType::kRGB:
+                    pixel_format = render::VideoPixelFormat::kRgb8;
+                    break;
+                case RawImageType::kBGR:
+                    pixel_format = render::VideoPixelFormat::kBgr8;
+                    break;
+                case RawImageType::kRGBA:
+                    pixel_format = render::VideoPixelFormat::kRgba8;
+                    break;
+                case RawImageType::kBGRA:
+                    pixel_format = render::VideoPixelFormat::kBgra8;
+                    break;
+                case RawImageType::kI420:
+                    pixel_format = render::VideoPixelFormat::kI420;
+                    break;
+                case RawImageType::kI444:
+                    pixel_format = render::VideoPixelFormat::kI444;
+                    break;
+            }
+            std::string monitor_id;
+            monitor_id.reserve(sizeof(frame.display_name_));
+            for (const auto value : frame.display_name_) {
+                if (value == '\0') {
+                    break;
+                }
+                monitor_id.push_back(value);
+            }
+            auto captured = render::CapturedVideoFrame::Create(
+                render::FrameIdentity{
+                    .stream_id = "render-capture",
+                    .monitor_id = std::move(monitor_id),
+                    .frame_index = frame.frame_index_,
+                    .timestamp_us = static_cast<std::uint64_t>(
+                        TimeUtil::GetCurrentTimestamp()) * 1000U,
+                },
+                frame.frame_width_,
+                frame.frame_height_,
+                pixel_format,
+                render::MakeImmutableByteBuffer(
+                    frame.raw_image_->data->AsString()));
+            if (captured) {
+                const auto result = captured_media_pipeline_->SubmitVideo(
+                    std::make_shared<const render::CapturedVideoFrame>(
+                        std::move(*captured)));
+                if (!result && pipeline_error_log_gate_) {
+                    const auto code = render::StableErrorCode(result.error().code);
+                    const auto decision = pipeline_error_log_gate_->Evaluate(
+                        std::string(code) + ":video",
+                        std::chrono::steady_clock::now());
+                    if (decision.emit) {
+                        LOGW("event=pipeline.submit component=rd_application code={} "
+                             "operation=video outcome=dropped recoverable={} "
+                             "suppressed={} reason={}",
+                             code, result.error().recoverable,
+                             decision.suppressed_since_last_emit,
+                             result.error().reason);
+                    }
+                }
+                return;
+            }
+        }
+        DeliverCapturedVideoFrame(frame);
+    }
+
+    void RdApplication::DeliverCapturedVideoFrame(
+        const CaptureVideoFrame& frame) const {
         if (exit_app_) {
             return;
         }
@@ -1538,6 +1633,135 @@ namespace px
             }
         }
         encoder_thread_->Encode(frame);
+    }
+
+    std::shared_ptr<render::MediaSourcePort>
+    RdApplication::CreateMediaSourcePort() const {
+        return captured_media_pipeline_
+            ? captured_media_pipeline_->CreateSourcePort()
+            : std::shared_ptr<render::MediaSourcePort>{};
+    }
+
+    render::MediaSubmitResult RdApplication::DeliverExtensionVideoFrame(
+        const std::shared_ptr<const render::CapturedVideoFrame>& frame) const {
+        if (!frame || !frame->Payload()) {
+            return std::unexpected(render::RenderError{
+                .code = render::RenderErrorCode::kPipelineInvalidFrame,
+                .component = "rd_application",
+                .operation = "deliver_extension_video",
+                .stage = "capture_output",
+                .reason = "video frame or payload is missing",
+                .recoverable = true,
+            });
+        }
+        RawImageType raw_type = RawImageType::kBGRA;
+        switch (frame->Format()) {
+            case render::VideoPixelFormat::kRgb8:
+                raw_type = RawImageType::kRGB;
+                break;
+            case render::VideoPixelFormat::kBgr8:
+                raw_type = RawImageType::kBGR;
+                break;
+            case render::VideoPixelFormat::kRgba8:
+                raw_type = RawImageType::kRGBA;
+                break;
+            case render::VideoPixelFormat::kBgra8:
+                raw_type = RawImageType::kBGRA;
+                break;
+            case render::VideoPixelFormat::kI420:
+                raw_type = RawImageType::kI420;
+                break;
+            case render::VideoPixelFormat::kI444:
+                raw_type = RawImageType::kI444;
+                break;
+            case render::VideoPixelFormat::kNv12:
+                return std::unexpected(render::RenderError{
+                    .code = render::RenderErrorCode::kPipelineInvalidFrame,
+                    .component = "rd_application",
+                    .operation = "deliver_extension_video",
+                    .stage = "capture_output",
+                    .reason = "NV12 source output is not accepted by the CPU encoder ingress",
+                    .recoverable = true,
+                });
+        }
+        const auto data = Data::From(
+            render::ImmutableByteBufferAsString(frame->Payload()));
+        const auto image = Image::Make(
+            data,
+            static_cast<int>(frame->Width()),
+            static_cast<int>(frame->Height()),
+            raw_type);
+        if (!image) {
+            return std::unexpected(render::RenderError{
+                .code = render::RenderErrorCode::kPipelineInvalidFrame,
+                .component = "rd_application",
+                .operation = "deliver_extension_video",
+                .stage = "capture_output",
+                .reason = "failed to construct encoder image",
+                .recoverable = true,
+            });
+        }
+        CaptureVideoFrame output;
+        output.capture_type_ = kCaptureVideoByBitmapData;
+        output.frame_width_ = frame->Width();
+        output.frame_height_ = frame->Height();
+        output.frame_index_ = frame->Identity().frame_index;
+        output.frame_format_ = static_cast<std::uint64_t>(raw_type);
+        output.adapter_uid_ = -1;
+        output.raw_image_ = image;
+        const auto& monitor_id = frame->Identity().monitor_id;
+        const auto monitor_length = std::min(
+            monitor_id.size(), sizeof(output.display_name_) - 1);
+        std::copy_n(monitor_id.begin(), monitor_length,
+                    std::begin(output.display_name_));
+        if (encoded_media_bus_) {
+            encoded_media_bus_->PublishCapturedVideo(frame);
+        }
+        DeliverCapturedVideoFrame(output);
+        return {};
+    }
+
+    render::MediaSubmitResult RdApplication::DeliverCapturedAudioFrame(
+        const std::shared_ptr<const render::CapturedAudioFrame>& frame,
+        const std::shared_ptr<Data>& source_data) {
+        if (!frame || !frame->payload) {
+            return std::unexpected(render::RenderError{
+                .code = render::RenderErrorCode::kPipelineInvalidFrame,
+                .component = "rd_application",
+                .operation = "deliver_captured_audio",
+                .stage = "capture_output",
+                .reason = "audio frame or payload is missing",
+                .recoverable = true,
+            });
+        }
+        encoded_media_bus_->PublishCapturedAudio(frame);
+        const auto samples = static_cast<int>(frame->sample_rate_hz);
+        const auto channels = static_cast<int>(frame->channels);
+        const auto bits = static_cast<int>(frame->bits_per_sample);
+        const auto data = source_data
+            ? source_data
+            : Data::From(render::ImmutableByteBufferAsString(frame->payload));
+        auto stat = RdStatistics::Instance();
+        stat->audio_samples_ = samples;
+        stat->audio_channels_ = channels;
+        stat->audio_bits_ = bits;
+        const auto weak_self = weak_from_this();
+        context_->PostMediaTask([weak_self, data, samples, channels, bits] {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_ || !self->module_registry_) {
+                return;
+            }
+            self->module_registry_->BroadcastRawAudio(
+                data, samples, channels, bits);
+        });
+        const auto current_time = TimeUtil::GetCurrentTimestamp();
+        if (last_post_audio_time_ == 0) {
+            last_post_audio_time_ = current_time;
+        }
+        const auto diff = current_time - last_post_audio_time_;
+        last_post_audio_time_ = current_time;
+        statistics_->AppendAudioFrameGap(diff);
+        return {};
     }
 
     void RdApplication::ReplayLatestGameHookFrame() const {

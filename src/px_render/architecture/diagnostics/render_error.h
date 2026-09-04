@@ -9,6 +9,7 @@ namespace px::render {
 
 enum class RenderErrorCode {
     kPipelineInvalidFrame,
+    kPipelineProcessorFailed,
     kObserverQueueOverflow,
     kModuleDependencyUnavailable,
     kWorkflowDeadlineExceeded,

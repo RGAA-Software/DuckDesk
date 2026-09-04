@@ -6,6 +6,7 @@ add_library(render_architecture_core STATIC
     network/network_transport_hub.cpp
     observers/frame_debugger_observer.cpp
     observers/pipeline_statistics_observer.cpp
+    pipeline/captured_media_pipeline.cpp
     pipeline/encoded_media_bus.cpp
     pipeline/media_types.cpp
     runtime/render_composition_root.cpp)

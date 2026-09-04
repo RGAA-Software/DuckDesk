@@ -6,6 +6,8 @@ std::string_view StableErrorCode(const RenderErrorCode code) noexcept {
     switch (code) {
         case RenderErrorCode::kPipelineInvalidFrame:
             return "PIPELINE_INVALID_FRAME";
+        case RenderErrorCode::kPipelineProcessorFailed:
+            return "PIPELINE_PROCESSOR_FAILED";
         case RenderErrorCode::kObserverQueueOverflow:
             return "OBSERVER_QUEUE_OVERFLOW";
         case RenderErrorCode::kModuleDependencyUnavailable:

@@ -334,3 +334,27 @@ Render CTest 18/18 通过。发布脚本同步运行产物后，独立复核 bui
 `px_render.exe` 的 SHA-256 更新为
 `BC93AE34BC12C8BD71A55A4CF42D37FFC7103630EE3649166CF355D0F465043D`，build tree 与 dist
 一致，两个 WebRTC DLL 未变化。
+
+### 阶段 13：强类型 Source、Processor 与 Observer 扩展链
+
+- 新增 `CapturedMediaPipeline` 与弱生命周期 `MediaSourcePort`，数据源只能发布 owned
+  `CapturedVideoFrame`/`CapturedAudioFrame`；pipeline owner 销毁后，迟到发布返回稳定 typed
+  error，不会访问已析构对象。
+- 视频和音频 Processor 使用各自的强类型函数签名、显式顺序和 RAII subscription。注册表只
+  保存 weak callback，dispatch 前复制 entry 快照并释放锁；callback 内注销后尚未执行的
+  processor 会被跳过，异常转换为 `PIPELINE_PROCESSOR_FAILED`。
+- Observer 扩展到 captured video。`EncodedMediaBus` 和 `PipelineStatisticsObserver` 分别提供
+  typed fanout 与窗口聚合，Observer 不能修改主链数据；统计日志增加 captured video 帧数、
+  字节数和速率。
+- 生产音频入口接入 pipeline；没有 Processor 时复用原 `Data` 走快路径，避免不必要的二次
+  payload 拷贝。CPU raw video 仅在确有 Processor 注册时进入扩展链，DDA/GameHook 共享纹理
+  的零拷贝路径保持不变。
+- Source/Processor 输出最终回到既有 encoder 和 RTC Local 音频入口。提交失败使用稳定错误码、
+  五秒限频窗口和 suppressed 计数记录，避免逐帧错误风暴。
+- 单元测试覆盖处理顺序、callback 内注销、主动丢帧、processor 失败、expired callback 清理、
+  pipeline/source 销毁次序以及视频 Observer/统计生命周期。
+
+本阶段目标级构建、ownership gate 与统一 Render CTest 19/19 通过。发布后
+`px_render.exe` 的 SHA-256 为
+`429D333777399A3F37FE2E72D6CC5ADD580543F708FDA872E2677018B661953B`；build tree 与 dist
+逐项一致。两个 WebRTC DLL 哈希保持不变，dist 插件目录仍只包含这两个动态网络库。

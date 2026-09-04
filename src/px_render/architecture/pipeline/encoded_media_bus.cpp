@@ -11,6 +11,11 @@ std::shared_ptr<ScopedSubscription> EncodedMediaBus::SubscribeVideo(
     return video_registry_->Subscribe(callback);
 }
 
+std::shared_ptr<ScopedSubscription> EncodedMediaBus::SubscribeCapturedVideo(
+    const std::shared_ptr<CapturedVideoCallback>& callback) {
+    return captured_video_registry_->Subscribe(callback);
+}
+
 std::shared_ptr<ScopedSubscription> EncodedMediaBus::SubscribeEncodedAudio(
     const std::shared_ptr<EncodedAudioCallback>& callback) {
     return encoded_audio_registry_->Subscribe(callback);
@@ -37,6 +42,11 @@ void EncodedMediaBus::PublishVideo(
     video_registry_->Dispatch(frame);
 }
 
+void EncodedMediaBus::PublishCapturedVideo(
+    const std::shared_ptr<const CapturedVideoFrame>& frame) const {
+    captured_video_registry_->Dispatch(frame);
+}
+
 void EncodedMediaBus::PublishEncodedAudio(
     const std::shared_ptr<const EncodedAudioFrame>& frame) const {
     encoded_audio_registry_->Dispatch(frame);
@@ -59,6 +69,10 @@ void EncodedMediaBus::PublishClientDisconnected(
 
 bool EncodedMediaBus::NeedsVideo() const {
     return video_registry_->Size() > 0;
+}
+
+bool EncodedMediaBus::NeedsCapturedVideo() const {
+    return captured_video_registry_->Size() > 0;
 }
 
 bool EncodedMediaBus::NeedsEncodedAudio() const {

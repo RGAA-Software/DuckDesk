@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "diagnostics/render_error.h"
+#include "../diagnostics/render_error.h"
 
 namespace px::render {
 
@@ -21,10 +21,13 @@ using ImmutableByteBuffer = std::shared_ptr<const std::vector<std::uint8_t>>;
     const ImmutableByteBuffer& bytes);
 
 enum class VideoPixelFormat {
+    kRgb8,
+    kBgr8,
     kBgra8,
     kRgba8,
     kNv12,
     kI420,
+    kI444,
 };
 
 struct FrameIdentity final {

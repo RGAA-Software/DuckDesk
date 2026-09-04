@@ -134,6 +134,7 @@ TEST(RenderArchitectureStatisticsObserver,
     ASSERT_TRUE(observer);
     ASSERT_TRUE(observer->Start());
     EXPECT_TRUE(bus->NeedsVideo());
+    EXPECT_TRUE(bus->NeedsCapturedVideo());
     EXPECT_TRUE(bus->NeedsEncodedAudio());
     EXPECT_TRUE(bus->NeedsCapturedAudio());
 
@@ -146,6 +147,19 @@ TEST(RenderArchitectureStatisticsObserver,
             .key_frame = true,
             .payload = MakePayload(64),
         }));
+    auto captured_video = CapturedVideoFrame::Create(
+        FrameIdentity{
+            .stream_id = "stream-a",
+            .monitor_id = "monitor-a",
+        },
+        4,
+        4,
+        VideoPixelFormat::kBgra8,
+        MakePayload(64));
+    ASSERT_TRUE(captured_video);
+    bus->PublishCapturedVideo(
+        std::make_shared<const CapturedVideoFrame>(
+            std::move(*captured_video)));
     bus->PublishEncodedAudio(std::make_shared<const EncodedAudioFrame>(
         EncodedAudioFrame{
             .codec = "opus",
@@ -166,6 +180,8 @@ TEST(RenderArchitectureStatisticsObserver,
     const auto active = observer->Snapshot();
     EXPECT_EQ(active.encoded_video_frames, 1U);
     EXPECT_EQ(active.encoded_video_bytes, 64U);
+    EXPECT_EQ(active.captured_video_frames, 1U);
+    EXPECT_EQ(active.captured_video_bytes, 64U);
     EXPECT_EQ(active.encoded_audio_packets, 1U);
     EXPECT_EQ(active.encoded_audio_bytes, 16U);
     EXPECT_EQ(active.captured_audio_frames, 1U);
@@ -174,6 +190,7 @@ TEST(RenderArchitectureStatisticsObserver,
 
     ASSERT_TRUE(observer->Stop());
     EXPECT_FALSE(bus->NeedsVideo());
+    EXPECT_FALSE(bus->NeedsCapturedVideo());
     EXPECT_FALSE(bus->NeedsEncodedAudio());
     EXPECT_FALSE(bus->NeedsCapturedAudio());
     bus->PublishVideo(std::make_shared<const EncodedVideoFrame>(
