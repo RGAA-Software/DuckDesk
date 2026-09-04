@@ -43,8 +43,13 @@ PerformanceSnapshot PerformanceWindow::Snapshot() const {
 
     std::vector<std::int64_t> ordered(samples_.begin(), samples_.end());
     std::sort(ordered.begin(), ordered.end());
-    const auto percentile_index = (ordered.size() * 95U + 99U) / 100U - 1U;
-    snapshot.p95_us = ordered.at(percentile_index);
+    const auto percentile = [&ordered](const std::size_t rank) {
+        const auto index = (ordered.size() * rank + 99U) / 100U - 1U;
+        return ordered.at(index);
+    };
+    snapshot.p50_us = percentile(50U);
+    snapshot.p95_us = percentile(95U);
+    snapshot.p99_us = percentile(99U);
     return snapshot;
 }
 

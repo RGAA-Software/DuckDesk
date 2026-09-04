@@ -112,6 +112,8 @@ if(TESTS_ENABLED)
     target_link_libraries(test_voice_call_runtime PRIVATE
         render_domain_services GTest::gtest GTest::gtest_main)
     add_test(NAME render_voice_call_runtime COMMAND test_voice_call_runtime)
+    set_tests_properties(render_voice_call_runtime PROPERTIES
+        LABELS "render-lifecycle;render-integration")
     if(WIN32)
         add_custom_command(TARGET test_voice_call_runtime POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -124,6 +126,8 @@ if(TESTS_ENABLED)
     target_link_libraries(test_voice_call_service PRIVATE
         render_domain_services GTest::gtest GTest::gtest_main)
     add_test(NAME render_voice_call_service COMMAND test_voice_call_service)
+    set_tests_properties(render_voice_call_service PROPERTIES
+        LABELS "render-unit")
     if(WIN32)
         add_custom_command(TARGET test_voice_call_service POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different

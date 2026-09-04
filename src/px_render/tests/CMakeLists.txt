@@ -115,6 +115,15 @@ target_link_libraries(test_plugin_was_audio_capture PRIVATE
     px_common_new ole32 mmdevapi)
 target_compile_definitions(test_plugin_was_audio_capture PRIVATE
     PX_AUDIO_CAPTURE_TESTING=1)
+add_test(NAME was_audio_capture_hardware
+    COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
+        -File "${CMAKE_SOURCE_DIR}/scripts/run_render_hardware_test.ps1"
+        -Kind was-default
+        -Executable "$<TARGET_FILE:test_plugin_was_audio_capture>")
+set_tests_properties(was_audio_capture_hardware PROPERTIES
+    LABELS "render-hardware"
+    SKIP_RETURN_CODE 125
+    TIMEOUT 45)
 
 add_executable(test_miniaudio_reinit_cancel
     ../plugins/was_audio_capture/tests/test_miniaudio_reinit_cancel.cpp
@@ -127,6 +136,7 @@ target_link_libraries(test_miniaudio_reinit_cancel PRIVATE
     px_common_new ole32 mmdevapi)
 target_compile_definitions(test_miniaudio_reinit_cancel PRIVATE
     PX_AUDIO_CAPTURE_TESTING=1)
+add_test(NAME miniaudio_reinit_cancel COMMAND test_miniaudio_reinit_cancel)
 
 add_executable(test_process_loopback_lifecycle
     ../plugins/was_audio_capture/tests/test_process_loopback_lifecycle.cpp)
@@ -134,6 +144,7 @@ target_include_directories(test_process_loopback_lifecycle PRIVATE
     ../plugins/was_audio_capture)
 target_link_libraries(test_process_loopback_lifecycle PRIVATE
     render_audio_sources)
+add_test(NAME process_loopback_lifecycle COMMAND test_process_loopback_lifecycle)
 
 add_executable(test_miniaudio_pid_loopback
     ../plugins/was_audio_capture/tests/test_miniaudio_pid_loopback.cpp)
@@ -141,26 +152,39 @@ target_include_directories(test_miniaudio_pid_loopback PRIVATE
     ../plugins/was_audio_capture)
 target_link_libraries(test_miniaudio_pid_loopback PRIVATE
     render_audio_sources)
+add_test(NAME miniaudio_pid_loopback_hardware
+    COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
+        -File "${CMAKE_SOURCE_DIR}/scripts/run_render_hardware_test.ps1"
+        -Kind process-loopback
+        -Executable "$<TARGET_FILE:test_miniaudio_pid_loopback>")
+set_tests_properties(miniaudio_pid_loopback_hardware PROPERTIES
+    LABELS "render-hardware"
+    SKIP_RETURN_CODE 125
+    TIMEOUT 45)
 
 add_executable(test_render_service_rpc_state test_render_service_rpc_state.cpp)
 target_link_libraries(test_render_service_rpc_state
     PRIVATE px_common_new GTest::gtest GTest::gtest_main)
+add_test(NAME render_service_rpc_state COMMAND test_render_service_rpc_state)
 
 add_executable(test_logical_session_registry
     test_logical_session_registry.cpp
     ../session/logical_session_registry.cpp)
 target_link_libraries(test_logical_session_registry
     PRIVATE GTest::gtest GTest::gtest_main)
+add_test(NAME logical_session_registry COMMAND test_logical_session_registry)
 
 add_executable(test_direct_session_grant_store
     test_direct_session_grant_store.cpp
     ../plugins/net_ws/direct_session_grant_store.cpp)
 target_link_libraries(test_direct_session_grant_store
     PRIVATE px_common_new GTest::gtest GTest::gtest_main)
+add_test(NAME direct_session_grant_store COMMAND test_direct_session_grant_store)
 
 add_executable(test_plugin_context_lifecycle test_plugin_context_lifecycle.cpp)
 target_link_libraries(test_plugin_context_lifecycle
     PRIVATE px_common_new px_plugin GTest::gtest GTest::gtest_main)
+add_test(NAME plugin_context_lifecycle COMMAND test_plugin_context_lifecycle)
 
 add_executable(test_rtc_plugins_dll_lifecycle
         test_rtc_plugins_dll_lifecycle.cpp
@@ -182,3 +206,38 @@ target_link_libraries(test_render_builtin_linkage PRIVATE
     cap_dda cap_gdi enc_ffmpeg enc_amf enc_nvenc net_ws net_udp net_relay
     GTest::gtest GTest::gtest_main)
 add_test(NAME render_builtin_linkage COMMAND test_render_builtin_linkage)
+
+set_tests_properties(
+    render_architecture_core
+    captured_media_pipeline
+    network_transport_hub
+    ws_callback_workflow
+    frame_resizer_processor
+    frame_carrier_processor
+    opus_encoder_processor
+    input_replay_service
+    joystick_service
+    file_transfer_service
+    render_service_rpc_state
+    logical_session_registry
+    direct_session_grant_store
+    PROPERTIES LABELS "render-unit")
+
+set_property(TEST
+    captured_media_pipeline
+    ws_callback_workflow
+    media_recorder_sink
+    live_pusher_sink
+    was_audio_capture_source
+    was_audio_capture_runtime
+    miniaudio_reinit_cancel
+    process_loopback_lifecycle
+    plugin_context_lifecycle
+    rtc_plugins_dll_lifecycle
+    APPEND PROPERTY LABELS "render-lifecycle")
+
+set_property(TEST
+    live_pusher_ffmpeg
+    opus_encoder_runtime
+    render_builtin_linkage
+    APPEND PROPERTY LABELS "render-integration")

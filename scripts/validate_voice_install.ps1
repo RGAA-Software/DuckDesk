@@ -26,7 +26,6 @@ $requiredFiles = @(
     "px_display.exe.config",
     "px_client.exe",
     "px_voice_apm.dll",
-    "deps\rd_plugins\voice_call.dll",
     "deps\rd_plugins\net_rtc_local.dll",
     "web_client\index.html",
     "parsec_vdd\nefconw.exe",

@@ -35,6 +35,7 @@ build_official/*
 build_opensource/*
 build_probe/*
 output/*
+test-results/render-architecture/*
 setup/app/*
 setup/GammaRay_pdb_*/
 rust_client/px_sysinfo/build/*

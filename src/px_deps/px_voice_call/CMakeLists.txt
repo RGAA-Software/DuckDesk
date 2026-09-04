@@ -58,4 +58,6 @@ endif()
 
 if(BUILD_TESTING)
     add_test(NAME voice_call_core COMMAND test_voice_call)
+    set_tests_properties(voice_call_core PROPERTIES
+        LABELS "render-integration")
 endif()

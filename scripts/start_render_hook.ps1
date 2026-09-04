@@ -26,12 +26,8 @@ $LivePushEnabled = $true
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Dist = Join-Path $RepoRoot 'build_official\dist'
 $BuiltExe = Join-Path $RepoRoot 'build_official\src\px_render\px_render.exe'
-$BuiltLivePusher = Join-Path $RepoRoot 'build_official\src\px_render\plugins\live_pusher\live_pusher.dll'
-$BuiltNvencEncoder = Join-Path $RepoRoot 'build_official\src\px_render\plugins\nvenc_encoder\enc_nvenc.dll'
 $SrcToml = Join-Path $RepoRoot 'src\px_render\settings.toml'
 $Exe = Join-Path $Dist 'px_render.exe'
-$LivePusher = Join-Path $Dist 'deps\rd_plugins\live_pusher.dll'
-$NvencEncoder = Join-Path $Dist 'deps\rd_plugins\enc_nvenc.dll'
 $WebUrl = "http://127.0.0.1:${Port}/web_client/?deviceId=${DeviceId}"
 $LogPath = "C:\Users\Public\Pixels\px_logs\pixels_render_${Port}.log"
 
@@ -100,26 +96,6 @@ if (Test-Path -LiteralPath $tomlPath) {
         $toml = $toml -replace '(?ms)(\[push\]\s*\r?\n)enabled\s*=\s*false', '$1enabled = true'
     }
     Set-Content -LiteralPath $tomlPath -Value $toml -NoNewline
-}
-
-if (Test-Path -LiteralPath $BuiltLivePusher) {
-    $needCopy = -not (Test-Path -LiteralPath $LivePusher) -or
-        ((Get-Item -LiteralPath $BuiltLivePusher).LastWriteTime -gt (Get-Item -LiteralPath $LivePusher).LastWriteTime)
-    if ($needCopy) {
-        Write-Host "Syncing live_pusher.dll into render plugins"
-        Copy-Item -LiteralPath $BuiltLivePusher -Destination $LivePusher -Force
-    }
-}
-
-# H.264/H.265 encoder fixes are delivered as a plugin too; keep the local
-# game-hook verification tree in sync with the just-built DLL.
-if (Test-Path -LiteralPath $BuiltNvencEncoder) {
-    $needCopy = -not (Test-Path -LiteralPath $NvencEncoder) -or
-        ((Get-Item -LiteralPath $BuiltNvencEncoder).LastWriteTime -gt (Get-Item -LiteralPath $NvencEncoder).LastWriteTime)
-    if ($needCopy) {
-        Write-Host "Syncing enc_nvenc.dll into render plugins"
-        Copy-Item -LiteralPath $BuiltNvencEncoder -Destination $NvencEncoder -Force
-    }
 }
 
 $argList = @(

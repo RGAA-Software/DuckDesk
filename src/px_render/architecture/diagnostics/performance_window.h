@@ -14,7 +14,9 @@ struct PerformanceSnapshot final {
     std::int64_t minimum_us{0};
     std::int64_t maximum_us{0};
     std::int64_t average_us{0};
+    std::int64_t p50_us{0};
     std::int64_t p95_us{0};
+    std::int64_t p99_us{0};
 };
 
 // Lifetime:

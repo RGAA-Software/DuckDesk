@@ -25,6 +25,7 @@
 #include "runtime/scoped_subscription.h"
 #include "runtime/await_callback.h"
 #include "runtime/render_composition_root.h"
+#include "px_common_new/privacy_log.h"
 
 namespace px::render {
 namespace {
@@ -276,7 +277,9 @@ TEST(RenderArchitectureDiagnostics, PerformanceWindowIsBoundedAndResettable) {
     EXPECT_EQ(snapshot.minimum_us, 20);
     EXPECT_EQ(snapshot.maximum_us, 40);
     EXPECT_EQ(snapshot.average_us, 30);
+    EXPECT_EQ(snapshot.p50_us, 30);
     EXPECT_EQ(snapshot.p95_us, 40);
+    EXPECT_EQ(snapshot.p99_us, 40);
 
     window.Reset();
     snapshot = window.Snapshot();
@@ -296,6 +299,19 @@ TEST(RenderArchitectureDiagnostics, LogContextIsOwnedValueState) {
     EXPECT_TRUE(copied.HasCorrelation());
     EXPECT_EQ(copied.trace_token, "trace-1");
     EXPECT_EQ(copied.transport_kind, "webrtc");
+}
+
+TEST(RenderArchitectureDiagnostics, PrivacyLogIdIsStableAndDoesNotExposeInput) {
+    constexpr std::string_view sensitive =
+        "render_privacy_canary_ticket_7f0c90f2";
+    const auto first = PrivacyLogId(sensitive);
+    const auto second = PrivacyLogId(sensitive);
+    const auto different = PrivacyLogId("render_privacy_canary_ticket_other");
+
+    EXPECT_EQ(first, second);
+    EXPECT_NE(first, different);
+    EXPECT_EQ(first.size(), 8U);
+    EXPECT_EQ(first.find(sensitive), std::string::npos);
 }
 
 TEST(RenderArchitectureDiagnostics, RateLimitReportsSuppressedOccurrences) {

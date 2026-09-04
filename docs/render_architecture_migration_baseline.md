@@ -382,3 +382,31 @@ Render CTest 18/18 通过。发布脚本同步运行产物后，独立复核 bui
 本阶段目标级构建和 ownership gate 通过。发布后 `px_render.exe` 的 SHA-256 为
 `2C82ED214291BB3AB9144757F4E16B14FBC8D5FF5C4AD092F14FC6C5DA371ACA`，build tree 与 dist
 一致；WebRTC DLL 未改动。
+
+### 阶段 15：统一测试 runner、日志与交付证据门禁
+
+- `build_cpp_render_arch_tests.bat` 已实现 `quick`、`lifecycle`、`integration`、`hardware`、
+  `all` 和 `performance` 六种模式；仍兼容原先以数字作为并行度的调用。runner 只调用精确
+  CMake target，不调用 release-only 的 `build_official.bat`。
+- Render 自动化测试按 `render-guard`、`render-unit`、`render-lifecycle`、
+  `render-integration` 和 `render-hardware` 注册。原来只构建的 RPC state、logical session、
+  direct grant、plugin context、WAS reinit/process-loopback 和 recorder writer 测试均已注册到
+  CTest；各 focused `build_cpp_*_tests.bat` 也会在构建后真正执行对应测试。
+- 真实 WAS 默认设备和 PID process-loopback 测试通过专用 wrapper 检查前置条件；开发机未
+  显式提供 `RENDER_TEST_WAS_HARDWARE=1` 或 `RENDER_TEST_AUDIO_PID` 时返回 CTest `SKIP`，
+  报告明确标记为 INCOMPLETE，不再把环境缺失伪装成 PASS。
+- 每次 runner 自动写入独立的 `test-results/render-architecture/<run-id>/` 证据目录，包括环境、
+  Git revision、构建目标、构建/CTest 日志、JUnit、async lifetime、隐私扫描、process metrics
+  占位、performance baseline/comparison 状态、artifact SHA-256 和 Go/No-Go 摘要。该目录被
+  Git 忽略，不提交大体积运行结果。
+- 日志扫描会拒绝 credential-shaped assignment、未脱敏 query value 和成功运行中的非预期
+  structured ERROR。`PrivacyLogId` 新增确定性单元断言；`PerformanceWindow` 补齐 bounded
+  p50/p95/p99 聚合和 reset 断言。
+- `start_render_hook.ps1` 和 voice install validation 删除已经静态化的 live-pusher、NVENC、
+  voice-call DLL 假设，避免验收脚本重新发布或要求已退休产物。
+
+`all` 模式的 2 个架构门禁和 28 个 L1-L3 测试全部通过，ownership 与全量 async lifetime
+gate 通过，privacy scan 无命中。`hardware` 模式的 2 个用例因本机未注入显式前置条件而
+按预期 SKIP；`performance` 模式明确标记需要固定验收硬件/profile。发布后 `px_render.exe`
+SHA-256 为 `759D47A96BD244FFCA7C8F6CD90B4EFD18B6BB770F2CFD9A6C68F4F89717FF3F`，build tree 与
+dist 一致，两个 WebRTC DLL 哈希仍保持不变。

@@ -399,6 +399,10 @@ if(BUILD_TESTING AND WIN32)
                 -File "${CMAKE_SOURCE_DIR}/scripts/test_render_architecture_boundaries.ps1"
                 -RepoRoot "${CMAKE_SOURCE_DIR}"
     )
+    set_tests_properties(
+        render_retired_modules_guard
+        render_architecture_boundary_guard
+        PROPERTIES LABELS "render-guard")
 endif()
 
 ## Servers
