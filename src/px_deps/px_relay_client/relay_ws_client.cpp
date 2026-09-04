@@ -57,6 +57,10 @@ namespace px
     }
 
     void RelayWsClient::Start() {
+        std::unique_lock operation_lock(operation_mutex_, std::try_to_lock);
+        if (!operation_lock.owns_lock()) {
+            return;
+        }
         if (started_.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
@@ -64,13 +68,16 @@ namespace px
         if (!async_runtime_) {
             async_runtime_ = SharedRelayReconnectRuntime();
         }
-        client_ = std::make_shared<asio2::ws_client>();
-        connection_scope_ = PxAsyncScope::Create(async_runtime_, PxAsyncLane::kState);
-        reconnect_supervisor_ = PxReconnectSupervisor::Create(
-            async_runtime_, MakeWebSocketReconnectOptions("relay_ws"));
+        {
+            std::lock_guard lock(stop_mutex_);
+            client_ = std::make_shared<asio2::ws_client>();
+            connection_scope_ = PxAsyncScope::Create(async_runtime_, PxAsyncLane::kState);
+            reconnect_supervisor_ = PxReconnectSupervisor::Create(async_runtime_, MakeWebSocketReconnectOptions("relay_ws"));
+        }
         if (!client_ || !connection_scope_ || !reconnect_supervisor_) {
             LOGE("event=module.start component=relay_ws code=ASYNC_WORKFLOW_CREATE_FAILED "
                  "operation=start_client outcome=failed recoverable=false");
+            operation_lock.unlock();
             Stop();
             return;
         }
@@ -91,10 +98,7 @@ namespace px
         .bind_connect([weak_self]() {
             if (const auto self = weak_self.lock(); self && self->client_) {
                 if (asio2::get_last_error()) {
-                    LOGW("event=transport.connection_attempt component=relay_ws code={} operation=connect "
-                         "outcome=failed recoverable=true reason={}",
-                         asio2::last_error_val(), asio2::last_error_msg());
-                    static_cast<void>(self->reconnect_supervisor_->FailActive(MakePxAsyncError(
+                    static_cast<void>(self->reconnect_supervisor_->FailActive(self->callback_generation_.load(), MakePxAsyncError(
                         PxAsyncErrorCode::kServiceNotConnected, "relay-ws.connect", asio2::last_error_msg(), true)));
                 } else {
                     LOGI("connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
@@ -103,20 +107,20 @@ namespace px
         })
         .bind_disconnect([weak_self]() {
             if (const auto self = weak_self.lock(); self && !self->exiting_ && self->reconnect_supervisor_) {
-                static_cast<void>(self->reconnect_supervisor_->MarkDisconnected(MakePxAsyncError(
+                static_cast<void>(self->reconnect_supervisor_->MarkDisconnected(self->callback_generation_.load(), MakePxAsyncError(
                     PxAsyncErrorCode::kServiceNotConnected, "relay-ws.disconnect", "Relay websocket disconnected", true)));
             }
         })
         .bind_upgrade([weak_self]() {
             if (asio2::get_last_error()) {
                 if (const auto self = weak_self.lock(); self && !self->exiting_ && self->reconnect_supervisor_) {
-                    static_cast<void>(self->reconnect_supervisor_->FailActive(MakePxAsyncError(
+                    static_cast<void>(self->reconnect_supervisor_->FailActive(self->callback_generation_.load(), MakePxAsyncError(
                         PxAsyncErrorCode::kProtocolError, "relay-ws.upgrade", asio2::last_error_msg(), true)));
                 }
                 return;
             }
             if (const auto self = weak_self.lock(); self && !self->exiting_ && self->reconnect_supervisor_) {
-                static_cast<void>(self->reconnect_supervisor_->MarkReady());
+                static_cast<void>(self->reconnect_supervisor_->MarkReady(self->callback_generation_.load()));
             }
         })
         .bind_recv([weak_self](std::string_view data) {
@@ -134,7 +138,14 @@ namespace px
         LOGI("Will connect relay websocket: {}:{}, device: {}, remote: {}, authenticated file-only: {}",
              host_, port_, device_id_, remote_device_id_, !connection_ticket_.empty());
         PxReconnectSupervisorHooks hooks{
-            .start_attempt = [client = client_, host = host_, port = port_, path = std::move(ws_path)](std::uint64_t) {
+            .start_attempt = [weak_self, client = client_, host = host_, port = port_, path = std::move(ws_path)](
+                                 const std::uint64_t generation) {
+                const auto self = weak_self.lock();
+                if (!self || self->exiting_) {
+                    return PxResult<void>::Failure(MakePxAsyncError(
+                        PxAsyncErrorCode::kServiceStopped, "relay-ws.start", "Relay websocket owner is stopping"));
+                }
+                self->callback_generation_.store(generation, std::memory_order_release);
                 return StartWebSocketAdapter(client, host, port, path, "relay-ws.start");
             },
             .stop_attempt = [client = client_](const std::chrono::steady_clock::time_point deadline) {
@@ -170,28 +181,48 @@ namespace px
             })) {
             LOGE("event=module.start component=relay_ws code=ASYNC_SCOPE_SPAWN_FAILED "
                  "operation=start_reconnect outcome=failed recoverable=false");
+            operation_lock.unlock();
             Stop();
         }
     }
 
     void RelayWsClient::Stop() {
+        std::unique_lock operation_lock(operation_mutex_, std::try_to_lock);
+        if (!operation_lock.owns_lock()) {
+            return;
+        }
         NotifyFileTransferClosed();
         exiting_.store(true, std::memory_order_release);
-        if (reconnect_supervisor_) {
-            reconnect_supervisor_->Stop();
+        std::shared_ptr<asio2::ws_client> client;
+        std::shared_ptr<PxAsyncScope> scope;
+        std::shared_ptr<PxReconnectSupervisor> supervisor;
+        {
+            std::lock_guard lock(stop_mutex_);
+            client = client_;
+            scope = connection_scope_;
+            supervisor = reconnect_supervisor_;
         }
-        static_cast<void>(RequestAsioClientStop(client_, "relay-ws.stop"));
-        if (connection_scope_) {
-            connection_scope_->BeginStop();
-            if (connection_scope_->IsScopeThread()) {
+        if (supervisor) {
+            supervisor->Stop();
+        }
+        static_cast<void>(RequestAsioClientStop(client, "relay-ws.stop"));
+        if (scope) {
+            scope->BeginStop();
+            if (scope->IsScopeThread()) {
                 ScheduleDeferredStop();
                 return;
             }
-            static_cast<void>(connection_scope_->WaitFor(std::chrono::seconds(5)));
         }
-        static_cast<void>(RequestAsioClientStop(client_, "relay-ws.stop-confirm"));
-        static_cast<void>(WaitForAsioClientStoppedBlocking(
-            client_, std::chrono::steady_clock::now() + std::chrono::seconds(3)));
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        const auto scope_drained = !scope || scope->WaitFor(std::chrono::seconds(5));
+        static_cast<void>(RequestAsioClientStop(client, "relay-ws.stop-confirm"));
+        const auto adapter_stopped = WaitForAsioClientStoppedBlocking(client, deadline);
+        if (!scope_drained || !adapter_stopped) {
+            LOGE("event=async.scope_drain component=relay_ws code=ASYNC_SCOPE_DRAIN_TIMEOUT operation=stop_client "
+                 "outcome=timeout recoverable=false scope_drained={} adapter_stopped={} outstanding={}",
+                 scope_drained, adapter_stopped, scope ? scope->GetStatistics().outstanding : 0);
+            return;
+        }
         FinishStop();
     }
 
@@ -212,22 +243,34 @@ namespace px
             return;
         }
         const auto weak_self = weak_from_this();
-        asio::post(asio::system_executor{}, [weak_self] {
+        const auto runtime = async_runtime_;
+        if (!runtime || !runtime->DeferBlocking([weak_self] {
             if (const auto self = weak_self.lock()) {
                 self->Stop();
             }
-        });
+        })) {
+            deferred_stop_scheduled_.store(false, std::memory_order_release);
+            LOGE("event=async.scope_drain component=relay_ws code=ASYNC_DEFER_FAILED operation=stop_client "
+                 "outcome=failed recoverable=false");
+        }
     }
 
     void RelayWsClient::PostBinaryMessage(const std::string &msg) {
         std::lock_guard<std::mutex> guard(send_mtx_);
-        if (!IsAlive()) {
+        std::shared_ptr<asio2::ws_client> client;
+        std::shared_ptr<PxReconnectSupervisor> supervisor;
+        {
+            std::lock_guard lock(stop_mutex_);
+            client = client_;
+            supervisor = reconnect_supervisor_;
+        }
+        if (exiting_ || !client || !client->is_started() || !supervisor || !supervisor->IsReady()) {
             return;
         }
-        client_->ws_stream().binary(true);
+        client->ws_stream().binary(true);
         queuing_msg_count_++;
         const auto weak_self = weak_from_this();
-        client_->async_send(msg, [weak_self]() {
+        client->async_send(msg, [weak_self]() {
             if (const auto self = weak_self.lock()) {
                 --self->queuing_msg_count_;
                 if (self->GetQueuingMsgCount() <= kFileTransferQueueLowWatermark) {
@@ -238,11 +281,12 @@ namespace px
     }
 
     bool RelayWsClient::IsAlive() {
-        return !exiting_ && client_ && client_->is_started()
-            && reconnect_supervisor_ && reconnect_supervisor_->IsReady();
+        std::lock_guard lock(stop_mutex_);
+        return !exiting_ && client_ && client_->is_started() && reconnect_supervisor_ && reconnect_supervisor_->IsReady();
     }
 
     std::uint64_t RelayWsClient::ConnectionGeneration() const {
+        std::lock_guard lock(stop_mutex_);
         return reconnect_supervisor_ ? reconnect_supervisor_->Generation() : 0;
     }
 
@@ -275,8 +319,7 @@ namespace px
         rl_msg.set_type(RelayMessageType::kRelayHeartBeat);
         rl_msg.set_from_device_id(this->device_id_);
         auto sub = rl_msg.mutable_heartbeat();
-        static int64_t hb_ibx = 0;
-        sub->set_index(hb_ibx++);
+        sub->set_index(heartbeat_index_.fetch_add(1, std::memory_order_acq_rel));
         for (const auto& info : net_info_) {
             auto ni = sub->mutable_net_info()->Add();
             ni->set_ip(info.ip_);
@@ -291,15 +334,29 @@ namespace px
     }
 
     int64_t RelayWsClient::GetQueuingMsgCount() {
-        if (!IsAlive()) {
+        std::shared_ptr<asio2::ws_client> client;
+        std::shared_ptr<PxReconnectSupervisor> supervisor;
+        {
+            std::lock_guard lock(stop_mutex_);
+            client = client_;
+            supervisor = reconnect_supervisor_;
+        }
+        if (exiting_ || !client || !client->is_started() || !supervisor || !supervisor->IsReady()) {
             return 0;
         }
-        return std::max((int64_t)queuing_msg_count_, (int64_t)client_->get_pending_event_count());
+        return std::max(static_cast<int64_t>(queuing_msg_count_), static_cast<int64_t>(client->get_pending_event_count()));
     }
 
     void RelayWsClient::PostNetTask(std::function<void ()> &&task) {
-        if (IsAlive()) {
-            client_->post_queued_event([t = std::move(task)]() {
+        std::shared_ptr<asio2::ws_client> client;
+        std::shared_ptr<PxReconnectSupervisor> supervisor;
+        {
+            std::lock_guard lock(stop_mutex_);
+            client = client_;
+            supervisor = reconnect_supervisor_;
+        }
+        if (!exiting_ && client && client->is_started() && supervisor && supervisor->IsReady()) {
+            client->post_queued_event([t = std::move(task)]() {
                 t();
             });
         }

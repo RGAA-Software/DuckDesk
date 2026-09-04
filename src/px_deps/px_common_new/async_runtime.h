@@ -8,6 +8,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -15,8 +16,7 @@
 
 namespace px {
 
-template<typename T>
-using PxAwaitable = asio::awaitable<T>;
+template <typename T> using PxAwaitable = asio::awaitable<T>;
 
 enum class PxAsyncLane {
     kControl,
@@ -29,7 +29,7 @@ struct PxAsyncRuntimeOptions {
 };
 
 class PxAsyncRuntime final {
-public:
+  public:
     static std::shared_ptr<PxAsyncRuntime> Create(PxAsyncRuntimeOptions options = {});
 
     explicit PxAsyncRuntime(PxAsyncRuntimeOptions options);
@@ -45,11 +45,13 @@ public:
     void Join();
 
     [[nodiscard]] asio::any_io_executor Executor(PxAsyncLane lane) const;
+    static void DeferJoin(std::jthread thread);
+    [[nodiscard]] bool DeferBlocking(std::function<void()> task) const;
     [[nodiscard]] bool IsRuntimeThread() const;
     [[nodiscard]] bool IsControlThread() const;
     [[nodiscard]] bool IsStopping() const;
 
-private:
+  private:
     class State;
 
     std::shared_ptr<State> state_;
@@ -64,10 +66,8 @@ struct PxAsyncScopeStatistics {
 };
 
 class PxAsyncScope final {
-public:
-    static std::shared_ptr<PxAsyncScope> Create(
-        const std::shared_ptr<PxAsyncRuntime>& runtime,
-        PxAsyncLane lane = PxAsyncLane::kWorker);
+  public:
+    static std::shared_ptr<PxAsyncScope> Create(const std::shared_ptr<PxAsyncRuntime>& runtime, PxAsyncLane lane = PxAsyncLane::kWorker);
 
     PxAsyncScope(std::shared_ptr<PxAsyncRuntime> runtime, PxAsyncLane lane);
 
@@ -76,10 +76,8 @@ public:
     PxAsyncScope(const PxAsyncScope&) = delete;
     PxAsyncScope& operator=(const PxAsyncScope&) = delete;
 
-    template<typename Factory>
-    bool Spawn(std::string name, Factory&& factory) {
-        return SpawnImpl(std::move(name),
-                         std::function<PxAwaitable<void>()>(std::forward<Factory>(factory)));
+    template <typename Factory> bool Spawn(std::string name, Factory&& factory) {
+        return SpawnImpl(std::move(name), std::function<PxAwaitable<void>()>(std::forward<Factory>(factory)));
     }
 
     void BeginStop();
@@ -91,13 +89,11 @@ public:
     [[nodiscard]] PxAsyncScopeStatistics GetStatistics() const;
     [[nodiscard]] std::vector<std::string> OutstandingTaskNames() const;
 
-private:
+  private:
     class State;
 
     bool SpawnImpl(std::string name, std::function<PxAwaitable<void>()> factory);
-    static void Complete(const std::shared_ptr<State>& state,
-                         std::uint64_t task_id,
-                         const std::exception_ptr& error);
+    static void Complete(const std::shared_ptr<State>& state, std::uint64_t task_id, const std::exception_ptr& error);
 
     std::shared_ptr<PxAsyncRuntime> runtime_;
     std::shared_ptr<State> state_;

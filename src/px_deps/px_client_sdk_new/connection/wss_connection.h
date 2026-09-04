@@ -19,6 +19,7 @@ namespace asio2 {
 
 namespace px
 {
+    class PxAsyncRuntime;
     class PxAsyncScope;
     class PxReconnectSupervisor;
 
@@ -46,6 +47,7 @@ namespace px
         std::string host_{};
         int port_{0};
         std::string path_{};
+        std::shared_ptr<PxAsyncRuntime> async_runtime_{};
         std::shared_ptr<asio2::wss_client> client_{};
         std::shared_ptr<PxAsyncScope> async_scope_{};
         std::shared_ptr<PxReconnectSupervisor> reconnect_supervisor_{};
@@ -53,7 +55,9 @@ namespace px
         std::atomic_bool started_{false};
         std::atomic_bool exiting_{false};
         std::atomic_bool deferred_stop_scheduled_{false};
-        std::mutex stop_mutex_{};
+        std::atomic_uint64_t callback_generation_{0};
+        mutable std::mutex stop_mutex_{};
+        std::mutex operation_mutex_{};
 
     };
 

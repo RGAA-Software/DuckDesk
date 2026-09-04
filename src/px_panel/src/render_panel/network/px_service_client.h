@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 #include <atomic>
+#include <mutex>
 #include <asio2/websocket/wss_client.hpp>
 
 namespace px
@@ -19,6 +20,7 @@ namespace px
     class MessageListener;
     class MsgAuthInfo;
     class PxAsyncScope;
+    class PxAsyncRuntime;
     class PxReconnectSupervisor;
 
     class PxServiceClient : public std::enable_shared_from_this<PxServiceClient> {
@@ -35,6 +37,8 @@ namespace px
         void ParseMessage(const std::string& msg);
         void SendAuthInfo();
         void FillAuthInfo(MsgAuthInfo& auth_info);
+        void ScheduleDeferredExit();
+        [[nodiscard]] std::shared_ptr<asio2::ws_client> ClientSnapshot() const;
 
     private:
         std::shared_ptr<PxStatistics> statistics_ = nullptr;
@@ -42,10 +46,16 @@ namespace px
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<asio2::ws_client> client_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        std::shared_ptr<PxAsyncRuntime> async_runtime_{};
         std::shared_ptr<PxAsyncScope> connection_scope_{};
         std::shared_ptr<PxReconnectSupervisor> reconnect_supervisor_{};
         std::atomic_int queuing_message_count_ = 0;
         std::atomic_bool exiting_ = false;
+        std::atomic_bool deferred_exit_scheduled_{false};
+        std::atomic_int64_t heartbeat_index_{0};
+        std::atomic_uint64_t callback_generation_{0};
+        mutable std::mutex network_mutex_{};
+        std::mutex operation_mutex_{};
     };
 
 }

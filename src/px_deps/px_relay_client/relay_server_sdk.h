@@ -46,6 +46,7 @@ namespace px
         void RelayProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg);
 
         bool IsAlive();
+        [[nodiscard]] std::uint64_t ConnectionGeneration() const;
         int64_t GetQueuingMsgCount();
         [[nodiscard]] std::shared_ptr<FileTransferWritableSignal>
         AcquireFileTransferWritableSignal();

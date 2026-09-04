@@ -35,6 +35,10 @@ WssConnection::~WssConnection() {
 }
 
 void WssConnection::Start() {
+    std::unique_lock operation_lock(operation_mutex_, std::try_to_lock);
+    if (!operation_lock.owns_lock()) {
+        return;
+    }
     if (started_.exchange(true, std::memory_order_acq_rel)) {
         return;
     }
@@ -49,13 +53,17 @@ void WssConnection::Start() {
         return;
     }
 
-    async_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
-    reconnect_supervisor_ = PxReconnectSupervisor::Create(
-        runtime, MakeWebSocketReconnectOptions("sdk_wss"));
-    client_ = std::make_shared<asio2::wss_client>();
+    {
+        std::lock_guard lock(stop_mutex_);
+        async_runtime_ = runtime;
+        async_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
+        reconnect_supervisor_ = PxReconnectSupervisor::Create(runtime, MakeWebSocketReconnectOptions("sdk_wss"));
+        client_ = std::make_shared<asio2::wss_client>();
+    }
     if (!async_scope_ || !reconnect_supervisor_ || !client_) {
         LOGE("event=module.start component=sdk_wss code=ASYNC_WORKFLOW_CREATE_FAILED "
              "operation=start_client outcome=failed recoverable=false");
+        operation_lock.unlock();
         Stop();
         return;
     }
@@ -79,10 +87,7 @@ void WssConnection::Start() {
             return;
         }
         if (asio2::get_last_error()) {
-            LOGW("event=transport.connection_attempt component=sdk_wss code={} operation=connect "
-                 "outcome=failed recoverable=true reason={}",
-                 asio2::last_error_val(), asio2::last_error_msg());
-            static_cast<void>(self->reconnect_supervisor_->FailActive(MakePxAsyncError(
+            static_cast<void>(self->reconnect_supervisor_->FailActive(self->callback_generation_.load(), MakePxAsyncError(
                 PxAsyncErrorCode::kServiceNotConnected,
                 "sdk-wss.connect",
                 asio2::last_error_msg(),
@@ -96,7 +101,7 @@ void WssConnection::Start() {
         if (!self || self->exiting_.load(std::memory_order_acquire) || !self->reconnect_supervisor_) {
             return;
         }
-        static_cast<void>(self->reconnect_supervisor_->MarkDisconnected(MakePxAsyncError(
+        static_cast<void>(self->reconnect_supervisor_->MarkDisconnected(self->callback_generation_.load(), MakePxAsyncError(
             PxAsyncErrorCode::kServiceNotConnected,
             "sdk-wss.disconnect",
             "SDK secure websocket disconnected",
@@ -107,17 +112,14 @@ void WssConnection::Start() {
             return;
         }
         if (asio2::get_last_error()) {
-            LOGW("event=transport.connection_attempt component=sdk_wss code={} operation=upgrade "
-                 "outcome=failed recoverable=true reason={}",
-                 asio2::last_error_val(), asio2::last_error_msg());
-            static_cast<void>(self->reconnect_supervisor_->FailActive(MakePxAsyncError(
+            static_cast<void>(self->reconnect_supervisor_->FailActive(self->callback_generation_.load(), MakePxAsyncError(
                 PxAsyncErrorCode::kProtocolError,
                 "sdk-wss.upgrade",
                 asio2::last_error_msg(),
                 true)));
             return;
         }
-        static_cast<void>(self->reconnect_supervisor_->MarkReady());
+        static_cast<void>(self->reconnect_supervisor_->MarkReady(self->callback_generation_.load()));
     }).bind_recv([weak_self](std::string_view data) {
         const auto self = weak_self.lock();
         if (!self || self->exiting_.load(std::memory_order_acquire)
@@ -135,7 +137,7 @@ void WssConnection::Start() {
             }
             if (self->reconnect_supervisor_) {
                 static_cast<void>(self->reconnect_supervisor_->MarkDisconnected(
-                    MakeSdkWebSocketRejectionError(rejection)));
+                    self->callback_generation_.load(), MakeSdkWebSocketRejectionError(rejection)));
             }
             return;
         }
@@ -145,7 +147,13 @@ void WssConnection::Start() {
     });
 
     PxReconnectSupervisorHooks hooks{
-        .start_attempt = [client = client_, host = host_, port = port_, path = path_](std::uint64_t) {
+        .start_attempt = [weak_self, client = client_, host = host_, port = port_, path = path_](const std::uint64_t generation) {
+            const auto self = weak_self.lock();
+            if (!self || self->exiting_) {
+                return PxResult<void>::Failure(MakePxAsyncError(
+                    PxAsyncErrorCode::kServiceStopped, "sdk-wss.start", "SDK secure websocket owner is stopping"));
+            }
+            self->callback_generation_.store(generation, std::memory_order_release);
             return StartWebSocketAdapter(client, host, port, path, "sdk-wss.start");
         },
         .stop_attempt = [client = client_](const std::chrono::steady_clock::time_point deadline) {
@@ -168,6 +176,7 @@ void WssConnection::Start() {
         })) {
         LOGE("event=module.start component=sdk_wss code=ASYNC_SCOPE_SPAWN_FAILED "
              "operation=start_reconnect outcome=failed recoverable=false");
+        operation_lock.unlock();
         Stop();
     }
 }
@@ -204,14 +213,27 @@ void WssConnection::ScheduleDeferredStop() {
         return;
     }
     const auto weak_self = weak_from_this();
-    asio::post(asio::system_executor{}, [weak_self] {
+    std::shared_ptr<PxAsyncRuntime> runtime;
+    {
+        std::lock_guard lock(stop_mutex_);
+        runtime = async_runtime_;
+    }
+    if (!runtime || !runtime->DeferBlocking([weak_self] {
         if (const auto self = weak_self.lock()) {
             self->Stop();
         }
-    });
+    })) {
+        deferred_stop_scheduled_.store(false, std::memory_order_release);
+        LOGE("event=async.scope_drain component=sdk_wss code=ASYNC_DEFER_FAILED operation=stop_client "
+             "outcome=failed recoverable=false");
+    }
 }
 
 void WssConnection::Stop() {
+    std::unique_lock operation_lock(operation_mutex_, std::try_to_lock);
+    if (!operation_lock.owns_lock()) {
+        return;
+    }
     Connection::Stop();
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
     const auto scope = BeginStop();
@@ -243,11 +265,18 @@ void WssConnection::PostBinaryMessage(std::shared_ptr<Data> msg) {
              "operation=send_binary outcome=rejected recoverable=false");
         return;
     }
-    if (client_ && client_->is_started() && reconnect_supervisor_ && reconnect_supervisor_->IsReady()) {
-        client_->ws_stream().binary(true);
+    std::shared_ptr<asio2::wss_client> client;
+    std::shared_ptr<PxReconnectSupervisor> supervisor;
+    {
+        std::lock_guard lock(stop_mutex_);
+        client = client_;
+        supervisor = reconnect_supervisor_;
+    }
+    if (!exiting_.load(std::memory_order_acquire) && client && client->is_started() && supervisor && supervisor->IsReady()) {
+        client->ws_stream().binary(true);
         ++queuing_message_count_;
         const auto weak_self = weak_from_this();
-        client_->async_send(msg->AsString(), [weak_self]() {
+        client->async_send(msg->AsString(), [weak_self]() {
             if (const auto self = weak_self.lock()) {
                 const auto remaining = --self->queuing_message_count_;
                 if (remaining <= kFileTransferQueueLowWatermark) {
@@ -259,11 +288,18 @@ void WssConnection::PostBinaryMessage(std::shared_ptr<Data> msg) {
 }
 
 void WssConnection::PostTextMessage(const std::string& msg) {
-    if (client_ && client_->is_started() && reconnect_supervisor_ && reconnect_supervisor_->IsReady()) {
-        client_->ws_stream().text(true);
+    std::shared_ptr<asio2::wss_client> client;
+    std::shared_ptr<PxReconnectSupervisor> supervisor;
+    {
+        std::lock_guard lock(stop_mutex_);
+        client = client_;
+        supervisor = reconnect_supervisor_;
+    }
+    if (!exiting_.load(std::memory_order_acquire) && client && client->is_started() && supervisor && supervisor->IsReady()) {
+        client->ws_stream().text(true);
         ++queuing_message_count_;
         const auto weak_self = weak_from_this();
-        client_->async_send(msg, [weak_self]() {
+        client->async_send(msg, [weak_self]() {
             if (const auto self = weak_self.lock()) {
                 const auto remaining = --self->queuing_message_count_;
                 if (remaining <= kFileTransferQueueLowWatermark) {
@@ -275,11 +311,13 @@ void WssConnection::PostTextMessage(const std::string& msg) {
 }
 
 bool WssConnection::IsAlive() {
-    return !exiting_.load(std::memory_order_acquire) && client_ && client_->is_started()
-        && reconnect_supervisor_ && reconnect_supervisor_->IsReady();
+    std::lock_guard lock(stop_mutex_);
+    return !exiting_.load(std::memory_order_acquire) && client_ && client_->is_started() && reconnect_supervisor_
+        && reconnect_supervisor_->IsReady();
 }
 
 std::uint64_t WssConnection::ConnectionGeneration() const {
+    std::lock_guard lock(stop_mutex_);
     return reconnect_supervisor_ ? reconnect_supervisor_->Generation() : 0;
 }
 

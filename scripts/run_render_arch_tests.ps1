@@ -111,6 +111,7 @@ $lifecycleTargets = @(
     "test_reconnect_supervisor",
     "test_sdk_websocket_reconnect",
     "test_relay_ws_reconnect",
+    "test_relay_transport_reconnect_owner",
     "test_udp_transport_shutdown",
     "test_ws_ipc_client_lifecycle",
     "test_webrtc_libraries_lifecycle",

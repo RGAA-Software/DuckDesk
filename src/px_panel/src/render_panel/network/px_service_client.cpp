@@ -32,8 +32,15 @@ namespace px
     }
 
     void PxServiceClient::Start() {
-        if (exiting_ || client_) {
+        std::unique_lock operation_lock(operation_mutex_, std::try_to_lock);
+        if (!operation_lock.owns_lock()) {
             return;
+        }
+        {
+            std::lock_guard lock(network_mutex_);
+            if (exiting_ || client_) {
+                return;
+            }
         }
         auto weak_self = weak_from_this();
         msg_listener_ = context_->ObtainMessageListener(MessageExecutionLane::kState);
@@ -45,21 +52,29 @@ namespace px
             self->HeartBeat();
         });
 
-        client_ = std::make_shared<asio2::ws_client>();
         const auto runtime = context_->GetMessageNotifier()->GetAsyncRuntime();
-        connection_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
-        reconnect_supervisor_ = PxReconnectSupervisor::Create(runtime, MakeWebSocketReconnectOptions("panel_service"));
-        if (!connection_scope_ || !reconnect_supervisor_) {
+        const auto client = std::make_shared<asio2::ws_client>();
+        const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
+        const auto supervisor = PxReconnectSupervisor::Create(runtime, MakeWebSocketReconnectOptions("panel_service"));
+        if (!client || !scope || !supervisor) {
             LOGE("event=module.start component=panel_service code=ASYNC_WORKFLOW_CREATE_FAILED "
                  "operation=start_client outcome=failed recoverable=false");
+            operation_lock.unlock();
             Exit();
             return;
         }
-        client_->set_auto_reconnect(false);
-        client_->keep_alive(true);
-        client_->set_timeout(std::chrono::milliseconds(2000));
+        {
+            std::lock_guard lock(network_mutex_);
+            async_runtime_ = runtime;
+            client_ = client;
+            connection_scope_ = scope;
+            reconnect_supervisor_ = supervisor;
+        }
+        client->set_auto_reconnect(false);
+        client->keep_alive(true);
+        client->set_timeout(std::chrono::milliseconds(2000));
 
-        client_->bind_init([weak_self]() {
+        client->bind_init([weak_self]() {
             auto self = weak_self.lock();
             if (!self || self->exiting_ || !self->client_ || !self->reconnect_supervisor_) {
                 return;
@@ -74,8 +89,7 @@ namespace px
                 return;
             }
             if (asio2::get_last_error()) {
-                LOGE("connect failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
-                static_cast<void>(self->reconnect_supervisor_->FailActive(MakePxAsyncError(
+                static_cast<void>(self->reconnect_supervisor_->FailActive(self->callback_generation_.load(), MakePxAsyncError(
                     PxAsyncErrorCode::kServiceNotConnected,
                     "panel-service.connect",
                     asio2::last_error_msg(),
@@ -91,8 +105,7 @@ namespace px
                 return;
             }
             if (asio2::get_last_error()) {
-                LOGE("upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
-                static_cast<void>(self->reconnect_supervisor_->FailActive(MakePxAsyncError(
+                static_cast<void>(self->reconnect_supervisor_->FailActive(self->callback_generation_.load(), MakePxAsyncError(
                     PxAsyncErrorCode::kProtocolError,
                     "panel-service.upgrade",
                     asio2::last_error_msg(),
@@ -100,14 +113,14 @@ namespace px
                 return;
             }
             LOGI("websocket upgrade success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
-            static_cast<void>(self->reconnect_supervisor_->MarkReady());
+            static_cast<void>(self->reconnect_supervisor_->MarkReady(self->callback_generation_.load()));
         })
         .bind_disconnect([weak_self]() {
             auto self = weak_self.lock();
             if (!self || self->exiting_ || !self->reconnect_supervisor_) {
                 return;
             }
-            static_cast<void>(self->reconnect_supervisor_->MarkDisconnected(MakePxAsyncError(
+            static_cast<void>(self->reconnect_supervisor_->MarkDisconnected(self->callback_generation_.load(), MakePxAsyncError(
                 PxAsyncErrorCode::kServiceNotConnected,
                 "panel-service.disconnect",
                 "Panel disconnected from Service",
@@ -123,10 +136,16 @@ namespace px
         });
 
         PxReconnectSupervisorHooks hooks{
-            .start_attempt = [client = client_](std::uint64_t) {
+            .start_attempt = [weak_self, client](const std::uint64_t generation) {
+                const auto self = weak_self.lock();
+                if (!self || self->exiting_) {
+                    return PxResult<void>::Failure(MakePxAsyncError(
+                        PxAsyncErrorCode::kServiceStopped, "panel-service.start", "Panel Service owner is stopping"));
+                }
+                self->callback_generation_.store(generation, std::memory_order_release);
                 return StartWebSocketAdapter(client, "127.0.0.1", 20375, "/service/message?from=panel", "panel-service.start");
             },
-            .stop_attempt = [client = client_](const std::chrono::steady_clock::time_point deadline) {
+            .stop_attempt = [client](const std::chrono::steady_clock::time_point deadline) {
                 return StopWebSocketAdapter(client, deadline, "panel-service.retry-reset");
             },
             .on_ready = [weak_self](std::uint64_t) {
@@ -136,11 +155,12 @@ namespace px
                 }
             },
         };
-        if (!connection_scope_->Spawn("panel-service-reconnect", [supervisor = reconnect_supervisor_, hooks = std::move(hooks)]() mutable {
+        if (!scope->Spawn("panel-service-reconnect", [supervisor, hooks = std::move(hooks)]() mutable {
                 return PxReconnectSupervisor::Run(std::move(supervisor), std::move(hooks));
             })) {
             LOGE("event=module.start component=panel_service code=ASYNC_SCOPE_SPAWN_FAILED "
                  "operation=start_reconnect outcome=failed recoverable=false");
+            operation_lock.unlock();
             Exit();
         }
     }
@@ -167,48 +187,87 @@ namespace px
     }
 
     void PxServiceClient::Exit() {
-        if (exiting_.exchange(true)) {
+        std::unique_lock operation_lock(operation_mutex_, std::try_to_lock);
+        if (!operation_lock.owns_lock()) {
             return;
         }
-        if (msg_listener_) {
+        const auto first_exit = !exiting_.exchange(true);
+        if (first_exit && msg_listener_) {
             msg_listener_->UnListenAll();
             msg_listener_.reset();
         }
-        if (reconnect_supervisor_) {
-            reconnect_supervisor_->Stop();
+        std::shared_ptr<asio2::ws_client> client;
+        std::shared_ptr<PxAsyncScope> scope;
+        std::shared_ptr<PxReconnectSupervisor> supervisor;
+        {
+            std::lock_guard lock(network_mutex_);
+            client = client_;
+            scope = connection_scope_;
+            supervisor = reconnect_supervisor_;
         }
-        if (client_) {
-            static_cast<void>(RequestAsioClientStop(client_, "panel-service.stop"));
+        if (supervisor) {
+            supervisor->Stop();
         }
-        if (connection_scope_) {
-            connection_scope_->BeginStop();
-            if (connection_scope_->IsScopeThread()) {
-                return;
-            }
-            static_cast<void>(connection_scope_->WaitFor(std::chrono::seconds(5)));
+        const auto result = StopWebSocketConnectionBlocking(client, scope, std::chrono::seconds(5), "panel-service.stop");
+        if (result.deferred) {
+            ScheduleDeferredExit();
+            return;
         }
-        static_cast<void>(RequestAsioClientStop(client_, "panel-service.stop-confirm"));
-        static_cast<void>(WaitForAsioClientStoppedBlocking(
-            client_, std::chrono::steady_clock::now() + std::chrono::seconds(3)));
-        client_.reset();
-        reconnect_supervisor_.reset();
-        connection_scope_.reset();
+        if (!result.Succeeded()) {
+            LOGE("event=async.scope_drain component=panel_service code=ASYNC_SCOPE_DRAIN_TIMEOUT operation=exit "
+                 "outcome=timeout recoverable=false scope_drained={} adapter_stopped={} outstanding={}",
+                 result.scope_drained, result.adapter_stopped, scope ? scope->GetStatistics().outstanding : 0);
+            return;
+        }
+        {
+            std::lock_guard lock(network_mutex_);
+            client_.reset();
+            reconnect_supervisor_.reset();
+            connection_scope_.reset();
+            async_runtime_.reset();
+            deferred_exit_scheduled_ = false;
+        }
         statistics_.reset();
         context_.reset();
         app_.reset();
     }
 
     bool PxServiceClient::IsAlive() {
-        return client_ && client_->is_started()
-            && reconnect_supervisor_ && reconnect_supervisor_->IsReady();
+        std::lock_guard lock(network_mutex_);
+        return !exiting_ && client_ && client_->is_started() && reconnect_supervisor_ && reconnect_supervisor_->IsReady();
+    }
+
+    std::shared_ptr<asio2::ws_client> PxServiceClient::ClientSnapshot() const {
+        std::lock_guard lock(network_mutex_);
+        return client_;
+    }
+
+    void PxServiceClient::ScheduleDeferredExit() {
+        if (deferred_exit_scheduled_.exchange(true, std::memory_order_acq_rel)) {
+            return;
+        }
+        std::shared_ptr<PxAsyncRuntime> runtime;
+        {
+            std::lock_guard lock(network_mutex_);
+            runtime = async_runtime_;
+        }
+        const auto weak_self = weak_from_this();
+        if (!runtime || !runtime->DeferBlocking([weak_self] {
+                if (const auto self = weak_self.lock()) {
+                    self->Exit();
+                }
+            })) {
+            deferred_exit_scheduled_ = false;
+            LOGE("event=async.scope_drain component=panel_service code=ASYNC_DEFER_FAILED operation=exit "
+                 "outcome=failed recoverable=false");
+        }
     }
 
     void PxServiceClient::HeartBeat() {
-        static int64_t hb_idx = 0;
         px::ServiceMessage msg;
         msg.set_type(ServiceMessageType::kSrvHeartBeat);
         auto sub = msg.mutable_heart_beat();
-        sub->set_index(hb_idx++);
+        sub->set_index(heartbeat_index_.fetch_add(1, std::memory_order_acq_rel));
         sub->set_from("panel");
         FillAuthInfo(*sub->mutable_auth_info());
         PostNetMessage(msg.SerializeAsString());
@@ -244,14 +303,15 @@ namespace px
     }
 
     void PxServiceClient::PostNetMessage(const std::string& msg) {
-        if (IsAlive()) {
+        const auto client = ClientSnapshot();
+        if (IsAlive() && client) {
             if (queuing_message_count_ > kMaxClientQueuedMessage) {
                 LOGW("too many message in queue, discard the message in PxServiceClient");
                 return;
             }
             queuing_message_count_++;
             auto weak_self = weak_from_this();
-            client_->async_send(msg, [weak_self]() {
+            client->async_send(msg, [weak_self]() {
                 auto self = weak_self.lock();
                 if (!self) {
                     return;

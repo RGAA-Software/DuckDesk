@@ -74,9 +74,12 @@ namespace px
         unsigned int post_thread_id_ = 0;
         std::vector<px::RelayDeviceNetInfo> net_info_;
         std::atomic<int64_t> send_index_ = 0;
+        std::atomic<int64_t> heartbeat_index_{0};
+        std::atomic_uint64_t callback_generation_{0};
         std::mutex send_mtx_;
         std::mutex writable_signal_mutex_;
-        std::mutex stop_mutex_;
+        mutable std::mutex stop_mutex_;
+        std::mutex operation_mutex_{};
         std::shared_ptr<FileTransferWritableSignal> writable_signal_;
 
         void NotifyFileTransferWritable();

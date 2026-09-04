@@ -4,6 +4,7 @@
 
 #include "ct_console_client.h"
 #include <atomic>
+#include <mutex>
 #include <type_traits>
 #include <asio2/websocket/ws_client.hpp>
 #include <asio2/websocket/wss_client.hpp>
@@ -48,29 +49,45 @@ namespace px
         }
 
         void Start() override {
-            if (!exiting_ && client_) {
+            std::unique_lock operation_lock(operation_mutex_, std::try_to_lock);
+            if (!operation_lock.owns_lock()) {
                 return;
             }
+            {
+                std::lock_guard lock(network_mutex_);
+                if (client_) {
+                    return;
+                }
+            }
             exiting_ = false;
-            client_ = std::make_shared<ClientT>();
+            deferred_exit_scheduled_ = false;
             const auto runtime = context_->GetMessageNotifier()->GetAsyncRuntime();
-            connection_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
-            reconnect_supervisor_ = PxReconnectSupervisor::Create(runtime, MakeWebSocketReconnectOptions("client_console"));
-            if (!connection_scope_ || !reconnect_supervisor_) {
+            const auto client = std::make_shared<ClientT>();
+            const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
+            const auto supervisor = PxReconnectSupervisor::Create(runtime, MakeWebSocketReconnectOptions("client_console"));
+            if (!client || !scope || !supervisor) {
                 LOGE("event=module.start component=client_console code=ASYNC_WORKFLOW_CREATE_FAILED "
                      "operation=start_client outcome=failed recoverable=false");
+                operation_lock.unlock();
                 Exit();
                 return;
             }
-            client_->set_auto_reconnect(false);
-            client_->keep_alive(true);
-            client_->set_timeout(std::chrono::milliseconds(3000));
+            {
+                std::lock_guard lock(network_mutex_);
+                async_runtime_ = runtime;
+                client_ = client;
+                connection_scope_ = scope;
+                reconnect_supervisor_ = supervisor;
+            }
+            client->set_auto_reconnect(false);
+            client->keep_alive(true);
+            client->set_timeout(std::chrono::milliseconds(3000));
             if constexpr (std::is_same_v<ClientT, asio2::wss_client>) {
-                client_->set_verify_mode(asio::ssl::verify_none);
+                client->set_verify_mode(asio::ssl::verify_none);
             }
 
             auto weak_self = this->weak_from_this();
-            client_->bind_init([weak_self]() {
+            client->bind_init([weak_self]() {
                 if (auto self = weak_self.lock(); self && !self->exiting_ && self->client_) {
                     self->client_->ws_stream().binary(true);
                     self->client_->set_no_delay(true);
@@ -92,10 +109,9 @@ namespace px
             })
             .bind_connect([weak_self]() {
                 if (asio2::get_last_error()) {
-                    LOGE("connect failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
                     if (auto self = weak_self.lock(); self && !self->exiting_
                         && self->reconnect_supervisor_) {
-                        static_cast<void>(self->reconnect_supervisor_->FailActive(MakePxAsyncError(
+                        static_cast<void>(self->reconnect_supervisor_->FailActive(self->callback_generation_.load(), MakePxAsyncError(
                             PxAsyncErrorCode::kServiceNotConnected,
                             "console.connect",
                             asio2::last_error_msg(),
@@ -110,13 +126,13 @@ namespace px
             })
             .bind_upgrade([weak_self]() {
                 if (asio2::get_last_error()) {
-                    LOGE("upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
                     if (auto self = weak_self.lock(); self && !self->use_legacy_cms_path_.exchange(true)) {
-                        LOGW("Console route unavailable; falling back to legacy /cms/client");
+                        LOGW("event=transport.route_fallback component=client_console code=PRIMARY_ROUTE_UNAVAILABLE "
+                             "operation=upgrade outcome=fallback recoverable=true target=/cms/client");
                     }
                     if (auto self = weak_self.lock(); self && !self->exiting_
                         && self->reconnect_supervisor_) {
-                        static_cast<void>(self->reconnect_supervisor_->FailActive(MakePxAsyncError(
+                        static_cast<void>(self->reconnect_supervisor_->FailActive(self->callback_generation_.load(), MakePxAsyncError(
                             PxAsyncErrorCode::kProtocolError,
                             "console.upgrade",
                             asio2::last_error_msg(),
@@ -126,14 +142,14 @@ namespace px
                 }
                 if (auto self = weak_self.lock(); self && !self->exiting_
                     && self->reconnect_supervisor_) {
-                    static_cast<void>(self->reconnect_supervisor_->MarkReady());
+                    static_cast<void>(self->reconnect_supervisor_->MarkReady(self->callback_generation_.load()));
                 }
             })
             .bind_disconnect([weak_self]() {
                 if (auto self = weak_self.lock(); self && !self->exiting_) {
-                    LOGE("*** Disconnected for console-client: {}", self->device_id_);
                     if (self->reconnect_supervisor_) {
-                        static_cast<void>(self->reconnect_supervisor_->MarkDisconnected(MakePxAsyncError(
+                        static_cast<void>(self->reconnect_supervisor_->MarkDisconnected(
+                            self->callback_generation_.load(), MakePxAsyncError(
                             PxAsyncErrorCode::kServiceNotConnected,
                             "console.disconnect",
                             "Console websocket disconnected",
@@ -150,10 +166,16 @@ namespace px
 
             LOGI("will connect => {}:{}/console/client, ssl: {}", host_, port_, std::is_same_v<ClientT, asio2::wss_client>);
             PxReconnectSupervisorHooks hooks{
-                .start_attempt = [client = client_, host = host_, port = port_](std::uint64_t) {
+                .start_attempt = [weak_self, client, host = host_, port = port_](const std::uint64_t generation) {
+                    const auto self = weak_self.lock();
+                    if (!self || self->exiting_) {
+                        return PxResult<void>::Failure(MakePxAsyncError(
+                            PxAsyncErrorCode::kServiceStopped, "client-console.start", "Client Console owner is stopping"));
+                    }
+                    self->callback_generation_.store(generation, std::memory_order_release);
                     return StartWebSocketAdapter(client, host, port, "client-console.start");
                 },
-                .stop_attempt = [client = client_](const std::chrono::steady_clock::time_point deadline) {
+                .stop_attempt = [client](const std::chrono::steady_clock::time_point deadline) {
                     return StopWebSocketAdapter(client, deadline, "client-console.retry-reset");
                 },
                 .on_ready = [weak_self](std::uint64_t) {
@@ -162,45 +184,86 @@ namespace px
                     }
                 },
             };
-            if (!connection_scope_->Spawn("client-console-reconnect", [supervisor = reconnect_supervisor_, hooks = std::move(hooks)]() mutable {
+            if (!scope->Spawn("client-console-reconnect", [supervisor, hooks = std::move(hooks)]() mutable {
                     return PxReconnectSupervisor::Run(std::move(supervisor), std::move(hooks));
                 })
-                || !connection_scope_->Spawn("client-console-heartbeat", [weak_self] {
+                || !scope->Spawn("client-console-heartbeat", [weak_self] {
                     return RunHeartbeatLoop(weak_self);
                 })) {
                 LOGE("event=module.start component=client_console code=ASYNC_SCOPE_SPAWN_FAILED "
                      "operation=start_workflows outcome=failed recoverable=false");
+                operation_lock.unlock();
                 Exit();
             }
         }
 
         void Exit() override {
+            std::unique_lock operation_lock(operation_mutex_, std::try_to_lock);
+            if (!operation_lock.owns_lock()) {
+                return;
+            }
             exiting_ = true;
-            if (reconnect_supervisor_) {
-                reconnect_supervisor_->Stop();
+            std::shared_ptr<ClientT> client;
+            std::shared_ptr<PxAsyncScope> scope;
+            std::shared_ptr<PxReconnectSupervisor> supervisor;
+            {
+                std::lock_guard lock(network_mutex_);
+                client = client_;
+                scope = connection_scope_;
+                supervisor = reconnect_supervisor_;
             }
-            if (client_) {
-                static_cast<void>(RequestAsioClientStop(client_, "client-console.stop"));
+            if (supervisor) {
+                supervisor->Stop();
             }
-            if (connection_scope_) {
-                connection_scope_->BeginStop();
-                if (connection_scope_->IsScopeThread()) {
-                    return;
-                }
-                static_cast<void>(connection_scope_->WaitFor(std::chrono::seconds(5)));
+            const auto result = StopWebSocketConnectionBlocking(client, scope, std::chrono::seconds(5), "client-console.stop");
+            if (result.deferred) {
+                ScheduleDeferredExit();
+                return;
             }
-            static_cast<void>(RequestAsioClientStop(client_, "client-console.stop-confirm"));
-            static_cast<void>(WaitForAsioClientStoppedBlocking(
-                client_, std::chrono::steady_clock::now() + std::chrono::seconds(3)));
+            if (!result.Succeeded()) {
+                LOGE("event=async.scope_drain component=client_console code=ASYNC_SCOPE_DRAIN_TIMEOUT operation=exit "
+                     "outcome=timeout recoverable=false scope_drained={} adapter_stopped={} outstanding={}",
+                     result.scope_drained, result.adapter_stopped, scope ? scope->GetStatistics().outstanding : 0);
+                return;
+            }
+            std::lock_guard lock(network_mutex_);
             client_.reset();
             reconnect_supervisor_.reset();
             connection_scope_.reset();
+            async_runtime_.reset();
+            deferred_exit_scheduled_ = false;
         }
 
     private:
+        void ScheduleDeferredExit() {
+            if (deferred_exit_scheduled_.exchange(true, std::memory_order_acq_rel)) {
+                return;
+            }
+            std::shared_ptr<PxAsyncRuntime> runtime;
+            {
+                std::lock_guard lock(network_mutex_);
+                runtime = async_runtime_;
+            }
+            const auto weak_self = this->weak_from_this();
+            if (!runtime || !runtime->DeferBlocking([weak_self] {
+                    if (const auto self = weak_self.lock()) {
+                        self->Exit();
+                    }
+                })) {
+                deferred_exit_scheduled_ = false;
+                LOGE("event=async.scope_drain component=client_console code=ASYNC_DEFER_FAILED operation=exit "
+                     "outcome=failed recoverable=false");
+            }
+        }
+
+        [[nodiscard]] std::shared_ptr<ClientT> ClientSnapshot() const {
+            std::lock_guard lock(network_mutex_);
+            return client_;
+        }
+
         bool IsAlive() const {
-            return client_ && client_->is_started()
-                && reconnect_supervisor_ && reconnect_supervisor_->IsReady();
+            std::lock_guard lock(network_mutex_);
+            return !exiting_ && client_ && client_->is_started() && reconnect_supervisor_ && reconnect_supervisor_->IsReady();
         }
 
         static PxAwaitable<void> RunHeartbeatLoop(std::weak_ptr<CtConsoleClientImpl<ClientT>> weak_client) {
@@ -218,7 +281,7 @@ namespace px
             if (!IsAlive()) {
                 return;
             }
-            auto client = client_;
+            const auto client = ClientSnapshot();
             if (!client) {
                 return;
             }
@@ -234,7 +297,7 @@ namespace px
             if (!IsAlive()) {
                 return;
             }
-            auto client = client_;
+            const auto client = ClientSnapshot();
             if (!client) {
                 return;
             }
@@ -263,6 +326,7 @@ namespace px
     private:
         std::shared_ptr<ThunderSdk> sdk_;
         std::shared_ptr<ClientContext> context_ = nullptr;
+        std::shared_ptr<PxAsyncRuntime> async_runtime_{};
         std::shared_ptr<ClientT> client_ = nullptr;
         std::shared_ptr<PxAsyncScope> connection_scope_{};
         std::shared_ptr<PxReconnectSupervisor> reconnect_supervisor_{};
@@ -275,6 +339,10 @@ namespace px
         int64_t hb_index_ = 0;
         std::atomic_bool exiting_ = false;
         std::atomic_bool use_legacy_cms_path_ = false;
+        std::atomic_bool deferred_exit_scheduled_{false};
+        std::atomic_uint64_t callback_generation_{0};
+        mutable std::mutex network_mutex_{};
+        std::mutex operation_mutex_{};
     };
 
     std::shared_ptr<CtConsoleClient> CtConsoleClient::Make(const std::shared_ptr<ThunderSdk>& sdk,

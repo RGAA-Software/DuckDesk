@@ -32,30 +32,23 @@ TEST(OpusEncoderRuntimeTest, TenEncodeDeliverShutdownRounds) {
     for (int round = 0; round < 10; ++round) {
         auto delivery = std::make_shared<DeliveryState>();
         auto runtime = OpusEncoderRuntime::Make({});
-        runtime->SetDelivery(
-            [delivery](const std::shared_ptr<Data>& data,
-                       int sample_rate,
-                       int channels,
-                       int bits,
-                       int frame_size) {
-                std::lock_guard lock(delivery->mutex);
-                if (data && data->Size() > 0) {
-                    ++delivery->count;
-                }
-                delivery->sample_rate = sample_rate;
-                delivery->channels = channels;
-                delivery->bits = bits;
-                delivery->frame_size = frame_size;
-                delivery->condition.notify_all();
-            });
+        runtime->SetDelivery([delivery](const std::shared_ptr<Data>& data, int sample_rate, int channels, int bits, int frame_size) {
+            std::lock_guard lock(delivery->mutex);
+            if (data && data->Size() > 0) {
+                ++delivery->count;
+            }
+            delivery->sample_rate = sample_rate;
+            delivery->channels = channels;
+            delivery->bits = bits;
+            delivery->frame_size = frame_size;
+            delivery->condition.notify_all();
+        });
         runtime->Enqueue(TenMillisecondsOfSilence(48000, 2), 48000, 2, 16);
         runtime->Enqueue(TenMillisecondsOfSilence(48000, 2), 48000, 2, 16);
         {
             std::unique_lock lock(delivery->mutex);
-            ASSERT_TRUE(delivery->condition.wait_for(
-                lock, std::chrono::seconds(2), [delivery] {
-                    return delivery->count == 1;
-                })) << "round " << round;
+            ASSERT_TRUE(delivery->condition.wait_for(lock, std::chrono::seconds(2), [delivery] { return delivery->count == 1; }))
+                << "round " << round;
             EXPECT_EQ(delivery->sample_rate, 48000);
             EXPECT_EQ(delivery->channels, 2);
             EXPECT_EQ(delivery->bits, 16);
@@ -70,29 +63,21 @@ TEST(OpusEncoderRuntimeTest, TenEncodeDeliverShutdownRounds) {
 TEST(OpusEncoderRuntimeTest, FormatChangeRecreatesEncoderAndMetadata) {
     auto delivery = std::make_shared<DeliveryState>();
     auto runtime = OpusEncoderRuntime::Make({});
-    runtime->SetDelivery(
-        [delivery](const std::shared_ptr<Data>&,
-                   int sample_rate,
-                   int channels,
-                   int bits,
-                   int frame_size) {
-            std::lock_guard lock(delivery->mutex);
-            ++delivery->count;
-            delivery->sample_rate = sample_rate;
-            delivery->channels = channels;
-            delivery->bits = bits;
-            delivery->frame_size = frame_size;
-            delivery->condition.notify_all();
-        });
+    runtime->SetDelivery([delivery](const std::shared_ptr<Data>&, int sample_rate, int channels, int bits, int frame_size) {
+        std::lock_guard lock(delivery->mutex);
+        ++delivery->count;
+        delivery->sample_rate = sample_rate;
+        delivery->channels = channels;
+        delivery->bits = bits;
+        delivery->frame_size = frame_size;
+        delivery->condition.notify_all();
+    });
     runtime->Enqueue(TenMillisecondsOfSilence(48000, 2), 48000, 2, 16);
     runtime->Enqueue(TenMillisecondsOfSilence(24000, 1), 24000, 1, 16);
     runtime->Enqueue(TenMillisecondsOfSilence(24000, 1), 24000, 1, 16);
     {
         std::unique_lock lock(delivery->mutex);
-        ASSERT_TRUE(delivery->condition.wait_for(
-            lock, std::chrono::seconds(2), [delivery] {
-                return delivery->count == 1;
-            }));
+        ASSERT_TRUE(delivery->condition.wait_for(lock, std::chrono::seconds(2), [delivery] { return delivery->count == 1; }));
         EXPECT_EQ(delivery->sample_rate, 24000);
         EXPECT_EQ(delivery->channels, 1);
         EXPECT_EQ(delivery->frame_size, 480);
@@ -104,20 +89,16 @@ TEST(OpusEncoderRuntimeTest, DeliveryCallbackCanRequestShutdownWithoutSelfJoin) 
     auto runtime = OpusEncoderRuntime::Make({});
     const auto weak_runtime = std::weak_ptr<OpusEncoderRuntime>(runtime);
     const auto deliveries = std::make_shared<std::atomic_int>(0);
-    runtime->SetDelivery(
-        [weak_runtime, deliveries](const std::shared_ptr<Data>&,
-                                    int, int, int, int) {
-            ++(*deliveries);
-            if (const auto locked = weak_runtime.lock()) {
-                locked->Shutdown();
-            }
-        });
+    runtime->SetDelivery([weak_runtime, deliveries](const std::shared_ptr<Data>&, int, int, int, int) {
+        ++(*deliveries);
+        if (const auto locked = weak_runtime.lock()) {
+            locked->Shutdown();
+        }
+    });
     runtime->Enqueue(TenMillisecondsOfSilence(48000, 2), 48000, 2, 16);
     runtime->Enqueue(TenMillisecondsOfSilence(48000, 2), 48000, 2, 16);
-    const auto deadline = std::chrono::steady_clock::now() +
-        std::chrono::seconds(2);
-    while (deliveries->load() == 0 &&
-           std::chrono::steady_clock::now() < deadline) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (deliveries->load() == 0 && std::chrono::steady_clock::now() < deadline) {
         std::this_thread::yield();
     }
     runtime->Shutdown();
@@ -125,18 +106,49 @@ TEST(OpusEncoderRuntimeTest, DeliveryCallbackCanRequestShutdownWithoutSelfJoin) 
     EXPECT_FALSE(runtime->IsAccepting());
 }
 
+TEST(OpusEncoderRuntimeTest, ConcurrentExternalAndCallbackShutdownDoNotDeadlock) {
+    auto runtime = OpusEncoderRuntime::Make({});
+    const auto weak_runtime = std::weak_ptr<OpusEncoderRuntime>(runtime);
+    const auto callback_entered = std::make_shared<std::atomic_bool>(false);
+    const auto allow_callback_shutdown = std::make_shared<std::atomic_bool>(false);
+    runtime->SetDelivery([weak_runtime, callback_entered, allow_callback_shutdown](const std::shared_ptr<Data>&, int, int, int, int) {
+        callback_entered->store(true);
+        while (!allow_callback_shutdown->load()) {
+            std::this_thread::yield();
+        }
+        if (const auto locked = weak_runtime.lock()) {
+            locked->Shutdown();
+        }
+    });
+    runtime->Enqueue(TenMillisecondsOfSilence(48000, 2), 48000, 2, 16);
+    runtime->Enqueue(TenMillisecondsOfSilence(48000, 2), 48000, 2, 16);
+    const auto callback_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (!callback_entered->load() && std::chrono::steady_clock::now() < callback_deadline) {
+        std::this_thread::yield();
+    }
+    ASSERT_TRUE(callback_entered->load());
+
+    std::jthread external_shutdown([runtime, allow_callback_shutdown]() {
+        runtime->Shutdown();
+        allow_callback_shutdown->store(true);
+    });
+    const auto shutdown_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (runtime->IsAccepting() && std::chrono::steady_clock::now() < shutdown_deadline) {
+        std::this_thread::yield();
+    }
+    allow_callback_shutdown->store(true);
+    EXPECT_FALSE(runtime->IsAccepting());
+}
+
 TEST(OpusEncoderRuntimeTest, InvalidInputAndPostShutdownEnqueueAreIgnored) {
     auto runtime = OpusEncoderRuntime::Make({});
     const auto deliveries = std::make_shared<std::atomic_int>(0);
-    runtime->SetDelivery(
-        [deliveries](const std::shared_ptr<Data>&, int, int, int, int) {
-            ++(*deliveries);
-        });
+    runtime->SetDelivery([deliveries](const std::shared_ptr<Data>&, int, int, int, int) { ++(*deliveries); });
     runtime->Enqueue(Data::From("invalid"), 0, 0, 0);
     runtime->Shutdown();
     runtime->Enqueue(TenMillisecondsOfSilence(48000, 2), 48000, 2, 16);
     EXPECT_EQ(deliveries->load(), 0);
 }
 
-}  // namespace
-}  // namespace px
+} // namespace
+} // namespace px

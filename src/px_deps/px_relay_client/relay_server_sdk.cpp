@@ -287,6 +287,10 @@ namespace px
         return ws_client_ && ws_client_->IsAlive();
     }
 
+    std::uint64_t RelayServerSdk::ConnectionGeneration() const {
+        return ws_client_ ? ws_client_->ConnectionGeneration() : 0;
+    }
+
     int64_t RelayServerSdk::GetQueuingMsgCount() {
         return ws_client_->GetQueuingMsgCount();
     }

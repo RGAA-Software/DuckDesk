@@ -38,6 +38,7 @@
 
 #include <chrono>
 #include <filesystem>
+#include <mutex>
 
 using namespace console_panel;
 
@@ -78,8 +79,18 @@ namespace px
         }
 
         void Start() override {
-            if (stopping_ || client_) {
+            std::unique_lock operation_lock(operation_mutex_, std::try_to_lock);
+            if (!operation_lock.owns_lock()) {
                 return;
+            }
+            if (stopping_) {
+                return;
+            }
+            {
+                std::lock_guard lock(network_mutex_);
+                if (client_) {
+                    return;
+                }
             }
             auto weak_self = this->weak_from_this();
 
@@ -108,9 +119,13 @@ namespace px
 
             if (const auto notifier = context_->GetMessageNotifier()) {
                 if (const auto runtime = notifier->GetAsyncRuntime()) {
-                    connection_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
-                    reconnect_supervisor_ = PxReconnectSupervisor::Create(
-                        runtime, MakeWebSocketReconnectOptions("panel_console"));
+                    {
+                        std::lock_guard lock(network_mutex_);
+                        async_runtime_ = runtime;
+                        connection_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
+                        reconnect_supervisor_ = PxReconnectSupervisor::Create(
+                            runtime, MakeWebSocketReconnectOptions("panel_console"));
+                    }
                     rtc_config_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kWorker);
                     record_fetch_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kWorker);
                     record_list_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kWorker);
@@ -123,10 +138,15 @@ namespace px
             if (!connection_scope_ || !reconnect_supervisor_) {
                 LOGE("event=module.start component=panel_console code=ASYNC_WORKFLOW_CREATE_FAILED "
                      "operation=start_client outcome=failed recoverable=false");
+                operation_lock.unlock();
+                Stop();
                 return;
             }
 
-            client_ = std::make_shared<ClientType>();
+            {
+                std::lock_guard lock(network_mutex_);
+                client_ = std::make_shared<ClientType>();
+            }
             client_->set_auto_reconnect(false);
             client_->keep_alive(true);
             client_->set_timeout(std::chrono::milliseconds(3000));
@@ -160,8 +180,7 @@ namespace px
                     return;
                 }
                 if (asio2::get_last_error()) {
-                    LOGE("connect failure : {} {}", asio2::last_error_val(), asio2::last_error_msg().c_str());
-                    static_cast<void>(self->reconnect_supervisor_->FailActive(MakePxAsyncError(
+                    static_cast<void>(self->reconnect_supervisor_->FailActive(self->callback_generation_.load(), MakePxAsyncError(
                         PxAsyncErrorCode::kServiceNotConnected,
                         "panel-console.connect",
                         asio2::last_error_msg(),
@@ -172,13 +191,13 @@ namespace px
             })
             .bind_upgrade([weak_self]() {
                 if (asio2::get_last_error()) {
-                    LOGE("upgrade failure : {}, {}", asio2::last_error_val(), asio2::last_error_msg());
                     if (auto self = weak_self.lock(); self && !self->use_legacy_cms_path_.exchange(true)) {
-                        LOGW("Console route unavailable; falling back to legacy /cms/panel");
+                        LOGW("event=transport.route_fallback component=panel_console code=PRIMARY_ROUTE_UNAVAILABLE "
+                             "operation=upgrade outcome=fallback recoverable=true target=/cms/panel");
                     }
                     if (auto self = weak_self.lock(); self && !self->stopping_
                         && self->reconnect_supervisor_) {
-                        static_cast<void>(self->reconnect_supervisor_->FailActive(MakePxAsyncError(
+                        static_cast<void>(self->reconnect_supervisor_->FailActive(self->callback_generation_.load(), MakePxAsyncError(
                             PxAsyncErrorCode::kProtocolError,
                             "panel-console.upgrade",
                             asio2::last_error_msg(),
@@ -188,7 +207,7 @@ namespace px
                 }
                 if (auto self = weak_self.lock(); self && !self->stopping_
                     && self->reconnect_supervisor_) {
-                    static_cast<void>(self->reconnect_supervisor_->MarkReady());
+                    static_cast<void>(self->reconnect_supervisor_->MarkReady(self->callback_generation_.load()));
                 }
             })
             .bind_disconnect([weak_self]() {
@@ -196,9 +215,8 @@ namespace px
                 if (!self) {
                     return;
                 }
-                LOGE("*** Disconnected for console-client: {}", self->device_id_);
                 if (self->reconnect_supervisor_) {
-                    static_cast<void>(self->reconnect_supervisor_->MarkDisconnected(MakePxAsyncError(
+                    static_cast<void>(self->reconnect_supervisor_->MarkDisconnected(self->callback_generation_.load(), MakePxAsyncError(
                         PxAsyncErrorCode::kServiceNotConnected,
                         "panel-console.disconnect",
                         "Panel disconnected from Console",
@@ -216,7 +234,13 @@ namespace px
 
             LOGI("will connect => {}:{}/console/panel", host_, port_);
             PxReconnectSupervisorHooks hooks{
-                .start_attempt = [client = client_, host = host_, port = port_](std::uint64_t) {
+                .start_attempt = [weak_self, client = client_, host = host_, port = port_](const std::uint64_t generation) {
+                    const auto self = weak_self.lock();
+                    if (!self || self->stopping_) {
+                        return PxResult<void>::Failure(MakePxAsyncError(
+                            PxAsyncErrorCode::kServiceStopped, "panel-console.start", "Panel Console owner is stopping"));
+                    }
+                    self->callback_generation_.store(generation, std::memory_order_release);
                     return StartWebSocketAdapter(client, host, port, "panel-console.start");
                 },
                 .stop_attempt = [client = client_](const std::chrono::steady_clock::time_point deadline) {
@@ -234,96 +258,153 @@ namespace px
                 })) {
                 LOGE("event=module.start component=panel_console code=ASYNC_SCOPE_SPAWN_FAILED "
                      "operation=start_reconnect outcome=failed recoverable=false");
+                operation_lock.unlock();
                 Stop();
             }
 
         }
 
         void Stop() override {
-            if (stopping_.exchange(true)) {
+            std::unique_lock operation_lock(operation_mutex_, std::try_to_lock);
+            if (!operation_lock.owns_lock()) {
                 return;
             }
-            if (msg_listener_) {
+            const auto first_stop = !stopping_.exchange(true);
+            if (first_stop && msg_listener_) {
                 msg_listener_->UnListenAll();
                 msg_listener_.reset();
             }
-            if (reconnect_supervisor_) {
-                reconnect_supervisor_->Stop();
+            std::shared_ptr<ClientType> client;
+            std::shared_ptr<PxAsyncScope> connection_scope;
+            std::shared_ptr<PxReconnectSupervisor> supervisor;
+            {
+                std::lock_guard lock(network_mutex_);
+                client = client_;
+                connection_scope = connection_scope_;
+                supervisor = reconnect_supervisor_;
             }
-            static_cast<void>(RequestAsioClientStop(client_, "panel-console.stop"));
-            if (connection_scope_) {
-                connection_scope_->BeginStop();
+            if (supervisor) {
+                supervisor->Stop();
             }
-            record_list_request_gate_->Stop();
-            if (record_list_scope_) {
+            static_cast<void>(RequestAsioClientStop(client, "panel-console.stop"));
+            if (connection_scope) {
+                connection_scope->BeginStop();
+            }
+            if (first_stop) {
+                record_list_request_gate_->Stop();
+            }
+            if (first_stop && record_list_scope_) {
                 if (record_list_scope_->IsScopeThread()) {
                     record_list_scope_->BeginStop();
                 }
                 else if (!record_list_scope_->StopAndWait(std::chrono::milliseconds(2000))) {
-                    LOGW("Panel record list scope did not drain within 2 seconds");
+                    LOGW("event=async.scope_drain component=panel_console code=ASYNC_SCOPE_DRAIN_TIMEOUT "
+                         "operation=stop_record_list outcome=timeout recoverable=false");
                 }
                 record_list_scope_.reset();
             }
-            if (record_list_blocking_runtime_) {
+            if (first_stop && record_list_blocking_runtime_) {
                 record_list_blocking_runtime_->Exit();
                 record_list_blocking_runtime_.reset();
             }
-            if (fetch_queue_) {
+            if (first_stop && fetch_queue_) {
                 fetch_queue_->Stop();
             }
-            if (const auto cancellation =
+            if (first_stop) {
+                if (const auto cancellation =
                     active_record_upload_cancellation_.exchange({})) {
-                cancellation->store(true, std::memory_order_release);
+                    cancellation->store(true, std::memory_order_release);
+                }
             }
-            if (record_fetch_scope_) {
+            if (first_stop && record_fetch_scope_) {
                 if (record_fetch_scope_->IsScopeThread()) {
                     record_fetch_scope_->BeginStop();
                 }
                 else if (!record_fetch_scope_->StopAndWait(std::chrono::milliseconds(2000))) {
-                    LOGW("Panel record fetch scope did not drain within 2 seconds");
+                    LOGW("event=async.scope_drain component=panel_console code=ASYNC_SCOPE_DRAIN_TIMEOUT "
+                         "operation=stop_record_fetch outcome=timeout recoverable=false");
                 }
                 record_fetch_scope_.reset();
             }
-            if (record_fetch_blocking_runtime_) {
+            if (first_stop && record_fetch_blocking_runtime_) {
                 record_fetch_blocking_runtime_->Exit();
                 record_fetch_blocking_runtime_.reset();
             }
-            rtc_config_refresh_gate_->Stop();
-            if (rtc_config_scope_) {
+            if (first_stop) {
+                rtc_config_refresh_gate_->Stop();
+            }
+            if (first_stop && rtc_config_scope_) {
                 if (rtc_config_scope_->IsScopeThread()) {
                     rtc_config_scope_->BeginStop();
                 }
                 else if (!rtc_config_scope_->StopAndWait(std::chrono::milliseconds(2000))) {
-                    LOGW("Panel RTC config refresh scope did not drain within 2 seconds");
+                    LOGW("event=async.scope_drain component=panel_console code=ASYNC_SCOPE_DRAIN_TIMEOUT "
+                         "operation=stop_rtc_config outcome=timeout recoverable=false");
                 }
                 rtc_config_scope_.reset();
             }
-            if (connection_scope_ && connection_scope_->IsScopeThread()) {
+            if (connection_scope && connection_scope->IsScopeThread()) {
+                ScheduleDeferredStop();
                 return;
             }
-            if (connection_scope_) {
-                static_cast<void>(connection_scope_->WaitFor(std::chrono::seconds(5)));
+            const auto result = StopWebSocketConnectionBlocking(
+                client, connection_scope, std::chrono::seconds(5), "panel-console.stop");
+            if (!result.Succeeded()) {
+                LOGE("event=async.scope_drain component=panel_console code=ASYNC_SCOPE_DRAIN_TIMEOUT operation=stop "
+                     "outcome=timeout recoverable=false scope_drained={} adapter_stopped={} outstanding={}",
+                     result.scope_drained, result.adapter_stopped,
+                     connection_scope ? connection_scope->GetStatistics().outstanding : 0);
+                return;
             }
-            static_cast<void>(RequestAsioClientStop(client_, "panel-console.stop-confirm"));
-            static_cast<void>(WaitForAsioClientStoppedBlocking(
-                client_, std::chrono::steady_clock::now() + std::chrono::seconds(3)));
+            std::lock_guard lock(network_mutex_);
             client_.reset();
             reconnect_supervisor_.reset();
             connection_scope_.reset();
+            async_runtime_.reset();
+            deferred_stop_scheduled_ = false;
+        }
+
+        void ScheduleDeferredStop() {
+            if (deferred_stop_scheduled_.exchange(true, std::memory_order_acq_rel)) {
+                return;
+            }
+            std::shared_ptr<PxAsyncRuntime> runtime;
+            {
+                std::lock_guard lock(network_mutex_);
+                runtime = async_runtime_;
+            }
+            const auto weak_self = this->weak_from_this();
+            if (!runtime || !runtime->DeferBlocking([weak_self] {
+                    if (const auto self = weak_self.lock()) {
+                        self->Stop();
+                    }
+                })) {
+                deferred_stop_scheduled_ = false;
+                LOGE("event=async.scope_drain component=panel_console code=ASYNC_DEFER_FAILED operation=stop "
+                     "outcome=failed recoverable=false");
+            }
         }
 
         bool IsStarted() override {
+            std::lock_guard lock(network_mutex_);
             return client_ != nullptr;
         }
 
         bool IsActive() override {
-            return IsStarted() && client_->is_started()
-                && reconnect_supervisor_ && reconnect_supervisor_->IsReady();
+            std::lock_guard lock(network_mutex_);
+            return !stopping_ && client_ && client_->is_started() && reconnect_supervisor_ && reconnect_supervisor_->IsReady();
         }
 
         void PostBinMessage(const std::string& m) override {
-            if (IsActive()) {
-                client_->async_send(m);
+            std::shared_ptr<ClientType> client;
+            std::shared_ptr<PxReconnectSupervisor> supervisor;
+            {
+                std::lock_guard lock(network_mutex_);
+                client = client_;
+                supervisor = reconnect_supervisor_;
+            }
+            if (!stopping_ && client && client->is_started() && supervisor && supervisor->IsReady()) {
+                client->async_send(m);
             }
         }
 
@@ -931,6 +1012,7 @@ namespace px
 
     private:
         std::shared_ptr<PxContext> context_ = nullptr;
+        std::shared_ptr<PxAsyncRuntime> async_runtime_{};
         std::shared_ptr<ClientType> client_ = nullptr;
         std::shared_ptr<PxAsyncScope> connection_scope_{};
         std::shared_ptr<PxReconnectSupervisor> reconnect_supervisor_{};
@@ -942,6 +1024,10 @@ namespace px
         std::atomic_int64_t hb_idx_ = 0;
         std::atomic_bool use_legacy_cms_path_ = false;
         std::atomic_bool stopping_ = false;
+        std::atomic_bool deferred_stop_scheduled_{false};
+        std::atomic_uint64_t callback_generation_{0};
+        mutable std::mutex network_mutex_{};
+        std::mutex operation_mutex_{};
         std::shared_ptr<PxAsyncScope> rtc_config_scope_ = nullptr;
         std::shared_ptr<PanelRtcConfigRefreshGate> rtc_config_refresh_gate_ =
             PanelRtcConfigRefreshGate::Create();

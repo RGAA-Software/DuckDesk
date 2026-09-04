@@ -191,6 +191,11 @@ target_link_libraries(test_udp_transport_shutdown PRIVATE
     net_udp render_architecture_core GTest::gtest GTest::gtest_main)
 add_test(NAME udp_transport_shutdown COMMAND test_udp_transport_shutdown)
 
+add_executable(test_relay_transport_reconnect_owner test_relay_transport_reconnect_owner.cpp)
+target_link_libraries(test_relay_transport_reconnect_owner PRIVATE
+    net_relay render_architecture_core GTest::gtest GTest::gtest_main)
+add_test(NAME relay_transport_reconnect_owner COMMAND test_relay_transport_reconnect_owner)
+
 add_executable(test_webrtc_libraries_lifecycle
         test_webrtc_libraries_lifecycle.cpp
         ../network/webrtc_library_host.cpp)
@@ -238,6 +243,7 @@ set_property(TEST
     process_loopback_lifecycle
     plugin_context_lifecycle
     udp_transport_shutdown
+    relay_transport_reconnect_owner
     webrtc_libraries_lifecycle
     APPEND PROPERTY LABELS "render-lifecycle")
 

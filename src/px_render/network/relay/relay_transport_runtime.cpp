@@ -102,7 +102,8 @@ void RelayTransportRuntime::UpdateSettings(const RenderModuleSettings& settings)
     }
     if (connection_changed && started_) {
         need_reconnect_ = true;
-        LOGW("Relay connection settings changed; scheduling reconnect.");
+        LOGW("event=transport.configuration_changed component=relay operation=schedule_reconnect "
+             "code=RELAY_CONFIGURATION_CHANGED outcome=pending recoverable=true");
     }
     wake_condition_.notify_all();
 }
@@ -148,7 +149,8 @@ void RelayTransportRuntime::Monitor(std::stop_token stop_token) {
         }
 
         if (need_reconnect_.exchange(false)) {
-            LOGW("Recreating relay connections after configuration update.");
+            LOGW("event=transport.connection_replaced component=relay operation=apply_configuration "
+                 "code=RELAY_CONFIGURATION_CHANGED outcome=restarting recoverable=true");
             ReleaseConnections();
             if (!WaitFor(stop_token, std::chrono::milliseconds(500))) {
                 break;
@@ -164,7 +166,7 @@ void RelayTransportRuntime::Monitor(std::stop_token stop_token) {
         }
 
         auto media_sdk = MediaSdk();
-        if (!media_sdk || !media_sdk->IsAlive()) {
+        if (!media_sdk) {
             ConnectMedia(config, relay_host, relay_port, net_info, connect_count++);
         }
 
@@ -175,15 +177,8 @@ void RelayTransportRuntime::Monitor(std::stop_token stop_token) {
         media_sdk = MediaSdk();
         if (media_sdk && media_sdk->IsAlive()) {
             const auto ft_sdk = FileTransferSdk();
-            if (!ft_sdk || !ft_sdk->IsAlive()) {
+            if (!ft_sdk) {
                 ConnectFileTransfer(config, relay_host, relay_port, net_info);
-            }
-        }
-        else {
-            LOGE("Relay media channel is unavailable; reconnecting both channels.");
-            ReleaseConnections();
-            if (!WaitFor(stop_token, std::chrono::milliseconds(500))) {
-                break;
             }
         }
     }
@@ -303,7 +298,8 @@ void RelayTransportRuntime::ConnectMedia(
                 return;
             }
             if (room->creator_stream_id_.empty()) {
-                LOGE("Relay room has no creator stream id; reconnecting.");
+                LOGE("event=transport.protocol_error component=relay code=RELAY_CREATOR_STREAM_MISSING "
+                     "operation=prepare_room outcome=reconnecting recoverable=true");
                 self->need_reconnect_ = true;
                 self->wake_condition_.notify_all();
                 return;
@@ -324,7 +320,8 @@ void RelayTransportRuntime::ConnectMedia(
                 ? media_sdk->GetRoomById(destroyed.room_id())
                 : std::shared_ptr<RelayRoom>{};
             if (!room) {
-                LOGE("Cannot find destroyed relay room: {}", destroyed.room_id());
+                LOGE("event=transport.protocol_error component=relay code=RELAY_ROOM_NOT_FOUND operation=destroy_room "
+                     "outcome=ignored recoverable=true room={}", destroyed.room_id());
                 return;
             }
             self->NotifyClientDisconnected(
@@ -432,7 +429,8 @@ void RelayTransportRuntime::ConnectFileTransfer(
                     }
                     if (route.has_recv_msg_index &&
                         relay.relay_msg_index() != route.last_recv_msg_index + 1) {
-                        LOGE("Relay FT sequence gap, room: {}, current: {}, last: {}",
+                        LOGE("event=transport.sequence_gap component=relay_ft code=RELAY_FT_SEQUENCE_GAP operation=receive "
+                             "outcome=accepted recoverable=true room={} current={} last={}",
                              room_id, relay.relay_msg_index(), route.last_recv_msg_index);
                     }
                     route.last_recv_msg_index = relay.relay_msg_index();
@@ -675,6 +673,15 @@ int64_t RelayTransportRuntime::QueuingMediaMessageCount() const {
 int64_t RelayTransportRuntime::QueuingFileTransferMessageCount() const {
     const auto sdk = FileTransferSdk();
     return sdk ? sdk->GetQueuingMsgCount() : 0;
+}
+
+std::uint64_t RelayTransportRuntime::MediaChannelInstanceGeneration() const {
+    return media_generation_.load(std::memory_order_acquire);
+}
+
+std::uint64_t RelayTransportRuntime::MediaConnectionAttemptGeneration() const {
+    const auto sdk = MediaSdk();
+    return sdk ? sdk->ConnectionGeneration() : 0;
 }
 
 std::vector<std::shared_ptr<PxConnectedClientInfo>>

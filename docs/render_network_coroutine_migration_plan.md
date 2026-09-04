@@ -81,10 +81,31 @@
   real-server reconnect 测试。固定硬件性能、真实弱网和长稳数据由最终验收阶段产生。
 
 当前 focused 结果：callback quiescence、UDP receive storm、OBS repeated lifecycle/真实 server reconnect、WebRTC 连续 10 轮 load/start/StopAsync/unload 均通过；
-OBS lifecycle 额外连续执行 20 轮通过；SDK WS、Relay WS 和公共 supervisor 聚焦测试通过。最终串行 `Mode all` 自动化门禁通过 36 项、
-失败 0、跳过 0、unexpected ERROR 0；证据位于 `test-results/render-architecture/20260904-172946-all`。`px_render.exe`、`px_gh.dll`、
-`net_rtc.dll`、`net_rtc_local.dll` 的构建树与
-`build_official/dist` SHA-256 均一致。该结果不替代用户最终产品验收。
+OBS lifecycle 额外连续执行 20 轮通过；SDK WS/WSS、Relay WS、公共 supervisor 和 Opus 并发关闭测试通过。最终 `Mode all` 自动化门禁通过 37 项、
+失败 0、跳过 0、unexpected ERROR 0；证据位于 `test-results/render-architecture/20260904-195634-all`。`px_render.exe`、`px_gh.dll`、
+`net_rtc.dll`、`net_rtc_local.dll` 的构建树与 `build_official/dist` SHA-256 均一致。该结果不替代用户最终产品验收。
+
+### 2.2 复审加固（2026-09-04）
+
+完成首次交付后的第二轮并发与故障路径复审，并将以下规则作为 N2 的强制补充：
+
+- Relay 外层 `RelayTransportRuntime` 只负责缺失连接的创建和配置变更后的整体替换。普通离线时保留同一个 `RelayServerSdk`，由内部
+  `PxReconnectSupervisor` 独占重连；禁止外层按 `IsAlive()==false` 周期销毁 SDK，否则会清零 backoff 和 generation。
+- WS/WSS 的 client、scope、supervisor 仅在 scope 已排空且 asio2 adapter 已到达 `is_stopped()` 后释放。任一等待超时必须保留 owner，记录
+  `scope_drained`、`adapter_stopped` 和 `outstanding`，后续幂等 Stop 可继续收敛，禁止“记录失败后照常 reset”。
+- callback/runtime 线程内发起同步 facade Stop 时，由注入的 `PxAsyncRuntime::DeferBlocking` 提交 RAII 管理且进程退出前可 join 的收尾任务；
+  禁止使用 `asio::system_executor` 逃逸组件 runtime/scope 的生命周期。
+- 工作线程回调与外部线程同时关闭时，生命周期锁只负责状态转换和 `jthread` 所有权转移，实际 join 必须在锁外完成。析构发生在工作线程时，
+  使用 `PxAsyncRuntime::DeferJoin` 把线程 RAII owner 交给统一 joiner，禁止 self-join、detach 和持锁 join。
+- adapter callback 发布 ready、disconnect、connect/upgrade failure 时必须携带本轮 generation。公共 supervisor 拒绝旧 generation 信号；进入下一代前
+  adapter 必须完整静默，二者共同防止迟到 callback 完成新连接。
+- Client Panel、Client Console、Panel Service 和 Panel Console 的启动失败走统一逆序 Stop；回调内 Stop 不得因 `exiting/stopping` 首次置位而让后续
+  收尾调用直接返回。Panel Console 在网络状态构造失败后也必须回滚已经建立的 listener、scope、queue 和 blocking runtime。
+- Relay heartbeat index 和 Panel Service heartbeat index 是实例级原子计数器，禁止跨实例共享函数静态可变计数器。
+
+本轮新增自动化包括：公共 supervisor 旧 generation 信号拒绝、SDK 真实 WSS server 重启恢复、Relay 外层 runtime 在长期离线期间保持单一 SDK owner
+且内部 attempt generation 持续前进，以及 Opus callback shutdown 与外部 shutdown 同时发生的确定性死锁回归。Opus 聚焦测试连续执行 200 轮通过；
+最终自动化证据为 `test-results/render-architecture/20260904-195634-all`，结论为 GO，37 项通过、0 失败、0 跳过，产物哈希与日志隐私扫描均通过。
 
 ## 3. 目标和非目标
 
@@ -475,6 +496,10 @@ webrtc.callback_quiescence
 
 高频 callback 只更新无阻塞计数器。默认每 5 秒输出活跃窗口，持续错误按 30 秒汇总；禁止逐消息、逐 packet 和逐帧 INFO/WARN/ERROR。
 
+`PxReconnectSupervisor` 是连接失败日志的唯一 owner：首个失败立即输出，之后同一持续故障窗口最多每 30 秒输出一次，并携带 `suppressed`、`attempts`、
+`successes`、`reconnect_waits` 和 `consecutive_failures`。asio2 connect/upgrade/disconnect callback 只发布 typed failure，不重复写一条错误日志。达到最大
+backoff 后的 `transport.reconnect_wait` 最多随 30 秒退避输出一次；ready、terminal 和 shutdown timeout 仍必须立即记录。
+
 SDK WS/WSS 沿用同一事件名并分别使用 `sdk_ws`、`sdk_wss` component。永久拒绝固定输出
 `event=transport.connection_terminal code=SDK_WEBSOCKET_SESSION_REJECTED recoverable=false`；日志不得包含 appkey、ticket、authorization header、设备密码或完整会话凭据。
 supervisor 的 `connection_attempts`、`successful_connections`、`reconnect_waits`、`adapter_reset_failures`、`consecutive_failures` 和 `generation` 是统一统计源，
@@ -493,6 +518,8 @@ supervisor 的 `connection_attempts`、`successful_connections`、`reconnect_wai
 
 - callback 已排队后 owner 销毁。
 - callback 内触发 shutdown。
+- callback shutdown 与外部线程 shutdown 同时竞争，验证锁外 join 且测试进程可在 deadline 内退出。
+- 最后一个 owner 在工作线程 callback 中释放时，线程 owner 必须转交 RAII joiner，不得 self-join 或 detach。
 - scope executor 内调用 StopAsync。
 - unregister during dispatch。
 - start 中途失败和逆序 rollback。
@@ -508,6 +535,8 @@ supervisor 的 `connection_attempts`、`successful_connections`、`reconnect_wai
 - SDK WS/WSS 首次服务不可用后上线恢复、真实 server 连续三轮 stop/start、每轮 generation 前进、成功/断开通知恰好一次。
 - SDK repeated start/stop、停止与 connect callback 竞争、发送 completion 晚于 Stop、owner 销毁以及永久拒绝后不再发起下一 attempt。
 - Relay 初始离线后上线、真实 server 多轮 stop/start、ready callback 内 Stop、延迟 drain 后再启动。
+- Relay 外层 runtime 在服务持续离线至少两个 monitor 周期时只创建一个 SDK，内部 generation 继续增长；配置改变才替换外层 owner。
+- SDK WSS 使用真实 TLS server 覆盖握手、在线停止、server restart 和新 generation ready，不允许仅用 WS 测试间接代表 TLS 路径。
 - request 发出后断线、重连后收到旧 response、旧 generation disconnect 到达。
 - receive mailbox overload 触发明确连接失败且所有 pending request 被完成。
 

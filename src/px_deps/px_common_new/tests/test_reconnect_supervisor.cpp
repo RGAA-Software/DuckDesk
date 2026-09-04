@@ -254,5 +254,38 @@ TEST(ReconnectSupervisor, ScopeStopCancelsLongBackoffPromptly) {
     runtime->Join();
 }
 
+TEST(ReconnectSupervisor, StaleGenerationSignalsCannotCompleteTheActiveAttempt) {
+    const auto runtime = PxAsyncRuntime::Create({.worker_threads = 1});
+    ASSERT_TRUE(runtime);
+    ASSERT_TRUE(runtime->Start());
+    const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
+    const auto supervisor = MakeSupervisor(runtime);
+    const auto ready = std::make_shared<std::promise<void>>();
+    auto ready_future = ready->get_future();
+
+    PxReconnectSupervisorHooks hooks{
+        .start_attempt = [supervisor](const std::uint64_t generation) {
+            EXPECT_FALSE(supervisor->MarkReady(generation + 1));
+            EXPECT_FALSE(supervisor->MarkDisconnected(generation + 1, MakePxAsyncError(
+                PxAsyncErrorCode::kServiceNotConnected, "test.stale", "stale disconnect", true)));
+            EXPECT_FALSE(supervisor->FailActive(generation + 1, MakePxAsyncError(
+                PxAsyncErrorCode::kProtocolError, "test.stale", "stale failure", true)));
+            EXPECT_TRUE(supervisor->MarkReady(generation));
+            return PxResult<void>::Success();
+        },
+        .stop_attempt = [](std::chrono::steady_clock::time_point) -> PxAwaitable<PxResult<void>> {
+            co_return PxResult<void>::Success();
+        },
+        .on_ready = [ready](std::uint64_t) { ready->set_value(); },
+    };
+    ASSERT_TRUE(scope->Spawn("generation-bound-signals", [supervisor, hooks = std::move(hooks)]() mutable {
+        return PxReconnectSupervisor::Run(supervisor, std::move(hooks));
+    }));
+
+    ASSERT_EQ(ready_future.wait_for(1s), std::future_status::ready);
+    EXPECT_TRUE(supervisor->IsReady());
+    StopRuntime(supervisor, scope, runtime);
+}
+
 } // namespace
 } // namespace px

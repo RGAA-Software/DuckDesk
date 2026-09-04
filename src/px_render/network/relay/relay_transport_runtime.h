@@ -65,6 +65,8 @@ public:
     [[nodiscard]] bool IsWorking() const;
     [[nodiscard]] int64_t QueuingMediaMessageCount() const;
     [[nodiscard]] int64_t QueuingFileTransferMessageCount() const;
+    [[nodiscard]] std::uint64_t MediaChannelInstanceGeneration() const;
+    [[nodiscard]] std::uint64_t MediaConnectionAttemptGeneration() const;
     [[nodiscard]] std::vector<std::shared_ptr<PxConnectedClientInfo>>
         ConnectedClientInfo() const;
     void OnMessageAck(const std::shared_ptr<NetMessageAck>& ack);

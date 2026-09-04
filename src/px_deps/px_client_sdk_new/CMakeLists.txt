@@ -117,6 +117,8 @@ if(BUILD_TESTING AND NOT ANDROID)
         GTest::gtest
         GTest::gtest_main
     )
+    target_compile_definitions(test_sdk_websocket_reconnect PRIVATE
+        PX_TEST_TLS_PEM="${CMAKE_SOURCE_DIR}/rust_server/px_console_server/media/default.pem")
     add_test(NAME sdk_websocket_reconnect COMMAND test_sdk_websocket_reconnect)
     set_tests_properties(sdk_websocket_reconnect PROPERTIES LABELS "render-lifecycle")
 endif()

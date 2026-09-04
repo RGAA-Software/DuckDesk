@@ -1,15 +1,19 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
+#include <fstream>
+#include <iterator>
 #include <memory>
 #include <thread>
 
 #include <Windows.h>
 #include <asio2/websocket/ws_server.hpp>
+#include <asio2/websocket/wss_server.hpp>
 #include <gtest/gtest.h>
 
 #include "connection/sdk_websocket_reconnect.h"
 #include "connection/ws_connection.h"
+#include "connection/wss_connection.h"
 #include "px_common_new/message_notifier.h"
 #include "sdk_params.h"
 
@@ -34,6 +38,36 @@ std::shared_ptr<WsConnection> MakeConnection(
     const int port) {
     return std::make_shared<WsConnection>(
         std::make_shared<ThunderSdkParams>(), notifier, "127.0.0.1", port, "/sdk-reconnect-test");
+}
+
+std::shared_ptr<WssConnection> MakeSecureConnection(
+    const std::shared_ptr<MessageNotifier>& notifier,
+    const int port) {
+    return std::make_shared<WssConnection>(
+        std::make_shared<ThunderSdkParams>(), notifier, "127.0.0.1", port, "/sdk-secure-reconnect-test");
+}
+
+std::shared_ptr<asio2::wss_server> MakeSecureServer() {
+    std::ifstream input(PX_TEST_TLS_PEM, std::ios::binary);
+    const std::string pem{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+    constexpr std::string_view key_begin = "-----BEGIN RSA PRIVATE KEY-----";
+    constexpr std::string_view key_end = "-----END RSA PRIVATE KEY-----";
+    constexpr std::string_view cert_begin = "-----BEGIN CERTIFICATE-----";
+    constexpr std::string_view cert_end = "-----END CERTIFICATE-----";
+    const auto key_first = pem.find(key_begin);
+    const auto key_last = pem.find(key_end);
+    const auto cert_first = pem.find(cert_begin);
+    const auto cert_last = pem.find(cert_end, cert_first);
+    if (key_first == std::string::npos || key_last == std::string::npos || cert_first == std::string::npos
+        || cert_last == std::string::npos) {
+        return {};
+    }
+    const auto key = pem.substr(key_first, key_last + key_end.size() - key_first);
+    const auto certificate = pem.substr(cert_first, cert_last + cert_end.size() - cert_first);
+    const auto server = std::make_shared<asio2::wss_server>();
+    server->set_cert_buffer({}, certificate, key, {});
+    server->set_verify_mode(asio::ssl::verify_none);
+    return server;
 }
 
 TEST(SdkWebSocketReconnect, InitiallyUnavailableServerIsRetriedUntilItStarts) {
@@ -90,6 +124,29 @@ TEST(SdkWebSocketReconnect, RealServerRestartsAdvanceEveryGeneration) {
     }
     EXPECT_EQ(connected->load(std::memory_order_acquire), 4U);
     EXPECT_EQ(disconnected->load(std::memory_order_acquire), 3U);
+
+    connection->Stop();
+    server->stop();
+    notifier->Stop(MessageBusStopMode::kCancel);
+}
+
+TEST(SdkWebSocketReconnect, SecureServerRestartAdvancesGeneration) {
+    const auto port = 53000 + static_cast<int>(GetCurrentProcessId() % 5000);
+    const auto notifier = std::make_shared<MessageNotifier>();
+    const auto server = MakeSecureServer();
+    ASSERT_TRUE(server);
+    ASSERT_TRUE(server->start("127.0.0.1", port));
+    const auto connection = MakeSecureConnection(notifier, port);
+    connection->Start();
+    ASSERT_TRUE(WaitUntil([connection] { return connection->IsAlive(); }, 10s));
+    const auto previous_generation = connection->ConnectionGeneration();
+
+    server->stop();
+    ASSERT_TRUE(WaitUntil([connection] { return !connection->IsAlive(); }, 3s));
+    ASSERT_TRUE(server->start("127.0.0.1", port));
+    ASSERT_TRUE(WaitUntil([connection, previous_generation] {
+        return connection->IsAlive() && connection->ConnectionGeneration() > previous_generation;
+    }, 10s));
 
     connection->Stop();
     server->stop();

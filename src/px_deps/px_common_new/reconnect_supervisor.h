@@ -68,8 +68,11 @@ class PxReconnectSupervisor final {
         PxReconnectSupervisorHooks hooks);
 
     [[nodiscard]] bool MarkReady();
+    [[nodiscard]] bool MarkReady(std::uint64_t generation);
     [[nodiscard]] bool MarkDisconnected(PxAsyncError reason);
+    [[nodiscard]] bool MarkDisconnected(std::uint64_t generation, PxAsyncError reason);
     [[nodiscard]] bool FailActive(PxAsyncError error);
+    [[nodiscard]] bool FailActive(std::uint64_t generation, PxAsyncError error);
     void Stop();
 
     [[nodiscard]] bool IsReady() const;
@@ -86,6 +89,7 @@ class PxReconnectSupervisor final {
     [[nodiscard]] PxResult<void> StartAttemptIfRunning(
         const PxReconnectStartAttempt& start_attempt,
         std::uint64_t generation);
+    void LogConnectionLost(std::uint64_t generation, const PxAsyncError& failure);
 
     const PxReconnectSupervisorOptions options_;
     const std::shared_ptr<PxConnectionAttemptWorkflow> workflow_;
@@ -97,6 +101,9 @@ class PxReconnectSupervisor final {
     std::atomic_uint64_t reconnect_waits_{0};
     std::atomic_uint64_t adapter_reset_failures_{0};
     std::atomic_uint32_t consecutive_failures_{0};
+    std::mutex failure_log_mutex_{};
+    std::chrono::steady_clock::time_point last_failure_log_at_{};
+    std::uint64_t suppressed_failure_logs_{0};
 };
 
 } // namespace px

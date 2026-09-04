@@ -16,7 +16,7 @@ namespace {
 using IoWorkGuard = asio::executor_work_guard<asio::io_context::executor_type>;
 
 class RuntimeThreadJoiner final {
-public:
+  public:
     static std::shared_ptr<RuntimeThreadJoiner> Instance() {
         static const auto instance = std::make_shared<RuntimeThreadJoiner>();
         return instance;
@@ -41,7 +41,7 @@ public:
         state_->condition.notify_one();
     }
 
-private:
+  private:
     struct JoinerState {
         std::mutex mutex;
         std::condition_variable condition;
@@ -49,7 +49,7 @@ private:
         bool stopping = false;
     };
 
-public:
+  public:
     RuntimeThreadJoiner() : state_(std::make_shared<JoinerState>()) {
         const auto state = state_;
         worker_ = std::thread([state]() {
@@ -57,9 +57,7 @@ public:
                 std::vector<std::thread> batch;
                 {
                     std::unique_lock lock(state->mutex);
-                    state->condition.wait(lock, [state]() {
-                        return state->stopping || !state->batches.empty();
-                    });
+                    state->condition.wait(lock, [state]() { return state->stopping || !state->batches.empty(); });
                     if (state->batches.empty() && state->stopping) {
                         return;
                     }
@@ -75,7 +73,7 @@ public:
         });
     }
 
-private:
+  private:
     std::shared_ptr<JoinerState> state_;
     std::thread worker_;
 };
@@ -83,12 +81,10 @@ private:
 } // namespace
 
 class PxAsyncRuntime::State final {
-public:
+  public:
     explicit State(std::size_t worker_thread_count)
-        : worker_thread_count_(std::max<std::size_t>(1, worker_thread_count)),
-          control_guard_(asio::make_work_guard(control_context_)),
-          state_guard_(asio::make_work_guard(state_context_)),
-          worker_guard_(asio::make_work_guard(worker_context_)) {}
+        : worker_thread_count_(std::max<std::size_t>(1, worker_thread_count)), control_guard_(asio::make_work_guard(control_context_)),
+          state_guard_(asio::make_work_guard(state_context_)), worker_guard_(asio::make_work_guard(worker_context_)) {}
 
     asio::io_context control_context_;
     asio::io_context state_context_;
@@ -110,8 +106,7 @@ std::shared_ptr<PxAsyncRuntime> PxAsyncRuntime::Create(PxAsyncRuntimeOptions opt
     return std::make_shared<PxAsyncRuntime>(options);
 }
 
-PxAsyncRuntime::PxAsyncRuntime(PxAsyncRuntimeOptions options)
-    : state_(std::make_shared<State>(options.worker_threads)) {}
+PxAsyncRuntime::PxAsyncRuntime(PxAsyncRuntimeOptions options) : state_(std::make_shared<State>(options.worker_threads)) {}
 
 PxAsyncRuntime::~PxAsyncRuntime() {
     RequestStop();
@@ -170,8 +165,7 @@ bool PxAsyncRuntime::Start() {
 
 void PxAsyncRuntime::RequestDrain() {
     bool expected = false;
-    if (!state_->work_released_.compare_exchange_strong(
-            expected, true, std::memory_order_acq_rel)) {
+    if (!state_->work_released_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
         return;
     }
     std::lock_guard lock(state_->mutex_);
@@ -226,6 +220,30 @@ asio::any_io_executor PxAsyncRuntime::Executor(PxAsyncLane lane) const {
     return state_->worker_context_.get_executor();
 }
 
+void PxAsyncRuntime::DeferJoin(std::jthread thread) {
+    if (!thread.joinable()) {
+        return;
+    }
+    const auto owned_thread = std::make_shared<std::jthread>(std::move(thread));
+    std::vector<std::thread> joiners{};
+    joiners.emplace_back([owned_thread]() {
+        if (owned_thread->joinable()) {
+            owned_thread->join();
+        }
+    });
+    RuntimeThreadJoiner::Instance()->Submit(std::move(joiners));
+}
+
+bool PxAsyncRuntime::DeferBlocking(std::function<void()> task) const {
+    if (!task) {
+        return false;
+    }
+    std::vector<std::thread> threads{};
+    threads.emplace_back([task = std::move(task)]() mutable { task(); });
+    RuntimeThreadJoiner::Instance()->Submit(std::move(threads));
+    return true;
+}
+
 bool PxAsyncRuntime::IsRuntimeThread() const {
     std::lock_guard lock(state_->mutex_);
     return state_->thread_ids_.contains(std::this_thread::get_id());
@@ -241,14 +259,13 @@ bool PxAsyncRuntime::IsStopping() const {
 }
 
 class PxAsyncScope::State final {
-public:
+  public:
     struct Task {
         std::string name;
         std::shared_ptr<asio::cancellation_signal> cancellation;
     };
 
-    explicit State(asio::any_io_executor executor)
-        : executor_(asio::make_strand(std::move(executor))) {}
+    explicit State(asio::any_io_executor executor) : executor_(asio::make_strand(std::move(executor))) {}
 
     asio::any_io_executor executor_;
     mutable std::mutex mutex_;
@@ -259,9 +276,7 @@ public:
     PxAsyncScopeStatistics statistics_;
 };
 
-std::shared_ptr<PxAsyncScope> PxAsyncScope::Create(
-    const std::shared_ptr<PxAsyncRuntime>& runtime,
-    PxAsyncLane lane) {
+std::shared_ptr<PxAsyncScope> PxAsyncScope::Create(const std::shared_ptr<PxAsyncRuntime>& runtime, PxAsyncLane lane) {
     if (!runtime) {
         return {};
     }
@@ -306,19 +321,13 @@ bool PxAsyncScope::SpawnImpl(std::string name, std::function<PxAwaitable<void>()
     ++state_->statistics_.spawned;
     state_->statistics_.outstanding = state_->tasks_.size();
     const auto state = state_;
-    asio::co_spawn(
-        state_->executor_, std::move(*task),
-        asio::bind_cancellation_slot(
-            cancellation->slot(),
-            [state, task_id](std::exception_ptr error) {
-                PxAsyncScope::Complete(state, task_id, error);
-            }));
+    asio::co_spawn(state_->executor_, std::move(*task),
+                   asio::bind_cancellation_slot(cancellation->slot(),
+                                                [state, task_id](std::exception_ptr error) { PxAsyncScope::Complete(state, task_id, error); }));
     return true;
 }
 
-void PxAsyncScope::Complete(const std::shared_ptr<State>& state,
-                            std::uint64_t task_id,
-                            const std::exception_ptr& error) {
+void PxAsyncScope::Complete(const std::shared_ptr<State>& state, std::uint64_t task_id, const std::exception_ptr& error) {
     {
         std::lock_guard lock(state->mutex_);
         if (state->tasks_.erase(task_id) == 0) {
@@ -349,9 +358,7 @@ void PxAsyncScope::BeginStop() {
     }
 
     for (const auto& cancellation : cancellations) {
-        asio::post(state_->executor_, [cancellation]() {
-            cancellation->emit(asio::cancellation_type::all);
-        });
+        asio::post(state_->executor_, [cancellation]() { cancellation->emit(asio::cancellation_type::all); });
     }
     state_->condition_.notify_all();
 }
@@ -361,9 +368,7 @@ bool PxAsyncScope::WaitFor(std::chrono::milliseconds timeout) {
         return false;
     }
     std::unique_lock lock(state_->mutex_);
-    return state_->condition_.wait_for(lock, timeout, [state = state_]() {
-        return state->tasks_.empty();
-    });
+    return state_->condition_.wait_for(lock, timeout, [state = state_]() { return state->tasks_.empty(); });
 }
 
 bool PxAsyncScope::StopAndWait(std::chrono::milliseconds timeout) {
