@@ -8,6 +8,7 @@
 
 #include "px_common_new/file.h"
 #include "px_common_new/log.h"
+#include "px_common_new/privacy_log.h"
 #include "px_common_new/string_util.h"
 
 namespace px::render {
@@ -254,7 +255,7 @@ void FrameDebuggerObserver::ObserveRawFrame(RawVideoFrameObservation frame) {
     if (decision.emit) {
         LOGI("event=observer.raw_frame component=frame_debugger monitor={} "
              "frame_index={} width={} height={} suppressed={} outcome=observed",
-             frame.monitor_id,
+             PrivacyLogId(frame.monitor_id),
              frame.frame_index,
              frame.width,
              frame.height,
@@ -355,11 +356,11 @@ void FrameDebuggerObserver::ProcessEncoderReady(
     if (directory_error) {
         file_write_failures_.fetch_add(1, std::memory_order_relaxed);
         LOGE("event=observer.file_open component=frame_debugger "
-             "code={} monitor={} "
-             "native_code={} outcome=disabled reason={}",
+             "code={} operation=create_output_directory outcome=disabled "
+             "recoverable=true monitor={} native_code={} reason={}",
              StableErrorCode(
                  RenderErrorCode::kFrameDebuggerDirectoryFailed),
-             event.monitor_id,
+             PrivacyLogId(event.monitor_id),
              directory_error.value(),
              directory_error.message());
         return;
@@ -378,11 +379,11 @@ void FrameDebuggerObserver::ProcessEncoderReady(
     if (!file || !file->IsOpen()) {
         file_write_failures_.fetch_add(1, std::memory_order_relaxed);
         LOGE("event=observer.file_open component=frame_debugger "
-             "code={} monitor={} codec={} "
-             "outcome=disabled",
+             "code={} operation=open_encoded_output outcome=disabled "
+             "recoverable=true monitor={} codec={}",
              StableErrorCode(
                  RenderErrorCode::kFrameDebuggerFileOpenFailed),
-             event.monitor_id,
+             PrivacyLogId(event.monitor_id),
              event.codec);
         return;
     }
@@ -407,11 +408,12 @@ void FrameDebuggerObserver::ProcessEncodedFrame(
     if (written != static_cast<std::int64_t>(bytes.size())) {
         file_write_failures_.fetch_add(1, std::memory_order_relaxed);
         LOGE("event=observer.file_write component=frame_debugger "
-             "code={} monitor={} "
-             "frame_index={} expected_bytes={} actual_bytes={} outcome=dropped",
+             "code={} operation=append_encoded_frame outcome=dropped "
+             "recoverable=true monitor={} frame_index={} expected_bytes={} "
+             "actual_bytes={}",
              StableErrorCode(
                  RenderErrorCode::kFrameDebuggerFileWriteFailed),
-             frame->identity.monitor_id,
+             PrivacyLogId(frame->identity.monitor_id),
              frame->identity.frame_index,
              bytes.size(),
              written);
@@ -457,8 +459,9 @@ FrameDebuggerSubmitResult FrameDebuggerObserver::SubmitEvent(
                 decision.emit) {
                 const auto snapshot = queue->Snapshot();
                 LOGW("event=observer.queue_overflow component=frame_debugger "
-                     "code={} policy=drop_oldest depth={} dropped={} "
-                     "high_watermark={} suppressed={} outcome=continued",
+                     "code={} operation=submit_event outcome=drop_oldest "
+                     "recoverable=true policy=drop_oldest depth={} dropped={} "
+                     "high_watermark={} suppressed={}",
                      StableErrorCode(RenderErrorCode::kObserverQueueOverflow),
                      snapshot.depth,
                      snapshot.dropped,

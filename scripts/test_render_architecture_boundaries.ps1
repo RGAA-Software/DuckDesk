@@ -31,6 +31,34 @@ foreach ($file in $nativeFiles) {
             $violations.Add("${relative}: $($entry.Value)")
         }
     }
+    foreach ($match in [regex]::Matches(
+        $content, '(?s)LOG[EW]\s*\((.*?)\);')) {
+        $statement = $match.Groups[1].Value
+        $missingFields = @(
+            "event", "component", "code", "operation", "outcome", "recoverable"
+        ) | Where-Object { $statement -notmatch ("\b" + $_ + "=") }
+        if ($missingFields.Count -gt 0) {
+            $relative = $file.FullName.Substring($RepoRoot.Length).TrimStart([char]'\')
+            $line = 1 + ([regex]::Matches(
+                $content.Substring(0, $match.Index), "`n")).Count
+            $violations.Add(
+                "${relative}:${line}: WARN/ERROR missing fields $($missingFields -join ',')")
+        }
+        if ($statement -match '\bmonitor=\{\}' -and
+            $statement -notmatch 'PrivacyLogId') {
+            $relative = $file.FullName.Substring($RepoRoot.Length).TrimStart([char]'\')
+            $violations.Add("${relative}: monitor identifiers in logs must use PrivacyLogId")
+        }
+    }
+    foreach ($match in [regex]::Matches(
+        $content, '(?s)LOG[IEW]\s*\((.*?)\);')) {
+        $statement = $match.Groups[1].Value
+        if ($statement -match '\bmonitor=\{\}' -and
+            $statement -notmatch 'PrivacyLogId') {
+            $relative = $file.FullName.Substring($RepoRoot.Length).TrimStart([char]'\')
+            $violations.Add("${relative}: monitor identifiers in logs must use PrivacyLogId")
+        }
+    }
 }
 
 # The compatibility service locator and untyped control dispatch are retired
@@ -174,9 +202,54 @@ foreach ($file in $wsBuiltInFiles) {
             $violations.Add("$($file.FullName): $($entry.Value)")
         }
     }
+    $logContent = [regex]::Replace($content, '(?s)/\*.*?\*/', '')
+    $logContent = [regex]::Replace($logContent, '(?m)^\s*//.*$', '')
+    foreach ($match in [regex]::Matches(
+        $logContent, '(?s)LOG[EW]\s*\((.*?)\);')) {
+        $statement = $match.Groups[1].Value
+        $missingFields = @(
+            "event", "component", "code", "operation", "outcome", "recoverable"
+        ) | Where-Object { $statement -notmatch ("\b" + $_ + "=") }
+        if ($missingFields.Count -gt 0) {
+            $relative = $file.FullName.Substring($RepoRoot.Length).TrimStart([char]'\')
+            $line = 1 + ([regex]::Matches(
+                $logContent.Substring(0, $match.Index), "`n")).Count
+            $violations.Add(
+                "${relative}:${line}: WARN/ERROR missing fields $($missingFields -join ',')")
+        }
+        if ($statement -match '\b(?:stream|device|peer)=\{\}' -and
+            $statement -notmatch 'PrivacyLogId') {
+            $relative = $file.FullName.Substring($RepoRoot.Length).TrimStart([char]'\')
+            $violations.Add("${relative}: session identifiers in logs must use PrivacyLogId")
+        }
+    }
+    foreach ($match in [regex]::Matches(
+        $logContent, '(?s)LOG[IEW]\s*\((.*?)\);')) {
+        $statement = $match.Groups[1].Value
+        if ($statement -match '\b(?:stream|device|peer)=\{\}' -and
+            $statement -notmatch 'PrivacyLogId') {
+            $relative = $file.FullName.Substring($RepoRoot.Length).TrimStart([char]'\')
+            $violations.Add("${relative}: session identifiers in logs must use PrivacyLogId")
+        }
+    }
 }
 $wsServerSource = Get-Content -LiteralPath `
     (Join-Path $RepoRoot "src\px_render\plugins\net_ws\ws_server.cpp") -Raw
+$wsServerHeader = Get-Content -LiteralPath `
+    (Join-Path $RepoRoot "src\px_render\plugins\net_ws\ws_server.h") -Raw
+foreach ($required in @(
+    "TransportPerformanceWindow",
+    "ObserveInbound",
+    "ObserveOutbound",
+    "ObserveDropped",
+    "SnapshotAndReset",
+    "event=transport.window"
+)) {
+    if ($wsServerSource -notmatch [regex]::Escape($required) -and
+        $wsServerHeader -notmatch [regex]::Escape($required)) {
+        $violations.Add("net_ws must retain transport diagnostics: $required")
+    }
+}
 $wsHttpSource = Get-Content -LiteralPath `
     (Join-Path $RepoRoot "src\px_render\plugins\net_ws\http_handler.cpp") -Raw
 if ($wsServerSource -notmatch "co_await\s+RedeemWsTicketAsync" -or

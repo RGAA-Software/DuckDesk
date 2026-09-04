@@ -5,6 +5,7 @@
 #ifndef TC_APPLICATION_APP_SERVER_H
 #define TC_APPLICATION_APP_SERVER_H
 
+#include <chrono>
 #include <memory>
 #include <atomic>
 #include <cstdint>
@@ -16,6 +17,8 @@
 #include "px_common_new/concurrent_hashmap.h"
 #include "px_common_new/file_transfer_send_result.h"
 #include "px_common_new/async_runtime.h"
+#include "diagnostics/rate_limited_log.h"
+#include "diagnostics/transport_performance_window.h"
 #include <asio2/asio2.hpp>
 
 namespace px
@@ -80,6 +83,7 @@ namespace px
         // 定期清扫:注销进程已死亡的 pid(断线未触发/异常退出的兜底清理),
         // 由 WsPlugin::On1Second 驱动,内部节流
         void SweepDeadIpcPids();
+        void ReportPerformance();
 
     private:
         // pid 对应进程已死才从允许集合注销(活进程的瞬时断线不影响重连)
@@ -145,6 +149,9 @@ namespace px
         std::shared_ptr<PxAsyncRuntime> async_runtime_;
         std::shared_ptr<PxAsyncScope> async_scope_;
         std::atomic_bool exiting_ = false;
+        render::TransportPerformanceWindow transport_performance_;
+        render::RateLimitedLogGate warning_log_gate_{
+            std::chrono::seconds(5), 64};
 
     };
 }

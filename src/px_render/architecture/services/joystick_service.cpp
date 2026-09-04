@@ -217,7 +217,8 @@ void JoystickService::HandleMessage(
         else {
             ++rejected_messages_;
             LOGE("event=joystick.allocate component=joystick outcome=failed "
-                 "reason=vigem_unavailable");
+                 "code=JOYSTICK_VIGEM_UNAVAILABLE operation=allocate_target "
+                 "recoverable=true reason=vigem_unavailable");
         }
         return;
     }
@@ -277,7 +278,8 @@ std::shared_ptr<JoystickBackend> JoystickService::EnsureBackend() {
     }
     if (!backend || !prepared) {
         LOGE("event=joystick.connect component=joystick outcome=failed "
-             "reason=vigem_unavailable");
+             "code=JOYSTICK_VIGEM_UNAVAILABLE operation=connect_bus "
+             "recoverable=true reason=vigem_unavailable");
         return {};
     }
     {

@@ -168,7 +168,11 @@ void WasAudioCaptureSource::StartProviding() {
         const auto started = Start();
         if (!started) {
             LOGE("event=source.provide_start component=was_audio_capture "
-                 "outcome=failed reason={}", started.error().reason);
+                 "code={} operation=start_providing outcome=failed "
+                 "recoverable={} reason={}",
+                 StableErrorCode(started.error().code),
+                 started.error().recoverable,
+                 started.error().reason);
             return;
         }
     }
@@ -181,7 +185,9 @@ void WasAudioCaptureSource::StartProviding() {
     }
     if (!enabled || !runtime) {
         LOGW("event=source.provide_start component=was_audio_capture "
-             "outcome=rejected reason=not_running_or_disabled");
+             "code=MODULE_LIFECYCLE_REJECTED operation=start_providing "
+             "outcome=rejected recoverable=true "
+             "reason=not_running_or_disabled");
         return;
     }
     runtime->StartProviding();

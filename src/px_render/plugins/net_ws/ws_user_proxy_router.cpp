@@ -8,6 +8,7 @@
 #include <functional>
 #include "px_common_new/data.h"
 #include "px_common_new/log.h"
+#include "px_common_new/privacy_log.h"
 #include "px_render_panel_message.pb.h"
 #include "px_message.pb.h"
 #include "px_message_new/proto_converter.h"
@@ -34,14 +35,19 @@ namespace px
             const auto addr = endpoint.address();
             return addr.is_loopback();
         } catch (const std::exception& e) {
-            LOGE("user-proxy remote_endpoint failed: {}", e.what());
+            static_cast<void>(e);
+            LOGE("event=transport.connect component=net_ws "
+                 "code=WS_REMOTE_ENDPOINT_FAILED operation=validate_user_proxy_peer "
+                 "outcome=rejected recoverable=false reason=endpoint_exception");
             return false;
         }
     }
 
     void WsUserProxyRouter::ReplaceSession(std::shared_ptr<asio2::http_session>& sess_ptr) {
         if (active_session_ && active_session_ != sess_ptr && active_session_->is_started()) {
-            LOGW("user-proxy replacing existing session");
+            LOGW("event=session.admit component=net_ws "
+                 "code=SESSION_REPLACED operation=replace_user_proxy "
+                 "outcome=replaced recoverable=true");
             active_session_->stop();
         }
         active_session_ = sess_ptr;
@@ -50,7 +56,9 @@ namespace px
 
     void WsUserProxyRouter::OnOpen(std::shared_ptr<asio2::http_session>& sess_ptr) {
         if (!IsLocalPeer(sess_ptr)) {
-            LOGE("user-proxy rejected non-local connection");
+            LOGW("event=session.admit component=net_ws "
+                 "code=SESSION_PEER_NOT_LOCAL operation=validate_user_proxy_peer "
+                 "outcome=rejected recoverable=false");
             sess_ptr->stop();
             return;
         }
@@ -75,13 +83,17 @@ namespace px
     void WsUserProxyRouter::HandleRpMessage(const std::string& data) {
         pxrp::RpMessage m;
         if (!m.ParseFromArray(data.data(), (int)data.size())) {
-            LOGE("user-proxy parse RpMessage failed, len={}", data.size());
+            LOGW("event=transport.receive component=net_ws "
+                 "code=WS_MESSAGE_PARSE_FAILED operation=parse_user_proxy "
+                 "outcome=dropped recoverable=true bytes={}", data.size());
             return;
         }
 
         const auto plugin = ws_data_ ? ws_data_->plugin_.lock() : nullptr;
         if (!plugin) {
-            LOGE("user-proxy plugin missing");
+            LOGE("event=transport.receive component=net_ws "
+                 "code=MODULE_DEPENDENCY_UNAVAILABLE operation=route_user_proxy "
+                 "outcome=failed recoverable=false");
             return;
         }
 
@@ -131,8 +143,10 @@ namespace px
             // (relay) 收不到 userproxy 的定向消息(剪切板文件取数应答等)
             px::Message inner;
             bool inner_parsed = inner.ParseFromArray(sub.msg().data(), (int)sub.msg().size());
-            LOGI("[LAT-clip] user-proxy outbound, data_channel={}, stream_id={}, inner_type={}, len={}",
-                 sub.data_channel(), sub.stream_id(), inner_parsed ? (int)inner.type() : -1, sub.msg().size());
+            LOGI("event=transport.send component=net_ws route=user_proxy "
+                 "data_channel={} stream={} message_type={} bytes={}",
+                 sub.data_channel(), PrivacyLogId(sub.stream_id()),
+                 inner_parsed ? (int)inner.type() : -1, sub.msg().size());
             if (sub.data_channel()) {
                 plugin->BroadcastFileTransferMessage(
                     sub.stream_id(), buffer, sub.run_through());

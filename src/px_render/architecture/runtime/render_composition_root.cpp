@@ -42,14 +42,16 @@ void CompleteSafely(const CompositionCompletion& completion,
         completion(std::move(result));
     }
     catch (const std::exception& error) {
+        static_cast<void>(error);
         LOGE("event=module.completion component=render_composition_root "
-             "code={} outcome=ignored reason={}",
-             StableErrorCode(RenderErrorCode::kModuleCompletionException),
-             error.what());
+             "code={} operation=invoke_completion outcome=ignored "
+             "recoverable=true reason=completion_exception",
+             StableErrorCode(RenderErrorCode::kModuleCompletionException));
     }
     catch (...) {
         LOGE("event=module.completion component=render_composition_root "
-             "code={} outcome=ignored reason=unknown_exception",
+             "code={} operation=invoke_completion outcome=ignored "
+             "recoverable=true reason=unknown_exception",
              StableErrorCode(RenderErrorCode::kModuleCompletionException));
     }
 }
@@ -93,10 +95,12 @@ ModuleLifecycleResult RenderCompositionRoot::SetEnabled(
     }
     else {
         LOGE("event=module.enable component=render_composition_root "
-             "module={} enabled={} code={} outcome=rejected reason={}",
+             "module={} enabled={} code={} operation=set_enabled "
+             "outcome=rejected recoverable={} reason={}",
              module_id,
              enabled,
              StableErrorCode(result.error().code),
+             result.error().recoverable,
              result.error().reason);
     }
     return result;
@@ -231,7 +235,7 @@ PxAwaitable<void> RenderCompositionRoot::RunStart(
                 BuiltinModuleRuntimeState::kFailed,
                 start_error));
             LOGE("event=module.start component={} module={} code={} "
-                 "outcome=failed recoverable={} reason={}",
+                 "operation=start outcome=failed recoverable={} reason={}",
                  start_error->component,
                  module_id,
                  StableErrorCode(start_error->code),
@@ -276,8 +280,10 @@ PxAwaitable<void> RenderCompositionRoot::RunStart(
         PxResult<void>::Success()));
     if (start_error) {
         LOGE("event=composition.start component=render_composition_root "
-             "code={} outcome=rolled_back reason={}",
+             "code={} operation=start outcome=rolled_back recoverable={} "
+             "reason={}",
              StableErrorCode(start_error->code),
+             start_error->recoverable,
              start_error->reason);
         CompleteSafely(completion, std::unexpected(std::move(*start_error)));
     }
@@ -306,8 +312,10 @@ PxAwaitable<void> RenderCompositionRoot::RunStop(
                 "stop",
                 "startup did not acknowledge cancellation before deadline");
             LOGE("event=composition.stop component=render_composition_root "
-                 "code={} outcome=failed reason={}",
+                 "code={} operation=await_start_cancellation outcome=failed "
+                 "recoverable={} reason={}",
                  StableErrorCode(error.code),
+                 error.recoverable,
                  error.reason);
             CompleteSafely(completion, std::unexpected(error));
             co_return;
@@ -338,8 +346,10 @@ PxAwaitable<void> RenderCompositionRoot::RunStop(
 
     if (stop_error) {
         LOGE("event=composition.stop component=render_composition_root "
-             "code={} outcome=completed_with_error reason={}",
+             "code={} operation=stop outcome=completed_with_error "
+             "recoverable={} reason={}",
              StableErrorCode(stop_error->code),
+             stop_error->recoverable,
              stop_error->reason);
         CompleteSafely(completion, std::unexpected(std::move(*stop_error)));
     }
@@ -387,7 +397,7 @@ RenderCompositionRoot::StopRegistrations(
                 BuiltinModuleRuntimeState::kFailed,
                 result.error()));
             LOGE("event=module.stop component={} module={} code={} "
-                 "outcome=failed recoverable={} reason={}",
+                 "operation=stop outcome=failed recoverable={} reason={}",
                  result.error().component,
                  module_id,
                  StableErrorCode(result.error().code),

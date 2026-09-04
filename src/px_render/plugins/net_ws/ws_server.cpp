@@ -12,6 +12,7 @@
 #include <optional>
 #include <filesystem>
 #include "px_common_new/log.h"
+#include "px_common_new/privacy_log.h"
 #include "px_common_new/time_util.h"
 #include "px_common_new/data.h"
 #include "px_common_new/file.h"
@@ -365,6 +366,7 @@ namespace px
             Exit();
         }
         exiting_ = false;
+        transport_performance_.Reset(std::chrono::steady_clock::now());
         async_runtime_ = PxAsyncRuntime::Create({.worker_threads = 2});
         if (!async_runtime_ || !async_runtime_->Start()) {
             LOGE("event=module.start component=net_ws code=ASYNC_RUNTIME_START_FAILED "
@@ -390,7 +392,8 @@ namespace px
                                                 val->logical_session_id_, val->stream_id_, false, true);
                 self->CloseLogicalSessionBinding(val->logical_session_id_, val->binding_id_);
                 self->NotifyMediaClientDisConnected(val->conn_id_, val->stream_id_, val->visitor_device_id_, val->created_timestamp_, val->binding_id_, val->logical_session_id_);
-                LOGI("client session removed: {}", val->visitor_device_id_);
+                LOGI("event=session.close component=net_ws outcome=removed "
+                     "device={}", PrivacyLogId(val->visitor_device_id_));
                 LOGI("App server media close, media router size: {}", self->stream_routers_.Size());
             }
             else if (auto removed = self->ft_routers_.Remove(socket_fd);
@@ -476,7 +479,9 @@ namespace px
         AddWebClientRouter();
 
         if (listen_port_ <= 0) {
-            LOGE("Listen port invalid: {}", listen_port_);
+            LOGE("event=module.start component=net_ws code=WS_LISTEN_PORT_INVALID "
+                 "operation=start_server outcome=failed recoverable=false port={}",
+                 listen_port_);
         }
         bool ret = server_->start("0.0.0.0", std::to_string(listen_port_));
         LOGI("App server start result: {}, listen port: {}", ret, listen_port_);
@@ -523,12 +528,25 @@ namespace px
     }
 
     void WsPluginServer::PostNetMessage(std::shared_ptr<Data> msg) {
+        if (!msg) {
+            return;
+        }
         const bool is_media_frame = IsMediaFrameMessage(msg);
         const bool is_clipboard_message = IsClipboardProtocolMessage(msg);
         stream_routers_.ApplyAll([=](const uint64_t& socket_fd, const std::shared_ptr<WsStreamRouter>& router) {
             static_cast<void>(socket_fd);
             if (is_clipboard_message && !router->clipboard_allowed_.load()) {
-                LOGW("Drop outbound clipboard message for WS session without clipboard permission");
+                transport_performance_.ObserveDropped();
+                const auto decision = warning_log_gate_.Evaluate(
+                    "clipboard:" + router->stream_id_,
+                    std::chrono::steady_clock::now());
+                if (decision.emit) {
+                    LOGW("event=transport.send component=net_ws "
+                         "code=SESSION_CAPABILITY_DENIED operation=clipboard "
+                         "outcome=dropped recoverable=true stream={} suppressed={}",
+                         PrivacyLogId(router->stream_id_),
+                         decision.suppressed_since_last_emit);
+                }
                 return;
             }
             // udp_media 客户端的媒体帧走 UDP 通道,ws 只发控制消息
@@ -536,6 +554,7 @@ namespace px
                 return;
             }
             router->PostBinaryMessage(msg);
+            transport_performance_.ObserveOutbound(msg->Size());
         });
     }
 
@@ -573,13 +592,18 @@ namespace px
                 return;
             }
             sess->async_send(payload);
+            transport_performance_.ObserveOutbound(payload.size());
             ++sent;
         });
         if (sent == 0) {
+            transport_performance_.ObserveDropped();
             static std::atomic<uint64_t> s_drop{0};
             const auto n = ++s_drop;
             if (n == 1 || (n % 100) == 0) {
-                LOGW("PostIpcBinaryMessage: no /ipc session, drop n={} bytes={}", n, payload.size());
+                LOGW("event=transport.send component=net_ws "
+                     "code=TRANSPORT_ROUTE_UNAVAILABLE operation=ipc_downlink "
+                     "outcome=dropped recoverable=true count={} bytes={}",
+                     n, payload.size());
             }
         } else {
             static std::atomic<uint64_t> s_ok{0};
@@ -599,7 +623,17 @@ namespace px
             if (stream_id == router->stream_id_ || stream_id.empty()) {
                 found_target_stream = true;
                 if (is_clipboard_message && !router->clipboard_allowed_.load()) {
-                    LOGW("Drop targeted outbound clipboard message for WS session without clipboard permission");
+                    transport_performance_.ObserveDropped();
+                    const auto decision = warning_log_gate_.Evaluate(
+                        "target_clipboard:" + router->stream_id_,
+                        std::chrono::steady_clock::now());
+                    if (decision.emit) {
+                        LOGW("event=transport.send component=net_ws "
+                             "code=SESSION_CAPABILITY_DENIED operation=clipboard "
+                             "outcome=dropped recoverable=true stream={} suppressed={}",
+                             PrivacyLogId(router->stream_id_),
+                             decision.suppressed_since_last_emit);
+                    }
                     return;
                 }
                 // udp_media 客户端的媒体帧走 UDP 通道,ws 只发控制消息
@@ -607,6 +641,7 @@ namespace px
                     return;
                 }
                 router->PostBinaryMessage(msg);
+                transport_performance_.ObserveOutbound(msg ? msg->Size() : 0);
             }
         });
         return found_target_stream;
@@ -633,6 +668,9 @@ namespace px
         });
         if (result.status() == FileTransferSendStatus::kAccepted
             || result.status() == FileTransferSendStatus::kBusy) {
+            if (result.status() == FileTransferSendStatus::kAccepted) {
+                transport_performance_.ObserveOutbound(msg->Size());
+            }
             return result;
         }
         // UDP-direct intentionally multiplexes reliable file traffic over its
@@ -647,6 +685,9 @@ namespace px
                 result = router->TryPostFileTransferMessage(msg);
             }
         });
+        if (result.status() == FileTransferSendStatus::kAccepted) {
+            transport_performance_.ObserveOutbound(msg->Size());
+        }
         return result;
     }
 
@@ -678,8 +719,12 @@ namespace px
         if (user_proxy_router_ && user_proxy_router_->IsConnected()) {
             LOGI("PostUserProxyMessage ok, len={}", msg->Size());
             user_proxy_router_->PostBinaryMessage(msg);
+            transport_performance_.ObserveOutbound(msg->Size());
         } else {
-            LOGW("user-proxy not connected, drop clipboard message, len={}", msg->Size());
+            LOGW("event=transport.send component=net_ws "
+                 "code=TRANSPORT_ROUTE_UNAVAILABLE operation=user_proxy "
+                 "outcome=dropped recoverable=true bytes={}", msg->Size());
+            transport_performance_.ObserveDropped();
         }
 #endif
     }
@@ -700,7 +745,10 @@ namespace px
             return (uint64_t)sess_ptr->socket().native_handle();
         };
         server_->bind(kUrlUserProxy, websocket::listener<asio2::http_session>{}
-            .on("message", [weak_router, fn_get_socket_fd](std::shared_ptr<asio2::http_session> &sess_ptr, std::string_view data) {
+            .on("message", [weak_self, weak_router, fn_get_socket_fd](std::shared_ptr<asio2::http_session> &sess_ptr, std::string_view data) {
+                if (const auto self = weak_self.lock(); self && !self->exiting_) {
+                    self->transport_performance_.ObserveInbound(data.size());
+                }
                 if (auto router = weak_router.lock()) {
                     auto socket_fd = fn_get_socket_fd(sess_ptr);
                     router->OnMessage(sess_ptr, socket_fd, data);
@@ -713,11 +761,15 @@ namespace px
                 }
                 if (auto router = weak_router.lock()) {
                     router->OnOpen(sess_ptr);
+                    self->transport_performance_.ObserveConnected();
                 }
             })
-            .on("close", [weak_router, fn_get_socket_fd](std::shared_ptr<asio2::http_session> &sess_ptr) {
+            .on("close", [weak_self, weak_router, fn_get_socket_fd](std::shared_ptr<asio2::http_session> &sess_ptr) {
                 if (auto router = weak_router.lock()) {
                     router->OnClose(sess_ptr);
+                }
+                if (const auto self = weak_self.lock()) {
+                    self->transport_performance_.ObserveDisconnected();
                 }
             })
         );
@@ -762,9 +814,50 @@ namespace px
         }
     }
 
+    void WsPluginServer::ReportPerformance() {
+        const auto media_queue = std::max<std::int64_t>(
+            0, GetQueuingMediaMsgCount());
+        const auto file_queue = std::max<std::int64_t>(
+            0, GetQueuingFtMsgCount());
+        const auto queue_depth = static_cast<std::size_t>(
+            media_queue + file_queue);
+        const auto active_connections = stream_routers_.Size() +
+            ft_routers_.Size() + ipc_sessions_.Size() +
+            (IsUserProxyConnected() ? 1U : 0U);
+        const auto snapshot = transport_performance_.SnapshotAndReset(
+            std::chrono::steady_clock::now(), active_connections, queue_depth);
+        if (!snapshot) {
+            return;
+        }
+        const auto activity = snapshot->inbound_messages +
+            snapshot->outbound_messages + snapshot->dropped_messages +
+            snapshot->connected + snapshot->disconnected;
+        if (activity == 0 && snapshot->active_connections == 0 &&
+            snapshot->queue_depth == 0) {
+            return;
+        }
+        const auto seconds = static_cast<double>(snapshot->window_ms) / 1000.0;
+        LOGI("event=transport.window component=net_ws transport=ws "
+             "window_ms={} active_connections={} connected={} disconnected={} "
+             "inbound_messages={} inbound_bytes={} inbound_mps={:.2f} "
+             "outbound_messages={} outbound_bytes={} outbound_mps={:.2f} "
+             "bytes_per_second={:.2f} dropped={} queue_depth={} "
+             "queue_high_watermark={} outcome=sampled",
+             snapshot->window_ms, snapshot->active_connections,
+             snapshot->connected, snapshot->disconnected,
+             snapshot->inbound_messages, snapshot->inbound_bytes,
+             static_cast<double>(snapshot->inbound_messages) / seconds,
+             snapshot->outbound_messages, snapshot->outbound_bytes,
+             static_cast<double>(snapshot->outbound_messages) / seconds,
+             static_cast<double>(snapshot->inbound_bytes +
+                                 snapshot->outbound_bytes) / seconds,
+             snapshot->dropped_messages, snapshot->queue_depth,
+             snapshot->queue_high_watermark);
+    }
+
     void WsPluginServer::AddIpcRouter() {
         // Injected px_gh.dll posts CaptureVideoFrame / IpcCaptureAudioFrame blobs.
-        // Forward via plugin event bus (same path as DDA / MiniAudio) — no link to rdApp.
+        // Decode into owned values and publish through the explicitly injected media ingress.
         auto weak_self = weak_from_this();
         server_->bind(kUrlIpc, websocket::listener<asio2::http_session>{}
             .on("message", [weak_self](std::shared_ptr<asio2::http_session> &sess_ptr, std::string_view data) {
@@ -772,6 +865,7 @@ namespace px
                 if (!self || self->exiting_ || self->plugin_.expired()) {
                     return;
                 }
+                self->transport_performance_.ObserveInbound(data.size());
                 if (data.size() < sizeof(CaptureBaseMessage)) {
                     return;
                 }
@@ -782,15 +876,18 @@ namespace px
                 }
                 if (*first_u32 == kIpcCaptureVideoFrameMagic) {
                     if (data.size() != sizeof(IpcCaptureVideoFrame)) {
-                        LOGE("IPC IpcCaptureVideoFrame size mismatch: got {}, expect {}",
+                        LOGE("event=transport.receive component=net_ws "
+                             "code=IPC_VIDEO_SIZE_MISMATCH operation=decode_ipc_video "
+                             "outcome=dropped recoverable=true bytes={} expected_bytes={}",
                              data.size(), sizeof(IpcCaptureVideoFrame));
                         return;
                     }
                     const auto ipc_msg = DecodeWireValue<IpcCaptureVideoFrame>(data);
                     if (!ipc_msg || ipc_msg->version_ != kIpcCaptureVideoFrameVersion
                         || ipc_msg->type_ != kCaptureVideoFrame) {
-                        LOGW("IPC video frame version/type mismatch: ver={} type={:#x}, drop "
-                             "(render and px_gh.dll must be updated together)",
+                        LOGW("event=transport.receive component=net_ws "
+                             "code=IPC_VIDEO_VERSION_MISMATCH operation=decode_ipc_video "
+                             "outcome=dropped recoverable=true version={} type={:#x}",
                              ipc_msg->version_, ipc_msg->type_);
                         return;
                     }
@@ -799,7 +896,9 @@ namespace px
                         static std::atomic<uint64_t> s_bad_size{0};
                         const auto n = ++s_bad_size;
                         if (n == 1 || (n % 100) == 0) {
-                            LOGW("IPC video frame invalid size: {}x{}, drop n={}",
+                            LOGW("event=transport.receive component=net_ws "
+                                 "code=PIPELINE_INVALID_FRAME operation=decode_ipc_video "
+                                 "outcome=dropped recoverable=true width={} height={} count={}",
                                  ipc_msg->frame_width_, ipc_msg->frame_height_, n);
                         }
                         return;
@@ -834,14 +933,17 @@ namespace px
                     static std::atomic<uint64_t> s_legacy{0};
                     const auto n = ++s_legacy;
                     if (n == 1 || (n % 100) == 0) {
-                        LOGW("IPC legacy CaptureVideoFrame blob rejected n={} "
-                             "(upgrade px_gh.dll)", n);
+                        LOGW("event=transport.receive component=net_ws "
+                             "code=IPC_LEGACY_VIDEO_REJECTED operation=decode_ipc_video "
+                             "outcome=dropped recoverable=true count={}", n);
                     }
                     return;
                 }
                 if (*first_u32 == kCaptureAudioFrame) {
                     if (data.size() < sizeof(IpcCaptureAudioFrame)) {
-                        LOGE("IPC audio frame too small: {}", data.size());
+                        LOGE("event=transport.receive component=net_ws "
+                             "code=IPC_AUDIO_SIZE_MISMATCH operation=decode_ipc_audio "
+                             "outcome=dropped recoverable=true bytes={}", data.size());
                         return;
                     }
                     const auto hdr = DecodeWireValue<IpcCaptureAudioFrame>(data);
@@ -850,14 +952,19 @@ namespace px
                     }
                     const size_t expect = sizeof(IpcCaptureAudioFrame) + hdr->data_length;
                     if (data.size() != expect || hdr->data_length == 0) {
-                        LOGE("IPC audio size mismatch: got={}, expect={}, pcm={}", data.size(),
-                             expect, hdr->data_length);
+                        LOGE("event=transport.receive component=net_ws "
+                             "code=IPC_AUDIO_SIZE_MISMATCH operation=decode_ipc_audio "
+                             "outcome=dropped recoverable=true bytes={} expected_bytes={} "
+                             "pcm_bytes={}", data.size(), expect, hdr->data_length);
                         return;
                     }
                     auto pcm = Data::From(std::string(
                         data.substr(sizeof(IpcCaptureAudioFrame))));
                     if (!pcm) {
-                        LOGE("IPC audio: Data::Make failed pcm={}", hdr->data_length);
+                        LOGE("event=transport.receive component=net_ws "
+                             "code=IPC_AUDIO_ALLOCATION_FAILED operation=decode_ipc_audio "
+                             "outcome=dropped recoverable=true pcm_bytes={}",
+                             hdr->data_length);
                         return;
                     }
                     CaptureAudioFrame frame;
@@ -889,8 +996,10 @@ namespace px
                 if (!IsLoopbackAddress(remote_addr)) {
                     // /ipc is for the injected dll only; refuse remote peers so they
                     // can neither push forged frames nor sniff the input downlink.
-                    LOGW("IPC (/ipc) rejected non-loopback client {}:{}, closing",
-                         remote_addr, sess_ptr->remote_port());
+                    LOGW("event=session.admit component=net_ws "
+                         "code=SESSION_PEER_NOT_LOCAL operation=validate_ipc_peer "
+                         "outcome=rejected recoverable=false peer={} port={}",
+                         PrivacyLogId(remote_addr), sess_ptr->remote_port());
                     sess_ptr->stop();
                     return;
                 }
@@ -908,8 +1017,11 @@ namespace px
                     static std::atomic<uint64_t> s_reject{0};
                     const auto n = ++s_reject;
                     if (n == 1 || (n % 50) == 0) {
-                        LOGW("IPC (/ipc) rejected unregistered pid={} from {}:{}, closing n={}",
-                             client_pid, remote_addr, sess_ptr->remote_port(), n);
+                        LOGW("event=session.admit component=net_ws "
+                             "code=SESSION_IPC_PID_UNREGISTERED operation=validate_ipc_pid "
+                             "outcome=rejected recoverable=false pid={} peer={} port={} count={}",
+                             client_pid, PrivacyLogId(remote_addr),
+                             sess_ptr->remote_port(), n);
                     }
                     sess_ptr->stop();
                     return;
@@ -919,8 +1031,10 @@ namespace px
                 const auto socket_fd = (uint64_t)sess_ptr->socket().native_handle();
                 self->ipc_sessions_.Insert(socket_fd, sess_ptr);
                 self->ipc_session_pids_.Insert(socket_fd, client_pid);
-                LOGI("IPC (/ipc) client connected from {}:{} fd={} pid={} sessions={}",
-                     sess_ptr->remote_address().c_str(), sess_ptr->remote_port(), socket_fd,
+                self->transport_performance_.ObserveConnected();
+                LOGI("event=session.admit component=net_ws outcome=connected "
+                     "route=ipc peer={} port={} fd={} pid={} sessions={}",
+                     PrivacyLogId(remote_addr), sess_ptr->remote_port(), socket_fd,
                      client_pid, self->ipc_sessions_.Size());
             })
             .on("close", [weak_self](std::shared_ptr<asio2::http_session> &sess_ptr) {
@@ -932,6 +1046,7 @@ namespace px
                 uint32_t pid = self->ipc_session_pids_.TryGet(socket_fd).value_or(0);
                 self->ipc_session_pids_.Remove(socket_fd);
                 self->ipc_sessions_.Remove(socket_fd);
+                self->transport_performance_.ObserveDisconnected();
                 // 进程已死才注销;活进程的瞬时断线靠重连恢复,注册保留
                 self->UnregisterIpcPidIfDead(pid);
                 LOGI("IPC (/ipc) client disconnected fd={} pid={} remaining={}", socket_fd,
@@ -958,6 +1073,7 @@ namespace px
             LOGW("event=session.admit component=net_ws code={} "
                  "operation=redeem_ticket outcome=rejected recoverable={} reason={}",
                  error.StableCode(), error.retryable, error.message);
+            server->transport_performance_.ObserveDropped();
             RejectWebSocketSession(session, kWsAuthorizationRejectedSignal);
             co_return;
         }
@@ -968,6 +1084,7 @@ namespace px
         if (stream_id.empty() || stream_id != ticket.stream_id_) {
             LOGW("event=session.admit component=net_ws code=SESSION_STREAM_MISMATCH "
                  "operation=validate_route outcome=rejected recoverable=false");
+            server->transport_performance_.ObserveDropped();
             RejectWebSocketSession(session, kWsAuthorizationRejectedSignal);
             co_return;
         }
@@ -976,6 +1093,7 @@ namespace px
                       "file") == ticket.permissions_.end()) {
             LOGW("event=session.admit component=net_ws code=SESSION_CAPABILITY_DENIED "
                  "operation=file_transfer outcome=rejected recoverable=false");
+            server->transport_performance_.ObserveDropped();
             RejectWebSocketSession(session, kWsSessionRejectedSignal);
             co_return;
         }
@@ -1009,6 +1127,7 @@ namespace px
                  code, !admission_result.HasValue() &&
                            admission_result.Error().retryable,
                  occupied);
+            server->transport_performance_.ObserveDropped();
             RejectWebSocketSession(
                 session,
                 occupied ? kWsSessionOccupiedSignal : kWsSessionRejectedSignal);
@@ -1054,11 +1173,9 @@ namespace px
             return;
         }
         for (const auto& [key, value] : params) {
-            const bool sensitive = key == "ticket" || key == "appkey" ||
-                key == "client_nonce" || key == "udp_media_association" ||
-                key.find("pwd") != std::string::npos;
-            LOGI("query param, k: {}, v: {}", key,
-                 sensitive ? "<redacted>" : value);
+            static_cast<void>(value);
+            LOGI("event=transport.query component=net_ws key={} value=<redacted>",
+                 key);
         }
         LOGI("App server {} open", path);
         const auto value_or_empty = [&params](const std::string& key) {
@@ -1076,8 +1193,10 @@ namespace px
             udp_media_association_code =
                 value_or_empty("udp_media_association");
             if (udp_media_association_code.empty()) {
-                LOGW("WS UDP media requested without a control-plane association; "
-                     "keep WS media");
+                LOGW("event=transport.route component=net_ws "
+                     "code=TRANSPORT_ASSOCIATION_MISSING operation=udp_association "
+                     "outcome=websocket_fallback recoverable=true stream={}",
+                     PrivacyLogId(stream_id));
                 udp_media = false;
             }
             else {
@@ -1158,6 +1277,7 @@ namespace px
                 if (!self || self->exiting_) {
                     return;
                 }
+                self->transport_performance_.ObserveInbound(data.size());
                 auto socket_fd = fn_get_socket_fd(sess_ptr);
                 if (path == kUrlMedia) {
                     self->stream_routers_.VisitAll([=](auto k, std::shared_ptr<WsStreamRouter>& router) mutable {
@@ -1179,6 +1299,7 @@ namespace px
                 if (!self || self->exiting_ || !self->async_scope_) {
                     return;
                 }
+                self->transport_performance_.ObserveConnected();
                 const auto query = sess_ptr->get_request().get_query();
                 auto params = UrlHelper::ParseQueryString(
                     std::string(query.data(), query.size()));
@@ -1192,6 +1313,7 @@ namespace px
                                 weak_self, session, path, std::move(params),
                                 socket_fd);
                         })) {
+                    self->transport_performance_.ObserveDropped();
                     RejectWebSocketSession(
                         sess_ptr, kWsAuthorizationRejectedSignal);
                 }
@@ -1201,6 +1323,7 @@ namespace px
                 if (!self || self->exiting_) {
                     return;
                 }
+                self->transport_performance_.ObserveDisconnected();
                 auto socket_fd = fn_get_socket_fd(sess_ptr);
                 LOGI("client closed: {}", socket_fd);
                 if (path == kUrlMedia) {
@@ -1210,7 +1333,8 @@ namespace px
                                                         val->logical_session_id_, val->stream_id_, false, true);
                         self->CloseLogicalSessionBinding(val->logical_session_id_, val->binding_id_);
                         self->NotifyMediaClientDisConnected(val->conn_id_, val->stream_id_, val->visitor_device_id_, val->created_timestamp_, val->binding_id_, val->logical_session_id_);
-                        LOGI("client session removed: {}", val->visitor_device_id_);
+                        LOGI("event=session.close component=net_ws outcome=removed "
+                             "device={}", PrivacyLogId(val->visitor_device_id_));
                     }
                 }
                 else if (path == kUrlFileTransfer) {
@@ -1268,12 +1392,15 @@ namespace px
             .revoke_ = revoke,
         });
         if (!updated) {
-            LOGE("Cannot {} UDP media association: net_udp service is unavailable, stream={}",
-                 revoke ? "revoke" : "register", stream_id);
+            LOGE("event=transport.route component=net_ws "
+                 "code=MODULE_DEPENDENCY_UNAVAILABLE operation=udp_association "
+                 "outcome=failed recoverable=true action={} stream={}",
+                 revoke ? "revoke" : "register", PrivacyLogId(stream_id));
             return;
         }
-        LOGI("{} UDP media association through authenticated WS control, stream={}",
-             revoke ? "Revoked" : "Registered", stream_id);
+        LOGI("event=transport.route component=net_ws operation=udp_association "
+             "outcome=success action={} stream={}",
+             revoke ? "revoke" : "register", PrivacyLogId(stream_id));
     }
 
     void WsPluginServer::AddHttpRouter(const std::string &path,
@@ -1293,7 +1420,9 @@ namespace px
         auto web_client_dir = std::filesystem::path(FolderUtil::GetCurrentFolderPath()) / "web_client";
         std::error_code ec;
         if (!std::filesystem::is_directory(web_client_dir, ec)) {
-            LOGW("web client dir not found: {}, skip /web_client hosting.", web_client_dir.string());
+            LOGW("event=module.start component=net_ws "
+                 "code=WEB_CLIENT_DIRECTORY_MISSING operation=serve_web_client "
+                 "outcome=disabled recoverable=true");
             return;
         }
 
@@ -1316,7 +1445,9 @@ namespace px
                 || !std::filesystem::is_regular_file(web_client_dir / std::filesystem::path(rel), fs_ec)) {
                 rel = "index.html";
             }
-            LOGI("web client request: {} => {}", url_path, rel);
+            LOGI("event=transport.http component=net_ws operation=serve_web_client "
+                 "outcome=success route={} asset={}",
+                 PrivacyLogId(url_path), PrivacyLogId(rel));
             // note: asio2 detail::make_filepath appends `path` with operator+= (no separator),
             // so the path must carry a leading '/'
             rep.fill_file(std::filesystem::path("/") / rel);
@@ -1339,7 +1470,8 @@ namespace px
             }
             fn_serve(req, rep);
         }, aop_log{});
-        LOGI("host web client pages at /web_client/, dir: {}", web_client_dir.string());
+        LOGI("event=module.start component=net_ws operation=serve_web_client "
+             "outcome=success route=/web_client");
     }
 
     void WsPluginServer::NotifyMediaClientConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id) {
@@ -1352,7 +1484,9 @@ namespace px
         if (const auto plugin = plugin_.lock()) {
             plugin->CallbackEvent(event);
         }
-        LOGI("Conn id: {}, device id: {}", stream_id, visitor_device_id);
+        LOGI("event=session.admit component=net_ws outcome=connected "
+             "stream={} device={}",
+             PrivacyLogId(stream_id), PrivacyLogId(visitor_device_id));
     }
 
     void WsPluginServer::NotifyMediaClientDisConnected(
@@ -1407,8 +1541,11 @@ namespace px
 
     void WsPluginServer::OnClientHello(const std::shared_ptr<MsgClientHello>& event) {
         stream_routers_.VisitAll([&](const auto&, const std::shared_ptr<WsStreamRouter>& router) {
-            LOGI("*** OnClientHello, evt stream id: {}, router stream id: {}, device name: {}",
-                 event->stream_id_, router->stream_id_, event->device_name_);
+            LOGI("event=session.hello component=net_ws outcome=received "
+                 "event_stream={} router_stream={} device={}",
+                 PrivacyLogId(event->stream_id_),
+                 PrivacyLogId(router->stream_id_),
+                 PrivacyLogId(event->device_name_));
             if (router->stream_id_ == event->stream_id_) {
                 {
                     std::lock_guard<std::mutex> lock(router->device_name_mtx_);

@@ -16,6 +16,7 @@
 #include "diagnostics/rate_limited_log.h"
 #include "diagnostics/render_error.h"
 #include "diagnostics/render_log_context.h"
+#include "diagnostics/transport_performance_window.h"
 #include "pipeline/bounded_media_queue.h"
 #include "pipeline/media_types.h"
 #include "modules/builtin_module_catalog.h"
@@ -285,6 +286,62 @@ TEST(RenderArchitectureDiagnostics, PerformanceWindowIsBoundedAndResettable) {
     snapshot = window.Snapshot();
     EXPECT_EQ(snapshot.total_observations, 0U);
     EXPECT_EQ(snapshot.sample_count, 0U);
+}
+
+TEST(RenderArchitectureDiagnostics, TransportWindowAggregatesAndResets) {
+    const auto start = std::chrono::steady_clock::time_point{};
+    TransportPerformanceWindow window(5s, start);
+    window.ObserveInbound(100);
+    window.ObserveInbound(50);
+    window.ObserveOutbound(75);
+    window.ObserveDropped();
+    window.ObserveConnected();
+    window.ObserveDisconnected();
+    window.ObserveQueueDepth(3);
+    window.ObserveQueueDepth(9);
+
+    EXPECT_FALSE(window.SnapshotAndReset(start + 4s, 2, 4));
+    const auto snapshot = window.SnapshotAndReset(start + 5s, 2, 4);
+    ASSERT_TRUE(snapshot);
+    EXPECT_EQ(snapshot->window_ms, 5000U);
+    EXPECT_EQ(snapshot->inbound_messages, 2U);
+    EXPECT_EQ(snapshot->inbound_bytes, 150U);
+    EXPECT_EQ(snapshot->outbound_messages, 1U);
+    EXPECT_EQ(snapshot->outbound_bytes, 75U);
+    EXPECT_EQ(snapshot->dropped_messages, 1U);
+    EXPECT_EQ(snapshot->connected, 1U);
+    EXPECT_EQ(snapshot->disconnected, 1U);
+    EXPECT_EQ(snapshot->active_connections, 2U);
+    EXPECT_EQ(snapshot->queue_depth, 4U);
+    EXPECT_EQ(snapshot->queue_high_watermark, 9U);
+
+    const auto empty = window.SnapshotAndReset(start + 10s, 0, 0);
+    ASSERT_TRUE(empty);
+    EXPECT_EQ(empty->inbound_messages, 0U);
+    EXPECT_EQ(empty->outbound_messages, 0U);
+    EXPECT_EQ(empty->queue_high_watermark, 4U);
+}
+
+TEST(RenderArchitectureDiagnostics, TransportWindowAccountingIsConcurrent) {
+    const auto start = std::chrono::steady_clock::time_point{};
+    const auto window = std::make_shared<TransportPerformanceWindow>(1s, start);
+    std::vector<std::jthread> writers;
+    for (int worker = 0; worker < 4; ++worker) {
+        writers.emplace_back([window]() {
+            for (int sample = 0; sample < 1000; ++sample) {
+                window->ObserveInbound(2);
+                window->ObserveOutbound(3);
+            }
+        });
+    }
+    writers.clear();
+
+    const auto snapshot = window->SnapshotAndReset(start + 1s, 1, 0);
+    ASSERT_TRUE(snapshot);
+    EXPECT_EQ(snapshot->inbound_messages, 4000U);
+    EXPECT_EQ(snapshot->inbound_bytes, 8000U);
+    EXPECT_EQ(snapshot->outbound_messages, 4000U);
+    EXPECT_EQ(snapshot->outbound_bytes, 12000U);
 }
 
 TEST(RenderArchitectureDiagnostics, LogContextIsOwnedValueState) {

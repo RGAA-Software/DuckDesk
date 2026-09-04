@@ -4,6 +4,7 @@
 #include "http_handler.h"
 #include "version_config.h"
 #include "px_common_new/log.h"
+#include "px_common_new/privacy_log.h"
 #include "px_common_new/md5.h"
 #include "px_common_new/data.h"
 #include "px_common_new/uuid.h"
@@ -223,11 +224,10 @@ namespace px
             SendErrorJson(resp, kHandlerErrNoRtcLocalPlugin);
             return;
         }
-        LOGI("req host:port, {}:{}, target: /alloc/local/rtc",
-             req.host(), req.port());
-        LOGI("req, remote: {} {} , client: {} {}",
-             session_ptr->remote_address().c_str(), session_ptr->remote_port(),
-             session_ptr->local_address().c_str(), session_ptr->local_port());
+        LOGI("event=workflow.start component=net_ws operation=rtc_local_allocate "
+             "outcome=accepted peer={} remote_port={} local_port={}",
+             PrivacyLogId(session_ptr->remote_address()),
+             session_ptr->remote_port(), session_ptr->local_port());
         auto params = GetQueryParams(req.query());
         auto body = std::string(req.body());
         auto remote_address = std::string(session_ptr->remote_address());
@@ -469,9 +469,11 @@ namespace px
             };
             if (direct_session_grant.empty()) {
                 if (!self->VerifySafetyPassword(params)) {
-                    LOGW("Direct RTC audit: result=initial_auth_rejected "
-                         "device={} subject_hash={}",
-                         device_id, DirectAuditSubject(direct_grant_binding));
+                    LOGW("event=session.admit component=net_ws "
+                         "code=SESSION_PASSWORD_REJECTED operation=direct_rtc_auth "
+                         "outcome=rejected recoverable=false device={} subject={}",
+                         PrivacyLogId(device_id),
+                         PrivacyLogId(DirectAuditSubject(direct_grant_binding)));
                     complete(make_reply(
                         kHandlerErrVerifySafetyPasswordFailed,
                         http::status::forbidden));
@@ -481,9 +483,11 @@ namespace px
             else if (!self->direct_session_grants_.Redeem(
                 direct_session_grant, direct_grant_binding,
                 CurrentSystemMilliseconds())) {
-                LOGW("Direct RTC audit: result=grant_rejected device={} "
-                     "subject_hash={}",
-                     device_id, DirectAuditSubject(direct_grant_binding));
+                LOGW("event=session.admit component=net_ws "
+                     "code=SESSION_DIRECT_GRANT_REJECTED operation=redeem_direct_grant "
+                     "outcome=rejected recoverable=false device={} subject={}",
+                     PrivacyLogId(device_id),
+                     PrivacyLogId(DirectAuditSubject(direct_grant_binding)));
                 complete(make_reply(
                     kHandlerErrDirectGrantRejected,
                     http::status::forbidden));
@@ -562,9 +566,12 @@ namespace px
                 ? kHandlerErrRtcLocalOccupied
                 : kHandlerErrConnectionTicketRejected;
             if (direct_access && !password_only_ip_direct) {
-                LOGW("Direct RTC audit: result=admission_rejected device={} "
-                     "subject_hash={} code={}",
-                     device_id, DirectAuditSubject(direct_grant_binding), code);
+                LOGW("event=session.admit component=net_ws "
+                     "code=SESSION_ADMISSION_DENIED operation=admit_direct_rtc "
+                     "outcome=rejected recoverable=false device={} subject={} "
+                     "response_code={}",
+                     PrivacyLogId(device_id),
+                     PrivacyLogId(DirectAuditSubject(direct_grant_binding)), code);
             }
             complete(make_reply(code, http::status::forbidden));
             co_return;
@@ -683,9 +690,10 @@ namespace px
                     direct_grant_binding, now_ms);
             result["direct_session_grant_expires_at_ms"] = now_ms +
                 DirectSessionGrantStore::kLifetimeMilliseconds;
-            LOGI("Direct RTC audit: result=admitted device={} subject_hash={} "
-                 "takeover={}",
-                 device_id, DirectAuditSubject(direct_grant_binding),
+            LOGI("event=session.admit component=net_ws operation=direct_rtc "
+                 "outcome=accepted device={} subject={} takeover={}",
+                 PrivacyLogId(device_id),
+                 PrivacyLogId(DirectAuditSubject(direct_grant_binding)),
                  rtc_request->takeover_);
         }
         complete(DeferredHttpReply{

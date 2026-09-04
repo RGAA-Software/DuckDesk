@@ -2,6 +2,7 @@ add_library(render_architecture_core STATIC
     diagnostics/performance_window.cpp
     diagnostics/rate_limited_log.cpp
     diagnostics/render_error.cpp
+    diagnostics/transport_performance_window.cpp
     modules/builtin_module_catalog.cpp
     network/network_transport_hub.cpp
     observers/frame_debugger_observer.cpp

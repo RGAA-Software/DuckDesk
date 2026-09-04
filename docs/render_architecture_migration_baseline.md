@@ -410,3 +410,34 @@ gate 通过，privacy scan 无命中。`hardware` 模式的 2 个用例因本机
 按预期 SKIP；`performance` 模式明确标记需要固定验收硬件/profile。发布后 `px_render.exe`
 SHA-256 为 `759D47A96BD244FFCA7C8F6CD90B4EFD18B6BB770F2CFD9A6C68F4F89717FF3F`，build tree 与
 dist 一致，两个 WebRTC DLL 哈希仍保持不变。
+
+### 阶段 16：结构化日志合规与 WS 性能窗口
+
+- 架构核心与内置 WS 的所有 WARN/ERROR 均必须带有稳定
+  `event/component/code/operation/outcome/recoverable` 字段。架构边界脚本现在会
+  扫描这两个生产区域，字段缺失将直接使 L0 门禁失败。
+- 显示器、stream、device 和 peer 标识在日志边界统一经过 `PrivacyLogId`；
+  WS query 只记录 key，value 一律输出 `<redacted>`；web client 本地路径不再进入
+  日志。门禁同时拒绝在这些标识字段上绕过脱敏函数。
+- 剪贴板与文件传输权限拒绝使用有界 `RateLimitedLogGate`：首次立即输出，
+  五秒窗口内抑制重复日志，后续摘要携带 `suppressed`。限频 key 容量固定，
+  不会由动态 session 标识导致无界内存增长。
+- 新增 `TransportPerformanceWindow`。WS 高频 callback 只做 relaxed atomic 计数，
+  `On1Second` 驱动的 control path 每五秒产生 `event=transport.window`，汇总活跃连接、
+  connect/disconnect、收发消息与字节速率、真实 drop、当前队列和 high watermark。
+  空闲窗口不输出误导性的零值日志，start 会 reset 旧窗口。
+- 统计实现是值类型/RAII owner，不保存回调、transport 或 session 借用对象；
+  新增单测使用 manual `steady_clock` 精确验证窗口间隔、聚合、reset、queue high
+  watermark 与四线程并发计数。架构门禁还要求 WS 生产接线持续保留
+  inbound/outbound/drop 计数、窗口 snapshot 和稳定事件名。
+- 本批次继续遵守零裸指针和异步弱引用规则；ownership 与 async lifetime gate
+  均通过。最终统一 runner 的 2 个 L0 门禁和 28 个 L1-L3 测试全部 PASS，
+  无非预期 ERROR，privacy scan PASS。
+- 发布后 `px_render.exe` 的 SHA-256 为
+  `957656CDAE84522B1F1B7BD81B17F4B94948E64B2AD7ECA44943163C25DB2966`；build tree 与
+  `build_official/dist` 一致。WebRTC 两个 DLL 保持原哈希，dist 的 Render 插件目录
+  仍只有这两个动态网络库。
+
+本机可自动化的架构迁移开发到此闭环。真实 WAS/PID 音频、GPU/多显示器、
+LAN 弱网、主观音画、30 分钟压力与 8 小时 soak 仍属于目标硬件上的最终产品验收；
+runner 会将未满足的前置条件明确标成 SKIP/INCOMPLETE，不将其误报为 PASS。

@@ -80,6 +80,7 @@ namespace px
         // 兜底清扫 /ipc 允许集合里进程已死的 pid(断线未触发/异常退出场景)
         if (IsWorking() && ws_server_) {
             ws_server_->SweepDeadIpcPids();
+            ws_server_->ReportPerformance();
         }
     }
 

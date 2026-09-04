@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "px_common_new/log.h"
+#include "px_common_new/privacy_log.h"
 #include "px_media_record_new/record_writer.h"
 #include "runtime/await_callback.h"
 
@@ -76,12 +77,17 @@ void Complete(const MediaRecorderSink::Completion& completion,
         completion(std::move(result));
     }
     catch (const std::exception& error) {
+        static_cast<void>(error);
         LOGE("event=sink.completion component=media_recorder "
-             "outcome=ignored reason={}", error.what());
+             "code=MEDIA_RECORDER_COMPLETION_EXCEPTION "
+             "operation=invoke_completion outcome=ignored recoverable=true "
+             "reason=completion_exception");
     }
     catch (...) {
         LOGE("event=sink.completion component=media_recorder "
-             "outcome=ignored reason=unknown_exception");
+             "code=MEDIA_RECORDER_COMPLETION_EXCEPTION "
+             "operation=invoke_completion outcome=ignored recoverable=true "
+             "reason=unknown_exception");
     }
 }
 
@@ -616,7 +622,8 @@ void MediaRecorderSink::WorkerMain(
                 ++state->writer_failures;
             }
             LOGE("event=sink.write component=media_recorder outcome=failed "
-                 "reason={}", error.what());
+                 "code=MEDIA_RECORDER_WRITE_FAILED operation=process_work_item "
+                 "recoverable=false reason=writer_exception");
             Complete(work.completion, PxResult<void>::Failure(MakePxAsyncError(
                 PxAsyncErrorCode::kProtocolError,
                 "media_recorder.worker",
@@ -630,7 +637,8 @@ void MediaRecorderSink::WorkerMain(
                 ++state->writer_failures;
             }
             LOGE("event=sink.write component=media_recorder outcome=failed "
-                 "reason=unknown_exception");
+                 "code=MEDIA_RECORDER_WRITE_FAILED operation=process_work_item "
+                 "recoverable=false reason=unknown_exception");
             Complete(work.completion, PxResult<void>::Failure(MakePxAsyncError(
                 PxAsyncErrorCode::kProtocolError,
                 "media_recorder.worker",
@@ -664,7 +672,7 @@ void MediaRecorderSink::ProcessVideo(
             });
         LOGI("event=record.writer component=media_recorder action=create "
              "monitor={} outcome={}",
-             frame->identity.monitor_id,
+             PrivacyLogId(frame->identity.monitor_id),
              writer ? "success" : "failed");
     }
     if (writer) {

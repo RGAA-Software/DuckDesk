@@ -4,6 +4,7 @@
 
 #include "frame_render.h"
 #include "px_common_new/log.h"
+#include "px_common_new/privacy_log.h"
 
 namespace px::render {
 namespace {
@@ -103,7 +104,8 @@ Microsoft::WRL::ComPtr<ID3D11Texture2D> FrameResizerProcessor::Process(
     if (!input || !device || !device_context || monitor_id.empty() ||
         target_width == 0 || target_height == 0) {
         LOGE("event=processor.process component=frame_resizer "
-             "code=PIPELINE_INVALID_FRAME outcome=rejected");
+             "code=PIPELINE_INVALID_FRAME operation=resize "
+             "outcome=rejected recoverable=true");
         return {};
     }
 
@@ -139,8 +141,11 @@ Microsoft::WRL::ComPtr<ID3D11Texture2D> FrameResizerProcessor::Process(
             static_cast<int>(source.Format));
         if (FAILED(prepared)) {
             LOGE("event=processor.prepare component=frame_resizer "
-                 "monitor={} adapter_uid={} native_code={} outcome=failed",
-                 monitor_id, adapter_uid, static_cast<std::int64_t>(prepared));
+                 "code=PROCESSOR_RESIZE_PREPARE_FAILED operation=prepare "
+                 "outcome=failed recoverable=true monitor={} adapter_uid={} "
+                 "native_code={}",
+                 PrivacyLogId(monitor_id), adapter_uid,
+                 static_cast<std::int64_t>(prepared));
             return {};
         }
         found = renderers_.insert_or_assign(
@@ -152,7 +157,7 @@ Microsoft::WRL::ComPtr<ID3D11Texture2D> FrameResizerProcessor::Process(
             }).first;
         LOGI("event=processor.prepare component=frame_resizer monitor={} "
              "source={}x{} target={}x{} adapter_uid={} outcome=success",
-             monitor_id, source.Width, source.Height,
+             PrivacyLogId(monitor_id), source.Width, source.Height,
              target_width, target_height, adapter_uid);
     }
 
@@ -161,8 +166,10 @@ Microsoft::WRL::ComPtr<ID3D11Texture2D> FrameResizerProcessor::Process(
     const auto source_texture = renderer->GetSrcTexture();
     context->CopyResource(source_texture.Get(), input.Get());
     if (FAILED(renderer->Draw())) {
-        LOGE("event=processor.process component=frame_resizer monitor={} "
-             "outcome=failed reason=draw_failed", monitor_id);
+        LOGE("event=processor.process component=frame_resizer "
+             "code=PROCESSOR_RESIZE_DRAW_FAILED operation=draw "
+             "outcome=failed recoverable=true monitor={}",
+             PrivacyLogId(monitor_id));
         return {};
     }
     return renderer->GetFinalTexture();

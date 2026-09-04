@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "px_common_new/log.h"
+#include "px_common_new/privacy_log.h"
 #include "runtime/await_callback.h"
 
 namespace px::render {
@@ -35,12 +36,15 @@ void Complete(const LivePusherSink::Completion& completion,
         completion(std::move(result));
     }
     catch (const std::exception& error) {
+        static_cast<void>(error);
         LOGE("event=sink.completion component=live_pusher "
-             "outcome=ignored reason={}", error.what());
+             "code=LIVE_PUSH_COMPLETION_EXCEPTION operation=invoke_completion "
+             "outcome=ignored recoverable=true reason=completion_exception");
     }
     catch (...) {
         LOGE("event=sink.completion component=live_pusher "
-             "outcome=ignored reason=unknown_exception");
+             "code=LIVE_PUSH_COMPLETION_EXCEPTION operation=invoke_completion "
+             "outcome=ignored recoverable=true reason=unknown_exception");
     }
 }
 
@@ -343,7 +347,8 @@ bool LivePusherSink::SelectMonitor(const std::string& monitor_id) {
         selected_monitor_ = monitor_id;
         monitor_selected_ = true;
         LOGI("event=sink.monitor component=live_pusher action=select_first "
-             "monitor={}", monitor_id.empty() ? "game_hook" : monitor_id);
+             "monitor={}", PrivacyLogId(
+                 monitor_id.empty() ? "game_hook" : monitor_id));
     }
     return selected_monitor_ == monitor_id;
 }
@@ -426,7 +431,8 @@ void LivePusherSink::WorkerMain(const std::shared_ptr<WorkerState>& state) {
                 ++state->processor_failures;
             }
             LOGE("event=sink.process component=live_pusher outcome=failed "
-                 "reason={}", error.what());
+                 "code=LIVE_PUSH_PROCESS_FAILED operation=process_work_item "
+                 "recoverable=false reason=processor_exception");
             Complete(work.completion, PxResult<void>::Failure(MakePxAsyncError(
                 PxAsyncErrorCode::kProtocolError,
                 "live_pusher.worker", error.what(), false,
@@ -438,7 +444,8 @@ void LivePusherSink::WorkerMain(const std::shared_ptr<WorkerState>& state) {
                 ++state->processor_failures;
             }
             LOGE("event=sink.process component=live_pusher outcome=failed "
-                 "reason=unknown_exception");
+                 "code=LIVE_PUSH_PROCESS_FAILED operation=process_work_item "
+                 "recoverable=false reason=unknown_exception");
             Complete(work.completion, PxResult<void>::Failure(MakePxAsyncError(
                 PxAsyncErrorCode::kProtocolError,
                 "live_pusher.worker", "unknown processor exception", false,

@@ -11,6 +11,7 @@
 #include "network/ws_router.h"
 #include "px_render/plugin_interface/px_net_plugin_type.h"
 #include "px_common_new/file_transfer_send_result.h"
+#include "diagnostics/rate_limited_log.h"
 //#include "network/wss_router.h"
 
 namespace px
@@ -71,6 +72,8 @@ namespace px
         std::mutex writable_signal_mutex_;
         std::shared_ptr<FileTransferWritableSignal> writable_signal_;
         std::function<void()> udp_media_fallback_callback_;
+        render::RateLimitedLogGate permission_log_gate_{
+            std::chrono::seconds(5), 4};
     };
 
 }

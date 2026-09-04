@@ -5,6 +5,7 @@
 #include "ws_stream_router.h"
 #include "px_common_new/data.h"
 #include "px_common_new/log.h"
+#include "px_common_new/privacy_log.h"
 #include "px_common_new/thread_util.h"
 #include "px_common_new/ws_control_signal.h"
 #include "ws_plugin.h"
@@ -26,7 +27,8 @@ namespace px
         WsRouter::OnMessage(sess_ptr, socket_fd, data);
         if (IsWsUseWebSocketMediaSignal(data)) {
             if (udp_media_.exchange(false)) {
-                LOGI("Authenticated WS control switched to WebSocket media, stream={}", stream_id_);
+                LOGI("event=transport.route component=net_ws operation=udp_fallback "
+                     "outcome=websocket stream={}", PrivacyLogId(stream_id_));
                 if (udp_media_fallback_callback_) {
                     udp_media_fallback_callback_();
                 }
@@ -38,7 +40,15 @@ namespace px
             && (parsed.type() == MessageType::kFileAction
                 || parsed.type() == MessageType::kFileResponse)
             && !file_allowed_.load()) {
-            LOGW("Drop file-transfer message on WS control session without file permission");
+            const auto decision = permission_log_gate_.Evaluate(
+                "file_transfer", std::chrono::steady_clock::now());
+            if (decision.emit) {
+                LOGW("event=transport.receive component=net_ws "
+                     "code=SESSION_CAPABILITY_DENIED operation=file_transfer "
+                     "outcome=dropped recoverable=true stream={} suppressed={}",
+                     PrivacyLogId(stream_id_),
+                     decision.suppressed_since_last_emit);
+            }
             return;
         }
         const auto plugin = ws_data_ ? ws_data_->plugin_.lock() : nullptr;

@@ -6,6 +6,7 @@
 #include "px_common_new/file.h"
 #include "px_common_new/image.h"
 #include "px_common_new/log.h"
+#include "px_common_new/privacy_log.h"
 #include "px_common_new/string_util.h"
 #include "image_generator.h"
 #include "video_frame_carrier.h"
@@ -147,7 +148,8 @@ ModuleLifecycleResult FrameCarrierProcessor::SetEnabled(const bool enabled) {
 bool FrameCarrierProcessor::InitializeMonitor(const FrameCarrierParams& params) {
     if (params.monitor_id.empty() || !params.device || !params.device_context) {
         LOGE("event=processor.initialize component=frame_carrier "
-             "code=PIPELINE_INVALID_FRAME outcome=rejected");
+             "code=PIPELINE_INVALID_FRAME operation=initialize "
+             "outcome=rejected recoverable=true");
         return false;
     }
     VideoFrameCarrierResources resources;
@@ -187,7 +189,8 @@ bool FrameCarrierProcessor::InitializeMonitor(const FrameCarrierParams& params) 
         previous->Exit();
     }
     LOGI("event=processor.initialize component=frame_carrier monitor={} "
-         "adapter_uid={} outcome=success", params.monitor_id, params.adapter_uid);
+         "adapter_uid={} outcome=success",
+         PrivacyLogId(params.monitor_id), params.adapter_uid);
     return true;
 }
 
@@ -197,8 +200,10 @@ std::shared_ptr<CarriedVideoFrame> FrameCarrierProcessor::CopyTexture(
     const std::uint64_t frame_index) {
     const auto carrier = FindCarrier(monitor_id);
     if (!carrier) {
-        LOGE("event=processor.copy component=frame_carrier monitor={} "
-             "outcome=failed reason=carrier_not_found", monitor_id);
+        LOGE("event=processor.copy component=frame_carrier "
+             "code=PROCESSOR_CARRIER_NOT_FOUND operation=copy_texture "
+             "outcome=failed recoverable=true monitor={}",
+             PrivacyLogId(monitor_id));
         return {};
     }
     auto texture = carrier->CopyTexture(monitor_id, shared_handle, frame_index);
