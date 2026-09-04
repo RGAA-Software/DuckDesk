@@ -164,7 +164,7 @@ namespace px
         if (register_builtin(nvenc_encoder, "enc_nvenc")) {
             nvenc_encoder_ = nvenc_encoder;
         }
-        const auto ws_transport = std::make_shared<WsTransport>();
+        const auto ws_transport = std::make_shared<WsTransport>(context_->GetAsyncRuntime());
         if (register_builtin(ws_transport, "net_ws")) {
             ws_transport_ = ws_transport;
         }

@@ -39,9 +39,11 @@ Render 网络控制面总体估算已完成 55%～65%，剩余 35%～45%。单�
   start、ready deadline、disconnect、bounded exponential backoff 和 retry，asio2 auto-reconnect 已关闭。业务 request facade 和组件级 StopAsync 仍待收口。
 - N2 连接和接收部分已完成：WsPanelClient、OBS WsIpcClient 已使用同一 workflow/backoff 模型；五个 `[&]` 网络 callback 已替换为 weak ownership，IPC wire
   decode 不再使用对象裸指针强转。OBS IPC repeated Start/Exit 状态已允许重新启动，组件级 StopAsync 和故障注入集成测试仍待补齐。
+- N3 runtime 收口已完成：`RdContext` 持有的进程级 `PxAsyncRuntime` 通过 `RenderModuleRegistry` 和 `WsTransport` 显式注入 `WsServer`；WS server 只拥有自己的
+  control scope，启动失败会回滚模块启动，退出不再错误地停止共享 runtime。准入 exactly-once 和异步 server drain 仍待继续验证。
 - N5 已完成关闭硬门禁的第一步：`RdApplication::Exit` 在停止捕获、编码、组合根和事件路由后，正式调用 `RenderModuleRegistry::StopModules()`，旧插件时代禁止
   StopModules 的 workaround 已删除。
-- 尚未完成：三个客户端的组件 `StopAsync`、WS/HTTP server 共享 runtime、UDP 控制面、根 absolute-deadline shutdown，以及真实 server 驱动的重连故障注入。
+- 尚未完成：三个客户端的组件 `StopAsync`、WS/HTTP server 异步 drain、UDP 控制面、根 absolute-deadline shutdown，以及真实 server 驱动的重连故障注入。
 
 当前自动化结果：公共 mailbox/connection/backoff focused tests 通过，其中 connection/backoff 连续运行 20 轮通过；Render 和 OBS hook 增量构建通过并同步运行
 产物；Render quick gate 的 2 个 guard 和 14 个 unit/lifecycle 测试通过，完整 lifecycle gate 的 2 个 guard 和 11 个 lifecycle/integration 测试通过。

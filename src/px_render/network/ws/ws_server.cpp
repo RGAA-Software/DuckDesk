@@ -358,25 +358,26 @@ namespace px
                         || *type == 350 || *type == 351 || *type == 360);
     }
 
-    WsServer::WsServer(std::weak_ptr<WsTransport> transport,
-                                   const uint16_t listen_port)
-        : transport_(std::move(transport)), listen_port_(listen_port) {}
+    WsServer::WsServer(std::weak_ptr<WsTransport> transport, std::shared_ptr<PxAsyncRuntime> async_runtime, const uint16_t listen_port)
+        : transport_(std::move(transport)), listen_port_(listen_port), async_runtime_(std::move(async_runtime)) {}
 
-    void WsServer::Start() {
-        if (server_ || async_runtime_) {
+    bool WsServer::Start() {
+        if (server_ || async_scope_) {
             Exit();
         }
         exiting_ = false;
         transport_performance_.Reset(std::chrono::steady_clock::now());
-        async_runtime_ = PxAsyncRuntime::Create({.worker_threads = 2});
-        if (!async_runtime_ || !async_runtime_->Start()) {
-            LOGE("event=module.start component=net_ws code=ASYNC_RUNTIME_START_FAILED "
+        if (!async_runtime_ || async_runtime_->IsStopping()) {
+            LOGE("event=module.start component=net_ws code=ASYNC_RUNTIME_UNAVAILABLE "
                  "operation=start_control_workflows outcome=failed recoverable=false");
-            async_runtime_.reset();
-            return;
+            return false;
         }
-        async_scope_ = PxAsyncScope::Create(
-            async_runtime_, PxAsyncLane::kControl);
+        async_scope_ = PxAsyncScope::Create(async_runtime_, PxAsyncLane::kControl);
+        if (!async_scope_) {
+            LOGE("event=module.start component=net_ws code=ASYNC_SCOPE_CREATE_FAILED "
+                 "operation=start_control_workflows outcome=failed recoverable=false");
+            return false;
+        }
         http_handler_ = std::make_shared<HttpHandler>(transport_, async_scope_);
         auto weak_self = weak_from_this();
         server_ = std::make_shared<asio2::http_server>();
@@ -392,7 +393,8 @@ namespace px
                 self->UpdateUdpMediaAssociation(val->udp_media_association_code_,
                                                 val->logical_session_id_, val->stream_id_, false, true);
                 self->CloseLogicalSessionBinding(val->logical_session_id_, val->binding_id_);
-                self->NotifyMediaClientDisConnected(val->conn_id_, val->stream_id_, val->visitor_device_id_, val->created_timestamp_, val->binding_id_, val->logical_session_id_);
+                self->NotifyMediaClientDisConnected(val->conn_id_, val->stream_id_, val->visitor_device_id_, val->created_timestamp_,
+                                                    val->binding_id_, val->logical_session_id_);
                 LOGI("event=session.close component=net_ws outcome=removed "
                      "device={}", PrivacyLogId(val->visitor_device_id_));
                 LOGI("App server media close, media router size: {}", self->stream_routers_.Size());
@@ -442,35 +444,45 @@ namespace px
 #endif
 
         // ping
-        AddHttpRouter(kApiPing, [weak_self](const std::string&, std::shared_ptr<asio2::http_session>&, http::web_request& req, http::web_response& rep) {
+        AddHttpRouter(kApiPing,
+                      [weak_self](const std::string&, std::shared_ptr<asio2::http_session>&, http::web_request& req,
+                                  http::web_response& rep) {
             if (const auto self = weak_self.lock(); self && !self->exiting_) {
                 self->http_handler_->HandlePing(req, rep);
             }
         });
 
         // verify security pwd
-        AddHttpRouter(kApiVerifySecurityPassword, [weak_self](const std::string&, std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep) {
+        AddHttpRouter(kApiVerifySecurityPassword,
+                      [weak_self](const std::string&, std::shared_ptr<asio2::http_session>& session_ptr, http::web_request& req,
+                                  http::web_response& rep) {
             if (const auto self = weak_self.lock(); self && !self->exiting_) {
                 self->http_handler_->HandleVerifySecurityPassword(session_ptr, req, rep);
             }
         });
 
         // get render configuration
-        AddHttpRouter(kApiGetRenderConfiguration, [weak_self](const std::string&, std::shared_ptr<asio2::http_session>&, http::web_request& req, http::web_response& rep) {
+        AddHttpRouter(kApiGetRenderConfiguration,
+                      [weak_self](const std::string&, std::shared_ptr<asio2::http_session>&, http::web_request& req,
+                                  http::web_response& rep) {
             if (const auto self = weak_self.lock(); self && !self->exiting_) {
                 self->http_handler_->HandleGetRenderConfiguration(req, rep);
             }
         });
 
         //
-        AddHttpRouter(kApiPanelStreamMessage, [weak_self](const std::string&, std::shared_ptr<asio2::http_session>&, http::web_request& req, http::web_response& rep) {
+        AddHttpRouter(kApiPanelStreamMessage,
+                      [weak_self](const std::string&, std::shared_ptr<asio2::http_session>&, http::web_request& req,
+                                  http::web_response& rep) {
             if (const auto self = weak_self.lock(); self && !self->exiting_) {
                 self->http_handler_->HandlePanelStreamMessage(req, rep);
             }
         });
 
         // kApiAllocLocalRtc
-        AddHttpRouter(kApiAllocLocalRtc, [weak_self](const std::string&, std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep) {
+        AddHttpRouter(kApiAllocLocalRtc,
+                      [weak_self](const std::string&, std::shared_ptr<asio2::http_session>& session_ptr, http::web_request& req,
+                                  http::web_response& rep) {
             if (const auto self = weak_self.lock(); self && !self->exiting_) {
                 self->http_handler_->HandleAllocLocalRtc(session_ptr, req, rep);
             }
@@ -483,9 +495,18 @@ namespace px
             LOGE("event=module.start component=net_ws code=WS_LISTEN_PORT_INVALID "
                  "operation=start_server outcome=failed recoverable=false port={}",
                  listen_port_);
+            Exit();
+            return false;
         }
-        bool ret = server_->start("0.0.0.0", std::to_string(listen_port_));
+        const bool ret = server_->start("0.0.0.0", std::to_string(listen_port_));
         LOGI("App server start result: {}, listen port: {}", ret, listen_port_);
+        if (!ret) {
+            LOGE("event=module.start component=net_ws code=WS_SERVER_START_FAILED operation=start_server outcome=failed "
+                 "recoverable=true port={}", listen_port_);
+            Exit();
+            return false;
+        }
+        return true;
     }
 
     void WsServer::Exit() {
@@ -513,12 +534,6 @@ namespace px
         }
         async_scope_.reset();
         http_handler_.reset();
-        if (async_runtime_) {
-            async_runtime_->RequestDrain();
-            async_runtime_->RequestStop();
-            async_runtime_->Join();
-            async_runtime_.reset();
-        }
         server_.reset();
         ws_data_.reset();
         user_proxy_router_.reset();
@@ -1333,7 +1348,8 @@ namespace px
                         self->UpdateUdpMediaAssociation(val->udp_media_association_code_,
                                                         val->logical_session_id_, val->stream_id_, false, true);
                         self->CloseLogicalSessionBinding(val->logical_session_id_, val->binding_id_);
-                        self->NotifyMediaClientDisConnected(val->conn_id_, val->stream_id_, val->visitor_device_id_, val->created_timestamp_, val->binding_id_, val->logical_session_id_);
+                        self->NotifyMediaClientDisConnected(val->conn_id_, val->stream_id_, val->visitor_device_id_, val->created_timestamp_,
+                                                            val->binding_id_, val->logical_session_id_);
                         LOGI("event=session.close component=net_ws outcome=removed "
                              "device={}", PrivacyLogId(val->visitor_device_id_));
                     }
@@ -1405,10 +1421,14 @@ namespace px
     }
 
     void WsServer::AddHttpRouter(const std::string &path,
-       std::function<void(const std::string& path, std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep)>&& callback) {
+        std::function<void(const std::string& path, std::shared_ptr<asio2::http_session>& session_ptr, http::web_request& req,
+                           http::web_response& rep)>&& callback) {
         auto weak_self = weak_from_this();
         // bind it
-        server_->bind<http::verb::get, http::verb::post>(path, [weak_self, path, callback = std::move(callback)](std::shared_ptr<asio2::http_session> &session_ptr, http::web_request &req, http::web_response &rep) mutable {
+        server_->bind<http::verb::get, http::verb::post>(
+            path,
+            [weak_self, path, callback = std::move(callback)](std::shared_ptr<asio2::http_session>& session_ptr, http::web_request& req,
+                                                              http::web_response& rep) mutable {
             auto self = weak_self.lock();
             if (!self || self->exiting_) {
                 return;
@@ -1456,7 +1476,9 @@ namespace px
 
         auto weak_self = weak_from_this();
         // "/web_client" and "/web_client/" (trailing slashes are stripped by the router)
-        server_->bind<http::verb::get>(kUrlWebClient, [weak_self, fn_serve](std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep) mutable {
+        server_->bind<http::verb::get>(
+            kUrlWebClient,
+            [weak_self, fn_serve](std::shared_ptr<asio2::http_session>& session_ptr, http::web_request& req, http::web_response& rep) mutable {
             auto self = weak_self.lock();
             if (!self || self->exiting_) {
                 return;
@@ -1464,7 +1486,10 @@ namespace px
             fn_serve(req, rep);
         }, aop_log{});
         // "/web_client/xxx"
-        server_->bind<http::verb::get>(kUrlWebClientWildcard, [weak_self, fn_serve](std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep) mutable {
+        server_->bind<http::verb::get>(
+            kUrlWebClientWildcard,
+            [weak_self, fn_serve](std::shared_ptr<asio2::http_session>& session_ptr, http::web_request& req,
+                                  http::web_response& rep) mutable {
             auto self = weak_self.lock();
             if (!self || self->exiting_) {
                 return;

@@ -374,6 +374,9 @@ $wsServerSource = Get-Content -LiteralPath `
     (Join-Path $RepoRoot "src\px_render\network\ws\ws_server.cpp") -Raw
 $wsServerHeader = Get-Content -LiteralPath `
     (Join-Path $RepoRoot "src\px_render\network\ws\ws_server.h") -Raw
+if ($wsServerSource -match 'PxAsyncRuntime::Create') {
+    $violations.Add("net_ws/ws_server.cpp: WS server must use the composition-root async runtime")
+}
 foreach ($required in @(
     "TransportPerformanceWindow",
     "ObserveInbound",

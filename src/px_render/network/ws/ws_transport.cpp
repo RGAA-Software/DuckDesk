@@ -3,6 +3,9 @@
 //
 
 #include "ws_transport.h"
+
+#include <utility>
+
 #include "ws_server.h"
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
@@ -15,9 +18,7 @@
 namespace px
 {
 
-    WsTransport::WsTransport() {
-
-    }
+    WsTransport::WsTransport(std::shared_ptr<PxAsyncRuntime> async_runtime) : async_runtime_(std::move(async_runtime)) {}
 
     std::string WsTransport::Id() const {
         return kNetWsTransportId;
@@ -58,9 +59,12 @@ namespace px
                  "reason=ws_transport_requires_shared_ownership");
             return false;
         }
-        ws_server_ = std::make_shared<WsServer>(
-            weak_self, static_cast<uint16_t>(listen_port));
-        ws_server_->Start();
+        ws_server_ = std::make_shared<WsServer>(weak_self, async_runtime_, static_cast<uint16_t>(listen_port));
+        if (!ws_server_->Start()) {
+            ws_server_.reset();
+            RenderModule::Stop();
+            return false;
+        }
         return true;
     }
 

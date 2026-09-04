@@ -17,11 +17,12 @@ namespace px
 
     class CaptureAudioFrame;
     class CaptureVideoFrame;
+    class PxAsyncRuntime;
     class WsServer;
 
     class WsTransport final : public RenderModule {
     public:
-        WsTransport();
+        explicit WsTransport(std::shared_ptr<PxAsyncRuntime> async_runtime = {});
         std::string Id() const override;
         std::string Name() const override;
         std::string VersionName() const override;
@@ -121,8 +122,9 @@ namespace px
         bool HasConnectedClients();
 
     private:
-        std::shared_ptr<WsServer> ws_server_ = nullptr;
-        std::shared_ptr<NetMessageAck> last_ack_ = nullptr;
+        std::shared_ptr<PxAsyncRuntime> async_runtime_{};
+        std::shared_ptr<WsServer> ws_server_{};
+        std::shared_ptr<NetMessageAck> last_ack_{};
         std::mutex capturing_mon_mtx_;
         std::string capturing_mon_name_;
         mutable std::mutex network_services_mutex_;

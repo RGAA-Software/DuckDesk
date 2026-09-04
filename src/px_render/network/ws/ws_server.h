@@ -49,10 +49,9 @@ namespace px
     class WsServer : public std::enable_shared_from_this<WsServer> {
     public:
 
-        explicit WsServer(std::weak_ptr<WsTransport> transport,
-                                uint16_t listen_port);
+        explicit WsServer(std::weak_ptr<WsTransport> transport, std::shared_ptr<PxAsyncRuntime> async_runtime, uint16_t listen_port);
 
-        void Start();
+        [[nodiscard]] bool Start();
         void Exit();
 
         void PostNetMessage(std::shared_ptr<Data> msg);
@@ -108,7 +107,10 @@ namespace px
             std::uint64_t socket_fd);
 
         void AddHttpRouter(const std::string& path,
-                           std::function<void(const std::string& path, std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep)>&& callback);
+                           std::function<void(const std::string& path,
+                                              std::shared_ptr<asio2::http_session>& session_ptr,
+                                              http::web_request& req,
+                                              http::web_response& rep)>&& callback);
 
         void NotifyMediaClientConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id);
         void NotifyMediaClientDisConnected(const std::string& conn_id, const std::string& stream_id,
@@ -128,9 +130,9 @@ namespace px
         std::weak_ptr<WsTransport> transport_;
         uint16_t listen_port_ = 0;
         //std::shared_ptr<asio2::https_server> server_ = nullptr;
-        std::shared_ptr<asio2::http_server> server_ = nullptr;
+        std::shared_ptr<asio2::http_server> server_{};
 
-        WsDataPtr ws_data_ = nullptr;
+        WsDataPtr ws_data_{};
         px::ConcurrentHashMap<uint64_t, std::shared_ptr<WsStreamRouter>> stream_routers_;
         px::ConcurrentHashMap<uint64_t, std::shared_ptr<WsFileTransferRouter>> ft_routers_;
         // Injected px_gh.dll sessions on /ipc (host → game input downlink).
@@ -143,12 +145,12 @@ namespace px
         // SweepDeadIpcPids 节流计数(On1Second 每秒调用,每 5 次真正扫一次)
         uint64_t ipc_pid_sweep_ticks_ = 0;
 
-        std::shared_ptr<HttpHandler> http_handler_ = nullptr;
-        std::shared_ptr<WsUserProxyRouter> user_proxy_router_ = nullptr;
-        // Shared owners: control workflows run on a cancellable strand.
-        std::shared_ptr<PxAsyncRuntime> async_runtime_;
-        std::shared_ptr<PxAsyncScope> async_scope_;
-        std::atomic_bool exiting_ = false;
+        std::shared_ptr<HttpHandler> http_handler_{};
+        std::shared_ptr<WsUserProxyRouter> user_proxy_router_{};
+        // The runtime is injected by the Render composition root. This server owns only its cancellable scope.
+        std::shared_ptr<PxAsyncRuntime> async_runtime_{};
+        std::shared_ptr<PxAsyncScope> async_scope_{};
+        std::atomic_bool exiting_{false};
         render::TransportPerformanceWindow transport_performance_;
         render::RateLimitedLogGate warning_log_gate_{
             std::chrono::seconds(5), 64};
