@@ -72,6 +72,16 @@ public:
     void OnMessageAck(const std::shared_ptr<NetMessageAck>& ack);
 
 private:
+    struct MonitorControl final {
+        std::mutex mutex{};
+        std::condition_variable wake_condition{};
+        std::condition_variable stopped_condition{};
+        std::thread::id worker_thread_id{};
+        bool stop_requested{false};
+        bool wake_requested{false};
+        bool completed{false};
+    };
+
     struct FtRelayRouteInfo final {
         std::string stream_id;
         std::string visitor_device_id;
@@ -81,8 +91,9 @@ private:
         bool has_recv_msg_index = false;
     };
 
-    void Monitor(std::stop_token stop_token);
-    bool WaitFor(std::stop_token stop_token, std::chrono::milliseconds delay);
+    static void Monitor(std::weak_ptr<RelayTransportRuntime> runtime, const std::shared_ptr<MonitorControl>& control);
+    static bool WaitFor(const std::shared_ptr<MonitorControl>& control, std::chrono::milliseconds delay);
+    void WakeMonitor();
     RelayTransportRuntimeConfig ConfigSnapshot() const;
     void ReleaseConnections();
     void ConnectMedia(const RelayTransportRuntimeConfig& config,
@@ -117,8 +128,7 @@ private:
     void ReportSentDataSize(std::size_t size);
 
     mutable std::mutex lifecycle_mutex_;
-    std::jthread monitor_;
-    std::condition_variable_any wake_condition_;
+    std::shared_ptr<MonitorControl> monitor_control_{};
     std::atomic_bool started_{false};
     std::atomic_bool stopping_{false};
 

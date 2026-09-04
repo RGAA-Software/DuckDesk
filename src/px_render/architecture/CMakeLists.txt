@@ -3,6 +3,7 @@ add_library(render_architecture_core STATIC
     diagnostics/rate_limited_log.cpp
     diagnostics/render_error.cpp
     diagnostics/transport_performance_window.cpp
+    extensions/flow_node_plugin_registry.cpp
     modules/render_module.cpp
     encoders/video_encoder_module.cpp
     sources/monitor_capture_source.cpp

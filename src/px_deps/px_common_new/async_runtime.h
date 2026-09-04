@@ -45,6 +45,7 @@ class PxAsyncRuntime final {
     void Join();
 
     [[nodiscard]] asio::any_io_executor Executor(PxAsyncLane lane) const;
+    static void DeferJoin(std::thread thread);
     static void DeferJoin(std::jthread thread);
     [[nodiscard]] bool DeferBlocking(std::function<void()> task) const;
     [[nodiscard]] bool IsRuntimeThread() const;

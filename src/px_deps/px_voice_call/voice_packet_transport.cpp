@@ -1,4 +1,5 @@
 #include "voice_packet_transport.h"
+#include "px_common_new/async_runtime.h"
 
 #include <algorithm>
 #include <utility>
@@ -59,7 +60,7 @@ void VoicePacketTransport::StopLocked() {
             // The worker retains only WorkerState, so detaching here is safe
             // and lets a delivery callback stop or destroy its owner without
             // attempting to join itself.
-            worker_.detach();
+            PxAsyncRuntime::DeferJoin(std::move(worker_));
         }
         else {
             worker_.join();

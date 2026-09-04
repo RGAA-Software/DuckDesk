@@ -34,6 +34,7 @@ try {
         $normalized = $file -replace '\\', '/'
         if ($normalized -match '^src/px_deps/px_3rdparty/' -or
             $normalized -match '^src/px_deps/px_webrtc_client/' -or
+            $normalized -match '/vigem/sdk/' -or
             $normalized -match '^src/px_panel/src/service/legacy/') {
             continue
         }
@@ -54,6 +55,9 @@ try {
              $normalized -match '^src/px_deps/px_relay_client/') -and
             [regex]::IsMatch($source, $renderCallbackPattern)) {
             $violations.Add("${normalized}: raw owner capture crosses a long-lived callback boundary")
+        }
+        if ([regex]::IsMatch($source, '\.detach\s*\(\s*\)')) {
+            $violations.Add("${normalized}: detached thread bypasses RAII shutdown and join ownership")
         }
     }
 

@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "px_common_new/client_id_extractor.h"
+#include "px_common_new/async_runtime.h"
 #include "px_common_new/data.h"
 #include "px_common_new/hardware.h"
 #include "px_common_new/ip_util.h"
@@ -43,21 +44,36 @@ void RelayTransportRuntime::Start(
         event_callback_ = std::move(event_callback);
     }
 
+    if (stopping_.load(std::memory_order_acquire)) {
+        return;
+    }
     bool expected = false;
-    if (!started_.compare_exchange_strong(expected, true) || stopping_) {
+    if (!started_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
         return;
     }
 
+    const auto config = ConfigSnapshot();
+    const auto control = std::make_shared<MonitorControl>();
     const auto weak_self = weak_from_this();
-    std::lock_guard lock(lifecycle_mutex_);
-    if (stopping_) {
-        return;
-    }
-    monitor_ = std::jthread([weak_self](std::stop_token stop_token) {
-        if (const auto self = weak_self.lock()) {
-            self->Monitor(stop_token);
+    bool monitor_scheduled{false};
+    {
+        std::lock_guard lock(lifecycle_mutex_);
+        if (!stopping_.load(std::memory_order_acquire)) {
+            monitor_control_ = control;
+            monitor_scheduled = config.async_runtime && config.async_runtime->DeferBlocking([weak_self, control]() {
+                Monitor(weak_self, control);
+            });
+            if (!monitor_scheduled) {
+                monitor_control_.reset();
+            }
         }
-    });
+    }
+    if (!monitor_scheduled) {
+        started_.store(false, std::memory_order_release);
+        if (!stopping_.load(std::memory_order_acquire)) {
+            LOGE("event=module.start component=relay code=ASYNC_RUNTIME_UNAVAILABLE operation=start_monitor outcome=failed recoverable=false");
+        }
+    }
 }
 
 void RelayTransportRuntime::Stop() {
@@ -65,17 +81,26 @@ void RelayTransportRuntime::Stop() {
         return;
     }
 
-    std::jthread monitor;
+    std::shared_ptr<MonitorControl> control;
     {
         std::lock_guard lock(lifecycle_mutex_);
-        monitor = std::move(monitor_);
+        control = monitor_control_;
     }
-    if (monitor.joinable()) {
-        monitor.request_stop();
-    }
-    wake_condition_.notify_all();
-    if (monitor.joinable()) {
-        monitor.join();
+    if (control) {
+        std::unique_lock lock(control->mutex);
+        control->stop_requested = true;
+        control->wake_requested = true;
+        const auto called_from_monitor = control->worker_thread_id == std::this_thread::get_id();
+        lock.unlock();
+        control->wake_condition.notify_all();
+        if (!called_from_monitor) {
+            lock.lock();
+            control->stopped_condition.wait(lock, [control]() { return control->completed; });
+        }
+        std::lock_guard lifecycle_lock(lifecycle_mutex_);
+        if (monitor_control_ == control) {
+            monitor_control_.reset();
+        }
     }
 
     ReleaseConnections();
@@ -88,6 +113,22 @@ void RelayTransportRuntime::Stop() {
         event_callback_ = {};
         module_context_.reset();
     }
+}
+
+void RelayTransportRuntime::WakeMonitor() {
+    std::shared_ptr<MonitorControl> control;
+    {
+        std::lock_guard lock(lifecycle_mutex_);
+        control = monitor_control_;
+    }
+    if (!control) {
+        return;
+    }
+    {
+        std::lock_guard lock(control->mutex);
+        control->wake_requested = true;
+    }
+    control->wake_condition.notify_all();
 }
 
 void RelayTransportRuntime::UpdateSettings(const RenderModuleSettings& settings) {
@@ -105,7 +146,7 @@ void RelayTransportRuntime::UpdateSettings(const RenderModuleSettings& settings)
         LOGW("event=transport.configuration_changed component=relay operation=schedule_reconnect "
              "code=RELAY_CONFIGURATION_CHANGED outcome=pending recoverable=true");
     }
-    wake_condition_.notify_all();
+    WakeMonitor();
 }
 
 RelayTransportRuntimeConfig RelayTransportRuntime::ConfigSnapshot() const {
@@ -113,20 +154,23 @@ RelayTransportRuntimeConfig RelayTransportRuntime::ConfigSnapshot() const {
     return config_;
 }
 
-bool RelayTransportRuntime::WaitFor(std::stop_token stop_token,
-                                 std::chrono::milliseconds delay) {
-    std::unique_lock lock(lifecycle_mutex_);
-    const auto weak_self = weak_from_this();
-    static_cast<void>(wake_condition_.wait_for(
-        lock, stop_token, delay, [weak_self]() {
-        const auto self = weak_self.lock();
-        return !self || self->stopping_.load() || self->need_reconnect_.load();
+bool RelayTransportRuntime::WaitFor(const std::shared_ptr<MonitorControl>& control, const std::chrono::milliseconds delay) {
+    if (!control) {
+        return false;
+    }
+    std::unique_lock lock(control->mutex);
+    static_cast<void>(control->wake_condition.wait_for(lock, delay, [control]() {
+        return control->stop_requested || control->wake_requested;
     }));
-    const auto self = weak_self.lock();
-    return self && !stop_token.stop_requested() && !self->stopping_;
+    control->wake_requested = false;
+    return !control->stop_requested;
 }
 
-void RelayTransportRuntime::Monitor(std::stop_token stop_token) {
+void RelayTransportRuntime::Monitor(std::weak_ptr<RelayTransportRuntime> runtime, const std::shared_ptr<MonitorControl>& control) {
+    {
+        std::lock_guard lock(control->mutex);
+        control->worker_thread_id = std::this_thread::get_id();
+    }
     int connect_count = 0;
     std::vector<RelayDeviceNetInfo> net_info;
     for (const auto& info : IPUtil::ScanIPs()) {
@@ -136,8 +180,12 @@ void RelayTransportRuntime::Monitor(std::stop_token stop_token) {
         });
     }
 
-    while (!stop_token.stop_requested() && !stopping_) {
-        const auto config = ConfigSnapshot();
+    while (true) {
+        const auto self = runtime.lock();
+        if (!self || self->stopping_.load(std::memory_order_acquire)) {
+            break;
+        }
+        const auto config = self->ConfigSnapshot();
         auto relay_host = config.configured_host;
         auto relay_port = config.configured_port;
         if (!config.settings.relay_host.empty()) {
@@ -148,40 +196,45 @@ void RelayTransportRuntime::Monitor(std::stop_token stop_token) {
             relay_port = settings_port;
         }
 
-        if (need_reconnect_.exchange(false)) {
+        if (self->need_reconnect_.exchange(false)) {
             LOGW("event=transport.connection_replaced component=relay operation=apply_configuration "
                  "code=RELAY_CONFIGURATION_CHANGED outcome=restarting recoverable=true");
-            ReleaseConnections();
-            if (!WaitFor(stop_token, std::chrono::milliseconds(500))) {
+            self->ReleaseConnections();
+            if (!WaitFor(control, std::chrono::milliseconds(500))) {
                 break;
             }
         }
 
         if (config.settings.device_id.empty() || relay_host.empty() ||
             relay_port <= 0 || config.settings.appkey.empty()) {
-            if (!WaitFor(stop_token, std::chrono::milliseconds(500))) {
+            if (!WaitFor(control, std::chrono::milliseconds(500))) {
                 break;
             }
             continue;
         }
 
-        auto media_sdk = MediaSdk();
+        auto media_sdk = self->MediaSdk();
         if (!media_sdk) {
-            ConnectMedia(config, relay_host, relay_port, net_info, connect_count++);
+            self->ConnectMedia(config, relay_host, relay_port, net_info, connect_count++);
         }
 
-        if (!WaitFor(stop_token, std::chrono::seconds(2))) {
+        if (!WaitFor(control, std::chrono::seconds(2))) {
             break;
         }
 
-        media_sdk = MediaSdk();
+        media_sdk = self->MediaSdk();
         if (media_sdk && media_sdk->IsAlive()) {
-            const auto ft_sdk = FileTransferSdk();
+            const auto ft_sdk = self->FileTransferSdk();
             if (!ft_sdk) {
-                ConnectFileTransfer(config, relay_host, relay_port, net_info);
+                self->ConnectFileTransfer(config, relay_host, relay_port, net_info);
             }
         }
     }
+    {
+        std::lock_guard lock(control->mutex);
+        control->completed = true;
+    }
+    control->stopped_condition.notify_all();
 }
 
 void RelayTransportRuntime::ReleaseConnections() {
@@ -301,7 +354,7 @@ void RelayTransportRuntime::ConnectMedia(
                 LOGE("event=transport.protocol_error component=relay code=RELAY_CREATOR_STREAM_MISSING "
                      "operation=prepare_room outcome=reconnecting recoverable=true");
                 self->need_reconnect_ = true;
-                self->wake_condition_.notify_all();
+                self->WakeMonitor();
                 return;
             }
             self->NotifyClientConnected(

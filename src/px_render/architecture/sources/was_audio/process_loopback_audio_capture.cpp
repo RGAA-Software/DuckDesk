@@ -1,4 +1,5 @@
 #include "process_loopback_audio_capture.h"
+#include "px_common_new/async_runtime.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -292,7 +293,7 @@ int ProcessLoopbackAudioCapture::Stop() {
     if (joined.joinable()) {
         joined.request_stop();
         if (joined.get_id() == std::this_thread::get_id()) {
-            joined.detach();
+            PxAsyncRuntime::DeferJoin(std::move(joined));
         } else {
             joined.join();
         }

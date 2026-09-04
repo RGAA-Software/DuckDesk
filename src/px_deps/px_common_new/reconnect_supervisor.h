@@ -90,6 +90,7 @@ class PxReconnectSupervisor final {
         const PxReconnectStartAttempt& start_attempt,
         std::uint64_t generation);
     void LogConnectionLost(std::uint64_t generation, const PxAsyncError& failure);
+    void LogConnectionRecovered(std::uint64_t generation);
 
     const PxReconnectSupervisorOptions options_;
     const std::shared_ptr<PxConnectionAttemptWorkflow> workflow_;

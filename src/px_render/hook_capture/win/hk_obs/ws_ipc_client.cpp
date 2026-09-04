@@ -14,6 +14,7 @@
 #include "px_common_new/asio_client_shutdown.h"
 #include "px_common_new/async_scope_drain.h"
 #include "px_common_new/reconnect_supervisor.h"
+#include "px_common_new/websocket_reconnect_adapter.h"
 #include "px_common_new/log.h"
 #include "px_capture_new/capture_message.h"
 
@@ -58,7 +59,8 @@ namespace px
         return std::make_shared<WsIpcClient>(port);
     }
 
-    WsIpcClient::WsIpcClient(int port) : port_(port) {}
+    WsIpcClient::WsIpcClient(int port)
+        : port_(port), adapter_slot_(std::make_shared<PxReconnectAdapterSlot<asio2::ws_client>>()) {}
 
     WsIpcClient::~WsIpcClient() {
         Exit();
@@ -69,148 +71,145 @@ namespace px
     }
 
     bool WsIpcClient::IsConnected() const {
-        return IsStarted() && ws_client_ && ws_client_->is_started() && connection_supervisor_ && connection_supervisor_->IsReady();
+        const auto state = SnapshotAsyncState();
+        const auto client = adapter_slot_->Snapshot();
+        return IsStarted() && client && client->is_started() && state.supervisor && state.supervisor->IsReady();
     }
 
     std::uint64_t WsIpcClient::ConnectionGeneration() const {
-        return connection_supervisor_ ? connection_supervisor_->Generation() : 0;
+        const auto state = SnapshotAsyncState();
+        return state.supervisor ? state.supervisor->Generation() : 0;
     }
 
     void WsIpcClient::Start() {
+        std::unique_lock operation_lock(operation_mutex_);
         if (started_.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
         exiting_.store(false, std::memory_order_release);
-        async_runtime_ = PxAsyncRuntime::Create({.worker_threads = 1});
-        if (!async_runtime_ || !async_runtime_->Start()) {
+        const auto async_runtime = PxAsyncRuntime::Create({.worker_threads = 1});
+        if (!async_runtime || !async_runtime->Start()) {
             LOGE("ws ipc client failed to start async runtime");
             exiting_.store(true, std::memory_order_release);
-            async_runtime_.reset();
             started_.store(false, std::memory_order_release);
             return;
         }
-        async_scope_ = PxAsyncScope::Create(async_runtime_, PxAsyncLane::kState);
-        connection_supervisor_ = PxReconnectSupervisor::Create(async_runtime_, PxReconnectSupervisorOptions{
+        const auto async_scope = PxAsyncScope::Create(async_runtime, PxAsyncLane::kState);
+        const auto connection_supervisor = PxReconnectSupervisor::Create(async_runtime, PxReconnectSupervisorOptions{
             .component = "obs_ipc",
             .connection_timeout = kIpcConnectionTimeout,
             .adapter_stop_timeout = std::chrono::seconds(3),
             .backoff = kIpcReconnectOptions,
         });
-        if (!async_scope_ || !connection_supervisor_) {
+        const auto incoming_messages = async_scope
+            ? PxAsyncMailbox<std::string>::Create(async_scope->Executor(), kIpcMessageCapacity)
+            : std::shared_ptr<PxAsyncMailbox<std::string>>{};
+        if (!async_scope || !connection_supervisor || !incoming_messages) {
             LOGE("ws ipc client failed to create async workflow");
-            Exit();
+            async_runtime->RequestDrain();
+            async_runtime->Join();
+            exiting_.store(true, std::memory_order_release);
+            started_.store(false, std::memory_order_release);
             return;
         }
-        incoming_messages_ = PxAsyncMailbox<std::string>::Create(async_scope_->Executor(), kIpcMessageCapacity);
-        if (!incoming_messages_) {
-            LOGE("ws ipc client failed to create async workflow");
-            Exit();
-            return;
+        {
+            std::lock_guard lifecycle_lock(lifecycle_mutex_);
+            async_runtime_ = async_runtime;
+            async_scope_ = async_scope;
+            connection_supervisor_ = connection_supervisor;
+            incoming_messages_ = incoming_messages;
         }
 
         const auto weak_self = weak_from_this();
-        if (!async_scope_->Spawn("ipc-receive-loop", [weak_self, mailbox = incoming_messages_]() {
+        if (!async_scope->Spawn("ipc-receive-loop", [weak_self, mailbox = incoming_messages]() {
                 return RunIncomingMessageLoop(weak_self, mailbox);
             })) {
             LOGE("ws ipc client failed to start receive coroutine");
+            operation_lock.unlock();
             Exit();
             return;
         }
-
-        // Host net_ws listens with asio2::http_server (plain WS). Using wss_client here
-        // previously made the injected DLL unable to connect to /ipc.
-        ws_client_ = std::make_shared<asio2::ws_client>();
-        ws_client_->set_auto_reconnect(false);
-        ws_client_->set_timeout(std::chrono::seconds(2));
-        ws_client_->bind_init([weak_self]() {
-            const auto self = weak_self.lock();
-            if (!self || self->exiting_.load(std::memory_order_acquire) || !self->ws_client_ || !self->connection_supervisor_) {
-                return;
-            }
-            self->ws_client_->ws_stream().binary(true);
-            self->ws_client_->set_no_delay(true);
-        })
-        .bind_connect([weak_self]() {
-            if (asio2::get_last_error()) {
-                LOGE("event=transport.connection_attempt component=obs_ipc code={} operation=connect outcome=failure "
-                     "recoverable=true reason={}", asio2::last_error_val(), asio2::last_error_msg());
-                if (const auto self = weak_self.lock(); self && self->connection_supervisor_) {
-                    static_cast<void>(self->connection_supervisor_->FailActive(
-                        MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "ipc.connect", asio2::last_error_msg(), true)));
-                }
-            } else {
-                if (const auto self = weak_self.lock()) {
-                    LOGI("ws ipc client connected to 127.0.0.1:{}/ipc", self->port_);
-                }
-            }
-        })
-        .bind_upgrade([weak_self]() {
-            if (asio2::get_last_error()) {
-                LOGE("event=transport.connection_attempt component=obs_ipc code={} operation=upgrade outcome=failure "
-                     "recoverable=true reason={}", asio2::last_error_val(), asio2::last_error_msg());
-                if (const auto self = weak_self.lock(); self && self->connection_supervisor_) {
-                    static_cast<void>(self->connection_supervisor_->FailActive(
-                        MakePxAsyncError(PxAsyncErrorCode::kProtocolError, "ipc.upgrade", asio2::last_error_msg(), true)));
-                }
-            } else {
-                if (const auto self = weak_self.lock(); self && self->connection_supervisor_) {
-                    static_cast<void>(self->connection_supervisor_->MarkReady());
-                }
-            }
-        })
-        .bind_disconnect([weak_self]() {
-            if (const auto self = weak_self.lock(); self && self->connection_supervisor_) {
-                static_cast<void>(self->connection_supervisor_->MarkDisconnected(
-                    MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "ipc.disconnect", "IPC websocket disconnected", true)));
-            }
-        })
-        .bind_recv([weak_self](std::string_view data) {
-            const auto self = weak_self.lock();
-            if (!self || self->exiting_.load(std::memory_order_acquire)) {
-                return;
-            }
-            const auto mailbox = self->incoming_messages_;
-            if (mailbox) {
-                static_cast<void>(mailbox->TryPush(std::string(data)));
-            }
-        });
 
         // Identify ourselves by pid: the render only accepts /ipc connections from
         // pids it registered via RegisterIpcPid (wrote hook boot config for them).
         std::string ipc_path = std::format("/ipc?pid={}", GetCurrentProcessId());
         LOGI("ws ipc client starting: 127.0.0.1:{}{}", port_, ipc_path);
+        const auto adapter_slot = adapter_slot_;
+        const auto supervisor = connection_supervisor;
+        const auto mailbox = incoming_messages;
         PxReconnectSupervisorHooks reconnect_hooks{
-            .start_attempt = [client = ws_client_, port = port_, ipc_path = std::move(ipc_path)](std::uint64_t) {
-                if (client->async_start("127.0.0.1", port, ipc_path)) {
-                    return PxResult<void>::Success();
+            .start_attempt = [weak_self, adapter_slot, supervisor, mailbox, port = port_,
+                              ipc_path = std::move(ipc_path)](const std::uint64_t generation) {
+                const auto self = weak_self.lock();
+                if (!self || self->exiting_.load(std::memory_order_acquire)) {
+                    return PxResult<void>::Failure(MakePxAsyncError(
+                        PxAsyncErrorCode::kServiceStopped, "ipc.start", "IPC websocket owner is stopping"));
                 }
-                return PxResult<void>::Failure(MakePxAsyncError(
-                    PxAsyncErrorCode::kServiceNotConnected, "ipc.start", asio2::last_error_msg(), true));
+                const auto client = std::make_shared<asio2::ws_client>();
+                const auto weak_client = std::weak_ptr<asio2::ws_client>(client);
+                client->set_auto_reconnect(false);
+                client->set_timeout(std::chrono::seconds(2));
+                client->bind_init([weak_self, weak_client]() {
+                    const auto owner = weak_self.lock();
+                    const auto current = weak_client.lock();
+                    if (!owner || !current || owner->exiting_.load(std::memory_order_acquire)) {
+                        return;
+                    }
+                    current->ws_stream().binary(true);
+                    current->set_no_delay(true);
+                }).bind_connect([weak_self, supervisor, generation, port]() {
+                    if (const auto owner = weak_self.lock(); owner && !owner->exiting_.load(std::memory_order_acquire)) {
+                        if (asio2::get_last_error()) {
+                            static_cast<void>(supervisor->FailActive(generation, MakePxAsyncError(
+                                PxAsyncErrorCode::kServiceNotConnected, "ipc.connect", asio2::last_error_msg(), true)));
+                            return;
+                        }
+                        LOGI("ws ipc client connected to 127.0.0.1:{}/ipc", port);
+                    }
+                }).bind_upgrade([weak_self, supervisor, generation]() {
+                    if (const auto owner = weak_self.lock(); owner && !owner->exiting_.load(std::memory_order_acquire)) {
+                        if (asio2::get_last_error()) {
+                            static_cast<void>(supervisor->FailActive(generation, MakePxAsyncError(
+                                PxAsyncErrorCode::kProtocolError, "ipc.upgrade", asio2::last_error_msg(), true)));
+                            return;
+                        }
+                        static_cast<void>(supervisor->MarkReady(generation));
+                    }
+                }).bind_disconnect([weak_self, supervisor, generation]() {
+                    if (const auto owner = weak_self.lock(); owner && !owner->exiting_.load(std::memory_order_acquire)) {
+                        static_cast<void>(supervisor->MarkDisconnected(generation, MakePxAsyncError(
+                            PxAsyncErrorCode::kServiceNotConnected, "ipc.disconnect", "IPC websocket disconnected", true)));
+                    }
+                }).bind_recv([weak_self, mailbox](std::string_view data) {
+                    if (const auto owner = weak_self.lock(); owner && !owner->exiting_.load(std::memory_order_acquire)) {
+                        static_cast<void>(mailbox->TryPush(std::string(data)));
+                    }
+                });
+                adapter_slot->Replace(client);
+                return StartWebSocketAdapter(client, "127.0.0.1", port, ipc_path, "ipc.start");
             },
-            .stop_attempt = [client = ws_client_](std::chrono::steady_clock::time_point deadline)
-                -> PxAwaitable<PxResult<void>> {
-                const auto requested = RequestAsioClientStop(client, "ipc.retry-reset");
-                if (!requested) {
-                    co_return requested;
-                }
-                co_return co_await WaitForAsioClientStopped(client, deadline, "ipc.retry-reset");
+            .stop_attempt = [adapter_slot](const std::chrono::steady_clock::time_point deadline) {
+                return StopWebSocketAdapter(adapter_slot->Snapshot(), deadline, "ipc.retry-reset");
             },
         };
-        if (!async_scope_->Spawn("ipc-connection-loop",
-                                 [supervisor = connection_supervisor_, hooks = std::move(reconnect_hooks)]() mutable {
+        if (!async_scope->Spawn("ipc-connection-loop",
+                                [supervisor, hooks = std::move(reconnect_hooks)]() mutable {
             return PxReconnectSupervisor::Run(std::move(supervisor), std::move(hooks));
         })) {
             LOGE("ws ipc client failed to start connection coroutine");
+            operation_lock.unlock();
             Exit();
         }
     }
 
     void WsIpcClient::Exit() {
+        std::unique_lock operation_lock(operation_mutex_);
         if (exiting_.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-        const auto runtime = async_runtime_;
+        const auto state = SnapshotAsyncState();
+        const auto runtime = state.runtime;
         const auto owner = weak_from_this().lock();
         if (runtime && runtime->IsRuntimeThread() && owner) {
             const auto weak_owner = std::weak_ptr<WsIpcClient>(owner);
@@ -233,7 +232,7 @@ namespace px
         }
 
         const auto scope = BeginStop();
-        const auto client = ws_client_;
+        const auto client = adapter_slot_->Snapshot();
         const auto remaining = std::max(
             std::chrono::milliseconds::zero(),
             std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()));
@@ -260,7 +259,13 @@ namespace px
             co_return PxResult<void>::Failure(MakePxAsyncError(
                 PxAsyncErrorCode::kInvalidArgument, "ipc.stop", "OBS IPC client owner is missing"));
         }
-        const auto scope = owner->BeginStop();
+        std::shared_ptr<PxAsyncScope> scope;
+        AsyncStateSnapshot state;
+        {
+            std::unique_lock operation_lock(owner->operation_mutex_);
+            state = owner->SnapshotAsyncState();
+            scope = owner->BeginStop();
+        }
         if (scope) {
             const auto drained = co_await WaitForAsyncScopeDrain(scope, deadline, "ipc.stop");
             if (!drained) {
@@ -271,44 +276,61 @@ namespace px
                 co_return PxResult<void>::Failure(drained.Error());
             }
         }
-        static_cast<void>(RequestAsioClientStop(owner->ws_client_, "ipc.adapter-stop-confirm"));
-        const auto adapter_stopped = co_await WaitForAsioClientStopped(owner->ws_client_, deadline, "ipc.adapter-stop");
+        const auto client = owner->adapter_slot_->Snapshot();
+        static_cast<void>(RequestAsioClientStop(client, "ipc.adapter-stop-confirm"));
+        const auto adapter_stopped = co_await WaitForAsioClientStopped(client, deadline, "ipc.adapter-stop");
         if (!adapter_stopped) {
             co_return adapter_stopped;
         }
-        const auto runtime = owner->async_runtime_;
-        if (runtime) {
-            runtime->RequestDrain();
-            runtime->Join();
+        if (state.runtime) {
+            state.runtime->RequestDrain();
+            state.runtime->Join();
         }
-        owner->FinishStop();
+        {
+            std::unique_lock operation_lock(owner->operation_mutex_);
+            owner->FinishStop();
+        }
         co_return PxResult<void>::Success();
     }
 
     std::shared_ptr<PxAsyncScope> WsIpcClient::BeginStop() {
+        const auto state = SnapshotAsyncState();
         exiting_.store(true, std::memory_order_release);
-        if (incoming_messages_) {
-            static_cast<void>(incoming_messages_->Close(
+        if (state.mailbox) {
+            static_cast<void>(state.mailbox->Close(
                 MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "ipc.receive", "IPC websocket is stopping")));
         }
-        if (connection_supervisor_) {
-            connection_supervisor_->Stop();
+        if (state.supervisor) {
+            state.supervisor->Stop();
         }
-        const auto client = ws_client_;
+        const auto client = adapter_slot_->Snapshot();
         static_cast<void>(RequestAsioClientStop(client, "ipc.adapter-stop"));
-        if (async_scope_) {
-            async_scope_->BeginStop();
+        if (state.scope) {
+            state.scope->BeginStop();
         }
-        return async_scope_;
+        return state.scope;
     }
 
     void WsIpcClient::FinishStop() {
-        ws_client_.reset();
-        incoming_messages_.reset();
-        connection_supervisor_.reset();
-        async_scope_.reset();
-        async_runtime_.reset();
+        adapter_slot_->Clear();
+        {
+            std::lock_guard lifecycle_lock(lifecycle_mutex_);
+            incoming_messages_.reset();
+            connection_supervisor_.reset();
+            async_scope_.reset();
+            async_runtime_.reset();
+        }
         started_.store(false, std::memory_order_release);
+    }
+
+    WsIpcClient::AsyncStateSnapshot WsIpcClient::SnapshotAsyncState() const {
+        std::lock_guard lifecycle_lock(lifecycle_mutex_);
+        return AsyncStateSnapshot{
+            .runtime = async_runtime_,
+            .scope = async_scope_,
+            .supervisor = connection_supervisor_,
+            .mailbox = incoming_messages_,
+        };
     }
 
     void WsIpcClient::RegisterIpcMessageCallback(WsIpcMessageCallback&& callback) {
@@ -317,14 +339,15 @@ namespace px
     }
 
     void WsIpcClient::PostIpcMessage(const std::string& msg) {
-        if (!ws_client_) {
+        const auto client = adapter_slot_->Snapshot();
+        if (!client) {
             const auto count = null_drop_count_.fetch_add(1, std::memory_order_acq_rel) + 1;
             if (count == 1 || (count % 200) == 0) {
                 LOGE("ws ipc PostIpcMessage: client is null, drop {} bytes n={}", msg.size(), count);
             }
             return;
         }
-        if (!ws_client_->is_started()) {
+        if (!client->is_started()) {
             const auto count = stopped_drop_count_.fetch_add(1, std::memory_order_acq_rel) + 1;
             if (count == 1 || (count % 200) == 0) {
                 LOGE("ws ipc PostIpcMessage: not started, drop {} bytes n={}", msg.size(), count);
@@ -335,7 +358,7 @@ namespace px
             LOGE("ws ipc PostIpcMessage: empty payload");
             return;
         }
-        ws_client_->async_send(msg);
+        client->async_send(msg);
     }
 
     PxAwaitable<void> WsIpcClient::RunIncomingMessageLoop(

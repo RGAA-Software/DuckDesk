@@ -21,6 +21,17 @@ Render 当前的大多数功能都是产品固定能力，不需要独立发现�
 此次升级不改变产品功能集合、协议语义或 WebRTC 内部对象模型。迁移按模块分批完成，
 任何一个批次都必须保持可构建、可运行、可回退。
 
+### 1.1 当前实现边界（2026-09-04 复审）
+
+- `src/px_render/plugins` 已退出生产源码树；内建 Source、Processor、Encoder、Observer、Sink、Service 以及 WS/UDP/Relay 不再继承旧
+  `PxPluginInterface`。
+- `architecture/extensions/flow_node_plugin_registry.*` 是流程节点插件的显式注册和创建入口，由 `RenderCompositionRoot` 持有；factory 在锁外执行，
+  创建时校验注册 id、声明 role 和具体 capability 类型，不使用静态自动注册或目录扫描。
+- `FlowNodePlugin` 只表示单向工作流节点契约，“plugin”不再表示 DLL。内建模块继续使用具体类型和 composition-root 注入，不为了统一命名而继承它。
+- WebRTC 仍通过 `net_rtc.dll` / `net_rtc_local.dll` 动态交付，并位于 WS、UDP、Relay 同一网络层。当前仓库约束要求保留已建立的
+  `GetInstance`/loader-owned singleton ABI；该 ABI 只封闭在 `WebRtcLibrary` compatibility adapter 内，业务侧不把 WebRTC 当流程节点插件或通用网络接口。
+- 若将来要替换 WebRTC DLL ABI，必须单独立项并进行 WebRTC 专项评审；不得在本次智能指针或协程迁移中顺带改变实例身份、卸载时机和 callback ABI。
+
 ## 2. 非目标
 
 - 不在此次升级中重写 libwebrtc 或 `src/px_deps/px_webrtc_client` 的借用 ABI。

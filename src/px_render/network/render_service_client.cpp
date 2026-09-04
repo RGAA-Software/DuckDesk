@@ -17,6 +17,7 @@
 #include "px_common_new/asio_client_shutdown.h"
 #include "px_common_new/async_operation.h"
 #include "px_common_new/reconnect_supervisor.h"
+#include "px_common_new/websocket_reconnect_adapter.h"
 #include "px_common_new/virtual_display_timeouts.h"
 #include "rd_app.h"
 #include "app/app_messages.h"
@@ -198,6 +199,7 @@ namespace px
     } // namespace
 
     RenderServiceClient::RenderServiceClient(const std::shared_ptr<RdApplication>& app) {
+        adapter_slot_ = std::make_shared<PxReconnectAdapterSlot<asio2::ws_client>>();
         statistics_ = RdStatistics::Instance();
         app_ = app;
         context_ = app_->GetContext();
@@ -208,40 +210,53 @@ namespace px
     }
 
     void RenderServiceClient::Start() {
+        std::unique_lock operation_lock(operation_mutex_);
         if (started_.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
         exiting_.store(false, std::memory_order_release);
+        deferred_exit_scheduled_.store(false, std::memory_order_release);
         const auto async_runtime = context_ ? context_->GetAsyncRuntime() : std::shared_ptr<PxAsyncRuntime>{};
         if (!async_runtime || async_runtime->IsStopping()) {
             LOGE("event=module.start component=render_service code=ASYNC_RUNTIME_UNAVAILABLE "
                  "operation=start_client outcome=failed recoverable=false");
+            operation_lock.unlock();
             Exit();
             return;
         }
-        async_scope_ = PxAsyncScope::Create(async_runtime, PxAsyncLane::kState);
-        if (async_scope_) {
-            rpc_state_ = std::make_shared<RenderServiceRpcState>(async_scope_->Executor());
-            incoming_messages_ = PxAsyncMailbox<std::string>::Create(async_scope_->Executor(), kIncomingServiceMessageCapacity);
-        }
-        connection_supervisor_ = PxReconnectSupervisor::Create(async_runtime, PxReconnectSupervisorOptions{
+        const auto async_scope = PxAsyncScope::Create(async_runtime, PxAsyncLane::kState);
+        const auto rpc_state = async_scope ? std::make_shared<RenderServiceRpcState>(async_scope->Executor())
+                                           : std::shared_ptr<RenderServiceRpcState>{};
+        const auto incoming_messages = async_scope
+            ? PxAsyncMailbox<std::string>::Create(async_scope->Executor(), kIncomingServiceMessageCapacity)
+            : std::shared_ptr<PxAsyncMailbox<std::string>>{};
+        const auto connection_supervisor = PxReconnectSupervisor::Create(async_runtime, PxReconnectSupervisorOptions{
             .component = "render_service",
             .connection_timeout = kRenderServiceConnectionTimeout,
             .adapter_stop_timeout = std::chrono::seconds(3),
             .backoff = kRenderServiceReconnectOptions,
         });
-        if (!async_scope_ || !rpc_state_ || !incoming_messages_ || !connection_supervisor_) {
+        if (!async_scope || !rpc_state || !incoming_messages || !connection_supervisor) {
             LOGE("event=module.start component=render_service code=ASYNC_WORKFLOW_CREATE_FAILED "
                  "operation=start_client outcome=failed recoverable=false");
+            operation_lock.unlock();
             Exit();
             return;
         }
+        {
+            std::lock_guard lifecycle_lock(lifecycle_mutex_);
+            async_scope_ = async_scope;
+            rpc_state_ = rpc_state;
+            incoming_messages_ = incoming_messages;
+            connection_supervisor_ = connection_supervisor;
+        }
         auto weak_self = weak_from_this();
-        if (!async_scope_->Spawn("render-service-receive-loop", [weak_self, mailbox = incoming_messages_]() {
+        if (!async_scope->Spawn("render-service-receive-loop", [weak_self, mailbox = incoming_messages]() {
                 return RunIncomingMessageLoop(weak_self, mailbox);
             })) {
             LOGE("event=module.start component=render_service code=ASYNC_SCOPE_SPAWN_FAILED "
                  "operation=start_receive_loop outcome=failed recoverable=false");
+            operation_lock.unlock();
             Exit();
             return;
         }
@@ -254,108 +269,83 @@ namespace px
             self->HeartBeat();
         });
 
-        client_ = std::make_shared<asio2::ws_client>();
-        client_->set_auto_reconnect(false);
-        client_->keep_alive(true);
-        client_->set_timeout(std::chrono::milliseconds(2000));
-
-        client_->bind_init([weak_self]() {
-            auto self = weak_self.lock();
-            if (!self || self->exiting_ || !self->client_ || !self->connection_supervisor_) {
-                return;
-            }
-            self->websocket_upgraded_ = false;
-            self->client_->ws_stream().binary(true);
-            self->client_->set_no_delay(true);
-            const auto ipc_token = RdSettings::Instance()->service_ipc_token_;
-            self->client_->ws_stream().set_option(
-                websocket::stream_base::decorator([ipc_token](websocket::request_type &req) {
-                    req.set(http::field::authorization, "Bearer " + ipc_token);}
-                )
-            );
-        })
-        .bind_connect([weak_self]() {
-            auto self = weak_self.lock();
-            if (!self || self->exiting_ || !self->client_ || !self->context_
-                || !self->connection_supervisor_) {
-                return;
-            }
-            if (asio2::get_last_error()) {
-                auto wstr = StringUtil::ToWString(asio2::last_error_msg());
-                auto str = StringUtil::ToUTF8(wstr);
-                LOGE("event=transport.connection_attempt component=render_service code={} operation=connect outcome=failure "
-                     "recoverable=true reason={}", asio2::last_error_val(), str);
-                static_cast<void>(self->connection_supervisor_->FailActive(
-                    MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "render-service.connect", str, true)));
-                return;
-            }
-            LOGI("RenderServiceClient, tcp connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
-        })
-        .bind_disconnect([weak_self]() {
-            if (auto self = weak_self.lock()) {
-                self->websocket_upgraded_ = false;
-                if (self->connection_supervisor_) {
-                    static_cast<void>(self->connection_supervisor_->MarkDisconnected(
-                        MakePxAsyncError(
-                            PxAsyncErrorCode::kServiceNotConnected, "render-service.disconnect", "Render disconnected from Service", true)));
-                }
-                self->FailPendingRequests(MakePxAsyncError(
-                    PxAsyncErrorCode::kServiceNotConnected,
-                    "service_websocket",
-                    "Render disconnected from Service",
-                    true));
-            }
-        })
-        .bind_upgrade([weak_self]() {
-            auto self = weak_self.lock();
-            if (!self || self->exiting_ || !self->context_ || !self->connection_supervisor_) {
-                return;
-            }
-            if (asio2::get_last_error()) {
-                LOGE("event=transport.connection_attempt component=render_service code={} operation=upgrade outcome=failure "
-                     "recoverable=true reason={}", asio2::last_error_val(), asio2::last_error_msg());
-                static_cast<void>(self->connection_supervisor_->FailActive(
-                    MakePxAsyncError(PxAsyncErrorCode::kProtocolError, "render-service.upgrade", asio2::last_error_msg(), true)));
-                return;
-            }
-            self->websocket_upgraded_ = true;
-            LOGI("RenderServiceClient, websocket upgrade success");
-            static_cast<void>(self->connection_supervisor_->MarkReady());
-        })
-        .bind_recv([weak_self](std::string_view data) {
-            auto self = weak_self.lock();
-            if (!self || self->exiting_) {
-                return;
-            }
-            const auto mailbox = self->incoming_messages_;
-            if (!mailbox) {
-                return;
-            }
-            const auto published = mailbox->TryPush(std::string(data));
-            if (!published) {
-                LOGE("Render Service receive mailbox rejected message: code={}, depth={}",
-                     published.Error().StableCode(), mailbox->Statistics().depth);
-            }
-        });
-
         auto settings = RdSettings::Instance();
         LOGI("Will connect to service : {}:{}", settings->service_server_host_, settings->service_server_port_);
+        const auto adapter_slot = adapter_slot_;
+        const auto supervisor = connection_supervisor;
+        const auto mailbox = incoming_messages;
         PxReconnectSupervisorHooks reconnect_hooks{
-            .start_attempt = [client = client_, host = settings->service_server_host_,
-                              port = settings->service_server_port_](std::uint64_t) {
-                if (client->async_start(host, port, "/service/message?from=render")) {
-                    return PxResult<void>::Success();
+            .start_attempt = [weak_self, adapter_slot, supervisor, mailbox, host = settings->service_server_host_,
+                              port = settings->service_server_port_](const std::uint64_t generation) {
+                const auto self = weak_self.lock();
+                if (!self || self->exiting_.load(std::memory_order_acquire)) {
+                    return PxResult<void>::Failure(MakePxAsyncError(
+                        PxAsyncErrorCode::kServiceStopped, "render-service.start", "Render Service client is stopping"));
                 }
-                return PxResult<void>::Failure(MakePxAsyncError(
-                    PxAsyncErrorCode::kServiceNotConnected, "render-service.start", asio2::last_error_msg(), true));
+                const auto client = std::make_shared<asio2::ws_client>();
+                const auto weak_client = std::weak_ptr<asio2::ws_client>(client);
+                client->set_auto_reconnect(false);
+                client->keep_alive(true);
+                client->set_timeout(std::chrono::milliseconds(2000));
+                client->bind_init([weak_self, weak_client]() {
+                    const auto owner = weak_self.lock();
+                    const auto current = weak_client.lock();
+                    if (!owner || !current || owner->exiting_.load(std::memory_order_acquire)) {
+                        return;
+                    }
+                    owner->websocket_upgraded_.store(false, std::memory_order_release);
+                    current->ws_stream().binary(true);
+                    current->set_no_delay(true);
+                    const auto ipc_token = RdSettings::Instance()->service_ipc_token_;
+                    current->ws_stream().set_option(websocket::stream_base::decorator([ipc_token](websocket::request_type& request) {
+                        request.set(http::field::authorization, "Bearer " + ipc_token);
+                    }));
+                }).bind_connect([weak_self, weak_client, supervisor, generation]() {
+                    const auto owner = weak_self.lock();
+                    const auto current = weak_client.lock();
+                    if (!owner || !current || owner->exiting_.load(std::memory_order_acquire)) {
+                        return;
+                    }
+                    if (asio2::get_last_error()) {
+                        const auto reason = StringUtil::ToUTF8(StringUtil::ToWString(asio2::last_error_msg()));
+                        static_cast<void>(supervisor->FailActive(generation, MakePxAsyncError(
+                            PxAsyncErrorCode::kServiceNotConnected, "render-service.connect", reason, true)));
+                        return;
+                    }
+                    LOGI("RenderServiceClient, tcp connect success : {} {} ", current->local_address().c_str(), current->local_port());
+                }).bind_disconnect([weak_self, supervisor, generation]() {
+                    if (const auto owner = weak_self.lock()) {
+                        owner->websocket_upgraded_.store(false, std::memory_order_release);
+                        static_cast<void>(supervisor->MarkDisconnected(generation, MakePxAsyncError(
+                            PxAsyncErrorCode::kServiceNotConnected, "render-service.disconnect", "Render disconnected from Service", true)));
+                        owner->FailPendingRequests(MakePxAsyncError(
+                            PxAsyncErrorCode::kServiceNotConnected, "service_websocket", "Render disconnected from Service", true));
+                    }
+                }).bind_upgrade([weak_self, supervisor, generation]() {
+                    if (const auto owner = weak_self.lock(); owner && !owner->exiting_.load(std::memory_order_acquire)) {
+                        if (asio2::get_last_error()) {
+                            static_cast<void>(supervisor->FailActive(generation, MakePxAsyncError(
+                                PxAsyncErrorCode::kProtocolError, "render-service.upgrade", asio2::last_error_msg(), true)));
+                            return;
+                        }
+                        owner->websocket_upgraded_.store(true, std::memory_order_release);
+                        LOGI("RenderServiceClient, websocket upgrade success");
+                        static_cast<void>(supervisor->MarkReady(generation));
+                    }
+                }).bind_recv([weak_self, mailbox](std::string_view data) {
+                    if (const auto owner = weak_self.lock(); owner && !owner->exiting_.load(std::memory_order_acquire)) {
+                        const auto published = mailbox->TryPush(std::string(data));
+                        if (!published) {
+                            LOGE("Render Service receive mailbox rejected message: code={}, depth={}",
+                                 published.Error().StableCode(), mailbox->Statistics().depth);
+                        }
+                    }
+                });
+                adapter_slot->Replace(client);
+                return StartWebSocketAdapter(client, host, port, "/service/message?from=render", "render-service.start");
             },
-            .stop_attempt = [client = client_](std::chrono::steady_clock::time_point deadline)
-                -> PxAwaitable<PxResult<void>> {
-                const auto requested = RequestAsioClientStop(client, "render-service.retry-reset");
-                if (!requested) {
-                    co_return requested;
-                }
-                co_return co_await WaitForAsioClientStopped(client, deadline, "render-service.retry-reset");
+            .stop_attempt = [adapter_slot](const std::chrono::steady_clock::time_point deadline) {
+                return StopWebSocketAdapter(adapter_slot->Snapshot(), deadline, "render-service.retry-reset");
             },
             .on_ready = [weak_self](std::uint64_t) {
                 if (const auto self = weak_self.lock(); self && !self->exiting_.load(std::memory_order_acquire) && self->context_) {
@@ -364,12 +354,13 @@ namespace px
                 }
             },
         };
-        if (!async_scope_->Spawn("render-service-connection-loop",
-                                 [supervisor = connection_supervisor_, hooks = std::move(reconnect_hooks)]() mutable {
+        if (!async_scope->Spawn("render-service-connection-loop",
+                                [supervisor, hooks = std::move(reconnect_hooks)]() mutable {
             return PxReconnectSupervisor::Run(std::move(supervisor), std::move(hooks));
         })) {
             LOGE("event=module.start component=render_service code=ASYNC_SCOPE_SPAWN_FAILED "
                  "operation=start_connection_loop outcome=failed recoverable=false");
+            operation_lock.unlock();
             Exit();
         }
     }
@@ -452,7 +443,8 @@ namespace px
                 ticket.rtc_ice_config_json = sub.rtc_ice_config_json();
                 return PxResult<RedeemedConnectionTicket>::Success(std::move(ticket));
             }();
-            if (!rpc_state_ || !rpc_state_->ticket_requests_->Complete(
+            const auto state = SnapshotAsyncState();
+            if (!state.rpc_state || !state.rpc_state->ticket_requests_->Complete(
                     sub.request_id(), std::move(result))) {
                 LOGW("Ignore late or unknown ticket response: request_id={}", sub.request_id());
             }
@@ -474,7 +466,8 @@ namespace px
             result.removal_safe_ = sub.removal_safe();
             result.phase_ = sub.phase();
 
-            if (!rpc_state_ || !rpc_state_->virtual_display_requests_->Complete(
+            const auto state = SnapshotAsyncState();
+            if (!state.rpc_state || !state.rpc_state->virtual_display_requests_->Complete(
                     result.request_id_,
                     PxResult<MsgVirtualDisplayServiceResult>::Success(result))) {
                 LOGW("Ignore late or unknown virtual display response: request_id={}",
@@ -492,15 +485,17 @@ namespace px
     }
 
     void RenderServiceClient::Exit() {
+        std::unique_lock operation_lock(operation_mutex_);
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
         const auto scope = BeginStop();
         if (scope && scope->IsScopeThread()) {
             LOGI("event=async.scope_drain component=render_service operation=stop_client outcome=deferred "
                  "reason=shutdown_requested_from_runtime_thread outstanding={}",
                  scope->GetStatistics().outstanding);
+            ScheduleDeferredExit();
             return;
         }
-        const auto client = client_;
+        const auto client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::ws_client>{};
         const auto remaining = std::max(
             std::chrono::milliseconds::zero(),
             std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()));
@@ -516,6 +511,23 @@ namespace px
         FinishStop();
     }
 
+    void RenderServiceClient::ScheduleDeferredExit() {
+        if (deferred_exit_scheduled_.exchange(true, std::memory_order_acq_rel)) {
+            return;
+        }
+        const auto runtime = context_ ? context_->GetAsyncRuntime() : std::shared_ptr<PxAsyncRuntime>{};
+        const auto weak_self = weak_from_this();
+        if (!runtime || !runtime->DeferBlocking([weak_self]() {
+                if (const auto self = weak_self.lock()) {
+                    self->Exit();
+                }
+            })) {
+            deferred_exit_scheduled_.store(false, std::memory_order_release);
+            LOGE("event=async.scope_drain component=render_service code=ASYNC_DEFER_FAILED operation=stop_client outcome=failed "
+                 "recoverable=false");
+        }
+    }
+
     PxAwaitable<PxResult<void>> RenderServiceClient::StopAsync(
         const std::shared_ptr<RenderServiceClient>& owner,
         const std::chrono::steady_clock::time_point deadline) {
@@ -523,7 +535,11 @@ namespace px
             co_return PxResult<void>::Failure(MakePxAsyncError(
                 PxAsyncErrorCode::kInvalidArgument, "render-service.stop", "Render Service client owner is missing"));
         }
-        const auto scope = owner->BeginStop();
+        std::shared_ptr<PxAsyncScope> scope;
+        {
+            std::unique_lock operation_lock(owner->operation_mutex_);
+            scope = owner->BeginStop();
+        }
         if (scope) {
             const auto drained = co_await WaitForAsyncScopeDrain(scope, deadline, "render-service.stop");
             if (!drained) {
@@ -536,19 +552,24 @@ namespace px
                 co_return PxResult<void>::Failure(drained.Error());
             }
         }
-        static_cast<void>(RequestAsioClientStop(owner->client_, "render-service.adapter-stop-confirm"));
+        const auto client = owner->adapter_slot_ ? owner->adapter_slot_->Snapshot() : std::shared_ptr<asio2::ws_client>{};
+        static_cast<void>(RequestAsioClientStop(client, "render-service.adapter-stop-confirm"));
         const auto adapter_stopped = co_await WaitForAsioClientStopped(
-            owner->client_, deadline, "render-service.adapter-stop");
+            client, deadline, "render-service.adapter-stop");
         if (!adapter_stopped) {
             co_return adapter_stopped;
         }
-        owner->FinishStop();
+        {
+            std::unique_lock operation_lock(owner->operation_mutex_);
+            owner->FinishStop();
+        }
         co_return PxResult<void>::Success();
     }
 
     std::shared_ptr<PxAsyncScope> RenderServiceClient::BeginStop() {
+        const auto state = SnapshotAsyncState();
         if (exiting_.exchange(true)) {
-            return async_scope_;
+            return state.scope;
         }
         if (msg_listener_) {
             msg_listener_->UnListenAll();
@@ -558,48 +579,66 @@ namespace px
             PxAsyncErrorCode::kServiceStopped,
             "service_shutdown",
             "Render Service client is stopping"));
-        if (incoming_messages_) {
-            static_cast<void>(incoming_messages_->Close(MakePxAsyncError(
+        if (state.mailbox) {
+            static_cast<void>(state.mailbox->Close(MakePxAsyncError(
                 PxAsyncErrorCode::kServiceStopped, "render-service.receive", "Render Service client is stopping")));
         }
-        if (connection_supervisor_) {
-            connection_supervisor_->Stop();
+        if (state.supervisor) {
+            state.supervisor->Stop();
         }
-        const auto client = client_;
+        const auto client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::ws_client>{};
         static_cast<void>(RequestAsioClientStop(client, "render-service.adapter-stop"));
-        if (async_scope_) {
-            async_scope_->BeginStop();
+        if (state.scope) {
+            state.scope->BeginStop();
         }
-        return async_scope_;
+        return state.scope;
     }
 
     void RenderServiceClient::FinishStop() {
-        if (async_scope_ && async_scope_->GetStatistics().outstanding != 0) {
+        const auto state = SnapshotAsyncState();
+        if (state.scope && state.scope->GetStatistics().outstanding != 0) {
             return;
         }
-        client_.reset();
-        incoming_messages_.reset();
-        connection_supervisor_.reset();
-        rpc_state_.reset();
-        async_scope_.reset();
+        if (adapter_slot_) {
+            adapter_slot_->Clear();
+        }
+        {
+            std::lock_guard lifecycle_lock(lifecycle_mutex_);
+            incoming_messages_.reset();
+            connection_supervisor_.reset();
+            rpc_state_.reset();
+            async_scope_.reset();
+        }
         websocket_upgraded_.store(false, std::memory_order_release);
+        queuing_message_count_.store(0, std::memory_order_release);
         started_.store(false, std::memory_order_release);
+        deferred_exit_scheduled_.store(false, std::memory_order_release);
     }
 
     bool RenderServiceClient::IsAlive() const {
-        return client_ != nullptr && client_->is_started()
-            && websocket_upgraded_.load(std::memory_order_acquire)
-            && connection_supervisor_ && connection_supervisor_->IsReady();
+        const auto state = SnapshotAsyncState();
+        const auto client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::ws_client>{};
+        return client && client->is_started() && websocket_upgraded_.load(std::memory_order_acquire) && state.supervisor
+            && state.supervisor->IsReady();
+    }
+
+    RenderServiceClient::AsyncStateSnapshot RenderServiceClient::SnapshotAsyncState() const {
+        std::lock_guard lifecycle_lock(lifecycle_mutex_);
+        return AsyncStateSnapshot{
+            .scope = async_scope_,
+            .rpc_state = rpc_state_,
+            .supervisor = connection_supervisor_,
+            .mailbox = incoming_messages_,
+        };
     }
 
     void RenderServiceClient::HeartBeat() {
-        static int64_t hb_idx = 0;
         px::ServiceMessage msg;
         msg.set_type(ServiceMessageType::kSrvHeartBeat);
-        auto sub = msg.mutable_heart_beat();
-        sub->set_index(hb_idx++);
-        sub->set_from(std::format("render_{}", RdSettings::Instance()->transmission_.listening_port_));
-        sub->set_logical_sessions_json(BuildLogicalSessionsJson(
+        auto& sub = *msg.mutable_heart_beat();
+        sub.set_index(heartbeat_index_.fetch_add(1, std::memory_order_acq_rel));
+        sub.set_from(std::format("render_{}", RdSettings::Instance()->transmission_.listening_port_));
+        sub.set_logical_sessions_json(BuildLogicalSessionsJson(
             app_ ? app_->GetLogicalSessionRegistry() : std::shared_ptr<LogicalSessionRegistry>{}));
         PostNetMessage(msg.SerializeAsString());
     }
@@ -613,7 +652,7 @@ namespace px
     }
 
     PxResult<void> RenderServiceClient::TryPostNetMessage(const std::string& msg) {
-        const auto client = client_;
+        const auto client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::ws_client>{};
         if (exiting_.load(std::memory_order_acquire)) {
             return PxResult<void>::Failure(MakePxAsyncError(
                 PxAsyncErrorCode::kServiceStopped,
@@ -660,11 +699,12 @@ namespace px
     }
 
     void RenderServiceClient::FailPendingRequests(const PxAsyncError& error) {
-        if (!rpc_state_) {
+        const auto state = SnapshotAsyncState();
+        if (!state.rpc_state) {
             return;
         }
-        const auto ticket_count = rpc_state_->ticket_requests_->FailAll(error);
-        const auto display_count = rpc_state_->virtual_display_requests_->FailAll(error);
+        const auto ticket_count = state.rpc_state->ticket_requests_->FailAll(error);
+        const auto display_count = state.rpc_state->virtual_display_requests_->FailAll(error);
         if (ticket_count != 0 || display_count != 0) {
             LOGW("Render Service pending requests failed: tickets={}, virtual_displays={}, code={}",
                  ticket_count, display_count, error.StableCode());
@@ -691,11 +731,11 @@ namespace px
             std::scoped_lock lock(ready_mtx_);
             if (!ready_pending_) return;
             message.set_type(ServiceMessageType::kSrvAppInstanceReady);
-            auto* ready = message.mutable_app_instance_ready();
-            ready->set_instance_id(ready_instance_id_);
-            ready->set_listen_port(ready_listen_port_);
-            ready->set_ok(ready_ok_);
-            ready->set_error(ready_error_);
+            auto& ready = *message.mutable_app_instance_ready();
+            ready.set_instance_id(ready_instance_id_);
+            ready.set_listen_port(ready_listen_port_);
+            ready.set_ok(ready_ok_);
+            ready.set_error(ready_error_);
             ready_pending_ = false;
         }
         PostNetMessage(message.SerializeAsString());
@@ -712,13 +752,14 @@ namespace px
         if (!callback) {
             return;
         }
-        if (!async_scope_ || !async_scope_->IsAccepting()) {
+        const auto state = SnapshotAsyncState();
+        if (!state.scope || !state.scope->IsAccepting()) {
             callback(false, "SERVICE_STOPPED", {}, "", "", "", "", "", 0, true, true);
             return;
         }
         const auto callback_state = std::make_shared<TicketCallback>(std::move(callback));
         const auto weak_self = weak_from_this();
-        if (!async_scope_->Spawn("redeem-connection-ticket",
+        if (!state.scope->Spawn("redeem-connection-ticket",
                 [weak_self, ticket, client_nonce, instance_id, callback_state]() {
                     return CompleteLegacyTicketRequest(
                         weak_self, ticket, client_nonce, instance_id, callback_state);
@@ -740,7 +781,8 @@ namespace px
                     "redeem_ticket",
                     "ticket and client nonce are required")));
         }
-        if (!IsAlive() || !websocket_upgraded_.load(std::memory_order_acquire) || !rpc_state_) {
+        const auto state = SnapshotAsyncState();
+        if (!IsAlive() || !websocket_upgraded_.load(std::memory_order_acquire) || !state.rpc_state) {
             return ReadyAsyncResult(PxResult<RedeemedConnectionTicket>::Failure(
                 MakePxAsyncError(
                     PxAsyncErrorCode::kServiceNotConnected,
@@ -759,7 +801,7 @@ namespace px
             "render-{}-{}",
             RdSettings::Instance()->transmission_.listening_port_,
             redemption_fingerprint);
-        auto registered = rpc_state_->ticket_requests_->Register(request_id);
+        auto registered = state.rpc_state->ticket_requests_->Register(request_id);
         if (!registered.HasValue()) {
             return ReadyAsyncResult(PxResult<RedeemedConnectionTicket>::Failure(
                 registered.Error()));
@@ -767,19 +809,19 @@ namespace px
         const auto operation = registered.Value();
         px::ServiceMessage message;
         message.set_type(ServiceMessageType::kSrvRedeemConnectionTicket);
-        auto* request = message.mutable_redeem_connection_ticket();
-        request->set_request_id(request_id);
-        request->set_ticket(ticket);
-        request->set_client_nonce(client_nonce);
-        request->set_instance_id(instance_id);
+        auto& request = *message.mutable_redeem_connection_ticket();
+        request.set_request_id(request_id);
+        request.set_ticket(ticket);
+        request.set_client_nonce(client_nonce);
+        request.set_instance_id(instance_id);
         const auto send_result = TryPostNetMessage(message.SerializeAsString());
         if (!send_result.HasValue()) {
-            static_cast<void>(rpc_state_->ticket_requests_->Complete(
+            static_cast<void>(state.rpc_state->ticket_requests_->Complete(
                 request_id,
                 PxResult<RedeemedConnectionTicket>::Failure(send_result.Error())));
         }
         return WaitForRegisteredRequest(
-            rpc_state_->ticket_requests_, request_id, operation, deadline);
+            state.rpc_state->ticket_requests_, request_id, operation, deadline);
     }
 
     void RenderServiceClient::RequestVirtualDisplay(
@@ -792,7 +834,8 @@ namespace px
         if (!callback) {
             return;
         }
-        if (!async_scope_ || !async_scope_->IsAccepting()) {
+        const auto state = SnapshotAsyncState();
+        if (!state.scope || !state.scope->IsAccepting()) {
             MsgVirtualDisplayServiceResult result;
             result.request_id_ = request_id;
             result.error_code_ = "SERVICE_STOPPED";
@@ -803,7 +846,7 @@ namespace px
         const auto callback_state =
             std::make_shared<VirtualDisplayCallback>(std::move(callback));
         const auto weak_self = weak_from_this();
-        if (!async_scope_->Spawn("virtual-display-service-request",
+        if (!state.scope->Spawn("virtual-display-service-request",
                 [weak_self, request_id, operation, width, height, refresh_hz, callback_state]() {
                     return CompleteLegacyVirtualDisplayRequest(
                         weak_self, request_id, operation, width, height, refresh_hz, callback_state);
@@ -832,7 +875,8 @@ namespace px
                     "virtual_display",
                     "virtual display request is invalid")));
         }
-        if (!IsAlive() || !websocket_upgraded_.load(std::memory_order_acquire) || !rpc_state_) {
+        const auto state = SnapshotAsyncState();
+        if (!IsAlive() || !websocket_upgraded_.load(std::memory_order_acquire) || !state.rpc_state) {
             return ReadyAsyncResult(PxResult<MsgVirtualDisplayServiceResult>::Failure(
                 MakePxAsyncError(
                     PxAsyncErrorCode::kServiceNotConnected,
@@ -840,7 +884,7 @@ namespace px
                     "Render is not connected to Service",
                     true)));
         }
-        auto registered = rpc_state_->virtual_display_requests_->Register(request_id);
+        auto registered = state.rpc_state->virtual_display_requests_->Register(request_id);
         if (!registered.HasValue()) {
             return ReadyAsyncResult(PxResult<MsgVirtualDisplayServiceResult>::Failure(
                 registered.Error()));
@@ -849,20 +893,20 @@ namespace px
 
         px::ServiceMessage message;
         message.set_type(ServiceMessageType::kSrvVirtualDisplayRequest);
-        auto* request = message.mutable_virtual_display_request();
-        request->set_request_id(request_id);
-        request->set_operation(static_cast<VirtualDisplayOperation>(operation));
-        request->set_width(width);
-        request->set_height(height);
-        request->set_refresh_hz(refresh_hz);
+        auto& request = *message.mutable_virtual_display_request();
+        request.set_request_id(request_id);
+        request.set_operation(static_cast<VirtualDisplayOperation>(operation));
+        request.set_width(width);
+        request.set_height(height);
+        request.set_refresh_hz(refresh_hz);
         const auto send_result = TryPostNetMessage(message.SerializeAsString());
         if (!send_result.HasValue()) {
-            static_cast<void>(rpc_state_->virtual_display_requests_->Complete(
+            static_cast<void>(state.rpc_state->virtual_display_requests_->Complete(
                 request_id,
                 PxResult<MsgVirtualDisplayServiceResult>::Failure(send_result.Error())));
         }
         return WaitForRegisteredRequest(
-            rpc_state_->virtual_display_requests_, request_id, request_operation, deadline);
+            state.rpc_state->virtual_display_requests_, request_id, request_operation, deadline);
     }
 
 }

@@ -53,7 +53,6 @@ namespace px
         std::atomic_bool exiting_ = false;
         std::atomic_bool deferred_exit_scheduled_{false};
         std::atomic_int64_t heartbeat_index_{0};
-        std::atomic_uint64_t callback_generation_{0};
         mutable std::mutex network_mutex_{};
         std::mutex operation_mutex_{};
     };

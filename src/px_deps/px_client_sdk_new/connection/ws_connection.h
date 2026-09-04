@@ -22,6 +22,8 @@ namespace px
     class PxAsyncRuntime;
     class PxAsyncScope;
     class PxReconnectSupervisor;
+    template<typename Client>
+    class PxReconnectAdapterSlot;
 
     class WsConnection : public Connection,
                          public std::enable_shared_from_this<WsConnection> {
@@ -48,14 +50,13 @@ namespace px
         int port_{0};
         std::string path_{};
         std::shared_ptr<PxAsyncRuntime> async_runtime_{};
-        std::shared_ptr<asio2::ws_client> client_{};
+        std::shared_ptr<PxReconnectAdapterSlot<asio2::ws_client>> adapter_slot_{};
         std::shared_ptr<PxAsyncScope> async_scope_{};
         std::shared_ptr<PxReconnectSupervisor> reconnect_supervisor_{};
         std::atomic_bool terminal_rejection_{false};
         std::atomic_bool started_{false};
         std::atomic_bool exiting_{false};
         std::atomic_bool deferred_stop_scheduled_{false};
-        std::atomic_uint64_t callback_generation_{0};
         mutable std::mutex stop_mutex_{};
         std::mutex operation_mutex_{};
 

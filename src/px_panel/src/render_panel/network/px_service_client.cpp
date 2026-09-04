@@ -32,10 +32,7 @@ namespace px
     }
 
     void PxServiceClient::Start() {
-        std::unique_lock operation_lock(operation_mutex_, std::try_to_lock);
-        if (!operation_lock.owns_lock()) {
-            return;
-        }
+        std::unique_lock operation_lock(operation_mutex_);
         {
             std::lock_guard lock(network_mutex_);
             if (exiting_ || client_) {
@@ -53,10 +50,9 @@ namespace px
         });
 
         const auto runtime = context_->GetMessageNotifier()->GetAsyncRuntime();
-        const auto client = std::make_shared<asio2::ws_client>();
         const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
         const auto supervisor = PxReconnectSupervisor::Create(runtime, MakeWebSocketReconnectOptions("panel_service"));
-        if (!client || !scope || !supervisor) {
+        if (!scope || !supervisor) {
             LOGE("event=module.start component=panel_service code=ASYNC_WORKFLOW_CREATE_FAILED "
                  "operation=start_client outcome=failed recoverable=false");
             operation_lock.unlock();
@@ -66,87 +62,76 @@ namespace px
         {
             std::lock_guard lock(network_mutex_);
             async_runtime_ = runtime;
-            client_ = client;
             connection_scope_ = scope;
             reconnect_supervisor_ = supervisor;
         }
-        client->set_auto_reconnect(false);
-        client->keep_alive(true);
-        client->set_timeout(std::chrono::milliseconds(2000));
-
-        client->bind_init([weak_self]() {
-            auto self = weak_self.lock();
-            if (!self || self->exiting_ || !self->client_ || !self->reconnect_supervisor_) {
-                return;
-            }
-            self->client_->ws_stream().binary(true);
-            self->client_->set_no_delay(true);
-        })
-        .bind_connect([weak_self]() {
-            auto self = weak_self.lock();
-            if (!self || self->exiting_ || !self->client_ || !self->context_
-                || !self->reconnect_supervisor_) {
-                return;
-            }
-            if (asio2::get_last_error()) {
-                static_cast<void>(self->reconnect_supervisor_->FailActive(self->callback_generation_.load(), MakePxAsyncError(
-                    PxAsyncErrorCode::kServiceNotConnected,
-                    "panel-service.connect",
-                    asio2::last_error_msg(),
-                    true)));
-                return;
-            }
-            LOGI("tcp connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
-        })
-        .bind_upgrade([weak_self]() {
-            auto self = weak_self.lock();
-            if (!self || self->exiting_ || !self->client_ || !self->context_
-                || !self->reconnect_supervisor_) {
-                return;
-            }
-            if (asio2::get_last_error()) {
-                static_cast<void>(self->reconnect_supervisor_->FailActive(self->callback_generation_.load(), MakePxAsyncError(
-                    PxAsyncErrorCode::kProtocolError,
-                    "panel-service.upgrade",
-                    asio2::last_error_msg(),
-                    true)));
-                return;
-            }
-            LOGI("websocket upgrade success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
-            static_cast<void>(self->reconnect_supervisor_->MarkReady(self->callback_generation_.load()));
-        })
-        .bind_disconnect([weak_self]() {
-            auto self = weak_self.lock();
-            if (!self || self->exiting_ || !self->reconnect_supervisor_) {
-                return;
-            }
-            static_cast<void>(self->reconnect_supervisor_->MarkDisconnected(self->callback_generation_.load(), MakePxAsyncError(
-                PxAsyncErrorCode::kServiceNotConnected,
-                "panel-service.disconnect",
-                "Panel disconnected from Service",
-                true)));
-        })
-        .bind_recv([weak_self](std::string_view data) {
-            auto self = weak_self.lock();
-            if (!self) {
-                return;
-            }
-            auto msg = std::string(data.data(), data.size());
-            self->ParseMessage(msg);
-        });
-
         PxReconnectSupervisorHooks hooks{
-            .start_attempt = [weak_self, client](const std::uint64_t generation) {
+            .start_attempt = [weak_self, supervisor](const std::uint64_t generation) {
                 const auto self = weak_self.lock();
                 if (!self || self->exiting_) {
                     return PxResult<void>::Failure(MakePxAsyncError(
                         PxAsyncErrorCode::kServiceStopped, "panel-service.start", "Panel Service owner is stopping"));
                 }
-                self->callback_generation_.store(generation, std::memory_order_release);
+                const auto client = std::make_shared<asio2::ws_client>();
+                const auto weak_client = std::weak_ptr<asio2::ws_client>(client);
+                client->set_auto_reconnect(false);
+                client->keep_alive(true);
+                client->set_timeout(std::chrono::milliseconds(2000));
+                client->bind_init([weak_self, weak_client]() {
+                    const auto owner = weak_self.lock();
+                    const auto current = weak_client.lock();
+                    if (!owner || !current || owner->exiting_) {
+                        return;
+                    }
+                    current->ws_stream().binary(true);
+                    current->set_no_delay(true);
+                }).bind_connect([weak_self, weak_client, supervisor, generation]() {
+                    const auto owner = weak_self.lock();
+                    const auto current = weak_client.lock();
+                    if (!owner || !current || owner->exiting_) {
+                        return;
+                    }
+                    if (asio2::get_last_error()) {
+                        static_cast<void>(supervisor->FailActive(generation, MakePxAsyncError(
+                            PxAsyncErrorCode::kServiceNotConnected, "panel-service.connect", asio2::last_error_msg(), true)));
+                        return;
+                    }
+                    LOGI("tcp connect success : {} {} ", current->local_address().c_str(), current->local_port());
+                }).bind_upgrade([weak_self, weak_client, supervisor, generation]() {
+                    const auto owner = weak_self.lock();
+                    const auto current = weak_client.lock();
+                    if (!owner || !current || owner->exiting_) {
+                        return;
+                    }
+                    if (asio2::get_last_error()) {
+                        static_cast<void>(supervisor->FailActive(generation, MakePxAsyncError(
+                            PxAsyncErrorCode::kProtocolError, "panel-service.upgrade", asio2::last_error_msg(), true)));
+                        return;
+                    }
+                    LOGI("websocket upgrade success : {} {} ", current->local_address().c_str(), current->local_port());
+                    static_cast<void>(supervisor->MarkReady(generation));
+                }).bind_disconnect([weak_self, supervisor, generation]() {
+                    if (const auto owner = weak_self.lock(); owner && !owner->exiting_) {
+                        static_cast<void>(supervisor->MarkDisconnected(generation, MakePxAsyncError(
+                            PxAsyncErrorCode::kServiceNotConnected, "panel-service.disconnect", "Panel disconnected from Service", true)));
+                    }
+                }).bind_recv([weak_self](std::string_view data) {
+                    if (const auto owner = weak_self.lock(); owner && !owner->exiting_) {
+                        owner->ParseMessage(std::string(data));
+                    }
+                });
+                {
+                    std::lock_guard lock(self->network_mutex_);
+                    self->client_ = client;
+                }
                 return StartWebSocketAdapter(client, "127.0.0.1", 20375, "/service/message?from=panel", "panel-service.start");
             },
-            .stop_attempt = [client](const std::chrono::steady_clock::time_point deadline) {
-                return StopWebSocketAdapter(client, deadline, "panel-service.retry-reset");
+            .stop_attempt = [weak_self](const std::chrono::steady_clock::time_point deadline) -> PxAwaitable<PxResult<void>> {
+                const auto self = weak_self.lock();
+                if (!self) {
+                    co_return PxResult<void>::Success();
+                }
+                co_return co_await StopWebSocketAdapter(self->ClientSnapshot(), deadline, "panel-service.retry-reset");
             },
             .on_ready = [weak_self](std::uint64_t) {
                 if (const auto self = weak_self.lock(); self && !self->exiting_ && self->context_) {
@@ -187,10 +172,7 @@ namespace px
     }
 
     void PxServiceClient::Exit() {
-        std::unique_lock operation_lock(operation_mutex_, std::try_to_lock);
-        if (!operation_lock.owns_lock()) {
-            return;
-        }
+        std::unique_lock operation_lock(operation_mutex_);
         const auto first_exit = !exiting_.exchange(true);
         if (first_exit && msg_listener_) {
             msg_listener_->UnListenAll();
@@ -266,10 +248,10 @@ namespace px
     void PxServiceClient::HeartBeat() {
         px::ServiceMessage msg;
         msg.set_type(ServiceMessageType::kSrvHeartBeat);
-        auto sub = msg.mutable_heart_beat();
-        sub->set_index(heartbeat_index_.fetch_add(1, std::memory_order_acq_rel));
-        sub->set_from("panel");
-        FillAuthInfo(*sub->mutable_auth_info());
+        auto& sub = *msg.mutable_heart_beat();
+        sub.set_index(heartbeat_index_.fetch_add(1, std::memory_order_acq_rel));
+        sub.set_from("panel");
+        FillAuthInfo(*sub.mutable_auth_info());
         PostNetMessage(msg.SerializeAsString());
     }
 

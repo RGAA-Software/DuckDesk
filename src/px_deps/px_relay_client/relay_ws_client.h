@@ -25,6 +25,8 @@ namespace px
     class PxAsyncRuntime;
     class PxAsyncScope;
     class PxReconnectSupervisor;
+    template<typename Client>
+    class PxReconnectAdapterSlot;
 
     class RelayWsClient : public std::enable_shared_from_this<RelayWsClient>, public RelayNetClient {
     public:
@@ -63,7 +65,7 @@ namespace px
         std::string connection_ticket_;
         std::string connection_nonce_;
         bool force_gdi_ = false;
-        std::shared_ptr<asio2::ws_client> client_ = nullptr;
+        std::shared_ptr<PxReconnectAdapterSlot<asio2::ws_client>> adapter_slot_{};
         std::shared_ptr<PxAsyncRuntime> async_runtime_{};
         std::shared_ptr<PxAsyncScope> connection_scope_{};
         std::shared_ptr<PxReconnectSupervisor> reconnect_supervisor_{};
@@ -75,7 +77,6 @@ namespace px
         std::vector<px::RelayDeviceNetInfo> net_info_;
         std::atomic<int64_t> send_index_ = 0;
         std::atomic<int64_t> heartbeat_index_{0};
-        std::atomic_uint64_t callback_generation_{0};
         std::mutex send_mtx_;
         std::mutex writable_signal_mutex_;
         mutable std::mutex stop_mutex_;

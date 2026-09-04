@@ -54,7 +54,6 @@ namespace px
         std::atomic_bool transport_reported_ = false;
         std::atomic_int transport_rejection_ = 0;
         std::atomic_bool deferred_exit_scheduled_{false};
-        std::atomic_uint64_t callback_generation_{0};
         mutable std::mutex network_mutex_{};
         std::mutex operation_mutex_{};
     };

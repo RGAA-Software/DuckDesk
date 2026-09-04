@@ -49,10 +49,7 @@ namespace px
         }
 
         void Start() override {
-            std::unique_lock operation_lock(operation_mutex_, std::try_to_lock);
-            if (!operation_lock.owns_lock()) {
-                return;
-            }
+            std::unique_lock operation_lock(operation_mutex_);
             {
                 std::lock_guard lock(network_mutex_);
                 if (client_) {
@@ -62,10 +59,9 @@ namespace px
             exiting_ = false;
             deferred_exit_scheduled_ = false;
             const auto runtime = context_->GetMessageNotifier()->GetAsyncRuntime();
-            const auto client = std::make_shared<ClientT>();
             const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
             const auto supervisor = PxReconnectSupervisor::Create(runtime, MakeWebSocketReconnectOptions("client_console"));
-            if (!client || !scope || !supervisor) {
+            if (!scope || !supervisor) {
                 LOGE("event=module.start component=client_console code=ASYNC_WORKFLOW_CREATE_FAILED "
                      "operation=start_client outcome=failed recoverable=false");
                 operation_lock.unlock();
@@ -75,108 +71,87 @@ namespace px
             {
                 std::lock_guard lock(network_mutex_);
                 async_runtime_ = runtime;
-                client_ = client;
                 connection_scope_ = scope;
                 reconnect_supervisor_ = supervisor;
             }
-            client->set_auto_reconnect(false);
-            client->keep_alive(true);
-            client->set_timeout(std::chrono::milliseconds(3000));
-            if constexpr (std::is_same_v<ClientT, asio2::wss_client>) {
-                client->set_verify_mode(asio::ssl::verify_none);
-            }
-
             auto weak_self = this->weak_from_this();
-            client->bind_init([weak_self]() {
-                if (auto self = weak_self.lock(); self && !self->exiting_ && self->client_) {
-                    self->client_->ws_stream().binary(true);
-                    self->client_->set_no_delay(true);
-
-                    // Generate a fresh token for every connection attempt (including auto reconnect).
-                    // The token has a short lifetime (60s), so reusing the original path on reconnect
-                    // would cause the Console token filter to reject the connection.
-                    auto token = GenerateConnectionToken(self->appkey_);
-                    const auto endpoint = self->use_legacy_cms_path_.load()
-                        ? "/cms/client"
-                        : "/console/client";
-                    auto path = std::format(
-                        "{}?appkey={}&token={}&ts={}&nonce={}&device_id={}&remote_device_id={}&remote_device_ip={}",
-                        endpoint, self->appkey_, token.token, token.ts, token.nonce, self->device_id_,
-                        self->remote_device_id_, self->remote_device_ip_);
-                    self->client_->set_upgrade_target(path);
-                }
-
-            })
-            .bind_connect([weak_self]() {
-                if (asio2::get_last_error()) {
-                    if (auto self = weak_self.lock(); self && !self->exiting_
-                        && self->reconnect_supervisor_) {
-                        static_cast<void>(self->reconnect_supervisor_->FailActive(self->callback_generation_.load(), MakePxAsyncError(
-                            PxAsyncErrorCode::kServiceNotConnected,
-                            "console.connect",
-                            asio2::last_error_msg(),
-                            true)));
-                    }
-                } else {
-                    if (auto self = weak_self.lock(); self && !self->exiting_ && self->client_) {
-                        LOGI("connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
-                    }
-                }
-
-            })
-            .bind_upgrade([weak_self]() {
-                if (asio2::get_last_error()) {
-                    if (auto self = weak_self.lock(); self && !self->use_legacy_cms_path_.exchange(true)) {
-                        LOGW("event=transport.route_fallback component=client_console code=PRIMARY_ROUTE_UNAVAILABLE "
-                             "operation=upgrade outcome=fallback recoverable=true target=/cms/client");
-                    }
-                    if (auto self = weak_self.lock(); self && !self->exiting_
-                        && self->reconnect_supervisor_) {
-                        static_cast<void>(self->reconnect_supervisor_->FailActive(self->callback_generation_.load(), MakePxAsyncError(
-                            PxAsyncErrorCode::kProtocolError,
-                            "console.upgrade",
-                            asio2::last_error_msg(),
-                            true)));
-                    }
-                    return;
-                }
-                if (auto self = weak_self.lock(); self && !self->exiting_
-                    && self->reconnect_supervisor_) {
-                    static_cast<void>(self->reconnect_supervisor_->MarkReady(self->callback_generation_.load()));
-                }
-            })
-            .bind_disconnect([weak_self]() {
-                if (auto self = weak_self.lock(); self && !self->exiting_) {
-                    if (self->reconnect_supervisor_) {
-                        static_cast<void>(self->reconnect_supervisor_->MarkDisconnected(
-                            self->callback_generation_.load(), MakePxAsyncError(
-                            PxAsyncErrorCode::kServiceNotConnected,
-                            "console.disconnect",
-                            "Console websocket disconnected",
-                            true)));
-                    }
-                }
-            })
-            .bind_recv([weak_self](std::string_view data) {
-                if (auto self = weak_self.lock(); self && !self->exiting_) {
-                    auto msg = std::string(data.data(), data.size());
-                    self->ParseMessage(msg);
-                }
-            });
-
             LOGI("will connect => {}:{}/console/client, ssl: {}", host_, port_, std::is_same_v<ClientT, asio2::wss_client>);
             PxReconnectSupervisorHooks hooks{
-                .start_attempt = [weak_self, client, host = host_, port = port_](const std::uint64_t generation) {
+                .start_attempt = [weak_self, supervisor, host = host_, port = port_](const std::uint64_t generation) {
                     const auto self = weak_self.lock();
                     if (!self || self->exiting_) {
                         return PxResult<void>::Failure(MakePxAsyncError(
                             PxAsyncErrorCode::kServiceStopped, "client-console.start", "Client Console owner is stopping"));
                     }
-                    self->callback_generation_.store(generation, std::memory_order_release);
+                    const auto client = std::make_shared<ClientT>();
+                    const auto weak_client = std::weak_ptr<ClientT>(client);
+                    client->set_auto_reconnect(false);
+                    client->keep_alive(true);
+                    client->set_timeout(std::chrono::milliseconds(3000));
+                    if constexpr (std::is_same_v<ClientT, asio2::wss_client>) {
+                        client->set_verify_mode(asio::ssl::verify_none);
+                    }
+                    client->bind_init([weak_self, weak_client]() {
+                        const auto owner = weak_self.lock();
+                        const auto current = weak_client.lock();
+                        if (!owner || !current || owner->exiting_) {
+                            return;
+                        }
+                        current->ws_stream().binary(true);
+                        current->set_no_delay(true);
+                        const auto token = GenerateConnectionToken(owner->appkey_);
+                        const auto endpoint = owner->use_legacy_cms_path_.load() ? "/cms/client" : "/console/client";
+                        current->set_upgrade_target(std::format(
+                            "{}?appkey={}&token={}&ts={}&nonce={}&device_id={}&remote_device_id={}&remote_device_ip={}",
+                            endpoint, owner->appkey_, token.token, token.ts, token.nonce, owner->device_id_,
+                            owner->remote_device_id_, owner->remote_device_ip_));
+                    }).bind_connect([weak_self, weak_client, supervisor, generation]() {
+                        const auto owner = weak_self.lock();
+                        const auto current = weak_client.lock();
+                        if (!owner || !current || owner->exiting_) {
+                            return;
+                        }
+                        if (asio2::get_last_error()) {
+                            static_cast<void>(supervisor->FailActive(generation, MakePxAsyncError(
+                                PxAsyncErrorCode::kServiceNotConnected, "console.connect", asio2::last_error_msg(), true)));
+                            return;
+                        }
+                        LOGI("connect success : {} {} ", current->local_address().c_str(), current->local_port());
+                    }).bind_upgrade([weak_self, supervisor, generation]() {
+                        if (const auto owner = weak_self.lock(); owner && !owner->exiting_) {
+                            if (asio2::get_last_error()) {
+                                if (!owner->use_legacy_cms_path_.exchange(true)) {
+                                    LOGW("event=transport.route_fallback component=client_console code=PRIMARY_ROUTE_UNAVAILABLE "
+                                         "operation=upgrade outcome=fallback recoverable=true target=/cms/client");
+                                }
+                                static_cast<void>(supervisor->FailActive(generation, MakePxAsyncError(
+                                    PxAsyncErrorCode::kProtocolError, "console.upgrade", asio2::last_error_msg(), true)));
+                                return;
+                            }
+                            static_cast<void>(supervisor->MarkReady(generation));
+                        }
+                    }).bind_disconnect([weak_self, supervisor, generation]() {
+                        if (const auto owner = weak_self.lock(); owner && !owner->exiting_) {
+                            static_cast<void>(supervisor->MarkDisconnected(generation, MakePxAsyncError(
+                                PxAsyncErrorCode::kServiceNotConnected, "console.disconnect", "Console websocket disconnected", true)));
+                        }
+                    }).bind_recv([weak_self](std::string_view data) {
+                        if (const auto owner = weak_self.lock(); owner && !owner->exiting_) {
+                            owner->ParseMessage(std::string(data));
+                        }
+                    });
+                    {
+                        std::lock_guard lock(self->network_mutex_);
+                        self->client_ = client;
+                    }
                     return StartWebSocketAdapter(client, host, port, "client-console.start");
                 },
-                .stop_attempt = [client](const std::chrono::steady_clock::time_point deadline) {
-                    return StopWebSocketAdapter(client, deadline, "client-console.retry-reset");
+                .stop_attempt = [weak_self](const std::chrono::steady_clock::time_point deadline) -> PxAwaitable<PxResult<void>> {
+                    const auto self = weak_self.lock();
+                    if (!self) {
+                        co_return PxResult<void>::Success();
+                    }
+                    co_return co_await StopWebSocketAdapter(self->ClientSnapshot(), deadline, "client-console.retry-reset");
                 },
                 .on_ready = [weak_self](std::uint64_t) {
                     if (const auto self = weak_self.lock(); self && !self->exiting_) {
@@ -198,10 +173,7 @@ namespace px
         }
 
         void Exit() override {
-            std::unique_lock operation_lock(operation_mutex_, std::try_to_lock);
-            if (!operation_lock.owns_lock()) {
-                return;
-            }
+            std::unique_lock operation_lock(operation_mutex_);
             exiting_ = true;
             std::shared_ptr<ClientT> client;
             std::shared_ptr<PxAsyncScope> scope;
@@ -288,8 +260,8 @@ namespace px
             console_client::ConsoleClientMessage msg;
             msg.set_msg_type(console_client::ConsoleClientMessageType::kConsoleClientHello);
             msg.set_device_id(device_id_);
-            const auto sub = msg.mutable_hello();
-            sub->set_device_id(device_id_);
+            auto& sub = *msg.mutable_hello();
+            sub.set_device_id(device_id_);
             client->async_send(msg.SerializeAsString());
         }
 
@@ -306,9 +278,9 @@ namespace px
             console_client::ConsoleClientMessage msg;
             msg.set_msg_type(console_client::ConsoleClientMessageType::kConsoleClientHeartBeat);
             msg.set_device_id(device_id_);
-            const auto sub = msg.mutable_heartbeat();
-            sub->set_hb_index(hb_index_++);
-            sub->set_connection_alive(alive);
+            auto& sub = *msg.mutable_heartbeat();
+            sub.set_hb_index(hb_index_++);
+            sub.set_connection_alive(alive);
             client->async_send(msg.SerializeAsString());
         }
 
@@ -340,7 +312,6 @@ namespace px
         std::atomic_bool exiting_ = false;
         std::atomic_bool use_legacy_cms_path_ = false;
         std::atomic_bool deferred_exit_scheduled_{false};
-        std::atomic_uint64_t callback_generation_{0};
         mutable std::mutex network_mutex_{};
         std::mutex operation_mutex_{};
     };

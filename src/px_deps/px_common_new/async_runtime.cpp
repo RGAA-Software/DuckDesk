@@ -220,6 +220,20 @@ asio::any_io_executor PxAsyncRuntime::Executor(PxAsyncLane lane) const {
     return state_->worker_context_.get_executor();
 }
 
+void PxAsyncRuntime::DeferJoin(std::thread thread) {
+    if (!thread.joinable()) {
+        return;
+    }
+    const auto owned_thread = std::make_shared<std::thread>(std::move(thread));
+    std::vector<std::thread> joiners{};
+    joiners.emplace_back([owned_thread]() {
+        if (owned_thread->joinable()) {
+            owned_thread->join();
+        }
+    });
+    RuntimeThreadJoiner::Instance()->Submit(std::move(joiners));
+}
+
 void PxAsyncRuntime::DeferJoin(std::jthread thread) {
     if (!thread.joinable()) {
         return;

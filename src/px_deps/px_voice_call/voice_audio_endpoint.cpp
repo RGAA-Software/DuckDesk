@@ -1,4 +1,5 @@
 #include "voice_audio_endpoint.h"
+#include "px_common_new/async_runtime.h"
 
 #include <opus/opus.h>
 
@@ -208,7 +209,7 @@ public:
         jitter_cv_.notify_all();
         if (encode_worker_.joinable()) {
             if (encode_worker_.get_id() == std::this_thread::get_id()) {
-                encode_worker_.detach();
+                PxAsyncRuntime::DeferJoin(std::move(encode_worker_));
             }
             else {
                 encode_worker_.join();
@@ -216,7 +217,7 @@ public:
         }
         if (decode_worker_.joinable()) {
             if (decode_worker_.get_id() == std::this_thread::get_id()) {
-                decode_worker_.detach();
+                PxAsyncRuntime::DeferJoin(std::move(decode_worker_));
             }
             else {
                 decode_worker_.join();

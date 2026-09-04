@@ -46,7 +46,22 @@ try {
         foreach ($line in (& git @diffArgs)) {
             $diffLines.Add($line)
         }
-        if (-not $Staged -and -not $BaseRef) {
+        if (-not $Staged -and -not $BaseRef -and $diffLines.Count -eq 0) {
+            & git rev-parse --verify HEAD^ 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                $fallbackDiffArgs = @("diff", "--unified=0", "--no-ext-diff", "HEAD^...HEAD", "--") + $nativeGlobs
+                foreach ($line in (& git @fallbackDiffArgs)) {
+                    $diffLines.Add($line)
+                }
+            }
+        }
+        if ($BaseRef) {
+            $workingDiffArgs = @("diff", "--unified=0", "--no-ext-diff", "--") + $nativeGlobs
+            foreach ($line in (& git @workingDiffArgs)) {
+                $diffLines.Add($line)
+            }
+        }
+        if (-not $Staged) {
             $untrackedNativeFiles = & git ls-files --others --exclude-standard -- $nativeGlobs |
                 Where-Object {
                     $_ -match '^(src|tests)[\\/]' -or $_ -notmatch '[\\/]'
@@ -102,7 +117,8 @@ try {
             # in docs/cpp_smart_pointer_standard.md.
             $rawPointerAtLineStart = $added -match '^\s*(?:(?:static|const|constexpr|volatile|mutable|inline|virtual|typename)\s+)*(?:[A-Za-z_][A-Za-z0-9_:]*(?:\s*<[^;{}()=]+>)?|auto)\s*\*+\s*(?:const\s+)?[A-Za-z_][A-Za-z0-9_]*'
             $rawPointerParameter = $added -match '[\(,]\s*(?:const\s+)?(?:[A-Za-z_][A-Za-z0-9_:]*(?:\s*<[^;{}()=]+>)?|auto)\s*\*+\s*(?:const\s+)?[A-Za-z_][A-Za-z0-9_]*'
-            if (($rawPointerAtLineStart -or $rawPointerParameter) -and
+            $inferredRawPointer = $added -match '^\s*(?:const\s+)?auto\s+[A-Za-z_][A-Za-z0-9_]*\s*=.*(?:mutable_[A-Za-z0-9_]+\s*\(|(?:->|\.)Add\s*\()'
+            if (($rawPointerAtLineStart -or $rawPointerParameter -or $inferredRawPointer) -and
                 -not $isReviewedRawPointerBoundary) {
                 $violations.Add("${currentFile}: $added")
             }

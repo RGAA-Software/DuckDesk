@@ -70,6 +70,27 @@ TEST(WsIpcClientLifecycle, StopAsyncDrainsFromExternalControlLane) {
     runtime->Join();
 }
 
+TEST(WsIpcClientLifecycle, ConnectionQueriesRemainSafeDuringStop) {
+    const auto client = WsIpcClient::Make(9);
+    ASSERT_TRUE(client);
+    client->Start();
+    ASSERT_TRUE(client->IsStarted());
+
+    std::jthread query_thread([client](const std::stop_token stop_token) {
+        while (!stop_token.stop_requested()) {
+            static_cast<void>(client->IsStarted());
+            static_cast<void>(client->IsConnected());
+            static_cast<void>(client->ConnectionGeneration());
+        }
+    });
+    client->Exit();
+    query_thread.request_stop();
+    query_thread.join();
+    EXPECT_FALSE(client->IsStarted());
+    EXPECT_FALSE(client->IsConnected());
+    EXPECT_EQ(client->ConnectionGeneration(), 0U);
+}
+
 TEST(WsIpcClientLifecycle, RepeatedRealServerRestartAdvancesEveryReconnectGeneration) {
     const auto port = 30000 + static_cast<int>(GetCurrentProcessId() % 10000);
     const auto server = std::make_shared<asio2::ws_server>();

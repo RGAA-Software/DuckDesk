@@ -1,5 +1,6 @@
 #include "reconnect_supervisor.h"
 
+#include <optional>
 #include <utility>
 
 #include "connection_attempt_workflow.h"
@@ -73,6 +74,16 @@ void PxReconnectSupervisor::LogConnectionLost(const std::uint64_t generation, co
     last_failure_log_at_ = now;
 }
 
+void PxReconnectSupervisor::LogConnectionRecovered(const std::uint64_t generation) {
+    std::lock_guard lock(failure_log_mutex_);
+    if (suppressed_failure_logs_ != 0) {
+        LOGI("event=transport.failure_summary component={} generation={} operation=supervise outcome=recovered suppressed={}",
+             options_.component, generation, suppressed_failure_logs_);
+    }
+    suppressed_failure_logs_ = 0;
+    last_failure_log_at_ = {};
+}
+
 PxAwaitable<bool> PxReconnectSupervisor::ResetAdapterUntilStopped(
     const std::shared_ptr<PxReconnectSupervisor>& supervisor,
     const PxReconnectStopAttempt& stop_attempt) {
@@ -139,6 +150,7 @@ PxAwaitable<void> PxReconnectSupervisor::Run(
             supervisor->backoff_->Reset();
             supervisor->consecutive_failures_.store(0, std::memory_order_release);
             supervisor->successful_connections_.fetch_add(1, std::memory_order_acq_rel);
+            supervisor->LogConnectionRecovered(ticket.generation);
             const auto ready_latency = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - attempt_started_at);
             LOGI("event=transport.connection_ready component={} generation={} latency_ms={}",
@@ -160,6 +172,10 @@ PxAwaitable<void> PxReconnectSupervisor::Run(
         if (supervisor->IsStopping() || IsStopResult(failure)) {
             co_return;
         }
+        std::optional<PxReconnectBackoffStep> reconnect_step{};
+        if (failure.retryable) {
+            reconnect_step = supervisor->NextBackoff();
+        }
         supervisor->LogConnectionLost(ticket.generation, failure);
         if (hooks.on_lost) {
             hooks.on_lost(ticket.generation, failure, was_ready);
@@ -178,7 +194,7 @@ PxAwaitable<void> PxReconnectSupervisor::Run(
             co_return;
         }
 
-        const auto step = supervisor->NextBackoff();
+        const auto& step = *reconnect_step;
         if (step.delay >= supervisor->options_.backoff.maximum_delay) {
             LOGI("event=transport.reconnect_wait component={} generation={} attempt={} delay_ms={} outcome=waiting",
                  supervisor->options_.component, ticket.generation, step.attempt, step.delay.count());

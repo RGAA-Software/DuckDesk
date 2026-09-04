@@ -1,4 +1,5 @@
 #include "gdi_capture.h"
+#include "px_common_new/async_runtime.h"
 #include <algorithm>
 #include <iostream>
 #include <limits>
@@ -428,7 +429,7 @@ namespace px
         if (worker.joinable()) {
             worker.request_stop();
             if (worker.get_id() == std::this_thread::get_id()) {
-                worker.detach();
+                PxAsyncRuntime::DeferJoin(std::move(worker));
             }
             else {
                 worker.join();

@@ -28,6 +28,8 @@ namespace px
     class RdStatistics;
     class MessageListener;
     class PxReconnectSupervisor;
+    template<typename Client>
+    class PxReconnectAdapterSlot;
     template<typename T>
     class PxAsyncMailbox;
     class RenderServiceClient : public std::enable_shared_from_this<RenderServiceClient> {
@@ -73,6 +75,13 @@ namespace px
             std::chrono::steady_clock::time_point deadline);
 
     private:
+        struct AsyncStateSnapshot final {
+            std::shared_ptr<PxAsyncScope> scope{};
+            std::shared_ptr<RenderServiceRpcState> rpc_state{};
+            std::shared_ptr<PxReconnectSupervisor> supervisor{};
+            std::shared_ptr<PxAsyncMailbox<std::string>> mailbox{};
+        };
+
         void HeartBeat();
         void ParseMessage(const std::string& msg);
         void SendPendingAppInstanceReady();
@@ -80,6 +89,8 @@ namespace px
         void FailPendingRequests(const PxAsyncError& error);
         std::shared_ptr<PxAsyncScope> BeginStop();
         void FinishStop();
+        void ScheduleDeferredExit();
+        [[nodiscard]] AsyncStateSnapshot SnapshotAsyncState() const;
         static PxAwaitable<void> RunIncomingMessageLoop(
             std::weak_ptr<RenderServiceClient> weak_client,
             std::shared_ptr<PxAsyncMailbox<std::string>> mailbox);
@@ -87,7 +98,7 @@ namespace px
         std::shared_ptr<RdStatistics> statistics_{};
         std::shared_ptr<RdApplication> app_{};
         std::shared_ptr<RdContext> context_{};
-        std::shared_ptr<asio2::ws_client> client_{};
+        std::shared_ptr<PxReconnectAdapterSlot<asio2::ws_client>> adapter_slot_{};
         std::shared_ptr<MessageListener> msg_listener_{};
         std::shared_ptr<PxAsyncScope> async_scope_{};
         std::shared_ptr<RenderServiceRpcState> rpc_state_{};
@@ -96,13 +107,17 @@ namespace px
         std::atomic_bool websocket_upgraded_{false};
         std::atomic_bool started_{false};
         std::atomic_bool exiting_{false};
+        std::atomic_bool deferred_exit_scheduled_{false};
         std::atomic_int queuing_message_count_{0};
+        std::mutex operation_mutex_{};
+        mutable std::mutex lifecycle_mutex_{};
         std::mutex ready_mtx_;
         std::string ready_instance_id_;
         std::string ready_error_;
         int ready_listen_port_{0};
         bool ready_ok_{false};
         bool ready_pending_{false};
+        std::atomic_int64_t heartbeat_index_{0};
     };
 
 }

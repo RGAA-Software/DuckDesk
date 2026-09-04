@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 
@@ -13,6 +14,29 @@
 #include "reconnect_supervisor.h"
 
 namespace px {
+
+template<typename Client>
+class PxReconnectAdapterSlot final {
+public:
+    void Replace(std::shared_ptr<Client> client) {
+        std::lock_guard lock(mutex_);
+        client_ = std::move(client);
+    }
+
+    [[nodiscard]] std::shared_ptr<Client> Snapshot() const {
+        std::lock_guard lock(mutex_);
+        return client_;
+    }
+
+    void Clear() {
+        std::lock_guard lock(mutex_);
+        client_.reset();
+    }
+
+private:
+    mutable std::mutex mutex_{};
+    std::shared_ptr<Client> client_{};
+};
 
 struct PxWebSocketShutdownResult final {
     bool deferred{false};

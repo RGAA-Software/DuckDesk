@@ -5,6 +5,7 @@
 #ifndef PX_PANEL_CONSOLE_CLIENT_IMPL_H
 #define PX_PANEL_CONSOLE_CLIENT_IMPL_H
 
+#include <atomic>
 #include <memory>
 #include <type_traits>
 #include <asio2/websocket/ws_client.hpp>
@@ -79,10 +80,7 @@ namespace px
         }
 
         void Start() override {
-            std::unique_lock operation_lock(operation_mutex_, std::try_to_lock);
-            if (!operation_lock.owns_lock()) {
-                return;
-            }
+            std::unique_lock operation_lock(operation_mutex_);
             if (stopping_) {
                 return;
             }
@@ -143,108 +141,89 @@ namespace px
                 return;
             }
 
-            {
-                std::lock_guard lock(network_mutex_);
-                client_ = std::make_shared<ClientType>();
-            }
-            client_->set_auto_reconnect(false);
-            client_->keep_alive(true);
-            client_->set_timeout(std::chrono::milliseconds(3000));
-            if constexpr (std::is_same_v<ClientType, asio2::wss_client>) {
-                client_->set_verify_mode(asio::ssl::verify_none);
-            }
-
-            client_->bind_init([weak_self]() {
-                auto self = weak_self.lock();
-                if (!self || !self->client_) {
-                    return;
-                }
-                self->client_->ws_stream().binary(true);
-                self->client_->set_no_delay(true);
-
-                // Generate a fresh token for every connection attempt (including auto reconnect).
-                // The token has a short lifetime (60s), so reusing the original path on reconnect
-                // would cause the Console token filter to reject the connection.
-                auto user_id = grApp->GetUserManager()->GetUserId();
-                auto token = GenerateConnectionToken(grApp->GetAppkey());
-                const auto endpoint = self->use_legacy_cms_path_.load()
-                    ? "/cms/panel"
-                    : "/console/panel";
-                auto path = std::format("{}?appkey={}&token={}&ts={}&nonce={}&device_id={}&user_id={}",
-                                         endpoint, grApp->GetAppkey(), token.token, token.ts, token.nonce, self->device_id_, user_id);
-                self->client_->set_upgrade_target(path);
-            })
-            .bind_connect([weak_self]() {
-                auto self = weak_self.lock();
-                if (!self || !self->client_) {
-                    return;
-                }
-                if (asio2::get_last_error()) {
-                    static_cast<void>(self->reconnect_supervisor_->FailActive(self->callback_generation_.load(), MakePxAsyncError(
-                        PxAsyncErrorCode::kServiceNotConnected,
-                        "panel-console.connect",
-                        asio2::last_error_msg(),
-                        true)));
-                } else {
-                    LOGI("connect success : {} {} ", self->client_->local_address().c_str(), self->client_->local_port());
-                }
-            })
-            .bind_upgrade([weak_self]() {
-                if (asio2::get_last_error()) {
-                    if (auto self = weak_self.lock(); self && !self->use_legacy_cms_path_.exchange(true)) {
-                        LOGW("event=transport.route_fallback component=panel_console code=PRIMARY_ROUTE_UNAVAILABLE "
-                             "operation=upgrade outcome=fallback recoverable=true target=/cms/panel");
-                    }
-                    if (auto self = weak_self.lock(); self && !self->stopping_
-                        && self->reconnect_supervisor_) {
-                        static_cast<void>(self->reconnect_supervisor_->FailActive(self->callback_generation_.load(), MakePxAsyncError(
-                            PxAsyncErrorCode::kProtocolError,
-                            "panel-console.upgrade",
-                            asio2::last_error_msg(),
-                            true)));
-                    }
-                    return;
-                }
-                if (auto self = weak_self.lock(); self && !self->stopping_
-                    && self->reconnect_supervisor_) {
-                    static_cast<void>(self->reconnect_supervisor_->MarkReady(self->callback_generation_.load()));
-                }
-            })
-            .bind_disconnect([weak_self]() {
-                auto self = weak_self.lock();
-                if (!self) {
-                    return;
-                }
-                if (self->reconnect_supervisor_) {
-                    static_cast<void>(self->reconnect_supervisor_->MarkDisconnected(self->callback_generation_.load(), MakePxAsyncError(
-                        PxAsyncErrorCode::kServiceNotConnected,
-                        "panel-console.disconnect",
-                        "Panel disconnected from Console",
-                        true)));
-                }
-            })
-            .bind_recv([weak_self](std::string_view data) {
-                auto self = weak_self.lock();
-                if (!self) {
-                    return;
-                }
-                auto msg = std::string(data.data(), data.size());
-                self->ParseMessage(msg);
-            });
-
             LOGI("will connect => {}:{}/console/panel", host_, port_);
+            const auto supervisor = reconnect_supervisor_;
             PxReconnectSupervisorHooks hooks{
-                .start_attempt = [weak_self, client = client_, host = host_, port = port_](const std::uint64_t generation) {
+                .start_attempt = [weak_self, supervisor, host = host_, port = port_](const std::uint64_t generation) {
                     const auto self = weak_self.lock();
                     if (!self || self->stopping_) {
                         return PxResult<void>::Failure(MakePxAsyncError(
                             PxAsyncErrorCode::kServiceStopped, "panel-console.start", "Panel Console owner is stopping"));
                     }
-                    self->callback_generation_.store(generation, std::memory_order_release);
+                    const auto client = std::make_shared<ClientType>();
+                    const auto weak_client = std::weak_ptr<ClientType>(client);
+                    client->set_auto_reconnect(false);
+                    client->keep_alive(true);
+                    client->set_timeout(std::chrono::milliseconds(3000));
+                    if constexpr (std::is_same_v<ClientType, asio2::wss_client>) {
+                        client->set_verify_mode(asio::ssl::verify_none);
+                    }
+                    client->bind_init([weak_self, weak_client]() {
+                        const auto owner = weak_self.lock();
+                        const auto current = weak_client.lock();
+                        if (!owner || !current || owner->stopping_) {
+                            return;
+                        }
+                        current->ws_stream().binary(true);
+                        current->set_no_delay(true);
+                        const auto user_id = grApp->GetUserManager()->GetUserId();
+                        const auto token = GenerateConnectionToken(grApp->GetAppkey());
+                        const auto endpoint = owner->use_legacy_cms_path_.load() ? "/cms/panel" : "/console/panel";
+                        current->set_upgrade_target(std::format(
+                            "{}?appkey={}&token={}&ts={}&nonce={}&device_id={}&user_id={}", endpoint, grApp->GetAppkey(),
+                            token.token, token.ts, token.nonce, owner->device_id_, user_id));
+                    }).bind_connect([weak_self, weak_client, supervisor, generation]() {
+                        const auto owner = weak_self.lock();
+                        const auto current = weak_client.lock();
+                        if (!owner || !current || owner->stopping_) {
+                            return;
+                        }
+                        if (asio2::get_last_error()) {
+                            static_cast<void>(supervisor->FailActive(generation, MakePxAsyncError(
+                                PxAsyncErrorCode::kServiceNotConnected, "panel-console.connect", asio2::last_error_msg(), true)));
+                            return;
+                        }
+                        LOGI("connect success : {} {} ", current->local_address().c_str(), current->local_port());
+                    }).bind_upgrade([weak_self, supervisor, generation]() {
+                        if (const auto owner = weak_self.lock(); owner && !owner->stopping_) {
+                            if (asio2::get_last_error()) {
+                                if (!owner->use_legacy_cms_path_.exchange(true)) {
+                                    LOGW("event=transport.route_fallback component=panel_console code=PRIMARY_ROUTE_UNAVAILABLE "
+                                         "operation=upgrade outcome=fallback recoverable=true target=/cms/panel");
+                                }
+                                static_cast<void>(supervisor->FailActive(generation, MakePxAsyncError(
+                                    PxAsyncErrorCode::kProtocolError, "panel-console.upgrade", asio2::last_error_msg(), true)));
+                                return;
+                            }
+                            static_cast<void>(supervisor->MarkReady(generation));
+                        }
+                    }).bind_disconnect([weak_self, supervisor, generation]() {
+                        if (const auto owner = weak_self.lock(); owner && !owner->stopping_) {
+                            static_cast<void>(supervisor->MarkDisconnected(generation, MakePxAsyncError(
+                                PxAsyncErrorCode::kServiceNotConnected, "panel-console.disconnect", "Panel disconnected from Console", true)));
+                        }
+                    }).bind_recv([weak_self](std::string_view data) {
+                        if (const auto owner = weak_self.lock(); owner && !owner->stopping_) {
+                            owner->ParseMessage(std::string(data));
+                        }
+                    });
+                    {
+                        std::lock_guard lock(self->network_mutex_);
+                        self->client_ = client;
+                    }
                     return StartWebSocketAdapter(client, host, port, "panel-console.start");
                 },
-                .stop_attempt = [client = client_](const std::chrono::steady_clock::time_point deadline) {
-                    return StopWebSocketAdapter(client, deadline, "panel-console.retry-reset");
+                .stop_attempt = [weak_self](const std::chrono::steady_clock::time_point deadline) -> PxAwaitable<PxResult<void>> {
+                    const auto self = weak_self.lock();
+                    if (!self) {
+                        co_return PxResult<void>::Success();
+                    }
+                    std::shared_ptr<ClientType> client;
+                    {
+                        std::lock_guard lock(self->network_mutex_);
+                        client = self->client_;
+                    }
+                    co_return co_await StopWebSocketAdapter(client, deadline, "panel-console.retry-reset");
                 },
                 .on_ready = [weak_self](std::uint64_t) {
                     if (const auto self = weak_self.lock(); self && !self->stopping_) {
@@ -265,10 +244,7 @@ namespace px
         }
 
         void Stop() override {
-            std::unique_lock operation_lock(operation_mutex_, std::try_to_lock);
-            if (!operation_lock.owns_lock()) {
-                return;
-            }
+            std::unique_lock operation_lock(operation_mutex_);
             const auto first_stop = !stopping_.exchange(true);
             if (first_stop && msg_listener_) {
                 msg_listener_->UnListenAll();
@@ -410,7 +386,7 @@ namespace px
 
         bool IsAlive() const override {
             auto current_timestamp = TimeUtil::GetCurrentTimestamp();
-            auto diff = current_timestamp - last_received_timestamp_ < 3100;
+            const auto diff = current_timestamp - last_received_timestamp_.load(std::memory_order_acquire) < 3100;
             //LOGI("Diff alive: {}", diff);
             return diff;
         }
@@ -422,20 +398,20 @@ namespace px
             }
             console_panel::ConsolePanelMessage msg;
             msg.set_msg_type(console_panel::ConsolePanelMessageType::kConsolePanelHello);
-            auto sub = msg.mutable_hello();
-            sub->set_device_id(device_id_);
+            auto& sub = *msg.mutable_hello();
+            sub.set_device_id(device_id_);
             auto user_id = grApp->GetUserManager()->GetUserId();
-            sub->set_user_id(user_id);
-            sub->set_device_name(PxSettings::Instance()->GetDeviceName());
+            sub.set_user_id(user_id);
+            sub.set_device_name(PxSettings::Instance()->GetDeviceName());
 
             // report local NIC IPv4 list for the console render-records view (design 5.2);
             // the tunnel source ip is unreliable across routers/NAT
             for (const auto& eth : context_->GetIps()) {
                 if (IsUsableLanIp(eth.ip_addr_)) {
-                    sub->add_panel_lan_ips(eth.ip_addr_);
+                    sub.add_panel_lan_ips(eth.ip_addr_);
                 }
             }
-            sub->set_panel_http_port(PxSettings::Instance()->GetPanelServerPort());
+            sub.set_panel_http_port(PxSettings::Instance()->GetPanelServerPort());
             PostBinMessage(msg.SerializeAsString());
         }
 
@@ -450,29 +426,29 @@ namespace px
 
             console_panel::ConsolePanelMessage msg;
             msg.set_msg_type(console_panel::ConsolePanelMessageType::kConsolePanelHeartBeat);
-            auto sub = msg.mutable_heartbeat();
-            sub->set_hb_index(hb_idx_++);
-            sub->set_device_id(device_id_);
-            sub->set_desktop_link(desktop_link);
-            sub->set_desktop_link_raw(desktop_link_raw);
+            auto& sub = *msg.mutable_heartbeat();
+            sub.set_hb_index(hb_idx_++);
+            sub.set_device_id(device_id_);
+            sub.set_desktop_link(desktop_link);
+            sub.set_desktop_link_raw(desktop_link_raw);
             auto user_id = grApp->GetUserManager()->GetUserId();
-            sub->set_user_id(user_id);
+            sub.set_user_id(user_id);
             if (auto sys_info = sys_info_.Clone(); sys_info != nullptr) {
                 try {
                     auto obj = nlohmann::json::parse(sys_info->raw_json_msg_);
                     obj["cpu"]["current_frequency"] = sys_info->cpu_.current_frequency_;
-                    sub->set_sys_info_raw(obj.dump());
+                    sub.set_sys_info_raw(obj.dump());
                 }
                 catch (...) {
-                    sub->set_sys_info_raw(sys_info->raw_json_msg_);
+                    sub.set_sys_info_raw(sys_info->raw_json_msg_);
                 }
 
                 //LOGI("Heartbeat sys infor raw: {}", sys_info->raw_json_msg_);
             }
             if (!ips.empty()) {
-                sub->set_device_ip_addr(ips[0].ip_addr_);
+                sub.set_device_ip_addr(ips[0].ip_addr_);
             }
-            sub->set_device_name(PxSettings::Instance()->GetDeviceName());
+            sub.set_device_name(PxSettings::Instance()->GetDeviceName());
             PostBinMessage(msg.SerializeAsString());
             if ((hb_idx_.load() % 60) == 0) {
                 RefreshRtcConfigAsync(0);
@@ -486,7 +462,7 @@ namespace px
                 LOGE("Parse ConsoleClient message failed!");
                 return;
             }
-            last_received_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
+            last_received_timestamp_.store(static_cast<int64_t>(TimeUtil::GetCurrentTimestamp()), std::memory_order_release);
 
             auto type = pm->msg_type();
             if (type == ConsolePanelMessageType::kConsolePanelHello) {
@@ -1001,12 +977,12 @@ namespace px
         void SendRecordFetchDone(const RecordFetchTask& task, bool ok, const std::string& error) {
             console_panel::ConsolePanelMessage msg;
             msg.set_msg_type(console_panel::ConsolePanelMessageType::kRecordFetchDone);
-            auto sub = msg.mutable_record_fetch_done();
-            sub->set_device_id(task.device_id);
-            sub->set_req_id(task.req_id);
-            sub->set_filename(task.filename);
-            sub->set_ok(ok);
-            sub->set_error(error);
+            auto& sub = *msg.mutable_record_fetch_done();
+            sub.set_device_id(task.device_id);
+            sub.set_req_id(task.req_id);
+            sub.set_filename(task.filename);
+            sub.set_ok(ok);
+            sub.set_error(error);
             PostBinMessage(msg.SerializeAsString());
         }
 
@@ -1025,7 +1001,6 @@ namespace px
         std::atomic_bool use_legacy_cms_path_ = false;
         std::atomic_bool stopping_ = false;
         std::atomic_bool deferred_stop_scheduled_{false};
-        std::atomic_uint64_t callback_generation_{0};
         mutable std::mutex network_mutex_{};
         std::mutex operation_mutex_{};
         std::shared_ptr<PxAsyncScope> rtc_config_scope_ = nullptr;
@@ -1034,7 +1009,7 @@ namespace px
         std::atomic_uint64_t rtc_config_revision_ = 0;
         std::mutex rtc_config_mutex_;
         std::string rtc_config_json_;
-        int64_t last_received_timestamp_ = 0;
+        std::atomic_int64_t last_received_timestamp_{0};
         Mutex<std::shared_ptr<SysInfo>> sys_info_;
 
         // serial record-upload queue (design doc 7.2)

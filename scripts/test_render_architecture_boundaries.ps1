@@ -41,6 +41,8 @@ $requiredModuleFiles = @(
     "src\px_render\architecture\encoders\video_encoder_module.h",
     "src\px_render\architecture\sources\monitor_capture_source.h",
     "src\px_render\architecture\extensions\flow_node_plugin.h",
+    "src\px_render\architecture\extensions\flow_node_plugin_registry.h",
+    "src\px_render\architecture\extensions\flow_node_plugin_registry.cpp",
     "src\px_render\network\transport_types.h",
     "src\px_render\architecture\sources\dda\dda_capture_source.h",
     "src\px_render\architecture\sources\gdi\gdi_capture_source.h",
@@ -108,6 +110,26 @@ if (Test-Path -LiteralPath $flowNodeContractPath) {
     foreach ($forbiddenFlowSymbol in @("PxPluginInterface", "PxNetPlugin", "GetInstance")) {
         if ($flowNodeContract -match $forbiddenFlowSymbol) {
             $violations.Add("flow_node_plugin.h: extension contract exposes legacy symbol $forbiddenFlowSymbol")
+        }
+    }
+}
+$flowNodeRegistryPath = Join-Path $RepoRoot `
+    "src\px_render\architecture\extensions\flow_node_plugin_registry.cpp"
+if (Test-Path -LiteralPath $flowNodeRegistryPath) {
+    $flowNodeRegistry = Get-Content -LiteralPath $flowNodeRegistryPath -Raw
+    foreach ($required in @("FlowNodePluginRegistry::Register", "FlowNodePluginRegistry::CreateNode", "ImplementsDeclaredRole")) {
+        if ($flowNodeRegistry -notmatch [regex]::Escape($required)) {
+            $violations.Add("flow_node_plugin_registry.cpp: missing explicit flow-node boundary $required")
+        }
+    }
+}
+$compositionRootPath = Join-Path $RepoRoot `
+    "src\px_render\architecture\runtime\render_composition_root.cpp"
+if (Test-Path -LiteralPath $compositionRootPath) {
+    $compositionRoot = Get-Content -LiteralPath $compositionRootPath -Raw
+    foreach ($required in @("RegisterFlowNodePlugin", "CreateFlowNodePlugin", "SnapshotFlowNodePlugins")) {
+        if ($compositionRoot -notmatch [regex]::Escape($required)) {
+            $violations.Add("render_composition_root.cpp: flow-node registry is not consumed through $required")
         }
     }
 }
@@ -372,7 +394,8 @@ foreach ($relativePath in $coroutineOwnedClientFiles) {
     }
     $adapterStopMatch = [regex]::Match($content, 'RequestAsioClientStop|client->post\(\[client\]')
     $adapterStop = if ($adapterStopMatch.Success) { $adapterStopMatch.Index } else { -1 }
-    $scopeStop = $content.IndexOf("async_scope_->BeginStop")
+    $scopeStopMatch = [regex]::Match($content, '(?:async_scope_|state\.scope)->BeginStop')
+    $scopeStop = if ($scopeStopMatch.Success) { $scopeStopMatch.Index } else { -1 }
     if ($adapterStop -lt 0 -or $scopeStop -lt 0 -or $adapterStop -gt $scopeStop) {
         $violations.Add("${relativePath}: adapter stop must be requested before waiting for coroutine scope drain")
     }

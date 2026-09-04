@@ -60,5 +60,37 @@ TEST(RelayTransportReconnectOwner, OuterRuntimeKeepsOneSdkWhileInnerSupervisorRe
     async_runtime->Join();
 }
 
+TEST(RelayTransportReconnectOwner, OwnerExpiryStopsMonitorWithoutExplicitStop) {
+    const auto async_runtime = PxAsyncRuntime::Create({.worker_threads = 1});
+    ASSERT_TRUE(async_runtime);
+    ASSERT_TRUE(async_runtime->Start());
+    const auto unavailable_port = 62000 + static_cast<int>(GetCurrentProcessId() % 3000);
+    RenderModuleSettings settings{};
+    settings.device_id = "relay-owner-expiry-test";
+    settings.relay_enabled = true;
+    settings.relay_host = "127.0.0.1";
+    settings.relay_port = std::to_string(unavailable_port);
+    settings.appkey = "relay-owner-expiry-appkey";
+
+    std::weak_ptr<RelayTransportRuntime> weak_runtime{};
+    {
+        const auto runtime = RelayTransportRuntime::Create(RelayTransportRuntimeConfig{
+            .relay_device_id = settings.device_id,
+            .configured_host = settings.relay_host,
+            .configured_port = unavailable_port,
+            .settings = settings,
+            .async_runtime = async_runtime,
+        });
+        ASSERT_TRUE(runtime);
+        weak_runtime = runtime;
+        runtime->Start({}, {});
+        ASSERT_TRUE(WaitUntil([runtime]() { return runtime->MediaChannelInstanceGeneration() == 1; }, 5s));
+    }
+
+    EXPECT_TRUE(WaitUntil([weak_runtime]() { return weak_runtime.expired(); }, 5s));
+    async_runtime->RequestDrain();
+    async_runtime->Join();
+}
+
 } // namespace
 } // namespace px

@@ -17,6 +17,7 @@
 #include "diagnostics/render_error.h"
 #include "diagnostics/render_log_context.h"
 #include "diagnostics/transport_performance_window.h"
+#include "extensions/flow_node_plugin_registry.h"
 #include "pipeline/bounded_media_queue.h"
 #include "pipeline/media_types.h"
 #include "modules/builtin_module_catalog.h"
@@ -32,6 +33,57 @@ namespace px::render {
 namespace {
 
 using namespace std::chrono_literals;
+
+class TestObserverFlowNode final : public ObserverPlugin {
+public:
+    explicit TestObserverFlowNode(FlowNodeDescriptor descriptor) : descriptor_(std::move(descriptor)) {}
+
+    [[nodiscard]] const FlowNodeDescriptor& Descriptor() const noexcept override {
+        return descriptor_;
+    }
+
+    [[nodiscard]] bool IsEnabled() const noexcept override {
+        return enabled_;
+    }
+
+    [[nodiscard]] FlowNodeLifecycleResult SetEnabled(const bool enabled) override {
+        enabled_ = enabled;
+        return {};
+    }
+
+    [[nodiscard]] PxAwaitable<FlowNodeLifecycleResult> Start(FlowNodeStartContext context) override {
+        active_scope_ = std::move(context.async_scope);
+        co_return FlowNodeLifecycleResult{};
+    }
+
+    [[nodiscard]] PxAwaitable<FlowNodeLifecycleResult> Stop() override {
+        active_scope_.reset();
+        co_return FlowNodeLifecycleResult{};
+    }
+
+    void ObserveCapturedVideo(const std::shared_ptr<const CapturedVideoFrame>&) noexcept override {}
+    void ObserveEncodedVideo(const std::shared_ptr<const EncodedVideoFrame>&) noexcept override {}
+    void ObserveCapturedAudio(const std::shared_ptr<const CapturedAudioFrame>&) noexcept override {}
+    void ObserveEncodedAudio(const std::shared_ptr<const EncodedAudioFrame>&) noexcept override {}
+
+private:
+    FlowNodeDescriptor descriptor_{};
+    std::shared_ptr<PxAsyncScope> active_scope_{};
+    bool enabled_{true};
+};
+
+FlowNodeDescriptor MakeTestObserverDescriptor(std::string id) {
+    return FlowNodeDescriptor{
+        .id = std::move(id),
+        .name = "Test Observer",
+        .author = "GammaRay",
+        .description = "Flow-node registry test observer",
+        .version_name = "1.0.0",
+        .version_code = 1,
+        .role = FlowNodeRole::kObserver,
+        .default_enabled = true,
+    };
+}
 
 std::shared_ptr<const std::vector<std::uint8_t>> MakePayload(
     const std::size_t size) {
@@ -105,6 +157,61 @@ PxAwaitable<void> CompleteFrameDebuggerStop(
     completion->set_value(
         co_await FrameDebuggerObserver::StopAsync(observer, deadline));
     co_return;
+}
+
+TEST(RenderArchitectureFlowNodeRegistry, CreatesTypedNodeThroughCompositionRoot) {
+    const auto runtime = PxAsyncRuntime::Create({.worker_threads = 1});
+    ASSERT_TRUE(runtime);
+    ASSERT_TRUE(runtime->Start());
+    const auto registry = FlowNodePluginRegistry::Create();
+    auto root = RenderCompositionRoot::Create(runtime, BuiltinModuleCatalog::Create(), registry);
+    ASSERT_TRUE(root);
+
+    const auto descriptor = MakeTestObserverDescriptor("test.observer");
+    ASSERT_TRUE(root->RegisterFlowNodePlugin(FlowNodePluginRegistration{
+        .descriptor = descriptor,
+        .create = [descriptor]() { return std::make_shared<TestObserverFlowNode>(descriptor); },
+        .dependencies = {},
+    }));
+
+    const auto created = root->CreateFlowNodePlugin(descriptor.id);
+    ASSERT_TRUE(created);
+    EXPECT_TRUE(std::dynamic_pointer_cast<ObserverPlugin>(*created));
+    EXPECT_EQ((*created)->Descriptor().id, descriptor.id);
+    const auto descriptors = root->SnapshotFlowNodePlugins();
+    ASSERT_EQ(descriptors.size(), 1U);
+    EXPECT_EQ(descriptors.front().role, FlowNodeRole::kObserver);
+
+    root.reset();
+    runtime->RequestStop();
+    runtime->Join();
+}
+
+TEST(RenderArchitectureFlowNodeRegistry, RejectsDuplicateAndRoleMismatch) {
+    const auto registry = FlowNodePluginRegistry::Create();
+    const auto descriptor = MakeTestObserverDescriptor("test.duplicate");
+    const auto registration = FlowNodePluginRegistration{
+        .descriptor = descriptor,
+        .create = [descriptor]() { return std::make_shared<TestObserverFlowNode>(descriptor); },
+        .dependencies = {},
+    };
+    ASSERT_TRUE(registry->Register(registration));
+    const auto duplicate = registry->Register(registration);
+    ASSERT_FALSE(duplicate);
+    EXPECT_EQ(duplicate.error().code, RenderErrorCode::kModuleAlreadyRegistered);
+
+    auto mismatched_descriptor = MakeTestObserverDescriptor("test.mismatch");
+    mismatched_descriptor.role = FlowNodeRole::kSink;
+    auto observer_descriptor = mismatched_descriptor;
+    observer_descriptor.role = FlowNodeRole::kObserver;
+    ASSERT_TRUE(registry->Register(FlowNodePluginRegistration{
+        .descriptor = mismatched_descriptor,
+        .create = [observer_descriptor]() { return std::make_shared<TestObserverFlowNode>(observer_descriptor); },
+        .dependencies = {},
+    }));
+    const auto mismatched = registry->CreateNode(mismatched_descriptor.id);
+    ASSERT_FALSE(mismatched);
+    EXPECT_EQ(mismatched.error().code, RenderErrorCode::kModuleInvalidDescriptor);
 }
 
 TEST(RenderArchitectureMediaTypes, ValidFrameOwnsImmutablePayload) {

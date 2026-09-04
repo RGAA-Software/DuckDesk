@@ -60,19 +60,25 @@ void CompleteSafely(const CompositionCompletion& completion,
 
 std::shared_ptr<RenderCompositionRoot> RenderCompositionRoot::Create(
     const std::shared_ptr<PxAsyncRuntime>& runtime,
-    const std::shared_ptr<BuiltinModuleCatalog>& catalog) {
+    const std::shared_ptr<BuiltinModuleCatalog>& catalog,
+    std::shared_ptr<FlowNodePluginRegistry> flow_node_plugins) {
     const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
     if (!scope || !catalog) {
         return {};
     }
-    return std::make_shared<RenderCompositionRoot>(scope, catalog);
+    if (!flow_node_plugins) {
+        flow_node_plugins = FlowNodePluginRegistry::Create();
+    }
+    return std::make_shared<RenderCompositionRoot>(scope, catalog, std::move(flow_node_plugins));
 }
 
 RenderCompositionRoot::RenderCompositionRoot(
     std::shared_ptr<PxAsyncScope> lifecycle_scope,
-    std::shared_ptr<BuiltinModuleCatalog> catalog)
+    std::shared_ptr<BuiltinModuleCatalog> catalog,
+    std::shared_ptr<FlowNodePluginRegistry> flow_node_plugins)
     : lifecycle_scope_(std::move(lifecycle_scope)),
-      catalog_(std::move(catalog)) {}
+      catalog_(std::move(catalog)),
+      flow_node_plugins_(flow_node_plugins ? std::move(flow_node_plugins) : FlowNodePluginRegistry::Create()) {}
 
 RenderCompositionRoot::~RenderCompositionRoot() {
     lifecycle_scope_->BeginStop();
@@ -147,6 +153,18 @@ bool RenderCompositionRoot::RequestStop(CompositionCompletion completion) {
 std::vector<BuiltinModuleSnapshot>
 RenderCompositionRoot::SnapshotModules() const {
     return catalog_->SnapshotAll();
+}
+
+FlowNodeLifecycleResult RenderCompositionRoot::RegisterFlowNodePlugin(FlowNodePluginRegistration registration) {
+    return flow_node_plugins_->Register(std::move(registration));
+}
+
+FlowNodePluginCreateResult RenderCompositionRoot::CreateFlowNodePlugin(const std::string& id) const {
+    return flow_node_plugins_->CreateNode(id);
+}
+
+std::vector<FlowNodeDescriptor> RenderCompositionRoot::SnapshotFlowNodePlugins() const {
+    return flow_node_plugins_->SnapshotDescriptors();
 }
 
 PxAwaitable<void> RenderCompositionRoot::RunStart(

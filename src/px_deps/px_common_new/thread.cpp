@@ -1,4 +1,5 @@
 #include "thread.h"
+#include "async_runtime.h"
 
 #include <utility>
 
@@ -270,7 +271,7 @@ namespace px
                 return;
             }
             if (thread->get_id() == std::this_thread::get_id()) {
-                std::thread([thread = std::move(thread)]() { thread->join(); }).detach();
+                PxAsyncRuntime::DeferJoin(std::move(*thread));
             }
             else {
                 thread->join();

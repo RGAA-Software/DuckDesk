@@ -1,4 +1,5 @@
 #include "dda_capture.h"
+#include "px_common_new/async_runtime.h"
 #include <algorithm>
 #include <iostream>
 #include <timeapi.h>
@@ -495,7 +496,7 @@ namespace px
         stop_flag_ = true;
         if (capture_thread_.joinable()) {
             if (capture_thread_.get_id() == std::this_thread::get_id()) {
-                capture_thread_.detach();
+                PxAsyncRuntime::DeferJoin(std::move(capture_thread_));
                 return;
             }
             else {

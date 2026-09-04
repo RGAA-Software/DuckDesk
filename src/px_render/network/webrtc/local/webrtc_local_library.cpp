@@ -10,6 +10,7 @@
 #include "px_common_new/image.h"
 #include "px_common_new/time_util.h"
 #include "px_common_new/data.h"
+#include "px_common_new/async_runtime.h"
 #include "px_render/modules/module_ids.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/plugin_interface/px_plugin_context.h"
@@ -342,7 +343,7 @@ namespace px
                 runtime->servers.RemoveIf(conn_id, [server](const std::shared_ptr<RtcServer>& current) {
                     return current == server;
                 });
-                std::thread([server]() { server->Exit(); }).detach();
+                PxAsyncRuntime::DeferJoin(std::jthread([server]() { server->Exit(); }));
             }
 
             auto server = RtcServer::Make(runtime);
@@ -992,14 +993,14 @@ namespace px
                         return current == srv;
                     });
                 }
-                std::thread([old_servers = std::move(old_servers)]() {
+                PxAsyncRuntime::DeferJoin(std::jthread([old_servers = std::move(old_servers)]() {
                     for (const auto& [k, srv] : old_servers) {
                         static_cast<void>(k);
                         if (srv) {
                             srv->Exit();
                         }
                     }
-                }).detach();
+                }));
             }
         }
 

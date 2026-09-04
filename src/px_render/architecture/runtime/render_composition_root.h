@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "modules/builtin_module_catalog.h"
+#include "extensions/flow_node_plugin_registry.h"
 #include "px_common_new/async_operation.h"
 #include "px_common_new/async_runtime.h"
 
@@ -32,10 +33,12 @@ class RenderCompositionRoot final
 public:
     static std::shared_ptr<RenderCompositionRoot> Create(
         const std::shared_ptr<PxAsyncRuntime>& runtime,
-        const std::shared_ptr<BuiltinModuleCatalog>& catalog);
+        const std::shared_ptr<BuiltinModuleCatalog>& catalog,
+        std::shared_ptr<FlowNodePluginRegistry> flow_node_plugins = {});
 
     RenderCompositionRoot(std::shared_ptr<PxAsyncScope> lifecycle_scope,
-                          std::shared_ptr<BuiltinModuleCatalog> catalog);
+                          std::shared_ptr<BuiltinModuleCatalog> catalog,
+                          std::shared_ptr<FlowNodePluginRegistry> flow_node_plugins = {});
     ~RenderCompositionRoot();
 
     RenderCompositionRoot(const RenderCompositionRoot&) = delete;
@@ -48,6 +51,9 @@ public:
     [[nodiscard]] bool RequestStart(CompositionCompletion completion);
     [[nodiscard]] bool RequestStop(CompositionCompletion completion);
     [[nodiscard]] std::vector<BuiltinModuleSnapshot> SnapshotModules() const;
+    [[nodiscard]] FlowNodeLifecycleResult RegisterFlowNodePlugin(FlowNodePluginRegistration registration);
+    [[nodiscard]] FlowNodePluginCreateResult CreateFlowNodePlugin(const std::string& id) const;
+    [[nodiscard]] std::vector<FlowNodeDescriptor> SnapshotFlowNodePlugins() const;
 
 private:
     static PxAwaitable<void> RunStart(
@@ -62,6 +68,7 @@ private:
 
     std::shared_ptr<PxAsyncScope> lifecycle_scope_;
     std::shared_ptr<BuiltinModuleCatalog> catalog_;
+    std::shared_ptr<FlowNodePluginRegistry> flow_node_plugins_;
     std::atomic_bool stop_requested_{false};
 
     // State-lane confined members.

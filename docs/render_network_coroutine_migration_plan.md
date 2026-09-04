@@ -107,6 +107,32 @@ OBS lifecycle 额外连续执行 20 轮通过；SDK WS/WSS、Relay WS、公共 s
 且内部 attempt generation 持续前进，以及 Opus callback shutdown 与外部 shutdown 同时发生的确定性死锁回归。Opus 聚焦测试连续执行 200 轮通过；
 最终自动化证据为 `test-results/render-architecture/20260904-195634-all`，结论为 GO，37 项通过、0 失败、0 跳过，产物哈希与日志隐私扫描均通过。
 
+### 2.3 最终复审修正（2026-09-04）
+
+针对“关闭 asio2 auto-reconnect 后是否完整替代原能力”和关闭并发安全，再完成以下收口：
+
+- 所有长期 WS/WSS 连接每次 attempt 都创建独立 asio2 client；callback 捕获不可变 generation，并调用 generation-aware
+  `FailActive`、`MarkReady` 和 `MarkDisconnected`。旧代 callback 不能完成或断开新代连接。
+- `PxReconnectAdapterSlot<T>` 用短临界区发布和读取当前 adapter；停止流程先取得 shared snapshot，再在锁外请求停止和等待，不持锁跨
+  `co_await`，也不依赖可被并发替换的成员地址。
+- SDK WS/WSS、Client Panel/Console、Panel Service/Console、Relay WS、Render Service/Panel 和 OBS IPC 均保留首次离线无限重试、在线断线恢复、
+  成功后退避复位、永久拒绝终止、adapter 静默后再启动下一代以及停止即时取消能力。
+- Render Service/Panel 和 OBS IPC 的 scope、mailbox、request state、supervisor/runtime 通过互斥保护的 shared snapshot 访问；`StopAsync` 的开始和
+  最终清理与同步 `Start`/`Exit` 使用同一 operation lock，但绝不把该锁跨越 coroutine suspend point。
+- `RelayTransportRuntime` 的 monitor 任务只持有 weak owner 和独立 RAII control state，不再因长生命周期线程永久自持 runtime；新增 owner 未显式 Stop
+  时仍能退出 monitor 的回归测试。
+- 项目自维护路径的 self-join fallback 统一交给 `PxAsyncRuntime::DeferJoin` 的进程级 RAII joiner；禁止 `.detach()`。仅 vendored ViGEm SDK 和明确排除的
+  libwebrtc adapter 保持第三方实现方式。
+- 连接失败日志先更新 attempt/backoff 统计再输出；连接恢复时输出被限频错误的 summary 并清零窗口，使 lost/recovered 时间线和计数一致。
+- ownership gate 在普通 working-tree、staged 和 clean-checkout 场景都检查有效 diff；async lifetime gate 同时禁止项目代码重新引入 `.detach()`。
+- 流程节点插件新增显式 `FlowNodePluginRegistry`，并由 `RenderCompositionRoot` 负责注册、类型校验、创建和枚举，消除“只有接口声明、无生产入口”的空边界。
+
+本节对应的自动化包含 ownership/async/boundary gate、flow-node registry 单元测试、OBS 查询与 Stop 并发、旧 generation 拒绝、初始离线恢复、
+在线断线重连、Relay owner 释放、重复 Start/Stop 和完整 Render integration。最终证据为
+`test-results/render-architecture/20260904-220229-integration`：自动化总计 37 项通过、0 失败、0 跳过，unexpected ERROR 为 0，日志隐私扫描通过；
+`px_render.exe`、`px_gh.dll`、`net_rtc.dll` 和 `net_rtc_local.dll` 的 build-tree/dist SHA-256 全部一致，结论为 GO。Client 和 Panel 也分别通过增量构建、
+聚焦发布和 dist SHA-256 校验，Panel 关闭生命周期 6 项通过。硬件、LAN、30 分钟压力及 8 小时 soak 仍由最终验收环境执行。
+
 ## 3. 目标和非目标
 
 ### 3.1 目标
