@@ -46,20 +46,21 @@ Render 网络控制面总体估算已完成 55%～65%，剩余 35%～45%。单�
   超时和 callback/runtime 线程内发起关闭均输出结构化日志且不释放仍有 outstanding task 的 owner。Render Service/Panel 的 absolute-deadline
   `StopAsync` 已接入应用根关闭任务。公共 `RequestAsioClientStop`/`WaitForAsioClientStopped` 只认可 asio2 的完整 public `is_stopped()` 终态，adapter 和 scope
   两者都静默后才释放或允许下一轮 Start；同步析构 facade 使用同一终态和同一 deadline。
-- N3 runtime 收口已完成：`RdContext` 持有的进程级 `PxAsyncRuntime` 通过 `RenderModuleRegistry` 和 `WsTransport` 显式注入 `WsServer`；WS server 只拥有自己的
-  control scope，启动失败会回滚模块启动，退出不再错误地停止共享 runtime。准入 exactly-once 和异步 server drain 仍待继续验证。
+- N3 已完成：`RdContext` 持有的进程级 `PxAsyncRuntime` 通过 `RenderModuleRegistry` 和 `WsTransport` 显式注入 `WsServer`；WS server 只拥有自己的 control
+  scope，启动失败会回滚模块启动，退出不再错误地停止共享 runtime。`WsServer::StopAsync` 会先关闭 HTTP/WS ingress，再等待 asio2 server 完整 stopped 终态和
+  ticket/admission/RTC allocation scope 排空；`RenderModuleRegistry::StopWsIngressAsync` 已把它接入根 deadline。超时不会释放仍有 outstanding work 的 router owner。
 - N4 控制任务迁移已完成：进程级 runtime 通过 `RenderModuleRegistry` 显式注入 `UdpTransport`；心跳清扫和 FEC 窗口不再使用旧
   `PluginContext::StartTimer`，改由 UDP control scope 中两个可取消的周期协程负责。UDP 启动失败会回滚，停止会先取消并排空 control scope，逐包收发、
   分片、pacing 热路径保持同步。receive-storm/stop 故障注入和性能基线仍待补齐。
 - N5 根关闭编排已接入：`RdApplication::Exit` 建立一个 15 秒 absolute deadline，根 control scope 先并发触发 Service/Panel 停止并 `co_await` 两个 client
   scope 排空；组合根 `RequestStop()` 的 completion 也必须在相同 deadline 内到达，才进入模块 owner 释放阶段。`RenderModuleRegistry::StopModules()` 已恢复，旧插件
   时代禁止 StopModules 的 workaround 已删除。WebRTC callback quiescence 的超时保留策略和 runtime-thread 根退出续体仍待继续加固。
-- 尚未完成：OBS IPC 的统一 `StopAsync`、WS/HTTP server typed `StopAsync`、UDP receive-storm/stop 故障注入与性能基线、WebRTC callback quiescence，
+- 尚未完成：OBS IPC 的统一 `StopAsync`、UDP receive-storm/stop 故障注入与性能基线、WebRTC callback quiescence，
   runtime-thread 根退出续体，以及真实 server 驱动的重连故障注入。
 
 当前自动化结果：公共 mailbox/connection/backoff/async-delay focused tests 通过，其中 connection/backoff 连续运行 20 轮通过；Render 和 OBS hook
 增量构建通过并同步运行产物；全量软件 gate 的 2 个 guard 和 28 个 unit/lifecycle/integration 测试通过。同步 WebRTC 动态库后，最新 lifecycle 证据目录为
-`test-results/render-architecture/20260904-145037-lifecycle`，`px_render.exe`、`net_rtc.dll`、`net_rtc_local.dll` 的 build/dist SHA-256 全部一致，
+`test-results/render-architecture/20260904-145804-lifecycle`，`px_render.exe`、`net_rtc.dll`、`net_rtc_local.dll` 的 build/dist SHA-256 全部一致，
 自动化结论为 GO，不替代最终产品验收。
 
 ## 3. 目标和非目标

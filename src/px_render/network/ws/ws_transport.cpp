@@ -77,6 +77,25 @@ namespace px
         return RenderModule::Destroy();
     }
 
+    PxAwaitable<PxResult<void>> WsTransport::StopAsync(
+        const std::shared_ptr<WsTransport>& owner,
+        const std::chrono::steady_clock::time_point deadline) {
+        if (!owner) {
+            co_return PxResult<void>::Failure(
+                MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "net-ws.stop", "WS transport owner is missing"));
+        }
+        owner->RenderModule::Stop();
+        const auto server = owner->ws_server_;
+        if (server) {
+            const auto stopped = co_await WsServer::StopAsync(server, deadline);
+            if (!stopped) {
+                co_return stopped;
+            }
+        }
+        owner->ws_server_.reset();
+        co_return PxResult<void>::Success();
+    }
+
     void WsTransport::ApplyLogicalSessionCapabilities(
         const PxLogicalSessionCapabilityUpdate& update) {
         if (ws_server_) {

@@ -33,17 +33,17 @@ PxResult<void> RequestAsioClientStop(const std::shared_ptr<Client>& client, cons
 }
 
 template<typename Client>
-bool IsAsioClientStopped(const std::shared_ptr<Client>& client) {
-    return !client || client->is_stopped();
+bool IsAsioObjectStopped(const std::shared_ptr<Client>& object) {
+    return !object || object->is_stopped();
 }
 
 template<typename Client>
-PxAwaitable<PxResult<void>> WaitForAsioClientStopped(
-    const std::shared_ptr<Client>& client,
+PxAwaitable<PxResult<void>> WaitForAsioObjectStopped(
+    const std::shared_ptr<Client>& object,
     const std::chrono::steady_clock::time_point deadline,
     std::string stage) {
     constexpr auto kPollInterval = std::chrono::milliseconds(5);
-    while (!IsAsioClientStopped(client)) {
+    while (!IsAsioObjectStopped(object)) {
         const auto now = std::chrono::steady_clock::now();
         if (now >= deadline) {
             co_return PxResult<void>::Failure(MakePxAsyncError(
@@ -59,17 +59,37 @@ PxAwaitable<PxResult<void>> WaitForAsioClientStopped(
 }
 
 template<typename Client>
-bool WaitForAsioClientStoppedBlocking(
-    const std::shared_ptr<Client>& client,
+bool WaitForAsioObjectStoppedBlocking(
+    const std::shared_ptr<Client>& object,
     const std::chrono::steady_clock::time_point deadline) {
     constexpr auto kPollInterval = std::chrono::milliseconds(5);
-    while (!IsAsioClientStopped(client)) {
+    while (!IsAsioObjectStopped(object)) {
         if (std::chrono::steady_clock::now() >= deadline) {
             return false;
         }
         std::this_thread::sleep_for(kPollInterval);
     }
     return true;
+}
+
+template<typename Client>
+bool IsAsioClientStopped(const std::shared_ptr<Client>& client) {
+    return IsAsioObjectStopped(client);
+}
+
+template<typename Client>
+PxAwaitable<PxResult<void>> WaitForAsioClientStopped(
+    const std::shared_ptr<Client>& client,
+    const std::chrono::steady_clock::time_point deadline,
+    std::string stage) {
+    co_return co_await WaitForAsioObjectStopped(client, deadline, std::move(stage));
+}
+
+template<typename Client>
+bool WaitForAsioClientStoppedBlocking(
+    const std::shared_ptr<Client>& client,
+    const std::chrono::steady_clock::time_point deadline) {
+    return WaitForAsioObjectStoppedBlocking(client, deadline);
 }
 
 } // namespace px

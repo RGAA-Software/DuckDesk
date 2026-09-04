@@ -6,6 +6,7 @@
 #define PX_RENDER_MODULES_RENDER_MODULE_REGISTRY_H
 
 #include <functional>
+#include <chrono>
 #include <memory>
 #include <cstdint>
 #include <string>
@@ -17,6 +18,8 @@
 #include <wrl/client.h>
 #include "px_render/modules/module_ids.h"
 #include "px_common_new/concurrent_hashmap.h"
+#include "px_common_new/async_result.h"
+#include "px_common_new/async_runtime.h"
 #include "px_common_new/file_transfer_send_result.h"
 #include "px_render/plugin_interface/px_plugin_settings_info.h"
 
@@ -71,6 +74,8 @@ namespace px
         void StartModules();
         void BindIngressCallbacks();
         void StopRouting();
+        [[nodiscard]] PxAwaitable<PxResult<void>> StopWsIngressAsync(
+            std::chrono::steady_clock::time_point deadline);
         void StopModules();
         std::shared_ptr<VideoEncoderModule> GetFFmpegEncoder();
         std::shared_ptr<VideoEncoderModule> GetNvencEncoder();

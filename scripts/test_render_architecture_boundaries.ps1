@@ -403,6 +403,12 @@ $wsServerHeader = Get-Content -LiteralPath `
 if ($wsServerSource -match 'PxAsyncRuntime::Create') {
     $violations.Add("net_ws/ws_server.cpp: WS server must use the composition-root async runtime")
 }
+foreach ($required in @("StopAsync", "WaitForAsioObjectStopped", "WaitForAsyncScopeDrain", "BeginStop", "FinishStop")) {
+    if ($wsServerSource -notmatch [regex]::Escape($required) -and
+        $wsServerHeader -notmatch [regex]::Escape($required)) {
+        $violations.Add("net_ws: typed server shutdown is missing $required")
+    }
+}
 
 $udpTransportSource = Get-Content -LiteralPath `
     (Join-Path $RepoRoot "src\px_render\network\udp\udp_transport.cpp") -Raw

@@ -16,6 +16,7 @@
 #include "network/ws_router.h"
 #include "px_common_new/concurrent_hashmap.h"
 #include "px_common_new/file_transfer_send_result.h"
+#include "px_common_new/async_result.h"
 #include "px_common_new/async_runtime.h"
 #include "diagnostics/rate_limited_log.h"
 #include "diagnostics/transport_performance_window.h"
@@ -40,7 +41,7 @@ namespace px
     // - Owned by the built-in WsTransport.
     // - Control workflows are owned by async_scope_.
     // - Network and legacy event callbacks capture weak owners only.
-    // - Exit cancels and drains workflows before stopping the HTTP server.
+    // - Stop closes HTTP ingress before cancelling and draining workflows.
     //
     // Threading:
     // - Control workflows are serialized on the control-lane strand.
@@ -53,6 +54,9 @@ namespace px
 
         [[nodiscard]] bool Start();
         void Exit();
+        [[nodiscard]] static PxAwaitable<PxResult<void>> StopAsync(
+            const std::shared_ptr<WsServer>& owner,
+            std::chrono::steady_clock::time_point deadline);
 
         void PostNetMessage(std::shared_ptr<Data> msg);
         void PostIpcBinaryMessage(std::shared_ptr<Data> msg);
@@ -85,6 +89,8 @@ namespace px
         void ReportPerformance();
 
     private:
+        std::shared_ptr<PxAsyncScope> BeginStop();
+        void FinishStop();
         // pid 对应进程已死才从允许集合注销(活进程的瞬时断线不影响重连)
         void UnregisterIpcPidIfDead(uint32_t pid);
         void AddUserProxyRouter();

@@ -10,6 +10,8 @@
 #include <mutex>
 #include <vector>
 #include "architecture/modules/render_module.h"
+#include "px_common_new/async_result.h"
+#include "px_common_new/async_runtime.h"
 #include "px_render/network/transport_types.h"
 
 namespace px
@@ -31,6 +33,9 @@ namespace px
         RenderModuleKind Kind() const override { return RenderModuleKind::kNetwork; }
         bool Start(const RenderModuleConfiguration& configuration) override;
         bool Destroy() override;
+        [[nodiscard]] static PxAwaitable<PxResult<void>> StopAsync(
+            const std::shared_ptr<WsTransport>& owner,
+            std::chrono::steady_clock::time_point deadline);
         void ApplyLogicalSessionCapabilities(
             const PxLogicalSessionCapabilityUpdate& update);
         void Tick1Second() override;

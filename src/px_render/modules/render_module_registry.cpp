@@ -397,6 +397,19 @@ namespace px
         }
     }
 
+    PxAwaitable<PxResult<void>> RenderModuleRegistry::StopWsIngressAsync(
+        const std::chrono::steady_clock::time_point deadline) {
+        std::shared_ptr<WsTransport> ws_transport;
+        {
+            std::shared_lock lock(modules_mtx_);
+            ws_transport = ws_transport_;
+        }
+        if (!ws_transport) {
+            co_return PxResult<void>::Success();
+        }
+        co_return co_await WsTransport::StopAsync(ws_transport, deadline);
+    }
+
     void RenderModuleRegistry::StopModules() {
         // reject new visitors first, the event callback registered in
         // BindIngressCallbacks also checks this flag before routing

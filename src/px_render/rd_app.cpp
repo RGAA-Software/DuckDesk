@@ -92,6 +92,7 @@ namespace px
         PxAwaitable<void> StopApplicationNetworkClients(
             const std::shared_ptr<WsPanelClient>& panel_client,
             const std::shared_ptr<RenderServiceClient>& service_client,
+            const std::shared_ptr<RenderModuleRegistry>& module_registry,
             const std::chrono::steady_clock::time_point deadline,
             const std::shared_ptr<std::promise<PxResult<void>>>& completion) {
             if (panel_client) {
@@ -110,6 +111,12 @@ namespace px
             }
             if (service_client) {
                 const auto stopped = co_await RenderServiceClient::StopAsync(service_client, deadline);
+                if (!stopped && outcome) {
+                    outcome = PxResult<void>::Failure(stopped.Error());
+                }
+            }
+            if (module_registry) {
+                const auto stopped = co_await module_registry->StopWsIngressAsync(deadline);
                 if (!stopped && outcome) {
                     outcome = PxResult<void>::Failure(stopped.Error());
                 }
@@ -2598,7 +2605,10 @@ namespace px
             LOGI("RdApplication shutdown: timers");
             app_timer_->StopTimers();
         }
-        if (ws_panel_client_ || service_client_) {
+        if (module_registry_) {
+            module_registry_->StopRouting();
+        }
+        if (ws_panel_client_ || service_client_ || module_registry_) {
             LOGI("event=application.shutdown component=rd_application operation=stop_network_clients outcome=started");
             const auto async_runtime = context_ ? context_->GetAsyncRuntime() : std::shared_ptr<PxAsyncRuntime>{};
             if (async_runtime && !async_runtime->IsStopping() && !async_runtime->IsRuntimeThread()) {
@@ -2607,8 +2617,10 @@ namespace px
                 auto future = completion->get_future();
                 const auto spawned = shutdown_scope && shutdown_scope->Spawn(
                     "application-network-shutdown",
-                    [panel_client = ws_panel_client_, service_client = service_client_, shutdown_deadline, completion]() {
-                        return StopApplicationNetworkClients(panel_client, service_client, shutdown_deadline, completion);
+                    [panel_client = ws_panel_client_, service_client = service_client_, module_registry = module_registry_,
+                     shutdown_deadline, completion]() {
+                        return StopApplicationNetworkClients(
+                            panel_client, service_client, module_registry, shutdown_deadline, completion);
                     });
                 if (!spawned || future.wait_until(shutdown_deadline) != std::future_status::ready) {
                     LOGE("event=application.shutdown component=rd_application code=ASYNC_SCOPE_DRAIN_TIMEOUT "

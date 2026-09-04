@@ -3,6 +3,8 @@
 //
 
 #include "ws_server.h"
+#include "px_common_new/asio_client_shutdown.h"
+#include "px_common_new/async_scope_drain.h"
 
 #include <array>
 #include <atomic>
@@ -510,27 +512,74 @@ namespace px
     }
 
     void WsServer::Exit() {
-        exiting_ = true;
-        if (async_scope_) {
-            const auto called_from_scope = async_scope_->IsScopeThread();
-            const auto drained = called_from_scope
-                ? (async_scope_->BeginStop(), false)
-                : async_scope_->StopAndWait(std::chrono::seconds(5));
-            if (!drained && !called_from_scope) {
-                LOGE("event=async.scope_drain component=net_ws "
-                     "code=ASYNC_SCOPE_DRAIN_TIMEOUT operation=stop_control_workflows "
-                     "outcome=timeout recoverable=false outstanding={}",
-                     async_scope_->GetStatistics().outstanding);
-            } else if (called_from_scope) {
-                LOGI("event=async.scope_drain component=net_ws "
-                     "operation=stop_control_workflows outcome=deferred "
-                     "reason=shutdown_requested_from_callback outstanding={}",
-                     async_scope_->GetStatistics().outstanding);
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        const auto scope = BeginStop();
+        if (!scope) {
+            FinishStop();
+            return;
+        }
+        if (scope->IsScopeThread()) {
+            LOGI("event=async.scope_drain component=net_ws operation=stop_control_workflows outcome=deferred "
+                 "reason=shutdown_requested_from_runtime_thread outstanding={}",
+                 scope->GetStatistics().outstanding);
+            return;
+        }
+        const auto server = server_;
+        const auto adapter_stopped = WaitForAsioObjectStoppedBlocking(server, deadline);
+        const auto remaining = std::max(
+            std::chrono::milliseconds::zero(),
+            std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()));
+        if (!adapter_stopped || !scope->WaitFor(remaining)) {
+            LOGE("event=async.scope_drain component=net_ws code=ASYNC_SCOPE_DRAIN_TIMEOUT "
+                 "operation=stop_control_workflows outcome=timeout recoverable=false outstanding={}",
+                 scope->GetStatistics().outstanding);
+            return;
+        }
+        FinishStop();
+    }
+
+    PxAwaitable<PxResult<void>> WsServer::StopAsync(
+        const std::shared_ptr<WsServer>& owner,
+        const std::chrono::steady_clock::time_point deadline) {
+        if (!owner) {
+            co_return PxResult<void>::Failure(
+                MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "net-ws.stop", "WS server owner is missing"));
+        }
+        const auto scope = owner->BeginStop();
+        const auto adapter_stopped = co_await WaitForAsioObjectStopped(owner->server_, deadline, "net-ws.adapter-stop");
+        if (!adapter_stopped) {
+            co_return adapter_stopped;
+        }
+        if (scope) {
+            const auto drained = co_await WaitForAsyncScopeDrain(scope, deadline, "net-ws.stop");
+            if (!drained) {
+                co_return PxResult<void>::Failure(drained.Error());
             }
         }
-        if (server_) {
-            server_->stop_all_timers();
-            server_->stop();
+        owner->FinishStop();
+        co_return PxResult<void>::Success();
+    }
+
+    std::shared_ptr<PxAsyncScope> WsServer::BeginStop() {
+        if (exiting_.exchange(true)) {
+            return async_scope_;
+        }
+        const auto server = server_;
+        if (server && !server->is_stopped()) {
+            server->post([server] {
+                server->stop_all_timers();
+                server->stop();
+            });
+        }
+        if (async_scope_) {
+            async_scope_->BeginStop();
+        }
+        return async_scope_;
+    }
+
+    void WsServer::FinishStop() {
+        if (async_scope_ && async_scope_->GetStatistics().outstanding != 0) {
+            return;
         }
         async_scope_.reset();
         http_handler_.reset();
