@@ -323,7 +323,7 @@ namespace px
                 settings_->max_receive_speed_ = sub.max_receive_speed();
                 settings_->role_ = sub.role();
 
-                module_registry_->SyncPluginSettingsInfo(PxPluginSettingsInfo {
+                module_registry_->SyncModuleSettings(PxPluginSettingsInfo {
                     .device_id_ = settings_->device_id_,
                     .device_random_pwd_ = settings_->device_random_pwd_,
                     .device_safety_pwd_ = settings_->device_safety_pwd_,

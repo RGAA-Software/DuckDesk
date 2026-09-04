@@ -16,10 +16,8 @@
 #include "px_common_new/process_util.h"
 #include "px_render_panel_message.pb.h"
 #include "px_common_new/message_notifier.h"
-#include "px_render/plugin_interface/px_monitor_capture_plugin.h"
-#include "px_render/plugin_interface/px_video_encoder_plugin.h"
-#include "px_render/plugin_interface/px_net_plugin.h"
-#include "px_render/plugin_interface/px_frame_processor_plugin.h"
+#include "architecture/sources/monitor_capture_source.h"
+#include "architecture/encoders/video_encoder_module.h"
 #include "px_message_new/rp_proto_converter.h"
 #include "architecture/processors/frame_resizer_processor.h"
 
@@ -148,13 +146,13 @@ namespace px
         if (!app) {
             return RpProtoAsData(&msg);
         }
-        auto video_capture_plugin = app->GetWorkingMonitorCapturePlugin();
-        auto video_encoder_plugins = app->GetWorkingVideoEncoderPlugins();
+        auto video_capture_source = app->GetWorkingMonitorCaptureSource();
+        auto video_encoders = app->GetWorkingVideoEncoders();
         const auto frame_resizer = context_->GetFrameResizerProcessor();
-        if (video_capture_plugin && !video_encoder_plugins.empty()) {
+        if (video_capture_source && !video_encoders.empty()) {
             // encoder info
 
-            auto captures_info = video_capture_plugin->GetWorkingCapturesInfo();
+            auto captures_info = video_capture_source->WorkingCaptures();
             for (const auto& [name, info] : captures_info) {
                 auto cp_info = cst->mutable_working_captures_info();
                 auto item = cp_info->Add();
@@ -167,9 +165,9 @@ namespace px
                 }
 
                 // encoder
-                if (video_encoder_plugins.contains(info->target_name_)) {
-                    auto video_encoder_plugin = video_encoder_plugins[info->target_name_];
-                    auto video_encoders_info = video_encoder_plugin->GetWorkingCapturesInfo();
+                if (video_encoders.contains(info->target_name_)) {
+                    auto video_encoder = video_encoders[info->target_name_];
+                    auto video_encoders_info = video_encoder->WorkingCaptures();
                     if (video_encoders_info.contains(info->target_name_)) {
                         auto encoder_info = video_encoders_info[info->target_name_];
                         item->set_encoder_name(encoder_info->encoder_name_);
@@ -204,7 +202,7 @@ namespace px
                 }
 
                 // resize info
-                bool is_gdi_capture = module_registry_->IsGdiCapture(app->GetWorkingMonitorCapturePlugin());
+                bool is_gdi_capture = module_registry_->IsGdiCapture(app->GetWorkingMonitorCaptureSource());
                 if (settings_->encoder_.encode_res_type_ == Encoder::EncodeResolutionType::kOrigin || is_gdi_capture) {
                     item->set_resize_frame_width(0);
                     item->set_resize_frame_height(0);

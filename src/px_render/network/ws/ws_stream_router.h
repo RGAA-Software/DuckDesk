@@ -54,7 +54,7 @@ namespace px
         // 只承担控制面,kVideoFrame/kAudioFrame proto 不再下发(见 ws_server.cpp)
         std::atomic_bool udp_media_ = false;
         // Capability comes from the redeemed logical-session ticket. Outbound
-        // clipboard payloads are filtered by WsPluginServer before broadcast.
+        // clipboard payloads are filtered by WsServer before broadcast.
         std::atomic_bool clipboard_allowed_ = false;
         std::atomic_bool file_allowed_ = false;
         std::string visitor_device_id_;
@@ -65,7 +65,7 @@ namespace px
         bool force_gdi_ = false;
         unsigned int post_thread_id_ = 0;
         // written on the network thread (client hello), read on the statistics
-        // thread (WsPluginServer::GetConnectedClientInfo), guarded by this mutex
+        // thread (WsServer::GetConnectedClientInfo), guarded by this mutex
         std::mutex device_name_mtx_;
         std::string device_name_;
         NetChannelType nt_channel_type_;

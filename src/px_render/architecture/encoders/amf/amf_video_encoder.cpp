@@ -2,7 +2,7 @@
 // Created RGAA on 15/11/2024.
 //
 
-#include "amf_encoder_plugin.h"
+#include "amf_video_encoder.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "video_encoder_vce.h"
 #include "amf_encoder_defs.h"
@@ -13,47 +13,47 @@
 namespace px
 {
 
-    std::string AmfEncoderPlugin::GetPluginId() {
-        return kAmfEncoderPluginId;
+    std::string AmfVideoEncoder::Id() const {
+        return kAmfVideoEncoderId;
     }
 
-    std::string AmfEncoderPlugin::GetPluginName() {
+    std::string AmfVideoEncoder::Name() const {
         return kAmfPluginName;
     }
 
-    std::string AmfEncoderPlugin::GetVersionName() {
+    std::string AmfVideoEncoder::VersionName() const {
         return "1.1.0";
     }
 
-    uint32_t AmfEncoderPlugin::GetVersionCode() {
+    uint32_t AmfVideoEncoder::VersionCode() const {
         return 110;
     }
 
-    std::string AmfEncoderPlugin::GetPluginDescription() {
+    std::string AmfVideoEncoder::Description() const {
         return "AMD hardware encoder";
     }
 
-    bool AmfEncoderPlugin::CanEncodeTexture() {
+    bool AmfVideoEncoder::CanEncodeTexture() const {
         return true;
     }
 
-    void AmfEncoderPlugin::On1Second() {
-        PxVideoEncoderPlugin::On1Second();
+    void AmfVideoEncoder::Tick1Second() {
+        VideoEncoderModule::Tick1Second();
     }
 
-    bool AmfEncoderPlugin::OnCreate(const px::PxPluginParam& param) {
-        px::PxVideoEncoderPlugin::OnCreate(param);
+    bool AmfVideoEncoder::Start(const px::RenderModuleConfiguration& param) {
+        px::VideoEncoderModule::Start(param);
         return true;
     }
 
-    bool AmfEncoderPlugin::OnDestroy() {
-        PxVideoEncoderPlugin::OnStop();
-        ExitAll();
-        return PxVideoEncoderPlugin::OnDestroy();
+    bool AmfVideoEncoder::Destroy() {
+        VideoEncoderModule::Stop();
+        RemoveAll();
+        return VideoEncoderModule::Destroy();
     }
 
-    void AmfEncoderPlugin::InsertIdr() {
-        PxVideoEncoderPlugin::InsertIdr();
+    void AmfVideoEncoder::RequestKeyFrame() {
+        VideoEncoderModule::RequestKeyFrame();
         if (IsWorking()) {
             for (const auto& [monitor_name, video_encoder] : video_encoders_) {
                 video_encoder->InsertIdr();
@@ -62,21 +62,23 @@ namespace px
         }
     }
 
-    bool AmfEncoderPlugin::HasEncoderForMonitor(const std::string& monitor_name) {
+    bool AmfVideoEncoder::HasEncoderForMonitor(const std::string& monitor_name) const {
         return video_encoders_.find(monitor_name) == video_encoders_.end();
     }
 
-    bool AmfEncoderPlugin::IsWorking() {
-        return plugin_enabled_ && !video_encoders_.empty();
+    bool AmfVideoEncoder::IsWorking() const {
+        return enabled_.load() && !video_encoders_.empty();
     }
 
-    bool AmfEncoderPlugin::Init(const EncoderConfig& config, const std::string& monitor_name) {
-        if (!plugin_enabled_) {
-            LOGE("This plugin is disabled!");
+    bool AmfVideoEncoder::Initialize(const EncoderConfig& config, const std::string& monitor_name) {
+        if (!enabled_.load()) {
+            LOGE("event=encoder.initialize component=amf outcome=rejected reason=disabled");
             return false;
         }
-        PxVideoEncoderPlugin::Init(config, monitor_name);
-        auto encoder = std::make_shared<VideoEncoderVCE>(this, config.adapter_uid_);
+        VideoEncoderModule::Initialize(config, monitor_name);
+        const auto owner = std::dynamic_pointer_cast<AmfVideoEncoder>(
+            shared_from_this());
+        auto encoder = std::make_shared<VideoEncoderVCE>(owner, config.adapter_uid_);
         auto ok = encoder->Initialize(config);
         if (!ok) {
             LOGE("AMF encoder init failed for: {}", monitor_name);
@@ -87,7 +89,7 @@ namespace px
         return true;
     }
 
-    VideoEncoderError AmfEncoderPlugin::Encode(
+    VideoEncoderError AmfVideoEncoder::Encode(
         const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d,
         uint64_t frame_index,
         const CaptureVideoFrame& capture_frame) {
@@ -108,14 +110,14 @@ namespace px
         return VideoEncoderError::Ok();
     }
 
-    void AmfEncoderPlugin::Exit(const std::string& monitor_name) {
+    void AmfVideoEncoder::Remove(const std::string& monitor_name) {
         if (video_encoders_.find(monitor_name) != video_encoders_.end()) {
             video_encoders_[monitor_name]->Exit();
             video_encoders_.erase(monitor_name);
         }
     }
 
-    void AmfEncoderPlugin::ExitAll() {
+    void AmfVideoEncoder::RemoveAll() {
         for (const auto& [monitor, video_encoder] : video_encoders_) {
             if (video_encoder) {
                 video_encoder->Exit();
@@ -125,7 +127,7 @@ namespace px
         LOGI("Amf encoders all exit.");
     }
 
-    std::map<std::string, WorkingEncoderInfoPtr> AmfEncoderPlugin::GetWorkingCapturesInfo() {
+    std::map<std::string, WorkingEncoderInfoPtr> AmfVideoEncoder::WorkingCaptures() const {
         std::map<std::string, WorkingEncoderInfoPtr> result;
         for (const auto& [monitor, video_encoder] : video_encoders_) {
             auto info = std::make_shared<WorkingEncoderInfo>();
@@ -138,7 +140,7 @@ namespace px
         return result;
     }
 
-    std::optional<EncoderCapability> AmfEncoderPlugin::GetEncoderCapability(const std::string& monitor_name) {
+    std::optional<EncoderCapability> AmfVideoEncoder::Capability(const std::string& monitor_name) const {
         // to do 需要研究下A卡如何支持444编码
         EncoderCapability cap;
         cap.support_h264_yuv444_ = false;

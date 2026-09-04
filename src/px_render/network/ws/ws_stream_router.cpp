@@ -8,7 +8,7 @@
 #include "px_common_new/privacy_log.h"
 #include "px_common_new/thread_util.h"
 #include "px_common_new/ws_control_signal.h"
-#include "ws_plugin.h"
+#include "ws_transport.h"
 #include "px_message.pb.h"
 
 namespace px
@@ -51,12 +51,12 @@ namespace px
             }
             return;
         }
-        const auto plugin = ws_data_ ? ws_data_->plugin_.lock() : nullptr;
-        if (!plugin) {
+        const auto transport = ws_data_ ? ws_data_->transport_.lock() : nullptr;
+        if (!transport) {
             return;
         }
         auto msg = Data::Make(data.data(), data.size());
-        plugin->OnClientEventCame(
+        transport->ReceiveClientEvent(
             true, socket_fd, NetPluginType::kWebSocket, nt_channel_type_, msg, binding_id_);
     }
 
@@ -95,10 +95,10 @@ namespace px
             }
 
             // report data size
-            const auto plugin = self->ws_data_
-                ? self->ws_data_->plugin_.lock() : nullptr;
-            if (plugin) {
-                plugin->ReportSentDataSize(byte_sent);
+            const auto transport = self->ws_data_
+                ? self->ws_data_->transport_.lock() : nullptr;
+            if (transport) {
+                transport->ReportDataSent(byte_sent);
             }
         });
     }
@@ -131,10 +131,10 @@ namespace px
             self->queuing_message_count_--;
 
             // report data size
-            const auto plugin = self->ws_data_
-                ? self->ws_data_->plugin_.lock() : nullptr;
-            if (plugin) {
-                plugin->ReportSentDataSize(byte_sent);
+            const auto transport = self->ws_data_
+                ? self->ws_data_->transport_.lock() : nullptr;
+            if (transport) {
+                transport->ReportDataSent(byte_sent);
             }
         });
     }

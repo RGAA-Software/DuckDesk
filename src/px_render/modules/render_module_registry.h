@@ -29,12 +29,12 @@ namespace px
     class Data;
     class RenderEventIngress;
     class EncodedVideoFanout;
-    class PxPluginInterface;
-    class PxStreamPlugin;
-    class PxVideoEncoderPlugin;
-    class PxNetPlugin;
-    class PxMonitorCapturePlugin;
-    class PxFrameProcessorPlugin;
+    class RenderModule;
+    class VideoEncoderModule;
+    class MonitorCaptureSource;
+    class WsTransport;
+    class UdpTransport;
+    class RelayTransport;
     class PxConnectedClientInfo;
     class WebRtcLibrary;
     class WebRtcLibraryHost;
@@ -72,11 +72,11 @@ namespace px
         void BindIngressCallbacks();
         void StopRouting();
         void StopModules();
-        std::shared_ptr<PxVideoEncoderPlugin> GetFFmpegEncoder();
-        std::shared_ptr<PxVideoEncoderPlugin> GetNvencEncoder();
-        std::shared_ptr<PxVideoEncoderPlugin> GetAmfEncoder();
-        std::shared_ptr<PxMonitorCapturePlugin> GetDdaCapture();
-        std::shared_ptr<PxMonitorCapturePlugin> GetGdiCapture();
+        std::shared_ptr<VideoEncoderModule> GetFFmpegEncoder();
+        std::shared_ptr<VideoEncoderModule> GetNvencEncoder();
+        std::shared_ptr<VideoEncoderModule> GetAmfEncoder();
+        std::shared_ptr<MonitorCaptureSource> GetDdaCapture();
+        std::shared_ptr<MonitorCaptureSource> GetGdiCapture();
         void SyncUdpInfo(
             std::int64_t socket_fd,
             const std::string& device_id,
@@ -153,8 +153,8 @@ namespace px
         [[nodiscard]] bool InvalidateReferenceFrame(
             const std::string& monitor_name,
             std::uint64_t invalid_frame_index);
-        int64_t GetQueuingMediaMsgCountInNetPlugins();
-        int64_t GetQueuingFtMsgCountInNetPlugins();
+        [[nodiscard]] int64_t QueuedNetworkMediaMessages();
+        [[nodiscard]] int64_t QueuedNetworkFileTransferMessages();
         int GetTotalConnectedClientsCount();
         int GetTotalMediaConsumersCount();
         std::vector<std::shared_ptr<PxConnectedClientInfo>> GetConnectedClientsInfo();
@@ -164,7 +164,7 @@ namespace px
         void On1Second();
 
         // from render panel -> render
-        void SyncPluginSettingsInfo(const PxPluginSettingsInfo& info);
+        void SyncModuleSettings(const PxPluginSettingsInfo& info);
         [[nodiscard]] FileTransferSendResult SendFileTransferMessageOnRoute(
             const std::string& transport_id,
             const std::string& stream_id,
@@ -192,26 +192,22 @@ namespace px
 
         // is GDI
         bool IsGdiCapture(
-            const std::shared_ptr<PxMonitorCapturePlugin>& plugin);
+            const std::shared_ptr<MonitorCaptureSource>& source);
         // is DDA
         bool IsDdaCapture(
-            const std::shared_ptr<PxMonitorCapturePlugin>& plugin);
+            const std::shared_ptr<MonitorCaptureSource>& source);
 
     private:
-        [[nodiscard]] std::vector<std::shared_ptr<PxNetPlugin>>
-        SnapshotNetworkTransports();
-        [[nodiscard]] std::vector<std::shared_ptr<PxPluginInterface>>
-        SnapshotLifecycleModules();
-        [[nodiscard]] std::vector<std::shared_ptr<PxVideoEncoderPlugin>>
+        [[nodiscard]] std::vector<std::shared_ptr<RenderModule>>
+        SnapshotModules();
+        [[nodiscard]] std::vector<std::shared_ptr<VideoEncoderModule>>
         SnapshotEncoders();
         [[nodiscard]] std::vector<std::shared_ptr<WebRtcLibrary>>
         SnapshotWebRtcLibraries();
         void VisitAllModules(const std::function<void(
-            const std::shared_ptr<PxPluginInterface>&)>& operation);
+            const std::shared_ptr<RenderModule>&)>& operation);
         void VisitEncoders(const std::function<void(
-            const std::shared_ptr<PxVideoEncoderPlugin>&)>& operation);
-        void VisitNetworkTransports(const std::function<void(
-            const std::shared_ptr<PxNetPlugin>&)>& operation);
+            const std::shared_ptr<VideoEncoderModule>&)>& operation);
         void VisitWebRtcLibraries(const std::function<void(
             const std::shared_ptr<WebRtcLibrary>&)>& operation);
 
@@ -223,19 +219,16 @@ namespace px
         // Guards the explicit module composition. Visitors take a shared lock;
         // StopModules atomically detaches every owner under an exclusive lock.
         std::shared_mutex modules_mtx_;
-        std::vector<std::shared_ptr<PxPluginInterface>> lifecycle_modules_;
-        std::vector<std::shared_ptr<PxVideoEncoderPlugin>> encoders_;
-        std::vector<std::shared_ptr<PxNetPlugin>> network_transports_;
-        std::shared_ptr<PxVideoEncoderPlugin> ffmpeg_encoder_;
-        std::shared_ptr<PxVideoEncoderPlugin> nvenc_encoder_;
-        std::shared_ptr<PxVideoEncoderPlugin> amf_encoder_;
-        std::shared_ptr<PxMonitorCapturePlugin> dda_capture_;
-        std::shared_ptr<PxMonitorCapturePlugin> gdi_capture_;
-        std::shared_ptr<PxNetPlugin> ws_transport_;
-        std::shared_ptr<PxNetPlugin> udp_transport_;
-        std::shared_ptr<PxNetPlugin> relay_transport_;
+        std::shared_ptr<VideoEncoderModule> ffmpeg_encoder_;
+        std::shared_ptr<VideoEncoderModule> nvenc_encoder_;
+        std::shared_ptr<VideoEncoderModule> amf_encoder_;
+        std::shared_ptr<MonitorCaptureSource> dda_capture_;
+        std::shared_ptr<MonitorCaptureSource> gdi_capture_;
+        std::shared_ptr<WsTransport> ws_transport_;
+        std::shared_ptr<UdpTransport> udp_transport_;
+        std::shared_ptr<RelayTransport> relay_transport_;
         // Fixed dynamic network components. They intentionally do not enter
-        // either generic plug-in collection.
+        // the flow-node extension graph.
         std::shared_ptr<WebRtcLibrary> rtc_transport_;
         std::shared_ptr<WebRtcLibrary> rtc_local_transport_;
         std::shared_ptr<WebRtcLibraryHost> webrtc_library_host_;

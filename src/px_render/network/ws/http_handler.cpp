@@ -8,9 +8,9 @@
 #include "px_common_new/md5.h"
 #include "px_common_new/data.h"
 #include "px_common_new/uuid.h"
-#include "ws_plugin.h"
+#include "ws_transport.h"
 #include "ws_callback_workflow.h"
-#include "px_render/plugin_interface/px_net_plugin.h"
+#include "px_render/network/transport_types.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include <algorithm>
 #include <chrono>
@@ -37,7 +37,7 @@ namespace px
     }
 
     std::string DirectAuditSubject(const DirectSessionGrantBinding& binding) {
-        // The persistent plugin log identifies the direct subject without
+        // The persistent transport log identifies the direct subject without
         // retaining the nonce, token, password, offer SDP, or full address.
         return MD5::Hex(binding.device_id_ + "|" + binding.client_nonce_
                         + "|" + binding.remote_address_);
@@ -59,9 +59,9 @@ namespace px
         http::status status_ = http::status::ok;
     };
 
-    HttpHandler::HttpHandler(std::weak_ptr<WsPlugin> plugin,
+    HttpHandler::HttpHandler(std::weak_ptr<WsTransport> transport,
                              std::shared_ptr<PxAsyncScope> async_scope)
-        : plugin_(std::move(plugin)), async_scope_(std::move(async_scope)) {}
+        : transport_(std::move(transport)), async_scope_(std::move(async_scope)) {}
 
     std::string HttpHandler::GetErrorMessage(int code) {
         if (code == kHandlerErrVerifySafetyPasswordFailed) {
@@ -137,26 +137,26 @@ namespace px
     }
 
     void HttpHandler::HandleGetRenderConfiguration(http::web_request& req, http::web_response& resp) {
-        const auto plugin = plugin_.lock();
-        if (!plugin) {
+        const auto transport = transport_.lock();
+        if (!transport) {
             SendErrorJson(resp, kHandlerErrParams);
             return;
         }
-        const auto& settings = plugin->GetPluginSettingsInfo();
+        const auto& settings = transport->Settings();
         nlohmann::json obj;
-        obj["device_id"] = settings.device_id_;
-        obj["relay_host"] = settings.relay_host_;
-        obj["relay_port"] = std::atoi(settings.relay_port_.c_str());
+        obj["device_id"] = settings.device_id;
+        obj["relay_host"] = settings.relay_host;
+        obj["relay_port"] = std::atoi(settings.relay_port.c_str());
         // Web 端鼠标回放需要当前采集显示器名(event_replayer 按它定位坐标系)
-        obj["monitor_name"] = plugin->GetCapturingMonitorName();
+        obj["monitor_name"] = transport->CapturingMonitorName();
         // 供 Web 客户端展示,便于确认被控端是否为旧版本
         obj["app_version"] = PROJECT_VERSION;
         SendOkJson(resp, obj.dump());
     }
 
     void HttpHandler::HandlePanelStreamMessage(http::web_request& req, http::web_response& resp) {
-        const auto plugin = plugin_.lock();
-        if (!plugin) {
+        const auto transport = transport_.lock();
+        if (!transport) {
             SendErrorJson(resp, kHandlerErrParams);
             return;
         }
@@ -169,18 +169,19 @@ namespace px
 
         auto event = std::make_shared<PxPluginPanelStreamMessage>();
         event->body_ = Data::From(body);
-        plugin->CallbackEvent(event);
+        transport->EmitCompatibilityEvent(event);
 
         SendOkJson(resp, "");
     }
 
     bool HttpHandler::VerifySafetyPassword(const std::unordered_map<std::string, std::string>& params) {
-        const auto plugin = plugin_.lock();
-        if (!plugin) {
+        const auto transport = transport_.lock();
+        if (!transport) {
             return false;
         }
-        auto settings = plugin->GetPluginSettingsInfo();
-        if (settings.device_safety_pwd_.empty() && settings.device_random_pwd_.empty()) {
+        auto settings = transport->Settings();
+        if (settings.device_safety_password.empty() &&
+            settings.device_random_password.empty()) {
             return true;
         }
         auto value = GetParam(params, "safety_pwd_md5");
@@ -188,15 +189,16 @@ namespace px
             return false;
         }
         // 安全密码:存的就是 MD5,直接比对
-        if (!settings.device_safety_pwd_.empty() && settings.device_safety_pwd_ == value.value()) {
+        if (!settings.device_safety_password.empty() &&
+            settings.device_safety_password == value.value()) {
             return true;
         }
         // 临时(随机)密码:存的是明文,兼容"前端 md5 后传入"和"直接传明文"两种形式
-        if (!settings.device_random_pwd_.empty()) {
-            if (settings.device_random_pwd_ == value.value()) {
+        if (!settings.device_random_password.empty()) {
+            if (settings.device_random_password == value.value()) {
                 return true;
             }
-            if (MD5::Hex(settings.device_random_pwd_) == value.value()) {
+            if (MD5::Hex(settings.device_random_password) == value.value()) {
                 return true;
             }
         }
@@ -211,8 +213,8 @@ namespace px
         const auto event = std::make_shared<PxPluginCloseLogicalSessionBindingEvent>();
         event->logical_session_id_ = logical_session_id;
         event->binding_id_ = binding_id;
-        if (const auto plugin = plugin_.lock()) {
-            plugin->CallbackEvent(event);
+        if (const auto transport = transport_.lock()) {
+            transport->EmitCompatibilityEvent(event);
         }
     }
 
@@ -220,7 +222,7 @@ namespace px
         std::shared_ptr<asio2::http_session>& session_ptr,
         http::web_request& req,
         http::web_response& resp) {
-        if (plugin_.expired() || !async_scope_ || !async_scope_->IsAccepting()) {
+        if (transport_.expired() || !async_scope_ || !async_scope_->IsAccepting()) {
             SendErrorJson(resp, kHandlerErrNoWebRtcLocalLibrary);
             return;
         }
@@ -257,8 +259,8 @@ namespace px
         std::string remote_address,
         std::shared_ptr<http::response_defer> response_defer) {
         const auto self = owner.lock();
-        const auto plugin = self ? self->plugin_.lock() : nullptr;
-        if (!self || !plugin) {
+        const auto transport = self ? self->transport_.lock() : nullptr;
+        if (!self || !transport) {
             session->post_queued_event(
                 [session, response_defer = std::move(response_defer)]() mutable {
                     session->response().fill_json(
@@ -321,11 +323,11 @@ namespace px
                 co_return;
             }
             auto redeemed = co_await render::AwaitOwnedCallback<RtcTicketAdmission>(
-                [weak_plugin = self->plugin_, ticket, body_nonce,
+                [weak_transport = self->transport_, ticket, body_nonce,
                  body_instance_id](
                     render::OwnedCallbackCompletion<RtcTicketAdmission>
                         completion) {
-                    const auto active_plugin = weak_plugin.lock();
+                    const auto active_plugin = weak_transport.lock();
                     if (!active_plugin) {
                         return false;
                     }
@@ -366,7 +368,7 @@ namespace px
                                 .allow_takeover_ = allow_takeover,
                             }));
                     };
-                    active_plugin->CallbackEvent(event);
+                    active_plugin->EmitCompatibilityEvent(event);
                     return true;
                 },
                 std::chrono::steady_clock::now() + std::chrono::seconds(3),
@@ -446,7 +448,7 @@ namespace px
                     std::chrono::minutes(5)).count();
             ticket_admission.allow_observer_ = false;
             ticket_admission.allow_takeover_ =
-                plugin->GetPluginSettingsInfo().direct_allow_takeover_;
+                transport->Settings().direct_allow_takeover;
             direct_access = true;
         }
         else if (ticket.empty()) {
@@ -503,10 +505,10 @@ namespace px
                     std::chrono::minutes(5)).count();
             ticket_admission.allow_observer_ = false;
             ticket_admission.allow_takeover_ =
-                plugin->GetPluginSettingsInfo().direct_allow_takeover_;
+                transport->Settings().direct_allow_takeover;
         }
 
-        if (!plugin->HasLocalRtcService()) {
+        if (!transport->HasLocalRtcService()) {
             complete(make_reply(kHandlerErrNoWebRtcLocalLibrary));
             co_return;
         }
@@ -526,10 +528,10 @@ namespace px
             .allow_takeover = ticket_admission.allow_takeover_,
         };
         auto admitted = co_await AwaitWsValueCallback<LogicalSessionAdmission>(
-            [weak_plugin = self->plugin_, admission_grant,
+            [weak_transport = self->transport_, admission_grant,
              admitted_binding_id, takeover_requested](
                 std::function<void(LogicalSessionAdmission)> completion) {
-                const auto active_plugin = weak_plugin.lock();
+                const auto active_plugin = weak_transport.lock();
                 if (!active_plugin) {
                     return false;
                 }
@@ -540,7 +542,7 @@ namespace px
                 event->binding_id_ = admitted_binding_id;
                 event->takeover_ = takeover_requested;
                 event->callback_ = std::move(completion);
-                active_plugin->CallbackEvent(event);
+                active_plugin->EmitCompatibilityEvent(event);
                 return true;
             },
             std::chrono::steady_clock::now() + std::chrono::seconds(3),
@@ -619,7 +621,7 @@ namespace px
         const std::weak_ptr<
             PxAsyncOneShot<std::shared_ptr<PxLocalRtcReplyInfo>>>
             weak_rtc_operation = rtc_operation;
-        const auto allocation = plugin->AllocateLocalRtcInstance(
+        const auto allocation = transport->AllocateLocalRtcInstance(
             rtc_request,
             [weak_rtc_operation](
                 const std::shared_ptr<PxLocalRtcReplyInfo>& reply) {

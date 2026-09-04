@@ -2,7 +2,7 @@
 // Created RGAA on 15/11/2024.
 //
 
-#include "ffmpeg_encoder_plugin.h"
+#include "ffmpeg_video_encoder.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
 
 #include <libyuv.h>
@@ -22,52 +22,52 @@
 namespace px
 {
 
-    std::string FFmpegEncoderPlugin::GetPluginId() {
-        return kFFmpegEncoderPluginId;
+    std::string FfmpegVideoEncoder::Id() const {
+        return kFfmpegVideoEncoderId;
     }
 
-    std::string FFmpegEncoderPlugin::GetPluginName() {
-        return kFFmpegPluginName;
+    std::string FfmpegVideoEncoder::Name() const {
+        return kFfmpegEncoderName;
     }
 
-    std::string FFmpegEncoderPlugin::GetVersionName() {
-        return plugin_version_name_;
+    std::string FfmpegVideoEncoder::VersionName() const {
+        return "1.2.0";
     }
 
-    uint32_t FFmpegEncoderPlugin::GetVersionCode() {
-        return plugin_version_code_;
+    uint32_t FfmpegVideoEncoder::VersionCode() const {
+        return 120;
     }
 
-    std::string FFmpegEncoderPlugin::GetPluginDescription() {
+    std::string FfmpegVideoEncoder::Description() const {
         return "Common software/hardware encoders";
     }
 
-    void FFmpegEncoderPlugin::On1Second() {
-        PxVideoEncoderPlugin::On1Second();
+    void FfmpegVideoEncoder::Tick1Second() {
+        VideoEncoderModule::Tick1Second();
     }
 
-    bool FFmpegEncoderPlugin::OnCreate(const px::PxPluginParam& plugin_param) {
-        px::PxVideoEncoderPlugin::OnCreate(plugin_param);
+    bool FfmpegVideoEncoder::Start(const px::RenderModuleConfiguration& configuration) {
+        px::VideoEncoderModule::Start(configuration);
 
         return true;
     }
 
-    bool FFmpegEncoderPlugin::OnDestroy() {
-        PxVideoEncoderPlugin::OnStop();
-        ExitAll();
-        return PxVideoEncoderPlugin::OnDestroy();
+    bool FfmpegVideoEncoder::Destroy() {
+        VideoEncoderModule::Stop();
+        RemoveAll();
+        return VideoEncoderModule::Destroy();
     }
 
-    void FFmpegEncoderPlugin::InsertIdr() {
-        PxVideoEncoderPlugin::InsertIdr();
+    void FfmpegVideoEncoder::RequestKeyFrame() {
+        VideoEncoderModule::RequestKeyFrame();
         for (const auto& [monitor_index, video_encoder] : video_encoders_) {
             video_encoder->InsertIdr();
         }
     }
 
-    void FFmpegEncoderPlugin::InsertIdr(const std::string& mon_name) {
+    void FfmpegVideoEncoder::RequestKeyFrame(const std::string& mon_name) {
         if (mon_name.empty()) {
-            InsertIdr();
+            RequestKeyFrame();
             return;
         }
         // 只给目标屏补 IDR,其它屏的 delta 链不动(RTC 多 track 按屏定向)
@@ -77,28 +77,30 @@ namespace px
         }
     }
 
-    bool FFmpegEncoderPlugin::IsWorking() {
-        return !video_encoders_.empty() && plugin_enabled_;
+    bool FfmpegVideoEncoder::IsWorking() const {
+        return !video_encoders_.empty() && enabled_.load();
     }
 
-    bool FFmpegEncoderPlugin::CanEncodeTexture() {
+    bool FfmpegVideoEncoder::CanEncodeTexture() const {
         return false;
     }
 
-    bool FFmpegEncoderPlugin::HasEncoderForMonitor(const std::string& monitor_name) {
+    bool FfmpegVideoEncoder::HasEncoderForMonitor(const std::string& monitor_name) const {
         return video_encoders_.find(monitor_name) != video_encoders_.end();
     }
 
-    bool FFmpegEncoderPlugin::Init(const EncoderConfig& config, const std::string& monitor_name) {
-        if (!plugin_enabled_) {
-            LOGE("This plugin is disabled!");
+    bool FfmpegVideoEncoder::Initialize(const EncoderConfig& config, const std::string& monitor_name) {
+        if (!enabled_.load()) {
+            LOGE("event=encoder.initialize component=ffmpeg outcome=rejected reason=disabled");
             return false;
         }
-        PxVideoEncoderPlugin::Init(config, monitor_name);
-        auto encoder = std::make_shared<FFmpegEncoder>(this);
+        VideoEncoderModule::Initialize(config, monitor_name);
+        const auto owner = std::dynamic_pointer_cast<FfmpegVideoEncoder>(
+            shared_from_this());
+        auto encoder = std::make_shared<FFmpegEncoder>(owner);
         auto ok = encoder->Init(config, monitor_name);
         if (!ok) {
-            LOGE("Init ffmpeg encoder for: {} failed.", monitor_name);
+            LOGE("Initialize ffmpeg encoder for: {} failed.", monitor_name);
             return false;
         }
         LOGI("FFmpeg encoder init success for: {}", monitor_name);
@@ -106,7 +108,7 @@ namespace px
         return true;
     }
 
-    VideoEncoderError FFmpegEncoderPlugin::Encode(
+    VideoEncoderError FfmpegVideoEncoder::Encode(
         const std::shared_ptr<Image>& i420_image,
         uint64_t frame_index,
         const CaptureVideoFrame& capture_frame) {
@@ -124,21 +126,21 @@ namespace px
         return VideoEncoderError::Ok();
     }
 
-    void FFmpegEncoderPlugin::Exit(const std::string& monitor_name) {
+    void FfmpegVideoEncoder::Remove(const std::string& monitor_name) {
         if (HasEncoderForMonitor(monitor_name)) {
             video_encoders_[monitor_name]->Exit();
             video_encoders_.erase(monitor_name);
         }
     }
 
-    void FFmpegEncoderPlugin::ExitAll() {
+    void FfmpegVideoEncoder::RemoveAll() {
         for (const auto& [monitor, video_encoder] : video_encoders_) {
             video_encoder->Exit();
         }
         video_encoders_.clear();
     }
 
-    std::map<std::string, WorkingEncoderInfoPtr> FFmpegEncoderPlugin::GetWorkingCapturesInfo() {
+    std::map<std::string, WorkingEncoderInfoPtr> FfmpegVideoEncoder::WorkingCaptures() const {
         std::map<std::string, WorkingEncoderInfoPtr> result;
         for (const auto& [monitor, video_encoder] : video_encoders_) {
             result.insert({monitor, std::make_shared<WorkingEncoderInfo>(WorkingEncoderInfo {
@@ -151,14 +153,15 @@ namespace px
         return result;
     }
 
-    std::optional<EncoderCapability> FFmpegEncoderPlugin::GetEncoderCapability(const std::string& monitor_name) {
+    std::optional<EncoderCapability> FfmpegVideoEncoder::Capability(const std::string& monitor_name) const {
         /*
         Since it has been previously determined through the N-card or A-card SDK, 
         ffmpeg uses N-card or A-card hardware encoding and directly returns "yuv444 encoding output is not supported."
         */
         EncoderCapability cap;
-        if (video_encoders_[monitor_name]) {
-            auto encoder_config = video_encoders_[monitor_name]->GetEncoderConfig();    
+        const auto found = video_encoders_.find(monitor_name);
+        if (found != video_encoders_.end() && found->second) {
+            auto encoder_config = found->second->GetEncoderConfig();
             if (EHardwareEncoder::kNvEnc == encoder_config.Hardware) {
                 cap.support_h264_yuv444_ = false;
                 cap.support_hevc_yuv444_ = false;
@@ -179,7 +182,7 @@ namespace px
         return { cap };
     }
 
-    void FFmpegEncoderPlugin::ConfigEncoder(const std::string& mon_name, uint32_t bps, uint32_t fps) {
+    void FfmpegVideoEncoder::Reconfigure(const std::string& mon_name, uint32_t bps, uint32_t fps) {
         // mon_name 为空(WebRTC 侧事件不带屏名)时应用到全部编码器
         for (const auto& [monitor_index, video_encoder] : video_encoders_) {
             if (mon_name.empty() || monitor_index == mon_name) {
@@ -189,11 +192,11 @@ namespace px
         }
     }
 
-    void FFmpegEncoderPlugin::DisableHardware() {
+    void FfmpegVideoEncoder::DisableHardware() {
         hardware_enabled_ = false;
     }
 
-    bool FFmpegEncoderPlugin::IsHardwareEnabled() {
+    bool FfmpegVideoEncoder::IsHardwareEnabled() {
         return hardware_enabled_;
     }
 }

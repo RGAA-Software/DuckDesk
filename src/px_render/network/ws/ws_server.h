@@ -27,7 +27,7 @@ namespace px
     class WsFileTransferRouter;
     class WsUserProxyRouter;
     class HttpHandler;
-    class WsPlugin;
+    class WsTransport;
     class PxConnectedClientInfo;
     class MsgClientHello;
     class PxLogicalSessionCapabilityUpdate;
@@ -37,7 +37,7 @@ namespace px
     struct LogicalSessionAdmission;
 
     // Lifetime:
-    // - Owned by the built-in WsPlugin.
+    // - Owned by the built-in WsTransport.
     // - Control workflows are owned by async_scope_.
     // - Network and legacy event callbacks capture weak owners only.
     // - Exit cancels and drains workflows before stopping the HTTP server.
@@ -46,10 +46,10 @@ namespace px
     // - Control workflows are serialized on the control-lane strand.
     // - Session mutations are posted back to the asio2 session queue.
     // - No mutex or borrowed request/response value crosses co_await.
-    class WsPluginServer : public std::enable_shared_from_this<WsPluginServer> {
+    class WsServer : public std::enable_shared_from_this<WsServer> {
     public:
 
-        explicit WsPluginServer(std::weak_ptr<WsPlugin> plugin,
+        explicit WsServer(std::weak_ptr<WsTransport> transport,
                                 uint16_t listen_port);
 
         void Start();
@@ -81,7 +81,7 @@ namespace px
         void RegisterIpcPid(uint32_t pid);
         bool IsIpcPidAllowed(uint32_t pid);
         // 定期清扫:注销进程已死亡的 pid(断线未触发/异常退出的兜底清理),
-        // 由 WsPlugin::On1Second 驱动,内部节流
+        // 由 WsTransport::On1Second 驱动,内部节流
         void SweepDeadIpcPids();
         void ReportPerformance();
 
@@ -93,7 +93,7 @@ namespace px
         void AddWebsocketRouter(const std::string& path);
         void AddWebClientRouter();
         static PxAwaitable<void> OpenWebSocketAsync(
-            std::weak_ptr<WsPluginServer> owner,
+            std::weak_ptr<WsServer> owner,
             std::shared_ptr<asio2::http_session> session,
             std::string path,
             std::unordered_map<std::string, std::string> params,
@@ -124,8 +124,8 @@ namespace px
                                        bool revoke);
 
     private:
-        // Weak observer: WsPlugin owns this server and must not form a cycle.
-        std::weak_ptr<WsPlugin> plugin_;
+        // Weak observer: WsTransport owns this server and must not form a cycle.
+        std::weak_ptr<WsTransport> transport_;
         uint16_t listen_port_ = 0;
         //std::shared_ptr<asio2::https_server> server_ = nullptr;
         std::shared_ptr<asio2::http_server> server_ = nullptr;

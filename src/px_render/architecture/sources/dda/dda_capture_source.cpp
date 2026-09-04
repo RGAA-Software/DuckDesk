@@ -5,7 +5,7 @@
 #include <ShlObj_core.h>
 
 #include <memory>
-#include "dda_capture_plugin.h"
+#include "dda_capture_source.h"
 
 #include <ranges>
 #include <chrono>
@@ -23,46 +23,46 @@
 namespace px
 {
 
-    void DDACapturePlugin::ConfigureMediaBacklogProbe(
+    void DdaCaptureSource::ConfigureMediaBacklogProbe(
         MediaBacklogProbe probe) {
         media_backlog_probe_ = std::move(probe);
     }
 
-    std::int64_t DDACapturePlugin::GetNetworkMediaBacklog() const {
+    std::int64_t DdaCaptureSource::GetNetworkMediaBacklog() const {
         return media_backlog_probe_ ? media_backlog_probe_() : 0;
     }
 
-    DDACapturePlugin::DDACapturePlugin() : PxMonitorCapturePlugin() {
+    DdaCaptureSource::DdaCaptureSource() : MonitorCaptureSource() {
 
     }
 
-    std::string DDACapturePlugin::GetPluginId() {
-        return kDdaCapturePluginId;
+    std::string DdaCaptureSource::Id() const {
+        return kDdaCaptureSourceId;
     }
 
-    std::string DDACapturePlugin::GetPluginName() {
+    std::string DdaCaptureSource::Name() const {
         return "DXGI";
     }
 
-    std::string DDACapturePlugin::GetVersionName() {
+    std::string DdaCaptureSource::VersionName() const {
         return "1.1.0";
     }
 
-    uint32_t DDACapturePlugin::GetVersionCode() {
+    uint32_t DdaCaptureSource::VersionCode() const {
         return 110;
     }
 
-    std::string DDACapturePlugin::GetPluginDescription() {
+    std::string DdaCaptureSource::Description() const {
         return "DXGI desktop duplication";
     }
 
-    bool DDACapturePlugin::OnCreate(const px::PxPluginParam& param) {
-        PxMonitorCapturePlugin::OnCreate(param);
-        InitCursorCapture();
+    bool DdaCaptureSource::Start(const px::RenderModuleConfiguration& param) {
+        MonitorCaptureSource::Start(param);
+        InitializeCursorCapture();
         return true;
     }
 
-    bool DDACapturePlugin::InitVideoCaptures() {
+    bool DdaCaptureSource::InitializeVideoCaptures() {
         HRESULT res = 0;
         int adapter_index = 0;
         CComPtr<IDXGIFactory1> factory1_ = nullptr;
@@ -187,19 +187,25 @@ namespace px
         return !monitors_.empty();
     }
 
-    void DDACapturePlugin::InitCursorCapture() {
-        cursor_capture_thread_ = Thread::MakeOnceTask([=, this]() {
-            cursor_capture_ = std::make_shared<CursorCapture>(this);
-            while (!destroyed_) {
-                cursor_capture_->Capture();
-                auto target_duration = 1000 / capture_fps_;
+    void DdaCaptureSource::InitializeCursorCapture() {
+        const auto weak_self = std::weak_ptr<DdaCaptureSource>(
+            std::dynamic_pointer_cast<DdaCaptureSource>(shared_from_this()));
+        cursor_capture_thread_ = Thread::MakeOnceTask([weak_self]() {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            self->cursor_capture_ = std::make_shared<CursorCapture>(self);
+            while (!self->destroyed_.load()) {
+                self->cursor_capture_->Capture();
+                auto target_duration = 1000 / self->capture_fps_;
                 std::this_thread::sleep_for(std::chrono::milliseconds(target_duration));
             }
         }, "", false);
     }
 
-    bool DDACapturePlugin::OnDestroy() {
-        PxMonitorCapturePlugin::OnStop();
+    bool DdaCaptureSource::Destroy() {
+        MonitorCaptureSource::Stop();
         StopCapturing();
         destroyed_ = true;
         if (cursor_capture_thread_ && cursor_capture_thread_->IsJoinable()) {
@@ -207,14 +213,14 @@ namespace px
             cursor_capture_thread_ = nullptr;
         }
         cursor_capture_ = nullptr;
-        return PxMonitorCapturePlugin::OnDestroy();
+        return MonitorCaptureSource::Destroy();
     }
 
-    bool DDACapturePlugin::IsWorking() {
+    bool DdaCaptureSource::IsWorking() const {
         return !captures_.Empty();
     }
 
-    bool DDACapturePlugin::ExistCaptureMonitor(const std::string& name) {
+    bool DdaCaptureSource::ExistCaptureMonitor(const std::string& name) {
         for (const auto &dev_name: monitors_ | std::views::keys) {
             if (dev_name == name) {
                 return true;
@@ -223,22 +229,24 @@ namespace px
         return false;
     }
 
-    bool DDACapturePlugin::TryInitSpecificCapture() {
+    bool DdaCaptureSource::InitializeCapture() {
         std::scoped_lock control_lock(capture_control_mutex_);
         if (!captures_.Empty()) {
             StopCapturing();
         }
         monitors_.clear();
 
-        auto res_init = InitVideoCaptures();
+        auto res_init = InitializeVideoCaptures();
         if (!res_init) {
-            LOGE("TryInitSpecificCapture, InitVideoCaptures failed!");
+            LOGE("InitializeCapture, InitializeVideoCaptures failed!");
             return false;
         }
 
+        const auto owner = std::dynamic_pointer_cast<DdaCaptureSource>(
+            shared_from_this());
         for(const auto&[dev_name, monitor_info] : monitors_) {
-            auto capture = std::make_shared<DDACapture>(this, monitor_info);
-            LOGI("DDACapturePlugin capture_fps_: {}", capture_fps_);
+            auto capture = std::make_shared<DDACapture>(owner, monitor_info);
+            LOGI("DdaCaptureSource capture_fps_: {}", capture_fps_);
             capture->SetCaptureFps(capture_fps_);
             auto init_res = capture->Init();
             if (!init_res) {
@@ -250,7 +258,7 @@ namespace px
                     }
                 }
                 captures_.Clear();
-                LOGE("TryInitSpecificCapture, Init DDA capture [ {} ]failed, can't start DDA capture.", dev_name);
+                LOGE("InitializeCapture, Initialize DDA capture [ {} ]failed, can't start DDA capture.", dev_name);
                 return false;
             }
             captures_.Insert(dev_name, capture);
@@ -258,55 +266,59 @@ namespace px
         return !captures_.Empty();
     }
 
-    bool DDACapturePlugin::StartCapturing() {
+    bool DdaCaptureSource::StartCapturing() {
         std::scoped_lock control_lock(capture_control_mutex_);
         StopCapturing();
 
-        auto res_init = InitVideoCaptures();
+        auto res_init = InitializeVideoCaptures();
         if (!res_init) {
-            LOGE("InitVideoCaptures failed!");
+            LOGE("InitializeVideoCaptures failed!");
             return false;
         }
 
-        if (capturing_monitor_name_ != kAllMonitorsNameSign && !capturing_monitor_name_.empty()) {
-            if (!ExistCaptureMonitor(capturing_monitor_name_)) {
-                capturing_monitor_name_ = "";
+        if (selected_monitor_name_ != kAllMonitorsNameSign && !selected_monitor_name_.empty()) {
+            if (!ExistCaptureMonitor(selected_monitor_name_)) {
+                selected_monitor_name_ = "";
             }
         }
 
+        const auto owner = std::dynamic_pointer_cast<DdaCaptureSource>(
+            shared_from_this());
+        const auto weak_self = std::weak_ptr<DdaCaptureSource>(owner);
         for(const auto&[dev_name, monitor_info] : monitors_) {
-            auto capture = std::make_shared<DDACapture>(this, monitor_info);
-            LOGI("DDACapturePlugin capture_fps_: {}", capture_fps_);
+            auto capture = std::make_shared<DDACapture>(owner, monitor_info);
+            LOGI("DdaCaptureSource capture_fps_: {}", capture_fps_);
             capture->SetCaptureFps(capture_fps_);
             auto init_res = capture->Init();
             if (!init_res) {
-                LOGE("Init DDA capture [ {} ]failed, can't start DDA capture.", dev_name);
+                LOGE("Initialize DDA capture [ {} ]failed, can't start DDA capture.", dev_name);
                 //captures_.Clear();
                 //return false;
                 continue;
             }
 
             // set error callback
-            capture->SetDDAErrorCallback([=, this](const MonitorCaptureError& err) {
-                if (capture_err_callback_) {
-                    capture_err_callback_(err);
+            capture->SetDDAErrorCallback([weak_self](const MonitorCaptureError& err) {
+                if (const auto self = weak_self.lock();
+                    self && self->capture_error_callback_) {
+                    self->capture_error_callback_(err);
                 }
             });
 
             // init success
-            if (kAllMonitorsNameSign == capturing_monitor_name_) {
+            if (kAllMonitorsNameSign == selected_monitor_name_) {
                 capture->ResumeCapture();
             }
-            else if(capturing_monitor_name_.empty()) {
+            else if(selected_monitor_name_.empty()) {
                 if (capture->IsPrimaryMonitor()) {
                     capture->ResumeCapture();
                 }
-                capturing_monitor_name_ = capture->GetMyMonitorInfo().name_;
+                selected_monitor_name_ = capture->GetMyMonitorInfo().name_;
             }
-            else if (capture->GetMyMonitorInfo().name_ == capturing_monitor_name_) {
+            else if (capture->GetMyMonitorInfo().name_ == selected_monitor_name_) {
                 capture->ResumeCapture();
             }
-            SetCaptureMonitor(capturing_monitor_name_);
+            SelectMonitor(selected_monitor_name_);
 
             // start capturing
             capture->StartCapture();
@@ -319,7 +331,7 @@ namespace px
         return !captures_.Empty();
     }
 
-    void DDACapturePlugin::StopCapturing() {
+    void DdaCaptureSource::StopCapturing() {
         std::scoped_lock control_lock(capture_control_mutex_);
         auto captures = captures_.Clone();
         for (const auto& [k, v] : captures) {
@@ -332,10 +344,10 @@ namespace px
         sorted_monitors_.clear();
     }
 
-    void DDACapturePlugin::RestartCapturing() {
+    void DdaCaptureSource::RestartCapturing() {
         std::scoped_lock control_lock(capture_control_mutex_);
         const auto old_count = monitors_.size();
-        LOGI("DDACapturePlugin RestartCapturing, old monitor count: {}", old_count);
+        LOGI("DdaCaptureSource RestartCapturing, old monitor count: {}", old_count);
         constexpr int kMaxAttempts = 3;
         for (int attempt = 1; attempt <= kMaxAttempts; ++attempt) {
             if (StartCapturing()) {
@@ -353,35 +365,35 @@ namespace px
         // application so it can downgrade to GDI.  Without this callback the
         // active plugin remains DDA with an empty capture/monitor set and
         // connected Web clients stay black indefinitely.
-        if (capture_err_callback_) {
-            capture_err_callback_(MonitorCaptureError::kCantCapture);
+        if (capture_error_callback_) {
+            capture_error_callback_(MonitorCaptureError::kCantCapture);
         }
     }
 
-    std::vector<CaptureMonitorInfo> DDACapturePlugin::GetCaptureMonitorInfo() {
+    std::vector<CaptureMonitorInfo> DdaCaptureSource::CaptureMonitors() const {
         if (!IsWorking()) {
             return {};
         }
         return sorted_monitors_;
     }
 
-    std::string DDACapturePlugin::GetCapturingMonitorName() {
-        return capturing_monitor_name_;
+    std::string DdaCaptureSource::CapturingMonitorName() const {
+        return selected_monitor_name_;
     }
 
-    void DDACapturePlugin::SetCaptureMonitor(const std::string& name) {
+    void DdaCaptureSource::SelectMonitor(const std::string& name) {
         std::scoped_lock control_lock(capture_control_mutex_);
         bool use_default_monitor = false;
         if (name.empty()) {
             use_default_monitor = true;
         }
         // 注意:客户端连接事件会广播给所有采集插件,此日志不代表本插件是激活采集器
-        LOGI("SetCaptureMonitor: {}, use_default_monitor: {}, working: {}", name, use_default_monitor, IsWorking());
+        LOGI("SelectMonitor: {}, use_default_monitor: {}, working: {}", name, use_default_monitor, IsWorking());
 
         // todo: capture all monitors at same time
         if (IsWorking()) {
             if (kAllMonitorsNameSign == name) {
-                capturing_monitor_name_ = name;
+                selected_monitor_name_ = name;
                 // TODO
                 auto captures = captures_.Clone();
                 for (const auto& [k, capture] : captures) {
@@ -402,7 +414,7 @@ namespace px
                     }
                     if (!name.empty()) {
                         if (monitor_name == name) {
-                            capturing_monitor_name_ = name;
+                            selected_monitor_name_ = name;
                             capture->ResumeCapture();
                         }
                         else {
@@ -411,12 +423,12 @@ namespace px
                     }
                     else {
                         if (!capture->IsInitSuccess()) {
-                            LOGW("Capture for: {} is not valid now.", monitor_name);  // 如果StartCapturing后，接着执行SetCaptureMonitor，这时候 capture->IsInitSuccess () 返回 false
+                            LOGW("Capture for: {} is not valid now.", monitor_name);  // 如果StartCapturing后，接着执行SelectMonitor，这时候 capture->IsInitializeSuccess () 返回 false
                             continue;
                         }
                         if (use_default_monitor && capture->IsPrimaryMonitor()) {
                             LOGI("Use default monitor: {}", monitor_name);
-                            capturing_monitor_name_ = monitor_name;
+                            selected_monitor_name_ = monitor_name;
                             capture->ResumeCapture();
                         }
                         else {
@@ -436,12 +448,12 @@ namespace px
         if (!has_resumed_capture) {
             LOGW("Don't has resumed capture for: {}", name);
         }
-        //LOGI("Capturing monitor name: {}", capturing_monitor_name_);
+        //LOGI("Capturing monitor name: {}", selected_monitor_name_);
         NotifyCaptureMonitorInfo();
     }
 
-    void DDACapturePlugin::SetCaptureFps(int fps) {
-        PxMonitorCapturePlugin::SetCaptureFps(fps);
+    void DdaCaptureSource::SetCaptureFps(int fps) {
+        MonitorCaptureSource::SetCaptureFps(fps);
         if (IsWorking()) {
             captures_.ApplyAll([fps](const auto& k, const auto& capture) {
                 if (capture) {
@@ -451,7 +463,7 @@ namespace px
         }
     }
 
-    void DDACapturePlugin::On1Second() {
+    void DdaCaptureSource::Tick1Second() {
         if (captures_.Empty()) {
             return;
         }
@@ -466,7 +478,7 @@ namespace px
 
     }
 
-    void DDACapturePlugin::On16MilliSecond() {
+    void DdaCaptureSource::Tick16Milliseconds() {
         captures_.ApplyAll([](const auto& k, const std::shared_ptr<DesktopCaptureSource>& capture) {
             if (capture) {
                 capture->On16MilliSecond();
@@ -474,7 +486,7 @@ namespace px
         });
     }
 
-    void DDACapturePlugin::On33MilliSecond() {
+    void DdaCaptureSource::Tick33Milliseconds() {
         captures_.ApplyAll([](const std::string &k, const std::shared_ptr<DesktopCaptureSource> &capture) {
             if (capture) {
                 capture->On33MilliSecond();
@@ -482,8 +494,8 @@ namespace px
         });
     }
 
-    void DDACapturePlugin::OnNewClientConnected(const std::string& visitor_device_id, const std::string& stream_id, const std::string& conn_type) {
-        PxPluginInterface::OnNewClientConnected(visitor_device_id, stream_id, conn_type);
+    void DdaCaptureSource::OnClientConnected(const std::string& visitor_device_id, const std::string& stream_id, const std::string& conn_type) {
+        RenderModule::OnClientConnected(visitor_device_id, stream_id, conn_type);
         auto captures = captures_.Clone();
         for (const auto& [monitor_name, capture] : captures) {
             if (!capture) {
@@ -492,12 +504,12 @@ namespace px
             capture->RefreshScreen();
             capture->TryWakeOs();
         }
-        LOGI("OnNewClientConnected!");
+        LOGI("OnClientConnected!");
         NotifyCaptureMonitorInfo();
 
-        SetCaptureMonitor(capturing_monitor_name_);
+        SelectMonitor(selected_monitor_name_);
 
-        this->InsertIdr();
+        this->RequestKeyFrame();
 
         // send cached texture if you have
         for (const auto& capture: captures | std::views::values) {
@@ -507,7 +519,7 @@ namespace px
         }
     }
 
-    std::vector<SupportedResolution> DDACapturePlugin::GetSupportedResolutions(const std::wstring& name) {
+    std::vector<SupportedResolution> DdaCaptureSource::GetSupportedResolutions(const std::wstring& name) {
         std::vector<SupportedResolution> resolutions;
         DEVMODE dm;
         dm.dmSize = sizeof(dm);
@@ -532,7 +544,7 @@ namespace px
         return resolutions;
     }
 
-    void DDACapturePlugin::CalculateVirtualDeskInfo() {
+    void DdaCaptureSource::CalculateVirtualDeskInfo() {
         sorted_monitors_.clear();
         int total_width = 0;
         int max_height = 0;
@@ -583,16 +595,16 @@ namespace px
         LOGI("{}", virtual_desktop_bound_rectangle_info_.Dump());
     }
 
-    void DDACapturePlugin::NotifyCaptureMonitorInfo() {
+    void DdaCaptureSource::NotifyCaptureMonitorInfo() {
         if (sorted_monitors_.empty()) {
             LOGI("==> Sorted Monitor's empty, ignore the PxPluginCapturingMonitorInfoEvent");
             return;
         }
         const auto event = std::make_shared<PxPluginCapturingMonitorInfoEvent>();
-        this->CallbackEvent(event);
+        this->EmitCompatibilityEvent(event);
     }
 
-    std::optional<int> DDACapturePlugin::GetMonIndexByName(const std::string& name) {
+    std::optional<int> DdaCaptureSource::MonitorIndexByName(const std::string& name) const {
         int mon_index = 0;
         for (const auto& monitor : sorted_monitors_) {
             if (name == monitor.name_) {
@@ -603,17 +615,17 @@ namespace px
         return { std::nullopt };
     }
 
-    void DDACapturePlugin::DispatchAppEvent(const std::shared_ptr<AppBaseEvent>& event) {
-        PxPluginInterface::DispatchAppEvent(event);
-        //LOGI("DDACapturePlugin DispatchAppEvent type: {}", static_cast<int>(event->type_));
+    void DdaCaptureSource::HandleAppEvent(const std::shared_ptr<AppBaseEvent>& event) {
+        RenderModule::HandleAppEvent(event);
+        //LOGI("DdaCaptureSource HandleAppEvent type: {}", static_cast<int>(event->type_));
         if (!event) {
             return;
         }
         switch (event->type_)
         {
         case AppBaseEvent::EType::kDisplayDeviceChange: {
-            LOGI("DDACapturePlugin DispatchAppEvent is kDisplayDeviceChange");
-            HandleDisplayDeviceChangeEvent();
+            LOGI("DdaCaptureSource HandleAppEvent is kDisplayDeviceChange");
+            HandleDisplayDeviceChange();
             break;
         }
         default:
@@ -621,15 +633,15 @@ namespace px
         }
     }
 
-    void DDACapturePlugin::HandleDisplayDeviceChangeEvent() {
+    void DdaCaptureSource::HandleDisplayDeviceChange() {
         RestartCapturing();
     }
 
-    VirtualDesktopBoundRectangleInfo DDACapturePlugin::GetVirtualDesktopBoundRectangleInfo() {
+    VirtualDesktopBoundRectangleInfo DdaCaptureSource::VirtualDesktopBounds() const {
         return virtual_desktop_bound_rectangle_info_;
     }
 
-    std::map<std::string, WorkingCaptureInfoPtr> DDACapturePlugin::GetWorkingCapturesInfo() {
+    std::map<std::string, WorkingCaptureInfoPtr> DdaCaptureSource::WorkingCaptures() const {
         std::map<std::string, WorkingCaptureInfoPtr> result;
         auto captures = captures_.Clone();
         for (const auto& [name, capture] : captures) {

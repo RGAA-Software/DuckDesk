@@ -23,11 +23,12 @@ namespace px
 
     class Data;
     class Image;
-    class FFmpegEncoderPlugin;
+    class FfmpegVideoEncoder;
 
     class FFmpegEncoder {
     public:
-        explicit FFmpegEncoder(FFmpegEncoderPlugin* plugin);
+        explicit FFmpegEncoder(
+            const std::shared_ptr<FfmpegVideoEncoder>& owner);
         bool Init(const EncoderConfig& config, const std::string& monitor_name);
         bool Encode(std::shared_ptr<Image> image,
                     uint64_t frame_index,
@@ -42,7 +43,7 @@ namespace px
         std::string GetDisplayEncoderName();
         EncoderConfig GetEncoderConfig();
     private:
-        FFmpegEncoderPlugin* plugin_ = nullptr;
+        std::weak_ptr<FfmpegVideoEncoder> owner_;
         AVCodecContext* codec_ctx_ = nullptr;
         AVFrame* frame_ = nullptr;
         AVPacket* packet_ = nullptr;

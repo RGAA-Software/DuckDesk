@@ -11,7 +11,7 @@
 #include <functional>
 #include <vector>
 #include "session/logical_session_registry.h"
-#include "px_net_plugin.h"
+#include "px_render/network/transport_types.h"
 #include "px_plugin_interface.h"
 #include "px_common_new/image.h"
 #include "px_common_new/time_util.h"
@@ -22,6 +22,7 @@ namespace px
 
     class Data;
     class Image;
+    class PxNetPlugin;
 
     enum class PxPluginEventType {
         kPluginUnknownType,
@@ -196,18 +197,6 @@ namespace px
         // Value identity of the concrete transport connection. It is copied
         // into FT routing state and never used as an ownership handle.
         std::string connection_instance_id_;
-    };
-
-    // A WS-authorized UDP media endpoint. This is deliberately not a session
-    // grant: it only lets the UDP plug-in associate an address with an already
-    // established WS media binding.
-    struct UdpMediaAssociation {
-        std::string association_code_;
-        std::string logical_session_id_;
-        std::string stream_id_;
-        int64_t expires_at_ms_ = 0;
-        bool force_gdi_ = false;
-        bool revoke_ = false;
     };
 
     // PxClientConnectedEvent

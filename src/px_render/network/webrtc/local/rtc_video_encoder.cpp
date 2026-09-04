@@ -10,8 +10,6 @@
 #include "settings/rd_settings.h"
 #include "px_render/modules/module_ids.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
-#include "px_render/plugin_interface/px_video_encoder_plugin.h"
-#include "px_render/plugin_interface/px_frame_carrier_plugin.h"
 
 namespace px
 {

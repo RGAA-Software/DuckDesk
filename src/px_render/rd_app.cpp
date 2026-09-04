@@ -46,11 +46,7 @@
 #include "network/render_service_client.h"
 #include "px_render/modules/render_module_registry.h"
 #include "px_render/modules/module_ids.h"
-#include "px_render/plugin_interface/px_stream_plugin.h"
-#include "px_render/plugin_interface/px_net_plugin.h"
-#include "px_render/plugin_interface/px_monitor_capture_plugin.h"
-#include "px_render/plugin_interface/px_data_provider_plugin.h"
-#include "px_render/plugin_interface/px_audio_encoder_plugin.h"
+#include "architecture/sources/monitor_capture_source.h"
 #include "px_service_message.pb.h"
 #include "app/win/win_desktop_manager.h"
 #include "px_common_new/win32/d3d11_wrapper.h"
@@ -613,7 +609,7 @@ namespace px
         }
 
         // shared_from_this() below requires this object to be created by RdApplication::Make().
-        // Assign early so net_ws /ipc can late-bind OnIpcVideoFrame during plugin Start().
+        // Assign early so net_ws /ipc can late-bind OnIpcVideoFrame during module Start().
         rdApp = shared_from_this();
         module_registry_ = RenderModuleRegistry::Make(shared_from_this());
         context_->SetRenderModuleRegistry(module_registry_);
@@ -675,32 +671,32 @@ namespace px
                 LOGI("Use inner capture.");
             }
             else {
-                dda_capture_plugin_ = module_registry_->GetDdaCapture();
-                gdi_capture_plugin_ = module_registry_->GetGdiCapture();
-                if (dda_capture_plugin_) {
-                    capture_plugin_ = dda_capture_plugin_;
+                dda_capture_source_ = module_registry_->GetDdaCapture();
+                gdi_capture_source_ = module_registry_->GetGdiCapture();
+                if (dda_capture_source_) {
+                    capture_source_ = dda_capture_source_;
                 }
-                else if (gdi_capture_plugin_) {
-                    capture_plugin_ = gdi_capture_plugin_;
+                else if (gdi_capture_source_) {
+                    capture_source_ = gdi_capture_source_;
                 }
                 else {
-                    LOGE("Don't have a valid capture plugin, will exit!");
+                    LOGE("Don't have a valid capture module, will exit!");
                     init_failed_ = true;
-                    init_error_ = "no valid capture plugin";
+                    init_error_ = "no valid capture module";
                     Exit();
                     return -1;
                 }
 
                 // test only gdi begin
-                //capture_plugin_ = gdi_capture_plugin_;
+                //capture_source_ = gdi_capture_source_;
                 // test only gdi end
 
                 LOGI("Use capture fps: {}", settings_->encoder_.fps_);
-                if (capture_plugin_ && capture_plugin_->IsPluginEnabled()) {
-                    LOGI("Use dda capture plugin.");
-                    capture_plugin_->SetCaptureFps(settings_->encoder_.fps_);
+                if (capture_source_ && capture_source_->IsEnabled()) {
+                    LOGI("Use dda capture module.");
+                    capture_source_->SetCaptureFps(settings_->encoder_.fps_);
                     const auto weak_self = weak_from_this();
-                    capture_plugin_->SetCaptureErrorCallback([weak_self](const MonitorCaptureError& err) {
+                    capture_source_->SetCaptureErrorCallback([weak_self](const MonitorCaptureError& err) {
                         const auto self = weak_self.lock();
                         if (!self || self->exit_app_) {
                             return;
@@ -722,13 +718,13 @@ namespace px
                                 return;
                             }
                             // change to GDI
-                            // capture_plugin_->DisablePlugin();
+                            // capture_source_->SetEnabled(false);
                             LOGI("Don't use DDA, will switch to GDI.");
-                            if (!self->SwitchGdiCapture() || !self->capture_plugin_) {
-                                LOGE("Switch to GDI failed or no capture plugin available.");
+                            if (!self->SwitchGdiCapture() || !self->capture_source_) {
+                                LOGE("Switch to GDI failed or no capture module available.");
                                 return;
                             }
-                            self->capture_plugin_->StartCapturing();
+                            self->capture_source_->StartCapturing();
                         });
                     });
                 }
@@ -887,13 +883,13 @@ namespace px
                     return;
                 }
                 // notify dda capture
-                auto plugin = self->module_registry_->GetDdaCapture();
-                if (!plugin) {
+                auto module = self->module_registry_->GetDdaCapture();
+                if (!module) {
                     return;
                 }
-                plugin->On16MilliSecond();
+                module->Tick16Milliseconds();
                 if (++self->timer_count_16ms_ % 2 == 0) {
-                    plugin->On33MilliSecond();
+                    module->Tick33Milliseconds();
                     timer_fps.Tick();
                 }
             });
@@ -960,7 +956,7 @@ namespace px
             // Only connections with a stable id participate in game lifetime.
             // The transport name is deliberately not filtered: current web
             // clients may negotiate Direct, UDP or another registered net
-            // plugin while preserving the same connect/disconnect id.
+            // module while preserving the same connect/disconnect id.
             const bool tracked_game_client = self->settings_->IsGameHookMode()
                 && !msg.conn_id_.empty();
             if (tracked_game_client) {
@@ -1153,10 +1149,10 @@ namespace px
             if (!self || self->exit_app_) {
                 return;
             }
-            std::lock_guard<std::mutex> lk(self->capture_plugin_mtx_);
-            if (self->capture_plugin_) {
+            std::lock_guard<std::mutex> lk(self->capture_source_mtx_);
+            if (self->capture_source_) {
                 self->settings_->encoder_.fps_ = msg.fps_;
-                self->capture_plugin_->SetCaptureFps(msg.fps_);
+                self->capture_source_->SetCaptureFps(msg.fps_);
             }
         });
 
@@ -1196,7 +1192,7 @@ namespace px
                     LOGI("Will switch to DDA");
                     if (auto r = self->SwitchDdaCapture(); r && self->IsCurrentDdaCapture()) {
                         LOGI("Will start DDA capturing");
-                        self->capture_plugin_->StartCapturing();
+                        self->capture_source_->StartCapturing();
                     }
                 }
             });
@@ -1523,15 +1519,15 @@ namespace px
     }
 
     void RdApplication::StartProcessWithScreenCapture() {
-        if (capture_plugin_) {
-            LOGI("Will start capturing by using: {}", capture_plugin_->GetPluginName());
-            auto r = capture_plugin_->StartCapturing();
+        if (capture_source_) {
+            LOGI("Will start capturing by using: {}", capture_source_->Name());
+            auto r = capture_source_->StartCapturing();
             if (!r) {
-                LOGE("StartCapturing failed in : {}", capture_plugin_->GetPluginName());
-                if (capture_plugin_->GetPluginId() == kDdaCapturePluginId) {
+                LOGE("StartCapturing failed in : {}", capture_source_->Name());
+                if (capture_source_->Id() == kDdaCaptureSourceId) {
                     LOGW("The failed capture is DDA, will change to GDI");
-                    if (SwitchGdiCapture() && capture_plugin_) {
-                        capture_plugin_->StartCapturing();
+                    if (SwitchGdiCapture() && capture_source_) {
+                        capture_source_->StartCapturing();
                     }
                 }
             }
@@ -1918,10 +1914,10 @@ namespace px
     }
 
     void RdApplication::SendConfigurationBack() {
-        std::shared_ptr<PxMonitorCapturePlugin> capture_plugin;
+        std::shared_ptr<MonitorCaptureSource> capture_source;
         {
-            std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
-            capture_plugin = capture_plugin_;
+            std::lock_guard<std::mutex> lk(capture_source_mtx_);
+            capture_source = capture_source_;
         }
 
         std::vector<CaptureMonitorInfo> monitors;
@@ -1941,13 +1937,13 @@ namespace px
             });
             monitors.push_back(std::move(monitor));
         };
-        if (capture_plugin) {
-            monitors = capture_plugin->GetCaptureMonitorInfo();
-            capturing_name = capture_plugin->GetCapturingMonitorName();
+        if (capture_source) {
+            monitors = capture_source->CaptureMonitors();
+            capturing_name = capture_source->CapturingMonitorName();
             this->UpdateCapturingMonitorInfo();
         }
         else if (settings_->IsGameHookMode()) {
-            // Inner/game-hook capture has no desktop monitor plugin. It is a
+            // Inner/game-hook capture has no desktop monitor module. It is a
             // single application surface, so expose a synthetic monitor to the
             // standard client configuration/decode pipeline.
             int width = settings_->encoder_.encode_width_;
@@ -1972,7 +1968,7 @@ namespace px
                  settings_->webview_width_, settings_->webview_height_);
         }
         else {
-            LOGE("SendConfigurationBack failed, working monitor capture plugin is null.");
+            LOGE("SendConfigurationBack failed, working monitor capture module is null.");
             return;
         }
         if (monitors.empty()) {
@@ -2099,16 +2095,16 @@ namespace px
         return module_registry_;
     }
 
-    std::shared_ptr<PxMonitorCapturePlugin>
-    RdApplication::GetWorkingMonitorCapturePlugin() {
-        std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
-        return capture_plugin_;
+    std::shared_ptr<MonitorCaptureSource>
+    RdApplication::GetWorkingMonitorCaptureSource() {
+        std::lock_guard<std::mutex> lk(capture_source_mtx_);
+        return capture_source_;
     }
 
-    std::map<std::string, std::shared_ptr<PxVideoEncoderPlugin>>
-    RdApplication::GetWorkingVideoEncoderPlugins() const {
+    std::map<std::string, std::shared_ptr<VideoEncoderModule>>
+    RdApplication::GetWorkingVideoEncoders() const {
         if (encoder_thread_) {
-            return encoder_thread_->GetWorkingVideoEncoderPlugins();
+            return encoder_thread_->GetWorkingVideoEncoders();
         }
         return {};
     }
@@ -2116,7 +2112,7 @@ namespace px
     bool RdApplication::GenerateD3DDevice(uint64_t adapter_uid) {
         LOGI("GenerateD3DDevice, adapter_uid = {}", adapter_uid);
         ClearD3DDevice(adapter_uid);
-        ClearPluginD3DState(adapter_uid);
+        ClearModuleD3DState(adapter_uid);
 
         auto new_device_wrapper = std::make_shared<D3D11DeviceWrapper>();
 
@@ -2220,7 +2216,7 @@ namespace px
         d3d11_devices_.erase(adapter_uid);
     }
 
-    void RdApplication::ClearPluginD3DState(uint64_t adapter_uid) {
+    void RdApplication::ClearModuleD3DState(uint64_t adapter_uid) {
         if (!module_registry_) {
             return;
         }
@@ -2230,7 +2226,7 @@ namespace px
     void RdApplication::HandleD3DDeviceFailure(uint64_t adapter_uid, const std::string& reason) {
         LOGE("HandleD3DDeviceFailure adapter_uid={}, reason={}", adapter_uid, reason);
         ClearD3DDevice(adapter_uid);
-        ClearPluginD3DState(adapter_uid);
+        ClearModuleD3DState(adapter_uid);
         if (encoder_thread_) {
             encoder_thread_->HandleD3DDeviceFailure(adapter_uid);
         }
@@ -2250,8 +2246,8 @@ namespace px
                 return;
             }
             LOGW("D3D device generation failed repeatedly, downgrade capture to GDI. adapter_uid={}, fail_count={}", adapter_uid, fail_count);
-            if (self->SwitchGdiCapture() && self->capture_plugin_) {
-                self->capture_plugin_->StartCapturing();
+            if (self->SwitchGdiCapture() && self->capture_source_) {
+                self->capture_source_->StartCapturing();
             }
         });
     }
@@ -2424,19 +2420,19 @@ namespace px
             return true;
         }
 
-        std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
-        if (capture_plugin_) {
-            capture_plugin_->StopCapturing();
-            capture_plugin_->DisablePlugin();
+        std::lock_guard<std::mutex> lk(capture_source_mtx_);
+        if (capture_source_) {
+            capture_source_->StopCapturing();
+            capture_source_->SetEnabled(false);
         }
-        if (!gdi_capture_plugin_) {
-            LOGE("Don't have gdi plugin, ignore!");
+        if (!gdi_capture_source_) {
+            LOGE("Don't have gdi module, ignore!");
             return false;
         }
-        capture_plugin_ = gdi_capture_plugin_;
-        capture_plugin_->SetCaptureFps(settings_->encoder_.fps_);
-        capture_plugin_->EnablePlugin();
-        LOGI("Use gdi capture plugin.");
+        capture_source_ = gdi_capture_source_;
+        capture_source_->SetCaptureFps(settings_->encoder_.fps_);
+        capture_source_->SetEnabled(true);
+        LOGI("Use gdi capture module.");
         return true;
     }
 
@@ -2445,37 +2441,37 @@ namespace px
             return true;
         }
 
-        std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
-        if (capture_plugin_) {
-            capture_plugin_->StopCapturing();
-            capture_plugin_->DisablePlugin();
+        std::lock_guard<std::mutex> lk(capture_source_mtx_);
+        if (capture_source_) {
+            capture_source_->StopCapturing();
+            capture_source_->SetEnabled(false);
         }
-        if (!dda_capture_plugin_) {
-            LOGE("Don't have gdi plugin, ignore!");
+        if (!dda_capture_source_) {
+            LOGE("Don't have gdi module, ignore!");
             return false;
         }
-        capture_plugin_ = dda_capture_plugin_;
-        capture_plugin_->SetCaptureFps(settings_->encoder_.fps_);
-        capture_plugin_->EnablePlugin();
-        LOGI("Use dda capture plugin.");
+        capture_source_ = dda_capture_source_;
+        capture_source_->SetCaptureFps(settings_->encoder_.fps_);
+        capture_source_->SetEnabled(true);
+        LOGI("Use dda capture module.");
         return true;
     }
 
     bool RdApplication::IsCurrentGdiCapture() {
-        std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
-        return capture_plugin_ && capture_plugin_->GetPluginId() == kGdiCapturePluginId;
+        std::lock_guard<std::mutex> lk(capture_source_mtx_);
+        return capture_source_ && capture_source_->Id() == kGdiCaptureSourceId;
     }
 
     bool RdApplication::IsCurrentDdaCapture() {
-        std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
-        return capture_plugin_ && capture_plugin_->GetPluginId() == kDdaCapturePluginId;
+        std::lock_guard<std::mutex> lk(capture_source_mtx_);
+        return capture_source_ && capture_source_->Id() == kDdaCaptureSourceId;
     }
 
     bool RdApplication::TryInitDdaCapture() {
-        if (!dda_capture_plugin_) {
+        if (!dda_capture_source_) {
             return false;
         }
-        return dda_capture_plugin_->TryInitSpecificCapture();
+        return dda_capture_source_->InitializeCapture();
     }
 
     bool RdApplication::PostPanelMessage(std::shared_ptr<Data> msg) {
@@ -2494,7 +2490,7 @@ namespace px
 
     void RdApplication::HandleForceGdiEvent(bool force_gdi) {
         // WebView frames come from CEF OSR and do not have a desktop capture
-        // plugin. Relay's legacy RequestControl hint must not try to switch a
+        // module. Relay's legacy RequestControl hint must not try to switch a
         // nonexistent DDA/GDI source.
         if (settings_->IsWebViewMode()) {
             return;
@@ -2512,22 +2508,22 @@ namespace px
             else {
                 self->SwitchDdaCapture();
             }
-            if (self->capture_plugin_) {
-                self->capture_plugin_->StartCapturing();
+            if (self->capture_source_) {
+                self->capture_source_->StartCapturing();
             }
         });
     }
 
     void RdApplication::UpdateCapturingMonitorInfo() {
-        const auto plugin = this->GetWorkingMonitorCapturePlugin();
-        if (!plugin) {
-            LOGE("ProcessCapturingMonitorInfoEvent failed, plugin is null.");
+        const auto module = this->GetWorkingMonitorCaptureSource();
+        if (!module) {
+            LOGE("ProcessCapturingMonitorInfoEvent failed, module is null.");
             return;
         }
         const auto cm_msg = CaptureMonitorInfoMessage {
-            .monitors_ = plugin->GetCaptureMonitorInfo(),
-            .capturing_monitor_name_ = plugin->GetCapturingMonitorName(),
-            .virtual_desktop_bound_rectangle_info_ = plugin->GetVirtualDesktopBoundRectangleInfo()
+            .monitors_ = module->CaptureMonitors(),
+            .capturing_monitor_name_ = module->CapturingMonitorName(),
+            .virtual_desktop_bound_rectangle_info_ = module->VirtualDesktopBounds()
         };
 
         LOGI("Config Monitors size: {}", cm_msg.monitors_.size());
@@ -2581,17 +2577,17 @@ namespace px
         // stop capturing before tearing down other components.
         // NOTE: plugins are globally loaded and share the process lifetime;
         // do NOT call StopModules() here — destroying/unloading them at exit
-        // races with encoder/IPC threads that still hold raw plugin pointers.
+        // races with encoder/IPC threads that still hold raw module pointers.
         {
-            std::lock_guard<std::mutex> lk(capture_plugin_mtx_);
-            if (capture_plugin_) {
-                capture_plugin_->StopCapturing();
+            std::lock_guard<std::mutex> lk(capture_source_mtx_);
+            if (capture_source_) {
+                capture_source_->StopCapturing();
             }
-            if (dda_capture_plugin_) {
-                dda_capture_plugin_->StopCapturing();
+            if (dda_capture_source_) {
+                dda_capture_source_->StopCapturing();
             }
-            if (gdi_capture_plugin_) {
-                gdi_capture_plugin_->StopCapturing();
+            if (gdi_capture_source_) {
+                gdi_capture_source_->StopCapturing();
             }
         }
         if (app_shared_info_) {

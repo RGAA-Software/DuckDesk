@@ -32,6 +32,85 @@ $forbidden = [ordered]@{
 }
 
 $violations = [System.Collections.Generic.List[string]]::new()
+
+# Stage 18 makes the built-in roles ordinary statically linked modules. Keep
+# both the new names and the absence of their legacy plug-in wrappers under
+# source-control enforcement so a later feature cannot restore the old shape.
+$requiredModuleFiles = @(
+    "src\px_render\architecture\modules\render_module.h",
+    "src\px_render\architecture\encoders\video_encoder_module.h",
+    "src\px_render\architecture\sources\monitor_capture_source.h",
+    "src\px_render\architecture\extensions\flow_node_plugin.h",
+    "src\px_render\network\transport_types.h",
+    "src\px_render\architecture\sources\dda\dda_capture_source.h",
+    "src\px_render\architecture\sources\gdi\gdi_capture_source.h",
+    "src\px_render\architecture\encoders\ffmpeg\ffmpeg_video_encoder.h",
+    "src\px_render\architecture\encoders\amf\amf_video_encoder.h",
+    "src\px_render\architecture\encoders\nvenc\nvenc_encoder_module.h",
+    "src\px_render\network\ws\ws_transport.h",
+    "src\px_render\network\udp\udp_transport.h",
+    "src\px_render\network\relay\relay_transport.h"
+)
+foreach ($relativePath in $requiredModuleFiles) {
+    if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot $relativePath))) {
+        $violations.Add("${relativePath}: required built-in module contract is missing")
+    }
+}
+
+$retiredPluginFiles = @(
+    "src\px_render\architecture\sources\dda\dda_capture_plugin.h",
+    "src\px_render\architecture\sources\gdi\gdi_capture_plugin.h",
+    "src\px_render\architecture\encoders\ffmpeg\ffmpeg_encoder_plugin.h",
+    "src\px_render\architecture\encoders\amf\amf_encoder_plugin.h",
+    "src\px_render\architecture\encoders\nvenc\nvenc_encoder_plugin.h",
+    "src\px_render\network\ws\ws_plugin.h",
+    "src\px_render\network\udp\udp_plugin.h",
+    "src\px_render\network\relay\relay_plugin.h",
+    "src\px_render\plugin_interface\px_audio_encoder_plugin.h",
+    "src\px_render\plugin_interface\px_data_provider_plugin.h",
+    "src\px_render\plugin_interface\px_frame_carrier_plugin.h",
+    "src\px_render\plugin_interface\px_frame_processor_plugin.h",
+    "src\px_render\plugin_interface\px_monitor_capture_plugin.h",
+    "src\px_render\plugin_interface\px_stream_plugin.h",
+    "src\px_render\plugin_interface\px_video_encoder_plugin.h"
+)
+foreach ($relativePath in $retiredPluginFiles) {
+    if (Test-Path -LiteralPath (Join-Path $RepoRoot $relativePath)) {
+        $violations.Add("${relativePath}: retired built-in plug-in wrapper returned")
+    }
+}
+
+$builtInModuleHeaders = $requiredModuleFiles |
+    Where-Object { $_ -notmatch 'flow_node_plugin|transport_types' }
+foreach ($relativePath in $builtInModuleHeaders) {
+    $fullPath = Join-Path $RepoRoot $relativePath
+    if (-not (Test-Path -LiteralPath $fullPath)) {
+        continue
+    }
+    $content = Get-Content -LiteralPath $fullPath -Raw
+    if ($content -match ':\s*public\s+(?:PxPluginInterface|PxNetPlugin|PxVideoEncoderPlugin|PxMonitorCapturePlugin|PxStreamPlugin)') {
+        $violations.Add("${relativePath}: built-in module must not inherit a legacy plug-in interface")
+    }
+}
+
+$flowNodeContractPath = Join-Path $RepoRoot `
+    "src\px_render\architecture\extensions\flow_node_plugin.h"
+if (Test-Path -LiteralPath $flowNodeContractPath) {
+    $flowNodeContract = Get-Content -LiteralPath $flowNodeContractPath -Raw
+    foreach ($role in @(
+        "VideoSourcePlugin", "AudioSourcePlugin", "VideoProcessorPlugin",
+        "AudioProcessorPlugin", "VideoEncoderPlugin", "AudioEncoderPlugin",
+        "ObserverPlugin", "SinkPlugin")) {
+        if ($flowNodeContract -notmatch ("class\s+" + $role + "\b")) {
+            $violations.Add("flow_node_plugin.h: missing pipeline role $role")
+        }
+    }
+    foreach ($forbiddenFlowSymbol in @("PxPluginInterface", "PxNetPlugin", "GetInstance")) {
+        if ($flowNodeContract -match $forbiddenFlowSymbol) {
+            $violations.Add("flow_node_plugin.h: extension contract exposes legacy symbol $forbiddenFlowSymbol")
+        }
+    }
+}
 foreach ($file in $nativeFiles) {
     $content = Get-Content -LiteralPath $file.FullName -Raw
     foreach ($entry in $forbidden.GetEnumerator()) {
@@ -109,7 +188,10 @@ foreach ($pattern in @(
     "GetRtcLocalTransport",
     "GetUdpTransport",
     "GetRelayTransport",
-    "std::map")) {
+    "std::map",
+    "PxVideoEncoderPlugin",
+    "PxMonitorCapturePlugin",
+    "vector\s*<\s*std::shared_ptr\s*<\s*PxNetPlugin")) {
     if ($moduleRegistry -match $pattern) {
         $violations.Add("render_module_registry.h: explicit Render module composition regressed to $pattern")
     }
@@ -150,7 +232,7 @@ foreach ($eventType in @(
 }
 
 $typedVideoFiles = @(
-    "src\px_render\plugin_interface\px_video_encoder_plugin.h",
+    "src\px_render\architecture\encoders\video_encoder_module.h",
     "src\px_render\architecture\encoders\ffmpeg\ffmpeg_encoder.h",
     "src\px_render\architecture\encoders\ffmpeg\ffmpeg_encoder.cpp",
     "src\px_render\architecture\encoders\amf\video_encoder_vce.h",
@@ -217,8 +299,9 @@ foreach ($file in $wsBuiltInFiles) {
         "condition_variable" = "WS control callbacks must use typed awaitables"
         "\.wait_for\s*\(" = "WS request handlers must not block network callbacks"
         "std::any|any_cast" = "WS router context must remain strongly typed"
-        "WsPlugin\s*\*" = "built-in WS components must observe the module through weak ownership"
-        "Get\s*<\s*WsPlugin" = "WS routers must not hide module ownership in a service bag"
+        "WsTransport\s*\*" = "built-in WS components must observe the module through weak ownership"
+        "Get\s*<\s*WsTransport" = "WS routers must not hide module ownership in a service bag"
+        "px_net_plugin\.h" = "built-in WS transport must not depend on the WebRTC compatibility base"
     }).GetEnumerator()) {
         if ($content -match $entry.Key) {
             $violations.Add("$($file.FullName): $($entry.Value)")
@@ -252,6 +335,20 @@ foreach ($file in $wsBuiltInFiles) {
             $statement -notmatch 'PrivacyLogId') {
             $relative = $file.FullName.Substring($RepoRoot.Length).TrimStart([char]'\')
             $violations.Add("${relative}: session identifiers in logs must use PrivacyLogId")
+        }
+    }
+}
+
+foreach ($transportDirectory in @("udp", "relay")) {
+    $transportFiles = Get-ChildItem -LiteralPath `
+        (Join-Path $RepoRoot "src\px_render\network\$transportDirectory") `
+        -Recurse -File |
+        Where-Object { $_.Extension -in @(".h", ".hpp", ".cpp", ".cc", ".cxx") }
+    foreach ($file in $transportFiles) {
+        $content = Get-Content -LiteralPath $file.FullName -Raw
+        if ($content -match 'px_net_plugin\.h|:\s*public\s+PxNetPlugin') {
+            $relative = $file.FullName.Substring($RepoRoot.Length).TrimStart([char]'\')
+            $violations.Add("${relative}: built-in transport depends on the WebRTC compatibility base")
         }
     }
 }

@@ -18,10 +18,10 @@ using namespace nlohmann;
 namespace px
 {
 
-    class WsPlugin;
+    class WsTransport;
 
     // Lifetime:
-    // - Owned by WsPluginServer and observes WsPlugin weakly.
+    // - Owned by WsServer and observes WsTransport weakly.
     // - Deferred HTTP work is owned by the server's async scope.
     // - The asio2 response is retained by its typed RAII defer guard.
     //
@@ -32,7 +32,7 @@ namespace px
     class HttpHandler : public BaseHandler,
                         public std::enable_shared_from_this<HttpHandler> {
     public:
-        HttpHandler(std::weak_ptr<WsPlugin> plugin,
+        HttpHandler(std::weak_ptr<WsTransport> transport,
                     std::shared_ptr<PxAsyncScope> async_scope);
         std::string GetErrorMessage(int code) override;
 
@@ -67,8 +67,8 @@ namespace px
             std::shared_ptr<http::response_defer> response_defer);
     private:
         // Weak observer: the WS module owns this request handler.
-        std::weak_ptr<WsPlugin> plugin_;
-        // Shared owner: stopped and drained by WsPluginServer before teardown.
+        std::weak_ptr<WsTransport> transport_;
+        // Shared owner: stopped and drained by WsServer before teardown.
         std::shared_ptr<PxAsyncScope> async_scope_;
         DirectSessionGrantStore direct_session_grants_;
 

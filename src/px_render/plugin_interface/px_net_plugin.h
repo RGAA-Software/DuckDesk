@@ -7,6 +7,7 @@
 
 #include "px_plugin_interface.h"
 #include "px_net_plugin_type.h"
+#include "px_render/network/transport_types.h"
 #include <vector>
 
 namespace px
@@ -15,103 +16,6 @@ namespace px
     class Data;
     class MsgRtcRemoteIce;
     class MsgRtcRemoteSdp;
-    struct UdpMediaAssociation;
-
-    class NetSyncInfo {
-    public:
-        int64_t socket_fd_{0};
-        std::string device_id_{};
-        std::string stream_id_{};
-    };
-
-    // connected client information
-    class PxConnectedClientInfo {
-    public:
-        std::string device_id_;
-        // direct mode
-        std::string stream_id_;
-        // relay mode
-        std::string relay_room_id_;
-        // device name. like: DESKTOP-N3GIEVQ
-        std::string device_name_;
-    };
-
-    // local webrtc request info
-    enum class PxLocalRtcContentType {
-        kDesktop,
-        kGameStream,
-    };
-
-    // Local RTC session purpose. Wall observers are trusted, read-only Console
-    // monitoring sessions: they consume video but are deliberately excluded
-    // from the normal visitor lifecycle, controls, audio and audit statistics.
-    enum class PxLocalRtcSessionRole {
-        kInteractive,
-        // Visible read-only product observer. Unlike the internal wall
-        // observer it retains normal audio and lifecycle accounting.
-        kObserver,
-        kWallObserver,
-    };
-
-    class PxLocalRtcRequestInfo {
-    public:
-        std::string device_id_;
-        std::string stream_id_;
-        std::string req_ip_;
-        std::string sdp_;
-        PxLocalRtcContentType content_type_;
-        PxLocalRtcSessionRole session_role_ = PxLocalRtcSessionRole::kInteractive;
-        // true: 调用方已确认接管,直接顶掉同 stream_id 的现存连接;
-        // false: 若现存连接仍活跃,返回 kOccupied 让调用方去确认
-        bool takeover_ = false;
-        // 浏览器 nonce(web client 经 launch 页带入)。与现存活跃连接的
-        // nonce 相同 = 同一浏览器重复打开,信令视为自动接管,不报 kOccupied
-        std::string client_nonce_;
-        // Server-issued capability snapshot from a consumed Console ticket.
-        // Empty permissions still mean no capabilities when this flag is true.
-        bool capability_enforced_ = false;
-        std::vector<std::string> permissions_;
-    };
-
-    // alloc result of a local rtc instance
-    enum class PxLocalRtcAllocResult {
-        kOk,
-        // 同 stream_id 的连接仍在活跃,且未指定 takeover
-        kOccupied,
-        kFailed,
-    };
-
-    // local webrtc reply info
-    class PxLocalRtcMonitorInfo {
-    public:
-        std::string name_;
-        int width_ = 0;
-        int height_ = 0;
-        // 虚拟桌面坐标,客户端多屏布局/鼠标坐标映射用
-        int left_ = 0;
-        int top_ = 0;
-        int right_ = 0;
-        int bottom_ = 0;
-    };
-
-    class PxLocalRtcReplyInfo {
-    public:
-        std::string answer_sdp_;
-        // 显示器列表(枚举顺序,与 video track 顺序一致),供多 track 客户端做
-        // track→mon_name 映射;web/旧客户端忽略此字段
-        std::vector<PxLocalRtcMonitorInfo> monitors_;
-    };
-
-    // Reliable-control-plane notification used to revoke a previously granted
-    // session capability after a Controller is replaced. Network plug-ins use
-    // the stream only as a routing key; role ownership remains in
-    // LogicalSessionRegistry.
-    class PxLogicalSessionCapabilityUpdate {
-    public:
-        std::string stream_id_;
-        std::vector<std::string> permissions_;
-    };
-
     class PxNetPlugin : public PxPluginInterface {
     public:
         PxNetPlugin();

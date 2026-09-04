@@ -9,12 +9,12 @@
 
 namespace px
 {
-    class WsPlugin;
+    class WsTransport;
 
     class WsData {
     public:
         // Weak observer: routers never extend the built-in WS module lifetime.
-        std::weak_ptr<WsPlugin> plugin_;
+        std::weak_ptr<WsTransport> transport_;
     };
     using WsDataPtr = std::shared_ptr<WsData>;
 }

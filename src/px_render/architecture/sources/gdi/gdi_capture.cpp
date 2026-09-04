@@ -14,7 +14,7 @@
 #include "px_common_new/win32/win_helper.h"
 #include "px_capture_new/capture_message.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
-#include "gdi_capture_plugin.h"
+#include "gdi_capture_source.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
 
 
@@ -67,13 +67,17 @@ namespace px
         return TRUE;
     }
 
-    std::shared_ptr<GdiCapture> GdiCapture::Make(GdiCapturePlugin* plugin, const CaptureMonitorInfo& my_monitor_info) {
-        return std::make_shared<GdiCapture>(plugin, my_monitor_info);
+    std::shared_ptr<GdiCapture> GdiCapture::Make(
+        const std::shared_ptr<GdiCaptureSource>& owner,
+        const CaptureMonitorInfo& my_monitor_info) {
+        return std::make_shared<GdiCapture>(owner, my_monitor_info);
     }
 
-    GdiCapture::GdiCapture(GdiCapturePlugin* plugin, const CaptureMonitorInfo& my_monitor_info)
+    GdiCapture::GdiCapture(
+        const std::shared_ptr<GdiCaptureSource>& owner,
+        const CaptureMonitorInfo& my_monitor_info)
         : DesktopCaptureSource(my_monitor_info) {
-        plugin_ = plugin;
+        owner_ = owner;
         fps_stat_ = std::make_shared<FpsStat>();
         mon_name_ = StringUtil::ToWString(my_monitor_info_.name_);
         is_primary_monitor_ = my_monitor_info_.primary_;
@@ -278,7 +282,11 @@ namespace px
             LOGW("display_name truncated for monitor: {}, src_len: {}, dst_len: {}",
                  my_monitor_info_.name_, my_monitor_info_.name_.size(), sizeof(cap_video_frame.display_name_));
         }
-        auto mon_index_res = plugin_->GetMonIndexByName(my_monitor_info_.name_);
+        const auto owner = owner_.lock();
+        if (!owner) {
+            return false;
+        }
+        auto mon_index_res = owner->MonitorIndexByName(my_monitor_info_.name_);
         if (mon_index_res.has_value()) {
             cap_video_frame.monitor_index_ = mon_index_res.value();
         }
@@ -290,10 +298,10 @@ namespace px
         cap_video_frame.right_ = this->right_;
         cap_video_frame.bottom_ = this->bottom_;
 
-        if (plugin_->IsPluginEnabled()) {
+        if (owner->IsEnabled()) {
             auto event = std::make_shared<PxPluginCapturedVideoFrameEvent>();
             event->frame_ = cap_video_frame;
-            this->plugin_->CallbackEvent(event);
+            owner->EmitCompatibilityEvent(event);
         }
 
         // fps tick
@@ -353,7 +361,8 @@ namespace px
         if (stop_token.stop_requested() || stop_flag_) {
             return;
         }
-        if (pausing_ || plugin_->DontHaveConnectedClientsNow()) {
+        const auto owner = owner_.lock();
+        if (pausing_ || !owner || owner->HasNoConnectedClients()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(17));
             return;
         }
@@ -373,7 +382,7 @@ namespace px
             Exit();
             if (!stop_token.stop_requested() && !stop_flag_) {
                 Init();
-                plugin_->InsertIdr();
+                owner->RequestKeyFrame();
             }
 
             reinit_ = false;
@@ -404,7 +413,9 @@ namespace px
 
     void GdiCapture::ResumeCapture() {
         pausing_ = false;
-        plugin_->InsertIdr();
+        if (const auto owner = owner_.lock()) {
+            owner->RequestKeyFrame();
+        }
     }
 
     void GdiCapture::StopCapture() {

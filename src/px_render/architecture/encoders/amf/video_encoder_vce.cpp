@@ -10,7 +10,7 @@
 #include "px_encoder_new/encoder_config.h"
 #include "px_common_new/string_util.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
-#include "amf_encoder_plugin.h"
+#include "amf_video_encoder.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
 #include <combaseapi.h>
 #include <atlbase.h>
@@ -221,10 +221,15 @@ namespace px
         }
     }
 
-    VideoEncoderVCE::VideoEncoderVCE(AmfEncoderPlugin* plugin, uint64_t adapter_uid) {
-        this->plugin_ = plugin;
-        this->d3d11_device_ = plugin->d3d11_devices_[adapter_uid];
-        this->d3d11_device_context_ = plugin->d3d11_devices_context_[adapter_uid];
+    VideoEncoderVCE::VideoEncoderVCE(
+        const std::shared_ptr<AmfVideoEncoder>& owner,
+        uint64_t adapter_uid)
+        : owner_(owner) {
+        if (owner) {
+            this->d3d11_device_ = owner->d3d11_devices_[adapter_uid];
+            this->d3d11_device_context_ =
+                owner->d3d11_device_contexts_[adapter_uid];
+        }
     }
 
     VideoEncoderVCE::~VideoEncoderVCE() {
@@ -414,7 +419,9 @@ namespace px
                 capture_frames_.erase(it);
             }
         }
-        this->plugin_->CallbackEvent(event);
+        if (const auto owner = owner_.lock()) {
+            owner->EmitCompatibilityEvent(event);
+        }
 
         fps_stat_->Tick();
 

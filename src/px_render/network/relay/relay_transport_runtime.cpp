@@ -1,4 +1,4 @@
-#include "relay_plugin_runtime.h"
+#include "relay_transport_runtime.h"
 
 #include <cstdlib>
 #include <utility>
@@ -22,24 +22,24 @@ using namespace px_relay;
 
 namespace px {
 
-std::shared_ptr<RelayPluginRuntime> RelayPluginRuntime::Create(
-    RelayPluginRuntimeConfig config) {
-    return std::make_shared<RelayPluginRuntime>(std::move(config));
+std::shared_ptr<RelayTransportRuntime> RelayTransportRuntime::Create(
+    RelayTransportRuntimeConfig config) {
+    return std::make_shared<RelayTransportRuntime>(std::move(config));
 }
 
-RelayPluginRuntime::RelayPluginRuntime(RelayPluginRuntimeConfig config)
+RelayTransportRuntime::RelayTransportRuntime(RelayTransportRuntimeConfig config)
     : config_(std::move(config)) {}
 
-RelayPluginRuntime::~RelayPluginRuntime() {
+RelayTransportRuntime::~RelayTransportRuntime() {
     Stop();
 }
 
-void RelayPluginRuntime::Start(
+void RelayTransportRuntime::Start(
     const std::shared_ptr<PxPluginContext>& context,
-    PxPluginEventCallback event_callback) {
+    CompatibilityEventCallback event_callback) {
     {
         std::lock_guard lock(sink_mutex_);
-        plugin_context_ = context;
+        module_context_ = context;
         event_callback_ = std::move(event_callback);
     }
 
@@ -60,7 +60,7 @@ void RelayPluginRuntime::Start(
     });
 }
 
-void RelayPluginRuntime::Stop() {
+void RelayTransportRuntime::Stop() {
     if (stopping_.exchange(true)) {
         return;
     }
@@ -86,18 +86,18 @@ void RelayPluginRuntime::Stop() {
     {
         std::lock_guard lock(sink_mutex_);
         event_callback_ = {};
-        plugin_context_.reset();
+        module_context_.reset();
     }
 }
 
-void RelayPluginRuntime::UpdateSettings(const PxPluginSettingsInfo& settings) {
+void RelayTransportRuntime::UpdateSettings(const RenderModuleSettings& settings) {
     bool connection_changed = false;
     {
         std::lock_guard lock(config_mutex_);
-        connection_changed = settings.device_id_ != config_.settings.device_id_ ||
-                             settings.relay_host_ != config_.settings.relay_host_ ||
-                             settings.relay_port_ != config_.settings.relay_port_ ||
-                             settings.appkey_ != config_.settings.appkey_;
+        connection_changed = settings.device_id != config_.settings.device_id ||
+                             settings.relay_host != config_.settings.relay_host ||
+                             settings.relay_port != config_.settings.relay_port ||
+                             settings.appkey != config_.settings.appkey;
         config_.settings = settings;
     }
     if (connection_changed && started_) {
@@ -107,12 +107,12 @@ void RelayPluginRuntime::UpdateSettings(const PxPluginSettingsInfo& settings) {
     wake_condition_.notify_all();
 }
 
-RelayPluginRuntimeConfig RelayPluginRuntime::ConfigSnapshot() const {
+RelayTransportRuntimeConfig RelayTransportRuntime::ConfigSnapshot() const {
     std::lock_guard lock(config_mutex_);
     return config_;
 }
 
-bool RelayPluginRuntime::WaitFor(std::stop_token stop_token,
+bool RelayTransportRuntime::WaitFor(std::stop_token stop_token,
                                  std::chrono::milliseconds delay) {
     std::unique_lock lock(lifecycle_mutex_);
     const auto weak_self = weak_from_this();
@@ -125,7 +125,7 @@ bool RelayPluginRuntime::WaitFor(std::stop_token stop_token,
     return self && !stop_token.stop_requested() && !self->stopping_;
 }
 
-void RelayPluginRuntime::Monitor(std::stop_token stop_token) {
+void RelayTransportRuntime::Monitor(std::stop_token stop_token) {
     int connect_count = 0;
     std::vector<RelayDeviceNetInfo> net_info;
     for (const auto& info : IPUtil::ScanIPs()) {
@@ -139,10 +139,10 @@ void RelayPluginRuntime::Monitor(std::stop_token stop_token) {
         const auto config = ConfigSnapshot();
         auto relay_host = config.configured_host;
         auto relay_port = config.configured_port;
-        if (!config.settings.relay_host_.empty()) {
-            relay_host = config.settings.relay_host_;
+        if (!config.settings.relay_host.empty()) {
+            relay_host = config.settings.relay_host;
         }
-        const auto settings_port = std::atoi(config.settings.relay_port_.c_str());
+        const auto settings_port = std::atoi(config.settings.relay_port.c_str());
         if (settings_port > 0) {
             relay_port = settings_port;
         }
@@ -155,8 +155,8 @@ void RelayPluginRuntime::Monitor(std::stop_token stop_token) {
             }
         }
 
-        if (config.settings.device_id_.empty() || relay_host.empty() ||
-            relay_port <= 0 || config.settings.appkey_.empty()) {
+        if (config.settings.device_id.empty() || relay_host.empty() ||
+            relay_port <= 0 || config.settings.appkey.empty()) {
             if (!WaitFor(stop_token, std::chrono::milliseconds(500))) {
                 break;
             }
@@ -189,7 +189,7 @@ void RelayPluginRuntime::Monitor(std::stop_token stop_token) {
     }
 }
 
-void RelayPluginRuntime::ReleaseConnections() {
+void RelayTransportRuntime::ReleaseConnections() {
     ++media_generation_;
     ++file_transfer_generation_;
     auto media_sdk = MediaSdk();
@@ -204,42 +204,42 @@ void RelayPluginRuntime::ReleaseConnections() {
     }
 }
 
-std::shared_ptr<RelayServerSdk> RelayPluginRuntime::MediaSdk() const {
+std::shared_ptr<RelayServerSdk> RelayTransportRuntime::MediaSdk() const {
     std::lock_guard lock(sdk_mutex_);
     return relay_media_sdk_;
 }
 
-std::shared_ptr<RelayServerSdk> RelayPluginRuntime::FileTransferSdk() const {
+std::shared_ptr<RelayServerSdk> RelayTransportRuntime::FileTransferSdk() const {
     std::lock_guard lock(sdk_mutex_);
     return relay_ft_sdk_;
 }
 
-void RelayPluginRuntime::SetMediaSdk(std::shared_ptr<RelayServerSdk> sdk) {
+void RelayTransportRuntime::SetMediaSdk(std::shared_ptr<RelayServerSdk> sdk) {
     std::lock_guard lock(sdk_mutex_);
     relay_media_sdk_ = std::move(sdk);
 }
 
-void RelayPluginRuntime::SetFileTransferSdk(std::shared_ptr<RelayServerSdk> sdk) {
+void RelayTransportRuntime::SetFileTransferSdk(std::shared_ptr<RelayServerSdk> sdk) {
     std::lock_guard lock(sdk_mutex_);
     relay_ft_sdk_ = std::move(sdk);
 }
 
-bool RelayPluginRuntime::IsCurrentMediaGeneration(uint64_t generation) const {
+bool RelayTransportRuntime::IsCurrentMediaGeneration(uint64_t generation) const {
     return !stopping_ && media_generation_.load() == generation;
 }
 
-bool RelayPluginRuntime::IsCurrentFileTransferGeneration(
+bool RelayTransportRuntime::IsCurrentFileTransferGeneration(
     uint64_t generation) const {
     return !stopping_ && file_transfer_generation_.load() == generation;
 }
 
-void RelayPluginRuntime::ConnectMedia(
-    const RelayPluginRuntimeConfig& config,
+void RelayTransportRuntime::ConnectMedia(
+    const RelayTransportRuntimeConfig& config,
     const std::string& host, int port,
     const std::vector<RelayDeviceNetInfo>& net_info,
     int connect_count) {
     const auto relay_identity = config.relay_device_id.empty()
-        ? config.settings.device_id_
+        ? config.settings.device_id
         : config.relay_device_id;
     const auto server_device_id = "server_" + relay_identity;
     LOGI("Connecting relay media channel, attempt: {}, device: {}, host: {}, port: {}",
@@ -251,7 +251,7 @@ void RelayPluginRuntime::ConnectMedia(
         .ssl_ = false,
         .device_id_ = server_device_id,
         .net_info_ = net_info,
-        .appkey_ = config.settings.appkey_,
+        .appkey_ = config.settings.appkey,
     });
     const auto generation = ++media_generation_;
     SetMediaSdk(sdk);
@@ -371,12 +371,12 @@ void RelayPluginRuntime::ConnectMedia(
     sdk->Start();
 }
 
-void RelayPluginRuntime::ConnectFileTransfer(
-    const RelayPluginRuntimeConfig& config,
+void RelayTransportRuntime::ConnectFileTransfer(
+    const RelayTransportRuntimeConfig& config,
     const std::string& host, int port,
     const std::vector<RelayDeviceNetInfo>& net_info) {
     const auto relay_identity = config.relay_device_id.empty()
-        ? config.settings.device_id_
+        ? config.settings.device_id
         : config.relay_device_id;
     const auto device_id = "ft_server_" + relay_identity;
     LOGI("Connecting relay file-transfer channel, device: {}", device_id);
@@ -388,7 +388,7 @@ void RelayPluginRuntime::ConnectFileTransfer(
         .net_info_ = net_info,
         .device_name_ = Hardware::GetDesktopName(),
         .stream_id_ = device_id,
-        .appkey_ = config.settings.appkey_,
+        .appkey_ = config.settings.appkey,
     });
     const auto generation = ++file_transfer_generation_;
     SetFileTransferSdk(sdk);
@@ -485,22 +485,22 @@ void RelayPluginRuntime::ConnectFileTransfer(
     sdk->Start();
 }
 
-void RelayPluginRuntime::Emit(
+void RelayTransportRuntime::Emit(
     const std::shared_ptr<PxPluginBaseEvent>& event, bool directly) {
     if (!event || stopping_) {
         return;
     }
-    PxPluginEventCallback callback;
+    CompatibilityEventCallback callback;
     std::shared_ptr<PxPluginContext> context;
     {
         std::lock_guard lock(sink_mutex_);
         callback = event_callback_;
-        context = plugin_context_;
+        context = module_context_;
     }
     if (!callback) {
         return;
     }
-    event->plugin_name_ = kRelayPluginId;
+    event->plugin_name_ = kRelayTransportId;
     if (directly || !context) {
         callback(event);
         return;
@@ -511,7 +511,7 @@ void RelayPluginRuntime::Emit(
         if (!self || self->stopping_) {
             return;
         }
-        PxPluginEventCallback queued_callback;
+        CompatibilityEventCallback queued_callback;
         {
             std::lock_guard lock(self->sink_mutex_);
             queued_callback = self->event_callback_;
@@ -522,7 +522,7 @@ void RelayPluginRuntime::Emit(
     });
 }
 
-void RelayPluginRuntime::EmitNetMessage(
+void RelayTransportRuntime::EmitNetMessage(
     std::shared_ptr<Data> message, const NetChannelType& channel,
     std::string connection_instance_id, bool directly) {
     const auto event = std::make_shared<PxPluginNetClientEvent>();
@@ -531,7 +531,7 @@ void RelayPluginRuntime::EmitNetMessage(
     event->nt_plugin_type_ = NetPluginType::kWebSocket;
     event->nt_channel_type_ = channel;
     event->message_ = std::move(message);
-    event->source_plugin_id_ = kRelayPluginId;
+    event->source_plugin_id_ = kRelayTransportId;
     event->connection_instance_id_ = std::move(connection_instance_id);
     const auto weak_self = weak_from_this();
     event->ack_callback_ = [weak_self](const std::shared_ptr<NetMessageAck>& ack) {
@@ -542,7 +542,7 @@ void RelayPluginRuntime::EmitNetMessage(
     Emit(event, directly);
 }
 
-void RelayPluginRuntime::NotifyClientConnected(
+void RelayTransportRuntime::NotifyClientConnected(
     const std::string& connection_id, const std::string& stream_id,
     const std::string& visitor_device_id) {
     const auto event = std::make_shared<PxPluginClientConnectedEvent>();
@@ -554,7 +554,7 @@ void RelayPluginRuntime::NotifyClientConnected(
     Emit(event);
 }
 
-void RelayPluginRuntime::NotifyClientDisconnected(
+void RelayTransportRuntime::NotifyClientDisconnected(
     const std::string& connection_id, const std::string& stream_id,
     const std::string& visitor_device_id, int64_t begin_timestamp) {
     const auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
@@ -566,19 +566,19 @@ void RelayPluginRuntime::NotifyClientDisconnected(
     Emit(event);
 }
 
-void RelayPluginRuntime::ReportRelayAlive(const std::string& device_id) {
+void RelayTransportRuntime::ReportRelayAlive(const std::string& device_id) {
     const auto event = std::make_shared<PxPluginRelayAlive>();
     event->device_id_ = device_id;
     Emit(event);
 }
 
-void RelayPluginRuntime::ReportSentDataSize(std::size_t size) {
+void RelayTransportRuntime::ReportSentDataSize(std::size_t size) {
     const auto event = std::make_shared<PxPluginDataSent>();
     event->size_ = static_cast<int>(size);
     Emit(event);
 }
 
-void RelayPluginRuntime::PostMedia(
+void RelayTransportRuntime::PostMedia(
     std::shared_ptr<Data> message, bool run_through) {
     if (!message || !IsWorking() || (paused_stream_ && !run_through)) {
         return;
@@ -590,7 +590,7 @@ void RelayPluginRuntime::PostMedia(
     std::shared_ptr<PxPluginContext> context;
     {
         std::lock_guard lock(sink_mutex_);
-        context = plugin_context_;
+        context = module_context_;
     }
     if (context) {
         context->PostWorkTask([sdk, message]() {
@@ -600,7 +600,7 @@ void RelayPluginRuntime::PostMedia(
     ReportSentDataSize(message->Size());
 }
 
-bool RelayPluginRuntime::PostTargetMedia(
+bool RelayTransportRuntime::PostTargetMedia(
     const std::string& stream_id, std::shared_ptr<Data> message,
     bool run_through) {
     if (!message || !IsWorking()) {
@@ -616,7 +616,7 @@ bool RelayPluginRuntime::PostTargetMedia(
     std::shared_ptr<PxPluginContext> context;
     {
         std::lock_guard lock(sink_mutex_);
-        context = plugin_context_;
+        context = module_context_;
     }
     if (!context) {
         return false;
@@ -628,7 +628,7 @@ bool RelayPluginRuntime::PostTargetMedia(
     return true;
 }
 
-FileTransferSendResult RelayPluginRuntime::PostFileTransfer(
+FileTransferSendResult RelayTransportRuntime::PostFileTransfer(
     const std::string& stream_id, std::shared_ptr<Data> message,
     const std::string&) {
     if (!message) {
@@ -654,29 +654,29 @@ FileTransferSendResult RelayPluginRuntime::PostFileTransfer(
     return FileTransferSendResult::Accepted();
 }
 
-int RelayPluginRuntime::ConnectedClientsCount() const {
+int RelayTransportRuntime::ConnectedClientsCount() const {
     const auto sdk = MediaSdk();
     return IsWorking() && sdk ? sdk->GetConnectedClientsCount() : 0;
 }
 
-bool RelayPluginRuntime::IsWorking() const {
+bool RelayTransportRuntime::IsWorking() const {
     const auto config = ConfigSnapshot();
     const auto sdk = MediaSdk();
-    return !stopping_ && config.settings.relay_enabled_ && sdk && sdk->IsAlive();
+    return !stopping_ && config.settings.relay_enabled && sdk && sdk->IsAlive();
 }
 
-int64_t RelayPluginRuntime::QueuingMediaMessageCount() const {
+int64_t RelayTransportRuntime::QueuingMediaMessageCount() const {
     const auto sdk = MediaSdk();
     return sdk ? sdk->GetQueuingMsgCount() : 0;
 }
 
-int64_t RelayPluginRuntime::QueuingFileTransferMessageCount() const {
+int64_t RelayTransportRuntime::QueuingFileTransferMessageCount() const {
     const auto sdk = FileTransferSdk();
     return sdk ? sdk->GetQueuingMsgCount() : 0;
 }
 
 std::vector<std::shared_ptr<PxConnectedClientInfo>>
-RelayPluginRuntime::ConnectedClientInfo() const {
+RelayTransportRuntime::ConnectedClientInfo() const {
     const auto sdk = MediaSdk();
     if (!IsWorking() || !sdk) {
         return {};
@@ -694,7 +694,7 @@ RelayPluginRuntime::ConnectedClientInfo() const {
     return result;
 }
 
-void RelayPluginRuntime::OnMessageAck(
+void RelayTransportRuntime::OnMessageAck(
     const std::shared_ptr<NetMessageAck>& ack) {
     if (!ack || ack->ch_type_ != NetChannelType::kFileTransfer) {
         return;

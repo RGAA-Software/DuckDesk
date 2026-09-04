@@ -14,13 +14,14 @@
 #include "px_common_new/defer.h"
 #include "px_common_new/string_util.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
-#include "ffmpeg_encoder_plugin.h"
+#include "ffmpeg_video_encoder.h"
 
 namespace px
 {
 
-    FFmpegEncoder::FFmpegEncoder(FFmpegEncoderPlugin* plugin) {
-        plugin_ = plugin;
+    FFmpegEncoder::FFmpegEncoder(
+        const std::shared_ptr<FfmpegVideoEncoder>& owner)
+        : owner_(owner) {
         fps_stat_ = std::make_shared<FpsStat>();
     }
 
@@ -34,16 +35,20 @@ namespace px
         }
         const char* codec_name = nullptr;
         if (EVideoCodecType::kHEVC == config.codec_type) {
-            if (EHardwareEncoder::kNvEnc == encoder_config_.Hardware && plugin_->IsHardwareEnabled()) {
+            const auto owner = owner_.lock();
+            if (!owner) {
+                return false;
+            }
+            if (EHardwareEncoder::kNvEnc == encoder_config_.Hardware && owner->IsHardwareEnabled()) {
                 codec_name = "hevc_nvenc";
                 display_encoder_name_ = "F_NVENC";
             }
             // FFmpeg's implementation is so bad.
-            // else if (EHardwareEncoder::kAmf == encoder_config_.Hardware && plugin_->IsHardwareEnabled()) {
+            // else if (EHardwareEncoder::kAmf == encoder_config_.Hardware && owner->IsHardwareEnabled()) {
             //     codec_name = "hevc_amf";
             //     display_encoder_name_ = "F_AMF";
             // }
-            else if (EHardwareEncoder::kQsv == encoder_config_.Hardware && plugin_->IsHardwareEnabled()) {
+            else if (EHardwareEncoder::kQsv == encoder_config_.Hardware && owner->IsHardwareEnabled()) {
                 codec_name = "hevc_qsv";
                 display_encoder_name_ = "F_QSV";
             }
@@ -53,16 +58,20 @@ namespace px
             }
         }
         else if (EVideoCodecType::kH264 == config.codec_type) {
-            if (EHardwareEncoder::kNvEnc == encoder_config_.Hardware && plugin_->IsHardwareEnabled()) {
+            const auto owner = owner_.lock();
+            if (!owner) {
+                return false;
+            }
+            if (EHardwareEncoder::kNvEnc == encoder_config_.Hardware && owner->IsHardwareEnabled()) {
                 codec_name = "h264_nvenc";
                 display_encoder_name_ = "F_NVENC";
             }
             // FFmpeg's implementation is so bad.
-            // else if (EHardwareEncoder::kAmf == encoder_config_.Hardware && plugin_->IsHardwareEnabled()) {
+            // else if (EHardwareEncoder::kAmf == encoder_config_.Hardware && owner->IsHardwareEnabled()) {
             //     codec_name = "h264_amf";
             //     display_encoder_name_ = "F_AMF";
             // }
-            else if (EHardwareEncoder::kQsv == encoder_config_.Hardware && plugin_->IsHardwareEnabled()) {
+            else if (EHardwareEncoder::kQsv == encoder_config_.Hardware && owner->IsHardwareEnabled()) {
                 // Intel Quick Sync:无 N/A 卡机器上的硬编兜底。
                 // 实测 loopback 场景 x264 软编 1080p 长期占用一个大核以上,
                 // 与采集线程/同机浏览器抢 CPU,把 DDA 采集压到 32~40fps,
@@ -328,7 +337,9 @@ namespace px
 
         int send_result = avcodec_send_frame(codec_ctx_, frame_);
         if (send_result < 0 && send_result != AVERROR(EAGAIN)) {
-            plugin_->DisableHardware();
+            if (const auto owner = owner_.lock()) {
+                owner->DisableHardware();
+            }
             LOGE("encode failed, err: {}, <! hardware disabled !>", send_result);
             return false;
         }
@@ -345,15 +356,9 @@ namespace px
             auto encoded_data = Data::Make((char*)packet_->data, packet_->size);
 
             auto event = std::make_shared<PxPluginEncodedVideoFrameEvent>();
-            event->type_ = [=, this]() {
-                if (encoder_config_.codec_type == EVideoCodecType::kHEVC) {
-                    return PxPluginEncodedVideoType::kH265;
-                } else if (encoder_config_.codec_type == EVideoCodecType::kH264) {
-                    return PxPluginEncodedVideoType::kH264;
-                } else {
-                    return PxPluginEncodedVideoType::kH264;
-                }
-                }();
+            event->type_ = encoder_config_.codec_type == EVideoCodecType::kHEVC
+                ? PxPluginEncodedVideoType::kH265
+                : PxPluginEncodedVideoType::kH264;
             event->data_ = encoded_data;
             event->frame_width_ = img_width;
             event->frame_height_ = img_height;
@@ -366,7 +371,9 @@ namespace px
             else if (AV_PIX_FMT_YUV444P == codec_ctx_->pix_fmt) {
                 event->frame_format_ = RawImageType::kI444;
             }
-            plugin_->CallbackEvent(event);
+            if (const auto owner = owner_.lock()) {
+                owner->EmitCompatibilityEvent(event);
+            }
 
             auto end = TimeUtil::GetCurrentTimestamp();
             auto diff = end - beg;

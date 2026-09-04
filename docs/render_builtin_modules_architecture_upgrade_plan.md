@@ -281,6 +281,24 @@ ScopedSubscription session_subscription_;
 “插件”不再隐含“DLL”。Composition root 显式创建 factory，避免静态全局注册和运行期
 service locator。Processor 不查找上下游，Observer 不改变主数据。
 
+具体契约统一放在 `architecture/extensions/flow_node_plugin.h`：
+
+- `FlowNodePlugin` 只保留描述、启停、enable 和异步生命周期，不继承旧
+  `PxPluginInterface`；
+- `VideoSourcePlugin` / `AudioSourcePlugin` 只获得 `MediaSourcePort` 输出能力；
+- `VideoProcessorPlugin` / `AudioProcessorPlugin` 同步返回强类型处理结果，不持有或查找
+  下游；
+- `VideoEncoderPlugin` / `AudioEncoderPlugin` 把 captured frame 转为 owned encoded frame；
+- `ObserverPlugin` 只读观察，不能修改、替换或阻断帧；
+- `SinkPlugin::Submit*` 只允许快速校验和入有界队列，阻塞 I/O 由一个长生命周期消费
+  coroutine 完成；
+- factory 返回 `shared_ptr<FlowNodePlugin>`，不存在裸实例、`GetInstance` 或全局自动注册。
+
+生命周期 callback 使用 `PxAwaitable`，因此 start、stop、drain、超时和取消可以线性
+`co_await`，不再层层嵌套 completion callback。逐帧 Source/Processor/Encoder 调用保持同步，
+不会为每帧 `co_spawn`。第三方 callback API 只在实现内部通过 `PxAsyncOneShot` 转成
+awaitable，并在每个挂起点后重新 `weak_ptr::lock()`；WebRTC DLL ABI 不导出 coroutine。
+
 ## 8. 队列、背压和投递语义
 
 每个异步 Observer/Sink 必须声明：

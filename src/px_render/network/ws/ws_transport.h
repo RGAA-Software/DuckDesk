@@ -2,61 +2,72 @@
 // Created by RGAA on 15/11/2024.
 //
 
-#ifndef PX_WS_PLUGIN_H
-#define PX_WS_PLUGIN_H
+#ifndef PX_WS_TRANSPORT_H
+#define PX_WS_TRANSPORT_H
 
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <vector>
-#include "px_render/plugin_interface/px_net_plugin.h"
+#include "architecture/modules/render_module.h"
+#include "px_render/network/transport_types.h"
 
 namespace px
 {
 
     class CaptureAudioFrame;
     class CaptureVideoFrame;
-    class WsPluginServer;
+    class WsServer;
 
-    class WsPlugin : public PxNetPlugin,
-                     public std::enable_shared_from_this<WsPlugin> {
+    class WsTransport final : public RenderModule {
     public:
-        WsPlugin();
-        std::string GetPluginId() override;
-        std::string GetPluginName() override;
-        std::string GetVersionName() override;
-        uint32_t GetVersionCode() override;
-        std::string GetPluginDescription() override;
-        bool OnCreate(const px::PxPluginParam& param) override;
-        bool OnDestroy() override;
+        WsTransport();
+        std::string Id() const override;
+        std::string Name() const override;
+        std::string VersionName() const override;
+        uint32_t VersionCode() const override;
+        std::string Description() const override;
+        RenderModuleKind Kind() const override { return RenderModuleKind::kNetwork; }
+        bool Start(const RenderModuleConfiguration& configuration) override;
+        bool Destroy() override;
         void ApplyLogicalSessionCapabilities(
-            const PxLogicalSessionCapabilityUpdate& update) override;
-        void On1Second() override;
-        bool IsWorking() override;
+            const PxLogicalSessionCapabilityUpdate& update);
+        void Tick1Second() override;
+        bool IsWorking() const override;
 
-        void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) override;
-        bool PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) override;
-        FileTransferSendResult PostTargetFileTransferProtoMessage(
+        void Broadcast(std::shared_ptr<Data> message, bool run_through);
+        bool SendToStream(const std::string& stream_id, std::shared_ptr<Data> message, bool run_through);
+        FileTransferSendResult SendFileTransfer(
             const std::string& stream_id,
             std::shared_ptr<Data> msg,
             bool run_through,
-            const std::string& connection_instance_id = {}) override;
+            const std::string& connection_instance_id = {});
 
-        void PostUserProxyMessage(std::shared_ptr<Data> msg) override;
-        bool IsUserProxyConnected() override;
-        void PostIpcBinaryMessage(std::shared_ptr<Data> msg) override;
-        void RegisterIpcPid(uint32_t pid) override;
+        void SendUserProxy(std::shared_ptr<Data> message);
+        bool IsUserProxyConnected();
+        void SendIpc(std::shared_ptr<Data> message);
+        void RegisterIpcPid(uint32_t pid);
 
-        bool IsOnlyAudioClients() override;
-        int GetConnectedClientsCount() override;
+        bool HasOnlyAudioClients();
+        int ConnectedClientCount();
 
-        int64_t GetQueuingMediaMsgCount() override;
-        int64_t GetQueuingFtMsgCount() override;
-        bool HasEnoughBufferForQueuingMediaMessages() override;
-        bool HasEnoughBufferForQueuingFtMessages() override;
-        std::vector<std::shared_ptr<PxConnectedClientInfo>> GetConnectedClientInfo() override;
-        void DispatchAppEvent(const std::shared_ptr<AppBaseEvent> &event) override;
-        void OnMessageAck(const std::shared_ptr<NetMessageAck> &ack) override;
+        int64_t QueuedMediaCount();
+        int64_t QueuedFileTransferCount();
+        bool HasMediaCapacity() const noexcept;
+        bool HasFileTransferCapacity() const noexcept;
+        std::vector<std::shared_ptr<PxConnectedClientInfo>> ConnectedClients();
+        void HandleAppEvent(const std::shared_ptr<AppBaseEvent>& event) override;
+        void HandleMessageAck(const std::shared_ptr<NetMessageAck>& ack);
+        void ReceiveClientEvent(
+            bool is_proto, std::int64_t socket_fd,
+            NetPluginType transport_type, NetChannelType channel_type,
+            std::shared_ptr<Data> message,
+            std::string connection_instance_id = {});
+        void ReceiveClientEventImmediately(
+            bool is_proto, std::int64_t socket_fd,
+            NetPluginType transport_type, NetChannelType channel_type,
+            std::shared_ptr<Data> message,
+            std::string connection_instance_id = {});
         using NetworkBroadcaster = std::function<void(
             const std::shared_ptr<Data>&, bool)>;
         using FileTransferBroadcaster = std::function<void(
@@ -97,20 +108,20 @@ namespace px
         void SubmitIpcAudioFrame(const CaptureAudioFrame& frame) const;
 
         // 记录当前编码输出的显示器名(Web 端输入回放需要 monitor_name)
-        void OnEncodedVideoFrame(const std::string& mon_name,
+        void SubmitEncodedVideo(const std::string& mon_name,
                                  const PxPluginEncodedVideoType& video_type,
                                  const std::shared_ptr<Data>& data,
                                  uint64_t frame_index,
                                  int frame_width,
                                  int frame_height,
-                                 bool key) override;
-        std::string GetCapturingMonitorName();
+                                 bool key);
+        std::string CapturingMonitorName();
 
     private:
         bool HasConnectedClients();
 
     private:
-        std::shared_ptr<WsPluginServer> ws_server_ = nullptr;
+        std::shared_ptr<WsServer> ws_server_ = nullptr;
         std::shared_ptr<NetMessageAck> last_ack_ = nullptr;
         std::mutex capturing_mon_mtx_;
         std::string capturing_mon_name_;
@@ -129,4 +140,4 @@ namespace px
 }
 
 
-#endif //PX_UDP_PLUGIN_H
+#endif  // PX_WS_TRANSPORT_H

@@ -20,9 +20,8 @@
 #include "px_message_new/proto_converter.h"
 #include "px_message_new/rp_proto_converter.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
-#include "px_render/plugin_interface/px_stream_plugin.h"
-#include "px_render/plugin_interface/px_video_encoder_plugin.h"
-#include "px_render/plugin_interface/px_monitor_capture_plugin.h"
+#include "architecture/encoders/video_encoder_module.h"
+#include "architecture/sources/monitor_capture_source.h"
 #include "px_render/modules/module_ids.h"
 #include "px_capture_new/capture_message.h"
 #include "architecture/services/file_transfer_types.h"
@@ -164,19 +163,19 @@ namespace px
                 if (!self) {
                     return;
                 }
-                auto plugins = self->app_->GetWorkingVideoEncoderPlugins();
+                auto encoders = self->app_->GetWorkingVideoEncoders();
                 auto target_event = std::dynamic_pointer_cast<PxPluginConfigEncoder>(event);
-                // GetWorkingVideoEncoderPlugins 按屏索引,多屏会指向同一 plugin 实例;
+                // GetWorkingVideoEncoders 按屏索引,多屏会指向同一 plugin 实例;
                 // 去重后再 Config,避免对同一 NVENC 插件连打多次。
-                std::unordered_set<std::shared_ptr<PxVideoEncoderPlugin>>
-                    unique_plugins;
-                for (const auto& [mon_name, plugin] : plugins) {
+                std::unordered_set<std::shared_ptr<VideoEncoderModule>>
+                    unique_encoders;
+                for (const auto& [mon_name, plugin] : encoders) {
                     if (plugin) {
-                        unique_plugins.insert(plugin);
+                        unique_encoders.insert(plugin);
                     }
                 }
-                for (const auto& plugin : unique_plugins) {
-                    plugin->ConfigEncoder(target_event->mon_name_, target_event->bps_, target_event->fps_);
+                for (const auto& plugin : unique_encoders) {
+                    plugin->Reconfigure(target_event->mon_name_, target_event->bps_, target_event->fps_);
                 }
             });
         }
@@ -194,10 +193,10 @@ namespace px
                  PxPluginEventType::kPluginSelectCaptureMonitorEvent) {
             const auto target_event = std::dynamic_pointer_cast<
                 PxPluginSelectCaptureMonitorEvent>(event);
-            const auto capture = app_->GetWorkingMonitorCapturePlugin();
+            const auto capture = app_->GetWorkingMonitorCaptureSource();
             if (target_event && capture &&
                 !target_event->monitor_name_.empty()) {
-                capture->SetCaptureMonitor(target_event->monitor_name_);
+                capture->SelectMonitor(target_event->monitor_name_);
             }
         }
         else if (event->event_type_ == PxPluginEventType::kPluginRedeemConnectionTicket) {

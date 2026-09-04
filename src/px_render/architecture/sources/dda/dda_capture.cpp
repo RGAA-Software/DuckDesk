@@ -12,7 +12,7 @@
 #include "px_common_new/thread.h"
 #include "px_capture_new/capture_message.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
-#include "dda_capture_plugin.h"
+#include "dda_capture_source.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
 
 #pragma comment(lib, "dxgi.lib")
@@ -24,9 +24,11 @@
 namespace px
 {
 
-    DDACapture::DDACapture(DDACapturePlugin* plugin, const CaptureMonitorInfo& my_monitor_info)
+    DDACapture::DDACapture(
+        const std::shared_ptr<DdaCaptureSource>& owner,
+        const CaptureMonitorInfo& my_monitor_info)
         : DesktopCaptureSource(my_monitor_info) {
-        plugin_ = plugin;
+        owner_ = owner;
         fps_stat_ = std::make_shared<FpsStat>();
         LOGI("DDACapture my monitor info: {}", my_monitor_info.Dump());
     }
@@ -351,14 +353,16 @@ namespace px
                 }
             }
 
-            if (pausing_ || !d3d11_device_ || !d3d11_device_context_ /*|| plugin_->DontHaveConnectedClientsNow()*/) {
+            if (pausing_ || !d3d11_device_ || !d3d11_device_context_) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(17));
                 continue;
             }
 
             // test beg
-            const auto queuing_msg_count =
-                plugin_->GetNetworkMediaBacklog();
+            const auto owner = owner_.lock();
+            const auto queuing_msg_count = owner
+                ? owner->GetNetworkMediaBacklog()
+                : std::int64_t{0};
             if (queuing_msg_count >= 10) {
                 ++lat_backpressure;
                 TimeUtil::DelayBySleep(1);
@@ -584,16 +588,20 @@ namespace px
         //    keyMutex->ReleaseSync(0x0);
         //}
 
-        if (plugin_->IsPluginEnabled()) {
+        const auto owner = owner_.lock();
+        if (owner && owner->IsEnabled()) {
             bool request_idr = is_cached;
             SendTextureHandle(last_list_texture_->shared_handle_, input_width, input_height, input_format, request_idr);
         }
     }
 
     void DDACapture::SendCachedTexture() {
-        auto task = [=, this]() {
-            if (cached_texture_ && last_list_texture_&& last_list_texture_->texture2d_) {
-                OnCaptureFrame(cached_texture_, true);
+        const auto weak_self = weak_from_this();
+        auto task = [weak_self]() {
+            if (const auto self = weak_self.lock();
+                self && self->cached_texture_ && self->last_list_texture_ &&
+                self->last_list_texture_->texture2d_) {
+                self->OnCaptureFrame(self->cached_texture_, true);
             }
         };
         tasks_.PushBack(task);
@@ -611,7 +619,11 @@ namespace px
         cap_video_frame.frame_format_ = format;
         cap_video_frame.adapter_uid_ = my_monitor_info_.adapter_uid_;
         cap_video_frame.request_idr_ = request_idr;
-        auto mon_index_res = plugin_->GetMonIndexByName(my_monitor_info_.name_);
+        const auto owner = owner_.lock();
+        if (!owner) {
+            return;
+        }
+        auto mon_index_res = owner->MonitorIndexByName(my_monitor_info_.name_);
         if (mon_index_res.has_value()) {
             cap_video_frame.monitor_index_ = mon_index_res.value();
         }
@@ -631,7 +643,7 @@ namespace px
         }
         auto event = std::make_shared<PxPluginCapturedVideoFrameEvent>();
         event->frame_ = cap_video_frame;
-        this->plugin_->CallbackEvent(event);
+        owner->EmitCompatibilityEvent(event);
 
     }
 
@@ -641,8 +653,11 @@ namespace px
     }
 
     bool DDACapture::StartCapture() {
-        auto task = [this] {
-            Capture();
+        const auto weak_self = weak_from_this();
+        auto task = [weak_self] {
+            if (const auto self = weak_self.lock()) {
+                self->Capture();
+            }
         };
 
         capture_thread_ = Thread::MakeOnceTask(task, std::format("dda_capture:{}", my_monitor_info_.name_), false);
@@ -656,7 +671,9 @@ namespace px
 
     void DDACapture::ResumeCapture() {
         pausing_ = false;
-        plugin_->InsertIdr();
+        if (const auto owner = owner_.lock()) {
+            owner->RequestKeyFrame();
+        }
     }
 
     void DDACapture::StopCapture() {

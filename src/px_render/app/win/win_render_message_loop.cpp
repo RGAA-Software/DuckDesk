@@ -6,7 +6,7 @@
 #include "rd_context.h"
 #include "px_render/modules/render_module_registry.h"
 #include "app/app_messages.h"
-#include "px_render/plugin_interface/px_monitor_capture_plugin.h"
+#include "architecture/sources/monitor_capture_source.h"
 
 namespace px
 {
@@ -64,19 +64,19 @@ namespace px
             if (!self || !self->module_registry_ || !self->context_) {
                 return;
             }
-            if (auto plugin = self->module_registry_->GetDdaCapture(); plugin) {
-                if (plugin->IsPluginEnabled()) {
+            if (auto source = self->module_registry_->GetDdaCapture(); source) {
+                if (source->IsEnabled()) {
                     auto event = std::make_shared<MsgDisplayDeviceChange>();
                     LOGI("Dispatch debounced display change to DDA capture");
-                    plugin->DispatchAppEvent(event);
+                    source->HandleAppEvent(event);
                     return;
                 }
             }
-            if (auto plugin = self->module_registry_->GetGdiCapture(); plugin) {
-                if (plugin->IsPluginEnabled()) {
+            if (auto source = self->module_registry_->GetGdiCapture(); source) {
+                if (source->IsEnabled()) {
                     auto event = std::make_shared<MsgDisplayDeviceChange>();
                     LOGI("Dispatch debounced display change to GDI capture");
-                    plugin->DispatchAppEvent(event);
+                    source->HandleAppEvent(event);
                     return;
                 }
             }
@@ -86,7 +86,12 @@ namespace px
 
     void WinMessageLoop::Start() {
         CreateMessageWindow();
-        thread_ = std::thread(std::bind(&WinMessageLoop::ThreadFunc, this));
+        const auto weak_self = weak_from_this();
+        thread_ = std::thread([weak_self]() {
+            if (const auto self = weak_self.lock()) {
+                self->ThreadFunc();
+            }
+        });
     }
 
     void WinMessageLoop::Stop() {

@@ -7,7 +7,7 @@
 #include "px_common_new/data.h"
 #include "px_common_new/log.h"
 #include "px_common_new/thread_util.h"
-#include "ws_plugin.h"
+#include "ws_transport.h"
 #include "px_message.pb.h"
 
 namespace px
@@ -31,12 +31,12 @@ namespace px
         if (count <= 5 || (count % 500) == 0) {
             LOGI("FileTransfer receive: n={}, socket={}, bytes={}", count, socket_fd, data.size());
         }
-        const auto plugin = ws_data_ ? ws_data_->plugin_.lock() : nullptr;
-        if (!plugin) {
+        const auto transport = ws_data_ ? ws_data_->transport_.lock() : nullptr;
+        if (!transport) {
             return;
         }
         auto msg = Data::Make(data.data(), data.size());
-        plugin->OnClientEventCameDirectly(
+        transport->ReceiveClientEventImmediately(
             true, socket_fd, NetPluginType::kWebSocket, nt_channel_type_,
             std::move(msg), binding_id_);
     }
@@ -96,10 +96,10 @@ namespace px
             }
 
             // report data size
-            const auto plugin = self->ws_data_
-                ? self->ws_data_->plugin_.lock() : nullptr;
-            if (plugin) {
-                plugin->ReportSentDataSize((int)byte_sent);
+            const auto transport = self->ws_data_
+                ? self->ws_data_->transport_.lock() : nullptr;
+            if (transport) {
+                transport->ReportDataSent((int)byte_sent);
             }
         });
         return FileTransferSendResult::Accepted();

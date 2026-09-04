@@ -6,7 +6,6 @@
 #include "px_message.pb.h"
 #include "px_common_new/log.h"
 #include "px_common_new/time_util.h"
-#include "px_render/plugin_interface/px_monitor_capture_plugin.h"
 #include <cstdio>
 #include <string>
 #include <atomic>

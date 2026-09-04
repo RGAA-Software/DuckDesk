@@ -1,5 +1,5 @@
-#ifndef PX_RENDER_RELAY_PLUGIN_RUNTIME_H
-#define PX_RENDER_RELAY_PLUGIN_RUNTIME_H
+#ifndef PX_RENDER_RELAY_TRANSPORT_RUNTIME_H
+#define PX_RENDER_RELAY_TRANSPORT_RUNTIME_H
 
 #include <atomic>
 #include <chrono>
@@ -14,8 +14,8 @@
 #include <vector>
 
 #include "px_common_new/file_transfer_send_result.h"
-#include "px_render/plugin_interface/px_net_plugin.h"
-#include "px_render/plugin_interface/px_plugin_settings_info.h"
+#include "architecture/modules/render_module.h"
+#include "px_render/network/transport_types.h"
 
 namespace px {
 
@@ -26,29 +26,29 @@ class PxConnectedClientInfo;
 class PxPluginContext;
 class RelayServerSdk;
 
-struct RelayPluginRuntimeConfig final {
+struct RelayTransportRuntimeConfig final {
     std::string relay_device_id;
     std::string configured_host;
     int configured_port = 0;
-    PxPluginSettingsInfo settings;
+    RenderModuleSettings settings;
 };
 
-class RelayPluginRuntime final
-    : public std::enable_shared_from_this<RelayPluginRuntime> {
+class RelayTransportRuntime final
+    : public std::enable_shared_from_this<RelayTransportRuntime> {
 public:
-    static std::shared_ptr<RelayPluginRuntime> Create(
-        RelayPluginRuntimeConfig config);
+    static std::shared_ptr<RelayTransportRuntime> Create(
+        RelayTransportRuntimeConfig config);
 
-    explicit RelayPluginRuntime(RelayPluginRuntimeConfig config);
-    ~RelayPluginRuntime();
+    explicit RelayTransportRuntime(RelayTransportRuntimeConfig config);
+    ~RelayTransportRuntime();
 
-    RelayPluginRuntime(const RelayPluginRuntime&) = delete;
-    RelayPluginRuntime& operator=(const RelayPluginRuntime&) = delete;
+    RelayTransportRuntime(const RelayTransportRuntime&) = delete;
+    RelayTransportRuntime& operator=(const RelayTransportRuntime&) = delete;
 
     void Start(const std::shared_ptr<PxPluginContext>& context,
-               PxPluginEventCallback event_callback);
+               CompatibilityEventCallback event_callback);
     void Stop();
-    void UpdateSettings(const PxPluginSettingsInfo& settings);
+    void UpdateSettings(const RenderModuleSettings& settings);
 
     void PostMedia(std::shared_ptr<Data> message, bool run_through);
     bool PostTargetMedia(const std::string& stream_id,
@@ -79,14 +79,14 @@ private:
 
     void Monitor(std::stop_token stop_token);
     bool WaitFor(std::stop_token stop_token, std::chrono::milliseconds delay);
-    RelayPluginRuntimeConfig ConfigSnapshot() const;
+    RelayTransportRuntimeConfig ConfigSnapshot() const;
     void ReleaseConnections();
-    void ConnectMedia(const RelayPluginRuntimeConfig& config,
+    void ConnectMedia(const RelayTransportRuntimeConfig& config,
                       const std::string& host, int port,
                       const std::vector<class RelayDeviceNetInfo>& net_info,
                       int connect_count);
     void ConnectFileTransfer(
-        const RelayPluginRuntimeConfig& config,
+        const RelayTransportRuntimeConfig& config,
         const std::string& host, int port,
         const std::vector<class RelayDeviceNetInfo>& net_info);
 
@@ -119,12 +119,12 @@ private:
     std::atomic_bool stopping_{false};
 
     mutable std::mutex config_mutex_;
-    RelayPluginRuntimeConfig config_;
+    RelayTransportRuntimeConfig config_;
     std::atomic_bool need_reconnect_{false};
 
     mutable std::mutex sink_mutex_;
-    std::shared_ptr<PxPluginContext> plugin_context_;
-    PxPluginEventCallback event_callback_;
+    std::shared_ptr<PxPluginContext> module_context_;
+    CompatibilityEventCallback event_callback_;
 
     mutable std::mutex sdk_mutex_;
     std::shared_ptr<RelayServerSdk> relay_media_sdk_;
@@ -143,4 +143,4 @@ private:
 
 } // namespace px
 
-#endif // PX_RENDER_RELAY_PLUGIN_RUNTIME_H
+#endif // PX_RENDER_RELAY_TRANSPORT_RUNTIME_H

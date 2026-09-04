@@ -2,7 +2,7 @@
 // Created RGAA on 15/11/2024.
 //
 
-#include "nvenc_encoder_plugin.h"
+#include "nvenc_encoder_module.h"
 #include "px_common_new/log.h"
 #include "nvenc_encoder_defs.h"
 #include "nvenc_video_encoder.h"
@@ -13,43 +13,43 @@
 
 namespace px
 {
-    std::string NvencEncoderPlugin::GetPluginId() {
-        return kNvencEncoderPluginId;
+    std::string NvencEncoderModule::Id() const {
+        return kNvencEncoderModuleId;
     }
 
-    std::string NvencEncoderPlugin::GetPluginName() {
-        return kNvencPluginName;
+    std::string NvencEncoderModule::Name() const {
+        return kNvencEncoderName;
     }
 
-    std::string NvencEncoderPlugin::GetVersionName() {
+    std::string NvencEncoderModule::VersionName() const {
         return "1.1.0";
     }
 
-    uint32_t NvencEncoderPlugin::GetVersionCode() {
+    uint32_t NvencEncoderModule::VersionCode() const {
         return 110;
     }
 
-    std::string NvencEncoderPlugin::GetPluginDescription() {
+    std::string NvencEncoderModule::Description() const {
         return "Nvidia hardware encoder";
     }
 
-    void NvencEncoderPlugin::On1Second() {
-        PxVideoEncoderPlugin::On1Second();
+    void NvencEncoderModule::Tick1Second() {
+        VideoEncoderModule::Tick1Second();
     }
 
-    bool NvencEncoderPlugin::OnCreate(const px::PxPluginParam& param) {
-        PxVideoEncoderPlugin::OnCreate(param);
+    bool NvencEncoderModule::Start(const px::RenderModuleConfiguration& param) {
+        VideoEncoderModule::Start(param);
         return true;
     }
 
-    bool NvencEncoderPlugin::OnDestroy() {
-        PxVideoEncoderPlugin::OnStop();
-        ExitAll();
-        return PxVideoEncoderPlugin::OnDestroy();
+    bool NvencEncoderModule::Destroy() {
+        VideoEncoderModule::Stop();
+        RemoveAll();
+        return VideoEncoderModule::Destroy();
     }
 
-    void NvencEncoderPlugin::InsertIdr() {
-        PxVideoEncoderPlugin::InsertIdr();
+    void NvencEncoderModule::RequestKeyFrame() {
+        VideoEncoderModule::RequestKeyFrame();
         if (IsWorking()) {
             for (const auto& [monitor_index, video_encoder] : video_encoders_) {
                 video_encoder->InsertIdr();
@@ -57,9 +57,9 @@ namespace px
         }
     }
 
-    void NvencEncoderPlugin::InsertIdr(const std::string& mon_name) {
+    void NvencEncoderModule::RequestKeyFrame(const std::string& mon_name) {
         if (mon_name.empty()) {
-            InsertIdr();
+            RequestKeyFrame();
             return;
         }
         // 只给目标屏补 IDR,其它屏的 delta 链不动(RTC 多 track 按屏定向)
@@ -69,7 +69,7 @@ namespace px
         }
     }
 
-    bool NvencEncoderPlugin::InvalidateRefFrame(const std::string& mon_name, uint64_t invalid_frame_index) {
+    bool NvencEncoderModule::InvalidateReferenceFrame(const std::string& mon_name, uint64_t invalid_frame_index) {
         bool accepted = false;
         if (mon_name.empty()) {
             for (const auto& [_, encoder] : video_encoders_) {
@@ -86,15 +86,15 @@ namespace px
         return accepted;
     }
 
-    bool NvencEncoderPlugin::IsWorking() {
-        return plugin_enabled_ && !video_encoders_.empty();
+    bool NvencEncoderModule::IsWorking() const {
+        return enabled_.load() && !video_encoders_.empty();
     }
 
-    bool NvencEncoderPlugin::CanEncodeTexture() {
+    bool NvencEncoderModule::CanEncodeTexture() const {
         return true;
     }
 
-    bool NvencEncoderPlugin::HasEncoderForMonitor(const std::string& monitor_name) {
+    bool NvencEncoderModule::HasEncoderForMonitor(const std::string& monitor_name) const {
 #if 0
         LOGW("HasEncoderForMonitor monitor_name: {}", monitor_name);
 
@@ -105,24 +105,26 @@ namespace px
         return video_encoders_.find(monitor_name) != video_encoders_.end();
     }
 
-    bool NvencEncoderPlugin::Init(const EncoderConfig& config, const std::string& monitor_name) {
-        if (!plugin_enabled_) {
-            LOGE("This plugin is disabled!");
+    bool NvencEncoderModule::Initialize(const EncoderConfig& config, const std::string& monitor_name) {
+        if (!enabled_.load()) {
+            LOGE("event=encoder.initialize component=nvenc outcome=rejected reason=disabled");
             return false;
         }
-        PxVideoEncoderPlugin::Init(config, monitor_name);
-        auto encoder = std::make_shared<NVENCVideoEncoder>(this, config.adapter_uid_);
+        VideoEncoderModule::Initialize(config, monitor_name);
+        const auto owner = std::dynamic_pointer_cast<NvencEncoderModule>(
+            shared_from_this());
+        auto encoder = std::make_shared<NVENCVideoEncoder>(owner, config.adapter_uid_);
         LOGI("config bitrate: {} for monitor: {}", config.bitrate, monitor_name);
         auto ok = encoder->Initialize(config);
         if (!ok) {
-            LOGE("Init NVENC encoder failed for monitor: {}", monitor_name);
+            LOGE("Initialize NVENC encoder failed for monitor: {}", monitor_name);
             return false;
         }
         video_encoders_[monitor_name] = encoder;
         return ok;
     }
 
-    VideoEncoderError NvencEncoderPlugin::Encode(
+    VideoEncoderError NvencEncoderModule::Encode(
         const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d,
         uint64_t frame_index,
         const CaptureVideoFrame& capture_frame) {
@@ -137,19 +139,19 @@ namespace px
         return VideoEncoderError::Ok();
     }
 
-    void NvencEncoderPlugin::Exit(const std::string& monitor_name) {
+    void NvencEncoderModule::Remove(const std::string& monitor_name) {
         if (video_encoders_.find(monitor_name) != video_encoders_.end()) {
             video_encoders_[monitor_name]->Exit();
             video_encoders_.erase(monitor_name);
-            LOGW("Exit encoder for monitor_name: {}", monitor_name);
+            LOGW("Remove encoder for monitor_name: {}", monitor_name);
         }
     }
 
-    void NvencEncoderPlugin::ExitAll() {
+    void NvencEncoderModule::RemoveAll() {
 
     }
 
-    std::map<std::string, WorkingEncoderInfoPtr> NvencEncoderPlugin::GetWorkingCapturesInfo() {
+    std::map<std::string, WorkingEncoderInfoPtr> NvencEncoderModule::WorkingCaptures() const {
         std::map<std::string, WorkingEncoderInfoPtr> result;
         for (const auto& [name, encoder] : video_encoders_) {
             result.insert({name, std::make_shared<WorkingEncoderInfo>(WorkingEncoderInfo {
@@ -162,7 +164,7 @@ namespace px
         return result;
     }
 
-    void NvencEncoderPlugin::ConfigEncoder(const std::string& mon_name, uint32_t bps, uint32_t fps) {
+    void NvencEncoderModule::Reconfigure(const std::string& mon_name, uint32_t bps, uint32_t fps) {
         if (bps == 0 || fps == 0) {
             return;
         }
@@ -179,8 +181,9 @@ namespace px
         }
     }
 
-    std::optional<EncoderCapability> NvencEncoderPlugin::GetEncoderCapability(const std::string& monitor_name) {
-        auto encoder = video_encoders_[monitor_name];
+    std::optional<EncoderCapability> NvencEncoderModule::Capability(const std::string& monitor_name) const {
+        const auto found = video_encoders_.find(monitor_name);
+        const auto encoder = found == video_encoders_.end() ? nullptr : found->second;
         if (!encoder) {
             return std::nullopt;
         }

@@ -10,7 +10,7 @@
 
 namespace px
 {
-    static const std::string kFFmpegPluginName = "Common Encoder";
+    static const std::string kFfmpegEncoderName = "Common Encoder";
 
     // These H.264 encoders otherwise turn an AV_PICTURE_TYPE_I request into a
     // non-IDR I-frame. A receiver joining an existing stream cannot decode that

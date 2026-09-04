@@ -29,9 +29,10 @@ namespace px
     using CaptureTask = std::function<void()>;
 
     class Thread;
-    class DDACapturePlugin;
+    class DdaCaptureSource;
 
-    class DDACapture : public DesktopCaptureSource  {
+    class DDACapture : public DesktopCaptureSource,
+                       public std::enable_shared_from_this<DDACapture> {
     public:
 
         class DXGIOutputDuplication {
@@ -80,7 +81,9 @@ namespace px
             ComPtr<ID3D11Texture2D> texture2d_ = nullptr;
         };
 
-        explicit DDACapture(DDACapturePlugin* plugin, const CaptureMonitorInfo& my_monitor_info);
+        explicit DDACapture(
+            const std::shared_ptr<DdaCaptureSource>& owner,
+            const CaptureMonitorInfo& my_monitor_info);
         virtual ~DDACapture();
         bool Init() override;
         bool StartCapture() override;
@@ -108,7 +111,7 @@ namespace px
         int64_t GetFrameIndex();
 
     private:
-        DDACapturePlugin* plugin_ = nullptr;
+        std::weak_ptr<DdaCaptureSource> owner_;
 
         std::atomic<bool> stop_flag_ = false;
         std::shared_ptr<Thread> capture_thread_ = nullptr;

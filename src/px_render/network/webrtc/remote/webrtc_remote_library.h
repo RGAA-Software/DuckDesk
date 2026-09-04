@@ -44,6 +44,8 @@ namespace px
         PxPluginEventCallback dispatcher_;
     };
 
+    // Private DLL ABI adapter. Render code sees only the concrete
+    // WebRtcLibrary facade from webrtc_library_host.h.
     class WebRtcRemoteLibrary : public PxNetPlugin {
     public:
         WebRtcRemoteLibrary() = default;

@@ -2,7 +2,7 @@
 // Created RGAA on 15/11/2024.
 //
 
-#include "ws_plugin.h"
+#include "ws_transport.h"
 #include "ws_server.h"
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
@@ -15,68 +15,72 @@
 namespace px
 {
 
-    WsPlugin::WsPlugin() : PxNetPlugin() {
+    WsTransport::WsTransport() {
 
     }
 
-    std::string WsPlugin::GetPluginId() {
-        return kNetWsPluginId;
+    std::string WsTransport::Id() const {
+        return kNetWsTransportId;
     }
 
-    std::string WsPlugin::GetPluginName() {
+    std::string WsTransport::Name() const {
         return "Net WebSocket";
     }
 
-    std::string WsPlugin::GetVersionName() {
+    std::string WsTransport::VersionName() const {
         return "1.1.0";
     }
 
-    uint32_t WsPlugin::GetVersionCode() {
+    uint32_t WsTransport::VersionCode() const {
         return 110;
     }
 
-    std::string WsPlugin::GetPluginDescription() {
+    std::string WsTransport::Description() const {
         return "Network via WebSocket";
     }
 
-    bool WsPlugin::OnCreate(const px::PxPluginParam& param) {
-        PxPluginInterface::OnCreate(param);
-        game_hook_mode_ = GetConfigStringParam("app_mode") == "game-hook";
-        auto listen_port = GetConfigIntParam("ws-listen-port");
-        auto config_listen_port = GetConfigIntParam("listen-port");
+    bool WsTransport::Start(const px::RenderModuleConfiguration& configuration) {
+        if (!RenderModule::Start(configuration)) {
+            return false;
+        }
+        game_hook_mode_ = configuration.app_mode == "game-hook";
+        auto listen_port = configuration.ws_listen_port;
+        auto config_listen_port = std::int64_t{0};
         if (config_listen_port > 0) {
             listen_port = config_listen_port;
         }
-        const auto weak_self = weak_from_this();
+        const auto self = std::dynamic_pointer_cast<WsTransport>(
+            shared_from_this());
+        const std::weak_ptr<WsTransport> weak_self = self;
         if (weak_self.expired()) {
             LOGE("event=module.start component=net_ws code=MODULE_DEPENDENCY_UNAVAILABLE "
                  "operation=create_server outcome=failed recoverable=false "
-                 "reason=ws_plugin_requires_shared_ownership");
+                 "reason=ws_transport_requires_shared_ownership");
             return false;
         }
-        ws_server_ = std::make_shared<WsPluginServer>(
+        ws_server_ = std::make_shared<WsServer>(
             weak_self, static_cast<uint16_t>(listen_port));
         ws_server_->Start();
         return true;
     }
 
-    bool WsPlugin::OnDestroy() {
-        PxNetPlugin::OnStop();
+    bool WsTransport::Destroy() {
+        RenderModule::Stop();
         if (ws_server_) {
             ws_server_->Exit();
             ws_server_.reset();
         }
-        return PxNetPlugin::OnDestroy();
+        return RenderModule::Destroy();
     }
 
-    void WsPlugin::ApplyLogicalSessionCapabilities(
+    void WsTransport::ApplyLogicalSessionCapabilities(
         const PxLogicalSessionCapabilityUpdate& update) {
         if (ws_server_) {
             ws_server_->UpdateLogicalSessionCapabilities(update);
         }
     }
 
-    void WsPlugin::On1Second() {
+    void WsTransport::Tick1Second() {
         // 兜底清扫 /ipc 允许集合里进程已死的 pid(断线未触发/异常退出场景)
         if (IsWorking() && ws_server_) {
             ws_server_->SweepDeadIpcPids();
@@ -84,14 +88,14 @@ namespace px
         }
     }
 
-    bool WsPlugin::IsWorking() {
+    bool WsTransport::IsWorking() const {
         return ws_server_ && ws_server_->IsWorking();
     }
 
-    void WsPlugin::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
+    void WsTransport::Broadcast(std::shared_ptr<Data> msg, bool run_through) {
         if (IsWorking() && HasConnectedClients() && msg) {
             const auto server = ws_server_;
-            plugin_context_->PostWorkTask([server, msg = std::move(msg)]() {
+            module_context_->PostWorkTask([server, msg = std::move(msg)]() {
                 if (server && server->IsWorking()) {
                     server->PostNetMessage(msg);
                 }
@@ -99,14 +103,14 @@ namespace px
         }
     }
 
-    bool WsPlugin::PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
+    bool WsTransport::SendToStream(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
         if (IsWorking() && HasConnectedClients() && msg) {
             return ws_server_->PostTargetStreamMessage(stream_id, msg);
         }
         return false;
     }
 
-    FileTransferSendResult WsPlugin::PostTargetFileTransferProtoMessage(
+    FileTransferSendResult WsTransport::SendFileTransfer(
         const std::string& stream_id,
         std::shared_ptr<Data> msg,
         bool run_through,
@@ -128,10 +132,10 @@ namespace px
             "WebSocket file-transfer server is not working");
     }
 
-    void WsPlugin::PostUserProxyMessage(std::shared_ptr<Data> msg) {
+    void WsTransport::SendUserProxy(std::shared_ptr<Data> msg) {
         if (IsWorking() && msg && ws_server_) {
             const auto server = ws_server_;
-            plugin_context_->PostWorkTask([server, msg = std::move(msg)]() {
+            module_context_->PostWorkTask([server, msg = std::move(msg)]() {
                 if (server && server->IsWorking()) {
                     server->PostUserProxyMessage(msg);
                 }
@@ -139,38 +143,38 @@ namespace px
         }
     }
 
-    void WsPlugin::PostIpcBinaryMessage(std::shared_ptr<Data> msg) {
+    void WsTransport::SendIpc(std::shared_ptr<Data> msg) {
         if (!IsWorking() || !msg || !ws_server_) {
             return;
         }
         const auto server = ws_server_;
-        plugin_context_->PostWorkTask([server, msg = std::move(msg)]() {
+        module_context_->PostWorkTask([server, msg = std::move(msg)]() {
             if (server && server->IsWorking()) {
                 server->PostIpcBinaryMessage(msg);
             }
         });
     }
 
-    void WsPlugin::RegisterIpcPid(uint32_t pid) {
+    void WsTransport::RegisterIpcPid(uint32_t pid) {
         if (!IsWorking() || !ws_server_) {
             return;
         }
         const auto server = ws_server_;
-        plugin_context_->PostWorkTask([server, pid]() {
+        module_context_->PostWorkTask([server, pid]() {
             if (server && server->IsWorking()) {
                 server->RegisterIpcPid(pid);
             }
         });
     }
 
-    bool WsPlugin::IsUserProxyConnected() {
+    bool WsTransport::IsUserProxyConnected() {
         if (IsWorking() && ws_server_) {
             return ws_server_->IsUserProxyConnected();
         }
         return false;
     }
 
-    bool WsPlugin::IsOnlyAudioClients() {
+    bool WsTransport::HasOnlyAudioClients() {
         if (IsWorking()) {
             return ws_server_->IsOnlyAudioClients();
         } else {
@@ -178,7 +182,7 @@ namespace px
         }
     }
 
-    int WsPlugin::GetConnectedClientsCount() {
+    int WsTransport::ConnectedClientCount() {
         if (IsWorking()) {
             return ws_server_->GetConnectedClientsCount();
         } else {
@@ -186,7 +190,7 @@ namespace px
         }
     }
 
-    int64_t WsPlugin::GetQueuingMediaMsgCount() {
+    int64_t WsTransport::QueuedMediaCount() {
         if (IsWorking()) {
             return ws_server_->GetQueuingMediaMsgCount();
         } else {
@@ -194,7 +198,7 @@ namespace px
         }
     }
 
-    int64_t WsPlugin::GetQueuingFtMsgCount() {
+    int64_t WsTransport::QueuedFileTransferCount() {
         if (IsWorking()) {
             return ws_server_->GetQueuingFtMsgCount();
         } else {
@@ -202,26 +206,26 @@ namespace px
         }
     }
 
-    bool WsPlugin::HasEnoughBufferForQueuingMediaMessages() {
+    bool WsTransport::HasMediaCapacity() const noexcept {
         return true;
     }
 
-    bool WsPlugin::HasEnoughBufferForQueuingFtMessages() {
+    bool WsTransport::HasFileTransferCapacity() const noexcept {
         return true;
     }
 
-    bool WsPlugin::HasConnectedClients() {
-        return GetConnectedClientsCount() > 0;
+    bool WsTransport::HasConnectedClients() {
+        return ConnectedClientCount() > 0;
     }
 
-    std::vector<std::shared_ptr<PxConnectedClientInfo>> WsPlugin::GetConnectedClientInfo() {
+    std::vector<std::shared_ptr<PxConnectedClientInfo>> WsTransport::ConnectedClients() {
         if (IsWorking()) {
             return ws_server_->GetConnectedClientInfo();
         }
         return {};
     }
 
-    void WsPlugin::DispatchAppEvent(const std::shared_ptr<AppBaseEvent> &event) {
+    void WsTransport::HandleAppEvent(const std::shared_ptr<AppBaseEvent> &event) {
         if (event->type_ == AppBaseEvent::EType::kClientHello) {
             auto target_event = std::dynamic_pointer_cast<MsgClientHello>(event);
             if (ws_server_) {
@@ -230,7 +234,7 @@ namespace px
         }
     }
 
-    void WsPlugin::ConfigureNetworkServices(
+    void WsTransport::ConfigureNetworkServices(
         NetworkBroadcaster network_broadcaster,
         FileTransferBroadcaster file_transfer_broadcaster,
         LocalRtcAllocator local_rtc_allocator,
@@ -242,7 +246,7 @@ namespace px
         udp_association_updater_ = std::move(udp_association_updater);
     }
 
-    void WsPlugin::BroadcastNetworkMessage(
+    void WsTransport::BroadcastNetworkMessage(
         const std::shared_ptr<Data>& message,
         const bool run_through) const {
         NetworkBroadcaster broadcaster;
@@ -255,7 +259,7 @@ namespace px
         }
     }
 
-    void WsPlugin::BroadcastFileTransferMessage(
+    void WsTransport::BroadcastFileTransferMessage(
         const std::string& stream_id,
         const std::shared_ptr<Data>& message,
         const bool run_through) const {
@@ -269,7 +273,7 @@ namespace px
         }
     }
 
-    PxLocalRtcAllocResult WsPlugin::AllocateLocalRtcInstance(
+    PxLocalRtcAllocResult WsTransport::AllocateLocalRtcInstance(
         const std::shared_ptr<PxLocalRtcRequestInfo>& request,
         LocalRtcCompletion completion) const {
         LocalRtcAllocator allocator;
@@ -282,12 +286,12 @@ namespace px
             : PxLocalRtcAllocResult::kFailed;
     }
 
-    bool WsPlugin::HasLocalRtcService() const {
+    bool WsTransport::HasLocalRtcService() const {
         std::scoped_lock lock(network_services_mutex_);
         return static_cast<bool>(local_rtc_allocator_);
     }
 
-    bool WsPlugin::UpdateUdpAssociation(
+    bool WsTransport::UpdateUdpAssociation(
         const UdpMediaAssociation& association) const {
         UdpAssociationUpdater updater;
         {
@@ -300,7 +304,7 @@ namespace px
         return updater(association);
     }
 
-    void WsPlugin::ConfigureIpcMediaIngress(
+    void WsTransport::ConfigureIpcMediaIngress(
         IpcVideoFrameSink video_sink,
         IpcAudioFrameSink audio_sink) {
         std::scoped_lock lock(ipc_media_ingress_mutex_);
@@ -308,7 +312,7 @@ namespace px
         ipc_audio_frame_sink_ = std::move(audio_sink);
     }
 
-    void WsPlugin::SubmitIpcVideoFrame(
+    void WsTransport::SubmitIpcVideoFrame(
         const CaptureVideoFrame& frame) const {
         IpcVideoFrameSink sink;
         {
@@ -320,7 +324,7 @@ namespace px
         }
     }
 
-    void WsPlugin::SubmitIpcAudioFrame(
+    void WsTransport::SubmitIpcAudioFrame(
         const CaptureAudioFrame& frame) const {
         IpcAudioFrameSink sink;
         {
@@ -332,7 +336,59 @@ namespace px
         }
     }
 
-    void WsPlugin::OnMessageAck(const std::shared_ptr<NetMessageAck> &ack) {
+    void WsTransport::ReceiveClientEvent(
+        const bool is_proto,
+        const std::int64_t socket_fd,
+        const NetPluginType transport_type,
+        const NetChannelType channel_type,
+        std::shared_ptr<Data> message,
+        std::string connection_instance_id) {
+        auto event = std::make_shared<PxPluginNetClientEvent>();
+        event->is_proto_ = is_proto;
+        event->socket_fd_ = socket_fd;
+        event->nt_plugin_type_ = transport_type;
+        event->nt_channel_type_ = channel_type;
+        event->message_ = std::move(message);
+        event->source_plugin_id_ = Id();
+        event->connection_instance_id_ = std::move(connection_instance_id);
+        const auto weak_self = std::weak_ptr<WsTransport>(
+            std::dynamic_pointer_cast<WsTransport>(shared_from_this()));
+        event->ack_callback_ = [weak_self](
+            const std::shared_ptr<NetMessageAck>& ack) {
+            if (const auto self = weak_self.lock()) {
+                self->HandleMessageAck(ack);
+            }
+        };
+        EmitCompatibilityEvent(event);
+    }
+
+    void WsTransport::ReceiveClientEventImmediately(
+        const bool is_proto,
+        const std::int64_t socket_fd,
+        const NetPluginType transport_type,
+        const NetChannelType channel_type,
+        std::shared_ptr<Data> message,
+        std::string connection_instance_id) {
+        auto event = std::make_shared<PxPluginNetClientEvent>();
+        event->is_proto_ = is_proto;
+        event->socket_fd_ = socket_fd;
+        event->nt_plugin_type_ = transport_type;
+        event->nt_channel_type_ = channel_type;
+        event->message_ = std::move(message);
+        event->source_plugin_id_ = Id();
+        event->connection_instance_id_ = std::move(connection_instance_id);
+        const auto weak_self = std::weak_ptr<WsTransport>(
+            std::dynamic_pointer_cast<WsTransport>(shared_from_this()));
+        event->ack_callback_ = [weak_self](
+            const std::shared_ptr<NetMessageAck>& ack) {
+            if (const auto self = weak_self.lock()) {
+                self->HandleMessageAck(ack);
+            }
+        };
+        EmitCompatibilityEventImmediately(event);
+    }
+
+    void WsTransport::HandleMessageAck(const std::shared_ptr<NetMessageAck> &ack) {
         //LOGI("OnMessage ack, type: {}, channel: {}, resp time: {}", ack->msg_type_, (int)ack->ch_type_, ack->resp_time_);
         if (ack->ch_type_ == NetChannelType::kFileTransfer) {
             if (last_ack_) {
@@ -343,7 +399,7 @@ namespace px
         }
     }
 
-    void WsPlugin::OnEncodedVideoFrame(const std::string& mon_name,
+    void WsTransport::SubmitEncodedVideo(const std::string& mon_name,
                                        const PxPluginEncodedVideoType& video_type,
                                        const std::shared_ptr<Data>& data,
                                        uint64_t frame_index,
@@ -356,7 +412,7 @@ namespace px
         }
     }
 
-    std::string WsPlugin::GetCapturingMonitorName() {
+    std::string WsTransport::CapturingMonitorName() {
         std::lock_guard<std::mutex> lk(capturing_mon_mtx_);
         if (capturing_mon_name_.empty() && game_hook_mode_) {
             // game hook 模式输入按游戏窗口 rect 换算,不需要显示器名;

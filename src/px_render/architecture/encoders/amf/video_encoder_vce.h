@@ -19,7 +19,7 @@ typedef std::function<void (amf::AMFData *)> AMFTextureReceiver;
 
 namespace px
 {
-    class AmfEncoderPlugin;
+    class AmfVideoEncoder;
 
     class AMFTextureEncoder {
     public:
@@ -62,7 +62,9 @@ namespace px
     // Video encoder for AMD VCE.
     class VideoEncoderVCE {
     public:
-        explicit VideoEncoderVCE(AmfEncoderPlugin* plugin, uint64_t adapter_uid);
+        explicit VideoEncoderVCE(
+            const std::shared_ptr<AmfVideoEncoder>& owner,
+            uint64_t adapter_uid);
         ~VideoEncoderVCE();
 
         bool Initialize(const px::EncoderConfig &config);
@@ -91,7 +93,7 @@ namespace px
         bool insert_idr_ = false;
         int gop_ = 180;
         EncoderConfig encoder_config_;
-        px::AmfEncoderPlugin* plugin_ = nullptr;
+        std::weak_ptr<AmfVideoEncoder> owner_;
 
         ComPtr<ID3D11Device> d3d11_device_;
         ComPtr<ID3D11DeviceContext> d3d11_device_context_;

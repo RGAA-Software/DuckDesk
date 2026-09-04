@@ -23,6 +23,8 @@
 #include "px_common_new/log.h"
 #include "architecture/observers/frame_debugger_observer.h"
 #include "architecture/pipeline/encoded_media_bus.h"
+#include "architecture/encoders/video_encoder_module.h"
+#include "architecture/sources/monitor_capture_source.h"
 #include "architecture/services/input_replay_service.h"
 #include "architecture/services/joystick_service.h"
 #include "architecture/services/file_transfer_types.h"
@@ -46,9 +48,6 @@
 #include "px_common_new/win32/process_helper.h"
 #include "px_common_new/virtual_display_timeouts.h"
 #include "px_capture_new/capture_message_maker.h"
-#include "px_render/plugin_interface/px_video_encoder_plugin.h"
-#include "px_render/plugin_interface/px_monitor_capture_plugin.h"
-#include "px_render/plugin_interface/px_stream_plugin.h"
 
 namespace px {
 
@@ -398,16 +397,6 @@ namespace px {
                 event->conn_type_, event->plugin_name_);
         }
 
-        for (const auto& capture : {
-                 module_registry_->GetDdaCapture(),
-                 module_registry_->GetGdiCapture()}) {
-            if (capture) {
-                capture->OnNewClientConnected(
-                    event->visitor_device_id_, event->stream_id_,
-                    event->conn_type_);
-            }
-        }
-
         module_registry_->InsertIdr();
 
         // active the password inputting ui
@@ -526,11 +515,11 @@ namespace px {
         app_->UpdateCapturingMonitorInfo();
 
         // Send monitor changed message
-        if (const auto plugin = app_->GetWorkingMonitorCapturePlugin()) {
+        if (const auto plugin = app_->GetWorkingMonitorCaptureSource()) {
             const auto cm_msg = CaptureMonitorInfoMessage {
-                .monitors_ = plugin->GetCaptureMonitorInfo(),
-                .capturing_monitor_name_ = plugin->GetCapturingMonitorName(),
-                .virtual_desktop_bound_rectangle_info_ = plugin->GetVirtualDesktopBoundRectangleInfo()
+                .monitors_ = plugin->CaptureMonitors(),
+                .capturing_monitor_name_ = plugin->CapturingMonitorName(),
+                .virtual_desktop_bound_rectangle_info_ = plugin->VirtualDesktopBounds()
             };
             msg_notifier_->SendAppMessage(cm_msg);
             module_registry_->UpdateRtcLocalCaptureMonitorInfo(cm_msg);
@@ -851,7 +840,7 @@ namespace px {
                 case kHello: {
                     this->ProcessHelloEvent(std::move(msg));
                     if (event->nt_plugin_type_ == NetPluginType::kUdpKcp) {
-                        this->SyncInfoToUdpPlugin(event->socket_fd_, msg->device_id(), msg->stream_id());
+                        this->SyncInfoToUdpTransport(event->socket_fd_, msg->device_id(), msg->stream_id());
                     }
                     break;
                 }
@@ -862,7 +851,7 @@ namespace px {
                 case kHeartBeat: {
                     ProcessHeartBeat(std::move(msg));
                     if (event->nt_plugin_type_ == NetPluginType::kUdpKcp) {
-                        this->SyncInfoToUdpPlugin(event->socket_fd_, msg->device_id(), msg->stream_id());
+                        this->SyncInfoToUdpTransport(event->socket_fd_, msg->device_id(), msg->stream_id());
                     }
                     break;
                 }
@@ -1274,17 +1263,17 @@ namespace px {
                 return;
             }
             auto sm = msg->switch_monitor();
-            auto capture_plugin = self->app_->GetWorkingMonitorCapturePlugin();
-            if (!capture_plugin) {
+            auto capture_source = self->app_->GetWorkingMonitorCaptureSource();
+            if (!capture_source) {
                 return;
             }
-            capture_plugin->SetCaptureMonitor(sm.name());
+            capture_source->SelectMonitor(sm.name());
             //plugin->SendCapturingMonitorMessage();
 
-            auto encoder_plugins = self->app_->GetWorkingVideoEncoderPlugins();
-            for (const auto& [k, encoder_plugin] : encoder_plugins) {
-                if (encoder_plugin) {
-                    encoder_plugin->InsertIdr();
+            auto encoders = self->app_->GetWorkingVideoEncoders();
+            for (const auto& [k, encoder] : encoders) {
+                if (encoder) {
+                    encoder->RequestKeyFrame();
                 }
             }
 
@@ -1292,7 +1281,7 @@ namespace px {
             self->app_->UpdateCapturingMonitorInfo();
 
             int mon_index = 0;
-            auto mon_index_res = capture_plugin->GetMonIndexByName(sm.name());
+            auto mon_index_res = capture_source->MonitorIndexByName(sm.name());
             if (mon_index_res.has_value()) {
                 mon_index = mon_index_res.value();
             }
@@ -1309,7 +1298,7 @@ namespace px {
                 return;
             }
             auto wm = msg->work_mode();
-            auto plugin = self->app_->GetWorkingMonitorCapturePlugin();
+            auto plugin = self->app_->GetWorkingMonitorCaptureSource();
             if (!plugin) {
                 LOGE("Working monitor capture is empty!");
                 return;
@@ -1328,20 +1317,20 @@ namespace px {
     }
 
     void NetworkEventIngress::ProcessStartMediaRecordClientSide() {
-        auto encoder_plugins = app_->GetWorkingVideoEncoderPlugins();
-        for (const auto& [k, encoder_plugin] : encoder_plugins) {
-            if (encoder_plugin) {
-                encoder_plugin->InsertIdr();
-                encoder_plugin->SetClientSideMediaRecording(true);
+        auto encoders = app_->GetWorkingVideoEncoders();
+        for (const auto& [k, encoder] : encoders) {
+            if (encoder) {
+                encoder->RequestKeyFrame();
+                encoder->SetClientSideMediaRecording(true);
             }
         }
     }
 
     void NetworkEventIngress::ProcessStopMediaRecordClientSide() {
-        auto encoder_plugins = app_->GetWorkingVideoEncoderPlugins();
-        for (const auto& [k, encoder_plugin] : encoder_plugins) {
-            if (encoder_plugin) {
-                encoder_plugin->SetClientSideMediaRecording(false);
+        auto encoders = app_->GetWorkingVideoEncoders();
+        for (const auto& [k, encoder] : encoders) {
+            if (encoder) {
+                encoder->SetClientSideMediaRecording(false);
             }
         }
     }
@@ -1411,7 +1400,7 @@ namespace px {
         desk_manager->UpdateDesktop();
     }
 
-    void NetworkEventIngress::SyncInfoToUdpPlugin(int64_t socket_fd, const std::string& device_id, const std::string& stream_id) {
+    void NetworkEventIngress::SyncInfoToUdpTransport(int64_t socket_fd, const std::string& device_id, const std::string& stream_id) {
         module_registry_->SyncUdpInfo(socket_fd, device_id, stream_id);
     }
 

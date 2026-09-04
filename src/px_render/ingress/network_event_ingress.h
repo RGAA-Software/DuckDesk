@@ -82,7 +82,7 @@ namespace px
         // client -> render 退出
         //void ProcessExitControlledEnd();
 
-        void SyncInfoToUdpPlugin(int64_t socket_fd, const std::string& device_id, const std::string& stream_id);
+        void SyncInfoToUdpTransport(int64_t socket_fd, const std::string& device_id, const std::string& stream_id);
 
         // report client connect/disconnect state
         void ReportClientConnected(const std::shared_ptr<PxPluginClientConnectedEvent>& event);

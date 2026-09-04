@@ -18,13 +18,17 @@ namespace px
 {
 
     class Data;
-    class GdiCapturePlugin;
+    class GdiCaptureSource;
 
     class GdiCapture : public DesktopCaptureSource,
                        public std::enable_shared_from_this<GdiCapture> {
     public:
-        static std::shared_ptr<GdiCapture> Make(GdiCapturePlugin* plugin, const CaptureMonitorInfo& my_monitor_info);
-        explicit GdiCapture(GdiCapturePlugin* plugin, const CaptureMonitorInfo& my_monitor_info);
+        static std::shared_ptr<GdiCapture> Make(
+            const std::shared_ptr<GdiCaptureSource>& owner,
+            const CaptureMonitorInfo& my_monitor_info);
+        explicit GdiCapture(
+            const std::shared_ptr<GdiCaptureSource>& owner,
+            const CaptureMonitorInfo& my_monitor_info);
         virtual ~GdiCapture();
         bool Init() override;
         bool StartCapture() override;
@@ -71,7 +75,7 @@ namespace px
         using UniqueBitmap =
             std::unique_ptr<std::remove_pointer_t<HBITMAP>, BitmapDeleter>;
 
-        GdiCapturePlugin* plugin_ = nullptr; // NOLINT(gammaray-raw-pointer-boundary): loader-owned plug-in instance boundary
+        std::weak_ptr<GdiCaptureSource> owner_;
         std::atomic_bool init_success_ = false;
         std::atomic<bool> stop_flag_ = false;
         std::mutex capture_thread_mutex_;

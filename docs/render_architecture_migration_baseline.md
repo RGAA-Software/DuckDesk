@@ -477,3 +477,73 @@ runner 会将未满足的前置条件明确标成 SKIP/INCOMPLETE，不将其误
 | `resources/render/frame_carrier/ic_logo_point.png` | `6503B71A5F21A255E4E710646F38C2A11922E3E5E635772A89F37BDFA8D67A91` |
 
 真实硬件音频、GPU/多显示器、LAN 弱网、30 分钟压力与 8 小时 soak 仍由最终验收环境执行。
+
+### 阶段 18：内建模块去继承与流程节点插件契约
+
+内建采集、编码和网络组件已从旧插件基类中完全分离：
+
+| 旧实体 | 新实体 | 新基类/归属 |
+|---|---|---|
+| `DDACapturePlugin` / `dda_capture_plugin.*` | `DdaCaptureSource` / `dda_capture_source.*` | `MonitorCaptureSource` |
+| `GdiCapturePlugin` / `gdi_capture_plugin.*` | `GdiCaptureSource` / `gdi_capture_source.*` | `MonitorCaptureSource` |
+| `FFmpegEncoderPlugin` / `ffmpeg_encoder_plugin.*` | `FfmpegVideoEncoder` / `ffmpeg_video_encoder.*` | `VideoEncoderModule` |
+| `AmfEncoderPlugin` / `amf_encoder_plugin.*` | `AmfVideoEncoder` / `amf_video_encoder.*` | `VideoEncoderModule` |
+| `NvencEncoderPlugin` / `nvenc_encoder_plugin.*` | `NvencEncoderModule` / `nvenc_encoder_module.*` | `VideoEncoderModule` |
+| `WsPlugin` / `ws_plugin.*` | `WsTransport` / `ws_transport.*` | Network |
+| `UdpPlugin` / `udp_plugin.*` | `UdpTransport` / `udp_transport.*` | Network |
+| `RelayPlugin` / `relay_plugin.*` | `RelayTransport` / `relay_transport.*` | Network |
+
+`RenderModuleRegistry` 只保存上述具体模块和两个 `WebRtcLibrary` facade，不再保存通用
+plugin vector，也不再访问 `PxVideoEncoderPlugin`、`PxMonitorCapturePlugin` 或
+`PxNetPlugin`。WS、UDP、Relay 的构建链接从 `px_net_plugin` 改为最小 `px_plugin`
+兼容事件依赖，共享网络值类型已抽到 `network/transport_types.h`。已经没有生产引用的
+audio/data-provider/frame-carrier/frame-processor/monitor/stream/video 旧插件基类及实现从
+`px_plugin` 构建和源码中删除。
+
+`plugin_interface` 现在只承担冻结的 WebRTC ABI 和过渡事件值；目录内 README 明确禁止
+新增产品接口。WebRTC remote/local 的 `PxNetPlugin` 继承仅是 DLL 私有 ABI adapter，exe、
+Registry、生命周期、路由和测试只接触 `WebRtcLibrary`，因此 WebRTC 在产品架构上是与
+WS/UDP/Relay 同层的动态网络库，不是可发现流程插件。
+
+新的 `architecture/extensions/flow_node_plugin.h` 定义 Video/Audio Source、Processor、
+Encoder、Observer 和 Sink 角色。公共参数全部为 owned value、`shared_ptr` 或
+`shared_ptr<const Frame>`；factory 返回 `shared_ptr`。生命周期使用 `PxAwaitable` 以简化
+callback 的 start/stop/drain/timeout/cancel 工作流，高频帧接口保持同步，异步 Sink 使用
+有界队列和单个长生命周期消费 coroutine。
+
+日志要求继续使用稳定结构化字段：`event`、`component`、`outcome`、`error`、`detail` 和
+脱敏后的 monitor/stream correlation。初始化、fallback、连接、队列丢弃、shutdown 超时为
+ERROR/WARN；逐帧成功不写日志。Capture gap、encode duration、transport queue、drop、
+high-watermark 和 drain duration 按 5 秒窗口聚合，时长统一使用 `steady_clock`。本阶段把
+编码失败日志统一到 `event=encoder.frame`，保留 backend、输入类型、错误码和显示器维度。
+
+测试要求：
+
+- linkage test 静态断言八个内建实体都不是 `PxPluginInterface` 派生类，并验证新流程节点
+  角色只继承 `FlowNodePlugin`；
+- 架构守卫检查旧文件名、旧类名、Registry 通用插件容器和新网络模块的 `PxNetPlugin`
+  依赖不得回归；
+- ownership gate 检查新增声明、callback 捕获和 Win32/第三方边界，禁止项目裸指针与
+  `[this]`；
+- 生命周期测试覆盖 callback 排队后 owner 销毁、dispatch 中注销、callback 内 shutdown、
+  重复 start/stop，以及 WebRTC facade 的十轮 load/start/stop/destroy/unload；
+- 数据面测试覆盖 processor 顺序/失败/丢帧、observer 弱生命周期、Sink 队列背压；网络
+  测试覆盖 WS async ticket/admission、UDP association、Relay route 和断开代际；
+- 完成 `build_cpp_render_arch_tests.bat` 与统一 runner 后，发布 `px_render.exe` 及发生变化的
+  WebRTC DLL，并逐项核对 build tree 与 `build_official/dist` SHA-256。真实 GPU、多显示器、
+  LAN 弱网、30 分钟压力和 8 小时 soak 仍由最终硬件验收执行。
+
+2026-09-04 自动化交付结果：`build_cpp_render.bat` 与
+`build_cpp_render_arch_tests.bat` 均通过；统一 runner 共执行 30 项（2 项架构守卫、28 项
+unit/lifecycle/integration），PASS 30、FAIL 0、SKIP 0，隐私扫描和 async lifetime 检查
+通过。发布后的运行产物哈希为：
+
+| 产物 | SHA-256（build tree 与 `build_official/dist` 一致） |
+|---|---|
+| `px_render.exe` | `396FBBADE493CB37EEBE0E67507E4B85827C51A41DF5850A491CEB4BD4339C2C` |
+| `net_rtc.dll` | `B37C7AA6EC45372D88EC8AA632010F32AF90315D9D07EC7CD4534858A5ED9133` |
+| `net_rtc_local.dll` | `9ACFCFEF447CFF97758819A1F74F1077206DC4EDA73679902960E89D1BE70F3F` |
+
+最终自动化证据目录为 `test-results/render-architecture/20260904-121054-all`，判定为
+“GO for the completed automated software gate”；硬件、LAN E2E、30 分钟压力和 8 小时
+soak 由最终验收执行。

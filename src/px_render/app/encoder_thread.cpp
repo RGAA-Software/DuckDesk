@@ -29,10 +29,7 @@
 #include "architecture/observers/frame_debugger_observer.h"
 #include "architecture/processors/frame_carrier_processor.h"
 #include "architecture/processors/frame_resizer_processor.h"
-#include "px_render/plugin_interface/px_stream_plugin.h"
-#include "px_render/plugin_interface/px_net_plugin.h"
-#include "px_render/plugin_interface/px_video_encoder_plugin.h"
-#include "px_render/plugin_interface/px_frame_processor_plugin.h"
+#include "architecture/encoders/video_encoder_module.h"
 #include "network/net_message_maker.h"
 #include "px_message.pb.h"
 
@@ -88,11 +85,11 @@ namespace px
         return encoder;
     }
 
-    EncoderThread::EncoderThread(const std::shared_ptr<RdApplication>& app) {
+    EncoderThread::EncoderThread(const std::shared_ptr<RdApplication>& app)
+        : settings_(*RdSettings::Instance()) {
         app_ = app;
         stat_ = RdStatistics::Instance();
         context_ = app->GetContext();
-        settings_ = RdSettings::Instance();
         module_registry_ = context_->GetRenderModuleRegistry();
         // 队列过小会频繁丢弃未执行任务;丢弃时若已 ++in_flight 会泄漏并把 backlog 抬飞。
         // 32 足以吸收短时尖峰,同时仍会在持续过载时丢最旧帧保实时性。
@@ -160,7 +157,7 @@ namespace px
                 clear_encoders_ = false;
                 LOGW("clear all encoders!!!");
                 std::lock_guard<std::mutex> lk(encoder_modules_mtx_);
-                encoder_plugins_.clear();
+                encoders_.clear();
             }
 
             auto adapter_uid = cap_video_msg.adapter_uid_;
@@ -199,7 +196,7 @@ namespace px
             }();
 
             bool full_color_mode_changed = false;
-            auto target_encoder_plugin = GetEncoderPluginForMonitor(monitor_name);
+            auto target_encoder = GetEncoderForMonitor(monitor_name);
 
             // Size thrash (windowed ↔ exclusive fullscreen) used to Exit/recreate NVENC every
             // few seconds and drop the WebRTC picture. Wait until the new size is stable.
@@ -207,7 +204,7 @@ namespace px
             // glass-to-glass lag feel like ~1s+ while fps stayed smooth on the last good size.
             // Only drop frames whose capture size != current encoder; keep streaming matches.
             constexpr int64_t kSizeChangeDebounceMs = 800;
-            if (frame_meta_info_changed && target_encoder_plugin) {
+            if (frame_meta_info_changed && target_encoder) {
                 const auto new_size = std::make_pair(cap_video_msg.frame_width_, cap_video_msg.frame_height_);
                 const auto now_ms = TimeUtil::GetCurrentTimestamp();
                 auto& pending = pending_frame_size_[monitor_name];
@@ -219,7 +216,7 @@ namespace px
                          new_size.first, new_size.second, kSizeChangeDebounceMs);
                 }
                 if (now_ms - since < kSizeChangeDebounceMs) {
-                    auto enc_cfg = target_encoder_plugin->GetEncoderConfig(monitor_name);
+                    auto enc_cfg = target_encoder->Configuration(monitor_name);
                     const bool size_matches_encoder = enc_cfg.has_value()
                         && enc_cfg->width == cap_video_msg.frame_width_
                         && enc_cfg->height == cap_video_msg.frame_height_;
@@ -235,11 +232,11 @@ namespace px
                 pending_frame_size_.erase(monitor_name);
                 pending_frame_size_since_ms_.erase(monitor_name);
             }
-            if (target_encoder_plugin) {
-                auto encoder_config_res = target_encoder_plugin->GetEncoderConfig(monitor_name);
+            if (target_encoder) {
+                auto encoder_config_res = target_encoder->Configuration(monitor_name);
                 if (encoder_config_res.has_value()) {
                     const auto selected_encoder_config = encoder_config_res.value();
-                    if (selected_encoder_config.enable_full_color_mode_ != settings_->EnableFullColorMode() ) {
+                    if (selected_encoder_config.enable_full_color_mode_ != settings_.EnableFullColorMode() ) {
                         full_color_mode_changed = true;
                         LOGI("full_color_mode_changed!!!");
                     }
@@ -249,48 +246,48 @@ namespace px
                 }
             }
             else {
-                LOGI("EncoderThread target_encoder_plugin is nullptr, will create encoder.");
+                LOGI("EncoderThread target_encoder is nullptr, will create encoder.");
             }
 
             // 全彩强制 HEVC 只影响本次有效格式,不得改写 settings 里用户/启动参数选定的 encoder_format_,
             // 否则关全彩后会永久卡在 HEVC(WebRTC/多数 Win 端按 H264 解 → 黑屏)。
-            const auto effective_format = settings_->EnableFullColorMode()
+            const auto effective_format = settings_.EnableFullColorMode()
                 ? Encoder::EncoderFormat::kHEVC
                 : settings->encoder_.encoder_format_;
             const bool switched_to_hevc = (effective_format == Encoder::EncoderFormat::kHEVC
                                           && encoder_format_ != Encoder::EncoderFormat::kHEVC);
 
             if (full_color_mode_changed || frame_meta_info_changed || encoder_format_ != effective_format
-                || !target_encoder_plugin || !target_encoder_plugin->IsPluginEnabled()) {
-                if (target_encoder_plugin) {
+                || !target_encoder || !target_encoder->IsEnabled()) {
+                if (target_encoder) {
                     // todo : Test it!
-                    target_encoder_plugin->Exit(monitor_name);
-                    target_encoder_plugin = nullptr;
+                    target_encoder->Remove(monitor_name);
+                    target_encoder = nullptr;
                 }
                 px::EncoderConfig encoder_config;
                 // WebView OSR frames arrive as CPU BGRA images without a
-                // desktop-capture plugin. Route them through the CPU-input
+                // desktop-capture module. Route frames through the CPU-input
                 // encoder chain just like GDI frames; texture-only encoders
                 // cannot consume this buffer.
                 const bool is_cpu_frame = cap_video_msg.raw_image_ != nullptr && cap_video_msg.handle_ == 0;
                 bool is_gdi_capture = is_cpu_frame ||
-                    module_registry_->IsGdiCapture(app_->GetWorkingMonitorCapturePlugin());
-                if (settings_->encoder_.encode_res_type_ == Encoder::EncodeResolutionType::kOrigin || is_gdi_capture) {
+                    module_registry_->IsGdiCapture(app_->GetWorkingMonitorCaptureSource());
+                if (settings_.encoder_.encode_res_type_ == Encoder::EncodeResolutionType::kOrigin || is_gdi_capture) {
                     encoder_config.width = cap_video_msg.frame_width_;
                     encoder_config.height = cap_video_msg.frame_height_;
                     encoder_config.encode_width = cap_video_msg.frame_width_;
                     encoder_config.encode_height = cap_video_msg.frame_height_;
                     encoder_config.frame_resize = false;
                 } else {
-                    encoder_config.width = settings_->encoder_.encode_width_;
-                    encoder_config.height = settings_->encoder_.encode_height_;
-                    encoder_config.encode_width = settings_->encoder_.encode_width_;
-                    encoder_config.encode_height = settings_->encoder_.encode_height_;
+                    encoder_config.width = settings_.encoder_.encode_width_;
+                    encoder_config.height = settings_.encoder_.encode_height_;
+                    encoder_config.encode_width = settings_.encoder_.encode_width_;
+                    encoder_config.encode_height = settings_.encoder_.encode_height_;
                     // resize will be enabled when dda capture working
                     encoder_config.frame_resize = true;
                 }
 
-                if (settings_->EnableFullColorMode()) {
+                if (settings_.EnableFullColorMode()) {
                     LOGI("full color mode, use HEVC (settings format kept: {})", (int)settings->encoder_.encoder_format_);
                 }
 
@@ -300,7 +297,7 @@ namespace px
                 encoder_config.gop_size = -1;
                 encoder_config.quality_preset = 1;
                 // MUST have a value > 0
-                encoder_config.fps = settings_->encoder_.fps_;
+                encoder_config.fps = settings_.encoder_.fps_;
                 if (encoder_config.fps < 15 || encoder_config.fps > 120) {
                     encoder_config.fps = 60;
                 }
@@ -320,7 +317,7 @@ namespace px
                     : static_cast<int>(DXGI_FORMAT_B8G8R8A8_UNORM);
                 encoder_config.bitrate = settings->encoder_.bitrate_ * 1000000;
                 encoder_config.adapter_uid_ = cap_video_msg.adapter_uid_;
-                encoder_config.enable_full_color_mode_ = settings_->EnableFullColorMode();
+                encoder_config.enable_full_color_mode_ = settings_.EnableFullColorMode();
 
                 PrintEncoderConfig(encoder_config);
 
@@ -371,63 +368,63 @@ namespace px
                     LOGE("Init Frame Carrier failed");
                 }
 
-                // plugins: Create encoder plugin
+                // Create the encoder module.
 
                 auto select_encoder_with_capability_func =
-                    [=, &target_encoder_plugin](
-                        const std::shared_ptr<PxVideoEncoderPlugin>& encoder_plugin,
+                    [=, &target_encoder](
+                        const std::shared_ptr<VideoEncoderModule>& encoder,
                         const std::string& monitor_name) {
                     if (!encoder_config.enable_full_color_mode_) {
-                        target_encoder_plugin = encoder_plugin;
+                        target_encoder = encoder;
                     }
                     else {
-                        auto cap_res = encoder_plugin->GetEncoderCapability(monitor_name);
+                        auto cap_res = encoder->Capability(monitor_name);
                         if (cap_res.has_value()) {
                             auto cap = cap_res.value();
                             if (px::EVideoCodecType::kH264 == encoder_config.codec_type) {
                                 if (cap.support_h264_yuv444_) {
-                                    target_encoder_plugin = encoder_plugin;
+                                    target_encoder = encoder;
                                 }
                             }
                             else if (px::EVideoCodecType::kHEVC == encoder_config.codec_type) {
                                 if (cap.support_hevc_yuv444_) {
-                                    target_encoder_plugin = encoder_plugin;
+                                    target_encoder = encoder;
                                 }
                             }
                         }
                     }
                 };
 
-                if (!target_encoder_plugin) {
+                if (!target_encoder) {
                     LOGI("Hardware disabled? {}", hardware_disabled_.load());
                     // GDI 采集产出 CPU 裸帧,走 Encode(Image) 路径;NVENC/AMF 只实现纹理编码,
                     // Encode(Image) 基类返回 kNotImplemented。选了它们会在编码失败→清空→重建
                     // 中原地死循环,永远出不了图,必须直接跳到 FFmpeg 链(其 kNvEnc/kQsv 硬编
                     // 由 ffmpeg 内部完成 CPU→GPU 上传)。
-                    auto nvenc_encoder_plugin = module_registry_->GetNvencEncoder();
-                    if (!is_gdi_capture && !hardware_disabled_ && nvenc_encoder_plugin && nvenc_encoder_plugin->IsPluginEnabled() && nvenc_encoder_plugin->Init(encoder_config, monitor_name)) {
-                        select_encoder_with_capability_func(nvenc_encoder_plugin, monitor_name);
+                    auto nvenc_encoder = module_registry_->GetNvencEncoder();
+                    if (!is_gdi_capture && !hardware_disabled_ && nvenc_encoder && nvenc_encoder->IsEnabled() && nvenc_encoder->Initialize(encoder_config, monitor_name)) {
+                        select_encoder_with_capability_func(nvenc_encoder, monitor_name);
                     }
 
-                    if (!target_encoder_plugin) {
+                    if (!target_encoder) {
                         LOGW("Init NVENC {}failed, will try AMF.", is_gdi_capture ? "skipped(GDI raw frames), " : "");
-                        auto amf_encoder_plugin = module_registry_->GetAmfEncoder();
-                        if (!is_gdi_capture && !hardware_disabled_ && amf_encoder_plugin && amf_encoder_plugin->IsPluginEnabled() && amf_encoder_plugin->Init(encoder_config, monitor_name)) {
-                            select_encoder_with_capability_func(amf_encoder_plugin, monitor_name);
+                        auto amf_encoder = module_registry_->GetAmfEncoder();
+                        if (!is_gdi_capture && !hardware_disabled_ && amf_encoder && amf_encoder->IsEnabled() && amf_encoder->Initialize(encoder_config, monitor_name)) {
+                            select_encoder_with_capability_func(amf_encoder, monitor_name);
                         }
                     }
 
-                    auto ffmpeg_encoder_plugin = module_registry_->GetFFmpegEncoder();
-                    if (!target_encoder_plugin) {
+                    auto ffmpeg_encoder = module_registry_->GetFFmpegEncoder();
+                    if (!target_encoder) {
                         LOGW("Init AMF failed, will try FFmpeg(kNvEnc).");
                         // 让ffmpeg尝试硬编码初始化
                         encoder_config.Hardware = EHardwareEncoder::kNvEnc;
-                        if (ffmpeg_encoder_plugin && ffmpeg_encoder_plugin->IsPluginEnabled() && ffmpeg_encoder_plugin->Init(encoder_config, monitor_name)) {
-                            select_encoder_with_capability_func(ffmpeg_encoder_plugin, monitor_name);
+                        if (ffmpeg_encoder && ffmpeg_encoder->IsEnabled() && ffmpeg_encoder->Initialize(encoder_config, monitor_name)) {
+                            select_encoder_with_capability_func(ffmpeg_encoder, monitor_name);
                         }
                     }
 
-                    if (!target_encoder_plugin) {
+                    if (!target_encoder) {
                         // Intel Quick Sync 兜底:无 N/A 卡的机器(如只有 Intel 核显)
                         // 用 QSV 硬编,把 1080p 编码从 x264 软编的一个多大核上卸下来,
                         // 否则软编与采集/同机浏览器抢 CPU,DDA 采集被压到 32~40fps。
@@ -435,39 +432,39 @@ namespace px
                         // 实际映射为 libx264 且总能初始化成功,排在它后面永远轮不到。
                         LOGW("Init FFmpeg(kNvEnc) failed, will try FFmpeg(kQsv).");
                         encoder_config.Hardware = EHardwareEncoder::kQsv;
-                        if (!hardware_disabled_ && ffmpeg_encoder_plugin && ffmpeg_encoder_plugin->IsPluginEnabled() && ffmpeg_encoder_plugin->Init(encoder_config, monitor_name)) {
-                            select_encoder_with_capability_func(ffmpeg_encoder_plugin, monitor_name);
+                        if (!hardware_disabled_ && ffmpeg_encoder && ffmpeg_encoder->IsEnabled() && ffmpeg_encoder->Initialize(encoder_config, monitor_name)) {
+                            select_encoder_with_capability_func(ffmpeg_encoder, monitor_name);
                         }
                     }
 
-                    if (!target_encoder_plugin) {
+                    if (!target_encoder) {
                         LOGW("Init FFmpeg(kQsv) failed, will try FFmpeg(kAmf).");
                         // 让ffmpeg尝试硬编码初始化
                         encoder_config.Hardware = EHardwareEncoder::kAmf;
-                        if (ffmpeg_encoder_plugin && ffmpeg_encoder_plugin->IsPluginEnabled() && ffmpeg_encoder_plugin->Init(encoder_config, monitor_name)) {
-                            select_encoder_with_capability_func(ffmpeg_encoder_plugin, monitor_name);
+                        if (ffmpeg_encoder && ffmpeg_encoder->IsEnabled() && ffmpeg_encoder->Initialize(encoder_config, monitor_name)) {
+                            select_encoder_with_capability_func(ffmpeg_encoder, monitor_name);
                         }
                     }
 
-                    if (!target_encoder_plugin) {
+                    if (!target_encoder) {
                         LOGW("Init FFmpeg(kAmf) failed, will try FFmpeg(kNone).");
                         //让ffmpeg尝试软件编码初始化
                         encoder_config.Hardware = EHardwareEncoder::kNone;
-                        if (ffmpeg_encoder_plugin && ffmpeg_encoder_plugin->IsPluginEnabled() && ffmpeg_encoder_plugin->Init(encoder_config, monitor_name)) {
-                            select_encoder_with_capability_func(ffmpeg_encoder_plugin, monitor_name);
+                        if (ffmpeg_encoder && ffmpeg_encoder->IsEnabled() && ffmpeg_encoder->Initialize(encoder_config, monitor_name)) {
+                            select_encoder_with_capability_func(ffmpeg_encoder, monitor_name);
                         }
                     }
 
-                    if (!target_encoder_plugin) {
+                    if (!target_encoder) {
                         LOGW("Init FFmpeg(kAmf) failed, will try FFmpeg(kNone). without capability!");
                         //让ffmpeg尝试软件编码初始化
                         encoder_config.Hardware = EHardwareEncoder::kNone;
-                        if (ffmpeg_encoder_plugin && ffmpeg_encoder_plugin->IsPluginEnabled() && ffmpeg_encoder_plugin->Init(encoder_config, monitor_name)) {
-                            target_encoder_plugin = ffmpeg_encoder_plugin;
+                        if (ffmpeg_encoder && ffmpeg_encoder->IsEnabled() && ffmpeg_encoder->Initialize(encoder_config, monitor_name)) {
+                            target_encoder = ffmpeg_encoder;
                         }
                     }
 
-                    if (!target_encoder_plugin) {
+                    if (!target_encoder) {
                         LOGE("Init FFmpeg failed, we can't encode frame in this machine!");
                         return;
                     }
@@ -475,10 +472,10 @@ namespace px
 
                 {
                     std::lock_guard<std::mutex> lk(encoder_modules_mtx_);
-                    encoder_plugins_[monitor_name] = target_encoder_plugin;
+                    encoders_[monitor_name] = target_encoder;
                 }
-                LOGI("Finally, we use encoder plugin: {}, version: {} for monitor: {}",
-                     target_encoder_plugin->GetPluginName(), target_encoder_plugin->GetVersionName(), monitor_name);
+                LOGI("Selected encoder module: {}, version: {} for monitor: {}",
+                     target_encoder->Name(), target_encoder->VersionName(), monitor_name);
 
                 auto video_type = [=]() -> PxPluginEncodedVideoType {
                     if (effective_format == Encoder::EncoderFormat::kH264) {
@@ -513,7 +510,7 @@ namespace px
 
                 // Win 客户端可解 H265;WebRTC 只协商 H264。切到 H265 时若有 RTC 连接则下发提示。
                 if (switched_to_hevc) {
-                    const bool full_color = settings_->EnableFullColorMode();
+                    const bool full_color = settings_.EnableFullColorMode();
                     const std::string reason = full_color ? "full_color" : "encoder_format";
                     auto tip = NetMessageMaker::MakeVideoCodecChanged(px::VideoType::kNetHevc, full_color, reason);
                     if (module_registry_->PostRtcLocalMessage(tip, false)) {
@@ -535,7 +532,7 @@ namespace px
 
                 ComPtr<ID3D11Texture2D> target_texture = cp_result->texture;
                 // 2. resize ?
-                if (auto opt_config = target_encoder_plugin->GetEncoderConfig(monitor_name);
+                if (auto opt_config = target_encoder->Configuration(monitor_name);
                     opt_config.has_value() && opt_config.value().frame_resize) {
                     auto config = opt_config.value();
                     if (frame_resizer_processor_) {
@@ -568,23 +565,23 @@ namespace px
 
                 //video_encoder_->Encode(target_texture, frame_index);
                 bool can_encode_texture = false;
-                if (target_encoder_plugin && target_encoder_plugin->CanEncodeTexture()) {
+                if (target_encoder && target_encoder->CanEncodeTexture()) {
                     can_encode_texture = true;
                     // plugins: EncodeTexture
-                    auto encode_result = target_encoder_plugin->Encode(target_texture, frame_index, cap_video_msg);
+                    auto encode_result = target_encoder->Encode(target_texture, frame_index, cap_video_msg);
                     if (!encode_result.Success()) {
                         if (encode_result.type_ == VideoEncoderErrorType::kEncodeFailed) {
                             LOGW("<!!> Encode failed, will release this encoder for display and disable hardware: {}", monitor_name);
-                            target_encoder_plugin->Exit(monitor_name);
+                            target_encoder->Remove(monitor_name);
                             {
                                 std::lock_guard<std::mutex> lk(encoder_modules_mtx_);
-                                encoder_plugins_.erase(monitor_name);
+                                encoders_.erase(monitor_name);
                             }
                             // disable hardware encoder
                             hardware_disabled_ = true;
                         }
-                        LOGE("<!!> Encode texture failed, encoder plugin: {}, error: {}->{}, monitor: {}",
-                             target_encoder_plugin->GetPluginName(), (int)encode_result.type_, encode_result.GetReadableType(), monitor_name);
+                        LOGE("event=encoder.frame component={} input=texture outcome=failed error={} detail={} monitor={}",
+                             target_encoder->Name(), (int)encode_result.type_, encode_result.GetReadableType(), monitor_name);
                         return;
                     }
                 }
@@ -643,14 +640,14 @@ namespace px
                                 g_enc_diag.enc_wait_sum += enc_wait;
                                 auto prev = g_enc_diag.enc_wait_max.load();
                                 while (enc_wait > prev && !g_enc_diag.enc_wait_max.compare_exchange_weak(prev, enc_wait)) {}
-                                const auto encoder_plugin = self->GetEncoderPluginForMonitor(monitor_name);
-                                if (!encoder_plugin) {
+                                const auto encoder = self->GetEncoderForMonitor(monitor_name);
+                                if (!encoder) {
                                     return;
                                 }
-                                auto encode_result = encoder_plugin->Encode(image, frame_index, cap_video_msg);
+                                auto encode_result = encoder->Encode(image, frame_index, cap_video_msg);
                                 if (!encode_result.Success()) {
-                                    LOGE("<!!> Encode YUV failed, encoder plugin: {}, error: {}->, monitor: {}",
-                                         encoder_plugin->GetPluginName(), (int)encode_result.type_, encode_result.GetReadableType(), cap_video_msg.display_name_);
+                                    LOGE("event=encoder.frame component={} input=yuv outcome=failed error={} detail={} monitor={}",
+                                         encoder->Name(), (int)encode_result.type_, encode_result.GetReadableType(), cap_video_msg.display_name_);
                                     return;
                                 }
                             });
@@ -707,14 +704,14 @@ namespace px
                             if (!self || self->exiting_) {
                                 return;
                             }
-                            const auto encoder_plugin = self->GetEncoderPluginForMonitor(monitor_name);
-                            if (!encoder_plugin) {
+                            const auto encoder = self->GetEncoderForMonitor(monitor_name);
+                            if (!encoder) {
                                 return;
                             }
-                            auto encode_result = encoder_plugin->Encode(image, frame_index, cap_video_msg);
+                            auto encode_result = encoder->Encode(image, frame_index, cap_video_msg);
                             if (!encode_result.Success()) {
-                                LOGE("<!!> Encode YUV failed, encoder plugin: {}, error: {}->{}, monitor: {}",
-                                     encoder_plugin->GetPluginName(), (int)encode_result.type_, encode_result.GetReadableType(), cap_video_msg.display_name_);
+                                LOGE("event=encoder.frame component={} input=yuv outcome=failed error={} detail={} monitor={}",
+                                     encoder->Name(), (int)encode_result.type_, encode_result.GetReadableType(), cap_video_msg.display_name_);
                                 self->clear_encoders_ = true;
                                 return;
                             }
@@ -764,15 +761,15 @@ namespace px
                 return;
             }
             LOGW("Reset encoder pipeline after D3D device failure, adapter_uid={}", adapter_uid);
-            std::map<std::string, std::shared_ptr<PxVideoEncoderPlugin>>
-                working_plugins;
+            std::map<std::string, std::shared_ptr<VideoEncoderModule>>
+                working_encoders;
             {
                 std::lock_guard<std::mutex> lk(self->encoder_modules_mtx_);
-                working_plugins.swap(self->encoder_plugins_);
+                working_encoders.swap(self->encoders_);
             }
-            for (const auto& [monitor_name, plugin] : working_plugins) {
-                if (plugin) {
-                    plugin->Exit(monitor_name);
+            for (const auto& [monitor_name, encoder] : working_encoders) {
+                if (encoder) {
+                    encoder->Remove(monitor_name);
                 }
             }
             self->last_video_frames_.clear();
@@ -792,22 +789,22 @@ namespace px
         }
     }
 
-    std::map<std::string, std::shared_ptr<PxVideoEncoderPlugin>>
-    EncoderThread::GetWorkingVideoEncoderPlugins() {
+    std::map<std::string, std::shared_ptr<VideoEncoderModule>>
+    EncoderThread::GetWorkingVideoEncoders() {
         std::lock_guard<std::mutex> lk(encoder_modules_mtx_);
-        return encoder_plugins_;
+        return encoders_;
     }
 
     bool EncoderThread::HasEncoderForMonitor(const std::string& monitor_name) {
-        return GetEncoderPluginForMonitor(monitor_name) != nullptr;
+        return GetEncoderForMonitor(monitor_name) != nullptr;
     }
 
-    std::shared_ptr<PxVideoEncoderPlugin>
-    EncoderThread::GetEncoderPluginForMonitor(const std::string& monitor_name) {
+    std::shared_ptr<VideoEncoderModule>
+    EncoderThread::GetEncoderForMonitor(const std::string& monitor_name) {
         std::lock_guard<std::mutex> lk(encoder_modules_mtx_);
-        for (const auto& [name, plugin] : encoder_plugins_) {
+        for (const auto& [name, encoder] : encoders_) {
             if (name == monitor_name) {
-                return plugin;
+                return encoder;
             }
         }
         return {};

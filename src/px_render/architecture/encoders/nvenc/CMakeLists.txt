@@ -19,12 +19,12 @@ foreach(item ${NVENCODER_SOURCES})
     list(APPEND NVENCODER_SOURCES_LIST "${item}")
 endforeach()
 
-set(PLUGIN_SRCS
-        ${CMAKE_CURRENT_SOURCE_DIR}/nvenc_encoder_plugin.cpp
+set(MODULE_SRCS
+        ${CMAKE_CURRENT_SOURCE_DIR}/nvenc_encoder_module.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/nvenc_video_encoder.cpp
 )
 
-add_library(${PROJECT_NAME} STATIC ${PLUGIN_SRCS} ${NVENCODER_SOURCES_LIST})
+add_library(${PROJECT_NAME} STATIC ${MODULE_SRCS} ${NVENCODER_SOURCES_LIST})
 # NVENC enters the graphics driver while opening a D3D11 encode session.  Some
 # driver/session combinations signal a structured exception rather than a C++
 # NVENCException.  /EHa lets the guarded catch (...) paths return failure so

@@ -12,8 +12,8 @@
 #include "px_render/modules/module_ids.h"
 #include "rd_app.h"
 #include "rd_statistics.h"
-#include "px_render/plugin_interface/px_monitor_capture_plugin.h"
-#include "px_render/plugin_interface/px_video_encoder_plugin.h"
+#include "architecture/sources/monitor_capture_source.h"
+#include "architecture/encoders/video_encoder_module.h"
 #include "px_render/plugin_interface/px_net_plugin.h"
 #include "px_common_new/num_formatter.h"
 #include "px_message_new/proto_converter.h"
@@ -81,8 +81,8 @@ namespace px
         hb->set_shift_pressed(KeyHelper::IsShiftPressed());
         hb->set_timestamp(timestamp);
 
-        if (auto capture_plugin = app->GetWorkingMonitorCapturePlugin(); capture_plugin) {
-            hb->set_video_capture_type(capture_plugin->GetPluginName());
+        if (auto capture_source = app->GetWorkingMonitorCaptureSource(); capture_source) {
+            hb->set_video_capture_type(capture_source->Name());
         }
         else {
             hb->set_video_capture_type("UnKnown");
@@ -160,10 +160,10 @@ namespace px
         hb->set_os_name(os_name);
 
         //
-        auto video_capture_plugin = app->GetWorkingMonitorCapturePlugin();
-        auto video_encoder_plugins = app->GetWorkingVideoEncoderPlugins();
-        if (video_capture_plugin && !video_encoder_plugins.empty()) {
-            auto captures_info = video_capture_plugin->GetWorkingCapturesInfo();
+        auto video_capture_source = app->GetWorkingMonitorCaptureSource();
+        auto video_encoders = app->GetWorkingVideoEncoders();
+        if (video_capture_source && !video_encoders.empty()) {
+            auto captures_info = video_capture_source->WorkingCaptures();
             for (const auto& [name, info] : captures_info) {
                 auto monitors_info = hb->mutable_monitors_info();
                 IsolatedMonitorStatisticsInfoInRender st_info;
@@ -174,9 +174,9 @@ namespace px
                 st_info.set_capture_frame_height(info->capture_frame_height_);
 
                 // encoder info
-                if (video_encoder_plugins.contains(info->target_name_)) {
-                    auto video_encoder_plugin = video_encoder_plugins[info->target_name_];
-                    auto video_encoders_info = video_encoder_plugin->GetWorkingCapturesInfo();
+                if (video_encoders.contains(info->target_name_)) {
+                    auto video_encoder = video_encoders[info->target_name_];
+                    auto video_encoders_info = video_encoder->WorkingCaptures();
                     if (video_encoders_info.contains(info->target_name_)) {
                         auto encoder_info = video_encoders_info[info->target_name_];
                         st_info.set_encoder_name(encoder_info->encoder_name_);

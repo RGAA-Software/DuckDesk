@@ -24,7 +24,7 @@
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_render/modules/module_ids.h"
 #include "px_capture_new/capture_message.h"
-#include "ws_plugin.h"
+#include "ws_transport.h"
 #include "px_common_new/url_helper.h"
 #include "px_common_new/ws_control_signal.h"
 #include "http_handler.h"
@@ -108,10 +108,10 @@ namespace px
     }
 
     static void DispatchCloseLogicalSessionBinding(
-        const std::weak_ptr<WsPlugin>& plugin,
+        const std::weak_ptr<WsTransport>& transport,
         const std::string& logical_session_id,
         const std::string& binding_id) {
-        const auto owner = plugin.lock();
+        const auto owner = transport.lock();
         if (!owner || logical_session_id.empty() || binding_id.empty()) {
             return;
         }
@@ -119,11 +119,11 @@ namespace px
             std::make_shared<PxPluginCloseLogicalSessionBindingEvent>();
         event->logical_session_id_ = logical_session_id;
         event->binding_id_ = binding_id;
-        owner->CallbackEvent(event);
+        owner->EmitCompatibilityEvent(event);
     }
 
     static PxAwaitable<PxResult<WsTicketAdmission>> RedeemWsTicketAsync(
-        const std::weak_ptr<WsPlugin>& plugin,
+        const std::weak_ptr<WsTransport>& transport,
         const std::unordered_map<std::string, std::string>& params) {
         const auto ticket_it = params.find("ticket");
         if (ticket_it == params.end() || ticket_it->second.empty()) {
@@ -144,9 +144,9 @@ namespace px
             instance_id = instance->second;
         }
         co_return co_await render::AwaitOwnedCallback<WsTicketAdmission>(
-            [plugin, ticket, nonce, instance_id](
+            [transport, ticket, nonce, instance_id](
                 render::OwnedCallbackCompletion<WsTicketAdmission> completion) {
-                const auto owner = plugin.lock();
+                const auto owner = transport.lock();
                 if (!owner) {
                     return false;
                 }
@@ -183,7 +183,7 @@ namespace px
                             .allow_takeover_ = allow_takeover,
                         }));
                 };
-                owner->CallbackEvent(event);
+                owner->EmitCompatibilityEvent(event);
                 return true;
             },
             std::chrono::steady_clock::now() + std::chrono::seconds(3),
@@ -191,35 +191,36 @@ namespace px
     }
 
     static PxAwaitable<PxResult<LogicalSessionAdmission>> AdmitWsSessionAsync(
-        const std::weak_ptr<WsPlugin>& plugin,
+        const std::weak_ptr<WsTransport>& weak_transport,
         LogicalSessionGrant grant,
-        const LogicalSessionTransport transport,
+        const LogicalSessionTransport session_transport,
         std::string binding_id) {
         const auto logical_session_id = grant.logical_session_id;
         co_return co_await AwaitWsValueCallback<LogicalSessionAdmission>(
-            [plugin, grant = std::move(grant), transport, binding_id](
+            [weak_transport, grant = std::move(grant), session_transport,
+             binding_id](
                 std::function<void(LogicalSessionAdmission)> completion) {
-                const auto owner = plugin.lock();
+                const auto owner = weak_transport.lock();
                 if (!owner) {
                     return false;
                 }
                 const auto event =
                     std::make_shared<PxPluginAdmitLogicalSessionEvent>();
                 event->grant_ = grant;
-                event->transport_ = transport;
+                event->transport_ = session_transport;
                 event->binding_id_ = binding_id;
                 event->callback_ = std::move(completion);
-                owner->CallbackEvent(event);
+                owner->EmitCompatibilityEvent(event);
                 return true;
             },
             std::chrono::steady_clock::now() + std::chrono::seconds(3),
             "ws_session_admit",
-            [plugin, logical_session_id, binding_id](
+            [weak_transport, logical_session_id, binding_id](
                 const LogicalSessionAdmission& admission) {
                 if (admission.code ==
                     LogicalSessionAdmissionCode::kAccepted) {
                     DispatchCloseLogicalSessionBinding(
-                        plugin, logical_session_id, binding_id);
+                        weak_transport, logical_session_id, binding_id);
                 }
             });
     }
@@ -357,11 +358,11 @@ namespace px
                         || *type == 350 || *type == 351 || *type == 360);
     }
 
-    WsPluginServer::WsPluginServer(std::weak_ptr<WsPlugin> plugin,
+    WsServer::WsServer(std::weak_ptr<WsTransport> transport,
                                    const uint16_t listen_port)
-        : plugin_(std::move(plugin)), listen_port_(listen_port) {}
+        : transport_(std::move(transport)), listen_port_(listen_port) {}
 
-    void WsPluginServer::Start() {
+    void WsServer::Start() {
         if (server_ || async_runtime_) {
             Exit();
         }
@@ -376,7 +377,7 @@ namespace px
         }
         async_scope_ = PxAsyncScope::Create(
             async_runtime_, PxAsyncLane::kControl);
-        http_handler_ = std::make_shared<HttpHandler>(plugin_, async_scope_);
+        http_handler_ = std::make_shared<HttpHandler>(transport_, async_scope_);
         auto weak_self = weak_from_this();
         server_ = std::make_shared<asio2::http_server>();
         server_->bind_disconnect([weak_self](std::shared_ptr<asio2::http_session>& sess_ptr) {
@@ -412,7 +413,7 @@ namespace px
         });
 
         server_->support_websocket(true);
-        ws_data_ = std::make_shared<WsData>(WsData{.plugin_ = plugin_});
+        ws_data_ = std::make_shared<WsData>(WsData{.transport_ = transport_});
 
         //auto exe_dir = qApp->applicationDirPath().toStdString();
         //auto pwd_file = std::format("{}/certs/password", exe_dir);
@@ -487,7 +488,7 @@ namespace px
         LOGI("App server start result: {}, listen port: {}", ret, listen_port_);
     }
 
-    void WsPluginServer::Exit() {
+    void WsServer::Exit() {
         exiting_ = true;
         if (async_scope_) {
             const auto called_from_scope = async_scope_->IsScopeThread();
@@ -527,7 +528,7 @@ namespace px
         ipc_session_pids_.Clear();
     }
 
-    void WsPluginServer::PostNetMessage(std::shared_ptr<Data> msg) {
+    void WsServer::PostNetMessage(std::shared_ptr<Data> msg) {
         if (!msg) {
             return;
         }
@@ -558,7 +559,7 @@ namespace px
         });
     }
 
-    void WsPluginServer::UpdateLogicalSessionCapabilities(
+    void WsServer::UpdateLogicalSessionCapabilities(
         const PxLogicalSessionCapabilityUpdate& update) {
         const bool clipboard_allowed = std::find(
             update.permissions_.begin(), update.permissions_.end(), "clipboard")
@@ -581,7 +582,7 @@ namespace px
         });
     }
 
-    void WsPluginServer::PostIpcBinaryMessage(std::shared_ptr<Data> msg) {
+    void WsServer::PostIpcBinaryMessage(std::shared_ptr<Data> msg) {
         if (!msg || msg->Size() <= 0) {
             return;
         }
@@ -614,7 +615,7 @@ namespace px
         }
     }
 
-    bool WsPluginServer::PostTargetStreamMessage(const std::string& stream_id, std::shared_ptr<Data> msg) {
+    bool WsServer::PostTargetStreamMessage(const std::string& stream_id, std::shared_ptr<Data> msg) {
         bool found_target_stream = false;
         const bool is_media_frame = IsMediaFrameMessage(msg);
         const bool is_clipboard_message = IsClipboardProtocolMessage(msg);
@@ -647,7 +648,7 @@ namespace px
         return found_target_stream;
     }
 
-    FileTransferSendResult WsPluginServer::PostTargetFileTransferMessage(
+    FileTransferSendResult WsServer::PostTargetFileTransferMessage(
         const std::string& stream_id,
         const std::shared_ptr<Data>& msg,
         const std::string& connection_instance_id) {
@@ -691,11 +692,11 @@ namespace px
         return result;
     }
 
-    int WsPluginServer::GetConnectedClientsCount() {
+    int WsServer::GetConnectedClientsCount() {
         return (int)stream_routers_.Size();
     }
 
-    bool WsPluginServer::IsOnlyAudioClients() {
+    bool WsServer::IsOnlyAudioClients() {
         bool only_audio_client = true;
         stream_routers_.VisitAllCond([&](auto k, auto& v) -> bool {
             if (v->enable_video_) {
@@ -707,11 +708,11 @@ namespace px
         return only_audio_client;
     }
 
-    bool WsPluginServer::IsWorking() {
+    bool WsServer::IsWorking() {
         return server_ && server_->is_started();
     }
 
-    void WsPluginServer::PostUserProxyMessage(std::shared_ptr<Data> msg) {
+    void WsServer::PostUserProxyMessage(std::shared_ptr<Data> msg) {
 #if PX_USER_PROXY_ENABLED
         if (!msg) {
             return;
@@ -729,7 +730,7 @@ namespace px
 #endif
     }
 
-    bool WsPluginServer::IsUserProxyConnected() {
+    bool WsServer::IsUserProxyConnected() {
 #if PX_USER_PROXY_ENABLED
         return user_proxy_router_ && user_proxy_router_->IsConnected();
 #else
@@ -737,7 +738,7 @@ namespace px
 #endif
     }
 
-    void WsPluginServer::AddUserProxyRouter() {
+    void WsServer::AddUserProxyRouter() {
         user_proxy_router_ = WsUserProxyRouter::Make(ws_data_);
         auto weak_self = weak_from_this();
         auto weak_router = std::weak_ptr<WsUserProxyRouter>(user_proxy_router_);
@@ -775,7 +776,7 @@ namespace px
         );
     }
 
-    void WsPluginServer::RegisterIpcPid(uint32_t pid) {
+    void WsServer::RegisterIpcPid(uint32_t pid) {
         if (pid == 0) {
             return;
         }
@@ -784,12 +785,12 @@ namespace px
         LOGI("IPC (/ipc) registered allowed pid={} (total={})", pid, ipc_allowed_pids_.size());
     }
 
-    bool WsPluginServer::IsIpcPidAllowed(uint32_t pid) {
+    bool WsServer::IsIpcPidAllowed(uint32_t pid) {
         std::lock_guard<std::mutex> lk(ipc_pid_mtx_);
         return ipc_allowed_pids_.contains(pid);
     }
 
-    void WsPluginServer::UnregisterIpcPidIfDead(uint32_t pid) {
+    void WsServer::UnregisterIpcPidIfDead(uint32_t pid) {
         if (pid == 0 || IsIpcProcessAlive(pid)) {
             return;
         }
@@ -799,7 +800,7 @@ namespace px
         }
     }
 
-    void WsPluginServer::SweepDeadIpcPids() {
+    void WsServer::SweepDeadIpcPids() {
         // On1Second 每秒驱动,每 5s 真正扫一次;集合很小,OpenProcess 开销可忽略
         if ((++ipc_pid_sweep_ticks_ % 5) != 0) {
             return;
@@ -814,7 +815,7 @@ namespace px
         }
     }
 
-    void WsPluginServer::ReportPerformance() {
+    void WsServer::ReportPerformance() {
         const auto media_queue = std::max<std::int64_t>(
             0, GetQueuingMediaMsgCount());
         const auto file_queue = std::max<std::int64_t>(
@@ -855,14 +856,14 @@ namespace px
              snapshot->queue_high_watermark);
     }
 
-    void WsPluginServer::AddIpcRouter() {
+    void WsServer::AddIpcRouter() {
         // Injected px_gh.dll posts CaptureVideoFrame / IpcCaptureAudioFrame blobs.
         // Decode into owned values and publish through the explicitly injected media ingress.
         auto weak_self = weak_from_this();
         server_->bind(kUrlIpc, websocket::listener<asio2::http_session>{}
             .on("message", [weak_self](std::shared_ptr<asio2::http_session> &sess_ptr, std::string_view data) {
                 auto self = weak_self.lock();
-                if (!self || self->exiting_ || self->plugin_.expired()) {
+                if (!self || self->exiting_ || self->transport_.expired()) {
                     return;
                 }
                 self->transport_performance_.ObserveInbound(data.size());
@@ -923,8 +924,8 @@ namespace px
                     frame.bottom_ = ipc_msg->bottom_;
                     frame.request_idr_ = ipc_msg->request_idr_ != 0;
                     // raw_image_ stays null — never deserialized from the wire.
-                    if (const auto plugin = self->plugin_.lock()) {
-                        plugin->SubmitIpcVideoFrame(frame);
+                    if (const auto transport = self->transport_.lock()) {
+                        transport->SubmitIpcVideoFrame(frame);
                     }
                     return;
                 }
@@ -981,8 +982,8 @@ namespace px
                               hdr->frame_index_, hdr->samples_, hdr->channels_, hdr->bits_,
                               hdr->data_length);
                     }
-                    if (const auto plugin = self->plugin_.lock()) {
-                        plugin->SubmitIpcAudioFrame(frame);
+                    if (const auto transport = self->transport_.lock()) {
+                        transport->SubmitIpcAudioFrame(frame);
                     }
                     return;
                 }
@@ -1056,8 +1057,8 @@ namespace px
         LOGI("Registered websocket route: {}", kUrlIpc);
     }
 
-    PxAwaitable<void> WsPluginServer::OpenWebSocketAsync(
-        std::weak_ptr<WsPluginServer> owner,
+    PxAwaitable<void> WsServer::OpenWebSocketAsync(
+        std::weak_ptr<WsServer> owner,
         std::shared_ptr<asio2::http_session> session,
         std::string path,
         std::unordered_map<std::string, std::string> params,
@@ -1066,8 +1067,8 @@ namespace px
         if (!server || server->exiting_) {
             co_return;
         }
-        const auto plugin = server->plugin_;
-        auto ticket_result = co_await RedeemWsTicketAsync(plugin, params);
+        const auto transport = server->transport_;
+        auto ticket_result = co_await RedeemWsTicketAsync(transport, params);
         if (!ticket_result.HasValue()) {
             const auto& error = ticket_result.Error();
             LOGW("event=session.admit component=net_ws code={} "
@@ -1099,7 +1100,7 @@ namespace px
         }
         const auto binding_id = std::format("ws:{}:{}", stream_id, socket_fd);
         auto admission_result = co_await AdmitWsSessionAsync(
-            plugin,
+            transport,
             LogicalSessionGrant{
                 .logical_session_id = ticket.logical_session_id_,
                 .stream_id = ticket.stream_id_,
@@ -1136,18 +1137,18 @@ namespace px
         auto admission = admission_result.TakeValue();
         if (!session->is_started()) {
             DispatchCloseLogicalSessionBinding(
-                plugin, ticket.logical_session_id_, binding_id);
+                transport, ticket.logical_session_id_, binding_id);
             co_return;
         }
         session->post_queued_event(
-            [owner, plugin, session, path = std::move(path),
+            [owner, transport, session, path = std::move(path),
              params = std::move(params), ticket = std::move(ticket),
              admission = std::move(admission), binding_id, socket_fd]() mutable {
                 const auto active_server = owner.lock();
                 if (!active_server || active_server->exiting_ ||
                     !session->is_started()) {
                     DispatchCloseLogicalSessionBinding(
-                        plugin, ticket.logical_session_id_, binding_id);
+                        transport, ticket.logical_session_id_, binding_id);
                     return;
                 }
                 active_server->FinalizeWebSocketOpen(
@@ -1157,7 +1158,7 @@ namespace px
         co_return;
     }
 
-    void WsPluginServer::FinalizeWebSocketOpen(
+    void WsServer::FinalizeWebSocketOpen(
         const std::shared_ptr<asio2::http_session>& session,
         const std::string& path,
         const std::unordered_map<std::string, std::string>& params,
@@ -1165,10 +1166,10 @@ namespace px
         const LogicalSessionAdmission&,
         const std::string& binding_id,
         const std::uint64_t socket_fd) {
-        const auto plugin = plugin_.lock();
-        if (!plugin) {
+        const auto transport = transport_.lock();
+        if (!transport) {
             DispatchCloseLogicalSessionBinding(
-                plugin_, ticket.logical_session_id_, binding_id);
+                transport_, ticket.logical_session_id_, binding_id);
             session->stop();
             return;
         }
@@ -1215,7 +1216,7 @@ namespace px
                 std::make_shared<PxPluginReqParamsBeginStreaming>();
             event->stream_id_ = stream_id;
             event->force_gdi_ = force_gdi;
-            plugin->CallbackEvent(event);
+            transport->EmitCompatibilityEvent(event);
             auto router = WsStreamRouter::Make(
                 ws_data_, only_audio, visitor_device_id, stream_id);
             router->udp_media_.store(udp_media);
@@ -1265,7 +1266,7 @@ namespace px
         }
     }
 
-    void WsPluginServer::AddWebsocketRouter(const std::string &path) {
+    void WsServer::AddWebsocketRouter(const std::string &path) {
         auto weak_self = weak_from_this();
         auto fn_get_socket_fd = [](std::shared_ptr<asio2::http_session> &sess_ptr) -> uint64_t {
             auto& s = sess_ptr->socket();
@@ -1309,7 +1310,7 @@ namespace px
                         "ws-session-open",
                         [weak_self, session, path, socket_fd,
                          params = std::move(params)]() mutable {
-                            return WsPluginServer::OpenWebSocketAsync(
+                            return WsServer::OpenWebSocketAsync(
                                 weak_self, session, path, std::move(params),
                                 socket_fd);
                         })) {
@@ -1361,7 +1362,7 @@ namespace px
         );
     }
 
-    void WsPluginServer::CloseLogicalSessionBinding(
+    void WsServer::CloseLogicalSessionBinding(
         const std::string& logical_session_id, const std::string& binding_id) {
         if (logical_session_id.empty() || binding_id.empty()) {
             return;
@@ -1369,12 +1370,12 @@ namespace px
         const auto event = std::make_shared<PxPluginCloseLogicalSessionBindingEvent>();
         event->logical_session_id_ = logical_session_id;
         event->binding_id_ = binding_id;
-        if (const auto plugin = plugin_.lock()) {
-            plugin->CallbackEvent(event);
+        if (const auto transport = transport_.lock()) {
+            transport->EmitCompatibilityEvent(event);
         }
     }
 
-    void WsPluginServer::UpdateUdpMediaAssociation(
+    void WsServer::UpdateUdpMediaAssociation(
         const std::string& association_code, const std::string& logical_session_id,
         const std::string& stream_id, const bool force_gdi, const bool revoke) {
         if (association_code.empty()) {
@@ -1382,8 +1383,8 @@ namespace px
         }
         const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
-        const auto plugin = plugin_.lock();
-        const auto updated = plugin && plugin->UpdateUdpAssociation(UdpMediaAssociation{
+        const auto transport = transport_.lock();
+        const auto updated = transport && transport->UpdateUdpAssociation(UdpMediaAssociation{
             .association_code_ = association_code,
             .logical_session_id_ = logical_session_id,
             .stream_id_ = stream_id,
@@ -1403,7 +1404,7 @@ namespace px
              revoke ? "revoke" : "register", PrivacyLogId(stream_id));
     }
 
-    void WsPluginServer::AddHttpRouter(const std::string &path,
+    void WsServer::AddHttpRouter(const std::string &path,
        std::function<void(const std::string& path, std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep)>&& callback) {
         auto weak_self = weak_from_this();
         // bind it
@@ -1416,7 +1417,7 @@ namespace px
         }, aop_log{}); //, http::enable_cache
     }
 
-    void WsPluginServer::AddWebClientRouter() {
+    void WsServer::AddWebClientRouter() {
         auto web_client_dir = std::filesystem::path(FolderUtil::GetCurrentFolderPath()) / "web_client";
         std::error_code ec;
         if (!std::filesystem::is_directory(web_client_dir, ec)) {
@@ -1474,22 +1475,22 @@ namespace px
              "outcome=success route=/web_client");
     }
 
-    void WsPluginServer::NotifyMediaClientConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id) {
+    void WsServer::NotifyMediaClientConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id) {
         auto event = std::make_shared<PxPluginClientConnectedEvent>();
         event->conn_id_ = conn_id;
         event->stream_id_ = stream_id;
         event->conn_type_ = "Direct";
         event->visitor_device_id_ = visitor_device_id;
         event->begin_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
-        if (const auto plugin = plugin_.lock()) {
-            plugin->CallbackEvent(event);
+        if (const auto transport = transport_.lock()) {
+            transport->EmitCompatibilityEvent(event);
         }
         LOGI("event=session.admit component=net_ws outcome=connected "
              "stream={} device={}",
              PrivacyLogId(stream_id), PrivacyLogId(visitor_device_id));
     }
 
-    void WsPluginServer::NotifyMediaClientDisConnected(
+    void WsServer::NotifyMediaClientDisConnected(
         const std::string& conn_id, const std::string& stream_id,
         const std::string& visitor_device_id, const int64_t begin_timestamp,
         const std::string& connection_instance_id, const std::string& logical_session_id) {
@@ -1501,12 +1502,12 @@ namespace px
         event->visitor_device_id_ = visitor_device_id;
         event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->duration_ = event->end_timestamp_ - begin_timestamp;
-        if (const auto plugin = plugin_.lock()) {
-            plugin->CallbackEvent(event);
+        if (const auto transport = transport_.lock()) {
+            transport->EmitCompatibilityEvent(event);
         }
     }
 
-    int64_t WsPluginServer::GetQueuingMediaMsgCount() {
+    int64_t WsServer::GetQueuingMediaMsgCount() {
         int64_t count = 0;
         stream_routers_.ApplyAll([&](const auto&, const auto& r) {
             count += r->GetQueuingMsgCount();
@@ -1514,7 +1515,7 @@ namespace px
         return count;
     }
 
-    int64_t WsPluginServer::GetQueuingFtMsgCount() {
+    int64_t WsServer::GetQueuingFtMsgCount() {
         int64_t count = 0;
         ft_routers_.ApplyAll([&](const auto&, const auto& r) {
             count += r->GetQueuingMsgCount();
@@ -1522,7 +1523,7 @@ namespace px
         return count;
     }
 
-    std::vector<std::shared_ptr<PxConnectedClientInfo>> WsPluginServer::GetConnectedClientInfo() {
+    std::vector<std::shared_ptr<PxConnectedClientInfo>> WsServer::GetConnectedClientInfo() {
         std::vector<std::shared_ptr<PxConnectedClientInfo>> clients_info;
         stream_routers_.VisitAll([&](const auto&, const std::shared_ptr<WsStreamRouter>& router) {
             std::string device_name;
@@ -1539,7 +1540,7 @@ namespace px
         return clients_info;
     }
 
-    void WsPluginServer::OnClientHello(const std::shared_ptr<MsgClientHello>& event) {
+    void WsServer::OnClientHello(const std::shared_ptr<MsgClientHello>& event) {
         stream_routers_.VisitAll([&](const auto&, const std::shared_ptr<WsStreamRouter>& router) {
             LOGI("event=session.hello component=net_ws outcome=received "
                  "event_stream={} router_stream={} device={}",

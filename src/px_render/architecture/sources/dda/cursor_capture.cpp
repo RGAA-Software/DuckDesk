@@ -3,7 +3,10 @@
 //
 #include "cursor_capture.h"
 #include <Windows.h>
-#include <iostream>
+#include <algorithm>
+#include <cstdint>
+#include <optional>
+#include <vector>
 #include "px_common_new/message_notifier.h"
 #include "px_common_new/data.h"
 #include "px_common_new/time_util.h"
@@ -11,190 +14,213 @@
 #include "px_common_new/log.h"
 #include "px_message.pb.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
-#include "dda_capture_plugin.h"
+#include "dda_capture_source.h"
 
 namespace px
 {
+    namespace {
 
-    static uint8_t *get_bitmap_data(HBITMAP hbmp, BITMAP *bmp, uint32_t *sizeOut) {
-        if (GetObject(hbmp, sizeof(*bmp), bmp) != 0) {
-            uint8_t *output;
-            unsigned int size = (bmp->bmHeight * bmp->bmWidth * bmp->bmBitsPixel) / 8;
-            if (sizeOut) {
-                *sizeOut = size;
+    struct BitmapBytes final {
+        BITMAP description{};
+        std::vector<std::uint8_t> bytes;
+    };
+
+    struct CursorPixels final {
+        std::uint32_t width{0};
+        std::uint32_t height{0};
+        std::vector<std::uint8_t> bytes;
+    };
+
+    class IconInfoGuard final {
+    public:
+        explicit IconInfoGuard(ICONINFO info) noexcept : info_(info) {}
+        ~IconInfoGuard() {
+            if (info_.hbmColor) {
+                DeleteObject(info_.hbmColor);
             }
-            output = (uint8_t *) malloc(size);
-            GetBitmapBits(hbmp, size, output);
-            return output;
+            if (info_.hbmMask) {
+                DeleteObject(info_.hbmMask);
+            }
         }
-        return nullptr;
+
+        IconInfoGuard(const IconInfoGuard&) = delete;
+        IconInfoGuard& operator=(const IconInfoGuard&) = delete;
+        [[nodiscard]] const ICONINFO& Get() const noexcept { return info_; }
+
+    private:
+        ICONINFO info_{};
+    };
+
+    class CopiedIcon final {
+    public:
+        explicit CopiedIcon(HICON icon) noexcept : icon_(icon) {}
+        ~CopiedIcon() {
+            if (icon_) {
+                DestroyIcon(icon_);
+            }
+        }
+
+        CopiedIcon(const CopiedIcon&) = delete;
+        CopiedIcon& operator=(const CopiedIcon&) = delete;
+        [[nodiscard]] HICON Get() const noexcept { return icon_; }
+        [[nodiscard]] explicit operator bool() const noexcept { return icon_ != nullptr; }
+
+    private:
+        HICON icon_{nullptr};
+    };
+
+    [[nodiscard]] std::optional<BitmapBytes> ReadBitmap(
+        HBITMAP bitmap_handle) { // NOLINT(gammaray-raw-pointer-boundary): borrowed Win32 handle
+        BitmapBytes result;
+        if (GetObject(bitmap_handle, sizeof(result.description), &result.description) == 0) {
+            return std::nullopt;
+        }
+        const auto byte_count = static_cast<std::size_t>(result.description.bmWidthBytes) *
+            static_cast<std::size_t>(std::abs(result.description.bmHeight));
+        result.bytes.resize(byte_count);
+        if (GetBitmapBits(bitmap_handle, static_cast<LONG>(byte_count), result.bytes.data()) == 0) {
+            return std::nullopt;
+        }
+        return result;
     }
 
-    static inline uint8_t bit_to_alpha(uint8_t *data, long pixel, bool invert) {
-        uint8_t pix_byte = data[pixel / 8];
-        bool alpha = (pix_byte >> (7 - pixel % 8) & 1) != 0;
-        if (invert) {
-            return alpha ? 0xFF : 0;
-        } else {
-            return alpha ? 0 : 0xFF;
-        }
+    [[nodiscard]] std::uint8_t BitToAlpha(
+        const std::vector<std::uint8_t>& data,
+        const std::size_t pixel,
+        const bool invert,
+        const std::size_t bit_offset = 0) {
+        const auto bit = bit_offset + pixel;
+        const bool alpha = ((data.at(bit / 8) >> (7 - bit % 8)) & 1) != 0;
+        return invert ? (alpha ? 0xFF : 0) : (alpha ? 0 : 0xFF);
     }
 
-    static inline bool bitmap_has_alpha(uint8_t *data, long num_pixels) {
-        for (long i = 0; i < num_pixels; i++) {
-            if (data[i * 4 + 3] != 0) {
+    [[nodiscard]] bool BitmapHasAlpha(
+        const std::vector<std::uint8_t>& data,
+        const std::size_t pixel_count) {
+        for (std::size_t pixel = 0; pixel < pixel_count; ++pixel) {
+            if (data.at(pixel * 4 + 3) != 0) {
                 return true;
             }
         }
         return false;
     }
 
-    static inline void apply_mask(uint8_t *color, uint8_t *mask, long num_pixels) {
-        for (long i = 0; i < num_pixels; i++)
-            color[i * 4 + 3] = bit_to_alpha(mask, i, false);
-    }
-
-    static inline void apply_mask(uint8_t *color, uint8_t *mask, BITMAP *bmp_mask) {
-        long mask_pix_offs;
-        for (long y = 0; y < bmp_mask->bmHeight; y++) {
-            for (long x = 0; x < bmp_mask->bmWidth; x++) {
-                mask_pix_offs = y * (bmp_mask->bmWidthBytes * 8) + x;
-                color[(y * bmp_mask->bmWidth + x) * 4 + 3] = bit_to_alpha(mask, mask_pix_offs, false);
+    void ApplyMask(
+        std::vector<std::uint8_t>& color,
+        const BitmapBytes& mask) {
+        const auto height = std::abs(mask.description.bmHeight);
+        for (LONG y = 0; y < height; ++y) {
+            for (LONG x = 0; x < mask.description.bmWidth; ++x) {
+                const auto mask_bit = static_cast<std::size_t>(y) *
+                    static_cast<std::size_t>(mask.description.bmWidthBytes * 8) +
+                    static_cast<std::size_t>(x);
+                const auto color_offset =
+                    (static_cast<std::size_t>(y) * mask.description.bmWidth + x) * 4 + 3;
+                if (color_offset < color.size()) {
+                    color[color_offset] = BitToAlpha(mask.bytes, mask_bit, false);
+                }
             }
         }
     }
 
-    static inline uint8_t *copy_from_color(ICONINFO *ii, uint32_t *width, uint32_t *height, uint32_t *sizeOut) {
-        BITMAP bmp_color;
-        BITMAP bmp_mask;
-        uint8_t *color;
-        uint8_t *mask;
-
-        color = get_bitmap_data(ii->hbmColor, &bmp_color, sizeOut);
-        if (!color) {
-            return nullptr;
+    [[nodiscard]] std::optional<CursorPixels> CopyFromColor(const ICONINFO& info) {
+        auto color = ReadBitmap(info.hbmColor);
+        if (!color || color->description.bmBitsPixel < 32) {
+            return std::nullopt;
         }
-
-        if (bmp_color.bmBitsPixel < 32) {
-            free(color);
-            return nullptr;
-        }
-
-        mask = get_bitmap_data(ii->hbmMask, &bmp_mask, nullptr);
-        if (mask) {
-            long pixels = bmp_color.bmHeight * bmp_color.bmWidth;
-
-            if (!bitmap_has_alpha(color, pixels)) {
-                //apply_mask(color, mask, pixels);
-                apply_mask(color, mask, &bmp_mask);
+        if (const auto mask = ReadBitmap(info.hbmMask)) {
+            const auto pixels = static_cast<std::size_t>(color->description.bmWidth) *
+                static_cast<std::size_t>(std::abs(color->description.bmHeight));
+            if (!BitmapHasAlpha(color->bytes, pixels)) {
+                ApplyMask(color->bytes, *mask);
             }
-            free(mask);
         }
-
-        *width = bmp_color.bmWidth;
-        *height = bmp_color.bmHeight;
-        return color;
+        return CursorPixels{
+            .width = static_cast<std::uint32_t>(color->description.bmWidth),
+            .height = static_cast<std::uint32_t>(std::abs(color->description.bmHeight)),
+            .bytes = std::move(color->bytes),
+        };
     }
 
-    static inline uint8_t *copy_from_mask(ICONINFO *ii, uint32_t *width, uint32_t *height, uint32_t *sizeOut) {
-        uint8_t *output;
-        uint8_t *mask;
-        long pixels;
-        long bottom;
-        BITMAP bmp;
-
-        mask = get_bitmap_data(ii->hbmMask, &bmp, sizeOut);
+    [[nodiscard]] std::optional<CursorPixels> CopyFromMask(const ICONINFO& info) {
+        auto mask = ReadBitmap(info.hbmMask);
         if (!mask) {
-            return nullptr;
+            return std::nullopt;
         }
-
-        bmp.bmHeight /= 2;
-
-        pixels = bmp.bmHeight * bmp.bmWidth;
-        int outputSize = pixels * 4;
-        if (sizeOut)
-            *sizeOut = outputSize;
-        output = (uint8_t *) calloc(1, outputSize);
-
-        bottom = bmp.bmWidthBytes * bmp.bmHeight;
-
-        for (long i = 0; i < pixels; i++) {
-            uint8_t alpha = bit_to_alpha(mask, i, false);
-            uint8_t color = bit_to_alpha(mask + bottom, i, true);
+        const auto height = std::abs(mask->description.bmHeight) / 2;
+        const auto width = mask->description.bmWidth;
+        const auto pixels = static_cast<std::size_t>(height) * width;
+        const auto color_half_bit_offset = static_cast<std::size_t>(
+            mask->description.bmWidthBytes * height) * 8;
+        CursorPixels output{
+            .width = static_cast<std::uint32_t>(width),
+            .height = static_cast<std::uint32_t>(height),
+            .bytes = std::vector<std::uint8_t>(pixels * 4, 0),
+        };
+        for (std::size_t pixel = 0; pixel < pixels; ++pixel) {
+            const auto alpha = BitToAlpha(mask->bytes, pixel, false);
+            const auto color = BitToAlpha(
+                mask->bytes, pixel, true, color_half_bit_offset);
+            const auto offset = pixel * 4;
             if (!alpha) {
-                output[i * 4 + 3] = color;
+                output.bytes[offset + 3] = color;
             } else {
-                *(uint32_t *) &output[i * 4] = !!color ? 0xFFFFFFFF : 0xFF000000;
+                const auto rgb = color != 0 ? 0xFF : 0x00;
+                output.bytes[offset] = rgb;
+                output.bytes[offset + 1] = rgb;
+                output.bytes[offset + 2] = rgb;
+                output.bytes[offset + 3] = 0xFF;
             }
-        }
-
-        free(mask);
-
-        *width = bmp.bmWidth;
-        *height = bmp.bmHeight;
-        return output;
-    }
-
-    static inline uint8_t *cursor_capture_icon_bitmap(ICONINFO *ii, uint32_t *width, uint32_t *height, uint32_t *sizeOut) {
-        uint8_t *output;
-
-        output = copy_from_color(ii, width, height, sizeOut);
-        if (!output) {
-            output = copy_from_mask(ii, width, height, sizeOut);
         }
         return output;
     }
 
-    static void reorder_rgba(CaptureCursorBitmap *cursor) {
-        int offset = 0;
-        for (int row = 0; row < cursor->height_; ++row) {
-            for (int col = 0; col < cursor->width_; ++col) {
-                char r = cursor->data_->At(offset);
-                *((char *) cursor->data_->DataAddr() + offset) = *(cursor->data_->DataAddr() + offset + 2);
-                *((char *) cursor->data_->DataAddr() + offset + 2) = r;
-                offset += 4;
-            }
+    [[nodiscard]] std::optional<CursorPixels> CaptureIconPixels(const ICONINFO& info) {
+        if (auto color = CopyFromColor(info)) {
+            return color;
+        }
+        return CopyFromMask(info);
+    }
+
+    void ReorderRgba(CursorPixels& cursor) {
+        for (std::size_t offset = 0; offset + 2 < cursor.bytes.size(); offset += 4) {
+            std::swap(cursor.bytes[offset], cursor.bytes[offset + 2]);
         }
     }
 
-    CursorCapture::CursorCapture(DDACapturePlugin* plugin) {
-        plugin_ = plugin;
+    }  // namespace
+
+    CursorCapture::CursorCapture(
+        const std::shared_ptr<DdaCaptureSource>& owner)
+        : owner_(owner) {
         last_cursor_bitmap_data_ = Data::Make(nullptr, 1);
     }
 
-    bool CursorCapture::CaptureCursorIcon(CaptureCursorBitmap *data, HICON icon) {
-        uint8_t *bitmap;
-        uint32_t height;
-        uint32_t width;
-        ICONINFO ii;
-
+    bool CursorCapture::CaptureCursorIcon(CaptureCursorBitmap& data, HICON icon) {
         if (!icon) {
             return false;
         }
-        if (!GetIconInfo(icon, &ii)) {
+        ICONINFO icon_info{};
+        if (!GetIconInfo(icon, &icon_info)) {
             return false;
         }
-        uint32_t bitmapSize = 0;
-        bitmap = cursor_capture_icon_bitmap(&ii, &width, &height, &bitmapSize);
-        if (bitmap) {
-            data->data_ = Data::From(std::string(bitmap, bitmap + bitmapSize));
-            data->width_ = width;
-            data->height_ = height;
-            data->hotspot_x_ = ii.xHotspot;
-            data->hotspot_y_ = ii.yHotspot;
-            free(bitmap);
-        } else {
+        const IconInfoGuard icon_info_guard(icon_info);
+        auto pixels = CaptureIconPixels(icon_info_guard.Get());
+        if (!pixels) {
             return false;
         }
-        DeleteObject(ii.hbmColor);
-        DeleteObject(ii.hbmMask);
+        ReorderRgba(*pixels);
+        data.data_ = Data::From(std::string(pixels->bytes.begin(), pixels->bytes.end()));
+        data.width_ = pixels->width;
+        data.height_ = pixels->height;
+        data.hotspot_x_ = icon_info.xHotspot;
+        data.hotspot_y_ = icon_info.yHotspot;
         return true;
     }
 
     void CursorCapture::Capture() {
         CaptureCursorBitmap cursor_bitmap;
         CURSORINFO ci = {0};
-        HICON icon;
         ci.cbSize = sizeof(ci);
 
         if (!GetCursorInfo(&ci)) {
@@ -257,13 +283,10 @@ namespace px
         }
 
         // RGB Data
-        icon = CopyIcon(ci.hCursor);
-        if (CaptureCursorIcon(&cursor_bitmap, icon)) {
-            reorder_rgba(&cursor_bitmap);
-        } else {
+        const CopiedIcon icon(CopyIcon(ci.hCursor));
+        if (!icon || !CaptureCursorIcon(cursor_bitmap, icon.Get())) {
             return;
         }
-        DestroyIcon(icon);
         std::string current_data;
         std::string last_data = last_cursor_bitmap_data_->AsString();
         if (cursor_bitmap.data_) {
@@ -289,6 +312,8 @@ namespace px
             last_timestamp_ = TimeUtil::GetCurrentTimestamp();
         }
 
-        this->plugin_->CallbackEvent(event);
+        if (const auto owner = owner_.lock()) {
+            owner->EmitCompatibilityEvent(event);
+        }
     }
 }

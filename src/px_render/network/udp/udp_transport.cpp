@@ -1,9 +1,9 @@
 //
 // Created RGAA on 15/11/2024.
-// Rewritten on 12/08/2026: GameStream 风格裸 UDP 媒体面,见 udp_plugin.h 头注释
+// Rewritten on 12/08/2026: GameStream 风格裸 UDP 媒体面,见 udp_transport.h 头注释
 //
 
-#include "udp_plugin.h"
+#include "udp_transport.h"
 #include <chrono>
 #include <algorithm>
 #include <thread>
@@ -27,7 +27,7 @@ namespace px
     class UdpRuntimeState final
         : public std::enable_shared_from_this<UdpRuntimeState> {
     public:
-        UdpRuntimeState(PxPluginEventCallback event_dispatcher, int fec_percent)
+        UdpRuntimeState(CompatibilityEventCallback event_dispatcher, int fec_percent)
             : event_dispatcher_(std::move(event_dispatcher)),
               fec_percent_(fec_percent),
               configured_fec_percent_(fec_percent) {
@@ -76,53 +76,45 @@ namespace px
         std::atomic_bool rfi_pending_{false};
 
     private:
-        PxPluginEventCallback event_dispatcher_;
+        CompatibilityEventCallback event_dispatcher_;
         int configured_fec_percent_ = 20;
         static constexpr int64_t kHeartbeatTimeoutMs = 10000;
         static constexpr int64_t kUnboundSessionTimeoutMs = 10000;
         static constexpr int kFecMaxPercent = 60;
     };
 
-    std::string UdpPlugin::GetPluginId() {
-        return kNetUdpPluginId;
+    std::string UdpTransport::Id() const {
+        return kNetUdpTransportId;
     }
 
-    std::string UdpPlugin::GetPluginName() {
+    std::string UdpTransport::Name() const {
         return "Net UDP";
     }
 
-    std::string UdpPlugin::GetVersionName() {
+    std::string UdpTransport::VersionName() const {
         return "1.2.0";
     }
 
-    uint32_t UdpPlugin::GetVersionCode() {
+    uint32_t UdpTransport::VersionCode() const {
         return 120;
     }
 
-    std::string UdpPlugin::GetPluginDescription() {
+    std::string UdpTransport::Description() const {
         return "Network via UDP";
     }
 
-    bool UdpPlugin::OnCreate(const px::PxPluginParam &param) {
-        PxNetPlugin::OnCreate(param);
-        int fec_percent = 20;
-        udp_listen_port_ = (int)GetConfigIntParam("udp-listen-port");
-        auto config_listen_port = (int)GetConfigIntParam("listen-port");
-        if (config_listen_port > 0) {
-            udp_listen_port_ = config_listen_port;
+    bool UdpTransport::Start(
+        const RenderModuleConfiguration& configuration) {
+        if (!RenderModule::Start(configuration)) {
+            return false;
         }
-        if (HasParam("fec-percent")) {
-            // 0 = 关闭 FEC;缺省保持默认 20%
-            fec_percent = (int)GetConfigIntParam("fec-percent");
-        }
-        if (HasParam("mtu")) {
-            auto mtu = (int)GetConfigIntParam("mtu");
-            if (mtu >= 576 && mtu <= 1500) {
-                udp_mtu_ = mtu;
-            }
+        const int fec_percent = configuration.udp_fec_percent;
+        udp_listen_port_ = static_cast<int>(configuration.udp_listen_port);
+        if (configuration.udp_mtu >= 576 && configuration.udp_mtu <= 1500) {
+            udp_mtu_ = configuration.udp_mtu;
         }
         runtime_ = std::make_shared<UdpRuntimeState>(
-            MakeDirectEventDispatcher(), fec_percent);
+            MakeImmediateCompatibilityEventDispatcher(), fec_percent);
         // Windows sleep 默认 15.6ms 粒度,先把计时器分辨率提到 1ms(高精度 waitable timer 不受此限)
         timeBeginPeriod(1);
         // Sunshine 同款高精度 pacing 定时器(Win10 1809+;失败退回普通 waitable timer)
@@ -139,15 +131,15 @@ namespace px
         runtime_->Start(udp_listen_port_);
 
         // 心跳扫描:超 10s 无心跳的绑定会话判定掉线
-        if (plugin_context_) {
+        if (module_context_) {
             const auto weak_runtime = std::weak_ptr<UdpRuntimeState>(runtime_);
-            plugin_context_->StartTimer(kHeartbeatScanIntervalMs, [weak_runtime]() {
+            module_context_->StartTimer(kHeartbeatScanIntervalMs, [weak_runtime]() {
                 if (const auto runtime = weak_runtime.lock()) {
                     runtime->SweepDeadSessions();
                 }
             });
             // FRAME_STATUS 窗口:5s 一个窗口,按判丢率动态调 FEC 百分比
-            plugin_context_->StartTimer(kFecWindowMs, [weak_runtime]() {
+            module_context_->StartTimer(kFecWindowMs, [weak_runtime]() {
                 if (const auto runtime = weak_runtime.lock()) {
                     runtime->AdjustFecWindow();
                 }
@@ -156,18 +148,18 @@ namespace px
         return true;
     }
 
-    bool UdpPlugin::OnDestroy() {
-        PxNetPlugin::OnStop();
+    bool UdpTransport::Destroy() {
+        RenderModule::Stop();
         if (runtime_) {
             runtime_->Stop();
             runtime_.reset();
         }
         timeEndPeriod(1);
         pace_timer_.reset();
-        return PxNetPlugin::OnDestroy();
+        return RenderModule::Destroy();
     }
 
-    void UdpPlugin::UpdateUdpMediaAssociation(
+    void UdpTransport::UpdateUdpMediaAssociation(
         const UdpMediaAssociation& association) {
         if (!runtime_) {
             return;
@@ -300,7 +292,7 @@ namespace px
         return false;
     }
 
-    void UdpPlugin::PostProtoMessage(std::shared_ptr<Data> msg, bool run_through) {
+    void UdpTransport::Broadcast(std::shared_ptr<Data> msg, bool run_through) {
         // 只关心 kAudioFrame:提取 Opus payload 打成 UDP 音频包广播给绑定会话;
         // 其它 proto(控制类)仍走 ws 通道,这里直接忽略
         const char* payload = nullptr;
@@ -329,11 +321,11 @@ namespace px
             us->sess_->async_send(pkt->CStr(), pkt->Size(), [pkt](std::size_t) {});
         });
         if (total_sent > 0) {
-            ReportSentDataSize((int)total_sent);
+            ReportDataSent(total_sent);
         }
     }
 
-    bool UdpPlugin::PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
+    bool UdpTransport::SendToStream(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
         // 空实现:同上
         return false;
     }
@@ -543,7 +535,7 @@ namespace px
                     return;
                 }
                 // 客户端组帧判丢后请求补 IDR;s1 为 mon_name(空 = 全屏)。
-                // 判丢帧与 IDR 请求 1:1,据此累计窗口判丢帧数(见 udp_plugin.h 注释)
+                // 判丢帧与 IDR 请求 1:1,据此累计窗口判丢帧数(见 udp_transport.h 注释)
                 stat_lost_frames_++;
                 auto event = std::make_shared<PxPluginInsertIdrEvent>();
                 event->mon_name_ = s1;
@@ -784,7 +776,7 @@ namespace px
         }
     }
 
-    uint8_t UdpPlugin::MonSlotOf(const std::string& mon_name) {
+    uint8_t UdpTransport::MonSlotOf(const std::string& mon_name) {
         std::lock_guard<std::mutex> lk(mon_slot_mtx_);
         auto it = mon_slots_.find(mon_name);
         if (it != mon_slots_.end()) {
@@ -798,7 +790,7 @@ namespace px
 
     // Sunshine 同款:CreateWaitableTimerEx(HIGH_RESOLUTION) + SetWaitableTimer + WaitForSingleObject,
     // 精确睡到 due 时间点(亚毫秒),而不是 std::this_thread::sleep_for 的粗粒度。
-    void UdpPlugin::PaceSleep(const std::chrono::steady_clock::duration& duration) {
+    void UdpTransport::PaceSleep(const std::chrono::steady_clock::duration& duration) {
         auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
         if (ns <= 0) {
             return;
@@ -818,7 +810,7 @@ namespace px
     }
 
     // data: encode video frame, h264/h265/...
-    void UdpPlugin::OnEncodedVideoFrame(const std::string& mon_name,
+    void UdpTransport::SubmitEncodedVideo(const std::string& mon_name,
                                         const PxPluginEncodedVideoType& video_type,
                                         const std::shared_ptr<Data>& data,
                                         uint64_t frame_index,
@@ -933,28 +925,28 @@ namespace px
                                           ratecontrol_frame_packets_sent / packets_per_ms;
 
         if (total_sent > 0) {
-            ReportSentDataSize((int)total_sent);
+            ReportDataSent(total_sent);
         }
     }
 
-    int UdpPlugin::GetConnectedClientsCount() {
+    int UdpTransport::ConnectedClientCount() const {
         const auto runtime = runtime_;
         return runtime ? runtime->bound_count_.load() : 0;
     }
 
-    bool UdpPlugin::IsOnlyAudioClients() {
+    bool UdpTransport::HasOnlyAudioClients() const noexcept {
         return false;
     }
 
-    bool UdpPlugin::IsWorking() {
-        return GetConnectedClientsCount() > 0;
+    bool UdpTransport::IsWorking() const {
+        return ConnectedClientCount() > 0;
     }
 
-    bool UdpPlugin::HasEnoughBufferForQueuingMediaMessages() {
+    bool UdpTransport::HasMediaCapacity() const noexcept {
         return true;
     }
 
-    bool UdpPlugin::HasEnoughBufferForQueuingFtMessages() {
+    bool UdpTransport::HasFileTransferCapacity() const noexcept {
         return true;
     }
 

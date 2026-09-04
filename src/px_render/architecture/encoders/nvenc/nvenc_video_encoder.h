@@ -22,11 +22,13 @@ using namespace Microsoft::WRL;
 namespace px
 {
 
-    class NvencEncoderPlugin;
+    class NvencEncoderModule;
 
     class NVENCVideoEncoder {
     public:
-        NVENCVideoEncoder(NvencEncoderPlugin* plugin, uint64_t adapter_uid);
+        NVENCVideoEncoder(
+            const std::shared_ptr<NvencEncoderModule>& owner,
+            uint64_t adapter_uid);
         ~NVENCVideoEncoder();
 
         bool Initialize(const px::EncoderConfig& config);
@@ -57,7 +59,7 @@ namespace px
         std::shared_ptr<NvEncoder> nv_encoder_ = nullptr;
         EncoderConfig encoder_config_;
         bool insert_idr_ = false;
-        px::NvencEncoderPlugin* plugin_ = nullptr;
+        std::weak_ptr<NvencEncoderModule> owner_;
 
         ComPtr<ID3D11Device> d3d11_device_;
         ComPtr<ID3D11DeviceContext> d3d11_device_context_;

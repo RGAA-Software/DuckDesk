@@ -1,5 +1,5 @@
 
-#include "gdi_capture_plugin.h"
+#include "gdi_capture_source.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include "px_common_new/log.h"
 #include "px_common_new/file.h"
@@ -14,71 +14,71 @@
 namespace px
 {
 
-    GdiCapturePlugin::GdiCapturePlugin() : PxMonitorCapturePlugin() {
+    GdiCaptureSource::GdiCaptureSource() : MonitorCaptureSource() {
 
     }
 
-    std::string GdiCapturePlugin::GetPluginId() {
-        return kGdiCapturePluginId;
+    std::string GdiCaptureSource::Id() const {
+        return kGdiCaptureSourceId;
     }
 
-    std::string GdiCapturePlugin::GetPluginName() {
+    std::string GdiCaptureSource::Name() const {
         return "GDI";
     }
 
-    std::string GdiCapturePlugin::GetVersionName() {
+    std::string GdiCaptureSource::VersionName() const {
         return "1.1.0";
     }
 
-    uint32_t GdiCapturePlugin::GetVersionCode() {
+    uint32_t GdiCaptureSource::VersionCode() const {
         return 110;
     }
 
-    std::string GdiCapturePlugin::GetPluginDescription() {
+    std::string GdiCaptureSource::Description() const {
         return "GDI desktop capture";
     }
 
-    void GdiCapturePlugin::On1Second() {
-        PxPluginInterface::On1Second();
+    void GdiCaptureSource::Tick1Second() {
+        RenderModule::Tick1Second();
     }
     
-    bool GdiCapturePlugin::OnCreate(const px::PxPluginParam &param) {
-        PxMonitorCapturePlugin::OnCreate(param);
-        LOGI("GdiCapturePlugin OnCreate");
+    bool GdiCaptureSource::Start(const px::RenderModuleConfiguration &param) {
+        MonitorCaptureSource::Start(param);
+        LOGI("GdiCaptureSource Start");
         return true;
     }
 
-    bool GdiCapturePlugin::OnDestroy() {
-        PxMonitorCapturePlugin::OnStop();
+    bool GdiCaptureSource::Destroy() {
+        MonitorCaptureSource::Stop();
         for (const auto& [mon, capture] : captures_) {
             capture->PauseCapture();
             capture->StopCapture();
         }
         captures_.clear();
-        return PxMonitorCapturePlugin::OnDestroy();
+        return MonitorCaptureSource::Destroy();
     }
 
-    std::vector<CaptureMonitorInfo> GdiCapturePlugin::GetCaptureMonitorInfo() {
+    std::vector<CaptureMonitorInfo> GdiCaptureSource::CaptureMonitors() const {
         if (!IsWorking()) {
             return {};
         }
         return sorted_monitors_;
     }
 
-    void GdiCapturePlugin::SetCaptureMonitor(const std::string& name) {
+    void GdiCaptureSource::SelectMonitor(const std::string& name) {
         std::scoped_lock control_lock(capture_control_mutex_);
         bool use_default_monitor = false;
         if (name.empty()) {
             use_default_monitor = true;
         }
-        LOGI("SetCaptureMonitor: {}, use_default_monitor: {}, working: {}", name, use_default_monitor, IsWorking());
+        LOGI("SelectMonitor: {}, use_default_monitor: {}, working: {}", name, use_default_monitor, IsWorking());
 
         if (!IsWorking()) {
             return;
         }
 
         if (kAllMonitorsNameSign == name) {
-            capturing_monitor_name_ = name;
+            selected_monitor_name_ = name;
             // TODO
             for (const auto& [monitor_name, capture]: captures_) {
                 if (!capture->IsInitSuccess()) {
@@ -92,7 +92,7 @@ namespace px
             for (const auto &[monitor_name, capture]: captures_) {
                 if (!name.empty()) {
                     if (monitor_name == name) {
-                        capturing_monitor_name_ = name;
+                        selected_monitor_name_ = name;
                         capture->ResumeCapture();
                     }
                     else {
@@ -101,13 +101,13 @@ namespace px
                 }
                 else {
                     if (!capture->IsInitSuccess()) {
-                        // 如果StartCapturing后，接着执行SetCaptureMonitor，这时候 capture->IsInitSuccess () 返回 false
+                        // 如果StartCapturing后，接着执行SelectMonitor，这时候 capture->IsInitializeSuccess () 返回 false
                         LOGW("Capture for: {} is not valid now.", monitor_name);
                         continue;
                     }
                     if (use_default_monitor && capture->IsPrimaryMonitor()) {
                         LOGI("Resume the capture for: {}, this is the default monitor", monitor_name);
-                        capturing_monitor_name_ = monitor_name;
+                        selected_monitor_name_ = monitor_name;
                         capture->ResumeCapture();
                     }
                     else {
@@ -127,11 +127,11 @@ namespace px
         if (!has_resumed_capture) {
             LOGW("Don't has resumed capture for: {}", name);
         }
-        //LOGI("Capturing monitor name: {}", capturing_monitor_name_);
+        //LOGI("Capturing monitor name: {}", selected_monitor_name_);
         NotifyCaptureMonitorInfo();
     }
 
-    std::optional<int> GdiCapturePlugin::GetMonIndexByName(const std::string& name) {
+    std::optional<int> GdiCaptureSource::MonitorIndexByName(const std::string& name) const {
         int mon_index = 0;
         for (const auto& monitor : sorted_monitors_) {
             if (name == monitor.name_) {
@@ -142,8 +142,8 @@ namespace px
         return { std::nullopt };
     }
 
-    void GdiCapturePlugin::SetCaptureFps(int fps) {
-        PxMonitorCapturePlugin::SetCaptureFps(fps);
+    void GdiCaptureSource::SetCaptureFps(int fps) {
+        MonitorCaptureSource::SetCaptureFps(fps);
         if (IsWorking()) {
             for (const auto& [dev_name, capture] : captures_) {
                 capture->SetCaptureFps(fps);
@@ -151,32 +151,32 @@ namespace px
         }
     }
 
-    void GdiCapturePlugin::OnNewClientConnected(const std::string& visitor_device_id, const std::string& stream_id, const std::string& conn_type) {
-        PxPluginInterface::OnNewClientConnected(visitor_device_id, stream_id, conn_type);
+    void GdiCaptureSource::OnClientConnected(const std::string& visitor_device_id, const std::string& stream_id, const std::string& conn_type) {
+        RenderModule::OnClientConnected(visitor_device_id, stream_id, conn_type);
         for (const auto& [k, capture] : captures_) {
             capture->RefreshScreen();
             capture->TryWakeOs();
         }
         // 注意:此事件会广播给所有采集插件,不代表本插件是当前激活的采集器
-        LOGI("OnNewClientConnected! (broadcast event, working: {})", IsWorking());
+        LOGI("OnClientConnected! (broadcast event, working: {})", IsWorking());
         NotifyCaptureMonitorInfo();
 
-        SetCaptureMonitor(capturing_monitor_name_);
+        SelectMonitor(selected_monitor_name_);
 
-        this->InsertIdr();
+        this->RequestKeyFrame();
     }
 
-    void GdiCapturePlugin::DispatchAppEvent(const std::shared_ptr<AppBaseEvent>& event) {
-        PxPluginInterface::DispatchAppEvent(event);
-        //LOGI("GdiCapturePlugin DispatchAppEvent type: {}", static_cast<int>(event->type_));
+    void GdiCaptureSource::HandleAppEvent(const std::shared_ptr<AppBaseEvent>& event) {
+        RenderModule::HandleAppEvent(event);
+        //LOGI("GdiCaptureSource HandleAppEvent type: {}", static_cast<int>(event->type_));
         if (!event) {
             return;
         }
         switch (event->type_)
         {
         case AppBaseEvent::EType::kDisplayDeviceChange: {
-            LOGI("GdiCapturePlugin DispatchAppEvent is kDisplayDeviceChange");
-            HandleDisplayDeviceChangeEvent();
+            LOGI("GdiCaptureSource HandleAppEvent is kDisplayDeviceChange");
+            HandleDisplayDeviceChange();
             break;
         }
         default:
@@ -184,7 +184,7 @@ namespace px
         }
     }
 
-    std::map<std::string, WorkingCaptureInfoPtr> GdiCapturePlugin::GetWorkingCapturesInfo() {
+    std::map<std::string, WorkingCaptureInfoPtr> GdiCaptureSource::WorkingCaptures() const {
         std::map<std::string, WorkingCaptureInfoPtr> result;
         for (const auto& [name, capture] : captures_) {
             if (capture->IsPausing()) {
@@ -203,15 +203,15 @@ namespace px
         return result;
     }
 
-    std::string GdiCapturePlugin::GetCapturingMonitorName() {
-        return capturing_monitor_name_;
+    std::string GdiCaptureSource::CapturingMonitorName() const {
+        return selected_monitor_name_;
     }
 
-    bool GdiCapturePlugin::TryInitSpecificCapture() {
+    bool GdiCaptureSource::InitializeCapture() {
         return true;
     }
 
-    bool GdiCapturePlugin::StartCapturing() {
+    bool GdiCaptureSource::StartCapturing() {
         std::scoped_lock control_lock(capture_control_mutex_);
         StopCapturing();
 
@@ -221,31 +221,33 @@ namespace px
             return false;
         }
 
-        if (capturing_monitor_name_ != kAllMonitorsNameSign && !capturing_monitor_name_.empty()) {
-            if (!ExistCaptureMonitor(capturing_monitor_name_)) {
-                capturing_monitor_name_ = "";
+        if (selected_monitor_name_ != kAllMonitorsNameSign && !selected_monitor_name_.empty()) {
+            if (!ExistCaptureMonitor(selected_monitor_name_)) {
+                selected_monitor_name_ = "";
             }
         }
 
+        const auto owner = std::dynamic_pointer_cast<GdiCaptureSource>(
+            shared_from_this());
         for(const auto&[dev_name, monitor_info] : monitors_) {
-            auto capture = std::make_shared<GdiCapture>(this, monitor_info);
+            auto capture = std::make_shared<GdiCapture>(owner, monitor_info);
             if (!capture->Init()) {
                 LOGE("GDI capture init failed! {}", dev_name);
                 return false;
             }
-            LOGI("GDIPlugin capture_fps_: {}", capture_fps_);
+            LOGI("GDI capture_fps_: {}", capture_fps_);
             capture->SetCaptureFps(capture_fps_);
             capture->StartCapture();
             captures_.insert({dev_name, capture});
 
-            SetCaptureMonitor(capturing_monitor_name_);
+            SelectMonitor(selected_monitor_name_);
         }
 
         NotifyCaptureMonitorInfo();
         return true;
     }
 
-    bool GdiCapturePlugin::ExistCaptureMonitor(const std::string& name) {
+    bool GdiCaptureSource::ExistCaptureMonitor(const std::string& name) {
         for (const auto& [dev_name, monitor_info] : monitors_) {
             if (dev_name == name) {
                 return true;
@@ -255,7 +257,7 @@ namespace px
     }
 
     static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData) {
-        auto plugin = (GdiCapturePlugin*)dwData;
+        auto& source = *reinterpret_cast<GdiCaptureSource*>(dwData); // NOLINT(gammaray-raw-pointer-boundary): synchronous Win32 enumeration callback
         MONITORINFOEX monitorInfo;
         monitorInfo.cbSize = sizeof(MONITORINFOEX);
         GetMonitorInfo(hMonitor, &monitorInfo);
@@ -278,15 +280,15 @@ namespace px
         info.top_ = lprcMonitor->top;
         info.right_ = lprcMonitor->right;
         info.bottom_ = lprcMonitor->bottom;
-        info.supported_res_ = plugin->GetSupportedResolutions(StringUtil::ToWString(mon_name));
-        plugin->monitors_.insert({mon_name, info});
+        info.supported_res_ = source.GetSupportedResolutions(StringUtil::ToWString(mon_name));
+        source.monitors_.insert({mon_name, info});
 
         LOGI("Found device: {}, left: {}, top: {}, screen_width: {}, screen_height: {}",
              mon_name, info.left_, info.top_, screen_width, screen_height);
         return TRUE;
     }
 
-    void GdiCapturePlugin::CreateCaptures() {
+    void GdiCaptureSource::CreateCaptures() {
         EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, (LPARAM)this);
 
         //CaptureMonitorInfo cap_mon_info;
@@ -303,17 +305,17 @@ namespace px
         CalculateVirtualDeskInfo();
     }
 
-    void GdiCapturePlugin::HandleDisplayDeviceChangeEvent() {
+    void GdiCaptureSource::HandleDisplayDeviceChange() {
         RestartCapturing();
     }
 
-    void GdiCapturePlugin::RestartCapturing() {
+    void GdiCaptureSource::RestartCapturing() {
         std::scoped_lock control_lock(capture_control_mutex_);
-        if (!IsPluginEnabled()) {
+        if (!IsEnabled()) {
             return;
         }
         const auto old_count = monitors_.size();
-        LOGI("GdiCapturePlugin RestartCapturing, old monitor count: {}", old_count);
+        LOGI("GdiCaptureSource RestartCapturing, old monitor count: {}", old_count);
         constexpr int kMaxAttempts = 3;
         for (int attempt = 1; attempt <= kMaxAttempts; ++attempt) {
             if (StartCapturing()) {
@@ -327,7 +329,7 @@ namespace px
         LOGE("GDI topology rebuild failed after {} attempts", kMaxAttempts);
     }
 
-    void GdiCapturePlugin::StopCapturing() {
+    void GdiCaptureSource::StopCapturing() {
         std::scoped_lock control_lock(capture_control_mutex_);
         for(const auto&[dev_name, capture] : captures_) {
             capture->StopCapture();
@@ -336,16 +338,16 @@ namespace px
         monitors_.clear();
     }
 
-    void GdiCapturePlugin::NotifyCaptureMonitorInfo() {
+    void GdiCaptureSource::NotifyCaptureMonitorInfo() {
         if (sorted_monitors_.empty()) {
             LOGI("==> Sorted Monitor's empty, ignore the PxPluginCapturingMonitorInfoEvent");
             return;
         }
         const auto event = std::make_shared<PxPluginCapturingMonitorInfoEvent>();
-        this->CallbackEvent(event);
+        this->EmitCompatibilityEvent(event);
     }
 
-    std::vector<SupportedResolution> GdiCapturePlugin::GetSupportedResolutions(const std::wstring& name) {
+    std::vector<SupportedResolution> GdiCaptureSource::GetSupportedResolutions(const std::wstring& name) {
         std::vector<SupportedResolution> resolutions;
         DEVMODE dm;
         dm.dmSize = sizeof(dm);
@@ -370,7 +372,7 @@ namespace px
         return resolutions;
     }
 
-    void GdiCapturePlugin::CalculateVirtualDeskInfo() {
+    void GdiCaptureSource::CalculateVirtualDeskInfo() {
         sorted_monitors_.clear();
         int total_width = 0;
         int max_height = 0;
@@ -420,7 +422,7 @@ namespace px
         LOGI("{}", virtual_desktop_bound_rectangle_info_.Dump());
     }
 
-    VirtualDesktopBoundRectangleInfo GdiCapturePlugin::GetVirtualDesktopBoundRectangleInfo() {
+    VirtualDesktopBoundRectangleInfo GdiCaptureSource::VirtualDesktopBounds() const {
         return virtual_desktop_bound_rectangle_info_;
     }
 

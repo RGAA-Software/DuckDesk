@@ -58,8 +58,8 @@ namespace px
     class RdStatistics;
     class WsPanelClient;
     class RenderModuleRegistry;
-    class PxMonitorCapturePlugin;
-    class PxVideoEncoderPlugin;
+    class MonitorCaptureSource;
+    class VideoEncoderModule;
     class SharedPreference;
     class RenderServiceClient;
     class MonitorRefresher;
@@ -123,12 +123,12 @@ namespace px
         void PrepareGameHookBoot(uint32_t pid);
         void ResetMonitorResolution(const std::string& name, int w, int h);
         std::shared_ptr<RenderModuleRegistry> GetRenderModuleRegistry();
-        std::shared_ptr<PxMonitorCapturePlugin> GetWorkingMonitorCapturePlugin();
-        std::map<std::string, std::shared_ptr<PxVideoEncoderPlugin>>
-            GetWorkingVideoEncoderPlugins() const;
+        std::shared_ptr<MonitorCaptureSource> GetWorkingMonitorCaptureSource();
+        std::map<std::string, std::shared_ptr<VideoEncoderModule>>
+            GetWorkingVideoEncoders() const;
         bool GenerateD3DDevice(uint64_t adapter_uid);
         void ClearD3DDevice(uint64_t adapter_uid);
-        void ClearPluginD3DState(uint64_t adapter_uid);
+        void ClearModuleD3DState(uint64_t adapter_uid);
         void HandleD3DDeviceFailure(uint64_t adapter_uid, const std::string& reason);
         ComPtr<ID3D11Device> GetD3DDevice(uint64_t adapter_uid);
         ComPtr<ID3D11DeviceContext> GetD3DContext(uint64_t adapter_uid);
@@ -259,10 +259,10 @@ namespace px
         std::queue<std::shared_ptr<AppMessage>> pending_tasks_;
         DWORD main_thread_id_ = 0;
         // working capture plugin
-        std::mutex capture_plugin_mtx_;
-        std::shared_ptr<PxMonitorCapturePlugin> capture_plugin_;
-        std::shared_ptr<PxMonitorCapturePlugin> gdi_capture_plugin_;
-        std::shared_ptr<PxMonitorCapturePlugin> dda_capture_plugin_;
+        std::mutex capture_source_mtx_;
+        std::shared_ptr<MonitorCaptureSource> capture_source_;
+        std::shared_ptr<MonitorCaptureSource> gdi_capture_source_;
+        std::shared_ptr<MonitorCaptureSource> dda_capture_source_;
 
         // uint64_t adapter_uid <==> D3D11Device/D3D11DeviceContext
         std::map<uint64_t, std::shared_ptr<D3D11DeviceWrapper>> d3d11_devices_;

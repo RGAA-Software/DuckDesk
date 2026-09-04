@@ -8,19 +8,21 @@
 namespace px
 {
     class Data;
-    class DDACapturePlugin;
+    class DdaCaptureSource;
     class CaptureCursorBitmap;
 
     class CursorCapture {
     public:
-        explicit CursorCapture(DDACapturePlugin* plugin);
+        explicit CursorCapture(const std::shared_ptr<DdaCaptureSource>& owner);
         void Capture();
 
     private:
-        static bool CaptureCursorIcon(CaptureCursorBitmap* data, HICON icon);
+        static bool CaptureCursorIcon(
+            CaptureCursorBitmap& data,
+            HICON icon); // NOLINT(gammaray-raw-pointer-boundary): borrowed Win32 cursor handle
 
     private:
-        DDACapturePlugin* plugin_ = nullptr;
+        std::weak_ptr<DdaCaptureSource> owner_;
 
         std::shared_ptr<Data> last_cursor_bitmap_data_ = nullptr;
         uint64_t last_timestamp_ = 0;

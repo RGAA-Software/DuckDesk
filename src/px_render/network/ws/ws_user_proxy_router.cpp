@@ -13,9 +13,9 @@
 #include "px_message.pb.h"
 #include "px_message_new/proto_converter.h"
 #include "px_message_new/rp_proto_converter.h"
-#include "ws_plugin.h"
+#include "ws_transport.h"
 #include "px_render/modules/module_ids.h"
-#include "px_render/plugin_interface/px_net_plugin.h"
+#include "px_render/network/transport_types.h"
 
 namespace px
 {
@@ -89,8 +89,8 @@ namespace px
             return;
         }
 
-        const auto plugin = ws_data_ ? ws_data_->plugin_.lock() : nullptr;
-        if (!plugin) {
+        const auto transport = ws_data_ ? ws_data_->transport_.lock() : nullptr;
+        if (!transport) {
             LOGE("event=transport.receive component=net_ws "
                  "code=MODULE_DEPENDENCY_UNAVAILABLE operation=route_user_proxy "
                  "outcome=failed recoverable=false");
@@ -107,7 +107,7 @@ namespace px
         if (m.type() == pxrp::kRpClipboardEvent) {
             const auto& clipboard_info = m.clipboard_info();
             auto broadcast = [&](const std::shared_ptr<Data>& buffer) {
-                plugin->BroadcastNetworkMessage(buffer, false);
+                transport->BroadcastNetworkMessage(buffer, false);
             };
             if (clipboard_info.type() == pxrp::kRpClipboardText) {
                 LOGI("user-proxy clipboard text outbound, len={}", clipboard_info.msg().size());
@@ -148,11 +148,11 @@ namespace px
                  sub.data_channel(), PrivacyLogId(sub.stream_id()),
                  inner_parsed ? (int)inner.type() : -1, sub.msg().size());
             if (sub.data_channel()) {
-                plugin->BroadcastFileTransferMessage(
+                transport->BroadcastFileTransferMessage(
                     sub.stream_id(), buffer, sub.run_through());
             }
             else {
-                plugin->BroadcastNetworkMessage(buffer, sub.run_through());
+                transport->BroadcastNetworkMessage(buffer, sub.run_through());
             }
             return;
         }
@@ -180,9 +180,9 @@ namespace px
                 return;
             }
             self->queuing_message_count_--;
-            if (const auto plugin = self->ws_data_
-                    ? self->ws_data_->plugin_.lock() : nullptr) {
-                plugin->ReportSentDataSize((int)byte_sent);
+            if (const auto transport = self->ws_data_
+                    ? self->ws_data_->transport_.lock() : nullptr) {
+                transport->ReportDataSent((int)byte_sent);
             }
         });
     }

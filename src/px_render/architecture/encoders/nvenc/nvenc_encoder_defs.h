@@ -9,7 +9,7 @@
 
 namespace px
 {
-    static const std::string kNvencPluginName = "NVENC Encoder";
+    static const std::string kNvencEncoderName = "NVENC Encoder";
 }
 
 #endif //PX_FFMPEG_ENCODER_DEFS_H

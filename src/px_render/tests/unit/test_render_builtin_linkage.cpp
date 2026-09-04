@@ -2,55 +2,77 @@
 
 #include <memory>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "px_common_new/data.h"
 #include "px_capture_new/capture_message.h"
-#include "px_render/architecture/encoders/amf/amf_encoder_plugin.h"
-#include "px_render/architecture/encoders/ffmpeg/ffmpeg_encoder_plugin.h"
-#include "px_render/architecture/encoders/nvenc/nvenc_encoder_plugin.h"
-#include "px_render/architecture/sources/dda/dda_capture_plugin.h"
-#include "px_render/architecture/sources/gdi/gdi_capture_plugin.h"
-#include "px_render/network/relay/relay_plugin.h"
-#include "px_render/network/udp/udp_plugin.h"
-#include "px_render/network/ws/ws_plugin.h"
+#include "px_render/architecture/encoders/video_encoder_module.h"
+#include "px_render/architecture/extensions/flow_node_plugin.h"
+#include "px_render/architecture/modules/render_module.h"
+#include "px_render/architecture/encoders/amf/amf_video_encoder.h"
+#include "px_render/architecture/encoders/ffmpeg/ffmpeg_video_encoder.h"
+#include "px_render/architecture/encoders/nvenc/nvenc_encoder_module.h"
+#include "px_render/architecture/sources/dda/dda_capture_source.h"
+#include "px_render/architecture/sources/gdi/gdi_capture_source.h"
+#include "px_render/network/relay/relay_transport.h"
+#include "px_render/network/udp/udp_transport.h"
+#include "px_render/network/ws/ws_transport.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/plugin_interface/px_plugin_interface.h"
 
 namespace px {
 namespace {
 
 TEST(RenderBuiltinLinkageTest, ProductionModulesHaveStaticConstructorsAndIds) {
-    const std::vector<std::shared_ptr<PxPluginInterface>> modules{
-        std::make_shared<DDACapturePlugin>(),
-        std::make_shared<GdiCapturePlugin>(),
-        std::make_shared<FFmpegEncoderPlugin>(),
-        std::make_shared<AmfEncoderPlugin>(),
-        std::make_shared<NvencEncoderPlugin>(),
-        std::make_shared<WsPlugin>(),
-        std::make_shared<UdpPlugin>(),
-        std::make_shared<RelayPlugin>(),
+    const std::vector<std::shared_ptr<RenderModule>> modules{
+        std::make_shared<DdaCaptureSource>(),
+        std::make_shared<GdiCaptureSource>(),
+        std::make_shared<FfmpegVideoEncoder>(),
+        std::make_shared<AmfVideoEncoder>(),
+        std::make_shared<NvencEncoderModule>(),
+        std::make_shared<WsTransport>(),
+        std::make_shared<UdpTransport>(),
+        std::make_shared<RelayTransport>(),
     };
     for (const auto& module : modules) {
         ASSERT_TRUE(module);
-        EXPECT_FALSE(module->GetPluginId().empty());
-        EXPECT_FALSE(module->GetPluginName().empty());
+        EXPECT_FALSE(module->Id().empty());
+        EXPECT_FALSE(module->Name().empty());
     }
+
+    static_assert(!std::is_base_of_v<PxPluginInterface, DdaCaptureSource>);
+    static_assert(!std::is_base_of_v<PxPluginInterface, GdiCaptureSource>);
+    static_assert(!std::is_base_of_v<PxPluginInterface, FfmpegVideoEncoder>);
+    static_assert(!std::is_base_of_v<PxPluginInterface, AmfVideoEncoder>);
+    static_assert(!std::is_base_of_v<PxPluginInterface, NvencEncoderModule>);
+    static_assert(!std::is_base_of_v<PxPluginInterface, WsTransport>);
+    static_assert(!std::is_base_of_v<PxPluginInterface, UdpTransport>);
+    static_assert(!std::is_base_of_v<PxPluginInterface, RelayTransport>);
 }
 
 TEST(RenderBuiltinLinkageTest, VideoEncoderMetadataContractIsStronglyTyped) {
-    using CpuEncode = VideoEncoderError (PxVideoEncoderPlugin::*)(
-        const std::shared_ptr<Image>&, std::uint64_t,
-        const CaptureVideoFrame&);
-    using TextureEncode = VideoEncoderError (PxVideoEncoderPlugin::*)(
-        const Microsoft::WRL::ComPtr<ID3D11Texture2D>&, std::uint64_t,
-        const CaptureVideoFrame&);
+    using CpuResult = decltype(std::declval<VideoEncoderModule&>().Encode(
+        std::declval<const std::shared_ptr<Image>&>(),
+        std::uint64_t{}, std::declval<const CaptureVideoFrame&>()));
+    using TextureResult = decltype(std::declval<VideoEncoderModule&>().Encode(
+        std::declval<const Microsoft::WRL::ComPtr<ID3D11Texture2D>&>(),
+        std::uint64_t{}, std::declval<const CaptureVideoFrame&>()));
+    static_assert(std::is_same_v<CpuResult, VideoEncoderError>);
+    static_assert(std::is_same_v<TextureResult, VideoEncoderError>);
+}
 
-    const auto cpu_encode = static_cast<CpuEncode>(
-        &PxVideoEncoderPlugin::Encode);
-    const auto texture_encode = static_cast<TextureEncode>(
-        &PxVideoEncoderPlugin::Encode);
-    EXPECT_NE(cpu_encode, nullptr);
-    EXPECT_NE(texture_encode, nullptr);
+TEST(RenderBuiltinLinkageTest, ExtensionContractsAreFlowNodeRolesNotLegacyPlugins) {
+    static_assert(std::is_base_of_v<render::FlowNodePlugin, render::VideoSourcePlugin>);
+    static_assert(std::is_base_of_v<render::FlowNodePlugin, render::AudioSourcePlugin>);
+    static_assert(std::is_base_of_v<render::FlowNodePlugin, render::VideoProcessorPlugin>);
+    static_assert(std::is_base_of_v<render::FlowNodePlugin, render::AudioProcessorPlugin>);
+    static_assert(std::is_base_of_v<render::FlowNodePlugin, render::VideoEncoderPlugin>);
+    static_assert(std::is_base_of_v<render::FlowNodePlugin, render::AudioEncoderPlugin>);
+    static_assert(std::is_base_of_v<render::FlowNodePlugin, render::ObserverPlugin>);
+    static_assert(std::is_base_of_v<render::FlowNodePlugin, render::SinkPlugin>);
+    static_assert(!std::is_base_of_v<PxPluginInterface, render::FlowNodePlugin>);
 }
 
 struct NetworkServiceProbe final {
@@ -61,7 +83,7 @@ struct NetworkServiceProbe final {
 };
 
 TEST(RenderBuiltinLinkageTest, WsUsesExplicitNetworkCapabilitiesWithWeakLifetime) {
-    const auto ws = std::make_shared<WsPlugin>();
+    const auto ws = std::make_shared<WsTransport>();
     auto probe = std::make_shared<NetworkServiceProbe>();
     const std::weak_ptr<NetworkServiceProbe> weak_probe = probe;
 
@@ -77,7 +99,7 @@ TEST(RenderBuiltinLinkageTest, WsUsesExplicitNetworkCapabilitiesWithWeakLifetime
             }
         },
         [weak_probe](const std::shared_ptr<PxLocalRtcRequestInfo>&,
-                     WsPlugin::LocalRtcCompletion completion) {
+                     WsTransport::LocalRtcCompletion completion) {
             if (const auto state = weak_probe.lock()) {
                 ++state->rtc_allocations;
                 completion(std::make_shared<PxLocalRtcReplyInfo>());
@@ -130,7 +152,7 @@ struct IpcMediaIngressProbe final {
 };
 
 TEST(RenderBuiltinLinkageTest, WsIpcMediaUsesTypedWeakIngress) {
-    const auto ws = std::make_shared<WsPlugin>();
+    const auto ws = std::make_shared<WsTransport>();
     auto probe = std::make_shared<IpcMediaIngressProbe>();
     const std::weak_ptr<IpcMediaIngressProbe> weak_probe = probe;
     ws->ConfigureIpcMediaIngress(

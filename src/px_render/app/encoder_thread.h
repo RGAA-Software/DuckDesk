@@ -22,11 +22,10 @@ namespace px
     class Thread;
     class RdContext;
     class RdStatistics;
-    class VideoEncoder;
+    class VideoEncoderModule;
     class RdApplication;
     class RenderModuleRegistry;
     class MessageListener;
-    class PxVideoEncoderPlugin;
     namespace render {
         class FrameCarrierProcessor;
         class FrameResizerProcessor;
@@ -42,8 +41,8 @@ namespace px
         void Encode(const CaptureVideoFrame& msg);
         void HandleD3DDeviceFailure(uint64_t adapter_uid);
         void Exit();
-        std::map<std::string, std::shared_ptr<PxVideoEncoderPlugin>>
-            GetWorkingVideoEncoderPlugins();
+        std::map<std::string, std::shared_ptr<VideoEncoderModule>>
+            GetWorkingVideoEncoders();
 
     private:
         void InitListener();
@@ -56,11 +55,11 @@ namespace px
                              std::uint32_t width,
                              std::uint32_t height) const;
         bool HasEncoderForMonitor(const std::string& monitor_name);
-        std::shared_ptr<PxVideoEncoderPlugin> GetEncoderPluginForMonitor(
+        std::shared_ptr<VideoEncoderModule> GetEncoderForMonitor(
             const std::string& monitor_name);
 
     private:
-        RdSettings* settings_ = nullptr;
+        RdSettings& settings_;
         std::shared_ptr<RdStatistics> stat_ = nullptr;
         std::shared_ptr<Thread> enc_thread_ = nullptr;
         std::shared_ptr<RdContext> context_ = nullptr;
@@ -73,8 +72,8 @@ namespace px
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::shared_ptr<RenderModuleRegistry> module_registry_ = nullptr;
         std::mutex encoder_modules_mtx_;
-        std::map<std::string, std::shared_ptr<PxVideoEncoderPlugin>>
-            encoder_plugins_;
+        std::map<std::string, std::shared_ptr<VideoEncoderModule>>
+            encoders_;
         std::map<std::string, std::optional<CaptureVideoFrame>> last_video_frames_;
         // Debounce capture size thrash (e.g. game briefly going fullscreen 1920↔3840).
         std::map<std::string, std::pair<uint32_t, uint32_t>> pending_frame_size_;

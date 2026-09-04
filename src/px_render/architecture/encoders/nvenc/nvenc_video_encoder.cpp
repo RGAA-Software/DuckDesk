@@ -9,16 +9,20 @@
 #include "px_common_new/defer.h"
 #include "px_common_new/string_util.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
-#include "nvenc_encoder_plugin.h"
+#include "nvenc_encoder_module.h"
 #include "nvEncodeAPI.h"
 
 namespace px
 {
 
-    NVENCVideoEncoder::NVENCVideoEncoder(NvencEncoderPlugin* plugin, uint64_t adapter_uid) {
-        plugin_ = plugin;
-        d3d11_device_ = plugin->d3d11_devices_[adapter_uid];
-        d3d11_device_context_ = plugin->d3d11_devices_context_[adapter_uid];
+    NVENCVideoEncoder::NVENCVideoEncoder(
+        const std::shared_ptr<NvencEncoderModule>& owner,
+        uint64_t adapter_uid)
+        : owner_(owner) {
+        if (owner) {
+            d3d11_device_ = owner->d3d11_devices_[adapter_uid];
+            d3d11_device_context_ = owner->d3d11_device_contexts_[adapter_uid];
+        }
         fps_stat_ = std::make_shared<FpsStat>();
     }
 
@@ -222,15 +226,9 @@ namespace px
         for (std::vector<uint8_t> &packet: out_packet) {
             auto encoded_data = Data::Make((char *) packet.data(), packet.size());
             auto event = std::make_shared<PxPluginEncodedVideoFrameEvent>();
-            event->type_ = [=, this]() {
-                if (encoder_config_.codec_type == EVideoCodecType::kHEVC) {
-                    return PxPluginEncodedVideoType::kH265;
-                } else if (encoder_config_.codec_type == EVideoCodecType::kH264) {
-                    return PxPluginEncodedVideoType::kH264;
-                } else {
-                    return PxPluginEncodedVideoType::kH264;
-                }
-            }();
+            event->type_ = encoder_config_.codec_type == EVideoCodecType::kHEVC
+                ? PxPluginEncodedVideoType::kH265
+                : PxPluginEncodedVideoType::kH264;
             event->data_ = encoded_data;
             event->frame_width_ = desc.Width;
             event->frame_height_ = desc.Height;
@@ -245,7 +243,9 @@ namespace px
                 event->frame_format_ = RawImageType::kI420;
                 //LOGI("event->frame_format_ = RawImageType::kI420;");
             }
-            this->plugin_->CallbackEvent(event);
+            if (const auto owner = owner_.lock()) {
+                owner->EmitCompatibilityEvent(event);
+            }
         }
 
         auto end = TimeUtil::GetCurrentTimestamp();

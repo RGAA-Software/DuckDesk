@@ -4,8 +4,8 @@
 // 设计见 docs/udp_gamestream_channel_plan.md,协议见 px_common_new/px_udp_protocol.h
 //
 
-#ifndef PX_UDP_PLUGIN_H
-#define PX_UDP_PLUGIN_H
+#ifndef PX_UDP_TRANSPORT_H
+#define PX_UDP_TRANSPORT_H
 
 #include <map>
 #include <mutex>
@@ -13,7 +13,8 @@
 #include <chrono>
 #include <Windows.h>
 #include <asio2/udp/udp_server.hpp>
-#include "px_render/plugin_interface/px_net_plugin.h"
+#include "architecture/modules/render_module.h"
+#include "px_render/network/transport_types.h"
 #include "px_common_new/concurrent_hashmap.h"
 
 #ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
@@ -49,37 +50,38 @@ namespace px
         std::atomic<int64_t> last_seen_ms_{0};
     };
 
-    class UdpPlugin : public PxNetPlugin {
+    class UdpTransport final : public RenderModule {
     public:
-        std::string GetPluginId() override;
-        std::string GetPluginName() override;
-        std::string GetVersionName() override;
-        uint32_t GetVersionCode() override;
-        std::string GetPluginDescription() override;
+        std::string Id() const override;
+        std::string Name() const override;
+        std::string VersionName() const override;
+        uint32_t VersionCode() const override;
+        std::string Description() const override;
+        RenderModuleKind Kind() const override { return RenderModuleKind::kNetwork; }
 
-        bool OnCreate(const px::PxPluginParam &param) override;
-        bool OnDestroy() override;
+        bool Start(const RenderModuleConfiguration& configuration) override;
+        bool Destroy() override;
         void UpdateUdpMediaAssociation(
-            const UdpMediaAssociation& association) override;
+            const UdpMediaAssociation& association);
         // 视频走 OnEncodedVideoFrame 裸 UDP 直发;音频从这里提取 kAudioFrame 的
         // Opus payload 发 UDP(wire 级手扫,不引 protobuf 头);控制消息走 ws 通道
-        void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through = false) override;
-        bool PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through = false) override;
-        int GetConnectedClientsCount() override;
-        bool IsOnlyAudioClients() override;
-        bool IsWorking() override;
+        void Broadcast(std::shared_ptr<Data> message, bool run_through = false);
+        bool SendToStream(const std::string& stream_id, std::shared_ptr<Data> message, bool run_through = false);
+        int ConnectedClientCount() const;
+        bool HasOnlyAudioClients() const noexcept;
+        bool IsWorking() const override;
 
-        bool HasEnoughBufferForQueuingMediaMessages() override;
-        bool HasEnoughBufferForQueuingFtMessages() override;
+        bool HasMediaCapacity() const noexcept;
+        bool HasFileTransferCapacity() const noexcept;
 
         // data: encode video frame, h264/h265/...(编码线程回调,逐帧分包直发)
-        void OnEncodedVideoFrame(const std::string& mon_name,
+        void SubmitEncodedVideo(const std::string& mon_name,
                                  const PxPluginEncodedVideoType& video_type,
                                  const std::shared_ptr<Data>& data,
                                  uint64_t frame_index,
                                  int frame_width,
                                  int frame_height,
-                                 bool key) override;
+                                 bool key);
 
     private:
         // mon_name -> 单调递增 slot(u8),插件生命周期内保持稳定
@@ -118,4 +120,4 @@ namespace px
 
 
 
-#endif //PX_UDP_PLUGIN_H
+#endif  // PX_UDP_TRANSPORT_H
