@@ -23,6 +23,11 @@ PxAwaitable<void> WaitForReady(std::shared_ptr<PxConnectionAttemptWorkflow> work
     completion->set_value(co_await PxConnectionAttemptWorkflow::WaitUntilReady(std::move(workflow), ticket, deadline));
 }
 
+PxAwaitable<void> WaitForDisconnected(std::shared_ptr<PxConnectionAttemptWorkflow> workflow, PxConnectionAttemptTicket ticket,
+                                      std::shared_ptr<std::promise<PxConnectionDisconnectedResult>> completion) {
+    completion->set_value(co_await PxConnectionAttemptWorkflow::WaitUntilDisconnected(std::move(workflow), ticket));
+}
+
 TEST(ConnectionAttemptWorkflow, AwaitableFirstAttemptCompletesWithGeneration) {
     const auto runtime = PxAsyncRuntime::Create();
     ASSERT_TRUE(runtime->Start());
@@ -202,6 +207,51 @@ TEST(ConnectionAttemptWorkflow, DisconnectAfterReadyClearsStateWithoutSecondComp
     EXPECT_TRUE(workflow->IsReady());
     EXPECT_FALSE(workflow->FailActive(MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "disconnect", "socket closed", true)));
     EXPECT_FALSE(workflow->IsReady());
+    workflow->Stop();
+    runtime->RequestStop();
+    runtime->Join();
+}
+
+TEST(ConnectionAttemptWorkflow, AwaitableDisconnectCompletesForReadyGeneration) {
+    const auto runtime = PxAsyncRuntime::Create();
+    ASSERT_TRUE(runtime->Start());
+    const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
+    const auto workflow = PxConnectionAttemptWorkflow::Create(runtime, 1s);
+    const auto start = workflow->StartAttempt();
+    ASSERT_TRUE(start);
+    ASSERT_TRUE(workflow->MarkReady(start.Value().generation));
+
+    const auto completion = std::make_shared<std::promise<PxConnectionDisconnectedResult>>();
+    auto future = completion->get_future();
+    ASSERT_TRUE(scope->Spawn("await-disconnect", [workflow, ticket = start.Value(), completion]() {
+        return WaitForDisconnected(workflow, ticket, completion);
+    }));
+    const auto reason = MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "disconnect", "socket closed", true);
+    EXPECT_TRUE(workflow->MarkDisconnected(start.Value().generation, reason));
+
+    auto result = Wait(future);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result.Value().generation, start.Value().generation);
+    EXPECT_EQ(result.Value().reason.stage, "disconnect");
+    EXPECT_FALSE(workflow->IsReady());
+
+    workflow->Stop();
+    ASSERT_TRUE(scope->StopAndWait(2s));
+    runtime->RequestStop();
+    runtime->Join();
+}
+
+TEST(ConnectionAttemptWorkflow, DisconnectRejectsStaleGeneration) {
+    const auto runtime = PxAsyncRuntime::Create();
+    ASSERT_TRUE(runtime->Start());
+    const auto workflow = PxConnectionAttemptWorkflow::Create(runtime, 1s);
+    const auto first = workflow->StartAttempt();
+    const auto second = workflow->StartAttempt();
+    ASSERT_TRUE(first);
+    ASSERT_TRUE(second);
+    EXPECT_FALSE(workflow->MarkDisconnected(
+        first.Value().generation, MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "disconnect", "stale")));
+
     workflow->Stop();
     runtime->RequestStop();
     runtime->Join();

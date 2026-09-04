@@ -352,6 +352,24 @@ foreach ($transportDirectory in @("udp", "relay")) {
         }
     }
 }
+
+$coroutineOwnedClientFiles = @(
+    "src\px_render\network\render_service_client.cpp",
+    "src\px_render\network\ws_panel_client.cpp",
+    "src\px_render\hook_capture\win\hk_obs\ws_ipc_client.cpp"
+)
+foreach ($relativePath in $coroutineOwnedClientFiles) {
+    $content = Get-Content -LiteralPath (Join-Path $RepoRoot $relativePath) -Raw
+    if ($content -match 'set_auto_reconnect\s*\(\s*true') {
+        $violations.Add("${relativePath}: reconnect scheduling must remain owned by the connection coroutine")
+    }
+    foreach ($required in @("RunConnectionLoop", "PxReconnectBackoff", "WaitUntilDisconnected")) {
+        if ($content -notmatch [regex]::Escape($required)) {
+            $violations.Add("${relativePath}: coroutine-owned reconnect contract is missing $required")
+        }
+    }
+}
+
 $wsServerSource = Get-Content -LiteralPath `
     (Join-Path $RepoRoot "src\px_render\network\ws\ws_server.cpp") -Raw
 $wsServerHeader = Get-Content -LiteralPath `

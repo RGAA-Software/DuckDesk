@@ -33,19 +33,19 @@ Render 网络控制面总体估算已完成 55%～65%，剩余 35%～45%。单�
 
 本轮已经开始实施，但尚未宣称整个计划完成：
 
-- N0 已完成第一部分：新增 `PxAsyncMailbox<T>`，覆盖有界容量、单消费者、deadline、scope cancellation、close、late publish 和统计；连接 attempt 新增
-  `StartAttempt()`、`WaitUntilReady()` 和 generation-aware `MarkReady/FailActive`，旧 callback API 暂时保留为兼容 facade。
-- N1 已完成第一部分：RenderServiceClient 的 receive callback 只复制 owned message 并发布到 mailbox，protobuf 解析和请求完成转入 state-lane coroutine；连接
-  ready 结果改由 coroutine 等待，不再由 completion callback 执行业务。
-- N2 已完成第一部分：WsPanelClient 采用同一 mailbox/connection awaitable 模式；OBS WsIpcClient 的五个 `[&]` 网络 callback 已替换为 weak ownership，IPC wire
-  decode 不再使用对象裸指针强转，HookManager callback 改为 weak singleton owner。
+- N0 已完成：新增 `PxAsyncMailbox<T>`；连接 workflow 已具备 `StartAttempt()`、`WaitUntilReady()`、`WaitUntilDisconnected()`、generation-aware
+  ready/disconnect/failure，以及可取消、可复位、带确定性 jitter 测试的 `PxReconnectBackoff`。旧 callback API 暂时保留为兼容 facade。
+- N1 连接和接收部分已完成：RenderServiceClient 的 callback 只发布 owned message/typed connection terminal event；单一 state-lane connection coroutine 负责
+  start、ready deadline、disconnect、bounded exponential backoff 和 retry，asio2 auto-reconnect 已关闭。业务 request facade 和组件级 StopAsync 仍待收口。
+- N2 连接和接收部分已完成：WsPanelClient、OBS WsIpcClient 已使用同一 workflow/backoff 模型；五个 `[&]` 网络 callback 已替换为 weak ownership，IPC wire
+  decode 不再使用对象裸指针强转。OBS IPC repeated Start/Exit 状态已允许重新启动，组件级 StopAsync 和故障注入集成测试仍待补齐。
 - N5 已完成关闭硬门禁的第一步：`RdApplication::Exit` 在停止捕获、编码、组合根和事件路由后，正式调用 `RenderModuleRegistry::StopModules()`，旧插件时代禁止
   StopModules 的 workaround 已删除。
-- 尚未完成：asio2 内建 auto-reconnect 仍负责实际重连调度；下一批需要把 backoff/retry owner 收口到 coroutine，随后实现组件 `StopAsync`、WS/HTTP server 共享
-  runtime、UDP 控制面和根 absolute-deadline shutdown。
+- 尚未完成：三个客户端的组件 `StopAsync`、WS/HTTP server 共享 runtime、UDP 控制面、根 absolute-deadline shutdown，以及真实 server 驱动的重连故障注入。
 
-当前自动化结果：公共 mailbox/connection 测试连续运行 20 轮通过；Render quick gate 的 2 个 guard 和 14 个 unit/lifecycle 测试通过；Render lifecycle gate 的
-2 个 guard 和 11 个 lifecycle/integration 测试通过。证据目录为 `test-results/render-architecture/20260904-134144-lifecycle`，自动化结论为 GO，不替代最终产品验收。
+当前自动化结果：公共 mailbox/connection/backoff focused tests 通过，其中 connection/backoff 连续运行 20 轮通过；Render 和 OBS hook 增量构建通过并同步运行
+产物；Render quick gate 的 2 个 guard 和 14 个 unit/lifecycle 测试通过，完整 lifecycle gate 的 2 个 guard 和 11 个 lifecycle/integration 测试通过。
+最新证据目录为 `test-results/render-architecture/20260904-140716-lifecycle`，自动化结论为 GO，不替代最终产品验收。
 
 ## 3. 目标和非目标
 

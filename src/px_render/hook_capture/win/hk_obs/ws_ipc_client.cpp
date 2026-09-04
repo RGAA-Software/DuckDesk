@@ -12,6 +12,7 @@
 #include <type_traits>
 #include "px_common_new/async_mailbox.h"
 #include "px_common_new/connection_attempt_workflow.h"
+#include "px_common_new/reconnect_backoff.h"
 #include "px_common_new/log.h"
 #include "px_capture_new/capture_message.h"
 
@@ -22,6 +23,12 @@ namespace px
 
         constexpr auto kIpcConnectionTimeout = std::chrono::seconds(10);
         constexpr std::size_t kIpcMessageCapacity = 1024;
+        const PxReconnectBackoffOptions kIpcReconnectOptions{
+            .initial_delay = std::chrono::milliseconds(100),
+            .maximum_delay = std::chrono::seconds(5),
+            .multiplier = 2.0,
+            .jitter_ratio = 0.2,
+        };
 
         template<typename T>
         T DecodeIpcValue(std::string_view bytes) {
@@ -56,7 +63,8 @@ namespace px
         }
         async_scope_ = PxAsyncScope::Create(async_runtime_, PxAsyncLane::kState);
         connection_workflow_ = PxConnectionAttemptWorkflow::Create(async_runtime_, kIpcConnectionTimeout);
-        if (!async_scope_ || !connection_workflow_) {
+        connection_backoff_ = PxReconnectBackoff::Create(kIpcReconnectOptions);
+        if (!async_scope_ || !connection_workflow_ || !connection_backoff_) {
             LOGE("ws ipc client failed to create async workflow");
             Exit();
             return;
@@ -80,7 +88,7 @@ namespace px
         // Host net_ws listens with asio2::http_server (plain WS). Using wss_client here
         // previously made the injected DLL unable to connect to /ipc.
         ws_client_ = std::make_shared<asio2::ws_client>();
-        ws_client_->set_auto_reconnect(true);
+        ws_client_->set_auto_reconnect(false);
         ws_client_->set_timeout(std::chrono::seconds(2));
         ws_client_->bind_init([weak_self]() {
             const auto self = weak_self.lock();
@@ -89,23 +97,11 @@ namespace px
             }
             self->ws_client_->ws_stream().binary(true);
             self->ws_client_->set_no_delay(true);
-            auto attempt = self->connection_workflow_->StartAttempt();
-            if (!attempt) {
-                return;
-            }
-            const auto ticket = attempt.Value();
-            self->connection_generation_.store(ticket.generation, std::memory_order_release);
-            if (!self->async_scope_->Spawn("ipc-connection-attempt", [weak_self, workflow = self->connection_workflow_, ticket]() {
-                    return WaitForConnectionReady(weak_self, workflow, ticket, std::chrono::steady_clock::now() + kIpcConnectionTimeout);
-                })) {
-                static_cast<void>(self->connection_workflow_->FailActive(
-                    ticket.generation, MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "ipc.connect", "connection scope rejected attempt")));
-            }
         })
         .bind_connect([weak_self]() {
             if (asio2::get_last_error()) {
-                LOGE("ws ipc client connect failed: {} {}",
-                     asio2::last_error_val(), asio2::last_error_msg());
+                LOGE("event=transport.connection_attempt component=obs_ipc code={} operation=connect outcome=failure "
+                     "recoverable=true reason={}", asio2::last_error_val(), asio2::last_error_msg());
                 if (const auto self = weak_self.lock(); self && self->connection_workflow_) {
                     static_cast<void>(self->connection_workflow_->FailActive(
                         self->connection_generation_.load(std::memory_order_acquire),
@@ -119,7 +115,8 @@ namespace px
         })
         .bind_upgrade([weak_self]() {
             if (asio2::get_last_error()) {
-                LOGE("ws ipc upgrade failed: {}", asio2::last_error_msg());
+                LOGE("event=transport.connection_attempt component=obs_ipc code={} operation=upgrade outcome=failure "
+                     "recoverable=true reason={}", asio2::last_error_val(), asio2::last_error_msg());
                 if (const auto self = weak_self.lock(); self && self->connection_workflow_) {
                     static_cast<void>(self->connection_workflow_->FailActive(
                         self->connection_generation_.load(std::memory_order_acquire),
@@ -134,7 +131,7 @@ namespace px
         })
         .bind_disconnect([weak_self]() {
             if (const auto self = weak_self.lock(); self && self->connection_workflow_) {
-                static_cast<void>(self->connection_workflow_->FailActive(
+                static_cast<void>(self->connection_workflow_->MarkDisconnected(
                     self->connection_generation_.load(std::memory_order_acquire),
                     MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "ipc.disconnect", "IPC websocket disconnected", true)));
             }
@@ -154,9 +151,13 @@ namespace px
         // pids it registered via RegisterIpcPid (wrote hook boot config for them).
         std::string ipc_path = std::format("/ipc?pid={}", GetCurrentProcessId());
         LOGI("ws ipc client starting: 127.0.0.1:{}{}", port_, ipc_path);
-        if (!ws_client_->async_start("127.0.0.1", port_, ipc_path)) {
-            LOGE("ws ipc async_start failure: {} {}",
-                 asio2::last_error_val(), asio2::last_error_msg());
+        if (!async_scope_->Spawn("ipc-connection-loop",
+                                 [weak_self, workflow = connection_workflow_, backoff = connection_backoff_, client = ws_client_,
+                                  port = port_, ipc_path = std::move(ipc_path)]() mutable {
+            return RunConnectionLoop(weak_self, workflow, backoff, client, port, std::move(ipc_path));
+        })) {
+            LOGE("ws ipc client failed to start connection coroutine");
+            Exit();
         }
     }
 
@@ -168,14 +169,14 @@ namespace px
             static_cast<void>(incoming_messages_->Close(
                 MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "ipc.receive", "IPC websocket is stopping")));
         }
+        if (connection_workflow_) {
+            connection_workflow_->Stop();
+        }
         if (async_scope_) {
             async_scope_->BeginStop();
             if (!async_scope_->IsScopeThread()) {
                 static_cast<void>(async_scope_->WaitFor(std::chrono::seconds(2)));
             }
-        }
-        if (connection_workflow_) {
-            connection_workflow_->Stop();
         }
         const auto client = ws_client_;
         if (client) {
@@ -189,6 +190,7 @@ namespace px
             async_runtime_->RequestStop();
             async_runtime_->Join();
         }
+        started_.store(false, std::memory_order_release);
     }
 
     void WsIpcClient::RegisterIpcMessageCallback(WsIpcMessageCallback&& callback) {
@@ -234,21 +236,65 @@ namespace px
         }
     }
 
-    PxAwaitable<void> WsIpcClient::WaitForConnectionReady(
+    PxAwaitable<void> WsIpcClient::RunConnectionLoop(
         std::weak_ptr<WsIpcClient> weak_client,
         std::shared_ptr<PxConnectionAttemptWorkflow> workflow,
-        PxConnectionAttemptTicket ticket,
-        std::chrono::steady_clock::time_point deadline) {
-        auto result = co_await PxConnectionAttemptWorkflow::WaitUntilReady(std::move(workflow), ticket, deadline);
-        const auto self = weak_client.lock();
-        if (!self || self->exiting_.load(std::memory_order_acquire)) {
-            co_return;
-        }
-        if (result) {
-            LOGI("ws ipc upgrade success, generation={}", result.Value().generation);
-        } else {
-            LOGW("ws ipc connection attempt ended: generation={}, stage={}, code={}",
-                 ticket.generation, result.Error().stage, result.Error().StableCode());
+        std::shared_ptr<PxReconnectBackoff> backoff,
+        std::shared_ptr<asio2::ws_client> client,
+        int port,
+        std::string path) {
+        for (;;) {
+            auto self = weak_client.lock();
+            if (!self || self->exiting_.load(std::memory_order_acquire)) {
+                co_return;
+            }
+            const auto attempt = workflow->StartAttempt();
+            if (!attempt) {
+                co_return;
+            }
+            const auto ticket = attempt.Value();
+            self->connection_generation_.store(ticket.generation, std::memory_order_release);
+            self.reset();
+
+            LOGI("event=transport.connection_attempt component=obs_ipc generation={}", ticket.generation);
+            if (!client->async_start("127.0.0.1", port, path)) {
+                static_cast<void>(workflow->FailActive(
+                    ticket.generation, MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "ipc.start", asio2::last_error_msg(), true)));
+            }
+
+            const auto ready = co_await PxConnectionAttemptWorkflow::WaitUntilReady(
+                workflow, ticket, std::chrono::steady_clock::now() + kIpcConnectionTimeout);
+            if (ready) {
+                backoff->Reset();
+                LOGI("event=transport.connection_ready component=obs_ipc generation={}", ticket.generation);
+                const auto disconnected = co_await PxConnectionAttemptWorkflow::WaitUntilDisconnected(workflow, ticket);
+                if (!disconnected) {
+                    if (disconnected.Error().code == PxAsyncErrorCode::kServiceStopped ||
+                        disconnected.Error().code == PxAsyncErrorCode::kCancelled) {
+                        co_return;
+                    }
+                    LOGW("event=transport.connection_lost component=obs_ipc generation={} stage={} code={} recoverable={}",
+                         ticket.generation, disconnected.Error().stage, disconnected.Error().StableCode(),
+                         disconnected.Error().retryable);
+                } else {
+                    const auto& reason = disconnected.Value().reason;
+                    LOGW("event=transport.connection_lost component=obs_ipc generation={} stage={} code={} recoverable={}",
+                         ticket.generation, reason.stage, reason.StableCode(), reason.retryable);
+                }
+            } else if (ready.Error().code == PxAsyncErrorCode::kServiceStopped || ready.Error().code == PxAsyncErrorCode::kCancelled) {
+                co_return;
+            } else {
+                LOGW("event=transport.connection_lost component=obs_ipc generation={} stage={} code={} recoverable={}",
+                     ticket.generation, ready.Error().stage, ready.Error().StableCode(), ready.Error().retryable);
+            }
+
+            const auto step = backoff->Next();
+            LOGI("event=transport.reconnect_wait component=obs_ipc generation={} attempt={} delay_ms={}",
+                 ticket.generation, step.attempt, step.delay.count());
+            const auto waited = co_await PxReconnectBackoff::Wait(step.delay);
+            if (!waited) {
+                co_return;
+            }
         }
     }
 

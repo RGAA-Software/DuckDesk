@@ -22,6 +22,7 @@ namespace px
     class Message;
     class CaptureBaseMessage;
     class PxConnectionAttemptWorkflow;
+    class PxReconnectBackoff;
     struct PxConnectionAttemptTicket;
     template<typename T>
     class PxAsyncMailbox;
@@ -47,11 +48,13 @@ namespace px
         static PxAwaitable<void> RunIncomingMessageLoop(
             std::weak_ptr<WsIpcClient> weak_client,
             std::shared_ptr<PxAsyncMailbox<std::string>> mailbox);
-        static PxAwaitable<void> WaitForConnectionReady(
+        static PxAwaitable<void> RunConnectionLoop(
             std::weak_ptr<WsIpcClient> weak_client,
             std::shared_ptr<PxConnectionAttemptWorkflow> workflow,
-            PxConnectionAttemptTicket ticket,
-            std::chrono::steady_clock::time_point deadline);
+            std::shared_ptr<PxReconnectBackoff> backoff,
+            std::shared_ptr<asio2::ws_client> client,
+            int port,
+            std::string path);
 
     private:
 
@@ -60,6 +63,7 @@ namespace px
         std::shared_ptr<PxAsyncRuntime> async_runtime_{};
         std::shared_ptr<PxAsyncScope> async_scope_{};
         std::shared_ptr<PxConnectionAttemptWorkflow> connection_workflow_{};
+        std::shared_ptr<PxReconnectBackoff> connection_backoff_{};
         std::shared_ptr<PxAsyncMailbox<std::string>> incoming_messages_{};
         mutable std::mutex callback_mutex_;
         WsIpcMessageCallback ipc_cbk_{};
