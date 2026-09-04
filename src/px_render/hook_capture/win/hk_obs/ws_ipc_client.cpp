@@ -11,6 +11,7 @@
 #include <format>
 #include <type_traits>
 #include "px_common_new/async_mailbox.h"
+#include "px_common_new/asio_client_shutdown.h"
 #include "px_common_new/connection_attempt_workflow.h"
 #include "px_common_new/reconnect_backoff.h"
 #include "px_common_new/log.h"
@@ -165,6 +166,7 @@ namespace px
         if (exiting_.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
         if (incoming_messages_) {
             static_cast<void>(incoming_messages_->Close(
                 MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "ipc.receive", "IPC websocket is stopping")));
@@ -173,18 +175,20 @@ namespace px
             connection_workflow_->Stop();
         }
         const auto client = ws_client_;
-        if (client) {
-            client->post([client]() {
-                client->set_auto_reconnect(false);
-                client->stop_all_timers();
-                client->stop();
-            });
-        }
+        static_cast<void>(RequestAsioClientStop(client, "ipc.adapter-stop"));
         auto drained = true;
         if (async_scope_) {
             async_scope_->BeginStop();
             const auto called_from_scope = async_scope_->IsScopeThread();
-            drained = called_from_scope ? false : async_scope_->WaitFor(std::chrono::seconds(2));
+            if (called_from_scope) {
+                drained = false;
+            } else {
+                const auto adapter_stopped = WaitForAsioClientStoppedBlocking(client, deadline);
+                const auto remaining = std::max(
+                    std::chrono::milliseconds::zero(),
+                    std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()));
+                drained = adapter_stopped && async_scope_->WaitFor(remaining);
+            }
             if (!drained && !called_from_scope) {
                 LOGE("event=async.scope_drain component=obs_ipc code=ASYNC_SCOPE_DRAIN_TIMEOUT "
                      "operation=stop_client outcome=timeout recoverable=false outstanding={}",

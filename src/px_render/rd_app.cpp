@@ -4,6 +4,7 @@
 
 #include "rd_app.h"
 #include <windows.h>
+#include <future>
 #include <random>
 #include <thread>
 #include "rd_context.h"
@@ -83,6 +84,40 @@ namespace px
     std::shared_ptr<RdApplication> rdApp;
 
     static FpsStat timer_fps;
+
+    namespace {
+
+        constexpr auto kApplicationShutdownBudget = std::chrono::seconds(15);
+
+        PxAwaitable<void> StopApplicationNetworkClients(
+            const std::shared_ptr<WsPanelClient>& panel_client,
+            const std::shared_ptr<RenderServiceClient>& service_client,
+            const std::chrono::steady_clock::time_point deadline,
+            const std::shared_ptr<std::promise<PxResult<void>>>& completion) {
+            if (panel_client) {
+                panel_client->Exit();
+            }
+            if (service_client) {
+                service_client->Exit();
+            }
+
+            auto outcome = PxResult<void>::Success();
+            if (panel_client) {
+                const auto stopped = co_await WsPanelClient::StopAsync(panel_client, deadline);
+                if (!stopped) {
+                    outcome = PxResult<void>::Failure(stopped.Error());
+                }
+            }
+            if (service_client) {
+                const auto stopped = co_await RenderServiceClient::StopAsync(service_client, deadline);
+                if (!stopped && outcome) {
+                    outcome = PxResult<void>::Failure(stopped.Error());
+                }
+            }
+            completion->set_value(std::move(outcome));
+        }
+
+    } // namespace
 
     std::shared_ptr<RdApplication> RdApplication::Make(const AppParams& args) {
         struct WinApplicationEnabler final : WinApplication {
@@ -2543,6 +2578,8 @@ namespace px
         if (exit_app_.exchange(true)) {
             return;
         }
+        const auto shutdown_started = std::chrono::steady_clock::now();
+        const auto shutdown_deadline = shutdown_started + kApplicationShutdownBudget;
         // Flip the guard first so asynchronous callbacks stop touching the
         // pipeline while its owners are being released.
         if (msg_listener_) {
@@ -2561,15 +2598,48 @@ namespace px
             LOGI("RdApplication shutdown: timers");
             app_timer_->StopTimers();
         }
-        if (ws_panel_client_) {
-            LOGI("RdApplication shutdown: panel client");
-            ws_panel_client_->Exit();
-            ws_panel_client_ = nullptr;
-        }
-        if (service_client_) {
-            LOGI("RdApplication shutdown: service client");
-            service_client_->Exit();
-            service_client_.reset();
+        if (ws_panel_client_ || service_client_) {
+            LOGI("event=application.shutdown component=rd_application operation=stop_network_clients outcome=started");
+            const auto async_runtime = context_ ? context_->GetAsyncRuntime() : std::shared_ptr<PxAsyncRuntime>{};
+            if (async_runtime && !async_runtime->IsStopping() && !async_runtime->IsRuntimeThread()) {
+                const auto shutdown_scope = PxAsyncScope::Create(async_runtime, PxAsyncLane::kControl);
+                const auto completion = std::make_shared<std::promise<PxResult<void>>>();
+                auto future = completion->get_future();
+                const auto spawned = shutdown_scope && shutdown_scope->Spawn(
+                    "application-network-shutdown",
+                    [panel_client = ws_panel_client_, service_client = service_client_, shutdown_deadline, completion]() {
+                        return StopApplicationNetworkClients(panel_client, service_client, shutdown_deadline, completion);
+                    });
+                if (!spawned || future.wait_until(shutdown_deadline) != std::future_status::ready) {
+                    LOGE("event=application.shutdown component=rd_application code=ASYNC_SCOPE_DRAIN_TIMEOUT "
+                         "operation=stop_network_clients outcome=timeout recoverable=false");
+                    if (shutdown_scope) {
+                        shutdown_scope->BeginStop();
+                    }
+                } else {
+                    const auto stopped = future.get();
+                    if (!stopped) {
+                        LOGE("event=application.shutdown component=rd_application code={} operation=stop_network_clients "
+                             "outcome=failed recoverable={} reason={}",
+                             stopped.Error().StableCode(),
+                             stopped.Error().retryable,
+                             stopped.Error().message);
+                    } else {
+                        ws_panel_client_.reset();
+                        service_client_.reset();
+                        LOGI("event=application.shutdown component=rd_application operation=stop_network_clients outcome=success");
+                    }
+                }
+            } else {
+                LOGI("event=application.shutdown component=rd_application operation=stop_network_clients outcome=deferred "
+                     "reason=runtime_thread_or_runtime_unavailable");
+                if (ws_panel_client_) {
+                    ws_panel_client_->Exit();
+                }
+                if (service_client_) {
+                    service_client_->Exit();
+                }
+            }
         }
         if (webview_runtime_) {
             webview_runtime_->Stop();
@@ -2612,15 +2682,20 @@ namespace px
         }
         if (composition_root_) {
             LOGI("RdApplication shutdown: built-in modules");
+            const auto completion = std::make_shared<std::promise<render::ModuleLifecycleResult>>();
+            auto future = completion->get_future();
             static_cast<void>(composition_root_->RequestStop(
-                [](render::ModuleLifecycleResult result) {
-                    if (!result) {
-                        LOGE("event=composition.stop component=rd_application "
-                             "code={} outcome=failed reason={}",
-                             render::StableErrorCode(result.error().code),
-                             result.error().reason);
-                    }
+                [completion](render::ModuleLifecycleResult result) {
+                    completion->set_value(std::move(result));
                 }));
+            if (future.wait_until(shutdown_deadline) != std::future_status::ready) {
+                LOGE("event=composition.stop component=rd_application code=ASYNC_SCOPE_DRAIN_TIMEOUT "
+                     "outcome=timeout recoverable=false");
+            } else if (const auto stopped = future.get(); !stopped) {
+                LOGE("event=composition.stop component=rd_application code={} outcome=failed reason={}",
+                     render::StableErrorCode(stopped.error().code),
+                     stopped.error().reason);
+            }
         }
         if (module_registry_) {
             LOGI("RdApplication shutdown: module event routing");
@@ -2629,6 +2704,8 @@ namespace px
             module_registry_->StopModules();
         }
         LOGI("RdApplication shutdown: owners released");
+        LOGI("event=application.shutdown component=rd_application operation=ordered_shutdown outcome=finished duration_ms={}",
+             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - shutdown_started).count());
 
         if (main_thread_id_ != 0) {
             PostThreadMessage(main_thread_id_, WM_QUIT, 0, 0);

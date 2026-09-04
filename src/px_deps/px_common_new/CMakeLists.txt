@@ -49,6 +49,7 @@ set(SRCS
     task_runtime.cpp
     async_runtime.cpp
     async_delay.cpp
+    async_scope_drain.cpp
     connection_attempt_workflow.cpp
     reconnect_backoff.cpp
     file_transfer_route_registry.cpp

@@ -31,6 +31,12 @@ add_tc_test(test_file_transfer_send_result test_file_transfer_send_result.cpp)
 add_tc_test(test_async_runtime test_async_runtime.cpp)
 add_tc_test(test_async_delay test_async_delay.cpp)
 add_test(NAME common_async_delay COMMAND test_async_delay)
+
+add_tc_test(test_async_scope_drain test_async_scope_drain.cpp)
+add_test(NAME common_async_scope_drain COMMAND test_async_scope_drain)
+
+add_tc_test(test_asio_client_shutdown test_asio_client_shutdown.cpp)
+add_test(NAME common_asio_client_shutdown COMMAND test_asio_client_shutdown)
 add_tc_test(test_async_mailbox test_async_mailbox.cpp)
 add_test(NAME common_async_mailbox COMMAND test_async_mailbox)
 add_tc_test(test_connection_attempt_workflow test_connection_attempt_workflow.cpp)

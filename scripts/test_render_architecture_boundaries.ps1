@@ -368,10 +368,31 @@ foreach ($relativePath in $coroutineOwnedClientFiles) {
             $violations.Add("${relativePath}: coroutine-owned reconnect contract is missing $required")
         }
     }
-    $adapterStop = $content.IndexOf("client->post([client]")
+    $adapterStopMatch = [regex]::Match($content, 'RequestAsioClientStop|client->post\(\[client\]')
+    $adapterStop = if ($adapterStopMatch.Success) { $adapterStopMatch.Index } else { -1 }
     $scopeStop = $content.IndexOf("async_scope_->BeginStop")
     if ($adapterStop -lt 0 -or $scopeStop -lt 0 -or $adapterStop -gt $scopeStop) {
         $violations.Add("${relativePath}: adapter stop must be requested before waiting for coroutine scope drain")
+    }
+}
+
+foreach ($relativePath in @(
+    "src\px_render\network\render_service_client.cpp",
+    "src\px_render\network\ws_panel_client.cpp"
+)) {
+    $content = Get-Content -LiteralPath (Join-Path $RepoRoot $relativePath) -Raw
+    foreach ($required in @("StopAsync", "WaitForAsyncScopeDrain", "FinishStop")) {
+        if ($content -notmatch [regex]::Escape($required)) {
+            $violations.Add("${relativePath}: typed component shutdown is missing $required")
+        }
+    }
+}
+
+$applicationSource = Get-Content -LiteralPath `
+    (Join-Path $RepoRoot "src\px_render\rd_app.cpp") -Raw
+foreach ($required in @("shutdown_deadline", "StopApplicationNetworkClients", "future.wait_until(shutdown_deadline)")) {
+    if ($applicationSource -notmatch [regex]::Escape($required)) {
+        $violations.Add("rd_app.cpp: absolute-deadline application shutdown is missing $required")
     }
 }
 

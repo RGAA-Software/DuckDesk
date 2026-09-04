@@ -39,6 +39,9 @@ namespace px
         ~RenderServiceClient();
         void Start();
         void Exit();
+        [[nodiscard]] static PxAwaitable<PxResult<void>> StopAsync(
+            const std::shared_ptr<RenderServiceClient>& owner,
+            std::chrono::steady_clock::time_point deadline);
         bool IsAlive() const;
         void PostNetMessage(const std::string& msg);
         void NotifyAppInstanceReady(const std::string& instance_id, int listen_port,
@@ -77,6 +80,8 @@ namespace px
         void SendPendingAppInstanceReady();
         PxResult<void> TryPostNetMessage(const std::string& msg);
         void FailPendingRequests(const PxAsyncError& error);
+        std::shared_ptr<PxAsyncScope> BeginStop();
+        void FinishStop();
         static PxAwaitable<void> RunIncomingMessageLoop(
             std::weak_ptr<RenderServiceClient> weak_client,
             std::shared_ptr<PxAsyncMailbox<std::string>> mailbox);

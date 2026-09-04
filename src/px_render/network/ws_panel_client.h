@@ -13,6 +13,7 @@
 #include <functional>
 #include <asio2/asio2.hpp>
 
+#include "px_common_new/async_result.h"
 #include "px_common_new/async_runtime.h"
 
 namespace px
@@ -39,6 +40,9 @@ namespace px
         ~WsPanelClient();
         void Start();
         void Exit();
+        [[nodiscard]] static PxAwaitable<PxResult<void>> StopAsync(
+            const std::shared_ptr<WsPanelClient>& owner,
+            std::chrono::steady_clock::time_point deadline);
         bool PostNetMessage(std::shared_ptr<Data> msg);
         bool Alive() const;
 
@@ -51,6 +55,8 @@ namespace px
         void ParseNetMessage(const std::string& msg);
         void ProcessCommandEnablePlugin(const std::string& plugin_id);
         void ProcessCommandDisablePlugin(const std::string& plugin_id);
+        std::shared_ptr<PxAsyncScope> BeginStop();
+        void FinishStop();
         static PxAwaitable<void> RunIncomingMessageLoop(
             std::weak_ptr<WsPanelClient> weak_client,
             std::shared_ptr<PxAsyncMailbox<std::string>> mailbox);
