@@ -27,9 +27,7 @@ namespace px
     class RdApplication;
     class RdStatistics;
     class MessageListener;
-    class PxConnectionAttemptWorkflow;
-    class PxReconnectBackoff;
-    struct PxConnectionAttemptTicket;
+    class PxReconnectSupervisor;
     template<typename T>
     class PxAsyncMailbox;
     class RenderServiceClient : public std::enable_shared_from_this<RenderServiceClient> {
@@ -85,15 +83,6 @@ namespace px
         static PxAwaitable<void> RunIncomingMessageLoop(
             std::weak_ptr<RenderServiceClient> weak_client,
             std::shared_ptr<PxAsyncMailbox<std::string>> mailbox);
-        static PxAwaitable<void> RunConnectionLoop(
-            std::weak_ptr<RenderServiceClient> weak_client,
-            std::shared_ptr<PxConnectionAttemptWorkflow> workflow,
-            std::shared_ptr<PxReconnectBackoff> backoff,
-            std::shared_ptr<asio2::ws_client> client,
-            std::string host,
-            int port,
-            std::string path);
-
     private:
         std::shared_ptr<RdStatistics> statistics_{};
         std::shared_ptr<RdApplication> app_{};
@@ -102,14 +91,12 @@ namespace px
         std::shared_ptr<MessageListener> msg_listener_{};
         std::shared_ptr<PxAsyncScope> async_scope_{};
         std::shared_ptr<RenderServiceRpcState> rpc_state_{};
-        std::shared_ptr<PxConnectionAttemptWorkflow> connection_workflow_{};
-        std::shared_ptr<PxReconnectBackoff> connection_backoff_{};
+        std::shared_ptr<PxReconnectSupervisor> connection_supervisor_{};
         std::shared_ptr<PxAsyncMailbox<std::string>> incoming_messages_{};
         std::atomic_bool websocket_upgraded_{false};
         std::atomic_bool started_{false};
         std::atomic_bool exiting_{false};
         std::atomic_int queuing_message_count_{0};
-        std::atomic_uint64_t connection_generation_{0};
         std::mutex ready_mtx_;
         std::string ready_instance_id_;
         std::string ready_error_;

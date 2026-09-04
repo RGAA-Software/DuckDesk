@@ -108,6 +108,7 @@ $lifecycleTargets = @(
     "test_process_loopback_lifecycle",
     "test_plugin_context_lifecycle",
     "test_callback_quiescence",
+    "test_reconnect_supervisor",
     "test_udp_transport_shutdown",
     "test_ws_ipc_client_lifecycle",
     "test_webrtc_libraries_lifecycle",

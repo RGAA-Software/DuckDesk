@@ -22,7 +22,7 @@
 | 异步基础设施 | mailbox、delay、scope drain、adapter stop、callback quiescence 已实现 | 100% | 最终验收环境回归 |
 | WS ticket/准入/RTC Local 分配 | typed awaitable、deadline、迟到补偿和 scope drain 已接入 | 95%～100% | 实机异常矩阵 |
 | Render Service 业务请求 | request registry、FailAll、连接/接收 coroutine 和 StopAsync 已实现 | 100% | 实机 Service 联调 |
-| 连接与重连 | 三个 client 均由 generation/backoff coroutine 独占重连 | 100% | 长稳和真实弱网验收 |
+| 连接与重连 | 三个 client 均由统一 supervisor 独占 generation/backoff/adapter reset | 100% | 长稳和真实弱网验收 |
 | WS/HTTP server 生命周期 | 共享 runtime、准入、停止 ingress 和 absolute-deadline drain 已实现 | 100% | 实机并发验收 |
 | UDP 控制面 | sweep/FEC coroutine、StopAsync、receive-storm 并发测试已实现 | 95%～100% | 固定硬件性能对比 |
 | 应用有序关闭 | 根 deadline、runtime-thread 续体、WebRTC 静默和安全保留已实现 | 100% | 完整客户端验收 |
@@ -41,6 +41,10 @@
   connection workflow 和全部 pending request 后异步排空 scope。保留的 callback API 只是兼容边界 facade，业务等待、超时和完成状态只由 typed awaitable owner 管理。
 - N2 已完成：WsPanelClient、OBS WsIpcClient 已使用同一 workflow/backoff 模型；五个 `[&]` 网络 callback 已替换为 weak ownership，IPC wire
   decode 不再使用对象裸指针强转。OBS IPC 具备统一 `StopAsync`、20 轮 repeated Start/Exit 测试，以及真实 WS server 断开/恢复后的 generation 推进测试。
+- N2 重连能力已统一收口到 `PxReconnectSupervisor`：关闭 asio2 auto-reconnect 的三个长期连接不再各自复制循环。监督器负责首次连接失败后的无限重试、
+  在线断开重连、连接成功后退避复位、可恢复/永久错误分流、连接 deadline、停止时取消、generation 统计，以及重试前强制 adapter 完整 stopped。
+  `StartAttemptIfRunning()` 与 `Stop()` 使用同一生命周期门锁，保证停止开始后不会出现迟到 `async_start`；adapter 未静默时只继续 reset，绝不并发启动下一代。
+  自动化覆盖连续启动失败后恢复、在线断开后新 generation、adapter reset 失败、永久错误终止、长退避即时取消及服务启动时离线后上线恢复。
 - N1/N2 关闭时序已加固：三个 client 都会先拒绝新工作、关闭 mailbox/workflow 并向 asio2 adapter 所在线程发布 stop，再取消和等待组件 scope；不再先等
   scope、后停 adapter。Render Service/Panel 每轮 `Start()` 都重建 scope、workflow、mailbox 和 request state，partial start failure 走同一逆序退出路径；drain
   超时和 callback/runtime 线程内发起关闭均输出结构化日志且不释放仍有 outstanding task 的 owner。Render Service/Panel 的 absolute-deadline
@@ -63,8 +67,8 @@
   real-server reconnect 测试。固定硬件性能、真实弱网和长稳数据由最终验收阶段产生。
 
 当前 focused 结果：callback quiescence、UDP receive storm、OBS repeated lifecycle/真实 server reconnect、WebRTC 连续 10 轮 load/start/StopAsync/unload 均通过；
-OBS lifecycle 额外连续执行 20 轮通过。最终 `Mode all` 自动化门禁通过 33 项、失败 0、跳过 0、unexpected ERROR 0；证据位于
-`test-results/render-architecture/20260904-155032-all`。`px_render.exe`、`px_gh.dll`、`net_rtc.dll`、`net_rtc_local.dll` 的构建树与
+OBS lifecycle 额外连续执行 20 轮通过。最终 `Mode all` 自动化门禁通过 34 项、失败 0、跳过 0、unexpected ERROR 0；证据位于
+`test-results/render-architecture/20260904-161507-all`。`px_render.exe`、`px_gh.dll`、`net_rtc.dll`、`net_rtc_local.dll` 的构建树与
 `build_official/dist` SHA-256 均一致。该结果不替代用户最终产品验收。
 
 ## 3. 目标和非目标

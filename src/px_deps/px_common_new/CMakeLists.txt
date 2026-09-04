@@ -53,6 +53,7 @@ set(SRCS
     callback_quiescence.cpp
     connection_attempt_workflow.cpp
     reconnect_backoff.cpp
+    reconnect_supervisor.cpp
     file_transfer_route_registry.cpp
     base64.cpp
     file.cpp

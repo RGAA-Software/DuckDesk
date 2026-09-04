@@ -363,9 +363,9 @@ foreach ($relativePath in $coroutineOwnedClientFiles) {
     if ($content -match 'set_auto_reconnect\s*\(\s*true') {
         $violations.Add("${relativePath}: reconnect scheduling must remain owned by the connection coroutine")
     }
-    foreach ($required in @("RunConnectionLoop", "PxReconnectBackoff", "WaitUntilDisconnected")) {
+    foreach ($required in @("set_auto_reconnect(false)", "PxReconnectSupervisor::Create", "PxReconnectSupervisor::Run", "stop_attempt")) {
         if ($content -notmatch [regex]::Escape($required)) {
-            $violations.Add("${relativePath}: coroutine-owned reconnect contract is missing $required")
+            $violations.Add("${relativePath}: supervised reconnect contract is missing $required")
         }
     }
     $adapterStopMatch = [regex]::Match($content, 'RequestAsioClientStop|client->post\(\[client\]')
@@ -373,6 +373,22 @@ foreach ($relativePath in $coroutineOwnedClientFiles) {
     $scopeStop = $content.IndexOf("async_scope_->BeginStop")
     if ($adapterStop -lt 0 -or $scopeStop -lt 0 -or $adapterStop -gt $scopeStop) {
         $violations.Add("${relativePath}: adapter stop must be requested before waiting for coroutine scope drain")
+    }
+}
+
+$reconnectSupervisorPath = Join-Path $RepoRoot "src\px_deps\px_common_new\reconnect_supervisor.cpp"
+$reconnectSupervisorContent = Get-Content -LiteralPath $reconnectSupervisorPath -Raw
+foreach ($required in @(
+    "StartAttemptIfRunning",
+    "ResetAdapterUntilStopped",
+    "WaitUntilReady",
+    "WaitUntilDisconnected",
+    "failure.retryable",
+    "adapter_reset_failures_",
+    "transport.reconnect_wait"
+)) {
+    if ($reconnectSupervisorContent -notmatch [regex]::Escape($required)) {
+        $violations.Add("src\px_deps\px_common_new\reconnect_supervisor.cpp: reconnect supervisor is missing $required")
     }
 }
 

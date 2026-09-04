@@ -15,8 +15,7 @@
 #include "px_common_new/async_mailbox.h"
 #include "px_common_new/async_scope_drain.h"
 #include "px_common_new/asio_client_shutdown.h"
-#include "px_common_new/connection_attempt_workflow.h"
-#include "px_common_new/reconnect_backoff.h"
+#include "px_common_new/reconnect_supervisor.h"
 #include "px_message.pb.h"
 #include "px_render_panel_message.pb.h"
 #include "px_render/modules/render_module_registry.h"
@@ -113,12 +112,16 @@ namespace px
         });
 
         client_ = std::make_shared<asio2::ws_client>();
-        connection_workflow_ = PxConnectionAttemptWorkflow::Create(async_runtime, kPanelConnectionTimeout);
-        connection_backoff_ = PxReconnectBackoff::Create(kPanelReconnectOptions);
+        connection_supervisor_ = PxReconnectSupervisor::Create(async_runtime, PxReconnectSupervisorOptions{
+            .component = "render_panel",
+            .connection_timeout = kPanelConnectionTimeout,
+            .adapter_stop_timeout = std::chrono::seconds(3),
+            .backoff = kPanelReconnectOptions,
+        });
         if (async_scope_) {
             incoming_messages_ = PxAsyncMailbox<std::string>::Create(async_scope_->Executor(), kIncomingPanelMessageCapacity);
         }
-        if (!connection_workflow_ || !connection_backoff_ || !async_scope_ || !incoming_messages_) {
+        if (!connection_supervisor_ || !async_scope_ || !incoming_messages_) {
             LOGE("event=module.start component=render_panel code=ASYNC_WORKFLOW_CREATE_FAILED "
                  "operation=start_client outcome=failed recoverable=false");
             Exit();
@@ -137,7 +140,7 @@ namespace px
         //client_->set_verify_mode(asio::ssl::verify_peer);
         client_->bind_init([weak_self]() {
             if (auto self = weak_self.lock(); self && !self->exiting_ && self->client_
-                && self->connection_workflow_) {
+                && self->connection_supervisor_) {
                 self->client_->ws_stream().binary(true);
                 self->client_->set_no_delay(true);
                 self->client_->ws_stream().set_option(
@@ -155,10 +158,9 @@ namespace px
                 LOGE("event=transport.connection_attempt component=render_panel code={} operation=connect outcome=failure "
                      "recoverable=true reason={}", asio2::last_error_val(), str);
                 if (auto self = weak_self.lock(); self && !self->exiting_
-                    && self->connection_workflow_) {
-                    const auto generation = self->connection_generation_.load(std::memory_order_acquire);
-                    static_cast<void>(self->connection_workflow_->FailActive(
-                        generation, MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "render-panel.connect", str, true)));
+                    && self->connection_supervisor_) {
+                    static_cast<void>(self->connection_supervisor_->FailActive(
+                        MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "render-panel.connect", str, true)));
                 }
             } else {
                 if (auto self = weak_self.lock(); self && !self->exiting_ && self->client_) {
@@ -168,10 +170,8 @@ namespace px
         })
         .bind_disconnect([weak_self]() {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
-                if (self->connection_workflow_) {
-                    const auto generation = self->connection_generation_.load(std::memory_order_acquire);
-                    static_cast<void>(self->connection_workflow_->MarkDisconnected(
-                        generation,
+                if (self->connection_supervisor_) {
+                    static_cast<void>(self->connection_supervisor_->MarkDisconnected(
                         MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "render-panel.disconnect", "Render disconnected from Panel", true)));
                 }
             }
@@ -181,18 +181,15 @@ namespace px
                 LOGE("event=transport.connection_attempt component=render_panel code={} operation=upgrade outcome=failure "
                      "recoverable=true reason={}", asio2::last_error_val(), asio2::last_error_msg());
                 if (auto self = weak_self.lock(); self && !self->exiting_
-                    && self->connection_workflow_) {
-                    const auto generation = self->connection_generation_.load(std::memory_order_acquire);
-                    static_cast<void>(self->connection_workflow_->FailActive(
-                        generation,
+                    && self->connection_supervisor_) {
+                    static_cast<void>(self->connection_supervisor_->FailActive(
                         MakePxAsyncError(PxAsyncErrorCode::kProtocolError, "render-panel.upgrade", asio2::last_error_msg(), true)));
                 }
                 return;
             }
             if (auto self = weak_self.lock(); self && !self->exiting_
-                && self->connection_workflow_) {
-                static_cast<void>(
-                    self->connection_workflow_->MarkReady(self->connection_generation_.load(std::memory_order_acquire)));
+                && self->connection_supervisor_) {
+                static_cast<void>(self->connection_supervisor_->MarkReady());
             }
         })
         .bind_recv([weak_self](std::string_view data) {
@@ -211,10 +208,32 @@ namespace px
 
         LOGI("Will connect to panel : {}:{}", settings_.get().panel_server_host_, settings_.get().panel_server_port_);
         const auto panel_path = std::format("/panel/renderer?instance_id={}", instance_id_);
+        PxReconnectSupervisorHooks reconnect_hooks{
+            .start_attempt = [client = client_, host = settings_.get().panel_server_host_,
+                              port = settings_.get().panel_server_port_, panel_path](std::uint64_t) {
+                if (client->async_start(host, port, panel_path)) {
+                    return PxResult<void>::Success();
+                }
+                return PxResult<void>::Failure(MakePxAsyncError(
+                    PxAsyncErrorCode::kServiceNotConnected, "render-panel.start", asio2::last_error_msg(), true));
+            },
+            .stop_attempt = [client = client_](std::chrono::steady_clock::time_point deadline)
+                -> PxAwaitable<PxResult<void>> {
+                const auto requested = RequestAsioClientStop(client, "render-panel.retry-reset");
+                if (!requested) {
+                    co_return requested;
+                }
+                co_return co_await WaitForAsioClientStopped(client, deadline, "render-panel.retry-reset");
+            },
+            .on_ready = [weak_self](std::uint64_t) {
+                if (const auto self = weak_self.lock(); self && !self->exiting_.load(std::memory_order_acquire)) {
+                    self->ReportStatistics();
+                }
+            },
+        };
         if (!async_scope_->Spawn("render-panel-connection-loop",
-                                 [weak_self, workflow = connection_workflow_, backoff = connection_backoff_, client = client_,
-                                  host = settings_.get().panel_server_host_, port = settings_.get().panel_server_port_, panel_path]() mutable {
-            return RunConnectionLoop(weak_self, workflow, backoff, client, std::move(host), port, std::move(panel_path));
+                                 [supervisor = connection_supervisor_, hooks = std::move(reconnect_hooks)]() mutable {
+            return PxReconnectSupervisor::Run(std::move(supervisor), std::move(hooks));
         })) {
             LOGE("event=module.start component=render_panel code=ASYNC_SCOPE_SPAWN_FAILED "
                  "operation=start_connection_loop outcome=failed recoverable=false");
@@ -235,74 +254,6 @@ namespace px
                 co_return;
             }
             self->ParseNetMessage(message.Value());
-        }
-    }
-
-    PxAwaitable<void> WsPanelClient::RunConnectionLoop(
-        std::weak_ptr<WsPanelClient> weak_client,
-        std::shared_ptr<PxConnectionAttemptWorkflow> workflow,
-        std::shared_ptr<PxReconnectBackoff> backoff,
-        std::shared_ptr<asio2::ws_client> client,
-        std::string host,
-        int port,
-        std::string path) {
-        for (;;) {
-            auto self = weak_client.lock();
-            if (!self || self->exiting_.load(std::memory_order_acquire)) {
-                co_return;
-            }
-            const auto attempt = workflow->StartAttempt();
-            if (!attempt) {
-                co_return;
-            }
-            const auto ticket = attempt.Value();
-            self->connection_generation_.store(ticket.generation, std::memory_order_release);
-            self.reset();
-
-            LOGI("event=transport.connection_attempt component=render_panel generation={}", ticket.generation);
-            if (!client->async_start(host, port, path)) {
-                static_cast<void>(workflow->FailActive(
-                    ticket.generation,
-                    MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "render-panel.start", asio2::last_error_msg(), true)));
-            }
-
-            const auto ready = co_await PxConnectionAttemptWorkflow::WaitUntilReady(
-                workflow, ticket, std::chrono::steady_clock::now() + kPanelConnectionTimeout);
-            if (ready) {
-                backoff->Reset();
-                LOGI("event=transport.connection_ready component=render_panel generation={}", ticket.generation);
-                if (self = weak_client.lock(); self && !self->exiting_.load(std::memory_order_acquire)) {
-                    self->ReportStatistics();
-                }
-                self.reset();
-                const auto disconnected = co_await PxConnectionAttemptWorkflow::WaitUntilDisconnected(workflow, ticket);
-                if (!disconnected) {
-                    if (disconnected.Error().code == PxAsyncErrorCode::kServiceStopped ||
-                        disconnected.Error().code == PxAsyncErrorCode::kCancelled) {
-                        co_return;
-                    }
-                    LOGW("event=transport.connection_lost component=render_panel generation={} stage={} code={} recoverable={}",
-                         ticket.generation, disconnected.Error().stage, disconnected.Error().StableCode(),
-                         disconnected.Error().retryable);
-                } else {
-                    const auto& reason = disconnected.Value().reason;
-                    LOGW("event=transport.connection_lost component=render_panel generation={} stage={} code={} recoverable={}",
-                         ticket.generation, reason.stage, reason.StableCode(), reason.retryable);
-                }
-            } else if (ready.Error().code == PxAsyncErrorCode::kServiceStopped || ready.Error().code == PxAsyncErrorCode::kCancelled) {
-                co_return;
-            } else {
-                LOGW("event=transport.connection_lost component=render_panel generation={} stage={} code={} recoverable={}",
-                     ticket.generation, ready.Error().stage, ready.Error().StableCode(), ready.Error().retryable);
-            }
-
-            const auto step = backoff->Next();
-            LOGI("event=transport.reconnect_wait component=render_panel generation={} attempt={} delay_ms={}",
-                 ticket.generation, step.attempt, step.delay.count());
-            const auto waited = co_await PxReconnectBackoff::Wait(step.delay);
-            if (!waited) {
-                co_return;
-            }
         }
     }
 
@@ -377,8 +328,8 @@ namespace px
             static_cast<void>(incoming_messages_->Close(
                 MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "render-panel.receive", "Render Panel client is stopping")));
         }
-        if (connection_workflow_) {
-            connection_workflow_->Stop();
+        if (connection_supervisor_) {
+            connection_supervisor_->Stop();
         }
         const auto client = client_;
         static_cast<void>(RequestAsioClientStop(client, "render-panel.adapter-stop"));
@@ -394,15 +345,14 @@ namespace px
         }
         client_.reset();
         incoming_messages_.reset();
-        connection_workflow_.reset();
-        connection_backoff_.reset();
+        connection_supervisor_.reset();
         async_scope_.reset();
         started_.store(false, std::memory_order_release);
     }
 
     bool WsPanelClient::Alive() const {
         return client_ && client_->is_started()
-            && connection_workflow_ && connection_workflow_->IsReady();
+            && connection_supervisor_ && connection_supervisor_->IsReady();
     }
 
     void WsPanelClient::ReportStatistics() {
@@ -462,8 +412,8 @@ namespace px
             return false;
         }
         auto client = client_;
-        if (client && client->is_started() && connection_workflow_
-            && connection_workflow_->IsReady()) {
+        if (client && client->is_started() && connection_supervisor_
+            && connection_supervisor_->IsReady()) {
             if (queuing_message_count_ >= kMaxClientQueuedMessage) {
                 return false;
             }

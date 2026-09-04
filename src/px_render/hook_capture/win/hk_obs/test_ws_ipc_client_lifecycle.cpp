@@ -70,22 +70,44 @@ TEST(WsIpcClientLifecycle, StopAsyncDrainsFromExternalControlLane) {
     runtime->Join();
 }
 
-TEST(WsIpcClientLifecycle, RealServerDisconnectAdvancesReconnectGeneration) {
+TEST(WsIpcClientLifecycle, RepeatedRealServerRestartAdvancesEveryReconnectGeneration) {
     const auto port = 30000 + static_cast<int>(GetCurrentProcessId() % 10000);
     const auto server = std::make_shared<asio2::ws_server>();
     ASSERT_TRUE(server->start("127.0.0.1", port));
     const auto client = WsIpcClient::Make(port);
     client->Start();
     ASSERT_TRUE(WaitUntil([client] { return client->IsConnected(); }, 5s));
-    const auto first_generation = client->ConnectionGeneration();
-    ASSERT_GT(first_generation, 0U);
+    auto previous_generation = client->ConnectionGeneration();
+    ASSERT_GT(previous_generation, 0U);
 
+    for (int cycle = 0; cycle < 3; ++cycle) {
+        server->stop();
+        ASSERT_TRUE(WaitUntil([client] { return !client->IsConnected(); }, 2s)) << "cycle=" << cycle;
+        ASSERT_TRUE(server->start("127.0.0.1", port)) << "cycle=" << cycle;
+        ASSERT_TRUE(WaitUntil([client, previous_generation] {
+            return client->IsConnected() && client->ConnectionGeneration() > previous_generation;
+        }, 8s)) << "cycle=" << cycle;
+        previous_generation = client->ConnectionGeneration();
+    }
+
+    client->Exit();
     server->stop();
-    ASSERT_TRUE(WaitUntil([client] { return !client->IsConnected(); }, 2s));
+    EXPECT_FALSE(client->IsStarted());
+}
+
+TEST(WsIpcClientLifecycle, InitiallyUnavailableServerIsRetriedUntilItStarts) {
+    const auto port = 40000 + static_cast<int>(GetCurrentProcessId() % 10000);
+    const auto client = WsIpcClient::Make(port);
+    client->Start();
+    ASSERT_TRUE(client->IsStarted());
+
+    ASSERT_TRUE(WaitUntil([client] { return client->ConnectionGeneration() >= 2; }, 5s));
+    const auto generation_before_server_start = client->ConnectionGeneration();
+    const auto server = std::make_shared<asio2::ws_server>();
     ASSERT_TRUE(server->start("127.0.0.1", port));
-    ASSERT_TRUE(WaitUntil([client, first_generation] {
-        return client->IsConnected() && client->ConnectionGeneration() > first_generation;
-    }, 8s));
+    ASSERT_TRUE(WaitUntil([client, generation_before_server_start] {
+        return client->IsConnected() && client->ConnectionGeneration() >= generation_before_server_start;
+    }, 10s));
 
     client->Exit();
     server->stop();
