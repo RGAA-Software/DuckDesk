@@ -11,6 +11,8 @@
 #include "px_render/modules/module_ids.h"
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
+#include "px_common_new/async_delay.h"
+#include "px_common_new/async_runtime.h"
 #include "px_common_new/time_util.h"
 #include "px_common_new/px_udp_protocol.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
@@ -18,6 +20,12 @@
 
 namespace px
 {
+    namespace {
+        constexpr auto kHeartbeatScanInterval = std::chrono::seconds(2);
+        constexpr auto kFecWindow = std::chrono::seconds(5);
+        constexpr auto kControlScopeDrainTimeout = std::chrono::seconds(5);
+    }
+
     void UdpWinHandleCloser::operator()(void* handle) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): Win32 HANDLE boundary
         if (handle) {
             CloseHandle(handle);
@@ -27,13 +35,16 @@ namespace px
     class UdpRuntimeState final
         : public std::enable_shared_from_this<UdpRuntimeState> {
     public:
-        UdpRuntimeState(CompatibilityEventCallback event_dispatcher, int fec_percent)
-            : event_dispatcher_(std::move(event_dispatcher)),
-              fec_percent_(fec_percent),
-              configured_fec_percent_(fec_percent) {
+        UdpRuntimeState(std::shared_ptr<PxAsyncRuntime> async_runtime,
+                        CompatibilityEventCallback event_dispatcher,
+                        int fec_percent)
+            : fec_percent_(fec_percent),
+              event_dispatcher_(std::move(event_dispatcher)),
+              configured_fec_percent_(fec_percent),
+              control_scope_(PxAsyncScope::Create(std::move(async_runtime), PxAsyncLane::kControl)) {
         }
 
-        void Start(int listen_port);
+        [[nodiscard]] bool Start(int listen_port);
         void Stop();
         void HandleCtrlPacket(
             const std::shared_ptr<UdpSession>& udp_session,
@@ -76,12 +87,21 @@ namespace px
         std::atomic_bool rfi_pending_{false};
 
     private:
+        static PxAwaitable<void> RunHeartbeatSweepLoop(std::weak_ptr<UdpRuntimeState> weak_runtime);
+        static PxAwaitable<void> RunFecWindowLoop(std::weak_ptr<UdpRuntimeState> weak_runtime);
+
         CompatibilityEventCallback event_dispatcher_;
         int configured_fec_percent_ = 20;
+        std::shared_ptr<PxAsyncScope> control_scope_{};
+        std::atomic_bool stopping_{false};
         static constexpr int64_t kHeartbeatTimeoutMs = 10000;
         static constexpr int64_t kUnboundSessionTimeoutMs = 10000;
         static constexpr int kFecMaxPercent = 60;
     };
+
+    UdpTransport::UdpTransport(std::shared_ptr<PxAsyncRuntime> async_runtime)
+        : async_runtime_(std::move(async_runtime)) {
+    }
 
     std::string UdpTransport::Id() const {
         return kNetUdpTransportId;
@@ -113,8 +133,13 @@ namespace px
         if (configuration.udp_mtu >= 576 && configuration.udp_mtu <= 1500) {
             udp_mtu_ = configuration.udp_mtu;
         }
-        runtime_ = std::make_shared<UdpRuntimeState>(
-            MakeImmediateCompatibilityEventDispatcher(), fec_percent);
+        if (!async_runtime_ || async_runtime_->IsStopping()) {
+            LOGE("event=module.start component=net_udp code=ASYNC_RUNTIME_UNAVAILABLE "
+                 "operation=start_control_workflows outcome=failed recoverable=false");
+            RenderModule::Stop();
+            return false;
+        }
+        runtime_ = std::make_shared<UdpRuntimeState>(async_runtime_, MakeImmediateCompatibilityEventDispatcher(), fec_percent);
         // Windows sleep 默认 15.6ms 粒度,先把计时器分辨率提到 1ms(高精度 waitable timer 不受此限)
         timeBeginPeriod(1);
         // Sunshine 同款高精度 pacing 定时器(Win10 1809+;失败退回普通 waitable timer)
@@ -128,22 +153,12 @@ namespace px
         LOGI("Listen port: {}, fec percent: {}, mtu: {}, pacing: {}Mbps rate-limited (sunshine), timer={}",
              udp_listen_port_, runtime_->fec_percent_.load(), udp_mtu_, kRateControlBitsPerSec / 1000000,
              pace_timer_ ? "ok" : "none");
-        runtime_->Start(udp_listen_port_);
-
-        // 心跳扫描:超 10s 无心跳的绑定会话判定掉线
-        if (module_context_) {
-            const auto weak_runtime = std::weak_ptr<UdpRuntimeState>(runtime_);
-            module_context_->StartTimer(kHeartbeatScanIntervalMs, [weak_runtime]() {
-                if (const auto runtime = weak_runtime.lock()) {
-                    runtime->SweepDeadSessions();
-                }
-            });
-            // FRAME_STATUS 窗口:5s 一个窗口,按判丢率动态调 FEC 百分比
-            module_context_->StartTimer(kFecWindowMs, [weak_runtime]() {
-                if (const auto runtime = weak_runtime.lock()) {
-                    runtime->AdjustFecWindow();
-                }
-            });
+        if (!runtime_->Start(udp_listen_port_)) {
+            runtime_.reset();
+            pace_timer_.reset();
+            timeEndPeriod(1);
+            RenderModule::Stop();
+            return false;
         }
         return true;
     }
@@ -330,7 +345,13 @@ namespace px
         return false;
     }
 
-    void UdpRuntimeState::Start(int listen_port) {
+    bool UdpRuntimeState::Start(int listen_port) {
+        if (!control_scope_ || !control_scope_->IsAccepting()) {
+            LOGE("event=module.start component=net_udp code=ASYNC_SCOPE_CREATE_FAILED "
+                 "operation=start_control_workflows outcome=failed recoverable=false");
+            return false;
+        }
+        stopping_ = false;
         const auto connection_id = [](
             const std::shared_ptr<asio2::udp_session>& session) {
             return session->remote_address() + ":"
@@ -446,10 +467,51 @@ namespace px
         });
 
         // 裸 UDP(不再 use_kcp):视频重传是负优化,丢了靠客户端报 IDR 恢复
-        server_->start("0.0.0.0", listen_port);
+        const auto started = server_->start("0.0.0.0", listen_port);
+        if (!started) {
+            LOGE("event=module.start component=net_udp code=UDP_SERVER_START_FAILED "
+                 "operation=start_server outcome=failed recoverable=true port={}",
+                 listen_port);
+            Stop();
+            return false;
+        }
+
+        const auto heartbeat_started = control_scope_->Spawn("udp-heartbeat-sweep", [weak_runtime]() {
+            return RunHeartbeatSweepLoop(weak_runtime);
+        });
+        const auto fec_started = control_scope_->Spawn("udp-fec-window", [weak_runtime]() {
+            return RunFecWindowLoop(weak_runtime);
+        });
+        if (!heartbeat_started || !fec_started) {
+            LOGE("event=module.start component=net_udp code=ASYNC_SCOPE_SPAWN_FAILED "
+                 "operation=start_control_workflows outcome=failed recoverable=false heartbeat_started={} fec_started={}",
+                 heartbeat_started,
+                 fec_started);
+            Stop();
+            return false;
+        }
+        return true;
     }
 
     void UdpRuntimeState::Stop() {
+        if (stopping_.exchange(true)) {
+            return;
+        }
+        if (control_scope_) {
+            const auto called_from_scope = control_scope_->IsScopeThread();
+            const auto drained = called_from_scope
+                ? (control_scope_->BeginStop(), false)
+                : control_scope_->StopAndWait(kControlScopeDrainTimeout);
+            if (!drained && !called_from_scope) {
+                LOGE("event=async.scope_drain component=net_udp code=ASYNC_SCOPE_DRAIN_TIMEOUT "
+                     "operation=stop_control_workflows outcome=timeout recoverable=false outstanding={}",
+                     control_scope_->GetStatistics().outstanding);
+            } else if (called_from_scope) {
+                LOGI("event=async.scope_drain component=net_udp operation=stop_control_workflows outcome=deferred "
+                     "reason=shutdown_requested_from_callback outstanding={}",
+                     control_scope_->GetStatistics().outstanding);
+            }
+        }
         if (server_) {
             server_->stop();
             server_.reset();
@@ -458,6 +520,35 @@ namespace px
         std::scoped_lock lock(bind_mutex_);
         media_associations_.clear();
         active_media_association_code_.clear();
+        control_scope_.reset();
+    }
+
+    PxAwaitable<void> UdpRuntimeState::RunHeartbeatSweepLoop(std::weak_ptr<UdpRuntimeState> weak_runtime) {
+        for (;;) {
+            const auto waited = co_await WaitForAsyncDelay(kHeartbeatScanInterval, "udp.heartbeat_sweep.wait");
+            if (!waited) {
+                co_return;
+            }
+            const auto runtime = weak_runtime.lock();
+            if (!runtime || runtime->stopping_) {
+                co_return;
+            }
+            runtime->SweepDeadSessions();
+        }
+    }
+
+    PxAwaitable<void> UdpRuntimeState::RunFecWindowLoop(std::weak_ptr<UdpRuntimeState> weak_runtime) {
+        for (;;) {
+            const auto waited = co_await WaitForAsyncDelay(kFecWindow, "udp.fec_window.wait");
+            if (!waited) {
+                co_return;
+            }
+            const auto runtime = weak_runtime.lock();
+            if (!runtime || runtime->stopping_) {
+                co_return;
+            }
+            runtime->AdjustFecWindow();
+        }
     }
 
     void UdpRuntimeState::UpdateMediaAssociation(const UdpMediaAssociation& association) {

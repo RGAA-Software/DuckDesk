@@ -24,6 +24,7 @@
 namespace px
 {
     class Data;
+    class PxAsyncRuntime;
     class UdpRuntimeState;
 
     struct UdpWinHandleCloser final {
@@ -52,6 +53,7 @@ namespace px
 
     class UdpTransport final : public RenderModule {
     public:
+        explicit UdpTransport(std::shared_ptr<PxAsyncRuntime> async_runtime = {});
         std::string Id() const override;
         std::string Name() const override;
         std::string VersionName() const override;
@@ -90,7 +92,8 @@ namespace px
         void PaceSleep(const std::chrono::steady_clock::duration& duration);
 
     private:
-        std::shared_ptr<UdpRuntimeState> runtime_;
+        std::shared_ptr<PxAsyncRuntime> async_runtime_{};
+        std::shared_ptr<UdpRuntimeState> runtime_{};
         int udp_listen_port_{};
         // 视频 shard MTU:LAN 默认 1400;公网/UDP 分片敏感场景可配 1024。
         int udp_mtu_{1400};
@@ -100,8 +103,6 @@ namespace px
         std::map<std::string, uint8_t> mon_slots_;
         uint8_t next_mon_slot_ = 0;
 
-        static constexpr int kHeartbeatScanIntervalMs = 2000;
-        static constexpr int kFecWindowMs = 5000;
         // Sunshine 同款 pacing(stream.cpp),但速率上限按百兆网而非 1Gbps:
         // ratecontrol_packets_in_1ms = 100Mbps*80%/1000/blocksize/8 = 10000/blocksize。
         // 单批上限 64KB / 64 包,避开 Windows 64KB SO_SNDBUF 绕过问题。

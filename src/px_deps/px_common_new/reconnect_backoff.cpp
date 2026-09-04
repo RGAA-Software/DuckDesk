@@ -4,7 +4,7 @@
 #include <cmath>
 #include <limits>
 
-#include <asio2/external/asio.hpp>
+#include "async_delay.h"
 
 namespace px {
 namespace {
@@ -68,20 +68,7 @@ PxAwaitable<PxResult<void>> PxReconnectBackoff::Wait(std::chrono::milliseconds d
             MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "reconnect.wait", "reconnect delay must not be negative"));
     }
 
-    const auto executor = co_await asio::this_coro::executor;
-    asio::steady_timer timer(executor, delay);
-    asio::error_code wait_error;
-    co_await timer.async_wait(asio::redirect_error(asio::use_awaitable, wait_error));
-    const auto cancellation = co_await asio::this_coro::cancellation_state;
-    if (cancellation.cancelled() != asio::cancellation_type::none || wait_error == asio::error::operation_aborted) {
-        co_return PxResult<void>::Failure(
-            MakePxAsyncError(PxAsyncErrorCode::kCancelled, "reconnect.wait", "reconnect wait was cancelled"));
-    }
-    if (wait_error) {
-        co_return PxResult<void>::Failure(
-            MakePxAsyncError(PxAsyncErrorCode::kProtocolError, "reconnect.wait", wait_error.message(), true));
-    }
-    co_return PxResult<void>::Success();
+    co_return co_await WaitForAsyncDelay(delay, "reconnect.wait");
 }
 
 } // namespace px

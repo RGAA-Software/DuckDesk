@@ -377,6 +377,17 @@ $wsServerHeader = Get-Content -LiteralPath `
 if ($wsServerSource -match 'PxAsyncRuntime::Create') {
     $violations.Add("net_ws/ws_server.cpp: WS server must use the composition-root async runtime")
 }
+
+$udpTransportSource = Get-Content -LiteralPath `
+    (Join-Path $RepoRoot "src\px_render\network\udp\udp_transport.cpp") -Raw
+if ($udpTransportSource -match 'module_context_->StartTimer') {
+    $violations.Add("net_udp/udp_transport.cpp: UDP control timers must remain owned by its async scope")
+}
+foreach ($required in @("PxAsyncScope::Create", "WaitForAsyncDelay", "RunHeartbeatSweepLoop", "RunFecWindowLoop")) {
+    if ($udpTransportSource -notmatch [regex]::Escape($required)) {
+        $violations.Add("net_udp/udp_transport.cpp: coroutine-owned control workflow is missing $required")
+    }
+}
 foreach ($required in @(
     "TransportPerformanceWindow",
     "ObserveInbound",

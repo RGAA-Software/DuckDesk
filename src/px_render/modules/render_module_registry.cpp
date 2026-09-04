@@ -168,7 +168,7 @@ namespace px
         if (register_builtin(ws_transport, "net_ws")) {
             ws_transport_ = ws_transport;
         }
-        const auto udp_transport = std::make_shared<UdpTransport>();
+        const auto udp_transport = std::make_shared<UdpTransport>(context_->GetAsyncRuntime());
         if (register_builtin(udp_transport, "net_udp")) {
             udp_transport_ = udp_transport;
         }
