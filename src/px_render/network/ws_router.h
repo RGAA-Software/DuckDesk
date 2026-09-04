@@ -5,8 +5,6 @@
 #ifndef TC_APPLICATION_WS_ROUTER_H
 #define TC_APPLICATION_WS_ROUTER_H
 
-#include <map>
-#include <any>
 #include <atomic>
 #include <string>
 #include <functional>
@@ -65,14 +63,6 @@ namespace px
                 return 0;
             }
             return std::max((int64_t)queuing_message_count_, (int64_t)session_->get_pending_event_count());
-        }
-
-    protected:
-
-        template<typename T>
-        T Get(const std::string& n) {
-            auto v = ws_data_->vars_[n];
-            return std::any_cast<T>(v);
         }
 
     protected:

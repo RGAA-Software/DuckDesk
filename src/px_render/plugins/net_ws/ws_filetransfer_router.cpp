@@ -31,7 +31,10 @@ namespace px
         if (count <= 5 || (count % 500) == 0) {
             LOGI("FileTransfer receive: n={}, socket={}, bytes={}", count, socket_fd, data.size());
         }
-        auto plugin = Get<WsPlugin*>("plugin");
+        const auto plugin = ws_data_ ? ws_data_->plugin_.lock() : nullptr;
+        if (!plugin) {
+            return;
+        }
         auto msg = Data::Make(data.data(), data.size());
         plugin->OnClientEventCameDirectly(
             true, socket_fd, NetPluginType::kWebSocket, nt_channel_type_,
@@ -93,7 +96,8 @@ namespace px
             }
 
             // report data size
-            auto plugin = self->Get<WsPlugin*>("plugin");
+            const auto plugin = self->ws_data_
+                ? self->ws_data_->plugin_.lock() : nullptr;
             if (plugin) {
                 plugin->ReportSentDataSize((int)byte_sent);
             }

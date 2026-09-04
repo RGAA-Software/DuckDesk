@@ -8,13 +8,15 @@
 #include "px_common_new/data.h"
 #include "px_common_new/uuid.h"
 #include "ws_plugin.h"
+#include "ws_callback_workflow.h"
 #include "px_render/plugin_interface/px_net_plugin.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
 #include <algorithm>
 #include <chrono>
-#include <condition_variable>
-#include <mutex>
 #include <vector>
+#include "px_common_new/async_operation.h"
+#include "px_common_new/async_result.h"
+#include "px_render/architecture/runtime/await_callback.h"
 
 namespace px
 {
@@ -40,12 +42,7 @@ namespace px
                         + "|" + binding.remote_address_);
     }
 
-    struct TicketRedeemWaitState {
-        std::mutex mutex_;
-        std::condition_variable cv_;
-        bool completed_ = false;
-        bool ok_ = false;
-        std::string code_;
+    struct RtcTicketAdmission {
         std::vector<std::string> permissions_;
         std::string logical_session_id_;
         std::string stream_id_;
@@ -56,22 +53,14 @@ namespace px
         bool allow_takeover_ = true;
     };
 
-    struct SessionAdmissionWaitState {
-        std::mutex mutex_;
-        std::condition_variable cv_;
-        bool completed_ = false;
-        LogicalSessionAdmission admission_;
+    struct DeferredHttpReply {
+        std::string payload_;
+        http::status status_ = http::status::ok;
     };
 
-    struct LocalRtcReplyWaitState {
-        std::mutex mutex_;
-        std::condition_variable cv_;
-        std::shared_ptr<PxLocalRtcReplyInfo> reply_;
-    };
-
-    HttpHandler::HttpHandler(WsPlugin* plugin) {
-        this->plugin_ = plugin;
-    }
+    HttpHandler::HttpHandler(std::weak_ptr<WsPlugin> plugin,
+                             std::shared_ptr<PxAsyncScope> async_scope)
+        : plugin_(std::move(plugin)), async_scope_(std::move(async_scope)) {}
 
     std::string HttpHandler::GetErrorMessage(int code) {
         if (code == kHandlerErrVerifySafetyPasswordFailed) {
@@ -147,19 +136,29 @@ namespace px
     }
 
     void HttpHandler::HandleGetRenderConfiguration(http::web_request& req, http::web_response& resp) {
-        const auto& settings = plugin_->GetPluginSettingsInfo();
+        const auto plugin = plugin_.lock();
+        if (!plugin) {
+            SendErrorJson(resp, kHandlerErrParams);
+            return;
+        }
+        const auto& settings = plugin->GetPluginSettingsInfo();
         nlohmann::json obj;
         obj["device_id"] = settings.device_id_;
         obj["relay_host"] = settings.relay_host_;
         obj["relay_port"] = std::atoi(settings.relay_port_.c_str());
         // Web 端鼠标回放需要当前采集显示器名(event_replayer 按它定位坐标系)
-        obj["monitor_name"] = plugin_->GetCapturingMonitorName();
+        obj["monitor_name"] = plugin->GetCapturingMonitorName();
         // 供 Web 客户端展示,便于确认被控端是否为旧版本
         obj["app_version"] = PROJECT_VERSION;
         SendOkJson(resp, obj.dump());
     }
 
     void HttpHandler::HandlePanelStreamMessage(http::web_request& req, http::web_response& resp) {
+        const auto plugin = plugin_.lock();
+        if (!plugin) {
+            SendErrorJson(resp, kHandlerErrParams);
+            return;
+        }
         auto& body = req.body();
         auto target = req.target();
         if (body.empty()) {
@@ -169,13 +168,17 @@ namespace px
 
         auto event = std::make_shared<PxPluginPanelStreamMessage>();
         event->body_ = Data::From(body);
-        this->plugin_->CallbackEvent(event);
+        plugin->CallbackEvent(event);
 
         SendOkJson(resp, "");
     }
 
     bool HttpHandler::VerifySafetyPassword(const std::unordered_map<std::string, std::string>& params) {
-        auto settings = plugin_->GetPluginSettingsInfo();
+        const auto plugin = plugin_.lock();
+        if (!plugin) {
+            return false;
+        }
+        auto settings = plugin->GetPluginSettingsInfo();
         if (settings.device_safety_pwd_.empty() && settings.device_random_pwd_.empty()) {
             return true;
         }
@@ -207,416 +210,489 @@ namespace px
         const auto event = std::make_shared<PxPluginCloseLogicalSessionBindingEvent>();
         event->logical_session_id_ = logical_session_id;
         event->binding_id_ = binding_id;
-        plugin_->CallbackEvent(event);
+        if (const auto plugin = plugin_.lock()) {
+            plugin->CallbackEvent(event);
+        }
     }
 
-    void HttpHandler::HandleAllocLocalRtc(std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& resp) {
-        auto& body = req.body();
-        // This endpoint can carry a password digest in its query string. Keep
-        // credentials out of persistent logs; the handler name is sufficient.
-        LOGI("req host:port, {}:{}, target: /alloc/local/rtc", req.host(), req.port());
+    void HttpHandler::HandleAllocLocalRtc(
+        std::shared_ptr<asio2::http_session>& session_ptr,
+        http::web_request& req,
+        http::web_response& resp) {
+        if (plugin_.expired() || !async_scope_ || !async_scope_->IsAccepting()) {
+            SendErrorJson(resp, kHandlerErrNoRtcLocalPlugin);
+            return;
+        }
+        LOGI("req host:port, {}:{}, target: /alloc/local/rtc",
+             req.host(), req.port());
         LOGI("req, remote: {} {} , client: {} {}",
              session_ptr->remote_address().c_str(), session_ptr->remote_port(),
              session_ptr->local_address().c_str(), session_ptr->local_port());
-
         auto params = GetQueryParams(req.query());
+        auto body = std::string(req.body());
+        auto remote_address = std::string(session_ptr->remote_address());
+        auto response_defer = resp.defer();
+        const auto weak_self = weak_from_this();
+        const auto session = session_ptr;
+        if (!async_scope_->Spawn(
+                "rtc-local-http-allocation",
+                [weak_self, session, params = std::move(params),
+                 body = std::move(body),
+                 remote_address = std::move(remote_address),
+                 response_defer = std::move(response_defer)]() mutable {
+                    return AllocateLocalRtcAsync(
+                        weak_self, session, std::move(params), std::move(body),
+                        std::move(remote_address),
+                        std::move(response_defer));
+                })) {
+            SendErrorJson(resp, kHandlerErrCreateRtcLocalServerFailed);
+        }
+    }
+
+    PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
+        std::weak_ptr<HttpHandler> owner,
+        std::shared_ptr<asio2::http_session> session,
+        std::unordered_map<std::string, std::string> params,
+        std::string body,
+        std::string remote_address,
+        std::shared_ptr<http::response_defer> response_defer) {
+        const auto self = owner.lock();
+        const auto plugin = self ? self->plugin_.lock() : nullptr;
+        if (!self || !plugin) {
+            session->post_queued_event(
+                [session, response_defer = std::move(response_defer)]() mutable {
+                    session->response().fill_json(
+                        R"({"code":702,"message":"No RtcLocalPlugin","data":""})");
+                    response_defer.reset();
+                });
+            co_return;
+        }
+        const auto make_reply = [self](
+            const int code,
+            const http::status status = http::status::ok,
+            const std::string& data = std::string{}) {
+            return DeferredHttpReply{
+                .payload_ = self->WrapBasicInfo(
+                    code, self->GetErrorMessage(code), data),
+                .status_ = status,
+            };
+        };
+        const auto complete = [session, response_defer](
+            DeferredHttpReply reply) {
+            session->post_queued_event(
+                [session, response_defer,
+                 reply = std::move(reply)]() mutable {
+                    session->response().fill_json(
+                        reply.payload_, reply.status_);
+                    response_defer.reset();
+                });
+        };
+
         std::string sdp;
         std::string ticket;
         std::string body_nonce;
         std::string body_instance_id;
         std::string direct_session_grant;
         try {
-            auto obj = nlohmann::json::parse(body);
-            sdp = obj["sdp"];
-            ticket = obj.value("ticket", "");
-            body_nonce = obj.value("client_nonce", "");
-            body_instance_id = obj.value("instance_id", "");
-            direct_session_grant = obj.value("direct_session_grant", "");
-        } catch(std::exception& e) {
-            SendErrorJson(resp, kHandlerErrParams);
-            return;
+            const auto object = nlohmann::json::parse(body);
+            sdp = object.at("sdp").get<std::string>();
+            ticket = object.value("ticket", "");
+            body_nonce = object.value("client_nonce", "");
+            body_instance_id = object.value("instance_id", "");
+            direct_session_grant =
+                object.value("direct_session_grant", "");
         }
-
-        const auto device_id = GetParam(params, "device_id").value_or(std::string{});
-        if (sdp.empty()) {
-            SendErrorJson(resp, kHandlerErrParams);
-            return;
+        catch (...) {
+            complete(make_reply(kHandlerErrParams));
+            co_return;
         }
-        // A missing device id unambiguously identifies password-only IP
-        // direct access. Do not substitute Render's configured Console id:
-        // doing so would silently turn a simple LAN password check into a
-        // Console/direct-grant identity flow the caller never requested.
-        const bool password_only_ip_direct = ticket.empty() && device_id.empty();
-        if (!ticket.empty() && device_id.empty()) {
-            SendErrorJson(resp, kHandlerErrParams);
-            return;
+        const auto device_id =
+            self->GetParam(params, "device_id").value_or(std::string{});
+        if (sdp.empty() || (!ticket.empty() && device_id.empty())) {
+            complete(make_reply(kHandlerErrParams));
+            co_return;
         }
-
-        std::vector<std::string> ticket_permissions;
-        std::string ticket_logical_session_id;
-        std::string ticket_stream_id;
-        std::string ticket_join_mode;
-        std::string ticket_subject_id;
-        int64_t ticket_expires_at_ms = 0;
-        bool ticket_allow_observer = true;
-        bool ticket_allow_takeover = true;
+        const bool password_only_ip_direct =
+            ticket.empty() && device_id.empty();
+        RtcTicketAdmission ticket_admission;
         if (!ticket.empty()) {
             if (body_nonce.empty()) {
-                SendErrorJson(resp, kHandlerErrParams);
-                return;
+                complete(make_reply(kHandlerErrParams));
+                co_return;
             }
-            auto wait_state = std::make_shared<TicketRedeemWaitState>();
-            auto event = std::make_shared<PxPluginRedeemConnectionTicketEvent>();
-            event->ticket_ = ticket;
-            event->client_nonce_ = body_nonce;
-            event->instance_id_ = body_instance_id;
-            event->callback_ = [wait_state](
-                bool ok,
-                const std::string& code,
-                const std::vector<std::string>& permissions,
-                const std::string&,
-                const std::string& logical_session_id,
-                const std::string& stream_id,
-                const std::string& join_mode,
-                const std::string& subject_id,
-                const int64_t expires_at_ms,
-                const bool allow_observer,
-                const bool allow_takeover) {
-                {
-                    std::scoped_lock lock(wait_state->mutex_);
-                    wait_state->ok_ = ok;
-                    wait_state->code_ = code;
-                    wait_state->permissions_ = permissions;
-                    wait_state->logical_session_id_ = logical_session_id;
-                    wait_state->stream_id_ = stream_id;
-                    wait_state->join_mode_ = join_mode;
-                    wait_state->subject_id_ = subject_id;
-                    wait_state->expires_at_ms_ = expires_at_ms;
-                    wait_state->allow_observer_ = allow_observer;
-                    wait_state->allow_takeover_ = allow_takeover;
-                    wait_state->completed_ = true;
-                }
-                wait_state->cv_.notify_all();
-            };
-            plugin_->CallbackEvent(event);
-            std::unique_lock lock(wait_state->mutex_);
-            wait_state->cv_.wait_for(lock, std::chrono::seconds(3), [&] {
-                return wait_state->completed_;
-            });
-            if (!wait_state->completed_ || !wait_state->ok_) {
-                LOGW("Connection ticket rejected: {}", wait_state->code_);
-                resp.fill_json(
-                    WrapBasicInfo(
-                        kHandlerErrConnectionTicketRejected,
-                        GetErrorMessage(kHandlerErrConnectionTicketRejected),
-                        std::string("")),
-                    http::status::forbidden);
-                return;
+            auto redeemed = co_await render::AwaitOwnedCallback<RtcTicketAdmission>(
+                [weak_plugin = self->plugin_, ticket, body_nonce,
+                 body_instance_id](
+                    render::OwnedCallbackCompletion<RtcTicketAdmission>
+                        completion) {
+                    const auto active_plugin = weak_plugin.lock();
+                    if (!active_plugin) {
+                        return false;
+                    }
+                    const auto event =
+                        std::make_shared<PxPluginRedeemConnectionTicketEvent>();
+                    event->ticket_ = ticket;
+                    event->client_nonce_ = body_nonce;
+                    event->instance_id_ = body_instance_id;
+                    event->callback_ = [completion = std::move(completion)](
+                        const bool ok, const std::string& code,
+                        const std::vector<std::string>& permissions,
+                        const std::string&,
+                        const std::string& logical_session_id,
+                        const std::string& stream_id,
+                        const std::string& join_mode,
+                        const std::string& subject_id,
+                        const int64_t expires_at_ms,
+                        const bool allow_observer,
+                        const bool allow_takeover) {
+                        if (!ok) {
+                            completion(PxResult<RtcTicketAdmission>::Failure(
+                                MakePxAsyncError(
+                                    PxAsyncErrorCode::kServiceRejected,
+                                    "rtc_ticket_redeem",
+                                    code.empty() ? "ticket was rejected" : code,
+                                    false, "SESSION_TICKET_REJECTED")));
+                            return;
+                        }
+                        completion(PxResult<RtcTicketAdmission>::Success(
+                            RtcTicketAdmission{
+                                .permissions_ = permissions,
+                                .logical_session_id_ = logical_session_id,
+                                .stream_id_ = stream_id,
+                                .join_mode_ = join_mode,
+                                .subject_id_ = subject_id,
+                                .expires_at_ms_ = expires_at_ms,
+                                .allow_observer_ = allow_observer,
+                                .allow_takeover_ = allow_takeover,
+                            }));
+                    };
+                    active_plugin->CallbackEvent(event);
+                    return true;
+                },
+                std::chrono::steady_clock::now() + std::chrono::seconds(3),
+                "rtc_ticket_redeem");
+            if (!redeemed.HasValue()) {
+                LOGW("event=session.admit component=net_ws code={} "
+                     "operation=rtc_ticket_redeem outcome=rejected "
+                     "recoverable={} reason={}",
+                     redeemed.Error().StableCode(),
+                     redeemed.Error().retryable, redeemed.Error().message);
+                complete(make_reply(
+                    kHandlerErrConnectionTicketRejected,
+                    http::status::forbidden));
+                co_return;
             }
-            ticket_permissions = wait_state->permissions_;
-            ticket_logical_session_id = wait_state->logical_session_id_;
-            ticket_stream_id = wait_state->stream_id_;
-            ticket_join_mode = wait_state->join_mode_;
-            ticket_subject_id = wait_state->subject_id_;
-            ticket_expires_at_ms = wait_state->expires_at_ms_;
-            ticket_allow_observer = wait_state->allow_observer_;
-            ticket_allow_takeover = wait_state->allow_takeover_;
-            const bool may_view = std::find(ticket_permissions.begin(), ticket_permissions.end(), "view") != ticket_permissions.end();
-            const bool may_transfer_files = std::find(ticket_permissions.begin(), ticket_permissions.end(), "file") != ticket_permissions.end();
-            if ((!may_view && !may_transfer_files) || ticket_logical_session_id.empty()
-                || ticket_stream_id.empty() || ticket_join_mode.empty()) {
-                LOGW("Connection ticket rejected: missing view or file capability");
-                resp.fill_json(
-                    WrapBasicInfo(
-                        kHandlerErrConnectionTicketRejected,
-                        GetErrorMessage(kHandlerErrConnectionTicketRejected),
-                        std::string("")),
-                    http::status::forbidden);
-                return;
+            ticket_admission = redeemed.TakeValue();
+            const bool may_view = std::find(
+                ticket_admission.permissions_.begin(),
+                ticket_admission.permissions_.end(), "view") !=
+                ticket_admission.permissions_.end();
+            const bool may_transfer_files = std::find(
+                ticket_admission.permissions_.begin(),
+                ticket_admission.permissions_.end(), "file") !=
+                ticket_admission.permissions_.end();
+            if ((!may_view && !may_transfer_files) ||
+                ticket_admission.logical_session_id_.empty() ||
+                ticket_admission.stream_id_.empty() ||
+                ticket_admission.join_mode_.empty()) {
+                complete(make_reply(
+                    kHandlerErrConnectionTicketRejected,
+                    http::status::forbidden));
+                co_return;
             }
         }
+
         bool direct_access = false;
         DirectSessionGrantBinding direct_grant_binding;
         std::string direct_issued_stream_id;
         if (password_only_ip_direct) {
-            const auto nonce_param = GetParam(params, "client_nonce");
-            const auto route_seed = !body_nonce.empty() ? body_nonce
-                : (nonce_param.has_value() && !nonce_param->empty()
-                    ? nonce_param.value() : GetUUID());
-            const auto requested_stream_id = GetParam(params, "stream_id")
+            const auto nonce_param = self->GetParam(params, "client_nonce");
+            const auto route_seed = !body_nonce.empty()
+                ? body_nonce
+                : (nonce_param && !nonce_param->empty()
+                    ? *nonce_param : GetUUID());
+            const auto requested_stream_id = self->GetParam(params, "stream_id")
                 .value_or(std::string{});
             const DirectSessionGrantBinding auth_binding{
                 .device_id_ = {},
                 .stream_id_ = requested_stream_id,
                 .client_nonce_ = route_seed,
-                .remote_address_ = session_ptr->remote_address(),
+                .remote_address_ = remote_address,
             };
-            if (!requested_stream_id.empty()
-                && direct_session_grants_.Redeem(
-                    requested_stream_id, auth_binding, CurrentSystemMilliseconds())) {
+            if (!requested_stream_id.empty() &&
+                self->direct_session_grants_.Redeem(
+                    requested_stream_id, auth_binding,
+                    CurrentSystemMilliseconds())) {
                 direct_issued_stream_id = requested_stream_id;
             }
-            else if (VerifySafetyPassword(params)) {
-                // Compatibility for standalone/older clients. Panel-launched
-                // clients always use a stream prepared before process launch.
-                direct_issued_stream_id = std::string("ip-direct:") + MD5::Hex(
-                    session_ptr->remote_address() + std::string("|") + route_seed);
+            else if (self->VerifySafetyPassword(params)) {
+                direct_issued_stream_id = std::string("ip-direct:") +
+                    MD5::Hex(remote_address + "|" + route_seed);
             }
             else {
-                LOGW("IP direct prepared stream rejected");
                 const auto code = requested_stream_id.empty()
                     ? kHandlerErrVerifySafetyPasswordFailed
                     : kHandlerErrIpDirectAuthorizationRejected;
-                resp.fill_json(WrapBasicInfo(code, GetErrorMessage(code), std::string("")),
-                               http::status::forbidden);
-                return;
+                complete(make_reply(code, http::status::forbidden));
+                co_return;
             }
-            ticket_logical_session_id = direct_issued_stream_id;
-            ticket_stream_id = direct_issued_stream_id;
-            ticket_join_mode = "control";
-            ticket_subject_id = std::string("ip-direct:") + MD5::Hex(
-                session_ptr->remote_address() + std::string("|") + route_seed);
-            ticket_expires_at_ms = CurrentSystemMilliseconds()
-                + std::chrono::duration_cast<std::chrono::milliseconds>(
+            ticket_admission.logical_session_id_ = direct_issued_stream_id;
+            ticket_admission.stream_id_ = direct_issued_stream_id;
+            ticket_admission.join_mode_ = "control";
+            ticket_admission.subject_id_ = std::string("ip-direct:") +
+                MD5::Hex(remote_address + "|" + route_seed);
+            ticket_admission.expires_at_ms_ = CurrentSystemMilliseconds() +
+                std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::minutes(5)).count();
-            const auto local_settings = plugin_->GetPluginSettingsInfo();
-            ticket_allow_observer = false;
-            ticket_allow_takeover = local_settings.direct_allow_takeover_;
+            ticket_admission.allow_observer_ = false;
+            ticket_admission.allow_takeover_ =
+                plugin->GetPluginSettingsInfo().direct_allow_takeover_;
             direct_access = true;
         }
         else if (ticket.empty()) {
-            const auto nonce_param = GetParam(params, "client_nonce");
-            const auto direct_nonce = !body_nonce.empty() ? body_nonce
-                : (nonce_param.has_value() ? nonce_param.value() : std::string{});
+            const auto nonce_param = self->GetParam(params, "client_nonce");
+            const auto direct_nonce = !body_nonce.empty()
+                ? body_nonce
+                : (nonce_param ? *nonce_param : std::string{});
             if (direct_nonce.empty()) {
-                SendErrorJson(resp, kHandlerErrParams);
-                return;
+                complete(make_reply(kHandlerErrParams));
+                co_return;
             }
             direct_access = true;
             direct_issued_stream_id = std::string("direct:") + MD5::Hex(
-                session_ptr->remote_address() + std::string("|") + device_id
-                + "|" + direct_nonce);
+                remote_address + "|" + device_id + "|" + direct_nonce);
             direct_grant_binding = {
                 .device_id_ = device_id,
                 .stream_id_ = direct_issued_stream_id,
                 .client_nonce_ = direct_nonce,
-                .remote_address_ = session_ptr->remote_address(),
+                .remote_address_ = remote_address,
             };
             if (direct_session_grant.empty()) {
-                if (!VerifySafetyPassword(params)) {
-                    LOGW("Direct RTC audit: result=initial_auth_rejected device={} subject_hash={}",
+                if (!self->VerifySafetyPassword(params)) {
+                    LOGW("Direct RTC audit: result=initial_auth_rejected "
+                         "device={} subject_hash={}",
                          device_id, DirectAuditSubject(direct_grant_binding));
-                    resp.fill_json(WrapBasicInfo(kHandlerErrVerifySafetyPasswordFailed,
-                                                 GetErrorMessage(kHandlerErrVerifySafetyPasswordFailed), std::string("")),
-                                   http::status::forbidden);
-                    return;
+                    complete(make_reply(
+                        kHandlerErrVerifySafetyPasswordFailed,
+                        http::status::forbidden));
+                    co_return;
                 }
             }
-            else if (!direct_session_grants_.Redeem(
-                direct_session_grant, direct_grant_binding, CurrentSystemMilliseconds())) {
-                LOGW("Direct RTC audit: result=grant_rejected device={} subject_hash={}",
+            else if (!self->direct_session_grants_.Redeem(
+                direct_session_grant, direct_grant_binding,
+                CurrentSystemMilliseconds())) {
+                LOGW("Direct RTC audit: result=grant_rejected device={} "
+                     "subject_hash={}",
                      device_id, DirectAuditSubject(direct_grant_binding));
-                resp.fill_json(WrapBasicInfo(kHandlerErrDirectGrantRejected,
-                                             GetErrorMessage(kHandlerErrDirectGrantRejected), std::string("")),
-                               http::status::forbidden);
-                return;
+                complete(make_reply(
+                    kHandlerErrDirectGrantRejected,
+                    http::status::forbidden));
+                co_return;
             }
-        }
-        if (ticket.empty() && !password_only_ip_direct) {
-            ticket_logical_session_id = direct_issued_stream_id;
-            ticket_stream_id = direct_issued_stream_id;
-            ticket_join_mode = "control";
-            ticket_subject_id = std::string("direct:") + MD5::Hex(
-                session_ptr->remote_address() + std::string("|") + direct_grant_binding.client_nonce_);
-            ticket_expires_at_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count()
-                + std::chrono::duration_cast<std::chrono::milliseconds>(
+            ticket_admission.logical_session_id_ = direct_issued_stream_id;
+            ticket_admission.stream_id_ = direct_issued_stream_id;
+            ticket_admission.join_mode_ = "control";
+            ticket_admission.subject_id_ = std::string("direct:") +
+                MD5::Hex(remote_address + "|" + direct_nonce);
+            ticket_admission.expires_at_ms_ = CurrentSystemMilliseconds() +
+                std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::minutes(5)).count();
-            const auto local_settings = plugin_->GetPluginSettingsInfo();
-            ticket_allow_observer = false;
-            ticket_allow_takeover = local_settings.direct_allow_takeover_;
+            ticket_admission.allow_observer_ = false;
+            ticket_admission.allow_takeover_ =
+                plugin->GetPluginSettingsInfo().direct_allow_takeover_;
         }
 
-        if (!plugin_->HasLocalRtcService()) {
-            SendErrorJson(resp, kHandlerErrNoRtcLocalPlugin);
-            return;
+        if (!plugin->HasLocalRtcService()) {
+            complete(make_reply(kHandlerErrNoRtcLocalPlugin));
+            co_return;
         }
-
-        // enum class PxLocalRtcContentType {
-        //     kDesktop,
-        //     kGameStream,
-        // };
-        auto content_type = [&]() -> PxLocalRtcContentType {
-            if (auto param = GetParam(params, "content_type"); param.has_value()) {
-                if (param.value() == "game_stream") {
-                    return PxLocalRtcContentType::kGameStream;
-                }
-            }
-            return PxLocalRtcContentType::kDesktop;
+        const bool takeover_requested = [&] {
+            const auto value = self->GetParam(params, "takeover");
+            return value && (*value == "1" || *value == "true");
         }();
-
-        auto rtc_req = std::make_shared<PxLocalRtcRequestInfo>();
-        rtc_req->device_id_ = device_id;
-        // The Console or direct grant owns the route identity.  The historical
-        // query stream_id remains non-authoritative compatibility input and
-        // must never select a different logical session.
-        rtc_req->stream_id_ = ticket_stream_id;
-        rtc_req->req_ip_ = session_ptr->remote_address();
-        rtc_req->sdp_ = sdp;
-        rtc_req->content_type_ = content_type;
-        rtc_req->capability_enforced_ = !ticket.empty();
-        rtc_req->permissions_ = ticket_permissions;
-        std::string admitted_logical_session_id;
-        std::string admitted_binding_id;
-        {
-            const auto takeover_value = GetParam(params, "takeover");
-            const bool takeover_requested = takeover_value.has_value()
-                && (takeover_value.value() == "1" || takeover_value.value() == "true");
-            const auto wait_state = std::make_shared<SessionAdmissionWaitState>();
-            const auto admission_event = std::make_shared<PxPluginAdmitLogicalSessionEvent>();
-            admission_event->grant_ = {
-                .logical_session_id = ticket_logical_session_id,
-                .stream_id = ticket_stream_id,
-                .subject_id = ticket_subject_id,
-                .join_mode = ticket_join_mode,
-                .expires_at_ms = ticket_expires_at_ms,
-                .allow_observer = ticket_allow_observer,
-                .allow_takeover = ticket_allow_takeover,
-            };
-            admission_event->transport_ = LogicalSessionTransport::kRtcLocal;
-            admission_event->binding_id_ = std::string("rtc-local:") + ticket_stream_id;
-            admission_event->takeover_ = takeover_requested;
-            admission_event->callback_ = [wait_state](const LogicalSessionAdmission admission) {
-                std::scoped_lock lock(wait_state->mutex_);
-                wait_state->admission_ = admission;
-                wait_state->completed_ = true;
-                wait_state->cv_.notify_all();
-            };
-            plugin_->CallbackEvent(admission_event);
-            std::unique_lock admission_lock(wait_state->mutex_);
-            wait_state->cv_.wait_for(admission_lock, std::chrono::seconds(3), [&] {
-                return wait_state->completed_;
-            });
-            if (!wait_state->completed_) {
-                SendErrorJson(resp, kHandlerErrConnectionTicketRejected);
-                return;
-            }
-            const auto admission = wait_state->admission_;
-            if (admission.code != LogicalSessionAdmissionCode::kAccepted) {
-                const auto code = admission.code == LogicalSessionAdmissionCode::kOccupied
-                    ? kHandlerErrRtcLocalOccupied : kHandlerErrConnectionTicketRejected;
-                if (direct_access && !password_only_ip_direct) {
-                    LOGW("Direct RTC audit: result=admission_rejected device={} subject_hash={} code={}",
-                         device_id, DirectAuditSubject(direct_grant_binding), code);
+        const auto admitted_binding_id =
+            std::string("rtc-local:") + ticket_admission.stream_id_;
+        const auto admission_grant = LogicalSessionGrant{
+            .logical_session_id = ticket_admission.logical_session_id_,
+            .stream_id = ticket_admission.stream_id_,
+            .subject_id = ticket_admission.subject_id_,
+            .join_mode = ticket_admission.join_mode_,
+            .expires_at_ms = ticket_admission.expires_at_ms_,
+            .allow_observer = ticket_admission.allow_observer_,
+            .allow_takeover = ticket_admission.allow_takeover_,
+        };
+        auto admitted = co_await AwaitWsValueCallback<LogicalSessionAdmission>(
+            [weak_plugin = self->plugin_, admission_grant,
+             admitted_binding_id, takeover_requested](
+                std::function<void(LogicalSessionAdmission)> completion) {
+                const auto active_plugin = weak_plugin.lock();
+                if (!active_plugin) {
+                    return false;
                 }
-                resp.fill_json(WrapBasicInfo(code, GetErrorMessage(code), std::string("")),
-                               http::status::forbidden);
-                return;
+                const auto event =
+                    std::make_shared<PxPluginAdmitLogicalSessionEvent>();
+                event->grant_ = admission_grant;
+                event->transport_ = LogicalSessionTransport::kRtcLocal;
+                event->binding_id_ = admitted_binding_id;
+                event->takeover_ = takeover_requested;
+                event->callback_ = std::move(completion);
+                active_plugin->CallbackEvent(event);
+                return true;
+            },
+            std::chrono::steady_clock::now() + std::chrono::seconds(3),
+            "rtc_session_admit",
+            [owner,
+             logical_session_id = ticket_admission.logical_session_id_,
+             admitted_binding_id](const LogicalSessionAdmission& late) {
+                if (late.code == LogicalSessionAdmissionCode::kAccepted) {
+                    if (const auto active_owner = owner.lock()) {
+                        active_owner->CloseAdmittedLogicalSessionBinding(
+                            logical_session_id, admitted_binding_id);
+                    }
+                }
+            });
+        if (!admitted.HasValue()) {
+            complete(make_reply(kHandlerErrConnectionTicketRejected));
+            co_return;
+        }
+        const auto admission = admitted.TakeValue();
+        if (admission.code != LogicalSessionAdmissionCode::kAccepted) {
+            const auto code = admission.code ==
+                LogicalSessionAdmissionCode::kOccupied
+                ? kHandlerErrRtcLocalOccupied
+                : kHandlerErrConnectionTicketRejected;
+            if (direct_access && !password_only_ip_direct) {
+                LOGW("Direct RTC audit: result=admission_rejected device={} "
+                     "subject_hash={} code={}",
+                     device_id, DirectAuditSubject(direct_grant_binding), code);
             }
-            admitted_logical_session_id = ticket_logical_session_id;
-            admitted_binding_id = admission_event->binding_id_;
-            rtc_req->stream_id_ = ticket_stream_id;
-            rtc_req->takeover_ = takeover_requested;
-            if (admission.role == LogicalSessionRole::kObserver) {
-                rtc_req->session_role_ = PxLocalRtcSessionRole::kObserver;
-                rtc_req->permissions_ = {"view", "audio"};
-            } else {
-                rtc_req->permissions_ = {"view", "input", "clipboard", "file", "audio"};
-            }
-        }
-        // wall_observer is accepted only after the safety password validation
-        // above. Console keeps that credential server-side and proxies signaling;
-        // browsers never need to receive it.
-        if (auto param = GetParam(params, "session_role");
-            param.has_value() && param.value() == "wall_observer") {
-            // Hidden/no-audit observer is privileged. Only px_service on this
-            // machine may request it; remote callers with a device password
-            // still get the normal, visible interactive role.
-            const auto remote = session_ptr->remote_address();
-            if (remote != "127.0.0.1" && remote != "::1") {
-                LOGW("Reject remote wall_observer request from {}", remote);
-                SendErrorJson(resp, kHandlerErrParams);
-                return;
-            }
-            rtc_req->session_role_ = PxLocalRtcSessionRole::kWallObserver;
-        }
-        // takeover=1: 客户端已确认接管,直接顶掉同 stream_id 的现存连接
-        if (auto param = GetParam(params, "takeover"); param.has_value()) {
-            rtc_req->takeover_ = (param.value() == "1" || param.value() == "true");
-        }
-        // client_nonce: web client 的浏览器标识,同 nonce 自动接管见
-        // RtcLocalPlugin::AllocNewLocalRtcInstance 的占用判断
-        if (auto param = GetParam(params, "client_nonce"); param.has_value()) {
-            rtc_req->client_nonce_ = param.value();
-        }
-        if (!body_nonce.empty()) {
-            rtc_req->client_nonce_ = body_nonce;
+            complete(make_reply(code, http::status::forbidden));
+            co_return;
         }
 
-        const auto reply_wait_state = std::make_shared<LocalRtcReplyWaitState>();
-        const auto r = plugin_->AllocateLocalRtcInstance(rtc_req, [reply_wait_state](
-            const std::shared_ptr<PxLocalRtcReplyInfo>& reply) {
-            {
-                std::scoped_lock lock(reply_wait_state->mutex_);
-                reply_wait_state->reply_ = reply;
+        const auto rtc_request = std::make_shared<PxLocalRtcRequestInfo>();
+        rtc_request->device_id_ = device_id;
+        rtc_request->stream_id_ = ticket_admission.stream_id_;
+        rtc_request->req_ip_ = remote_address;
+        rtc_request->sdp_ = sdp;
+        rtc_request->content_type_ =
+            self->GetParam(params, "content_type") ==
+                    std::optional<std::string>("game_stream")
+                ? PxLocalRtcContentType::kGameStream
+                : PxLocalRtcContentType::kDesktop;
+        rtc_request->capability_enforced_ = !ticket.empty();
+        rtc_request->takeover_ = takeover_requested;
+        if (admission.role == LogicalSessionRole::kObserver) {
+            rtc_request->session_role_ = PxLocalRtcSessionRole::kObserver;
+            rtc_request->permissions_ = {"view", "audio"};
+        }
+        else {
+            rtc_request->permissions_ =
+                {"view", "input", "clipboard", "file", "audio"};
+        }
+        if (self->GetParam(params, "session_role") ==
+            std::optional<std::string>("wall_observer")) {
+            if (remote_address != "127.0.0.1" && remote_address != "::1") {
+                self->CloseAdmittedLogicalSessionBinding(
+                    ticket_admission.logical_session_id_,
+                    admitted_binding_id);
+                complete(make_reply(kHandlerErrParams));
+                co_return;
             }
-            reply_wait_state->cv_.notify_all();
-        });
-        if (r == PxLocalRtcAllocResult::kOccupied) {
-            CloseAdmittedLogicalSessionBinding(admitted_logical_session_id, admitted_binding_id);
-            SendErrorJson(resp, kHandlerErrRtcLocalOccupied);
-            return;
+            rtc_request->session_role_ =
+                PxLocalRtcSessionRole::kWallObserver;
         }
-        if (r != PxLocalRtcAllocResult::kOk) {
-            CloseAdmittedLogicalSessionBinding(admitted_logical_session_id, admitted_binding_id);
-            SendErrorJson(resp, kHandlerErrCreateRtcLocalServerFailed);
-            return;
+        rtc_request->client_nonce_ = !body_nonce.empty()
+            ? body_nonce
+            : self->GetParam(params, "client_nonce").value_or(std::string{});
+
+        const auto executor = co_await asio::this_coro::executor;
+        const auto rtc_operation =
+            PxAsyncOneShot<std::shared_ptr<PxLocalRtcReplyInfo>>::Create(executor);
+        const std::weak_ptr<
+            PxAsyncOneShot<std::shared_ptr<PxLocalRtcReplyInfo>>>
+            weak_rtc_operation = rtc_operation;
+        const auto allocation = plugin->AllocateLocalRtcInstance(
+            rtc_request,
+            [weak_rtc_operation](
+                const std::shared_ptr<PxLocalRtcReplyInfo>& reply) {
+                if (const auto operation = weak_rtc_operation.lock()) {
+                    if (reply) {
+                        static_cast<void>(operation->TryComplete(PxResult<
+                            std::shared_ptr<PxLocalRtcReplyInfo>>::Success(reply)));
+                    }
+                    else {
+                        static_cast<void>(operation->TryFail(MakePxAsyncError(
+                            PxAsyncErrorCode::kProtocolError,
+                            "rtc_local_allocate", "RTC reply is empty", false,
+                            "RTC_LOCAL_EMPTY_REPLY")));
+                    }
+                }
+            });
+        if (allocation != PxLocalRtcAllocResult::kOk) {
+            static_cast<void>(rtc_operation->TryFail(MakePxAsyncError(
+                PxAsyncErrorCode::kServiceRejected,
+                "rtc_local_allocate", "RTC allocation was rejected", false,
+                allocation == PxLocalRtcAllocResult::kOccupied
+                    ? "RTC_LOCAL_OCCUPIED"
+                    : "RTC_LOCAL_CREATE_FAILED")));
+        }
+        auto rtc_reply = co_await PxAsyncOneShot<
+            std::shared_ptr<PxLocalRtcReplyInfo>>::WaitUntil(
+                rtc_operation,
+                std::chrono::steady_clock::now() + std::chrono::seconds(10));
+        if (!rtc_reply.HasValue()) {
+            self->CloseAdmittedLogicalSessionBinding(
+                ticket_admission.logical_session_id_, admitted_binding_id);
+            const auto code = rtc_reply.Error().detail_code ==
+                "RTC_LOCAL_OCCUPIED"
+                ? kHandlerErrRtcLocalOccupied
+                : kHandlerErrCreateRtcLocalServerFailed;
+            LOGW("event=workflow.complete component=net_ws code={} "
+                 "operation=rtc_local_allocate outcome=failed recoverable={} "
+                 "reason={}",
+                 rtc_reply.Error().StableCode(), rtc_reply.Error().retryable,
+                 rtc_reply.Error().message);
+            complete(make_reply(code));
+            co_return;
         }
 
-        // wait
-        std::unique_lock reply_lock(reply_wait_state->mutex_);
-        reply_wait_state->cv_.wait_for(reply_lock, std::chrono::seconds(10), [&] {
-            return reply_wait_state->reply_ != nullptr;
-        });
-
-        if (!reply_wait_state->reply_) {
-            SendErrorJson(resp, kHandlerErrCreateRtcLocalServerFailed);
-            return;
-        }
-        const auto reply_info = reply_wait_state->reply_;
-
-        nlohmann::json obj;
-        obj["answer_sdp"] = reply_info->answer_sdp_;
-        // 显示器列表(与 video track 同序):多 track 客户端做 track→mon_name 映射,
-        // 并据此决定下次 offer 声明几条 video m-line;web/旧客户端忽略此字段
+        const auto reply_info = rtc_reply.TakeValue();
+        nlohmann::json result;
+        result["answer_sdp"] = reply_info->answer_sdp_;
         auto monitors = nlohmann::json::array();
-        int mon_index = 0;
-        for (const auto& m : reply_info->monitors_) {
+        int monitor_index = 0;
+        for (const auto& monitor : reply_info->monitors_) {
             monitors.push_back({
-                {"name", m.name_},
-                {"width", m.width_},
-                {"height", m.height_},
-                {"left", m.left_},
-                {"top", m.top_},
-                {"right", m.right_},
-                {"bottom", m.bottom_},
-                {"index", mon_index++},
+                {"name", monitor.name_}, {"width", monitor.width_},
+                {"height", monitor.height_}, {"left", monitor.left_},
+                {"top", monitor.top_}, {"right", monitor.right_},
+                {"bottom", monitor.bottom_}, {"index", monitor_index++},
             });
         }
-        obj["monitors"] = monitors;
+        result["monitors"] = monitors;
         if (password_only_ip_direct) {
-            obj["stream_id"] = direct_issued_stream_id;
+            result["stream_id"] = direct_issued_stream_id;
             LOGI("IP direct password authentication admitted");
         }
         else if (direct_access) {
             const auto now_ms = CurrentSystemMilliseconds();
-            obj["stream_id"] = direct_issued_stream_id;
-            obj["direct_session_grant"] = direct_session_grants_.Issue(direct_grant_binding, now_ms);
-            obj["direct_session_grant_expires_at_ms"] = now_ms
-                + DirectSessionGrantStore::kLifetimeMilliseconds;
-            LOGI("Direct RTC audit: result=admitted device={} subject_hash={} takeover={}",
-                 device_id, DirectAuditSubject(direct_grant_binding), rtc_req->takeover_);
+            result["stream_id"] = direct_issued_stream_id;
+            result["direct_session_grant"] =
+                self->direct_session_grants_.Issue(
+                    direct_grant_binding, now_ms);
+            result["direct_session_grant_expires_at_ms"] = now_ms +
+                DirectSessionGrantStore::kLifetimeMilliseconds;
+            LOGI("Direct RTC audit: result=admitted device={} subject_hash={} "
+                 "takeover={}",
+                 device_id, DirectAuditSubject(direct_grant_binding),
+                 rtc_request->takeover_);
         }
-        SendOkJson(static_cast<http::web_response &>(resp), obj.dump());
+        complete(DeferredHttpReply{
+            .payload_ = self->WrapBasicInfo(
+                200, self->GetErrorMessage(200), result),
+            .status_ = http::status::ok,
+        });
+        co_return;
     }
 }

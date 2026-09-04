@@ -358,3 +358,27 @@ Render CTest 18/18 通过。发布脚本同步运行产物后，独立复核 bui
 `px_render.exe` 的 SHA-256 为
 `429D333777399A3F37FE2E72D6CC5ADD580543F708FDA872E2677018B661953B`；build tree 与 dist
 逐项一致。两个 WebRTC DLL 哈希保持不变，dist 插件目录仍只包含这两个动态网络库。
+
+### 阶段 14：WS 控制回调收口为 typed co_await
+
+- WS ticket redemption、logical-session admission 和 RTC Local allocation 不再使用
+  `condition_variable::wait_for` 阻塞 asio2 I/O callback；I/O callback 只复制 owned 请求值、
+  获取 RAII response defer guard，再把工作交给 `PxAsyncScope` 的 control lane。
+- WebSocket open 按 ticket -> capability -> admission 顺序执行 typed awaitable。HTTP RTC
+  allocation 按 ticket -> admission -> allocation 顺序执行 typed awaitable；每步具有独立
+  deadline、稳定错误码和结构化失败日志。
+- 新增 `AwaitWsValueCallback` 作为值回调桥。超时、scope cancellation 或 owner 析构后，
+  晚到的 accepted admission 会执行显式 binding close 补偿，避免逻辑会话泄漏。
+- coroutine 不跨 `co_await` 保存 request/response 引用、socket 借用值或插件裸指针；最终
+  WebSocket router 创建和 HTTP response mutation 都投递回 asio2 session queue。
+- `WsData` 删除 `map<string, any>` service bag，改为 typed `weak_ptr<WsPlugin>`；三个 WS
+  router 同步移除 `Get<WsPlugin*>` 查询。架构门禁禁止 net_ws 重新引入 `std::any`、同步条件
+  等待或插件裸指针。
+- WS server 的重复 start/stop 为幂等路径；回调线程请求 shutdown 时先取消 scope，再使用
+  公共 runtime 的 RAII joiner 异步回收线程，不自等待、不自 join，也不误报 drain timeout。
+- 单元测试覆盖 typed completion、timeout 后 late compensation、scope cancellation 后晚到
+  callback；相关 callback、linkage 和架构门禁连续 10 轮通过，async lifetime gate 通过。
+
+本阶段目标级构建和 ownership gate 通过。发布后 `px_render.exe` 的 SHA-256 为
+`2C82ED214291BB3AB9144757F4E16B14FBC8D5FF5C4AD092F14FC6C5DA371ACA`，build tree 与 dist
+一致；WebRTC DLL 未改动。

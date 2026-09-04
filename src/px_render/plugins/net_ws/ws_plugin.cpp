@@ -47,7 +47,15 @@ namespace px
         if (config_listen_port > 0) {
             listen_port = config_listen_port;
         }
-        ws_server_ = std::make_shared<WsPluginServer>(this, (uint16_t)listen_port);
+        const auto weak_self = weak_from_this();
+        if (weak_self.expired()) {
+            LOGE("event=module.start component=net_ws code=MODULE_DEPENDENCY_UNAVAILABLE "
+                 "operation=create_server outcome=failed recoverable=false "
+                 "reason=ws_plugin_requires_shared_ownership");
+            return false;
+        }
+        ws_server_ = std::make_shared<WsPluginServer>(
+            weak_self, static_cast<uint16_t>(listen_port));
         ws_server_->Start();
         return true;
     }

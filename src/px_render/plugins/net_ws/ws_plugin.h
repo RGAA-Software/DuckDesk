@@ -18,7 +18,8 @@ namespace px
     class CaptureVideoFrame;
     class WsPluginServer;
 
-    class WsPlugin : public PxNetPlugin {
+    class WsPlugin : public PxNetPlugin,
+                     public std::enable_shared_from_this<WsPlugin> {
     public:
         WsPlugin();
         std::string GetPluginId() override;

@@ -164,11 +164,28 @@ foreach ($file in $wsBuiltInFiles) {
         "GetLocalRtcPlugin" = "built-in WS transport cannot expose RTC plug-in instances"
         "GetUdpTransport" = "built-in WS transport cannot expose UDP plug-in instances"
         "network_peers_" = "built-in WS transport cannot retain a peer graph"
+        "condition_variable" = "WS control callbacks must use typed awaitables"
+        "\.wait_for\s*\(" = "WS request handlers must not block network callbacks"
+        "std::any|any_cast" = "WS router context must remain strongly typed"
+        "WsPlugin\s*\*" = "built-in WS components must observe the module through weak ownership"
+        "Get\s*<\s*WsPlugin" = "WS routers must not hide module ownership in a service bag"
     }).GetEnumerator()) {
         if ($content -match $entry.Key) {
             $violations.Add("$($file.FullName): $($entry.Value)")
         }
     }
+}
+$wsServerSource = Get-Content -LiteralPath `
+    (Join-Path $RepoRoot "src\px_render\plugins\net_ws\ws_server.cpp") -Raw
+$wsHttpSource = Get-Content -LiteralPath `
+    (Join-Path $RepoRoot "src\px_render\plugins\net_ws\http_handler.cpp") -Raw
+if ($wsServerSource -notmatch "co_await\s+RedeemWsTicketAsync" -or
+    $wsServerSource -notmatch "co_await\s+AdmitWsSessionAsync") {
+    $violations.Add("net_ws/ws_server.cpp: websocket ticket and admission workflows must remain typed awaitables")
+}
+if ($wsHttpSource -notmatch "response\.defer|resp\.defer" -or
+    $wsHttpSource -notmatch "AllocateLocalRtcAsync") {
+    $violations.Add("net_ws/http_handler.cpp: RTC HTTP allocation must remain a deferred awaitable workflow")
 }
 
 if ($violations.Count -gt 0) {

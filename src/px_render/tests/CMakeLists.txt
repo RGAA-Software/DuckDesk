@@ -18,6 +18,12 @@ target_link_libraries(test_network_transport_hub
     PRIVATE render_architecture_core GTest::gtest GTest::gtest_main)
 add_test(NAME network_transport_hub COMMAND test_network_transport_hub)
 
+add_executable(test_ws_callback_workflow
+    unit/test_ws_callback_workflow.cpp)
+target_link_libraries(test_ws_callback_workflow
+    PRIVATE px_common_new GTest::gtest GTest::gtest_main)
+add_test(NAME ws_callback_workflow COMMAND test_ws_callback_workflow)
+
 add_executable(test_media_recorder_sink
     unit/test_media_recorder_sink.cpp)
 target_link_libraries(test_media_recorder_sink

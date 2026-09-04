@@ -41,7 +41,10 @@ namespace px
             LOGW("Drop file-transfer message on WS control session without file permission");
             return;
         }
-        auto plugin = Get<WsPlugin*>("plugin");
+        const auto plugin = ws_data_ ? ws_data_->plugin_.lock() : nullptr;
+        if (!plugin) {
+            return;
+        }
         auto msg = Data::Make(data.data(), data.size());
         plugin->OnClientEventCame(
             true, socket_fd, NetPluginType::kWebSocket, nt_channel_type_, msg, binding_id_);
@@ -82,7 +85,8 @@ namespace px
             }
 
             // report data size
-            auto plugin = self->Get<WsPlugin*>("plugin");
+            const auto plugin = self->ws_data_
+                ? self->ws_data_->plugin_.lock() : nullptr;
             if (plugin) {
                 plugin->ReportSentDataSize(byte_sent);
             }
@@ -117,7 +121,8 @@ namespace px
             self->queuing_message_count_--;
 
             // report data size
-            auto plugin = self->Get<WsPlugin*>("plugin");
+            const auto plugin = self->ws_data_
+                ? self->ws_data_->plugin_.lock() : nullptr;
             if (plugin) {
                 plugin->ReportSentDataSize(byte_sent);
             }

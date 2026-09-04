@@ -7,12 +7,15 @@
 
 #include <memory>
 #include <atomic>
+#include <cstdint>
 #include <vector>
 #include <mutex>
 #include <set>
+#include <unordered_map>
 #include "network/ws_router.h"
 #include "px_common_new/concurrent_hashmap.h"
 #include "px_common_new/file_transfer_send_result.h"
+#include "px_common_new/async_runtime.h"
 #include <asio2/asio2.hpp>
 
 namespace px
@@ -25,11 +28,26 @@ namespace px
     class PxConnectedClientInfo;
     class MsgClientHello;
     class PxLogicalSessionCapabilityUpdate;
+    class PxAsyncRuntime;
+    class PxAsyncScope;
+    struct WsTicketAdmission;
+    struct LogicalSessionAdmission;
 
+    // Lifetime:
+    // - Owned by the built-in WsPlugin.
+    // - Control workflows are owned by async_scope_.
+    // - Network and legacy event callbacks capture weak owners only.
+    // - Exit cancels and drains workflows before stopping the HTTP server.
+    //
+    // Threading:
+    // - Control workflows are serialized on the control-lane strand.
+    // - Session mutations are posted back to the asio2 session queue.
+    // - No mutex or borrowed request/response value crosses co_await.
     class WsPluginServer : public std::enable_shared_from_this<WsPluginServer> {
     public:
 
-        explicit WsPluginServer(px::WsPlugin* plugin, uint16_t listen_port);
+        explicit WsPluginServer(std::weak_ptr<WsPlugin> plugin,
+                                uint16_t listen_port);
 
         void Start();
         void Exit();
@@ -70,6 +88,20 @@ namespace px
         void AddIpcRouter();
         void AddWebsocketRouter(const std::string& path);
         void AddWebClientRouter();
+        static PxAwaitable<void> OpenWebSocketAsync(
+            std::weak_ptr<WsPluginServer> owner,
+            std::shared_ptr<asio2::http_session> session,
+            std::string path,
+            std::unordered_map<std::string, std::string> params,
+            std::uint64_t socket_fd);
+        void FinalizeWebSocketOpen(
+            const std::shared_ptr<asio2::http_session>& session,
+            const std::string& path,
+            const std::unordered_map<std::string, std::string>& params,
+            const WsTicketAdmission& ticket,
+            const LogicalSessionAdmission& admission,
+            const std::string& binding_id,
+            std::uint64_t socket_fd);
 
         void AddHttpRouter(const std::string& path,
                            std::function<void(const std::string& path, std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep)>&& callback);
@@ -88,7 +120,8 @@ namespace px
                                        bool revoke);
 
     private:
-        px::WsPlugin* plugin_ = nullptr;
+        // Weak observer: WsPlugin owns this server and must not form a cycle.
+        std::weak_ptr<WsPlugin> plugin_;
         uint16_t listen_port_ = 0;
         //std::shared_ptr<asio2::https_server> server_ = nullptr;
         std::shared_ptr<asio2::http_server> server_ = nullptr;
@@ -108,6 +141,9 @@ namespace px
 
         std::shared_ptr<HttpHandler> http_handler_ = nullptr;
         std::shared_ptr<WsUserProxyRouter> user_proxy_router_ = nullptr;
+        // Shared owners: control workflows run on a cancellable strand.
+        std::shared_ptr<PxAsyncRuntime> async_runtime_;
+        std::shared_ptr<PxAsyncScope> async_scope_;
         std::atomic_bool exiting_ = false;
 
     };

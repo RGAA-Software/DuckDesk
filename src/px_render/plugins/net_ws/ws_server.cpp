@@ -8,7 +8,6 @@
 #include <atomic>
 #include <algorithm>
 #include <bit>
-#include <condition_variable>
 #include <memory>
 #include <optional>
 #include <filesystem>
@@ -28,6 +27,10 @@
 #include "px_common_new/url_helper.h"
 #include "px_common_new/ws_control_signal.h"
 #include "http_handler.h"
+#include "ws_callback_workflow.h"
+#include "px_common_new/async_operation.h"
+#include "px_common_new/async_result.h"
+#include "px_render/architecture/runtime/await_callback.h"
 
 static std::string kUrlMedia = "/media";
 static std::string kUrlFileTransfer = "/file/transfer";
@@ -73,21 +76,6 @@ static bool IsIpcProcessAlive(uint32_t pid) {
 
 namespace px
 {
-    struct WsTicketWaitState {
-        std::mutex mutex_;
-        std::condition_variable cv_;
-        bool completed_ = false;
-        bool ok_ = false;
-        std::vector<std::string> permissions_;
-        std::string logical_session_id_;
-        std::string stream_id_;
-        std::string join_mode_;
-        std::string subject_id_;
-        int64_t expires_at_ms_ = 0;
-        bool allow_observer_ = true;
-        bool allow_takeover_ = true;
-    };
-
     struct WsTicketAdmission {
         std::vector<std::string> permissions_;
         std::string logical_session_id_;
@@ -97,13 +85,6 @@ namespace px
         int64_t expires_at_ms_ = 0;
         bool allow_observer_ = true;
         bool allow_takeover_ = true;
-    };
-
-    struct WsSessionAdmissionWaitState {
-        std::mutex mutex_;
-        std::condition_variable cv_;
-        bool completed_ = false;
-        LogicalSessionAdmission admission_;
     };
 
     static void RejectWebSocketSession(
@@ -125,55 +106,121 @@ namespace px
         });
     }
 
-    static std::optional<WsTicketAdmission> RedeemWsTicket(
-        WsPlugin* plugin, // NOLINT(gammaray-raw-pointer-boundary): established plug-in instance ABI
+    static void DispatchCloseLogicalSessionBinding(
+        const std::weak_ptr<WsPlugin>& plugin,
+        const std::string& logical_session_id,
+        const std::string& binding_id) {
+        const auto owner = plugin.lock();
+        if (!owner || logical_session_id.empty() || binding_id.empty()) {
+            return;
+        }
+        const auto event =
+            std::make_shared<PxPluginCloseLogicalSessionBindingEvent>();
+        event->logical_session_id_ = logical_session_id;
+        event->binding_id_ = binding_id;
+        owner->CallbackEvent(event);
+    }
+
+    static PxAwaitable<PxResult<WsTicketAdmission>> RedeemWsTicketAsync(
+        const std::weak_ptr<WsPlugin>& plugin,
         const std::unordered_map<std::string, std::string>& params) {
         const auto ticket_it = params.find("ticket");
-        if (ticket_it == params.end() || ticket_it->second.empty()) return std::nullopt;
+        if (ticket_it == params.end() || ticket_it->second.empty()) {
+            co_return PxResult<WsTicketAdmission>::Failure(MakePxAsyncError(
+                PxAsyncErrorCode::kInvalidArgument, "ws_ticket_redeem",
+                "connection ticket is missing"));
+        }
         const auto nonce_it = params.find("client_nonce");
-        if (nonce_it == params.end() || nonce_it->second.empty()) return std::nullopt;
-        auto state = std::make_shared<WsTicketWaitState>();
-        auto event = std::make_shared<PxPluginRedeemConnectionTicketEvent>();
-        event->ticket_ = ticket_it->second;
-        event->client_nonce_ = nonce_it->second;
+        if (nonce_it == params.end() || nonce_it->second.empty()) {
+            co_return PxResult<WsTicketAdmission>::Failure(MakePxAsyncError(
+                PxAsyncErrorCode::kInvalidArgument, "ws_ticket_redeem",
+                "client nonce is missing"));
+        }
+        const auto ticket = ticket_it->second;
+        const auto nonce = nonce_it->second;
+        std::string instance_id;
         if (const auto instance = params.find("instance_id"); instance != params.end()) {
-            event->instance_id_ = instance->second;
+            instance_id = instance->second;
         }
-        event->callback_ = [state](bool ok, const std::string&,
-                                   const std::vector<std::string>& permissions,
-                                   const std::string&, const std::string& logical_session_id,
-                                   const std::string& stream_id, const std::string& join_mode,
-                                   const std::string& subject_id, const int64_t expires_at_ms,
-                                   const bool allow_observer, const bool allow_takeover) {
-            std::scoped_lock lock(state->mutex_);
-            state->ok_ = ok;
-            state->permissions_ = permissions;
-            state->logical_session_id_ = logical_session_id;
-            state->stream_id_ = stream_id;
-            state->join_mode_ = join_mode;
-            state->subject_id_ = subject_id;
-            state->expires_at_ms_ = expires_at_ms;
-            state->allow_observer_ = allow_observer;
-            state->allow_takeover_ = allow_takeover;
-            state->completed_ = true;
-            state->cv_.notify_all();
-        };
-        plugin->CallbackEvent(event);
-        std::unique_lock lock(state->mutex_);
-        state->cv_.wait_for(lock, std::chrono::seconds(3), [&] { return state->completed_; });
-        if (!state->completed_ || !state->ok_ || state->stream_id_.empty()) {
-            return std::nullopt;
-        }
-        return WsTicketAdmission{
-            .permissions_ = std::move(state->permissions_),
-            .logical_session_id_ = std::move(state->logical_session_id_),
-            .stream_id_ = std::move(state->stream_id_),
-            .join_mode_ = std::move(state->join_mode_),
-            .subject_id_ = std::move(state->subject_id_),
-            .expires_at_ms_ = state->expires_at_ms_,
-            .allow_observer_ = state->allow_observer_,
-            .allow_takeover_ = state->allow_takeover_,
-        };
+        co_return co_await render::AwaitOwnedCallback<WsTicketAdmission>(
+            [plugin, ticket, nonce, instance_id](
+                render::OwnedCallbackCompletion<WsTicketAdmission> completion) {
+                const auto owner = plugin.lock();
+                if (!owner) {
+                    return false;
+                }
+                const auto event =
+                    std::make_shared<PxPluginRedeemConnectionTicketEvent>();
+                event->ticket_ = ticket;
+                event->client_nonce_ = nonce;
+                event->instance_id_ = instance_id;
+                event->callback_ = [completion = std::move(completion)](
+                    const bool ok, const std::string& code,
+                    const std::vector<std::string>& permissions,
+                    const std::string&, const std::string& logical_session_id,
+                    const std::string& stream_id, const std::string& join_mode,
+                    const std::string& subject_id, const int64_t expires_at_ms,
+                    const bool allow_observer, const bool allow_takeover) {
+                    if (!ok || stream_id.empty()) {
+                        completion(PxResult<WsTicketAdmission>::Failure(
+                            MakePxAsyncError(
+                                PxAsyncErrorCode::kServiceRejected,
+                                "ws_ticket_redeem",
+                                code.empty() ? "ticket was rejected" : code,
+                                false, "SESSION_TICKET_REJECTED")));
+                        return;
+                    }
+                    completion(PxResult<WsTicketAdmission>::Success(
+                        WsTicketAdmission{
+                            .permissions_ = permissions,
+                            .logical_session_id_ = logical_session_id,
+                            .stream_id_ = stream_id,
+                            .join_mode_ = join_mode,
+                            .subject_id_ = subject_id,
+                            .expires_at_ms_ = expires_at_ms,
+                            .allow_observer_ = allow_observer,
+                            .allow_takeover_ = allow_takeover,
+                        }));
+                };
+                owner->CallbackEvent(event);
+                return true;
+            },
+            std::chrono::steady_clock::now() + std::chrono::seconds(3),
+            "ws_ticket_redeem");
+    }
+
+    static PxAwaitable<PxResult<LogicalSessionAdmission>> AdmitWsSessionAsync(
+        const std::weak_ptr<WsPlugin>& plugin,
+        LogicalSessionGrant grant,
+        const LogicalSessionTransport transport,
+        std::string binding_id) {
+        const auto logical_session_id = grant.logical_session_id;
+        co_return co_await AwaitWsValueCallback<LogicalSessionAdmission>(
+            [plugin, grant = std::move(grant), transport, binding_id](
+                std::function<void(LogicalSessionAdmission)> completion) {
+                const auto owner = plugin.lock();
+                if (!owner) {
+                    return false;
+                }
+                const auto event =
+                    std::make_shared<PxPluginAdmitLogicalSessionEvent>();
+                event->grant_ = grant;
+                event->transport_ = transport;
+                event->binding_id_ = binding_id;
+                event->callback_ = std::move(completion);
+                owner->CallbackEvent(event);
+                return true;
+            },
+            std::chrono::steady_clock::now() + std::chrono::seconds(3),
+            "ws_session_admit",
+            [plugin, logical_session_id, binding_id](
+                const LogicalSessionAdmission& admission) {
+                if (admission.code ==
+                    LogicalSessionAdmissionCode::kAccepted) {
+                    DispatchCloseLogicalSessionBinding(
+                        plugin, logical_session_id, binding_id);
+                }
+            });
     }
 
     struct aop_log {
@@ -309,14 +356,25 @@ namespace px
                         || *type == 350 || *type == 351 || *type == 360);
     }
 
-    WsPluginServer::WsPluginServer(px::WsPlugin* plugin, uint16_t listen_port){
-        this->plugin_ = plugin;
-        this->listen_port_ = listen_port;
-        http_handler_ = std::make_shared<HttpHandler>(plugin_);
-    }
+    WsPluginServer::WsPluginServer(std::weak_ptr<WsPlugin> plugin,
+                                   const uint16_t listen_port)
+        : plugin_(std::move(plugin)), listen_port_(listen_port) {}
 
     void WsPluginServer::Start() {
+        if (server_ || async_runtime_) {
+            Exit();
+        }
         exiting_ = false;
+        async_runtime_ = PxAsyncRuntime::Create({.worker_threads = 2});
+        if (!async_runtime_ || !async_runtime_->Start()) {
+            LOGE("event=module.start component=net_ws code=ASYNC_RUNTIME_START_FAILED "
+                 "operation=start_control_workflows outcome=failed recoverable=false");
+            async_runtime_.reset();
+            return;
+        }
+        async_scope_ = PxAsyncScope::Create(
+            async_runtime_, PxAsyncLane::kControl);
+        http_handler_ = std::make_shared<HttpHandler>(plugin_, async_scope_);
         auto weak_self = weak_from_this();
         server_ = std::make_shared<asio2::http_server>();
         server_->bind_disconnect([weak_self](std::shared_ptr<asio2::http_session>& sess_ptr) {
@@ -351,11 +409,7 @@ namespace px
         });
 
         server_->support_websocket(true);
-        ws_data_ = std::make_shared<WsData>(WsData{
-            .vars_ = {
-                {"plugin",  this->plugin_},
-            }
-        });
+        ws_data_ = std::make_shared<WsData>(WsData{.plugin_ = plugin_});
 
         //auto exe_dir = qApp->applicationDirPath().toStdString();
         //auto pwd_file = std::format("{}/certs/password", exe_dir);
@@ -384,37 +438,37 @@ namespace px
 #endif
 
         // ping
-        AddHttpRouter(kApiPing, [=, this](const std::string& path, std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep) {
-            if (!exiting_) {
-                http_handler_->HandlePing(req, rep);
+        AddHttpRouter(kApiPing, [weak_self](const std::string&, std::shared_ptr<asio2::http_session>&, http::web_request& req, http::web_response& rep) {
+            if (const auto self = weak_self.lock(); self && !self->exiting_) {
+                self->http_handler_->HandlePing(req, rep);
             }
         });
 
         // verify security pwd
-        AddHttpRouter(kApiVerifySecurityPassword, [=, this](const std::string& path, std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep) {
-            if (!exiting_) {
-                http_handler_->HandleVerifySecurityPassword(session_ptr, req, rep);
+        AddHttpRouter(kApiVerifySecurityPassword, [weak_self](const std::string&, std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep) {
+            if (const auto self = weak_self.lock(); self && !self->exiting_) {
+                self->http_handler_->HandleVerifySecurityPassword(session_ptr, req, rep);
             }
         });
 
         // get render configuration
-        AddHttpRouter(kApiGetRenderConfiguration, [=, this](const std::string& path, std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep) {
-            if (!exiting_) {
-                http_handler_->HandleGetRenderConfiguration(req, rep);
+        AddHttpRouter(kApiGetRenderConfiguration, [weak_self](const std::string&, std::shared_ptr<asio2::http_session>&, http::web_request& req, http::web_response& rep) {
+            if (const auto self = weak_self.lock(); self && !self->exiting_) {
+                self->http_handler_->HandleGetRenderConfiguration(req, rep);
             }
         });
 
         //
-        AddHttpRouter(kApiPanelStreamMessage, [=, this](const std::string& path, std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep) {
-            if (!exiting_) {
-                http_handler_->HandlePanelStreamMessage(req, rep);
+        AddHttpRouter(kApiPanelStreamMessage, [weak_self](const std::string&, std::shared_ptr<asio2::http_session>&, http::web_request& req, http::web_response& rep) {
+            if (const auto self = weak_self.lock(); self && !self->exiting_) {
+                self->http_handler_->HandlePanelStreamMessage(req, rep);
             }
         });
 
         // kApiAllocLocalRtc
-        AddHttpRouter(kApiAllocLocalRtc, [=, this](const std::string& path, std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep) {
-            if (!exiting_) {
-                http_handler_->HandleAllocLocalRtc(session_ptr, req, rep);
+        AddHttpRouter(kApiAllocLocalRtc, [weak_self](const std::string&, std::shared_ptr<asio2::http_session> &session_ptr, http::web_request& req, http::web_response& rep) {
+            if (const auto self = weak_self.lock(); self && !self->exiting_) {
+                self->http_handler_->HandleAllocLocalRtc(session_ptr, req, rep);
             }
         });
 
@@ -430,10 +484,42 @@ namespace px
 
     void WsPluginServer::Exit() {
         exiting_ = true;
+        if (async_scope_) {
+            const auto called_from_scope = async_scope_->IsScopeThread();
+            const auto drained = called_from_scope
+                ? (async_scope_->BeginStop(), false)
+                : async_scope_->StopAndWait(std::chrono::seconds(5));
+            if (!drained && !called_from_scope) {
+                LOGE("event=async.scope_drain component=net_ws "
+                     "code=ASYNC_SCOPE_DRAIN_TIMEOUT operation=stop_control_workflows "
+                     "outcome=timeout recoverable=false outstanding={}",
+                     async_scope_->GetStatistics().outstanding);
+            } else if (called_from_scope) {
+                LOGI("event=async.scope_drain component=net_ws "
+                     "operation=stop_control_workflows outcome=deferred "
+                     "reason=shutdown_requested_from_callback outstanding={}",
+                     async_scope_->GetStatistics().outstanding);
+            }
+        }
         if (server_) {
             server_->stop_all_timers();
             server_->stop();
         }
+        async_scope_.reset();
+        http_handler_.reset();
+        if (async_runtime_) {
+            async_runtime_->RequestDrain();
+            async_runtime_->RequestStop();
+            async_runtime_->Join();
+            async_runtime_.reset();
+        }
+        server_.reset();
+        ws_data_.reset();
+        user_proxy_router_.reset();
+        stream_routers_.Clear();
+        ft_routers_.Clear();
+        ipc_sessions_.Clear();
+        ipc_session_pids_.Clear();
     }
 
     void WsPluginServer::PostNetMessage(std::shared_ptr<Data> msg) {
@@ -683,7 +769,7 @@ namespace px
         server_->bind(kUrlIpc, websocket::listener<asio2::http_session>{}
             .on("message", [weak_self](std::shared_ptr<asio2::http_session> &sess_ptr, std::string_view data) {
                 auto self = weak_self.lock();
-                if (!self || self->exiting_ || !self->plugin_) {
+                if (!self || self->exiting_ || self->plugin_.expired()) {
                     return;
                 }
                 if (data.size() < sizeof(CaptureBaseMessage)) {
@@ -738,7 +824,9 @@ namespace px
                     frame.bottom_ = ipc_msg->bottom_;
                     frame.request_idr_ = ipc_msg->request_idr_ != 0;
                     // raw_image_ stays null — never deserialized from the wire.
-                    self->plugin_->SubmitIpcVideoFrame(frame);
+                    if (const auto plugin = self->plugin_.lock()) {
+                        plugin->SubmitIpcVideoFrame(frame);
+                    }
                     return;
                 }
                 if (*first_u32 == kCaptureVideoFrame) {
@@ -786,7 +874,9 @@ namespace px
                               hdr->frame_index_, hdr->samples_, hdr->channels_, hdr->bits_,
                               hdr->data_length);
                     }
-                    self->plugin_->SubmitIpcAudioFrame(frame);
+                    if (const auto plugin = self->plugin_.lock()) {
+                        plugin->SubmitIpcAudioFrame(frame);
+                    }
                     return;
                 }
             })
@@ -851,6 +941,211 @@ namespace px
         LOGI("Registered websocket route: {}", kUrlIpc);
     }
 
+    PxAwaitable<void> WsPluginServer::OpenWebSocketAsync(
+        std::weak_ptr<WsPluginServer> owner,
+        std::shared_ptr<asio2::http_session> session,
+        std::string path,
+        std::unordered_map<std::string, std::string> params,
+        const std::uint64_t socket_fd) {
+        const auto server = owner.lock();
+        if (!server || server->exiting_) {
+            co_return;
+        }
+        const auto plugin = server->plugin_;
+        auto ticket_result = co_await RedeemWsTicketAsync(plugin, params);
+        if (!ticket_result.HasValue()) {
+            const auto& error = ticket_result.Error();
+            LOGW("event=session.admit component=net_ws code={} "
+                 "operation=redeem_ticket outcome=rejected recoverable={} reason={}",
+                 error.StableCode(), error.retryable, error.message);
+            RejectWebSocketSession(session, kWsAuthorizationRejectedSignal);
+            co_return;
+        }
+        auto ticket = ticket_result.TakeValue();
+        const auto stream_it = params.find("stream_id");
+        const auto stream_id = stream_it == params.end()
+            ? std::string{} : stream_it->second;
+        if (stream_id.empty() || stream_id != ticket.stream_id_) {
+            LOGW("event=session.admit component=net_ws code=SESSION_STREAM_MISMATCH "
+                 "operation=validate_route outcome=rejected recoverable=false");
+            RejectWebSocketSession(session, kWsAuthorizationRejectedSignal);
+            co_return;
+        }
+        if (path == kUrlFileTransfer &&
+            std::find(ticket.permissions_.begin(), ticket.permissions_.end(),
+                      "file") == ticket.permissions_.end()) {
+            LOGW("event=session.admit component=net_ws code=SESSION_CAPABILITY_DENIED "
+                 "operation=file_transfer outcome=rejected recoverable=false");
+            RejectWebSocketSession(session, kWsSessionRejectedSignal);
+            co_return;
+        }
+        const auto binding_id = std::format("ws:{}:{}", stream_id, socket_fd);
+        auto admission_result = co_await AdmitWsSessionAsync(
+            plugin,
+            LogicalSessionGrant{
+                .logical_session_id = ticket.logical_session_id_,
+                .stream_id = ticket.stream_id_,
+                .subject_id = ticket.subject_id_,
+                .join_mode = ticket.join_mode_,
+                .expires_at_ms = ticket.expires_at_ms_,
+                .allow_observer = ticket.allow_observer_,
+                .allow_takeover = ticket.allow_takeover_,
+            },
+            path == kUrlFileTransfer
+                ? LogicalSessionTransport::kFileTransfer
+                : LogicalSessionTransport::kWs,
+            binding_id);
+        if (!admission_result.HasValue() ||
+            admission_result.Value().code !=
+                LogicalSessionAdmissionCode::kAccepted) {
+            const bool occupied = admission_result.HasValue() &&
+                admission_result.Value().code ==
+                    LogicalSessionAdmissionCode::kOccupied;
+            const auto code = admission_result.HasValue()
+                ? "SESSION_ADMISSION_DENIED"
+                : admission_result.Error().StableCode();
+            LOGW("event=session.admit component=net_ws code={} "
+                 "operation=bind_session outcome=rejected recoverable={} occupied={}",
+                 code, !admission_result.HasValue() &&
+                           admission_result.Error().retryable,
+                 occupied);
+            RejectWebSocketSession(
+                session,
+                occupied ? kWsSessionOccupiedSignal : kWsSessionRejectedSignal);
+            co_return;
+        }
+        auto admission = admission_result.TakeValue();
+        if (!session->is_started()) {
+            DispatchCloseLogicalSessionBinding(
+                plugin, ticket.logical_session_id_, binding_id);
+            co_return;
+        }
+        session->post_queued_event(
+            [owner, plugin, session, path = std::move(path),
+             params = std::move(params), ticket = std::move(ticket),
+             admission = std::move(admission), binding_id, socket_fd]() mutable {
+                const auto active_server = owner.lock();
+                if (!active_server || active_server->exiting_ ||
+                    !session->is_started()) {
+                    DispatchCloseLogicalSessionBinding(
+                        plugin, ticket.logical_session_id_, binding_id);
+                    return;
+                }
+                active_server->FinalizeWebSocketOpen(
+                    session, path, params, ticket, admission, binding_id,
+                    socket_fd);
+            });
+        co_return;
+    }
+
+    void WsPluginServer::FinalizeWebSocketOpen(
+        const std::shared_ptr<asio2::http_session>& session,
+        const std::string& path,
+        const std::unordered_map<std::string, std::string>& params,
+        const WsTicketAdmission& ticket,
+        const LogicalSessionAdmission&,
+        const std::string& binding_id,
+        const std::uint64_t socket_fd) {
+        const auto plugin = plugin_.lock();
+        if (!plugin) {
+            DispatchCloseLogicalSessionBinding(
+                plugin_, ticket.logical_session_id_, binding_id);
+            session->stop();
+            return;
+        }
+        for (const auto& [key, value] : params) {
+            const bool sensitive = key == "ticket" || key == "appkey" ||
+                key == "client_nonce" || key == "udp_media_association" ||
+                key.find("pwd") != std::string::npos;
+            LOGI("query param, k: {}, v: {}", key,
+                 sensitive ? "<redacted>" : value);
+        }
+        LOGI("App server {} open", path);
+        const auto value_or_empty = [&params](const std::string& key) {
+            const auto it = params.find(key);
+            return it == params.end() ? std::string{} : it->second;
+        };
+        const bool only_audio =
+            std::atoi(value_or_empty("only_audio").c_str()) == 1;
+        const auto visitor_device_id = value_or_empty("visitor_device_id");
+        const auto stream_id = value_or_empty("stream_id");
+        const bool force_gdi = value_or_empty("force_gdi") == "true";
+        bool udp_media = value_or_empty("udp_media") == "1";
+        std::string udp_media_association_code;
+        if (udp_media && path == kUrlMedia) {
+            udp_media_association_code =
+                value_or_empty("udp_media_association");
+            if (udp_media_association_code.empty()) {
+                LOGW("WS UDP media requested without a control-plane association; "
+                     "keep WS media");
+                udp_media = false;
+            }
+            else {
+                UpdateUdpMediaAssociation(
+                    udp_media_association_code, ticket.logical_session_id_,
+                    stream_id, force_gdi, false);
+            }
+        }
+        else if (udp_media) {
+            udp_media = false;
+        }
+        LOGI("Force GDI : {}", force_gdi);
+        session->set_no_delay(true);
+        if (path == kUrlMedia) {
+            const auto event =
+                std::make_shared<PxPluginReqParamsBeginStreaming>();
+            event->stream_id_ = stream_id;
+            event->force_gdi_ = force_gdi;
+            plugin->CallbackEvent(event);
+            auto router = WsStreamRouter::Make(
+                ws_data_, only_audio, visitor_device_id, stream_id);
+            router->udp_media_.store(udp_media);
+            router->logical_session_id_ = ticket.logical_session_id_;
+            router->binding_id_ = binding_id;
+            router->clipboard_allowed_.store(std::find(
+                ticket.permissions_.begin(), ticket.permissions_.end(),
+                "clipboard") != ticket.permissions_.end());
+            router->file_allowed_.store(std::find(
+                ticket.permissions_.begin(), ticket.permissions_.end(),
+                "file") != ticket.permissions_.end());
+            router->udp_media_association_code_ =
+                udp_media_association_code;
+            router->force_gdi_ = force_gdi;
+            const auto weak_self = weak_from_this();
+            const std::weak_ptr<WsStreamRouter> weak_router = router;
+            router->SetUdpMediaFallbackCallback(
+                [weak_self, weak_router] {
+                    const auto active_server = weak_self.lock();
+                    const auto active_router = weak_router.lock();
+                    if (!active_server || !active_router) {
+                        return;
+                    }
+                    active_server->UpdateUdpMediaAssociation(
+                        active_router->udp_media_association_code_,
+                        active_router->logical_session_id_,
+                        active_router->stream_id_,
+                        active_router->force_gdi_, true);
+                });
+            stream_routers_.Insert(socket_fd, router);
+            NotifyMediaClientConnected(
+                router->conn_id_, router->stream_id_, visitor_device_id);
+            auto mutable_session = session;
+            router->OnOpen(mutable_session);
+        }
+        else if (path == kUrlFileTransfer) {
+            auto router = WsFileTransferRouter::Make(
+                ws_data_, only_audio, visitor_device_id, stream_id);
+            router->logical_session_id_ = ticket.logical_session_id_;
+            router->binding_id_ = binding_id;
+            router->file_allowed_.store(std::find(
+                ticket.permissions_.begin(), ticket.permissions_.end(),
+                "file") != ticket.permissions_.end());
+            ft_routers_.Insert(socket_fd, router);
+            auto mutable_session = session;
+            router->OnOpen(mutable_session);
+        }
+    }
+
     void WsPluginServer::AddWebsocketRouter(const std::string &path) {
         auto weak_self = weak_from_this();
         auto fn_get_socket_fd = [](std::shared_ptr<asio2::http_session> &sess_ptr) -> uint64_t {
@@ -880,179 +1175,26 @@ namespace px
                 }
             })
             .on("open", [weak_self, path, fn_get_socket_fd](std::shared_ptr<asio2::http_session> &sess_ptr) {
-                auto self = weak_self.lock();
-                if (!self || self->exiting_) {
+                const auto self = weak_self.lock();
+                if (!self || self->exiting_ || !self->async_scope_) {
                     return;
                 }
-                auto query = sess_ptr->get_request().get_query();
-                auto params = UrlHelper::ParseQueryString(std::string(query.data(), query.size()));
+                const auto query = sess_ptr->get_request().get_query();
+                auto params = UrlHelper::ParseQueryString(
+                    std::string(query.data(), query.size()));
+                const auto session = sess_ptr;
                 const auto socket_fd = fn_get_socket_fd(sess_ptr);
-                const auto admission = RedeemWsTicket(self->plugin_, params);
-                if (!admission.has_value()) {
-                    LOGW("Reject websocket without a valid logical-session ticket");
-                    RejectWebSocketSession(sess_ptr, kWsAuthorizationRejectedSignal);
-                    return;
-                }
-                for (const auto& [k, v] : params) {
-                    const bool sensitive = k == "ticket" || k == "appkey"
-                        || k == "client_nonce" || k == "udp_media_association"
-                        || k.find("pwd") != std::string::npos;
-                    LOGI("query param, k: {}, v: {}", k, sensitive ? "<redacted>" : v);
-                }
-                LOGI("App server {} open", path);
-                bool only_audio = std::atoi(params["only_audio"].c_str()) == 1;
-                std::string server_device_id;
-                std::string visitor_device_id;
-                std::string stream_id;
-                bool force_gdi = false;
-                if (params.contains("remote_device_id")) {
-                    server_device_id = params["remote_device_id"];
-                }
-                if (params.contains("visitor_device_id")) {
-                    visitor_device_id = params["visitor_device_id"];
-                }
-                if (params.contains("stream_id")) {
-                    stream_id = params["stream_id"];
-                }
-                if (stream_id != admission->stream_id_) {
-                    LOGW("Reject websocket with a ticket/stream mismatch");
-                    RejectWebSocketSession(sess_ptr, kWsAuthorizationRejectedSignal);
-                    return;
-                }
-                if (path == kUrlFileTransfer
-                    && std::find(admission->permissions_.begin(), admission->permissions_.end(), "file")
-                        == admission->permissions_.end()) {
-                    LOGW("Reject file websocket: role has no file capability");
-                    RejectWebSocketSession(sess_ptr, kWsSessionRejectedSignal);
-                    return;
-                }
-                const auto admission_wait = std::make_shared<WsSessionAdmissionWaitState>();
-                const auto admission_event = std::make_shared<PxPluginAdmitLogicalSessionEvent>();
-                admission_event->grant_ = {
-                    .logical_session_id = admission->logical_session_id_,
-                    .stream_id = admission->stream_id_,
-                    .subject_id = admission->subject_id_,
-                    .join_mode = admission->join_mode_,
-                    .expires_at_ms = admission->expires_at_ms_,
-                    .allow_observer = admission->allow_observer_,
-                    .allow_takeover = admission->allow_takeover_,
-                };
-                admission_event->transport_ = path == kUrlFileTransfer
-                    ? LogicalSessionTransport::kFileTransfer : LogicalSessionTransport::kWs;
-                const auto binding_id = std::format("ws:{}:{}", stream_id, socket_fd);
-                admission_event->binding_id_ = binding_id;
-                admission_event->callback_ = [admission_wait](const LogicalSessionAdmission result) {
-                    std::scoped_lock lock(admission_wait->mutex_);
-                    admission_wait->admission_ = result;
-                    admission_wait->completed_ = true;
-                    admission_wait->cv_.notify_all();
-                };
-                self->plugin_->CallbackEvent(admission_event);
-                std::unique_lock admission_lock(admission_wait->mutex_);
-                admission_wait->cv_.wait_for(admission_lock, std::chrono::seconds(3), [&] {
-                    return admission_wait->completed_;
-                });
-                if (!admission_wait->completed_
-                    || admission_wait->admission_.code != LogicalSessionAdmissionCode::kAccepted) {
-                    const bool occupied = admission_wait->completed_
-                        && admission_wait->admission_.code == LogicalSessionAdmissionCode::kOccupied;
-                    LOGW("Reject websocket: logical-session admission denied, occupied={}", occupied);
+                if (!self->async_scope_->Spawn(
+                        "ws-session-open",
+                        [weak_self, session, path, socket_fd,
+                         params = std::move(params)]() mutable {
+                            return WsPluginServer::OpenWebSocketAsync(
+                                weak_self, session, path, std::move(params),
+                                socket_fd);
+                        })) {
                     RejectWebSocketSession(
-                        sess_ptr,
-                        occupied ? kWsSessionOccupiedSignal : kWsSessionRejectedSignal);
-                    return;
+                        sess_ptr, kWsAuthorizationRejectedSignal);
                 }
-                if (params.contains("force_gdi")) {
-                    force_gdi = [&]() {
-                        if (auto v = params["force_gdi"]; v == "true") {
-                            return true;
-                        }
-                        return false;
-                    } ();
-                }
-                // udp_media=1:客户端媒体走 net_udp 插件裸 UDP 通道,
-                // 本 ws 会话只承担控制面(媒体帧 proto 在下发处跳过)
-                bool udp_media = false;
-                std::string udp_media_association_code;
-                if (params.contains("udp_media")) {
-                    udp_media = params["udp_media"] == "1";
-                }
-                if (udp_media && path == kUrlMedia) {
-                    const auto association = params.find("udp_media_association");
-                    if (association == params.end() || association->second.empty()) {
-                        LOGW("WS UDP media requested without a control-plane association; keep WS media");
-                        udp_media = false;
-                    } else {
-                        udp_media_association_code = association->second;
-                        self->UpdateUdpMediaAssociation(udp_media_association_code,
-                                                        admission->logical_session_id_, stream_id,
-                                                        force_gdi, false);
-                    }
-                }
-                else if (udp_media) {
-                    // File transfer and all other WS routes are reliable-only.
-                    // They must never allocate a UDP media association.
-                    udp_media = false;
-                }
-
-                LOGI("Force GDI : {}", force_gdi);
-
-                // TEST //
-                if (stream_id.empty()) {
-                    LOGE("!!!MUST HAVE STREAM ID!!!");
-                    sess_ptr->stop();
-                    return;
-                }
-                // TEST //
-
-                sess_ptr->set_no_delay(true);
-
-                if (path == kUrlMedia) {
-                    // notify
-                    const auto event = std::make_shared<PxPluginReqParamsBeginStreaming>();
-                    event->stream_id_ = stream_id;
-                    event->force_gdi_ = force_gdi;
-                    self->plugin_->CallbackEvent(event);
-
-                    auto router = WsStreamRouter::Make(self->ws_data_, only_audio, visitor_device_id, stream_id);
-                    router->udp_media_.store(udp_media);
-                    router->logical_session_id_ = admission->logical_session_id_;
-                    router->binding_id_ = binding_id;
-                    router->clipboard_allowed_.store(std::find(
-                        admission->permissions_.begin(), admission->permissions_.end(), "clipboard")
-                        != admission->permissions_.end());
-                    router->file_allowed_.store(std::find(
-                        admission->permissions_.begin(), admission->permissions_.end(), "file")
-                        != admission->permissions_.end());
-                    router->udp_media_association_code_ = udp_media_association_code;
-                    router->force_gdi_ = force_gdi;
-                    const std::weak_ptr<WsStreamRouter> weak_router = router;
-                    router->SetUdpMediaFallbackCallback([weak_self, weak_router]() {
-                        const auto server = weak_self.lock();
-                        const auto active_router = weak_router.lock();
-                        if (!server || !active_router) {
-                            return;
-                        }
-                        server->UpdateUdpMediaAssociation(
-                            active_router->udp_media_association_code_,
-                            active_router->logical_session_id_, active_router->stream_id_,
-                            active_router->force_gdi_, true);
-                    });
-                    self->stream_routers_.Insert(socket_fd, router);
-                    self->NotifyMediaClientConnected(router->conn_id_, router->stream_id_, visitor_device_id);
-                    router->OnOpen(sess_ptr);
-                }
-                else if (path == kUrlFileTransfer) {
-                    auto router = WsFileTransferRouter::Make(self->ws_data_, only_audio, visitor_device_id, stream_id);
-                    router->logical_session_id_ = admission->logical_session_id_;
-                    router->binding_id_ = binding_id;
-                    router->file_allowed_.store(std::find(
-                        admission->permissions_.begin(), admission->permissions_.end(), "file")
-                        != admission->permissions_.end());
-                    self->ft_routers_.Insert(socket_fd, router);
-                    router->OnOpen(sess_ptr);
-                }
-
             })
             .on("close", [weak_self, path, fn_get_socket_fd](std::shared_ptr<asio2::http_session> &sess_ptr) {
                 auto self = weak_self.lock();
@@ -1103,7 +1245,9 @@ namespace px
         const auto event = std::make_shared<PxPluginCloseLogicalSessionBindingEvent>();
         event->logical_session_id_ = logical_session_id;
         event->binding_id_ = binding_id;
-        plugin_->CallbackEvent(event);
+        if (const auto plugin = plugin_.lock()) {
+            plugin->CallbackEvent(event);
+        }
     }
 
     void WsPluginServer::UpdateUdpMediaAssociation(
@@ -1114,7 +1258,8 @@ namespace px
         }
         const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
-        const auto updated = plugin_->UpdateUdpAssociation(UdpMediaAssociation{
+        const auto plugin = plugin_.lock();
+        const auto updated = plugin && plugin->UpdateUdpAssociation(UdpMediaAssociation{
             .association_code_ = association_code,
             .logical_session_id_ = logical_session_id,
             .stream_id_ = stream_id,
@@ -1204,7 +1349,9 @@ namespace px
         event->conn_type_ = "Direct";
         event->visitor_device_id_ = visitor_device_id;
         event->begin_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
-        this->plugin_->CallbackEvent(event);
+        if (const auto plugin = plugin_.lock()) {
+            plugin->CallbackEvent(event);
+        }
         LOGI("Conn id: {}, device id: {}", stream_id, visitor_device_id);
     }
 
@@ -1220,7 +1367,9 @@ namespace px
         event->visitor_device_id_ = visitor_device_id;
         event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
         event->duration_ = event->end_timestamp_ - begin_timestamp;
-        this->plugin_->CallbackEvent(event);
+        if (const auto plugin = plugin_.lock()) {
+            plugin->CallbackEvent(event);
+        }
     }
 
     int64_t WsPluginServer::GetQueuingMediaMsgCount() {

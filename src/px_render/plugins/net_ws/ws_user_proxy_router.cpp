@@ -79,7 +79,7 @@ namespace px
             return;
         }
 
-        auto plugin = Get<WsPlugin*>("plugin");
+        const auto plugin = ws_data_ ? ws_data_->plugin_.lock() : nullptr;
         if (!plugin) {
             LOGE("user-proxy plugin missing");
             return;
@@ -166,7 +166,8 @@ namespace px
                 return;
             }
             self->queuing_message_count_--;
-            if (auto plugin = self->Get<WsPlugin*>("plugin")) {
+            if (const auto plugin = self->ws_data_
+                    ? self->ws_data_->plugin_.lock() : nullptr) {
                 plugin->ReportSentDataSize((int)byte_sent);
             }
         });
