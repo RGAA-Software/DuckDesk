@@ -116,7 +116,7 @@ namespace px
                 }
             }
             if (module_registry) {
-                const auto stopped = co_await module_registry->StopWsIngressAsync(deadline);
+                const auto stopped = co_await module_registry->StopNetworkIngressAsync(deadline);
                 if (!stopped && outcome) {
                     outcome = PxResult<void>::Failure(stopped.Error());
                 }

@@ -415,7 +415,15 @@ $udpTransportSource = Get-Content -LiteralPath `
 if ($udpTransportSource -match 'module_context_->StartTimer') {
     $violations.Add("net_udp/udp_transport.cpp: UDP control timers must remain owned by its async scope")
 }
-foreach ($required in @("PxAsyncScope::Create", "WaitForAsyncDelay", "RunHeartbeatSweepLoop", "RunFecWindowLoop")) {
+foreach ($required in @(
+    "PxAsyncScope::Create",
+    "WaitForAsyncDelay",
+    "RunHeartbeatSweepLoop",
+    "RunFecWindowLoop",
+    "StopAsync",
+    "WaitForAsioObjectStopped",
+    "WaitForAsyncScopeDrain"
+)) {
     if ($udpTransportSource -notmatch [regex]::Escape($required)) {
         $violations.Add("net_udp/udp_transport.cpp: coroutine-owned control workflow is missing $required")
     }

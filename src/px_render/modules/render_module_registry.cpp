@@ -397,17 +397,25 @@ namespace px
         }
     }
 
-    PxAwaitable<PxResult<void>> RenderModuleRegistry::StopWsIngressAsync(
+    PxAwaitable<PxResult<void>> RenderModuleRegistry::StopNetworkIngressAsync(
         const std::chrono::steady_clock::time_point deadline) {
         std::shared_ptr<WsTransport> ws_transport;
+        std::shared_ptr<UdpTransport> udp_transport;
         {
             std::shared_lock lock(modules_mtx_);
             ws_transport = ws_transport_;
+            udp_transport = udp_transport_;
         }
-        if (!ws_transport) {
-            co_return PxResult<void>::Success();
+        if (ws_transport) {
+            const auto stopped = co_await WsTransport::StopAsync(ws_transport, deadline);
+            if (!stopped) {
+                co_return stopped;
+            }
         }
-        co_return co_await WsTransport::StopAsync(ws_transport, deadline);
+        if (udp_transport) {
+            co_return co_await UdpTransport::StopAsync(udp_transport, deadline);
+        }
+        co_return PxResult<void>::Success();
     }
 
     void RenderModuleRegistry::StopModules() {

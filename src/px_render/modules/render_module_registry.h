@@ -74,7 +74,7 @@ namespace px
         void StartModules();
         void BindIngressCallbacks();
         void StopRouting();
-        [[nodiscard]] PxAwaitable<PxResult<void>> StopWsIngressAsync(
+        [[nodiscard]] PxAwaitable<PxResult<void>> StopNetworkIngressAsync(
             std::chrono::steady_clock::time_point deadline);
         void StopModules();
         std::shared_ptr<VideoEncoderModule> GetFFmpegEncoder();

@@ -13,6 +13,8 @@
 #include "px_common_new/data.h"
 #include "px_common_new/async_delay.h"
 #include "px_common_new/async_runtime.h"
+#include "px_common_new/asio_client_shutdown.h"
+#include "px_common_new/async_scope_drain.h"
 #include "px_common_new/time_util.h"
 #include "px_common_new/px_udp_protocol.h"
 #include "px_render/plugin_interface/px_plugin_events.h"
@@ -46,6 +48,10 @@ namespace px
 
         [[nodiscard]] bool Start(int listen_port);
         void Stop();
+        [[nodiscard]] static PxAwaitable<PxResult<void>> StopAsync(
+            const std::shared_ptr<UdpRuntimeState>& owner,
+            std::chrono::steady_clock::time_point deadline);
+        [[nodiscard]] bool IsQuiescent() const;
         void HandleCtrlPacket(
             const std::shared_ptr<UdpSession>& udp_session,
             const char* data, size_t size); // NOLINT(gammaray-raw-pointer-boundary) Synchronous UDP byte-view boundary
@@ -89,6 +95,8 @@ namespace px
     private:
         static PxAwaitable<void> RunHeartbeatSweepLoop(std::weak_ptr<UdpRuntimeState> weak_runtime);
         static PxAwaitable<void> RunFecWindowLoop(std::weak_ptr<UdpRuntimeState> weak_runtime);
+        std::shared_ptr<PxAsyncScope> BeginStop();
+        void FinishStop();
 
         CompatibilityEventCallback event_dispatcher_;
         int configured_fec_percent_ = 20;
@@ -141,7 +149,7 @@ namespace px
         }
         runtime_ = std::make_shared<UdpRuntimeState>(async_runtime_, MakeImmediateCompatibilityEventDispatcher(), fec_percent);
         // Windows sleep 默认 15.6ms 粒度,先把计时器分辨率提到 1ms(高精度 waitable timer 不受此限)
-        timeBeginPeriod(1);
+        timer_resolution_active_ = timeBeginPeriod(1) == TIMERR_NOERROR;
         // Sunshine 同款高精度 pacing 定时器(Win10 1809+;失败退回普通 waitable timer)
         pace_timer_.reset(CreateWaitableTimerEx(
             nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
@@ -155,8 +163,7 @@ namespace px
              pace_timer_ ? "ok" : "none");
         if (!runtime_->Start(udp_listen_port_)) {
             runtime_.reset();
-            pace_timer_.reset();
-            timeEndPeriod(1);
+            ReleasePacingResources();
             RenderModule::Stop();
             return false;
         }
@@ -167,11 +174,40 @@ namespace px
         RenderModule::Stop();
         if (runtime_) {
             runtime_->Stop();
-            runtime_.reset();
+            if (runtime_->IsQuiescent()) {
+                runtime_.reset();
+            }
         }
-        timeEndPeriod(1);
-        pace_timer_.reset();
+        ReleasePacingResources();
         return RenderModule::Destroy();
+    }
+
+    PxAwaitable<PxResult<void>> UdpTransport::StopAsync(
+        const std::shared_ptr<UdpTransport>& owner,
+        const std::chrono::steady_clock::time_point deadline) {
+        if (!owner) {
+            co_return PxResult<void>::Failure(
+                MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "net-udp.stop", "UDP transport owner is missing"));
+        }
+        owner->RenderModule::Stop();
+        const auto runtime = owner->runtime_;
+        if (runtime) {
+            const auto stopped = co_await UdpRuntimeState::StopAsync(runtime, deadline);
+            if (!stopped) {
+                co_return stopped;
+            }
+        }
+        owner->runtime_.reset();
+        owner->ReleasePacingResources();
+        co_return PxResult<void>::Success();
+    }
+
+    void UdpTransport::ReleasePacingResources() {
+        pace_timer_.reset();
+        if (timer_resolution_active_) {
+            timeEndPeriod(1);
+            timer_resolution_active_ = false;
+        }
     }
 
     void UdpTransport::UpdateUdpMediaAssociation(
@@ -494,33 +530,80 @@ namespace px
     }
 
     void UdpRuntimeState::Stop() {
-        if (stopping_.exchange(true)) {
+        const auto deadline = std::chrono::steady_clock::now() + kControlScopeDrainTimeout;
+        const auto scope = BeginStop();
+        if (!scope) {
+            FinishStop();
             return;
         }
-        if (control_scope_) {
-            const auto called_from_scope = control_scope_->IsScopeThread();
-            const auto drained = called_from_scope
-                ? (control_scope_->BeginStop(), false)
-                : control_scope_->StopAndWait(kControlScopeDrainTimeout);
-            if (!drained && !called_from_scope) {
-                LOGE("event=async.scope_drain component=net_udp code=ASYNC_SCOPE_DRAIN_TIMEOUT "
-                     "operation=stop_control_workflows outcome=timeout recoverable=false outstanding={}",
-                     control_scope_->GetStatistics().outstanding);
-            } else if (called_from_scope) {
-                LOGI("event=async.scope_drain component=net_udp operation=stop_control_workflows outcome=deferred "
-                     "reason=shutdown_requested_from_callback outstanding={}",
-                     control_scope_->GetStatistics().outstanding);
+        if (scope->IsScopeThread()) {
+            LOGI("event=async.scope_drain component=net_udp operation=stop_control_workflows outcome=deferred "
+                 "reason=shutdown_requested_from_runtime_thread outstanding={}",
+                 scope->GetStatistics().outstanding);
+            return;
+        }
+        const auto server = server_;
+        const auto adapter_stopped = WaitForAsioObjectStoppedBlocking(server, deadline);
+        const auto remaining = std::max(
+            std::chrono::milliseconds::zero(),
+            std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()));
+        if (!adapter_stopped || !scope->WaitFor(remaining)) {
+            LOGE("event=async.scope_drain component=net_udp code=ASYNC_SCOPE_DRAIN_TIMEOUT "
+                 "operation=stop_control_workflows outcome=timeout recoverable=false outstanding={}",
+                 scope->GetStatistics().outstanding);
+            return;
+        }
+        FinishStop();
+    }
+
+    PxAwaitable<PxResult<void>> UdpRuntimeState::StopAsync(
+        const std::shared_ptr<UdpRuntimeState>& owner,
+        const std::chrono::steady_clock::time_point deadline) {
+        const auto scope = owner->BeginStop();
+        const auto adapter_stopped = co_await WaitForAsioObjectStopped(owner->server_, deadline, "net-udp.adapter-stop");
+        if (!adapter_stopped) {
+            co_return adapter_stopped;
+        }
+        if (scope) {
+            const auto drained = co_await WaitForAsyncScopeDrain(scope, deadline, "net-udp.stop");
+            if (!drained) {
+                co_return PxResult<void>::Failure(drained.Error());
             }
         }
-        if (server_) {
-            server_->stop();
-            server_.reset();
+        owner->FinishStop();
+        co_return PxResult<void>::Success();
+    }
+
+    std::shared_ptr<PxAsyncScope> UdpRuntimeState::BeginStop() {
+        if (stopping_.exchange(true)) {
+            return control_scope_;
         }
+        const auto server = server_;
+        if (server && !server->is_stopped()) {
+            server->post([server] { server->stop(); });
+        }
+        if (control_scope_) {
+            control_scope_->BeginStop();
+        }
+        return control_scope_;
+    }
+
+    void UdpRuntimeState::FinishStop() {
+        if ((server_ && !server_->is_stopped()) ||
+            (control_scope_ && control_scope_->GetStatistics().outstanding != 0)) {
+            return;
+        }
+        server_.reset();
         sessions_.Clear();
         std::scoped_lock lock(bind_mutex_);
         media_associations_.clear();
         active_media_association_code_.clear();
         control_scope_.reset();
+    }
+
+    bool UdpRuntimeState::IsQuiescent() const {
+        return (!server_ || server_->is_stopped()) &&
+            (!control_scope_ || control_scope_->GetStatistics().outstanding == 0);
     }
 
     PxAwaitable<void> UdpRuntimeState::RunHeartbeatSweepLoop(std::weak_ptr<UdpRuntimeState> weak_runtime) {

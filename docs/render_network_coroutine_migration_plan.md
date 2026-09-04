@@ -51,7 +51,8 @@ Render 网络控制面总体估算已完成 55%～65%，剩余 35%～45%。单�
   ticket/admission/RTC allocation scope 排空；`RenderModuleRegistry::StopWsIngressAsync` 已把它接入根 deadline。超时不会释放仍有 outstanding work 的 router owner。
 - N4 控制任务迁移已完成：进程级 runtime 通过 `RenderModuleRegistry` 显式注入 `UdpTransport`；心跳清扫和 FEC 窗口不再使用旧
   `PluginContext::StartTimer`，改由 UDP control scope 中两个可取消的周期协程负责。UDP 启动失败会回滚，停止会先取消并排空 control scope，逐包收发、
-  分片、pacing 热路径保持同步。receive-storm/stop 故障注入和性能基线仍待补齐。
+  分片、pacing 热路径保持同步。`UdpTransport::StopAsync` 会先关闭 UDP ingress，再按根 deadline 等待 server stopped 和 control scope 归零；WS/UDP
+  已由 `RenderModuleRegistry::StopNetworkIngressAsync` 一起在捕获与模块 owner 拆除前静默。receive-storm/stop 故障注入和性能基线仍待补齐。
 - N5 根关闭编排已接入：`RdApplication::Exit` 建立一个 15 秒 absolute deadline，根 control scope 先并发触发 Service/Panel 停止并 `co_await` 两个 client
   scope 排空；组合根 `RequestStop()` 的 completion 也必须在相同 deadline 内到达，才进入模块 owner 释放阶段。`RenderModuleRegistry::StopModules()` 已恢复，旧插件
   时代禁止 StopModules 的 workaround 已删除。WebRTC callback quiescence 的超时保留策略和 runtime-thread 根退出续体仍待继续加固。
@@ -60,7 +61,7 @@ Render 网络控制面总体估算已完成 55%～65%，剩余 35%～45%。单�
 
 当前自动化结果：公共 mailbox/connection/backoff/async-delay focused tests 通过，其中 connection/backoff 连续运行 20 轮通过；Render 和 OBS hook
 增量构建通过并同步运行产物；全量软件 gate 的 2 个 guard 和 28 个 unit/lifecycle/integration 测试通过。同步 WebRTC 动态库后，最新 lifecycle 证据目录为
-`test-results/render-architecture/20260904-145804-lifecycle`，`px_render.exe`、`net_rtc.dll`、`net_rtc_local.dll` 的 build/dist SHA-256 全部一致，
+`test-results/render-architecture/20260904-150145-lifecycle`，`px_render.exe`、`net_rtc.dll`、`net_rtc_local.dll` 的 build/dist SHA-256 全部一致，
 自动化结论为 GO，不替代最终产品验收。
 
 ## 3. 目标和非目标

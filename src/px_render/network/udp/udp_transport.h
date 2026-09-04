@@ -16,6 +16,8 @@
 #include "architecture/modules/render_module.h"
 #include "px_render/network/transport_types.h"
 #include "px_common_new/concurrent_hashmap.h"
+#include "px_common_new/async_result.h"
+#include "px_common_new/async_runtime.h"
 
 #ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
 #define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002
@@ -63,6 +65,9 @@ namespace px
 
         bool Start(const RenderModuleConfiguration& configuration) override;
         bool Destroy() override;
+        [[nodiscard]] static PxAwaitable<PxResult<void>> StopAsync(
+            const std::shared_ptr<UdpTransport>& owner,
+            std::chrono::steady_clock::time_point deadline);
         void UpdateUdpMediaAssociation(
             const UdpMediaAssociation& association);
         // 视频走 OnEncodedVideoFrame 裸 UDP 直发;音频从这里提取 kAudioFrame 的
@@ -90,6 +95,7 @@ namespace px
         uint8_t MonSlotOf(const std::string& mon_name);
         // Sunshine 同款高精度 sleep:CreateWaitableTimerEx(HIGH_RESOLUTION) + SetWaitableTimer。
         void PaceSleep(const std::chrono::steady_clock::duration& duration);
+        void ReleasePacingResources();
 
     private:
         std::shared_ptr<PxAsyncRuntime> async_runtime_{};
@@ -108,6 +114,7 @@ namespace px
         // 单批上限 64KB / 64 包,避开 Windows 64KB SO_SNDBUF 绕过问题。
         static constexpr uint64_t kRateControlBitsPerSec = 80000000ULL;  // 80 Mbps
         UdpWinHandle pace_timer_;
+        bool timer_resolution_active_{false};
         // 跨帧锚定的速率控制起点(Sunshine ratecontrol_next_frame_start)
         std::chrono::steady_clock::time_point ratecontrol_next_frame_start_{};
 
