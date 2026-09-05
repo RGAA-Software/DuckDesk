@@ -68,7 +68,7 @@
 
 ### 3.4 客户端解码/渲染（`[LAT-decode]` / `[LAT-render]`）
 
-- **解码耗时**：`src/px_deps/px_client_sdk_new/thunder_sdk.cpp` 里 `video_decoder->Decode()` 前后计时，每 5s 输出 `[LAT-decode] frames/avg_us/max_us`（D3D11VA 硬解）。
+- **解码耗时**：`src/px_deps/px_client_sdk/thunder_sdk.cpp` 里 `video_decoder->Decode()` 前后计时，每 5s 输出 `[LAT-decode] frames/avg_us/max_us`（D3D11VA 硬解）。
 - **渲染耗时**：`src/px_client/front_render/d3d11/ct_d3d11_video_widget.cpp` 的 `RefreshImage()`（纹理上传 + Draw + `Present(0,0)`）起止计时，每 5s 输出 `[LAT-render] frames/avg_us/max_us`。
 - 两者相加即「解码完成 → 上屏提交」的客户端视频尾段。`Present(0,0)` 本身不等 VSync，VSync 等待是另一段固有的 0–16.6ms。
 

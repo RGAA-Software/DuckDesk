@@ -8,9 +8,9 @@
 #include <memory>
 #include <mutex>
 #include "ffmpeg_encoder_defs.h"
-#include "px_encoder_new/encoder_config.h"
-#include "px_common_new/fps_stat.h"
-#include "px_capture_new/capture_message.h"
+#include "px_encoder/encoder_config.h"
+#include "px_common/fps_stat.h"
+#include "px_capture/capture_message.h"
 
 extern "C" {
     #include "libavcodec/avcodec.h"

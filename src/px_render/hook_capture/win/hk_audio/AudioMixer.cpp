@@ -9,9 +9,9 @@
 #include <queue>
 
 #include "AudioShare.h"
-#include "px_common_new/data.h"
-#include "px_common_new/log.h"
-#include "px_common_new/thread.h"
+#include "px_common/data.h"
+#include "px_common/log.h"
+#include "px_common/thread.h"
 
 namespace px {
 namespace {

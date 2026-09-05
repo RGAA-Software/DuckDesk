@@ -8,7 +8,7 @@
 #include <memory>
 #include <QObject>
 #include <objidl.h>
-#include "px_common_new/clipboard/clipboard_platform.h"
+#include "px_common/clipboard/clipboard_platform.h"
 
 namespace px
 {

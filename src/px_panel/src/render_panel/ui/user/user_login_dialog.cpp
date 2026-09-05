@@ -17,7 +17,7 @@
 #include "render_panel/px_app_messages.h"
 #include "render_panel/px_application.h"
 #include "render_panel/user/px_user_manager.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 
 namespace px
 {

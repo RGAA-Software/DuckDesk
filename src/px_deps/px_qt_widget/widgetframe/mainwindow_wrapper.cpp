@@ -7,7 +7,7 @@
 #include "windowbar.h"
 #include "windowbutton.h"
 #include "titlebar_messages.h"
-#include "px_common_new/message_notifier.h"
+#include "px_common/message_notifier.h"
 #include <QTimer>
 
 namespace px

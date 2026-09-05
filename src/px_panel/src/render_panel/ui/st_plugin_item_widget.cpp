@@ -8,7 +8,7 @@
 #include "px_render_panel_message.pb.h"
 #include "render_panel/px_application.h"
 #include "render_panel/ui/qt_lifetime_guard.h"
-#include "px_message_new/rp_proto_converter.h"
+#include "px_message/rp_proto_converter.h"
 #include "px_render/modules/module_ids.h"
 #include <QPointer>
 #include <QLabel>

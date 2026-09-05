@@ -8,8 +8,8 @@
 #include "console_http_client.h"
 #include "console_api.h"
 #include "console_user.h"
-#include "px_common_new/http_client.h"
-#include "px_common_new/log.h"
+#include "px_common/http_client.h"
+#include "px_common/log.h"
 
 using nlohmann::json;
 using namespace px;

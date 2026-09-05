@@ -121,7 +121,7 @@ echo ----------------------BUILD START------------------------
 echo ---------------------------------------------------------
 echo ---------------------------------------------------------
 
-rem Sync message protos from the single source of truth (src\px_deps\px_message_new)
+rem Sync message protos from the single source of truth (src\px_deps\px_message)
 rem into the web clients so Vite can inline them. Generated at build time, not committed.
 node "%~dp0scripts\sync_web_protos.mjs"
 if errorlevel 1 exit /b %errorlevel%

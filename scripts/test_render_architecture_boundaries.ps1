@@ -405,8 +405,8 @@ $coroutineOwnedClientFiles = @(
     "src\px_render\network\render_service_client.cpp",
     "src\px_render\network\ws_panel_client.cpp",
     "src\px_render\hook_capture\win\hk_obs\ws_ipc_client.cpp",
-    "src\px_deps\px_client_sdk_new\connection\ws_connection.cpp",
-    "src\px_deps\px_client_sdk_new\connection\wss_connection.cpp"
+    "src\px_deps\px_client_sdk\connection\ws_connection.cpp",
+    "src\px_deps\px_client_sdk\connection\wss_connection.cpp"
 )
 foreach ($relativePath in $coroutineOwnedClientFiles) {
     $content = Get-Content -LiteralPath (Join-Path $RepoRoot $relativePath) -Raw
@@ -427,7 +427,7 @@ foreach ($relativePath in $coroutineOwnedClientFiles) {
     }
 }
 
-$reconnectSupervisorPath = Join-Path $RepoRoot "src\px_deps\px_common_new\reconnect_supervisor.cpp"
+$reconnectSupervisorPath = Join-Path $RepoRoot "src\px_deps\px_common\reconnect_supervisor.cpp"
 $reconnectSupervisorContent = Get-Content -LiteralPath $reconnectSupervisorPath -Raw
 foreach ($required in @(
     "StartAttemptIfRunning",
@@ -440,11 +440,11 @@ foreach ($required in @(
     "transport.reconnect_wait"
 )) {
     if ($reconnectSupervisorContent -notmatch [regex]::Escape($required)) {
-        $violations.Add("src\px_deps\px_common_new\reconnect_supervisor.cpp: reconnect supervisor is missing $required")
+        $violations.Add("src\px_deps\px_common\reconnect_supervisor.cpp: reconnect supervisor is missing $required")
     }
 }
 
-$sdkReconnectHelperPath = "src\px_deps\px_client_sdk_new\connection\sdk_websocket_reconnect.h"
+$sdkReconnectHelperPath = "src\px_deps\px_client_sdk\connection\sdk_websocket_reconnect.h"
 $sdkReconnectHelper = Get-Content -LiteralPath (Join-Path $RepoRoot $sdkReconnectHelperPath) -Raw
 foreach ($required in @(
     "websocket_reconnect_adapter.h",
@@ -480,7 +480,7 @@ $ownedSourceRoots = @(
     "src\px_client",
     "src\px_panel",
     "src\px_render",
-    "src\px_deps\px_client_sdk_new",
+    "src\px_deps\px_client_sdk",
     "src\px_deps\px_relay_client"
 )
 foreach ($sourceRoot in $ownedSourceRoots) {
@@ -495,8 +495,8 @@ foreach ($sourceRoot in $ownedSourceRoots) {
         }
 }
 foreach ($relativePath in @(
-    "src\px_deps\px_client_sdk_new\connection\ws_connection.cpp",
-    "src\px_deps\px_client_sdk_new\connection\wss_connection.cpp"
+    "src\px_deps\px_client_sdk\connection\ws_connection.cpp",
+    "src\px_deps\px_client_sdk\connection\wss_connection.cpp"
 )) {
     $content = Get-Content -LiteralPath (Join-Path $RepoRoot $relativePath) -Raw
     foreach ($required in @(

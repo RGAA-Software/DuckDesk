@@ -14,10 +14,10 @@
 #include <set>
 #include <unordered_map>
 #include "network/ws_router.h"
-#include "px_common_new/concurrent_hashmap.h"
-#include "px_common_new/file_transfer_send_result.h"
-#include "px_common_new/async_result.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/concurrent_hashmap.h"
+#include "px_common/file_transfer_send_result.h"
+#include "px_common/async_result.h"
+#include "px_common/async_runtime.h"
 #include "diagnostics/rate_limited_log.h"
 #include "diagnostics/transport_performance_window.h"
 #include <asio2/asio2.hpp>

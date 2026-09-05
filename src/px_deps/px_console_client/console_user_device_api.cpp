@@ -4,9 +4,9 @@
 
 #include "console_user_device_api.h"
 #include "console_http_client.h"
-#include "px_common_new/log.h"
-#include "px_common_new/http_client.h"
-#include "px_common_new/http_base_op.h"
+#include "px_common/log.h"
+#include "px_common/http_client.h"
+#include "px_common/http_base_op.h"
 #include "console_user.h"
 #include "console_user_device.h"
 #include "console_device.h"

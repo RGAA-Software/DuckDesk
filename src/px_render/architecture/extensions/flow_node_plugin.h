@@ -10,7 +10,7 @@
 #include "architecture/diagnostics/render_error.h"
 #include "architecture/pipeline/captured_media_pipeline.h"
 #include "architecture/pipeline/media_types.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/async_runtime.h"
 
 namespace px::render {
 

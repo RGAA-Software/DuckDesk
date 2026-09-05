@@ -6,9 +6,9 @@
 #include <QPointer>
 #include "no_margin_layout.h"
 #include "px_client/ct_client_context.h"
-#include "px_common_new/log.h"
-#include "px_common_new/num_formatter.h"
-#include "px_common_new/time_util.h"
+#include "px_common/log.h"
+#include "px_common/num_formatter.h"
+#include "px_common/time_util.h"
 #include <QLabel>
 #include <QGraphicsDropShadowEffect>
 

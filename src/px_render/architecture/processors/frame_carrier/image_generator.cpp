@@ -11,10 +11,10 @@
 #include <span>
 
 #include <windows.h>
-#include "px_common_new/image.h"
-#include "px_common_new/data.h"
-#include "px_common_new/log.h"
-#include "px_common_new/string_util.h"
+#include "px_common/image.h"
+#include "px_common/data.h"
+#include "px_common/log.h"
+#include "px_common/string_util.h"
 
 namespace px {
 

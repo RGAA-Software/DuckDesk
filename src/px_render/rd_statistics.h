@@ -10,10 +10,10 @@
 #include <vector>
 #include <memory>
 #include <atomic>
-#include "px_common_new/fps_stat.h"
+#include "px_common/fps_stat.h"
 #include "settings/rd_settings.h"
-#include "px_common_new/concurrent_vector.h"
-#include "px_common_new/concurrent_hashmap.h"
+#include "px_common/concurrent_vector.h"
+#include "px_common/concurrent_hashmap.h"
 
 namespace px
 {

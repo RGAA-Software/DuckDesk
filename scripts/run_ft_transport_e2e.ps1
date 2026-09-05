@@ -32,7 +32,7 @@ $fail = 0
 $failRounds = [Collections.Generic.List[int]]::new()
 $started = Get-Date
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$testExe = Join-Path $repoRoot 'build_official\src\px_deps\px_client_sdk_new\test_ft_transport_e2e.exe'
+$testExe = Join-Path $repoRoot 'build_official\src\px_deps\px_client_sdk\test_ft_transport_e2e.exe'
 
 if (-not (Test-Path -LiteralPath $testExe)) {
     throw "Missing test executable: $testExe"

@@ -17,10 +17,10 @@
 #include <qurl.h>
 #include <qjsonarray.h>
 #include <qstandardpaths.h>
-#include <px_common_new/http_client.h>
-#include <px_common_new/log.h>
-#include <px_common_new/md5.h>
-#include <px_common_new/string_util.h>
+#include <px_common/http_client.h>
+#include <px_common/log.h>
+#include <px_common/md5.h>
+#include <px_common/string_util.h>
 #include "px_qt_widget/px_dialog.h"
 #include "translator/px_translator.h"
 #include "gd_button.h"

@@ -16,7 +16,7 @@
 #include "px_dialog.h"
 #include "px_image_button.h"
 #include "security_password_checker.h"
-#include "px_common_new/latest_async_generation.h"
+#include "px_common/latest_async_generation.h"
 #include <QMenu>
 #include <QClipboard>
 #include <QApplication>

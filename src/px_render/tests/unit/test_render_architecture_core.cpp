@@ -27,7 +27,7 @@
 #include "runtime/scoped_subscription.h"
 #include "runtime/await_callback.h"
 #include "runtime/render_composition_root.h"
-#include "px_common_new/privacy_log.h"
+#include "px_common/privacy_log.h"
 
 namespace px::render {
 namespace {

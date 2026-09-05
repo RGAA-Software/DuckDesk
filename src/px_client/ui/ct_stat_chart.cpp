@@ -5,8 +5,8 @@
 #include "ct_stat_chart.h"
 #include "ct_client_context.h"
 #include "px_qt_widget/no_margin_layout.h"
-#include "px_common_new/log.h"
-#include "px_common_new/time_util.h"
+#include "px_common/log.h"
+#include "px_common/time_util.h"
 
 #include <QTime>
 #include <QPointer>

@@ -19,7 +19,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/ui/gd_gui/src)
 include_directories(${PX_PROJECT_PATH})
 include_directories(${PX_PROJECT_PATH}/px_3rdparty)
 include_directories(${PX_PROJECT_BINARY_PATH})
-include_directories(${PX_PROJECT_BINARY_PATH}/px_message_new)
+include_directories(${PX_PROJECT_BINARY_PATH}/px_message)
 include_directories(${PX_PROJECT_BINARY_PATH}/px_server_protocol)
 include_directories(${PX_PROJECT_PATH}/px_3rdparty/asio2/include)
 include_directories(${PX_PROJECT_PATH}/px_3rdparty/asio2/3rd)
@@ -29,7 +29,7 @@ include_directories(${PX_PROJECT_PATH}/px_3rdparty/webrtc/include/third_party/li
 include_directories(${CMAKE_SOURCE_DIR}/src/px_render)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_client)
 include_directories(${PX_PROJECT_PATH}/px_qt_widget)
-include_directories(${PX_PROJECT_PATH}/px_client_sdk_new)
+include_directories(${PX_PROJECT_PATH}/px_client_sdk)
 include_directories(${CMAKE_BINARY_DIR}/src/px_base)
 
 add_subdirectory(src)
@@ -52,7 +52,7 @@ add_executable(px_panel WIN32
 SET_TARGET_PROPERTIES(px_panel PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\" /SUBSYSTEM:WINDOWS")
 
 target_link_libraries(px_panel PRIVATE Qt6::Widgets Qt6::Network Qt6::Core Qt6::Core5Compat Qt6::WebSockets Qt6::Network Qt6::Charts Qt6::Svg unofficial::sqlite3::sqlite3 sqlite_orm::sqlite_orm
-        px_common_new px_steam_manager_new px_vigem px_message px_cp_message px_qt_widget winmm.lib SetupAPI.lib gflags::gflags
+        px_common px_steam_manager px_vigem px_message px_cp_message px_qt_widget winmm.lib SetupAPI.lib gflags::gflags
         px_relay_client px_translator px_console_client Dwmapi.lib px_widget_loadings OpenSSL::Crypto
         px_account_sdk px_rp_message px_profile_client px_hw_info px_server_message skin_interface skin_loader gd_gui
         Advapi32.lib
@@ -79,7 +79,7 @@ add_custom_command(TARGET px_panel PRE_BUILD
 #
 #target_link_libraries(uninstall PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Network px_qt_widget
 #        Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Core5Compat Qt6::WebSockets Qt6::Network Qt6::Charts Qt6::Svg)
-#target_link_libraries(uninstall PRIVATE px_common_new px_steam_manager_new px_vigem px_message sqlite35 winmm.lib SetupAPI.lib gflags::gflags)
+#target_link_libraries(uninstall PRIVATE px_common px_steam_manager px_vigem px_message sqlite35 winmm.lib SetupAPI.lib gflags::gflags)
 ### Uninstall End
 
 include(GNUInstallDirs)

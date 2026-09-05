@@ -10,9 +10,9 @@
 #include <mutex>
 #include <vector>
 #include "architecture/modules/render_module.h"
-#include "px_common_new/async_result.h"
-#include "px_common_new/async_runtime.h"
-#include "px_common_new/file_transfer_send_result.h"
+#include "px_common/async_result.h"
+#include "px_common/async_runtime.h"
+#include "px_common/file_transfer_send_result.h"
 #include "px_render/network/transport_types.h"
 
 namespace px {

@@ -19,7 +19,7 @@
 #endif
 #include <mutex>
 //#include <opencv2/opencv.hpp>
-#include "px_common_new/image.h"
+#include "px_common/image.h"
 
 namespace px
 {

@@ -7,7 +7,7 @@
 
 #include <functional>
 #include <memory>
-#include "px_common_new/concurrent_type.h"
+#include "px_common/concurrent_type.h"
 
 namespace px
 {

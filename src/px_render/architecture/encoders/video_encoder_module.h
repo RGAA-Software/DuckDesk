@@ -11,8 +11,8 @@
 #include <wrl/client.h>
 
 #include "architecture/modules/render_module.h"
-#include "px_capture_new/capture_message.h"
-#include "px_encoder_new/encoder_config.h"
+#include "px_capture/capture_message.h"
+#include "px_encoder/encoder_config.h"
 
 namespace px {
 

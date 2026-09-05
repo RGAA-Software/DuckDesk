@@ -25,8 +25,8 @@ add_library(px_ft_engine STATIC
 # for value types such as FileEntry: one object file may allocate the old
 # sizeof(FileEntry) while another writes the regenerated, larger object.
 set(PX_FT_PROTO_HEADERS
-    ${PX_PROJECT_BINARY_PATH}/px_message_new/px_message.pb.h
-    ${PX_PROJECT_BINARY_PATH}/px_message_new/px_file_transfer.pb.h
+    ${PX_PROJECT_BINARY_PATH}/px_message/px_message.pb.h
+    ${PX_PROJECT_BINARY_PATH}/px_message/px_file_transfer.pb.h
 )
 set_property(SOURCE
     ft_path.cpp
@@ -41,9 +41,9 @@ set_property(SOURCE
 
 target_include_directories(px_ft_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # px_message.pb.h / px_file_transfer.pb.h 生成目录
-target_include_directories(px_ft_engine PUBLIC ${PX_PROJECT_BINARY_PATH}/px_message_new)
+target_include_directories(px_ft_engine PUBLIC ${PX_PROJECT_BINARY_PATH}/px_message)
 
-target_link_libraries(px_ft_engine PUBLIC px_message px_common_new)
+target_link_libraries(px_ft_engine PUBLIC px_message px_common)
 target_link_libraries(px_ft_engine PRIVATE miniz::miniz nlohmann_json::nlohmann_json)
 
 if(TESTS_ENABLED)

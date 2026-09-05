@@ -3,8 +3,8 @@
 //
 
 #include "relay_api.h"
-#include "px_common_new/log.h"
-#include "px_common_new/http_client.h"
+#include "px_common/log.h"
+#include "px_common/http_client.h"
 #include <nlohmann/json.hpp>
 #include "relay_message.pb.h"
 

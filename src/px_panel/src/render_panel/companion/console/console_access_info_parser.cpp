@@ -4,7 +4,7 @@
 
 #include "console_access_info_parser.h"
 #include <nlohmann/json.hpp>
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "render_panel/companion/panel_companion.h"
 
 using namespace nlohmann;

@@ -5,7 +5,7 @@
 #include <memory>
 
 #include "network/render_service_rpc_state.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/async_runtime.h"
 
 namespace px {
 namespace {

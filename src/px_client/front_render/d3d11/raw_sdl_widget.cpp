@@ -3,10 +3,10 @@
 //
 
 #include "raw_sdl_widget.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "d3d11_render_manager.h"
 #include "gl/raw_image.h"
-#include "px_common_new/time_util.h"
+#include "px_common/time_util.h"
 
 namespace px
 {

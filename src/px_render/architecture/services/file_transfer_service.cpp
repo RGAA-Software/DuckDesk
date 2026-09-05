@@ -14,11 +14,11 @@
 #include "ft_path.h"
 #include "ft_terminal.h"
 #include "transfer_job.h"
-#include "px_message_new/proto_converter.h"
-#include "px_common_new/log.h"
-#include "px_common_new/md5.h"
-#include "px_common_new/privacy_log.h"
-#include "px_common_new/time_util.h"
+#include "px_message/proto_converter.h"
+#include "px_common/log.h"
+#include "px_common/md5.h"
+#include "px_common/privacy_log.h"
+#include "px_common/time_util.h"
 #include "architecture/services/file_transfer_types.h"
 
 namespace px::render

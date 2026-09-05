@@ -119,10 +119,10 @@ Render 的 FT 插件按 `stream_id` 保存独立 `FtEngine`。画面会话、多
 | Panel 菜单/选路 | `src/px_panel/src/render_panel/devices/app_stream_list.cpp` | 复用判断、ticket、独立 WS/Relay 选择 |
 | Panel 命令与进程 | `src/px_panel/src/render_panel/devices/running_stream_manager.cpp` | 定向打开现有窗口；否则生成唯一会话并启动同一 `px_client.exe` |
 | Panel 本机通道 | `src/px_panel/src/render_panel/network/ws_panel_server.cpp` | 按 `stream_id` 定向发送命令 |
-| Panel/Client 协议 | `src/px_deps/px_message_new/px_client_panel_message.proto` | `kCpOpenFileTransfer` 命令 |
+| Panel/Client 协议 | `src/px_deps/px_message/px_client_panel_message.proto` | `kCpOpenFileTransfer` 命令 |
 | 客户端模式 | `src/px_client/ct_main_ws.cpp`、`ct_base_workspace.cpp` | 参数约束、轻量 UI/模块宿主 |
 | 客户端 Panel 接收 | `src/px_client/network/ct_panel_client.cpp` | 把定向命令转换成客户端打开 FT 事件 |
-| 通道创建 | `src/px_deps/px_client_sdk_new/sdk_net_client.cpp` | file-only 不创建媒体连接 |
+| 通道创建 | `src/px_deps/px_client_sdk/sdk_net_client.cpp` | file-only 不创建媒体连接 |
 | RTC data-only | `src/px_deps/px_webrtc_client/rtc_connection.cpp` | 只协商 FT data channel |
 | WS 认证 | `src/px_render/plugins/net_ws/ws_server.cpp` | 兑换 file ticket、拒绝未授权连接 |
 | Relay 认证 | `rust_server/px_console_server/src/console_relay/relay_server.rs` | 握手兑换与建房目标绑定 |

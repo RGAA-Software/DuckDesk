@@ -8,7 +8,7 @@
 //#include "network/wss_router.h"
 #include "network/ws_router.h"
 #include "px_render/network/transport_types.h"
-#include "px_common_new/file_transfer_send_result.h"
+#include "px_common/file_transfer_send_result.h"
 #include <atomic>
 #include <mutex>
 

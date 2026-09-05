@@ -5,7 +5,7 @@
 #include <inttypes.h>
 
 #include "graphics-hook.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 
 #include <detours/detours.h>
 

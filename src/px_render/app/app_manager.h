@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "px_capture_new/inject_params.h"
+#include "px_capture/inject_params.h"
 
 namespace px
 {

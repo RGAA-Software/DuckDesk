@@ -7,7 +7,7 @@
 
 #include <gtest/gtest.h>
 
-#include "px_common_new/blocking_executor.h"
+#include "px_common/blocking_executor.h"
 #include "render_panel/devices/stream_launch_auth_workflow.h"
 
 namespace px {

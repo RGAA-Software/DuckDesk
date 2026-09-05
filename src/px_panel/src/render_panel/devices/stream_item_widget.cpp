@@ -15,7 +15,7 @@
 #include <QVBoxLayout>
 
 #include "px_console_client/console_stream.h"
-#include "px_common_new/uid_spacer.h"
+#include "px_common/uid_spacer.h"
 #include "px_qt_widget/px_image_button.h"
 #include "px_qt_widget/px_font_manager.h"
 #include "px_qt_widget/px_pushbutton.h"
@@ -23,7 +23,7 @@
 #include "px_qt_widget/translator/px_translator.h"
 #include "px_base/ct_stream_item_net_type.h"
 #include "stream_item_display.h"
-#include "px_common_new/http_client.h"
+#include "px_common/http_client.h"
 #include "render_panel/px_application.h"
 #include "render_panel/px_context.h"
 

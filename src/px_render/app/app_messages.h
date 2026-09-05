@@ -7,9 +7,9 @@
 
 #include <memory>
 
-#include "px_steam_manager_new/steam_entities.h"
+#include "px_steam_manager/steam_entities.h"
 #include "px_controller/vigem/vigem_defs.h"
-#include "px_common_new/image.h"
+#include "px_common/image.h"
 
 namespace px
 {

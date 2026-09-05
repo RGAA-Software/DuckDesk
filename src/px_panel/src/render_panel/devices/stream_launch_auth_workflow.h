@@ -11,8 +11,8 @@
 #include <string>
 #include <vector>
 
-#include "px_common_new/async_result.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/async_result.h"
+#include "px_common/async_runtime.h"
 #include "px_console_client/console_user_app_api.h"
 #include "px_console_client/console_user_device_api.h"
 

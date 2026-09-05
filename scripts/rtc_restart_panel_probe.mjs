@@ -26,7 +26,7 @@ if (!configPath) {
 // before parsing the short-lived local configuration.
 const configText = fs.readFileSync(configPath, 'utf8').replace(/^\uFEFF/, '')
 const config = JSON.parse(configText)
-const protoPath = path.join(import.meta.dirname, '../src/px_deps/px_message_new/px_client_panel_message.proto')
+const protoPath = path.join(import.meta.dirname, '../src/px_deps/px_message/px_client_panel_message.proto')
 const root = protobuf.parse(fs.readFileSync(protoPath, 'utf8')).root
 const CpMessage = root.lookupType('pxcp.CpMessage')
 

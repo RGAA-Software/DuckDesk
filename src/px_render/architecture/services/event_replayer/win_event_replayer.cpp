@@ -4,8 +4,8 @@
 
 #include "win_event_replayer.h"
 #include "px_message.pb.h"
-#include "px_common_new/log.h"
-#include "px_common_new/time_util.h"
+#include "px_common/log.h"
+#include "px_common/time_util.h"
 #include <cstdio>
 #include <string>
 #include <atomic>

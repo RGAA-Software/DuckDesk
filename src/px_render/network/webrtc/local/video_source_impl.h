@@ -10,7 +10,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "px_webrtc_client/webrtc_helper.h"
 
 namespace px

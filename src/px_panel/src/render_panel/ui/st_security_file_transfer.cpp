@@ -21,7 +21,7 @@
 #include "render_panel/database/px_database.h"
 #include "render_panel/database/file_transfer_record.h"
 #include "render_panel/database/file_transfer_record_operator.h"
-#include "px_common_new/latest_async_generation.h"
+#include "px_common/latest_async_generation.h"
 
 namespace px
 {

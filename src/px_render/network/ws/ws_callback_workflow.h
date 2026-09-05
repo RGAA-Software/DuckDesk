@@ -8,9 +8,9 @@
 #include <string>
 #include <utility>
 
-#include "px_common_new/async_operation.h"
-#include "px_common_new/async_result.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/async_operation.h"
+#include "px_common/async_result.h"
+#include "px_common/async_runtime.h"
 
 namespace px {
 

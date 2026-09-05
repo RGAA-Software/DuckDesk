@@ -10,8 +10,8 @@
 
 #include "pipeline/encoded_media_bus.h"
 #include "pipeline/media_types.h"
-#include "px_common_new/async_operation.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/async_operation.h"
+#include "px_common/async_runtime.h"
 #include "sinks/media_recorder_sink.h"
 
 namespace px::render {

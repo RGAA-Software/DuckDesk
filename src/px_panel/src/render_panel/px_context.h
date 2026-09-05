@@ -9,10 +9,10 @@
 #include <atomic>
 #include <functional>
 #include <string>
-#include "px_common_new/ip_util.h"
-#include "px_common_new/message_notifier.h"
+#include "px_common/ip_util.h"
+#include "px_common/message_notifier.h"
 #include <asio2/asio2.hpp>
-#include "px_common_new/expected.h"
+#include "px_common/expected.h"
 
 #include <QObject>
 #include <QPointer>

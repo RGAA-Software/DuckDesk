@@ -21,7 +21,7 @@ add_test(NAME network_transport_hub COMMAND test_network_transport_hub)
 add_executable(test_ws_callback_workflow
     unit/test_ws_callback_workflow.cpp)
 target_link_libraries(test_ws_callback_workflow
-    PRIVATE px_common_new GTest::gtest GTest::gtest_main)
+    PRIVATE px_common GTest::gtest GTest::gtest_main)
 add_test(NAME ws_callback_workflow COMMAND test_ws_callback_workflow)
 
 add_executable(test_media_recorder_sink
@@ -112,7 +112,7 @@ add_executable(test_was_audio_capture_hardware
 target_include_directories(test_was_audio_capture_hardware PRIVATE
     ../architecture/sources/was_audio)
 target_link_libraries(test_was_audio_capture_hardware PRIVATE
-    px_common_new ole32 mmdevapi)
+    px_common ole32 mmdevapi)
 target_compile_definitions(test_was_audio_capture_hardware PRIVATE
     PX_AUDIO_CAPTURE_TESTING=1)
 add_test(NAME was_audio_capture_hardware
@@ -133,7 +133,7 @@ add_executable(test_miniaudio_reinit_cancel
 target_include_directories(test_miniaudio_reinit_cancel PRIVATE
     ../architecture/sources/was_audio)
 target_link_libraries(test_miniaudio_reinit_cancel PRIVATE
-    px_common_new ole32 mmdevapi)
+    px_common ole32 mmdevapi)
 target_compile_definitions(test_miniaudio_reinit_cancel PRIVATE
     PX_AUDIO_CAPTURE_TESTING=1)
 add_test(NAME miniaudio_reinit_cancel COMMAND test_miniaudio_reinit_cancel)
@@ -164,7 +164,7 @@ set_tests_properties(miniaudio_pid_loopback_hardware PROPERTIES
 
 add_executable(test_render_service_rpc_state test_render_service_rpc_state.cpp)
 target_link_libraries(test_render_service_rpc_state
-    PRIVATE px_common_new GTest::gtest GTest::gtest_main)
+    PRIVATE px_common GTest::gtest GTest::gtest_main)
 add_test(NAME render_service_rpc_state COMMAND test_render_service_rpc_state)
 
 add_executable(test_logical_session_registry
@@ -178,7 +178,7 @@ add_executable(test_direct_session_grant_store
     test_direct_session_grant_store.cpp
     ../network/ws/direct_session_grant_store.cpp)
 target_link_libraries(test_direct_session_grant_store
-    PRIVATE px_common_new GTest::gtest GTest::gtest_main)
+    PRIVATE px_common GTest::gtest GTest::gtest_main)
 add_test(NAME direct_session_grant_store COMMAND test_direct_session_grant_store)
 
 add_executable(test_render_execution_context_lifecycle test_render_execution_context_lifecycle.cpp)
@@ -200,7 +200,7 @@ add_executable(test_webrtc_transport_lifecycle
         ../network/webrtc/webrtc_execution_context.cpp
         ../network/webrtc_transport_host.cpp)
 target_link_libraries(test_webrtc_transport_lifecycle
-        PRIVATE px_common_new net_rtc net_rtc_local
+        PRIVATE px_common net_rtc net_rtc_local
         GTest::gtest GTest::gtest_main)
 target_compile_definitions(test_webrtc_transport_lifecycle
         PRIVATE

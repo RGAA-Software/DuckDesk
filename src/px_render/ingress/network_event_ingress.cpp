@@ -11,7 +11,7 @@
 #include <optional>
 #include <unordered_map>
 #include <vector>
-#include <px_common_new/win32/win_helper.h>
+#include <px_common/win32/win_helper.h>
 
 #include "rd_app.h"
 #include "rd_context.h"
@@ -20,7 +20,7 @@
 #include "px_render/modules/render_module_registry.h"
 #include "app/app_manager.h"
 #include "app/app_messages.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "architecture/observers/frame_debugger_observer.h"
 #include "architecture/pipeline/encoded_media_bus.h"
 #include "architecture/encoders/video_encoder_module.h"
@@ -30,23 +30,23 @@
 #include "architecture/services/file_transfer_types.h"
 #include "architecture/services/file_transfer_service.h"
 #include "architecture/services/voice_call_service.h"
-#include "px_common_new/data.h"
-#include "px_common_new/md5.h"
+#include "px_common/data.h"
+#include "px_common/md5.h"
 #include "app_global_messages.h"
 #include "settings/rd_settings.h"
 #include "network/net_message_maker.h"
-#include "px_common_new/process_util.h"
+#include "px_common/process_util.h"
 #include "px_render_panel_message.pb.h"
 #include "app/win/win_desktop_manager.h"
-#include "px_encoder_new/encoder_messages.h"
-#include "px_message_new/rp_proto_converter.h"
-#include "px_message_new/proto_converter.h"
+#include "px_encoder/encoder_messages.h"
+#include "px_message/rp_proto_converter.h"
+#include "px_message/proto_converter.h"
 #include "px_render/network/ws/ws_user_proxy_router.h"
 #include "px_render/modules/module_ids.h"
 #include "px_render/network/webrtc/remote/rtc_messages.h"
-#include "px_common_new/win32/process_helper.h"
-#include "px_common_new/virtual_display_timeouts.h"
-#include "px_capture_new/capture_message_maker.h"
+#include "px_common/win32/process_helper.h"
+#include "px_common/virtual_display_timeouts.h"
+#include "px_capture/capture_message_maker.h"
 
 namespace px {
 

@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "diagnostics/render_error.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/async_runtime.h"
 
 namespace px::render {
 

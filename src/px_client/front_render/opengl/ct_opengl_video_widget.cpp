@@ -12,14 +12,14 @@
 #include "ct_shader_program.h"
 #include "ct_opengl_video_widget.h"
 #include "ct_video_widget_shaders.h"
-#include "px_common_new/time_util.h"
-#include "px_common_new/log.h"
-#include "px_common_new/data.h"
+#include "px_common/time_util.h"
+#include "px_common/log.h"
+#include "px_common/data.h"
 #include "front_render/opengl/ct_director.h"
 #include "ct_sprite.h"
 #include "ct_settings.h"
-#include "px_common_new/image.h"
-#include "px_common_new/file.h"
+#include "px_common/image.h"
+#include "px_common/file.h"
 
 namespace px
 {

@@ -18,7 +18,7 @@ if (WIN32)
         ../vigem_driver_manager.cpp
     )
     add_library(${PROJECT_NAME} ${SRCS})
-    target_link_libraries(${PROJECT_NAME} px_common_new Setupapi.lib)
+    target_link_libraries(${PROJECT_NAME} px_common Setupapi.lib)
 
 elseif (APPLE)
 

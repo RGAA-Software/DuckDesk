@@ -3,7 +3,7 @@
 //
 
 #include "px_render_msg_processor.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "px_message.pb.h"
 #include "render_panel/px_context.h"
 #include "render_panel/px_application.h"

@@ -3,8 +3,8 @@
 #include <exception>
 #include <utility>
 
-#include "px_common_new/async_operation.h"
-#include "px_common_new/log.h"
+#include "px_common/async_operation.h"
+#include "px_common/log.h"
 
 namespace px::render {
 namespace {

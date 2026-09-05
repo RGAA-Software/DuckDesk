@@ -18,13 +18,13 @@
 #include "render_panel/px_context.h"
 #include "render_panel/px_app_messages.h"
 #include "render_panel/px_settings.h"
-#include "px_common_new/log.h"
-#include "px_common_new/md5.h"
-#include "px_common_new/http_client.h"
+#include "px_common/log.h"
+#include "px_common/md5.h"
+#include "px_common/http_client.h"
 #include "px_qt_widget/px_password_input.h"
 #include "px_console_client/console_device_api.h"
 #include "px_console_client/console_device.h"
-#include "px_common_new/latest_serial_request_gate.h"
+#include "px_common/latest_serial_request_gate.h"
 
 namespace px
 {

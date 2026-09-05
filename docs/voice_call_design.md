@@ -30,7 +30,7 @@ AEC 与传输协议无关。非 WebRTC 媒体链路应复用 vendored libwebrtc 
 
 | 能力 | 现有位置 | 结论 |
 | --- | --- | --- |
-| 下行系统声音协议 | `src/px_deps/px_message_new/px_message.proto` 的 `kAudioFrame` / `AudioFrame` | 已有；仅表达已有的主机到客户端音频，不应承载反向通话语音。 |
+| 下行系统声音协议 | `src/px_deps/px_message/px_message.proto` 的 `kAudioFrame` / `AudioFrame` | 已有；仅表达已有的主机到客户端音频，不应承载反向通话语音。 |
 | 系统声音采集 | `src/px_render/plugins/was_audio_capture/` | 已有 WASAPI/process loopback。 |
 | Opus 编码 | `src/px_render/plugins/opus_encoder/opus_encoder_plugin.cpp` | 已有编码帧扇出；可复用 codec 库，但通话需要独立实例和队列。 |
 | Windows/Android 下行播放 | `src/px_client/ct_audio_player.*`、`src/px_android/app/src/main/cpp/audio_player.*` | 已有基础播放器；通话需低延迟、可重建的独立播放路径。 |

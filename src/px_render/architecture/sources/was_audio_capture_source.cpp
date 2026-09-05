@@ -2,7 +2,7 @@
 
 #include <utility>
 
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "was_audio_capture_runtime.h"
 
 namespace px::render {

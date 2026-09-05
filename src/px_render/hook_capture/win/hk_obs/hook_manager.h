@@ -10,8 +10,8 @@
 #include <functional>
 #include <queue>
 #include <atomic>
-#include "px_capture_new/capture_message.h"
-#include "px_common_new/concurrent_queue.h"
+#include "px_capture/capture_message.h"
+#include "px_common/concurrent_queue.h"
 #include "hook_api.h"
 #include <Windows.h>
 

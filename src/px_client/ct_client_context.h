@@ -11,8 +11,8 @@
 #include <QObject>
 #include <QWidget>
 #include <map>
-#include "px_common_new/message_notifier.h"
-#include "px_client_sdk_new/sdk_messages.h"
+#include "px_common/message_notifier.h"
+#include "px_client_sdk/sdk_messages.h"
 
 namespace px
 {

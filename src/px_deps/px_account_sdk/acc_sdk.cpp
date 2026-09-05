@@ -4,7 +4,7 @@
 
 #include "acc_sdk.h"
 #include <format>
-#include "px_common_new/message_notifier.h"
+#include "px_common/message_notifier.h"
 #include "acc_device.h"
 #include "acc_profile.h"
 

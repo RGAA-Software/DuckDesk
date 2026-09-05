@@ -10,7 +10,7 @@
 #include <memory>
 #include <string>
 
-#include "px_common_new/expected.h"
+#include "px_common/expected.h"
 #include "px_console_client/console_errors.h"
 
 namespace px_console

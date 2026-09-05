@@ -5,7 +5,7 @@
 #ifndef PX_MGR_CONTEXT_H
 #define PX_MGR_CONTEXT_H
 
-#include "px_common_new/message_notifier.h"
+#include "px_common/message_notifier.h"
 
 namespace px
 {

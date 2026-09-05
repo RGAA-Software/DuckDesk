@@ -9,8 +9,8 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <unordered_map>
-#include "px_common_new/base_handler.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/base_handler.h"
+#include "px_common/async_runtime.h"
 #include "direct_session_grant_store.h"
 
 using namespace nlohmann;

@@ -9,7 +9,7 @@
 #include <mutex>
 #include <map>
 #include "px_webrtc_client/webrtc_helper.h"
-#include "px_common_new/file_transfer_send_result.h"
+#include "px_common/file_transfer_send_result.h"
 
 namespace px {
 using OnDataCallback = std::function<void(const std::string&)>;

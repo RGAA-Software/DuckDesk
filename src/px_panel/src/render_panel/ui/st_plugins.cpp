@@ -6,7 +6,7 @@
 #include <QPointer>
 #include "render_panel/px_application.h"
 #include "render_panel/px_app_messages.h"
-#include "px_common_new/message_notifier.h"
+#include "px_common/message_notifier.h"
 #include "px_render_panel_message.pb.h"
 #include "st_plugin_item_widget.h"
 #include "no_margin_layout.h"

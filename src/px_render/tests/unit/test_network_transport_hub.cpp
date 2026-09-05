@@ -3,7 +3,7 @@
 #include <memory>
 
 #include "network/network_transport_hub.h"
-#include "px_common_new/data.h"
+#include "px_common/data.h"
 
 namespace px::render {
 namespace {

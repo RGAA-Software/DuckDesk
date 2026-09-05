@@ -11,7 +11,7 @@
 #include "float_3rd_scale_panel.h"
 #include "float_3rd_resolution_panel.h"
 #include "px_client/ct_client_context.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "float_sub_fps_panel.h"
 #include "px_label.h"
 #include <QLabel>

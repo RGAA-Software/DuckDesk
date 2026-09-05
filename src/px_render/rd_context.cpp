@@ -4,12 +4,12 @@
 
 #include "rd_context.h"
 #include <format>
-#include "px_common_new/blocking_executor.h"
-#include "px_common_new/message_notifier.h"
-#include "px_common_new/async_runtime.h"
-#include "px_common_new/log.h"
-#include "px_common_new/win32/win_helper.h"
-#include "px_common_new/string_util.h"
+#include "px_common/blocking_executor.h"
+#include "px_common/message_notifier.h"
+#include "px_common/async_runtime.h"
+#include "px_common/log.h"
+#include "px_common/win32/win_helper.h"
+#include "px_common/string_util.h"
 #include "px_render/modules/render_module_registry.h"
 #include "architecture/pipeline/encoded_media_bus.h"
 #include "architecture/processors/frame_carrier_processor.h"

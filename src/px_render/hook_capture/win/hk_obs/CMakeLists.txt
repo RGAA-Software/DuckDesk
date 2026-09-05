@@ -64,8 +64,8 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 target_link_libraries(${PROJECT_NAME} PUBLIC
         ${DETOURS_LIBRARY}
         px_ipc_util
-        px_common_new
-        px_capture_new
+        px_common
+        px_capture
         px_message
         protobuf::libprotobuf
         dxgi d3d11 d3d12 dxguid
@@ -77,7 +77,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
 
 # Local test: force in-process audio hook, inject into a game, expect WAV dump.
 add_executable(test_hook_audio_wav test_hook_audio_wav.cpp)
-target_link_libraries(test_hook_audio_wav PRIVATE px_common_new)
+target_link_libraries(test_hook_audio_wav PRIVATE px_common)
 target_compile_definitions(test_hook_audio_wav PRIVATE UNICODE _UNICODE)
 set_target_properties(test_hook_audio_wav PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}"
@@ -113,8 +113,8 @@ if(BUILD_TESTING)
             ws_ipc_client.cpp
     )
     target_link_libraries(test_ws_ipc_client_lifecycle PRIVATE
-            px_common_new
-            px_capture_new
+            px_common
+            px_capture
             px_message
             protobuf::libprotobuf
             GTest::gtest
@@ -134,8 +134,8 @@ if(BUILD_TESTING)
     )
     target_include_directories(test_hook_audio_worker_lifecycle PRIVATE ../hk_audio)
     target_link_libraries(test_hook_audio_worker_lifecycle PRIVATE
-            px_common_new
-            px_capture_new
+            px_common
+            px_capture
             px_message
             protobuf::libprotobuf
     )

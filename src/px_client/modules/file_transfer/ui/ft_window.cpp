@@ -13,7 +13,7 @@
 #include <QMetaObject>
 #include <QPointer>
 
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "translator/px_translator.h"
 
 namespace px

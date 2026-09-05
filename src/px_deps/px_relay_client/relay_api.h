@@ -9,7 +9,7 @@
 #include <string>
 #include <memory>
 #include "relay_errors.h"
-#include "px_common_new/expected.h"
+#include "px_common/expected.h"
 
 namespace px_relay
 {

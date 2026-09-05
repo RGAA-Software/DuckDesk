@@ -109,7 +109,7 @@ android {
                 srcDir 'src/main/java'
             }
             proto {
-                srcDir '../../px_deps/px_message_new' //指定.proto文件路径
+                srcDir '../../px_deps/px_message' //指定.proto文件路径
             }
         }
 //        steam {

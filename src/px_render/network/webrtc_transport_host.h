@@ -8,9 +8,9 @@
 #include <string>
 #include <vector>
 
-#include "px_common_new/file_transfer_send_result.h"
-#include "px_common_new/async_result.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/file_transfer_send_result.h"
+#include "px_common/async_result.h"
+#include "px_common/async_runtime.h"
 #include "px_render/network/webrtc/webrtc_transport_types.h"
 
 namespace px {

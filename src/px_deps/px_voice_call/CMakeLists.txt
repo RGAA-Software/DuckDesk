@@ -32,7 +32,7 @@ add_library(px_voice_call
     voice_audio_endpoint.cpp
 )
 target_include_directories(px_voice_call PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(px_voice_call PUBLIC px_opus_codec_new
+target_link_libraries(px_voice_call PUBLIC px_opus_codec
     $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>)
 if(WIN32)
     target_sources(px_voice_call PRIVATE

@@ -3,7 +3,7 @@
 #include <QWidget>
 #include <memory>
 #include "px_message.pb.h"
-#include "px_client_sdk_new/gl/raw_image.h"
+#include "px_client_sdk/gl/raw_image.h"
 #include "px_client/front_render/ct_video_widget.h"
 
 namespace px

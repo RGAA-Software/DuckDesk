@@ -4,11 +4,11 @@
 #include <mutex>
 #include <utility>
 
-#include "px_common_new/folder_util.h"
-#include "px_common_new/log.h"
-#include "px_common_new/memory_stat.h"
-#include "px_common_new/snowflake_id.h"
-#include "px_common_new/string_util.h"
+#include "px_common/folder_util.h"
+#include "px_common/log.h"
+#include "px_common/memory_stat.h"
+#include "px_common/snowflake_id.h"
+#include "px_common/string_util.h"
 #include "app/app_messages.h"
 #include "runtime/render_execution_context.h"
 

@@ -7,14 +7,14 @@
 #include <filesystem>
 
 #include "px_client/ct_settings.h"
-#include "px_common_new/message_notifier.h"
-#include "px_common_new/shared_preference.h"
-#include "px_common_new/string_util.h"
-#include "px_common_new/thread.h"
-#include "px_common_new/log.h"
-#include "px_common_new/md5.h"
-#include "px_common_new/hardware.h"
-#include "px_common_new/folder_util.h"
+#include "px_common/message_notifier.h"
+#include "px_common/shared_preference.h"
+#include "px_common/string_util.h"
+#include "px_common/thread.h"
+#include "px_common/log.h"
+#include "px_common/md5.h"
+#include "px_common/hardware.h"
+#include "px_common/folder_util.h"
 #include "px_qt_widget/notify/notifymanager.h"
 #include "px_client/ct_app_message.h"
 #include <QTimer>

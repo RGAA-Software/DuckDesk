@@ -4,16 +4,16 @@
 #include <timeapi.h>
 #include <functional>
 #include <chrono>
-#include "px_common_new/string_util.h"
-#include "px_common_new/message_notifier.h"
-#include "px_common_new/log.h"
-#include "px_common_new/time_util.h"
-#include "px_common_new/monitors.h"
-#include "px_common_new/thread.h"
-#include "px_capture_new/capture_message.h"
+#include "px_common/string_util.h"
+#include "px_common/message_notifier.h"
+#include "px_common/log.h"
+#include "px_common/time_util.h"
+#include "px_common/monitors.h"
+#include "px_common/thread.h"
+#include "px_capture/capture_message.h"
 #include "px_render/architecture/events/render_event.h"
 #include "dda_capture_source.h"
-#include "px_common_new/win32/d3d_debug_helper.h"
+#include "px_common/win32/d3d_debug_helper.h"
 
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3d11.lib")

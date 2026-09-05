@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(px_capture_new)
+project(px_capture)
 
 set(CMAKE_CXX_STANDARD 23)
 
@@ -29,8 +29,8 @@ if (WIN32)
         win/desktop_capture/dda_capture.cpp
         win/desktop_capture/cursor_capture.cpp
     )
-    add_library(px_capture_new ${CAPTURE_SRCS})
-    target_link_libraries(px_capture_new px_message protobuf::libprotobuf Winmm Qt6::Core Qt6::Core5Compat)
+    add_library(px_capture ${CAPTURE_SRCS})
+    target_link_libraries(px_capture px_message protobuf::libprotobuf Winmm Qt6::Core Qt6::Core5Compat)
 
     ## capture dll
     set(DLL_SRCS
@@ -56,7 +56,7 @@ if (WIN32)
 
     if (ENABLE_HOOK_CAPTURE)
         #add_library(px_capture_library SHARED ${DLL_SRCS})
-        #target_link_libraries(px_capture_library px_common_new EasyHook64 Iphlpapi.lib)
+        #target_link_libraries(px_capture_library px_common EasyHook64 Iphlpapi.lib)
 
     endif ()
 

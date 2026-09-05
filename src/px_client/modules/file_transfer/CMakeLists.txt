@@ -18,7 +18,7 @@ set(MODULE_SRCS
 
 add_library(${PROJECT_NAME} STATIC ${MODULE_SRCS})
 target_link_libraries(${PROJECT_NAME} PRIVATE
-        px_common_new px_message px_ft_engine px_qt_widget
+        px_common px_message px_ft_engine px_qt_widget
         Qt6::Core Qt6::Widgets Qt6::Svg Dwmapi.lib)
 target_include_directories(${PROJECT_NAME} PRIVATE
         ${CMAKE_SOURCE_DIR}/src/px_client

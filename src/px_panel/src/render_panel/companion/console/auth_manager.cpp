@@ -8,10 +8,10 @@
 #include <nlohmann/json.hpp>
 #include <utility>
 #include "auth_defs.h"
-#include "px_common_new/log.h"
-#include "px_common_new/http_client.h"
-#include "px_common_new/shared_preference.h"
-#include "px_common_new/time_util.h"
+#include "px_common/log.h"
+#include "px_common/http_client.h"
+#include "px_common/shared_preference.h"
+#include "px_common/time_util.h"
 
 namespace px
 {

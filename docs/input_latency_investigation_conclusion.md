@@ -53,10 +53,10 @@ UU/向日葵的这个距离很小 = 它们端到端延迟比我们低 1–2 帧�
 | `src/px_render/hook_capture/win/desktop_capture/dda_capture.cpp` | 同步修 `target_duration` 截断 | 正确性修正 |
 | `src/px_render/plugins/event_replayer/win_event_replayer.cpp` | `[LAT-input]` 注入计时 + SendInput 计数 | 插桩 |
 | `src/px_client/front_render/ct_video_widget.cpp` | `[LAT-input]` 客户端队列计时 + 写入鼠标发送时刻 | 插桩 |
-| `src/px_deps/px_client_sdk_new/thunder_sdk.{h,cpp}` | `[LAT-decode]`、`[LAT-roundtrip]` 打点 | 插桩 |
+| `src/px_deps/px_client_sdk/thunder_sdk.{h,cpp}` | `[LAT-decode]`、`[LAT-roundtrip]` 打点 | 插桩 |
 | `src/px_client/front_render/d3d11/ct_d3d11_video_widget.cpp` | `[LAT-render]` 渲染计时 | 插桩 |
-| `src/px_deps/px_client_sdk_new/sdk_net_client.cpp` | `[LAT-net]` 心跳 RTT 日志 | 插桩 |
-| `src/px_deps/px_common_new/process_util.{h,cpp}` + `src/px_render/rd_main.cpp` | 新增 `PinToPerformanceCores()`，render 钉大核 | 优化（实测无太大改善，保留） |
+| `src/px_deps/px_client_sdk/sdk_net_client.cpp` | `[LAT-net]` 心跳 RTT 日志 | 插桩 |
+| `src/px_deps/px_common/process_util.{h,cpp}` + `src/px_render/rd_main.cpp` | 新增 `PinToPerformanceCores()`，render 钉大核 | 优化（实测无太大改善，保留） |
 | `src/px_client/front_render/d3d11/d3d11_render_manager.cpp` | `FLIP_SEQUENTIAL`→`FLIP_DISCARD`；`SetMaximumFrameLatency(1)` | 边际优化（保留） |
 | `tests/dxgi_capture_probe.cpp` | 探针加 60s/分窗口/区分 AccumulatedFrames | 诊断工具 |
 | `docs/input_latency_instrumentation_plan.md` | 插桩方案文档 | 文档 |

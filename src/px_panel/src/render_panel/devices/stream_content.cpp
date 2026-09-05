@@ -4,7 +4,7 @@
 
 #include "stream_content.h"
 
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "app_stream_list.h"
 #include "widget_helper.h"
 #include "create_stream_dialog.h"

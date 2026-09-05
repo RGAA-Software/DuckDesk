@@ -7,10 +7,10 @@
 #include "records_ticket.h"
 #include "render_panel/px_application.h"
 #include "render_panel/px_settings.h"
-#include "px_common_new/log.h"
-#include "px_common_new/folder_util.h"
-#include "px_common_new/string_util.h"
-#include "px_common_new/url_helper.h"
+#include "px_common/log.h"
+#include "px_common/folder_util.h"
+#include "px_common/string_util.h"
+#include "px_common/url_helper.h"
 #include <nlohmann/json.hpp>
 
 #include <cstdlib>

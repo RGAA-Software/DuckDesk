@@ -6,9 +6,9 @@
 #include "px_qt_widget/widget_helper.h"
 #include "connected_info_panel.h"
 #include "connected_info_tag.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "px_render_panel_message.pb.h"
-#include "px_common_new/client_id_extractor.h"
+#include "px_common/client_id_extractor.h"
 
 namespace px {
 

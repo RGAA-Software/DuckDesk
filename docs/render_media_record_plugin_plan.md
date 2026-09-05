@@ -72,10 +72,10 @@
 
 ## 3. 总体架构
 
-**核心思路：抽一个与平台无关的共享静态库 `px_media_record_new`，客户端与 Render 端各自保留一个薄适配层。**
+**核心思路：抽一个与平台无关的共享静态库 `px_media_record`，客户端与 Render 端各自保留一个薄适配层。**
 
 ```
-┌──────────────────────── px_media_record_new（核心，一份代码）───────────────────────┐
+┌──────────────────────── px_media_record（核心，一份代码）───────────────────────┐
 │ 依赖：仅 C++ std + FFmpeg（不依赖 Qt / protobuf / 插件接口 / 平台）                  │
 │                                                                                       │
 │  RecordWriter（每路录制一个实例，即"一个显示器 = 一个实例"）                          │
@@ -94,8 +94,8 @@
                                               • 保留：面板 Enable/Disable + Record 按钮
 ```
 
-- 共享库放在 `src/px_deps/px_media_record_new/`（与 `px_opus_codec_new`、`px_encoder_new` 同级）。
-- 两端插件 CMakeLists 各 `target_link_libraries(... px_media_record_new)`；静态库编进各自 DLL，ffmpeg DLL 依赖与现状一致。
+- 共享库放在 `src/px_deps/px_media_record/`（与 `px_opus_codec`、`px_encoder` 同级）。
+- 两端插件 CMakeLists 各 `target_link_libraries(... px_media_record)`；静态库编进各自 DLL，ffmpeg DLL 依赖与现状一致。
 - Android 构建不引用该模块 → 零影响。
 
 ---
@@ -105,7 +105,7 @@
 ### 4.1 共享库 API（草案）
 
 ```cpp
-// record_writer.h（px_deps/px_media_record_new）
+// record_writer.h（px_deps/px_media_record）
 namespace px {
 
 enum class RecordVideoCodec { kH264, kH265 };
@@ -213,7 +213,7 @@ rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4
 
 ### 4.6 手动触发（Render 面板）
 
-- `px_message_new/px_render_panel_message.proto`：`RpPanelCommand` 增加 `kStartMediaRecordServerSide = 2`、`kStopMediaRecordServerSide = 3`。
+- `px_message/px_render_panel_message.proto`：`RpPanelCommand` 增加 `kStartMediaRecordServerSide = 2`、`kStopMediaRecordServerSide = 3`。
 - `px_render/network/ws_panel_client.cpp`：新命令路由到目标插件 `OnCommand("record:start" / "record:stop")`。
 - `px_panel/src/render_panel/ui/st_plugin_item_widget.cpp`：对 Media Recorder 插件（按 `kMediaRecorderPluginId` 判断）追加 "Start Record / Stop Record" 按钮（沿用 Enable/Disable 按钮模式）。
 
@@ -242,8 +242,8 @@ rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4
 
 | 文件 | 内容 |
 |---|---|
-| `src/px_deps/px_media_record_new/CMakeLists.txt` | 静态库，链接 `${FFMPEG_LIBRARIES}` |
-| `src/px_deps/px_media_record_new/record_writer.h/.cpp` | 核心录制器（4.1~4.3 全部逻辑） |
+| `src/px_deps/px_media_record/CMakeLists.txt` | 静态库，链接 `${FFMPEG_LIBRARIES}` |
+| `src/px_deps/px_media_record/record_writer.h/.cpp` | 核心录制器（4.1~4.3 全部逻辑） |
 | `src/px_render/plugins/media_recorder/media_recorder.cpp` | 录制器实现（原空壳插件补充） |
 
 ### 5.2 修改
@@ -254,11 +254,11 @@ rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4
 | `src/px_render/plugin_interface/px_stream_plugin.h/.cpp` | + override |
 | `src/px_render/plugins/plugin_net_event_router.cpp` | 编码音频追加分发到 Stream 插件 |
 | `src/px_render/plugins/media_recorder/media_recorder_plugin.h/.cpp` | 实现 `OnEncodedVideoFrame`/`OnEncodedAudioFrame`/`OnCommand`/`OnNewClientConnected`/`OnClientDisconnected`/`OnCreate`；Start/Stop；auto 逻辑 |
-| `src/px_render/plugins/media_recorder/CMakeLists.txt` | 链接 `px_media_record_new` |
+| `src/px_render/plugins/media_recorder/CMakeLists.txt` | 链接 `px_media_record` |
 | `src/px_render/plugins/plugin_manager.cpp` | param cluster 增加 `record_auto_enabled` / `record_dir` |
 | `src/px_render/settings/rd_settings.h/.cpp` | + `record_auto_` / `record_dir_` + TOML 解析 |
 | `src/px_render/network/ws_panel_client.cpp` | 新面板命令 → `OnCommand` |
-| `src/px_deps/px_message_new/px_render_panel_message.proto` | `RpPanelCommand` + 2 个枚举值 |
+| `src/px_deps/px_message/px_render_panel_message.proto` | `RpPanelCommand` + 2 个枚举值 |
 | `src/px_panel/src/render_panel/ui/st_plugin_item_widget.cpp` | + Record 按钮 |
 | `src/px_client/modules/media_recording/media_recorder.h/.cpp` | 改造为适配层：proto 帧 → `RecordWriter`，删除 ffmpeg 内部逻辑 |
 | `src/px_client/modules/media_recording/CMakeLists.txt` | 链接录制核心（Client 侧使用普通导入库隔离 FFmpeg 符号） |
@@ -306,7 +306,7 @@ rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4
 **默认决定（如无异议按此执行）：**
 
 1. 音频走**编码后 Opus**（新增 `OnEncodedAudioFrame` 分发），零重编码。
-2. 客户端与 Render 端**共用 `px_media_record_new`**，客户端同步获得 1GB/24 滚动规则（两端行为一致）。
+2. 客户端与 Render 端**共用 `px_media_record`**，客户端同步获得 1GB/24 滚动规则（两端行为一致）。
 3. 命名：`record_{device_id}_{mon}_{时间戳}.mp4`；device_id 用**本机（录制方）**的 device_id。
 4. 24 个文件配额**全局共享**（约束总容量）。
 5. Render 默认目录 `C:\Users\Public\Pixels\px_render_records\`，`settings.toml` 可覆盖；客户端目录维持现状。
@@ -336,7 +336,7 @@ rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4
 
 ### 9.2 测试基建新增（随实现一起提交）
 
-1. **单测目标 `test_record_writer`**：`src/px_deps/px_media_record_new/tests/`，GTest，照 `px_common_new/tests` 模式（`TESTS_ENABLED` 门控）；加入 `build_official_tests.bat` 构建列表与 `run_tc_tests.bat` 运行列表。
+1. **单测目标 `test_record_writer`**：`src/px_deps/px_media_record/tests/`，GTest，照 `px_common/tests` 模式（`TESTS_ENABLED` 门控）；加入 `build_official_tests.bat` 构建列表与 `run_tc_tests.bat` 运行列表。
 2. **素材生成脚本 `scripts/gen_record_test_assets.bat`**：调 vcpkg ffmpeg 生成确定性素材——H264（`testsrc` 10s 640x360@30，`libx264` g=30，Annex-B）与 Opus（`sine` 10s 48k 立体声）。供单测与人工验证共用。
 3. **验证脚本 `scripts/verify_record_file.bat`**：封装 ffprobe 输出（流数量、编码、分辨率、两轨 duration、关键帧/包统计），一次调用即可判定文件是否合格。
 4. **测试口（建议采纳为正式配置）**：`settings.toml` 的 `[record]` 增加可选 `max_segment_bytes` / `max_file_count` 覆盖项（默认 1GB / 24）。否则滚动测试只能改代码常量重新编译。
@@ -355,7 +355,7 @@ rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4
 | 7 | 提前 Stop（录 2s 即停） | 文件完整可读（trailer 正常、ffprobe 通过） |
 | 8 | 无关键帧到达（模拟编码器不回 IDR） | 等关键帧状态不崩溃；音频缓冲有上限（约 5s），超限丢最旧并记日志 |
 
-> 测试向量：视频用 avcodec 内存内 libx264 编码生成（或读素材文件），音频用 `px_opus_codec_new` 编码正弦 PCM——完全自包含、可重复、无外部依赖。
+> 测试向量：视频用 avcodec 内存内 libx264 编码生成（或读素材文件），音频用 `px_opus_codec` 编码正弦 PCM——完全自包含、可重复、无外部依赖。
 
 ### 9.4 端到端用例（本机真机，build_official/dist）
 

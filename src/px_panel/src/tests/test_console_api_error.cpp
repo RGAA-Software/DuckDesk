@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "px_common_new/http_client.h"
+#include "px_common/http_client.h"
 #include "px_console_client/console_api.h"
 
 namespace {

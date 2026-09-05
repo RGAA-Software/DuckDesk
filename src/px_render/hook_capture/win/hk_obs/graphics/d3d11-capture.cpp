@@ -4,18 +4,18 @@
 
 #include "dxgi-helpers.hpp"
 #include "graphics-hook.h"
-#include "px_common_new/log.h"
-#include "px_common_new/data.h"
+#include "px_common/log.h"
+#include "px_common/data.h"
 #include "hook_manager.h"
-#include "px_capture_new/capture_message.h"
+#include "px_capture/capture_message.h"
 #include "../hk_video/d3d_utils.h"
-#include "px_capture_new/capture_message_maker.h"
+#include "px_capture/capture_message_maker.h"
 #include <libyuv.h>
 #include <fstream>
 
 #include <d3d11.h>
 #include <wrl/client.h>
-#include "px_common_new/win32/d3d_debug_helper.h"
+#include "px_common/win32/d3d_debug_helper.h"
 
 using namespace px;
 

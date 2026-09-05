@@ -1,4 +1,4 @@
-# C++ 裸指针与 `px_common_new` 生命周期审计（2026-08-25）
+# C++ 裸指针与 `px_common` 生命周期审计（2026-08-25）
 
 > 历史基线说明（2026-08-26 更新）：本文第 1 至 8 节记录的是迁移实施前的审计快照，
 > 用于保留风险来源和整改依据，不代表当前 Asio Notify 交付状态。此次变更范围内的
@@ -56,7 +56,7 @@
 
 ### 3.4 `px::Thread`
 
-`src/px_deps/px_common_new/thread.cpp` 的工作线程捕获裸 `this`。当前实现处理了工作线程内部调用 `Exit()` 时不能 join 自己的问题，但没有覆盖“最后一个 `shared_ptr<Thread>` 在工作线程回调中释放”的情况；此时仍可能销毁 joinable `std::thread` 并触发 `std::terminate`。
+`src/px_deps/px_common/thread.cpp` 的工作线程捕获裸 `this`。当前实现处理了工作线程内部调用 `Exit()` 时不能 join 自己的问题，但没有覆盖“最后一个 `shared_ptr<Thread>` 在工作线程回调中释放”的情况；此时仍可能销毁 joinable `std::thread` 并触发 `std::terminate`。
 
 ### 3.5 `Data` 与 `File`
 
@@ -71,7 +71,7 @@
 
 `WinMessageLoop` 持有真实 `std::thread`，析构函数为空，线程入口通过 `std::bind(..., this)` 保存裸对象。`ClipboardManager` 还向消息线程投递捕获裸 `this` 的任务。如果任一路径漏掉显式 `Stop()`，会发生 UAF 或销毁 joinable thread 导致 `std::terminate`。
 
-## 4. `px_common_new` 评估
+## 4. `px_common` 评估
 
 ### 4.1 可保留的实现
 

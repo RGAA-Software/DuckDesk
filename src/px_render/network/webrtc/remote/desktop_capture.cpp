@@ -7,9 +7,9 @@
 #include <algorithm>
 #include <memory>
 #include <libyuv.h>
-#include "px_common_new/log.h"
-#include "px_common_new/string_util.h"
-#include "px_common_new/time_util.h"
+#include "px_common/log.h"
+#include "px_common/string_util.h"
+#include "px_common/time_util.h"
 
 namespace px
 {

@@ -5,20 +5,20 @@
 #include "render_service_client.h"
 
 #include <algorithm>
-#include <px_common_new/string_util.h>
+#include <px_common/string_util.h>
 
 #include "rd_context.h"
 #include "rd_statistics.h"
-#include "px_common_new/log.h"
-#include "px_common_new/md5.h"
-#include "px_common_new/message_notifier.h"
-#include "px_common_new/async_mailbox.h"
-#include "px_common_new/async_scope_drain.h"
-#include "px_common_new/asio_client_shutdown.h"
-#include "px_common_new/async_operation.h"
-#include "px_common_new/reconnect_supervisor.h"
-#include "px_common_new/websocket_reconnect_adapter.h"
-#include "px_common_new/virtual_display_timeouts.h"
+#include "px_common/log.h"
+#include "px_common/md5.h"
+#include "px_common/message_notifier.h"
+#include "px_common/async_mailbox.h"
+#include "px_common/async_scope_drain.h"
+#include "px_common/asio_client_shutdown.h"
+#include "px_common/async_operation.h"
+#include "px_common/reconnect_supervisor.h"
+#include "px_common/websocket_reconnect_adapter.h"
+#include "px_common/virtual_display_timeouts.h"
 #include "rd_app.h"
 #include "app/app_messages.h"
 #include "px_service_message.pb.h"

@@ -10,7 +10,7 @@
 | Render 主程序 | `build_cpp_render.bat` | 编译 `px_render`，发布到 dist 并校验 SHA-256 |
 | Windows Client | `build_cpp_client.bat` | 编译 Client、RTC 与内部功能模块，发布并校验 |
 | Panel | `build_cpp_panel.bat` | 编译 Panel/皮肤，发布并校验 |
-| 公共静态库 | `build_cpp_common.bat` | 只编译 `px_common_new` |
+| 公共静态库 | `build_cpp_common.bat` | 只编译 `px_common` |
 | 单个 Render 网络库 | `build_cpp_render_network_library.bat net_rtc` | 只编译指定 WebRTC 动态库并发布 DLL |
 | 全部 Render 网络库 | `build_cpp_render_network_libraries.bat` | 编译并发布两个 WebRTC 动态库 |
 | C++ SDK | `build_cpp_sdk.bat` | 编译 SDK/客户端网络依赖，不运行 Rust/Web |

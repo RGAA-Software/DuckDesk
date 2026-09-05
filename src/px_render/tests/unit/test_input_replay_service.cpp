@@ -3,7 +3,7 @@
 #include <memory>
 
 #include "app/app_messages.h"
-#include "px_capture_new/capture_message.h"
+#include "px_capture/capture_message.h"
 #include "px_message.pb.h"
 #include "services/input_replay_service.h"
 

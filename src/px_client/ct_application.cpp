@@ -14,8 +14,8 @@
 
 #include "ui/app_menu.h"
 #include "ui/app_stream_list.h"
-#include "px_common_new/log.h"
-#include "px_common_new/thread.h"
+#include "px_common/log.h"
+#include "px_common/thread.h"
 #include "ui/create_stream_dialog.h"
 #include "px_client/ct_client_context.h"
 #include "px_qt_widget/widget_helper.h"

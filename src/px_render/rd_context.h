@@ -10,8 +10,8 @@
 #include <queue>
 #include <mutex>
 
-#include "px_common_new/message_notifier.h"
-#include "px_common_new/thread.h"
+#include "px_common/message_notifier.h"
+#include "px_common/thread.h"
 
 namespace asio2 {
 class timer;

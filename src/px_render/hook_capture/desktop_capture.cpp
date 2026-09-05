@@ -3,9 +3,9 @@
 //
 
 #include "desktop_capture.h"
-#include "px_capture_new/capture_message.h"
-#include "px_common_new/log.h"
-#include "px_common_new/message_notifier.h"
+#include "px_capture/capture_message.h"
+#include "px_common/log.h"
+#include "px_common/message_notifier.h"
 #include <Shlobj.h>
 
 namespace px

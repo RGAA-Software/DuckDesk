@@ -1,21 +1,22 @@
 #include "cp_virtual_file.h"
 
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <wininet.h>
 #include <Windows.h>
 #include <iostream>
 #include <string>
 #include <memory>
-#include <iostream>
 #include <fstream>
 #include <shlobj.h>
 #include <shellapi.h>
 #include <format>
 #include <QFileInfo>
 #include "cp_file_stream.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "ct_base_workspace.h"
-#include "px_message_new/proto_converter.h"
+#include "px_message/proto_converter.h"
 #include "px_client/modules/clipboard/clipboard_runtime_bridge.h"
 
 #pragma comment(lib, "Wininet.lib")

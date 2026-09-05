@@ -1,9 +1,9 @@
 #include "ct_vulkan_video_widget.h"
-#include "px_common_new/log.h"
-#include "px_common_new/data.h"
-#include "px_common_new/thread.h"
-#include "px_common_new/time_util.h"
-#include "px_common_new/file.h"
+#include "px_common/log.h"
+#include "px_common/data.h"
+#include "px_common/thread.h"
+#include "px_common/time_util.h"
+#include "px_common/file.h"
 
 namespace px
 {

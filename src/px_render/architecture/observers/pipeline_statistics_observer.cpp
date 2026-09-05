@@ -3,7 +3,7 @@
 #include <utility>
 #include <vector>
 
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 
 namespace px::render {
 namespace {

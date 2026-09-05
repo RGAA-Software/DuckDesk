@@ -3,7 +3,7 @@
 //
 
 #include "nvenc_encoder_module.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "nvenc_encoder_defs.h"
 #include "nvenc_video_encoder.h"
 #include "px_render/modules/module_ids.h"

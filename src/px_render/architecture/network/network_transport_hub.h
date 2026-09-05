@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "px_common_new/file_transfer_send_result.h"
+#include "px_common/file_transfer_send_result.h"
 #include "transport_route.h"
 
 namespace px {

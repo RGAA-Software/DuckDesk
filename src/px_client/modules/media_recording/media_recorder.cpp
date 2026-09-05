@@ -1,7 +1,7 @@
 #include "media_recorder.h"
-#include "px_media_record_new/record_writer.h"
-#include "px_common_new/log.h"
-#include "px_common_new/folder_util.h"
+#include "px_media_record/record_writer.h"
+#include "px_common/log.h"
+#include "px_common/folder_util.h"
 
 #include <filesystem>
 #include <QDir>

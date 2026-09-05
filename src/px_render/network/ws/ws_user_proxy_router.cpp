@@ -6,13 +6,13 @@
 
 #include <asio2/asio2.hpp>
 #include <functional>
-#include "px_common_new/data.h"
-#include "px_common_new/log.h"
-#include "px_common_new/privacy_log.h"
+#include "px_common/data.h"
+#include "px_common/log.h"
+#include "px_common/privacy_log.h"
 #include "px_render_panel_message.pb.h"
 #include "px_message.pb.h"
-#include "px_message_new/proto_converter.h"
-#include "px_message_new/rp_proto_converter.h"
+#include "px_message/proto_converter.h"
+#include "px_message/rp_proto_converter.h"
 #include "ws_transport.h"
 #include "px_render/modules/module_ids.h"
 #include "px_render/network/transport_types.h"

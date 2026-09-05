@@ -7,7 +7,7 @@
 #include "render_panel/px_settings.h"
 #include "render_panel/px_context.h"
 #include "render_panel/px_application.h"
-#include "px_common_new/message_notifier.h"
+#include "px_common/message_notifier.h"
 #include "render_panel/px_statistics.h"
 #include "render_panel/px_app_messages.h"
 

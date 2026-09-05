@@ -3,8 +3,8 @@
 //
 
 #include "rtc_encoded_frame_sink.h"
-#include "px_common_new/log.h"
-#include "px_common_new/data.h"
+#include "px_common/log.h"
+#include "px_common/data.h"
 #include <algorithm>
 #include <format>
 #include <string>

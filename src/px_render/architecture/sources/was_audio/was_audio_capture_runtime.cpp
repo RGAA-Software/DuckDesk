@@ -9,7 +9,7 @@
 
 #include "miniaudio_audio_capture.h"
 #include "process_loopback_audio_capture.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 
 namespace px {
 namespace {

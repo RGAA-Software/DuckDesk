@@ -1,16 +1,16 @@
 #include "video_encoder_vce.h"
 
-#include "px_common_new/log.h"
-#include "px_common_new/time_util.h"
-#include "px_common_new/data.h"
-#include "px_encoder_new/encoder_config.h"
-#include "px_common_new/image.h"
+#include "px_common/log.h"
+#include "px_common/time_util.h"
+#include "px_common/data.h"
+#include "px_encoder/encoder_config.h"
+#include "px_common/image.h"
 #include "d3d_texture_debug.h"
-#include "px_encoder_new/encoder_config.h"
-#include "px_common_new/string_util.h"
+#include "px_encoder/encoder_config.h"
+#include "px_common/string_util.h"
 #include "px_render/architecture/events/render_event.h"
 #include "amf_video_encoder.h"
-#include "px_common_new/win32/d3d_debug_helper.h"
+#include "px_common/win32/d3d_debug_helper.h"
 #include <combaseapi.h>
 #include <atlbase.h>
 #include <fstream>

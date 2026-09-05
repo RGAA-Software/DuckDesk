@@ -11,9 +11,9 @@
 
 #include <mutex>
 #include "render_panel/px_statistics.h"
-#include "px_common_new/log.h"
-#include "px_common_new/time_util.h"
-#include "px_common_new/audio_filter.h"
+#include "px_common/log.h"
+#include "px_common/time_util.h"
+#include "px_common/audio_filter.h"
 
 namespace px
 {

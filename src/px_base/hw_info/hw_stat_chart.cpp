@@ -3,7 +3,7 @@
 //
 
 #include "hw_stat_chart.h"
-#include "px_common_new/random.h"
+#include "px_common/random.h"
 #include <QPainterPath>
 
 namespace px

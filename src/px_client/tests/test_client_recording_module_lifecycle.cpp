@@ -5,7 +5,7 @@
 
 #include "fake_client_module_services.h"
 #include "px_client/modules/media_recording/media_recording_module.h"
-#include "px_media_record_new/record_writer.h"
+#include "px_media_record/record_writer.h"
 #include "px_message.pb.h"
 
 namespace px {

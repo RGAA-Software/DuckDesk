@@ -11,9 +11,9 @@
 #include "px_label.h"
 #include "px_pushbutton.h"
 #include "px_qt_widget/no_margin_layout.h"
-#include "px_common_new/log.h"
-#include "px_common_new/message_notifier.h"
-#include "px_common_new/time_util.h"
+#include "px_common/log.h"
+#include "px_common/message_notifier.h"
+#include "px_common/time_util.h"
 #include "render_panel/console_scanner/console_scanner.h"
 #include "render_panel/companion/panel_companion.h"
 #include <QCheckBox>

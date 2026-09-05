@@ -4,8 +4,8 @@
 #include "log.h"
 #include "application.h"
 #include "frame_render.h"
-#include "px_common_new/log.h"
-#include "px_common_new/md5.h"
+#include "px_common/log.h"
+#include "px_common/md5.h"
 #include "env_wrapper.h"
 
 using namespace px;

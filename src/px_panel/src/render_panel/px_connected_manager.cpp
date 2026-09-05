@@ -2,11 +2,11 @@
 #include <qapplication.h>
 #include <Windows.h>
 #include "px_context.h"
-#include "px_common_new/message_notifier.h"
-#include "px_common_new/log.h"
+#include "px_common/message_notifier.h"
+#include "px_common/log.h"
 #include "px_app_messages.h"
 #include "px_render_panel_message.pb.h"
-#include "px_common_new/client_id_extractor.h"
+#include "px_common/client_id_extractor.h"
 #include "devices/connected_info_panel.h"
 #include "devices/connected_info_tag.h"
 #include "devices/connected_info_sliding_window.h"

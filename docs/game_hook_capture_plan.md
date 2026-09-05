@@ -317,7 +317,7 @@ hook game 模式启动 UE5 应用采不到画面；加 `-dx11` 启动则正常�
 ### 12.2 修复清单
 
 1. **启用 D3D12 hook**：`hk_obs/CMakeLists.txt` 加 `add_definitions(-DCOMPILE_D3D12_HOOK)`；`hook_d3d12` 失败路径改 `return false`。
-2. **`D3D11DeviceWrapper::Release()` 双重释放**（render 崩溃根因，子模块 `px_common_new/win32/d3d11_wrapper.h`）：原来裸调 `->Release()` 而 ComPtr 仍持指针，wrapper 析构时二次释放，其他持有者的 ComPtr 悬空，device removed 后 `VideoFrameCarrier::Exit` 崩溃。改 `Reset()`。
+2. **`D3D11DeviceWrapper::Release()` 双重释放**（render 崩溃根因，子模块 `px_common/win32/d3d11_wrapper.h`）：原来裸调 `->Release()` 而 ComPtr 仍持指针，wrapper 析构时二次释放，其他持有者的 ComPtr 悬空，device removed 后 `VideoFrameCarrier::Exit` 崩溃。改 `Reset()`。
 3. **10bit swapchain 格式**：UE5 默认 `R10G10B10A2`(format 24)，NVENC H264 无法编码。生产端（hook 内 `SharedTexture::CopyCapturedTexture`）统一 shader blit 成 `B8G8R8A8` 再共享；消费端 `plugin_frame_carrier` 保留同款转换作兜底；`encoder_thread` 把非 8bit 捕获格式的 `encoder_config.texture_format` 归一为 BGRA。
 4. **GPU TDR（device hung, -2005270522）根因**：消费端（frame carrier）**每帧 `OpenSharedResource` + 释放**共享纹理。11on12 共享资源反复 open/close 会使底层 D3D12 资源状态紊乱，约 9 秒后 device removed。改为**按 handle 缓存长开**（与 OBS 一致，OBS 打开一次终身持有）。⚠️ 排除过的方案：11on12 设备上创建 `SHARED_KEYEDMUTEX` 或 `SHARED_NTHANDLE` 纹理直接 `E_INVALIDARG`（plain SHARED 才行）；NTHANDLE|KEYEDMUTEX 能创建但消费端 `OpenSharedResource1` 也 `E_INVALIDARG`。
 5. **`FrameDebuggerPlugin::OnRawVideoFrameRgba` 空指针**：hook 路径 `raw_image_` 为空时直接 `image->data` 崩溃，加 `!image` 判空。
@@ -479,7 +479,7 @@ game-hook 模式下游戏进程死了（崩溃/被杀）后：
 看门狗重启期间客户端无新帧，没有提示的话用户以为卡死（§15.1 的"白屏/定格"
 误报正来源于此）。新增全链路通知：
 
-- **proto**（`px_message_new/px_message.proto`，web 两份副本同步）：
+- **proto**（`px_message/px_message.proto`，web 两份副本同步）：
   `kGameStatusChanged=540` + `GameStatusChanged{status,detail}`
   （0=运行/恢复，1=死亡，2=重启中），挂在 `Message.game_status_changed=530`。
 - **render**：`NetMessageMaker::MakeGameStatusChanged`；

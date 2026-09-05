@@ -57,7 +57,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets
         Qt6::OpenGLWidgets
         Qt6::Svg
 )
-target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_translator px_widget_loadings)
+target_link_libraries(${PROJECT_NAME} PRIVATE px_common px_translator px_widget_loadings)
 
 add_executable(test_notify_lifecycle test/test_notify_lifecycle.cpp)
 target_link_libraries(test_notify_lifecycle PRIVATE

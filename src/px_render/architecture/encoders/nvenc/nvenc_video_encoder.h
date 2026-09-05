@@ -6,7 +6,7 @@
 #define TC_APPLICATION_NVENC_VIDEO_ENCODER_H
 
 #include "nvencoder/12/NvEncoderD3D11.h"
-#include "px_encoder_new/encoder_config.h"
+#include "px_encoder/encoder_config.h"
 #include <fstream>
 #include <d3d11.h>
 #include <dxgi.h>
@@ -14,8 +14,8 @@
 #include <any>
 #include <atomic>
 #include <mutex>
-#include "px_common_new/fps_stat.h"
-#include "px_capture_new/capture_message.h"
+#include "px_common/fps_stat.h"
+#include "px_capture/capture_message.h"
 
 using namespace Microsoft::WRL;
 

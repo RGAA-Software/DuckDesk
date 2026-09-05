@@ -6,8 +6,8 @@
 #include "no_margin_layout.h"
 #include "notification_item.h"
 #include "px_client/ct_client_context.h"
-#include "px_common_new/message_notifier.h"
-#include "px_common_new/log.h"
+#include "px_common/message_notifier.h"
+#include "px_common/log.h"
 
 #include <QGraphicsDropShadowEffect>
 #include <QPushButton>

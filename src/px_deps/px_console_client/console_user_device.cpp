@@ -3,7 +3,7 @@
 //
 
 #include "console_user_device.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include <nlohmann/json.hpp>
 #include "console_user.h"
 #include "console_device.h"

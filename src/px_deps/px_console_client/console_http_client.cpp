@@ -4,7 +4,7 @@
 
 #include "console_http_client.h"
 #include <atomic>
-#include "px_common_new/http_client.h"
+#include "px_common/http_client.h"
 
 namespace px_console
 {

@@ -2,7 +2,7 @@
 #include <iostream>
 #include <atomic>
 #include <utility>
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "px_client/ct_client_context.h"
 #include "px_client/ct_app_message.h"
 

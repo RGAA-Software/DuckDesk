@@ -7,12 +7,12 @@
 // The active service-side render management is now implemented in Rust.
 
 #include "render_manager.h"
-#include "px_common_new/log.h"
-#include "px_common_new/string_util.h"
-#include "px_common_new/process_util.h"
-#include "px_common_new/message_notifier.h"
-#include "px_common_new/win32/process_helper.h"
-#include "px_common_new/shared_preference.h"
+#include "px_common/log.h"
+#include "px_common/string_util.h"
+#include "px_common/process_util.h"
+#include "px_common/message_notifier.h"
+#include "px_common/win32/process_helper.h"
+#include "px_common/shared_preference.h"
 #include "service_messages.h"
 #include "service_context.h"
 

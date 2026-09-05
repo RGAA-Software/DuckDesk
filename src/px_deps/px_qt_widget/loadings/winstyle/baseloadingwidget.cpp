@@ -1,5 +1,5 @@
 #include "baseloadingwidget.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include <QApplication>
 #include <QScreen>
 #include <QMouseEvent>

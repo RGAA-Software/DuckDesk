@@ -5,10 +5,10 @@
 #include "webrtc_remote_transport.h"
 #include "px_render/modules/module_ids.h"
 #include "video_source_mock.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "rtc_messages.h"
 #include "rtc_server.h"
-#include "px_common_new/time_util.h"
+#include "px_common/time_util.h"
 
 #include <algorithm>
 #include <cstdint>

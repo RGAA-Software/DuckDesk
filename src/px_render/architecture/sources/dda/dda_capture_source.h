@@ -8,7 +8,7 @@
 #include <optional>
 #include <mutex>
 #include "px_render/architecture/sources/monitor_capture_source.h"
-#include "px_common_new/concurrent_hashmap.h"
+#include "px_common/concurrent_hashmap.h"
 
 namespace px
 {

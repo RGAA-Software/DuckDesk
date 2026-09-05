@@ -16,8 +16,8 @@
 #include "render_panel/px_context.h"
 #include "render_panel/px_app_messages.h"
 #include "render_panel/util/conn_info_parser.h"
-#include "px_common_new/log.h"
-#include "px_common_new/http_client.h"
+#include "px_common/log.h"
+#include "px_common/http_client.h"
 #include "px_qt_widget/px_password_input.h"
 
 namespace px

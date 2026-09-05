@@ -8,8 +8,8 @@
 #include "render_panel/px_application.h"
 #include "render_panel/px_app_messages.h"
 #include "render_panel/database/visit_record.h"
-#include "px_common_new/time_util.h"
-#include "px_common_new/uid_spacer.h"
+#include "px_common/time_util.h"
+#include "px_common/uid_spacer.h"
 #include "px_label.h"
 #include <QLabel>
 #include <QPushButton>

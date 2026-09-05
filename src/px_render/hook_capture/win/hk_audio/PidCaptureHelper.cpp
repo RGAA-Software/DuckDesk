@@ -7,8 +7,8 @@
 #include <string>
 #include <vector>
 
-#include "px_common_new/log.h"
-#include "px_common_new/string_util.h"
+#include "px_common/log.h"
+#include "px_common/string_util.h"
 
 namespace px {
 namespace {

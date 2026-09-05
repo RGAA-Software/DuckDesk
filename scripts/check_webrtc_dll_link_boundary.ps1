@@ -64,10 +64,10 @@ foreach ($cmakeFile in $cmakeFiles) {
 }
 
 $clientRtcBoundaryFiles = @(
-    (Join-Path $root "src/px_deps/px_client_sdk_new/connection/webrtc_connection.h"),
-    (Join-Path $root "src/px_deps/px_client_sdk_new/connection/webrtc_connection.cpp"),
-    (Join-Path $root "src/px_deps/px_client_sdk_new/connection/webrtc_local_connection.h"),
-    (Join-Path $root "src/px_deps/px_client_sdk_new/connection/webrtc_local_connection.cpp"),
+    (Join-Path $root "src/px_deps/px_client_sdk/connection/webrtc_connection.h"),
+    (Join-Path $root "src/px_deps/px_client_sdk/connection/webrtc_connection.cpp"),
+    (Join-Path $root "src/px_deps/px_client_sdk/connection/webrtc_local_connection.h"),
+    (Join-Path $root "src/px_deps/px_client_sdk/connection/webrtc_local_connection.cpp"),
     (Join-Path $root "src/px_deps/px_webrtc_client/rtc_client.h"),
     (Join-Path $root "src/px_deps/px_webrtc_client/rtc_connection.h"),
     (Join-Path $root "src/px_deps/px_webrtc_client/rtc_connection.cpp")

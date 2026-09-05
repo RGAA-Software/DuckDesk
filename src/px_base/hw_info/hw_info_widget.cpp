@@ -9,7 +9,7 @@
 #include "hw_stat_chart.h"
 #include "hw_gpu_widget.h"
 #include "hw_cpu_detail_widget.h"
-#include "px_common_new/num_formatter.h"
+#include "px_common/num_formatter.h"
 #include "widget_helper.h"
 #include <QScrollArea>
 

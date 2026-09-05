@@ -6,7 +6,7 @@
 #define PX_RELAY_TRANSPORT_H
 
 #include "architecture/modules/render_module.h"
-#include "px_common_new/file_transfer_send_result.h"
+#include "px_common/file_transfer_send_result.h"
 #include "px_render/network/transport_types.h"
 
 namespace px

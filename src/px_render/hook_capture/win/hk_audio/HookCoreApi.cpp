@@ -17,7 +17,7 @@
 #include "HookWaveOut.h"
 #include "HookXAudio2.h"
 #include "hk_obs/hook_manager.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 
 namespace px {
 namespace {

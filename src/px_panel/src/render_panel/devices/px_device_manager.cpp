@@ -4,8 +4,8 @@
 
 #include "px_device_manager.h"
 #include <format>
-#include "px_common_new/log.h"
-#include "px_common_new/md5.h"
+#include "px_common/log.h"
+#include "px_common/md5.h"
 #include "px_console_client/console_device.h"
 #include "px_console_client/console_device_api.h"
 #include "render_panel/px_context.h"

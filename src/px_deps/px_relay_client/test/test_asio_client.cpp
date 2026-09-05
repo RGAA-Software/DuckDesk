@@ -5,7 +5,7 @@
 #include <gtest/gtest.h>
 #include "../relay_ws_client.h"
 #include "relay_message.pb.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 
 using namespace px;
 using namespace px_relay;

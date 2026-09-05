@@ -3,11 +3,11 @@
 #include <utility>
 
 #include "px_client/modules/client_module_services.h"
-#include "px_common_new/file.h"
-#include "px_common_new/log.h"
-#include "px_common_new/md5.h"
-#include "px_common_new/path_codec.h"
-#include "px_message_new/proto_converter.h"
+#include "px_common/file.h"
+#include "px_common/log.h"
+#include "px_common/md5.h"
+#include "px_common/path_codec.h"
+#include "px_message/proto_converter.h"
 #include "win/cp_file_struct.h"
 
 namespace px {

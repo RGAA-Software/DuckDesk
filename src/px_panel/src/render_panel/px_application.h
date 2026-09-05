@@ -10,7 +10,7 @@
 #include <QTimer>
 #include <QObject>
 #include <QAbstractNativeEventFilter>
-#include "px_common_new/message_notifier.h"
+#include "px_common/message_notifier.h"
 
 namespace px
 {

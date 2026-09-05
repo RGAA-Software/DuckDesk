@@ -1,5 +1,5 @@
 #include "process_loopback_audio_capture.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/async_runtime.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -26,8 +26,8 @@
 #include <string>
 #include <utility>
 
-#include "px_common_new/data.h"
-#include "px_common_new/log.h"
+#include "px_common/data.h"
+#include "px_common/log.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "mmdevapi.lib")

@@ -11,11 +11,11 @@
 #include <filesystem>
 #include <algorithm>
 
-#include "px_common_new/base64.h"
-#include "px_common_new/folder_util.h"
+#include "px_common/base64.h"
+#include "px_common/folder_util.h"
 #include "render_panel/px_settings.h"
 #include "render_panel/px_context.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "render_panel/px_app_messages.h"
 #include "render_panel/px_application.h"
 #include "px_qt_widget/px_dialog.h"

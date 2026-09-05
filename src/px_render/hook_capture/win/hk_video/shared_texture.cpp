@@ -2,7 +2,7 @@
 #include <dxgi1_2.h>
 #include <d3dcompiler.h>
 #include <cstring>
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 
 namespace px
 {

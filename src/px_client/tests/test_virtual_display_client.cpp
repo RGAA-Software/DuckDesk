@@ -2,11 +2,11 @@
 
 #include "ct_virtual_display_protocol.h"
 #include "render_view_capacity.h"
-#include "px_common_new/rtc_monitor_track_slots.h"
+#include "px_common/rtc_monitor_track_slots.h"
 #include "px_render/architecture/encoders/ffmpeg/ffmpeg_encoder_defs.h"
 #include "ui/virtual_display_ui_state.h"
-#include "px_common_new/virtual_display_timeouts.h"
-#include "px_common_new/rtc_signal_identity.h"
+#include "px_common/virtual_display_timeouts.h"
+#include "px_common/rtc_signal_identity.h"
 
 namespace px {
 

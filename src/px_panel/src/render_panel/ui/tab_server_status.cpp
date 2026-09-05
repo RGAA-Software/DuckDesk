@@ -12,7 +12,7 @@
 #include "px_qt_widget/px_label.h"
 #include "px_qt_widget/px_pushbutton.h"
 #include "rn_app.h"
-#include "px_common_new/message_notifier.h"
+#include "px_common/message_notifier.h"
 #include "render_panel/px_app_messages.h"
 #include "qt_vertical.h"
 #include "render_panel/px_statistics.h"

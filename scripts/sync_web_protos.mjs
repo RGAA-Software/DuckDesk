@@ -1,4 +1,4 @@
-// Sync message protos from the single source of truth (src/px_deps/px_message_new)
+// Sync message protos from the single source of truth (src/px_deps/px_message)
 // into the web clients' proto dirs. These dirs are gitignored / generated.
 //
 // Wired into:
@@ -9,7 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const repo = path.resolve(import.meta.dirname, '..')
-const src = path.join(repo, 'src', 'px_deps', 'px_message_new')
+const src = path.join(repo, 'src', 'px_deps', 'px_message')
 
 const targets = [
   {

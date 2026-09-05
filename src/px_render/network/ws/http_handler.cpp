@@ -3,11 +3,11 @@
 //
 #include "http_handler.h"
 #include "version_config.h"
-#include "px_common_new/log.h"
-#include "px_common_new/privacy_log.h"
-#include "px_common_new/md5.h"
-#include "px_common_new/data.h"
-#include "px_common_new/uuid.h"
+#include "px_common/log.h"
+#include "px_common/privacy_log.h"
+#include "px_common/md5.h"
+#include "px_common/data.h"
+#include "px_common/uuid.h"
 #include "ws_transport.h"
 #include "ws_callback_workflow.h"
 #include "px_render/network/transport_types.h"
@@ -15,8 +15,8 @@
 #include <algorithm>
 #include <chrono>
 #include <vector>
-#include "px_common_new/async_operation.h"
-#include "px_common_new/async_result.h"
+#include "px_common/async_operation.h"
+#include "px_common/async_result.h"
 #include "px_render/architecture/runtime/await_callback.h"
 
 namespace px

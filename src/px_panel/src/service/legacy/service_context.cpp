@@ -8,10 +8,10 @@
 #include "service_context.h"
 #include "service_messages.h"
 #include <filesystem>
-#include "px_common_new/log.h"
-#include "px_common_new/shared_preference.h"
-#include "px_common_new/folder_util.h"
-#include "px_common_new/file_util.h"
+#include "px_common/log.h"
+#include "px_common/shared_preference.h"
+#include "px_common/folder_util.h"
+#include "px_common/file_util.h"
 
 namespace px
 {

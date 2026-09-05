@@ -1,7 +1,7 @@
 #include "d3d_texture_debug.h"
 
-#include "px_common_new/log.h"
-#include "px_common_new/win32/d3d_debug_helper.h"
+#include "px_common/log.h"
+#include "px_common/win32/d3d_debug_helper.h"
 
 namespace px
 {

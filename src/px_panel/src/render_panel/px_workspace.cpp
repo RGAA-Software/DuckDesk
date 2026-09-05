@@ -6,9 +6,9 @@
 #include "panel_shutdown_sequence.h"
 #include "px_exe_names.h"
 #include "px_application.h"
-#include "px_common_new/privacy_log.h"
-#include "px_common_new/string_util.h"
-#include "px_common_new/weak_callback.h"
+#include "px_common/privacy_log.h"
+#include "px_common/string_util.h"
+#include "px_common/weak_callback.h"
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -53,11 +53,11 @@
 #include "ui/tab_cophone.h"
 #include "skin/interface/skin_interface.h"
 #include "user/px_user_manager.h"
-#include "px_common_new/file.h"
-#include "px_common_new/file_util.h"
-#include "px_common_new/http_client.h"
-#include "px_common_new/dump_helper.h"
-#include "px_common_new/win32/process_helper.h"
+#include "px_common/file.h"
+#include "px_common/file_util.h"
+#include "px_common/http_client.h"
+#include "px_common/dump_helper.h"
+#include "px_common/win32/process_helper.h"
 #include "px_qt_widget/px_dialog_util.h"
 #include "px_qt_widget/round_img_display.h"
 #include "px_qt_widget/image_cropper/image_cropper_dialog.h"
@@ -68,7 +68,7 @@
 #include "render_panel/ui/voice_call_consent_dialog.h"
 #include "render_panel/network/ws_panel_server.h"
 #include "px_render_panel_message.pb.h"
-#include "px_message_new/rp_proto_converter.h"
+#include "px_message/rp_proto_converter.h"
 
 namespace px
 {

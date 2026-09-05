@@ -6,7 +6,7 @@
 #include <Windows.h>
 #include <gtest/gtest.h>
 
-#include "px_common_new/async_runtime.h"
+#include "px_common/async_runtime.h"
 #include "px_render/network/relay/relay_transport_runtime.h"
 
 namespace px {

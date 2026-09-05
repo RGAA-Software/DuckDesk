@@ -3,13 +3,13 @@
 #include <cstdlib>
 #include <utility>
 
-#include "px_common_new/client_id_extractor.h"
-#include "px_common_new/async_runtime.h"
-#include "px_common_new/data.h"
-#include "px_common_new/hardware.h"
-#include "px_common_new/ip_util.h"
-#include "px_common_new/log.h"
-#include "px_common_new/time_util.h"
+#include "px_common/client_id_extractor.h"
+#include "px_common/async_runtime.h"
+#include "px_common/data.h"
+#include "px_common/hardware.h"
+#include "px_common/ip_util.h"
+#include "px_common/log.h"
+#include "px_common/time_util.h"
 #include "px_relay_client/relay_connected_info.h"
 #include "px_relay_client/relay_room.h"
 #include "px_relay_client/relay_server_sdk.h"

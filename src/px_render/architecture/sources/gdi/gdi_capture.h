@@ -10,8 +10,8 @@
 #include <mutex>
 #include <stop_token>
 #include <type_traits>
-#include "px_common_new/monitors.h"
-#include "px_common_new/fps_stat.h"
+#include "px_common/monitors.h"
+#include "px_common/fps_stat.h"
 #include "px_render/architecture/sources/desktop_capture_source.h"
 
 namespace px

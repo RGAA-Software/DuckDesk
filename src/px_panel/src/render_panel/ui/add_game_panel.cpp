@@ -4,8 +4,8 @@
 
 #include "add_game_panel.h"
 #include "px_qt_widget/no_margin_layout.h"
-#include "px_common_new/md5.h"
-#include "px_common_new/log.h"
+#include "px_common/md5.h"
+#include "px_common/log.h"
 #include "px_qt_widget/sized_msg_box.h"
 #include "px_qt_widget/widget_helper.h"
 #include "render_panel/database/db_game.h"

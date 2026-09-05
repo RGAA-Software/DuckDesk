@@ -1,16 +1,17 @@
 #include "opus_encoder_runtime.h"
 
 #include <exception>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "px_common_new/data.h"
-#include "px_common_new/async_runtime.h"
-#include "px_common_new/file.h"
-#include "px_common_new/log.h"
-#include "px_common_new/string_util.h"
-#include "px_opus_codec_new/opus_codec.h"
+#include "px_common/data.h"
+#include "px_common/async_runtime.h"
+#include "px_common/file.h"
+#include "px_common/log.h"
+#include "px_common/string_util.h"
+#include "px_opus_codec/opus_codec.h"
 
 namespace px {
 
@@ -230,7 +231,7 @@ void OpusEncoderRuntime::ProcessEntry(const std::shared_ptr<WorkerState>& state,
     }
     const auto bytes_per_frame = static_cast<size_t>(bytes_per_sample) * static_cast<size_t>(entry.channels);
     const int frame_size = static_cast<int>(state->audio_cache.size() / bytes_per_frame);
-    const auto encoded_frames = state->encoder->Encode(state->audio_cache.data(), static_cast<int>(state->audio_cache.size()), frame_size);
+    const auto encoded_frames = state->encoder->Encode(std::as_bytes(std::span{state->audio_cache}), frame_size);
     for (const auto& encoded_frame : encoded_frames) {
         auto encoded_data = Data::Copy(std::span<const char>{reinterpret_cast<const char*>(encoded_frame.data()), encoded_frame.size()});
         state->delivery_channel->Deliver(encoded_data, entry.sample_rate, entry.channels, entry.bits, frame_size);

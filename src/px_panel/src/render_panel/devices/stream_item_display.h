@@ -3,7 +3,7 @@
 
 #include <string>
 
-#include "px_common_new/uid_spacer.h"
+#include "px_common/uid_spacer.h"
 #include "px_console_client/console_stream.h"
 #include "connection_policy.h"
 

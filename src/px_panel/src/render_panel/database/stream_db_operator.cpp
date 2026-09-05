@@ -16,9 +16,9 @@ extern "C" {
 #include <algorithm>
 
 #include "px_database.h"
-#include "px_common_new/log.h"
-#include "px_common_new/md5.h"
-#include "px_common_new/time_util.h"
+#include "px_common/log.h"
+#include "px_common/md5.h"
+#include "px_common/time_util.h"
 #include "px_console_client/console_stream.h"
 
 using namespace sqlite_orm;

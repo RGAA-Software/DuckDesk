@@ -34,9 +34,9 @@
 #include "include/wrapper/cef_closure_task.h"
 #include "include/wrapper/cef_helpers.h"
 
-#include "px_common_new/data.h"
-#include "px_common_new/image.h"
-#include "px_common_new/log.h"
+#include "px_common/data.h"
+#include "px_common/image.h"
+#include "px_common/log.h"
 
 namespace px {
 namespace {

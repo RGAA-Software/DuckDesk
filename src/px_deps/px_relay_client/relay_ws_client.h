@@ -13,7 +13,7 @@
 #include "relay_callbacks.h"
 #include "relay_net_client.h"
 #include "relay_device_info.h"
-#include "px_common_new/file_transfer_send_result.h"
+#include "px_common/file_transfer_send_result.h"
 
 namespace asio2 {
     class ws_client;

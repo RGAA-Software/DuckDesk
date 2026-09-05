@@ -18,7 +18,7 @@
 #include <QStringList>
 #include <QList>
 
-#include "px_common_new/file_transfer_send_result.h"
+#include "px_common/file_transfer_send_result.h"
 
 namespace px::ft
 {

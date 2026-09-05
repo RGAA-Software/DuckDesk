@@ -13,12 +13,12 @@
 #include <functional>
 #include <span>
 #include "px_render/network/webrtc/webrtc_execution_context.h"
-#include "px_capture_new/monitor_util.h"
-#include "px_common_new/concurrent_hashmap.h"
-#include "px_common_new/rtc_monitor_track_slots.h"
+#include "px_capture/monitor_util.h"
+#include "px_common/concurrent_hashmap.h"
+#include "px_common/rtc_monitor_track_slots.h"
 #include "rtc_local_encoded_frame.h"
-#include "px_common_new/concurrent_type.h"
-#include "px_common_new/file_transfer_send_result.h"
+#include "px_common/concurrent_type.h"
+#include "px_common/file_transfer_send_result.h"
 #include "px_render/network/webrtc/remote/rtc_messages.h"
 
 #if defined(_WIN32)

@@ -1,9 +1,9 @@
 #include "rtc_video_encoder.h"
 #include <atomic>
 #include <chrono>
-#include "px_common_new/log.h"
-#include "px_common_new/data.h"
-#include "px_common_new/time_util.h"
+#include "px_common/log.h"
+#include "px_common/data.h"
+#include "px_common/time_util.h"
 #include "h264_sei_helper.h"
 #include "webrtc_local_transport.h"
 #include "rtc_server.h"

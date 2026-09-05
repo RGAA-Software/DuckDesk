@@ -6,9 +6,9 @@
 #include "px_settings.h"
 #include "px_application.h"
 #include "px_service_message.pb.h"
-#include "px_common_new/log.h"
-#include "px_common_new/base64.h"
-#include "px_common_new/string_util.h"
+#include "px_common/log.h"
+#include "px_common/base64.h"
+#include "px_common/string_util.h"
 #include "translator/px_translator.h"
 #include <QCoreApplication>
 

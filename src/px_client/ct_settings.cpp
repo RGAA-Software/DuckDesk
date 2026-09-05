@@ -3,10 +3,10 @@
 //
 
 #include "px_client/ct_settings.h"
-#include "px_common_new/shared_preference.h"
-#include "px_common_new/hardware.h"
-#include "px_common_new/md5.h"
-#include "px_common_new/log.h"
+#include "px_common/shared_preference.h"
+#include "px_common/hardware.h"
+#include "px_common/md5.h"
+#include "px_common/log.h"
 #include "version_config.h"
 
 namespace px

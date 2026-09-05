@@ -6,7 +6,7 @@
 
 #include <d3d11.h>
 #include <format>
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "hk_utils/shared_mem_info.h"
 
 using namespace px;

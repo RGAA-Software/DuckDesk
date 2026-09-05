@@ -20,7 +20,7 @@ add_library(render_architecture_core STATIC
 target_include_directories(render_architecture_core
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(render_architecture_core PUBLIC cxx_std_23)
-target_link_libraries(render_architecture_core PUBLIC px_common_new)
+target_link_libraries(render_architecture_core PUBLIC px_common)
 
 add_library(render_media_recorder STATIC
     sinks/media_recorder_sink.cpp)
@@ -28,7 +28,7 @@ target_include_directories(render_media_recorder
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(render_media_recorder PUBLIC cxx_std_23)
 target_link_libraries(render_media_recorder
-    PUBLIC render_architecture_core px_media_record_new)
+    PUBLIC render_architecture_core px_media_record)
 
 add_library(render_live_pusher STATIC
     sinks/live_pusher_sink.cpp
@@ -56,7 +56,7 @@ target_include_directories(render_frame_processors
         ${CMAKE_CURRENT_SOURCE_DIR}/processors/frame_resizer)
 target_compile_features(render_frame_processors PUBLIC cxx_std_23)
 target_link_libraries(render_frame_processors
-    PUBLIC render_architecture_core px_common_new
+    PUBLIC render_architecture_core px_common
     PRIVATE yuv winmm.lib SetupAPI.lib d3dcompiler.lib)
 
 add_library(render_audio_processors STATIC
@@ -67,8 +67,8 @@ target_include_directories(render_audio_processors
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/encoders/opus)
 target_compile_features(render_audio_processors PUBLIC cxx_std_23)
 target_link_libraries(render_audio_processors
-    PUBLIC render_architecture_core px_common_new
-    PRIVATE px_opus_codec_new)
+    PUBLIC render_architecture_core px_common
+    PRIVATE px_opus_codec)
 
 add_library(render_audio_sources STATIC
     sources/was_audio_capture_source.cpp
@@ -82,7 +82,7 @@ target_include_directories(render_audio_sources
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sources/was_audio)
 target_compile_features(render_audio_sources PUBLIC cxx_std_23)
 target_link_libraries(render_audio_sources
-    PUBLIC render_architecture_core px_common_new
+    PUBLIC render_architecture_core px_common
     PRIVATE ole32 mmdevapi)
 
 add_library(render_domain_services STATIC
@@ -106,7 +106,7 @@ target_include_directories(render_domain_services
         ${CMAKE_CURRENT_SOURCE_DIR}/services/joystick/vigem/sdk/ViGem)
 target_compile_features(render_domain_services PUBLIC cxx_std_23)
 target_link_libraries(render_domain_services
-    PUBLIC render_architecture_core px_common_new px_message px_ft_engine px_voice_call
+    PUBLIC render_architecture_core px_common px_message px_ft_engine px_voice_call
     PRIVATE Setupapi.lib)
 
 if(TESTS_ENABLED)

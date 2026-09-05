@@ -12,8 +12,8 @@
 #include <android/native_window_jni.h>
 #include <jni.h>
 
-#include "px_client_sdk_new/gl/raw_image.h"
-#include "px_client_sdk_new/sdk_decoder_render_type.h"
+#include "px_client_sdk/gl/raw_image.h"
+#include "px_client_sdk/sdk_decoder_render_type.h"
 #include "gl/shader_program.h"
 
 namespace px

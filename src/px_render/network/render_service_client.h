@@ -16,8 +16,8 @@
 #include <vector>
 #include <asio2/websocket/wss_client.hpp>
 
-#include "px_common_new/async_result.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/async_result.h"
+#include "px_common/async_runtime.h"
 #include "network/render_service_rpc_state.h"
 
 namespace px {

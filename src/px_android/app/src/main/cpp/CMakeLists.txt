@@ -39,16 +39,16 @@ endif ()
 include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${PX_PROJECT_PATH})
 include_directories(${PX_PROJECT_PATH}/px_3rdparty)
-include_directories(${PX_PROJECT_PATH}/px_common_new)
-include_directories(${PX_PROJECT_PATH}/px_client_sdk_new)
-include_directories(${PX_PROJECT_PATH}/px_message_new)
+include_directories(${PX_PROJECT_PATH}/px_common)
+include_directories(${PX_PROJECT_PATH}/px_client_sdk)
+include_directories(${PX_PROJECT_PATH}/px_message)
 include_directories(${PX_PROJECT_PATH}/px_relay_client)
 include_directories(${PX_PROJECT_PATH}/px_server_protocol)
 include_directories(${PX_PROJECT_PATH}/px_3rdparty/asio2/include)
 include_directories(${PX_PROJECT_PATH}/px_3rdparty/asio2/3rd)
 include_directories(${PX_PROJECT_PATH}/px_3rdparty/asio2/3rd/asio)
 include_directories(${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}/include)
-include_directories(${CMAKE_BINARY_DIR}/px_message_new)
+include_directories(${CMAKE_BINARY_DIR}/px_message)
 include_directories(${CMAKE_BINARY_DIR}/px_server_protocol)
 
 set(ANDROID_OPENSSL_LIBS
@@ -64,12 +64,12 @@ find_package(leveldb CONFIG REQUIRED)
 
 # Source-depend on the inlined px_* modules (out-of-tree subdirectories).
 add_subdirectory(${PX_PROJECT_PATH}/px_3rdparty ${CMAKE_BINARY_DIR}/px_3rdparty)
-add_subdirectory(${PX_PROJECT_PATH}/px_common_new ${CMAKE_BINARY_DIR}/px_common_new)
-add_subdirectory(${PX_PROJECT_PATH}/px_message_new ${CMAKE_BINARY_DIR}/px_message_new)
-add_subdirectory(${PX_PROJECT_PATH}/px_opus_codec_new ${CMAKE_BINARY_DIR}/px_opus_codec_new)
+add_subdirectory(${PX_PROJECT_PATH}/px_common ${CMAKE_BINARY_DIR}/px_common)
+add_subdirectory(${PX_PROJECT_PATH}/px_message ${CMAKE_BINARY_DIR}/px_message)
+add_subdirectory(${PX_PROJECT_PATH}/px_opus_codec ${CMAKE_BINARY_DIR}/px_opus_codec)
 add_subdirectory(${PX_PROJECT_PATH}/px_server_protocol ${CMAKE_BINARY_DIR}/px_server_protocol)
 add_subdirectory(${PX_PROJECT_PATH}/px_relay_client ${CMAKE_BINARY_DIR}/px_relay_client)
-add_subdirectory(${PX_PROJECT_PATH}/px_client_sdk_new ${CMAKE_BINARY_DIR}/px_client_sdk_new)
+add_subdirectory(${PX_PROJECT_PATH}/px_client_sdk ${CMAKE_BINARY_DIR}/px_client_sdk)
 
 find_package(oboe REQUIRED CONFIG)
 
@@ -91,5 +91,5 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         mediandk
         oboe::oboe
         px_message
-        px_common_new
+        px_common
         px_sdk)

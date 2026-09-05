@@ -7,14 +7,14 @@
 #include "px_client/modules/clipboard/clipboard_module.h"
 #include "px_client/modules/file_transfer/file_transfer_module.h"
 #include "px_client/modules/media_recording/media_recording_module.h"
-#include "px_client_sdk_new/thunder_sdk.h"
-#include "px_common_new/file.h"
-#include "px_common_new/folder_util.h"
-#include "px_common_new/log.h"
-#include "px_common_new/md5.h"
-#include "px_common_new/path_codec.h"
-#include "px_common_new/time_util.h"
-#include "px_message_new/proto_converter.h"
+#include "px_client_sdk/thunder_sdk.h"
+#include "px_common/file.h"
+#include "px_common/folder_util.h"
+#include "px_common/log.h"
+#include "px_common/md5.h"
+#include "px_common/path_codec.h"
+#include "px_common/time_util.h"
+#include "px_message/proto_converter.h"
 
 namespace px {
 

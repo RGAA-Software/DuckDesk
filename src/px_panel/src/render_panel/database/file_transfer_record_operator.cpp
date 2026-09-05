@@ -5,7 +5,7 @@
 #include "file_transfer_record_operator.h"
 #include "px_database.h"
 #include "file_transfer_record.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 
 namespace px
 {

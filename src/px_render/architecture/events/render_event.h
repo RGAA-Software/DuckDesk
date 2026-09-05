@@ -8,9 +8,9 @@
 #include <variant>
 #include <vector>
 
-#include "px_capture_new/capture_message.h"
-#include "px_common_new/data.h"
-#include "px_common_new/image.h"
+#include "px_capture/capture_message.h"
+#include "px_common/data.h"
+#include "px_common/image.h"
 #include "px_render/network/transport_types.h"
 #include "session/logical_session_registry.h"
 

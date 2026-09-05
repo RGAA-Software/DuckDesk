@@ -6,8 +6,8 @@
 #include <QApplication>
 #include <iostream>
 #include <nlohmann/json.hpp>
-#include "px_common_new/log.h"
-#include "px_common_new/shared_preference.h"
+#include "px_common/log.h"
+#include "px_common/shared_preference.h"
 
 using namespace nlohmann;
 

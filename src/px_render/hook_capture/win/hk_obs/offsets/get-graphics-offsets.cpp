@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <windows.h>
 #include "get-graphics-offsets.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 
 namespace px
 {

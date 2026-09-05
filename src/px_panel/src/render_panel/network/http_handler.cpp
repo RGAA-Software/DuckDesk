@@ -3,24 +3,24 @@
 //
 #include "http_handler.h"
 #include "apis.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "render_panel/px_context.h"
-#include "px_steam_manager_new/steam_manager.h"
-#include "px_steam_manager_new/steam_entities.h"
+#include "px_steam_manager/steam_manager.h"
+#include "px_steam_manager/steam_entities.h"
 #include <nlohmann/json.hpp>
 #include "render_panel/px_application.h"
 #include "render_panel/px_render_controller.h"
-#include "px_common_new/net_resp.h"
+#include "px_common/net_resp.h"
 #include <nlohmann/json.hpp>
 #include "render_panel//px_run_game_manager.h"
 #include "render_panel/database/db_game.h"
 #include "render_panel/database/db_game_operator.h"
 #include "render_panel/px_app_messages.h"
-#include "px_common_new/win32/process_helper.h"
-#include "px_common_new/string_util.h"
-#include "px_common_new/process_util.h"
-#include "px_common_new/folder_util.h"
-#include "px_common_new/file_util.h"
+#include "px_common/win32/process_helper.h"
+#include "px_common/string_util.h"
+#include "px_common/process_util.h"
+#include "px_common/folder_util.h"
+#include "px_common/file_util.h"
 #include <QString>
 
 using namespace nlohmann;

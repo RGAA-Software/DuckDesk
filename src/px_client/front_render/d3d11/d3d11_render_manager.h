@@ -6,8 +6,8 @@
 #include <QImage>
 #include "warning.h"
 #include "d3d11_common_types.h"
-#include "px_common_new/win32/d3d11_wrapper.h"
-#include "px_client_sdk_new/gl/raw_image.h"
+#include "px_common/win32/d3d11_wrapper.h"
+#include "px_client_sdk/gl/raw_image.h"
 
 namespace px
 {

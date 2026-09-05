@@ -10,13 +10,13 @@
 #include <cstddef>
 #include <format>
 #include <type_traits>
-#include "px_common_new/async_mailbox.h"
-#include "px_common_new/asio_client_shutdown.h"
-#include "px_common_new/async_scope_drain.h"
-#include "px_common_new/reconnect_supervisor.h"
-#include "px_common_new/websocket_reconnect_adapter.h"
-#include "px_common_new/log.h"
-#include "px_capture_new/capture_message.h"
+#include "px_common/async_mailbox.h"
+#include "px_common/asio_client_shutdown.h"
+#include "px_common/async_scope_drain.h"
+#include "px_common/reconnect_supervisor.h"
+#include "px_common/websocket_reconnect_adapter.h"
+#include "px_common/log.h"
+#include "px_capture/capture_message.h"
 
 namespace px {
 

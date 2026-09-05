@@ -6,12 +6,12 @@
 #include <algorithm>
 #include <atomic>
 #include <libyuv.h>
-#include "px_common_new/log.h"
-#include "px_common_new/data.h"
-#include "px_common_new/image.h"
-#include "px_common_new/file.h"
-#include "px_common_new/time_util.h"
-#include "px_common_new/string_util.h"
+#include "px_common/log.h"
+#include "px_common/data.h"
+#include "px_common/image.h"
+#include "px_common/file.h"
+#include "px_common/time_util.h"
+#include "px_common/string_util.h"
 #include "px_render/architecture/events/render_event.h"
 #include "ffmpeg_video_encoder.h"
 

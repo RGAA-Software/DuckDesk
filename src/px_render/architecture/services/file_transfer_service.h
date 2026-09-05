@@ -12,8 +12,8 @@
 
 #include "file_transfer_types.h"
 #include "modules/builtin_module_catalog.h"
-#include "px_common_new/file_transfer_route_registry.h"
-#include "px_common_new/file_transfer_send_result.h"
+#include "px_common/file_transfer_route_registry.h"
+#include "px_common/file_transfer_send_result.h"
 
 namespace px::ft {
 class FtAsyncSession;

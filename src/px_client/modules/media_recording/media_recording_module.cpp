@@ -9,7 +9,7 @@
 #include "media_recorder.h"
 #include "px_client/modules/client_module_context.h"
 #include "px_client/modules/client_module_services.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "px_message.pb.h"
 
 namespace px {

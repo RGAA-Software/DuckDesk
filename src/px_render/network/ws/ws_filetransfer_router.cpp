@@ -4,9 +4,9 @@
 
 #include "ws_filetransfer_router.h"
 #include <atomic>
-#include "px_common_new/data.h"
-#include "px_common_new/log.h"
-#include "px_common_new/thread_util.h"
+#include "px_common/data.h"
+#include "px_common/log.h"
+#include "px_common/thread_util.h"
 #include "ws_transport.h"
 #include "px_message.pb.h"
 

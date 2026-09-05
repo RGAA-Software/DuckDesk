@@ -11,8 +11,8 @@
 #include <fstream>
 
 #include "capture_message.h"
-#include "px_common_new/data.h"
-#include "px_common_new/log.h"
+#include "px_common/data.h"
+#include "px_common/log.h"
 #include "client_manager.h"
 
 using namespace px;

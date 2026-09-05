@@ -11,20 +11,20 @@
 #include <asio2/websocket/ws_client.hpp>
 #include <asio2/websocket/wss_client.hpp>
 #include "px_console_client.h"
-#include "px_common_new/concurrent_type.h"
+#include "px_common/concurrent_type.h"
 #include "record_transfer.h"
 
 #include "console_panel.pb.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "render_panel/px_context.h"
-#include "px_common_new/message_notifier.h"
-#include "px_common_new/async_blocking_call.h"
-#include "px_common_new/blocking_executor.h"
+#include "px_common/message_notifier.h"
+#include "px_common/async_blocking_call.h"
+#include "px_common/blocking_executor.h"
 #include "render_panel/px_app_messages.h"
-#include "px_common_new/time_util.h"
+#include "px_common/time_util.h"
 #include "render_panel/px_settings.h"
-#include "px_common_new/base64.h"
-#include "px_common_new/http_client.h"
+#include "px_common/base64.h"
+#include "px_common/http_client.h"
 #include "records_catalog.h"
 #include "records_http_handler.h"
 #include "hw_info/hw_info.h"
@@ -33,10 +33,10 @@
 #include "render_panel/user/px_user_manager.h"
 #include "network/ct_auth_token.h"
 #include "panel_rtc_config_refresh_gate.h"
-#include "px_common_new/async_operation.h"
-#include "px_common_new/asio_client_shutdown.h"
-#include "px_common_new/reconnect_supervisor.h"
-#include "px_common_new/websocket_reconnect_adapter.h"
+#include "px_common/async_operation.h"
+#include "px_common/asio_client_shutdown.h"
+#include "px_common/reconnect_supervisor.h"
+#include "px_common/websocket_reconnect_adapter.h"
 
 #include <chrono>
 #include <filesystem>

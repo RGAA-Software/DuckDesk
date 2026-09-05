@@ -10,4 +10,4 @@ set(MODULE_SRCS
 )
 
 add_library(${PROJECT_NAME} STATIC ${MODULE_SRCS})
-target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_steam_manager_new px_message render_architecture_core winmm.lib SetupAPI.lib)
+target_link_libraries(${PROJECT_NAME} PRIVATE px_common px_steam_manager px_message render_architecture_core winmm.lib SetupAPI.lib)

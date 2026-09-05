@@ -2,9 +2,9 @@
 setlocal enabledelayedexpansion
 
 set REPO_ROOT=%~dp0..
-set TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_common_new\tests
+set TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_common\tests
 set FT_TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_ft_engine\tests
-set RECORD_TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_media_record_new\tests
+set RECORD_TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_media_record\tests
 set VOICE_TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_voice_call
 set CLIENT_TEST_DIR=%REPO_ROOT%\build_official\src\px_client
 set LOG=%REPO_ROOT%\build_official\run_tests.log

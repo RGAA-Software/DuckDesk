@@ -8,10 +8,10 @@
 #include "render_panel/px_application.h"
 #include "render_panel/px_app_messages.h"
 #include "render_panel/database/file_transfer_record.h"
-#include "px_common_new/client_id_extractor.h"
-#include "px_common_new/time_util.h"
-#include "px_common_new/uid_spacer.h"
-#include "px_common_new/file_util.h"
+#include "px_common/client_id_extractor.h"
+#include "px_common/time_util.h"
+#include "px_common/uid_spacer.h"
+#include "px_common/file_util.h"
 #include "px_label.h"
 #include <QLabel>
 #include <QPushButton>

@@ -7,7 +7,7 @@
 
 #include <map>
 #include <string>
-#include "px_steam_manager_new/steam_entities.h"
+#include "px_steam_manager/steam_entities.h"
 
 namespace px
 {

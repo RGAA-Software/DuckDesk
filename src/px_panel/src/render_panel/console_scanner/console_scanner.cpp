@@ -4,9 +4,9 @@
 
 #include "console_scanner.h"
 #include "console_datagram_receiver.h"
-#include "px_common_new/log.h"
-#include "px_common_new/message_notifier.h"
-#include "px_common_new/time_util.h"
+#include "px_common/log.h"
+#include "px_common/message_notifier.h"
+#include "px_common/time_util.h"
 #include "render_panel/px_context.h"
 #include "render_panel/px_application.h"
 #include "render_panel/px_app_messages.h"

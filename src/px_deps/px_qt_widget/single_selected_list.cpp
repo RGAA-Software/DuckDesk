@@ -6,7 +6,7 @@
 #include "single_selected_list.h"
 #include "clickable_widget.h"
 #include "no_margin_layout.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 
 #include <QTimer>
 #include <QStyledItemDelegate>

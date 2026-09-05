@@ -8,10 +8,10 @@
 
 #include "service_msg_server.h"
 #include "service.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "render_manager.h"
-#include "px_common_new/url_helper.h"
-#include "px_common_new/file.h"
+#include "px_common/url_helper.h"
+#include "px_common/file.h"
 #include "px_service_message.pb.h"
 #include "service_context.h"
 

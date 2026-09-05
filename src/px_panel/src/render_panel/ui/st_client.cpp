@@ -10,8 +10,8 @@
 #include <QDesktopServices>
 #include "px_pushbutton.h"
 #include "px_qt_widget/no_margin_layout.h"
-#include "px_common_new/qrcode/qr_generator.h"
-#include "px_common_new/folder_util.h"
+#include "px_common/qrcode/qr_generator.h"
+#include "px_common/folder_util.h"
 #include "render_panel/px_application.h"
 #include "render_panel/px_context.h"
 #include "render_panel/px_settings.h"

@@ -12,5 +12,5 @@ set(MODULE_SRCS
 )
 
 add_library(${PROJECT_NAME} STATIC ${MODULE_SRCS})
-target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_message render_architecture_core)
-target_link_libraries(${PROJECT_NAME} PRIVATE ${FFMPEG_LIBRARIES} px_opus_codec_new yuv)# frame_render
+target_link_libraries(${PROJECT_NAME} PRIVATE px_common px_message render_architecture_core)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${FFMPEG_LIBRARIES} px_opus_codec yuv)# frame_render

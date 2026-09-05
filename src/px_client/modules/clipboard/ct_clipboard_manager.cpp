@@ -4,8 +4,8 @@
 
 #include "ct_clipboard_manager.h"
 #include "px_client/ct_client_context.h"
-#include "px_common_new/log.h"
-#include "px_common_new/time_util.h"
+#include "px_common/log.h"
+#include "px_common/time_util.h"
 #include "px_message.pb.h"
 #include "win/win_message_loop.h"
 #include "win/cp_virtual_file.h"

@@ -6,10 +6,10 @@
 #include "relay_ws_client.h"
 #include "relay_message.pb.h"
 #include "relay_room.h"
-#include "px_common_new/time_util.h"
-#include "px_common_new/md5.h"
-#include "px_common_new/data.h"
-#include "px_common_new/uuid.h"
+#include "px_common/time_util.h"
+#include "px_common/md5.h"
+#include "px_common/data.h"
+#include "px_common/uuid.h"
 #include "relay_connected_info.h"
 #include <utility>
 

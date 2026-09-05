@@ -22,7 +22,7 @@ else ()
 endif ()
 
 add_library(${PROJECT_NAME} STATIC ${MODULE_SRCS} ${CLIPBOARD_WIN_SRCS})
-target_link_libraries(${PROJECT_NAME} PRIVATE px_client_module_runtime px_common_new px_message Winmm.lib Wtsapi32.lib Qt6::Core Qt6::Widgets)
+target_link_libraries(${PROJECT_NAME} PRIVATE px_client_module_runtime px_common px_message Winmm.lib Wtsapi32.lib Qt6::Core Qt6::Widgets)
 target_include_directories(${PROJECT_NAME} PRIVATE
     
     ${CMAKE_SOURCE_DIR}/src/px_client

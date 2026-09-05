@@ -217,7 +217,7 @@ static PxAwaitable<void> Run(std::shared_ptr<FtSessionState> state);
 ### 4.1 抽取 `PxAsyncRuntime`
 
 当前 `MessageNotifier` 内已有私有 `AsioRuntime`，但它只服务通知器。下一步将通用
-能力抽取为 `px_common_new` 的公开、进程级组件：
+能力抽取为 `px_common` 的公开、进程级组件：
 
 ```text
 PxAsyncRuntime
@@ -917,7 +917,7 @@ load/transfer/stop/unload，以及公网跨网 TURN UDP/TCP 场景仍需单独�
 
 ### 12.10 第一批通用 await 基础设施与按需编译门禁
 
-本批把后续消除回调链需要的通用能力落到 `px_common_new`，并先迁移 Render 与
+本批把后续消除回调链需要的通用能力落到 `px_common`，并先迁移 Render 与
 `px_service` 之间两个边界清晰、可独立验证的请求：连接 Ticket 兑换和虚拟显示器操作。
 
 - 新增稳定的 `PxResult<T>`/`PxAsyncError`，错误包含固定错误码、阶段、可读信息、

@@ -13,7 +13,7 @@
 #include "px_dialog.h"
 #include "api/ct_panel_api.h"
 #include "ct_settings.h"
-#include "px_message_new/proto_message_maker.h"
+#include "px_message/proto_message_maker.h"
 #include "ct_base_workspace.h"
 
 namespace px

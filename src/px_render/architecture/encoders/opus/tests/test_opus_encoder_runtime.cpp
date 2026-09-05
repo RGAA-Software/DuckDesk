@@ -8,7 +8,7 @@
 #include <gtest/gtest.h>
 
 #include "opus_encoder_runtime.h"
-#include "px_common_new/data.h"
+#include "px_common/data.h"
 
 namespace px {
 namespace {

@@ -38,7 +38,7 @@ add_library(${PROJECT_NAME} SHARED ${LIBRARY_SRCS})
 target_compile_definitions(${PROJECT_NAME} PRIVATE PX_RTC_CLIENT_BUILD=1)
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME px_client_rtc)
 #add_library(${PROJECT_NAME} ${PLUGIN_SRCS})
-target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new Qt6::Core Qt6::Widgets
+target_link_libraries(${PROJECT_NAME} PRIVATE px_common Qt6::Core Qt6::Widgets
         ${WEBRTC_ROOT}/x64/webrtc.lib
         Winmm
         ws2_32

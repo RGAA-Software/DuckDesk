@@ -10,7 +10,7 @@ add_library(px_client_module_runtime STATIC
         modules/client_module_context.cpp
 )
 target_link_libraries(px_client_module_runtime PRIVATE
-        Qt6::Core px_common_new)
+        Qt6::Core px_common)
 target_include_directories(px_client_module_runtime PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
@@ -133,7 +133,7 @@ if (APPLE)
 endif()
 
 target_link_libraries(px_client PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Svg Qt6::Charts
-        px_common_new px_message px_cp_message px_sdk px_qt_widget OpenSSL::SSL OpenSSL::Crypto
+        px_common px_message px_cp_message px_sdk px_qt_widget OpenSSL::SSL OpenSSL::Crypto
         $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static> Winmm.lib px_server_message
         Dwmapi.lib unofficial::sqlite3::sqlite3 libplacebo vulkan-1 px_hw_info skin_interface skin_loader
         client_clipboard_module client_file_transfer_module client_media_recording_module
@@ -166,21 +166,21 @@ add_executable(test_client_recording_module_lifecycle
     tests/test_client_recording_module_lifecycle.cpp
 )
 target_link_libraries(test_client_recording_module_lifecycle PRIVATE
-    client_media_recording_module px_common_new px_message
+    client_media_recording_module px_common px_message
     Qt6::Core GTest::gtest)
 
 add_executable(test_client_file_transfer_module_lifecycle
     tests/test_client_file_transfer_module_lifecycle.cpp
 )
 target_link_libraries(test_client_file_transfer_module_lifecycle PRIVATE
-    client_file_transfer_module px_common_new px_message
+    client_file_transfer_module px_common px_message
     Qt6::Core Qt6::Widgets GTest::gtest)
 
 add_executable(test_client_clipboard_module_lifecycle
     tests/test_client_clipboard_module_lifecycle.cpp
 )
 target_link_libraries(test_client_clipboard_module_lifecycle PRIVATE
-    client_clipboard_module px_common_new px_message
+    client_clipboard_module px_common px_message
     Qt6::Core Qt6::Widgets GTest::gtest)
 
 add_executable(test_client_clipboard_file_stream
@@ -188,7 +188,7 @@ add_executable(test_client_clipboard_file_stream
     modules/clipboard/win/cp_file_stream.cpp
 )
 target_link_libraries(test_client_clipboard_file_stream PRIVATE
-    px_common_new px_message GTest::gtest GTest::gtest_main)
+    px_common px_message GTest::gtest GTest::gtest_main)
 
 if(BUILD_TESTING)
     add_executable(test_client_latest_frame_dispatch_queue

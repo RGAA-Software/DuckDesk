@@ -12,7 +12,7 @@
 #include <functional>
 #include <atomic>
 #include <condition_variable>
-#include "px_common_new/response.h"
+#include "px_common/response.h"
 
 namespace px
 {

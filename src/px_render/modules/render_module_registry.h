@@ -17,10 +17,10 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 #include "px_render/modules/module_ids.h"
-#include "px_common_new/concurrent_hashmap.h"
-#include "px_common_new/async_result.h"
-#include "px_common_new/async_runtime.h"
-#include "px_common_new/file_transfer_send_result.h"
+#include "px_common/concurrent_hashmap.h"
+#include "px_common/async_result.h"
+#include "px_common/async_runtime.h"
+#include "px_common/file_transfer_send_result.h"
 #include "px_render/architecture/config/render_runtime_settings.h"
 
 namespace px {

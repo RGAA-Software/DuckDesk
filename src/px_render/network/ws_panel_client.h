@@ -14,8 +14,8 @@
 #include <mutex>
 #include <asio2/asio2.hpp>
 
-#include "px_common_new/async_result.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/async_result.h"
+#include "px_common/async_runtime.h"
 
 namespace px {
 namespace render {

@@ -9,8 +9,8 @@
 
 #include "modules/builtin_module_catalog.h"
 #include "extensions/flow_node_plugin_registry.h"
-#include "px_common_new/async_operation.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/async_operation.h"
+#include "px_common/async_runtime.h"
 
 namespace px::render {
 

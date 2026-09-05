@@ -58,7 +58,7 @@ _make_setup.log
 # Windows reserved device name artifact (can't be indexed by git)
 nul
 
-# Message protos are generated at build time from src/px_deps/px_message_new
+# Message protos are generated at build time from src/px_deps/px_message
 # (single source of truth); the web clients' copies are synced, never committed.
 src/px_web_client/proto/*.proto
 web/px_web_client/proto/*.proto

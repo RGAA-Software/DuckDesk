@@ -9,9 +9,9 @@
 #include "stream_db_operator.h"
 #include "db_game_operator.h"
 #include "sqlite_storage_config.h"
-#include "px_common_new/folder_util.h"
-#include "px_common_new/string_util.h"
-#include "px_common_new/log.h"
+#include "px_common/folder_util.h"
+#include "px_common/string_util.h"
+#include "px_common/log.h"
 #include <QDateTime>
 #include <QDir>
 #include <QApplication>

@@ -3,10 +3,10 @@
 //
 
 #include "rtc_connection.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "px_webrtc_client/webrtc_helper.h"
-#include "px_common_new/time_util.h"
-#include "px_common_new/thread.h"
+#include "px_common/time_util.h"
+#include "px_common/thread.h"
 #include "peer_callback.h"
 #include "rtc_data_channel.h"
 #include "rtc_video_sink.h"
@@ -14,8 +14,8 @@
 #include "rtc_audio_sink.h"
 #include "rtc_null_decoder_factory.h"
 #include <QApplication>
-#include <px_common_new/folder_util.h>
-#include <px_common_new/string_util.h>
+#include <px_common/folder_util.h>
+#include <px_common/string_util.h>
 #include <algorithm>
 #include <cstdlib>
 #include <mutex>

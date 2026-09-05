@@ -4,8 +4,8 @@
 #include <utility>
 #include <variant>
 
-#include "px_common_new/callback_quiescence.h"
-#include "px_common_new/log.h"
+#include "px_common/callback_quiescence.h"
+#include "px_common/log.h"
 #include "px_render/network/webrtc/local/webrtc_local_transport.h"
 #include "px_render/network/webrtc/remote/webrtc_remote_transport.h"
 

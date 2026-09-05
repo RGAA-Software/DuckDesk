@@ -4,8 +4,8 @@
 
 #include "app_manager.h"
 #include "rd_context.h"
-#include "px_common_new/log.h"
-#include "px_steam_manager_new/steam_manager.h"
+#include "px_common/log.h"
+#include "px_steam_manager/steam_manager.h"
 
 namespace px
 {

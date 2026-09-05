@@ -5,9 +5,9 @@
 #include "stat_manager.h"
 #include <format>
 #include <nlohmann/json.hpp>
-#include "px_common_new/log.h"
-#include "px_common_new/http_client.h"
-#include "px_common_new/shared_preference.h"
+#include "px_common/log.h"
+#include "px_common/http_client.h"
+#include "px_common/shared_preference.h"
 #include "../panel_companion_impl.h"
 
 using namespace nlohmann;

@@ -3,7 +3,7 @@
 //
 
 #include "db_game_operator.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "px_database.h"
 #include <QApplication>
 

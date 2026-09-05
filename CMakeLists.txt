@@ -67,7 +67,7 @@ include_directories(${CMAKE_SOURCE_DIR}/src)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_base)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty)
-include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_message_new)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_message)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_server_protocol)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/qwindowkit/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/asio2/include)
@@ -81,11 +81,11 @@ include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/qwindowkit/src)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_panel/src)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_render)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_qt_widget)
-include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_client_sdk_new)
+include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_client_sdk)
 ##Binary
 include_directories(${CMAKE_BINARY_DIR}/src/px_base)
 include_directories(${CMAKE_BINARY_DIR}/src/px_panel)
-include_directories(${CMAKE_BINARY_DIR}/src/px_deps/px_message_new)
+include_directories(${CMAKE_BINARY_DIR}/src/px_deps/px_message)
 include_directories(${CMAKE_BINARY_DIR}/src/px_deps/px_server_protocol)
 
 ## Client
@@ -411,7 +411,7 @@ endif()
 
 ## Copy proto files
 set(WEBCLIENT_ROOT "${CMAKE_SOURCE_DIR}/src/px_web_client")
-set(MESSAGE_PROTO_PATH ${CMAKE_SOURCE_DIR}/src/px_deps/px_message_new)
+set(MESSAGE_PROTO_PATH ${CMAKE_SOURCE_DIR}/src/px_deps/px_message)
 add_custom_command(TARGET px_build_premium_all PRE_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_signaling_message.proto"  "${WEBCLIENT_ROOT}/proto/px_signaling_message.proto"
     COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_message.proto"  "${WEBCLIENT_ROOT}/proto/px_message.proto"

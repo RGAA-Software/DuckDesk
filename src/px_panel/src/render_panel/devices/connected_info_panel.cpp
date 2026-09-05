@@ -11,9 +11,9 @@
 #include "render_panel/px_settings.h"
 #include "px_render_panel_message.pb.h"
 #include "render_panel/px_application.h"
-#include "px_common_new/client_id_extractor.h"
-#include "px_common_new/uid_spacer.h"
-#include "px_message_new/rp_proto_converter.h"
+#include "px_common/client_id_extractor.h"
+#include "px_common/uid_spacer.h"
+#include "px_message/rp_proto_converter.h"
 
 namespace px {
 

@@ -1,14 +1,14 @@
 #include "dda_capture.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/async_runtime.h"
 #include <algorithm>
 #include <iostream>
 #include <timeapi.h>
 #include <functional>
-#include "px_common_new/string_util.h"
-#include "px_common_new/message_notifier.h"
-#include "px_common_new/log.h"
-#include "px_common_new/time_util.h"
-#include "px_capture_new/capture_message.h"
+#include "px_common/string_util.h"
+#include "px_common/message_notifier.h"
+#include "px_common/log.h"
+#include "px_common/time_util.h"
+#include "px_capture/capture_message.h"
 #include "cursor_capture.h"
 
 #pragma comment(lib, "dxgi.lib")

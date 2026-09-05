@@ -3,14 +3,14 @@
 //
 
 #include "panel_cp_file_stream.h"
-#include "px_common_new/log.h"
-#include "px_common_new/md5.h"
-#include "px_common_new/time_util.h"
-#include "px_message_new/proto_converter.h"
+#include "px_common/log.h"
+#include "px_common/md5.h"
+#include "px_common/time_util.h"
+#include "px_message/proto_converter.h"
 #include "render_panel/px_context.h"
 #include "render_panel/px_application.h"
-#include "px_message_new/proto_converter.h"
-#include "px_message_new/rp_proto_converter.h"
+#include "px_message/proto_converter.h"
+#include "px_message/rp_proto_converter.h"
 
 namespace px
 {

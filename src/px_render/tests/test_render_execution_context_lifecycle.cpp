@@ -10,7 +10,7 @@
 #include "architecture/events/render_event.h"
 #include "architecture/modules/render_module.h"
 #include "architecture/runtime/render_execution_context.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/async_runtime.h"
 
 namespace px {
 namespace {

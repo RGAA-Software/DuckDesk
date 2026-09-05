@@ -1,7 +1,7 @@
 fn main() {
     let manifest_dir =
         std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
-    let proto_dir = manifest_dir.join("../../src/px_deps/px_message_new");
+    let proto_dir = manifest_dir.join("../../src/px_deps/px_message");
     let rp_proto = proto_dir.join("px_render_panel_message.proto");
     let px_proto = proto_dir.join("px_message.proto");
     println!("cargo:rerun-if-changed={}", rp_proto.display());

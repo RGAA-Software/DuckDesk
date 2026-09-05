@@ -1,7 +1,7 @@
 //
 // Created by RGAA on 15/11/2024.
 // Rewritten on 12/08/2026: GameStream 风格裸 UDP 媒体面(旧 KCP + proto 广播全部废弃),
-// 设计见 docs/udp_gamestream_channel_plan.md,协议见 px_common_new/px_udp_protocol.h
+// 设计见 docs/udp_gamestream_channel_plan.md,协议见 px_common/px_udp_protocol.h
 //
 
 #ifndef PX_UDP_TRANSPORT_H
@@ -15,9 +15,9 @@
 #include <asio2/udp/udp_server.hpp>
 #include "architecture/modules/render_module.h"
 #include "px_render/network/transport_types.h"
-#include "px_common_new/concurrent_hashmap.h"
-#include "px_common_new/async_result.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/concurrent_hashmap.h"
+#include "px_common/async_result.h"
+#include "px_common/async_runtime.h"
 
 #ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
 #define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002

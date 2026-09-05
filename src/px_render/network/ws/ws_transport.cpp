@@ -8,9 +8,9 @@
 #include <utility>
 
 #include "ws_server.h"
-#include "px_common_new/log.h"
-#include "px_common_new/data.h"
-#include "px_capture_new/capture_message.h"
+#include "px_common/log.h"
+#include "px_common/data.h"
+#include "px_capture/capture_message.h"
 #include "px_render/modules/module_ids.h"
 #include "px_render/architecture/events/render_event.h"
 #include "px_render/architecture/runtime/render_execution_context.h"

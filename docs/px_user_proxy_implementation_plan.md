@@ -107,7 +107,7 @@ Client 发送 kClipboardInfo
 
 ## 4. 协议设计
 
-复用现有 `tcrp` 协议（`src/px_deps/px_message_new/px_render_panel_message.proto`），减少双端改动。
+复用现有 `tcrp` 协议（`src/px_deps/px_message/px_render_panel_message.proto`），减少双端改动。
 
 ### 4.1 WebSocket 端点
 
@@ -157,7 +157,7 @@ rust_client/px_user_proxy/
     │   ├── mod.rs
     │   ├── win_listener.rs     # AddClipboardFormatListener + 消息泵线程
     │   ├── win_platform.rs     # OpenClipboard 读写 CF_UNICODETEXT / CF_HDROP
-    │   ├── echo.rs             # 与 px_common_new/clipboard_echo 同语义
+    │   ├── echo.rs             # 与 px_common/clipboard_echo 同语义
     │   └── virtual_file/       # OLE IDataObject + IStream 虚拟文件粘贴
     │       ├── coordinator.rs
     │       ├── stream.rs
@@ -409,7 +409,7 @@ set(PX_USER_PROXY_EXE_NAME px_function.exe)
 | OLE 虚拟文件 / `kClipboardReqBuffer` → Client → `kClipboardRespBuffer` 流式传输 | **Done** — `clipboard/virtual_file/{stream,coordinator,win_clipboard}.rs` |
 | Render 转发 Client `kClipboardRespBuffer` → UserProxy（`data_channel=true`） | **Done** — `plugin_net_event_router.cpp` |
 | `VirtualFileCoordinator` + COM `IDataObject`/`IStream` 粘贴拉流 | **Done** — `win_clipboard.rs`（`CFSTR_FILEDESCRIPTOR` / `CFSTR_FILECONTENTS`） |
-| Client `ref_path` 与 UserProxy 对齐（目录/混合选择保留文件夹结构） | **Done** — `px_common_new/clipboard/clipboard_file_builder.cpp` + `content.rs` |
+| Client `ref_path` 与 UserProxy 对齐（目录/混合选择保留文件夹结构） | **Done** — `px_common/clipboard/clipboard_file_builder.cpp` + `content.rs` |
 | 粘贴完成后清空 OLE 剪贴板（Explorer 粘贴菜单变灰） | **Done** — `clear_ole_clipboard_after_operation()` |
 | Panel `panel_cp_virtual_file` / `panel_cp_file_stream` 注释 | Panel 剪贴板 inbound 已 `#if 0`；文件 WS 出站仍保留（无 UserProxy 替代前勿删） |
 
@@ -473,7 +473,7 @@ set(PX_USER_PROXY_EXE_NAME px_function.exe)
 | `cli_parse_defaults` | clap 缺省参数与 config 常量一致 |
 | `cli_parse_overrides` | `--render-port` / `--reconnect-secs` 覆盖 |
 
-#### 10.1.2 `echo`（对齐 `px_common_new/clipboard/clipboard_echo`）
+#### 10.1.2 `echo`（对齐 `px_common/clipboard/clipboard_echo`）
 
 | 测试用例 | 断言 |
 |----------|------|
@@ -660,12 +660,12 @@ scripts\test_user_proxy.bat
 | Panel 剪贴板写入 | `src/px_panel/src/render_panel/clipboard/panel_clipboard_manager.cpp` |
 | Panel 剪贴板监听 | `src/px_panel/src/render_panel/system/win/win_panel_message_loop.cpp` |
 | net_ws 服务 | `src/px_render/plugins/net_ws/ws_server.cpp` |
-| 协议定义 | `src/px_deps/px_message_new/px_render_panel_message.proto` |
+| 协议定义 | `src/px_deps/px_message/px_render_panel_message.proto` |
 | Rust 日志工具 | `rust_base/px_base/src/log_util.rs` |
 | Rust WS 重连示例 | `rust_client/px_sysinfo/src/sys_panel_client.rs` |
 | Service 用户令牌启动 | `rust_client/px_service/src/windows_process.rs` |
 | Client 剪贴板插件 | `src/px_client/plugins/clipboard/` |
-| 公共剪贴板模块 | `src/px_deps/px_common_new/clipboard/` |
+| 公共剪贴板模块 | `src/px_deps/px_common/clipboard/` |
 
 ---
 

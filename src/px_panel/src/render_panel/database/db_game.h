@@ -9,8 +9,8 @@
 #include <any>
 #include <QDebug>
 
-#include "px_steam_manager_new/steam_entities.h"
-#include "px_common_new/log.h"
+#include "px_steam_manager/steam_entities.h"
+#include "px_common/log.h"
 
 namespace px
 {

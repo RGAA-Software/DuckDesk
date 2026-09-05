@@ -1,5 +1,5 @@
 #include "voice_audio_endpoint.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/async_runtime.h"
 
 #include <opus/opus.h>
 
@@ -10,10 +10,11 @@
 #include <condition_variable>
 #include <cstring>
 #include <mutex>
+#include <span>
 #include <thread>
 #include <utility>
 
-#include "px_opus_codec_new/opus_codec.h"
+#include "px_opus_codec/opus_codec.h"
 #include "voice_audio_backend.h"
 #include "voice_audio_processing.h"
 #include "voice_jitter_buffer.h"
@@ -477,9 +478,7 @@ private:
             encoded_offset = 0;
 
             stats_captured_frames_.fetch_add(1, std::memory_order_relaxed);
-            auto packets = encoder_->Encode(
-                reinterpret_cast<const char*>(encoded_frame.data()),
-                static_cast<int>(encoded_frame.size() * sizeof(int16_t)), kFrameSamples);
+            auto packets = encoder_->Encode(std::span<const int16_t>{encoded_frame}, kFrameSamples);
             for (const auto& packet : packets) {
                 if (!running_ || packet.empty()) {
                     continue;

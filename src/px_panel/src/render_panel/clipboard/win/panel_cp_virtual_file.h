@@ -13,8 +13,8 @@
 #include <strsafe.h>
 #include <shlobj.h>
 #include "panel_cp_file_struct.h"
-#include "px_common_new/log.h"
-#include "px_common_new/concurrent_type.h"
+#include "px_common/log.h"
+#include "px_common/concurrent_type.h"
 
 #pragma comment(lib, "shlwapi.lib")
 

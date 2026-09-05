@@ -10,8 +10,8 @@
 #include "px_client/ct_client_context.h"
 #include "px_client/ct_app_message.h"
 #include "single_selected_list.h"
-#include "px_common_new/log.h"
-#include "px_common_new/message_notifier.h"
+#include "px_common/log.h"
+#include "px_common/message_notifier.h"
 #include <QLabel>
 #include <QPointer>
 #include <format>

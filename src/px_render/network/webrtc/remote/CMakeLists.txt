@@ -43,12 +43,12 @@ target_link_directories(${PROJECT_NAME} PRIVATE
 )
 #add_library(${PROJECT_NAME} ${LIBRARY_SRCS})
 # webrtc.lib ships its own BoringSSL symbols which conflict with vcpkg OpenSSL
-# linked through px_common_new; /FORCE:MULTIPLE lets the linker pick one.
+# linked through px_common; /FORCE:MULTIPLE lets the linker pick one.
 set_target_properties(${PROJECT_NAME} PROPERTIES
         LINK_FLAGS "/FORCE:MULTIPLE"
         OUTPUT_NAME px_render_rtc_remote
 )
-target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_message
+target_link_libraries(${PROJECT_NAME} PRIVATE px_common px_message
         webrtc.lib
         Winmm
         ws2_32

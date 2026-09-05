@@ -15,10 +15,10 @@
 #include <thread>
 #include <vector>
 
-#include "px_capture_new/capture_message.h"
-#include "px_common_new/folder_util.h"
-#include "px_common_new/process_util.h"
-#include "px_common_new/string_util.h"
+#include "px_capture/capture_message.h"
+#include "px_common/folder_util.h"
+#include "px_common/process_util.h"
+#include "px_common/string_util.h"
 
 using namespace px;
 

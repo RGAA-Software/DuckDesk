@@ -10,7 +10,7 @@
 #include <iostream>
 #include "px_exe_names.h"
 #include "service/service_manager.h"
-#include "px_common_new/win32/process_helper.h"
+#include "px_common/win32/process_helper.h"
 #include <Windows.h>
 #include <QApplication>
 #include <QProcess>

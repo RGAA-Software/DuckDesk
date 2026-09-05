@@ -1,21 +1,21 @@
 #include "gdi_capture.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/async_runtime.h"
 #include <algorithm>
 #include <iostream>
 #include <limits>
 #include <timeapi.h>
-#include "px_common_new/string_util.h"
-#include "px_common_new/message_notifier.h"
-#include "px_common_new/log.h"
-#include "px_common_new/data.h"
-#include "px_common_new/time_util.h"
-#include "px_common_new/monitors.h"
-#include "px_common_new/image.h"
-#include "px_common_new/win32/win_helper.h"
-#include "px_capture_new/capture_message.h"
+#include "px_common/string_util.h"
+#include "px_common/message_notifier.h"
+#include "px_common/log.h"
+#include "px_common/data.h"
+#include "px_common/time_util.h"
+#include "px_common/monitors.h"
+#include "px_common/image.h"
+#include "px_common/win32/win_helper.h"
+#include "px_capture/capture_message.h"
 #include "px_render/architecture/events/render_event.h"
 #include "gdi_capture_source.h"
-#include "px_common_new/win32/d3d_debug_helper.h"
+#include "px_common/win32/d3d_debug_helper.h"
 
 
 namespace px

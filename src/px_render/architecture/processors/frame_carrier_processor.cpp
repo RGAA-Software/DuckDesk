@@ -3,11 +3,11 @@
 #include <utility>
 #include <vector>
 
-#include "px_common_new/file.h"
-#include "px_common_new/image.h"
-#include "px_common_new/log.h"
-#include "px_common_new/privacy_log.h"
-#include "px_common_new/string_util.h"
+#include "px_common/file.h"
+#include "px_common/image.h"
+#include "px_common/log.h"
+#include "px_common/privacy_log.h"
+#include "px_common/string_util.h"
 #include "image_generator.h"
 #include "video_frame_carrier.h"
 

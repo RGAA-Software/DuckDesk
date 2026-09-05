@@ -17,10 +17,10 @@
 #include "rd_context.h"
 #include "app/app_messages.h"
 #include "app_global_messages.h"
-#include "px_capture_new/capture_message.h"
-#include "px_common_new/concurrent_type.h"
-#include "px_common_new/concurrent_queue.h"
-#include "px_common_new/concurrent_hashmap.h"
+#include "px_capture/capture_message.h"
+#include "px_common/concurrent_type.h"
+#include "px_common/concurrent_queue.h"
+#include "px_common/concurrent_hashmap.h"
 #include "architecture/pipeline/captured_media_pipeline.h"
 #ifdef WIN32
 #include <d3d11.h>

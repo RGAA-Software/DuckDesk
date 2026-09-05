@@ -4,9 +4,9 @@
 
 #include "rtc_data_channel.h"
 #include "rtc_connection.h"
-#include "px_common_new/log.h"
-#include "px_common_new/data.h"
-#include "px_common_new/net_tlv_header.h"
+#include "px_common/log.h"
+#include "px_common/data.h"
+#include "px_common/net_tlv_header.h"
 
 namespace px
 {

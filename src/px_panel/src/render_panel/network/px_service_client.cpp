@@ -5,16 +5,16 @@
 #include "px_service_client.h"
 #include "render_panel/px_context.h"
 #include "render_panel/px_statistics.h"
-#include "px_common_new/log.h"
-#include "px_common_new/message_notifier.h"
+#include "px_common/log.h"
+#include "px_common/message_notifier.h"
 #include "render_panel/px_application.h"
 #include "render_panel/px_app_messages.h"
 #include "render_panel/px_settings.h"
 #include "render_panel/companion/panel_companion.h"
 #include "px_service_message.pb.h"
-#include "px_common_new/asio_client_shutdown.h"
-#include "px_common_new/reconnect_supervisor.h"
-#include "px_common_new/websocket_reconnect_adapter.h"
+#include "px_common/asio_client_shutdown.h"
+#include "px_common/reconnect_supervisor.h"
+#include "px_common/websocket_reconnect_adapter.h"
 
 namespace px
 {

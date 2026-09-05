@@ -5,12 +5,12 @@
 #include <gtest/gtest.h>
 #include <fstream>
 
-#include "px_common_new/image.h"
-#include "px_common_new/data.h"
-#include "px_common_new/file.h"
-#include "px_common_new/log.h"
-#include "px_capture_new/audio_capture.h"
-#include "px_capture_new/audio_capture_factory.h"
+#include "px_common/image.h"
+#include "px_common/data.h"
+#include "px_common/file.h"
+#include "px_common/log.h"
+#include "px_capture/audio_capture.h"
+#include "px_capture/audio_capture_factory.h"
 #include "../audio/audio_file_saver.h"
 
 using namespace px;

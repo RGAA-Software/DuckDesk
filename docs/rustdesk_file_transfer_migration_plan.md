@@ -55,8 +55,8 @@ Web 主控端: 文件传输窗口全新重写
 ## 1. 拆除清单（废弃现有方案）
 
 **协议层**
-- `src/px_deps/px_message_new/px_file_transfer.proto` — 整文件内容替换为 rustdesk File 族消息
-- `src/px_deps/px_message_new/px_message.proto:5`（import 保留，文件内容变了）、`:68-80`（enum 260-330 号段清理）、`:723-736`（oneof 字段换成新消息）
+- `src/px_deps/px_message/px_file_transfer.proto` — 整文件内容替换为 rustdesk File 族消息
+- `src/px_deps/px_message/px_message.proto:5`（import 保留，文件内容变了）、`:68-80`（enum 260-330 号段清理）、`:723-736`（oneof 字段换成新消息）
 - `web/px_web_client/proto/px_file_transfer.proto` 同步 + `web/px_web_client/src/rtc/proto.ts:35-60` 常量表清理
 
 **render 被控端**
@@ -90,7 +90,7 @@ Web 主控端: 文件传输窗口全新重写
 2. `px_message.proto` oneof 增加 `FileAction file_action` / `FileResponse file_response` 两个字段即可（rustdesk 的两个总线消息），复用 260-330 号段。
    - **对 rustdesk 协议的增强**：`FileTransferDigest` 增加可选 `bytes file_hash` 字段（如 sha256 或分块滚动校验），第一版引擎只预留与透传、可不强校验——rustdesk 原版只靠 size+mtime 判断同一文件，存在错拼风险，hash 字段为后续强校验留口。
 3. 加 FT 协议版本字段（SyncConfig 或握手消息），用于新旧不互通时的门控提示。
-4. 两端代码生成对齐：C++（protoc，render 与 Qt 客户端）、TS（protobufjs）。Rust 侧 build.rs 本就全量编译 px_message_new/*.proto，无需新增配置，也不参与 FT。
+4. 两端代码生成对齐：C++（protoc，render 与 Qt 客户端）、TS（protobufjs）。Rust 侧 build.rs 本就全量编译 px_message/*.proto，无需新增配置，也不参与 FT。
 
 验收：C++/TS 两端编译通过，proto 字段编号与 rustdesk 原版保持对照注释，便于后续对照上游。
 
@@ -245,7 +245,7 @@ render 新建插件 `ft`（`src/px_render/plugins/ft/`，薄壳，新插件 ID�
 - `rustdesk/flutter/lib/models/file_model.dart:570` — 空目录/确认流程参考
 
 **GammaRay（改造点）**
-- `src/px_deps/px_message_new/px_file_transfer.proto` / `px_message.proto:5,68-80,723-736`
+- `src/px_deps/px_message/px_file_transfer.proto` / `px_message.proto:5,68-80,723-736`
 - `src/px_deps/px_ft_engine/`（新增）— 共享 C++ 传输引擎，对照 fs.rs 重写
 - `src/px_render/plugins/ft/`（新增，替代 `plugins/file_transfer/`）— render 插件壳：广播 OnMessage 接入 + worker 线程 + DispatchTargetFileTransferMessage 回包
 - `src/px_client/plugins/ft/`（新增，替代 `plugins/file_transfer_client/`）— Qt 插件：引擎薄适配 + 全新三栏 UI

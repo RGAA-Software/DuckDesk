@@ -5,10 +5,10 @@
 #ifndef GAMMARAYPREMIUM_CT_PANEL_API_H
 #define GAMMARAYPREMIUM_CT_PANEL_API_H
 
-#include "px_common_new/log.h"
-#include "px_common_new/http_client.h"
+#include "px_common/log.h"
+#include "px_common/http_client.h"
 #include <nlohmann/json.hpp>
-#include "px_common_new/expected.h"
+#include "px_common/expected.h"
 
 #include "render_panel/network/apis.h"
 

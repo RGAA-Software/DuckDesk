@@ -4,10 +4,10 @@
 
 #include "vigem_driver_manager.h"
 
-#include "px_common_new/hardware.h"
-#include "px_common_new/log.h"
-#include "px_common_new/process_util.h"
-#include "px_common_new/string_util.h"
+#include "px_common/hardware.h"
+#include "px_common/log.h"
+#include "px_common/process_util.h"
+#include "px_common/string_util.h"
 #include "vigem/sdk/ViGEm/Client.h"
 
 namespace px

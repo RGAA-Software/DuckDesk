@@ -3,7 +3,7 @@
 ## 1. 文档状态
 
 - 决策日期：2026-09-04。
-- 适用范围：`src/px_render`、`src/px_client`、`src/px_panel`、`src/px_deps/px_client_sdk_new`和
+- 适用范围：`src/px_render`、`src/px_client`、`src/px_panel`、`src/px_deps/px_client_sdk`和
   `src/px_deps/px_relay_client` 的 WS/WSS 长连接、GammaRay 自维护公共网络/异步组件，以及宿主侧 WebRTC library facade。
 - 基线：Render 内建模块和流程节点插件迁移已经完成；本阶段继续完成网络控制面的业务请求、连接、重连、准入、超时和关闭协程化。
 - 约束：继续使用 canonical standalone Asio 以及现有 `PxAsyncRuntime`、`PxAsyncScope`、`PxAwaitable`，不切换 asio3。
@@ -254,7 +254,7 @@ RdApplication
 
 ### 6.1 `PxAsyncMailbox<T>`
 
-在 `px_common_new` 增加 typed bounded mailbox，用于把外部 callback 事件安全交给 coroutine。建议接口：
+在 `px_common` 增加 typed bounded mailbox，用于把外部 callback 事件安全交给 coroutine。建议接口：
 
 ```cpp
 template<typename T>

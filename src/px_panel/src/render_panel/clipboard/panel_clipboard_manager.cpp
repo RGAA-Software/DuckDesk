@@ -4,17 +4,17 @@
 
 #include "panel_clipboard_manager.h"
 #include <objidl.h>
-#include "px_common_new/log.h"
-#include "px_common_new/time_util.h"
+#include "px_common/log.h"
+#include "px_common/time_util.h"
 #include "px_message.pb.h"
-#include "px_message_new/rp_proto_converter.h"
+#include "px_message/rp_proto_converter.h"
 #include "render_panel/px_context.h"
 #include "render_panel/px_application.h"
 #include "render_panel/px_app_messages.h"
 #include "render_panel/system/win/win_panel_message_loop.h"
 #include "render_panel/clipboard/win/panel_cp_virtual_file.h"
-#include "px_common_new/clipboard/clipboard_platform.h"
-#include "px_common_new/clipboard/clipboard_echo.h"
+#include "px_common/clipboard/clipboard_platform.h"
+#include "px_common/clipboard/clipboard_echo.h"
 #include <QPointer>
 
 namespace px

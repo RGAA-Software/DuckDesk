@@ -3,7 +3,7 @@
 //
 
 #include "skin_context.h"
-#include "px_common_new/thread.h"
+#include "px_common/thread.h"
 
 namespace px
 {

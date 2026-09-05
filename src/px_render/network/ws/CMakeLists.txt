@@ -15,5 +15,5 @@ set(TRANSPORT_SRCS
 
 add_library(${PROJECT_NAME} STATIC ${TRANSPORT_SRCS})
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    render_architecture_core px_common_new
+    render_architecture_core px_common
     protobuf::libprotobuf px_message px_rp_message)

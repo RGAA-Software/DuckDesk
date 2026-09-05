@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 
 extern "C" {
 #include "libavcodec/avcodec.h"

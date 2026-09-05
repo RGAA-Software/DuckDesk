@@ -6,7 +6,7 @@
 #include <mutex>
 
 #include "modules/builtin_module_catalog.h"
-#include "px_capture_new/capture_message.h"
+#include "px_capture/capture_message.h"
 
 namespace px {
 class WasAudioCaptureRuntime;

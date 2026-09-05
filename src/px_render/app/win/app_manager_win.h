@@ -12,7 +12,7 @@
 #include <atomic>
 #include <condition_variable>
 #include "app/app_manager.h"
-#include "px_common_new/win32/process_helper.h"
+#include "px_common/win32/process_helper.h"
 #include "px_message.pb.h"
 
 namespace px

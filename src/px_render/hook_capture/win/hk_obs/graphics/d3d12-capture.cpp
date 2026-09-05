@@ -11,10 +11,10 @@
 #include <detours/detours.h>
 
 #include "dxgi-helpers.hpp"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "hook_manager.h"
 #include "hk_video/d3d_utils.h"
-#include "px_capture_new/capture_message_maker.h"
+#include "px_capture/capture_message_maker.h"
 
 using namespace px;
 

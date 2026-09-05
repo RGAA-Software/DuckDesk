@@ -78,7 +78,7 @@ if "%SKIP_CONFIGURE%"=="0" (
 echo ----------------------BUILD TESTS START------------------------
 echo ---------------------------------------------------------
 cmake --build build_official -j18 --target ^
-    px_common_new ^
+    px_common ^
     test_string_util test_file_util test_folder_util test_file ^
     test_auto_start test_win_helper test_dxgi_mon_detector test_network_adapter ^
     test_qr_generator test_process test_process_helper test_uncovered test_snowflake_id ^
@@ -88,7 +88,7 @@ cmake --build build_official -j18 --target ^
     test_file_transfer_send_result test_async_runtime test_file_transfer_route_registry ^
     test_ft_path_security test_ft_compress test_ft_transfer_job test_ft_engine ^
     test_ft_async_session test_ft_send_contract test_ft_two_phase_send ^
-    px_media_record_new test_record_writer ^
+    px_media_record test_record_writer ^
     test_voice_call test_client_voice_call_protocol test_client_virtual_display ^
     test_client_latest_frame_dispatch_queue ^
     test_records_catalog test_records_ticket test_record_transfer test_console_api_error ^

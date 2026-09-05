@@ -3,8 +3,8 @@
 //
 
 #include "hw_info_parser.h"
-#include "px_common_new/log.h"
-#include "px_common_new/string_util.h"
+#include "px_common/log.h"
+#include "px_common/string_util.h"
 #include <nlohmann/json.hpp>
 #include "render_panel/companion/panel_companion.h"
 

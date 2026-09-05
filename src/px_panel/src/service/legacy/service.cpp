@@ -8,10 +8,10 @@
 
 #include "service.h"
 #include "service_context.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "service_msg_server.h"
 #include "render_manager.h"
-#include "px_common_new/win32/process_helper.h"
+#include "px_common/win32/process_helper.h"
 
 static HMODULE sasLibrary = nullptr;
 typedef void(__stdcall* SendSAS_proto)(BOOL AsUser);

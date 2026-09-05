@@ -2,7 +2,7 @@
 #include <iostream>
 #include <atomic>
 #include <shellapi.h>
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "rd_context.h"
 #include "px_render/modules/render_module_registry.h"
 #include "win_render_message_loop.h"

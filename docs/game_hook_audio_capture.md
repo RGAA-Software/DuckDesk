@@ -21,7 +21,7 @@
 | OS 不支持 | **进程内 Hook**（`px_gh.dll`） | WASAPI / XAudio2 / WaveOut / DirectSound 等；经 WS `/ipc` → `OnIpcAudioFrame` |
 
 门控函数：`tc::IsProcessLoopbackCaptureSupported()`  
-文件：`src/px_deps/px_capture_new/process_loopback_support.h`
+文件：`src/px_deps/px_capture/process_loopback_support.h`
 
 ### 1.3 明确不做的事
 
@@ -238,7 +238,7 @@ src/px_render/plugins/net_ws/ws_server.cpp
 ### 7.3 能力探测
 
 ```
-src/px_deps/px_capture_new/process_loopback_support.h
+src/px_deps/px_capture/process_loopback_support.h
   - IsProcessLoopbackCaptureSupported()  // build >= 19041
 ```
 

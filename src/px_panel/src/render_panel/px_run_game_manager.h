@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 #include <QProcess>
-#include "px_common_new/response.h"
+#include "px_common/response.h"
 
 namespace px
 {

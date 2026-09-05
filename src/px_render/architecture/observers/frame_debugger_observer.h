@@ -14,8 +14,8 @@
 #include "modules/builtin_module_catalog.h"
 #include "pipeline/bounded_media_queue.h"
 #include "pipeline/media_types.h"
-#include "px_common_new/async_operation.h"
-#include "px_common_new/async_runtime.h"
+#include "px_common/async_operation.h"
+#include "px_common/async_runtime.h"
 
 namespace px {
 class File;

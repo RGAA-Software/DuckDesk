@@ -4,8 +4,8 @@
 #include <exception>
 #include <utility>
 
-#include "px_common_new/log.h"
-#include "px_common_new/privacy_log.h"
+#include "px_common/log.h"
+#include "px_common/privacy_log.h"
 #include "runtime/await_callback.h"
 
 namespace px::render {

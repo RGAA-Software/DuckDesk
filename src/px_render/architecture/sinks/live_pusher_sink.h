@@ -13,7 +13,7 @@
 
 #include "modules/builtin_module_catalog.h"
 #include "pipeline/encoded_media_bus.h"
-#include "px_common_new/async_result.h"
+#include "px_common/async_result.h"
 
 namespace px::render {
 

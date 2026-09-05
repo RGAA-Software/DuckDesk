@@ -10,7 +10,7 @@
 #include <mutex>
 #include "network/ws_router.h"
 #include "px_render/network/transport_types.h"
-#include "px_common_new/file_transfer_send_result.h"
+#include "px_common/file_transfer_send_result.h"
 #include "diagnostics/rate_limited_log.h"
 //#include "network/wss_router.h"
 

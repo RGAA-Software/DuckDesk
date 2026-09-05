@@ -1,6 +1,6 @@
 #include "rtc_video_encoder_factory.h"
 #include "rtc_video_encoder.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 
 namespace px
 {

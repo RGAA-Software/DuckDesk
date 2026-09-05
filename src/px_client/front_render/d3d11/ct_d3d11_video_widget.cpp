@@ -4,14 +4,14 @@
 
 #include <QSurface>
 #include "ct_d3d11_video_widget.h"
-#include "px_common_new/log.h"
-#include "px_common_new/data.h"
-#include "px_common_new/thread.h"
-#include "px_common_new/time_util.h"
-#include "px_common_new/file.h"
-#include "px_common_new/win32/d3d11_wrapper.h"
-#include "px_client_sdk_new/sdk_params.h"
-#include "px_client_sdk_new/thunder_sdk.h"
+#include "px_common/log.h"
+#include "px_common/data.h"
+#include "px_common/thread.h"
+#include "px_common/time_util.h"
+#include "px_common/file.h"
+#include "px_common/win32/d3d11_wrapper.h"
+#include "px_client_sdk/sdk_params.h"
+#include "px_client_sdk/thunder_sdk.h"
 #include "d3d11_render_manager.h"
 #include "raw_sdl_widget.h"
 #include <atomic>

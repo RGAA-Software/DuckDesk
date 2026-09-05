@@ -1,5 +1,5 @@
 #include "voice_call_state.h"
-#include "px_common_new/privacy_log.h"
+#include "px_common/privacy_log.h"
 
 #include <utility>
 

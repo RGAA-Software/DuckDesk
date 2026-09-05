@@ -8,7 +8,7 @@
 #include "desktop_capture.h"
 #include "win/desktop_capture/dda_capture.h"
 #include "capture_message.h"
-#include "px_common_new/message_notifier.h"
+#include "px_common/message_notifier.h"
 
 namespace px
 {

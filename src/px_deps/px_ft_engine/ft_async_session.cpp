@@ -4,9 +4,9 @@
 #include <future>
 #include <stdexcept>
 
-#include "px_common_new/async_blocking_call.h"
-#include "px_common_new/blocking_executor.h"
-#include "px_common_new/log.h"
+#include "px_common/async_blocking_call.h"
+#include "px_common/blocking_executor.h"
+#include "px_common/log.h"
 
 namespace px::ft {
 namespace {

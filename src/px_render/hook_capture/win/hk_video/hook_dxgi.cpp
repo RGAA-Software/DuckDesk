@@ -8,7 +8,7 @@
 #include "hk_utils/memory.h"
 #include "hk_utils/time_measure.hpp"
 
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 
 using namespace px;
 using namespace px;

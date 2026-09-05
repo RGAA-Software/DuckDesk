@@ -11,7 +11,7 @@
 #include <thread>
 
 #include "audio_capture.h"
-#include "px_capture_new/capture_message.h"
+#include "px_capture/capture_message.h"
 
 namespace px {
 

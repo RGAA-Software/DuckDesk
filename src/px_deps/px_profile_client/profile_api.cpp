@@ -4,9 +4,9 @@
 
 #include "profile_api.h"
 #include <atomic>
-#include "px_common_new/http_client.h"
-#include "px_common_new/md5.h"
-#include "px_common_new/log.h"
+#include "px_common/http_client.h"
+#include "px_common/md5.h"
+#include "px_common/log.h"
 #include <nlohmann/json.hpp>
 
 using namespace nlohmann;

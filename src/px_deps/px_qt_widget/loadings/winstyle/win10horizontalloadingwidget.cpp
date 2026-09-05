@@ -1,5 +1,5 @@
 #include "win10horizontalloadingwidget.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include <QPainter>
 #include <QDebug>
 #include <QPainterPath>

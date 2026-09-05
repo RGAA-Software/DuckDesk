@@ -8,17 +8,17 @@
 #include <type_traits>
 #include <asio2/websocket/ws_client.hpp>
 #include <asio2/websocket/wss_client.hpp>
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "ct_client_context.h"
 #include "console_client.pb.h"
 #include "thunder_sdk.h"
-#include "px_common_new/time_util.h"
+#include "px_common/time_util.h"
 #include "ct_auth_token.h"
-#include "px_common_new/async_delay.h"
-#include "px_common_new/asio_client_shutdown.h"
-#include "px_common_new/message_notifier.h"
-#include "px_common_new/reconnect_supervisor.h"
-#include "px_common_new/websocket_reconnect_adapter.h"
+#include "px_common/async_delay.h"
+#include "px_common/asio_client_shutdown.h"
+#include "px_common/message_notifier.h"
+#include "px_common/reconnect_supervisor.h"
+#include "px_common/websocket_reconnect_adapter.h"
 
 namespace px
 {

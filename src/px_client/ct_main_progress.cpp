@@ -14,10 +14,10 @@
 #include "px_pushbutton.h"
 #include "ct_app_message.h"
 #include "no_margin_layout.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "ct_client_context.h"
-#include "px_client_sdk_new/thunder_sdk.h"
-#include "px_client_sdk_new/sdk_messages.h"
+#include "px_client_sdk/thunder_sdk.h"
+#include "px_client_sdk/sdk_messages.h"
 
 namespace px
 {

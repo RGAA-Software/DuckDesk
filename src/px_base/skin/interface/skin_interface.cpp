@@ -5,15 +5,15 @@
 #include "skin_interface.h"
 #include "skin_context.h"
 #include "version_config.h"
-#include "px_common_new/image.h"
-#include "px_common_new/data.h"
-#include "px_common_new/thread.h"
-#include "px_common_new/log.h"
-#include "px_common_new/snowflake_id.h"
+#include "px_common/image.h"
+#include "px_common/data.h"
+#include "px_common/thread.h"
+#include "px_common/log.h"
+#include "px_common/snowflake_id.h"
 #include <QtCore/QTimer>
 #include <QtCore/QEvent>
-#include <px_common_new/folder_util.h>
-#include <px_common_new/string_util.h>
+#include <px_common/folder_util.h>
+#include <px_common/string_util.h>
 
 namespace px
 {

@@ -3,7 +3,7 @@
 #include <atomic>
 #include <utility>
 
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "app/app_messages.h"
 #include "px_render/architecture/services/voice_call/voice_call_runtime.h"
 

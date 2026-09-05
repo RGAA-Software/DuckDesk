@@ -7,11 +7,11 @@
 #include <cstdint>
 #include <optional>
 #include <vector>
-#include "px_common_new/message_notifier.h"
-#include "px_common_new/data.h"
-#include "px_common_new/time_util.h"
-#include "px_capture_new/capture_message.h"
-#include "px_common_new/log.h"
+#include "px_common/message_notifier.h"
+#include "px_common/data.h"
+#include "px_common/time_util.h"
+#include "px_capture/capture_message.h"
+#include "px_common/log.h"
 #include "px_message.pb.h"
 #include "px_render/architecture/events/render_event.h"
 #include "dda_capture_source.h"

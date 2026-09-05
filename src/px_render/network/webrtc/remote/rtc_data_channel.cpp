@@ -3,15 +3,15 @@
 //
 
 #include "rtc_data_channel.h"
-#include "px_common_new/log.h"
-#include "px_common_new/data.h"
+#include "px_common/log.h"
+#include "px_common/data.h"
 #include "rtc_server.h"
-#include "px_common_new/net_tlv_header.h"
-#include "px_common_new/time_util.h"
+#include "px_common/net_tlv_header.h"
+#include "px_common/time_util.h"
 #include "px_render/network/webrtc/webrtc_execution_context.h"
 #include "webrtc_remote_transport.h"
-#include "px_common_new/md5.h"
-#include "px_common_new/uuid.h"
+#include "px_common/md5.h"
+#include "px_common/uuid.h"
 
 namespace px {
 

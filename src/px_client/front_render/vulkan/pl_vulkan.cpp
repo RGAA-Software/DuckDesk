@@ -16,7 +16,7 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_win32.h> 
 
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 
 #define LOG_ERROR(msg) qCritical() << msg
 // 或者： #define LOG_ERROR(msg) std::cerr << msg << std::endl

@@ -3,8 +3,8 @@
 #include <utility>
 
 #include "app/app_messages.h"
-#include "px_common_new/log.h"
-#include "px_common_new/process_util.h"
+#include "px_common/log.h"
+#include "px_common/process_util.h"
 #include "px_message.pb.h"
 #include "win_event_replayer.h"
 

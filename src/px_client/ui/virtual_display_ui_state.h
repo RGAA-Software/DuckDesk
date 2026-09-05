@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <string>
 
-#include "px_common_new/virtual_display_limits.h"
+#include "px_common/virtual_display_limits.h"
 
 namespace px {
 

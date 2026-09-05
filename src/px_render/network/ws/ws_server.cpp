@@ -4,8 +4,8 @@
 
 #include "ws_server.h"
 #include "app/app_messages.h"
-#include "px_common_new/asio_client_shutdown.h"
-#include "px_common_new/async_scope_drain.h"
+#include "px_common/asio_client_shutdown.h"
+#include "px_common/async_scope_drain.h"
 
 #include <array>
 #include <atomic>
@@ -15,26 +15,26 @@
 #include <optional>
 #include <span>
 #include <filesystem>
-#include "px_common_new/log.h"
-#include "px_common_new/privacy_log.h"
-#include "px_common_new/time_util.h"
-#include "px_common_new/data.h"
-#include "px_common_new/file.h"
-#include "px_common_new/folder_util.h"
+#include "px_common/log.h"
+#include "px_common/privacy_log.h"
+#include "px_common/time_util.h"
+#include "px_common/data.h"
+#include "px_common/file.h"
+#include "px_common/folder_util.h"
 #include "network/ws_media_router.h"
 #include "ws_stream_router.h"
 #include "ws_filetransfer_router.h"
 #include "ws_user_proxy_router.h"
 #include "px_render/architecture/events/render_event.h"
 #include "px_render/modules/module_ids.h"
-#include "px_capture_new/capture_message.h"
+#include "px_capture/capture_message.h"
 #include "ws_transport.h"
-#include "px_common_new/url_helper.h"
-#include "px_common_new/ws_control_signal.h"
+#include "px_common/url_helper.h"
+#include "px_common/ws_control_signal.h"
 #include "http_handler.h"
 #include "ws_callback_workflow.h"
-#include "px_common_new/async_operation.h"
-#include "px_common_new/async_result.h"
+#include "px_common/async_operation.h"
+#include "px_common/async_result.h"
 #include "px_render/architecture/runtime/await_callback.h"
 
 static std::string kUrlMedia = "/media";

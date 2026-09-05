@@ -8,7 +8,7 @@
 #include "px_label.h"
 #include "widget_helper.h"
 #include "no_margin_layout.h"
-#include "px_common_new/uid_spacer.h"
+#include "px_common/uid_spacer.h"
 #include "px_console_client/console_stream.h"
 #include "render_panel/px_application.h"
 #include "skin/interface/skin_interface.h"

@@ -12,11 +12,11 @@
 #include <memory>
 #include <map>
 #include <functional>
-#include <px_common_new/concurrent_vector.h>
+#include <px_common/concurrent_vector.h>
 
-#include "px_common_new/monitors.h"
-#include "px_common_new/fps_stat.h"
-#include "px_common_new/win32/d3d11_wrapper.h"
+#include "px_common/monitors.h"
+#include "px_common/fps_stat.h"
+#include "px_common/win32/d3d11_wrapper.h"
 #include "px_render/architecture/sources/desktop_capture_source.h"
 #include "px_render/architecture/diagnostics/monitor_capture_error.h"
 

@@ -6,8 +6,8 @@
 #include <utility>
 #include <vector>
 
-#include "px_common_new/data.h"
-#include "px_capture_new/capture_message.h"
+#include "px_common/data.h"
+#include "px_capture/capture_message.h"
 #include "px_render/architecture/encoders/video_encoder_module.h"
 #include "px_render/architecture/extensions/flow_node_plugin.h"
 #include "px_render/architecture/modules/render_module.h"

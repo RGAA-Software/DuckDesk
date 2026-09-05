@@ -3,7 +3,7 @@
 #include <wtsapi32.h>
 #include <ole2.h>
 #include <utility>
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "win_message_window.h"
 
 namespace px

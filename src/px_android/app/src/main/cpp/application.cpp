@@ -7,9 +7,9 @@
 #include "frame_render.h"
 #include "app_context.h"
 #include "audio_player.h"
-#include "px_client_sdk_new/sdk_video_decoder_factory.h"
-#include "px_client_sdk_new/sdk_statistics.h"
-#include "px_message_new/proto_message_maker.h"
+#include "px_client_sdk/sdk_video_decoder_factory.h"
+#include "px_client_sdk/sdk_statistics.h"
+#include "px_message/proto_message_maker.h"
 #include "native_msg_maker.h"
 
 namespace px

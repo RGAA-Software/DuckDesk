@@ -6,11 +6,11 @@
 #include <mutex>
 #include <queue>
 
-#include "px_capture_new/capture_message_maker.h"
-#include "px_common_new/data.h"
-#include "px_common_new/folder_util.h"
-#include "px_common_new/log.h"
-#include "px_common_new/thread.h"
+#include "px_capture/capture_message_maker.h"
+#include "px_common/data.h"
+#include "px_common/folder_util.h"
+#include "px_common/log.h"
+#include "px_common/thread.h"
 
 namespace px {
 namespace {

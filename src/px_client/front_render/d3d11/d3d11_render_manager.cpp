@@ -1,8 +1,8 @@
 #include "d3d11_render_manager.h"
 #include <array>
 #include <dxgi1_2.h>
-#include "px_common_new/log.h"
-#include "px_common_new/string_util.h"
+#include "px_common/log.h"
+#include "px_common/string_util.h"
 
 using namespace DirectX;
 

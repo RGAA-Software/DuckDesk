@@ -9,15 +9,15 @@
 #include "console_errors.h"
 #include <nlohmann/json.hpp>
 #include "console_device.h"
-#include "px_common_new/http_client.h"
-#include "px_common_new/log.h"
-#include "px_common_new/http_base_op.h"
-#include "px_common_new/thread.h"
-#include "px_common_new/message_notifier.h"
-#include "px_common_new/hardware.h"
-#include "px_common_new/ip_util.h"
-#include "px_common_new/base64.h"
-#include "px_common_new/uuid.h"
+#include "px_common/http_client.h"
+#include "px_common/log.h"
+#include "px_common/http_base_op.h"
+#include "px_common/thread.h"
+#include "px_common/message_notifier.h"
+#include "px_common/hardware.h"
+#include "px_common/ip_util.h"
+#include "px_common/base64.h"
+#include "px_common/uuid.h"
 
 using namespace px;
 using namespace nlohmann;

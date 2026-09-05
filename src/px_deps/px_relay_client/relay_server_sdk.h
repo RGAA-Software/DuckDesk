@@ -10,7 +10,7 @@
 #include <atomic>
 #include "relay_callbacks.h"
 #include "relay_server_sdk_param.h"
-#include "px_common_new/concurrent_hashmap.h"
+#include "px_common/concurrent_hashmap.h"
 
 namespace px_relay
 {

@@ -8,7 +8,7 @@
 #include <SDL2/SDL.h>
 #include <SDL_syswm.h>
 #include <memory>
-#include "px_common_new/win32/d3d11_wrapper.h"
+#include "px_common/win32/d3d11_wrapper.h"
 
 namespace px
 {

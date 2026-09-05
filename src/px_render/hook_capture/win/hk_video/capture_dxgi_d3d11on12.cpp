@@ -3,7 +3,7 @@
 #include <d3d11on12.h>
 #include "capture_texture.h"
 #include "d3d_utils.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "hk_utils/time_measure.hpp"
 #include "shared_texture.h"
 

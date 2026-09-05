@@ -3,7 +3,7 @@
 //
 
 #include "ct_auth_token.h"
-#include "px_common_new/time_util.h"
+#include "px_common/time_util.h"
 
 #include <openssl/hmac.h>
 #include <openssl/sha.h>

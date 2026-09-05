@@ -1,5 +1,5 @@
 #include "ct_opengl_image_reader.h"
-#include "px_client_sdk_new/gl/raw_image.h"
+#include "px_client_sdk/gl/raw_image.h"
 #include <QDebug>
 
 namespace px

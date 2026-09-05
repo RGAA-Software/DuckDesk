@@ -1,7 +1,7 @@
 #include "framework.h"
 
 #include "d3d_utils.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 
 using namespace px;
 

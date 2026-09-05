@@ -3,10 +3,10 @@
 //
 
 #include "dx_address_loader.h"
-#include "px_capture_new/capture_message.h"
-#include "px_common_new/process_util.h"
-#include "px_common_new/log.h"
-#include "px_common_new/string_util.h"
+#include "px_capture/capture_message.h"
+#include "px_common/process_util.h"
+#include "px_common/log.h"
+#include "px_common/string_util.h"
 
 #include <vector>
 #include <string>

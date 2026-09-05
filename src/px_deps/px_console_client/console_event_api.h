@@ -11,7 +11,7 @@
 #include <memory>
 
 #include "console_server_info.h"
-#include "px_common_new/expected.h"
+#include "px_common/expected.h"
 #include "console_errors.h"
 
 using namespace px_console;

@@ -11,14 +11,14 @@
 #include <span>
 #include <libyuv/convert.h>
 #include <libyuv/convert_from_argb.h>
-#include "px_common_new/log.h"
-#include "px_common_new/string_util.h"
-#include "px_common_new/time_util.h"
-#include "px_common_new/image.h"
-#include "px_common_new/thread.h"
-#include "px_common_new/scope_exit.h"
-#include "px_common_new/file.h"
-#include "px_common_new/win32/d3d_debug_helper.h"
+#include "px_common/log.h"
+#include "px_common/string_util.h"
+#include "px_common/time_util.h"
+#include "px_common/image.h"
+#include "px_common/thread.h"
+#include "px_common/scope_exit.h"
+#include "px_common/file.h"
+#include "px_common/win32/d3d_debug_helper.h"
 
 namespace px
 {

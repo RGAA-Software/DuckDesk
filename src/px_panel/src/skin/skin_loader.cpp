@@ -6,7 +6,7 @@
 #include <QLibrary>
 #include <QApplication>
 #include <toml++/toml.hpp>
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "skin/interface/skin_interface.h"
 
 typedef void* (*FnGetInstance)();

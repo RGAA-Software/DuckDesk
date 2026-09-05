@@ -1,6 +1,6 @@
 #include "direct_session_grant_store.h"
 
-#include "px_common_new/uuid.h"
+#include "px_common/uuid.h"
 
 #include <utility>
 

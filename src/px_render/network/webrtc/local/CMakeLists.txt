@@ -35,12 +35,12 @@ set(LIBRARY_SRCS
 add_library(${PROJECT_NAME} SHARED ${LIBRARY_SRCS})
 target_compile_definitions(${PROJECT_NAME} PRIVATE PX_NET_RTC_LOCAL_BUILD=1)
 # webrtc.lib ships its own BoringSSL symbols which conflict with vcpkg OpenSSL
-# linked through px_common_new; /FORCE:MULTIPLE lets the linker pick one.
+# linked through px_common; /FORCE:MULTIPLE lets the linker pick one.
 set_target_properties(${PROJECT_NAME} PROPERTIES
         LINK_FLAGS "/FORCE:MULTIPLE"
         OUTPUT_NAME px_render_rtc
 )
-target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_message
+target_link_libraries(${PROJECT_NAME} PRIVATE px_common px_message
         webrtc.lib
         Winmm
         ws2_32

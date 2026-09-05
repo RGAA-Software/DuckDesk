@@ -9,7 +9,7 @@
 #include <set>
 #include "sdk_messages.h"
 #include "gl/raw_image.h"
-#include "px_common_new/fps_stat.h"
+#include "px_common/fps_stat.h"
 
 namespace px
 {

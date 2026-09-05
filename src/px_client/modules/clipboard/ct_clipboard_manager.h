@@ -9,8 +9,8 @@
 #include <QObject>
 #include <objidl.h>
 #include <wrl/client.h>
-#include "px_common_new/clipboard/clipboard_echo.h"
-#include "px_common_new/clipboard/clipboard_platform.h"
+#include "px_common/clipboard/clipboard_echo.h"
+#include "px_common/clipboard/clipboard_platform.h"
 #include "px_message.pb.h"
 
 namespace px

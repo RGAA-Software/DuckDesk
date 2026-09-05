@@ -9,7 +9,7 @@
 #include "no_margin_layout.h"
 #include "px_label.h"
 #include "px_pushbutton.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "px_qt_widget/clickable_widget.h"
 #include "render_panel/px_context.h"
 #include <QLabel>

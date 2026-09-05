@@ -11,8 +11,8 @@
 
 #include <QProcess>
 
-#include "px_common_new/concurrent_hashmap.h"
-#include "px_common_new/response.h"
+#include "px_common/concurrent_hashmap.h"
+#include "px_common/response.h"
 
 namespace px
 {

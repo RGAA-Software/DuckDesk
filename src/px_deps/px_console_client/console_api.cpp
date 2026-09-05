@@ -6,9 +6,9 @@
 #include "console_http_client.h"
 
 #include "console_device.h"
-#include "px_common_new/log.h"
-#include "px_common_new/http_client.h"
-#include "px_common_new/http_base_op.h"
+#include "px_common/log.h"
+#include "px_common/http_client.h"
+#include "px_common/http_base_op.h"
 #include <nlohmann/json.hpp>
 
 using namespace px;

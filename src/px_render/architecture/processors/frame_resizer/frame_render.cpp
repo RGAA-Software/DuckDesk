@@ -1,6 +1,6 @@
 #include "frame_render.h"
 #include "Utilities.h"
-#include "px_common_new/win32/d3d_debug_helper.h"
+#include "px_common/win32/d3d_debug_helper.h"
 #include <wincodec.h>
 
 using namespace DirectX;

@@ -9,7 +9,7 @@
 #include "px_client/ct_settings.h"
 #include "px_client/ct_client_context.h"
 #include "px_client/ct_app_message.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include <QLabel>
 
 namespace px

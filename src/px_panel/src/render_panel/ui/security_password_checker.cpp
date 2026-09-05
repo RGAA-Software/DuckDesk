@@ -5,7 +5,7 @@
 #include "security_password_checker.h"
 #include "px_dialog.h"
 #include "px_label.h"
-#include "px_common_new/md5.h"
+#include "px_common/md5.h"
 #include "render_panel/px_settings.h"
 #include "render_panel/px_workspace.h"
 #include "render_panel/px_application.h"

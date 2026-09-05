@@ -1,5 +1,5 @@
 #include "ct_vulkan_checker.h"
-#include "px_common_new/log.h"
+#include "px_common/log.h"
 #include "ct_test_ffmpeg_vulkan_decoder.h"
 #include "ct_test_vulkan_video_widget.h"
 #include "pl_vulkan.h"

@@ -3,9 +3,9 @@
 #include <QTimer>
 #include <qfont.h>
 #include "ct_client_context.h"
-#include "px_common_new/log.h"
-#include "px_common_new/message_notifier.h"
-#include "px_client_sdk_new/sdk_messages.h"
+#include "px_common/log.h"
+#include "px_common/message_notifier.h"
+#include "px_client_sdk/sdk_messages.h"
 
 namespace px
 {

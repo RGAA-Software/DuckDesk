@@ -3,11 +3,11 @@
 //
 
 #include "ws_stream_router.h"
-#include "px_common_new/data.h"
-#include "px_common_new/log.h"
-#include "px_common_new/privacy_log.h"
-#include "px_common_new/thread_util.h"
-#include "px_common_new/ws_control_signal.h"
+#include "px_common/data.h"
+#include "px_common/log.h"
+#include "px_common/privacy_log.h"
+#include "px_common/thread_util.h"
+#include "px_common/ws_control_signal.h"
 #include "ws_transport.h"
 #include "px_message.pb.h"
 

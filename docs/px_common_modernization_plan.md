@@ -1,4 +1,4 @@
-# px_common_new C++23、异步化与跨平台收敛计划
+# px_common C++23、异步化与跨平台收敛计划
 
 ## 1. 文档状态
 
@@ -9,7 +9,7 @@
 - 依赖升级基线：standalone Asio 1.38.2（官方 tag `asio-1-38-2`，commit `8806a6803cde7054c3049d3666d3ec36786568c5`）
 - 明确非目标：本轮不改变现有 TLS 证书校验产品策略
 
-本文覆盖 `src/px_deps/px_common_new` 的整体改造，不只处理编译标准。最终目标是让 common 成为职责明确、所有权安全、可取消、可关闭、可测试的跨平台基础设施，而不是继续作为 Windows 工具、网络服务器、第三方适配和通用容器的混合目录。
+本文覆盖 `src/px_deps/px_common` 的整体改造，不只处理编译标准。最终目标是让 common 成为职责明确、所有权安全、可取消、可关闭、可测试的跨平台基础设施，而不是继续作为 Windows 工具、网络服务器、第三方适配和通用容器的混合目录。
 
 ### 1.1 当前实施状态（2026-09-05）
 
@@ -42,7 +42,7 @@ Windows 通过不能替代移动端运行验证；移动端剩余项是发布/�
 
 ### 1.3 移动平台证据与边界（2026-09-05）
 
-- Android NDK arm64-v8a 的 `px_common_new` 与 `px_sdk` 聚焦构建通过；入口为 `build_cpp_android_common.bat`。
+- Android NDK arm64-v8a 的 `px_common` 与 `px_sdk` 聚焦构建通过；入口为 `build_cpp_android_common.bat`。
 - Android 全应用最终链接仍受既有 Android `RtcClient` 实现缺失阻塞；Common/SDK 静态库已经越过编译和链接门禁。
 - 当前 Windows 工作区没有 AppleClang/Xcode 构建环境，也没有可用的 iOS 工程/设备，因此不能声明 iOS 已实机验证。
 - iOS 的代码策略仍是标准 C++23、`std::filesystem::path` 原生 POSIX 字节路径和 bounded blocking executor；必须在 macOS CI 补做编译、
@@ -59,7 +59,7 @@ Windows 通过不能替代移动端运行验证；移动端剩余项是发布/�
 
 ### 2.2 已收敛的问题
 
-- 单一 Common target 已拆为 core、async、file、net、storage、crypto、win 七个职责 target；`px_common_new` 只保留兼容聚合职责。
+- 单一 Common target 已拆为 core、async、file、net、storage、crypto、win 七个职责 target；`px_common` 只保留兼容聚合职责。
 - `TaskRuntime`、`ReturnThreadTask` 和 `std::any` 返回链已经删除，异步工作统一到 `PxAsyncRuntime`、`PxAsyncScope` 和
   `PxBlockingExecutor`。
 - 同步 `File` 的 EOF、失败推进、64 位偏移和 UTF-8 路径问题已修复；可能阻塞业务线程的文件传输读写已进入 blocking executor。
@@ -73,7 +73,7 @@ Windows 通过不能替代移动端运行验证；移动端剩余项是发布/�
 
 ### 3.1 目标模块
 
-最终将 `px_common_new` 兼容聚合目标拆为下列职责目标：
+最终将 `px_common` 兼容聚合目标拆为下列职责目标：
 
 | 目标 | 职责 | 平台 |
 |---|---|---|
@@ -85,7 +85,7 @@ Windows 通过不能替代移动端运行验证；移动端剩余项是发布/�
 | `px_common_crypto` | 兼容摘要、对称加密 adapter | Win/Android/iOS |
 | `px_common_win` | COM、WMI、DXGI、进程、计划任务、防火墙、dump | Windows |
 
-迁移期保留 `px_common_new` 作为带空聚合翻译单元的兼容静态目标，并公开链接上述职责 target；这样兼容既有链接方式且不再把全部实现编译进单一库。
+迁移期保留 `px_common` 作为带空聚合翻译单元的兼容静态目标，并公开链接上述职责 target；这样兼容既有链接方式且不再把全部实现编译进单一库。
 平台专用库不得从 core 的 PUBLIC 接口传播。兼容名是否删除留给后续 ABI/构建消费方专项迁移，不再阻塞本轮 Common 收敛。
 
 ### 3.2 依赖方向
@@ -132,7 +132,7 @@ common_win ----> common_core/common_async
 
 ### 5.2 升级门禁
 
-1. `px_common_new` 增量构建。
+1. `px_common` 增量构建。
 2. common 已注册 CTest 全通过。
 3. Render network libraries 构建和生命周期测试通过。
 4. SDK、Panel、Client、Render 目标依次构建。
@@ -413,7 +413,7 @@ public:
 | Hook capture lifecycle | 2/2 | hook audio worker、WS IPC client |
 | Render architecture quick | 16/16 | 14 个 unit + 2 个 architecture guard，异步生命周期扫描、日志隐私扫描和 artifact hash 通过 |
 | Panel shutdown/lifetime | 5/5 | shutdown 顺序、running pipe、auth、Win message window、Qt lifetime guard |
-| Android NDK arm64-v8a | 构建通过 | `px_common_new`、`px_sdk` |
+| Android NDK arm64-v8a | 构建通过 | `px_common`、`px_sdk` |
 | C++ quality gate | 通过 | 新裸指针、manual ownership、`[this]`、Qt transfer、150 列 |
 
 测试和最终目录审查过程中实际发现并修复四项问题：

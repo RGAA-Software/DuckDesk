@@ -2,17 +2,17 @@
 
 #include "px_message.pb.h"
 #include "ct_qt_key_converter.h"
-#include "px_common_new/log.h"
-#include "px_common_new/data.h"
-#include "px_common_new/time_util.h"
-#include "px_common_new/thread.h"
-#include "px_common_new/time_util.h"
-#include "px_client_sdk_new/thunder_sdk.h"
+#include "px_common/log.h"
+#include "px_common/data.h"
+#include "px_common/time_util.h"
+#include "px_common/thread.h"
+#include "px_common/time_util.h"
+#include "px_client_sdk/thunder_sdk.h"
 #include "px_client/ct_client_context.h"
 #include "px_client/ct_app_message.h"
 #include "px_client/ct_settings.h"
-#include "px_common_new/time_util.h"
-#include "px_message_new/proto_converter.h"
+#include "px_common/time_util.h"
+#include "px_message/proto_converter.h"
 #ifdef WIN32
 #include <Windows.h>
 #endif

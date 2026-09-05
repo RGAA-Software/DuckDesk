@@ -12,10 +12,10 @@
 #include "service.h"
 #include "service_context.h"
 #include "version_config.h"
-#include "px_common_new/log.h"
-#include "px_common_new/folder_util.h"
-#include "px_common_new/string_util.h"
-#include "px_common_new/dump_helper.h"
+#include "px_common/log.h"
+#include "px_common/folder_util.h"
+#include "px_common/string_util.h"
+#include "px_common/dump_helper.h"
 
 #include <string>
 #include <Windows.h>

@@ -5,8 +5,8 @@
 #include <vector>
 #include <mutex>
 #include <deque>
-#include "px_common_new/concurrent_queue.h"
-#include "px_capture_new/monitor_util.h"
+#include "px_common/concurrent_queue.h"
+#include "px_capture/monitor_util.h"
 
 namespace px
 {

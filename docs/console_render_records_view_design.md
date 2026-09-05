@@ -197,7 +197,7 @@ web 请求设备 X 的录像列表/播放
 
 ## 9. 测试计划
 
-### 9.1 单元测试（panel 侧，仿 `px_media_record_new/tests` 的 gtest 模式）
+### 9.1 单元测试（panel 侧，仿 `px_media_record/tests` 的 gtest 模式）
 
 | 用例 | 验证点 |
 |---|---|
@@ -217,7 +217,7 @@ web 请求设备 X 的录像列表/播放
 
 ### 9.3 拓扑 1 端到端（双机：本机 Console + 10.0.0.90 设备）
 
-- **测试视频预制（不手工录屏）**：`tests/gen_test_videos.sh` 用 ffmpeg（testsrc2 彩条 + 正弦音轨，h264/aac/yuv420p/+faststart）生成 `tests/test_videos/render/` 与 `tests/test_videos/client/` 两组样例，命名与 `px_media_record_new` 一致（`rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4`），每组各含一个 `.recording` sidecar 模拟录制中文件；部署时直接拷贝到 10.0.0.90（administrator）的 `C:\Users\Public\Pixels\px_render_records` / `px_client_records`
+- **测试视频预制（不手工录屏）**：`tests/gen_test_videos.sh` 用 ffmpeg（testsrc2 彩条 + 正弦音轨，h264/aac/yuv420p/+faststart）生成 `tests/test_videos/render/` 与 `tests/test_videos/client/` 两组样例，命名与 `px_media_record` 一致（`rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4`），每组各含一个 `.recording` sidecar 模拟录制中文件；部署时直接拷贝到 10.0.0.90（administrator）的 `C:\Users\Public\Pixels\px_render_records` / `px_client_records`
 - 10.0.0.90 部署 panel + render（render 无需实际录屏）
 - Console web（HTTP 部署）→ 设备 → 录像列表 → `<video>` 播放 + **拖拽进度条**（验证 Range 生效，DevTools Network 应见 206）
 - **真实录像播放验证（关键）**：预制视频是 h264/aac 不够，须取一段真实 render 录制文件放入 `px_render_records`，确认浏览器可播；若实际为 H265 则验证列表"仅可下载"标记与下载流程，并回报任务 0 的决策结果
@@ -325,7 +325,7 @@ relay 两端本来就是明文，web 端已协议自适应，均不需要改。
 ### 13.3 遗留
 
 - Console → px_auth_server 的授权拉取仍是 `https://127.0.0.1:30400`(auth server 侧未动，独立部署时再议）。
-- `px_common_new/tests/test_http.cpp` 手动测试仍直连 MakeSSL(127.0.0.1)，未加开关。
+- `px_common/tests/test_http.cpp` 手动测试仍直连 MakeSSL(127.0.0.1)，未加开关。
 
 ### 13.4 端口收口（2026-08-18)
 

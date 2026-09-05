@@ -14,7 +14,7 @@
 ## 现状(勘察结论)
 
 - `src/px_render/plugins/net_udp/udp_plugin.cpp`:asio2 KCP 骨架,未启用(`config_premium.cmake:8` OFF)、无 toml、无 install 规则、收包回调被注释且签名过期。
-- 客户端:`px_client_sdk_new/connection/udp_connection.cpp` 是配套废弃 KCP 实现;无 UDP 媒体通路。
+- 客户端:`px_client_sdk/connection/udp_connection.cpp` 是配套废弃 KCP 实现;无 UDP 媒体通路。
 - 可复用挂接点:
   - 编码帧:`PxNetPlugin::OnEncodedVideoFrame(...)`(`px_plugin_interface.h:199`,rtc_local 在用)
   - IDR 请求:`CallbackEvent(PxPluginInsertIdrEvent{mon_name})` → `plugin_event_router.cpp:110-119`
@@ -77,7 +77,7 @@ client 端:
 
 ### P2 — FEC + 音频
 1. ~~移植 RS 编解码,render 帧级 FEC(20%),client 恢复;失败再 IDR~~ **已完成**:
-   - RS 库移植 `moonlight-common-c/reedsolomon/rs.c`(BSD)→ `px_common_new/reedsolomon/`,C++ 薄封装 `px_common_new/px_fec.h`(`PxFec::Encode/Decode`)。
+   - RS 库移植 `moonlight-common-c/reedsolomon/rs.c`(BSD)→ `px_common/reedsolomon/`,C++ 薄封装 `px_common/px_fec.h`(`PxFec::Encode/Decode`)。
    - 协议演进(两端一起重建,kVersion 保持 1):SOF 扩展加 `frame_size(u32)`;新增 `kFlagParity=0x8`,parity 包 = 基础头 + P 字节校验块(P = mtu - 24,整包正好 mtu);所有包 `parity_shards` 填实际值,`fec_block` 恒 0(一帧一块)。
    - 发送:`ShardVideoFrame(..., fec_percent)` parity = max(1, ceil(D*percent/100)),D+parity > 255 退化为无 FEC;`net_udp` 插件 `fec-percent` 配置(默认 20,0=关闭)。
    - 接收:`PxUdpFrameReassembler` slot 扩到 D+parity,统一存 P 字节保护块;「够用即恢复」(distinct 块数 == data_shards 即 RS 重建),重组帧按 frame_size 精确截断;shard 0 缺失时 mon_name/分辨率从恢复块取;恢复不了才 DeclareLoss 走原 IDR 路径。
@@ -107,7 +107,7 @@ client 端:
 
 ## 风险
 
-- 子模块连锁改动:`px_message_new`、`px_client_sdk_new` 需分别提交。
+- 子模块连锁改动:`px_message`、`px_client_sdk` 需分别提交。
 - 双通道生命周期：WS 断开等于会话断开；UDP 超时通过原 WS 可靠控制消息切到 WS 媒体，不使用 UDP 承载状态逻辑。普通 UDP-direct 会话的文件传输也复用这条已认证 WS，只有独立 file-only 模式才单独连接 `/file/transfer`。
 - 互踢沿用 takeover 体系(经 ws 发 550),UDP 插件不自创。
 

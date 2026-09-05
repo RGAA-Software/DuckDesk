@@ -3,19 +3,19 @@
 //
 
 #include "net_message_maker.h"
-#include "px_common_new/data.h"
-#include "px_common_new/string_util.h"
+#include "px_common/data.h"
+#include "px_common/string_util.h"
 #include "px_message.pb.h"
-#include "px_common_new/key_helper.h"
-#include "px_common_new/hardware.h"
+#include "px_common/key_helper.h"
+#include "px_common/hardware.h"
 #include "px_render/modules/render_module_registry.h"
 #include "px_render/modules/module_ids.h"
 #include "rd_app.h"
 #include "rd_statistics.h"
 #include "architecture/sources/monitor_capture_source.h"
 #include "architecture/encoders/video_encoder_module.h"
-#include "px_common_new/num_formatter.h"
-#include "px_message_new/proto_converter.h"
+#include "px_common/num_formatter.h"
+#include "px_message/proto_converter.h"
 
 #include <Windows.h>
 

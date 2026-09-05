@@ -87,7 +87,7 @@
 
 | 文件位置 | 原 package | 新 package |
 |---|---|---|
-| `src/px_deps/px_message_new/*` | `tc` / `tccp` / `tcrp` | `px` / `pxcp` / `pxrp` |
+| `src/px_deps/px_message/*` | `tc` / `tccp` / `tcrp` | `px` / `pxcp` / `pxrp` |
 | `src/px_web_client/proto/*` | 同上 | 同上 |
 | `src/px_deps/px_server_protocol/relay_message.proto` | `relay` | `px_relay` |
 

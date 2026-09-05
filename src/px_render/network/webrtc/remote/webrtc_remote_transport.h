@@ -11,8 +11,8 @@
 
 #include "px_render/network/webrtc/webrtc_execution_context.h"
 #include "rtc_messages.h"
-#include "px_common_new/concurrent_hashmap.h"
-#include "px_common_new/file_transfer_send_result.h"
+#include "px_common/concurrent_hashmap.h"
+#include "px_common/file_transfer_send_result.h"
 
 #if defined(_WIN32)
 #if defined(PX_NET_RTC_BUILD)
