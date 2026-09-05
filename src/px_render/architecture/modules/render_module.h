@@ -11,14 +11,16 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 
-#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/architecture/config/render_runtime_settings.h"
+#include "px_render/architecture/events/render_event.h"
 
 namespace px {
 
 class AppBaseEvent;
 class CaptureMonitorInfoMessage;
 class Message;
-class PxPluginContext;
+class PxAsyncRuntime;
+class RenderExecutionContext;
 
 enum class RenderModuleKind {
     kSource,
@@ -36,6 +38,7 @@ enum class RenderModuleLifecycle {
 // Typed startup configuration for executable-owned modules. It carries only
 // owned values and never transports type-erased ownership.
 struct RenderModuleConfiguration final {
+    std::shared_ptr<PxAsyncRuntime> async_runtime;
     std::string instance_name;
     std::string base_path;
     std::wstring base_data_path;
@@ -55,26 +58,7 @@ struct RenderModuleConfiguration final {
     int udp_mtu{1400};
 };
 
-struct RenderModuleSettings final {
-    std::string device_id;
-    std::string device_random_password;
-    std::string device_safety_password;
-    std::string relay_host;
-    std::string relay_port;
-    bool can_be_operated{true};
-    bool direct_allow_takeover{true};
-    bool relay_enabled{true};
-    int language{1};
-    bool file_transfer_enabled{true};
-    bool audio_enabled{true};
-    std::string appkey;
-    std::uint64_t max_transmit_speed{0};
-    std::uint64_t max_receive_speed{0};
-    int role{1};
-};
-
-using CompatibilityEventCallback =
-    std::function<void(const std::shared_ptr<PxPluginBaseEvent>&)>;
+using RenderModuleSettings = RenderRuntimeSettings;
 
 class ModuleEventChannel;
 
@@ -88,14 +72,14 @@ class ModuleEventChannel;
 // - Event callback replacement and delivery are serialized by the channel.
 // - Derived asynchronous work must capture weak_ptr ownership.
 class RenderModule : public std::enable_shared_from_this<RenderModule> {
-public:
+  public:
     RenderModule();
     virtual ~RenderModule() = default;
 
     RenderModule(const RenderModule&) = delete;
     RenderModule& operator=(const RenderModule&) = delete;
 
-    [[nodiscard]] std::shared_ptr<PxPluginContext> Context() const;
+    [[nodiscard]] std::shared_ptr<RenderExecutionContext> ExecutionContext() const;
 
     [[nodiscard]] virtual std::string Id() const = 0;
     [[nodiscard]] virtual std::string Name() const;
@@ -119,60 +103,45 @@ public:
     void PostUiTask(std::function<void()>&& task);
     void PostDelayedUiTask(int milliseconds, std::function<void()>&& task);
 
-    // Temporary control-plane bridge. Media plug-ins use the typed flow-node
-    // contracts and never receive this compatibility event channel.
-    void SetCompatibilityEventCallback(
-        const CompatibilityEventCallback& callback);
-    void EmitCompatibilityEvent(
-        const std::shared_ptr<PxPluginBaseEvent>& event);
-    void EmitCompatibilityEventImmediately(
-        const std::shared_ptr<PxPluginBaseEvent>& event);
-    [[nodiscard]] CompatibilityEventCallback
-    MakeImmediateCompatibilityEventDispatcher() const;
+    void SetEventCallback(const RenderEventCallback& callback);
+    void EmitEvent(RenderEvent event);
+    void EmitEventImmediately(RenderEvent event);
+    [[nodiscard]] RenderEventCallback MakeImmediateEventDispatcher() const;
 
     virtual void Tick1Second();
     virtual void RequestKeyFrame();
     virtual void HandleCommand(const std::string& command);
-    virtual void OnClientConnected(const std::string& visitor_device_id,
-                                   const std::string& stream_id,
-                                   const std::string& transport);
-    virtual void OnClientDisconnected(const std::string& visitor_device_id,
-                                      const std::string& stream_id);
+    virtual void OnClientConnected(const std::string& visitor_device_id, const std::string& stream_id, const std::string& transport);
+    virtual void OnClientDisconnected(const std::string& visitor_device_id, const std::string& stream_id);
     virtual void HandleMessage(const std::shared_ptr<Message>& message);
     virtual void UpdateSettings(const RenderModuleSettings& settings);
     virtual void HandleAppEvent(const std::shared_ptr<AppBaseEvent>& event);
-    virtual void UpdateCaptureMonitorInfo(
-        const CaptureMonitorInfoMessage& message);
+    virtual void UpdateCaptureMonitorInfo(const CaptureMonitorInfoMessage& message);
 
     [[nodiscard]] RenderModuleSettings Settings() const;
     [[nodiscard]] bool HasNoConnectedClients() const noexcept;
     void ReportDataSent(std::size_t bytes);
 
-    void UpdateD3DResources(
-        std::uint64_t adapter_uid,
-        const Microsoft::WRL::ComPtr<ID3D11Device>& device,
-        const Microsoft::WRL::ComPtr<ID3D11DeviceContext>& context);
+    void UpdateD3DResources(std::uint64_t adapter_uid, const Microsoft::WRL::ComPtr<ID3D11Device>& device,
+                            const Microsoft::WRL::ComPtr<ID3D11DeviceContext>& context);
     void ClearD3DResources(std::uint64_t adapter_uid);
 
-protected:
-    std::shared_ptr<PxPluginContext> module_context_;
+  protected:
+    std::shared_ptr<RenderExecutionContext> execution_context_;
     std::atomic_bool stopped_{false};
     std::atomic_bool destroyed_{false};
-    std::atomic<RenderModuleLifecycle> lifecycle_{
-        RenderModuleLifecycle::kCreated};
+    std::atomic<RenderModuleLifecycle> lifecycle_{RenderModuleLifecycle::kCreated};
     RenderModuleConfiguration configuration_;
     RenderModuleSettings settings_;
     std::atomic_bool enabled_{true};
     std::atomic_int64_t no_connected_clients_counter_{0};
 
-public:
-    std::map<std::uint64_t, Microsoft::WRL::ComPtr<ID3D11Device>>
-        d3d11_devices_;
-    std::map<std::uint64_t, Microsoft::WRL::ComPtr<ID3D11DeviceContext>>
-        d3d11_device_contexts_;
+  public:
+    std::map<std::uint64_t, Microsoft::WRL::ComPtr<ID3D11Device>> d3d11_devices_;
+    std::map<std::uint64_t, Microsoft::WRL::ComPtr<ID3D11DeviceContext>> d3d11_device_contexts_;
 
-private:
+  private:
     std::shared_ptr<ModuleEventChannel> event_channel_;
 };
 
-}  // namespace px
+} // namespace px

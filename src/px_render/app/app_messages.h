@@ -115,8 +115,8 @@ namespace px
     //
     class MsgClientConnected {
     public:
-        std::string conn_id_;
-        std::string conn_type_;
+        std::string connection_id_;
+        std::string connection_type_;
         std::string stream_id_;
         std::string visitor_device_id_;
         int64_t begin_timestamp_{0};
@@ -129,7 +129,7 @@ namespace px
             type_ = EType::kClientDisconnected;
         }
     public:
-        std::string conn_id_;
+        std::string connection_id_;
         std::string visitor_device_id_;
         std::string stream_id_;
         int64_t end_timestamp_{0};

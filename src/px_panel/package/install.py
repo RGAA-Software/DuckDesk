@@ -28,6 +28,7 @@ def collceion_program_files(force_update, in_target_path):
         "multi_screens.dll",
         "net_relay.dll",
         "net_rtc.dll",
+        "net_rtc_local.dll",
         "net_udp.dll",
         "net_ws.dll",
         "enc_nvenc.dll",

@@ -81,21 +81,21 @@ foreach ($script in @($publisher, $collector)) {
         -Pattern 'rd_plugins' `
         -Reason "legacy rd_plugins cleanup is missing"
 }
-Assert-Match -Path $publisher -Pattern 'deps\\network' `
-    -Reason "focused publishing does not target deps/network"
-Assert-Match -Path $collector -Pattern 'network_dst' `
-    -Reason "full dist collection does not target deps/network"
+Assert-Match -Path $publisher -Pattern '\$destination\s*=\s*Join-Path\s+\$distRoot\s+\(Split-Path\s+-Leaf' `
+    -Reason "focused publishing does not place WebRTC beside px_render.exe"
+Assert-Match -Path $collector -Pattern 'copy_file\(source, os\.path\.join\(dist_dir, name\)\)' `
+    -Reason "full dist collection does not place WebRTC beside px_render.exe"
 
 if ($CheckDist) {
     $legacyDistDirectory = Join-Path $RepoRoot "build_official\dist\deps\rd_plugins"
     if (Test-Path -LiteralPath $legacyDistDirectory) {
         throw "legacy Render plugin delivery directory still exists: $legacyDistDirectory"
     }
-    $networkDirectory = Join-Path $RepoRoot "build_official\dist\deps\network"
-    foreach ($library in @("net_rtc.dll", "net_rtc_local.dll")) {
-        $path = Join-Path $networkDirectory $library
+    $runtimeDirectory = Join-Path $RepoRoot "build_official\dist"
+    foreach ($library in @("px_render_rtc_remote.dll", "px_render_rtc.dll")) {
+        $path = Join-Path $runtimeDirectory $library
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-            throw "required WebRTC network library is missing: $path"
+            throw "required WebRTC runtime library is missing beside px_render.exe: $path"
         }
     }
 }

@@ -8,8 +8,8 @@ import os from 'node:os'
 import path from 'node:path'
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-// 插件内 LOGI 写到插件自己的日志文件
-const RENDER_LOG = 'C:/Users/Public/Pixels/px_logs/net_rtc_local.dll.log'
+// Local RTC DLL 的 LOGI 写到组件自己的日志文件
+const RENDER_LOG = 'C:/Users/Public/Pixels/px_logs/px_render_rtc.dll.log'
 const PAGE_URL =
   'http://127.0.0.1:20371/web_client/?deviceId=600378210&streamId=micup1&pwd_md5=698d51a19d8a121ce581499d7b701668'
 const CDP_PORT = 9223

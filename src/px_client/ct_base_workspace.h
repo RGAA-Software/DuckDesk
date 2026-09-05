@@ -41,7 +41,6 @@ namespace px
     class FloatButtonStateIndicator;
     class MainProgress;
     class PxRenderView;
-    class RtcClientInterface;
     class CtPanelClient;
     class ClientModuleManager;
     class ClientMediaRecordingModule;

@@ -32,17 +32,14 @@ struct FactoryState final {
 };
 
 class FakeRecorderWriter final : public MediaRecorderWriter {
-public:
-    explicit FakeRecorderWriter(std::shared_ptr<WriterCounters> counters)
-        : counters_(std::move(counters)) {}
+  public:
+    explicit FakeRecorderWriter(std::shared_ptr<WriterCounters> counters) : counters_(std::move(counters)) {}
 
-    void OnVideo(
-        const std::shared_ptr<const EncodedVideoFrame>&) override {
+    void OnVideo(const std::shared_ptr<const EncodedVideoFrame>&) override {
         ++counters_->video;
     }
 
-    void OnAudio(
-        const std::shared_ptr<const EncodedAudioFrame>&) override {
+    void OnAudio(const std::shared_ptr<const EncodedAudioFrame>&) override {
         ++counters_->audio;
     }
 
@@ -50,15 +47,12 @@ public:
         ++counters_->stopped;
     }
 
-private:
+  private:
     std::shared_ptr<WriterCounters> counters_;
 };
 
-MediaRecorderSink::WriterFactory MakeFactory(
-    const std::shared_ptr<FactoryState>& state) {
-    return [state](const std::string&,
-                   const MediaRecorderOptions&,
-                   const MediaRecorderSink::KeyframeRequester& callback) {
+MediaRecorderSink::WriterFactory MakeFactory(const std::shared_ptr<FactoryState>& state) {
+    return [state](const std::string&, const MediaRecorderOptions&, const MediaRecorderSink::KeyframeRequester& callback) {
         const auto counters = std::make_shared<WriterCounters>();
         {
             std::lock_guard lock(state->mutex);
@@ -69,15 +63,15 @@ MediaRecorderSink::WriterFactory MakeFactory(
     };
 }
 
-std::shared_ptr<const EncodedVideoFrame> MakeVideo(
-    const std::uint64_t index) {
+std::shared_ptr<const EncodedVideoFrame> MakeVideo(const std::uint64_t index) {
     return std::make_shared<const EncodedVideoFrame>(EncodedVideoFrame{
-        .identity = FrameIdentity{
-            .stream_id = "stream-a",
-            .monitor_id = "monitor-a",
-            .frame_index = index,
-            .timestamp_us = index * 1000,
-        },
+        .identity =
+            FrameIdentity{
+                .stream_id = "stream-a",
+                .monitor_id = "monitor-a",
+                .frame_index = index,
+                .timestamp_us = index * 1000,
+            },
         .codec = "h264",
         .width = 1280,
         .height = 720,
@@ -99,24 +93,16 @@ std::shared_ptr<const EncodedAudioFrame> MakeAudio() {
     });
 }
 
-PxAwaitable<void> CompleteStop(
-    const std::shared_ptr<MediaRecorderSink>& sink,
-    const std::shared_ptr<std::promise<ModuleLifecycleResult>>& completion) {
-    completion->set_value(co_await MediaRecorderSink::StopAsync(
-        sink, std::chrono::steady_clock::now() + 2s));
+PxAwaitable<void> CompleteStop(std::shared_ptr<MediaRecorderSink> sink, std::shared_ptr<std::promise<ModuleLifecycleResult>> completion) {
+    completion->set_value(co_await MediaRecorderSink::StopAsync(sink, std::chrono::steady_clock::now() + 2s));
     co_return;
 }
 
-ModuleLifecycleResult StopAndWait(
-    const std::shared_ptr<PxAsyncRuntime>& runtime,
-    const std::shared_ptr<MediaRecorderSink>& sink) {
-    const auto completion =
-        std::make_shared<std::promise<ModuleLifecycleResult>>();
+ModuleLifecycleResult StopAndWait(const std::shared_ptr<PxAsyncRuntime>& runtime, const std::shared_ptr<MediaRecorderSink>& sink) {
+    const auto completion = std::make_shared<std::promise<ModuleLifecycleResult>>();
     auto future = completion->get_future();
     const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
-    if (!scope->Spawn("media_recorder_test_stop", [sink, completion] {
-            return CompleteStop(sink, completion);
-        })) {
+    if (!scope->Spawn("media_recorder_test_stop", [sink, completion] { return CompleteStop(sink, completion); })) {
         return std::unexpected(RenderError{
             .code = RenderErrorCode::kModuleStopFailed,
             .component = "test",
@@ -146,9 +132,7 @@ TEST(MediaRecorderSinkTest, TenStartDrainStopRoundsAreComplete) {
     const auto factory_state = std::make_shared<FactoryState>();
     const auto keyframe_requests = std::make_shared<std::atomic_int>(0);
     auto sink = MediaRecorderSink::Create(
-        media_bus,
-        MediaRecorderOptions{.record_directory = "test", .queue_capacity = 128},
-        [keyframe_requests] { ++(*keyframe_requests); },
+        media_bus, MediaRecorderOptions{.record_directory = "test", .queue_capacity = 128}, [keyframe_requests] { ++(*keyframe_requests); },
         MakeFactory(factory_state));
     ASSERT_TRUE(sink);
 
@@ -180,27 +164,21 @@ TEST(MediaRecorderSinkTest, AutoModeTracksFirstAndLastClient) {
     ASSERT_TRUE(runtime->Start());
     const auto media_bus = EncodedMediaBus::Create();
     const auto factory_state = std::make_shared<FactoryState>();
-    auto sink = MediaRecorderSink::Create(
-        media_bus,
-        MediaRecorderOptions{
-            .record_directory = "test",
-            .auto_enabled = true,
-            .queue_capacity = 32,
-        },
-        {},
-        MakeFactory(factory_state));
+    auto sink = MediaRecorderSink::Create(media_bus,
+                                          MediaRecorderOptions{
+                                              .record_directory = "test",
+                                              .auto_enabled = true,
+                                              .queue_capacity = 32,
+                                          },
+                                          {}, MakeFactory(factory_state));
     ASSERT_TRUE(sink->Start());
 
-    media_bus->PublishClientConnected(MediaClientConnected{
-        .visitor_device_id = "client-a", .stream_id = "stream-a"});
+    media_bus->PublishClientConnected(MediaClientConnected{.visitor_device_id = "client-a", .stream_id = "stream-a"});
     EXPECT_TRUE(sink->Snapshot().recording);
-    media_bus->PublishClientConnected(MediaClientConnected{
-        .visitor_device_id = "client-b", .stream_id = "stream-b"});
-    media_bus->PublishClientDisconnected(MediaClientDisconnected{
-        .visitor_device_id = "client-a", .stream_id = "stream-a"});
+    media_bus->PublishClientConnected(MediaClientConnected{.visitor_device_id = "client-b", .stream_id = "stream-b"});
+    media_bus->PublishClientDisconnected(MediaClientDisconnected{.visitor_device_id = "client-a", .stream_id = "stream-a"});
     EXPECT_TRUE(sink->Snapshot().recording);
-    media_bus->PublishClientDisconnected(MediaClientDisconnected{
-        .visitor_device_id = "client-b", .stream_id = "stream-b"});
+    media_bus->PublishClientDisconnected(MediaClientDisconnected{.visitor_device_id = "client-b", .stream_id = "stream-b"});
     EXPECT_FALSE(sink->Snapshot().recording);
 
     EXPECT_TRUE(StopAndWait(runtime, sink));
@@ -216,9 +194,7 @@ TEST(MediaRecorderSinkTest, RetainedWriterCallbackIsSafeAfterDestruction) {
     const auto factory_state = std::make_shared<FactoryState>();
     const auto keyframe_requests = std::make_shared<std::atomic_int>(0);
     auto sink = MediaRecorderSink::Create(
-        media_bus,
-        MediaRecorderOptions{.record_directory = "test", .queue_capacity = 8},
-        [keyframe_requests] { ++(*keyframe_requests); },
+        media_bus, MediaRecorderOptions{.record_directory = "test", .queue_capacity = 8}, [keyframe_requests] { ++(*keyframe_requests); },
         MakeFactory(factory_state));
     ASSERT_TRUE(sink->Start());
     sink->StartRecording();
@@ -246,11 +222,9 @@ TEST(MediaRecorderSinkTest, StopRequestedFromKeyframeCallbackDoesNotDeadlock) {
     ASSERT_TRUE(runtime->Start());
     const auto media_bus = EncodedMediaBus::Create();
     const auto factory_state = std::make_shared<FactoryState>();
-    const auto weak_holder =
-        std::make_shared<std::weak_ptr<MediaRecorderSink>>();
+    const auto weak_holder = std::make_shared<std::weak_ptr<MediaRecorderSink>>();
     auto sink = MediaRecorderSink::Create(
-        media_bus,
-        MediaRecorderOptions{.record_directory = "test", .queue_capacity = 8},
+        media_bus, MediaRecorderOptions{.record_directory = "test", .queue_capacity = 8},
         [weak_holder] {
             if (const auto active_sink = weak_holder->lock()) {
                 active_sink->StopRecording();
@@ -267,5 +241,5 @@ TEST(MediaRecorderSinkTest, StopRequestedFromKeyframeCallbackDoesNotDeadlock) {
     runtime->Join();
 }
 
-}  // namespace
-}  // namespace px::render
+} // namespace
+} // namespace px::render

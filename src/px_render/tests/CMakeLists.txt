@@ -181,10 +181,9 @@ target_link_libraries(test_direct_session_grant_store
     PRIVATE px_common_new GTest::gtest GTest::gtest_main)
 add_test(NAME direct_session_grant_store COMMAND test_direct_session_grant_store)
 
-add_executable(test_plugin_context_lifecycle test_plugin_context_lifecycle.cpp)
-target_link_libraries(test_plugin_context_lifecycle
-    PRIVATE px_common_new px_plugin GTest::gtest GTest::gtest_main)
-add_test(NAME plugin_context_lifecycle COMMAND test_plugin_context_lifecycle)
+add_executable(test_render_execution_context_lifecycle test_render_execution_context_lifecycle.cpp)
+target_link_libraries(test_render_execution_context_lifecycle PRIVATE render_architecture_core GTest::gtest GTest::gtest_main)
+add_test(NAME render_execution_context_lifecycle COMMAND test_render_execution_context_lifecycle)
 
 add_executable(test_udp_transport_shutdown test_udp_transport_shutdown.cpp)
 target_link_libraries(test_udp_transport_shutdown PRIVATE
@@ -196,19 +195,26 @@ target_link_libraries(test_relay_transport_reconnect_owner PRIVATE
     net_relay render_architecture_core GTest::gtest GTest::gtest_main)
 add_test(NAME relay_transport_reconnect_owner COMMAND test_relay_transport_reconnect_owner)
 
-add_executable(test_webrtc_libraries_lifecycle
-        test_webrtc_libraries_lifecycle.cpp
-        ../network/webrtc_library_host.cpp)
-target_link_libraries(test_webrtc_libraries_lifecycle
-        PRIVATE px_common_new px_net_plugin px_plugin
+add_executable(test_webrtc_transport_lifecycle
+        test_webrtc_transport_lifecycle.cpp
+        ../network/webrtc/webrtc_execution_context.cpp
+        ../network/webrtc_transport_host.cpp)
+target_link_libraries(test_webrtc_transport_lifecycle
+        PRIVATE px_common_new net_rtc net_rtc_local
         GTest::gtest GTest::gtest_main)
-target_compile_definitions(test_webrtc_libraries_lifecycle
+target_compile_definitions(test_webrtc_transport_lifecycle
         PRIVATE
         PX_WEBRTC_REMOTE_LIBRARY_PATH="$<TARGET_FILE:net_rtc>"
         PX_WEBRTC_LOCAL_LIBRARY_PATH="$<TARGET_FILE:net_rtc_local>")
-add_dependencies(test_webrtc_libraries_lifecycle net_rtc net_rtc_local)
-add_test(NAME webrtc_libraries_lifecycle
-    COMMAND test_webrtc_libraries_lifecycle)
+add_custom_command(TARGET test_webrtc_transport_lifecycle POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:net_rtc>
+        $<TARGET_FILE_DIR:test_webrtc_transport_lifecycle>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:net_rtc_local>
+        $<TARGET_FILE_DIR:test_webrtc_transport_lifecycle>)
+add_test(NAME webrtc_transport_lifecycle
+    COMMAND test_webrtc_transport_lifecycle)
 
 add_executable(test_render_builtin_linkage unit/test_render_builtin_linkage.cpp)
 target_link_libraries(test_render_builtin_linkage PRIVATE
@@ -241,10 +247,10 @@ set_property(TEST
     was_audio_capture_runtime
     miniaudio_reinit_cancel
     process_loopback_lifecycle
-    plugin_context_lifecycle
+    render_execution_context_lifecycle
     udp_transport_shutdown
     relay_transport_reconnect_owner
-    webrtc_libraries_lifecycle
+    webrtc_transport_lifecycle
     APPEND PROPERTY LABELS "render-lifecycle")
 
 set_property(TEST

@@ -162,9 +162,37 @@ function Remove-LegacyRenderPluginDirectory {
     Write-Host "REMOVED legacy Render plugin directory $legacyDirectory"
 }
 
+function Remove-RetiredRenderNetworkLibraries {
+    foreach ($relativePath in @(
+        "net_rtc.dll",
+        "net_rtc_local.dll",
+        "deps\network\net_rtc.dll",
+        "deps\network\net_rtc_local.dll",
+        "deps\network\px_render_rtc.dll",
+        "deps\network\px_render_rtc_remote.dll")) {
+        $retiredPath = Join-Path $distRoot $relativePath
+        if (-not (Test-Path -LiteralPath $retiredPath -PathType Leaf)) {
+            continue
+        }
+        try {
+            Remove-Item -LiteralPath $retiredPath -Force
+        }
+        catch {
+            Stop-RenderServiceForPublish
+            Remove-Item -LiteralPath $retiredPath -Force
+        }
+        Write-Host "REMOVED retired Render network library $retiredPath"
+    }
+    $retiredDirectory = Join-Path $distRoot "deps\network"
+    if ((Test-Path -LiteralPath $retiredDirectory -PathType Container) -and -not (Get-ChildItem -LiteralPath $retiredDirectory -Force)) {
+        Remove-Item -LiteralPath $retiredDirectory
+        Write-Host "REMOVED empty retired Render network directory $retiredDirectory"
+    }
+}
+
 $renderNetworkLibraryMap = @{
-    "net_rtc"       = "network\webrtc\remote\net_rtc.dll"
-    "net_rtc_local" = "network\webrtc\local\net_rtc_local.dll"
+    "net_rtc"       = "network\webrtc\remote\px_render_rtc_remote.dll"
+    "net_rtc_local" = "network\webrtc\local\px_render_rtc.dll"
 }
 
 function Publish-RenderNetworkLibrary {
@@ -174,7 +202,7 @@ function Publish-RenderNetworkLibrary {
     }
     $relativeSource = $renderNetworkLibraryMap[$Target]
     $source = Join-Path $buildRoot ("src\px_render\" + $relativeSource)
-    $destination = Join-Path $distRoot ("deps\network\" + (Split-Path -Leaf $relativeSource))
+    $destination = Join-Path $distRoot (Split-Path -Leaf $relativeSource)
     Publish-VerifiedFile -Source $source -Destination $destination -ProcessName "px_render"
 }
 
@@ -182,6 +210,7 @@ try {
 switch ($Component) {
     "render" {
         Remove-LegacyRenderPluginDirectory
+        Remove-RetiredRenderNetworkLibraries
         Publish-VerifiedFile `
             -Source (Join-Path $buildRoot "src\px_render\px_render.exe") `
             -Destination (Join-Path $distRoot "px_render.exe") `
@@ -190,6 +219,9 @@ switch ($Component) {
             -Source (Join-Path $repoRoot "src\px_render\architecture\processors\frame_carrier\resources\ic_logo_point.png") `
             -Destination (Join-Path $distRoot "resources\render\frame_carrier\ic_logo_point.png") `
             -ProcessName "px_render"
+        foreach ($target in $renderNetworkLibraryMap.Keys | Sort-Object) {
+            Publish-RenderNetworkLibrary -Target $target
+        }
     }
     "client" {
         Publish-VerifiedFile `
@@ -197,7 +229,7 @@ switch ($Component) {
             -Destination (Join-Path $distRoot "px_client.exe") `
             -ProcessName "px_client"
         Publish-VerifiedFile `
-            -Source (Join-Path $buildRoot "src\px_deps\px_webrtc_client\px_rtc_client.dll") `
+            -Source (Join-Path $buildRoot "src\px_deps\px_webrtc_client\px_client_rtc.dll") `
             -Destination (Join-Path $distRoot "px_client_rtc.dll") `
             -ProcessName "px_client"
         Remove-RetiredClientRecordingCore
@@ -235,6 +267,7 @@ switch ($Component) {
     }
     "render_network_library" {
         Remove-LegacyRenderPluginDirectory
+        Remove-RetiredRenderNetworkLibraries
         if ([string]::IsNullOrWhiteSpace($LibraryTarget)) {
             throw "LibraryTarget is required for render_network_library"
         }
@@ -248,12 +281,14 @@ switch ($Component) {
     }
     "render_network_libraries" {
         Remove-LegacyRenderPluginDirectory
+        Remove-RetiredRenderNetworkLibraries
         foreach ($target in $renderNetworkLibraryMap.Keys | Sort-Object) {
             Publish-RenderNetworkLibrary -Target $target
         }
     }
     "ft_protocol" {
         Remove-LegacyRenderPluginDirectory
+        Remove-RetiredRenderNetworkLibraries
         # px_file_transfer.proto objects cross these executable/plugin boundaries.
         # Publish them as one compatibility unit so generated protobuf layouts cannot be mixed.
         Publish-VerifiedFile `
@@ -272,7 +307,7 @@ switch ($Component) {
             -Destination (Join-Path $distRoot "px_client.exe") `
             -ProcessName "px_client"
         Publish-VerifiedFile `
-            -Source (Join-Path $buildRoot "src\px_deps\px_webrtc_client\px_rtc_client.dll") `
+            -Source (Join-Path $buildRoot "src\px_deps\px_webrtc_client\px_client_rtc.dll") `
             -Destination (Join-Path $distRoot "px_client_rtc.dll") `
             -ProcessName "px_client"
         Remove-RetiredClientRecordingCore

@@ -33,12 +33,10 @@ struct ProcessorState final {
 };
 
 class FakeLivePushProcessor final : public LivePushProcessor {
-public:
-    explicit FakeLivePushProcessor(std::shared_ptr<ProcessorState> state)
-        : state_(std::move(state)) {}
+  public:
+    explicit FakeLivePushProcessor(std::shared_ptr<ProcessorState> state) : state_(std::move(state)) {}
 
-    void ProcessVideo(
-        const std::shared_ptr<const EncodedVideoFrame>& frame) override {
+    void ProcessVideo(const std::shared_ptr<const EncodedVideoFrame>& frame) override {
         std::unique_lock lock(state_->mutex);
         ++state_->video_count;
         if (frame && frame->key_frame) {
@@ -47,21 +45,16 @@ public:
         if (state_->block && !state_->entered) {
             state_->entered = true;
             state_->condition.notify_all();
-            state_->condition.wait(lock, [state = state_] {
-                return state->release;
-            });
+            state_->condition.wait(lock, [state = state_] { return state->release; });
         }
-        const auto callback = state_->request_on_video
-            ? state_->request_keyframe
-            : LivePusherSink::KeyframeRequester{};
+        const auto callback = state_->request_on_video ? state_->request_keyframe : LivePusherSink::KeyframeRequester{};
         lock.unlock();
         if (callback) {
             callback();
         }
     }
 
-    void ProcessAudio(
-        const std::shared_ptr<const CapturedAudioFrame>&) override {
+    void ProcessAudio(const std::shared_ptr<const CapturedAudioFrame>&) override {
         std::lock_guard lock(state_->mutex);
         ++state_->audio_count;
     }
@@ -75,28 +68,25 @@ public:
         ++state_->close_count;
     }
 
-private:
+  private:
     std::shared_ptr<ProcessorState> state_;
 };
 
-LivePusherSink::ProcessorFactory MakeFactory(
-    const std::shared_ptr<ProcessorState>& state) {
-    return [state](const LivePusherOptions&,
-                   const LivePusherSink::KeyframeRequester& callback) {
+LivePusherSink::ProcessorFactory MakeFactory(const std::shared_ptr<ProcessorState>& state) {
+    return [state](const LivePusherOptions&, const LivePusherSink::KeyframeRequester& callback) {
         state->request_keyframe = callback;
         return std::make_shared<FakeLivePushProcessor>(state);
     };
 }
 
-std::shared_ptr<const EncodedVideoFrame> MakeVideo(
-    const std::uint64_t index,
-    const std::string& monitor = "monitor-1") {
+std::shared_ptr<const EncodedVideoFrame> MakeVideo(const std::uint64_t index, const std::string& monitor = "monitor-1") {
     return std::make_shared<const EncodedVideoFrame>(EncodedVideoFrame{
-        .identity = FrameIdentity{
-            .monitor_id = monitor,
-            .frame_index = index,
-            .timestamp_us = index * 16000,
-        },
+        .identity =
+            FrameIdentity{
+                .monitor_id = monitor,
+                .frame_index = index,
+                .timestamp_us = index * 16000,
+            },
         .codec = "h264",
         .width = 1280,
         .height = 720,
@@ -115,24 +105,17 @@ std::shared_ptr<const CapturedAudioFrame> MakeAudio() {
     });
 }
 
-PxAwaitable<void> CompleteStop(
-    const std::shared_ptr<LivePusherSink>& sink,
-    const std::shared_ptr<std::promise<ModuleLifecycleResult>>& completion) {
-    completion->set_value(co_await LivePusherSink::StopAsync(
-        sink, std::chrono::steady_clock::now() + 2s));
+PxAwaitable<void> CompleteStop(std::shared_ptr<LivePusherSink> sink, std::shared_ptr<std::promise<ModuleLifecycleResult>> completion) {
+    completion->set_value(co_await LivePusherSink::StopAsync(sink, std::chrono::steady_clock::now() + 2s));
     co_return;
 }
 
-ModuleLifecycleResult StopAndWait(
-    const std::shared_ptr<PxAsyncRuntime>& runtime,
-    const std::shared_ptr<LivePusherSink>& sink) {
-    const auto completion =
-        std::make_shared<std::promise<ModuleLifecycleResult>>();
+ModuleLifecycleResult StopAndWait(const std::shared_ptr<PxAsyncRuntime>& runtime, const std::shared_ptr<LivePusherSink>& sink) {
+    const auto completion = std::make_shared<std::promise<ModuleLifecycleResult>>();
     auto future = completion->get_future();
     const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
-    if (!scope->Spawn("live_pusher_test_stop", [sink, completion] {
-            return CompleteStop(sink, completion);
-        }) || future.wait_for(3s) != std::future_status::ready) {
+    if (!scope->Spawn("live_pusher_test_stop", [sink, completion] { return CompleteStop(sink, completion); }) ||
+        future.wait_for(3s) != std::future_status::ready) {
         return std::unexpected(RenderError{
             .code = RenderErrorCode::kAsyncScopeDrainTimeout,
             .component = "test",
@@ -152,13 +135,12 @@ TEST(LivePusherSinkTest, TenCreateDrainShutdownRounds) {
     for (int round = 0; round < 10; ++round) {
         const auto bus = EncodedMediaBus::Create();
         const auto state = std::make_shared<ProcessorState>();
-        auto sink = LivePusherSink::Create(
-            bus,
-            LivePusherOptions{
-                .enabled = true,
-                .publish_url = "rtmp://unit.test/live",
-            },
-            {}, MakeFactory(state));
+        auto sink = LivePusherSink::Create(bus,
+                                           LivePusherOptions{
+                                               .enabled = true,
+                                               .publish_url = "rtmp://unit.test/live",
+                                           },
+                                           {}, MakeFactory(state));
         ASSERT_TRUE(sink->Start());
         for (std::uint64_t index = 0; index < 16; ++index) {
             bus->PublishVideo(MakeVideo(index));
@@ -178,13 +160,13 @@ TEST(LivePusherSinkTest, SelectedMonitorFiltersOtherScreens) {
     ASSERT_TRUE(runtime->Start());
     const auto bus = EncodedMediaBus::Create();
     const auto state = std::make_shared<ProcessorState>();
-    auto sink = LivePusherSink::Create(
-        bus,
-        LivePusherOptions{
-            .enabled = true,
-            .publish_url = "rtmp://unit.test/live",
-            .primary_monitor = "monitor-2",
-        }, {}, MakeFactory(state));
+    auto sink = LivePusherSink::Create(bus,
+                                       LivePusherOptions{
+                                           .enabled = true,
+                                           .publish_url = "rtmp://unit.test/live",
+                                           .primary_monitor = "monitor-2",
+                                       },
+                                       {}, MakeFactory(state));
     ASSERT_TRUE(sink->Start());
     bus->PublishVideo(MakeVideo(0, "monitor-1"));
     bus->PublishVideo(MakeVideo(0, "monitor-2"));
@@ -201,13 +183,13 @@ TEST(LivePusherSinkTest, QueueKeepsNewKeyframeByEvictingNonKeyFrame) {
     const auto bus = EncodedMediaBus::Create();
     const auto state = std::make_shared<ProcessorState>();
     state->block = true;
-    auto sink = LivePusherSink::Create(
-        bus,
-        LivePusherOptions{
-            .enabled = true,
-            .publish_url = "rtmp://unit.test/live",
-            .queue_capacity = 48,
-        }, {}, MakeFactory(state));
+    auto sink = LivePusherSink::Create(bus,
+                                       LivePusherOptions{
+                                           .enabled = true,
+                                           .publish_url = "rtmp://unit.test/live",
+                                           .queue_capacity = 48,
+                                       },
+                                       {}, MakeFactory(state));
     ASSERT_TRUE(sink->Start());
     bus->PublishVideo(MakeVideo(1));
     {
@@ -237,8 +219,7 @@ TEST(LivePusherSinkTest, DisableFromProcessorCallbackDoesNotSelfJoin) {
     const auto bus = EncodedMediaBus::Create();
     const auto state = std::make_shared<ProcessorState>();
     state->request_on_video = true;
-    const auto weak_holder =
-        std::make_shared<std::weak_ptr<LivePusherSink>>();
+    const auto weak_holder = std::make_shared<std::weak_ptr<LivePusherSink>>();
     const auto disabled = std::make_shared<std::atomic_bool>(false);
     auto sink = LivePusherSink::Create(
         bus,
@@ -259,9 +240,7 @@ TEST(LivePusherSinkTest, DisableFromProcessorCallbackDoesNotSelfJoin) {
     bus->PublishVideo(MakeVideo(0));
     {
         std::unique_lock lock(state->mutex);
-        ASSERT_TRUE(state->condition.wait_for(lock, 2s, [disabled] {
-            return disabled->load(std::memory_order_acquire);
-        }));
+        ASSERT_TRUE(state->condition.wait_for(lock, 2s, [disabled] { return disabled->load(std::memory_order_acquire); }));
     }
     ASSERT_TRUE(StopAndWait(runtime, sink));
     EXPECT_FALSE(bus->NeedsVideo());
@@ -270,5 +249,5 @@ TEST(LivePusherSinkTest, DisableFromProcessorCallbackDoesNotSelfJoin) {
     runtime->Join();
 }
 
-}  // namespace
-}  // namespace px::render
+} // namespace
+} // namespace px::render

@@ -32,6 +32,7 @@ try {
     }
     else {
         $addedCodeByFile = @{}
+        $removedCodeCountsByFile = @{}
         $diffArgs = @("diff", "--unified=0", "--no-ext-diff")
         if ($Staged) {
             $diffArgs += "--cached"
@@ -81,6 +82,16 @@ try {
                 $currentFile = $Matches[1]
                 continue
             }
+            if ($line -match '^-(?!---)') {
+                $removed = $line.Substring(1)
+                $normalizedRemoved = $removed -replace '\s+', ''
+                if (-not $removedCodeCountsByFile.ContainsKey($currentFile)) {
+                    $removedCodeCountsByFile[$currentFile] = @{}
+                }
+                $fileCounts = $removedCodeCountsByFile[$currentFile]
+                $fileCounts[$normalizedRemoved] = 1 + [int]$fileCounts[$normalizedRemoved]
+                continue
+            }
             if ($line -notmatch '^\+(?!\+\+\+)') {
                 continue
             }
@@ -91,6 +102,14 @@ try {
                 continue
             }
             $added = $line.Substring(1)
+            $normalizedAdded = $added -replace '\s+', ''
+            if ($removedCodeCountsByFile.ContainsKey($currentFile)) {
+                $fileCounts = $removedCodeCountsByFile[$currentFile]
+                if ([int]$fileCounts[$normalizedAdded] -gt 0) {
+                    $fileCounts[$normalizedAdded] = [int]$fileCounts[$normalizedAdded] - 1
+                    continue
+                }
+            }
             if (-not $addedCodeByFile.ContainsKey($currentFile)) {
                 $addedCodeByFile[$currentFile] =
                     [System.Collections.Generic.List[string]]::new()

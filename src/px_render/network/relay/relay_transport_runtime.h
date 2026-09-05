@@ -23,7 +23,7 @@ class Data;
 class FileTransferWritableSignal;
 class NetMessageAck;
 class PxConnectedClientInfo;
-class PxPluginContext;
+class RenderExecutionContext;
 class PxAsyncRuntime;
 class RelayServerSdk;
 
@@ -47,8 +47,8 @@ public:
     RelayTransportRuntime(const RelayTransportRuntime&) = delete;
     RelayTransportRuntime& operator=(const RelayTransportRuntime&) = delete;
 
-    void Start(const std::shared_ptr<PxPluginContext>& context,
-               CompatibilityEventCallback event_callback);
+    void Start(const std::shared_ptr<RenderExecutionContext>& context,
+               RenderEventCallback event_callback);
     void Stop();
     void UpdateSettings(const RenderModuleSettings& settings);
 
@@ -112,9 +112,9 @@ private:
     [[nodiscard]] bool IsCurrentMediaGeneration(uint64_t generation) const;
     [[nodiscard]] bool IsCurrentFileTransferGeneration(uint64_t generation) const;
 
-    void Emit(const std::shared_ptr<PxPluginBaseEvent>& event, bool directly = false);
+    void Emit(RenderEvent event, bool directly = false);
     void EmitNetMessage(std::shared_ptr<Data> message,
-                        const NetChannelType& channel,
+                        const TransportChannel& channel,
                         std::string connection_instance_id,
                         bool directly);
     void NotifyClientConnected(const std::string& connection_id,
@@ -137,8 +137,8 @@ private:
     std::atomic_bool need_reconnect_{false};
 
     mutable std::mutex sink_mutex_;
-    std::shared_ptr<PxPluginContext> module_context_;
-    CompatibilityEventCallback event_callback_;
+    std::shared_ptr<RenderExecutionContext> execution_context_;
+    RenderEventCallback event_callback_;
 
     mutable std::mutex sdk_mutex_;
     std::shared_ptr<RelayServerSdk> relay_media_sdk_;

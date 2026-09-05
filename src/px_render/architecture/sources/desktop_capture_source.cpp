@@ -1,6 +1,6 @@
 #include "desktop_capture_source.h"
 #include "px_common_new/log.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/architecture/events/render_event.h"
 #include <Shlobj.h>
 #include <px_common_new/string_util.h>
 

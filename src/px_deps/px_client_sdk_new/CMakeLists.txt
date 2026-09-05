@@ -68,7 +68,7 @@ if (ANDROID)
     target_link_libraries(px_sdk PRIVATE ${FFMPEG_LIBRARIES} px_relay_client)
     target_link_libraries(px_sdk PRIVATE ${ANDROID_OPENSSL_LIBS})
 else ()
-    target_link_libraries(px_sdk PRIVATE protobuf::libprotobuf px_relay_client)
+    target_link_libraries(px_sdk PRIVATE protobuf::libprotobuf px_relay_client px_rtc_client)
 
     target_link_libraries(px_sdk PRIVATE
             Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets

@@ -19,7 +19,6 @@
 #include "render_panel/px_application.h"
 #include "px_message_new/proto_converter.h"
 #include "px_message_new/rp_proto_converter.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
 #include "render_panel/database/px_database.h"
 #include "render_panel/database/visit_record.h"
 #include "render_panel/database/visit_record_operator.h"

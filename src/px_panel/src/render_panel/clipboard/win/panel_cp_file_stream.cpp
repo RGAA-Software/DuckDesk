@@ -7,7 +7,6 @@
 #include "px_common_new/md5.h"
 #include "px_common_new/time_util.h"
 #include "px_message_new/proto_converter.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
 #include "render_panel/px_context.h"
 #include "render_panel/px_application.h"
 #include "px_message_new/proto_converter.h"

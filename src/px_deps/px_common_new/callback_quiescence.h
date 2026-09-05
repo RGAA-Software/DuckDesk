@@ -13,12 +13,12 @@
 namespace px {
 
 class PxCallbackQuiescence final : public std::enable_shared_from_this<PxCallbackQuiescence> {
-private:
+  private:
     class State;
 
-public:
+  public:
     class Lease final {
-    public:
+      public:
         explicit Lease(std::shared_ptr<State> state);
         ~Lease();
 
@@ -27,7 +27,7 @@ public:
         Lease(const Lease&) = delete;
         Lease& operator=(const Lease&) = delete;
 
-    private:
+      private:
         void Release() noexcept;
 
         std::shared_ptr<State> state_{};
@@ -45,12 +45,10 @@ public:
     void BeginStop();
     [[nodiscard]] bool IsAccepting() const;
     [[nodiscard]] std::uint64_t Outstanding() const;
-    [[nodiscard]] static PxAwaitable<PxResult<void>> WaitUntilQuiescent(
-        const std::shared_ptr<PxCallbackQuiescence>& gate,
-        std::chrono::steady_clock::time_point deadline,
-        std::string stage);
+    [[nodiscard]] static PxAwaitable<PxResult<void>> WaitUntilQuiescent(std::shared_ptr<PxCallbackQuiescence> gate,
+                                                                        std::chrono::steady_clock::time_point deadline, std::string stage);
 
-private:
+  private:
     std::shared_ptr<State> state_{};
 };
 

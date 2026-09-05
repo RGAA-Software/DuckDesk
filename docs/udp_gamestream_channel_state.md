@@ -225,16 +225,16 @@
 
 > 目标机:`10.0.0.70` / `Administrator`。凭据见 `tests/.remote_admin.md`(未入库),不要写进本仓库可提交文档。
 
-> 只改 render 插件(如 `plugin_net_udp.dll` / `plugin_net_rtc_local.dll`)时,不必重跑全量
+> 只改 Render UDP/RTC 网络模块时，不必重跑全量
 > `build_client.bat`。在 VsDevCmd 环境里只编这两个目标:
 >
 > ```bat
 > call "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
-> cmake --build build_official --target plugin_net_udp plugin_net_rtc_local -j18
+> build_cpp_render_rtc.bat 18
 > ```
 >
 > 产物在 `build_official\src\px_render\plugins\net_udp\plugin_net_udp.dll` 和
-> `build_official\src\px_render\plugins\net_rtc_local\plugin_net_rtc_local.dll`,直接按第 4 步
+> `build_official\dist\px_render_rtc.dll`，直接按第 4 步
 > 覆盖到远端 `px_plugins\`,不必整目录 `robocopy build_official\dist`。
 
 1. **构建客户端包**

@@ -59,6 +59,31 @@ change.
   boundary exceptions. Value-initialize their storage before the call, validate the
   result, and immediately wrap any acquired resource in its RAII owner.
 
+## Coroutine frame ownership
+
+A coroutine call can return its awaitable before the function body executes. Every
+parameter that may be needed by the coroutine must therefore be copied or moved into
+the coroutine frame. A caller-side temporary or local object passed through a
+top-level reference can already be destroyed when the coroutine first resumes.
+
+- Project coroutine functions take owning state, `shared_ptr`, `weak_ptr`, callbacks,
+  request values, strings, containers and executors by value. Move them at the call
+  boundary when ownership transfer is intended.
+- A coroutine parameter must not be a top-level raw reference, pointer, `string_view`
+  or `span`. A callback signature nested inside an owned `std::function` may still use
+  synchronous borrowed parameters; the callback invocation itself must not retain
+  them across suspension.
+- Free or static coroutines are preferred. Do not use a capturing coroutine lambda as
+  a temporary task factory: the closure can be destroyed while its coroutine frame
+  still refers to captures. Use a non-coroutine lambda that calls a free/static
+  coroutine with owned value parameters.
+- A reference, iterator, lock guard or borrowed view created inside a coroutine must
+  not remain live across `co_await`. Reacquire it after resumption or copy the required
+  value into owned storage first.
+- Tests for awaitable adapters must include invocation with a temporary `shared_ptr`,
+  at least one real suspension/resumption, owner destruction, cancellation and a
+  repeated stress loop.
+
 Example:
 
 ```cpp

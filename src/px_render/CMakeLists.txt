@@ -1,7 +1,6 @@
 project(px_render VERSION ${TC_APP_VERSION} LANGUAGES CXX)
 
 add_subdirectory(settings)
-add_subdirectory(plugin_interface)
 if(PLUGIN_NET_UDP_ENABLED)
     add_subdirectory(network/udp)
 else()
@@ -41,7 +40,7 @@ set(SRCS
         rd_statistics.cpp
         session/logical_session_registry.cpp
         network/ws_media_router.cpp
-        network/webrtc_library_host.cpp
+        network/webrtc_transport_host.cpp
         network/ws_panel_client.cpp
         network/net_message_maker.cpp
         network/server_cast.cpp
@@ -75,7 +74,7 @@ target_link_libraries(main render_audio_processors)
 target_link_libraries(main render_audio_sources)
 target_link_libraries(main render_domain_services)
 target_link_libraries(main cap_dda cap_gdi enc_ffmpeg enc_amf enc_nvenc)
-target_link_libraries(main net_ws net_udp net_relay)
+target_link_libraries(main net_ws net_udp net_relay net_rtc net_rtc_local)
 
 if(WIN32)
     add_executable(${PROJECT_NAME} WIN32 rd_main.cpp ${CMAKE_CURRENT_BINARY_DIR}/rd_icon.rc)
@@ -83,7 +82,7 @@ else()
     add_executable(${PROJECT_NAME} rd_main.cpp ${CMAKE_CURRENT_BINARY_DIR}/rd_icon.rc)
 endif()
 SET_TARGET_PROPERTIES(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level=\'requireAdministrator\' uiAccess=\'false\'\" /ENTRY:mainCRTStartup")
-target_link_libraries(${PROJECT_NAME} settings main px_common_new px_message px_steam_manager_new px_vigem px_plugin) # px_rtc px_encoder_new legacy_encoder
+target_link_libraries(${PROJECT_NAME} settings main px_common_new px_message px_steam_manager_new px_vigem)
 if(WIN32)
     add_dependencies(${PROJECT_NAME} libcef_dll_wrapper)
     target_include_directories(main PRIVATE "${CEF_ROOT}")
@@ -99,6 +98,8 @@ target_link_libraries(${PROJECT_NAME} unofficial::sqlite3::sqlite3 EasyHook64 gf
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/settings.toml"  "${CMAKE_CURRENT_BINARY_DIR}"
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/settings.toml"  "${PX_PROJECT_BINARY_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:net_rtc> $<TARGET_FILE_DIR:${PROJECT_NAME}>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:net_rtc_local> $<TARGET_FILE_DIR:${PROJECT_NAME}>
         #COMMAND ${QT_ROOT}/bin/windeployqt.exe $<TARGET_FILE:${PROJECT_NAME}> --release
         # ffmpeg is now statically linked via vcpkg; no DLLs to copy
         # COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avcodec-61.dll"  "${PX_PROJECT_BINARY_PATH}"

@@ -15,9 +15,8 @@
 
 namespace px {
 
-template<typename Client>
-class PxReconnectAdapterSlot final {
-public:
+template <typename Client> class PxReconnectAdapterSlot final {
+  public:
     void Replace(std::shared_ptr<Client> client) {
         std::lock_guard lock(mutex_);
         client_ = std::move(client);
@@ -33,7 +32,7 @@ public:
         client_.reset();
     }
 
-private:
+  private:
     mutable std::mutex mutex_{};
     std::shared_ptr<Client> client_{};
 };
@@ -53,55 +52,42 @@ inline PxReconnectSupervisorOptions MakeWebSocketReconnectOptions(std::string co
         .component = std::move(component),
         .connection_timeout = std::chrono::seconds(10),
         .adapter_stop_timeout = std::chrono::seconds(3),
-        .backoff = PxReconnectBackoffOptions{
-            .initial_delay = std::chrono::milliseconds(250),
-            .maximum_delay = std::chrono::seconds(30),
-            .multiplier = 2.0,
-            .jitter_ratio = 0.2,
-        },
+        .backoff =
+            PxReconnectBackoffOptions{
+                .initial_delay = std::chrono::milliseconds(250),
+                .maximum_delay = std::chrono::seconds(30),
+                .multiplier = 2.0,
+                .jitter_ratio = 0.2,
+            },
     };
 }
 
-template<typename Client>
-PxResult<void> StartWebSocketAdapter(
-    const std::shared_ptr<Client>& client,
-    const std::string& host,
-    const int port,
-    std::string stage) {
+template <typename Client>
+PxResult<void> StartWebSocketAdapter(const std::shared_ptr<Client>& client, const std::string& host, const int port, std::string stage) {
     if (!client) {
-        return PxResult<void>::Failure(MakePxAsyncError(
-            PxAsyncErrorCode::kServiceStopped, std::move(stage), "websocket adapter is unavailable"));
+        return PxResult<void>::Failure(MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, std::move(stage), "websocket adapter is unavailable"));
     }
     if (client->async_start(host, port)) {
         return PxResult<void>::Success();
     }
-    return PxResult<void>::Failure(MakePxAsyncError(
-        PxAsyncErrorCode::kServiceNotConnected, std::move(stage), asio2::last_error_msg(), true));
+    return PxResult<void>::Failure(MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, std::move(stage), asio2::last_error_msg(), true));
 }
 
-template<typename Client>
-PxResult<void> StartWebSocketAdapter(
-    const std::shared_ptr<Client>& client,
-    const std::string& host,
-    const int port,
-    const std::string& path,
-    std::string stage) {
+template <typename Client>
+PxResult<void> StartWebSocketAdapter(const std::shared_ptr<Client>& client, const std::string& host, const int port, const std::string& path,
+                                     std::string stage) {
     if (!client) {
-        return PxResult<void>::Failure(MakePxAsyncError(
-            PxAsyncErrorCode::kServiceStopped, std::move(stage), "websocket adapter is unavailable"));
+        return PxResult<void>::Failure(MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, std::move(stage), "websocket adapter is unavailable"));
     }
     if (client->async_start(host, port, path)) {
         return PxResult<void>::Success();
     }
-    return PxResult<void>::Failure(MakePxAsyncError(
-        PxAsyncErrorCode::kServiceNotConnected, std::move(stage), asio2::last_error_msg(), true));
+    return PxResult<void>::Failure(MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, std::move(stage), asio2::last_error_msg(), true));
 }
 
-template<typename Client>
-PxAwaitable<PxResult<void>> StopWebSocketAdapter(
-    const std::shared_ptr<Client>& client,
-    const std::chrono::steady_clock::time_point deadline,
-    std::string stage) {
+template <typename Client>
+PxAwaitable<PxResult<void>> StopWebSocketAdapter(std::shared_ptr<Client> client, const std::chrono::steady_clock::time_point deadline,
+                                                 std::string stage) {
     const auto requested = RequestAsioClientStop(client, stage);
     if (!requested) {
         co_return requested;
@@ -109,12 +95,9 @@ PxAwaitable<PxResult<void>> StopWebSocketAdapter(
     co_return co_await WaitForAsioClientStopped(client, deadline, std::move(stage));
 }
 
-template<typename Client>
-PxWebSocketShutdownResult StopWebSocketConnectionBlocking(
-    const std::shared_ptr<Client>& client,
-    const std::shared_ptr<PxAsyncScope>& scope,
-    const std::chrono::milliseconds timeout,
-    const std::string& stage) {
+template <typename Client>
+PxWebSocketShutdownResult StopWebSocketConnectionBlocking(const std::shared_ptr<Client>& client, const std::shared_ptr<PxAsyncScope>& scope,
+                                                          const std::chrono::milliseconds timeout, const std::string& stage) {
     static_cast<void>(RequestAsioClientStop(client, stage));
     if (scope) {
         scope->BeginStop();

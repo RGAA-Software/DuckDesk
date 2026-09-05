@@ -11,7 +11,7 @@
 #include "px_common_new/monitors.h"
 #include "px_common_new/thread.h"
 #include "px_capture_new/capture_message.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/architecture/events/render_event.h"
 #include "dda_capture_source.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
 
@@ -96,13 +96,15 @@ namespace px
                 break;
             }
             if (feature_level < D3D_FEATURE_LEVEL_11_0) {
-                LOGE("D3D11CreateDevice returns an instance without DirectX 11 support, level : {}  Following initialization may fail",(int) feature_level);
+                LOGE("D3D11CreateDevice returns an instance without DirectX 11 support, level : {}  Following initialization may fail",
+                     (int)feature_level);
                 break;
             }
             ComPtr<IDXGIDevice> dxgi_device;
             res = d3d11_device->QueryInterface(dxgi_device.GetAddressOf());
             if (res != S_OK || !dxgi_device) {
-                LOGE("ID3D11Device is not an implementation of IDXGIDevice, this usually means the system does not support DirectX 11. Error:{}, code: {}",
+                LOGE("ID3D11Device is not an implementation of IDXGIDevice, this usually means the system does not support DirectX 11. Error:{}, "
+                     "code: {}",
                      StringUtil::GetErrorStr(res), res);
                 break;
             }
@@ -327,11 +329,10 @@ namespace px
                         gsum += g;
                     }
                     double gavg = gaps.empty() ? 0.0 : (double)gsum / (double)gaps.size();
-                    LOGI("[LAT-capture] mon={} win={}ms new={} timeout={} nochange={} err={} backpressure={} fps={} gap_min={} gap_avg={:.1f} gap_max={} copy_avg_us={} copy_max_us={}",
-                         my_monitor_info_.name_, el_ms, lat_acquire_new, lat_acquire_timeout,
-                         lat_acquire_nochange, lat_acquire_err, lat_backpressure,
-                         fps_stat_->value(), gmin, gavg, gmax,
-                         lat_copy_cnt > 0 ? (lat_copy_us_sum / lat_copy_cnt) : 0, lat_copy_us_max);
+                    LOGI("[LAT-capture] mon={} win={}ms new={} timeout={} nochange={} err={} backpressure={} fps={} gap_min={} gap_avg={:.1f} "
+                         "gap_max={} copy_avg_us={} copy_max_us={}",
+                         my_monitor_info_.name_, el_ms, lat_acquire_new, lat_acquire_timeout, lat_acquire_nochange, lat_acquire_err, lat_backpressure,
+                         fps_stat_->value(), gmin, gavg, gmax, lat_copy_cnt > 0 ? (lat_copy_us_sum / lat_copy_cnt) : 0, lat_copy_us_max);
                     lat_win_beg = now;
                     lat_acquire_new = 0;
                     lat_acquire_timeout = 0;
@@ -403,10 +404,12 @@ namespace px
             }
             else if (res == S_FALSE || res == DXGI_ERROR_ACCESS_LOST || res == DXGI_ERROR_INVALID_CALL) {
                 ++lat_acquire_err;
-                LOGE("CaptureNextFrame, monitor: {}, err: {:x}, duplicate retry? : {}", my_monitor_info_.name_, (uint32_t)res, dxgi_output_duplication_.has_retry_);
+                LOGE("CaptureNextFrame, monitor: {}, err: {:x}, duplicate retry? : {}", my_monitor_info_.name_, (uint32_t)res,
+                     dxgi_output_duplication_.has_retry_);
                 if (res == DXGI_ERROR_ACCESS_LOST && dxgi_output_duplication_.output1_ && !dxgi_output_duplication_.has_retry_) {
                     dxgi_output_duplication_.has_retry_ = true;
-                    HRESULT error = dxgi_output_duplication_.output1_->DuplicateOutput(d3d11_device_.Get(), dxgi_output_duplication_.duplication_.GetAddressOf());
+                    HRESULT error =
+                        dxgi_output_duplication_.output1_->DuplicateOutput(d3d11_device_.Get(), dxgi_output_duplication_.duplication_.GetAddressOf());
                     if (error == S_OK) {
                         LOGW("Re-DuplicateOutput success, will continue to try capturing.");
                         continue;
@@ -641,9 +644,9 @@ namespace px
             cap_video_frame.right_ = mon_win_info.right_;
             cap_video_frame.bottom_ = mon_win_info.bottom_;
         }
-        auto event = std::make_shared<PxPluginCapturedVideoFrameEvent>();
+        auto event = std::make_shared<CapturedVideoFrameEvent>();
         event->frame_ = cap_video_frame;
-        owner->EmitCompatibilityEvent(event);
+        owner->EmitEvent(event);
 
     }
 

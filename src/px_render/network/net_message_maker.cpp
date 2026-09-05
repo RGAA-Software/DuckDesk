@@ -14,7 +14,6 @@
 #include "rd_statistics.h"
 #include "architecture/sources/monitor_capture_source.h"
 #include "architecture/encoders/video_encoder_module.h"
-#include "px_render/plugin_interface/px_net_plugin.h"
 #include "px_common_new/num_formatter.h"
 #include "px_message_new/proto_converter.h"
 

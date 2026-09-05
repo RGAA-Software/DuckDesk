@@ -6,6 +6,7 @@
 
 #include <memory>
 #include "dda_capture_source.h"
+#include "app/app_messages.h"
 
 #include <ranges>
 #include <chrono>
@@ -16,8 +17,8 @@
 #include "cursor_capture.h"
 #include "px_common_new/log.h"
 #include "px_common_new/thread.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
-#include "px_render/plugin_interface/px_plugin_context.h"
+#include "px_render/architecture/events/render_event.h"
+#include "px_render/architecture/runtime/render_execution_context.h"
 
 
 namespace px
@@ -101,13 +102,15 @@ namespace px
                 break;
             }
             if (feature_level < D3D_FEATURE_LEVEL_11_0) {
-                LOGE("D3D11CreateDevice returns an instance without DirectX 11 support, level : {}  Following initialization may fail",(int) feature_level);
+                LOGE("D3D11CreateDevice returns an instance without DirectX 11 support, level : {}  Following initialization may fail",
+                     (int)feature_level);
                 break;
             }
             CComPtr<IDXGIDevice> dxgi_device;
             res = d3d11_device.QueryInterface(&dxgi_device);
             if (res != S_OK || !dxgi_device) {
-                LOGE("ID3D11Device is not an implementation of IDXGIDevice, this usually means the system does not support DirectX 11. Error:{}, code: {}",
+                LOGE("ID3D11Device is not an implementation of IDXGIDevice, this usually means the system does not support DirectX 11. Error:{}, "
+                     "code: {}",
                      StringUtil::GetErrorStr(res), res);
                 break;
             }
@@ -134,7 +137,8 @@ namespace px
                     break;
                 }
                 if (res == S_OK) {
-                    LOGI("EnumOutputs ok Adapter Index:{} Name:{}, Uid:{}", adapter_index, StringUtil::ToUTF8(adapter_desc.Description).c_str(), adapter_uid);
+                    LOGI("EnumOutputs ok Adapter Index:{} Name:{}, Uid:{}", adapter_index, StringUtil::ToUTF8(adapter_desc.Description).c_str(),
+                         adapter_uid);
                 }
                 
                 DXGI_OUTPUT_DESC output_desc{};
@@ -161,8 +165,9 @@ namespace px
                         );
                     }
                     else {
-                        LOGI("Adapter index: {}, name: {}; dev_name: {}, AttachedToDesktop: {} is ignored.",adapter_index, StringUtil::ToUTF8(adapter_desc.Description), StringUtil::ToUTF8(output_desc.DeviceName),
-                            (bool)output_desc.AttachedToDesktop);
+                        LOGI("Adapter index: {}, name: {}; dev_name: {}, AttachedToDesktop: {} is ignored.", adapter_index,
+                             StringUtil::ToUTF8(adapter_desc.Description), StringUtil::ToUTF8(output_desc.DeviceName),
+                             (bool)output_desc.AttachedToDesktop);
                     }
                 } else {
                     LOGE("Failed to get output description of device: {} in adapter index: {}, adaper id: {}",
@@ -423,7 +428,8 @@ namespace px
                     }
                     else {
                         if (!capture->IsInitSuccess()) {
-                            LOGW("Capture for: {} is not valid now.", monitor_name);  // 如果StartCapturing后，接着执行SelectMonitor，这时候 capture->IsInitializeSuccess () 返回 false
+                            LOGW("Capture for: {} is not valid now.",
+                                 monitor_name); // 如果StartCapturing后，接着执行SelectMonitor，这时候 capture->IsInitializeSuccess () 返回 false
                             continue;
                         }
                         if (use_default_monitor && capture->IsPrimaryMonitor()) {
@@ -567,7 +573,8 @@ namespace px
             return;
         }
 
-        int far_left = sorted_monitors_[0].left_, far_top = sorted_monitors_[0].top_, far_right = sorted_monitors_[0].right_, far_bottom = sorted_monitors_[0].bottom_;
+        int far_left = sorted_monitors_[0].left_, far_top = sorted_monitors_[0].top_, far_right = sorted_monitors_[0].right_,
+            far_bottom = sorted_monitors_[0].bottom_;
 
         int left_monitor_virtual_size = 0;
         for (auto& info : sorted_monitors_) {
@@ -597,11 +604,11 @@ namespace px
 
     void DdaCaptureSource::NotifyCaptureMonitorInfo() {
         if (sorted_monitors_.empty()) {
-            LOGI("==> Sorted Monitor's empty, ignore the PxPluginCapturingMonitorInfoEvent");
+            LOGI("==> Sorted Monitor's empty, ignore the CaptureMonitorInfoChangedEvent");
             return;
         }
-        const auto event = std::make_shared<PxPluginCapturingMonitorInfoEvent>();
-        this->EmitCompatibilityEvent(event);
+        const auto event = std::make_shared<CaptureMonitorInfoChangedEvent>();
+        this->EmitEvent(event);
     }
 
     std::optional<int> DdaCaptureSource::MonitorIndexByName(const std::string& name) const {

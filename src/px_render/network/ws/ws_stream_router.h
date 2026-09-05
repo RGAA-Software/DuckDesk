@@ -9,7 +9,7 @@
 #include <functional>
 #include <mutex>
 #include "network/ws_router.h"
-#include "px_render/plugin_interface/px_net_plugin_type.h"
+#include "px_render/network/transport_types.h"
 #include "px_common_new/file_transfer_send_result.h"
 #include "diagnostics/rate_limited_log.h"
 //#include "network/wss_router.h"
@@ -21,13 +21,14 @@ namespace px
 
     class WsStreamRouter : public WsRouter, public std::enable_shared_from_this<WsStreamRouter> {
     public:
-        static std::shared_ptr<WsStreamRouter> Make(const WsDataPtr& data, bool only_audio, const std::string& visitor_device_id, const std::string& stream_id) {
-            auto router = std::make_shared<WsStreamRouter>(data, only_audio);
-            router->visitor_device_id_ = visitor_device_id;
-            router->stream_id_ = stream_id;
-            router->nt_channel_type_ = NetChannelType::kMedia;
-            return router;
-        }
+      static std::shared_ptr<WsStreamRouter> Make(const WsDataPtr& data, bool only_audio, const std::string& visitor_device_id,
+                                                  const std::string& stream_id) {
+          auto router = std::make_shared<WsStreamRouter>(data, only_audio);
+          router->visitor_device_id_ = visitor_device_id;
+          router->stream_id_ = stream_id;
+          router->channel_type_ = TransportChannel::kMedia;
+          return router;
+      }
 
         explicit WsStreamRouter(const WsDataPtr& data, bool only_audio) : WsRouter(data), enable_video_(!only_audio) {}
         void OnOpen(std::shared_ptr<asio2::http_session> &sess_ptr) override;
@@ -68,7 +69,7 @@ namespace px
         // thread (WsServer::GetConnectedClientInfo), guarded by this mutex
         std::mutex device_name_mtx_;
         std::string device_name_;
-        NetChannelType nt_channel_type_;
+        TransportChannel channel_type_;
         std::mutex writable_signal_mutex_;
         std::shared_ptr<FileTransferWritableSignal> writable_signal_;
         std::function<void()> udp_media_fallback_callback_;

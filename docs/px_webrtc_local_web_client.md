@@ -55,5 +55,5 @@ RTCPeerConnection(无 iceServers,局域网/公网直连)
 
 ## 调试
 
-- render 插件日志:`C:/Users/Public/GoDesk/px_logs/plugin_net_rtc_local.dll.log`
+- Render Local RTC 日志：`C:/Users/Public/Pixels/px_logs/px_render_rtc.dll.log`
 - 无头验证:Chrome `--remote-debugging-port=9222` + CDP(node),video 元素 `videoWidth>0` 即出流

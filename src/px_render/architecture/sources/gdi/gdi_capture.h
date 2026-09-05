@@ -54,7 +54,7 @@ namespace px
         int64_t GetFrameIndex();
 
     public:
-        std::wstring mon_name_;
+        std::wstring monitor_name_;
         int left_ = 0;
         int top_ = 0;
         int right_ = 0;
@@ -68,7 +68,8 @@ namespace px
             void operator()(std::remove_pointer_t<HDC>* dc) const noexcept; // NOLINT(gammaray-raw-pointer-boundary): typed Win32 HDC RAII boundary
         };
         struct BitmapDeleter final {
-            void operator()(std::remove_pointer_t<HBITMAP>* bitmap) const noexcept; // NOLINT(gammaray-raw-pointer-boundary): typed Win32 HBITMAP RAII boundary
+            void operator()(
+                std::remove_pointer_t<HBITMAP>* bitmap) const noexcept; // NOLINT(gammaray-raw-pointer-boundary): typed Win32 HBITMAP RAII boundary
         };
         using UniqueDc =
             std::unique_ptr<std::remove_pointer_t<HDC>, DcDeleter>;

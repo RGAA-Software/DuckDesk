@@ -14,8 +14,8 @@
 #include "px_relay_client/relay_room.h"
 #include "px_relay_client/relay_server_sdk.h"
 #include "px_relay_client/relay_server_sdk_param.h"
-#include "px_render/plugin_interface/px_plugin_context.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/architecture/runtime/render_execution_context.h"
+#include "px_render/architecture/events/render_event.h"
 #include "px_render/modules/module_ids.h"
 #include "relay_message.pb.h"
 
@@ -36,11 +36,11 @@ RelayTransportRuntime::~RelayTransportRuntime() {
 }
 
 void RelayTransportRuntime::Start(
-    const std::shared_ptr<PxPluginContext>& context,
-    CompatibilityEventCallback event_callback) {
+    const std::shared_ptr<RenderExecutionContext>& context,
+    RenderEventCallback event_callback) {
     {
         std::lock_guard lock(sink_mutex_);
-        module_context_ = context;
+        execution_context_ = context;
         event_callback_ = std::move(event_callback);
     }
 
@@ -111,7 +111,7 @@ void RelayTransportRuntime::Stop() {
     {
         std::lock_guard lock(sink_mutex_);
         event_callback_ = {};
-        module_context_.reset();
+        execution_context_.reset();
     }
 }
 
@@ -331,7 +331,7 @@ void RelayTransportRuntime::ConnectMedia(
             LOGI("Relay control request, device: {}, remote: {}, stream: {}, force GDI: {}",
                  request.device_id(), request.remote_device_id(),
                  request.stream_id(), request.force_gdi());
-            const auto event = std::make_shared<PxPluginReqParamsBeginStreaming>();
+            const auto event = std::make_shared<StreamingParametersRequestedEvent>();
             event->stream_id_ = request.stream_id();
             event->force_gdi_ = request.force_gdi();
             self->Emit(event);
@@ -388,14 +388,14 @@ void RelayTransportRuntime::ConnectMedia(
         if (const auto self = weak_self.lock();
             self && self->IsCurrentMediaGeneration(generation)) {
             self->paused_stream_ = true;
-            self->Emit(std::make_shared<PxPluginRelayPausedEvent>());
+            self->Emit(std::make_shared<RelayPausedEvent>());
         }
     });
     sdk->SetOnRequestResumeStreamCallback([weak_self, generation]() {
         if (const auto self = weak_self.lock();
             self && self->IsCurrentMediaGeneration(generation)) {
             self->paused_stream_ = false;
-            self->Emit(std::make_shared<PxPluginRelayResumedEvent>());
+            self->Emit(std::make_shared<RelayResumedEvent>());
         }
     });
     sdk->SetOnRelayProtoMessageCallback(
@@ -408,13 +408,13 @@ void RelayTransportRuntime::ConnectMedia(
             const auto& payload = message->relay().payload();
             self->EmitNetMessage(
                 Data::Make(payload.data(), payload.size()),
-                NetChannelType::kMedia, {}, false);
+                TransportChannel::kMedia, {}, false);
         });
     sdk->SetOnNotificationCallback(
         [weak_self, generation](const std::shared_ptr<RelayMessage>& message) {
             if (const auto self = weak_self.lock();
                 self && self->IsCurrentMediaGeneration(generation)) {
-                const auto event = std::make_shared<PxPluginPanelStreamMessage>();
+                const auto event = std::make_shared<PanelStreamMessageEvent>();
                 event->body_ = Data::From(message->notification().body());
                 self->Emit(event);
             }
@@ -493,7 +493,7 @@ void RelayTransportRuntime::ConnectFileTransfer(
                 const auto& payload = relay.payload();
                 self->EmitNetMessage(
                     Data::Make(payload.data(), payload.size()),
-                    NetChannelType::kFileTransfer,
+                    TransportChannel::kFileTransfer,
                     std::move(connection_id), true);
             }
             else if (type == RelayMessageType::kRelayRoomPrepared) {
@@ -538,53 +538,54 @@ void RelayTransportRuntime::ConnectFileTransfer(
     sdk->Start();
 }
 
-void RelayTransportRuntime::Emit(
-    const std::shared_ptr<PxPluginBaseEvent>& event, bool directly) {
-    if (!event || stopping_) {
+void RelayTransportRuntime::Emit(RenderEvent event, const bool directly) {
+    if (stopping_) {
         return;
     }
-    CompatibilityEventCallback callback;
-    std::shared_ptr<PxPluginContext> context;
+    RenderEventCallback callback;
+    std::shared_ptr<RenderExecutionContext> context;
     {
         std::lock_guard lock(sink_mutex_);
         callback = event_callback_;
-        context = module_context_;
+        context = execution_context_;
     }
     if (!callback) {
         return;
     }
-    event->plugin_name_ = kRelayTransportId;
+    const auto envelope = std::make_shared<RenderEventEnvelope>(RenderEventEnvelope{
+        .source_id = kRelayTransportId,
+        .payload = std::move(event),
+    });
     if (directly || !context) {
-        callback(event);
+        callback(*envelope);
         return;
     }
     const auto weak_self = weak_from_this();
-    context->PostWorkTask([weak_self, event]() {
+    static_cast<void>(context->Post([weak_self, envelope]() {
         const auto self = weak_self.lock();
         if (!self || self->stopping_) {
             return;
         }
-        CompatibilityEventCallback queued_callback;
+        RenderEventCallback queued_callback;
         {
             std::lock_guard lock(self->sink_mutex_);
             queued_callback = self->event_callback_;
         }
         if (queued_callback) {
-            queued_callback(event);
+            queued_callback(*envelope);
         }
-    });
+    }));
 }
 
 void RelayTransportRuntime::EmitNetMessage(
-    std::shared_ptr<Data> message, const NetChannelType& channel,
+    std::shared_ptr<Data> message, const TransportChannel& channel,
     std::string connection_instance_id, bool directly) {
-    const auto event = std::make_shared<PxPluginNetClientEvent>();
+    const auto event = std::make_shared<NetworkClientEvent>();
     event->is_proto_ = true;
     event->socket_fd_ = 0;
-    event->nt_plugin_type_ = NetPluginType::kWebSocket;
-    event->nt_channel_type_ = channel;
+    event->transport_type_ = TransportKind::kWebSocket;
+    event->channel_type_ = channel;
     event->message_ = std::move(message);
-    event->source_plugin_id_ = kRelayTransportId;
     event->connection_instance_id_ = std::move(connection_instance_id);
     const auto weak_self = weak_from_this();
     event->ack_callback_ = [weak_self](const std::shared_ptr<NetMessageAck>& ack) {
@@ -598,10 +599,10 @@ void RelayTransportRuntime::EmitNetMessage(
 void RelayTransportRuntime::NotifyClientConnected(
     const std::string& connection_id, const std::string& stream_id,
     const std::string& visitor_device_id) {
-    const auto event = std::make_shared<PxPluginClientConnectedEvent>();
-    event->conn_id_ = connection_id;
+    const auto event = std::make_shared<ClientConnectedEvent>();
+    event->connection_id_ = connection_id;
     event->stream_id_ = stream_id;
-    event->conn_type_ = "Relay";
+    event->connection_type_ = "Relay";
     event->visitor_device_id_ = visitor_device_id;
     event->begin_timestamp_ = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp());
     Emit(event);
@@ -610,8 +611,8 @@ void RelayTransportRuntime::NotifyClientConnected(
 void RelayTransportRuntime::NotifyClientDisconnected(
     const std::string& connection_id, const std::string& stream_id,
     const std::string& visitor_device_id, int64_t begin_timestamp) {
-    const auto event = std::make_shared<PxPluginClientDisConnectedEvent>();
-    event->conn_id_ = connection_id;
+    const auto event = std::make_shared<ClientDisconnectedEvent>();
+    event->connection_id_ = connection_id;
     event->stream_id_ = stream_id;
     event->visitor_device_id_ = visitor_device_id;
     event->end_timestamp_ = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp());
@@ -620,14 +621,14 @@ void RelayTransportRuntime::NotifyClientDisconnected(
 }
 
 void RelayTransportRuntime::ReportRelayAlive(const std::string& device_id) {
-    const auto event = std::make_shared<PxPluginRelayAlive>();
+    const auto event = std::make_shared<RelayAliveEvent>();
     event->device_id_ = device_id;
     Emit(event);
 }
 
 void RelayTransportRuntime::ReportSentDataSize(std::size_t size) {
-    const auto event = std::make_shared<PxPluginDataSent>();
-    event->size_ = static_cast<int>(size);
+    const auto event = std::make_shared<DataSentEvent>();
+    event->size_ = size;
     Emit(event);
 }
 
@@ -640,15 +641,15 @@ void RelayTransportRuntime::PostMedia(
     if (!sdk) {
         return;
     }
-    std::shared_ptr<PxPluginContext> context;
+    std::shared_ptr<RenderExecutionContext> context;
     {
         std::lock_guard lock(sink_mutex_);
-        context = module_context_;
+        context = execution_context_;
     }
     if (context) {
-        context->PostWorkTask([sdk, message]() {
+        static_cast<void>(context->Post([sdk, message]() {
             sdk->RelayProtoMessage({}, message);
-        });
+        }));
     }
     ReportSentDataSize(message->Size());
 }
@@ -666,17 +667,17 @@ bool RelayTransportRuntime::PostTargetMedia(
     if (!sdk) {
         return false;
     }
-    std::shared_ptr<PxPluginContext> context;
+    std::shared_ptr<RenderExecutionContext> context;
     {
         std::lock_guard lock(sink_mutex_);
-        context = module_context_;
+        context = execution_context_;
     }
     if (!context) {
         return false;
     }
-    context->PostWorkTask([sdk, stream_id, message]() {
+    static_cast<void>(context->Post([sdk, stream_id, message]() {
         sdk->RelayProtoMessage(stream_id, message);
-    });
+    }));
     ReportSentDataSize(message->Size());
     return true;
 }
@@ -758,7 +759,7 @@ RelayTransportRuntime::ConnectedClientInfo() const {
 
 void RelayTransportRuntime::OnMessageAck(
     const std::shared_ptr<NetMessageAck>& ack) {
-    if (!ack || ack->ch_type_ != NetChannelType::kFileTransfer) {
+    if (!ack || ack->ch_type_ != TransportChannel::kFileTransfer) {
         return;
     }
     std::lock_guard lock(ack_mutex_);

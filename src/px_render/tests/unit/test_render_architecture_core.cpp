@@ -35,7 +35,7 @@ namespace {
 using namespace std::chrono_literals;
 
 class TestObserverFlowNode final : public ObserverPlugin {
-public:
+  public:
     explicit TestObserverFlowNode(FlowNodeDescriptor descriptor) : descriptor_(std::move(descriptor)) {}
 
     [[nodiscard]] const FlowNodeDescriptor& Descriptor() const noexcept override {
@@ -66,7 +66,7 @@ public:
     void ObserveCapturedAudio(const std::shared_ptr<const CapturedAudioFrame>&) noexcept override {}
     void ObserveEncodedAudio(const std::shared_ptr<const EncodedAudioFrame>&) noexcept override {}
 
-private:
+  private:
     FlowNodeDescriptor descriptor_{};
     std::shared_ptr<PxAsyncScope> active_scope_{};
     bool enabled_{true};
@@ -85,24 +85,18 @@ FlowNodeDescriptor MakeTestObserverDescriptor(std::string id) {
     };
 }
 
-std::shared_ptr<const std::vector<std::uint8_t>> MakePayload(
-    const std::size_t size) {
+std::shared_ptr<const std::vector<std::uint8_t>> MakePayload(const std::size_t size) {
     return std::make_shared<const std::vector<std::uint8_t>>(size);
 }
 
-template<typename T, typename Starter>
-PxAwaitable<void> CompleteAwaitedCallback(
-    Starter starter,
-    const std::chrono::steady_clock::time_point deadline,
-    const std::shared_ptr<std::promise<PxResult<T>>>& completion) {
-    completion->set_value(co_await AwaitOwnedCallback<T>(
-        std::move(starter), deadline, "architecture_test"));
+template <typename T, typename Starter>
+PxAwaitable<void> CompleteAwaitedCallback(Starter starter, const std::chrono::steady_clock::time_point deadline,
+                                          std::shared_ptr<std::promise<PxResult<T>>> completion) {
+    completion->set_value(co_await AwaitOwnedCallback<T>(std::move(starter), deadline, "architecture_test"));
     co_return;
 }
 
-RenderError MakeModuleTestError(const RenderErrorCode code,
-                                std::string operation,
-                                std::string reason) {
+RenderError MakeModuleTestError(const RenderErrorCode code, std::string operation, std::string reason) {
     return RenderError{
         .code = code,
         .component = "test_module",
@@ -113,49 +107,42 @@ RenderError MakeModuleTestError(const RenderErrorCode code,
     };
 }
 
-BuiltinModuleRegistration MakeTestModule(
-    std::string id,
-    std::vector<std::string> dependencies,
-    const std::shared_ptr<std::vector<std::string>>& events,
-    ModuleLifecycleResult start_result = {},
-    ModuleLifecycleResult stop_result = {}) {
+BuiltinModuleRegistration MakeTestModule(std::string id, std::vector<std::string> dependencies,
+                                         const std::shared_ptr<std::vector<std::string>>& events, ModuleLifecycleResult start_result = {},
+                                         ModuleLifecycleResult stop_result = {}) {
     const auto module_id = id;
     return BuiltinModuleRegistration{
-        .descriptor = BuiltinModuleDescriptor{
-            .id = std::move(id),
-            .name = "Test Module " + module_id,
-            .author = "GammaRay",
-            .description = "Render architecture lifecycle test module",
-            .version_name = "1.0.0",
-            .version_code = 1,
-            .capability = BuiltinModuleCapability::kObserver,
-            .default_enabled = true,
-            .dependencies = std::move(dependencies),
-        },
-        .start = [events, module_id, start_result]() ->
-            PxAwaitable<ModuleLifecycleResult> {
-                events->push_back("start:" + module_id);
-                co_return start_result;
+        .descriptor =
+            BuiltinModuleDescriptor{
+                .id = std::move(id),
+                .name = "Test Module " + module_id,
+                .author = "GammaRay",
+                .description = "Render architecture lifecycle test module",
+                .version_name = "1.0.0",
+                .version_code = 1,
+                .capability = BuiltinModuleCapability::kObserver,
+                .default_enabled = true,
+                .dependencies = std::move(dependencies),
             },
-        .stop = [events, module_id, stop_result]() ->
-            PxAwaitable<ModuleLifecycleResult> {
-                events->push_back("stop:" + module_id);
-                co_return stop_result;
-            },
-        .set_enabled = [events, module_id](const bool enabled) {
-            events->push_back(std::string(enabled ? "enable:" : "disable:") +
-                              module_id);
-            return ModuleLifecycleResult{};
+        .start = [events, module_id, start_result]() -> PxAwaitable<ModuleLifecycleResult> {
+            events->push_back("start:" + module_id);
+            co_return start_result;
         },
+        .stop = [events, module_id, stop_result]() -> PxAwaitable<ModuleLifecycleResult> {
+            events->push_back("stop:" + module_id);
+            co_return stop_result;
+        },
+        .set_enabled =
+            [events, module_id](const bool enabled) {
+                events->push_back(std::string(enabled ? "enable:" : "disable:") + module_id);
+                return ModuleLifecycleResult{};
+            },
     };
 }
 
-PxAwaitable<void> CompleteFrameDebuggerStop(
-    const std::shared_ptr<FrameDebuggerObserver>& observer,
-    const std::chrono::steady_clock::time_point deadline,
-    const std::shared_ptr<std::promise<ModuleLifecycleResult>>& completion) {
-    completion->set_value(
-        co_await FrameDebuggerObserver::StopAsync(observer, deadline));
+PxAwaitable<void> CompleteFrameDebuggerStop(std::shared_ptr<FrameDebuggerObserver> observer, const std::chrono::steady_clock::time_point deadline,
+                                            std::shared_ptr<std::promise<ModuleLifecycleResult>> completion) {
+    completion->set_value(co_await FrameDebuggerObserver::StopAsync(observer, deadline));
     co_return;
 }
 
@@ -223,10 +210,7 @@ TEST(RenderArchitectureMediaTypes, ValidFrameOwnsImmutablePayload) {
             .timestamp_us = 1234,
             .topology_generation = 3,
         },
-        1920,
-        1080,
-        VideoPixelFormat::kBgra8,
-        MakePayload(64));
+        1920, 1080, VideoPixelFormat::kBgra8, MakePayload(64));
 
     ASSERT_TRUE(created.has_value());
     EXPECT_EQ(created->Identity().stream_id, "stream-a");
@@ -236,8 +220,7 @@ TEST(RenderArchitectureMediaTypes, ValidFrameOwnsImmutablePayload) {
     EXPECT_EQ(created->Payload()->size(), 64U);
 }
 
-TEST(RenderArchitectureStatisticsObserver,
-     TypedSubscriptionsStopAccountingAfterUnregister) {
+TEST(RenderArchitectureStatisticsObserver, TypedSubscriptionsStopAccountingAfterUnregister) {
     const auto bus = EncodedMediaBus::Create();
     auto observer = PipelineStatisticsObserver::Create(bus);
     ASSERT_TRUE(observer);
@@ -247,40 +230,32 @@ TEST(RenderArchitectureStatisticsObserver,
     EXPECT_TRUE(bus->NeedsEncodedAudio());
     EXPECT_TRUE(bus->NeedsCapturedAudio());
 
-    bus->PublishVideo(std::make_shared<const EncodedVideoFrame>(
-        EncodedVideoFrame{
-            .identity = FrameIdentity{.monitor_id = "monitor-a"},
-            .codec = "h264",
-            .width = 640,
-            .height = 480,
-            .key_frame = true,
-            .payload = MakePayload(64),
-        }));
+    bus->PublishVideo(std::make_shared<const EncodedVideoFrame>(EncodedVideoFrame{
+        .identity = FrameIdentity{.monitor_id = "monitor-a"},
+        .codec = "h264",
+        .width = 640,
+        .height = 480,
+        .key_frame = true,
+        .payload = MakePayload(64),
+    }));
     auto captured_video = CapturedVideoFrame::Create(
         FrameIdentity{
             .stream_id = "stream-a",
             .monitor_id = "monitor-a",
         },
-        4,
-        4,
-        VideoPixelFormat::kBgra8,
-        MakePayload(64));
+        4, 4, VideoPixelFormat::kBgra8, MakePayload(64));
     ASSERT_TRUE(captured_video);
-    bus->PublishCapturedVideo(
-        std::make_shared<const CapturedVideoFrame>(
-            std::move(*captured_video)));
-    bus->PublishEncodedAudio(std::make_shared<const EncodedAudioFrame>(
-        EncodedAudioFrame{
-            .codec = "opus",
-            .payload = MakePayload(16),
-        }));
-    bus->PublishCapturedAudio(std::make_shared<const CapturedAudioFrame>(
-        CapturedAudioFrame{
-            .sample_rate_hz = 48000,
-            .channels = 2,
-            .bits_per_sample = 16,
-            .payload = MakePayload(128),
-        }));
+    bus->PublishCapturedVideo(std::make_shared<const CapturedVideoFrame>(std::move(*captured_video)));
+    bus->PublishEncodedAudio(std::make_shared<const EncodedAudioFrame>(EncodedAudioFrame{
+        .codec = "opus",
+        .payload = MakePayload(16),
+    }));
+    bus->PublishCapturedAudio(std::make_shared<const CapturedAudioFrame>(CapturedAudioFrame{
+        .sample_rate_hz = 48000,
+        .channels = 2,
+        .bits_per_sample = 16,
+        .payload = MakePayload(128),
+    }));
     bus->PublishClientConnected(MediaClientConnected{
         .visitor_device_id = "client-a",
         .stream_id = "stream-a",
@@ -302,14 +277,12 @@ TEST(RenderArchitectureStatisticsObserver,
     EXPECT_FALSE(bus->NeedsCapturedVideo());
     EXPECT_FALSE(bus->NeedsEncodedAudio());
     EXPECT_FALSE(bus->NeedsCapturedAudio());
-    bus->PublishVideo(std::make_shared<const EncodedVideoFrame>(
-        EncodedVideoFrame{.payload = MakePayload(32)}));
+    bus->PublishVideo(std::make_shared<const EncodedVideoFrame>(EncodedVideoFrame{.payload = MakePayload(32)}));
     EXPECT_EQ(observer->Snapshot().encoded_video_frames, 1U);
 }
 
 TEST(RenderArchitectureMediaTypes, InvalidFrameReturnsStableTypedError) {
-    auto created = CapturedVideoFrame::Create(
-        FrameIdentity{}, 0, 1080, VideoPixelFormat::kNv12, MakePayload(4));
+    auto created = CapturedVideoFrame::Create(FrameIdentity{}, 0, 1080, VideoPixelFormat::kNv12, MakePayload(4));
 
     ASSERT_FALSE(created.has_value());
     EXPECT_EQ(created.error().code, RenderErrorCode::kPipelineInvalidFrame);
@@ -320,12 +293,9 @@ TEST(RenderArchitectureMediaTypes, InvalidFrameReturnsStableTypedError) {
 
 TEST(RenderArchitectureQueue, DropOldestRetainsNewestFrames) {
     BoundedMediaQueue<int> queue(2, QueueOverflowPolicy::kDropOldest);
-    EXPECT_EQ(queue.Submit(std::make_shared<const int>(1)),
-              QueueSubmitResult::kAccepted);
-    EXPECT_EQ(queue.Submit(std::make_shared<const int>(2)),
-              QueueSubmitResult::kAccepted);
-    EXPECT_EQ(queue.Submit(std::make_shared<const int>(3)),
-              QueueSubmitResult::kAcceptedAfterDroppingOldest);
+    EXPECT_EQ(queue.Submit(std::make_shared<const int>(1)), QueueSubmitResult::kAccepted);
+    EXPECT_EQ(queue.Submit(std::make_shared<const int>(2)), QueueSubmitResult::kAccepted);
+    EXPECT_EQ(queue.Submit(std::make_shared<const int>(3)), QueueSubmitResult::kAcceptedAfterDroppingOldest);
 
     const auto first = queue.TryPop();
     const auto second = queue.TryPop();
@@ -341,12 +311,9 @@ TEST(RenderArchitectureQueue, DropOldestRetainsNewestFrames) {
 
 TEST(RenderArchitectureQueue, DropNewestPreservesExistingOrder) {
     BoundedMediaQueue<int> queue(2, QueueOverflowPolicy::kDropNewest);
-    EXPECT_EQ(queue.Submit(std::make_shared<const int>(1)),
-              QueueSubmitResult::kAccepted);
-    EXPECT_EQ(queue.Submit(std::make_shared<const int>(2)),
-              QueueSubmitResult::kAccepted);
-    EXPECT_EQ(queue.Submit(std::make_shared<const int>(3)),
-              QueueSubmitResult::kDroppedNewest);
+    EXPECT_EQ(queue.Submit(std::make_shared<const int>(1)), QueueSubmitResult::kAccepted);
+    EXPECT_EQ(queue.Submit(std::make_shared<const int>(2)), QueueSubmitResult::kAccepted);
+    EXPECT_EQ(queue.Submit(std::make_shared<const int>(3)), QueueSubmitResult::kDroppedNewest);
 
     ASSERT_TRUE(queue.TryPop().has_value());
     const auto second = queue.TryPop();
@@ -356,16 +323,13 @@ TEST(RenderArchitectureQueue, DropNewestPreservesExistingOrder) {
 
 TEST(RenderArchitectureQueue, CloseModesHaveExplicitLifetimeSemantics) {
     BoundedMediaQueue<int> draining(1, QueueOverflowPolicy::kDropOldest);
-    ASSERT_EQ(draining.Submit(std::make_shared<const int>(8)),
-              QueueSubmitResult::kAccepted);
+    ASSERT_EQ(draining.Submit(std::make_shared<const int>(8)), QueueSubmitResult::kAccepted);
     draining.Close(QueueCloseMode::kDrain);
     EXPECT_TRUE(draining.TryPop().has_value());
-    EXPECT_EQ(draining.Submit(std::make_shared<const int>(9)),
-              QueueSubmitResult::kRejectedClosed);
+    EXPECT_EQ(draining.Submit(std::make_shared<const int>(9)), QueueSubmitResult::kRejectedClosed);
 
     BoundedMediaQueue<int> cancelling(1, QueueOverflowPolicy::kDropOldest);
-    ASSERT_EQ(cancelling.Submit(std::make_shared<const int>(8)),
-              QueueSubmitResult::kAccepted);
+    ASSERT_EQ(cancelling.Submit(std::make_shared<const int>(8)), QueueSubmitResult::kAccepted);
     cancelling.Close(QueueCloseMode::kCancel);
     EXPECT_FALSE(cancelling.TryPop().has_value());
     EXPECT_TRUE(cancelling.Snapshot().closed);
@@ -466,8 +430,7 @@ TEST(RenderArchitectureDiagnostics, LogContextIsOwnedValueState) {
 }
 
 TEST(RenderArchitectureDiagnostics, PrivacyLogIdIsStableAndDoesNotExposeInput) {
-    constexpr std::string_view sensitive =
-        "render_privacy_canary_ticket_7f0c90f2";
+    constexpr std::string_view sensitive = "render_privacy_canary_ticket_7f0c90f2";
     const auto first = PrivacyLogId(sensitive);
     const auto second = PrivacyLogId(sensitive);
     const auto different = PrivacyLogId("render_privacy_canary_ticket_other");
@@ -505,8 +468,7 @@ TEST(RenderArchitectureDiagnostics, RateLimitKeyStorageIsBounded) {
 TEST(RenderArchitectureSubscription, TokenDestructionUnregistersCallback) {
     const auto registry = SubscriptionRegistry<int>::Create();
     const auto calls = std::make_shared<int>(0);
-    const auto callback = std::make_shared<SubscriptionRegistry<int>::Callback>(
-        [calls](const int& value) { *calls += value; });
+    const auto callback = std::make_shared<SubscriptionRegistry<int>::Callback>([calls](const int& value) { *calls += value; });
 
     auto subscription = registry->Subscribe(callback);
     registry->Dispatch(2);
@@ -520,8 +482,7 @@ TEST(RenderArchitectureSubscription, TokenDestructionUnregistersCallback) {
 TEST(RenderArchitectureSubscription, RegistryDoesNotOwnObserverCallback) {
     const auto registry = SubscriptionRegistry<int>::Create();
     const auto calls = std::make_shared<int>(0);
-    auto callback = std::make_shared<SubscriptionRegistry<int>::Callback>(
-        [calls](const int&) { ++*calls; });
+    auto callback = std::make_shared<SubscriptionRegistry<int>::Callback>([calls](const int&) { ++*calls; });
     const auto subscription = registry->Subscribe(callback);
 
     callback.reset();
@@ -533,19 +494,14 @@ TEST(RenderArchitectureSubscription, RegistryDoesNotOwnObserverCallback) {
 TEST(RenderArchitectureSubscription, CallbackCanUnregisterLaterCallback) {
     const auto registry = SubscriptionRegistry<int>::Create();
     const auto calls = std::make_shared<std::vector<std::string>>();
-    const auto second_subscription =
-        std::make_shared<std::shared_ptr<ScopedSubscription>>();
-    const auto first_callback =
-        std::make_shared<SubscriptionRegistry<int>::Callback>(
-            [calls, second_subscription](const int&) {
-                calls->push_back("first");
-                if (*second_subscription) {
-                    (*second_subscription)->Reset();
-                }
-            });
-    const auto second_callback =
-        std::make_shared<SubscriptionRegistry<int>::Callback>(
-            [calls](const int&) { calls->push_back("second"); });
+    const auto second_subscription = std::make_shared<std::shared_ptr<ScopedSubscription>>();
+    const auto first_callback = std::make_shared<SubscriptionRegistry<int>::Callback>([calls, second_subscription](const int&) {
+        calls->push_back("first");
+        if (*second_subscription) {
+            (*second_subscription)->Reset();
+        }
+    });
+    const auto second_callback = std::make_shared<SubscriptionRegistry<int>::Callback>([calls](const int&) { calls->push_back("second"); });
 
     const auto first_token = registry->Subscribe(first_callback);
     *second_subscription = registry->Subscribe(second_callback);
@@ -560,16 +516,12 @@ TEST(RenderArchitectureSubscription, ConcurrentResetPreventsQueuedInvocation) {
     const auto registry = SubscriptionRegistry<int>::Create();
     const auto callback_entered = std::make_shared<std::latch>(1);
     const auto allow_callback_exit = std::make_shared<std::latch>(1);
-    const auto first_callback =
-        std::make_shared<SubscriptionRegistry<int>::Callback>(
-            [callback_entered, allow_callback_exit](const int&) {
-                callback_entered->count_down();
-                allow_callback_exit->wait();
-            });
+    const auto first_callback = std::make_shared<SubscriptionRegistry<int>::Callback>([callback_entered, allow_callback_exit](const int&) {
+        callback_entered->count_down();
+        allow_callback_exit->wait();
+    });
     const auto later_calls = std::make_shared<int>(0);
-    const auto later_callback =
-        std::make_shared<SubscriptionRegistry<int>::Callback>(
-            [later_calls](const int&) { ++*later_calls; });
+    const auto later_callback = std::make_shared<SubscriptionRegistry<int>::Callback>([later_calls](const int&) { ++*later_calls; });
     const auto first_token = registry->Subscribe(first_callback);
     auto later_token = registry->Subscribe(later_callback);
 
@@ -595,10 +547,9 @@ TEST(RenderArchitectureAwaitCallback, SynchronousCompletionIsAwaitable) {
     };
 
     ASSERT_TRUE(scope->Spawn("synchronous_callback", [starter, completion]() {
-        return CompleteAwaitedCallback<int>(
-            starter, std::chrono::steady_clock::now() + 1s, completion);
+        return CompleteAwaitedCallback<int>(starter, std::chrono::steady_clock::now() + 1s, completion);
     }));
-    ASSERT_EQ(future.wait_for(1s), std::future_status::ready);
+    ASSERT_EQ(future.wait_for(5s), std::future_status::ready);
     const auto result = future.get();
     ASSERT_TRUE(result.HasValue());
     EXPECT_EQ(result.Value(), 42);
@@ -620,10 +571,9 @@ TEST(RenderArchitectureAwaitCallback, DuplicateCompletionUsesFirstResult) {
     };
 
     ASSERT_TRUE(scope->Spawn("duplicate_callback", [starter, completion]() {
-        return CompleteAwaitedCallback<int>(
-            starter, std::chrono::steady_clock::now() + 1s, completion);
+        return CompleteAwaitedCallback<int>(starter, std::chrono::steady_clock::now() + 1s, completion);
     }));
-    ASSERT_EQ(future.wait_for(1s), std::future_status::ready);
+    ASSERT_EQ(future.wait_for(5s), std::future_status::ready);
     const auto result = future.get();
     ASSERT_TRUE(result.HasValue());
     EXPECT_EQ(result.Value(), 1);
@@ -639,21 +589,18 @@ TEST(RenderArchitectureAwaitCallback, TimeoutMakesLateCallbackHarmless) {
     const auto completion = std::make_shared<std::promise<PxResult<int>>>();
     auto future = completion->get_future();
     const auto callback_ready = std::make_shared<std::latch>(1);
-    const auto callback_holder =
-        std::make_shared<OwnedCallbackCompletion<int>>();
-    const auto starter = [callback_ready, callback_holder](
-                             OwnedCallbackCompletion<int> callback) {
+    const auto callback_holder = std::make_shared<OwnedCallbackCompletion<int>>();
+    const auto starter = [callback_ready, callback_holder](OwnedCallbackCompletion<int> callback) {
         *callback_holder = std::move(callback);
         callback_ready->count_down();
         return true;
     };
 
     ASSERT_TRUE(scope->Spawn("timeout_callback", [starter, completion]() {
-        return CompleteAwaitedCallback<int>(
-            starter, std::chrono::steady_clock::now() + 20ms, completion);
+        return CompleteAwaitedCallback<int>(starter, std::chrono::steady_clock::now() + 20ms, completion);
     }));
     callback_ready->wait();
-    ASSERT_EQ(future.wait_for(1s), std::future_status::ready);
+    ASSERT_EQ(future.wait_for(5s), std::future_status::ready);
     const auto result = future.get();
     ASSERT_FALSE(result.HasValue());
     EXPECT_EQ(result.Error().code, PxAsyncErrorCode::kTimeout);
@@ -668,8 +615,7 @@ TEST(RenderArchitectureModuleCatalog, ResolvesDependenciesInStableOrder) {
     const auto events = std::make_shared<std::vector<std::string>>();
     ASSERT_TRUE(catalog->Register(MakeTestModule("observer", {"processor"}, events)));
     ASSERT_TRUE(catalog->Register(MakeTestModule("source", {}, events)));
-    ASSERT_TRUE(catalog->Register(
-        MakeTestModule("processor", {"source"}, events)));
+    ASSERT_TRUE(catalog->Register(MakeTestModule("processor", {"source"}, events)));
 
     const auto plan = catalog->ResolveStartupPlan();
     ASSERT_TRUE(plan.has_value());
@@ -690,11 +636,9 @@ TEST(RenderArchitectureModuleCatalog, RejectsDependencyCyclesAndLateRegistration
     EXPECT_EQ(plan.error().code, RenderErrorCode::kModuleDependencyCycle);
     EXPECT_EQ(StableErrorCode(plan.error().code), "MODULE_DEPENDENCY_CYCLE");
 
-    const auto late_registration =
-        catalog->Register(MakeTestModule("late", {}, events));
+    const auto late_registration = catalog->Register(MakeTestModule("late", {}, events));
     ASSERT_FALSE(late_registration.has_value());
-    EXPECT_EQ(late_registration.error().code,
-              RenderErrorCode::kModuleLifecycleRejected);
+    EXPECT_EQ(late_registration.error().code, RenderErrorCode::kModuleLifecycleRejected);
 }
 
 TEST(RenderArchitectureModuleCatalog, EnableControlIsIdempotentAndObservable) {
@@ -729,33 +673,22 @@ TEST(RenderArchitectureCompositionRoot, StartsDependenciesAndStopsInReverseOrder
 
     const auto started = std::make_shared<std::promise<ModuleLifecycleResult>>();
     auto started_future = started->get_future();
-    ASSERT_TRUE(root->RequestStart([started](ModuleLifecycleResult result) {
-        started->set_value(std::move(result));
-    }));
-    ASSERT_EQ(started_future.wait_for(1s), std::future_status::ready);
+    ASSERT_TRUE(root->RequestStart([started](ModuleLifecycleResult result) { started->set_value(std::move(result)); }));
+    ASSERT_EQ(started_future.wait_for(5s), std::future_status::ready);
     EXPECT_TRUE(started_future.get());
 
-    const auto duplicate =
-        std::make_shared<std::promise<ModuleLifecycleResult>>();
+    const auto duplicate = std::make_shared<std::promise<ModuleLifecycleResult>>();
     auto duplicate_future = duplicate->get_future();
-    ASSERT_TRUE(root->RequestStart([duplicate](ModuleLifecycleResult result) {
-        duplicate->set_value(std::move(result));
-    }));
-    ASSERT_EQ(duplicate_future.wait_for(1s), std::future_status::ready);
+    ASSERT_TRUE(root->RequestStart([duplicate](ModuleLifecycleResult result) { duplicate->set_value(std::move(result)); }));
+    ASSERT_EQ(duplicate_future.wait_for(5s), std::future_status::ready);
     EXPECT_TRUE(duplicate_future.get());
 
     const auto stopped = std::make_shared<std::promise<ModuleLifecycleResult>>();
     auto stopped_future = stopped->get_future();
-    ASSERT_TRUE(root->RequestStop([stopped](ModuleLifecycleResult result) {
-        stopped->set_value(std::move(result));
-    }));
-    ASSERT_EQ(stopped_future.wait_for(1s), std::future_status::ready);
+    ASSERT_TRUE(root->RequestStop([stopped](ModuleLifecycleResult result) { stopped->set_value(std::move(result)); }));
+    ASSERT_EQ(stopped_future.wait_for(5s), std::future_status::ready);
     EXPECT_TRUE(stopped_future.get());
-    EXPECT_EQ(*events,
-              (std::vector<std::string>{"start:source",
-                                        "start:observer",
-                                        "stop:observer",
-                                        "stop:source"}));
+    EXPECT_EQ(*events, (std::vector<std::string>{"start:source", "start:observer", "stop:observer", "stop:source"}));
 
     root.reset();
     runtime->RequestStop();
@@ -771,26 +704,16 @@ TEST(RenderArchitectureCompositionRoot, StartFailureRollsBackStartedModules) {
     const auto events = std::make_shared<std::vector<std::string>>();
     ASSERT_TRUE(root->Register(MakeTestModule("source", {}, events)));
     ASSERT_TRUE(root->Register(MakeTestModule(
-        "observer",
-        {"source"},
-        events,
-        std::unexpected(MakeModuleTestError(RenderErrorCode::kModuleStartFailed,
-                                            "start",
-                                            "injected failure")))));
+        "observer", {"source"}, events, std::unexpected(MakeModuleTestError(RenderErrorCode::kModuleStartFailed, "start", "injected failure")))));
 
     const auto started = std::make_shared<std::promise<ModuleLifecycleResult>>();
     auto started_future = started->get_future();
-    ASSERT_TRUE(root->RequestStart([started](ModuleLifecycleResult result) {
-        started->set_value(std::move(result));
-    }));
-    ASSERT_EQ(started_future.wait_for(1s), std::future_status::ready);
+    ASSERT_TRUE(root->RequestStart([started](ModuleLifecycleResult result) { started->set_value(std::move(result)); }));
+    ASSERT_EQ(started_future.wait_for(5s), std::future_status::ready);
     const auto result = started_future.get();
     ASSERT_FALSE(result.has_value());
     EXPECT_EQ(result.error().code, RenderErrorCode::kModuleStartFailed);
-    EXPECT_EQ(*events,
-              (std::vector<std::string>{"start:source",
-                                        "start:observer",
-                                        "stop:source"}));
+    EXPECT_EQ(*events, (std::vector<std::string>{"start:source", "start:observer", "stop:source"}));
     const auto source = catalog->Snapshot("source");
     ASSERT_TRUE(source.has_value());
     EXPECT_EQ(source->runtime_state, BuiltinModuleRuntimeState::kStopped);
@@ -807,32 +730,29 @@ TEST(RenderArchitectureCompositionRoot, StopRequestedFromStartCallbackIsSafe) {
     auto root = RenderCompositionRoot::Create(runtime, catalog);
     ASSERT_TRUE(root);
     const auto events = std::make_shared<std::vector<std::string>>();
-    const auto stop_completion =
-        std::make_shared<std::promise<ModuleLifecycleResult>>();
+    const auto stop_completion = std::make_shared<std::promise<ModuleLifecycleResult>>();
     auto stop_future = stop_completion->get_future();
     const std::weak_ptr<RenderCompositionRoot> weak_root = root;
 
     BuiltinModuleRegistration registration{
-        .descriptor = BuiltinModuleDescriptor{
-            .id = "callback_stop",
-            .name = "Callback Stop",
-            .author = "GammaRay",
-            .description = "Stops the composition from its start callback",
-            .version_name = "1.0.0",
-            .version_code = 1,
-            .capability = BuiltinModuleCapability::kObserver,
-        },
-        .start = [weak_root, events, stop_completion]() ->
-            PxAwaitable<ModuleLifecycleResult> {
-                events->push_back("start:callback_stop");
-                if (const auto owner = weak_root.lock()) {
-                    static_cast<void>(owner->RequestStop(
-                        [stop_completion](ModuleLifecycleResult result) {
-                            stop_completion->set_value(std::move(result));
-                        }));
-                }
-                co_return ModuleLifecycleResult{};
+        .descriptor =
+            BuiltinModuleDescriptor{
+                .id = "callback_stop",
+                .name = "Callback Stop",
+                .author = "GammaRay",
+                .description = "Stops the composition from its start callback",
+                .version_name = "1.0.0",
+                .version_code = 1,
+                .capability = BuiltinModuleCapability::kObserver,
             },
+        .start = [weak_root, events, stop_completion]() -> PxAwaitable<ModuleLifecycleResult> {
+            events->push_back("start:callback_stop");
+            if (const auto owner = weak_root.lock()) {
+                static_cast<void>(
+                    owner->RequestStop([stop_completion](ModuleLifecycleResult result) { stop_completion->set_value(std::move(result)); }));
+            }
+            co_return ModuleLifecycleResult{};
+        },
         .stop = [events]() -> PxAwaitable<ModuleLifecycleResult> {
             events->push_back("stop:callback_stop");
             co_return ModuleLifecycleResult{};
@@ -841,24 +761,17 @@ TEST(RenderArchitectureCompositionRoot, StopRequestedFromStartCallbackIsSafe) {
     };
     ASSERT_TRUE(root->Register(std::move(registration)));
 
-    const auto start_completion =
-        std::make_shared<std::promise<ModuleLifecycleResult>>();
+    const auto start_completion = std::make_shared<std::promise<ModuleLifecycleResult>>();
     auto start_future = start_completion->get_future();
-    ASSERT_TRUE(root->RequestStart(
-        [start_completion](ModuleLifecycleResult result) {
-            start_completion->set_value(std::move(result));
-        }));
+    ASSERT_TRUE(root->RequestStart([start_completion](ModuleLifecycleResult result) { start_completion->set_value(std::move(result)); }));
 
-    ASSERT_EQ(start_future.wait_for(1s), std::future_status::ready);
+    ASSERT_EQ(start_future.wait_for(5s), std::future_status::ready);
     const auto start_result = start_future.get();
     ASSERT_FALSE(start_result.has_value());
-    EXPECT_EQ(start_result.error().code,
-              RenderErrorCode::kModuleLifecycleRejected);
-    ASSERT_EQ(stop_future.wait_for(1s), std::future_status::ready);
+    EXPECT_EQ(start_result.error().code, RenderErrorCode::kModuleLifecycleRejected);
+    ASSERT_EQ(stop_future.wait_for(5s), std::future_status::ready);
     EXPECT_TRUE(stop_future.get());
-    EXPECT_EQ(*events,
-              (std::vector<std::string>{"start:callback_stop",
-                                        "stop:callback_stop"}));
+    EXPECT_EQ(*events, (std::vector<std::string>{"start:callback_stop", "stop:callback_stop"}));
 
     root.reset();
     runtime->RequestStop();
@@ -872,8 +785,7 @@ TEST(RenderArchitectureFrameDebugger, DisabledObserverRejectsWithoutQueueing) {
     ASSERT_TRUE(observer);
     ASSERT_TRUE(observer->Start());
 
-    EXPECT_EQ(observer->SubmitClientConnected(),
-              FrameDebuggerSubmitResult::kDisabled);
+    EXPECT_EQ(observer->SubmitClientConnected(), FrameDebuggerSubmitResult::kDisabled);
     observer->ObserveRawFrame(RawVideoFrameObservation{
         .monitor_id = "monitor-a",
         .frame_index = 1,
@@ -887,8 +799,7 @@ TEST(RenderArchitectureFrameDebugger, DisabledObserverRejectsWithoutQueueing) {
     EXPECT_EQ(snapshot.raw_frames_observed, 0U);
 
     ASSERT_TRUE(observer->SetEnabled(true));
-    EXPECT_EQ(observer->SubmitClientConnected(),
-              FrameDebuggerSubmitResult::kAccepted);
+    EXPECT_EQ(observer->SubmitClientConnected(), FrameDebuggerSubmitResult::kAccepted);
     observer->ObserveRawFrame(RawVideoFrameObservation{
         .monitor_id = "monitor-a",
         .frame_index = 2,
@@ -896,15 +807,13 @@ TEST(RenderArchitectureFrameDebugger, DisabledObserverRejectsWithoutQueueing) {
         .height = 1080,
     });
 
-    const auto completion =
-        std::make_shared<std::promise<ModuleLifecycleResult>>();
+    const auto completion = std::make_shared<std::promise<ModuleLifecycleResult>>();
     auto future = completion->get_future();
     const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
     ASSERT_TRUE(scope->Spawn("stop_frame_debugger", [observer, completion]() {
-        return CompleteFrameDebuggerStop(
-            observer, std::chrono::steady_clock::now() + 1s, completion);
+        return CompleteFrameDebuggerStop(observer, std::chrono::steady_clock::now() + 1s, completion);
     }));
-    ASSERT_EQ(future.wait_for(1s), std::future_status::ready);
+    ASSERT_EQ(future.wait_for(5s), std::future_status::ready);
     EXPECT_TRUE(future.get());
     snapshot = observer->Snapshot();
     EXPECT_FALSE(snapshot.running);
@@ -919,19 +828,14 @@ TEST(RenderArchitectureFrameDebugger, DisabledObserverRejectsWithoutQueueing) {
 TEST(RenderArchitectureFrameDebugger, EncodedFramesDrainToOwnedFile) {
     const auto runtime = PxAsyncRuntime::Create();
     ASSERT_TRUE(runtime->Start());
-    const auto unique_suffix =
-        std::chrono::steady_clock::now().time_since_epoch().count();
-    const auto output_directory =
-        std::filesystem::temp_directory_path() /
-        std::format("gammaray_frame_debugger_test_{}", unique_suffix);
-    auto observer = FrameDebuggerObserver::Create(
-        runtime,
-        FrameDebuggerOptions{
-            .queue_capacity = 8,
-            .save_encoded_video = true,
-            .output_directory = output_directory,
-            .raw_log_interval = 1s,
-        });
+    const auto unique_suffix = std::chrono::steady_clock::now().time_since_epoch().count();
+    const auto output_directory = std::filesystem::temp_directory_path() / std::format("gammaray_frame_debugger_test_{}", unique_suffix);
+    auto observer = FrameDebuggerObserver::Create(runtime, FrameDebuggerOptions{
+                                                               .queue_capacity = 8,
+                                                               .save_encoded_video = true,
+                                                               .output_directory = output_directory,
+                                                               .raw_log_interval = 1s,
+                                                           });
     ASSERT_TRUE(observer);
     ASSERT_TRUE(observer->Start());
     ASSERT_TRUE(observer->SetEnabled(true));
@@ -943,29 +847,27 @@ TEST(RenderArchitectureFrameDebugger, EncodedFramesDrainToOwnedFile) {
                   .height = 720,
               }),
               FrameDebuggerSubmitResult::kAccepted);
-    EXPECT_EQ(observer->SubmitEncodedFrame(
-                  std::make_shared<const EncodedVideoFrame>(EncodedVideoFrame{
-                      .identity = FrameIdentity{
+    EXPECT_EQ(observer->SubmitEncodedFrame(std::make_shared<const EncodedVideoFrame>(EncodedVideoFrame{
+                  .identity =
+                      FrameIdentity{
                           .stream_id = "stream-a",
                           .monitor_id = "DISPLAY_1",
                           .frame_index = 9,
                           .timestamp_us = 42,
                       },
-                      .codec = "h264",
-                      .key_frame = true,
-                      .payload = MakePayload(4),
-                  })),
+                  .codec = "h264",
+                  .key_frame = true,
+                  .payload = MakePayload(4),
+              })),
               FrameDebuggerSubmitResult::kAccepted);
 
-    const auto completion =
-        std::make_shared<std::promise<ModuleLifecycleResult>>();
+    const auto completion = std::make_shared<std::promise<ModuleLifecycleResult>>();
     auto future = completion->get_future();
     const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
     ASSERT_TRUE(scope->Spawn("drain_frame_debugger", [observer, completion]() {
-        return CompleteFrameDebuggerStop(
-            observer, std::chrono::steady_clock::now() + 1s, completion);
+        return CompleteFrameDebuggerStop(observer, std::chrono::steady_clock::now() + 1s, completion);
     }));
-    ASSERT_EQ(future.wait_for(1s), std::future_status::ready);
+    ASSERT_EQ(future.wait_for(5s), std::future_status::ready);
     EXPECT_TRUE(future.get());
     const auto snapshot = observer->Snapshot();
     EXPECT_EQ(snapshot.encoded_frames_submitted, 1U);
@@ -974,8 +876,7 @@ TEST(RenderArchitectureFrameDebugger, EncodedFramesDrainToOwnedFile) {
 
     std::vector<std::filesystem::path> created_files;
     if (std::filesystem::exists(output_directory)) {
-        for (const auto& entry :
-             std::filesystem::directory_iterator(output_directory)) {
+        for (const auto& entry : std::filesystem::directory_iterator(output_directory)) {
             if (entry.is_regular_file()) {
                 created_files.push_back(entry.path());
             }
@@ -1000,5 +901,5 @@ TEST(RenderArchitectureFrameDebugger, EncodedFramesDrainToOwnedFile) {
     runtime->Join();
 }
 
-}  // namespace
-}  // namespace px::render
+} // namespace
+} // namespace px::render

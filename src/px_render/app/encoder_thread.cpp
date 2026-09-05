@@ -402,14 +402,16 @@ namespace px
                     // 中原地死循环,永远出不了图,必须直接跳到 FFmpeg 链(其 kNvEnc/kQsv 硬编
                     // 由 ffmpeg 内部完成 CPU→GPU 上传)。
                     auto nvenc_encoder = module_registry_->GetNvencEncoder();
-                    if (!is_gdi_capture && !hardware_disabled_ && nvenc_encoder && nvenc_encoder->IsEnabled() && nvenc_encoder->Initialize(encoder_config, monitor_name)) {
+                    if (!is_gdi_capture && !hardware_disabled_ && nvenc_encoder && nvenc_encoder->IsEnabled() &&
+                        nvenc_encoder->Initialize(encoder_config, monitor_name)) {
                         select_encoder_with_capability_func(nvenc_encoder, monitor_name);
                     }
 
                     if (!target_encoder) {
                         LOGW("Init NVENC {}failed, will try AMF.", is_gdi_capture ? "skipped(GDI raw frames), " : "");
                         auto amf_encoder = module_registry_->GetAmfEncoder();
-                        if (!is_gdi_capture && !hardware_disabled_ && amf_encoder && amf_encoder->IsEnabled() && amf_encoder->Initialize(encoder_config, monitor_name)) {
+                        if (!is_gdi_capture && !hardware_disabled_ && amf_encoder && amf_encoder->IsEnabled() &&
+                            amf_encoder->Initialize(encoder_config, monitor_name)) {
                             select_encoder_with_capability_func(amf_encoder, monitor_name);
                         }
                     }
@@ -432,7 +434,8 @@ namespace px
                         // 实际映射为 libx264 且总能初始化成功,排在它后面永远轮不到。
                         LOGW("Init FFmpeg(kNvEnc) failed, will try FFmpeg(kQsv).");
                         encoder_config.Hardware = EHardwareEncoder::kQsv;
-                        if (!hardware_disabled_ && ffmpeg_encoder && ffmpeg_encoder->IsEnabled() && ffmpeg_encoder->Initialize(encoder_config, monitor_name)) {
+                        if (!hardware_disabled_ && ffmpeg_encoder && ffmpeg_encoder->IsEnabled() &&
+                            ffmpeg_encoder->Initialize(encoder_config, monitor_name)) {
                             select_encoder_with_capability_func(ffmpeg_encoder, monitor_name);
                         }
                     }
@@ -477,13 +480,13 @@ namespace px
                 LOGI("Selected encoder module: {}, version: {} for monitor: {}",
                      target_encoder->Name(), target_encoder->VersionName(), monitor_name);
 
-                auto video_type = [=]() -> PxPluginEncodedVideoType {
+                auto video_type = [=]() -> EncodedVideoType {
                     if (effective_format == Encoder::EncoderFormat::kH264) {
-                        return PxPluginEncodedVideoType::kH264;
+                        return EncodedVideoType::kH264;
                     } else if (effective_format == Encoder::EncoderFormat::kHEVC) {
-                        return PxPluginEncodedVideoType::kH265;
+                        return EncodedVideoType::kH265;
                     } else {
-                        return PxPluginEncodedVideoType::kH264;
+                        return EncodedVideoType::kH264;
                     }
                 } ();
 
@@ -493,7 +496,7 @@ namespace px
                         render::VideoEncoderReady{
                             .monitor_id = monitor_name,
                             .codec = video_type ==
-                                             PxPluginEncodedVideoType::kH264
+                                             EncodedVideoType::kH264
                                          ? "h264"
                                          : "h265",
                             .width = static_cast<std::uint32_t>(

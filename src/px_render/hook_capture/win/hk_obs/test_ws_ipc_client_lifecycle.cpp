@@ -26,6 +26,10 @@ bool WaitUntil(const std::function<bool()>& predicate, const std::chrono::steady
     return predicate();
 }
 
+PxAwaitable<void> StopClientAndComplete(std::shared_ptr<WsIpcClient> client, std::shared_ptr<std::promise<PxResult<void>>> completion) {
+    completion->set_value(co_await WsIpcClient::StopAsync(client, std::chrono::steady_clock::now() + 5s));
+}
+
 TEST(WsIpcClientLifecycle, RepeatedStartStopRecreatesPrivateRuntime) {
     const auto client = WsIpcClient::Make(9);
     ASSERT_TRUE(client);
@@ -51,11 +55,7 @@ TEST(WsIpcClientLifecycle, StopAsyncDrainsFromExternalControlLane) {
     ASSERT_TRUE(scope);
     const auto completion = std::make_shared<std::promise<PxResult<void>>>();
     auto future = completion->get_future();
-    ASSERT_TRUE(scope->Spawn("test-obs-ipc-stop", [client, completion]() -> PxAwaitable<void> {
-        completion->set_value(co_await WsIpcClient::StopAsync(
-            client, std::chrono::steady_clock::now() + 5s));
-        co_return;
-    }));
+    ASSERT_TRUE(scope->Spawn("test-obs-ipc-stop", [client, completion] { return StopClientAndComplete(client, completion); }));
 
     ASSERT_EQ(future.wait_for(6s), std::future_status::ready);
     const auto stopped = future.get();
@@ -93,7 +93,7 @@ TEST(WsIpcClientLifecycle, ConnectionQueriesRemainSafeDuringStop) {
 
 TEST(WsIpcClientLifecycle, RepeatedRealServerRestartAdvancesEveryReconnectGeneration) {
     const auto port = 30000 + static_cast<int>(GetCurrentProcessId() % 10000);
-    const auto server = std::make_shared<asio2::ws_server>();
+    auto server = std::make_shared<asio2::ws_server>();
     ASSERT_TRUE(server->start("127.0.0.1", port));
     const auto client = WsIpcClient::Make(port);
     client->Start();
@@ -104,10 +104,12 @@ TEST(WsIpcClientLifecycle, RepeatedRealServerRestartAdvancesEveryReconnectGenera
     for (int cycle = 0; cycle < 3; ++cycle) {
         server->stop();
         ASSERT_TRUE(WaitUntil([client] { return !client->IsConnected(); }, 2s)) << "cycle=" << cycle;
+        server.reset();
+        server = std::make_shared<asio2::ws_server>();
         ASSERT_TRUE(server->start("127.0.0.1", port)) << "cycle=" << cycle;
-        ASSERT_TRUE(WaitUntil([client, previous_generation] {
-            return client->IsConnected() && client->ConnectionGeneration() > previous_generation;
-        }, 8s)) << "cycle=" << cycle;
+        ASSERT_TRUE(
+            WaitUntil([client, previous_generation] { return client->IsConnected() && client->ConnectionGeneration() > previous_generation; }, 8s))
+            << "cycle=" << cycle;
         previous_generation = client->ConnectionGeneration();
     }
 
@@ -126,9 +128,11 @@ TEST(WsIpcClientLifecycle, InitiallyUnavailableServerIsRetriedUntilItStarts) {
     const auto generation_before_server_start = client->ConnectionGeneration();
     const auto server = std::make_shared<asio2::ws_server>();
     ASSERT_TRUE(server->start("127.0.0.1", port));
-    ASSERT_TRUE(WaitUntil([client, generation_before_server_start] {
-        return client->IsConnected() && client->ConnectionGeneration() >= generation_before_server_start;
-    }, 10s));
+    ASSERT_TRUE(WaitUntil(
+        [client, generation_before_server_start] {
+            return client->IsConnected() && client->ConnectionGeneration() >= generation_before_server_start;
+        },
+        10s));
 
     client->Exit();
     server->stop();

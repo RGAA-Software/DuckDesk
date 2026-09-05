@@ -7,7 +7,7 @@
 
 //#include "network/wss_router.h"
 #include "network/ws_router.h"
-#include "px_render/plugin_interface/px_net_plugin_type.h"
+#include "px_render/network/transport_types.h"
 #include "px_common_new/file_transfer_send_result.h"
 #include <atomic>
 #include <mutex>
@@ -19,14 +19,14 @@ namespace px
 
     class WsFileTransferRouter : public WsRouter, public std::enable_shared_from_this<WsFileTransferRouter> {
     public:
-
-        static std::shared_ptr<WsFileTransferRouter> Make(const WsDataPtr& data, bool only_audio, const std::string& device_id, const std::string& stream_id) {
-            auto router = std::make_shared<WsFileTransferRouter>(data, only_audio);
-            router->device_id_ = device_id;
-            router->stream_id_ = stream_id;
-            router->nt_channel_type_ = NetChannelType::kFileTransfer;
-            return router;
-        }
+      static std::shared_ptr<WsFileTransferRouter> Make(const WsDataPtr& data, bool only_audio, const std::string& device_id,
+                                                        const std::string& stream_id) {
+          auto router = std::make_shared<WsFileTransferRouter>(data, only_audio);
+          router->device_id_ = device_id;
+          router->stream_id_ = stream_id;
+          router->channel_type_ = TransportChannel::kFileTransfer;
+          return router;
+      }
 
         explicit WsFileTransferRouter(const WsDataPtr& data, bool only_audio) : WsRouter(data){}
         void OnOpen(std::shared_ptr<asio2::http_session> &sess_ptr) override;
@@ -51,7 +51,7 @@ namespace px
         std::string binding_id_;
         std::atomic_bool file_allowed_ = true;
         unsigned int post_thread_id_ = 0;
-        NetChannelType nt_channel_type_;
+        TransportChannel channel_type_;
         std::mutex writable_signal_mutex_;
         std::shared_ptr<FileTransferWritableSignal> writable_signal_;
     };

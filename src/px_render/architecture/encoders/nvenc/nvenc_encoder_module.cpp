@@ -7,8 +7,8 @@
 #include "nvenc_encoder_defs.h"
 #include "nvenc_video_encoder.h"
 #include "px_render/modules/module_ids.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
-#include "px_render/plugin_interface/px_plugin_context.h"
+#include "px_render/architecture/events/render_event.h"
+#include "px_render/architecture/runtime/render_execution_context.h"
 
 
 namespace px

@@ -755,9 +755,9 @@ namespace px
                     return;
                 }
                 auto record = std::make_shared<VisitRecord>(VisitRecord{
-                    .conn_id_ = sub.conn_id(),
+                    .connection_id_ = sub.conn_id(),
                     .stream_id_ = sub.stream_id(),
-                    .conn_type_ = sub.conn_type(),
+                    .connection_type_ = sub.conn_type(),
                     .begin_ = sub.begin_timestamp(),
                     .end_ = 0,
                     .duration_ = 0,
@@ -977,24 +977,24 @@ namespace px
     }
 
     void WsPanelServer::NotifyInsertVisitRecordToConsole(const std::shared_ptr<VisitRecord> record) {
-        if (!record || record->conn_id_.empty()) {
+        if (!record || record->connection_id_.empty()) {
             return;
         }
         auto db = context_->GetDatabase();
-        if (!db->EnqueueAuditOutbox("visit:" + record->conn_id_ + ":begin", kUrlVisitRecord,
+        if (!db->EnqueueAuditOutbox("visit:" + record->connection_id_ + ":begin", kUrlVisitRecord,
                                     record->AsJson2(), TimeUtil::GetCurrentTimestamp())) {
-            LOGE("Queue insert visit audit failed: {}", record->conn_id_);
+            LOGE("Queue insert visit audit failed: {}", record->connection_id_);
         }
     }
 
     void WsPanelServer::NotifyUpdateVisitRecordToConsole(const std::shared_ptr<VisitRecord> record) {
-        if (!record || record->conn_id_.empty()) {
+        if (!record || record->connection_id_.empty()) {
             return;
         }
         auto db = context_->GetDatabase();
-        if (!db->EnqueueAuditOutbox("visit:" + record->conn_id_ + ":end", kUrlUpdateVisitRecord,
+        if (!db->EnqueueAuditOutbox("visit:" + record->connection_id_ + ":end", kUrlUpdateVisitRecord,
                                     record->AsUpdateJson(), TimeUtil::GetCurrentTimestamp())) {
-            LOGE("Queue update visit audit failed: {}", record->conn_id_);
+            LOGE("Queue update visit audit failed: {}", record->connection_id_);
         }
     }
 

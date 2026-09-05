@@ -18,16 +18,17 @@ namespace px
 
     class NotifyFrameFrameBuffer : public webrtc::VideoFrameBuffer {
     public:
-        NotifyFrameFrameBuffer(const std::string& mon_name, uint64_t frame_idx, int width, int height, uint64_t handle, int64_t adapter_uid, uint64_t frame_format, bool stream_reset) {
-            this->mon_name_ = mon_name;
-            this->frame_idx_ = frame_idx;
-            this->width_ = width;
-            this->height_ = height;
-            this->handle_ = handle;
-            this->adapter_uid_ = adapter_uid;
-            this->frame_format_ = frame_format;
-            this->stream_reset_ = stream_reset;
-        }
+      NotifyFrameFrameBuffer(const std::string& mon_name, uint64_t frame_idx, int width, int height, uint64_t handle, int64_t adapter_uid,
+                             uint64_t frame_format, bool stream_reset) {
+          this->monitor_name_ = mon_name;
+          this->frame_idx_ = frame_idx;
+          this->width_ = width;
+          this->height_ = height;
+          this->handle_ = handle;
+          this->adapter_uid_ = adapter_uid;
+          this->frame_format_ = frame_format;
+          this->stream_reset_ = stream_reset;
+      }
 
         [[nodiscard]] Type type() const override {
             return webrtc::VideoFrameBuffer::Type::kNative;
@@ -59,7 +60,7 @@ namespace px
 
         // 采集该帧的显示器名:切屏检测/编码帧按屏名匹配用
         [[nodiscard]] const std::string& GetMonName() {
-            return mon_name_;
+            return monitor_name_;
         }
 
         [[nodiscard]] uint64_t GetFrameIdx() const {
@@ -71,7 +72,7 @@ namespace px
         }
 
     private:
-        std::string mon_name_;
+        std::string monitor_name_;
         uint64_t frame_idx_ = 0;
         int width_ = 0;
         int height_ = 0;

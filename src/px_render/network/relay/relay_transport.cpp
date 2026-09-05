@@ -36,7 +36,7 @@ bool RelayTransport::Start(const RenderModuleConfiguration& configuration) {
         return false;
     }
     runtime_.store(runtime);
-    runtime->Start(module_context_, MakeImmediateCompatibilityEventDispatcher());
+    runtime->Start(execution_context_, MakeImmediateEventDispatcher());
     return true;
 }
 

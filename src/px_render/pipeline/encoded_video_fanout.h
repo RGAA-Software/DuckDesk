@@ -7,7 +7,7 @@
 
 #include <memory>
 #include <atomic>
-#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/architecture/events/render_event.h"
 
 namespace px
 {
@@ -24,7 +24,7 @@ namespace px
             const std::shared_ptr<RdApplication>& app);
         explicit EncodedVideoFanout(const std::shared_ptr<RdApplication>& app);
 
-        void ProcessEncodedVideoFrameEvent(const std::shared_ptr<PxPluginEncodedVideoFrameEvent>& event);
+        void ProcessEncodedVideoFrameEvent(const std::shared_ptr<EncodedVideoFrameEvent>& event);
 
     private:
         void InitListener();

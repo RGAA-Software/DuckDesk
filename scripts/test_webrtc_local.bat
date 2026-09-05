@@ -24,7 +24,7 @@ rem   3. Logs: %PROGRAMDATA%\GammaRay\px_logs\app.rtc.*.log shows
 rem      ICE gathering complete -> answer sdp set -> ICE Connected -> frames.
 rem
 rem Notes:
-rem   - Requires the render to encode H264 (net_rtc_local negotiates H264 only).
+rem   - Requires the render to encode H264 (px_render_rtc.dll negotiates H264 only).
 rem   - If the same device_id:stream_id is already connected (e.g. a web_client
 rem     session), the client automatically retries once with takeover=1.
 rem ============================================================================

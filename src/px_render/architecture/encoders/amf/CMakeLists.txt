@@ -27,4 +27,5 @@ set(MODULE_SRCS
 )
 
 add_library(${PROJECT_NAME} STATIC ${MODULE_SRCS} ${EXT_SRCS})
-target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_plugin winmm.lib amf_encoder_shared SetupAPI.lib)
+target_compile_definitions(${PROJECT_NAME} PRIVATE _HAS_DEPRECATED_ALLOCATOR_MEMBERS=1)
+target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new render_architecture_core winmm.lib amf_encoder_shared SetupAPI.lib)

@@ -12,7 +12,7 @@ namespace px
 
     std::string VisitRecord::AsString() {
         return std::format("Conn Type: {}, Begin: {}, End: {}, Duration: {}, Visitor device: {}, Target device: {}",
-                           conn_type_,
+                           connection_type_,
                            TimeUtil::FormatTimestamp(begin_),
                            TimeUtil::FormatTimestamp(end_),
                            TimeUtil::FormatSecondsToDHMS(duration_),
@@ -22,9 +22,9 @@ namespace px
 
     std::string VisitRecord::AsJson() {
         nlohmann::json obj;
-        obj["conn_id"] = conn_id_;
+        obj["conn_id"] = connection_id_;
         obj["stream_id"] = stream_id_;
-        obj["conn_type"] = conn_type_;
+        obj["conn_type"] = connection_type_;
         obj["begin"] = TimeUtil::FormatTimestamp(begin_);
         obj["end"] = TimeUtil::FormatTimestamp(end_);
         obj["duration"] = TimeUtil::FormatSecondsToDHMS(duration_);
@@ -38,9 +38,9 @@ namespace px
 
     std::string VisitRecord::AsJson2() {
         nlohmann::json obj;
-        obj["conn_id"] = conn_id_;
+        obj["conn_id"] = connection_id_;
         obj["stream_id"] = stream_id_;
-        obj["conn_type"] = conn_type_;
+        obj["conn_type"] = connection_type_;
         obj["begin"] = begin_;
         // The create endpoint represents the beginning of a lifecycle.  Keep
         // this payload in the running state even when it is reconstructed
@@ -57,7 +57,7 @@ namespace px
 
     std::string VisitRecord::AsUpdateJson() {
         nlohmann::json obj;
-        obj["conn_id"] = conn_id_;
+        obj["conn_id"] = connection_id_;
         obj["end"] = end_;
         obj["duration"] = duration_;
         obj["status"] = status_;

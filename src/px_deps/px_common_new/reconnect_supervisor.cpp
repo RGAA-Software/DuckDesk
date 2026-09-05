@@ -8,11 +8,9 @@
 
 namespace px {
 
-std::shared_ptr<PxReconnectSupervisor> PxReconnectSupervisor::Create(
-    const std::shared_ptr<PxAsyncRuntime>& runtime,
-    PxReconnectSupervisorOptions options) {
-    if (!runtime || runtime->IsStopping() || options.component.empty() ||
-        options.connection_timeout <= std::chrono::milliseconds::zero() ||
+std::shared_ptr<PxReconnectSupervisor> PxReconnectSupervisor::Create(const std::shared_ptr<PxAsyncRuntime>& runtime,
+                                                                     PxReconnectSupervisorOptions options) {
+    if (!runtime || runtime->IsStopping() || options.component.empty() || options.connection_timeout <= std::chrono::milliseconds::zero() ||
         options.adapter_stop_timeout <= std::chrono::milliseconds::zero()) {
         return {};
     }
@@ -21,14 +19,11 @@ std::shared_ptr<PxReconnectSupervisor> PxReconnectSupervisor::Create(
     if (!workflow || !backoff) {
         return {};
     }
-    return std::make_shared<PxReconnectSupervisor>(
-        std::move(options), std::move(workflow), std::move(backoff));
+    return std::make_shared<PxReconnectSupervisor>(std::move(options), std::move(workflow), std::move(backoff));
 }
 
-PxReconnectSupervisor::PxReconnectSupervisor(
-    PxReconnectSupervisorOptions options,
-    std::shared_ptr<PxConnectionAttemptWorkflow> workflow,
-    std::shared_ptr<PxReconnectBackoff> backoff)
+PxReconnectSupervisor::PxReconnectSupervisor(PxReconnectSupervisorOptions options, std::shared_ptr<PxConnectionAttemptWorkflow> workflow,
+                                             std::shared_ptr<PxReconnectBackoff> backoff)
     : options_(std::move(options)), workflow_(std::move(workflow)), backoff_(std::move(backoff)) {}
 
 PxReconnectSupervisor::~PxReconnectSupervisor() {
@@ -45,15 +40,11 @@ PxReconnectBackoffStep PxReconnectSupervisor::NextBackoff() {
     return backoff_->Next();
 }
 
-PxResult<void> PxReconnectSupervisor::StartAttemptIfRunning(
-    const PxReconnectStartAttempt& start_attempt,
-    const std::uint64_t generation) {
+PxResult<void> PxReconnectSupervisor::StartAttemptIfRunning(const PxReconnectStartAttempt& start_attempt, const std::uint64_t generation) {
     std::lock_guard lock(lifecycle_mutex_);
     if (stopping_.load(std::memory_order_acquire)) {
-        return PxResult<void>::Failure(MakePxAsyncError(
-            PxAsyncErrorCode::kServiceStopped,
-            "connect.start",
-            "reconnect supervisor stopped before the adapter attempt could start"));
+        return PxResult<void>::Failure(MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "connect.start",
+                                                        "reconnect supervisor stopped before the adapter attempt could start"));
     }
     return start_attempt(generation);
 }
@@ -77,16 +68,15 @@ void PxReconnectSupervisor::LogConnectionLost(const std::uint64_t generation, co
 void PxReconnectSupervisor::LogConnectionRecovered(const std::uint64_t generation) {
     std::lock_guard lock(failure_log_mutex_);
     if (suppressed_failure_logs_ != 0) {
-        LOGI("event=transport.failure_summary component={} generation={} operation=supervise outcome=recovered suppressed={}",
-             options_.component, generation, suppressed_failure_logs_);
+        LOGI("event=transport.failure_summary component={} generation={} operation=supervise outcome=recovered suppressed={}", options_.component,
+             generation, suppressed_failure_logs_);
     }
     suppressed_failure_logs_ = 0;
     last_failure_log_at_ = {};
 }
 
-PxAwaitable<bool> PxReconnectSupervisor::ResetAdapterUntilStopped(
-    const std::shared_ptr<PxReconnectSupervisor>& supervisor,
-    const PxReconnectStopAttempt& stop_attempt) {
+PxAwaitable<bool> PxReconnectSupervisor::ResetAdapterUntilStopped(std::shared_ptr<PxReconnectSupervisor> supervisor,
+                                                                  PxReconnectStopAttempt stop_attempt) {
     for (;;) {
         if (supervisor->IsStopping()) {
             co_return false;
@@ -104,8 +94,8 @@ PxAwaitable<bool> PxReconnectSupervisor::ResetAdapterUntilStopped(
         const auto step = supervisor->NextBackoff();
         LOGE("event=transport.adapter_reset component={} generation={} code={} operation=stop_adapter "
              "outcome=failed recoverable=true attempt={} delay_ms={} reason={}",
-             supervisor->options_.component, supervisor->Generation(), stopped.Error().StableCode(),
-             step.attempt, step.delay.count(), stopped.Error().message);
+             supervisor->options_.component, supervisor->Generation(), stopped.Error().StableCode(), step.attempt, step.delay.count(),
+             stopped.Error().message);
         const auto waited = co_await PxReconnectBackoff::Wait(step.delay);
         if (!waited) {
             co_return false;
@@ -113,9 +103,7 @@ PxAwaitable<bool> PxReconnectSupervisor::ResetAdapterUntilStopped(
     }
 }
 
-PxAwaitable<void> PxReconnectSupervisor::Run(
-    std::shared_ptr<PxReconnectSupervisor> supervisor,
-    PxReconnectSupervisorHooks hooks) {
+PxAwaitable<void> PxReconnectSupervisor::Run(std::shared_ptr<PxReconnectSupervisor> supervisor, PxReconnectSupervisorHooks hooks) {
     if (!supervisor || !hooks.start_attempt || !hooks.stop_attempt) {
         co_return;
     }
@@ -132,8 +120,7 @@ PxAwaitable<void> PxReconnectSupervisor::Run(
         supervisor->connection_attempts_.fetch_add(1, std::memory_order_acq_rel);
         const auto attempt_started_at = std::chrono::steady_clock::now();
         if (ticket.generation == 1) {
-            LOGI("event=transport.connection_attempt component={} generation={} outcome=started",
-                 supervisor->options_.component, ticket.generation);
+            LOGI("event=transport.connection_attempt component={} generation={} outcome=started", supervisor->options_.component, ticket.generation);
         }
 
         const auto started = supervisor->StartAttemptIfRunning(hooks.start_attempt, ticket.generation);
@@ -141,8 +128,8 @@ PxAwaitable<void> PxReconnectSupervisor::Run(
             static_cast<void>(supervisor->workflow_->FailActive(ticket.generation, started.Error()));
         }
 
-        const auto ready = co_await PxConnectionAttemptWorkflow::WaitUntilReady(
-            supervisor->workflow_, ticket, attempt_started_at + supervisor->options_.connection_timeout);
+        const auto ready = co_await PxConnectionAttemptWorkflow::WaitUntilReady(supervisor->workflow_, ticket,
+                                                                                attempt_started_at + supervisor->options_.connection_timeout);
         PxAsyncError failure{};
         bool was_ready{false};
         if (ready) {
@@ -151,15 +138,13 @@ PxAwaitable<void> PxReconnectSupervisor::Run(
             supervisor->consecutive_failures_.store(0, std::memory_order_release);
             supervisor->successful_connections_.fetch_add(1, std::memory_order_acq_rel);
             supervisor->LogConnectionRecovered(ticket.generation);
-            const auto ready_latency = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now() - attempt_started_at);
-            LOGI("event=transport.connection_ready component={} generation={} latency_ms={}",
-                 supervisor->options_.component, ticket.generation, ready_latency.count());
+            const auto ready_latency = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - attempt_started_at);
+            LOGI("event=transport.connection_ready component={} generation={} latency_ms={}", supervisor->options_.component, ticket.generation,
+                 ready_latency.count());
             if (hooks.on_ready) {
                 hooks.on_ready(ticket.generation);
             }
-            const auto disconnected = co_await PxConnectionAttemptWorkflow::WaitUntilDisconnected(
-                supervisor->workflow_, ticket);
+            const auto disconnected = co_await PxConnectionAttemptWorkflow::WaitUntilDisconnected(supervisor->workflow_, ticket);
             if (disconnected) {
                 failure = disconnected.Value().reason;
             } else {
@@ -196,8 +181,8 @@ PxAwaitable<void> PxReconnectSupervisor::Run(
 
         const auto& step = *reconnect_step;
         if (step.delay >= supervisor->options_.backoff.maximum_delay) {
-            LOGI("event=transport.reconnect_wait component={} generation={} attempt={} delay_ms={} outcome=waiting",
-                 supervisor->options_.component, ticket.generation, step.attempt, step.delay.count());
+            LOGI("event=transport.reconnect_wait component={} generation={} attempt={} delay_ms={} outcome=waiting", supervisor->options_.component,
+                 ticket.generation, step.attempt, step.delay.count());
         }
         const auto waited = co_await PxReconnectBackoff::Wait(step.delay);
         if (!waited) {

@@ -177,7 +177,7 @@ Panel 启动链正确，也不得记为产品链路通过。生产参数构造�
 - `test_file_transfer_route_registry`：6/6；WS 文件传输端到端以 1 MiB 文件完成上传、下载 SHA-256 校验和远端删除。
 - `test_direct_session_grant_store`：6/6，通过 grant 轮换、URL 安全的预留流 ID、过期、对端绑定校验及并发重放仅一个成功者。
 - `test_udp_media_fallback_state`：3/3，通过一次性 UDP→可靠 WS 媒体回退和停止后的迟到回调拒绝。
-- `test_plugin_context_lifecycle`：10/10，通过回调内 shutdown、注销时排队事件、回调内注销和重复 create/stop/destroy。
+- `test_render_execution_context_lifecycle`：覆盖回调内 shutdown、注销时排队事件、回调内注销和重复 create/post/stop。
 - `px_console_server` Rust 单测：152 通过；本机 MongoDB L1 原子 redeem/renew/binding 门禁已显式执行并通过（20 路并发 redeem/renew 各恰好一个成功，错误绑定不消耗 ticket，同一 Direct takeover redemption 可安全重试）。该门禁仍保持显式 ignored，CI 或新环境必须在具备 MongoDB 时单独执行。
 - 90 号机部署后 `run_native_auth_case.ps1 -Mode account -NetworkType webrtc` 通过（RTC、视频、音频和文件通道均可用）；`run_rtc_multi_session_lan_case.ps1` 通过主控与观察者并发、第二主控业务级占用拒绝、显式接管和旧主控持续作为 Observer 观看。验收脚本要求接管后的最后采样仍存在 RTC Peer、候选对和视频统计，不能仅凭接管前的历史样本判通过。真实异网/NAT relay、端口耗尽和更大规模观察者验收仍按第 11 节执行，不能由本机自动化替代。
 - 2026-09-03 在 90 号机补充原生 Windows 客户端回归：无 Console 的 IP 直连显式省略 `remote_device_id` 时，仅验证设备密码且不回填本机 Console 设备号，Direct RTC、首帧、音频和文件通道全部通过；一条 Controller 保持在线时，Console ticket 的直连 WS 收到一次业务级 `occupied` 拒绝，3 秒观察内自动重试为 0，且准入前未上报 `MsgNetworkConnected`；Controller 退出并越过 5 秒保护期后，同一路径正常连接、首帧和文件通道通过。`run_native_auth_case.ps1` 以 `-OmitRemoteDeviceId` 和 `-ExpectOccupied` 固化这两个回归入口。

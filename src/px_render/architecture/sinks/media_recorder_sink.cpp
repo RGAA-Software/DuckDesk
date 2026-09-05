@@ -16,10 +16,7 @@ namespace {
 
 using namespace std::chrono_literals;
 
-RenderError MakeRecorderError(const RenderErrorCode code,
-                              std::string operation,
-                              std::string reason,
-                              const bool recoverable) {
+RenderError MakeRecorderError(const RenderErrorCode code, std::string operation, std::string reason, const bool recoverable) {
     return RenderError{
         .code = code,
         .component = "media_recorder",
@@ -31,27 +28,19 @@ RenderError MakeRecorderError(const RenderErrorCode code,
 }
 
 class RecordWriterAdapter final : public MediaRecorderWriter {
-public:
-    explicit RecordWriterAdapter(std::shared_ptr<RecordWriter> writer)
-        : writer_(std::move(writer)) {}
+  public:
+    explicit RecordWriterAdapter(std::shared_ptr<RecordWriter> writer) : writer_(std::move(writer)) {}
 
-    void OnVideo(
-        const std::shared_ptr<const EncodedVideoFrame>& frame) override {
+    void OnVideo(const std::shared_ptr<const EncodedVideoFrame>& frame) override {
         if (!writer_ || !frame || !frame->payload || frame->payload->empty()) {
             return;
         }
-        const auto codec = frame->codec == "h265"
-            ? RecordVideoCodec::kH265
-            : RecordVideoCodec::kH264;
-        writer_->OnEncodedVideo(std::span<const std::uint8_t>(*frame->payload),
-                                codec,
-                                static_cast<int>(frame->width),
-                                static_cast<int>(frame->height),
-                                frame->key_frame);
+        const auto codec = frame->codec == "h265" ? RecordVideoCodec::kH265 : RecordVideoCodec::kH264;
+        writer_->OnEncodedVideo(std::span<const std::uint8_t>(*frame->payload), codec, static_cast<int>(frame->width),
+                                static_cast<int>(frame->height), frame->key_frame);
     }
 
-    void OnAudio(
-        const std::shared_ptr<const EncodedAudioFrame>& frame) override {
+    void OnAudio(const std::shared_ptr<const EncodedAudioFrame>& frame) override {
         if (!writer_ || !frame || !frame->payload || frame->payload->empty()) {
             return;
         }
@@ -64,26 +53,23 @@ public:
         }
     }
 
-private:
+  private:
     std::shared_ptr<RecordWriter> writer_;
 };
 
-void Complete(const MediaRecorderSink::Completion& completion,
-              PxResult<void> result) {
+void Complete(const MediaRecorderSink::Completion& completion, PxResult<void> result) {
     if (!completion) {
         return;
     }
     try {
         completion(std::move(result));
-    }
-    catch (const std::exception& error) {
+    } catch (const std::exception& error) {
         static_cast<void>(error);
         LOGE("event=sink.completion component=media_recorder "
              "code=MEDIA_RECORDER_COMPLETION_EXCEPTION "
              "operation=invoke_completion outcome=ignored recoverable=true "
              "reason=completion_exception");
-    }
-    catch (...) {
+    } catch (...) {
         LOGE("event=sink.completion component=media_recorder "
              "code=MEDIA_RECORDER_COMPLETION_EXCEPTION "
              "operation=invoke_completion outcome=ignored recoverable=true "
@@ -91,19 +77,15 @@ void Complete(const MediaRecorderSink::Completion& completion,
     }
 }
 
-}  // namespace
+} // namespace
 
-std::shared_ptr<MediaRecorderSink> MediaRecorderSink::Create(
-    std::shared_ptr<EncodedMediaBus> media_bus,
-    MediaRecorderOptions options,
-    KeyframeRequester request_keyframe,
-    WriterFactory writer_factory) {
+std::shared_ptr<MediaRecorderSink> MediaRecorderSink::Create(std::shared_ptr<EncodedMediaBus> media_bus, MediaRecorderOptions options,
+                                                             KeyframeRequester request_keyframe, WriterFactory writer_factory) {
     if (!media_bus || options.queue_capacity == 0) {
         return {};
     }
     if (options.record_directory.empty()) {
-        options.record_directory =
-            (std::filesystem::temp_directory_path() / "px_render_records").string();
+        options.record_directory = (std::filesystem::temp_directory_path() / "px_render_records").string();
     }
     if (options.max_segment_bytes <= 0) {
         options.max_segment_bytes = 1024LL * 1024 * 1024;
@@ -114,21 +96,12 @@ std::shared_ptr<MediaRecorderSink> MediaRecorderSink::Create(
     if (!writer_factory) {
         writer_factory = DefaultWriterFactory();
     }
-    return std::make_shared<MediaRecorderSink>(
-        std::move(media_bus),
-        std::move(options),
-        std::move(request_keyframe),
-        std::move(writer_factory));
+    return std::make_shared<MediaRecorderSink>(std::move(media_bus), std::move(options), std::move(request_keyframe), std::move(writer_factory));
 }
 
-MediaRecorderSink::MediaRecorderSink(
-    std::shared_ptr<EncodedMediaBus> media_bus,
-    MediaRecorderOptions options,
-    KeyframeRequester request_keyframe,
-    WriterFactory writer_factory)
-    : media_bus_(std::move(media_bus)),
-      options_(std::move(options)),
-      writer_factory_(std::move(writer_factory)),
+MediaRecorderSink::MediaRecorderSink(std::shared_ptr<EncodedMediaBus> media_bus, MediaRecorderOptions options, KeyframeRequester request_keyframe,
+                                     WriterFactory writer_factory)
+    : media_bus_(std::move(media_bus)), options_(std::move(options)), writer_factory_(std::move(writer_factory)),
       keyframe_channel_(std::make_shared<KeyframeChannel>()) {
     keyframe_channel_->requester = std::move(request_keyframe);
 }
@@ -140,24 +113,21 @@ MediaRecorderSink::~MediaRecorderSink() {
 BuiltinModuleRegistration MediaRecorderSink::MakeRegistration() {
     const std::weak_ptr<MediaRecorderSink> weak_owner = weak_from_this();
     return BuiltinModuleRegistration{
-        .descriptor = BuiltinModuleDescriptor{
-            .id = std::string(kMediaRecorderModuleId),
-            .name = "Media Recorder(Server)",
-            .author = "GammaRay",
-            .description = "Built-in bounded encoded-media recording sink",
-            .version_name = "2.0.0",
-            .version_code = 200,
-            .capability = BuiltinModuleCapability::kSink,
-            .default_enabled = true,
-        },
+        .descriptor =
+            BuiltinModuleDescriptor{
+                .id = std::string(kMediaRecorderModuleId),
+                .name = "Media Recorder(Server)",
+                .author = "GammaRay",
+                .description = "Built-in bounded encoded-media recording sink",
+                .version_name = "2.0.0",
+                .version_code = 200,
+                .capability = BuiltinModuleCapability::kSink,
+                .default_enabled = true,
+            },
         .start = [weak_owner]() -> PxAwaitable<ModuleLifecycleResult> {
             const auto owner = weak_owner.lock();
             if (!owner) {
-                co_return std::unexpected(MakeRecorderError(
-                    RenderErrorCode::kModuleStartFailed,
-                    "start",
-                    "sink owner expired",
-                    false));
+                co_return std::unexpected(MakeRecorderError(RenderErrorCode::kModuleStartFailed, "start", "sink owner expired", false));
             }
             co_return owner->Start();
         },
@@ -166,21 +136,17 @@ BuiltinModuleRegistration MediaRecorderSink::MakeRegistration() {
             if (!owner) {
                 co_return ModuleLifecycleResult{};
             }
-            co_return co_await StopAsync(
-                owner, std::chrono::steady_clock::now() + 10s);
+            co_return co_await StopAsync(owner, std::chrono::steady_clock::now() + 10s);
         },
-        .set_enabled = [weak_owner](const bool enabled) {
-            const auto owner = weak_owner.lock();
-            if (!owner) {
-                return ModuleLifecycleResult(std::unexpected(
-                    MakeRecorderError(
-                        RenderErrorCode::kModuleLifecycleRejected,
-                        "set_enabled",
-                        "sink owner expired",
-                        false)));
-            }
-            return owner->SetEnabled(enabled);
-        },
+        .set_enabled =
+            [weak_owner](const bool enabled) {
+                const auto owner = weak_owner.lock();
+                if (!owner) {
+                    return ModuleLifecycleResult(
+                        std::unexpected(MakeRecorderError(RenderErrorCode::kModuleLifecycleRejected, "set_enabled", "sink owner expired", false)));
+                }
+                return owner->SetEnabled(enabled);
+            },
     };
 }
 
@@ -206,17 +172,12 @@ ModuleLifecycleResult MediaRecorderSink::Start() {
     LOGI("event=sink.start component=media_recorder outcome=success "
          "queue_capacity={} auto_enabled={} max_segment_bytes={} "
          "max_file_count={} dir={}",
-         options_.queue_capacity,
-         options_.auto_enabled,
-         options_.max_segment_bytes,
-         options_.max_file_count,
-         options_.record_directory);
+         options_.queue_capacity, options_.auto_enabled, options_.max_segment_bytes, options_.max_file_count, options_.record_directory);
     return {};
 }
 
-PxAwaitable<ModuleLifecycleResult> MediaRecorderSink::StopAsync(
-    const std::shared_ptr<MediaRecorderSink>& owner,
-    const std::chrono::steady_clock::time_point deadline) {
+PxAwaitable<ModuleLifecycleResult> MediaRecorderSink::StopAsync(std::shared_ptr<MediaRecorderSink> owner,
+                                                                const std::chrono::steady_clock::time_point deadline) {
     owner->recording_.store(false, std::memory_order_release);
     owner->running_.store(false, std::memory_order_release);
     {
@@ -230,29 +191,19 @@ PxAwaitable<ModuleLifecycleResult> MediaRecorderSink::StopAsync(
     const auto stopped = co_await AwaitOwnedCallback<void>(
         [weak_owner](Completion completion) {
             const auto active_owner = weak_owner.lock();
-            return active_owner &&
-                   active_owner->RequestShutdown(std::move(completion));
+            return active_owner && active_owner->RequestShutdown(std::move(completion));
         },
-        deadline,
-        "media_recorder.stop");
+        deadline, "media_recorder.stop");
     if (!stopped) {
-        co_return std::unexpected(MakeRecorderError(
-            RenderErrorCode::kAsyncScopeDrainTimeout,
-            "stop",
-            stopped.Error().message,
-            true));
+        co_return std::unexpected(MakeRecorderError(RenderErrorCode::kAsyncScopeDrainTimeout, "stop", stopped.Error().message, true));
     }
     owner->JoinWorker();
     const auto snapshot = owner->Snapshot();
     LOGI("event=sink.stop component=media_recorder outcome=success "
          "accepted={} dropped={} high_watermark={} video_packets={} "
          "audio_packets={} writer_failures={}",
-         snapshot.accepted_media,
-         snapshot.dropped_media,
-         snapshot.queue_high_watermark,
-         snapshot.video_packets_written,
-         snapshot.audio_packets_written,
-         snapshot.writer_failures);
+         snapshot.accepted_media, snapshot.dropped_media, snapshot.queue_high_watermark, snapshot.video_packets_written,
+         snapshot.audio_packets_written, snapshot.writer_failures);
     co_return ModuleLifecycleResult{};
 }
 
@@ -264,16 +215,14 @@ ModuleLifecycleResult MediaRecorderSink::SetEnabled(const bool enabled) {
     }
     if (enabled && options_.auto_enabled) {
         ActivateClientSubscriptions();
-    }
-    else if (!enabled) {
+    } else if (!enabled) {
         DeactivateClientSubscriptions();
     }
     return {};
 }
 
 void MediaRecorderSink::StartRecording() {
-    if (!running_.load(std::memory_order_acquire) ||
-        !enabled_.load(std::memory_order_acquire)) {
+    if (!running_.load(std::memory_order_acquire) || !enabled_.load(std::memory_order_acquire)) {
         return;
     }
     if (options_.auto_enabled) {
@@ -311,14 +260,8 @@ void MediaRecorderSink::ReportPerformance() {
     LOGI("event=sink.performance component=media_recorder recording={} "
          "queue_depth={} high_watermark={} accepted={} dropped={} "
          "video_packets={} audio_packets={} writer_failures={}",
-         snapshot.recording,
-         snapshot.queue_depth,
-         snapshot.queue_high_watermark,
-         snapshot.accepted_media,
-         snapshot.dropped_media,
-         snapshot.video_packets_written,
-         snapshot.audio_packets_written,
-         snapshot.writer_failures);
+         snapshot.recording, snapshot.queue_depth, snapshot.queue_high_watermark, snapshot.accepted_media, snapshot.dropped_media,
+         snapshot.video_packets_written, snapshot.audio_packets_written, snapshot.writer_failures);
 }
 
 bool MediaRecorderSink::IsAutoEnabled() const noexcept {
@@ -348,25 +291,22 @@ MediaRecorderSnapshot MediaRecorderSink::Snapshot() const {
 
 void MediaRecorderSink::ActivateMediaSubscriptions() {
     std::lock_guard lock(lifecycle_mutex_);
-    if (video_subscription_ || audio_subscription_ ||
-        !running_.load(std::memory_order_acquire)) {
+    if (video_subscription_ || audio_subscription_ || !running_.load(std::memory_order_acquire)) {
         return;
     }
     const std::weak_ptr<MediaRecorderSink> weak_owner = weak_from_this();
-    video_callback_ = std::make_shared<EncodedMediaBus::VideoCallback>(
-        [weak_owner](const std::shared_ptr<const EncodedVideoFrame>& frame) {
-            const auto owner = weak_owner.lock();
-            if (owner) {
-                owner->EnqueueVideo(frame);
-            }
-        });
-    audio_callback_ = std::make_shared<EncodedMediaBus::EncodedAudioCallback>(
-        [weak_owner](const std::shared_ptr<const EncodedAudioFrame>& frame) {
-            const auto owner = weak_owner.lock();
-            if (owner) {
-                owner->EnqueueAudio(frame);
-            }
-        });
+    video_callback_ = std::make_shared<EncodedMediaBus::VideoCallback>([weak_owner](const std::shared_ptr<const EncodedVideoFrame>& frame) {
+        const auto owner = weak_owner.lock();
+        if (owner) {
+            owner->EnqueueVideo(frame);
+        }
+    });
+    audio_callback_ = std::make_shared<EncodedMediaBus::EncodedAudioCallback>([weak_owner](const std::shared_ptr<const EncodedAudioFrame>& frame) {
+        const auto owner = weak_owner.lock();
+        if (owner) {
+            owner->EnqueueAudio(frame);
+        }
+    });
     video_subscription_ = media_bus_->SubscribeVideo(video_callback_);
     audio_subscription_ = media_bus_->SubscribeEncodedAudio(audio_callback_);
 }
@@ -391,29 +331,22 @@ void MediaRecorderSink::DeactivateMediaSubscriptions() {
 
 void MediaRecorderSink::ActivateClientSubscriptions() {
     std::lock_guard lock(lifecycle_mutex_);
-    if (client_connected_subscription_ || client_disconnected_subscription_ ||
-        !running_.load(std::memory_order_acquire)) {
+    if (client_connected_subscription_ || client_disconnected_subscription_ || !running_.load(std::memory_order_acquire)) {
         return;
     }
     const std::weak_ptr<MediaRecorderSink> weak_owner = weak_from_this();
-    client_connected_callback_ =
-        std::make_shared<EncodedMediaBus::ClientConnectedCallback>(
-            [weak_owner](const MediaClientConnected& event) {
-                if (const auto owner = weak_owner.lock()) {
-                    owner->OnClientConnected(event);
-                }
-            });
-    client_disconnected_callback_ =
-        std::make_shared<EncodedMediaBus::ClientDisconnectedCallback>(
-            [weak_owner](const MediaClientDisconnected& event) {
-                if (const auto owner = weak_owner.lock()) {
-                    owner->OnClientDisconnected(event);
-                }
-            });
-    client_connected_subscription_ =
-        media_bus_->SubscribeClientConnected(client_connected_callback_);
-    client_disconnected_subscription_ =
-        media_bus_->SubscribeClientDisconnected(client_disconnected_callback_);
+    client_connected_callback_ = std::make_shared<EncodedMediaBus::ClientConnectedCallback>([weak_owner](const MediaClientConnected& event) {
+        if (const auto owner = weak_owner.lock()) {
+            owner->OnClientConnected(event);
+        }
+    });
+    client_disconnected_callback_ = std::make_shared<EncodedMediaBus::ClientDisconnectedCallback>([weak_owner](const MediaClientDisconnected& event) {
+        if (const auto owner = weak_owner.lock()) {
+            owner->OnClientDisconnected(event);
+        }
+    });
+    client_connected_subscription_ = media_bus_->SubscribeClientConnected(client_connected_callback_);
+    client_disconnected_subscription_ = media_bus_->SubscribeClientDisconnected(client_disconnected_callback_);
 }
 
 void MediaRecorderSink::DeactivateClientSubscriptions() {
@@ -438,9 +371,7 @@ void MediaRecorderSink::OnClientConnected(const MediaClientConnected& event) {
     if (!options_.auto_enabled || !enabled_.load(std::memory_order_acquire)) {
         return;
     }
-    const auto key = event.visitor_device_id.empty()
-        ? event.stream_id
-        : event.visitor_device_id;
+    const auto key = event.visitor_device_id.empty() ? event.stream_id : event.visitor_device_id;
     bool start = false;
     {
         std::lock_guard lock(lifecycle_mutex_);
@@ -451,18 +382,16 @@ void MediaRecorderSink::OnClientConnected(const MediaClientConnected& event) {
         ActivateMediaSubscriptions();
         keyframe_channel_->Request();
         LOGI("event=record.session component=media_recorder action=auto_start "
-             "outcome=success transport={}", event.transport);
+             "outcome=success transport={}",
+             event.transport);
     }
 }
 
-void MediaRecorderSink::OnClientDisconnected(
-    const MediaClientDisconnected& event) {
+void MediaRecorderSink::OnClientDisconnected(const MediaClientDisconnected& event) {
     if (!options_.auto_enabled) {
         return;
     }
-    const auto key = event.visitor_device_id.empty()
-        ? event.stream_id
-        : event.visitor_device_id;
+    const auto key = event.visitor_device_id.empty() ? event.stream_id : event.visitor_device_id;
     bool stop = false;
     {
         std::lock_guard lock(lifecycle_mutex_);
@@ -473,20 +402,19 @@ void MediaRecorderSink::OnClientDisconnected(
         DeactivateMediaSubscriptions();
         static_cast<void>(RequestFinalize({}));
         LOGI("event=record.session component=media_recorder action=auto_stop "
-             "outcome=accepted transport={}", event.transport);
+             "outcome=accepted transport={}",
+             event.transport);
     }
 }
 
-void MediaRecorderSink::EnqueueVideo(
-    std::shared_ptr<const EncodedVideoFrame> frame) {
+void MediaRecorderSink::EnqueueVideo(std::shared_ptr<const EncodedVideoFrame> frame) {
     if (!frame || (frame->codec != "h264" && frame->codec != "h265")) {
         return;
     }
     EnqueueMedia(WorkItem{.type = WorkType::kVideo, .video = std::move(frame)});
 }
 
-void MediaRecorderSink::EnqueueAudio(
-    std::shared_ptr<const EncodedAudioFrame> frame) {
+void MediaRecorderSink::EnqueueAudio(std::shared_ptr<const EncodedAudioFrame> frame) {
     if (!frame || frame->codec != "opus") {
         return;
     }
@@ -494,9 +422,7 @@ void MediaRecorderSink::EnqueueAudio(
 }
 
 void MediaRecorderSink::EnqueueMedia(WorkItem work) {
-    if (!running_.load(std::memory_order_acquire) ||
-        !enabled_.load(std::memory_order_acquire) ||
-        !recording_.load(std::memory_order_acquire)) {
+    if (!running_.load(std::memory_order_acquire) || !enabled_.load(std::memory_order_acquire) || !recording_.load(std::memory_order_acquire)) {
         return;
     }
     const auto state = worker_state_;
@@ -505,8 +431,7 @@ void MediaRecorderSink::EnqueueMedia(WorkItem work) {
     }
     {
         std::lock_guard lock(state->mutex);
-        if (state->shutdown_requested ||
-            !recording_.load(std::memory_order_acquire)) {
+        if (state->shutdown_requested || !recording_.load(std::memory_order_acquire)) {
             return;
         }
         if (state->queue.size() >= options_.queue_capacity) {
@@ -515,8 +440,7 @@ void MediaRecorderSink::EnqueueMedia(WorkItem work) {
         }
         state->queue.push_back(std::move(work));
         ++state->accepted_media;
-        state->high_watermark =
-            std::max(state->high_watermark, state->queue.size());
+        state->high_watermark = std::max(state->high_watermark, state->queue.size());
     }
     state->condition.notify_one();
 }
@@ -532,8 +456,7 @@ bool MediaRecorderSink::RequestFinalize(Completion completion) {
         std::lock_guard lock(state->mutex);
         if (state->shutdown_requested) {
             already_stopped = true;
-        }
-        else {
+        } else {
             state->queue.push_back(WorkItem{
                 .type = WorkType::kFinalize,
                 .completion = std::move(completion),
@@ -559,8 +482,7 @@ bool MediaRecorderSink::RequestShutdown(Completion completion) {
         std::lock_guard lock(state->mutex);
         if (state->shutdown_requested) {
             already_stopped = true;
-        }
-        else {
+        } else {
             state->shutdown_requested = true;
             state->queue.push_back(WorkItem{
                 .type = WorkType::kShutdown,
@@ -593,8 +515,7 @@ void MediaRecorderSink::ShutdownForDestruction() {
     keyframe_channel_->Disable();
 }
 
-void MediaRecorderSink::WorkerMain(
-    const std::shared_ptr<WorkerState>& state) {
+void MediaRecorderSink::WorkerMain(const std::shared_ptr<WorkerState>& state) {
     while (true) {
         WorkItem work;
         {
@@ -607,16 +528,13 @@ void MediaRecorderSink::WorkerMain(
         try {
             if (work.type == WorkType::kVideo) {
                 ProcessVideo(state, work.video);
-            }
-            else if (work.type == WorkType::kAudio) {
+            } else if (work.type == WorkType::kAudio) {
                 ProcessAudio(state, work.audio);
-            }
-            else {
+            } else {
                 FinalizeWriters(state);
             }
             Complete(work.completion, PxResult<void>::Success());
-        }
-        catch (const std::exception& error) {
+        } catch (const std::exception& error) {
             {
                 std::lock_guard lock(state->mutex);
                 ++state->writer_failures;
@@ -624,14 +542,9 @@ void MediaRecorderSink::WorkerMain(
             LOGE("event=sink.write component=media_recorder outcome=failed "
                  "code=MEDIA_RECORDER_WRITE_FAILED operation=process_work_item "
                  "recoverable=false reason=writer_exception");
-            Complete(work.completion, PxResult<void>::Failure(MakePxAsyncError(
-                PxAsyncErrorCode::kProtocolError,
-                "media_recorder.worker",
-                error.what(),
-                false,
-                "MEDIA_RECORDER_WRITE_FAILED")));
-        }
-        catch (...) {
+            Complete(work.completion, PxResult<void>::Failure(MakePxAsyncError(PxAsyncErrorCode::kProtocolError, "media_recorder.worker",
+                                                                               error.what(), false, "MEDIA_RECORDER_WRITE_FAILED")));
+        } catch (...) {
             {
                 std::lock_guard lock(state->mutex);
                 ++state->writer_failures;
@@ -639,12 +552,8 @@ void MediaRecorderSink::WorkerMain(
             LOGE("event=sink.write component=media_recorder outcome=failed "
                  "code=MEDIA_RECORDER_WRITE_FAILED operation=process_work_item "
                  "recoverable=false reason=unknown_exception");
-            Complete(work.completion, PxResult<void>::Failure(MakePxAsyncError(
-                PxAsyncErrorCode::kProtocolError,
-                "media_recorder.worker",
-                "unknown writer exception",
-                false,
-                "MEDIA_RECORDER_WRITE_FAILED")));
+            Complete(work.completion, PxResult<void>::Failure(MakePxAsyncError(PxAsyncErrorCode::kProtocolError, "media_recorder.worker",
+                                                                               "unknown writer exception", false, "MEDIA_RECORDER_WRITE_FAILED")));
         }
         if (work.type == WorkType::kShutdown) {
             break;
@@ -652,28 +561,21 @@ void MediaRecorderSink::WorkerMain(
     }
 }
 
-void MediaRecorderSink::ProcessVideo(
-    const std::shared_ptr<WorkerState>& state,
-    const std::shared_ptr<const EncodedVideoFrame>& frame) {
+void MediaRecorderSink::ProcessVideo(const std::shared_ptr<WorkerState>& state, const std::shared_ptr<const EncodedVideoFrame>& frame) {
     if (!frame || !frame->payload || frame->payload->empty()) {
         return;
     }
     auto& writer = state->writers[frame->identity.monitor_id];
     if (!writer) {
-        const std::weak_ptr<KeyframeChannel> weak_channel =
-            state->keyframe_channel;
-        writer = state->writer_factory(
-            frame->identity.monitor_id,
-            state->options,
-            [weak_channel] {
-                if (const auto channel = weak_channel.lock()) {
-                    channel->Request();
-                }
-            });
+        const std::weak_ptr<KeyframeChannel> weak_channel = state->keyframe_channel;
+        writer = state->writer_factory(frame->identity.monitor_id, state->options, [weak_channel] {
+            if (const auto channel = weak_channel.lock()) {
+                channel->Request();
+            }
+        });
         LOGI("event=record.writer component=media_recorder action=create "
              "monitor={} outcome={}",
-             PrivacyLogId(frame->identity.monitor_id),
-             writer ? "success" : "failed");
+             PrivacyLogId(frame->identity.monitor_id), writer ? "success" : "failed");
     }
     if (writer) {
         writer->OnVideo(frame);
@@ -682,9 +584,7 @@ void MediaRecorderSink::ProcessVideo(
     }
 }
 
-void MediaRecorderSink::ProcessAudio(
-    const std::shared_ptr<WorkerState>& state,
-    const std::shared_ptr<const EncodedAudioFrame>& frame) {
+void MediaRecorderSink::ProcessAudio(const std::shared_ptr<WorkerState>& state, const std::shared_ptr<const EncodedAudioFrame>& frame) {
     if (!frame || !frame->payload || frame->payload->empty()) {
         return;
     }
@@ -700,8 +600,7 @@ void MediaRecorderSink::ProcessAudio(
     state->audio_packets_written += written;
 }
 
-void MediaRecorderSink::FinalizeWriters(
-    const std::shared_ptr<WorkerState>& state) {
+void MediaRecorderSink::FinalizeWriters(const std::shared_ptr<WorkerState>& state) {
     for (const auto& [monitor_id, writer] : state->writers) {
         static_cast<void>(monitor_id);
         if (writer) {
@@ -712,9 +611,7 @@ void MediaRecorderSink::FinalizeWriters(
 }
 
 MediaRecorderSink::WriterFactory MediaRecorderSink::DefaultWriterFactory() {
-    return [](const std::string& monitor_id,
-              const MediaRecorderOptions& options,
-              const KeyframeRequester& request_keyframe) {
+    return [](const std::string& monitor_id, const MediaRecorderOptions& options, const KeyframeRequester& request_keyframe) {
         RecordWriterConfig config;
         config.dir = options.record_directory;
         config.monitor_name = monitor_id;
@@ -745,4 +642,4 @@ void MediaRecorderSink::KeyframeChannel::Disable() {
     requester = {};
 }
 
-}  // namespace px::render
+} // namespace px::render

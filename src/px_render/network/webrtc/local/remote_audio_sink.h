@@ -14,40 +14,37 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <span>
 #include <string>
 
 #include "px_common_new/webrtc_helper.h"
 
-namespace px
-{
+namespace px {
 
-    class RemoteAudioSink : public webrtc::AudioTrackSinkInterface {
-    public:
-        using PcmCallback = std::function<void(
-            const std::string& call_id, const int16_t* samples,
-            size_t sample_count, int sample_rate, int channels)>;
-        static std::shared_ptr<RemoteAudioSink> Make(PcmCallback pcm_callback);
-        explicit RemoteAudioSink(PcmCallback pcm_callback);
+class RemoteAudioSink : public webrtc::AudioTrackSinkInterface {
+  public:
+    using PcmCallback = std::function<void(const std::string& call_id, std::span<const std::int16_t> samples, int sample_rate, int channels)>;
+    static std::shared_ptr<RemoteAudioSink> Make(PcmCallback pcm_callback);
+    explicit RemoteAudioSink(PcmCallback pcm_callback);
 
-        void SetAuthorized(const std::string& call_id, bool authorized);
-        [[nodiscard]] bool IsAuthorized() const { return authorized_; }
+    void SetAuthorized(const std::string& call_id, bool authorized);
+    [[nodiscard]] bool IsAuthorized() const {
+        return authorized_;
+    }
 
-        // webrtc::AudioTrackSinkInterface
-        void OnData(const void* audio_data,
-                    int bits_per_sample,
-                    int sample_rate,
-                    size_t number_of_channels,
-                    size_t number_of_frames) override;
+    // webrtc::AudioTrackSinkInterface
+    void OnData(const void* audio_data, // NOLINT(gammaray-raw-pointer-boundary): libwebrtc AudioTrackSinkInterface ABI
+                int bits_per_sample, int sample_rate, size_t number_of_channels, size_t number_of_frames) override;
 
-    private:
-        mutable std::mutex state_mutex_;
-        PcmCallback pcm_callback_;
-        std::atomic_bool authorized_ = false;
-        std::string call_id_;
-        std::atomic<uint64_t> rx_frames_ = 0;
-        uint64_t last_log_ms_ = 0;
-    };
+  private:
+    mutable std::mutex state_mutex_;
+    PcmCallback pcm_callback_;
+    std::atomic_bool authorized_ = false;
+    std::string call_id_;
+    std::atomic<uint64_t> rx_frames_ = 0;
+    uint64_t last_log_ms_ = 0;
+};
 
-}
+} // namespace px
 
-#endif //REMOTE_AUDIO_SINK_H
+#endif // REMOTE_AUDIO_SINK_H

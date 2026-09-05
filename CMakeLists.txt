@@ -369,7 +369,7 @@ add_dependencies(px_build_premium_all
     px_protection
 
     ### from former px_build_all (deps + rust stages)
-    px_render px_service_stage px_service_manager_stage px_display_build px_message px_vigem px_plugin
+    px_render px_service_stage px_service_manager_stage px_display_build px_message px_vigem
     px_client px_relay_client px_rtc_client px_cp_message px_function_stage px_hw_info
     px_osinfo_stage
     net_ws enc_ffmpeg cap_dda

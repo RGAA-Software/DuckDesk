@@ -8,7 +8,7 @@
 #include "px_common_new/thread.h"
 #include "px_common_new/defer.h"
 #include "px_common_new/string_util.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/architecture/events/render_event.h"
 #include "nvenc_encoder_module.h"
 #include "nvEncodeAPI.h"
 
@@ -32,11 +32,11 @@ namespace px
         enable_yuv444_ = false;
         encoder_config_ = config;
         e_buffer_format_ = DxgiFormatToNvEncFormat(static_cast<DXGI_FORMAT>(encoder_config_.texture_format));
-       
-        LOGI("input_frame_width_ = {}, input_frame_height_ = {}, dxgi_format = {} (0x{:x}), nvenc_format = 0x{:x}, m_pD3DRender->GetDevice() = {}, config.fps = {}, enable 444: {}",
-             config.width, config.height,
-             (int)encoder_config_.texture_format, (uint32_t)encoder_config_.texture_format,
-             (uint32_t)e_buffer_format_, (void *) d3d11_device_.Get(), config.fps, config.enable_full_color_mode_);
+
+        LOGI("input_frame_width_ = {}, input_frame_height_ = {}, dxgi_format = {} (0x{:x}), nvenc_format = 0x{:x}, m_pD3DRender->GetDevice() = {}, "
+             "config.fps = {}, enable 444: {}",
+             config.width, config.height, (int)encoder_config_.texture_format, (uint32_t)encoder_config_.texture_format, (uint32_t)e_buffer_format_,
+             (void*)d3d11_device_.Get(), config.fps, config.enable_full_color_mode_);
         if (e_buffer_format_ == NV_ENC_BUFFER_FORMAT_UNDEFINED) {
             LOGE("Unsupported DXGI texture format for NVENC: {} (0x{:x})",
                  (int)encoder_config_.texture_format, (uint32_t)encoder_config_.texture_format);
@@ -225,10 +225,10 @@ namespace px
 
         for (std::vector<uint8_t> &packet: out_packet) {
             auto encoded_data = Data::Make((char *) packet.data(), packet.size());
-            auto event = std::make_shared<PxPluginEncodedVideoFrameEvent>();
+            auto event = std::make_shared<EncodedVideoFrameEvent>();
             event->type_ = encoder_config_.codec_type == EVideoCodecType::kHEVC
-                ? PxPluginEncodedVideoType::kH265
-                : PxPluginEncodedVideoType::kH264;
+                ? EncodedVideoType::kH265
+                : EncodedVideoType::kH264;
             event->data_ = encoded_data;
             event->frame_width_ = desc.Width;
             event->frame_height_ = desc.Height;
@@ -244,7 +244,7 @@ namespace px
                 //LOGI("event->frame_format_ = RawImageType::kI420;");
             }
             if (const auto owner = owner_.lock()) {
-                owner->EmitCompatibilityEvent(event);
+                owner->EmitEvent(event);
             }
         }
 
@@ -259,8 +259,8 @@ namespace px
         return true;
     }
 
-    void
-    NVENCVideoEncoder::FillEncodeConfig(NV_ENC_INITIALIZE_PARAMS &initialize_params, int refreshRate, int renderWidth, int renderHeight, uint64_t bitrate_bps) {
+    void NVENCVideoEncoder::FillEncodeConfig(NV_ENC_INITIALIZE_PARAMS& initialize_params, int refreshRate, int renderWidth, int renderHeight,
+                                             uint64_t bitrate_bps) {
         auto& encode_config = *initialize_params.encodeConfig;
         GUID encoder_guid = encoder_config_.codec_type == px::EVideoCodecType::kH264 ? NV_ENC_CODEC_H264_GUID : NV_ENC_CODEC_HEVC_GUID;
 
@@ -294,11 +294,12 @@ namespace px
                 break;
         }
 
-        //Tuning information of NVENC encoding(TuningInfo is not applicable to H264 and HEVC MEOnly mode).
-        //MEOnly（Motion Estimation Only）模式是指在视频编码中仅使用运动估计（Motion Estimation）的一种模式。在传统的视频编码过程中，运动估计是编码器中的一个重要步骤，用于分析图像帧之间的运动信息，并生成运动矢量（Motion Vector）。这些运动矢量用于描述帧间的运动差异，从而实现视频帧的压缩。
-        //在MEOnly模式中，编码器仅执行运动估计步骤，而不进行实际的编码和压缩操作。它通常用于一些特殊的应用场景，例如视频编辑和后期处理中的运动补偿、运动分析或运动跟踪等。通过仅执行运动估计，可以提取图像帧之间的运动信息，而无需实际进行编码和压缩操作。
-        //需要注意的是，MEOnly模式在H.264和HEVC编码中并不适用。H.264和HEVC是一种基于帧间预测的视频编码标准，需要进行更多的编码步骤（如变换、量化、熵编码等）来实现高效的压缩。因此，MEOnly模式通常用于其他类型的编码器或特定的视频处理任务中。
-
+        // Tuning information of NVENC encoding(TuningInfo is not applicable to H264 and HEVC MEOnly mode).
+        // MEOnly（Motion Estimation Only）模式是指在视频编码中仅使用运动估计（Motion
+        // Estimation）的一种模式。在传统的视频编码过程中，运动估计是编码器中的一个重要步骤，用于分析图像帧之间的运动信息，并生成运动矢量（Motion
+        // Vector）。这些运动矢量用于描述帧间的运动差异，从而实现视频帧的压缩。
+        // 在MEOnly模式中，编码器仅执行运动估计步骤，而不进行实际的编码和压缩操作。它通常用于一些特殊的应用场景，例如视频编辑和后期处理中的运动补偿、运动分析或运动跟踪等。通过仅执行运动估计，可以提取图像帧之间的运动信息，而无需实际进行编码和压缩操作。
+        // 需要注意的是，MEOnly模式在H.264和HEVC编码中并不适用。H.264和HEVC是一种基于帧间预测的视频编码标准，需要进行更多的编码步骤（如变换、量化、熵编码等）来实现高效的压缩。因此，MEOnly模式通常用于其他类型的编码器或特定的视频处理任务中。
 
         //低延迟流媒体
         //NV_ENC_TUNING_INFO_LOW_LATENCY       = 2,                                     /**< Tune presets for low latency streaming.
@@ -524,7 +525,6 @@ namespace px
             encode_config.rcParams.enableMaxQP = 1;
         }
     }
-
 
     NV_ENC_BUFFER_FORMAT NVENCVideoEncoder::DxgiFormatToNvEncFormat(DXGI_FORMAT dxgiFormat) {
         switch (dxgiFormat) {

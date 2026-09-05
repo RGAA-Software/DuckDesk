@@ -13,7 +13,7 @@
 #include "px_common_new/time_util.h"
 #include "px_common_new/defer.h"
 #include "px_common_new/string_util.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/architecture/events/render_event.h"
 #include "ffmpeg_video_encoder.h"
 
 namespace px
@@ -355,10 +355,10 @@ namespace px
             bool key_frame = (packet_->flags & AV_PKT_FLAG_KEY);
             auto encoded_data = Data::Make((char*)packet_->data, packet_->size);
 
-            auto event = std::make_shared<PxPluginEncodedVideoFrameEvent>();
+            auto event = std::make_shared<EncodedVideoFrameEvent>();
             event->type_ = encoder_config_.codec_type == EVideoCodecType::kHEVC
-                ? PxPluginEncodedVideoType::kH265
-                : PxPluginEncodedVideoType::kH264;
+                ? EncodedVideoType::kH265
+                : EncodedVideoType::kH264;
             event->data_ = encoded_data;
             event->frame_width_ = img_width;
             event->frame_height_ = img_height;
@@ -372,7 +372,7 @@ namespace px
                 event->frame_format_ = RawImageType::kI444;
             }
             if (const auto owner = owner_.lock()) {
-                owner->EmitCompatibilityEvent(event);
+                owner->EmitEvent(event);
             }
 
             auto end = TimeUtil::GetCurrentTimestamp();

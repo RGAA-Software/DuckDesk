@@ -43,6 +43,7 @@ SKIP_NAMES = {
     "cap_dda.dll", "cap_gdi.dll",
     "enc_ffmpeg.dll", "enc_amf.dll", "enc_nvenc.dll",
     "net_ws.dll", "net_udp.dll", "net_relay.dll",
+    "net_rtc.dll", "net_rtc_local.dll",
 }
 
 # Test executable prefix
@@ -243,22 +244,34 @@ def main():
     copy_tree(cef_locales, os.path.join(dist_dir, "locales"))
 
     # ------------------------------------------------------------------
-    # 3. Concrete Render network libraries → dist/deps/network/
+    # 3. Concrete Render network libraries → beside dist/px_render.exe
     # ------------------------------------------------------------------
     legacy_render_plugins = os.path.join(dist_dir, "deps", "rd_plugins")
     if os.path.isdir(legacy_render_plugins):
         shutil.rmtree(legacy_render_plugins)
         print("  - deps/rd_plugins  (legacy Render plug-in directory)")
     network_libraries = [
-        ("network/webrtc/remote/net_rtc.dll", "net_rtc.dll"),
-        ("network/webrtc/local/net_rtc_local.dll", "net_rtc_local.dll"),
+        ("network/webrtc/remote/px_render_rtc_remote.dll", "px_render_rtc_remote.dll"),
+        ("network/webrtc/local/px_render_rtc.dll", "px_render_rtc.dll"),
     ]
     network_dst = os.path.join(dist_dir, "deps", "network")
-    os.makedirs(network_dst, exist_ok=True)
+    for stale_name in ["net_rtc.dll", "net_rtc_local.dll"]:
+        stale_path = os.path.join(dist_dir, stale_name)
+        if os.path.isfile(stale_path):
+            os.remove(stale_path)
+            print(f"  - {stale_name}  (retired WebRTC artifact name)")
+    for stale_name in ["net_rtc.dll", "net_rtc_local.dll", "px_render_rtc.dll", "px_render_rtc_remote.dll"]:
+        stale_path = os.path.join(network_dst, stale_name)
+        if os.path.isfile(stale_path):
+            os.remove(stale_path)
+            print(f"  - deps/network/{stale_name}  (retired WebRTC delivery location)")
+    if os.path.isdir(network_dst) and not os.listdir(network_dst):
+        os.rmdir(network_dst)
+        print("  - deps/network  (empty retired WebRTC delivery directory)")
     for relative_source, name in network_libraries:
         source = os.path.join(
             build_dir, "src", "px_render", *relative_source.split("/"))
-        copy_file(source, os.path.join(network_dst, name))
+        copy_file(source, os.path.join(dist_dir, name))
 
     # ------------------------------------------------------------------
     # 4. Retired Client plug-ins and the temporary recording-core DLL

@@ -212,7 +212,7 @@ lane；异步回调只通过 `weak_ptr<AsyncBridge>` 回到 owner。网络入口
 - 网络入口不再把每条解析消息广播给所有模块。文件传输、语音、手柄、输入和 WebRTC
   signaling 进入各自的 service/具体 RTC 槽位；连接通知只发给确实消费它的 capture，
   hello/heartbeat 只进入网络 transport 类别。
-- `WebRtcLibraryHost` 只按确定名称加载 `net_rtc.dll` 和 `net_rtc_local.dll`，不扫描目录；
+- `WebRtcTransportHost` 只按确定名称加载 `net_rtc.dll` 和 `net_rtc_local.dll`，不扫描目录；
   `DynamicLibrary` 由 RAII owner 管理，模块别名不能逃逸 DLL 生命周期。
 
 架构守卫同步增加了以下不可回退断言：显式注册表不得出现 `PluginManager`、
@@ -284,8 +284,8 @@ interface。
   callback、shutdown 或 re-entry 在持有组合锁时发生。
 - 架构门禁新增断言：具名 transport getter 不得回到 registry 公共头文件，三个通用 visitor
   不得出现在组合实现以外的 Render C++ 文件。
-- `WebRtcLibraryHost::Load` 的公开结果从 `shared_ptr<PxNetPlugin>` 改为具体
-  `WebRtcLibraryLease`（该阶段的过渡名称，阶段 17 已替换为 `WebRtcLibrary`）。调用方只能
+- `WebRtcTransportHost::Load` 的公开结果从 `shared_ptr<PxNetPlugin>` 改为具体
+  `WebRtcTransportHandle`（该阶段的过渡名称，阶段 17 已替换为 `WebRtcTransportHandle`）。调用方只能
   观察固定的 remote/local DLL 身份和持有 RAII 生命周期；旧 ABI 模块对象不离开 host
   实现文件。
 
@@ -451,21 +451,20 @@ runner 会将未满足的前置条件明确标成 SKIP/INCOMPLETE，不将其误
 - `mock_video_stream` 与 `obj_detector` 的源码、构建入口、测试壳和发布入口全部删除；
   其他产品能力仍由明确 CMake target 构建，未因目录清理而裁剪。
 - WebRTC 不再以 `PxNetPlugin` 暴露给 Registry，也不进入 `lifecycle_modules_` 或
-  `network_transports_`。Registry 明确持有 remote/local 两个 `WebRtcLibrary`，显式处理
+  `network_transports_`。Registry 明确持有 remote/local 两个 `WebRtcTransportHandle`，显式处理
   生命周期、消息、统计、D3D、RTC Local allocation 与 voice PCM。
-- `net_rtc.dll`、`net_rtc_local.dll` 改为发布到 `deps/network`；发布脚本主动删除旧
-  `deps/rd_plugins`。DLL 内保留的 `GetInstance` 仅用于遵守既有 ABI 与卸载契约，裸值在
-  `webrtc_library_host.cpp` 立即由共享 RAII state 封装，不进入产品调用面。
+- `net_rtc.dll`、`net_rtc_local.dll` 改为发布到 `deps/network`；发布脚本主动删除旧 `deps/rd_plugins`。随后阶段又删除了 DLL 内
+  `GetInstance`，改为具体 C++ factory 和 import library 直链；共享 RAII state 不进入产品业务调用面。
 - WebRTC 实现类和文件由 `RtcPlugin`/`rtc_plugin.*` 改为
-  `WebRtcRemoteLibrary`/`webrtc_remote_library.*` 与对应 Local 命名；生命周期测试也只通过
+  `WebRtcRemoteTransport`/`webrtc_remote_transport.*` 与对应 Local 命名；生命周期测试也只通过
   typed facade 驱动，不再直接操作插件接口。
-- 架构门禁新增实体目录、Registry 所有权、公开头文件、固定 DLL 路径和发布目录检查；
-  `webrtc_libraries_lifecycle` 连续十轮覆盖 start/stop/destroy/unload 与 host 先析构场景。
+- 架构门禁新增实体目录、Registry 所有权、公开头文件、固定 DLL 链接和发布目录检查；
+  `webrtc_transport_lifecycle` 覆盖 100 轮 start/stop/destroy 与 host 先析构场景，DLL 只在进程退出时卸载。
 - Frame Carrier 运行资源移出 `deps/rd_plugins`，改由 Render 发布流程同步到
   `resources/render/frame_carrier` 并执行 SHA-256 校验。
 
 聚焦构建通过：`px_render`、`net_rtc`、`net_rtc_local` 和
-`test_webrtc_libraries_lifecycle`。统一 `all` runner 的 2 个架构门禁与 28 个 L1-L3 测试
+`test_webrtc_transport_lifecycle`。统一 `all` runner 的 2 个架构门禁与 28 个 L1-L3 测试
 全部通过，ownership、async lifetime、日志隐私扫描和非预期 ERROR 检查均通过，自动化
 软件门禁结论为 GO。发布后 build tree 与 `build_official/dist` 哈希一致：
 
@@ -493,17 +492,19 @@ runner 会将未满足的前置条件明确标成 SKIP/INCOMPLETE，不将其误
 | `UdpPlugin` / `udp_plugin.*` | `UdpTransport` / `udp_transport.*` | Network |
 | `RelayPlugin` / `relay_plugin.*` | `RelayTransport` / `relay_transport.*` | Network |
 
-`RenderModuleRegistry` 只保存上述具体模块和两个 `WebRtcLibrary` facade，不再保存通用
-plugin vector，也不再访问 `PxVideoEncoderPlugin`、`PxMonitorCapturePlugin` 或
-`PxNetPlugin`。WS、UDP、Relay 的构建链接从 `px_net_plugin` 改为最小 `px_plugin`
-兼容事件依赖，共享网络值类型已抽到 `network/transport_types.h`。已经没有生产引用的
-audio/data-provider/frame-carrier/frame-processor/monitor/stream/video 旧插件基类及实现从
-`px_plugin` 构建和源码中删除。
+`RenderModuleRegistry` 只保存上述具体模块和两个 `WebRtcTransportHandle` facade，不再保存通用
+plugin vector，也不再访问旧采集、编码或网络插件基类。WS、UDP、Relay 直接链接
+`render_architecture_core`，共享网络值类型位于 `network/transport_types.h`。旧
+`src/px_render/plugin_interface`、`px_plugin`/`px_net_plugin` target 和旧 ABI 生命周期测试已全部删除。
 
-`plugin_interface` 现在只承担冻结的 WebRTC ABI 和过渡事件值；目录内 README 明确禁止
-新增产品接口。WebRTC remote/local 的 `PxNetPlugin` 继承仅是 DLL 私有 ABI adapter，exe、
-Registry、生命周期、路由和测试只接触 `WebRtcLibrary`，因此 WebRTC 在产品架构上是与
-WS/UDP/Relay 同层的动态网络库，不是可发现流程插件。
+模块设置、采集错误、执行上下文和内部事件分别归位到 `architecture/config`、`architecture/diagnostics`、
+`architecture/runtime` 与 `architecture/events`。内建模块通过 `RenderEventEnvelope + std::variant`
+传递 owned typed payload，并由共享 `PxAsyncRuntime` 与模块独立 `PxAsyncScope` 管理异步生命周期；不再使用
+插件事件枚举、`std::any`、向下转换或按插件身份广播。
+
+WebRTC remote/local 不继承旧插件基类，不导出 `GetInstance`，也不经运行时加载；exe、Registry、生命周期、
+路由和测试只接触具体 `WebRtcTransportHandle`，因此 WebRTC 在产品架构上是与 WS/UDP/Relay 同层、通过
+import library 直链的动态网络库，不是可发现流程插件。
 
 新的 `architecture/extensions/flow_node_plugin.h` 定义 Video/Audio Source、Processor、
 Encoder、Observer 和 Sink 角色。公共参数全部为 owned value、`shared_ptr` 或
@@ -519,14 +520,13 @@ high-watermark 和 drain duration 按 5 秒窗口聚合，时长统一使用 `st
 
 测试要求：
 
-- linkage test 静态断言八个内建实体都不是 `PxPluginInterface` 派生类，并验证新流程节点
-  角色只继承 `FlowNodePlugin`；
+- linkage test 静态断言八个内建实体都继承普通 `RenderModule`，并验证新流程节点角色只继承 `FlowNodePlugin`；
 - 架构守卫检查旧文件名、旧类名、Registry 通用插件容器和新网络模块的 `PxNetPlugin`
   依赖不得回归；
 - ownership gate 检查新增声明、callback 捕获和 Win32/第三方边界，禁止项目裸指针与
   `[this]`；
 - 生命周期测试覆盖 callback 排队后 owner 销毁、dispatch 中注销、callback 内 shutdown、
-  重复 start/stop，以及 WebRTC facade 的十轮 load/start/stop/destroy/unload；
+  重复 start/stop，以及 WebRTC facade 的 100 轮 create/start/stop/destroy；DLL 保持进程级加载，不主动 unload；
 - 数据面测试覆盖 processor 顺序/失败/丢帧、observer 弱生命周期、Sink 队列背压；网络
   测试覆盖 WS async ticket/admission、UDP association、Relay route 和断开代际；
 - 完成 `build_cpp_render_arch_tests.bat` 与统一 runner 后，发布 `px_render.exe` 及发生变化的
@@ -547,3 +547,23 @@ unit/lifecycle/integration），PASS 30、FAIL 0、SKIP 0，隐私扫描和 asyn
 最终自动化证据目录为 `test-results/render-architecture/20260904-121054-all`，判定为
 “GO for the completed automated software gate”；硬件、LAN E2E、30 分钟压力和 8 小时
 soak 由最终验收执行。
+
+### 阶段 19：WebRTC 普通 C++ DLL 直链与产物定名
+
+阶段 17/18 的临时 WebRTC ABI adapter 已退出。Remote 和 Local 现在分别是具体的
+`WebRtcRemoteTransport` 与 `WebRtcLocalTransport`，不继承插件接口、不导出 `GetInstance`、
+不由 `PluginManager` 或 `QLibrary` 加载。`px_render.exe` 直接链接两个 DLL 的 import library，
+而 `webrtc.lib` 只由 DLL target 私有链接。
+
+逻辑 CMake target 保留 `net_rtc` 与 `net_rtc_local`，以维持稳定构建依赖图；正式二进制名固定为：
+
+- `net_rtc` -> `px_render_rtc_remote.dll`；
+- `net_rtc_local` -> `px_render_rtc.dll`。
+
+两个 DLL 与 `px_render.exe` 一起发布到 `build_official/dist` 根目录。发布和完整收集流程会删除
+根目录旧名称及 `deps/network` 中的新旧 WebRTC 副本，确保 Windows import dependency 只解析同目录产物。
+具体迁移、日志和测试规范见 `docs/webrtc_direct_cpp_dll_migration_plan.md`。
+
+2026-09-05 自动化结果：Render/Client/Panel 增量构建通过，最终 all runner 的 2 项架构门禁和 36 项测试全部通过，ownership、async lifetime、
+direct-DLL linkage、architecture 与 delivery 门禁全部通过；证据目录为 `test-results/render-architecture/20260905-022104-all`。`dumpbin` 确认 `px_render.exe` 直接依赖
+`px_render_rtc_remote.dll` 和 `px_render_rtc.dll`。最终产物哈希以该迁移文档第 10 节为准。

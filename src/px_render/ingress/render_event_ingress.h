@@ -8,42 +8,39 @@
 #include <memory>
 #include <string>
 
-namespace px
-{
+#include "px_render/architecture/events/render_event.h"
+#include "px_render/network/webrtc/webrtc_transport_types.h"
 
-    class RdContext;
-    class RdApplication;
-    class RdStatistics;
-    class PxPluginBaseEvent;
-    class RenderModuleRegistry;
-    class NetworkEventIngress;
-    class MessageNotifier;
-    class PxPluginRemoteClipboardResp;
-    class PxPluginPanelStreamMessage;
+namespace px {
 
-    class RenderEventIngress : public std::enable_shared_from_this<RenderEventIngress> {
-    public:
-        explicit RenderEventIngress(const std::shared_ptr<RdApplication>& app);
-        void ProcessCompatibilityEvent(const std::shared_ptr<PxPluginBaseEvent>& event);
+class RdContext;
+class RdApplication;
+class RdStatistics;
+class RenderModuleRegistry;
+class NetworkEventIngress;
+class MessageNotifier;
 
-    private:
-        void SendAnswerSdpToRemote(const std::shared_ptr<PxPluginBaseEvent>& event);
-        void SendIceToRemote(const std::shared_ptr<PxPluginBaseEvent>& event);
-        void ReportRemoteClipboardResp(const std::shared_ptr<PxPluginRemoteClipboardResp>& event);
-        // from remote panel
-        void ProcessPanelStreamMessage(const std::shared_ptr<PxPluginPanelStreamMessage>& event);
-        void ReportRelayAlive(const std::string& device_id, int64_t timestamp);
+class RenderEventIngress : public std::enable_shared_from_this<RenderEventIngress> {
+  public:
+    explicit RenderEventIngress(const std::shared_ptr<RdApplication>& app);
+    void ProcessWebRtcEvent(const std::string& source_id, const WebRtcEvent& event);
+    void ProcessRenderEvent(const RenderEventEnvelope& event);
 
-    private:
-        std::shared_ptr<RdApplication> app_ = nullptr;
-        std::shared_ptr<RdContext> context_ = nullptr;
-        std::shared_ptr<RenderModuleRegistry> module_registry_ = nullptr;
-        std::shared_ptr<NetworkEventIngress> network_ingress_ = nullptr;
-        std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
-        std::shared_ptr<RdStatistics> stat_ = nullptr;
+  private:
+    void SendWebRtcAnswerSdpToRemote(const WebRtcAnswerSdpEvent& event);
+    void SendWebRtcIceToRemote(const WebRtcIceEvent& event);
+    void ProcessPanelStreamMessage(const std::shared_ptr<PanelStreamMessageEvent>& event);
+    void ReportRelayAlive(const std::string& device_id, int64_t timestamp);
 
-    };
+  private:
+    std::shared_ptr<RdApplication> app_ = nullptr;
+    std::shared_ptr<RdContext> context_ = nullptr;
+    std::shared_ptr<RenderModuleRegistry> module_registry_ = nullptr;
+    std::shared_ptr<NetworkEventIngress> network_ingress_ = nullptr;
+    std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
+    std::shared_ptr<RdStatistics> stat_ = nullptr;
+};
 
-}
+} // namespace px
 
-#endif //PX_RENDER_EVENT_INGRESS_H
+#endif // PX_RENDER_EVENT_INGRESS_H

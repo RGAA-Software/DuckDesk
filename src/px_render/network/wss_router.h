@@ -25,7 +25,7 @@ namespace px
         explicit WssRouter(const WsDataPtr& ws_data) {
             ws_data_ = ws_data;
             created_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
-            conn_id_ = MD5::Hex(GetUUID());
+            connection_id_ = MD5::Hex(GetUUID());
         }
 
         virtual void OnOpen(std::shared_ptr<asio2::https_session>& sess_ptr) {
@@ -83,7 +83,7 @@ namespace px
         int64_t created_timestamp_ = 0;
         // random id for this connection
         // 1. used for logging records
-        std::string conn_id_;
+        std::string connection_id_;
     };
 
     using WssRouterPtr = std::shared_ptr<WssRouter>;

@@ -205,7 +205,7 @@ namespace px
                 std::make_shared<std::vector<std::shared_ptr<VisitRecord>>>();
             page_result->push_back(std::make_shared<VisitRecord>(VisitRecord {
                 .id_ = 0,
-                .conn_type_ = "",
+                .connection_type_ = "",
                 .begin_ = 1,
                 .end_ = 1,
                 .duration_ = 10,

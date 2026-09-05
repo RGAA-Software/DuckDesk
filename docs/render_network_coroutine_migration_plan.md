@@ -59,7 +59,8 @@
   asio2 timer 改为 scope 内可取消协程。Relay 生产路径从 Render 组合根或 SDK `MessageNotifier` 显式注入 canonical
   `PxAsyncRuntime`，旧构造入口仅保留进程级兼容运行时。真实 Relay server 测试覆盖初始不可用、两轮重启恢复、generation
   推进和 ready callback 内关闭后再启动。仓库门禁禁止项目所有者目录重新引入 `set_auto_reconnect(true)`。
-- N1/N2 关闭时序已加固：三个 client 都会先拒绝新工作、关闭 mailbox/workflow 并向 asio2 adapter 所在线程发布 stop，再取消和等待组件 scope；不再先等
+- N1/N2 关闭时序已加固：三个 client 都会先拒绝新工作、关闭 mailbox/workflow，并从组件控制线程调用 asio2 public `stop()` 完成其内部跨线程停止与 I/O pool join，
+  再取消和等待组件 scope；不再先等
   scope、后停 adapter。Render Service/Panel 每轮 `Start()` 都重建 scope、workflow、mailbox 和 request state，partial start failure 走同一逆序退出路径；drain
   超时和 callback/runtime 线程内发起关闭均输出结构化日志且不释放仍有 outstanding task 的 owner。Render Service/Panel 的 absolute-deadline
   `StopAsync` 已接入应用根关闭任务。公共 `RequestAsioClientStop`/`WaitForAsioClientStopped` 只认可 asio2 的完整 public `is_stopped()` 终态，adapter 和 scope
@@ -75,15 +76,15 @@
   storm packet 数和 stop latency；逐包数据面没有引入 coroutine。
 - N5 已完成：`RdApplication::Exit` 建立一个 15 秒 absolute deadline，根 control scope 先并发触发 Service/Panel 停止并 `co_await` 两个 client
   scope 排空；组合根 `RequestStop()` 的 completion 也必须在相同 deadline 内到达，才进入模块 owner 释放阶段。`RenderModuleRegistry::StopModules()` 已恢复，旧插件
-  时代禁止 StopModules 的 workaround 已删除。WebRTC DLL→Render 控制事件由 `PxCallbackQuiescence` RAII lease 计数，Stop/Destroy 后必须归零才允许卸载；超时输出
-  `WEBRTC_CALLBACK_QUIESCENCE_TIMEOUT` 并把 DLL handle 放入进程期安全保留区。runtime-thread 发起根退出时由独立 RAII dispatcher 执行完整关闭续体，不再等待自身 executor。
+  时代禁止 StopModules 的 workaround 已删除。WebRTC DLL→Render 控制事件由 `PxCallbackQuiescence` RAII lease 计数，Stop/Destroy 后必须归零；DLL 通过
+  import library 直链并保持进程级加载，不执行主动卸载。runtime-thread 发起根退出时由独立 RAII dispatcher 执行完整关闭续体，不再等待自身 executor。
 - N6 自动化代码已完成：architecture/ownership guard 已覆盖 OBS typed stop、根退出续体和 WebRTC 安全卸载；新增 callback quiescence、UDP storm、OBS lifecycle/
   real-server reconnect 测试。固定硬件性能、真实弱网和长稳数据由最终验收阶段产生。
 
 当前 focused 结果：callback quiescence、UDP receive storm、OBS repeated lifecycle/真实 server reconnect、WebRTC 连续 10 轮 load/start/StopAsync/unload 均通过；
 OBS lifecycle 额外连续执行 20 轮通过；SDK WS/WSS、Relay WS、公共 supervisor 和 Opus 并发关闭测试通过。最终 `Mode all` 自动化门禁通过 37 项、
 失败 0、跳过 0、unexpected ERROR 0；证据位于 `test-results/render-architecture/20260904-195634-all`。`px_render.exe`、`px_gh.dll`、
-`net_rtc.dll`、`net_rtc_local.dll` 的构建树与 `build_official/dist` SHA-256 均一致。该结果不替代用户最终产品验收。
+`px_render_rtc_remote.dll`、`px_render_rtc.dll` 的构建树与 `build_official/dist` SHA-256 均一致。该结果不替代用户最终产品验收。
 
 ### 2.2 复审加固（2026-09-04）
 
@@ -130,8 +131,29 @@ OBS lifecycle 额外连续执行 20 轮通过；SDK WS/WSS、Relay WS、公共 s
 本节对应的自动化包含 ownership/async/boundary gate、flow-node registry 单元测试、OBS 查询与 Stop 并发、旧 generation 拒绝、初始离线恢复、
 在线断线重连、Relay owner 释放、重复 Start/Stop 和完整 Render integration。最终证据为
 `test-results/render-architecture/20260904-220229-integration`：自动化总计 37 项通过、0 失败、0 跳过，unexpected ERROR 为 0，日志隐私扫描通过；
-`px_render.exe`、`px_gh.dll`、`net_rtc.dll` 和 `net_rtc_local.dll` 的 build-tree/dist SHA-256 全部一致，结论为 GO。Client 和 Panel 也分别通过增量构建、
+`px_render.exe`、`px_gh.dll`、`px_render_rtc_remote.dll` 和 `px_render_rtc.dll` 的 build-tree/dist SHA-256 全部一致，结论为 GO。Client 和 Panel 也分别通过增量构建、
 聚焦发布和 dist SHA-256 校验，Panel 关闭生命周期 6 项通过。硬件、LAN、30 分钟压力及 8 小时 soak 仍由最终验收环境执行。
+
+### 2.4 协程帧借用引用最终收敛（2026-09-05）
+
+最终重复重连压力测试定位到一个公共生命周期缺陷：`StopWebSocketAdapter(adapter_slot->Snapshot(), ...)` 曾把临时 `shared_ptr` 以
+`const&` 传入 `PxAwaitable`。协程挂起后临时对象已销毁，恢复时 `WaitForAsioObjectStopped` 访问失效引用，形成跨 SDK、Relay 与 OBS IPC
+都可能触发的 use-after-free。完整 dump 的故障点为 `IsAsioObjectStopped<asio2::ws_client>`，非法读取地址为 `0xD88`。
+
+本轮完成以下统一收敛：
+
+- `StopWebSocketAdapter`、`WaitForAsioObjectStopped`、`WaitForAsioClientStopped`、reconnect reset、callback quiescence、Render/Panel
+  shutdown 和项目内各 `StopAsync` 的跨挂起 owner 全部按值进入协程帧；
+- asio2 client 停止不再人为 `post(client->stop())` 到其 I/O 线程，而是从控制线程调用 public `stop()`，由 asio2 完成停止链、I/O pool
+  join 和同步返回；
+- 测试中的捕获式 coroutine lambda 改为普通 task factory 调用 free coroutine，owner 和 completion promise 均按值进入 frame；
+- `docs/cpp_smart_pointer_standard.md` 增加 coroutine frame ownership 硬规则，禁止协程顶层借用引用、`string_view` 和 `span`；
+- ownership gate 忽略纯格式变化产生的等价删除/新增行，避免把既有边界误判为新增，同时仍拒绝真正新增的裸指针、`new/delete` 和 `[this]`。
+
+验证结果：SDK WS、Relay WS、OBS IPC 三组真实服务启停/重连测试并行各连续 20 轮，共 60 轮全部通过；最终
+`build_cpp_render_arch_tests.bat all 8` 的 2 项架构门禁和 36 项测试全部通过，汇总 PASS 38、FAIL 0、SKIP 0、unexpected ERROR 0。
+证据目录为 `test-results/render-architecture/20260905-022104-all`。该结论覆盖自动化软件门禁；硬件、LAN、30 分钟压力和 8 小时 soak
+仍由最终验收环境执行。
 
 ## 3. 目标和非目标
 
@@ -188,7 +210,7 @@ RdApplication
         |-- WsServer / HttpHandler
         |-- UdpTransport
         |-- RelayTransport
-        `-- WebRtcLibrary remote/local facade
+        `-- WebRtcTransportHandle remote/local facade
 ```
 
 不允许每个组件再创建私有 `PxAsyncRuntime`。每个组件只创建自己的 scope、mailbox、workflow state 和 typed dependencies。
@@ -471,7 +493,7 @@ UDP packet receive 是高频数据面，不迁移成逐包 coroutine。`bind_rec
 7. Stop capture, encoder, sinks, domain services, and concrete transports
 8. Await every component PxAsyncScope drain to one absolute deadline
 9. Stop and destroy WebRTC remote/local facade
-10. Verify callback quiescence, then unload WebRTC DLLs
+10. Verify callback quiescence; keep directly linked WebRTC DLLs loaded until process exit
 11. Destroy module owners in reverse dependency order
 12. Stop root PxAsyncRuntime last; only then finish application exit
 ```

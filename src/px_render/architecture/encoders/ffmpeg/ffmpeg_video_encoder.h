@@ -42,7 +42,7 @@ namespace px
         void RemoveAll() override;
         std::map<std::string, WorkingEncoderInfoPtr> WorkingCaptures() const override;
         std::optional<EncoderCapability> Capability(const std::string& monitor_name) const override;
-        // 动态调整码率/帧率(WebRTC BWE 经 PxPluginReconfigure 事件随动):
+        // Dynamically adjust bitrate/frame rate when WebRTC bandwidth estimation changes.
         // 码率走 x264 节流重开,fps 走编码输入侧跳帧,均不改 delta 链连续性
         void Reconfigure(const std::string& mon_name, uint32_t bps, uint32_t fps) override;
 

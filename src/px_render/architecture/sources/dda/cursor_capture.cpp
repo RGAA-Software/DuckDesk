@@ -13,7 +13,7 @@
 #include "px_capture_new/capture_message.h"
 #include "px_common_new/log.h"
 #include "px_message.pb.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/architecture/events/render_event.h"
 #include "dda_capture_source.h"
 
 namespace px
@@ -293,7 +293,7 @@ namespace px
             current_data = cursor_bitmap.data_->AsString();
         }
 
-        auto event = std::make_shared<PxPluginCursorEvent>();
+        auto event = std::make_shared<CursorUpdatedEvent>();
         event->cursor_info_ = cursor_bitmap;
 
         if (current_data != last_data && !current_data.empty()) {
@@ -313,7 +313,7 @@ namespace px
         }
 
         if (const auto owner = owner_.lock()) {
-            owner->EmitCompatibilityEvent(event);
+            owner->EmitEvent(event);
         }
     }
 }

@@ -19,7 +19,8 @@ include_directories(${WEBRTC_ROOT}/include/base)
 link_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/webrtc/x64)
 
 set(LIBRARY_SRCS
-        ${CMAKE_CURRENT_SOURCE_DIR}/webrtc_local_library.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../webrtc_execution_context.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/webrtc_local_transport.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/rtc_server.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/rtc_data_channel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/peer_callback.cpp
@@ -32,10 +33,14 @@ set(LIBRARY_SRCS
 )
 
 add_library(${PROJECT_NAME} SHARED ${LIBRARY_SRCS})
+target_compile_definitions(${PROJECT_NAME} PRIVATE PX_NET_RTC_LOCAL_BUILD=1)
 # webrtc.lib ships its own BoringSSL symbols which conflict with vcpkg OpenSSL
 # linked through px_common_new; /FORCE:MULTIPLE lets the linker pick one.
-set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/FORCE:MULTIPLE")
-target_link_libraries(${PROJECT_NAME} PUBLIC px_common_new px_message px_net_plugin
+set_target_properties(${PROJECT_NAME} PROPERTIES
+        LINK_FLAGS "/FORCE:MULTIPLE"
+        OUTPUT_NAME px_render_rtc
+)
+target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_message
         webrtc.lib
         Winmm
         ws2_32

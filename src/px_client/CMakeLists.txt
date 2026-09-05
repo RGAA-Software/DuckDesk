@@ -138,8 +138,8 @@ target_link_libraries(px_client PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::
         Dwmapi.lib unofficial::sqlite3::sqlite3 libplacebo vulkan-1 px_hw_info skin_interface skin_loader
         client_clipboard_module client_file_transfer_module client_media_recording_module
         px_voice_call
+        px_rtc_client
 )
-add_dependencies(px_client px_rtc_client)
 
 add_executable(test_client_virtual_display
     tests/test_virtual_display_client.cpp

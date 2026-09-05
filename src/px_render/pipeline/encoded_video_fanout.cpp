@@ -10,7 +10,7 @@
 #include "px_common_new/data.h"
 #include "px_common_new/image.h"
 #include "app/app_messages.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/architecture/events/render_event.h"
 #include "network/net_message_maker.h"
 #include "settings/rd_settings.h"
 #include "rd_statistics.h"
@@ -47,7 +47,7 @@ namespace px
         });
     }
 
-    void EncodedVideoFanout::ProcessEncodedVideoFrameEvent(const std::shared_ptr<PxPluginEncodedVideoFrameEvent>& event) {
+    void EncodedVideoFanout::ProcessEncodedVideoFrameEvent(const std::shared_ptr<EncodedVideoFrameEvent>& event) {
         const auto& last_capture_video_frame_ = event->capture_frame_;
         if (!event->data_) {
             LOGE("Encoded data is null!");
@@ -61,9 +61,9 @@ namespace px
 
         // TODO:
         if (event->key_frame_ && 0) {
-            LOGI("Encoded: frame size:{}, frame index: {}, key frame: {}, size: {}x{}, monitor: {} - ({},{}, {},{})",
-                 event->data_->Size(), frame_index, key, frame_width, frame_height, last_capture_video_frame_.display_name_,
-                 last_capture_video_frame_.left_, last_capture_video_frame_.top_, last_capture_video_frame_.right_, last_capture_video_frame_.bottom_);
+            LOGI("Encoded: frame size:{}, frame index: {}, key frame: {}, size: {}x{}, monitor: {} - ({},{}, {},{})", event->data_->Size(),
+                 frame_index, key, frame_width, frame_height, last_capture_video_frame_.display_name_, last_capture_video_frame_.left_,
+                 last_capture_video_frame_.top_, last_capture_video_frame_.right_, last_capture_video_frame_.bottom_);
         } else {
             //LOGI("Encoded frame: {}", frame_index);
         }
@@ -99,7 +99,7 @@ namespace px
                                 TimeUtil::GetCurrentTimestamp()) * 1000U,
                         },
                         .codec = event->type_ ==
-                                         PxPluginEncodedVideoType::kH264
+                                         EncodedVideoType::kH264
                                      ? "h264"
                                      : "h265",
                         .width = event->frame_width_,
@@ -123,8 +123,9 @@ namespace px
         }
 
         auto video_type = [=]() -> px::VideoType {
-            return (Encoder::EncoderFormat)msg.frame_encode_type_ == Encoder::EncoderFormat::kH264 ? px::VideoType::kNetH264 : px::VideoType::kNetHevc;
-        } ();
+            return (Encoder::EncoderFormat)msg.frame_encode_type_ == Encoder::EncoderFormat::kH264 ? px::VideoType::kNetH264
+                                                                                                   : px::VideoType::kNetHevc;
+        }();
 
         auto img_format = [=]() -> px::EImageFormat {
             if (RawImageType::kI420 == msg.frame_image_format_) {

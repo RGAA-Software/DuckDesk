@@ -19,8 +19,6 @@
 #include "px_render/network/relay/relay_transport.h"
 #include "px_render/network/udp/udp_transport.h"
 #include "px_render/network/ws/ws_transport.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
-#include "px_render/plugin_interface/px_plugin_interface.h"
 
 namespace px {
 namespace {
@@ -42,14 +40,14 @@ TEST(RenderBuiltinLinkageTest, ProductionModulesHaveStaticConstructorsAndIds) {
         EXPECT_FALSE(module->Name().empty());
     }
 
-    static_assert(!std::is_base_of_v<PxPluginInterface, DdaCaptureSource>);
-    static_assert(!std::is_base_of_v<PxPluginInterface, GdiCaptureSource>);
-    static_assert(!std::is_base_of_v<PxPluginInterface, FfmpegVideoEncoder>);
-    static_assert(!std::is_base_of_v<PxPluginInterface, AmfVideoEncoder>);
-    static_assert(!std::is_base_of_v<PxPluginInterface, NvencEncoderModule>);
-    static_assert(!std::is_base_of_v<PxPluginInterface, WsTransport>);
-    static_assert(!std::is_base_of_v<PxPluginInterface, UdpTransport>);
-    static_assert(!std::is_base_of_v<PxPluginInterface, RelayTransport>);
+    static_assert(std::is_base_of_v<RenderModule, DdaCaptureSource>);
+    static_assert(std::is_base_of_v<RenderModule, GdiCaptureSource>);
+    static_assert(std::is_base_of_v<RenderModule, FfmpegVideoEncoder>);
+    static_assert(std::is_base_of_v<RenderModule, AmfVideoEncoder>);
+    static_assert(std::is_base_of_v<RenderModule, NvencEncoderModule>);
+    static_assert(std::is_base_of_v<RenderModule, WsTransport>);
+    static_assert(std::is_base_of_v<RenderModule, UdpTransport>);
+    static_assert(std::is_base_of_v<RenderModule, RelayTransport>);
 }
 
 TEST(RenderBuiltinLinkageTest, VideoEncoderMetadataContractIsStronglyTyped) {
@@ -72,7 +70,7 @@ TEST(RenderBuiltinLinkageTest, ExtensionContractsAreFlowNodeRolesNotLegacyPlugin
     static_assert(std::is_base_of_v<render::FlowNodePlugin, render::AudioEncoderPlugin>);
     static_assert(std::is_base_of_v<render::FlowNodePlugin, render::ObserverPlugin>);
     static_assert(std::is_base_of_v<render::FlowNodePlugin, render::SinkPlugin>);
-    static_assert(!std::is_base_of_v<PxPluginInterface, render::FlowNodePlugin>);
+    static_assert(!std::is_base_of_v<RenderModule, render::FlowNodePlugin>);
 }
 
 struct NetworkServiceProbe final {

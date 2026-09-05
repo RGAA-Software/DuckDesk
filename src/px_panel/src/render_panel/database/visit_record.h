@@ -23,9 +23,9 @@ namespace px
 
     public:
         int id_{};
-        std::string conn_id_;
+        std::string connection_id_;
         std::string stream_id_;
-        std::string conn_type_;
+        std::string connection_type_;
         // unit: ms
         int64_t begin_{0};
         // unit: ms

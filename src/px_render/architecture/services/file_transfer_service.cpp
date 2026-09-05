@@ -109,7 +109,7 @@ namespace px::render
 
     // 对齐 rustdesk check_file_count_limit 的默认上限(DEFAULT_MAX_VALIDATED_FILES,
     // ui_cm_interface.rs)。
-    // TODO: 挂到设置体系 —— PxPluginSettingsInfo 暂无此字段,需 panel/SyncConfig
+    // TODO: Add the corresponding field to RenderRuntimeSettings and the Panel synchronization protocol.
     // 下发链路配合,本阶段先常量。
     static constexpr size_t kMaxTransferFileCount = 10000;
 

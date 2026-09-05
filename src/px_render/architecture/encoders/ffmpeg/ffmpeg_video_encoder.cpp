@@ -3,7 +3,7 @@
 //
 
 #include "ffmpeg_video_encoder.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/architecture/events/render_event.h"
 
 #include <libyuv.h>
 

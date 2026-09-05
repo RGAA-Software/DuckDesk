@@ -34,4 +34,4 @@ if (MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /EHa)
 endif()
 target_link_libraries(${PROJECT_NAME} PRIVATE px_common_new px_steam_manager_new px_message
-        px_plugin winmm.lib SetupAPI.lib)
+        render_architecture_core winmm.lib SetupAPI.lib)

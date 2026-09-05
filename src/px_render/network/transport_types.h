@@ -6,14 +6,14 @@
 
 namespace px {
 
-enum class NetPluginType {
+enum class TransportKind {
     kWebSocket,
     kUdpKcp,
     kWebRtcDirect,
     kWebRtc,
 };
 
-enum class NetChannelType {
+enum class TransportChannel {
     kMedia,
     kFileTransfer,
 };
@@ -22,7 +22,7 @@ class NetMessageAck {
 public:
     std::uint64_t send_time_{0};
     std::uint64_t resp_time_{0};
-    NetChannelType ch_type_{NetChannelType::kMedia};
+    TransportChannel ch_type_{TransportChannel::kMedia};
     int msg_type_{0};
 };
 

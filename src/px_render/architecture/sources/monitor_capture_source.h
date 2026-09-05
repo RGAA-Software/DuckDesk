@@ -9,7 +9,7 @@
 #include "architecture/modules/render_module.h"
 #include "architecture/sources/capture_types.h"
 #include "px_capture_new/monitor_util.h"
-#include "px_render/plugin_interface/px_monitor_capture_error.h"
+#include "px_render/architecture/diagnostics/monitor_capture_error.h"
 
 namespace px {
 

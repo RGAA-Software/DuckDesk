@@ -43,6 +43,11 @@ $requiredModuleFiles = @(
     "src\px_render\architecture\extensions\flow_node_plugin.h",
     "src\px_render\architecture\extensions\flow_node_plugin_registry.h",
     "src\px_render\architecture\extensions\flow_node_plugin_registry.cpp",
+    "src\px_render\architecture\config\render_runtime_settings.h",
+    "src\px_render\architecture\diagnostics\monitor_capture_error.h",
+    "src\px_render\architecture\events\render_event.h",
+    "src\px_render\architecture\runtime\render_execution_context.h",
+    "src\px_render\architecture\runtime\render_execution_context.cpp",
     "src\px_render\network\transport_types.h",
     "src\px_render\architecture\sources\dda\dda_capture_source.h",
     "src\px_render\architecture\sources\gdi\gdi_capture_source.h",
@@ -57,6 +62,11 @@ foreach ($relativePath in $requiredModuleFiles) {
     if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot $relativePath))) {
         $violations.Add("${relativePath}: required built-in module contract is missing")
     }
+}
+
+$legacyPluginDirectory = Join-Path $RepoRoot "src\px_render\plugin_interface"
+if (Test-Path -LiteralPath $legacyPluginDirectory) {
+    $violations.Add("src\px_render\plugin_interface: the retired legacy plug-in infrastructure directory returned")
 }
 
 $retiredPluginFiles = @(
@@ -185,11 +195,27 @@ foreach ($file in $renderNativeFiles) {
         "AttachPlugin" = "all-to-all module attachment is retired"
         "AttachNetPlugin" = "all-to-all network attachment is retired"
         "OnMessageRaw" = "network control must use typed commands"
+        "PxPluginInterface" = "legacy Render plug-in base is retired"
+        "PxNetPlugin" = "legacy network plug-in base is retired"
+        "PxPluginContext" = "legacy plug-in execution context is retired"
+        "PxPluginBaseEvent" = "legacy untyped plug-in event base is retired"
+        "PxPluginEventType" = "legacy plug-in event discriminator is retired"
+        "PX_PLUGIN_EXPORT" = "legacy Render plug-in export ABI is retired"
+        "plugin_interface[/\\]" = "legacy Render plug-in include path is retired"
     }).GetEnumerator()) {
         if ($content -match $entry.Key) {
             $relative = $file.FullName.Substring($RepoRoot.Length).TrimStart([char]'\')
             $violations.Add("${relative}: $($entry.Value)")
         }
+    }
+}
+
+$renderCmakeFiles = Get-ChildItem -LiteralPath (Join-Path $RepoRoot "src\px_render") -Recurse -File -Filter "CMakeLists.txt"
+foreach ($file in $renderCmakeFiles) {
+    $content = Get-Content -LiteralPath $file.FullName -Raw
+    if ($content -match '\b(?:px_plugin|px_net_plugin)\b' -or $content -match 'plugin_interface') {
+        $relative = $file.FullName.Substring($RepoRoot.Length).TrimStart([char]'\')
+        $violations.Add("${relative}: retired Render plug-in CMake target or directory returned")
     }
 }
 
@@ -271,29 +297,29 @@ foreach ($relativePath in $typedVideoFiles) {
 }
 
 $webRtcHost = Get-Content -LiteralPath `
-    (Join-Path $RepoRoot "src\px_render\network\webrtc_library_host.cpp") -Raw
+    (Join-Path $RepoRoot "src\px_render\network\webrtc_transport_host.cpp") -Raw
 if ($webRtcHost -match "directory_iterator") {
-    $violations.Add("webrtc_library_host.cpp: fixed WebRTC loading must not scan directories")
+    $violations.Add("webrtc_transport_host.cpp: fixed WebRTC loading must not scan directories")
 }
-foreach ($libraryName in @("net_rtc", "net_rtc_local")) {
+foreach ($libraryName in @("px_render_rtc_remote", "px_render_rtc")) {
     if ($webRtcHost -notmatch [regex]::Escape($libraryName)) {
-        $violations.Add("webrtc_library_host.cpp: missing explicit $libraryName boundary")
+        $violations.Add("webrtc_transport_host.cpp: missing explicit $libraryName boundary")
     }
 }
 $webRtcHostHeader = Get-Content -LiteralPath `
-    (Join-Path $RepoRoot "src\px_render\network\webrtc_library_host.h") -Raw
+    (Join-Path $RepoRoot "src\px_render\network\webrtc_transport_host.h") -Raw
 if ($webRtcHostHeader -match "PxPluginInterface|PxNetPlugin") {
-    $violations.Add("webrtc_library_host.h: public WebRTC facade must not expose a plug-in interface")
+    $violations.Add("webrtc_transport_host.h: public WebRTC facade must not expose a plug-in interface")
 }
 if ($webRtcHostHeader -match
     "vector\s*<\s*std::shared_ptr\s*<\s*PxNetPlugin") {
-    $violations.Add("webrtc_library_host.h: public WebRTC loading must return concrete library leases")
+    $violations.Add("webrtc_transport_host.h: public WebRTC loading must return concrete transport handles")
 }
-if ($webRtcHostHeader -notmatch "class\s+WebRtcLibrary\s+final") {
-    $violations.Add("webrtc_library_host.h: missing concrete WebRTC network library facade")
+if ($webRtcHostHeader -notmatch "class\s+WebRtcTransportHandle\s+final") {
+    $violations.Add("webrtc_transport_host.h: missing concrete WebRTC transport handle")
 }
 if ($webRtcHost -match "CompatibilityModule") {
-    $violations.Add("webrtc_library_host.cpp: compatibility plug-in object must not escape the typed facade")
+    $violations.Add("webrtc_transport_host.cpp: compatibility plug-in object must not escape the typed facade")
 }
 $registryHeader = Get-Content -LiteralPath `
     (Join-Path $RepoRoot "src\px_render\modules\render_module_registry.h") -Raw
@@ -512,16 +538,28 @@ foreach ($required in @("ApplicationShutdownDispatcher", "StopApplicationWebRtcL
 }
 
 $webrtcHostSource = Get-Content -LiteralPath `
-    (Join-Path $RepoRoot "src\px_render\network\webrtc_library_host.cpp") -Raw
+    (Join-Path $RepoRoot "src\px_render\network\webrtc_transport_host.cpp") -Raw
 foreach ($required in @(
     "PxCallbackQuiescence",
     "StopAsync",
     "WEBRTC_CALLBACK_QUIESCENCE_TIMEOUT",
-    "WEBRTC_UNSAFE_UNLOAD_PREVENTED",
-    "RetainLibrary"
+    "CreateWebRtcRemoteTransport",
+    "CreateWebRtcLocalTransport"
 )) {
     if ($webrtcHostSource -notmatch [regex]::Escape($required)) {
-        $violations.Add("webrtc_library_host.cpp: callback-safe unload contract is missing $required")
+        $violations.Add("webrtc_transport_host.cpp: direct C++ DLL lifecycle contract is missing $required")
+    }
+}
+foreach ($forbidden in @(
+    "DynamicLibrary",
+    "GetSymbol",
+    "GetInstance",
+    "LoadExact",
+    "RetainLibrary",
+    "WEBRTC_UNSAFE_UNLOAD_PREVENTED"
+)) {
+    if ($webrtcHostSource -match [regex]::Escape($forbidden)) {
+        $violations.Add("webrtc_transport_host.cpp: direct C++ DLL boundary must not use $forbidden")
     }
 }
 

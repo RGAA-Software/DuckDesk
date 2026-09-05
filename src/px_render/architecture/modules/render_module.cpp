@@ -9,13 +9,14 @@
 #include "px_common_new/memory_stat.h"
 #include "px_common_new/snowflake_id.h"
 #include "px_common_new/string_util.h"
-#include "px_render/plugin_interface/px_plugin_context.h"
+#include "app/app_messages.h"
+#include "runtime/render_execution_context.h"
 
 namespace px {
 
 class ModuleEventChannel final {
-public:
-    void Set(const CompatibilityEventCallback& callback) {
+  public:
+    void Set(const RenderEventCallback& callback) {
         const std::lock_guard lock(mutex_);
         callback_ = callback;
         accepting_ = static_cast<bool>(callback_);
@@ -32,8 +33,8 @@ public:
         return accepting_ && static_cast<bool>(callback_);
     }
 
-    void Deliver(const std::shared_ptr<PxPluginBaseEvent>& event) const {
-        CompatibilityEventCallback callback;
+    void Deliver(const RenderEventEnvelope& event) const {
+        RenderEventCallback callback;
         {
             const std::lock_guard lock(mutex_);
             if (!accepting_ || !callback_) {
@@ -44,32 +45,45 @@ public:
         callback(event);
     }
 
-private:
+  private:
     mutable std::mutex mutex_;
-    CompatibilityEventCallback callback_;
+    RenderEventCallback callback_;
     bool accepting_{false};
 };
 
-RenderModule::RenderModule()
-    : event_channel_(std::make_shared<ModuleEventChannel>()) {}
+RenderModule::RenderModule() : event_channel_(std::make_shared<ModuleEventChannel>()) {}
 
-std::shared_ptr<PxPluginContext> RenderModule::Context() const {
-    return module_context_;
+std::shared_ptr<RenderExecutionContext> RenderModule::ExecutionContext() const {
+    return execution_context_;
 }
 
-std::string RenderModule::Name() const { return Id(); }
-std::string RenderModule::Author() const { return "RGAA"; }
-std::string RenderModule::Description() const { return {}; }
-std::string RenderModule::VersionName() const { return "1.0.0"; }
-std::uint32_t RenderModule::VersionCode() const { return 1; }
+std::string RenderModule::Name() const {
+    return Id();
+}
+std::string RenderModule::Author() const {
+    return "RGAA";
+}
+std::string RenderModule::Description() const {
+    return {};
+}
+std::string RenderModule::VersionName() const {
+    return "1.0.0";
+}
+std::uint32_t RenderModule::VersionCode() const {
+    return 1;
+}
 
-bool RenderModule::IsEnabled() const noexcept { return enabled_.load(); }
+bool RenderModule::IsEnabled() const noexcept {
+    return enabled_.load();
+}
 
 void RenderModule::SetEnabled(const bool enabled) noexcept {
     enabled_.store(enabled);
 }
 
-bool RenderModule::IsWorking() const { return IsEnabled(); }
+bool RenderModule::IsWorking() const {
+    return IsEnabled();
+}
 
 bool RenderModule::Start(const RenderModuleConfiguration& configuration) {
     if (lifecycle_.load() == RenderModuleLifecycle::kRunning) {
@@ -82,10 +96,12 @@ bool RenderModule::Start(const RenderModuleConfiguration& configuration) {
     SnowflakeId::initialize(0, 103);
     MemoryStat::Instance();
     configuration_ = configuration;
-    module_context_ = std::make_shared<PxPluginContext>(Name());
-    const auto log_path = std::format(
-        L"{}/px_logs/{}.log", configuration_.base_data_path,
-        StringUtil::ToWString(configuration_.instance_name));
+    execution_context_ = RenderExecutionContext::Create(configuration.async_runtime, Name());
+    if (!execution_context_) {
+        LOGE("event=module.lifecycle component={} code=ASYNC_CONTEXT_UNAVAILABLE operation=start outcome=failed recoverable=false", Id());
+        return false;
+    }
+    const auto log_path = std::format(L"{}/px_logs/{}.log", configuration_.base_data_path, StringUtil::ToWString(configuration_.instance_name));
     Logger::InitLog(log_path, true);
 
     settings_.device_id = configuration_.device_id;
@@ -127,9 +143,9 @@ bool RenderModule::Destroy() {
         return true;
     }
     Stop();
-    if (module_context_) {
-        module_context_->OnDestroy();
-        module_context_.reset();
+    if (execution_context_) {
+        execution_context_->Stop();
+        execution_context_.reset();
     }
     destroyed_.store(true);
     lifecycle_.store(RenderModuleLifecycle::kDestroyed);
@@ -138,14 +154,12 @@ bool RenderModule::Destroy() {
 
 bool RenderModule::IsStoppingOrDestroyed() const noexcept {
     const auto lifecycle = lifecycle_.load();
-    return stopped_.load() || destroyed_.load() ||
-        lifecycle == RenderModuleLifecycle::kStopping ||
-        lifecycle == RenderModuleLifecycle::kDestroyed;
+    return stopped_.load() || destroyed_.load() || lifecycle == RenderModuleLifecycle::kStopping || lifecycle == RenderModuleLifecycle::kDestroyed;
 }
 
 void RenderModule::PostWorkTask(std::function<void()>&& task) {
-    if (module_context_ && !IsStoppingOrDestroyed()) {
-        module_context_->PostWorkTask(std::move(task));
+    if (execution_context_ && !IsStoppingOrDestroyed()) {
+        static_cast<void>(execution_context_->Post(std::move(task)));
     }
 }
 
@@ -155,48 +169,40 @@ void RenderModule::PostUiTask(std::function<void()>&& task) {
     }
 }
 
-void RenderModule::PostDelayedUiTask(
-    const int milliseconds, std::function<void()>&& task) {
-    if (module_context_ && !IsStoppingOrDestroyed()) {
-        module_context_->PostDelayTask(std::move(task), milliseconds);
+void RenderModule::PostDelayedUiTask(const int milliseconds, std::function<void()>&& task) {
+    if (execution_context_ && !IsStoppingOrDestroyed()) {
+        static_cast<void>(execution_context_->PostDelayed(std::chrono::milliseconds(milliseconds), std::move(task)));
     }
 }
 
-void RenderModule::SetCompatibilityEventCallback(
-    const CompatibilityEventCallback& callback) {
+void RenderModule::SetEventCallback(const RenderEventCallback& callback) {
     event_channel_->Set(callback);
 }
 
-void RenderModule::EmitCompatibilityEvent(
-    const std::shared_ptr<PxPluginBaseEvent>& event) {
-    if (!event || IsStoppingOrDestroyed() || !event_channel_->CanDeliver()) {
+void RenderModule::EmitEvent(RenderEvent event) {
+    if (IsStoppingOrDestroyed() || !event_channel_->CanDeliver()) {
         return;
     }
-    event->plugin_name_ = Id();
+    auto envelope = std::make_shared<RenderEventEnvelope>(RenderEventEnvelope{.source_id = Id(), .payload = std::move(event)});
     const std::weak_ptr<ModuleEventChannel> weak_channel = event_channel_;
-    PostWorkTask([weak_channel, event] {
+    PostWorkTask([weak_channel, envelope] {
         if (const auto channel = weak_channel.lock()) {
-            channel->Deliver(event);
+            channel->Deliver(*envelope);
         }
     });
 }
 
-void RenderModule::EmitCompatibilityEventImmediately(
-    const std::shared_ptr<PxPluginBaseEvent>& event) {
-    if (event && !IsStoppingOrDestroyed()) {
-        event->plugin_name_ = Id();
-        event_channel_->Deliver(event);
+void RenderModule::EmitEventImmediately(RenderEvent event) {
+    if (!IsStoppingOrDestroyed()) {
+        event_channel_->Deliver(RenderEventEnvelope{.source_id = Id(), .payload = std::move(event)});
     }
 }
 
-CompatibilityEventCallback
-RenderModule::MakeImmediateCompatibilityEventDispatcher() const {
+RenderEventCallback RenderModule::MakeImmediateEventDispatcher() const {
     const std::weak_ptr<ModuleEventChannel> weak_channel = event_channel_;
-    return [weak_channel](const std::shared_ptr<PxPluginBaseEvent>& event) {
-        if (event) {
-            if (const auto channel = weak_channel.lock()) {
-                channel->Deliver(event);
-            }
+    return [weak_channel](const RenderEventEnvelope& event) {
+        if (const auto channel = weak_channel.lock()) {
+            channel->Deliver(event);
         }
     };
 }
@@ -204,18 +210,16 @@ RenderModule::MakeImmediateCompatibilityEventDispatcher() const {
 void RenderModule::Tick1Second() {}
 
 void RenderModule::RequestKeyFrame() {
-    EmitCompatibilityEvent(std::make_shared<PxPluginInsertIdrEvent>());
+    EmitEvent(std::make_shared<KeyFrameRequestEvent>());
 }
 
 void RenderModule::HandleCommand(const std::string&) {}
 
-void RenderModule::OnClientConnected(
-    const std::string&, const std::string&, const std::string&) {
+void RenderModule::OnClientConnected(const std::string&, const std::string&, const std::string&) {
     no_connected_clients_counter_.store(0);
 }
 
-void RenderModule::OnClientDisconnected(
-    const std::string&, const std::string&) {}
+void RenderModule::OnClientDisconnected(const std::string&, const std::string&) {}
 
 void RenderModule::HandleMessage(const std::shared_ptr<Message>&) {}
 
@@ -230,30 +234,29 @@ void RenderModule::HandleAppEvent(const std::shared_ptr<AppBaseEvent>& event) {
     const auto connected = std::dynamic_pointer_cast<MsgConnectedClientCount>(event);
     if (connected && connected->connected_client_count_ <= 0) {
         ++no_connected_clients_counter_;
-    }
-    else {
+    } else {
         no_connected_clients_counter_.store(0);
     }
 }
 
 void RenderModule::UpdateCaptureMonitorInfo(const CaptureMonitorInfoMessage&) {}
 
-RenderModuleSettings RenderModule::Settings() const { return settings_; }
+RenderModuleSettings RenderModule::Settings() const {
+    return settings_;
+}
 
 bool RenderModule::HasNoConnectedClients() const noexcept {
     return no_connected_clients_counter_.load() > 10;
 }
 
 void RenderModule::ReportDataSent(const std::size_t bytes) {
-    const auto event = std::make_shared<PxPluginDataSent>();
+    const auto event = std::make_shared<DataSentEvent>();
     event->size_ = static_cast<int>(bytes);
-    EmitCompatibilityEvent(event);
+    EmitEvent(event);
 }
 
-void RenderModule::UpdateD3DResources(
-    const std::uint64_t adapter_uid,
-    const Microsoft::WRL::ComPtr<ID3D11Device>& device,
-    const Microsoft::WRL::ComPtr<ID3D11DeviceContext>& context) {
+void RenderModule::UpdateD3DResources(const std::uint64_t adapter_uid, const Microsoft::WRL::ComPtr<ID3D11Device>& device,
+                                      const Microsoft::WRL::ComPtr<ID3D11DeviceContext>& context) {
     d3d11_devices_[adapter_uid] = device;
     d3d11_device_contexts_[adapter_uid] = context;
 }
@@ -263,4 +266,4 @@ void RenderModule::ClearD3DResources(const std::uint64_t adapter_uid) {
     d3d11_device_contexts_.erase(adapter_uid);
 }
 
-}  // namespace px
+} // namespace px

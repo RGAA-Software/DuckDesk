@@ -11,7 +11,7 @@
 #define PX_RTC_AUDIO_SINK_H
 
 #include <memory>
-#include "rtc_client_interface.h"
+#include "rtc_client.h"
 #include "api/media_stream_interface.h"
 
 namespace px

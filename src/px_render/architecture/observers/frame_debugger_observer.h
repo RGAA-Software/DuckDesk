@@ -23,8 +23,7 @@ class File;
 
 namespace px::render {
 
-inline constexpr std::string_view kFrameDebuggerModuleId =
-    "bfb3fadc-6f37-401c-a927-88c3ae2d1e95";
+inline constexpr std::string_view kFrameDebuggerModuleId = "bfb3fadc-6f37-401c-a927-88c3ae2d1e95";
 
 struct FrameDebuggerOptions final {
     std::size_t queue_capacity{120};
@@ -49,10 +48,7 @@ struct RawVideoFrameObservation final {
 
 struct FrameDebuggerClientConnected final {};
 
-using FrameDebuggerEvent =
-    std::variant<VideoEncoderReady,
-                 std::shared_ptr<const EncodedVideoFrame>,
-                 FrameDebuggerClientConnected>;
+using FrameDebuggerEvent = std::variant<VideoEncoderReady, std::shared_ptr<const EncodedVideoFrame>, FrameDebuggerClientConnected>;
 
 enum class FrameDebuggerSubmitResult {
     kAccepted,
@@ -83,15 +79,11 @@ struct FrameDebuggerSnapshot final {
 // - File state is confined to the worker coroutine.
 // - Flags and counters are atomic; queue state is internally synchronized.
 // - No lock or borrowed reference is held across co_await.
-class FrameDebuggerObserver final
-    : public std::enable_shared_from_this<FrameDebuggerObserver> {
-public:
-    static std::shared_ptr<FrameDebuggerObserver> Create(
-        const std::shared_ptr<PxAsyncRuntime>& runtime,
-        FrameDebuggerOptions options = {});
+class FrameDebuggerObserver final : public std::enable_shared_from_this<FrameDebuggerObserver> {
+  public:
+    static std::shared_ptr<FrameDebuggerObserver> Create(const std::shared_ptr<PxAsyncRuntime>& runtime, FrameDebuggerOptions options = {});
 
-    FrameDebuggerObserver(std::shared_ptr<PxAsyncScope> worker_scope,
-                          FrameDebuggerOptions options);
+    FrameDebuggerObserver(std::shared_ptr<PxAsyncScope> worker_scope, FrameDebuggerOptions options);
     ~FrameDebuggerObserver();
 
     FrameDebuggerObserver(const FrameDebuggerObserver&) = delete;
@@ -99,33 +91,26 @@ public:
 
     [[nodiscard]] BuiltinModuleRegistration MakeRegistration();
     [[nodiscard]] ModuleLifecycleResult Start();
-    [[nodiscard]] static PxAwaitable<ModuleLifecycleResult> StopAsync(
-        const std::shared_ptr<FrameDebuggerObserver>& owner,
-        std::chrono::steady_clock::time_point deadline);
+    [[nodiscard]] static PxAwaitable<ModuleLifecycleResult> StopAsync(std::shared_ptr<FrameDebuggerObserver> owner,
+                                                                      std::chrono::steady_clock::time_point deadline);
     [[nodiscard]] ModuleLifecycleResult SetEnabled(bool enabled);
 
-    [[nodiscard]] FrameDebuggerSubmitResult SubmitEncoderReady(
-        VideoEncoderReady event);
-    [[nodiscard]] FrameDebuggerSubmitResult SubmitEncodedFrame(
-        std::shared_ptr<const EncodedVideoFrame> frame);
+    [[nodiscard]] FrameDebuggerSubmitResult SubmitEncoderReady(VideoEncoderReady event);
+    [[nodiscard]] FrameDebuggerSubmitResult SubmitEncodedFrame(std::shared_ptr<const EncodedVideoFrame> frame);
     [[nodiscard]] FrameDebuggerSubmitResult SubmitClientConnected();
     void ObserveRawFrame(RawVideoFrameObservation frame);
     [[nodiscard]] bool WantsEncodedFrames() const noexcept;
     [[nodiscard]] FrameDebuggerSnapshot Snapshot() const;
 
-private:
-    static PxAwaitable<void> ConsumeLoop(
-        std::weak_ptr<FrameDebuggerObserver> weak_owner,
-        std::shared_ptr<BoundedMediaQueue<FrameDebuggerEvent>> queue,
-        std::shared_ptr<PxAsyncOneShot<void>> completion,
-        asio::any_io_executor executor);
+  private:
+    static PxAwaitable<void> ConsumeLoop(std::weak_ptr<FrameDebuggerObserver> weak_owner,
+                                         std::shared_ptr<BoundedMediaQueue<FrameDebuggerEvent>> queue,
+                                         std::shared_ptr<PxAsyncOneShot<void>> completion, asio::any_io_executor executor);
     void ProcessEvent(const FrameDebuggerEvent& event);
     void ProcessEncoderReady(const VideoEncoderReady& event);
-    void ProcessEncodedFrame(
-        const std::shared_ptr<const EncodedVideoFrame>& frame);
+    void ProcessEncodedFrame(const std::shared_ptr<const EncodedVideoFrame>& frame);
     void CloseFiles();
-    [[nodiscard]] FrameDebuggerSubmitResult SubmitEvent(
-        std::shared_ptr<const FrameDebuggerEvent> event);
+    [[nodiscard]] FrameDebuggerSubmitResult SubmitEvent(std::shared_ptr<const FrameDebuggerEvent> event);
 
     std::shared_ptr<PxAsyncScope> worker_scope_;
     const FrameDebuggerOptions options_;
@@ -147,4 +132,4 @@ private:
     bool rotate_on_next_encoder_{false};
 };
 
-}  // namespace px::render
+} // namespace px::render

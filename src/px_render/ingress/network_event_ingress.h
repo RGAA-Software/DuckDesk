@@ -11,7 +11,7 @@
 #include <map>
 #include <set>
 #include <tuple>
-#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/architecture/events/render_event.h"
 
 namespace px
 {
@@ -37,12 +37,11 @@ namespace px
         static std::shared_ptr<NetworkEventIngress> Make(
             const std::shared_ptr<RdApplication>& app);
         explicit NetworkEventIngress(const std::shared_ptr<RdApplication>& app);
-        void ProcessNetEvent(const std::shared_ptr<PxPluginNetClientEvent>& event);
-        void ProcessClientConnectedEvent(const std::shared_ptr<PxPluginClientConnectedEvent>& event);
-        void ProcessClientDisConnectedEvent(const std::shared_ptr<PxPluginClientDisConnectedEvent>& event);
-        void ProcessCapturingMonitorInfoEvent(const std::shared_ptr<PxPluginCapturingMonitorInfoEvent>& event) const;
+        void ProcessNetEvent(const std::shared_ptr<NetworkClientEvent>& event, const std::string& source_id);
+        void ProcessClientConnectedEvent(const std::shared_ptr<ClientConnectedEvent>& event, const std::string& source_id);
+        void ProcessClientDisConnectedEvent(const std::shared_ptr<ClientDisconnectedEvent>& event, const std::string& source_id);
+        void ProcessCapturingMonitorInfoEvent(const std::shared_ptr<CaptureMonitorInfoChangedEvent>& event) const;
         void ProcessEncodedAudioFrameEvent(const std::shared_ptr<Data>& data, int samples, int channels, int bits, int frame_size);
-        void ProcessRtcReportEvent(const std::shared_ptr<PxPluginRtcReportEvent>& event);
         void ReleaseControllerInput(const LogicalSessionInputLease& lease);
 
     private:
@@ -85,11 +84,11 @@ namespace px
         void SyncInfoToUdpTransport(int64_t socket_fd, const std::string& device_id, const std::string& stream_id);
 
         // report client connect/disconnect state
-        void ReportClientConnected(const std::shared_ptr<PxPluginClientConnectedEvent>& event);
-        void ReportClientDisConnected(const std::shared_ptr<PxPluginClientDisConnectedEvent>& event);
+        void ReportClientConnected(const std::shared_ptr<ClientConnectedEvent>& event);
+        void ReportClientDisConnected(const std::shared_ptr<ClientDisconnectedEvent>& event);
 
         // ack
-        void ProcessAck(const std::shared_ptr<PxPluginNetClientEvent>& ev, const std::shared_ptr<Message>& m);
+        void ProcessAck(const std::shared_ptr<NetworkClientEvent>& event, const std::shared_ptr<Message>& message);
         void SendRtcSignalingError(const std::string& stream_id,
                                    const std::string& code,
                                    const std::string& message) const;

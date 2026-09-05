@@ -14,7 +14,7 @@
 #include "px_common_new/math_helper.h"
 #include "px_common_new/win32/win_helper.h"
 #include "px_capture_new/capture_message.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/architecture/events/render_event.h"
 #include "gdi_capture_source.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
 
@@ -80,7 +80,7 @@ namespace px
         : DesktopCaptureSource(my_monitor_info) {
         owner_ = owner;
         fps_stat_ = std::make_shared<FpsStat>();
-        mon_name_ = StringUtil::ToWString(my_monitor_info_.name_);
+        monitor_name_ = StringUtil::ToWString(my_monitor_info_.name_);
         is_primary_monitor_ = my_monitor_info_.primary_;
         LOGI("GdiCapture my monitor info: {}", my_monitor_info.Dump());
     }
@@ -129,7 +129,7 @@ namespace px
         }
 
         //screen_dc_ = GetDC(NULL); // 整个虚拟屏幕的设备上下文, GetDC 是采集整个虚拟屏幕的画面,GDI 作为托底采集,就采集整个虚拟桌面就可以
-        screen_dc_.reset(CreateDCW(nullptr, mon_name_.c_str(), nullptr, nullptr)); // CreateDC 可以采集特定屏幕的画面
+        screen_dc_.reset(CreateDCW(nullptr, monitor_name_.c_str(), nullptr, nullptr)); // CreateDC 可以采集特定屏幕的画面
         if (!screen_dc_) {
             LOGW("GdiCapture GetDC failed.");
             return false;
@@ -161,7 +161,7 @@ namespace px
     }
 
     bool GdiCapture::RefreshMonitorGeometry() {
-        MonitorGeometry geometry{.target_name = mon_name_};
+        MonitorGeometry geometry{.target_name = monitor_name_};
         EnumDisplayMonitors(
             nullptr, nullptr, MonitorEnumProc,
             reinterpret_cast<LPARAM>(std::addressof(geometry)));
@@ -300,9 +300,9 @@ namespace px
         cap_video_frame.bottom_ = this->bottom_;
 
         if (owner->IsEnabled()) {
-            auto event = std::make_shared<PxPluginCapturedVideoFrameEvent>();
+            auto event = std::make_shared<CapturedVideoFrameEvent>();
             event->frame_ = cap_video_frame;
-            owner->EmitCompatibilityEvent(event);
+            owner->EmitEvent(event);
         }
 
         // fps tick

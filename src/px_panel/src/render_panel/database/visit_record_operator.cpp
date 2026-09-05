@@ -61,7 +61,7 @@ namespace px
         record->recovered_ = recovered;
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
-        auto streams = storage.get_all<VisitRecord>(where(c(&VisitRecord::conn_id_) == conn_id));
+        auto streams = storage.get_all<VisitRecord>(where(c(&VisitRecord::connection_id_) == conn_id));
         if (!streams.empty()) {
             storage.update(*record);
         }
@@ -73,7 +73,7 @@ namespace px
         }
         using Storage = decltype(db_->GetStorageTypeValue());
         auto storage = std::any_cast<Storage>(db_->GetDbStorage());
-        auto records = storage.get_all_pointer<VisitRecord>(where(c(&VisitRecord::conn_id_) == conn_id));
+        auto records = storage.get_all_pointer<VisitRecord>(where(c(&VisitRecord::connection_id_) == conn_id));
         if (records.empty()) {
             return std::nullopt;
         }

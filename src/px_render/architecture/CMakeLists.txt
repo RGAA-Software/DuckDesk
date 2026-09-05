@@ -14,6 +14,7 @@ add_library(render_architecture_core STATIC
     pipeline/captured_media_pipeline.cpp
     pipeline/encoded_media_bus.cpp
     pipeline/media_types.cpp
+    runtime/render_execution_context.cpp
     runtime/render_composition_root.cpp)
 
 target_include_directories(render_architecture_core

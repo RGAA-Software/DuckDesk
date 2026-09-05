@@ -12,7 +12,6 @@
 #include "px_common_new/win32/win_helper.h"
 #include "px_common_new/string_util.h"
 #include "px_render/modules/render_module_registry.h"
-#include "px_render/plugin_interface/px_plugin_interface.h"
 #include "architecture/pipeline/encoded_media_bus.h"
 #include "architecture/processors/frame_carrier_processor.h"
 #include "architecture/processors/frame_resizer_processor.h"

@@ -19,8 +19,7 @@
 
 namespace px::render {
 
-inline constexpr std::string_view kMediaRecorderModuleId =
-    "21d1c305-e68c-4079-8a4a-d00735be609b";
+inline constexpr std::string_view kMediaRecorderModuleId = "21d1c305-e68c-4079-8a4a-d00735be609b";
 
 struct MediaRecorderOptions final {
     std::string record_directory;
@@ -44,34 +43,24 @@ struct MediaRecorderSnapshot final {
 };
 
 class MediaRecorderWriter {
-public:
+  public:
     virtual ~MediaRecorderWriter() = default;
-    virtual void OnVideo(
-        const std::shared_ptr<const EncodedVideoFrame>& frame) = 0;
-    virtual void OnAudio(
-        const std::shared_ptr<const EncodedAudioFrame>& frame) = 0;
+    virtual void OnVideo(const std::shared_ptr<const EncodedVideoFrame>& frame) = 0;
+    virtual void OnAudio(const std::shared_ptr<const EncodedAudioFrame>& frame) = 0;
     virtual void Stop() = 0;
 };
 
-class MediaRecorderSink final
-    : public std::enable_shared_from_this<MediaRecorderSink> {
-public:
+class MediaRecorderSink final : public std::enable_shared_from_this<MediaRecorderSink> {
+  public:
     using KeyframeRequester = std::function<void()>;
     using Completion = std::function<void(PxResult<void>)>;
-    using WriterFactory = std::function<std::shared_ptr<MediaRecorderWriter>(
-        const std::string& monitor_id,
-        const MediaRecorderOptions& options,
-        const KeyframeRequester& request_keyframe)>;
+    using WriterFactory = std::function<std::shared_ptr<MediaRecorderWriter>(const std::string& monitor_id, const MediaRecorderOptions& options,
+                                                                             const KeyframeRequester& request_keyframe)>;
 
-    [[nodiscard]] static std::shared_ptr<MediaRecorderSink> Create(
-        std::shared_ptr<EncodedMediaBus> media_bus,
-        MediaRecorderOptions options,
-        KeyframeRequester request_keyframe,
-        WriterFactory writer_factory = {});
+    [[nodiscard]] static std::shared_ptr<MediaRecorderSink> Create(std::shared_ptr<EncodedMediaBus> media_bus, MediaRecorderOptions options,
+                                                                   KeyframeRequester request_keyframe, WriterFactory writer_factory = {});
 
-    MediaRecorderSink(std::shared_ptr<EncodedMediaBus> media_bus,
-                      MediaRecorderOptions options,
-                      KeyframeRequester request_keyframe,
+    MediaRecorderSink(std::shared_ptr<EncodedMediaBus> media_bus, MediaRecorderOptions options, KeyframeRequester request_keyframe,
                       WriterFactory writer_factory);
     ~MediaRecorderSink();
 
@@ -80,9 +69,8 @@ public:
 
     [[nodiscard]] BuiltinModuleRegistration MakeRegistration();
     [[nodiscard]] ModuleLifecycleResult Start();
-    [[nodiscard]] static PxAwaitable<ModuleLifecycleResult> StopAsync(
-        const std::shared_ptr<MediaRecorderSink>& owner,
-        std::chrono::steady_clock::time_point deadline);
+    [[nodiscard]] static PxAwaitable<ModuleLifecycleResult> StopAsync(std::shared_ptr<MediaRecorderSink> owner,
+                                                                      std::chrono::steady_clock::time_point deadline);
     [[nodiscard]] ModuleLifecycleResult SetEnabled(bool enabled);
 
     void StartRecording();
@@ -91,7 +79,7 @@ public:
     [[nodiscard]] bool IsAutoEnabled() const noexcept;
     [[nodiscard]] MediaRecorderSnapshot Snapshot() const;
 
-private:
+  private:
     enum class WorkType { kVideo, kAudio, kFinalize, kShutdown };
 
     struct WorkItem final {
@@ -142,10 +130,8 @@ private:
     void ShutdownForDestruction();
 
     static void WorkerMain(const std::shared_ptr<WorkerState>& state);
-    static void ProcessVideo(const std::shared_ptr<WorkerState>& state,
-                             const std::shared_ptr<const EncodedVideoFrame>& frame);
-    static void ProcessAudio(const std::shared_ptr<WorkerState>& state,
-                             const std::shared_ptr<const EncodedAudioFrame>& frame);
+    static void ProcessVideo(const std::shared_ptr<WorkerState>& state, const std::shared_ptr<const EncodedVideoFrame>& frame);
+    static void ProcessAudio(const std::shared_ptr<WorkerState>& state, const std::shared_ptr<const EncodedAudioFrame>& frame);
     static void FinalizeWriters(const std::shared_ptr<WorkerState>& state);
     [[nodiscard]] static WriterFactory DefaultWriterFactory();
 
@@ -159,10 +145,8 @@ private:
     std::jthread worker_;
     std::shared_ptr<EncodedMediaBus::VideoCallback> video_callback_;
     std::shared_ptr<EncodedMediaBus::EncodedAudioCallback> audio_callback_;
-    std::shared_ptr<EncodedMediaBus::ClientConnectedCallback>
-        client_connected_callback_;
-    std::shared_ptr<EncodedMediaBus::ClientDisconnectedCallback>
-        client_disconnected_callback_;
+    std::shared_ptr<EncodedMediaBus::ClientConnectedCallback> client_connected_callback_;
+    std::shared_ptr<EncodedMediaBus::ClientDisconnectedCallback> client_disconnected_callback_;
     std::shared_ptr<ScopedSubscription> video_subscription_;
     std::shared_ptr<ScopedSubscription> audio_subscription_;
     std::shared_ptr<ScopedSubscription> client_connected_subscription_;
@@ -173,4 +157,4 @@ private:
     std::atomic_bool recording_{false};
 };
 
-}  // namespace px::render
+} // namespace px::render

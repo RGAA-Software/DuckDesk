@@ -6,7 +6,7 @@ Render 当前的大多数功能都是产品固定能力，不需要独立发现�
 数据源、数据处理器和数据观察者等插件能力，但将“插件能力”和“DLL 交付形态”分开：
 
 - 除 WebRTC 外，当前有效的 Render 功能改为静态模块并链接进 `px_render.exe`。
-- `net_rtc.dll` 和 `net_rtc_local.dll` 仍为动态库；它们与 WS、UDP、Relay 同属网络传输层，
+- `px_render_rtc_remote.dll` 和 `px_render_rtc.dll` 仍为动态库；它们与 WS、UDP、Relay 同属网络传输层，
   只是链接方式不同，不属于新的数据插件体系。
 - `mock_video_stream` 和 `obj_detector` 退出生产构建与发布。
 - 媒体数据按 Source -> Processor -> Encoder -> Sink/Observer 单向流动。
@@ -28,9 +28,10 @@ Render 当前的大多数功能都是产品固定能力，不需要独立发现�
 - `architecture/extensions/flow_node_plugin_registry.*` 是流程节点插件的显式注册和创建入口，由 `RenderCompositionRoot` 持有；factory 在锁外执行，
   创建时校验注册 id、声明 role 和具体 capability 类型，不使用静态自动注册或目录扫描。
 - `FlowNodePlugin` 只表示单向工作流节点契约，“plugin”不再表示 DLL。内建模块继续使用具体类型和 composition-root 注入，不为了统一命名而继承它。
-- WebRTC 仍通过 `net_rtc.dll` / `net_rtc_local.dll` 动态交付，并位于 WS、UDP、Relay 同一网络层。当前仓库约束要求保留已建立的
-  `GetInstance`/loader-owned singleton ABI；该 ABI 只封闭在 `WebRtcLibrary` compatibility adapter 内，业务侧不把 WebRTC 当流程节点插件或通用网络接口。
-- 若将来要替换 WebRTC DLL ABI，必须单独立项并进行 WebRTC 专项评审；不得在本次智能指针或协程迁移中顺带改变实例身份、卸载时机和 callback ABI。
+- WebRTC 通过 `px_render_rtc_remote.dll` / `px_render_rtc.dll` 动态交付，并位于 WS、UDP、Relay 同一网络层；Render 直接链接 DLL import library，
+  通过具体 `WebRtcTransportHandle` 使用，不存在 `GetInstance`、目录扫描或 loader-owned singleton。
+- `webrtc.lib` 只允许由 WebRTC DLL target 私有链接，不能进入 `px_render.exe`；完整迁移决定见
+  `docs/webrtc_direct_cpp_dll_migration_plan.md`。
 
 ## 2. 非目标
 
@@ -73,8 +74,8 @@ RenderCompositionRoot
           +-- WsTransport                 built-in
           +-- UdpTransport                built-in
           +-- RelayTransport              built-in
-          +-- WebRtcLibrary/net_rtc       DLL
-          `-- WebRtcLibrary/net_rtc_local DLL
+          +-- WebRtcTransportHandle/net_rtc       DLL
+          `-- WebRtcTransportHandle/net_rtc_local DLL
 ```
 
 ### 3.1 数据面
@@ -148,9 +149,8 @@ Transport 只负责连接、收发、队列和协议边界。控制权限、take
 | `net_rtc`、`net_rtc_local` | Network Transport | 现有 DLL |
 | `mock_video_stream`、`obj_detector` | 无产品用途 | 退出生产构建和发布 |
 
-两个 WebRTC DLL 保持现有二进制身份、`GetInstance` 契约和卸载时机，但该契约只允许
-存在于动态库实现与 `webrtc_library_host.cpp` 的最小兼容边界。Registry、消息路由、统计、
-生命周期和测试均只能使用具体 `WebRtcLibrary`；不得把 WebRTC 放回通用插件集合。
+两个 WebRTC DLL 保持现有二进制身份，通过具体 C++ factory 和 import library 直连。Registry、消息路由、统计、生命周期和测试均只能使用
+具体 `WebRtcTransportHandle`；不得恢复 `GetInstance`，也不得把 WebRTC 放回通用插件集合。
 
 ## 5. 建议目录
 
@@ -182,7 +182,7 @@ src/px_render/
 |   |-- ws_transport.*
 |   |-- udp_transport.*
 |   |-- relay_transport.*
-|   `-- webrtc_library.*
+|   `-- webrtc_transport_host.*
 |-- diagnostics/
 |   |-- render_log_context.*
 |   |-- render_error.*
@@ -208,8 +208,7 @@ src/px_render/
   `NOLINT(gammaray-raw-pointer-boundary)` 并说明 ABI 和生命周期原因。
 - 上述 marker 不允许用于新项目 API、普通局部变量、对象状态或异步捕获。
 
-现有 `GetInstance` 和 libwebrtc 借用指针是仓库规定的兼容例外。本计划不新增同类表示，
-也不把这些值传出兼容 host。
+libwebrtc 借用指针只允许留在专用 adapter 内。本计划不新增同类表示，也不把这些值传出 WebRTC DLL。
 
 ### 6.2 所有权表
 
@@ -346,21 +345,19 @@ ConnectionInstanceId、StreamId 和 ChannelKind。不再遍历所有 transport �
 
 ### 9.2 WebRTC 动态边界
 
-`WebRtcLibrary` 是网络层具体组件，不定义新的通用虚接口。`WebRtcLibraryHost` 在其
-`.cpp` 内部封闭现有 ABI：
+`WebRtcTransportHandle` 是网络层具体组件，不定义新的通用虚接口。`WebRtcTransportHost` 在其 `.cpp` 内持有直接链接的具体 DLL 对象：
 
 ```text
 NetworkTransportHub
         |
         v
-WebRtcLibrary --shared ownership--> WebRtcLibraryHost private state
+WebRtcTransportHandle --shared ownership--> WebRtcTransportHost private state
                                       |
-                                      `-- existing GetInstance ABI
+                                      `-- concrete C++ DLL factory/import library
 ```
 
-旧裸实例只能留在动态库导出函数和 host `.cpp` 的兼容实现中，不进入 Registry、
-Composition root、coroutine、callback capture、
-route、service 或 frame。DLL callback 到达项目代码后立即复制为 owned/value 数据。
+不存在裸实例或运行时符号解析。具体 DLL 对象不进入 Registry 之外的业务依赖、coroutine 或 callback capture；DLL callback 到达项目代码后立即
+复制为 owned/value 数据。
 需要等待结果时，exe 使用 `PxAsyncOneShot` 把现有 callback 转为 awaitable；不把 awaitable
 跨 DLL 导出。
 
@@ -708,22 +705,20 @@ UserProxy、UDP admission 和 direct session。先剥离业务职责，再改变
 ### 阶段 8：WebRTC 网络层收口
 
 将两个 WebRTC DLL 从通用插件广播中移出，只由 NetworkTransportHub 使用；callback
-统一进入 NetworkIngress，service 请求使用 awaitable。保留既有 DLL ABI、实例身份和
-进程生命周期契约。
+统一进入 NetworkIngress，service 请求使用 awaitable。主程序通过 import library 直接链接 DLL，并保持 DLL 的进程级生命周期。
 
 ### 阶段 9：删除旧插件框架
 
 当最后一个内部 DLL 迁移完成后，删除目录扫描、`AttachPlugin`、`AttachNetPlugin`、
 `GetPluginById`、具名 getter、UUID 业务路由、三个 Plugin Router、内部模块
-`GetInstance`、每插件 `PxPluginContext` 和非 WebRTC 发布规则。最终动态加载只处理固定的
-WebRTC DLL，不执行目录中的任意 DLL。
+`GetInstance`、每插件 `PxPluginContext` 和旧的通用发布规则。WebRTC 由 Windows loader 根据 import table 加载，不执行插件目录扫描。
 
 ### 阶段 10：网络控制面协程化
 
 按 `docs/render_network_coroutine_migration_plan.md` 实施 typed bounded mailbox、awaitable connection workflow、generation-aware reconnect、
 owned receive loop
 和根 StopAsync。先迁移 RenderServiceClient，再迁移 WsPanelClient、OBS IPC、WS/HTTP 和 UDP 控制面，最后修正 Registry/RdApplication 关闭顺序，并保证 WebRTC callback
-静默后才卸载动态库。底层 asio2 callback 只允许执行弱生命周期检查、owned 数据复制和 typed event 发布；UDP 高频 packet 不建立逐包 coroutine。
+在对象销毁前静默；DLL 本身由进程退出卸载。底层 asio2 callback 只允许执行弱生命周期检查、owned 数据复制和 typed event 发布；UDP 高频 packet 不建立逐包 coroutine。
 
 ## 12. 详细测试方案
 
@@ -827,7 +822,7 @@ src/px_render/tests/
 |   |-- test_module_scope_lifecycle.cpp
 |   |-- test_pipeline_subscription_lifecycle.cpp
 |   |-- test_network_transport_lifecycle.cpp
-|   `-- test_webrtc_library_lifecycle.cpp
+|   `-- test_webrtc_transport_lifecycle.cpp
 |-- integration/
 |   |-- test_video_pipeline.cpp
 |   |-- test_audio_pipeline.cpp
@@ -1040,7 +1035,7 @@ WS、UDP、Relay 使用 loopback/fake socket 边界验证：
 - 单个 transport 故障不影响其他 transport。
 
 WebRTC 不提供 fake interface。其纯业务逻辑在 NetworkIngress、SessionService 和
-OutboundMediaDispatcher 测试；DLL 本身通过具体 `WebRtcLibrary` 组件测试和现有 DLL
+OutboundMediaDispatcher 测试；DLL 本身通过具体 `WebRtcTransportHandle` 组件测试和现有 DLL
 lifecycle 测试验证。
 
 ### 12.8 L3 进程内集成测试
@@ -1107,7 +1102,7 @@ processor chain、软件 encoder 和多个 test Sink。验证：
 | WS send queue full | WsTransport | 仅该 route backpressure/drop | `TRANSPORT_SEND_QUEUE_FULL` |
 | UDP short write/loss | UdpTransport | 统计并按现有策略恢复/FEC | transport window counters |
 | Relay disconnect | RelayTransport | 有界重连，route generation 更新 | disconnected/reconnecting/recovered |
-| WebRTC DLL 缺失 | WebRtcLibrary startup | RTC 标记不可用；其他 transport 可启动 | `TRANSPORT_RTC_LIBRARY_LOAD_FAILED` |
+| WebRTC DLL 缺失 | WebRtcTransportHandle startup | RTC 标记不可用；其他 transport 可启动 | `TRANSPORT_RTC_LIBRARY_LOAD_FAILED` |
 | WebRTC 迟到 callback | compatibility boundary | owner/generation 失效后丢弃 | debug/summary，不访问已释放对象 |
 | Service 永不响应 | Awaitable workflow | deadline 失败并清理 registry | `WORKFLOW_DEADLINE_EXCEEDED` |
 | callback 重复完成 | Async operation | 第一次生效，第二次拒绝 | duplicate completion counter |
@@ -1224,7 +1219,7 @@ WARN/ERROR。调用链不得为同一个 code 输出多条相同主错误。
 - 工作集和 handle 数不得无解释增长超过 5%；停止后应回到预定稳态范围。
 - 线程数不得高于旧架构基线；目标是消除每插件 context 后明显下降。
 - 所有队列 high watermark 低于容量；达到容量必须有对应 drop/backpressure 证据。
-- 最终不存在 `rd_plugins`；仅两个 WebRTC 动态网络库位于 `deps/network`，运行目录总
+- 最终不存在 `rd_plugins`；两个 WebRTC 动态网络库与 `px_render.exe` 位于同一目录，运行目录总
   DLL 大小按实际结果登记。
 
 如固定硬件的自然波动超过上述门槛，先通过阶段 0 数据校准阈值并记录理由，不能在看到

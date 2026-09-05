@@ -1,6 +1,7 @@
 
 #include "gdi_capture_source.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
+#include "app/app_messages.h"
+#include "px_render/architecture/events/render_event.h"
 #include "px_common_new/log.h"
 #include "px_common_new/file.h"
 #include "px_common_new/image.h"
@@ -291,16 +292,16 @@ namespace px
     void GdiCaptureSource::CreateCaptures() {
         EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, (LPARAM)this);
 
-        //CaptureMonitorInfo cap_mon_info;
-        //cap_mon_info.virtual_desktop_left_ = GetSystemMetrics(SM_XVIRTUALSCREEN);
-        //cap_mon_info.virtual_desktop_top_ = GetSystemMetrics(SM_YVIRTUALSCREEN);
-        //cap_mon_info.virtual_desktop_width_ = GetSystemMetrics(SM_CXVIRTUALSCREEN);
-        //cap_mon_info.virtual_desktop_height_ = GetSystemMetrics(SM_CYVIRTUALSCREEN);
-        //cap_mon_info.virtual_desktop_width_ = MathHelper::AlignTo4Bytes(cap_mon_info.virtual_desktop_width_); // 直接4字节对齐, 方便后面直接进行内存copy,不然还得进行 '行' 内存拷贝
-        //LOGI("cap_mon_info.virtual_desktop_left_: {}, cap_mon_info.virtual_desktop_top_: {}, ", cap_mon_info.virtual_desktop_left_, cap_mon_info.virtual_desktop_top_);
-        //LOGI("cap_mon_info.virtual_desktop_width_: {}, cap_mon_info.virtual_desktop_height_: {}, ", cap_mon_info.virtual_desktop_width_, cap_mon_info.virtual_desktop_height_);
-        //cap_mon_info.name_ = kVirtualDesktopNameSign;
-        //gdi_capture_ = GdiCapture::Make(this, cap_mon_info);
+        // CaptureMonitorInfo cap_mon_info;
+        // cap_mon_info.virtual_desktop_left_ = GetSystemMetrics(SM_XVIRTUALSCREEN);
+        // cap_mon_info.virtual_desktop_top_ = GetSystemMetrics(SM_YVIRTUALSCREEN);
+        // cap_mon_info.virtual_desktop_width_ = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+        // cap_mon_info.virtual_desktop_height_ = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+        // cap_mon_info.virtual_desktop_width_ = MathHelper::AlignTo4Bytes(cap_mon_info.virtual_desktop_width_); // 直接4字节对齐,
+        // 方便后面直接进行内存copy,不然还得进行 '行' 内存拷贝 LOGI("cap_mon_info.virtual_desktop_left_: {}, cap_mon_info.virtual_desktop_top_: {}, ",
+        // cap_mon_info.virtual_desktop_left_, cap_mon_info.virtual_desktop_top_); LOGI("cap_mon_info.virtual_desktop_width_: {},
+        // cap_mon_info.virtual_desktop_height_: {}, ", cap_mon_info.virtual_desktop_width_, cap_mon_info.virtual_desktop_height_); cap_mon_info.name_
+        // = kVirtualDesktopNameSign; gdi_capture_ = GdiCapture::Make(this, cap_mon_info);
 
         CalculateVirtualDeskInfo();
     }
@@ -340,11 +341,11 @@ namespace px
 
     void GdiCaptureSource::NotifyCaptureMonitorInfo() {
         if (sorted_monitors_.empty()) {
-            LOGI("==> Sorted Monitor's empty, ignore the PxPluginCapturingMonitorInfoEvent");
+            LOGI("==> Sorted Monitor's empty, ignore the CaptureMonitorInfoChangedEvent");
             return;
         }
-        const auto event = std::make_shared<PxPluginCapturingMonitorInfoEvent>();
-        this->EmitCompatibilityEvent(event);
+        const auto event = std::make_shared<CaptureMonitorInfoChangedEvent>();
+        this->EmitEvent(event);
     }
 
     std::vector<SupportedResolution> GdiCaptureSource::GetSupportedResolutions(const std::wstring& name) {
@@ -395,7 +396,8 @@ namespace px
             return;
         }
 
-        int far_left = sorted_monitors_[0].left_, far_top = sorted_monitors_[0].top_, far_right = sorted_monitors_[0].right_, far_bottom = sorted_monitors_[0].bottom_;
+        int far_left = sorted_monitors_[0].left_, far_top = sorted_monitors_[0].top_, far_right = sorted_monitors_[0].right_,
+            far_bottom = sorted_monitors_[0].bottom_;
 
         for (auto& info : sorted_monitors_) {
 

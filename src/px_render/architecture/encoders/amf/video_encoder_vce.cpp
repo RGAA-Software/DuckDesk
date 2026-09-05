@@ -9,7 +9,7 @@
 #include "d3d_texture_debug.h"
 #include "px_encoder_new/encoder_config.h"
 #include "px_common_new/string_util.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/architecture/events/render_event.h"
 #include "amf_video_encoder.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
 #include <combaseapi.h>
@@ -393,17 +393,18 @@ namespace px
 
         SkipAUD(&p, &length);
 
-        //LOGI("VCE encode latency: {} ms. Size={} bytes frameIndex={}, length : {}", double(current_time - start_time) / MILLISEC_TIME, (int)buffer->GetSize(), frameIndex, length);
+        // LOGI("VCE encode latency: {} ms. Size={} bytes frameIndex={}, length : {}", double(current_time - start_time) / MILLISEC_TIME,
+        // (int)buffer->GetSize(), frameIndex, length);
 
         auto encoded_data = Data::Make((char*)p, length);
-        auto event = std::make_shared<PxPluginEncodedVideoFrameEvent>();
+        auto event = std::make_shared<EncodedVideoFrameEvent>();
         event->type_ = [=]() {
             if (encoder_config_.codec_type == EVideoCodecType::kHEVC) {
-                return PxPluginEncodedVideoType::kH265;
+                return EncodedVideoType::kH265;
             } else if (encoder_config_.codec_type == EVideoCodecType::kH264) {
-                return PxPluginEncodedVideoType::kH264;
+                return EncodedVideoType::kH264;
             } else {
-                return PxPluginEncodedVideoType::kH264;
+                return EncodedVideoType::kH264;
             }
         }();
         event->data_ = encoded_data;
@@ -420,7 +421,7 @@ namespace px
             }
         }
         if (const auto owner = owner_.lock()) {
-            owner->EmitCompatibilityEvent(event);
+            owner->EmitEvent(event);
         }
 
         fps_stat_->Tick();

@@ -17,8 +17,7 @@
 
 namespace px::render {
 
-inline constexpr std::string_view kLivePusherModuleId =
-    "f158b253-40a9-4a4a-8fb7-2b595d9f4f6f";
+inline constexpr std::string_view kLivePusherModuleId = "f158b253-40a9-4a4a-8fb7-2b595d9f4f6f";
 
 struct LivePusherOptions final {
     bool enabled{false};
@@ -40,34 +39,25 @@ struct LivePusherSnapshot final {
 };
 
 class LivePushProcessor {
-public:
+  public:
     virtual ~LivePushProcessor() = default;
-    virtual void ProcessVideo(
-        const std::shared_ptr<const EncodedVideoFrame>& frame) = 0;
-    virtual void ProcessAudio(
-        const std::shared_ptr<const CapturedAudioFrame>& frame) = 0;
+    virtual void ProcessVideo(const std::shared_ptr<const EncodedVideoFrame>& frame) = 0;
+    virtual void ProcessAudio(const std::shared_ptr<const CapturedAudioFrame>& frame) = 0;
     [[nodiscard]] virtual bool IsPublishing() const = 0;
     virtual void Close() = 0;
 };
 
-class LivePusherSink final
-    : public std::enable_shared_from_this<LivePusherSink> {
-public:
+class LivePusherSink final : public std::enable_shared_from_this<LivePusherSink> {
+  public:
     using KeyframeRequester = std::function<void()>;
     using Completion = std::function<void(PxResult<void>)>;
-    using ProcessorFactory = std::function<std::shared_ptr<LivePushProcessor>(
-        const LivePusherOptions& options,
-        const KeyframeRequester& request_keyframe)>;
+    using ProcessorFactory =
+        std::function<std::shared_ptr<LivePushProcessor>(const LivePusherOptions& options, const KeyframeRequester& request_keyframe)>;
 
-    [[nodiscard]] static std::shared_ptr<LivePusherSink> Create(
-        std::shared_ptr<EncodedMediaBus> media_bus,
-        LivePusherOptions options,
-        KeyframeRequester request_keyframe,
-        ProcessorFactory processor_factory);
+    [[nodiscard]] static std::shared_ptr<LivePusherSink> Create(std::shared_ptr<EncodedMediaBus> media_bus, LivePusherOptions options,
+                                                                KeyframeRequester request_keyframe, ProcessorFactory processor_factory);
 
-    LivePusherSink(std::shared_ptr<EncodedMediaBus> media_bus,
-                   LivePusherOptions options,
-                   KeyframeRequester request_keyframe,
+    LivePusherSink(std::shared_ptr<EncodedMediaBus> media_bus, LivePusherOptions options, KeyframeRequester request_keyframe,
                    ProcessorFactory processor_factory);
     ~LivePusherSink();
 
@@ -76,14 +66,13 @@ public:
 
     [[nodiscard]] BuiltinModuleRegistration MakeRegistration();
     [[nodiscard]] ModuleLifecycleResult Start();
-    [[nodiscard]] static PxAwaitable<ModuleLifecycleResult> StopAsync(
-        const std::shared_ptr<LivePusherSink>& owner,
-        std::chrono::steady_clock::time_point deadline);
+    [[nodiscard]] static PxAwaitable<ModuleLifecycleResult> StopAsync(std::shared_ptr<LivePusherSink> owner,
+                                                                      std::chrono::steady_clock::time_point deadline);
     [[nodiscard]] ModuleLifecycleResult SetEnabled(bool enabled);
     void ReportPerformance();
     [[nodiscard]] LivePusherSnapshot Snapshot() const;
 
-private:
+  private:
     enum class WorkType { kVideo, kAudio, kClose, kShutdown };
     struct WorkItem final {
         WorkType type{WorkType::kClose};
@@ -143,8 +132,6 @@ private:
     std::atomic_bool enabled_{false};
 };
 
-[[nodiscard]] std::string BuildLivePublishUrl(
-    std::string url,
-    const std::string& live_stream_id);
+[[nodiscard]] std::string BuildLivePublishUrl(std::string url, const std::string& live_stream_id);
 
-}  // namespace px::render
+} // namespace px::render

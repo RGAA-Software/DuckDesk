@@ -38,7 +38,7 @@ cmake --build "%BUILD_DIR%" --config RelWithDebInfo --parallel %PARALLEL% --targ
 if errorlevel 1 exit /b %errorlevel%
 
 set "CLIENT_OUT=%BUILD_DIR%\src\px_client\px_client.exe"
-set "RTC_OUT=%BUILD_DIR%\src\px_deps\px_webrtc_client\px_rtc_client.dll"
+set "RTC_OUT=%BUILD_DIR%\src\px_deps\px_webrtc_client\px_client_rtc.dll"
 set "DIST_DIR=%BUILD_DIR%\dist"
 set "FT_DIST_DIR=%DIST_DIR%\deps\ct_plugins"
 set "LANG_SRC=%REPO_ROOT%\src\px_panel\resources\language"

@@ -11,7 +11,7 @@
 #include "ws_transport.h"
 #include "ws_callback_workflow.h"
 #include "px_render/network/transport_types.h"
-#include "px_render/plugin_interface/px_plugin_events.h"
+#include "px_render/architecture/events/render_event.h"
 #include <algorithm>
 #include <chrono>
 #include <vector>
@@ -167,9 +167,9 @@ namespace px
             return;
         }
 
-        auto event = std::make_shared<PxPluginPanelStreamMessage>();
+        auto event = std::make_shared<PanelStreamMessageEvent>();
         event->body_ = Data::From(body);
-        transport->EmitCompatibilityEvent(event);
+        transport->EmitEvent(event);
 
         SendOkJson(resp, "");
     }
@@ -210,11 +210,11 @@ namespace px
         if (logical_session_id.empty() || binding_id.empty()) {
             return;
         }
-        const auto event = std::make_shared<PxPluginCloseLogicalSessionBindingEvent>();
+        const auto event = std::make_shared<CloseLogicalSessionBindingEvent>();
         event->logical_session_id_ = logical_session_id;
         event->binding_id_ = binding_id;
         if (const auto transport = transport_.lock()) {
-            transport->EmitCompatibilityEvent(event);
+            transport->EmitEvent(event);
         }
     }
 
@@ -332,7 +332,7 @@ namespace px
                         return false;
                     }
                     const auto event =
-                        std::make_shared<PxPluginRedeemConnectionTicketEvent>();
+                        std::make_shared<RedeemConnectionTicketEvent>();
                     event->ticket_ = ticket;
                     event->client_nonce_ = body_nonce;
                     event->instance_id_ = body_instance_id;
@@ -368,7 +368,7 @@ namespace px
                                 .allow_takeover_ = allow_takeover,
                             }));
                     };
-                    active_plugin->EmitCompatibilityEvent(event);
+                    active_plugin->EmitEvent(event);
                     return true;
                 },
                 std::chrono::steady_clock::now() + std::chrono::seconds(3),
@@ -536,13 +536,13 @@ namespace px
                     return false;
                 }
                 const auto event =
-                    std::make_shared<PxPluginAdmitLogicalSessionEvent>();
+                    std::make_shared<AdmitLogicalSessionEvent>();
                 event->grant_ = admission_grant;
                 event->transport_ = LogicalSessionTransport::kRtcLocal;
                 event->binding_id_ = admitted_binding_id;
                 event->takeover_ = takeover_requested;
                 event->callback_ = std::move(completion);
-                active_plugin->EmitCompatibilityEvent(event);
+                active_plugin->EmitEvent(event);
                 return true;
             },
             std::chrono::steady_clock::now() + std::chrono::seconds(3),

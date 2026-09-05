@@ -45,7 +45,7 @@ namespace px
             auto lbl = new TcLabel(this);
             lbl->setStyleSheet(R"(font-weight: 500; padding-left: 8px; color: #555555;)");
             if (!item_info_->IsHeaderItem()) {
-                lbl->setText(item_info_->conn_type_.c_str());
+                lbl->setText(item_info_->connection_type_.c_str());
             }
             else {
                 lbl->SetTextId("id_conn_type");

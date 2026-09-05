@@ -37,7 +37,7 @@ namespace px
         }
         auto msg = Data::Make(data.data(), data.size());
         transport->ReceiveClientEventImmediately(
-            true, socket_fd, NetPluginType::kWebSocket, nt_channel_type_,
+            true, socket_fd, TransportKind::kWebSocket, channel_type_,
             std::move(msg), binding_id_);
     }
 

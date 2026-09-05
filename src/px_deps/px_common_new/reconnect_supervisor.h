@@ -34,8 +34,7 @@ struct PxReconnectSupervisorStatistics final {
 };
 
 using PxReconnectStartAttempt = std::function<PxResult<void>(std::uint64_t)>;
-using PxReconnectStopAttempt =
-    std::function<PxAwaitable<PxResult<void>>(std::chrono::steady_clock::time_point)>;
+using PxReconnectStopAttempt = std::function<PxAwaitable<PxResult<void>>(std::chrono::steady_clock::time_point)>;
 using PxReconnectReadyHandler = std::function<void(std::uint64_t)>;
 using PxReconnectLostHandler = std::function<void(std::uint64_t, const PxAsyncError&, bool)>;
 using PxReconnectTerminalHandler = std::function<void(std::uint64_t, const PxAsyncError&)>;
@@ -50,22 +49,16 @@ struct PxReconnectSupervisorHooks final {
 
 class PxReconnectSupervisor final {
   public:
-    static std::shared_ptr<PxReconnectSupervisor> Create(
-        const std::shared_ptr<PxAsyncRuntime>& runtime,
-        PxReconnectSupervisorOptions options);
+    static std::shared_ptr<PxReconnectSupervisor> Create(const std::shared_ptr<PxAsyncRuntime>& runtime, PxReconnectSupervisorOptions options);
 
-    PxReconnectSupervisor(
-        PxReconnectSupervisorOptions options,
-        std::shared_ptr<PxConnectionAttemptWorkflow> workflow,
-        std::shared_ptr<PxReconnectBackoff> backoff);
+    PxReconnectSupervisor(PxReconnectSupervisorOptions options, std::shared_ptr<PxConnectionAttemptWorkflow> workflow,
+                          std::shared_ptr<PxReconnectBackoff> backoff);
     ~PxReconnectSupervisor();
 
     PxReconnectSupervisor(const PxReconnectSupervisor&) = delete;
     PxReconnectSupervisor& operator=(const PxReconnectSupervisor&) = delete;
 
-    [[nodiscard]] static PxAwaitable<void> Run(
-        std::shared_ptr<PxReconnectSupervisor> supervisor,
-        PxReconnectSupervisorHooks hooks);
+    [[nodiscard]] static PxAwaitable<void> Run(std::shared_ptr<PxReconnectSupervisor> supervisor, PxReconnectSupervisorHooks hooks);
 
     [[nodiscard]] bool MarkReady();
     [[nodiscard]] bool MarkReady(std::uint64_t generation);
@@ -82,13 +75,10 @@ class PxReconnectSupervisor final {
 
   private:
     [[nodiscard]] static bool IsStopResult(const PxAsyncError& error);
-    [[nodiscard]] static PxAwaitable<bool> ResetAdapterUntilStopped(
-        const std::shared_ptr<PxReconnectSupervisor>& supervisor,
-        const PxReconnectStopAttempt& stop_attempt);
+    [[nodiscard]] static PxAwaitable<bool> ResetAdapterUntilStopped(std::shared_ptr<PxReconnectSupervisor> supervisor,
+                                                                    PxReconnectStopAttempt stop_attempt);
     [[nodiscard]] PxReconnectBackoffStep NextBackoff();
-    [[nodiscard]] PxResult<void> StartAttemptIfRunning(
-        const PxReconnectStartAttempt& start_attempt,
-        std::uint64_t generation);
+    [[nodiscard]] PxResult<void> StartAttemptIfRunning(const PxReconnectStartAttempt& start_attempt, std::uint64_t generation);
     void LogConnectionLost(std::uint64_t generation, const PxAsyncError& failure);
     void LogConnectionRecovered(std::uint64_t generation);
 
