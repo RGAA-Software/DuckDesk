@@ -36,6 +36,7 @@
 #include "px_common_new/http_client.h"
 #include "px_common_new/win32/firewall_helper.h"
 #include "px_common_new/shared_preference.h"
+#include "px_common_new/string_util.h"
 #include "px_common_new/message_notifier.h"
 #include "px_console_client/console_stream.h"
 #include "px_console_client/console_device_api.h"
@@ -51,9 +52,6 @@
 #include "render_panel/upgrade/upgrade_helper.h"
 
 #include <shellapi.h>
-
-#include "px_common_new/const_auto.h"
-
 using namespace nlohmann;
 
 
@@ -173,7 +171,7 @@ namespace px
         console_scanner_->StartUdpReceiver(30501);
 
         // update device id
-        if (cat comp = grApp->GetCompanion(); comp) {
+        if (const auto comp = grApp->GetCompanion(); comp) {
             comp->UpdateDeviceId(settings_->GetDeviceId());
         }
 
@@ -431,7 +429,7 @@ namespace px
             }
 
             self->settings_->SetDeviceId(device->device_id_);
-            if (cat comp = grApp->GetCompanion(); comp) {
+            if (const auto comp = grApp->GetCompanion(); comp) {
                 comp->UpdateDeviceId(device->device_id_);
             }
             self->settings_->SetDeviceName(device->device_name_);
@@ -465,28 +463,26 @@ namespace px
         auto render_path = qApp->applicationDirPath() + "/" + kPxRenderName.c_str();
         auto client_inner_path = qApp->applicationDirPath() + "/" + kPxClientName.c_str();
         auto service_path = qApp->applicationDirPath() + "/" + kPxServiceName.c_str();
-        auto fh = FirewallHelper::Instance();
+        FirewallHelper::RemoveProgramFromFirewall("PxPanelIn");
+        FirewallHelper::RemoveProgramFromFirewall("PxPanelOut");
+        FirewallHelper::RemoveProgramFromFirewall("PxRenderIn");
+        FirewallHelper::RemoveProgramFromFirewall("PxRenderOut");
+        FirewallHelper::RemoveProgramFromFirewall("PxClientIn");
+        FirewallHelper::RemoveProgramFromFirewall("PxClientOut");
+        FirewallHelper::RemoveProgramFromFirewall("PxServiceIn");
+        FirewallHelper::RemoveProgramFromFirewall("PxServiceOut");
+        FirewallHelper::RemoveProgramFromFirewall("PxRtcLocalUdpIn");
 
-        fh->RemoveProgramFromFirewall("PxPanelIn");
-        fh->RemoveProgramFromFirewall("PxPanelOut");
-        fh->RemoveProgramFromFirewall("PxRenderIn");
-        fh->RemoveProgramFromFirewall("PxRenderOut");
-        fh->RemoveProgramFromFirewall("PxClientIn");
-        fh->RemoveProgramFromFirewall("PxClientOut");
-        fh->RemoveProgramFromFirewall("PxServiceIn");
-        fh->RemoveProgramFromFirewall("PxServiceOut");
-        fh->RemoveProgramFromFirewall("PxRtcLocalUdpIn");
-
-        fh->AddProgramToFirewall(RulesInfo("PxPanelIn", app_path.toStdString(), "", 1));
-        fh->AddProgramToFirewall(RulesInfo("PxPanelOut", app_path.toStdString(), "", 2));
-        fh->AddProgramToFirewall(RulesInfo("PxRenderIn", render_path.toStdString(), "", 1));
-        fh->AddProgramToFirewall(RulesInfo("PxRenderOut", render_path.toStdString(), "", 2));
-        fh->AddProgramToFirewall(RulesInfo("PxClientIn", client_inner_path.toStdString(), "", 1));
-        fh->AddProgramToFirewall(RulesInfo("PxClientOut", client_inner_path.toStdString(), "", 2));
-        fh->AddProgramToFirewall(RulesInfo("PxServiceIn", service_path.toStdString(), "", 1));
-        fh->AddProgramToFirewall(RulesInfo("PxServiceOut", service_path.toStdString(), "", 2));
+        FirewallHelper::AddProgramToFirewall(RulesInfo("PxPanelIn", app_path.toStdString(), "", 1));
+        FirewallHelper::AddProgramToFirewall(RulesInfo("PxPanelOut", app_path.toStdString(), "", 2));
+        FirewallHelper::AddProgramToFirewall(RulesInfo("PxRenderIn", render_path.toStdString(), "", 1));
+        FirewallHelper::AddProgramToFirewall(RulesInfo("PxRenderOut", render_path.toStdString(), "", 2));
+        FirewallHelper::AddProgramToFirewall(RulesInfo("PxClientIn", client_inner_path.toStdString(), "", 1));
+        FirewallHelper::AddProgramToFirewall(RulesInfo("PxClientOut", client_inner_path.toStdString(), "", 2));
+        FirewallHelper::AddProgramToFirewall(RulesInfo("PxServiceIn", service_path.toStdString(), "", 1));
+        FirewallHelper::AddProgramToFirewall(RulesInfo("PxServiceOut", service_path.toStdString(), "", 2));
         // WebRTC local direct connection (net_rtc_local), UDP port range: 60430-60490
-        fh->AddPortToFirewall("PxRtcLocalUdpIn", "60430-60490", 17 /*UDP*/, 1 /*in*/);
+        FirewallHelper::AddPortToFirewall("PxRtcLocalUdpIn", "60430-60490", 17 /*UDP*/, 1 /*in*/);
         auto fm_diff = TimeUtil::GetCurrentTimestamp()-begin_fm_ts;
         LOGI("** Firewall init used: {}ms", fm_diff);
         LOGI("app path: {}", app_path.toStdString());
@@ -692,7 +688,7 @@ namespace px
     }
 
     bool PxApplication::CanConnectConsoleServer() {
-        cat r = px_console::ConsoleDeviceApi::Ping(settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), this->GetAppkey());
+        const auto r = px_console::ConsoleDeviceApi::Ping(settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), this->GetAppkey());
         return r.has_value() ? r.value() : false;
     }
 

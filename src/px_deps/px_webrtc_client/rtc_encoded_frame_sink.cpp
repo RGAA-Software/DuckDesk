@@ -44,7 +44,7 @@ namespace px
         }
 
         const auto res = frame.resolution();
-        auto data = Data::Make((const char*)buffer->data(), (int)buffer->size());
+        auto data = Data::Copy(std::span<const char>{reinterpret_cast<const char*>(buffer->data()), buffer->size()});
 
         // one-time dump of the first bytes to confirm the bitstream is AnnexB(00 00 00 01)
         static bool dumped = false;

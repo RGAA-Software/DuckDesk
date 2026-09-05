@@ -119,16 +119,16 @@ namespace px
                 LONG bytes_to_write = numFramesAvailable * pwfx->nBlockAlign;
                 if (pData && bytes_to_write > 0) {
                     if (data_callback_) {
-                        auto data = Data::Make((char*)pData, bytes_to_write);
+                        auto data = Data::Copy(std::span<const char>{reinterpret_cast<const char*>(pData), bytes_to_write});
                         data_callback_(data);
                     }
 
                     if (split_data_callback_) {
-                        auto left_data = Data::Make(nullptr, bytes_to_write / 2);
-                        auto right_data = Data::Make(nullptr, bytes_to_write / 2);
+                        auto left_data = Data::Allocate( bytes_to_write / 2);
+                        auto right_data = Data::Allocate( bytes_to_write / 2);
                         for (int i = 0; i < bytes_to_write; i += 4) {
-                            memcpy((left_data->DataAddr() + i / 4 * 2), ((char*)pData + i), 2);
-                            memcpy((right_data->DataAddr() + i / 4 * 2), ((char*)pData + i + 2), 2);
+                            memcpy((left_data->MutableBytes().data() + i / 4 * 2), ((char*)pData + i), 2);
+                            memcpy((right_data->MutableBytes().data() + i / 4 * 2), ((char*)pData + i + 2), 2);
                         }
                         split_data_callback_(left_data, right_data);
                     }   

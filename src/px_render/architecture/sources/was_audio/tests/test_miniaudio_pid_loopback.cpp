@@ -13,6 +13,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <cstring>
 #include <thread>
 
 #include "miniaudio_audio_capture.h"
@@ -158,10 +159,12 @@ int main(int argc, char** argv) {
             return;
         }
         bytes += (uint64_t)d->Size();
-        const auto* s = reinterpret_cast<const int16_t*>(d->DataAddr());
-        const size_t n = d->Size() / sizeof(int16_t);
+        const auto pcm_bytes = d->Bytes();
+        const size_t n = pcm_bytes.size() / sizeof(int16_t);
         for (size_t i = 0; i < n; ++i) {
-            const int a = s[i] < 0 ? -s[i] : s[i];
+            int16_t sample{};
+            std::memcpy(&sample, pcm_bytes.data() + i * sizeof(sample), sizeof(sample));
+            const int a = sample < 0 ? -sample : sample;
             int prev = peak.load();
             while (a > prev && !peak.compare_exchange_weak(prev, a)) {
             }

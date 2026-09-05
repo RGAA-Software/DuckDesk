@@ -4,7 +4,7 @@
 
 #include "rtc_connection.h"
 #include "px_common_new/log.h"
-#include "px_common_new/webrtc_helper.h"
+#include "px_webrtc_client/webrtc_helper.h"
 #include "px_common_new/time_util.h"
 #include "px_common_new/thread.h"
 #include "peer_callback.h"

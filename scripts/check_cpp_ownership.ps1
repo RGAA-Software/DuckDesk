@@ -15,7 +15,7 @@ try {
         $files = & rg --files src | Where-Object {
             $_ -match '\.(cpp|cc|cxx|h|hpp)$' -and
             ($_ -notmatch '^src[\\/]px_deps[\\/]px_3rdparty[\\/]' -or
-             $_ -match '^src[\\/]px_deps[\\/]px_3rdparty[\\/]asio2[\\/]') -and
+             $_ -match '^src[\\/]px_deps[\\/]px_3rdparty[\\/]asio2[\\/]include[\\/]asio2[\\/]') -and
             $_ -notmatch '^src[\\/]px_deps[\\/]px_webrtc_client[\\/]'
         }
         foreach ($file in $files) {
@@ -65,7 +65,8 @@ try {
         if (-not $Staged) {
             $untrackedNativeFiles = & git ls-files --others --exclude-standard -- $nativeGlobs |
                 Where-Object {
-                    $_ -match '^(src|tests)[\\/]' -or $_ -notmatch '[\\/]'
+                    ($_ -match '^(src|tests)[\\/]' -or $_ -notmatch '[\\/]') -and
+                    $_ -notmatch '(^|[\\/])(?:\.cxx[^\\/]*|build(?:_[^\\/]*)?|target(?:_[^\\/]*)?)([\\/]|$)'
                 }
             foreach ($untrackedFile in $untrackedNativeFiles) {
                 $normalizedFile = $untrackedFile.Replace('\', '/')
@@ -76,6 +77,25 @@ try {
             }
         }
 
+        # Build the complete removed-line multiset before inspecting additions.
+        # A formatter can move an unchanged line into an earlier diff hunk, so a
+        # single forward pass would otherwise report it before seeing its removal.
+        $removedFile = ""
+        foreach ($line in $diffLines) {
+            if ($line -match '^\+\+\+ b/(.+)$') {
+                $removedFile = $Matches[1]
+                continue
+            }
+            if ($line -match '^-(?!---)' -and $removedFile) {
+                $normalizedRemoved = $line.Substring(1) -replace '\s+', ''
+                if (-not $removedCodeCountsByFile.ContainsKey($removedFile)) {
+                    $removedCodeCountsByFile[$removedFile] = @{}
+                }
+                $fileCounts = $removedCodeCountsByFile[$removedFile]
+                $fileCounts[$normalizedRemoved] = 1 + [int]$fileCounts[$normalizedRemoved]
+            }
+        }
+
         $currentFile = ""
         foreach ($line in $diffLines) {
             if ($line -match '^\+\+\+ b/(.+)$') {
@@ -83,13 +103,6 @@ try {
                 continue
             }
             if ($line -match '^-(?!---)') {
-                $removed = $line.Substring(1)
-                $normalizedRemoved = $removed -replace '\s+', ''
-                if (-not $removedCodeCountsByFile.ContainsKey($currentFile)) {
-                    $removedCodeCountsByFile[$currentFile] = @{}
-                }
-                $fileCounts = $removedCodeCountsByFile[$currentFile]
-                $fileCounts[$normalizedRemoved] = 1 + [int]$fileCounts[$normalizedRemoved]
                 continue
             }
             if ($line -notmatch '^\+(?!\+\+\+)') {
@@ -98,7 +111,7 @@ try {
             if ($currentFile -match '^third_party/' -or
                 $currentFile -match '^src/px_deps/px_webrtc_client/' -or
                 ($currentFile -match '^src/px_deps/px_3rdparty/' -and
-                 $currentFile -notmatch '^src/px_deps/px_3rdparty/asio2/')) {
+                 $currentFile -notmatch '^src/px_deps/px_3rdparty/asio2/include/asio2/')) {
                 continue
             }
             $added = $line.Substring(1)
@@ -115,6 +128,9 @@ try {
                     [System.Collections.Generic.List[string]]::new()
             }
             $addedCodeByFile[$currentFile].Add($added)
+            if ($added.Length -gt 150) {
+                $violations.Add("${currentFile}: line exceeds the project limit of 150 characters ($($added.Length)): $added")
+            }
             # Comment-only additions cannot introduce ownership or lifetime
             # behavior. Ignoring them also prevents prose such as "new path"
             # from being mistaken for a C++ new-expression.
@@ -137,8 +153,10 @@ try {
             $rawPointerAtLineStart = $added -match '^\s*(?:(?:static|const|constexpr|volatile|mutable|inline|virtual|typename)\s+)*(?:[A-Za-z_][A-Za-z0-9_:]*(?:\s*<[^;{}()=]+>)?|auto)\s*\*+\s*(?:const\s+)?[A-Za-z_][A-Za-z0-9_]*'
             $rawPointerParameter = $added -match '[\(,]\s*(?:const\s+)?(?:[A-Za-z_][A-Za-z0-9_:]*(?:\s*<[^;{}()=]+>)?|auto)\s*\*+\s*(?:const\s+)?[A-Za-z_][A-Za-z0-9_]*'
             $inferredRawPointer = $added -match '^\s*(?:const\s+)?auto\s+[A-Za-z_][A-Za-z0-9_]*\s*=.*(?:mutable_[A-Za-z0-9_]+\s*\(|(?:->|\.)Add\s*\()'
+            $isDereferenceReturn = $added -match '^\s*(?:co_)?return\s+\*'
+            $isTestAssertion = $added -match '^\s*(?:EXPECT|ASSERT)_[A-Z_]+'
             if (($rawPointerAtLineStart -or $rawPointerParameter -or $inferredRawPointer) -and
-                -not $isReviewedRawPointerBoundary) {
+                -not $isDereferenceReturn -and -not $isTestAssertion -and -not $isReviewedRawPointerBoundary) {
                 $violations.Add("${currentFile}: $added")
             }
             if ($added -match '\.release\s*\(\s*\)' -and
@@ -163,7 +181,7 @@ try {
         Write-Error ("C++ ownership check failed ({0} violation(s)):`n{1}" -f
             $violations.Count, ($violations -join "`n"))
     }
-    Write-Host "C++ ownership check passed: no new raw-pointer declarations, manual ownership, Qt parent ownership transfers, or [this] captures."
+    Write-Host "C++ quality check passed: no new raw-pointer declarations, manual ownership, Qt parent ownership transfers, [this] captures, or lines over 150 characters."
 }
 finally {
     Pop-Location

@@ -53,7 +53,7 @@ namespace px
         }
         if (audio_stream_) {
             int frames = data->Size() / 2 / 2;
-            audio_stream_->write(data->CStr(), frames, 10000000); // 10ms
+            audio_stream_->write(data->Bytes().data(), frames, 10000000); // 10ms
         }
     }
 

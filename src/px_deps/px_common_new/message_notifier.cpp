@@ -364,6 +364,7 @@ namespace px
         }
 
         void Stop(MessageBusStopMode mode) {
+            const bool called_from_runtime = runtime_->IsRuntimeThread();
             bool expected = false;
             const bool first_stop = stopping_.compare_exchange_strong(
                 expected, true, std::memory_order_acq_rel);
@@ -385,7 +386,7 @@ namespace px
                         stopped_.store(true, std::memory_order_release);
                     }
                 }
-                else if (IsDispatchThread()) {
+                else if (called_from_runtime) {
                     {
                         std::lock_guard lock(queue_mutex_);
                         stop_when_idle_ = true;
@@ -407,10 +408,13 @@ namespace px
                 }
             }
 
-            if (owns_runtime_) {
+            // A callback must never join its own runtime. The final callback
+            // completion releases the work guards through MaybeFinishDrainStop;
+            // a later external Stop/destructor performs the actual join.
+            if (owns_runtime_ && !called_from_runtime) {
                 runtime_->Join();
             }
-            if (!runtime_->IsRuntimeThread()) {
+            if (!called_from_runtime) {
                 stopped_.store(true, std::memory_order_release);
                 queue_idle_cv_.notify_all();
             }

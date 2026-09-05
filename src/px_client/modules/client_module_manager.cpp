@@ -12,6 +12,7 @@
 #include "px_common_new/folder_util.h"
 #include "px_common_new/log.h"
 #include "px_common_new/md5.h"
+#include "px_common_new/path_codec.h"
 #include "px_common_new/time_util.h"
 #include "px_message_new/proto_converter.h"
 
@@ -285,12 +286,17 @@ void ClientModuleManager::ReportFileTransferEnd(
 
 void ClientModuleManager::NotifyRecordingComplete(std::string directory) {
     if (const auto context = context_.lock()) {
-        const auto path = directory;
+        const auto native_path = PathFromUtf8(directory);
+        if (!native_path) {
+            LOGE("event=client.recording.invalid_directory stage=decode_utf8 error={}", native_path.Error().message);
+            return;
+        }
+        const auto path = native_path.Value();
         context->NotifyAppMessage(
             "Screen recording success",
             QString::fromStdString(directory),
             [path]() {
-                FolderUtil::OpenDir(PathFromUTF8(path));
+                FolderUtil::OpenDir(path);
             });
     }
 }

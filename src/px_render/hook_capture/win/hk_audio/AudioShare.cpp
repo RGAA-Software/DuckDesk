@@ -161,7 +161,7 @@ void AudioShare::SendIpc(const std::shared_ptr<State>& state, const Packet& pkt)
         return;
     }
     auto msg = CaptureMessageMaker::MakeIpcAudioFrameString(
-        pkt.data->CStr(), pkt.data->Size(), static_cast<uint32_t>(pkt.samples),
+        pkt.data->Bytes().data(), pkt.data->Size(), static_cast<uint32_t>(pkt.samples),
         static_cast<uint32_t>(pkt.channels), 16,
         state->ipc_frames.load(std::memory_order_relaxed));
     if (msg.empty()) {

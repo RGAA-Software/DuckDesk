@@ -11,7 +11,7 @@
 #include <modules/video_coding/codecs/h264/include/h264.h>
 #include <common_video/h264/h264_common.h>
 
-#include "px_common_new/webrtc_helper.h"
+#include "px_webrtc_client/webrtc_helper.h"
 
 namespace px {
 

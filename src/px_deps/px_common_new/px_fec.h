@@ -7,14 +7,27 @@
 #ifndef PX_FEC_H
 #define PX_FEC_H
 
+#include <cstdint>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "reedsolomon/rs.h"
 
-namespace px
-{
+namespace px {
+
+namespace detail {
+
+struct ReedSolomonCloser final {
+    void operator()(reed_solomon* codec) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): reed-solomon C ABI.
+        reed_solomon_release(codec);
+    }
+};
+
+using UniqueReedSolomon = std::unique_ptr<reed_solomon, ReedSolomonCloser>;
+
+}  // namespace detail
 
     // 所有保护块必须等长(P 字节);Encode 生成 parity 块,Decode 在缺失数 <= parity 数时
     // 原地填回缺失块。D + parity <= DATA_SHARDS_MAX(255) 由调用方保证。
@@ -23,69 +36,99 @@ namespace px
         // blocks: D 个等长数据块(每块 P 字节),返回 parity_count 个 P 字节校验块;失败返回空
         static std::vector<std::string> Encode(const std::vector<std::string>& blocks, int parity_count) {
             std::vector<std::string> parity;
-            const int data_shards = (int)blocks.size();
-            if (data_shards <= 0 || parity_count <= 0 || data_shards + parity_count > DATA_SHARDS_MAX) return parity;
+            const int data_shards = static_cast<int>(blocks.size());
+            if (data_shards <= 0 || parity_count <= 0 || data_shards + parity_count > DATA_SHARDS_MAX) {
+                return parity;
+            }
             const size_t block_size = blocks[0].size();
-            if (block_size == 0) return parity;
-            for (auto& b : blocks) {
-                if (b.size() != block_size) return parity;
+            if (block_size == 0) {
+                return parity;
+            }
+            for (const auto& block : blocks) {
+                if (block.size() != block_size) {
+                    return parity;
+                }
             }
             EnsureInit();
-            reed_solomon* rs = reed_solomon_new(data_shards, parity_count);
-            if (!rs) return parity;
+            const detail::UniqueReedSolomon codec{reed_solomon_new(data_shards, parity_count)};
+            if (!codec) {
+                return parity;
+            }
 
             parity.assign(parity_count, std::string(block_size, '\0'));
-            std::vector<unsigned char*> shards(data_shards + parity_count);
+            static_assert(sizeof(std::uintptr_t) == sizeof(unsigned char*));
+            std::vector<std::uintptr_t> shard_addresses(data_shards + parity_count);
             for (int i = 0; i < data_shards; i++) {
-                shards[i] = (unsigned char*)blocks[i].data();
+                shard_addresses[i] = reinterpret_cast<std::uintptr_t>(const_cast<char*>(blocks[i].data()));
             }
             for (int j = 0; j < parity_count; j++) {
-                shards[data_shards + j] = (unsigned char*)parity[j].data();
+                shard_addresses[data_shards + j] = reinterpret_cast<std::uintptr_t>(parity[j].data());
             }
-            reed_solomon_encode(rs, shards.data(), data_shards + parity_count, (int)block_size);
-            reed_solomon_release(rs);
+            const int result = reed_solomon_encode(
+                codec.get(),
+                reinterpret_cast<unsigned char**>(shard_addresses.data()),  // NOLINT(gammaray-raw-pointer-boundary): C ABI pointer table.
+                data_shards + parity_count, static_cast<int>(block_size));
+            if (result != 0) {
+                return {};
+            }
             return parity;
         }
 
         // blocks: 长度 D + parity,空串 = 缺失;成功(缺失已填回)返回 true
         static bool Decode(std::vector<std::string>& blocks, int data_shards) {
-            const int total = (int)blocks.size();
+            const int total = static_cast<int>(blocks.size());
             const int parity_count = total - data_shards;
-            if (data_shards <= 0 || parity_count < 0 || total > DATA_SHARDS_MAX) return false;
-            size_t block_size = 0;
-            int missing = 0;
-            for (auto& b : blocks) {
-                if (b.empty()) {
+            if (data_shards <= 0 || parity_count < 0 || total > DATA_SHARDS_MAX) {
+                return false;
+            }
+            size_t block_size{};
+            int missing{};
+            for (const auto& block : blocks) {
+                if (block.empty()) {
                     missing++;
                 }
                 else if (block_size == 0) {
-                    block_size = b.size();
+                    block_size = block.size();
                 }
-                else if (b.size() != block_size) {
+                else if (block.size() != block_size) {
                     return false;
                 }
             }
-            if (block_size == 0) return false;
-            if (missing == 0) return true;
-            if (missing > parity_count) return false;
+            if (block_size == 0) {
+                return false;
+            }
+            if (missing == 0) {
+                return true;
+            }
+            if (missing > parity_count) {
+                return false;
+            }
             EnsureInit();
-            reed_solomon* rs = reed_solomon_new(data_shards, parity_count);
-            if (!rs) return false;
+            const detail::UniqueReedSolomon codec{reed_solomon_new(data_shards, parity_count)};
+            if (!codec) {
+                return false;
+            }
 
-            std::vector<unsigned char*> shards(total);
+            std::vector<std::uintptr_t> shard_addresses(total);
             std::vector<unsigned char> marks(total, 0);
             for (int i = 0; i < total; i++) {
                 if (blocks[i].empty()) {
                     blocks[i].assign(block_size, '\0'); // 重建结果写到这里
                     marks[i] = 1;
                 }
-                shards[i] = (unsigned char*)blocks[i].data();
+                shard_addresses[i] = reinterpret_cast<std::uintptr_t>(blocks[i].data());
             }
-            int err = reed_solomon_reconstruct(rs, shards.data(), marks.data(), total, (int)block_size);
-            reed_solomon_release(rs);
-            if (err != 0) return false;
+            const int error = reed_solomon_reconstruct(
+                codec.get(),
+                reinterpret_cast<unsigned char**>(shard_addresses.data()),  // NOLINT(gammaray-raw-pointer-boundary): C ABI pointer table.
+                marks.data(), total, static_cast<int>(block_size));
+            if (error != 0) {
+                return false;
+            }
             for (int i = 0; i < total; i++) {
-                if (marks[i] && blocks[i].size() != block_size) return false;
+                if (marks[i] && blocks[i].size() != block_size) {
+                    return false;
+                }
             }
             return true;
         }
@@ -101,6 +144,6 @@ namespace px
         }
     };
 
-}
+}  // namespace px
 
-#endif //PX_FEC_H
+#endif  // PX_FEC_H

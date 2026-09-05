@@ -36,8 +36,6 @@
 #include <QFileDialog>
 #include <chrono>
 #include <optional>
-
-#include "px_common_new/const_auto.h"
 #include "px_common_new/async_blocking_call.h"
 #include "px_common_new/async_runtime.h"
 #include "px_common_new/latest_serial_request_gate.h"

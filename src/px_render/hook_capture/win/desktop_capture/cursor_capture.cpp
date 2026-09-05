@@ -147,8 +147,8 @@ namespace px
         for (int row = 0; row < cursor->height_; ++row) {
             for (int col = 0; col < cursor->width_; ++col) {
                 char r = cursor->data_->At(offset);
-                *((char *) cursor->data_->DataAddr() + offset) = *(cursor->data_->DataAddr() + offset + 2);
-                *((char *) cursor->data_->DataAddr() + offset + 2) = r;
+                *((char *) cursor->data_->MutableBytes().data() + offset) = *(cursor->data_->MutableBytes().data() + offset + 2);
+                *((char *) cursor->data_->MutableBytes().data() + offset + 2) = r;
                 offset += 4;
             }
         }

@@ -37,7 +37,6 @@
 #include "render_view_capacity.h"
 #include "ct_const_def.h"
 #include "px_common_new/file.h"
-#include "px_common_new/qwidget_helper.h"
 #include "network/ct_panel_client.h"
 #include "px_common_new/time_util.h"
 #include "px_qt_widget/notify/notifymanager.h"

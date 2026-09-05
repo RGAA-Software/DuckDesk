@@ -17,8 +17,8 @@ namespace px
         if (!msg) {
             return nullptr;
         }
-        auto buffer = Data::Make(nullptr, msg->ByteSizeLong());
-        if (auto ok = msg->SerializeToArray(buffer->DataAddr(), buffer->Size()); ok) {
+        auto buffer = Data::Allocate( msg->ByteSizeLong());
+        if (auto ok = msg->SerializeToArray(buffer->MutableBytes().data(), buffer->Size()); ok) {
             return buffer;
         }
         return nullptr;

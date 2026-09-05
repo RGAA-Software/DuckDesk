@@ -312,11 +312,11 @@ int main(int argc, char** argv) {
     // dump
     //CaptureDump();
     // Breakpad
-    auto bc = BreakpadContext {
+    auto bc = std::make_shared<BreakpadContext>(BreakpadContext {
         .version_ = PROJECT_VERSION,
         .app_name_ = "px_render",
-    };
-    CaptureDumpByBreakpad(&bc);
+    });
+    [[maybe_unused]] const auto dump_registration = CaptureDumpByBreakpad(std::move(bc));
 
     // run in high level
     px::ProcessUtil::SetProcessInHighLevel();
@@ -366,9 +366,9 @@ int main(int argc, char** argv) {
     app->CaptureControlC();
 
     // hardware
-    auto hardware = Hardware::Instance();
-    hardware->Detect(false, true, false);
-    hardware->Dump();
+    auto& hardware = Hardware::Instance();
+    hardware.Detect(false, true, false);
+    hardware.Dump();
 
     return app->Run();
 }

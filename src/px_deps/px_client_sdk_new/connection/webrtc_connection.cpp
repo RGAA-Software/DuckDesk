@@ -234,7 +234,7 @@ void WebRtcConnection::CreateRtcClientInstance() {
 void WebRtcConnection::PostMediaMessage(std::shared_ptr<Data> msg) {
     if (msg && rtc_client_ && rtc_client_->IsInputChannelReady()) {
         px::Message proto_msg;
-        if (proto_msg.ParseFromArray(msg->DataAddr(), static_cast<int>(msg->Size()))) {
+        if (proto_msg.ParseFromArray(msg->MutableBytes().data(), static_cast<int>(msg->Size()))) {
             const auto type = proto_msg.type();
             if (type == px::kKeyEvent || type == px::kMouseEvent || type == px::kGamepadState || type == px::kTextInput) {
                 rtc_client_->PostInputMessage(msg);
@@ -334,8 +334,8 @@ void WebRtcConnection::SendSdpToRemote(const std::string& sdp) {
             sub.set_safety_pwd_md5(MD5::Hex(sdk_params_->remote_device_random_pwd_));
         }
     }
-    auto buffer = Data::Make(nullptr, pt_msg.ByteSizeLong());
-    pt_msg.SerializeToArray(buffer->DataAddr(), buffer->Size());
+    auto buffer = Data::Allocate( pt_msg.ByteSizeLong());
+    pt_msg.SerializeToArray(buffer->MutableBytes().data(), buffer->Size());
     relay_conn_->PostBinaryMessage(buffer);
 }
 
@@ -350,8 +350,8 @@ void WebRtcConnection::SendIceToRemote(const std::string& ice, const std::string
     sub.set_ice(ice);
     sub.set_mid(mid);
     sub.set_sdp_mline_index(sdp_mline_index);
-    auto buffer = Data::Make(nullptr, pt_msg.ByteSizeLong());
-    pt_msg.SerializeToArray(buffer->DataAddr(), buffer->Size());
+    auto buffer = Data::Allocate( pt_msg.ByteSizeLong());
+    pt_msg.SerializeToArray(buffer->MutableBytes().data(), buffer->Size());
     relay_conn_->PostBinaryMessage(buffer);
 }
 

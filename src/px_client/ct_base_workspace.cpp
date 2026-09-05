@@ -38,7 +38,7 @@
 #include "px_render_view.h"
 #include "ct_const_def.h"
 #include "px_common_new/file.h"
-#include "px_common_new/qwidget_helper.h"
+#include "px_common_new/string_util.h"
 #include "ui/retry_conn_dialog.h"
 #include "network/ct_panel_client.h"
 #include "px_common_new/md5.h"

@@ -22,7 +22,8 @@ using PxBlockingTaskPoster = std::function<void(std::function<void()>)>;
 template <typename T>
 PxAwaitable<PxResult<T>> AwaitBlockingCall(PxBlockingTaskPoster post_blocking, asio::any_io_executor completion_executor,
                                            std::chrono::steady_clock::time_point deadline, std::shared_ptr<std::atomic_bool> cancellation,
-                                           std::string stage, std::function<T(const std::shared_ptr<std::atomic_bool>&)> call) {
+                                           std::string stage, std::function<T(const std::shared_ptr<std::atomic_bool>&)> call,
+                                           PxAsyncErrorCode exception_code = PxAsyncErrorCode::kProtocolError) {
     if (!post_blocking || !call || !cancellation) {
         co_return PxResult<T>::Failure(MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, std::move(stage),
                                                         "blocking operation is missing its executor, callable, or cancellation signal"));
@@ -38,7 +39,7 @@ PxAwaitable<PxResult<T>> AwaitBlockingCall(PxBlockingTaskPoster post_blocking, a
 
     const auto operation = PxAsyncOneShot<T>::Create(std::move(completion_executor));
     try {
-        post_blocking([operation, cancellation, call = std::move(call), stage]() mutable {
+        post_blocking([operation, cancellation, call = std::move(call), stage, exception_code]() mutable {
             if (cancellation->load(std::memory_order_acquire)) {
                 static_cast<void>(
                     operation->TryFail(MakePxAsyncError(PxAsyncErrorCode::kCancelled, stage, "blocking operation was cancelled before execution")));
@@ -53,10 +54,10 @@ PxAwaitable<PxResult<T>> AwaitBlockingCall(PxBlockingTaskPoster post_blocking, a
                 }
                 static_cast<void>(operation->TryComplete(PxResult<T>::Success(std::move(value))));
             } catch (const std::exception& error) {
-                static_cast<void>(operation->TryFail(MakePxAsyncError(PxAsyncErrorCode::kProtocolError, stage, error.what(), true)));
+                static_cast<void>(operation->TryFail(MakePxAsyncError(exception_code, stage, error.what(), true)));
             } catch (...) {
-                static_cast<void>(operation->TryFail(
-                    MakePxAsyncError(PxAsyncErrorCode::kProtocolError, stage, "blocking operation threw a non-standard exception", true)));
+                static_cast<void>(
+                    operation->TryFail(MakePxAsyncError(exception_code, stage, "blocking operation threw a non-standard exception", true)));
             }
         });
     } catch (const std::exception& error) {

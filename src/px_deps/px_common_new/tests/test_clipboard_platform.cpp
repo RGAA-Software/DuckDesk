@@ -12,156 +12,190 @@
 #include <Windows.h>
 #include <shellapi.h>
 #include <shlobj.h>
+#include <cstddef>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <mutex>
+#include <span>
+#include <type_traits>
 #endif
 
 using namespace px::clipboard;
 
 namespace {
 
-    class FakePlatform final : public IPlatform {
-    public:
-        bool Read(Content& out) override {
-            if (!read_ok_) {
-                return false;
-            }
-            out.text_ = text_;
-            out.files_ = files_;
-            return true;
+class FakePlatform final : public IPlatform {
+  public:
+    bool Read(Content& out) override {
+        if (!read_ok_) {
+            return false;
         }
-
-        bool WriteText(const std::string& utf8_text) override {
-            ++write_calls_;
-            if (fail_writes_remaining_ > 0) {
-                --fail_writes_remaining_;
-                return false;
-            }
-            text_ = utf8_text;
-            return true;
-        }
-
-        bool Clear() override {
-            ++clear_calls_;
-            text_.clear();
-            files_.clear();
-            return clear_ok_;
-        }
-
-        std::string text_;
-        std::vector<FileEntry> files_;
-        bool read_ok_ = true;
-        bool clear_ok_ = true;
-        int write_calls_ = 0;
-        int clear_calls_ = 0;
-        int fail_writes_remaining_ = 0;
-    };
-
-#if defined(WIN32)
-    std::mutex& ClipboardTestMutex() {
-        static std::mutex mutex;
-        return mutex;
+        out.text_ = text_;
+        out.files_ = files_;
+        return true;
     }
 
-    class ClipboardTestLock {
-    public:
-        ClipboardTestLock() {
-            ClipboardTestMutex().lock();
-            Sleep(30);
+    bool WriteText(const std::string& utf8_text) override {
+        ++write_calls_;
+        if (fail_writes_remaining_ > 0) {
+            --fail_writes_remaining_;
+            return false;
         }
-        ~ClipboardTestLock() {
-            Sleep(30);
-            ClipboardTestMutex().unlock();
-        }
-    };
+        text_ = utf8_text;
+        return true;
+    }
 
-    bool OpenClipboardWithRetry(HWND owner = nullptr, int attempts = 30) {
-        for (int i = 0; i < attempts; ++i) {
-            if (OpenClipboard(owner)) {
-                return true;
+    bool Clear() override {
+        ++clear_calls_;
+        text_.clear();
+        files_.clear();
+        return clear_ok_;
+    }
+
+    std::string text_;
+    std::vector<FileEntry> files_;
+    bool read_ok_ = true;
+    bool clear_ok_ = true;
+    int write_calls_ = 0;
+    int clear_calls_ = 0;
+    int fail_writes_remaining_ = 0;
+};
+
+#if defined(WIN32)
+std::mutex& ClipboardTestMutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+struct GlobalMemoryDeleter final {
+    void operator()(std::remove_pointer_t<HGLOBAL>* memory) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): Win32 HGLOBAL ABI.
+        if (memory != nullptr) {
+            GlobalFree(memory);
+        }
+    }
+};
+
+struct GlobalUnlockDeleter final {
+    HGLOBAL memory_{};
+
+    void operator()(void*) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): transient GlobalLock address.
+        if (memory_ != nullptr) {
+            GlobalUnlock(memory_);
+        }
+    }
+};
+
+using UniqueGlobalMemory = std::unique_ptr<std::remove_pointer_t<HGLOBAL>, GlobalMemoryDeleter>;
+using UniqueGlobalLock = std::unique_ptr<void, GlobalUnlockDeleter>;
+
+class ClipboardTestLock {
+  public:
+    ClipboardTestLock() {
+        ClipboardTestMutex().lock();
+        Sleep(30);
+    }
+    ~ClipboardTestLock() {
+        Sleep(30);
+        ClipboardTestMutex().unlock();
+    }
+};
+
+bool OpenClipboardWithRetry(HWND owner = nullptr, int attempts = 30) {
+    for (int i = 0; i < attempts; ++i) {
+        if (OpenClipboard(owner)) {
+            return true;
+        }
+        Sleep(10);
+    }
+    return false;
+}
+
+class ClipboardBackup {
+  public:
+    ClipboardBackup() : platform_(CreatePlatform()) {
+        Content content;
+        if (platform_->Read(content)) {
+            had_content_ = !content.Empty();
+            backup_ = std::move(content);
+        }
+    }
+
+    ~ClipboardBackup() {
+        for (int i = 0; i < 20; ++i) {
+            if (OpenClipboardWithRetry(nullptr, 10)) {
+                EmptyClipboard();
+                CloseClipboard();
+                break;
             }
             Sleep(10);
         }
+        if (had_content_ && backup_.HasText()) {
+            platform_->WriteText(backup_.text_);
+        }
+    }
+
+    IPlatform& Platform() {
+        return *platform_;
+    }
+
+  private:
+    std::unique_ptr<IPlatform> platform_;
+    Content backup_;
+    bool had_content_ = false;
+};
+
+bool SetClipboardFileDrop(const std::vector<std::wstring>& files) {
+    if (files.empty()) {
         return false;
     }
 
-    class ClipboardBackup {
-    public:
-        ClipboardBackup() : platform_(CreatePlatform()) {
-            Content content;
-            if (platform_->Read(content)) {
-                had_content_ = !content.Empty();
-                backup_ = std::move(content);
-            }
-        }
-
-        ~ClipboardBackup() {
-            for (int i = 0; i < 20; ++i) {
-                if (OpenClipboardWithRetry(nullptr, 10)) {
-                    EmptyClipboard();
-                    CloseClipboard();
-                    break;
-                }
-                Sleep(10);
-            }
-            if (had_content_ && backup_.HasText()) {
-                platform_->WriteText(backup_.text_);
-            }
-        }
-
-        IPlatform& Platform() { return *platform_; }
-
-    private:
-        std::unique_ptr<IPlatform> platform_;
-        Content backup_;
-        bool had_content_ = false;
-    };
-
-    bool SetClipboardFileDrop(const std::vector<std::wstring>& files) {
-        if (files.empty()) {
-            return false;
-        }
-
-        size_t bytes = sizeof(DROPFILES);
-        for (const auto& file : files) {
-            bytes += (file.size() + 1) * sizeof(wchar_t);
-        }
-        bytes += sizeof(wchar_t);
-
-        HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, bytes);
-        if (!memory) {
-            return false;
-        }
-
-        auto* drop = static_cast<DROPFILES*>(GlobalLock(memory));
-        if (!drop) {
-            GlobalFree(memory);
-            return false;
-        }
-        drop->pFiles = sizeof(DROPFILES);
-        drop->fWide = TRUE;
-
-        auto* dest = reinterpret_cast<wchar_t*>(reinterpret_cast<BYTE*>(drop) + sizeof(DROPFILES));
-        for (const auto& file : files) {
-            wcscpy_s(dest, file.size() + 1, file.c_str());
-            dest += file.size() + 1;
-        }
-        *dest = L'\0';
-        GlobalUnlock(memory);
-
-        if (!OpenClipboardWithRetry(nullptr)) {
-            GlobalFree(memory);
-            return false;
-        }
-        EmptyClipboard();
-        const HANDLE data = SetClipboardData(CF_HDROP, memory);
-        CloseClipboard();
-        return data != nullptr;
+    size_t bytes = sizeof(DROPFILES);
+    for (const auto& file : files) {
+        bytes += (file.size() + 1) * sizeof(wchar_t);
     }
+    bytes += sizeof(wchar_t);
+
+    UniqueGlobalMemory memory{GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, bytes)};
+    if (!memory) {
+        return false;
+    }
+
+    {
+        const UniqueGlobalLock lock{GlobalLock(memory.get()), GlobalUnlockDeleter{memory.get()}};
+        if (!lock) {
+            return false;
+        }
+        auto payload = std::span<std::byte>{static_cast<std::byte*>(lock.get()), bytes}; // NOLINT(gammaray-raw-pointer-boundary)
+        DROPFILES drop{};
+        drop.pFiles = sizeof(DROPFILES);
+        drop.fWide = TRUE;
+        std::memcpy(payload.data(), std::addressof(drop), sizeof(drop));
+
+        std::size_t offset = sizeof(drop);
+        for (const auto& file : files) {
+            const auto file_bytes = (file.size() + 1) * sizeof(wchar_t);
+            std::memcpy(payload.data() + offset, file.c_str(), file_bytes);
+            offset += file_bytes;
+        }
+        std::memset(payload.data() + offset, 0, sizeof(wchar_t));
+    }
+
+    if (!OpenClipboardWithRetry(nullptr)) {
+        return false;
+    }
+    EmptyClipboard();
+    const HANDLE data = SetClipboardData(CF_HDROP, memory.get());
+    if (data != nullptr) {
+        static_cast<void>(memory.release()); // NOLINT(gammaray-raw-pointer-boundary): ownership transferred to the OS clipboard.
+    }
+    CloseClipboard();
+    return data != nullptr;
+}
 #endif
 
-}
+} // namespace
 
 TEST(ClipboardPlatformStubTest, StubReadWriteClear) {
     PlatformStub stub;

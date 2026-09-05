@@ -390,22 +390,21 @@ namespace px
 
 		const auto callbacks = SnapshotCallbacks();
 		if (callbacks.data) {
-			auto data = Data::Make(
-				reinterpret_cast<const char*>(input.data()), bytes_to_write);
+			auto data = Data::Copy(std::span<const char>{reinterpret_cast<const char*>(input.data()), bytes_to_write});
 			callbacks.data(data);
 		}
 
 		if (callbacks.split_data) {
-			auto left_data = Data::Make(nullptr, (int)(bytes_to_write / 2));
-			auto right_data = Data::Make(nullptr, (int)(bytes_to_write / 2));
-			if (!left_data || !right_data || !left_data->DataAddr() || !right_data->DataAddr()) {
+			auto left_data = Data::Allocate( (int)(bytes_to_write / 2));
+			auto right_data = Data::Allocate( (int)(bytes_to_write / 2));
+			if (!left_data || !right_data || !left_data->MutableBytes().data() || !right_data->MutableBytes().data()) {
 				LOGE("[MiniAudioCapture] split buffer alloc failed, bytes={}", bytes_to_write);
 				return;
 			}
 			const auto pcm = std::as_bytes(input);
 			for (size_t i = 0; i < bytes_to_write; i += 4) {
-				memcpy(left_data->DataAddr() + i / 4 * 2, pcm.data() + i, 2);
-				memcpy(right_data->DataAddr() + i / 4 * 2, pcm.data() + i + 2, 2);
+				memcpy(left_data->MutableBytes().data() + i / 4 * 2, pcm.data() + i, 2);
+				memcpy(right_data->MutableBytes().data() + i / 4 * 2, pcm.data() + i + 2, 2);
 			}
 			callbacks.split_data(left_data, right_data);
 		}

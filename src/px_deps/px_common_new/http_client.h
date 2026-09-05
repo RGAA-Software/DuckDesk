@@ -65,7 +65,6 @@ namespace px
         void SetHeader(const std::string& key, const std::string& value);
         void ClearHeaders();
         
-        int HeadFileSize();
         std::string GetReqPath();
 
     private:

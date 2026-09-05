@@ -7,6 +7,7 @@
 
 #include "service_context.h"
 #include "service_messages.h"
+#include <filesystem>
 #include "px_common_new/log.h"
 #include "px_common_new/shared_preference.h"
 #include "px_common_new/folder_util.h"
@@ -28,7 +29,7 @@ namespace px
         auto exe_path = QString::fromStdWString(FolderUtil::GetCurrentFilePath()).toStdString();
         auto folder_path = QString::fromStdWString(FolderUtil::GetProgramDataPath()) + "/px_data";
         LOGI("Folder path: {}", folder_path.toStdString());
-        if (!sp_->Init(folder_path.toStdWString(), "pixels_service.dat")) {
+        if (!sp_->Init(std::filesystem::path{folder_path.toStdWString()}, "pixels_service.dat")) {
             LOGE("Init gammaray_service.data failed!");
         }
 

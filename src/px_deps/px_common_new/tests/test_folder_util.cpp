@@ -128,22 +128,22 @@ TEST_F(FolderUtilTest, VisitRecursiveFiles) {
 }
 
 TEST_F(FolderUtilTest, CreateDirChinese) {
-    auto dir = temp_dir_ / U8Path(U8S(u8"中文目录"));
+    auto dir = temp_dir_ / PathFromUTF8(Utf8String(u8"中文目录"));
     ASSERT_FALSE(std::filesystem::exists(dir));
     FolderUtil::CreateDir(dir);
     EXPECT_TRUE(std::filesystem::exists(dir));
     EXPECT_TRUE(std::filesystem::is_directory(dir));
 
     // Nested chinese dir
-    auto nested = dir / U8Path(U8S(u8"嵌套目录"));
+    auto nested = dir / PathFromUTF8(Utf8String(u8"嵌套目录"));
     FolderUtil::CreateDir(nested);
     EXPECT_TRUE(std::filesystem::exists(nested));
 }
 
 TEST_F(FolderUtilTest, DeleteDirChinese) {
-    auto dir = temp_dir_ / U8Path(U8S(u8"删除目录"));
-    std::filesystem::create_directories(dir / U8Path(U8S(u8"子目录")));
-    auto file = dir / U8Path(U8S(u8"文件.txt"));
+    auto dir = temp_dir_ / PathFromUTF8(Utf8String(u8"删除目录"));
+    std::filesystem::create_directories(dir / PathFromUTF8(Utf8String(u8"子目录")));
+    auto file = dir / PathFromUTF8(Utf8String(u8"文件.txt"));
     {
         std::ofstream ofs(file);
         ofs << "data";
@@ -155,10 +155,10 @@ TEST_F(FolderUtilTest, DeleteDirChinese) {
 }
 
 TEST_F(FolderUtilTest, VisitFilesChinese) {
-    auto dir = temp_dir_ / U8Path(U8S(u8"遍历目录"));
+    auto dir = temp_dir_ / PathFromUTF8(Utf8String(u8"遍历目录"));
     std::filesystem::create_directories(dir);
-    std::ofstream(dir / U8Path(U8S(u8"文件甲.txt"))) << "a";
-    std::ofstream(dir / U8Path(U8S(u8"文件乙.cpp"))) << "b";
+    std::ofstream(dir / PathFromUTF8(Utf8String(u8"文件甲.txt"))) << "a";
+    std::ofstream(dir / PathFromUTF8(Utf8String(u8"文件乙.cpp"))) << "b";
 
     int count = 0;
     FolderUtil::VisitFiles(dir, [&](VisitResult&& result) {
@@ -177,20 +177,20 @@ TEST_F(FolderUtilTest, VisitFilesChinese) {
 }
 
 TEST_F(FolderUtilTest, CopyDirChinese) {
-    auto src = temp_dir_ / U8Path(U8S(u8"源目录"));
-    auto dst = temp_dir_ / U8Path(U8S(u8"目标目录"));
-    std::filesystem::create_directories(src / U8Path(U8S(u8"子目录")));
-    std::ofstream(src / U8Path(U8S(u8"文件甲.txt"))) << "hello";
-    std::ofstream(src / U8Path(U8S(u8"文件乙.log"))) << "world";
-    std::ofstream(src / U8Path(U8S(u8"子目录")) / U8Path(U8S(u8"嵌套.txt"))) << "nested";
+    auto src = temp_dir_ / PathFromUTF8(Utf8String(u8"源目录"));
+    auto dst = temp_dir_ / PathFromUTF8(Utf8String(u8"目标目录"));
+    std::filesystem::create_directories(src / PathFromUTF8(Utf8String(u8"子目录")));
+    std::ofstream(src / PathFromUTF8(Utf8String(u8"文件甲.txt"))) << "hello";
+    std::ofstream(src / PathFromUTF8(Utf8String(u8"文件乙.log"))) << "world";
+    std::ofstream(src / PathFromUTF8(Utf8String(u8"子目录")) / PathFromUTF8(Utf8String(u8"嵌套.txt"))) << "nested";
 
     EXPECT_TRUE(FolderUtil::CopyDir(src, dst));
-    EXPECT_TRUE(std::filesystem::exists(dst / U8Path(U8S(u8"文件甲.txt"))));
-    EXPECT_TRUE(std::filesystem::exists(dst / U8Path(U8S(u8"文件乙.log"))));
-    EXPECT_TRUE(std::filesystem::exists(dst / U8Path(U8S(u8"子目录")) / U8Path(U8S(u8"嵌套.txt"))));
+    EXPECT_TRUE(std::filesystem::exists(dst / PathFromUTF8(Utf8String(u8"文件甲.txt"))));
+    EXPECT_TRUE(std::filesystem::exists(dst / PathFromUTF8(Utf8String(u8"文件乙.log"))));
+    EXPECT_TRUE(std::filesystem::exists(dst / PathFromUTF8(Utf8String(u8"子目录")) / PathFromUTF8(Utf8String(u8"嵌套.txt"))));
 
     // Verify content
-    std::ifstream ifs(dst / U8Path(U8S(u8"文件甲.txt")));
+    std::ifstream ifs(dst / PathFromUTF8(Utf8String(u8"文件甲.txt")));
     std::string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
     EXPECT_EQ(content, "hello");
 }

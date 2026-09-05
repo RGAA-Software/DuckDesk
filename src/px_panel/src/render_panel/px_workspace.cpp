@@ -7,6 +7,7 @@
 #include "px_exe_names.h"
 #include "px_application.h"
 #include "px_common_new/privacy_log.h"
+#include "px_common_new/string_util.h"
 #include "px_common_new/weak_callback.h"
 
 #include <QHBoxLayout>
@@ -880,12 +881,12 @@ namespace px
         auto avatar_path = settings_->GetGrDataCachePath() + "/" + grApp->GetUserManager()->GetUserId() + "_avatar.jpg";
         image.save(avatar_path.c_str());
 
-        if (!File::Exists(U8Path(avatar_path))) {
+        if (!File::Exists(PathFromUTF8(avatar_path))) {
             LOGE("Crop image failed, file not exists: {}", avatar_path);
             return;
         }
 
-        auto size = File::Size(U8Path(avatar_path));
+        auto size = File::Size(PathFromUTF8(avatar_path));
         if (size < 0 || size >= 10 * 1024 * 1024) {
             LOGE("Image size invalid: {}", size);
             return;
@@ -1001,7 +1002,7 @@ namespace px
             auto avatar_url_path = std::format("{}://{}:{}{}?appkey={}", PxSettings::GetConsoleHttpScheme(), self->settings_->GetConsoleServerHost(), self->settings_->GetConsoleServerPort(), avatar_path, grApp->GetAppkey());
             auto target_avatar_path = self->settings_->GetGrDataCachePath() + "/" + self->user_mgr_->GetUserId() + + "." + FileUtil::GetFileSuffix(avatar_path);
             LOGI("Cached avatar path: {}", target_avatar_path);
-            if (File::Exists(U8Path(target_avatar_path))) {
+            if (File::Exists(PathFromUTF8(target_avatar_path))) {
                 LOGI("Load local avatar first");
                 self->context_->PostUITask([self, target_avatar_path]() {
                     if (!self) {
@@ -1012,16 +1013,16 @@ namespace px
             }
 
             auto target_avatar_cache_path = self->settings_->GetGrDataCachePath() + "/" + self->user_mgr_->GetUserId() + + "_cache." + FileUtil::GetFileSuffix(avatar_path);
-            auto file = File::OpenForWriteB(U8Path(target_avatar_cache_path));
+            auto file = File::OpenForWriteB(PathFromUTF8(target_avatar_cache_path));
             auto r = HttpClient::Download(avatar_url_path, [file](const std::string& d) {
                 file->Append(d);
             });
             if (r.status == 200) {
                 LOGI("Load avatar from server and refresh it!");
                 file->Close();
-                File::Delete(U8Path(target_avatar_path));
+                File::Delete(PathFromUTF8(target_avatar_path));
                 FileUtil::ReName(PathFromUTF8(target_avatar_cache_path), PathFromUTF8(target_avatar_path));
-                File::Delete(U8Path(target_avatar_cache_path));
+                File::Delete(PathFromUTF8(target_avatar_cache_path));
                 self->context_->PostUITask([self, target_avatar_path]() {
                     if (!self) {
                         return;

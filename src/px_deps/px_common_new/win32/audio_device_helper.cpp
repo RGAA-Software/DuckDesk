@@ -3,124 +3,131 @@
 //
 
 #include "audio_device_helper.h"
+
 #include <Windows.h>
-#include <Mmdeviceapi.h>
+#include <propsys.h>
 #include <Functiondiscoverykeys_devpkey.h>
+#include <Mmdeviceapi.h>
+#include <wrl/client.h>
+
+#include <cstdint>
+#include <memory>
+
+#include "px_common_new/log.h"
+#include "px_common_new/scope_exit.h"
 #include "px_common_new/string_util.h"
 
-namespace px
-{
+namespace px {
+namespace {
 
-    std::vector<AudioDevice> AudioDeviceHelper::DetectAudioDevices() {
-        HRESULT hr = S_OK;
-        IMMDeviceEnumerator *pEnumerator = nullptr;
-        IMMDeviceCollection *pDeviceCollection = nullptr;
+using Microsoft::WRL::ComPtr;
 
-        // 初始化 COM
-        hr = CoInitialize(nullptr);
-        if (FAILED(hr)) {
-            printf("COM initialization failed\n");
-            return {};
-        }
+struct CoTaskMemoryCloser final {
+    void operator()(wchar_t* value) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): CoTaskMemFree ABI.
+        CoTaskMemFree(value);
+    }
+};
 
-        // 创建设备枚举器
-        hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (LPVOID*)&pEnumerator);
-        if (FAILED(hr)) {
-            printf("Failed to create device enumerator\n");
+using UniqueCoTaskString = std::unique_ptr<wchar_t, CoTaskMemoryCloser>;
+
+class PropVariantValue final {
+public:
+    PropVariantValue() { PropVariantInit(&value_); }
+    ~PropVariantValue() { PropVariantClear(&value_); }
+
+    PropVariantValue(const PropVariantValue&) = delete;
+    PropVariantValue& operator=(const PropVariantValue&) = delete;
+
+    [[nodiscard]] PROPVARIANT& Get() noexcept { return value_; }
+
+private:
+    PROPVARIANT value_{};
+};
+
+}  // namespace
+
+std::vector<AudioDevice> AudioDeviceHelper::DetectAudioDevices() {
+    const HRESULT com_result = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    if (FAILED(com_result) && com_result != RPC_E_CHANGED_MODE) {
+        LOGE("event=audio_device.enumerate stage=com_init outcome=failed hresult={:#x}", static_cast<std::uint32_t>(com_result));
+        return {};
+    }
+    const auto uninitialize_com = PxScopeExit{[should_uninitialize = com_result == S_OK || com_result == S_FALSE] {
+        if (should_uninitialize) {
             CoUninitialize();
-            return {};
         }
+    }};
 
-        // 获取所有音频渲染设备
-        hr = pEnumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &pDeviceCollection);
-        if (FAILED(hr)) {
-            printf("Failed to enumerate audio endpoints\n");
-            pEnumerator->Release();
-            CoUninitialize();
-            return {};
-        }
-
-        UINT deviceCount = 0;
-        hr = pDeviceCollection->GetCount(&deviceCount);
-        if (FAILED(hr)) {
-            printf("Failed to get device count\n");
-            pDeviceCollection->Release();
-            pEnumerator->Release();
-            CoUninitialize();
-            return {};
-        }
-
-        std::vector<AudioDevice> audio_devices;
-
-        for (UINT i = 0; i < deviceCount; ++i) {
-            IMMDevice *pDevice = nullptr;
-            LPWSTR deviceId = nullptr;
-            LPWSTR deviceName = nullptr;
-
-            AudioDevice audio_device{};
-
-            hr = pDeviceCollection->Item(i, &pDevice);
-            if (FAILED(hr)) {
-                printf("Failed to get device %d\n", i);
-                continue;
-            }
-
-            hr = pDevice->GetId(&deviceId);
-            if (FAILED(hr)) {
-                pDevice->Release();
-                continue;
-            }
-
-            audio_device.id_ = StringUtil::ToUTF8(deviceId);
-
-            IPropertyStore *pPropertyStore = nullptr;
-            hr = pDevice->OpenPropertyStore(STGM_READ, &pPropertyStore);
-            if (FAILED(hr)) {
-                pDevice->Release();
-                continue;
-            }
-
-            PROPVARIANT varName;
-            PropVariantInit(&varName);
-            hr = pPropertyStore->GetValue(PKEY_Device_FriendlyName, &varName);
-            if (SUCCEEDED(hr)) {
-                deviceName = varName.pwszVal;
-                wprintf(L"Device Name: %s\n", deviceName);
-            }
-            audio_device.name_ = StringUtil::ToUTF8(deviceName);
-
-            PropVariantClear(&varName);
-            pPropertyStore->Release();
-            CoTaskMemFree(deviceId);
-            pDevice->Release();
-
-            audio_devices.push_back(audio_device);
-        }
-
-        // 获取默认的音频输出设备
-        IMMDevice *pDefaultDevice = nullptr;
-        hr = pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &pDefaultDevice);
-        if (SUCCEEDED(hr)) {
-            LPWSTR defaultDeviceId = nullptr;
-            hr = pDefaultDevice->GetId(&defaultDeviceId);
-            if (SUCCEEDED(hr) && defaultDeviceId) {
-                const auto default_id_utf8 = StringUtil::ToUTF8(defaultDeviceId);
-                wprintf(L"\nDefault Audio Output Device ID: %s\n", defaultDeviceId);
-                for (auto& device : audio_devices) {
-                    if (device.id_ == default_id_utf8) {
-                        device.default_device_ = true;
-                    }
-                }
-                CoTaskMemFree(defaultDeviceId);
-            }
-            pDefaultDevice->Release();
-        }
-
-        pDeviceCollection->Release();
-        pEnumerator->Release();
-        CoUninitialize();
-
-        return audio_devices;
+    ComPtr<IMMDeviceEnumerator> enumerator;
+    HRESULT result = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(enumerator.GetAddressOf()));
+    if (FAILED(result)) {
+        LOGE("event=audio_device.enumerate stage=create_enumerator outcome=failed hresult={:#x}",
+             static_cast<std::uint32_t>(result));
+        return {};
     }
 
+    ComPtr<IMMDeviceCollection> devices;
+    result = enumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, devices.GetAddressOf());
+    if (FAILED(result)) {
+        LOGE("event=audio_device.enumerate stage=list_endpoints outcome=failed hresult={:#x}", static_cast<std::uint32_t>(result));
+        return {};
+    }
+
+    UINT device_count{};
+    result = devices->GetCount(&device_count);
+    if (FAILED(result)) {
+        LOGE("event=audio_device.enumerate stage=count outcome=failed hresult={:#x}", static_cast<std::uint32_t>(result));
+        return {};
+    }
+
+    std::vector<AudioDevice> audio_devices;
+    audio_devices.reserve(device_count);
+    for (UINT index = 0; index < device_count; ++index) {
+        ComPtr<IMMDevice> device;
+        if (FAILED(devices->Item(index, device.GetAddressOf()))) {
+            LOGW("event=audio_device.enumerate stage=get_device outcome=skipped index={}", index);
+            continue;
+        }
+
+        LPWSTR device_id_raw{};  // NOLINT(gammaray-raw-pointer-boundary): IMMDevice out parameter, immediately RAII-wrapped.
+        if (FAILED(device->GetId(&device_id_raw))) {
+            continue;
+        }
+        const UniqueCoTaskString device_id{device_id_raw};
+
+        ComPtr<IPropertyStore> properties;
+        if (FAILED(device->OpenPropertyStore(STGM_READ, properties.GetAddressOf()))) {
+            continue;
+        }
+
+        PropVariantValue friendly_name;
+        if (FAILED(properties->GetValue(PKEY_Device_FriendlyName, &friendly_name.Get()))) {
+            continue;
+        }
+
+        AudioDevice audio_device{};
+        audio_device.id_ = StringUtil::ToUTF8(device_id.get());
+        if (friendly_name.Get().vt == VT_LPWSTR && friendly_name.Get().pwszVal != nullptr) {
+            audio_device.name_ = StringUtil::ToUTF8(friendly_name.Get().pwszVal);
+        }
+        audio_devices.push_back(std::move(audio_device));
+    }
+
+    ComPtr<IMMDevice> default_device;
+    result = enumerator->GetDefaultAudioEndpoint(eRender, eConsole, default_device.GetAddressOf());
+    if (SUCCEEDED(result)) {
+        LPWSTR default_id_raw{};  // NOLINT(gammaray-raw-pointer-boundary): IMMDevice out parameter, immediately RAII-wrapped.
+        if (SUCCEEDED(default_device->GetId(&default_id_raw))) {
+            const UniqueCoTaskString default_id{default_id_raw};
+            const auto default_id_utf8 = StringUtil::ToUTF8(default_id.get());
+            for (auto& device : audio_devices) {
+                device.default_device_ = device.id_ == default_id_utf8;
+            }
+        }
+    }
+
+    LOGI("event=audio_device.enumerate outcome=success count={}", audio_devices.size());
+    return audio_devices;
 }
+
+}  // namespace px

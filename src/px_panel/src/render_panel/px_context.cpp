@@ -5,7 +5,7 @@
 #include "px_context.h"
 #include "px_exe_names.h"
 
-#include "px_common_new/task_runtime.h"
+#include "px_common_new/blocking_executor.h"
 #include "px_common_new/shared_preference.h"
 #include "px_common_new/uuid.h"
 #include "px_steam_manager_new/steam_manager.h"
@@ -41,526 +41,509 @@
 
 using namespace nlohmann;
 
-namespace px
-{
+namespace px {
+namespace {
+void StopExecutor(std::atomic<std::shared_ptr<PxBlockingExecutor>>& executor) {
+    if (const auto owned_executor = executor.exchange({})) {
+        owned_executor->RequestStop(PxBlockingShutdownMode::kCancelPending);
+        owned_executor->Join();
+    }
+}
 
-    PxContext::PxContext(QWidget* main_window) : QObject(nullptr) {
-        main_window_ = main_window;
+void SubmitTask(const std::shared_ptr<PxBlockingExecutor>& executor, std::function<void()> task, const std::string_view operation) {
+    if (!executor || !task) {
+        LOGE("event=task.rejected component=panel_context code=TASK_EXECUTOR_UNAVAILABLE operation={} "
+             "outcome=failed recoverable=false",
+             operation);
+        return;
+    }
+    const auto result = executor->TryPost(std::move(task));
+    if (result != PxBlockingSubmitResult::kAccepted) {
+        LOGE("event=task.rejected component=panel_context code=TASK_QUEUE_REJECTED operation={} "
+             "outcome=failed recoverable={} reason={}",
+             operation, result == PxBlockingSubmitResult::kQueueFull, static_cast<int>(result));
+    }
+}
+} // namespace
+
+PxContext::PxContext(
+    QWidget* main_window)  // NOLINT(gammaray-raw-pointer-boundary): observed Qt widget is immediately retained as QPointer.
+    : QObject(nullptr), main_window_(main_window), settings_(*PxSettings::Instance()) {}
+
+PxContext::~PxContext() {
+    Exit();
+}
+
+bool PxContext::Init(const std::shared_ptr<PxApplication>& app) {
+    app_ = app;
+    sp_ = SharedPreference::Instance();
+    db_ready_ = false;
+    db_error_.clear();
+
+    database_ = std::make_shared<PxDatabase>(shared_from_this());
+    if (database_->Init()) {
+        db_ready_ = true;
+    } else {
+        db_error_ = database_->GetLastError();
+        LOGE("Database init failed, error: {}", db_error_);
     }
 
-    PxContext::~PxContext() {
-        Exit();
+    stream_db_mgr_ = database_->GetStreamDBOperator();
+    if (!stream_db_mgr_) {
+        if (!db_error_.empty()) {
+            db_error_ += "; ";
+        }
+        db_error_ += "StreamDBOperator init failed";
+        LOGE("StreamDBOperator init failed");
     }
 
-    bool PxContext::Init(const std::shared_ptr<PxApplication>& app) {
-        app_ = app;
-        settings_ = PxSettings::Instance();
-        sp_ = SharedPreference::Instance();
-        db_ready_ = false;
-        db_error_.clear();
-
-        database_ = std::make_shared<PxDatabase>(shared_from_this());
-        if (database_->Init()) {
-            db_ready_ = true;
-        } else {
-            db_error_ = database_->GetLastError();
-            LOGE("Database init failed, error: {}", db_error_);
+    db_game_manager_ = database_->GetDBGameOperator();
+    if (!db_game_manager_) {
+        if (!db_error_.empty()) {
+            db_error_ += "; ";
         }
-
-        stream_db_mgr_ = database_->GetStreamDBOperator();
-        if (!stream_db_mgr_) {
-            if (!db_error_.empty()) {
-                db_error_ += "; ";
-            }
-            db_error_ += "StreamDBOperator init failed";
-            LOGE("StreamDBOperator init failed");
-        }
-
-        db_game_manager_ = database_->GetDBGameOperator();
-        if (!db_game_manager_) {
-            if (!db_error_.empty()) {
-                db_error_ += "; ";
-            }
-            db_error_ += "DBGameOperator init failed";
-            LOGE("DBGameOperator init failed");
-        }
-
-        db_ready_ = db_ready_ && stream_db_mgr_ != nullptr && db_game_manager_ != nullptr;
-
-        if (!db_ready_ && db_error_.empty()) {
-            db_error_ = "Database is not ready";
-        }
-
-        auto hardware = Hardware::Instance();
-        auto beg = TimeUtil::GetCurrentTimestamp();
-        hardware->Detect(false, true, false);
-        hardware->Dump();
-        auto end = TimeUtil::GetCurrentTimestamp();
-        LOGI("Detect hardware info used: {}ms", end-beg);
-
-        srv_manager_ = std::make_shared<PxRenderController>(app);
-
-        task_rt_ = std::make_shared<TaskRuntime>(8);
-
-        steam_mgr_ = SteamManager::Make();
-        steam_mgr_->ScanInstalledSteamPath();
-
-        msg_notifier_ = app->GetMessageNotifier();
-
-        // ips
-        auto ips = IPUtil::ScanIPs();
-
-        LOGI("Scan IP size: {}", ips.size());
-        for (auto& item : ips) {
-            LOGI("IP: {} -> {}", item.ip_addr_, item.nt_type_ == IPNetworkType::kWired ? "WIRED" : "WIRELESS");
-        }
-
-        res_manager_ = std::make_shared<PxResources>(shared_from_this());
-        res_manager_->ExtractIconsIfNeeded();
-
-        run_game_manager_ = std::make_shared<PxRunGameManager>(shared_from_this());
-        console_manager_ = std::make_shared<PxConsoleManager>(shared_from_this());
-        event_manager_ = std::make_shared<PxEventManager>(shared_from_this());
-        service_manager_ = ServiceManager::Make();
-        std::string base_path = qApp->applicationDirPath().toStdString();
-        std::string bin_path = std::format("\"{}/{}\" {}", base_path, px::kPxServiceExeName, settings_->sys_service_port_);
-        LOGI("Service path: {}", bin_path);
-        service_manager_->Init("px_service", bin_path, "px_service", "** px_service **");
-        //service_manager_->Install();
-
-        running_stream_mgr_ = std::make_shared<RunningStreamManager>(shared_from_this());
-        running_stream_mgr_->InitMessageListeners();
-
-        notify_mgr_ = std::make_shared<NotifyManager>(main_window_);
-        auto weak_self = weak_from_this();
-        connect(notify_mgr_.get(), &NotifyManager::notifyDetail, this, [weak_self](const NotifyItem& data) {
-            if (auto self = weak_self.lock(); self && !self->exiting_) {
-                self->PostTask([weak_self, data]() {
-                    if (auto self = weak_self.lock(); self && !self->exiting_) {
-                        self->SendAppMessage(MsgNotificationClicked {
-                            .data_ = data,
-                        });
-                    }
-                });
-            }
-        });
-
-        StartTimers();
-        return true;
+        db_error_ += "DBGameOperator init failed";
+        LOGE("DBGameOperator init failed");
     }
 
-    void PxContext::Exit() {
-        if (exiting_.exchange(true)) {
+    db_ready_ = db_ready_ && stream_db_mgr_ != nullptr && db_game_manager_ != nullptr;
+
+    if (!db_ready_ && db_error_.empty()) {
+        db_error_ = "Database is not ready";
+    }
+
+    auto& hardware = Hardware::Instance();
+    auto beg = TimeUtil::GetCurrentTimestamp();
+    hardware.Detect(false, true, false);
+    hardware.Dump();
+    auto end = TimeUtil::GetCurrentTimestamp();
+    LOGI("Detect hardware info used: {}ms", end - beg);
+
+    srv_manager_ = std::make_shared<PxRenderController>(app);
+
+    try {
+        task_executor_.store(PxBlockingExecutor::Create({.thread_count = 6, .max_pending_tasks = 1024}));
+        network_executor_.store(PxBlockingExecutor::Create({.thread_count = 1, .max_pending_tasks = 256}));
+        database_executor_.store(PxBlockingExecutor::Create({.thread_count = 1, .max_pending_tasks = 1024}));
+    } catch (const std::exception& error) {
+        LOGE("event=module.start component=panel_context code=TASK_EXECUTOR_CREATE_FAILED operation=init "
+             "outcome=failed recoverable=false error={}",
+             error.what());
+        StopExecutor(task_executor_);
+        StopExecutor(network_executor_);
+        StopExecutor(database_executor_);
+        return false;
+    }
+
+    steam_mgr_ = SteamManager::Make();
+    steam_mgr_->ScanInstalledSteamPath();
+
+    msg_notifier_ = app->GetMessageNotifier();
+
+    // ips
+    auto ips = IPUtil::ScanIPs();
+
+    LOGI("Scan IP size: {}", ips.size());
+    for (auto& item : ips) {
+        LOGI("IP: {} -> {}", item.ip_addr_, item.nt_type_ == IPNetworkType::kWired ? "WIRED" : "WIRELESS");
+    }
+
+    res_manager_ = std::make_shared<PxResources>(shared_from_this());
+    res_manager_->ExtractIconsIfNeeded();
+
+    run_game_manager_ = std::make_shared<PxRunGameManager>(shared_from_this());
+    console_manager_ = std::make_shared<PxConsoleManager>(shared_from_this());
+    event_manager_ = std::make_shared<PxEventManager>(shared_from_this());
+    service_manager_ = ServiceManager::Make();
+    std::string base_path = qApp->applicationDirPath().toStdString();
+    std::string bin_path = std::format("\"{}/{}\" {}", base_path, px::kPxServiceExeName, settings_.get().sys_service_port_);
+    LOGI("Service path: {}", bin_path);
+    service_manager_->Init("px_service", bin_path, "px_service", "** px_service **");
+    // service_manager_->Install();
+
+    running_stream_mgr_ = std::make_shared<RunningStreamManager>(shared_from_this());
+    running_stream_mgr_->InitMessageListeners();
+
+    notify_mgr_ = std::make_shared<NotifyManager>(main_window_.data());
+    auto weak_self = weak_from_this();
+    connect(notify_mgr_.get(), &NotifyManager::notifyDetail, this, [weak_self](const NotifyItem& data) {
+        if (auto self = weak_self.lock(); self && !self->exiting_) {
+            self->PostTask([weak_self, data]() {
+                if (auto self = weak_self.lock(); self && !self->exiting_) {
+                    self->SendAppMessage(MsgNotificationClicked{
+                        .data_ = data,
+                    });
+                }
+            });
+        }
+    });
+
+    StartTimers();
+    return true;
+}
+
+void PxContext::Exit() {
+    if (exiting_.exchange(true)) {
+        return;
+    }
+    if (timer_) {
+        timer_->stop_all_timers();
+        timer_->stop();
+        timer_.reset();
+    }
+    if (srv_manager_) {
+        srv_manager_->Exit();
+    }
+    StopExecutor(task_executor_);
+    StopExecutor(network_executor_);
+    StopExecutor(database_executor_);
+    if (msg_notifier_) {
+        msg_notifier_->Stop(MessageBusStopMode::kCancel);
+    }
+
+    running_stream_mgr_.reset();
+    event_manager_.reset();
+    console_manager_.reset();
+    notify_mgr_.reset();
+    run_game_manager_.reset();
+    service_manager_.reset();
+    srv_manager_.reset();
+    res_manager_.reset();
+    db_game_manager_.reset();
+    stream_db_mgr_.reset();
+    database_.reset();
+    steam_mgr_.reset();
+    sp_.reset();
+    msg_notifier_.reset();
+    app_.reset();
+}
+
+std::shared_ptr<SteamManager> PxContext::GetSteamManager() {
+    return steam_mgr_;
+}
+
+void PxContext::PostTask(std::function<void()>&& task) {
+    if (exiting_) {
+        return;
+    }
+    SubmitTask(task_executor_.load(), std::move(task), "post");
+}
+
+void PxContext::PostNetworkTask(std::function<void()>&& task) {
+    if (exiting_) {
+        return;
+    }
+    SubmitTask(network_executor_.load(), std::move(task), "post_network");
+}
+
+void PxContext::PostUITask(std::function<void()>&& task) {
+    if (exiting_ || !task) {
+        return;
+    }
+    auto weak_self = weak_from_this();
+    QMetaObject::invokeMethod(this, [weak_self, task = std::move(task)]() {
+        auto self = weak_self.lock();
+        if (!self || self->exiting_) {
             return;
         }
-        if (timer_) {
-            timer_->stop_all_timers();
-            timer_->stop();
-            timer_.reset();
-        }
-        if (srv_manager_) {
-            srv_manager_->Exit();
-        }
-        std::shared_ptr<TaskRuntime> task_runtime;
-        {
-            std::lock_guard lock(task_runtime_mutex_);
-            task_runtime.swap(task_rt_);
-        }
-        if (task_runtime) {
-            task_runtime->Exit();
-        }
-        if (msg_notifier_) {
-            msg_notifier_->Stop(MessageBusStopMode::kCancel);
-        }
+        task();
+    });
+}
 
-        running_stream_mgr_.reset();
-        event_manager_.reset();
-        console_manager_.reset();
-        notify_mgr_.reset();
-        run_game_manager_.reset();
-        service_manager_.reset();
-        srv_manager_.reset();
-        res_manager_.reset();
-        db_game_manager_.reset();
-        stream_db_mgr_.reset();
-        database_.reset();
-        steam_mgr_.reset();
-        sp_.reset();
-        msg_notifier_.reset();
-        app_.reset();
+void PxContext::PostUIDelayTask(std::function<void()>&& task, int ms) {
+    if (exiting_ || !task) {
+        return;
     }
-
-    std::shared_ptr<SteamManager> PxContext::GetSteamManager() {
-        return steam_mgr_;
-    }
-
-    std::shared_ptr<TaskRuntime> PxContext::GetTaskRuntimeForPost() const {
-        std::lock_guard lock(task_runtime_mutex_);
-        return exiting_ ? nullptr : task_rt_;
-    }
-
-    void PxContext::PostTask(std::function<void()>&& task) {
-        const auto runtime = GetTaskRuntimeForPost();
-        if (!runtime) {
-            LOGE("PostTask ignored because task runtime is not ready");
-            return;
-        }
-        runtime->Post(SimpleThreadTask::Make(std::move(task)));
-    }
-
-    void PxContext::PostNetworkTask(std::function<void()>&& task) {
-        const auto runtime = GetTaskRuntimeForPost();
-        if (!runtime) {
-            LOGE("PostNetworkTask ignored because task runtime is not ready");
-            return;
-        }
-        const auto thread = runtime->GetFirstThread();
-        if (thread) {
-            thread->Post(SimpleThreadTask::Make(std::move(task)));
-        }
-    }
-
-    void PxContext::PostTask(std::function<std::any()>&& exec_task, std::function<void(std::any)>&& cbk_task) {
-        const auto runtime = GetTaskRuntimeForPost();
-        if (!runtime) {
-            LOGE("PostTask(exec/callback) ignored because task runtime is not ready");
-            return;
-        }
-        runtime->Post(
-            ReturnThreadTask<ExecFunc, CallbackFunc>::Make(std::move(exec_task), std::move(cbk_task))
-        );
-    }
-
-    void PxContext::PostUITask(std::function<void()>&& task) {
-        if (exiting_ || !task) {
-            return;
-        }
-        auto weak_self = weak_from_this();
-        QMetaObject::invokeMethod(this, [weak_self, task = std::move(task)]() {
+    auto weak_self = weak_from_this();
+    this->PostUITask([weak_self, ms, t = std::move(task)]() {
+        QTimer::singleShot(ms, [weak_self, t]() {
             auto self = weak_self.lock();
             if (!self || self->exiting_) {
                 return;
             }
-            task();
+            t();
         });
-    }
+    });
+}
 
-    void PxContext::PostUIDelayTask(std::function<void()>&& task, int ms) {
-        if (exiting_ || !task) {
-            return;
-        }
-        auto weak_self = weak_from_this();
-        this->PostUITask([weak_self, ms, t = std::move(task)]() {
-            QTimer::singleShot(ms, [weak_self, t]() {
-                auto self = weak_self.lock();
-                if (!self || self->exiting_) {
-                    return;
-                }
-                t();
-            });
-        });
+void PxContext::PostDelayTask(std::function<void()>&& task, int ms) {
+    if (exiting_ || !task) {
+        return;
     }
-
-    void PxContext::PostDelayTask(std::function<void()>&& task, int ms) {
-        if (exiting_ || !task) {
-            return;
-        }
-        auto weak_self = weak_from_this();
-        this->PostUIDelayTask([weak_self, task = std::move(task)]() mutable {
+    auto weak_self = weak_from_this();
+    this->PostUIDelayTask(
+        [weak_self, task = std::move(task)]() mutable {
             auto self = weak_self.lock();
             if (!self || self->exiting_) {
                 return;
             }
             self->PostTask(std::move(task));
-        }, ms);
-    }
-
-    void PxContext::PostDBTask(std::function<void()>&& task) {
-        const auto runtime = GetTaskRuntimeForPost();
-        if (!runtime) {
-            LOGE("PostDBTask ignored because task runtime is not ready");
-            return;
-        }
-        const auto thread = runtime->GetLastThread();
-        if (thread) {
-            thread->Post(SimpleThreadTask::Make(std::move(task)));
-        }
-    }
-
-    void PxContext::PostDBTask(std::function<std::any()>&& exec_task, std::function<void(std::any)>&& cbk_task) {
-        const auto runtime = GetTaskRuntimeForPost();
-        if (!runtime) {
-            LOGE("PostDBTask(exec/callback) ignored because task runtime is not ready");
-            return;
-        }
-        const auto thread = runtime->GetLastThread();
-        if (thread) {
-            thread->Post(
-                ReturnThreadTask<ExecFunc, CallbackFunc>::Make(
-                    std::move(exec_task), std::move(cbk_task)));
-        }
-    }
-
-    int PxContext::GetIndexByUniqueId() {
-        return std::atoi(settings_->GetDeviceId().c_str())%30+1;
-    }
-
-    std::vector<EthernetInfo> PxContext::GetIps() {
-        return IPUtil::ScanIPs();
-    }
-
-    std::string PxContext::GetFirstAvailableIp() {
-        const auto ips = IPUtil::ScanIPs();
-        for (const auto& ip : ips) {
-            return ip.ip_addr_;
-        }
-        return "";
-    }
-
-    std::string PxContext::GetDeviceIdOrIpAddress() {
-        auto ips = this->GetIps();
-        std::string ip_address;
-        if (!ips.empty()) {
-            ip_address = ips[0].ip_addr_;
-        }
-        auto device_id = settings_->GetDeviceId();
-        //LOGI("** This Device ID: {}, ip: {}", device_id, ip_address);
-        return !device_id.empty() ? device_id : ip_address;
-    }
-
-    std::string PxContext::MakeDesktopLinkMessage(const std::vector<EthernetInfo>& info) {
-        json obj;
-        // device
-        // device_id
-        obj["did"] = settings_->GetDeviceId();
-        obj["dn"] = settings_->GetDeviceName();
-        // random passwor
-        obj["rpwd"] = settings_->GetDeviceRandomPwd();
-        obj["iidx"] = this->GetIndexByUniqueId();
-        // ips
-        auto ip_array = json::array();
-        std::vector<EthernetInfo> ips = info;
-        if (info.empty()) {
-            ips = this->GetIps();
-        }
-
-        for (auto& item : ips) {
-            json ip_obj;
-            ip_obj["ip"] = item.ip_addr_;
-            //ip_obj["type"] = "";//item.nt_type_ == IPNetworkType::kWired ? "WIRED" : "WIRELESS";
-            ip_array.push_back(ip_obj);
-        }
-        obj["ips"] = ip_array;
-
-        // panel_srv_port
-        obj["ppt"] = settings_->GetPanelServerPort();
-        // render_srv_port
-        obj["rdpt"] = settings_->GetRenderServerPort();
-        // relay_host
-        obj["rlst"] = settings_->GetRelayServerHost();
-        // relay_port
-        obj["rlpt"] = settings_->GetRelayServerPort();
-        // relay_appkey
-        obj["rlak"] = grApp->GetAppkey();
-        return obj.dump();
-    }
-
-    std::shared_ptr<DBGameOperator> PxContext::GetDBGameManager() {
-        return db_game_manager_;
-    }
-
-    std::shared_ptr<MessageNotifier> PxContext::GetMessageNotifier() {
-        return msg_notifier_;
-    }
-
-    std::shared_ptr<MessageListener> PxContext::ObtainMessageListener(
-        MessageExecutionLane lane) {
-        if (!msg_notifier_) {
-            LOGE("ObtainMessageListener failed because notifier is not ready");
-            return nullptr;
-        }
-        return msg_notifier_->CreateListener(lane);
-    }
-
-    std::shared_ptr<MessageListener> PxContext::ObtainUIMessageListener() {
-        if (!msg_notifier_) {
-            LOGE("ObtainUIMessageListener failed because notifier is not ready");
-            return nullptr;
-        }
-        auto weak_self = weak_from_this();
-        return msg_notifier_->CreateListener(
-            MessageExecutionLane::kUi,
-            [weak_self](std::function<void()> task) {
-            if (auto self = weak_self.lock(); self && !self->exiting_) {
-                self->PostUITask(std::move(task));
-            }
-        });
-    }
-
-    std::shared_ptr<PxRenderController> PxContext::GetRenderController() {
-        return srv_manager_;
-    }
-
-    void PxContext::StartTimers() {
-        timer_ = std::make_shared<asio2::timer>();
-        auto weak_self = weak_from_this();
-        timer_->start_timer(100, 100, [weak_self]() {
-            if (auto self = weak_self.lock(); self && !self->exiting_) {
-                (void)self->msg_notifier_->PublishLatestAppMessage(MsgGrTimer100{});
-            }
-        });
-
-        timer_->start_timer(1, 1000, [weak_self]() {
-            if (auto self = weak_self.lock(); self && !self->exiting_) {
-                (void)self->msg_notifier_->PublishLatestAppMessage(MsgGrTimer1S{});
-            }
-        });
-
-        timer_->start_timer(2, 2000, [weak_self]() {
-            if (auto self = weak_self.lock(); self && !self->exiting_) {
-                (void)self->msg_notifier_->PublishLatestAppMessage(MsgGrTimer2S{});
-            }
-        });
-
-        timer_->start_timer(5, 5000, [weak_self]() {
-            if (auto self = weak_self.lock(); self && !self->exiting_) {
-                (void)self->msg_notifier_->PublishLatestAppMessage(MsgGrTimer5S{});
-            }
-        });
-
-        timer_->start_timer(6, 10 * 3600 * 1000, [weak_self]() {
-            if (auto self = weak_self.lock(); self && !self->exiting_) {
-                (void)self->msg_notifier_->PublishLatestAppMessage(MsgGrTimer10H{});
-            }
-        });
-    }
-
-    std::shared_ptr<PxRunGameManager> PxContext::GetRunGameManager() {
-        return run_game_manager_;
-    }
-
-    std::string PxContext::GetCurrentExeFolder() {
-        return QCoreApplication::applicationDirPath().toStdString();
-    }
-
-    std::shared_ptr<ServiceManager> PxContext::GetServiceManager() {
-        return service_manager_;
-    }
-
-    std::shared_ptr<PxApplication> PxContext::GetApplication() {
-        return app_.lock();
-    }
-
-    std::shared_ptr<PxConsoleManager> PxContext::GetConsoleManager() {
-        return console_manager_;
-    }
-
-    std::shared_ptr<PxEventManager> PxContext::GetEventManager() {
-        return event_manager_;
-    }
-
-    std::shared_ptr<StreamDBOperator> PxContext::GetStreamDBManager() {
-        return stream_db_mgr_;
-    }
-
-    std::shared_ptr<RunningStreamManager> PxContext::GetRunningStreamManager() {
-        return running_stream_mgr_;
-    }
-
-    std::shared_ptr<NotifyManager> PxContext::GetNotifyManager() {
-        return notify_mgr_;
-    }
-
-    void PxContext::NotifyAppMessage(const QString& title, const QString& msg, std::function<void()>&& cbk) {
-        auto weak_self = weak_from_this();
-        QMetaObject::invokeMethod(this, [weak_self, title, msg, cbk = std::move(cbk)]() {
-            if (auto self = weak_self.lock(); self && !self->exiting_ && self->notify_mgr_) {
-                self->notify_mgr_->notify(NotifyItem {
-                    .type_ = NotifyItemType::kNormal,
-                    .title_ = title,
-                    .body_ = msg,
-                    .cbk_ = cbk,
-                });
-            }
-        });
-    }
-
-    void PxContext::NotifyAppErrMessage(const QString& title, const QString& msg, std::function<void()>&& cbk) {
-        auto weak_self = weak_from_this();
-        QMetaObject::invokeMethod(this, [weak_self, title, msg, cbk = std::move(cbk)]() {
-            if (auto self = weak_self.lock(); self && !self->exiting_ && self->notify_mgr_) {
-                self->notify_mgr_->notify(NotifyItem {
-                    .type_ = NotifyItemType::kError,
-                    .title_ = title,
-                    .body_ = msg,
-                    .cbk_ = cbk,
-                });
-            }
-        });
-    }
-
-    std::shared_ptr<PxDatabase> PxContext::GetDatabase() {
-        return database_;
-    }
-
-    bool PxContext::IsPreferenceReady() const {
-        return sp_ && sp_->IsReady();
-    }
-
-    std::shared_ptr<px_relay::RelayDeviceInfo> PxContext::GetRelayServerSideDeviceInfo(const std::string& relay_host,
-                                                                                    int relay_port,
-                                                                                    const std::string& relay_appkey,
-                                                                                    const std::string& device_id,
-                                                                                    bool show_dialog) {
-        if (!settings_->HasRelayServerConfig()) {
-            return nullptr;
-        }
-
-        auto srv_remote_device_id = "server_" + device_id;
-        auto relay_result = px_relay::RelayApi::GetRelayDeviceInfo(relay_host, relay_port, srv_remote_device_id, relay_appkey);
-        if (!relay_result) {
-            LOGE("Get device info in [Relay Server] for: {} failed: {}, code: {}", srv_remote_device_id, px_relay::RelayError2String(relay_result.error()), relay_result.error());
-            if (show_dialog) {
-                TcDialog dialog(tcTr("id_error"), tcTr("id_cant_get_remote_device_info"), grWorkspace.get());
-                dialog.exec();
-            }
-            return nullptr;
-        }
-        auto relay_device_info = relay_result.value();
-        //LOGI("Remote device in [Relay Server] info: id: {}, relay host: {}, port: {}",
-        //     srv_remote_device_id, relay_device_info->relay_server_ip(), relay_device_info->relay_server_port());
-        return relay_device_info;
-
-    }
-
-    void PxContext::SpPutString(const std::string& key, const std::string& value) {
-        if (!sp_ || !sp_->IsReady()) {
-            LOGE("SpPutString ignored because SharedPreference is not ready, key: {}", key);
-            return;
-        }
-        sp_->Put(key, value);
-    }
-
-    std::string PxContext::SpGetString(const std::string& key, const std::string& def_val) {
-        if (!sp_ || !sp_->IsReady()) {
-            return def_val;
-        }
-        return sp_->Get(key, def_val);
-    }
-
-    void PxContext::SpPutInteger(const std::string& key, int value) {
-        if (!sp_ || !sp_->IsReady()) {
-            LOGE("SpPutInteger ignored because SharedPreference is not ready, key: {}", key);
-            return;
-        }
-        sp_->PutInt(key, value);
-    }
-
-    int PxContext::SpGetInteger(const std::string& key, int def_val) {
-        if (!sp_ || !sp_->IsReady()) {
-            return def_val;
-        }
-        return sp_->GetInt(key, def_val);
-    }
-
+        },
+        ms);
 }
+
+void PxContext::PostDBTask(std::function<void()>&& task) {
+    if (exiting_) {
+        return;
+    }
+    SubmitTask(database_executor_.load(), std::move(task), "post_database");
+}
+
+int PxContext::GetIndexByUniqueId() {
+    return std::atoi(settings_.get().GetDeviceId().c_str()) % 30 + 1;
+}
+
+std::vector<EthernetInfo> PxContext::GetIps() {
+    return IPUtil::ScanIPs();
+}
+
+std::string PxContext::GetFirstAvailableIp() {
+    const auto ips = IPUtil::ScanIPs();
+    for (const auto& ip : ips) {
+        return ip.ip_addr_;
+    }
+    return "";
+}
+
+std::string PxContext::GetDeviceIdOrIpAddress() {
+    auto ips = this->GetIps();
+    std::string ip_address;
+    if (!ips.empty()) {
+        ip_address = ips[0].ip_addr_;
+    }
+    auto device_id = settings_.get().GetDeviceId();
+    // LOGI("** This Device ID: {}, ip: {}", device_id, ip_address);
+    return !device_id.empty() ? device_id : ip_address;
+}
+
+std::string PxContext::MakeDesktopLinkMessage(const std::vector<EthernetInfo>& info) {
+    json obj;
+    // device
+    // device_id
+    obj["did"] = settings_.get().GetDeviceId();
+    obj["dn"] = settings_.get().GetDeviceName();
+    // random passwor
+    obj["rpwd"] = settings_.get().GetDeviceRandomPwd();
+    obj["iidx"] = this->GetIndexByUniqueId();
+    // ips
+    auto ip_array = json::array();
+    std::vector<EthernetInfo> ips = info;
+    if (info.empty()) {
+        ips = this->GetIps();
+    }
+
+    for (auto& item : ips) {
+        json ip_obj;
+        ip_obj["ip"] = item.ip_addr_;
+        // ip_obj["type"] = "";//item.nt_type_ == IPNetworkType::kWired ? "WIRED" : "WIRELESS";
+        ip_array.push_back(ip_obj);
+    }
+    obj["ips"] = ip_array;
+
+    // panel_srv_port
+    obj["ppt"] = settings_.get().GetPanelServerPort();
+    // render_srv_port
+    obj["rdpt"] = settings_.get().GetRenderServerPort();
+    // relay_host
+    obj["rlst"] = settings_.get().GetRelayServerHost();
+    // relay_port
+    obj["rlpt"] = settings_.get().GetRelayServerPort();
+    // relay_appkey
+    obj["rlak"] = grApp->GetAppkey();
+    return obj.dump();
+}
+
+std::shared_ptr<DBGameOperator> PxContext::GetDBGameManager() {
+    return db_game_manager_;
+}
+
+std::shared_ptr<MessageNotifier> PxContext::GetMessageNotifier() {
+    return msg_notifier_;
+}
+
+std::shared_ptr<MessageListener> PxContext::ObtainMessageListener(MessageExecutionLane lane) {
+    if (!msg_notifier_) {
+        LOGE("ObtainMessageListener failed because notifier is not ready");
+        return nullptr;
+    }
+    return msg_notifier_->CreateListener(lane);
+}
+
+std::shared_ptr<MessageListener> PxContext::ObtainUIMessageListener() {
+    if (!msg_notifier_) {
+        LOGE("ObtainUIMessageListener failed because notifier is not ready");
+        return nullptr;
+    }
+    auto weak_self = weak_from_this();
+    return msg_notifier_->CreateListener(MessageExecutionLane::kUi, [weak_self](std::function<void()> task) {
+        if (auto self = weak_self.lock(); self && !self->exiting_) {
+            self->PostUITask(std::move(task));
+        }
+    });
+}
+
+std::shared_ptr<PxRenderController> PxContext::GetRenderController() {
+    return srv_manager_;
+}
+
+void PxContext::StartTimers() {
+    timer_ = std::make_shared<asio2::timer>();
+    auto weak_self = weak_from_this();
+    timer_->start_timer(100, 100, [weak_self]() {
+        if (auto self = weak_self.lock(); self && !self->exiting_) {
+            (void)self->msg_notifier_->PublishLatestAppMessage(MsgGrTimer100{});
+        }
+    });
+
+    timer_->start_timer(1, 1000, [weak_self]() {
+        if (auto self = weak_self.lock(); self && !self->exiting_) {
+            (void)self->msg_notifier_->PublishLatestAppMessage(MsgGrTimer1S{});
+        }
+    });
+
+    timer_->start_timer(2, 2000, [weak_self]() {
+        if (auto self = weak_self.lock(); self && !self->exiting_) {
+            (void)self->msg_notifier_->PublishLatestAppMessage(MsgGrTimer2S{});
+        }
+    });
+
+    timer_->start_timer(5, 5000, [weak_self]() {
+        if (auto self = weak_self.lock(); self && !self->exiting_) {
+            (void)self->msg_notifier_->PublishLatestAppMessage(MsgGrTimer5S{});
+        }
+    });
+
+    timer_->start_timer(6, 10 * 3600 * 1000, [weak_self]() {
+        if (auto self = weak_self.lock(); self && !self->exiting_) {
+            (void)self->msg_notifier_->PublishLatestAppMessage(MsgGrTimer10H{});
+        }
+    });
+}
+
+std::shared_ptr<PxRunGameManager> PxContext::GetRunGameManager() {
+    return run_game_manager_;
+}
+
+std::string PxContext::GetCurrentExeFolder() {
+    return QCoreApplication::applicationDirPath().toStdString();
+}
+
+std::shared_ptr<ServiceManager> PxContext::GetServiceManager() {
+    return service_manager_;
+}
+
+std::shared_ptr<PxApplication> PxContext::GetApplication() {
+    return app_.lock();
+}
+
+std::shared_ptr<PxConsoleManager> PxContext::GetConsoleManager() {
+    return console_manager_;
+}
+
+std::shared_ptr<PxEventManager> PxContext::GetEventManager() {
+    return event_manager_;
+}
+
+std::shared_ptr<StreamDBOperator> PxContext::GetStreamDBManager() {
+    return stream_db_mgr_;
+}
+
+std::shared_ptr<RunningStreamManager> PxContext::GetRunningStreamManager() {
+    return running_stream_mgr_;
+}
+
+std::shared_ptr<NotifyManager> PxContext::GetNotifyManager() {
+    return notify_mgr_;
+}
+
+void PxContext::NotifyAppMessage(const QString& title, const QString& msg, std::function<void()>&& cbk) {
+    auto weak_self = weak_from_this();
+    QMetaObject::invokeMethod(this, [weak_self, title, msg, cbk = std::move(cbk)]() {
+        if (auto self = weak_self.lock(); self && !self->exiting_ && self->notify_mgr_) {
+            self->notify_mgr_->notify(NotifyItem{
+                .type_ = NotifyItemType::kNormal,
+                .title_ = title,
+                .body_ = msg,
+                .cbk_ = cbk,
+            });
+        }
+    });
+}
+
+void PxContext::NotifyAppErrMessage(const QString& title, const QString& msg, std::function<void()>&& cbk) {
+    auto weak_self = weak_from_this();
+    QMetaObject::invokeMethod(this, [weak_self, title, msg, cbk = std::move(cbk)]() {
+        if (auto self = weak_self.lock(); self && !self->exiting_ && self->notify_mgr_) {
+            self->notify_mgr_->notify(NotifyItem{
+                .type_ = NotifyItemType::kError,
+                .title_ = title,
+                .body_ = msg,
+                .cbk_ = cbk,
+            });
+        }
+    });
+}
+
+std::shared_ptr<PxDatabase> PxContext::GetDatabase() {
+    return database_;
+}
+
+bool PxContext::IsPreferenceReady() const {
+    return sp_ && sp_->IsReady();
+}
+
+std::shared_ptr<px_relay::RelayDeviceInfo> PxContext::GetRelayServerSideDeviceInfo(const std::string& relay_host, int relay_port,
+                                                                                   const std::string& relay_appkey, const std::string& device_id,
+                                                                                   bool show_dialog) {
+    if (!settings_.get().HasRelayServerConfig()) {
+        return nullptr;
+    }
+
+    auto srv_remote_device_id = "server_" + device_id;
+    auto relay_result = px_relay::RelayApi::GetRelayDeviceInfo(relay_host, relay_port, srv_remote_device_id, relay_appkey);
+    if (!relay_result) {
+        LOGE("Get device info in [Relay Server] for: {} failed: {}, code: {}", srv_remote_device_id,
+             px_relay::RelayError2String(relay_result.error()), relay_result.error());
+        if (show_dialog) {
+            TcDialog dialog(tcTr("id_error"), tcTr("id_cant_get_remote_device_info"), grWorkspace.get());
+            dialog.exec();
+        }
+        return nullptr;
+    }
+    auto relay_device_info = relay_result.value();
+    // LOGI("Remote device in [Relay Server] info: id: {}, relay host: {}, port: {}",
+    //      srv_remote_device_id, relay_device_info->relay_server_ip(), relay_device_info->relay_server_port());
+    return relay_device_info;
+}
+
+void PxContext::SpPutString(const std::string& key, const std::string& value) {
+    if (!sp_ || !sp_->IsReady()) {
+        LOGE("SpPutString ignored because SharedPreference is not ready, key: {}", key);
+        return;
+    }
+    sp_->Put(key, value);
+}
+
+std::string PxContext::SpGetString(const std::string& key, const std::string& def_val) {
+    if (!sp_ || !sp_->IsReady()) {
+        return def_val;
+    }
+    return sp_->Get(key, def_val);
+}
+
+void PxContext::SpPutInteger(const std::string& key, int value) {
+    if (!sp_ || !sp_->IsReady()) {
+        LOGE("SpPutInteger ignored because SharedPreference is not ready, key: {}", key);
+        return;
+    }
+    sp_->PutInt(key, value);
+}
+
+int PxContext::SpGetInteger(const std::string& key, int def_val) {
+    if (!sp_ || !sp_->IsReady()) {
+        return def_val;
+    }
+    return sp_->GetInt(key, def_val);
+}
+
+} // namespace px

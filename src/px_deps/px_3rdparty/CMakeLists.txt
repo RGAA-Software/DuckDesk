@@ -14,7 +14,7 @@ if(NOT TARGET px_asio)
 	target_compile_definitions(px_asio INTERFACE
 		ASIO_STANDALONE
 		ASIO_HEADER_ONLY
-		PX_ASIO_VERSION=102900
+		PX_ASIO_VERSION=103802
 	)
 endif()
 

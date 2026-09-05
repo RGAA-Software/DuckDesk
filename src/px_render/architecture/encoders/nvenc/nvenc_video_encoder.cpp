@@ -6,7 +6,6 @@
 #include "px_common_new/win32/d3d_debug_helper.h"
 #include "px_common_new/time_util.h"
 #include "px_common_new/thread.h"
-#include "px_common_new/defer.h"
 #include "px_common_new/string_util.h"
 #include "px_render/architecture/events/render_event.h"
 #include "nvenc_encoder_module.h"
@@ -224,7 +223,7 @@ namespace px
         tex2d->GetDesc(&desc);
 
         for (std::vector<uint8_t> &packet: out_packet) {
-            auto encoded_data = Data::Make((char *) packet.data(), packet.size());
+            auto encoded_data = Data::Copy(std::span<const char>{reinterpret_cast<const char*>(packet.data()), packet.size()});
             auto event = std::make_shared<EncodedVideoFrameEvent>();
             event->type_ = encoder_config_.codec_type == EVideoCodecType::kHEVC
                 ? EncodedVideoType::kH265

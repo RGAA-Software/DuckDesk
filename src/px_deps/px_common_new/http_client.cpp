@@ -353,11 +353,6 @@ namespace px
         headers_.clear();
     }
 
-    int HttpClient::HeadFileSize() {
-
-        return 0;
-    }
-
     std::string HttpClient::GetReqPath() {
         return req_path_;
     }

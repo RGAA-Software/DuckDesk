@@ -5,7 +5,7 @@
 #ifndef WEBRTC_CLIENT_DESKTOP_CAPTURE_H
 #define WEBRTC_CLIENT_DESKTOP_CAPTURE_H
 
-#include "px_common_new/webrtc_helper.h"
+#include "px_webrtc_client/webrtc_helper.h"
 #include "desktop_capture_source.h"
 
 namespace px

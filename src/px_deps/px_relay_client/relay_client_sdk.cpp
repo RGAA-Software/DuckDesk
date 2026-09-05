@@ -184,7 +184,7 @@ namespace px
 
     std::shared_ptr<RelayMessage> RelayClientSdk::ProcessProtoMessage(std::shared_ptr<Data> msg) {
         auto rl_msg = std::make_shared<RelayMessage>();
-        if (!rl_msg->ParsePartialFromArray(msg->CStr(), msg->Size())) {
+        if (!rl_msg->ParsePartialFromArray(msg->Bytes().data(), msg->Size())) {
             return nullptr;
         }
         return rl_msg;

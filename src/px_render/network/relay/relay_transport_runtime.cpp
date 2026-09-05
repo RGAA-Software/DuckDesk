@@ -407,7 +407,7 @@ void RelayTransportRuntime::ConnectMedia(
             }
             const auto& payload = message->relay().payload();
             self->EmitNetMessage(
-                Data::Make(payload.data(), payload.size()),
+                Data::From(payload),
                 TransportChannel::kMedia, {}, false);
         });
     sdk->SetOnNotificationCallback(
@@ -492,7 +492,7 @@ void RelayTransportRuntime::ConnectFileTransfer(
                 }
                 const auto& payload = relay.payload();
                 self->EmitNetMessage(
-                    Data::Make(payload.data(), payload.size()),
+                    Data::From(payload),
                     TransportChannel::kFileTransfer,
                     std::move(connection_id), true);
             }

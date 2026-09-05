@@ -11,7 +11,6 @@
 #include "px_common_new/log.h"
 #include "px_common_new/http_client.h"
 #include "px_common_new/shared_preference.h"
-#include "px_common_new/const_auto.h"
 #include "px_common_new/time_util.h"
 
 namespace px
@@ -50,14 +49,14 @@ namespace px
         if (!storage_) {
             return;
         }
-        cat auth_id = storage_->Get(kAuthId);
-        cat auth_name = storage_->Get(kAuthName);
-        cat machine_code = storage_->Get(kAuthMachineCode);
-        cat appkey = storage_->Get(kAuthAppkey);
-        cat role = storage_->GetInt(kAuthRole);
-        cat days = storage_->GetInt(kAuthDays);
-        cat max_streams = storage_->GetInt(kAuthMaxStreams);
-        cat end_timestamp_ms = storage_->GetInt64(kAuthEndTimestampMs);
+        const auto auth_id = storage_->Get(kAuthId);
+        const auto auth_name = storage_->Get(kAuthName);
+        const auto machine_code = storage_->Get(kAuthMachineCode);
+        const auto appkey = storage_->Get(kAuthAppkey);
+        const auto role = storage_->GetInt(kAuthRole);
+        const auto days = storage_->GetInt(kAuthDays);
+        const auto max_streams = storage_->GetInt(kAuthMaxStreams);
+        const auto end_timestamp_ms = storage_->GetInt64(kAuthEndTimestampMs);
         if (auth_id.empty() || appkey.empty()) {
             LOGW("No auth loaded from storage, id: {}, role: {}", auth_id, role);
             return;
@@ -162,7 +161,7 @@ namespace px
     }
 
     bool AuthManager::IsAuthValid() const {
-        cat settings = ConsoleSettings::Instance();
+        const auto settings = ConsoleSettings::Instance();
         if (settings->host_.empty() || settings->port_ <= 0) {
             return false;
         }
@@ -178,15 +177,15 @@ namespace px
             return false;
         }
 
-        cat path = std::format("/api/v1/auth/control/auth/valid?appkey={}", auth->appkey_);
-        cat client = HttpClient::MakeSSL(settings->host_, settings->port_, path, 2000);
-        cat resp = client->Request();
+        const auto path = std::format("/api/v1/auth/control/auth/valid?appkey={}", auth->appkey_);
+        const auto client = HttpClient::MakeSSL(settings->host_, settings->port_, path, 2000);
+        const auto resp = client->Request();
         if (resp.status != 200) {
             return false;
         }
 
         try {
-            cat value = json::parse(resp.body);
+            const auto value = json::parse(resp.body);
             if (value["data"].is_boolean()) {
                 return value["data"].get<bool>();
             }

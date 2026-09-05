@@ -37,9 +37,9 @@ namespace px
 
     class MemoryStat {
     public:
-        static MemoryStat* Instance() {
+        static MemoryStat& Instance() {
             static MemoryStat stat;
-            return &stat;
+            return stat;
         }
 
         void AddMemInfo(uint64_t id, const std::shared_ptr<MemoryInfo>& info);

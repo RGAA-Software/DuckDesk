@@ -299,7 +299,7 @@ void FrameDebuggerObserver::ProcessEncoderReady(const VideoEncoderReady& event) 
     const auto extension = event.codec == "h264" ? "h264" : "h265";
     const auto filename = std::format("enc_{}_{}.{}", SafeFilePart(event.monitor_id), timestamp, extension);
     const auto path = options_.output_directory / filename;
-    const auto file = File::OpenForAppendB(U8Path(path));
+    const auto file = File::OpenForAppendB(path);
     if (!file || !file->IsOpen()) {
         file_write_failures_.fetch_add(1, std::memory_order_relaxed);
         LOGE("event=observer.file_open component=frame_debugger "

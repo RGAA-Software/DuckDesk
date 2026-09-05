@@ -61,7 +61,6 @@
 #include "render_panel/devices/px_device_manager.h"
 #include "render_panel/devices/connection_policy.h"
 #include "render_panel/console/console_error_presenter.h"
-#include "px_common_new/const_auto.h"
 #include "px_common_new/async_blocking_call.h"
 #include "px_common_new/async_runtime.h"
 #include "px_common_new/latest_serial_request_gate.h"

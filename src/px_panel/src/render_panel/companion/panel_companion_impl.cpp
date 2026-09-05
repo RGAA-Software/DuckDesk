@@ -6,6 +6,8 @@
 #include <QApplication>
 #include <QDesktopServices>
 #include <QUrl>
+#include <filesystem>
+#include <span>
 #include "console/auth_manager.h"
 #include "console/console_setting.h"
 #include "px_common_new/log.h"
@@ -49,7 +51,7 @@ namespace px
 
         sp_ = std::make_shared<SharedPreference>();
         auto sp_dir = base_path + L"/px_data";
-        if (!sp_->Init(sp_dir, "panel_companion.dat")) {
+        if (!sp_->Init(std::filesystem::path{sp_dir}, "panel_companion.dat")) {
             //QMessageBox::critical(nullptr, "Error", "You may already run a instance.");
             return false;
         }
@@ -139,8 +141,8 @@ namespace px
         const std::string user_key = MD5::Hex("U1J892%$m5s");
         std::string key = user_key.substr(0, 16);
         std::string iv = user_key.substr(user_key.length() - 16);
-        return AesEncryptPcks7Cbc128(reinterpret_cast<const unsigned char*>(origin_content.c_str()), origin_content.size(),
-            reinterpret_cast<const unsigned char*>(key.c_str()), reinterpret_cast<const unsigned char*>(iv.c_str()), cipher_data);
+        return AesEncryptPcks7Cbc128(
+            std::as_bytes(std::span{origin_content}), std::as_bytes(std::span{key}), std::as_bytes(std::span{iv}), cipher_data);
     }
 
     std::shared_ptr<SharedPreference> PanelCompanionImpl::GetSP() {

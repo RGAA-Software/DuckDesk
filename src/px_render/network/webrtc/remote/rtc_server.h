@@ -5,7 +5,7 @@
 #ifndef TEST_WEBRTC_RTCSERVER_H
 #define TEST_WEBRTC_RTCSERVER_H
 
-#include "px_common_new/webrtc_helper.h"
+#include "px_webrtc_client/webrtc_helper.h"
 #include "px_render/network/webrtc/webrtc_transport_types.h"
 #include "video_source_mock.h"
 

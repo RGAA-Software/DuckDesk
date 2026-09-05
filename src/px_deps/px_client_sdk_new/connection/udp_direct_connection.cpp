@@ -56,7 +56,7 @@ namespace px
         };
         // 音频按序交付:合成标准 kAudioFrame proto 上送(参数与 render opus_encoder 一致:
         // 48k/2ch/16bit,20ms 一帧 960 samples)
-        audio_jitter_.on_frame_ = [weak_self](uint32_t seq, uint32_t timestamp_ms, const char* payload, size_t len) {
+        audio_jitter_.on_frame_ = [weak_self](uint32_t seq, uint32_t timestamp_ms, std::span<const char> payload) {
             (void)seq;
             (void)timestamp_ms;
             const auto self = weak_self.lock();
@@ -70,14 +70,14 @@ namespace px
             }
             auto msg = std::make_shared<px::Message>();
             msg->set_type(px::kAudioFrame);
-            auto* audio = msg->mutable_audio_frame();
-            audio->set_samples(48000);
-            audio->set_channels(2);
-            audio->set_bits(16);
-            audio->set_frame_size(960);
-            audio->set_data(payload, len);
+            auto& audio = *msg->mutable_audio_frame();
+            audio.set_samples(48000);
+            audio.set_channels(2);
+            audio.set_bits(16);
+            audio.set_frame_size(960);
+            audio.set_data(payload.data(), payload.size());
             // debug 标记:区分 UDP 合成帧与其它 kAudioFrame 来源(参照视频的 udp_synth)
-            audio->set_extra("udp_synth");
+            audio.set_extra("udp_synth");
             self->audio_msg_cbk_(msg);
         };
         // 丢帧信号:空 data 的 kAudioFrame proto,thunder_sdk 收到后调 DecodeDummy 走 PLC 补 20ms
@@ -92,12 +92,12 @@ namespace px
             }
             auto msg = std::make_shared<px::Message>();
             msg->set_type(px::kAudioFrame);
-            auto* audio = msg->mutable_audio_frame();
-            audio->set_samples(48000);
-            audio->set_channels(2);
-            audio->set_bits(16);
-            audio->set_frame_size(960);
-            audio->set_extra("udp_lost");
+            auto& audio = *msg->mutable_audio_frame();
+            audio.set_samples(48000);
+            audio.set_channels(2);
+            audio.set_bits(16);
+            audio.set_frame_size(960);
+            audio.set_extra("udp_lost");
             self->audio_msg_cbk_(msg);
         };
     }
@@ -213,7 +213,7 @@ namespace px
             }
 
         }).bind_recv([weak_self](std::string_view data) {
-            if (const auto self = weak_self.lock()) self->OnUdpPacket(data.data(), data.size());
+            if (const auto self = weak_self.lock()) self->OnUdpPacket(std::span<const char>{data});
         });
 
         udp_client_->async_start(host_, udp_port_);
@@ -236,38 +236,38 @@ namespace px
         if (!stopped_ && udp_client_ && udp_client_->is_started()) {
             queuing_message_count_++;
             const auto weak_self = weak_from_this();
-            udp_client_->async_send(msg->CStr(), msg->Size(), [weak_self]() {
+            udp_client_->async_send(msg->Bytes().data(), msg->Size(), [weak_self, msg]() {
                 if (const auto self = weak_self.lock()) self->queuing_message_count_--;
             });
         }
     }
 
-    void UdpDirectConnection::OnUdpPacket(const char* data, size_t size) {
+    void UdpDirectConnection::OnUdpPacket(std::span<const char> data) {
         if (stopped_) {
             return;
         }
         last_recv_ms_ = TimeUtil::GetCurrentTimestamp();
         auto total = ++recv_pkt_count_;
-        auto pkt_type = PxUdpProtocol::ParseCommon(data, size);
+        auto pkt_type = PxUdpProtocol::ParseCommon(data);
         if (pkt_type == PxUdpProtocol::kPktVideo) {
             received_media_packet_ = true;
             recv_video_pkt_count_++;
             PxUdpProtocol::VideoShardInfo shard;
-            if (!PxUdpProtocol::ParseVideoShard(data, size, shard)) {
+            if (!PxUdpProtocol::ParseVideoShard(data, shard)) {
                 malformed_video_pkt_count_++;
             }
-            reassembler_.AddPacket(data, size);
+            reassembler_.AddPacket(data);
         }
         else if (pkt_type == PxUdpProtocol::kPktAudio) {
             received_media_packet_ = true;
             PxUdpProtocol::AudioPacketInfo audio;
-            if (PxUdpProtocol::ParseAudioPacket(data, size, audio)) {
-                audio_jitter_.AddPacket(audio.seq_, audio.timestamp_ms_, audio.payload_, audio.payload_len_);
+            if (PxUdpProtocol::ParseAudioPacket(data, audio)) {
+                audio_jitter_.AddPacket(audio.seq_, audio.timestamp_ms_, audio.payload_);
             }
         }
         else if (pkt_type == PxUdpProtocol::kPktCtrl) {
             std::string s1, s2;
-            auto subtype = PxUdpProtocol::ParseCtrl(data, size, s1, s2);
+            auto subtype = PxUdpProtocol::ParseCtrl(data, s1, s2);
             if (subtype == PxUdpProtocol::kCtrlKick) {
                 LOGW("Udp direct kicked by render, reason: {}", s1);
                 if (on_kick_cbk_) {
@@ -295,17 +295,17 @@ namespace px
         // 让 sdk 的按屏解码链原样接上(reassembler 保证首帧必为 IDR)
         auto msg = std::make_shared<px::Message>();
         msg->set_type(px::kVideoFrame);
-        auto* video = msg->mutable_video_frame();
-        video->set_type(frame.codec_ == PxUdpProtocol::kCodecH265 ? px::kNetHevc : px::kNetH264);
-        video->set_data(frame.data_->CStr(), frame.data_->Size());
-        video->set_frame_index(frame.frame_index_);
-        video->set_key(frame.key_);
-        video->set_frame_width(frame.frame_width_);
-        video->set_frame_height(frame.frame_height_);
-        video->set_mon_name(frame.mon_name_);
-        video->set_mon_index(frame.mon_slot_);
+        auto& video = *msg->mutable_video_frame();
+        video.set_type(frame.codec_ == PxUdpProtocol::kCodecH265 ? px::kNetHevc : px::kNetH264);
+        video.set_data(frame.data_->Bytes().data(), frame.data_->Size());
+        video.set_frame_index(frame.frame_index_);
+        video.set_key(frame.key_);
+        video.set_frame_width(frame.frame_width_);
+        video.set_frame_height(frame.frame_height_);
+        video.set_mon_name(frame.mon_name_);
+        video.set_mon_index(frame.mon_slot_);
         // debug 标记:区分 UDP 合成帧与其它 kVideoFrame 来源(参照 webrtc_local 的 rtc_synth)
-        video->set_extra("udp_synth");
+        video.set_extra("udp_synth");
 
         video_msg_cbk_(msg);
     }

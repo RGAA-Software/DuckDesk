@@ -28,7 +28,7 @@ namespace px
         // copy out: the pcm buffer is owned by the webrtc audio pipeline,
         // the sdk plays it on its own audio thread
         const auto size = number_of_frames * number_of_channels * sizeof(int16_t);
-        auto pcm = px::Data::Make((const char*)audio_data, (int)size);
+        auto pcm = px::Data::Copy(std::span<const char>{static_cast<const char*>(audio_data), size});
         data_cbk_(pcm, sample_rate, (int)number_of_channels);
     }
 

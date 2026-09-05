@@ -22,7 +22,8 @@ protected:
     std::filesystem::path temp_dir_;
 
     void SetUp() override {
-        temp_dir_ = std::filesystem::temp_directory_path() / std::format("px_file_test_{}", std::chrono::steady_clock::now().time_since_epoch().count());
+        const auto unique_id = std::chrono::steady_clock::now().time_since_epoch().count();
+        temp_dir_ = std::filesystem::temp_directory_path() / std::format("px_file_test_{}", unique_id);
         std::filesystem::create_directories(temp_dir_);
     }
 
@@ -32,7 +33,7 @@ protected:
     }
 
     std::filesystem::path TempPath(const std::string& name) {
-        return temp_dir_ / U8Path(name);
+        return temp_dir_ / PathFromUTF8(name);
     }
 };
 
@@ -172,7 +173,7 @@ TEST_F(FileTest, BinaryMode) {
     {
         auto file = File::OpenForWriteB(path);
         char data[] = {0x00, 0x01, 0x02, 0x03};
-        file->Write(0, data, 4);
+        file->Write(0, std::span<const char>{data});
     }
 
     {
@@ -181,7 +182,7 @@ TEST_F(FileTest, BinaryMode) {
         auto data = file->Read(0, 4, read_size);
         ASSERT_NE(data, nullptr);
         EXPECT_EQ(read_size, 4);
-        auto ptr = reinterpret_cast<const uint8_t*>(data->CStr());
+        auto ptr = reinterpret_cast<const uint8_t*>(data->Bytes().data());
         EXPECT_EQ(ptr[0], 0x00);
         EXPECT_EQ(ptr[1], 0x01);
         EXPECT_EQ(ptr[2], 0x02);
@@ -201,7 +202,7 @@ TEST_F(FileTest, ChinesePath) {
 
 
 TEST_F(FileTest, ChinesePathReadWrite) {
-    auto path = TempPath(U8S(u8"中文读写测试.txt"));
+    auto path = TempPath(Utf8String(u8"中文读写测试.txt"));
     {
         auto file = File::OpenForWrite(path);
         ASSERT_TRUE(file->IsOpen());
@@ -217,11 +218,11 @@ TEST_F(FileTest, ChinesePathReadWrite) {
 }
 
 TEST_F(FileTest, ChinesePathBinary) {
-    auto path = TempPath(U8S(u8"中文二进制.bin"));
+    auto path = TempPath(Utf8String(u8"中文二进制.bin"));
     {
         auto file = File::OpenForWriteB(path);
-        char data[] = {0x00, 0x01, 0x02, 0x03, 0xFF};
-        file->Write(0, data, 5);
+        char data[] = {0x00, 0x01, 0x02, 0x03, static_cast<char>(0xFF)};
+        file->Write(0, std::span<const char>{data});
     }
 
     {
@@ -230,19 +231,19 @@ TEST_F(FileTest, ChinesePathBinary) {
         auto data = file->Read(0, 5, read_size);
         ASSERT_NE(data, nullptr);
         EXPECT_EQ(read_size, 5);
-        auto ptr = reinterpret_cast<const uint8_t*>(data->CStr());
+        auto ptr = reinterpret_cast<const uint8_t*>(data->Bytes().data());
         EXPECT_EQ(ptr[4], 0xFF);
     }
 }
 
 TEST_F(FileTest, ChinesePathFileName) {
-    auto path = TempPath(U8S(u8"中文文件名.txt"));
+    auto path = TempPath(Utf8String(u8"中文文件名.txt"));
     auto file = File::OpenForWrite(path);
-    EXPECT_EQ(file->FileName(), U8S(u8"中文文件名.txt"));
+    EXPECT_EQ(file->FileName(), Utf8String(u8"中文文件名.txt"));
 }
 
 TEST_F(FileTest, ChinesePathDelete) {
-    auto path = TempPath(U8S(u8"待删除文件.txt"));
+    auto path = TempPath(Utf8String(u8"待删除文件.txt"));
     {
         auto file = File::OpenForWrite(path);
         file->Write(0, "x");

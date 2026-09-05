@@ -278,7 +278,7 @@ bool FrameCarrierProcessor::LoadResources() {
         L"frame_carrier" / L"ic_logo_point.png";
     if (std::filesystem::exists(logo_path)) {
         const auto file = File::OpenForReadB(
-            U8Path(StringUtil::ToUTF8(logo_path.wstring())));
+            PathFromUTF8(StringUtil::ToUTF8(logo_path.wstring())));
         if (file) {
             logo_image_ = Image::MakeByCompressedImage(file->ReadAll());
         }

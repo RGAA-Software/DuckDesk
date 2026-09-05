@@ -356,7 +356,7 @@ void WebRtcRemoteTransport::OnRemoteSdp(const MsgRtcRemoteSdp& m) {
                     }
                     LOGW("In-place RTC restart failed; replacing peer connection: {}", conn_id);
                     opt_rtc_server.value()->Exit();
-                    runtime->servers.Remove(conn_id);
+                    static_cast<void>(runtime->servers.Remove(conn_id));
                 }
 
                 auto rtc_server = RtcServer::Make(runtime);

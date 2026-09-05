@@ -16,7 +16,7 @@
 #include "px_common_new/time_util.h"
 #include "px_common_new/image.h"
 #include "px_common_new/thread.h"
-#include "px_common_new/defer.h"
+#include "px_common_new/scope_exit.h"
 #include "px_common_new/file.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
 
@@ -207,9 +207,9 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
             LOGE("D3D11Texture2DLockMutex error");
             return false;
         }
-        const auto keyed_mutex_guard = Defer::Make([shared_texture] {
+        const PxScopeExit keyed_mutex_guard{[shared_texture] {
             D3D11Texture2DReleaseMutex(shared_texture);
-        });
+        }};
 
         HRESULT res;
         D3D11_TEXTURE2D_DESC desc;
@@ -351,7 +351,8 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
             };
 
             d3d11_device_->CreateTexture2D(&logo_desc, nullptr, &logo_point_texture_);
-            d3d11_device_context_->UpdateSubresource(logo_point_texture_.Get(), 0, nullptr, logo_image->data->DataAddr(), logo_image->GetWidth() * 4, 0);
+            d3d11_device_context_->UpdateSubresource(
+                logo_point_texture_.Get(), 0, nullptr, logo_image->data->MutableBytes().data(), logo_image->GetWidth() * 4, 0);
         }
 
         // logo
@@ -429,7 +430,7 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
                 return;
             }
             const auto pixels = std::span(
-                image->data->DataAddr(),
+                image->data->MutableBytes().data(),
                 static_cast<std::size_t>(image->data->Size()));
             pixels[static_cast<std::size_t>(offset)] = 0;
             pixels[static_cast<std::size_t>(offset + 1)] = 0;
@@ -489,9 +490,9 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
             LOGE("MapRawTexture !Map(IDXGISurface)");
             return false;
         }
-        auto defer = Defer::Make([staging_surface]() {
+        const PxScopeExit defer{[staging_surface]() {
             staging_surface->Unmap();
-        });
+        }};
 
         // copy to raw image buffer
         // 用纹理自身的实际格式——10bit 源纹理已在 CopyTexture 里转成 B8G8R8A8,
@@ -550,7 +551,7 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
             // the input. Never overwrite/reallocate a buffer while libyuv is
             // still reading it (topology/capture switches make this race much
             // easier to hit). Reuse remains available when no task owns it.
-            raw_image_rgba_ = Image::Make(Data::Make(nullptr, total_size), width, height);
+            raw_image_rgba_ = Image::Make(Data::Allocate( total_size), width, height);
         }
         if (!raw_image_rgba_ || !raw_image_rgba_->GetData()) {
             LOGE("CopyToRawImage failed: raw image buffer allocation failed");
@@ -558,7 +559,7 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
         }
 
         const auto destination = std::span<char>(
-            raw_image_rgba_->GetData()->DataAddr(),
+            raw_image_rgba_->GetData()->MutableBytes().data(),
             static_cast<std::size_t>(raw_image_rgba_->GetData()->Size()));
         if (destination.empty()) {
             LOGE("CopyToRawImage failed: raw image buffer address is null");
@@ -603,7 +604,7 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
                 owner->raw_image_yuv_.use_count() > 1)
             {
                 const auto yuv_size = static_cast<size_t>(rgba->GetWidth()) * rgba->GetHeight() * 3 / 2;
-                owner->raw_image_yuv_ = Image::Make(Data::Make(nullptr, yuv_size),
+                owner->raw_image_yuv_ = Image::Make(Data::Allocate( yuv_size),
                                              rgba->GetWidth(), rgba->GetHeight(), RawImageType::kI420);
             }
             auto yuv = owner->raw_image_yuv_;
@@ -616,10 +617,10 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
 
             const int uv_stride = width >> 1;
             const auto yuv_bytes = std::span(
-                reinterpret_cast<std::uint8_t*>(yuv->GetData()->DataAddr()),
+                reinterpret_cast<std::uint8_t*>(yuv->GetData()->MutableBytes().data()),
                 static_cast<std::size_t>(yuv->GetData()->Size()));
             const auto rgba_bytes = std::span(
-                reinterpret_cast<const std::uint8_t*>(rgba->GetData()->DataAddr()),
+                reinterpret_cast<const std::uint8_t*>(rgba->GetData()->MutableBytes().data()),
                 static_cast<std::size_t>(rgba->GetData()->Size()));
             const auto pitch = rgba->GetWidth() * 4;
             if (DXGI_FORMAT_B8G8R8A8_UNORM == rgba_format) {
@@ -682,7 +683,7 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
                 owner->raw_image_yuv_.use_count() > 1)
             {
                 const auto yuv_size = static_cast<size_t>(rgba->GetWidth()) * rgba->GetHeight() * 3;
-                owner->raw_image_yuv_ = Image::Make(Data::Make(nullptr, yuv_size),
+                owner->raw_image_yuv_ = Image::Make(Data::Allocate( yuv_size),
                     rgba->GetWidth(), rgba->GetHeight(), RawImageType::kI444);
             }
             auto yuv = owner->raw_image_yuv_;
@@ -695,10 +696,10 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
 
             const int uv_stride = width;
             const auto yuv_bytes = std::span(
-                reinterpret_cast<std::uint8_t*>(yuv->GetData()->DataAddr()),
+                reinterpret_cast<std::uint8_t*>(yuv->GetData()->MutableBytes().data()),
                 static_cast<std::size_t>(yuv->GetData()->Size()));
             const auto rgba_bytes = std::span(
-                reinterpret_cast<const std::uint8_t*>(rgba->GetData()->DataAddr()),
+                reinterpret_cast<const std::uint8_t*>(rgba->GetData()->MutableBytes().data()),
                 static_cast<std::size_t>(rgba->GetData()->Size()));
             const auto pitch = rgba->GetWidth() * 4;
             if (DXGI_FORMAT_B8G8R8A8_UNORM == rgba_format) {

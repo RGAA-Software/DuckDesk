@@ -1,42 +1,16 @@
 #pragma once
 
-namespace px
-{
+#include <optional>
+#include <string>
 
-    /* Contains the necessary Windows SDK header files */
-    #include "windows.h"
-    #include "winternl.h"
-    #include "stdlib.h"
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
 
-    /* Defining the request result status code in NTSTATUS */
-    #define STATUS_SUCCESS ((NTSTATUS)0x00000000L)
+namespace px {
 
-    /* Automatically selects the corresponding API based on the character set type of the current project */
-    #ifdef _UNICODE
-    typedef WCHAR* PCMDBUFFER_T;
-    #define GetProcessCommandLine GetProcessCommandLineW
-    #else
-    typedef CHAR* PCMDBUFFER_T;
-    #define GetProcessCommandLine GetProcessCommandLineA
-    #endif
+// The process handle is borrowed for the duration of this synchronous Win32 boundary call.
+[[nodiscard]] std::optional<std::wstring> ReadProcessCommandLine(HANDLE process); // NOLINT(gammaray-raw-pointer-boundary): borrowed HANDLE.
 
-    /* Multiple version declarations for GetProcessCommandLine */
-    BOOL
-    WINAPI
-    GetProcessCommandLineW(
-        _In_        HANDLE        hProcess,
-        _In_opt_    LPCWSTR        lpcBuffer,
-        _In_opt_    SIZE_T        nSize,
-        _In_opt_    SIZE_T* lpNumberOfBytesCopied
-    );
-
-    BOOL
-    WINAPI
-    GetProcessCommandLineA(
-        _In_        HANDLE        hProcess,
-        _In_opt_    LPCSTR        lpcBuffer,
-        _In_opt_    SIZE_T        nSize,
-        _In_opt_    SIZE_T* lpNumberOfBytesCopied
-    );
-
-}
+} // namespace px

@@ -174,7 +174,7 @@ namespace px
         active_session_->ws_stream().binary(true);
         queuing_message_count_++;
         auto weak_self = weak_from_this();
-        active_session_->async_send(data->CStr(), data->Size(), [weak_self](size_t byte_sent) {
+        active_session_->async_send(data->Bytes().data(), data->Size(), [weak_self](size_t byte_sent) {
             auto self = weak_self.lock();
             if (!self) {
                 return;

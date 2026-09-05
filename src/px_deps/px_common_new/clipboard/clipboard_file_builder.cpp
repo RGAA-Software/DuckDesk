@@ -60,7 +60,7 @@ namespace px::clipboard
         void CollectFilesRecursive(const fs::path& path, std::vector<std::string>& out) {
             std::error_code ec;
             if (fs::is_directory(path, ec)) {
-                FolderUtil::VisitRecursiveFiles(U8Path(path), 0, INT_MAX, [&](VisitResult&& r) {
+                FolderUtil::VisitRecursiveFiles(path, 0, INT_MAX, [&](VisitResult&& r) {
                     out.push_back(PathToUTF8(r.path_));
                 });
             } else if (fs::exists(path, ec)) {
@@ -81,7 +81,7 @@ namespace px::clipboard
             const auto base = fs::absolute(dir, ec);
 
             for (const auto& full_u8 : expanded) {
-                const auto full_path = U8Path(full_u8);
+                const auto full_path = PathFromUTF8(full_u8);
                 auto rel = RelativeRefPath(base, full_path);
                 if (!rel.has_value()) {
                     continue;
@@ -100,7 +100,7 @@ namespace px::clipboard
         std::vector<FileEntry> BuildFileOnlyEntries(const std::vector<std::string>& full_paths) {
             std::vector<std::string> expanded;
             for (const auto& p : full_paths) {
-                const auto path = U8Path(p);
+                const auto path = PathFromUTF8(p);
                 std::error_code ec;
                 if (fs::is_regular_file(path, ec)) {
                     expanded.push_back(p);
@@ -110,10 +110,10 @@ namespace px::clipboard
                 return {};
             }
 
-            fs::path base_folder = U8Path(expanded[0]).parent_path();
+            fs::path base_folder = PathFromUTF8(expanded[0]).parent_path();
             std::vector<FileEntry> entries;
             for (const auto& full_u8 : expanded) {
-                const auto full_path = U8Path(full_u8);
+                const auto full_path = PathFromUTF8(full_u8);
                 auto rel = RelativeRefPath(base_folder, full_path);
                 if (!rel.has_value()) {
                     continue;
@@ -128,7 +128,7 @@ namespace px::clipboard
         bool HasDirectoryRoot(const std::vector<std::string>& full_paths) {
             for (const auto& p : full_paths) {
                 std::error_code ec;
-                if (fs::is_directory(U8Path(p), ec)) {
+                if (fs::is_directory(PathFromUTF8(p), ec)) {
                     return true;
                 }
             }
@@ -145,7 +145,7 @@ namespace px::clipboard
         std::vector<FileEntry> entries;
         if (HasDirectoryRoot(full_paths)) {
             for (const auto& p : full_paths) {
-                const auto path = U8Path(p);
+                const auto path = PathFromUTF8(p);
                 std::error_code ec;
                 if (fs::is_directory(path, ec)) {
                     AppendDirectoryEntries(path, entries);

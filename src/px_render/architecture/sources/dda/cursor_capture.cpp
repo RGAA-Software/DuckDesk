@@ -193,7 +193,7 @@ namespace px
     CursorCapture::CursorCapture(
         const std::shared_ptr<DdaCaptureSource>& owner)
         : owner_(owner) {
-        last_cursor_bitmap_data_ = Data::Make(nullptr, 1);
+        last_cursor_bitmap_data_ = Data::Allocate( 1);
     }
 
     bool CursorCapture::CaptureCursorIcon(CaptureCursorBitmap& data, HICON icon) {

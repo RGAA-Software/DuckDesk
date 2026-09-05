@@ -16,6 +16,7 @@
 #include "dda_capture.h"
 #include "cursor_capture.h"
 #include "px_common_new/log.h"
+#include "px_common_new/string_util.h"
 #include "px_common_new/thread.h"
 #include "px_render/architecture/events/render_event.h"
 #include "px_render/architecture/runtime/render_execution_context.h"

@@ -142,11 +142,11 @@ int main(int argc, char** argv) {
     LOGI("----------Service Start----------");
     LOGI("Args size: {}", argc);
 
-    auto bc = BreakpadContext {
+    auto bc = std::make_shared<BreakpadContext>(BreakpadContext {
         .version_ = PROJECT_VERSION,
         .app_name_ = "px_service",
-    };
-    CaptureDumpByBreakpad(&bc);
+    });
+    [[maybe_unused]] const auto dump_registration = CaptureDumpByBreakpad(std::move(bc));
 
     // listening port
     int listening_port = 0;

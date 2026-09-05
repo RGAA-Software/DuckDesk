@@ -44,8 +44,8 @@ namespace px
         const int64_t uv_size = (int64_t)uv_w * uv_h;
 
         // pack Y/U/V plane by plane, dropping the strides
-        auto data = Data::Make(nullptr, y_size + uv_size * 2);
-        char* dst_y = data->DataAddr();
+        auto data = Data::Allocate( y_size + uv_size * 2);
+        char* dst_y = data->MutableBytes().data();
         for (int row = 0; row < h; ++row) {
             memcpy(dst_y + (int64_t)row * w, i420->DataY() + (int64_t)row * i420->StrideY(), w);
         }

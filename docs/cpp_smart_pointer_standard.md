@@ -263,9 +263,12 @@ generated or read-only third-party sources in a mechanical formatting pass.
 
 Run `cmake --build build_official --target check_cpp_ownership` before native
 code review. The checker examines added lines in the working tree and rejects
-asynchronous `this` captures, manual `new`/`delete`, and obvious raw-pointer data
-members. `scripts/check_cpp_ownership.ps1 -Staged` applies the same gate to the
-staged patch. `-ReportAll` inventories historical debt for incremental
+raw-pointer declarations in locals/members/parameters/results, asynchronous
+`this` captures, manual `new`/`delete`, unreviewed smart-pointer `release()` and
+project-authored lines over 150 columns. `scripts/check_cpp_ownership.ps1 -Staged`
+applies the same gate to the staged patch. A required transient C/OS/Qt/third-party
+boundary must carry `NOLINT(gammaray-raw-pointer-boundary)` on the declaration line
+and state its lifetime reason in adjacent code or review. `-ReportAll` inventories historical debt for incremental
 migration; it is expected to fail until that debt reaches zero. Unmaintained
 third-party code and `src/px_deps/px_webrtc_client` are intentionally excluded;
 the maintained asio2 tree remains in scope.

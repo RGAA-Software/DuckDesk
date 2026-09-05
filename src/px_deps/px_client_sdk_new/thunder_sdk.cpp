@@ -10,6 +10,7 @@
 #include "px_common_new/thread.h"
 #include "px_common_new/time_util.h"
 #include <atomic>
+#include <span>
 #include "px_common_new/folder_util.h"
 #include "px_common_new/string_util.h"
 #include "px_client_sdk_new/gl/raw_image.h"
@@ -324,7 +325,7 @@ namespace px
                     if (!received_files_.contains(mon_name)) {
                         auto display_name = mon_name.size() > 4 ? mon_name.substr(4) : mon_name;
                         auto file_path = StringUtil::ToUTF8(FolderUtil::GetProgramDataPath()) + "/px_data/client/recv_" + display_name + ".h264";
-                        auto recv_video_file = File::OpenForWriteB(U8Path(file_path));
+                        auto recv_video_file = File::OpenForWriteB(PathFromUTF8(file_path));
                         received_files_[mon_name] = recv_video_file;
                     }
                     received_files_[mon_name]->Append(frame.data());
@@ -434,13 +435,15 @@ namespace px
                     pcm_data = self->audio_decoder_->Decode(buffer, frame.frame_size(), false);
                 }
                 if (self->audio_frame_cbk_) {
-                    auto data = Data::Make((char*)pcm_data.data(), pcm_data.size()*2);
+                    auto data = Data::Copy(
+                        std::span<const char>{reinterpret_cast<const char*>(pcm_data.data()), pcm_data.size() * sizeof(pcm_data.front())});
                     self->audio_frame_cbk_(data, frame.samples(), frame.channels(), frame.bits());
                 }
                 //LOGI("opus data size: {}, frame size: {}, samples: {}, channel: {}, PCM data size in char : {}", frame.data().size(), frame.frame_size(), frame.samples(), frame.channels(), pcm_data.size()*2);
                 if (self->debug_audio_decoder_) {
-                    static FilePtr pcm_audio = File::OpenForWriteB(U8Path("1.test.pcm"));
-                    pcm_audio->Append((char *) pcm_data.data(), pcm_data.size()*2);
+                    static FilePtr pcm_audio = File::OpenForWriteB(PathFromUTF8("1.test.pcm"));
+                    pcm_audio->Append(std::span<const char>{reinterpret_cast<const char*>(pcm_data.data()),
+                                                           pcm_data.size() * sizeof(int16_t)});
                 }
                 auto end = TimeUtil::GetCurrentTimestamp();
                 //LOGI("decode audio : {}", end-beg);
@@ -541,7 +544,7 @@ namespace px
             LOGI("WebRTC first decoded frame statistics updated, bytes={}", i420->Size());
         }
 
-        auto raw_image = RawImage::MakeI420(i420->DataAddr(), (int)i420->Size(), w, h);
+        auto raw_image = RawImage::MakeI420(i420->MutableBytes().data(), (int)i420->Size(), w, h);
         if (first_rtc_frame) {
             LOGI("WebRTC first decoded frame copied into RawImage");
         }

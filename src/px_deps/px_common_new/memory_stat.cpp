@@ -44,7 +44,7 @@ namespace px
     }
 
     void MemoryStat::RemoveThread(uint32_t id) {
-        thread_info_.Remove(id);
+        static_cast<void>(thread_info_.Remove(id));
     }
 
     MemoryStatInfo MemoryStat::GetStatInfo() {

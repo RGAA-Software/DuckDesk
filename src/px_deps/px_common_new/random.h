@@ -5,41 +5,43 @@
 #ifndef TC_APPLICATION_RANDOM_H
 #define TC_APPLICATION_RANDOM_H
 
-#include <cstdlib>
-#include <ctime>
+#include <algorithm>
+#include <concepts>
 #include <random>
 
-namespace px
-{
+namespace px {
 
-    class Random {
-    public:
-
-        template<typename T>
-        static T RandT(T _min, T _max) {
-            T temp;
-            if (_min > _max)
-            {
-                temp = _max;
-                _max = _min;
-                _min = temp;
-            }
-            if (_max - _min == 0) {
-                return _min;
-            }
-            return rand() / (double)RAND_MAX * (_max - _min) + _min;
+class Random {
+  public:
+    template <std::integral T> static T RandT(T minimum, T maximum) {
+        if (minimum > maximum) {
+            std::swap(minimum, maximum);
         }
+        std::uniform_int_distribution<T> distribution(minimum, maximum);
+        return distribution(Generator());
+    }
 
-        // 0 ~ 1.0
-        static double GenRandomNum() {
-            std::random_device rd;
-            std::mt19937 gen(rd());
-            std::uniform_real_distribution<double> dis(0.0, 1.0);
-            return dis(gen);
+    template <std::floating_point T> static T RandT(T minimum, T maximum) {
+        if (minimum > maximum) {
+            std::swap(minimum, maximum);
         }
+        std::uniform_real_distribution<T> distribution(minimum, maximum);
+        return distribution(Generator());
+    }
 
-    };
+    // 0 ~ 1.0
+    static double GenRandomNum() {
+        std::uniform_real_distribution<double> dis(0.0, 1.0);
+        return dis(Generator());
+    }
 
-}
+  private:
+    static std::mt19937_64& Generator() {
+        thread_local std::mt19937_64 generator(std::random_device{}());
+        return generator;
+    }
+};
 
-#endif //TC_APPLICATION_RANDOM_H
+} // namespace px
+
+#endif // TC_APPLICATION_RANDOM_H

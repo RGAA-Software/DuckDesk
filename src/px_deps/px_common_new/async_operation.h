@@ -17,15 +17,13 @@
 
 namespace px {
 
-template<typename T>
-class PxAsyncOneShot final {
-public:
+template <typename T> class PxAsyncOneShot final {
+  public:
     static std::shared_ptr<PxAsyncOneShot> Create(asio::any_io_executor executor) {
         return std::make_shared<PxAsyncOneShot>(std::move(executor));
     }
 
-    explicit PxAsyncOneShot(asio::any_io_executor executor)
-        : executor_(std::move(executor)) {}
+    explicit PxAsyncOneShot(asio::any_io_executor executor) : executor_(std::move(executor)) {}
 
     PxAsyncOneShot(const PxAsyncOneShot&) = delete;
     PxAsyncOneShot& operator=(const PxAsyncOneShot&) = delete;
@@ -42,8 +40,11 @@ public:
         }
         if (waiter) {
             asio::post(executor_, [waiter]() {
-                asio::error_code ignored;
-                waiter->cancel(ignored);
+                try {
+                    static_cast<void>(waiter->cancel());
+                } catch (const asio::system_error&) {
+                    // The waiter still observes its original deadline if cancellation races with timer teardown.
+                }
             });
         }
         return true;
@@ -58,22 +59,17 @@ public:
         return result_.has_value();
     }
 
-    static PxAwaitable<PxResult<T>> WaitUntil(
-        std::shared_ptr<PxAsyncOneShot> operation,
-        std::chrono::steady_clock::time_point deadline) {
+    static PxAwaitable<PxResult<T>> WaitUntil(std::shared_ptr<PxAsyncOneShot> operation, std::chrono::steady_clock::time_point deadline) {
         const auto cancellation = co_await asio::this_coro::cancellation_state;
         if (cancellation.cancelled() != asio::cancellation_type::none) {
-            static_cast<void>(operation->TryFail(MakePxAsyncError(
-                PxAsyncErrorCode::kCancelled, "wait", "asynchronous operation was cancelled")));
+            static_cast<void>(operation->TryFail(MakePxAsyncError(PxAsyncErrorCode::kCancelled, "wait", "asynchronous operation was cancelled")));
         }
 
         {
             std::lock_guard lock(operation->mutex_);
             if (operation->waiting_) {
-                co_return PxResult<T>::Failure(MakePxAsyncError(
-                    PxAsyncErrorCode::kRequestInProgress,
-                    "wait",
-                    "asynchronous operation already has a waiter"));
+                co_return PxResult<T>::Failure(
+                    MakePxAsyncError(PxAsyncErrorCode::kRequestInProgress, "wait", "asynchronous operation already has a waiter"));
             }
             operation->waiting_ = true;
             if (operation->result_) {
@@ -96,26 +92,21 @@ public:
 
         const auto after_wait_cancellation = co_await asio::this_coro::cancellation_state;
         if (after_wait_cancellation.cancelled() != asio::cancellation_type::none) {
-            static_cast<void>(operation->TryFail(MakePxAsyncError(
-                PxAsyncErrorCode::kCancelled, "wait", "asynchronous operation was cancelled")));
-        }
-        else if (!wait_error) {
-            static_cast<void>(operation->TryFail(MakePxAsyncError(
-                PxAsyncErrorCode::kTimeout, "wait", "asynchronous operation timed out", true)));
+            static_cast<void>(operation->TryFail(MakePxAsyncError(PxAsyncErrorCode::kCancelled, "wait", "asynchronous operation was cancelled")));
+        } else if (!wait_error) {
+            static_cast<void>(operation->TryFail(MakePxAsyncError(PxAsyncErrorCode::kTimeout, "wait", "asynchronous operation timed out", true)));
         }
 
         std::lock_guard lock(operation->mutex_);
         operation->waiter_.reset();
         if (!operation->result_) {
-            operation->result_.emplace(PxResult<T>::Failure(MakePxAsyncError(
-                PxAsyncErrorCode::kProtocolError,
-                "wait",
-                "asynchronous operation resumed without a result")));
+            operation->result_.emplace(
+                PxResult<T>::Failure(MakePxAsyncError(PxAsyncErrorCode::kProtocolError, "wait", "asynchronous operation resumed without a result")));
         }
         co_return std::move(*operation->result_);
     }
 
-private:
+  private:
     asio::any_io_executor executor_;
     mutable std::mutex mutex_;
     std::optional<PxResult<T>> result_;
@@ -123,32 +114,26 @@ private:
     bool waiting_ = false;
 };
 
-template<typename T>
-class PxAsyncRequestRegistry final {
-public:
+template <typename T> class PxAsyncRequestRegistry final {
+  public:
     using Operation = PxAsyncOneShot<T>;
 
-    explicit PxAsyncRequestRegistry(asio::any_io_executor executor)
-        : executor_(std::move(executor)) {}
+    explicit PxAsyncRequestRegistry(asio::any_io_executor executor) : executor_(std::move(executor)) {}
 
     PxAsyncRequestRegistry(const PxAsyncRequestRegistry&) = delete;
     PxAsyncRequestRegistry& operator=(const PxAsyncRequestRegistry&) = delete;
 
     PxResult<std::shared_ptr<Operation>> Register(const std::string& request_id) {
         if (request_id.empty()) {
-            return PxResult<std::shared_ptr<Operation>>::Failure(MakePxAsyncError(
-                PxAsyncErrorCode::kInvalidArgument,
-                "register",
-                "request id is empty"));
+            return PxResult<std::shared_ptr<Operation>>::Failure(
+                MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "register", "request id is empty"));
         }
         const auto operation = Operation::Create(executor_);
         {
             std::lock_guard lock(mutex_);
             if (operations_.contains(request_id)) {
-                return PxResult<std::shared_ptr<Operation>>::Failure(MakePxAsyncError(
-                    PxAsyncErrorCode::kRequestInProgress,
-                    "register",
-                    "a request with the same id is already pending"));
+                return PxResult<std::shared_ptr<Operation>>::Failure(
+                    MakePxAsyncError(PxAsyncErrorCode::kRequestInProgress, "register", "a request with the same id is already pending"));
             }
             operations_.emplace(request_id, operation);
         }
@@ -169,8 +154,7 @@ public:
         return operation->TryComplete(std::move(result));
     }
 
-    [[nodiscard]] bool RemoveIf(const std::string& request_id,
-                                const std::shared_ptr<Operation>& operation) {
+    [[nodiscard]] bool RemoveIf(const std::string& request_id, const std::shared_ptr<Operation>& operation) {
         std::lock_guard lock(mutex_);
         const auto it = operations_.find(request_id);
         if (it == operations_.end() || it->second != operation) {
@@ -202,7 +186,7 @@ public:
         return operations_.size();
     }
 
-private:
+  private:
     asio::any_io_executor executor_;
     mutable std::mutex mutex_;
     std::unordered_map<std::string, std::shared_ptr<Operation>> operations_;

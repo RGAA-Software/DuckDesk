@@ -415,7 +415,7 @@ void WebRtcLocalConnection::OnEncodedVideoFrame(int track_index, bool key, int w
     msg->set_type(px::kVideoFrame);
     auto& frame = *msg->mutable_video_frame();
     frame.set_type(px::kNetH264);
-    frame.set_data(encoded->CStr(), encoded->Size());
+    frame.set_data(encoded->Bytes().data(), encoded->Size());
     frame.set_frame_index(frame_index);
     frame.set_key(key);
     // the encoded resolution may be 0x0(not always parsed), fall back to the monitor rect
@@ -523,7 +523,7 @@ void WebRtcLocalConnection::PostMediaMessage(std::shared_ptr<Data> msg) {
     // plugin work thread. channel is reliable+ordered, no events are lost.
     if (msg && rtc_client_->IsInputChannelReady()) {
         px::Message proto_msg;
-        if (proto_msg.ParseFromArray(msg->DataAddr(), (int)msg->Size())) {
+        if (proto_msg.ParseFromArray(msg->MutableBytes().data(), (int)msg->Size())) {
             const auto type = proto_msg.type();
             if (type == px::kKeyEvent || type == px::kMouseEvent) {
                 rtc_client_->PostInputMessage(msg);

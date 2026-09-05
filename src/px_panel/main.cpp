@@ -6,6 +6,7 @@
 #include <QCommandLineParser>
 #include <QLockFile>
 #include <QMessageBox>
+#include <filesystem>
 #include <future>
 #include <QStandardPaths>
 #include "version_config.h"
@@ -100,15 +101,15 @@ int main(int argc, char *argv[]) {
 
     //CaptureDump();
     // Breakpad
-    auto bc = BreakpadContext {
+    auto bc = std::make_shared<BreakpadContext>(BreakpadContext {
         .version_ = PROJECT_VERSION,
         .app_name_ = qApp->applicationName().toStdString(),
-    };
+    });
     
     auto _r = std::async([]() {
         ClearOldDumps();
     });
-    CaptureDumpByBreakpad(&bc);
+    [[maybe_unused]] const auto dump_registration = CaptureDumpByBreakpad(std::move(bc));
 
     //auto base_dir = QApplication::applicationDirPath();
     auto base_dir = QString::fromStdWString(FolderUtil::GetProgramDataPath());
@@ -200,7 +201,7 @@ int main(int argc, char *argv[]) {
 
     // init sp
     auto data_dir = base_dir + "/px_data";
-    if (!SharedPreference::Instance()->Init(data_dir.toStdWString(), "pixels.dat")) {
+    if (!SharedPreference::Instance()->Init(std::filesystem::path{data_dir.toStdWString()}, "pixels.dat")) {
         auto err = QString::fromStdString(SharedPreference::Instance()->GetLastError());
         QMessageBox::critical(nullptr, "Startup failed", "SharedPreference init failed:\n" + err);
         return -1;
@@ -210,13 +211,13 @@ int main(int argc, char *argv[]) {
 
     {
         auto auto_start = std::make_shared<px::AutoStart>();
-        auto path = QApplication::applicationFilePath().toStdString();
-        auto_start->NewLogonTask((char*)"px_panel_start", (char*)path.c_str(), (char*)"--run_automatically", (char*)"GR");
+        const auto path = std::filesystem::path{QApplication::applicationFilePath().toStdWString()};
+        static_cast<void>(auto_start->CreateLogonTask("px_panel_start", path, "--run_automatically", "GR"));
     }
 
-    auto mon_detector = DxgiMonitorDetector::Instance();
-    mon_detector->DetectAdapters();
-    mon_detector->PrintAdapters();
+    auto& mon_detector = DxgiMonitorDetector::Instance();
+    mon_detector.DetectAdapters();
+    mon_detector.PrintAdapters();
 
     tcFontMgr()->InitFont(":/resources/font/ms_yahei.ttf");
 

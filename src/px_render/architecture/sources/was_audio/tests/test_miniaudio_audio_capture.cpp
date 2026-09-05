@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <mutex>
 #include <string>
@@ -109,10 +110,12 @@ int main(int argc, char** argv) {
         std::lock_guard<std::mutex> lock(stats.mu);
         stats.bytes += (uint64_t)data->Size();
         stats.frames += (uint64_t)data->Size() / 4;
-        const auto* s = reinterpret_cast<const int16_t*>(data->DataAddr());
-        const size_t n = (size_t)data->Size() / sizeof(int16_t);
+        const auto pcm_bytes = data->Bytes();
+        const size_t n = pcm_bytes.size() / sizeof(int16_t);
         for (size_t i = 0; i < n; ++i) {
-            const int16_t a = s[i] < 0 ? (int16_t)(-s[i]) : s[i];
+            int16_t sample{};
+            std::memcpy(&sample, pcm_bytes.data() + i * sizeof(sample), sizeof(sample));
+            const int16_t a = sample < 0 ? static_cast<int16_t>(-sample) : sample;
             if (a > stats.peak) {
                 stats.peak = a;
             }
@@ -121,8 +124,8 @@ int main(int argc, char** argv) {
         const size_t max_keep = (size_t)kSampleRate * kChannels * 2;
         if (stats.pcm.size() < max_keep) {
             const size_t room = max_keep - stats.pcm.size();
-            const size_t copy_n = (std::min)(room, (size_t)data->Size());
-            stats.pcm.insert(stats.pcm.end(), data->DataAddr(), data->DataAddr() + copy_n);
+            const size_t copy_n = (std::min)(room, pcm_bytes.size());
+            stats.pcm.insert(stats.pcm.end(), pcm_bytes.begin(), pcm_bytes.begin() + static_cast<std::ptrdiff_t>(copy_n));
         }
     });
 

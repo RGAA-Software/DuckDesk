@@ -39,4 +39,6 @@
 ## 注意事项
 
 - `px_3rdparty` 内含预编译库（webrtc/x64/webrtc.lib、asio2/3rd/openssl/prebuilt/*、libplacebo/lib/*.dll 等），体积约 452 MB。更新时注意 GitHub 单文件 100MB 上限（当前 webrtc.lib 约 84MB）。
+- `px_3rdparty/asio2/3rd/asio` 的 standalone Asio 单独跟随官方快照；目标版本为 `asio-1-38-2`，commit
+  `8806a6803cde7054c3049d3666d3ec36786568c5`，来源为 `https://github.com/chriskohlhoff/asio.git`。
 - 各子库原本自带的 `force_pull.bat`（子模块同步脚本）已删除，不再适用。

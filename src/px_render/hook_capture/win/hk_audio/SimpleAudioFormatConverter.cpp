@@ -10,7 +10,7 @@ std::shared_ptr<Data> SimpleAudioFormatConverter::CvtF32ToS16(std::shared_ptr<Da
     if (!origin) {
         return nullptr;
     }
-    return CvtF32ToS16(origin->DataAddr(), static_cast<int>(origin->Size()));
+    return CvtF32ToS16(origin->MutableBytes().data(), static_cast<int>(origin->Size()));
 }
 
 std::shared_ptr<Data> SimpleAudioFormatConverter::CvtF32ToS16(char* origin, int origin_size) {
@@ -29,8 +29,7 @@ std::shared_ptr<Data> SimpleAudioFormatConverter::CvtF32ToS16(char* origin, int 
         }
         result[static_cast<size_t>(i)] = static_cast<int16_t>(v * 32767.0f);
     }
-    return Data::Make(reinterpret_cast<char*>(result.data()),
-                      result.size() * sizeof(int16_t));
+    return Data::Copy(std::span<const char>{reinterpret_cast<const char*>(result.data()), result.size() * sizeof(std::int16_t)});
 }
 
 }  // namespace px

@@ -48,8 +48,8 @@ namespace px
         }
 
         static std::shared_ptr<Data> MakeCaptureHelloMessage(const CaptureHelloMessage& msg) {
-            auto data = Data::Make(nullptr, sizeof(CaptureHelloMessage));
-            memcpy(data->DataAddr(), &msg, sizeof(CaptureHelloMessage));
+            auto data = Data::Allocate( sizeof(CaptureHelloMessage));
+            memcpy(data->MutableBytes().data(), &msg, sizeof(CaptureHelloMessage));
             return data;
         }
 
@@ -70,8 +70,8 @@ namespace px
                                                            int32_t btn, int32_t data,
                                                            bool pressed, bool released) {
             auto msg = MakeMouseEventMessage(hwnd, x, y, btn, data, pressed, released);
-            auto msg_data = Data::Make(nullptr, sizeof(MouseEventMessage));
-            memcpy(msg_data->DataAddr(), &msg, sizeof(MouseEventMessage));
+            auto msg_data = Data::Allocate( sizeof(MouseEventMessage));
+            memcpy(msg_data->MutableBytes().data(), &msg, sizeof(MouseEventMessage));
             return msg_data;
         }
 
@@ -89,8 +89,8 @@ namespace px
         static std::shared_ptr<Data> MakeKeyboardEventMessageAsData(uint64_t hwnd_, uint32_t key_, uint32_t down_,
                                                               uint32_t num_lock_state, uint32_t caps_lock_state) {
             auto msg = MakeKeyboardEventMessage(hwnd_, key_, down_, num_lock_state, caps_lock_state);
-            auto msg_data = Data::Make(nullptr, sizeof(KeyboardEventMessage));
-            memcpy(msg_data->DataAddr(), &msg, sizeof(KeyboardEventMessage));
+            auto msg_data = Data::Allocate( sizeof(KeyboardEventMessage));
+            memcpy(msg_data->MutableBytes().data(), &msg, sizeof(KeyboardEventMessage));
             return msg_data;
         }
 

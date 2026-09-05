@@ -10,6 +10,10 @@
 >
 > 日常与最终稳定性门槛：关键路径连续 10 轮，不再使用 100 轮门槛
 
+> 2026-09-05 维护说明：本文后续出现的 `TaskRuntime`、旧 FT plug-in 或 Asio 1.29.0 内容仅用于说明迁移前基线和历史步骤；
+> 当前实现已经删除 `TaskRuntime`，Client FT 已内建，standalone Asio 已升级到 1.38.2。Common 的现行架构、路径和跨平台门禁以
+> `docs/px_common_modernization_plan.md` 为准。
+
 ## 1. 目的与结论
 
 本方案解决两个彼此相关的问题：
@@ -1258,7 +1262,7 @@ Console 请求 Panel 回传录像文件时，原实现创建一条专用 `std::t
   竞争时由同一 mutex 决定继续或重新启动，不会丢唤醒，也不会出现两个并发上传；
 - Panel 使用共享 `PxAsyncRuntime` 的独立 `PxAsyncScope` 运行串行 pump；重试退避由可取消
   Asio timer 驱动，不再用 100 ms 轮询睡眠；
-- 同步 CPR 上传保留为阻塞叶子，但放入 Panel 自有、可 join 的单线程 `TaskRuntime`，不会
+- 同步 CPR 上传保留为阻塞叶子，现已迁入 Panel 自有、可 join、队列有界的单线程 `PxBlockingExecutor`，不会
   占用 `PxContext` 的共享网络线程，也不会阻塞 RTC 配置拉取；
 - `HttpClient` multipart 增加 `shared_ptr<atomic_bool>` 取消信号，并直接接入 CPR/libcurl 的
   cancellation progress callback。Stop 先停止队列并置位当前上传信号，再取消 scope、等待
@@ -1298,8 +1302,8 @@ RTC 配置通知和录像回传命令都会被同步扫盘阻塞。
   新请求并置位所有扫描取消信号；
 - `ScanRecordFiles` 接受共享原子取消信号，在开始和每个目录项之间检查，取消后不返回半份
   文件列表；
-- 每个请求由独立 `PxAsyncScope` coroutine 编排，实际文件系统扫描投递到 Panel 自有的
-  单线程 `TaskRuntime`，不会占用 Console WebSocket、RTC 配置或录像上传 worker；
+- 每个请求由独立 `PxAsyncScope` coroutine 编排，实际文件系统扫描投递到 Panel 自有、队列有界的
+  单线程 `PxBlockingExecutor`，不会占用 Console WebSocket、RTC 配置或录像上传 worker；
 - 单次 await deadline 为 30 秒；完成、异常、超时、Stop 和迟到结果只产生一个终态，
   request sequence 的重复/迟到 Finish 为幂等；
 - coroutine 跨 `co_await` 不持有 Panel，阻塞叶子只持有目录、one-shot 和取消信号；

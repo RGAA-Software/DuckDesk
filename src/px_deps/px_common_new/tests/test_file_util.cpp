@@ -104,8 +104,8 @@ TEST_F(FileUtilTest, ReName) {
 }
 
 TEST_F(FileUtilTest, CopyFileExtChinese) {
-    auto src = temp_dir_ / U8Path(U8S(u8"中文源文件.txt"));
-    auto dst = temp_dir_ / U8Path(U8S(u8"中文目标文件.txt"));
+    auto src = temp_dir_ / PathFromUTF8(Utf8String(u8"中文源文件.txt"));
+    auto dst = temp_dir_ / PathFromUTF8(Utf8String(u8"中文目标文件.txt"));
     {
         std::ofstream ofs(src);
         ofs << "hello chinese";
@@ -135,8 +135,8 @@ TEST_F(FileUtilTest, CopyFileExtChinese) {
 }
 
 TEST_F(FileUtilTest, ReNameChinese) {
-    auto old_path = temp_dir_ / U8Path(U8S(u8"旧文件.txt"));
-    auto new_path = temp_dir_ / U8Path(U8S(u8"新文件.txt"));
+    auto old_path = temp_dir_ / PathFromUTF8(Utf8String(u8"旧文件.txt"));
+    auto new_path = temp_dir_ / PathFromUTF8(Utf8String(u8"新文件.txt"));
     {
         std::ofstream ofs(old_path);
         ofs << "data";
@@ -149,7 +149,7 @@ TEST_F(FileUtilTest, ReNameChinese) {
 }
 
 TEST_F(FileUtilTest, GetFileNameFromPathChinese) {
-    EXPECT_EQ(FileUtil::GetFileNameFromPath(U8S(u8"C:/测试/文件.txt")), U8S(u8"文件.txt"));
-    EXPECT_EQ(FileUtil::GetFileNameFromPathNoSuffix(U8S(u8"C:/测试/文件.txt")), U8S(u8"文件"));
-    EXPECT_EQ(FileUtil::GetFileSuffix(U8S(u8"C:/测试/文件.txt")), "txt");
+    EXPECT_EQ(FileUtil::GetFileNameFromPath(Utf8String(u8"C:/测试/文件.txt")), Utf8String(u8"文件.txt"));
+    EXPECT_EQ(FileUtil::GetFileNameFromPathNoSuffix(Utf8String(u8"C:/测试/文件.txt")), Utf8String(u8"文件"));
+    EXPECT_EQ(FileUtil::GetFileSuffix(Utf8String(u8"C:/测试/文件.txt")), "txt");
 }

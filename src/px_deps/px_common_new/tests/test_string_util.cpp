@@ -51,6 +51,12 @@ TEST(StringUtilTest, Replace) {
     EXPECT_EQ(s, "hello universe universe");
 }
 
+TEST(StringUtilTest, EmptyReplacementPatternIsIgnored) {
+    std::string value = "unchanged";
+    StringUtil::Replace(value, "", "x");
+    EXPECT_EQ(value, "unchanged");
+}
+
 TEST(StringUtilTest, SplitByChar) {
     std::vector<std::string> parts;
     StringUtil::Split("a,b,c", parts, ',');
@@ -67,6 +73,13 @@ TEST(StringUtilTest, SplitByString) {
     EXPECT_EQ(parts[0], "a");
     EXPECT_EQ(parts[1], "b");
     EXPECT_EQ(parts[2], "c");
+}
+
+TEST(StringUtilTest, EmptyStringDelimiterReturnsTheInput) {
+    std::vector<std::string> parts{"stale"};
+    StringUtil::Split("a::b", parts, "");
+    ASSERT_EQ(parts.size(), 1);
+    EXPECT_EQ(parts.front(), "a::b");
 }
 
 TEST(StringUtilTest, IsValidInteger) {

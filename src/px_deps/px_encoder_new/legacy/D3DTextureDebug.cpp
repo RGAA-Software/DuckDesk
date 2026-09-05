@@ -6,7 +6,7 @@
 namespace px
 {
 	void D3DTextureDebug::SaveAsDDS(ID3D11DeviceContext* context, ID3D11Texture2D* texture, const std::string& name) {
-        DebugOutDDS(texture, name);
+        DebugOutDDS(Microsoft::WRL::ComPtr<ID3D11Texture2D>{texture}, name);
 	}
 
 	void D3DTextureDebug::PrintTextureDesc(ID3D11Texture2D* texture) {

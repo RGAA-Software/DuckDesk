@@ -7,7 +7,6 @@
 
 #include <string>
 #include <filesystem>
-#include "string_util.h"
 
 namespace px
 {
@@ -20,9 +19,9 @@ namespace px
         static std::string GetFileSuffix(const std::string& path);
         static std::string GetFileFolder(const std::string& path);
         static std::string GetFolderNameFormAbsFolderPath(const std::string& path);
-        static bool CopyFileExt(const U8Path& from, const U8Path& to, bool force_replace);
-        static void SelectFileInExplorer(const U8Path& path);
-        static bool ReName(const U8Path& old_path, const U8Path& new_path);
+        static bool CopyFileExt(const std::filesystem::path& from, const std::filesystem::path& to, bool force_replace);
+        static void SelectFileInExplorer(const std::filesystem::path& path);
+        static bool ReName(const std::filesystem::path& old_path, const std::filesystem::path& new_path);
     };
 
 }

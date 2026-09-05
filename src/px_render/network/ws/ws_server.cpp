@@ -219,7 +219,7 @@ static bool IsMediaFrameMessage(const std::shared_ptr<Data>& msg) {
     if (!msg || msg->Size() < 2) {
         return false;
     }
-    const std::span<const uint8_t> payload(reinterpret_cast<const uint8_t*>(msg->DataAddr()), static_cast<size_t>(msg->Size()));
+    const std::span<const uint8_t> payload(reinterpret_cast<const uint8_t*>(msg->MutableBytes().data()), static_cast<size_t>(msg->Size()));
     size_t i = 0;
     auto read_varint = [&](uint64_t& out) -> bool {
         out = 0;
@@ -1046,8 +1046,8 @@ void WsServer::AddIpcRouter() {
                           }
                           const auto socket_fd = (uint64_t)sess_ptr->socket().native_handle();
                           uint32_t pid = self->ipc_session_pids_.TryGet(socket_fd).value_or(0);
-                          self->ipc_session_pids_.Remove(socket_fd);
-                          self->ipc_sessions_.Remove(socket_fd);
+                          static_cast<void>(self->ipc_session_pids_.Remove(socket_fd));
+                          static_cast<void>(self->ipc_sessions_.Remove(socket_fd));
                           self->transport_performance_.ObserveDisconnected();
                           // 进程已死才注销;活进程的瞬时断线靠重连恢复,注册保留
                           self->UnregisterIpcPidIfDead(pid);

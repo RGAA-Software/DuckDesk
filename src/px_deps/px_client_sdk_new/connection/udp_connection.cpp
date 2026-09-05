@@ -51,7 +51,7 @@ namespace px
 
         }).bind_recv([weak_self](std::string_view data) {
             if (const auto self = weak_self.lock(); self && self->msg_cbk_) {
-                auto cpy_data = Data::Make(data.data(), data.size());
+                auto cpy_data = Data::From(data);
                 self->msg_cbk_(cpy_data);
             }
 
@@ -83,7 +83,7 @@ namespace px
         if (udp_client_ && udp_client_->is_started()) {
             queuing_message_count_++;
             const auto weak_self = weak_from_this();
-            udp_client_->async_send(msg->CStr(), msg->Size(), [weak_self]() {
+            udp_client_->async_send(msg->Bytes().data(), msg->Size(), [weak_self]() {
                 if (const auto self = weak_self.lock()) self->queuing_message_count_--;
             });
         }

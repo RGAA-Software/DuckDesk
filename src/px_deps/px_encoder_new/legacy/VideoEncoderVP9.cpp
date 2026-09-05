@@ -339,7 +339,8 @@ namespace px
 			got_pkts = 1;
 			if (pkt->kind == VPX_CODEC_CX_FRAME_PKT) {
 				const int keyframe = (pkt->data.frame.flags & VPX_FRAME_IS_KEY) != 0;
-				auto data = Data::Make((char*)pkt->data.frame.buf, pkt->data.frame.sz);
+				auto data = Data::Copy(
+					std::span<const char>{static_cast<const char*>(pkt->data.frame.buf), static_cast<std::size_t>(pkt->data.frame.sz)});
 				//LOG_INFO("encode data size : %d", data->Size());
 				//printf("vp9 encoded size : %d\n", data->Size());
 				if (m_Listener) {

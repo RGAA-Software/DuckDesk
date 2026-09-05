@@ -54,15 +54,16 @@ TEST(Test_FFmpeg, encoder) {
 //    auto ub = (uint8_t*)malloc(y_pixel_size/4);
 //    auto vb = (uint8_t*)malloc(y_pixel_size/4);
 
-    int ret = libyuv::ABGRToI420((uint8_t*)image->data->DataAddr(), image->width*4, y, image->width, u, uv_stride, v, uv_stride, image->width, image->height);
+    int ret = libyuv::ABGRToI420((uint8_t*)image->data->MutableBytes().data(), image->width * 4, y, image->width, u, uv_stride, v,
+                                 uv_stride, image->width, image->height);
     ASSERT_TRUE(ret == 0);
     std::ofstream encoded_file("test_ffmpeg.h265", std::ios::binary);
     encoder->RegisterEncodeCallback([&](const std::shared_ptr<Image>& frame, uint64_t frame_index, bool key) {
         LOGI("encoder callback : {}, buffer size: {}", frame_index, frame->data->Size());
-        encoded_file.write(frame->data->DataAddr(), frame->data->Size());
+        encoded_file.write(frame->data->MutableBytes().data(), frame->data->Size());
     });
     for (int i = 0; i < 100; i++) {
-        auto data = Data::Make((char*)yuv_frame_data, yuv_frame_size);
+        auto data = Data::Copy(std::span<const char>{reinterpret_cast<const char*>(yuv_frame_data), static_cast<std::size_t>(yuv_frame_size)});
         auto input = Image::Make(data, image->width, image->height, 0);
         encoder->Encode(input, i);
     }

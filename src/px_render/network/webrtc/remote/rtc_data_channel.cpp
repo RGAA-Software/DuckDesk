@@ -193,7 +193,7 @@ void RtcDataChannel::SendData(std::shared_ptr<Data> msg) {
         std::string buffer;
         buffer.resize(sizeof(NetTlvHeader) + msg->Size());
         memcpy((char*)buffer.data(), (char*)&header, sizeof(NetTlvHeader));
-        memcpy((char*)buffer.data() + sizeof(NetTlvHeader), msg->CStr(), msg->Size());
+        memcpy((char*)buffer.data() + sizeof(NetTlvHeader), msg->Bytes().data(), msg->Size());
 
         ++pending_data_count_;
         auto rtc_buffer = webrtc::DataBuffer(rtc::CopyOnWriteBuffer(buffer), true);
@@ -272,7 +272,7 @@ void RtcDataChannel::SendData(std::shared_ptr<Data> msg) {
             std::string buffer;
             buffer.resize(sizeof(NetTlvHeader) + this_buffer_length);
             memcpy((char*)buffer.data(), (char*)&header, sizeof(NetTlvHeader));
-            memcpy((char*)buffer.data() + sizeof(NetTlvHeader), (char*)msg->CStr() + this_buffer_begin, this_buffer_length);
+            memcpy((char*)buffer.data() + sizeof(NetTlvHeader), (char*)msg->Bytes().data() + this_buffer_begin, this_buffer_length);
 
             ++pending_data_count_;
             auto rtc_buffer = webrtc::DataBuffer(rtc::CopyOnWriteBuffer(buffer), true);

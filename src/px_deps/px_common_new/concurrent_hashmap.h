@@ -1,250 +1,169 @@
-//
-// Created by RGAA on 2024-02-23.
-//
-
 #ifndef TC_APPLICATION_CONCURRENT_HASHMAP_H
 #define TC_APPLICATION_CONCURRENT_HASHMAP_H
 
+#include <algorithm>
+#include <concepts>
+#include <cstddef>
+#include <functional>
 #include <map>
 #include <mutex>
-#include <functional>
-#include <unordered_map>
 #include <optional>
+#include <ranges>
+#include <utility>
 #include <vector>
+
 #include "log.h"
 
-namespace px
-{
+namespace px {
 
-    template<class K, class V>
-    class ConcurrentHashMap {
-    public:
+// Compatibility name retained for callers. The deterministic ordered backing store is intentional.
+// Apply/ApplyAll run against value snapshots and never hold the mutex while calling user code.
+// VisitAll/VisitAllCond mutate stored values and therefore hold the mutex for the callback duration.
+template <class K, class V>
+class ConcurrentHashMap {
+public:
+    void Insert(K key, V value) {
+        std::scoped_lock lock(mutex_);
+        values_.insert_or_assign(std::move(key), std::move(value));
+    }
 
-        void Insert(const K& k, const V& v) {
-            std::lock_guard<std::mutex> lock(mtx_);
-            inner_[k] = v;
+    void BatchInsert(const std::map<K, V>& values) {
+        std::scoped_lock lock(mutex_);
+        for (const auto& [key, value] : values) values_.insert_or_assign(key, value);
+    }
+
+    void ClearAndBatchInsert(const std::map<K, V>& values) {
+        std::scoped_lock lock(mutex_);
+        values_ = values;
+    }
+
+    void Replace(const K& key, const V& value) {
+        Insert(key, value);
+    }
+
+    [[nodiscard]] std::optional<V> Remove(const K& key) {
+        std::scoped_lock lock(mutex_);
+        const auto it = values_.find(key);
+        if (it == values_.end()) return std::nullopt;
+        auto removed = std::move(it->second);
+        values_.erase(it);
+        return removed;
+    }
+
+    template <typename Predicate>
+        requires std::predicate<Predicate&, const V&>
+    [[nodiscard]] std::optional<V> RemoveIf(const K& key, Predicate&& predicate) {
+        std::scoped_lock lock(mutex_);
+        const auto it = values_.find(key);
+        if (it == values_.end() || !std::invoke(predicate, std::as_const(it->second))) return std::nullopt;
+        auto removed = std::move(it->second);
+        values_.erase(it);
+        return removed;
+    }
+
+    [[nodiscard]] bool HasKey(const K& key) const {
+        std::scoped_lock lock(mutex_);
+        return values_.contains(key);
+    }
+
+    [[nodiscard]] V Get(const K& key) const {
+        const auto value = TryGet(key);
+        if (!value) {
+            LOGE("ConcurrentHashMap::Get missing key");
+            return V{};
         }
+        return *value;
+    }
 
-        void BatchInsert(const std::map<K, V>& values) {
-            std::lock_guard<std::mutex> lock(mtx_);
-            for (const auto& [k, v] : values) {
-                inner_[k] = v;
-            }
+    [[nodiscard]] std::optional<V> TryGet(const K& key) const {
+        std::scoped_lock lock(mutex_);
+        const auto it = values_.find(key);
+        return it == values_.end() ? std::nullopt : std::optional<V>{it->second};
+    }
+
+    template <typename Task>
+        requires std::invocable<Task&, const V&>
+    void Apply(const K& key, Task&& task) const {
+        const auto value = TryGet(key);
+        if (value) std::invoke(task, *value);
+    }
+
+    template <typename Task>
+        requires std::invocable<Task&, const K&, const V&>
+    void ApplyAll(Task&& task) const {
+        const auto snapshot = Clone();
+        for (const auto& [key, value] : snapshot) std::invoke(task, key, value);
+    }
+
+    template <typename Task>
+        requires std::predicate<Task&, const K&, const V&>
+    void ApplyAllCond(Task&& task) const {
+        const auto snapshot = Clone();
+        for (const auto& [key, value] : snapshot) {
+            if (std::invoke(task, key, value)) break;
         }
+    }
 
-        void ClearAndBatchInsert(const std::map<K, V>& values) {
-            std::lock_guard<std::mutex> lock(mtx_);
-            inner_.clear();
-            for (const auto& [k, v] : values) {
-                inner_[k] = v;
-            }
+    template <typename Task>
+        requires std::invocable<Task&, const K&, V&>
+    void VisitAll(Task&& task) {
+        std::scoped_lock lock(mutex_);
+        for (auto& [key, value] : values_) std::invoke(task, std::as_const(key), value);
+    }
+
+    template <typename Task>
+        requires std::predicate<Task&, const K&, V&>
+    void VisitAllCond(Task&& task) {
+        std::scoped_lock lock(mutex_);
+        for (auto& [key, value] : values_) {
+            if (std::invoke(task, std::as_const(key), value)) break;
         }
+    }
 
-        void Replace(const K& k, const V& v) {
-            std::lock_guard<std::mutex> lock(mtx_);
-            if (inner_.contains(k)) {
-                inner_.erase(k);
-            }
-            inner_[k] = v;
-        }
+    [[nodiscard]] std::optional<std::vector<V>> QueryRange(std::size_t begin, std::size_t end) const {
+        std::scoped_lock lock(mutex_);
+        if (begin >= end || begin >= values_.size()) return std::nullopt;
+        end = std::min(end, values_.size());
+        std::vector<V> result{};
+        result.reserve(end - begin);
+        auto iterator = values_.begin();
+        std::advance(iterator, static_cast<std::ptrdiff_t>(begin));
+        for (auto index = begin; index < end; ++index, ++iterator) result.push_back(iterator->second);
+        return result;
+    }
 
-        std::optional<V> Remove(const K& k) {
-            std::lock_guard<std::mutex> lock(mtx_);
-            auto it = inner_.find(k);
-            if (it != inner_.end()) {
-                auto v = inner_[k];
-                inner_.erase(it);
-                return v;
-            }
-            return std::nullopt;
-        }
+    [[nodiscard]] std::size_t Size() const {
+        std::scoped_lock lock(mutex_);
+        return values_.size();
+    }
 
-        // 仅当 key 存在且当前值与 predicate 匹配时才移除。
-        // 用于 endpoint 字符串复用等场景,避免旧的异步断开回调把新会话误删。
-        std::optional<V> RemoveIf(const K& k, std::function<bool(const V&)>&& predicate) {
-            std::lock_guard<std::mutex> lock(mtx_);
-            auto it = inner_.find(k);
-            if (it != inner_.end() && predicate(it->second)) {
-                auto v = it->second;
-                inner_.erase(it);
-                return v;
-            }
-            return std::nullopt;
-        }
+    [[nodiscard]] bool Empty() const {
+        return Size() == 0;
+    }
 
-        bool HasKey(const K& k) {
-            std::lock_guard<std::mutex> lock(mtx_);
-            return inner_.find(k) != inner_.end();
-        }
+    void Clear() {
+        std::scoped_lock lock(mutex_);
+        values_.clear();
+    }
 
-        V Get(const K& k) {
-            std::lock_guard<std::mutex> lock(mtx_);
-            auto it = inner_.find(k);
-            if (it == inner_.end()) {
-                LOGE("ConcurrentHashMap::Get missing key");
-                return V{};
-            }
-            return it->second;
-        }
+    [[nodiscard]] std::map<K, V> Clone() const {
+        std::scoped_lock lock(mutex_);
+        return values_;
+    }
 
-        std::optional<V> TryGet(const K& k) {
-            std::lock_guard<std::mutex> lock(mtx_);
-            if (inner_.find(k) != inner_.end()) {
-                return inner_.at(k);
-            }
-            return std::nullopt;
-        }
+    [[nodiscard]] std::vector<K> Keys() const {
+        std::scoped_lock lock(mutex_);
+        std::vector<K> keys{};
+        keys.reserve(values_.size());
+        for (const auto& key : std::views::keys(values_)) keys.push_back(key);
+        return keys;
+    }
 
-        void Apply(const K& k, std::function<void(const V& v)>&& task) {
-            std::optional<V> value;
-            {
-                std::lock_guard<std::mutex> lock(mtx_);
-                if (inner_.find(k) != inner_.end()) {
-                    value = inner_.at(k);
-                }
-            }
-            if (value.has_value()) {
-                task(value.value());
-            }
-        }
+private:
+    mutable std::mutex mutex_{};
+    std::map<K, V> values_{};
+};
 
-        void ApplyAll(std::function<void(const K&k, const V& v)>&& task) {
-            auto snapshot = Clone();
-            for (const auto& [k, v] : snapshot) {
-                task(k, v);
-            }
-        }
+}  // namespace px
 
-        void ApplyAllCond(std::function<bool(const K& k, const V& v)>&& task) {
-            auto snapshot = Clone();
-            for (auto& [k, v] : snapshot) {
-                if (task(k, v)) {
-                    break;
-                }
-            }
-        }
-
-        void VisitAll(std::function<void(K k, V& v)>&& task) {
-            auto keys = Keys();
-            for (const auto& k : keys) {
-                std::optional<V> value;
-                {
-                    std::lock_guard<std::mutex> lock(mtx_);
-                    auto it = inner_.find(k);
-                    if (it == inner_.end()) {
-                        continue;
-                    }
-                    value = it->second;
-                }
-                task(k, value.value());
-                {
-                    std::lock_guard<std::mutex> lock(mtx_);
-                    auto it = inner_.find(k);
-                    if (it != inner_.end()) {
-                        it->second = value.value();
-                    }
-                }
-            }
-        }
-
-        void VisitAllCond(std::function<bool(K k, V& v)>&& task) {
-            auto keys = Keys();
-            for (const auto& k : keys) {
-                std::optional<V> value;
-                {
-                    std::lock_guard<std::mutex> lock(mtx_);
-                    auto it = inner_.find(k);
-                    if (it == inner_.end()) {
-                        continue;
-                    }
-                    value = it->second;
-                }
-                bool should_break = task(k, value.value());
-                {
-                    std::lock_guard<std::mutex> lock(mtx_);
-                    auto it = inner_.find(k);
-                    if (it != inner_.end()) {
-                        it->second = value.value();
-                    }
-                }
-                if (should_break) {
-                    break;
-                }
-            }
-        }
-
-        // 0-based
-        std::optional<std::vector<V>> QueryRange(int begin, int end) {
-            std::lock_guard<std::mutex> lock(mtx_);
-            std::vector<V> values;
-            // overflow
-            if (begin >= inner_.size()) {
-                //LOGI("Overflow, begin: {}, total: {}", begin, inner_.size());
-                return std::nullopt;
-            }
-
-            auto it_beg = inner_.begin();
-            std::advance(it_beg, begin);
-
-            decltype(it_beg) it_end;
-
-            if (begin < inner_.size() && end >= inner_.size()) {
-                // portion
-                it_end = inner_.end();
-                //LOGI("Portion, {} -> {}", begin, inner_.size());
-            }
-            else {
-                // whole
-                it_end = it_beg;
-                std::advance(it_end, end - begin);
-                //LOGI("Whole");
-            }
-            for (; it_beg != it_end; ++it_beg) {
-                auto pair = *it_beg;
-                values.push_back(pair.second);
-                //LOGI("--> {}", pair.first);
-            }
-            return values;
-        }
-
-        size_t Size() {
-            std::lock_guard<std::mutex> lock(mtx_);
-            return inner_.size();
-        }
-
-        bool Empty() {
-            return Size() <= 0;
-        }
-
-        void Clear() {
-            std::lock_guard<std::mutex> lock(mtx_);
-            inner_.clear();
-        }
-
-        std::map<K, V> Clone() {
-            std::lock_guard<std::mutex> lock(mtx_);
-            std::map<K,V> cpy;
-            for (const auto& [k, v] : inner_) {
-                cpy.insert({k, v});
-            }
-            return cpy;
-        }
-
-        std::vector<K> Keys() {
-            std::lock_guard<std::mutex> lock(mtx_);
-            std::vector<K> keys;
-            keys.reserve(inner_.size());
-            for (const auto& [k, _] : inner_) {
-                keys.push_back(k);
-            }
-            return keys;
-        }
-
-    private:
-        std::mutex mtx_;
-        std::map<K,V> inner_;
-    };
-
-}
-
-#endif //TC_APPLICATION_CONCURRENT_HASHMAP_H
+#endif  // TC_APPLICATION_CONCURRENT_HASHMAP_H

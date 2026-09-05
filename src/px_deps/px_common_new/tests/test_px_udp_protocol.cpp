@@ -34,20 +34,20 @@ static PxUdpProtocol::VideoFrameMeta MakeMeta(uint32_t frame_index, bool key) {
 TEST(PxUdpProtocol, CommonHeader) {
     char buf[4];
     PxUdpProtocol::WriteCommon(buf, PxUdpProtocol::kPktVideo);
-    EXPECT_EQ(PxUdpProtocol::ParseCommon(buf, 4), PxUdpProtocol::kPktVideo);
+    EXPECT_EQ(PxUdpProtocol::ParseCommon(std::span<const char>{buf}), PxUdpProtocol::kPktVideo);
     buf[0] = 0; // break magic
-    EXPECT_EQ(PxUdpProtocol::ParseCommon(buf, 4), 0);
-    EXPECT_EQ(PxUdpProtocol::ParseCommon(buf, 2), 0);
+    EXPECT_EQ(PxUdpProtocol::ParseCommon(std::span<const char>{buf}), 0);
+    EXPECT_EQ(PxUdpProtocol::ParseCommon(std::span<const char>{buf}.first(2)), 0);
 }
 
 TEST(PxUdpProtocol, ShardSmallFrameSinglePacket) {
     auto frame = MakeFrameBytes(500);
     auto meta = MakeMeta(7, true);
-    auto pkts = PxUdpProtocol::ShardVideoFrame(meta, frame.data(), frame.size());
+    auto pkts = PxUdpProtocol::ShardVideoFrame(meta, std::span<const char>{frame});
     ASSERT_EQ(pkts.size(), 1u);
 
     PxUdpProtocol::VideoShardInfo shard;
-    ASSERT_TRUE(PxUdpProtocol::ParseVideoShard(pkts[0]->CStr(), pkts[0]->Size(), shard));
+    ASSERT_TRUE(PxUdpProtocol::ParseVideoShard(pkts[0]->Bytes(), shard));
     EXPECT_EQ(shard.frame_index_, 7u);
     EXPECT_EQ(shard.data_shards_, 1u);
     EXPECT_EQ(shard.shard_index_, 0u);
@@ -59,18 +59,18 @@ TEST(PxUdpProtocol, ShardSmallFrameSinglePacket) {
     EXPECT_EQ(shard.frame_size_, 500u);
     EXPECT_EQ(shard.codec_, PxUdpProtocol::kCodecH264);
     ASSERT_EQ(shard.payload_len_, 500u);
-    EXPECT_EQ(std::memcmp(shard.payload_, frame.data(), 500), 0);
+    EXPECT_TRUE(std::ranges::equal(shard.payload_, std::span<const char>{frame}.first(500)));
 }
 
 TEST(PxUdpProtocol, ShardLargeFrameMultiplePackets) {
     auto frame = MakeFrameBytes(10000);
     auto meta = MakeMeta(9, false);
-    auto pkts = PxUdpProtocol::ShardVideoFrame(meta, frame.data(), frame.size());
+    auto pkts = PxUdpProtocol::ShardVideoFrame(meta, std::span<const char>{frame});
     ASSERT_GT(pkts.size(), 1u);
     for (size_t i = 0; i < pkts.size(); i++) {
         EXPECT_LE(pkts[i]->Size(), PxUdpProtocol::kDefaultMtu);
         PxUdpProtocol::VideoShardInfo shard;
-        ASSERT_TRUE(PxUdpProtocol::ParseVideoShard(pkts[i]->CStr(), pkts[i]->Size(), shard));
+        ASSERT_TRUE(PxUdpProtocol::ParseVideoShard(pkts[i]->Bytes(), shard));
         EXPECT_EQ(shard.data_shards_, pkts.size());
         EXPECT_EQ(shard.shard_index_, i);
         EXPECT_EQ(shard.flags_ & PxUdpProtocol::kFlagSof, i == 0 ? PxUdpProtocol::kFlagSof : 0);
@@ -86,7 +86,7 @@ TEST(PxUdpProtocol, ShardLargeFrameMultiplePackets) {
 TEST(PxUdpProtocol, ReassembleInOrder) {
     auto frame = MakeFrameBytes(8000);
     auto meta = MakeMeta(3, true);
-    auto pkts = PxUdpProtocol::ShardVideoFrame(meta, frame.data(), frame.size());
+    auto pkts = PxUdpProtocol::ShardVideoFrame(meta, std::span<const char>{frame});
     ASSERT_GT(pkts.size(), 1u);
 
     PxUdpFrameReassembler reasm;
@@ -94,19 +94,19 @@ TEST(PxUdpProtocol, ReassembleInOrder) {
     reasm.on_frame_ = [&](const PxUdpFrameReassembler::CompleteFrame& f) { frames.push_back(f); };
     reasm.on_frame_lost_ = [](uint8_t, uint32_t) { FAIL() << "unexpected loss"; };
 
-    for (auto& p : pkts) reasm.AddPacket(p->CStr(), p->Size());
+    for (auto& p : pkts) reasm.AddPacket(p->Bytes());
     ASSERT_EQ(frames.size(), 1u);
     EXPECT_EQ(frames[0].frame_index_, 3u);
     EXPECT_TRUE(frames[0].key_);
     EXPECT_EQ(frames[0].mon_name_, meta.mon_name_);
     ASSERT_EQ(frames[0].data_->Size(), frame.size());
-    EXPECT_EQ(std::memcmp(frames[0].data_->CStr(), frame.data(), frame.size()), 0);
+    EXPECT_EQ(std::memcmp(frames[0].data_->Bytes().data(), frame.data(), frame.size()), 0);
 }
 
 TEST(PxUdpProtocol, ReassembleOutOfOrder) {
     auto frame = MakeFrameBytes(8000);
     auto meta = MakeMeta(4, false);
-    auto pkts = PxUdpProtocol::ShardVideoFrame(meta, frame.data(), frame.size());
+    auto pkts = PxUdpProtocol::ShardVideoFrame(meta, std::span<const char>{frame});
     ASSERT_GT(pkts.size(), 2u);
 
     // P frame as the very first frame of the stream is decodable (no prior loss)
@@ -115,11 +115,11 @@ TEST(PxUdpProtocol, ReassembleOutOfOrder) {
     reasm.on_frame_ = [&](const PxUdpFrameReassembler::CompleteFrame& f) { frames.push_back(f); };
 
     // deliver: SOF first, then reverse the rest
-    reasm.AddPacket(pkts[0]->CStr(), pkts[0]->Size());
-    for (size_t i = pkts.size() - 1; i >= 1; i--) reasm.AddPacket(pkts[i]->CStr(), pkts[i]->Size());
+    reasm.AddPacket(pkts[0]->Bytes());
+    for (size_t i = pkts.size() - 1; i >= 1; i--) reasm.AddPacket(pkts[i]->Bytes());
     ASSERT_EQ(frames.size(), 1u);
     ASSERT_EQ(frames[0].data_->Size(), frame.size());
-    EXPECT_EQ(std::memcmp(frames[0].data_->CStr(), frame.data(), frame.size()), 0);
+    EXPECT_EQ(std::memcmp(frames[0].data_->Bytes().data(), frame.data(), frame.size()), 0);
 }
 
 TEST(PxUdpProtocol, ReassembleLateSofKeepsPreSofCounters) {
@@ -129,12 +129,12 @@ TEST(PxUdpProtocol, ReassembleLateSofKeepsPreSofCounters) {
     // 不清空已经收到的数据/parity 计数。
     auto frame = MakeFrameBytes(20000);
     auto meta = MakeMeta(20, false);
-    auto pkts = PxUdpProtocol::ShardVideoFrame(meta, frame.data(), frame.size(),
+    auto pkts = PxUdpProtocol::ShardVideoFrame(meta, std::span<const char>{frame},
                                                PxUdpProtocol::kDefaultMtu, 20);
     ASSERT_GT(pkts.size(), 2u);
 
     PxUdpProtocol::VideoShardInfo info0;
-    ASSERT_TRUE(PxUdpProtocol::ParseVideoShard(pkts[0]->CStr(), pkts[0]->Size(), info0));
+    ASSERT_TRUE(PxUdpProtocol::ParseVideoShard(pkts[0]->Bytes(), info0));
     const int data_shards = info0.data_shards_;
     const int parity_shards = info0.parity_shards_;
     ASSERT_GE(data_shards, 4);
@@ -151,36 +151,36 @@ TEST(PxUdpProtocol, ReassembleLateSofKeepsPreSofCounters) {
     };
 
     // 先到:一个数据块(非 SOF)+ 一个 parity 块;随后 SOF 才到。
-    reasm.AddPacket(pkts[1]->CStr(), pkts[1]->Size());
-    reasm.AddPacket(pkts[data_shards]->CStr(), pkts[data_shards]->Size());
-    reasm.AddPacket(pkts[0]->CStr(), pkts[0]->Size());
+    reasm.AddPacket(pkts[1]->Bytes());
+    reasm.AddPacket(pkts[data_shards]->Bytes());
+    reasm.AddPacket(pkts[0]->Bytes());
 
     // 补齐除 shard 2 外的所有数据块:数据块少 1 个,但已有 1 个 parity,足够 RS 恢复。
     for (int i = 2; i < data_shards; i++) {
         if (i == 2) {
             continue;
         }
-        reasm.AddPacket(pkts[i]->CStr(), pkts[i]->Size());
+        reasm.AddPacket(pkts[i]->Bytes());
     }
 
     ASSERT_EQ(frames.size(), 1u);
     ASSERT_EQ(frames[0].data_->Size(), frame.size());
-    EXPECT_EQ(std::memcmp(frames[0].data_->CStr(), frame.data(), frame.size()), 0);
+    EXPECT_EQ(std::memcmp(frames[0].data_->Bytes().data(), frame.data(), frame.size()), 0);
 }
 
 TEST(PxUdpProtocol, LossDeclaresAndDropsPUntilKey) {
     auto frame_n = MakeFrameBytes(8000);
     auto meta_n = MakeMeta(10, false);
-    auto pkts_n = PxUdpProtocol::ShardVideoFrame(meta_n, frame_n.data(), frame_n.size());
+    auto pkts_n = PxUdpProtocol::ShardVideoFrame(meta_n, std::span<const char>{frame_n});
     ASSERT_GT(pkts_n.size(), 1u);
 
     auto frame_n1 = MakeFrameBytes(600);
     auto meta_n1 = MakeMeta(11, false);
-    auto pkts_n1 = PxUdpProtocol::ShardVideoFrame(meta_n1, frame_n1.data(), frame_n1.size());
+    auto pkts_n1 = PxUdpProtocol::ShardVideoFrame(meta_n1, std::span<const char>{frame_n1});
 
     auto frame_key = MakeFrameBytes(700);
     auto meta_key = MakeMeta(12, true);
-    auto pkts_key = PxUdpProtocol::ShardVideoFrame(meta_key, frame_key.data(), frame_key.size());
+    auto pkts_key = PxUdpProtocol::ShardVideoFrame(meta_key, std::span<const char>{frame_key});
 
     PxUdpFrameReassembler reasm;
     std::vector<PxUdpFrameReassembler::CompleteFrame> frames;
@@ -189,18 +189,18 @@ TEST(PxUdpProtocol, LossDeclaresAndDropsPUntilKey) {
     reasm.on_frame_lost_ = [&](uint8_t, uint32_t idx) { lost.push_back(idx); };
 
     // frame 10: deliver all but the last shard -> stuck incomplete
-    for (size_t i = 0; i + 1 < pkts_n.size(); i++) reasm.AddPacket(pkts_n[i]->CStr(), pkts_n[i]->Size());
+    for (size_t i = 0; i + 1 < pkts_n.size(); i++) reasm.AddPacket(pkts_n[i]->Bytes());
     EXPECT_TRUE(frames.empty());
 
     // frame 11 (newer) arrives -> frame 10 declared lost
-    for (auto& p : pkts_n1) reasm.AddPacket(p->CStr(), p->Size());
+    for (auto& p : pkts_n1) reasm.AddPacket(p->Bytes());
     ASSERT_EQ(lost.size(), 1u);
     EXPECT_EQ(lost[0], 10u);
     // frame 11 is a P frame after a loss -> completed but dropped
     EXPECT_TRUE(frames.empty());
 
     // key frame 12 -> delivered, stream recovered
-    for (auto& p : pkts_key) reasm.AddPacket(p->CStr(), p->Size());
+    for (auto& p : pkts_key) reasm.AddPacket(p->Bytes());
     ASSERT_EQ(frames.size(), 1u);
     EXPECT_TRUE(frames[0].key_);
     EXPECT_EQ(frames[0].frame_index_, 12u);
@@ -209,7 +209,7 @@ TEST(PxUdpProtocol, LossDeclaresAndDropsPUntilKey) {
 TEST(PxUdpProtocol, JoinMidFrameDeclaresLoss) {
     auto frame = MakeFrameBytes(8000);
     auto meta = MakeMeta(20, false);
-    auto pkts = PxUdpProtocol::ShardVideoFrame(meta, frame.data(), frame.size());
+    auto pkts = PxUdpProtocol::ShardVideoFrame(meta, std::span<const char>{frame});
     ASSERT_GT(pkts.size(), 1u);
 
     PxUdpFrameReassembler reasm;
@@ -218,7 +218,7 @@ TEST(PxUdpProtocol, JoinMidFrameDeclaresLoss) {
     reasm.on_frame_ = [](const PxUdpFrameReassembler::CompleteFrame&) { FAIL() << "should not complete"; };
 
     // first seen shard is NOT a SOF -> mid-frame join
-    reasm.AddPacket(pkts[1]->CStr(), pkts[1]->Size());
+    reasm.AddPacket(pkts[1]->Bytes());
     ASSERT_EQ(lost.size(), 1u);
     EXPECT_EQ(lost[0], 20u);
 }
@@ -227,24 +227,24 @@ TEST(PxUdpProtocol, CtrlRoundtrip) {
     std::string s1, s2;
 
     auto hello = PxUdpProtocol::BuildHello("dev-123", "stream-abc");
-    ASSERT_EQ(PxUdpProtocol::ParseCtrl(hello->CStr(), hello->Size(), s1, s2), PxUdpProtocol::kCtrlHello);
+    ASSERT_EQ(PxUdpProtocol::ParseCtrl(hello->Bytes(), s1, s2), PxUdpProtocol::kCtrlHello);
     EXPECT_EQ(s1, "dev-123");
     EXPECT_EQ(s2, "stream-abc");
 
     auto hb = PxUdpProtocol::BuildHeartbeat("stream-abc");
-    ASSERT_EQ(PxUdpProtocol::ParseCtrl(hb->CStr(), hb->Size(), s1, s2), PxUdpProtocol::kCtrlHeartbeat);
+    ASSERT_EQ(PxUdpProtocol::ParseCtrl(hb->Bytes(), s1, s2), PxUdpProtocol::kCtrlHeartbeat);
     EXPECT_EQ(s1, "stream-abc");
 
     auto idr = PxUdpProtocol::BuildIdrRequest(R"(\\.\DISPLAY2)");
-    ASSERT_EQ(PxUdpProtocol::ParseCtrl(idr->CStr(), idr->Size(), s1, s2), PxUdpProtocol::kCtrlIdrRequest);
+    ASSERT_EQ(PxUdpProtocol::ParseCtrl(idr->Bytes(), s1, s2), PxUdpProtocol::kCtrlIdrRequest);
     EXPECT_EQ(s1, R"(\\.\DISPLAY2)");
 
     auto kick = PxUdpProtocol::BuildKick("taken over");
-    ASSERT_EQ(PxUdpProtocol::ParseCtrl(kick->CStr(), kick->Size(), s1, s2), PxUdpProtocol::kCtrlKick);
+    ASSERT_EQ(PxUdpProtocol::ParseCtrl(kick->Bytes(), s1, s2), PxUdpProtocol::kCtrlKick);
     EXPECT_EQ(s1, "taken over");
 
     // truncated packet rejected
-    ASSERT_EQ(PxUdpProtocol::ParseCtrl(hello->CStr(), hello->Size() - 3, s1, s2), 0);
+    ASSERT_EQ(PxUdpProtocol::ParseCtrl(hello->Bytes().first(hello->Size() - 3), s1, s2), 0);
 }
 
 // ---------------- FEC (Reed-Solomon, P2) ----------------
@@ -252,13 +252,13 @@ TEST(PxUdpProtocol, CtrlRoundtrip) {
 // 带 FEC 切帧:返回全部包(数据包在前、parity 包随后)
 static std::vector<std::shared_ptr<Data>> ShardFec(const PxUdpProtocol::VideoFrameMeta& meta,
                                                    const std::string& frame, int fec_percent) {
-    return PxUdpProtocol::ShardVideoFrame(meta, frame.data(), frame.size(),
+    return PxUdpProtocol::ShardVideoFrame(meta, std::span<const char>{frame},
                                           PxUdpProtocol::kDefaultMtu, fec_percent);
 }
 
 static uint16_t DataShardsOf(const std::vector<std::shared_ptr<Data>>& pkts) {
     PxUdpProtocol::VideoShardInfo shard;
-    EXPECT_TRUE(PxUdpProtocol::ParseVideoShard(pkts[0]->CStr(), pkts[0]->Size(), shard));
+    EXPECT_TRUE(PxUdpProtocol::ParseVideoShard(pkts[0]->Bytes(), shard));
     return shard.data_shards_;
 }
 
@@ -272,7 +272,7 @@ TEST(PxUdpProtocol, FecShardLayout) {
     EXPECT_EQ(parity, (d * 20 + 99) / 100); // ceil(D*20%)
     for (size_t i = 0; i < pkts.size(); i++) {
         PxUdpProtocol::VideoShardInfo shard;
-        ASSERT_TRUE(PxUdpProtocol::ParseVideoShard(pkts[i]->CStr(), pkts[i]->Size(), shard));
+        ASSERT_TRUE(PxUdpProtocol::ParseVideoShard(pkts[i]->Bytes(), shard));
         EXPECT_EQ(shard.data_shards_, d);
         EXPECT_EQ(shard.parity_shards_, parity);
         EXPECT_EQ(shard.fec_block_, 0);
@@ -307,12 +307,12 @@ TEST(PxUdpProtocol, FecRecoversOneDataShard) {
     reasm.on_frame_lost_ = [](uint8_t, uint32_t) { FAIL() << "unexpected loss"; };
     for (size_t i = 0; i < pkts.size(); i++) {
         if (i == dropped) continue;
-        reasm.AddPacket(pkts[i]->CStr(), pkts[i]->Size());
+        reasm.AddPacket(pkts[i]->Bytes());
     }
     ASSERT_EQ(frames.size(), 1u);
     EXPECT_EQ(frames[0].frame_index_, 31u);
     ASSERT_EQ(frames[0].data_->Size(), frame.size());
-    EXPECT_EQ(std::memcmp(frames[0].data_->CStr(), frame.data(), frame.size()), 0);
+    EXPECT_EQ(std::memcmp(frames[0].data_->Bytes().data(), frame.data(), frame.size()), 0);
 }
 
 TEST(PxUdpProtocol, FecRecoversShardZero) {
@@ -327,7 +327,7 @@ TEST(PxUdpProtocol, FecRecoversShardZero) {
     reasm.on_frame_ = [&](const PxUdpFrameReassembler::CompleteFrame& f) { frames.push_back(f); };
     reasm.on_frame_lost_ = [](uint8_t, uint32_t) { FAIL() << "unexpected loss"; };
     for (size_t i = 1; i < pkts.size(); i++) {
-        reasm.AddPacket(pkts[i]->CStr(), pkts[i]->Size());
+        reasm.AddPacket(pkts[i]->Bytes());
     }
     ASSERT_EQ(frames.size(), 1u);
     EXPECT_EQ(frames[0].mon_name_, meta.mon_name_);
@@ -335,7 +335,7 @@ TEST(PxUdpProtocol, FecRecoversShardZero) {
     EXPECT_EQ(frames[0].frame_height_, 1080);
     EXPECT_TRUE(frames[0].key_);
     ASSERT_EQ(frames[0].data_->Size(), frame.size());
-    EXPECT_EQ(std::memcmp(frames[0].data_->CStr(), frame.data(), frame.size()), 0);
+    EXPECT_EQ(std::memcmp(frames[0].data_->Bytes().data(), frame.data(), frame.size()), 0);
 }
 
 TEST(PxUdpProtocol, FecRecoversUpToParityCount) {
@@ -352,11 +352,11 @@ TEST(PxUdpProtocol, FecRecoversUpToParityCount) {
     reasm.on_frame_ = [&](const PxUdpFrameReassembler::CompleteFrame& f) { frames.push_back(f); };
     reasm.on_frame_lost_ = [](uint8_t, uint32_t) { FAIL() << "unexpected loss"; };
     for (size_t i = parity; i < pkts.size(); i++) { // 跳过前 parity 个数据 shard
-        reasm.AddPacket(pkts[i]->CStr(), pkts[i]->Size());
+        reasm.AddPacket(pkts[i]->Bytes());
     }
     ASSERT_EQ(frames.size(), 1u);
     ASSERT_EQ(frames[0].data_->Size(), frame.size());
-    EXPECT_EQ(std::memcmp(frames[0].data_->CStr(), frame.data(), frame.size()), 0);
+    EXPECT_EQ(std::memcmp(frames[0].data_->Bytes().data(), frame.data(), frame.size()), 0);
 }
 
 TEST(PxUdpProtocol, FecLossBeyondParityDeclaresLossAtEof) {
@@ -379,14 +379,14 @@ TEST(PxUdpProtocol, FecLossBeyondParityDeclaresLossAtEof) {
     // 丢 parity+1 个数据 shard。EOF 到达说明发送端数据 shard 已发完，
     // 即使后续全部 parity 到达也不够恢复，因此不等待下一帧就必须判丢。
     for (size_t i = parity + 1; i < pkts_n.size(); i++) {
-        reasm.AddPacket(pkts_n[i]->CStr(), pkts_n[i]->Size());
+        reasm.AddPacket(pkts_n[i]->Bytes());
     }
     EXPECT_TRUE(frames.empty());
     ASSERT_EQ(lost.size(), 1u);
     EXPECT_EQ(lost[0], 40u);
 
     // 迟到的旧帧包不得重复判丢；后续 key 帧正常交付，流恢复。
-    for (auto& p : pkts_key) reasm.AddPacket(p->CStr(), p->Size());
+    for (auto& p : pkts_key) reasm.AddPacket(p->Bytes());
     EXPECT_EQ(lost.size(), 1u);
     ASSERT_EQ(frames.size(), 1u);
     EXPECT_TRUE(frames[0].key_);
@@ -402,7 +402,7 @@ TEST(PxUdpProtocol, FecDisabledBehavesLikeBefore) {
     EXPECT_EQ(pkts.size(), (size_t)d);
     for (auto& p : pkts) {
         PxUdpProtocol::VideoShardInfo shard;
-        ASSERT_TRUE(PxUdpProtocol::ParseVideoShard(p->CStr(), p->Size(), shard));
+        ASSERT_TRUE(PxUdpProtocol::ParseVideoShard(p->Bytes(), shard));
         EXPECT_EQ(shard.parity_shards_, 0);
         EXPECT_FALSE(shard.flags_ & PxUdpProtocol::kFlagParity);
     }
@@ -411,10 +411,10 @@ TEST(PxUdpProtocol, FecDisabledBehavesLikeBefore) {
     std::vector<PxUdpFrameReassembler::CompleteFrame> frames;
     reasm.on_frame_ = [&](const PxUdpFrameReassembler::CompleteFrame& f) { frames.push_back(f); };
     reasm.on_frame_lost_ = [](uint8_t, uint32_t) { FAIL() << "unexpected loss"; };
-    for (auto& p : pkts) reasm.AddPacket(p->CStr(), p->Size());
+    for (auto& p : pkts) reasm.AddPacket(p->Bytes());
     ASSERT_EQ(frames.size(), 1u);
     ASSERT_EQ(frames[0].data_->Size(), frame.size());
-    EXPECT_EQ(std::memcmp(frames[0].data_->CStr(), frame.data(), frame.size()), 0);
+    EXPECT_EQ(std::memcmp(frames[0].data_->Bytes().data(), frame.data(), frame.size()), 0);
 }
 
 // FEC_VALIDATION 风格:遍历每个 shard 位置单独丢弃,都能恢复出原帧
@@ -433,14 +433,14 @@ TEST(PxUdpProtocol, FecRecoverEverySingleShardPosition) {
             FAIL() << "unexpected loss, dropped shard " << dropped << ", frame " << idx;
         };
         // 乱序投递:先 parity 再数据(跳过被丢的),覆盖 parity 先到的路径
-        for (size_t i = d; i < pkts.size(); i++) reasm.AddPacket(pkts[i]->CStr(), pkts[i]->Size());
+        for (size_t i = d; i < pkts.size(); i++) reasm.AddPacket(pkts[i]->Bytes());
         for (size_t i = 0; i < (size_t)d; i++) {
             if (i == dropped) continue;
-            reasm.AddPacket(pkts[i]->CStr(), pkts[i]->Size());
+            reasm.AddPacket(pkts[i]->Bytes());
         }
         ASSERT_EQ(frames.size(), 1u) << "dropped shard " << dropped;
         ASSERT_EQ(frames[0].data_->Size(), frame.size()) << "dropped shard " << dropped;
-        EXPECT_EQ(std::memcmp(frames[0].data_->CStr(), frame.data(), frame.size()), 0)
+        EXPECT_EQ(std::memcmp(frames[0].data_->Bytes().data(), frame.data(), frame.size()), 0)
             << "dropped shard " << dropped;
         EXPECT_EQ(frames[0].mon_name_, meta.mon_name_) << "dropped shard " << dropped;
     }
@@ -452,24 +452,24 @@ TEST(PxUdpProtocol, FrameStatusRoundtrip) {
     auto pkt = PxUdpProtocol::BuildFrameStatus(12345, 8, 2);
     uint32_t frame_index = 0;
     uint16_t received = 0, lost = 0;
-    ASSERT_TRUE(PxUdpProtocol::ParseFrameStatus(pkt->CStr(), pkt->Size(), frame_index, received, lost));
+    ASSERT_TRUE(PxUdpProtocol::ParseFrameStatus(pkt->Bytes(), frame_index, received, lost));
     EXPECT_EQ(frame_index, 12345u);
     EXPECT_EQ(received, 8u);
     EXPECT_EQ(lost, 2u);
 
     // 其它 ctrl 包/截断包不应被解析成 FrameStatus
     auto hb = PxUdpProtocol::BuildHeartbeat("stream-abc");
-    ASSERT_FALSE(PxUdpProtocol::ParseFrameStatus(hb->CStr(), hb->Size(), frame_index, received, lost));
-    ASSERT_FALSE(PxUdpProtocol::ParseFrameStatus(pkt->CStr(), pkt->Size() - 1, frame_index, received, lost));
+    ASSERT_FALSE(PxUdpProtocol::ParseFrameStatus(hb->Bytes(), frame_index, received, lost));
+    ASSERT_FALSE(PxUdpProtocol::ParseFrameStatus(pkt->Bytes().first(pkt->Size() - 1), frame_index, received, lost));
     // FrameStatus 不走 ParseCtrl 字符串路径
     std::string s1, s2;
-    EXPECT_EQ(PxUdpProtocol::ParseCtrl(pkt->CStr(), pkt->Size(), s1, s2), 0);
+    EXPECT_EQ(PxUdpProtocol::ParseCtrl(pkt->Bytes(), s1, s2), 0);
 }
 
 TEST(PxUdpProtocol, FrameStatusOnCleanComplete) {
     auto frame = MakeFrameBytes(8000);
     auto meta = MakeMeta(70, true);
-    auto pkts = PxUdpProtocol::ShardVideoFrame(meta, frame.data(), frame.size());
+    auto pkts = PxUdpProtocol::ShardVideoFrame(meta, std::span<const char>{frame});
     const uint16_t d = DataShardsOf(pkts);
 
     PxUdpFrameReassembler reasm;
@@ -478,7 +478,7 @@ TEST(PxUdpProtocol, FrameStatusOnCleanComplete) {
     reasm.on_frame_status_ = [&](uint8_t, uint32_t f, uint16_t r, uint16_t l) {
         statuses.push_back({f, r, l});
     };
-    for (auto& p : pkts) reasm.AddPacket(p->CStr(), p->Size());
+    for (auto& p : pkts) reasm.AddPacket(p->Bytes());
     // 干净完成:received = 全部数据 shard,lost = 0,恰好一次
     ASSERT_EQ(statuses.size(), 1u);
     EXPECT_EQ(statuses[0].frame, 70u);
@@ -502,7 +502,7 @@ TEST(PxUdpProtocol, FrameStatusOnFecRecovery) {
     reasm.on_frame_lost_ = [](uint8_t, uint32_t) { FAIL() << "unexpected loss"; };
     // 丢 1 个数据 shard,FEC 恢复:received = D-1,lost = 1,恰好一次
     for (size_t i = 1; i < pkts.size(); i++) {
-        reasm.AddPacket(pkts[i]->CStr(), pkts[i]->Size());
+        reasm.AddPacket(pkts[i]->Bytes());
     }
     ASSERT_EQ(statuses.size(), 1u);
     EXPECT_EQ(statuses[0].frame, 71u);
@@ -513,13 +513,13 @@ TEST(PxUdpProtocol, FrameStatusOnFecRecovery) {
 TEST(PxUdpProtocol, FrameStatusOnDeclareLoss) {
     auto frame_n = MakeFrameBytes(8000);
     auto meta_n = MakeMeta(80, false);
-    auto pkts_n = PxUdpProtocol::ShardVideoFrame(meta_n, frame_n.data(), frame_n.size());
+    auto pkts_n = PxUdpProtocol::ShardVideoFrame(meta_n, std::span<const char>{frame_n});
     const uint16_t d = DataShardsOf(pkts_n);
     ASSERT_GT(d, 1u);
 
     auto frame_key = MakeFrameBytes(700);
     auto meta_key = MakeMeta(81, true);
-    auto pkts_key = PxUdpProtocol::ShardVideoFrame(meta_key, frame_key.data(), frame_key.size());
+    auto pkts_key = PxUdpProtocol::ShardVideoFrame(meta_key, std::span<const char>{frame_key});
 
     PxUdpFrameReassembler reasm;
     struct Status { uint32_t frame; uint16_t received; uint16_t lost; };
@@ -529,9 +529,9 @@ TEST(PxUdpProtocol, FrameStatusOnDeclareLoss) {
     };
 
     // 帧 80 丢最后一个 shard 卡住;帧 81 到达 -> 80 判丢(状态一次:received=D-1, lost=1)
-    for (size_t i = 0; i + 1 < pkts_n.size(); i++) reasm.AddPacket(pkts_n[i]->CStr(), pkts_n[i]->Size());
+    for (size_t i = 0; i + 1 < pkts_n.size(); i++) reasm.AddPacket(pkts_n[i]->Bytes());
     EXPECT_TRUE(statuses.empty());
-    for (auto& p : pkts_key) reasm.AddPacket(p->CStr(), p->Size());
+    for (auto& p : pkts_key) reasm.AddPacket(p->Bytes());
     // 帧 80 判丢一次 + 帧 81 完成一次
     ASSERT_EQ(statuses.size(), 2u);
     EXPECT_EQ(statuses[0].frame, 80u);
@@ -541,7 +541,7 @@ TEST(PxUdpProtocol, FrameStatusOnDeclareLoss) {
     EXPECT_EQ(statuses[1].lost, 0u);
 
     // 帧 80 的迟到包不得再次触发状态(finished_ 去重)
-    reasm.AddPacket(pkts_n.back()->CStr(), pkts_n.back()->Size());
+    reasm.AddPacket(pkts_n.back()->Bytes());
     EXPECT_EQ(statuses.size(), 2u);
 }
 
@@ -550,17 +550,17 @@ TEST(PxUdpProtocol, FrameStatusOnDeclareLoss) {
 TEST(PxUdpProtocol, WholeFrameLossDetectedOnNextSof) {
     // 帧 90(key) 完整 -> emit
     auto frame90 = MakeFrameBytes(700);
-    auto pkts90 = PxUdpProtocol::ShardVideoFrame(MakeMeta(90, true), frame90.data(), frame90.size());
+    auto pkts90 = PxUdpProtocol::ShardVideoFrame(MakeMeta(90, true), std::span<const char>{frame90});
     // 帧 91 整帧蒸发:生成但一个包都不投
     auto frame91 = MakeFrameBytes(700);
-    auto pkts91 = PxUdpProtocol::ShardVideoFrame(MakeMeta(91, false), frame91.data(), frame91.size());
+    auto pkts91 = PxUdpProtocol::ShardVideoFrame(MakeMeta(91, false), std::span<const char>{frame91});
     (void)pkts91;
     // 帧 92(P) 全到:参考链已断,必须被 need_key_ 丢掉
     auto frame92 = MakeFrameBytes(700);
-    auto pkts92 = PxUdpProtocol::ShardVideoFrame(MakeMeta(92, false), frame92.data(), frame92.size());
+    auto pkts92 = PxUdpProtocol::ShardVideoFrame(MakeMeta(92, false), std::span<const char>{frame92});
     // 帧 93(key):流恢复
     auto frame93 = MakeFrameBytes(700);
-    auto pkts93 = PxUdpProtocol::ShardVideoFrame(MakeMeta(93, true), frame93.data(), frame93.size());
+    auto pkts93 = PxUdpProtocol::ShardVideoFrame(MakeMeta(93, true), std::span<const char>{frame93});
 
     PxUdpFrameReassembler reasm;
     std::vector<PxUdpFrameReassembler::CompleteFrame> frames;
@@ -568,19 +568,19 @@ TEST(PxUdpProtocol, WholeFrameLossDetectedOnNextSof) {
     reasm.on_frame_ = [&](const PxUdpFrameReassembler::CompleteFrame& f) { frames.push_back(f); };
     reasm.on_frame_lost_ = [&](uint8_t, uint32_t idx) { lost.push_back(idx); };
 
-    for (auto& p : pkts90) reasm.AddPacket(p->CStr(), p->Size());
+    for (auto& p : pkts90) reasm.AddPacket(p->Bytes());
     ASSERT_EQ(frames.size(), 1u);
     EXPECT_TRUE(lost.empty()); // 首连后连续帧,不误判
 
     // 跳过 91,直接喂 92 -> 检测出 [91] 整帧丢失,DeclareLoss 恰好一次
-    for (auto& p : pkts92) reasm.AddPacket(p->CStr(), p->Size());
+    for (auto& p : pkts92) reasm.AddPacket(p->Bytes());
     ASSERT_EQ(lost.size(), 1u);
     EXPECT_EQ(lost[0], 91u);
     // 92 是 P 帧,need_key_ 置位 -> 完成但不进解码器
     EXPECT_EQ(frames.size(), 1u);
 
     // key 帧 93 正常 emit,流恢复
-    for (auto& p : pkts93) reasm.AddPacket(p->CStr(), p->Size());
+    for (auto& p : pkts93) reasm.AddPacket(p->Bytes());
     ASSERT_EQ(frames.size(), 2u);
     EXPECT_EQ(frames[1].frame_index_, 93u);
     EXPECT_TRUE(frames[1].key_);
@@ -597,8 +597,8 @@ TEST(PxUdpProtocol, ContiguousFramesNoFalseGap) {
     // gap = 0 的连续帧:100(key) -> 101(P) -> 102(P),全部正常 emit
     for (uint32_t idx = 100; idx <= 102; idx++) {
         auto frame = MakeFrameBytes(700 + idx);
-        auto pkts = PxUdpProtocol::ShardVideoFrame(MakeMeta(idx, idx == 100), frame.data(), frame.size());
-        for (auto& p : pkts) reasm.AddPacket(p->CStr(), p->Size());
+        auto pkts = PxUdpProtocol::ShardVideoFrame(MakeMeta(idx, idx == 100), std::span<const char>{frame});
+        for (auto& p : pkts) reasm.AddPacket(p->Bytes());
     }
     EXPECT_EQ(frames.size(), 3u);
 }
@@ -608,11 +608,11 @@ TEST(PxUdpProtocol, ValidateRecoveredShard0Check) {
     const size_t p = 1376; // mtu 1400 - 24
     // 合法块:ext(9+4) + frame_size 在容量内
     std::string b0(p, '\0');
-    PxUdpProtocol::W16(b0.data(), 1920);
-    PxUdpProtocol::W16(b0.data() + 2, 1080);
-    PxUdpProtocol::W32(b0.data() + 4, 12000);
+    PxUdpProtocol::W16(std::span<char>{b0}, 0, 1920);
+    PxUdpProtocol::W16(std::span<char>{b0}, 2, 1080);
+    PxUdpProtocol::W32(std::span<char>{b0}, 4, 12000);
     b0[8] = 4;
-    memcpy(b0.data() + 9, "mon1", 4);
+    std::ranges::copy(std::string_view{"mon1"}, b0.begin() + 9);
     EXPECT_TRUE(PxUdpFrameReassembler::ValidateRecoveredShard0(b0, d, p));
 
     // mon_name_len 超上限
@@ -622,7 +622,7 @@ TEST(PxUdpProtocol, ValidateRecoveredShard0Check) {
 
     // frame_size 超容量:sof_ext(13) + frame_size > D * P (12384)
     auto bad_size = b0;
-    PxUdpProtocol::W32(bad_size.data() + 4, 20000);
+    PxUdpProtocol::W32(std::span<char>{bad_size}, 4, 20000);
     EXPECT_FALSE(PxUdpFrameReassembler::ValidateRecoveredShard0(bad_size, d, p));
 
     // 块太短
@@ -633,68 +633,67 @@ TEST(PxUdpProtocol, ValidateRecoveredShard0Check) {
 
 TEST(PxUdpProtocol, AudioPacketRoundtrip) {
     auto payload = MakeFrameBytes(240); // 一帧 Opus 大约这个量级
-    auto pkt = PxUdpProtocol::BuildAudioPacket(1234, 567890, payload.data(), payload.size());
+    auto pkt = PxUdpProtocol::BuildAudioPacket(1234, 567890, std::span<const char>{payload});
     ASSERT_TRUE(pkt != nullptr);
     EXPECT_EQ(pkt->Size(), (size_t)(PxUdpProtocol::kCommonHeaderSize + PxUdpProtocol::kAudioHeaderSize + payload.size()));
 
     PxUdpProtocol::AudioPacketInfo info;
-    ASSERT_TRUE(PxUdpProtocol::ParseAudioPacket(pkt->CStr(), pkt->Size(), info));
+    ASSERT_TRUE(PxUdpProtocol::ParseAudioPacket(pkt->Bytes(), info));
     EXPECT_EQ(info.seq_, 1234u);
     EXPECT_EQ(info.timestamp_ms_, 567890u);
     ASSERT_EQ(info.payload_len_, 240u);
-    EXPECT_EQ(std::memcmp(info.payload_, payload.data(), 240), 0);
+    EXPECT_TRUE(std::ranges::equal(info.payload_, std::span<const char>{payload}));
 
     // 截断/错类型/空载荷都拒绝
-    EXPECT_FALSE(PxUdpProtocol::ParseAudioPacket(pkt->CStr(), pkt->Size() - 1, info));
+    EXPECT_FALSE(PxUdpProtocol::ParseAudioPacket(pkt->Bytes().first(pkt->Size() - 1), info));
     auto hb = PxUdpProtocol::BuildHeartbeat("s");
-    EXPECT_FALSE(PxUdpProtocol::ParseAudioPacket(hb->CStr(), hb->Size(), info));
-    EXPECT_TRUE(PxUdpProtocol::BuildAudioPacket(1, 1, nullptr, 10) == nullptr);
-    EXPECT_TRUE(PxUdpProtocol::BuildAudioPacket(1, 1, payload.data(), 0) == nullptr);
+    EXPECT_FALSE(PxUdpProtocol::ParseAudioPacket(hb->Bytes(), info));
+    EXPECT_EQ(PxUdpProtocol::BuildAudioPacket(1, 1, {}), nullptr);
 }
 
 TEST(PxUdpProtocol, AudioJitterInOrder) {
     PxUdpAudioJitterBuffer jb;
     std::vector<uint32_t> delivered;
-    jb.on_frame_ = [&](uint32_t seq, uint32_t ts, const char* payload, size_t len) {
+    jb.on_frame_ = [&](uint32_t seq, uint32_t ts, std::span<const char> payload) {
         EXPECT_EQ(ts, seq * 20);
-        EXPECT_EQ(len, 100u);
+        EXPECT_EQ(payload.size(), 100u);
         delivered.push_back(seq);
     };
     jb.on_lost_ = [](uint32_t) { FAIL() << "unexpected loss"; };
 
     auto payload = MakeFrameBytes(100);
-    for (uint32_t s = 0; s < 5; s++) jb.AddPacket(s, s * 20, payload.data(), payload.size());
+    for (uint32_t s = 0; s < 5; s++) jb.AddPacket(s, s * 20, std::span<const char>{payload});
     EXPECT_EQ(delivered, (std::vector<uint32_t>{0, 1, 2, 3, 4}));
 }
 
 TEST(PxUdpProtocol, AudioJitterOutOfOrder) {
     PxUdpAudioJitterBuffer jb;
     std::vector<uint32_t> delivered;
-    jb.on_frame_ = [&](uint32_t seq, uint32_t, const char*, size_t) { delivered.push_back(seq); };
+    jb.on_frame_ = [&](uint32_t seq, uint32_t, std::span<const char>) { delivered.push_back(seq); };
     jb.on_lost_ = [](uint32_t) { FAIL() << "unexpected loss"; };
 
     auto payload = MakeFrameBytes(100);
-    for (uint32_t s : {0u, 2u, 1u, 4u, 3u}) jb.AddPacket(s, s * 20, payload.data(), payload.size());
+    for (uint32_t s : {0u, 2u, 1u, 4u, 3u}) jb.AddPacket(s, s * 20, std::span<const char>{payload});
     EXPECT_EQ(delivered, (std::vector<uint32_t>{0, 1, 2, 3, 4}));
 }
 
 TEST(PxUdpProtocol, AudioJitterGapTriggersLostThenContinues) {
     PxUdpAudioJitterBuffer jb;
     std::vector<uint32_t> delivered, lost;
-    jb.on_frame_ = [&](uint32_t seq, uint32_t, const char*, size_t) { delivered.push_back(seq); };
+    jb.on_frame_ = [&](uint32_t seq, uint32_t, std::span<const char>) { delivered.push_back(seq); };
     jb.on_lost_ = [&](uint32_t seq) { lost.push_back(seq); };
 
     auto payload = MakeFrameBytes(100);
-    jb.AddPacket(0, 0, payload.data(), payload.size());
+    jb.AddPacket(0, 0, std::span<const char>{payload});
     // seq 1 缺失:最老缓冲包领先 expected_ 超过 2 帧时判丢
-    jb.AddPacket(4, 80, payload.data(), payload.size());
+    jb.AddPacket(4, 80, std::span<const char>{payload});
     EXPECT_EQ(lost, (std::vector<uint32_t>{1u}));
     // 缺口之后的包补上仍能按序交付
-    jb.AddPacket(2, 40, payload.data(), payload.size());
-    jb.AddPacket(3, 60, payload.data(), payload.size());
+    jb.AddPacket(2, 40, std::span<const char>{payload});
+    jb.AddPacket(3, 60, std::span<const char>{payload});
     EXPECT_EQ(delivered, (std::vector<uint32_t>{0, 2, 3, 4}));
     // 迟到的 seq 1 直接丢弃,不重复判丢
-    jb.AddPacket(1, 20, payload.data(), payload.size());
+    jb.AddPacket(1, 20, std::span<const char>{payload});
     EXPECT_EQ(lost.size(), 1u);
     EXPECT_EQ(delivered.size(), 4u);
 }
@@ -702,13 +701,13 @@ TEST(PxUdpProtocol, AudioJitterGapTriggersLostThenContinues) {
 TEST(PxUdpProtocol, AudioJitterJoinMidStream) {
     PxUdpAudioJitterBuffer jb;
     std::vector<uint32_t> delivered;
-    jb.on_frame_ = [&](uint32_t seq, uint32_t, const char*, size_t) { delivered.push_back(seq); };
+    jb.on_frame_ = [&](uint32_t seq, uint32_t, std::span<const char>) { delivered.push_back(seq); };
     jb.on_lost_ = [](uint32_t) { FAIL() << "mid-stream join must not backfill history"; };
 
     auto payload = MakeFrameBytes(100);
     // 首包 seq 100:中途加入不补历史,立即从 100 开始交付
-    jb.AddPacket(100, 2000, payload.data(), payload.size());
-    jb.AddPacket(101, 2020, payload.data(), payload.size());
+    jb.AddPacket(100, 2000, std::span<const char>{payload});
+    jb.AddPacket(101, 2020, std::span<const char>{payload});
     EXPECT_EQ(delivered, (std::vector<uint32_t>{100, 101}));
 }
 
@@ -716,19 +715,19 @@ TEST(PxUdpProtocol, AudioJitterPermanentGapHeals) {
     // 单个 seq 永久缺失:判丢看最新缓冲包,等够 3 帧窗口后立即收口并继续按序交付
     PxUdpAudioJitterBuffer jb;
     std::vector<uint32_t> delivered, lost;
-    jb.on_frame_ = [&](uint32_t seq, uint32_t, const char*, size_t) { delivered.push_back(seq); };
+    jb.on_frame_ = [&](uint32_t seq, uint32_t, std::span<const char>) { delivered.push_back(seq); };
     jb.on_lost_ = [&](uint32_t seq) { lost.push_back(seq); };
 
     auto payload = MakeFrameBytes(100);
-    jb.AddPacket(0, 0, payload.data(), payload.size());
+    jb.AddPacket(0, 0, std::span<const char>{payload});
     // seq 1 永远不到:灌 2..21,seq 4 到达时(领先 expected_ 3 帧)判丢 1 并立即追平
-    for (uint32_t s = 2; s <= 21; s++) jb.AddPacket(s, s * 20, payload.data(), payload.size());
+    for (uint32_t s = 2; s <= 21; s++) jb.AddPacket(s, s * 20, std::span<const char>{payload});
     EXPECT_EQ(lost, (std::vector<uint32_t>{1u}));
     std::vector<uint32_t> expect{0u};
     for (uint32_t s = 2; s <= 21; s++) expect.push_back(s);
     EXPECT_EQ(delivered, expect);
     // 迟到的 seq 1 直接丢弃,不重复判丢
-    jb.AddPacket(1, 20, payload.data(), payload.size());
+    jb.AddPacket(1, 20, std::span<const char>{payload});
     EXPECT_EQ(lost.size(), 1u);
 }
 
@@ -739,13 +738,13 @@ TEST(PxUdpProtocol, AudioJitterBurstBehindNeverSpirals) {
     // 新实现必须快速追平,1..60 每个 seq 要么恰好交付一次,要么恰好判丢一次
     PxUdpAudioJitterBuffer jb;
     std::vector<uint32_t> delivered, lost;
-    jb.on_frame_ = [&](uint32_t seq, uint32_t, const char*, size_t) { delivered.push_back(seq); };
+    jb.on_frame_ = [&](uint32_t seq, uint32_t, std::span<const char>) { delivered.push_back(seq); };
     jb.on_lost_ = [&](uint32_t seq) { lost.push_back(seq); };
 
     auto payload = MakeFrameBytes(100);
-    jb.AddPacket(0, 0, payload.data(), payload.size());
+    jb.AddPacket(0, 0, std::span<const char>{payload});
     // 突发:1/2 丢失,3..60 一次性涌入
-    for (uint32_t s = 3; s <= 60; s++) jb.AddPacket(s, s * 20, payload.data(), payload.size());
+    for (uint32_t s = 3; s <= 60; s++) jb.AddPacket(s, s * 20, std::span<const char>{payload});
     EXPECT_EQ(delivered.front(), 0u);
     EXPECT_EQ(delivered.back(), 60u);
     EXPECT_GE(delivered.size(), 50u);
@@ -767,12 +766,12 @@ TEST(PxUdpProtocol, AudioJitterResyncOnPeerRestart) {
     // 对端重启 seq 归零重来:大幅回退视为新流,重置后从新 seq 继续交付
     PxUdpAudioJitterBuffer jb;
     std::vector<uint32_t> delivered;
-    jb.on_frame_ = [&](uint32_t seq, uint32_t, const char*, size_t) { delivered.push_back(seq); };
+    jb.on_frame_ = [&](uint32_t seq, uint32_t, std::span<const char>) { delivered.push_back(seq); };
     jb.on_lost_ = [](uint32_t) {};
 
     auto payload = MakeFrameBytes(100);
-    for (uint32_t s = 10000; s < 10005; s++) jb.AddPacket(s, s * 20, payload.data(), payload.size());
+    for (uint32_t s = 10000; s < 10005; s++) jb.AddPacket(s, s * 20, std::span<const char>{payload});
     // 对端重启,seq 从 0 重新开始
-    for (uint32_t s = 0; s < 3; s++) jb.AddPacket(s, s * 20, payload.data(), payload.size());
+    for (uint32_t s = 0; s < 3; s++) jb.AddPacket(s, s * 20, std::span<const char>{payload});
     EXPECT_EQ(delivered, (std::vector<uint32_t>{10000u, 10001u, 10002u, 10003u, 10004u, 0u, 1u, 2u}));
 }

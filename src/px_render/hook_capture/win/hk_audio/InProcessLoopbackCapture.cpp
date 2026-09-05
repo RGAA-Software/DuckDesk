@@ -310,8 +310,7 @@ void InProcessLoopbackCapture::ThreadMain(
                 const int bytes =
                     static_cast<int>(frames) * static_cast<int>(fmt.nBlockAlign);
                 if (bytes > 0) {
-                    state->share->PostAudioData(
-                        Data::Make(reinterpret_cast<const char*>(data), bytes));
+                    state->share->PostAudioData(Data::Copy(std::span<const char>{reinterpret_cast<const char*>(data), bytes}));
                     packets++;
                 }
             }

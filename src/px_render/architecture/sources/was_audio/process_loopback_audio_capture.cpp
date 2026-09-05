@@ -4,6 +4,11 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#include <sdkddkver.h>
+#if !defined(NTDDI_VERSION) || NTDDI_VERSION < NTDDI_WIN10_FE
+#undef NTDDI_VERSION
+#define NTDDI_VERSION NTDDI_WIN10_FE
+#endif
 #include <Windows.h>
 #include <wrl.h>
 #include <wrl/client.h>
@@ -430,14 +435,13 @@ void ProcessLoopbackAudioCapture::CaptureThreadMain(
                 if (!data || (flags & AUDCLNT_BUFFERFLAGS_SILENT) != 0) {
                     // Keep the sample clock continuous (OBS style): push an
                     // equal-length zero buffer instead of dropping the packet.
-                    auto silent = Data::Make(nullptr, bytes);
-                    if (silent && silent->DataAddr()) {
-                        memset(silent->DataAddr(), 0, bytes);
+                    auto silent = Data::Allocate( bytes);
+                    if (silent && silent->MutableBytes().data()) {
+                        memset(silent->MutableBytes().data(), 0, bytes);
                         data_callback(silent);
                     }
                 } else {
-                    data_callback(Data::Make(
-                        reinterpret_cast<const char*>(data), bytes));
+                    data_callback(Data::Copy(std::span<const char>{reinterpret_cast<const char*>(data), static_cast<std::size_t>(bytes)}));
                 }
                 ++packets;
                 if (packets == 1 || (packets % 200) == 0) {

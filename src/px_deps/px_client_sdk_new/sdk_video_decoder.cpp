@@ -26,7 +26,7 @@ namespace px
     }
 
     Result<std::shared_ptr<RawImage>, int> VideoDecoder::Decode(const std::shared_ptr<Data>& frame) {
-        return this->Decode((uint8_t*)frame->CStr(), frame->Size());
+        return this->Decode((uint8_t*)frame->Bytes().data(), frame->Size());
     }
 
     Result<std::shared_ptr<RawImage>, int> VideoDecoder::Decode(const std::string& frame) {

@@ -8,7 +8,9 @@
 #include "px_common_new/string_util.h"
 
 #ifdef WIN32
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <Windows.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
@@ -42,15 +44,15 @@ namespace px
         }
 
         std::vector<uint8_t> buffer(bufLen);
-        auto* adapter = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(buffer.data());
+        auto* adapter = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(buffer.data());  // NOLINT(gammaray-raw-pointer-boundary)
         ret = GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_INCLUDE_PREFIX, nullptr, adapter, &bufLen);
         if (ret != ERROR_SUCCESS) {
             LOGE("GetAdaptersAddresses failed: {}", ret);
             return;
         }
 
-        for (auto* curr = adapter; curr != nullptr; curr = curr->Next) {
-            std::wstring_view friendly_name = curr->FriendlyName;
+        for (auto* curr = adapter; curr != nullptr; curr = curr->Next) {  // NOLINT(gammaray-raw-pointer-boundary)
+            const std::wstring_view friendly_name = curr->FriendlyName == nullptr ? std::wstring_view{} : curr->FriendlyName;
             if (NeedIgnoreNetwork(friendly_name)) {
                 continue;
             }
@@ -69,13 +71,17 @@ namespace px
                 mac_address += std::format("{:02X}", static_cast<int>(curr->PhysicalAddress[i]));
             }
 
-            for (auto* unicast = curr->FirstUnicastAddress; unicast != nullptr; unicast = unicast->Next) {
+            for (auto* unicast = curr->FirstUnicastAddress; unicast != nullptr;  // NOLINT(gammaray-raw-pointer-boundary)
+                 unicast = unicast->Next) {
+                if (unicast->Address.lpSockaddr == nullptr) {
+                    continue;
+                }
                 if (unicast->Address.lpSockaddr->sa_family != AF_INET) {
                     continue;
                 }
 
                 char ip_str[INET_ADDRSTRLEN] = {0};
-                auto* sin = reinterpret_cast<sockaddr_in*>(unicast->Address.lpSockaddr);
+                auto* sin = reinterpret_cast<sockaddr_in*>(unicast->Address.lpSockaddr);  // NOLINT(gammaray-raw-pointer-boundary)
                 inet_ntop(AF_INET, &sin->sin_addr, ip_str, INET_ADDRSTRLEN);
 
                 std::string adapter_name = curr->AdapterName ? curr->AdapterName : "";

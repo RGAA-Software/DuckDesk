@@ -94,7 +94,7 @@ bool RenderModule::Start(const RenderModuleConfiguration& configuration) {
     }
 
     SnowflakeId::initialize(0, 103);
-    MemoryStat::Instance();
+    static_cast<void>(MemoryStat::Instance());
     configuration_ = configuration;
     execution_context_ = RenderExecutionContext::Create(configuration.async_runtime, Name());
     if (!execution_context_) {

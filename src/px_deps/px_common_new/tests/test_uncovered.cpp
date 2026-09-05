@@ -1,20 +1,24 @@
 #include <gtest/gtest.h>
 
+#include <array>
+#include <span>
+
 #include "px_common_new/base64.h"
 #include "px_common_new/data.h"
 #include "px_common_new/num_formatter.h"
+#include "px_common_new/path_codec.h"
 #include "px_common_new/url_helper.h"
 #include "px_common_new/message_notifier.h"
 #include "px_common_new/shared_preference.h"
 #include "px_common_new/memory_stat.h"
 #include "px_common_new/zip_util.h"
 #include "px_common_new/px_aes.h"
-#include "px_common_new/gd_md5.h"
 #include "px_common_new/image.h"
+#include "px_common_new/md5.h"
 #include "px_common_new/time_util.h"
 #include "px_common_new/key_helper.h"
-#include "px_common_new/math_helper.h"
 #include "px_common_new/ws_control_signal.h"
+#include "asio2/base/detail/util.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -42,7 +46,7 @@ TEST(TestUncovered, Base64DecodeEmpty) {
 // ========== Data ==========
 TEST(TestUncovered, DataMakeAndAccess) {
     std::string payload = "hello data";
-    auto data = Data::Make(payload.data(), payload.size());
+    auto data = Data::From(payload);
     ASSERT_NE(data, nullptr);
     EXPECT_EQ(data->Size(), payload.size());
     EXPECT_EQ(data->AsString(), payload);
@@ -58,7 +62,7 @@ TEST(TestUncovered, DataFromString) {
 
 TEST(TestUncovered, DataDupClone) {
     std::string payload = "dup test";
-    auto data = Data::Make(payload.data(), payload.size());
+    auto data = Data::From(payload);
     auto dup = data->Dup();
     EXPECT_EQ(dup->AsString(), payload);
 
@@ -68,16 +72,16 @@ TEST(TestUncovered, DataDupClone) {
 }
 
 TEST(TestUncovered, DataCloneNull) {
-    auto empty = Data::Make(nullptr, 0);
+    auto empty = Data::Allocate( 0);
     auto cloned = empty->Clone();
     EXPECT_EQ(cloned, nullptr);
 }
 
 TEST(TestUncovered, DataAppend) {
     char buf[16] = {};
-    auto data = Data::Make(buf, 16);
+    auto data = Data::Copy(std::span<const char>{buf});
     std::string part1 = "hello";
-    EXPECT_TRUE(data->Append(const_cast<char*>(part1.data()), part1.size()));
+    EXPECT_TRUE(data->Append(std::span<const char>{part1}));
     EXPECT_EQ(data->Offset(), 5);
 
     data->Reset();
@@ -86,47 +90,35 @@ TEST(TestUncovered, DataAppend) {
 
 TEST(TestUncovered, DataAppendOverflow) {
     char buf[4] = {};
-    auto data = Data::Make(buf, 4);
+    auto data = Data::Copy(std::span<const char>{buf});
     std::string big = "too big";
-    EXPECT_FALSE(data->Append(const_cast<char*>(big.data()), big.size()));
+    EXPECT_FALSE(data->Append(std::span<const char>{big}));
 }
 
 TEST(TestUncovered, DataAtOutOfBounds) {
     std::string payload = "abc";
-    auto data = Data::Make(payload.data(), payload.size());
+    auto data = Data::From(payload);
     EXPECT_EQ(data->At(-1), 0);
     EXPECT_EQ(data->At(3), 0);
     EXPECT_EQ(data->At(100), 0);
 }
 
 TEST(TestUncovered, DataCopyHasIndependentStorage) {
-    Data original("abcd", 4);
+    const std::string_view text{"abcd"};
+    Data original{std::span<const char>{text}};
     Data copied = original;
-    copied.DataAddr()[0] = 'z';
+    copied.MutableBytes().data()[0] = 'z';
 
     EXPECT_EQ(original.AsString(), "abcd");
     EXPECT_EQ(copied.AsString(), "zbcd");
 }
 
 TEST(TestUncovered, DataMoveTransfersValueSafely) {
-    Data original("abcd", 4);
+    const std::string_view text{"abcd"};
+    Data original{std::span<const char>{text}};
     Data moved = std::move(original);
     EXPECT_EQ(moved.AsString(), "abcd");
     original.Reset();
-}
-
-TEST(TestUncovered, DataSaveAndLoad) {
-    std::string payload = "save me";
-    auto data = Data::Make(payload.data(), payload.size());
-    auto tmp_path = std::filesystem::temp_directory_path() / "px_data_save_test.bin";
-    data->Save(tmp_path);
-
-    auto file = File::OpenForReadB(tmp_path);
-    ASSERT_NE(file, nullptr);
-    auto read_data = file->ReadAllAsString();
-    EXPECT_EQ(read_data, payload);
-    file->Close();
-    std::filesystem::remove(tmp_path);
 }
 
 // ========== NumFormatter ==========
@@ -188,9 +180,7 @@ TEST(TestUncovered, MessageNotifierSendAndListen) {
     MessageNotifier notifier;
     auto listener = notifier.CreateListener();
     int received = 0;
-    listener->Listen<TestMessage>([&](const TestMessage& msg) {
-        received = msg.value;
-    });
+    listener->Listen<TestMessage>([&](const TestMessage& msg) { received = msg.value; });
     notifier.SendAppMessage(TestMessage{42});
     ASSERT_TRUE(notifier.FlushForTest());
     EXPECT_EQ(received, 42);
@@ -200,9 +190,7 @@ TEST(TestUncovered, MessageNotifierUnListenAll) {
     MessageNotifier notifier;
     auto listener = notifier.CreateListener();
     int received = 0;
-    listener->Listen<TestMessage>([&](const TestMessage&) {
-        received = 1;
-    });
+    listener->Listen<TestMessage>([&](const TestMessage&) { received = 1; });
     listener->UnListenAll();
     notifier.SendAppMessage(TestMessage{99});
     ASSERT_TRUE(notifier.FlushForTest());
@@ -217,7 +205,7 @@ TEST(TestUncovered, SharedPreferencePutGetRemove) {
     fs::create_directories(tmp_dir);
 
     auto sp = SharedPreference::Instance();
-    ASSERT_TRUE(sp->Init(tmp_dir.wstring(), "test_db"));
+    ASSERT_TRUE(sp->Init(tmp_dir, "test_db"));
     EXPECT_TRUE(sp->IsReady());
 
     EXPECT_TRUE(sp->Put("key1", "value1"));
@@ -235,6 +223,34 @@ TEST(TestUncovered, SharedPreferencePutGetRemove) {
     fs::remove_all(tmp_dir);
 }
 
+TEST(TestUncovered, SharedPreferenceSupportsUtf8DatabasePath) {
+    namespace fs = std::filesystem;
+    const auto directory_name = PathFromUtf8("px_共享配置_😀");
+    ASSERT_TRUE(directory_name);
+    const auto tmp_dir = fs::temp_directory_path() / directory_name.Value();
+    std::error_code error{};
+    fs::remove_all(tmp_dir, error);
+    fs::create_directories(tmp_dir);
+
+    auto sp = SharedPreference::Instance();
+    ASSERT_TRUE(sp->Init(tmp_dir, "数据库_😀"));
+    ASSERT_TRUE(sp->Put("unicode_path", "ok"));
+    EXPECT_EQ(sp->Get("unicode_path"), "ok");
+
+    sp->Release();
+    fs::remove_all(tmp_dir, error);
+    EXPECT_FALSE(error);
+}
+
+TEST(TestUncovered, SharedPreferenceRejectsInvalidUtf8DatabaseName) {
+    const std::string invalid_name{"\xC3\x28"};
+    auto sp = SharedPreference::Instance();
+    EXPECT_FALSE(sp->Init(std::filesystem::temp_directory_path(), invalid_name));
+    EXPECT_TRUE(sp->IsReadOnly());
+    EXPECT_FALSE(sp->GetLastError().empty());
+    sp->Release();
+}
+
 TEST(TestUncovered, SharedPreferenceVisit) {
     namespace fs = std::filesystem;
     auto tmp_dir = fs::temp_directory_path() / "px_test_sp_visit";
@@ -242,7 +258,7 @@ TEST(TestUncovered, SharedPreferenceVisit) {
     fs::create_directories(tmp_dir);
 
     auto sp = SharedPreference::Instance();
-    ASSERT_TRUE(sp->Init(tmp_dir.wstring(), "test_db"));
+    ASSERT_TRUE(sp->Init(tmp_dir, "test_db"));
     sp->Put("a", "1");
     sp->Put("b", "2");
 
@@ -265,7 +281,7 @@ TEST(TestUncovered, SharedPreferenceVisitCallbackMayReenterDatabase) {
     fs::create_directories(tmp_dir);
 
     auto sp = SharedPreference::Instance();
-    ASSERT_TRUE(sp->Init(tmp_dir.wstring(), "test_db"));
+    ASSERT_TRUE(sp->Init(tmp_dir, "test_db"));
     ASSERT_TRUE(sp->Put("a", "1"));
     ASSERT_TRUE(sp->Put("b", "2"));
 
@@ -289,18 +305,18 @@ TEST(TestUncovered, SharedPreferenceVisitCallbackMayReenterDatabase) {
 
 // ========== MemoryStat ==========
 TEST(TestUncovered, MemoryStatAddRemove) {
-    auto* stat = MemoryStat::Instance();
+    auto& stat = MemoryStat::Instance();
     auto info = std::make_shared<MemoryInfo>();
     info->size_ = 1024;
-    stat->AddMemInfo(1001, info);
+    stat.AddMemInfo(1001, info);
 
-    auto s = stat->GetStatInfo();
+    auto s = stat.GetStatInfo();
     EXPECT_EQ(s.total_count_, 1);
     EXPECT_EQ(s.total_memory_size_, 1024);
     EXPECT_EQ(s.alloc_size_, 1024);
 
-    stat->RemoveMemInfo(1001);
-    s = stat->GetStatInfo();
+    stat.RemoveMemInfo(1001);
+    s = stat.GetStatInfo();
     EXPECT_EQ(s.total_count_, 0);
     EXPECT_EQ(s.total_memory_size_, 0);
     EXPECT_EQ(s.alloc_size_, 0);
@@ -309,40 +325,33 @@ TEST(TestUncovered, MemoryStatAddRemove) {
 // ========== AES ==========
 TEST(TestUncovered, AesEncryptDecrypt) {
     std::string plaintext = "Hello AES World!";
-    unsigned char key[16] = {0};
-    unsigned char iv[16] = {0};
-    std::memcpy(key, "my_key_16_bytes!", 16);
-    std::memcpy(iv, "my_iv_16_bytes!!", 16);
+    std::array<unsigned char, kAes128KeySize> key{};
+    std::array<unsigned char, kAes128IvSize> iv{};
+    std::memcpy(key.data(), "my_key_16_bytes!", key.size());
+    std::memcpy(iv.data(), "my_iv_16_bytes!!", iv.size());
 
     std::vector<unsigned char> ciphertext;
     EXPECT_TRUE(AesEncryptPcks7Cbc128(
-        reinterpret_cast<const unsigned char*>(plaintext.data()), plaintext.size(),
-        key, iv, ciphertext));
+        std::as_bytes(std::span{plaintext}), std::as_bytes(std::span{key}), std::as_bytes(std::span{iv}), ciphertext));
     EXPECT_FALSE(ciphertext.empty());
 
     std::vector<unsigned char> decrypted;
-    EXPECT_TRUE(AesDecryptPcks7Cbc128(ciphertext.data(), ciphertext.size(), key, iv, decrypted));
+    EXPECT_TRUE(AesDecryptPcks7Cbc128(
+        std::as_bytes(std::span{ciphertext}), std::as_bytes(std::span{key}), std::as_bytes(std::span{iv}), decrypted));
     std::string result(decrypted.begin(), decrypted.end());
     EXPECT_EQ(result, plaintext);
 }
 
 TEST(TestUncovered, AesDecryptInvalidInput) {
-    unsigned char key[16] = {0};
-    unsigned char iv[16] = {0};
+    std::array<unsigned char, kAes128KeySize> key{};
+    std::array<unsigned char, kAes128IvSize> iv{};
     std::vector<unsigned char> plaintext;
-    EXPECT_FALSE(AesDecryptPcks7Cbc128(nullptr, 16, key, iv, plaintext));
-    EXPECT_FALSE(AesDecryptPcks7Cbc128(key, 0, iv, key, plaintext));
-}
+    EXPECT_FALSE(AesDecryptPcks7Cbc128(
+        {}, std::as_bytes(std::span{key}), std::as_bytes(std::span{iv}), plaintext));
 
-// ========== MD5 ==========
-TEST(TestUncovered, MD5String) {
-    px_gd::MD5 md5("hello");
-    EXPECT_EQ(md5.toString(), "5d41402abc4b2a76b9719d911017c592");
-}
-
-TEST(TestUncovered, MD5Empty) {
-    px_gd::MD5 md5("");
-    EXPECT_EQ(md5.toString(), "d41d8cd98f00b204e9800998ecf8427e");
+    const std::array<unsigned char, 1> ciphertext{};
+    EXPECT_FALSE(AesDecryptPcks7Cbc128(
+        std::as_bytes(std::span{ciphertext}), {}, std::as_bytes(std::span{iv}), plaintext));
 }
 
 // ========== ZipUtil ==========
@@ -375,7 +384,7 @@ TEST(TestUncovered, ZipUtilZipFolder) {
 // ========== Image ==========
 TEST(TestUncovered, ImageMakeAndProperties) {
     std::vector<char> pixels(4 * 4 * 3, static_cast<char>(0xAB));
-    auto img = Image::Make(pixels.data(), 4, 4, 3);
+    auto img = Image::Make(Data::Copy(std::span<const char>{pixels}), 4, 4, 3);
     ASSERT_NE(img, nullptr);
     EXPECT_EQ(img->GetWidth(), 4);
     EXPECT_EQ(img->GetHeight(), 4);
@@ -384,7 +393,7 @@ TEST(TestUncovered, ImageMakeAndProperties) {
 }
 
 TEST(TestUncovered, ImageMakeZeroSize) {
-    auto data = Data::Make("abcd", 4);
+    auto data = Data::From("abcd");
     auto img = Image::Make(data, 0, 4);
     EXPECT_EQ(img->GetChannels(), 0);
     auto img2 = Image::Make(data, 4, 0);
@@ -393,7 +402,7 @@ TEST(TestUncovered, ImageMakeZeroSize) {
 
 TEST(TestUncovered, ImageDuplicate) {
     std::vector<char> pixels(4 * 4 * 4, static_cast<char>(0xCD));
-    auto img = Image::Make(pixels.data(), 4, 4, 4);
+    auto img = Image::Make(Data::Copy(std::span<const char>{pixels}), 4, 4, 4);
     auto dup = img->Duplicate(img);
     ASSERT_NE(dup, nullptr);
     EXPECT_EQ(dup->GetChannels(), 4);
@@ -401,13 +410,13 @@ TEST(TestUncovered, ImageDuplicate) {
 }
 
 TEST(TestUncovered, ImageDuplicateNull) {
-    auto img = Image::Make(nullptr, 1, 1, 1);
+    auto img = Image::Make(Data::Allocate( 1), 1, 1, 1);
     auto dup = img->Duplicate(nullptr);
     EXPECT_EQ(dup, nullptr);
 }
 
 TEST(TestUncovered, ImagePath) {
-    auto img = Image::Make(nullptr, 1, 1, 1);
+    auto img = Image::Make(Data::Allocate( 1), 1, 1, 1);
     img->SetPath("test.png");
     EXPECT_EQ(img->GetPath(), "test.png");
 }
@@ -419,25 +428,34 @@ TEST(TestUncovered, KeyHelperSmoke) {
     (void)state;
 }
 
-// ========== MathHelper ==========
-TEST(TestUncovered, MathHelperSmoke) {
-    // Currently empty class, just ensure header compiles
-    EXPECT_TRUE(true);
-}
-
 TEST(TestUncovered, WebSocketControlRejectionSignals) {
-    EXPECT_EQ(ParseWsControlRejection(kWsAuthorizationRejectedSignal),
-              WsControlRejection::kAuthorization);
-    EXPECT_EQ(ParseWsControlRejection(kWsSessionOccupiedSignal),
-              WsControlRejection::kOccupied);
-    EXPECT_EQ(ParseWsControlRejection(kWsSessionRejectedSignal),
-              WsControlRejection::kSessionPolicy);
-    EXPECT_EQ(ParseWsControlRejection("ordinary protobuf payload"),
-              WsControlRejection::kNone);
-    EXPECT_EQ(ParseWsControlRejection(kWsUseWebSocketMediaSignal),
-              WsControlRejection::kNone);
+    EXPECT_EQ(ParseWsControlRejection(kWsAuthorizationRejectedSignal), WsControlRejection::kAuthorization);
+    EXPECT_EQ(ParseWsControlRejection(kWsSessionOccupiedSignal), WsControlRejection::kOccupied);
+    EXPECT_EQ(ParseWsControlRejection(kWsSessionRejectedSignal), WsControlRejection::kSessionPolicy);
+    EXPECT_EQ(ParseWsControlRejection("ordinary protobuf payload"), WsControlRejection::kNone);
+    EXPECT_EQ(ParseWsControlRejection(kWsUseWebSocketMediaSignal), WsControlRejection::kNone);
     EXPECT_TRUE(IsWsUseWebSocketMediaSignal(kWsUseWebSocketMediaSignal));
     EXPECT_FALSE(IsWsUseWebSocketMediaSignal(kWsAuthorizationRejectedSignal));
+}
+
+TEST(TestUncovered, StreamingMd5SupportsChunksAndEmptyInput) {
+    Md5Hasher chunks{};
+    chunks.Update("he");
+    chunks.Update("llo");
+    EXPECT_EQ(chunks.FinishHex(), "5d41402abc4b2a76b9719d911017c592");
+
+    Md5Hasher empty{};
+    EXPECT_EQ(empty.FinishHex(), "d41d8cd98f00b204e9800998ecf8427e");
+}
+
+TEST(TestUncovered, Asio2ToEndpointReturnsResolvedEndpoint) {
+    const auto tcp = asio2::to_endpoint<asio::ip::tcp::endpoint>("127.0.0.1", 443);
+    EXPECT_EQ(tcp.address().to_string(), "127.0.0.1");
+    EXPECT_EQ(tcp.port(), 443);
+
+    const auto udp = asio2::to_endpoint<asio::ip::udp::endpoint>("127.0.0.1", 3478);
+    EXPECT_EQ(udp.address().to_string(), "127.0.0.1");
+    EXPECT_EQ(udp.port(), 3478);
 }
 
 } // namespace px

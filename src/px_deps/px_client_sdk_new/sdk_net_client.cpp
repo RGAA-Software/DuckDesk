@@ -624,7 +624,7 @@ namespace px
 
     std::shared_ptr<Message> NetClient::ParseMessage(std::shared_ptr<Data> msg) {
         auto net_msg = std::make_shared<px::Message>();
-        bool ok = net_msg->ParsePartialFromArray(msg->CStr(), msg->Size());
+        bool ok = net_msg->ParsePartialFromArray(msg->Bytes().data(), msg->Size());
         if (!ok) {
             LOGE("Sdk ParseMessage failed.");
             return nullptr;

@@ -11,7 +11,6 @@
 #include "px_common_new/time_util.h"
 #include "px_common_new/monitors.h"
 #include "px_common_new/image.h"
-#include "px_common_new/math_helper.h"
 #include "px_common_new/win32/win_helper.h"
 #include "px_capture_new/capture_message.h"
 #include "px_render/architecture/events/render_event.h"
@@ -248,20 +247,20 @@ namespace px
         }
         const auto dwBmpSize = width_bytes * bmp_height;
 
-        DataPtr data_ptr = Data::Make(nullptr, dwBmpSize);
+        DataPtr data_ptr = Data::Allocate( dwBmpSize);
         if (!data_ptr) {
             LOGE("DataPtr Make error!");
             return false;
         }
 
-        if (!data_ptr->DataAddr()) {
+        if (!data_ptr->MutableBytes().data()) {
             LOGE("bitmap data address is null, size: {}", dwBmpSize);
             return false;
         }
 
         int ret = GetDIBits(
             memory_dc_.get(), bit_map_.get(), 0, (UINT)bmp.bmHeight,
-            data_ptr->DataAddr(),
+            data_ptr->MutableBytes().data(),
             reinterpret_cast<BITMAPINFO*>(
                 std::addressof(bi)), // NOLINT(gammaray-raw-pointer-boundary): Win32 BITMAPINFO ABI boundary
             DIB_RGB_COLORS);
@@ -326,7 +325,7 @@ namespace px
         std::wstring file_name = std::wstring(L"desktop_") + std::to_wstring(frame_index_ % 12) + L".bgra";
         HANDLE hFile = CreateFileW(file_name.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         DWORD dwBytesWritten;
-        WriteFile(hFile, data_ptr->DataAddr(), dwBmpSize, &dwBytesWritten, NULL);
+        WriteFile(hFile, data_ptr->MutableBytes().data(), dwBmpSize, &dwBytesWritten, NULL);
 #endif
 
         return copied;

@@ -103,7 +103,7 @@ TEST(FileTransferServiceTest, DisabledActionIsRejectedOnItsInboundRoute) {
     }
     ASSERT_TRUE(reply);
     Message parsed;
-    ASSERT_TRUE(parsed.ParseFromArray(reply->CStr(), reply->Size()));
+    ASSERT_TRUE(parsed.ParseFromArray(reply->Bytes().data(), reply->Size()));
     EXPECT_EQ(parsed.type(), MessageType::kFileResponse);
     EXPECT_EQ(parsed.device_id(), "render-device");
     ASSERT_TRUE(parsed.file_response().has_error());

@@ -201,7 +201,7 @@ namespace px
                 if (QFile::exists(icon_file_path)) {
                     continue;
                 }
-                auto image = QImage::fromHICON(rp->icon_);
+                auto image = QImage::fromHICON(rp->icon_.get());
                 auto pixmap = QPixmap::fromImage(image);
                 pixmap.save(icon_file_path);
             }

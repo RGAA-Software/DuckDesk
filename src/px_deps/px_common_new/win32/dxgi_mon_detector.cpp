@@ -2,6 +2,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/string_util.h"
 #include <Windows.h>
+#include <wrl/client.h>
 
 #pragma comment(lib, "DXGI.lib")
 #pragma comment(lib, "D3D11.lib")
@@ -10,11 +11,11 @@ namespace px
 {
 
     void DxgiMonitorDetector::DetectAdapters() {
-        infos_.clear();
+        std::vector<DxgiMonInfo> detected;
 
         // Get primary monitor info using Win32 API
-        POINT pt = {0, 0};
-        HMONITOR hPrimary = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);
+        POINT pt{};
+        HMONITOR hPrimary = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);  // NOLINT(gammaray-raw-pointer-boundary): borrowed monitor handle.
         MONITORINFO primaryMi = { sizeof(MONITORINFO) };
         RECT primaryRect = {};
         if (hPrimary && GetMonitorInfoW(hPrimary, &primaryMi)) {
@@ -23,8 +24,8 @@ namespace px
             LOGE("Get primary monitor info failed.");
         }
 
-        CComPtr<IDXGIFactory1> pFactory;
-        HRESULT hr = CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void **) (&pFactory));
+        Microsoft::WRL::ComPtr<IDXGIFactory1> factory;
+        const HRESULT hr = CreateDXGIFactory1(IID_PPV_ARGS(factory.GetAddressOf()));
         if (FAILED(hr)) {
             LOGE("CreateDXGIFactory failed.");
             return;
@@ -32,23 +33,23 @@ namespace px
         int max_devices = 16;
 
         for (int i = 0; i < max_devices; i++) {
-            CComPtr<IDXGIAdapter1> tmp_adapter;
-            if (pFactory->EnumAdapters1(i, &tmp_adapter) != S_OK) {
+            Microsoft::WRL::ComPtr<IDXGIAdapter1> adapter;
+            if (factory->EnumAdapters1(i, adapter.GetAddressOf()) != S_OK) {
                 break;
             }
 
             for (int j = 0; j < max_devices; j++) {
-                CComPtr<IDXGIOutput> dxgi_output;
-                auto r = tmp_adapter->EnumOutputs(j, &dxgi_output);
+                Microsoft::WRL::ComPtr<IDXGIOutput> dxgi_output;
+                const auto r = adapter->EnumOutputs(j, dxgi_output.GetAddressOf());
                 if (dxgi_output && SUCCEEDED(r)) {
 
-                    DxgiMonInfo info;
-                    DXGI_ADAPTER_DESC adapterDesc;
-                    tmp_adapter->GetDesc(&adapterDesc);
+                    DxgiMonInfo info{};
+                    DXGI_ADAPTER_DESC adapterDesc{};
+                    adapter->GetDesc(&adapterDesc);
                     info.HighPart = adapterDesc.AdapterLuid.HighPart;
                     info.LowPart = adapterDesc.AdapterLuid.LowPart;
 
-                    DXGI_OUTPUT_DESC desc;
+                    DXGI_OUTPUT_DESC desc{};
                     dxgi_output->GetDesc(&desc);
                     info.display_name = StringUtil::ToUTF8(desc.DeviceName);
                     info.rect = desc.DesktopCoordinates;
@@ -65,24 +66,28 @@ namespace px
                     else {
                         info.primary = false;
                     }
-                    infos_.push_back(info);
+                    detected.push_back(info);
                 }
             }
         }
+        std::lock_guard lock(mutex_);
+        infos_ = std::move(detected);
     }
 
-    std::vector<DxgiMonInfo> DxgiMonitorDetector::GetAdapters() {
+    std::vector<DxgiMonInfo> DxgiMonitorDetector::GetAdapters() const {
+        std::lock_guard lock(mutex_);
         return infos_;
     }
 
-    void DxgiMonitorDetector::PrintAdapters() {
-        for (auto& mon : this->GetAdapters()) {
+    void DxgiMonitorDetector::PrintAdapters() const {
+        for (const auto& mon : GetAdapters()) {
             mon.Dump();
         }
     }
 
-    std::string DxgiMonitorDetector::GetNameById(DWORD lowpart) {
-        for (auto &info: infos_) {
+    std::string DxgiMonitorDetector::GetNameById(DWORD lowpart) const {
+        std::lock_guard lock(mutex_);
+        for (const auto& info : infos_) {
             if (info.LowPart == lowpart) {
                 return info.display_name;
             }
@@ -90,9 +95,10 @@ namespace px
         return "";
     }
 
-    DxgiMonInfo DxgiMonitorDetector::GetMonitorInfoByLowId(DWORD lowpart) {
-        DxgiMonInfo empty_info;
-        for (auto &info: infos_) {
+    DxgiMonInfo DxgiMonitorDetector::GetMonitorInfoByLowId(DWORD lowpart) const {
+        std::lock_guard lock(mutex_);
+        DxgiMonInfo empty_info{};
+        for (const auto& info : infos_) {
             if (info.LowPart == lowpart) {
                 return info;
             }

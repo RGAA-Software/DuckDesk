@@ -3,25 +3,37 @@
 #include "px_common_new/clipboard/win/clipboard_platform_win.h"
 #include "px_common_new/string_util.h"
 #include "px_common_new/log.h"
+#include "px_common_new/scope_exit.h"
 #include <Windows.h>
+#include <cstdint>
+#include <memory>
 #include <shellapi.h>
 #include <ole2.h>
+#include <type_traits>
 
 namespace px::clipboard
 {
     namespace {
 
-        bool EnsureOleInitialized() {
-            static const bool ok = [] {
-                const HRESULT hr = OleInitialize(nullptr);
-                return SUCCEEDED(hr) || hr == RPC_E_CHANGED_MODE;
-            }();
-            return ok;
-        }
+        class OleScope final {
+        public:
+            OleScope() : result_(OleInitialize(nullptr)) {}
+            ~OleScope() {
+                if (result_ == S_OK || result_ == S_FALSE) {
+                    OleUninitialize();
+                }
+            }
+
+            [[nodiscard]] bool Ok() const noexcept { return SUCCEEDED(result_) || result_ == RPC_E_CHANGED_MODE; }
+
+        private:
+            HRESULT result_{};
+        };
 
         class ClipboardScope {
         public:
-            explicit ClipboardScope(HWND owner = nullptr) {
+            explicit ClipboardScope(
+                HWND owner = nullptr) {  // NOLINT(gammaray-raw-pointer-boundary): synchronous Win32 clipboard owner boundary.
                 opened_ = OpenClipboard(owner);
             }
             ~ClipboardScope() {
@@ -34,20 +46,35 @@ namespace px::clipboard
             bool opened_ = false;
         };
 
-        std::string ReadUnicodeText(HANDLE data) {
+        struct GlobalMemoryCloser final {
+            void operator()(std::remove_pointer_t<HGLOBAL>* memory) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): HGLOBAL ABI.
+                if (memory != nullptr) {
+                    GlobalFree(memory);
+                }
+            }
+        };
+
+        using UniqueGlobalMemory = std::unique_ptr<std::remove_pointer_t<HGLOBAL>, GlobalMemoryCloser>;
+
+        std::string ReadUnicodeText(
+            HANDLE data) {  // NOLINT(gammaray-raw-pointer-boundary): borrowed clipboard HANDLE used synchronously.
             if (!data) {
                 return "";
             }
-            const auto* text = static_cast<const wchar_t*>(GlobalLock(data));
+            const auto* text = static_cast<const wchar_t*>(GlobalLock(data));  // NOLINT(gammaray-raw-pointer-boundary): locked memory view.
             if (!text) {
                 return "";
             }
+            const auto unlock = PxScopeExit{[handle = reinterpret_cast<std::uintptr_t>(data)] {
+                GlobalUnlock(reinterpret_cast<HGLOBAL>(handle));
+            }};
             const auto result = StringUtil::ToUTF8(text);
-            GlobalUnlock(data);
             return result;
         }
 
-        void ReadFileList(HDROP drop, std::vector<std::string>& paths) {
+        void ReadFileList(
+            HDROP drop,  // NOLINT(gammaray-raw-pointer-boundary): borrowed clipboard drop handle used synchronously.
+            std::vector<std::string>& paths) {
             if (!drop) {
                 return;
             }
@@ -70,7 +97,10 @@ namespace px::clipboard
 
     bool PlatformWin::Read(Content& out) {
         out = {};
-        EnsureOleInitialized();
+        const OleScope ole;
+        if (!ole.Ok()) {
+            return false;
+        }
         for (int attempt = 0; attempt < 20; ++attempt) {
             ClipboardScope scope;
             if (!scope.Ok()) {
@@ -78,11 +108,11 @@ namespace px::clipboard
                 continue;
             }
 
-            if (const HANDLE text_data = GetClipboardData(CF_UNICODETEXT)) {
+            if (const HANDLE text_data = GetClipboardData(CF_UNICODETEXT)) {  // NOLINT(gammaray-raw-pointer-boundary): borrowed OS handle.
                 out.text_ = ReadUnicodeText(text_data);
             }
 
-            if (const HANDLE drop_data = GetClipboardData(CF_HDROP)) {
+            if (const HANDLE drop_data = GetClipboardData(CF_HDROP)) {  // NOLINT(gammaray-raw-pointer-boundary): borrowed OS handle.
                 std::vector<std::string> paths;
                 ReadFileList(static_cast<HDROP>(drop_data), paths);
                 if (auto entries = BuildFileEntriesFromPaths(paths)) {
@@ -96,7 +126,10 @@ namespace px::clipboard
     }
 
     bool PlatformWin::WriteText(const std::string& utf8_text) {
-        EnsureOleInitialized();
+        const OleScope ole;
+        if (!ole.Ok()) {
+            return false;
+        }
         const auto wide = StringUtil::ToWString(utf8_text);
         if (wide.empty() && !utf8_text.empty()) {
             return false;
@@ -104,42 +137,46 @@ namespace px::clipboard
         const size_t bytes = (wide.size() + 1) * sizeof(wchar_t);
 
         for (int attempt = 0; attempt < 20; ++attempt) {
-            HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, bytes);
+            UniqueGlobalMemory memory{GlobalAlloc(GMEM_MOVEABLE, bytes)};
             if (!memory) {
                 return false;
             }
 
-            void* locked = GlobalLock(memory);
-            if (!locked) {
-                GlobalFree(memory);
-                return false;
+            {
+                void* locked = GlobalLock(memory.get());  // NOLINT(gammaray-raw-pointer-boundary): locked memory view used synchronously.
+                if (!locked) {
+                    return false;
+                }
+                const auto unlock = PxScopeExit{[handle = reinterpret_cast<std::uintptr_t>(memory.get())] {
+                    GlobalUnlock(reinterpret_cast<HGLOBAL>(handle));
+                }};
+                std::memcpy(locked, wide.c_str(), bytes);
             }
-            memcpy(locked, wide.c_str(), bytes);
-            GlobalUnlock(memory);
 
             ClipboardScope scope;
             if (!scope.Ok()) {
-                GlobalFree(memory);
                 Sleep(5);
                 continue;
             }
             if (!EmptyClipboard()) {
-                GlobalFree(memory);
                 Sleep(5);
                 continue;
             }
-            if (!SetClipboardData(CF_UNICODETEXT, memory)) {
-                GlobalFree(memory);
+            if (!SetClipboardData(CF_UNICODETEXT, memory.get())) {
                 Sleep(5);
                 continue;
             }
+            static_cast<void>(memory.release());  // NOLINT(gammaray-raw-pointer-boundary): ownership transferred to the OS clipboard.
             return true;
         }
         return false;
     }
 
     bool PlatformWin::Clear() {
-        EnsureOleInitialized();
+        const OleScope ole;
+        if (!ole.Ok()) {
+            return false;
+        }
         const HRESULT release_ole = OleSetClipboard(nullptr);
         if (SUCCEEDED(release_ole)) {
             OleFlushClipboard();

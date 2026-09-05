@@ -1,731 +1,298 @@
-//
-// Created by RGAA on 2024-01-18.
-//
-
 #include "hardware.h"
 
-#include <iostream>
-#include <format>
+#include <winsock2.h>
 #include <Windows.h>
-#include <wbemidl.h>
 #include <comdef.h>
-#include <ws2tcpip.h>
 #include <iphlpapi.h>
+#include <wbemidl.h>
+#include <wrl/client.h>
+#include <ws2tcpip.h>
+
+#include <array>
+#include <charconv>
+#include <format>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <sstream>
+#include <string_view>
+#include <system_error>
+
 #include "px_common_new/log.h"
-#include "px_common_new/string_util.h"
 #include "px_common_new/num_formatter.h"
 #include "px_common_new/shared_preference.h"
+#include "px_common_new/string_util.h"
 
 #pragma comment(lib, "wbemuuid.lib")
 #pragma comment(lib, "IPHLPAPI.lib")
 
-namespace px
-{
-
-    const std::string kKeyCpuName = "key_cpu_name";
-    const std::string kKeyCpuCores = "key_cpu_cores";
-    const std::string kKeyCpuId = "key_cpu_id";
-    const std::string kKeyCpuMaxClock = "key_cpu_max_clock";
-
-    int Hardware::Detect(bool read_cpu_info, bool disk, bool driver) {
-
-        auto sp = SharedPreference::Instance();
-        auto cpu_name = sp->Get(kKeyCpuName);
-        if (cpu_name.empty()) {
-            read_cpu_info = true;
-        }
-
-        wchar_t computerName[MAX_COMPUTERNAME_LENGTH + 1];
-        DWORD size = MAX_COMPUTERNAME_LENGTH + 1;
-        if (GetComputerNameW(computerName, &size)) {
-            desktop_name_ = StringUtil::ToUTF8(computerName);
-        }
-
-        MEMORYSTATUS ms;
-        ::GlobalMemoryStatus(&ms);
-        memory_size_ = ms.dwTotalPhys;
-
-        CoUninitialize();
-        HRESULT hres = CoInitializeEx(0, COINIT_MULTITHREADED);
-        if (FAILED(hres)) {
-            LOGE("COM library initialization failed.");
-            return -1;
-        }
-
-        hres = CoInitializeSecurity(
-                NULL,
-                -1,
-                NULL,
-                NULL,
-                RPC_C_AUTHN_LEVEL_DEFAULT,
-                RPC_C_IMP_LEVEL_IMPERSONATE,
-                NULL,
-                EOAC_NONE,
-                NULL
-        );
-        if (FAILED(hres)) {
-            if (hres == RPC_E_TOO_LATE) {
-                LOGE("WQLHelper: CoInitializeSecurity already initialized, continuing... hres: {}",hres);
-            }
-            else {
-                LOGE("WQLHelper: CoInitializeSecurity error hres: {}", hres);
-                CoUninitialize();
-                return -1;
-            }
-        }
-
-        IWbemLocator *pLoc = NULL;
-        hres = CoCreateInstance(
-                CLSID_WbemLocator,
-                0,
-                CLSCTX_INPROC_SERVER,
-                IID_IWbemLocator,
-                (LPVOID *) &pLoc
-        );
-        if (FAILED(hres) || !pLoc) {
-            LOGE("Failed to create IWbemLocator object.");
-            CoUninitialize();
-            return -1;
-        }
-
-        IWbemServices *pSvc = NULL;
-        hres = pLoc->ConnectServer(
-                _bstr_t(L"ROOT\\CIMV2"),
-                NULL,
-                NULL,
-                0,
-                NULL,
-                0,
-                0,
-                &pSvc
-        );
-        if (FAILED(hres)) {
-            LOGE("Could not connect to WMI server.");
-            pLoc->Release();
-            CoUninitialize();
-            return -1;
-        }
-
-        if (!pSvc) {
-            LOGE("IWbemServices is null.");
-            pLoc->Release();
-            CoUninitialize();
-            return -1;
-        }
-
-        hres = CoSetProxyBlanket(
-                pSvc,
-                RPC_C_AUTHN_WINNT,
-                RPC_C_AUTHZ_NONE,
-                NULL,
-                RPC_C_AUTHN_LEVEL_CALL,
-                RPC_C_IMP_LEVEL_IMPERSONATE,
-                NULL,
-                EOAC_NONE
-        );
-        if (FAILED(hres)) {
-            LOGE("Could not set proxy blanket.");
-            pSvc->Release();
-            pLoc->Release();
-            CoUninitialize();
-            return -1;
-        }
-
-        IEnumWbemClassObject *pEnumerator = NULL;
-        IWbemClassObject *pclsObj = NULL;
-        ULONG uReturn = 0;
-
-        hw_disks_.clear();
-        drivers_.clear();
-
-        // CPU
-        if (read_cpu_info) {
-            hres = pSvc->ExecQuery(
-                    bstr_t("WQL"),
-                    bstr_t("SELECT * FROM Win32_Processor"),
-                    WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
-                    NULL,
-                    &pEnumerator
-            );
-
-            if (FAILED(hres)) {
-                LOGE("Query for processor information failed.");
-                pSvc->Release();
-                pLoc->Release();
-                CoUninitialize();
-                return -1;
-            }
-
-            while (pEnumerator) {
-                HRESULT hr = pEnumerator->Next(WBEM_INFINITE, 1, &pclsObj, &uReturn);
-                if (0 == uReturn || FAILED(hr)) {
-                    break;
-                }
-
-                if (!pclsObj) {
-                    break;
-                }
-
-                VARIANT vtProp;
-                // name
-                {
-                    hr = pclsObj->Get(L"Name", 0, &vtProp, 0, 0);
-                    do {
-                        if (FAILED(hr)) {
-                            break;
-                        }
-                        if (vtProp.vt != VT_BSTR || vtProp.bstrVal == NULL) {
-                            VariantClear(&vtProp);
-                            break;
-                        }
-                        hw_cpu_.name_ = StringUtil::ToUTF8(vtProp.bstrVal);
-                        LOGI("CPU NAME: {}", hw_cpu_.name_);
-                        sp->Put(kKeyCpuName, hw_cpu_.name_);
-                        VariantClear(&vtProp);
-
-                    } while (0);
-                }
-
-                // NumberOfLogicalProcessors
-                {
-                    hr = pclsObj->Get(L"NumberOfCores", 0, &vtProp, 0, 0);
-                    do {
-                        if (FAILED(hr)) {
-                            break;
-                        }
-                        hw_cpu_.num_cores_ = vtProp.uintVal;
-                        LOGI("CPU Cores: {}", hw_cpu_.num_cores_);
-                        sp->Put(kKeyCpuCores, std::to_string(hw_cpu_.num_cores_));
-                        VariantClear(&vtProp);
-                    } while (0);
-                }
-
-                // MaxClockSpeed
-                {
-                    hr = pclsObj->Get(L"MaxClockSpeed", 0, &vtProp, 0, 0);
-                    do {
-                        if (FAILED(hr)) {
-                            break;
-                        }
-                        hw_cpu_.max_clock_speed_ = vtProp.uintVal;
-                        LOGI("CPU clocks: {}", hw_cpu_.max_clock_speed_);
-                        sp->Put(kKeyCpuMaxClock, std::to_string(hw_cpu_.max_clock_speed_));
-                        VariantClear(&vtProp);
-
-                    } while (0);
-                }
-
-                // process id
-                {
-                    hr = pclsObj->Get(L"ProcessorId", 0, &vtProp, 0, 0);  // "ProcessorId" 是属性名，不同的信息需要查询不同的属性名
-                    do {
-                        if (FAILED(hr)) {
-                            break;
-                        }
-                        if (vtProp.vt != VT_BSTR || vtProp.bstrVal == NULL) {
-                            VariantClear(&vtProp);
-                            break;
-                        }
-                        hw_cpu_.id_ = StringUtil::ToUTF8(vtProp.bstrVal);
-                        LOGI("CPU id: {}", hw_cpu_.id_);
-                        sp->Put(kKeyCpuId, hw_cpu_.id_);
-                        VariantClear(&vtProp);
-
-                    } while (0);
-                }
-
-                pclsObj->Release();
-            }
-        }
-        else {
-            hw_cpu_.name_ = sp->Get(kKeyCpuName);
-            try {
-                hw_cpu_.num_cores_ = std::atoll(sp->Get(kKeyCpuName).c_str());
-                hw_cpu_.max_clock_speed_ = std::atoll(sp->Get(kKeyCpuMaxClock).c_str());
-            }
-            catch (std::exception& e) {
-                LOGE("error: is {}", e.what());
-            }
-            hw_cpu_.id_ = sp->Get(kKeyCpuId);
-        }
-
-        if (disk) {
-            hres = pSvc->ExecQuery(
-                    bstr_t("WQL"),
-                    bstr_t("SELECT * FROM Win32_DiskDrive"),
-                    WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
-                    NULL,
-                    &pEnumerator);
-
-            if (FAILED(hres)) {
-                LOGE("Query for operating system name failed, Error code = {}", hres);
-                pSvc->Release();
-                pLoc->Release();
-                CoUninitialize();
-                return -1; // Program has failed.
-            }
-
-            uReturn = 0;
-            while (pEnumerator) {
-                HRESULT hr = pEnumerator->Next(WBEM_INFINITE, 1, &pclsObj, &uReturn);
-                if (0 == uReturn || FAILED(hr)) {
-                    break;
-                }
-
-                HwDisk disk{};
-
-                VARIANT vtProp;
-
-                if (!pclsObj) {
-                    break;
-                }
-                // Get the value of the Name property
-                hr = pclsObj->Get(L"Name", 0, &vtProp, 0, 0);
-                do {
-                    if (FAILED(hr)) {
-                        break;
-                    }
-                    if (vtProp.vt != VT_BSTR || vtProp.bstrVal == NULL) {
-                        VariantClear(&vtProp);
-                        break;
-                    }
-                    disk.name_ = StringUtil::ToUTF8(vtProp.bstrVal);
-                    VariantClear(&vtProp);
-                } while (0);
-
-                hr = pclsObj->Get(L"Model", 0, &vtProp, 0, 0);
-                do {
-                    if (FAILED(hr)) {
-                        break;
-                    }
-                    if (vtProp.vt != VT_BSTR || vtProp.bstrVal == NULL) {
-                        VariantClear(&vtProp);
-                        break;
-                    }
-                    disk.model_ = StringUtil::ToUTF8(vtProp.bstrVal);
-                    VariantClear(&vtProp);
-                } while (0);
-
-
-                hr = pclsObj->Get(L"Status", 0, &vtProp, 0, 0);
-                do {
-                    if (FAILED(hr)) {
-                        break;
-                    }
-                    if (vtProp.vt != VT_BSTR || vtProp.bstrVal == NULL) {
-                        VariantClear(&vtProp);
-                        break;
-                    }
-                    disk.status_ = StringUtil::ToUTF8(vtProp.bstrVal);
-                    VariantClear(&vtProp);
-                } while (0);
-
-
-
-                hr = pclsObj->Get(L"DeviceID", 0, &vtProp, 0, 0);
-                do {
-                    if (FAILED(hr)) {
-                        break;
-                    }
-                    if (vtProp.vt != VT_BSTR || vtProp.bstrVal == NULL) {
-                        VariantClear(&vtProp);
-                        break;
-                    }
-                    // no to do
-                    VariantClear(&vtProp);
-                } while (0);
-
-
-                hr = pclsObj->Get(L"SerialNumber", 0, &vtProp, 0, 0);
-                do {
-                    if (FAILED(hr)) {
-                        break;
-                    }
-                    if (vtProp.vt != VT_BSTR || vtProp.bstrVal == NULL) {
-                        VariantClear(&vtProp);
-                        break;
-                    }
-                    disk.serial_number_ = StringUtil::ToUTF8(vtProp.bstrVal);
-                    VariantClear(&vtProp);
-                } while (0);
-
-                //InterfaceType
-                hr = pclsObj->Get(L"InterfaceType", 0, &vtProp, 0, 0);
-                do {
-                    if (FAILED(hr)) {
-                        break;
-                    }
-                    if (vtProp.vt != VT_BSTR || vtProp.bstrVal == NULL) {
-                        VariantClear(&vtProp);
-                        break;
-                    }
-                    disk.interface_type_ = StringUtil::ToUTF8(vtProp.bstrVal);
-                    VariantClear(&vtProp);
-                } while (0);
-
-                pclsObj->Release();
-
-                if (disk.interface_type_ == "IDE") {
-                    hw_disks_.push_back(disk);
-                }
-            }
-        }
-
-        // system driver
-        if (driver) {
-            hres = pSvc->ExecQuery(
-                    bstr_t("WQL"),
-                    bstr_t("SELECT * FROM Win32_SystemDriver"),
-                    WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
-                    NULL,
-                    &pEnumerator);
-
-            if (FAILED(hres)) {
-                LOGE("Query for SystemDriver name failed.  Error code = {}", hres);
-                pSvc->Release();
-                pLoc->Release();
-                CoUninitialize();
-                return -1;
-            }
-
-            uReturn = 0;
-            while (pEnumerator) {
-                HRESULT hr = pEnumerator->Next(WBEM_INFINITE, 1, &pclsObj, &uReturn);
-                if (0 == uReturn || FAILED(hr)) {
-                    break;
-                }
-
-                VARIANT vtProp;
-                SysDriver driver;
-
-                if (!pclsObj) {
-                    break;
-                }
-
-                hr = pclsObj->Get(L"Name", 0, &vtProp, 0, 0);
-                do {
-                    if (FAILED(hr)) {
-                        break;
-                    }
-                    if (vtProp.vt != VT_BSTR || vtProp.bstrVal == NULL) {
-                        VariantClear(&vtProp);
-                        break;
-                    }
-                    auto name = StringUtil::ToUTF8(vtProp.bstrVal);
-                    driver.name_ = name;
-                    VariantClear(&vtProp);
-                } while (0);
-
-
-
-                hr = pclsObj->Get(L"DisplayName", 0, &vtProp, 0, 0);
-                do {
-                    if (FAILED(hr)) {
-                        break;
-                    }
-                    if (vtProp.vt != VT_BSTR || vtProp.bstrVal == NULL) {
-                        VariantClear(&vtProp);
-                        break;
-                    }
-                    auto display_name = StringUtil::ToUTF8(vtProp.bstrVal);
-                    driver.display_name_ = display_name;
-                    VariantClear(&vtProp);
-                } while (0);
-
-                hr = pclsObj->Get(L"State", 0, &vtProp, 0, 0);
-                do {
-                    if (FAILED(hr)) {
-                        break;
-                    }
-                    if (vtProp.vt != VT_BSTR || vtProp.bstrVal == NULL) {
-                        VariantClear(&vtProp);
-                        break;
-                    }
-                    auto state = StringUtil::ToUTF8(vtProp.bstrVal);
-                    driver.state_ = state;
-                    VariantClear(&vtProp);
-                } while (0);
-
-                drivers_.push_back(driver);
-
-                pclsObj->Release();
-            }
-        }
-
-        // 显卡
-        // 执行 WMI 查询（获取显卡信息）
-        hres = pSvc->ExecQuery(
-                _bstr_t("WQL"),
-                _bstr_t("SELECT * FROM Win32_VideoController"),
-                WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
-                NULL,
-                &pEnumerator
-        );
-        if (FAILED(hres)) {
-            std::cerr << "Failed to execute WMI query: 0x" << std::hex << hres << std::endl;
-            pSvc->Release();
-            pLoc->Release();
-            CoUninitialize();
-            return 1;
-        }
-
-        int gpuCount = 0;
-        while (pEnumerator) {
-            hres = pEnumerator->Next(WBEM_INFINITE, 1, &pclsObj, &uReturn);
-            if (uReturn == 0 || FAILED(hres)) break;
-
-            gpuCount++;
-            LOGI("GPU: {}", gpuCount);
-
-            HwGPU hw_gpu;
-
-            VARIANT vtProp;
-
-            if (!pclsObj) {
-                break;
-            }
-
-            // 显卡名称
-            auto hr = pclsObj->Get(L"Name", 0, &vtProp, 0, 0);
-            do {
-                if (FAILED(hr)) {
-                    break;
-                }
-                if (vtProp.vt != VT_BSTR || vtProp.bstrVal == NULL) {
-                    VariantClear(&vtProp);
-                    break;
-                }
-                hw_gpu.name_ = StringUtil::ToUTF8(vtProp.bstrVal);
-                LOGI("GPU NAME: {}", hw_gpu.name_);
-                VariantClear(&vtProp);
-            } while (0);
-
-            // 显存大小
-            hr = pclsObj->Get(L"AdapterRAM", 0, &vtProp, 0, 0);
-            do {
-                if (FAILED(hr)) {
-                    break;
-                }
-                hw_gpu.size_ = vtProp.ullVal;
-                hw_gpu.size_str_ = NumFormatter::FormatStorageSize(vtProp.ullVal);
-                LOGI("AdapterRAM: {}Bytes, {}", hw_gpu.size_, hw_gpu.size_str_);
-                VariantClear(&vtProp);
-            } while (0);
-
-            // 当前分辨率
-            if (SUCCEEDED(pclsObj->Get(L"CurrentHorizontalResolution", 0, &vtProp, 0, 0)) &&
-                SUCCEEDED(pclsObj->Get(L"CurrentVerticalResolution", 0, &vtProp, 0, 0))) {
-
-                do {
-                    VARIANT vtPropH, vtPropV;
-                    hr = pclsObj->Get(L"CurrentHorizontalResolution", 0, &vtPropH, 0, 0);
-                    if (FAILED(hr)) {
-                        break;
-                    }
-
-                    hr = pclsObj->Get(L"CurrentVerticalResolution", 0, &vtPropV, 0, 0);
-                    if (FAILED(hr)) {
-                        VariantClear(&vtPropH);
-                        break;
-                    }
-
-                    LOGI("Res: {}x{}", vtPropH.intVal, vtPropV.intVal);
-                    hw_gpu.res_w_ = vtPropH.intVal;
-                    hw_gpu.res_h_ = vtPropV.intVal;
-                    VariantClear(&vtPropH);
-                    VariantClear(&vtPropV);
-                } while (0);
-            }
-
-            // 驱动版本
-            hr = pclsObj->Get(L"DriverVersion", 0, &vtProp, 0, 0);
-            do {
-                if (FAILED(hr)) {
-                    break;
-                }
-                if (vtProp.vt != VT_BSTR || vtProp.bstrVal == NULL) {
-                    VariantClear(&vtProp);
-                    break;
-                }
-                hw_gpu.driver_version_ = StringUtil::ToUTF8(vtProp.bstrVal);
-                LOGI("Driver version: {}", hw_gpu.driver_version_);
-                VariantClear(&vtProp);
-            } while (0);
-
-            // 显卡PNP设备ID
-            hr = pclsObj->Get(L"PNPDeviceID", 0, &vtProp, 0, 0);
-            do {
-                if (FAILED(hr)) {
-                    break;
-                }
-                if (vtProp.vt != VT_BSTR || vtProp.bstrVal == NULL) {
-                    VariantClear(&vtProp);
-                    break;
-                }
-                hw_gpu.pnp_device_id_ = StringUtil::ToUTF8(vtProp.bstrVal);
-                LOGI("PNPDeviceID: {}", hw_gpu.pnp_device_id_);
-                VariantClear(&vtProp);
-            } while (0);
-
-
-            std::wcout << L"----------------------------------------\n";
-
-            if (hw_gpu.name_.find("Virtual") != std::string::npos || hw_gpu.size_ < 1024 * 1024 * 128) {
-                LOGE("THIS is a virtual GPU.");
-                continue;
-            }
-
-            gpus_.push_back(hw_gpu);
-
-            pclsObj->Release();
-        }
-
-        if (gpuCount == 0) {
-            LOGI("NO GPU DETECTED");
-        }
-        // 清理资源
-        pSvc->Release();
-        pLoc->Release();
-        pEnumerator->Release();
-        CoUninitialize();
-
-        DetectMac();
-
-        return 0;
+namespace px {
+namespace {
+
+constexpr std::string_view kKeyCpuName{"key_cpu_name"};
+constexpr std::string_view kKeyCpuCores{"key_cpu_cores"};
+constexpr std::string_view kKeyCpuId{"key_cpu_id"};
+constexpr std::string_view kKeyCpuMaxClock{"key_cpu_max_clock"};
+
+class ComApartment final {
+public:
+    ComApartment() : result_(CoInitializeEx(nullptr, COINIT_MULTITHREADED)), owns_(result_ == S_OK || result_ == S_FALSE) {}
+    ~ComApartment() {
+        if (owns_) CoUninitialize();
     }
+    [[nodiscard]] bool IsUsable() const noexcept { return SUCCEEDED(result_) || result_ == RPC_E_CHANGED_MODE; }
+    [[nodiscard]] HRESULT Result() const noexcept { return result_; }
 
-    void Hardware::Dump() {
-        LOGI("==> Desktop name: {}", desktop_name_);
-        LOGI("==> CPU id: {}", hw_cpu_.id_);
-        LOGI("==> CPU name: {}", hw_cpu_.name_);
-        LOGI("==> CPU core: {}", hw_cpu_.num_cores_);
-        LOGI("==> Memory size: {}", memory_size_);
-        LOGI("==> Memory size: {}", NumFormatter::FormatStorageSize(memory_size_));
+private:
+    HRESULT result_{E_FAIL};
+    bool owns_{false};
+};
 
-        LOGI("==> Total disks: {}", hw_disks_.size());
-        for (auto &disk: hw_disks_) {
-            LOGI("  name: {}", disk.name_);
-            LOGI("  model: {}", disk.model_);
-            LOGI("  status: {}", disk.status_);
-            LOGI("  serial number: {}", disk.serial_number_);
-            LOGI("  interface type: {}", disk.interface_type_);
-            LOGI("-------------------------------------");
-        }
-
-        LOGI("==> Total gpus: {}", gpus_.size());
-        for (const auto& gpu : gpus_) {
-            LOGI("  name: {}", gpu.name_);
-            LOGI("  name: {}", gpu.size_str_);
-            LOGI("  name: {}", gpu.pnp_device_id_);
-        }
-        LOGI("Mac address: {}", mac_address_);
+struct WinHandleCloser final {
+    void operator()(void* handle) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): HANDLE is an opaque Win32 handle.
+        if (handle) CloseHandle(handle);
     }
+};
 
-    std::string Hardware::GetHardwareDescription() {
-        std::stringstream ss;
-        for (auto &disk: hw_disks_) {
-            ss << disk.serial_number_;
-        }
-        ss << mac_address_;
-        std::string res = ss.str();
-        StringUtil::Replace(res, " ", "");
-        return res;
+using UniqueWinHandle = std::unique_ptr<void, WinHandleCloser>;
+using Microsoft::WRL::ComPtr;
+
+std::optional<std::string> ReadStringProperty(IWbemClassObject& object, std::wstring_view name) {
+    _variant_t value{};
+    const auto property_name = std::wstring{name};
+    if (FAILED(object.Get(property_name.c_str(), 0, std::addressof(value), nullptr, nullptr)) || value.vt != VT_BSTR || !value.bstrVal) {
+        return std::nullopt;
     }
-
-    void Hardware::DetectMac() {
-        ULONG bufLen = 0;
-        DWORD ret = GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_INCLUDE_PREFIX, nullptr, nullptr, &bufLen);
-        if (ret != ERROR_BUFFER_OVERFLOW) {
-            LOGE("GetAdaptersAddresses failed to get buffer size");
-            return;
-        }
-
-        std::vector<uint8_t> buffer(bufLen);
-        auto* adapter = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(buffer.data());
-        ret = GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_INCLUDE_PREFIX, nullptr, adapter, &bufLen);
-        if (ret != ERROR_SUCCESS) {
-            LOGE("GetAdaptersAddresses failed: {}", ret);
-            return;
-        }
-
-        for (auto* curr = adapter; curr != nullptr; curr = curr->Next) {
-            if (curr->OperStatus != IfOperStatusUp) {
-                continue;
-            }
-            if (curr->IfType == IF_TYPE_SOFTWARE_LOOPBACK) {
-                continue;
-            }
-
-            if (curr->PhysicalAddressLength > 0) {
-                std::string mac;
-                for (DWORD i = 0; i < curr->PhysicalAddressLength; i++) {
-                    if (i > 0) mac.push_back(':');
-                    mac += std::format("{:02X}", static_cast<int>(curr->PhysicalAddress[i]));
-                }
-                mac_address_ = mac;
-                LOGI("Net adapter name: {}, MAC: {}", StringUtil::ToUTF8(curr->FriendlyName), mac_address_);
-            }
-        }
-    }
-
-    std::string Hardware::GetDesktopName() {
-        wchar_t computerName[MAX_COMPUTERNAME_LENGTH + 1];
-        DWORD size = MAX_COMPUTERNAME_LENGTH + 1;
-        if (GetComputerNameW(computerName, &size)) {
-            return StringUtil::ToUTF8(computerName);
-        }
-        return "";
-    }
-
-    void Hardware::LockScreen() {
-#ifdef WIN32
-        LockWorkStation();
-#endif
-    }
-
-    bool Hardware::AcquirePermissionForRestartDevice() {
-        HANDLE hToken;
-        TOKEN_PRIVILEGES tkp;
-        // Get a token for this process.
-        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken)) {
-            LOGE("AcquirePermissionForRestartDevice, OpenProcessToken failed.");
-            return false;
-        }
-
-        // Get the LUID for the shutdown privilege.
-        if (!LookupPrivilegeValueW(NULL, SE_SHUTDOWN_NAME, &tkp.Privileges[0].Luid)) {
-            LOGE("AcquirePermissionForRestartDevice, LookupPrivilegeValueW failed.");
-            return false;
-        }
-
-        tkp.PrivilegeCount = 1;  // one privilege to set
-        tkp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-
-        // Get the shutdown privilege for this process.
-        if (!AdjustTokenPrivileges(hToken, FALSE, &tkp, 0, (PTOKEN_PRIVILEGES)NULL, 0)) {
-            LOGE("AcquirePermissionForRestartDevice, AdjustTokenPrivileges failed.");
-            return false;
-        }
-        return true;
-    }
-
-    void Hardware::RestartDevice() {
-#ifdef WIN32
-        AcquirePermissionForRestartDevice();
-        if (ExitWindowsEx(EWX_REBOOT | EWX_FORCE, 0) == 0) {
-            LOGE("RestartDevice failed: {:x}", GetLastError());
-        }
-#endif
-    }
-
-    void Hardware::ShutdownDevice() {
-#ifdef WIN32
-        AcquirePermissionForRestartDevice();
-        if (ExitWindowsEx(EWX_SHUTDOWN | EWX_FORCE, 0) == 0) {
-            LOGE("ShutdownDevice failed: {:x}", GetLastError());
-        }
-#endif
-    }
-
-
+    return StringUtil::ToUTF8(value.bstrVal);
 }
+
+std::optional<std::uint64_t> ReadUnsignedProperty(IWbemClassObject& object, std::wstring_view name) {
+    _variant_t value{};
+    const auto property_name = std::wstring{name};
+    if (FAILED(object.Get(property_name.c_str(), 0, std::addressof(value), nullptr, nullptr))) return std::nullopt;
+    switch (value.vt) {
+    case VT_UI1:
+        return value.bVal;
+    case VT_UI2:
+        return value.uiVal;
+    case VT_UI4:
+        return value.ulVal;
+    case VT_UI8:
+        return value.ullVal;
+    case VT_I2:
+        return value.iVal >= 0 ? std::optional<std::uint64_t>{static_cast<std::uint64_t>(value.iVal)} : std::nullopt;
+    case VT_I4:
+        return value.lVal >= 0 ? std::optional<std::uint64_t>{static_cast<std::uint64_t>(value.lVal)} : std::nullopt;
+    default:
+        return std::nullopt;
+    }
+}
+
+template <typename Visitor>
+bool QueryWmi(IWbemServices& service, std::wstring_view query, Visitor&& visitor) {
+    ComPtr<IEnumWbemClassObject> enumerator{};
+    const auto query_text = std::wstring{query};
+    const auto result = service.ExecQuery(_bstr_t{L"WQL"}, _bstr_t{query_text.c_str()}, WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
+                                          nullptr, enumerator.GetAddressOf());
+    if (FAILED(result) || !enumerator) {
+        LOGE("event=hardware.wmi code=QUERY_FAILED operation=query outcome=failed recoverable=true hresult=0x{:08x}",
+             static_cast<unsigned>(result));
+        return false;
+    }
+
+    for (;;) {
+        ComPtr<IWbemClassObject> object{};
+        ULONG returned{0};
+        const auto next_result = enumerator->Next(WBEM_INFINITE, 1, object.GetAddressOf(), &returned);
+        if (FAILED(next_result)) {
+            LOGE("event=hardware.wmi code=ENUMERATE_FAILED operation=next outcome=failed recoverable=true hresult=0x{:08x}",
+                 static_cast<unsigned>(next_result));
+            return false;
+        }
+        if (returned == 0 || !object) return true;
+        std::invoke(visitor, *object.Get());
+    }
+}
+
+std::uint32_t ParseUnsignedOrZero(std::string_view value) noexcept {
+    std::uint32_t output{0};
+    const auto result = std::from_chars(value.data(), value.data() + value.size(), output);
+    return result.ec == std::errc{} ? output : 0;
+}
+
+}  // namespace
+
+Hardware& Hardware::Instance() {
+    static Hardware hardware{};
+    return hardware;
+}
+
+int Hardware::Detect(bool read_cpu_info, bool detect_disks, bool detect_drivers) {
+    const auto preferences = SharedPreference::Instance();
+    if (preferences->Get(std::string{kKeyCpuName}).empty()) read_cpu_info = true;
+
+    desktop_name_ = GetDesktopName();
+    MEMORYSTATUSEX memory_status{};
+    memory_status.dwLength = sizeof(MEMORYSTATUSEX);
+    if (GlobalMemoryStatusEx(&memory_status)) memory_size_ = static_cast<std::size_t>(memory_status.ullTotalPhys);
+
+    const ComApartment apartment{};
+    if (!apartment.IsUsable()) {
+        LOGE("event=hardware.wmi code=COM_INIT_FAILED operation=detect outcome=failed recoverable=true hresult=0x{:08x}",
+             static_cast<unsigned>(apartment.Result()));
+        return -1;
+    }
+    const auto security_result = CoInitializeSecurity(nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE,
+                                                      nullptr, EOAC_NONE, nullptr);
+    if (FAILED(security_result) && security_result != RPC_E_TOO_LATE) {
+        LOGE("event=hardware.wmi code=COM_SECURITY_FAILED operation=detect outcome=failed recoverable=true hresult=0x{:08x}",
+             static_cast<unsigned>(security_result));
+        return -1;
+    }
+
+    ComPtr<IWbemLocator> locator{};
+    if (FAILED(CoCreateInstance(CLSID_WbemLocator, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(locator.GetAddressOf()))) || !locator) return -1;
+    ComPtr<IWbemServices> service{};
+    if (FAILED(locator->ConnectServer(_bstr_t{L"ROOT\\CIMV2"}, nullptr, nullptr, nullptr, 0, nullptr, nullptr, service.GetAddressOf())) || !service) {
+        return -1;
+    }
+    if (FAILED(CoSetProxyBlanket(service.Get(), RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE, nullptr, RPC_C_AUTHN_LEVEL_CALL,
+                                 RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, EOAC_NONE))) {
+        return -1;
+    }
+
+    hw_disks_.clear();
+    drivers_.clear();
+    gpus_.clear();
+
+    if (read_cpu_info) {
+        if (!QueryWmi(*service.Get(), L"SELECT * FROM Win32_Processor", [&](IWbemClassObject& object) {
+                if (const auto value = ReadStringProperty(object, L"Name")) hw_cpu_.name_ = *value;
+                if (const auto value = ReadStringProperty(object, L"ProcessorId")) hw_cpu_.id_ = *value;
+                if (const auto value = ReadUnsignedProperty(object, L"NumberOfCores")) hw_cpu_.num_cores_ = static_cast<std::uint32_t>(*value);
+                if (const auto value = ReadUnsignedProperty(object, L"MaxClockSpeed")) {
+                    hw_cpu_.max_clock_speed_ = static_cast<std::uint32_t>(*value);
+                }
+            })) {
+            return -1;
+        }
+        preferences->Put(std::string{kKeyCpuName}, hw_cpu_.name_);
+        preferences->Put(std::string{kKeyCpuId}, hw_cpu_.id_);
+        preferences->Put(std::string{kKeyCpuCores}, std::to_string(hw_cpu_.num_cores_));
+        preferences->Put(std::string{kKeyCpuMaxClock}, std::to_string(hw_cpu_.max_clock_speed_));
+    } else {
+        hw_cpu_.name_ = preferences->Get(std::string{kKeyCpuName});
+        hw_cpu_.id_ = preferences->Get(std::string{kKeyCpuId});
+        hw_cpu_.num_cores_ = ParseUnsignedOrZero(preferences->Get(std::string{kKeyCpuCores}));
+        hw_cpu_.max_clock_speed_ = ParseUnsignedOrZero(preferences->Get(std::string{kKeyCpuMaxClock}));
+    }
+
+    if (detect_disks && !QueryWmi(*service.Get(), L"SELECT * FROM Win32_DiskDrive", [&](IWbemClassObject& object) {
+            HwDisk disk{};
+            disk.name_ = ReadStringProperty(object, L"Name").value_or("");
+            disk.model_ = ReadStringProperty(object, L"Model").value_or("");
+            disk.status_ = ReadStringProperty(object, L"Status").value_or("");
+            disk.serial_number_ = ReadStringProperty(object, L"SerialNumber").value_or("");
+            disk.interface_type_ = ReadStringProperty(object, L"InterfaceType").value_or("");
+            if (disk.interface_type_ == "IDE") hw_disks_.push_back(std::move(disk));
+        })) {
+        return -1;
+    }
+
+    if (detect_drivers && !QueryWmi(*service.Get(), L"SELECT * FROM Win32_SystemDriver", [&](IWbemClassObject& object) {
+            drivers_.push_back(SysDriver{.name_ = ReadStringProperty(object, L"Name").value_or(""),
+                                         .display_name_ = ReadStringProperty(object, L"DisplayName").value_or(""),
+                                         .state_ = ReadStringProperty(object, L"State").value_or("")});
+        })) {
+        return -1;
+    }
+
+    if (!QueryWmi(*service.Get(), L"SELECT * FROM Win32_VideoController", [&](IWbemClassObject& object) {
+            HwGPU gpu{.name_ = ReadStringProperty(object, L"Name").value_or(""),
+                      .size_ = ReadUnsignedProperty(object, L"AdapterRAM").value_or(0),
+                      .res_w_ = static_cast<int>(ReadUnsignedProperty(object, L"CurrentHorizontalResolution").value_or(0)),
+                      .res_h_ = static_cast<int>(ReadUnsignedProperty(object, L"CurrentVerticalResolution").value_or(0)),
+                      .driver_version_ = ReadStringProperty(object, L"DriverVersion").value_or(""),
+                      .pnp_device_id_ = ReadStringProperty(object, L"PNPDeviceID").value_or("")};
+            gpu.size_str_ = NumFormatter::FormatStorageSize(gpu.size_);
+            if (gpu.name_.find("Virtual") == std::string::npos && gpu.size_ >= 128ULL * 1024ULL * 1024ULL) gpus_.push_back(std::move(gpu));
+        })) {
+        return -1;
+    }
+
+    DetectMac();
+    return 0;
+}
+
+void Hardware::Dump() const {
+    LOGI("hardware desktop={} cpu_id={} cpu_name={} cpu_cores={} memory={}", desktop_name_, hw_cpu_.id_, hw_cpu_.name_, hw_cpu_.num_cores_,
+         NumFormatter::FormatStorageSize(memory_size_));
+    for (const auto& disk : hw_disks_) {
+        LOGI("hardware disk name={} model={} status={} serial={} interface={}", disk.name_, disk.model_, disk.status_, disk.serial_number_,
+             disk.interface_type_);
+    }
+    for (const auto& gpu : gpus_) LOGI("hardware gpu name={} memory={} pnp={}", gpu.name_, gpu.size_str_, gpu.pnp_device_id_);
+    LOGI("hardware mac={}", mac_address_);
+}
+
+std::string Hardware::GetHardwareDescription() const {
+    std::stringstream stream{};
+    for (const auto& disk : hw_disks_) stream << disk.serial_number_;
+    stream << mac_address_;
+    auto description = stream.str();
+    StringUtil::Replace(description, " ", "");
+    return description;
+}
+
+void Hardware::DetectMac() {
+    ULONG buffer_size{0};
+    if (GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_INCLUDE_PREFIX, nullptr, nullptr, &buffer_size) != ERROR_BUFFER_OVERFLOW) return;
+    std::vector<std::byte> buffer(buffer_size);
+    auto adapter = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(buffer.data());  // NOLINT(gammaray-raw-pointer-boundary): Win32 linked-list ABI.
+    if (GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_INCLUDE_PREFIX, nullptr, adapter, &buffer_size) != ERROR_SUCCESS) return;
+    for (auto current = adapter; current != nullptr; current = current->Next) {  // NOLINT(gammaray-raw-pointer-boundary): borrowed Win32 list nodes.
+        if (current->OperStatus != IfOperStatusUp || current->IfType == IF_TYPE_SOFTWARE_LOOPBACK || current->PhysicalAddressLength == 0) continue;
+        std::string mac{};
+        for (DWORD index = 0; index < current->PhysicalAddressLength; ++index) {
+            if (index > 0) mac.push_back(':');
+            mac += std::format("{:02x}", static_cast<unsigned int>(current->PhysicalAddress[index]));
+        }
+        mac_address_ = std::move(mac);
+        break;
+    }
+}
+
+std::string Hardware::GetDesktopName() {
+    std::array<wchar_t, MAX_COMPUTERNAME_LENGTH + 1> name{};
+    DWORD size = static_cast<DWORD>(name.size());
+    return GetComputerNameW(name.data(), &size) ? StringUtil::ToUTF8(name.data()) : std::string{};
+}
+
+void Hardware::LockScreen() {
+    static_cast<void>(LockWorkStation());
+}
+
+bool Hardware::AcquirePermissionForRestartDevice() {
+    HANDLE token{};  // NOLINT(gammaray-raw-pointer-boundary): OpenProcessToken transfers a HANDLE through HANDLE*.
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token)) return false;
+    const UniqueWinHandle owned_token{token};
+    TOKEN_PRIVILEGES privileges{};
+    privileges.PrivilegeCount = 1;
+    privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+    if (!LookupPrivilegeValueW(nullptr, SE_SHUTDOWN_NAME, &privileges.Privileges[0].Luid)) return false;
+    return AdjustTokenPrivileges(owned_token.get(), FALSE, &privileges, 0, nullptr, nullptr) && GetLastError() == ERROR_SUCCESS;
+}
+
+void Hardware::RestartDevice() {
+    if (!AcquirePermissionForRestartDevice() || !ExitWindowsEx(EWX_REBOOT | EWX_FORCEIFHUNG, 0)) {
+        LOGE("event=hardware.power code=RESTART_FAILED operation=restart outcome=failed recoverable=true win32_error={}", GetLastError());
+    }
+}
+
+void Hardware::ShutdownDevice() {
+    if (!AcquirePermissionForRestartDevice() || !ExitWindowsEx(EWX_SHUTDOWN | EWX_FORCEIFHUNG, 0)) {
+        LOGE("event=hardware.power code=SHUTDOWN_FAILED operation=shutdown outcome=failed recoverable=true win32_error={}", GetLastError());
+    }
+}
+
+}  // namespace px

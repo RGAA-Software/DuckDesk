@@ -11,7 +11,6 @@
 #include "px_common_new/image.h"
 #include "px_common_new/file.h"
 #include "px_common_new/time_util.h"
-#include "px_common_new/defer.h"
 #include "px_common_new/string_util.h"
 #include "px_render/architecture/events/render_event.h"
 #include "ffmpeg_video_encoder.h"
@@ -312,13 +311,13 @@ namespace px
             //LOGI("RawImageType::kI444");
             uv_size = img_width * img_height;
         }
-        //memcpy(frame_->data[0], image_data->CStr(), y_size);
-        //memcpy(frame_->data[1], image_data->CStr() + y_size, uv_size);
-        //memcpy(frame_->data[2], image_data->CStr() + y_size + uv_size, uv_size);
+        //memcpy(frame_->data[0], image_data->Bytes().data(), y_size);
+        //memcpy(frame_->data[1], image_data->Bytes().data() + y_size, uv_size);
+        //memcpy(frame_->data[2], image_data->Bytes().data() + y_size + uv_size, uv_size);
 
-        auto y = image_data->CStr();
-        auto u = image_data->CStr() + y_size;
-        auto v = image_data->CStr() + y_size + uv_size;
+        auto y = image_data->Bytes().data();
+        auto u = image_data->Bytes().data() + y_size;
+        auto v = image_data->Bytes().data() + y_size + uv_size;
         if (AV_PIX_FMT_NV12 == codec_ctx_->pix_fmt) {
             // QSV 输入:I420 -> NV12(Y 平面 + 交错 UV)
             if (RawImageType::kI420 != image->raw_img_type_) {
@@ -353,7 +352,8 @@ namespace px
             }
 
             bool key_frame = (packet_->flags & AV_PKT_FLAG_KEY);
-            auto encoded_data = Data::Make((char*)packet_->data, packet_->size);
+            auto encoded_data =
+                Data::Copy(std::span<const char>{reinterpret_cast<const char*>(packet_->data), static_cast<std::size_t>(packet_->size)});
 
             auto event = std::make_shared<EncodedVideoFrameEvent>();
             event->type_ = encoder_config_.codec_type == EVideoCodecType::kHEVC

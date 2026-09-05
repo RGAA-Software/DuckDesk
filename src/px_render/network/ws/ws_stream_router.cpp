@@ -55,7 +55,7 @@ namespace px
         if (!transport) {
             return;
         }
-        auto msg = Data::Make(data.data(), data.size());
+        auto msg = Data::From(data);
         transport->ReceiveClientEvent(
             true, socket_fd, TransportKind::kWebSocket, channel_type_, msg, binding_id_);
     }
@@ -84,7 +84,7 @@ namespace px
         session_->ws_stream().binary(true);
         queuing_message_count_++;
         auto weak_self = weak_from_this();
-        session_->async_send(data->CStr(), data->Size(), [weak_self](size_t byte_sent) {
+        session_->async_send(data->Bytes().data(), data->Size(), [weak_self](size_t byte_sent) {
             auto self = weak_self.lock();
             if (!self) {
                 return;

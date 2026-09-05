@@ -100,6 +100,11 @@ if(BUILD_TESTING AND NOT ANDROID)
         GTest::gtest_main
     )
     add_test(NAME test_ft_transport_e2e COMMAND test_ft_transport_e2e)
+    if(WIN32)
+        set_tests_properties(test_ft_transport_e2e PROPERTIES
+            ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:px_rtc_client>"
+        )
+    endif()
     add_executable(test_udp_media_fallback_state
         tests/test_udp_media_fallback_state.cpp
     )

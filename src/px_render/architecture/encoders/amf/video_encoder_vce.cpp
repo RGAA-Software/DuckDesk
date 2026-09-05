@@ -5,7 +5,6 @@
 #include "px_common_new/data.h"
 #include "px_encoder_new/encoder_config.h"
 #include "px_common_new/image.h"
-#include "px_common_new/defer.h"
 #include "d3d_texture_debug.h"
 #include "px_encoder_new/encoder_config.h"
 #include "px_common_new/string_util.h"
@@ -396,7 +395,7 @@ namespace px
         // LOGI("VCE encode latency: {} ms. Size={} bytes frameIndex={}, length : {}", double(current_time - start_time) / MILLISEC_TIME,
         // (int)buffer->GetSize(), frameIndex, length);
 
-        auto encoded_data = Data::Make((char*)p, length);
+        auto encoded_data = Data::Copy(std::span<const char>{reinterpret_cast<const char*>(p), static_cast<std::size_t>(length)});
         auto event = std::make_shared<EncodedVideoFrameEvent>();
         event->type_ = [=]() {
             if (encoder_config_.codec_type == EVideoCodecType::kHEVC) {

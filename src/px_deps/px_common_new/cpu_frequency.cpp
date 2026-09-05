@@ -4,55 +4,70 @@
 
 #include "cpu_frequency.h"
 
-namespace px
-{
-
-    double CpuFrequency::GetCurrentCpuSpeed() {
 #ifdef WIN32
-        HQUERY query;
-        //打开PDH
-        PDH_STATUS status = PdhOpenQuery(NULL, NULL, &query);
-        if (status != ERROR_SUCCESS)
-            return -1;
-
-        HCOUNTER cpuPerformance;
-        HCOUNTER cpuBasicSpeed;
-
-        //添加CPU当前性能的计数器
-        status = PdhAddCounter(query, TEXT("\\Processor Information(_Total)\\% Processor Performance"), NULL, &cpuPerformance);
-        if (status != ERROR_SUCCESS)
-            return -1;
-
-        //添加CPU基准频率的计数器
-        status = PdhAddCounter(query, TEXT("\\Processor Information(_Total)\\Processor Frequency"), NULL, &cpuBasicSpeed);
-        if (status != ERROR_SUCCESS)
-            return -1;
-
-        //收集计数 因很多计数需要区间值 所以需要调用两次Query(间隔至少1s) 然后再获取计数值
-        PdhCollectQueryData(query);
-        Sleep(50);
-        PdhCollectQueryData(query);
-
-        PDH_FMT_COUNTERVALUE pdhValue;
-        DWORD dwValue;
-
-        status = PdhGetFormattedCounterValue(cpuPerformance, PDH_FMT_DOUBLE, &dwValue, &pdhValue);
-        if (status != ERROR_SUCCESS)
-            return -1;
-        double cpu_performance = pdhValue.doubleValue / 100.0;
-
-        status = PdhGetFormattedCounterValue(cpuBasicSpeed, PDH_FMT_DOUBLE, &dwValue, &pdhValue);
-        if (status != ERROR_SUCCESS)
-            return -1;
-        double basic_speed = pdhValue.doubleValue;
-
-        //关闭PDH
-        PdhCloseQuery(query);
-
-        return (double)(cpu_performance * basic_speed / 1000.0);
-#else
-       return 0;
+#include <chrono>
+#include <memory>
+#include <thread>
 #endif
+
+namespace px {
+
+#ifdef WIN32
+namespace {
+
+struct PdhQueryCloser final {
+    void operator()(void* query) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): opaque PDH query boundary.
+        if (query != nullptr) {
+            PdhCloseQuery(query);
+        }
+    }
+};
+
+using UniquePdhQuery = std::unique_ptr<void, PdhQueryCloser>;
+
+}  // namespace
+#endif
+
+double CpuFrequency::GetCurrentCpuSpeed() {
+#ifdef WIN32
+    HQUERY query_raw{};  // NOLINT(gammaray-raw-pointer-boundary): initialized by PdhOpenQuery and immediately RAII-wrapped.
+    if (PdhOpenQuery(nullptr, 0, &query_raw) != ERROR_SUCCESS) {
+        return -1.0;
+    }
+    UniquePdhQuery query{query_raw};
+
+    HCOUNTER performance_counter{};  // NOLINT(gammaray-raw-pointer-boundary): counter lifetime is owned by the query.
+    if (PdhAddCounterW(query.get(), L"\\Processor Information(_Total)\\% Processor Performance", 0, &performance_counter) != ERROR_SUCCESS) {
+        return -1.0;
     }
 
+    HCOUNTER frequency_counter{};  // NOLINT(gammaray-raw-pointer-boundary): counter lifetime is owned by the query.
+    if (PdhAddCounterW(query.get(), L"\\Processor Information(_Total)\\Processor Frequency", 0, &frequency_counter) != ERROR_SUCCESS) {
+        return -1.0;
+    }
+
+    if (PdhCollectQueryData(query.get()) != ERROR_SUCCESS) {
+        return -1.0;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
+    if (PdhCollectQueryData(query.get()) != ERROR_SUCCESS) {
+        return -1.0;
+    }
+
+    PDH_FMT_COUNTERVALUE value{};
+    DWORD value_type{};
+    if (PdhGetFormattedCounterValue(performance_counter, PDH_FMT_DOUBLE, &value_type, &value) != ERROR_SUCCESS) {
+        return -1.0;
+    }
+    const double cpu_performance = value.doubleValue / 100.0;
+
+    if (PdhGetFormattedCounterValue(frequency_counter, PDH_FMT_DOUBLE, &value_type, &value) != ERROR_SUCCESS) {
+        return -1.0;
+    }
+    return cpu_performance * value.doubleValue / 1000.0;
+#else
+    return 0.0;
+#endif
 }
+
+}  // namespace px

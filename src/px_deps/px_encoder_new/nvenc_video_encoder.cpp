@@ -6,7 +6,6 @@
 #include "px_common_new/win32/d3d_debug_helper.h"
 #include "px_common_new/time_util.h"
 #include "px_common_new/thread.h"
-#include "px_common_new/defer.h"
 
 namespace px
 {
@@ -177,7 +176,7 @@ namespace px
         nv_encoder_->EncodeFrame(out_packet, &picParams);
 
         for (std::vector<uint8_t> &packet: out_packet) {
-            auto encoded_data = Data::Make((char *) packet.data(), packet.size());
+            auto encoded_data = Data::Copy(std::span<const char>{reinterpret_cast<const char*>(packet.data()), packet.size()});
             if (encoder_callback_) {
                 auto image = Image::Make(encoded_data, out_width_, out_height_, 3);
                 encoder_callback_(image, ++encoded_frame_index_, insert_idr_);

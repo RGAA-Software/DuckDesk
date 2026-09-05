@@ -13,7 +13,6 @@
 #include "px_common_new/win32/d3d_debug_helper.h"
 #include "px_common_new/file.h"
 #include "px_common_new/time_util.h"
-#include "px_common_new/defer.h"
 #include "px_render/modules/module_ids.h"
 #include "ffmpeg_encoder.h"
 #include <Winerror.h>

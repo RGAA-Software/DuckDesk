@@ -17,6 +17,7 @@ enum class PxAsyncErrorCode {
     kTimeout,
     kCancelled,
     kServiceStopped,
+    kIoError,
     kProtocolError,
     kServiceRejected,
 };
@@ -37,6 +38,8 @@ inline std::string_view PxAsyncErrorCodeName(PxAsyncErrorCode code) noexcept {
         return "CANCELLED";
     case PxAsyncErrorCode::kServiceStopped:
         return "SERVICE_STOPPED";
+    case PxAsyncErrorCode::kIoError:
+        return "IO_ERROR";
     case PxAsyncErrorCode::kProtocolError:
         return "PROTOCOL_ERROR";
     case PxAsyncErrorCode::kServiceRejected:
@@ -57,9 +60,8 @@ struct PxAsyncError {
     }
 };
 
-template<typename T>
-class PxResult final {
-public:
+template <typename T> class PxResult final {
+  public:
     static PxResult Success(T value) {
         return PxResult(std::in_place_index<0>, std::move(value));
     }
@@ -88,17 +90,15 @@ public:
         return std::get<1>(value_);
     }
 
-private:
-    template<std::size_t Index, typename Value>
-    explicit PxResult(std::in_place_index_t<Index> index, Value&& value)
-        : value_(index, std::forward<Value>(value)) {}
+  private:
+    template <std::size_t Index, typename Value>
+    explicit PxResult(std::in_place_index_t<Index> index, Value&& value) : value_(index, std::forward<Value>(value)) {}
 
     std::variant<T, PxAsyncError> value_;
 };
 
-template<>
-class PxResult<void> final {
-public:
+template <> class PxResult<void> final {
+  public:
     static PxResult Success() {
         return PxResult(true, {});
     }
@@ -122,18 +122,14 @@ public:
         return error_;
     }
 
-private:
-    PxResult(bool success, PxAsyncError error)
-        : success_(success), error_(std::move(error)) {}
+  private:
+    PxResult(bool success, PxAsyncError error) : success_(success), error_(std::move(error)) {}
 
     bool success_ = false;
     PxAsyncError error_;
 };
 
-inline PxAsyncError MakePxAsyncError(PxAsyncErrorCode code,
-                                     std::string stage,
-                                     std::string message,
-                                     bool retryable = false,
+inline PxAsyncError MakePxAsyncError(PxAsyncErrorCode code, std::string stage, std::string message, bool retryable = false,
                                      std::string detail_code = {}) {
     return PxAsyncError{
         .code = code,

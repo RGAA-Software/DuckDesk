@@ -15,12 +15,9 @@
 
 #include <d3d11.h>
 #include <wrl/client.h>
-#include "px_common_new/win32/d3d_render.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
 
 using namespace px;
-
-static std::shared_ptr<D3DRender> g_render;
 
 struct d3d11_data {
     ID3D11Device *device;         /* do not release */
@@ -270,7 +267,7 @@ void d3d11_capture(void *swap_ptr, void *back_buffer_ptr) {
     // debug texture begin
     if (false) {
         //CopyID3D11Texture2D(data.texture, "captured_image");
-        DebugOutDDS(data.texture, "xxcaptured_image");
+        DebugOutDDS(Microsoft::WRL::ComPtr<ID3D11Texture2D>{data.texture}, "xxcaptured_image");
     }
     // debug texture end
 

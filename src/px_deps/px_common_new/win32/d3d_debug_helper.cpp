@@ -2,7 +2,7 @@
 #include "d3d_debug_helper.h"
 #include <DirectXTex.h>
 #include <sstream>
-#include "d3d_render.h"
+#include "px_common_new/scope_exit.h"
 #include "px_common_new/string_util.h"
 #include "px_common_new/log.h"
 
@@ -20,17 +20,22 @@ namespace px {
         LOGI("-----------------ID3D11Texture2D Desc------------------ END");
     }
 
-    void PrintD3DTexture2DDesc(const std::string &name, ID3D11Texture2D *tex) {
-        D3D11_TEXTURE2D_DESC desc;
-        tex->GetDesc(&desc);
+    void PrintD3DTexture2DDesc(const std::string& name, const Microsoft::WRL::ComPtr<ID3D11Texture2D>& texture) {
+        if (!texture) return;
+        D3D11_TEXTURE2D_DESC desc{};
+        texture->GetDesc(&desc);
         PrintD3DTexture2DDesc(name, desc);
     }
 
-    bool DebugOutDDS(ID3D11Texture2D* pResource, const std::string &name) {
-        auto rhi = px::D3DRender::BuildD3DRenderFromTexture(pResource);
+    bool DebugOutDDS(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& resource, const std::string& name) {
+        if (!resource) return false;
+        Microsoft::WRL::ComPtr<ID3D11Device> device{};
+        Microsoft::WRL::ComPtr<ID3D11DeviceContext> context{};
+        resource->GetDevice(device.GetAddressOf());
+        device->GetImmediateContext(context.GetAddressOf());
         DirectX::ScratchImage image;
         static int i = 0;
-        auto hr = DirectX::CaptureTexture(rhi->GetDevice(), rhi->GetContext(), pResource, image);
+        auto hr = DirectX::CaptureTexture(device.Get(), context.Get(), resource.Get(), image);
         std::stringstream oss;
         oss << "debug-" << name << "-" << ++i % 5 <<".dds";
 
@@ -50,7 +55,7 @@ namespace px {
         }
     }
 
-    bool D3D11Texture2DLockMutex(Microsoft::WRL::ComPtr<ID3D11Texture2D> texture2d) {
+    bool D3D11Texture2DLockMutex(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& texture2d) {
         HRESULT hRes;
         Microsoft::WRL::ComPtr<IDXGIKeyedMutex> key_mutex;
         hRes = texture2d.As<IDXGIKeyedMutex>(&key_mutex);
@@ -68,7 +73,7 @@ namespace px {
         return  true;
     }
 
-    bool D3D11Texture2DReleaseMutex(Microsoft::WRL::ComPtr<ID3D11Texture2D> texture2d) {
+    bool D3D11Texture2DReleaseMutex(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& texture2d) {
         HRESULT hRes;
         Microsoft::WRL::ComPtr<IDXGIKeyedMutex> key_mutex;
         hRes = texture2d.As<IDXGIKeyedMutex>(&key_mutex);
@@ -87,14 +92,12 @@ namespace px {
     }
 
 
-    bool CopyID3D11Texture2D(Microsoft::WRL::ComPtr<ID3D11Texture2D> shared_texture) {
+    bool CopyID3D11Texture2D(const Microsoft::WRL::ComPtr<ID3D11Texture2D>& shared_texture) {
         if(!D3D11Texture2DLockMutex(shared_texture)) {
             printf("D3D11Texture2DLockMutex error\n");
             return false;
         }
-        std::shared_ptr<void> auto_realse_texture2D_mutex((void*)nullptr, [=](void* temp){
-            D3D11Texture2DReleaseMutex(shared_texture);
-        });
+        const PxScopeExit release_mutex{[shared_texture]() { static_cast<void>(D3D11Texture2DReleaseMutex(shared_texture)); }};
 
         HRESULT hRes;
         D3D11_TEXTURE2D_DESC desc;

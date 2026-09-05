@@ -1,86 +1,71 @@
-//
-// Created by RGAA on 2024-01-18.
-//
-
 #ifndef CONTROLLER_HARDWARE_H
 #define CONTROLLER_HARDWARE_H
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 
-namespace px
-{
+namespace px {
 
-    class HwCPU {
-    public:
-        std::string name_;
-        std::string id_;
-        uint32_t num_cores_ = 0;
-        uint32_t max_clock_speed_;
-    };
+struct HwCPU {
+    std::string name_{};
+    std::string id_{};
+    std::uint32_t num_cores_{0};
+    std::uint32_t max_clock_speed_{0};
+};
 
-    class HwDisk {
-    public:
-        std::string name_;
-        std::string model_;
-        std::string status_;
-        std::string serial_number_;
-        std::string interface_type_;
-    };
+struct HwDisk {
+    std::string name_{};
+    std::string model_{};
+    std::string status_{};
+    std::string serial_number_{};
+    std::string interface_type_{};
+};
 
-    class SysDriver {
-    public:
-        std::string name_;
-        std::string display_name_;
-        std::string state_;
-    };
+struct SysDriver {
+    std::string name_{};
+    std::string display_name_{};
+    std::string state_{};
+};
 
-    class HwGPU {
-    public:
-        //
-        std::string name_;
-        // bytes
-        unsigned long long size_{0};
-        std::string size_str_;
-        // res wxh
-        int res_w_{0};
-        int res_h_{0};
-        std::string driver_version_;
-        std::string pnp_device_id_;
+struct HwGPU {
+    std::string name_{};
+    std::uint64_t size_{0};
+    std::string size_str_{};
+    int res_w_{0};
+    int res_h_{0};
+    std::string driver_version_{};
+    std::string pnp_device_id_{};
+};
 
-    };
+class Hardware final {
+public:
+    static Hardware& Instance();
 
-    class Hardware {
-    public:
-        static Hardware* Instance() {
-            static Hardware hw;
-            return &hw;
-        }
+    int Detect(bool cpu, bool disk, bool driver);
+    void Dump() const;
+    [[nodiscard]] std::string GetHardwareDescription() const;
+    [[nodiscard]] std::vector<SysDriver> GetDrivers() const { return drivers_; }
 
-        int Detect(bool cpu, bool disk, bool driver);
-        void Dump();
-        std::string GetHardwareDescription();
-        std::vector<SysDriver> GetDrivers() { return drivers_; }
+    static std::string GetDesktopName();
+    static void LockScreen();
+    static void RestartDevice();
+    static void ShutdownDevice();
+    static bool AcquirePermissionForRestartDevice();
 
-        static std::string GetDesktopName();
+    HwCPU hw_cpu_{};
+    std::vector<HwDisk> hw_disks_{};
+    std::vector<SysDriver> drivers_{};
+    std::string mac_address_{};
+    std::string desktop_name_{};
+    std::size_t memory_size_{0};
+    std::vector<HwGPU> gpus_{};
 
-        static void LockScreen();
-        static void RestartDevice();
-        static void ShutdownDevice();
-        static bool AcquirePermissionForRestartDevice();
-    private:
-        void DetectMac();
+private:
+    void DetectMac();
+};
 
-    public:
-        HwCPU hw_cpu_;
-        std::vector<HwDisk> hw_disks_;
-        std::vector<SysDriver> drivers_;
-        std::string mac_address_;
-        std::string desktop_name_;
-        size_t memory_size_;
-        std::vector<HwGPU> gpus_;
-    };
+}  // namespace px
 
-}
-
-#endif //PLC_CONTROLLER_HARDWARE_H
+#endif  // CONTROLLER_HARDWARE_H

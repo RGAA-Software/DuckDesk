@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "px_common_new/response.h"
+#include "px_common_new/win32/unique_win_handle.h"
 
 namespace px
 {
@@ -25,21 +26,15 @@ namespace px
         uint32_t pid_{};
         uint32_t ppid_{};
         uint32_t thread_id_{};
-        HWND hwnd_ = nullptr;
-        HICON icon_ = nullptr;
-        std::string icon_name_;
+        UniqueWinIcon icon_{};
+        std::string icon_name_{};
         int32_t session_id_{};
 
         [[nodiscard]] bool Valid() const {
             return pid_ > 0 && !exe_full_path_.empty();
         }
 
-        ~ProcessInfo() {
-            if (icon_) {
-                DestroyIcon(icon_);
-                icon_ = nullptr;
-            }
-        }
+        ~ProcessInfo() = default;
     };
     using ProcessInfoPtr = std::shared_ptr<ProcessInfo>;
 
@@ -49,27 +44,27 @@ namespace px
             if (!win_handle) {
                 return std::make_pair(0, 0);
             }
-            RECT rect;
-            GetWindowRect(win_handle, &rect);
+            RECT rect{};
+            GetWindowRect(reinterpret_cast<HWND>(win_handle), &rect);
             return std::make_pair((rect.right - rect.left), (rect.bottom - rect.top));
         }
 
     public:
-        DWORD pid;
-        DWORD thread_id;
-        HWND win_handle = nullptr;
-        std::wstring title;
-        std::wstring exe_name;
-        std::wstring exe_path;
-        std::string claxx;
+        DWORD pid{};
+        DWORD thread_id{};
+        std::uintptr_t win_handle{};
+        std::wstring title{};
+        std::wstring exe_name{};
+        std::wstring exe_path{};
+        std::string claxx{};
     };
 
     class WindowInfos {
     public:
 
-        int pid = 0;
-        int filter_window_size = -1;
-        std::vector<WindowInfo> infos;
+        int pid{};
+        int filter_window_size{-1};
+        std::vector<WindowInfo> infos{};
 
     };
 
@@ -84,12 +79,14 @@ namespace px
         static std::vector<uint32_t> FindAllChildProcess(uint32_t pid, const std::string& excludeProcessName = "");
         static uint32_t GetCurrentProcessId();
         static WindowInfos GetWindowInfoByPid(DWORD pid, int filter_window_size = 256);
-        static bool GetWindowPositionByHwnd(HWND hwnd, RECT& rect);
-        static HICON QueryExeIcon(const std::wstring& exe_path);
-        static HICON GetFolderIcon();
+        static bool GetWindowPositionByHwnd(
+            HWND hwnd,  // NOLINT(gammaray-raw-pointer-boundary): borrowed window handle used synchronously.
+            RECT& rect);
+        static UniqueWinIcon QueryExeIcon(const std::wstring& exe_path);
+        static UniqueWinIcon GetFolderIcon();
         //std::string strArray[13] = {".exe", ".zip", ".har", ".hwl", ".accdb",
         //                            ".xlsx", ".pptx", ".docx", ".txt", ".h", ".cpp", ".pro"};
-        static HICON GetFileIcon(const std::string& suffix);
+        static UniqueWinIcon GetFileIcon(const std::string& suffix);
     };
 
 }

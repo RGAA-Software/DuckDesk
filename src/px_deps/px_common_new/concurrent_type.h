@@ -1,90 +1,70 @@
-//
-// Created by RGAA on 6/07/2025.
-//
-
 #ifndef PX_CONCURRENT_TYPE_H
 #define PX_CONCURRENT_TYPE_H
 
+#include <concepts>
+#include <functional>
 #include <mutex>
 #include <string>
-#include <functional>
+#include <utility>
 
-namespace px
-{
-    template<typename T>
-    class ConcurrentType {
-    public:
-        ConcurrentType() {
+namespace px {
 
-        }
+template <typename T>
+class ConcurrentType {
+public:
+    ConcurrentType() = default;
+    explicit ConcurrentType(T value) : value_(std::move(value)) {}
 
-        ConcurrentType(const ConcurrentType& other) {
-            T other_value = other.Clone();
-            this->Update(other_value);
-        }
+    ConcurrentType(const ConcurrentType& other) : value_(other.Clone()) {}
 
-        void Update(const T& s) {
-            std::lock_guard<std::mutex> guard(mtx_);
-            inner_ = s;
-        }
+    void Update(T value) {
+        std::scoped_lock lock(mutex_);
+        value_ = std::move(value);
+    }
 
-        T Clone() const {
-            std::lock_guard<std::mutex> guard(mtx_);
-            return inner_;
-        }
+    [[nodiscard]] T Clone() const {
+        std::scoped_lock lock(mutex_);
+        return value_;
+    }
 
-        bool HasValue() const {
-            std::lock_guard<std::mutex> guard(mtx_);
-            return inner_ ? true : false;
-        }
+    [[nodiscard]] bool HasValue() const
+        requires requires(const T& value) { static_cast<bool>(value); }
+    {
+        std::scoped_lock lock(mutex_);
+        return static_cast<bool>(value_);
+    }
 
-        /**
-         *  auto r = c_auther.WithLock([=, this](auto& inner) {
-         *       auto c = inner.find_one(make_document(
-         *           kvp(kParamAutherName, auther_name)
-         *       ));
-         *       return c;
-         *   });
-         * @tparam F
-         * @param func
-         * @return
-         */
-        template<typename F>
-        decltype(auto) WithLock(F&& func) {
-            std::lock_guard<std::mutex> guard(mtx_);
-            return func(inner_);
-        }
+    template <typename Function>
+        requires std::invocable<Function&, T&>
+    decltype(auto) WithLock(Function&& function) {
+        std::scoped_lock lock(mutex_);
+        return std::invoke(std::forward<Function>(function), value_);
+    }
 
-        ConcurrentType<T>& operator=(const ConcurrentType<T>& other) {
-            if (this != &other) {
-                T other_value = other.Clone();
-                this->Update(other_value);
-            }
-            return *this;
-        }
+    ConcurrentType& operator=(const ConcurrentType& other) {
+        if (this != std::addressof(other)) Update(other.Clone());
+        return *this;
+    }
 
-        ConcurrentType<T>& operator=(const T& other) {
-            this->Update(other);
-            return *this;
-        }
+    ConcurrentType& operator=(T value) {
+        Update(std::move(value));
+        return *this;
+    }
 
-        bool operator == (const T& other) {
-            return this->Clone() == other;
-        }
+    [[nodiscard]] bool operator==(const T& other) const {
+        return Clone() == other;
+    }
 
-        bool operator != (const T& other) {
-            return this->Clone() != other;
-        }
+private:
+    mutable std::mutex mutex_{};
+    T value_{};
+};
 
-    private:
-        mutable std::mutex mtx_;
-        T inner_;
-    };
+using ConcurrentString = ConcurrentType<std::string>;
 
-    using ConcurrentString = px::ConcurrentType<std::string>;
+template <typename T>
+using Mutex = ConcurrentType<T>;
 
-    template<typename T>
-    using Mutex = px::ConcurrentType<T>;
-}
+}  // namespace px
 
-#endif //PX_CONCURRENT_TYPE_H
+#endif  // PX_CONCURRENT_TYPE_H

@@ -6,7 +6,7 @@
 #define PX_RTC_CONNECTION_H
 
 #include "rtc_client.h"
-#include "px_common_new/webrtc_helper.h"
+#include "px_webrtc_client/webrtc_helper.h"
 #include <memory>
 #include <mutex>
 #include <utility>

@@ -5,7 +5,7 @@
 #ifndef SDK_PEER_CALLBACK_H
 #define SDK_PEER_CALLBACK_H
 
-#include "px_common_new/webrtc_helper.h"
+#include "px_webrtc_client/webrtc_helper.h"
 #include <nlohmann/json.hpp>
 
 using namespace nlohmann;

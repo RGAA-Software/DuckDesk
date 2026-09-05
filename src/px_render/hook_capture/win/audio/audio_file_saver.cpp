@@ -23,15 +23,16 @@ namespace px
         CoUninitialize();
 	}
 
-	int WAVAudioFileSaver::WriteData(char* data, uint32_t data_length) {
+	int WAVAudioFileSaver::WriteData(std::span<const char> data) {
         if (!file_) {
             return -1;
         }
-        if (data == nullptr || data_length <= 0) {
+        if (data.empty()) {
             return 0;
         }
 
-        LONG bytes_written = mmioWrite(file_, const_cast<PCHAR>(data), data_length);
+        const auto data_length = static_cast<LONG>(data.size());
+        const LONG bytes_written = mmioWrite(file_, const_cast<PCHAR>(data.data()), data_length);
         if (bytes_written != data_length) {
             printf("Save WAV miss data.");
         }

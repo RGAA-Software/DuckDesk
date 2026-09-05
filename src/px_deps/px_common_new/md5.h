@@ -1,45 +1,40 @@
-//
-// Created by RGAA on 2023-12-17.
-//
+#ifndef PX_COMMON_NEW_MD5_H
+#define PX_COMMON_NEW_MD5_H
 
-#ifndef TC_APPLICATION_MD5_H
-#define TC_APPLICATION_MD5_H
+#include <cstddef>
+#include <memory>
+#include <span>
+#include <string>
+#include <string_view>
 
-#include "string_util.h"
-#define OPENSSL_API_COMPAT 10100
-#include <openssl/md5.h>
+#include <openssl/evp.h>
 
-namespace px
-{
+namespace px {
 
-    class MD5 {
-    public:
+class Md5Hasher final {
+public:
+    Md5Hasher();
 
-        static std::string Hex(const std::string& input) {
-            if (input.empty()) {
-                return "";
-            }
+    Md5Hasher(const Md5Hasher&) = delete;
+    Md5Hasher& operator=(const Md5Hasher&) = delete;
+    Md5Hasher(Md5Hasher&&) noexcept = default;
+    Md5Hasher& operator=(Md5Hasher&&) noexcept = default;
 
-            unsigned char digest[MD5_DIGEST_LENGTH]; // MD5_DIGEST_LENGTH = 16
-            ::MD5(reinterpret_cast<const unsigned char*>(input.c_str()), input.size(), digest);
+    void Update(std::span<const std::byte> bytes);
+    void Update(std::string_view text);
+    [[nodiscard]] std::string FinishHex();
 
-            std::ostringstream oss;
-            oss << std::hex << std::setfill('0');
-            for (int i = 0; i < MD5_DIGEST_LENGTH; ++i) {
-                oss << std::setw(2) << static_cast<int>(digest[i]);
-            }
-            return oss.str();
-        }
+private:
+    using Context = std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)>;
+    Context context_{nullptr, &EVP_MD_CTX_free};
+    bool finished_{false};
+};
 
-        //static std::string Hex(const std::string& input) {
-        //    if (input.empty()) {
-        //        return "";
-        //    }
-        //    return StringUtil::ToLowerCpy(asio2::md5(input).str());
-        //}
+class MD5 final {
+public:
+    [[nodiscard]] static std::string Hex(std::string_view input);
+};
 
-    };
+}  // namespace px
 
-}
-
-#endif //TC_APPLICATION_MD5_H
+#endif  // PX_COMMON_NEW_MD5_H

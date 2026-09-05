@@ -8,18 +8,16 @@
 #ifdef WIN32
 #include <Pdh.h>
 #include <PdhMsg.h>
-#include <iostream>
-#pragma comment(lib,"pdh.lib")
+#pragma comment(lib, "pdh.lib")
 #endif
 
-namespace px
-{
+namespace px {
 
     class CpuFrequency {
     public:
         static double GetCurrentCpuSpeed();
     };
 
-}
+}  // namespace px
 
-#endif //GAMMARAYPREMIUM_CPU_FREQUENCY_H
+#endif  // GAMMARAYPREMIUM_CPU_FREQUENCY_H

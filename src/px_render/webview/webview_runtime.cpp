@@ -276,8 +276,7 @@ public:
             cursor.hotspot_x_ = custom_cursor_info.hotspot.x;
             cursor.hotspot_y_ = custom_cursor_info.hotspot.y;
             const auto size = static_cast<int64_t>(cursor.width_) * cursor.height_ * 4;
-            cursor.data_ = Data::Make(
-                static_cast<const char*>(custom_cursor_info.buffer), size);
+            cursor.data_ = Data::Copy(std::span<const char>{static_cast<const char*>(custom_cursor_info.buffer), static_cast<std::size_t>(size)});
         }
         callbacks_.on_cursor(cursor);
         return true;
@@ -417,8 +416,8 @@ public:
         audio.samples_ = audio_sample_rate_;
         audio.channels_ = channels;
         audio.bits_ = 16;
-        audio.full_data_ = Data::Make(reinterpret_cast<const char*>(pcm.data()),
-                                      static_cast<int64_t>(pcm.size() * sizeof(int16_t)));
+        audio.full_data_ = Data::Copy(
+            std::span<const char>{reinterpret_cast<const char*>(pcm.data()), pcm.size() * sizeof(std::int16_t)});
         callbacks_.on_audio_frame(audio);
     }
 
@@ -689,8 +688,7 @@ private:
             }
         }
 
-        auto data = Data::Make(reinterpret_cast<const char*>(composite.data()),
-                               static_cast<int64_t>(composite.size()));
+        auto data = Data::Copy(std::span<const char>{reinterpret_cast<const char*>(composite.data()), composite.size()});
         auto image = Image::Make(data, software_view_width_, software_view_height_, 4);
         image->raw_img_type_ = RawImageType::kBGRA;
         CaptureVideoFrame frame{};

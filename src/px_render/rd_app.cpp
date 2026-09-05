@@ -3,6 +3,7 @@
 //
 
 #include "rd_app.h"
+#include <filesystem>
 #include <windows.h>
 #include <future>
 #include <random>
@@ -204,7 +205,7 @@ void RdApplication::Init(int argc, char** argv) {
     sp_ = SharedPreference::Instance();
     auto path = FolderUtil::GetProgramDataPath() + L"/px_data";
     std::string sp_name = std::format("pixels_render_{}.dat", settings_->transmission_.listening_port_);
-    if (!sp_->Init(path, sp_name)) {
+    if (!sp_->Init(std::filesystem::path{path}, sp_name)) {
         init_failed_ = true;
         init_error_ =
             std::format("Init render SharedPreference failed, path: {}, file: {}, error: {}", StringUtil::ToUTF8(path), sp_name, sp_->GetLastError());
@@ -905,7 +906,7 @@ void RdApplication::InitMessages() {
 
 #if MEMORY_STST_ON
         self->context_->PostTask([]() {
-            auto info = MemoryStat::Instance()->GetStatInfo();
+            auto info = MemoryStat::Instance().GetStatInfo();
             LOGI("Memory usage: {}", info.Dump());
         });
 #endif

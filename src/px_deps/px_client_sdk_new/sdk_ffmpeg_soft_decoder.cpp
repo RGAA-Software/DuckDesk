@@ -171,7 +171,7 @@ namespace px
         auto beg = TimeUtil::GetCurrentTimestamp();
         av_frame_unref(av_frame);
 
-        packet->data = (uint8_t*)data;//frame->CStr();
+        packet->data = (uint8_t*)data;//frame->Bytes().data();
         packet->size = size;//frame->Size();
 
         int ret = avcodec_send_packet(codec_context, packet);

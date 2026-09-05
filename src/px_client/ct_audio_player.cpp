@@ -70,6 +70,6 @@ namespace px
     }
 
     void AudioPlayer::Write(const std::shared_ptr<Data>& data) {
-        this->Write(data->DataAddr(), data->Size());
+        this->Write(data->MutableBytes().data(), data->Size());
     }
 }

@@ -1,50 +1,50 @@
 #ifndef DATA_H
 #define DATA_H
 
+#include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <span>
 #include <string>
-#include <filesystem>
+#include <string_view>
 #include <vector>
-#include "string_util.h"
 
-namespace px
-{
+namespace px {
 
-    class Data {
-    public:
-        static std::shared_ptr<Data> Make(const char* data, int64_t size);
-        static std::shared_ptr<Data> From(const std::string& data);
+class Data {
+public:
+    static std::shared_ptr<Data> Allocate(std::size_t size);
+    static std::shared_ptr<Data> Copy(std::span<const char> bytes);
+    static std::shared_ptr<Data> From(std::string_view text);
 
-        Data(const char *data, int64_t size);
-        ~Data();
+    explicit Data(std::size_t size);
+    explicit Data(std::span<const char> bytes);
+    ~Data();
 
-        Data(const Data&) = default;
-        Data& operator=(const Data&) = default;
-        Data(Data&&) noexcept = default;
-        Data& operator=(Data&&) noexcept = default;
+    Data(const Data&) = default;
+    Data& operator=(const Data&) = default;
+    Data(Data&&) noexcept = default;
+    Data& operator=(Data&&) noexcept = default;
 
-        [[nodiscard]] const char* CStr() const;
-        [[nodiscard]] char* DataAddr() const;
-        [[nodiscard]] int64_t Size() const;
-        [[nodiscard]] char At(int64_t offset) const;
-        [[nodiscard]] std::string AsString() const;
-        void ConvertToStr(std::string& out) const;
-        [[nodiscard]] std::shared_ptr<Data> Dup() const;
-        bool Append(char* data, int64_t size);
-        [[nodiscard]] int64_t Offset() const;
-        void Reset();
-        void Save(const U8Path& path);
-        [[nodiscard]] std::shared_ptr<Data> Clone() const;
+    [[nodiscard]] std::span<const char> Bytes() const noexcept;
+    [[nodiscard]] std::span<char> MutableBytes() noexcept;
+    [[nodiscard]] std::size_t Size() const noexcept;
+    [[nodiscard]] char At(std::size_t offset) const noexcept;
+    [[nodiscard]] std::string AsString() const;
+    void ConvertToStr(std::string& out) const;
+    [[nodiscard]] std::shared_ptr<Data> Dup() const;
+    bool Append(std::span<const char> bytes);
+    [[nodiscard]] std::size_t Offset() const noexcept;
+    void Reset() noexcept;
+    [[nodiscard]] std::shared_ptr<Data> Clone() const;
 
-    private:
-        std::vector<char> data_;
-        int64_t offset_ = 0;
-        uint64_t id_ = 0;
+private:
+    std::vector<char> data_{};
+    std::size_t offset_{0};
 };
 
+using DataPtr = std::shared_ptr<Data>;
 
-typedef std::shared_ptr<Data> DataPtr;
+}  // namespace px
 
-
-}
-#endif // DATA_H
+#endif  // DATA_H

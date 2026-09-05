@@ -5,7 +5,6 @@
 #include "px_common_new/data.h"
 #include "px_encoder_new/encoder_config.h"
 #include "px_common_new/image.h"
-#include "px_common_new/defer.h"
 #include "D3DTextureDebug.h"
 #include "px_encoder_new/frame_render/FrameRender.h"
 #include <combaseapi.h>
@@ -433,7 +432,7 @@ namespace px
             dbg_file_.write(p, length);
         }
 #endif
-        auto encoded_data = Data::Make((char*)p, length);
+        auto encoded_data = Data::Copy(std::span<const char>{reinterpret_cast<const char*>(p), static_cast<std::size_t>(length)});
         if (encoder_callback_) {
             auto image = Image::Make(encoded_data, out_width_, out_height_, 3);
             encoder_callback_(image, ++encoded_frame_index_, insert_idr_);

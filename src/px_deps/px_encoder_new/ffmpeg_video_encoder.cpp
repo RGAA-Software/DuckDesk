@@ -12,7 +12,6 @@
 #include "px_common_new/win32/d3d_debug_helper.h"
 #include "px_common_new/file.h"
 #include "px_common_new/time_util.h"
-#include "px_common_new/defer.h"
 
 #include <Winerror.h>
 
@@ -120,9 +119,9 @@ namespace px
 
         int y_size =  img_width * img_height;
         int uv_size = img_width * img_height / 4;
-        memcpy(frame_->data[0], i420_data->CStr(), y_size);
-        memcpy(frame_->data[1], i420_data->CStr() + y_size, uv_size);
-        memcpy(frame_->data[2], i420_data->CStr() + y_size + uv_size, uv_size);
+        memcpy(frame_->data[0], i420_data->Bytes().data(), y_size);
+        memcpy(frame_->data[1], i420_data->Bytes().data() + y_size, uv_size);
+        memcpy(frame_->data[2], i420_data->Bytes().data() + y_size + uv_size, uv_size);
 
         int send_result = avcodec_send_frame(context_, frame_);
         while (send_result >= 0) {
@@ -132,7 +131,8 @@ namespace px
             }
 
             //LOGI("Packet frame is key: {}", (packet_->flags & AV_PKT_FLAG_KEY));
-            auto encoded_data = Data::Make((char*)packet_->data, packet_->size);
+            auto encoded_data =
+                Data::Copy(std::span<const char>{reinterpret_cast<const char*>(packet_->data), static_cast<std::size_t>(packet_->size)});
             if (encoder_callback_) {
                 auto image = Image::Make(encoded_data, img_width, img_height, 3);
                 encoder_callback_(image, frame_index, false);
@@ -183,12 +183,12 @@ namespace px
 //        int height = desc.Height;
 //        int target_data_size = 1.5 * width * height;
 //        if (!capture_data_ || capture_data_->Size() != target_data_size) {
-//            capture_data_ = Data::Make(nullptr, target_data_size);
+//            capture_data_ = Data::Allocate( target_data_size);
 //        }
 //        size_t pixel_size = width * height;
 //
 //        const int uv_stride = width >> 1;
-//        auto y = (uint8_t*)capture_data_->DataAddr();
+//        auto y = (uint8_t*)capture_data_->MutableBytes().data();
 //        auto u = y + pixel_size;
 //        auto v = u + (pixel_size >> 2);
 //

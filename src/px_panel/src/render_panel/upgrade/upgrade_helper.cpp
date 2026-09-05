@@ -19,7 +19,7 @@
 #include <qstandardpaths.h>
 #include <px_common_new/http_client.h>
 #include <px_common_new/log.h>
-#include <px_common_new/gd_md5.h>
+#include <px_common_new/md5.h>
 #include <px_common_new/string_util.h>
 #include "px_qt_widget/px_dialog.h"
 #include "translator/px_translator.h"
@@ -84,7 +84,7 @@ namespace px {
 					write_failed_ = true;
 					return false;
 				}
-				md5_.update(chunk.data(), chunk.size());
+				md5_.Update(chunk);
 				return true;
 			}
 
@@ -100,12 +100,12 @@ namespace px {
 			}
 
 			[[nodiscard]] std::string Md5() {
-				return md5_.toString();
+				return md5_.FinishHex();
 			}
 
 		private:
 			std::ofstream stream_;
-			px_gd::MD5 md5_;
+			Md5Hasher md5_{};
 			bool write_failed_ = false;
 		};
 

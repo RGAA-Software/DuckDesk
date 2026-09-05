@@ -54,8 +54,8 @@ namespace px
 //        data.resize(header->this_buffer_length_);
 //        memcpy(data.data(), (char*)header + sizeof(NetTlvHeader), header->this_buffer_length_);
 
-        auto data = Data::Make(nullptr, header->this_buffer_length_);
-        memcpy(data->DataAddr(), reinterpret_cast<const char*>(header) + sizeof(NetTlvHeader), header->this_buffer_length_);
+        auto data = Data::Allocate( header->this_buffer_length_);
+        memcpy(data->MutableBytes().data(), reinterpret_cast<const char*>(header) + sizeof(NetTlvHeader), header->this_buffer_length_);
 
         if (IsFtChannel()) {
             auto curr_pkt_index = header->pkt_index_;
@@ -103,14 +103,14 @@ namespace px
 
                 //std::string total_data;
                 //total_data.resize(total_size);
-                auto total_data = Data::Make(nullptr, total_size);
+                auto total_data = Data::Allocate( total_size);
                 uint32_t offset = 0;
                 for (const auto &m: cached_messages_) {
                     if (!m.buffer_) {
                         LOGE("Empty buffer.");
                         continue;
                     }
-                    memcpy((char *)total_data->DataAddr() + offset, m.buffer_->CStr(), m.buffer_->Size());
+                    memcpy((char *)total_data->MutableBytes().data() + offset, m.buffer_->Bytes().data(), m.buffer_->Size());
                     offset += m.buffer_->Size();
                 }
                 if (data_cbk_) {
@@ -202,7 +202,7 @@ namespace px
         std::string buffer;
         buffer.resize(sizeof(NetTlvHeader) + msg->Size());
         memcpy((char*)buffer.data(), (char*)&header, sizeof(NetTlvHeader));
-        memcpy((char*)buffer.data() + sizeof(NetTlvHeader), msg->DataAddr(), msg->Size());
+        memcpy((char*)buffer.data() + sizeof(NetTlvHeader), msg->MutableBytes().data(), msg->Size());
 
         auto rtc_buffer = webrtc::DataBuffer(rtc::CopyOnWriteBuffer(buffer), true);
 

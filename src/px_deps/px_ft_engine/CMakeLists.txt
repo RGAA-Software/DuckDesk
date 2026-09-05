@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 project(px_ft_engine)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # rustdesk fs.rs/compress.rs 的 C++ 移植:双端共享文件传输引擎

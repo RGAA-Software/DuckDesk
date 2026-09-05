@@ -20,7 +20,6 @@
 #include <dxgi1_2.h>
 #include <windows.h>
 #include <atlbase.h>
-#include "px_common_new/const_auto.h"
 #include "px_common_new/win32/d3d11_wrapper.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
 #endif
@@ -282,8 +281,8 @@ namespace px
             }
 
 #ifdef WIN32
-            cat hw_ctx = (AVHWDeviceContext*)hw_device_context_->data;
-            cat d3d11ctx = (AVD3D11VADeviceContext*)hw_ctx->hwctx;
+            const auto hw_ctx = (AVHWDeviceContext*)hw_device_context_->data;
+            const auto d3d11ctx = (AVD3D11VADeviceContext*)hw_ctx->hwctx;
 
             d3d11_wrapper_ = sdk_->GetSdkParams()->d3d11_wrapper_;
             if (!d3d11_wrapper_) {

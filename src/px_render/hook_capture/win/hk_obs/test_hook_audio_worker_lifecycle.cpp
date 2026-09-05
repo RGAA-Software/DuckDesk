@@ -18,8 +18,7 @@ using namespace std::chrono_literals;
 
 std::shared_ptr<px::Data> MakePcmPacket(size_t frames = 960) {
     const std::vector<int16_t> samples(frames * 2, 2048);
-    return px::Data::Make(reinterpret_cast<const char*>(samples.data()),
-                          static_cast<int>(samples.size() * sizeof(int16_t)));
+    return px::Data::Copy(std::span<const char>{reinterpret_cast<const char*>(samples.data()), samples.size() * sizeof(std::int16_t)});
 }
 
 bool WaitFor(const std::shared_ptr<std::atomic<int>>& value, int expected) {

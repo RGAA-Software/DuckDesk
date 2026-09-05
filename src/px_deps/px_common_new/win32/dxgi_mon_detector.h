@@ -2,16 +2,9 @@
 
 #include <vector>
 #include <string>
-#include <iostream>
+#include <mutex>
 #include <d3d11.h>
 #include <Dxgi1_6.h>
-#include <atlbase.h>
-#include <string>
-#include <vector>
-#include <comdef.h>
-#include <Wbemidl.h>
-#include <algorithm> 
-#include <cctype>
 #include "px_common_new/log.h"
 
 namespace px
@@ -19,20 +12,20 @@ namespace px
 
     class DxgiMonInfo {
     public:
-        DWORD LowPart = 0;
-        LONG HighPart = 0;
+        DWORD LowPart{};
+        LONG HighPart{};
         std::string display_name{};
         RECT rect{};
-        int width = 0;
-        int height = 0;
-        bool primary = false;
+        int width{};
+        int height{};
+        bool primary{};
 
     public:
         [[nodiscard]] bool IsValid() const {
             return width > 0 && height > 0;
         }
 
-        void Dump() {
+        void Dump() const {
             LOGI("Monitor Info: {}, primary: {}, LowPart: {}, ({},{}), {}x{}",
                  display_name, primary, LowPart, rect.left, rect.top, width, height);
         }
@@ -42,19 +35,20 @@ namespace px
     class DxgiMonitorDetector {
     public:
 
-        static DxgiMonitorDetector *Instance() {
+        static DxgiMonitorDetector& Instance() {
             static DxgiMonitorDetector detector;
-            return &detector;
+            return detector;
         }
 
         void DetectAdapters();
-        std::vector<DxgiMonInfo> GetAdapters();
-        void PrintAdapters();
-        std::string GetNameById(DWORD lowpart);
-        DxgiMonInfo GetMonitorInfoByLowId(DWORD lowpart);
+        [[nodiscard]] std::vector<DxgiMonInfo> GetAdapters() const;
+        void PrintAdapters() const;
+        [[nodiscard]] std::string GetNameById(DWORD lowpart) const;
+        [[nodiscard]] DxgiMonInfo GetMonitorInfoByLowId(DWORD lowpart) const;
 
     private:
-        std::vector<DxgiMonInfo> infos_;
+        mutable std::mutex mutex_{};
+        std::vector<DxgiMonInfo> infos_{};
 
     };
 

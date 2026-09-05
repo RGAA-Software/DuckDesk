@@ -451,7 +451,7 @@ bool WsPanelClient::PostNetMessage(std::shared_ptr<Data> msg) {
         }
         ++queuing_message_count_;
         auto weak_self = weak_from_this();
-        client->async_send(msg->CStr(), msg->Size(), [weak_self]() {
+        client->async_send(msg->Bytes().data(), msg->Size(), [weak_self]() {
             if (auto self = weak_self.lock(); self && !self->exiting_) {
                 --self->queuing_message_count_;
             }

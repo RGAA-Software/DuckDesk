@@ -18,6 +18,7 @@
 #include "px_label.h"
 #include "px_common_new/log.h"
 #include "px_common_new/md5.h"
+#include "px_common_new/string_util.h"
 #include "widget_helper.h"
 #include "stream_messages.h"
 #include "stream_item_widget.h"
@@ -49,8 +50,6 @@
 #include "render_panel/user/px_user_manager.h"
 #include "render_panel/console/console_error_presenter.h"
 #include "render_panel/util/conn_info_parser.h"
-#include "px_common_new/const_auto.h"
-
 namespace px
 {
 
@@ -1462,7 +1461,7 @@ namespace px
 
             // update to stream state checker
             if (self->state_checker_) {
-                cat streams = self->CopyStreams();
+                const auto streams = self->CopyStreams();
                 self->state_checker_->UpdateCurrentStreamItems(streams);
             }
         });

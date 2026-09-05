@@ -5,17 +5,16 @@
 #include "time_util.h"
 #include "log.h"
 
+#include <utility>
+
 namespace px
 {
 
-    TimeDuration::TimeDuration(const std::string& name) {
-        name_ = name;
-        begin_ts_ = TimeUtil::GetCurrentTimestamp();
-    }
+    TimeDuration::TimeDuration(std::string name) : begin_time_(std::chrono::steady_clock::now()), name_(std::move(name)) {}
 
     TimeDuration::~TimeDuration() {
-        auto end_ts_ = TimeUtil::GetCurrentTimestamp();
-        LOGI("[{}] used {}ms", name_, (end_ts_ - begin_ts_));
+        const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin_time_);
+        LOGI("[{}] used {}ms", name_, elapsed.count());
     }
 
 }

@@ -4,7 +4,9 @@
 
 #include "px_client/modules/client_module_services.h"
 #include "px_common_new/file.h"
+#include "px_common_new/log.h"
 #include "px_common_new/md5.h"
+#include "px_common_new/path_codec.h"
 #include "px_message_new/proto_converter.h"
 #include "win/cp_file_struct.h"
 
@@ -148,11 +150,16 @@ void ClipboardRuntimeBridge::OnRequestFileBuffer(
         return;
     }
     const auto& request = message->cp_req_buffer();
-    auto file = File::OpenForReadB(U8Path(request.full_name()));
     DataPtr data;
-    if (file->Exists()) {
-        std::uint64_t read_size = 0;
-        data = file->Read(request.req_start(), request.req_size(), read_size);
+    const auto full_path = PathFromUtf8(request.full_name());
+    if (!full_path) {
+        LOGE("event=client.clipboard.invalid_file_path stage=decode_utf8 error={}", full_path.Error().message);
+    } else {
+        const auto file = File::OpenForReadB(full_path.Value());
+        if (file->Exists()) {
+            std::uint64_t read_size = 0;
+            data = file->Read(request.req_start(), request.req_size(), read_size);
+        }
     }
 
     const auto settings = SettingsSnapshot();

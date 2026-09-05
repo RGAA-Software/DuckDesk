@@ -160,14 +160,12 @@ namespace px
         if (class_registered_)
             return true;
 
-        WNDCLASSEXA window_class;
-        memset(&window_class, 0, sizeof(window_class));
+        WNDCLASSEXA window_class{};
         window_class.cbSize = sizeof(window_class);
         static std::once_flag flag;
         std::call_once(flag, []() {
             DWORD pid = GetCurrentProcessId();
-            class_name_ = kWindowClassName;
-            class_name_ + "_" + std::to_string(pid);
+            class_name_ = std::string{kWindowClassName} + "_" + std::to_string(pid);
         });
         window_class.lpszClassName = class_name_.c_str();
         window_class.hInstance = instance;

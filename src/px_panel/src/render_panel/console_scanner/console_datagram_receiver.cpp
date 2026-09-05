@@ -16,12 +16,21 @@ using Udp = asio::ip::udp;
 
 constexpr std::size_t kMaxConsoleDatagramBytes = 4096;
 
+void CancelTimerNoThrow(const std::shared_ptr<asio::steady_timer>& timer) noexcept {
+    if (!timer) {
+        return;
+    }
+    try {
+        static_cast<void>(timer->cancel());
+    } catch (const asio::system_error&) {
+    }
+}
+
 } // namespace
 
 class ConsoleDatagramReceiver::State final {
-public:
-    explicit State(asio::any_io_executor executor)
-        : executor_(std::move(executor)) {}
+  public:
+    explicit State(asio::any_io_executor executor) : executor_(std::move(executor)) {}
 
     void SetSocket(const std::shared_ptr<Udp::socket>& socket) {
         std::lock_guard lock(mutex_);
@@ -70,25 +79,22 @@ public:
                 socket->cancel(ignored);
                 socket->close(ignored);
             }
-            if (timer) {
-                timer->cancel(ignored);
-            }
+            CancelTimerNoThrow(timer);
         });
     }
 
     asio::any_io_executor executor_;
     std::atomic_bool stopping_ = false;
 
-private:
+  private:
     mutable std::mutex mutex_;
     std::shared_ptr<Udp::socket> socket_;
     std::shared_ptr<asio::steady_timer> timer_;
     std::atomic_uint16_t bound_port_ = 0;
 };
 
-std::shared_ptr<ConsoleDatagramReceiver> ConsoleDatagramReceiver::Create(
-    const std::shared_ptr<PxAsyncRuntime>& runtime,
-    std::chrono::milliseconds retry_delay) {
+std::shared_ptr<ConsoleDatagramReceiver> ConsoleDatagramReceiver::Create(const std::shared_ptr<PxAsyncRuntime>& runtime,
+                                                                         std::chrono::milliseconds retry_delay) {
     const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
     if (!scope || retry_delay <= std::chrono::milliseconds::zero()) {
         return {};
@@ -96,12 +102,8 @@ std::shared_ptr<ConsoleDatagramReceiver> ConsoleDatagramReceiver::Create(
     return std::make_shared<ConsoleDatagramReceiver>(scope, retry_delay);
 }
 
-ConsoleDatagramReceiver::ConsoleDatagramReceiver(
-    std::shared_ptr<PxAsyncScope> scope,
-    std::chrono::milliseconds retry_delay)
-    : scope_(std::move(scope)),
-      state_(std::make_shared<State>(scope_->Executor())),
-      retry_delay_(retry_delay) {}
+ConsoleDatagramReceiver::ConsoleDatagramReceiver(std::shared_ptr<PxAsyncScope> scope, std::chrono::milliseconds retry_delay)
+    : scope_(std::move(scope)), state_(std::make_shared<State>(scope_->Executor())), retry_delay_(retry_delay) {}
 
 ConsoleDatagramReceiver::~ConsoleDatagramReceiver() {
     Stop();
@@ -109,17 +111,14 @@ ConsoleDatagramReceiver::~ConsoleDatagramReceiver() {
 
 bool ConsoleDatagramReceiver::Start(std::uint16_t port, DatagramHandler handler) {
     bool expected = false;
-    if (!handler || !scope_ || !state_
-        || !started_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+    if (!handler || !scope_ || !state_ || !started_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
         return false;
     }
 
     const auto state = state_;
-    if (!scope_->Spawn(
-            "console-datagram-receiver",
-            [state, port, retry_delay = retry_delay_, handler = std::move(handler)]() mutable {
-                return Run(state, port, retry_delay, std::move(handler));
-            })) {
+    if (!scope_->Spawn("console-datagram-receiver", [state, port, retry_delay = retry_delay_, handler = std::move(handler)]() mutable {
+            return Run(state, port, retry_delay, std::move(handler));
+        })) {
         started_.store(false, std::memory_order_release);
         return false;
     }
@@ -147,14 +146,11 @@ std::uint16_t ConsoleDatagramReceiver::BoundPort() const noexcept {
 }
 
 PxAsyncScopeStatistics ConsoleDatagramReceiver::Statistics() const {
-    return scope_ ? scope_->GetStatistics() : PxAsyncScopeStatistics {};
+    return scope_ ? scope_->GetStatistics() : PxAsyncScopeStatistics{};
 }
 
-PxAwaitable<void> ConsoleDatagramReceiver::Run(
-    std::shared_ptr<State> state,
-    std::uint16_t port,
-    std::chrono::milliseconds retry_delay,
-    DatagramHandler handler) {
+PxAwaitable<void> ConsoleDatagramReceiver::Run(std::shared_ptr<State> state, std::uint16_t port, std::chrono::milliseconds retry_delay,
+                                               DatagramHandler handler) {
     const auto executor = co_await asio::this_coro::executor;
     while (!state->stopping_.load(std::memory_order_acquire)) {
         const auto socket = std::make_shared<Udp::socket>(executor);
@@ -183,9 +179,8 @@ PxAwaitable<void> ConsoleDatagramReceiver::Run(
             const auto sender = std::make_shared<Udp::endpoint>();
             while (!state->stopping_.load(std::memory_order_acquire)) {
                 asio::error_code receive_error;
-                const auto length = co_await socket->async_receive_from(
-                    asio::buffer(*buffer), *sender,
-                    asio::redirect_error(asio::use_awaitable, receive_error));
+                const auto length =
+                    co_await socket->async_receive_from(asio::buffer(*buffer), *sender, asio::redirect_error(asio::use_awaitable, receive_error));
                 if (state->stopping_.load(std::memory_order_acquire)) {
                     break;
                 }
@@ -198,16 +193,13 @@ PxAwaitable<void> ConsoleDatagramReceiver::Run(
                 }
                 try {
                     handler(std::string(buffer->data(), length));
-                }
-                catch (const std::exception& error) {
+                } catch (const std::exception& error) {
                     LOGE("Console discovery handler failed: {}", error.what());
-                }
-                catch (...) {
+                } catch (...) {
                     LOGE("Console discovery handler failed with a non-standard exception");
                 }
             }
-        }
-        else if (!state->stopping_.load(std::memory_order_acquire)) {
+        } else if (!state->stopping_.load(std::memory_order_acquire)) {
             LOGW("Console discovery UDP bind failed: {}", open_error.message());
         }
 
@@ -222,7 +214,7 @@ PxAwaitable<void> ConsoleDatagramReceiver::Run(
         timer->expires_after(retry_delay);
         state->SetTimer(timer);
         if (state->stopping_.load(std::memory_order_acquire)) {
-            timer->cancel(ignored);
+            CancelTimerNoThrow(timer);
             state->ClearTimer(timer);
             break;
         }

@@ -10,6 +10,8 @@
 #include <set>
 #include <thread>
 
+#include "blocking_executor.h"
+
 namespace px {
 namespace {
 
@@ -82,14 +84,19 @@ class RuntimeThreadJoiner final {
 
 class PxAsyncRuntime::State final {
   public:
-    explicit State(std::size_t worker_thread_count)
-        : worker_thread_count_(std::max<std::size_t>(1, worker_thread_count)), control_guard_(asio::make_work_guard(control_context_)),
-          state_guard_(asio::make_work_guard(state_context_)), worker_guard_(asio::make_work_guard(worker_context_)) {}
+    explicit State(PxAsyncRuntimeOptions options)
+        : worker_thread_count_(std::max<std::size_t>(1, options.worker_threads)),
+          blocking_options_{.thread_count = std::max<std::size_t>(1, options.blocking_threads),
+                            .max_pending_tasks = std::max<std::size_t>(1, options.max_pending_blocking_tasks)},
+          control_guard_(asio::make_work_guard(control_context_)), state_guard_(asio::make_work_guard(state_context_)),
+          worker_guard_(asio::make_work_guard(worker_context_)) {}
 
     asio::io_context control_context_;
     asio::io_context state_context_;
     asio::io_context worker_context_;
     std::size_t worker_thread_count_ = 1;
+    PxBlockingExecutorOptions blocking_options_{};
+    std::shared_ptr<PxBlockingExecutor> blocking_executor_;
     std::optional<IoWorkGuard> control_guard_;
     std::optional<IoWorkGuard> state_guard_;
     std::optional<IoWorkGuard> worker_guard_;
@@ -106,7 +113,7 @@ std::shared_ptr<PxAsyncRuntime> PxAsyncRuntime::Create(PxAsyncRuntimeOptions opt
     return std::make_shared<PxAsyncRuntime>(options);
 }
 
-PxAsyncRuntime::PxAsyncRuntime(PxAsyncRuntimeOptions options) : state_(std::make_shared<State>(options.worker_threads)) {}
+PxAsyncRuntime::PxAsyncRuntime(PxAsyncRuntimeOptions options) : state_(std::make_shared<State>(options)) {}
 
 PxAsyncRuntime::~PxAsyncRuntime() {
     RequestStop();
@@ -154,11 +161,19 @@ bool PxAsyncRuntime::Start() {
         };
     };
 
-    std::lock_guard lock(state_->mutex_);
-    state_->threads_.emplace_back(make_runner(PxAsyncLane::kControl));
-    state_->threads_.emplace_back(make_runner(PxAsyncLane::kState));
-    for (std::size_t index = 0; index < state_->worker_thread_count_; ++index) {
-        state_->threads_.emplace_back(make_runner(PxAsyncLane::kWorker));
+    try {
+        const auto blocking_executor = PxBlockingExecutor::Create(state_->blocking_options_);
+        std::lock_guard lock(state_->mutex_);
+        state_->blocking_executor_ = blocking_executor;
+        state_->threads_.emplace_back(make_runner(PxAsyncLane::kControl));
+        state_->threads_.emplace_back(make_runner(PxAsyncLane::kState));
+        for (std::size_t index = 0; index < state_->worker_thread_count_; ++index) {
+            state_->threads_.emplace_back(make_runner(PxAsyncLane::kWorker));
+        }
+    } catch (...) {
+        RequestStop();
+        Join();
+        return false;
     }
     return true;
 }
@@ -168,10 +183,17 @@ void PxAsyncRuntime::RequestDrain() {
     if (!state_->work_released_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
         return;
     }
-    std::lock_guard lock(state_->mutex_);
-    state_->control_guard_.reset();
-    state_->state_guard_.reset();
-    state_->worker_guard_.reset();
+    std::shared_ptr<PxBlockingExecutor> blocking_executor;
+    {
+        std::lock_guard lock(state_->mutex_);
+        state_->control_guard_.reset();
+        state_->state_guard_.reset();
+        state_->worker_guard_.reset();
+        blocking_executor = state_->blocking_executor_;
+    }
+    if (blocking_executor) {
+        blocking_executor->RequestStop(PxBlockingShutdownMode::kDrain);
+    }
 }
 
 void PxAsyncRuntime::RequestStop() {
@@ -180,6 +202,9 @@ void PxAsyncRuntime::RequestStop() {
         return;
     }
     RequestDrain();
+    if (const auto blocking_executor = BlockingExecutor()) {
+        blocking_executor->RequestStop(PxBlockingShutdownMode::kCancelPending);
+    }
     state_->control_context_.stop();
     state_->state_context_.stop();
     state_->worker_context_.stop();
@@ -190,21 +215,21 @@ void PxAsyncRuntime::Join() {
     bool called_from_runtime = false;
     {
         std::lock_guard lock(state_->mutex_);
-        if (state_->threads_.empty()) {
-            return;
-        }
         called_from_runtime = state_->thread_ids_.contains(std::this_thread::get_id());
         threads.swap(state_->threads_);
     }
 
-    if (called_from_runtime) {
+    if (called_from_runtime && !threads.empty()) {
         RuntimeThreadJoiner::Instance()->Submit(std::move(threads));
-        return;
-    }
-    for (auto& thread : threads) {
-        if (thread.joinable()) {
-            thread.join();
+    } else {
+        for (auto& thread : threads) {
+            if (thread.joinable()) {
+                thread.join();
+            }
         }
+    }
+    if (const auto blocking_executor = BlockingExecutor()) {
+        blocking_executor->Join();
     }
 }
 
@@ -234,6 +259,11 @@ void PxAsyncRuntime::DeferJoin(std::thread thread) {
     RuntimeThreadJoiner::Instance()->Submit(std::move(joiners));
 }
 
+std::shared_ptr<PxBlockingExecutor> PxAsyncRuntime::BlockingExecutor() const {
+    std::lock_guard lock(state_->mutex_);
+    return state_->blocking_executor_;
+}
+
 void PxAsyncRuntime::DeferJoin(std::jthread thread) {
     if (!thread.joinable()) {
         return;
@@ -249,13 +279,11 @@ void PxAsyncRuntime::DeferJoin(std::jthread thread) {
 }
 
 bool PxAsyncRuntime::DeferBlocking(std::function<void()> task) const {
-    if (!task) {
+    const auto blocking_executor = BlockingExecutor();
+    if (!blocking_executor) {
         return false;
     }
-    std::vector<std::thread> threads{};
-    threads.emplace_back([task = std::move(task)]() mutable { task(); });
-    RuntimeThreadJoiner::Instance()->Submit(std::move(threads));
-    return true;
+    return blocking_executor->TryPost(std::move(task)) == PxBlockingSubmitResult::kAccepted;
 }
 
 bool PxAsyncRuntime::IsRuntimeThread() const {
@@ -335,9 +363,19 @@ bool PxAsyncScope::SpawnImpl(std::string name, std::function<PxAwaitable<void>()
     ++state_->statistics_.spawned;
     state_->statistics_.outstanding = state_->tasks_.size();
     const auto state = state_;
-    asio::co_spawn(state_->executor_, std::move(*task),
-                   asio::bind_cancellation_slot(cancellation->slot(),
-                                                [state, task_id](std::exception_ptr error) { PxAsyncScope::Complete(state, task_id, error); }));
+    try {
+        asio::co_spawn(state_->executor_, std::move(*task),
+                       asio::bind_cancellation_slot(cancellation->slot(), [state, task_id, cancellation](std::exception_ptr error) {
+                           static_cast<void>(cancellation);
+                           PxAsyncScope::Complete(state, task_id, error);
+                       }));
+    } catch (...) {
+        state_->tasks_.erase(task_id);
+        ++state_->statistics_.failed;
+        ++state_->statistics_.rejected;
+        state_->statistics_.outstanding = state_->tasks_.size();
+        return false;
+    }
     return true;
 }
 

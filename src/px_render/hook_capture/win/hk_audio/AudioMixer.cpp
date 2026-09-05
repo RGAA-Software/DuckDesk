@@ -278,9 +278,8 @@ void AudioMixer::WorkerMain(const std::shared_ptr<State>& state) {
 
             state->share->SetAudioFormat(
                 SimpleAudioFormat::kPCM_S16, kOutRate, kOutChannels, 16);
-            state->share->PostAudioData(Data::Make(
-                reinterpret_cast<const char*>(chunk.data()),
-                static_cast<int>(chunk.size() * sizeof(int16_t))));
+            state->share->PostAudioData(
+                Data::Copy(std::span<const char>{reinterpret_cast<const char*>(chunk.data()), chunk.size() * sizeof(std::int16_t)}));
             const auto n = state->mixed.fetch_add(1, std::memory_order_relaxed) + 1;
             if (n == 1 || (n % 100) == 0) {
                 LOGI("AudioMixer: flushed blocks={} last_src={} pushed={}", n, pkt.tag,

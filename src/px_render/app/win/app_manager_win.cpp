@@ -933,7 +933,7 @@ namespace px
     }
 
     void* AppManagerWinImpl::GetWindowHandle() {
-        return target_window_info_.win_handle;
+        return reinterpret_cast<void*>(target_window_info_.win_handle);
     }
 
     void AppManagerWinImpl::CloseCurrentApp() {
@@ -972,9 +972,9 @@ namespace px
 
         if (info.win_handle) {
             //LOG_INFO("Old handle : %p,", info.win_handle);
-            auto handle = GetParent(info.win_handle);
+            auto handle = GetParent(reinterpret_cast<HWND>(info.win_handle));
             while (handle) {
-                info.win_handle = handle;
+                info.win_handle = reinterpret_cast<std::uintptr_t>(handle);
                 handle = GetParent(handle);
             }
             //LOG_INFO("New handle : %p,", info.win_handle);

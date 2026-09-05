@@ -1,91 +1,82 @@
-//
-// Created by RGAA on 2024/2/27.
-//
-
 #ifndef TC_APPLICATION_CONCURRENT_QUEUE_H
 #define TC_APPLICATION_CONCURRENT_QUEUE_H
 
+#include <cstddef>
 #include <deque>
 #include <mutex>
 #include <optional>
+#include <utility>
 #include <vector>
-#include <functional>
 
-namespace px
-{
+namespace px {
 
-    template<typename T>
-    class ConcurrentQueue {
-    public:
+template <typename T>
+class ConcurrentQueue {
+public:
+    [[nodiscard]] std::optional<T> Front() const {
+        std::scoped_lock lock(mutex_);
+        return values_.empty() ? std::nullopt : std::optional<T>{values_.front()};
+    }
 
-        std::optional<T> Front() {
-            std::lock_guard<std::mutex> guard(mtx_);
-            if (inner_.empty()) {
-                return std::nullopt;
-            }
-            return inner_.front();
-        }
+    [[nodiscard]] std::optional<T> Back() const {
+        std::scoped_lock lock(mutex_);
+        return values_.empty() ? std::nullopt : std::optional<T>{values_.back()};
+    }
 
-        std::optional<T> Back() {
-            std::lock_guard<std::mutex> guard(mtx_);
-            if (inner_.empty()) {
-                return std::nullopt;
-            }
-            return inner_.back();
-        }
+    [[nodiscard]] bool Empty() const {
+        std::scoped_lock lock(mutex_);
+        return values_.empty();
+    }
 
-        bool Empty() {
-            std::lock_guard<std::mutex> guard(mtx_);
-            return inner_.empty();
-        }
+    [[nodiscard]] std::size_t Size() const {
+        std::scoped_lock lock(mutex_);
+        return values_.size();
+    }
 
-        size_t Size() {
-            std::lock_guard<std::mutex> guard(mtx_);
-            return inner_.size();
-        }
+    void PushBack(T value) {
+        std::scoped_lock lock(mutex_);
+        values_.push_back(std::move(value));
+    }
 
-        void PushBack(const T& e) {
-            std::lock_guard<std::mutex> guard(mtx_);
-            inner_.push_back(e);
-        }
+    [[nodiscard]] std::optional<T> PopFrontValue() {
+        std::scoped_lock lock(mutex_);
+        if (values_.empty()) return std::nullopt;
+        auto value = std::move(values_.front());
+        values_.pop_front();
+        return value;
+    }
 
-        void PushBack(T&& e) {
-            std::lock_guard<std::mutex> guard(mtx_);
-            inner_.push_back(std::move(e));
-        }
+    [[nodiscard]] std::optional<T> PopBackValue() {
+        std::scoped_lock lock(mutex_);
+        if (values_.empty()) return std::nullopt;
+        auto value = std::move(values_.back());
+        values_.pop_back();
+        return value;
+    }
 
-        bool PopFront() {
-            std::lock_guard<std::mutex> guard(mtx_);
-            if (inner_.empty()) {
-                return false;
-            }
-            inner_.pop_front();
-            return true;
-        }
+    bool PopFront() {
+        return PopFrontValue().has_value();
+    }
 
-        bool PopBack() {
-            std::lock_guard<std::mutex> guard(mtx_);
-            if (inner_.empty()) {
-                return false;
-            }
-            inner_.pop_back();
-            return true;
-        }
+    bool PopBack() {
+        return PopBackValue().has_value();
+    }
 
-        std::vector<T> ToVector() {
-            std::lock_guard<std::mutex> guard(mtx_);
-            std::vector<T> r;
-            for (const auto& v : inner_) {
-                r.push_back(v);
-            }
-            return r;
-        }
+    [[nodiscard]] std::vector<T> ToVector() const {
+        std::scoped_lock lock(mutex_);
+        return {values_.begin(), values_.end()};
+    }
 
-    private:
-        std::mutex mtx_;
-        std::deque<T> inner_;
-    };
+    void Clear() {
+        std::scoped_lock lock(mutex_);
+        values_.clear();
+    }
 
-}
+private:
+    mutable std::mutex mutex_{};
+    std::deque<T> values_{};
+};
 
-#endif //TC_APPLICATION_CONCURRENT_QUEUE_H
+}  // namespace px
+
+#endif  // TC_APPLICATION_CONCURRENT_QUEUE_H

@@ -473,7 +473,7 @@ void NetworkEventIngress::ProcessCapturingMonitorInfoEvent(const std::shared_ptr
 void NetworkEventIngress::ProcessNetEvent(const std::shared_ptr<NetworkClientEvent>& event, const std::string& source_id) {
     if (event->is_proto_ && event->message_) {
         auto msg = std::make_shared<Message>();
-        auto parse_res = msg->ParsePartialFromArray(event->message_->CStr(), event->message_->Size());
+        auto parse_res = msg->ParsePartialFromArray(event->message_->Bytes().data(), event->message_->Size());
         if (!parse_res) {
             std::cout << "NetworkEventIngress HandleMessage parse error" << std::endl;
             return;

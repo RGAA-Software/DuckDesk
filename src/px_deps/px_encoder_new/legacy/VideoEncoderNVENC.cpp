@@ -300,7 +300,7 @@ void VideoEncoderNVENC::EncodeTextureHandle(uint64_t handle, uint64_t frame_inde
 		//}
 		if (m_Listener) {
 			auto timestamp = TimeUtil::GetCurrentTimestamp();
-			auto data = Data::Make((char*)packet.data(), packet.size());
+			auto data = Data::Copy(std::span<const char>{reinterpret_cast<const char*>(packet.data()), packet.size()});
 			m_Listener(data, frame_index, saved_is_key_frame);
 		}
 	}

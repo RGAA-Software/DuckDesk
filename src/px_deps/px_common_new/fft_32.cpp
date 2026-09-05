@@ -2,64 +2,85 @@
 
 #include "fft_32.h"
 #include <fftw3.h>
+#include <algorithm>
 #include <cmath>
-#include <iostream>
+#include <cstdint>
+#include <cstring>
+#include <limits>
+#include <memory>
 #include "data.h"
 
-namespace px
-{
+namespace px {
+namespace {
 
-    std::mutex FFT32::fft_mtx_;
+struct FftBufferCloser final {
+    void operator()(fftw_complex* buffer) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): FFTW allocation ABI.
+        fftw_free(buffer);
+    }
+};
 
-    void FFT32::DoFFT(std::vector<double> &fft, const std::shared_ptr<Data>& one_channel_pcm_data, int bytes, bool pre_alloc_fft) {
-        std::lock_guard<std::mutex> guard(fft_mtx_);
-        int bytes_size = one_channel_pcm_data->Size();
-        if (bytes_size > bytes) {
-            bytes_size = bytes;
+struct FftPlanCloser final {
+    void operator()(std::remove_pointer_t<fftw_plan>* plan) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): FFTW plan ABI.
+        if (plan != nullptr) {
+            fftw_destroy_plan(plan);
         }
-        fftw_complex *din, *out;
-        fftw_plan p;
+    }
+};
 
-        int divider_by = 2;
-        int single_channel_double_size = bytes_size / divider_by;
+using UniqueFftBuffer = std::unique_ptr<fftw_complex, FftBufferCloser>;
+using UniqueFftPlan = std::unique_ptr<std::remove_pointer_t<fftw_plan>, FftPlanCloser>;
 
-        din = (fftw_complex *) fftw_malloc(sizeof(fftw_complex) * single_channel_double_size);
-        out = (fftw_complex *) fftw_malloc(sizeof(fftw_complex) * single_channel_double_size);
+}  // namespace
 
-        auto data = one_channel_pcm_data->DataAddr();
-        for (int i = 0; i < bytes_size; i = i + divider_by) {
-            int32_t d1 = data[i];
-            int32_t d2 = data[i + 1];
-            auto val = (d2 << 8) + d1;
-            auto scale_val = val * 1.0f / 32767 * 5;
-            din[i / divider_by][0] = scale_val;
-            din[i / divider_by][1] = 0;
-        }
+std::mutex FFT32::fft_mtx_;
 
-        p = fftw_plan_dft_1d(single_channel_double_size, din, out, FFTW_FORWARD, FFTW_ESTIMATE);
-        fftw_execute(p);
-        fftw_destroy_plan(p);
-        fftw_cleanup();
+void FFT32::DoFFT(std::vector<double>& fft, const std::shared_ptr<Data>& one_channel_pcm_data, int bytes, bool pre_alloc_fft) {
+    if (!one_channel_pcm_data || bytes <= 1) {
+        return;
+    }
+    std::lock_guard<std::mutex> guard(fft_mtx_);
+    const auto byte_count = (std::min)(one_channel_pcm_data->Size(), static_cast<std::size_t>(bytes));
+    const auto sample_count = byte_count / sizeof(std::int16_t);
+    if (sample_count == 0) {
+        return;
+    }
 
-        auto target_size = std::min(480, single_channel_double_size);
-        for (int i = 0; i < target_size; i++) {
-            auto re = out[i][0];
-            auto im = out[i][1];
-            double m = sqrt((re * re) + (im * im));
-            auto val = 36 * log(m);
-            if (pre_alloc_fft) {
-                fft[i] = val;
-            } else {
-                fft.push_back(val);
-            }
-        }
+    UniqueFftBuffer input{static_cast<fftw_complex*>(fftw_malloc(sizeof(fftw_complex) * sample_count))};
+    UniqueFftBuffer output{static_cast<fftw_complex*>(fftw_malloc(sizeof(fftw_complex) * sample_count))};
+    if (!input || !output) {
+        return;
+    }
 
-        if (din != nullptr) {
-            fftw_free(din);
-        }
-        if (out != nullptr) {
-            fftw_free(out);
+    const auto data = one_channel_pcm_data->Bytes();
+    for (std::size_t index = 0; index < sample_count; ++index) {
+        std::int16_t sample{};
+        std::memcpy(&sample, data.data() + index * sizeof(sample), sizeof(sample));
+        input.get()[index][0] = static_cast<double>(sample) * 5.0 / 32767.0;
+        input.get()[index][1] = 0.0;
+    }
+
+    UniqueFftPlan plan{fftw_plan_dft_1d(static_cast<int>(sample_count), input.get(), output.get(), FFTW_FORWARD, FFTW_ESTIMATE)};
+    if (!plan) {
+        return;
+    }
+    fftw_execute(plan.get());
+
+    const auto target_size = (std::min)(std::size_t{480}, sample_count);
+    if (pre_alloc_fft && fft.size() < target_size) {
+        fft.resize(target_size);
+    }
+    for (std::size_t index = 0; index < target_size; ++index) {
+        const double real = output.get()[index][0];
+        const double imaginary = output.get()[index][1];
+        const double magnitude = (std::max)(std::hypot(real, imaginary), std::numeric_limits<double>::min());
+        const double value = 36.0 * std::log(magnitude);
+        if (pre_alloc_fft) {
+            fft[index] = value;
+        } else {
+            fft.push_back(value);
         }
     }
 }
+
+}  // namespace px
 #endif

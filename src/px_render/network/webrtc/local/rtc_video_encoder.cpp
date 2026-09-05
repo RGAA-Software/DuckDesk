@@ -227,7 +227,7 @@ int32_t RtcSharedVideoEncoder::Encode(
         std::string target_buffer;
         target_buffer.resize(sei.size() + encoded_video_frame->data_->Size());
         memcpy(target_buffer.data(), sei.data(), sei.size());
-        memcpy(target_buffer.data() + sei.size(), encoded_video_frame->data_->DataAddr(), encoded_video_frame->data_->Size());
+        memcpy(target_buffer.data() + sei.size(), encoded_video_frame->data_->MutableBytes().data(), encoded_video_frame->data_->Size());
         encodedImage.SetEncodedData(webrtc::EncodedImageBuffer::Create((uint8_t*)target_buffer.data(), target_buffer.size()));
         // RLogI("Insert timer sei,frame id: {}, frame index: {} ts: {}", sei_info.frame_index_, encoded_frame->frame_index, sei_info.sender_ts_);
 
@@ -237,7 +237,7 @@ int32_t RtcSharedVideoEncoder::Encode(
         // args->thiz->rtc_server_stat_->AppendSendTimePoint(tp);
     } else {
         encodedImage.SetEncodedData(
-            webrtc::EncodedImageBuffer::Create((uint8_t*)encoded_video_frame->data_->DataAddr(), encoded_video_frame->data_->Size()));
+            webrtc::EncodedImageBuffer::Create((uint8_t*)encoded_video_frame->data_->MutableBytes().data(), encoded_video_frame->data_->Size()));
     }
     // 用被编码帧的真实采集时间戳(按 frame_index 回查输入日志),而非
     // 当前输入帧的时间戳。详见头文件 input_ts_log_ 注释:盖错时间戳会让

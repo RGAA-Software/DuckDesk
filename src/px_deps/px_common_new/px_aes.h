@@ -1,22 +1,18 @@
 #pragma once
 
-#include <stdbool.h>
+#include <cstddef>
+#include <span>
 #include <vector>
 
-#include <openssl/bio.h>
-#include <openssl/evp.h>
-#include <openssl/buffer.h>
-#include <openssl/rand.h>
-#include <openssl/aes.h>
+namespace px {
 
-namespace px
-{
-	bool AesEncryptPcks7Cbc128(const unsigned char* plaintext, int plaintext_len,
-                               const unsigned char* key, const unsigned char* iv,
-                               std::vector<unsigned char>& ciphertext);
+inline constexpr std::size_t kAes128KeySize = 16;
+inline constexpr std::size_t kAes128IvSize = 16;
 
-    bool AesDecryptPcks7Cbc128(const unsigned char* ciphertext, int ciphertext_len,
-                               const unsigned char* key, const unsigned char* iv,
-                               std::vector<unsigned char>& plaintext);
-}
+bool AesEncryptPcks7Cbc128(std::span<const std::byte> plaintext, std::span<const std::byte> key, std::span<const std::byte> iv,
+                           std::vector<unsigned char>& ciphertext);
 
+bool AesDecryptPcks7Cbc128(std::span<const std::byte> ciphertext, std::span<const std::byte> key, std::span<const std::byte> iv,
+                           std::vector<unsigned char>& plaintext);
+
+} // namespace px

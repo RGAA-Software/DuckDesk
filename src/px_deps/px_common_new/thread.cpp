@@ -329,7 +329,7 @@ namespace px
     Thread::~Thread() {
         const auto thread_id = state_ ? state_->GeneralId() : 0;
         Exit();
-        MemoryStat::Instance()->RemoveThread(thread_id);
+        MemoryStat::Instance().RemoveThread(thread_id);
     }
 
     void Thread::StartOnceTask(bool join) {
@@ -338,7 +338,7 @@ namespace px
 
     void Thread::Poll() {
         state_->StartLoop();
-        MemoryStat::Instance()->AddThread(state_->GeneralId(), shared_from_this());
+        MemoryStat::Instance().AddThread(state_->GeneralId(), shared_from_this());
     }
 
     void Thread::Post(const ThreadTaskPtr& task) {

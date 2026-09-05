@@ -14,6 +14,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -85,23 +86,47 @@ namespace px
         static constexpr int kMaxMonNameLen = 64;
 
         // ---- little-endian read/write helpers ----
-        static void W16(char* p, uint16_t v) { p[0] = (char)(v & 0xff); p[1] = (char)((v >> 8) & 0xff); }
-        static void W32(char* p, uint32_t v) { p[0] = (char)(v & 0xff); p[1] = (char)((v >> 8) & 0xff); p[2] = (char)((v >> 16) & 0xff); p[3] = (char)((v >> 24) & 0xff); }
-        static uint16_t R16(const char* p) { return (uint16_t)((uint8_t)p[0] | ((uint8_t)p[1] << 8)); }
-        static uint32_t R32(const char* p) { return (uint32_t)((uint8_t)p[0] | ((uint8_t)p[1] << 8) | ((uint8_t)p[2] << 16) | ((uint32_t)(uint8_t)p[3] << 24)); }
+        static bool W16(std::span<char> output, std::size_t offset, uint16_t value) {
+            if (output.size() - std::min(offset, output.size()) < sizeof(value)) return false;
+            output[offset] = static_cast<char>(value & 0xff);
+            output[offset + 1] = static_cast<char>((value >> 8) & 0xff);
+            return true;
+        }
 
-        static void WriteCommon(char* p, uint8_t pkt_type) {
-            W16(p, kMagic);
-            p[2] = (char)kVersion;
-            p[3] = (char)pkt_type;
+        static bool W32(std::span<char> output, std::size_t offset, uint32_t value) {
+            if (output.size() - std::min(offset, output.size()) < sizeof(value)) return false;
+            output[offset] = static_cast<char>(value & 0xff);
+            output[offset + 1] = static_cast<char>((value >> 8) & 0xff);
+            output[offset + 2] = static_cast<char>((value >> 16) & 0xff);
+            output[offset + 3] = static_cast<char>((value >> 24) & 0xff);
+            return true;
+        }
+
+        static uint16_t R16(std::span<const char> input, std::size_t offset = 0) {
+            if (input.size() - std::min(offset, input.size()) < sizeof(uint16_t)) return 0;
+            return static_cast<uint16_t>(static_cast<uint8_t>(input[offset]) | (static_cast<uint8_t>(input[offset + 1]) << 8));
+        }
+
+        static uint32_t R32(std::span<const char> input, std::size_t offset = 0) {
+            if (input.size() - std::min(offset, input.size()) < sizeof(uint32_t)) return 0;
+            return static_cast<uint32_t>(static_cast<uint8_t>(input[offset]) | (static_cast<uint8_t>(input[offset + 1]) << 8) |
+                                         (static_cast<uint8_t>(input[offset + 2]) << 16) |
+                                         (static_cast<uint32_t>(static_cast<uint8_t>(input[offset + 3])) << 24));
+        }
+
+        static bool WriteCommon(std::span<char> output, uint8_t pkt_type) {
+            if (output.size() < kCommonHeaderSize || !W16(output, 0, kMagic)) return false;
+            output[2] = static_cast<char>(kVersion);
+            output[3] = static_cast<char>(pkt_type);
+            return true;
         }
 
         // returns pkt_type (>0) when valid, 0 otherwise
-        static uint8_t ParseCommon(const char* data, size_t size) {
-            if (!data || size < kCommonHeaderSize) return 0;
+        static uint8_t ParseCommon(std::span<const char> data) {
+            if (data.size() < kCommonHeaderSize) return 0;
             if (R16(data) != kMagic) return 0;
-            if ((uint8_t)data[2] != kVersion) return 0;
-            uint8_t t = (uint8_t)data[3];
+            if (static_cast<uint8_t>(data[2]) != kVersion) return 0;
+            const auto t = static_cast<uint8_t>(data[3]);
             if (t < kPktVideo || t > kPktCtrl) return 0;
             return t;
         }
@@ -123,39 +148,39 @@ namespace px
             uint16_t frame_height_ = 0;
             uint32_t frame_size_ = 0;   // 编码帧原始字节数(接收端据此精确截断,去掉 FEC 零填充)
             std::string mon_name_;
-            // payload view into the original packet
-            const char* payload_ = nullptr;
+            // payload view into the original packet; valid only while that packet remains alive.
+            std::span<const char> payload_{};
         };
 
         // parse a full UDP packet (including common header) as a video shard
-        static bool ParseVideoShard(const char* data, size_t size, VideoShardInfo& out) {
-            if (ParseCommon(data, size) != kPktVideo) return false;
-            if (size < kCommonHeaderSize + kVideoHeaderSize) return false;
-            const char* p = data + kCommonHeaderSize;
-            out.frame_index_ = R32(p);
-            out.timestamp_ms_ = R32(p + 4);
-            out.flags_ = (uint8_t)p[8];
-            out.fec_block_ = (uint8_t)p[9];
-            out.data_shards_ = R16(p + 10);
-            out.parity_shards_ = R16(p + 12);
-            out.shard_index_ = R16(p + 14);
-            out.payload_len_ = R16(p + 16);
-            out.mon_slot_ = (uint8_t)p[18];
-            out.codec_ = (uint8_t)p[19];
+        static bool ParseVideoShard(std::span<const char> data, VideoShardInfo& out) {
+            if (ParseCommon(data) != kPktVideo) return false;
+            if (data.size() < kCommonHeaderSize + kVideoHeaderSize) return false;
+            const auto header = data.subspan(kCommonHeaderSize, kVideoHeaderSize);
+            out.frame_index_ = R32(header);
+            out.timestamp_ms_ = R32(header, 4);
+            out.flags_ = static_cast<uint8_t>(header[8]);
+            out.fec_block_ = static_cast<uint8_t>(header[9]);
+            out.data_shards_ = R16(header, 10);
+            out.parity_shards_ = R16(header, 12);
+            out.shard_index_ = R16(header, 14);
+            out.payload_len_ = R16(header, 16);
+            out.mon_slot_ = static_cast<uint8_t>(header[18]);
+            out.codec_ = static_cast<uint8_t>(header[19]);
             size_t off = kCommonHeaderSize + kVideoHeaderSize;
             if (out.flags_ & kFlagSof) {
-                if (size < off + 9) return false;
-                const char* e = data + off;
-                out.frame_width_ = R16(e);
-                out.frame_height_ = R16(e + 2);
-                out.frame_size_ = R32(e + 4);
-                uint8_t nl = (uint8_t)e[8];
-                if (nl > kMaxMonNameLen || size < off + 9 + nl) return false;
-                out.mon_name_.assign(e + 9, nl);
+                if (data.size() < off + 9) return false;
+                const auto extension = data.subspan(off);
+                out.frame_width_ = R16(extension);
+                out.frame_height_ = R16(extension, 2);
+                out.frame_size_ = R32(extension, 4);
+                const auto nl = static_cast<uint8_t>(extension[8]);
+                if (nl > kMaxMonNameLen || data.size() < off + 9 + nl) return false;
+                out.mon_name_.assign(extension.begin() + 9, extension.begin() + 9 + nl);
                 off += 9 + nl;
             }
-            if (size != off + out.payload_len_) return false;
-            out.payload_ = data + off;
+            if (data.size() != off + out.payload_len_) return false;
+            out.payload_ = data.subspan(off, out.payload_len_);
             return true;
         }
 
@@ -175,21 +200,19 @@ namespace px
         // split one encoded frame into UDP packets (<= mtu each)
         // fec_percent > 0 时按 RS(D, parity) 追加 parity 包;parity = max(1, ceil(D*fec_percent/100)),
         // D + parity > 255 时本帧退化为无 FEC。fec_percent == 0 时行为与旧版一致(仅 SOF 扩展多 frame_size)。
-        static std::vector<std::shared_ptr<Data>> ShardVideoFrame(const VideoFrameMeta& meta,
-                                                                  const char* data, size_t size,
-                                                                  int mtu = kDefaultMtu,
-                                                                  int fec_percent = 0) {
+        static std::vector<std::shared_ptr<Data>> ShardVideoFrame(const VideoFrameMeta& meta, std::span<const char> data,
+                                                                  int mtu = kDefaultMtu, int fec_percent = 0) {
             std::vector<std::shared_ptr<Data>> out;
-            if (!data || size == 0 || meta.mon_name_.size() > kMaxMonNameLen) return out;
-            if (size > 0xffffffff) return out;
+            if (data.empty() || meta.mon_name_.size() > kMaxMonNameLen) return out;
+            if (data.size() > 0xffffffff) return out;
             const int sof_ext = 9 + (int)meta.mon_name_.size();
             const int base = kCommonHeaderSize + kVideoHeaderSize;
             const int block_p = mtu - base;          // FEC 保护块大小:扩展+载荷区,所有 shard 等长
             const int first_payload = block_p - sof_ext;
             if (first_payload <= 0) return out;
-            size_t total = (size <= (size_t)first_payload)
+            size_t total = (data.size() <= (size_t)first_payload)
                                ? 1
-                               : 1 + (size - first_payload + block_p - 1) / block_p;
+                               : 1 + (data.size() - first_payload + block_p - 1) / block_p;
             if (total > 0xffff) return out; // frame way too large, give up
 
             // parity 数;超 RS 上限则本帧不做 FEC(parity_shards 写 0,退化为现状)
@@ -207,18 +230,18 @@ namespace px
             for (size_t i = 0; i < total; i++) {
                 bool sof = (i == 0);
                 int payload_cap = sof ? first_payload : block_p;
-                int plen = (int)std::min<size_t>(payload_cap, size - sent);
-                char* blk = blocks[i].data();
+                int plen = (int)std::min<size_t>(payload_cap, data.size() - sent);
+                auto block = std::span<char>{blocks[i]};
                 size_t off = 0;
                 if (sof) {
-                    W16(blk, meta.frame_width_);
-                    W16(blk + 2, meta.frame_height_);
-                    W32(blk + 4, (uint32_t)size);
-                    blk[8] = (char)meta.mon_name_.size();
-                    memcpy(blk + 9, meta.mon_name_.data(), meta.mon_name_.size());
+                    W16(block, 0, meta.frame_width_);
+                    W16(block, 2, meta.frame_height_);
+                    W32(block, 4, static_cast<uint32_t>(data.size()));
+                    block[8] = static_cast<char>(meta.mon_name_.size());
+                    std::ranges::copy(meta.mon_name_, block.begin() + 9);
                     off += sof_ext;
                 }
-                memcpy(blk + off, data + sent, plen);
+                std::ranges::copy(data.subspan(sent, plen), block.begin() + static_cast<std::ptrdiff_t>(off));
                 sent += plen;
             }
 
@@ -240,45 +263,46 @@ namespace px
                 bool sof = (i == 0);
                 bool eof = (i == total - 1);
                 int payload_cap = sof ? first_payload : block_p;
-                int plen = (int)std::min<size_t>(payload_cap, size - sent);
+                int plen = (int)std::min<size_t>(payload_cap, data.size() - sent);
                 size_t pkt_size = base + (sof ? sof_ext : 0) + plen;
-                auto buf = Data::Make(nullptr, pkt_size);
-                char* p = buf->DataAddr();
-                WriteCommon(p, kPktVideo);
-                char* v = p + kCommonHeaderSize;
-                W32(v, meta.frame_index_);
-                W32(v + 4, meta.timestamp_ms_);
+                auto buf = Data::Allocate(pkt_size);
+                auto packet = buf->MutableBytes();
+                WriteCommon(packet, kPktVideo);
+                auto header = packet.subspan(kCommonHeaderSize, kVideoHeaderSize);
+                W32(header, 0, meta.frame_index_);
+                W32(header, 4, meta.timestamp_ms_);
                 uint8_t flags = (meta.key_ ? kFlagKey : 0) | (sof ? kFlagSof : 0) | (eof ? kFlagEof : 0) |
                                 (meta.rfi_recover_ ? kFlagRfiRecover : 0);
-                v[8] = (char)flags;
-                v[9] = 0; // fec_block,一帧一块,恒 0
-                W16(v + 10, (uint16_t)total);
-                W16(v + 12, (uint16_t)parity_count);
-                W16(v + 14, (uint16_t)i);
-                W16(v + 16, (uint16_t)plen);
-                v[18] = (char)meta.mon_slot_;
-                v[19] = (char)meta.codec_;
+                header[8] = static_cast<char>(flags);
+                header[9] = 0; // fec_block,一帧一块,恒 0
+                W16(header, 10, static_cast<uint16_t>(total));
+                W16(header, 12, static_cast<uint16_t>(parity_count));
+                W16(header, 14, static_cast<uint16_t>(i));
+                W16(header, 16, static_cast<uint16_t>(plen));
+                header[18] = static_cast<char>(meta.mon_slot_);
+                header[19] = static_cast<char>(meta.codec_);
                 // 包体 = 保护块前缀(扩展+实际载荷),与 blocks[i] 一致
-                memcpy(p + base, blocks[i].data(), (sof ? sof_ext : 0) + plen);
+                const auto body_size = static_cast<std::size_t>((sof ? sof_ext : 0) + plen);
+                std::ranges::copy(std::span<const char>{blocks[i]}.first(body_size), packet.begin() + base);
                 sent += plen;
                 out.push_back(buf);
             }
             for (size_t j = 0; j < parity.size(); j++) {
-                auto buf = Data::Make(nullptr, base + block_p);
-                char* p = buf->DataAddr();
-                WriteCommon(p, kPktVideo);
-                char* v = p + kCommonHeaderSize;
-                W32(v, meta.frame_index_);
-                W32(v + 4, meta.timestamp_ms_);
-                v[8] = (char)(kFlagParity | (meta.key_ ? kFlagKey : 0));
-                v[9] = 0;
-                W16(v + 10, (uint16_t)total);
-                W16(v + 12, (uint16_t)parity_count);
-                W16(v + 14, (uint16_t)(total + j));
-                W16(v + 16, (uint16_t)block_p);
-                v[18] = (char)meta.mon_slot_;
-                v[19] = (char)meta.codec_;
-                memcpy(p + base, parity[j].data(), block_p);
+                auto buf = Data::Allocate(base + block_p);
+                auto packet = buf->MutableBytes();
+                WriteCommon(packet, kPktVideo);
+                auto header = packet.subspan(kCommonHeaderSize, kVideoHeaderSize);
+                W32(header, 0, meta.frame_index_);
+                W32(header, 4, meta.timestamp_ms_);
+                header[8] = static_cast<char>(kFlagParity | (meta.key_ ? kFlagKey : 0));
+                header[9] = 0;
+                W16(header, 10, static_cast<uint16_t>(total));
+                W16(header, 12, static_cast<uint16_t>(parity_count));
+                W16(header, 14, static_cast<uint16_t>(total + j));
+                W16(header, 16, static_cast<uint16_t>(block_p));
+                header[18] = static_cast<char>(meta.mon_slot_);
+                header[19] = static_cast<char>(meta.codec_);
+                std::ranges::copy(parity[j], packet.begin() + base);
                 out.push_back(buf);
             }
             return out;
@@ -291,62 +315,64 @@ namespace px
             uint32_t seq_ = 0;
             uint32_t timestamp_ms_ = 0;
             uint16_t payload_len_ = 0;
-            // payload view into the original packet
-            const char* payload_ = nullptr;
+            // payload view into the original packet; valid only while that packet remains alive.
+            std::span<const char> payload_{};
         };
 
-        static std::shared_ptr<Data> BuildAudioPacket(uint32_t seq, uint32_t timestamp_ms,
-                                                      const char* payload, size_t payload_len) {
-            if (!payload || payload_len == 0 || payload_len > 0xffff) return nullptr;
-            size_t n = kCommonHeaderSize + kAudioHeaderSize + payload_len;
-            auto buf = Data::Make(nullptr, n);
-            char* p = buf->DataAddr();
-            WriteCommon(p, kPktAudio);
-            char* q = p + kCommonHeaderSize;
-            W32(q, seq);
-            W32(q + 4, timestamp_ms);
-            W16(q + 8, (uint16_t)payload_len);
-            memcpy(q + kAudioHeaderSize, payload, payload_len);
+        static std::shared_ptr<Data> BuildAudioPacket(uint32_t seq, uint32_t timestamp_ms, std::span<const char> payload) {
+            if (payload.empty() || payload.size() > 0xffff) return nullptr;
+            size_t n = kCommonHeaderSize + kAudioHeaderSize + payload.size();
+            auto buf = Data::Allocate(n);
+            auto packet = buf->MutableBytes();
+            WriteCommon(packet, kPktAudio);
+            auto header = packet.subspan(kCommonHeaderSize, kAudioHeaderSize);
+            W32(header, 0, seq);
+            W32(header, 4, timestamp_ms);
+            W16(header, 8, static_cast<uint16_t>(payload.size()));
+            std::ranges::copy(payload, packet.begin() + kCommonHeaderSize + kAudioHeaderSize);
             return buf;
         }
 
         // parse a full UDP packet (including common header) as an audio packet
-        static bool ParseAudioPacket(const char* data, size_t size, AudioPacketInfo& out) {
-            if (ParseCommon(data, size) != kPktAudio) return false;
-            if (size < kCommonHeaderSize + kAudioHeaderSize) return false;
-            const char* p = data + kCommonHeaderSize;
-            out.seq_ = R32(p);
-            out.timestamp_ms_ = R32(p + 4);
-            out.payload_len_ = R16(p + 8);
-            if (size != kCommonHeaderSize + kAudioHeaderSize + out.payload_len_) return false;
-            out.payload_ = p + kAudioHeaderSize;
+        static bool ParseAudioPacket(std::span<const char> data, AudioPacketInfo& out) {
+            if (ParseCommon(data) != kPktAudio) return false;
+            if (data.size() < kCommonHeaderSize + kAudioHeaderSize) return false;
+            const auto header = data.subspan(kCommonHeaderSize, kAudioHeaderSize);
+            out.seq_ = R32(header);
+            out.timestamp_ms_ = R32(header, 4);
+            out.payload_len_ = R16(header, 8);
+            if (data.size() != kCommonHeaderSize + kAudioHeaderSize + out.payload_len_) return false;
+            out.payload_ = data.subspan(kCommonHeaderSize + kAudioHeaderSize, out.payload_len_);
             return true;
         }
 
         // ---- ctrl builders ----
         static std::shared_ptr<Data> BuildCtrlString2(uint8_t subtype, const std::string& a, const std::string& b) {
             size_t n = kCommonHeaderSize + 1 + 1 + a.size() + 1 + b.size();
-            auto buf = Data::Make(nullptr, n);
-            char* p = buf->DataAddr();
-            WriteCommon(p, kPktCtrl);
-            p[kCommonHeaderSize] = (char)subtype;
-            char* q = p + kCommonHeaderSize + 1;
-            *q++ = (char)a.size();
-            memcpy(q, a.data(), a.size()); q += a.size();
-            *q++ = (char)b.size();
-            memcpy(q, b.data(), b.size());
+            if (a.size() > 0xff || b.size() > 0xff) return nullptr;
+            auto buf = Data::Allocate(n);
+            auto packet = buf->MutableBytes();
+            WriteCommon(packet, kPktCtrl);
+            packet[kCommonHeaderSize] = static_cast<char>(subtype);
+            auto offset = static_cast<std::size_t>(kCommonHeaderSize + 1);
+            packet[offset++] = static_cast<char>(a.size());
+            std::ranges::copy(a, packet.begin() + static_cast<std::ptrdiff_t>(offset));
+            offset += a.size();
+            packet[offset++] = static_cast<char>(b.size());
+            std::ranges::copy(b, packet.begin() + static_cast<std::ptrdiff_t>(offset));
             return buf;
         }
 
         static std::shared_ptr<Data> BuildCtrlString1(uint8_t subtype, const std::string& a) {
             size_t n = kCommonHeaderSize + 1 + 1 + a.size();
-            auto buf = Data::Make(nullptr, n);
-            char* p = buf->DataAddr();
-            WriteCommon(p, kPktCtrl);
-            p[kCommonHeaderSize] = (char)subtype;
-            char* q = p + kCommonHeaderSize + 1;
-            *q++ = (char)a.size();
-            memcpy(q, a.data(), a.size());
+            if (a.size() > 0xff) return nullptr;
+            auto buf = Data::Allocate(n);
+            auto packet = buf->MutableBytes();
+            WriteCommon(packet, kPktCtrl);
+            packet[kCommonHeaderSize] = static_cast<char>(subtype);
+            const auto offset = static_cast<std::size_t>(kCommonHeaderSize + 1);
+            packet[offset] = static_cast<char>(a.size());
+            std::ranges::copy(a, packet.begin() + static_cast<std::ptrdiff_t>(offset + 1));
             return buf;
         }
 
@@ -378,48 +404,43 @@ namespace px
         // received/lost 语义见 PxUdpFrameReassembler::on_frame_status_
         static std::shared_ptr<Data> BuildFrameStatus(uint32_t frame_index, uint16_t received, uint16_t lost) {
             size_t n = kCommonHeaderSize + 1 + 8;
-            auto buf = Data::Make(nullptr, n);
-            char* p = buf->DataAddr();
-            WriteCommon(p, kPktCtrl);
-            p[kCommonHeaderSize] = (char)kCtrlFrameStatus;
-            char* q = p + kCommonHeaderSize + 1;
-            W32(q, frame_index);
-            W16(q + 4, received);
-            W16(q + 6, lost);
+            auto buf = Data::Allocate(n);
+            auto packet = buf->MutableBytes();
+            WriteCommon(packet, kPktCtrl);
+            packet[kCommonHeaderSize] = static_cast<char>(kCtrlFrameStatus);
+            const auto body = packet.subspan(kCommonHeaderSize + 1);
+            W32(body, 0, frame_index);
+            W16(body, 4, received);
+            W16(body, 6, lost);
             return buf;
         }
 
         // ParseCtrl 不解析 kCtrlFrameStatus(非字符串体),走这个定长解析
-        static bool ParseFrameStatus(const char* data, size_t size,
-                                     uint32_t& frame_index, uint16_t& received, uint16_t& lost) {
-            if (ParseCommon(data, size) != kPktCtrl) return false;
-            if (size != kCommonHeaderSize + 1 + 8) return false;
+        static bool ParseFrameStatus(std::span<const char> data, uint32_t& frame_index, uint16_t& received, uint16_t& lost) {
+            if (ParseCommon(data) != kPktCtrl) return false;
+            if (data.size() != kCommonHeaderSize + 1 + 8) return false;
             if ((uint8_t)data[kCommonHeaderSize] != kCtrlFrameStatus) return false;
-            const char* q = data + kCommonHeaderSize + 1;
-            frame_index = R32(q);
-            received = R16(q + 4);
-            lost = R16(q + 6);
+            const auto body = data.subspan(kCommonHeaderSize + 1);
+            frame_index = R32(body);
+            received = R16(body, 4);
+            lost = R16(body, 6);
             return true;
         }
 
         // parse ctrl packet body; returns subtype(>0) or 0.
         // strings are filled for Hello(device_id,stream_id) / Heartbeat(stream_id) /
         // IdrRequest(mon_name) / Kick(reason).
-        static uint8_t ParseCtrl(const char* data, size_t size,
-                                 std::string& s1, std::string& s2) {
-            if (ParseCommon(data, size) != kPktCtrl) return 0;
-            if (size < kCommonHeaderSize + 1) return 0;
+        static uint8_t ParseCtrl(std::span<const char> data, std::string& s1, std::string& s2) {
+            if (ParseCommon(data) != kPktCtrl) return 0;
+            if (data.size() < kCommonHeaderSize + 1) return 0;
             uint8_t subtype = (uint8_t)data[kCommonHeaderSize];
-            const char* q = data + kCommonHeaderSize + 1;
-            size_t left = size - kCommonHeaderSize - 1;
+            std::size_t offset = kCommonHeaderSize + 1;
             auto read_str = [&](std::string& out) -> bool {
-                if (left < 1) return false;
-                uint8_t nl = (uint8_t)*q++;
-                left--;
-                if (left < nl) return false;
-                out.assign(q, nl);
-                q += nl;
-                left -= nl;
+                if (offset >= data.size()) return false;
+                const auto length = static_cast<uint8_t>(data[offset++]);
+                if (data.size() - offset < length) return false;
+                out.assign(data.begin() + static_cast<std::ptrdiff_t>(offset), data.begin() + static_cast<std::ptrdiff_t>(offset + length));
+                offset += length;
                 return true;
             };
             s1.clear(); s2.clear();
@@ -497,15 +518,15 @@ namespace px
             if (nl > PxUdpProtocol::kMaxMonNameLen) return false;
             size_t sof_ext = 9 + nl;
             if (b0.size() < sof_ext) return false;
-            uint32_t frame_size = PxUdpProtocol::R32(b0.data() + 4);
+            uint32_t frame_size = PxUdpProtocol::R32(std::span<const char>{b0}, 4);
             // 容量:shard 0 载荷 P - sof_ext,其余 D-1 块各 P ⟺ sof_ext + frame_size <= D * P
             return (uint64_t)sof_ext + frame_size <= (uint64_t)data_shards * p;
         }
 
         // feed one raw UDP packet (common header included)
-        void AddPacket(const char* data, size_t size) {
+        void AddPacket(std::span<const char> data) {
             PxUdpProtocol::VideoShardInfo shard;
-            if (!PxUdpProtocol::ParseVideoShard(data, size, shard)) return;
+            if (!PxUdpProtocol::ParseVideoShard(data, shard)) return;
             if (shard.data_shards_ == 0) return;
             const bool is_parity = (shard.flags_ & PxUdpProtocol::kFlagParity) != 0;
             if (is_parity) {
@@ -607,12 +628,13 @@ namespace px
                 slot.filled_ = true;
                 if ((shard.flags_ & PxUdpProtocol::kFlagSof) && !is_parity) {
                     // SOF 数据块:保护块 = SOF 扩展 + 载荷
-                    const char* ext = data + PxUdpProtocol::kCommonHeaderSize + PxUdpProtocol::kVideoHeaderSize;
                     size_t ext_len = 9 + shard.mon_name_.size();
-                    slot.bytes_.assign(ext, ext_len + shard.payload_len_);
+                    const auto extension = data.subspan(PxUdpProtocol::kCommonHeaderSize + PxUdpProtocol::kVideoHeaderSize,
+                                                        ext_len + shard.payload_len_);
+                    slot.bytes_.assign(extension.begin(), extension.end());
                 }
                 else {
-                    slot.bytes_.assign(shard.payload_, shard.payload_len_);
+                    slot.bytes_.assign(shard.payload_.begin(), shard.payload_.end());
                 }
                 cur.received_++;
                 if (!is_parity) cur.net_data_received_++;
@@ -773,24 +795,23 @@ namespace px
             f.timestamp_ms_ = cur.timestamp_ms_;
             f.key_ = cur.key_;
             f.codec_ = cur.codec_;
-            f.frame_width_ = PxUdpProtocol::R16(b0.data());
-            f.frame_height_ = PxUdpProtocol::R16(b0.data() + 2);
-            uint32_t frame_size = PxUdpProtocol::R32(b0.data() + 4);
+            const auto first_block = std::span<const char>{b0};
+            f.frame_width_ = PxUdpProtocol::R16(first_block);
+            f.frame_height_ = PxUdpProtocol::R16(first_block, 2);
+            uint32_t frame_size = PxUdpProtocol::R32(first_block, 4);
             f.mon_name_.assign(b0.data() + 9, nl);
 
-            f.data_ = Data::Make(nullptr, frame_size);
+            f.data_ = Data::Allocate( frame_size);
             size_t off = 0;
             for (int i = 0; i < cur.data_shards_ && off < frame_size; i++) {
                 const std::string& blk = cur.shards_[i].bytes_;
-                const char* src = blk.data();
-                size_t len = blk.size();
+                auto source = std::span<const char>{blk};
                 if (i == 0) {
-                    if (len < ext) break;
-                    src += ext;
-                    len -= ext;
+                    if (source.size() < ext) break;
+                    source = source.subspan(ext);
                 }
-                len = std::min(len, (size_t)frame_size - off);
-                memcpy(f.data_->DataAddr() + off, src, len);
+                const auto len = std::min(source.size(), static_cast<std::size_t>(frame_size) - off);
+                std::ranges::copy(source.first(len), f.data_->MutableBytes().begin() + static_cast<std::ptrdiff_t>(off));
                 off += len;
             }
             if (off < frame_size) {
@@ -830,7 +851,7 @@ namespace px
         static constexpr uint32_t kResyncThreshold = 6000; // seq 大幅回退(对端重启/回绕)判为新流
 
         // 按序到达的音频帧:seq | timestamp_ms | Opus payload
-        std::function<void(uint32_t seq, uint32_t timestamp_ms, const char* payload, size_t len)> on_frame_;
+        std::function<void(uint32_t seq, uint32_t timestamp_ms, std::span<const char> payload)> on_frame_;
         // 判定丢失的 seq(等够 60ms 仍未到),每个丢失 seq 恰好报一次
         std::function<void(uint32_t seq)> on_lost_;
 
@@ -840,8 +861,8 @@ namespace px
             expected_ = 0;
         }
 
-        void AddPacket(uint32_t seq, uint32_t timestamp_ms, const char* payload, size_t len) {
-            if (!payload || len == 0) return;
+        void AddPacket(uint32_t seq, uint32_t timestamp_ms, std::span<const char> payload) {
+            if (payload.empty()) return;
             if (!inited_) {
                 // 中途加入不补历史:从首个到达包开始按序交付
                 inited_ = true;
@@ -858,7 +879,7 @@ namespace px
             if ((int)packets_.size() >= kMaxBuffered && seq > packets_.rbegin()->first) {
                 return;
             }
-            packets_[seq] = Packet{timestamp_ms, std::string(payload, len)};
+            packets_[seq] = Packet{timestamp_ms, std::string(payload.begin(), payload.end())};
             // 窗口内乱序插入导致的溢出:淘汰最新
             while ((int)packets_.size() > kMaxBuffered) {
                 packets_.erase(std::prev(packets_.end()));
@@ -868,8 +889,8 @@ namespace px
 
     private:
         struct Packet {
-            uint32_t ts_;
-            std::string data_;
+            uint32_t ts_{0};
+            std::string data_{};
         };
 
         void Drain() {
@@ -877,7 +898,7 @@ namespace px
             for (;;) {
                 auto it = packets_.find(expected_);
                 if (it != packets_.end()) {
-                    if (on_frame_) on_frame_(expected_, it->second.ts_, it->second.data_.data(), it->second.data_.size());
+                    if (on_frame_) on_frame_(expected_, it->second.ts_, std::span<const char>{it->second.data_});
                     packets_.erase(it);
                     expected_++;
                     continue;

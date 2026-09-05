@@ -17,8 +17,6 @@
 #include <Windows.h>
 #endif
 #include <qdebug.h>
-
-#include "px_common_new/const_auto.h"
 #include <string>
 #include <atomic>
 
@@ -125,8 +123,8 @@ namespace px
         }
 
         const bool button_held = event->buttons() != Qt::NoButton;
-        const cat ts = TimeUtil::GetCurrentTimestamp();
-        const cat diff = ts - last_cursor_ts_;
+        const auto ts = TimeUtil::GetCurrentTimestamp();
+        const auto diff = ts - last_cursor_ts_;
         // client 只上报 ratio;相对位移由 server 根据绝对坐标换算。
         // 空闲移动节流;按住拖动必须连续上报新 ratio(游戏中键转视角)。
         if (!button_held) {
@@ -549,12 +547,12 @@ namespace px
         std::lock_guard<std::mutex> guard(buf_mtx_);
         int size = width * height * channel;
         if (!rgb_buffer_ || (int)rgb_buffer_->Size() != size) {
-            rgb_buffer_ = Data::Make(nullptr, size);
+            rgb_buffer_ = Data::Allocate( size);
         }
         if (tex_width_ != width || tex_height_ != height) {
             need_create_texture_ = true;
         }
-        memcpy(rgb_buffer_->DataAddr(), buf, size);
+        memcpy(rgb_buffer_->MutableBytes().data(), buf, size);
         tex_width_ = width;
         tex_height_ = height;
         tex_channel_ = channel;
@@ -581,24 +579,24 @@ namespace px
         auto target_y_size = width * height;
         auto target_u_size = width/2 * height/2;
         if (!y_buffer_ || y_buffer_->Size() != y_buf_size) {
-            y_buffer_ = Data::Make(y_buf, y_buf_size);
+            y_buffer_ = Data::Copy(std::span<const char>{y_buf, static_cast<std::size_t>(y_buf_size)});
             need_create_texture_ = true;
         }
         if (!u_buffer_ || u_buffer_->Size() != u_buf_size) {
-            u_buffer_ = Data::Make(u_buf, u_buf_size);
+            u_buffer_ = Data::Copy(std::span<const char>{u_buf, static_cast<std::size_t>(u_buf_size)});
             need_create_texture_ = true;
         }
         if (!v_buffer_ || v_buffer_->Size() != v_buf_size) {
-            v_buffer_ = Data::Make(v_buf, v_buf_size);
+            v_buffer_ = Data::Copy(std::span<const char>{v_buf, static_cast<std::size_t>(v_buf_size)});
             need_create_texture_ = true;
         }
 
         if (tex_width_ != width || tex_height_ != height) {
             need_create_texture_ = true;
         }
-        memcpy(y_buffer_->DataAddr(), y_buf, y_buf_size);
-        memcpy(u_buffer_->DataAddr(), u_buf, u_buf_size);
-        memcpy(v_buffer_->DataAddr(), v_buf, v_buf_size);
+        memcpy(y_buffer_->MutableBytes().data(), y_buf, y_buf_size);
+        memcpy(u_buffer_->MutableBytes().data(), u_buf, u_buf_size);
+        memcpy(v_buffer_->MutableBytes().data(), v_buf, v_buf_size);
 
         tex_width_ = width;
         tex_height_ = height;
@@ -640,24 +638,24 @@ namespace px
         auto target_u_size = width * height;
 
         if (!y_buffer_ || y_buffer_->Size() != y_buf_size) {
-            y_buffer_ = Data::Make(y_buf, y_buf_size);
+            y_buffer_ = Data::Copy(std::span<const char>{y_buf, static_cast<std::size_t>(y_buf_size)});
             need_create_texture_ = true;
         }
         if (!u_buffer_ || u_buffer_->Size() != u_buf_size) {
-            u_buffer_ = Data::Make(u_buf, u_buf_size);
+            u_buffer_ = Data::Copy(std::span<const char>{u_buf, static_cast<std::size_t>(u_buf_size)});
             need_create_texture_ = true;
         }
         if (!v_buffer_ || v_buffer_->Size() != v_buf_size) {
-            v_buffer_ = Data::Make(v_buf, v_buf_size);
+            v_buffer_ = Data::Copy(std::span<const char>{v_buf, static_cast<std::size_t>(v_buf_size)});
             need_create_texture_ = true;
         }
 
         if (tex_width_ != width || tex_height_ != height) {
             need_create_texture_ = true;
         }
-        memcpy(y_buffer_->DataAddr(), y_buf, y_buf_size);
-        memcpy(u_buffer_->DataAddr(), u_buf, u_buf_size);
-        memcpy(v_buffer_->DataAddr(), v_buf, v_buf_size);
+        memcpy(y_buffer_->MutableBytes().data(), y_buf, y_buf_size);
+        memcpy(u_buffer_->MutableBytes().data(), u_buf, u_buf_size);
+        memcpy(v_buffer_->MutableBytes().data(), v_buf, v_buf_size);
 
         tex_width_ = width;
         tex_height_ = height;

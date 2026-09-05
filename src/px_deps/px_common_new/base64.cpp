@@ -5,16 +5,16 @@
 namespace px
 {
 
-    std::string Base64::Base64Encode(const uint8_t* data, std::size_t len) {
-        return cereal::base64::encode(data, len);
+    std::string Base64::Base64Encode(std::span<const std::uint8_t> data) {
+        return cereal::base64::encode(data.data(), data.size());
     }
 
-    std::string Base64::Base64Encode(const std::string& s) {
-        return Base64Encode(reinterpret_cast <uint8_t const *> (s.data()), s.size());
+    std::string Base64::Base64Encode(std::string_view text) {
+        return Base64Encode(std::span<const std::uint8_t>{reinterpret_cast<const std::uint8_t*>(text.data()), text.size()});
     }
 
-    std::string Base64::Base64Decode(const std::string& data) {
-        return cereal::base64::decode(data);
+    std::string Base64::Base64Decode(std::string_view data) {
+        return cereal::base64::decode(std::string{data});
     }
 
 }

@@ -63,7 +63,7 @@ namespace px
         return target_path.substr(idx + 1);
     }
 
-    bool FileUtil::CopyFileExt(const U8Path& from, const U8Path& to, bool force_replace) {
+    bool FileUtil::CopyFileExt(const std::filesystem::path& from, const std::filesystem::path& to, bool force_replace) {
         try {
             if (std::filesystem::exists(to)) {
                 if (force_replace) {
@@ -83,7 +83,7 @@ namespace px
         }
     }
 
-    void FileUtil::SelectFileInExplorer(const U8Path& p) {
+    void FileUtil::SelectFileInExplorer(const std::filesystem::path& p) {
 #ifdef WIN32
         std::wstring wpath = p.wstring();
         for (auto& ch : wpath) {
@@ -94,7 +94,7 @@ namespace px
 #endif
     }
 
-    bool FileUtil::ReName(const U8Path& old_path, const U8Path& new_path) {
+    bool FileUtil::ReName(const std::filesystem::path& old_path, const std::filesystem::path& new_path) {
         try {
             if (!std::filesystem::exists(old_path)) {
                 return false;

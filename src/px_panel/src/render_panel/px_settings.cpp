@@ -15,7 +15,6 @@
 #include "px_common_new/md5.h"
 #include "px_common_new/uuid.h"
 #include "px_common_new/base64.h"
-#include "px_common_new/const_auto.h"
 #include "px_common_new/hardware.h"
 #include "px_common_new/http_client.h"
 #include "px_common_new/message_notifier.h"
@@ -99,7 +98,7 @@ namespace px
 
     void PxSettings::ClearData() {
         this->SetDeviceId("");
-        if (cat comp = grApp->GetCompanion(); comp) {
+        if (const auto comp = grApp->GetCompanion(); comp) {
             comp->UpdateDeviceId("");
         }
         this->SetDeviceName("");

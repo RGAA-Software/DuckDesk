@@ -5,8 +5,8 @@
 #include <filesystem>
 #include <cstdio>
 #include <memory>
+#include <span>
 #include "data.h"
-#include "string_util.h"
 
 namespace px 
 {
@@ -14,32 +14,32 @@ namespace px
     class File {
     public:
     
-        static std::shared_ptr<File> OpenForRead(const U8Path& path);
-        static std::shared_ptr<File> OpenForWrite(const U8Path& path);
-        static std::shared_ptr<File> OpenForRW(const U8Path& path);
-        static std::shared_ptr<File> OpenForAppend(const U8Path& path);
+        static std::shared_ptr<File> OpenForRead(const std::filesystem::path& path);
+        static std::shared_ptr<File> OpenForWrite(const std::filesystem::path& path);
+        static std::shared_ptr<File> OpenForRW(const std::filesystem::path& path);
+        static std::shared_ptr<File> OpenForAppend(const std::filesystem::path& path);
     
-        static std::shared_ptr<File> OpenForReadB(const U8Path& path);
-        static std::shared_ptr<File> OpenForWriteB(const U8Path& path);
-        static std::shared_ptr<File> OpenForRWB(const U8Path& path);
-        static std::shared_ptr<File> OpenForAppendB(const U8Path& path);
+        static std::shared_ptr<File> OpenForReadB(const std::filesystem::path& path);
+        static std::shared_ptr<File> OpenForWriteB(const std::filesystem::path& path);
+        static std::shared_ptr<File> OpenForRWB(const std::filesystem::path& path);
+        static std::shared_ptr<File> OpenForAppendB(const std::filesystem::path& path);
 
-        static bool IsFolder(const U8Path& path);
-        static bool Exists(const U8Path& path);
-        static int64_t Size(const U8Path& path);
+        static bool IsFolder(const std::filesystem::path& path);
+        static bool Exists(const std::filesystem::path& path);
+        static int64_t Size(const std::filesystem::path& path);
 
-        File(const U8Path& path, const std::string& mode);
+        File(std::filesystem::path path, const std::string& mode);
         ~File();
         File(const File&) = delete;
         File& operator=(const File&) = delete;
         File(File&&) noexcept = default;
         File& operator=(File&&) noexcept = default;
-        static bool Delete(const U8Path& path);
-        uint64_t Size();
-        bool Exists();
-        bool IsOpen();
+        static bool Delete(const std::filesystem::path& path);
+        [[nodiscard]] uint64_t Size() const;
+        [[nodiscard]] bool Exists() const;
+        [[nodiscard]] bool IsOpen() const;
         void Close();
-        std::string FileName();
+        [[nodiscard]] std::string FileName() const;
 
         DataPtr Read(uint64_t offset, uint64_t size, uint64_t& read_size);
         DataPtr ReadAll();
@@ -48,16 +48,25 @@ namespace px
     
         int64_t Write(uint64_t offset, const DataPtr& data);
         int64_t Write(uint64_t offset, const std::string& data);
-        int64_t Write(uint64_t offset, const char* data, uint64_t size);
+        int64_t Write(uint64_t offset, std::span<const char> data);
+        template <std::size_t Size>
+        int64_t Write(uint64_t offset, const char (&data)[Size]) {
+            static_assert(Size > 0);
+            return Write(offset, std::span<const char>{data, Size - 1});
+        }
         int64_t Append(const DataPtr& data);
         int64_t Append(const std::string& data);
-        int64_t Append(const char* data, uint64_t size);
+        int64_t Append(std::span<const char> data);
+        template <std::size_t Size>
+        int64_t Append(const char (&data)[Size]) {
+            static_assert(Size > 0);
+            return Append(std::span<const char>{data, Size - 1});
+        }
 
     private:
         using FileHandle = std::unique_ptr<std::FILE, decltype(&std::fclose)>;
         std::filesystem::path file_path_;
         FileHandle fp_{nullptr, &std::fclose};
-        int64_t current_offset_ = 0;
     };
     
     typedef std::shared_ptr<File> FilePtr;

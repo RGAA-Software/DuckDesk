@@ -13,44 +13,42 @@
 
 #include "string_util.h"
 
-namespace px
-{
+namespace px {
 
-    class MonitorWinInfo {
-    public:
-        using MonitorIndex = uint32_t;
+class MonitorWinInfo {
+  public:
+    using MonitorIndex = uint32_t;
 
-        MonitorWinInfo() {
-            monitor_handle = nullptr;
-        }
+    MonitorWinInfo() = default;
 
-        explicit MonitorWinInfo(HMONITOR monitor_handle) {
-            monitor_handle = monitor_handle;
-            MONITORINFOEX monitor_info = {sizeof(monitor_info)};
-            GetMonitorInfo(monitor_handle, &monitor_info);
-            std::wstring display_name(monitor_info.szDevice);
-            name_ = StringUtil::ToUTF8(display_name);
-            is_primary_ = (monitor_info.dwFlags & MONITORINFOF_PRIMARY) != 0;
-        }
-
-        std::string name_;
-        bool is_primary_{};
-        HMONITOR monitor_handle{};
-    };
-
-    static std::vector<MonitorWinInfo> EnumerateAllMonitors() {
-        std::vector<MonitorWinInfo> monitors;
-        EnumDisplayMonitors(nullptr, nullptr, [](HMONITOR hmon, HDC, LPRECT, LPARAM lparam) {
-            auto &monitors = *reinterpret_cast<std::vector<MonitorWinInfo> *>(lparam);
-            monitors.emplace_back(hmon);
-            return TRUE;
-        }, reinterpret_cast<LPARAM>(&monitors));
-
-        return monitors;
+    // HMONITOR is a borrowed Win32 enumeration boundary value and is never retained.
+    explicit MonitorWinInfo(HMONITOR monitor_handle) {
+        MONITORINFOEX monitor_info = {sizeof(monitor_info)};
+        GetMonitorInfo(monitor_handle, &monitor_info);
+        std::wstring display_name(monitor_info.szDevice);
+        name_ = StringUtil::ToUTF8(display_name);
+        is_primary_ = (monitor_info.dwFlags & MONITORINFOF_PRIMARY) != 0;
     }
 
+    std::string name_;
+    bool is_primary_{};
+};
+
+static std::vector<MonitorWinInfo> EnumerateAllMonitors() {
+    std::vector<MonitorWinInfo> monitors;
+    EnumDisplayMonitors(
+        nullptr, nullptr,
+        [](HMONITOR hmon, HDC, LPRECT, LPARAM lparam) {
+            auto& monitors = *reinterpret_cast<std::vector<MonitorWinInfo>*>(lparam);
+            monitors.emplace_back(hmon);
+            return TRUE;
+        },
+        reinterpret_cast<LPARAM>(&monitors));
+
+    return monitors;
 }
 
+} // namespace px
 
-#endif //PX_MONITORS_H
+#endif // PX_MONITORS_H
 #endif

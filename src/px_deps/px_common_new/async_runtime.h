@@ -13,8 +13,13 @@
 #include <vector>
 
 #include <asio2/external/asio.hpp>
+#include <asio/version.hpp>
+
+static_assert(ASIO_VERSION >= 103802, "px_common_new requires standalone Asio 1.38.2 or newer");
 
 namespace px {
+
+class PxBlockingExecutor;
 
 template <typename T> using PxAwaitable = asio::awaitable<T>;
 
@@ -26,6 +31,8 @@ enum class PxAsyncLane {
 
 struct PxAsyncRuntimeOptions {
     std::size_t worker_threads = 2;
+    std::size_t blocking_threads = 2;
+    std::size_t max_pending_blocking_tasks = 256;
 };
 
 class PxAsyncRuntime final {
@@ -45,6 +52,7 @@ class PxAsyncRuntime final {
     void Join();
 
     [[nodiscard]] asio::any_io_executor Executor(PxAsyncLane lane) const;
+    [[nodiscard]] std::shared_ptr<PxBlockingExecutor> BlockingExecutor() const;
     static void DeferJoin(std::thread thread);
     static void DeferJoin(std::jthread thread);
     [[nodiscard]] bool DeferBlocking(std::function<void()> task) const;

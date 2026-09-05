@@ -130,9 +130,9 @@ namespace px
             QFile qf(":/resources/image/logo_text.png");
             qf.open(QIODevice::ReadOnly);
             auto ba = qf.readAll();
-            auto data = px::Data::Make(ba.constData(), ba.size());
+            auto data = px::Data::Copy(std::span<const char>{ba.constData(), static_cast<std::size_t>(ba.size())});
             auto image = Image::MakeByCompressedImage(data);
-            auto raw_image = RawImage::MakeRGBA(image->data->DataAddr(), image->data->Size(), image->width, image->height);
+            auto raw_image = RawImage::MakeRGBA(image->data->MutableBytes().data(), image->data->Size(), image->width, image->height);
             logo_->UpdateImage(raw_image);
             logo_->ForceImageSize(image->width, image->height);
         }
@@ -188,7 +188,7 @@ namespace px
 			if (rgb_buffer_) {
 				gl_func_->glActiveTexture(GL_TEXTURE0);
 				gl_func_->glBindTexture(GL_TEXTURE_2D, rgb_texture_id_);
-				gl_func_->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex_width_, tex_height_, GL_RGB, GL_UNSIGNED_BYTE, rgb_buffer_->DataAddr());
+				gl_func_->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex_width_, tex_height_, GL_RGB, GL_UNSIGNED_BYTE, rgb_buffer_->MutableBytes().data());
 			}
 		}
 		else if (raw_image_format_ == RawImageFormat::kRawImageI420) {
@@ -200,17 +200,17 @@ namespace px
 			if (y_buffer_) {
 				gl_func_->glActiveTexture(GL_TEXTURE0);
 				gl_func_->glBindTexture(GL_TEXTURE_2D, y_texture_id_);
-				gl_func_->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex_width_, tex_height_, GL_RED, GL_UNSIGNED_BYTE, y_buffer_->CStr());
+				gl_func_->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex_width_, tex_height_, GL_RED, GL_UNSIGNED_BYTE, y_buffer_->Bytes().data());
 			}
 			if (u_buffer_) {
 				gl_func_->glActiveTexture(GL_TEXTURE1);
 				gl_func_->glBindTexture(GL_TEXTURE_2D, u_texture_id_);
-				gl_func_->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex_width_/2, tex_height_/2, GL_RED, GL_UNSIGNED_BYTE, u_buffer_->CStr());
+				gl_func_->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex_width_/2, tex_height_/2, GL_RED, GL_UNSIGNED_BYTE, u_buffer_->Bytes().data());
 			}
 			if (v_buffer_) {
 				gl_func_->glActiveTexture(GL_TEXTURE2);
 				gl_func_->glBindTexture(GL_TEXTURE_2D, v_texture_id_);
-				gl_func_->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex_width_ / 2, tex_height_ / 2, GL_RED, GL_UNSIGNED_BYTE, v_buffer_->CStr());
+				gl_func_->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex_width_ / 2, tex_height_ / 2, GL_RED, GL_UNSIGNED_BYTE, v_buffer_->Bytes().data());
 			}
 		}
 		else if (raw_image_format_ == RawImageFormat::kRawImageI444) {
@@ -222,17 +222,17 @@ namespace px
 			if (y_buffer_) {
 				gl_func_->glActiveTexture(GL_TEXTURE0);
 				gl_func_->glBindTexture(GL_TEXTURE_2D, y_texture_id_);
-				gl_func_->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex_width_, tex_height_, GL_RED, GL_UNSIGNED_BYTE, y_buffer_->CStr());
+				gl_func_->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex_width_, tex_height_, GL_RED, GL_UNSIGNED_BYTE, y_buffer_->Bytes().data());
 			}
 			if (u_buffer_) {
 				gl_func_->glActiveTexture(GL_TEXTURE1);
 				gl_func_->glBindTexture(GL_TEXTURE_2D, u_texture_id_);
-				gl_func_->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex_width_, tex_height_, GL_RED, GL_UNSIGNED_BYTE, u_buffer_->CStr());
+				gl_func_->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex_width_, tex_height_, GL_RED, GL_UNSIGNED_BYTE, u_buffer_->Bytes().data());
 			}
 			if (v_buffer_) {
 				gl_func_->glActiveTexture(GL_TEXTURE2);
 				gl_func_->glBindTexture(GL_TEXTURE_2D, v_texture_id_);
-				gl_func_->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex_width_, tex_height_, GL_RED, GL_UNSIGNED_BYTE, v_buffer_->CStr());
+				gl_func_->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex_width_, tex_height_, GL_RED, GL_UNSIGNED_BYTE, v_buffer_->Bytes().data());
 			}
 		}
 

@@ -83,7 +83,7 @@ cmake --build build_official -j18 --target ^
     test_auto_start test_win_helper test_dxgi_mon_detector test_network_adapter ^
     test_qr_generator test_process test_process_helper test_uncovered test_snowflake_id ^
     test_clipboard_echo test_clipboard_file_builder test_clipboard_platform ^
-    test_px_udp_protocol test_thread_exit test_task_runtime_exit ^
+    test_px_udp_protocol test_thread_exit test_blocking_executor ^
     test_asio_event_dispatcher_concurrency test_message_notifier ^
     test_file_transfer_send_result test_async_runtime test_file_transfer_route_registry ^
     test_ft_path_security test_ft_compress test_ft_transfer_job test_ft_engine ^

@@ -145,7 +145,7 @@ void WebRtcLocalTransport::SweepDeadRtcServers() {
     });
     for (const auto& [k, srv] : dead_servers) {
         // 只删除扫描到的旧对象；同 key 已被新会话复用时保持新值不动。
-        runtime_->servers.RemoveIf(k, [srv](const std::shared_ptr<RtcServer>& current) { return current == srv; });
+        static_cast<void>(runtime_->servers.RemoveIf(k, [srv](const std::shared_ptr<RtcServer>& current) { return current == srv; }));
         LOGI("Sweep dead rtc server: {}", k);
         srv->Exit();
     }
@@ -330,7 +330,8 @@ void WebRtcLocalTransport::OnRemoteSdp(const MsgRtcRemoteSdp& message) {
                 return;
             }
             LOGW("Standard RTC in-place restart failed, replacing peer: {}", conn_id);
-            runtime->servers.RemoveIf(conn_id, [server](const std::shared_ptr<RtcServer>& current) { return current == server; });
+            static_cast<void>(
+                runtime->servers.RemoveIf(conn_id, [server](const std::shared_ptr<RtcServer>& current) { return current == server; }));
             PxAsyncRuntime::DeferJoin(std::jthread([server]() { server->Exit(); }));
         }
 
@@ -374,7 +375,7 @@ static bool IsMediaFrameMessage(const std::shared_ptr<Data>& msg) {
     if (!msg || msg->Size() < 2) {
         return false;
     }
-    const auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(msg->DataAddr()),
+    const auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(msg->MutableBytes().data()),
                                                 msg->Size()); // NOLINT(gammaray-raw-pointer-boundary): Data view is wrapped immediately
     const size_t n = msg->Size();
     size_t i = 0;
@@ -943,7 +944,7 @@ PxLocalRtcAllocResult WebRtcLocalTransport::AllocNewLocalRtcInstance(const std::
             // block on WebRTC work and must never run on the signaling
             // thread.
             for (const auto& [k, srv] : old_servers) {
-                runtime_->servers.RemoveIf(k, [srv](const std::shared_ptr<RtcServer>& current) { return current == srv; });
+                static_cast<void>(runtime_->servers.RemoveIf(k, [srv](const std::shared_ptr<RtcServer>& current) { return current == srv; }));
             }
             PxAsyncRuntime::DeferJoin(std::jthread([old_servers = std::move(old_servers)]() {
                 for (const auto& [k, srv] : old_servers) {

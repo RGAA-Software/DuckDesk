@@ -163,7 +163,7 @@ namespace px
 
     std::shared_ptr<RelayMessage> RelayServerSdk::ProcessProtoMessage(std::shared_ptr<Data> msg) {
         auto rl_msg = std::make_shared<RelayMessage>();
-        if (!rl_msg->ParsePartialFromArray(msg->CStr(), msg->Size())) {
+        if (!rl_msg->ParsePartialFromArray(msg->Bytes().data(), msg->Size())) {
             return nullptr;
         }
 
@@ -279,7 +279,7 @@ namespace px
 
     void RelayServerSdk::OnRoomDestroyed(const std::shared_ptr<RelayMessage>& msg) {
         auto rd = msg->room_destroyed();
-        rooms_.Remove(rd.room_id());
+        static_cast<void>(rooms_.Remove(rd.room_id()));
         LOGI("** OnRoomDestroyed: {}", rd.room_id());
     }
 

@@ -8,16 +8,15 @@
 #include "px_common_new/log.h"
 #include "px_common_new/http_client.h"
 #include "px_common_new/shared_preference.h"
-#include "px_common_new/const_auto.h"
 #include "../panel_companion_impl.h"
 
 using namespace nlohmann;
 
 #define LOCAL_HOST 0
 #if LOCAL_HOST
-cat sHost = "127.0.0.1";
+const auto sHost = "127.0.0.1";
 #else
-cat sHost = "pixels.yun";
+const auto sHost = "pixels.yun";
 #endif
 
 namespace px
@@ -33,16 +32,16 @@ namespace px
     }
 
     bool StatManager::ReportWorkingAuth(const std::shared_ptr<SysInfo>& info) {
-        cat host = sHost;//"pixels.yun";
-        cat port = 30300;
-        cat client = HttpClient::MakeSSL(host, port, kUpdateAuthStat, 5000);
+        const auto host = sHost;//"pixels.yun";
+        const auto port = 30300;
+        const auto client = HttpClient::MakeSSL(host, port, kUpdateAuthStat, 5000);
         json obj;
         obj["auth_id"] = impl_->GetAuthId();
         obj["auth_name"] = impl_->GetAuthName();
         obj["auth_machine_code"] = impl_->GetMachineCode();
         obj["sys_info"] = info->AsSimpleInfo();
 
-        cat response = client->Post({
+        const auto response = client->Post({
             {"token", kToken}
         }, obj.dump());
         if (response.status != 200) {
@@ -51,7 +50,7 @@ namespace px
         }
 
         try {
-            cat value = json::parse(response.body);
+            const auto value = json::parse(response.body);
             if (!value["data"].is_null()) {
                 return true;
             }
@@ -63,14 +62,14 @@ namespace px
     }
 
     bool StatManager::ReportOpenUp(const std::shared_ptr<SysInfo>& info) {
-        cat host = sHost;
-        cat port = 30300;
-        cat client = HttpClient::MakeSSL(host, port, kOpenUp, 5000);
+        const auto host = sHost;
+        const auto port = 30300;
+        const auto client = HttpClient::MakeSSL(host, port, kOpenUp, 5000);
         json obj;
         obj["device_id"] = impl_->GetDeviceId();
         obj["sys_info"] = info->AsSimpleInfo();
 
-        cat response = client->Post({
+        const auto response = client->Post({
             {"token", kToken}
         }, obj.dump());
         if (response.status != 200) {
@@ -79,7 +78,7 @@ namespace px
         }
 
         try {
-            cat value = json::parse(response.body);
+            const auto value = json::parse(response.body);
             if (!value["data"].is_null()) {
                 return true;
             }

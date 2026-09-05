@@ -102,7 +102,7 @@ namespace px
        .bind_disconnect([=, this](auto& sess_ptr) {
            auto socket_fd = fn_get_socket_fd(sess_ptr);
            LOGI("client closed: {}", socket_fd);
-           sessions_.Remove(socket_fd);
+           static_cast<void>(sessions_.Remove(socket_fd));
        });
 
         bool ret = server_->start("0.0.0.0", context_->GetListeningPort());

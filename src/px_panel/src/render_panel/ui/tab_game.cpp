@@ -30,6 +30,7 @@
 #include "render_panel/ui/qt_lifetime_guard.h"
 #include "px_common_new/log.h"
 #include "px_common_new/message_notifier.h"
+#include "px_common_new/string_util.h"
 #include "px_steam_manager_new/steam_manager.h"
 #include "px_steam_manager_new/steam_entities.h"
 #include "game_info_preview.h"

@@ -9,6 +9,7 @@
 #include "px_common_new/async_runtime.h"
 #include "px_common_new/file.h"
 #include "px_common_new/log.h"
+#include "px_common_new/string_util.h"
 #include "px_opus_codec_new/opus_codec.h"
 
 namespace px {
@@ -209,7 +210,7 @@ void OpusEncoderRuntime::ProcessEntry(const std::shared_ptr<WorkerState>& state,
 
     if (state->config.debug_decoder) {
         if (!state->original_pcm_file) {
-            state->original_pcm_file = File::OpenForWriteB(U8Path("1.opus.encoder.plugin.origin.pcm"));
+            state->original_pcm_file = File::OpenForWriteB(PathFromUTF8("1.opus.encoder.plugin.origin.pcm"));
         }
         if (state->original_pcm_file) {
             state->original_pcm_file->Append(entry.data);
@@ -231,7 +232,7 @@ void OpusEncoderRuntime::ProcessEntry(const std::shared_ptr<WorkerState>& state,
     const int frame_size = static_cast<int>(state->audio_cache.size() / bytes_per_frame);
     const auto encoded_frames = state->encoder->Encode(state->audio_cache.data(), static_cast<int>(state->audio_cache.size()), frame_size);
     for (const auto& encoded_frame : encoded_frames) {
-        auto encoded_data = Data::Make(reinterpret_cast<const char*>(encoded_frame.data()), static_cast<int64_t>(encoded_frame.size()));
+        auto encoded_data = Data::Copy(std::span<const char>{reinterpret_cast<const char*>(encoded_frame.data()), encoded_frame.size()});
         state->delivery_channel->Deliver(encoded_data, entry.sample_rate, entry.channels, entry.bits, frame_size);
 
         if (state->config.debug_decoder) {
@@ -240,11 +241,11 @@ void OpusEncoderRuntime::ProcessEntry(const std::shared_ptr<WorkerState>& state,
             }
             const auto pcm = state->decoder->Decode(encoded_frame, frame_size, false);
             if (!state->decoded_pcm_file) {
-                state->decoded_pcm_file = File::OpenForWriteB(U8Path("1.test.pcm"));
+                state->decoded_pcm_file = File::OpenForWriteB(PathFromUTF8("1.test.pcm"));
             }
             if (state->decoded_pcm_file && !pcm.empty()) {
                 state->decoded_pcm_file->Append(
-                    Data::Make(reinterpret_cast<const char*>(pcm.data()), static_cast<int64_t>(pcm.size() * sizeof(pcm.front()))));
+                    Data::Copy(std::span<const char>{reinterpret_cast<const char*>(pcm.data()), pcm.size() * sizeof(pcm.front())}));
             }
         }
     }

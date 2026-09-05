@@ -102,7 +102,7 @@ namespace px_console
                                                                   const std::shared_ptr<std::atomic_bool>& cancellation) {
         std::string hw_info;
         if (info.empty()) {
-            auto hardware_desc = Hardware::Instance()->GetHardwareDescription();
+            auto hardware_desc = Hardware::Instance().GetHardwareDescription();
             auto et_info = IPUtil::ScanIPs();
             std::string mac_address;
             for (auto &item: et_info) {

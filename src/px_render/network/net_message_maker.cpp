@@ -91,18 +91,18 @@ namespace px
         hb->set_audio_capture_type("WASAPI");
         hb->set_audio_encode_type("OPUS");
 
-        auto hardware = Hardware::Instance();
+        auto& hardware = Hardware::Instance();
         std::stringstream ss;
-        if (hardware->gpus_.empty()) {
+        if (hardware.gpus_.empty()) {
             ss << "NO GPU";
         }
         else {
-            for (const auto &gpu: hardware->gpus_) {
+            for (const auto &gpu: hardware.gpus_) {
                 ss << gpu.name_ << ";";
             }
         }
-        auto cpu_name = StringUtil::Trim(hardware->hw_cpu_.name_);
-        auto pc_info = std::format("{} / {} / {}", cpu_name, NumFormatter::FormatStorageSize(hardware->memory_size_), ss.str());
+        auto cpu_name = StringUtil::Trim(hardware.hw_cpu_.name_);
+        auto pc_info = std::format("{} / {} / {}", cpu_name, NumFormatter::FormatStorageSize(hardware.memory_size_), ss.str());
         hb->set_pc_info(pc_info);
 
         // total hardware info
@@ -110,22 +110,22 @@ namespace px
         // cpu
         {
             auto cpu = device_info->mutable_cpu();
-            cpu->set_name(hardware->hw_cpu_.name_);
-            cpu->set_id(hardware->hw_cpu_.id_);
-            cpu->set_num_cores(hardware->hw_cpu_.num_cores_);
-            cpu->set_max_clock_speed(hardware->hw_cpu_.max_clock_speed_);
+            cpu->set_name(hardware.hw_cpu_.name_);
+            cpu->set_id(hardware.hw_cpu_.id_);
+            cpu->set_num_cores(hardware.hw_cpu_.num_cores_);
+            cpu->set_max_clock_speed(hardware.hw_cpu_.max_clock_speed_);
         }
 
         // memory
         {
             auto memory = device_info->mutable_memory();
-            memory->set_total_size(hardware->memory_size_);
+            memory->set_total_size(hardware.memory_size_);
         }
 
         // gpu
         {
             auto gpus = device_info->mutable_gpus();
-            for (const auto& item : hardware->gpus_) {
+            for (const auto& item : hardware.gpus_) {
                 auto gpu = gpus->Add();
                 gpu->set_name(item.name_);
                 gpu->set_size_in_bytes(item.size_);
@@ -138,7 +138,7 @@ namespace px
         // disks
         {
             auto disks = device_info->mutable_disks();
-            for (const auto& item : hardware->hw_disks_) {
+            for (const auto& item : hardware.hw_disks_) {
                 auto disk = disks->Add();
                 disk->set_name(item.name_);
                 disk->set_model(item.model_);
@@ -149,7 +149,7 @@ namespace px
         }
 
         // desktop name
-        hb->set_desktop_name(hardware->desktop_name_);
+        hb->set_desktop_name(hardware.desktop_name_);
 
         // os name
         static std::string os_name;
@@ -218,7 +218,7 @@ namespace px
         auto msg = std::make_shared<Message>();
         msg->set_type(px::kAudioFrame);
         auto frame = new AudioFrame();
-        frame->set_data(data->CStr(), data->Size());
+        frame->set_data(data->Bytes().data(), data->Size());
         frame->set_samples(samples);
         frame->set_channels(channels);
         frame->set_bits(bits);
@@ -241,7 +241,7 @@ namespace px
         cursor_info->set_hotspot_x(hotspot_x);
         cursor_info->set_hotspot_y(hotspot_y);
         if (data) {
-            cursor_info->set_bitmap(data->DataAddr(), data->Size());
+            cursor_info->set_bitmap(data->MutableBytes().data(), data->Size());
         }
         cursor_info->set_type((CursorInfoSync::CursorType)type);
         msg->set_allocated_cursor_info_sync(cursor_info);

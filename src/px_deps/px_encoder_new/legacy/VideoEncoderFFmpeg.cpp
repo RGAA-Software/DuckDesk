@@ -70,9 +70,9 @@ namespace px {
 		// �������
 		int y_size = m_width * m_height;
 		int uv_size = m_width * m_height / 4;
-		memcpy(frame->data[0], i420_data->CStr(), y_size);
-		memcpy(frame->data[1], i420_data->CStr() + y_size, uv_size);
-		memcpy(frame->data[2], i420_data->CStr() + y_size + uv_size, uv_size);
+		memcpy(frame->data[0], i420_data->Bytes().data(), y_size);
+		memcpy(frame->data[1], i420_data->Bytes().data() + y_size, uv_size);
+		memcpy(frame->data[2], i420_data->Bytes().data() + y_size + uv_size, uv_size);
 
 		int sendResult = avcodec_send_frame(context, frame);
 
@@ -86,7 +86,8 @@ namespace px {
 			
 			//outputFile.write((char*)packet->data, packet->size);
 			
-			auto encoded_data = Data::Make((char*)packet->data, packet->size);
+			auto encoded_data =
+				Data::Copy(std::span<const char>{reinterpret_cast<const char*>(packet->data), static_cast<std::size_t>(packet->size)});
 			if (m_Listener) {
 				m_Listener(encoded_data, frame_index, false);
 			}

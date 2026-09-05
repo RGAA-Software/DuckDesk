@@ -662,18 +662,19 @@ namespace px
                 lbl_rtc_transport_->setToolTip(lbl_rtc_transport_->text());
             }
 
-            auto hardware = Hardware::Instance();
+            auto& hardware = Hardware::Instance();
             std::stringstream ss;
-            if (hardware->gpus_.empty()) {
+            if (hardware.gpus_.empty()) {
                 ss << "NO GPU";
             }
             else {
-                for (const auto &gpu: hardware->gpus_) {
+                for (const auto &gpu: hardware.gpus_) {
                     ss << gpu.name_ << ";";
                 }
             }
-            auto cpu_name = QString::fromStdString(hardware->hw_cpu_.name_).trimmed();
-            lbl_local_computer_info_->setText(std::format("{} / {} / {}", cpu_name.toStdString(), NumFormatter::FormatStorageSize(hardware->memory_size_), ss.str()).c_str());
+            auto cpu_name = QString::fromStdString(hardware.hw_cpu_.name_).trimmed();
+            lbl_local_computer_info_->setText(
+                std::format("{} / {} / {}", cpu_name.toStdString(), NumFormatter::FormatStorageSize(hardware.memory_size_), ss.str()).c_str());
             lbl_local_computer_info_->setToolTip(lbl_local_computer_info_->text());
 
             lbl_remote_computer_info_->setText(sdk_stat_->remote_pc_info_.Clone().c_str());

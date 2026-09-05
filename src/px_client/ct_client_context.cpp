@@ -4,9 +4,12 @@
 
 #include "px_client/ct_client_context.h"
 
+#include <filesystem>
+
 #include "px_client/ct_settings.h"
 #include "px_common_new/message_notifier.h"
 #include "px_common_new/shared_preference.h"
+#include "px_common_new/string_util.h"
 #include "px_common_new/thread.h"
 #include "px_common_new/log.h"
 #include "px_common_new/md5.h"
@@ -48,7 +51,7 @@ namespace px
 
         sp_ = SharedPreference::Instance();
         auto sp_name = std::format("app.{}.dat", this->name_);
-        if (!sp_->Init(data_path + L"/px_data", sp_name)) {
+        if (!sp_->Init(std::filesystem::path{data_path + L"/px_data"}, sp_name)) {
             LOGE("!! Init sp failed: {}", sp_name);
         }
         else {
@@ -71,9 +74,9 @@ namespace px
         const auto weak_self = weak_from_this();
         PostTask([weak_self]() {
             if (weak_self.expired()) return;
-            auto hardware = Hardware::Instance();
-            hardware->Detect(false, true, false);
-            hardware->Dump();
+            auto& hardware = Hardware::Instance();
+            hardware.Detect(false, true, false);
+            hardware.Dump();
         });
     }
 

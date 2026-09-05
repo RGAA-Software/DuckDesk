@@ -5,7 +5,7 @@
 #include "px_common_new/log.h"
 #include "px_common_new/file.h"
 #include "px_common_new/image.h"
-#include "px_common_new/math_helper.h"
+#include "px_common_new/string_util.h"
 #include "px_render/modules/module_ids.h"
 #include "gdi_capture.h"
 #include <chrono>

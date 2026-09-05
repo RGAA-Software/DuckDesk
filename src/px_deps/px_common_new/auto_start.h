@@ -1,53 +1,42 @@
-//
-// Created by RGAA on 28/07/2025.
-//
-
 #ifndef GAMMARAYPREMIUM_AUTO_START_H
 #define GAMMARAYPREMIUM_AUTO_START_H
+
 #ifdef WIN32
-#include <string>
+
+#include <filesystem>
+#include <string_view>
+
+#include <Windows.h>
 #include <taskschd.h>
+#include <wrl/client.h>
+
 #pragma comment(lib, "taskschd.lib")
 
-namespace px
-{
+namespace px {
 
-    class AutoStart {
-    public:
-        // reg
-        static void SetAutoStart(const std::wstring& exe_path, bool enabled);
-        static void SetAutoStartAdmin(const std::wstring& exe_path, bool enabled);
+class AutoStart final {
+public:
+    static bool SetAutoStart(const std::filesystem::path& executable, bool enabled);
+    static bool SetAutoStartAdmin(const std::filesystem::path& executable, bool enabled);
 
-        AutoStart();
-        ~AutoStart();
+    AutoStart();
+    ~AutoStart();
 
-        // task
-        //************************************
-        // 函数名:  CMyTaskSchedule::NewTask
-        // 返回类型:   BOOL
-        // 功能: 创建计划任务
-        // 参数1: char * lpszTaskName    计划任务名
-        // 参数2: char * lpszProgramPath    计划任务路径
-        // 参数3: char * lpszParameters        计划任务参数
-        // 参数4: char * lpszAuthor            计划任务作者
-        //************************************
-        BOOL NewLogonTask(char* lpszTaskName, char* lpszProgramPath, char* lpszParameters, char* lpszAuthor);
+    AutoStart(const AutoStart&) = delete;
+    AutoStart& operator=(const AutoStart&) = delete;
 
-        BOOL NewTimeTask(char* lpszTaskName, char* lpszProgramPath, char* lpszParameters, char* lpszAuthor);
+    [[nodiscard]] bool IsReady() const noexcept;
+    bool CreateLogonTask(std::string_view task_name, const std::filesystem::path& executable, std::string_view arguments,
+                         std::string_view author);
+    bool Delete(std::string_view task_name);
 
-        //************************************
-        // 函数名:  CMyTaskSchedule::Delete
-        // 返回类型:   BOOL
-        // 功能: 删除计划任务
-        // 参数1: char * lpszTaskName    计划任务名
-        //************************************
-        BOOL Delete(char* lpszTaskName);
+private:
+    bool com_initialized_{false};
+    Microsoft::WRL::ComPtr<ITaskService> task_service_{};
+    Microsoft::WRL::ComPtr<ITaskFolder> root_folder_{};
+};
 
-    private:
-        ITaskService *m_lpITS = nullptr;
-        ITaskFolder *m_lpRootFolder = nullptr;
-    };
+}  // namespace px
 
-}
-#endif // WIN32
-#endif //GAMMARAYPREMIUM_AUTO_START_H
+#endif  // WIN32
+#endif  // GAMMARAYPREMIUM_AUTO_START_H

@@ -4,6 +4,7 @@ find_package(GTest CONFIG REQUIRED)
 function(add_ft_test name source)
     add_executable(${name} ${source})
     target_link_libraries(${name} PRIVATE px_ft_engine GTest::gtest GTest::gtest_main)
+    add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
 add_ft_test(test_ft_path_security test_ft_path_security.cpp)
@@ -18,3 +19,4 @@ add_ft_test(test_ft_integrity test_ft_integrity.cpp)
 add_executable(test_ft_terminal test_ft_terminal.cpp)
 target_link_libraries(test_ft_terminal PRIVATE
     px_ft_engine px_cp_message px_rp_message GTest::gtest GTest::gtest_main)
+add_test(NAME test_ft_terminal COMMAND test_ft_terminal)

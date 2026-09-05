@@ -125,7 +125,7 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
                     LOGW("Drop unauthorized or malformed full RTC media payload");
                     return;
                 }
-                auto payload_msg = Data::Make(data.data(), data.size());
+                auto payload_msg = Data::From(data);
                 locked->runtime_->DispatchClientEvent(false, TransportChannel::kMedia, std::move(payload_msg),
                                                       std::string("rtc:") + locked->stream_id_);
             });
@@ -142,7 +142,7 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
                     LOGW("Drop unauthorized or malformed full RTC file payload");
                     return;
                 }
-                auto payload_msg = Data::Make(data.data(), data.size());
+                auto payload_msg = Data::From(data);
                 locked->runtime_->DispatchClientEvent(false, TransportChannel::kFileTransfer, std::move(payload_msg),
                                                       locked->connection_instance_id_);
             });
@@ -159,7 +159,7 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
                 if (!locked) {
                     return;
                 }
-                auto payload_msg = Data::Make(data.data(), data.size());
+                auto payload_msg = Data::From(data);
                 locked->runtime_->DispatchClientEvent(true, TransportChannel::kMedia, std::move(payload_msg),
                                                       std::string("rtc:") + locked->stream_id_);
             });

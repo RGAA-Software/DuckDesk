@@ -22,7 +22,6 @@
 #include "settings/rd_settings.h"
 #include "app/app_messages.h"
 #include "rd_statistics.h"
-#include "px_common_new/win32/d3d_render.h"
 #include "px_common_new/win32/d3d_debug_helper.h"
 #include "px_render/modules/render_module_registry.h"
 #include "px_render/modules/module_ids.h"
@@ -152,7 +151,7 @@ namespace px
                     ++g_enc_diag.task_dones;
                     g_enc_diag.DumpIfDue();
                 }
-            } diag_guard{diag_task_beg};
+            } diag_guard{static_cast<std::int64_t>(diag_task_beg)};
             if (clear_encoders_) {
                 clear_encoders_ = false;
                 LOGW("clear all encoders!!!");

@@ -66,7 +66,7 @@ namespace px
 
     private:
         void InstallCallbacks();
-        void OnUdpPacket(const char* data, size_t size);
+        void OnUdpPacket(std::span<const char> data);
         void OnCompleteFrame(const PxUdpFrameReassembler::CompleteFrame& frame);
         void RequestIdr(const std::string& mon_name);
         void RequestIdrKeepalive(const std::string& mon_name);

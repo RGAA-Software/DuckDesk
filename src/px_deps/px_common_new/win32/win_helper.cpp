@@ -11,9 +11,14 @@
 #include <winternl.h>
 #include <filesystem>
 #include <format>
+#include <array>
+#include <cstdint>
+#include <memory>
+#include <type_traits>
 #include <vector>
 #include <WtsApi32.h>
 #include "px_common_new/string_util.h"
+#include "px_common_new/win32/unique_win_handle.h"
 
 #pragma comment(lib, "Wtsapi32.lib")
 #pragma comment(lib, "Shlwapi.lib")
@@ -27,40 +32,65 @@ constexpr auto kMaxTexBufSize = 1024;
 
 namespace px
 {
+    namespace {
+        struct ModuleCloser final {
+            void operator()(std::remove_pointer_t<HMODULE>* module) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): HMODULE ABI.
+                if (module != nullptr) {
+                    FreeLibrary(module);
+                }
+            }
+        };
+        using UniqueModule = std::unique_ptr<std::remove_pointer_t<HMODULE>, ModuleCloser>;
+
+        struct DesktopCloser final {
+            void operator()(std::remove_pointer_t<HDESK>* desktop) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): HDESK ABI.
+                if (desktop != nullptr) {
+                    CloseDesktop(desktop);
+                }
+            }
+        };
+        using UniqueDesktop = std::unique_ptr<std::remove_pointer_t<HDESK>, DesktopCloser>;
+
+        struct WtsMemoryCloser final {
+            void operator()(TCHAR* memory) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): WTS allocation ABI.
+                WTSFreeMemory(memory);
+            }
+        };
+        using UniqueWtsMemory = std::unique_ptr<TCHAR, WtsMemoryCloser>;
+    }
 
     Response<bool, bool>
     WinHelper::IsDllInjected(uint32_t pid, const std::string &x86_dll_name, const std::string &x64_dll_name) {
         auto resp = Response<bool, bool>::Make(false, false);
-        HANDLE hnd_process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
-        if (hnd_process == nullptr) {
+        const UniqueWinHandle process{OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid)};
+        if (!process) {
             LOGE("IsAlreadyInject OpenProcess failed.");
             return resp;
         }
 
-        BOOL x86;
-        if (!IsWow64Process(hnd_process, &x86)) {
+        BOOL x86{};
+        if (!IsWow64Process(process.get(), &x86)) {
             LOGE("IsWow64Process failed with: {}", GetLastError());
-            CloseHandle(hnd_process);
             return resp;
         }
 
         // 没有配置对应位数的 DLL 名（当前只有 64 位版 px_gh.dll），
         // 32 位目标直接视为未注入，避免空串比较导致的无效全量枚举
         if ((x86 && x86_dll_name.empty()) || (!x86 && x64_dll_name.empty())) {
-            CloseHandle(hnd_process);
             resp.ok_ = true;
             resp.value_ = false;
             return resp;
         }
 
         bool ret_val = false;
-        HMODULE h_modules[1024];
-        DWORD needed = sizeof(h_modules);
-        if (EnumProcessModulesEx(hnd_process, h_modules, needed,
+        std::array<std::uintptr_t, 1024> module_values{};
+        DWORD needed = sizeof(module_values);
+        if (EnumProcessModulesEx(process.get(), reinterpret_cast<HMODULE*>(module_values.data()), needed,
                                  &needed, x86 ? LIST_MODULES_32BIT : LIST_MODULES_64BIT)) {
-            for (int i = 0; i < needed / sizeof(HMODULE); ++i) {
-                char name[MAX_PATH] = {0};
-                if (GetModuleBaseNameA(hnd_process, h_modules[i], name, sizeof(name))) {
+            const auto module_count = (std::min)(module_values.size(), static_cast<std::size_t>(needed) / sizeof(HMODULE));
+            for (std::size_t i = 0; i < module_count; ++i) {
+                char name[MAX_PATH]{};
+                if (GetModuleBaseNameA(process.get(), reinterpret_cast<HMODULE>(module_values[i]), name, sizeof(name))) {
                     //_strlwr(name);
                     if (x86) {
                         if (::_stricmp(x86_dll_name.c_str(), name) == 0) {
@@ -80,8 +110,6 @@ namespace px
         } else {
             LOGE("EnumProcessModulesEx failed with: {}", GetLastError());
         }
-
-        CloseHandle(hnd_process);
 
         resp.ok_ = true;
         resp.value_ = ret_val;
@@ -110,9 +138,9 @@ namespace px
         STARTUPINFOW si = { sizeof(si) };
         PROCESS_INFORMATION pi = {};
         if (CreateProcessW(nullptr, &cmd_line[0], nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi)) {
-            WaitForSingleObject(pi.hProcess, INFINITE);
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
+            const UniqueWinHandle process{pi.hProcess};
+            const UniqueWinHandle thread{pi.hThread};
+            WaitForSingleObject(process.get(), INFINITE);
         } else {
             LOGE("CreateProcessW failed: {}", GetLastError());
         }
@@ -121,50 +149,44 @@ namespace px
 
     Response<bool, bool> WinHelper::IsX86Arch(uint32_t pid) {
         auto resp = Response<bool, bool>::Make(false, false);
-        HANDLE hnd_process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
-        if (hnd_process == nullptr) {
+        const UniqueWinHandle process{OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid)};
+        if (!process) {
             return resp;
         }
-        BOOL px86;
-        if (!IsWow64Process(hnd_process, &px86)) {
-            CloseHandle(hnd_process);
+        BOOL px86{};
+        if (!IsWow64Process(process.get(), &px86)) {
             return resp;
         }
-        CloseHandle(hnd_process);
         resp.ok_ = true;
         resp.value_ = px86;
         return resp;
     }
 
     std::string WinHelper::GetExeFolderPath() {
-        wchar_t file_path[MAX_PATH + 1] = {0};
-        GetModuleFileNameW(nullptr, file_path, MAX_PATH);
-        wchar_t* last_slash = wcsrchr(file_path, L'\\');
-        if (last_slash) {
-            *last_slash = L'\0';
+        std::wstring file_path(32768, L'\0');
+        const DWORD length = GetModuleFileNameW(nullptr, file_path.data(), static_cast<DWORD>(file_path.size()));
+        if (length == 0 || length == file_path.size()) {
+            LOGE("GetModuleFileNameW failed: {}", GetLastError());
+            return {};
         }
-        return StringUtil::ToUTF8(file_path);
+        file_path.resize(length);
+        return StringUtil::ToUTF8(std::filesystem::path(file_path).parent_path().wstring());
     }
 
     Response<bool, std::string> WinHelper::GetPathByHwnd(HWND hwnd) {
         auto ret = Response<bool, std::string>::Make(false, "");
-        DWORD dwPid = -1;
+        DWORD dwPid{};
         GetWindowThreadProcessId(hwnd, &dwPid);
-        if (dwPid == -1)
+        if (dwPid == 0)
             return ret;
 
-        HANDLE handle = OpenProcess(
-                PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
-                FALSE, dwPid);
-        if (handle == NULL)
+        const UniqueWinHandle process{OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, dwPid)};
+        if (!process)
             return ret;
-        std::shared_ptr<void> hprocessAutoFree(NULL, [=](void *) {
-            CloseHandle(handle);
-        });
 
-        wchar_t path[4096] = {0};
-        DWORD len = sizeof(path) / sizeof(*path);
-        if (!QueryFullProcessImageNameW(handle, 0, path, &len)) {
+        wchar_t path[4096]{};
+        DWORD len = std::size(path);
+        if (!QueryFullProcessImageNameW(process.get(), 0, path, &len)) {
             LOGW("QueryFullProcessImageNameW failed.");
             return ret;
         }
@@ -184,19 +206,14 @@ namespace px
 
     Response<bool, std::string> WinHelper::GetExeName(DWORD pid) {
         auto ret = Response<bool, std::string>::Make(false, "");
-        HANDLE handle = OpenProcess(
-                PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
-                FALSE, pid);
-        if (handle == NULL) {
+        const UniqueWinHandle process{OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid)};
+        if (!process) {
             return ret;
         }
-        std::shared_ptr<void> dtor(NULL, [=](void *) {
-            CloseHandle(handle);
-        });
-        wchar_t path[4096] = {0};
-        DWORD len = sizeof(path) / sizeof(*path);
+        wchar_t path[4096]{};
+        DWORD len = std::size(path);
         std::string upath;
-        if (!QueryFullProcessImageNameW(handle, 0, path, &len)) {
+        if (!QueryFullProcessImageNameW(process.get(), 0, path, &len)) {
             LOGW("QueryFullProcessImageNameW failed.");
             return ret;
         }
@@ -281,51 +298,41 @@ namespace px
     }
 
     bool WinHelper::DontCareDPI() {
-        typedef HRESULT* (__stdcall* SetProcessDpiAwarenessFunc)(DPI_AWARENESS_CONTEXT);
-        bool res = true;
-        HMODULE shCore = LoadLibraryA("User32.dll");
-        if (shCore) {
-            auto setProcessDpiAwareness = (SetProcessDpiAwarenessFunc)GetProcAddress(shCore, "SetProcessDpiAwarenessContext");
-            if (setProcessDpiAwareness != nullptr)
-            {
-                setProcessDpiAwareness(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-            }
-            else {
-                res = false;
-            }
-            FreeLibrary(shCore);
+        using SetProcessDpiAwarenessFunc = BOOL(__stdcall*)(DPI_AWARENESS_CONTEXT);  // NOLINT(gammaray-raw-pointer-boundary): Win32 ABI.
+        const UniqueModule user32{LoadLibraryW(L"User32.dll")};
+        if (!user32) {
+            return false;
         }
-        return res;
+        const auto set_process_dpi_awareness = reinterpret_cast<SetProcessDpiAwarenessFunc>(
+            GetProcAddress(user32.get(), "SetProcessDpiAwarenessContext"));
+        return set_process_dpi_awareness != nullptr && set_process_dpi_awareness(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) != FALSE;
     }
 
 
     bool WinHelper::InputDesktopSelected() {
-        HDESK current = GetThreadDesktop(GetCurrentThreadId());
-        HDESK input = OpenInputDesktop(0, FALSE,
+        const HDESK current = GetThreadDesktop(GetCurrentThreadId());  // NOLINT(gammaray-raw-pointer-boundary): borrowed thread desktop.
+        const UniqueDesktop input{OpenInputDesktop(0, FALSE,
             DESKTOP_CREATEMENU | DESKTOP_CREATEWINDOW |
             DESKTOP_ENUMERATE | DESKTOP_HOOKCONTROL |
             DESKTOP_WRITEOBJECTS | DESKTOP_READOBJECTS |
-            DESKTOP_SWITCHDESKTOP | GENERIC_WRITE);
+            DESKTOP_SWITCHDESKTOP | GENERIC_WRITE)};
         if (!input)
         {
             return FALSE;
         }
 
-        DWORD size;
-        char currentname[256];
-        char inputname[256];
+        DWORD size{};
+        char currentname[256]{};
+        char inputname[256]{};
 
         if (!GetUserObjectInformation(current, UOI_NAME, currentname, sizeof(currentname), &size))
         {
-            CloseDesktop(input);
             return FALSE;
         }
-        if (!GetUserObjectInformation(input, UOI_NAME, inputname, sizeof(inputname), &size))
+        if (!GetUserObjectInformation(input.get(), UOI_NAME, inputname, sizeof(inputname), &size))
         {
-            CloseDesktop(input);
             return FALSE;
         }
-        CloseDesktop(input);
         
         return strcmp(currentname, inputname) == 0 ? TRUE : FALSE;
     }
@@ -334,63 +341,59 @@ namespace px
     bool WinHelper::SelectInputDesktop() {
     
         // - Open the input desktop
-        HDESK desktop = OpenInputDesktop(0, FALSE,
+        UniqueDesktop desktop{OpenInputDesktop(0, FALSE,
             DESKTOP_CREATEMENU | DESKTOP_CREATEWINDOW |
             DESKTOP_ENUMERATE | DESKTOP_HOOKCONTROL |
             DESKTOP_WRITEOBJECTS | DESKTOP_READOBJECTS |
-            DESKTOP_SWITCHDESKTOP | GENERIC_WRITE);
+            DESKTOP_SWITCHDESKTOP | GENERIC_WRITE)};
         if (!desktop)
         {
             return false;
         }
 
         // - Switch into it
-        if (!SwitchToDesktop(desktop))
+        if (!SwitchToDesktop(desktop.get()))
         {
-            CloseDesktop(desktop);
             return false;
         }
 
         // ***
         DWORD size = 256;
-        char currentname[256];
-        if (GetUserObjectInformation(desktop, UOI_NAME, currentname, 256, &size))
+        char currentname[256]{};
+        if (GetUserObjectInformation(desktop.get(), UOI_NAME, currentname, 256, &size))
         {
             //
         }
 
+        thread_local UniqueDesktop selected_desktop;
+        selected_desktop = std::move(desktop);
         return true;
     }
 
     bool WinHelper::SwitchToDesktop(HDESK desktop) {
-        HDESK old_desktop = GetThreadDesktop(GetCurrentThreadId());
         if (!SetThreadDesktop(desktop))
         {
             return false;
-        }
-        if (!CloseDesktop(old_desktop))
-        {
-            //
         }
         return true;
     }
 
     bool WinHelper::IsSessionLocked() {
-        DWORD sessionId = WTSGetActiveConsoleSessionId();
-        LPTSTR buffer = nullptr;
-        DWORD bytesReturned = 0;
+        const DWORD sessionId = WTSGetActiveConsoleSessionId();
+        LPTSTR buffer_raw{};  // NOLINT(gammaray-raw-pointer-boundary): WTS out parameter, immediately RAII-wrapped.
+        DWORD bytesReturned{};
         if (WTSQuerySessionInformation(
             WTS_CURRENT_SERVER_HANDLE,
             sessionId,
             WTSSessionInfoEx,
-            &buffer,
+            &buffer_raw,
             &bytesReturned)) {
-            WTSINFOEX* info = (WTSINFOEX*)buffer;
-            bool locked = false;
-            if (info->Level == 1) {
-                locked = (info->Data.WTSInfoExLevel1.SessionFlags == WTS_SESSIONSTATE_LOCK);
+            const UniqueWtsMemory buffer{buffer_raw};
+            const auto& info = *reinterpret_cast<const WTSINFOEX*>(buffer.get());
+            bool locked{};
+            if (info.Level == 1) {
+                locked = (info.Data.WTSInfoExLevel1.SessionFlags == WTS_SESSIONSTATE_LOCK);
             }
-            WTSFreeMemory(buffer);
             return locked;
         }
 

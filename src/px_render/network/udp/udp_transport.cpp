@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <thread>
 #include <unordered_map>
+#include <timeapi.h>
 #include "px_render/modules/module_ids.h"
 #include "px_common_new/log.h"
 #include "px_common_new/data.h"
@@ -200,7 +201,7 @@ static std::optional<std::span<const char>> ExtractAudioPayload(const std::share
     if (!msg || msg->Size() < 2) {
         return std::nullopt;
     }
-    const std::span<const char> bytes{msg->CStr(), static_cast<std::size_t>(msg->Size())};
+    const std::span<const char> bytes{msg->Bytes().data(), static_cast<std::size_t>(msg->Size())};
     std::size_t cursor = 0;
     const auto read_varint = [](const std::span<const char> input, std::size_t& position, std::uint64_t& output) {
         output = 0;
@@ -335,7 +336,7 @@ void UdpTransport::Broadcast(std::shared_ptr<Data> msg, bool run_through) {
     // 与视频同一时钟源:steady_clock 单调毫秒
     auto ts =
         (uint32_t)(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() & 0xffffffff);
-    auto pkt = PxUdpProtocol::BuildAudioPacket(audio_seq_++, ts, payload->data(), payload->size());
+    auto pkt = PxUdpProtocol::BuildAudioPacket(audio_seq_++, ts, std::span<const char>{*payload});
     if (!pkt) {
         return;
     }
@@ -346,7 +347,7 @@ void UdpTransport::Broadcast(std::shared_ptr<Data> msg, bool run_through) {
         }
         total_sent += pkt->Size();
         // pkt 捕获进回调保活,直到 asio 拷进发件缓冲
-        us->sess_->async_send(pkt->CStr(), pkt->Size(), [pkt](std::size_t) {});
+        us->sess_->async_send(pkt->Bytes().data(), pkt->Size(), [pkt](std::size_t) {});
     });
     if (total_sent > 0) {
         ReportDataSent(total_sent);
@@ -384,8 +385,8 @@ bool UdpRuntimeState::Start(int listen_port) {
             }
             opt_sess.value()->last_seen_ms_ = (int64_t)TimeUtil::GetCurrentTimestamp();
             // ParseCommon 分流:只处理控制包(上行视频/音频 P2 才启用)
-            if (PxUdpProtocol::ParseCommon(data.data(), data.size()) == PxUdpProtocol::kPktCtrl) {
-                runtime->HandleCtrlPacket(opt_sess.value(), std::span<const char>{data.data(), data.size()});
+            if (PxUdpProtocol::ParseCommon(std::span<const char>{data}) == PxUdpProtocol::kPktCtrl) {
+                runtime->HandleCtrlPacket(opt_sess.value(), std::span<const char>{data});
             }
         })
         .bind_connect([weak_runtime, connection_id](std::shared_ptr<asio2::udp_session>& session) {
@@ -635,14 +636,14 @@ void UdpRuntimeState::HandleCtrlPacket(const std::shared_ptr<UdpSession>& udp_se
     // kCtrlFrameStatus 是定长二进制体,ParseCtrl 不解析,走专门解析
     uint32_t fs_frame = 0;
     uint16_t fs_received = 0, fs_lost = 0;
-    if (PxUdpProtocol::ParseFrameStatus(data.data(), data.size(), fs_frame, fs_received, fs_lost)) {
+    if (PxUdpProtocol::ParseFrameStatus(data, fs_frame, fs_received, fs_lost)) {
         if (udp_sess->bound_) {
             HandleFrameStatus(fs_frame, fs_received, fs_lost);
         }
         return;
     }
     std::string s1, s2;
-    auto subtype = PxUdpProtocol::ParseCtrl(data.data(), data.size(), s1, s2);
+    auto subtype = PxUdpProtocol::ParseCtrl(data, s1, s2);
     switch (subtype) {
     case PxUdpProtocol::kCtrlHello:
         HandleHello(udp_sess, s1 /*association_code*/, s2 /*stream_id*/);
@@ -793,7 +794,7 @@ void UdpRuntimeState::HandleHello(const std::shared_ptr<UdpSession>& udp_sess, c
     }
     if (replaced_endpoint && replaced_endpoint->sess_) {
         const auto kick = PxUdpProtocol::BuildKick("media endpoint replaced");
-        replaced_endpoint->sess_->async_send(kick->CStr(), kick->Size(), [kick](std::size_t) {});
+        replaced_endpoint->sess_->async_send(kick->Bytes().data(), kick->Size(), [kick](std::size_t) {});
     }
     LOGI("udp media endpoint associated: {} stream={}", udp_sess->connection_id_, stream_id);
     // The capture wake caused by WS open can produce its only initial frame
@@ -849,14 +850,14 @@ void UdpRuntimeState::SweepDeadSessions() {
         LOGW("udp media session heartbeat timeout: {} (stream: {})", us->connection_id_, us->stream_id_);
         // Media endpoint expiry is diagnostic only: it must never announce
         // a logical client disconnect or release a controller lease.
-        sessions_.RemoveIf(us->connection_id_, [&](const std::shared_ptr<UdpSession>& cur) { return cur == us; });
+        static_cast<void>(sessions_.RemoveIf(us->connection_id_, [&](const std::shared_ptr<UdpSession>& cur) { return cur == us; }));
         if (us->sess_) {
             us->sess_->stop();
         }
     }
     for (const auto& us : stale_sessions) {
         LOGW("udp stale session swept: {} (stream: {}, kicked: {})", us->connection_id_, us->stream_id_, us->kicked_.load());
-        sessions_.RemoveIf(us->connection_id_, [&](const std::shared_ptr<UdpSession>& cur) { return cur == us; });
+        static_cast<void>(sessions_.RemoveIf(us->connection_id_, [&](const std::shared_ptr<UdpSession>& cur) { return cur == us; }));
         if (us->sess_) {
             us->sess_->stop();
         }
@@ -945,7 +946,7 @@ void UdpTransport::SubmitEncodedVideo(const std::string& mon_name, const Encoded
     meta.mon_name_ = mon_name;
     meta.rfi_recover_ = runtime->rfi_pending_.exchange(false);
 
-    auto shards = PxUdpProtocol::ShardVideoFrame(meta, data->CStr(), (size_t)data->Size(), udp_mtu_, runtime->fec_percent_);
+    auto shards = PxUdpProtocol::ShardVideoFrame(meta, data->Bytes(), udp_mtu_, runtime->fec_percent_);
     if (shards.empty()) {
         return;
     }
@@ -989,7 +990,7 @@ void UdpTransport::SubmitEncodedVideo(const std::string& mon_name, const Encoded
                     // shard 捕获进回调保活,直到 asio 拷进发件缓冲
                     runtime->stat_sent_shards_++;
                     const auto weak_runtime = std::weak_ptr<UdpRuntimeState>(runtime);
-                    us->sess_->async_send(shard->CStr(), shard->Size(), [shard, weak_runtime](std::size_t bytes_sent) {
+                    us->sess_->async_send(shard->Bytes().data(), shard->Size(), [shard, weak_runtime](std::size_t bytes_sent) {
                         if (bytes_sent != shard->Size()) {
                             if (const auto locked = weak_runtime.lock()) {
                                 locked->stat_send_short_writes_++;

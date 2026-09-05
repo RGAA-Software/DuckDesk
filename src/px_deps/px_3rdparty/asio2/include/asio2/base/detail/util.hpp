@@ -147,12 +147,12 @@ namespace asio2
 			if (ec || rs.empty())
 			{
 				set_last_error(ec ? ec : asio::error::host_not_found);
-				return *rs;
+				return asio::ip::udp::endpoint{};
 			}
 			else
 			{
 				clear_last_error();
-				return asio::ip::udp::endpoint{};
+				return rs.begin()->endpoint();
 			}
 		}
 		else if constexpr (std::is_same_v<asio::ip::tcp::endpoint, Protocol>)
@@ -163,12 +163,12 @@ namespace asio2
 			if (ec || rs.empty())
 			{
 				set_last_error(ec ? ec : asio::error::host_not_found);
-				return *rs;
+				return asio::ip::tcp::endpoint{};
 			}
 			else
 			{
 				clear_last_error();
-				return asio::ip::tcp::endpoint{};
+				return rs.begin()->endpoint();
 			}
 		}
 		else

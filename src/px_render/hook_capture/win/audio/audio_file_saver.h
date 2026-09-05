@@ -2,6 +2,7 @@
 
 #include <string>
 #include <memory>
+#include <span>
 #include <Windows.h>
 #include <mmeapi.h>
 #include <mmsystem.h>
@@ -14,7 +15,7 @@ namespace px
 	class IAudioFileSaver {
 	public:
 
-		virtual int WriteData(char* data, uint32_t data_length) = 0;
+		virtual int WriteData(std::span<const char> data) = 0;
 		virtual void Close() = 0;
 
 	};
@@ -27,7 +28,7 @@ namespace px
 		explicit WAVAudioFileSaver(const std::wstring& path);
 		~WAVAudioFileSaver();
 
-		int WriteData(char* data, uint32_t data_length) override;
+		int WriteData(std::span<const char> data) override;
 		void Close() override;
 
 		HRESULT WriteWaveHeader(LPCWAVEFORMATEX pwfx, MMCKINFO* pckRIFF, MMCKINFO* pckData);

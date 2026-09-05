@@ -482,11 +482,11 @@ int main(int argc, char** argv) {
     // dump
     //CaptureDump();
     // Breakpad
-    auto bc = BreakpadContext {
+    auto bc = std::make_shared<BreakpadContext>(BreakpadContext {
         .version_ = PROJECT_VERSION,
         .app_name_ = "px_client",
-    };
-    CaptureDumpByBreakpad(&bc);
+    });
+    [[maybe_unused]] const auto dump_registration = CaptureDumpByBreakpad(std::move(bc));
 
 #ifdef PX_PROTECTION_ENABLED
     PxEnableAntiHookingProtection();
