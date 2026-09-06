@@ -45,9 +45,7 @@ namespace px
 
     }
 
-    MediacodecVideoDecoder::~MediacodecVideoDecoder() {
-
-    }
+    MediacodecVideoDecoder::~MediacodecVideoDecoder() { Release(); }
 
     int MediacodecVideoDecoder::Init(const std::string& mon_name, int codec_type, int width, int height, const std::string& frame, void* surface, int img_format, bool ignore_hw) {
         std::lock_guard<std::mutex> guard(decode_mtx_);
@@ -80,8 +78,8 @@ namespace px
                     LOGE("{}: convert_sps_pps: failed\n", __func__);
                     return -1;
                 }
-                csd0 = pps_buf.substr(0,pps_size);
-                csd1 = sps_buf.substr(0,sps_size);
+                csd0 = sps_buf.substr(0, sps_size);
+                csd1 = pps_buf.substr(0, pps_size);
 
                 sdk_stat_->video_format_ = "H264";
             }
@@ -103,39 +101,47 @@ namespace px
             }
         }
 
-        media_codec_ = AMediaCodec_createDecoderByType(decoder_name.c_str());
-        media_format_ = AMediaFormat_new();
-        AMediaFormat_setString(media_format_, "mime", decoder_name.c_str());
-        AMediaFormat_setInt32(media_format_, AMEDIAFORMAT_KEY_WIDTH, width);
-        AMediaFormat_setInt32(media_format_, AMEDIAFORMAT_KEY_HEIGHT, height);
-        AMediaFormat_setInt32(media_format_, AMEDIAFORMAT_KEY_FRAME_RATE, 60);
+        media_codec_.reset(AMediaCodec_createDecoderByType(decoder_name.c_str()));
+        media_format_.reset(AMediaFormat_new());
+        if (!media_codec_ || !media_format_) {
+            LOGE("Failed to create MediaCodec decoder resources");
+            media_codec_.reset();
+            media_format_.reset();
+            return -1;
+        }
+        AMediaFormat_setString(media_format_.get(), "mime", decoder_name.c_str());
+        AMediaFormat_setInt32(media_format_.get(), AMEDIAFORMAT_KEY_WIDTH, width);
+        AMediaFormat_setInt32(media_format_.get(), AMEDIAFORMAT_KEY_HEIGHT, height);
+        AMediaFormat_setInt32(media_format_.get(), AMEDIAFORMAT_KEY_FRAME_RATE, 60);
+        const auto max_input_size = width * height;
+        AMediaFormat_setInt32(media_format_.get(), AMEDIAFORMAT_KEY_MAX_INPUT_SIZE, max_input_size);
 
         if (!csd0.empty()) {
-            // AMediaFormat_setBuffer(media_format_, "csd-0", csd0.c_str(), csd0.size());
+            AMediaFormat_setBuffer(media_format_.get(), "csd-0", csd0.data(), csd0.size());
         }
         if (!csd1.empty()) {
-            // AMediaFormat_setBuffer(media_format_, "csd-1", csd1.c_str(), csd1.size());
+            AMediaFormat_setBuffer(media_format_.get(), "csd-1", csd1.data(), csd1.size());
         }
 
         ANativeWindow* target = use_oes_ ? (ANativeWindow*)(surface) : nullptr;
         LOGI("decoder name: {}, target: {}", decoder_name, (void*)target);
-        media_status_t status = AMediaCodec_configure(media_codec_, media_format_,
+        media_status_t status = AMediaCodec_configure(media_codec_.get(), media_format_.get(),
                                                       target,
                                                       nullptr,
                                                       0);//解码，flags 给0，编码给AMEDIACODEC_CONFIGURE_FLAG_ENCODE
         if (status != AMEDIA_OK) {
             LOGE("error config {}", (int) status);
-            AMediaCodec_delete(media_codec_);
-            AMediaFormat_delete(media_format_);
-            media_codec_ = nullptr;
-            media_format_ = nullptr;
+            media_codec_.reset();
+            media_format_.reset();
             return -1;
         }
 
         //启动
-        status = AMediaCodec_start(media_codec_);
+        status = AMediaCodec_start(media_codec_.get());
         if (status != AMEDIA_OK) {
             LOGE("error start: {}", (int) status);
+            media_codec_.reset();
+            media_format_.reset();
             return -1;
         }
 
@@ -153,33 +159,42 @@ namespace px
             LOGE("param valid...");
             return TRError(-1);
         }
-        ssize_t buf_idx = AMediaCodec_dequeueInputBuffer(media_codec_, 2000);
+        ssize_t buf_idx = AMediaCodec_dequeueInputBuffer(media_codec_.get(), 2000);
         if (buf_idx >= 0) {
             size_t buf_size = 0;
-            uint8_t* buf = AMediaCodec_getInputBuffer(media_codec_, buf_idx, &buf_size);
-            if (buf_size <= 0) {
-                LOGE("getInputBuffer failed.");
+            auto* buf = AMediaCodec_getInputBuffer(media_codec_.get(), buf_idx, &buf_size); // NOLINT(gammaray-raw-pointer-boundary)
+            if (!buf || static_cast<size_t>(in_size) > buf_size) {
+                LOGE("getInputBuffer failed or encoded frame exceeds buffer: frame={}, buffer={}", in_size, buf_size);
                 return TRError(-1);
             }
             memcpy(buf, in_data, in_size);
             uint64_t presentationTimeUs = getTimeUsec();
-            AMediaCodec_queueInputBuffer(media_codec_, buf_idx, 0, in_size, presentationTimeUs, 0);
+            const auto queue_status = AMediaCodec_queueInputBuffer(media_codec_.get(), buf_idx, 0, in_size, presentationTimeUs, 0);
+            if (queue_status != AMEDIA_OK) {
+                LOGE("queueInputBuffer failed: {}", static_cast<int>(queue_status));
+                return TRError(-1);
+            }
         }
 
         AMediaCodecBufferInfo info;
         do {
-            buf_idx = AMediaCodec_dequeueOutputBuffer(media_codec_, &info, 2000);
+            buf_idx = AMediaCodec_dequeueOutputBuffer(media_codec_.get(), &info, 2000);
             if (buf_idx >= 0) {
                 size_t out_buf_size = 0;
                 uint8_t* buf = nullptr;
                 int real_frame_size = 0;
-                auto format = AMediaCodec_getOutputFormat(media_codec_);
+                std::unique_ptr<AMediaFormat, decltype(&AMediaFormat_delete)> format(AMediaCodec_getOutputFormat(media_codec_.get()),
+                                                                                    &AMediaFormat_delete);
+                if (!format) {
+                    LOGE("getOutputFormat failed");
+                    return TRError(-1);
+                }
                 // to do 格式变化的时候 android 这里也要注意下
                 int width, height;
-                AMediaFormat_getInt32(format, "width", &width);
-                AMediaFormat_getInt32(format, "height", &height);
+                AMediaFormat_getInt32(format.get(), "width", &width);
+                AMediaFormat_getInt32(format.get(), "height", &height);
                 int32_t color_format;
-                AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_COLOR_FORMAT,&color_format);
+                AMediaFormat_getInt32(format.get(), AMEDIAFORMAT_KEY_COLOR_FORMAT,&color_format);
 //                real_frame_size = info.size;
 //                buf = AMediaCodec_getOutputBuffer(media_codec_, buf_idx, &out_buf_size);
 //
@@ -204,17 +219,21 @@ namespace px
 
                 // only callback frame info
                 auto image = RawImage::Make(nullptr, 0, width, height, -1, RawImageFormat::kRawImageNV12);
-                AMediaCodec_releaseOutputBuffer(media_codec_, buf_idx, true);
+                AMediaCodec_releaseOutputBuffer(media_codec_.get(), buf_idx, true);
                 auto end = TimeUtil::GetCurrentTimestamp();
                 SdkStatistics::Instance()->AppendDecodeDuration(monitor_name_, end-beg);
                 return image;
             } else if (buf_idx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
                 int width, height;
-                auto format = AMediaCodec_getOutputFormat(media_codec_);
-                AMediaFormat_getInt32(format, "width", &width);
-                AMediaFormat_getInt32(format, "height", &height);
+                std::unique_ptr<AMediaFormat, decltype(&AMediaFormat_delete)> format(AMediaCodec_getOutputFormat(media_codec_.get()),
+                                                                                    &AMediaFormat_delete);
+                if (!format) {
+                    return TRError(-1);
+                }
+                AMediaFormat_getInt32(format.get(), "width", &width);
+                AMediaFormat_getInt32(format.get(), "height", &height);
                 int32_t color_format;
-                AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_COLOR_FORMAT,&color_format);
+                AMediaFormat_getInt32(format.get(), AMEDIAFORMAT_KEY_COLOR_FORMAT,&color_format);
             } else if (buf_idx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
 
             } else {
@@ -230,14 +249,13 @@ namespace px
         VideoDecoder::Release();
         LOGI("will stop media codec");
         if (media_codec_) {
-            AMediaCodec_stop(media_codec_);
-            AMediaCodec_delete(media_codec_);
+            AMediaCodec_stop(media_codec_.get());
+            media_codec_.reset();
         }
 
         LOGI("will delete media format");
-        if (media_format_) {
-            AMediaFormat_delete(media_format_);
-        }
+        media_format_.reset();
+        inited_ = false;
     }
 
     bool MediacodecVideoDecoder::Ready() {

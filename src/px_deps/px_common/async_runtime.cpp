@@ -364,11 +364,17 @@ bool PxAsyncScope::SpawnImpl(std::string name, std::function<PxAwaitable<void>()
     state_->statistics_.outstanding = state_->tasks_.size();
     const auto state = state_;
     try {
-        asio::co_spawn(state_->executor_, std::move(*task),
-                       asio::bind_cancellation_slot(cancellation->slot(), [state, task_id, cancellation](std::exception_ptr error) {
-                           static_cast<void>(cancellation);
-                           PxAsyncScope::Complete(state, task_id, error);
-                       }));
+        asio::post(state_->executor_, [state, task_id, cancellation, task = std::move(*task)]() mutable {
+            try {
+                asio::co_spawn(state->executor_, std::move(task),
+                               asio::bind_cancellation_slot(cancellation->slot(), [state, task_id, cancellation](std::exception_ptr error) {
+                                   static_cast<void>(cancellation);
+                                   PxAsyncScope::Complete(state, task_id, error);
+                               }));
+            } catch (...) {
+                PxAsyncScope::Complete(state, task_id, std::current_exception());
+            }
+        });
     } catch (...) {
         state_->tasks_.erase(task_id);
         ++state_->statistics_.failed;

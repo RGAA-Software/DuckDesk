@@ -33,6 +33,7 @@ class MsgClientHello;
 class PxLogicalSessionCapabilityUpdate;
 class PxAsyncRuntime;
 class PxAsyncScope;
+class DirectSessionGrantStore;
 struct WsTicketAdmission;
 struct LogicalSessionAdmission;
 
@@ -128,6 +129,7 @@ class WsServer : public std::enable_shared_from_this<WsServer> {
     uint64_t ipc_pid_sweep_ticks_ = 0;
 
     std::shared_ptr<HttpHandler> http_handler_{};
+    std::shared_ptr<DirectSessionGrantStore> direct_session_grants_{};
     std::shared_ptr<WsUserProxyRouter> user_proxy_router_{};
     // The runtime is injected by the Render composition root. This server owns only its cancellable scope.
     std::shared_ptr<PxAsyncRuntime> async_runtime_{};

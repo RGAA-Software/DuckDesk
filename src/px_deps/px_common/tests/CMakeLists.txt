@@ -55,6 +55,7 @@ add_tc_test(test_file_transfer_send_result test_file_transfer_send_result.cpp)
 add_test(NAME common_file_transfer_send_result COMMAND test_file_transfer_send_result)
 add_tc_test(test_async_runtime test_async_runtime.cpp)
 add_test(NAME common_async_runtime COMMAND test_async_runtime)
+set_tests_properties(common_async_runtime PROPERTIES LABELS "render-unit")
 add_tc_test(test_async_delay test_async_delay.cpp)
 add_test(NAME common_async_delay COMMAND test_async_delay)
 

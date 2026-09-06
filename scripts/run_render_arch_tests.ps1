@@ -82,6 +82,7 @@ function Get-Sha256 {
 }
 
 $unitTargets = @(
+    "test_async_runtime",
     "test_render_architecture_core",
     "test_captured_media_pipeline",
     "test_network_transport_hub",
@@ -95,6 +96,7 @@ $unitTargets = @(
     "test_render_service_rpc_state",
     "test_logical_session_registry",
     "test_direct_session_grant_store",
+    "test_rtc_heartbeat_watchdog",
     "test_voice_call_service"
 )
 $lifecycleTargets = @(

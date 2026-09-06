@@ -1,6 +1,6 @@
 # Pixels Android 客户端最终产品规划
 
-> 状态：M0 已完成；M1 实现完成、等待真实服务端串流验收；M2 基础视频与触摸控制切片进行中
+> 状态：M0、M1 已完成；M2 的 WebSocket 音视频、基础输入与前后台会话切片已通过 USB 真机验收，其余能力继续实施
 > 更新日期：2026-09-06  
 > 范围：`src/px_android` 及 Android 所需的项目自维护 C++ 公共模块
 
@@ -282,7 +282,7 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 
 ### M1：设备发现与原生会话骨架，1–2 周
 
-状态：**实现完成，等待运行中的 Panel/Render 完成真实串流验收（2026-09-06）**。
+状态：**已完成并通过本机 Panel/Render 与 USB 真机串流验收（2026-09-06）**。
 
 - 完成设备领域模型、Room/DataStore 和设备首页。
 - 完成扫码、手动添加和局域网发现。
@@ -291,11 +291,13 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 - 接通基础鉴权、WebSocket 会话和错误分类。
 - 删除旧首页、GreenDAO、Event 类和 Java 网络栈。
 
-验收：能够从新 UI 发现、添加、连接和删除设备；旋转、前后台及重复连接不会泄漏会话。
+验收：能够从新 UI 发现、添加、连接和删除设备；直接连接在建立媒体 WebSocket 前以密码和一次性客户端 nonce 换取短期收据，
+密码不进入 WebSocket URL。Activity 退到后台后，前台服务继续持有会话，重新进入工作区时恢复既有会话。
 
 ### M2：音视频垂直切片，2–3 周
 
-状态：**进行中（2026-09-06 已完成 WebSocket 音视频主路径、MediaCodec Surface、Surface 热重绑、AAudio 播放、AudioFocus、基础触摸与 UTF-8 文本输入、远程工作区）**。
+状态：**进行中（2026-09-06 已完成并真机验证 WebSocket 音视频主路径、MediaCodec Surface、Surface 热重绑、AAudio 播放、AudioFocus、
+基础触摸与 UTF-8 文本输入、远程工作区和前后台恢复）**。
 
 - 接通 MediaCodec、软件解码回退、Surface 重绑和 Oboe 播放。
 - 完成远程工作区、画面适配、音频控制和基础统计。
@@ -417,4 +419,21 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 - 设备接入已完成真机不可达错误态、成功添加、进程重启持久化、重启后保守离线、应用内删除及凭据非明文检查。Android 17 / API 37 的 `ACCESS_LOCAL_NETWORK` 运行时权限已接入。
 - 扫码入口已使用系统 Google Code Scanner 读取 QR 内容，并统一进入与手动输入相同的严格连接解析与安全校验流程。
 
-当前 USB 手机与开发机之间没有运行中的 Panel/Render 监听端，因此尚无真实远端画面、长时间串流和旋转/切网恢复证据。M1 的代码实现完成不等于整个产品完成；完成真实服务端验收后进入 M2 音频、回退渲染、统计与一小时稳定性门禁。
+### 13.1 2026-09-06 USB 真机验收记录
+
+- 开发机运行 `build_official/dist` 中的 Panel、Service 和 Render；Android 手机为 Xiaomi 22021211RC、Android 14、arm64，应用通过
+  `adb install -r` 覆盖安装，全程未卸载。
+- 手机通过 `192.168.31.6` 完成私网设备验证并保存，随后使用密码预授权收据建立 `/media` 和 `/file/transfer` WebSocket；
+  Render 侧不接受把密码直接放入 WebSocket 查询参数。
+- MediaCodec 使用 `OMX.qcom.video.decoder.avc` 解码 3840×2160、60 FPS H.264；SPS/PPS 分别以 `csd-0`/`csd-1` 配置。
+  设备侧五秒采样为 307 个输入包、294 个渲染帧、0 丢帧，工作区稳定显示约 58–60 FPS。
+- AAudio 以 48 kHz、双声道启动，系统持续报告非零音频幅度；工作区静音与恢复按钮状态均已验证。
+- 触摸输入把 Windows 光标从 `(1659,480)` 移动到 `(521,507)`；文字输入弹层和发送链路完成实机操作。
+- 会话持续超过三分钟，Render PID 保持不变；五秒窗口持续报告 `active_connections=3`、`queue_depth=0`、`dropped=0`。
+  手机退到桌面 15 秒后 `RemoteSessionService` 仍为前台服务，Render PID 不变，重新进入应用后既有画面和统计恢复。
+- 真机负载暴露并修复了一个锁顺序问题：WebSocket 容器遍历锁内触发路由回调，与异步作用域锁内的内联 `co_spawn` 构成循环等待。
+  现在作用域先登记任务、通过 executor 排队后再启动 coroutine；WebSocket 按 socket id 获取共享路由快照后再回调。
+  新增的同执行器嵌套 Spawn 回归用例以及 Render quick/lifecycle 套件均通过。
+
+这次验收关闭了 M1 的真实服务端门禁，并证明 M2 主路径可以持续工作；它不替代 M2 的一小时稳定性、旋转/Surface 重建和切网恢复门禁，
+也不代表 M3–M6 的多显示器、完整输入、文件/剪贴板/录制/语音、完整网络矩阵和发布工作已经完成。

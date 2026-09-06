@@ -26,10 +26,17 @@ import yun.pixels.client.core.domain.session.RemoteVideoSize
 import java.net.URI
 import java.net.URLDecoder
 
-class NativeRemoteSessionTransport(
+class NativeRemoteSessionTransport internal constructor(
     private val installationIdentity: InstallationIdentity,
     private val callbackScope: CoroutineScope,
+    private val directSessionAuthorizer: DirectSessionAuthorizer,
 ) : RemoteSessionTransport, NativeSessionListener {
+    constructor(installationIdentity: InstallationIdentity, callbackScope: CoroutineScope) : this(
+        installationIdentity,
+        callbackScope,
+        HttpDirectSessionAuthorizer(),
+    )
+
     private val lock = Mutex()
     private val mutableEvents = MutableSharedFlow<RemoteTransportEvent>(extraBufferCapacity = 32)
     private val surfaces = mutableMapOf<RemoteSessionId, Surface>()
@@ -54,7 +61,15 @@ class NativeRemoteSessionTransport(
             if (nativeSessionIds.containsKey(request.id)) return RemoteTransportStartResult.Accepted
             surfaces[request.id]
         } ?: return RemoteTransportStartResult.Rejected(RemoteSessionFailure.DecoderUnavailable)
-        val config = request.toNativeConfig(installationIdentity.value())
+        val directAuthorization = when (val target = request.target) {
+            is RemoteSessionTarget.Direct -> when (val result = directSessionAuthorizer.authorize(target.device.endpoint, target.credential.orEmpty())) {
+                is DirectSessionAuthorizationResult.Authorized -> result.value
+                DirectSessionAuthorizationResult.Rejected -> return RemoteTransportStartResult.Rejected(RemoteSessionFailure.AuthenticationRejected)
+                DirectSessionAuthorizationResult.Unavailable -> return RemoteTransportStartResult.Rejected(RemoteSessionFailure.NetworkUnavailable)
+            }
+            is RemoteSessionTarget.Account -> null
+        }
+        val config = request.toNativeConfig(installationIdentity.value(), directAuthorization)
             ?: return RemoteTransportStartResult.Rejected(RemoteSessionFailure.InvalidRequest)
         val nativeSessionId = withContext(Dispatchers.IO) { PixelsNativeBridge.create(config, this@NativeRemoteSessionTransport, surface) }
         if (nativeSessionId == 0L) return RemoteTransportStartResult.Rejected(RemoteSessionFailure.TransportUnavailable)
@@ -159,7 +174,10 @@ class NativeRemoteSessionTransport(
     }
 }
 
-private fun RemoteSessionRequest.toNativeConfig(clientDeviceId: String): NativeSessionConfig? {
+private fun RemoteSessionRequest.toNativeConfig(
+    clientDeviceId: String,
+    directAuthorization: DirectSessionAuthorization?,
+): NativeSessionConfig? {
     val endpoint = when (val sessionTarget = target) {
         is RemoteSessionTarget.Direct -> {
             val directEndpoint = sessionTarget.device.endpoint
@@ -169,8 +187,8 @@ private fun RemoteSessionRequest.toNativeConfig(clientDeviceId: String): NativeS
                 port = directEndpoint.renderPort,
                 ssl = false,
                 remoteDeviceId = sessionTarget.device.id.value,
-                streamId = id.value,
-                randomPassword = sessionTarget.credential.orEmpty(),
+                streamId = directAuthorization?.streamId ?: return null,
+                randomPassword = "",
             )
         }
         is RemoteSessionTarget.Account -> sessionTarget.connectionTicket.toNativeEndpoint(sessionTarget.device.deviceId) ?: return null
@@ -188,7 +206,7 @@ private fun RemoteSessionRequest.toNativeConfig(clientDeviceId: String): NativeS
         clientDeviceId = clientDeviceId,
         randomPassword = endpoint.randomPassword,
         connectionTicket = accountTarget?.connectionTicket?.ticket.orEmpty(),
-        connectionNonce = accountTarget?.clientNonce.orEmpty(),
+        connectionNonce = accountTarget?.clientNonce ?: directAuthorization?.clientNonce.orEmpty(),
         rtcIceConfigJson = accountTarget?.connectionTicket?.rtcIceConfigJson.orEmpty(),
         relayHost = accountTarget?.connectionTicket?.relayHost.orEmpty(),
         relayPort = accountTarget?.connectionTicket?.relayPort ?: 0,
@@ -232,7 +250,7 @@ private fun URI.queryParameter(name: String): String? = rawQuery
     ?.second
     ?.let { URLDecoder.decode(it, "UTF-8") }
 
-private fun String.isPrivateOrCarrierGradeAddress(): Boolean {
+internal fun String.isPrivateOrCarrierGradeAddress(): Boolean {
     val octets = split('.').mapNotNull(String::toIntOrNull)
     if (octets.size == 4 && octets.all { it in 0..255 }) {
         return octets[0] == 10 ||

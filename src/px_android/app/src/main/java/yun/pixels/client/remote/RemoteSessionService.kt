@@ -14,6 +14,7 @@ import android.os.Binder
 import android.os.IBinder
 import android.view.Surface
 import androidx.core.app.NotificationCompat
+import androidx.compose.runtime.Stable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -217,6 +218,7 @@ class RemoteSessionService : Service() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
+    @Stable
     inner class LocalBinder : Binder() {
         val snapshot: StateFlow<RemoteSessionSnapshot>
             get() = workflow.snapshot

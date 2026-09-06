@@ -30,8 +30,8 @@ namespace px
         bool NeedReConstruct(int codec_type, int width, int height, int img_format) override;
 
     private:
-        AMediaCodec* media_codec_ = nullptr;
-        AMediaFormat* media_format_ = nullptr;
+        std::unique_ptr<AMediaCodec, decltype(&AMediaCodec_delete)> media_codec_{nullptr, &AMediaCodec_delete};
+        std::unique_ptr<AMediaFormat, decltype(&AMediaFormat_delete)> media_format_{nullptr, &AMediaFormat_delete};
         bool use_oes_ = false;
 
     };

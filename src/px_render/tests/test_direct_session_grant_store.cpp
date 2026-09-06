@@ -38,10 +38,26 @@ TEST(DirectSessionGrantStore, PreparedIpDirectStreamIsItsOwnOneTimeConnectionKey
 
     EXPECT_TRUE(stream_id.starts_with("ip-direct:"));
     EXPECT_EQ(stream_id.size(), std::string("ip-direct:").size() + 32u);
-    EXPECT_EQ(stream_id.find_first_not_of(
-        "0123456789abcdef", std::string("ip-direct:").size()), std::string::npos);
+    EXPECT_EQ(stream_id.find_first_not_of("0123456789abcdef", std::string("ip-direct:").size()), std::string::npos);
     EXPECT_TRUE(store.Redeem(stream_id, binding, 1'001));
     EXPECT_FALSE(store.Redeem(stream_id, binding, 1'002));
+}
+
+TEST(DirectSessionGrantStore, PreparedIpDirectStreamCanValidateMediaAndFileBindings) {
+    DirectSessionGrantStore store;
+    auto binding = Binding();
+    binding.device_id_.clear();
+    binding.stream_id_.clear();
+
+    const auto stream_id = store.IssueStreamBinding(binding, 1'000);
+    binding.stream_id_ = stream_id;
+
+    EXPECT_TRUE(store.Validate(stream_id, binding, 1'001));
+    EXPECT_TRUE(store.Validate(stream_id, binding, 1'002));
+    auto wrong_nonce = binding;
+    wrong_nonce.client_nonce_ = "wrong";
+    EXPECT_FALSE(store.Validate(stream_id, wrong_nonce, 1'003));
+    EXPECT_FALSE(store.Validate(stream_id, binding, 1'000 + DirectSessionGrantStore::kLifetimeMilliseconds));
 }
 
 TEST(DirectSessionGrantStore, RejectsAChangedPeerBindingWithoutConsumingGrant) {
@@ -79,8 +95,7 @@ TEST(DirectSessionGrantStore, RejectsExpiredGrant) {
     DirectSessionGrantStore store;
     const auto token = store.Issue(Binding(), 1'000);
 
-    EXPECT_FALSE(store.Redeem(
-        token, Binding(), 1'000 + DirectSessionGrantStore::kLifetimeMilliseconds));
+    EXPECT_FALSE(store.Redeem(token, Binding(), 1'000 + DirectSessionGrantStore::kLifetimeMilliseconds));
 }
 
 TEST(DirectSessionGrantStore, ConcurrentReplayHasExactlyOneWinner) {

@@ -16,6 +16,7 @@
 #include <span>
 #include <filesystem>
 #include "px_common/log.h"
+#include "px_common/md5.h"
 #include "px_common/privacy_log.h"
 #include "px_common/time_util.h"
 #include "px_common/data.h"
@@ -33,6 +34,7 @@
 #include "px_common/ws_control_signal.h"
 #include "http_handler.h"
 #include "ws_callback_workflow.h"
+#include "direct_session_grant_store.h"
 #include "px_common/async_operation.h"
 #include "px_common/async_result.h"
 #include "px_render/architecture/runtime/await_callback.h"
@@ -78,6 +80,10 @@ static bool IsIpcProcessAlive(uint32_t pid) {
 }
 
 namespace px {
+static int64_t CurrentSystemMilliseconds() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
 struct WsTicketAdmission {
     std::vector<std::string> permissions_;
     std::string logical_session_id_;
@@ -119,11 +125,38 @@ static void DispatchCloseLogicalSessionBinding(const std::weak_ptr<WsTransport>&
 }
 
 static PxAwaitable<PxResult<WsTicketAdmission>> RedeemWsTicketAsync(std::weak_ptr<WsTransport> transport,
-                                                                    std::unordered_map<std::string, std::string> params) {
+                                                                    std::shared_ptr<DirectSessionGrantStore> direct_session_grants,
+                                                                    std::unordered_map<std::string, std::string> params, std::string remote_address) {
     const auto ticket_it = params.find("ticket");
     if (ticket_it == params.end() || ticket_it->second.empty()) {
-        co_return PxResult<WsTicketAdmission>::Failure(
-            MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "ws_ticket_redeem", "connection ticket is missing"));
+        const auto stream_it = params.find("stream_id");
+        const auto nonce_it = params.find("client_nonce");
+        if (!direct_session_grants || stream_it == params.end() || stream_it->second.empty() || nonce_it == params.end() ||
+            nonce_it->second.empty()) {
+            co_return PxResult<WsTicketAdmission>::Failure(
+                MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "ws_ticket_redeem", "connection ticket is missing"));
+        }
+        const DirectSessionGrantBinding binding{
+            .device_id_ = {},
+            .stream_id_ = stream_it->second,
+            .client_nonce_ = nonce_it->second,
+            .remote_address_ = std::move(remote_address),
+        };
+        if (!direct_session_grants->Validate(stream_it->second, binding, CurrentSystemMilliseconds())) {
+            co_return PxResult<WsTicketAdmission>::Failure(MakePxAsyncError(PxAsyncErrorCode::kServiceRejected, "ws_direct_receipt_validate",
+                                                                            "direct session receipt was rejected", false,
+                                                                            "SESSION_DIRECT_RECEIPT_REJECTED"));
+        }
+        co_return PxResult<WsTicketAdmission>::Success(WsTicketAdmission{
+            .permissions_ = {"view", "input", "clipboard", "file", "audio"},
+            .logical_session_id_ = stream_it->second,
+            .stream_id_ = stream_it->second,
+            .join_mode_ = "control",
+            .subject_id_ = "ip-direct:" + MD5::Hex(binding.remote_address_ + "|" + binding.client_nonce_),
+            .expires_at_ms_ = CurrentSystemMilliseconds() + DirectSessionGrantStore::kLifetimeMilliseconds,
+            .allow_observer_ = false,
+            .allow_takeover_ = true,
+        });
     }
     const auto nonce_it = params.find("client_nonce");
     if (nonce_it == params.end() || nonce_it->second.empty()) {
@@ -364,7 +397,8 @@ bool WsServer::Start() {
              "operation=start_control_workflows outcome=failed recoverable=false");
         return false;
     }
-    http_handler_ = std::make_shared<HttpHandler>(transport_, async_scope_);
+    direct_session_grants_ = std::make_shared<DirectSessionGrantStore>();
+    http_handler_ = std::make_shared<HttpHandler>(transport_, async_scope_, direct_session_grants_);
     auto weak_self = weak_from_this();
     server_ = std::make_shared<asio2::http_server>();
     server_->bind_disconnect([weak_self](std::shared_ptr<asio2::http_session>& sess_ptr) {
@@ -553,6 +587,7 @@ void WsServer::FinishStop() {
     }
     async_scope_.reset();
     http_handler_.reset();
+    direct_session_grants_.reset();
     server_.reset();
     ws_data_.reset();
     user_proxy_router_.reset();
@@ -712,7 +747,8 @@ int WsServer::GetConnectedClientsCount() {
 
 bool WsServer::IsOnlyAudioClients() {
     bool only_audio_client = true;
-    stream_routers_.VisitAllCond([&](auto k, auto& v) -> bool {
+    stream_routers_.ApplyAllCond([&](const auto& k, const auto& v) -> bool {
+        static_cast<void>(k);
         if (v->enable_video_) {
             only_audio_client = false;
             return true;
@@ -1063,7 +1099,7 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(std::weak_ptr<WsServer> owner, st
         co_return;
     }
     const auto transport = server->transport_;
-    auto ticket_result = co_await RedeemWsTicketAsync(transport, params);
+    auto ticket_result = co_await RedeemWsTicketAsync(transport, server->direct_session_grants_, params, session->remote_address());
     if (!ticket_result.HasValue()) {
         const auto& error = ticket_result.Error();
         LOGW("event=session.admit component=net_ws code={} "
@@ -1225,19 +1261,17 @@ void WsServer::AddWebsocketRouter(const std::string& path) {
                         return;
                     }
                     self->transport_performance_.ObserveInbound(data.size());
-                    auto socket_fd = fn_get_socket_fd(sess_ptr);
+                    const auto socket_fd = fn_get_socket_fd(sess_ptr);
                     if (path == kUrlMedia) {
-                        self->stream_routers_.VisitAll([=](auto k, std::shared_ptr<WsStreamRouter>& router) mutable {
-                            if (socket_fd == k) {
-                                router->OnMessage(sess_ptr, socket_fd, data);
-                            }
-                        });
+                        const auto router = self->stream_routers_.TryGet(socket_fd);
+                        if (router && *router) {
+                            (*router)->OnMessage(sess_ptr, socket_fd, data);
+                        }
                     } else if (path == kUrlFileTransfer) {
-                        self->ft_routers_.VisitAll([=](auto k, auto& router) mutable {
-                            if (socket_fd == k) {
-                                router->OnMessage(sess_ptr, socket_fd, data);
-                            }
-                        });
+                        const auto router = self->ft_routers_.TryGet(socket_fd);
+                        if (router && *router) {
+                            (*router)->OnMessage(sess_ptr, socket_fd, data);
+                        }
                     }
                 })
             .on("open",
@@ -1462,7 +1496,7 @@ int64_t WsServer::GetQueuingFtMsgCount() {
 
 std::vector<std::shared_ptr<PxConnectedClientInfo>> WsServer::GetConnectedClientInfo() {
     std::vector<std::shared_ptr<PxConnectedClientInfo>> clients_info;
-    stream_routers_.VisitAll([&](const auto&, const std::shared_ptr<WsStreamRouter>& router) {
+    stream_routers_.ApplyAll([&](const auto&, const std::shared_ptr<WsStreamRouter>& router) {
         std::string device_name;
         {
             std::lock_guard<std::mutex> lock(router->device_name_mtx_);
@@ -1478,7 +1512,7 @@ std::vector<std::shared_ptr<PxConnectedClientInfo>> WsServer::GetConnectedClient
 }
 
 void WsServer::OnClientHello(const std::shared_ptr<MsgClientHello>& event) {
-    stream_routers_.VisitAll([&](const auto&, const std::shared_ptr<WsStreamRouter>& router) {
+    stream_routers_.ApplyAll([&](const auto&, const std::shared_ptr<WsStreamRouter>& router) {
         LOGI("event=session.hello component=net_ws outcome=received "
              "event_stream={} router_stream={} device={}",
              PrivacyLogId(event->stream_id_), PrivacyLogId(router->stream_id_), PrivacyLogId(event->device_name_));
