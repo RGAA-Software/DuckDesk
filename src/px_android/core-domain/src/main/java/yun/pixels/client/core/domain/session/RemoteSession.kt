@@ -51,6 +51,10 @@ data class RemoteSessionCapabilities(
     val supportsInput: Boolean,
     val supportsFileTransfer: Boolean,
     val supportsClipboard: Boolean,
+    val supportsVirtualDisplays: Boolean = false,
+    val ownedVirtualDisplayCount: Int = 0,
+    val maximumVirtualDisplayCount: Int = 0,
+    val topologyGeneration: Long = 0,
 )
 
 data class RemoteSessionStatistics(
@@ -66,15 +70,73 @@ data class RemoteVideoSize(val width: Int, val height: Int) {
     }
 }
 
+enum class RemoteVirtualDisplayOperation {
+    Create,
+    RemoveLast,
+}
+
+enum class RemoteVirtualDisplayResultState {
+    Ready,
+    NeedReconnect,
+    Failed,
+}
+
+data class RemoteVirtualDisplayResult(
+    val requestId: String,
+    val accepted: Boolean,
+    val state: RemoteVirtualDisplayResultState,
+    val topologyChanged: Boolean,
+    val topologyGeneration: Long,
+    val ownedDisplayCount: Int,
+    val errorCode: String = "",
+    val errorMessage: String = "",
+)
+
 enum class RemoteInputMode {
     DirectTouch,
     Touchpad,
+    Gamepad,
 }
 
 enum class RemoteMouseButton {
     Left,
     Middle,
     Right,
+}
+
+enum class RemoteGamepadButton(val mask: Int) {
+    DPadUp(0x0001),
+    DPadDown(0x0002),
+    DPadLeft(0x0004),
+    DPadRight(0x0008),
+    Start(0x0010),
+    Back(0x0020),
+    LeftThumb(0x0040),
+    RightThumb(0x0080),
+    LeftShoulder(0x0100),
+    RightShoulder(0x0200),
+    A(0x1000),
+    B(0x2000),
+    X(0x4000),
+    Y(0x8000),
+}
+
+data class RemoteGamepadState(
+    val buttons: Int = 0,
+    val leftTrigger: Int = 0,
+    val rightTrigger: Int = 0,
+    val leftThumbX: Int = 0,
+    val leftThumbY: Int = 0,
+    val rightThumbX: Int = 0,
+    val rightThumbY: Int = 0,
+) {
+    init {
+        require(buttons in 0..0xFFFF) { "Gamepad buttons must fit the XInput button mask" }
+        require(leftTrigger in 0..0xFF && rightTrigger in 0..0xFF) { "Gamepad triggers must fit an unsigned byte" }
+        require(listOf(leftThumbX, leftThumbY, rightThumbX, rightThumbY).all { it in Short.MIN_VALUE..Short.MAX_VALUE }) {
+            "Gamepad axes must fit a signed 16-bit value"
+        }
+    }
 }
 
 enum class RemoteKey(val virtualKeyCode: Int) {
@@ -197,6 +259,8 @@ sealed interface InputCommand {
 
     data class Key(val key: RemoteKey, val down: Boolean) : InputCommand
 
+    data class Gamepad(val state: RemoteGamepadState) : InputCommand
+
     data class Text(val value: String) : InputCommand {
         init {
             require(value.isNotEmpty() && value.encodeToByteArray().size <= 4096) { "Text input must contain 1 to 4096 UTF-8 bytes" }
@@ -242,6 +306,7 @@ data class RemoteSessionSnapshot(
     val status: RemoteSessionStatus = RemoteSessionStatus.Idle,
     val statistics: RemoteSessionStatistics = RemoteSessionStatistics(),
     val videoSize: RemoteVideoSize? = null,
+    val lastVirtualDisplayResult: RemoteVirtualDisplayResult? = null,
 )
 
 sealed interface RemoteTransportStartResult {
@@ -258,11 +323,21 @@ sealed interface RemoteTransportEvent {
         val capabilities: RemoteSessionCapabilities,
     ) : RemoteTransportEvent
 
+    data class CapabilitiesUpdated(
+        override val sessionId: RemoteSessionId,
+        val capabilities: RemoteSessionCapabilities,
+    ) : RemoteTransportEvent
+
     data class Reconnecting(override val sessionId: RemoteSessionId, val attempt: Int) : RemoteTransportEvent
 
     data class Statistics(override val sessionId: RemoteSessionId, val value: RemoteSessionStatistics) : RemoteTransportEvent
 
     data class VideoSize(override val sessionId: RemoteSessionId, val value: RemoteVideoSize) : RemoteTransportEvent
+
+    data class VirtualDisplayResult(
+        override val sessionId: RemoteSessionId,
+        val value: RemoteVirtualDisplayResult,
+    ) : RemoteTransportEvent
 
     data class Disconnected(
         override val sessionId: RemoteSessionId,
@@ -339,11 +414,18 @@ class RemoteSessionWorkflow(
                 is RemoteTransportEvent.Connected -> mutableSnapshot.value = RemoteSessionSnapshot(
                     status = RemoteSessionStatus.Connected(request, event.capabilities),
                 )
+                is RemoteTransportEvent.CapabilitiesUpdated -> {
+                    val connected = mutableSnapshot.value.status as? RemoteSessionStatus.Connected ?: return
+                    mutableSnapshot.value = mutableSnapshot.value.copy(status = connected.copy(capabilities = event.capabilities))
+                }
                 is RemoteTransportEvent.Reconnecting -> mutableSnapshot.value = mutableSnapshot.value.copy(
                     status = RemoteSessionStatus.Reconnecting(request, event.attempt),
                 )
                 is RemoteTransportEvent.Statistics -> mutableSnapshot.value = mutableSnapshot.value.copy(statistics = event.value)
                 is RemoteTransportEvent.VideoSize -> mutableSnapshot.value = mutableSnapshot.value.copy(videoSize = event.value)
+                is RemoteTransportEvent.VirtualDisplayResult -> {
+                    mutableSnapshot.value = mutableSnapshot.value.copy(lastVirtualDisplayResult = event.value)
+                }
                 is RemoteTransportEvent.Disconnected -> {
                     if (event.recoverable) {
                         mutableSnapshot.value = mutableSnapshot.value.copy(status = RemoteSessionStatus.Reconnecting(request, 1))

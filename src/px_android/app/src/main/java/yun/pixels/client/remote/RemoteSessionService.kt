@@ -32,8 +32,10 @@ import yun.pixels.client.core.nativebridge.NativeRemoteSessionTransport
 import yun.pixels.client.core.domain.session.RemoteSessionWorkflow
 import yun.pixels.client.core.domain.session.InputCommand
 import yun.pixels.client.core.domain.session.RemoteKey
+import yun.pixels.client.core.domain.session.RemoteGamepadState
 import yun.pixels.client.core.domain.session.RemoteMouseButton
 import yun.pixels.client.core.domain.session.RemoteSessionId
+import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -52,6 +54,7 @@ class RemoteSessionService : Service() {
     private val mutableAudioEnabled = MutableStateFlow(false)
     private val heldKeys = mutableSetOf<RemoteKey>()
     private val heldMouseButtons = mutableSetOf<RemoteMouseButton>()
+    private var gamepadActive = false
     private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         hasAudioFocus = focusChange == AudioManager.AUDIOFOCUS_GAIN
         if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
@@ -166,6 +169,7 @@ class RemoteSessionService : Service() {
         when (command) {
             is InputCommand.Key -> if (command.down) heldKeys += command.key else heldKeys -= command.key
             is InputCommand.MouseButton -> if (command.down) heldMouseButtons += command.button else heldMouseButtons -= command.button
+            is InputCommand.Gamepad -> gamepadActive = command.state != RemoteGamepadState()
             else -> Unit
         }
     }
@@ -174,8 +178,20 @@ class RemoteSessionService : Service() {
         if (sessionId == null) return
         heldMouseButtons.toList().forEach { button -> transport.sendInput(sessionId, InputCommand.MouseButton(button, false)) }
         heldKeys.toList().forEach { key -> transport.sendInput(sessionId, InputCommand.Key(key, false)) }
+        if (gamepadActive) transport.sendInput(sessionId, InputCommand.Gamepad(RemoteGamepadState()))
         heldMouseButtons.clear()
         heldKeys.clear()
+        gamepadActive = false
+    }
+
+    private fun switchMonitor(monitorName: String) {
+        val request = currentRequest() ?: return
+        serviceScope.launch { transport.switchMonitor(request.id, monitorName) }
+    }
+
+    private fun requestVirtualDisplay(requestId: String, operation: RemoteVirtualDisplayOperation) {
+        val request = currentRequest() ?: return
+        serviceScope.launch { transport.requestVirtualDisplay(request.id, requestId, operation) }
     }
 
     private fun currentRequest(): RemoteSessionRequest? = when (val status = workflow.snapshot.value.status) {
@@ -260,6 +276,11 @@ class RemoteSessionService : Service() {
         fun detachSurface(surface: Surface) = this@RemoteSessionService.detachSurface(surface)
 
         fun sendInput(command: InputCommand) = this@RemoteSessionService.sendInput(command)
+
+        fun switchMonitor(monitorName: String) = this@RemoteSessionService.switchMonitor(monitorName)
+
+        fun requestVirtualDisplay(requestId: String, operation: RemoteVirtualDisplayOperation) =
+            this@RemoteSessionService.requestVirtualDisplay(requestId, operation)
 
         fun sendText(text: String) = this@RemoteSessionService.sendText(text)
 

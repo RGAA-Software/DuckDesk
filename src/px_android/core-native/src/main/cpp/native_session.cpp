@@ -74,6 +74,24 @@ void DeleteLocalReference(JNIEnv& environment, const std::uintptr_t handle) {
     }
 }
 
+std::uintptr_t MakeStringArray(JNIEnv& environment, const std::vector<std::string>& values) {
+    const auto string_class_handle = reinterpret_cast<std::uintptr_t>(environment.FindClass("java/lang/String"));
+    if (string_class_handle == 0U)
+        return 0U;
+    const auto array_handle = reinterpret_cast<std::uintptr_t>(
+        environment.NewObjectArray(static_cast<jsize>(values.size()), reinterpret_cast<jclass>(string_class_handle), nullptr));
+    for (std::size_t index = 0; array_handle != 0U && index < values.size(); ++index) {
+        const auto value_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(values[index].c_str()));
+        if (value_handle != 0U) {
+            environment.SetObjectArrayElement(reinterpret_cast<jobjectArray>(array_handle), static_cast<jsize>(index),
+                                              reinterpret_cast<jstring>(value_handle));
+            DeleteLocalReference(environment, value_handle);
+        }
+    }
+    DeleteLocalReference(environment, string_class_handle);
+    return array_handle;
+}
+
 } // namespace
 
 std::shared_ptr<JavaSessionCallback> JavaSessionCallback::Create(JNIEnv& environment, const jobject listener) {
@@ -100,22 +118,81 @@ JavaSessionCallback::~JavaSessionCallback() {
     });
 }
 
-void JavaSessionCallback::Connected(const NativeSessionConfig& config, const std::string& active_monitor_name, const bool supports_audio,
-                                    const bool supports_input, const bool supports_file_transfer, const bool supports_clipboard) const {
+void JavaSessionCallback::Connected(const NativeSessionConfig& config, const std::vector<std::string>& monitor_names,
+                                    const std::string& active_monitor_name, const bool supports_audio, const bool supports_input,
+                                    const bool supports_file_transfer, const bool supports_clipboard, const bool supports_virtual_displays,
+                                    const std::int32_t owned_virtual_display_count, const std::int32_t maximum_virtual_display_count,
+                                    const std::int64_t topology_generation) const {
     const auto listener_handle = listener_handle_;
     WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
         const auto listener = reinterpret_cast<jobject>(listener_handle);
         const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
         const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
-        const auto method = environment.GetMethodID(listener_class, "onConnected", "(Ljava/lang/String;Ljava/lang/String;ZZZZ)V");
+        const auto method =
+            environment.GetMethodID(listener_class, "onConnected", "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;ZZZZZIIJ)V");
         const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(config.session_id.c_str()));
+        const auto monitor_names_handle = MakeStringArray(environment, monitor_names);
         const auto monitor_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(active_monitor_name.c_str()));
-        if (method != nullptr && session_id_handle != 0U && monitor_handle != 0U) {
-            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), reinterpret_cast<jstring>(monitor_handle),
-                                       supports_audio, supports_input, supports_file_transfer, supports_clipboard);
+        if (method != nullptr && session_id_handle != 0U && monitor_names_handle != 0U && monitor_handle != 0U) {
+            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle),
+                                       reinterpret_cast<jobjectArray>(monitor_names_handle), reinterpret_cast<jstring>(monitor_handle),
+                                       supports_audio, supports_input, supports_file_transfer, supports_clipboard, supports_virtual_displays,
+                                       owned_virtual_display_count, maximum_virtual_display_count, topology_generation);
         }
         DeleteLocalReference(environment, session_id_handle);
+        DeleteLocalReference(environment, monitor_names_handle);
         DeleteLocalReference(environment, monitor_handle);
+        DeleteLocalReference(environment, listener_class_handle);
+    });
+}
+
+void JavaSessionCallback::MonitorsChanged(const std::string& session_id, const std::vector<std::string>& monitor_names,
+                                          const std::string& active_monitor_name) const {
+    const auto listener_handle = listener_handle_;
+    WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
+        const auto listener = reinterpret_cast<jobject>(listener_handle);
+        const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
+        const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
+        const auto method =
+            environment.GetMethodID(listener_class, "onMonitorsChanged", "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;)V");
+        const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
+        const auto monitor_names_handle = MakeStringArray(environment, monitor_names);
+        const auto monitor_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(active_monitor_name.c_str()));
+        if (method != nullptr && session_id_handle != 0U && monitor_names_handle != 0U && monitor_handle != 0U) {
+            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle),
+                                       reinterpret_cast<jobjectArray>(monitor_names_handle), reinterpret_cast<jstring>(monitor_handle));
+        }
+        DeleteLocalReference(environment, session_id_handle);
+        DeleteLocalReference(environment, monitor_names_handle);
+        DeleteLocalReference(environment, monitor_handle);
+        DeleteLocalReference(environment, listener_class_handle);
+    });
+}
+
+void JavaSessionCallback::VirtualDisplayResult(const std::string& session_id, const std::string& request_id, const bool accepted,
+                                               const std::int32_t state, const bool topology_changed, const std::int64_t topology_generation,
+                                               const std::int32_t owned_display_count, const std::string& error_code,
+                                               const std::string& error_message) const {
+    const auto listener_handle = listener_handle_;
+    WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
+        const auto listener = reinterpret_cast<jobject>(listener_handle);
+        const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
+        const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
+        const auto method = environment.GetMethodID(listener_class, "onVirtualDisplayResult",
+                                                    "(Ljava/lang/String;Ljava/lang/String;ZIZJILjava/lang/String;Ljava/lang/String;)V");
+        const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
+        const auto request_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(request_id.c_str()));
+        const auto error_code_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(error_code.c_str()));
+        const auto error_message_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(error_message.c_str()));
+        if (method != nullptr && session_id_handle != 0U && request_id_handle != 0U && error_code_handle != 0U && error_message_handle != 0U) {
+            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), reinterpret_cast<jstring>(request_id_handle),
+                                       accepted, state, topology_changed, topology_generation, owned_display_count,
+                                       reinterpret_cast<jstring>(error_code_handle), reinterpret_cast<jstring>(error_message_handle));
+        }
+        DeleteLocalReference(environment, session_id_handle);
+        DeleteLocalReference(environment, request_id_handle);
+        DeleteLocalReference(environment, error_code_handle);
+        DeleteLocalReference(environment, error_message_handle);
         DeleteLocalReference(environment, listener_class_handle);
     });
 }
@@ -273,12 +350,58 @@ bool NativeSession::Initialize() {
             return;
         }
         const auto& server_config = message->config();
+        std::vector<std::string> monitor_names;
+        monitor_names.reserve(static_cast<std::size_t>(server_config.monitors_info_size()));
+        for (const auto& monitor : server_config.monitors_info()) {
+            if (!monitor.name().empty() && std::find(monitor_names.begin(), monitor_names.end(), monitor.name()) == monitor_names.end()) {
+                monitor_names.push_back(monitor.name());
+            }
+        }
+        if (!server_config.capturing_monitor_name().empty() &&
+            std::find(monitor_names.begin(), monitor_names.end(), server_config.capturing_monitor_name()) == monitor_names.end()) {
+            monitor_names.push_back(server_config.capturing_monitor_name());
+        }
         {
             std::lock_guard lock(self->lifecycle_mutex_);
             self->active_monitor_name_ = server_config.capturing_monitor_name();
+            self->monitor_names_ = monitor_names;
         }
-        self->callback_->Connected(self->config_, server_config.capturing_monitor_name(), self->config_.enable_audio, self->config_.enable_input,
-                                   false, false);
+        self->callback_->Connected(
+            self->config_, monitor_names, server_config.capturing_monitor_name(), self->config_.enable_audio && server_config.audio_enabled(),
+            self->config_.enable_input && server_config.can_be_operated(), server_config.file_transfer_enabled(), false,
+            server_config.virtual_display_enabled(), static_cast<std::int32_t>(server_config.virtual_display_owned_count()),
+            static_cast<std::int32_t>(server_config.virtual_display_max_count()), static_cast<std::int64_t>(server_config.topology_generation()));
+    });
+    sdk_->SetOnMonitorSwitchedCallback([weak_self](std::shared_ptr<px::Message> message) {
+        const auto self = weak_self.lock();
+        if (!self || !message || !message->has_monitor_switched() || self->stopped_.load())
+            return;
+        std::vector<std::string> monitor_names;
+        std::string active_monitor_name;
+        {
+            std::lock_guard lock(self->lifecycle_mutex_);
+            active_monitor_name = message->monitor_switched().name();
+            if (active_monitor_name.empty())
+                return;
+            self->active_monitor_name_ = active_monitor_name;
+            if (std::find(self->monitor_names_.begin(), self->monitor_names_.end(), active_monitor_name) == self->monitor_names_.end()) {
+                self->monitor_names_.push_back(active_monitor_name);
+            }
+            monitor_names = self->monitor_names_;
+        }
+        self->callback_->MonitorsChanged(self->config_.session_id, monitor_names, active_monitor_name);
+    });
+    sdk_->SetOnRawMessageCallback([weak_self](std::shared_ptr<px::Message> message) {
+        const auto self = weak_self.lock();
+        if (!self || !message || message->type() != px::kVirtualDisplayResponse || !message->has_virtual_display_response() ||
+            self->stopped_.load()) {
+            return;
+        }
+        const auto& response = message->virtual_display_response();
+        self->callback_->VirtualDisplayResult(
+            self->config_.session_id, response.request_id(), response.accepted(), static_cast<std::int32_t>(response.state()),
+            response.topology_changed(), static_cast<std::int64_t>(response.topology_generation()),
+            static_cast<std::int32_t>(response.owned_display_count()), response.error_code(), response.error_message());
     });
     sdk_->SetOnHeartBeatCallback([weak_self](std::shared_ptr<px::Message> message) {
         const auto self = weak_self.lock();
@@ -503,6 +626,29 @@ bool NativeSession::SendKey(const std::int32_t virtual_key_code, const bool down
     return true;
 }
 
+bool NativeSession::SendGamepad(const NativeGamepadState& state) {
+    std::lock_guard command_lock(command_mutex_);
+    std::shared_ptr<px::ThunderSdk> sdk;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        const auto axes_valid = state.left_thumb_x >= -32768 && state.left_thumb_x <= 32767 && state.left_thumb_y >= -32768 &&
+                                state.left_thumb_y <= 32767 && state.right_thumb_x >= -32768 && state.right_thumb_x <= 32767 &&
+                                state.right_thumb_y >= -32768 && state.right_thumb_y <= 32767;
+        if (stopped_.load() || !started_ || !config_.enable_input || !sdk_ || state.buttons < 0 || state.buttons > 0xFFFF || state.left_trigger < 0 ||
+            state.left_trigger > 0xFF || state.right_trigger < 0 || state.right_trigger > 0xFF || !axes_valid) {
+            return false;
+        }
+        sdk = sdk_;
+    }
+    const auto message =
+        px::ProtoMessageMaker::MakeGamepadState(state.buttons, state.left_trigger, state.right_trigger, state.left_thumb_x, state.left_thumb_y,
+                                                state.right_thumb_x, state.right_thumb_y, client_signal_device_id_, config_.stream_id);
+    if (!message)
+        return false;
+    sdk->PostMediaMessage(message);
+    return true;
+}
+
 bool NativeSession::SendText(const std::string& text) {
     std::lock_guard command_lock(command_mutex_);
     std::shared_ptr<px::ThunderSdk> sdk;
@@ -529,6 +675,47 @@ bool NativeSession::SendSecureAttention() {
         sdk = sdk_;
     }
     const auto message = px::ProtoMessageMaker::MakeCtrlAltDelete(client_signal_device_id_, config_.stream_id);
+    if (!message)
+        return false;
+    sdk->PostMediaMessage(message);
+    return true;
+}
+
+bool NativeSession::SwitchMonitor(const std::string& monitor_name) {
+    std::lock_guard command_lock(command_mutex_);
+    std::shared_ptr<px::ThunderSdk> sdk;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (stopped_.load() || !started_ || !sdk_ || monitor_name.empty() ||
+            std::find(monitor_names_.begin(), monitor_names_.end(), monitor_name) == monitor_names_.end()) {
+            return false;
+        }
+        if (active_monitor_name_ == monitor_name)
+            return true;
+        sdk = sdk_;
+    }
+    const auto message = px::ProtoMessageMaker::MakeChangeMonitor(0, monitor_name, client_signal_device_id_, config_.stream_id);
+    if (!message)
+        return false;
+    sdk->PostMediaMessage(message);
+    return true;
+}
+
+bool NativeSession::RequestVirtualDisplay(const std::string& request_id, const std::int32_t operation, const std::int32_t width,
+                                          const std::int32_t height, const std::int32_t refresh_hz) {
+    std::lock_guard command_lock(command_mutex_);
+    std::shared_ptr<px::ThunderSdk> sdk;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (stopped_.load() || !started_ || !config_.enable_input || !sdk_ || request_id.empty() || operation < 0 || operation > 1 || width <= 0 ||
+            height <= 0 || refresh_hz <= 0) {
+            return false;
+        }
+        sdk = sdk_;
+    }
+    const auto message =
+        px::ProtoMessageMaker::MakeVirtualDisplayRequest(request_id, operation, static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height),
+                                                         static_cast<std::uint32_t>(refresh_hz), client_signal_device_id_, config_.stream_id);
     if (!message)
         return false;
     sdk->PostMediaMessage(message);

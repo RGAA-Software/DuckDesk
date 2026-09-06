@@ -1,5 +1,6 @@
 package yun.pixels.client.feature.remote
 
+import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.InputDevice
 import android.view.MotionEvent
@@ -24,8 +25,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.VolumeOff
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Mouse
+import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -58,11 +61,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import yun.pixels.client.core.domain.session.InputCommand
+import yun.pixels.client.core.domain.session.RemoteGamepadButton
 import yun.pixels.client.core.domain.session.RemoteInputMode
 import yun.pixels.client.core.domain.session.RemoteKey
 import yun.pixels.client.core.domain.session.RemoteMouseButton
 import yun.pixels.client.core.domain.session.RemoteSessionSnapshot
 import yun.pixels.client.core.domain.session.RemoteSessionStatus
+import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +78,8 @@ fun RemoteWorkspaceScreen(
     onSurfaceAvailable: (Surface) -> Unit,
     onSurfaceDestroyed: (Surface) -> Unit,
     onInput: (InputCommand) -> Unit,
+    onSwitchMonitor: (String) -> Unit,
+    onVirtualDisplayRequest: (String, RemoteVirtualDisplayOperation) -> Unit,
     onText: (String) -> Unit,
     onAudioEnabledChange: (Boolean) -> Unit,
     onEndSession: () -> Unit,
@@ -88,6 +95,9 @@ fun RemoteWorkspaceScreen(
     }
     var sensitivity by remember { mutableStateOf(preferences.getFloat(INPUT_SENSITIVITY, 1f).coerceIn(0.5f, 2f)) }
     var showKeyboard by remember { mutableStateOf(false) }
+    var showDisplays by remember { mutableStateOf(false) }
+    var allowPortraitGamepad by remember { mutableStateOf(false) }
+    var pendingVirtualDisplayRequest by remember { mutableStateOf<String?>(null) }
     var confirmSecureAttention by remember { mutableStateOf(false) }
     var currentSurface by remember { mutableStateOf<Surface?>(null) }
     val latestSurfaceAvailable by rememberUpdatedState(onSurfaceAvailable)
@@ -96,10 +106,14 @@ fun RemoteWorkspaceScreen(
     val latestMode by rememberUpdatedState(inputMode)
     val latestSensitivity by rememberUpdatedState(sensitivity)
     val interpreter = remember { RemoteGestureInterpreter { latestInput(it) } }
+    val gamepadController = remember { RemoteGamepadController { latestInput(it) } }
     interpreter.mode = inputMode
     interpreter.touchpadSensitivity = sensitivity
     LaunchedEffect(currentSurface, surfaceConsumerReady) {
         currentSurface?.takeIf { surfaceConsumerReady && it.isValid }?.let(latestSurfaceAvailable)
+    }
+    LaunchedEffect(snapshot.lastVirtualDisplayResult) {
+        if (snapshot.lastVirtualDisplayResult?.requestId == pendingVirtualDisplayRequest) pendingVirtualDisplayRequest = null
     }
     val surfaceCallback = remember {
         object : SurfaceHolder.Callback {
@@ -111,6 +125,7 @@ fun RemoteWorkspaceScreen(
 
             override fun surfaceDestroyed(holder: SurfaceHolder) {
                 interpreter.cancelGesture()
+                gamepadController.reset()
                 if (currentSurface === holder.surface) currentSurface = null
                 latestSurfaceDestroyed(holder.surface)
             }
@@ -136,6 +151,7 @@ fun RemoteWorkspaceScreen(
                             handlePhysicalMouse(event, touchedView.width, touchedView.height, latestInput)
                             return@setOnTouchListener true
                         }
+                        if (latestMode == RemoteInputMode.Gamepad) return@setOnTouchListener true
                         interpreter.mode = latestMode
                         interpreter.touchpadSensitivity = latestSensitivity
                         interpreter.onTouch(event.toTouchSample(touchedView.width, touchedView.height))
@@ -144,10 +160,18 @@ fun RemoteWorkspaceScreen(
                         true
                     }
                     view.setOnGenericMotionListener { _, event ->
-                        event.isFromSource(InputDevice.SOURCE_MOUSE) &&
-                            handlePhysicalMouse(event, view.width, view.height, latestInput)
+                        when {
+                            event.isFromSource(InputDevice.SOURCE_JOYSTICK) -> handlePhysicalGamepadMotion(event, gamepadController)
+                            event.isFromSource(InputDevice.SOURCE_MOUSE) -> handlePhysicalMouse(event, view.width, view.height, latestInput)
+                            else -> false
+                        }
                     }
                     view.setOnKeyListener { _, keyCode, event ->
+                        if (event.isFromSource(InputDevice.SOURCE_GAMEPAD) || event.isFromSource(InputDevice.SOURCE_JOYSTICK)) {
+                            val button = keyCode.toRemoteGamepadButton() ?: return@setOnKeyListener false
+                            if (event.repeatCount == 0) gamepadController.setButton(button, event.action == KeyEvent.ACTION_DOWN)
+                            return@setOnKeyListener true
+                        }
                         val key = keyCode.toRemoteKey() ?: return@setOnKeyListener false
                         when (event.action) {
                             KeyEvent.ACTION_DOWN -> if (event.repeatCount == 0) latestInput(InputCommand.Key(key, true))
@@ -161,6 +185,7 @@ fun RemoteWorkspaceScreen(
             modifier = videoModifier.align(Alignment.Center),
             onRelease = { view ->
                 interpreter.cancelGesture()
+                gamepadController.reset()
                 view.setOnTouchListener(null)
                 view.setOnGenericMotionListener(null)
                 view.setOnKeyListener(null)
@@ -175,13 +200,23 @@ fun RemoteWorkspaceScreen(
             inputMode = inputMode,
             onInputModeChange = { mode ->
                 interpreter.cancelGesture()
+                if (mode != RemoteInputMode.Gamepad) gamepadController.reset()
+                if (mode == RemoteInputMode.Gamepad) allowPortraitGamepad = false
                 inputMode = mode
                 preferences.edit().putString(INPUT_MODE, mode.name).apply()
             },
             onAudioEnabledChange = onAudioEnabledChange,
             onOpenKeyboard = { showKeyboard = true },
+            onOpenDisplays = { showDisplays = true },
             onEndSession = onEndSession,
         )
+        if (inputMode == RemoteInputMode.Gamepad && snapshot.status is RemoteSessionStatus.Connected) {
+            if (maxWidth > maxHeight || allowPortraitGamepad) {
+                RemoteGamepadOverlay(gamepadController)
+            } else {
+                GamepadPortraitPrompt { allowPortraitGamepad = true }
+            }
+        }
         RemoteStatus(snapshot.status)
     }
     if (showKeyboard) {
@@ -215,6 +250,20 @@ fun RemoteWorkspaceScreen(
             },
         )
     }
+    val connected = snapshot.status as? RemoteSessionStatus.Connected
+    if (showDisplays && connected != null) {
+        RemoteDisplaysSheet(
+            snapshot = snapshot,
+            pendingRequestId = pendingVirtualDisplayRequest,
+            onSwitchMonitor = onSwitchMonitor,
+            onVirtualDisplayRequest = { operation ->
+                val requestId = "android-${SystemClock.elapsedRealtimeNanos()}"
+                pendingVirtualDisplayRequest = requestId
+                onVirtualDisplayRequest(requestId, operation)
+            },
+            onDismiss = { showDisplays = false },
+        )
+    }
 }
 
 @Composable
@@ -225,6 +274,7 @@ private fun RemoteTopBar(
     onInputModeChange: (RemoteInputMode) -> Unit,
     onAudioEnabledChange: (Boolean) -> Unit,
     onOpenKeyboard: () -> Unit,
+    onOpenDisplays: () -> Unit,
     onEndSession: () -> Unit,
 ) {
     val status = snapshot.status
@@ -242,7 +292,7 @@ private fun RemoteTopBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(text = title, style = MaterialTheme.typography.titleMedium)
                 if (status is RemoteSessionStatus.Connected) {
                     Text(
@@ -261,20 +311,31 @@ private fun RemoteTopBar(
                 if ((status as? RemoteSessionStatus.Connected)?.capabilities?.supportsInput == true) {
                     FilledTonalIconButton(
                         onClick = {
-                            onInputModeChange(
-                                if (inputMode == RemoteInputMode.DirectTouch) RemoteInputMode.Touchpad else RemoteInputMode.DirectTouch,
-                            )
+                            onInputModeChange(inputMode.next())
                         },
                     ) {
                         Icon(
-                            if (inputMode == RemoteInputMode.DirectTouch) Icons.Outlined.TouchApp else Icons.Outlined.Mouse,
+                            when (inputMode) {
+                                RemoteInputMode.DirectTouch -> Icons.Outlined.TouchApp
+                                RemoteInputMode.Touchpad -> Icons.Outlined.Mouse
+                                RemoteInputMode.Gamepad -> Icons.Outlined.SportsEsports
+                            },
                             contentDescription = stringResource(
-                                if (inputMode == RemoteInputMode.DirectTouch) R.string.remote_direct_touch else R.string.remote_touchpad,
+                                when (inputMode) {
+                                    RemoteInputMode.DirectTouch -> R.string.remote_direct_touch
+                                    RemoteInputMode.Touchpad -> R.string.remote_touchpad
+                                    RemoteInputMode.Gamepad -> R.string.remote_gamepad
+                                },
                             ),
                         )
                     }
                     FilledTonalIconButton(onClick = onOpenKeyboard) {
                         Icon(Icons.Outlined.Keyboard, contentDescription = stringResource(R.string.remote_keyboard))
+                    }
+                    if (status.capabilities.monitorNames.isNotEmpty()) {
+                        FilledTonalIconButton(onClick = onOpenDisplays) {
+                            Icon(Icons.Outlined.DesktopWindows, contentDescription = stringResource(R.string.remote_displays))
+                        }
                     }
                 }
                 if ((status as? RemoteSessionStatus.Connected)?.capabilities?.supportsAudio == true) {
@@ -287,6 +348,76 @@ private fun RemoteTopBar(
                 }
                 FilledTonalIconButton(onClick = onEndSession) {
                     Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.remote_exit))
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RemoteDisplaysSheet(
+    snapshot: RemoteSessionSnapshot,
+    pendingRequestId: String?,
+    onSwitchMonitor: (String) -> Unit,
+    onVirtualDisplayRequest: (RemoteVirtualDisplayOperation) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val connected = snapshot.status as? RemoteSessionStatus.Connected ?: return
+    val capabilities = connected.capabilities
+    val monitorNames = capabilities.monitorNames
+    val activeMonitorName = capabilities.activeMonitorName
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(stringResource(R.string.remote_displays), style = MaterialTheme.typography.titleLarge)
+            if (monitorNames.isEmpty()) {
+                Text(stringResource(R.string.remote_no_displays), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            monitorNames.forEachIndexed { index, monitorName ->
+                val label = stringResource(R.string.remote_display_name, index + 1, monitorName)
+                if (monitorName == activeMonitorName) {
+                    FilledTonalButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) { Text(label) }
+                } else {
+                    OutlinedButton(
+                        onClick = {
+                            onSwitchMonitor(monitorName)
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(label) }
+                }
+            }
+            if (capabilities.supportsVirtualDisplays) {
+                Text(
+                    stringResource(
+                        R.string.remote_virtual_display_count,
+                        capabilities.ownedVirtualDisplayCount,
+                        capabilities.maximumVirtualDisplayCount,
+                    ),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FilledTonalButton(
+                        onClick = { onVirtualDisplayRequest(RemoteVirtualDisplayOperation.Create) },
+                        enabled = pendingRequestId == null &&
+                            capabilities.ownedVirtualDisplayCount < capabilities.maximumVirtualDisplayCount,
+                    ) { Text(stringResource(R.string.remote_virtual_display_add)) }
+                    OutlinedButton(
+                        onClick = { onVirtualDisplayRequest(RemoteVirtualDisplayOperation.RemoveLast) },
+                        enabled = pendingRequestId == null && capabilities.ownedVirtualDisplayCount > 0,
+                    ) { Text(stringResource(R.string.remote_virtual_display_remove)) }
+                }
+                if (pendingRequestId != null) {
+                    Text(stringResource(R.string.remote_virtual_display_processing), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                snapshot.lastVirtualDisplayResult?.takeIf { !it.accepted }?.let { result ->
+                    Text(
+                        result.errorMessage.ifBlank { result.errorCode.ifBlank { stringResource(R.string.remote_virtual_display_failed) } },
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             }
         }
@@ -429,6 +560,59 @@ private fun handlePhysicalMouse(event: MotionEvent, width: Int, height: Int, onI
         else -> return false
     }
     return true
+}
+
+private fun handlePhysicalGamepadMotion(event: MotionEvent, controller: RemoteGamepadController): Boolean {
+    if (event.actionMasked != MotionEvent.ACTION_MOVE) return false
+    controller.setLeftStick(event.getCenteredAxis(MotionEvent.AXIS_X), event.getCenteredAxis(MotionEvent.AXIS_Y))
+    controller.setRightStick(event.getCenteredAxis(MotionEvent.AXIS_Z), event.getCenteredAxis(MotionEvent.AXIS_RZ))
+    val leftTrigger = maxOf(event.getNormalizedTrigger(MotionEvent.AXIS_LTRIGGER), event.getNormalizedTrigger(MotionEvent.AXIS_BRAKE))
+    val rightTrigger = maxOf(event.getNormalizedTrigger(MotionEvent.AXIS_RTRIGGER), event.getNormalizedTrigger(MotionEvent.AXIS_GAS))
+    controller.setTriggers(leftTrigger, rightTrigger)
+    controller.setButton(RemoteGamepadButton.DPadLeft, event.getCenteredAxis(MotionEvent.AXIS_HAT_X) < -0.5f)
+    controller.setButton(RemoteGamepadButton.DPadRight, event.getCenteredAxis(MotionEvent.AXIS_HAT_X) > 0.5f)
+    controller.setButton(RemoteGamepadButton.DPadUp, event.getCenteredAxis(MotionEvent.AXIS_HAT_Y) < -0.5f)
+    controller.setButton(RemoteGamepadButton.DPadDown, event.getCenteredAxis(MotionEvent.AXIS_HAT_Y) > 0.5f)
+    return true
+}
+
+private fun MotionEvent.getCenteredAxis(axis: Int): Float {
+    val range = device?.getMotionRange(axis, source) ?: return 0f
+    val value = getAxisValue(axis)
+    val center = (range.min + range.max) / 2f
+    val halfRange = (range.max - range.min) / 2f
+    if (halfRange <= 0f || kotlin.math.abs(value - center) <= range.flat) return 0f
+    return ((value - center) / halfRange).coerceIn(-1f, 1f)
+}
+
+private fun MotionEvent.getNormalizedTrigger(axis: Int): Float {
+    val range = device?.getMotionRange(axis, source) ?: return 0f
+    if (range.range <= 0f) return 0f
+    return ((getAxisValue(axis) - range.min) / range.range).coerceIn(0f, 1f)
+}
+
+private fun Int.toRemoteGamepadButton(): RemoteGamepadButton? = when (this) {
+    KeyEvent.KEYCODE_BUTTON_A -> RemoteGamepadButton.A
+    KeyEvent.KEYCODE_BUTTON_B -> RemoteGamepadButton.B
+    KeyEvent.KEYCODE_BUTTON_X -> RemoteGamepadButton.X
+    KeyEvent.KEYCODE_BUTTON_Y -> RemoteGamepadButton.Y
+    KeyEvent.KEYCODE_BUTTON_L1 -> RemoteGamepadButton.LeftShoulder
+    KeyEvent.KEYCODE_BUTTON_R1 -> RemoteGamepadButton.RightShoulder
+    KeyEvent.KEYCODE_BUTTON_THUMBL -> RemoteGamepadButton.LeftThumb
+    KeyEvent.KEYCODE_BUTTON_THUMBR -> RemoteGamepadButton.RightThumb
+    KeyEvent.KEYCODE_BUTTON_START -> RemoteGamepadButton.Start
+    KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_BACK -> RemoteGamepadButton.Back
+    KeyEvent.KEYCODE_DPAD_UP -> RemoteGamepadButton.DPadUp
+    KeyEvent.KEYCODE_DPAD_DOWN -> RemoteGamepadButton.DPadDown
+    KeyEvent.KEYCODE_DPAD_LEFT -> RemoteGamepadButton.DPadLeft
+    KeyEvent.KEYCODE_DPAD_RIGHT -> RemoteGamepadButton.DPadRight
+    else -> null
+}
+
+private fun RemoteInputMode.next(): RemoteInputMode = when (this) {
+    RemoteInputMode.DirectTouch -> RemoteInputMode.Touchpad
+    RemoteInputMode.Touchpad -> RemoteInputMode.Gamepad
+    RemoteInputMode.Gamepad -> RemoteInputMode.DirectTouch
 }
 
 private fun Int.toRemoteMouseButton(): RemoteMouseButton = when (this) {

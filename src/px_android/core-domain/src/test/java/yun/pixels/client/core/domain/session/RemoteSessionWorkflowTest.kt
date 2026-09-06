@@ -32,6 +32,8 @@ class RemoteSessionWorkflowTest {
         assertThrows(IllegalArgumentException::class.java) { InputCommand.MoveRelative(Float.NaN, 0f) }
         assertThrows(IllegalArgumentException::class.java) { InputCommand.MouseButton(RemoteMouseButton.Left, true, 0.5f, null) }
         assertThrows(IllegalArgumentException::class.java) { InputCommand.Wheel(0, 0) }
+        assertThrows(IllegalArgumentException::class.java) { RemoteGamepadState(leftTrigger = 256) }
+        assertThrows(IllegalArgumentException::class.java) { RemoteGamepadState(rightThumbY = 32_768) }
     }
 
     @Test
@@ -141,6 +143,23 @@ class RemoteSessionWorkflowTest {
         assertEquals(RemoteSessionStatus.Connected(request, capabilities()), workflow.snapshot.value.status)
         assertEquals(statistics, workflow.snapshot.value.statistics)
         assertEquals(videoSize, workflow.snapshot.value.videoSize)
+    }
+
+    @Test
+    fun capabilityUpdatesSwitchTheActiveMonitorWithoutResettingSessionTelemetry() = runTest {
+        val transport = FakeRemoteSessionTransport()
+        val workflow = RemoteSessionWorkflow(transport, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+        val request = request("session-1")
+        val statistics = RemoteSessionStatistics(framesPerSecond = 60, latencyMillis = 8, bitrateKbps = 8_000)
+        val updated = capabilities().copy(monitorNames = listOf("DISPLAY1", "DISPLAY2"), activeMonitorName = "DISPLAY2")
+        workflow.start(request)
+        transport.eventsFlow.emit(RemoteTransportEvent.Connected(request.id, capabilities()))
+        transport.eventsFlow.emit(RemoteTransportEvent.Statistics(request.id, statistics))
+        transport.eventsFlow.emit(RemoteTransportEvent.CapabilitiesUpdated(request.id, updated))
+        advanceUntilIdle()
+
+        assertEquals(RemoteSessionStatus.Connected(request, updated), workflow.snapshot.value.status)
+        assertEquals(statistics, workflow.snapshot.value.statistics)
     }
 
     private fun request(id: String) = RemoteSessionRequest(

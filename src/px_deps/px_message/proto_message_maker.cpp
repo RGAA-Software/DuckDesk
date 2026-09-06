@@ -80,6 +80,25 @@ namespace px
         return ProtoAsData(&message);
     }
 
+    std::shared_ptr<Data> ProtoMessageMaker::MakeVirtualDisplayRequest(const std::string& request_id, const int32_t operation,
+                                                                      const uint32_t width, const uint32_t height,
+                                                                      const uint32_t refresh_hz, const std::string& device_id,
+                                                                      const std::string& stream_id) {
+        if (request_id.empty() || operation < kRemoteVirtualDisplayCreate || operation > kRemoteVirtualDisplayResetOwned) return {};
+        if (operation == kRemoteVirtualDisplayCreate && (width == 0 || height == 0 || refresh_hz == 0)) return {};
+        px::Message message;
+        message.set_type(kVirtualDisplayRequest);
+        message.set_device_id(device_id);
+        message.set_stream_id(stream_id);
+        auto& request = *message.mutable_virtual_display_request();
+        request.set_request_id(request_id);
+        request.set_operation(static_cast<RemoteVirtualDisplayOperation>(operation));
+        request.set_width(width);
+        request.set_height(height);
+        request.set_refresh_hz(refresh_hz);
+        return ProtoAsData(&message);
+    }
+
     std::shared_ptr<Data> ProtoMessageMaker::MakeTextInput(const std::string& text, const std::string& device_id, const std::string& stream_id) {
         if (text.empty() || text.size() > 4096) return {};
         px::Message message;

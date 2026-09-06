@@ -23,6 +23,9 @@ import yun.pixels.client.core.domain.session.RemoteSessionTransport
 import yun.pixels.client.core.domain.session.RemoteTransportEvent
 import yun.pixels.client.core.domain.session.RemoteTransportStartResult
 import yun.pixels.client.core.domain.session.RemoteVideoSize
+import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
+import yun.pixels.client.core.domain.session.RemoteVirtualDisplayResult
+import yun.pixels.client.core.domain.session.RemoteVirtualDisplayResultState
 import java.net.URI
 import java.net.URLDecoder
 
@@ -42,6 +45,7 @@ class NativeRemoteSessionTransport internal constructor(
     private val mutableEvents = MutableSharedFlow<RemoteTransportEvent>(extraBufferCapacity = 32)
     private val surfaces = mutableMapOf<RemoteSessionId, Surface>()
     private val nativeSessionIds = mutableMapOf<RemoteSessionId, Long>()
+    private val capabilities = mutableMapOf<RemoteSessionId, RemoteSessionCapabilities>()
 
     override val events: Flow<RemoteTransportEvent> = mutableEvents.asSharedFlow()
 
@@ -102,6 +106,7 @@ class NativeRemoteSessionTransport internal constructor(
     override suspend fun stop(sessionId: RemoteSessionId) {
         val nativeSessionId = lock.withLock {
             surfaces.remove(sessionId)
+            capabilities.remove(sessionId)
             nativeSessionIds.remove(sessionId)
         } ?: return
         withContext(Dispatchers.IO) { PixelsNativeBridge.stop(nativeSessionId) }
@@ -131,15 +136,21 @@ class NativeRemoteSessionTransport internal constructor(
                 deltaX = command.deltaX,
                 deltaY = command.deltaY,
             )
-            is InputCommand.Key -> withContext(Dispatchers.IO) {
-                PixelsNativeBridge.sendKey(nativeSessionId, command.key.virtualKeyCode, command.down)
+            is InputCommand.Key -> PixelsNativeBridge.sendKey(nativeSessionId, command.key.virtualKeyCode, command.down)
+            is InputCommand.Gamepad -> command.state.let { state ->
+                PixelsNativeBridge.sendGamepad(
+                    nativeSessionId,
+                    state.buttons,
+                    state.leftTrigger,
+                    state.rightTrigger,
+                    state.leftThumbX,
+                    state.leftThumbY,
+                    state.rightThumbX,
+                    state.rightThumbY,
+                )
             }
-            is InputCommand.Text -> withContext(Dispatchers.IO) {
-                PixelsNativeBridge.sendText(nativeSessionId, command.value.encodeToByteArray())
-            }
-            InputCommand.SecureAttention -> withContext(Dispatchers.IO) {
-                PixelsNativeBridge.sendSecureAttention(nativeSessionId)
-            }
+            is InputCommand.Text -> PixelsNativeBridge.sendText(nativeSessionId, command.value.encodeToByteArray())
+            InputCommand.SecureAttention -> PixelsNativeBridge.sendSecureAttention(nativeSessionId)
         }
     }
 
@@ -152,8 +163,29 @@ class NativeRemoteSessionTransport internal constructor(
         yRatio: Float = 0f,
         deltaX: Int = 0,
         deltaY: Int = 0,
-    ): Boolean = withContext(Dispatchers.IO) {
-        PixelsNativeBridge.sendMouse(nativeSessionId, action, button, down, xRatio, yRatio, deltaX, deltaY)
+    ): Boolean = PixelsNativeBridge.sendMouse(nativeSessionId, action, button, down, xRatio, yRatio, deltaX, deltaY)
+
+    suspend fun switchMonitor(sessionId: RemoteSessionId, monitorName: String): Boolean {
+        if (monitorName.isBlank()) return false
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        return PixelsNativeBridge.switchMonitor(nativeSessionId, monitorName)
+    }
+
+    suspend fun requestVirtualDisplay(
+        sessionId: RemoteSessionId,
+        requestId: String,
+        operation: RemoteVirtualDisplayOperation,
+    ): Boolean {
+        if (requestId.isBlank()) return false
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        return PixelsNativeBridge.requestVirtualDisplay(
+            nativeSessionId,
+            requestId,
+            operation.nativeValue,
+            DEFAULT_VIRTUAL_DISPLAY_WIDTH,
+            DEFAULT_VIRTUAL_DISPLAY_HEIGHT,
+            DEFAULT_VIRTUAL_DISPLAY_REFRESH_HZ,
+        )
     }
 
     suspend fun setAudioEnabled(sessionId: RemoteSessionId, enabled: Boolean): Boolean {
@@ -163,23 +195,87 @@ class NativeRemoteSessionTransport internal constructor(
 
     override fun onConnected(
         sessionId: String,
+        monitorNames: Array<String>,
         activeMonitorName: String,
         supportsAudio: Boolean,
         supportsInput: Boolean,
         supportsFileTransfer: Boolean,
         supportsClipboard: Boolean,
+        supportsVirtualDisplays: Boolean,
+        ownedVirtualDisplayCount: Int,
+        maximumVirtualDisplayCount: Int,
+        topologyGeneration: Long,
     ) {
         callbackScope.launch {
+            val remoteSessionId = RemoteSessionId(sessionId)
+            val sessionCapabilities = RemoteSessionCapabilities(
+                monitorNames = monitorNames.filter(String::isNotBlank).distinct(),
+                activeMonitorName = activeMonitorName,
+                supportsAudio = supportsAudio,
+                supportsInput = supportsInput,
+                supportsFileTransfer = supportsFileTransfer,
+                supportsClipboard = supportsClipboard,
+                supportsVirtualDisplays = supportsVirtualDisplays,
+                ownedVirtualDisplayCount = ownedVirtualDisplayCount.coerceAtLeast(0),
+                maximumVirtualDisplayCount = maximumVirtualDisplayCount.coerceAtLeast(0),
+                topologyGeneration = topologyGeneration.coerceAtLeast(0),
+            )
+            lock.withLock { capabilities[remoteSessionId] = sessionCapabilities }
             mutableEvents.emit(
                 RemoteTransportEvent.Connected(
-                    sessionId = RemoteSessionId(sessionId),
-                    capabilities = RemoteSessionCapabilities(
-                        monitorNames = listOf(activeMonitorName).filter(String::isNotBlank),
-                        activeMonitorName = activeMonitorName,
-                        supportsAudio = supportsAudio,
-                        supportsInput = supportsInput,
-                        supportsFileTransfer = supportsFileTransfer,
-                        supportsClipboard = supportsClipboard,
+                    sessionId = remoteSessionId,
+                    capabilities = sessionCapabilities,
+                ),
+            )
+        }
+    }
+
+    override fun onMonitorsChanged(sessionId: String, monitorNames: Array<String>, activeMonitorName: String) {
+        callbackScope.launch {
+            val remoteSessionId = RemoteSessionId(sessionId)
+            val updated = lock.withLock {
+                val current = capabilities[remoteSessionId] ?: return@withLock null
+                current.copy(
+                    monitorNames = monitorNames.filter(String::isNotBlank).distinct(),
+                    activeMonitorName = activeMonitorName,
+                ).also { capabilities[remoteSessionId] = it }
+            } ?: return@launch
+            mutableEvents.emit(RemoteTransportEvent.CapabilitiesUpdated(remoteSessionId, updated))
+        }
+    }
+
+    override fun onVirtualDisplayResult(
+        sessionId: String,
+        requestId: String,
+        accepted: Boolean,
+        state: Int,
+        topologyChanged: Boolean,
+        topologyGeneration: Long,
+        ownedDisplayCount: Int,
+        errorCode: String,
+        errorMessage: String,
+    ) {
+        callbackScope.launch {
+            val remoteSessionId = RemoteSessionId(sessionId)
+            val updated = lock.withLock {
+                capabilities[remoteSessionId]?.copy(
+                    ownedVirtualDisplayCount = ownedDisplayCount.coerceAtLeast(0),
+                    topologyGeneration = topologyGeneration.coerceAtLeast(0),
+                )?.also { capabilities[remoteSessionId] = it }
+            }
+            if (updated != null) mutableEvents.emit(RemoteTransportEvent.CapabilitiesUpdated(remoteSessionId, updated))
+            mutableEvents.emit(
+                RemoteTransportEvent.VirtualDisplayResult(
+                    remoteSessionId,
+                    RemoteVirtualDisplayResult(
+                        requestId = requestId,
+                        accepted = accepted,
+                        state = state.toVirtualDisplayResultState(),
+                        topologyChanged = topologyChanged,
+                        topologyGeneration = topologyGeneration.coerceAtLeast(0),
+                        ownedDisplayCount = ownedDisplayCount.coerceAtLeast(0),
+                        errorCode = errorCode,
+                        errorMessage = errorMessage,
                     ),
                 ),
             )
@@ -331,3 +427,18 @@ private const val MOUSE_MOVE_ABSOLUTE = 0
 private const val MOUSE_MOVE_RELATIVE = 1
 private const val MOUSE_BUTTON = 2
 private const val MOUSE_WHEEL = 3
+private const val DEFAULT_VIRTUAL_DISPLAY_WIDTH = 1920
+private const val DEFAULT_VIRTUAL_DISPLAY_HEIGHT = 1080
+private const val DEFAULT_VIRTUAL_DISPLAY_REFRESH_HZ = 60
+
+private val RemoteVirtualDisplayOperation.nativeValue: Int
+    get() = when (this) {
+        RemoteVirtualDisplayOperation.Create -> 0
+        RemoteVirtualDisplayOperation.RemoveLast -> 1
+    }
+
+private fun Int.toVirtualDisplayResultState(): RemoteVirtualDisplayResultState = when (this) {
+    0 -> RemoteVirtualDisplayResultState.Ready
+    1 -> RemoteVirtualDisplayResultState.NeedReconnect
+    else -> RemoteVirtualDisplayResultState.Failed
+}

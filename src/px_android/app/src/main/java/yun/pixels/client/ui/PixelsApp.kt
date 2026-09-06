@@ -314,6 +314,8 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     onSurfaceAvailable = { surface -> remoteBinder?.attachSurface(surface) },
                     onSurfaceDestroyed = { surface -> remoteBinder?.detachSurface(surface) },
                     onInput = { command -> remoteBinder?.sendInput(command) },
+                    onSwitchMonitor = { monitorName -> remoteBinder?.switchMonitor(monitorName) },
+                    onVirtualDisplayRequest = { requestId, operation -> remoteBinder?.requestVirtualDisplay(requestId, operation) },
                     onText = { text -> remoteBinder?.sendText(text) },
                     onAudioEnabledChange = { enabled -> remoteBinder?.setAudioEnabled(enabled) },
                     onEndSession = {

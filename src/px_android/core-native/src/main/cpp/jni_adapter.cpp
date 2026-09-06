@@ -172,6 +172,48 @@ jboolean NativeSendSecureAttention(JNIEnv*, jobject, const jlong native_session_
     return session && session->SendSecureAttention() ? JNI_TRUE : JNI_FALSE;
 }
 
+jboolean NativeSendGamepad(JNIEnv*, jobject, const jlong native_session_id, const jint buttons, const jint left_trigger, const jint right_trigger,
+                           const jint left_thumb_x, const jint left_thumb_y, const jint right_thumb_x,
+                           const jint right_thumb_y) { // NOLINT(gammaray-raw-pointer-boundary)
+    const auto session = Registry().Find(native_session_id);
+    const NativeGamepadState state{
+        .buttons = buttons,
+        .left_trigger = left_trigger,
+        .right_trigger = right_trigger,
+        .left_thumb_x = left_thumb_x,
+        .left_thumb_y = left_thumb_y,
+        .right_thumb_x = right_thumb_x,
+        .right_thumb_y = right_thumb_y,
+    };
+    return session && session->SendGamepad(state) ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean NativeSwitchMonitor(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(gammaray-raw-pointer-boundary)
+                             const jstring monitor_name) {
+    if (environment == nullptr || monitor_name == nullptr)
+        return JNI_FALSE;
+    const char* characters = environment->GetStringUTFChars(monitor_name, nullptr); // NOLINT(gammaray-raw-pointer-boundary)
+    if (characters == nullptr)
+        return JNI_FALSE;
+    const std::string name{characters};
+    environment->ReleaseStringUTFChars(monitor_name, characters);
+    const auto session = Registry().Find(native_session_id);
+    return session && session->SwitchMonitor(name) ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean NativeRequestVirtualDisplay(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(gammaray-raw-pointer-boundary)
+                                     const jstring request_id, const jint operation, const jint width, const jint height, const jint refresh_hz) {
+    if (environment == nullptr || request_id == nullptr)
+        return JNI_FALSE;
+    const char* characters = environment->GetStringUTFChars(request_id, nullptr); // NOLINT(gammaray-raw-pointer-boundary)
+    if (characters == nullptr)
+        return JNI_FALSE;
+    const std::string id{characters};
+    environment->ReleaseStringUTFChars(request_id, characters);
+    const auto session = Registry().Find(native_session_id);
+    return session && session->RequestVirtualDisplay(id, operation, width, height, refresh_hz) ? JNI_TRUE : JNI_FALSE;
+}
+
 void NativeStop(JNIEnv*, jobject, const jlong native_session_id) { // NOLINT(gammaray-raw-pointer-boundary)
     if (const auto session = Registry().Remove(native_session_id)) {
         session->Stop();
@@ -208,6 +250,11 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) { // NOLINT(gamm
         {const_cast<char*>("sendKey"), const_cast<char*>("(JIZ)Z"), reinterpret_cast<void*>(pixels::android::NativeSendKey)},
         {const_cast<char*>("sendText"), const_cast<char*>("(J[B)Z"), reinterpret_cast<void*>(pixels::android::NativeSendText)},
         {const_cast<char*>("sendSecureAttention"), const_cast<char*>("(J)Z"), reinterpret_cast<void*>(pixels::android::NativeSendSecureAttention)},
+        {const_cast<char*>("sendGamepad"), const_cast<char*>("(JIIIIIII)Z"), reinterpret_cast<void*>(pixels::android::NativeSendGamepad)},
+        {const_cast<char*>("switchMonitor"), const_cast<char*>("(JLjava/lang/String;)Z"),
+         reinterpret_cast<void*>(pixels::android::NativeSwitchMonitor)},
+        {const_cast<char*>("requestVirtualDisplay"), const_cast<char*>("(JLjava/lang/String;IIII)Z"),
+         reinterpret_cast<void*>(pixels::android::NativeRequestVirtualDisplay)},
         {const_cast<char*>("setAudioEnabled"), const_cast<char*>("(JZ)Z"), reinterpret_cast<void*>(pixels::android::NativeSetAudioEnabled)},
         {const_cast<char*>("stop"), const_cast<char*>("(J)V"), reinterpret_cast<void*>(pixels::android::NativeStop)},
     };

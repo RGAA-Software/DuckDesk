@@ -27,6 +27,10 @@ namespace px
         static std::shared_ptr<Data> MakeKeyEvent(uint32_t virtual_key_code, bool down, const std::string& device_id,
                                                  const std::string& stream_id);
 
+        static std::shared_ptr<Data> MakeVirtualDisplayRequest(const std::string& request_id, int32_t operation, uint32_t width,
+                                                               uint32_t height, uint32_t refresh_hz, const std::string& device_id,
+                                                               const std::string& stream_id);
+
         static std::shared_ptr<Data> MakeTextInput(const std::string& text, const std::string& device_id, const std::string& stream_id);
 
         // change monitor

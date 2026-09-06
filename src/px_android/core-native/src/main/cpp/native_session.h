@@ -9,6 +9,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace px {
 class MessageNotifier;
@@ -41,6 +42,16 @@ struct NativeSessionConfig final {
     bool enable_input{true};
 };
 
+struct NativeGamepadState final {
+    std::int32_t buttons{};
+    std::int32_t left_trigger{};
+    std::int32_t right_trigger{};
+    std::int32_t left_thumb_x{};
+    std::int32_t left_thumb_y{};
+    std::int32_t right_thumb_x{};
+    std::int32_t right_thumb_y{};
+};
+
 class JavaSessionCallback final {
   public:
     static std::shared_ptr<JavaSessionCallback> Create(JNIEnv& environment, jobject listener);
@@ -51,8 +62,13 @@ class JavaSessionCallback final {
     JavaSessionCallback(const JavaSessionCallback&) = delete;
     JavaSessionCallback& operator=(const JavaSessionCallback&) = delete;
 
-    void Connected(const NativeSessionConfig& config, const std::string& active_monitor_name, bool supports_audio, bool supports_input,
-                   bool supports_file_transfer, bool supports_clipboard) const;
+    void Connected(const NativeSessionConfig& config, const std::vector<std::string>& monitor_names, const std::string& active_monitor_name,
+                   bool supports_audio, bool supports_input, bool supports_file_transfer, bool supports_clipboard, bool supports_virtual_displays,
+                   std::int32_t owned_virtual_display_count, std::int32_t maximum_virtual_display_count, std::int64_t topology_generation) const;
+    void MonitorsChanged(const std::string& session_id, const std::vector<std::string>& monitor_names, const std::string& active_monitor_name) const;
+    void VirtualDisplayResult(const std::string& session_id, const std::string& request_id, bool accepted, std::int32_t state, bool topology_changed,
+                              std::int64_t topology_generation, std::int32_t owned_display_count, const std::string& error_code,
+                              const std::string& error_message) const;
     void FrameSizeChanged(const std::string& session_id, std::int32_t width, std::int32_t height) const;
     void Statistics(const std::string& session_id, std::int32_t frames_per_second, std::int32_t latency_millis, std::int32_t bitrate_kbps) const;
     void Disconnected(const std::string& session_id, std::int32_t reason, bool recoverable) const;
@@ -84,8 +100,12 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     bool DetachSurface();
     bool SendMouse(std::int32_t action, std::int32_t button, bool down, float x_ratio, float y_ratio, std::int32_t delta_x, std::int32_t delta_y);
     bool SendKey(std::int32_t virtual_key_code, bool down);
+    bool SendGamepad(const NativeGamepadState& state);
     bool SendText(const std::string& text);
     bool SendSecureAttention();
+    bool SwitchMonitor(const std::string& monitor_name);
+    bool RequestVirtualDisplay(const std::string& request_id, std::int32_t operation, std::int32_t width, std::int32_t height,
+                               std::int32_t refresh_hz);
     bool SetAudioEnabled(bool enabled);
     void Stop();
 
@@ -114,6 +134,7 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     std::atomic_bool stopped_{};
     std::string client_signal_device_id_{};
     std::string active_monitor_name_{};
+    std::vector<std::string> monitor_names_{};
     std::int32_t last_video_width_{};
     std::int32_t last_video_height_{};
     std::int32_t decoded_frames_in_window_{};
