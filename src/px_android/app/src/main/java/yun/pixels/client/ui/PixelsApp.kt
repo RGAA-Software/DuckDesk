@@ -98,7 +98,6 @@ private enum class TopLevelDestination(
 private const val REMOTE_ROUTE = "remote"
 private const val REMOTE_TRANSFERS_ROUTE = "remote/transfers"
 private const val APPLICATIONS_ROUTE = "applications"
-private val TOP_LEVEL_ROUTES = TopLevelDestination.entries.mapTo(mutableSetOf(), TopLevelDestination::route)
 
 @Composable
 fun PixelsApp(graph: PixelsAppGraph) {
@@ -160,7 +159,10 @@ fun PixelsApp(graph: PixelsAppGraph) {
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = currentBackStackEntry?.destination
     val currentRoute = currentDestination?.route
-    val isTopLevelDestination = currentRoute in TOP_LEVEL_ROUTES
+    val currentTopLevelDestination = TopLevelDestination.entries.firstOrNull { destination ->
+        currentDestination?.hierarchy?.any { it.route == destination.graphRoute } == true
+    }
+    val isTopLevelSurface = currentTopLevelDestination != null
     val unavailableMessage = stringResource(R.string.feature_being_built)
     var pendingLocalNetworkAction by remember { mutableStateOf<DeviceHomeAction?>(null) }
     val noticeMessages by rememberUpdatedState(
@@ -257,7 +259,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
     }
     LaunchedEffect(remoteBinder) {
         val status = remoteBinder?.snapshot?.value?.status ?: return@LaunchedEffect
-        if (status !is RemoteSessionStatus.Idle && currentDestination?.route in TOP_LEVEL_ROUTES) {
+        if (status !is RemoteSessionStatus.Idle && currentTopLevelDestination != null) {
             navController.navigateToRemote()
         }
     }
@@ -272,19 +274,20 @@ fun PixelsApp(graph: PixelsAppGraph) {
         }
     }
 
-    BackHandler(enabled = isTopLevelDestination && currentRoute != TopLevelDestination.Devices.route) {
+    BackHandler(
+        enabled = currentRoute == currentTopLevelDestination?.route && currentTopLevelDestination != TopLevelDestination.Devices,
+    ) {
         navController.resetToDevices()
     }
 
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
-            if (isTopLevelDestination) {
+            if (isTopLevelSurface) {
                 NavigationBar {
                     TopLevelDestination.entries.forEach { destination ->
-                        val selected = currentDestination?.hierarchy?.any { it.route == destination.graphRoute } == true
                         NavigationBarItem(
-                            selected = selected,
+                            selected = currentTopLevelDestination == destination,
                             onClick = {
                                 navController.selectTopLevel(destination)
                             },
@@ -300,7 +303,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
             navController = navController,
             startDestination = TopLevelDestination.Devices.graphRoute,
             modifier = Modifier.padding(
-                if (isTopLevelDestination) contentPadding else PaddingValues(0.dp),
+                if (isTopLevelSurface) contentPadding else PaddingValues(0.dp),
             ),
             enterTransition = { EnterTransition.None },
             exitTransition = { ExitTransition.None },
