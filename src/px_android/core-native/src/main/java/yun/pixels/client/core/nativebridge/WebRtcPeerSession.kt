@@ -8,6 +8,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.OkHttpClient
 import com.google.protobuf.ByteString
@@ -32,7 +36,9 @@ import org.webrtc.VideoTrack
 import px.PxMessage
 import yun.pixels.client.core.domain.session.InputCommand
 import yun.pixels.client.core.domain.session.RemoteMouseButton
+import yun.pixels.client.core.domain.session.RemoteSessionStatistics
 import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
+import yun.pixels.client.core.domain.session.RemoteVirtualDisplayResult
 
 internal class WebRtcRuntime(context: Context) : Closeable {
     private val closed = AtomicBoolean(false)
@@ -85,7 +91,9 @@ internal sealed interface WebRtcPeerEvent {
 
     data class MonitorsChanged(val value: RtcMonitorUpdate) : WebRtcPeerEvent
 
-    data class VirtualDisplayResult(val value: yun.pixels.client.core.domain.session.RemoteVirtualDisplayResult) : WebRtcPeerEvent
+    data class VirtualDisplayResult(val value: RemoteVirtualDisplayResult) : WebRtcPeerEvent
+
+    data class Statistics(val value: RemoteSessionStatistics) : WebRtcPeerEvent
 
     data class ClipboardText(val value: String) : WebRtcPeerEvent
 
@@ -117,6 +125,8 @@ internal class WebRtcPeerSession(
     private var renderSurface: Surface? = surface
     private var packetIndex = 0L
     private var activeMonitorName = ""
+    private var statisticsJob: Job? = null
+    private val statisticsAccumulator = RtcStatisticsAccumulator()
     private var cursorX = 0.5f
     private var cursorY = 0.5f
     private val pendingRemoteIce = ArrayDeque<IceCandidate>()
@@ -346,6 +356,25 @@ internal class WebRtcPeerSession(
         }
     }
 
+    private fun startStatisticsCollection() {
+        synchronized(stateLock) {
+            if (statisticsJob?.isActive == true || closed.get()) return
+            statisticsJob = scope.launch {
+                while (isActive && !closed.get()) {
+                    val connection = synchronized(stateLock) { peerConnection } ?: break
+                    connection.getStats { report ->
+                        if (closed.get()) return@getStats
+                        val statistics = synchronized(statisticsAccumulator) {
+                            statisticsAccumulator.update(report.toRtcStatisticsSample())
+                        }
+                        if (!closed.get()) onEvent(WebRtcPeerEvent.Statistics(statistics))
+                    }
+                    delay(RTC_STATISTICS_INTERVAL_MILLIS)
+                }
+            }
+        }
+    }
+
     private fun sendHello(channel: DataChannel) {
         val payload = buildRtcHello(
             deviceId = parameters.ticketDeviceId,
@@ -455,6 +484,7 @@ internal class WebRtcPeerSession(
         val activeInput: DataChannel?
         val activeConnection: PeerConnection?
         val activeSignaling: StandardRtcSignaling?
+        val activeStatisticsJob: Job?
         synchronized(stateLock) {
             activeTrack = videoTrack
             videoTrack = null
@@ -466,9 +496,12 @@ internal class WebRtcPeerSession(
             peerConnection = null
             activeSignaling = signaling
             signaling = null
+            activeStatisticsJob = statisticsJob
+            statisticsJob = null
             pendingRemoteIce.clear()
             renderSurface = null
         }
+        activeStatisticsJob?.cancel()
         activeTrack?.removeSink(renderer)
         activeMedia?.unregisterObserver()
         activeMedia?.close()
@@ -515,7 +548,10 @@ internal class WebRtcPeerSession(
     private inner class Observer : PeerConnection.Observer {
         override fun onConnectionChange(newState: PeerConnection.PeerConnectionState) {
             when (newState) {
-                PeerConnection.PeerConnectionState.CONNECTED -> onEvent(WebRtcPeerEvent.Connected)
+                PeerConnection.PeerConnectionState.CONNECTED -> {
+                    startStatisticsCollection()
+                    onEvent(WebRtcPeerEvent.Connected)
+                }
                 PeerConnection.PeerConnectionState.DISCONNECTED -> onEvent(WebRtcPeerEvent.Reconnecting)
                 PeerConnection.PeerConnectionState.FAILED -> closeWithReason("WebRTC connection failed", recoverable = true)
                 PeerConnection.PeerConnectionState.CLOSED -> closeWithReason("WebRTC connection closed", recoverable = false)
@@ -596,6 +632,7 @@ private const val MEDIA_CHANNEL_LABEL = "media_data_channel"
 private const val INPUT_CHANNEL_LABEL = "input_data_channel"
 private const val MAX_CHANNEL_MESSAGE_BYTES = 4 * 1024 * 1024
 private const val MAX_CLIPBOARD_TEXT_BYTES = 1024 * 1024
+private const val RTC_STATISTICS_INTERVAL_MILLIS = 1_000L
 private const val RTC_MOUSE_MOVE = 128
 private const val RTC_MOUSE_WHEEL = 256
 private const val RTC_MOUSE_HORIZONTAL_WHEEL = 512

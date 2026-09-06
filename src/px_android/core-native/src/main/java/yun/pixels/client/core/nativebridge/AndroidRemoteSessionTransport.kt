@@ -383,6 +383,8 @@ class AndroidRemoteSessionTransport internal constructor(
                 mutableEvents.emit(RemoteTransportEvent.VirtualDisplayResult(sessionId, event.value))
             }
 
+            is WebRtcPeerEvent.Statistics -> mutableEvents.emit(RemoteTransportEvent.Statistics(sessionId, event.value))
+
             is WebRtcPeerEvent.ClipboardText -> mutableEvents.emit(RemoteTransportEvent.ClipboardText(sessionId, event.value))
             is WebRtcPeerEvent.GamepadRumble -> mutableEvents.emit(
                 RemoteTransportEvent.GamepadRumble(sessionId, event.strongMotor, event.weakMotor),
