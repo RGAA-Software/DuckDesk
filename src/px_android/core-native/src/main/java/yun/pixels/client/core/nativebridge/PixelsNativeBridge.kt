@@ -61,6 +61,17 @@ interface NativeSessionListener {
 
     fun onFileTransferOverwrite(sessionId: String, jobId: Int, fileNumber: Int, utf8Path: ByteArray, upload: Boolean, identical: Boolean)
 
+    fun onRemoteDirectory(
+        sessionId: String,
+        utf8Path: ByteArray,
+        utf8Names: Array<ByteArray>,
+        entryTypes: IntArray,
+        utf8AbsolutePaths: Array<ByteArray>,
+        sizes: LongArray,
+        modifiedTimes: LongArray,
+        truncated: Boolean,
+    )
+
     fun onRecordingState(sessionId: String, recordingId: String, state: Int, utf8Error: ByteArray)
 
     fun onVoiceCallState(
@@ -118,6 +129,8 @@ internal object PixelsNativeBridge {
     external fun startFileUpload(nativeSessionId: Long, localPath: ByteArray, remoteDirectory: ByteArray): Int
 
     external fun startFileDownload(nativeSessionId: Long, remotePath: ByteArray, localDirectory: ByteArray): Int
+
+    external fun listRemoteDirectory(nativeSessionId: Long, remotePath: ByteArray): Boolean
 
     external fun cancelFileTransfer(nativeSessionId: Long, jobId: Int): Boolean
 

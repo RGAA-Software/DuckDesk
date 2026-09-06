@@ -34,4 +34,7 @@
     <string name="transfer_error_not_single_file">请选择单个远端文件，而不是文件夹。</string>
     <string name="transfer_error_write_destination">无法写入所选位置。</string>
     <string name="transfer_error_generic">文件传输失败。</string>
+    <string name="transfer_error_invalid_remote_path">远端目录路径无效。</string>
+    <string name="transfer_error_directory_request">无法打开远端目录。</string>
+    <string name="transfer_error_directory_timeout">远端电脑未及时返回此目录。</string>
 </resources>

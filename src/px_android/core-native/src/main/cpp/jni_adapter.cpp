@@ -291,6 +291,16 @@ jint NativeStartFileDownload(JNIEnv* environment, jobject, const jlong native_se
     return session ? session->StartFileDownload(remote, local) : 0;
 }
 
+jboolean NativeListRemoteDirectory(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(gammaray-raw-pointer-boundary)
+                                   const jbyteArray remote_path) {
+    if (environment == nullptr) {
+        return JNI_FALSE;
+    }
+    const auto remote = ReadUtf8Bytes(*environment, remote_path);
+    const auto session = Registry().Find(native_session_id);
+    return session && session->ListRemoteDirectory(remote) ? JNI_TRUE : JNI_FALSE;
+}
+
 jboolean NativeCancelFileTransfer(JNIEnv*, jobject, const jlong native_session_id, const jint job_id) { // NOLINT(gammaray-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->CancelFileTransfer(job_id) ? JNI_TRUE : JNI_FALSE;
@@ -446,6 +456,8 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) { // NOLINT(gamm
          reinterpret_cast<void*>(pixels::android::NativeDownloadClipboardFiles)},
         {const_cast<char*>("startFileUpload"), const_cast<char*>("(J[B[B)I"), reinterpret_cast<void*>(pixels::android::NativeStartFileUpload)},
         {const_cast<char*>("startFileDownload"), const_cast<char*>("(J[B[B)I"), reinterpret_cast<void*>(pixels::android::NativeStartFileDownload)},
+        {const_cast<char*>("listRemoteDirectory"), const_cast<char*>("(J[B)Z"),
+         reinterpret_cast<void*>(pixels::android::NativeListRemoteDirectory)},
         {const_cast<char*>("cancelFileTransfer"), const_cast<char*>("(JI)Z"), reinterpret_cast<void*>(pixels::android::NativeCancelFileTransfer)},
         {const_cast<char*>("confirmFileOverwrite"), const_cast<char*>("(JIIZJZ)Z"),
          reinterpret_cast<void*>(pixels::android::NativeConfirmFileOverwrite)},

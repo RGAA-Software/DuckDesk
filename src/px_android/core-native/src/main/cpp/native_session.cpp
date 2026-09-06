@@ -42,6 +42,7 @@ constexpr std::int32_t kMouseWheel = 3;
 constexpr std::int32_t kRecordingStarted = 1;
 constexpr std::int32_t kRecordingCompleted = 2;
 constexpr std::int32_t kRecordingFailed = 3;
+constexpr std::size_t kMaximumRemoteDirectoryEntries = 2048U;
 
 std::int32_t MouseButtonFlag(const std::int32_t button, const bool down) {
     switch (button) {
@@ -122,6 +123,35 @@ std::uintptr_t MakeLongArray(JNIEnv& environment, const std::vector<std::int64_t
     }
     environment.SetLongArrayRegion(reinterpret_cast<jlongArray>(result_handle), 0, static_cast<jsize>(values.size()),
                                    reinterpret_cast<const jlong*>(values.data())); // NOLINT(gammaray-raw-pointer-boundary)
+    return environment.ExceptionCheck() ? 0U : result_handle;
+}
+
+std::uintptr_t MakeIntArray(JNIEnv& environment, const std::vector<std::int32_t>& values) {
+    const auto result_handle = reinterpret_cast<std::uintptr_t>(environment.NewIntArray(static_cast<jsize>(values.size())));
+    if (result_handle == 0U || values.empty()) {
+        return result_handle;
+    }
+    environment.SetIntArrayRegion(reinterpret_cast<jintArray>(result_handle), 0, static_cast<jsize>(values.size()),
+                                  reinterpret_cast<const jint*>(values.data())); // NOLINT(gammaray-raw-pointer-boundary)
+    return environment.ExceptionCheck() ? 0U : result_handle;
+}
+
+std::uintptr_t MakeByteArrayArray(JNIEnv& environment, const std::vector<std::string>& values) {
+    const auto byte_array_class_handle = reinterpret_cast<std::uintptr_t>(environment.FindClass("[B"));
+    if (byte_array_class_handle == 0U) {
+        return 0U;
+    }
+    const auto result_handle = reinterpret_cast<std::uintptr_t>(
+        environment.NewObjectArray(static_cast<jsize>(values.size()), reinterpret_cast<jclass>(byte_array_class_handle), nullptr));
+    for (std::size_t index = 0; result_handle != 0U && index < values.size(); ++index) {
+        const auto value_handle = MakeByteArray(environment, values[index]);
+        if (value_handle != 0U) {
+            environment.SetObjectArrayElement(reinterpret_cast<jobjectArray>(result_handle), static_cast<jsize>(index),
+                                              reinterpret_cast<jbyteArray>(value_handle));
+            DeleteLocalReference(environment, value_handle);
+        }
+    }
+    DeleteLocalReference(environment, byte_array_class_handle);
     return environment.ExceptionCheck() ? 0U : result_handle;
 }
 
@@ -418,6 +448,57 @@ void JavaSessionCallback::FileTransferOverwrite(const std::string& session_id, c
         }
         DeleteLocalReference(environment, session_id_handle);
         DeleteLocalReference(environment, path_handle);
+        DeleteLocalReference(environment, listener_class_handle);
+    });
+}
+
+void JavaSessionCallback::RemoteDirectory(const std::string& session_id, const px::FileDirectory& directory) const {
+    const auto count = std::min(static_cast<std::size_t>(directory.entries_size()), kMaximumRemoteDirectoryEntries);
+    std::vector<std::string> names;
+    std::vector<std::string> absolute_paths;
+    std::vector<std::int32_t> types;
+    std::vector<std::int64_t> sizes;
+    std::vector<std::int64_t> modified_times;
+    names.reserve(count);
+    absolute_paths.reserve(count);
+    types.reserve(count);
+    sizes.reserve(count);
+    modified_times.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+        const auto& entry = directory.entries(static_cast<int>(index));
+        names.push_back(entry.name());
+        absolute_paths.push_back(entry.abs_path());
+        types.push_back(static_cast<std::int32_t>(entry.entry_type()));
+        sizes.push_back(static_cast<std::int64_t>(entry.size()));
+        modified_times.push_back(static_cast<std::int64_t>(entry.modified_time()));
+    }
+    const auto listener_handle = listener_handle_;
+    WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
+        const auto listener = reinterpret_cast<jobject>(listener_handle);
+        const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
+        const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
+        const auto method = environment.GetMethodID(listener_class, "onRemoteDirectory", "(Ljava/lang/String;[B[[B[I[[B[J[JZ)V");
+        const auto session_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
+        const auto path_handle = MakeByteArray(environment, directory.path());
+        const auto names_handle = MakeByteArrayArray(environment, names);
+        const auto types_handle = MakeIntArray(environment, types);
+        const auto paths_handle = MakeByteArrayArray(environment, absolute_paths);
+        const auto sizes_handle = MakeLongArray(environment, sizes);
+        const auto times_handle = MakeLongArray(environment, modified_times);
+        if (method != nullptr && session_handle != 0U && path_handle != 0U && names_handle != 0U && types_handle != 0U &&
+            paths_handle != 0U && sizes_handle != 0U && times_handle != 0U) {
+            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_handle), reinterpret_cast<jbyteArray>(path_handle),
+                                       reinterpret_cast<jobjectArray>(names_handle), reinterpret_cast<jintArray>(types_handle),
+                                       reinterpret_cast<jobjectArray>(paths_handle), reinterpret_cast<jlongArray>(sizes_handle),
+                                       reinterpret_cast<jlongArray>(times_handle), directory.entries_size() > static_cast<int>(count));
+        }
+        DeleteLocalReference(environment, session_handle);
+        DeleteLocalReference(environment, path_handle);
+        DeleteLocalReference(environment, names_handle);
+        DeleteLocalReference(environment, types_handle);
+        DeleteLocalReference(environment, paths_handle);
+        DeleteLocalReference(environment, sizes_handle);
+        DeleteLocalReference(environment, times_handle);
         DeleteLocalReference(environment, listener_class_handle);
     });
 }
@@ -725,6 +806,11 @@ bool NativeSession::Initialize() {
                                                             const bool upload, const bool identical) {
                 if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
                     self->callback_->FileTransferOverwrite(self->config_.session_id, job_id, file_number, path, upload, identical);
+                }
+            });
+            engine->SetResponseCallback([weak_self](const px::FileResponse& response) {
+                if (const auto self = weak_self.lock(); self && !self->stopped_.load() && response.has_dir()) {
+                    self->callback_->RemoteDirectory(self->config_.session_id, response.dir());
                 }
             });
         });
@@ -1360,6 +1446,23 @@ std::int32_t NativeSession::StartFileDownload(const std::string& remote_path, co
         },
         std::chrono::seconds(2));
     return completed ? job_id->load(std::memory_order_acquire) : 0;
+}
+
+bool NativeSession::ListRemoteDirectory(const std::string& remote_path) {
+    std::lock_guard command_lock(command_mutex_);
+    if (remote_path.empty() || remote_path.size() > 4096U) {
+        return false;
+    }
+    std::shared_ptr<px::ft::FtAsyncSession> session;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (stopped_.load() || !started_ || !file_transfer_ready_) {
+            return false;
+        }
+        session = file_transfer_session_;
+    }
+    return session && session->Post("pixels-android-ft-list-directory",
+                                    [remote_path](const auto& engine) { engine->ReadDir(remote_path, false); });
 }
 
 bool NativeSession::CancelFileTransfer(const std::int32_t job_id) {

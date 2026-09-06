@@ -42,6 +42,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -80,6 +81,7 @@ import yun.pixels.client.feature.remote.RemoteWorkspaceScreen
 import yun.pixels.client.feature.transfer.TransferScreen
 import yun.pixels.client.remote.RemoteSessionService
 import yun.pixels.client.core.domain.transfer.FileTransferTask
+import yun.pixels.client.core.domain.transfer.RemoteDirectoryState
 import yun.pixels.client.core.domain.recording.RecordingState
 import yun.pixels.client.core.domain.voice.VoiceCallState
 
@@ -106,10 +108,12 @@ fun PixelsApp(graph: PixelsAppGraph) {
     val context = LocalContext.current
     var remoteBinder by remember { mutableStateOf<RemoteSessionService.LocalBinder?>(null) }
     var remoteRequest by remember { mutableStateOf<RemoteSessionRequest?>(null) }
+    var openTransfersWhenConnected by rememberSaveable { mutableStateOf(false) }
     var remoteRequestAwaitingLocalNetwork by remember { mutableStateOf<RemoteSessionRequest?>(null) }
     val idleRemoteSnapshot = remember { kotlinx.coroutines.flow.MutableStateFlow(RemoteSessionSnapshot()) }
     val idleAudioEnabled = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
     val idleFileTransferTasks = remember { kotlinx.coroutines.flow.MutableStateFlow(emptyList<FileTransferTask>()) }
+    val idleRemoteDirectory = remember { kotlinx.coroutines.flow.MutableStateFlow<RemoteDirectoryState>(RemoteDirectoryState.Idle) }
     val idleRecordingState = remember { kotlinx.coroutines.flow.MutableStateFlow<RecordingState>(RecordingState.Idle) }
     val idleVoiceCallState = remember { kotlinx.coroutines.flow.MutableStateFlow(VoiceCallState()) }
     DisposableEffect(context) {
@@ -221,7 +225,10 @@ fun PixelsApp(graph: PixelsAppGraph) {
         deviceHomeViewModel.remoteRequests.collect { request -> remoteRequest = request }
     }
     LaunchedEffect(applicationLibraryViewModel) {
-        applicationLibraryViewModel.remoteRequests.collect { request -> remoteRequest = request }
+        applicationLibraryViewModel.remoteRequests.collect { request ->
+            openTransfersWhenConnected = false
+            remoteRequest = request
+        }
     }
     LaunchedEffect(remoteBinder, remoteRequest) {
         val binder = remoteBinder ?: return@LaunchedEffect
@@ -251,6 +258,16 @@ fun PixelsApp(graph: PixelsAppGraph) {
         val status = remoteBinder?.snapshot?.value?.status ?: return@LaunchedEffect
         if (status !is RemoteSessionStatus.Idle && currentDestination?.route != REMOTE_ROUTE) {
             navController.navigateToRemote()
+        }
+    }
+    LaunchedEffect(remoteBinder, openTransfersWhenConnected) {
+        if (!openTransfersWhenConnected) return@LaunchedEffect
+        val binder = remoteBinder ?: return@LaunchedEffect
+        binder.snapshot.collect { snapshot ->
+            if (snapshot.status is RemoteSessionStatus.Connected) {
+                openTransfersWhenConnected = false
+                navController.navigate(REMOTE_TRANSFERS_ROUTE) { launchSingleTop = true }
+            }
         }
     }
 
@@ -306,6 +323,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                                 }
                             }
                             DeviceHomeAction.Connect, DeviceHomeAction.DiscoverLocal -> {
+                                if (action == DeviceHomeAction.Connect) openTransfersWhenConnected = false
                                 val permissionRequired = Build.VERSION.SDK_INT >= 37 && ContextCompat.checkSelfPermission(
                                     context,
                                     Manifest.permission.ACCESS_LOCAL_NETWORK,
@@ -338,6 +356,18 @@ fun PixelsApp(graph: PixelsAppGraph) {
                                 }
                                 .addOnFailureListener { deviceHomeViewModel.onAction(DeviceHomeAction.ScannerFailed) }
                             DeviceHomeAction.OpenAccountSettings -> navController.navigateToTopLevel(TopLevelDestination.Settings)
+                            is DeviceHomeAction.StartRemoteDesktop -> {
+                                openTransfersWhenConnected = false
+                                deviceHomeViewModel.onAction(action)
+                            }
+                            is DeviceHomeAction.StartAccountRemoteDesktop -> {
+                                openTransfersWhenConnected = false
+                                deviceHomeViewModel.onAction(action)
+                            }
+                            is DeviceHomeAction.OpenFiles -> {
+                                openTransfersWhenConnected = true
+                                deviceHomeViewModel.onAction(DeviceHomeAction.StartRemoteDesktop(action.device))
+                            }
                             DeviceHomeAction.OpenApplications -> {
                                 applicationLibraryViewModel.refresh()
                                 navController.navigate(APPLICATIONS_ROUTE) { launchSingleTop = true }
@@ -354,8 +384,16 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     val sessionFlow = remoteBinder?.snapshot ?: idleRemoteSnapshot
                     val transferSnapshot by sessionFlow.collectAsStateWithLifecycle()
                     val connected = transferSnapshot.status as? RemoteSessionStatus.Connected
+                    val remoteDirectoryFlow = remoteBinder?.remoteDirectory ?: idleRemoteDirectory
+                    val remoteDirectory by remoteDirectoryFlow.collectAsStateWithLifecycle()
+                    LaunchedEffect(connected?.request?.id, connected?.capabilities?.supportsFileTransfer) {
+                        if (connected?.capabilities?.supportsFileTransfer == true && remoteDirectory is RemoteDirectoryState.Idle) {
+                            remoteBinder?.browseRemoteDirectory("/")
+                        }
+                    }
                     TransferScreen(
                         tasks = transferTasks,
+                        remoteDirectory = remoteDirectory,
                         sessionConnected = connected != null,
                         supportsFileTransfer = connected?.capabilities?.supportsFileTransfer == true,
                         onBack = if (sessionScoped) {
@@ -363,6 +401,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                         } else {
                             null
                         },
+                        onBrowseRemoteDirectory = { path -> remoteBinder?.browseRemoteDirectory(path) },
                         onChooseUpload = { remoteDirectory ->
                             pendingUploadRemoteDirectory = remoteDirectory
                             uploadDocumentLauncher.launch(arrayOf("*/*"))

@@ -18,6 +18,7 @@ class SdkStatistics;
 class ThunderSdk;
 class Thread;
 class RecordWriter;
+class FileDirectory;
 } // namespace px
 
 namespace px::ft {
@@ -95,6 +96,7 @@ class JavaSessionCallback final {
     void FileTransferDone(const std::string& session_id, std::int32_t job_id, const std::string& error) const;
     void FileTransferOverwrite(const std::string& session_id, std::int32_t job_id, std::int32_t file_number, const std::string& path, bool upload,
                                bool identical) const;
+    void RemoteDirectory(const std::string& session_id, const px::FileDirectory& directory) const;
     void RecordingState(const std::string& session_id, const std::string& recording_id, std::int32_t state, const std::string& error) const;
     void VoiceCallState(const std::string& session_id, const NativeVoiceCallStatus& status) const;
     void Disconnected(const std::string& session_id, std::int32_t reason, bool recoverable) const;
@@ -133,6 +135,7 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     bool DownloadClipboardFiles(const std::string& generation, const std::string& destination_directory);
     std::int32_t StartFileUpload(const std::string& local_path, const std::string& remote_directory);
     std::int32_t StartFileDownload(const std::string& remote_path, const std::string& local_directory);
+    bool ListRemoteDirectory(const std::string& remote_path);
     bool CancelFileTransfer(std::int32_t job_id);
     bool ConfirmFileOverwrite(std::int32_t job_id, std::int32_t file_number, bool overwrite, std::uint64_t offset_bytes, bool apply_to_all);
     bool StartRecording(const std::string& recording_id, const std::string& staging_directory);

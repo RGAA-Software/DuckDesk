@@ -34,4 +34,7 @@
     <string name="transfer_error_not_single_file">Choose one remote file rather than a folder.</string>
     <string name="transfer_error_write_destination">The selected destination cannot be written.</string>
     <string name="transfer_error_generic">The file transfer failed.</string>
+    <string name="transfer_error_invalid_remote_path">The remote folder path is invalid.</string>
+    <string name="transfer_error_directory_request">The remote folder could not be opened.</string>
+    <string name="transfer_error_directory_timeout">The remote computer did not return this folder in time.</string>
 </resources>

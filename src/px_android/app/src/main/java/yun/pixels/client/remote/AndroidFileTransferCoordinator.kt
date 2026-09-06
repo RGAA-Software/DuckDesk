@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,6 +19,8 @@ import yun.pixels.client.core.domain.transfer.FileTransferEvent
 import yun.pixels.client.core.domain.transfer.FileTransferState
 import yun.pixels.client.core.domain.transfer.FileTransferTask
 import yun.pixels.client.core.domain.transfer.FileTransferTransport
+import yun.pixels.client.core.domain.transfer.RemoteDirectoryEvent
+import yun.pixels.client.core.domain.transfer.RemoteDirectoryState
 import java.io.File
 import java.util.UUID
 
@@ -30,14 +33,52 @@ class AndroidFileTransferCoordinator(
     private val resolver: ContentResolver = context.contentResolver
     private val stagingRoot = File(context.cacheDir, "file-transfers")
     private val mutableTasks = MutableStateFlow<List<FileTransferTask>>(emptyList())
+    private val mutableRemoteDirectory = MutableStateFlow<RemoteDirectoryState>(RemoteDirectoryState.Idle)
     private val activeTasks = mutableMapOf<String, ActiveTask>()
     private val taskIdsByJob = mutableMapOf<JobKey, String>()
     private val pendingEvents = mutableMapOf<JobKey, MutableList<FileTransferEvent>>()
 
     val tasks: StateFlow<List<FileTransferTask>> = mutableTasks.asStateFlow()
+    val remoteDirectory: StateFlow<RemoteDirectoryState> = mutableRemoteDirectory.asStateFlow()
+
+    private var directorySessionId: RemoteSessionId? = null
+    private var directoryRequestGeneration = 0L
 
     init {
         scope.launch { transport.fileTransferEvents.collect(::handleEvent) }
+        scope.launch { transport.remoteDirectoryEvents.collect(::handleDirectoryEvent) }
+    }
+
+    fun browse(sessionId: RemoteSessionId, path: String) {
+        val normalizedPath = normalizeRemotePath(path)
+        if (normalizedPath.length > MAX_REMOTE_PATH_LENGTH || normalizedPath.any(Char::isISOControl)) {
+            mutableRemoteDirectory.value = RemoteDirectoryState.Failed(
+                normalizedPath,
+                appContext.getString(R.string.transfer_error_invalid_remote_path),
+            )
+            return
+        }
+        directorySessionId = sessionId
+        val generation = ++directoryRequestGeneration
+        mutableRemoteDirectory.value = RemoteDirectoryState.Loading(normalizedPath)
+        scope.launch {
+            if (!transport.listRemoteDirectory(sessionId, normalizedPath)) {
+                if (generation == directoryRequestGeneration) {
+                    mutableRemoteDirectory.value = RemoteDirectoryState.Failed(
+                        normalizedPath,
+                        appContext.getString(R.string.transfer_error_directory_request),
+                    )
+                }
+                return@launch
+            }
+            delay(REMOTE_DIRECTORY_TIMEOUT_MILLIS)
+            if (generation == directoryRequestGeneration && mutableRemoteDirectory.value is RemoteDirectoryState.Loading) {
+                mutableRemoteDirectory.value = RemoteDirectoryState.Failed(
+                    normalizedPath,
+                    appContext.getString(R.string.transfer_error_directory_timeout),
+                )
+            }
+        }
     }
 
     fun upload(sessionId: RemoteSessionId, source: Uri, remoteDirectory: String) {
@@ -163,6 +204,24 @@ class AndroidFileTransferCoordinator(
                 upsert(active.toTask(state = FileTransferState.Cancelled, error = appContext.getString(R.string.transfer_error_session_ended)))
             }
         }
+        if (directorySessionId == sessionId) {
+            directorySessionId = null
+            directoryRequestGeneration++
+            mutableRemoteDirectory.value = RemoteDirectoryState.Idle
+        }
+    }
+
+    private fun handleDirectoryEvent(event: RemoteDirectoryEvent) {
+        if (event.sessionId != directorySessionId) return
+        val loading = mutableRemoteDirectory.value as? RemoteDirectoryState.Loading ?: return
+        if (!sameRemotePath(loading.path, event.path)) return
+        directoryRequestGeneration++
+        mutableRemoteDirectory.value = RemoteDirectoryState.Ready(
+            path = normalizeRemotePath(event.path),
+            entries = event.entries.sortedWith(compareByDescending<yun.pixels.client.core.domain.transfer.RemoteFileEntry> { it.isDirectory }
+                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.name }),
+            truncated = event.truncated,
+        )
     }
 
     private suspend fun start(active: ActiveTask) {
@@ -355,7 +414,19 @@ class AndroidFileTransferCoordinator(
         val TERMINAL_STATES = setOf(FileTransferState.Succeeded, FileTransferState.Failed, FileTransferState.Cancelled)
         const val MAX_PENDING_JOB_COUNT = 32
         const val MAX_CONCURRENT_TRANSFERS = 2
+        const val MAX_REMOTE_PATH_LENGTH = 4096
+        const val REMOTE_DIRECTORY_TIMEOUT_MILLIS = 8_000L
     }
 }
 
 internal fun remoteDestinationPath(directory: String, fileName: String): String = "${directory.trimEnd('/', '\\')}/$fileName"
+
+internal fun normalizeRemotePath(path: String): String {
+    val normalized = path.trim().replace('\\', '/').ifBlank { "/" }
+    if (normalized == "/") return normalized
+    val withoutTrailingSlash = normalized.trimEnd('/')
+    return if (withoutTrailingSlash.length == 2 && withoutTrailingSlash[1] == ':') "$withoutTrailingSlash/" else withoutTrailingSlash
+}
+
+private fun sameRemotePath(requested: String, received: String): Boolean =
+    normalizeRemotePath(requested).equals(normalizeRemotePath(received), ignoreCase = true)

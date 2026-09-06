@@ -2,33 +2,45 @@
 
 package yun.pixels.client.feature.transfer
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,14 +50,18 @@ import androidx.compose.ui.unit.dp
 import yun.pixels.client.core.domain.transfer.FileTransferDirection
 import yun.pixels.client.core.domain.transfer.FileTransferState
 import yun.pixels.client.core.domain.transfer.FileTransferTask
+import yun.pixels.client.core.domain.transfer.RemoteDirectoryState
+import yun.pixels.client.core.domain.transfer.RemoteFileEntry
 import java.util.Locale
 
 @Composable
 fun TransferScreen(
     tasks: List<FileTransferTask>,
+    remoteDirectory: RemoteDirectoryState,
     sessionConnected: Boolean,
     supportsFileTransfer: Boolean,
     onBack: (() -> Unit)? = null,
+    onBrowseRemoteDirectory: (String) -> Unit,
     onChooseUpload: (String) -> Unit,
     onChooseDownloadDestination: (String) -> Unit,
     onCancel: (String) -> Unit,
@@ -53,15 +69,18 @@ fun TransferScreen(
     onResolveOverwrite: (String, Boolean, Boolean) -> Unit,
     onClearFinished: () -> Unit,
 ) {
-    var uploadDirectory by remember { mutableStateOf("C:/Users/Public/Downloads") }
-    var downloadPath by remember { mutableStateOf("") }
+    var selectedFilePath by rememberSaveable { mutableStateOf<String?>(null) }
     val enabled = sessionConnected && supportsFileTransfer
+    val currentPath = remoteDirectory.pathOrRoot
+    val parentPath = remoteParentPath(currentPath)
+    LaunchedEffect(currentPath) { selectedFilePath = null }
+    BackHandler(enabled = enabled && parentPath != null) { parentPath?.let(onBrowseRemoteDirectory) }
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text(stringResource(R.string.transfers_title), fontWeight = FontWeight.SemiBold) },
             navigationIcon = {
                 if (onBack != null) {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { parentPath?.let(onBrowseRemoteDirectory) ?: onBack() }) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
@@ -87,36 +106,71 @@ fun TransferScreen(
                 )
             }
             item {
-                OutlinedTextField(
-                    value = uploadDirectory,
-                    onValueChange = { uploadDirectory = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.remote_upload_directory)) },
-                    singleLine = true,
-                )
-                Button(
-                    onClick = { onChooseUpload(uploadDirectory.trim()) },
-                    enabled = enabled && uploadDirectory.isNotBlank(),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                ) { Text(stringResource(R.string.choose_upload_file)) }
+                RemoteDirectoryToolbar(currentPath, enabled, onBrowseRemoteDirectory)
             }
             item {
-                OutlinedTextField(
-                    value = downloadPath,
-                    onValueChange = { downloadPath = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.remote_download_path)) },
-                    singleLine = true,
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { onChooseUpload(currentPath) },
+                        enabled = enabled && currentPath != "/" && remoteDirectory is RemoteDirectoryState.Ready,
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(R.string.upload_to_current_folder)) }
+                    OutlinedButton(
+                        onClick = { selectedFilePath?.let(onChooseDownloadDestination) },
+                        enabled = enabled && selectedFilePath != null,
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(R.string.download_selected_file)) }
+                }
+            }
+            when (remoteDirectory) {
+                RemoteDirectoryState.Idle -> item {
+                    Text(stringResource(R.string.remote_directory_idle), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                is RemoteDirectoryState.Loading -> item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        Text(stringResource(R.string.loading_remote_directory))
+                    }
+                }
+                is RemoteDirectoryState.Failed -> item {
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(remoteDirectory.reason, color = MaterialTheme.colorScheme.onErrorContainer)
+                            TextButton(onClick = { onBrowseRemoteDirectory(remoteDirectory.path) }, enabled = enabled) {
+                                Text(stringResource(R.string.retry_transfer))
+                            }
+                        }
+                    }
+                }
+                is RemoteDirectoryState.Ready -> {
+                    if (remoteDirectory.truncated) item {
+                        Text(stringResource(R.string.remote_directory_truncated), color = MaterialTheme.colorScheme.tertiary)
+                    }
+                    if (remoteDirectory.entries.isEmpty()) item {
+                        Text(stringResource(R.string.remote_directory_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    itemsIndexed(
+                        items = remoteDirectory.entries,
+                        key = { index, entry -> "$index:${entry.type}:${entry.name}" },
+                    ) { _, entry ->
+                        val entryPath = remoteEntryPath(remoteDirectory.path, entry)
+                        RemoteFileCard(
+                            entry = entry,
+                            selected = !entry.isDirectory && selectedFilePath == entryPath,
+                            enabled = enabled,
+                            onClick = {
+                                if (entry.isDirectory) onBrowseRemoteDirectory(entryPath) else selectedFilePath = entryPath
+                            },
+                        )
+                    }
+                }
+            }
+            item {
+                Text(
+                    stringResource(R.string.transfer_tasks),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                 )
-                OutlinedButton(
-                    onClick = { onChooseDownloadDestination(downloadPath.trim()) },
-                    enabled = enabled && downloadPath.isNotBlank(),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                ) { Text(stringResource(R.string.choose_download_destination)) }
             }
             if (tasks.isEmpty()) {
                 item { Text(stringResource(R.string.no_transfer_tasks), color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -129,6 +183,61 @@ fun TransferScreen(
     }
     tasks.firstOrNull { it.state == FileTransferState.AwaitingOverwrite }?.let { task ->
         OverwriteDialog(task, onResolveOverwrite)
+    }
+}
+
+@Composable
+private fun RemoteDirectoryToolbar(path: String, enabled: Boolean, onBrowse: (String) -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.current_remote_folder), style = MaterialTheme.typography.labelLarge)
+            Text(path, style = MaterialTheme.typography.bodyMedium)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                IconButton(onClick = { onBrowse("/") }, enabled = enabled) {
+                    Icon(Icons.Outlined.Home, contentDescription = stringResource(R.string.remote_root))
+                }
+                IconButton(onClick = { remoteParentPath(path)?.let(onBrowse) }, enabled = enabled && remoteParentPath(path) != null) {
+                    Icon(Icons.Outlined.KeyboardArrowUp, contentDescription = stringResource(R.string.parent_folder))
+                }
+                IconButton(onClick = { onBrowse(path) }, enabled = enabled) {
+                    Icon(Icons.Outlined.Refresh, contentDescription = stringResource(R.string.refresh_remote_folder))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RemoteFileCard(entry: RemoteFileEntry, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+        ),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                if (entry.isDirectory) Icons.Outlined.Folder else Icons.AutoMirrored.Outlined.InsertDriveFile,
+                contentDescription = null,
+                tint = if (entry.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(entry.name, style = MaterialTheme.typography.bodyLarge)
+                if (!entry.isDirectory) {
+                    Text(
+                        formatBytes(entry.size),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -220,4 +329,37 @@ private fun formatBytes(value: Long): String {
         unit++
     } while (amount >= 1024.0 && unit < units.lastIndex)
     return String.format(Locale.getDefault(), "%.1f %s", amount, units[unit])
+}
+
+private val RemoteDirectoryState.pathOrRoot: String
+    get() = when (this) {
+        RemoteDirectoryState.Idle -> "/"
+        is RemoteDirectoryState.Loading -> path
+        is RemoteDirectoryState.Ready -> path
+        is RemoteDirectoryState.Failed -> path
+    }
+
+internal fun remoteEntryPath(directory: String, entry: RemoteFileEntry): String {
+    if (entry.absolutePath.isNotBlank()) return normalizeRemotePath(entry.absolutePath)
+    val base = normalizeRemotePath(directory)
+    return normalizeRemotePath(if (base == "/") "/${entry.name}" else "$base/${entry.name}")
+}
+
+internal fun remoteParentPath(path: String): String? {
+    val normalized = normalizeRemotePath(path)
+    if (normalized == "/") return null
+    if (normalized.length == 3 && normalized[1] == ':' && normalized.endsWith('/')) return "/"
+    val parent = normalized.substringBeforeLast('/', missingDelimiterValue = "")
+    return when {
+        parent.isEmpty() -> "/"
+        parent.length == 2 && parent[1] == ':' -> "$parent/"
+        else -> parent
+    }
+}
+
+private fun normalizeRemotePath(path: String): String {
+    val normalized = path.trim().replace('\\', '/').ifBlank { "/" }
+    if (normalized == "/") return normalized
+    val withoutTrailingSlash = normalized.trimEnd('/')
+    return if (withoutTrailingSlash.length == 2 && withoutTrailingSlash[1] == ':') "$withoutTrailingSlash/" else withoutTrailingSlash
 }

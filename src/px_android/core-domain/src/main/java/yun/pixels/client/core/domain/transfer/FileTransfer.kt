@@ -33,6 +33,49 @@ data class FileTransferTask(
     val error: String = "",
 )
 
+enum class RemoteFileType {
+    Directory,
+    DirectoryLink,
+    Drive,
+    RegularFile,
+    FileLink,
+}
+
+data class RemoteFileEntry(
+    val name: String,
+    val absolutePath: String,
+    val type: RemoteFileType,
+    val size: Long,
+    val modifiedTimeEpochSeconds: Long,
+) {
+    val isDirectory: Boolean
+        get() = when (type) {
+            RemoteFileType.Directory, RemoteFileType.DirectoryLink, RemoteFileType.Drive -> true
+            RemoteFileType.RegularFile, RemoteFileType.FileLink -> false
+        }
+}
+
+sealed interface RemoteDirectoryState {
+    data object Idle : RemoteDirectoryState
+
+    data class Loading(val path: String) : RemoteDirectoryState
+
+    data class Ready(
+        val path: String,
+        val entries: List<RemoteFileEntry>,
+        val truncated: Boolean,
+    ) : RemoteDirectoryState
+
+    data class Failed(val path: String, val reason: String) : RemoteDirectoryState
+}
+
+data class RemoteDirectoryEvent(
+    val sessionId: RemoteSessionId,
+    val path: String,
+    val entries: List<RemoteFileEntry>,
+    val truncated: Boolean,
+)
+
 sealed interface FileTransferEvent {
     val sessionId: RemoteSessionId
     val jobId: Int
@@ -67,6 +110,9 @@ sealed interface FileTransferEvent {
 
 interface FileTransferTransport {
     val fileTransferEvents: Flow<FileTransferEvent>
+    val remoteDirectoryEvents: Flow<RemoteDirectoryEvent>
+
+    suspend fun listRemoteDirectory(sessionId: RemoteSessionId, path: String): Boolean
 
     suspend fun startUpload(sessionId: RemoteSessionId, localPath: String, remoteDirectory: String): Int?
 

@@ -12,4 +12,11 @@ class AndroidFileTransferPathTest {
         )
         assertEquals("/tmp/report.txt", remoteDestinationPath("/tmp", "report.txt"))
     }
+
+    @Test
+    fun driveRootKeepsItsAbsoluteSlash() {
+        assertEquals("D:/", normalizeRemotePath("D:/"))
+        assertEquals("D:/", normalizeRemotePath("D:\\"))
+        assertEquals("D:/", normalizeRemotePath("D:"))
+    }
 }

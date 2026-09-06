@@ -46,6 +46,7 @@ import yun.pixels.client.core.domain.session.RemoteTransportEvent
 import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
 import yun.pixels.client.core.domain.transfer.FileTransferTask
 import yun.pixels.client.core.domain.transfer.FileTransferState
+import yun.pixels.client.core.domain.transfer.RemoteDirectoryState
 import yun.pixels.client.core.domain.recording.RecordingState
 import yun.pixels.client.core.domain.voice.VoiceCallPhase
 import yun.pixels.client.core.domain.voice.VoiceCallState
@@ -304,6 +305,12 @@ class RemoteSessionService : Service() {
         fileTransfers.upload(connected.request.id, source, remoteDirectory)
     }
 
+    private fun browseRemoteDirectory(path: String) {
+        val connected = workflow.snapshot.value.status as? RemoteSessionStatus.Connected ?: return
+        if (!connected.capabilities.supportsFileTransfer) return
+        fileTransfers.browse(connected.request.id, path)
+    }
+
     private fun startDownload(remotePath: String, destination: Uri) {
         val connected = workflow.snapshot.value.status as? RemoteSessionStatus.Connected ?: return
         if (!connected.capabilities.supportsFileTransfer || remotePath.isBlank()) return
@@ -509,6 +516,9 @@ class RemoteSessionService : Service() {
         val fileTransferTasks: StateFlow<List<FileTransferTask>>
             get() = fileTransfers.tasks
 
+        val remoteDirectory: StateFlow<RemoteDirectoryState>
+            get() = fileTransfers.remoteDirectory
+
         val recordingState: StateFlow<RecordingState>
             get() = recordings.state
 
@@ -539,6 +549,8 @@ class RemoteSessionService : Service() {
         fun setAudioEnabled(enabled: Boolean) = this@RemoteSessionService.setAudioEnabled(enabled)
 
         fun startUpload(source: Uri, remoteDirectory: String) = this@RemoteSessionService.startUpload(source, remoteDirectory)
+
+        fun browseRemoteDirectory(path: String) = this@RemoteSessionService.browseRemoteDirectory(path)
 
         fun startDownload(remotePath: String, destination: Uri) = this@RemoteSessionService.startDownload(remotePath, destination)
 

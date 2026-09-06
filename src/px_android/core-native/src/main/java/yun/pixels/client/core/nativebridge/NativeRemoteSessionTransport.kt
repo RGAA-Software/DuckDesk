@@ -33,6 +33,9 @@ import yun.pixels.client.core.domain.session.RemoteVirtualDisplayResultState
 import yun.pixels.client.core.domain.transfer.FileTransferDirection
 import yun.pixels.client.core.domain.transfer.FileTransferEvent
 import yun.pixels.client.core.domain.transfer.FileTransferTransport
+import yun.pixels.client.core.domain.transfer.RemoteDirectoryEvent
+import yun.pixels.client.core.domain.transfer.RemoteFileEntry
+import yun.pixels.client.core.domain.transfer.RemoteFileType
 import yun.pixels.client.core.domain.recording.RecordingEvent
 import yun.pixels.client.core.domain.recording.RecordingId
 import yun.pixels.client.core.domain.recording.RecordingTransport
@@ -58,6 +61,7 @@ class NativeRemoteSessionTransport internal constructor(
     private val surfaceLock = Mutex()
     private val mutableEvents = MutableSharedFlow<RemoteTransportEvent>(extraBufferCapacity = 32)
     private val mutableFileTransferEvents = MutableSharedFlow<FileTransferEvent>(extraBufferCapacity = 64)
+    private val mutableRemoteDirectoryEvents = MutableSharedFlow<RemoteDirectoryEvent>(extraBufferCapacity = 8)
     private val mutableRecordingEvents = MutableSharedFlow<RecordingEvent>(extraBufferCapacity = 8)
     private val mutableVoiceCallEvents = MutableSharedFlow<VoiceCallEvent>(extraBufferCapacity = 16)
     private val surfaces = mutableMapOf<RemoteSessionId, Surface>()
@@ -66,6 +70,7 @@ class NativeRemoteSessionTransport internal constructor(
 
     override val events: Flow<RemoteTransportEvent> = mutableEvents.asSharedFlow()
     override val fileTransferEvents: Flow<FileTransferEvent> = mutableFileTransferEvents.asSharedFlow()
+    override val remoteDirectoryEvents: Flow<RemoteDirectoryEvent> = mutableRemoteDirectoryEvents.asSharedFlow()
     override val recordingEvents: Flow<RecordingEvent> = mutableRecordingEvents.asSharedFlow()
     override val voiceCallEvents: Flow<VoiceCallEvent> = mutableVoiceCallEvents.asSharedFlow()
 
@@ -220,6 +225,13 @@ class NativeRemoteSessionTransport internal constructor(
             PixelsNativeBridge.startFileUpload(nativeSessionId, localPath.encodeToByteArray(), remoteDirectory.encodeToByteArray())
                 .takeIf { it > 0 }
         }
+    }
+
+    override suspend fun listRemoteDirectory(sessionId: RemoteSessionId, path: String): Boolean {
+        val encoded = path.encodeToByteArray()
+        if (encoded.isEmpty() || encoded.size > MAX_REMOTE_PATH_BYTES || path.any(Char::isISOControl)) return false
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        return withContext(Dispatchers.IO) { PixelsNativeBridge.listRemoteDirectory(nativeSessionId, encoded) }
     }
 
     override suspend fun startDownload(sessionId: RemoteSessionId, remotePath: String, localDirectory: String): Int? {
@@ -538,6 +550,25 @@ class NativeRemoteSessionTransport internal constructor(
         }
     }
 
+    override fun onRemoteDirectory(
+        sessionId: String,
+        utf8Path: ByteArray,
+        utf8Names: Array<ByteArray>,
+        entryTypes: IntArray,
+        utf8AbsolutePaths: Array<ByteArray>,
+        sizes: LongArray,
+        modifiedTimes: LongArray,
+        truncated: Boolean,
+    ) {
+        val path = utf8Path.decodeUtf8OrEmpty().takeIf(String::isNotBlank) ?: return
+        val entries = remoteFileEntries(utf8Names, entryTypes, utf8AbsolutePaths, sizes, modifiedTimes) ?: return
+        callbackScope.launch {
+            mutableRemoteDirectoryEvents.emit(
+                RemoteDirectoryEvent(RemoteSessionId(sessionId), path, entries, truncated),
+            )
+        }
+    }
+
     override fun onRecordingState(sessionId: String, recordingId: String, state: Int, utf8Error: ByteArray) {
         val id = runCatching { RecordingId(recordingId) }.getOrNull() ?: return
         val remoteSessionId = RemoteSessionId(sessionId)
@@ -707,6 +738,8 @@ private const val DEFAULT_VIRTUAL_DISPLAY_REFRESH_HZ = 60
 private const val MAX_CLIPBOARD_TEXT_BYTES = 1_048_576
 private const val MAX_CLIPBOARD_FILE_COUNT = 16
 private const val MAX_NATIVE_ERROR_CHARS = 256
+private const val MAX_REMOTE_PATH_BYTES = 4096
+private const val MAX_REMOTE_DIRECTORY_ENTRIES = 2048
 private const val RECORDING_STARTED = 1
 private const val RECORDING_COMPLETED = 2
 private const val RECORDING_FAILED = 3
@@ -714,6 +747,43 @@ private const val VOICE_REQUESTING = 1
 private const val VOICE_CONNECTED = 2
 
 private fun ByteArray.decodeUtf8OrEmpty(): String = runCatching { decodeToString(throwOnInvalidSequence = true) }.getOrDefault("")
+
+internal fun remoteFileEntries(
+    utf8Names: Array<ByteArray>,
+    entryTypes: IntArray,
+    utf8AbsolutePaths: Array<ByteArray>,
+    sizes: LongArray,
+    modifiedTimes: LongArray,
+): List<RemoteFileEntry>? {
+    val count = utf8Names.size
+    if (count > MAX_REMOTE_DIRECTORY_ENTRIES || entryTypes.size != count || utf8AbsolutePaths.size != count || sizes.size != count ||
+        modifiedTimes.size != count
+    ) {
+        return null
+    }
+    return buildList(count) {
+        repeat(count) { index ->
+            val name = utf8Names[index].decodeUtf8OrEmpty().takeIf(String::isNotBlank) ?: return@repeat
+            val type = when (entryTypes[index]) {
+                0 -> RemoteFileType.Directory
+                2 -> RemoteFileType.DirectoryLink
+                3 -> RemoteFileType.Drive
+                4 -> RemoteFileType.RegularFile
+                5 -> RemoteFileType.FileLink
+                else -> return@repeat
+            }
+            add(
+                RemoteFileEntry(
+                    name = name,
+                    absolutePath = utf8AbsolutePaths[index].decodeUtf8OrEmpty(),
+                    type = type,
+                    size = sizes[index].coerceAtLeast(0),
+                    modifiedTimeEpochSeconds = modifiedTimes[index].coerceAtLeast(0),
+                ),
+            )
+        }
+    }
+}
 
 private val RemoteVirtualDisplayOperation.nativeValue: Int
     get() = when (this) {
