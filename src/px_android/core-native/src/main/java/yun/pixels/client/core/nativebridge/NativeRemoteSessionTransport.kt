@@ -620,6 +620,7 @@ private fun RemoteSessionRequest.toNativeConfig(
         rtcIceConfigJson = accountTarget?.connectionTicket?.rtcIceConfigJson.orEmpty(),
         relayHost = accountTarget?.connectionTicket?.relayHost.orEmpty(),
         relayPort = accountTarget?.connectionTicket?.relayPort ?: 0,
+        networkType = NATIVE_NETWORK_TYPE_UDP_DIRECT,
         enableVideo = enableVideo,
         enableAudio = enableAudio,
         enableInput = enableInput,
@@ -655,6 +656,8 @@ internal data class NativeEndpoint(
     val streamId: String,
     val randomPassword: String,
 )
+
+private const val NATIVE_NETWORK_TYPE_UDP_DIRECT = 4
 
 private fun URI.queryParameter(name: String): String? = rawQuery
     ?.split('&')

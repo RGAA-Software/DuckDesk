@@ -1,6 +1,6 @@
 # Pixels Android 客户端最终产品规划
 
-> 状态：M0、M1、M2 已完成；M3 主路径已实现；M4 产品主路径已完成，正在收口 M3 环境验收与 M5 网络质量
+> 状态：M0、M1、M2 已完成；M3 主路径已实现；M4 产品主路径已完成；M5 已完成 UDP Direct 协商、安全回退和有界重连，正在补齐网络矩阵
 > 更新日期：2026-09-06  
 > 范围：`src/px_android` 及 Android 所需的项目自维护 C++ 公共模块
 
@@ -329,6 +329,8 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 
 ### M5：完整网络与质量收口，2–3 周
 
+状态：**UDP Direct 已作为 Android 默认传输接入，具备认证控制面、四秒媒体探测与同会话 WebSocket 安全回退；断线重连具有三十秒上限、类型化失败和显式重试。Relay 与 WebRTC 网络矩阵仍待完成。**
+
 - UDP Direct、Relay、WebRTC Direct、ICE/TURN WebRTC。
 - 传输选择、协商、失败降级、网络切换恢复。
 - Wi-Fi/蜂窝、弱网、锁屏、来电、耳机切换和系统资源压力测试。
@@ -430,8 +432,9 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 - M4 语音复用项目 `px_voice_call` 协议 v1 与 Opus/jitter 核心。Android 仅在服务端声明能力时显示入口，连接前由 Windows Panel 明确同意；前台会话
   服务按通话状态持有麦克风类型，AAudio 负责通信录放音，支持麦克风静音、远端声音静音、听筒/耳机与扬声器切换。设备路由改变后输入输出流可独立
   重建，抖动缓冲在短暂空队列时不越过新包，并在大序列间隙后用一次 concealment 重新同步。请求超时、远端拒绝、断网、挂断和会话销毁均有明确收尾。
-- Android 当前如实声明视频、远程音频、桌面输入、手柄输入与震动、显示器、文件传输、授权后的文本/图片/文件剪贴板和语音能力；WebRTC
-  仍按 M5 实施，未完成的能力不在握手后伪装为可用。
+- Android 当前如实声明视频、远程音频、桌面输入、手柄输入与震动、显示器、文件传输、授权后的文本/图片/文件剪贴板和语音能力；网络主路径
+  默认选择 UDP Direct，以已认证 WebSocket 作为控制面，并在四秒内收不到媒体时为同一认证会话启用 WebSocket 媒体。可恢复断线只在三十秒窗口内
+  重连，超时后停止 transport、显示类型化原因并允许用户主动重试。Relay 与 WebRTC 仍按 M5 实施，未完成的能力不伪装为可用。
 - `core-domain` 会话生命周期测试、endpoint 安全测试、arm64 C++ 构建、Android 单元测试、lint 和 debug APK 构建已通过。APK 使用 USB
   真机覆盖安装并完成冷启动、视觉与崩溃日志检查；MIUI 拒绝安装独立 AndroidTest APK，因此仪器测试仍需在其他设备或 CI 补齐。
 - M1 的 Quick Connect 已支持私有网络主机、可选 Panel 端口和 `link://`；客户端真实请求 `/v1/simple/info`，拒绝公网直连和异常协议响应。
@@ -449,7 +452,8 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
   `adb install -r` 覆盖安装，全程未卸载。
 - 手机通过 `192.168.31.6` 完成私网设备验证并保存，随后使用密码预授权收据建立 `/media` 和 `/file/transfer` WebSocket；
   Render 侧不接受把密码直接放入 WebSocket 查询参数。
-- MediaCodec 使用 `OMX.qcom.video.decoder.avc` 解码 3840×2160、60 FPS H.264；SPS/PPS 分别以 `csd-0`/`csd-1` 配置。
+- MediaCodec 使用 `OMX.qcom.video.decoder.avc` 解码 3840×2160、60 FPS H.264；访问单元携带 SPS/PPS 时分别以 `csd-0`/`csd-1` 配置，
+  首个访问单元不携带参数集时则使用 Android MediaCodec 支持的带内 codec configuration，避免把普通大帧误判为 CSD。
   设备侧五秒采样为 307 个输入包、294 个渲染帧、0 丢帧，工作区稳定显示约 58–60 FPS。
 - AAudio 以 48 kHz、双声道启动，系统持续报告非零音频幅度；工作区静音与恢复按钮状态均已验证。
 - 触摸输入把 Windows 光标从 `(1659,480)` 移动到 `(521,507)`；文字输入弹层和发送链路完成实机操作。
@@ -504,7 +508,13 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
   `FE6C5B7BA459D086B9764E215599173E0F8DF8A326C65D738AA51C3B1A7E3E03`，Windows `px_render.exe` build/dist SHA-256 均为
   `373693B10C7FCDE59C6BAD3AB2AE21BB44DC34A98FB8975F80A8D097223A08EF`。最终实现移除旧 `Vibrator` 兼容 API，将全工程最低系统统一提升到
   Android 12 / API 31；同一真机覆盖安装后确认 `minSdk=31`、`targetSdk=37`，冷启动与 JNI/崩溃日志仍正常。
+- M5 UDP Direct 轮次继续使用同一真机和本机 Panel/Service/Render。客户端首先完成认证 WebSocket 控制连接并建立 UDP socket；在四秒媒体探测窗口
+  内未收到 UDP 媒体后，自动请求同一认证会话上的 WebSocket 媒体，未出现无限黑屏或重新传递密码。即使为当前 `px_render.exe` 临时添加精确到程序与
+  UDP 20371 端口的入站规则，本机环境仍未交付 UDP 媒体；规则已在测试结束后删除，因此 UDP 真正承载媒体仍是网络矩阵缺口，不能记为通过。
+  该轮同时发现并修复旧 H.264 Annex-B 参数集解析器跳过首个 start code、解码器读取未初始化长度并拒绝大访问单元的问题；新解析器使用有界
+  `std::string_view`，覆盖三/四字节 start code，并有独立 C++ 回归测试。修复后真机由 `OMX.qcom.video.decoder.avc` 实际解码 3840×2160，动态画面
+  达到约 28 FPS / 5 ms / 4593 kbps，静止桌面按服务端内容下降帧率；无 JNI 或崩溃错误。
 
 这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径、物理显示器切换和虚拟显示失败反馈；
-后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁。它不代表 M3–M6 的虚拟显示成功创建、远程应用 Console 实测、目录浏览、带音
-真机录制、完整网络矩阵和发布工作已经完成。
+后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁，M5 轮次关闭了 UDP Direct 协商、WebSocket 安全回退、有界重连和 H.264 首帧解析门禁。
+它不代表 M3–M6 的虚拟显示成功创建、远程应用 Console 实测、目录浏览、带音真机录制、UDP 媒体交付、Relay/WebRTC 网络矩阵和发布工作已经完成。

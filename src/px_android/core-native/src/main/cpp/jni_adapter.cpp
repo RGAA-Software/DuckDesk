@@ -142,6 +142,7 @@ NativeSessionConfig ReadConfig(JNIEnv& environment, const jobject config) {
         .rtc_ice_config_json = ReadString(environment, config, config_class, "rtcIceConfigJson"),
         .relay_host = ReadString(environment, config, config_class, "relayHost"),
         .relay_port = ReadInt(environment, config, config_class, "relayPort"),
+        .network_type = ReadInt(environment, config, config_class, "networkType"),
         .enable_video = ReadBoolean(environment, config, config_class, "enableVideo"),
         .enable_audio = ReadBoolean(environment, config, config_class, "enableAudio"),
         .enable_input = ReadBoolean(environment, config, config_class, "enableInput"),

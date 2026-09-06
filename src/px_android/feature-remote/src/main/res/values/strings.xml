@@ -2,7 +2,15 @@
     <string name="remote_connecting">Connecting securely…</string>
     <string name="remote_reconnecting">Connection interrupted. Reconnecting…</string>
     <string name="remote_stopping">Ending session…</string>
-    <string name="remote_failed">The remote session ended.</string>
+    <string name="remote_failed_invalid_request">The connection request is invalid.</string>
+    <string name="remote_failed_authentication">The computer rejected this connection.</string>
+    <string name="remote_failed_device_offline">The computer is offline.</string>
+    <string name="remote_failed_network">Could not restore the network connection.</string>
+    <string name="remote_failed_transport">No usable connection path is available.</string>
+    <string name="remote_failed_decoder">This device cannot decode the remote video.</string>
+    <string name="remote_failed_protocol">The remote computer returned an invalid response.</string>
+    <string name="remote_failed_remote_ended">The remote computer ended the session.</string>
+    <string name="remote_retry">Try again</string>
     <string name="remote_exit">End session</string>
     <string name="remote_mute">Mute remote audio</string>
     <string name="remote_unmute">Play remote audio</string>

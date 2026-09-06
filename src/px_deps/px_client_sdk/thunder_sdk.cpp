@@ -417,8 +417,11 @@ namespace px
                 }
                 // test
 
-                if (self->exit_ || !ret.has_value()) {
-                    LOGE("Don't have value, exit? {}", self->exit_.load());
+                if (self->exit_) {
+                    return;
+                }
+                if (!ret.has_value()) {
+                    if (ret.error() != 0) LOGE("Video decoder produced an error: {}", ret.error());
                     return;
                 }
                 auto raw_image = ret.value();

@@ -522,7 +522,10 @@ bool NativeSession::Initialize() {
     params->port_ = config_.port;
     params->udp_port_ = 20371;
     params->client_type_ = px::ClientType::kAndroid;
-    params->nt_type_ = px::ClientNetworkType::kWebsocket;
+    if (config_.network_type != px::ClientNetworkType::kUdpDirect) {
+        return false;
+    }
+    params->nt_type_ = px::ClientNetworkType::kUdpDirect;
     params->bare_device_id_ = config_.client_device_id;
     params->bare_remote_device_id_ = config_.remote_device_id;
     params->device_id_ = std::format("client_{}_{}", config_.client_device_id, px::MD5::Hex(config_.remote_device_id));

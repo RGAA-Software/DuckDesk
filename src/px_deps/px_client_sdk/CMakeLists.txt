@@ -113,6 +113,16 @@ if(BUILD_TESTING AND NOT ANDROID)
         GTest::gtest_main
     )
     add_test(NAME test_udp_media_fallback_state COMMAND test_udp_media_fallback_state)
+    add_executable(test_sdk_stream_helper
+        tests/test_sdk_stream_helper.cpp
+        sdk_stream_helper.cpp
+    )
+    target_include_directories(test_sdk_stream_helper PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(test_sdk_stream_helper PRIVATE
+        GTest::gtest
+        GTest::gtest_main
+    )
+    add_test(NAME sdk_stream_helper COMMAND test_sdk_stream_helper)
     add_executable(test_sdk_websocket_reconnect
         tests/test_sdk_websocket_reconnect.cpp
     )

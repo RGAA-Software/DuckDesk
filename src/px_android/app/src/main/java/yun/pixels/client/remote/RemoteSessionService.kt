@@ -254,6 +254,21 @@ class RemoteSessionService : Service() {
         }
     }
 
+    private fun retrySession() {
+        val failed = workflow.snapshot.value.status as? RemoteSessionStatus.Failed ?: return
+        val request = failed.request
+        preparedRequest = request
+        userWantsAudio = request.enableAudio
+        if (request.enableAudio) requestAudioFocus() else abandonAudioFocus()
+        mutableAudioEnabled.value = request.enableAudio && hasAudioFocus
+        startService(Intent(this, RemoteSessionService::class.java))
+        startForegroundSession(request.target.displayName, request.enableAudio)
+        serviceScope.launch {
+            workflow.start(request)
+            transport.setAudioEnabled(request.id, mutableAudioEnabled.value)
+        }
+    }
+
     private fun updateHeldInputs(command: InputCommand) {
         when (command) {
             is InputCommand.Key -> if (command.down) heldKeys += command.key else heldKeys -= command.key
@@ -549,6 +564,8 @@ class RemoteSessionService : Service() {
         fun setVoiceSpeakerphone(enabled: Boolean) = this@RemoteSessionService.setVoiceSpeakerphone(enabled)
 
         fun stopSession() = this@RemoteSessionService.stopSession()
+
+        fun retrySession() = this@RemoteSessionService.retrySession()
     }
 
     companion object {

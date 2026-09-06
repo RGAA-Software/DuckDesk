@@ -4,6 +4,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.withTimeout
@@ -92,6 +94,49 @@ class RemoteSessionWorkflowTest {
 
         assertEquals(listOf(request.id), transport.stops)
         assertEquals(RemoteSessionStatus.Failed(request, RemoteSessionFailure.AuthenticationRejected), workflow.snapshot.value.status)
+    }
+
+    @Test
+    fun recoverableDisconnectHasABoundedDeadlineAndStopsTransport() = runTest {
+        val transport = FakeRemoteSessionTransport()
+        val workflow = RemoteSessionWorkflow(
+            transport,
+            CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+            reconnectTimeoutMillis = 5_000,
+        )
+        val request = request("session-1")
+        workflow.start(request)
+
+        transport.eventsFlow.emit(RemoteTransportEvent.Disconnected(request.id, RemoteSessionFailure.NetworkUnavailable, true))
+        runCurrent()
+        assertEquals(RemoteSessionStatus.Reconnecting(request, 1), workflow.snapshot.value.status)
+
+        advanceTimeBy(5_000)
+        runCurrent()
+
+        assertEquals(RemoteSessionStatus.Failed(request, RemoteSessionFailure.NetworkUnavailable), workflow.snapshot.value.status)
+        assertEquals(listOf(request.id), transport.stops)
+    }
+
+    @Test
+    fun reconnectBeforeDeadlineCancelsTheFailure() = runTest {
+        val transport = FakeRemoteSessionTransport()
+        val workflow = RemoteSessionWorkflow(
+            transport,
+            CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+            reconnectTimeoutMillis = 5_000,
+        )
+        val request = request("session-1")
+        workflow.start(request)
+        transport.eventsFlow.emit(RemoteTransportEvent.Disconnected(request.id, RemoteSessionFailure.NetworkUnavailable, true))
+        transport.eventsFlow.emit(RemoteTransportEvent.Connected(request.id, capabilities()))
+        runCurrent()
+
+        advanceTimeBy(5_000)
+        runCurrent()
+
+        assertEquals(RemoteSessionStatus.Connected(request, capabilities()), workflow.snapshot.value.status)
+        assertTrue(transport.stops.isEmpty())
     }
 
     @Test

@@ -1,27 +1,22 @@
-//
-// Created by RGAA on 2024/1/26.
-//
-
 #ifndef TC_CLIENT_ANDROID_STREAM_HELPER_H
 #define TC_CLIENT_ANDROID_STREAM_HELPER_H
 
 #include <string>
-#include <functional>
+#include <string_view>
 
-namespace px
-{
+namespace px {
 
-    class StreamHelper {
-    public:
+struct H264ParameterSets final {
+    std::string sps{};
+    std::string pps{};
+};
 
-        static void SplitH264(const char *ptr, int len, int prefix, const std::function<void(const char *, int, int)> &cb);
-        static int ConvertH264SPSPPS(const uint8_t *p_buf, size_t i_buf_size,
-                              uint8_t * out_sps_buf, size_t * out_sps_buf_size,
-                              uint8_t * out_pps_buf, size_t * out_pps_buf_size);
-        static std::string ConvertVPSH265SPSPPS(const uint8_t *p_buf, size_t i_buf_size);
+class StreamHelper final {
+  public:
+    static H264ParameterSets ExtractH264ParameterSets(std::string_view frame);
+    static std::string ExtractH265ParameterSets(std::string_view frame);
+};
 
-    };
+} // namespace px
 
-}
-
-#endif //TC_CLIENT_ANDROID_STREAM_HELPER_H
+#endif // TC_CLIENT_ANDROID_STREAM_HELPER_H

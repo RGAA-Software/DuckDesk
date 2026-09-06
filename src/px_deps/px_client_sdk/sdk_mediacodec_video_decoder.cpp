@@ -13,6 +13,7 @@
 #include "sdk_statistics.h"
 
 #include <fstream>
+#include <utility>
 
 namespace px
 {
@@ -63,42 +64,26 @@ namespace px
         std::string csd0;
         std::string csd1;
         if (use_oes_) {
-            auto in_frame_data = frame.data();
-            auto in_frame_size = frame.size();
-            size_t sps_size, pps_size;
-            std::string sps_buf;
-            std::string pps_buf;
-            sps_buf.resize(in_frame_size + 20);
-            pps_buf.resize(in_frame_size + 20);
-
             if(codec_type == 0) {
-                if (0 != StreamHelper::ConvertH264SPSPPS((const uint8_t *) in_frame_data, (size_t) in_frame_size,
-                                               (uint8_t *) sps_buf.data(), &sps_size,
-                                               (uint8_t *) pps_buf.data(), &pps_size)) {
-                    LOGE("{}: convert_sps_pps: failed\n", __func__);
-                    return -1;
+                auto parameter_sets = StreamHelper::ExtractH264ParameterSets(frame);
+                csd0 = std::move(parameter_sets.sps);
+                csd1 = std::move(parameter_sets.pps);
+                if (csd0.empty() || csd1.empty()) {
+                    LOGW("H.264 access unit has no complete SPS/PPS; initialize for in-band codec configuration");
                 }
-                csd0 = sps_buf.substr(0, sps_size);
-                csd1 = pps_buf.substr(0, pps_size);
-
                 sdk_stat_->video_format_ = "H264";
             }
             else
             {
-                csd0 = StreamHelper::ConvertVPSH265SPSPPS((const uint8_t *) in_frame_data, (size_t) in_frame_size);
+                csd0 = StreamHelper::ExtractH265ParameterSets(frame);
                 if (csd0.empty()) {
-                    LOGE("{} :convert_sps_pps: failed\n", __func__);
-                    return -1;
+                    LOGW("H.265 access unit has no VPS/SPS/PPS; initialize for in-band codec configuration");
                 }
 
                 sdk_stat_->video_format_ = "HEVC";
             }
 
-            LOGI("csd0: {} size: {}, csd1: {}, size: {}", csd0.c_str(), csd0.size(), csd1.c_str(), csd1.size());
-            if (csd0.size() > 100 || csd1.size() > 100) {
-                LOGI("Ignore the error csd...");
-                return -1;
-            }
+            LOGI("MediaCodec parameter sets: csd-0={} bytes, csd-1={} bytes", csd0.size(), csd1.size());
         }
 
         media_codec_.reset(AMediaCodec_createDecoderByType(decoder_name.c_str()));

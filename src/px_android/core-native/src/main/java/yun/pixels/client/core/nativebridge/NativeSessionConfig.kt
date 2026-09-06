@@ -15,6 +15,7 @@ internal data class NativeSessionConfig(
     val rtcIceConfigJson: String,
     val relayHost: String,
     val relayPort: Int,
+    val networkType: Int,
     val enableVideo: Boolean,
     val enableAudio: Boolean,
     val enableInput: Boolean,

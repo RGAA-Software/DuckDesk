@@ -82,6 +82,7 @@ import yun.pixels.client.core.domain.session.RemoteInputMode
 import yun.pixels.client.core.domain.session.RemoteKey
 import yun.pixels.client.core.domain.session.RemoteMouseButton
 import yun.pixels.client.core.domain.session.RemoteSessionSnapshot
+import yun.pixels.client.core.domain.session.RemoteSessionFailure
 import yun.pixels.client.core.domain.session.RemoteSessionStatus
 import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
 import yun.pixels.client.core.domain.recording.RecordingState
@@ -113,6 +114,7 @@ fun RemoteWorkspaceScreen(
     onVoiceMicrophoneMuted: (Boolean) -> Unit,
     onVoiceSpeakerphone: (Boolean) -> Unit,
     onOpenTransfers: () -> Unit,
+    onRetry: () -> Unit,
     onEndSession: () -> Unit,
 ) {
     BackHandler(onBack = onEndSession)
@@ -273,7 +275,7 @@ fun RemoteWorkspaceScreen(
                 GamepadPortraitPrompt { allowPortraitGamepad = true }
             }
         }
-        RemoteStatus(snapshot.status)
+        RemoteStatus(snapshot.status, onRetry)
     }
     if (showKeyboard) {
         RemoteKeyboardSheet(
@@ -780,7 +782,8 @@ private fun RemoteKeyboardSheet(
                 OutlinedButton(onClick = onSecureAttention) { Text("Ctrl+Alt+Delete") }
             }
             if (supportsClipboard) {
-                Text(stringResource(R.string.remote_clipboard), style = MaterialTheme.typography.titleMedium)
+                val clipboardLabel = stringResource(R.string.remote_clipboard)
+                Text(clipboardLabel, style = MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(
                         onClick = {
@@ -797,7 +800,7 @@ private fun RemoteKeyboardSheet(
                     OutlinedButton(
                         onClick = {
                             remoteClipboardText?.let { value ->
-                                clipboardManager.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.remote_clipboard), value))
+                                clipboardManager.setPrimaryClip(ClipData.newPlainText(clipboardLabel, value))
                             }
                         },
                         enabled = !remoteClipboardText.isNullOrEmpty(),
@@ -967,13 +970,13 @@ private fun MotionEvent.toTouchSample(width: Int, height: Int): TouchSample {
 }
 
 @Composable
-private fun BoxScope.RemoteStatus(status: RemoteSessionStatus) {
+private fun BoxScope.RemoteStatus(status: RemoteSessionStatus, onRetry: () -> Unit) {
     val message = when (status) {
         RemoteSessionStatus.Idle -> R.string.remote_connecting
         is RemoteSessionStatus.Starting -> R.string.remote_connecting
         is RemoteSessionStatus.Reconnecting -> R.string.remote_reconnecting
         is RemoteSessionStatus.Stopping -> R.string.remote_stopping
-        is RemoteSessionStatus.Failed -> R.string.remote_failed
+        is RemoteSessionStatus.Failed -> status.reason.messageResource
         is RemoteSessionStatus.Connected -> null
     }
     if (message != null) {
@@ -984,9 +987,22 @@ private fun BoxScope.RemoteStatus(status: RemoteSessionStatus) {
         ) {
             if (status !is RemoteSessionStatus.Failed) CircularProgressIndicator()
             Text(text = stringResource(message), color = Color.White)
+            if (status is RemoteSessionStatus.Failed) Button(onClick = onRetry) { Text(stringResource(R.string.remote_retry)) }
         }
     }
 }
+
+private val RemoteSessionFailure.messageResource: Int
+    get() = when (this) {
+        RemoteSessionFailure.InvalidRequest -> R.string.remote_failed_invalid_request
+        RemoteSessionFailure.AuthenticationRejected -> R.string.remote_failed_authentication
+        RemoteSessionFailure.DeviceOffline -> R.string.remote_failed_device_offline
+        RemoteSessionFailure.NetworkUnavailable -> R.string.remote_failed_network
+        RemoteSessionFailure.TransportUnavailable -> R.string.remote_failed_transport
+        RemoteSessionFailure.DecoderUnavailable -> R.string.remote_failed_decoder
+        RemoteSessionFailure.ProtocolError -> R.string.remote_failed_protocol
+        RemoteSessionFailure.RemoteEnded -> R.string.remote_failed_remote_ended
+    }
 
 private const val INPUT_PREFERENCES = "remote_input"
 private const val INPUT_MODE = "mode"

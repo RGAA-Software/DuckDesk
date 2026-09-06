@@ -408,6 +408,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     onVoiceMicrophoneMuted = { muted -> remoteBinder?.setVoiceMicrophoneMuted(muted) },
                     onVoiceSpeakerphone = { enabled -> remoteBinder?.setVoiceSpeakerphone(enabled) },
                     onOpenTransfers = { navController.navigate(TopLevelDestination.Transfers.route) },
+                    onRetry = { remoteBinder?.retrySession() },
                     onEndSession = {
                         remoteBinder?.stopSession()
                         navController.popBackStack()

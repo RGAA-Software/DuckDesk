@@ -3,6 +3,7 @@ package yun.pixels.client.core.domain.session
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -410,17 +411,20 @@ interface RemoteSessionTransport {
 
 class RemoteSessionWorkflow(
     private val transport: RemoteSessionTransport,
-    scope: CoroutineScope,
+    private val scope: CoroutineScope,
+    private val reconnectTimeoutMillis: Long = DEFAULT_RECONNECT_TIMEOUT_MILLIS,
 ) {
     private val commandMutex = Mutex()
     private val stateMutex = Mutex()
     private val mutableSnapshot = MutableStateFlow(RemoteSessionSnapshot())
     private val eventJob: Job = scope.launch(start = CoroutineStart.UNDISPATCHED) { transport.events.collect(::handleTransportEvent) }
+    private var reconnectDeadlineJob: Job? = null
 
     val snapshot: StateFlow<RemoteSessionSnapshot> = mutableSnapshot.asStateFlow()
 
     suspend fun start(request: RemoteSessionRequest) {
         commandMutex.withLock {
+            cancelReconnectDeadline()
             val activeRequest = stateMutex.withLock {
                 currentRequest()?.also { current ->
                     if (current.id == request.id && mutableSnapshot.value.status !is RemoteSessionStatus.Failed) return
@@ -442,6 +446,7 @@ class RemoteSessionWorkflow(
 
     suspend fun stop() {
         commandMutex.withLock {
+            cancelReconnectDeadline()
             val request = stateMutex.withLock {
                 currentRequest()?.also { mutableSnapshot.value = mutableSnapshot.value.copy(status = RemoteSessionStatus.Stopping(it)) }
             } ?: return
@@ -454,6 +459,7 @@ class RemoteSessionWorkflow(
 
     suspend fun close() {
         stop()
+        cancelReconnectDeadline()
         eventJob.cancel()
     }
 
@@ -463,16 +469,18 @@ class RemoteSessionWorkflow(
             val request = currentRequest()?.takeIf { it.id == event.sessionId } ?: return
             if (mutableSnapshot.value.status is RemoteSessionStatus.Stopping || mutableSnapshot.value.status is RemoteSessionStatus.Failed) return
             when (event) {
-                is RemoteTransportEvent.Connected -> mutableSnapshot.value = RemoteSessionSnapshot(
-                    status = RemoteSessionStatus.Connected(request, event.capabilities),
-                )
+                is RemoteTransportEvent.Connected -> {
+                    cancelReconnectDeadline()
+                    mutableSnapshot.value = RemoteSessionSnapshot(status = RemoteSessionStatus.Connected(request, event.capabilities))
+                }
                 is RemoteTransportEvent.CapabilitiesUpdated -> {
                     val connected = mutableSnapshot.value.status as? RemoteSessionStatus.Connected ?: return
                     mutableSnapshot.value = mutableSnapshot.value.copy(status = connected.copy(capabilities = event.capabilities))
                 }
-                is RemoteTransportEvent.Reconnecting -> mutableSnapshot.value = mutableSnapshot.value.copy(
-                    status = RemoteSessionStatus.Reconnecting(request, event.attempt),
-                )
+                is RemoteTransportEvent.Reconnecting -> {
+                    mutableSnapshot.value = mutableSnapshot.value.copy(status = RemoteSessionStatus.Reconnecting(request, event.attempt))
+                    scheduleReconnectDeadline(request)
+                }
                 is RemoteTransportEvent.Statistics -> mutableSnapshot.value = mutableSnapshot.value.copy(statistics = event.value)
                 is RemoteTransportEvent.VideoSize -> mutableSnapshot.value = mutableSnapshot.value.copy(videoSize = event.value)
                 is RemoteTransportEvent.GamepadRumble -> Unit
@@ -488,7 +496,9 @@ class RemoteSessionWorkflow(
                 is RemoteTransportEvent.Disconnected -> {
                     if (event.recoverable) {
                         mutableSnapshot.value = mutableSnapshot.value.copy(status = RemoteSessionStatus.Reconnecting(request, 1))
+                        scheduleReconnectDeadline(request)
                     } else {
+                        cancelReconnectDeadline()
                         mutableSnapshot.value = RemoteSessionSnapshot(RemoteSessionStatus.Failed(request, event.reason))
                         terminalSessionId = request.id
                     }
@@ -498,6 +508,25 @@ class RemoteSessionWorkflow(
         terminalSessionId?.let { transport.stop(it) }
     }
 
+    private fun scheduleReconnectDeadline(request: RemoteSessionRequest) {
+        if (reconnectDeadlineJob?.isActive == true) return
+        reconnectDeadlineJob = scope.launch {
+            delay(reconnectTimeoutMillis)
+            val shouldStop = stateMutex.withLock {
+                val reconnecting = mutableSnapshot.value.status as? RemoteSessionStatus.Reconnecting
+                if (reconnecting?.request?.id != request.id) return@withLock false
+                mutableSnapshot.value = RemoteSessionSnapshot(RemoteSessionStatus.Failed(request, RemoteSessionFailure.NetworkUnavailable))
+                true
+            }
+            if (shouldStop) transport.stop(request.id)
+        }
+    }
+
+    private fun cancelReconnectDeadline() {
+        reconnectDeadlineJob?.cancel()
+        reconnectDeadlineJob = null
+    }
+
     private fun currentRequest(): RemoteSessionRequest? = when (val status = mutableSnapshot.value.status) {
         RemoteSessionStatus.Idle -> null
         is RemoteSessionStatus.Starting -> status.request
@@ -505,5 +534,9 @@ class RemoteSessionWorkflow(
         is RemoteSessionStatus.Reconnecting -> status.request
         is RemoteSessionStatus.Stopping -> status.request
         is RemoteSessionStatus.Failed -> status.request
+    }
+
+    private companion object {
+        const val DEFAULT_RECONNECT_TIMEOUT_MILLIS = 30_000L
     }
 }

@@ -2,7 +2,15 @@
     <string name="remote_connecting">正在安全连接…</string>
     <string name="remote_reconnecting">连接已中断，正在重连…</string>
     <string name="remote_stopping">正在结束会话…</string>
-    <string name="remote_failed">远程会话已结束。</string>
+    <string name="remote_failed_invalid_request">连接请求无效。</string>
+    <string name="remote_failed_authentication">远程电脑拒绝了本次连接。</string>
+    <string name="remote_failed_device_offline">远程电脑当前离线。</string>
+    <string name="remote_failed_network">无法恢复网络连接。</string>
+    <string name="remote_failed_transport">当前没有可用的连接链路。</string>
+    <string name="remote_failed_decoder">当前设备无法解码远程画面。</string>
+    <string name="remote_failed_protocol">远程电脑返回了无效响应。</string>
+    <string name="remote_failed_remote_ended">远程电脑已结束会话。</string>
+    <string name="remote_retry">重试</string>
     <string name="remote_exit">结束会话</string>
     <string name="remote_mute">静音远程声音</string>
     <string name="remote_unmute">播放远程声音</string>
