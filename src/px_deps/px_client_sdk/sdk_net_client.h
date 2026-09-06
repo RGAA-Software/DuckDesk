@@ -12,6 +12,10 @@
 #include "px_common/file_transfer_send_result.h"
 #include "connection/udp_media_fallback_state.h"
 
+#ifndef PX_RTC_TRANSPORT_AVAILABLE
+#define PX_RTC_TRANSPORT_AVAILABLE 1
+#endif
+
 namespace asio2 {
     class ws_client;
     class timer;
@@ -37,8 +41,10 @@ namespace px
     class MessageNotifier;
     class MessageListener;
     class Connection;
+#if PX_RTC_TRANSPORT_AVAILABLE
     class WebRtcConnection;
     class WebRtcLocalConnection;
+#endif
     class UdpDirectConnection;
     class SdkStatistics;
 
@@ -125,8 +131,10 @@ namespace px
         std::shared_ptr<Connection> media_conn_ = nullptr;
         mutable std::mutex udp_direct_connection_mutex_;
         std::shared_ptr<Connection> ft_conn_ = nullptr;
+#if PX_RTC_TRANSPORT_AVAILABLE
         std::shared_ptr<WebRtcConnection> rtc_conn_ = nullptr;
         std::shared_ptr<WebRtcLocalConnection> rtc_local_conn_ = nullptr;
+#endif
         std::shared_ptr<UdpDirectConnection> udp_direct_conn_ = nullptr;
         OnRtcLocalVideoFrameCallback rtc_local_video_frame_cbk_;
         OnRtcLocalAudioCallback rtc_local_audio_cbk_;

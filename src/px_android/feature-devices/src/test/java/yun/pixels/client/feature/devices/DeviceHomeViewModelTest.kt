@@ -5,6 +5,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.async
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -36,6 +39,7 @@ import yun.pixels.client.core.domain.account.AccountState
 import yun.pixels.client.core.domain.account.ConnectionTicket
 import yun.pixels.client.core.domain.account.ConsoleEndpoint
 import yun.pixels.client.core.domain.account.JoinMode
+import yun.pixels.client.core.domain.session.RemoteSessionTarget
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DeviceHomeViewModelTest {
@@ -139,6 +143,26 @@ class DeviceHomeViewModelTest {
         assertEquals(false, viewModel.uiState.value.isDiscovering)
     }
 
+    @Test
+    fun directRemoteRequestUsesEncryptedDirectoryCredential() = runTest(dispatcher) {
+        val device = resolvedDevice().device
+        val directory = FakeDeviceDirectory(credentialValue = "one-time-password")
+        val viewModel = DeviceHomeViewModel(
+            directory,
+            FakeDeviceResolver(DeviceResolution.Failure(DeviceResolutionFailure.Unreachable)),
+            FakeDeviceDiscovery(),
+            FakeAccountRepository(),
+        )
+        val request = async(start = CoroutineStart.UNDISPATCHED) { viewModel.remoteRequests.first() }
+
+        viewModel.onAction(DeviceHomeAction.StartRemoteDesktop(device))
+        advanceUntilIdle()
+
+        val target = request.await().target as RemoteSessionTarget.Direct
+        assertEquals(device, target.device)
+        assertEquals("one-time-password", target.credential)
+    }
+
     private fun resolvedDevice(): ResolvedDevice = ResolvedDevice(
         device = RemoteDevice(
             id = DeviceId("desktop-1"),
@@ -151,7 +175,7 @@ class DeviceHomeViewModelTest {
     )
 }
 
-private class FakeDeviceDirectory : DeviceDirectory {
+private class FakeDeviceDirectory(private val credentialValue: String? = null) : DeviceDirectory {
     override val devices: Flow<List<RemoteDevice>> = MutableStateFlow(emptyList())
     var saved: ResolvedDevice? = null
     val savedDevices = mutableListOf<ResolvedDevice>()
@@ -163,7 +187,7 @@ private class FakeDeviceDirectory : DeviceDirectory {
 
     override suspend fun remove(deviceId: DeviceId) = Unit
 
-    override suspend fun credential(deviceId: DeviceId): String? = null
+    override suspend fun credential(deviceId: DeviceId): String? = credentialValue
 }
 
 private class FakeDeviceDiscovery(private val devices: List<ResolvedDevice> = emptyList()) : DeviceDiscovery {

@@ -1,0 +1,47 @@
+plugins {
+    id 'com.android.library'
+}
+
+def configuredVcpkgRoot = providers.gradleProperty('pixelsVcpkgRoot')
+    .orElse(providers.environmentVariable('VCPKG_ROOT'))
+    .orElse('C:/source/vcpkg')
+    .get()
+
+android {
+    namespace = 'yun.pixels.client.core.nativebridge'
+    compileSdk = 37
+    ndkVersion = '29.0.14206865'
+
+    defaultConfig {
+        minSdk = 29
+        ndk {
+            abiFilters += ['arm64-v8a']
+        }
+        externalNativeBuild {
+            cmake {
+                cppFlags '-std=c++23'
+                arguments '-DANDROID_STL=c++_shared', "-DVCPKG_ROOT=${configuredVcpkgRoot}"
+                targets 'pixels_android_core'
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file('src/main/cpp/CMakeLists.txt')
+            version = '3.30.5'
+        }
+    }
+}
+
+dependencies {
+    implementation project(':core-domain')
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+
+    testImplementation 'junit:junit:4.13.2'
+}

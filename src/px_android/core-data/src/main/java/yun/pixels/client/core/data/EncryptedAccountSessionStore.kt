@@ -68,7 +68,7 @@ class EncryptedAccountSessionStore private constructor(
                 profile = AccountProfile(
                     userId = json.getString("uid"),
                     username = json.getString("username"),
-                    avatarPath = json.optString("avatar").takeIf(String::isNotBlank),
+                    avatarPath = if (json.isNull("avatar")) null else json.optString("avatar").takeIf(String::isNotBlank),
                     mustChangePassword = json.optBoolean("mustChangePassword"),
                 ),
                 accessToken = json.getString("accessToken"),

@@ -14,4 +14,9 @@
     <string name="discovery_finished">Nearby Pixels devices were added.</string>
     <string name="no_devices_discovered">No Pixels devices were found on this network.</string>
     <string name="scanner_unavailable">The QR scanner is unavailable. Paste or enter the connection details instead.</string>
+    <string name="remote_connection_unavailable">The remote connection could not be prepared.</string>
+    <string name="remote_notification_channel">Remote sessions</string>
+    <string name="remote_notification_title">Pixels remote session</string>
+    <string name="remote_notification_text">Connected to %1$s</string>
+    <string name="remote_notification_stop">End</string>
 </resources>

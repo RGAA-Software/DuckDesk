@@ -1,6 +1,6 @@
 # Pixels Android 客户端最终产品规划
 
-> 状态：M0 已完成；M1 设备、账号与发现切片进行中
+> 状态：M0 已完成；M1 实现完成、等待真实服务端串流验收；M2 基础视频与触摸控制切片进行中
 > 更新日期：2026-09-06  
 > 范围：`src/px_android` 及 Android 所需的项目自维护 C++ 公共模块
 
@@ -33,7 +33,7 @@
 | 最低系统基线 | Android 10 / API 29 |
 | 主要形态 | 手机、平板和折叠屏 |
 
-`com.pixels.yun.client` 不再保留，因此新应用不会覆盖旧包。测试设备必须先卸载旧应用及其数据，再安装 Pixels。首个正式版本号在发布阶段统一确定，不沿用旧 Android `3.0.0` 的兼容含义。
+`com.pixels.yun.client` 不再保留，因此新应用不会覆盖旧包。日常真机迭代对 `yun.pixels.client` 使用覆盖安装，保留已录入的设备与账号状态；仅发布候选额外执行清洁安装验收。首个正式版本号在发布阶段统一确定，不沿用旧 Android `3.0.0` 的兼容含义。
 
 只保留一个正式产品维度。当前只有 `official` 的 product flavor 没有产品价值，重建时删除，使用标准 `debug` 和 `release` build type。
 
@@ -206,7 +206,7 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 不尝试把仅有 Windows x64 预编译库的 `px_webrtc_client` 链入 Android。依赖必须固定版本并归档许可证、校验值和 native symbols，
 不能使用动态版本。当前选定基线为 `io.github.webrtc-sdk:android:150.7871.01`。
 
-旧 `rtc_client_stub.cpp` 已随 M0 删除，当前 Android 应用不打包 native transport，也不暴露伪造的 RTC 能力。M1 必须在新的 `core-native` 模块中建立真实 transport capability 和 typed JNI 边界；正式发布门禁要求 RTC adapter 实现并通过真机网络测试。
+旧 `rtc_client_stub.cpp` 已随 M0 删除。当前 `core-native` 已接入真实 WebSocket transport 和 typed JNI 边界；Android 尚未接入第三方 WebRTC AAR，因此构建时明确关闭 RTC capability，不暴露伪造能力。正式发布门禁仍要求 RTC adapter 实现并通过真机网络测试。
 
 ## 7. 渲染、音频和输入
 
@@ -282,7 +282,7 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 
 ### M1：设备发现与原生会话骨架，1–2 周
 
-状态：**进行中（2026-09-05 已完成手动主机/`link://` 解析、Panel 信息验证、设备持久化与真机闭环）**。
+状态：**实现完成，等待运行中的 Panel/Render 完成真实串流验收（2026-09-06）**。
 
 - 完成设备领域模型、Room/DataStore 和设备首页。
 - 完成扫码、手动添加和局域网发现。
@@ -294,6 +294,8 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 验收：能够从新 UI 发现、添加、连接和删除设备；旋转、前后台及重复连接不会泄漏会话。
 
 ### M2：音视频垂直切片，2–3 周
+
+状态：**进行中（2026-09-06 已完成 WebSocket 视频主路径、MediaCodec Surface、Surface 热重绑、基础触摸输入与远程工作区）**。
 
 - 接通 MediaCodec、软件解码回退、Surface 重绑和 Oboe 播放。
 - 完成远程工作区、画面适配、音频控制和基础统计。
@@ -383,16 +385,24 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 
 ## 13. 当前实施基线
 
-截至 2026-09-05，M0 已形成可构建、可安装、可冷启动的新产品基线，M1 已开始交付真实设备接入切片：
+截至 2026-09-06，M0 已完成，M1 的实现已形成可构建、可覆盖安装、可冷启动的闭环；M2 已进入可运行的远程工作区垂直切片：
 
 - Gradle 9.3.1、AGP 9.1.1、AGP 内置 Kotlin 2.4.10、Compose BOM 2026.08.00。
 - `compileSdk`/`targetSdk` 为 API 37，最低系统为 API 29；正式 native 能力仍只规划 `arm64-v8a`。
 - 根工程、包名、显示名、主题、Adaptive/monochrome 图标和 Splash Screen 均已切换到 Pixels。
-- 已建立 `app`、`core-domain`、`core-data`、`core-network`、`feature-devices`、`feature-settings`，设备首页、Quick Connect、账号和
-  一级导航使用不可变状态与类型化 Action。
+- 已建立 `app`、`core-domain`、`core-data`、`core-network`、`core-native`、`feature-devices`、`feature-remote`、`feature-settings`，
+  设备首页、Quick Connect、账号、一级导航和远程工作区使用不可变状态与类型化 Action。
 - 旧 Fragment/XML UI、GreenDAO、事件类、Steam/频谱/演示页面、宽松网络工具、旧签名文件和旧 Android JNI/C++ 入口已删除。
-- Android App 当前不打包项目 native 会话库，不加载旧 JNI，也不存在 RTC stub。M1 将从 `core-native` 的 typed JNI 和显式 capability 开始。
-- `core-domain` 单元测试、arm64 产品基线 debug 构建和 Android lint 已通过。删除未加载旧 native 库后的最终 APK 已在同一真机完成覆盖安装、冷启动、视觉和崩溃日志检查。AndroidTest APK 已成功编译，但 MIUI 拒绝安装独立测试包，因此品牌与启动验收使用真机手工检查完成。
+- Android App 已打包 arm64 `pixels_android_core`，通过 `RegisterNatives` 暴露类型化的小型 JNI 表面；Kotlin 只持有无地址语义的
+  `SessionId`，原生 registry 持有 `shared_ptr`，Java 引用与 `ANativeWindow` 均由 RAII 边界管理。没有旧 JSON JNI 或 RTC stub。
+- `RemoteSessionService` 是活跃会话所有者，前台通知、`RemoteSessionWorkflow` 状态机、重复 start/stop、过期回调丢弃、回调期间停止、
+  Activity/Surface 重建后的画面热重绑均已实现。Native SDK 外部调用不在状态锁内执行，并由命令锁串行化关闭竞态。
+- WebSocket 已接入现有 `px_client_sdk` 鉴权和重连路径，MediaCodec 直接输出 `Surface`；服务端配置、画面尺寸、掉线、顶号、离线和鉴权拒绝
+  使用类型化事件回传。基础直接触摸已转换为归一化坐标并复用现有 protobuf 输入协议。
+- Android 当前如实声明视频与基础输入能力；音频、软件解码回退、键鼠/手柄、多显示器、文件、剪贴板、录制、语音和 WebRTC 仍按 M2–M5
+  实施，未完成的能力不在握手后伪装为可用。
+- `core-domain` 会话生命周期测试、endpoint 安全测试、arm64 C++ 构建、Android 单元测试、lint 和 debug APK 构建已通过。APK 使用 USB
+  真机覆盖安装并完成冷启动、视觉与崩溃日志检查；MIUI 拒绝安装独立 AndroidTest APK，因此仪器测试仍需在其他设备或 CI 补齐。
 - M1 的 Quick Connect 已支持私有网络主机、可选 Panel 端口和 `link://`；客户端真实请求 `/v1/simple/info`，拒绝公网直连和异常协议响应。
   设备元数据已迁移到 Room，设备临时凭据使用 Android Keystore AES-GCM 加密，保存更新时不会意外清除已有凭据。
 - 已接入完整 Console 登录会话的 HTTPS adapter、加密会话存储、恢复/退出、账号设备列表和设备票据 API；首页在登录后自动同步账号设备，
@@ -400,6 +410,6 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 - 已接入基于当前活动 IPv4 网络的主动发现：宽网段最多探测本机所在 `/24`，窄网段尊重实际前缀，限制并发并仅保存通过
   `/v1/simple/info` 验证的设备；Android 17 的本地网络权限同时保护手动连接和扫描入口。
 - 设备接入已完成真机不可达错误态、成功添加、进程重启持久化、重启后保守离线、应用内删除及凭据非明文检查。Android 17 / API 37 的 `ACCESS_LOCAL_NETWORK` 运行时权限已接入。
+- 扫码入口已使用系统 Google Code Scanner 读取 QR 内容，并统一进入与手动输入相同的严格连接解析与安全校验流程。
 
-扫码、会话 transport、typed JNI 和远程画面仍未完成；对应动作继续明确提示正在建设，不伪造连接或远程会话成功。
-M1 完整验收前不能宣称远程会话已经可用。
+当前 USB 手机与开发机之间没有运行中的 Panel/Render 监听端，因此尚无真实远端画面、长时间串流和旋转/切网恢复证据。M1 的代码实现完成不等于整个产品完成；完成真实服务端验收后进入 M2 音频、回退渲染、统计与一小时稳定性门禁。

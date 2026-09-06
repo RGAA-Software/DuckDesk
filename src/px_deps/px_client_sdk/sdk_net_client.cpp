@@ -19,8 +19,10 @@
 #include "connection/ws_connection.h"
 #include "connection/wss_connection.h"
 #include "connection/relay_connection.h"
+#if PX_RTC_TRANSPORT_AVAILABLE
 #include "connection/webrtc_connection.h"
 #include "connection/webrtc_local_connection.h"
+#endif
 #include "connection/udp_direct_connection.h"
 #include "px_common/time_util.h"
 #include "px_common/url_helper.h"
@@ -307,11 +309,14 @@ namespace px
             }
             ft_conn_ = std::make_shared<RelayConnection>(sdk_params_, msg_notifier_, sdk_params_->relay_host_, sdk_params_->relay_port_, ft_device_id_, ft_remote_device_id_, auto_relay, kRoomTypeFileTransfer);
 
+#if PX_RTC_TRANSPORT_AVAILABLE
             if (sdk_params_->enable_p2p_ && !sdk_params_->file_transfer_only_) {
                 auto relay_conn = std::dynamic_pointer_cast<RelayConnection>(CurrentMediaConnection());
                 rtc_conn_ = WebRtcConnection::Make(relay_conn, sdk_params_, msg_notifier_);
             }
+#endif
         }
+#if PX_RTC_TRANSPORT_AVAILABLE
         else if (network_type_ == ClientNetworkType::kWebRtc) {
             // Full WebRTC: Relay is signaling/control bootstrap only. Once ICE
             // succeeds, media/input/file data channels use host/srflx/relay
@@ -335,6 +340,7 @@ namespace px
             rtc_local_conn_ = std::make_shared<WebRtcLocalConnection>(sdk_params_, msg_notifier_);
             ReplaceMediaConnection(rtc_local_conn_);
         }
+#endif
         else if (network_type_ == ClientNetworkType::kUdpDirect) {
             // GameStream 风格双通道:ws 控制面(可靠消息/状态机全复用) + 裸 UDP 媒体面,
             // 见 docs/udp_gamestream_channel_plan.md
@@ -373,6 +379,7 @@ namespace px
         // Install the decoded-frame handoff before starting signaling. A very
         // fast Relay room preparation must not be able to create tracks before
         // the SDK callback chain exists.
+#if PX_RTC_TRANSPORT_AVAILABLE
         if (rtc_conn_) {
             rtc_conn_->SetOnVideoFrameCallback(
                 [weak_self](int w, int h, std::shared_ptr<Data> i420) {
@@ -387,6 +394,7 @@ namespace px
                     }
                 });
         }
+#endif
 
         const auto media_connection = CurrentMediaConnection();
         const bool managed_udp_media = network_type_ == ClientNetworkType::kUdpDirect && media_connection;
@@ -426,9 +434,12 @@ namespace px
             // In full WebRTC mode Relay is only the signaling/bootstrap path. The
             // user-visible connection becomes ready after ICE plus the required
             // RTC data channel, not when the Relay room is merely established.
-            std::shared_ptr<Connection> primary_conn = network_type_ == ClientNetworkType::kWebRtc
-                ? std::static_pointer_cast<Connection>(rtc_conn_)
-                : (media_connection ? media_connection : ft_conn_);
+            std::shared_ptr<Connection> primary_conn = media_connection ? media_connection : ft_conn_;
+#if PX_RTC_TRANSPORT_AVAILABLE
+            if (network_type_ == ClientNetworkType::kWebRtc) {
+                primary_conn = std::static_pointer_cast<Connection>(rtc_conn_);
+            }
+#endif
             if (!primary_conn) {
                 LOGE("Start failed: no transport connection was created");
                 return;
@@ -476,6 +487,7 @@ namespace px
             StartFileTransferConnection();
         }
 
+#if PX_RTC_TRANSPORT_AVAILABLE
         if (sdk_params_->enable_p2p_ && rtc_conn_) {
             rtc_conn_->SetOnMediaMessageCallback([weak_self](std::shared_ptr<Data> msg) {
                 const auto self = weak_self.lock();
@@ -540,6 +552,7 @@ namespace px
                 }
             });
         }
+#endif
 
         if (const auto udp_connection = CurrentUdpDirectConnection()) {
             // UDP 媒体面:组帧后合成的 kVideoFrame,与上面 rtc_local 相同的上送路径,
@@ -608,14 +621,18 @@ namespace px
         if (ft_conn_) {
             ft_conn_->Stop();
         }
+#if PX_RTC_TRANSPORT_AVAILABLE
         if (rtc_conn_) {
             rtc_conn_->Stop();
         }
+#endif
         if (const auto udp_connection = CurrentUdpDirectConnection()) {
             udp_connection->Stop();
         }
+#if PX_RTC_TRANSPORT_AVAILABLE
         rtc_local_conn_.reset();
         rtc_conn_.reset();
+#endif
         ReplaceUdpDirectConnection(nullptr);
         ReplaceMediaConnection(nullptr);
         ft_conn_.reset();
@@ -711,9 +728,11 @@ namespace px
             }
         }
         else if (net_msg->type() == px::kServerConfiguration) {
+#if PX_RTC_TRANSPORT_AVAILABLE
             if (rtc_local_conn_ && net_msg->has_config()) {
                 rtc_local_conn_->UpdateTrackMonitors(net_msg->config());
             }
+#endif
             if (config_cbk_) {
                 config_cbk_(net_msg);
             }
@@ -750,6 +769,7 @@ namespace px
     }
 
     void NetClient::PostMediaMessage(std::shared_ptr<Data> msg) {
+#if PX_RTC_TRANSPORT_AVAILABLE
         if (sdk_params_->enable_p2p_ && rtc_conn_ && rtc_conn_->IsMediaChannelReady()) {
             auto queuing_msg_count = rtc_conn_->GetQueuingMediaMsgCount();
             auto has_enough_buffer = rtc_conn_->HasEnoughBufferForQueuingMediaMessages();
@@ -789,6 +809,9 @@ namespace px
             rtc_local_conn_->PostMediaMessage(msg);
         }
         else {
+#else
+        {
+#endif
             const auto media_connection = CurrentMediaConnection();
             auto queuing_msg_count = media_connection ? media_connection->GetQueuingMsgCount() : 0;
             int wait_count = 0;
@@ -820,6 +843,7 @@ namespace px
             return FileTransferSendResult::TransportError("file-transfer message is empty");
         }
 
+#if PX_RTC_TRANSPORT_AVAILABLE
         if (sdk_params_->enable_p2p_ && rtc_conn_ && rtc_conn_->IsFtChannelReady()) {
             if (rtc_conn_->GetQueuingFtMsgCount() >= kMaxFileTransferQueuedMessages ||
                 !rtc_conn_->HasEnoughBufferForQueuingFtMessages()) {
@@ -849,6 +873,9 @@ namespace px
             rtc_local_conn_->PostFtMessage(msg);
         }
         else {
+#else
+        {
+#endif
             const auto file_connection = network_type_ == ClientNetworkType::kUdpDirect
                 && !sdk_params_->file_transfer_only_
                 ? CurrentMediaConnection() : ft_conn_;
@@ -924,9 +951,13 @@ namespace px
     }
 
     void NetClient::SetRtcLocalCapturingMonitorNameProvider(std::function<std::string()>&& provider) {
+#if PX_RTC_TRANSPORT_AVAILABLE
         if (rtc_local_conn_) {
             rtc_local_conn_->SetCapturingMonitorNameProvider(std::move(provider));
         }
+#else
+        static_cast<void>(provider);
+#endif
     }
 
     void NetClient::HeartBeat() {
@@ -949,13 +980,15 @@ namespace px
     }
 
     int64_t NetClient::GetQueuingMediaMsgCount() {
+#if PX_RTC_TRANSPORT_AVAILABLE
         if (sdk_params_->enable_p2p_ && rtc_conn_) {
             return rtc_conn_->GetQueuingMediaMsgCount();
         }
         else if (rtc_local_conn_) {
             return rtc_local_conn_->GetQueuingMediaMsgCount();
         }
-        else if (const auto media_connection = CurrentMediaConnection()) {
+#endif
+        if (const auto media_connection = CurrentMediaConnection()) {
             return media_connection->GetQueuingMsgCount();
         }
         else {
@@ -964,13 +997,15 @@ namespace px
     }
 
     int64_t NetClient::GetQueuingFtMsgCount() {
+#if PX_RTC_TRANSPORT_AVAILABLE
         if (sdk_params_->enable_p2p_ && rtc_conn_) {
             return rtc_conn_->GetQueuingFtMsgCount();
         }
         else if (rtc_local_conn_) {
             return rtc_local_conn_->GetQueuingFtMsgCount();
         }
-        else if (network_type_ == ClientNetworkType::kUdpDirect
+#endif
+        if (network_type_ == ClientNetworkType::kUdpDirect
                  && !sdk_params_->file_transfer_only_) {
             if (const auto media_connection = CurrentMediaConnection()) {
                 return media_connection->GetQueuingMsgCount();
@@ -986,12 +1021,14 @@ namespace px
     }
 
     void NetClient::On16msTimeout() {
+#if PX_RTC_TRANSPORT_AVAILABLE
         if (sdk_params_->enable_p2p_ && rtc_conn_) {
             rtc_conn_->On16msTimeout();
         }
         if (rtc_local_conn_) {
             rtc_local_conn_->On16msTimeout();
         }
+#endif
         if (ft_conn_) {
             ft_conn_->On16msTimeout();
         }
@@ -1007,9 +1044,11 @@ namespace px
         if (ft_conn_) {
             ft_conn_->RetryConnection();
         }
+#if PX_RTC_TRANSPORT_AVAILABLE
         if (rtc_conn_) {
             rtc_conn_->RetryConnection();
         }
+#endif
         if (const auto udp_connection = CurrentUdpDirectConnection()) {
             // 裸 UDP 无重连概念,先空实现(ws 控制面断线即整体断线)
             udp_connection->RetryConnection();
@@ -1021,7 +1060,16 @@ namespace px
                                   const std::string& client_nonce,
                                   const std::string& instance_id,
                                   std::uint64_t revision) {
+#if PX_RTC_TRANSPORT_AVAILABLE
         return rtc_conn_ && rtc_conn_->RestartIce(
             ice_config_json, connection_ticket, client_nonce, instance_id, revision);
+#else
+        static_cast<void>(ice_config_json);
+        static_cast<void>(connection_ticket);
+        static_cast<void>(client_nonce);
+        static_cast<void>(instance_id);
+        static_cast<void>(revision);
+        return false;
+#endif
     }
 }

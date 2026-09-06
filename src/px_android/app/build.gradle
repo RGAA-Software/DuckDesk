@@ -62,7 +62,9 @@ dependencies {
     implementation project(':core-domain')
     implementation project(':core-data')
     implementation project(':core-network')
+    implementation project(':core-native')
     implementation project(':feature-devices')
+    implementation project(':feature-remote')
     implementation project(':feature-settings')
 
     implementation 'androidx.core:core-ktx:1.19.0'

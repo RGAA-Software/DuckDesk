@@ -1,0 +1,8 @@
+<resources>
+    <string name="remote_connecting">正在安全连接…</string>
+    <string name="remote_reconnecting">连接已中断，正在重连…</string>
+    <string name="remote_stopping">正在结束会话…</string>
+    <string name="remote_failed">远程会话已结束。</string>
+    <string name="remote_exit">结束会话</string>
+    <string name="remote_statistics">%1$d 帧/秒 · %2$d 毫秒 · %3$d kbps</string>
+</resources>

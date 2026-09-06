@@ -48,6 +48,7 @@ enum class DeviceHomeNotice {
     DiscoveryFinished,
     NoDevicesDiscovered,
     ScannerUnavailable,
+    RemoteConnectionUnavailable,
 }
 
 sealed interface DeviceHomeAction {

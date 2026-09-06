@@ -24,6 +24,10 @@ import yun.pixels.client.core.domain.device.DeviceDiscovery
 import yun.pixels.client.core.domain.device.DeviceResolution
 import yun.pixels.client.core.domain.device.DeviceResolutionFailure
 import yun.pixels.client.core.domain.device.DeviceResolver
+import yun.pixels.client.core.domain.session.RemoteSessionId
+import yun.pixels.client.core.domain.session.RemoteSessionRequest
+import yun.pixels.client.core.domain.session.RemoteSessionTarget
+import java.util.UUID
 
 class DeviceHomeViewModel(
     private val deviceDirectory: DeviceDirectory,
@@ -34,8 +38,10 @@ class DeviceHomeViewModel(
     private val editorState = MutableStateFlow(EditorState())
     private val accountDevicesState = MutableStateFlow(AccountDevicesState())
     private val mutableNotices = MutableSharedFlow<DeviceHomeNotice>(extraBufferCapacity = 1)
+    private val mutableRemoteRequests = MutableSharedFlow<RemoteSessionRequest>(extraBufferCapacity = 1)
 
     val notices = mutableNotices.asSharedFlow()
+    val remoteRequests = mutableRemoteRequests.asSharedFlow()
     val uiState: StateFlow<DeviceHomeUiState> = combine(
         deviceDirectory.devices,
         editorState,
@@ -91,7 +97,35 @@ class DeviceHomeViewModel(
             DeviceHomeAction.Paste -> Unit
             DeviceHomeAction.ScanCode -> Unit
             DeviceHomeAction.OpenAccountSettings -> Unit
+            is DeviceHomeAction.StartRemoteDesktop -> startDirectRemoteDesktop(action.device)
+            is DeviceHomeAction.StartAccountRemoteDesktop -> startAccountRemoteDesktop(action.device)
             else -> mutableNotices.tryEmit(DeviceHomeNotice.FeatureUnavailable)
+        }
+    }
+
+    private fun startDirectRemoteDesktop(device: yun.pixels.client.core.domain.device.RemoteDevice) {
+        viewModelScope.launch {
+            mutableRemoteRequests.emit(
+                RemoteSessionRequest(
+                    id = RemoteSessionId(UUID.randomUUID().toString()),
+                    target = RemoteSessionTarget.Direct(device, deviceDirectory.credential(device.id)),
+                ),
+            )
+        }
+    }
+
+    private fun startAccountRemoteDesktop(device: AccountDevice) {
+        viewModelScope.launch {
+            val clientNonce = UUID.randomUUID().toString()
+            when (val result = accountRepository.issueTicket(device.deviceId, clientNonce, yun.pixels.client.core.domain.account.JoinMode.Control)) {
+                is AccountResult.Success -> mutableRemoteRequests.emit(
+                    RemoteSessionRequest(
+                        id = RemoteSessionId(result.value.logicalSessionId.ifBlank { UUID.randomUUID().toString() }),
+                        target = RemoteSessionTarget.Account(device, result.value, clientNonce),
+                    ),
+                )
+                is AccountResult.Failure -> mutableNotices.emit(DeviceHomeNotice.RemoteConnectionUnavailable)
+            }
         }
     }
 

@@ -50,6 +50,7 @@ namespace px
         ~ThunderSdk();
 
         bool Init(const std::shared_ptr<ThunderSdkParams>& params, void* surface, const DecoderRenderType& drt);
+        void UpdateRenderSurface(std::uintptr_t surface_handle);
         void Start();
         void Exit();
 
@@ -110,7 +111,7 @@ namespace px
 
         // Borrowed native surface/handle accepted at the public ABI boundary.
         // Keep the opaque value rather than retaining a raw pointer in object state.
-        std::uintptr_t render_surface_handle_ = 0;
+        std::atomic_uintptr_t render_surface_handle_{0};
 
         // callbacks
         OnVideoFrameDecodedCallback video_frame_cbk_ = nullptr;

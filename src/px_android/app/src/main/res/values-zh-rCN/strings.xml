@@ -14,4 +14,9 @@
     <string name="discovery_finished">已添加发现的 Pixels 设备。</string>
     <string name="no_devices_discovered">当前网络中没有发现 Pixels 设备。</string>
     <string name="scanner_unavailable">二维码扫描器暂时不可用，请粘贴或手动输入连接信息。</string>
+    <string name="remote_connection_unavailable">无法准备远程连接。</string>
+    <string name="remote_notification_channel">远程会话</string>
+    <string name="remote_notification_title">Pixels 远程会话</string>
+    <string name="remote_notification_text">正在连接 %1$s</string>
+    <string name="remote_notification_stop">结束</string>
 </resources>

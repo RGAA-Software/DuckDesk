@@ -3,8 +3,13 @@
 package yun.pixels.client.ui
 
 import android.Manifest
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.IBinder
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
@@ -13,6 +18,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -29,6 +35,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +68,12 @@ import yun.pixels.client.feature.devices.DeviceHomeScreen
 import yun.pixels.client.feature.devices.DeviceHomeViewModel
 import yun.pixels.client.feature.settings.SettingsScreen
 import yun.pixels.client.feature.settings.SettingsViewModel
+import yun.pixels.client.core.domain.session.RemoteSessionRequest
+import yun.pixels.client.core.domain.session.RemoteSessionSnapshot
+import yun.pixels.client.core.domain.session.RemoteSessionStatus
+import yun.pixels.client.core.domain.session.RemoteSessionTarget
+import yun.pixels.client.feature.remote.RemoteWorkspaceScreen
+import yun.pixels.client.remote.RemoteSessionService
 
 private enum class TopLevelDestination(
     val route: String,
@@ -72,6 +85,8 @@ private enum class TopLevelDestination(
     Settings("settings", R.string.navigation_settings, Icons.Outlined.Settings),
 }
 
+private const val REMOTE_ROUTE = "remote"
+
 @Composable
 fun PixelsApp(graph: PixelsAppGraph) {
     val navController = rememberNavController()
@@ -79,6 +94,26 @@ fun PixelsApp(graph: PixelsAppGraph) {
     val coroutineScope = rememberCoroutineScope()
     val clipboard = LocalClipboard.current
     val context = LocalContext.current
+    var remoteBinder by remember { mutableStateOf<RemoteSessionService.LocalBinder?>(null) }
+    var remoteRequest by remember { mutableStateOf<RemoteSessionRequest?>(null) }
+    var remoteRequestAwaitingLocalNetwork by remember { mutableStateOf<RemoteSessionRequest?>(null) }
+    val idleRemoteSnapshot = remember { kotlinx.coroutines.flow.MutableStateFlow(RemoteSessionSnapshot()) }
+    DisposableEffect(context) {
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName, service: IBinder) {
+                remoteBinder = service as RemoteSessionService.LocalBinder
+            }
+
+            override fun onServiceDisconnected(name: ComponentName) {
+                remoteBinder = null
+            }
+        }
+        context.bindService(Intent(context, RemoteSessionService::class.java), connection, Context.BIND_AUTO_CREATE)
+        onDispose {
+            runCatching { context.unbindService(connection) }
+            remoteBinder = null
+        }
+    }
     val codeScanner = remember(context) {
         val options = GmsBarcodeScannerOptions.Builder()
             .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
@@ -112,6 +147,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
             DeviceHomeNotice.DiscoveryFinished to stringResource(R.string.discovery_finished),
             DeviceHomeNotice.NoDevicesDiscovered to stringResource(R.string.no_devices_discovered),
             DeviceHomeNotice.ScannerUnavailable to stringResource(R.string.scanner_unavailable),
+            DeviceHomeNotice.RemoteConnectionUnavailable to stringResource(R.string.remote_connection_unavailable),
         ),
     )
     val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
@@ -121,31 +157,76 @@ fun PixelsApp(graph: PixelsAppGraph) {
         pendingLocalNetworkAction = null
         deviceHomeViewModel.onAction(if (granted && action != null) action else DeviceHomeAction.LocalNetworkPermissionDenied)
     }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val remoteLocalNetworkPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val request = remoteRequestAwaitingLocalNetwork
+        remoteRequestAwaitingLocalNetwork = null
+        if (granted && request != null) {
+            remoteRequest = request
+        } else {
+            deviceHomeViewModel.onAction(DeviceHomeAction.LocalNetworkPermissionDenied)
+        }
+    }
 
     LaunchedEffect(deviceHomeViewModel) {
         deviceHomeViewModel.notices.collect { notice ->
             snackbarHostState.showSnackbar(noticeMessages.getValue(notice))
         }
     }
+    LaunchedEffect(deviceHomeViewModel) {
+        deviceHomeViewModel.remoteRequests.collect { request -> remoteRequest = request }
+    }
+    LaunchedEffect(remoteBinder, remoteRequest) {
+        val binder = remoteBinder ?: return@LaunchedEffect
+        val request = remoteRequest ?: return@LaunchedEffect
+        val requiresLocalNetwork = request.target is RemoteSessionTarget.Direct ||
+            (request.target as? RemoteSessionTarget.Account)?.connectionTicket?.launchUrl?.startsWith("http://", ignoreCase = true) == true
+        if (Build.VERSION.SDK_INT >= 37 && requiresLocalNetwork && ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_LOCAL_NETWORK,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            remoteRequestAwaitingLocalNetwork = request
+            remoteRequest = null
+            remoteLocalNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+            return@LaunchedEffect
+        }
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        binder.prepare(request)
+        remoteRequest = null
+        navController.navigate(REMOTE_ROUTE) { launchSingleTop = true }
+    }
+    LaunchedEffect(remoteBinder) {
+        val status = remoteBinder?.snapshot?.value?.status ?: return@LaunchedEffect
+        if (status !is RemoteSessionStatus.Idle && currentDestination?.route != REMOTE_ROUTE) {
+            navController.navigate(REMOTE_ROUTE) { launchSingleTop = true }
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
-            NavigationBar {
-                TopLevelDestination.values().forEach { destination ->
-                    val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = {
-                            navController.navigate(destination.route) {
-                                popUpTo(TopLevelDestination.Devices.route) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(imageVector = destination.icon, contentDescription = null) },
-                        label = { Text(text = stringResource(destination.labelResource)) },
-                    )
+            if (currentDestination?.route != REMOTE_ROUTE) {
+                NavigationBar {
+                    TopLevelDestination.values().forEach { destination ->
+                        val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = {
+                                navController.navigate(destination.route) {
+                                    popUpTo(TopLevelDestination.Devices.route) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = { Icon(imageVector = destination.icon, contentDescription = null) },
+                            label = { Text(text = stringResource(destination.labelResource)) },
+                        )
+                    }
                 }
             }
         },
@@ -153,7 +234,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
         NavHost(
             navController = navController,
             startDestination = TopLevelDestination.Devices.route,
-            modifier = Modifier.padding(contentPadding),
+            modifier = Modifier.padding(if (currentDestination?.route == REMOTE_ROUTE) PaddingValues(0.dp) else contentPadding),
         ) {
             composable(TopLevelDestination.Devices.route) {
                 DeviceHomeScreen(
@@ -219,6 +300,20 @@ fun PixelsApp(graph: PixelsAppGraph) {
             }
             composable(TopLevelDestination.Settings.route) {
                 SettingsScreen(state = settingsState, onAction = settingsViewModel::onAction)
+            }
+            composable(REMOTE_ROUTE) {
+                val sessionFlow = remoteBinder?.snapshot ?: idleRemoteSnapshot
+                val snapshot by sessionFlow.collectAsStateWithLifecycle()
+                RemoteWorkspaceScreen(
+                    snapshot = snapshot,
+                    onSurfaceAvailable = { surface -> remoteBinder?.attachSurface(surface) },
+                    onSurfaceDestroyed = { remoteBinder?.detachSurface() },
+                    onPointer = { action, xRatio, yRatio -> remoteBinder?.sendPointer(action, xRatio, yRatio) },
+                    onEndSession = {
+                        remoteBinder?.stopSession()
+                        navController.popBackStack()
+                    },
+                )
             }
         }
     }

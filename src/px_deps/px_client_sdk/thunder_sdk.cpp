@@ -97,7 +97,7 @@ namespace px
     bool ThunderSdk::Init(const std::shared_ptr<ThunderSdkParams>& params, void* surface, const DecoderRenderType& drt) {
         sdk_params_ = params;
         drt_ = drt;
-        render_surface_handle_ = reinterpret_cast<std::uintptr_t>(surface);
+        render_surface_handle_.store(reinterpret_cast<std::uintptr_t>(surface));
         last_heartbeat_callback_ = TimeUtil::GetCurrentTimestamp();
 
         auto fn_process_target_platform = [&]() {
@@ -139,6 +139,21 @@ namespace px
                                       sdk_params_->ft_remote_device_id_,
                                       sdk_params_->stream_id_);
         return true;
+    }
+
+    void ThunderSdk::UpdateRenderSurface(const std::uintptr_t surface_handle) {
+        render_surface_handle_.store(surface_handle);
+        const auto weak_self = weak_from_this();
+        PostVideoTask([weak_self]() {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_) return;
+            for (const auto& [monitor_name, decoder] : self->video_decoders_) {
+                static_cast<void>(monitor_name);
+                decoder->Release();
+            }
+            self->video_decoders_.clear();
+            self->RequestIFrame();
+        }, 0, "surface-rebind");
     }
 
     void ThunderSdk::Start() {
@@ -199,7 +214,7 @@ namespace px
                 auto& received_files_ = self->received_files_;
                 auto sdk_params_ = self->sdk_params_;
                 auto statistics_ = self->statistics_;
-                auto render_surface = reinterpret_cast<void*>(self->render_surface_handle_);
+                auto render_surface = reinterpret_cast<void*>(self->render_surface_handle_.load()); // NOLINT(gammaray-raw-pointer-boundary)
                 const auto& monitor_name = frame.mon_name();
                 std::shared_ptr<VideoDecoder> video_decoder = nullptr;
                 if (video_decoders_.contains(monitor_name)) {
