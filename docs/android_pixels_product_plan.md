@@ -604,9 +604,9 @@ SHA-256 发布清单，以及应用内隐私、开源许可和主动脱敏诊断
   因此本轮不把真实公网 Relay/WebRTC 显示操作记为通过。
 - 2026-09-07 M5 WebRTC 质量状态接入标准 RTCStats，将 inbound video 的画面帧率、累计接收字节和包计数与所选 candidate pair 的 RTT 转换为工作区已有的
   FPS、kbps、毫秒延迟和丢包率；累计计数重置、异常值和溢出均有有界处理。采样任务只在连接后启动，重复 connected 不会创建多个任务，会话关闭时取消，
-  晚到回调不会继续向已关闭会话派发。统计解析与跨样本码率测试、Android 全套单元测试、lint、arm64 native 和 debug APK 构建通过。APK 使用
-  `adb install -r -d` 覆盖安装，Xiaomi 22021211RC 冷启动耗时 2.048 秒且无 AndroidRuntime、JNI 或 native fatal；SHA-256 为
-  `918BA12C55D049CE6AC6A05C01C2C1DBCE763C17ED641B65D3180E672A1DFF06`。因手机未登录 Console，本轮只验证设备端加载与启动，不把真实 RTC 指标记为真机通过。
+  晚到回调不会继续向已关闭会话派发，展开的工作区状态栏同时显示四项指标。统计解析与跨样本码率测试、Android 全套单元测试、lint、arm64 native 和 debug APK 构建通过。APK 使用
+  `adb install -r -d` 覆盖安装，Xiaomi 22021211RC 冷启动耗时 2.407 秒且无 AndroidRuntime、JNI 或 native fatal；SHA-256 为
+  `2C6F5127ABBEC1BE5899085702B1A42E77F8B394F79831D229E8D28410579892`。因手机未登录 Console，本轮只验证设备端加载与启动，不把真实 RTC 指标记为真机通过。
 
 这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径、物理显示器切换和虚拟显示失败反馈；
 后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁，M5 轮次关闭了 UDP Direct 协商、WebSocket 安全回退、有界重连和 H.264 首帧解析门禁。
