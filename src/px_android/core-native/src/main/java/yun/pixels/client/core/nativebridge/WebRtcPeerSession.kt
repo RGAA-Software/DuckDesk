@@ -166,7 +166,11 @@ internal class WebRtcPeerSession(
             val candidates = synchronized(stateLock) { pendingRemoteIce.toList().also { pendingRemoteIce.clear() } }
             candidates.forEach(connection::addIceCandidate)
         } catch (failure: Throwable) {
-            closeWithReason(failure.message.orEmpty().ifBlank { "WebRTC negotiation failed" }, recoverable = true)
+            closeWithReason(
+                failure.message.orEmpty().ifBlank { "WebRTC negotiation failed" },
+                recoverable = true,
+                notify = false,
+            )
             throw failure
         }
     }

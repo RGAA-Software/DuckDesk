@@ -92,7 +92,12 @@ class RemoteSessionService : Service() {
         super.onCreate()
         val graph = (application as PixelsApplication).graph
         audioManager = getSystemService(AudioManager::class.java)
-        transport = AndroidRemoteSessionTransport(this, graph.installationIdentity, serviceScope)
+        transport = AndroidRemoteSessionTransport(
+            this,
+            graph.installationIdentity,
+            serviceScope,
+            graph.accountRepository::renewTicket,
+        )
         workflow = RemoteSessionWorkflow(transport, serviceScope)
         fileTransfers = AndroidFileTransferCoordinator(this, transport, serviceScope)
         clipboard = AndroidClipboardCoordinator(this, transport, serviceScope)

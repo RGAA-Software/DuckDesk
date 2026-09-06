@@ -1,11 +1,16 @@
 package yun.pixels.client.core.nativebridge
 
 import android.content.Context
+import android.os.SystemClock
 import android.view.Surface
 import java.io.Closeable
 import java.net.URI
 import java.net.URLDecoder
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -13,6 +18,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
+import yun.pixels.client.core.domain.account.AccountFailure
+import yun.pixels.client.core.domain.account.AccountResult
+import yun.pixels.client.core.domain.account.ConnectionTicket
 import yun.pixels.client.core.domain.session.InputCommand
 import yun.pixels.client.core.domain.session.InstallationIdentity
 import yun.pixels.client.core.domain.session.LocalClipboardFile
@@ -42,6 +50,7 @@ class AndroidRemoteSessionTransport internal constructor(
     context: Context,
     installationIdentity: InstallationIdentity,
     private val callbackScope: CoroutineScope,
+    private val renewTicket: suspend (ConnectionTicket, String) -> AccountResult<ConnectionTicket>,
     private val httpClient: OkHttpClient,
 ) : RemoteSessionTransport,
     FileTransferTransport,
@@ -57,13 +66,16 @@ class AndroidRemoteSessionTransport internal constructor(
     private val rtcSessions = mutableMapOf<RemoteSessionId, WebRtcPeerSession>()
     private val rtcRequests = mutableMapOf<RemoteSessionId, RemoteSessionRequest>()
     private val rtcCapabilities = mutableMapOf<RemoteSessionId, RemoteSessionCapabilities>()
+    private val reconnectJobs = mutableMapOf<RemoteSessionId, Job>()
+    private val attemptedTickets = mutableMapOf<RemoteSessionId, String>()
     private var rtcRuntime: WebRtcRuntime? = null
 
     constructor(
         context: Context,
         installationIdentity: InstallationIdentity,
         callbackScope: CoroutineScope,
-    ) : this(context, installationIdentity, callbackScope, OkHttpClient())
+        renewTicket: suspend (ConnectionTicket, String) -> AccountResult<ConnectionTicket>,
+    ) : this(context, installationIdentity, callbackScope, renewTicket, OkHttpClient())
 
     override val events: Flow<RemoteTransportEvent> = mutableEvents.asSharedFlow()
     override val fileTransferEvents: Flow<FileTransferEvent> = native.fileTransferEvents
@@ -93,29 +105,59 @@ class AndroidRemoteSessionTransport internal constructor(
     }
 
     override suspend fun start(request: RemoteSessionRequest): RemoteTransportStartResult {
-        val launch = request.standardRtcLaunchOrNull()
-        if (launch == null) {
-            val surface = lock.withLock {
-                if (request.id in nativeSessions) return RemoteTransportStartResult.Accepted
-                surfaces[request.id]
-            } ?: return RemoteTransportStartResult.Rejected(RemoteSessionFailure.DecoderUnavailable)
+        val effectiveRequest = when (val prepared = prepareTicket(request)) {
+            is PreparedRequest.Ready -> prepared.request
+            is PreparedRequest.Rejected -> return RemoteTransportStartResult.Rejected(prepared.reason)
+        }
+        val launch = effectiveRequest.standardRtcLaunchOrNull()
+        if (launch == null) return startNative(effectiveRequest)
+        val rtcResult = startRtc(effectiveRequest, launch)
+        if (rtcResult == RemoteTransportStartResult.Accepted) return rtcResult
+        if ((rtcResult as RemoteTransportStartResult.Rejected).reason == RemoteSessionFailure.DecoderUnavailable) return rtcResult
+        return renewAndStartNative(effectiveRequest)
+    }
+
+    private suspend fun startNative(request: RemoteSessionRequest): RemoteTransportStartResult {
+        val surface = lock.withLock {
+            if (request.id in nativeSessions) return RemoteTransportStartResult.Accepted
+            surfaces[request.id]
+        } ?: return RemoteTransportStartResult.Rejected(RemoteSessionFailure.DecoderUnavailable)
+        markTicketAttempted(request)
+        return try {
             native.attachSurface(request.id, surface)
             lock.withLock { nativeSessions += request.id }
-            return native.start(request).also { result ->
+            native.start(request).also { result ->
                 if (result is RemoteTransportStartResult.Rejected) {
                     lock.withLock { nativeSessions -= request.id }
                     native.detachSurface(request.id, surface)
                 }
             }
+        } catch (cancellation: CancellationException) {
+            lock.withLock { nativeSessions -= request.id }
+            native.detachSurface(request.id, surface)
+            throw cancellation
+        } catch (_: Throwable) {
+            lock.withLock { nativeSessions -= request.id }
+            native.detachSurface(request.id, surface)
+            RemoteTransportStartResult.Rejected(RemoteSessionFailure.TransportUnavailable)
         }
+    }
+
+    private suspend fun startRtc(
+        request: RemoteSessionRequest,
+        launch: StandardRtcLaunch,
+    ): RemoteTransportStartResult {
         val surface = lock.withLock {
             if (rtcSessions.containsKey(request.id)) return RemoteTransportStartResult.Accepted
             surfaces[request.id]
         } ?: return RemoteTransportStartResult.Rejected(RemoteSessionFailure.DecoderUnavailable)
+        markTicketAttempted(request)
         val runtime = try {
             lock.withLock { rtcRuntime ?: WebRtcRuntime(applicationContext).also { rtcRuntime = it } }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
         } catch (_: Throwable) {
-            return RemoteTransportStartResult.Rejected(RemoteSessionFailure.DecoderUnavailable)
+            return RemoteTransportStartResult.Rejected(RemoteSessionFailure.TransportUnavailable)
         }
         val session = WebRtcPeerSession(
             runtime = runtime,
@@ -143,6 +185,13 @@ class AndroidRemoteSessionTransport internal constructor(
         return try {
             session.start()
             RemoteTransportStartResult.Accepted
+        } catch (cancellation: CancellationException) {
+            lock.withLock {
+                rtcSessions.remove(request.id, session)
+                rtcRequests.remove(request.id)
+            }
+            session.close()
+            throw cancellation
         } catch (_: Throwable) {
             lock.withLock {
                 rtcSessions.remove(request.id, session)
@@ -154,13 +203,13 @@ class AndroidRemoteSessionTransport internal constructor(
     }
 
     override suspend fun stop(sessionId: RemoteSessionId) {
-        val rtc = lock.withLock {
-            surfaces.remove(sessionId)
+        val (rtc, reconnectJob) = lock.withLock {
             nativeSessions.remove(sessionId)
             rtcRequests.remove(sessionId)
             rtcCapabilities.remove(sessionId)
-            rtcSessions.remove(sessionId)
+            rtcSessions.remove(sessionId) to reconnectJobs.remove(sessionId)
         }
+        reconnectJob?.cancel()
         if (rtc != null) rtc.close() else native.stop(sessionId)
     }
 
@@ -261,18 +310,24 @@ class AndroidRemoteSessionTransport internal constructor(
         if (isRtcSession(sessionId)) false else native.setVoiceSpeakerMuted(sessionId, muted)
 
     override fun close() {
-        val sessions = kotlinx.coroutines.runBlocking {
+        val (sessions, pendingReconnects, pendingNativeSessions) = kotlinx.coroutines.runBlocking {
             lock.withLock {
-                rtcSessions.values.toList().also {
-                    rtcSessions.clear()
-                    rtcRequests.clear()
-                    rtcCapabilities.clear()
-                    nativeSessions.clear()
-                    surfaces.clear()
-                }
+                val activeSessions = rtcSessions.values.toList()
+                val activeReconnects = reconnectJobs.values.toList()
+                val activeNativeSessions = nativeSessions.toList()
+                rtcSessions.clear()
+                rtcRequests.clear()
+                rtcCapabilities.clear()
+                reconnectJobs.clear()
+                attemptedTickets.clear()
+                nativeSessions.clear()
+                surfaces.clear()
+                Triple(activeSessions, activeReconnects, activeNativeSessions)
             }
         }
+        pendingReconnects.forEach(Job::cancel)
         sessions.forEach(WebRtcPeerSession::close)
+        kotlinx.coroutines.runBlocking { pendingNativeSessions.forEach { sessionId -> native.stop(sessionId) } }
         rtcRuntime?.close()
         rtcRuntime = null
         httpClient.dispatcher.executorService.shutdown()
@@ -318,24 +373,138 @@ class AndroidRemoteSessionTransport internal constructor(
             )
 
             is WebRtcPeerEvent.Closed -> {
-                lock.withLock {
+                val closedRequest = lock.withLock {
                     rtcSessions.remove(sessionId)
-                    rtcRequests.remove(sessionId)
+                    val value = rtcRequests.remove(sessionId)
                     rtcCapabilities.remove(sessionId)
+                    value
                 }
-                mutableEvents.emit(
-                    RemoteTransportEvent.Disconnected(
-                        sessionId,
-                        RemoteSessionFailure.NetworkUnavailable,
-                        event.recoverable,
-                    ),
-                )
+                if (!event.recoverable || closedRequest == null) {
+                    mutableEvents.emit(
+                        RemoteTransportEvent.Disconnected(
+                            sessionId,
+                            RemoteSessionFailure.NetworkUnavailable,
+                            false,
+                        ),
+                    )
+                } else {
+                    mutableEvents.emit(RemoteTransportEvent.Reconnecting(sessionId, 1))
+                    scheduleNativeFallback(closedRequest)
+                }
             }
         }
     }
 
+    private suspend fun prepareTicket(request: RemoteSessionRequest): PreparedRequest {
+        val account = request.target as? RemoteSessionTarget.Account ?: return PreparedRequest.Ready(request)
+        val attemptedTicket = lock.withLock { attemptedTickets[request.id] }
+        if (!account.connectionTicket.requiresRenewal(attemptedTicket, System.currentTimeMillis())) {
+            return PreparedRequest.Ready(request)
+        }
+        return when (val result = renewTicketSafely(account.connectionTicket, account.clientNonce)) {
+            is AccountResult.Success -> PreparedRequest.Ready(request.withTicket(result.value))
+            is AccountResult.Failure -> PreparedRequest.Rejected(result.reason.toSessionFailure())
+        }
+    }
+
+    private suspend fun renewAndStartNative(request: RemoteSessionRequest): RemoteTransportStartResult {
+        val account = request.target as? RemoteSessionTarget.Account
+            ?: return RemoteTransportStartResult.Rejected(RemoteSessionFailure.TransportUnavailable)
+        return when (val renewed = renewTicketSafely(account.connectionTicket, account.clientNonce)) {
+            is AccountResult.Success -> startNative(request.withTicket(renewed.value))
+            is AccountResult.Failure -> RemoteTransportStartResult.Rejected(renewed.reason.toSessionFailure())
+        }
+    }
+
+    private suspend fun scheduleNativeFallback(request: RemoteSessionRequest) {
+        val job = callbackScope.launch(start = CoroutineStart.LAZY) { reconnectWithNativeFallback(request) }
+        val accepted = lock.withLock {
+            if (reconnectJobs.containsKey(request.id) || request.id in nativeSessions) {
+                false
+            } else {
+                reconnectJobs[request.id] = job
+                true
+            }
+        }
+        if (accepted) job.start() else job.cancel()
+    }
+
+    private suspend fun reconnectWithNativeFallback(initialRequest: RemoteSessionRequest) {
+        var request = initialRequest
+        var attempt = 1
+        var lastFailure = RemoteSessionFailure.NetworkUnavailable
+        val deadline = SystemClock.elapsedRealtime() + FALLBACK_RECONNECT_TIMEOUT_MILLIS
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (lock.withLock { surfaces[request.id] == null }) {
+                delay(FALLBACK_RETRY_BASE_MILLIS)
+                continue
+            }
+            val account = request.target as? RemoteSessionTarget.Account ?: break
+            when (val renewed = renewTicketSafely(account.connectionTicket, account.clientNonce)) {
+                is AccountResult.Success -> {
+                    request = request.withTicket(renewed.value)
+                    when (val result = startNative(request)) {
+                        RemoteTransportStartResult.Accepted -> {
+                            lock.withLock { reconnectJobs.remove(request.id) }
+                            return
+                        }
+                        is RemoteTransportStartResult.Rejected -> lastFailure = result.reason
+                    }
+                }
+                is AccountResult.Failure -> {
+                    lastFailure = renewed.reason.toSessionFailure()
+                    if (renewed.reason in NON_RETRYABLE_RENEWAL_FAILURES) break
+                }
+            }
+            attempt += 1
+            mutableEvents.emit(RemoteTransportEvent.Reconnecting(request.id, attempt))
+            delay((FALLBACK_RETRY_BASE_MILLIS * attempt).coerceAtMost(FALLBACK_RETRY_MAX_MILLIS))
+        }
+        lock.withLock { reconnectJobs.remove(request.id) }
+        mutableEvents.emit(RemoteTransportEvent.Disconnected(request.id, lastFailure, false))
+    }
+
+    private suspend fun markTicketAttempted(request: RemoteSessionRequest) {
+        val ticket = (request.target as? RemoteSessionTarget.Account)?.connectionTicket?.ticket ?: return
+        lock.withLock { attemptedTickets[request.id] = ticket }
+    }
+
+    private suspend fun renewTicketSafely(
+        ticket: ConnectionTicket,
+        clientNonce: String,
+    ): AccountResult<ConnectionTicket> = try {
+        renewTicket(ticket, clientNonce)
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: Throwable) {
+        AccountResult.Failure(AccountFailure.NetworkUnavailable)
+    }
+
     private suspend fun isRtcSession(sessionId: RemoteSessionId): Boolean = lock.withLock { rtcSessions.containsKey(sessionId) }
 }
+
+private sealed interface PreparedRequest {
+    data class Ready(val request: RemoteSessionRequest) : PreparedRequest
+
+    data class Rejected(val reason: RemoteSessionFailure) : PreparedRequest
+}
+
+private fun RemoteSessionRequest.withTicket(ticket: ConnectionTicket): RemoteSessionRequest {
+    val account = target as RemoteSessionTarget.Account
+    return copy(target = account.copy(connectionTicket = ticket))
+}
+
+private fun AccountFailure.toSessionFailure(): RemoteSessionFailure = when (this) {
+    AccountFailure.AuthenticationRequired, AccountFailure.Forbidden, AccountFailure.InvalidCredentials ->
+        RemoteSessionFailure.AuthenticationRejected
+    AccountFailure.DeviceOffline, AccountFailure.NotFound -> RemoteSessionFailure.DeviceOffline
+    AccountFailure.NetworkUnavailable, AccountFailure.RateLimited, AccountFailure.ServerError ->
+        RemoteSessionFailure.NetworkUnavailable
+    AccountFailure.InvalidEndpoint, AccountFailure.InvalidResponse -> RemoteSessionFailure.ProtocolError
+}
+
+internal fun ConnectionTicket.requiresRenewal(attemptedTicket: String?, nowEpochMillis: Long): Boolean =
+    ticket == attemptedTicket || expiresAtEpochMillis <= nowEpochMillis + TICKET_RENEWAL_MARGIN_MILLIS
 
 internal data class StandardRtcLaunch(
     val parameters: StandardRtcSignalParameters,
@@ -382,3 +551,13 @@ private fun URI.fragmentParameterForRtc(name: String): String? = rawFragment
     ?.let { URLDecoder.decode(it, "UTF-8") }
 
 private const val RTC_EXPIRY_MARGIN_SECONDS = 15L
+private const val TICKET_RENEWAL_MARGIN_MILLIS = 15_000L
+private const val FALLBACK_RECONNECT_TIMEOUT_MILLIS = 25_000L
+private const val FALLBACK_RETRY_BASE_MILLIS = 500L
+private const val FALLBACK_RETRY_MAX_MILLIS = 4_000L
+private val NON_RETRYABLE_RENEWAL_FAILURES = setOf(
+    AccountFailure.AuthenticationRequired,
+    AccountFailure.Forbidden,
+    AccountFailure.InvalidCredentials,
+    AccountFailure.InvalidResponse,
+)

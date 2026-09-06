@@ -51,6 +51,20 @@ class RemoteSessionWorkflowTest {
     }
 
     @Test
+    fun transportExceptionBecomesTypedFailureInsteadOfLeavingStartingState() = runTest {
+        val transport = FakeRemoteSessionTransport().apply { startFailure = IllegalStateException("transport failed") }
+        val workflow = RemoteSessionWorkflow(transport, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+        val request = request("session-1")
+
+        workflow.start(request)
+
+        assertEquals(
+            RemoteSessionStatus.Failed(request, RemoteSessionFailure.TransportUnavailable),
+            workflow.snapshot.value.status,
+        )
+    }
+
+    @Test
     fun startingAnotherSessionStopsTheFirstBeforeStart() = runTest {
         val transport = FakeRemoteSessionTransport()
         val workflow = RemoteSessionWorkflow(transport, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
@@ -276,10 +290,12 @@ private class FakeRemoteSessionTransport : RemoteSessionTransport {
     val starts = mutableListOf<RemoteSessionRequest>()
     val stops = mutableListOf<RemoteSessionId>()
     var startResult: RemoteTransportStartResult = RemoteTransportStartResult.Accepted
+    var startFailure: Throwable? = null
     var onStop: suspend (RemoteSessionId) -> Unit = {}
 
     override suspend fun start(request: RemoteSessionRequest): RemoteTransportStartResult {
         starts += request
+        startFailure?.let { throw it }
         return startResult
     }
 

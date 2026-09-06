@@ -2,6 +2,7 @@ package yun.pixels.client.core.domain.session
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -433,7 +434,14 @@ class RemoteSessionWorkflow(
             }
             if (activeRequest != null) transport.stop(activeRequest.id)
             stateMutex.withLock { mutableSnapshot.value = RemoteSessionSnapshot(RemoteSessionStatus.Starting(request)) }
-            when (val result = transport.start(request)) {
+            val startResult = try {
+                transport.start(request)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Throwable) {
+                RemoteTransportStartResult.Rejected(RemoteSessionFailure.TransportUnavailable)
+            }
+            when (val result = startResult) {
                 RemoteTransportStartResult.Accepted -> Unit
                 is RemoteTransportStartResult.Rejected -> stateMutex.withLock {
                     if (currentRequest()?.id == request.id) {

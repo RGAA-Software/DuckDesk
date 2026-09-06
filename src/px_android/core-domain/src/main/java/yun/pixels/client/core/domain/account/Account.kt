@@ -93,4 +93,6 @@ interface AccountRepository {
     suspend fun devices(): AccountResult<List<AccountDevice>>
 
     suspend fun issueTicket(deviceId: String, clientNonce: String, joinMode: JoinMode): AccountResult<ConnectionTicket>
+
+    suspend fun renewTicket(ticket: ConnectionTicket, clientNonce: String): AccountResult<ConnectionTicket>
 }

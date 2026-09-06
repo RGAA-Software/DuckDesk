@@ -231,4 +231,9 @@ private class FakeAccountRepository(
         clientNonce: String,
         joinMode: JoinMode,
     ): AccountResult<ConnectionTicket> = AccountResult.Failure(AccountFailure.DeviceOffline)
+
+    override suspend fun renewTicket(
+        ticket: ConnectionTicket,
+        clientNonce: String,
+    ): AccountResult<ConnectionTicket> = AccountResult.Failure(AccountFailure.AuthenticationRequired)
 }

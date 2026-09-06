@@ -106,6 +106,11 @@ private class FakeAccountRepository(
         joinMode: JoinMode,
     ): AccountResult<ConnectionTicket> = AccountResult.Failure(AccountFailure.DeviceOffline)
 
+    override suspend fun renewTicket(
+        ticket: ConnectionTicket,
+        clientNonce: String,
+    ): AccountResult<ConnectionTicket> = AccountResult.Failure(AccountFailure.AuthenticationRequired)
+
     private fun accountSession(endpoint: String, username: String) = AccountSession(
         endpoint = ConsoleEndpoint(endpoint),
         profile = AccountProfile("user-1", username, null, false),

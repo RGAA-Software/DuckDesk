@@ -34,6 +34,12 @@ interface ConsoleAccountApi {
         clientNonce: String,
         joinMode: JoinMode,
     ): AccountResult<ConnectionTicket>
+
+    suspend fun renewTicket(
+        session: AccountSession,
+        ticket: ConnectionTicket,
+        clientNonce: String,
+    ): AccountResult<ConnectionTicket>
 }
 
 class ConsoleApiClient(
@@ -127,6 +133,26 @@ class ConsoleApiClient(
             session.accessToken,
             body,
         )?.toAccountResult { data -> parseTicket(data as JSONObject) }
+            ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
+    }
+
+    override suspend fun renewTicket(
+        session: AccountSession,
+        ticket: ConnectionTicket,
+        clientNonce: String,
+    ): AccountResult<ConnectionTicket> = withContext(ioDispatcher) {
+        if (ticket.renewalToken.isBlank() || clientNonce.isBlank()) {
+            return@withContext AccountResult.Failure(AccountFailure.InvalidResponse)
+        }
+        val body = JSONObject()
+            .put("renewal_token", ticket.renewalToken)
+            .put("client_nonce", clientNonce)
+        request(
+            session.endpoint,
+            "/api/v1/connection-tickets/renew",
+            "POST",
+            body = body,
+        )?.toAccountResult { data -> parseTicket(data as JSONObject, ticket) }
             ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
     }
 
@@ -283,25 +309,30 @@ private fun parseApplicationInstance(data: JSONObject): RemoteApplicationInstanc
     reconnectable = data.optBoolean("reconnectable", false),
 )
 
-private fun parseTicket(data: JSONObject): AccountResult<ConnectionTicket> {
+internal fun parseTicket(data: JSONObject, inherited: ConnectionTicket? = null): AccountResult<ConnectionTicket> {
     val permissionsJson = data.optJSONArray("permissions") ?: JSONArray()
     val permissions = buildSet {
         repeat(permissionsJson.length()) { index -> add(permissionsJson.getString(index)) }
     }
-    return AccountResult.Success(
-        ConnectionTicket(
-            ticket = data.getString("ticket"),
-            renewalToken = data.getString("renewal_token"),
-            launchUrl = data.getString("launch_url"),
-            expiresAtEpochMillis = data.getLong("expires_at"),
-            logicalSessionId = data.getString("logical_session_id"),
-            streamId = data.getString("stream_id"),
-            joinMode = if (data.optString("join_mode") == "observe") JoinMode.Observe else JoinMode.Control,
-            permissions = permissions,
-            rtcIceConfigJson = data.optJSONObject("rtc_ice_config")?.toString().orEmpty(),
-            relayHost = data.optString("relay_host"),
-            relayPort = data.optInt("relay_port"),
-            signalDeviceId = data.optString("signal_device_id"),
-        ),
+    val parsed = ConnectionTicket(
+        ticket = data.getString("ticket"),
+        renewalToken = data.getString("renewal_token"),
+        launchUrl = data.optString("launch_url").ifBlank { inherited?.launchUrl.orEmpty() },
+        expiresAtEpochMillis = data.getLong("expires_at"),
+        logicalSessionId = data.getString("logical_session_id"),
+        streamId = data.getString("stream_id"),
+        joinMode = if (data.optString("join_mode") == "observe") JoinMode.Observe else JoinMode.Control,
+        permissions = permissions,
+        rtcIceConfigJson = data.optJSONObject("rtc_ice_config")?.toString().orEmpty(),
+        relayHost = data.optString("relay_host").ifBlank { inherited?.relayHost.orEmpty() },
+        relayPort = data.optInt("relay_port").takeIf { it in 1..65535 } ?: inherited?.relayPort ?: 0,
+        signalDeviceId = data.optString("signal_device_id").ifBlank { inherited?.signalDeviceId.orEmpty() },
     )
+    if (parsed.ticket.isBlank() || parsed.renewalToken.isBlank() || parsed.launchUrl.isBlank() || parsed.streamId.isBlank()) {
+        return AccountResult.Failure(AccountFailure.InvalidResponse)
+    }
+    if (inherited != null && (parsed.logicalSessionId != inherited.logicalSessionId || parsed.streamId != inherited.streamId)) {
+        return AccountResult.Failure(AccountFailure.InvalidResponse)
+    }
+    return AccountResult.Success(parsed)
 }

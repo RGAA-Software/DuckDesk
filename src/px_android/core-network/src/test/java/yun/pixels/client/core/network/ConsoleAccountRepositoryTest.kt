@@ -63,12 +63,43 @@ class ConsoleAccountRepositoryTest {
         assertTrue(normalizeEndpoint("https://[2001:db8::1]:8443") != null)
     }
 
+    @Test
+    fun renewalUsesRotatingCapabilityWithoutChangingAccountState() = runTest {
+        val current = ticket("ticket-1", "renewal-1")
+        val renewed = ticket("ticket-2", "renewal-2")
+        val signedIn = session(expiresAt = 200)
+        val api = FakeApi(
+            loginResult = AccountResult.Success(signedIn),
+            renewalResult = AccountResult.Success(renewed),
+        )
+        val repository = ConsoleAccountRepository(api, FakeSessionStore(), now = { 100 })
+        repository.login("https://console.example", "alice", "password")
+
+        assertEquals(AccountResult.Success(renewed), repository.renewTicket(current, "nonce"))
+        assertEquals(AccountState.SignedIn(signedIn), repository.state.value)
+    }
+
     private fun session(expiresAt: Long) = AccountSession(
         endpoint = ConsoleEndpoint("https://console.example"),
         profile = AccountProfile("u1", "alice", null, false),
         accessToken = "token",
         expiresAtEpochMillis = expiresAt,
         absoluteExpiresAtEpochMillis = expiresAt + 100,
+    )
+
+    private fun ticket(raw: String, renewal: String) = ConnectionTicket(
+        ticket = raw,
+        renewalToken = renewal,
+        launchUrl = "https://console.example/web_client/",
+        expiresAtEpochMillis = 1_000,
+        logicalSessionId = "logical",
+        streamId = "stream",
+        joinMode = JoinMode.Control,
+        permissions = setOf("view"),
+        rtcIceConfigJson = "{}",
+        relayHost = "relay.example",
+        relayPort = 443,
+        signalDeviceId = "server_device",
     )
 }
 
@@ -87,6 +118,7 @@ private class FakeSessionStore(var session: AccountSession? = null) : AccountSes
 private class FakeApi(
     private val loginResult: AccountResult<AccountSession> = AccountResult.Failure(AccountFailure.InvalidCredentials),
     private val devicesResult: AccountResult<List<AccountDevice>> = AccountResult.Success(emptyList()),
+    private val renewalResult: AccountResult<ConnectionTicket> = AccountResult.Failure(AccountFailure.AuthenticationRequired),
 ) : ConsoleAccountApi {
     override suspend fun login(endpointInput: String, username: String, password: String) = loginResult
 
@@ -100,4 +132,10 @@ private class FakeApi(
         clientNonce: String,
         joinMode: JoinMode,
     ): AccountResult<ConnectionTicket> = AccountResult.Failure(AccountFailure.DeviceOffline)
+
+    override suspend fun renewTicket(
+        session: AccountSession,
+        ticket: ConnectionTicket,
+        clientNonce: String,
+    ): AccountResult<ConnectionTicket> = renewalResult
 }

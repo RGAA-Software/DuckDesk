@@ -45,6 +45,13 @@ class StandardRtcLaunchTest {
         assertNull(request(ticket(permissions = setOf("input"))).standardRtcLaunchOrNull(nowEpochSeconds = 1_000L))
     }
 
+    @Test
+    fun renewsAnExpiringOrAlreadyAttemptedOneTimeTicket() {
+        assertTrue(ticket(ticketExpiryMillis = 1_010_000L).requiresRenewal(null, nowEpochMillis = 1_000_000L))
+        assertTrue(ticket().requiresRenewal("ticket", nowEpochMillis = 1_000_000L))
+        assertFalse(ticket().requiresRenewal("different-ticket", nowEpochMillis = 1_000_000L))
+    }
+
     private fun request(ticket: ConnectionTicket) = RemoteSessionRequest(
         id = RemoteSessionId("session-1"),
         target = RemoteSessionTarget.Account(
