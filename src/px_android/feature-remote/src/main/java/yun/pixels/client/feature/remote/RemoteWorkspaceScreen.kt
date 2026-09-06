@@ -2,6 +2,7 @@ package yun.pixels.client.feature.remote
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.net.Uri
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.InputDevice
@@ -12,6 +13,7 @@ import android.view.SurfaceView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -73,6 +75,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import yun.pixels.client.core.domain.session.InputCommand
+import yun.pixels.client.core.domain.session.ClipboardDownloadState
+import yun.pixels.client.core.domain.session.RemoteClipboardFiles
 import yun.pixels.client.core.domain.session.RemoteGamepadButton
 import yun.pixels.client.core.domain.session.RemoteInputMode
 import yun.pixels.client.core.domain.session.RemoteKey
@@ -99,6 +103,8 @@ fun RemoteWorkspaceScreen(
     onVirtualDisplayRequest: (String, RemoteVirtualDisplayOperation) -> Unit,
     onText: (String) -> Unit,
     onClipboardText: (String) -> Unit,
+    onClipboardUris: (List<Uri>) -> Unit,
+    onClipboardFilesRequest: (RemoteClipboardFiles) -> Unit,
     onAudioEnabledChange: (Boolean) -> Unit,
     onStartRecording: () -> Unit,
     onStopRecording: () -> Unit,
@@ -281,7 +287,11 @@ fun RemoteWorkspaceScreen(
             onText = onText,
             supportsClipboard = (snapshot.status as? RemoteSessionStatus.Connected)?.capabilities?.supportsClipboard == true,
             remoteClipboardText = snapshot.remoteClipboardText,
+            remoteClipboardFiles = snapshot.remoteClipboardFiles,
+            clipboardDownload = snapshot.clipboardDownload,
             onClipboardText = onClipboardText,
+            onClipboardUris = onClipboardUris,
+            onClipboardFilesRequest = onClipboardFilesRequest,
             onSecureAttention = { confirmSecureAttention = true },
         )
     }
@@ -562,7 +572,7 @@ private fun RemoteDisplaysSheet(
     val activeMonitorName = capabilities.activeMonitorName
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp),
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(stringResource(R.string.remote_displays), style = MaterialTheme.typography.titleLarge)
@@ -690,7 +700,11 @@ private fun RemoteKeyboardSheet(
     onText: (String) -> Unit,
     supportsClipboard: Boolean,
     remoteClipboardText: String?,
+    remoteClipboardFiles: RemoteClipboardFiles?,
+    clipboardDownload: ClipboardDownloadState,
     onClipboardText: (String) -> Unit,
+    onClipboardUris: (List<Uri>) -> Unit,
+    onClipboardFilesRequest: (RemoteClipboardFiles) -> Unit,
     onSecureAttention: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -771,12 +785,13 @@ private fun RemoteKeyboardSheet(
                     FilledTonalButton(
                         onClick = {
                             val clip = clipboardManager.primaryClip
-                            val localText = if (clip != null && clip.itemCount > 0) {
-                                clip.getItemAt(0).coerceToText(context).toString()
+                            val uris = if (clip == null) emptyList() else (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri }
+                            if (uris.isNotEmpty()) {
+                                onClipboardUris(uris)
                             } else {
-                                ""
+                                val localText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).coerceToText(context).toString() else ""
+                                if (localText.isNotEmpty()) onClipboardText(localText)
                             }
-                            if (localText.isNotEmpty()) onClipboardText(localText)
                         },
                     ) { Text(stringResource(R.string.remote_clipboard_send_local)) }
                     OutlinedButton(
@@ -795,6 +810,27 @@ private fun RemoteKeyboardSheet(
                         maxLines = 3,
                         style = MaterialTheme.typography.bodySmall,
                     )
+                }
+                remoteClipboardFiles?.let { files ->
+                    Text(
+                        files.files.joinToString(limit = 3, truncated = "…") { file -> "${file.displayName} (${file.size} B)" },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 3,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    FilledTonalButton(
+                        onClick = { onClipboardFilesRequest(files) },
+                        enabled = clipboardDownload !is ClipboardDownloadState.Downloading,
+                    ) {
+                        Text(
+                            when (clipboardDownload) {
+                                is ClipboardDownloadState.Downloading -> stringResource(R.string.remote_clipboard_receiving_files)
+                                is ClipboardDownloadState.Ready -> stringResource(R.string.remote_clipboard_files_ready)
+                                is ClipboardDownloadState.Failed -> stringResource(R.string.remote_clipboard_files_failed)
+                                ClipboardDownloadState.Idle -> stringResource(R.string.remote_clipboard_copy_files)
+                            },
+                        )
+                    }
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {

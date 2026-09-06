@@ -12,6 +12,10 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import yun.pixels.client.core.domain.session.InstallationIdentity
 import yun.pixels.client.core.domain.session.InputCommand
+import yun.pixels.client.core.domain.session.ClipboardDownloadState
+import yun.pixels.client.core.domain.session.ClipboardFileDescriptor
+import yun.pixels.client.core.domain.session.LocalClipboardFile
+import yun.pixels.client.core.domain.session.RemoteClipboardFiles
 import yun.pixels.client.core.domain.session.RemoteMouseButton
 import yun.pixels.client.core.domain.session.RemoteSessionCapabilities
 import yun.pixels.client.core.domain.session.RemoteSessionFailure
@@ -175,6 +179,38 @@ class NativeRemoteSessionTransport internal constructor(
         if (encoded.isEmpty() || encoded.size > MAX_CLIPBOARD_TEXT_BYTES) return false
         val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
         return PixelsNativeBridge.sendClipboardText(nativeSessionId, encoded)
+    }
+
+    override suspend fun sendClipboardFiles(
+        sessionId: RemoteSessionId,
+        generation: String,
+        files: List<LocalClipboardFile>,
+    ): Boolean {
+        if (generation.isBlank() || files.isEmpty() || files.size > MAX_CLIPBOARD_FILE_COUNT) return false
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        return withContext(Dispatchers.IO) {
+            PixelsNativeBridge.sendClipboardFiles(
+                nativeSessionId,
+                generation,
+                files.map(LocalClipboardFile::displayName).toTypedArray(),
+                files.map(LocalClipboardFile::localPath).toTypedArray(),
+                files.map(LocalClipboardFile::size).toLongArray(),
+            )
+        }
+    }
+
+    override suspend fun downloadClipboardFiles(
+        sessionId: RemoteSessionId,
+        generation: String,
+        destinationDirectory: String,
+    ): Boolean {
+        if (generation.isBlank() || destinationDirectory.isBlank()) return false
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        val accepted = withContext(Dispatchers.IO) {
+            PixelsNativeBridge.downloadClipboardFiles(nativeSessionId, generation, destinationDirectory)
+        }
+        if (accepted) mutableEvents.emit(RemoteTransportEvent.ClipboardDownload(sessionId, ClipboardDownloadState.Downloading(generation)))
+        return accepted
     }
 
     override suspend fun startUpload(sessionId: RemoteSessionId, localPath: String, remoteDirectory: String): Int? {
@@ -418,6 +454,24 @@ class NativeRemoteSessionTransport internal constructor(
         callbackScope.launch { mutableEvents.emit(RemoteTransportEvent.ClipboardText(RemoteSessionId(sessionId), value)) }
     }
 
+    override fun onClipboardFiles(sessionId: String, generation: String, displayNames: Array<String>, sizes: LongArray) {
+        if (generation.isBlank() || displayNames.isEmpty() || displayNames.size != sizes.size) return
+        val files = displayNames.indices.map { index -> ClipboardFileDescriptor(displayNames[index], sizes[index]) }
+        callbackScope.launch {
+            mutableEvents.emit(RemoteTransportEvent.ClipboardFiles(RemoteSessionId(sessionId), RemoteClipboardFiles(generation, files)))
+        }
+    }
+
+    override fun onClipboardFilesReady(sessionId: String, generation: String, localPaths: Array<String>, utf8Error: ByteArray) {
+        val error = utf8Error.decodeUtf8OrEmpty().take(MAX_NATIVE_ERROR_CHARS)
+        val state = if (error.isEmpty() && localPaths.isNotEmpty()) {
+            ClipboardDownloadState.Ready(generation, localPaths.toList())
+        } else {
+            ClipboardDownloadState.Failed(generation, error.ifBlank { "clipboard_download_failed" })
+        }
+        callbackScope.launch { mutableEvents.emit(RemoteTransportEvent.ClipboardDownload(RemoteSessionId(sessionId), state)) }
+    }
+
     override fun onFileTransferProgress(
         sessionId: String,
         jobId: Int,
@@ -640,6 +694,8 @@ private const val DEFAULT_VIRTUAL_DISPLAY_WIDTH = 1920
 private const val DEFAULT_VIRTUAL_DISPLAY_HEIGHT = 1080
 private const val DEFAULT_VIRTUAL_DISPLAY_REFRESH_HZ = 60
 private const val MAX_CLIPBOARD_TEXT_BYTES = 1_048_576
+private const val MAX_CLIPBOARD_FILE_COUNT = 16
+private const val MAX_NATIVE_ERROR_CHARS = 256
 private const val RECORDING_STARTED = 1
 private const val RECORDING_COMPLETED = 2
 private const val RECORDING_FAILED = 3

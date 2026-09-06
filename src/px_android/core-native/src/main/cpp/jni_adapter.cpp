@@ -1,4 +1,5 @@
 #include "native_session.h"
+#include "native_clipboard.h"
 
 #include <android/native_window_jni.h>
 #include <jni.h>
@@ -11,6 +12,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace pixels::android {
 namespace {
@@ -87,6 +89,40 @@ std::string ReadUtf8Bytes(JNIEnv& environment, const jbyteArray value, const jsi
     environment.GetByteArrayRegion(value, 0, length,
                                    reinterpret_cast<jbyte*>(result.data())); // NOLINT(gammaray-raw-pointer-boundary)
     return environment.ExceptionCheck() ? std::string{} : result;
+}
+
+std::string ReadJavaString(JNIEnv& environment, const jstring value, const std::size_t maximum_size = 4096U) {
+    if (value == nullptr) {
+        return {};
+    }
+    const char* characters = environment.GetStringUTFChars(value, nullptr); // NOLINT(gammaray-raw-pointer-boundary)
+    const std::string result = characters == nullptr ? std::string{} : std::string{characters};
+    if (characters != nullptr) {
+        environment.ReleaseStringUTFChars(value, characters);
+    }
+    return result.size() <= maximum_size ? result : std::string{};
+}
+
+std::vector<std::string> ReadStringArray(JNIEnv& environment, const jobjectArray values, const jsize maximum_count) {
+    if (values == nullptr) {
+        return {};
+    }
+    const auto count = environment.GetArrayLength(values);
+    if (count <= 0 || count > maximum_count) {
+        return {};
+    }
+    std::vector<std::string> result;
+    result.reserve(static_cast<std::size_t>(count));
+    for (jsize index = 0; index < count; ++index) {
+        const auto value_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectArrayElement(values, index));
+        const auto value = ReadJavaString(environment, reinterpret_cast<jstring>(value_handle));
+        environment.DeleteLocalRef(reinterpret_cast<jobject>(value_handle));
+        if (value.empty()) {
+            return {};
+        }
+        result.push_back(value);
+    }
+    return result;
 }
 
 NativeSessionConfig ReadConfig(JNIEnv& environment, const jobject config) {
@@ -191,6 +227,45 @@ jboolean NativeSendClipboardText(JNIEnv* environment, jobject, const jlong nativ
         return JNI_FALSE;
     const auto session = Registry().Find(native_session_id);
     return session && session->SendClipboardText(text) ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean NativeSendClipboardFiles(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(gammaray-raw-pointer-boundary)
+                                  const jstring generation, const jobjectArray display_names, const jobjectArray local_paths,
+                                  const jlongArray sizes) {
+    if (environment == nullptr || generation == nullptr || display_names == nullptr || local_paths == nullptr || sizes == nullptr) {
+        return JNI_FALSE;
+    }
+    constexpr jsize kMaximumFiles = 16;
+    const auto generation_value = ReadJavaString(*environment, generation, 128U);
+    const auto names = ReadStringArray(*environment, display_names, kMaximumFiles);
+    const auto paths = ReadStringArray(*environment, local_paths, kMaximumFiles);
+    const auto size_count = environment->GetArrayLength(sizes);
+    if (generation_value.empty() || names.empty() || names.size() != paths.size() || size_count != static_cast<jsize>(names.size())) {
+        return JNI_FALSE;
+    }
+    std::vector<jlong> file_sizes(names.size());
+    environment->GetLongArrayRegion(sizes, 0, size_count, file_sizes.data()); // NOLINT(gammaray-raw-pointer-boundary)
+    if (environment->ExceptionCheck()) {
+        return JNI_FALSE;
+    }
+    std::vector<NativeClipboardFile> files;
+    files.reserve(names.size());
+    for (std::size_t index = 0; index < names.size(); ++index) {
+        files.push_back({.display_name = names[index], .backing_path = paths[index], .size = file_sizes[index]});
+    }
+    const auto session = Registry().Find(native_session_id);
+    return session && session->SendClipboardFiles(generation_value, std::move(files)) ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean NativeDownloadClipboardFiles(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(gammaray-raw-pointer-boundary)
+                                      const jstring generation, const jstring destination_directory) {
+    if (environment == nullptr) {
+        return JNI_FALSE;
+    }
+    const auto generation_value = ReadJavaString(*environment, generation, 128U);
+    const auto destination_value = ReadJavaString(*environment, destination_directory);
+    const auto session = Registry().Find(native_session_id);
+    return session && session->DownloadClipboardFiles(generation_value, destination_value) ? JNI_TRUE : JNI_FALSE;
 }
 
 jint NativeStartFileUpload(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(gammaray-raw-pointer-boundary)
@@ -364,6 +439,10 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) { // NOLINT(gamm
         {const_cast<char*>("sendKey"), const_cast<char*>("(JIZ)Z"), reinterpret_cast<void*>(pixels::android::NativeSendKey)},
         {const_cast<char*>("sendText"), const_cast<char*>("(J[B)Z"), reinterpret_cast<void*>(pixels::android::NativeSendText)},
         {const_cast<char*>("sendClipboardText"), const_cast<char*>("(J[B)Z"), reinterpret_cast<void*>(pixels::android::NativeSendClipboardText)},
+        {const_cast<char*>("sendClipboardFiles"), const_cast<char*>("(JLjava/lang/String;[Ljava/lang/String;[Ljava/lang/String;[J)Z"),
+         reinterpret_cast<void*>(pixels::android::NativeSendClipboardFiles)},
+        {const_cast<char*>("downloadClipboardFiles"), const_cast<char*>("(JLjava/lang/String;Ljava/lang/String;)Z"),
+         reinterpret_cast<void*>(pixels::android::NativeDownloadClipboardFiles)},
         {const_cast<char*>("startFileUpload"), const_cast<char*>("(J[B[B)I"), reinterpret_cast<void*>(pixels::android::NativeStartFileUpload)},
         {const_cast<char*>("startFileDownload"), const_cast<char*>("(J[B[B)I"), reinterpret_cast<void*>(pixels::android::NativeStartFileDownload)},
         {const_cast<char*>("cancelFileTransfer"), const_cast<char*>("(JI)Z"), reinterpret_cast<void*>(pixels::android::NativeCancelFileTransfer)},

@@ -176,6 +176,31 @@ class RemoteSessionWorkflowTest {
         assertEquals("remote text", workflow.snapshot.value.remoteClipboardText)
     }
 
+    @Test
+    fun remoteClipboardFilesAndDownloadStateRemainBoundToActiveSession() = runTest {
+        val transport = FakeRemoteSessionTransport()
+        val workflow = RemoteSessionWorkflow(transport, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+        val request = request("session-1")
+        val files = RemoteClipboardFiles("generation-1", listOf(ClipboardFileDescriptor("photo.png", 42)))
+        workflow.start(request)
+        transport.eventsFlow.emit(RemoteTransportEvent.Connected(request.id, capabilities()))
+        transport.eventsFlow.emit(RemoteTransportEvent.ClipboardFiles(request.id, files))
+        transport.eventsFlow.emit(
+            RemoteTransportEvent.ClipboardDownload(
+                request.id,
+                ClipboardDownloadState.Ready(files.generation, listOf("/private/photo.png")),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(RemoteSessionStatus.Connected(request, capabilities()), workflow.snapshot.value.status)
+        assertEquals(files, workflow.snapshot.value.remoteClipboardFiles)
+        assertEquals(
+            ClipboardDownloadState.Ready(files.generation, listOf("/private/photo.png")),
+            workflow.snapshot.value.clipboardDownload,
+        )
+    }
+
     private fun request(id: String) = RemoteSessionRequest(
         id = RemoteSessionId(id),
         target = RemoteSessionTarget.Direct(
@@ -221,4 +246,8 @@ private class FakeRemoteSessionTransport : RemoteSessionTransport {
     override suspend fun sendInput(sessionId: RemoteSessionId, command: InputCommand): Boolean = true
 
     override suspend fun sendClipboardText(sessionId: RemoteSessionId, value: String): Boolean = true
+
+    override suspend fun sendClipboardFiles(sessionId: RemoteSessionId, generation: String, files: List<LocalClipboardFile>): Boolean = true
+
+    override suspend fun downloadClipboardFiles(sessionId: RemoteSessionId, generation: String, destinationDirectory: String): Boolean = true
 }

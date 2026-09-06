@@ -309,7 +309,35 @@ data class RemoteSessionSnapshot(
     val videoSize: RemoteVideoSize? = null,
     val lastVirtualDisplayResult: RemoteVirtualDisplayResult? = null,
     val remoteClipboardText: String? = null,
+    val remoteClipboardFiles: RemoteClipboardFiles? = null,
+    val clipboardDownload: ClipboardDownloadState = ClipboardDownloadState.Idle,
 )
+
+data class ClipboardFileDescriptor(
+    val displayName: String,
+    val size: Long,
+)
+
+data class LocalClipboardFile(
+    val displayName: String,
+    val localPath: String,
+    val size: Long,
+)
+
+data class RemoteClipboardFiles(
+    val generation: String,
+    val files: List<ClipboardFileDescriptor>,
+)
+
+sealed interface ClipboardDownloadState {
+    data object Idle : ClipboardDownloadState
+
+    data class Downloading(val generation: String) : ClipboardDownloadState
+
+    data class Ready(val generation: String, val localPaths: List<String>) : ClipboardDownloadState
+
+    data class Failed(val generation: String, val reason: String) : ClipboardDownloadState
+}
 
 sealed interface RemoteTransportStartResult {
     data object Accepted : RemoteTransportStartResult
@@ -343,6 +371,10 @@ sealed interface RemoteTransportEvent {
 
     data class ClipboardText(override val sessionId: RemoteSessionId, val value: String) : RemoteTransportEvent
 
+    data class ClipboardFiles(override val sessionId: RemoteSessionId, val value: RemoteClipboardFiles) : RemoteTransportEvent
+
+    data class ClipboardDownload(override val sessionId: RemoteSessionId, val value: ClipboardDownloadState) : RemoteTransportEvent
+
     data class Disconnected(
         override val sessionId: RemoteSessionId,
         val reason: RemoteSessionFailure,
@@ -360,6 +392,10 @@ interface RemoteSessionTransport {
     suspend fun sendInput(sessionId: RemoteSessionId, command: InputCommand): Boolean
 
     suspend fun sendClipboardText(sessionId: RemoteSessionId, value: String): Boolean
+
+    suspend fun sendClipboardFiles(sessionId: RemoteSessionId, generation: String, files: List<LocalClipboardFile>): Boolean
+
+    suspend fun downloadClipboardFiles(sessionId: RemoteSessionId, generation: String, destinationDirectory: String): Boolean
 }
 
 class RemoteSessionWorkflow(
@@ -433,6 +469,11 @@ class RemoteSessionWorkflow(
                     mutableSnapshot.value = mutableSnapshot.value.copy(lastVirtualDisplayResult = event.value)
                 }
                 is RemoteTransportEvent.ClipboardText -> mutableSnapshot.value = mutableSnapshot.value.copy(remoteClipboardText = event.value)
+                is RemoteTransportEvent.ClipboardFiles -> mutableSnapshot.value = mutableSnapshot.value.copy(
+                    remoteClipboardFiles = event.value,
+                    clipboardDownload = ClipboardDownloadState.Idle,
+                )
+                is RemoteTransportEvent.ClipboardDownload -> mutableSnapshot.value = mutableSnapshot.value.copy(clipboardDownload = event.value)
                 is RemoteTransportEvent.Disconnected -> {
                     if (event.recoverable) {
                         mutableSnapshot.value = mutableSnapshot.value.copy(status = RemoteSessionStatus.Reconnecting(request, 1))

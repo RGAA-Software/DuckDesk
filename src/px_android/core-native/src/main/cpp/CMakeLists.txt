@@ -70,6 +70,7 @@ add_subdirectory("${PX_PROJECT_PATH}/px_client_sdk" "${CMAKE_BINARY_DIR}/px_clie
 add_library(pixels_android_core SHARED
     jni_adapter.cpp
     native_audio_player.cpp
+    native_clipboard.cpp
     native_session.cpp
     native_voice_call.cpp
 )

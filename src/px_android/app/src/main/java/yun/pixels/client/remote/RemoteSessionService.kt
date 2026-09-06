@@ -33,6 +33,8 @@ import yun.pixels.client.R
 import yun.pixels.client.core.domain.session.RemoteSessionRequest
 import yun.pixels.client.core.domain.session.RemoteSessionSnapshot
 import yun.pixels.client.core.domain.session.RemoteSessionStatus
+import yun.pixels.client.core.domain.session.ClipboardDownloadState
+import yun.pixels.client.core.domain.session.RemoteClipboardFiles
 import yun.pixels.client.core.nativebridge.NativeRemoteSessionTransport
 import yun.pixels.client.core.domain.session.RemoteSessionWorkflow
 import yun.pixels.client.core.domain.session.InputCommand
@@ -55,6 +57,7 @@ class RemoteSessionService : Service() {
     private lateinit var transport: NativeRemoteSessionTransport
     private lateinit var workflow: RemoteSessionWorkflow
     private lateinit var fileTransfers: AndroidFileTransferCoordinator
+    private lateinit var clipboard: AndroidClipboardCoordinator
     private lateinit var recordings: AndroidRecordingCoordinator
     private val localBinder = LocalBinder()
     private var preparedRequest: RemoteSessionRequest? = null
@@ -88,10 +91,12 @@ class RemoteSessionService : Service() {
         transport = NativeRemoteSessionTransport(graph.installationIdentity, serviceScope)
         workflow = RemoteSessionWorkflow(transport, serviceScope)
         fileTransfers = AndroidFileTransferCoordinator(this, transport, serviceScope)
+        clipboard = AndroidClipboardCoordinator(this, transport, serviceScope)
         recordings = AndroidRecordingCoordinator(this, transport, serviceScope)
         createNotificationChannel()
         serviceScope.launch {
             workflow.snapshot.collectLatest { snapshot ->
+                (snapshot.clipboardDownload as? ClipboardDownloadState.Ready)?.let(clipboard::publish)
                 if (snapshot.status is RemoteSessionStatus.Failed && foregroundStarted) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     foregroundStarted = false
@@ -190,6 +195,16 @@ class RemoteSessionService : Service() {
     private fun sendClipboardText(text: String) {
         val request = currentRequest() ?: return
         serviceScope.launch { transport.sendClipboardText(request.id, text) }
+    }
+
+    private fun sendClipboardFiles(uris: List<Uri>) {
+        val request = currentRequest() ?: return
+        clipboard.share(request.id, uris)
+    }
+
+    private fun downloadClipboardFiles(files: RemoteClipboardFiles) {
+        val request = currentRequest() ?: return
+        clipboard.request(request.id, files)
     }
 
     private fun setAudioEnabled(enabled: Boolean) {
@@ -482,6 +497,10 @@ class RemoteSessionService : Service() {
         fun sendText(text: String) = this@RemoteSessionService.sendText(text)
 
         fun sendClipboardText(text: String) = this@RemoteSessionService.sendClipboardText(text)
+
+        fun sendClipboardFiles(uris: List<Uri>) = this@RemoteSessionService.sendClipboardFiles(uris)
+
+        fun downloadClipboardFiles(files: RemoteClipboardFiles) = this@RemoteSessionService.downloadClipboardFiles(files)
 
         fun setAudioEnabled(enabled: Boolean) = this@RemoteSessionService.setAudioEnabled(enabled)
 

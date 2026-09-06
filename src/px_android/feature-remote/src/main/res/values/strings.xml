@@ -44,6 +44,10 @@
     <string name="remote_voice_failed">Voice call ended or was declined.</string>
     <string name="remote_clipboard_send_local">Send from phone</string>
     <string name="remote_clipboard_copy_remote">Copy from PC</string>
+    <string name="remote_clipboard_copy_files">Copy PC files to phone clipboard</string>
+    <string name="remote_clipboard_receiving_files">Receiving files…</string>
+    <string name="remote_clipboard_files_ready">Files copied to phone clipboard</string>
+    <string name="remote_clipboard_files_failed">File clipboard failed · retry</string>
     <string name="remote_displays">Displays</string>
     <string name="remote_no_displays">No remote displays are available.</string>
     <string name="remote_display_name">Display %1$d · %2$s</string>

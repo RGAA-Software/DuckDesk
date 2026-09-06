@@ -28,7 +28,10 @@ struct TransferJobStatus;
 namespace pixels::android {
 
 class NativeAudioPlayer;
+class NativeClipboard;
 class NativeVoiceCall;
+struct NativeClipboardFile;
+struct NativeClipboardFiles;
 struct NativeVoiceCallStatus;
 
 struct NativeSessionConfig final {
@@ -83,6 +86,9 @@ class JavaSessionCallback final {
     void FrameSizeChanged(const std::string& session_id, std::int32_t width, std::int32_t height) const;
     void Statistics(const std::string& session_id, std::int32_t frames_per_second, std::int32_t latency_millis, std::int32_t bitrate_kbps) const;
     void ClipboardText(const std::string& session_id, const std::string& text) const;
+    void ClipboardFiles(const std::string& session_id, const NativeClipboardFiles& files) const;
+    void ClipboardFilesReady(const std::string& session_id, const std::string& generation, const std::vector<std::string>& paths,
+                             const std::string& error) const;
     void FileTransferProgress(const std::string& session_id, const px::ft::TransferJobStatus& status) const;
     void FileTransferDone(const std::string& session_id, std::int32_t job_id, const std::string& error) const;
     void FileTransferOverwrite(const std::string& session_id, std::int32_t job_id, std::int32_t file_number, const std::string& path, bool upload,
@@ -121,6 +127,8 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     bool SendGamepad(const NativeGamepadState& state);
     bool SendText(const std::string& text);
     bool SendClipboardText(const std::string& text);
+    bool SendClipboardFiles(const std::string& generation, std::vector<NativeClipboardFile> files);
+    bool DownloadClipboardFiles(const std::string& generation, const std::string& destination_directory);
     std::int32_t StartFileUpload(const std::string& local_path, const std::string& remote_directory);
     std::int32_t StartFileDownload(const std::string& remote_path, const std::string& local_directory);
     bool CancelFileTransfer(std::int32_t job_id);
@@ -153,6 +161,7 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     std::shared_ptr<px::ft::FtAsyncSession> file_transfer_session_{};
     std::shared_ptr<px::Thread> recording_thread_{};
     std::shared_ptr<px::RecordWriter> recording_writer_{};
+    std::shared_ptr<NativeClipboard> clipboard_{};
     std::shared_ptr<NativeVoiceCall> voice_call_{};
     std::shared_ptr<px::SdkStatistics> statistics_{};
     std::unique_ptr<NativeAudioPlayer> audio_player_{};

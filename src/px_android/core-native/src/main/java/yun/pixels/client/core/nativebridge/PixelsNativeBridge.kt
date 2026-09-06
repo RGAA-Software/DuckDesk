@@ -39,6 +39,10 @@ interface NativeSessionListener {
 
     fun onClipboardText(sessionId: String, utf8Text: ByteArray)
 
+    fun onClipboardFiles(sessionId: String, generation: String, displayNames: Array<String>, sizes: LongArray)
+
+    fun onClipboardFilesReady(sessionId: String, generation: String, localPaths: Array<String>, utf8Error: ByteArray)
+
     fun onFileTransferProgress(
         sessionId: String,
         jobId: Int,
@@ -98,6 +102,16 @@ internal object PixelsNativeBridge {
     external fun sendText(nativeSessionId: Long, utf8Text: ByteArray): Boolean
 
     external fun sendClipboardText(nativeSessionId: Long, utf8Text: ByteArray): Boolean
+
+    external fun sendClipboardFiles(
+        nativeSessionId: Long,
+        generation: String,
+        displayNames: Array<String>,
+        localPaths: Array<String>,
+        sizes: LongArray,
+    ): Boolean
+
+    external fun downloadClipboardFiles(nativeSessionId: Long, generation: String, destinationDirectory: String): Boolean
 
     external fun startFileUpload(nativeSessionId: Long, localPath: ByteArray, remoteDirectory: ByteArray): Int
 

@@ -1,6 +1,7 @@
 #include "native_session.h"
 
 #include "native_audio_player.h"
+#include "native_clipboard.h"
 #include "native_voice_call.h"
 
 #include <android/native_window_jni.h>
@@ -111,6 +112,16 @@ std::uintptr_t MakeByteArray(JNIEnv& environment, const std::string& value) {
     }
     environment.SetByteArrayRegion(reinterpret_cast<jbyteArray>(result_handle), 0, static_cast<jsize>(value.size()),
                                    reinterpret_cast<const jbyte*>(value.data())); // NOLINT(gammaray-raw-pointer-boundary)
+    return environment.ExceptionCheck() ? 0U : result_handle;
+}
+
+std::uintptr_t MakeLongArray(JNIEnv& environment, const std::vector<std::int64_t>& values) {
+    const auto result_handle = reinterpret_cast<std::uintptr_t>(environment.NewLongArray(static_cast<jsize>(values.size())));
+    if (result_handle == 0U || values.empty()) {
+        return result_handle;
+    }
+    environment.SetLongArrayRegion(reinterpret_cast<jlongArray>(result_handle), 0, static_cast<jsize>(values.size()),
+                                   reinterpret_cast<const jlong*>(values.data())); // NOLINT(gammaray-raw-pointer-boundary)
     return environment.ExceptionCheck() ? 0U : result_handle;
 }
 
@@ -273,6 +284,63 @@ void JavaSessionCallback::ClipboardText(const std::string& session_id, const std
         }
         DeleteLocalReference(environment, session_id_handle);
         DeleteLocalReference(environment, text_handle);
+        DeleteLocalReference(environment, listener_class_handle);
+    });
+}
+
+void JavaSessionCallback::ClipboardFiles(const std::string& session_id, const NativeClipboardFiles& files) const {
+    std::vector<std::string> names;
+    std::vector<std::int64_t> sizes;
+    names.reserve(files.files.size());
+    sizes.reserve(files.files.size());
+    for (const auto& file : files.files) {
+        names.push_back(file.display_name);
+        sizes.push_back(file.size);
+    }
+    const auto listener_handle = listener_handle_;
+    WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
+        const auto listener = reinterpret_cast<jobject>(listener_handle);
+        const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
+        const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
+        const auto method =
+            environment.GetMethodID(listener_class, "onClipboardFiles", "(Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;[J)V");
+        const auto session_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
+        const auto generation_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(files.generation.c_str()));
+        const auto names_handle = MakeStringArray(environment, names);
+        const auto sizes_handle = MakeLongArray(environment, sizes);
+        if (method != nullptr && session_handle != 0U && generation_handle != 0U && names_handle != 0U && sizes_handle != 0U) {
+            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_handle), reinterpret_cast<jstring>(generation_handle),
+                                       reinterpret_cast<jobjectArray>(names_handle), reinterpret_cast<jlongArray>(sizes_handle));
+        }
+        DeleteLocalReference(environment, session_handle);
+        DeleteLocalReference(environment, generation_handle);
+        DeleteLocalReference(environment, names_handle);
+        DeleteLocalReference(environment, sizes_handle);
+        DeleteLocalReference(environment, listener_class_handle);
+    });
+}
+
+void JavaSessionCallback::ClipboardFilesReady(const std::string& session_id, const std::string& generation,
+                                              const std::vector<std::string>& paths, const std::string& error) const {
+    const auto listener_handle = listener_handle_;
+    WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
+        const auto listener = reinterpret_cast<jobject>(listener_handle);
+        const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
+        const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
+        const auto method =
+            environment.GetMethodID(listener_class, "onClipboardFilesReady", "(Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;[B)V");
+        const auto session_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
+        const auto generation_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(generation.c_str()));
+        const auto paths_handle = MakeStringArray(environment, paths);
+        const auto error_handle = MakeByteArray(environment, error);
+        if (method != nullptr && session_handle != 0U && generation_handle != 0U && paths_handle != 0U && error_handle != 0U) {
+            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_handle), reinterpret_cast<jstring>(generation_handle),
+                                       reinterpret_cast<jobjectArray>(paths_handle), reinterpret_cast<jbyteArray>(error_handle));
+        }
+        DeleteLocalReference(environment, session_handle);
+        DeleteLocalReference(environment, generation_handle);
+        DeleteLocalReference(environment, paths_handle);
+        DeleteLocalReference(environment, error_handle);
         DeleteLocalReference(environment, listener_class_handle);
     });
 }
@@ -538,6 +606,66 @@ bool NativeSession::Initialize() {
         return false;
     }
 
+    clipboard_ = NativeClipboard::Create(
+        client_signal_device_id_, config_.stream_id,
+        [weak_self](std::shared_ptr<px::Data> data) {
+            const auto self = weak_self.lock();
+            if (!self || !data || self->stopped_.load()) {
+                return false;
+            }
+            std::shared_ptr<px::ThunderSdk> sdk;
+            {
+                std::lock_guard lock(self->lifecycle_mutex_);
+                sdk = self->sdk_;
+            }
+            if (!sdk) {
+                return false;
+            }
+            sdk->PostMediaMessage(std::move(data));
+            return true;
+        },
+        [weak_self](std::shared_ptr<px::Data> data) {
+            const auto self = weak_self.lock();
+            if (!self || !data || self->stopped_.load()) {
+                return false;
+            }
+            std::shared_ptr<px::ThunderSdk> sdk;
+            {
+                std::lock_guard lock(self->lifecycle_mutex_);
+                sdk = self->sdk_;
+            }
+            return sdk && sdk->PostFileTransferMessage(std::move(data)).accepted();
+        },
+        [weak_self](std::function<void()> task) {
+            const auto self = weak_self.lock();
+            if (!self || !task || self->stopped_.load()) {
+                return false;
+            }
+            std::shared_ptr<px::ThunderSdk> sdk;
+            {
+                std::lock_guard lock(self->lifecycle_mutex_);
+                sdk = self->sdk_;
+            }
+            if (!sdk) {
+                return false;
+            }
+            sdk->PostMiscTask(std::move(task));
+            return true;
+        },
+        [weak_self](const NativeClipboardFiles& files) {
+            if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
+                self->callback_->ClipboardFiles(self->config_.session_id, files);
+            }
+        },
+        [weak_self](const std::string& generation, const std::vector<std::string>& paths, const std::string& error) {
+            if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
+                self->callback_->ClipboardFilesReady(self->config_.session_id, generation, paths, error);
+            }
+        });
+    if (!clipboard_) {
+        return false;
+    }
+
     file_transfer_session_ = px::ft::FtAsyncSession::Create(
         [weak_self](const std::shared_ptr<const px::Message>& message) {
             const auto self = weak_self.lock();
@@ -717,6 +845,18 @@ bool NativeSession::Initialize() {
             }
             return;
         }
+        if (message->type() == px::kClipboardReqAtBegin || message->type() == px::kClipboardReqBuffer ||
+            message->type() == px::kClipboardReqAtEnd || message->type() == px::kClipboardRespBuffer) {
+            std::shared_ptr<NativeClipboard> clipboard;
+            {
+                std::lock_guard lock(self->lifecycle_mutex_);
+                clipboard = self->clipboard_;
+            }
+            if (clipboard) {
+                clipboard->HandleFileMessage(message);
+            }
+            return;
+        }
         if (message->type() == px::kFileAction || message->type() == px::kFileResponse) {
             std::shared_ptr<px::ft::FtAsyncSession> session;
             {
@@ -747,11 +887,22 @@ bool NativeSession::Initialize() {
     sdk_->SetOnClipboardCallback([weak_self](std::shared_ptr<px::Message> message) {
         const auto self = weak_self.lock();
         if (!self || !message || self->stopped_.load() || !self->config_.enable_clipboard || message->type() != px::kClipboardInfo ||
-            !message->has_clipboard_info() || message->clipboard_info().type() != px::kClipboardText || message->clipboard_info().msg().empty() ||
-            message->clipboard_info().msg().size() > 1'048'576U) {
+            !message->has_clipboard_info()) {
             return;
         }
-        self->callback_->ClipboardText(self->config_.session_id, message->clipboard_info().msg());
+        const auto& clipboard_info = message->clipboard_info();
+        if (clipboard_info.type() == px::kClipboardText && !clipboard_info.msg().empty() && clipboard_info.msg().size() <= 1'048'576U) {
+            self->callback_->ClipboardText(self->config_.session_id, clipboard_info.msg());
+        } else if (clipboard_info.type() == px::kClipboardFiles) {
+            std::shared_ptr<NativeClipboard> clipboard;
+            {
+                std::lock_guard lock(self->lifecycle_mutex_);
+                clipboard = self->clipboard_;
+            }
+            if (clipboard) {
+                clipboard->AcceptRemoteFiles(message);
+            }
+        }
     });
     sdk_->SetOnHeartBeatCallback([weak_self](std::shared_ptr<px::Message> message) {
         const auto self = weak_self.lock();
@@ -1035,6 +1186,32 @@ bool NativeSession::SendClipboardText(const std::string& text) {
         return false;
     sdk->PostMediaMessage(data);
     return true;
+}
+
+bool NativeSession::SendClipboardFiles(const std::string& generation, std::vector<NativeClipboardFile> files) {
+    std::lock_guard command_lock(command_mutex_);
+    std::shared_ptr<NativeClipboard> clipboard;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (!started_ || stopped_.load() || !config_.enable_clipboard || !clipboard_) {
+            return false;
+        }
+        clipboard = clipboard_;
+    }
+    return clipboard->PublishLocalFiles(generation, std::move(files));
+}
+
+bool NativeSession::DownloadClipboardFiles(const std::string& generation, const std::string& destination_directory) {
+    std::lock_guard command_lock(command_mutex_);
+    std::shared_ptr<NativeClipboard> clipboard;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (!started_ || stopped_.load() || !config_.enable_clipboard || !clipboard_) {
+            return false;
+        }
+        clipboard = clipboard_;
+    }
+    return clipboard->DownloadRemoteFiles(generation, destination_directory);
 }
 
 bool NativeSession::SendSecureAttention() {
@@ -1344,6 +1521,7 @@ void NativeSession::Stop() {
     std::shared_ptr<px::ThunderSdk> sdk;
     std::shared_ptr<px::ft::FtAsyncSession> file_transfer_session;
     std::shared_ptr<px::Thread> recording_thread;
+    std::shared_ptr<NativeClipboard> clipboard;
     std::shared_ptr<NativeVoiceCall> voice_call;
     std::shared_ptr<ANativeWindow> surface;
     const auto recording_generation = active_recording_generation_.exchange(0U, std::memory_order_acq_rel);
@@ -1353,6 +1531,7 @@ void NativeSession::Stop() {
         sdk = std::move(sdk_);
         file_transfer_session = std::move(file_transfer_session_);
         recording_thread = std::move(recording_thread_);
+        clipboard = std::move(clipboard_);
         voice_call = std::move(voice_call_);
         file_transfer_ready_ = false;
         session_listener_.reset();
@@ -1405,6 +1584,9 @@ void NativeSession::Stop() {
         });
         static_cast<void>(completion.wait_for(std::chrono::seconds(5)));
         recording_thread->Exit();
+    }
+    if (clipboard) {
+        clipboard->Stop();
     }
     if (voice_call) {
         // The SDK transport is about to close and stopped_ already rejects new

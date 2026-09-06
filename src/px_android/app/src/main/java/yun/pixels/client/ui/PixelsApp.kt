@@ -392,6 +392,8 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     onVirtualDisplayRequest = { requestId, operation -> remoteBinder?.requestVirtualDisplay(requestId, operation) },
                     onText = { text -> remoteBinder?.sendText(text) },
                     onClipboardText = { text -> remoteBinder?.sendClipboardText(text) },
+                    onClipboardUris = { uris -> remoteBinder?.sendClipboardFiles(uris) },
+                    onClipboardFilesRequest = { files -> remoteBinder?.downloadClipboardFiles(files) },
                     onAudioEnabledChange = { enabled -> remoteBinder?.setAudioEnabled(enabled) },
                     onStartRecording = { remoteBinder?.startRecording() },
                     onStopRecording = { remoteBinder?.stopRecording() },
