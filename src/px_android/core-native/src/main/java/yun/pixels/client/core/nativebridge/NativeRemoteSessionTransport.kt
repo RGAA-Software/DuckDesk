@@ -154,6 +154,13 @@ class NativeRemoteSessionTransport internal constructor(
         }
     }
 
+    override suspend fun sendClipboardText(sessionId: RemoteSessionId, value: String): Boolean {
+        val encoded = value.encodeToByteArray()
+        if (encoded.isEmpty() || encoded.size > MAX_CLIPBOARD_TEXT_BYTES) return false
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        return PixelsNativeBridge.sendClipboardText(nativeSessionId, encoded)
+    }
+
     private suspend fun sendMouse(
         nativeSessionId: Long,
         action: Int,
@@ -304,6 +311,12 @@ class NativeRemoteSessionTransport internal constructor(
         }
     }
 
+    override fun onClipboardText(sessionId: String, utf8Text: ByteArray) {
+        if (utf8Text.isEmpty() || utf8Text.size > MAX_CLIPBOARD_TEXT_BYTES) return
+        val value = runCatching { utf8Text.decodeToString(throwOnInvalidSequence = true) }.getOrNull()?.takeIf(String::isNotEmpty) ?: return
+        callbackScope.launch { mutableEvents.emit(RemoteTransportEvent.ClipboardText(RemoteSessionId(sessionId), value)) }
+    }
+
     override fun onDisconnected(sessionId: String, reason: Int, recoverable: Boolean) {
         callbackScope.launch {
             mutableEvents.emit(
@@ -334,7 +347,7 @@ private fun RemoteSessionRequest.toNativeConfig(
                 randomPassword = "",
             )
         }
-        is RemoteSessionTarget.Account -> sessionTarget.connectionTicket.toNativeEndpoint(sessionTarget.device.deviceId) ?: return null
+        is RemoteSessionTarget.Account -> sessionTarget.connectionTicket.toNativeEndpoint(sessionTarget.fallbackRemoteDeviceId) ?: return null
     }
     if (endpoint.remoteDeviceId.isBlank() || endpoint.streamId.isBlank() || clientDeviceId.isBlank()) return null
     val accountTarget = target as? RemoteSessionTarget.Account
@@ -356,6 +369,10 @@ private fun RemoteSessionRequest.toNativeConfig(
         enableVideo = enableVideo,
         enableAudio = enableAudio,
         enableInput = enableInput,
+        enableClipboard = enableClipboard && when (val sessionTarget = target) {
+            is RemoteSessionTarget.Direct -> true
+            is RemoteSessionTarget.Account -> "clipboard" in sessionTarget.connectionTicket.permissions
+        },
     )
 }
 
@@ -430,6 +447,7 @@ private const val MOUSE_WHEEL = 3
 private const val DEFAULT_VIRTUAL_DISPLAY_WIDTH = 1920
 private const val DEFAULT_VIRTUAL_DISPLAY_HEIGHT = 1080
 private const val DEFAULT_VIRTUAL_DISPLAY_REFRESH_HZ = 60
+private const val MAX_CLIPBOARD_TEXT_BYTES = 1_048_576
 
 private val RemoteVirtualDisplayOperation.nativeValue: Int
     get() = when (this) {

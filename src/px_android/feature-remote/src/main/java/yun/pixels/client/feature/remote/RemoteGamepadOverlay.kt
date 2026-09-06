@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -34,16 +35,25 @@ import androidx.compose.ui.unit.dp
 import yun.pixels.client.core.domain.session.RemoteGamepadButton
 
 @Composable
-internal fun BoxScope.RemoteGamepadOverlay(controller: RemoteGamepadController) {
+internal fun BoxScope.RemoteGamepadOverlay(controller: RemoteGamepadController, configuration: GamepadConfiguration) {
+    val config = configuration.normalized()
     Row(
-        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 18.dp),
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 18.dp)
+            .graphicsLayer {
+                alpha = config.overlayOpacity
+                scaleX = config.overlayScale
+                scaleY = config.overlayScale
+            },
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Bottom,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             GamepadButton("LB", RemoteGamepadButton.LeftShoulder, controller)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                VirtualStick("L", controller::setLeftStick)
+                VirtualStick("L", if (config.layout == VirtualGamepadLayout.Standard) controller::setLeftStick else controller::setRightStick)
                 DirectionButtons(controller)
             }
         }
@@ -57,7 +67,7 @@ internal fun BoxScope.RemoteGamepadOverlay(controller: RemoteGamepadController) 
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             GamepadButton("RB", RemoteGamepadButton.RightShoulder, controller)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                VirtualStick("R", controller::setRightStick)
+                VirtualStick("R", if (config.layout == VirtualGamepadLayout.Standard) controller::setRightStick else controller::setLeftStick)
                 ActionButtons(controller)
             }
         }

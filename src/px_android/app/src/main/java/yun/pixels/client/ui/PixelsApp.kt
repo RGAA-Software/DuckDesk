@@ -184,6 +184,9 @@ fun PixelsApp(graph: PixelsAppGraph) {
     LaunchedEffect(deviceHomeViewModel) {
         deviceHomeViewModel.remoteRequests.collect { request -> remoteRequest = request }
     }
+    LaunchedEffect(applicationLibraryViewModel) {
+        applicationLibraryViewModel.remoteRequests.collect { request -> remoteRequest = request }
+    }
     LaunchedEffect(remoteBinder, remoteRequest) {
         val binder = remoteBinder ?: return@LaunchedEffect
         val request = remoteRequest ?: return@LaunchedEffect
@@ -321,6 +324,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     onBack = { navController.popBackStack() },
                     onRefresh = applicationLibraryViewModel::refresh,
                     onStart = applicationLibraryViewModel::start,
+                    onConnect = applicationLibraryViewModel::connect,
                     onStop = applicationLibraryViewModel::stop,
                 )
             }
@@ -339,6 +343,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     onSwitchMonitor = { monitorName -> remoteBinder?.switchMonitor(monitorName) },
                     onVirtualDisplayRequest = { requestId, operation -> remoteBinder?.requestVirtualDisplay(requestId, operation) },
                     onText = { text -> remoteBinder?.sendText(text) },
+                    onClipboardText = { text -> remoteBinder?.sendClipboardText(text) },
                     onAudioEnabledChange = { enabled -> remoteBinder?.setAudioEnabled(enabled) },
                     onEndSession = {
                         remoteBinder?.stopSession()

@@ -162,6 +162,20 @@ class RemoteSessionWorkflowTest {
         assertEquals(statistics, workflow.snapshot.value.statistics)
     }
 
+    @Test
+    fun remoteClipboardTextUpdatesWithoutReplacingConnectedState() = runTest {
+        val transport = FakeRemoteSessionTransport()
+        val workflow = RemoteSessionWorkflow(transport, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+        val request = request("session-1")
+        workflow.start(request)
+        transport.eventsFlow.emit(RemoteTransportEvent.Connected(request.id, capabilities()))
+        transport.eventsFlow.emit(RemoteTransportEvent.ClipboardText(request.id, "remote text"))
+        advanceUntilIdle()
+
+        assertEquals(RemoteSessionStatus.Connected(request, capabilities()), workflow.snapshot.value.status)
+        assertEquals("remote text", workflow.snapshot.value.remoteClipboardText)
+    }
+
     private fun request(id: String) = RemoteSessionRequest(
         id = RemoteSessionId(id),
         target = RemoteSessionTarget.Direct(
@@ -205,4 +219,6 @@ private class FakeRemoteSessionTransport : RemoteSessionTransport {
     }
 
     override suspend fun sendInput(sessionId: RemoteSessionId, command: InputCommand): Boolean = true
+
+    override suspend fun sendClipboardText(sessionId: RemoteSessionId, value: String): Boolean = true
 }

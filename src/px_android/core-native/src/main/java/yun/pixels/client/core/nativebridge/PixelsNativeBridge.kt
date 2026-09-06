@@ -35,6 +35,8 @@ interface NativeSessionListener {
 
     fun onStatistics(sessionId: String, framesPerSecond: Int, latencyMillis: Int, bitrateKbps: Int)
 
+    fun onClipboardText(sessionId: String, utf8Text: ByteArray)
+
     fun onDisconnected(sessionId: String, reason: Int, recoverable: Boolean)
 }
 
@@ -65,6 +67,8 @@ internal object PixelsNativeBridge {
     external fun sendKey(nativeSessionId: Long, virtualKeyCode: Int, down: Boolean): Boolean
 
     external fun sendText(nativeSessionId: Long, utf8Text: ByteArray): Boolean
+
+    external fun sendClipboardText(nativeSessionId: Long, utf8Text: ByteArray): Boolean
 
     external fun sendSecureAttention(nativeSessionId: Long): Boolean
 

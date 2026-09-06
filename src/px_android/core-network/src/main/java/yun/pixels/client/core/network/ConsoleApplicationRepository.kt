@@ -6,6 +6,8 @@ import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.account.AccountSession
 import yun.pixels.client.core.domain.account.AccountState
 import yun.pixels.client.core.domain.account.ApplicationRepository
+import yun.pixels.client.core.domain.account.ConnectionTicket
+import yun.pixels.client.core.domain.account.JoinMode
 import yun.pixels.client.core.domain.account.RemoteApplication
 import yun.pixels.client.core.domain.account.RemoteApplicationInstance
 
@@ -19,6 +21,13 @@ interface ConsoleApplicationApi {
     ): AccountResult<RemoteApplicationInstance>
 
     suspend fun stopApplication(session: AccountSession, instanceId: String): AccountResult<Unit>
+
+    suspend fun issueApplicationTicket(
+        session: AccountSession,
+        instanceId: String,
+        clientNonce: String,
+        joinMode: JoinMode,
+    ): AccountResult<ConnectionTicket>
 }
 
 class ConsoleApplicationRepository(
@@ -33,6 +42,14 @@ class ConsoleApplicationRepository(
 
     override suspend fun stop(instanceId: String): AccountResult<Unit> =
         withSession { session -> api.stopApplication(session, instanceId) }
+
+    override suspend fun issueTicket(
+        instanceId: String,
+        clientNonce: String,
+        joinMode: JoinMode,
+    ): AccountResult<ConnectionTicket> = withSession { session ->
+        api.issueApplicationTicket(session, instanceId, clientNonce, joinMode)
+    }
 
     private suspend fun <T> withSession(block: suspend (AccountSession) -> AccountResult<T>): AccountResult<T> {
         val session = (accountRepository.state.value as? AccountState.SignedIn)?.session

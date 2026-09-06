@@ -1,5 +1,7 @@
 package yun.pixels.client.feature.remote
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.InputDevice
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Mouse
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.TouchApp
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -81,6 +84,7 @@ fun RemoteWorkspaceScreen(
     onSwitchMonitor: (String) -> Unit,
     onVirtualDisplayRequest: (String, RemoteVirtualDisplayOperation) -> Unit,
     onText: (String) -> Unit,
+    onClipboardText: (String) -> Unit,
     onAudioEnabledChange: (Boolean) -> Unit,
     onEndSession: () -> Unit,
 ) {
@@ -96,6 +100,20 @@ fun RemoteWorkspaceScreen(
     var sensitivity by remember { mutableStateOf(preferences.getFloat(INPUT_SENSITIVITY, 1f).coerceIn(0.5f, 2f)) }
     var showKeyboard by remember { mutableStateOf(false) }
     var showDisplays by remember { mutableStateOf(false) }
+    var showGamepadSettings by remember { mutableStateOf(false) }
+    var gamepadConfiguration by remember {
+        mutableStateOf(
+            GamepadConfiguration(
+                layout = runCatching {
+                    VirtualGamepadLayout.valueOf(preferences.getString(GAMEPAD_LAYOUT, null).orEmpty())
+                }.getOrDefault(VirtualGamepadLayout.Standard),
+                stickDeadZone = preferences.getFloat(GAMEPAD_DEAD_ZONE, 0.08f),
+                stickSensitivity = preferences.getFloat(GAMEPAD_SENSITIVITY, 1f),
+                overlayOpacity = preferences.getFloat(GAMEPAD_OPACITY, 0.72f),
+                overlayScale = preferences.getFloat(GAMEPAD_SCALE, 1f),
+            ).normalized(),
+        )
+    }
     var allowPortraitGamepad by remember { mutableStateOf(false) }
     var pendingVirtualDisplayRequest by remember { mutableStateOf<String?>(null) }
     var confirmSecureAttention by remember { mutableStateOf(false) }
@@ -107,6 +125,7 @@ fun RemoteWorkspaceScreen(
     val latestSensitivity by rememberUpdatedState(sensitivity)
     val interpreter = remember { RemoteGestureInterpreter { latestInput(it) } }
     val gamepadController = remember { RemoteGamepadController { latestInput(it) } }
+    gamepadController.configuration = gamepadConfiguration
     interpreter.mode = inputMode
     interpreter.touchpadSensitivity = sensitivity
     LaunchedEffect(currentSurface, surfaceConsumerReady) {
@@ -207,12 +226,13 @@ fun RemoteWorkspaceScreen(
             },
             onAudioEnabledChange = onAudioEnabledChange,
             onOpenKeyboard = { showKeyboard = true },
+            onOpenGamepadSettings = { showGamepadSettings = true },
             onOpenDisplays = { showDisplays = true },
             onEndSession = onEndSession,
         )
         if (inputMode == RemoteInputMode.Gamepad && snapshot.status is RemoteSessionStatus.Connected) {
             if (maxWidth > maxHeight || allowPortraitGamepad) {
-                RemoteGamepadOverlay(gamepadController)
+                RemoteGamepadOverlay(gamepadController, gamepadConfiguration)
             } else {
                 GamepadPortraitPrompt { allowPortraitGamepad = true }
             }
@@ -229,7 +249,27 @@ fun RemoteWorkspaceScreen(
             onDismiss = { showKeyboard = false },
             onInput = onInput,
             onText = onText,
+            supportsClipboard = (snapshot.status as? RemoteSessionStatus.Connected)?.capabilities?.supportsClipboard == true,
+            remoteClipboardText = snapshot.remoteClipboardText,
+            onClipboardText = onClipboardText,
             onSecureAttention = { confirmSecureAttention = true },
+        )
+    }
+    if (showGamepadSettings) {
+        RemoteGamepadSettingsSheet(
+            configuration = gamepadConfiguration,
+            onConfigurationChange = { value ->
+                val normalized = value.normalized()
+                gamepadConfiguration = normalized
+                preferences.edit()
+                    .putString(GAMEPAD_LAYOUT, normalized.layout.name)
+                    .putFloat(GAMEPAD_DEAD_ZONE, normalized.stickDeadZone)
+                    .putFloat(GAMEPAD_SENSITIVITY, normalized.stickSensitivity)
+                    .putFloat(GAMEPAD_OPACITY, normalized.overlayOpacity)
+                    .putFloat(GAMEPAD_SCALE, normalized.overlayScale)
+                    .apply()
+            },
+            onDismiss = { showGamepadSettings = false },
         )
     }
     if (confirmSecureAttention) {
@@ -274,6 +314,7 @@ private fun RemoteTopBar(
     onInputModeChange: (RemoteInputMode) -> Unit,
     onAudioEnabledChange: (Boolean) -> Unit,
     onOpenKeyboard: () -> Unit,
+    onOpenGamepadSettings: () -> Unit,
     onOpenDisplays: () -> Unit,
     onEndSession: () -> Unit,
 ) {
@@ -329,8 +370,14 @@ private fun RemoteTopBar(
                             ),
                         )
                     }
-                    FilledTonalIconButton(onClick = onOpenKeyboard) {
-                        Icon(Icons.Outlined.Keyboard, contentDescription = stringResource(R.string.remote_keyboard))
+                    if (inputMode == RemoteInputMode.Gamepad) {
+                        FilledTonalIconButton(onClick = onOpenGamepadSettings) {
+                            Icon(Icons.Outlined.Tune, contentDescription = stringResource(R.string.remote_gamepad_settings))
+                        }
+                    } else {
+                        FilledTonalIconButton(onClick = onOpenKeyboard) {
+                            Icon(Icons.Outlined.Keyboard, contentDescription = stringResource(R.string.remote_keyboard))
+                        }
                     }
                     if (status.capabilities.monitorNames.isNotEmpty()) {
                         FilledTonalIconButton(onClick = onOpenDisplays) {
@@ -428,14 +475,80 @@ private enum class ModifierMode { Off, OneShot, Locked }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+private fun RemoteGamepadSettingsSheet(
+    configuration: GamepadConfiguration,
+    onConfigurationChange: (GamepadConfiguration) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(stringResource(R.string.remote_gamepad_settings), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.remote_gamepad_layout), style = MaterialTheme.typography.titleMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LayoutButton(
+                    label = stringResource(R.string.remote_gamepad_layout_standard),
+                    selected = configuration.layout == VirtualGamepadLayout.Standard,
+                ) { onConfigurationChange(configuration.copy(layout = VirtualGamepadLayout.Standard)) }
+                LayoutButton(
+                    label = stringResource(R.string.remote_gamepad_layout_southpaw),
+                    selected = configuration.layout == VirtualGamepadLayout.Southpaw,
+                ) { onConfigurationChange(configuration.copy(layout = VirtualGamepadLayout.Southpaw)) }
+            }
+            ConfigurationSlider(
+                label = stringResource(R.string.remote_gamepad_dead_zone),
+                value = configuration.stickDeadZone,
+                range = 0f..0.35f,
+            ) { onConfigurationChange(configuration.copy(stickDeadZone = it)) }
+            ConfigurationSlider(
+                label = stringResource(R.string.remote_gamepad_stick_sensitivity),
+                value = configuration.stickSensitivity,
+                range = 0.5f..1.5f,
+            ) { onConfigurationChange(configuration.copy(stickSensitivity = it)) }
+            ConfigurationSlider(
+                label = stringResource(R.string.remote_gamepad_opacity),
+                value = configuration.overlayOpacity,
+                range = 0.4f..1f,
+            ) { onConfigurationChange(configuration.copy(overlayOpacity = it)) }
+            ConfigurationSlider(
+                label = stringResource(R.string.remote_gamepad_scale),
+                value = configuration.overlayScale,
+                range = 0.8f..1.2f,
+            ) { onConfigurationChange(configuration.copy(overlayScale = it)) }
+        }
+    }
+}
+
+@Composable
+private fun LayoutButton(label: String, selected: Boolean, onClick: () -> Unit) {
+    if (selected) FilledTonalButton(onClick = onClick) { Text(label) } else OutlinedButton(onClick = onClick) { Text(label) }
+}
+
+@Composable
+private fun ConfigurationSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit) {
+    Column {
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Slider(value = value, onValueChange = onChange, valueRange = range)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun RemoteKeyboardSheet(
     sensitivity: Float,
     onSensitivityChange: (Float) -> Unit,
     onDismiss: () -> Unit,
     onInput: (InputCommand) -> Unit,
     onText: (String) -> Unit,
+    supportsClipboard: Boolean,
+    remoteClipboardText: String?,
+    onClipboardText: (String) -> Unit,
     onSecureAttention: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val clipboardManager = remember(context) { context.getSystemService(ClipboardManager::class.java) }
     var text by remember { mutableStateOf("") }
     val modifiers = remember { mutableStateMapOf<RemoteKey, ModifierMode>() }
     val activeModifiers = listOf(RemoteKey.Control, RemoteKey.Alt, RemoteKey.Shift, RemoteKey.Meta)
@@ -505,6 +618,38 @@ private fun RemoteKeyboardSheet(
                 }
                 ShortcutButton(stringResource(R.string.remote_shortcut_desktop)) { sendChord(listOf(RemoteKey.Meta), RemoteKey.D, onInput) }
                 OutlinedButton(onClick = onSecureAttention) { Text("Ctrl+Alt+Delete") }
+            }
+            if (supportsClipboard) {
+                Text(stringResource(R.string.remote_clipboard), style = MaterialTheme.typography.titleMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(
+                        onClick = {
+                            val clip = clipboardManager.primaryClip
+                            val localText = if (clip != null && clip.itemCount > 0) {
+                                clip.getItemAt(0).coerceToText(context).toString()
+                            } else {
+                                ""
+                            }
+                            if (localText.isNotEmpty()) onClipboardText(localText)
+                        },
+                    ) { Text(stringResource(R.string.remote_clipboard_send_local)) }
+                    OutlinedButton(
+                        onClick = {
+                            remoteClipboardText?.let { value ->
+                                clipboardManager.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.remote_clipboard), value))
+                            }
+                        },
+                        enabled = !remoteClipboardText.isNullOrEmpty(),
+                    ) { Text(stringResource(R.string.remote_clipboard_copy_remote)) }
+                }
+                remoteClipboardText?.let { value ->
+                    Text(
+                        value.take(160),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 3,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.remote_touchpad_speed), modifier = Modifier.padding(end = 12.dp))
@@ -664,3 +809,8 @@ private fun BoxScope.RemoteStatus(status: RemoteSessionStatus) {
 private const val INPUT_PREFERENCES = "remote_input"
 private const val INPUT_MODE = "mode"
 private const val INPUT_SENSITIVITY = "sensitivity"
+private const val GAMEPAD_LAYOUT = "gamepad_layout"
+private const val GAMEPAD_DEAD_ZONE = "gamepad_dead_zone"
+private const val GAMEPAD_SENSITIVITY = "gamepad_sensitivity"
+private const val GAMEPAD_OPACITY = "gamepad_opacity"
+private const val GAMEPAD_SCALE = "gamepad_scale"

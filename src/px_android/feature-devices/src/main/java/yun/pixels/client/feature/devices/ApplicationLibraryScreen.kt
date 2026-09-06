@@ -40,6 +40,7 @@ fun ApplicationLibraryScreen(
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onStart: (RemoteApplication) -> Unit,
+    onConnect: (RemoteApplication) -> Unit,
     onStop: (RemoteApplication) -> Unit,
 ) {
     Scaffold(
@@ -84,7 +85,7 @@ fun ApplicationLibraryScreen(
             ) {
                 item { state.failure?.let { Text(stringResource(it.labelResource()), color = MaterialTheme.colorScheme.error) } }
                 items(state.applications, key = RemoteApplication::appId) { application ->
-                    ApplicationCard(application, state.pendingAppId == application.appId, onStart, onStop)
+                    ApplicationCard(application, state.pendingAppId == application.appId, onStart, onConnect, onStop)
                 }
             }
         }
@@ -96,8 +97,10 @@ private fun ApplicationCard(
     application: RemoteApplication,
     pending: Boolean,
     onStart: (RemoteApplication) -> Unit,
+    onConnect: (RemoteApplication) -> Unit,
     onStop: (RemoteApplication) -> Unit,
 ) {
+    val runningInstance = application.runningInstance
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(18.dp),
@@ -114,15 +117,23 @@ private fun ApplicationCard(
             }
             if (pending) {
                 CircularProgressIndicator(modifier = Modifier.padding(10.dp))
-            } else if (application.runningInstance == null) {
+            } else if (runningInstance == null) {
                 Button(onClick = { onStart(application) }) {
                     Icon(Icons.Outlined.PlayArrow, contentDescription = null)
                     Text(stringResource(R.string.start_application))
                 }
             } else {
-                OutlinedButton(onClick = { onStop(application) }) {
-                    Icon(Icons.Outlined.Stop, contentDescription = null)
-                    Text(stringResource(R.string.stop_application))
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (runningInstance.reconnectable) {
+                        Button(onClick = { onConnect(application) }) {
+                            Icon(Icons.Outlined.PlayArrow, contentDescription = null)
+                            Text(stringResource(R.string.connect_application))
+                        }
+                    }
+                    OutlinedButton(onClick = { onStop(application) }) {
+                        Icon(Icons.Outlined.Stop, contentDescription = null)
+                        Text(stringResource(R.string.stop_application))
+                    }
                 }
             }
         }

@@ -21,6 +21,7 @@
 #include "px_common/message_notifier.h"
 #include "px_common/time_util.h"
 #include "px_message/proto_message_maker.h"
+#include "px_message/proto_converter.h"
 
 namespace pixels::android {
 namespace {
@@ -231,6 +232,29 @@ void JavaSessionCallback::Statistics(const std::string& session_id, const std::i
     });
 }
 
+void JavaSessionCallback::ClipboardText(const std::string& session_id, const std::string& text) const {
+    const auto listener_handle = listener_handle_;
+    WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
+        const auto listener = reinterpret_cast<jobject>(listener_handle);
+        const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
+        const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
+        const auto method = environment.GetMethodID(listener_class, "onClipboardText", "(Ljava/lang/String;[B)V");
+        const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
+        const auto text_handle = reinterpret_cast<std::uintptr_t>(environment.NewByteArray(static_cast<jsize>(text.size())));
+        if (method != nullptr && session_id_handle != 0U && text_handle != 0U) {
+            environment.SetByteArrayRegion(reinterpret_cast<jbyteArray>(text_handle), 0, static_cast<jsize>(text.size()),
+                                           reinterpret_cast<const jbyte*>(text.data())); // NOLINT(gammaray-raw-pointer-boundary)
+            if (!environment.ExceptionCheck()) {
+                environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle),
+                                           reinterpret_cast<jbyteArray>(text_handle));
+            }
+        }
+        DeleteLocalReference(environment, session_id_handle);
+        DeleteLocalReference(environment, text_handle);
+        DeleteLocalReference(environment, listener_class_handle);
+    });
+}
+
 void JavaSessionCallback::Disconnected(const std::string& session_id, const std::int32_t reason, const bool recoverable) const {
     const auto listener_handle = listener_handle_;
     WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
@@ -368,7 +392,8 @@ bool NativeSession::Initialize() {
         }
         self->callback_->Connected(
             self->config_, monitor_names, server_config.capturing_monitor_name(), self->config_.enable_audio && server_config.audio_enabled(),
-            self->config_.enable_input && server_config.can_be_operated(), server_config.file_transfer_enabled(), false,
+            self->config_.enable_input && server_config.can_be_operated(), server_config.file_transfer_enabled(),
+            self->config_.enable_clipboard && server_config.can_be_operated(),
             server_config.virtual_display_enabled(), static_cast<std::int32_t>(server_config.virtual_display_owned_count()),
             static_cast<std::int32_t>(server_config.virtual_display_max_count()), static_cast<std::int64_t>(server_config.topology_generation()));
     });
@@ -402,6 +427,15 @@ bool NativeSession::Initialize() {
             self->config_.session_id, response.request_id(), response.accepted(), static_cast<std::int32_t>(response.state()),
             response.topology_changed(), static_cast<std::int64_t>(response.topology_generation()),
             static_cast<std::int32_t>(response.owned_display_count()), response.error_code(), response.error_message());
+    });
+    sdk_->SetOnClipboardCallback([weak_self](std::shared_ptr<px::Message> message) {
+        const auto self = weak_self.lock();
+        if (!self || !message || self->stopped_.load() || !self->config_.enable_clipboard || message->type() != px::kClipboardInfo ||
+            !message->has_clipboard_info() || message->clipboard_info().type() != px::kClipboardText || message->clipboard_info().msg().empty() ||
+            message->clipboard_info().msg().size() > 1'048'576U) {
+            return;
+        }
+        self->callback_->ClipboardText(self->config_.session_id, message->clipboard_info().msg());
     });
     sdk_->SetOnHeartBeatCallback([weak_self](std::shared_ptr<px::Message> message) {
         const auto self = weak_self.lock();
@@ -662,6 +696,28 @@ bool NativeSession::SendText(const std::string& text) {
     if (!message)
         return false;
     sdk->PostMediaMessage(message);
+    return true;
+}
+
+bool NativeSession::SendClipboardText(const std::string& text) {
+    std::lock_guard command_lock(command_mutex_);
+    std::shared_ptr<px::ThunderSdk> sdk;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (!started_ || stopped_.load() || !config_.enable_clipboard || text.empty() || text.size() > 1'048'576U)
+            return false;
+        sdk = sdk_;
+    }
+    px::Message message;
+    message.set_type(px::kClipboardInfo);
+    message.set_device_id(config_.remote_device_id);
+    message.set_stream_id(config_.stream_id);
+    message.mutable_clipboard_info()->set_type(px::kClipboardText);
+    message.mutable_clipboard_info()->set_msg(text);
+    const auto data = px::ProtoAsData(&message);
+    if (!data)
+        return false;
+    sdk->PostMediaMessage(data);
     return true;
 }
 

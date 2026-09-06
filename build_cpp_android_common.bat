@@ -9,7 +9,7 @@ cd /d "%~dp0"
 set "ANDROID_NATIVE_DIR="
 set "ANDROID_TARGETS=%*"
 if not defined ANDROID_TARGETS set "ANDROID_TARGETS=px_common"
-for /f "delims=" %%D in ('where /r "src\px_android\app\.cxx" build.ninja 2^>nul') do (
+for /f "delims=" %%D in ('where /r "src\px_android\core-native\.cxx" build.ninja 2^>nul') do (
     echo %%D | findstr /i /c:"\arm64-v8a\build.ninja" >nul
     if not errorlevel 1 if not defined ANDROID_NATIVE_DIR (
         set "ANDROID_NATIVE_DIR=%%~dpD"
@@ -19,7 +19,7 @@ for /f "delims=" %%D in ('where /r "src\px_android\app\.cxx" build.ninja 2^>nul'
 
 if not defined ANDROID_NATIVE_DIR (
     echo ERROR: Android native build tree is missing.
-    echo Run src\px_android\gradlew.bat :app:generateJsonModelOfficialDebug once, then retry.
+    echo Run src\px_android\gradlew.bat :core-native:generateJsonModelDebug once, then retry.
     exit /b 2
 )
 

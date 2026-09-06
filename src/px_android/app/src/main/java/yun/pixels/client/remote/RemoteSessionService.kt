@@ -141,6 +141,11 @@ class RemoteSessionService : Service() {
         sendInput(command)
     }
 
+    private fun sendClipboardText(text: String) {
+        val request = currentRequest() ?: return
+        serviceScope.launch { transport.sendClipboardText(request.id, text) }
+    }
+
     private fun setAudioEnabled(enabled: Boolean) {
         userWantsAudio = enabled
         if (enabled) requestAudioFocus() else abandonAudioFocus()
@@ -283,6 +288,8 @@ class RemoteSessionService : Service() {
             this@RemoteSessionService.requestVirtualDisplay(requestId, operation)
 
         fun sendText(text: String) = this@RemoteSessionService.sendText(text)
+
+        fun sendClipboardText(text: String) = this@RemoteSessionService.sendClipboardText(text)
 
         fun setAudioEnabled(enabled: Boolean) = this@RemoteSessionService.setAudioEnabled(enabled)
 

@@ -121,7 +121,12 @@ class DeviceHomeViewModel(
                 is AccountResult.Success -> mutableRemoteRequests.emit(
                     RemoteSessionRequest(
                         id = RemoteSessionId(result.value.logicalSessionId.ifBlank { UUID.randomUUID().toString() }),
-                        target = RemoteSessionTarget.Account(device, result.value, clientNonce),
+                        target = RemoteSessionTarget.Account(
+                            displayName = device.displayName,
+                            fallbackRemoteDeviceId = device.deviceId,
+                            connectionTicket = result.value,
+                            clientNonce = clientNonce,
+                        ),
                     ),
                 )
                 is AccountResult.Failure -> mutableNotices.emit(DeviceHomeNotice.RemoteConnectionUnavailable)

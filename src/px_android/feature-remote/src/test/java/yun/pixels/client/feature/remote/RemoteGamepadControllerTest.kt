@@ -1,5 +1,6 @@
 package yun.pixels.client.feature.remote
 
+import kotlin.math.roundToInt
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -48,5 +49,18 @@ class RemoteGamepadControllerTest {
 
         assertEquals(2, commands.size)
         assertEquals(RemoteGamepadState(), (commands.last() as InputCommand.Gamepad).state)
+    }
+
+    @Test
+    fun savedDeadZoneAndSensitivityAreAppliedToStickInput() {
+        val commands = mutableListOf<InputCommand>()
+        val controller = RemoteGamepadController(commands::add)
+        controller.configuration = GamepadConfiguration(stickDeadZone = 0.2f, stickSensitivity = 1.5f)
+
+        controller.setLeftStick(0.1f, 0f)
+        assertEquals(0, controller.state.leftThumbX)
+
+        controller.setLeftStick(0.5f, 0f)
+        assertEquals((Short.MAX_VALUE * 0.75f).roundToInt(), controller.state.leftThumbX)
     }
 }

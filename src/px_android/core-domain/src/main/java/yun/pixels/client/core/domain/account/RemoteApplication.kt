@@ -21,4 +21,6 @@ interface ApplicationRepository {
     suspend fun start(appId: String, clientNonce: String): AccountResult<RemoteApplicationInstance>
 
     suspend fun stop(instanceId: String): AccountResult<Unit>
+
+    suspend fun issueTicket(instanceId: String, clientNonce: String, joinMode: JoinMode): AccountResult<ConnectionTicket>
 }

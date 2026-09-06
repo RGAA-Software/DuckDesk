@@ -95,6 +95,7 @@ NativeSessionConfig ReadConfig(JNIEnv& environment, const jobject config) {
         .enable_video = ReadBoolean(environment, config, config_class, "enableVideo"),
         .enable_audio = ReadBoolean(environment, config, config_class, "enableAudio"),
         .enable_input = ReadBoolean(environment, config, config_class, "enableInput"),
+        .enable_clipboard = ReadBoolean(environment, config, config_class, "enableClipboard"),
     };
     environment.DeleteLocalRef(config_class);
     return result;
@@ -160,6 +161,22 @@ jboolean NativeSendText(JNIEnv* environment, jobject, const jlong native_session
         return JNI_FALSE;
     const auto session = Registry().Find(native_session_id);
     return session && session->SendText(text) ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean NativeSendClipboardText(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(gammaray-raw-pointer-boundary)
+                                 const jbyteArray utf8_text) {
+    if (environment == nullptr || utf8_text == nullptr)
+        return JNI_FALSE;
+    const auto length = environment->GetArrayLength(utf8_text);
+    if (length <= 0 || length > 1'048'576)
+        return JNI_FALSE;
+    std::string text(static_cast<std::size_t>(length), '\0');
+    environment->GetByteArrayRegion(utf8_text, 0, length,
+                                    reinterpret_cast<jbyte*>(text.data())); // NOLINT(gammaray-raw-pointer-boundary)
+    if (environment->ExceptionCheck())
+        return JNI_FALSE;
+    const auto session = Registry().Find(native_session_id);
+    return session && session->SendClipboardText(text) ? JNI_TRUE : JNI_FALSE;
 }
 
 jboolean NativeSetAudioEnabled(JNIEnv*, jobject, const jlong native_session_id, const jboolean enabled) { // NOLINT(gammaray-raw-pointer-boundary)
@@ -249,6 +266,7 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) { // NOLINT(gamm
         {const_cast<char*>("sendMouse"), const_cast<char*>("(JIIZFFII)Z"), reinterpret_cast<void*>(pixels::android::NativeSendMouse)},
         {const_cast<char*>("sendKey"), const_cast<char*>("(JIZ)Z"), reinterpret_cast<void*>(pixels::android::NativeSendKey)},
         {const_cast<char*>("sendText"), const_cast<char*>("(J[B)Z"), reinterpret_cast<void*>(pixels::android::NativeSendText)},
+        {const_cast<char*>("sendClipboardText"), const_cast<char*>("(J[B)Z"), reinterpret_cast<void*>(pixels::android::NativeSendClipboardText)},
         {const_cast<char*>("sendSecureAttention"), const_cast<char*>("(J)Z"), reinterpret_cast<void*>(pixels::android::NativeSendSecureAttention)},
         {const_cast<char*>("sendGamepad"), const_cast<char*>("(JIIIIIII)Z"), reinterpret_cast<void*>(pixels::android::NativeSendGamepad)},
         {const_cast<char*>("switchMonitor"), const_cast<char*>("(JLjava/lang/String;)Z"),

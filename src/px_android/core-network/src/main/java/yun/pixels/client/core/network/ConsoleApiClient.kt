@@ -110,6 +110,26 @@ class ConsoleApiClient(
         } ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
     }
 
+    override suspend fun issueApplicationTicket(
+        session: AccountSession,
+        instanceId: String,
+        clientNonce: String,
+        joinMode: JoinMode,
+    ): AccountResult<ConnectionTicket> = withContext(ioDispatcher) {
+        val encodedInstanceId = encodePathSegment(instanceId)
+        val body = JSONObject()
+            .put("client_nonce", clientNonce)
+            .put("join_mode", if (joinMode == JoinMode.Control) "control" else "observe")
+        request(
+            session.endpoint,
+            "/api/v1/user/instances/$encodedInstanceId/ticket",
+            "POST",
+            session.accessToken,
+            body,
+        )?.toAccountResult { data -> parseTicket(data as JSONObject) }
+            ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
+    }
+
     private fun request(
         endpoint: ConsoleEndpoint,
         path: String,

@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import yun.pixels.client.core.domain.account.AccountDevice
 import yun.pixels.client.core.domain.account.ConnectionTicket
 import yun.pixels.client.core.domain.device.RemoteDevice
 
@@ -28,12 +27,11 @@ sealed interface RemoteSessionTarget {
     }
 
     data class Account(
-        val device: AccountDevice,
+        override val displayName: String,
+        val fallbackRemoteDeviceId: String,
         val connectionTicket: ConnectionTicket,
         val clientNonce: String,
-    ) : RemoteSessionTarget {
-        override val displayName: String = device.displayName
-    }
+    ) : RemoteSessionTarget
 }
 
 data class RemoteSessionRequest(
@@ -42,6 +40,7 @@ data class RemoteSessionRequest(
     val enableVideo: Boolean = true,
     val enableAudio: Boolean = true,
     val enableInput: Boolean = true,
+    val enableClipboard: Boolean = true,
 )
 
 data class RemoteSessionCapabilities(
@@ -307,6 +306,7 @@ data class RemoteSessionSnapshot(
     val statistics: RemoteSessionStatistics = RemoteSessionStatistics(),
     val videoSize: RemoteVideoSize? = null,
     val lastVirtualDisplayResult: RemoteVirtualDisplayResult? = null,
+    val remoteClipboardText: String? = null,
 )
 
 sealed interface RemoteTransportStartResult {
@@ -339,6 +339,8 @@ sealed interface RemoteTransportEvent {
         val value: RemoteVirtualDisplayResult,
     ) : RemoteTransportEvent
 
+    data class ClipboardText(override val sessionId: RemoteSessionId, val value: String) : RemoteTransportEvent
+
     data class Disconnected(
         override val sessionId: RemoteSessionId,
         val reason: RemoteSessionFailure,
@@ -354,6 +356,8 @@ interface RemoteSessionTransport {
     suspend fun stop(sessionId: RemoteSessionId)
 
     suspend fun sendInput(sessionId: RemoteSessionId, command: InputCommand): Boolean
+
+    suspend fun sendClipboardText(sessionId: RemoteSessionId, value: String): Boolean
 }
 
 class RemoteSessionWorkflow(
@@ -426,6 +430,7 @@ class RemoteSessionWorkflow(
                 is RemoteTransportEvent.VirtualDisplayResult -> {
                     mutableSnapshot.value = mutableSnapshot.value.copy(lastVirtualDisplayResult = event.value)
                 }
+                is RemoteTransportEvent.ClipboardText -> mutableSnapshot.value = mutableSnapshot.value.copy(remoteClipboardText = event.value)
                 is RemoteTransportEvent.Disconnected -> {
                     if (event.recoverable) {
                         mutableSnapshot.value = mutableSnapshot.value.copy(status = RemoteSessionStatus.Reconnecting(request, 1))

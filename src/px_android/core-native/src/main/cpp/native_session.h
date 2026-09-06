@@ -40,6 +40,7 @@ struct NativeSessionConfig final {
     bool enable_video{true};
     bool enable_audio{true};
     bool enable_input{true};
+    bool enable_clipboard{true};
 };
 
 struct NativeGamepadState final {
@@ -71,6 +72,7 @@ class JavaSessionCallback final {
                               const std::string& error_message) const;
     void FrameSizeChanged(const std::string& session_id, std::int32_t width, std::int32_t height) const;
     void Statistics(const std::string& session_id, std::int32_t frames_per_second, std::int32_t latency_millis, std::int32_t bitrate_kbps) const;
+    void ClipboardText(const std::string& session_id, const std::string& text) const;
     void Disconnected(const std::string& session_id, std::int32_t reason, bool recoverable) const;
 
   private:
@@ -102,6 +104,7 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     bool SendKey(std::int32_t virtual_key_code, bool down);
     bool SendGamepad(const NativeGamepadState& state);
     bool SendText(const std::string& text);
+    bool SendClipboardText(const std::string& text);
     bool SendSecureAttention();
     bool SwitchMonitor(const std::string& monitor_name);
     bool RequestVirtualDisplay(const std::string& request_id, std::int32_t operation, std::int32_t width, std::int32_t height,

@@ -9,6 +9,7 @@ import yun.pixels.client.core.domain.session.RemoteGamepadState
 internal class RemoteGamepadController(
     private val emit: (InputCommand) -> Unit,
 ) {
+    var configuration: GamepadConfiguration = GamepadConfiguration()
     var state: RemoteGamepadState = RemoteGamepadState()
         private set
 
@@ -41,8 +42,10 @@ internal class RemoteGamepadController(
 
     private fun axis(value: Float): Int {
         val normalized = value.takeIf(Float::isFinite)?.coerceIn(-1f, 1f) ?: 0f
-        if (abs(normalized) < AXIS_DEAD_ZONE) return 0
-        return (normalized * Short.MAX_VALUE).roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+        val config = configuration.normalized()
+        if (abs(normalized) < config.stickDeadZone) return 0
+        val adjusted = (normalized * config.stickSensitivity).coerceIn(-1f, 1f)
+        return (adjusted * Short.MAX_VALUE).roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
     }
 
     private fun trigger(value: Float): Int {
@@ -52,7 +55,6 @@ internal class RemoteGamepadController(
     }
 
     private companion object {
-        const val AXIS_DEAD_ZONE = 0.08f
         const val TRIGGER_DEAD_ZONE = 0.04f
     }
 }
