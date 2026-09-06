@@ -533,34 +533,31 @@ private fun TransferRoute(
 private fun NavHostController.selectTopLevel(destination: TopLevelDestination) {
     val currentSection = currentDestination?.route.toTopLevelDestination()
     if (currentSection == destination) {
-        if (currentDestination?.route != destination.route) {
-            popBackStack(destination.route, inclusive = false)
-        }
-        return
+        if (currentDestination?.route == destination.route) return
     }
-    navigate(destination.route) {
-        popUpTo(TopLevelDestination.Devices.route) { inclusive = false }
-        launchSingleTop = true
-    }
+    replaceWith(destination.route)
 }
 
 private fun NavHostController.navigateToRemote() {
     if (currentDestination?.route == REMOTE_ROUTE) return
     if (currentDestination?.route == REMOTE_TRANSFERS_ROUTE && popBackStack(REMOTE_ROUTE, inclusive = false)) return
     navigate(REMOTE_ROUTE) {
+        popUpTo(graph.id)
         launchSingleTop = true
     }
 }
 
 private fun NavHostController.leaveRemoteSession() {
-    popBackStack(REMOTE_ROUTE, inclusive = true)
-    resetToDevices()
+    replaceWith(TopLevelDestination.Devices.route)
 }
 
 private fun NavHostController.resetToDevices() {
     if (currentDestination?.route == TopLevelDestination.Devices.route) return
-    if (popBackStack(TopLevelDestination.Devices.route, inclusive = false)) return
-    navigate(TopLevelDestination.Devices.route) {
+    replaceWith(TopLevelDestination.Devices.route)
+}
+
+private fun NavHostController.replaceWith(route: String) {
+    navigate(route) {
         popUpTo(graph.id)
         launchSingleTop = true
     }

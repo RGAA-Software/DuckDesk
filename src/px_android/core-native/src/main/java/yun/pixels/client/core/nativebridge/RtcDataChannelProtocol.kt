@@ -109,6 +109,7 @@ internal fun PxMessage.ServerConfiguration.toRtcSessionCapabilities(
     enableClipboard: Boolean,
     permissions: Set<String>,
     fileTransferReady: Boolean = false,
+    voiceCallReady: Boolean = false,
 ): RemoteSessionCapabilities {
     val supportsInput = enableInput && canBeOperated && "input" in permissions
     return RemoteSessionCapabilities(
@@ -128,7 +129,8 @@ internal fun PxMessage.ServerConfiguration.toRtcSessionCapabilities(
         ownedVirtualDisplayCount = virtualDisplayOwnedCount.coerceIn(0, MAX_RTC_VIRTUAL_DISPLAY_COUNT),
         maximumVirtualDisplayCount = virtualDisplayMaxCount.coerceIn(0, MAX_RTC_VIRTUAL_DISPLAY_COUNT),
         topologyGeneration = topologyGeneration.coerceAtLeast(0),
-        supportsVoiceCall = false,
+        supportsVoiceCall = voiceCallReady && "audio" in permissions && voiceCallEnabled && voiceCallProtocolVersion >= 1,
+        voiceCallRequiresHeadset = this.voiceCallRequiresHeadset,
     )
 }
 
@@ -142,6 +144,24 @@ internal fun PxMessage.Message.isRtcClipboardFileProtocolMessage(): Boolean = wh
     PxMessage.MessageType.kClipboardRespBuffer -> hasCpRespBuffer()
     else -> false
 }
+
+internal fun PxMessage.Message.isExpectedRtcVoiceCallResponse(callId: String, requestId: Long): Boolean =
+    type == PxMessage.MessageType.kVoiceCallResponse && hasVoiceCallResponse() && isValidRtcVoiceCallIdentity(callId, requestId) &&
+        voiceCallResponse.callId == callId && voiceCallResponse.requestId == requestId
+
+internal fun PxMessage.Message.isMatchingRtcVoiceHangup(callId: String): Boolean =
+    type == PxMessage.MessageType.kVoiceCallRequest && hasVoiceCallRequest() && !voiceCallRequest.connect &&
+        isValidRtcVoiceCallIdentity(callId, voiceCallRequest.requestId) &&
+        voiceCallRequest.callId == callId
+
+internal fun PxMessage.Message.hasIncompatibleRtcVoiceAudioConfig(callId: String): Boolean =
+    type == PxMessage.MessageType.kVoiceAudioConfig && hasVoiceAudioConfig() && callId.isNotEmpty() &&
+        voiceAudioConfig.callId == callId &&
+        (voiceAudioConfig.sampleRate != RTC_VOICE_SAMPLE_RATE || voiceAudioConfig.channels != RTC_VOICE_CHANNELS ||
+            voiceAudioConfig.frameMs != RTC_VOICE_FRAME_MILLIS)
+
+internal fun isValidRtcVoiceCallIdentity(callId: String, requestId: Long): Boolean =
+    callId.length in 1..MAX_RTC_VOICE_CALL_ID_CHARS && requestId > 0
 
 internal fun parseRtcMonitorUpdate(message: PxMessage.Message): RtcMonitorUpdate? {
     if (message.type != PxMessage.MessageType.kMonitorSwitched || !message.hasMonitorSwitched()) return null
@@ -170,3 +190,8 @@ private const val MAX_RTC_VIRTUAL_DISPLAY_COUNT = 64
 private const val DEFAULT_RTC_VIRTUAL_DISPLAY_WIDTH = 1920
 private const val DEFAULT_RTC_VIRTUAL_DISPLAY_HEIGHT = 1080
 private const val DEFAULT_RTC_VIRTUAL_DISPLAY_REFRESH_HZ = 60
+internal const val RTC_VOICE_SAMPLE_RATE = 48_000
+internal const val RTC_VOICE_CHANNELS = 1
+internal const val RTC_VOICE_FRAME_MILLIS = 20
+internal const val MAX_RTC_VOICE_REASON_CHARS = 256
+private const val MAX_RTC_VOICE_CALL_ID_CHARS = 128

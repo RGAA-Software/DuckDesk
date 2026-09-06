@@ -151,6 +151,46 @@ class RtcDataChannelProtocolTest {
     }
 
     @Test
+    fun rtcVoiceCapabilityRequiresPermissionProtocolAndNegotiatedVoiceTransport() {
+        val supported = PxMessage.ServerConfiguration.newBuilder()
+            .setVoiceCallEnabled(true)
+            .setVoiceCallProtocolVersion(1)
+            .setVoiceCallRequiresHeadset(false)
+            .build()
+
+        assertFalse(supported.toRtcSessionCapabilities(true, true, true, setOf("view", "audio")).supportsVoiceCall)
+        assertFalse(
+            supported.toRtcSessionCapabilities(
+                true,
+                true,
+                true,
+                setOf("view"),
+                voiceCallReady = true,
+            ).supportsVoiceCall,
+        )
+        val available = supported.toRtcSessionCapabilities(
+            true,
+            true,
+            true,
+            setOf("view", "audio"),
+            voiceCallReady = true,
+        )
+        assertTrue(available.supportsVoiceCall)
+        assertFalse(available.voiceCallRequiresHeadset)
+
+        val oldProtocol = supported.toBuilder().setVoiceCallProtocolVersion(0).build()
+        assertFalse(
+            oldProtocol.toRtcSessionCapabilities(
+                true,
+                true,
+                true,
+                setOf("view", "audio"),
+                voiceCallReady = true,
+            ).supportsVoiceCall,
+        )
+    }
+
+    @Test
     fun rtcClipboardFileProtocolRejectsTypeOnlyMessages() {
         val fileInfo = PxMessage.Message.newBuilder()
             .setType(PxMessage.MessageType.kClipboardInfo)
@@ -170,6 +210,67 @@ class RtcDataChannelProtocolTest {
         assertTrue(bufferRequest.isRtcClipboardFileProtocolMessage())
         assertFalse(typeOnly.isRtcClipboardFileProtocolMessage())
         assertFalse(text.isRtcClipboardFileProtocolMessage())
+    }
+
+    @Test
+    fun rtcVoiceControlRejectsMissingOrStaleBodies() {
+        val response = PxMessage.Message.newBuilder()
+            .setType(PxMessage.MessageType.kVoiceCallResponse)
+            .setVoiceCallResponse(
+                PxMessage.VoiceCallResponse.newBuilder()
+                    .setCallId("call-1")
+                    .setRequestId(7)
+                    .setAccepted(true),
+            )
+            .build()
+        val hangup = PxMessage.Message.newBuilder()
+            .setType(PxMessage.MessageType.kVoiceCallRequest)
+            .setVoiceCallRequest(
+                PxMessage.VoiceCallRequest.newBuilder()
+                    .setCallId("call-1")
+                    .setRequestId(7)
+                    .setConnect(false),
+            )
+            .build()
+
+        assertTrue(response.isExpectedRtcVoiceCallResponse("call-1", 7))
+        assertFalse(response.isExpectedRtcVoiceCallResponse("call-1", 8))
+        assertFalse(response.isExpectedRtcVoiceCallResponse("", 7))
+        assertFalse(response.isExpectedRtcVoiceCallResponse("call-1", 0))
+        assertFalse(
+            PxMessage.Message.newBuilder().setType(PxMessage.MessageType.kVoiceCallResponse).build()
+                .isExpectedRtcVoiceCallResponse("call-1", 7),
+        )
+        assertTrue(hangup.isMatchingRtcVoiceHangup("call-1"))
+        assertFalse(hangup.toBuilder().setVoiceCallRequest(hangup.voiceCallRequest.toBuilder().setRequestId(0)).build()
+            .isMatchingRtcVoiceHangup("call-1"))
+        assertFalse(hangup.toBuilder().setVoiceCallRequest(hangup.voiceCallRequest.toBuilder().setConnect(true)).build()
+            .isMatchingRtcVoiceHangup("call-1"))
+    }
+
+    @Test
+    fun rtcVoiceAudioConfigRequiresTheNegotiatedPcmShape() {
+        val compatible = PxMessage.Message.newBuilder()
+            .setType(PxMessage.MessageType.kVoiceAudioConfig)
+            .setVoiceAudioConfig(
+                PxMessage.VoiceAudioConfig.newBuilder()
+                    .setCallId("call-2")
+                    .setSampleRate(RTC_VOICE_SAMPLE_RATE)
+                    .setChannels(RTC_VOICE_CHANNELS)
+                    .setFrameMs(RTC_VOICE_FRAME_MILLIS),
+            )
+            .build()
+
+        assertFalse(compatible.hasIncompatibleRtcVoiceAudioConfig("call-2"))
+        assertTrue(
+            compatible.toBuilder().setVoiceAudioConfig(compatible.voiceAudioConfig.toBuilder().setChannels(2)).build()
+                .hasIncompatibleRtcVoiceAudioConfig("call-2"),
+        )
+        assertFalse(compatible.hasIncompatibleRtcVoiceAudioConfig("stale-call"))
+        assertFalse(
+            PxMessage.Message.newBuilder().setType(PxMessage.MessageType.kVoiceAudioConfig).build()
+                .hasIncompatibleRtcVoiceAudioConfig("call-2"),
+        )
     }
 
     @Test

@@ -2,6 +2,7 @@ package yun.pixels.client.core.nativebridge
 
 import android.content.Context
 import android.view.Surface
+import com.google.protobuf.ByteString
 import java.io.Closeable
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
@@ -14,7 +15,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.OkHttpClient
-import com.google.protobuf.ByteString
+import org.webrtc.AudioTrack
 import org.webrtc.DataChannel
 import org.webrtc.DefaultVideoDecoderFactory
 import org.webrtc.DefaultVideoEncoderFactory
@@ -39,6 +40,7 @@ import yun.pixels.client.core.domain.session.RemoteMouseButton
 import yun.pixels.client.core.domain.session.RemoteSessionStatistics
 import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
 import yun.pixels.client.core.domain.session.RemoteVirtualDisplayResult
+import yun.pixels.client.core.domain.voice.VoiceCallState
 
 internal class WebRtcRuntime(context: Context) : Closeable {
     private val closed = AtomicBoolean(false)
@@ -105,6 +107,8 @@ internal sealed interface WebRtcPeerEvent {
 
     data class FileTransferMessage(val payload: ByteArray) : WebRtcPeerEvent
 
+    data class VoiceCallStateChanged(val value: VoiceCallState) : WebRtcPeerEvent
+
     data class Closed(val reason: String, val recoverable: Boolean) : WebRtcPeerEvent
 }
 
@@ -119,6 +123,7 @@ internal class WebRtcPeerSession(
     private val enableAudio: Boolean,
     private val enableInput: Boolean,
     private val enableFileTransfer: Boolean,
+    private val enableVoiceCall: Boolean,
     private val onEvent: (WebRtcPeerEvent) -> Unit,
 ) : Closeable {
     private val stateLock = Any()
@@ -130,6 +135,8 @@ internal class WebRtcPeerSession(
     private var inputChannel: DataChannel? = null
     private var fileTransferChannel: DataChannel? = null
     private var videoTrack: VideoTrack? = null
+    private var systemAudioTrack: AudioTrack? = null
+    private var systemAudioEnabled = enableAudio
     private var renderSurface: Surface? = surface
     private var packetIndex = 0L
     private var activeMonitorName = ""
@@ -138,6 +145,13 @@ internal class WebRtcPeerSession(
     private var cursorX = 0.5f
     private var cursorY = 0.5f
     private val pendingRemoteIce = ArrayDeque<IceCandidate>()
+    private val voiceCallController = RtcVoiceCallController(
+        factory = runtime.factory,
+        scope = scope,
+        enabled = enableVoiceCall,
+        sendMessage = ::sendMediaMessage,
+        onState = { state -> onEvent(WebRtcPeerEvent.VoiceCallStateChanged(state)) },
+    )
 
     suspend fun start() {
         check(!closed.get()) { "RTC peer session is closed" }
@@ -159,10 +173,18 @@ internal class WebRtcPeerSession(
                 RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.RECV_ONLY),
             )
         }
-        if (enableAudio) {
+        if (enableAudio || enableVoiceCall) {
             connection.addTransceiver(
                 MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO,
                 RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.RECV_ONLY),
+            )
+        }
+        if (enableVoiceCall) {
+            voiceCallController.attachTransceiver(
+                connection.addTransceiver(
+                    MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO,
+                    RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.SEND_RECV),
+                ),
             )
         }
         mediaChannel = connection.createDataChannel(MEDIA_CHANNEL_LABEL, DataChannel.Init()).also {
@@ -203,10 +225,23 @@ internal class WebRtcPeerSession(
         }
     }
 
-    fun setAudioEnabled(enabled: Boolean): Boolean = synchronized(stateLock) {
-        peerConnection?.setAudioPlayout(enabled) ?: return false
-        true
+    fun setAudioEnabled(enabled: Boolean): Boolean {
+        val track = synchronized(stateLock) {
+            if (closed.get()) return false
+            systemAudioEnabled = enabled
+            systemAudioTrack
+        }
+        track?.setEnabled(enabled)
+        return true
     }
+
+    fun startVoiceCall(): Boolean = voiceCallController.start()
+
+    fun stopVoiceCall(): Boolean = voiceCallController.stop()
+
+    fun setVoiceMicrophoneMuted(muted: Boolean): Boolean = voiceCallController.setMicrophoneMuted(muted)
+
+    fun setVoiceSpeakerMuted(muted: Boolean): Boolean = voiceCallController.setSpeakerMuted(muted)
 
     fun replaceSurface(surface: Surface) {
         synchronized(stateLock) { renderSurface = surface }
@@ -379,11 +414,26 @@ internal class WebRtcPeerSession(
     }
 
     private fun onTrack(receiver: RtpReceiver) {
-        val track = receiver.track() as? VideoTrack ?: return
-        synchronized(stateLock) {
-            videoTrack?.removeSink(renderer)
-            videoTrack = track
-            track.addSink(renderer)
+        when (val track = receiver.track()) {
+            is VideoTrack -> synchronized(stateLock) {
+                videoTrack?.removeSink(renderer)
+                videoTrack = track
+                track.addSink(renderer)
+            }
+            is AudioTrack -> {
+                if (voiceCallController.isVoiceTrack(track)) {
+                    voiceCallController.onRemoteTrack(track)
+                } else {
+                    val previous = synchronized(stateLock) {
+                        val old = systemAudioTrack
+                        systemAudioTrack = track
+                        track.setEnabled(systemAudioEnabled)
+                        old
+                    }
+                    if (previous !== track) previous?.setEnabled(false)
+                }
+            }
+            else -> Unit
         }
     }
 
@@ -411,7 +461,7 @@ internal class WebRtcPeerSession(
             deviceId = parameters.ticketDeviceId,
             streamId = parameters.streamId,
             enableVideo = enableVideo,
-            enableAudio = enableAudio,
+            enableAudio = enableAudio || enableVoiceCall,
             enableInput = enableInput,
         )
         val packet = synchronized(stateLock) { packRtcTlv(payload, packetIndex++) }
@@ -427,6 +477,7 @@ internal class WebRtcPeerSession(
         when (message.type) {
             PxMessage.MessageType.kServerConfiguration -> {
                 synchronized(stateLock) { activeMonitorName = message.config.capturingMonitorName }
+                voiceCallController.updateConfiguration(message.config)
                 onEvent(WebRtcPeerEvent.ServerConfiguration(message.config))
             }
 
@@ -462,6 +513,10 @@ internal class WebRtcPeerSession(
                     weakMotor = message.gamepadRumble.weakMotor.coerceIn(0, 255),
                 ),
             )
+
+            PxMessage.MessageType.kVoiceCallResponse,
+            PxMessage.MessageType.kVoiceCallRequest,
+            PxMessage.MessageType.kVoiceAudioConfig -> voiceCallController.handleMessage(message)
 
             else -> Unit
         }
@@ -527,7 +582,9 @@ internal class WebRtcPeerSession(
 
     private fun closeWithReason(reason: String, recoverable: Boolean, notify: Boolean = true) {
         if (!closed.compareAndSet(false, true)) return
+        voiceCallController.close()
         val activeTrack: VideoTrack?
+        val activeSystemAudioTrack: AudioTrack?
         val activeMedia: DataChannel?
         val activeInput: DataChannel?
         val activeFileTransfer: DataChannel?
@@ -537,6 +594,8 @@ internal class WebRtcPeerSession(
         synchronized(stateLock) {
             activeTrack = videoTrack
             videoTrack = null
+            activeSystemAudioTrack = systemAudioTrack
+            systemAudioTrack = null
             activeMedia = mediaChannel
             mediaChannel = null
             activeInput = inputChannel
@@ -554,6 +613,7 @@ internal class WebRtcPeerSession(
         }
         activeStatisticsJob?.cancel()
         activeTrack?.removeSink(renderer)
+        activeSystemAudioTrack?.setEnabled(false)
         activeMedia?.unregisterObserver()
         activeMedia?.close()
         activeMedia?.dispose()

@@ -61,6 +61,7 @@ class AndroidRemoteSessionTransport internal constructor(
     private val native = NativeRemoteSessionTransport(installationIdentity, callbackScope)
     private val lock = Mutex()
     private val mutableEvents = MutableSharedFlow<RemoteTransportEvent>(extraBufferCapacity = 64)
+    private val mutableVoiceCallEvents = MutableSharedFlow<VoiceCallEvent>(extraBufferCapacity = 16)
     private val surfaces = mutableMapOf<RemoteSessionId, Surface>()
     private val nativeSessions = mutableSetOf<RemoteSessionId>()
     private val rtcSessions = mutableMapOf<RemoteSessionId, WebRtcPeerSession>()
@@ -83,10 +84,11 @@ class AndroidRemoteSessionTransport internal constructor(
     override val fileTransferEvents: Flow<FileTransferEvent> = native.fileTransferEvents
     override val remoteDirectoryEvents: Flow<RemoteDirectoryEvent> = native.remoteDirectoryEvents
     override val recordingEvents: Flow<RecordingEvent> = native.recordingEvents
-    override val voiceCallEvents: Flow<VoiceCallEvent> = native.voiceCallEvents
+    override val voiceCallEvents: Flow<VoiceCallEvent> = mutableVoiceCallEvents.asSharedFlow()
 
     init {
         callbackScope.launch { native.events.collect(mutableEvents::emit) }
+        callbackScope.launch { native.voiceCallEvents.collect(mutableVoiceCallEvents::emit) }
     }
 
     suspend fun attachSurface(sessionId: RemoteSessionId, surface: Surface) {
@@ -185,6 +187,7 @@ class AndroidRemoteSessionTransport internal constructor(
             enableAudio = request.enableAudio,
             enableInput = request.enableInput && "input" in launch.permissions,
             enableFileTransfer = fileTransferBridgeReady,
+            enableVoiceCall = "audio" in launch.permissions,
             onEvent = { event -> callbackScope.launch { handleRtcEvent(request.id, event) } },
         )
         val accepted = lock.withLock {
@@ -313,17 +316,25 @@ class AndroidRemoteSessionTransport internal constructor(
     override suspend fun stopRecording(sessionId: RemoteSessionId, recordingId: RecordingId): Boolean =
         if (isRtcSession(sessionId)) false else native.stopRecording(sessionId, recordingId)
 
-    override suspend fun startVoiceCall(sessionId: RemoteSessionId): Boolean =
-        if (isRtcSession(sessionId)) false else native.startVoiceCall(sessionId)
+    override suspend fun startVoiceCall(sessionId: RemoteSessionId): Boolean {
+        val rtc = lock.withLock { rtcSessions[sessionId] }
+        return rtc?.startVoiceCall() ?: native.startVoiceCall(sessionId)
+    }
 
-    override suspend fun stopVoiceCall(sessionId: RemoteSessionId): Boolean =
-        if (isRtcSession(sessionId)) false else native.stopVoiceCall(sessionId)
+    override suspend fun stopVoiceCall(sessionId: RemoteSessionId): Boolean {
+        val rtc = lock.withLock { rtcSessions[sessionId] }
+        return rtc?.stopVoiceCall() ?: native.stopVoiceCall(sessionId)
+    }
 
-    override suspend fun setVoiceMicrophoneMuted(sessionId: RemoteSessionId, muted: Boolean): Boolean =
-        if (isRtcSession(sessionId)) false else native.setVoiceMicrophoneMuted(sessionId, muted)
+    override suspend fun setVoiceMicrophoneMuted(sessionId: RemoteSessionId, muted: Boolean): Boolean {
+        val rtc = lock.withLock { rtcSessions[sessionId] }
+        return rtc?.setVoiceMicrophoneMuted(muted) ?: native.setVoiceMicrophoneMuted(sessionId, muted)
+    }
 
-    override suspend fun setVoiceSpeakerMuted(sessionId: RemoteSessionId, muted: Boolean): Boolean =
-        if (isRtcSession(sessionId)) false else native.setVoiceSpeakerMuted(sessionId, muted)
+    override suspend fun setVoiceSpeakerMuted(sessionId: RemoteSessionId, muted: Boolean): Boolean {
+        val rtc = lock.withLock { rtcSessions[sessionId] }
+        return rtc?.setVoiceSpeakerMuted(muted) ?: native.setVoiceSpeakerMuted(sessionId, muted)
+    }
 
     override fun close() {
         val (rtcBindings, pendingReconnects, pendingNativeSessions) = kotlinx.coroutines.runBlocking {
@@ -354,6 +365,10 @@ class AndroidRemoteSessionTransport internal constructor(
     }
 
     private suspend fun handleRtcEvent(sessionId: RemoteSessionId, event: WebRtcPeerEvent) {
+        if (event is WebRtcPeerEvent.VoiceCallStateChanged) {
+            mutableVoiceCallEvents.emit(VoiceCallEvent(sessionId, event.value))
+            return
+        }
         val request = lock.withLock { rtcRequests[sessionId] } ?: return
         when (event) {
             WebRtcPeerEvent.Connected -> lock.withLock { rtcCapabilities[sessionId] }
@@ -376,6 +391,7 @@ class AndroidRemoteSessionTransport internal constructor(
                     enableClipboard = request.enableClipboard,
                     permissions = ticket.permissions,
                     fileTransferReady = fileTransferReady,
+                    voiceCallReady = "audio" in ticket.permissions,
                 )
                 lock.withLock { rtcCapabilities[sessionId] = capabilities }
                 mutableEvents.emit(
@@ -428,6 +444,7 @@ class AndroidRemoteSessionTransport internal constructor(
                     enableClipboard = request.enableClipboard,
                     permissions = state.second.permissions,
                     fileTransferReady = event.ready,
+                    voiceCallReady = "audio" in state.second.permissions,
                 )
                 lock.withLock { rtcCapabilities[sessionId] = capabilities }
                 mutableEvents.emit(RemoteTransportEvent.CapabilitiesUpdated(sessionId, capabilities))

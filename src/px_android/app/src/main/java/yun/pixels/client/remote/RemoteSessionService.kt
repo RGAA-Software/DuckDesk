@@ -83,8 +83,13 @@ class RemoteSessionService : Service() {
             audioFocusRequest = null
         }
         mutableAudioEnabled.value = userWantsAudio && hasAudioFocus
+        val stopVoice = mutableVoiceCallState.value.phase != VoiceCallPhase.Idle &&
+            (focusChange == AudioManager.AUDIOFOCUS_LOSS || focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT)
         currentRequest()?.let { request ->
-            serviceScope.launch { transport.setAudioEnabled(request.id, mutableAudioEnabled.value) }
+            serviceScope.launch {
+                transport.setAudioEnabled(request.id, mutableAudioEnabled.value)
+                if (stopVoice) transport.stopVoiceCall(request.id)
+            }
         }
     }
 
@@ -146,6 +151,7 @@ class RemoteSessionService : Service() {
                 mutableVoiceCallState.value = event.state.copy(speakerphone = speakerphone)
                 if (event.state.phase == VoiceCallPhase.Idle) {
                     restoreVoiceAudioRoute()
+                    if (!userWantsAudio) abandonAudioFocus()
                     refreshForegroundServiceTypes(voiceActive = false)
                 }
                 if (foregroundStarted) updateNotification(fileTransfers.tasks.value, recordings.state.value)
@@ -234,7 +240,7 @@ class RemoteSessionService : Service() {
 
     private fun setAudioEnabled(enabled: Boolean) {
         userWantsAudio = enabled
-        if (enabled) requestAudioFocus() else abandonAudioFocus()
+        if (enabled) requestAudioFocus() else if (mutableVoiceCallState.value.phase == VoiceCallPhase.Idle) abandonAudioFocus()
         mutableAudioEnabled.value = enabled && hasAudioFocus
         currentRequest()?.let { request ->
             serviceScope.launch { transport.setAudioEnabled(request.id, mutableAudioEnabled.value) }
@@ -338,6 +344,15 @@ class RemoteSessionService : Service() {
             )
             return
         }
+        requestAudioFocus()
+        if (!hasAudioFocus) {
+            mutableVoiceCallState.value = VoiceCallState(
+                requiresHeadset = connected.capabilities.voiceCallRequiresHeadset,
+                reason = "audio_focus_unavailable",
+            )
+            if (!userWantsAudio) abandonAudioFocus()
+            return
+        }
         configureVoiceAudioRoute(mutableVoiceCallState.value.speakerphone)
         refreshForegroundServiceTypes(voiceActive = true)
         serviceScope.launch {
@@ -347,6 +362,7 @@ class RemoteSessionService : Service() {
                     reason = "voice_start_rejected",
                 )
                 restoreVoiceAudioRoute()
+                if (!userWantsAudio) abandonAudioFocus()
                 refreshForegroundServiceTypes(voiceActive = false)
             }
         }
@@ -357,6 +373,7 @@ class RemoteSessionService : Service() {
         serviceScope.launch {
             transport.stopVoiceCall(sessionId)
             restoreVoiceAudioRoute()
+            if (!userWantsAudio) abandonAudioFocus()
             refreshForegroundServiceTypes(voiceActive = false)
         }
     }

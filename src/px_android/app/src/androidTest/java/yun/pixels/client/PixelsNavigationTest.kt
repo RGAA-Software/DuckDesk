@@ -1,7 +1,10 @@
 package yun.pixels.client
 
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.espresso.Espresso.pressBack
 import org.junit.Rule
@@ -26,20 +29,26 @@ class PixelsNavigationTest {
         composeRule.onNodeWithText(devicesContent).fetchSemanticsNode()
         composeRule.onNodeWithText(settingsTab).performClick()
         composeRule.onNodeWithText(settingsContent).fetchSemanticsNode()
+        composeRule.onNodeWithText(settingsTab).assertIsSelected()
+        composeRule.onAllNodesWithText(devicesContent).assertCountEquals(0)
         composeRule.onNodeWithText(settingsTab).performClick()
         composeRule.onNodeWithText(settingsContent).fetchSemanticsNode()
 
         composeRule.onNodeWithText(transfersTab).performClick()
         composeRule.onNodeWithText(transfersContent).fetchSemanticsNode()
+        composeRule.onNodeWithText(transfersTab).assertIsSelected()
+        composeRule.onAllNodesWithText(settingsContent).assertCountEquals(0)
         composeRule.onNodeWithText(transfersTab).performClick()
         composeRule.onNodeWithText(transfersContent).fetchSemanticsNode()
 
         composeRule.onNodeWithText(settingsTab).performClick()
         pressBack()
         composeRule.onNodeWithText(devicesContent).fetchSemanticsNode()
+        composeRule.onAllNodesWithText(settingsContent).assertCountEquals(0)
 
         composeRule.onNodeWithText(transfersTab).performClick()
         pressBack()
         composeRule.onNodeWithText(devicesContent).fetchSemanticsNode()
+        composeRule.onAllNodesWithText(transfersContent).assertCountEquals(0)
     }
 }
