@@ -1,4 +1,5 @@
 <resources>
+    <string name="back">Back</string>
     <string name="transfers_title">Transfers</string>
     <string name="clear_finished">Clear finished</string>
     <string name="transfer_requires_session">Connect to a computer to transfer files.</string>

@@ -10,10 +10,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -41,6 +45,7 @@ fun TransferScreen(
     tasks: List<FileTransferTask>,
     sessionConnected: Boolean,
     supportsFileTransfer: Boolean,
+    onBack: (() -> Unit)? = null,
     onChooseUpload: (String) -> Unit,
     onChooseDownloadDestination: (String) -> Unit,
     onCancel: (String) -> Unit,
@@ -54,6 +59,13 @@ fun TransferScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text(stringResource(R.string.transfers_title), fontWeight = FontWeight.SemiBold) },
+            navigationIcon = {
+                if (onBack != null) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.back))
+                    }
+                }
+            },
             actions = {
                 if (tasks.any { it.state.isTerminal }) TextButton(onClick = onClearFinished) { Text(stringResource(R.string.clear_finished)) }
             },

@@ -10,12 +10,16 @@ import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
+import androidx.activity.compose.BackHandler
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -49,6 +53,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -85,7 +91,9 @@ private enum class TopLevelDestination(
     Settings("settings", R.string.navigation_settings, Icons.Outlined.Settings),
 }
 private const val REMOTE_ROUTE = "remote"
+private const val REMOTE_TRANSFERS_ROUTE = "remote/transfers"
 private const val APPLICATIONS_ROUTE = "applications"
+private val TOP_LEVEL_ROUTES = TopLevelDestination.entries.mapTo(mutableSetOf(), TopLevelDestination::route)
 
 @Composable
 fun PixelsApp(graph: PixelsAppGraph) {
@@ -144,6 +152,8 @@ fun PixelsApp(graph: PixelsAppGraph) {
     val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = currentBackStackEntry?.destination
+    val currentRoute = currentDestination?.route
+    val isTopLevelDestination = currentRoute in TOP_LEVEL_ROUTES
     val unavailableMessage = stringResource(R.string.feature_being_built)
     var pendingLocalNetworkAction by remember { mutableStateOf<DeviceHomeAction?>(null) }
     val noticeMessages by rememberUpdatedState(
@@ -231,30 +241,30 @@ fun PixelsApp(graph: PixelsAppGraph) {
         }
         binder.prepare(request)
         remoteRequest = null
-        navController.navigate(REMOTE_ROUTE) { launchSingleTop = true }
+        navController.navigateToRemote()
     }
     LaunchedEffect(remoteBinder) {
         val status = remoteBinder?.snapshot?.value?.status ?: return@LaunchedEffect
         if (status !is RemoteSessionStatus.Idle && currentDestination?.route != REMOTE_ROUTE) {
-            navController.navigate(REMOTE_ROUTE) { launchSingleTop = true }
+            navController.navigateToRemote()
         }
+    }
+
+    BackHandler(enabled = isTopLevelDestination && currentRoute != TopLevelDestination.Devices.route) {
+        navController.navigateToTopLevel(TopLevelDestination.Devices)
     }
 
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
-            if (currentDestination?.route !in setOf(REMOTE_ROUTE, APPLICATIONS_ROUTE)) {
+            if (isTopLevelDestination) {
                 NavigationBar {
-                    TopLevelDestination.values().forEach { destination ->
+                    TopLevelDestination.entries.forEach { destination ->
                         val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
                         NavigationBarItem(
                             selected = selected,
                             onClick = {
-                                navController.navigate(destination.route) {
-                                    popUpTo(TopLevelDestination.Devices.route) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                                navController.navigateToTopLevel(destination)
                             },
                             icon = { Icon(imageVector = destination.icon, contentDescription = null) },
                             label = { Text(text = stringResource(destination.labelResource)) },
@@ -268,8 +278,12 @@ fun PixelsApp(graph: PixelsAppGraph) {
             navController = navController,
             startDestination = TopLevelDestination.Devices.route,
             modifier = Modifier.padding(
-                if (currentDestination?.route in setOf(REMOTE_ROUTE, APPLICATIONS_ROUTE)) PaddingValues(0.dp) else contentPadding,
+                if (isTopLevelDestination) contentPadding else PaddingValues(0.dp),
             ),
+            enterTransition = { fadeIn(tween(NAVIGATION_ANIMATION_MILLIS)) },
+            exitTransition = { fadeOut(tween(NAVIGATION_ANIMATION_MILLIS)) },
+            popEnterTransition = { fadeIn(tween(NAVIGATION_ANIMATION_MILLIS)) },
+            popExitTransition = { fadeOut(tween(NAVIGATION_ANIMATION_MILLIS)) },
         ) {
             composable(TopLevelDestination.Devices.route) {
                 DeviceHomeScreen(
@@ -319,9 +333,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                                     }
                                 }
                                 .addOnFailureListener { deviceHomeViewModel.onAction(DeviceHomeAction.ScannerFailed) }
-                            DeviceHomeAction.OpenAccountSettings -> navController.navigate(TopLevelDestination.Settings.route) {
-                                launchSingleTop = true
-                            }
+                            DeviceHomeAction.OpenAccountSettings -> navController.navigateToTopLevel(TopLevelDestination.Settings)
                             DeviceHomeAction.OpenApplications -> {
                                 applicationLibraryViewModel.refresh()
                                 navController.navigate(APPLICATIONS_ROUTE) { launchSingleTop = true }
@@ -331,31 +343,38 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     },
                 )
             }
-            composable(TopLevelDestination.Transfers.route) {
-                val transferTasksFlow = remoteBinder?.fileTransferTasks ?: idleFileTransferTasks
-                val transferTasks by transferTasksFlow.collectAsStateWithLifecycle()
-                val sessionFlow = remoteBinder?.snapshot ?: idleRemoteSnapshot
-                val transferSnapshot by sessionFlow.collectAsStateWithLifecycle()
-                val connected = transferSnapshot.status as? RemoteSessionStatus.Connected
-                TransferScreen(
-                    tasks = transferTasks,
-                    sessionConnected = connected != null,
-                    supportsFileTransfer = connected?.capabilities?.supportsFileTransfer == true,
-                    onChooseUpload = { remoteDirectory ->
-                        pendingUploadRemoteDirectory = remoteDirectory
-                        uploadDocumentLauncher.launch(arrayOf("*/*"))
-                    },
-                    onChooseDownloadDestination = { remotePath ->
-                        pendingDownloadRemotePath = remotePath
-                        downloadDocumentLauncher.launch(remotePath.substringAfterLast('/').substringAfterLast('\\').ifBlank { "download" })
-                    },
-                    onCancel = { taskId -> remoteBinder?.cancelTransfer(taskId) },
-                    onRetry = { taskId -> remoteBinder?.retryTransfer(taskId) },
-                    onResolveOverwrite = { taskId, overwrite, applyToAll ->
-                        remoteBinder?.resolveTransferOverwrite(taskId, overwrite, applyToAll)
-                    },
-                    onClearFinished = { remoteBinder?.clearFinishedTransfers() },
-                )
+            listOf(TopLevelDestination.Transfers.route to false, REMOTE_TRANSFERS_ROUTE to true).forEach { (route, sessionScoped) ->
+                composable(route) {
+                    val transferTasksFlow = remoteBinder?.fileTransferTasks ?: idleFileTransferTasks
+                    val transferTasks by transferTasksFlow.collectAsStateWithLifecycle()
+                    val sessionFlow = remoteBinder?.snapshot ?: idleRemoteSnapshot
+                    val transferSnapshot by sessionFlow.collectAsStateWithLifecycle()
+                    val connected = transferSnapshot.status as? RemoteSessionStatus.Connected
+                    TransferScreen(
+                        tasks = transferTasks,
+                        sessionConnected = connected != null,
+                        supportsFileTransfer = connected?.capabilities?.supportsFileTransfer == true,
+                        onBack = if (sessionScoped) {
+                            { if (!navController.popBackStack()) navController.navigateToRemote() }
+                        } else {
+                            null
+                        },
+                        onChooseUpload = { remoteDirectory ->
+                            pendingUploadRemoteDirectory = remoteDirectory
+                            uploadDocumentLauncher.launch(arrayOf("*/*"))
+                        },
+                        onChooseDownloadDestination = { remotePath ->
+                            pendingDownloadRemotePath = remotePath
+                            downloadDocumentLauncher.launch(remotePath.substringAfterLast('/').substringAfterLast('\\').ifBlank { "download" })
+                        },
+                        onCancel = { taskId -> remoteBinder?.cancelTransfer(taskId) },
+                        onRetry = { taskId -> remoteBinder?.retryTransfer(taskId) },
+                        onResolveOverwrite = { taskId, overwrite, applyToAll ->
+                            remoteBinder?.resolveTransferOverwrite(taskId, overwrite, applyToAll)
+                        },
+                        onClearFinished = { remoteBinder?.clearFinishedTransfers() },
+                    )
+                }
             }
             composable(TopLevelDestination.Settings.route) {
                 SettingsScreen(state = settingsState, onAction = settingsViewModel::onAction)
@@ -363,7 +382,9 @@ fun PixelsApp(graph: PixelsAppGraph) {
             composable(APPLICATIONS_ROUTE) {
                 ApplicationLibraryScreen(
                     state = applicationLibraryState,
-                    onBack = { navController.popBackStack() },
+                    onBack = {
+                        if (!navController.popBackStack()) navController.navigateToTopLevel(TopLevelDestination.Devices)
+                    },
                     onRefresh = applicationLibraryViewModel::refresh,
                     onStart = applicationLibraryViewModel::start,
                     onConnect = applicationLibraryViewModel::connect,
@@ -407,14 +428,31 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     onStopVoiceCall = { remoteBinder?.stopVoiceCall() },
                     onVoiceMicrophoneMuted = { muted -> remoteBinder?.setVoiceMicrophoneMuted(muted) },
                     onVoiceSpeakerphone = { enabled -> remoteBinder?.setVoiceSpeakerphone(enabled) },
-                    onOpenTransfers = { navController.navigate(TopLevelDestination.Transfers.route) },
+                    onOpenTransfers = { navController.navigate(REMOTE_TRANSFERS_ROUTE) { launchSingleTop = true } },
                     onRetry = { remoteBinder?.retrySession() },
                     onEndSession = {
                         remoteBinder?.stopSession()
-                        navController.popBackStack()
+                        navController.navigateToTopLevel(TopLevelDestination.Devices)
                     },
                 )
             }
         }
+    }
+}
+
+private const val NAVIGATION_ANIMATION_MILLIS = 160
+
+private fun NavHostController.navigateToTopLevel(destination: TopLevelDestination) {
+    navigate(destination.route) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
+
+private fun NavHostController.navigateToRemote() {
+    navigate(REMOTE_ROUTE) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
     }
 }

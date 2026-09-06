@@ -1,4 +1,5 @@
 <resources>
+    <string name="back">返回</string>
     <string name="transfers_title">文件传输</string>
     <string name="clear_finished">清除已结束</string>
     <string name="transfer_requires_session">连接电脑后即可传输文件。</string>
