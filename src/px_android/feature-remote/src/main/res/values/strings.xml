@@ -80,4 +80,6 @@
     <string name="remote_text_send">Send</string>
     <string name="remote_text_cancel">Cancel</string>
     <string name="remote_statistics">%1$d fps · %2$d ms · %3$d kbps</string>
+    <string name="remote_controls_expand">Show remote controls</string>
+    <string name="remote_controls_collapse">Hide remote controls</string>
 </resources>

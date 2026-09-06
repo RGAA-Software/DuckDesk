@@ -208,7 +208,8 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 
 旧 `rtc_client_stub.cpp` 已随 M0 删除。当前 `core-native` 已接入真实 WebSocket transport、typed JNI 边界和固定版本 Android WebRTC AAR；
 标准 RTC platform adapter 直接消费仓库权威 protobuf，并已具备票据信令、ICE/TURN、RTP Surface 渲染和基础 DataChannel 协议。产品路由仅在
-Console 提供完整且未临近过期的 RTC/Relay 作用域时选择标准 RTC，否则继续使用原生 UDP/Relay；票据续发降级、完整 DataChannel 能力以及真机网络矩阵
+Console 提供完整且未临近过期的 RTC/Relay 作用域时选择标准 RTC，否则继续使用原生 UDP/Relay；旋转 renewal capability 已用于临期/已尝试票据和
+WebRTC 失败后的原生 UDP/Relay 降级，并验证续发响应不能改变 logical session 或 stream。完整 DataChannel 能力以及真机网络矩阵
 完成前仍不对外宣称 WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
 
 ## 7. 渲染、音频和输入
@@ -332,7 +333,7 @@ Console 提供完整且未临近过期的 RTC/Relay 作用域时选择标准 RTC
 
 ### M5：完整网络与质量收口，2–3 周
 
-状态：**UDP Direct 已作为 Android 默认传输接入，具备认证控制面、四秒媒体探测与同会话 WebSocket 安全回退；断线重连具有三十秒上限、类型化失败和显式重试。账号公网设备已接入一次性票据约束的 Relay 主路径，Console 只校验并注入权威绑定，Render 负责唯一兑换、逻辑会话准入和按能力路由。Android 标准 WebRTC 已固定 AAR、接入权威 protobuf-lite 协议生成、票据作用域 Relay 信令、ICE/TURN 配置校验、PeerConnection、RTP 音视频 Surface 渲染，以及可靠控制/不可靠输入 DataChannel 的 Hello、输入、文本剪贴板和能力消息；统一产品路由会校验 RTC 与票据有效期后选择 WebRTC，否则使用原生 UDP/Relay，并在 RTC 下保守关闭尚未实现的文件、录制、语音和虚拟显示能力。票据续发降级、完整 DataChannel 能力和真实网络矩阵仍待完成，因此当前不会向用户宣称 WebRTC 已完整交付。**
+状态：**UDP Direct 已作为 Android 默认传输接入，具备认证控制面、四秒媒体探测与同会话 WebSocket 安全回退；断线重连具有三十秒上限、类型化失败和显式重试。账号公网设备已接入一次性票据约束的 Relay 主路径，Console 只校验并注入权威绑定，Render 负责唯一兑换、逻辑会话准入和按能力路由。Android 标准 WebRTC 已固定 AAR、接入权威 protobuf-lite 协议生成、票据作用域 Relay 信令、ICE/TURN 配置校验、PeerConnection、RTP 音视频 Surface 渲染，以及可靠控制/不可靠输入 DataChannel 的 Hello、输入、文本剪贴板和能力消息；统一产品路由会校验 RTC 与票据有效期后选择 WebRTC，否则使用原生 UDP/Relay，并在 RTC 下保守关闭尚未实现的文件、录制、语音和虚拟显示能力。客户端已接入匿名 renewal capability 续发端点，对临期或已尝试的一次性票据先旋转凭据；WebRTC 协商/连接失败会在有界窗口内续发并降级到原生 UDP/Relay，续发响应必须保持 logical session 与 stream 身份不变。完整 DataChannel 能力和真实网络矩阵仍待完成，因此当前不会向用户宣称 WebRTC 已完整交付。**
 
 - UDP Direct、Relay、WebRTC Direct、ICE/TURN WebRTC。
 - 传输选择、协商、失败降级、网络切换恢复。
@@ -443,10 +444,10 @@ SHA-256 发布清单，以及应用内隐私、开源许可和主动脱敏诊断
 - Android 当前如实声明视频、远程音频、桌面输入、手柄输入与震动、显示器、文件传输、授权后的文本/图片/文件剪贴板和语音能力；网络主路径
   默认选择 UDP Direct，以已认证 WebSocket 作为控制面，并在四秒内收不到媒体时为同一认证会话启用 WebSocket 媒体。可恢复断线只在三十秒窗口内
   重连，超时后停止 transport、显示类型化原因并允许用户主动重试。Relay 与 WebRTC 仍按 M5 实施，未完成的能力不伪装为可用。
-- 一级导航使用设备、传输和设置三个平级根目的地；切换 Tab 会清理上一 Tab 和详情页，不恢复过期子页。应用列表是设备页的全屏详情，远控与远控文件
-  任务是会话全屏页，这三类详情都不显示一级底栏。结束会话固定返回设备页，传输/设置根页的系统返回也固定回到设备页，重复点击当前 Tab 不创建新页面。
-  会话文件浏览的系统返回键与顶部返回键会先回到上级目录，到达远端根视图后才返回远控工作区；远控工作区的系统返回优先关闭安全确认、键盘、手柄设置和
-  显示器面板，其次退出手柄模式，最后显示结束会话确认，确认结束后固定回到设备页。
+- 一级导航使用设备、传输和设置三个平级根目的地；切换 Tab 会清理上一 Tab 和详情页，不恢复过期子页。应用列表属于设备栏目并保留一级底栏，重复点击已选中的
+  设备 Tab 会回到设备根页。远控与远控文件任务是无底栏的会话全屏页，结束会话返回发起连接前的父页；传输/设置根页的系统返回固定回到设备页。
+  会话文件浏览的系统返回键与顶部返回键会先回到上级目录，到达远端根视图后才返回远控工作区；远控工作区默认收起工具栏，系统返回优先关闭安全确认、键盘、
+  手柄设置、显示器面板和展开的工具栏，其次退出手柄模式，最后显示结束会话确认。
 - 设置页已展示版本、隐私说明和开源组件摘要，并只在用户主动操作后生成应用私有诊断报告、调起 Android 分享选择器。报告仅包含构建、设备、会话状态
   与当前进程近期日志，敏感行、网络 URL、IP、会话标识、content URI 和用户文件路径均会脱敏，旧报告在应用私有缓存中自动过期。
 - release 构建只接受 CI 环境变量或被 Git 忽略的本机签名配置；缺少完整配置时打包任务立即失败。流水线执行 release lint、单元测试、R8/resource
@@ -579,6 +580,18 @@ SHA-256 发布清单，以及应用内隐私、开源许可和主动脱敏诊断
   以及真实局域网远控均通过；手柄竖屏提示下首次系统返回只退出手柄模式，第二次返回显示结束确认，取消后视频会话继续，确认后才停止会话并回到设备页。
   全套 Android 单元测试、lint 和 debug APK 构建通过，无 `AndroidRuntime` 崩溃；APK SHA-256 为
   `1178ADA387E2EC9488E76A7F1579E917B78C19FC284FCD9AC6946E7AF2EE7640`，测试过程未卸载应用。
+- 2026-09-07 M5 票据恢复链路接入 Console `/api/v1/connection-tickets/renew` 的旋转 renewal capability。Android 会在票据临期或同一一次性票据已尝试后
+  主动续发；续发只继承原始启动路由，并拒绝 logical session 或 stream 发生变化的响应。WebRTC 初始协商失败会以新票据切换到原生 UDP/Relay，已连接
+  WebRTC 失败则进入最长 25 秒的有界续发/降级重试；等待 Surface 重建期间不消耗 renewal token，停止与销毁会取消排队重试，显式重试继续复用仍有效的
+  Compose Surface。客户端解析、续发身份约束、一次性票据判定和账号仓库状态已有单元测试；全套 Android 单元测试、lint、arm64 native 和 debug APK
+  构建通过。APK 以 `adb install -r -d` 覆盖安装后完成冷启动、局域网发现和 54 FPS / 4 ms 的真实直连回归，无崩溃；SHA-256 为
+  `DA0DF265C703437B38A579C733CDF82BCA3FAA90FA9D4B34DBCCC09FCB73ABDE`。手机当前未登录 Console，因此真实公网 Relay/WebRTC 切换仍属于网络矩阵待验收项，
+  不以单元测试替代该项证据。
+- 2026-09-07 导航与远控遮挡复核把应用详情纳入设备 Tab 的选中层级，允许直接切换一级栏目，切换后只返回对应根页；远控和会话文件页保持无底栏全屏栈，
+  文件根页系统返回只退回远控，结束会话回到连接前父页。远控工具栏默认收成右上角单按钮，展开后系统返回先收起，不再常驻遮挡画面。Xiaomi 22021211RC
+  覆盖安装后完成设备→设置→系统返回、设备→应用→传输→设备、真实会话文件→远控，以及工具栏展开→返回收起→结束确认的短时验证；实时画面约 55 FPS / 3–5 ms，
+  无 `AndroidRuntime` 或 JNI 崩溃。Android 全套单元测试、lint、arm64 native 和 debug APK 构建通过，APK SHA-256 为
+  `63BCCE50A7CD6874EBB75F7C6C88016F43EDEC6FD2DD8391092A77681CA721DF`，安装使用 `adb install -r -d`，未卸载应用。
 
 这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径、物理显示器切换和虚拟显示失败反馈；
 后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁，M5 轮次关闭了 UDP Direct 协商、WebSocket 安全回退、有界重连和 H.264 首帧解析门禁。

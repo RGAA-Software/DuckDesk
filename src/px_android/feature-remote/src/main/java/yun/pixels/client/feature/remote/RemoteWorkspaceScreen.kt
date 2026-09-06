@@ -35,6 +35,8 @@ import androidx.compose.material.icons.outlined.CallEnd
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.FiberManualRecord
 import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.MicOff
 import androidx.compose.material.icons.outlined.Mouse
@@ -67,6 +69,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -147,6 +150,7 @@ fun RemoteWorkspaceScreen(
     var pendingVirtualDisplayRequest by remember { mutableStateOf<String?>(null) }
     var confirmSecureAttention by remember { mutableStateOf(false) }
     var confirmEndSession by remember { mutableStateOf(false) }
+    var controlsExpanded by rememberSaveable { mutableStateOf(false) }
     var currentSurface by remember { mutableStateOf<Surface?>(null) }
     val latestSurfaceAvailable by rememberUpdatedState(onSurfaceAvailable)
     val latestSurfaceDestroyed by rememberUpdatedState(onSurfaceDestroyed)
@@ -172,6 +176,7 @@ fun RemoteWorkspaceScreen(
                 showKeyboard = showKeyboard,
                 showGamepadSettings = showGamepadSettings,
                 showDisplays = showDisplays,
+                controlsExpanded = controlsExpanded,
                 inputMode = inputMode,
             )
         ) {
@@ -179,6 +184,7 @@ fun RemoteWorkspaceScreen(
             RemoteBackAction.DismissKeyboard -> showKeyboard = false
             RemoteBackAction.DismissGamepadSettings -> showGamepadSettings = false
             RemoteBackAction.DismissDisplays -> showDisplays = false
+            RemoteBackAction.DismissControls -> controlsExpanded = false
             RemoteBackAction.ExitGamepadMode -> {
                 gamepadController.reset()
                 inputMode = RemoteInputMode.DirectTouch
@@ -288,6 +294,8 @@ fun RemoteWorkspaceScreen(
             recordingState = recordingState,
             voiceCallState = voiceCallState,
             inputMode = inputMode,
+            expanded = controlsExpanded,
+            onExpandedChange = { controlsExpanded = it },
             onInputModeChange = { mode ->
                 interpreter.cancelGesture()
                 if (mode != RemoteInputMode.Gamepad) gamepadController.reset()
@@ -418,6 +426,7 @@ internal enum class RemoteBackAction {
     DismissKeyboard,
     DismissGamepadSettings,
     DismissDisplays,
+    DismissControls,
     ExitGamepadMode,
     RequestSessionEnd,
 }
@@ -427,12 +436,14 @@ internal fun resolveRemoteBackAction(
     showKeyboard: Boolean,
     showGamepadSettings: Boolean,
     showDisplays: Boolean,
+    controlsExpanded: Boolean,
     inputMode: RemoteInputMode,
 ): RemoteBackAction = when {
     confirmSecureAttention -> RemoteBackAction.DismissSecureAttention
     showKeyboard -> RemoteBackAction.DismissKeyboard
     showGamepadSettings -> RemoteBackAction.DismissGamepadSettings
     showDisplays -> RemoteBackAction.DismissDisplays
+    controlsExpanded -> RemoteBackAction.DismissControls
     inputMode == RemoteInputMode.Gamepad -> RemoteBackAction.ExitGamepadMode
     else -> RemoteBackAction.RequestSessionEnd
 }
@@ -444,6 +455,8 @@ private fun RemoteTopBar(
     recordingState: RecordingState,
     voiceCallState: VoiceCallState,
     inputMode: RemoteInputMode,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
     onInputModeChange: (RemoteInputMode) -> Unit,
     onAudioEnabledChange: (Boolean) -> Unit,
     onStartRecording: () -> Unit,
@@ -466,6 +479,17 @@ private fun RemoteTopBar(
         is RemoteSessionStatus.Reconnecting -> status.request.target.displayName
         is RemoteSessionStatus.Stopping -> status.request.target.displayName
         is RemoteSessionStatus.Failed -> status.request.target.displayName
+    }
+    if (!expanded) {
+        Row(
+            modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(top = 8.dp, end = 8.dp),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            FilledTonalIconButton(onClick = { onExpandedChange(true) }) {
+                Icon(Icons.Outlined.MoreHoriz, contentDescription = stringResource(R.string.remote_controls_expand))
+            }
+        }
+        return
     }
     MaterialSurface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.86f), modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -492,6 +516,9 @@ private fun RemoteTopBar(
                 }
                 RecordingStatus(state = recordingState)
                 VoiceCallStatus(state = voiceCallState)
+                }
+                FilledTonalIconButton(onClick = { onExpandedChange(false) }) {
+                    Icon(Icons.Outlined.ExpandLess, contentDescription = stringResource(R.string.remote_controls_collapse))
                 }
             }
             Row(

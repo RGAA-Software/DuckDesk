@@ -155,11 +155,9 @@ fun PixelsApp(graph: PixelsAppGraph) {
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = currentBackStackEntry?.destination
     val currentRoute = currentDestination?.route
-    val currentTopLevelDestination = TopLevelDestination.entries.firstOrNull { destination ->
-        currentRoute == destination.route
-    }
-    val isTopLevelSurface = currentTopLevelDestination != null
-    val isNonSessionSurface = isTopLevelSurface || currentRoute == APPLICATIONS_ROUTE
+    val currentTopLevelDestination = currentRoute.toTopLevelDestination()
+    val showsBottomNavigation = currentTopLevelDestination != null
+    val isNonSessionSurface = currentRoute != REMOTE_ROUTE && currentRoute != REMOTE_TRANSFERS_ROUTE
     val unavailableMessage = stringResource(R.string.feature_being_built)
     var pendingLocalNetworkAction by remember { mutableStateOf<DeviceHomeAction?>(null) }
     val noticeMessages by rememberUpdatedState(
@@ -272,6 +270,12 @@ fun PixelsApp(graph: PixelsAppGraph) {
     }
 
     BackHandler(
+        enabled = currentRoute == REMOTE_TRANSFERS_ROUTE,
+    ) {
+        navController.returnToRemoteWorkspace()
+    }
+
+    BackHandler(
         enabled = currentRoute == currentTopLevelDestination?.route && currentTopLevelDestination != TopLevelDestination.Devices,
     ) {
         navController.resetToDevices()
@@ -280,7 +284,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
-            if (isTopLevelSurface) {
+            if (showsBottomNavigation) {
                 NavigationBar {
                     TopLevelDestination.entries.forEach { destination ->
                         NavigationBarItem(
@@ -300,7 +304,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
             navController = navController,
             startDestination = TopLevelDestination.Devices.route,
             modifier = Modifier.padding(
-                if (isTopLevelSurface) contentPadding else PaddingValues(0.dp),
+                if (showsBottomNavigation) contentPadding else PaddingValues(0.dp),
             ),
             enterTransition = { EnterTransition.None },
             exitTransition = { ExitTransition.None },
@@ -476,7 +480,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     idleRemoteSnapshot = idleRemoteSnapshot,
                     idleRemoteDirectory = idleRemoteDirectory,
                     onBack = {
-                        if (!navController.popBackTo(REMOTE_ROUTE)) navController.navigateToRemote()
+                        navController.returnToRemoteWorkspace()
                     },
                     onChooseUpload = { remoteDirectory ->
                         pendingUploadRemoteDirectory = remoteDirectory
@@ -530,8 +534,11 @@ private fun TransferRoute(
 }
 
 private fun NavHostController.selectTopLevel(destination: TopLevelDestination) {
-    if (currentDestination?.route == destination.route) return
-    if (destination == TopLevelDestination.Devices && popBackTo(destination.route)) return
+    val currentSection = currentDestination?.route.toTopLevelDestination()
+    if (currentSection == destination) {
+        if (currentDestination?.route != destination.route) popBackStack(destination.route, inclusive = false)
+        return
+    }
     navigate(destination.route) {
         popUpTo(TopLevelDestination.Devices.route)
         launchSingleTop = true
@@ -539,14 +546,15 @@ private fun NavHostController.selectTopLevel(destination: TopLevelDestination) {
 }
 
 private fun NavHostController.navigateToRemote() {
+    if (currentDestination?.route == REMOTE_ROUTE) return
+    if (currentDestination?.route == REMOTE_TRANSFERS_ROUTE && popBackStack(REMOTE_ROUTE, inclusive = false)) return
     navigate(REMOTE_ROUTE) {
-        popUpTo(TopLevelDestination.Devices.route)
         launchSingleTop = true
     }
 }
 
 private fun NavHostController.leaveRemoteSession() {
-    resetToDevices()
+    if (!popBackStack(REMOTE_ROUTE, inclusive = true)) resetToDevices()
 }
 
 private fun NavHostController.resetToDevices() {
@@ -560,3 +568,12 @@ private fun NavHostController.resetToDevices() {
 
 private fun NavHostController.popBackTo(route: String): Boolean =
     currentDestination?.route == route || popBackStack(route, inclusive = false)
+
+private fun String?.toTopLevelDestination(): TopLevelDestination? = when (this) {
+    APPLICATIONS_ROUTE -> TopLevelDestination.Devices
+    else -> TopLevelDestination.entries.firstOrNull { destination -> this == destination.route }
+}
+
+private fun NavHostController.returnToRemoteWorkspace() {
+    if (!popBackStack(REMOTE_ROUTE, inclusive = false)) navigateToRemote()
+}

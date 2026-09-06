@@ -80,4 +80,6 @@
     <string name="remote_text_send">发送</string>
     <string name="remote_text_cancel">取消</string>
     <string name="remote_statistics">%1$d 帧/秒 · %2$d 毫秒 · %3$d kbps</string>
+    <string name="remote_controls_expand">展开远控工具栏</string>
+    <string name="remote_controls_collapse">收起远控工具栏</string>
 </resources>

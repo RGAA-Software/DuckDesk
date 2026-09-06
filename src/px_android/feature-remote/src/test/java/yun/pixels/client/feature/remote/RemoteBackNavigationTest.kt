@@ -17,9 +17,10 @@ class RemoteBackNavigationTest {
         )
         assertEquals(
             RemoteBackAction.DismissGamepadSettings,
-            action(gamepadSettings = true, displays = true),
+            action(gamepadSettings = true, displays = true, controls = true),
         )
-        assertEquals(RemoteBackAction.DismissDisplays, action(displays = true))
+        assertEquals(RemoteBackAction.DismissDisplays, action(displays = true, controls = true))
+        assertEquals(RemoteBackAction.DismissControls, action(controls = true))
     }
 
     @Test
@@ -34,12 +35,14 @@ class RemoteBackNavigationTest {
         keyboard: Boolean = false,
         gamepadSettings: Boolean = false,
         displays: Boolean = false,
+        controls: Boolean = false,
         inputMode: RemoteInputMode = RemoteInputMode.DirectTouch,
     ): RemoteBackAction = resolveRemoteBackAction(
         confirmSecureAttention = secureAttention,
         showKeyboard = keyboard,
         showGamepadSettings = gamepadSettings,
         showDisplays = displays,
+        controlsExpanded = controls,
         inputMode = inputMode,
     )
 }
