@@ -548,13 +548,20 @@ private fun TransferRoute(
 }
 
 private fun NavHostController.selectTopLevel(destination: TopLevelDestination) {
-    val alreadySelected = currentDestination?.hierarchy?.any { it.route == destination.graphRoute } == true
-    if (alreadySelected) {
+    val currentTopLevel = TopLevelDestination.entries.firstOrNull { candidate ->
+        currentDestination?.hierarchy?.any { it.route == candidate.graphRoute } == true
+    }
+    if (currentTopLevel == destination) {
         popBackTo(destination.route)
         return
     }
     navigate(destination.graphRoute) {
-        popUpTo(graph.findStartDestination().id) { saveState = true }
+        currentTopLevel?.let { current ->
+            popUpTo(current.graphRoute) {
+                inclusive = true
+                saveState = true
+            }
+        }
         launchSingleTop = true
         restoreState = true
     }
