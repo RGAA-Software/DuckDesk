@@ -14,6 +14,8 @@ interface NativeSessionListener {
 
     fun onFrameSizeChanged(sessionId: String, width: Int, height: Int)
 
+    fun onStatistics(sessionId: String, framesPerSecond: Int, latencyMillis: Int, bitrateKbps: Int)
+
     fun onDisconnected(sessionId: String, reason: Int, recoverable: Boolean)
 }
 
@@ -29,6 +31,10 @@ internal object PixelsNativeBridge {
     external fun replaceSurface(nativeSessionId: Long, surface: Surface): Boolean
 
     external fun sendPointer(nativeSessionId: Long, action: Int, xRatio: Float, yRatio: Float): Boolean
+
+    external fun sendText(nativeSessionId: Long, utf8Text: ByteArray): Boolean
+
+    external fun setAudioEnabled(nativeSessionId: Long, enabled: Boolean): Boolean
 
     external fun stop(nativeSessionId: Long)
 }

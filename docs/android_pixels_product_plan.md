@@ -185,7 +185,7 @@ px_client_sdk / protocol / media
 - `px_client_sdk` 会话创建和传输选择。
 - protobuf 协议编解码。
 - 视频帧分发、MediaCodec adapter 和软件解码回退。
-- Oboe 音频输出及语音音频端点。
+- AAudio 低延迟音频输出及语音音频端点；最低 API 29 允许直接使用系统原生 API，避免额外包装依赖。
 - 鼠标、键盘、手柄和显示器命令。
 - 文件传输、剪贴板、录制、语音和虚拟显示协议核心。
 - 统计、错误分类和可取消的关闭流程。
@@ -295,7 +295,7 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 
 ### M2：音视频垂直切片，2–3 周
 
-状态：**进行中（2026-09-06 已完成 WebSocket 视频主路径、MediaCodec Surface、Surface 热重绑、基础触摸输入与远程工作区）**。
+状态：**进行中（2026-09-06 已完成 WebSocket 音视频主路径、MediaCodec Surface、Surface 热重绑、AAudio 播放、AudioFocus、基础触摸与 UTF-8 文本输入、远程工作区）**。
 
 - 接通 MediaCodec、软件解码回退、Surface 重绑和 Oboe 播放。
 - 完成远程工作区、画面适配、音频控制和基础统计。
@@ -398,8 +398,13 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 - `RemoteSessionService` 是活跃会话所有者，前台通知、`RemoteSessionWorkflow` 状态机、重复 start/stop、过期回调丢弃、回调期间停止、
   Activity/Surface 重建后的画面热重绑均已实现。Native SDK 外部调用不在状态锁内执行，并由命令锁串行化关闭竞态。
 - WebSocket 已接入现有 `px_client_sdk` 鉴权和重连路径，MediaCodec 直接输出 `Surface`；服务端配置、画面尺寸、掉线、顶号、离线和鉴权拒绝
-  使用类型化事件回传。基础直接触摸已转换为归一化坐标并复用现有 protobuf 输入协议。
-- Android 当前如实声明视频与基础输入能力；音频、软件解码回退、键鼠/手柄、多显示器、文件、剪贴板、录制、语音和 WebRTC 仍按 M2–M5
+  使用类型化事件回传。原生层按一秒窗口汇总实际解码帧率，并将 SDK 延迟、接收速率转换为工作区统计；画面尺寸只在变化时通知，
+  避免逐帧跨 JNI。基础直接触摸已转换为归一化坐标并复用现有 protobuf 输入协议。
+- Opus 解码后的 16-bit PCM 已接入 RAII 管理的 AAudio 低延迟输出；前台服务负责 AudioFocus，焦点暂失时停止输出、恢复后重新建流，
+  用户可在远程工作区静音或恢复。音频设备切换和实际听感仍需在有运行中 Render 的真机串流中验收。
+- 工作区已按远端画面比例 letterbox，支持直接触摸和最多 4096 UTF-8 字节的中文/粘贴文本输入；文本通过类型化 JNI 和 `kTextInput`
+  协议发送，不把 Android key code 泄漏到协议层。连接前再次验证私网直连地址与端口，不只信任数据库中的历史值。
+- Android 当前如实声明视频、远程音频与基础输入能力；软件解码回退、物理键盘、相对鼠标、手柄、多显示器、文件、剪贴板、录制、语音和 WebRTC 仍按 M2–M5
   实施，未完成的能力不在握手后伪装为可用。
 - `core-domain` 会话生命周期测试、endpoint 安全测试、arm64 C++ 构建、Android 单元测试、lint 和 debug APK 构建已通过。APK 使用 USB
   真机覆盖安装并完成冷启动、视觉与崩溃日志检查；MIUI 拒绝安装独立 AndroidTest APK，因此仪器测试仍需在其他设备或 CI 补齐。

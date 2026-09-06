@@ -7,25 +7,36 @@ import android.view.MotionEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.VolumeOff
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface as MaterialSurface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,15 +50,19 @@ import yun.pixels.client.core.domain.session.PointerAction
 @Composable
 fun RemoteWorkspaceScreen(
     snapshot: RemoteSessionSnapshot,
+    audioEnabled: Boolean,
     onSurfaceAvailable: (Surface) -> Unit,
     onSurfaceDestroyed: () -> Unit,
     onPointer: (PointerAction, Float, Float) -> Unit,
+    onText: (String) -> Unit,
+    onAudioEnabledChange: (Boolean) -> Unit,
     onEndSession: () -> Unit,
 ) {
     BackHandler(onBack = onEndSession)
     val latestSurfaceAvailable by rememberUpdatedState(onSurfaceAvailable)
     val latestSurfaceDestroyed by rememberUpdatedState(onSurfaceDestroyed)
     val latestPointer by rememberUpdatedState(onPointer)
+    var showTextInput by remember { mutableStateOf(false) }
     val surfaceCallback = remember {
         object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {
@@ -60,7 +75,14 @@ fun RemoteWorkspaceScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        val videoAspectRatio = snapshot.videoSize?.let { it.width.toFloat() / it.height } ?: (16f / 9f)
+        val containerAspectRatio = if (maxHeight.value > 0f) maxWidth.value / maxHeight.value else videoAspectRatio
+        val videoModifier = if (videoAspectRatio >= containerAspectRatio) {
+            Modifier.fillMaxWidth().aspectRatio(videoAspectRatio)
+        } else {
+            Modifier.fillMaxHeight().aspectRatio(videoAspectRatio)
+        }
         AndroidView(
             factory = { context ->
                 SurfaceView(context).also { view ->
@@ -83,19 +105,40 @@ fun RemoteWorkspaceScreen(
                     }
                 }
             },
-            modifier = Modifier.fillMaxSize(),
+            modifier = videoModifier.align(Alignment.Center),
             onRelease = { view ->
                 view.setOnTouchListener(null)
                 view.holder.removeCallback(surfaceCallback)
             },
         )
-        RemoteTopBar(snapshot = snapshot, onEndSession = onEndSession)
+        RemoteTopBar(
+            snapshot = snapshot,
+            audioEnabled = audioEnabled,
+            onAudioEnabledChange = onAudioEnabledChange,
+            onOpenTextInput = { showTextInput = true },
+            onEndSession = onEndSession,
+        )
         RemoteStatus(snapshot.status)
+    }
+    if (showTextInput) {
+        RemoteTextInputDialog(
+            onDismiss = { showTextInput = false },
+            onSend = { text ->
+                onText(text)
+                showTextInput = false
+            },
+        )
     }
 }
 
 @Composable
-private fun RemoteTopBar(snapshot: RemoteSessionSnapshot, onEndSession: () -> Unit) {
+private fun RemoteTopBar(
+    snapshot: RemoteSessionSnapshot,
+    audioEnabled: Boolean,
+    onAudioEnabledChange: (Boolean) -> Unit,
+    onOpenTextInput: () -> Unit,
+    onEndSession: () -> Unit,
+) {
     val status = snapshot.status
     val title = when (status) {
         RemoteSessionStatus.Idle -> "Pixels"
@@ -129,11 +172,54 @@ private fun RemoteTopBar(snapshot: RemoteSessionSnapshot, onEndSession: () -> Un
                     )
                 }
             }
-            FilledTonalIconButton(onClick = onEndSession) {
-                Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.remote_exit))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if ((status as? RemoteSessionStatus.Connected)?.capabilities?.supportsInput == true) {
+                    FilledTonalIconButton(onClick = onOpenTextInput) {
+                        Icon(Icons.Outlined.Keyboard, contentDescription = stringResource(R.string.remote_keyboard))
+                    }
+                }
+                if ((status as? RemoteSessionStatus.Connected)?.capabilities?.supportsAudio == true) {
+                    FilledTonalIconButton(onClick = { onAudioEnabledChange(!audioEnabled) }) {
+                        Icon(
+                            if (audioEnabled) Icons.AutoMirrored.Outlined.VolumeUp else Icons.AutoMirrored.Outlined.VolumeOff,
+                            contentDescription = stringResource(if (audioEnabled) R.string.remote_mute else R.string.remote_unmute),
+                        )
+                    }
+                }
+                FilledTonalIconButton(onClick = onEndSession) {
+                    Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.remote_exit))
+                }
             }
         }
     }
+}
+
+@Composable
+private fun RemoteTextInputDialog(onDismiss: () -> Unit, onSend: (String) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.remote_text_title)) },
+        text = {
+            TextField(
+                value = text,
+                onValueChange = { candidate ->
+                    if (candidate.encodeToByteArray().size <= 4096) text = candidate
+                },
+                placeholder = { Text(stringResource(R.string.remote_text_hint)) },
+                minLines = 2,
+                maxLines = 6,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onSend(text) }, enabled = text.isNotEmpty()) {
+                Text(stringResource(R.string.remote_text_send))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.remote_text_cancel)) }
+        },
+    )
 }
 
 @Composable

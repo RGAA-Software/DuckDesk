@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import yun.pixels.client.core.domain.device.DeviceAvailability
 import yun.pixels.client.core.domain.device.DeviceEndpoint
@@ -17,6 +18,13 @@ import yun.pixels.client.core.domain.device.RemoteDevice
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RemoteSessionWorkflowTest {
+    @Test
+    fun textInputEnforcesTheProtocolUtf8Limit() {
+        assertEquals("桌面 input", InputCommand.Text("桌面 input").value)
+        assertThrows(IllegalArgumentException::class.java) { InputCommand.Text("") }
+        assertThrows(IllegalArgumentException::class.java) { InputCommand.Text("界".repeat(1_366)) }
+    }
+
     @Test
     fun repeatedStartForSameSessionIsIdempotent() = runTest {
         val transport = FakeRemoteSessionTransport()
@@ -106,6 +114,24 @@ class RemoteSessionWorkflowTest {
 
         assertEquals(listOf(request.id), transport.stops)
         assertTrue(workflow.snapshot.value.status is RemoteSessionStatus.Idle)
+    }
+
+    @Test
+    fun videoAndStatisticsEventsUpdateTheActiveSessionWithoutReplacingItsStatus() = runTest {
+        val transport = FakeRemoteSessionTransport()
+        val workflow = RemoteSessionWorkflow(transport, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+        val request = request("session-1")
+        val statistics = RemoteSessionStatistics(framesPerSecond = 58, latencyMillis = 17, bitrateKbps = 12_400)
+        val videoSize = RemoteVideoSize(2560, 1440)
+        workflow.start(request)
+        transport.eventsFlow.emit(RemoteTransportEvent.Connected(request.id, capabilities()))
+        transport.eventsFlow.emit(RemoteTransportEvent.Statistics(request.id, statistics))
+        transport.eventsFlow.emit(RemoteTransportEvent.VideoSize(request.id, videoSize))
+        advanceUntilIdle()
+
+        assertEquals(RemoteSessionStatus.Connected(request, capabilities()), workflow.snapshot.value.status)
+        assertEquals(statistics, workflow.snapshot.value.statistics)
+        assertEquals(videoSize, workflow.snapshot.value.videoSize)
     }
 
     private fun request(id: String) = RemoteSessionRequest(

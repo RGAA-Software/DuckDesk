@@ -46,6 +46,16 @@ namespace px
         return buffer;
     }
 
+    std::shared_ptr<Data> ProtoMessageMaker::MakeTextInput(const std::string& text, const std::string& device_id, const std::string& stream_id) {
+        if (text.empty() || text.size() > 4096) return {};
+        px::Message message;
+        message.set_type(px::kTextInput);
+        message.set_device_id(device_id);
+        message.set_stream_id(stream_id);
+        message.mutable_text_input()->set_text(text);
+        return ProtoAsData(&message);
+    }
+
     std::shared_ptr<Data> ProtoMessageMaker::MakeChangeMonitor(int index, const std::string& name, const std::string& device_id, const std::string& stream_id) {
         px::Message m;
         m.set_type(px::kSwitchMonitor);

@@ -21,6 +21,8 @@ namespace px
         static std::shared_ptr<Data> MakeMouseEventFromTouch(int32_t event, const std::string& mon_name, float x_ratio, float y_ratio, const std::string& device_id,
                                                    const std::string& stream_id);
 
+        static std::shared_ptr<Data> MakeTextInput(const std::string& text, const std::string& device_id, const std::string& stream_id);
+
         // change monitor
         static std::shared_ptr<Data> MakeChangeMonitor(int index, const std::string& name, const std::string& device_id, const std::string& stream_id);
 

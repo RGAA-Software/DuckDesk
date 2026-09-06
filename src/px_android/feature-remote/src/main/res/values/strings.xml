@@ -4,5 +4,12 @@
     <string name="remote_stopping">Ending session…</string>
     <string name="remote_failed">The remote session ended.</string>
     <string name="remote_exit">End session</string>
+    <string name="remote_mute">Mute remote audio</string>
+    <string name="remote_unmute">Play remote audio</string>
+    <string name="remote_keyboard">Send text</string>
+    <string name="remote_text_title">Send text to the remote device</string>
+    <string name="remote_text_hint">Type or paste text</string>
+    <string name="remote_text_send">Send</string>
+    <string name="remote_text_cancel">Cancel</string>
     <string name="remote_statistics">%1$d fps · %2$d ms · %3$d kbps</string>
 </resources>

@@ -98,6 +98,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
     var remoteRequest by remember { mutableStateOf<RemoteSessionRequest?>(null) }
     var remoteRequestAwaitingLocalNetwork by remember { mutableStateOf<RemoteSessionRequest?>(null) }
     val idleRemoteSnapshot = remember { kotlinx.coroutines.flow.MutableStateFlow(RemoteSessionSnapshot()) }
+    val idleAudioEnabled = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
     DisposableEffect(context) {
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName, service: IBinder) {
@@ -304,11 +305,16 @@ fun PixelsApp(graph: PixelsAppGraph) {
             composable(REMOTE_ROUTE) {
                 val sessionFlow = remoteBinder?.snapshot ?: idleRemoteSnapshot
                 val snapshot by sessionFlow.collectAsStateWithLifecycle()
+                val audioEnabledFlow = remoteBinder?.audioEnabled ?: idleAudioEnabled
+                val audioEnabled by audioEnabledFlow.collectAsStateWithLifecycle()
                 RemoteWorkspaceScreen(
                     snapshot = snapshot,
+                    audioEnabled = audioEnabled,
                     onSurfaceAvailable = { surface -> remoteBinder?.attachSurface(surface) },
                     onSurfaceDestroyed = { remoteBinder?.detachSurface() },
                     onPointer = { action, xRatio, yRatio -> remoteBinder?.sendPointer(action, xRatio, yRatio) },
+                    onText = { text -> remoteBinder?.sendText(text) },
+                    onAudioEnabledChange = { enabled -> remoteBinder?.setAudioEnabled(enabled) },
                     onEndSession = {
                         remoteBinder?.stopSession()
                         navController.popBackStack()

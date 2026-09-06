@@ -78,6 +78,12 @@ sealed interface InputCommand {
             require(xRatio in 0f..1f && yRatio in 0f..1f) { "Pointer ratios must be normalized" }
         }
     }
+
+    data class Text(val value: String) : InputCommand {
+        init {
+            require(value.isNotEmpty() && value.encodeToByteArray().size <= 4096) { "Text input must contain 1 to 4096 UTF-8 bytes" }
+        }
+    }
 }
 
 fun interface InstallationIdentity {

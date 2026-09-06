@@ -134,6 +134,27 @@ jboolean NativeSendPointer(JNIEnv*, jobject, const jlong native_session_id, cons
     return session && session->SendPointer(action, x_ratio, y_ratio) ? JNI_TRUE : JNI_FALSE;
 }
 
+jboolean NativeSendText(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(gammaray-raw-pointer-boundary)
+                        const jbyteArray utf8_text) {
+    if (environment == nullptr || utf8_text == nullptr)
+        return JNI_FALSE;
+    const auto length = environment->GetArrayLength(utf8_text);
+    if (length <= 0 || length > 4096)
+        return JNI_FALSE;
+    std::string text(static_cast<std::size_t>(length), '\0');
+    environment->GetByteArrayRegion(utf8_text, 0, length,
+                                    reinterpret_cast<jbyte*>(text.data())); // NOLINT(gammaray-raw-pointer-boundary)
+    if (environment->ExceptionCheck())
+        return JNI_FALSE;
+    const auto session = Registry().Find(native_session_id);
+    return session && session->SendText(text) ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean NativeSetAudioEnabled(JNIEnv*, jobject, const jlong native_session_id, const jboolean enabled) { // NOLINT(gammaray-raw-pointer-boundary)
+    const auto session = Registry().Find(native_session_id);
+    return session && session->SetAudioEnabled(enabled == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
+}
+
 void NativeStop(JNIEnv*, jobject, const jlong native_session_id) { // NOLINT(gammaray-raw-pointer-boundary)
     if (const auto session = Registry().Remove(native_session_id)) {
         session->Stop();
@@ -166,6 +187,8 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) { // NOLINT(gamm
         {const_cast<char*>("replaceSurface"), const_cast<char*>("(JLandroid/view/Surface;)Z"),
          reinterpret_cast<void*>(pixels::android::NativeReplaceSurface)},
         {const_cast<char*>("sendPointer"), const_cast<char*>("(JIFF)Z"), reinterpret_cast<void*>(pixels::android::NativeSendPointer)},
+        {const_cast<char*>("sendText"), const_cast<char*>("(J[B)Z"), reinterpret_cast<void*>(pixels::android::NativeSendText)},
+        {const_cast<char*>("setAudioEnabled"), const_cast<char*>("(JZ)Z"), reinterpret_cast<void*>(pixels::android::NativeSetAudioEnabled)},
         {const_cast<char*>("stop"), const_cast<char*>("(J)V"), reinterpret_cast<void*>(pixels::android::NativeStop)},
     };
     const auto result = environment->RegisterNatives(bridge_class, methods, std::size(methods));

@@ -7,6 +7,9 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Binder
 import android.os.IBinder
 import android.view.Surface
@@ -17,6 +20,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.MutableStateFlow
 import yun.pixels.client.MainActivity
 import yun.pixels.client.PixelsApplication
 import yun.pixels.client.R
@@ -28,6 +32,7 @@ import yun.pixels.client.core.domain.session.RemoteSessionWorkflow
 import yun.pixels.client.core.domain.session.InputCommand
 import yun.pixels.client.core.domain.session.PointerAction
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 
 class RemoteSessionService : Service() {
@@ -37,10 +42,27 @@ class RemoteSessionService : Service() {
     private val localBinder = LocalBinder()
     private var preparedRequest: RemoteSessionRequest? = null
     private var foregroundStarted = false
+    private lateinit var audioManager: AudioManager
+    private var audioFocusRequest: AudioFocusRequest? = null
+    private var hasAudioFocus = false
+    private var userWantsAudio = true
+    private val mutableAudioEnabled = MutableStateFlow(false)
+    private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        hasAudioFocus = focusChange == AudioManager.AUDIOFOCUS_GAIN
+        if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+            audioFocusRequest?.let(audioManager::abandonAudioFocusRequest)
+            audioFocusRequest = null
+        }
+        mutableAudioEnabled.value = userWantsAudio && hasAudioFocus
+        currentRequest()?.let { request ->
+            serviceScope.launch { transport.setAudioEnabled(request.id, mutableAudioEnabled.value) }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
         val graph = (application as PixelsApplication).graph
+        audioManager = getSystemService(AudioManager::class.java)
         transport = NativeRemoteSessionTransport(graph.installationIdentity, serviceScope)
         workflow = RemoteSessionWorkflow(transport, serviceScope)
         createNotificationChannel()
@@ -64,14 +86,18 @@ class RemoteSessionService : Service() {
 
     override fun onDestroy() {
         runBlocking { workflow.close() }
+        abandonAudioFocus()
         serviceScope.cancel()
         super.onDestroy()
     }
 
     private fun prepare(request: RemoteSessionRequest) {
         preparedRequest = request
+        userWantsAudio = request.enableAudio
+        if (request.enableAudio) requestAudioFocus() else abandonAudioFocus()
+        mutableAudioEnabled.value = request.enableAudio && hasAudioFocus
         startService(Intent(this, RemoteSessionService::class.java))
-        startForegroundSession(request.target.displayName)
+        startForegroundSession(request.target.displayName, request.enableAudio)
     }
 
     private fun attachSurface(surface: Surface) {
@@ -79,6 +105,7 @@ class RemoteSessionService : Service() {
         serviceScope.launch {
             transport.attachSurface(request.id, surface)
             workflow.start(request)
+            transport.setAudioEnabled(request.id, mutableAudioEnabled.value)
         }
     }
 
@@ -94,10 +121,27 @@ class RemoteSessionService : Service() {
         }
     }
 
+    private fun sendText(text: String) {
+        val request = currentRequest() ?: return
+        val command = runCatching { InputCommand.Text(text) }.getOrNull() ?: return
+        serviceScope.launch { transport.sendInput(request.id, command) }
+    }
+
+    private fun setAudioEnabled(enabled: Boolean) {
+        userWantsAudio = enabled
+        if (enabled) requestAudioFocus() else abandonAudioFocus()
+        mutableAudioEnabled.value = enabled && hasAudioFocus
+        currentRequest()?.let { request ->
+            serviceScope.launch { transport.setAudioEnabled(request.id, mutableAudioEnabled.value) }
+        }
+    }
+
     private fun stopSession() {
         preparedRequest = null
         serviceScope.launch {
             workflow.stop()
+            abandonAudioFocus()
+            mutableAudioEnabled.value = false
             if (foregroundStarted) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 foregroundStarted = false
@@ -115,10 +159,33 @@ class RemoteSessionService : Service() {
         is RemoteSessionStatus.Failed -> status.request
     }
 
-    private fun startForegroundSession(deviceName: String) {
+    private fun startForegroundSession(deviceName: String, withAudio: Boolean) {
         val notification = createNotification(deviceName)
-        startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+        val serviceTypes = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or
+            if (withAudio) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK else 0
+        startForeground(NOTIFICATION_ID, notification, serviceTypes)
         foregroundStarted = true
+    }
+
+    private fun requestAudioFocus() {
+        if (audioFocusRequest != null) return
+        val attributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_GAME)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+            .build()
+        val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(attributes)
+            .setAcceptsDelayedFocusGain(true)
+            .setOnAudioFocusChangeListener(audioFocusListener)
+            .build()
+        audioFocusRequest = request
+        hasAudioFocus = audioManager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
+
+    private fun abandonAudioFocus() {
+        audioFocusRequest?.let(audioManager::abandonAudioFocusRequest)
+        audioFocusRequest = null
+        hasAudioFocus = false
     }
 
     private fun createNotification(deviceName: String): Notification {
@@ -154,6 +221,9 @@ class RemoteSessionService : Service() {
         val snapshot: StateFlow<RemoteSessionSnapshot>
             get() = workflow.snapshot
 
+        val audioEnabled: StateFlow<Boolean>
+            get() = mutableAudioEnabled.asStateFlow()
+
         fun prepare(request: RemoteSessionRequest) = this@RemoteSessionService.prepare(request)
 
         fun attachSurface(surface: Surface) = this@RemoteSessionService.attachSurface(surface)
@@ -162,6 +232,10 @@ class RemoteSessionService : Service() {
 
         fun sendPointer(action: PointerAction, xRatio: Float, yRatio: Float) =
             this@RemoteSessionService.sendPointer(action, xRatio, yRatio)
+
+        fun sendText(text: String) = this@RemoteSessionService.sendText(text)
+
+        fun setAudioEnabled(enabled: Boolean) = this@RemoteSessionService.setAudioEnabled(enabled)
 
         fun stopSession() = this@RemoteSessionService.stopSession()
     }

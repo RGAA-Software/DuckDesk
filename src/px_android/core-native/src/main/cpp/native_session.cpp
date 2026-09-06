@@ -1,7 +1,10 @@
 #include "native_session.h"
 
+#include "native_audio_player.h"
+
 #include <android/native_window_jni.h>
 
+#include <chrono>
 #include <format>
 #include <functional>
 #include <utility>
@@ -9,10 +12,12 @@
 #include "px_client_sdk/gl/raw_image.h"
 #include "px_client_sdk/sdk_decoder_render_type.h"
 #include "px_client_sdk/sdk_params.h"
+#include "px_client_sdk/sdk_statistics.h"
 #include "px_client_sdk/sdk_messages.h"
 #include "px_client_sdk/thunder_sdk.h"
 #include "px_common/md5.h"
 #include "px_common/message_notifier.h"
+#include "px_common/time_util.h"
 #include "px_message/proto_message_maker.h"
 
 namespace pixels::android {
@@ -111,6 +116,24 @@ void JavaSessionCallback::FrameSizeChanged(const std::string& session_id, const 
     });
 }
 
+void JavaSessionCallback::Statistics(const std::string& session_id, const std::int32_t frames_per_second, const std::int32_t latency_millis,
+                                     const std::int32_t bitrate_kbps) const {
+    const auto listener_handle = listener_handle_;
+    WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
+        const auto listener = reinterpret_cast<jobject>(listener_handle);
+        const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
+        const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
+        const auto method = environment.GetMethodID(listener_class, "onStatistics", "(Ljava/lang/String;III)V");
+        const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
+        if (method != nullptr && session_id_handle != 0U) {
+            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), frames_per_second, latency_millis,
+                                       bitrate_kbps);
+        }
+        DeleteLocalReference(environment, session_id_handle);
+        DeleteLocalReference(environment, listener_class_handle);
+    });
+}
+
 void JavaSessionCallback::Disconnected(const std::string& session_id, const std::int32_t reason, const bool recoverable) const {
     const auto listener_handle = listener_handle_;
     WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
@@ -144,7 +167,8 @@ std::shared_ptr<NativeSession> NativeSession::Create(NativeSessionConfig config,
 
 NativeSession::NativeSession(NativeSessionConfig config, std::shared_ptr<JavaSessionCallback> callback,
                              std::unique_ptr<ANativeWindow, NativeWindowReleaser> surface)
-    : config_(std::move(config)), callback_(std::move(callback)), surface_(std::move(surface)) {}
+    : config_(std::move(config)), callback_(std::move(callback)), surface_(std::move(surface)), audio_player_(std::make_unique<NativeAudioPlayer>()) {
+}
 
 NativeSession::~NativeSession() {
     Stop();
@@ -161,7 +185,7 @@ bool NativeSession::Initialize() {
     session_listener_ = message_notifier_->CreateListener(px::MessageExecutionLane::kControl);
     auto params = std::make_shared<px::ThunderSdkParams>();
     params->ssl_ = config_.ssl;
-    params->enable_audio_ = false;
+    params->enable_audio_ = config_.enable_audio;
     params->enable_video_ = config_.enable_video;
     params->enable_controller_ = config_.enable_input;
     params->file_transfer_only_ = false;
@@ -216,6 +240,13 @@ bool NativeSession::Initialize() {
             self->callback_->Disconnected(self->config_.session_id, 2, false);
         }
     });
+
+    initialized_ = sdk_->Init(params, reinterpret_cast<void*>(surface_.get()), DecoderRenderType::kMediaCodecSurface);
+    if (!initialized_)
+        return false;
+    statistics_ = px::SdkStatistics::Instance();
+    last_received_bytes_ = statistics_->recv_data_size_.load();
+
     sdk_->SetOnServerConfigurationCallback([weak_self](std::shared_ptr<px::Message> message) {
         const auto self = weak_self.lock();
         if (!self || !message || self->stopped_.load()) {
@@ -226,18 +257,59 @@ bool NativeSession::Initialize() {
             std::lock_guard lock(self->lifecycle_mutex_);
             self->active_monitor_name_ = server_config.capturing_monitor_name();
         }
-        self->callback_->Connected(self->config_, server_config.capturing_monitor_name(), false, self->config_.enable_input, false, false);
+        self->callback_->Connected(self->config_, server_config.capturing_monitor_name(), self->config_.enable_audio, self->config_.enable_input,
+                                   false, false);
+    });
+    sdk_->SetOnHeartBeatCallback([weak_self](std::shared_ptr<px::Message> message) {
+        const auto self = weak_self.lock();
+        if (!self || !message || !message->has_on_heartbeat() || self->stopped_.load())
+            return;
+        const auto sent_at = message->on_heartbeat().timestamp();
+        const auto received_at = px::TimeUtil::GetCurrentTimestamp();
+        self->latest_latency_millis_.store(received_at >= sent_at ? static_cast<std::int32_t>(received_at - sent_at) : 0);
     });
     sdk_->SetOnVideoFrameDecodedCallback([weak_self](std::shared_ptr<px::RawImage> image, const px::SdkCaptureMonitorInfo&) {
         const auto self = weak_self.lock();
         if (!self || !image || self->stopped_.load()) {
             return;
         }
-        self->callback_->FrameSizeChanged(self->config_.session_id, image->img_width, image->img_height);
+        bool size_changed{};
+        bool statistics_due{};
+        std::int32_t frames_per_second{};
+        std::int32_t bitrate_kbps{};
+        {
+            std::lock_guard state_lock(self->lifecycle_mutex_);
+            size_changed = self->last_video_width_ != image->img_width || self->last_video_height_ != image->img_height;
+            self->last_video_width_ = image->img_width;
+            self->last_video_height_ = image->img_height;
+            ++self->decoded_frames_in_window_;
+            const auto now = std::chrono::steady_clock::now();
+            const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - self->statistics_window_started_).count();
+            if (elapsed >= 1'000) {
+                frames_per_second = static_cast<std::int32_t>((self->decoded_frames_in_window_ * 1'000) / elapsed);
+                const auto received_bytes = self->statistics_->recv_data_size_.load();
+                const auto received_delta = received_bytes >= self->last_received_bytes_ ? received_bytes - self->last_received_bytes_ : 0;
+                bitrate_kbps = static_cast<std::int32_t>((received_delta * 8) / elapsed);
+                self->last_received_bytes_ = received_bytes;
+                self->decoded_frames_in_window_ = 0;
+                self->statistics_window_started_ = now;
+                statistics_due = true;
+            }
+        }
+        if (size_changed)
+            self->callback_->FrameSizeChanged(self->config_.session_id, image->img_width, image->img_height);
+        if (statistics_due) {
+            self->callback_->Statistics(self->config_.session_id, frames_per_second, self->latest_latency_millis_.load(), bitrate_kbps);
+        }
     });
+    sdk_->SetOnAudioFrameDecodedCallback(
+        [weak_self](const std::shared_ptr<px::Data>& pcm, const int sample_rate, const int channels, const int bits_per_sample) {
+            if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
+                static_cast<void>(self->audio_player_->Write(pcm, sample_rate, channels, bits_per_sample));
+            }
+        });
 
-    initialized_ = sdk_->Init(params, reinterpret_cast<void*>(surface_.get()), DecoderRenderType::kMediaCodecSurface);
-    return initialized_;
+    return true;
 }
 
 bool NativeSession::Start() {
@@ -299,6 +371,30 @@ bool NativeSession::SendPointer(const std::int32_t action, const float x_ratio, 
     return true;
 }
 
+bool NativeSession::SendText(const std::string& text) {
+    std::lock_guard command_lock(command_mutex_);
+    std::shared_ptr<px::ThunderSdk> sdk;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (stopped_.load() || !started_ || !config_.enable_input || !sdk_)
+            return false;
+        sdk = sdk_;
+    }
+    const auto message = px::ProtoMessageMaker::MakeTextInput(text, client_signal_device_id_, config_.stream_id);
+    if (!message)
+        return false;
+    sdk->PostMediaMessage(message);
+    return true;
+}
+
+bool NativeSession::SetAudioEnabled(const bool enabled) {
+    std::lock_guard command_lock(command_mutex_);
+    if (stopped_.load() || !audio_player_)
+        return false;
+    audio_player_->SetEnabled(enabled && config_.enable_audio);
+    return true;
+}
+
 void NativeSession::Stop() {
     std::lock_guard command_lock(command_mutex_);
     if (stopped_.exchange(true)) {
@@ -317,6 +413,7 @@ void NativeSession::Stop() {
     }
     if (sdk)
         sdk->Exit();
+    audio_player_->Stop();
 }
 
 } // namespace pixels::android

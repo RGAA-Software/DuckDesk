@@ -17,6 +17,7 @@ import yun.pixels.client.core.domain.session.RemoteSessionCapabilities
 import yun.pixels.client.core.domain.session.RemoteSessionFailure
 import yun.pixels.client.core.domain.session.RemoteSessionId
 import yun.pixels.client.core.domain.session.RemoteSessionRequest
+import yun.pixels.client.core.domain.session.RemoteSessionStatistics
 import yun.pixels.client.core.domain.session.RemoteSessionTarget
 import yun.pixels.client.core.domain.session.RemoteSessionTransport
 import yun.pixels.client.core.domain.session.RemoteTransportEvent
@@ -87,7 +88,15 @@ class NativeRemoteSessionTransport(
             is InputCommand.Pointer -> withContext(Dispatchers.IO) {
                 PixelsNativeBridge.sendPointer(nativeSessionId, command.action.nativeValue, command.xRatio, command.yRatio)
             }
+            is InputCommand.Text -> withContext(Dispatchers.IO) {
+                PixelsNativeBridge.sendText(nativeSessionId, command.value.encodeToByteArray())
+            }
         }
+    }
+
+    suspend fun setAudioEnabled(sessionId: RemoteSessionId, enabled: Boolean): Boolean {
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        return withContext(Dispatchers.IO) { PixelsNativeBridge.setAudioEnabled(nativeSessionId, enabled) }
     }
 
     override fun onConnected(
@@ -122,6 +131,21 @@ class NativeRemoteSessionTransport(
         }
     }
 
+    override fun onStatistics(sessionId: String, framesPerSecond: Int, latencyMillis: Int, bitrateKbps: Int) {
+        callbackScope.launch {
+            mutableEvents.emit(
+                RemoteTransportEvent.Statistics(
+                    sessionId = RemoteSessionId(sessionId),
+                    value = RemoteSessionStatistics(
+                        framesPerSecond = framesPerSecond.coerceAtLeast(0),
+                        latencyMillis = latencyMillis.coerceAtLeast(0),
+                        bitrateKbps = bitrateKbps.coerceAtLeast(0),
+                    ),
+                ),
+            )
+        }
+    }
+
     override fun onDisconnected(sessionId: String, reason: Int, recoverable: Boolean) {
         callbackScope.launch {
             mutableEvents.emit(
@@ -137,16 +161,21 @@ class NativeRemoteSessionTransport(
 
 private fun RemoteSessionRequest.toNativeConfig(clientDeviceId: String): NativeSessionConfig? {
     val endpoint = when (val sessionTarget = target) {
-        is RemoteSessionTarget.Direct -> NativeEndpoint(
-            host = sessionTarget.device.endpoint.host,
-            port = sessionTarget.device.endpoint.renderPort,
-            ssl = false,
-            remoteDeviceId = sessionTarget.device.id.value,
-            streamId = id.value,
-            randomPassword = sessionTarget.credential.orEmpty(),
-        )
+        is RemoteSessionTarget.Direct -> {
+            val directEndpoint = sessionTarget.device.endpoint
+            if (!directEndpoint.host.isPrivateOrCarrierGradeAddress() || directEndpoint.renderPort !in 1..65535) return null
+            NativeEndpoint(
+                host = directEndpoint.host,
+                port = directEndpoint.renderPort,
+                ssl = false,
+                remoteDeviceId = sessionTarget.device.id.value,
+                streamId = id.value,
+                randomPassword = sessionTarget.credential.orEmpty(),
+            )
+        }
         is RemoteSessionTarget.Account -> sessionTarget.connectionTicket.toNativeEndpoint(sessionTarget.device.deviceId) ?: return null
     }
+    if (endpoint.remoteDeviceId.isBlank() || endpoint.streamId.isBlank() || clientDeviceId.isBlank()) return null
     val accountTarget = target as? RemoteSessionTarget.Account
     return NativeSessionConfig(
         sessionId = id.value,
