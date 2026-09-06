@@ -631,6 +631,11 @@ SHA-256 发布清单，以及应用内隐私、完整第三方许可证和主动
   类型只有声明但缺少对应 protobuf body 的消息会被拒绝。Kotlin 协议测试、Android 全套单元测试与 lint、arm64 C++ 构建和所有权门禁通过；同一真机覆盖安装后
   冷启动 2.419 秒，新增 JNI 注册全部加载且无 Java/JNI/native fatal，APK SHA-256 为 `F0514FC6B74F8C17D269887C44D447D5969DFCB922186BED2ECEDC00AE72A0F4`。
   手机尚未登录 Console，真实 RTC 剪贴板收发仍纳入登录后的网络矩阵。
+- 2026-09-07 页面返回责任进一步收敛到各目的地内部，避免外层 `BackHandler` 与 `NavHost` 同时争用系统返回事件：应用页明确回设备根页，传输/设置根页回设备，
+  会话文件根页回远控工作区；文件目录、对话框和远控工具面板仍由更内层组件优先消费返回。Tab 跳转按当前栏目判定，重复点击当前栏在子页时只回本栏根页，跨栏切换清理旧详情。
+  Android 全套单元测试、lint、arm64 debug native 和 APK 构建通过；Xiaomi 22021211RC 使用 `adb install -r -d` 覆盖安装后，完成重复点当前 Tab、设置/传输返回、
+  跨栏切换和 12 次快速切换，UI 层级中始终只有当前页面且无 Java/JNI/native fatal。冷启动 2.400 秒，APK SHA-256 为
+  `C2EB2AEA3261A54982103CAD01199DF0EA8F9F060C882E692AEC8649D7AA42B8`。
 
 这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径、物理显示器切换和虚拟显示失败反馈；
 后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁，M5 轮次关闭了 UDP Direct 协商、WebSocket 安全回退、有界重连和 H.264 首帧解析门禁。

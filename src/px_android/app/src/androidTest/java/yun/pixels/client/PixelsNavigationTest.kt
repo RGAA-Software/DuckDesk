@@ -26,7 +26,11 @@ class PixelsNavigationTest {
         composeRule.onNodeWithText(devicesContent).fetchSemanticsNode()
         composeRule.onNodeWithText(settingsTab).performClick()
         composeRule.onNodeWithText(settingsContent).fetchSemanticsNode()
+        composeRule.onNodeWithText(settingsTab).performClick()
+        composeRule.onNodeWithText(settingsContent).fetchSemanticsNode()
 
+        composeRule.onNodeWithText(transfersTab).performClick()
+        composeRule.onNodeWithText(transfersContent).fetchSemanticsNode()
         composeRule.onNodeWithText(transfersTab).performClick()
         composeRule.onNodeWithText(transfersContent).fetchSemanticsNode()
 

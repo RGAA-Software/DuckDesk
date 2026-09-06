@@ -274,18 +274,6 @@ fun PixelsApp(graph: PixelsAppGraph) {
         }
     }
 
-    BackHandler(
-        enabled = currentRoute == REMOTE_TRANSFERS_ROUTE,
-    ) {
-        navController.returnToRemoteWorkspace()
-    }
-
-    BackHandler(
-        enabled = currentRoute == currentTopLevelDestination?.route && currentTopLevelDestination != TopLevelDestination.Devices,
-    ) {
-        navController.resetToDevices()
-    }
-
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
@@ -388,6 +376,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     )
             }
             composable(APPLICATIONS_ROUTE) {
+                    BackHandler { navController.resetToDevices() }
                     ApplicationLibraryScreen(
                         state = applicationLibraryState,
                         onBack = { navController.resetToDevices() },
@@ -398,6 +387,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     )
             }
             composable(TopLevelDestination.Transfers.route) {
+                    BackHandler { navController.resetToDevices() }
                     TransferRoute(
                         remoteBinder = remoteBinder,
                         idleFileTransferTasks = idleFileTransferTasks,
@@ -415,6 +405,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     )
             }
             composable(TopLevelDestination.Settings.route) {
+                    BackHandler { navController.resetToDevices() }
                     SettingsScreen(
                         state = settingsState,
                         appVersion = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
@@ -479,6 +470,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                 )
             }
             composable(REMOTE_TRANSFERS_ROUTE) {
+                BackHandler { navController.returnToRemoteWorkspace() }
                 TransferRoute(
                     remoteBinder = remoteBinder,
                     idleFileTransferTasks = idleFileTransferTasks,
@@ -539,7 +531,13 @@ private fun TransferRoute(
 }
 
 private fun NavHostController.selectTopLevel(destination: TopLevelDestination) {
-    if (currentDestination?.route == destination.route) return
+    val currentSection = currentDestination?.route.toTopLevelDestination()
+    if (currentSection == destination) {
+        if (currentDestination?.route != destination.route) {
+            popBackStack(destination.route, inclusive = false)
+        }
+        return
+    }
     navigate(destination.route) {
         popUpTo(TopLevelDestination.Devices.route) { inclusive = false }
         launchSingleTop = true
@@ -561,12 +559,18 @@ private fun NavHostController.leaveRemoteSession() {
 
 private fun NavHostController.resetToDevices() {
     if (currentDestination?.route == TopLevelDestination.Devices.route) return
+    if (popBackStack(TopLevelDestination.Devices.route, inclusive = false)) return
     navigate(TopLevelDestination.Devices.route) {
-        popUpTo(graph.id) { inclusive = false }
+        popUpTo(graph.id)
         launchSingleTop = true
     }
 }
 
 private fun NavHostController.returnToRemoteWorkspace() {
     if (!popBackStack(REMOTE_ROUTE, inclusive = false)) navigateToRemote()
+}
+
+private fun String?.toTopLevelDestination(): TopLevelDestination? = when (this) {
+    APPLICATIONS_ROUTE -> TopLevelDestination.Devices
+    else -> TopLevelDestination.entries.firstOrNull { destination -> destination.route == this }
 }
