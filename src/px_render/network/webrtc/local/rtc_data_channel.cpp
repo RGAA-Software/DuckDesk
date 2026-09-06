@@ -40,6 +40,7 @@ void RtcDataChannel::OnStateChange() {
             if (!rtc_server) {
                 return;
             }
+            rtc_server->OnMediaDataChannelOpened();
             // 与断开事件保持一致:stream_id/visitor_device_id 都用真实访客
             // stream id(信令传入),不用 datachannel 内部 UUID——否则按 id
             // 键控的插件(media_recorder/ft/joystick)连接与断开永远配不上对。

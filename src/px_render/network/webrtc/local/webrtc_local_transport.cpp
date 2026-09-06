@@ -66,11 +66,14 @@ void WebRtcLocalRuntime::DispatchClientEvent(bool direct, const TransportChannel
 
 void WebRtcLocalRuntime::NotifyTerminal(const std::string& conn_id, const std::shared_ptr<RtcServer>& target) {
     LOGW("Rtc server terminal notified, conn_id: {}, will be swept.", conn_id);
-    servers.Apply(conn_id, [target](const std::shared_ptr<RtcServer>& server) {
-        if (server == target) {
-            server->RequestExit();
-        }
-    });
+    // Terminal detection commonly runs while servers.ApplyAll() owns the
+    // registry lock. Re-entering the registry here deadlocks the WebRTC
+    // periodic task before SweepDeadRtcServers can reclaim the session.
+    // Marking the exact instance is sufficient; RemoveIf in the sweeper
+    // already protects a replacement stored under the same connection id.
+    if (target) {
+        target->RequestExit();
+    }
 }
 
 std::vector<CaptureMonitorInfo> WebRtcLocalRuntime::GetRtcTrackMonitors() {

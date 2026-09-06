@@ -8,6 +8,7 @@
 #include "px_webrtc_client/webrtc_helper.h"
 #include "px_common/rtc_monitor_track_slots.h"
 #include "px_render/network/webrtc/webrtc_transport_types.h"
+#include "rtc_heartbeat_watchdog.h"
 #include <algorithm>
 #include <mutex>
 #include <span>
@@ -56,7 +57,7 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
     void OnRemoteIce(const std::string& ice, const std::string& mid, int sdp_mline_index);
     bool IsDataChannelConnected();
     bool IsFtDataChannelConnected();
-    bool IsMediaConsumerActive() const;
+    bool IsMediaConsumerActive();
     bool IsWallObserver() const {
         return wall_observer_;
     }
@@ -128,6 +129,8 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
     [[nodiscard]] std::shared_ptr<FileTransferWritableSignal> AcquireFtWritableSignal();
 
     void On100msTimeout();
+    void OnMediaDataChannelOpened();
+    void OnClientHeartbeat();
 
     void QueueEvent(WebRtcEvent event) const;
     void RequestEncodedIdr(const std::string& mon_name);
@@ -170,6 +173,7 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
     // 远端音频轨(浏览器麦克风上行):挂 PCM sink,经 WASAPI 播放
     void OnRemoteAudioTrack(rtc::scoped_refptr<webrtc::AudioTrackInterface> track);
     void OnRemoteAudioTrackRemoved(rtc::scoped_refptr<webrtc::AudioTrackInterface> track);
+    bool ExpireIfHeartbeatTimedOut(int64_t now_ms);
 
   private:
     std::shared_ptr<WebRtcLocalRuntime> runtime_;
@@ -231,6 +235,12 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
     // so expire incomplete observers explicitly instead of leaking one of
     // the bounded observer slots forever.
     static constexpr int64_t kWallObserverConnectTimeoutMs = 15000;
+    // Direct RTC uses the application heartbeat as an independent liveness
+    // signal because libwebrtc may retain ICE/DataChannel "connected" after
+    // an abruptly terminated client. Standard RTC arms this only after it
+    // observes a heartbeat, preserving browser clients that currently use
+    // Relay signaling heartbeats instead of media-channel heartbeats.
+    RtcHeartbeatWatchdog heartbeat_watchdog_{};
     // 断开事件去重:见 EmitClientDisconnectedEvent
     std::atomic_bool disconnect_event_sent_ = false;
 

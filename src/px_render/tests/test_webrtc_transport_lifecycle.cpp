@@ -120,6 +120,28 @@ TEST(WebRtcTransportLifecycle, ExecutionContextCanStopFromItsEventCallback) {
     runtime->Join();
 }
 
+TEST(WebRtcTransportLifecycle, ImmediateTerminalEventCanStopFromItsCallback) {
+    const auto runtime = PxAsyncRuntime::Create({.worker_threads = 1});
+    ASSERT_TRUE(runtime->Start());
+    auto context = WebRtcExecutionContext::Create(runtime, "webrtc-immediate-terminal-test");
+    ASSERT_TRUE(context);
+    const auto delivered = std::make_shared<std::atomic_bool>(false);
+    const auto weak_context = std::weak_ptr<WebRtcExecutionContext>(context);
+    context->SetEventCallback([weak_context, delivered](const WebRtcEvent&) {
+        delivered->store(true, std::memory_order_release);
+        if (const auto locked = weak_context.lock()) {
+            locked->BeginStop();
+        }
+    });
+
+    context->Publish(WebRtcClientDisconnectedEvent{}, true);
+    EXPECT_TRUE(delivered->load(std::memory_order_acquire));
+    EXPECT_TRUE(context->StopAndWait(2s));
+    context.reset();
+    runtime->RequestDrain();
+    runtime->Join();
+}
+
 TEST(WebRtcTransportLifecycle, QueuedEventsAreSafeWhenCallbackIsUnregisteredDuringStop) {
     const auto runtime = PxAsyncRuntime::Create({.worker_threads = 1});
     ASSERT_TRUE(runtime->Start());

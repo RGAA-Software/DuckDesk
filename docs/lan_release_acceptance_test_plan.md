@@ -1,9 +1,19 @@
 # 本机与 90 号机发布验收测试计划
 
-> 状态：当前局域网交付门禁 PASS（2026-08-26）。L0/L1 核心门禁、LAN Standard/Host、TURN/UDP、TURN/TCP、WebClient 虚拟显示器闭环和 R90 STAB-01 10/10 已完成；真实公网项仍为 BLOCKED-ENV。
+> 当前执行决策（2026-09-05）：针对 `4d1c89a06` 所代表的 Client/Render/Common/网络与逻辑会话大修改，重新执行一次完整功能回归。测试顺序改为功能优先；先验证所有产品功能，再执行短时故障、性能和稳定性检查。任何单个测试场景、连续压力窗口或故障循环总时长不得超过 10 分钟，不再安排 30 分钟、2 小时、8 小时或跨夜测试。整套回归可以由多个彼此隔离、各自不超过 10 分钟的短用例组成。
+>
+> 历史状态：2026-08-26 的局域网交付门禁曾通过。该结果只作为旧版本基线，不替代 2026-09-05 大修改后的重新验收；真实公网项仍为 BLOCKED-ENV。
 > 适用范围：当前没有公网/异运营商环境时的提交门禁、局域网发布候选验收和故障回归
 > 测试拓扑：开发机作为主控与 Console/Coturn 节点，10.0.0.90 作为被控 Windows 实机
 > 结论边界：本计划通过后可声明“功能、安全、生命周期、LAN TURN 和受控故障验收完成”，不得声明真实公网、对称 NAT 或跨运营商验收完成。
+
+### 本轮功能优先顺序
+
+1. 先完成构建、静态门禁、产物发布和两机 SHA-256 一致性检查。
+2. 再依次验证连接与鉴权、逻辑会话、视频、音频、输入、剪贴板、文件传输、录制、语音、虚拟显示器、游戏、WebView、Console 监控与审计。
+3. 所有功能基线通过后，才执行组件重启、网络阻断、弱网、并发、资源压力和重复生命周期。
+4. 任一功能失败时保存证据并停止依赖该功能的后续故障测试；不得用压力或重试结果覆盖功能失败。
+5. 每个 E2E 或故障用例设置不超过 10 分钟的硬超时，超时即 FAIL；测试清理也必须在该用例的 finally 路径中完成。
 
 ### 稳定性测试轮次规范
 
@@ -12,6 +22,7 @@
 - 整体集成测试、发布候选（RC）、最终验收以及稳定性相关修改完成后，同样执行
   10 轮连续连接/退出测试；门禁为 `10/10 PASS`。原 100 轮门禁已于
   2026-08-26 由项目负责人取消。
+- 10 轮必须设计成快速、独立的生命周期检查，整组不超过 10 分钟；不能通过拉长单轮等待模拟长稳。
 - 任一轮失败都必须保留失败阶段和证据，查明原因后重新取得完整的干净
   `10/10` 结果，不能只补跑失败轮次后累计为通过。
 - 每轮均使用新的一次性 ticket，并验证 RTC 连接终态、真实画面/分辨率、视频
@@ -35,7 +46,7 @@
 | TURN/TCP回退 | PASS | API仍下发UDP+TCP，服务端关闭UDP listener；自动选中relay/TCP；6秒解码+30帧；RTT 1 ms；0丢包/冻结 |
 | 虚拟显示器WebClient | PASS | 1屏→2屏、采集新增屏、切回物理屏、删除后恢复1屏；五阶段均持续解码 |
 | STAB-01 连续连接/退出 | PASS：本机10/10、R90 10/10 | 修正后的稳定性判据接受任意有效selected pair，host/TURN类型由独立用例断言；资源清理为0。历史100轮仅保留为诊断证据，不是当前门禁。 |
-| STAB-04/05/06 长稳、断网耐久、跨夜 | OPTIONAL / NOT-RUN | 项目负责人于2026-08-26确认当前完整稳定性门禁为10轮。这三项保留为扩展质量压测，不阻止本轮局域网交付，也不得被写成已通过。 |
+| STAB-04/05/06 短时综合、断网恢复、重复生命周期 | 待本轮重测 | 2026-09-05 起统一改为每项不超过 10 分钟；历史长稳、跨夜方案不再执行。 |
 | 自动Direct、Direct失败回退、ICE restart、音频/输入/剪贴板/文件、Service重启 | PASS | 详见 `docs/webrtc_rtc_acceptance_report_20260824.md` 与最终验收报告 |
 | 不同公网/NAT、对称NAT、公网443/TLS | BLOCKED-ENV | 当前没有公网环境，不以LAN仿真冒充通过 |
 
@@ -284,7 +295,7 @@ RTC-LAN-02、03、04各执行核心功能；RTC-LAN-03执行完整集合。
 | VOICE-E2E-09 | Panel/Render退出 | 对端结束并释放麦克风 |
 | VOICE-E2E-10 | 原生客户端 | 呼叫、静音、挂断、设备选择全流程 |
 | VOICE-E2E-11 | 虚拟屏拓扑变化 | 无假Connected或残留开麦 |
-| VOICE-E2E-12 | 2小时真实端点 | 包数增长，资源和队列不越界 |
+| VOICE-E2E-12 | 10分钟真实端点综合检查 | 包数持续增长，资源和队列不越界，结束后设备释放 |
 
 双物理终端外放AEC、ERLE、双讲和主观音质仍是实验室设备门禁。
 
@@ -342,7 +353,7 @@ RTC-LAN-02、03、04各执行核心功能；RTC-LAN-03执行完整集合。
 | WV-09 | renderer/GPU crash | 有界恢复或明确Failed |
 | WV-10 | Service/Console重启 | 状态收敛，profile lock和子进程回收 |
 | WV-11 | 权限拒绝 | 摄像头、麦克风、文件选择按范围拒绝 |
-| WV-12 | 30分钟稳定性 | FPS、输入p95和资源不持续恶化 |
+| WV-12 | 10分钟稳定性 | FPS、输入p95和资源不持续恶化 |
 
 不在产品范围的多点触控或虚拟剪贴板标为 N/A-by-design，不记为PASS。
 
@@ -430,25 +441,25 @@ Console重命名采用断代策略，不测试旧数据迁移：
 | STAB-01 | 连续连接退出 | 10轮 | 10/10成功，无session/room/allocation增长 |
 | STAB-02 | 多浏览器并发 | 10上下文 | 不串票、不串画面、权限正确 |
 | STAB-03 | TURN端口耗尽 | 4至8个relay端口并超额建连 | 超额明确失败，释放后恢复 |
-| STAB-04 | 全功能长稳（可选扩展压测） | 2小时 | 视频/音频/输入/文件并行稳定 |
-| STAB-05 | 断网恢复耐久（可选扩展压测） | 每10分钟断15秒，共20轮 | 每轮恢复，无重连风暴 |
-| STAB-06 | 跨夜（可选扩展压测） | 8至12小时 | 无崩溃、黑屏或资源持续增长 |
+| STAB-04 | 全功能短时综合 | 10分钟 | 视频、音频、输入、剪贴板、文件和录制并行稳定 |
+| STAB-05 | 断网恢复循环 | 10分钟内完成，建议5轮短时阻断 | 每轮恢复，无重连风暴，旧 generation 不复活 |
+| STAB-06 | 重复生命周期 | 10分钟内完成尽可能多的完整启停，最低10轮 | 无崩溃、黑屏、资源持续增长或残留会话 |
 
 初始资源门槛：Private Bytes增长不超过稳定基线20%或批准的绝对值；句柄增长不超过32；线程、RTC room、TURN allocation和进程在清理后回到基线。若当前基线不满足，先建立可重复基线，不能放宽到无限阈值。
 
 ## 19. 执行顺序
 
-1. 记录commit、哈希和两机基线。
-2. 执行L0构建、单元、协议和状态机。
-3. 执行L1 ticket、权限、Console API和Service集成。
-4. 无故障完成Direct、Standard host、TURN UDP和全功能基线。
-5. 执行TURN TCP、节点故障、Direct回退、ICE更新。
-6. 执行语音、虚拟显示、文件和WebView专项。
-7. 执行组件重启、端口阻断、并发和资源耗尽。
-8. 有网关时执行NET矩阵。
-9. 执行门禁要求的10轮稳定性；2小时、断网耐久和跨夜为可选扩展压测。
+1. 记录 commit、哈希和两机基线，重新生成拉取后已变化的 CMake/CTest 测试图。
+2. 执行 L0 构建、单元、协议、ownership、async lifetime、架构边界和 retired-artifact 门禁。
+3. 发布全部变化运行产物，验证 build tree、`build_official/dist` 与 90 号机安装目录 SHA-256 一致。
+4. 执行 L1 ticket、权限、Console API、Service 和数据库集成。
+5. 无故障完成 Direct RTC、Standard host、TURN UDP、TURN TCP、WebSocket、UDP Direct 与 UDP 到 WS 回退。
+6. 按视频、音频、输入、剪贴板、文件、录制、语音、虚拟显示器、游戏、WebView、监控与审计顺序完成全部功能基线。
+7. 完成 desktop、game-hook、WebView 的 Controller/Observer、拒绝接管和显式接管矩阵。
+8. 所有功能通过后，执行组件重启、端口阻断、并发、资源耗尽和 NET 短时矩阵。
+9. 执行不超过 10 分钟的全功能综合、断网恢复循环和快速重复生命周期。
 10. 恢复配置、隐私和显示基线，删除测试实体、规则、任务和临时文件。
-11. 生成汇总，列出PASS、FAIL、SKIPPED、BLOCKED-ENV和公网门禁。
+11. 生成汇总，列出 PASS、FAIL、SKIPPED、BLOCKED-ENV 和公网门禁。
 
 某层失败时先保存证据并停止依赖该层的后续用例，不能用后续偶然成功覆盖确定失败。
 
@@ -462,7 +473,7 @@ Console重命名采用断代策略，不测试旧数据迁移：
 4. 标准RTC全功能通过，删除虚拟屏后物理画面恢复。
 5. Web和原生语音呼叫、拒绝、超时、挂断、静音和释放通过。
 6. Console、Coturn、Service、Panel和Render重启收敛且无旧资源。
-7. 10轮连接退出全部通过；2小时、断网耐久和跨夜不作为本轮交付门槛。
+7. 10轮连接退出及三项不超过10分钟的短时稳定性检查全部通过；不安排任何超过10分钟的单项或连续运行测试。
 8. 测试结束后防火墙、服务、RTC配置、隐私和显示拓扑恢复。
 9. 结果和日志不包含敏感凭据。
 10. 公网项目标记BLOCKED-ENV，未误报为PASS。
@@ -515,3 +526,44 @@ Console重命名采用断代策略，不测试旧数据迁移：
 8. 确认端口、进程、RTC room和TURN allocation回到基线。
 9. 扫描证据中的password、cookie、ticket、renewal、credential、secret、appkey和完整SDP。
 10. 保存脱敏最终报告和机器可读结果。
+
+## 23. 2026-09-05 实机执行记录
+
+### 23.1 基线与构建
+
+- 测试提交：`51bde5408`；Console/Client 运行机：`10.0.0.16`；远端 Service/Render：`10.0.0.90`。
+- 用户明确要求整体编译，因此执行 `build_official.bat`。WebClient、Console Web、CMake/Ninja Client/Render、Console Server、Auth Server 和 Desk Server 均构建成功，版本由 `3.3.65` 更新为 `3.3.66`。
+- 构建时远端发布检查发现 `collect_dist.py` 仍从旧路径收集 RTC Client DLL，导致 `build_official/dist/px_client_rtc.dll` 陈旧；已改为收集 `px_client_rtc.dll` 新目标并重新发布。
+- 远端首次部署后 Render 因持久化参数 `--mock_video=false` 已被移除而退出；Service 现会在比较、启动和再次持久化前过滤该退休参数，并有单元测试覆盖。
+- 本机 build tree、`build_official/dist` 与 90 号机安装目录的关键运行文件已执行 SHA-256 对比，11 个抽查文件一致；`web_client`、`px_console`、`resources/language`、`deps/theme` 共 15 个资源文件也无缺失、哈希差异或额外文件。退休的 Client `clipboard.dll`、`ft.dll`、`record.dll` 及旧 Client 插件目录在远端不存在。
+
+### 23.2 自动化与组件结果
+
+| 范围 | 结果 | 证据/备注 |
+| --- | --- | --- |
+| CTest 全量 | WARN | 114 项：111 PASS、2 SKIPPED（真实音频硬件）、1 FAIL；失败项为 `panel_console_datagram_receiver/TenRepeatedLifecyclesCompleteCleanly` 第 7 轮并行时序超时，隔离重跑 3/3 PASS，按不稳定用例保留 |
+| `service_core` | PASS | 63 PASS、0 FAIL、1 IGNORED |
+| `px_service` | PASS | 64 PASS、0 FAIL |
+| Direct RTC 非法鉴权 | PASS | 伪造 grant、无效鉴权、无 device id 错密码、未准备 stream 四项均返回 HTTP 403 和预期业务码 |
+| 账户原生桌面 | PASS | WebSocket、UDP Direct、Standard WebRTC、Direct WebRTC 均完成鉴权、传输、UI 首帧和文件通道；RTC 路径音频初始化成功 |
+| 密码 Direct RTC | PASS | 90 号机解锁后复测，当前随机访问密码完成鉴权、Direct RTC 建链、UI 首帧、音频初始化和文件通道；前一账户会话残留时先返回 704 occupied，重启 Render 后通过 |
+| Direct RTC 异常退出回收 | PASS | 2026-09-06 在本机强制终止原生 Client；90 号机终止时可靠交付断开事件并释放逻辑会话，无需重启 Render 即可再次建立 Direct RTC，未再出现 704 occupied；应用心跳 15 秒看门狗覆盖 ICE 未及时上报终态的强退路径 |
+| RTC 多会话 | FAIL | 解锁后 Controller+Observer 和第二 Controller 默认拒绝均 PASS；显式接受接管的新 Controller 已连接并通过 UDP host candidate 收发，但 6 秒窗口缺少视频统计 |
+| 文件传输 WS | PASS | 1 MiB 上传、下载、SHA-256 校验和删除成功 |
+| 文件传输 WSS | FAIL | TLS 建链报 `stream truncated`，30 秒内失败 |
+| 文件传输 Relay | FAIL | 建房和控制授权成功，上传任务 120 秒超时 |
+| 文件传输 UDP Direct | WARN | UDP 20372 被拒绝后按设计回退已鉴权 WebSocket；1 MiB 全流程通过，不能记作原生 UDP 数据面 PASS |
+| 原生文件管理器 UI | FAIL | 远端目录侧未出现预期用户项，无法选择远端目录；底层 WS 文件通道另有 PASS 证据 |
+
+Rust Server 全工作区测试第一次因 D 盘无剩余空间中断；清理仓库内 54.27 GB 可重建 debug 缓存后，将测试 target 切到 F 盘重跑。F 盘首次依赖编译超过本轮单项 10 分钟上限并被终止，结果记为 `BLOCKED-ENV/TIMEBOX`，不得记为代码测试通过。
+
+### 23.3 生命周期与环境观察
+
+- 远端为锁定、断开或长时间静止的交互桌面时，DDA/GDI 管线会报告 `captured_video_fps=0`。90 号机解锁后，账户 Direct RTC、密码 Direct RTC、Standard WebRTC 的真实 UI 首帧均通过，多会话的 Controller+Observer 也通过；显式接管阶段仍出现“连接和收发正常但缺少视频统计”。
+- 原生 Client 强制终止后的 Direct RTC 会话残留已修复：Render 在 ICE 终态或 15 秒应用心跳超时时只标记精确的旧 RTC 实例，终止路径同步交付断开事件后再扫除实例，避免注册表重入死锁和逻辑控制会话残留。2026-09-06 实机复测在不重启 Render 的情况下强退后重连成功，无 704 occupied。
+- UDP Direct 文件传输实际端口 `20372` 未监听或被拒绝，本轮仅验证了 UDP 失败后的 WebSocket 回退。
+- WSS、Relay 上传、原生远端目录枚举、真实音频硬件、TURN UDP/TCP、虚拟显示器实机、游戏 hook 实机、录制成品人工验看和弱网网关矩阵尚未形成 PASS 证据。
+
+### 23.4 当前发布结论
+
+本提交完成整体编译、发布同步和广覆盖自动化，但不满足 20.1 的 LAN RC PASS 条件。解锁复测已解除密码 Direct RTC 的首帧阻断，异常退出会话残留也已定点修复并复测通过；剩余发布阻断项至少包括：多会话显式接管缺少视频统计、WSS 文件传输失败、Relay 文件任务超时、UDP 数据面不可达，以及原生文件管理器远端目录枚举失败。本次强退复测时 90 号机 DDA 采集为 0 fps，因此重连仅验证鉴权、ICE/DataChannel 建链和 704 清除，画面问题须单独复测。修复后必须按本节相同的短时用例定点复测；不得用 WebSocket 回退或隔离重跑结果覆盖对应失败项。

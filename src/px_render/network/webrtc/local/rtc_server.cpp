@@ -30,6 +30,12 @@ using namespace webrtc;
 
 namespace px {
 namespace {
+constexpr int kHeartbeatMessageType = 20; // px::kHeartBeat wire value; keep protobuf ABI out of this library.
+
+int64_t CurrentSteadyMilliseconds() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
 // A clocked, discard-only ADM. WebRTC's kDummyAudio ADM never asks the
 // receive mixer for playout data, so decoded browser microphone frames
 // cannot reach AudioTrackSinkInterface. This module supplies that 10ms
@@ -591,8 +597,11 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
                 if (!locked) {
                     return;
                 }
+                const auto message_type = ExtractMessageType(data);
+                if (message_type && *message_type == kHeartbeatMessageType) {
+                    locked->OnClientHeartbeat();
+                }
                 if (locked->capability_enforced_) {
-                    const auto message_type = ExtractMessageType(data);
                     if (!message_type) {
                         LOGW("Drop malformed media control message from capability session");
                         return;
@@ -1175,11 +1184,52 @@ bool RtcServer::PostTargetFileTransferProtoMessage(const std::string& stream_id,
 }
 
 bool RtcServer::IsDataChannelConnected() {
-    return !exit_ && media_data_channel_ && media_data_channel_->IsConnected();
+    if (exit_ || !media_data_channel_ || !media_data_channel_->IsConnected()) {
+        return false;
+    }
+    const auto now_ms = CurrentSteadyMilliseconds();
+    if (!standard_rtc_ && !heartbeat_watchdog_.IsArmed()) {
+        heartbeat_watchdog_.Arm(now_ms);
+    }
+    return !ExpireIfHeartbeatTimedOut(now_ms);
 }
 
-bool RtcServer::IsMediaConsumerActive() const {
+void RtcServer::OnMediaDataChannelOpened() {
+    const auto now_ms = CurrentSteadyMilliseconds();
+    if (!standard_rtc_) {
+        heartbeat_watchdog_.Arm(now_ms);
+    }
+}
+
+void RtcServer::OnClientHeartbeat() {
+    heartbeat_watchdog_.ObserveHeartbeat(CurrentSteadyMilliseconds());
+}
+
+bool RtcServer::ExpireIfHeartbeatTimedOut(const int64_t now_ms) {
+    if (wall_observer_ || !heartbeat_watchdog_.HasExpired(now_ms)) {
+        return false;
+    }
+    bool expected = false;
+    if (!exit_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+        return true;
+    }
+    LOGW("Rtc server heartbeat timeout, conn_id: {}, last_heartbeat_ms: {}, will be swept.", connection_id_,
+         heartbeat_watchdog_.LastHeartbeatMs());
+    EmitClientDisconnectedEvent();
+    NotifyTerminal();
+    return true;
+}
+
+bool RtcServer::IsMediaConsumerActive() {
     if (exit_) {
+        return false;
+    }
+    // The media-consumer query runs on the application cadence even when
+    // no frames are being captured. Keep it as a second liveness checkpoint
+    // so a stalled WebRTC worker cannot leave an abrupt client exit counted
+    // forever. Expiration is idempotent and disconnect delivery is deduped.
+    const auto now_ms = CurrentSteadyMilliseconds();
+    if (ExpireIfHeartbeatTimedOut(now_ms)) {
         return false;
     }
     // Observer offers intentionally have no data channel. Count the
@@ -1213,6 +1263,7 @@ std::shared_ptr<FileTransferWritableSignal> RtcServer::AcquireFtWritableSignal()
 }
 
 void RtcServer::On100msTimeout() {
+    const auto steady_now_ms = CurrentSteadyMilliseconds();
     if (!exit_ && wall_observer_ && !ice_ever_connected_) {
         auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
         if (now - created_timestamp_ms_ >= kWallObserverConnectTimeoutMs) {
@@ -1230,6 +1281,7 @@ void RtcServer::On100msTimeout() {
             NotifyTerminal();
         }
     }
+    static_cast<void>(ExpireIfHeartbeatTimedOut(steady_now_ms));
     if (ft_data_channel_ && !exit_) {
         ft_data_channel_->On100msTimeout();
     }
@@ -1408,7 +1460,10 @@ void RtcServer::EmitClientDisconnectedEvent() {
     event.end_timestamp = static_cast<std::int64_t>(TimeUtil::GetCurrentTimestamp());
     event.duration = media_data_channel_ ? event.end_timestamp - media_data_channel_->created_timestamp_ : 0;
     const auto disconnected_stream_id = event.stream_id;
-    runtime_->QueueEvent(std::move(event));
+    // A terminal callback can be the last work WebRTC is able to execute for
+    // this peer. Deliver the lifecycle event before sweeping the instance so
+    // the logical-session registry cannot retain a stale controller binding.
+    runtime_->QueueEvent(std::move(event), true);
     LOGW("Client disconnected event emitted, conn: {}, stream: {}", connection_id_, disconnected_stream_id);
 }
 

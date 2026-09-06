@@ -216,6 +216,10 @@ add_custom_command(TARGET test_webrtc_transport_lifecycle POST_BUILD
 add_test(NAME webrtc_transport_lifecycle
     COMMAND test_webrtc_transport_lifecycle)
 
+add_executable(test_rtc_heartbeat_watchdog test_rtc_heartbeat_watchdog.cpp)
+target_link_libraries(test_rtc_heartbeat_watchdog PRIVATE GTest::gtest GTest::gtest_main)
+add_test(NAME rtc_heartbeat_watchdog COMMAND test_rtc_heartbeat_watchdog)
+
 add_executable(test_render_builtin_linkage unit/test_render_builtin_linkage.cpp)
 target_link_libraries(test_render_builtin_linkage PRIVATE
     cap_dda cap_gdi enc_ffmpeg enc_amf enc_nvenc net_ws net_udp net_relay
@@ -236,6 +240,7 @@ set_tests_properties(
     render_service_rpc_state
     logical_session_registry
     direct_session_grant_store
+    rtc_heartbeat_watchdog
     PROPERTIES LABELS "render-unit")
 
 set_property(TEST
