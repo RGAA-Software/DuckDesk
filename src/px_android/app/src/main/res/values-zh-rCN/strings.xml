@@ -13,11 +13,13 @@
     <string name="no_devices_discovered">当前网络中没有发现 Pixels 设备。</string>
     <string name="scanner_unavailable">二维码扫描器暂时不可用，请粘贴或手动输入连接信息。</string>
     <string name="remote_connection_unavailable">无法准备远程连接。</string>
+    <string name="microphone_permission_required">请允许麦克风权限以开始语音通话。</string>
     <string name="remote_notification_channel">远程会话</string>
     <string name="remote_notification_title">Pixels 远程会话</string>
     <string name="remote_notification_text">正在连接 %1$s</string>
     <string name="remote_notification_transfer">正在传输 %1$s</string>
     <string name="remote_notification_recording">正在录制远程会话</string>
+    <string name="remote_notification_voice">语音通话进行中</string>
     <string name="remote_notification_stop">结束</string>
     <string name="transfer_error_read_source">无法读取所选文件。</string>
     <string name="transfer_error_stage">无法为传输准备所选文件。</string>

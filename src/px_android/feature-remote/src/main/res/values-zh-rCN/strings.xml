@@ -31,6 +31,17 @@
     <string name="remote_record_publishing">正在保存到 Movies/Pixels…</string>
     <string name="remote_record_saved">已保存 %1$d 个视频到 Movies/Pixels</string>
     <string name="remote_record_failed">录制内容未能保存。</string>
+    <string name="remote_voice_start">开始语音通话</string>
+    <string name="remote_voice_cancel">取消语音请求</string>
+    <string name="remote_voice_end">结束语音通话</string>
+    <string name="remote_voice_mute_microphone">麦克风静音</string>
+    <string name="remote_voice_unmute_microphone">取消麦克风静音</string>
+    <string name="remote_voice_use_speaker">切换到扬声器</string>
+    <string name="remote_voice_use_receiver">切换到听筒或耳机</string>
+    <string name="remote_voice_requesting">正在等待远端电脑确认…</string>
+    <string name="remote_voice_connected">语音通话已连接</string>
+    <string name="remote_voice_connected_headset">语音通话已连接 · 建议使用耳机</string>
+    <string name="remote_voice_failed">语音通话已结束或被拒绝。</string>
     <string name="remote_clipboard_send_local">发送手机剪贴板</string>
     <string name="remote_clipboard_copy_remote">复制电脑剪贴板</string>
     <string name="remote_displays">显示器</string>

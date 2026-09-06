@@ -31,6 +31,17 @@
     <string name="remote_record_publishing">Saving to Movies/Pixels…</string>
     <string name="remote_record_saved">Saved %1$d video(s) to Movies/Pixels</string>
     <string name="remote_record_failed">Recording could not be saved.</string>
+    <string name="remote_voice_start">Start voice call</string>
+    <string name="remote_voice_cancel">Cancel voice call request</string>
+    <string name="remote_voice_end">End voice call</string>
+    <string name="remote_voice_mute_microphone">Mute microphone</string>
+    <string name="remote_voice_unmute_microphone">Unmute microphone</string>
+    <string name="remote_voice_use_speaker">Use speaker</string>
+    <string name="remote_voice_use_receiver">Use receiver or headset</string>
+    <string name="remote_voice_requesting">Waiting for approval on the remote computer…</string>
+    <string name="remote_voice_connected">Voice call connected</string>
+    <string name="remote_voice_connected_headset">Voice call connected · headset recommended</string>
+    <string name="remote_voice_failed">Voice call ended or was declined.</string>
     <string name="remote_clipboard_send_local">Send from phone</string>
     <string name="remote_clipboard_copy_remote">Copy from PC</string>
     <string name="remote_displays">Displays</string>

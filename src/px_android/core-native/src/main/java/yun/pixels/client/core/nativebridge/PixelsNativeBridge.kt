@@ -15,6 +15,8 @@ interface NativeSessionListener {
         ownedVirtualDisplayCount: Int,
         maximumVirtualDisplayCount: Int,
         topologyGeneration: Long,
+        supportsVoiceCall: Boolean,
+        voiceCallRequiresHeadset: Boolean,
     )
 
     fun onMonitorsChanged(sessionId: String, monitorNames: Array<String>, activeMonitorName: String)
@@ -54,6 +56,15 @@ interface NativeSessionListener {
     fun onFileTransferOverwrite(sessionId: String, jobId: Int, fileNumber: Int, utf8Path: ByteArray, upload: Boolean, identical: Boolean)
 
     fun onRecordingState(sessionId: String, recordingId: String, state: Int, utf8Error: ByteArray)
+
+    fun onVoiceCallState(
+        sessionId: String,
+        phase: Int,
+        microphoneMuted: Boolean,
+        speakerMuted: Boolean,
+        requiresHeadset: Boolean,
+        utf8Reason: ByteArray,
+    )
 
     fun onDisconnected(sessionId: String, reason: Int, recoverable: Boolean)
 }
@@ -132,6 +143,14 @@ internal object PixelsNativeBridge {
     external fun startRecording(nativeSessionId: Long, recordingId: ByteArray, stagingDirectory: ByteArray): Boolean
 
     external fun stopRecording(nativeSessionId: Long, recordingId: ByteArray): Boolean
+
+    external fun startVoiceCall(nativeSessionId: Long): Boolean
+
+    external fun stopVoiceCall(nativeSessionId: Long): Boolean
+
+    external fun setVoiceMicrophoneMuted(nativeSessionId: Long, muted: Boolean): Boolean
+
+    external fun setVoiceSpeakerMuted(nativeSessionId: Long, muted: Boolean): Boolean
 
     external fun stop(nativeSessionId: Long)
 }

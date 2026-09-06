@@ -678,6 +678,7 @@ bool WsServer::PostTargetStreamMessage(const std::string& stream_id, std::shared
     bool found_target_stream = false;
     const bool is_media_frame = IsMediaFrameMessage(msg);
     const bool is_clipboard_message = IsClipboardProtocolMessage(msg);
+    const bool is_voice_audio_frame = ExtractProtocolMessageType(msg) == 593;
     stream_routers_.ApplyAll([=, &found_target_stream](const uint64_t& socket_fd, const std::shared_ptr<WsStreamRouter>& router) {
         static_cast<void>(socket_fd);
         if (stream_id == router->stream_id_ || stream_id.empty()) {
@@ -701,6 +702,13 @@ bool WsServer::PostTargetStreamMessage(const std::string& stream_id, std::shared
             transport_performance_.ObserveOutbound(msg ? msg->Size() : 0);
         }
     });
+    if (is_voice_audio_frame) {
+        static std::atomic_uint64_t voice_frames{};
+        const auto count = ++voice_frames;
+        if (count == 1U || count % 250U == 0U) {
+            LOGI("[VoiceCall] WebSocket downlink queued, frames={}, target_found={}", count, found_target_stream);
+        }
+    }
     return found_target_stream;
 }
 

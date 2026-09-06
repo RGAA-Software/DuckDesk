@@ -27,13 +27,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.VolumeOff
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.CallEnd
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.FiberManualRecord
 import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.MicOff
 import androidx.compose.material.icons.outlined.Mouse
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material.icons.outlined.StopCircle
+import androidx.compose.material.icons.outlined.PhoneInTalk
+import androidx.compose.material.icons.outlined.SpeakerPhone
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
@@ -75,6 +81,8 @@ import yun.pixels.client.core.domain.session.RemoteSessionSnapshot
 import yun.pixels.client.core.domain.session.RemoteSessionStatus
 import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
 import yun.pixels.client.core.domain.recording.RecordingState
+import yun.pixels.client.core.domain.voice.VoiceCallPhase
+import yun.pixels.client.core.domain.voice.VoiceCallState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,6 +90,7 @@ fun RemoteWorkspaceScreen(
     snapshot: RemoteSessionSnapshot,
     audioEnabled: Boolean,
     recordingState: RecordingState,
+    voiceCallState: VoiceCallState,
     surfaceConsumerReady: Boolean,
     onSurfaceAvailable: (Surface) -> Unit,
     onSurfaceDestroyed: (Surface) -> Unit,
@@ -93,6 +102,10 @@ fun RemoteWorkspaceScreen(
     onAudioEnabledChange: (Boolean) -> Unit,
     onStartRecording: () -> Unit,
     onStopRecording: () -> Unit,
+    onStartVoiceCall: () -> Unit,
+    onStopVoiceCall: () -> Unit,
+    onVoiceMicrophoneMuted: (Boolean) -> Unit,
+    onVoiceSpeakerphone: (Boolean) -> Unit,
     onOpenTransfers: () -> Unit,
     onEndSession: () -> Unit,
 ) {
@@ -225,6 +238,7 @@ fun RemoteWorkspaceScreen(
             snapshot = snapshot,
             audioEnabled = audioEnabled,
             recordingState = recordingState,
+            voiceCallState = voiceCallState,
             inputMode = inputMode,
             onInputModeChange = { mode ->
                 interpreter.cancelGesture()
@@ -236,6 +250,10 @@ fun RemoteWorkspaceScreen(
             onAudioEnabledChange = onAudioEnabledChange,
             onStartRecording = onStartRecording,
             onStopRecording = onStopRecording,
+            onStartVoiceCall = onStartVoiceCall,
+            onStopVoiceCall = onStopVoiceCall,
+            onVoiceMicrophoneMuted = onVoiceMicrophoneMuted,
+            onVoiceSpeakerphone = onVoiceSpeakerphone,
             onOpenKeyboard = { showKeyboard = true },
             onOpenGamepadSettings = { showGamepadSettings = true },
             onOpenDisplays = { showDisplays = true },
@@ -323,11 +341,16 @@ private fun RemoteTopBar(
     snapshot: RemoteSessionSnapshot,
     audioEnabled: Boolean,
     recordingState: RecordingState,
+    voiceCallState: VoiceCallState,
     inputMode: RemoteInputMode,
     onInputModeChange: (RemoteInputMode) -> Unit,
     onAudioEnabledChange: (Boolean) -> Unit,
     onStartRecording: () -> Unit,
     onStopRecording: () -> Unit,
+    onStartVoiceCall: () -> Unit,
+    onStopVoiceCall: () -> Unit,
+    onVoiceMicrophoneMuted: (Boolean) -> Unit,
+    onVoiceSpeakerphone: (Boolean) -> Unit,
     onOpenKeyboard: () -> Unit,
     onOpenGamepadSettings: () -> Unit,
     onOpenDisplays: () -> Unit,
@@ -344,13 +367,16 @@ private fun RemoteTopBar(
         is RemoteSessionStatus.Failed -> status.request.target.displayName
     }
     MaterialSurface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.86f), modifier = Modifier.fillMaxWidth()) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, style = MaterialTheme.typography.titleMedium)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(text = title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Column(horizontalAlignment = Alignment.End) {
                 if (status is RemoteSessionStatus.Connected) {
                     Text(
                         text = stringResource(
@@ -364,9 +390,11 @@ private fun RemoteTopBar(
                     )
                 }
                 RecordingStatus(state = recordingState)
+                VoiceCallStatus(state = voiceCallState)
+                }
             }
             Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if ((status as? RemoteSessionStatus.Connected)?.capabilities?.supportsInput == true) {
@@ -432,6 +460,39 @@ private fun RemoteTopBar(
                         )
                     }
                 }
+                if ((status as? RemoteSessionStatus.Connected)?.capabilities?.supportsVoiceCall == true) {
+                    when (voiceCallState.phase) {
+                        VoiceCallPhase.Idle -> FilledTonalIconButton(onClick = onStartVoiceCall) {
+                            Icon(Icons.Outlined.Call, contentDescription = stringResource(R.string.remote_voice_start))
+                        }
+                        VoiceCallPhase.Requesting -> FilledTonalIconButton(onClick = onStopVoiceCall) {
+                            Icon(Icons.Outlined.CallEnd, contentDescription = stringResource(R.string.remote_voice_cancel))
+                        }
+                        VoiceCallPhase.Connected -> {
+                            FilledTonalIconButton(onClick = { onVoiceMicrophoneMuted(!voiceCallState.microphoneMuted) }) {
+                                Icon(
+                                    if (voiceCallState.microphoneMuted) Icons.Outlined.MicOff else Icons.Outlined.Mic,
+                                    contentDescription = stringResource(
+                                        if (voiceCallState.microphoneMuted) R.string.remote_voice_unmute_microphone
+                                        else R.string.remote_voice_mute_microphone,
+                                    ),
+                                )
+                            }
+                            FilledTonalIconButton(onClick = { onVoiceSpeakerphone(!voiceCallState.speakerphone) }) {
+                                Icon(
+                                    if (voiceCallState.speakerphone) Icons.Outlined.SpeakerPhone else Icons.Outlined.PhoneInTalk,
+                                    contentDescription = stringResource(
+                                        if (voiceCallState.speakerphone) R.string.remote_voice_use_receiver
+                                        else R.string.remote_voice_use_speaker,
+                                    ),
+                                )
+                            }
+                            FilledTonalIconButton(onClick = onStopVoiceCall) {
+                                Icon(Icons.Outlined.CallEnd, contentDescription = stringResource(R.string.remote_voice_end))
+                            }
+                        }
+                    }
+                }
                 FilledTonalIconButton(onClick = onEndSession) {
                     Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.remote_exit))
                 }
@@ -459,6 +520,25 @@ private fun RecordingStatus(state: RecordingState) {
         } else {
             MaterialTheme.colorScheme.onSurfaceVariant
         },
+    )
+}
+
+@Composable
+private fun VoiceCallStatus(state: VoiceCallState) {
+    val text = when (state.phase) {
+        VoiceCallPhase.Requesting -> stringResource(R.string.remote_voice_requesting)
+        VoiceCallPhase.Connected -> if (state.requiresHeadset && !state.speakerphone) {
+            stringResource(R.string.remote_voice_connected_headset)
+        } else {
+            stringResource(R.string.remote_voice_connected)
+        }
+        VoiceCallPhase.Idle -> if (state.reason.isBlank() || state.reason == "local_hangup" || state.reason == "session_ended") return
+        else stringResource(R.string.remote_voice_failed)
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = if (state.phase == VoiceCallPhase.Idle) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
     )
 }
 

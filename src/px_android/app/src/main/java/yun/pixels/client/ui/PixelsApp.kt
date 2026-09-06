@@ -73,6 +73,7 @@ import yun.pixels.client.feature.transfer.TransferScreen
 import yun.pixels.client.remote.RemoteSessionService
 import yun.pixels.client.core.domain.transfer.FileTransferTask
 import yun.pixels.client.core.domain.recording.RecordingState
+import yun.pixels.client.core.domain.voice.VoiceCallState
 
 private enum class TopLevelDestination(
     val route: String,
@@ -100,6 +101,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
     val idleAudioEnabled = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
     val idleFileTransferTasks = remember { kotlinx.coroutines.flow.MutableStateFlow(emptyList<FileTransferTask>()) }
     val idleRecordingState = remember { kotlinx.coroutines.flow.MutableStateFlow<RecordingState>(RecordingState.Idle) }
+    val idleVoiceCallState = remember { kotlinx.coroutines.flow.MutableStateFlow(VoiceCallState()) }
     DisposableEffect(context) {
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName, service: IBinder) {
@@ -164,6 +166,10 @@ fun PixelsApp(graph: PixelsAppGraph) {
         deviceHomeViewModel.onAction(if (granted && action != null) action else DeviceHomeAction.LocalNetworkPermissionDenied)
     }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val microphonePermissionDenied = stringResource(R.string.microphone_permission_required)
+    val microphonePermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) remoteBinder?.startVoiceCall() else coroutineScope.launch { snackbarHostState.showSnackbar(microphonePermissionDenied) }
+    }
     var pendingUploadRemoteDirectory by remember { mutableStateOf("") }
     var pendingDownloadRemotePath by remember { mutableStateOf("") }
     val uploadDocumentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { source ->
@@ -371,10 +377,13 @@ fun PixelsApp(graph: PixelsAppGraph) {
                 val audioEnabled by audioEnabledFlow.collectAsStateWithLifecycle()
                 val recordingStateFlow = remoteBinder?.recordingState ?: idleRecordingState
                 val recordingState by recordingStateFlow.collectAsStateWithLifecycle()
+                val voiceCallStateFlow = remoteBinder?.voiceCallState ?: idleVoiceCallState
+                val voiceCallState by voiceCallStateFlow.collectAsStateWithLifecycle()
                 RemoteWorkspaceScreen(
                     snapshot = snapshot,
                     audioEnabled = audioEnabled,
                     recordingState = recordingState,
+                    voiceCallState = voiceCallState,
                     surfaceConsumerReady = remoteBinder != null,
                     onSurfaceAvailable = { surface -> remoteBinder?.attachSurface(surface) },
                     onSurfaceDestroyed = { surface -> remoteBinder?.detachSurface(surface) },
@@ -386,6 +395,16 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     onAudioEnabledChange = { enabled -> remoteBinder?.setAudioEnabled(enabled) },
                     onStartRecording = { remoteBinder?.startRecording() },
                     onStopRecording = { remoteBinder?.stopRecording() },
+                    onStartVoiceCall = {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                            remoteBinder?.startVoiceCall()
+                        } else {
+                            microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    },
+                    onStopVoiceCall = { remoteBinder?.stopVoiceCall() },
+                    onVoiceMicrophoneMuted = { muted -> remoteBinder?.setVoiceMicrophoneMuted(muted) },
+                    onVoiceSpeakerphone = { enabled -> remoteBinder?.setVoiceSpeakerphone(enabled) },
                     onOpenTransfers = { navController.navigate(TopLevelDestination.Transfers.route) },
                     onEndSession = {
                         remoteBinder?.stopSession()

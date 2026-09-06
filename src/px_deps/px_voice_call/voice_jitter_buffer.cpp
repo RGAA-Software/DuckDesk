@@ -6,10 +6,8 @@
 
 namespace px {
 
-VoiceJitterBuffer::VoiceJitterBuffer(
-    size_t target_packets, size_t max_packets)
-    : target_packets_(std::max<size_t>(1, target_packets)),
-      max_packets_(std::max(target_packets_, max_packets)) {}
+VoiceJitterBuffer::VoiceJitterBuffer(size_t target_packets, size_t max_packets)
+    : target_packets_(std::max<size_t>(1, target_packets)), max_packets_(std::max(target_packets_, max_packets)) {}
 
 VoiceJitterPushResult VoiceJitterBuffer::Push(VoiceEncodedPacket packet) {
     if (packet.opus.empty() || packet.opus.size() > kMaxOpusPacketBytes) {
@@ -29,8 +27,7 @@ VoiceJitterPushResult VoiceJitterBuffer::Push(VoiceEncodedPacket packet) {
         first_sequence_ = packet.sequence;
         first_arrival_ms_ = packet.arrival_time_ms;
         has_first_sequence_ = true;
-    }
-    else if (!started_ && SequenceBefore(packet.sequence, first_sequence_)) {
+    } else if (!started_ && SequenceBefore(packet.sequence, first_sequence_)) {
         first_sequence_ = packet.sequence;
         first_arrival_ms_ = std::min(first_arrival_ms_, packet.arrival_time_ms);
     }
@@ -50,15 +47,20 @@ VoiceJitterPopResult VoiceJitterBuffer::Pop(uint64_t now_ms) {
         if (!has_first_sequence_ || packets_.empty()) {
             return {};
         }
-        const uint64_t target_delay_ms =
-            static_cast<uint64_t>(target_packets_) * kPacketDurationMs;
-        const bool delay_elapsed = now_ms >= first_arrival_ms_ &&
-            now_ms - first_arrival_ms_ >= target_delay_ms;
+        const uint64_t target_delay_ms = static_cast<uint64_t>(target_packets_) * kPacketDurationMs;
+        const bool delay_elapsed = now_ms >= first_arrival_ms_ && now_ms - first_arrival_ms_ >= target_delay_ms;
         if (packets_.size() < target_packets_ && !delay_elapsed) {
             return {};
         }
         started_ = true;
         next_sequence_ = first_sequence_;
+    }
+
+    // A capture device can run fractionally slower than the playout clock.
+    // Do not advance into future sequence numbers while no packet is queued;
+    // otherwise every subsequently arriving packet is permanently late.
+    if (packets_.empty()) {
+        return {};
     }
 
     auto it = packets_.find(next_sequence_);
@@ -73,8 +75,17 @@ VoiceJitterPopResult VoiceJitterBuffer::Pop(uint64_t now_ms) {
         };
     }
 
-    ++next_sequence_;
-    ++stats_.missing;
+    auto nearest = packets_.begin();
+    for (auto candidate = std::next(packets_.begin()); candidate != packets_.end(); ++candidate) {
+        const auto candidate_distance = static_cast<uint32_t>(candidate->first - next_sequence_);
+        const auto nearest_distance = static_cast<uint32_t>(nearest->first - next_sequence_);
+        if (candidate_distance < nearest_distance) {
+            nearest = candidate;
+        }
+    }
+    const auto skipped = static_cast<uint32_t>(nearest->first - next_sequence_);
+    stats_.missing += std::max<uint32_t>(1, skipped);
+    next_sequence_ = nearest->first;
     stats_.queued = packets_.size();
     return VoiceJitterPopResult{.kind = VoiceJitterPopKind::kMissing};
 }
@@ -128,4 +139,4 @@ void VoiceJitterBuffer::DropOldestForOverflow() {
     }
 }
 
-}  // namespace px
+} // namespace px

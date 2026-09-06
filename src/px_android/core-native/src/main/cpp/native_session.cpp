@@ -1,6 +1,7 @@
 #include "native_session.h"
 
 #include "native_audio_player.h"
+#include "native_voice_call.h"
 
 #include <android/native_window_jni.h>
 
@@ -143,14 +144,15 @@ void JavaSessionCallback::Connected(const NativeSessionConfig& config, const std
                                     const std::string& active_monitor_name, const bool supports_audio, const bool supports_input,
                                     const bool supports_file_transfer, const bool supports_clipboard, const bool supports_virtual_displays,
                                     const std::int32_t owned_virtual_display_count, const std::int32_t maximum_virtual_display_count,
-                                    const std::int64_t topology_generation) const {
+                                    const std::int64_t topology_generation, const bool supports_voice_call,
+                                    const bool voice_call_requires_headset) const {
     const auto listener_handle = listener_handle_;
     WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
         const auto listener = reinterpret_cast<jobject>(listener_handle);
         const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
         const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
         const auto method =
-            environment.GetMethodID(listener_class, "onConnected", "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;ZZZZZIIJ)V");
+            environment.GetMethodID(listener_class, "onConnected", "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;ZZZZZIIJZZ)V");
         const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(config.session_id.c_str()));
         const auto monitor_names_handle = MakeStringArray(environment, monitor_names);
         const auto monitor_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(active_monitor_name.c_str()));
@@ -158,7 +160,8 @@ void JavaSessionCallback::Connected(const NativeSessionConfig& config, const std
             environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle),
                                        reinterpret_cast<jobjectArray>(monitor_names_handle), reinterpret_cast<jstring>(monitor_handle),
                                        supports_audio, supports_input, supports_file_transfer, supports_clipboard, supports_virtual_displays,
-                                       owned_virtual_display_count, maximum_virtual_display_count, topology_generation);
+                                       owned_virtual_display_count, maximum_virtual_display_count, topology_generation, supports_voice_call,
+                                       voice_call_requires_headset);
         }
         DeleteLocalReference(environment, session_id_handle);
         DeleteLocalReference(environment, monitor_names_handle);
@@ -353,6 +356,25 @@ void JavaSessionCallback::RecordingState(const std::string& session_id, const st
     });
 }
 
+void JavaSessionCallback::VoiceCallState(const std::string& session_id, const NativeVoiceCallStatus& status) const {
+    const auto listener_handle = listener_handle_;
+    WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
+        const auto listener = reinterpret_cast<jobject>(listener_handle);
+        const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
+        const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
+        const auto method = environment.GetMethodID(listener_class, "onVoiceCallState", "(Ljava/lang/String;IZZZ[B)V");
+        const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
+        const auto reason_handle = MakeByteArray(environment, status.reason);
+        if (method != nullptr && session_id_handle != 0U && reason_handle != 0U) {
+            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), status.phase, status.microphone_muted,
+                                       status.speaker_muted, status.requires_headset, reinterpret_cast<jbyteArray>(reason_handle));
+        }
+        DeleteLocalReference(environment, session_id_handle);
+        DeleteLocalReference(environment, reason_handle);
+        DeleteLocalReference(environment, listener_class_handle);
+    });
+}
+
 void JavaSessionCallback::Disconnected(const std::string& session_id, const std::int32_t reason, const bool recoverable) const {
     const auto listener_handle = listener_handle_;
     WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
@@ -441,6 +463,14 @@ bool NativeSession::Initialize() {
     const auto weak_self = weak_from_this();
     session_listener_->Listen<px::SdkMsgNetworkDisConnected>([weak_self](const auto&) {
         if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
+            std::shared_ptr<NativeVoiceCall> voice_call;
+            {
+                std::lock_guard lock(self->lifecycle_mutex_);
+                voice_call = self->voice_call_;
+            }
+            if (voice_call) {
+                voice_call->Stop(false, "network_lost");
+            }
             self->callback_->Disconnected(self->config_.session_id, 3, true);
         }
     });
@@ -465,6 +495,48 @@ bool NativeSession::Initialize() {
         return false;
     statistics_ = px::SdkStatistics::Instance();
     last_received_bytes_ = statistics_->recv_data_size_.load();
+
+    voice_call_ = NativeVoiceCall::Create(
+        [weak_self](std::shared_ptr<px::Data> data) {
+            const auto self = weak_self.lock();
+            if (!self || !data || self->stopped_.load()) {
+                return false;
+            }
+            std::shared_ptr<px::ThunderSdk> sdk;
+            {
+                std::lock_guard lock(self->lifecycle_mutex_);
+                sdk = self->sdk_;
+            }
+            if (!sdk) {
+                return false;
+            }
+            sdk->PostMediaMessage(std::move(data));
+            return true;
+        },
+        [weak_self](std::function<void()> task) {
+            const auto self = weak_self.lock();
+            if (!self || !task || self->stopped_.load()) {
+                return false;
+            }
+            std::shared_ptr<px::ThunderSdk> sdk;
+            {
+                std::lock_guard lock(self->lifecycle_mutex_);
+                sdk = self->sdk_;
+            }
+            if (!sdk) {
+                return false;
+            }
+            sdk->PostMiscTask(std::move(task));
+            return true;
+        },
+        [weak_self](const NativeVoiceCallStatus& status) {
+            if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
+                self->callback_->VoiceCallState(self->config_.session_id, status);
+            }
+        });
+    if (!voice_call_) {
+        return false;
+    }
 
     file_transfer_session_ = px::ft::FtAsyncSession::Create(
         [weak_self](const std::shared_ptr<const px::Message>& message) {
@@ -596,7 +668,18 @@ bool NativeSession::Initialize() {
             self->config_.enable_input && server_config.can_be_operated(), self->file_transfer_ready_ && server_config.file_transfer_enabled(),
             self->config_.enable_clipboard && server_config.can_be_operated(), server_config.virtual_display_enabled(),
             static_cast<std::int32_t>(server_config.virtual_display_owned_count()),
-            static_cast<std::int32_t>(server_config.virtual_display_max_count()), static_cast<std::int64_t>(server_config.topology_generation()));
+            static_cast<std::int32_t>(server_config.virtual_display_max_count()), static_cast<std::int64_t>(server_config.topology_generation()),
+            server_config.voice_call_enabled() && server_config.voice_call_protocol_version() == 1U,
+            server_config.voice_call_requires_headset());
+        std::shared_ptr<NativeVoiceCall> voice_call;
+        {
+            std::lock_guard lock(self->lifecycle_mutex_);
+            voice_call = self->voice_call_;
+        }
+        if (voice_call) {
+            voice_call->SetCapabilities(server_config.voice_call_enabled() && server_config.voice_call_protocol_version() == 1U,
+                                        server_config.voice_call_requires_headset());
+        }
     });
     sdk_->SetOnMonitorSwitchedCallback([weak_self](std::shared_ptr<px::Message> message) {
         const auto self = weak_self.lock();
@@ -620,6 +703,18 @@ bool NativeSession::Initialize() {
     sdk_->SetOnRawMessageCallback([weak_self](std::shared_ptr<px::Message> message) {
         const auto self = weak_self.lock();
         if (!self || !message || self->stopped_.load()) {
+            return;
+        }
+        if (message->type() == px::kVoiceCallRequest || message->type() == px::kVoiceCallResponse || message->type() == px::kVoiceAudioConfig ||
+            message->type() == px::kVoiceAudioFrame) {
+            std::shared_ptr<NativeVoiceCall> voice_call;
+            {
+                std::lock_guard lock(self->lifecycle_mutex_);
+                voice_call = self->voice_call_;
+            }
+            if (voice_call) {
+                voice_call->HandleMessage(message);
+            }
             return;
         }
         if (message->type() == px::kFileAction || message->type() == px::kFileResponse) {
@@ -1188,6 +1283,59 @@ bool NativeSession::StopRecording(const std::string& recording_id) {
     return true;
 }
 
+bool NativeSession::StartVoiceCall() {
+    std::lock_guard command_lock(command_mutex_);
+    std::shared_ptr<NativeVoiceCall> voice_call;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (stopped_.load() || !started_ || !voice_call_) {
+            return false;
+        }
+        voice_call = voice_call_;
+    }
+    return voice_call->Start(client_signal_device_id_, config_.stream_id);
+}
+
+bool NativeSession::StopVoiceCall() {
+    std::lock_guard command_lock(command_mutex_);
+    std::shared_ptr<NativeVoiceCall> voice_call;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (stopped_.load() || !started_ || !voice_call_) {
+            return false;
+        }
+        voice_call = voice_call_;
+    }
+    voice_call->Stop(true, "local_hangup");
+    return true;
+}
+
+bool NativeSession::SetVoiceMicrophoneMuted(const bool muted) {
+    std::lock_guard command_lock(command_mutex_);
+    std::shared_ptr<NativeVoiceCall> voice_call;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (stopped_.load() || !started_ || !voice_call_) {
+            return false;
+        }
+        voice_call = voice_call_;
+    }
+    return voice_call->SetMicrophoneMuted(muted);
+}
+
+bool NativeSession::SetVoiceSpeakerMuted(const bool muted) {
+    std::lock_guard command_lock(command_mutex_);
+    std::shared_ptr<NativeVoiceCall> voice_call;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (stopped_.load() || !started_ || !voice_call_) {
+            return false;
+        }
+        voice_call = voice_call_;
+    }
+    return voice_call->SetSpeakerMuted(muted);
+}
+
 void NativeSession::Stop() {
     std::lock_guard command_lock(command_mutex_);
     if (stopped_.exchange(true)) {
@@ -1196,6 +1344,7 @@ void NativeSession::Stop() {
     std::shared_ptr<px::ThunderSdk> sdk;
     std::shared_ptr<px::ft::FtAsyncSession> file_transfer_session;
     std::shared_ptr<px::Thread> recording_thread;
+    std::shared_ptr<NativeVoiceCall> voice_call;
     std::shared_ptr<ANativeWindow> surface;
     const auto recording_generation = active_recording_generation_.exchange(0U, std::memory_order_acq_rel);
     const auto recording_id = std::exchange(active_recording_id_, {});
@@ -1204,6 +1353,7 @@ void NativeSession::Stop() {
         sdk = std::move(sdk_);
         file_transfer_session = std::move(file_transfer_session_);
         recording_thread = std::move(recording_thread_);
+        voice_call = std::move(voice_call_);
         file_transfer_ready_ = false;
         session_listener_.reset();
         message_notifier_.reset();
@@ -1255,6 +1405,12 @@ void NativeSession::Stop() {
         });
         static_cast<void>(completion.wait_for(std::chrono::seconds(5)));
         recording_thread->Exit();
+    }
+    if (voice_call) {
+        // The SDK transport is about to close and stopped_ already rejects new
+        // asynchronous sends. Tear the media endpoint down deterministically;
+        // the peer observes the session transport closing.
+        voice_call->Stop(false, "session_ended");
     }
     if (sdk)
         sdk->Exit();

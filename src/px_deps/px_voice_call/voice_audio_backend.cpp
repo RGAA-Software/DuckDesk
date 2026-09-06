@@ -6,6 +6,9 @@
 namespace px {
 
 std::unique_ptr<IVoiceAudioBackend> CreateDefaultVoiceAudioBackend() {
+#if defined(__ANDROID__)
+    return CreateAAudioVoiceAudioBackend();
+#else
     const char* forced = std::getenv("PX_VOICE_AUDIO_BACKEND");
     const char* sdl_driver = std::getenv("SDL_AUDIODRIVER");
     if ((forced && std::string_view(forced) == "sdl") ||
@@ -16,6 +19,7 @@ std::unique_ptr<IVoiceAudioBackend> CreateDefaultVoiceAudioBackend() {
     return CreateWasapiVoiceAudioBackend();
 #else
     return CreateSdlVoiceAudioBackend();
+#endif
 #endif
 }
 

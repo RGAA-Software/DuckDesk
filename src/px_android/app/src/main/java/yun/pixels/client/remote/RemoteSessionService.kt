@@ -6,15 +6,19 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.media.AudioDeviceInfo
+import android.os.Build
 import android.os.Binder
 import android.os.IBinder
 import android.net.Uri
 import android.view.Surface
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.compose.runtime.Stable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +44,8 @@ import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
 import yun.pixels.client.core.domain.transfer.FileTransferTask
 import yun.pixels.client.core.domain.transfer.FileTransferState
 import yun.pixels.client.core.domain.recording.RecordingState
+import yun.pixels.client.core.domain.voice.VoiceCallPhase
+import yun.pixels.client.core.domain.voice.VoiceCallState
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -59,6 +65,7 @@ class RemoteSessionService : Service() {
     private var hasAudioFocus = false
     private var userWantsAudio = true
     private val mutableAudioEnabled = MutableStateFlow(false)
+    private val mutableVoiceCallState = MutableStateFlow(VoiceCallState())
     private val heldKeys = mutableSetOf<RemoteKey>()
     private val heldMouseButtons = mutableSetOf<RemoteMouseButton>()
     private var gamepadActive = false
@@ -104,6 +111,18 @@ class RemoteSessionService : Service() {
                 if (foregroundStarted) updateNotification(fileTransfers.tasks.value, state)
             }
         }
+        serviceScope.launch {
+            transport.voiceCallEvents.collectLatest { event ->
+                if (event.sessionId != currentRequest()?.id) return@collectLatest
+                val speakerphone = mutableVoiceCallState.value.speakerphone
+                mutableVoiceCallState.value = event.state.copy(speakerphone = speakerphone)
+                if (event.state.phase == VoiceCallPhase.Idle) {
+                    restoreVoiceAudioRoute()
+                    refreshForegroundServiceTypes(voiceActive = false)
+                }
+                if (foregroundStarted) updateNotification(fileTransfers.tasks.value, recordings.state.value)
+            }
+        }
     }
 
     override fun onBind(intent: Intent): IBinder = localBinder
@@ -118,6 +137,7 @@ class RemoteSessionService : Service() {
             currentRequest()?.let {
                 releaseAllInputs(it.id)
                 recordings.sessionEnded(it.id)
+                transport.stopVoiceCall(it.id)
                 fileTransfers.sessionEnded(it.id)
             }
             workflow.close()
@@ -187,6 +207,7 @@ class RemoteSessionService : Service() {
             val sessionId = currentRequest()?.id
             releaseAllInputs(sessionId)
             sessionId?.let { recordings.sessionEnded(it) }
+            sessionId?.let { transport.stopVoiceCall(it) }
             sessionId?.let(fileTransfers::sessionEnded)
             workflow.stop()
             abandonAudioFocus()
@@ -243,6 +264,93 @@ class RemoteSessionService : Service() {
     private fun startRecording() {
         val connected = workflow.snapshot.value.status as? RemoteSessionStatus.Connected ?: return
         recordings.start(connected.request.id)
+    }
+
+    private fun startVoiceCall() {
+        val connected = workflow.snapshot.value.status as? RemoteSessionStatus.Connected ?: return
+        if (!connected.capabilities.supportsVoiceCall) return
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            mutableVoiceCallState.value = VoiceCallState(
+                requiresHeadset = connected.capabilities.voiceCallRequiresHeadset,
+                reason = "microphone_permission_required",
+            )
+            return
+        }
+        configureVoiceAudioRoute(mutableVoiceCallState.value.speakerphone)
+        refreshForegroundServiceTypes(voiceActive = true)
+        serviceScope.launch {
+            if (!transport.startVoiceCall(connected.request.id)) {
+                mutableVoiceCallState.value = VoiceCallState(
+                    requiresHeadset = connected.capabilities.voiceCallRequiresHeadset,
+                    reason = "voice_start_rejected",
+                )
+                restoreVoiceAudioRoute()
+                refreshForegroundServiceTypes(voiceActive = false)
+            }
+        }
+    }
+
+    private fun stopVoiceCall() {
+        val sessionId = currentRequest()?.id ?: return
+        serviceScope.launch {
+            transport.stopVoiceCall(sessionId)
+            restoreVoiceAudioRoute()
+            refreshForegroundServiceTypes(voiceActive = false)
+        }
+    }
+
+    private fun setVoiceMicrophoneMuted(muted: Boolean) {
+        val sessionId = currentRequest()?.id ?: return
+        serviceScope.launch { transport.setVoiceMicrophoneMuted(sessionId, muted) }
+    }
+
+    private fun setVoiceSpeakerphone(enabled: Boolean) {
+        if (mutableVoiceCallState.value.phase == VoiceCallPhase.Idle) return
+        configureVoiceAudioRoute(enabled)
+        mutableVoiceCallState.value = mutableVoiceCallState.value.copy(speakerphone = enabled)
+    }
+
+    private fun configureVoiceAudioRoute(speakerphone: Boolean) {
+        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+        if (Build.VERSION.SDK_INT >= 31) {
+            val preferredTypes = if (speakerphone) {
+                listOf(AudioDeviceInfo.TYPE_BUILTIN_SPEAKER)
+            } else {
+                listOf(
+                    AudioDeviceInfo.TYPE_BLE_HEADSET,
+                    AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+                    AudioDeviceInfo.TYPE_WIRED_HEADSET,
+                    AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+                    AudioDeviceInfo.TYPE_USB_HEADSET,
+                    AudioDeviceInfo.TYPE_BUILTIN_EARPIECE,
+                )
+            }
+            preferredTypes.asSequence()
+                .mapNotNull { type -> audioManager.availableCommunicationDevices.firstOrNull { it.type == type } }
+                .firstOrNull()
+                ?.let(audioManager::setCommunicationDevice)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.isSpeakerphoneOn = speakerphone
+        }
+    }
+
+    private fun restoreVoiceAudioRoute() {
+        if (Build.VERSION.SDK_INT >= 31) audioManager.clearCommunicationDevice() else {
+            @Suppress("DEPRECATION")
+            audioManager.isSpeakerphoneOn = false
+        }
+        audioManager.mode = AudioManager.MODE_NORMAL
+        val previous = mutableVoiceCallState.value
+        if (previous.speakerphone) mutableVoiceCallState.value = previous.copy(speakerphone = false)
+    }
+
+    private fun refreshForegroundServiceTypes(voiceActive: Boolean) {
+        if (!foregroundStarted) return
+        val serviceTypes = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or
+            (if (userWantsAudio) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK else 0) or
+            (if (voiceActive) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0)
+        startForeground(NOTIFICATION_ID, createNotification(foregroundDeviceName), serviceTypes)
     }
 
     private fun currentRequest(): RemoteSessionRequest? = when (val status = workflow.snapshot.value.status) {
@@ -316,6 +424,7 @@ class RemoteSessionService : Service() {
                 when {
                     recordingState is RecordingState.Recording || recordingState is RecordingState.Stopping ||
                         recordingState is RecordingState.Publishing -> getString(R.string.remote_notification_recording)
+                    mutableVoiceCallState.value.phase != VoiceCallPhase.Idle -> getString(R.string.remote_notification_voice)
                     activeTransfer != null -> getString(R.string.remote_notification_transfer, activeTransfer.name)
                     else -> getString(R.string.remote_notification_text, deviceName)
                 },
@@ -354,6 +463,9 @@ class RemoteSessionService : Service() {
         val recordingState: StateFlow<RecordingState>
             get() = recordings.state
 
+        val voiceCallState: StateFlow<VoiceCallState>
+            get() = mutableVoiceCallState.asStateFlow()
+
         fun prepare(request: RemoteSessionRequest) = this@RemoteSessionService.prepare(request)
 
         fun attachSurface(surface: Surface) = this@RemoteSessionService.attachSurface(surface)
@@ -389,6 +501,14 @@ class RemoteSessionService : Service() {
         fun startRecording() = this@RemoteSessionService.startRecording()
 
         fun stopRecording() = recordings.stop()
+
+        fun startVoiceCall() = this@RemoteSessionService.startVoiceCall()
+
+        fun stopVoiceCall() = this@RemoteSessionService.stopVoiceCall()
+
+        fun setVoiceMicrophoneMuted(muted: Boolean) = this@RemoteSessionService.setVoiceMicrophoneMuted(muted)
+
+        fun setVoiceSpeakerphone(enabled: Boolean) = this@RemoteSessionService.setVoiceSpeakerphone(enabled)
 
         fun stopSession() = this@RemoteSessionService.stopSession()
     }

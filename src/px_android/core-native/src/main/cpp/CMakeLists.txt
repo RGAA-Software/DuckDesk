@@ -35,6 +35,7 @@ include_directories(
     "${PX_PROJECT_PATH}/px_ft_engine"
     "${PX_PROJECT_PATH}/px_message"
     "${PX_PROJECT_PATH}/px_media_record"
+    "${PX_PROJECT_PATH}/px_voice_call"
     "${PX_PROJECT_PATH}/px_relay_client"
     "${PX_PROJECT_PATH}/px_server_protocol"
     "${PX_PROJECT_PATH}/px_3rdparty/asio2/include"
@@ -61,6 +62,7 @@ add_subdirectory("${PX_PROJECT_PATH}/px_message" "${CMAKE_BINARY_DIR}/px_message
 add_subdirectory("${PX_PROJECT_PATH}/px_ft_engine" "${CMAKE_BINARY_DIR}/px_ft_engine")
 add_subdirectory("${PX_PROJECT_PATH}/px_media_record" "${CMAKE_BINARY_DIR}/px_media_record")
 add_subdirectory("${PX_PROJECT_PATH}/px_opus_codec" "${CMAKE_BINARY_DIR}/px_opus_codec")
+add_subdirectory("${PX_PROJECT_PATH}/px_voice_call" "${CMAKE_BINARY_DIR}/px_voice_call")
 add_subdirectory("${PX_PROJECT_PATH}/px_server_protocol" "${CMAKE_BINARY_DIR}/px_server_protocol")
 add_subdirectory("${PX_PROJECT_PATH}/px_relay_client" "${CMAKE_BINARY_DIR}/px_relay_client")
 add_subdirectory("${PX_PROJECT_PATH}/px_client_sdk" "${CMAKE_BINARY_DIR}/px_client_sdk")
@@ -69,6 +71,7 @@ add_library(pixels_android_core SHARED
     jni_adapter.cpp
     native_audio_player.cpp
     native_session.cpp
+    native_voice_call.cpp
 )
 
 target_link_libraries(pixels_android_core PRIVATE
@@ -81,4 +84,5 @@ target_link_libraries(pixels_android_core PRIVATE
     px_sdk
     px_ft_engine
     px_media_record
+    px_voice_call
 )

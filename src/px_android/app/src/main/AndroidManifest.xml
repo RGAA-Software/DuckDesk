@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-feature
@@ -48,7 +50,7 @@
         <service
             android:name=".remote.RemoteSessionService"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice|mediaPlayback"
+            android:foregroundServiceType="connectedDevice|mediaPlayback|microphone"
             android:stopWithTask="false" />
     </application>
 

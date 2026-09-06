@@ -28,12 +28,21 @@ add_library(px_voice_call
     voice_jitter_buffer.cpp
     voice_packet_transport.cpp
     voice_audio_backend.cpp
-    voice_audio_backend_sdl.cpp
     voice_audio_endpoint.cpp
 )
+if(ANDROID)
+    target_sources(px_voice_call PRIVATE voice_audio_backend_aaudio.cpp voice_audio_processing_passthrough.cpp)
+else()
+    target_sources(px_voice_call PRIVATE voice_audio_backend_sdl.cpp)
+endif()
 target_include_directories(px_voice_call PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(px_voice_call PUBLIC px_opus_codec
-    $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>)
+target_link_libraries(px_voice_call PUBLIC px_opus_codec)
+if(ANDROID)
+    target_link_libraries(px_voice_call PUBLIC aaudio)
+else()
+    target_link_libraries(px_voice_call PUBLIC
+        $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>)
+endif()
 if(WIN32)
     target_sources(px_voice_call PRIVATE
         voice_audio_backend_wasapi.cpp
@@ -46,17 +55,16 @@ if(WIN32)
     target_link_libraries(px_voice_call PUBLIC px_voice_apm Ole32 Mmdevapi)
 endif()
 
-add_executable(test_voice_call
-    tests/test_voice_call.cpp
-)
-target_include_directories(test_voice_call PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(test_voice_call PRIVATE
-    px_voice_call px_rp_message GTest::gtest GTest::gtest_main)
-if(WIN32)
-    target_link_libraries(test_voice_call PRIVATE Psapi)
-endif()
-
-if(BUILD_TESTING)
+if(BUILD_TESTING AND TARGET GTest::gtest AND TARGET px_rp_message)
+    add_executable(test_voice_call
+        tests/test_voice_call.cpp
+    )
+    target_include_directories(test_voice_call PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(test_voice_call PRIVATE
+        px_voice_call px_rp_message GTest::gtest GTest::gtest_main)
+    if(WIN32)
+        target_link_libraries(test_voice_call PRIVATE Psapi)
+    endif()
     add_test(NAME voice_call_core COMMAND test_voice_call)
     set_tests_properties(voice_call_core PROPERTIES
         LABELS "render-integration")

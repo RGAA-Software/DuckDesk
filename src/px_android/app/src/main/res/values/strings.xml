@@ -13,11 +13,13 @@
     <string name="no_devices_discovered">No Pixels devices were found on this network.</string>
     <string name="scanner_unavailable">The QR scanner is unavailable. Paste or enter the connection details instead.</string>
     <string name="remote_connection_unavailable">The remote connection could not be prepared.</string>
+    <string name="microphone_permission_required">Allow microphone access to start a voice call.</string>
     <string name="remote_notification_channel">Remote sessions</string>
     <string name="remote_notification_title">Pixels remote session</string>
     <string name="remote_notification_text">Connected to %1$s</string>
     <string name="remote_notification_transfer">Transferring %1$s</string>
     <string name="remote_notification_recording">Recording remote session</string>
+    <string name="remote_notification_voice">Voice call active</string>
     <string name="remote_notification_stop">End</string>
     <string name="transfer_error_read_source">The selected file cannot be read.</string>
     <string name="transfer_error_stage">The file could not be prepared for transfer.</string>

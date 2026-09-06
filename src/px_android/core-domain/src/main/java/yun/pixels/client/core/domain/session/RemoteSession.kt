@@ -54,6 +54,8 @@ data class RemoteSessionCapabilities(
     val ownedVirtualDisplayCount: Int = 0,
     val maximumVirtualDisplayCount: Int = 0,
     val topologyGeneration: Long = 0,
+    val supportsVoiceCall: Boolean = false,
+    val voiceCallRequiresHeadset: Boolean = true,
 )
 
 data class RemoteSessionStatistics(

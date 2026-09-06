@@ -32,11 +32,9 @@ namespace px {
 namespace {
 
 class TestVoiceAudioBackendProbe final {
-public:
-    void SetCallbacks(
-        IVoiceAudioBackend::CaptureCallback capture_callback,
-        IVoiceAudioBackend::PlayoutCallback playout_callback,
-        IVoiceAudioBackend::EventCallback event_callback) {
+  public:
+    void SetCallbacks(IVoiceAudioBackend::CaptureCallback capture_callback, IVoiceAudioBackend::PlayoutCallback playout_callback,
+                      IVoiceAudioBackend::EventCallback event_callback) {
         std::scoped_lock lock(mutex_);
         capture_callback_ = std::move(capture_callback);
         playout_callback_ = std::move(playout_callback);
@@ -87,14 +85,12 @@ public:
         return output;
     }
 
-    [[nodiscard]] IVoiceAudioBackend::CaptureCallback
-    CopyCaptureCallback() const {
+    [[nodiscard]] IVoiceAudioBackend::CaptureCallback CopyCaptureCallback() const {
         std::scoped_lock lock(mutex_);
-        return running_ ? capture_callback_
-                        : IVoiceAudioBackend::CaptureCallback{};
+        return running_ ? capture_callback_ : IVoiceAudioBackend::CaptureCallback{};
     }
 
-private:
+  private:
     mutable std::mutex mutex_;
     bool running_ = false;
     IVoiceAudioBackend::CaptureCallback capture_callback_;
@@ -103,29 +99,22 @@ private:
 };
 
 class TestVoiceAudioBackend final : public IVoiceAudioBackend {
-public:
-    explicit TestVoiceAudioBackend(
-        std::shared_ptr<TestVoiceAudioBackendProbe> probe)
-        : probe_(std::move(probe)) {}
+  public:
+    explicit TestVoiceAudioBackend(std::shared_ptr<TestVoiceAudioBackendProbe> probe) : probe_(std::move(probe)) {}
 
-    bool Start(
-        const VoiceAudioBackendConfig&, CaptureCallback capture_callback,
-        PlayoutCallback playout_callback, EventCallback event_callback,
-        std::string&) override {
-        probe_->SetCallbacks(
-            std::move(capture_callback), std::move(playout_callback),
-            std::move(event_callback));
+    bool Start(const VoiceAudioBackendConfig&, CaptureCallback capture_callback, PlayoutCallback playout_callback, EventCallback event_callback,
+               std::string&) override {
+        probe_->SetCallbacks(std::move(capture_callback), std::move(playout_callback), std::move(event_callback));
         return true;
     }
 
-    void Stop() override { probe_->Stop(); }
+    void Stop() override {
+        probe_->Stop();
+    }
 
-    bool EnumerateDevices(
-        VoiceAudioDeviceInventory& inventory, std::string&) override {
-        inventory.capture_devices.push_back(
-            {.name = "test capture", .is_default = true});
-        inventory.playout_devices.push_back(
-            {.name = "test playout", .is_default = true});
+    bool EnumerateDevices(VoiceAudioDeviceInventory& inventory, std::string&) override {
+        inventory.capture_devices.push_back({.name = "test capture", .is_default = true});
+        inventory.playout_devices.push_back({.name = "test playout", .is_default = true});
         return true;
     }
 
@@ -133,15 +122,14 @@ public:
         return probe_->IsRunning();
     }
     [[nodiscard]] VoiceAudioBackendInfo Info() const override {
-        return {.backend = "test", .capture_device = "test capture",
-                .playout_device = "test playout"};
+        return {.backend = "test", .capture_device = "test capture", .playout_device = "test playout"};
     }
 
-private:
+  private:
     std::shared_ptr<TestVoiceAudioBackendProbe> probe_;
 };
 
-}  // namespace
+} // namespace
 
 TEST(VoiceCallStateTest, OutgoingAcceptanceRequiresExactRequest) {
     VoiceCallState state;
@@ -175,11 +163,8 @@ TEST(VoiceCallStateTest, InvalidIncomingRequestDoesNotReserveAudioResources) {
     VoiceCallState state;
     EXPECT_EQ(state.BeginIncoming("", 1, 100), IncomingVoiceCallResult::kInvalid);
     EXPECT_EQ(state.BeginIncoming("call", 0, 100), IncomingVoiceCallResult::kInvalid);
-    EXPECT_EQ(state.BeginIncoming(
-                  std::string(VoiceCallState::kMaxCallIdBytes + 1, 'x'), 1, 100),
-              IncomingVoiceCallResult::kInvalid);
-    EXPECT_FALSE(state.BeginOutgoing(
-        std::string(VoiceCallState::kMaxCallIdBytes + 1, 'x'), 1, 100));
+    EXPECT_EQ(state.BeginIncoming(std::string(VoiceCallState::kMaxCallIdBytes + 1, 'x'), 1, 100), IncomingVoiceCallResult::kInvalid);
+    EXPECT_FALSE(state.BeginOutgoing(std::string(VoiceCallState::kMaxCallIdBytes + 1, 'x'), 1, 100));
     EXPECT_EQ(state.Phase(), VoiceCallPhase::kIdle);
 }
 
@@ -254,11 +239,11 @@ TEST(VoiceAudioEndpointTest, CaptureEncodeDecodeAndPlayoutRunWithDummyAudioDevic
     VoiceAudioEndpoint endpoint([] { return CreateSdlVoiceAudioBackend(); });
     std::string error;
     ASSERT_TRUE(endpoint.Start(
-        [&endpoint](uint32_t sequence, uint64_t capture_time_ms,
-                    const std::vector<uint8_t>& opus) {
-            endpoint.ReceiveOpus(
-                sequence, capture_time_ms, std::span<const uint8_t>(opus));
-        }, error)) << error;
+        [&endpoint](uint32_t sequence, uint64_t capture_time_ms, const std::vector<uint8_t>& opus) {
+            endpoint.ReceiveOpus(sequence, capture_time_ms, std::span<const uint8_t>(opus));
+        },
+        error))
+        << error;
 
     std::this_thread::sleep_for(std::chrono::milliseconds(350));
     const auto stats = endpoint.Stats();
@@ -276,11 +261,11 @@ TEST(VoiceAudioEndpointTest, MuteControlsKeepTransportAliveAndRecover) {
     VoiceAudioEndpoint endpoint([] { return CreateSdlVoiceAudioBackend(); });
     std::string error;
     ASSERT_TRUE(endpoint.Start(
-        [&endpoint](uint32_t sequence, uint64_t capture_time_ms,
-                    const std::vector<uint8_t>& opus) {
-            endpoint.ReceiveOpus(
-                sequence, capture_time_ms, std::span<const uint8_t>(opus));
-        }, error)) << error;
+        [&endpoint](uint32_t sequence, uint64_t capture_time_ms, const std::vector<uint8_t>& opus) {
+            endpoint.ReceiveOpus(sequence, capture_time_ms, std::span<const uint8_t>(opus));
+        },
+        error))
+        << error;
 
     std::this_thread::sleep_for(std::chrono::milliseconds(160));
     const auto before_mute = endpoint.Stats();
@@ -307,11 +292,11 @@ TEST(VoiceAudioEndpointTest, ConcurrentStopIsIdempotent) {
     VoiceAudioEndpoint endpoint([] { return CreateSdlVoiceAudioBackend(); });
     std::string error;
     ASSERT_TRUE(endpoint.Start(
-        [&endpoint](uint32_t sequence, uint64_t capture_time_ms,
-                    const std::vector<uint8_t>& opus) {
-            endpoint.ReceiveOpus(
-                sequence, capture_time_ms, std::span<const uint8_t>(opus));
-        }, error)) << error;
+        [&endpoint](uint32_t sequence, uint64_t capture_time_ms, const std::vector<uint8_t>& opus) {
+            endpoint.ReceiveOpus(sequence, capture_time_ms, std::span<const uint8_t>(opus));
+        },
+        error))
+        << error;
     std::this_thread::sleep_for(std::chrono::milliseconds(120));
 
     std::thread first([&endpoint] { endpoint.Stop(); });
@@ -325,25 +310,23 @@ TEST(VoiceAudioEndpointTest, ConcurrentStopIsIdempotent) {
 
 TEST(VoiceAudioEndpointTest, StopFromProcessedCaptureCallbackDoesNotSelfJoin) {
     ASSERT_EQ(SDL_setenv("SDL_AUDIODRIVER", "dummy", 1), 0);
-    const auto endpoint = std::make_shared<VoiceAudioEndpoint>(
-        [] { return CreateSdlVoiceAudioBackend(); });
+    const auto endpoint = std::make_shared<VoiceAudioEndpoint>([] { return CreateSdlVoiceAudioBackend(); });
     const auto weak_endpoint = std::weak_ptr<VoiceAudioEndpoint>(endpoint);
     auto stopped = std::make_shared<std::promise<void>>();
     auto stopped_future = stopped->get_future();
     auto stop_once = std::make_shared<std::atomic_bool>(false);
     std::string error;
-    ASSERT_TRUE(endpoint->Start(
-        [](uint32_t, uint64_t, const std::vector<uint8_t>&) {}, error, {},
-        [weak_endpoint, stopped, stop_once](std::span<const int16_t>) {
-            if (!stop_once->exchange(true)) {
-                if (const auto active = weak_endpoint.lock()) {
-                    active->Stop();
-                }
-                stopped->set_value();
-            }
-        })) << error;
-    EXPECT_EQ(stopped_future.wait_for(std::chrono::seconds(1)),
-              std::future_status::ready);
+    ASSERT_TRUE(endpoint->Start([](uint32_t, uint64_t, const std::vector<uint8_t>&) {}, error, {},
+                                [weak_endpoint, stopped, stop_once](std::span<const int16_t>) {
+                                    if (!stop_once->exchange(true)) {
+                                        if (const auto active = weak_endpoint.lock()) {
+                                            active->Stop();
+                                        }
+                                        stopped->set_value();
+                                    }
+                                }))
+        << error;
+    EXPECT_EQ(stopped_future.wait_for(std::chrono::seconds(1)), std::future_status::ready);
     EXPECT_FALSE(endpoint->IsRunning());
 }
 
@@ -351,13 +334,9 @@ TEST(VoiceAudioEndpointTest, LateBackendCallbackAfterDestructionIsIgnored) {
     const auto probe = std::make_shared<TestVoiceAudioBackendProbe>();
     IVoiceAudioBackend::CaptureCallback late_capture;
     {
-        VoiceAudioEndpoint endpoint([probe] {
-            return std::make_unique<TestVoiceAudioBackend>(probe);
-        });
+        VoiceAudioEndpoint endpoint([probe] { return std::make_unique<TestVoiceAudioBackend>(probe); });
         std::string error;
-        ASSERT_TRUE(endpoint.Start(
-            [](uint32_t, uint64_t, const std::vector<uint8_t>&) {},
-            error)) << error;
+        ASSERT_TRUE(endpoint.Start([](uint32_t, uint64_t, const std::vector<uint8_t>&) {}, error)) << error;
         late_capture = probe->CopyCaptureCallback();
         ASSERT_TRUE(late_capture);
     }
@@ -367,14 +346,10 @@ TEST(VoiceAudioEndpointTest, LateBackendCallbackAfterDestructionIsIgnored) {
 
 TEST(VoiceAudioEndpointTest, RepeatedStartStopIsStableForTenRounds) {
     const auto probe = std::make_shared<TestVoiceAudioBackendProbe>();
-    VoiceAudioEndpoint endpoint([probe] {
-        return std::make_unique<TestVoiceAudioBackend>(probe);
-    });
+    VoiceAudioEndpoint endpoint([probe] { return std::make_unique<TestVoiceAudioBackend>(probe); });
     for (int round = 0; round < 10; ++round) {
         std::string error;
-        ASSERT_TRUE(endpoint.Start(
-            [](uint32_t, uint64_t, const std::vector<uint8_t>&) {},
-            error)) << "round " << round << ": " << error;
+        ASSERT_TRUE(endpoint.Start([](uint32_t, uint64_t, const std::vector<uint8_t>&) {}, error)) << "round " << round << ": " << error;
         EXPECT_TRUE(endpoint.IsRunning()) << "round " << round;
         endpoint.Stop();
         EXPECT_FALSE(endpoint.IsRunning()) << "round " << round;
@@ -386,9 +361,7 @@ TEST(VoiceAudioEndpointTest, SdlBackendRepeatedStartStopIsStableForTenRounds) {
     VoiceAudioEndpoint endpoint([] { return CreateSdlVoiceAudioBackend(); });
     for (int round = 0; round < 10; ++round) {
         std::string error;
-        ASSERT_TRUE(endpoint.Start(
-            [](uint32_t, uint64_t, const std::vector<uint8_t>&) {},
-            error)) << "round " << round << ": " << error;
+        ASSERT_TRUE(endpoint.Start([](uint32_t, uint64_t, const std::vector<uint8_t>&) {}, error)) << "round " << round << ": " << error;
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
         endpoint.Stop();
         EXPECT_FALSE(endpoint.IsRunning()) << "round " << round;
@@ -410,18 +383,16 @@ TEST(VoiceAudioBackendTest, SdlDummyEnumeratesDefaultDevices) {
 
 TEST(VoiceAudioEndpointTest, DeviceEventsRebuildApmAndSignalFatalOnce) {
     const auto probe = std::make_shared<TestVoiceAudioBackendProbe>();
-    VoiceAudioEndpoint endpoint([probe] {
-        return std::make_unique<TestVoiceAudioBackend>(probe);
-    });
+    VoiceAudioEndpoint endpoint([probe] { return std::make_unique<TestVoiceAudioBackend>(probe); });
     std::atomic_uint32_t fatal_count = 0;
     std::string fatal_reason;
     std::string error;
-    ASSERT_TRUE(endpoint.Start(
-        [](uint32_t, uint64_t, const std::vector<uint8_t>&) {}, error,
-        [&fatal_count, &fatal_reason](const std::string& reason) {
-            ++fatal_count;
-            fatal_reason = reason;
-        })) << error;
+    ASSERT_TRUE(endpoint.Start([](uint32_t, uint64_t, const std::vector<uint8_t>&) {}, error,
+                               [&fatal_count, &fatal_reason](const std::string& reason) {
+                                   ++fatal_count;
+                                   fatal_reason = reason;
+                               }))
+        << error;
     probe->Emit(VoiceAudioBackendEvent::kRerouted, "default_changed");
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
     EXPECT_EQ(endpoint.Stats().device_rebuilds, 1u);
@@ -434,12 +405,9 @@ TEST(VoiceAudioEndpointTest, DeviceEventsRebuildApmAndSignalFatalOnce) {
 
 TEST(VoiceAudioEndpointTest, WebRtcPcmUsesEndpointPlayoutAndAecReference) {
     const auto probe = std::make_shared<TestVoiceAudioBackendProbe>();
-    VoiceAudioEndpoint endpoint([probe] {
-        return std::make_unique<TestVoiceAudioBackend>(probe);
-    });
+    VoiceAudioEndpoint endpoint([probe] { return std::make_unique<TestVoiceAudioBackend>(probe); });
     std::string error;
-    ASSERT_TRUE(endpoint.Start(
-        [](uint32_t, uint64_t, const std::vector<uint8_t>&) {}, error)) << error;
+    ASSERT_TRUE(endpoint.Start([](uint32_t, uint64_t, const std::vector<uint8_t>&) {}, error)) << error;
     std::array<int16_t, 960> stereo{};
     for (size_t frame = 0; frame < 480; ++frame) {
         stereo[frame * 2] = 1'000;
@@ -449,9 +417,7 @@ TEST(VoiceAudioEndpointTest, WebRtcPcmUsesEndpointPlayoutAndAecReference) {
     EXPECT_EQ(endpoint.Stats().received_pcm_samples, 480u);
     const auto played = probe->PullPlayout(480);
     ASSERT_EQ(played.size(), 480u);
-    EXPECT_TRUE(std::all_of(played.begin(), played.end(), [](int16_t value) {
-        return value == 2'000;
-    }));
+    EXPECT_TRUE(std::all_of(played.begin(), played.end(), [](int16_t value) { return value == 2'000; }));
 
     std::array<int16_t, 480> capture{};
     probe->FeedCapture(std::span<const int16_t>(capture));
@@ -462,9 +428,7 @@ TEST(VoiceAudioEndpointTest, WebRtcPcmUsesEndpointPlayoutAndAecReference) {
     EXPECT_TRUE(endpoint.ReceivePcm(std::span<const int16_t>(stereo), 48'000, 2));
     EXPECT_EQ(endpoint.Stats().received_pcm_samples, 480u);
     const auto muted = probe->PullPlayout(480);
-    EXPECT_TRUE(std::all_of(muted.begin(), muted.end(), [](int16_t value) {
-        return value == 0;
-    }));
+    EXPECT_TRUE(std::all_of(muted.begin(), muted.end(), [](int16_t value) { return value == 0; }));
     EXPECT_FALSE(endpoint.ReceivePcm(std::span<const int16_t>(stereo), 44'100, 2));
     EXPECT_EQ(endpoint.Stats().received_pcm_samples, 480u);
     endpoint.Stop();
@@ -497,11 +461,11 @@ TEST(VoiceAudioEndpointTest, ConfigurableLongRunningStability) {
     VoiceAudioEndpoint endpoint(std::move(backend_factory));
     std::string error;
     ASSERT_TRUE(endpoint.Start(
-        [&endpoint](uint32_t sequence, uint64_t capture_time_ms,
-                    const std::vector<uint8_t>& opus) {
-            endpoint.ReceiveOpus(
-                sequence, capture_time_ms, std::span<const uint8_t>(opus));
-        }, error)) << error;
+        [&endpoint](uint32_t sequence, uint64_t capture_time_ms, const std::vector<uint8_t>& opus) {
+            endpoint.ReceiveOpus(sequence, capture_time_ms, std::span<const uint8_t>(opus));
+        },
+        error))
+        << error;
 
     // Exclude one-time DLL, codec and audio subsystem initialization from the
     // leak baseline. Long-term growth is measured while the call is active.
@@ -509,9 +473,7 @@ TEST(VoiceAudioEndpointTest, ConfigurableLongRunningStability) {
 #if defined(_WIN32)
     PROCESS_MEMORY_COUNTERS_EX memory_before{};
     memory_before.cb = sizeof(memory_before);
-    ASSERT_TRUE(GetProcessMemoryInfo(
-        GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memory_before),
-        sizeof(memory_before)));
+    ASSERT_TRUE(GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memory_before), sizeof(memory_before)));
     DWORD handles_before = 0;
     ASSERT_TRUE(GetProcessHandleCount(GetCurrentProcess(), &handles_before));
 #endif
@@ -525,8 +487,7 @@ TEST(VoiceAudioEndpointTest, ConfigurableLongRunningStability) {
             muted = true;
             endpoint.SetMicrophoneMuted(true);
             endpoint.SetSpeakerMuted(true);
-        }
-        else if (muted) {
+        } else if (muted) {
             muted = false;
             endpoint.SetMicrophoneMuted(false);
             endpoint.SetSpeakerMuted(false);
@@ -535,21 +496,17 @@ TEST(VoiceAudioEndpointTest, ConfigurableLongRunningStability) {
         EXPECT_LE(stats.jitter_queued_packets, 10u);
         if (stats.encoded_packets > last_encoded) {
             stagnant_seconds = 0;
-        }
-        else {
+        } else {
             ++stagnant_seconds;
         }
         EXPECT_LT(stagnant_seconds, 10) << "audio transport stopped progressing";
         last_encoded = stats.encoded_packets;
     }
     const auto final_stats = endpoint.Stats();
-    EXPECT_GT(final_stats.encoded_packets,
-              static_cast<uint64_t>(duration_seconds) * 35u);
+    EXPECT_GT(final_stats.encoded_packets, static_cast<uint64_t>(duration_seconds) * 35u);
     if (use_wasapi) {
-        EXPECT_GT(final_stats.decoded_packets,
-                  static_cast<uint64_t>(duration_seconds) * 30u);
-    }
-    else {
+        EXPECT_GT(final_stats.decoded_packets, static_cast<uint64_t>(duration_seconds) * 30u);
+    } else {
         // SDL's dummy playback clock is intentionally not real-time on every
         // platform. Progress and bounded jitter are the deterministic gates;
         // real-time playout throughput is covered by the WASAPI hardware run.
@@ -571,13 +528,10 @@ TEST(VoiceAudioEndpointTest, ConfigurableLongRunningStability) {
 #if defined(_WIN32)
     PROCESS_MEMORY_COUNTERS_EX memory_after{};
     memory_after.cb = sizeof(memory_after);
-    ASSERT_TRUE(GetProcessMemoryInfo(
-        GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memory_after),
-        sizeof(memory_after)));
+    ASSERT_TRUE(GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memory_after), sizeof(memory_after)));
     DWORD handles_after = 0;
     ASSERT_TRUE(GetProcessHandleCount(GetCurrentProcess(), &handles_after));
-    EXPECT_LE(memory_after.PrivateUsage,
-              memory_before.PrivateUsage + 64ull * 1024ull * 1024ull);
+    EXPECT_LE(memory_after.PrivateUsage, memory_before.PrivateUsage + 64ull * 1024ull * 1024ull);
     EXPECT_LE(handles_after, handles_before + 32u);
     RecordProperty("private_bytes_before", memory_before.PrivateUsage);
     RecordProperty("private_bytes_after", memory_after.PrivateUsage);
@@ -598,8 +552,7 @@ TEST(VoiceAudioBackendTest, WasapiCommunicationDuplexHardwareSmoke) {
     ASSERT_NE(backend, nullptr);
     VoiceAudioDeviceInventory inventory;
     std::string enumeration_error;
-    ASSERT_TRUE(backend->EnumerateDevices(inventory, enumeration_error))
-        << enumeration_error;
+    ASSERT_TRUE(backend->EnumerateDevices(inventory, enumeration_error)) << enumeration_error;
     ASSERT_GT(inventory.capture_devices.size(), 1u);
     ASSERT_GT(inventory.playout_devices.size(), 1u);
     std::atomic_uint64_t captured_samples = 0;
@@ -613,16 +566,13 @@ TEST(VoiceAudioBackendTest, WasapiCommunicationDuplexHardwareSmoke) {
         config.playout_device_id = playout_id;
     }
     ASSERT_TRUE(backend->Start(
-        config,
-        [&captured_samples](std::span<const int16_t> samples) {
-            captured_samples.fetch_add(samples.size(), std::memory_order_relaxed);
-        },
+        config, [&captured_samples](std::span<const int16_t> samples) { captured_samples.fetch_add(samples.size(), std::memory_order_relaxed); },
         [&rendered_samples](std::span<int16_t> output) {
             std::fill(output.begin(), output.end(), 0);
             rendered_samples.fetch_add(output.size(), std::memory_order_relaxed);
         },
-        [](VoiceAudioBackendEvent, const std::string&) {},
-        error)) << error;
+        [](VoiceAudioBackendEvent, const std::string&) {}, error))
+        << error;
     std::this_thread::sleep_for(std::chrono::milliseconds(600));
     const auto info = backend->Info();
     backend->Stop();
@@ -651,8 +601,7 @@ TEST(VoiceAudioProcessingTest, ConfiguresAndProcessesTenMillisecondFrames) {
     }
     EXPECT_TRUE(processing.ProcessRender(std::span<const int16_t>(render)));
     EXPECT_TRUE(processing.ProcessCapture(std::span<int16_t>(capture)));
-    EXPECT_FALSE(processing.ProcessCapture(
-        std::span<int16_t>(capture).first(capture.size() - 1)));
+    EXPECT_FALSE(processing.ProcessCapture(std::span<int16_t>(capture).first(capture.size() - 1)));
 
     const auto stats = processing.Stats();
     EXPECT_EQ(stats.render_frames, 1u);
@@ -692,6 +641,34 @@ TEST(VoiceJitterBufferTest, ReportsLossAndRejectsLateOrDuplicatePackets) {
     EXPECT_EQ(jitter.Stats().missing, 1u);
 }
 
+TEST(VoiceJitterBufferTest, EmptyQueueDoesNotRunAheadOfDelayedCapture) {
+    VoiceJitterBuffer jitter(1, 4);
+    EXPECT_EQ(jitter.Push({7, 100, 10, {1}}), VoiceJitterPushResult::kAccepted);
+    ASSERT_EQ(jitter.Pop(10).packet->sequence, 7u);
+
+    EXPECT_EQ(jitter.Pop(30).kind, VoiceJitterPopKind::kNotReady);
+    EXPECT_EQ(jitter.Pop(50).kind, VoiceJitterPopKind::kNotReady);
+    EXPECT_EQ(jitter.Push({8, 120, 55, {2}}), VoiceJitterPushResult::kAccepted);
+    const auto resumed = jitter.Pop(70);
+    ASSERT_EQ(resumed.kind, VoiceJitterPopKind::kPacket);
+    EXPECT_EQ(resumed.packet->sequence, 8u);
+    EXPECT_EQ(jitter.Stats().late, 0u);
+    EXPECT_EQ(jitter.Stats().missing, 0u);
+}
+
+TEST(VoiceJitterBufferTest, LargeGapResynchronizesAfterOneConcealmentFrame) {
+    VoiceJitterBuffer jitter(1, 4);
+    EXPECT_EQ(jitter.Push({10, 100, 10, {1}}), VoiceJitterPushResult::kAccepted);
+    ASSERT_EQ(jitter.Pop(10).packet->sequence, 10u);
+
+    EXPECT_EQ(jitter.Push({100, 1'900, 30, {2}}), VoiceJitterPushResult::kAccepted);
+    EXPECT_EQ(jitter.Pop(30).kind, VoiceJitterPopKind::kMissing);
+    const auto resumed = jitter.Pop(50);
+    ASSERT_EQ(resumed.kind, VoiceJitterPopKind::kPacket);
+    EXPECT_EQ(resumed.packet->sequence, 100u);
+    EXPECT_EQ(jitter.Stats().missing, 89u);
+}
+
 TEST(VoiceJitterBufferTest, SequenceOrderingHandlesUint32Wrap) {
     VoiceJitterBuffer jitter(3, 5);
     EXPECT_EQ(jitter.Push({0xffffffffu, 20, 2, {2}}), VoiceJitterPushResult::kAccepted);
@@ -705,9 +682,7 @@ TEST(VoiceJitterBufferTest, SequenceOrderingHandlesUint32Wrap) {
 TEST(VoiceJitterBufferTest, BoundsPayloadAndQueueCapacity) {
     VoiceJitterBuffer jitter(2, 3);
     EXPECT_EQ(jitter.Push({1, 0, 0, {}}), VoiceJitterPushResult::kInvalid);
-    EXPECT_EQ(jitter.Push({1, 0, 0,
-        std::vector<uint8_t>(VoiceJitterBuffer::kMaxOpusPacketBytes + 1)}),
-        VoiceJitterPushResult::kInvalid);
+    EXPECT_EQ(jitter.Push({1, 0, 0, std::vector<uint8_t>(VoiceJitterBuffer::kMaxOpusPacketBytes + 1)}), VoiceJitterPushResult::kInvalid);
     EXPECT_EQ(jitter.Push({1, 0, 1, {1}}), VoiceJitterPushResult::kAccepted);
     EXPECT_EQ(jitter.Push({2, 0, 2, {2}}), VoiceJitterPushResult::kAccepted);
     EXPECT_EQ(jitter.Push({3, 0, 3, {3}}), VoiceJitterPushResult::kAccepted);
@@ -737,9 +712,7 @@ TEST(VoicePacketTransportTest, KeepsLatestSpeechUnderBlockedNetwork) {
     ASSERT_TRUE(transport.Enqueue({.sequence = 0, .opus = {1}}));
     {
         std::unique_lock lock(mutex);
-        ASSERT_TRUE(cv.wait_for(lock, std::chrono::seconds(1), [&] {
-            return first_entered;
-        }));
+        ASSERT_TRUE(cv.wait_for(lock, std::chrono::seconds(1), [&] { return first_entered; }));
     }
     for (uint32_t sequence = 1; sequence <= 20; ++sequence) {
         ASSERT_TRUE(transport.Enqueue({.sequence = sequence, .opus = {1}}));
@@ -752,9 +725,7 @@ TEST(VoicePacketTransportTest, KeepsLatestSpeechUnderBlockedNetwork) {
     cv.notify_all();
     {
         std::unique_lock lock(mutex);
-        ASSERT_TRUE(cv.wait_for(lock, std::chrono::seconds(1), [&] {
-            return sent.size() >= 2;
-        }));
+        ASSERT_TRUE(cv.wait_for(lock, std::chrono::seconds(1), [&] { return sent.size() >= 2; }));
     }
     transport.Stop();
 
@@ -773,16 +744,14 @@ TEST(VoicePacketTransportTest, StopFromDeliveryCallbackDoesNotSelfJoin) {
     const auto weak_transport = std::weak_ptr<VoicePacketTransport>(transport);
     auto stopped = std::make_shared<std::promise<void>>();
     auto stopped_future = stopped->get_future();
-    ASSERT_TRUE(transport->Start(
-        [weak_transport, stopped](const VoiceTransportPacket&) {
-            if (const auto active = weak_transport.lock()) {
-                active->Stop();
-            }
-            stopped->set_value();
-        }));
+    ASSERT_TRUE(transport->Start([weak_transport, stopped](const VoiceTransportPacket&) {
+        if (const auto active = weak_transport.lock()) {
+            active->Stop();
+        }
+        stopped->set_value();
+    }));
     ASSERT_TRUE(transport->Enqueue({.sequence = 1, .opus = {1}}));
-    EXPECT_EQ(stopped_future.wait_for(std::chrono::seconds(1)),
-              std::future_status::ready);
+    EXPECT_EQ(stopped_future.wait_for(std::chrono::seconds(1)), std::future_status::ready);
     EXPECT_FALSE(transport->Enqueue({.sequence = 2, .opus = {1}}));
 }
 
@@ -791,13 +760,9 @@ TEST(VoicePacketTransportTest, RepeatedStartStopIsStableForTenRounds) {
     for (uint32_t round = 0; round < 10; ++round) {
         auto delivered = std::make_shared<std::promise<uint32_t>>();
         auto delivered_future = delivered->get_future();
-        ASSERT_TRUE(transport.Start(
-            [delivered](const VoiceTransportPacket& packet) {
-                delivered->set_value(packet.sequence);
-            }));
+        ASSERT_TRUE(transport.Start([delivered](const VoiceTransportPacket& packet) { delivered->set_value(packet.sequence); }));
         ASSERT_TRUE(transport.Enqueue({.sequence = round, .opus = {1}}));
-        ASSERT_EQ(delivered_future.wait_for(std::chrono::seconds(1)),
-                  std::future_status::ready);
+        ASSERT_EQ(delivered_future.wait_for(std::chrono::seconds(1)), std::future_status::ready);
         EXPECT_EQ(delivered_future.get(), round);
         transport.Stop();
         EXPECT_FALSE(transport.Enqueue({.sequence = round, .opus = {1}}));
@@ -918,4 +883,4 @@ TEST(VoiceConsentPanelProtocolTest, DecisionRoundTripsExactCorrelation) {
     EXPECT_EQ(decoded.voice_call_consent_decision().reason(), "rejected");
 }
 
-}  // namespace px
+} // namespace px

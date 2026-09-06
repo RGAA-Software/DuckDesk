@@ -71,6 +71,9 @@ public:
 
 std::unique_ptr<IVoiceAudioBackend> CreateDefaultVoiceAudioBackend();
 std::unique_ptr<IVoiceAudioBackend> CreateSdlVoiceAudioBackend();
+#if defined(__ANDROID__)
+std::unique_ptr<IVoiceAudioBackend> CreateAAudioVoiceAudioBackend();
+#endif
 #if defined(_WIN32)
 std::unique_ptr<IVoiceAudioBackend> CreateWasapiVoiceAudioBackend();
 #endif

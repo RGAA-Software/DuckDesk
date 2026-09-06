@@ -122,7 +122,12 @@ void WsTransport::Broadcast(std::shared_ptr<Data> msg, bool run_through) {
 
 bool WsTransport::SendToStream(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
     if (IsWorking() && HasConnectedClients() && msg) {
-        return ws_server_->PostTargetStreamMessage(stream_id, msg);
+        const auto server = ws_server_;
+        return execution_context_->Post([server, stream_id, msg = std::move(msg)]() {
+            if (server && server->IsWorking()) {
+                static_cast<void>(server->PostTargetStreamMessage(stream_id, msg));
+            }
+        });
     }
     return false;
 }

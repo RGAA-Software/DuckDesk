@@ -32,6 +32,10 @@ import yun.pixels.client.core.domain.transfer.FileTransferTransport
 import yun.pixels.client.core.domain.recording.RecordingEvent
 import yun.pixels.client.core.domain.recording.RecordingId
 import yun.pixels.client.core.domain.recording.RecordingTransport
+import yun.pixels.client.core.domain.voice.VoiceCallEvent
+import yun.pixels.client.core.domain.voice.VoiceCallPhase
+import yun.pixels.client.core.domain.voice.VoiceCallState
+import yun.pixels.client.core.domain.voice.VoiceCallTransport
 import java.net.URI
 import java.net.URLDecoder
 
@@ -39,7 +43,7 @@ class NativeRemoteSessionTransport internal constructor(
     private val installationIdentity: InstallationIdentity,
     private val callbackScope: CoroutineScope,
     private val directSessionAuthorizer: DirectSessionAuthorizer,
-) : RemoteSessionTransport, FileTransferTransport, RecordingTransport, NativeSessionListener {
+) : RemoteSessionTransport, FileTransferTransport, RecordingTransport, VoiceCallTransport, NativeSessionListener {
     constructor(installationIdentity: InstallationIdentity, callbackScope: CoroutineScope) : this(
         installationIdentity,
         callbackScope,
@@ -51,6 +55,7 @@ class NativeRemoteSessionTransport internal constructor(
     private val mutableEvents = MutableSharedFlow<RemoteTransportEvent>(extraBufferCapacity = 32)
     private val mutableFileTransferEvents = MutableSharedFlow<FileTransferEvent>(extraBufferCapacity = 64)
     private val mutableRecordingEvents = MutableSharedFlow<RecordingEvent>(extraBufferCapacity = 8)
+    private val mutableVoiceCallEvents = MutableSharedFlow<VoiceCallEvent>(extraBufferCapacity = 16)
     private val surfaces = mutableMapOf<RemoteSessionId, Surface>()
     private val nativeSessionIds = mutableMapOf<RemoteSessionId, Long>()
     private val capabilities = mutableMapOf<RemoteSessionId, RemoteSessionCapabilities>()
@@ -58,6 +63,7 @@ class NativeRemoteSessionTransport internal constructor(
     override val events: Flow<RemoteTransportEvent> = mutableEvents.asSharedFlow()
     override val fileTransferEvents: Flow<FileTransferEvent> = mutableFileTransferEvents.asSharedFlow()
     override val recordingEvents: Flow<RecordingEvent> = mutableRecordingEvents.asSharedFlow()
+    override val voiceCallEvents: Flow<VoiceCallEvent> = mutableVoiceCallEvents.asSharedFlow()
 
     suspend fun attachSurface(sessionId: RemoteSessionId, surface: Surface) {
         surfaceLock.withLock {
@@ -232,6 +238,26 @@ class NativeRemoteSessionTransport internal constructor(
         }
     }
 
+    override suspend fun startVoiceCall(sessionId: RemoteSessionId): Boolean {
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        return withContext(Dispatchers.IO) { PixelsNativeBridge.startVoiceCall(nativeSessionId) }
+    }
+
+    override suspend fun stopVoiceCall(sessionId: RemoteSessionId): Boolean {
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        return withContext(Dispatchers.IO) { PixelsNativeBridge.stopVoiceCall(nativeSessionId) }
+    }
+
+    override suspend fun setVoiceMicrophoneMuted(sessionId: RemoteSessionId, muted: Boolean): Boolean {
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        return withContext(Dispatchers.IO) { PixelsNativeBridge.setVoiceMicrophoneMuted(nativeSessionId, muted) }
+    }
+
+    override suspend fun setVoiceSpeakerMuted(sessionId: RemoteSessionId, muted: Boolean): Boolean {
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        return withContext(Dispatchers.IO) { PixelsNativeBridge.setVoiceSpeakerMuted(nativeSessionId, muted) }
+    }
+
     private suspend fun sendMouse(
         nativeSessionId: Long,
         action: Int,
@@ -283,6 +309,8 @@ class NativeRemoteSessionTransport internal constructor(
         ownedVirtualDisplayCount: Int,
         maximumVirtualDisplayCount: Int,
         topologyGeneration: Long,
+        supportsVoiceCall: Boolean,
+        voiceCallRequiresHeadset: Boolean,
     ) {
         callbackScope.launch {
             val remoteSessionId = RemoteSessionId(sessionId)
@@ -297,6 +325,8 @@ class NativeRemoteSessionTransport internal constructor(
                 ownedVirtualDisplayCount = ownedVirtualDisplayCount.coerceAtLeast(0),
                 maximumVirtualDisplayCount = maximumVirtualDisplayCount.coerceAtLeast(0),
                 topologyGeneration = topologyGeneration.coerceAtLeast(0),
+                supportsVoiceCall = supportsVoiceCall,
+                voiceCallRequiresHeadset = voiceCallRequiresHeadset,
             )
             lock.withLock { capabilities[remoteSessionId] = sessionCapabilities }
             mutableEvents.emit(
@@ -457,6 +487,28 @@ class NativeRemoteSessionTransport internal constructor(
         callbackScope.launch { mutableRecordingEvents.emit(event) }
     }
 
+    override fun onVoiceCallState(
+        sessionId: String,
+        phase: Int,
+        microphoneMuted: Boolean,
+        speakerMuted: Boolean,
+        requiresHeadset: Boolean,
+        utf8Reason: ByteArray,
+    ) {
+        val state = VoiceCallState(
+            phase = when (phase) {
+                VOICE_REQUESTING -> VoiceCallPhase.Requesting
+                VOICE_CONNECTED -> VoiceCallPhase.Connected
+                else -> VoiceCallPhase.Idle
+            },
+            microphoneMuted = microphoneMuted,
+            speakerMuted = speakerMuted,
+            requiresHeadset = requiresHeadset,
+            reason = utf8Reason.decodeUtf8OrEmpty(),
+        )
+        callbackScope.launch { mutableVoiceCallEvents.emit(VoiceCallEvent(RemoteSessionId(sessionId), state)) }
+    }
+
     override fun onDisconnected(sessionId: String, reason: Int, recoverable: Boolean) {
         callbackScope.launch {
             mutableEvents.emit(
@@ -591,6 +643,8 @@ private const val MAX_CLIPBOARD_TEXT_BYTES = 1_048_576
 private const val RECORDING_STARTED = 1
 private const val RECORDING_COMPLETED = 2
 private const val RECORDING_FAILED = 3
+private const val VOICE_REQUESTING = 1
+private const val VOICE_CONNECTED = 2
 
 private fun ByteArray.decodeUtf8OrEmpty(): String = runCatching { decodeToString(throwOnInvalidSequence = true) }.getOrDefault("")
 

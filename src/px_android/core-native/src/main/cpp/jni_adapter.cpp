@@ -259,6 +259,28 @@ jboolean NativeStopRecording(JNIEnv* environment, jobject, const jlong native_se
     return session && session->StopRecording(id) ? JNI_TRUE : JNI_FALSE;
 }
 
+jboolean NativeStartVoiceCall(JNIEnv*, jobject, const jlong native_session_id) { // NOLINT(gammaray-raw-pointer-boundary)
+    const auto session = Registry().Find(native_session_id);
+    return session && session->StartVoiceCall() ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean NativeStopVoiceCall(JNIEnv*, jobject, const jlong native_session_id) { // NOLINT(gammaray-raw-pointer-boundary)
+    const auto session = Registry().Find(native_session_id);
+    return session && session->StopVoiceCall() ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean NativeSetVoiceMicrophoneMuted(JNIEnv*, jobject, const jlong native_session_id,
+                                       const jboolean muted) { // NOLINT(gammaray-raw-pointer-boundary)
+    const auto session = Registry().Find(native_session_id);
+    return session && session->SetVoiceMicrophoneMuted(muted == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean NativeSetVoiceSpeakerMuted(JNIEnv*, jobject, const jlong native_session_id,
+                                    const jboolean muted) { // NOLINT(gammaray-raw-pointer-boundary)
+    const auto session = Registry().Find(native_session_id);
+    return session && session->SetVoiceSpeakerMuted(muted == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
+}
+
 jboolean NativeSendSecureAttention(JNIEnv*, jobject, const jlong native_session_id) { // NOLINT(gammaray-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->SendSecureAttention() ? JNI_TRUE : JNI_FALSE;
@@ -356,6 +378,12 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) { // NOLINT(gamm
         {const_cast<char*>("setAudioEnabled"), const_cast<char*>("(JZ)Z"), reinterpret_cast<void*>(pixels::android::NativeSetAudioEnabled)},
         {const_cast<char*>("startRecording"), const_cast<char*>("(J[B[B)Z"), reinterpret_cast<void*>(pixels::android::NativeStartRecording)},
         {const_cast<char*>("stopRecording"), const_cast<char*>("(J[B)Z"), reinterpret_cast<void*>(pixels::android::NativeStopRecording)},
+        {const_cast<char*>("startVoiceCall"), const_cast<char*>("(J)Z"), reinterpret_cast<void*>(pixels::android::NativeStartVoiceCall)},
+        {const_cast<char*>("stopVoiceCall"), const_cast<char*>("(J)Z"), reinterpret_cast<void*>(pixels::android::NativeStopVoiceCall)},
+        {const_cast<char*>("setVoiceMicrophoneMuted"), const_cast<char*>("(JZ)Z"),
+         reinterpret_cast<void*>(pixels::android::NativeSetVoiceMicrophoneMuted)},
+        {const_cast<char*>("setVoiceSpeakerMuted"), const_cast<char*>("(JZ)Z"),
+         reinterpret_cast<void*>(pixels::android::NativeSetVoiceSpeakerMuted)},
         {const_cast<char*>("stop"), const_cast<char*>("(J)V"), reinterpret_cast<void*>(pixels::android::NativeStop)},
     };
     const auto result = environment->RegisterNatives(bridge_class, methods, std::size(methods));

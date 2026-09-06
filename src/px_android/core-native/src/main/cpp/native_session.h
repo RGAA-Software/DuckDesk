@@ -28,6 +28,8 @@ struct TransferJobStatus;
 namespace pixels::android {
 
 class NativeAudioPlayer;
+class NativeVoiceCall;
+struct NativeVoiceCallStatus;
 
 struct NativeSessionConfig final {
     std::string session_id{};
@@ -72,7 +74,8 @@ class JavaSessionCallback final {
 
     void Connected(const NativeSessionConfig& config, const std::vector<std::string>& monitor_names, const std::string& active_monitor_name,
                    bool supports_audio, bool supports_input, bool supports_file_transfer, bool supports_clipboard, bool supports_virtual_displays,
-                   std::int32_t owned_virtual_display_count, std::int32_t maximum_virtual_display_count, std::int64_t topology_generation) const;
+                   std::int32_t owned_virtual_display_count, std::int32_t maximum_virtual_display_count, std::int64_t topology_generation,
+                   bool supports_voice_call, bool voice_call_requires_headset) const;
     void MonitorsChanged(const std::string& session_id, const std::vector<std::string>& monitor_names, const std::string& active_monitor_name) const;
     void VirtualDisplayResult(const std::string& session_id, const std::string& request_id, bool accepted, std::int32_t state, bool topology_changed,
                               std::int64_t topology_generation, std::int32_t owned_display_count, const std::string& error_code,
@@ -85,6 +88,7 @@ class JavaSessionCallback final {
     void FileTransferOverwrite(const std::string& session_id, std::int32_t job_id, std::int32_t file_number, const std::string& path, bool upload,
                                bool identical) const;
     void RecordingState(const std::string& session_id, const std::string& recording_id, std::int32_t state, const std::string& error) const;
+    void VoiceCallState(const std::string& session_id, const NativeVoiceCallStatus& status) const;
     void Disconnected(const std::string& session_id, std::int32_t reason, bool recoverable) const;
 
   private:
@@ -123,6 +127,10 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     bool ConfirmFileOverwrite(std::int32_t job_id, std::int32_t file_number, bool overwrite, std::uint64_t offset_bytes, bool apply_to_all);
     bool StartRecording(const std::string& recording_id, const std::string& staging_directory);
     bool StopRecording(const std::string& recording_id);
+    bool StartVoiceCall();
+    bool StopVoiceCall();
+    bool SetVoiceMicrophoneMuted(bool muted);
+    bool SetVoiceSpeakerMuted(bool muted);
     bool SendSecureAttention();
     bool SwitchMonitor(const std::string& monitor_name);
     bool RequestVirtualDisplay(const std::string& request_id, std::int32_t operation, std::int32_t width, std::int32_t height,
@@ -145,6 +153,7 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     std::shared_ptr<px::ft::FtAsyncSession> file_transfer_session_{};
     std::shared_ptr<px::Thread> recording_thread_{};
     std::shared_ptr<px::RecordWriter> recording_writer_{};
+    std::shared_ptr<NativeVoiceCall> voice_call_{};
     std::shared_ptr<px::SdkStatistics> statistics_{};
     std::unique_ptr<NativeAudioPlayer> audio_player_{};
     std::mutex command_mutex_{};

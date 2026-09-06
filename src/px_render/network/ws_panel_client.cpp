@@ -570,13 +570,15 @@ void WsPanelClient::ParseNetMessage(const std::string& msg) {
             module_registry_->BroadcastTargetStreamMessage(sub.stream_id(), buffer, true);
         } else if (m.type() == pxrp::RpMessageType::kRpVoiceCallConsentDecision) {
             const auto& sub = m.voice_call_consent_decision();
-            auto event = std::make_shared<MsgVoiceCallConsentDecision>();
-            event->stream_id_ = sub.stream_id();
-            event->call_id_ = sub.call_id();
-            event->request_id_ = sub.request_id();
-            event->accepted_ = sub.accepted();
-            event->reason_ = sub.reason();
-            context_->DispatchAppEventToModules(event);
+            if (const auto service = context_->GetVoiceCallService()) {
+                MsgVoiceCallConsentDecision decision;
+                decision.stream_id_ = sub.stream_id();
+                decision.call_id_ = sub.call_id();
+                decision.request_id_ = sub.request_id();
+                decision.accepted_ = sub.accepted();
+                decision.reason_ = sub.reason();
+                service->HandleConsentDecision(decision);
+            }
         } else if (m.type() == pxrp::RpMessageType::kRpRawRenderMessage) {
             const auto& sub = m.raw_render_msg();
             auto data = Data::From(sub.msg());
