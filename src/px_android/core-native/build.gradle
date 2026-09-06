@@ -1,11 +1,24 @@
 plugins {
     id 'com.android.library'
+    id 'com.google.protobuf'
 }
 
 def configuredVcpkgRoot = providers.gradleProperty('pixelsVcpkgRoot')
     .orElse(providers.environmentVariable('VCPKG_ROOT'))
     .orElse('C:/source/vcpkg')
     .get()
+def rtcProtoDirectory = layout.buildDirectory.dir('generated/rtc-proto')
+def syncRtcProtos = tasks.register('syncRtcProtos', Sync) {
+    from('../../px_deps/px_message') {
+        include 'px_message.proto'
+        include 'px_signaling_message.proto'
+        include 'px_file_transfer.proto'
+    }
+    from('../../px_deps/px_server_protocol') {
+        include 'relay_message.proto'
+    }
+    into rtcProtoDirectory
+}
 
 android {
     namespace = 'yun.pixels.client.core.nativebridge'
@@ -37,11 +50,44 @@ android {
             version = '3.30.5'
         }
     }
+
+    sourceSets {
+        main {
+            proto {
+                srcDir rtcProtoDirectory
+            }
+        }
+    }
+}
+
+protobuf {
+    protoc {
+        artifact = 'com.google.protobuf:protoc:4.36.1'
+    }
+    generateProtoTasks {
+        all().configureEach { task ->
+            task.dependsOn(syncRtcProtos)
+            task.builtins {
+                java {
+                    option 'lite'
+                }
+            }
+        }
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name.startsWith('process') && task.name.endsWith('ProtoResources')) {
+        task.dependsOn(syncRtcProtos)
+    }
 }
 
 dependencies {
     implementation project(':core-domain')
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+    implementation 'com.squareup.okhttp3:okhttp:5.4.0'
+    implementation 'com.google.protobuf:protobuf-javalite:4.36.1'
+    implementation 'io.github.webrtc-sdk:android:150.7871.01'
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20250517'

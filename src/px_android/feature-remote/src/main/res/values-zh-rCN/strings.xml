@@ -12,6 +12,8 @@
     <string name="remote_failed_remote_ended">远程电脑已结束会话。</string>
     <string name="remote_retry">重试</string>
     <string name="remote_exit">结束会话</string>
+    <string name="remote_exit_confirmation_title">结束远程会话？</string>
+    <string name="remote_exit_confirmation_message">与此设备的连接将会关闭。</string>
     <string name="remote_mute">静音远程声音</string>
     <string name="remote_unmute">播放远程声音</string>
     <string name="remote_keyboard">键盘与快捷键</string>

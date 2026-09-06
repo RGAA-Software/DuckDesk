@@ -118,7 +118,6 @@ fun RemoteWorkspaceScreen(
     onRetry: () -> Unit,
     onEndSession: () -> Unit,
 ) {
-    BackHandler(onBack = onEndSession)
     val context = LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences(INPUT_PREFERENCES, 0) }
     var inputMode by remember {
@@ -147,6 +146,7 @@ fun RemoteWorkspaceScreen(
     var allowPortraitGamepad by remember { mutableStateOf(false) }
     var pendingVirtualDisplayRequest by remember { mutableStateOf<String?>(null) }
     var confirmSecureAttention by remember { mutableStateOf(false) }
+    var confirmEndSession by remember { mutableStateOf(false) }
     var currentSurface by remember { mutableStateOf<Surface?>(null) }
     val latestSurfaceAvailable by rememberUpdatedState(onSurfaceAvailable)
     val latestSurfaceDestroyed by rememberUpdatedState(onSurfaceDestroyed)
@@ -158,6 +158,35 @@ fun RemoteWorkspaceScreen(
     gamepadController.configuration = gamepadConfiguration
     interpreter.mode = inputMode
     interpreter.touchpadSensitivity = sensitivity
+    val requestEndSession = {
+        if (snapshot.status.requiresExitConfirmation) {
+            confirmEndSession = true
+        } else {
+            onEndSession()
+        }
+    }
+    BackHandler {
+        when (
+            resolveRemoteBackAction(
+                confirmSecureAttention = confirmSecureAttention,
+                showKeyboard = showKeyboard,
+                showGamepadSettings = showGamepadSettings,
+                showDisplays = showDisplays,
+                inputMode = inputMode,
+            )
+        ) {
+            RemoteBackAction.DismissSecureAttention -> confirmSecureAttention = false
+            RemoteBackAction.DismissKeyboard -> showKeyboard = false
+            RemoteBackAction.DismissGamepadSettings -> showGamepadSettings = false
+            RemoteBackAction.DismissDisplays -> showDisplays = false
+            RemoteBackAction.ExitGamepadMode -> {
+                gamepadController.reset()
+                inputMode = RemoteInputMode.DirectTouch
+                preferences.edit().putString(INPUT_MODE, RemoteInputMode.DirectTouch.name).apply()
+            }
+            RemoteBackAction.RequestSessionEnd -> requestEndSession()
+        }
+    }
     LaunchedEffect(currentSurface, surfaceConsumerReady) {
         currentSurface?.takeIf { surfaceConsumerReady && it.isValid }?.let(latestSurfaceAvailable)
     }
@@ -277,7 +306,7 @@ fun RemoteWorkspaceScreen(
             onOpenGamepadSettings = { showGamepadSettings = true },
             onOpenDisplays = { showDisplays = true },
             onOpenTransfers = onOpenTransfers,
-            onEndSession = onEndSession,
+            onEndSession = requestEndSession,
         )
         if (inputMode == RemoteInputMode.Gamepad && snapshot.status is RemoteSessionStatus.Connected) {
             if (maxWidth > maxHeight || allowPortraitGamepad) {
@@ -343,6 +372,26 @@ fun RemoteWorkspaceScreen(
             },
         )
     }
+    if (confirmEndSession) {
+        AlertDialog(
+            onDismissRequest = { confirmEndSession = false },
+            title = { Text(stringResource(R.string.remote_exit_confirmation_title)) },
+            text = { Text(stringResource(R.string.remote_exit_confirmation_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmEndSession = false
+                        onEndSession()
+                    },
+                ) { Text(stringResource(R.string.remote_exit)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmEndSession = false }) {
+                    Text(stringResource(R.string.remote_text_cancel))
+                }
+            },
+        )
+    }
     val connected = snapshot.status as? RemoteSessionStatus.Connected
     if (showDisplays && connected != null) {
         RemoteDisplaysSheet(
@@ -357,6 +406,35 @@ fun RemoteWorkspaceScreen(
             onDismiss = { showDisplays = false },
         )
     }
+}
+
+private val RemoteSessionStatus.requiresExitConfirmation: Boolean
+    get() = this is RemoteSessionStatus.Starting ||
+        this is RemoteSessionStatus.Connected ||
+        this is RemoteSessionStatus.Reconnecting
+
+internal enum class RemoteBackAction {
+    DismissSecureAttention,
+    DismissKeyboard,
+    DismissGamepadSettings,
+    DismissDisplays,
+    ExitGamepadMode,
+    RequestSessionEnd,
+}
+
+internal fun resolveRemoteBackAction(
+    confirmSecureAttention: Boolean,
+    showKeyboard: Boolean,
+    showGamepadSettings: Boolean,
+    showDisplays: Boolean,
+    inputMode: RemoteInputMode,
+): RemoteBackAction = when {
+    confirmSecureAttention -> RemoteBackAction.DismissSecureAttention
+    showKeyboard -> RemoteBackAction.DismissKeyboard
+    showGamepadSettings -> RemoteBackAction.DismissGamepadSettings
+    showDisplays -> RemoteBackAction.DismissDisplays
+    inputMode == RemoteInputMode.Gamepad -> RemoteBackAction.ExitGamepadMode
+    else -> RemoteBackAction.RequestSessionEnd
 }
 
 @Composable

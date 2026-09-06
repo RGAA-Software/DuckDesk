@@ -206,7 +206,10 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 不尝试把仅有 Windows x64 预编译库的 `px_webrtc_client` 链入 Android。依赖必须固定版本并归档许可证、校验值和 native symbols，
 不能使用动态版本。当前选定基线为 `io.github.webrtc-sdk:android:150.7871.01`。
 
-旧 `rtc_client_stub.cpp` 已随 M0 删除。当前 `core-native` 已接入真实 WebSocket transport 和 typed JNI 边界；Android 尚未接入第三方 WebRTC AAR，因此构建时明确关闭 RTC capability，不暴露伪造能力。正式发布门禁仍要求 RTC adapter 实现并通过真机网络测试。
+旧 `rtc_client_stub.cpp` 已随 M0 删除。当前 `core-native` 已接入真实 WebSocket transport、typed JNI 边界和固定版本 Android WebRTC AAR；
+标准 RTC platform adapter 直接消费仓库权威 protobuf，并已具备票据信令、ICE/TURN、RTP Surface 渲染和基础 DataChannel 协议。产品路由仅在
+Console 提供完整且未临近过期的 RTC/Relay 作用域时选择标准 RTC，否则继续使用原生 UDP/Relay；票据续发降级、完整 DataChannel 能力以及真机网络矩阵
+完成前仍不对外宣称 WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
 
 ## 7. 渲染、音频和输入
 
@@ -329,7 +332,7 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 
 ### M5：完整网络与质量收口，2–3 周
 
-状态：**UDP Direct 已作为 Android 默认传输接入，具备认证控制面、四秒媒体探测与同会话 WebSocket 安全回退；断线重连具有三十秒上限、类型化失败和显式重试。账号公网设备已接入一次性票据约束的 Relay 主路径，Console 只校验并注入权威绑定，Render 负责唯一兑换、逻辑会话准入和按能力路由；真实公网 Relay 交付及 WebRTC 网络矩阵仍待完成。**
+状态：**UDP Direct 已作为 Android 默认传输接入，具备认证控制面、四秒媒体探测与同会话 WebSocket 安全回退；断线重连具有三十秒上限、类型化失败和显式重试。账号公网设备已接入一次性票据约束的 Relay 主路径，Console 只校验并注入权威绑定，Render 负责唯一兑换、逻辑会话准入和按能力路由。Android 标准 WebRTC 已固定 AAR、接入权威 protobuf-lite 协议生成、票据作用域 Relay 信令、ICE/TURN 配置校验、PeerConnection、RTP 音视频 Surface 渲染，以及可靠控制/不可靠输入 DataChannel 的 Hello、输入、文本剪贴板和能力消息；统一产品路由会校验 RTC 与票据有效期后选择 WebRTC，否则使用原生 UDP/Relay，并在 RTC 下保守关闭尚未实现的文件、录制、语音和虚拟显示能力。票据续发降级、完整 DataChannel 能力和真实网络矩阵仍待完成，因此当前不会向用户宣称 WebRTC 已完整交付。**
 
 - UDP Direct、Relay、WebRTC Direct、ICE/TURN WebRTC。
 - 传输选择、协商、失败降级、网络切换恢复。
@@ -442,7 +445,8 @@ SHA-256 发布清单，以及应用内隐私、开源许可和主动脱敏诊断
   重连，超时后停止 transport、显示类型化原因并允许用户主动重试。Relay 与 WebRTC 仍按 M5 实施，未完成的能力不伪装为可用。
 - 一级导航使用设备、传输和设置三个平级根目的地；切换 Tab 会清理上一 Tab 和详情页，不恢复过期子页。应用列表是设备页的全屏详情，远控与远控文件
   任务是会话全屏页，这三类详情都不显示一级底栏。结束会话固定返回设备页，传输/设置根页的系统返回也固定回到设备页，重复点击当前 Tab 不创建新页面。
-  会话文件浏览的系统返回键与顶部返回键会先回到上级目录，到达远端根视图后才返回远控工作区。
+  会话文件浏览的系统返回键与顶部返回键会先回到上级目录，到达远端根视图后才返回远控工作区；远控工作区的系统返回优先关闭安全确认、键盘、手柄设置和
+  显示器面板，其次退出手柄模式，最后显示结束会话确认，确认结束后固定回到设备页。
 - 设置页已展示版本、隐私说明和开源组件摘要，并只在用户主动操作后生成应用私有诊断报告、调起 Android 分享选择器。报告仅包含构建、设备、会话状态
   与当前进程近期日志，敏感行、网络 URL、IP、会话标识、content URI 和用户文件路径均会脱敏，旧报告在应用私有缓存中自动过期。
 - release 构建只接受 CI 环境变量或被 Git 忽略的本机签名配置；缺少完整配置时打包任务立即失败。流水线执行 release lint、单元测试、R8/resource
@@ -571,6 +575,10 @@ SHA-256 发布清单，以及应用内隐私、开源许可和主动脱敏诊断
   （另有 1 个需独立 MongoDB 的 L1 用例按定义忽略）；部署后二进制与 release
   构建 SHA-256 均为 `5F94DBB9EC61454E11B391A697F08D7105189BB9FD467EB457D270DADCF02EF5`。真实 WebSocket upgrade 探针确认缺少
   `ticket_device_id` 和混入伪造 guest 目标返回 `400 INVALID_ARGUMENT`，结构完整但无效的票据返回 `410 TICKET_EXPIRED_OR_USED`。
+- 2026-09-07 返回交互收口补齐了远控工作区的分层返回和结束确认。USB 真机用 `adb install -r -d` 覆盖安装后，设备→传输→设置→返回设备、快速连续切换
+  以及真实局域网远控均通过；手柄竖屏提示下首次系统返回只退出手柄模式，第二次返回显示结束确认，取消后视频会话继续，确认后才停止会话并回到设备页。
+  全套 Android 单元测试、lint 和 debug APK 构建通过，无 `AndroidRuntime` 崩溃；APK SHA-256 为
+  `1178ADA387E2EC9488E76A7F1579E917B78C19FC284FCD9AC6946E7AF2EE7640`，测试过程未卸载应用。
 
 这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径、物理显示器切换和虚拟显示失败反馈；
 后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁，M5 轮次关闭了 UDP Direct 协商、WebSocket 安全回退、有界重连和 H.264 首帧解析门禁。

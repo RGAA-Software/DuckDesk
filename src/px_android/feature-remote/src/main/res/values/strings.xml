@@ -12,6 +12,8 @@
     <string name="remote_failed_remote_ended">The remote computer ended the session.</string>
     <string name="remote_retry">Try again</string>
     <string name="remote_exit">End session</string>
+    <string name="remote_exit_confirmation_title">End remote session?</string>
+    <string name="remote_exit_confirmation_message">The connection to this device will be closed.</string>
     <string name="remote_mute">Mute remote audio</string>
     <string name="remote_unmute">Play remote audio</string>
     <string name="remote_keyboard">Keyboard and shortcuts</string>

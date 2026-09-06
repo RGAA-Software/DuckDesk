@@ -35,7 +35,7 @@ import yun.pixels.client.core.domain.session.RemoteSessionSnapshot
 import yun.pixels.client.core.domain.session.RemoteSessionStatus
 import yun.pixels.client.core.domain.session.ClipboardDownloadState
 import yun.pixels.client.core.domain.session.RemoteClipboardFiles
-import yun.pixels.client.core.nativebridge.NativeRemoteSessionTransport
+import yun.pixels.client.core.nativebridge.AndroidRemoteSessionTransport
 import yun.pixels.client.core.domain.session.RemoteSessionWorkflow
 import yun.pixels.client.core.domain.session.InputCommand
 import yun.pixels.client.core.domain.session.RemoteKey
@@ -57,7 +57,7 @@ import kotlinx.coroutines.flow.collectLatest
 
 class RemoteSessionService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private lateinit var transport: NativeRemoteSessionTransport
+    private lateinit var transport: AndroidRemoteSessionTransport
     private lateinit var workflow: RemoteSessionWorkflow
     private lateinit var fileTransfers: AndroidFileTransferCoordinator
     private lateinit var clipboard: AndroidClipboardCoordinator
@@ -92,7 +92,7 @@ class RemoteSessionService : Service() {
         super.onCreate()
         val graph = (application as PixelsApplication).graph
         audioManager = getSystemService(AudioManager::class.java)
-        transport = NativeRemoteSessionTransport(graph.installationIdentity, serviceScope)
+        transport = AndroidRemoteSessionTransport(this, graph.installationIdentity, serviceScope)
         workflow = RemoteSessionWorkflow(transport, serviceScope)
         fileTransfers = AndroidFileTransferCoordinator(this, transport, serviceScope)
         clipboard = AndroidClipboardCoordinator(this, transport, serviceScope)
@@ -166,6 +166,7 @@ class RemoteSessionService : Service() {
             workflow.close()
         }
         recordings.close()
+        transport.close()
         gamepadHaptics.stop()
         abandonAudioFocus()
         serviceScope.cancel()

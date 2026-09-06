@@ -14,13 +14,13 @@ import yun.pixels.client.core.domain.session.ClipboardDownloadState
 import yun.pixels.client.core.domain.session.LocalClipboardFile
 import yun.pixels.client.core.domain.session.RemoteClipboardFiles
 import yun.pixels.client.core.domain.session.RemoteSessionId
-import yun.pixels.client.core.nativebridge.NativeRemoteSessionTransport
+import yun.pixels.client.core.domain.session.RemoteSessionTransport
 import java.io.File
 import java.util.UUID
 
 internal class AndroidClipboardCoordinator(
     context: Context,
-    private val transport: NativeRemoteSessionTransport,
+    private val transport: RemoteSessionTransport,
     private val scope: CoroutineScope,
 ) {
     private val applicationContext = context.applicationContext
