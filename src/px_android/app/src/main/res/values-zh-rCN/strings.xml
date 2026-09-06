@@ -17,6 +17,7 @@
     <string name="remote_notification_title">Pixels 远程会话</string>
     <string name="remote_notification_text">正在连接 %1$s</string>
     <string name="remote_notification_transfer">正在传输 %1$s</string>
+    <string name="remote_notification_recording">正在录制远程会话</string>
     <string name="remote_notification_stop">结束</string>
     <string name="transfer_error_read_source">无法读取所选文件。</string>
     <string name="transfer_error_stage">无法为传输准备所选文件。</string>

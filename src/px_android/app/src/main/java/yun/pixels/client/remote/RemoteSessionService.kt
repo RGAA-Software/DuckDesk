@@ -39,6 +39,7 @@ import yun.pixels.client.core.domain.session.RemoteSessionId
 import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
 import yun.pixels.client.core.domain.transfer.FileTransferTask
 import yun.pixels.client.core.domain.transfer.FileTransferState
+import yun.pixels.client.core.domain.recording.RecordingState
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -48,6 +49,7 @@ class RemoteSessionService : Service() {
     private lateinit var transport: NativeRemoteSessionTransport
     private lateinit var workflow: RemoteSessionWorkflow
     private lateinit var fileTransfers: AndroidFileTransferCoordinator
+    private lateinit var recordings: AndroidRecordingCoordinator
     private val localBinder = LocalBinder()
     private var preparedRequest: RemoteSessionRequest? = null
     private var foregroundStarted = false
@@ -79,6 +81,7 @@ class RemoteSessionService : Service() {
         transport = NativeRemoteSessionTransport(graph.installationIdentity, serviceScope)
         workflow = RemoteSessionWorkflow(transport, serviceScope)
         fileTransfers = AndroidFileTransferCoordinator(this, transport, serviceScope)
+        recordings = AndroidRecordingCoordinator(this, transport, serviceScope)
         createNotificationChannel()
         serviceScope.launch {
             workflow.snapshot.collectLatest { snapshot ->
@@ -92,8 +95,13 @@ class RemoteSessionService : Service() {
         serviceScope.launch {
             fileTransfers.tasks.collectLatest { tasks ->
                 if (foregroundStarted) {
-                    getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, createNotification(foregroundDeviceName, tasks))
+                    updateNotification(tasks, recordings.state.value)
                 }
+            }
+        }
+        serviceScope.launch {
+            recordings.state.collectLatest { state ->
+                if (foregroundStarted) updateNotification(fileTransfers.tasks.value, state)
             }
         }
     }
@@ -107,9 +115,14 @@ class RemoteSessionService : Service() {
 
     override fun onDestroy() {
         runBlocking {
-            currentRequest()?.let { releaseAllInputs(it.id) }
+            currentRequest()?.let {
+                releaseAllInputs(it.id)
+                recordings.sessionEnded(it.id)
+                fileTransfers.sessionEnded(it.id)
+            }
             workflow.close()
         }
+        recordings.close()
         abandonAudioFocus()
         serviceScope.cancel()
         super.onDestroy()
@@ -173,6 +186,7 @@ class RemoteSessionService : Service() {
         serviceScope.launch {
             val sessionId = currentRequest()?.id
             releaseAllInputs(sessionId)
+            sessionId?.let { recordings.sessionEnded(it) }
             sessionId?.let(fileTransfers::sessionEnded)
             workflow.stop()
             abandonAudioFocus()
@@ -226,6 +240,11 @@ class RemoteSessionService : Service() {
         fileTransfers.download(connected.request.id, remotePath, destination)
     }
 
+    private fun startRecording() {
+        val connected = workflow.snapshot.value.status as? RemoteSessionStatus.Connected ?: return
+        recordings.start(connected.request.id)
+    }
+
     private fun currentRequest(): RemoteSessionRequest? = when (val status = workflow.snapshot.value.status) {
         RemoteSessionStatus.Idle -> null
         is RemoteSessionStatus.Starting -> status.request
@@ -265,7 +284,18 @@ class RemoteSessionService : Service() {
         hasAudioFocus = false
     }
 
-    private fun createNotification(deviceName: String, tasks: List<FileTransferTask> = fileTransfers.tasks.value): Notification {
+    private fun updateNotification(tasks: List<FileTransferTask>, recordingState: RecordingState) {
+        getSystemService(NotificationManager::class.java).notify(
+            NOTIFICATION_ID,
+            createNotification(foregroundDeviceName, tasks, recordingState),
+        )
+    }
+
+    private fun createNotification(
+        deviceName: String,
+        tasks: List<FileTransferTask> = fileTransfers.tasks.value,
+        recordingState: RecordingState = recordings.state.value,
+    ): Notification {
         val contentIntent = PendingIntent.getActivity(
             this,
             0,
@@ -283,8 +313,12 @@ class RemoteSessionService : Service() {
             .setSmallIcon(R.drawable.ic_pixels_notification)
             .setContentTitle(getString(R.string.remote_notification_title))
             .setContentText(
-                activeTransfer?.let { getString(R.string.remote_notification_transfer, it.name) }
-                    ?: getString(R.string.remote_notification_text, deviceName),
+                when {
+                    recordingState is RecordingState.Recording || recordingState is RecordingState.Stopping ||
+                        recordingState is RecordingState.Publishing -> getString(R.string.remote_notification_recording)
+                    activeTransfer != null -> getString(R.string.remote_notification_transfer, activeTransfer.name)
+                    else -> getString(R.string.remote_notification_text, deviceName)
+                },
             )
             .setContentIntent(contentIntent)
             .setOngoing(true)
@@ -317,6 +351,9 @@ class RemoteSessionService : Service() {
         val fileTransferTasks: StateFlow<List<FileTransferTask>>
             get() = fileTransfers.tasks
 
+        val recordingState: StateFlow<RecordingState>
+            get() = recordings.state
+
         fun prepare(request: RemoteSessionRequest) = this@RemoteSessionService.prepare(request)
 
         fun attachSurface(surface: Surface) = this@RemoteSessionService.attachSurface(surface)
@@ -348,6 +385,10 @@ class RemoteSessionService : Service() {
             fileTransfers.resolveOverwrite(taskId, overwrite, applyToAll)
 
         fun clearFinishedTransfers() = fileTransfers.clearFinished()
+
+        fun startRecording() = this@RemoteSessionService.startRecording()
+
+        fun stopRecording() = recordings.stop()
 
         fun stopSession() = this@RemoteSessionService.stopSession()
     }

@@ -53,6 +53,8 @@ interface NativeSessionListener {
 
     fun onFileTransferOverwrite(sessionId: String, jobId: Int, fileNumber: Int, utf8Path: ByteArray, upload: Boolean, identical: Boolean)
 
+    fun onRecordingState(sessionId: String, recordingId: String, state: Int, utf8Error: ByteArray)
+
     fun onDisconnected(sessionId: String, reason: Int, recoverable: Boolean)
 }
 
@@ -126,6 +128,10 @@ internal object PixelsNativeBridge {
     ): Boolean
 
     external fun setAudioEnabled(nativeSessionId: Long, enabled: Boolean): Boolean
+
+    external fun startRecording(nativeSessionId: Long, recordingId: ByteArray, stagingDirectory: ByteArray): Boolean
+
+    external fun stopRecording(nativeSessionId: Long, recordingId: ByteArray): Boolean
 
     external fun stop(nativeSessionId: Long)
 }

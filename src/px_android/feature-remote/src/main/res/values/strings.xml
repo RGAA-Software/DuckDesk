@@ -23,6 +23,14 @@
     <string name="remote_touchpad_speed">Pointer speed</string>
     <string name="remote_clipboard">Clipboard</string>
     <string name="remote_file_transfer">File transfers</string>
+    <string name="remote_record_start">Start recording</string>
+    <string name="remote_record_stop">Stop recording</string>
+    <string name="remote_record_starting">Starting recording…</string>
+    <string name="remote_recording">Recording · %1$s</string>
+    <string name="remote_record_stopping">Finishing recording…</string>
+    <string name="remote_record_publishing">Saving to Movies/Pixels…</string>
+    <string name="remote_record_saved">Saved %1$d video(s) to Movies/Pixels</string>
+    <string name="remote_record_failed">Recording could not be saved.</string>
     <string name="remote_clipboard_send_local">Send from phone</string>
     <string name="remote_clipboard_copy_remote">Copy from PC</string>
     <string name="remote_displays">Displays</string>

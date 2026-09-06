@@ -29,6 +29,9 @@ import yun.pixels.client.core.domain.session.RemoteVirtualDisplayResultState
 import yun.pixels.client.core.domain.transfer.FileTransferDirection
 import yun.pixels.client.core.domain.transfer.FileTransferEvent
 import yun.pixels.client.core.domain.transfer.FileTransferTransport
+import yun.pixels.client.core.domain.recording.RecordingEvent
+import yun.pixels.client.core.domain.recording.RecordingId
+import yun.pixels.client.core.domain.recording.RecordingTransport
 import java.net.URI
 import java.net.URLDecoder
 
@@ -36,7 +39,7 @@ class NativeRemoteSessionTransport internal constructor(
     private val installationIdentity: InstallationIdentity,
     private val callbackScope: CoroutineScope,
     private val directSessionAuthorizer: DirectSessionAuthorizer,
-) : RemoteSessionTransport, FileTransferTransport, NativeSessionListener {
+) : RemoteSessionTransport, FileTransferTransport, RecordingTransport, NativeSessionListener {
     constructor(installationIdentity: InstallationIdentity, callbackScope: CoroutineScope) : this(
         installationIdentity,
         callbackScope,
@@ -47,12 +50,14 @@ class NativeRemoteSessionTransport internal constructor(
     private val surfaceLock = Mutex()
     private val mutableEvents = MutableSharedFlow<RemoteTransportEvent>(extraBufferCapacity = 32)
     private val mutableFileTransferEvents = MutableSharedFlow<FileTransferEvent>(extraBufferCapacity = 64)
+    private val mutableRecordingEvents = MutableSharedFlow<RecordingEvent>(extraBufferCapacity = 8)
     private val surfaces = mutableMapOf<RemoteSessionId, Surface>()
     private val nativeSessionIds = mutableMapOf<RemoteSessionId, Long>()
     private val capabilities = mutableMapOf<RemoteSessionId, RemoteSessionCapabilities>()
 
     override val events: Flow<RemoteTransportEvent> = mutableEvents.asSharedFlow()
     override val fileTransferEvents: Flow<FileTransferEvent> = mutableFileTransferEvents.asSharedFlow()
+    override val recordingEvents: Flow<RecordingEvent> = mutableRecordingEvents.asSharedFlow()
 
     suspend fun attachSurface(sessionId: RemoteSessionId, surface: Surface) {
         surfaceLock.withLock {
@@ -201,6 +206,29 @@ class NativeRemoteSessionTransport internal constructor(
         val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
         return withContext(Dispatchers.IO) {
             PixelsNativeBridge.confirmFileOverwrite(nativeSessionId, jobId, fileNumber, overwrite, offsetBytes, applyToAll)
+        }
+    }
+
+    override suspend fun startRecording(
+        sessionId: RemoteSessionId,
+        recordingId: RecordingId,
+        stagingDirectory: String,
+    ): Boolean {
+        if (stagingDirectory.isBlank()) return false
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        return withContext(Dispatchers.IO) {
+            PixelsNativeBridge.startRecording(
+                nativeSessionId,
+                recordingId.value.encodeToByteArray(),
+                stagingDirectory.encodeToByteArray(),
+            )
+        }
+    }
+
+    override suspend fun stopRecording(sessionId: RemoteSessionId, recordingId: RecordingId): Boolean {
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        return withContext(Dispatchers.IO) {
+            PixelsNativeBridge.stopRecording(nativeSessionId, recordingId.value.encodeToByteArray())
         }
     }
 
@@ -418,6 +446,17 @@ class NativeRemoteSessionTransport internal constructor(
         }
     }
 
+    override fun onRecordingState(sessionId: String, recordingId: String, state: Int, utf8Error: ByteArray) {
+        val id = runCatching { RecordingId(recordingId) }.getOrNull() ?: return
+        val remoteSessionId = RemoteSessionId(sessionId)
+        val event = when (state) {
+            RECORDING_STARTED -> RecordingEvent.Started(remoteSessionId, id)
+            RECORDING_COMPLETED, RECORDING_FAILED -> RecordingEvent.Finished(remoteSessionId, id, utf8Error.decodeUtf8OrEmpty())
+            else -> return
+        }
+        callbackScope.launch { mutableRecordingEvents.emit(event) }
+    }
+
     override fun onDisconnected(sessionId: String, reason: Int, recoverable: Boolean) {
         callbackScope.launch {
             mutableEvents.emit(
@@ -549,6 +588,9 @@ private const val DEFAULT_VIRTUAL_DISPLAY_WIDTH = 1920
 private const val DEFAULT_VIRTUAL_DISPLAY_HEIGHT = 1080
 private const val DEFAULT_VIRTUAL_DISPLAY_REFRESH_HZ = 60
 private const val MAX_CLIPBOARD_TEXT_BYTES = 1_048_576
+private const val RECORDING_STARTED = 1
+private const val RECORDING_COMPLETED = 2
+private const val RECORDING_FAILED = 3
 
 private fun ByteArray.decodeUtf8OrEmpty(): String = runCatching { decodeToString(throwOnInvalidSequence = true) }.getOrDefault("")
 

@@ -23,6 +23,14 @@
     <string name="remote_touchpad_speed">指针速度</string>
     <string name="remote_clipboard">剪贴板</string>
     <string name="remote_file_transfer">文件传输</string>
+    <string name="remote_record_start">开始录制</string>
+    <string name="remote_record_stop">停止录制</string>
+    <string name="remote_record_starting">正在开始录制…</string>
+    <string name="remote_recording">正在录制 · %1$s</string>
+    <string name="remote_record_stopping">正在结束录制…</string>
+    <string name="remote_record_publishing">正在保存到 Movies/Pixels…</string>
+    <string name="remote_record_saved">已保存 %1$d 个视频到 Movies/Pixels</string>
+    <string name="remote_record_failed">录制内容未能保存。</string>
     <string name="remote_clipboard_send_local">发送手机剪贴板</string>
     <string name="remote_clipboard_copy_remote">复制电脑剪贴板</string>
     <string name="remote_displays">显示器</string>

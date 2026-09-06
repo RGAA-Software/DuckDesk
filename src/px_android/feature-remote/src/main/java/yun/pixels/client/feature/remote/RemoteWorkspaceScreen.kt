@@ -28,10 +28,12 @@ import androidx.compose.material.icons.automirrored.outlined.VolumeOff
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DesktopWindows
+import androidx.compose.material.icons.outlined.FiberManualRecord
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Mouse
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.SwapVert
+import androidx.compose.material.icons.outlined.StopCircle
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
@@ -72,12 +74,14 @@ import yun.pixels.client.core.domain.session.RemoteMouseButton
 import yun.pixels.client.core.domain.session.RemoteSessionSnapshot
 import yun.pixels.client.core.domain.session.RemoteSessionStatus
 import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
+import yun.pixels.client.core.domain.recording.RecordingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RemoteWorkspaceScreen(
     snapshot: RemoteSessionSnapshot,
     audioEnabled: Boolean,
+    recordingState: RecordingState,
     surfaceConsumerReady: Boolean,
     onSurfaceAvailable: (Surface) -> Unit,
     onSurfaceDestroyed: (Surface) -> Unit,
@@ -87,6 +91,8 @@ fun RemoteWorkspaceScreen(
     onText: (String) -> Unit,
     onClipboardText: (String) -> Unit,
     onAudioEnabledChange: (Boolean) -> Unit,
+    onStartRecording: () -> Unit,
+    onStopRecording: () -> Unit,
     onOpenTransfers: () -> Unit,
     onEndSession: () -> Unit,
 ) {
@@ -218,6 +224,7 @@ fun RemoteWorkspaceScreen(
         RemoteTopBar(
             snapshot = snapshot,
             audioEnabled = audioEnabled,
+            recordingState = recordingState,
             inputMode = inputMode,
             onInputModeChange = { mode ->
                 interpreter.cancelGesture()
@@ -227,6 +234,8 @@ fun RemoteWorkspaceScreen(
                 preferences.edit().putString(INPUT_MODE, mode.name).apply()
             },
             onAudioEnabledChange = onAudioEnabledChange,
+            onStartRecording = onStartRecording,
+            onStopRecording = onStopRecording,
             onOpenKeyboard = { showKeyboard = true },
             onOpenGamepadSettings = { showGamepadSettings = true },
             onOpenDisplays = { showDisplays = true },
@@ -313,9 +322,12 @@ fun RemoteWorkspaceScreen(
 private fun RemoteTopBar(
     snapshot: RemoteSessionSnapshot,
     audioEnabled: Boolean,
+    recordingState: RecordingState,
     inputMode: RemoteInputMode,
     onInputModeChange: (RemoteInputMode) -> Unit,
     onAudioEnabledChange: (Boolean) -> Unit,
+    onStartRecording: () -> Unit,
+    onStopRecording: () -> Unit,
     onOpenKeyboard: () -> Unit,
     onOpenGamepadSettings: () -> Unit,
     onOpenDisplays: () -> Unit,
@@ -351,8 +363,12 @@ private fun RemoteTopBar(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                RecordingStatus(state = recordingState)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 if ((status as? RemoteSessionStatus.Connected)?.capabilities?.supportsInput == true) {
                     FilledTonalIconButton(
                         onClick = {
@@ -402,12 +418,53 @@ private fun RemoteTopBar(
                         Icon(Icons.Outlined.SwapVert, contentDescription = stringResource(R.string.remote_file_transfer))
                     }
                 }
+                if (status is RemoteSessionStatus.Connected) {
+                    val recording = recordingState is RecordingState.Recording
+                    FilledTonalIconButton(
+                        onClick = if (recording) onStopRecording else onStartRecording,
+                        enabled = recordingState is RecordingState.Idle || recordingState is RecordingState.Completed ||
+                            recordingState is RecordingState.Failed || recording,
+                    ) {
+                        Icon(
+                            if (recording) Icons.Outlined.StopCircle else Icons.Outlined.FiberManualRecord,
+                            contentDescription = stringResource(if (recording) R.string.remote_record_stop else R.string.remote_record_start),
+                            tint = if (recording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
                 FilledTonalIconButton(onClick = onEndSession) {
                     Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.remote_exit))
                 }
             }
         }
     }
+}
+
+@Composable
+private fun RecordingStatus(state: RecordingState) {
+    val text = when (state) {
+        RecordingState.Idle -> return
+        is RecordingState.Starting -> stringResource(R.string.remote_record_starting)
+        is RecordingState.Recording -> stringResource(R.string.remote_recording, formatElapsed(state.elapsedMillis))
+        is RecordingState.Stopping -> stringResource(R.string.remote_record_stopping)
+        is RecordingState.Publishing -> stringResource(R.string.remote_record_publishing)
+        is RecordingState.Completed -> stringResource(R.string.remote_record_saved, state.itemCount)
+        is RecordingState.Failed -> stringResource(R.string.remote_record_failed)
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = if (state is RecordingState.Failed || state is RecordingState.Recording) {
+            MaterialTheme.colorScheme.error
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+    )
+}
+
+private fun formatElapsed(elapsedMillis: Long): String {
+    val totalSeconds = (elapsedMillis / 1_000).coerceAtLeast(0)
+    return "%02d:%02d".format(totalSeconds / 60, totalSeconds % 60)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

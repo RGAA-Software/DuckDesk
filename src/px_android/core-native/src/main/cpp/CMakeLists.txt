@@ -34,6 +34,7 @@ include_directories(
     "${PX_PROJECT_PATH}/px_client_sdk"
     "${PX_PROJECT_PATH}/px_ft_engine"
     "${PX_PROJECT_PATH}/px_message"
+    "${PX_PROJECT_PATH}/px_media_record"
     "${PX_PROJECT_PATH}/px_relay_client"
     "${PX_PROJECT_PATH}/px_server_protocol"
     "${PX_PROJECT_PATH}/px_3rdparty/asio2/include"
@@ -51,11 +52,14 @@ set(ANDROID_OPENSSL_LIBS
 
 find_package(Opus CONFIG REQUIRED)
 find_package(leveldb CONFIG REQUIRED)
+find_package(FFMPEG REQUIRED)
+set(FFMPEG_ROOT "${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}")
 
 add_subdirectory("${PX_PROJECT_PATH}/px_3rdparty" "${CMAKE_BINARY_DIR}/px_3rdparty")
 add_subdirectory("${PX_PROJECT_PATH}/px_common" "${CMAKE_BINARY_DIR}/px_common")
 add_subdirectory("${PX_PROJECT_PATH}/px_message" "${CMAKE_BINARY_DIR}/px_message")
 add_subdirectory("${PX_PROJECT_PATH}/px_ft_engine" "${CMAKE_BINARY_DIR}/px_ft_engine")
+add_subdirectory("${PX_PROJECT_PATH}/px_media_record" "${CMAKE_BINARY_DIR}/px_media_record")
 add_subdirectory("${PX_PROJECT_PATH}/px_opus_codec" "${CMAKE_BINARY_DIR}/px_opus_codec")
 add_subdirectory("${PX_PROJECT_PATH}/px_server_protocol" "${CMAKE_BINARY_DIR}/px_server_protocol")
 add_subdirectory("${PX_PROJECT_PATH}/px_relay_client" "${CMAKE_BINARY_DIR}/px_relay_client")
@@ -76,4 +80,5 @@ target_link_libraries(pixels_android_core PRIVATE
     px_message
     px_sdk
     px_ft_engine
+    px_media_record
 )

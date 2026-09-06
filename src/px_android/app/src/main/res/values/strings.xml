@@ -17,6 +17,7 @@
     <string name="remote_notification_title">Pixels remote session</string>
     <string name="remote_notification_text">Connected to %1$s</string>
     <string name="remote_notification_transfer">Transferring %1$s</string>
+    <string name="remote_notification_recording">Recording remote session</string>
     <string name="remote_notification_stop">End</string>
     <string name="transfer_error_read_source">The selected file cannot be read.</string>
     <string name="transfer_error_stage">The file could not be prepared for transfer.</string>

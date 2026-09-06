@@ -72,6 +72,7 @@ import yun.pixels.client.feature.remote.RemoteWorkspaceScreen
 import yun.pixels.client.feature.transfer.TransferScreen
 import yun.pixels.client.remote.RemoteSessionService
 import yun.pixels.client.core.domain.transfer.FileTransferTask
+import yun.pixels.client.core.domain.recording.RecordingState
 
 private enum class TopLevelDestination(
     val route: String,
@@ -98,6 +99,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
     val idleRemoteSnapshot = remember { kotlinx.coroutines.flow.MutableStateFlow(RemoteSessionSnapshot()) }
     val idleAudioEnabled = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
     val idleFileTransferTasks = remember { kotlinx.coroutines.flow.MutableStateFlow(emptyList<FileTransferTask>()) }
+    val idleRecordingState = remember { kotlinx.coroutines.flow.MutableStateFlow<RecordingState>(RecordingState.Idle) }
     DisposableEffect(context) {
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName, service: IBinder) {
@@ -367,9 +369,12 @@ fun PixelsApp(graph: PixelsAppGraph) {
                 val snapshot by sessionFlow.collectAsStateWithLifecycle()
                 val audioEnabledFlow = remoteBinder?.audioEnabled ?: idleAudioEnabled
                 val audioEnabled by audioEnabledFlow.collectAsStateWithLifecycle()
+                val recordingStateFlow = remoteBinder?.recordingState ?: idleRecordingState
+                val recordingState by recordingStateFlow.collectAsStateWithLifecycle()
                 RemoteWorkspaceScreen(
                     snapshot = snapshot,
                     audioEnabled = audioEnabled,
+                    recordingState = recordingState,
                     surfaceConsumerReady = remoteBinder != null,
                     onSurfaceAvailable = { surface -> remoteBinder?.attachSurface(surface) },
                     onSurfaceDestroyed = { surface -> remoteBinder?.detachSurface(surface) },
@@ -379,6 +384,8 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     onText = { text -> remoteBinder?.sendText(text) },
                     onClipboardText = { text -> remoteBinder?.sendClipboardText(text) },
                     onAudioEnabledChange = { enabled -> remoteBinder?.setAudioEnabled(enabled) },
+                    onStartRecording = { remoteBinder?.startRecording() },
+                    onStopRecording = { remoteBinder?.stopRecording() },
                     onOpenTransfers = { navController.navigate(TopLevelDestination.Transfers.route) },
                     onEndSession = {
                         remoteBinder?.stopSession()

@@ -16,6 +16,8 @@ class MessageNotifier;
 class MessageListener;
 class SdkStatistics;
 class ThunderSdk;
+class Thread;
+class RecordWriter;
 } // namespace px
 
 namespace px::ft {
@@ -82,6 +84,7 @@ class JavaSessionCallback final {
     void FileTransferDone(const std::string& session_id, std::int32_t job_id, const std::string& error) const;
     void FileTransferOverwrite(const std::string& session_id, std::int32_t job_id, std::int32_t file_number, const std::string& path, bool upload,
                                bool identical) const;
+    void RecordingState(const std::string& session_id, const std::string& recording_id, std::int32_t state, const std::string& error) const;
     void Disconnected(const std::string& session_id, std::int32_t reason, bool recoverable) const;
 
   private:
@@ -118,6 +121,8 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     std::int32_t StartFileDownload(const std::string& remote_path, const std::string& local_directory);
     bool CancelFileTransfer(std::int32_t job_id);
     bool ConfirmFileOverwrite(std::int32_t job_id, std::int32_t file_number, bool overwrite, std::uint64_t offset_bytes, bool apply_to_all);
+    bool StartRecording(const std::string& recording_id, const std::string& staging_directory);
+    bool StopRecording(const std::string& recording_id);
     bool SendSecureAttention();
     bool SwitchMonitor(const std::string& monitor_name);
     bool RequestVirtualDisplay(const std::string& request_id, std::int32_t operation, std::int32_t width, std::int32_t height,
@@ -138,6 +143,8 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     std::shared_ptr<px::MessageListener> session_listener_{};
     std::shared_ptr<px::ThunderSdk> sdk_{};
     std::shared_ptr<px::ft::FtAsyncSession> file_transfer_session_{};
+    std::shared_ptr<px::Thread> recording_thread_{};
+    std::shared_ptr<px::RecordWriter> recording_writer_{};
     std::shared_ptr<px::SdkStatistics> statistics_{};
     std::unique_ptr<NativeAudioPlayer> audio_player_{};
     std::mutex command_mutex_{};
@@ -145,6 +152,12 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     bool initialized_{};
     bool started_{};
     std::atomic_bool file_transfer_ready_{};
+    std::atomic_uint64_t active_recording_generation_{};
+    std::atomic_uint64_t recording_video_packets_{};
+    std::atomic_uint64_t recording_audio_packets_{};
+    std::uint64_t next_recording_generation_{};
+    std::uint64_t recording_writer_generation_{};
+    std::string active_recording_id_{};
     bool surface_update_in_progress_{};
     bool has_pending_surface_update_{};
     float virtual_cursor_x_{0.5F};

@@ -40,6 +40,8 @@ namespace px
     // callbacks
     using OnVideoFrameDecodedCallback = std::function<void(std::shared_ptr<RawImage>, const SdkCaptureMonitorInfo&)>;
     using OnAudioFrameDecodedCallback = std::function<void(std::shared_ptr<Data>, int samples, int channels, int bits)>;
+    using OnEncodedVideoFrameCallback = std::function<void(std::shared_ptr<Message>)>;
+    using OnEncodedAudioFrameCallback = std::function<void(std::shared_ptr<Message>)>;
     using OnVideoFrameDecodeThreadDiscardedCallback = std::function<void()>;
     using OnRenderSurfaceUpdated = std::function<void()>;
 
@@ -58,6 +60,8 @@ namespace px
 
         void SetOnVideoFrameDecodedCallback(OnVideoFrameDecodedCallback&& cbk) { this->video_frame_cbk_ = std::move(cbk); }
         void SetOnAudioFrameDecodedCallback(OnAudioFrameDecodedCallback&& cbk) { this->audio_frame_cbk_ = std::move(cbk); }
+        void SetOnEncodedVideoFrameCallback(OnEncodedVideoFrameCallback&& cbk) { encoded_video_frame_cbk_ = std::move(cbk); }
+        void SetOnEncodedAudioFrameCallback(OnEncodedAudioFrameCallback&& cbk) { encoded_audio_frame_cbk_ = std::move(cbk); }
         void SetOnAudioSpectrumCallback(OnAudioSpectrumCallback&& cbk);
         void SetOnCursorInfoCallback(OnCursorInfoSyncMsgCallback&& cbk);
         void SetOnHeartBeatCallback(OnHeartBeatInfoCallback&& cbk);
@@ -85,6 +89,7 @@ namespace px
                            const std::string& client_nonce,
                            const std::string& instance_id,
                            std::uint64_t revision);
+        void RequestVideoKeyFrame() { RequestIFrame(); }
 
         // last update timestamp
         uint64_t GetLastHeartbeatTimestamp();
@@ -118,6 +123,8 @@ namespace px
 
         // callbacks
         OnVideoFrameDecodedCallback video_frame_cbk_ = nullptr;
+        OnEncodedVideoFrameCallback encoded_video_frame_cbk_{};
+        OnEncodedAudioFrameCallback encoded_audio_frame_cbk_{};
         OnAudioFrameDecodedCallback audio_frame_cbk_ = nullptr;
         OnAudioSpectrumCallback audio_spectrum_cbk_ = nullptr;
         OnVideoFrameDecodeThreadDiscardedCallback  video_frame_thread_discarded_cbk_ = nullptr;

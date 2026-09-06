@@ -226,6 +226,9 @@ namespace px
         net_client_->SetOnVideoFrameMsgCallback([weak_self](std::shared_ptr<px::Message> msg) {
             const auto owner = weak_self.lock();
             if (!owner || owner->exit_) { return; }
+            if (owner->encoded_video_frame_cbk_) {
+                owner->encoded_video_frame_cbk_(msg);
+            }
             
             px::VideoFrame frame = msg->video_frame();
 
@@ -456,6 +459,9 @@ namespace px
         net_client_->SetOnAudioFrameMsgCallback([weak_self](std::shared_ptr<px::Message> msg) {
             const auto owner = weak_self.lock();
             if (!owner || owner->exit_) { return; }
+            if (owner->encoded_audio_frame_cbk_) {
+                owner->encoded_audio_frame_cbk_(msg);
+            }
             owner->PostAudioTask([weak_self, msg = std::move(msg)]() {
                 const auto self = weak_self.lock();
                 if (!self || self->exit_) return;

@@ -9,6 +9,7 @@
 #include <cmath>
 #include <format>
 #include <functional>
+#include <future>
 #include <optional>
 #include <utility>
 
@@ -23,7 +24,9 @@
 #include "px_common/md5.h"
 #include "px_common/log.h"
 #include "px_common/message_notifier.h"
+#include "px_common/thread.h"
 #include "px_common/time_util.h"
+#include "px_media_record/record_writer.h"
 #include "px_message/proto_message_maker.h"
 #include "px_message/proto_converter.h"
 
@@ -34,6 +37,9 @@ constexpr std::int32_t kMouseMoveAbsolute = 0;
 constexpr std::int32_t kMouseMoveRelative = 1;
 constexpr std::int32_t kMouseButton = 2;
 constexpr std::int32_t kMouseWheel = 3;
+constexpr std::int32_t kRecordingStarted = 1;
+constexpr std::int32_t kRecordingCompleted = 2;
+constexpr std::int32_t kRecordingFailed = 3;
 
 std::int32_t MouseButtonFlag(const std::int32_t button, const bool down) {
     switch (button) {
@@ -325,6 +331,28 @@ void JavaSessionCallback::FileTransferOverwrite(const std::string& session_id, c
     });
 }
 
+void JavaSessionCallback::RecordingState(const std::string& session_id, const std::string& recording_id, const std::int32_t state,
+                                         const std::string& error) const {
+    const auto listener_handle = listener_handle_;
+    WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
+        const auto listener = reinterpret_cast<jobject>(listener_handle);
+        const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
+        const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
+        const auto method = environment.GetMethodID(listener_class, "onRecordingState", "(Ljava/lang/String;Ljava/lang/String;I[B)V");
+        const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
+        const auto recording_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(recording_id.c_str()));
+        const auto error_handle = MakeByteArray(environment, error);
+        if (method != nullptr && session_id_handle != 0U && recording_id_handle != 0U && error_handle != 0U) {
+            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle),
+                                       reinterpret_cast<jstring>(recording_id_handle), state, reinterpret_cast<jbyteArray>(error_handle));
+        }
+        DeleteLocalReference(environment, session_id_handle);
+        DeleteLocalReference(environment, recording_id_handle);
+        DeleteLocalReference(environment, error_handle);
+        DeleteLocalReference(environment, listener_class_handle);
+    });
+}
+
 void JavaSessionCallback::Disconnected(const std::string& session_id, const std::int32_t reason, const bool recoverable) const {
     const auto listener_handle = listener_handle_;
     WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
@@ -482,6 +510,64 @@ bool NativeSession::Initialize() {
         file_transfer_session_.reset();
         LOGE("Pixels Android file-transfer session failed to start");
     }
+
+    recording_thread_ = px::Thread::Make("pixels-recording", -1);
+    recording_thread_->Poll();
+
+    sdk_->SetOnEncodedVideoFrameCallback([weak_self](std::shared_ptr<px::Message> message) {
+        const auto self = weak_self.lock();
+        if (!self || !message || self->stopped_.load() || !message->has_video_frame()) {
+            return;
+        }
+        const auto generation = self->active_recording_generation_.load(std::memory_order_acquire);
+        std::shared_ptr<px::Thread> worker;
+        {
+            std::lock_guard lock(self->lifecycle_mutex_);
+            worker = self->recording_thread_;
+        }
+        if (generation == 0U || !worker) {
+            return;
+        }
+        self->recording_video_packets_.fetch_add(1U, std::memory_order_relaxed);
+        worker->Post([weak_self, generation, message = std::move(message)] {
+            const auto owner = weak_self.lock();
+            if (!owner || owner->recording_writer_generation_ != generation || !owner->recording_writer_) {
+                return;
+            }
+            const auto& frame = message->video_frame();
+            if (frame.data().empty() || frame.frame_width() <= 0 || frame.frame_height() <= 0) {
+                return;
+            }
+            const std::vector<std::uint8_t> data(frame.data().begin(), frame.data().end());
+            const auto codec = frame.type() == px::kNetHevc ? px::RecordVideoCodec::kH265 : px::RecordVideoCodec::kH264;
+            owner->recording_writer_->OnEncodedVideo(data, codec, frame.frame_width(), frame.frame_height(), frame.key());
+        });
+    });
+    sdk_->SetOnEncodedAudioFrameCallback([weak_self](std::shared_ptr<px::Message> message) {
+        const auto self = weak_self.lock();
+        if (!self || !message || self->stopped_.load() || !message->has_audio_frame() || message->audio_frame().data().empty()) {
+            return;
+        }
+        const auto generation = self->active_recording_generation_.load(std::memory_order_acquire);
+        std::shared_ptr<px::Thread> worker;
+        {
+            std::lock_guard lock(self->lifecycle_mutex_);
+            worker = self->recording_thread_;
+        }
+        if (generation == 0U || !worker) {
+            return;
+        }
+        self->recording_audio_packets_.fetch_add(1U, std::memory_order_relaxed);
+        worker->Post([weak_self, generation, message = std::move(message)] {
+            const auto owner = weak_self.lock();
+            if (!owner || owner->recording_writer_generation_ != generation || !owner->recording_writer_) {
+                return;
+            }
+            const auto& encoded = message->audio_frame().data();
+            const std::vector<std::uint8_t> data(encoded.begin(), encoded.end());
+            owner->recording_writer_->OnEncodedAudio(data);
+        });
+    });
 
     sdk_->SetOnServerConfigurationCallback([weak_self](std::shared_ptr<px::Message> message) {
         const auto self = weak_self.lock();
@@ -1005,6 +1091,103 @@ bool NativeSession::ConfirmFileOverwrite(const std::int32_t job_id, const std::i
     });
 }
 
+bool NativeSession::StartRecording(const std::string& recording_id, const std::string& staging_directory) {
+    std::lock_guard command_lock(command_mutex_);
+    if (recording_id.empty() || staging_directory.empty() || recording_id.size() > 128U || staging_directory.size() > 4096U ||
+        active_recording_generation_.load(std::memory_order_acquire) != 0U) {
+        return false;
+    }
+    std::shared_ptr<px::Thread> worker;
+    std::shared_ptr<px::ThunderSdk> sdk;
+    std::string monitor_name;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (stopped_.load() || !started_ || !recording_thread_ || !sdk_) {
+            return false;
+        }
+        worker = recording_thread_;
+        sdk = sdk_;
+        monitor_name = active_monitor_name_;
+    }
+    const auto generation = ++next_recording_generation_;
+    recording_video_packets_.store(0U, std::memory_order_relaxed);
+    recording_audio_packets_.store(0U, std::memory_order_relaxed);
+    active_recording_id_ = recording_id;
+    active_recording_generation_.store(generation, std::memory_order_release);
+    const auto weak_self = weak_from_this();
+    worker->Post([weak_self, weak_sdk = std::weak_ptr<px::ThunderSdk>{sdk}, generation, recording_id, staging_directory, monitor_name] {
+        const auto self = weak_self.lock();
+        if (!self || self->active_recording_generation_.load(std::memory_order_acquire) != generation) {
+            return;
+        }
+        try {
+            self->recording_writer_ = px::RecordWriter::Make(px::RecordWriterConfig{
+                .dir = staging_directory,
+                .monitor_name = monitor_name,
+                .file_prefix = "pixels_",
+                .max_segment_bytes = 8LL * 1024 * 1024 * 1024,
+                .max_file_count = 0,
+                .on_request_keyframe = [weak_sdk] {
+                    if (const auto active_sdk = weak_sdk.lock()) {
+                        active_sdk->RequestVideoKeyFrame();
+                    }
+                },
+            });
+            self->recording_writer_generation_ = generation;
+            self->callback_->RecordingState(self->config_.session_id, recording_id, kRecordingStarted, {});
+            if (const auto active_sdk = weak_sdk.lock()) {
+                active_sdk->RequestVideoKeyFrame();
+            }
+        } catch (const std::exception& error) {
+            std::uint64_t expected = generation;
+            self->active_recording_generation_.compare_exchange_strong(expected, 0U, std::memory_order_acq_rel);
+            self->recording_writer_.reset();
+            self->recording_writer_generation_ = 0U;
+            self->callback_->RecordingState(self->config_.session_id, recording_id, kRecordingFailed, error.what());
+        }
+    });
+    return true;
+}
+
+bool NativeSession::StopRecording(const std::string& recording_id) {
+    std::lock_guard command_lock(command_mutex_);
+    if (recording_id.empty() || recording_id != active_recording_id_) {
+        return false;
+    }
+    const auto generation = active_recording_generation_.exchange(0U, std::memory_order_acq_rel);
+    active_recording_id_.clear();
+    std::shared_ptr<px::Thread> worker;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        worker = recording_thread_;
+    }
+    if (generation == 0U || !worker) {
+        return false;
+    }
+    const auto weak_self = weak_from_this();
+    worker->Post([weak_self, generation, recording_id] {
+        const auto self = weak_self.lock();
+        if (!self) {
+            return;
+        }
+        std::string error;
+        if (self->recording_writer_generation_ == generation && self->recording_writer_) {
+            try {
+                self->recording_writer_->Stop();
+            } catch (const std::exception& exception) {
+                error = exception.what();
+            }
+            self->recording_writer_.reset();
+            self->recording_writer_generation_ = 0U;
+        }
+        LOGI("Pixels Android recording {} finalized with {} video and {} audio packets", recording_id,
+             self->recording_video_packets_.load(std::memory_order_relaxed), self->recording_audio_packets_.load(std::memory_order_relaxed));
+        self->callback_->RecordingState(self->config_.session_id, recording_id,
+                                        error.empty() ? kRecordingCompleted : kRecordingFailed, error);
+    });
+    return true;
+}
+
 void NativeSession::Stop() {
     std::lock_guard command_lock(command_mutex_);
     if (stopped_.exchange(true)) {
@@ -1012,11 +1195,15 @@ void NativeSession::Stop() {
     }
     std::shared_ptr<px::ThunderSdk> sdk;
     std::shared_ptr<px::ft::FtAsyncSession> file_transfer_session;
+    std::shared_ptr<px::Thread> recording_thread;
     std::shared_ptr<ANativeWindow> surface;
+    const auto recording_generation = active_recording_generation_.exchange(0U, std::memory_order_acq_rel);
+    const auto recording_id = std::exchange(active_recording_id_, {});
     {
         std::lock_guard lock(lifecycle_mutex_);
         sdk = std::move(sdk_);
         file_transfer_session = std::move(file_transfer_session_);
+        recording_thread = std::move(recording_thread_);
         file_transfer_ready_ = false;
         session_listener_.reset();
         message_notifier_.reset();
@@ -1042,6 +1229,32 @@ void NativeSession::Stop() {
             },
             std::chrono::seconds(2)));
         static_cast<void>(file_transfer_session->StopAndWait(std::chrono::seconds(2)));
+    }
+    if (recording_thread) {
+        const auto finalized = std::make_shared<std::promise<void>>();
+        const auto completion = finalized->get_future();
+        const auto weak_self = weak_from_this();
+        recording_thread->Post([weak_self, recording_generation, recording_id, finalized] {
+            if (const auto self = weak_self.lock()) {
+                std::string error;
+                if (self->recording_writer_generation_ == recording_generation && self->recording_writer_) {
+                    try {
+                        self->recording_writer_->Stop();
+                    } catch (const std::exception& exception) {
+                        error = exception.what();
+                    }
+                    self->recording_writer_.reset();
+                    self->recording_writer_generation_ = 0U;
+                }
+                if (recording_generation != 0U && !recording_id.empty()) {
+                    self->callback_->RecordingState(self->config_.session_id, recording_id,
+                                                    error.empty() ? kRecordingCompleted : kRecordingFailed, error);
+                }
+            }
+            finalized->set_value();
+        });
+        static_cast<void>(completion.wait_for(std::chrono::seconds(5)));
+        recording_thread->Exit();
     }
     if (sdk)
         sdk->Exit();
