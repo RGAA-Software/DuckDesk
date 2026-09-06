@@ -61,6 +61,112 @@ pub(crate) fn is_scoped_guest_rtc_signal(params: &HashMap<String, String>) -> bo
         && remote == &format!("server_{device_id}")
 }
 
+fn ticketed_rtc_signal_matches_binding(
+    remote_device_id: &str,
+    stream_id: &str,
+    ticket_device_id: &str,
+    active_device_id: &str,
+    active_instance_id: Option<&str>,
+    active_stream_id: &str,
+) -> bool {
+    let expected_remote = active_instance_id
+        .filter(|value| !value.is_empty())
+        .map(|instance| format!("server_{active_device_id}__instance__{instance}"))
+        .unwrap_or_else(|| format!("server_{active_device_id}"));
+    ticket_device_id == active_device_id
+        && remote_device_id == expected_remote
+        && !stream_id.is_empty()
+        && stream_id == active_stream_id
+}
+
+struct TicketedRtcSignalParams<'a> {
+    ticket: &'a str,
+    client_nonce: &'a str,
+    ticket_device_id: &'a str,
+    remote_device_id: &'a str,
+    stream_id: &'a str,
+    instance_id: Option<&'a str>,
+}
+
+fn parse_ticketed_rtc_signal_params(
+    params: &HashMap<String, String>,
+) -> Result<TicketedRtcSignalParams<'_>, ConsoleApiError> {
+    if !params.get("rtc_signal").is_some_and(|value| value == "1")
+        || params.contains_key("guest_password")
+    {
+        return Err(ConsoleApiError::InvalidParams);
+    }
+    let (
+        Some(ticket),
+        Some(client_nonce),
+        Some(ticket_device_id),
+        Some(remote_device_id),
+        Some(client_device_id),
+        Some(stream_id),
+    ) = (
+        params.get("ticket"),
+        params.get("client_nonce"),
+        params.get("ticket_device_id"),
+        params.get("remote_device_id"),
+        params.get("device_id"),
+        params.get("stream_id"),
+    )
+    else {
+        return Err(ConsoleApiError::InvalidParams);
+    };
+    if ticket.is_empty()
+        || client_nonce.is_empty()
+        || ticket_device_id.is_empty()
+        || remote_device_id.is_empty()
+        || stream_id.is_empty()
+        || !client_device_id.starts_with("web_")
+    {
+        return Err(ConsoleApiError::InvalidParams);
+    }
+    Ok(TicketedRtcSignalParams {
+        ticket,
+        client_nonce,
+        ticket_device_id,
+        remote_device_id,
+        stream_id,
+        instance_id: params.get("instance_id").map(String::as_str),
+    })
+}
+
+/// Validate a browser WebRTC signaling transport without consuming its
+/// one-time ticket. Render remains the only redemption authority when the SDP
+/// offer arrives. Query routing data is accepted only when it exactly matches
+/// the server-issued device, instance and stream binding.
+pub(crate) async fn validate_ticketed_rtc_signal(
+    params: &HashMap<String, String>,
+) -> Result<(), ConsoleApiError> {
+    let request = parse_ticketed_rtc_signal_params(params)?;
+    let active = ConnectionTicketManager::lookup_active(
+        request.ticket,
+        request.ticket_device_id,
+        request.client_nonce,
+        request.instance_id,
+    )
+    .await?;
+    if !ticketed_rtc_signal_matches_binding(
+        request.remote_device_id,
+        request.stream_id,
+        request.ticket_device_id,
+        &active.device_id,
+        active.instance_id.as_deref(),
+        &active.stream_id,
+    ) {
+        tracing::warn!(
+            ticket_device_id = request.ticket_device_id,
+            remote_device_id = request.remote_device_id,
+            stream_id = request.stream_id,
+            "RTC signaling route does not match ticket binding"
+        );
+        return Err(ConsoleApiError::Forbidden);
+    }
+    Ok(())
+}
+
 pub(crate) async fn validate_ticketed_media_relay(
     params: &HashMap<String, String>,
 ) -> Result<Option<RelayMediaTicketAuthorization>, ConsoleApiError> {
@@ -279,44 +385,8 @@ impl RelayServer {
                         .unwrap_or(""),
                     "accepted password-authenticated guest RTC signaling socket"
                 );
-            } else {
-                let (Some(ticket), Some(nonce), Some(remote), Some(ticket_device_id)) = (
-                    params.get("ticket"),
-                    params.get("client_nonce"),
-                    params.get("remote_device_id"),
-                    params.get("ticket_device_id"),
-                ) else {
-                    return crate::console_api_error::ConsoleApiError::InvalidParams
-                        .into_response();
-                };
-                let active = ConnectionTicketManager::lookup_active(
-                    ticket,
-                    ticket_device_id,
-                    nonce,
-                    params.get("instance_id").map(String::as_str),
-                )
-                .await;
-                let active = match active {
-                    Ok(value) => value,
-                    Err(error) => return error.into_response(),
-                };
-                let expected_remote = active
-                    .instance_id
-                    .as_deref()
-                    .filter(|value| !value.is_empty())
-                    .map(|instance_id| {
-                        format!("server_{}__instance__{}", active.device_id, instance_id)
-                    })
-                    .unwrap_or_else(|| format!("server_{}", active.device_id));
-                if remote != &expected_remote {
-                    tracing::warn!(
-                        ticket_device_id,
-                        remote_device_id = remote,
-                        expected_remote_device_id = expected_remote,
-                        "RTC signaling target does not match ticket binding"
-                    );
-                    return crate::console_api_error::ConsoleApiError::Forbidden.into_response();
-                }
+            } else if let Err(error) = validate_ticketed_rtc_signal(&params).await {
+                return error.into_response();
             }
         } else if params.contains_key("ticket") || params.contains_key("client_nonce") {
             // Capability material is accepted only on the explicitly scoped
@@ -569,7 +639,10 @@ impl RelayServer {
 
 #[cfg(test)]
 mod relay_scope_tests {
-    use super::{authorize_relay_control, is_scoped_guest_rtc_signal};
+    use super::{
+        authorize_relay_control, is_scoped_guest_rtc_signal, parse_ticketed_rtc_signal_params,
+        ticketed_rtc_signal_matches_binding,
+    };
     use crate::console_relay::relay_conn::RelayMediaTicketAuthorization;
     use protocol::px_relay::RelayRequestControlMessage;
     use std::collections::HashMap;
@@ -599,6 +672,65 @@ mod relay_scope_tests {
         let mut native_client = valid_params();
         native_client.insert("device_id".into(), "native_123".into());
         assert!(!is_scoped_guest_rtc_signal(&native_client));
+    }
+
+    #[test]
+    fn ticketed_rtc_route_must_match_device_instance_and_stream() {
+        assert!(ticketed_rtc_signal_matches_binding(
+            "server_target__instance__instance-1",
+            "stream-1",
+            "target",
+            "target",
+            Some("instance-1"),
+            "stream-1",
+        ));
+        assert!(!ticketed_rtc_signal_matches_binding(
+            "server_other__instance__instance-1",
+            "stream-1",
+            "target",
+            "target",
+            Some("instance-1"),
+            "stream-1",
+        ));
+        assert!(!ticketed_rtc_signal_matches_binding(
+            "server_target__instance__instance-1",
+            "attacker-stream",
+            "target",
+            "target",
+            Some("instance-1"),
+            "stream-1",
+        ));
+        assert!(!ticketed_rtc_signal_matches_binding(
+            "server_target",
+            "stream-1",
+            "other-ticket-device",
+            "target",
+            None,
+            "stream-1",
+        ));
+    }
+
+    #[test]
+    fn ticketed_rtc_query_requires_complete_browser_capability() {
+        let mut params = HashMap::from([
+            ("rtc_signal".into(), "1".into()),
+            ("ticket".into(), "ticket-1".into()),
+            ("client_nonce".into(), "nonce-1".into()),
+            ("ticket_device_id".into(), "target".into()),
+            ("remote_device_id".into(), "server_target".into()),
+            ("device_id".into(), "web_client".into()),
+            ("stream_id".into(), "stream-1".into()),
+        ]);
+        assert!(parse_ticketed_rtc_signal_params(&params).is_ok());
+
+        params.remove("ticket_device_id");
+        assert!(parse_ticketed_rtc_signal_params(&params).is_err());
+        params.insert("ticket_device_id".into(), "target".into());
+        params.insert("device_id".into(), "client_native".into());
+        assert!(parse_ticketed_rtc_signal_params(&params).is_err());
+        params.insert("device_id".into(), "web_client".into());
+        params.insert("guest_password".into(), "1".into());
+        assert!(parse_ticketed_rtc_signal_params(&params).is_err());
     }
 
     #[test]

@@ -1,4 +1,3 @@
-use crate::connection_ticket::manager::ConnectionTicketManager;
 use crate::console_api_error::ConsoleApiError;
 use crate::gAuthManager;
 use axum::body::Body;
@@ -72,14 +71,9 @@ pub async fn filter(req: Request<Body>, next: Next) -> Response {
         let query = req.uri().query().unwrap_or("");
         let params =
             serde_urlencoded::from_str::<HashMap<String, String>>(query).unwrap_or_default();
-        if params
-            .get("media_ticket")
-            .is_some_and(|value| value == "1")
-        {
-            return match crate::console_relay::relay_server::validate_ticketed_media_relay(
-                &params,
-            )
-            .await
+        if params.get("media_ticket").is_some_and(|value| value == "1") {
+            return match crate::console_relay::relay_server::validate_ticketed_media_relay(&params)
+                .await
             {
                 Ok(Some(_)) => next.run(req).await,
                 Ok(None) => ConsoleApiError::InvalidParams.into_response(),
@@ -90,27 +84,12 @@ pub async fn filter(req: Request<Body>, next: Next) -> Response {
             if crate::console_relay::relay_server::is_scoped_guest_rtc_signal(&params) {
                 return next.run(req).await;
             }
-            let valid = match (
-                params.get("ticket"),
-                params.get("client_nonce"),
-                params.get("remote_device_id"),
-            ) {
-                (Some(ticket), Some(nonce), Some(device_id)) => {
-                    ConnectionTicketManager::lookup_active(
-                        ticket,
-                        device_id,
-                        nonce,
-                        params.get("instance_id").map(String::as_str),
-                    )
-                    .await
-                    .is_ok()
-                }
-                _ => false,
+            return match crate::console_relay::relay_server::validate_ticketed_rtc_signal(&params)
+                .await
+            {
+                Ok(()) => next.run(req).await,
+                Err(error) => error.into_response(),
             };
-            if valid {
-                return next.run(req).await;
-            }
-            return ConsoleApiError::TicketExpiredOrUsed.into_response();
         }
     }
 

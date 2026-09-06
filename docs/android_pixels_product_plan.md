@@ -561,6 +561,12 @@ SHA-256 发布清单，以及应用内隐私、开源许可和主动脱敏诊断
   增量构建通过并同步到 `build_official/dist`，其中 `px_client.exe` SHA-256 为
   `A8F123276BB46BA3BEB85C1D21C5625A09B067DE807B14E2A8D958FADD406C02`，`px_render.exe` 为
   `E4531C867B5BA42AF704C29CA14564CB6A43BAC0384A805A397B2D2D5919E73F`。真实公网 Relay 媒体交付尚未完成，不据此关闭 M5 网络矩阵。
+- 2026-09-07 M5 WebRTC 信令安全复核将 Console appkey 过滤器与 WebSocket 处理器统一到同一个 ticketed RTC 校验入口。信令查询现在必须完整携带
+  Web 客户端 ID、票据原始设备 ID、Relay 目标、客户端 nonce、实例 ID（实例会话）和服务端签发的 stream ID；设备、实例或流任一不匹配都会在创建
+  Relay 房间前拒绝，且 Console 只执行 `lookup_active`，仍由 Render 在 SDP offer 到达时唯一兑换票据。定向用例 5/5、Console 全套 156/156 通过
+  （另有 1 个需独立 MongoDB 的 L1 用例按定义忽略）；部署后二进制与 release
+  构建 SHA-256 均为 `5F94DBB9EC61454E11B391A697F08D7105189BB9FD467EB457D270DADCF02EF5`。真实 WebSocket upgrade 探针确认缺少
+  `ticket_device_id` 和混入伪造 guest 目标返回 `400 INVALID_ARGUMENT`，结构完整但无效的票据返回 `410 TICKET_EXPIRED_OR_USED`。
 
 这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径、物理显示器切换和虚拟显示失败反馈；
 后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁，M5 轮次关闭了 UDP Direct 协商、WebSocket 安全回退、有界重连和 H.264 首帧解析门禁。
