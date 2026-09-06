@@ -207,9 +207,10 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 不能使用动态版本。当前选定基线为 `io.github.webrtc-sdk:android:150.7871.01`。
 
 旧 `rtc_client_stub.cpp` 已随 M0 删除。当前 `core-native` 已接入真实 WebSocket transport、typed JNI 边界和固定版本 Android WebRTC AAR；
-标准 RTC platform adapter 直接消费仓库权威 protobuf，并已具备票据信令、ICE/TURN、RTP Surface 渲染和基础 DataChannel 协议。产品路由仅在
+标准 RTC platform adapter 直接消费仓库权威 protobuf，并已具备票据信令、ICE/TURN、RTP Surface 渲染、控制/输入 DataChannel 和独立文件传输
+DataChannel。产品路由仅在
 Console 提供完整且未临近过期的 RTC/Relay 作用域时选择标准 RTC，否则继续使用原生 UDP/Relay；旋转 renewal capability 已用于临期/已尝试票据和
-WebRTC 失败后的原生 UDP/Relay 降级，并验证续发响应不能改变 logical session 或 stream。完整 DataChannel 能力以及真机网络矩阵
+WebRTC 失败后的原生 UDP/Relay 降级，并验证续发响应不能改变 logical session 或 stream。录制、语音和文件型剪贴板等剩余 DataChannel 能力以及真机网络矩阵
 完成前仍不对外宣称 WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
 
 ## 7. 渲染、音频和输入
@@ -333,7 +334,7 @@ WebRTC 失败后的原生 UDP/Relay 降级，并验证续发响应不能改变 l
 
 ### M5：完整网络与质量收口，2–3 周
 
-状态：**UDP Direct 已作为 Android 默认传输接入，具备认证控制面、四秒媒体探测与同会话 WebSocket 安全回退；断线重连具有三十秒上限、类型化失败和显式重试。账号公网设备已接入一次性票据约束的 Relay 主路径，Console 只校验并注入权威绑定，Render 负责唯一兑换、逻辑会话准入和按能力路由。Android 标准 WebRTC 已固定 AAR、接入权威 protobuf-lite 协议生成、票据作用域 Relay 信令、ICE/TURN 配置校验、PeerConnection、RTP 音视频 Surface 渲染，以及可靠控制/不可靠输入 DataChannel 的 Hello、输入、文本剪贴板、能力消息、实体显示器切换和虚拟显示请求/结果；连接后从标准 RTCStats 持续提供画面帧率、视频接收码率、往返延迟和视频丢包率。统一产品路由会校验 RTC 与票据有效期后选择 WebRTC，否则使用原生 UDP/Relay，并在 RTC 下保守关闭尚未实现的文件、录制和语音能力。客户端已接入匿名 renewal capability 续发端点，对临期或已尝试的一次性票据先旋转凭据；WebRTC 协商/连接失败会在有界窗口内续发并降级到原生 UDP/Relay，续发响应必须保持 logical session 与 stream 身份不变。完整 DataChannel 能力和真实网络矩阵仍待完成，因此当前不会向用户宣称 WebRTC 已完整交付。**
+状态：**UDP Direct 已作为 Android 默认传输接入，具备认证控制面、四秒媒体探测与同会话 WebSocket 安全回退；断线重连具有三十秒上限、类型化失败和显式重试。账号公网设备已接入一次性票据约束的 Relay 主路径，Console 只校验并注入权威绑定，Render 负责唯一兑换、逻辑会话准入和按能力路由。Android 标准 WebRTC 已固定 AAR、接入权威 protobuf-lite 协议生成、票据作用域 Relay 信令、ICE/TURN 配置校验、PeerConnection、RTP 音视频 Surface 渲染，以及可靠控制/不可靠输入 DataChannel 的 Hello、输入、文本剪贴板、能力消息、实体显示器切换和虚拟显示请求/结果；可靠 `ft_data_channel` 已复用项目 `FtAsyncSession`，提供目录浏览、上传、下载、取消、断点与覆盖确认。连接后从标准 RTCStats 持续提供画面帧率、视频接收码率、往返延迟和视频丢包率。统一产品路由会校验 RTC 与票据有效期后选择 WebRTC，否则使用原生 UDP/Relay；RTC 下未实现的录制、语音和文件型剪贴板分别保持关闭，不借用文本剪贴板能力误开放。客户端已接入匿名 renewal capability 续发端点，对临期或已尝试的一次性票据先旋转凭据；WebRTC 协商/连接失败会在有界窗口内续发并降级到原生 UDP/Relay，续发响应必须保持 logical session 与 stream 身份不变。完整 DataChannel 能力和真实网络矩阵仍待完成，因此当前不会向用户宣称 WebRTC 已完整交付。**
 
 - UDP Direct、Relay、WebRTC Direct、ICE/TURN WebRTC。
 - 传输选择、协商、失败降级、网络切换恢复。
@@ -447,9 +448,9 @@ SHA-256 发布清单，以及应用内隐私、完整第三方许可证和主动
   默认选择 UDP Direct，以已认证 WebSocket 作为控制面，并在四秒内收不到媒体时为同一认证会话启用 WebSocket 媒体。可恢复断线只在三十秒窗口内
   重连，超时后停止 transport、显示类型化原因并允许用户主动重试。标准 WebRTC 每秒聚合所选 candidate pair 和 inbound video 的有界 RTCStats，
   与原生链路复用同一工作区质量状态。Relay/WebRTC 主路径继续按 M5 的真实网络矩阵验收，未完成的能力不伪装为可用。
-- 一级导航使用设备、传输和设置三个独立导航图；切换 Tab 会保存当前栏的页面与滚动状态，切回时恢复，重复点击已选中的 Tab 则只回到该栏根页。
-  应用列表是设备图内的子页并保留设备 Tab 选中态，顶部和系统返回均逐级回设备根页。远控与远控文件任务是导航图之外、无底栏的会话全屏页，结束会话
-  返回发起连接前的父页；传输/设置根页的系统返回固定回到设备页。
+- 一级导航使用设备、传输和设置三个平级根目的地；切换 Tab 总是清理上一栏详情并落到目标根页，不恢复已经离开的子页面。
+  应用列表是设备栏的子页并保留设备 Tab 选中态，顶部和系统返回均回设备根页。远控与远控文件任务是无底栏的会话全屏页，结束会话
+  固定回设备根页；传输/设置根页的系统返回也固定回设备页。
   会话文件浏览的系统返回键与顶部返回键会先回到上级目录，到达远端根视图后才返回远控工作区；远控工作区默认收起工具栏，系统返回优先关闭安全确认、键盘、
   手柄设置、显示器面板和展开的工具栏，其次退出手柄模式，最后显示结束会话确认。
 - 设置页已展示版本、隐私说明、组件清单和随包的完整第三方许可证，并只在用户主动操作后生成应用私有诊断报告、调起 Android 分享选择器。报告仅包含构建、设备、会话状态
@@ -618,6 +619,13 @@ SHA-256 发布清单，以及应用内隐私、完整第三方许可证和主动
   应用子页通过目的地层级保持设备 Tab 选中并逐级返回，远控和会话文件仍是无底栏全屏栈。结束会话确认框显示时，系统返回现在只关闭确认框，不会重复请求退出。
   Xiaomi 22021211RC 使用 `adb install -r -d` 覆盖安装后，设置页滚动→传输→设置恢复、设置返回设备和 12 次快速连续切换均通过，无叠页、错选、
   `AndroidRuntime`、JNI 或 native fatal；最终覆盖安装的冷启动为 2.360 秒，APK SHA-256 为 `2969918CBA809CEB61B65E5B9C9D73E89C3D6E81868F4905B034321C5AE960FF`。
+- 2026-09-07 导航实机反馈表明独立子栈恢复会把用户带回已离开的旧详情页，因此最终规则改为三个平级根目的地：切 Tab 清理旧栏详情，设置/传输的系统返回固定回设备，
+  应用和会话页仍按明确父级返回，结束远控固定回设备。新增 Compose 仪器化回归用例；主 APK 在 Xiaomi 22021211RC 上用 `adb install -r -d` 覆盖安装，设备→设置→传输→设置→返回、
+  传输→返回及 12 次快速切换均落到预期根页，无叠页、画面穿透、崩溃、JNI 或 native fatal。全套 Android 单元测试、lint、debug APK/测试 APK 构建、arm64 C++ 所有权门禁与
+  文件引擎 29 个测试通过，APK SHA-256 为 `9ECE2A2859BB6878691D805C29C90FD4E0D30319FA131DF82425F5CEF144DF3C`。
+- 2026-09-07 M5 标准 WebRTC 文件传输接入可靠 `ft_data_channel`，Kotlin 只负责有界 TLV/DataChannel 路由，目录、上传、下载、断点、覆盖确认和取消继续复用项目维护的
+  `FtAsyncSession`。能力必须同时满足票据 `file` 权限、服务端开关和 DataChannel 已打开；文件型剪贴板使用独立 capability，RTC 未实现前不会随文本剪贴板误开放。
+  本轮完成 JNI 注册加载、Kotlin 协议测试、arm64 增量构建和文件引擎生命周期/背压测试；手机尚未登录 Console，因此不把真实 RTC 文件收发记为真机网络矩阵通过。
 
 这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径、物理显示器切换和虚拟显示失败反馈；
 后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁，M5 轮次关闭了 UDP Direct 协商、WebSocket 安全回退、有界重连和 H.264 首帧解析门禁。

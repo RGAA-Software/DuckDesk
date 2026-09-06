@@ -99,6 +99,10 @@ internal sealed interface WebRtcPeerEvent {
 
     data class GamepadRumble(val strongMotor: Int, val weakMotor: Int) : WebRtcPeerEvent
 
+    data class FileTransferChannel(val ready: Boolean) : WebRtcPeerEvent
+
+    data class FileTransferMessage(val payload: ByteArray) : WebRtcPeerEvent
+
     data class Closed(val reason: String, val recoverable: Boolean) : WebRtcPeerEvent
 }
 
@@ -112,6 +116,7 @@ internal class WebRtcPeerSession(
     private val enableVideo: Boolean,
     private val enableAudio: Boolean,
     private val enableInput: Boolean,
+    private val enableFileTransfer: Boolean,
     private val onEvent: (WebRtcPeerEvent) -> Unit,
 ) : Closeable {
     private val stateLock = Any()
@@ -121,6 +126,7 @@ internal class WebRtcPeerSession(
     private var signaling: StandardRtcSignaling? = null
     private var mediaChannel: DataChannel? = null
     private var inputChannel: DataChannel? = null
+    private var fileTransferChannel: DataChannel? = null
     private var videoTrack: VideoTrack? = null
     private var renderSurface: Surface? = surface
     private var packetIndex = 0L
@@ -158,7 +164,7 @@ internal class WebRtcPeerSession(
             )
         }
         mediaChannel = connection.createDataChannel(MEDIA_CHANNEL_LABEL, DataChannel.Init()).also {
-            it.registerObserver(ChannelObserver(it, reliableControl = true))
+            it.registerObserver(ChannelObserver(it, ChannelRole.Media))
         }
         if (enableInput) {
             inputChannel = connection.createDataChannel(
@@ -167,7 +173,12 @@ internal class WebRtcPeerSession(
                     ordered = false
                     maxRetransmits = 0
                 },
-            ).also { it.registerObserver(ChannelObserver(it, reliableControl = false)) }
+            ).also { it.registerObserver(ChannelObserver(it, ChannelRole.Input)) }
+        }
+        if (enableFileTransfer) {
+            fileTransferChannel = connection.createDataChannel(FILE_TRANSFER_CHANNEL_LABEL, DataChannel.Init()).also {
+                it.registerObserver(ChannelObserver(it, ChannelRole.FileTransfer))
+            }
         }
 
         val activeSignaling = StandardRtcSignaling(httpClient, scope, parameters, ::onSignalEvent)
@@ -331,6 +342,15 @@ internal class WebRtcPeerSession(
         return sendMediaMessage(request)
     }
 
+    fun sendFileTransfer(payload: ByteArray): Boolean {
+        if (payload.isEmpty() || payload.size > MAX_CHANNEL_MESSAGE_BYTES) return false
+        val activeChannel = synchronized(stateLock) {
+            fileTransferChannel?.takeIf { it.state() == DataChannel.State.OPEN }
+        } ?: return false
+        val packet = synchronized(stateLock) { packRtcTlv(payload, packetIndex++) }
+        return activeChannel.send(DataChannel.Buffer(ByteBuffer.wrap(packet), true))
+    }
+
     override fun close() {
         closeWithReason("RTC peer session stopped", recoverable = false, notify = false)
     }
@@ -427,6 +447,14 @@ internal class WebRtcPeerSession(
         }
     }
 
+    private fun onFileTransferMessage(buffer: DataChannel.Buffer) {
+        if (!buffer.binary || buffer.data.remaining() > MAX_CHANNEL_MESSAGE_BYTES + RTC_TLV_HEADER_BYTES) return
+        val bytes = ByteArray(buffer.data.remaining())
+        buffer.data.get(bytes)
+        val payload = unpackRtcTlv(bytes) ?: return
+        onEvent(WebRtcPeerEvent.FileTransferMessage(payload))
+    }
+
     private fun sendMouseMove(xRatio: Float, yRatio: Float): Boolean {
         synchronized(stateLock) {
             cursorX = xRatio
@@ -482,6 +510,7 @@ internal class WebRtcPeerSession(
         val activeTrack: VideoTrack?
         val activeMedia: DataChannel?
         val activeInput: DataChannel?
+        val activeFileTransfer: DataChannel?
         val activeConnection: PeerConnection?
         val activeSignaling: StandardRtcSignaling?
         val activeStatisticsJob: Job?
@@ -492,6 +521,8 @@ internal class WebRtcPeerSession(
             mediaChannel = null
             activeInput = inputChannel
             inputChannel = null
+            activeFileTransfer = fileTransferChannel
+            fileTransferChannel = null
             activeConnection = peerConnection
             peerConnection = null
             activeSignaling = signaling
@@ -509,6 +540,9 @@ internal class WebRtcPeerSession(
         activeInput?.unregisterObserver()
         activeInput?.close()
         activeInput?.dispose()
+        activeFileTransfer?.unregisterObserver()
+        activeFileTransfer?.close()
+        activeFileTransfer?.dispose()
         activeSignaling?.close()
         activeConnection?.close()
         activeConnection?.dispose()
@@ -532,18 +566,30 @@ internal class WebRtcPeerSession(
 
     private inner class ChannelObserver(
         private val channel: DataChannel,
-        private val reliableControl: Boolean,
+        private val role: ChannelRole,
     ) : DataChannel.Observer {
         override fun onBufferedAmountChange(previousAmount: Long) = Unit
 
         override fun onStateChange() {
-            if (reliableControl && channel.state() == DataChannel.State.OPEN) sendHello(channel)
+            when (role) {
+                ChannelRole.Media -> if (channel.state() == DataChannel.State.OPEN) sendHello(channel)
+                ChannelRole.FileTransfer -> if (!closed.get()) {
+                    onEvent(WebRtcPeerEvent.FileTransferChannel(channel.state() == DataChannel.State.OPEN))
+                }
+                ChannelRole.Input -> Unit
+            }
         }
 
         override fun onMessage(buffer: DataChannel.Buffer) {
-            if (reliableControl) onMediaMessage(buffer)
+            when (role) {
+                ChannelRole.Media -> onMediaMessage(buffer)
+                ChannelRole.FileTransfer -> onFileTransferMessage(buffer)
+                ChannelRole.Input -> Unit
+            }
         }
     }
+
+    private enum class ChannelRole { Media, Input, FileTransfer }
 
     private inner class Observer : PeerConnection.Observer {
         override fun onConnectionChange(newState: PeerConnection.PeerConnectionState) {
@@ -630,6 +676,7 @@ private suspend fun PeerConnection.setDescriptionAwait(description: SessionDescr
 
 private const val MEDIA_CHANNEL_LABEL = "media_data_channel"
 private const val INPUT_CHANNEL_LABEL = "input_data_channel"
+private const val FILE_TRANSFER_CHANNEL_LABEL = "ft_data_channel"
 private const val MAX_CHANNEL_MESSAGE_BYTES = 4 * 1024 * 1024
 private const val MAX_CLIPBOARD_TEXT_BYTES = 1024 * 1024
 private const val RTC_STATISTICS_INTERVAL_MILLIS = 1_000L

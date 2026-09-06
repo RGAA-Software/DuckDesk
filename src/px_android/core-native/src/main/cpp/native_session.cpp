@@ -503,6 +503,30 @@ void JavaSessionCallback::RemoteDirectory(const std::string& session_id, const p
     });
 }
 
+bool JavaSessionCallback::FileTransferOutbound(const std::string& session_id, const std::string& payload) const {
+    if (payload.empty() || payload.size() > 4U * 1024U * 1024U) {
+        return false;
+    }
+    bool accepted{};
+    const auto listener_handle = listener_handle_;
+    WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
+        const auto listener = reinterpret_cast<jobject>(listener_handle);
+        const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
+        const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
+        const auto method = environment.GetMethodID(listener_class, "onRtcFileTransferOutbound", "(Ljava/lang/String;[B)Z");
+        const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
+        const auto payload_handle = MakeByteArray(environment, payload);
+        if (method != nullptr && session_id_handle != 0U && payload_handle != 0U) {
+            accepted = environment.CallBooleanMethod(listener, method, reinterpret_cast<jstring>(session_id_handle),
+                                                     reinterpret_cast<jbyteArray>(payload_handle)) == JNI_TRUE;
+        }
+        DeleteLocalReference(environment, session_id_handle);
+        DeleteLocalReference(environment, payload_handle);
+        DeleteLocalReference(environment, listener_class_handle);
+    });
+    return accepted;
+}
+
 void JavaSessionCallback::RecordingState(const std::string& session_id, const std::string& recording_id, const std::int32_t state,
                                          const std::string& error) const {
     const auto listener_handle = listener_handle_;
@@ -558,6 +582,199 @@ void JavaSessionCallback::Disconnected(const std::string& session_id, const std:
         DeleteLocalReference(environment, session_id_handle);
         DeleteLocalReference(environment, listener_class_handle);
     });
+}
+
+std::shared_ptr<NativeRtcFileTransfer> NativeRtcFileTransfer::Create(std::string session_id, std::string client_device_id,
+                                                                     std::string stream_id,
+                                                                     std::shared_ptr<JavaSessionCallback> callback) {
+    if (session_id.empty() || session_id.size() > 128U || client_device_id.empty() || client_device_id.size() > 256U || stream_id.empty() ||
+        stream_id.size() > 256U || !callback) {
+        return {};
+    }
+    return std::make_shared<NativeRtcFileTransfer>(std::move(session_id), std::move(client_device_id), std::move(stream_id),
+                                                   std::move(callback));
+}
+
+NativeRtcFileTransfer::NativeRtcFileTransfer(std::string session_id, std::string client_device_id, std::string stream_id,
+                                             std::shared_ptr<JavaSessionCallback> callback)
+    : session_id_(std::move(session_id)), client_device_id_(std::move(client_device_id)), stream_id_(std::move(stream_id)),
+      callback_(std::move(callback)) {}
+
+NativeRtcFileTransfer::~NativeRtcFileTransfer() {
+    Stop();
+}
+
+bool NativeRtcFileTransfer::Start() {
+    std::lock_guard command_lock(command_mutex_);
+    if (stopped_.load(std::memory_order_acquire)) {
+        return false;
+    }
+    if (started_.exchange(true, std::memory_order_acq_rel)) {
+        return ActiveSession() != nullptr;
+    }
+    const auto weak_self = weak_from_this();
+    auto session = px::ft::FtAsyncSession::Create(
+        [weak_self](const std::shared_ptr<const px::Message>& message) {
+            const auto self = weak_self.lock();
+            if (!self || !message || self->stopped_.load(std::memory_order_acquire)) {
+                return px::FileTransferSendResult::Disconnected("Android RTC file session is stopping");
+            }
+            auto outgoing = std::make_shared<px::Message>(*message);
+            outgoing->set_type(outgoing->has_file_response() ? px::MessageType::kFileResponse : px::MessageType::kFileAction);
+            outgoing->set_device_id(self->client_device_id_);
+            outgoing->set_stream_id(self->stream_id_);
+            std::string payload;
+            if (!outgoing->SerializeToString(&payload)) {
+                return px::FileTransferSendResult::TransportError("Android RTC file message serialization failed");
+            }
+            return self->callback_->FileTransferOutbound(self->session_id_, payload)
+                       ? px::FileTransferSendResult::Accepted()
+                       : px::FileTransferSendResult::Disconnected("Android RTC file data channel is unavailable");
+        },
+        [weak_self](const std::shared_ptr<px::ft::FtEngine>& engine) {
+            engine->SetLogCallback([](const std::string& message) { LOGW("[pixels_android_rtc_ft] {}", message); });
+            engine->SetProgressCallback([weak_self](const px::ft::TransferJobStatus& status) {
+                if (const auto self = weak_self.lock(); self && !self->stopped_.load(std::memory_order_acquire)) {
+                    self->callback_->FileTransferProgress(self->session_id_, status);
+                }
+            });
+            engine->SetJobDoneCallback([weak_self](const std::int32_t job_id, const std::int32_t, const std::string& error) {
+                if (const auto self = weak_self.lock(); self && !self->stopped_.load(std::memory_order_acquire)) {
+                    self->callback_->FileTransferDone(self->session_id_, job_id, error);
+                }
+            });
+            engine->SetOverwriteConfirmCallback([weak_self](const std::int32_t job_id, const std::int32_t file_number, const std::string& path,
+                                                            const bool upload, const bool identical) {
+                if (const auto self = weak_self.lock(); self && !self->stopped_.load(std::memory_order_acquire)) {
+                    self->callback_->FileTransferOverwrite(self->session_id_, job_id, file_number, path, upload, identical);
+                }
+            });
+            engine->SetResponseCallback([weak_self](const px::FileResponse& response) {
+                if (const auto self = weak_self.lock(); self && !self->stopped_.load(std::memory_order_acquire) && response.has_dir()) {
+                    self->callback_->RemoteDirectory(self->session_id_, response.dir());
+                }
+            });
+        });
+    if (!session || !session->Start()) {
+        started_.store(false, std::memory_order_release);
+        return false;
+    }
+    {
+        std::lock_guard lifecycle_lock(lifecycle_mutex_);
+        if (stopped_.load(std::memory_order_acquire)) {
+            static_cast<void>(session->StopAndWait(std::chrono::seconds(2)));
+            started_.store(false, std::memory_order_release);
+            return false;
+        }
+        file_transfer_session_ = std::move(session);
+    }
+    return true;
+}
+
+std::shared_ptr<px::ft::FtAsyncSession> NativeRtcFileTransfer::ActiveSession() const {
+    std::lock_guard lifecycle_lock(lifecycle_mutex_);
+    return stopped_.load(std::memory_order_acquire) ? std::shared_ptr<px::ft::FtAsyncSession>{} : file_transfer_session_;
+}
+
+bool NativeRtcFileTransfer::Receive(const std::string& payload) {
+    if (payload.empty() || payload.size() > 4U * 1024U * 1024U) {
+        return false;
+    }
+    auto message = std::make_shared<px::Message>();
+    if (!message->ParseFromString(payload) ||
+        (message->type() != px::kFileAction && message->type() != px::kFileResponse) ||
+        (message->type() == px::kFileAction && !message->has_file_action()) ||
+        (message->type() == px::kFileResponse && !message->has_file_response())) {
+        return false;
+    }
+    const auto session = ActiveSession();
+    return session && session->Post("pixels-android-rtc-ft-inbound", [message = std::move(message)](const auto& engine) {
+        if (message->type() == px::kFileAction) {
+            engine->HandleFileAction(message->file_action(), message->stream_id());
+        } else {
+            engine->HandleFileResponse(message->file_response());
+        }
+    });
+}
+
+std::int32_t NativeRtcFileTransfer::StartUpload(const std::string& local_path, const std::string& remote_directory) {
+    std::lock_guard command_lock(command_mutex_);
+    if (local_path.empty() || remote_directory.empty() || local_path.size() > 4096U || remote_directory.size() > 4096U) {
+        return 0;
+    }
+    const auto session = ActiveSession();
+    if (!session) {
+        return 0;
+    }
+    const auto job_id = std::make_shared<std::atomic_int32_t>(0);
+    const bool completed = session->PostAndWait(
+        "pixels-android-rtc-ft-upload",
+        [local_path, remote_directory, stream_id = stream_id_, job_id](const auto& engine) {
+            job_id->store(engine->SendFiles(local_path, false, remote_directory, 0, false, stream_id), std::memory_order_release);
+        },
+        std::chrono::seconds(2));
+    return completed ? job_id->load(std::memory_order_acquire) : 0;
+}
+
+std::int32_t NativeRtcFileTransfer::StartDownload(const std::string& remote_path, const std::string& local_directory) {
+    std::lock_guard command_lock(command_mutex_);
+    if (remote_path.empty() || local_directory.empty() || remote_path.size() > 4096U || local_directory.size() > 4096U) {
+        return 0;
+    }
+    const auto session = ActiveSession();
+    if (!session) {
+        return 0;
+    }
+    const auto job_id = std::make_shared<std::atomic_int32_t>(0);
+    const bool completed = session->PostAndWait(
+        "pixels-android-rtc-ft-download",
+        [remote_path, local_directory, stream_id = stream_id_, job_id](const auto& engine) {
+            job_id->store(engine->ReceiveFiles(remote_path, false, local_directory, 0, false, stream_id), std::memory_order_release);
+        },
+        std::chrono::seconds(2));
+    return completed ? job_id->load(std::memory_order_acquire) : 0;
+}
+
+bool NativeRtcFileTransfer::ListRemoteDirectory(const std::string& remote_path) {
+    std::lock_guard command_lock(command_mutex_);
+    const auto session = remote_path.empty() || remote_path.size() > 4096U ? std::shared_ptr<px::ft::FtAsyncSession>{} : ActiveSession();
+    return session && session->Post("pixels-android-rtc-ft-list-directory",
+                                    [remote_path](const auto& engine) { engine->ReadDir(remote_path, false); });
+}
+
+bool NativeRtcFileTransfer::Cancel(const std::int32_t job_id) {
+    std::lock_guard command_lock(command_mutex_);
+    const auto session = job_id <= 0 ? std::shared_ptr<px::ft::FtAsyncSession>{} : ActiveSession();
+    return session && session->Post("pixels-android-rtc-ft-cancel", [job_id](const auto& engine) { engine->CancelJob(job_id); });
+}
+
+bool NativeRtcFileTransfer::ConfirmOverwrite(const std::int32_t job_id, const std::int32_t file_number, const bool overwrite,
+                                             const std::uint64_t offset_bytes, const bool apply_to_all) {
+    std::lock_guard command_lock(command_mutex_);
+    const auto session = job_id <= 0 || file_number < 0 ? std::shared_ptr<px::ft::FtAsyncSession>{} : ActiveSession();
+    return session && session->Post(
+                          "pixels-android-rtc-ft-confirm",
+                          [job_id, file_number, overwrite, offset_bytes, apply_to_all](const auto& engine) {
+                              if (apply_to_all) {
+                                  engine->SetOverwriteStrategy(job_id, overwrite);
+                              }
+                              engine->ConfirmFile(job_id, file_number, overwrite, offset_bytes);
+                          });
+}
+
+void NativeRtcFileTransfer::Stop() {
+    if (stopped_.exchange(true, std::memory_order_acq_rel)) {
+        return;
+    }
+    std::shared_ptr<px::ft::FtAsyncSession> session;
+    {
+        std::lock_guard lifecycle_lock(lifecycle_mutex_);
+        session = std::move(file_transfer_session_);
+    }
+    if (session) {
+        static_cast<void>(session->StopAndWait(std::chrono::seconds(2)));
+    }
+    started_.store(false, std::memory_order_release);
 }
 
 void NativeWindowReleaser::operator()(ANativeWindow* window) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)

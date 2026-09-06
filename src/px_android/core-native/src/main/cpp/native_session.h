@@ -100,6 +100,7 @@ class JavaSessionCallback final {
     void FileTransferOverwrite(const std::string& session_id, std::int32_t job_id, std::int32_t file_number, const std::string& path, bool upload,
                                bool identical) const;
     void RemoteDirectory(const std::string& session_id, const px::FileDirectory& directory) const;
+    [[nodiscard]] bool FileTransferOutbound(const std::string& session_id, const std::string& payload) const;
     void RecordingState(const std::string& session_id, const std::string& recording_id, std::int32_t state, const std::string& error) const;
     void VoiceCallState(const std::string& session_id, const NativeVoiceCallStatus& status) const;
     void Disconnected(const std::string& session_id, std::int32_t reason, bool recoverable) const;
@@ -107,6 +108,41 @@ class JavaSessionCallback final {
   private:
     std::uintptr_t vm_handle_{};
     std::uintptr_t listener_handle_{};
+};
+
+class NativeRtcFileTransfer final : public std::enable_shared_from_this<NativeRtcFileTransfer> {
+  public:
+    static std::shared_ptr<NativeRtcFileTransfer> Create(std::string session_id, std::string client_device_id, std::string stream_id,
+                                                         std::shared_ptr<JavaSessionCallback> callback);
+
+    NativeRtcFileTransfer(std::string session_id, std::string client_device_id, std::string stream_id,
+                          std::shared_ptr<JavaSessionCallback> callback);
+    ~NativeRtcFileTransfer();
+
+    NativeRtcFileTransfer(const NativeRtcFileTransfer&) = delete;
+    NativeRtcFileTransfer& operator=(const NativeRtcFileTransfer&) = delete;
+
+    bool Start();
+    bool Receive(const std::string& payload);
+    std::int32_t StartUpload(const std::string& local_path, const std::string& remote_directory);
+    std::int32_t StartDownload(const std::string& remote_path, const std::string& local_directory);
+    bool ListRemoteDirectory(const std::string& remote_path);
+    bool Cancel(std::int32_t job_id);
+    bool ConfirmOverwrite(std::int32_t job_id, std::int32_t file_number, bool overwrite, std::uint64_t offset_bytes, bool apply_to_all);
+    void Stop();
+
+  private:
+    [[nodiscard]] std::shared_ptr<px::ft::FtAsyncSession> ActiveSession() const;
+
+    std::string session_id_{};
+    std::string client_device_id_{};
+    std::string stream_id_{};
+    std::shared_ptr<JavaSessionCallback> callback_{};
+    std::shared_ptr<px::ft::FtAsyncSession> file_transfer_session_{};
+    mutable std::mutex lifecycle_mutex_{};
+    std::mutex command_mutex_{};
+    std::atomic_bool started_{};
+    std::atomic_bool stopped_{};
 };
 
 struct NativeWindowReleaser final {

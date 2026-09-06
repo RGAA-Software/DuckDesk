@@ -52,6 +52,7 @@ data class RemoteSessionCapabilities(
     val supportsInput: Boolean,
     val supportsFileTransfer: Boolean,
     val supportsClipboard: Boolean,
+    val supportsClipboardFiles: Boolean = false,
     val supportsVirtualDisplays: Boolean = false,
     val ownedVirtualDisplayCount: Int = 0,
     val maximumVirtualDisplayCount: Int = 0,

@@ -338,6 +338,8 @@ fun RemoteWorkspaceScreen(
             onInput = onInput,
             onText = onText,
             supportsClipboard = (snapshot.status as? RemoteSessionStatus.Connected)?.capabilities?.supportsClipboard == true,
+            supportsClipboardFiles =
+                (snapshot.status as? RemoteSessionStatus.Connected)?.capabilities?.supportsClipboardFiles == true,
             remoteClipboardText = snapshot.remoteClipboardText,
             remoteClipboardFiles = snapshot.remoteClipboardFiles,
             clipboardDownload = snapshot.clipboardDownload,
@@ -823,6 +825,7 @@ private fun RemoteKeyboardSheet(
     onInput: (InputCommand) -> Unit,
     onText: (String) -> Unit,
     supportsClipboard: Boolean,
+    supportsClipboardFiles: Boolean,
     remoteClipboardText: String?,
     remoteClipboardFiles: RemoteClipboardFiles?,
     clipboardDownload: ClipboardDownloadState,
@@ -911,7 +914,7 @@ private fun RemoteKeyboardSheet(
                         onClick = {
                             val clip = clipboardManager.primaryClip
                             val uris = if (clip == null) emptyList() else (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri }
-                            if (uris.isNotEmpty()) {
+                            if (supportsClipboardFiles && uris.isNotEmpty()) {
                                 onClipboardUris(uris)
                             } else {
                                 val localText = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).coerceToText(context).toString() else ""
@@ -936,7 +939,7 @@ private fun RemoteKeyboardSheet(
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
-                remoteClipboardFiles?.let { files ->
+                remoteClipboardFiles?.takeIf { supportsClipboardFiles }?.let { files ->
                     Text(
                         files.files.joinToString(limit = 3, truncated = "…") { file -> "${file.displayName} (${file.size} B)" },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -51,13 +51,10 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -86,14 +83,13 @@ import yun.pixels.client.core.domain.recording.RecordingState
 import yun.pixels.client.core.domain.voice.VoiceCallState
 
 private enum class TopLevelDestination(
-    val graphRoute: String,
     val route: String,
     @StringRes val labelResource: Int,
     val icon: ImageVector,
 ) {
-    Devices("section/devices", "devices", R.string.navigation_devices, Icons.Outlined.Devices),
-    Transfers("section/transfers", "transfers", R.string.navigation_transfers, Icons.Outlined.SwapVert),
-    Settings("section/settings", "settings", R.string.navigation_settings, Icons.Outlined.Settings),
+    Devices("devices", R.string.navigation_devices, Icons.Outlined.Devices),
+    Transfers("transfers", R.string.navigation_transfers, Icons.Outlined.SwapVert),
+    Settings("settings", R.string.navigation_settings, Icons.Outlined.Settings),
 }
 private const val REMOTE_ROUTE = "remote"
 private const val REMOTE_TRANSFERS_ROUTE = "remote/transfers"
@@ -159,8 +155,11 @@ fun PixelsApp(graph: PixelsAppGraph) {
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = currentBackStackEntry?.destination
     val currentRoute = currentDestination?.route
-    val currentTopLevelDestination = TopLevelDestination.entries.firstOrNull { destination ->
-        currentDestination?.hierarchy?.any { it.route == destination.graphRoute } == true
+    val currentTopLevelDestination = when (currentRoute) {
+        TopLevelDestination.Devices.route, APPLICATIONS_ROUTE -> TopLevelDestination.Devices
+        TopLevelDestination.Transfers.route -> TopLevelDestination.Transfers
+        TopLevelDestination.Settings.route -> TopLevelDestination.Settings
+        else -> null
     }
     val showsBottomNavigation = currentTopLevelDestination != null
     val isNonSessionSurface = currentRoute != REMOTE_ROUTE && currentRoute != REMOTE_TRANSFERS_ROUTE
@@ -308,7 +307,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
     ) { contentPadding ->
         NavHost(
             navController = navController,
-            startDestination = TopLevelDestination.Devices.graphRoute,
+            startDestination = TopLevelDestination.Devices.route,
             modifier = Modifier.padding(
                 if (showsBottomNavigation) contentPadding else PaddingValues(0.dp),
             ),
@@ -317,11 +316,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
             popEnterTransition = { EnterTransition.None },
             popExitTransition = { ExitTransition.None },
         ) {
-            navigation(
-                startDestination = TopLevelDestination.Devices.route,
-                route = TopLevelDestination.Devices.graphRoute,
-            ) {
-                composable(TopLevelDestination.Devices.route) {
+            composable(TopLevelDestination.Devices.route) {
                     DeviceHomeScreen(
                         state = deviceHomeState,
                         onAction = { action ->
@@ -391,8 +386,8 @@ fun PixelsApp(graph: PixelsAppGraph) {
                             }
                         },
                     )
-                }
-                composable(APPLICATIONS_ROUTE) {
+            }
+            composable(APPLICATIONS_ROUTE) {
                     ApplicationLibraryScreen(
                         state = applicationLibraryState,
                         onBack = { navController.resetToDevices() },
@@ -401,13 +396,8 @@ fun PixelsApp(graph: PixelsAppGraph) {
                         onConnect = applicationLibraryViewModel::connect,
                         onStop = applicationLibraryViewModel::stop,
                     )
-                }
             }
-            navigation(
-                startDestination = TopLevelDestination.Transfers.route,
-                route = TopLevelDestination.Transfers.graphRoute,
-            ) {
-                composable(TopLevelDestination.Transfers.route) {
+            composable(TopLevelDestination.Transfers.route) {
                     TransferRoute(
                         remoteBinder = remoteBinder,
                         idleFileTransferTasks = idleFileTransferTasks,
@@ -423,13 +413,8 @@ fun PixelsApp(graph: PixelsAppGraph) {
                             downloadDocumentLauncher.launch(remotePath.substringAfterLast('/').substringAfterLast('\\').ifBlank { "download" })
                         },
                     )
-                }
             }
-            navigation(
-                startDestination = TopLevelDestination.Settings.route,
-                route = TopLevelDestination.Settings.graphRoute,
-            ) {
-                composable(TopLevelDestination.Settings.route) {
+            composable(TopLevelDestination.Settings.route) {
                     SettingsScreen(
                         state = settingsState,
                         appVersion = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
@@ -447,7 +432,6 @@ fun PixelsApp(graph: PixelsAppGraph) {
                             }
                         },
                     )
-                }
             }
             composable(REMOTE_ROUTE) {
                 val sessionFlow = remoteBinder?.snapshot ?: idleRemoteSnapshot
@@ -555,15 +539,10 @@ private fun TransferRoute(
 }
 
 private fun NavHostController.selectTopLevel(destination: TopLevelDestination) {
-    val alreadySelected = currentDestination?.hierarchy?.any { it.route == destination.graphRoute } == true
-    if (alreadySelected) {
-        if (currentDestination?.route != destination.route) popBackStack(destination.route, inclusive = false)
-        return
-    }
-    navigate(destination.graphRoute) {
-        popUpTo(graph.findStartDestination().id) { saveState = true }
+    if (currentDestination?.route == destination.route) return
+    navigate(destination.route) {
+        popUpTo(TopLevelDestination.Devices.route) { inclusive = false }
         launchSingleTop = true
-        restoreState = true
     }
 }
 
@@ -576,20 +555,17 @@ private fun NavHostController.navigateToRemote() {
 }
 
 private fun NavHostController.leaveRemoteSession() {
-    if (!popBackStack(REMOTE_ROUTE, inclusive = true)) resetToDevices()
+    popBackStack(REMOTE_ROUTE, inclusive = true)
+    resetToDevices()
 }
 
 private fun NavHostController.resetToDevices() {
-    if (!popBackTo(TopLevelDestination.Devices.route)) {
-        navigate(TopLevelDestination.Devices.graphRoute) {
-            popUpTo(graph.id)
-            launchSingleTop = true
-        }
+    if (currentDestination?.route == TopLevelDestination.Devices.route) return
+    navigate(TopLevelDestination.Devices.route) {
+        popUpTo(graph.id) { inclusive = false }
+        launchSingleTop = true
     }
 }
-
-private fun NavHostController.popBackTo(route: String): Boolean =
-    currentDestination?.route == route || popBackStack(route, inclusive = false)
 
 private fun NavHostController.returnToRemoteWorkspace() {
     if (!popBackStack(REMOTE_ROUTE, inclusive = false)) navigateToRemote()

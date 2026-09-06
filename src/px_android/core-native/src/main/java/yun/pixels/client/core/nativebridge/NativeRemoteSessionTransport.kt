@@ -45,6 +45,7 @@ import yun.pixels.client.core.domain.voice.VoiceCallState
 import yun.pixels.client.core.domain.voice.VoiceCallTransport
 import java.net.URI
 import java.net.URLDecoder
+import java.util.concurrent.ConcurrentHashMap
 
 class NativeRemoteSessionTransport internal constructor(
     private val installationIdentity: InstallationIdentity,
@@ -66,6 +67,8 @@ class NativeRemoteSessionTransport internal constructor(
     private val mutableVoiceCallEvents = MutableSharedFlow<VoiceCallEvent>(extraBufferCapacity = 16)
     private val surfaces = mutableMapOf<RemoteSessionId, Surface>()
     private val nativeSessionIds = mutableMapOf<RemoteSessionId, Long>()
+    private val rtcFileTransferIds = mutableMapOf<RemoteSessionId, Long>()
+    private val rtcFileTransferSenders = ConcurrentHashMap<RemoteSessionId, (ByteArray) -> Boolean>()
     private val capabilities = mutableMapOf<RemoteSessionId, RemoteSessionCapabilities>()
 
     override val events: Flow<RemoteTransportEvent> = mutableEvents.asSharedFlow()
@@ -135,6 +138,47 @@ class NativeRemoteSessionTransport internal constructor(
             nativeSessionIds.remove(sessionId)
         } ?: return
         withContext(Dispatchers.IO) { PixelsNativeBridge.stop(nativeSessionId) }
+    }
+
+    suspend fun startRtcFileTransfer(
+        sessionId: RemoteSessionId,
+        clientDeviceId: String,
+        streamId: String,
+        sender: (ByteArray) -> Boolean,
+    ): Boolean {
+        if (clientDeviceId.isBlank() || streamId.isBlank()) return false
+        val nativeId = withContext(Dispatchers.IO) {
+            PixelsNativeBridge.createRtcFileTransfer(sessionId.value, clientDeviceId, streamId, this@NativeRemoteSessionTransport)
+        }
+        if (nativeId == 0L) return false
+        val accepted = lock.withLock {
+            if (rtcFileTransferIds.containsKey(sessionId) || nativeSessionIds.containsKey(sessionId)) false else {
+                rtcFileTransferIds[sessionId] = nativeId
+                true
+            }
+        }
+        if (!accepted) {
+            withContext(Dispatchers.IO) { PixelsNativeBridge.stopRtcFileTransfer(nativeId) }
+            return false
+        }
+        rtcFileTransferSenders[sessionId] = sender
+        if (withContext(Dispatchers.IO) { PixelsNativeBridge.startRtcFileTransfer(nativeId) }) return true
+        rtcFileTransferSenders.remove(sessionId)
+        lock.withLock { rtcFileTransferIds.remove(sessionId, nativeId) }
+        withContext(Dispatchers.IO) { PixelsNativeBridge.stopRtcFileTransfer(nativeId) }
+        return false
+    }
+
+    suspend fun receiveRtcFileTransfer(sessionId: RemoteSessionId, payload: ByteArray): Boolean {
+        if (payload.isEmpty() || payload.size > MAX_RTC_FILE_MESSAGE_BYTES) return false
+        val nativeId = lock.withLock { rtcFileTransferIds[sessionId] } ?: return false
+        return withContext(Dispatchers.IO) { PixelsNativeBridge.receiveRtcFileTransfer(nativeId, payload) }
+    }
+
+    suspend fun stopRtcFileTransfer(sessionId: RemoteSessionId) {
+        rtcFileTransferSenders.remove(sessionId)
+        val nativeId = lock.withLock { rtcFileTransferIds.remove(sessionId) } ?: return
+        withContext(Dispatchers.IO) { PixelsNativeBridge.stopRtcFileTransfer(nativeId) }
     }
 
     override suspend fun sendInput(sessionId: RemoteSessionId, command: InputCommand): Boolean {
@@ -220,9 +264,21 @@ class NativeRemoteSessionTransport internal constructor(
 
     override suspend fun startUpload(sessionId: RemoteSessionId, localPath: String, remoteDirectory: String): Int? {
         if (localPath.isBlank() || remoteDirectory.isBlank()) return null
-        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return null
+        val (nativeSessionId, rtcFileTransferId) = lock.withLock { nativeSessionIds[sessionId] to rtcFileTransferIds[sessionId] }
         return withContext(Dispatchers.IO) {
-            PixelsNativeBridge.startFileUpload(nativeSessionId, localPath.encodeToByteArray(), remoteDirectory.encodeToByteArray())
+            when {
+                rtcFileTransferId != null -> PixelsNativeBridge.startRtcFileUpload(
+                    rtcFileTransferId,
+                    localPath.encodeToByteArray(),
+                    remoteDirectory.encodeToByteArray(),
+                )
+                nativeSessionId != null -> PixelsNativeBridge.startFileUpload(
+                    nativeSessionId,
+                    localPath.encodeToByteArray(),
+                    remoteDirectory.encodeToByteArray(),
+                )
+                else -> 0
+            }
                 .takeIf { it > 0 }
         }
     }
@@ -230,22 +286,46 @@ class NativeRemoteSessionTransport internal constructor(
     override suspend fun listRemoteDirectory(sessionId: RemoteSessionId, path: String): Boolean {
         val encoded = path.encodeToByteArray()
         if (encoded.isEmpty() || encoded.size > MAX_REMOTE_PATH_BYTES || path.any(Char::isISOControl)) return false
-        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
-        return withContext(Dispatchers.IO) { PixelsNativeBridge.listRemoteDirectory(nativeSessionId, encoded) }
+        val (nativeSessionId, rtcFileTransferId) = lock.withLock { nativeSessionIds[sessionId] to rtcFileTransferIds[sessionId] }
+        return withContext(Dispatchers.IO) {
+            when {
+                rtcFileTransferId != null -> PixelsNativeBridge.listRtcRemoteDirectory(rtcFileTransferId, encoded)
+                nativeSessionId != null -> PixelsNativeBridge.listRemoteDirectory(nativeSessionId, encoded)
+                else -> false
+            }
+        }
     }
 
     override suspend fun startDownload(sessionId: RemoteSessionId, remotePath: String, localDirectory: String): Int? {
         if (remotePath.isBlank() || localDirectory.isBlank()) return null
-        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return null
+        val (nativeSessionId, rtcFileTransferId) = lock.withLock { nativeSessionIds[sessionId] to rtcFileTransferIds[sessionId] }
         return withContext(Dispatchers.IO) {
-            PixelsNativeBridge.startFileDownload(nativeSessionId, remotePath.encodeToByteArray(), localDirectory.encodeToByteArray())
+            when {
+                rtcFileTransferId != null -> PixelsNativeBridge.startRtcFileDownload(
+                    rtcFileTransferId,
+                    remotePath.encodeToByteArray(),
+                    localDirectory.encodeToByteArray(),
+                )
+                nativeSessionId != null -> PixelsNativeBridge.startFileDownload(
+                    nativeSessionId,
+                    remotePath.encodeToByteArray(),
+                    localDirectory.encodeToByteArray(),
+                )
+                else -> 0
+            }
                 .takeIf { it > 0 }
         }
     }
 
     override suspend fun cancelTransfer(sessionId: RemoteSessionId, jobId: Int): Boolean {
-        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
-        return withContext(Dispatchers.IO) { PixelsNativeBridge.cancelFileTransfer(nativeSessionId, jobId) }
+        val (nativeSessionId, rtcFileTransferId) = lock.withLock { nativeSessionIds[sessionId] to rtcFileTransferIds[sessionId] }
+        return withContext(Dispatchers.IO) {
+            when {
+                rtcFileTransferId != null -> PixelsNativeBridge.cancelRtcFileTransfer(rtcFileTransferId, jobId)
+                nativeSessionId != null -> PixelsNativeBridge.cancelFileTransfer(nativeSessionId, jobId)
+                else -> false
+            }
+        }
     }
 
     override suspend fun confirmOverwrite(
@@ -257,9 +337,27 @@ class NativeRemoteSessionTransport internal constructor(
         applyToAll: Boolean,
     ): Boolean {
         if (offsetBytes < 0) return false
-        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        val (nativeSessionId, rtcFileTransferId) = lock.withLock { nativeSessionIds[sessionId] to rtcFileTransferIds[sessionId] }
         return withContext(Dispatchers.IO) {
-            PixelsNativeBridge.confirmFileOverwrite(nativeSessionId, jobId, fileNumber, overwrite, offsetBytes, applyToAll)
+            when {
+                rtcFileTransferId != null -> PixelsNativeBridge.confirmRtcFileOverwrite(
+                    rtcFileTransferId,
+                    jobId,
+                    fileNumber,
+                    overwrite,
+                    offsetBytes,
+                    applyToAll,
+                )
+                nativeSessionId != null -> PixelsNativeBridge.confirmFileOverwrite(
+                    nativeSessionId,
+                    jobId,
+                    fileNumber,
+                    overwrite,
+                    offsetBytes,
+                    applyToAll,
+                )
+                else -> false
+            }
         }
     }
 
@@ -345,6 +443,12 @@ class NativeRemoteSessionTransport internal constructor(
         return withContext(Dispatchers.IO) { PixelsNativeBridge.setAudioEnabled(nativeSessionId, enabled) }
     }
 
+    override fun onRtcFileTransferOutbound(sessionId: String, payload: ByteArray): Boolean {
+        if (payload.isEmpty() || payload.size > MAX_RTC_FILE_MESSAGE_BYTES) return false
+        val remoteSessionId = runCatching { RemoteSessionId(sessionId) }.getOrNull() ?: return false
+        return rtcFileTransferSenders[remoteSessionId]?.invoke(payload) == true
+    }
+
     override fun onConnected(
         sessionId: String,
         monitorNames: Array<String>,
@@ -369,6 +473,7 @@ class NativeRemoteSessionTransport internal constructor(
                 supportsInput = supportsInput,
                 supportsFileTransfer = supportsFileTransfer,
                 supportsClipboard = supportsClipboard,
+                supportsClipboardFiles = supportsClipboard,
                 supportsVirtualDisplays = supportsVirtualDisplays,
                 ownedVirtualDisplayCount = ownedVirtualDisplayCount.coerceAtLeast(0),
                 maximumVirtualDisplayCount = maximumVirtualDisplayCount.coerceAtLeast(0),
@@ -777,6 +882,7 @@ private const val MAX_CLIPBOARD_FILE_COUNT = 16
 private const val MAX_NATIVE_ERROR_CHARS = 256
 private const val MAX_REMOTE_PATH_BYTES = 4096
 private const val MAX_REMOTE_DIRECTORY_ENTRIES = 2048
+private const val MAX_RTC_FILE_MESSAGE_BYTES = 4 * 1024 * 1024
 private const val RECORDING_STARTED = 1
 private const val RECORDING_COMPLETED = 2
 private const val RECORDING_FAILED = 3

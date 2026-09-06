@@ -108,6 +108,7 @@ internal fun PxMessage.ServerConfiguration.toRtcSessionCapabilities(
     enableInput: Boolean,
     enableClipboard: Boolean,
     permissions: Set<String>,
+    fileTransferReady: Boolean = false,
 ): RemoteSessionCapabilities {
     val supportsInput = enableInput && canBeOperated && "input" in permissions
     return RemoteSessionCapabilities(
@@ -120,8 +121,9 @@ internal fun PxMessage.ServerConfiguration.toRtcSessionCapabilities(
         activeMonitorName = capturingMonitorName.trim().take(MAX_RTC_MONITOR_NAME_CHARS),
         supportsAudio = enableAudio && audioEnabled,
         supportsInput = supportsInput,
-        supportsFileTransfer = false,
+        supportsFileTransfer = fileTransferReady && fileTransferEnabled && "file" in permissions,
         supportsClipboard = enableClipboard && "clipboard" in permissions,
+        supportsClipboardFiles = false,
         supportsVirtualDisplays = supportsInput && virtualDisplayEnabled,
         ownedVirtualDisplayCount = virtualDisplayOwnedCount.coerceIn(0, MAX_RTC_VIRTUAL_DISPLAY_COUNT),
         maximumVirtualDisplayCount = virtualDisplayMaxCount.coerceIn(0, MAX_RTC_VIRTUAL_DISPLAY_COUNT),

@@ -117,6 +117,22 @@ class RtcDataChannelProtocolTest {
     }
 
     @Test
+    fun rtcCapabilitiesRequireFilePermissionAndReadyChannel() {
+        val config = PxMessage.ServerConfiguration.newBuilder().setFileTransferEnabled(true).build()
+
+        assertFalse(config.toRtcSessionCapabilities(false, false, false, setOf("view", "file")).supportsFileTransfer)
+        assertFalse(
+            config.toRtcSessionCapabilities(false, false, false, setOf("view"), fileTransferReady = true).supportsFileTransfer,
+        )
+        assertTrue(
+            config.toRtcSessionCapabilities(false, false, false, setOf("view", "file"), fileTransferReady = true).supportsFileTransfer,
+        )
+        assertFalse(
+            config.toRtcSessionCapabilities(false, false, true, setOf("view", "clipboard")).supportsClipboardFiles,
+        )
+    }
+
+    @Test
     fun monitorSwitchResponseProducesTypedUpdate() {
         val message = PxMessage.Message.newBuilder()
             .setType(PxMessage.MessageType.kMonitorSwitched)

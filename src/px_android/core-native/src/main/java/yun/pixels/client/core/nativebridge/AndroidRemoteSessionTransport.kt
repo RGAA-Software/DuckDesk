@@ -66,6 +66,8 @@ class AndroidRemoteSessionTransport internal constructor(
     private val rtcSessions = mutableMapOf<RemoteSessionId, WebRtcPeerSession>()
     private val rtcRequests = mutableMapOf<RemoteSessionId, RemoteSessionRequest>()
     private val rtcCapabilities = mutableMapOf<RemoteSessionId, RemoteSessionCapabilities>()
+    private val rtcConfigurations = mutableMapOf<RemoteSessionId, px.PxMessage.ServerConfiguration>()
+    private val rtcFileTransferChannels = mutableSetOf<RemoteSessionId>()
     private val reconnectJobs = mutableMapOf<RemoteSessionId, Job>()
     private val attemptedTickets = mutableMapOf<RemoteSessionId, String>()
     private var rtcRuntime: WebRtcRuntime? = null
@@ -159,7 +161,15 @@ class AndroidRemoteSessionTransport internal constructor(
         } catch (_: Throwable) {
             return RemoteTransportStartResult.Rejected(RemoteSessionFailure.TransportUnavailable)
         }
-        val session = WebRtcPeerSession(
+        lateinit var session: WebRtcPeerSession
+        val fileTransferBridgeReady = if ("file" in launch.permissions) {
+            native.startRtcFileTransfer(request.id, launch.parameters.ticketDeviceId, launch.parameters.streamId) { payload ->
+                session.sendFileTransfer(payload)
+            }
+        } else {
+            false
+        }
+        session = WebRtcPeerSession(
             runtime = runtime,
             httpClient = httpClient,
             scope = callbackScope,
@@ -169,6 +179,7 @@ class AndroidRemoteSessionTransport internal constructor(
             enableVideo = request.enableVideo,
             enableAudio = request.enableAudio,
             enableInput = request.enableInput && "input" in launch.permissions,
+            enableFileTransfer = fileTransferBridgeReady,
             onEvent = { event -> callbackScope.launch { handleRtcEvent(request.id, event) } },
         )
         val accepted = lock.withLock {
@@ -180,6 +191,7 @@ class AndroidRemoteSessionTransport internal constructor(
         }
         if (!accepted) {
             session.close()
+            if (fileTransferBridgeReady) native.stopRtcFileTransfer(request.id)
             return RemoteTransportStartResult.Accepted
         }
         return try {
@@ -189,15 +201,21 @@ class AndroidRemoteSessionTransport internal constructor(
             lock.withLock {
                 rtcSessions.remove(request.id, session)
                 rtcRequests.remove(request.id)
+                rtcConfigurations.remove(request.id)
+                rtcFileTransferChannels.remove(request.id)
             }
             session.close()
+            if (fileTransferBridgeReady) native.stopRtcFileTransfer(request.id)
             throw cancellation
         } catch (_: Throwable) {
             lock.withLock {
                 rtcSessions.remove(request.id, session)
                 rtcRequests.remove(request.id)
+                rtcConfigurations.remove(request.id)
+                rtcFileTransferChannels.remove(request.id)
             }
             session.close()
+            if (fileTransferBridgeReady) native.stopRtcFileTransfer(request.id)
             RemoteTransportStartResult.Rejected(RemoteSessionFailure.TransportUnavailable)
         }
     }
@@ -207,10 +225,17 @@ class AndroidRemoteSessionTransport internal constructor(
             nativeSessions.remove(sessionId)
             rtcRequests.remove(sessionId)
             rtcCapabilities.remove(sessionId)
+            rtcConfigurations.remove(sessionId)
+            rtcFileTransferChannels.remove(sessionId)
             rtcSessions.remove(sessionId) to reconnectJobs.remove(sessionId)
         }
         reconnectJob?.cancel()
-        if (rtc != null) rtc.close() else native.stop(sessionId)
+        if (rtc != null) {
+            native.stopRtcFileTransfer(sessionId)
+            rtc.close()
+        } else {
+            native.stop(sessionId)
+        }
     }
 
     override suspend fun sendInput(sessionId: RemoteSessionId, command: InputCommand): Boolean {
@@ -262,17 +287,16 @@ class AndroidRemoteSessionTransport internal constructor(
         return rtc?.setAudioEnabled(enabled) ?: native.setAudioEnabled(sessionId, enabled)
     }
 
-    override suspend fun listRemoteDirectory(sessionId: RemoteSessionId, path: String): Boolean =
-        if (isRtcSession(sessionId)) false else native.listRemoteDirectory(sessionId, path)
+    override suspend fun listRemoteDirectory(sessionId: RemoteSessionId, path: String): Boolean = native.listRemoteDirectory(sessionId, path)
 
     override suspend fun startUpload(sessionId: RemoteSessionId, localPath: String, remoteDirectory: String): Int? =
-        if (isRtcSession(sessionId)) null else native.startUpload(sessionId, localPath, remoteDirectory)
+        native.startUpload(sessionId, localPath, remoteDirectory)
 
     override suspend fun startDownload(sessionId: RemoteSessionId, remotePath: String, localDirectory: String): Int? =
-        if (isRtcSession(sessionId)) null else native.startDownload(sessionId, remotePath, localDirectory)
+        native.startDownload(sessionId, remotePath, localDirectory)
 
     override suspend fun cancelTransfer(sessionId: RemoteSessionId, jobId: Int): Boolean =
-        if (isRtcSession(sessionId)) false else native.cancelTransfer(sessionId, jobId)
+        native.cancelTransfer(sessionId, jobId)
 
     override suspend fun confirmOverwrite(
         sessionId: RemoteSessionId,
@@ -281,11 +305,7 @@ class AndroidRemoteSessionTransport internal constructor(
         overwrite: Boolean,
         offsetBytes: Long,
         applyToAll: Boolean,
-    ): Boolean = if (isRtcSession(sessionId)) {
-        false
-    } else {
-        native.confirmOverwrite(sessionId, jobId, fileNumber, overwrite, offsetBytes, applyToAll)
-    }
+    ): Boolean = native.confirmOverwrite(sessionId, jobId, fileNumber, overwrite, offsetBytes, applyToAll)
 
     override suspend fun startRecording(
         sessionId: RemoteSessionId,
@@ -309,23 +329,26 @@ class AndroidRemoteSessionTransport internal constructor(
         if (isRtcSession(sessionId)) false else native.setVoiceSpeakerMuted(sessionId, muted)
 
     override fun close() {
-        val (sessions, pendingReconnects, pendingNativeSessions) = kotlinx.coroutines.runBlocking {
+        val (rtcBindings, pendingReconnects, pendingNativeSessions) = kotlinx.coroutines.runBlocking {
             lock.withLock {
-                val activeSessions = rtcSessions.values.toList()
+                val activeRtcBindings = rtcSessions.toList()
                 val activeReconnects = reconnectJobs.values.toList()
                 val activeNativeSessions = nativeSessions.toList()
                 rtcSessions.clear()
                 rtcRequests.clear()
                 rtcCapabilities.clear()
+                rtcConfigurations.clear()
+                rtcFileTransferChannels.clear()
                 reconnectJobs.clear()
                 attemptedTickets.clear()
                 nativeSessions.clear()
                 surfaces.clear()
-                Triple(activeSessions, activeReconnects, activeNativeSessions)
+                Triple(activeRtcBindings, activeReconnects, activeNativeSessions)
             }
         }
         pendingReconnects.forEach(Job::cancel)
-        sessions.forEach(WebRtcPeerSession::close)
+        kotlinx.coroutines.runBlocking { rtcBindings.forEach { binding -> native.stopRtcFileTransfer(binding.first) } }
+        rtcBindings.forEach { binding -> binding.second.close() }
         kotlinx.coroutines.runBlocking { pendingNativeSessions.forEach { sessionId -> native.stop(sessionId) } }
         rtcRuntime?.close()
         rtcRuntime = null
@@ -346,11 +369,16 @@ class AndroidRemoteSessionTransport internal constructor(
             is WebRtcPeerEvent.ServerConfiguration -> {
                 val config = event.value
                 val ticket = (request.target as RemoteSessionTarget.Account).connectionTicket
+                val fileTransferReady = lock.withLock {
+                    rtcConfigurations[sessionId] = config
+                    sessionId in rtcFileTransferChannels
+                }
                 val capabilities = config.toRtcSessionCapabilities(
                     enableAudio = request.enableAudio,
                     enableInput = request.enableInput,
                     enableClipboard = request.enableClipboard,
                     permissions = ticket.permissions,
+                    fileTransferReady = fileTransferReady,
                 )
                 lock.withLock { rtcCapabilities[sessionId] = capabilities }
                 mutableEvents.emit(
@@ -390,13 +418,35 @@ class AndroidRemoteSessionTransport internal constructor(
                 RemoteTransportEvent.GamepadRumble(sessionId, event.strongMotor, event.weakMotor),
             )
 
+            is WebRtcPeerEvent.FileTransferChannel -> {
+                val state = lock.withLock {
+                    if (event.ready) rtcFileTransferChannels += sessionId else rtcFileTransferChannels -= sessionId
+                    val config = rtcConfigurations[sessionId] ?: return@withLock null
+                    config to (request.target as RemoteSessionTarget.Account).connectionTicket
+                } ?: return
+                val capabilities = state.first.toRtcSessionCapabilities(
+                    enableAudio = request.enableAudio,
+                    enableInput = request.enableInput,
+                    enableClipboard = request.enableClipboard,
+                    permissions = state.second.permissions,
+                    fileTransferReady = event.ready,
+                )
+                lock.withLock { rtcCapabilities[sessionId] = capabilities }
+                mutableEvents.emit(RemoteTransportEvent.CapabilitiesUpdated(sessionId, capabilities))
+            }
+
+            is WebRtcPeerEvent.FileTransferMessage -> native.receiveRtcFileTransfer(sessionId, event.payload)
+
             is WebRtcPeerEvent.Closed -> {
-                val closedRequest = lock.withLock {
+                val (closedRequest, hadFileTransfer) = lock.withLock {
                     rtcSessions.remove(sessionId)
                     val value = rtcRequests.remove(sessionId)
                     rtcCapabilities.remove(sessionId)
-                    value
+                    rtcConfigurations.remove(sessionId)
+                    val hadFile = rtcFileTransferChannels.remove(sessionId)
+                    value to hadFile
                 }
+                if (hadFileTransfer || closedRequest != null) native.stopRtcFileTransfer(sessionId)
                 if (!event.recoverable || closedRequest == null) {
                     mutableEvents.emit(
                         RemoteTransportEvent.Disconnected(
