@@ -4,6 +4,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.espresso.Espresso.pressBack
@@ -51,5 +52,45 @@ class PixelsNavigationTest {
         pressBack()
         composeRule.onNodeWithText(devicesContent).fetchSemanticsNode()
         composeRule.onAllNodesWithText(transfersContent).assertCountEquals(0)
+    }
+
+    @Test
+    fun childPageIsRestoredAcrossTabsAndReselectReturnsToTabRoot() {
+        val activity = composeRule.activity
+        val devicesTab = activity.getString(R.string.navigation_devices)
+        val devicesContent = activity.getString(DevicesR.string.quick_connect)
+        val applications = activity.getString(DevicesR.string.applications)
+        val applicationsTitle = activity.getString(DevicesR.string.applications_title)
+        val settingsTab = activity.getString(R.string.navigation_settings)
+        val settingsContent = activity.getString(SettingsR.string.account_title)
+
+        composeRule.onNodeWithContentDescription(applications).performClick()
+        composeRule.onNodeWithText(applicationsTitle).fetchSemanticsNode()
+
+        composeRule.onNodeWithText(settingsTab).performClick()
+        composeRule.onNodeWithText(settingsContent).fetchSemanticsNode()
+
+        composeRule.onNodeWithText(devicesTab).performClick()
+        composeRule.onNodeWithText(applicationsTitle).fetchSemanticsNode()
+        composeRule.onAllNodesWithText(devicesContent).assertCountEquals(0)
+
+        composeRule.onNodeWithText(devicesTab).performClick()
+        composeRule.onNodeWithText(devicesContent).fetchSemanticsNode()
+        composeRule.onAllNodesWithText(applicationsTitle).assertCountEquals(0)
+    }
+
+    @Test
+    fun childPageBackReturnsToItsTabRoot() {
+        val activity = composeRule.activity
+        val devicesContent = activity.getString(DevicesR.string.quick_connect)
+        val applications = activity.getString(DevicesR.string.applications)
+        val applicationsTitle = activity.getString(DevicesR.string.applications_title)
+
+        composeRule.onNodeWithContentDescription(applications).performClick()
+        composeRule.onNodeWithText(applicationsTitle).fetchSemanticsNode()
+        pressBack()
+
+        composeRule.onNodeWithText(devicesContent).fetchSemanticsNode()
+        composeRule.onAllNodesWithText(applicationsTitle).assertCountEquals(0)
     }
 }
