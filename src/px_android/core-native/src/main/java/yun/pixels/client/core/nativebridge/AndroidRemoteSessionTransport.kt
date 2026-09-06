@@ -252,10 +252,9 @@ class AndroidRemoteSessionTransport internal constructor(
         sessionId: RemoteSessionId,
         requestId: String,
         operation: RemoteVirtualDisplayOperation,
-    ): Boolean = if (lock.withLock { rtcSessions.containsKey(sessionId) }) {
-        false
-    } else {
-        native.requestVirtualDisplay(sessionId, requestId, operation)
+    ): Boolean {
+        val rtc = lock.withLock { rtcSessions[sessionId] }
+        return rtc?.requestVirtualDisplay(requestId, operation) ?: native.requestVirtualDisplay(sessionId, requestId, operation)
     }
 
     suspend fun setAudioEnabled(sessionId: RemoteSessionId, enabled: Boolean): Boolean {
@@ -346,17 +345,12 @@ class AndroidRemoteSessionTransport internal constructor(
 
             is WebRtcPeerEvent.ServerConfiguration -> {
                 val config = event.value
-                val monitorNames = config.monitorsInfoList.map { it.name }.filter(String::isNotBlank).distinct()
                 val ticket = (request.target as RemoteSessionTarget.Account).connectionTicket
-                val capabilities = RemoteSessionCapabilities(
-                    monitorNames = monitorNames,
-                    activeMonitorName = config.capturingMonitorName,
-                    supportsAudio = request.enableAudio && config.audioEnabled,
-                    supportsInput = request.enableInput && config.canBeOperated && "input" in ticket.permissions,
-                    supportsFileTransfer = false,
-                    supportsClipboard = request.enableClipboard && "clipboard" in ticket.permissions,
-                    supportsVirtualDisplays = false,
-                    supportsVoiceCall = false,
+                val capabilities = config.toRtcSessionCapabilities(
+                    enableAudio = request.enableAudio,
+                    enableInput = request.enableInput,
+                    enableClipboard = request.enableClipboard,
+                    permissions = ticket.permissions,
                 )
                 lock.withLock { rtcCapabilities[sessionId] = capabilities }
                 mutableEvents.emit(
@@ -365,6 +359,28 @@ class AndroidRemoteSessionTransport internal constructor(
                         capabilities,
                     ),
                 )
+            }
+
+            is WebRtcPeerEvent.MonitorsChanged -> {
+                val updated = lock.withLock {
+                    val current = rtcCapabilities[sessionId] ?: return@withLock null
+                    current.copy(
+                        monitorNames = event.value.monitorNames.ifEmpty { current.monitorNames },
+                        activeMonitorName = event.value.activeMonitorName,
+                    ).also { value -> rtcCapabilities[sessionId] = value }
+                } ?: return
+                mutableEvents.emit(RemoteTransportEvent.CapabilitiesUpdated(sessionId, updated))
+            }
+
+            is WebRtcPeerEvent.VirtualDisplayResult -> {
+                val updated = lock.withLock {
+                    rtcCapabilities[sessionId]?.copy(
+                        ownedVirtualDisplayCount = event.value.ownedDisplayCount,
+                        topologyGeneration = event.value.topologyGeneration,
+                    )?.also { value -> rtcCapabilities[sessionId] = value }
+                }
+                if (updated != null) mutableEvents.emit(RemoteTransportEvent.CapabilitiesUpdated(sessionId, updated))
+                mutableEvents.emit(RemoteTransportEvent.VirtualDisplayResult(sessionId, event.value))
             }
 
             is WebRtcPeerEvent.ClipboardText -> mutableEvents.emit(RemoteTransportEvent.ClipboardText(sessionId, event.value))

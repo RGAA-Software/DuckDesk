@@ -220,6 +220,12 @@ add_executable(test_rtc_heartbeat_watchdog test_rtc_heartbeat_watchdog.cpp)
 target_link_libraries(test_rtc_heartbeat_watchdog PRIVATE GTest::gtest GTest::gtest_main)
 add_test(NAME rtc_heartbeat_watchdog COMMAND test_rtc_heartbeat_watchdog)
 
+add_executable(test_rtc_payload_authorization
+    test_rtc_payload_authorization.cpp
+    ../network/webrtc/remote/rtc_payload_authorization.cpp)
+target_link_libraries(test_rtc_payload_authorization PRIVATE px_message GTest::gtest GTest::gtest_main)
+add_test(NAME rtc_payload_authorization COMMAND test_rtc_payload_authorization)
+
 add_executable(test_render_builtin_linkage unit/test_render_builtin_linkage.cpp)
 target_link_libraries(test_render_builtin_linkage PRIVATE
     cap_dda cap_gdi enc_ffmpeg enc_amf enc_nvenc net_ws net_udp net_relay
@@ -241,6 +247,7 @@ set_tests_properties(
     logical_session_registry
     direct_session_grant_store
     rtc_heartbeat_watchdog
+    rtc_payload_authorization
     PROPERTIES LABELS "render-unit")
 
 set_property(TEST

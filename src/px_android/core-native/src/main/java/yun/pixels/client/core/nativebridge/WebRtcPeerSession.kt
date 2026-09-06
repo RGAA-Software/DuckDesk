@@ -32,6 +32,7 @@ import org.webrtc.VideoTrack
 import px.PxMessage
 import yun.pixels.client.core.domain.session.InputCommand
 import yun.pixels.client.core.domain.session.RemoteMouseButton
+import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
 
 internal class WebRtcRuntime(context: Context) : Closeable {
     private val closed = AtomicBoolean(false)
@@ -81,6 +82,10 @@ internal sealed interface WebRtcPeerEvent {
     data class VideoSize(val width: Int, val height: Int) : WebRtcPeerEvent
 
     data class ServerConfiguration(val value: px.PxMessage.ServerConfiguration) : WebRtcPeerEvent
+
+    data class MonitorsChanged(val value: RtcMonitorUpdate) : WebRtcPeerEvent
+
+    data class VirtualDisplayResult(val value: yun.pixels.client.core.domain.session.RemoteVirtualDisplayResult) : WebRtcPeerEvent
 
     data class ClipboardText(val value: String) : WebRtcPeerEvent
 
@@ -311,6 +316,11 @@ internal class WebRtcPeerSession(
         )
     }
 
+    fun requestVirtualDisplay(requestId: String, operation: RemoteVirtualDisplayOperation): Boolean {
+        val request = buildRtcVirtualDisplayRequest(requestId, operation) ?: return false
+        return sendMediaMessage(request)
+    }
+
     override fun close() {
         closeWithReason("RTC peer session stopped", recoverable = false, notify = false)
     }
@@ -361,8 +371,13 @@ internal class WebRtcPeerSession(
             }
 
             PxMessage.MessageType.kMonitorSwitched -> {
-                synchronized(stateLock) { activeMonitorName = message.monitorSwitched.name }
+                val update = parseRtcMonitorUpdate(message) ?: return
+                synchronized(stateLock) { activeMonitorName = update.activeMonitorName }
+                onEvent(WebRtcPeerEvent.MonitorsChanged(update))
             }
+
+            PxMessage.MessageType.kVirtualDisplayResponse -> parseRtcVirtualDisplayResult(message)
+                ?.let { result -> onEvent(WebRtcPeerEvent.VirtualDisplayResult(result)) }
 
             PxMessage.MessageType.kClipboardInfo -> {
                 if (message.clipboardInfo.type == PxMessage.ClipboardType.kClipboardText) {

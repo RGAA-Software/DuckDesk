@@ -19,6 +19,7 @@ message("WebRTC remote network library, WEBRTC_ROOT: ${WEBRTC_ROOT}")
 set(LIBRARY_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/../webrtc_execution_context.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/webrtc_remote_transport.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/rtc_payload_authorization.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/i420_creator.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/video_source_mock.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/rtc_server.cpp

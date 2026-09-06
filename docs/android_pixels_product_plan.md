@@ -333,7 +333,7 @@ WebRTC 失败后的原生 UDP/Relay 降级，并验证续发响应不能改变 l
 
 ### M5：完整网络与质量收口，2–3 周
 
-状态：**UDP Direct 已作为 Android 默认传输接入，具备认证控制面、四秒媒体探测与同会话 WebSocket 安全回退；断线重连具有三十秒上限、类型化失败和显式重试。账号公网设备已接入一次性票据约束的 Relay 主路径，Console 只校验并注入权威绑定，Render 负责唯一兑换、逻辑会话准入和按能力路由。Android 标准 WebRTC 已固定 AAR、接入权威 protobuf-lite 协议生成、票据作用域 Relay 信令、ICE/TURN 配置校验、PeerConnection、RTP 音视频 Surface 渲染，以及可靠控制/不可靠输入 DataChannel 的 Hello、输入、文本剪贴板和能力消息；统一产品路由会校验 RTC 与票据有效期后选择 WebRTC，否则使用原生 UDP/Relay，并在 RTC 下保守关闭尚未实现的文件、录制、语音和虚拟显示能力。客户端已接入匿名 renewal capability 续发端点，对临期或已尝试的一次性票据先旋转凭据；WebRTC 协商/连接失败会在有界窗口内续发并降级到原生 UDP/Relay，续发响应必须保持 logical session 与 stream 身份不变。完整 DataChannel 能力和真实网络矩阵仍待完成，因此当前不会向用户宣称 WebRTC 已完整交付。**
+状态：**UDP Direct 已作为 Android 默认传输接入，具备认证控制面、四秒媒体探测与同会话 WebSocket 安全回退；断线重连具有三十秒上限、类型化失败和显式重试。账号公网设备已接入一次性票据约束的 Relay 主路径，Console 只校验并注入权威绑定，Render 负责唯一兑换、逻辑会话准入和按能力路由。Android 标准 WebRTC 已固定 AAR、接入权威 protobuf-lite 协议生成、票据作用域 Relay 信令、ICE/TURN 配置校验、PeerConnection、RTP 音视频 Surface 渲染，以及可靠控制/不可靠输入 DataChannel 的 Hello、输入、文本剪贴板、能力消息、实体显示器切换和虚拟显示请求/结果；统一产品路由会校验 RTC 与票据有效期后选择 WebRTC，否则使用原生 UDP/Relay，并在 RTC 下保守关闭尚未实现的文件、录制和语音能力。客户端已接入匿名 renewal capability 续发端点，对临期或已尝试的一次性票据先旋转凭据；WebRTC 协商/连接失败会在有界窗口内续发并降级到原生 UDP/Relay，续发响应必须保持 logical session 与 stream 身份不变。完整 DataChannel 能力和真实网络矩阵仍待完成，因此当前不会向用户宣称 WebRTC 已完整交付。**
 
 - UDP Direct、Relay、WebRTC Direct、ICE/TURN WebRTC。
 - 传输选择、协商、失败降级、网络切换恢复。
@@ -423,7 +423,8 @@ SHA-256 发布清单，以及应用内隐私、开源许可和主动脱敏诊断
   `SOURCE_GAMEPAD`/`SOURCE_JOYSTICK` 的实体手柄按键和轴使用同一控制器状态。横屏显示完整布局，竖屏先提示旋转并允许用户主动继续；
   标准/南爪布局、摇杆死区与灵敏度、控件透明度和大小可在会话内调整并持久化。
 - 会话能力直接使用服务端 `monitors_info`，显示器面板展示真实名称和当前屏；切换命令与服务端回调均为类型化 JNI。虚拟显示器创建/删除使用
-  既有请求 ID、拓扑 generation 和拥有数量协议，按钮具有执行中门禁，并向用户展示服务端返回的具体失败原因。
+  既有请求 ID、拓扑 generation 和拥有数量协议，按钮具有执行中门禁，并向用户展示服务端返回的具体失败原因。标准 WebRTC 现通过可靠媒体
+  DataChannel 复用同一套显示器切换、拓扑更新和虚拟显示请求/结果模型；虚拟显示能力只有在服务端配置、客户端输入请求和票据 `input` 权限同时满足时开放。
 - 远程应用库直接使用 Console 用户资源 API，账号会话之外不开放；列表展示运行状态，启动使用客户端 nonce 保证幂等，停止只接受当前账号拥有的
   instance id。新实例启动成功后会申请控制票据并直接进入复用的远控会话，已有可重连实例也提供显式连接入口；云端会话目标不再错误依赖设备卡片。
   应用页具有刷新、操作中门禁、空态、登录过期和结构化错误状态，不再把 Panel 的旧运行游戏通知误当作应用目录。
@@ -443,7 +444,7 @@ SHA-256 发布清单，以及应用内隐私、开源许可和主动脱敏诊断
   重建，抖动缓冲在短暂空队列时不越过新包，并在大序列间隙后用一次 concealment 重新同步。请求超时、远端拒绝、断网、挂断和会话销毁均有明确收尾。
 - Android 当前如实声明视频、远程音频、桌面输入、手柄输入与震动、显示器、文件传输、授权后的文本/图片/文件剪贴板和语音能力；网络主路径
   默认选择 UDP Direct，以已认证 WebSocket 作为控制面，并在四秒内收不到媒体时为同一认证会话启用 WebSocket 媒体。可恢复断线只在三十秒窗口内
-  重连，超时后停止 transport、显示类型化原因并允许用户主动重试。Relay 与 WebRTC 仍按 M5 实施，未完成的能力不伪装为可用。
+  重连，超时后停止 transport、显示类型化原因并允许用户主动重试。Relay/WebRTC 主路径继续按 M5 的真实网络矩阵验收，未完成的能力不伪装为可用。
 - 一级导航使用设备、传输和设置三个平级根目的地；切换 Tab 会清理上一 Tab 和详情页，不恢复过期子页。应用列表属于设备栏目并保留一级底栏，重复点击已选中的
   设备 Tab 会回到设备根页。远控与远控文件任务是无底栏的会话全屏页，结束会话返回发起连接前的父页；传输/设置根页的系统返回固定回到设备页。
   会话文件浏览的系统返回键与顶部返回键会先回到上级目录，到达远端根视图后才返回远控工作区；远控工作区默认收起工具栏，系统返回优先关闭安全确认、键盘、
@@ -592,6 +593,14 @@ SHA-256 发布清单，以及应用内隐私、开源许可和主动脱敏诊断
   覆盖安装后完成设备→设置→系统返回、设备→应用→传输→设备、真实会话文件→远控，以及工具栏展开→返回收起→结束确认的短时验证；实时画面约 55 FPS / 3–5 ms，
   无 `AndroidRuntime` 或 JNI 崩溃。Android 全套单元测试、lint、arm64 native 和 debug APK 构建通过，APK SHA-256 为
   `63BCCE50A7CD6874EBB75F7C6C88016F43EDEC6FD2DD8391092A77681CA721DF`，安装使用 `adb install -r -d`，未卸载应用。
+- 2026-09-07 M5 WebRTC 显示控制补齐了标准 RTC 下的实体显示器更新和虚拟显示创建/删除请求、结构化结果与拓扑计数同步。Android 只在服务端配置、
+  本次会话输入请求和票据 `input` 权限同时允许时暴露虚拟显示入口；Render 的 DataChannel 准入也将切屏、虚拟显示和其他交互消息从默认 `view`
+  提升为强制 `input`，避免只读票据越权，并正确识别 protobuf 省略零值 `type` 字段的 Hello 握手。协议边界测试覆盖请求 ID、默认分辨率、响应限界、
+  显示器更新与 capability 门禁；Render 定向权限测试、C++
+  ownership 门禁、Android 全套单元测试、lint、arm64 native 和 debug APK 构建均通过。`px_render_rtc_remote.dll` 的 build/dist SHA-256 一致，为
+  `8DD3B51A66902A8EA53272A1DBBBC7FE34331AC895B6BB1AF2F98672092B940A`。APK 使用 `adb install -r -d` 覆盖安装，在 Xiaomi 22021211RC 上完成冷启动且无
+  `AndroidRuntime`、JNI 或 native fatal；SHA-256 为 `A247C62699BE6CBDF585DD2FEE9C35565D71FD546FD098FA553C6673BB86C889`。手机仍未登录 Console，
+  因此本轮不把真实公网 Relay/WebRTC 显示操作记为通过。
 
 这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径、物理显示器切换和虚拟显示失败反馈；
 后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁，M5 轮次关闭了 UDP Direct 协商、WebSocket 安全回退、有界重连和 H.264 首帧解析门禁。
