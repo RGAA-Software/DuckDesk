@@ -31,6 +31,8 @@ enum MessageType {
   kCursorInfoSync = 70;
   // client -> server
   kGamepadState = 80;
+  // server -> client
+  kGamepadRumble = 81;
   // client statistics
   kClientStatistics = 100;
   // host panel -> client
@@ -455,6 +457,11 @@ message GamepadState {
   GamepadType gp_type = 8;
 }
 
+message GamepadRumble {
+  uint32 strong_motor = 1;
+  uint32 weak_motor = 2;
+}
+
 message ClientStatistics {
   repeated uint32 decode_durations = 1;
   repeated uint32 video_recv_gaps = 2;
@@ -730,6 +737,7 @@ message Message {
   MouseEvent mouse_event = 100;
   CursorInfoSync cursor_info_sync = 110;
   GamepadState gamepad_state = 120;
+  GamepadRumble gamepad_rumble = 121;
   ClientStatistics client_statistics = 140;
   repeated OnlineGame online_games = 160;
   ClipboardInfo clipboard_info = 200;

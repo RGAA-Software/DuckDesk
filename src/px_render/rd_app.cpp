@@ -353,7 +353,18 @@ int RdApplication::Run() {
         });
     });
     input_replay_service_ = render::InputReplayService::Create();
-    joystick_service_ = render::JoystickService::Create();
+    joystick_service_ = render::JoystickService::Create(
+        {}, [weak_hub = std::weak_ptr<render::NetworkTransportHub>(network_transport_hub_)](
+                const std::string& transport_id, const std::string& stream_id, const std::shared_ptr<Data>& message) {
+            const auto hub = weak_hub.lock();
+            return hub && hub->SendControl(
+                              render::TransportRoute{
+                                  .channel = render::TransportChannelKind::kControl,
+                                  .transport_id = transport_id,
+                                  .stream_id = stream_id,
+                              },
+                              message, true);
+        });
     file_transfer_service_ = render::FileTransferService::Create(
         render::FileTransferServiceOptions{
             .device_id = settings_->device_id_,

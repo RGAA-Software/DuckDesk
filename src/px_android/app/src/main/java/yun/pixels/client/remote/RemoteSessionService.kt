@@ -42,6 +42,7 @@ import yun.pixels.client.core.domain.session.RemoteKey
 import yun.pixels.client.core.domain.session.RemoteGamepadState
 import yun.pixels.client.core.domain.session.RemoteMouseButton
 import yun.pixels.client.core.domain.session.RemoteSessionId
+import yun.pixels.client.core.domain.session.RemoteTransportEvent
 import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
 import yun.pixels.client.core.domain.transfer.FileTransferTask
 import yun.pixels.client.core.domain.transfer.FileTransferState
@@ -50,6 +51,7 @@ import yun.pixels.client.core.domain.voice.VoiceCallPhase
 import yun.pixels.client.core.domain.voice.VoiceCallState
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 
 class RemoteSessionService : Service() {
@@ -59,6 +61,7 @@ class RemoteSessionService : Service() {
     private lateinit var fileTransfers: AndroidFileTransferCoordinator
     private lateinit var clipboard: AndroidClipboardCoordinator
     private lateinit var recordings: AndroidRecordingCoordinator
+    private lateinit var gamepadHaptics: AndroidGamepadHaptics
     private val localBinder = LocalBinder()
     private var preparedRequest: RemoteSessionRequest? = null
     private var foregroundStarted = false
@@ -93,14 +96,28 @@ class RemoteSessionService : Service() {
         fileTransfers = AndroidFileTransferCoordinator(this, transport, serviceScope)
         clipboard = AndroidClipboardCoordinator(this, transport, serviceScope)
         recordings = AndroidRecordingCoordinator(this, transport, serviceScope)
+        gamepadHaptics = AndroidGamepadHaptics(this)
         createNotificationChannel()
         serviceScope.launch {
             workflow.snapshot.collectLatest { snapshot ->
                 (snapshot.clipboardDownload as? ClipboardDownloadState.Ready)?.let(clipboard::publish)
                 if (snapshot.status is RemoteSessionStatus.Failed && foregroundStarted) {
+                    gamepadHaptics.stop()
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     foregroundStarted = false
                     stopSelf()
+                }
+            }
+        }
+        serviceScope.launch {
+            transport.events.collect { event ->
+                when (event) {
+                    is RemoteTransportEvent.GamepadRumble -> {
+                        val connected = workflow.snapshot.value.status as? RemoteSessionStatus.Connected
+                        if (event.sessionId == connected?.request?.id) gamepadHaptics.apply(event.strongMotor, event.weakMotor)
+                    }
+                    is RemoteTransportEvent.Disconnected -> if (event.sessionId == currentRequest()?.id) gamepadHaptics.stop()
+                    else -> Unit
                 }
             }
         }
@@ -148,6 +165,7 @@ class RemoteSessionService : Service() {
             workflow.close()
         }
         recordings.close()
+        gamepadHaptics.stop()
         abandonAudioFocus()
         serviceScope.cancel()
         super.onDestroy()
@@ -225,6 +243,7 @@ class RemoteSessionService : Service() {
             sessionId?.let { transport.stopVoiceCall(it) }
             sessionId?.let(fileTransfers::sessionEnded)
             workflow.stop()
+            gamepadHaptics.stop()
             abandonAudioFocus()
             mutableAudioEnabled.value = false
             if (foregroundStarted) {

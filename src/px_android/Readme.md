@@ -11,7 +11,7 @@
 
 - 产品显示名为 `Pixels`。
 - 最终 namespace/applicationId 为 `yun.pixels.client`。
-- 只发布 `arm64-v8a`，最低系统基线为 Android 10 / API 29。
+- 只发布 `arm64-v8a`，最低系统基线为 Android 12 / API 31；不保留低版本兼容分支。
 - 使用 Kotlin、Compose、显式会话状态机和类型化 JNI。
 - 复用项目协议、SDK 和媒体核心，删除旧 Fragment、GreenDAO、事件总线、JSON JNI、音乐频谱和 Steam 专属 UI。
 - 最终产品包含音视频串流、完整输入、多显示器、远程应用、文件传输、剪贴板、录制、语音和完整传输能力。
@@ -23,7 +23,7 @@ M0–M2 已完成。当前应用已包含 Pixels 品牌与最终包名、设备�
 
 语音通话使用 AAudio 通信流，支持麦克风/远端声音静音、听筒/耳机与扬声器切换，并在 Android 路由改变时重建音频流而不中断会话。URI 剪贴板把 Android 内容安全物化到私有缓存，通过既有虚拟文件协议按需分块传输，远端文件则通过非导出的 `FileProvider` 写回系统剪贴板。M3 的手柄震动与特定环境验收仍待收口；M5–M6 的完整网络矩阵和发布门禁尚未完成。未完成能力不会以占位实现伪装为可用。
 
-构建基线为 Gradle 9.3.1、AGP 9.1.1、内置 Kotlin 2.4.10、Compose BOM 2026.08.00、API 37，最低系统 API 29。日常验证使用：
+构建基线为 Gradle 9.3.1、AGP 9.1.1、内置 Kotlin 2.4.10、Compose BOM 2026.08.00、API 37，最低系统 API 31。日常验证使用：
 
 ```powershell
 cd src/px_android

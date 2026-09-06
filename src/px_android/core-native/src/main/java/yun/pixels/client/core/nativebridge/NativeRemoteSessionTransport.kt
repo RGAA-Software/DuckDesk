@@ -448,6 +448,14 @@ class NativeRemoteSessionTransport internal constructor(
         }
     }
 
+    override fun onGamepadRumble(sessionId: String, strongMotor: Int, weakMotor: Int) {
+        val strong = strongMotor.coerceIn(0, 255)
+        val weak = weakMotor.coerceIn(0, 255)
+        callbackScope.launch {
+            mutableEvents.emit(RemoteTransportEvent.GamepadRumble(RemoteSessionId(sessionId), strong, weak))
+        }
+    }
+
     override fun onClipboardText(sessionId: String, utf8Text: ByteArray) {
         if (utf8Text.isEmpty() || utf8Text.size > MAX_CLIPBOARD_TEXT_BYTES) return
         val value = runCatching { utf8Text.decodeToString(throwOnInvalidSequence = true) }.getOrNull()?.takeIf(String::isNotEmpty) ?: return

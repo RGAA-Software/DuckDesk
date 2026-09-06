@@ -37,6 +37,8 @@ interface NativeSessionListener {
 
     fun onStatistics(sessionId: String, framesPerSecond: Int, latencyMillis: Int, bitrateKbps: Int)
 
+    fun onGamepadRumble(sessionId: String, strongMotor: Int, weakMotor: Int)
+
     fun onClipboardText(sessionId: String, utf8Text: ByteArray)
 
     fun onClipboardFiles(sessionId: String, generation: String, displayNames: Array<String>, sizes: LongArray)

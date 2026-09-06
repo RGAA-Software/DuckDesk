@@ -85,6 +85,7 @@ class JavaSessionCallback final {
                               const std::string& error_message) const;
     void FrameSizeChanged(const std::string& session_id, std::int32_t width, std::int32_t height) const;
     void Statistics(const std::string& session_id, std::int32_t frames_per_second, std::int32_t latency_millis, std::int32_t bitrate_kbps) const;
+    void GamepadRumble(const std::string& session_id, std::int32_t strong_motor, std::int32_t weak_motor) const;
     void ClipboardText(const std::string& session_id, const std::string& text) const;
     void ClipboardFiles(const std::string& session_id, const NativeClipboardFiles& files) const;
     void ClipboardFilesReady(const std::string& session_id, const std::string& generation, const std::vector<std::string>& paths,

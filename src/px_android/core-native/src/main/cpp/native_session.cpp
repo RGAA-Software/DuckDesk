@@ -266,6 +266,26 @@ void JavaSessionCallback::Statistics(const std::string& session_id, const std::i
     });
 }
 
+void JavaSessionCallback::GamepadRumble(
+    const std::string& session_id,
+    const std::int32_t strong_motor,
+    const std::int32_t weak_motor) const {
+    const auto listener_handle = listener_handle_;
+    WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
+        const auto listener = reinterpret_cast<jobject>(listener_handle);
+        const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
+        const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
+        const auto method = environment.GetMethodID(listener_class, "onGamepadRumble", "(Ljava/lang/String;II)V");
+        const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
+        if (method != nullptr && session_id_handle != 0U) {
+            environment.CallVoidMethod(
+                listener, method, reinterpret_cast<jstring>(session_id_handle), strong_motor, weak_motor);
+        }
+        DeleteLocalReference(environment, session_id_handle);
+        DeleteLocalReference(environment, listener_class_handle);
+    });
+}
+
 void JavaSessionCallback::ClipboardText(const std::string& session_id, const std::string& text) const {
     const auto listener_handle = listener_handle_;
     WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
@@ -843,6 +863,14 @@ bool NativeSession::Initialize() {
             if (voice_call) {
                 voice_call->HandleMessage(message);
             }
+            return;
+        }
+        if (message->type() == px::kGamepadRumble && message->has_gamepad_rumble()) {
+            const auto& rumble = message->gamepad_rumble();
+            self->callback_->GamepadRumble(
+                self->config_.session_id,
+                static_cast<std::int32_t>(std::min(rumble.strong_motor(), 255U)),
+                static_cast<std::int32_t>(std::min(rumble.weak_motor(), 255U)));
             return;
         }
         if (message->type() == px::kClipboardReqAtBegin || message->type() == px::kClipboardReqBuffer ||

@@ -30,7 +30,7 @@
 | 主题 | `Theme.Pixels` |
 | APK 命名 | `pixels-<version>-<buildType>-arm64.apk` |
 | 首发 ABI | `arm64-v8a` |
-| 最低系统基线 | Android 10 / API 29 |
+| 最低系统基线 | Android 12 / API 31；不保留低版本兼容分支 |
 | 主要形态 | 手机、平板和折叠屏 |
 
 `com.pixels.yun.client` 不再保留，因此新应用不会覆盖旧包。日常真机迭代对 `yun.pixels.client` 使用覆盖安装，保留已录入的设备与账号状态；仅发布候选额外执行清洁安装验收。首个正式版本号在发布阶段统一确定，不沿用旧 Android `3.0.0` 的兼容含义。
@@ -185,7 +185,7 @@ px_client_sdk / protocol / media
 - `px_client_sdk` 会话创建和传输选择。
 - protobuf 协议编解码。
 - 视频帧分发、MediaCodec adapter 和软件解码回退。
-- AAudio 低延迟音频输出及语音音频端点；最低 API 29 允许直接使用系统原生 API，避免额外包装依赖。
+- AAudio 低延迟音频输出及语音音频端点；最低 API 31 允许直接使用系统原生 API，避免额外包装依赖。
 - 鼠标、键盘、手柄和显示器命令。
 - 文件传输、剪贴板、录制、语音和虚拟显示协议核心。
 - 统计、错误分类和可取消的关闭流程。
@@ -308,10 +308,10 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 
 ### M3：完整输入与多显示器，1–2 周
 
-状态：**进行中（2026-09-06 已完成桌面输入、虚拟/实体手柄输入与持久化配置、真实显示器发现与切换、虚拟显示管理协议，以及远程应用到会话票据的客户端闭环）**。
+状态：**产品主路径已完成（2026-09-06 已完成桌面输入、虚拟/实体手柄、ViGEm 双电机振动回传与 Android haptics、持久化配置、真实显示器发现与切换、虚拟显示管理协议，以及远程应用到会话票据的客户端闭环）；虚拟屏成功创建和已登录 Console 实际启停仍是环境矩阵复验项**。
 
 - 完成触摸、鼠标、键盘、快捷键和虚拟手柄。**已完成**
-- 完成 USB/蓝牙手柄、震动和配置保存。**输入映射、标准/南爪布局、死区、灵敏度、透明度、尺寸和配置保存已完成；服务端震动回传待完成**
+- 完成 USB/蓝牙手柄、震动和配置保存。**已完成；Windows ViGEm 振动按原始 transport/stream 回传，Android 使用 API 31+ `VibratorManager`/`CombinedVibration`，实体手柄有多个振子时分别映射强弱电机，无可用手柄时回落到手机，零强度、断线和服务销毁均立即取消**
 - 完成多显示器切换、虚拟显示管理和远程应用列表。**Android 客户端及应用启动/重连票据/远控会话闭环已完成；虚拟屏成功创建和已登录 Console 实际启停待环境复验**
 - 删除旧 ControlLayer、Steam/Game Activity 和 XML 手柄资源。
 
@@ -339,7 +339,7 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 ### M6：发布，1–2 周
 
 - 完成隐私、许可、签名、混淆、符号和发布元数据。
-- 执行 API 29 基线、主流系统版本、手机/平板/折叠屏设备矩阵。
+- 执行 API 31 基线、主流系统版本、手机/平板/折叠屏设备矩阵。
 - 生成最终 release APK/AAB，记录 SHA-256、版本和真机安装结果。
 - 删除最后的旧源码、资源、依赖、兼容注释和临时构建开关。
 
@@ -392,7 +392,7 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 截至 2026-09-06，M0–M2 已完成，M3 已进入完整桌面输入与多显示器阶段：
 
 - Gradle 9.3.1、AGP 9.1.1、AGP 内置 Kotlin 2.4.10、Compose BOM 2026.08.00。
-- `compileSdk`/`targetSdk` 为 API 37，最低系统为 API 29；正式 native 能力仍只规划 `arm64-v8a`。
+- `compileSdk`/`targetSdk` 为 API 37，最低系统为 API 31；正式 native 能力仍只规划 `arm64-v8a`。
 - 根工程、包名、显示名、主题、Adaptive/monochrome 图标和 Splash Screen 均已切换到 Pixels。
 - 已建立 `app`、`core-domain`、`core-data`、`core-network`、`core-native`、`feature-devices`、`feature-remote`、`feature-transfer`、`feature-settings`，
   设备首页、Quick Connect、账号、一级导航和远程工作区使用不可变状态与类型化 Action。
@@ -430,8 +430,8 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 - M4 语音复用项目 `px_voice_call` 协议 v1 与 Opus/jitter 核心。Android 仅在服务端声明能力时显示入口，连接前由 Windows Panel 明确同意；前台会话
   服务按通话状态持有麦克风类型，AAudio 负责通信录放音，支持麦克风静音、远端声音静音、听筒/耳机与扬声器切换。设备路由改变后输入输出流可独立
   重建，抖动缓冲在短暂空队列时不越过新包，并在大序列间隙后用一次 concealment 重新同步。请求超时、远端拒绝、断网、挂断和会话销毁均有明确收尾。
-- Android 当前如实声明视频、远程音频、桌面输入、手柄输入、显示器、文件传输、授权后的文本/图片/文件剪贴板和语音能力；手柄震动和 WebRTC
-  仍按 M3–M5 实施，未完成的能力不在握手后伪装为可用。
+- Android 当前如实声明视频、远程音频、桌面输入、手柄输入与震动、显示器、文件传输、授权后的文本/图片/文件剪贴板和语音能力；WebRTC
+  仍按 M5 实施，未完成的能力不在握手后伪装为可用。
 - `core-domain` 会话生命周期测试、endpoint 安全测试、arm64 C++ 构建、Android 单元测试、lint 和 debug APK 构建已通过。APK 使用 USB
   真机覆盖安装并完成冷启动、视觉与崩溃日志检查；MIUI 拒绝安装独立 AndroidTest APK，因此仪器测试仍需在其他设备或 CI 补齐。
 - M1 的 Quick Connect 已支持私有网络主机、可选 Panel 端口和 `link://`；客户端真实请求 `/v1/simple/info`，拒绝公网直连和异常协议响应。
@@ -497,6 +497,14 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
   触发 Android 分块响应。含中文内容的 76 字节测试文件双向落地 SHA-256 均为
   `B0056A644F1F6C0FC61A540109720D93B4B22CBBAFBD81CDE5FFAE1D020D1206`。最终 APK SHA-256 为
   `0973F2889A6BE5128CD2B8691C95A1B363C9152BE938D9C68D426D5C32C3624E`，覆盖安装、冷启动且无 JNI/崩溃错误，连续验证片段少于五分钟。
+- M3 手柄振动轮次使用同一真机与本机 Render 建立真实直连会话。Android 发送手柄状态后，Windows 对该会话创建的 ViGEm X360 设备执行
+  `XInputSetState`；服务端通过新增的类型化 `GamepadRumble` 消息精确返回双电机强度。真机 `vibrator_manager` 记录调用方为
+  `yun.pixels.client.debug`、运行幅度约 `0.918`，零强度回传后 `mIsVibrating=false`。本轮仍使用 `adb install -r -d` 覆盖安装，无卸载、无
+  JNI/崩溃错误，连续真机验证少于五分钟；APK SHA-256 为
+  `FE6C5B7BA459D086B9764E215599173E0F8DF8A326C65D738AA51C3B1A7E3E03`，Windows `px_render.exe` build/dist SHA-256 均为
+  `373693B10C7FCDE59C6BAD3AB2AE21BB44DC34A98FB8975F80A8D097223A08EF`。最终实现移除旧 `Vibrator` 兼容 API，将全工程最低系统统一提升到
+  Android 12 / API 31；同一真机覆盖安装后确认 `minSdk=31`、`targetSdk=37`，冷启动与 JNI/崩溃日志仍正常。
 
 这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径、物理显示器切换和虚拟显示失败反馈；
-它不代表 M3–M6 的手柄震动、虚拟显示成功创建、远程应用 Console 实测、目录浏览、带音真机录制、完整网络矩阵和发布工作已经完成。
+后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁。它不代表 M3–M6 的虚拟显示成功创建、远程应用 Console 实测、目录浏览、带音
+真机录制、完整网络矩阵和发布工作已经完成。

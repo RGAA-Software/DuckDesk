@@ -524,7 +524,7 @@ void NetworkEventIngress::ProcessNetEvent(const std::shared_ptr<NetworkClientEve
             return;
         }
         if (joystick_service_) {
-            joystick_service_->HandleMessage(msg);
+            joystick_service_->HandleMessage(msg, source_id);
         }
         const auto weak_self = weak_from_this();
         const auto self = weak_self.lock();

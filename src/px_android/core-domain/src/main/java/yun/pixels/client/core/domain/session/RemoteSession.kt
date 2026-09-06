@@ -364,6 +364,16 @@ sealed interface RemoteTransportEvent {
 
     data class VideoSize(override val sessionId: RemoteSessionId, val value: RemoteVideoSize) : RemoteTransportEvent
 
+    data class GamepadRumble(
+        override val sessionId: RemoteSessionId,
+        val strongMotor: Int,
+        val weakMotor: Int,
+    ) : RemoteTransportEvent {
+        init {
+            require(strongMotor in 0..255 && weakMotor in 0..255) { "Gamepad rumble strengths must fit an unsigned byte" }
+        }
+    }
+
     data class VirtualDisplayResult(
         override val sessionId: RemoteSessionId,
         val value: RemoteVirtualDisplayResult,
@@ -465,6 +475,7 @@ class RemoteSessionWorkflow(
                 )
                 is RemoteTransportEvent.Statistics -> mutableSnapshot.value = mutableSnapshot.value.copy(statistics = event.value)
                 is RemoteTransportEvent.VideoSize -> mutableSnapshot.value = mutableSnapshot.value.copy(videoSize = event.value)
+                is RemoteTransportEvent.GamepadRumble -> Unit
                 is RemoteTransportEvent.VirtualDisplayResult -> {
                     mutableSnapshot.value = mutableSnapshot.value.copy(lastVirtualDisplayResult = event.value)
                 }

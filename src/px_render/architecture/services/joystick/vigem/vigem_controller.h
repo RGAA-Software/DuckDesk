@@ -5,9 +5,10 @@
 #ifndef TC_APPLICATION_VIGEM_CONTROLLER_H
 #define TC_APPLICATION_VIGEM_CONTROLLER_H
 
+#include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
-#include <functional>
 #include <type_traits>
 #include <unordered_map>
 #include <Windows.h>
@@ -24,7 +25,9 @@ namespace px
 
     class VigemController {
     public:
-        explicit VigemController(const JoystickType& js_type);
+        using RumbleCallback = std::function<void(const std::string&, std::uint8_t, std::uint8_t)>;
+
+        explicit VigemController(const JoystickType& js_type, RumbleCallback rumble_callback = {});
         ~VigemController();
         bool Connect();
         bool IsConnected();
@@ -48,6 +51,7 @@ namespace px
             std::remove_pointer_t<PVIGEM_TARGET>, TargetDeleter>;
 
         JoystickType js_type_;
+        RumbleCallback rumble_callback_;
         ClientHandle client_;
         std::unordered_map<std::string, TargetHandle> targets_;
     };

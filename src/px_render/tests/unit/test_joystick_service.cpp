@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include "px_common/data.h"
 #include "px_message.pb.h"
 #include "services/joystick_service.h"
 
@@ -23,6 +24,10 @@ class FakeJoystickBackend final : public JoystickBackend {
 public:
     explicit FakeJoystickBackend(std::shared_ptr<FakeJoystickState> state)
         : state_(std::move(state)) {}
+
+    void SetRumbleCallback(RumbleCallback callback) override {
+        rumble_callback_ = std::move(callback);
+    }
 
     bool PrepareConnection() override {
         ++state_->prepare_calls;
@@ -51,8 +56,18 @@ public:
         ++state_->shutdown_calls;
     }
 
+    void TriggerRumble(
+        const std::string& stream_id,
+        const std::uint8_t strong_motor,
+        const std::uint8_t weak_motor) const {
+        if (rumble_callback_) {
+            rumble_callback_(stream_id, strong_motor, weak_motor);
+        }
+    }
+
 private:
     std::shared_ptr<FakeJoystickState> state_;
+    RumbleCallback rumble_callback_;
 };
 
 std::shared_ptr<Message> MakeHello(const std::string& stream_id) {
@@ -131,6 +146,47 @@ TEST(JoystickServiceTest, MissingDriverIsIsolatedFromComposition) {
     EXPECT_EQ(snapshot.rejected_messages, 1U);
     EXPECT_EQ(snapshot.allocated_controllers, 0U);
     ASSERT_TRUE(service->Stop());
+}
+
+TEST(JoystickServiceTest, RoutesRumbleToTheOriginatingTransport) {
+    const auto state = std::make_shared<FakeJoystickState>();
+    const auto backend = std::make_shared<FakeJoystickBackend>(state);
+    std::string sent_transport;
+    std::string sent_stream;
+    std::uint64_t send_calls{0};
+    Message sent_message;
+    const auto service = JoystickService::Create(
+        [backend] {
+            return backend;
+        },
+        [&](const std::string& transport_id, const std::string& stream_id, const std::shared_ptr<Data>& data) {
+            ++send_calls;
+            sent_transport = transport_id;
+            sent_stream = stream_id;
+            return data && sent_message.ParseFromArray(data->Bytes().data(), static_cast<int>(data->Size()));
+        });
+
+    ASSERT_TRUE(service->Start());
+    service->HandleMessage(MakeHello("stream-rumble"), "ws-transport");
+    backend->TriggerRumble("stream-rumble", 201U, 73U);
+
+    EXPECT_EQ(sent_transport, "ws-transport");
+    EXPECT_EQ(sent_stream, "stream-rumble");
+    EXPECT_EQ(sent_message.type(), MessageType::kGamepadRumble);
+    ASSERT_TRUE(sent_message.has_gamepad_rumble());
+    EXPECT_EQ(sent_message.gamepad_rumble().strong_motor(), 201U);
+    EXPECT_EQ(sent_message.gamepad_rumble().weak_motor(), 73U);
+    const auto snapshot = service->Snapshot();
+    EXPECT_EQ(snapshot.rumble_events, 1U);
+    EXPECT_EQ(snapshot.rumble_send_failures, 0U);
+
+    service->HandleClientDisconnected("stream-rumble");
+    backend->TriggerRumble("stream-rumble", 255U, 255U);
+    ASSERT_TRUE(service->Stop());
+    backend->TriggerRumble("stream-rumble", 255U, 255U);
+    EXPECT_EQ(send_calls, 1U);
+    EXPECT_EQ(service->Snapshot().rumble_events, 2U);
+    EXPECT_EQ(service->Snapshot().rumble_send_failures, 1U);
 }
 
 }  // namespace

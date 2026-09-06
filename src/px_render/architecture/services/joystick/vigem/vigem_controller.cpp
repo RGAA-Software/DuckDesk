@@ -6,10 +6,68 @@
 #include "px_common/log.h"
 
 #include <Xinput.h>
+#include <cstdint>
 #include <cstring>
+#include <mutex>
+#include <unordered_map>
+#include <utility>
 
 namespace px
 {
+    namespace {
+        struct RumbleCallbackContext final {
+            std::string stream_id;
+            VigemController::RumbleCallback callback;
+        };
+
+        std::mutex& CallbackRegistryMutex() {
+            static std::mutex mutex;
+            return mutex;
+        }
+
+        std::unordered_map<std::uintptr_t, std::shared_ptr<const RumbleCallbackContext>>& CallbackRegistry() {
+            static std::unordered_map<std::uintptr_t, std::shared_ptr<const RumbleCallbackContext>> registry;
+            return registry;
+        }
+
+        std::uintptr_t TargetKey(
+            PVIGEM_TARGET target) { // NOLINT(gammaray-raw-pointer-boundary): transient ViGEm callback handle
+            return reinterpret_cast<std::uintptr_t>(target);
+        }
+
+        void RegisterCallbackContext(
+            const std::uintptr_t target_key,
+            const std::shared_ptr<const RumbleCallbackContext>& context) {
+            std::lock_guard lock(CallbackRegistryMutex());
+            CallbackRegistry().insert_or_assign(target_key, context);
+        }
+
+        void UnregisterCallbackContext(const std::uintptr_t target_key) {
+            std::lock_guard lock(CallbackRegistryMutex());
+            CallbackRegistry().erase(target_key);
+        }
+
+        void CALLBACK OnX360Notification(
+            PVIGEM_CLIENT,
+            PVIGEM_TARGET target,
+            UCHAR large_motor,
+            UCHAR small_motor,
+            UCHAR,
+            LPVOID) { // NOLINT(gammaray-raw-pointer-boundary): ViGEm callback ABI
+            std::shared_ptr<const RumbleCallbackContext> context;
+            {
+                std::lock_guard lock(CallbackRegistryMutex());
+                const auto found = CallbackRegistry().find(TargetKey(target));
+                if (found != CallbackRegistry().end()) {
+                    context = found->second;
+                }
+            }
+            if (context && context->callback) {
+                context->callback(context->stream_id, large_motor, small_motor);
+            }
+        }
+    }
+
 
     void VigemController::ClientDeleter::operator()(
         std::remove_pointer_t<PVIGEM_CLIENT>* client) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): ViGEm C handle boundary
@@ -25,8 +83,8 @@ namespace px
         }
     }
 
-    VigemController::VigemController(const JoystickType &js_type) {
-        js_type_ = js_type;
+    VigemController::VigemController(const JoystickType &js_type, RumbleCallback rumble_callback)
+        : js_type_(js_type), rumble_callback_(std::move(rumble_callback)) {
         LOGI("Joystick type: {}", (int) js_type_);
     }
 
@@ -58,6 +116,14 @@ namespace px
     }
 
     bool VigemController::AllocController(const std::string &stream_id) {
+        const auto existing = targets_.find(stream_id);
+        if (existing != targets_.end() && existing->second && vigem_target_is_attached(existing->second.get())) {
+            return true;
+        }
+        if (existing != targets_.end()) {
+            static_cast<void>(RemoveController(stream_id));
+        }
+
         TargetHandle target;
         if (js_type_ == JoystickType::kJsX360) {
             target.reset(vigem_target_x360_alloc());
@@ -75,19 +141,17 @@ namespace px
             return false;
         }
 
+        const auto callback_context = std::make_shared<const RumbleCallbackContext>(RumbleCallbackContext{
+            .stream_id = stream_id,
+            .callback = rumble_callback_,
+        });
+        const auto target_key = TargetKey(target.get());
+        RegisterCallbackContext(target_key, callback_context);
         err = vigem_target_x360_register_notification(
-            client_.get(), target.get(),
-            [](PVIGEM_CLIENT, PVIGEM_TARGET, UCHAR, UCHAR, UCHAR, LPVOID) { // NOLINT(gammaray-raw-pointer-boundary): ViGEm callback ABI; no value is retained
-//            const auto pad = static_cast<EmulationTarget*>(UserData);
-//
-//            XINPUT_VIBRATION vibration;
-//            vibration.wLeftMotorSpeed = LargeMotor * 257;
-//            vibration.wRightMotorSpeed = SmallMotor * 257;
-//
-//            g_pXInputSetState(pad->userIndex, &vibration);
-            }, nullptr);
+            client_.get(), target.get(), OnX360Notification, nullptr);
 
         if (!VIGEM_SUCCESS(err)) {
+            UnregisterCallbackContext(target_key);
             LOGE("vigem_target_x360_register_notification x360 failed: 0x{:x}", (int32_t) err);
             vigem_target_remove(client_.get(), target.get());
             return false;
@@ -96,6 +160,9 @@ namespace px
         auto target_connected = vigem_target_is_attached(target.get());
         if (target_connected) {
             targets_.insert_or_assign(stream_id, std::move(target));
+        } else {
+            vigem_target_x360_unregister_notification(target.get());
+            UnregisterCallbackContext(target_key);
         }
         LOGI("target connected: {}", target_connected);
         return target_connected;
@@ -104,6 +171,8 @@ namespace px
     bool VigemController::RemoveController(const std::string& stream_id) {
         const auto target = targets_.find(stream_id);
         if (target != targets_.end() && client_ && target->second) {
+            vigem_target_x360_unregister_notification(target->second.get());
+            UnregisterCallbackContext(TargetKey(target->second.get()));
             vigem_target_remove(client_.get(), target->second.get());
         }
         targets_.erase(stream_id);
@@ -123,6 +192,8 @@ namespace px
     void VigemController::Exit() {
         for (const auto &[stream_id, target]: targets_) {
             if (client_ && target) {
+                vigem_target_x360_unregister_notification(target.get());
+                UnregisterCallbackContext(TargetKey(target.get()));
                 vigem_target_remove(client_.get(), target.get());
             }
         }
