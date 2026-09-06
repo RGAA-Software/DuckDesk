@@ -1,0 +1,28 @@
+<resources>
+    <string name="device_home_title">Pixels</string>
+    <string name="quick_connect">快速连接</string>
+    <string name="connection_input_hint">设备代码、IP 或连接信息</string>
+    <string name="paste">粘贴</string>
+    <string name="scan">扫码</string>
+    <string name="connect">连接</string>
+    <string name="connecting">检查中…</string>
+    <string name="my_devices">我的设备</string>
+    <string name="add_device">添加</string>
+    <string name="no_devices_title">连接你的第一台设备</string>
+    <string name="no_devices_body">扫描 Pixels 连接码，或者手动添加一台电脑。</string>
+    <string name="scan_to_connect">扫码连接</string>
+    <string name="connection_input_empty">请输入设备代码、IP 或连接信息。</string>
+    <string name="connection_input_invalid">请输入局域网主机、可选端口或有效的 Pixels 连接信息。</string>
+    <string name="connection_input_public_address">直接连接仅允许访问当前局域网中的设备。</string>
+    <string name="connection_input_unreachable">无法访问这台电脑，请检查地址和 Panel 运行状态。</string>
+    <string name="connection_input_invalid_response">电脑已响应，但返回的 Pixels 设备信息无效。</string>
+    <string name="online">在线</string>
+    <string name="offline">离线</string>
+    <string name="discovering">发现中</string>
+    <string name="latency_millis">%1$d 毫秒</string>
+    <string name="remote_desktop">远程桌面</string>
+    <string name="files">文件</string>
+    <string name="applications">应用</string>
+    <string name="more_actions">更多操作</string>
+    <string name="remove_device">移除设备</string>
+</resources>

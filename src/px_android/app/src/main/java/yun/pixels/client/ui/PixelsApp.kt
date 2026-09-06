@@ -1,0 +1,204 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
+package yun.pixels.client.ui
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Devices
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.SwapVert
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.launch
+import yun.pixels.client.PixelsAppGraph
+import yun.pixels.client.R
+import yun.pixels.client.feature.devices.DeviceHomeAction
+import yun.pixels.client.feature.devices.DeviceHomeNotice
+import yun.pixels.client.feature.devices.DeviceHomeScreen
+import yun.pixels.client.feature.devices.DeviceHomeViewModel
+
+private enum class TopLevelDestination(
+    val route: String,
+    @StringRes val labelResource: Int,
+    val icon: ImageVector,
+) {
+    Devices("devices", R.string.navigation_devices, Icons.Outlined.Devices),
+    Transfers("transfers", R.string.navigation_transfers, Icons.Outlined.SwapVert),
+    Settings("settings", R.string.navigation_settings, Icons.Outlined.Settings),
+}
+
+@Composable
+fun PixelsApp(graph: PixelsAppGraph) {
+    val navController = rememberNavController()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val clipboard = LocalClipboard.current
+    val context = LocalContext.current
+    val deviceHomeViewModel: DeviceHomeViewModel = viewModel(
+        factory = DeviceHomeViewModel.factory(graph.deviceDirectory, graph.deviceResolver),
+    )
+    val deviceHomeState by deviceHomeViewModel.uiState.collectAsStateWithLifecycle()
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentDestination = currentBackStackEntry?.destination
+    val unavailableMessage = stringResource(R.string.feature_being_built)
+    val noticeMessages by rememberUpdatedState(
+        mapOf(
+            DeviceHomeNotice.DeviceSaved to stringResource(R.string.device_saved),
+            DeviceHomeNotice.DeviceRemoved to stringResource(R.string.device_removed),
+            DeviceHomeNotice.LocalNetworkPermissionRequired to stringResource(R.string.local_network_permission_required),
+            DeviceHomeNotice.FeatureUnavailable to unavailableMessage,
+        ),
+    )
+    val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        deviceHomeViewModel.onAction(
+            if (granted) DeviceHomeAction.Connect else DeviceHomeAction.LocalNetworkPermissionDenied,
+        )
+    }
+
+    LaunchedEffect(deviceHomeViewModel) {
+        deviceHomeViewModel.notices.collect { notice ->
+            snackbarHostState.showSnackbar(noticeMessages.getValue(notice))
+        }
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        bottomBar = {
+            NavigationBar {
+                TopLevelDestination.values().forEach { destination ->
+                    val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
+                    NavigationBarItem(
+                        selected = selected,
+                        onClick = {
+                            navController.navigate(destination.route) {
+                                popUpTo(TopLevelDestination.Devices.route) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(imageVector = destination.icon, contentDescription = null) },
+                        label = { Text(text = stringResource(destination.labelResource)) },
+                    )
+                }
+            }
+        },
+    ) { contentPadding ->
+        NavHost(
+            navController = navController,
+            startDestination = TopLevelDestination.Devices.route,
+            modifier = Modifier.padding(contentPadding),
+        ) {
+            composable(TopLevelDestination.Devices.route) {
+                DeviceHomeScreen(
+                    state = deviceHomeState,
+                    onAction = { action ->
+                        when (action) {
+                            DeviceHomeAction.Paste -> {
+                                coroutineScope.launch {
+                                    val clipData = clipboard.getClipEntry()?.clipData
+                                    val pastedValue = if (clipData != null && clipData.itemCount > 0) {
+                                        clipData.getItemAt(0).coerceToText(context).toString()
+                                    } else {
+                                        ""
+                                    }
+                                    deviceHomeViewModel.onAction(DeviceHomeAction.ConnectionInputChanged(pastedValue))
+                                }
+                            }
+                            DeviceHomeAction.Connect -> {
+                                val permissionRequired = Build.VERSION.SDK_INT >= 37 && ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.ACCESS_LOCAL_NETWORK,
+                                ) != PackageManager.PERMISSION_GRANTED
+                                if (permissionRequired) {
+                                    localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+                                } else {
+                                    deviceHomeViewModel.onAction(action)
+                                }
+                            }
+                            else -> deviceHomeViewModel.onAction(action)
+                        }
+                    },
+                )
+            }
+            composable(TopLevelDestination.Transfers.route) {
+                FoundationScreen(
+                    title = stringResource(R.string.transfers_title),
+                    body = stringResource(R.string.transfers_foundation_body),
+                )
+            }
+            composable(TopLevelDestination.Settings.route) {
+                FoundationScreen(
+                    title = stringResource(R.string.settings_title),
+                    body = stringResource(R.string.settings_foundation_body),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FoundationScreen(title: String, body: String) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        TopAppBar(
+            title = {
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            },
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = body,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+    }
+}

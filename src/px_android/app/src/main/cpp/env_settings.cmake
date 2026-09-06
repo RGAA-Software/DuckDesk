@@ -1,1 +1,0 @@
-set(VCPKG_ROOT C:/source/vcpkg)

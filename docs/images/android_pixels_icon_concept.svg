@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">Pixels Android Pixel Link P icon concept</title>
+  <desc id="description">A pixel-built letter P with a detached mint endpoint on a dark rounded background.</desc>
+  <defs>
+    <linearGradient id="background" x1="48" y1="32" x2="464" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#17213A"/>
+      <stop offset="1" stop-color="#080C18"/>
+    </linearGradient>
+    <linearGradient id="primary" x1="105" y1="72" x2="355" y2="426" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A4AEFF"/>
+      <stop offset="1" stop-color="#6577FF"/>
+    </linearGradient>
+    <filter id="mintGlow" x="-70%" y="-70%" width="240%" height="240%">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#background)"/>
+  <g fill="url(#primary)">
+    <rect x="105" y="72" width="42" height="42" rx="8"/>
+    <rect x="157" y="72" width="42" height="42" rx="8"/>
+    <rect x="209" y="72" width="42" height="42" rx="8"/>
+    <rect x="261" y="72" width="42" height="42" rx="8"/>
+    <rect x="105" y="124" width="42" height="42" rx="8"/>
+    <rect x="313" y="124" width="42" height="42" rx="8"/>
+    <rect x="105" y="176" width="42" height="42" rx="8"/>
+    <rect x="313" y="176" width="42" height="42" rx="8"/>
+    <rect x="105" y="228" width="42" height="42" rx="8"/>
+    <rect x="157" y="228" width="42" height="42" rx="8"/>
+    <rect x="209" y="228" width="42" height="42" rx="8"/>
+    <rect x="261" y="228" width="42" height="42" rx="8"/>
+    <rect x="105" y="280" width="42" height="42" rx="8"/>
+    <rect x="105" y="332" width="42" height="42" rx="8"/>
+    <rect x="105" y="384" width="42" height="42" rx="8"/>
+  </g>
+  <rect x="313" y="332" width="42" height="42" rx="8" fill="#35D8B5" filter="url(#mintGlow)"/>
+</svg>

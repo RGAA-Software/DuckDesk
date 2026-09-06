@@ -10,10 +10,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { setUrl( "https://jitpack.io") }
-        maven { setUrl("https://maven.aliyun.com/repository/public") }
     }
 }
 
-rootProject.name = "GammaRayAndroid"
+rootProject.name = "PixelsAndroid"
 include ':app'
+include ':core-domain'
+include ':core-data'
+include ':feature-devices'

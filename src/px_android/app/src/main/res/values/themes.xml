@@ -1,14 +1,17 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Theme.XRay" parent="Theme.MaterialComponents.Light.NoActionBar">
-        <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/colorPrimary</item>
-        <item name="colorPrimaryVariant">@color/colorAccent</item>
-        <item name="colorAccent">@color/colorAccent</item>
-        <item name="colorOnPrimary">@color/white</item>
-        <!-- Status bar color. -->
-        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
-        <!-- Customize your theme here. -->
-<!--        <item name="android:windowTranslucentStatus">true</item>-->
+<resources>
+    <style name="Theme.Pixels" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">@color/pixels_background</item>
+        <item name="android:statusBarColor">@color/pixels_transparent</item>
+        <item name="android:windowBackground">@color/pixels_background</item>
+    </style>
+
+    <style name="Theme.Pixels.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/pixels_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_pixels_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Pixels</item>
     </style>
 </resources>

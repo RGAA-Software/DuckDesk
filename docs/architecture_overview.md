@@ -18,6 +18,7 @@
 | px_render | `src/px_render` | 采集/编码/流媒体宿主。同一 exe 两种模式：desktop（DDA/GDI 屏采）/ game-hook（启动游戏并注入 `px_gh.dll`，帧经本机 `/ipc` 回传） |
 | px_panel | `src/px_panel` | 被控端 Qt 管理 UI。管理桌面 render、把授权推给本机 service、拉起 Windows 观看客户端 |
 | px_client | `src/px_client` | Windows 观看端（WS `/media`），由 panel 拉起 |
+| Pixels Android Client | `src/px_android` | Android 观看与控制端。当前按最终产品原地重建，不保留旧 Android 兼容层；M1 已接通类型化设备目录、Panel 信息验证、DataStore 和 Keystore，目标覆盖完整会话、音视频、输入、多显示器、远程应用、文件、剪贴板、录制、语音和全传输能力 |
 | px_service | `rust_client/px_service` | 被控机常驻服务。拉起/看管 render、执行 Console 调度（启停游戏实例）、本机控制面 WS `:20375` |
 | px_osinfo | `rust_client/px_sysinfo` | 系统信息采集上报 |
 | UserProxy | `rust_client/px_user_proxy` | 用户会话代理（剪贴板等），service 看管 |
@@ -102,3 +103,5 @@ WS + UDP 模式中，WS 在会话准入后记录短期的首次 UDP 媒体端点
 - 构建/部署：`../build_doc.md`、`gammaray/How_to_*.md`
 - WebRTC/Coturn 配置、构建与验收：`webrtc_coturn_implementation_plan.md`
 - 多用户会话、控制租约与无 Console 直连产品契约：`logical_session_product_definition.md`
+- Pixels Android 最终产品、架构、删除范围和交付门禁：`android_pixels_product_plan.md`
+- Pixels Android 页面、视觉、交互、响应式布局和组件规范：`android_pixels_ui_design.md`

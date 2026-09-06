@@ -25,7 +25,7 @@
 | Platform | Client | Server  |
 |----------|--------|---------|
 | Windows  | ✅      | ✅       |
-| Android  | ✅      | ⌛       |
+| Android  | ⌛ Pixels client rebuild | ⌛       |
 
 ## Work Mode (工作模式)
 #### 1. Connect Directly (直连)

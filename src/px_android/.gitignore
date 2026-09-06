@@ -1,29 +1,8 @@
-# Gradle
-.gradle/
-/build
-/build/
-/captures
-
-# Local configuration (SDK path is machine-specific)
+/.gradle/
+/**/build/
+/**/.cxx/
+/app/apk/
+/app/src/generated/
 local.properties
-/local.properties
-
-# IDE
-*.iml
-.idea/
-/.idea/
-.DS_Store
-
-# Native build (CMake / NDK)
-.cxx/
-.externalNativeBuild/
-
-# Generated sources (protobuf)
-app/src/generated/
-
-# Build outputs (APKs + legacy output dirs)
-app/apk/
-app/debug/
-app/release/
-app/official/
-*.apk
+*.jks
+keystore.properties
