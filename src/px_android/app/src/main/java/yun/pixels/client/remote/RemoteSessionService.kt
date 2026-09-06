@@ -331,6 +331,7 @@ class RemoteSessionService : Service() {
 
     private fun startRecording() {
         val connected = workflow.snapshot.value.status as? RemoteSessionStatus.Connected ?: return
+        if (!connected.capabilities.supportsRecording) return
         recordings.start(connected.request.id)
     }
 

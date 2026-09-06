@@ -59,6 +59,7 @@ data class RemoteSessionCapabilities(
     val topologyGeneration: Long = 0,
     val supportsVoiceCall: Boolean = false,
     val voiceCallRequiresHeadset: Boolean = true,
+    val supportsRecording: Boolean = false,
 )
 
 data class RemoteSessionStatistics(

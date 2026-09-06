@@ -513,6 +513,7 @@ class NativeRemoteSessionTransport internal constructor(
                 topologyGeneration = topologyGeneration.coerceAtLeast(0),
                 supportsVoiceCall = supportsVoiceCall,
                 voiceCallRequiresHeadset = voiceCallRequiresHeadset,
+                supportsRecording = true,
             )
             lock.withLock { capabilities[remoteSessionId] = sessionCapabilities }
             mutableEvents.emit(

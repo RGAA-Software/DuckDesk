@@ -207,11 +207,11 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 不能使用动态版本。当前选定基线为 `io.github.webrtc-sdk:android:150.7871.01`。
 
 旧 `rtc_client_stub.cpp` 已随 M0 删除。当前 `core-native` 已接入真实 WebSocket transport、typed JNI 边界和固定版本 Android WebRTC AAR；
-标准 RTC platform adapter 直接消费仓库权威 protobuf，并已具备票据信令、ICE/TURN、RTP Surface 渲染、控制/输入 DataChannel 和独立文件传输
-DataChannel。产品路由仅在
+标准 RTC platform adapter 直接消费仓库权威 protobuf，并已具备票据信令、ICE/TURN、RTP Surface 渲染、控制/输入 DataChannel、独立文件传输
+DataChannel 和本地音视频录制。产品路由仅在
 Console 提供完整且未临近过期的 RTC/Relay 作用域时选择标准 RTC，否则继续使用原生 UDP/Relay；旋转 renewal capability 已用于临期/已尝试票据和
-WebRTC 失败后的原生 UDP/Relay 降级，并验证续发响应不能改变 logical session 或 stream。标准 RTC 录制和真实 RTC 语音/网络矩阵
-完成前仍不对外宣称 WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
+WebRTC 失败后的原生 UDP/Relay 降级，并验证续发响应不能改变 logical session 或 stream。真实 RTC 录制、语音和 Direct/Relay 网络矩阵完成前仍不对外宣称
+WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
 
 ## 7. 渲染、音频和输入
 
@@ -334,7 +334,7 @@ WebRTC 失败后的原生 UDP/Relay 降级，并验证续发响应不能改变 l
 
 ### M5：完整网络与质量收口，2–3 周
 
-状态：**UDP Direct 已作为 Android 默认传输接入，具备认证控制面、四秒媒体探测与同会话 WebSocket 安全回退；断线重连具有三十秒上限、类型化失败和显式重试。账号公网设备已接入一次性票据约束的 Relay 主路径，Console 只校验并注入权威绑定，Render 负责唯一兑换、逻辑会话准入和按能力路由。Android 标准 WebRTC 已固定 AAR、接入权威 protobuf-lite 协议生成、票据作用域 Relay 信令、ICE/TURN 配置校验、PeerConnection、RTP 音视频 Surface 渲染，以及可靠控制/不可靠输入 DataChannel 的 Hello、输入、双向文本与文件型剪贴板、能力消息、实体显示器切换和虚拟显示请求/结果；可靠 `ft_data_channel` 已复用项目 `FtAsyncSession`，提供目录浏览、上传、下载、取消、断点与覆盖确认，并承载既有 `NativeClipboard` 的有界文件块。标准 RTC 语音使用可靠控制通道完成呼叫与 Windows 用户同意，实际双向音频走独立第二条 WebRTC RTP 音轨；Android 只在远端同意后把麦克风挂到预协商 sender，系统声和通话声可独立静音。连接后从标准 RTCStats 持续提供画面帧率、视频接收码率、往返延迟和视频丢包率。统一产品路由会校验 RTC 与票据有效期后选择 WebRTC，否则使用原生 UDP/Relay；RTC 下未实现的录制保持关闭。客户端已接入匿名 renewal capability 续发端点，对临期或已尝试的一次性票据先旋转凭据；WebRTC 协商/连接失败会在有界窗口内续发并降级到原生 UDP/Relay，续发响应必须保持 logical session 与 stream 身份不变。完整能力和真实网络矩阵仍待完成，因此当前不会向用户宣称 WebRTC 已完整交付。**
+状态：**UDP Direct 已作为 Android 默认传输接入，具备认证控制面、四秒媒体探测与同会话 WebSocket 安全回退；断线重连具有三十秒上限、类型化失败和显式重试。账号公网设备已接入一次性票据约束的 Relay 主路径，Console 只校验并注入权威绑定，Render 负责唯一兑换、逻辑会话准入和按能力路由。Android 标准 WebRTC 已固定 AAR、接入权威 protobuf-lite 协议生成、票据作用域 Relay 信令、ICE/TURN 配置校验、PeerConnection、RTP 音视频 Surface 渲染，以及可靠控制/不可靠输入 DataChannel 的 Hello、输入、双向文本与文件型剪贴板、能力消息、实体显示器切换和虚拟显示请求/结果；可靠 `ft_data_channel` 已复用项目 `FtAsyncSession`，提供目录浏览、上传、下载、取消、断点与覆盖确认，并承载既有 `NativeClipboard` 的有界文件块。标准 RTC 语音使用可靠控制通道完成呼叫与 Windows 用户同意，实际双向音频走独立第二条 WebRTC RTP 音轨；Android 只在远端同意后把麦克风挂到预协商 sender，系统声和通话声可独立静音。标准 RTC 录制直接订阅已解码 VideoFrame 和远端 PCM，以 Android MediaCodec AVC/AAC 编码并封装 MP4，不请求屏幕录制权限；能力受 `view` 权限、媒体轨道和平台编码器共同门控。连接后从标准 RTCStats 持续提供画面帧率、视频接收码率、往返延迟和视频丢包率。统一产品路由会校验 RTC 与票据有效期后选择 WebRTC，否则使用原生 UDP/Relay。客户端已接入匿名 renewal capability 续发端点，对临期或已尝试的一次性票据先旋转凭据；WebRTC 协商/连接失败会在有界窗口内续发并降级到原生 UDP/Relay，续发响应必须保持 logical session 与 stream 身份不变。真实媒体能力和完整网络矩阵仍待完成，因此当前不会向用户宣称 WebRTC 已完整交付。**
 
 - UDP Direct、Relay、WebRTC Direct、ICE/TURN WebRTC。
 - 传输选择、协商、失败降级、网络切换恢复。
@@ -440,7 +440,8 @@ SHA-256 发布清单，以及应用内隐私、完整第三方许可证和主动
   重试、覆盖/跳过、最多两个并发任务和排队状态，离开页面后通过同一状态源更新通知。关闭会话时先取消任务并停止传输运行时，再退出 SDK。
 - M4 录制直接订阅 SDK 收到的 H.264/H.265 与 Opus 编码包，在独立串行线程复用 `px_media_record` 封装 MP4；开始和分段时主动请求关键帧，停止或
   会话退出时先写完 trailer，再由 Android 将应用私有暂存文件发布到 `Movies/Pixels`。UI、前台通知、时长、发布中、成功和失败均使用类型化状态；
-  暂存目录限制在应用缓存并清理超时残留，不申请旧外部存储权限。
+  暂存目录限制在应用缓存并清理超时残留，不申请旧外部存储权限。标准 WebRTC 路径复用同一状态、发布和通知层，把已解码 VideoFrame 与远端 PCM 送入有界
+  串行队列，经 Android MediaCodec AVC/AAC 编码为双轨 MP4；录制不依赖 MediaProjection，系统声静音只调整播放音量，不截断录制 PCM。
 - M4 语音复用项目 `px_voice_call` 协议 v1 与 Opus/jitter 核心。Android 仅在服务端声明能力时显示入口，连接前由 Windows Panel 明确同意；前台会话
   服务按通话状态持有麦克风类型，AAudio 负责通信录放音，支持麦克风静音、远端声音静音、听筒/耳机与扬声器切换。设备路由改变后输入输出流可独立
   重建，抖动缓冲在短暂空队列时不越过新包，并在大序列间隙后用一次 concealment 重新同步。请求超时、远端拒绝、断网、挂断和会话销毁均有明确收尾。
@@ -448,9 +449,9 @@ SHA-256 发布清单，以及应用内隐私、完整第三方许可证和主动
   默认选择 UDP Direct，以已认证 WebSocket 作为控制面，并在四秒内收不到媒体时为同一认证会话启用 WebSocket 媒体。可恢复断线只在三十秒窗口内
   重连，超时后停止 transport、显示类型化原因并允许用户主动重试。标准 WebRTC 每秒聚合所选 candidate pair 和 inbound video 的有界 RTCStats，
   与原生链路复用同一工作区质量状态。Relay/WebRTC 主路径继续按 M5 的真实网络矩阵验收，未完成的能力不伪装为可用。
-- 一级导航使用设备、传输和设置三个平级根目的地；切换 Tab 总是清理上一栏详情并落到目标根页，不恢复已经离开的子页面。
-  应用列表是设备栏的子页并保留设备 Tab 选中态，顶部和系统返回均回设备根页。远控与远控文件任务是无底栏的会话全屏页，结束会话
-  固定回设备根页；传输/设置根页的系统返回也固定回设备页。
+- 一级导航使用设备、传输和设置三个平级根目的地；跨 Tab 按独立返回栈保存并恢复页面状态，重复点击根 Tab 不重复入栈，点击当前栏 Tab 会从子页回到该栏根页。
+  应用列表是设备栏的子页并保留设备 Tab 选中态，顶部和系统返回均回设备根页。远控与远控文件任务是无底栏的独立会话栈，结束会话固定回设备根页；
+  传输/设置根页使用真实导航栈返回设备页，不再以页面级 BackHandler 伪造跳转。
   会话文件浏览的系统返回键与顶部返回键会先回到上级目录，到达远端根视图后才返回远控工作区；远控工作区默认收起工具栏，系统返回优先关闭安全确认、键盘、
   手柄设置、显示器面板和展开的工具栏，其次退出手柄模式，最后显示结束会话确认。
 - 设置页已展示版本、隐私说明、组件清单和随包的完整第三方许可证，并只在用户主动操作后生成应用私有诊断报告、调起 Android 分享选择器。报告仅包含构建、设备、会话状态
@@ -645,8 +646,15 @@ SHA-256 发布清单，以及应用内隐私、完整第三方许可证和主动
   WebRTC RTP 音轨。Android 只在用户发起且 Windows 用户同意后挂载麦克风，启用回声消除、降噪和自动增益；桌面系统声与通话声独立静音，呼叫超时、陈旧响应、
   非法身份、媒体参数不兼容、AudioFocus 丢失和会话关闭均有有界清理。能力同时受票据 `audio` 权限、服务端开关、协议版本和第二音轨就绪状态门控。
   协议单元测试、Android 全套构建/lint 与真机加载通过；手机未登录 Console，真实 RTC 同意、双向音频及 Direct/Relay 网络矩阵仍待登录环境验收，不将其标记为实测完成。
+- 2026-09-07 导航按最新实机反馈从“跨栏清空”调整为每个一级 Tab 保存和恢复自己的返回栈；设置与传输页移除脱离栈状态的返回拦截，应用子页仍可由顶部、系统返回或
+  重复点击设备 Tab 回到设备根页。Xiaomi 22021211RC 覆盖安装后验证设备→设置→传输→设置→系统返回，页面内容和唯一选中 Tab 始终同步，最终准确返回设备首页，
+  全程无 Java/JNI/native fatal。Compose 导航回归、app 单元测试、lint 和测试 APK 编译通过。
+- 2026-09-07 M5 标准 WebRTC 录制已接入无屏幕捕获权限的本地媒体链路：接收 VideoTrack/AudioTrack sink，串行完成 EGL→H.264 与 PCM→AAC 编码，等待双轨格式后
+  统一写入 MP4，并限制待处理帧、音频包和编码样本内存。开始、停止、轨道更换、编码失败和会话销毁均按类型化事件收尾，录制能力只有在 `view` 权限、所需媒体轨道和
+  平台编码器同时就绪时才显示。设备内 Debug MediaCodec 门禁通过，生成 `audio/mp4a-latm` 与 `video/avc` 双轨、510 ms、19906 字节的可读取 MP4；最终 APK 与手机已安装
+  `base.apk` SHA-256 均为 `C35576CF98D5D2D9330E26D00DBD7E1C311B75312B0C1CD7029EEFBF409D5251`。手机未登录 Console，因此真实远端画面与声音录制仍归入网络矩阵待验收。
 
 这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径、物理显示器切换和虚拟显示失败反馈；
 后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁，M5 轮次关闭了 UDP Direct 协商、WebSocket 安全回退、有界重连和 H.264 首帧解析门禁。
-它不代表 M3–M6 的虚拟显示成功创建、远程应用 Console 实测、带音真机录制、UDP 媒体交付、Relay/WebRTC 网络矩阵、正式签名、
+它不代表 M3–M6 的虚拟显示成功创建、远程应用 Console 实测、真实远端媒体的带音录制、UDP 媒体交付、Relay/WebRTC 网络矩阵、正式签名、
 最终 FFmpeg 源码/重链接归档、正式法律复核和设备矩阵已经完成。

@@ -110,6 +110,7 @@ internal fun PxMessage.ServerConfiguration.toRtcSessionCapabilities(
     permissions: Set<String>,
     fileTransferReady: Boolean = false,
     voiceCallReady: Boolean = false,
+    recordingReady: Boolean = false,
 ): RemoteSessionCapabilities {
     val supportsInput = enableInput && canBeOperated && "input" in permissions
     return RemoteSessionCapabilities(
@@ -131,6 +132,7 @@ internal fun PxMessage.ServerConfiguration.toRtcSessionCapabilities(
         topologyGeneration = topologyGeneration.coerceAtLeast(0),
         supportsVoiceCall = voiceCallReady && "audio" in permissions && voiceCallEnabled && voiceCallProtocolVersion >= 1,
         voiceCallRequiresHeadset = this.voiceCallRequiresHeadset,
+        supportsRecording = recordingReady && "view" in permissions,
     )
 }
 

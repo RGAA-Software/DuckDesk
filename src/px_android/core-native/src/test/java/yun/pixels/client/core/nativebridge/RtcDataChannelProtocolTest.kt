@@ -191,6 +191,31 @@ class RtcDataChannelProtocolTest {
     }
 
     @Test
+    fun rtcRecordingCapabilityRequiresViewPermissionAndReadyMediaTracks() {
+        val configuration = PxMessage.ServerConfiguration.getDefaultInstance()
+
+        assertFalse(configuration.toRtcSessionCapabilities(true, true, true, setOf("view")).supportsRecording)
+        assertFalse(
+            configuration.toRtcSessionCapabilities(
+                true,
+                true,
+                true,
+                emptySet(),
+                recordingReady = true,
+            ).supportsRecording,
+        )
+        assertTrue(
+            configuration.toRtcSessionCapabilities(
+                true,
+                true,
+                true,
+                setOf("view"),
+                recordingReady = true,
+            ).supportsRecording,
+        )
+    }
+
+    @Test
     fun rtcClipboardFileProtocolRejectsTypeOnlyMessages() {
         val fileInfo = PxMessage.Message.newBuilder()
             .setType(PxMessage.MessageType.kClipboardInfo)

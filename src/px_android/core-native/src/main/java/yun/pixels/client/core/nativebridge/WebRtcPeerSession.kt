@@ -35,6 +35,7 @@ import org.webrtc.SessionDescription
 import org.webrtc.SurfaceEglRenderer
 import org.webrtc.VideoTrack
 import px.PxMessage
+import yun.pixels.client.core.domain.recording.RecordingId
 import yun.pixels.client.core.domain.session.InputCommand
 import yun.pixels.client.core.domain.session.RemoteMouseButton
 import yun.pixels.client.core.domain.session.RemoteSessionStatistics
@@ -109,6 +110,12 @@ internal sealed interface WebRtcPeerEvent {
 
     data class VoiceCallStateChanged(val value: VoiceCallState) : WebRtcPeerEvent
 
+    data class RecordingAvailabilityChanged(val ready: Boolean) : WebRtcPeerEvent
+
+    data class RecordingStarted(val recordingId: RecordingId) : WebRtcPeerEvent
+
+    data class RecordingFinished(val recordingId: RecordingId, val error: String) : WebRtcPeerEvent
+
     data class Closed(val reason: String, val recoverable: Boolean) : WebRtcPeerEvent
 }
 
@@ -151,6 +158,13 @@ internal class WebRtcPeerSession(
         enabled = enableVoiceCall,
         sendMessage = ::sendMediaMessage,
         onState = { state -> onEvent(WebRtcPeerEvent.VoiceCallStateChanged(state)) },
+    )
+    private val recordingController = RtcRecordingController(
+        sharedEglContext = runtime.eglContext,
+        includeAudio = enableAudio,
+        onAvailabilityChanged = { ready -> onEvent(WebRtcPeerEvent.RecordingAvailabilityChanged(ready)) },
+        onStarted = { id -> onEvent(WebRtcPeerEvent.RecordingStarted(id)) },
+        onFinished = { id, error -> onEvent(WebRtcPeerEvent.RecordingFinished(id, error)) },
     )
 
     suspend fun start() {
@@ -231,9 +245,16 @@ internal class WebRtcPeerSession(
             systemAudioEnabled = enabled
             systemAudioTrack
         }
-        track?.setEnabled(enabled)
+        // Keep the receive track alive so an active local recording continues
+        // to receive PCM while only user-facing playout is muted.
+        track?.setVolume(if (enabled) 1.0 else 0.0)
         return true
     }
+
+    fun startRecording(recordingId: RecordingId, stagingDirectory: String): Boolean =
+        recordingController.start(recordingId, stagingDirectory)
+
+    fun stopRecording(recordingId: RecordingId): Boolean = recordingController.stop(recordingId)
 
     fun startVoiceCall(): Boolean = voiceCallController.start()
 
@@ -419,6 +440,7 @@ internal class WebRtcPeerSession(
                 videoTrack?.removeSink(renderer)
                 videoTrack = track
                 track.addSink(renderer)
+                recordingController.setVideoTrack(track)
             }
             is AudioTrack -> {
                 if (voiceCallController.isVoiceTrack(track)) {
@@ -427,10 +449,11 @@ internal class WebRtcPeerSession(
                     val previous = synchronized(stateLock) {
                         val old = systemAudioTrack
                         systemAudioTrack = track
-                        track.setEnabled(systemAudioEnabled)
+                        track.setVolume(if (systemAudioEnabled) 1.0 else 0.0)
                         old
                     }
                     if (previous !== track) previous?.setEnabled(false)
+                    recordingController.setAudioTrack(track)
                 }
             }
             else -> Unit
@@ -583,6 +606,7 @@ internal class WebRtcPeerSession(
     private fun closeWithReason(reason: String, recoverable: Boolean, notify: Boolean = true) {
         if (!closed.compareAndSet(false, true)) return
         voiceCallController.close()
+        recordingController.close()
         val activeTrack: VideoTrack?
         val activeSystemAudioTrack: AudioTrack?
         val activeMedia: DataChannel?

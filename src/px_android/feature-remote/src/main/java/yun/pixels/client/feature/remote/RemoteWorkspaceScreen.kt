@@ -582,7 +582,7 @@ private fun RemoteTopBar(
                         Icon(Icons.Outlined.SwapVert, contentDescription = stringResource(R.string.remote_file_transfer))
                     }
                 }
-                if (status is RemoteSessionStatus.Connected) {
+                if ((status as? RemoteSessionStatus.Connected)?.capabilities?.supportsRecording == true) {
                     val recording = recordingState is RecordingState.Recording
                     FilledTonalIconButton(
                         onClick = if (recording) onStopRecording else onStartRecording,
