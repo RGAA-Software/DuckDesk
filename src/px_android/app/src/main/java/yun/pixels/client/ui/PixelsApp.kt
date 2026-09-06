@@ -310,9 +310,10 @@ fun PixelsApp(graph: PixelsAppGraph) {
                 RemoteWorkspaceScreen(
                     snapshot = snapshot,
                     audioEnabled = audioEnabled,
+                    surfaceConsumerReady = remoteBinder != null,
                     onSurfaceAvailable = { surface -> remoteBinder?.attachSurface(surface) },
-                    onSurfaceDestroyed = { remoteBinder?.detachSurface() },
-                    onPointer = { action, xRatio, yRatio -> remoteBinder?.sendPointer(action, xRatio, yRatio) },
+                    onSurfaceDestroyed = { surface -> remoteBinder?.detachSurface(surface) },
+                    onInput = { command -> remoteBinder?.sendInput(command) },
                     onText = { text -> remoteBinder?.sendText(text) },
                     onAudioEnabledChange = { enabled -> remoteBinder?.setAudioEnabled(enabled) },
                     onEndSession = {

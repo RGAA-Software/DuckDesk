@@ -9,7 +9,6 @@
 #include <memory>
 #include <mutex>
 #include <string>
-#include <vector>
 
 namespace px {
 class MessageNotifier;
@@ -82,15 +81,23 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     bool Initialize();
     bool Start();
     bool RebindSurface(std::unique_ptr<ANativeWindow, NativeWindowReleaser> surface);
-    bool SendPointer(std::int32_t action, float x_ratio, float y_ratio);
+    bool DetachSurface();
+    bool SendMouse(std::int32_t action, std::int32_t button, bool down, float x_ratio, float y_ratio, std::int32_t delta_x, std::int32_t delta_y);
+    bool SendKey(std::int32_t virtual_key_code, bool down);
     bool SendText(const std::string& text);
+    bool SendSecureAttention();
     bool SetAudioEnabled(bool enabled);
     void Stop();
 
   private:
+    bool QueueSurfaceUpdate(std::shared_ptr<ANativeWindow> surface);
+    void CompleteSurfaceUpdate();
+    void DispatchSurfaceUpdate(std::shared_ptr<px::ThunderSdk> sdk, std::shared_ptr<ANativeWindow> retiring_surface, std::uintptr_t surface_handle);
+
     NativeSessionConfig config_{};
     std::shared_ptr<JavaSessionCallback> callback_{};
-    std::unique_ptr<ANativeWindow, NativeWindowReleaser> surface_{};
+    std::shared_ptr<ANativeWindow> surface_{};
+    std::shared_ptr<ANativeWindow> pending_surface_{};
     std::shared_ptr<px::MessageNotifier> message_notifier_{};
     std::shared_ptr<px::MessageListener> session_listener_{};
     std::shared_ptr<px::ThunderSdk> sdk_{};
@@ -98,9 +105,12 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     std::unique_ptr<NativeAudioPlayer> audio_player_{};
     std::mutex command_mutex_{};
     std::mutex lifecycle_mutex_{};
-    std::vector<std::unique_ptr<ANativeWindow, NativeWindowReleaser>> retired_surfaces_{};
     bool initialized_{};
     bool started_{};
+    bool surface_update_in_progress_{};
+    bool has_pending_surface_update_{};
+    float virtual_cursor_x_{0.5F};
+    float virtual_cursor_y_{0.5F};
     std::atomic_bool stopped_{};
     std::string client_signal_device_id_{};
     std::string active_monitor_name_{};

@@ -37,6 +37,10 @@ namespace px
 
     }
 
+    bool VideoDecoder::UpdateRenderSurface(const std::uintptr_t) {
+        return false;
+    }
+
     bool VideoDecoder::NeedReConstruct(int codec_type, int width, int height, int img_format) {
         // for Windows.
         return codec_type != this->codec_type_ || width != this->frame_width_ || height != this->frame_height_ || img_format != this->img_format_;

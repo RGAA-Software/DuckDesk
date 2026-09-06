@@ -26,6 +26,15 @@ class RemoteSessionWorkflowTest {
     }
 
     @Test
+    fun desktopInputCommandsRejectInvalidCoordinatesAndEmptyWheelEvents() {
+        assertEquals(InputCommand.MoveAbsolute(0.25f, 0.75f), InputCommand.MoveAbsolute(0.25f, 0.75f))
+        assertThrows(IllegalArgumentException::class.java) { InputCommand.MoveAbsolute(-0.1f, 0.5f) }
+        assertThrows(IllegalArgumentException::class.java) { InputCommand.MoveRelative(Float.NaN, 0f) }
+        assertThrows(IllegalArgumentException::class.java) { InputCommand.MouseButton(RemoteMouseButton.Left, true, 0.5f, null) }
+        assertThrows(IllegalArgumentException::class.java) { InputCommand.Wheel(0, 0) }
+    }
+
+    @Test
     fun repeatedStartForSameSessionIsIdempotent() = runTest {
         val transport = FakeRemoteSessionTransport()
         val workflow = RemoteSessionWorkflow(transport, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))

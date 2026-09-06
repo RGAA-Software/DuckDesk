@@ -31,7 +31,9 @@ import yun.pixels.client.core.domain.session.RemoteSessionStatus
 import yun.pixels.client.core.nativebridge.NativeRemoteSessionTransport
 import yun.pixels.client.core.domain.session.RemoteSessionWorkflow
 import yun.pixels.client.core.domain.session.InputCommand
-import yun.pixels.client.core.domain.session.PointerAction
+import yun.pixels.client.core.domain.session.RemoteKey
+import yun.pixels.client.core.domain.session.RemoteMouseButton
+import yun.pixels.client.core.domain.session.RemoteSessionId
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -48,6 +50,8 @@ class RemoteSessionService : Service() {
     private var hasAudioFocus = false
     private var userWantsAudio = true
     private val mutableAudioEnabled = MutableStateFlow(false)
+    private val heldKeys = mutableSetOf<RemoteKey>()
+    private val heldMouseButtons = mutableSetOf<RemoteMouseButton>()
     private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         hasAudioFocus = focusChange == AudioManager.AUDIOFOCUS_GAIN
         if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
@@ -86,7 +90,10 @@ class RemoteSessionService : Service() {
     }
 
     override fun onDestroy() {
-        runBlocking { workflow.close() }
+        runBlocking {
+            currentRequest()?.let { releaseAllInputs(it.id) }
+            workflow.close()
+        }
         abandonAudioFocus()
         serviceScope.cancel()
         super.onDestroy()
@@ -110,22 +117,25 @@ class RemoteSessionService : Service() {
         }
     }
 
-    private fun detachSurface() {
+    private fun detachSurface(surface: Surface) {
         val request = currentRequest() ?: preparedRequest ?: return
-        serviceScope.launch { transport.detachSurface(request.id) }
+        serviceScope.launch {
+            releaseAllInputs(request.id)
+            transport.detachSurface(request.id, surface)
+        }
     }
 
-    private fun sendPointer(action: PointerAction, xRatio: Float, yRatio: Float) {
+    private fun sendInput(command: InputCommand) {
         val request = currentRequest() ?: return
         serviceScope.launch {
-            transport.sendInput(request.id, InputCommand.Pointer(action, xRatio.coerceIn(0f, 1f), yRatio.coerceIn(0f, 1f)))
+            if (transport.sendInput(request.id, command)) updateHeldInputs(command)
         }
     }
 
     private fun sendText(text: String) {
-        val request = currentRequest() ?: return
+        if (currentRequest() == null) return
         val command = runCatching { InputCommand.Text(text) }.getOrNull() ?: return
-        serviceScope.launch { transport.sendInput(request.id, command) }
+        sendInput(command)
     }
 
     private fun setAudioEnabled(enabled: Boolean) {
@@ -140,6 +150,7 @@ class RemoteSessionService : Service() {
     private fun stopSession() {
         preparedRequest = null
         serviceScope.launch {
+            releaseAllInputs(currentRequest()?.id)
             workflow.stop()
             abandonAudioFocus()
             mutableAudioEnabled.value = false
@@ -149,6 +160,22 @@ class RemoteSessionService : Service() {
             }
             stopSelf()
         }
+    }
+
+    private fun updateHeldInputs(command: InputCommand) {
+        when (command) {
+            is InputCommand.Key -> if (command.down) heldKeys += command.key else heldKeys -= command.key
+            is InputCommand.MouseButton -> if (command.down) heldMouseButtons += command.button else heldMouseButtons -= command.button
+            else -> Unit
+        }
+    }
+
+    private suspend fun releaseAllInputs(sessionId: RemoteSessionId?) {
+        if (sessionId == null) return
+        heldMouseButtons.toList().forEach { button -> transport.sendInput(sessionId, InputCommand.MouseButton(button, false)) }
+        heldKeys.toList().forEach { key -> transport.sendInput(sessionId, InputCommand.Key(key, false)) }
+        heldMouseButtons.clear()
+        heldKeys.clear()
     }
 
     private fun currentRequest(): RemoteSessionRequest? = when (val status = workflow.snapshot.value.status) {
@@ -230,10 +257,9 @@ class RemoteSessionService : Service() {
 
         fun attachSurface(surface: Surface) = this@RemoteSessionService.attachSurface(surface)
 
-        fun detachSurface() = this@RemoteSessionService.detachSurface()
+        fun detachSurface(surface: Surface) = this@RemoteSessionService.detachSurface(surface)
 
-        fun sendPointer(action: PointerAction, xRatio: Float, yRatio: Float) =
-            this@RemoteSessionService.sendPointer(action, xRatio, yRatio)
+        fun sendInput(command: InputCommand) = this@RemoteSessionService.sendInput(command)
 
         fun sendText(text: String) = this@RemoteSessionService.sendText(text)
 

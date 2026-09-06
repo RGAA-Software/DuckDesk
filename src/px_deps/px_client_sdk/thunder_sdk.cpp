@@ -141,19 +141,43 @@ namespace px
         return true;
     }
 
-    void ThunderSdk::UpdateRenderSurface(const std::uintptr_t surface_handle) {
+    void ThunderSdk::UpdateRenderSurface(const std::uintptr_t surface_handle, OnRenderSurfaceUpdated&& completion) {
         render_surface_handle_.store(surface_handle);
+        render_surface_update_pending_.store(true, std::memory_order_release);
+        const auto thread = video_thread_;
+        if (!thread || exit_) {
+            render_surface_update_pending_.store(false, std::memory_order_release);
+            if (completion) completion();
+            return;
+        }
+        thread->Clear();
+        need_clear_video_tasks_.store(false, std::memory_order_release);
         const auto weak_self = weak_from_this();
-        PostVideoTask([weak_self]() {
+        thread->Post(SimpleThreadTask::Make([weak_self, surface_handle, completion = std::move(completion)]() mutable {
             const auto self = weak_self.lock();
-            if (!self || self->exit_) return;
-            for (const auto& [monitor_name, decoder] : self->video_decoders_) {
-                static_cast<void>(monitor_name);
-                decoder->Release();
+            if (self) {
+                if (!self->exit_) {
+                    bool surface_updated = surface_handle != 0U && !self->video_decoders_.empty();
+                    for (const auto& [monitor_name, decoder] : self->video_decoders_) {
+                        static_cast<void>(monitor_name);
+                        if (!decoder->UpdateRenderSurface(surface_handle)) {
+                            surface_updated = false;
+                            break;
+                        }
+                    }
+                    if (!surface_updated) {
+                        for (const auto& [monitor_name, decoder] : self->video_decoders_) {
+                            static_cast<void>(monitor_name);
+                            decoder->Release();
+                        }
+                        self->video_decoders_.clear();
+                    }
+                }
+                self->render_surface_update_pending_.store(false, std::memory_order_release);
+                if (!self->exit_ && surface_handle != 0U) self->RequestIFrame();
             }
-            self->video_decoders_.clear();
-            self->RequestIFrame();
-        }, 0, "surface-rebind");
+            if (completion) completion();
+        }));
     }
 
     void ThunderSdk::Start() {
@@ -697,16 +721,15 @@ namespace px
     }
 
     void ThunderSdk::PostVideoTask(std::function<void()>&& task, int64_t frame_index, const std::string& monitor_name) {
-        if (!video_thread_ || exit_) return;
+        if (!video_thread_ || exit_ || render_surface_update_pending_.load(std::memory_order_acquire)) return;
         auto video_task = VideoDecodeThreadTask::Make(std::move(task));
         video_task->frame_index_ = frame_index;
         video_task->monitor_name_ = monitor_name;
-        video_thread_->Post(video_task);
-        if (need_clear_video_tasks_) {
-            need_clear_video_tasks_ = false;
+        if (need_clear_video_tasks_.exchange(false, std::memory_order_acq_rel)) {
             RequestIFrame();
             video_thread_->Clear();
         }
+        video_thread_->Post(video_task);
     }
 
     void ThunderSdk::PostAudioTask(std::function<void()>&& task) {

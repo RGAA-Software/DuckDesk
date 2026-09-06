@@ -26,6 +26,7 @@ namespace px
         int Init(const std::string& mon_name, int codec_type, int width, int height, const std::string& frame, void* surface, int img_format, bool ignore_hw) override;
         Result<std::shared_ptr<RawImage>, int> Decode(const uint8_t* data, int size) override;
         void Release() override;
+        bool UpdateRenderSurface(std::uintptr_t surface_handle) override;
         bool Ready() override;
         bool NeedReConstruct(int codec_type, int width, int height, int img_format) override;
 

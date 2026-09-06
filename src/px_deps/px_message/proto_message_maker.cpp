@@ -46,6 +46,40 @@ namespace px
         return buffer;
     }
 
+    std::shared_ptr<Data> ProtoMessageMaker::MakeMouseEvent(const int32_t button, const std::string& mon_name, const float x_ratio,
+                                                           const float y_ratio, const int32_t wheel_delta, const bool pressed,
+                                                           const bool released, const std::string& device_id, const std::string& stream_id) {
+        px::Message message;
+        message.set_type(px::MessageType::kMouseEvent);
+        message.set_device_id(device_id);
+        message.set_stream_id(stream_id);
+        auto& mouse_event = *message.mutable_mouse_event();
+        mouse_event.set_monitor_name(mon_name);
+        mouse_event.set_x_ratio(x_ratio);
+        mouse_event.set_y_ratio(y_ratio);
+        mouse_event.set_button(button);
+        mouse_event.set_data(wheel_delta);
+        mouse_event.set_pressed(pressed);
+        mouse_event.set_released(released);
+        mouse_event.set_timestamp(TimeUtil::GetCurrentTimestamp());
+        return ProtoAsData(&message);
+    }
+
+    std::shared_ptr<Data> ProtoMessageMaker::MakeKeyEvent(const uint32_t virtual_key_code, const bool down, const std::string& device_id,
+                                                         const std::string& stream_id) {
+        if (virtual_key_code == 0 || virtual_key_code > 0xFF) return {};
+        px::Message message;
+        message.set_type(px::MessageType::kKeyEvent);
+        message.set_device_id(device_id);
+        message.set_stream_id(stream_id);
+        auto& key_event = *message.mutable_key_event();
+        key_event.set_key_code(virtual_key_code);
+        key_event.set_down(down);
+        key_event.set_status_check(px::KeyEvent::kDontCareLockKey);
+        key_event.set_timestamp(TimeUtil::GetCurrentTimestamp());
+        return ProtoAsData(&message);
+    }
+
     std::shared_ptr<Data> ProtoMessageMaker::MakeTextInput(const std::string& text, const std::string& device_id, const std::string& stream_id) {
         if (text.empty() || text.size() > 4096) return {};
         px::Message message;

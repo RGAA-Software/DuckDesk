@@ -12,7 +12,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import yun.pixels.client.core.domain.session.InstallationIdentity
 import yun.pixels.client.core.domain.session.InputCommand
-import yun.pixels.client.core.domain.session.PointerAction
+import yun.pixels.client.core.domain.session.RemoteMouseButton
 import yun.pixels.client.core.domain.session.RemoteSessionCapabilities
 import yun.pixels.client.core.domain.session.RemoteSessionFailure
 import yun.pixels.client.core.domain.session.RemoteSessionId
@@ -38,6 +38,7 @@ class NativeRemoteSessionTransport internal constructor(
     )
 
     private val lock = Mutex()
+    private val surfaceLock = Mutex()
     private val mutableEvents = MutableSharedFlow<RemoteTransportEvent>(extraBufferCapacity = 32)
     private val surfaces = mutableMapOf<RemoteSessionId, Surface>()
     private val nativeSessionIds = mutableMapOf<RemoteSessionId, Long>()
@@ -45,15 +46,24 @@ class NativeRemoteSessionTransport internal constructor(
     override val events: Flow<RemoteTransportEvent> = mutableEvents.asSharedFlow()
 
     suspend fun attachSurface(sessionId: RemoteSessionId, surface: Surface) {
-        val nativeSessionId = lock.withLock {
-            surfaces[sessionId] = surface
-            nativeSessionIds[sessionId]
+        surfaceLock.withLock {
+            val nativeSessionId = lock.withLock {
+                surfaces[sessionId] = surface
+                nativeSessionIds[sessionId]
+            }
+            if (nativeSessionId != null) withContext(Dispatchers.IO) { PixelsNativeBridge.replaceSurface(nativeSessionId, surface) }
         }
-        if (nativeSessionId != null) withContext(Dispatchers.IO) { PixelsNativeBridge.replaceSurface(nativeSessionId, surface) }
     }
 
-    suspend fun detachSurface(sessionId: RemoteSessionId) {
-        lock.withLock { surfaces.remove(sessionId) }
+    suspend fun detachSurface(sessionId: RemoteSessionId, surface: Surface) {
+        surfaceLock.withLock {
+            val nativeSessionId = lock.withLock {
+                if (surfaces[sessionId] !== surface) return
+                surfaces.remove(sessionId)
+                nativeSessionIds[sessionId]
+            }
+            if (nativeSessionId != null) withContext(Dispatchers.IO) { PixelsNativeBridge.detachSurface(nativeSessionId) }
+        }
     }
 
     override suspend fun start(request: RemoteSessionRequest): RemoteTransportStartResult {
@@ -100,13 +110,50 @@ class NativeRemoteSessionTransport internal constructor(
     override suspend fun sendInput(sessionId: RemoteSessionId, command: InputCommand): Boolean {
         val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
         return when (command) {
-            is InputCommand.Pointer -> withContext(Dispatchers.IO) {
-                PixelsNativeBridge.sendPointer(nativeSessionId, command.action.nativeValue, command.xRatio, command.yRatio)
+            is InputCommand.MoveAbsolute -> sendMouse(nativeSessionId, MOUSE_MOVE_ABSOLUTE, xRatio = command.xRatio, yRatio = command.yRatio)
+            is InputCommand.MoveRelative -> sendMouse(
+                nativeSessionId,
+                MOUSE_MOVE_RELATIVE,
+                xRatio = command.deltaXRatio,
+                yRatio = command.deltaYRatio,
+            )
+            is InputCommand.MouseButton -> sendMouse(
+                nativeSessionId,
+                MOUSE_BUTTON,
+                button = command.button.nativeValue,
+                down = command.down,
+                xRatio = command.xRatio ?: Float.NaN,
+                yRatio = command.yRatio ?: Float.NaN,
+            )
+            is InputCommand.Wheel -> sendMouse(
+                nativeSessionId,
+                MOUSE_WHEEL,
+                deltaX = command.deltaX,
+                deltaY = command.deltaY,
+            )
+            is InputCommand.Key -> withContext(Dispatchers.IO) {
+                PixelsNativeBridge.sendKey(nativeSessionId, command.key.virtualKeyCode, command.down)
             }
             is InputCommand.Text -> withContext(Dispatchers.IO) {
                 PixelsNativeBridge.sendText(nativeSessionId, command.value.encodeToByteArray())
             }
+            InputCommand.SecureAttention -> withContext(Dispatchers.IO) {
+                PixelsNativeBridge.sendSecureAttention(nativeSessionId)
+            }
         }
+    }
+
+    private suspend fun sendMouse(
+        nativeSessionId: Long,
+        action: Int,
+        button: Int = 0,
+        down: Boolean = false,
+        xRatio: Float = 0f,
+        yRatio: Float = 0f,
+        deltaX: Int = 0,
+        deltaY: Int = 0,
+    ): Boolean = withContext(Dispatchers.IO) {
+        PixelsNativeBridge.sendMouse(nativeSessionId, action, button, down, xRatio, yRatio, deltaX, deltaY)
     }
 
     suspend fun setAudioEnabled(sessionId: RemoteSessionId, enabled: Boolean): Boolean {
@@ -273,9 +320,14 @@ private fun Int.toFailure(): RemoteSessionFailure = when (this) {
     else -> RemoteSessionFailure.RemoteEnded
 }
 
-private val PointerAction.nativeValue: Int
+private val RemoteMouseButton.nativeValue: Int
     get() = when (this) {
-        PointerAction.Down -> 0
-        PointerAction.Up -> 1
-        PointerAction.Move -> 2
+        RemoteMouseButton.Left -> 0
+        RemoteMouseButton.Middle -> 1
+        RemoteMouseButton.Right -> 2
     }
+
+private const val MOUSE_MOVE_ABSOLUTE = 0
+private const val MOUSE_MOVE_RELATIVE = 1
+private const val MOUSE_BUTTON = 2
+private const val MOUSE_WHEEL = 3

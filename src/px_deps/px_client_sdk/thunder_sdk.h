@@ -10,6 +10,7 @@
 #include <mutex>
 #include <atomic>
 #include <cstdint>
+#include <functional>
 
 #include "px_message.pb.h"
 #include "sdk_params.h"
@@ -40,6 +41,7 @@ namespace px
     using OnVideoFrameDecodedCallback = std::function<void(std::shared_ptr<RawImage>, const SdkCaptureMonitorInfo&)>;
     using OnAudioFrameDecodedCallback = std::function<void(std::shared_ptr<Data>, int samples, int channels, int bits)>;
     using OnVideoFrameDecodeThreadDiscardedCallback = std::function<void()>;
+    using OnRenderSurfaceUpdated = std::function<void()>;
 
     class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     public:
@@ -50,7 +52,7 @@ namespace px
         ~ThunderSdk();
 
         bool Init(const std::shared_ptr<ThunderSdkParams>& params, void* surface, const DecoderRenderType& drt);
-        void UpdateRenderSurface(std::uintptr_t surface_handle);
+        void UpdateRenderSurface(std::uintptr_t surface_handle, OnRenderSurfaceUpdated&& completion = {});
         void Start();
         void Exit();
 
@@ -112,6 +114,7 @@ namespace px
         // Borrowed native surface/handle accepted at the public ABI boundary.
         // Keep the opaque value rather than retaining a raw pointer in object state.
         std::atomic_uintptr_t render_surface_handle_{0};
+        std::atomic_bool render_surface_update_pending_{false};
 
         // callbacks
         OnVideoFrameDecodedCallback video_frame_cbk_ = nullptr;
@@ -141,7 +144,7 @@ namespace px
         std::atomic_bool has_video_frame_msg_ = false;
         std::atomic_int64_t rtc_video_frame_index_{0};
 
-        bool need_clear_video_tasks_ = false;
+        std::atomic_bool need_clear_video_tasks_{false};
 
         std::map<std::string, int64_t> last_frame_indices_;
 

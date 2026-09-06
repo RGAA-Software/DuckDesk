@@ -128,10 +128,22 @@ jboolean NativeReplaceSurface(JNIEnv* environment, jobject, const jlong native_s
     return session->RebindSurface(std::move(native_window)) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean NativeSendPointer(JNIEnv*, jobject, const jlong native_session_id, const jint action, // NOLINT(gammaray-raw-pointer-boundary)
-                           const jfloat x_ratio, const jfloat y_ratio) {
+jboolean NativeDetachSurface(JNIEnv*, jobject, const jlong native_session_id) { // NOLINT(gammaray-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
-    return session && session->SendPointer(action, x_ratio, y_ratio) ? JNI_TRUE : JNI_FALSE;
+    return session && session->DetachSurface() ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean NativeSendMouse(JNIEnv*, jobject, const jlong native_session_id, const jint action, const jint button, const jboolean down,
+                         const jfloat x_ratio, const jfloat y_ratio, const jint delta_x,
+                         const jint delta_y) { // NOLINT(gammaray-raw-pointer-boundary)
+    const auto session = Registry().Find(native_session_id);
+    return session && session->SendMouse(action, button, down == JNI_TRUE, x_ratio, y_ratio, delta_x, delta_y) ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean NativeSendKey(JNIEnv*, jobject, const jlong native_session_id, const jint virtual_key_code,
+                       const jboolean down) { // NOLINT(gammaray-raw-pointer-boundary)
+    const auto session = Registry().Find(native_session_id);
+    return session && session->SendKey(virtual_key_code, down == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
 }
 
 jboolean NativeSendText(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(gammaray-raw-pointer-boundary)
@@ -153,6 +165,11 @@ jboolean NativeSendText(JNIEnv* environment, jobject, const jlong native_session
 jboolean NativeSetAudioEnabled(JNIEnv*, jobject, const jlong native_session_id, const jboolean enabled) { // NOLINT(gammaray-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->SetAudioEnabled(enabled == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean NativeSendSecureAttention(JNIEnv*, jobject, const jlong native_session_id) { // NOLINT(gammaray-raw-pointer-boundary)
+    const auto session = Registry().Find(native_session_id);
+    return session && session->SendSecureAttention() ? JNI_TRUE : JNI_FALSE;
 }
 
 void NativeStop(JNIEnv*, jobject, const jlong native_session_id) { // NOLINT(gammaray-raw-pointer-boundary)
@@ -186,8 +203,11 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) { // NOLINT(gamm
         {const_cast<char*>("start"), const_cast<char*>("(J)Z"), reinterpret_cast<void*>(pixels::android::NativeStart)},
         {const_cast<char*>("replaceSurface"), const_cast<char*>("(JLandroid/view/Surface;)Z"),
          reinterpret_cast<void*>(pixels::android::NativeReplaceSurface)},
-        {const_cast<char*>("sendPointer"), const_cast<char*>("(JIFF)Z"), reinterpret_cast<void*>(pixels::android::NativeSendPointer)},
+        {const_cast<char*>("detachSurface"), const_cast<char*>("(J)Z"), reinterpret_cast<void*>(pixels::android::NativeDetachSurface)},
+        {const_cast<char*>("sendMouse"), const_cast<char*>("(JIIZFFII)Z"), reinterpret_cast<void*>(pixels::android::NativeSendMouse)},
+        {const_cast<char*>("sendKey"), const_cast<char*>("(JIZ)Z"), reinterpret_cast<void*>(pixels::android::NativeSendKey)},
         {const_cast<char*>("sendText"), const_cast<char*>("(J[B)Z"), reinterpret_cast<void*>(pixels::android::NativeSendText)},
+        {const_cast<char*>("sendSecureAttention"), const_cast<char*>("(J)Z"), reinterpret_cast<void*>(pixels::android::NativeSendSecureAttention)},
         {const_cast<char*>("setAudioEnabled"), const_cast<char*>("(JZ)Z"), reinterpret_cast<void*>(pixels::android::NativeSetAudioEnabled)},
         {const_cast<char*>("stop"), const_cast<char*>("(J)V"), reinterpret_cast<void*>(pixels::android::NativeStop)},
     };

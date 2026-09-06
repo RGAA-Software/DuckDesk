@@ -258,6 +258,19 @@ namespace px
         inited_ = false;
     }
 
+    bool MediacodecVideoDecoder::UpdateRenderSurface(const std::uintptr_t surface_handle) {
+        std::lock_guard<std::mutex> guard(decode_mtx_);
+        if (!media_codec_ || surface_handle == 0U) return false;
+        const auto status = AMediaCodec_setOutputSurface(media_codec_.get(),
+            reinterpret_cast<ANativeWindow*>(surface_handle)); // NOLINT(gammaray-raw-pointer-boundary)
+        if (status != AMEDIA_OK) {
+            LOGE("MediaCodec output surface update failed: {}", static_cast<int>(status));
+            return false;
+        }
+        LOGI("MediaCodec output surface updated");
+        return true;
+    }
+
     bool MediacodecVideoDecoder::Ready() {
         return inited_;
     }

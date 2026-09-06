@@ -5,6 +5,8 @@
 #include <android/native_window_jni.h>
 
 #include <chrono>
+#include <algorithm>
+#include <cmath>
 #include <format>
 #include <functional>
 #include <utility>
@@ -22,6 +24,24 @@
 
 namespace pixels::android {
 namespace {
+
+constexpr std::int32_t kMouseMoveAbsolute = 0;
+constexpr std::int32_t kMouseMoveRelative = 1;
+constexpr std::int32_t kMouseButton = 2;
+constexpr std::int32_t kMouseWheel = 3;
+
+std::int32_t MouseButtonFlag(const std::int32_t button, const bool down) {
+    switch (button) {
+    case 0:
+        return down ? px::ButtonFlag::kLeftMouseButtonDown : px::ButtonFlag::kLeftMouseButtonUp;
+    case 1:
+        return down ? px::ButtonFlag::kMiddleMouseButtonDown : px::ButtonFlag::kMiddleMouseButtonUp;
+    case 2:
+        return down ? px::ButtonFlag::kRightMouseButtonDown : px::ButtonFlag::kRightMouseButtonUp;
+    default:
+        return px::ButtonFlag::kNone;
+    }
+}
 
 void WithEnvironment(const std::uintptr_t vm_handle, const std::function<void(JNIEnv&)>& action) {
     auto* vm = reinterpret_cast<JavaVM*>(vm_handle); // NOLINT(gammaray-raw-pointer-boundary)
@@ -332,39 +352,151 @@ bool NativeSession::Start() {
 
 bool NativeSession::RebindSurface(std::unique_ptr<ANativeWindow, NativeWindowReleaser> surface) {
     std::lock_guard command_lock(command_mutex_);
+    if (!surface)
+        return false;
+    return QueueSurfaceUpdate(std::shared_ptr<ANativeWindow>{std::move(surface)});
+}
+
+bool NativeSession::DetachSurface() {
+    std::lock_guard command_lock(command_mutex_);
+    std::lock_guard state_lock(lifecycle_mutex_);
+    return !stopped_.load() && sdk_ != nullptr;
+}
+
+bool NativeSession::QueueSurfaceUpdate(std::shared_ptr<ANativeWindow> surface) {
     std::shared_ptr<px::ThunderSdk> sdk;
+    std::shared_ptr<ANativeWindow> retiring_surface;
     std::uintptr_t surface_handle{};
     {
         std::lock_guard state_lock(lifecycle_mutex_);
-        if (!surface || stopped_.load() || !sdk_) {
+        if (stopped_.load() || !sdk_) {
             return false;
         }
-        retired_surfaces_.push_back(std::move(surface_));
-        surface_ = std::move(surface);
+        if (surface_update_in_progress_) {
+            pending_surface_ = std::move(surface);
+            has_pending_surface_update_ = true;
+            return true;
+        }
+        retiring_surface = std::exchange(surface_, std::shared_ptr<ANativeWindow>{std::move(surface)});
         sdk = sdk_;
-        surface_handle = reinterpret_cast<std::uintptr_t>(surface_.get()); // NOLINT(gammaray-raw-pointer-boundary)
+        surface_handle = surface_ ? reinterpret_cast<std::uintptr_t>(surface_.get()) : 0U; // NOLINT(gammaray-raw-pointer-boundary)
+        surface_update_in_progress_ = true;
     }
-    sdk->UpdateRenderSurface(surface_handle);
+    DispatchSurfaceUpdate(std::move(sdk), std::move(retiring_surface), surface_handle);
     return true;
 }
 
-bool NativeSession::SendPointer(const std::int32_t action, const float x_ratio, const float y_ratio) {
+void NativeSession::CompleteSurfaceUpdate() {
+    std::shared_ptr<px::ThunderSdk> sdk;
+    std::shared_ptr<ANativeWindow> retiring_surface;
+    std::uintptr_t surface_handle{};
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        surface_update_in_progress_ = false;
+        if (stopped_.load() || !sdk_ || !has_pending_surface_update_) {
+            return;
+        }
+        has_pending_surface_update_ = false;
+        sdk = sdk_;
+        retiring_surface = std::exchange(surface_, std::move(pending_surface_));
+        surface_handle = surface_ ? reinterpret_cast<std::uintptr_t>(surface_.get()) : 0U; // NOLINT(gammaray-raw-pointer-boundary)
+        surface_update_in_progress_ = true;
+    }
+    DispatchSurfaceUpdate(std::move(sdk), std::move(retiring_surface), surface_handle);
+}
+
+void NativeSession::DispatchSurfaceUpdate(std::shared_ptr<px::ThunderSdk> sdk, std::shared_ptr<ANativeWindow> retiring_surface,
+                                          const std::uintptr_t surface_handle) {
+    const auto weak_self = weak_from_this();
+    sdk->UpdateRenderSurface(surface_handle, [weak_self, retiring_surface = std::move(retiring_surface)]() {
+        static_cast<void>(retiring_surface);
+        if (const auto self = weak_self.lock())
+            self->CompleteSurfaceUpdate();
+    });
+}
+
+bool NativeSession::SendMouse(const std::int32_t action, const std::int32_t button, const bool down, const float x_ratio, const float y_ratio,
+                              const std::int32_t delta_x, const std::int32_t delta_y) {
     std::lock_guard command_lock(command_mutex_);
     std::shared_ptr<px::ThunderSdk> sdk;
     std::string monitor_name;
+    float cursor_x{};
+    float cursor_y{};
     {
         std::lock_guard lock(lifecycle_mutex_);
-        if (stopped_.load() || !started_ || !config_.enable_input || !sdk_ || action < 0 || action > 2 || x_ratio < 0.0F || x_ratio > 1.0F ||
-            y_ratio < 0.0F || y_ratio > 1.0F) {
+        if (stopped_.load() || !started_ || !config_.enable_input || !sdk_ || action < kMouseMoveAbsolute || action > kMouseWheel) {
             return false;
         }
+        if (action == kMouseMoveAbsolute) {
+            if (!std::isfinite(x_ratio) || !std::isfinite(y_ratio) || x_ratio < 0.0F || x_ratio > 1.0F || y_ratio < 0.0F || y_ratio > 1.0F) {
+                return false;
+            }
+            virtual_cursor_x_ = x_ratio;
+            virtual_cursor_y_ = y_ratio;
+        } else if (action == kMouseMoveRelative) {
+            if (!std::isfinite(x_ratio) || !std::isfinite(y_ratio)) {
+                return false;
+            }
+            virtual_cursor_x_ = std::clamp(virtual_cursor_x_ + x_ratio, 0.0F, 1.0F);
+            virtual_cursor_y_ = std::clamp(virtual_cursor_y_ + y_ratio, 0.0F, 1.0F);
+        } else if (action == kMouseButton && std::isfinite(x_ratio) && std::isfinite(y_ratio)) {
+            if (x_ratio < 0.0F || x_ratio > 1.0F || y_ratio < 0.0F || y_ratio > 1.0F) {
+                return false;
+            }
+            virtual_cursor_x_ = x_ratio;
+            virtual_cursor_y_ = y_ratio;
+        }
+        cursor_x = virtual_cursor_x_;
+        cursor_y = virtual_cursor_y_;
         sdk = sdk_;
         monitor_name = active_monitor_name_;
     }
     if (monitor_name.empty())
         return false;
+
+    if (action == kMouseMoveAbsolute || action == kMouseMoveRelative) {
+        const auto message = px::ProtoMessageMaker::MakeMouseEvent(px::ButtonFlag::kMouseMove, monitor_name, cursor_x, cursor_y, 0, false, false,
+                                                                   client_signal_device_id_, config_.stream_id);
+        if (!message)
+            return false;
+        sdk->PostMediaMessage(message);
+        return true;
+    }
+    if (action == kMouseButton) {
+        const auto flag = MouseButtonFlag(button, down);
+        if (flag == px::ButtonFlag::kNone)
+            return false;
+        const auto message = px::ProtoMessageMaker::MakeMouseEvent(flag, monitor_name, cursor_x, cursor_y, 0, down, !down, client_signal_device_id_,
+                                                                   config_.stream_id);
+        if (!message)
+            return false;
+        sdk->PostMediaMessage(message);
+        return true;
+    }
+    if (delta_y != 0) {
+        sdk->PostMediaMessage(px::ProtoMessageMaker::MakeMouseEvent(px::ButtonFlag::kMouseEventWheel, monitor_name, cursor_x, cursor_y, delta_y,
+                                                                    false, false, client_signal_device_id_, config_.stream_id));
+    }
+    if (delta_x != 0) {
+        sdk->PostMediaMessage(px::ProtoMessageMaker::MakeMouseEvent(px::ButtonFlag::kMouseEventHWheel, monitor_name, cursor_x, cursor_y, delta_x,
+                                                                    false, false, client_signal_device_id_, config_.stream_id));
+    }
+    if (delta_x == 0 && delta_y == 0)
+        return false;
+    return true;
+}
+
+bool NativeSession::SendKey(const std::int32_t virtual_key_code, const bool down) {
+    std::lock_guard command_lock(command_mutex_);
+    std::shared_ptr<px::ThunderSdk> sdk;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (stopped_.load() || !started_ || !config_.enable_input || !sdk_ || virtual_key_code <= 0 || virtual_key_code > 0xFF)
+            return false;
+        sdk = sdk_;
+    }
     const auto message =
-        px::ProtoMessageMaker::MakeMouseEventFromTouch(action, monitor_name, x_ratio, y_ratio, client_signal_device_id_, config_.stream_id);
+        px::ProtoMessageMaker::MakeKeyEvent(static_cast<std::uint32_t>(virtual_key_code), down, client_signal_device_id_, config_.stream_id);
     if (!message)
         return false;
     sdk->PostMediaMessage(message);
@@ -387,6 +519,22 @@ bool NativeSession::SendText(const std::string& text) {
     return true;
 }
 
+bool NativeSession::SendSecureAttention() {
+    std::lock_guard command_lock(command_mutex_);
+    std::shared_ptr<px::ThunderSdk> sdk;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (stopped_.load() || !started_ || !config_.enable_input || !sdk_)
+            return false;
+        sdk = sdk_;
+    }
+    const auto message = px::ProtoMessageMaker::MakeCtrlAltDelete(client_signal_device_id_, config_.stream_id);
+    if (!message)
+        return false;
+    sdk->PostMediaMessage(message);
+    return true;
+}
+
 bool NativeSession::SetAudioEnabled(const bool enabled) {
     std::lock_guard command_lock(command_mutex_);
     if (stopped_.load() || !audio_player_)
@@ -401,15 +549,15 @@ void NativeSession::Stop() {
         return;
     }
     std::shared_ptr<px::ThunderSdk> sdk;
-    std::unique_ptr<ANativeWindow, NativeWindowReleaser> surface;
-    std::vector<std::unique_ptr<ANativeWindow, NativeWindowReleaser>> retired_surfaces;
+    std::shared_ptr<ANativeWindow> surface;
     {
         std::lock_guard lock(lifecycle_mutex_);
         sdk = std::move(sdk_);
         session_listener_.reset();
         message_notifier_.reset();
         surface = std::move(surface_);
-        retired_surfaces = std::move(retired_surfaces_);
+        pending_surface_.reset();
+        has_pending_surface_update_ = false;
     }
     if (sdk)
         sdk->Exit();

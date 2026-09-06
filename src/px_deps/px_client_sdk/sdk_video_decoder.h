@@ -8,6 +8,7 @@
 #include <memory>
 #include <functional>
 #include <mutex>
+#include <cstdint>
 #include "px_common/expected.h"
 #include "sdk_messages.h"
 
@@ -28,6 +29,7 @@ namespace px
         virtual Result<std::shared_ptr<RawImage>, int> Decode(const std::string& frame);
         virtual Result<std::shared_ptr<RawImage>, int> Decode(const uint8_t* data, int size) = 0;
         virtual void Release();
+        virtual bool UpdateRenderSurface(std::uintptr_t surface_handle);
         virtual bool NeedReConstruct(int codec_type, int width, int height, int img_format);
         virtual bool Ready() = 0;
         void SendInitMsg(SdkMsgVideoDecodeInit msg);

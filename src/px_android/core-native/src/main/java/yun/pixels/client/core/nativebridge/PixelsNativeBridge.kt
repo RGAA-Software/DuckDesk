@@ -30,9 +30,24 @@ internal object PixelsNativeBridge {
 
     external fun replaceSurface(nativeSessionId: Long, surface: Surface): Boolean
 
-    external fun sendPointer(nativeSessionId: Long, action: Int, xRatio: Float, yRatio: Float): Boolean
+    external fun detachSurface(nativeSessionId: Long): Boolean
+
+    external fun sendMouse(
+        nativeSessionId: Long,
+        action: Int,
+        button: Int,
+        down: Boolean,
+        xRatio: Float,
+        yRatio: Float,
+        deltaX: Int,
+        deltaY: Int,
+    ): Boolean
+
+    external fun sendKey(nativeSessionId: Long, virtualKeyCode: Int, down: Boolean): Boolean
 
     external fun sendText(nativeSessionId: Long, utf8Text: ByteArray): Boolean
+
+    external fun sendSecureAttention(nativeSessionId: Long): Boolean
 
     external fun setAudioEnabled(nativeSessionId: Long, enabled: Boolean): Boolean
 
