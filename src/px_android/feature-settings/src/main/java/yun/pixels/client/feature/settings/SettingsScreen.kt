@@ -86,13 +86,17 @@ fun SettingsScreen(
     }
     informationDialog?.let { dialog ->
         val title = if (dialog == InformationDialog.Privacy) R.string.privacy_title else R.string.open_source_title
-        val body = if (dialog == InformationDialog.Privacy) R.string.privacy_body else R.string.open_source_body
+        val body = if (dialog == InformationDialog.Privacy) {
+            stringResource(R.string.privacy_body)
+        } else {
+            rememberOpenSourceNotices()
+        }
         AlertDialog(
             onDismissRequest = { informationDialog = null },
             title = { Text(stringResource(title)) },
             text = {
                 Text(
-                    stringResource(body),
+                    body,
                     modifier = Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
                 )
             },

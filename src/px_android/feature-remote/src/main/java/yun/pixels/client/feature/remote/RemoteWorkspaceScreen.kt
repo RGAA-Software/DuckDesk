@@ -172,6 +172,7 @@ fun RemoteWorkspaceScreen(
     BackHandler {
         when (
             resolveRemoteBackAction(
+                confirmEndSession = confirmEndSession,
                 confirmSecureAttention = confirmSecureAttention,
                 showKeyboard = showKeyboard,
                 showGamepadSettings = showGamepadSettings,
@@ -180,6 +181,7 @@ fun RemoteWorkspaceScreen(
                 inputMode = inputMode,
             )
         ) {
+            RemoteBackAction.DismissEndSession -> confirmEndSession = false
             RemoteBackAction.DismissSecureAttention -> confirmSecureAttention = false
             RemoteBackAction.DismissKeyboard -> showKeyboard = false
             RemoteBackAction.DismissGamepadSettings -> showGamepadSettings = false
@@ -422,6 +424,7 @@ private val RemoteSessionStatus.requiresExitConfirmation: Boolean
         this is RemoteSessionStatus.Reconnecting
 
 internal enum class RemoteBackAction {
+    DismissEndSession,
     DismissSecureAttention,
     DismissKeyboard,
     DismissGamepadSettings,
@@ -432,6 +435,7 @@ internal enum class RemoteBackAction {
 }
 
 internal fun resolveRemoteBackAction(
+    confirmEndSession: Boolean,
     confirmSecureAttention: Boolean,
     showKeyboard: Boolean,
     showGamepadSettings: Boolean,
@@ -439,6 +443,7 @@ internal fun resolveRemoteBackAction(
     controlsExpanded: Boolean,
     inputMode: RemoteInputMode,
 ): RemoteBackAction = when {
+    confirmEndSession -> RemoteBackAction.DismissEndSession
     confirmSecureAttention -> RemoteBackAction.DismissSecureAttention
     showKeyboard -> RemoteBackAction.DismissKeyboard
     showGamepadSettings -> RemoteBackAction.DismissGamepadSettings

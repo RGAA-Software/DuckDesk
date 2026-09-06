@@ -24,6 +24,10 @@ def releaseSigningReady = [releaseStorePath, releaseStorePassword, releaseKeyAli
 def pixelsVersionCode = (System.getenv('PIXELS_VERSION_CODE') ?: '1').toInteger()
 def pixelsVersionName = System.getenv('PIXELS_VERSION_NAME') ?: '1.0.0'
 def pixelsGitRevision = System.getenv('PIXELS_GIT_REVISION') ?: 'unknown'
+def ffmpegSourceArchive = System.getenv('PIXELS_FFMPEG_SOURCE_ARCHIVE')?.trim()
+def lgplRelinkArchive = System.getenv('PIXELS_LGPL_RELINK_ARCHIVE')?.trim()
+def releaseComplianceReady = ffmpegSourceArchive && lgplRelinkArchive &&
+    file(ffmpegSourceArchive).isFile() && file(lgplRelinkArchive).isFile()
 
 if (pixelsVersionCode <= 0 || !(pixelsVersionName ==~ /[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?/)) {
     throw new GradleException('PIXELS_VERSION_CODE must be positive and PIXELS_VERSION_NAME must use semantic version syntax.')
@@ -114,6 +118,12 @@ if (signedReleaseTaskRequested && !releaseSigningReady) {
     throw new GradleException(
         'A release package requires PIXELS_KEYSTORE_FILE, PIXELS_KEYSTORE_PASSWORD, PIXELS_KEY_ALIAS and PIXELS_KEY_PASSWORD ' +
             'or the equivalent values in the ignored keystore.properties file.',
+    )
+}
+if (signedReleaseTaskRequested && !releaseComplianceReady) {
+    throw new GradleException(
+        'A release package requires PIXELS_FFMPEG_SOURCE_ARCHIVE and PIXELS_LGPL_RELINK_ARCHIVE to point to the ' +
+            'corresponding FFmpeg source and relinkable application object ZIP archives.',
     )
 }
 

@@ -52,10 +52,14 @@ $env:PIXELS_KEY_ALIAS = 'pixels'
 $env:PIXELS_KEY_PASSWORD = '<secret>'
 $env:PIXELS_VERSION_CODE = '1'
 $env:PIXELS_VERSION_NAME = '1.0.0'
+$env:PIXELS_FFMPEG_SOURCE_ARCHIVE = 'C:\release-inputs\ffmpeg-6.1-source.zip'
+$env:PIXELS_LGPL_RELINK_ARCHIVE = 'C:\release-inputs\pixels-1.0.0-relink-objects.zip'
 .\build_official_release.bat
 ```
 
 也可以复制 `keystore.properties.example` 为被 Git 忽略的 `keystore.properties`。脚本执行 release lint、单元测试、R8/resource shrink、
 arm64 native 构建以及 APK/AAB 签名校验，并把 APK、AAB、R8 mapping、native symbols 和带 SHA-256 的发布清单归档到
-`app/apk/release/<version>/`。缺少签名配置时 release 打包会立即失败；debug 构建不受影响。版本可由
+`app/apk/release/<version>/`。Android native 当前静态链接 LGPL FFmpeg，因此正式构建还必须提供与构建版本完全一致的 FFmpeg 源码 ZIP 和包含
+应用可重链接目标文件的 ZIP；流水线校验二者内容后将其与完整第三方许可材料一起归档并写入清单。缺少签名或 LGPL 合规输入时 release 打包会立即失败；
+debug 构建不受影响。版本可由
 `PIXELS_VERSION_CODE`/`PIXELS_VERSION_NAME` 注入，Git revision 会自动写入构建元数据。

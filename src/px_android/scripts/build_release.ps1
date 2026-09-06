@@ -12,6 +12,9 @@ $metadataPath = Join-Path $androidRoot 'app\build\outputs\apk\release\output-met
 $bundlePath = Join-Path $androidRoot 'app\build\outputs\bundle\release\app-release.aab'
 $mappingPath = Join-Path $androidRoot 'app\build\outputs\mapping\release\mapping.txt'
 $propertiesPath = Join-Path $androidRoot 'keystore.properties'
+$noticeSourceRoot = Join-Path $androidRoot 'feature-settings\src\main\res\raw'
+$ffmpegSourceArchive = [Environment]::GetEnvironmentVariable('PIXELS_FFMPEG_SOURCE_ARCHIVE')
+$lgplRelinkArchive = [Environment]::GetEnvironmentVariable('PIXELS_LGPL_RELINK_ARCHIVE')
 
 $environmentSigningNames = @(
     'PIXELS_KEYSTORE_FILE',
@@ -25,6 +28,36 @@ $missingEnvironmentSigning = @($environmentSigningNames | Where-Object {
 if ($missingEnvironmentSigning.Count -ne 0 -and -not (Test-Path -LiteralPath $propertiesPath -PathType Leaf)) {
     throw 'Configure all PIXELS_* signing variables or copy keystore.properties.example to the ignored keystore.properties file.'
 }
+
+if ([string]::IsNullOrWhiteSpace($ffmpegSourceArchive) -or
+    -not (Test-Path -LiteralPath $ffmpegSourceArchive -PathType Leaf)) {
+    throw 'PIXELS_FFMPEG_SOURCE_ARCHIVE must point to the exact corresponding FFmpeg source ZIP archive.'
+}
+if ([string]::IsNullOrWhiteSpace($lgplRelinkArchive) -or
+    -not (Test-Path -LiteralPath $lgplRelinkArchive -PathType Leaf)) {
+    throw 'PIXELS_LGPL_RELINK_ARCHIVE must point to the relinkable Pixels application object ZIP archive.'
+}
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+function Assert-ZipContent {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$RequiredPattern,
+        [Parameter(Mandatory = $true)][string]$Description
+    )
+    $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $Path).Path)
+    try {
+        $files = @($archive.Entries | Where-Object { $_.Length -gt 0 } | ForEach-Object { $_.FullName })
+        if ($files.Count -eq 0 -or -not ($files | Where-Object { $_ -match $RequiredPattern } | Select-Object -First 1)) {
+            throw "$Description archive does not contain the required files: $Path"
+        }
+    } finally {
+        $archive.Dispose()
+    }
+}
+Assert-ZipContent -Path $ffmpegSourceArchive -RequiredPattern '\.(c|h|S|asm)$' -Description 'FFmpeg corresponding source'
+Assert-ZipContent -Path $lgplRelinkArchive -RequiredPattern '\.(o|obj)$' -Description 'LGPL relink'
+Assert-ZipContent -Path $lgplRelinkArchive -RequiredPattern '(^|/)(README|RELINK)(\.[^/]*)?$' -Description 'LGPL relink instructions'
 
 $revision = (& git -C $androidRoot rev-parse --short=12 HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($revision)) {
@@ -72,6 +105,47 @@ Copy-Item -LiteralPath $apkPath -Destination $apkDestination -Force
 Copy-Item -LiteralPath $bundlePath -Destination $bundleDestination -Force
 
 $publishedArtifacts = @($apkDestination, $bundleDestination)
+$ffmpegSourceDestination = Join-Path $artifactRoot 'ffmpeg-corresponding-source.zip'
+$lgplRelinkDestination = Join-Path $artifactRoot 'pixels-lgpl-relink-kit.zip'
+$noticesDestination = Join-Path $artifactRoot 'third-party-notices.zip'
+Copy-Item -LiteralPath $ffmpegSourceArchive -Destination $ffmpegSourceDestination -Force
+Copy-Item -LiteralPath $lgplRelinkArchive -Destination $lgplRelinkDestination -Force
+$requiredNoticeFiles = @(
+    'open_source_inventory.txt',
+    'license_apache_2_0.txt',
+    'license_boost_1_0.txt',
+    'license_ffmpeg_lgpl_2_1.txt',
+    'license_glm.txt',
+    'license_leveldb_bsd_3_clause.txt',
+    'license_opus_bsd_3_clause.txt',
+    'license_protobuf_bsd_3_clause.txt',
+    'license_webrtc_bsd_3_clause.txt',
+    'license_zlib.txt'
+)
+$noticeFiles = @($requiredNoticeFiles | ForEach-Object {
+    $path = Join-Path $noticeSourceRoot $_
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw "Required third-party notice is missing: $path"
+    }
+    Get-Item -LiteralPath $path
+})
+$apkArchive = [System.IO.Compression.ZipFile]::OpenRead($apkDestination)
+try {
+    $apkEntries = @($apkArchive.Entries | ForEach-Object { $_.FullName.ToLowerInvariant() })
+    foreach ($noticeName in $requiredNoticeFiles) {
+        $entryName = "res/raw/$noticeName"
+        if ($entryName -notin $apkEntries) {
+            throw "Release APK does not contain required third-party notice: $entryName"
+        }
+    }
+} finally {
+    $apkArchive.Dispose()
+}
+if (Test-Path -LiteralPath $noticesDestination -PathType Leaf) {
+    Remove-Item -LiteralPath $noticesDestination -Force
+}
+Compress-Archive -LiteralPath $noticeFiles.FullName -DestinationPath $noticesDestination -CompressionLevel Optimal
+$publishedArtifacts += @($ffmpegSourceDestination, $lgplRelinkDestination, $noticesDestination)
 if (Test-Path -LiteralPath $mappingPath -PathType Leaf) {
     $mappingDestination = Join-Path $artifactRoot 'mapping.txt'
     Copy-Item -LiteralPath $mappingPath -Destination $mappingDestination -Force
@@ -131,12 +205,17 @@ $jarsignerOutput | Write-Host
 if ($LASTEXITCODE -ne 0) {
     throw 'AAB signature verification failed.'
 }
-Add-Type -AssemblyName System.IO.Compression.FileSystem
 $bundleArchive = [System.IO.Compression.ZipFile]::OpenRead($bundleDestination)
 try {
     $bundleEntries = @($bundleArchive.Entries | ForEach-Object { $_.FullName.ToUpperInvariant() })
     $hasSignatureFile = @($bundleEntries | Where-Object { $_ -like 'META-INF/*.SF' }).Count -gt 0
     $hasSignatureBlock = @($bundleEntries | Where-Object { $_ -like 'META-INF/*.RSA' -or $_ -like 'META-INF/*.DSA' -or $_ -like 'META-INF/*.EC' }).Count -gt 0
+    foreach ($noticeName in $requiredNoticeFiles) {
+        $entryName = "BASE/RES/RAW/$($noticeName.ToUpperInvariant())"
+        if ($entryName -notin $bundleEntries) {
+            throw "Release AAB does not contain required third-party notice: $entryName"
+        }
+    }
 } finally {
     $bundleArchive.Dispose()
 }
@@ -160,6 +239,13 @@ $manifest = [ordered]@{
     abi = 'arm64-v8a'
     gitRevision = $revision
     builtAtUtc = [DateTime]::UtcNow.ToString('o')
+    lgpl = [ordered]@{
+        ffmpegVersion = '6.1'
+        linking = 'static'
+        correspondingSource = (Split-Path -Leaf $ffmpegSourceDestination)
+        relinkKit = (Split-Path -Leaf $lgplRelinkDestination)
+        notices = (Split-Path -Leaf $noticesDestination)
+    }
     artifacts = @($artifactMetadata)
 }
 $manifestPath = Join-Path $artifactRoot 'release-manifest.json'

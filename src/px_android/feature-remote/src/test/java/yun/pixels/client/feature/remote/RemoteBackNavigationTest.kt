@@ -8,6 +8,10 @@ class RemoteBackNavigationTest {
     @Test
     fun `back closes only the highest priority remote layer`() {
         assertEquals(
+            RemoteBackAction.DismissEndSession,
+            action(endSession = true, secureAttention = true, keyboard = true, gamepadSettings = true, displays = true),
+        )
+        assertEquals(
             RemoteBackAction.DismissSecureAttention,
             action(secureAttention = true, keyboard = true, gamepadSettings = true, displays = true),
         )
@@ -31,6 +35,7 @@ class RemoteBackNavigationTest {
     }
 
     private fun action(
+        endSession: Boolean = false,
         secureAttention: Boolean = false,
         keyboard: Boolean = false,
         gamepadSettings: Boolean = false,
@@ -38,6 +43,7 @@ class RemoteBackNavigationTest {
         controls: Boolean = false,
         inputMode: RemoteInputMode = RemoteInputMode.DirectTouch,
     ): RemoteBackAction = resolveRemoteBackAction(
+        confirmEndSession = endSession,
         confirmSecureAttention = secureAttention,
         showKeyboard = keyboard,
         showGamepadSettings = gamepadSettings,
