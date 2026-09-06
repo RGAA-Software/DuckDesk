@@ -53,6 +53,9 @@ public:
     [[nodiscard]] size_t QueuedTaskCount() const {
         return queued_tasks_.size();
     }
+    [[nodiscard]] const std::string& LastSentMessage() const {
+        return sent_messages_.back();
+    }
 
 private:
     int start_count_ = 0;
@@ -119,6 +122,33 @@ TEST(RelayClientSdkLifecycle, RepeatedStartStopUsesSameNetClient) {
 
     EXPECT_EQ(net_client->StartCount(), kCycles);
     EXPECT_EQ(net_client->StopCount(), kCycles);
+}
+
+TEST(RelayClientSdkLifecycle, TicketedMediaControlCarriesRenderRedemptionMaterial) {
+    const auto net_client = std::make_shared<FakeRelayNetClient>();
+    auto param = MakeSdkParam();
+    param.connection_ticket_ = "one-time-ticket";
+    param.connection_nonce_ = "client-nonce";
+    param.connection_instance_id_ = "instance-id";
+    param.ticket_scope_ = RelayTicketScope::kMedia;
+    const auto sdk = std::make_shared<RelayClientSdk>(param, net_client);
+
+    const auto created_room = std::make_shared<px_relay::RelayMessage>();
+    created_room->mutable_create_room_resp()->set_device_id("local-device");
+    created_room->mutable_create_room_resp()->set_remote_device_id("remote-device");
+    created_room->mutable_create_room_resp()->set_room_id("room");
+    sdk->OnCreatedRoomResp(created_room);
+    net_client->ClearSentMessages();
+
+    sdk->RequestControl();
+
+    ASSERT_EQ(net_client->SentMessageCount(), 1U);
+    px_relay::RelayMessage sent;
+    ASSERT_TRUE(sent.ParseFromString(net_client->LastSentMessage()));
+    ASSERT_TRUE(sent.has_request_control());
+    EXPECT_EQ(sent.request_control().connection_ticket(), "one-time-ticket");
+    EXPECT_EQ(sent.request_control().client_nonce(), "client-nonce");
+    EXPECT_EQ(sent.request_control().instance_id(), "instance-id");
 }
 
 }  // namespace

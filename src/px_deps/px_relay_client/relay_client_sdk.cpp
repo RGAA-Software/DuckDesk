@@ -27,7 +27,9 @@ namespace px
                 param.host_, param.port_, param.device_id_, param.device_name_,
                 param.stream_id_, param.appkey_, param.force_gdi_,
                 param.remote_device_id_, param.connection_ticket_,
-                param.connection_nonce_, std::move(async_runtime))) {}
+                param.connection_nonce_, param.connection_ticket_device_id_,
+                param.connection_instance_id_, param.ticket_scope_,
+                std::move(async_runtime))) {}
 
     RelayClientSdk::RelayClientSdk(
         const RelayClientSdkParam& param,
@@ -231,6 +233,11 @@ namespace px
         sub->set_device_name(sdk_param_.device_name_);
         sub->set_stream_id(sdk_param_.stream_id_);
         sub->set_force_gdi(sdk_param_.force_gdi_);
+        if (sdk_param_.ticket_scope_ == RelayTicketScope::kMedia) {
+            sub->set_connection_ticket(sdk_param_.connection_ticket_);
+            sub->set_client_nonce(sdk_param_.connection_nonce_);
+            sub->set_instance_id(sdk_param_.connection_instance_id_);
+        }
         this->PostBinMessage(rl_msg.SerializeAsString());
         LOGI("Request control: {}", room_->room_id_);
     }

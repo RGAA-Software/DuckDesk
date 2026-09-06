@@ -10,6 +10,12 @@
 
 namespace px
 {
+    enum class RelayTicketScope {
+        kLegacy,
+        kFileTransfer,
+        kMedia,
+    };
+
     // RelayClientSdkParam
     class RelayClientSdkParam {
     public:
@@ -30,6 +36,9 @@ namespace px
         bool force_gdi_ = false;
         std::string connection_ticket_;
         std::string connection_nonce_;
+        std::string connection_ticket_device_id_;
+        std::string connection_instance_id_;
+        RelayTicketScope ticket_scope_{RelayTicketScope::kLegacy};
     };
 
 }

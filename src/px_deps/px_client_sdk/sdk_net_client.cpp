@@ -292,8 +292,10 @@ void NetClient::Start() {
             ReplaceMediaConnection(std::make_shared<RelayConnection>(sdk_params_, msg_notifier_, sdk_params_->relay_host_, sdk_params_->relay_port_,
                                                                      device_id_, remote_device_id_, auto_relay, kRoomTypeMedia));
         }
-        ft_conn_ = std::make_shared<RelayConnection>(sdk_params_, msg_notifier_, sdk_params_->relay_host_, sdk_params_->relay_port_, ft_device_id_,
-                                                     ft_remote_device_id_, auto_relay, kRoomTypeFileTransfer);
+        if (sdk_params_->connection_ticket_.empty() || sdk_params_->file_transfer_only_) {
+            ft_conn_ = std::make_shared<RelayConnection>(sdk_params_, msg_notifier_, sdk_params_->relay_host_, sdk_params_->relay_port_,
+                                                         ft_device_id_, ft_remote_device_id_, auto_relay, kRoomTypeFileTransfer);
+        }
 
 #if PX_RTC_TRANSPORT_AVAILABLE
         if (sdk_params_->enable_p2p_ && !sdk_params_->file_transfer_only_) {
@@ -371,8 +373,9 @@ void NetClient::Start() {
 
     const auto media_connection = CurrentMediaConnection();
     const bool managed_udp_media = network_type_ == ClientNetworkType::kUdpDirect && media_connection;
-    const bool defer_ticketed_websocket_ready =
-        network_type_ == ClientNetworkType::kWebsocket && !sdk_params_->connection_ticket_.empty() && media_connection;
+    const bool defer_ticketed_media_ready =
+        !sdk_params_->connection_ticket_.empty() && media_connection &&
+        (network_type_ == ClientNetworkType::kWebsocket || network_type_ == ClientNetworkType::kRelay);
     const bool defer_ticketed_direct_file_transfer =
         !sdk_params_->file_transfer_only_ && !sdk_params_->connection_ticket_.empty() && media_connection &&
         (network_type_ == ClientNetworkType::kWebsocket || network_type_ == ClientNetworkType::kUdpDirect);
@@ -412,8 +415,8 @@ void NetClient::Start() {
             LOGE("Start failed: no transport connection was created");
             return;
         }
-        primary_conn->RegisterOnConnectedCallback([weak_self, defer_ticketed_websocket_ready]() {
-            if (const auto self = weak_self.lock(); self && !defer_ticketed_websocket_ready && self->conn_cbk_) {
+        primary_conn->RegisterOnConnectedCallback([weak_self, defer_ticketed_media_ready]() {
+            if (const auto self = weak_self.lock(); self && !defer_ticketed_media_ready && self->conn_cbk_) {
                 self->connection_notified_ = true;
                 self->conn_cbk_();
             }
@@ -426,7 +429,7 @@ void NetClient::Start() {
         });
 
         if (media_connection) {
-            media_connection->RegisterOnMessageCallback([weak_self, defer_ticketed_websocket_ready](std::shared_ptr<Data> data) {
+            media_connection->RegisterOnMessageCallback([weak_self, defer_ticketed_media_ready](std::shared_ptr<Data> data) {
                 const auto self = weak_self.lock();
                 if (!self)
                     return;
@@ -434,7 +437,7 @@ void NetClient::Start() {
                 self->stat_->AppendRecvDataSize(data->Size());
                 // parse
                 if (auto m = self->ParseMessage(data); m) {
-                    if (defer_ticketed_websocket_ready && !self->connection_notified_.exchange(true) && self->conn_cbk_) {
+                    if (defer_ticketed_media_ready && !self->connection_notified_.exchange(true) && self->conn_cbk_) {
                         self->conn_cbk_();
                     }
                     self->StartFileTransferConnection();
@@ -829,7 +832,11 @@ FileTransferSendResult NetClient::PostFileTransferMessage(std::shared_ptr<Data> 
     {
 #endif
         const auto file_connection =
-            network_type_ == ClientNetworkType::kUdpDirect && !sdk_params_->file_transfer_only_ ? CurrentMediaConnection() : ft_conn_;
+            ((network_type_ == ClientNetworkType::kUdpDirect ||
+              (network_type_ == ClientNetworkType::kRelay && !sdk_params_->connection_ticket_.empty())) &&
+             !sdk_params_->file_transfer_only_)
+                ? CurrentMediaConnection()
+                : ft_conn_;
         if (!file_connection || !file_connection->IsAlive()) {
             return FileTransferSendResult::Disconnected("file-transfer connection is not alive");
         }

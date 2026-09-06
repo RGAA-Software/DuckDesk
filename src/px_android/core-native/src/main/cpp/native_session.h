@@ -47,9 +47,12 @@ struct NativeSessionConfig final {
     std::string random_password{};
     std::string connection_ticket{};
     std::string connection_nonce{};
+    std::string connection_ticket_device_id{};
+    std::string connection_instance_id{};
     std::string rtc_ice_config_json{};
     std::string relay_host{};
     std::int32_t relay_port{};
+    std::string relay_remote_device_id{};
     std::int32_t network_type{};
     bool enable_video{true};
     bool enable_audio{true};

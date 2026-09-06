@@ -35,6 +35,28 @@ class ConnectionTicketEndpointTest {
         assertEquals("account-device", endpoint.remoteDeviceId)
     }
 
+    @Test
+    fun selectsRelayForPublicAccountEndpointWithBoundRelayTarget() {
+        val ticket = ticket("https://edge.example.com/web_client/").copy(
+            relayHost = "relay.example.com",
+            relayPort = 443,
+        )
+        val endpoint = requireNotNull(ticket.toNativeEndpoint("account-device"))
+
+        assertEquals(NATIVE_NETWORK_TYPE_RELAY, selectNativeNetworkType(endpoint, ticket))
+    }
+
+    @Test
+    fun keepsUdpDirectForPrivateAccountEndpoint() {
+        val ticket = ticket("http://192.168.31.6:20371/web_client/?deviceId=device-42").copy(
+            relayHost = "relay.example.com",
+            relayPort = 443,
+        )
+        val endpoint = requireNotNull(ticket.toNativeEndpoint("account-device"))
+
+        assertEquals(NATIVE_NETWORK_TYPE_UDP_DIRECT, selectNativeNetworkType(endpoint, ticket))
+    }
+
     private fun ticket(launchUrl: String) = ConnectionTicket(
         ticket = "ticket",
         renewalToken = "renewal",

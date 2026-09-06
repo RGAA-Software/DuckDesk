@@ -86,6 +86,11 @@ message RelayRequestControlMessage {
   string remote_device_id = 20;
   string room_id = 30;
   bool force_gdi = 40;
+  // Present only for a Console-ticketed media Relay. Console validates the
+  // handshake scope and Render is the single authority that redeems it.
+  string connection_ticket = 50;
+  string client_nonce = 60;
+  string instance_id = 70;
 }
 
 message RelayRequestControlRespMessage {

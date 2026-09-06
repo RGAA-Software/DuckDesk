@@ -94,6 +94,7 @@ namespace px
         // never be persisted or logged.
         std::string connection_ticket_;
         std::string connection_nonce_;
+        std::string connection_ticket_device_id_;
         std::string connection_instance_id_;
         // Opaque, short-lived Render-issued credential for Direct RTC retries.
         // It is rotated on every use and must never be persisted or logged.

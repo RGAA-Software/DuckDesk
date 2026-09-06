@@ -29,7 +29,8 @@ bool WaitUntil(const std::function<bool()>& predicate, const std::chrono::steady
 
 std::shared_ptr<RelayWsClient> MakeClient(const std::shared_ptr<PxAsyncRuntime>& runtime, const int port) {
     return std::make_shared<RelayWsClient>(
-        "127.0.0.1", port, "server-test", "test", "stream-test", "appkey-test", false, "", "", "", runtime);
+        "127.0.0.1", port, "server-test", "test", "stream-test", "appkey-test", false, "", "", "", "", "",
+        RelayTicketScope::kLegacy, runtime);
 }
 
 TEST(RelayWsReconnect, InitiallyUnavailableAndRepeatedServerRestartRecover) {

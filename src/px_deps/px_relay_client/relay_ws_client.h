@@ -13,6 +13,7 @@
 #include "relay_callbacks.h"
 #include "relay_net_client.h"
 #include "relay_device_info.h"
+#include "relay_client_sdk_param.h"
 #include "px_common/file_transfer_send_result.h"
 
 namespace asio2 {
@@ -34,6 +35,9 @@ namespace px
                                const std::string& device_name, const std::string& stream_id,
                                const std::string& appkey, bool force_gdi, const std::string& remote_device_id,
                                const std::string& connection_ticket = {}, const std::string& connection_nonce = {},
+                               const std::string& connection_ticket_device_id = {},
+                               const std::string& connection_instance_id = {},
+                               RelayTicketScope ticket_scope = RelayTicketScope::kLegacy,
                                std::shared_ptr<PxAsyncRuntime> runtime = {});
         ~RelayWsClient() override;
         void Start() override;
@@ -64,6 +68,9 @@ namespace px
         std::string remote_device_id_;
         std::string connection_ticket_;
         std::string connection_nonce_;
+        std::string connection_ticket_device_id_;
+        std::string connection_instance_id_;
+        RelayTicketScope ticket_scope_{RelayTicketScope::kLegacy};
         bool force_gdi_ = false;
         std::shared_ptr<PxReconnectAdapterSlot<asio2::ws_client>> adapter_slot_{};
         std::shared_ptr<PxAsyncRuntime> async_runtime_{};

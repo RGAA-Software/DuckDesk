@@ -20,6 +20,7 @@ enum class LogicalSessionTransport {
     kRtcLocal,
     kRtc,
     kUdp,
+    kRelay,
     kFileTransfer,
 };
 

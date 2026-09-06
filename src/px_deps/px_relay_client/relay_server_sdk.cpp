@@ -30,6 +30,9 @@ namespace px
                                                      "",
                                                      "",
                                                      "",
+                                                     "",
+                                                     "",
+                                                     RelayTicketScope::kLegacy,
                                                      sdk_param_.async_runtime_);
         ws_client_->SetDeviceNetInfo(param.net_info_);
     }
@@ -155,6 +158,37 @@ namespace px
         });
     }
 
+    void RelayServerSdk::RelayProtoMessageToRooms(const std::vector<std::string>& requested_room_ids,
+                                                   std::shared_ptr<Data> msg) {
+        std::lock_guard<std::mutex> guard(relay_mtx_);
+        if (requested_room_ids.empty() || rooms_.Size() <= 0 || !IsAlive() || !msg) {
+            return;
+        }
+
+        const auto weak_self = weak_from_this();
+        ws_client_->PostNetTask([weak_self, requested_room_ids, msg = std::move(msg)]() {
+            const auto self = weak_self.lock();
+            if (!self) {
+                return;
+            }
+            RelayMessage relay_message;
+            relay_message.set_from_device_id(self->sdk_param_.device_id_);
+            relay_message.set_type(RelayMessageType::kRelayTargetMessage);
+            auto& relay = *relay_message.mutable_relay();
+            relay.set_relay_msg_index(self->relay_msg_index_++);
+            for (const auto& room_id : requested_room_ids) {
+                if (self->rooms_.HasKey(room_id)) {
+                    relay.add_room_ids(room_id);
+                }
+            }
+            if (relay.room_ids().empty()) {
+                return;
+            }
+            relay.set_payload(msg->AsString());
+            self->PostBinMessage(relay_message.SerializeAsString());
+        });
+    }
+
     void RelayServerSdk::PostBinMessage(const std::string& msg) {
         if (ws_client_) {
             ws_client_->PostBinaryMessage(msg);
@@ -193,7 +227,11 @@ namespace px
             if (req_control_cbk_) {
                 req_control_cbk_(rl_msg);
             }
-            this->OnRequestControl(rl_msg);
+            if (rl_msg->request_control().connection_ticket().empty()) {
+                this->OnRequestControl(rl_msg);
+            } else if (!req_control_cbk_) {
+                RespondToControl(rl_msg, false, "ticketed Relay admission is unavailable");
+            }
         }
         else if (type == RelayMessageType::kRelayRoomPrepared) {
             this->OnRoomPrepared(rl_msg);
@@ -227,6 +265,14 @@ namespace px
     }
 
     void RelayServerSdk::OnRequestControl(const std::shared_ptr<RelayMessage>& msg) {
+        RespondToControl(msg, true, "ok");
+    }
+
+    void RelayServerSdk::RespondToControl(const std::shared_ptr<RelayMessage>& msg,
+                                          const bool accepted, const std::string& response_message) {
+        if (!msg || !msg->has_request_control()) {
+            return;
+        }
         auto rc = msg->request_control();
         if (sdk_param_.device_id_ != rc.remote_device_id()) {
             LOGE("My device id: {}, request remote id: {}", sdk_param_.device_id_, rc.remote_device_id());
@@ -234,19 +280,14 @@ namespace px
         }
 
         //
-        const auto device_id = rc.device_id();
-        const auto remote_device_id = rc.remote_device_id();
-        const auto room_id = rc.room_id();
-        const auto stream_id = rc.stream_id();
-
         RelayMessage rl_msg;
         rl_msg.set_type(RelayMessageType::kRelayRequestControlResp);
         auto sub = rl_msg.mutable_request_control_resp();
         sub->set_device_id(rc.device_id());
         sub->set_remote_device_id(rc.remote_device_id());
         sub->set_room_id(rc.room_id());
-        sub->set_message("ok");
-        sub->set_under_control(true);
+        sub->set_message(response_message);
+        sub->set_under_control(accepted);
         auto resp_msg = rl_msg.SerializeAsString();
         this->PostBinMessage(resp_msg);
     }

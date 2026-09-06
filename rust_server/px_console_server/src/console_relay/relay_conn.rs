@@ -17,6 +17,14 @@ use tokio::sync::Mutex;
 
 pub const RELAY_IGNORE_MSG_INDEX: i64 = -1;
 
+#[derive(Clone)]
+pub struct RelayMediaTicketAuthorization {
+    pub ticket: String,
+    pub client_nonce: String,
+    pub instance_id: String,
+    pub remote_device_id: String,
+}
+
 pub struct RelayConn {
     pub context: Arc<Mutex<ConsoleContext>>,
     pub sender: Arc<Mutex<SplitSink<WebSocket, Message>>>,
@@ -32,6 +40,10 @@ pub struct RelayConn {
     /// A standalone file ticket may create a room only to this exact ft server.
     /// Legacy (non-ticket) relay connections leave this unset.
     pub authorized_remote_device_id: Option<String>,
+    /// The Console validated this ticket without consuming it. The exact
+    /// values are injected into the control request sent to Render, which is
+    /// the only component allowed to redeem a media-session ticket.
+    pub media_ticket_authorization: Option<RelayMediaTicketAuthorization>,
 }
 
 impl RelayConn {
@@ -43,6 +55,7 @@ impl RelayConn {
         device_name: String,
         stream_id: String,
         authorized_remote_device_id: Option<String>,
+        media_ticket_authorization: Option<RelayMediaTicketAuthorization>,
     ) -> Arc<Mutex<RelayConn>> {
         Arc::new(Mutex::new(RelayConn {
             context,
@@ -56,6 +69,7 @@ impl RelayConn {
             device_name,
             stream_id,
             authorized_remote_device_id,
+            media_ticket_authorization,
         }))
     }
 

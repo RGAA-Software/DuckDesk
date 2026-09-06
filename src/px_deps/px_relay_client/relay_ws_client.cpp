@@ -7,6 +7,7 @@
 #include "px_common/log.h"
 #include "px_common/thread_util.h"
 #include "px_common/string_util.h"
+#include "px_common/url_helper.h"
 #include "px_common/asio_client_shutdown.h"
 #include "px_common/reconnect_supervisor.h"
 #include "px_common/websocket_reconnect_adapter.h"
@@ -37,6 +38,8 @@ namespace px
                                  const std::string& device_name, const std::string& stream_id,
                                  const std::string& appkey, bool force_gdi, const std::string& remote_device_id,
                                  const std::string& connection_ticket, const std::string& connection_nonce,
+                                 const std::string& connection_ticket_device_id, const std::string& connection_instance_id,
+                                 const RelayTicketScope ticket_scope,
                                  std::shared_ptr<PxAsyncRuntime> runtime)
                                  : RelayNetClient(), adapter_slot_(std::make_shared<PxReconnectAdapterSlot<asio2::ws_client>>()),
                                    async_runtime_(std::move(runtime)) {
@@ -51,6 +54,9 @@ namespace px
         this->force_gdi_ = force_gdi;
         this->connection_ticket_ = connection_ticket;
         this->connection_nonce_ = connection_nonce;
+        this->connection_ticket_device_id_ = connection_ticket_device_id;
+        this->connection_instance_id_ = connection_instance_id;
+        this->ticket_scope_ = ticket_scope;
     }
 
     RelayWsClient::~RelayWsClient() {
@@ -82,11 +88,20 @@ namespace px
         // the /ws is the websocket upgraged target
         auto ws_path = std::format("/relay?device_id={}&remote_device_id={}&device_name={}&stream_id={}&appkey={}",
                                    device_id_, remote_device_id_, device_name_, stream_id_, appkey_);
-        if (!connection_ticket_.empty()) {
-            ws_path += std::format("&file_only=1&ticket={}&client_nonce={}", connection_ticket_, connection_nonce_);
+        if (!connection_ticket_.empty() && ticket_scope_ != RelayTicketScope::kLegacy) {
+            const auto scope = ticket_scope_ == RelayTicketScope::kMedia ? "media_ticket=1" : "file_only=1";
+            ws_path += std::format("&{}&ticket={}&client_nonce={}", scope,
+                                   UrlHelper::EncodeQueryComponent(connection_ticket_),
+                                   UrlHelper::EncodeQueryComponent(connection_nonce_));
+            if (!connection_ticket_device_id_.empty()) {
+                ws_path += "&ticket_device_id=" + UrlHelper::EncodeQueryComponent(connection_ticket_device_id_);
+            }
+            if (!connection_instance_id_.empty()) {
+                ws_path += "&instance_id=" + UrlHelper::EncodeQueryComponent(connection_instance_id_);
+            }
         }
-        LOGI("Will connect relay websocket: {}:{}, device: {}, remote: {}, authenticated file-only: {}",
-             host_, port_, device_id_, remote_device_id_, !connection_ticket_.empty());
+        LOGI("Will connect relay websocket: {}:{}, device: {}, remote: {}, ticket scope: {}",
+             host_, port_, device_id_, remote_device_id_, static_cast<int>(ticket_scope_));
         const auto adapter_slot = adapter_slot_;
         const auto supervisor = reconnect_supervisor_;
         PxReconnectSupervisorHooks hooks{

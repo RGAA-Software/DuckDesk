@@ -52,6 +52,8 @@ std::string LogicalTransportName(const LogicalSessionTransport transport) {
         return "rtc";
     case LogicalSessionTransport::kUdp:
         return "udp";
+    case LogicalSessionTransport::kRelay:
+        return "relay";
     case LogicalSessionTransport::kFileTransfer:
         return "file_transfer";
     }

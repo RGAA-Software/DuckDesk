@@ -46,6 +46,10 @@ struct CloseLogicalSessionBindingEvent final {
     std::string binding_id_;
 };
 
+struct ApplyLogicalSessionCapabilitiesEvent final {
+    PxLogicalSessionCapabilityUpdate update_;
+};
+
 struct NetworkClientEvent final {
     bool is_proto_{true};
     std::shared_ptr<Data> message_;
@@ -131,7 +135,8 @@ using RenderEvent =
                  std::shared_ptr<CursorUpdatedEvent>, std::shared_ptr<RelayPausedEvent>, std::shared_ptr<RelayResumedEvent>,
                  std::shared_ptr<PanelStreamMessageEvent>, std::shared_ptr<RelayAliveEvent>, std::shared_ptr<StreamingParametersRequestedEvent>,
                  std::shared_ptr<RedeemConnectionTicketEvent>, std::shared_ptr<AdmitLogicalSessionEvent>,
-                 std::shared_ptr<CloseLogicalSessionBindingEvent>, std::shared_ptr<DataSentEvent>>;
+                 std::shared_ptr<CloseLogicalSessionBindingEvent>, std::shared_ptr<ApplyLogicalSessionCapabilitiesEvent>,
+                 std::shared_ptr<DataSentEvent>>;
 
 struct RenderEventEnvelope final {
     std::string source_id;

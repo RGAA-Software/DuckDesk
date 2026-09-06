@@ -1,3 +1,4 @@
+use axum::body::Bytes;
 use axum::extract::{ConnectInfo, Query, State};
 use axum::routing::{get, post};
 use axum::serve::ListenerExt;
@@ -19,12 +20,13 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::connection_ticket::manager::ConnectionTicketManager;
+use crate::console_api_error::ConsoleApiError;
 use crate::console_context::ConsoleContext;
-use crate::console_relay::relay_conn::RelayConn;
+use crate::console_relay::relay_conn::{RelayConn, RelayMediaTicketAuthorization};
 use crate::console_relay::{relay_device_handler, relay_room_handler};
 use crate::filter::{console_appkey_filter, console_statistics_filter, console_timer_filter};
 use crate::{gRelayConnMgr, gRelayRoomMgr};
-use protocol::px_relay::{RelayMessage, RelayMessageType};
+use protocol::px_relay::{RelayMessage, RelayMessageType, RelayRequestControlMessage};
 use px_base::{get_current_timestamp, RespMessage};
 use tower_http::services::ServeDir;
 
@@ -57,6 +59,84 @@ pub(crate) fn is_scoped_guest_rtc_signal(params: &HashMap<String, String>) -> bo
         && !stream_id.is_empty()
         && !device_id.is_empty()
         && remote == &format!("server_{device_id}")
+}
+
+pub(crate) async fn validate_ticketed_media_relay(
+    params: &HashMap<String, String>,
+) -> Result<Option<RelayMediaTicketAuthorization>, ConsoleApiError> {
+    if !params.get("media_ticket").is_some_and(|value| value == "1") {
+        return Ok(None);
+    }
+    let (
+        Some(ticket),
+        Some(client_nonce),
+        Some(ticket_device_id),
+        Some(remote),
+        Some(client),
+        Some(stream_id),
+    ) = (
+        params.get("ticket"),
+        params.get("client_nonce"),
+        params.get("ticket_device_id"),
+        params.get("remote_device_id"),
+        params.get("device_id"),
+        params.get("stream_id"),
+    )
+    else {
+        return Err(ConsoleApiError::InvalidParams);
+    };
+    if !client.starts_with("client_") || stream_id.is_empty() {
+        return Err(ConsoleApiError::InvalidParams);
+    }
+    let instance_id = params.get("instance_id").map(String::as_str);
+    let active =
+        ConnectionTicketManager::lookup_active(ticket, ticket_device_id, client_nonce, instance_id)
+            .await?;
+    let expected_remote = active
+        .instance_id
+        .as_deref()
+        .filter(|value| !value.is_empty())
+        .map(|instance| format!("server_{}__instance__{}", active.device_id, instance))
+        .unwrap_or_else(|| format!("server_{}", active.device_id));
+    if remote != &expected_remote || stream_id != &active.stream_id {
+        tracing::warn!(
+            ticket_device_id,
+            remote_device_id = remote,
+            "ticketed media Relay target or stream does not match ticket binding"
+        );
+        return Err(ConsoleApiError::Forbidden);
+    }
+    Ok(Some(RelayMediaTicketAuthorization {
+        ticket: ticket.clone(),
+        client_nonce: client_nonce.clone(),
+        instance_id: instance_id.unwrap_or_default().to_string(),
+        remote_device_id: expected_remote,
+    }))
+}
+
+fn authorize_relay_control(
+    connection_device_id: &str,
+    authorized_remote_device_id: Option<&str>,
+    media_ticket_authorization: Option<&RelayMediaTicketAuthorization>,
+    control: &mut RelayRequestControlMessage,
+) -> bool {
+    if control.device_id != connection_device_id
+        || authorized_remote_device_id.is_some_and(|expected| control.remote_device_id != expected)
+    {
+        return false;
+    }
+    if let Some(ticket) = media_ticket_authorization {
+        if control.remote_device_id != ticket.remote_device_id {
+            return false;
+        }
+        control.connection_ticket = ticket.ticket.clone();
+        control.client_nonce = ticket.client_nonce.clone();
+        control.instance_id = ticket.instance_id.clone();
+        return true;
+    }
+    control.connection_ticket.is_empty()
+        && control.client_nonce.is_empty()
+        && control.instance_id.is_empty()
 }
 
 impl RelayServer {
@@ -151,6 +231,10 @@ impl RelayServer {
             );
         }
         let params = query.0.clone();
+        let media_ticket_authorization = match validate_ticketed_media_relay(&params).await {
+            Ok(value) => value,
+            Err(error) => return error.into_response(),
+        };
         // File-only clients carry their Console capability in the Relay handshake.
         // Redeem it before allocating any relay connection/room, so a ticket
         // cannot be used to create a media room and cannot be replayed.
@@ -182,6 +266,10 @@ impl RelayServer {
                 }
                 Err(err) => return err.into_response(),
             }
+        } else if media_ticket_authorization.is_some() {
+            // Validation above intentionally does not consume the one-time
+            // ticket. Render redeems it when deciding whether to accept the
+            // control request and bind the logical session.
         } else if params.get("rtc_signal").is_some_and(|value| value == "1") {
             if is_scoped_guest_rtc_signal(&params) {
                 tracing::info!(
@@ -236,13 +324,20 @@ impl RelayServer {
             return crate::console_api_error::ConsoleApiError::InvalidParams.into_response();
         }
         ws.on_upgrade(move |socket| {
-            RelayServer::handle_socket(context.clone(), params, socket, addr)
+            RelayServer::handle_socket(
+                context.clone(),
+                params,
+                media_ticket_authorization,
+                socket,
+                addr,
+            )
         })
     }
 
     async fn handle_socket(
         context: Arc<Mutex<ConsoleContext>>,
         params: HashMap<String, String>,
+        media_ticket_authorization: Option<RelayMediaTicketAuthorization>,
         socket: WebSocket,
         who: SocketAddr,
     ) {
@@ -257,6 +352,7 @@ impl RelayServer {
                 .get("remote_device_id")
                 .filter(|_| {
                     params.get("file_only").is_some_and(|value| value == "1")
+                        || params.get("media_ticket").is_some_and(|value| value == "1")
                         || params.get("rtc_signal").is_some_and(|value| value == "1")
                 })
                 .cloned();
@@ -285,6 +381,7 @@ impl RelayServer {
                 device_name,
                 stream_id,
                 authorized_remote_device_id,
+                media_ticket_authorization,
             )
             .await;
 
@@ -416,7 +513,27 @@ impl RelayServer {
                     }
                     gRelayRoomMgr.on_create_room(m, data).await;
                 } else if m_type == RelayMessageType::KRelayRequestControl {
-                    gRelayRoomMgr.on_request_control(m, data).await;
+                    let mut request = m;
+                    let authorized = {
+                        let conn = relay_conn.lock().await;
+                        match request.request_control.as_mut() {
+                            Some(control) => authorize_relay_control(
+                                &conn.device_id,
+                                conn.authorized_remote_device_id.as_deref(),
+                                conn.media_ticket_authorization.as_ref(),
+                                control,
+                            ),
+                            _ => false,
+                        }
+                    };
+                    if !authorized {
+                        tracing::warn!(
+                            "reject Relay control request outside authenticated connection scope"
+                        );
+                        return ControlFlow::Break(());
+                    }
+                    let encoded = Bytes::from(request.encode_to_vec());
+                    gRelayRoomMgr.on_request_control(request, encoded).await;
                 } else if m_type == RelayMessageType::KRelayRequestControlResp {
                     gRelayRoomMgr.on_request_control_resp(m, data).await;
                 } else if m_type == RelayMessageType::KRelayRequestPausedStream
@@ -451,8 +568,10 @@ impl RelayServer {
 }
 
 #[cfg(test)]
-mod guest_rtc_tests {
-    use super::is_scoped_guest_rtc_signal;
+mod relay_scope_tests {
+    use super::{authorize_relay_control, is_scoped_guest_rtc_signal};
+    use crate::console_relay::relay_conn::RelayMediaTicketAuthorization;
+    use protocol::px_relay::RelayRequestControlMessage;
     use std::collections::HashMap;
 
     fn valid_params() -> HashMap<String, String> {
@@ -480,5 +599,61 @@ mod guest_rtc_tests {
         let mut native_client = valid_params();
         native_client.insert("device_id".into(), "native_123".into());
         assert!(!is_scoped_guest_rtc_signal(&native_client));
+    }
+
+    #[test]
+    fn ticketed_control_uses_authoritative_connection_binding() {
+        let ticket = RelayMediaTicketAuthorization {
+            ticket: "ticket-from-query".into(),
+            client_nonce: "nonce-from-query".into(),
+            instance_id: "instance-from-query".into(),
+            remote_device_id: "server_target__instance__instance-from-query".into(),
+        };
+        let mut control = RelayRequestControlMessage {
+            device_id: "client_visitor".into(),
+            remote_device_id: ticket.remote_device_id.clone(),
+            connection_ticket: "attacker-ticket".into(),
+            client_nonce: "attacker-nonce".into(),
+            instance_id: "attacker-instance".into(),
+            ..Default::default()
+        };
+
+        assert!(authorize_relay_control(
+            "client_visitor",
+            Some(&ticket.remote_device_id),
+            Some(&ticket),
+            &mut control,
+        ));
+        assert_eq!(control.connection_ticket, ticket.ticket);
+        assert_eq!(control.client_nonce, ticket.client_nonce);
+        assert_eq!(control.instance_id, ticket.instance_id);
+    }
+
+    #[test]
+    fn relay_control_rejects_scope_escalation() {
+        let mut wrong_target = RelayRequestControlMessage {
+            device_id: "client_visitor".into(),
+            remote_device_id: "server_other".into(),
+            ..Default::default()
+        };
+        assert!(!authorize_relay_control(
+            "client_visitor",
+            Some("server_target"),
+            None,
+            &mut wrong_target,
+        ));
+
+        let mut legacy_with_ticket = RelayRequestControlMessage {
+            device_id: "client_visitor".into(),
+            remote_device_id: "server_target".into(),
+            connection_ticket: "untrusted-ticket".into(),
+            ..Default::default()
+        };
+        assert!(!authorize_relay_control(
+            "client_visitor",
+            None,
+            None,
+            &mut legacy_with_ticket,
+        ));
     }
 }

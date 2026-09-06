@@ -38,8 +38,13 @@ namespace px
             .device_name_ = params->device_name_,
             .appkey_ = params->appkey_,
             .force_gdi_ = params->force_gdi_,
-            .connection_ticket_ = room_type == kRoomTypeFileTransfer ? params->connection_ticket_ : "",
-            .connection_nonce_ = room_type == kRoomTypeFileTransfer ? params->connection_nonce_ : "",
+            .connection_ticket_ = params->connection_ticket_,
+            .connection_nonce_ = params->connection_nonce_,
+            .connection_ticket_device_id_ = params->connection_ticket_device_id_,
+            .connection_instance_id_ = params->connection_instance_id_,
+            .ticket_scope_ = params->connection_ticket_.empty()
+                ? RelayTicketScope::kLegacy
+                : (room_type == kRoomTypeFileTransfer ? RelayTicketScope::kFileTransfer : RelayTicketScope::kMedia),
         }, notifier->GetAsyncRuntime());
 
     }

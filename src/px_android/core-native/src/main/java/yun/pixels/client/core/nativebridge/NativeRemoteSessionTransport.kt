@@ -636,6 +636,16 @@ private fun RemoteSessionRequest.toNativeConfig(
     }
     if (endpoint.remoteDeviceId.isBlank() || endpoint.streamId.isBlank() || clientDeviceId.isBlank()) return null
     val accountTarget = target as? RemoteSessionTarget.Account
+    val accountTicket = accountTarget?.connectionTicket
+    val networkType = accountTicket?.let { selectNativeNetworkType(endpoint, it) } ?: NATIVE_NETWORK_TYPE_UDP_DIRECT
+    val relayRemoteDeviceId = accountTicket?.signalDeviceId
+        ?.takeIf { it.startsWith(RELAY_SERVER_DEVICE_PREFIX) }
+        ?.removePrefix(RELAY_SERVER_DEVICE_PREFIX)
+        ?.takeIf { it.isNotBlank() && it.none(Char::isISOControl) }
+        .orEmpty()
+    val connectionInstanceId = accountTicket?.launchUrl
+        ?.let { runCatching { URI(it) }.getOrNull()?.fragmentParameter("instance") }
+        .orEmpty()
     return NativeSessionConfig(
         sessionId = id.value,
         host = endpoint.host,
@@ -646,12 +656,15 @@ private fun RemoteSessionRequest.toNativeConfig(
         streamId = endpoint.streamId,
         clientDeviceId = clientDeviceId,
         randomPassword = endpoint.randomPassword,
-        connectionTicket = accountTarget?.connectionTicket?.ticket.orEmpty(),
+        connectionTicket = accountTicket?.ticket.orEmpty(),
         connectionNonce = accountTarget?.clientNonce ?: directAuthorization?.clientNonce.orEmpty(),
-        rtcIceConfigJson = accountTarget?.connectionTicket?.rtcIceConfigJson.orEmpty(),
-        relayHost = accountTarget?.connectionTicket?.relayHost.orEmpty(),
-        relayPort = accountTarget?.connectionTicket?.relayPort ?: 0,
-        networkType = NATIVE_NETWORK_TYPE_UDP_DIRECT,
+        connectionTicketDeviceId = accountTarget?.fallbackRemoteDeviceId.orEmpty(),
+        connectionInstanceId = connectionInstanceId,
+        rtcIceConfigJson = accountTicket?.rtcIceConfigJson.orEmpty(),
+        relayHost = accountTicket?.relayHost.orEmpty(),
+        relayPort = accountTicket?.relayPort ?: 0,
+        relayRemoteDeviceId = relayRemoteDeviceId,
+        networkType = networkType,
         enableVideo = enableVideo,
         enableAudio = enableAudio,
         enableInput = enableInput,
@@ -688,9 +701,33 @@ internal data class NativeEndpoint(
     val randomPassword: String,
 )
 
-private const val NATIVE_NETWORK_TYPE_UDP_DIRECT = 4
+internal const val NATIVE_NETWORK_TYPE_UDP_DIRECT = 4
+internal const val NATIVE_NETWORK_TYPE_RELAY = 3
+private const val RELAY_SERVER_DEVICE_PREFIX = "server_"
+
+internal fun selectNativeNetworkType(
+    endpoint: NativeEndpoint,
+    ticket: yun.pixels.client.core.domain.account.ConnectionTicket,
+): Int = if (
+    !endpoint.host.isPrivateOrCarrierGradeAddress() &&
+    ticket.relayHost.isNotBlank() &&
+    ticket.relayPort in 1..65535 &&
+    ticket.signalDeviceId.startsWith(RELAY_SERVER_DEVICE_PREFIX)
+) {
+    NATIVE_NETWORK_TYPE_RELAY
+} else {
+    NATIVE_NETWORK_TYPE_UDP_DIRECT
+}
 
 private fun URI.queryParameter(name: String): String? = rawQuery
+    ?.split('&')
+    ?.asSequence()
+    ?.map { component -> component.substringBefore('=') to component.substringAfter('=', "") }
+    ?.firstOrNull { (key) -> URLDecoder.decode(key, "UTF-8") == name }
+    ?.second
+    ?.let { URLDecoder.decode(it, "UTF-8") }
+
+private fun URI.fragmentParameter(name: String): String? = rawFragment
     ?.split('&')
     ?.asSequence()
     ?.map { component -> component.substringBefore('=') to component.substringAfter('=', "") }

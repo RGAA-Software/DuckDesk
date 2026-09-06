@@ -72,6 +72,20 @@ pub async fn filter(req: Request<Body>, next: Next) -> Response {
         let query = req.uri().query().unwrap_or("");
         let params =
             serde_urlencoded::from_str::<HashMap<String, String>>(query).unwrap_or_default();
+        if params
+            .get("media_ticket")
+            .is_some_and(|value| value == "1")
+        {
+            return match crate::console_relay::relay_server::validate_ticketed_media_relay(
+                &params,
+            )
+            .await
+            {
+                Ok(Some(_)) => next.run(req).await,
+                Ok(None) => ConsoleApiError::InvalidParams.into_response(),
+                Err(error) => error.into_response(),
+            };
+        }
         if params.get("rtc_signal").is_some_and(|value| value == "1") {
             if crate::console_relay::relay_server::is_scoped_guest_rtc_signal(&params) {
                 return next.run(req).await;

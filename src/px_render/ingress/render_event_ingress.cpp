@@ -201,6 +201,8 @@ void RenderEventIngress::ProcessRenderEvent(const RenderEventEnvelope& envelope)
                         .generation = closed.lease_generation,
                     });
                 }
+            } else if constexpr (std::is_same_v<Event, ApplyLogicalSessionCapabilitiesEvent>) {
+                owner.module_registry_->ApplyLogicalSessionCapabilities(event->update_);
             }
         },
         envelope.payload);

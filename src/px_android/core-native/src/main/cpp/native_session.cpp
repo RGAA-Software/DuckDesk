@@ -603,12 +603,18 @@ bool NativeSession::Initialize() {
     params->port_ = config_.port;
     params->udp_port_ = 20371;
     params->client_type_ = px::ClientType::kAndroid;
-    if (config_.network_type != px::ClientNetworkType::kUdpDirect) {
+    const auto network_type = static_cast<px::ClientNetworkType>(config_.network_type);
+    if (network_type != px::ClientNetworkType::kUdpDirect && network_type != px::ClientNetworkType::kRelay) {
         return false;
     }
-    params->nt_type_ = px::ClientNetworkType::kUdpDirect;
+    const bool relay = network_type == px::ClientNetworkType::kRelay;
+    if (relay && (config_.connection_ticket.empty() || config_.connection_nonce.empty() || config_.connection_ticket_device_id.empty() ||
+                  config_.relay_host.empty() || config_.relay_port <= 0 || config_.relay_remote_device_id.empty())) {
+        return false;
+    }
+    params->nt_type_ = network_type;
     params->bare_device_id_ = config_.client_device_id;
-    params->bare_remote_device_id_ = config_.remote_device_id;
+    params->bare_remote_device_id_ = relay ? config_.relay_remote_device_id : config_.remote_device_id;
     params->device_id_ = std::format("client_{}_{}", config_.client_device_id, px::MD5::Hex(config_.remote_device_id));
     client_signal_device_id_ = params->device_id_;
     params->remote_device_id_ = std::format("server_{}", config_.remote_device_id);
@@ -627,6 +633,8 @@ bool NativeSession::Initialize() {
     params->remote_device_random_pwd_ = config_.random_password;
     params->connection_ticket_ = config_.connection_ticket;
     params->connection_nonce_ = config_.connection_nonce;
+    params->connection_ticket_device_id_ = config_.connection_ticket_device_id;
+    params->connection_instance_id_ = config_.connection_instance_id;
     params->rtc_ice_config_json_ = config_.rtc_ice_config_json;
     params->relay_host_ = config_.relay_host;
     params->relay_port_ = config_.relay_port;

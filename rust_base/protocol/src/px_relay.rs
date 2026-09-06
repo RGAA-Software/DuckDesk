@@ -85,6 +85,14 @@ pub struct RelayRequestControlMessage {
     pub room_id: ::prost::alloc::string::String,
     #[prost(bool, tag = "40")]
     pub force_gdi: bool,
+    /// Present only for a Console-ticketed media Relay. Console validates the
+    /// handshake scope and Render is the single authority that redeems it.
+    #[prost(string, tag = "50")]
+    pub connection_ticket: ::prost::alloc::string::String,
+    #[prost(string, tag = "60")]
+    pub client_nonce: ::prost::alloc::string::String,
+    #[prost(string, tag = "70")]
+    pub instance_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RelayRequestControlRespMessage {

@@ -42,8 +42,12 @@ namespace px
         void SetOnRequestResumeStreamCallback(OnRelayRequestResumeStream&& cbk);
         void SetOnNotificationCallback(OnRelayNotification&& cbk);
         void SetOnRequestControlCallback(OnRelayRequestControl&& cbk);
+        void RespondToControl(const std::shared_ptr<px_relay::RelayMessage>& request,
+                              bool accepted, const std::string& message);
 
         void RelayProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg);
+        void RelayProtoMessageToRooms(const std::vector<std::string>& room_ids,
+                                      std::shared_ptr<Data> msg);
 
         bool IsAlive();
         [[nodiscard]] std::uint64_t ConnectionGeneration() const;
