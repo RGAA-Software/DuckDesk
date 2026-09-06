@@ -87,3 +87,15 @@ target_link_libraries(pixels_android_core PRIVATE
     px_media_record
     px_voice_call
 )
+
+if(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    add_custom_command(
+        TARGET pixels_android_core
+        POST_BUILD
+        COMMAND "${CMAKE_OBJCOPY}" --only-keep-debug "$<TARGET_FILE:pixels_android_core>" "$<TARGET_FILE:pixels_android_core>.dbg"
+        COMMAND "${CMAKE_STRIP}" --strip-unneeded "$<TARGET_FILE:pixels_android_core>"
+        COMMAND "${CMAKE_OBJCOPY}" "--add-gnu-debuglink=$<TARGET_FILE:pixels_android_core>.dbg" "$<TARGET_FILE:pixels_android_core>"
+        COMMENT "Separating Pixels Android native symbols from the release library"
+        VERBATIM
+    )
+endif()

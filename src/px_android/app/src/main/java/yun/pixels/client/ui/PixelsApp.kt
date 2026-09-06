@@ -60,8 +60,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
+import yun.pixels.client.BuildConfig
 import yun.pixels.client.PixelsAppGraph
 import yun.pixels.client.R
+import yun.pixels.client.diagnostics.DiagnosticsExporter
 import yun.pixels.client.feature.devices.DeviceHomeAction
 import yun.pixels.client.feature.devices.DeviceHomeNotice
 import yun.pixels.client.feature.devices.DeviceHomeScreen
@@ -177,6 +179,8 @@ fun PixelsApp(graph: PixelsAppGraph) {
     }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val microphonePermissionDenied = stringResource(R.string.microphone_permission_required)
+    val diagnosticsFailed = stringResource(R.string.diagnostics_failed)
+    val shareDiagnostics = stringResource(R.string.share_diagnostics)
     val microphonePermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) remoteBinder?.startVoiceCall() else coroutineScope.launch { snackbarHostState.showSnackbar(microphonePermissionDenied) }
     }
@@ -377,7 +381,23 @@ fun PixelsApp(graph: PixelsAppGraph) {
                 }
             }
             composable(TopLevelDestination.Settings.route) {
-                SettingsScreen(state = settingsState, onAction = settingsViewModel::onAction)
+                SettingsScreen(
+                    state = settingsState,
+                    appVersion = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    onAction = settingsViewModel::onAction,
+                    onExportDiagnostics = {
+                        coroutineScope.launch {
+                            runCatching {
+                                val sessionState = remoteBinder?.snapshot?.value?.status?.javaClass?.simpleName ?: "Idle"
+                                DiagnosticsExporter.create(context, sessionState)
+                            }.onSuccess { report ->
+                                DiagnosticsExporter.share(context, report, shareDiagnostics)
+                            }.onFailure {
+                                snackbarHostState.showSnackbar(diagnosticsFailed)
+                            }
+                        }
+                    },
+                )
             }
             composable(APPLICATIONS_ROUTE) {
                 ApplicationLibraryScreen(

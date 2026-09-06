@@ -9,6 +9,14 @@
     <string name="password_change_required">Change this account password before starting a remote session.</string>
     <string name="security_title">Connection security</string>
     <string name="security_body">Console connections require verified HTTPS. Private-network direct connections may use unencrypted HTTP/WS.</string>
+    <string name="about_title">About Pixels</string>
+    <string name="version_format">Version %1$s</string>
+    <string name="privacy_title">Privacy</string>
+    <string name="privacy_body">Pixels stores saved computer metadata locally. Temporary direct-connect credentials, Console sessions, and tokens are encrypted with Android Keystore-backed keys. Console traffic requires verified HTTPS; a private-network direct connection may use unencrypted HTTP and WebSocket traffic on that local network.\n\nMicrophone access starts only after you initiate a voice call and grant Android permission. Clipboard, file transfer, recording, and diagnostic sharing run only after an explicit action. Temporary files are kept in app-private cache and expire automatically. A diagnostic report contains build/device information and recent application logs with common credentials, URLs, addresses, and identifiers redacted; Android shows the destination chooser before anything leaves the device.\n\nPixels does not include advertising or analytics SDKs and does not sell personal data. Removing app data deletes locally stored account sessions, devices, and temporary files.</string>
+    <string name="open_source_title">Open-source notices</string>
+    <string name="open_source_body">Pixels includes AndroidX and Kotlin components under Apache License 2.0; Protocol Buffers, LevelDB, and Opus under BSD-style licenses; Asio under Boost Software License 1.0; OpenSSL under Apache License 2.0; GLM under the MIT license; and FFmpeg under GNU LGPL 2.1 or later.\n\nCopyright remains with each upstream project and contributor. Corresponding source, license texts, and build configuration are recorded in the Pixels source distribution.</string>
+    <string name="export_diagnostics">Export diagnostics</string>
+    <string name="close">Close</string>
     <string name="error_invalid_endpoint">Enter a valid HTTPS Console address.</string>
     <string name="error_invalid_credentials">The username or password is incorrect.</string>
     <string name="error_authentication_required">Your session expired. Sign in again.</string>

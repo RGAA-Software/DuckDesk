@@ -40,3 +40,22 @@ adb shell am start -n yun.pixels.client.debug/yun.pixels.client.MainActivity
 日常真机验证只做 `-r` 覆盖安装，不主动卸载或清空应用数据。`core-native` 打包 `pixels_android_core`，并通过 `RegisterNatives` 提供类型化 JNI；没有旧 JSON JNI 或 RTC stub。
 
 后续 native C++ 聚焦验证使用仓库的 `build_cpp_android_*.bat` 入口。Windows release-only `build_official.bat` 不是 Android 开发命令。
+
+## 发布构建
+
+正式包只允许使用独立的 Pixels 签名。可通过环境变量注入：
+
+```powershell
+$env:PIXELS_KEYSTORE_FILE = 'C:\secure\pixels-release.jks'
+$env:PIXELS_KEYSTORE_PASSWORD = '<secret>'
+$env:PIXELS_KEY_ALIAS = 'pixels'
+$env:PIXELS_KEY_PASSWORD = '<secret>'
+$env:PIXELS_VERSION_CODE = '1'
+$env:PIXELS_VERSION_NAME = '1.0.0'
+.\build_official_release.bat
+```
+
+也可以复制 `keystore.properties.example` 为被 Git 忽略的 `keystore.properties`。脚本执行 release lint、单元测试、R8/resource shrink、
+arm64 native 构建以及 APK/AAB 签名校验，并把 APK、AAB、R8 mapping、native symbols 和带 SHA-256 的发布清单归档到
+`app/apk/release/<version>/`。缺少签名配置时 release 打包会立即失败；debug 构建不受影响。版本可由
+`PIXELS_VERSION_CODE`/`PIXELS_VERSION_NAME` 注入，Git revision 会自动写入构建元数据。

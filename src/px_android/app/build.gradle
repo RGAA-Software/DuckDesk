@@ -1,6 +1,32 @@
+import java.util.Properties
+import java.util.Locale
+
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.plugin.compose'
+}
+
+def releaseProperties = new Properties()
+def releasePropertiesFile = rootProject.file('keystore.properties')
+if (releasePropertiesFile.isFile()) {
+    releasePropertiesFile.withInputStream { releaseProperties.load(it) }
+}
+
+def releaseValue = { String propertyName, String environmentName ->
+    def environmentValue = System.getenv(environmentName)?.trim()
+    environmentValue ? environmentValue : releaseProperties.getProperty(propertyName)?.trim()
+}
+def releaseStorePath = releaseValue('storeFile', 'PIXELS_KEYSTORE_FILE')
+def releaseStorePassword = releaseValue('storePassword', 'PIXELS_KEYSTORE_PASSWORD')
+def releaseKeyAlias = releaseValue('keyAlias', 'PIXELS_KEY_ALIAS')
+def releaseKeyPassword = releaseValue('keyPassword', 'PIXELS_KEY_PASSWORD')
+def releaseSigningReady = [releaseStorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { it }
+def pixelsVersionCode = (System.getenv('PIXELS_VERSION_CODE') ?: '1').toInteger()
+def pixelsVersionName = System.getenv('PIXELS_VERSION_NAME') ?: '1.0.0'
+def pixelsGitRevision = System.getenv('PIXELS_GIT_REVISION') ?: 'unknown'
+
+if (pixelsVersionCode <= 0 || !(pixelsVersionName ==~ /[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?/)) {
+    throw new GradleException('PIXELS_VERSION_CODE must be positive and PIXELS_VERSION_NAME must use semantic version syntax.')
 }
 
 android {
@@ -11,8 +37,9 @@ android {
         applicationId = 'yun.pixels.client'
         minSdk = 31
         targetSdk = 37
-        versionCode = 1
-        versionName = '1.0.0'
+        versionCode = pixelsVersionCode
+        versionName = pixelsVersionName
+        buildConfigField 'String', 'GIT_REVISION', "\"${pixelsGitRevision}\""
 
         testInstrumentationRunner = 'androidx.test.runner.AndroidJUnitRunner'
 
@@ -20,6 +47,21 @@ android {
             abiFilters += ['arm64-v8a']
         }
 
+    }
+
+    signingConfigs {
+        release {
+            if (releaseSigningReady) {
+                storeFile = rootProject.file(releaseStorePath)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                enableV1Signing = false
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
+        }
     }
 
     buildTypes {
@@ -31,6 +73,12 @@ android {
             minifyEnabled = true
             shrinkResources = true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            ndk {
+                debugSymbolLevel = 'FULL'
+            }
+            if (releaseSigningReady) {
+                signingConfig = signingConfigs.release
+            }
         }
     }
 
@@ -56,6 +104,17 @@ android {
         disable 'AndroidGradlePluginVersion', 'ChromeOsAbiSupport'
     }
 
+}
+
+def signedReleaseTaskRequested = gradle.startParameter.taskNames.any { taskName ->
+    def normalized = taskName.toLowerCase(Locale.ROOT)
+    normalized.endsWith('assemblerelease') || normalized.endsWith('bundlerelease') || normalized.endsWith('installrelease')
+}
+if (signedReleaseTaskRequested && !releaseSigningReady) {
+    throw new GradleException(
+        'A release package requires PIXELS_KEYSTORE_FILE, PIXELS_KEYSTORE_PASSWORD, PIXELS_KEY_ALIAS and PIXELS_KEY_PASSWORD ' +
+            'or the equivalent values in the ignored keystore.properties file.',
+    )
 }
 
 dependencies {

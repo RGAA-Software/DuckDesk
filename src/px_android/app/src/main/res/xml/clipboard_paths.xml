@@ -3,4 +3,7 @@
     <cache-path
         name="clipboard"
         path="clipboard/received/" />
+    <cache-path
+        name="diagnostics"
+        path="diagnostics/" />
 </paths>

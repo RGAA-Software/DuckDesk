@@ -1,4 +1,6 @@
 <resources>
+    <string name="share_diagnostics">分享 Pixels 诊断信息</string>
+    <string name="diagnostics_failed">无法生成诊断报告。</string>
     <string name="app_name">Pixels</string>
     <string name="navigation_devices">设备</string>
     <string name="navigation_transfers">传输</string>

@@ -9,6 +9,14 @@
     <string name="password_change_required">开始远控前需要先修改账号密码。</string>
     <string name="security_title">连接安全</string>
     <string name="security_body">Console 连接强制验证 HTTPS。私有网络直连可能使用未加密的 HTTP/WS。</string>
+    <string name="about_title">关于 Pixels</string>
+    <string name="version_format">版本 %1$s</string>
+    <string name="privacy_title">隐私说明</string>
+    <string name="privacy_body">Pixels 在本机保存电脑元数据。临时直连凭据、Console 会话和令牌使用 Android Keystore 支持的密钥加密。Console 通信强制验证 HTTPS；私有网络直连可能在该局域网内使用未加密的 HTTP 和 WebSocket。\n\n只有你主动发起语音通话并授予 Android 权限后才会访问麦克风。剪贴板、文件传输、录制和诊断分享只由明确的用户操作启动。临时文件保存在应用私有缓存中并自动过期。诊断报告包含构建、设备信息和近期应用日志，常见凭据、网址、地址与标识符会被脱敏；数据离开设备前由 Android 显示目标选择器。\n\nPixels 不包含广告或分析 SDK，也不出售个人数据。清除应用数据会删除本机保存的账号会话、设备和临时文件。</string>
+    <string name="open_source_title">开源许可</string>
+    <string name="open_source_body">Pixels 使用以下开源组件：AndroidX 与 Kotlin 组件采用 Apache License 2.0；Protocol Buffers、LevelDB 与 Opus 采用 BSD 风格许可；Asio 采用 Boost Software License 1.0；OpenSSL 采用 Apache License 2.0；GLM 采用 MIT 许可；FFmpeg 采用 GNU LGPL 2.1 或更高版本。\n\n版权归各上游项目及贡献者所有。对应源代码、完整许可文本和构建配置记录在 Pixels 源代码发行包中。</string>
+    <string name="export_diagnostics">导出诊断信息</string>
+    <string name="close">关闭</string>
     <string name="error_invalid_endpoint">请输入有效的 HTTPS Console 地址。</string>
     <string name="error_invalid_credentials">用户名或密码错误。</string>
     <string name="error_authentication_required">登录已过期，请重新登录。</string>
