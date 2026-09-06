@@ -97,6 +97,8 @@ internal sealed interface WebRtcPeerEvent {
 
     data class ClipboardText(val value: String) : WebRtcPeerEvent
 
+    data class ClipboardProtocolMessage(val payload: ByteArray) : WebRtcPeerEvent
+
     data class GamepadRumble(val strongMotor: Int, val weakMotor: Int) : WebRtcPeerEvent
 
     data class FileTransferChannel(val ready: Boolean) : WebRtcPeerEvent
@@ -351,6 +353,15 @@ internal class WebRtcPeerSession(
         return activeChannel.send(DataChannel.Buffer(ByteBuffer.wrap(packet), true))
     }
 
+    fun sendControlPayload(payload: ByteArray): Boolean {
+        if (payload.isEmpty() || payload.size > MAX_CHANNEL_MESSAGE_BYTES) return false
+        val activeChannel = synchronized(stateLock) {
+            mediaChannel?.takeIf { it.state() == DataChannel.State.OPEN }
+        } ?: return false
+        val packet = synchronized(stateLock) { packRtcTlv(payload, packetIndex++) }
+        return activeChannel.send(DataChannel.Buffer(ByteBuffer.wrap(packet), true))
+    }
+
     override fun close() {
         closeWithReason("RTC peer session stopped", recoverable = false, notify = false)
     }
@@ -408,7 +419,7 @@ internal class WebRtcPeerSession(
     }
 
     private fun onMediaMessage(buffer: DataChannel.Buffer) {
-        if (!buffer.binary || buffer.data.remaining() > MAX_CHANNEL_MESSAGE_BYTES) return
+        if (!buffer.binary || buffer.data.remaining() > MAX_CHANNEL_MESSAGE_BYTES + RTC_TLV_HEADER_BYTES) return
         val bytes = ByteArray(buffer.data.remaining())
         buffer.data.get(bytes)
         val payload = unpackRtcTlv(bytes) ?: return
@@ -433,7 +444,16 @@ internal class WebRtcPeerSession(
                     runCatching { message.clipboardInfo.msg.toByteArray().decodeToString(throwOnInvalidSequence = true) }
                         .getOrNull()
                         ?.let { onEvent(WebRtcPeerEvent.ClipboardText(it)) }
+                } else if (message.isRtcClipboardFileProtocolMessage()) {
+                    onEvent(WebRtcPeerEvent.ClipboardProtocolMessage(payload))
                 }
+            }
+
+            PxMessage.MessageType.kClipboardReqAtBegin,
+            PxMessage.MessageType.kClipboardReqAtEnd,
+            PxMessage.MessageType.kClipboardReqBuffer,
+            PxMessage.MessageType.kClipboardRespBuffer -> if (message.isRtcClipboardFileProtocolMessage()) {
+                onEvent(WebRtcPeerEvent.ClipboardProtocolMessage(payload))
             }
 
             PxMessage.MessageType.kGamepadRumble -> onEvent(

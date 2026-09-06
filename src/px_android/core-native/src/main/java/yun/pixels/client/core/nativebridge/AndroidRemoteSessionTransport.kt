@@ -163,9 +163,14 @@ class AndroidRemoteSessionTransport internal constructor(
         }
         lateinit var session: WebRtcPeerSession
         val fileTransferBridgeReady = if ("file" in launch.permissions) {
-            native.startRtcFileTransfer(request.id, launch.parameters.ticketDeviceId, launch.parameters.streamId) { payload ->
-                session.sendFileTransfer(payload)
-            }
+            native.startRtcFileTransfer(
+                sessionId = request.id,
+                clientDeviceId = launch.parameters.ticketDeviceId,
+                streamId = launch.parameters.streamId,
+                enableClipboard = request.enableClipboard && "clipboard" in launch.permissions,
+                fileSender = { payload -> session.sendFileTransfer(payload) },
+                controlSender = { payload -> session.sendControlPayload(payload) },
+            )
         } else {
             false
         }
@@ -252,21 +257,13 @@ class AndroidRemoteSessionTransport internal constructor(
         sessionId: RemoteSessionId,
         generation: String,
         files: List<LocalClipboardFile>,
-    ): Boolean = if (lock.withLock { rtcSessions.containsKey(sessionId) }) {
-        false
-    } else {
-        native.sendClipboardFiles(sessionId, generation, files)
-    }
+    ): Boolean = native.sendClipboardFiles(sessionId, generation, files)
 
     override suspend fun downloadClipboardFiles(
         sessionId: RemoteSessionId,
         generation: String,
         destinationDirectory: String,
-    ): Boolean = if (lock.withLock { rtcSessions.containsKey(sessionId) }) {
-        false
-    } else {
-        native.downloadClipboardFiles(sessionId, generation, destinationDirectory)
-    }
+    ): Boolean = native.downloadClipboardFiles(sessionId, generation, destinationDirectory)
 
     suspend fun switchMonitor(sessionId: RemoteSessionId, monitorName: String): Boolean {
         val rtc = lock.withLock { rtcSessions[sessionId] }
@@ -414,6 +411,7 @@ class AndroidRemoteSessionTransport internal constructor(
             is WebRtcPeerEvent.Statistics -> mutableEvents.emit(RemoteTransportEvent.Statistics(sessionId, event.value))
 
             is WebRtcPeerEvent.ClipboardText -> mutableEvents.emit(RemoteTransportEvent.ClipboardText(sessionId, event.value))
+            is WebRtcPeerEvent.ClipboardProtocolMessage -> native.receiveRtcFileTransfer(sessionId, event.payload)
             is WebRtcPeerEvent.GamepadRumble -> mutableEvents.emit(
                 RemoteTransportEvent.GamepadRumble(sessionId, event.strongMotor, event.weakMotor),
             )

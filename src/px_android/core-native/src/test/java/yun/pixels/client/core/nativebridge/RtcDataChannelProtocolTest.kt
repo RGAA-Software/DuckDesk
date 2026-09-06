@@ -130,6 +130,46 @@ class RtcDataChannelProtocolTest {
         assertFalse(
             config.toRtcSessionCapabilities(false, false, true, setOf("view", "clipboard")).supportsClipboardFiles,
         )
+        assertFalse(
+            config.toRtcSessionCapabilities(
+                false,
+                false,
+                true,
+                setOf("view", "clipboard"),
+                fileTransferReady = true,
+            ).supportsClipboardFiles,
+        )
+        assertTrue(
+            config.toRtcSessionCapabilities(
+                false,
+                false,
+                true,
+                setOf("view", "clipboard", "file"),
+                fileTransferReady = true,
+            ).supportsClipboardFiles,
+        )
+    }
+
+    @Test
+    fun rtcClipboardFileProtocolRejectsTypeOnlyMessages() {
+        val fileInfo = PxMessage.Message.newBuilder()
+            .setType(PxMessage.MessageType.kClipboardInfo)
+            .setClipboardInfo(PxMessage.ClipboardInfo.newBuilder().setType(PxMessage.ClipboardType.kClipboardFiles))
+            .build()
+        val bufferRequest = PxMessage.Message.newBuilder()
+            .setType(PxMessage.MessageType.kClipboardReqBuffer)
+            .setCpReqBuffer(PxMessage.ClipboardReqBuffer.newBuilder().setFullName("pixels-clipboard://generation/0"))
+            .build()
+        val typeOnly = PxMessage.Message.newBuilder().setType(PxMessage.MessageType.kClipboardReqBuffer).build()
+        val text = PxMessage.Message.newBuilder()
+            .setType(PxMessage.MessageType.kClipboardInfo)
+            .setClipboardInfo(PxMessage.ClipboardInfo.newBuilder().setType(PxMessage.ClipboardType.kClipboardText))
+            .build()
+
+        assertTrue(fileInfo.isRtcClipboardFileProtocolMessage())
+        assertTrue(bufferRequest.isRtcClipboardFileProtocolMessage())
+        assertFalse(typeOnly.isRtcClipboardFileProtocolMessage())
+        assertFalse(text.isRtcClipboardFileProtocolMessage())
     }
 
     @Test

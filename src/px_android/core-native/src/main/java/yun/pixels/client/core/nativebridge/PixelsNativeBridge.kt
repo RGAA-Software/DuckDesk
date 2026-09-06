@@ -5,6 +5,8 @@ import android.view.Surface
 interface NativeSessionListener {
     fun onRtcFileTransferOutbound(sessionId: String, payload: ByteArray): Boolean
 
+    fun onRtcClipboardControlOutbound(sessionId: String, payload: ByteArray): Boolean
+
     fun onConnected(
         sessionId: String,
         monitorNames: Array<String>,
@@ -149,12 +151,27 @@ internal object PixelsNativeBridge {
         sessionId: String,
         clientDeviceId: String,
         streamId: String,
+        enableClipboard: Boolean,
         listener: NativeSessionListener,
     ): Long
 
     external fun startRtcFileTransfer(nativeFileTransferId: Long): Boolean
 
     external fun receiveRtcFileTransfer(nativeFileTransferId: Long, payload: ByteArray): Boolean
+
+    external fun publishRtcClipboardFiles(
+        nativeFileTransferId: Long,
+        generation: String,
+        displayNames: Array<String>,
+        localPaths: Array<String>,
+        sizes: LongArray,
+    ): Boolean
+
+    external fun downloadRtcClipboardFiles(
+        nativeFileTransferId: Long,
+        generation: String,
+        destinationDirectory: String,
+    ): Boolean
 
     external fun startRtcFileUpload(nativeFileTransferId: Long, localPath: ByteArray, remoteDirectory: ByteArray): Int
 

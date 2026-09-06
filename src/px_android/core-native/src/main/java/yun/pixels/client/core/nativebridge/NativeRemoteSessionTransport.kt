@@ -69,6 +69,7 @@ class NativeRemoteSessionTransport internal constructor(
     private val nativeSessionIds = mutableMapOf<RemoteSessionId, Long>()
     private val rtcFileTransferIds = mutableMapOf<RemoteSessionId, Long>()
     private val rtcFileTransferSenders = ConcurrentHashMap<RemoteSessionId, (ByteArray) -> Boolean>()
+    private val rtcClipboardControlSenders = ConcurrentHashMap<RemoteSessionId, (ByteArray) -> Boolean>()
     private val capabilities = mutableMapOf<RemoteSessionId, RemoteSessionCapabilities>()
 
     override val events: Flow<RemoteTransportEvent> = mutableEvents.asSharedFlow()
@@ -144,11 +145,19 @@ class NativeRemoteSessionTransport internal constructor(
         sessionId: RemoteSessionId,
         clientDeviceId: String,
         streamId: String,
-        sender: (ByteArray) -> Boolean,
+        enableClipboard: Boolean,
+        fileSender: (ByteArray) -> Boolean,
+        controlSender: (ByteArray) -> Boolean,
     ): Boolean {
         if (clientDeviceId.isBlank() || streamId.isBlank()) return false
         val nativeId = withContext(Dispatchers.IO) {
-            PixelsNativeBridge.createRtcFileTransfer(sessionId.value, clientDeviceId, streamId, this@NativeRemoteSessionTransport)
+            PixelsNativeBridge.createRtcFileTransfer(
+                sessionId.value,
+                clientDeviceId,
+                streamId,
+                enableClipboard,
+                this@NativeRemoteSessionTransport,
+            )
         }
         if (nativeId == 0L) return false
         val accepted = lock.withLock {
@@ -161,9 +170,11 @@ class NativeRemoteSessionTransport internal constructor(
             withContext(Dispatchers.IO) { PixelsNativeBridge.stopRtcFileTransfer(nativeId) }
             return false
         }
-        rtcFileTransferSenders[sessionId] = sender
+        rtcFileTransferSenders[sessionId] = fileSender
+        rtcClipboardControlSenders[sessionId] = controlSender
         if (withContext(Dispatchers.IO) { PixelsNativeBridge.startRtcFileTransfer(nativeId) }) return true
         rtcFileTransferSenders.remove(sessionId)
+        rtcClipboardControlSenders.remove(sessionId)
         lock.withLock { rtcFileTransferIds.remove(sessionId, nativeId) }
         withContext(Dispatchers.IO) { PixelsNativeBridge.stopRtcFileTransfer(nativeId) }
         return false
@@ -177,6 +188,7 @@ class NativeRemoteSessionTransport internal constructor(
 
     suspend fun stopRtcFileTransfer(sessionId: RemoteSessionId) {
         rtcFileTransferSenders.remove(sessionId)
+        rtcClipboardControlSenders.remove(sessionId)
         val nativeId = lock.withLock { rtcFileTransferIds.remove(sessionId) } ?: return
         withContext(Dispatchers.IO) { PixelsNativeBridge.stopRtcFileTransfer(nativeId) }
     }
@@ -236,15 +248,22 @@ class NativeRemoteSessionTransport internal constructor(
         files: List<LocalClipboardFile>,
     ): Boolean {
         if (generation.isBlank() || files.isEmpty() || files.size > MAX_CLIPBOARD_FILE_COUNT) return false
-        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        val (nativeSessionId, rtcFileTransferId) = lock.withLock { nativeSessionIds[sessionId] to rtcFileTransferIds[sessionId] }
         return withContext(Dispatchers.IO) {
-            PixelsNativeBridge.sendClipboardFiles(
-                nativeSessionId,
-                generation,
-                files.map(LocalClipboardFile::displayName).toTypedArray(),
-                files.map(LocalClipboardFile::localPath).toTypedArray(),
-                files.map(LocalClipboardFile::size).toLongArray(),
-            )
+            val names = files.map(LocalClipboardFile::displayName).toTypedArray()
+            val paths = files.map(LocalClipboardFile::localPath).toTypedArray()
+            val sizes = files.map(LocalClipboardFile::size).toLongArray()
+            when {
+                rtcFileTransferId != null -> PixelsNativeBridge.publishRtcClipboardFiles(
+                    rtcFileTransferId,
+                    generation,
+                    names,
+                    paths,
+                    sizes,
+                )
+                nativeSessionId != null -> PixelsNativeBridge.sendClipboardFiles(nativeSessionId, generation, names, paths, sizes)
+                else -> false
+            }
         }
     }
 
@@ -254,9 +273,17 @@ class NativeRemoteSessionTransport internal constructor(
         destinationDirectory: String,
     ): Boolean {
         if (generation.isBlank() || destinationDirectory.isBlank()) return false
-        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        val (nativeSessionId, rtcFileTransferId) = lock.withLock { nativeSessionIds[sessionId] to rtcFileTransferIds[sessionId] }
         val accepted = withContext(Dispatchers.IO) {
-            PixelsNativeBridge.downloadClipboardFiles(nativeSessionId, generation, destinationDirectory)
+            when {
+                rtcFileTransferId != null -> PixelsNativeBridge.downloadRtcClipboardFiles(
+                    rtcFileTransferId,
+                    generation,
+                    destinationDirectory,
+                )
+                nativeSessionId != null -> PixelsNativeBridge.downloadClipboardFiles(nativeSessionId, generation, destinationDirectory)
+                else -> false
+            }
         }
         if (accepted) mutableEvents.emit(RemoteTransportEvent.ClipboardDownload(sessionId, ClipboardDownloadState.Downloading(generation)))
         return accepted
@@ -447,6 +474,12 @@ class NativeRemoteSessionTransport internal constructor(
         if (payload.isEmpty() || payload.size > MAX_RTC_FILE_MESSAGE_BYTES) return false
         val remoteSessionId = runCatching { RemoteSessionId(sessionId) }.getOrNull() ?: return false
         return rtcFileTransferSenders[remoteSessionId]?.invoke(payload) == true
+    }
+
+    override fun onRtcClipboardControlOutbound(sessionId: String, payload: ByteArray): Boolean {
+        if (payload.isEmpty() || payload.size > MAX_RTC_FILE_MESSAGE_BYTES) return false
+        val remoteSessionId = runCatching { RemoteSessionId(sessionId) }.getOrNull() ?: return false
+        return rtcClipboardControlSenders[remoteSessionId]?.invoke(payload) == true
     }
 
     override fun onConnected(

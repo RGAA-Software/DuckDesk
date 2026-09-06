@@ -101,6 +101,7 @@ class JavaSessionCallback final {
                                bool identical) const;
     void RemoteDirectory(const std::string& session_id, const px::FileDirectory& directory) const;
     [[nodiscard]] bool FileTransferOutbound(const std::string& session_id, const std::string& payload) const;
+    [[nodiscard]] bool ClipboardControlOutbound(const std::string& session_id, const std::string& payload) const;
     void RecordingState(const std::string& session_id, const std::string& recording_id, std::int32_t state, const std::string& error) const;
     void VoiceCallState(const std::string& session_id, const NativeVoiceCallStatus& status) const;
     void Disconnected(const std::string& session_id, std::int32_t reason, bool recoverable) const;
@@ -113,9 +114,10 @@ class JavaSessionCallback final {
 class NativeRtcFileTransfer final : public std::enable_shared_from_this<NativeRtcFileTransfer> {
   public:
     static std::shared_ptr<NativeRtcFileTransfer> Create(std::string session_id, std::string client_device_id, std::string stream_id,
+                                                         bool enable_clipboard,
                                                          std::shared_ptr<JavaSessionCallback> callback);
 
-    NativeRtcFileTransfer(std::string session_id, std::string client_device_id, std::string stream_id,
+    NativeRtcFileTransfer(std::string session_id, std::string client_device_id, std::string stream_id, bool enable_clipboard,
                           std::shared_ptr<JavaSessionCallback> callback);
     ~NativeRtcFileTransfer();
 
@@ -129,6 +131,8 @@ class NativeRtcFileTransfer final : public std::enable_shared_from_this<NativeRt
     bool ListRemoteDirectory(const std::string& remote_path);
     bool Cancel(std::int32_t job_id);
     bool ConfirmOverwrite(std::int32_t job_id, std::int32_t file_number, bool overwrite, std::uint64_t offset_bytes, bool apply_to_all);
+    bool PublishClipboardFiles(std::string generation, std::vector<NativeClipboardFile> files);
+    bool DownloadClipboardFiles(const std::string& generation, const std::string& destination_directory);
     void Stop();
 
   private:
@@ -137,8 +141,10 @@ class NativeRtcFileTransfer final : public std::enable_shared_from_this<NativeRt
     std::string session_id_{};
     std::string client_device_id_{};
     std::string stream_id_{};
+    bool enable_clipboard_{};
     std::shared_ptr<JavaSessionCallback> callback_{};
     std::shared_ptr<px::ft::FtAsyncSession> file_transfer_session_{};
+    std::shared_ptr<NativeClipboard> clipboard_{};
     mutable std::mutex lifecycle_mutex_{};
     std::mutex command_mutex_{};
     std::atomic_bool started_{};

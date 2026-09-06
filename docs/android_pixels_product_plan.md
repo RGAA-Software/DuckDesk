@@ -210,7 +210,7 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 标准 RTC platform adapter 直接消费仓库权威 protobuf，并已具备票据信令、ICE/TURN、RTP Surface 渲染、控制/输入 DataChannel 和独立文件传输
 DataChannel。产品路由仅在
 Console 提供完整且未临近过期的 RTC/Relay 作用域时选择标准 RTC，否则继续使用原生 UDP/Relay；旋转 renewal capability 已用于临期/已尝试票据和
-WebRTC 失败后的原生 UDP/Relay 降级，并验证续发响应不能改变 logical session 或 stream。录制、语音和文件型剪贴板等剩余 DataChannel 能力以及真机网络矩阵
+WebRTC 失败后的原生 UDP/Relay 降级，并验证续发响应不能改变 logical session 或 stream。录制、语音等剩余能力以及真机网络矩阵
 完成前仍不对外宣称 WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
 
 ## 7. 渲染、音频和输入
@@ -334,7 +334,7 @@ WebRTC 失败后的原生 UDP/Relay 降级，并验证续发响应不能改变 l
 
 ### M5：完整网络与质量收口，2–3 周
 
-状态：**UDP Direct 已作为 Android 默认传输接入，具备认证控制面、四秒媒体探测与同会话 WebSocket 安全回退；断线重连具有三十秒上限、类型化失败和显式重试。账号公网设备已接入一次性票据约束的 Relay 主路径，Console 只校验并注入权威绑定，Render 负责唯一兑换、逻辑会话准入和按能力路由。Android 标准 WebRTC 已固定 AAR、接入权威 protobuf-lite 协议生成、票据作用域 Relay 信令、ICE/TURN 配置校验、PeerConnection、RTP 音视频 Surface 渲染，以及可靠控制/不可靠输入 DataChannel 的 Hello、输入、文本剪贴板、能力消息、实体显示器切换和虚拟显示请求/结果；可靠 `ft_data_channel` 已复用项目 `FtAsyncSession`，提供目录浏览、上传、下载、取消、断点与覆盖确认。连接后从标准 RTCStats 持续提供画面帧率、视频接收码率、往返延迟和视频丢包率。统一产品路由会校验 RTC 与票据有效期后选择 WebRTC，否则使用原生 UDP/Relay；RTC 下未实现的录制、语音和文件型剪贴板分别保持关闭，不借用文本剪贴板能力误开放。客户端已接入匿名 renewal capability 续发端点，对临期或已尝试的一次性票据先旋转凭据；WebRTC 协商/连接失败会在有界窗口内续发并降级到原生 UDP/Relay，续发响应必须保持 logical session 与 stream 身份不变。完整 DataChannel 能力和真实网络矩阵仍待完成，因此当前不会向用户宣称 WebRTC 已完整交付。**
+状态：**UDP Direct 已作为 Android 默认传输接入，具备认证控制面、四秒媒体探测与同会话 WebSocket 安全回退；断线重连具有三十秒上限、类型化失败和显式重试。账号公网设备已接入一次性票据约束的 Relay 主路径，Console 只校验并注入权威绑定，Render 负责唯一兑换、逻辑会话准入和按能力路由。Android 标准 WebRTC 已固定 AAR、接入权威 protobuf-lite 协议生成、票据作用域 Relay 信令、ICE/TURN 配置校验、PeerConnection、RTP 音视频 Surface 渲染，以及可靠控制/不可靠输入 DataChannel 的 Hello、输入、双向文本与文件型剪贴板、能力消息、实体显示器切换和虚拟显示请求/结果；可靠 `ft_data_channel` 已复用项目 `FtAsyncSession`，提供目录浏览、上传、下载、取消、断点与覆盖确认，并承载既有 `NativeClipboard` 的有界文件块。连接后从标准 RTCStats 持续提供画面帧率、视频接收码率、往返延迟和视频丢包率。统一产品路由会校验 RTC 与票据有效期后选择 WebRTC，否则使用原生 UDP/Relay；RTC 下未实现的录制和语音保持关闭。客户端已接入匿名 renewal capability 续发端点，对临期或已尝试的一次性票据先旋转凭据；WebRTC 协商/连接失败会在有界窗口内续发并降级到原生 UDP/Relay，续发响应必须保持 logical session 与 stream 身份不变。完整能力和真实网络矩阵仍待完成，因此当前不会向用户宣称 WebRTC 已完整交付。**
 
 - UDP Direct、Relay、WebRTC Direct、ICE/TURN WebRTC。
 - 传输选择、协商、失败降级、网络切换恢复。
@@ -626,6 +626,11 @@ SHA-256 发布清单，以及应用内隐私、完整第三方许可证和主动
 - 2026-09-07 M5 标准 WebRTC 文件传输接入可靠 `ft_data_channel`，Kotlin 只负责有界 TLV/DataChannel 路由，目录、上传、下载、断点、覆盖确认和取消继续复用项目维护的
   `FtAsyncSession`。能力必须同时满足票据 `file` 权限、服务端开关和 DataChannel 已打开；文件型剪贴板使用独立 capability，RTC 未实现前不会随文本剪贴板误开放。
   本轮完成 JNI 注册加载、Kotlin 协议测试、arm64 增量构建和文件引擎生命周期/背压测试；手机尚未登录 Console，因此不把真实 RTC 文件收发记为真机网络矩阵通过。
+- 2026-09-07 M5 标准 WebRTC 文件型剪贴板继续复用 `NativeClipboard`，元数据经可靠控制通道发送，最大 256 KiB 的请求/响应块经 `ft_data_channel` 发送；
+  16 文件、单文件 512 MiB、总计 1 GiB、文件名净化、私有缓存、下载取消和 5 秒块超时限制与原生链路一致。能力必须同时具备票据 `clipboard`/`file` 权限且文件通道已打开，
+  类型只有声明但缺少对应 protobuf body 的消息会被拒绝。Kotlin 协议测试、Android 全套单元测试与 lint、arm64 C++ 构建和所有权门禁通过；同一真机覆盖安装后
+  冷启动 2.419 秒，新增 JNI 注册全部加载且无 Java/JNI/native fatal，APK SHA-256 为 `F0514FC6B74F8C17D269887C44D447D5969DFCB922186BED2ECEDC00AE72A0F4`。
+  手机尚未登录 Console，真实 RTC 剪贴板收发仍纳入登录后的网络矩阵。
 
 这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径、物理显示器切换和虚拟显示失败反馈；
 后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁，M5 轮次关闭了 UDP Direct 协商、WebSocket 安全回退、有界重连和 H.264 首帧解析门禁。

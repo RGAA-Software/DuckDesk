@@ -123,7 +123,7 @@ internal fun PxMessage.ServerConfiguration.toRtcSessionCapabilities(
         supportsInput = supportsInput,
         supportsFileTransfer = fileTransferReady && fileTransferEnabled && "file" in permissions,
         supportsClipboard = enableClipboard && "clipboard" in permissions,
-        supportsClipboardFiles = false,
+        supportsClipboardFiles = fileTransferReady && enableClipboard && "clipboard" in permissions && "file" in permissions,
         supportsVirtualDisplays = supportsInput && virtualDisplayEnabled,
         ownedVirtualDisplayCount = virtualDisplayOwnedCount.coerceIn(0, MAX_RTC_VIRTUAL_DISPLAY_COUNT),
         maximumVirtualDisplayCount = virtualDisplayMaxCount.coerceIn(0, MAX_RTC_VIRTUAL_DISPLAY_COUNT),
@@ -133,6 +133,15 @@ internal fun PxMessage.ServerConfiguration.toRtcSessionCapabilities(
 }
 
 internal data class RtcMonitorUpdate(val monitorNames: List<String>, val activeMonitorName: String)
+
+internal fun PxMessage.Message.isRtcClipboardFileProtocolMessage(): Boolean = when (type) {
+    PxMessage.MessageType.kClipboardInfo -> hasClipboardInfo() && clipboardInfo.type == PxMessage.ClipboardType.kClipboardFiles
+    PxMessage.MessageType.kClipboardReqAtBegin -> hasCpReqAtBegin()
+    PxMessage.MessageType.kClipboardReqAtEnd -> hasCpReqAtEnd()
+    PxMessage.MessageType.kClipboardReqBuffer -> hasCpReqBuffer()
+    PxMessage.MessageType.kClipboardRespBuffer -> hasCpRespBuffer()
+    else -> false
+}
 
 internal fun parseRtcMonitorUpdate(message: PxMessage.Message): RtcMonitorUpdate? {
     if (message.type != PxMessage.MessageType.kMonitorSwitched || !message.hasMonitorSwitched()) return null

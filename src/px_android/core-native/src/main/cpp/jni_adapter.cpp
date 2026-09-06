@@ -356,14 +356,15 @@ jboolean NativeConfirmFileOverwrite(JNIEnv*, jobject, const jlong native_session
 
 jlong NativeCreateRtcFileTransfer(JNIEnv* environment, // NOLINT(gammaray-raw-pointer-boundary)
                                   jobject, const jstring session_id, const jstring client_device_id, const jstring stream_id,
-                                  const jobject listener) {
+                                  const jboolean enable_clipboard, const jobject listener) {
     if (environment == nullptr || listener == nullptr) {
         return 0;
     }
     auto callback = JavaSessionCallback::Create(*environment, listener);
     auto session = NativeRtcFileTransfer::Create(ReadJavaString(*environment, session_id, 128U),
                                                  ReadJavaString(*environment, client_device_id, 256U),
-                                                 ReadJavaString(*environment, stream_id, 256U), std::move(callback));
+                                                 ReadJavaString(*environment, stream_id, 256U), enable_clipboard == JNI_TRUE,
+                                                 std::move(callback));
     return session ? RtcFileTransfers().Add(std::move(session)) : 0;
 }
 
@@ -380,6 +381,46 @@ jboolean NativeReceiveRtcFileTransfer(JNIEnv* environment, // NOLINT(gammaray-ra
     const auto message = ReadUtf8Bytes(*environment, payload, 4 * 1024 * 1024);
     const auto session = RtcFileTransfers().Find(native_file_transfer_id);
     return session && session->Receive(message) ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean NativePublishRtcClipboardFiles(JNIEnv* environment, jobject, // NOLINT(gammaray-raw-pointer-boundary)
+                                        const jlong native_file_transfer_id, const jstring generation,
+                                        const jobjectArray display_names, const jobjectArray local_paths, const jlongArray sizes) {
+    if (environment == nullptr || generation == nullptr || display_names == nullptr || local_paths == nullptr || sizes == nullptr) {
+        return JNI_FALSE;
+    }
+    constexpr jsize kMaximumFiles = 16;
+    const auto generation_value = ReadJavaString(*environment, generation, 128U);
+    const auto names = ReadStringArray(*environment, display_names, kMaximumFiles);
+    const auto paths = ReadStringArray(*environment, local_paths, kMaximumFiles);
+    const auto size_count = environment->GetArrayLength(sizes);
+    if (generation_value.empty() || names.empty() || names.size() != paths.size() || size_count != static_cast<jsize>(names.size())) {
+        return JNI_FALSE;
+    }
+    std::vector<jlong> file_sizes(names.size());
+    environment->GetLongArrayRegion(sizes, 0, size_count, file_sizes.data()); // NOLINT(gammaray-raw-pointer-boundary)
+    if (environment->ExceptionCheck()) {
+        return JNI_FALSE;
+    }
+    std::vector<NativeClipboardFile> files;
+    files.reserve(names.size());
+    for (std::size_t index = 0; index < names.size(); ++index) {
+        files.push_back({.display_name = names[index], .backing_path = paths[index], .size = file_sizes[index]});
+    }
+    const auto session = RtcFileTransfers().Find(native_file_transfer_id);
+    return session && session->PublishClipboardFiles(std::move(generation_value), std::move(files)) ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean NativeDownloadRtcClipboardFiles(JNIEnv* environment, jobject, // NOLINT(gammaray-raw-pointer-boundary)
+                                         const jlong native_file_transfer_id, const jstring generation,
+                                         const jstring destination_directory) {
+    if (environment == nullptr) {
+        return JNI_FALSE;
+    }
+    const auto generation_value = ReadJavaString(*environment, generation, 128U);
+    const auto destination_value = ReadJavaString(*environment, destination_directory);
+    const auto session = RtcFileTransfers().Find(native_file_transfer_id);
+    return session && session->DownloadClipboardFiles(generation_value, destination_value) ? JNI_TRUE : JNI_FALSE;
 }
 
 jint NativeStartRtcFileUpload(JNIEnv* environment, // NOLINT(gammaray-raw-pointer-boundary)
@@ -579,12 +620,17 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) { // NOLINT(gamm
         {const_cast<char*>("confirmFileOverwrite"), const_cast<char*>("(JIIZJZ)Z"),
          reinterpret_cast<void*>(pixels::android::NativeConfirmFileOverwrite)},
         {const_cast<char*>("createRtcFileTransfer"),
-         const_cast<char*>("(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lyun/pixels/client/core/nativebridge/NativeSessionListener;)J"),
+         const_cast<char*>("(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLyun/pixels/client/core/nativebridge/NativeSessionListener;)J"),
          reinterpret_cast<void*>(pixels::android::NativeCreateRtcFileTransfer)},
         {const_cast<char*>("startRtcFileTransfer"), const_cast<char*>("(J)Z"),
          reinterpret_cast<void*>(pixels::android::NativeStartRtcFileTransfer)},
         {const_cast<char*>("receiveRtcFileTransfer"), const_cast<char*>("(J[B)Z"),
          reinterpret_cast<void*>(pixels::android::NativeReceiveRtcFileTransfer)},
+        {const_cast<char*>("publishRtcClipboardFiles"), const_cast<char*>("(JLjava/lang/String;[Ljava/lang/String;[Ljava/lang/String;[J)Z"),
+         reinterpret_cast<void*>(pixels::android::NativePublishRtcClipboardFiles)},
+        {const_cast<char*>("downloadRtcClipboardFiles"),
+         const_cast<char*>("(JLjava/lang/String;Ljava/lang/String;)Z"),
+         reinterpret_cast<void*>(pixels::android::NativeDownloadRtcClipboardFiles)},
         {const_cast<char*>("startRtcFileUpload"), const_cast<char*>("(J[B[B)I"),
          reinterpret_cast<void*>(pixels::android::NativeStartRtcFileUpload)},
         {const_cast<char*>("startRtcFileDownload"), const_cast<char*>("(J[B[B)I"),

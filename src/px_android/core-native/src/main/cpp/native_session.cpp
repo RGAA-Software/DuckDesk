@@ -3,6 +3,7 @@
 #include "native_audio_player.h"
 #include "native_clipboard.h"
 #include "native_voice_call.h"
+#include "data.h"
 
 #include <android/native_window_jni.h>
 
@@ -527,6 +528,30 @@ bool JavaSessionCallback::FileTransferOutbound(const std::string& session_id, co
     return accepted;
 }
 
+bool JavaSessionCallback::ClipboardControlOutbound(const std::string& session_id, const std::string& payload) const {
+    if (payload.empty() || payload.size() > 4U * 1024U * 1024U) {
+        return false;
+    }
+    bool accepted{};
+    const auto listener_handle = listener_handle_;
+    WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
+        const auto listener = reinterpret_cast<jobject>(listener_handle);
+        const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
+        const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
+        const auto method = environment.GetMethodID(listener_class, "onRtcClipboardControlOutbound", "(Ljava/lang/String;[B)Z");
+        const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
+        const auto payload_handle = MakeByteArray(environment, payload);
+        if (method != nullptr && session_id_handle != 0U && payload_handle != 0U) {
+            accepted = environment.CallBooleanMethod(listener, method, reinterpret_cast<jstring>(session_id_handle),
+                                                     reinterpret_cast<jbyteArray>(payload_handle)) == JNI_TRUE;
+        }
+        DeleteLocalReference(environment, session_id_handle);
+        DeleteLocalReference(environment, payload_handle);
+        DeleteLocalReference(environment, listener_class_handle);
+    });
+    return accepted;
+}
+
 void JavaSessionCallback::RecordingState(const std::string& session_id, const std::string& recording_id, const std::int32_t state,
                                          const std::string& error) const {
     const auto listener_handle = listener_handle_;
@@ -585,20 +610,21 @@ void JavaSessionCallback::Disconnected(const std::string& session_id, const std:
 }
 
 std::shared_ptr<NativeRtcFileTransfer> NativeRtcFileTransfer::Create(std::string session_id, std::string client_device_id,
-                                                                     std::string stream_id,
+                                                                     std::string stream_id, const bool enable_clipboard,
                                                                      std::shared_ptr<JavaSessionCallback> callback) {
     if (session_id.empty() || session_id.size() > 128U || client_device_id.empty() || client_device_id.size() > 256U || stream_id.empty() ||
         stream_id.size() > 256U || !callback) {
         return {};
     }
-    return std::make_shared<NativeRtcFileTransfer>(std::move(session_id), std::move(client_device_id), std::move(stream_id),
+    return std::make_shared<NativeRtcFileTransfer>(std::move(session_id), std::move(client_device_id), std::move(stream_id), enable_clipboard,
                                                    std::move(callback));
 }
 
 NativeRtcFileTransfer::NativeRtcFileTransfer(std::string session_id, std::string client_device_id, std::string stream_id,
+                                             const bool enable_clipboard,
                                              std::shared_ptr<JavaSessionCallback> callback)
     : session_id_(std::move(session_id)), client_device_id_(std::move(client_device_id)), stream_id_(std::move(stream_id)),
-      callback_(std::move(callback)) {}
+      enable_clipboard_(enable_clipboard), callback_(std::move(callback)) {}
 
 NativeRtcFileTransfer::~NativeRtcFileTransfer() {
     Stop();
@@ -668,6 +694,47 @@ bool NativeRtcFileTransfer::Start() {
         }
         file_transfer_session_ = std::move(session);
     }
+    if (enable_clipboard_) {
+        auto clipboard = NativeClipboard::Create(
+            client_device_id_, stream_id_,
+            [weak_self](std::shared_ptr<px::Data> data) {
+                const auto self = weak_self.lock();
+                return self && data && !self->stopped_.load(std::memory_order_acquire) &&
+                       self->callback_->ClipboardControlOutbound(self->session_id_, data->AsString());
+            },
+            [weak_self](std::shared_ptr<px::Data> data) {
+                const auto self = weak_self.lock();
+                return self && data && !self->stopped_.load(std::memory_order_acquire) &&
+                       self->callback_->FileTransferOutbound(self->session_id_, data->AsString());
+            },
+            [weak_self](std::function<void()> task) {
+                const auto self = weak_self.lock();
+                const auto active_session = self && task && !self->stopped_.load(std::memory_order_acquire) ? self->ActiveSession() : nullptr;
+                return active_session && active_session->Post(
+                                             "pixels-android-rtc-clipboard-task",
+                                             [task = std::move(task)](const auto&) { task(); });
+            },
+            [weak_self](const NativeClipboardFiles& files) {
+                if (const auto self = weak_self.lock(); self && !self->stopped_.load(std::memory_order_acquire)) {
+                    self->callback_->ClipboardFiles(self->session_id_, files);
+                }
+            },
+            [weak_self](const std::string& generation, const std::vector<std::string>& paths, const std::string& error) {
+                if (const auto self = weak_self.lock(); self && !self->stopped_.load(std::memory_order_acquire)) {
+                    self->callback_->ClipboardFilesReady(self->session_id_, generation, paths, error);
+                }
+            });
+        if (!clipboard) {
+            Stop();
+            return false;
+        }
+        std::lock_guard lifecycle_lock(lifecycle_mutex_);
+        if (stopped_.load(std::memory_order_acquire)) {
+            clipboard->Stop();
+            return false;
+        }
+        clipboard_ = std::move(clipboard);
+    }
     return true;
 }
 
@@ -681,8 +748,38 @@ bool NativeRtcFileTransfer::Receive(const std::string& payload) {
         return false;
     }
     auto message = std::make_shared<px::Message>();
-    if (!message->ParseFromString(payload) ||
-        (message->type() != px::kFileAction && message->type() != px::kFileResponse) ||
+    if (!message->ParseFromString(payload)) {
+        return false;
+    }
+    if (message->type() == px::kClipboardInfo && message->has_clipboard_info() &&
+        message->clipboard_info().type() == px::kClipboardFiles) {
+        const auto clipboard = [&] {
+            std::lock_guard lifecycle_lock(lifecycle_mutex_);
+            return clipboard_;
+        }();
+        if (!clipboard) {
+            return false;
+        }
+        clipboard->AcceptRemoteFiles(message);
+        return true;
+    }
+    if (message->type() == px::kClipboardReqAtBegin || message->type() == px::kClipboardReqAtEnd ||
+        message->type() == px::kClipboardReqBuffer || message->type() == px::kClipboardRespBuffer) {
+        const bool valid = (message->type() == px::kClipboardReqAtBegin && message->has_cp_req_at_begin()) ||
+                           (message->type() == px::kClipboardReqAtEnd && message->has_cp_req_at_end()) ||
+                           (message->type() == px::kClipboardReqBuffer && message->has_cp_req_buffer()) ||
+                           (message->type() == px::kClipboardRespBuffer && message->has_cp_resp_buffer());
+        const auto clipboard = [&] {
+            std::lock_guard lifecycle_lock(lifecycle_mutex_);
+            return clipboard_;
+        }();
+        if (!valid || !clipboard) {
+            return false;
+        }
+        clipboard->HandleFileMessage(message);
+        return true;
+    }
+    if ((message->type() != px::kFileAction && message->type() != px::kFileResponse) ||
         (message->type() == px::kFileAction && !message->has_file_action()) ||
         (message->type() == px::kFileResponse && !message->has_file_response())) {
         return false;
@@ -762,14 +859,37 @@ bool NativeRtcFileTransfer::ConfirmOverwrite(const std::int32_t job_id, const st
                           });
 }
 
+bool NativeRtcFileTransfer::PublishClipboardFiles(std::string generation, std::vector<NativeClipboardFile> files) {
+    std::lock_guard command_lock(command_mutex_);
+    const auto clipboard = [&] {
+        std::lock_guard lifecycle_lock(lifecycle_mutex_);
+        return stopped_.load(std::memory_order_acquire) ? std::shared_ptr<NativeClipboard>{} : clipboard_;
+    }();
+    return clipboard && clipboard->PublishLocalFiles(std::move(generation), std::move(files));
+}
+
+bool NativeRtcFileTransfer::DownloadClipboardFiles(const std::string& generation, const std::string& destination_directory) {
+    std::lock_guard command_lock(command_mutex_);
+    const auto clipboard = [&] {
+        std::lock_guard lifecycle_lock(lifecycle_mutex_);
+        return stopped_.load(std::memory_order_acquire) ? std::shared_ptr<NativeClipboard>{} : clipboard_;
+    }();
+    return clipboard && clipboard->DownloadRemoteFiles(generation, destination_directory);
+}
+
 void NativeRtcFileTransfer::Stop() {
     if (stopped_.exchange(true, std::memory_order_acq_rel)) {
         return;
     }
+    std::shared_ptr<NativeClipboard> clipboard;
     std::shared_ptr<px::ft::FtAsyncSession> session;
     {
         std::lock_guard lifecycle_lock(lifecycle_mutex_);
+        clipboard = std::move(clipboard_);
         session = std::move(file_transfer_session_);
+    }
+    if (clipboard) {
+        clipboard->Stop();
     }
     if (session) {
         static_cast<void>(session->StopAndWait(std::chrono::seconds(2)));
