@@ -11,4 +11,7 @@
     <string name="device_saved">Device verified and saved.</string>
     <string name="device_removed">Device removed.</string>
     <string name="local_network_permission_required">Allow local network access to find and connect to your computers.</string>
+    <string name="discovery_finished">Nearby Pixels devices were added.</string>
+    <string name="no_devices_discovered">No Pixels devices were found on this network.</string>
+    <string name="scanner_unavailable">The QR scanner is unavailable. Paste or enter the connection details instead.</string>
 </resources>

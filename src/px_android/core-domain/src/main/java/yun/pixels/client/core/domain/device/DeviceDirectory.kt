@@ -24,6 +24,10 @@ interface DeviceResolver {
     suspend fun resolve(connectionInput: String): DeviceResolution
 }
 
+interface DeviceDiscovery {
+    suspend fun discover(): List<ResolvedDevice>
+}
+
 interface DeviceDirectory {
     val devices: Flow<List<RemoteDevice>>
 

@@ -18,8 +18,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Computer
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -61,6 +63,8 @@ import androidx.compose.ui.unit.dp
 import yun.pixels.client.core.domain.device.DeviceAvailability
 import yun.pixels.client.core.domain.device.DeviceId
 import yun.pixels.client.core.domain.device.RemoteDevice
+import yun.pixels.client.core.domain.account.AccountDevice
+import yun.pixels.client.core.domain.account.AccountFailure
 
 @Composable
 fun DeviceHomeScreen(
@@ -93,6 +97,9 @@ fun DeviceHomeScreen(
                 QuickConnectCard(state = state, onAction = onAction)
             }
             item {
+                AccountDevicesSection(state = state, onAction = onAction)
+            }
+            item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -103,21 +110,169 @@ fun DeviceHomeScreen(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    TextButton(onClick = { onAction(DeviceHomeAction.AddDevice) }) {
-                        Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
-                        Text(text = stringResource(R.string.add_device))
+                    IconButton(
+                        onClick = { onAction(DeviceHomeAction.DiscoverLocal) },
+                        enabled = !state.isDiscovering,
+                    ) {
+                        if (state.isDiscovering) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Outlined.Refresh, contentDescription = stringResource(R.string.discover_nearby))
+                        }
                     }
                 }
             }
 
             if (state.devices.isEmpty()) {
                 item {
-                    EmptyDevicesCard(onScan = { onAction(DeviceHomeAction.Scan) })
+                    EmptyDevicesCard(onScan = { onAction(DeviceHomeAction.DiscoverLocal) })
                 }
             } else {
                 items(items = state.devices, key = { it.id.value }) { device ->
                     DeviceCard(device = device, onAction = onAction)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountDevicesSection(
+    state: DeviceHomeUiState,
+    onAction: (DeviceHomeAction) -> Unit,
+) {
+    when (val account = state.account) {
+        AccountSummary.SignedOut -> SignedOutCard(onSignIn = { onAction(DeviceHomeAction.OpenAccountSettings) })
+        AccountSummary.Loading -> AccountLoadingCard()
+        is AccountSummary.SignedIn -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column {
+                    Text(
+                        text = stringResource(R.string.account_devices),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = account.profile.username,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                IconButton(
+                    onClick = { onAction(DeviceHomeAction.RefreshAccountDevices) },
+                    enabled = !state.isRefreshingAccountDevices,
+                ) {
+                    if (state.isRefreshingAccountDevices) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Outlined.Refresh, contentDescription = stringResource(R.string.refresh_devices))
+                    }
+                }
+            }
+            state.accountFailure?.let { failure ->
+                Text(
+                    text = stringResource(failure.labelResource()),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            if (!state.isRefreshingAccountDevices && state.accountFailure == null && state.accountDevices.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.no_account_devices),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            state.accountDevices.forEach { device ->
+                AccountDeviceCard(device = device, onAction = onAction)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SignedOutCard(onSignIn: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.AccountCircle,
+                contentDescription = null,
+                modifier = Modifier.size(36.dp),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = stringResource(R.string.sign_in_title), fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = stringResource(R.string.sign_in_body),
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            TextButton(onClick = onSignIn) { Text(stringResource(R.string.sign_in)) }
+        }
+    }
+}
+
+@Composable
+private fun AccountLoadingCard() {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+            Text(text = stringResource(R.string.restoring_account))
+        }
+    }
+}
+
+@Composable
+private fun AccountDeviceCard(device: AccountDevice, onAction: (DeviceHomeAction) -> Unit) {
+    Card(
+        onClick = { onAction(DeviceHomeAction.OpenAccountDevice(device)) },
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AvailabilityDot(if (device.online) DeviceAvailability.Online else DeviceAvailability.Offline)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = device.displayName,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(if (device.online) R.string.online else R.string.offline),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            if (device.online) {
+                FilledTonalButton(onClick = { onAction(DeviceHomeAction.StartAccountRemoteDesktop(device)) }) {
+                    Icon(imageVector = Icons.Outlined.Computer, contentDescription = null)
+                    Text(text = stringResource(R.string.connect))
+                }
+            } else {
+                Icon(imageVector = Icons.Outlined.CloudOff, contentDescription = null)
             }
         }
     }
@@ -163,7 +318,9 @@ private fun QuickConnectCard(
                         Icon(imageVector = Icons.Outlined.ContentPaste, contentDescription = null)
                         Text(text = stringResource(R.string.paste))
                     }
-                    TextButton(onClick = { onAction(DeviceHomeAction.Scan) }) {
+                    TextButton(
+                        onClick = { onAction(DeviceHomeAction.ScanCode) },
+                    ) {
                         Icon(imageVector = Icons.Outlined.QrCodeScanner, contentDescription = null)
                         Text(text = stringResource(R.string.scan))
                     }
@@ -217,8 +374,8 @@ private fun EmptyDevicesCard(onScan: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(20.dp))
             FilledTonalButton(onClick = onScan) {
-                Icon(imageVector = Icons.Outlined.QrCodeScanner, contentDescription = null)
-                Text(text = stringResource(R.string.scan_to_connect))
+                Icon(imageVector = Icons.Outlined.Refresh, contentDescription = null)
+                Text(text = stringResource(R.string.discover_nearby))
             }
         }
     }
@@ -342,6 +499,19 @@ private fun ConnectionInputError.labelResource(): Int = when (this) {
     ConnectionInputError.PublicNetworkAddress -> R.string.connection_input_public_address
     ConnectionInputError.Unreachable -> R.string.connection_input_unreachable
     ConnectionInputError.InvalidResponse -> R.string.connection_input_invalid_response
+}
+
+private fun AccountFailure.labelResource(): Int = when (this) {
+    AccountFailure.InvalidEndpoint -> R.string.account_error_invalid_endpoint
+    AccountFailure.InvalidCredentials -> R.string.account_error_invalid_credentials
+    AccountFailure.AuthenticationRequired -> R.string.account_error_authentication_required
+    AccountFailure.Forbidden -> R.string.account_error_forbidden
+    AccountFailure.RateLimited -> R.string.account_error_rate_limited
+    AccountFailure.DeviceOffline -> R.string.account_error_device_offline
+    AccountFailure.NotFound -> R.string.account_error_not_found
+    AccountFailure.NetworkUnavailable -> R.string.account_error_network
+    AccountFailure.InvalidResponse -> R.string.account_error_invalid_response
+    AccountFailure.ServerError -> R.string.account_error_server
 }
 
 @Composable

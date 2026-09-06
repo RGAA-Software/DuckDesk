@@ -17,4 +17,6 @@ rootProject.name = "PixelsAndroid"
 include ':app'
 include ':core-domain'
 include ':core-data'
+include ':core-network'
 include ':feature-devices'
+include ':feature-settings'

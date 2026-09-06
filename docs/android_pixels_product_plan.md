@@ -1,6 +1,6 @@
 # Pixels Android 客户端最终产品规划
 
-> 状态：M0 已完成；M1 设备接入切片进行中  
+> 状态：M0 已完成；M1 设备、账号与发现切片进行中
 > 更新日期：2026-09-06  
 > 范围：`src/px_android` 及 Android 所需的项目自维护 C++ 公共模块
 
@@ -388,11 +388,18 @@ Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Ko
 - Gradle 9.3.1、AGP 9.1.1、AGP 内置 Kotlin 2.4.10、Compose BOM 2026.08.00。
 - `compileSdk`/`targetSdk` 为 API 37，最低系统为 API 29；正式 native 能力仍只规划 `arm64-v8a`。
 - 根工程、包名、显示名、主题、Adaptive/monochrome 图标和 Splash Screen 均已切换到 Pixels。
-- 已建立 `app`、`core-domain`、`core-data`、`feature-devices`，设备首页、Quick Connect、空状态和一级导航使用不可变状态与类型化 Action。
+- 已建立 `app`、`core-domain`、`core-data`、`core-network`、`feature-devices`、`feature-settings`，设备首页、Quick Connect、账号和
+  一级导航使用不可变状态与类型化 Action。
 - 旧 Fragment/XML UI、GreenDAO、事件类、Steam/频谱/演示页面、宽松网络工具、旧签名文件和旧 Android JNI/C++ 入口已删除。
 - Android App 当前不打包项目 native 会话库，不加载旧 JNI，也不存在 RTC stub。M1 将从 `core-native` 的 typed JNI 和显式 capability 开始。
 - `core-domain` 单元测试、arm64 产品基线 debug 构建和 Android lint 已通过。删除未加载旧 native 库后的最终 APK 已在同一真机完成覆盖安装、冷启动、视觉和崩溃日志检查。AndroidTest APK 已成功编译，但 MIUI 拒绝安装独立测试包，因此品牌与启动验收使用真机手工检查完成。
-- M1 的 Quick Connect 已支持私有网络主机、可选 Panel 端口和 `link://`；客户端真实请求 `/v1/simple/info`，拒绝公网直连和异常协议响应，成功后通过 DataStore 保存设备元数据，并使用 Android Keystore AES-GCM 加密设备临时凭据。
+- M1 的 Quick Connect 已支持私有网络主机、可选 Panel 端口和 `link://`；客户端真实请求 `/v1/simple/info`，拒绝公网直连和异常协议响应。
+  设备元数据已迁移到 Room，设备临时凭据使用 Android Keystore AES-GCM 加密，保存更新时不会意外清除已有凭据。
+- 已接入完整 Console 登录会话的 HTTPS adapter、加密会话存储、恢复/退出、账号设备列表和设备票据 API；首页在登录后自动同步账号设备，
+  并将会话过期、无权限、设备离线、限流和服务错误映射为产品状态。密码不持久化，访问令牌不进入日志或普通存储。
+- 已接入基于当前活动 IPv4 网络的主动发现：宽网段最多探测本机所在 `/24`，窄网段尊重实际前缀，限制并发并仅保存通过
+  `/v1/simple/info` 验证的设备；Android 17 的本地网络权限同时保护手动连接和扫描入口。
 - 设备接入已完成真机不可达错误态、成功添加、进程重启持久化、重启后保守离线、应用内删除及凭据非明文检查。Android 17 / API 37 的 `ACCESS_LOCAL_NETWORK` 运行时权限已接入。
 
-扫码、主动局域网发现、会话鉴权、typed JNI 和远程画面仍未完成；对应动作继续明确提示正在建设，不伪造连接或远程会话成功。M1 完整验收前不能宣称远程会话已经可用。
+扫码、会话 transport、typed JNI 和远程画面仍未完成；对应动作继续明确提示正在建设，不伪造连接或远程会话成功。
+M1 完整验收前不能宣称远程会话已经可用。

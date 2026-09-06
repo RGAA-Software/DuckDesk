@@ -4,10 +4,17 @@ import android.app.Application
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import yun.pixels.client.core.data.DeviceDataStore
+import kotlinx.coroutines.launch
+import yun.pixels.client.core.data.EncryptedAccountSessionStore
+import yun.pixels.client.core.data.AndroidLanDeviceDiscovery
 import yun.pixels.client.core.data.PanelDeviceResolver
+import yun.pixels.client.core.data.createDeviceDirectory
+import yun.pixels.client.core.domain.account.AccountRepository
 import yun.pixels.client.core.domain.device.DeviceDirectory
+import yun.pixels.client.core.domain.device.DeviceDiscovery
 import yun.pixels.client.core.domain.device.DeviceResolver
+import yun.pixels.client.core.network.ConsoleAccountRepository
+import yun.pixels.client.core.network.ConsoleApiClient
 
 class PixelsApplication : Application() {
     lateinit var graph: PixelsAppGraph
@@ -22,6 +29,11 @@ class PixelsApplication : Application() {
 class PixelsAppGraph(application: Application) {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    val deviceDirectory: DeviceDirectory = DeviceDataStore.create(application, applicationScope)
+    val deviceDirectory: DeviceDirectory = createDeviceDirectory(application)
     val deviceResolver: DeviceResolver = PanelDeviceResolver()
+    val deviceDiscovery: DeviceDiscovery = AndroidLanDeviceDiscovery(application)
+    val accountRepository: AccountRepository = ConsoleAccountRepository(
+        api = ConsoleApiClient(),
+        sessionStore = EncryptedAccountSessionStore.create(application, applicationScope),
+    ).also { repository -> applicationScope.launch { repository.restore() } }
 }

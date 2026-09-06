@@ -61,7 +61,9 @@ android {
 dependencies {
     implementation project(':core-domain')
     implementation project(':core-data')
+    implementation project(':core-network')
     implementation project(':feature-devices')
+    implementation project(':feature-settings')
 
     implementation 'androidx.core:core-ktx:1.19.0'
     implementation 'androidx.core:core-splashscreen:1.2.0'
@@ -70,6 +72,7 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0'
     implementation 'androidx.activity:activity-compose:1.13.0'
     implementation 'androidx.navigation:navigation-compose:2.10.0'
+    implementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
     implementation platform('androidx.compose:compose-bom:2026.08.00')
     implementation 'androidx.compose.foundation:foundation'
     implementation 'androidx.compose.material:material-icons-extended'

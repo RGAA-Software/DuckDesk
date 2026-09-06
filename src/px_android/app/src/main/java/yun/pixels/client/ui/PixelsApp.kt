@@ -5,6 +5,9 @@ package yun.pixels.client.ui
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
@@ -28,9 +31,11 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -54,6 +59,8 @@ import yun.pixels.client.feature.devices.DeviceHomeAction
 import yun.pixels.client.feature.devices.DeviceHomeNotice
 import yun.pixels.client.feature.devices.DeviceHomeScreen
 import yun.pixels.client.feature.devices.DeviceHomeViewModel
+import yun.pixels.client.feature.settings.SettingsScreen
+import yun.pixels.client.feature.settings.SettingsViewModel
 
 private enum class TopLevelDestination(
     val route: String,
@@ -72,27 +79,47 @@ fun PixelsApp(graph: PixelsAppGraph) {
     val coroutineScope = rememberCoroutineScope()
     val clipboard = LocalClipboard.current
     val context = LocalContext.current
+    val codeScanner = remember(context) {
+        val options = GmsBarcodeScannerOptions.Builder()
+            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+            .enableAutoZoom()
+            .build()
+        GmsBarcodeScanning.getClient(context, options)
+    }
     val deviceHomeViewModel: DeviceHomeViewModel = viewModel(
-        factory = DeviceHomeViewModel.factory(graph.deviceDirectory, graph.deviceResolver),
+        factory = DeviceHomeViewModel.factory(
+            graph.deviceDirectory,
+            graph.deviceResolver,
+            graph.deviceDiscovery,
+            graph.accountRepository,
+        ),
     )
     val deviceHomeState by deviceHomeViewModel.uiState.collectAsStateWithLifecycle()
+    val settingsViewModel: SettingsViewModel = viewModel(
+        factory = SettingsViewModel.factory(graph.accountRepository),
+    )
+    val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = currentBackStackEntry?.destination
     val unavailableMessage = stringResource(R.string.feature_being_built)
+    var pendingLocalNetworkAction by remember { mutableStateOf<DeviceHomeAction?>(null) }
     val noticeMessages by rememberUpdatedState(
         mapOf(
             DeviceHomeNotice.DeviceSaved to stringResource(R.string.device_saved),
             DeviceHomeNotice.DeviceRemoved to stringResource(R.string.device_removed),
             DeviceHomeNotice.LocalNetworkPermissionRequired to stringResource(R.string.local_network_permission_required),
             DeviceHomeNotice.FeatureUnavailable to unavailableMessage,
+            DeviceHomeNotice.DiscoveryFinished to stringResource(R.string.discovery_finished),
+            DeviceHomeNotice.NoDevicesDiscovered to stringResource(R.string.no_devices_discovered),
+            DeviceHomeNotice.ScannerUnavailable to stringResource(R.string.scanner_unavailable),
         ),
     )
     val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        deviceHomeViewModel.onAction(
-            if (granted) DeviceHomeAction.Connect else DeviceHomeAction.LocalNetworkPermissionDenied,
-        )
+        val action = pendingLocalNetworkAction
+        pendingLocalNetworkAction = null
+        deviceHomeViewModel.onAction(if (granted && action != null) action else DeviceHomeAction.LocalNetworkPermissionDenied)
     }
 
     LaunchedEffect(deviceHomeViewModel) {
@@ -144,16 +171,40 @@ fun PixelsApp(graph: PixelsAppGraph) {
                                     deviceHomeViewModel.onAction(DeviceHomeAction.ConnectionInputChanged(pastedValue))
                                 }
                             }
-                            DeviceHomeAction.Connect -> {
+                            DeviceHomeAction.Connect, DeviceHomeAction.DiscoverLocal -> {
                                 val permissionRequired = Build.VERSION.SDK_INT >= 37 && ContextCompat.checkSelfPermission(
                                     context,
                                     Manifest.permission.ACCESS_LOCAL_NETWORK,
                                 ) != PackageManager.PERMISSION_GRANTED
                                 if (permissionRequired) {
+                                    pendingLocalNetworkAction = action
                                     localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
                                 } else {
                                     deviceHomeViewModel.onAction(action)
                                 }
+                            }
+                            DeviceHomeAction.ScanCode -> codeScanner.startScan()
+                                .addOnSuccessListener { barcode ->
+                                    val value = barcode.rawValue.orEmpty().trim()
+                                    if (value.isEmpty()) {
+                                        deviceHomeViewModel.onAction(DeviceHomeAction.ScannerFailed)
+                                    } else {
+                                        deviceHomeViewModel.onAction(DeviceHomeAction.ConnectionInputChanged(value))
+                                        val permissionRequired = Build.VERSION.SDK_INT >= 37 && ContextCompat.checkSelfPermission(
+                                            context,
+                                            Manifest.permission.ACCESS_LOCAL_NETWORK,
+                                        ) != PackageManager.PERMISSION_GRANTED
+                                        if (permissionRequired) {
+                                            pendingLocalNetworkAction = DeviceHomeAction.Connect
+                                            localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+                                        } else {
+                                            deviceHomeViewModel.onAction(DeviceHomeAction.Connect)
+                                        }
+                                    }
+                                }
+                                .addOnFailureListener { deviceHomeViewModel.onAction(DeviceHomeAction.ScannerFailed) }
+                            DeviceHomeAction.OpenAccountSettings -> navController.navigate(TopLevelDestination.Settings.route) {
+                                launchSingleTop = true
                             }
                             else -> deviceHomeViewModel.onAction(action)
                         }
@@ -167,10 +218,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                 )
             }
             composable(TopLevelDestination.Settings.route) {
-                FoundationScreen(
-                    title = stringResource(R.string.settings_title),
-                    body = stringResource(R.string.settings_foundation_body),
-                )
+                SettingsScreen(state = settingsState, onAction = settingsViewModel::onAction)
             }
         }
     }

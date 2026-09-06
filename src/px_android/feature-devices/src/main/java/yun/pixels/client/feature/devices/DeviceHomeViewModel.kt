@@ -11,9 +11,16 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import yun.pixels.client.core.domain.account.AccountDevice
+import yun.pixels.client.core.domain.account.AccountFailure
+import yun.pixels.client.core.domain.account.AccountRepository
+import yun.pixels.client.core.domain.account.AccountResult
+import yun.pixels.client.core.domain.account.AccountState
 import yun.pixels.client.core.domain.device.DeviceDirectory
+import yun.pixels.client.core.domain.device.DeviceDiscovery
 import yun.pixels.client.core.domain.device.DeviceResolution
 import yun.pixels.client.core.domain.device.DeviceResolutionFailure
 import yun.pixels.client.core.domain.device.DeviceResolver
@@ -21,23 +28,48 @@ import yun.pixels.client.core.domain.device.DeviceResolver
 class DeviceHomeViewModel(
     private val deviceDirectory: DeviceDirectory,
     private val deviceResolver: DeviceResolver,
+    private val deviceDiscovery: DeviceDiscovery,
+    private val accountRepository: AccountRepository,
 ) : ViewModel() {
     private val editorState = MutableStateFlow(EditorState())
+    private val accountDevicesState = MutableStateFlow(AccountDevicesState())
     private val mutableNotices = MutableSharedFlow<DeviceHomeNotice>(extraBufferCapacity = 1)
 
     val notices = mutableNotices.asSharedFlow()
-    val uiState: StateFlow<DeviceHomeUiState> = combine(deviceDirectory.devices, editorState) { devices, editor ->
+    val uiState: StateFlow<DeviceHomeUiState> = combine(
+        deviceDirectory.devices,
+        editorState,
+        accountRepository.state,
+        accountDevicesState,
+    ) { devices, editor, account, cloud ->
         DeviceHomeUiState(
             connectionInput = editor.connectionInput,
             inputError = editor.inputError,
             isConnecting = editor.isConnecting,
+            isDiscovering = editor.isDiscovering,
             devices = devices,
+            account = account.asSummary(),
+            accountDevices = cloud.devices,
+            isRefreshingAccountDevices = cloud.isRefreshing,
+            accountFailure = cloud.failure,
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
         initialValue = DeviceHomeUiState(),
     )
+
+    init {
+        viewModelScope.launch {
+            accountRepository.state.collectLatest { state ->
+                if (state is AccountState.SignedIn) {
+                    refreshAccountDevicesNow()
+                } else {
+                    accountDevicesState.value = AccountDevicesState()
+                }
+            }
+        }
+    }
 
     fun onAction(action: DeviceHomeAction) {
         when (action) {
@@ -46,15 +78,44 @@ class DeviceHomeViewModel(
                 inputError = null,
             )
             DeviceHomeAction.Connect -> connect()
+            DeviceHomeAction.RefreshAccountDevices -> refreshAccountDevices()
+            DeviceHomeAction.DiscoverLocal -> discoverDevices()
             DeviceHomeAction.LocalNetworkPermissionDenied -> {
                 mutableNotices.tryEmit(DeviceHomeNotice.LocalNetworkPermissionRequired)
             }
+            DeviceHomeAction.ScannerFailed -> mutableNotices.tryEmit(DeviceHomeNotice.ScannerUnavailable)
             is DeviceHomeAction.RemoveDevice -> viewModelScope.launch {
                 deviceDirectory.remove(action.device.id)
                 mutableNotices.emit(DeviceHomeNotice.DeviceRemoved)
             }
             DeviceHomeAction.Paste -> Unit
+            DeviceHomeAction.ScanCode -> Unit
+            DeviceHomeAction.OpenAccountSettings -> Unit
             else -> mutableNotices.tryEmit(DeviceHomeNotice.FeatureUnavailable)
+        }
+    }
+
+    private fun refreshAccountDevices() {
+        if (accountDevicesState.value.isRefreshing) return
+        viewModelScope.launch { refreshAccountDevicesNow() }
+    }
+
+    private fun discoverDevices() {
+        if (editorState.value.isDiscovering) return
+        viewModelScope.launch {
+            editorState.value = editorState.value.copy(isDiscovering = true)
+            val devices = runCatching { deviceDiscovery.discover() }.getOrDefault(emptyList())
+            devices.forEach { deviceDirectory.save(it) }
+            editorState.value = editorState.value.copy(isDiscovering = false)
+            mutableNotices.emit(if (devices.isEmpty()) DeviceHomeNotice.NoDevicesDiscovered else DeviceHomeNotice.DiscoveryFinished)
+        }
+    }
+
+    private suspend fun refreshAccountDevicesNow() {
+        accountDevicesState.value = accountDevicesState.value.copy(isRefreshing = true, failure = null)
+        accountDevicesState.value = when (val result = accountRepository.devices()) {
+            is AccountResult.Success -> AccountDevicesState(devices = result.value)
+            is AccountResult.Failure -> AccountDevicesState(failure = result.reason)
         }
     }
 
@@ -93,11 +154,23 @@ class DeviceHomeViewModel(
         val connectionInput: String = "",
         val inputError: ConnectionInputError? = null,
         val isConnecting: Boolean = false,
+        val isDiscovering: Boolean = false,
+    )
+
+    private data class AccountDevicesState(
+        val devices: List<AccountDevice> = emptyList(),
+        val isRefreshing: Boolean = false,
+        val failure: AccountFailure? = null,
     )
 
     companion object {
-        fun factory(deviceDirectory: DeviceDirectory, deviceResolver: DeviceResolver): ViewModelProvider.Factory = viewModelFactory {
-            initializer { DeviceHomeViewModel(deviceDirectory, deviceResolver) }
+        fun factory(
+            deviceDirectory: DeviceDirectory,
+            deviceResolver: DeviceResolver,
+            deviceDiscovery: DeviceDiscovery,
+            accountRepository: AccountRepository,
+        ): ViewModelProvider.Factory = viewModelFactory {
+            initializer { DeviceHomeViewModel(deviceDirectory, deviceResolver, deviceDiscovery, accountRepository) }
         }
     }
 }

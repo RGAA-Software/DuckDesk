@@ -11,4 +11,7 @@
     <string name="device_saved">设备验证成功并已保存。</string>
     <string name="device_removed">设备已移除。</string>
     <string name="local_network_permission_required">请允许访问本地网络，以发现并连接你的电脑。</string>
+    <string name="discovery_finished">已添加发现的 Pixels 设备。</string>
+    <string name="no_devices_discovered">当前网络中没有发现 Pixels 设备。</string>
+    <string name="scanner_unavailable">二维码扫描器暂时不可用，请粘贴或手动输入连接信息。</string>
 </resources>

@@ -22,6 +22,8 @@ import java.util.Base64
 class PanelDeviceResolver(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val now: () -> Long = System::currentTimeMillis,
+    private val connectTimeoutMillis: Int = DEFAULT_CONNECT_TIMEOUT_MILLIS,
+    private val readTimeoutMillis: Int = DEFAULT_READ_TIMEOUT_MILLIS,
 ) : DeviceResolver {
     override suspend fun resolve(connectionInput: String): DeviceResolution = withContext(ioDispatcher) {
         val target = ConnectionInputParser.parse(connectionInput)
@@ -68,8 +70,8 @@ class PanelDeviceResolver(
 
         return try {
             connection.requestMethod = "GET"
-            connection.connectTimeout = CONNECT_TIMEOUT_MILLIS
-            connection.readTimeout = READ_TIMEOUT_MILLIS
+            connection.connectTimeout = connectTimeoutMillis
+            connection.readTimeout = readTimeoutMillis
             connection.instanceFollowRedirects = false
             connection.useCaches = false
             connection.setRequestProperty("Accept", "application/json")
@@ -120,8 +122,8 @@ class PanelDeviceResolver(
 
     companion object {
         private const val SIMPLE_INFO_PATH = "/v1/simple/info"
-        private const val CONNECT_TIMEOUT_MILLIS = 3_500
-        private const val READ_TIMEOUT_MILLIS = 3_500
+        private const val DEFAULT_CONNECT_TIMEOUT_MILLIS = 3_500
+        private const val DEFAULT_READ_TIMEOUT_MILLIS = 3_500
     }
 }
 

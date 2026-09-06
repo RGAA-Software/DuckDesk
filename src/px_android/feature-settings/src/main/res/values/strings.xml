@@ -1,0 +1,22 @@
+<resources>
+    <string name="settings_title">Settings</string>
+    <string name="account_title">Pixels account</string>
+    <string name="console_endpoint">Console address</string>
+    <string name="username">Username</string>
+    <string name="password">Password</string>
+    <string name="sign_in">Sign in</string>
+    <string name="sign_out">Sign out</string>
+    <string name="password_change_required">Change this account password before starting a remote session.</string>
+    <string name="security_title">Connection security</string>
+    <string name="security_body">Console connections require verified HTTPS. Private-network direct connections may use unencrypted HTTP/WS.</string>
+    <string name="error_invalid_endpoint">Enter a valid HTTPS Console address.</string>
+    <string name="error_invalid_credentials">The username or password is incorrect.</string>
+    <string name="error_authentication_required">Your session expired. Sign in again.</string>
+    <string name="error_forbidden">This account is not allowed to sign in.</string>
+    <string name="error_rate_limited">Too many attempts. Try again later.</string>
+    <string name="error_device_offline">The target device is offline.</string>
+    <string name="error_not_found">The requested resource was not found.</string>
+    <string name="error_network_unavailable">The Console could not be reached.</string>
+    <string name="error_invalid_response">The Console returned an invalid response.</string>
+    <string name="error_server">The Console reported an internal error.</string>
+</resources>
