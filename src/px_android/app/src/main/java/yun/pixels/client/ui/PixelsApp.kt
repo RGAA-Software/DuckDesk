@@ -17,9 +17,8 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -256,7 +255,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
     }
     LaunchedEffect(remoteBinder) {
         val status = remoteBinder?.snapshot?.value?.status ?: return@LaunchedEffect
-        if (status !is RemoteSessionStatus.Idle && currentDestination?.route != REMOTE_ROUTE) {
+        if (status !is RemoteSessionStatus.Idle && currentDestination?.route in TOP_LEVEL_ROUTES) {
             navController.navigateToRemote()
         }
     }
@@ -272,7 +271,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
     }
 
     BackHandler(enabled = isTopLevelDestination && currentRoute != TopLevelDestination.Devices.route) {
-        navController.navigateToTopLevel(TopLevelDestination.Devices)
+        navController.selectTopLevel(TopLevelDestination.Devices)
     }
 
     Scaffold(
@@ -285,7 +284,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                         NavigationBarItem(
                             selected = selected,
                             onClick = {
-                                navController.navigateToTopLevel(destination)
+                                navController.selectTopLevel(destination)
                             },
                             icon = { Icon(imageVector = destination.icon, contentDescription = null) },
                             label = { Text(text = stringResource(destination.labelResource)) },
@@ -301,10 +300,10 @@ fun PixelsApp(graph: PixelsAppGraph) {
             modifier = Modifier.padding(
                 if (isTopLevelDestination) contentPadding else PaddingValues(0.dp),
             ),
-            enterTransition = { fadeIn(tween(NAVIGATION_ANIMATION_MILLIS)) },
-            exitTransition = { fadeOut(tween(NAVIGATION_ANIMATION_MILLIS)) },
-            popEnterTransition = { fadeIn(tween(NAVIGATION_ANIMATION_MILLIS)) },
-            popExitTransition = { fadeOut(tween(NAVIGATION_ANIMATION_MILLIS)) },
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None },
         ) {
             composable(TopLevelDestination.Devices.route) {
                 DeviceHomeScreen(
@@ -355,7 +354,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                                     }
                                 }
                                 .addOnFailureListener { deviceHomeViewModel.onAction(DeviceHomeAction.ScannerFailed) }
-                            DeviceHomeAction.OpenAccountSettings -> navController.navigateToTopLevel(TopLevelDestination.Settings)
+                            DeviceHomeAction.OpenAccountSettings -> navController.selectTopLevel(TopLevelDestination.Settings)
                             is DeviceHomeAction.StartRemoteDesktop -> {
                                 openTransfersWhenConnected = false
                                 deviceHomeViewModel.onAction(action)
@@ -442,7 +441,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                 ApplicationLibraryScreen(
                     state = applicationLibraryState,
                     onBack = {
-                        if (!navController.popBackStack()) navController.navigateToTopLevel(TopLevelDestination.Devices)
+                        if (!navController.popBackStack()) navController.selectTopLevel(TopLevelDestination.Devices)
                     },
                     onRefresh = applicationLibraryViewModel::refresh,
                     onStart = applicationLibraryViewModel::start,
@@ -491,7 +490,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     onRetry = { remoteBinder?.retrySession() },
                     onEndSession = {
                         remoteBinder?.stopSession()
-                        navController.navigateToTopLevel(TopLevelDestination.Devices)
+                        navController.leaveRemoteSession()
                     },
                 )
             }
@@ -499,9 +498,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
     }
 }
 
-private const val NAVIGATION_ANIMATION_MILLIS = 160
-
-private fun NavHostController.navigateToTopLevel(destination: TopLevelDestination) {
+private fun NavHostController.selectTopLevel(destination: TopLevelDestination) {
     navigate(destination.route) {
         popUpTo(graph.findStartDestination().id) { saveState = true }
         launchSingleTop = true
@@ -512,6 +509,13 @@ private fun NavHostController.navigateToTopLevel(destination: TopLevelDestinatio
 private fun NavHostController.navigateToRemote() {
     navigate(REMOTE_ROUTE) {
         popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+    }
+}
+
+private fun NavHostController.leaveRemoteSession() {
+    navigate(TopLevelDestination.Devices.route) {
+        popUpTo(TopLevelDestination.Devices.route) { inclusive = false }
         launchSingleTop = true
     }
 }

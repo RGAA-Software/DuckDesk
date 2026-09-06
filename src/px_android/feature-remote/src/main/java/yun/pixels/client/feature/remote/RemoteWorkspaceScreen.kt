@@ -2,14 +2,14 @@ package yun.pixels.client.feature.remote
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.graphics.SurfaceTexture
 import android.net.Uri
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.Surface
-import android.view.SurfaceHolder
-import android.view.SurfaceView
+import android.view.TextureView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.VolumeOff
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
@@ -164,19 +165,25 @@ fun RemoteWorkspaceScreen(
         if (snapshot.lastVirtualDisplayResult?.requestId == pendingVirtualDisplayRequest) pendingVirtualDisplayRequest = null
     }
     val surfaceCallback = remember {
-        object : SurfaceHolder.Callback {
-            override fun surfaceCreated(holder: SurfaceHolder) {
-                if (holder.surface.isValid) currentSurface = holder.surface
+        object : TextureView.SurfaceTextureListener {
+            override fun onSurfaceTextureAvailable(surfaceTexture: SurfaceTexture, width: Int, height: Int) {
+                currentSurface = Surface(surfaceTexture)
             }
 
-            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
+            override fun onSurfaceTextureSizeChanged(surfaceTexture: SurfaceTexture, width: Int, height: Int) = Unit
 
-            override fun surfaceDestroyed(holder: SurfaceHolder) {
+            override fun onSurfaceTextureDestroyed(surfaceTexture: SurfaceTexture): Boolean {
                 interpreter.cancelGesture()
                 gamepadController.reset()
-                if (currentSurface === holder.surface) currentSurface = null
-                latestSurfaceDestroyed(holder.surface)
+                currentSurface?.let { surface ->
+                    currentSurface = null
+                    latestSurfaceDestroyed(surface)
+                    surface.release()
+                }
+                return true
             }
+
+            override fun onSurfaceTextureUpdated(surfaceTexture: SurfaceTexture) = Unit
         }
     }
 
@@ -190,10 +197,11 @@ fun RemoteWorkspaceScreen(
         }
         AndroidView(
             factory = { viewContext ->
-                SurfaceView(viewContext).also { view ->
+                TextureView(viewContext).also { view ->
+                    view.isOpaque = true
                     view.isFocusable = true
                     view.isFocusableInTouchMode = true
-                    view.holder.addCallback(surfaceCallback)
+                    view.surfaceTextureListener = surfaceCallback
                     view.setOnTouchListener { touchedView, event ->
                         if (event.isFromSource(InputDevice.SOURCE_MOUSE)) {
                             handlePhysicalMouse(event, touchedView.width, touchedView.height, latestInput)
@@ -237,9 +245,12 @@ fun RemoteWorkspaceScreen(
                 view.setOnTouchListener(null)
                 view.setOnGenericMotionListener(null)
                 view.setOnKeyListener(null)
-                view.holder.removeCallback(surfaceCallback)
-                if (currentSurface === view.holder.surface) currentSurface = null
-                latestSurfaceDestroyed(view.holder.surface)
+                view.surfaceTextureListener = null
+                currentSurface?.let { surface ->
+                    currentSurface = null
+                    latestSurfaceDestroyed(surface)
+                    surface.release()
+                }
             },
         )
         RemoteTopBar(
@@ -380,7 +391,7 @@ private fun RemoteTopBar(
     }
     MaterialSurface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.86f), modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
