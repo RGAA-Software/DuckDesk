@@ -13,6 +13,8 @@ import yun.pixels.client.core.domain.account.AccountSession
 import yun.pixels.client.core.domain.account.ConnectionTicket
 import yun.pixels.client.core.domain.account.ConsoleEndpoint
 import yun.pixels.client.core.domain.account.JoinMode
+import yun.pixels.client.core.domain.account.RemoteApplication
+import yun.pixels.client.core.domain.account.RemoteApplicationInstance
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
@@ -36,7 +38,7 @@ interface ConsoleAccountApi {
 
 class ConsoleApiClient(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : ConsoleAccountApi {
+) : ConsoleAccountApi, ConsoleApplicationApi {
     override suspend fun login(endpointInput: String, username: String, password: String): AccountResult<AccountSession> = withContext(ioDispatcher) {
         val endpoint = normalizeEndpoint(endpointInput)
             ?: return@withContext AccountResult.Failure(AccountFailure.InvalidEndpoint)
@@ -82,6 +84,32 @@ class ConsoleApiClient(
             ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
     }
 
+    override suspend fun applications(session: AccountSession): AccountResult<List<RemoteApplication>> = withContext(ioDispatcher) {
+        request(session.endpoint, "/api/v1/user/apps", "GET", session.accessToken)?.toAccountResult { data ->
+            AccountResult.Success(parseApplications(data as JSONArray))
+        } ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
+    }
+
+    override suspend fun startApplication(
+        session: AccountSession,
+        appId: String,
+        clientNonce: String,
+    ): AccountResult<RemoteApplicationInstance> = withContext(ioDispatcher) {
+        val encodedAppId = encodePathSegment(appId)
+        val body = JSONObject().put("client_nonce", clientNonce)
+        request(session.endpoint, "/api/v1/user/apps/$encodedAppId/start", "POST", session.accessToken, body)?.toAccountResult { data ->
+            AccountResult.Success(parseApplicationInstance(data as JSONObject))
+        } ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
+    }
+
+    override suspend fun stopApplication(session: AccountSession, instanceId: String): AccountResult<Unit> = withContext(ioDispatcher) {
+        val encodedInstanceId = encodePathSegment(instanceId)
+        val body = JSONObject().put("reason", "stopped from Pixels Android")
+        request(session.endpoint, "/api/v1/user/instances/$encodedInstanceId/stop", "POST", session.accessToken, body)?.toAccountResult {
+            AccountResult.Success(Unit)
+        } ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
+    }
+
     private fun request(
         endpoint: ConsoleEndpoint,
         path: String,
@@ -122,6 +150,8 @@ class ConsoleApiClient(
         private const val READ_TIMEOUT_MILLIS = 8_000
     }
 }
+
+private fun encodePathSegment(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.name()).replace("+", "%20")
 
 internal data class HttpResponse(val status: Int, val body: String)
 
@@ -204,6 +234,33 @@ private fun parseDevices(data: JSONArray): AccountResult<List<AccountDevice>> = 
             )
         }
     },
+)
+
+private fun parseApplications(data: JSONArray): List<RemoteApplication> = buildList {
+    repeat(data.length()) { index ->
+        val item = data.getJSONObject(index)
+        val running = item.optJSONObject("running_instance")
+        add(
+            RemoteApplication(
+                appId = item.getString("app_id"),
+                name = item.optString("name").ifBlank { item.getString("app_id") },
+                coverUrl = item.optString("cover_url"),
+                runningInstance = running?.let(::parseApplicationInstance),
+            ),
+        )
+    }
+}
+
+private fun parseApplicationInstance(data: JSONObject): RemoteApplicationInstance = RemoteApplicationInstance(
+    instanceId = data.getString("instance_id"),
+    state = when (data.optString("state").lowercase()) {
+        "starting" -> RemoteApplicationInstance.State.Starting
+        "running" -> RemoteApplicationInstance.State.Running
+        "stopping" -> RemoteApplicationInstance.State.Stopping
+        "stopped" -> RemoteApplicationInstance.State.Stopped
+        else -> RemoteApplicationInstance.State.Failed
+    },
+    reconnectable = data.optBoolean("reconnectable", false),
 )
 
 private fun parseTicket(data: JSONObject): AccountResult<ConnectionTicket> {

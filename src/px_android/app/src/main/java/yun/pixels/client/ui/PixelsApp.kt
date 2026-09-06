@@ -66,6 +66,8 @@ import yun.pixels.client.feature.devices.DeviceHomeAction
 import yun.pixels.client.feature.devices.DeviceHomeNotice
 import yun.pixels.client.feature.devices.DeviceHomeScreen
 import yun.pixels.client.feature.devices.DeviceHomeViewModel
+import yun.pixels.client.feature.devices.ApplicationLibraryScreen
+import yun.pixels.client.feature.devices.ApplicationLibraryViewModel
 import yun.pixels.client.feature.settings.SettingsScreen
 import yun.pixels.client.feature.settings.SettingsViewModel
 import yun.pixels.client.core.domain.session.RemoteSessionRequest
@@ -86,6 +88,7 @@ private enum class TopLevelDestination(
 }
 
 private const val REMOTE_ROUTE = "remote"
+private const val APPLICATIONS_ROUTE = "applications"
 
 @Composable
 fun PixelsApp(graph: PixelsAppGraph) {
@@ -131,6 +134,10 @@ fun PixelsApp(graph: PixelsAppGraph) {
         ),
     )
     val deviceHomeState by deviceHomeViewModel.uiState.collectAsStateWithLifecycle()
+    val applicationLibraryViewModel: ApplicationLibraryViewModel = viewModel(
+        factory = ApplicationLibraryViewModel.factory(graph.applicationRepository),
+    )
+    val applicationLibraryState by applicationLibraryViewModel.state.collectAsStateWithLifecycle()
     val settingsViewModel: SettingsViewModel = viewModel(
         factory = SettingsViewModel.factory(graph.accountRepository),
     )
@@ -211,7 +218,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
-            if (currentDestination?.route != REMOTE_ROUTE) {
+            if (currentDestination?.route !in setOf(REMOTE_ROUTE, APPLICATIONS_ROUTE)) {
                 NavigationBar {
                     TopLevelDestination.values().forEach { destination ->
                         val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
@@ -235,7 +242,9 @@ fun PixelsApp(graph: PixelsAppGraph) {
         NavHost(
             navController = navController,
             startDestination = TopLevelDestination.Devices.route,
-            modifier = Modifier.padding(if (currentDestination?.route == REMOTE_ROUTE) PaddingValues(0.dp) else contentPadding),
+            modifier = Modifier.padding(
+                if (currentDestination?.route in setOf(REMOTE_ROUTE, APPLICATIONS_ROUTE)) PaddingValues(0.dp) else contentPadding,
+            ),
         ) {
             composable(TopLevelDestination.Devices.route) {
                 DeviceHomeScreen(
@@ -288,6 +297,10 @@ fun PixelsApp(graph: PixelsAppGraph) {
                             DeviceHomeAction.OpenAccountSettings -> navController.navigate(TopLevelDestination.Settings.route) {
                                 launchSingleTop = true
                             }
+                            DeviceHomeAction.OpenApplications -> {
+                                applicationLibraryViewModel.refresh()
+                                navController.navigate(APPLICATIONS_ROUTE) { launchSingleTop = true }
+                            }
                             else -> deviceHomeViewModel.onAction(action)
                         }
                     },
@@ -301,6 +314,15 @@ fun PixelsApp(graph: PixelsAppGraph) {
             }
             composable(TopLevelDestination.Settings.route) {
                 SettingsScreen(state = settingsState, onAction = settingsViewModel::onAction)
+            }
+            composable(APPLICATIONS_ROUTE) {
+                ApplicationLibraryScreen(
+                    state = applicationLibraryState,
+                    onBack = { navController.popBackStack() },
+                    onRefresh = applicationLibraryViewModel::refresh,
+                    onStart = applicationLibraryViewModel::start,
+                    onStop = applicationLibraryViewModel::stop,
+                )
             }
             composable(REMOTE_ROUTE) {
                 val sessionFlow = remoteBinder?.snapshot ?: idleRemoteSnapshot

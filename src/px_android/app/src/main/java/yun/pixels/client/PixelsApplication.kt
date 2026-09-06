@@ -11,11 +11,13 @@ import yun.pixels.client.core.data.DataStoreInstallationIdentity
 import yun.pixels.client.core.data.PanelDeviceResolver
 import yun.pixels.client.core.data.createDeviceDirectory
 import yun.pixels.client.core.domain.account.AccountRepository
+import yun.pixels.client.core.domain.account.ApplicationRepository
 import yun.pixels.client.core.domain.device.DeviceDirectory
 import yun.pixels.client.core.domain.device.DeviceDiscovery
 import yun.pixels.client.core.domain.device.DeviceResolver
 import yun.pixels.client.core.network.ConsoleAccountRepository
 import yun.pixels.client.core.network.ConsoleApiClient
+import yun.pixels.client.core.network.ConsoleApplicationRepository
 
 class PixelsApplication : Application() {
     lateinit var graph: PixelsAppGraph
@@ -29,13 +31,15 @@ class PixelsApplication : Application() {
 
 class PixelsAppGraph(application: Application) {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val consoleApi = ConsoleApiClient()
 
     val deviceDirectory: DeviceDirectory = createDeviceDirectory(application)
     val deviceResolver: DeviceResolver = PanelDeviceResolver()
     val deviceDiscovery: DeviceDiscovery = AndroidLanDeviceDiscovery(application)
     val installationIdentity = DataStoreInstallationIdentity.create(application, applicationScope)
     val accountRepository: AccountRepository = ConsoleAccountRepository(
-        api = ConsoleApiClient(),
+        api = consoleApi,
         sessionStore = EncryptedAccountSessionStore.create(application, applicationScope),
     ).also { repository -> applicationScope.launch { repository.restore() } }
+    val applicationRepository: ApplicationRepository = ConsoleApplicationRepository(consoleApi, accountRepository)
 }

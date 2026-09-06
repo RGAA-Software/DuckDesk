@@ -267,9 +267,14 @@ private fun AccountDeviceCard(device: AccountDevice, onAction: (DeviceHomeAction
                 )
             }
             if (device.online) {
-                FilledTonalButton(onClick = { onAction(DeviceHomeAction.StartAccountRemoteDesktop(device)) }) {
-                    Icon(imageVector = Icons.Outlined.Computer, contentDescription = null)
-                    Text(text = stringResource(R.string.connect))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(onClick = { onAction(DeviceHomeAction.StartAccountRemoteDesktop(device)) }) {
+                        Icon(imageVector = Icons.Outlined.Computer, contentDescription = null)
+                        Text(text = stringResource(R.string.connect))
+                    }
+                    FilledTonalButton(onClick = { onAction(DeviceHomeAction.OpenApplications) }) {
+                        Icon(imageVector = Icons.Outlined.Apps, contentDescription = stringResource(R.string.applications))
+                    }
                 }
             } else {
                 Icon(imageVector = Icons.Outlined.CloudOff, contentDescription = null)
@@ -466,7 +471,7 @@ private fun DeviceCard(
                     FilledTonalButton(onClick = { onAction(DeviceHomeAction.OpenFiles(device)) }) {
                         Icon(imageVector = Icons.Outlined.Folder, contentDescription = stringResource(R.string.files))
                     }
-                    FilledTonalButton(onClick = { onAction(DeviceHomeAction.OpenApplications(device)) }) {
+                    FilledTonalButton(onClick = { onAction(DeviceHomeAction.OpenApplications) }) {
                         Icon(imageVector = Icons.Outlined.Apps, contentDescription = stringResource(R.string.applications))
                     }
                 }
