@@ -4,9 +4,7 @@
     <string name="navigation_transfers">Transfers</string>
     <string name="navigation_settings">Settings</string>
     <string name="transfers_title">Transfers</string>
-    <string name="transfers_foundation_body">Transfer tasks will appear here without interrupting the remote session.</string>
     <string name="settings_title">Settings</string>
-    <string name="settings_foundation_body">Video, input, audio, network, permissions, and diagnostics will live here.</string>
     <string name="feature_being_built">This product flow is being connected to the new Pixels session core.</string>
     <string name="device_saved">Device verified and saved.</string>
     <string name="device_removed">Device removed.</string>
@@ -18,5 +16,17 @@
     <string name="remote_notification_channel">Remote sessions</string>
     <string name="remote_notification_title">Pixels remote session</string>
     <string name="remote_notification_text">Connected to %1$s</string>
+    <string name="remote_notification_transfer">Transferring %1$s</string>
     <string name="remote_notification_stop">End</string>
+    <string name="transfer_error_read_source">The selected file cannot be read.</string>
+    <string name="transfer_error_stage">The file could not be prepared for transfer.</string>
+    <string name="transfer_error_cancel">The cancel command could not be sent.</string>
+    <string name="transfer_error_confirm">The overwrite choice could not be sent.</string>
+    <string name="transfer_error_session_ended">The remote session ended.</string>
+    <string name="transfer_error_not_started">The transfer did not start. Check that the session is online and file transfer is allowed.</string>
+    <string name="transfer_error_publish">The downloaded file could not be saved.</string>
+    <string name="transfer_error_no_file">The remote device did not return a file.</string>
+    <string name="transfer_error_not_single_file">Choose one remote file rather than a folder.</string>
+    <string name="transfer_error_write_destination">The selected destination cannot be written.</string>
+    <string name="transfer_error_generic">The file transfer failed.</string>
 </resources>

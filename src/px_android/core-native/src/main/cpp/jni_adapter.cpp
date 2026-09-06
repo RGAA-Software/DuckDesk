@@ -75,6 +75,20 @@ bool ReadBoolean(JNIEnv& environment, const jobject config, const jclass config_
     return field != nullptr && environment.GetBooleanField(config, field) == JNI_TRUE;
 }
 
+std::string ReadUtf8Bytes(JNIEnv& environment, const jbyteArray value, const jsize maximum_size = 4096) {
+    if (value == nullptr) {
+        return {};
+    }
+    const auto length = environment.GetArrayLength(value);
+    if (length <= 0 || length > maximum_size) {
+        return {};
+    }
+    std::string result(static_cast<std::size_t>(length), '\0');
+    environment.GetByteArrayRegion(value, 0, length,
+                                   reinterpret_cast<jbyte*>(result.data())); // NOLINT(gammaray-raw-pointer-boundary)
+    return environment.ExceptionCheck() ? std::string{} : result;
+}
+
 NativeSessionConfig ReadConfig(JNIEnv& environment, const jobject config) {
     const auto config_class = environment.GetObjectClass(config);
     NativeSessionConfig result{
@@ -179,6 +193,46 @@ jboolean NativeSendClipboardText(JNIEnv* environment, jobject, const jlong nativ
     return session && session->SendClipboardText(text) ? JNI_TRUE : JNI_FALSE;
 }
 
+jint NativeStartFileUpload(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(gammaray-raw-pointer-boundary)
+                           const jbyteArray local_path, const jbyteArray remote_directory) {
+    if (environment == nullptr) {
+        return 0;
+    }
+    const auto local = ReadUtf8Bytes(*environment, local_path);
+    const auto remote = ReadUtf8Bytes(*environment, remote_directory);
+    const auto session = Registry().Find(native_session_id);
+    return session ? session->StartFileUpload(local, remote) : 0;
+}
+
+jint NativeStartFileDownload(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(gammaray-raw-pointer-boundary)
+                             const jbyteArray remote_path, const jbyteArray local_directory) {
+    if (environment == nullptr) {
+        return 0;
+    }
+    const auto remote = ReadUtf8Bytes(*environment, remote_path);
+    const auto local = ReadUtf8Bytes(*environment, local_directory);
+    const auto session = Registry().Find(native_session_id);
+    return session ? session->StartFileDownload(remote, local) : 0;
+}
+
+jboolean NativeCancelFileTransfer(JNIEnv*, jobject, const jlong native_session_id, const jint job_id) { // NOLINT(gammaray-raw-pointer-boundary)
+    const auto session = Registry().Find(native_session_id);
+    return session && session->CancelFileTransfer(job_id) ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean NativeConfirmFileOverwrite(JNIEnv*, jobject, const jlong native_session_id, const jint job_id, const jint file_number,
+                                    const jboolean overwrite, const jlong offset_bytes,
+                                    const jboolean apply_to_all) { // NOLINT(gammaray-raw-pointer-boundary)
+    if (offset_bytes < 0) {
+        return JNI_FALSE;
+    }
+    const auto session = Registry().Find(native_session_id);
+    return session && session->ConfirmFileOverwrite(job_id, file_number, overwrite == JNI_TRUE, static_cast<std::uint64_t>(offset_bytes),
+                                                    apply_to_all == JNI_TRUE)
+               ? JNI_TRUE
+               : JNI_FALSE;
+}
+
 jboolean NativeSetAudioEnabled(JNIEnv*, jobject, const jlong native_session_id, const jboolean enabled) { // NOLINT(gammaray-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->SetAudioEnabled(enabled == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
@@ -267,6 +321,11 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) { // NOLINT(gamm
         {const_cast<char*>("sendKey"), const_cast<char*>("(JIZ)Z"), reinterpret_cast<void*>(pixels::android::NativeSendKey)},
         {const_cast<char*>("sendText"), const_cast<char*>("(J[B)Z"), reinterpret_cast<void*>(pixels::android::NativeSendText)},
         {const_cast<char*>("sendClipboardText"), const_cast<char*>("(J[B)Z"), reinterpret_cast<void*>(pixels::android::NativeSendClipboardText)},
+        {const_cast<char*>("startFileUpload"), const_cast<char*>("(J[B[B)I"), reinterpret_cast<void*>(pixels::android::NativeStartFileUpload)},
+        {const_cast<char*>("startFileDownload"), const_cast<char*>("(J[B[B)I"), reinterpret_cast<void*>(pixels::android::NativeStartFileDownload)},
+        {const_cast<char*>("cancelFileTransfer"), const_cast<char*>("(JI)Z"), reinterpret_cast<void*>(pixels::android::NativeCancelFileTransfer)},
+        {const_cast<char*>("confirmFileOverwrite"), const_cast<char*>("(JIIZJZ)Z"),
+         reinterpret_cast<void*>(pixels::android::NativeConfirmFileOverwrite)},
         {const_cast<char*>("sendSecureAttention"), const_cast<char*>("(J)Z"), reinterpret_cast<void*>(pixels::android::NativeSendSecureAttention)},
         {const_cast<char*>("sendGamepad"), const_cast<char*>("(JIIIIIII)Z"), reinterpret_cast<void*>(pixels::android::NativeSendGamepad)},
         {const_cast<char*>("switchMonitor"), const_cast<char*>("(JLjava/lang/String;)Z"),

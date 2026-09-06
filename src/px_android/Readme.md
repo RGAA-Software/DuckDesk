@@ -19,24 +19,24 @@
 
 ## 当前状态
 
-M0 已于 2026-09-05 完成：旧 Fragment/XML UI、GreenDAO、事件类、Steam/频谱页面、旧签名和旧 Android JNI/C++ 入口均已删除。当前内容包括 Pixels 品牌、Splash、设备首页、Quick Connect、设备空状态以及设备/传输/设置一级导航。最终清理 APK 已在 MIUI 真机完成覆盖安装、冷启动、视觉和崩溃日志检查。
+M0–M2 已完成。当前应用已包含 Pixels 品牌与最终包名、设备发现和扫码、Quick Connect、Console 账号与设备、远程应用、短期连接票据、前台会话服务、MediaCodec Surface 视频、AAudio、完整桌面输入、虚拟/实体手柄、多显示器、虚拟显示协议、双向文本剪贴板，以及基于 SAF 的双向文件传输和任务中心。
 
-M1 正在实施。当前 Quick Connect 已能解析私有网络主机、可选端口和 `link://`，真实请求 Panel `/v1/simple/info` 后保存设备；设备元数据由 DataStore 持久化，临时凭据使用 Android Keystore AES-GCM 加密。成功、不可达、无效响应、进程重启保守离线和应用内删除均已完成真机验证。扫码、主动局域网发现、会话鉴权、typed JNI 和远程画面仍待后续切片。
+M3 的手柄震动与特定环境验收仍待收口；M4 后续继续实现图片/文件剪贴板、MediaStore 录制与语音；M5–M6 的完整网络矩阵和发布门禁尚未完成。未完成能力不会以占位实现伪装为可用。
 
 构建基线为 Gradle 9.3.1、AGP 9.1.1、内置 Kotlin 2.4.10、Compose BOM 2026.08.00、API 37，最低系统 API 29。日常验证使用：
 
 ```powershell
 cd src/px_android
-./gradlew.bat :core-domain:testDebugUnitTest :core-data:testDebugUnitTest :feature-devices:testDebugUnitTest :app:assembleDebug :app:lintDebug
+./gradlew.bat testDebugUnitTest :app:assembleDebug :app:lintDebug
 ```
 
 Debug APK 输出为 `app/build/outputs/apk/debug/app-debug.apk`。USB 安装和启动：
 
 ```powershell
-adb install --no-streaming -r -g app/build/outputs/apk/debug/app-debug.apk
+adb install -r -d app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n yun.pixels.client.debug/yun.pixels.client.MainActivity
 ```
 
-日常真机验证只做 `-r` 覆盖安装，不主动卸载或清空应用数据。当前不打包项目 native 会话库，也不保留 RTC stub；typed JNI 和 `core-native` 将在 M1 后续切片建立。未完成动作会明确提示，不能视为远程会话已可用。
+日常真机验证只做 `-r` 覆盖安装，不主动卸载或清空应用数据。`core-native` 打包 `pixels_android_core`，并通过 `RegisterNatives` 提供类型化 JNI；没有旧 JSON JNI 或 RTC stub。
 
 后续 native C++ 聚焦验证使用仓库的 `build_cpp_android_*.bat` 入口。Windows release-only `build_official.bat` 不是 Android 开发命令。

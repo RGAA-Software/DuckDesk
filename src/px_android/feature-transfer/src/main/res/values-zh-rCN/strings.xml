@@ -1,0 +1,28 @@
+<resources>
+    <string name="transfers_title">文件传输</string>
+    <string name="clear_finished">清除已结束</string>
+    <string name="transfer_requires_session">连接电脑后即可传输文件。</string>
+    <string name="transfer_not_supported">当前电脑未开放文件传输能力。</string>
+    <string name="transfer_ready">离开此页面后传输任务仍会继续。</string>
+    <string name="remote_upload_directory">远端目标目录</string>
+    <string name="choose_upload_file">选择要上传的文件</string>
+    <string name="remote_download_path">远端文件路径</string>
+    <string name="choose_download_destination">选择保存位置</string>
+    <string name="no_transfer_tasks">还没有传输任务。</string>
+    <string name="upload">上传</string>
+    <string name="download">下载</string>
+    <string name="preparing">正在准备</string>
+    <string name="queued">等待传输</string>
+    <string name="running">正在传输</string>
+    <string name="awaiting_overwrite">等待确认</string>
+    <string name="succeeded">已完成</string>
+    <string name="failed">失败</string>
+    <string name="cancelled">已取消</string>
+    <string name="cancel_transfer">取消</string>
+    <string name="retry_transfer">重试</string>
+    <string name="overwrite_title">文件已存在</string>
+    <string name="overwrite_body">是否替换已有的 %1$s？</string>
+    <string name="apply_to_all">应用到本任务的全部冲突</string>
+    <string name="overwrite">替换</string>
+    <string name="skip">跳过</string>
+</resources>

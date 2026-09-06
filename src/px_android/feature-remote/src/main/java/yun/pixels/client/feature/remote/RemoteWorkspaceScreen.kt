@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Mouse
 import androidx.compose.material.icons.outlined.SportsEsports
+import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
@@ -86,6 +87,7 @@ fun RemoteWorkspaceScreen(
     onText: (String) -> Unit,
     onClipboardText: (String) -> Unit,
     onAudioEnabledChange: (Boolean) -> Unit,
+    onOpenTransfers: () -> Unit,
     onEndSession: () -> Unit,
 ) {
     BackHandler(onBack = onEndSession)
@@ -228,6 +230,7 @@ fun RemoteWorkspaceScreen(
             onOpenKeyboard = { showKeyboard = true },
             onOpenGamepadSettings = { showGamepadSettings = true },
             onOpenDisplays = { showDisplays = true },
+            onOpenTransfers = onOpenTransfers,
             onEndSession = onEndSession,
         )
         if (inputMode == RemoteInputMode.Gamepad && snapshot.status is RemoteSessionStatus.Connected) {
@@ -316,6 +319,7 @@ private fun RemoteTopBar(
     onOpenKeyboard: () -> Unit,
     onOpenGamepadSettings: () -> Unit,
     onOpenDisplays: () -> Unit,
+    onOpenTransfers: () -> Unit,
     onEndSession: () -> Unit,
 ) {
     val status = snapshot.status
@@ -391,6 +395,11 @@ private fun RemoteTopBar(
                             if (audioEnabled) Icons.AutoMirrored.Outlined.VolumeUp else Icons.AutoMirrored.Outlined.VolumeOff,
                             contentDescription = stringResource(if (audioEnabled) R.string.remote_mute else R.string.remote_unmute),
                         )
+                    }
+                }
+                if ((status as? RemoteSessionStatus.Connected)?.capabilities?.supportsFileTransfer == true) {
+                    FilledTonalIconButton(onClick = onOpenTransfers) {
+                        Icon(Icons.Outlined.SwapVert, contentDescription = stringResource(R.string.remote_file_transfer))
                     }
                 }
                 FilledTonalIconButton(onClick = onEndSession) {

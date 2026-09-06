@@ -1,0 +1,28 @@
+<resources>
+    <string name="transfers_title">Transfers</string>
+    <string name="clear_finished">Clear finished</string>
+    <string name="transfer_requires_session">Connect to a computer to transfer files.</string>
+    <string name="transfer_not_supported">This computer does not allow file transfers.</string>
+    <string name="transfer_ready">File transfers continue while you use other parts of Pixels.</string>
+    <string name="remote_upload_directory">Remote destination folder</string>
+    <string name="choose_upload_file">Choose file to upload</string>
+    <string name="remote_download_path">Remote file path</string>
+    <string name="choose_download_destination">Choose where to save</string>
+    <string name="no_transfer_tasks">No transfer tasks yet.</string>
+    <string name="upload">Upload</string>
+    <string name="download">Download</string>
+    <string name="preparing">Preparing</string>
+    <string name="queued">Queued</string>
+    <string name="running">Transferring</string>
+    <string name="awaiting_overwrite">Waiting for confirmation</string>
+    <string name="succeeded">Completed</string>
+    <string name="failed">Failed</string>
+    <string name="cancelled">Cancelled</string>
+    <string name="cancel_transfer">Cancel</string>
+    <string name="retry_transfer">Retry</string>
+    <string name="overwrite_title">File already exists</string>
+    <string name="overwrite_body">Replace the existing copy of %1$s?</string>
+    <string name="apply_to_all">Apply to all conflicts in this task</string>
+    <string name="overwrite">Replace</string>
+    <string name="skip">Skip</string>
+</resources>

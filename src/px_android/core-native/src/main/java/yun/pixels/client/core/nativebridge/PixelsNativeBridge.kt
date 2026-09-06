@@ -37,6 +37,22 @@ interface NativeSessionListener {
 
     fun onClipboardText(sessionId: String, utf8Text: ByteArray)
 
+    fun onFileTransferProgress(
+        sessionId: String,
+        jobId: Int,
+        fileNumber: Int,
+        fileCount: Int,
+        totalSize: Long,
+        finishedSize: Long,
+        transferred: Long,
+        speedBytesPerSecond: Double,
+        download: Boolean,
+    )
+
+    fun onFileTransferDone(sessionId: String, jobId: Int, utf8Error: ByteArray)
+
+    fun onFileTransferOverwrite(sessionId: String, jobId: Int, fileNumber: Int, utf8Path: ByteArray, upload: Boolean, identical: Boolean)
+
     fun onDisconnected(sessionId: String, reason: Int, recoverable: Boolean)
 }
 
@@ -69,6 +85,21 @@ internal object PixelsNativeBridge {
     external fun sendText(nativeSessionId: Long, utf8Text: ByteArray): Boolean
 
     external fun sendClipboardText(nativeSessionId: Long, utf8Text: ByteArray): Boolean
+
+    external fun startFileUpload(nativeSessionId: Long, localPath: ByteArray, remoteDirectory: ByteArray): Int
+
+    external fun startFileDownload(nativeSessionId: Long, remotePath: ByteArray, localDirectory: ByteArray): Int
+
+    external fun cancelFileTransfer(nativeSessionId: Long, jobId: Int): Boolean
+
+    external fun confirmFileOverwrite(
+        nativeSessionId: Long,
+        jobId: Int,
+        fileNumber: Int,
+        overwrite: Boolean,
+        offsetBytes: Long,
+        applyToAll: Boolean,
+    ): Boolean
 
     external fun sendSecureAttention(nativeSessionId: Long): Boolean
 

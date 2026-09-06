@@ -26,6 +26,9 @@ import yun.pixels.client.core.domain.session.RemoteVideoSize
 import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
 import yun.pixels.client.core.domain.session.RemoteVirtualDisplayResult
 import yun.pixels.client.core.domain.session.RemoteVirtualDisplayResultState
+import yun.pixels.client.core.domain.transfer.FileTransferDirection
+import yun.pixels.client.core.domain.transfer.FileTransferEvent
+import yun.pixels.client.core.domain.transfer.FileTransferTransport
 import java.net.URI
 import java.net.URLDecoder
 
@@ -33,7 +36,7 @@ class NativeRemoteSessionTransport internal constructor(
     private val installationIdentity: InstallationIdentity,
     private val callbackScope: CoroutineScope,
     private val directSessionAuthorizer: DirectSessionAuthorizer,
-) : RemoteSessionTransport, NativeSessionListener {
+) : RemoteSessionTransport, FileTransferTransport, NativeSessionListener {
     constructor(installationIdentity: InstallationIdentity, callbackScope: CoroutineScope) : this(
         installationIdentity,
         callbackScope,
@@ -43,11 +46,13 @@ class NativeRemoteSessionTransport internal constructor(
     private val lock = Mutex()
     private val surfaceLock = Mutex()
     private val mutableEvents = MutableSharedFlow<RemoteTransportEvent>(extraBufferCapacity = 32)
+    private val mutableFileTransferEvents = MutableSharedFlow<FileTransferEvent>(extraBufferCapacity = 64)
     private val surfaces = mutableMapOf<RemoteSessionId, Surface>()
     private val nativeSessionIds = mutableMapOf<RemoteSessionId, Long>()
     private val capabilities = mutableMapOf<RemoteSessionId, RemoteSessionCapabilities>()
 
     override val events: Flow<RemoteTransportEvent> = mutableEvents.asSharedFlow()
+    override val fileTransferEvents: Flow<FileTransferEvent> = mutableFileTransferEvents.asSharedFlow()
 
     suspend fun attachSurface(sessionId: RemoteSessionId, surface: Surface) {
         surfaceLock.withLock {
@@ -159,6 +164,44 @@ class NativeRemoteSessionTransport internal constructor(
         if (encoded.isEmpty() || encoded.size > MAX_CLIPBOARD_TEXT_BYTES) return false
         val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
         return PixelsNativeBridge.sendClipboardText(nativeSessionId, encoded)
+    }
+
+    override suspend fun startUpload(sessionId: RemoteSessionId, localPath: String, remoteDirectory: String): Int? {
+        if (localPath.isBlank() || remoteDirectory.isBlank()) return null
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return null
+        return withContext(Dispatchers.IO) {
+            PixelsNativeBridge.startFileUpload(nativeSessionId, localPath.encodeToByteArray(), remoteDirectory.encodeToByteArray())
+                .takeIf { it > 0 }
+        }
+    }
+
+    override suspend fun startDownload(sessionId: RemoteSessionId, remotePath: String, localDirectory: String): Int? {
+        if (remotePath.isBlank() || localDirectory.isBlank()) return null
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return null
+        return withContext(Dispatchers.IO) {
+            PixelsNativeBridge.startFileDownload(nativeSessionId, remotePath.encodeToByteArray(), localDirectory.encodeToByteArray())
+                .takeIf { it > 0 }
+        }
+    }
+
+    override suspend fun cancelTransfer(sessionId: RemoteSessionId, jobId: Int): Boolean {
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        return withContext(Dispatchers.IO) { PixelsNativeBridge.cancelFileTransfer(nativeSessionId, jobId) }
+    }
+
+    override suspend fun confirmOverwrite(
+        sessionId: RemoteSessionId,
+        jobId: Int,
+        fileNumber: Int,
+        overwrite: Boolean,
+        offsetBytes: Long,
+        applyToAll: Boolean,
+    ): Boolean {
+        if (offsetBytes < 0) return false
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        return withContext(Dispatchers.IO) {
+            PixelsNativeBridge.confirmFileOverwrite(nativeSessionId, jobId, fileNumber, overwrite, offsetBytes, applyToAll)
+        }
     }
 
     private suspend fun sendMouse(
@@ -317,6 +360,64 @@ class NativeRemoteSessionTransport internal constructor(
         callbackScope.launch { mutableEvents.emit(RemoteTransportEvent.ClipboardText(RemoteSessionId(sessionId), value)) }
     }
 
+    override fun onFileTransferProgress(
+        sessionId: String,
+        jobId: Int,
+        fileNumber: Int,
+        fileCount: Int,
+        totalSize: Long,
+        finishedSize: Long,
+        transferred: Long,
+        speedBytesPerSecond: Double,
+        download: Boolean,
+    ) {
+        if (jobId <= 0) return
+        callbackScope.launch {
+            mutableFileTransferEvents.emit(
+                FileTransferEvent.Progress(
+                    sessionId = RemoteSessionId(sessionId),
+                    jobId = jobId,
+                    fileNumber = fileNumber.coerceAtLeast(0),
+                    fileCount = fileCount.coerceAtLeast(0),
+                    totalBytes = totalSize.coerceAtLeast(0),
+                    completedBytes = finishedSize.coerceAtLeast(0),
+                    transferredBytes = transferred.coerceAtLeast(0),
+                    speedBytesPerSecond = speedBytesPerSecond.coerceAtLeast(0.0),
+                    direction = if (download) FileTransferDirection.Download else FileTransferDirection.Upload,
+                ),
+            )
+        }
+    }
+
+    override fun onFileTransferDone(sessionId: String, jobId: Int, utf8Error: ByteArray) {
+        if (jobId <= 0) return
+        val error = utf8Error.decodeUtf8OrEmpty()
+        callbackScope.launch { mutableFileTransferEvents.emit(FileTransferEvent.Completed(RemoteSessionId(sessionId), jobId, error)) }
+    }
+
+    override fun onFileTransferOverwrite(
+        sessionId: String,
+        jobId: Int,
+        fileNumber: Int,
+        utf8Path: ByteArray,
+        upload: Boolean,
+        identical: Boolean,
+    ) {
+        if (jobId <= 0) return
+        callbackScope.launch {
+            mutableFileTransferEvents.emit(
+                FileTransferEvent.OverwriteRequired(
+                    sessionId = RemoteSessionId(sessionId),
+                    jobId = jobId,
+                    fileNumber = fileNumber.coerceAtLeast(0),
+                    path = utf8Path.decodeUtf8OrEmpty(),
+                    upload = upload,
+                    identical = identical,
+                ),
+            )
+        }
+    }
+
     override fun onDisconnected(sessionId: String, reason: Int, recoverable: Boolean) {
         callbackScope.launch {
             mutableEvents.emit(
@@ -448,6 +549,8 @@ private const val DEFAULT_VIRTUAL_DISPLAY_WIDTH = 1920
 private const val DEFAULT_VIRTUAL_DISPLAY_HEIGHT = 1080
 private const val DEFAULT_VIRTUAL_DISPLAY_REFRESH_HZ = 60
 private const val MAX_CLIPBOARD_TEXT_BYTES = 1_048_576
+
+private fun ByteArray.decodeUtf8OrEmpty(): String = runCatching { decodeToString(throwOnInvalidSequence = true) }.getOrDefault("")
 
 private val RemoteVirtualDisplayOperation.nativeValue: Int
     get() = when (this) {

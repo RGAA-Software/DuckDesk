@@ -22,6 +22,7 @@
     <string name="remote_gamepad_scale">Control size</string>
     <string name="remote_touchpad_speed">Pointer speed</string>
     <string name="remote_clipboard">Clipboard</string>
+    <string name="remote_file_transfer">File transfers</string>
     <string name="remote_clipboard_send_local">Send from phone</string>
     <string name="remote_clipboard_copy_remote">Copy from PC</string>
     <string name="remote_displays">Displays</string>

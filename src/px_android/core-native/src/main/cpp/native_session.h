@@ -18,6 +18,11 @@ class SdkStatistics;
 class ThunderSdk;
 } // namespace px
 
+namespace px::ft {
+class FtAsyncSession;
+struct TransferJobStatus;
+} // namespace px::ft
+
 namespace pixels::android {
 
 class NativeAudioPlayer;
@@ -73,6 +78,10 @@ class JavaSessionCallback final {
     void FrameSizeChanged(const std::string& session_id, std::int32_t width, std::int32_t height) const;
     void Statistics(const std::string& session_id, std::int32_t frames_per_second, std::int32_t latency_millis, std::int32_t bitrate_kbps) const;
     void ClipboardText(const std::string& session_id, const std::string& text) const;
+    void FileTransferProgress(const std::string& session_id, const px::ft::TransferJobStatus& status) const;
+    void FileTransferDone(const std::string& session_id, std::int32_t job_id, const std::string& error) const;
+    void FileTransferOverwrite(const std::string& session_id, std::int32_t job_id, std::int32_t file_number, const std::string& path, bool upload,
+                               bool identical) const;
     void Disconnected(const std::string& session_id, std::int32_t reason, bool recoverable) const;
 
   private:
@@ -105,6 +114,10 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     bool SendGamepad(const NativeGamepadState& state);
     bool SendText(const std::string& text);
     bool SendClipboardText(const std::string& text);
+    std::int32_t StartFileUpload(const std::string& local_path, const std::string& remote_directory);
+    std::int32_t StartFileDownload(const std::string& remote_path, const std::string& local_directory);
+    bool CancelFileTransfer(std::int32_t job_id);
+    bool ConfirmFileOverwrite(std::int32_t job_id, std::int32_t file_number, bool overwrite, std::uint64_t offset_bytes, bool apply_to_all);
     bool SendSecureAttention();
     bool SwitchMonitor(const std::string& monitor_name);
     bool RequestVirtualDisplay(const std::string& request_id, std::int32_t operation, std::int32_t width, std::int32_t height,
@@ -124,12 +137,14 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     std::shared_ptr<px::MessageNotifier> message_notifier_{};
     std::shared_ptr<px::MessageListener> session_listener_{};
     std::shared_ptr<px::ThunderSdk> sdk_{};
+    std::shared_ptr<px::ft::FtAsyncSession> file_transfer_session_{};
     std::shared_ptr<px::SdkStatistics> statistics_{};
     std::unique_ptr<NativeAudioPlayer> audio_player_{};
     std::mutex command_mutex_{};
     std::mutex lifecycle_mutex_{};
     bool initialized_{};
     bool started_{};
+    std::atomic_bool file_transfer_ready_{};
     bool surface_update_in_progress_{};
     bool has_pending_surface_update_{};
     float virtual_cursor_x_{0.5F};

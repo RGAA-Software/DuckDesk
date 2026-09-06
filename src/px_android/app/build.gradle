@@ -65,6 +65,7 @@ dependencies {
     implementation project(':core-native')
     implementation project(':feature-devices')
     implementation project(':feature-remote')
+    implementation project(':feature-transfer')
     implementation project(':feature-settings')
 
     implementation 'androidx.core:core-ktx:1.19.0'

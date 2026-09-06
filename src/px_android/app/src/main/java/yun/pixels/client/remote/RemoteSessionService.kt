@@ -12,6 +12,7 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Binder
 import android.os.IBinder
+import android.net.Uri
 import android.view.Surface
 import androidx.core.app.NotificationCompat
 import androidx.compose.runtime.Stable
@@ -36,6 +37,8 @@ import yun.pixels.client.core.domain.session.RemoteGamepadState
 import yun.pixels.client.core.domain.session.RemoteMouseButton
 import yun.pixels.client.core.domain.session.RemoteSessionId
 import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
+import yun.pixels.client.core.domain.transfer.FileTransferTask
+import yun.pixels.client.core.domain.transfer.FileTransferState
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -44,9 +47,11 @@ class RemoteSessionService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var transport: NativeRemoteSessionTransport
     private lateinit var workflow: RemoteSessionWorkflow
+    private lateinit var fileTransfers: AndroidFileTransferCoordinator
     private val localBinder = LocalBinder()
     private var preparedRequest: RemoteSessionRequest? = null
     private var foregroundStarted = false
+    private var foregroundDeviceName = "Pixels"
     private lateinit var audioManager: AudioManager
     private var audioFocusRequest: AudioFocusRequest? = null
     private var hasAudioFocus = false
@@ -73,6 +78,7 @@ class RemoteSessionService : Service() {
         audioManager = getSystemService(AudioManager::class.java)
         transport = NativeRemoteSessionTransport(graph.installationIdentity, serviceScope)
         workflow = RemoteSessionWorkflow(transport, serviceScope)
+        fileTransfers = AndroidFileTransferCoordinator(this, transport, serviceScope)
         createNotificationChannel()
         serviceScope.launch {
             workflow.snapshot.collectLatest { snapshot ->
@@ -80,6 +86,13 @@ class RemoteSessionService : Service() {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     foregroundStarted = false
                     stopSelf()
+                }
+            }
+        }
+        serviceScope.launch {
+            fileTransfers.tasks.collectLatest { tasks ->
+                if (foregroundStarted) {
+                    getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, createNotification(foregroundDeviceName, tasks))
                 }
             }
         }
@@ -158,7 +171,9 @@ class RemoteSessionService : Service() {
     private fun stopSession() {
         preparedRequest = null
         serviceScope.launch {
-            releaseAllInputs(currentRequest()?.id)
+            val sessionId = currentRequest()?.id
+            releaseAllInputs(sessionId)
+            sessionId?.let(fileTransfers::sessionEnded)
             workflow.stop()
             abandonAudioFocus()
             mutableAudioEnabled.value = false
@@ -199,6 +214,18 @@ class RemoteSessionService : Service() {
         serviceScope.launch { transport.requestVirtualDisplay(request.id, requestId, operation) }
     }
 
+    private fun startUpload(source: Uri, remoteDirectory: String) {
+        val connected = workflow.snapshot.value.status as? RemoteSessionStatus.Connected ?: return
+        if (!connected.capabilities.supportsFileTransfer || remoteDirectory.isBlank()) return
+        fileTransfers.upload(connected.request.id, source, remoteDirectory)
+    }
+
+    private fun startDownload(remotePath: String, destination: Uri) {
+        val connected = workflow.snapshot.value.status as? RemoteSessionStatus.Connected ?: return
+        if (!connected.capabilities.supportsFileTransfer || remotePath.isBlank()) return
+        fileTransfers.download(connected.request.id, remotePath, destination)
+    }
+
     private fun currentRequest(): RemoteSessionRequest? = when (val status = workflow.snapshot.value.status) {
         RemoteSessionStatus.Idle -> null
         is RemoteSessionStatus.Starting -> status.request
@@ -209,6 +236,7 @@ class RemoteSessionService : Service() {
     }
 
     private fun startForegroundSession(deviceName: String, withAudio: Boolean) {
+        foregroundDeviceName = deviceName
         val notification = createNotification(deviceName)
         val serviceTypes = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or
             if (withAudio) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK else 0
@@ -237,7 +265,7 @@ class RemoteSessionService : Service() {
         hasAudioFocus = false
     }
 
-    private fun createNotification(deviceName: String): Notification {
+    private fun createNotification(deviceName: String, tasks: List<FileTransferTask> = fileTransfers.tasks.value): Notification {
         val contentIntent = PendingIntent.getActivity(
             this,
             0,
@@ -250,15 +278,27 @@ class RemoteSessionService : Service() {
             Intent(this, RemoteSessionService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val activeTransfer = tasks.firstOrNull { it.state in ACTIVE_TRANSFER_STATES }
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_pixels_notification)
             .setContentTitle(getString(R.string.remote_notification_title))
-            .setContentText(getString(R.string.remote_notification_text, deviceName))
+            .setContentText(
+                activeTransfer?.let { getString(R.string.remote_notification_transfer, it.name) }
+                    ?: getString(R.string.remote_notification_text, deviceName),
+            )
             .setContentIntent(contentIntent)
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .addAction(0, getString(R.string.remote_notification_stop), stopIntent)
-            .build()
+        if (activeTransfer != null) {
+            val total = activeTransfer.totalBytes
+            builder.setProgress(
+                100,
+                if (total > 0) ((activeTransfer.completedBytes.coerceIn(0, total).toDouble() / total.toDouble()) * 100).toInt() else 0,
+                total <= 0,
+            )
+        }
+        return builder.build()
     }
 
     private fun createNotificationChannel() {
@@ -273,6 +313,9 @@ class RemoteSessionService : Service() {
 
         val audioEnabled: StateFlow<Boolean>
             get() = mutableAudioEnabled.asStateFlow()
+
+        val fileTransferTasks: StateFlow<List<FileTransferTask>>
+            get() = fileTransfers.tasks
 
         fun prepare(request: RemoteSessionRequest) = this@RemoteSessionService.prepare(request)
 
@@ -293,6 +336,19 @@ class RemoteSessionService : Service() {
 
         fun setAudioEnabled(enabled: Boolean) = this@RemoteSessionService.setAudioEnabled(enabled)
 
+        fun startUpload(source: Uri, remoteDirectory: String) = this@RemoteSessionService.startUpload(source, remoteDirectory)
+
+        fun startDownload(remotePath: String, destination: Uri) = this@RemoteSessionService.startDownload(remotePath, destination)
+
+        fun cancelTransfer(taskId: String) = fileTransfers.cancel(taskId)
+
+        fun retryTransfer(taskId: String) = fileTransfers.retry(taskId)
+
+        fun resolveTransferOverwrite(taskId: String, overwrite: Boolean, applyToAll: Boolean) =
+            fileTransfers.resolveOverwrite(taskId, overwrite, applyToAll)
+
+        fun clearFinishedTransfers() = fileTransfers.clearFinished()
+
         fun stopSession() = this@RemoteSessionService.stopSession()
     }
 
@@ -300,5 +356,11 @@ class RemoteSessionService : Service() {
         private const val CHANNEL_ID = "pixels_remote_session"
         private const val NOTIFICATION_ID = 1201
         private const val ACTION_STOP = "yun.pixels.client.action.STOP_REMOTE_SESSION"
+        private val ACTIVE_TRANSFER_STATES = setOf(
+            FileTransferState.Preparing,
+            FileTransferState.Queued,
+            FileTransferState.Running,
+            FileTransferState.AwaitingOverwrite,
+        )
     }
 }

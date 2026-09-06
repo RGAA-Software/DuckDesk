@@ -9,8 +9,11 @@
 #include <cmath>
 #include <format>
 #include <functional>
+#include <optional>
 #include <utility>
 
+#include "ft_async_session.h"
+#include "ft_engine.h"
 #include "px_client_sdk/gl/raw_image.h"
 #include "px_client_sdk/sdk_decoder_render_type.h"
 #include "px_client_sdk/sdk_params.h"
@@ -18,6 +21,7 @@
 #include "px_client_sdk/sdk_messages.h"
 #include "px_client_sdk/thunder_sdk.h"
 #include "px_common/md5.h"
+#include "px_common/log.h"
 #include "px_common/message_notifier.h"
 #include "px_common/time_util.h"
 #include "px_message/proto_message_maker.h"
@@ -91,6 +95,16 @@ std::uintptr_t MakeStringArray(JNIEnv& environment, const std::vector<std::strin
     }
     DeleteLocalReference(environment, string_class_handle);
     return array_handle;
+}
+
+std::uintptr_t MakeByteArray(JNIEnv& environment, const std::string& value) {
+    const auto result_handle = reinterpret_cast<std::uintptr_t>(environment.NewByteArray(static_cast<jsize>(value.size())));
+    if (result_handle == 0U || value.empty()) {
+        return result_handle;
+    }
+    environment.SetByteArrayRegion(reinterpret_cast<jbyteArray>(result_handle), 0, static_cast<jsize>(value.size()),
+                                   reinterpret_cast<const jbyte*>(value.data())); // NOLINT(gammaray-raw-pointer-boundary)
+    return environment.ExceptionCheck() ? 0U : result_handle;
 }
 
 } // namespace
@@ -245,12 +259,68 @@ void JavaSessionCallback::ClipboardText(const std::string& session_id, const std
             environment.SetByteArrayRegion(reinterpret_cast<jbyteArray>(text_handle), 0, static_cast<jsize>(text.size()),
                                            reinterpret_cast<const jbyte*>(text.data())); // NOLINT(gammaray-raw-pointer-boundary)
             if (!environment.ExceptionCheck()) {
-                environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle),
-                                           reinterpret_cast<jbyteArray>(text_handle));
+                environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), reinterpret_cast<jbyteArray>(text_handle));
             }
         }
         DeleteLocalReference(environment, session_id_handle);
         DeleteLocalReference(environment, text_handle);
+        DeleteLocalReference(environment, listener_class_handle);
+    });
+}
+
+void JavaSessionCallback::FileTransferProgress(const std::string& session_id, const px::ft::TransferJobStatus& status) const {
+    const auto listener_handle = listener_handle_;
+    WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
+        const auto listener = reinterpret_cast<jobject>(listener_handle);
+        const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
+        const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
+        const auto method = environment.GetMethodID(listener_class, "onFileTransferProgress", "(Ljava/lang/String;IIIJJJDZ)V");
+        const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
+        if (method != nullptr && session_id_handle != 0U) {
+            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), status.id, status.file_num, status.file_count,
+                                       static_cast<jlong>(status.total_size), static_cast<jlong>(status.finished_size),
+                                       static_cast<jlong>(status.transferred), status.speed, status.is_remote);
+        }
+        DeleteLocalReference(environment, session_id_handle);
+        DeleteLocalReference(environment, listener_class_handle);
+    });
+}
+
+void JavaSessionCallback::FileTransferDone(const std::string& session_id, const std::int32_t job_id, const std::string& error) const {
+    const auto listener_handle = listener_handle_;
+    WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
+        const auto listener = reinterpret_cast<jobject>(listener_handle);
+        const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
+        const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
+        const auto method = environment.GetMethodID(listener_class, "onFileTransferDone", "(Ljava/lang/String;I[B)V");
+        const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
+        const auto error_handle = MakeByteArray(environment, error);
+        if (method != nullptr && session_id_handle != 0U && error_handle != 0U) {
+            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), job_id,
+                                       reinterpret_cast<jbyteArray>(error_handle));
+        }
+        DeleteLocalReference(environment, session_id_handle);
+        DeleteLocalReference(environment, error_handle);
+        DeleteLocalReference(environment, listener_class_handle);
+    });
+}
+
+void JavaSessionCallback::FileTransferOverwrite(const std::string& session_id, const std::int32_t job_id, const std::int32_t file_number,
+                                                const std::string& path, const bool upload, const bool identical) const {
+    const auto listener_handle = listener_handle_;
+    WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
+        const auto listener = reinterpret_cast<jobject>(listener_handle);
+        const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
+        const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
+        const auto method = environment.GetMethodID(listener_class, "onFileTransferOverwrite", "(Ljava/lang/String;II[BZZ)V");
+        const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
+        const auto path_handle = MakeByteArray(environment, path);
+        if (method != nullptr && session_id_handle != 0U && path_handle != 0U) {
+            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), job_id, file_number,
+                                       reinterpret_cast<jbyteArray>(path_handle), upload, identical);
+        }
+        DeleteLocalReference(environment, session_id_handle);
+        DeleteLocalReference(environment, path_handle);
         DeleteLocalReference(environment, listener_class_handle);
     });
 }
@@ -368,6 +438,51 @@ bool NativeSession::Initialize() {
     statistics_ = px::SdkStatistics::Instance();
     last_received_bytes_ = statistics_->recv_data_size_.load();
 
+    file_transfer_session_ = px::ft::FtAsyncSession::Create(
+        [weak_self](const std::shared_ptr<const px::Message>& message) {
+            const auto self = weak_self.lock();
+            if (!self || !message || self->stopped_.load()) {
+                return px::FileTransferSendResult::Disconnected("Android session is stopping");
+            }
+            std::shared_ptr<px::ThunderSdk> sdk;
+            {
+                std::lock_guard lock(self->lifecycle_mutex_);
+                sdk = self->sdk_;
+            }
+            if (!sdk) {
+                return px::FileTransferSendResult::Disconnected("Android transport is unavailable");
+            }
+            const auto outgoing = std::make_shared<px::Message>(*message);
+            outgoing->set_type(outgoing->has_file_response() ? px::MessageType::kFileResponse : px::MessageType::kFileAction);
+            outgoing->set_device_id(self->config_.client_device_id);
+            outgoing->set_stream_id(self->config_.stream_id);
+            return sdk->PostFileTransferMessage(px::ProtoAsData(outgoing));
+        },
+        [weak_self](const std::shared_ptr<px::ft::FtEngine>& engine) {
+            engine->SetLogCallback([](const std::string& message) { LOGW("[pixels_android_ft] {}", message); });
+            engine->SetProgressCallback([weak_self](const px::ft::TransferJobStatus& status) {
+                if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
+                    self->callback_->FileTransferProgress(self->config_.session_id, status);
+                }
+            });
+            engine->SetJobDoneCallback([weak_self](const std::int32_t job_id, const std::int32_t, const std::string& error) {
+                if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
+                    self->callback_->FileTransferDone(self->config_.session_id, job_id, error);
+                }
+            });
+            engine->SetOverwriteConfirmCallback([weak_self](const std::int32_t job_id, const std::int32_t file_number, const std::string& path,
+                                                            const bool upload, const bool identical) {
+                if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
+                    self->callback_->FileTransferOverwrite(self->config_.session_id, job_id, file_number, path, upload, identical);
+                }
+            });
+        });
+    file_transfer_ready_ = file_transfer_session_->Start();
+    if (!file_transfer_ready_) {
+        file_transfer_session_.reset();
+        LOGE("Pixels Android file-transfer session failed to start");
+    }
+
     sdk_->SetOnServerConfigurationCallback([weak_self](std::shared_ptr<px::Message> message) {
         const auto self = weak_self.lock();
         if (!self || !message || self->stopped_.load()) {
@@ -392,9 +507,9 @@ bool NativeSession::Initialize() {
         }
         self->callback_->Connected(
             self->config_, monitor_names, server_config.capturing_monitor_name(), self->config_.enable_audio && server_config.audio_enabled(),
-            self->config_.enable_input && server_config.can_be_operated(), server_config.file_transfer_enabled(),
-            self->config_.enable_clipboard && server_config.can_be_operated(),
-            server_config.virtual_display_enabled(), static_cast<std::int32_t>(server_config.virtual_display_owned_count()),
+            self->config_.enable_input && server_config.can_be_operated(), self->file_transfer_ready_ && server_config.file_transfer_enabled(),
+            self->config_.enable_clipboard && server_config.can_be_operated(), server_config.virtual_display_enabled(),
+            static_cast<std::int32_t>(server_config.virtual_display_owned_count()),
             static_cast<std::int32_t>(server_config.virtual_display_max_count()), static_cast<std::int64_t>(server_config.topology_generation()));
     });
     sdk_->SetOnMonitorSwitchedCallback([weak_self](std::shared_ptr<px::Message> message) {
@@ -418,8 +533,28 @@ bool NativeSession::Initialize() {
     });
     sdk_->SetOnRawMessageCallback([weak_self](std::shared_ptr<px::Message> message) {
         const auto self = weak_self.lock();
-        if (!self || !message || message->type() != px::kVirtualDisplayResponse || !message->has_virtual_display_response() ||
-            self->stopped_.load()) {
+        if (!self || !message || self->stopped_.load()) {
+            return;
+        }
+        if (message->type() == px::kFileAction || message->type() == px::kFileResponse) {
+            std::shared_ptr<px::ft::FtAsyncSession> session;
+            {
+                std::lock_guard lock(self->lifecycle_mutex_);
+                session = self->file_transfer_session_;
+            }
+            if (!session) {
+                return;
+            }
+            static_cast<void>(session->Post("pixels-android-ft-inbound", [message = std::move(message)](const auto& engine) {
+                if (message->type() == px::kFileAction && message->has_file_action()) {
+                    engine->HandleFileAction(message->file_action(), message->stream_id());
+                } else if (message->type() == px::kFileResponse && message->has_file_response()) {
+                    engine->HandleFileResponse(message->file_response());
+                }
+            }));
+            return;
+        }
+        if (message->type() != px::kVirtualDisplayResponse || !message->has_virtual_display_response()) {
             return;
         }
         const auto& response = message->virtual_display_response();
@@ -786,21 +921,127 @@ bool NativeSession::SetAudioEnabled(const bool enabled) {
     return true;
 }
 
+std::int32_t NativeSession::StartFileUpload(const std::string& local_path, const std::string& remote_directory) {
+    std::lock_guard command_lock(command_mutex_);
+    if (local_path.empty() || remote_directory.empty() || local_path.size() > 4096U || remote_directory.size() > 4096U) {
+        return 0;
+    }
+    std::shared_ptr<px::ft::FtAsyncSession> session;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (stopped_.load() || !started_ || !file_transfer_ready_) {
+            return 0;
+        }
+        session = file_transfer_session_;
+    }
+    if (!session) {
+        return 0;
+    }
+    const auto job_id = std::make_shared<std::atomic_int32_t>(0);
+    const bool completed = session->PostAndWait(
+        "pixels-android-ft-upload",
+        [local_path, remote_directory, stream_id = config_.stream_id, job_id](const auto& engine) {
+            job_id->store(engine->SendFiles(local_path, false, remote_directory, 0, false, stream_id), std::memory_order_release);
+        },
+        std::chrono::seconds(2));
+    return completed ? job_id->load(std::memory_order_acquire) : 0;
+}
+
+std::int32_t NativeSession::StartFileDownload(const std::string& remote_path, const std::string& local_directory) {
+    std::lock_guard command_lock(command_mutex_);
+    if (remote_path.empty() || local_directory.empty() || remote_path.size() > 4096U || local_directory.size() > 4096U) {
+        return 0;
+    }
+    std::shared_ptr<px::ft::FtAsyncSession> session;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (stopped_.load() || !started_ || !file_transfer_ready_) {
+            return 0;
+        }
+        session = file_transfer_session_;
+    }
+    if (!session) {
+        return 0;
+    }
+    const auto job_id = std::make_shared<std::atomic_int32_t>(0);
+    const bool completed = session->PostAndWait(
+        "pixels-android-ft-download",
+        [remote_path, local_directory, stream_id = config_.stream_id, job_id](const auto& engine) {
+            job_id->store(engine->ReceiveFiles(remote_path, false, local_directory, 0, false, stream_id), std::memory_order_release);
+        },
+        std::chrono::seconds(2));
+    return completed ? job_id->load(std::memory_order_acquire) : 0;
+}
+
+bool NativeSession::CancelFileTransfer(const std::int32_t job_id) {
+    std::lock_guard command_lock(command_mutex_);
+    std::shared_ptr<px::ft::FtAsyncSession> session;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (stopped_.load() || job_id <= 0) {
+            return false;
+        }
+        session = file_transfer_session_;
+    }
+    return session && session->Post("pixels-android-ft-cancel", [job_id](const auto& engine) { engine->CancelJob(job_id); });
+}
+
+bool NativeSession::ConfirmFileOverwrite(const std::int32_t job_id, const std::int32_t file_number, const bool overwrite,
+                                         const std::uint64_t offset_bytes, const bool apply_to_all) {
+    std::lock_guard command_lock(command_mutex_);
+    std::shared_ptr<px::ft::FtAsyncSession> session;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (stopped_.load() || job_id <= 0 || file_number < 0) {
+            return false;
+        }
+        session = file_transfer_session_;
+    }
+    return session && session->Post("pixels-android-ft-confirm", [job_id, file_number, overwrite, offset_bytes, apply_to_all](const auto& engine) {
+        if (apply_to_all) {
+            engine->SetOverwriteStrategy(job_id, overwrite);
+        }
+        engine->ConfirmFile(job_id, file_number, overwrite, offset_bytes);
+    });
+}
+
 void NativeSession::Stop() {
     std::lock_guard command_lock(command_mutex_);
     if (stopped_.exchange(true)) {
         return;
     }
     std::shared_ptr<px::ThunderSdk> sdk;
+    std::shared_ptr<px::ft::FtAsyncSession> file_transfer_session;
     std::shared_ptr<ANativeWindow> surface;
     {
         std::lock_guard lock(lifecycle_mutex_);
         sdk = std::move(sdk_);
+        file_transfer_session = std::move(file_transfer_session_);
+        file_transfer_ready_ = false;
         session_listener_.reset();
         message_notifier_.reset();
         surface = std::move(surface_);
         pending_surface_.reset();
         has_pending_surface_update_ = false;
+    }
+    if (file_transfer_session) {
+        static_cast<void>(file_transfer_session->PostAndWait(
+            "pixels-android-ft-cancel-before-stop",
+            [](const auto& engine) {
+                std::vector<std::int32_t> job_ids;
+                job_ids.reserve(engine->read_jobs().size() + engine->write_jobs().size());
+                for (const auto& job : engine->read_jobs()) {
+                    job_ids.push_back(job.id());
+                }
+                for (const auto& job : engine->write_jobs()) {
+                    job_ids.push_back(job.id());
+                }
+                for (const auto job_id : job_ids) {
+                    engine->CancelJob(job_id);
+                }
+            },
+            std::chrono::seconds(2)));
+        static_cast<void>(file_transfer_session->StopAndWait(std::chrono::seconds(2)));
     }
     if (sdk)
         sdk->Exit();

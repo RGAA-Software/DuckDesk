@@ -200,18 +200,25 @@ std::string ToUtf8(const std::filesystem::path& p) {
 
 uint64_t GetFileMtimeSecs(const std::filesystem::path& p) {
     std::error_code ec;
-    auto ft = std::filesystem::last_write_time(p, ec);
+    const auto ft = std::filesystem::last_write_time(p, ec);
     if (ec) return 0;
-    auto sys = std::chrono::clock_cast<std::chrono::system_clock>(ft);
-    auto secs = std::chrono::duration_cast<std::chrono::seconds>(sys.time_since_epoch()).count();
+    const auto file_now = std::filesystem::file_time_type::clock::now();
+    const auto system_now = std::chrono::system_clock::now();
+    const auto system_time =
+        std::chrono::time_point_cast<std::chrono::system_clock::duration>(system_now + (ft - file_now));
+    const auto secs =
+        std::chrono::duration_cast<std::chrono::seconds>(system_time.time_since_epoch()).count();
     return secs > 0 ? static_cast<uint64_t>(secs) : 0;
 }
 
 bool SetFileMtimeSecs(const std::filesystem::path& p, uint64_t unix_secs) {
-    auto sys = std::chrono::system_clock::time_point(std::chrono::seconds(unix_secs));
-    auto ft = std::chrono::clock_cast<std::filesystem::file_time_type::clock>(sys);
+    const auto system_time = std::chrono::system_clock::time_point(std::chrono::seconds(unix_secs));
+    const auto system_now = std::chrono::system_clock::now();
+    const auto file_now = std::filesystem::file_time_type::clock::now();
+    const auto file_time = std::chrono::time_point_cast<std::filesystem::file_time_type::duration>(
+        file_now + (system_time - system_now));
     std::error_code ec;
-    std::filesystem::last_write_time(p, ft, ec);
+    std::filesystem::last_write_time(p, file_time, ec);
     return !ec;
 }
 

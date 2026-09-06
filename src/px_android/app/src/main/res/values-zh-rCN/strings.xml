@@ -4,9 +4,7 @@
     <string name="navigation_transfers">传输</string>
     <string name="navigation_settings">设置</string>
     <string name="transfers_title">传输</string>
-    <string name="transfers_foundation_body">文件任务将在这里持续运行，不会因为离开远控页面而中断。</string>
     <string name="settings_title">设置</string>
-    <string name="settings_foundation_body">画质、输入、音频、网络、权限和诊断将在这里统一管理。</string>
     <string name="feature_being_built">此产品流程正在接入新的 Pixels 会话核心。</string>
     <string name="device_saved">设备验证成功并已保存。</string>
     <string name="device_removed">设备已移除。</string>
@@ -18,5 +16,17 @@
     <string name="remote_notification_channel">远程会话</string>
     <string name="remote_notification_title">Pixels 远程会话</string>
     <string name="remote_notification_text">正在连接 %1$s</string>
+    <string name="remote_notification_transfer">正在传输 %1$s</string>
     <string name="remote_notification_stop">结束</string>
+    <string name="transfer_error_read_source">无法读取所选文件。</string>
+    <string name="transfer_error_stage">无法为传输准备所选文件。</string>
+    <string name="transfer_error_cancel">取消命令发送失败。</string>
+    <string name="transfer_error_confirm">覆盖选择发送失败。</string>
+    <string name="transfer_error_session_ended">远程会话已结束。</string>
+    <string name="transfer_error_not_started">文件传输未启动，请确认会话在线且远端允许文件传输。</string>
+    <string name="transfer_error_publish">下载文件无法保存到所选位置。</string>
+    <string name="transfer_error_no_file">远端未返回可保存的文件。</string>
+    <string name="transfer_error_not_single_file">请选择单个远端文件，而不是文件夹。</string>
+    <string name="transfer_error_write_destination">无法写入所选位置。</string>
+    <string name="transfer_error_generic">文件传输失败。</string>
 </resources>

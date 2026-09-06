@@ -16,8 +16,6 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -26,14 +24,12 @@ import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -43,13 +39,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -75,7 +69,9 @@ import yun.pixels.client.core.domain.session.RemoteSessionSnapshot
 import yun.pixels.client.core.domain.session.RemoteSessionStatus
 import yun.pixels.client.core.domain.session.RemoteSessionTarget
 import yun.pixels.client.feature.remote.RemoteWorkspaceScreen
+import yun.pixels.client.feature.transfer.TransferScreen
 import yun.pixels.client.remote.RemoteSessionService
+import yun.pixels.client.core.domain.transfer.FileTransferTask
 
 private enum class TopLevelDestination(
     val route: String,
@@ -86,7 +82,6 @@ private enum class TopLevelDestination(
     Transfers("transfers", R.string.navigation_transfers, Icons.Outlined.SwapVert),
     Settings("settings", R.string.navigation_settings, Icons.Outlined.Settings),
 }
-
 private const val REMOTE_ROUTE = "remote"
 private const val APPLICATIONS_ROUTE = "applications"
 
@@ -102,6 +97,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
     var remoteRequestAwaitingLocalNetwork by remember { mutableStateOf<RemoteSessionRequest?>(null) }
     val idleRemoteSnapshot = remember { kotlinx.coroutines.flow.MutableStateFlow(RemoteSessionSnapshot()) }
     val idleAudioEnabled = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
+    val idleFileTransferTasks = remember { kotlinx.coroutines.flow.MutableStateFlow(emptyList<FileTransferTask>()) }
     DisposableEffect(context) {
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName, service: IBinder) {
@@ -166,6 +162,24 @@ fun PixelsApp(graph: PixelsAppGraph) {
         deviceHomeViewModel.onAction(if (granted && action != null) action else DeviceHomeAction.LocalNetworkPermissionDenied)
     }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    var pendingUploadRemoteDirectory by remember { mutableStateOf("") }
+    var pendingDownloadRemotePath by remember { mutableStateOf("") }
+    val uploadDocumentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { source ->
+        val remoteDirectory = pendingUploadRemoteDirectory
+        pendingUploadRemoteDirectory = ""
+        if (source != null && remoteDirectory.isNotBlank()) {
+            runCatching { context.contentResolver.takePersistableUriPermission(source, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            remoteBinder?.startUpload(source, remoteDirectory)
+        }
+    }
+    val downloadDocumentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { destination ->
+        val remotePath = pendingDownloadRemotePath
+        pendingDownloadRemotePath = ""
+        if (destination != null && remotePath.isNotBlank()) {
+            runCatching { context.contentResolver.takePersistableUriPermission(destination, Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+            remoteBinder?.startDownload(remotePath, destination)
+        }
+    }
     val remoteLocalNetworkPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         val request = remoteRequestAwaitingLocalNetwork
         remoteRequestAwaitingLocalNetwork = null
@@ -310,9 +324,29 @@ fun PixelsApp(graph: PixelsAppGraph) {
                 )
             }
             composable(TopLevelDestination.Transfers.route) {
-                FoundationScreen(
-                    title = stringResource(R.string.transfers_title),
-                    body = stringResource(R.string.transfers_foundation_body),
+                val transferTasksFlow = remoteBinder?.fileTransferTasks ?: idleFileTransferTasks
+                val transferTasks by transferTasksFlow.collectAsStateWithLifecycle()
+                val sessionFlow = remoteBinder?.snapshot ?: idleRemoteSnapshot
+                val transferSnapshot by sessionFlow.collectAsStateWithLifecycle()
+                val connected = transferSnapshot.status as? RemoteSessionStatus.Connected
+                TransferScreen(
+                    tasks = transferTasks,
+                    sessionConnected = connected != null,
+                    supportsFileTransfer = connected?.capabilities?.supportsFileTransfer == true,
+                    onChooseUpload = { remoteDirectory ->
+                        pendingUploadRemoteDirectory = remoteDirectory
+                        uploadDocumentLauncher.launch(arrayOf("*/*"))
+                    },
+                    onChooseDownloadDestination = { remotePath ->
+                        pendingDownloadRemotePath = remotePath
+                        downloadDocumentLauncher.launch(remotePath.substringAfterLast('/').substringAfterLast('\\').ifBlank { "download" })
+                    },
+                    onCancel = { taskId -> remoteBinder?.cancelTransfer(taskId) },
+                    onRetry = { taskId -> remoteBinder?.retryTransfer(taskId) },
+                    onResolveOverwrite = { taskId, overwrite, applyToAll ->
+                        remoteBinder?.resolveTransferOverwrite(taskId, overwrite, applyToAll)
+                    },
+                    onClearFinished = { remoteBinder?.clearFinishedTransfers() },
                 )
             }
             composable(TopLevelDestination.Settings.route) {
@@ -345,39 +379,13 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     onText = { text -> remoteBinder?.sendText(text) },
                     onClipboardText = { text -> remoteBinder?.sendClipboardText(text) },
                     onAudioEnabledChange = { enabled -> remoteBinder?.setAudioEnabled(enabled) },
+                    onOpenTransfers = { navController.navigate(TopLevelDestination.Transfers.route) },
                     onEndSession = {
                         remoteBinder?.stopSession()
                         navController.popBackStack()
                     },
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun FoundationScreen(title: String, body: String) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = {
-                Text(
-                    text = title,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            },
-        )
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                text = body,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyLarge,
-            )
         }
     }
 }
