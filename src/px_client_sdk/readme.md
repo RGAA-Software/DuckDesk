@@ -19,6 +19,11 @@ the current SDK still contains the existing RTC/Relay implementations and the
 Windows decoder/render adapter still depends on Qt. This directory move alone
 does **not** establish an independently consumable, platform-neutral SDK.
 
+The UDP path no longer falls back to WebSocket media. A typed media-only failure
+keeps the authenticated control/file session intact; UDP sessions reject WS
+audio/video before recording and decoding. Reconnect by ending the session and
+creating a new one. Other legacy transport entry points are not yet retired.
+
 The final native product transport is UDP/FEC media with WebSocket control/files.
 WebRTC remains a Web-client capability. iOS and macOS adapters are planned,
 not implemented. See [the product decision](../../docs/native_client_sdk_transport_decision.md).

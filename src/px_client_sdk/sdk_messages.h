@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "sdk_errors.h"
+#include "connection/udp_media_state.h"
 #include "px_message.pb.h"
 #include "px_common/ws_control_signal.h"
 
@@ -63,6 +64,10 @@ namespace px
     public:
         SdkErrorCode code_;
         std::string msg_;
+    };
+
+    struct SdkMsgUdpMediaUnavailable {
+        UdpMediaFailure reason{UdpMediaFailure::kProbeTimeout};
     };
 
     // webrtc local signaling rejected the device password (HTTP 403)

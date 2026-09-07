@@ -682,6 +682,15 @@ class NativeRemoteSessionTransport internal constructor(
         callbackScope.launch { mutableVoiceCallEvents.emit(VoiceCallEvent(RemoteSessionId(sessionId), state)) }
     }
 
+    override fun onMediaUnavailable(sessionId: String, interrupted: Boolean) {
+        val failure = if (interrupted) {
+            yun.pixels.client.core.domain.session.RemoteMediaFailure.Interrupted
+        } else {
+            yun.pixels.client.core.domain.session.RemoteMediaFailure.ProbeTimeout
+        }
+        callbackScope.launch { mutableEvents.emit(RemoteTransportEvent.MediaUnavailable(RemoteSessionId(sessionId), failure)) }
+    }
+
     override fun onDisconnected(sessionId: String, reason: Int, recoverable: Boolean) {
         callbackScope.launch {
             mutableEvents.emit(

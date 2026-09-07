@@ -389,6 +389,16 @@ namespace px
             });
         });
 
+        msg_listener_->Listen<SdkMsgUdpMediaUnavailable>([weak_self](const SdkMsgUdpMediaUnavailable&) {
+            if (const auto self = weak_self.lock()) {
+                self->context_->PostUITask([weak_self]() {
+                    if (const auto task_self = weak_self.lock()) {
+                        task_self->context_->NotifyAppWarningMessage(tcTr("id_warning"), tcTr("id_udp_media_unavailable"));
+                    }
+                });
+            }
+        });
+
         // webrtc local: render rejected the device password(HTTP 403), tell the user and quit
         msg_listener_->Listen<SdkMsgRtcLocalAuthFailed>([weak_self](const SdkMsgRtcLocalAuthFailed&) {
             if (const auto self = weak_self.lock()) {

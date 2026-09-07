@@ -10,7 +10,7 @@
 #include <mutex>
 #include "sdk_params.h"
 #include "px_common/file_transfer_send_result.h"
-#include "connection/udp_media_fallback_state.h"
+#include "connection/udp_media_state.h"
 
 #ifndef PX_RTC_TRANSPORT_AVAILABLE
 #define PX_RTC_TRANSPORT_AVAILABLE 1
@@ -112,12 +112,12 @@ namespace px
         void HeartBeat();
         void CheckUdpMediaProbeTimeout();
         void OnUdpMediaReady();
-        void BeginUdpWebSocketFallback();
+        void ReportUdpMediaUnavailable();
         void StartUdpDirectMedia();
         void StartFileTransferConnection();
         [[nodiscard]] std::string MakeAuthenticatedWebSocketPath(
             std::string path, bool file_only = false) const;
-        std::shared_ptr<Connection> MakeDirectWebSocketMediaConnection(bool udp_media) const;
+        std::shared_ptr<Connection> MakeDirectWebSocketMediaConnection() const;
         void StartManagedUdpMediaConnection(const std::shared_ptr<Connection>& connection,
                                             uint64_t generation);
         [[nodiscard]] bool IsCurrentManagedMediaConnection(uint64_t generation) const;
@@ -163,10 +163,8 @@ namespace px
 
         std::atomic_int queuing_message_count_ = 0;
         std::atomic_bool exited_{false};
-        // kUdpDirect starts with a WS control session whose media is filtered by
-        // udp_media=1. Once UDP is proven unavailable this state latches a
-        // one-shot switch that enables media on that same authenticated socket.
-        UdpMediaFallbackState udp_media_fallback_state_;
+        // UDP availability never changes the reliable control/file transport.
+        UdpMediaState udp_media_state_;
         std::atomic_uint64_t managed_media_generation_{0};
         std::atomic_int64_t udp_media_probe_deadline_ms_{0};
         std::atomic_bool udp_direct_started_{false};

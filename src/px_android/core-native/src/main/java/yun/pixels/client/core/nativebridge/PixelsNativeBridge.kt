@@ -71,6 +71,8 @@ interface NativeSessionListener {
         utf8Reason: ByteArray,
     )
 
+    fun onMediaUnavailable(sessionId: String, interrupted: Boolean)
+
     fun onDisconnected(sessionId: String, reason: Int, recoverable: Boolean)
 }
 

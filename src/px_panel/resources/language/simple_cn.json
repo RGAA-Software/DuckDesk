@@ -1,4 +1,5 @@
 {
+    "id_udp_media_unavailable": "UDP 音视频不可达。控制和文件连接仍然保留；请检查网络，然后结束当前会话并重新连接。",
   "app_name": "Pixels",
   "id_settings": "设置",
   "id_refresh": "刷新",

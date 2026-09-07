@@ -1,4 +1,5 @@
 {
+    "id_udp_media_unavailable": "UDP audio/video is unavailable. Control and file transfer remain connected. Check the network, then end this session and reconnect.",
   "app_name": "Pixels",
   "id_settings": "Settings",
   "id_refresh": "Refresh",

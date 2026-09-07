@@ -111,7 +111,7 @@ Web 的启动策略继续允许 RTC；它使用的信令 Relay/TURN 不受原生
 
 ## 5. 验收与交接
 
-- 当前处于目录迁移检查点；现有代码和 APK 仍包含 RTC/Relay/WS 媒体回退，不得将其标记为符合新产品边界的候选包。
+- 已完成目录迁移和 UDP → WebSocket 媒体回退退役；现有代码和 APK 仍包含 RTC/Relay/独立 WS 媒体等旧入口，不得将其标记为符合新产品边界的候选包。
 - 取消原生 RTC、Relay、P2P、WS 视频回退待测项；验收 UDP+FEC 视频、音频恢复、控制可靠性、文件并发隔离、语音、剪贴板和录制。
 - Android 当前无 USB 手机；接入后只覆盖安装，不卸载、不清空数据，每次真机测试不超过 5 分钟。
 - Windows 使用 `build_cpp_*.bat` 聚焦构建；修改的运行产物同步到 `build_official/dist` 并逐一核对 SHA-256。
@@ -133,3 +133,14 @@ Android `:app:assembleDebug` 成功；无手机，未安装或验收真机功能
 下一检查点按第 3 节退役原生 RTC/Relay/旧 UDP-KCP/WS 媒体回退及通道设置，再分离共享核心与平台适配。
 现在的 SDK、Windows 包和 Debug APK **不是最终精简版**。详细命令、产物与剩余范围见
 [目录迁移交付记录](native_sdk_extraction_checkpoint_20260907.md)。
+
+### 第二检查点：UDP 媒体故障隔离
+
+已删除活动 SDK 的 UDP → WebSocket 媒体回退状态机和发送信号，原实现保存在 `backup/native_udp_media_failure`。
+UDP 探测超时或媒体中断只发布媒体故障，不关闭已认证的控制/文件 WebSocket；两端显示明确提示，
+当前会话不自动恢复媒体，用户结束后重新连接。SDK 拒绝 UDP 会话收到的 WS 音视频，包含录制前的原始消息回调。
+独立文件会话不依赖 UDP 探测；普通文件消息仍复用原已认证控制连接，不二次兑换票据。
+
+Windows/Android Debug 编译通过；5 组 CTest、25 项 Android 领域测试和 20 秒 Windows 本机直连冒烟通过。
+Windows 产物已发布并核对哈希。未做手机安装、跨网测试、真实大文件或浏览器 RTC 功能验收。
+下一步清理两端通道选择和旧传输路由；详见 [UDP 故障隔离交付记录](native_udp_failure_checkpoint_20260907.md)。

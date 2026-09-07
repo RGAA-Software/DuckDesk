@@ -103,6 +103,7 @@ class JavaSessionCallback final {
     [[nodiscard]] bool ClipboardControlOutbound(const std::string& session_id, const std::string& payload) const;
     void RecordingState(const std::string& session_id, const std::string& recording_id, std::int32_t state, const std::string& error) const;
     void VoiceCallState(const std::string& session_id, const NativeVoiceCallStatus& status) const;
+    void MediaUnavailable(const std::string& session_id, bool interrupted) const;
     void Disconnected(const std::string& session_id, std::int32_t reason, bool recoverable) const;
 
   private:

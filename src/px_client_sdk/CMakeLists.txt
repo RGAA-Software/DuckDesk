@@ -111,15 +111,18 @@ if(BUILD_TESTING AND NOT ANDROID)
             ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:px_rtc_client>"
         )
     endif()
-    add_executable(test_udp_media_fallback_state
-        tests/test_udp_media_fallback_state.cpp
+    add_executable(test_udp_media_state
+        tests/test_udp_media_state.cpp
     )
-    target_include_directories(test_udp_media_fallback_state PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(test_udp_media_fallback_state PRIVATE
+    target_include_directories(test_udp_media_state PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(test_udp_media_state PRIVATE
         GTest::gtest
         GTest::gtest_main
     )
-    add_test(NAME test_udp_media_fallback_state COMMAND test_udp_media_fallback_state)
+    add_test(NAME test_udp_media_state COMMAND test_udp_media_state)
+    add_executable(test_udp_media_failure tests/test_udp_media_failure.cpp)
+    target_link_libraries(test_udp_media_failure PRIVATE px_sdk px_message px_common GTest::gtest GTest::gtest_main)
+    add_test(NAME udp_media_failure COMMAND test_udp_media_failure)
     add_executable(test_sdk_stream_helper
         tests/test_sdk_stream_helper.cpp
         sdk_stream_helper.cpp

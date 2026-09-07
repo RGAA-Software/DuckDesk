@@ -136,6 +136,12 @@ namespace px
         // listeners
         msg_listener_ = ctx->ObtainUIMessageListener();
 
+        msg_listener_->Listen<SdkMsgUdpMediaUnavailable>([guarded_self](const SdkMsgUdpMediaUnavailable&) {
+            if (guarded_self) {
+                guarded_self->lbl_sub_message_->SetTextId("id_udp_media_unavailable");
+            }
+        });
+
         // begin to start
         msg_listener_->Listen<SdkMsgNetworkConnected>([guarded_self](const SdkMsgNetworkConnected&) {
             if (guarded_self) {

@@ -317,6 +317,13 @@ fun RemoteWorkspaceScreen(
                 }
             }
             RemoteStatus(snapshot.status, onRetry)
+            if (snapshot.mediaFailure != null) {
+                Text(
+                    text = stringResource(R.string.remote_udp_media_unavailable),
+                    modifier = Modifier.align(Alignment.TopCenter).padding(16.dp).background(Color.Black.copy(alpha = 0.85f)).padding(12.dp),
+                    color = Color.White,
+                )
+            }
         }
     }
     if (showKeyboard) {

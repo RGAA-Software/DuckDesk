@@ -1,0 +1,101 @@
+{
+  "revision": "566acd2774615efff15f6b08cbed237336f6ba90",
+  "reason": "Retire native UDP to WebSocket media fallback; preserve reliable session",
+  "files": [
+    {
+      "path": "src/px_client_sdk/sdk_net_client.cpp",
+      "sha256": "B4898F2856D1679A3BBAB67CE5C5AD0A92D00CB2111E3EFA1BECD9F08F32DDE2",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_net_client.h",
+      "sha256": "99004A3479BC4343EE9E84B5CE0415AB2624CE1847E7F90FD207C5E06DAD96CA",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_messages.h",
+      "sha256": "DB4AC67B4E7DF6DB3863F4AC7817BC797FB3BC01EBD7060FEAD720426AA24991",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/CMakeLists.txt",
+      "sha256": "A24ED44B5EDAF8D4FD03204399C84786DFAEAB7115F10D965BF3834F20407B9C",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/udp_media_fallback_state.h",
+      "sha256": "E5CC3DCB8F2801F0C9B9EF28AD066DB4B68822FE3955336E00E494899CC3CFA6",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_udp_media_fallback_state.cpp",
+      "sha256": "E3CE05D6B0498808B5617EA1B9A6E3A17A07971AEE8199A88251E9D6A2CECB82",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.cpp",
+      "sha256": "67D5B9B925C50331A49F5D9A8DC099693B884FBC1AFAA1321C47E5912E01FD8A",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_main_progress.cpp",
+      "sha256": "AE2227983746F0F3E6DF6F8B18DA9CD363EAB0226B2C570225152E22473177B2",
+      "status": ""
+    },
+    {
+      "path": "src/px_panel/resources/language/english.json",
+      "sha256": "EAE5FB8A26BB7BE86C5ACF2863BE6450C560606D46ED208ED3AD63CF330F337E",
+      "status": ""
+    },
+    {
+      "path": "src/px_panel/resources/language/simple_cn.json",
+      "sha256": "E948766A0AE262DB05B819E90A3181677972475C0B063A4DF351DAA7F14C79F0",
+      "status": ""
+    },
+    {
+      "path": "src/px_panel/resources/language/traditional_cn.json",
+      "sha256": "DF86169B61CEFB7BFDF16F15A47D21506D88B16C639694E51F7C03A178756BD1",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_session.cpp",
+      "sha256": "C83C4AAFBB5F9615BA902EC9B156F2250FCA08C5C4DB598BF082962948656AF1",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_session.h",
+      "sha256": "1091B4789518C4B2BB39060ACB4E54C7A881FA7489F5C31011C699B492D36C58",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/java/yun/pixels/client/core/nativebridge/PixelsNativeBridge.kt",
+      "sha256": "0B2FD8484E51F06831D65CC09351F1FFE95BC02941E42D24E31B2BA1FC9FABCD",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/java/yun/pixels/client/core/nativebridge/NativeRemoteSessionTransport.kt",
+      "sha256": "9DDC83718B30276660A2CFA5D4AD3E1E5AF2100DF46501CBE76EBE3243439CA5",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-domain/src/main/java/yun/pixels/client/core/domain/session/RemoteSession.kt",
+      "sha256": "D50F562B0577E6313E8028A89C332ADFC58B94E10FBB4B0A35267A95EA028431",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-domain/src/test/java/yun/pixels/client/core/domain/session/RemoteSessionWorkflowTest.kt",
+      "sha256": "B988F349A804BB1E5AB3E8D8EB26D3025B211D0A698ADC7C5F0CBA2E5F8062B2",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-remote/src/main/java/yun/pixels/client/feature/remote/RemoteWorkspaceScreen.kt",
+      "sha256": "89CED9EE97C7B8CEB9D256FDD75986C17343DFE5432DE78E61D236DC99CCB9BA",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-remote/src/main/res/values/strings.xml",
+      "sha256": "AD438CA4277F94B33D917AF66D455D80D21CE3BADC00DD58D9D9257803283327",
+      "status": ""
+    }
+  ]
+}

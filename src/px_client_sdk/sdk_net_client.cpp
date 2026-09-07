@@ -98,15 +98,13 @@ std::string NetClient::MakeAuthenticatedWebSocketPath(std::string path, const bo
     return path;
 }
 
-std::shared_ptr<Connection> NetClient::MakeDirectWebSocketMediaConnection(bool udp_media) const {
+std::shared_ptr<Connection> NetClient::MakeDirectWebSocketMediaConnection() const {
     std::string path = media_path_;
     constexpr std::string_view kUdpMediaQuery = "&udp_media=1";
-    if (!udp_media) {
-        const auto query = path.find(kUdpMediaQuery);
-        if (query != std::string::npos) {
-            path.erase(query, kUdpMediaQuery.size());
-        }
-    } else if (!sdk_params_->udp_media_association_.empty()) {
+    if (path.find("udp_media=1") == std::string::npos) {
+        path += path.find('?') == std::string::npos ? "?udp_media=1" : std::string(kUdpMediaQuery);
+    }
+    if (!sdk_params_->udp_media_association_.empty()) {
         path += "&udp_media_association=" + UrlHelper::EncodeQueryComponent(sdk_params_->udp_media_association_);
     }
     path = MakeAuthenticatedWebSocketPath(std::move(path));
@@ -156,7 +154,7 @@ void NetClient::StartManagedUdpMediaConnection(const std::shared_ptr<Connection>
         const auto self = weak_self.lock();
         if (!self || !self->IsCurrentManagedMediaConnection(generation))
             return;
-        // UDP 回退复用这条已认证 WS，因此它仍是会话生命期边界。
+        // 已认证 WS 是控制/文件会话的生命期边界，UDP 故障不改变它。
         // generation 只过滤被后续启动或退出替换掉的旧回调。
         if (self->dis_conn_cbk_)
             self->dis_conn_cbk_();
@@ -172,7 +170,7 @@ void NetClient::StartManagedUdpMediaConnection(const std::shared_ptr<Connection>
             // Render subsequently rejects ticket redemption. Receiving a
             // valid routed application message proves that Render accepted
             // this media session and registered its UDP association.
-            if (self->udp_media_fallback_state_.UsesUdpMedia()) {
+            if (self->udp_media_state_.AcceptsMedia()) {
                 self->StartUdpDirectMedia();
             }
             if (const auto active_connection = weak_connection.lock()) {
@@ -185,6 +183,8 @@ void NetClient::StartManagedUdpMediaConnection(const std::shared_ptr<Connection>
 }
 
 void NetClient::StartUdpDirectMedia() {
+    if (!sdk_params_->enable_video_ && !sdk_params_->enable_audio_)
+        return;
     bool expected = false;
     if (!udp_direct_started_.compare_exchange_strong(expected, true)) {
         return;
@@ -213,7 +213,7 @@ void NetClient::StartFileTransferConnection() {
 }
 
 void NetClient::OnUdpMediaReady() {
-    if (udp_media_fallback_state_.MarkUdpMediaReady()) {
+    if (udp_media_state_.MarkReady()) {
         udp_media_probe_deadline_ms_ = 0;
         LOGI("Udp direct first media received; keep UDP media transport.");
     }
@@ -225,33 +225,25 @@ void NetClient::CheckUdpMediaProbeTimeout() {
     const auto deadline = udp_media_probe_deadline_ms_.load();
     if (deadline <= 0 || TimeUtil::GetCurrentTimestamp() < deadline)
         return;
-    BeginUdpWebSocketFallback();
+    ReportUdpMediaUnavailable();
 }
 
-void NetClient::BeginUdpWebSocketFallback() {
-    if (!udp_media_fallback_state_.BeginFallback())
+void NetClient::ReportUdpMediaUnavailable() {
+    if (exited_)
+        return;
+    const auto failure = udp_media_state_.MarkUnavailable();
+    if (!failure)
         return;
     udp_media_probe_deadline_ms_ = 0;
-    LOGW("Udp direct media unavailable; enabling media on the authenticated WebSocket control channel.");
-
-    const auto previous_udp = CurrentUdpDirectConnection();
-    if (previous_udp)
-        previous_udp->Stop();
-
-    const auto control_connection = CurrentMediaConnection();
-    if (!control_connection || !control_connection->IsAlive()) {
-        LOGE("Cannot enable WebSocket media fallback: authenticated control channel is offline");
-        return;
-    }
-    // This is a reliable in-session control signal. Reopening /media would
-    // incorrectly try to redeem the original one-time ticket after it had
-    // already authenticated this logical session.
-    control_connection->PostTextMessage(std::string(kWsUseWebSocketMediaSignal));
-    udp_media_fallback_state_.MarkWebSocketFallbackActive();
-    LOGI("Requested WebSocket media fallback on the existing authenticated session");
+    LOGW("UDP media unavailable (reason={}); keep the authenticated control/file channel, without media fallback.", static_cast<int>(*failure));
+    msg_notifier_->SendAppMessage(SdkMsgUdpMediaUnavailable{.reason = *failure});
 }
 
 void NetClient::Start() {
+    if (exited_)
+        return;
+    if (network_type_ == ClientNetworkType::kUdpDirect && !sdk_params_->file_transfer_only_ && !udp_media_state_.BeginProbe())
+        return;
     const auto weak_self = weak_from_this();
     connection_notified_ = false;
     if (!msg_listener_) {
@@ -336,7 +328,7 @@ void NetClient::Start() {
         // Opening another route would redeem the one-time ticket again and
         // later reconnects would be rejected after the ticket expires.
         if (!sdk_params_->file_transfer_only_) {
-            ReplaceMediaConnection(MakeDirectWebSocketMediaConnection(true));
+            ReplaceMediaConnection(MakeDirectWebSocketMediaConnection());
         } else {
             const auto ft_path = MakeAuthenticatedWebSocketPath(ft_path_, true);
             if (sdk_params_->ssl_) {
@@ -399,7 +391,6 @@ void NetClient::Start() {
 
     uint64_t managed_udp_generation = 0;
     if (managed_udp_media) {
-        udp_media_fallback_state_.BeginProbe();
         managed_udp_generation = managed_media_generation_.fetch_add(1) + 1;
     } else {
         // In full WebRTC mode Relay is only the signaling/bootstrap path. The
@@ -536,6 +527,8 @@ void NetClient::Start() {
             const auto self = weak_self.lock();
             if (!self)
                 return;
+            if (!self->udp_media_state_.AcceptsMedia())
+                return;
             self->OnUdpMediaReady();
             self->stat_->AppendRecvDataSize((int64_t)m->ByteSizeLong());
             if (self->raw_msg_cbk_) {
@@ -551,6 +544,8 @@ void NetClient::Start() {
             const auto self = weak_self.lock();
             if (!self)
                 return;
+            if (!self->udp_media_state_.AcceptsMedia())
+                return;
             self->OnUdpMediaReady();
             self->stat_->AppendRecvDataSize((int64_t)m->ByteSizeLong());
             if (self->audio_frame_cbk_) {
@@ -565,15 +560,15 @@ void NetClient::Start() {
             }
         });
         udp_connection->SetOnMediaReadyCallback([weak_self]() {
-            if (const auto self = weak_self.lock())
+            if (const auto self = weak_self.lock(); self && self->udp_media_state_.AcceptsMedia()) {
                 self->OnUdpMediaReady();
+            }
         });
-        // UDP watchdog 断线:若媒体已被证明可用后又中断，仍可回退到同一 Render
-        // 的直连 WS 媒体会话；非 UDP 模式沿用原有断线语义。
+        // A media watchdog failure must not disconnect the reliable session.
         udp_connection->RegisterOnDisConnectedCallback([weak_self]() {
             if (const auto self = weak_self.lock()) {
-                LOGW("Udp direct media channel lost; request WebSocket fallback.");
-                self->BeginUdpWebSocketFallback();
+                LOGW("Udp direct media channel lost; report media unavailability.");
+                self->ReportUdpMediaUnavailable();
             }
         });
     }
@@ -589,7 +584,7 @@ void NetClient::Exit() {
         return;
     }
     msg_listener_.reset();
-    udp_media_fallback_state_.Stop();
+    udp_media_state_.Stop();
     udp_media_probe_deadline_ms_ = 0;
     managed_media_generation_.fetch_add(1);
     if (const auto media_connection = CurrentMediaConnection()) {
@@ -625,34 +620,19 @@ std::shared_ptr<Message> NetClient::ParseMessage(std::shared_ptr<Data> msg) {
         return nullptr;
     }
 
+    if (network_type_ == ClientNetworkType::kUdpDirect && (net_msg->type() == px::kVideoFrame || net_msg->type() == px::kAudioFrame)) {
+        return net_msg;
+    }
+
     if (raw_msg_cbk_) {
         raw_msg_cbk_(net_msg);
     }
 
     if (net_msg->type() == px::kVideoFrame) {
-        if (network_type_ == ClientNetworkType::kUdpDirect && udp_media_fallback_state_.UsesUdpMedia()) {
-            // udp_direct 模式下视频走 UDP 媒体面,ws 控制面不应携带;
-            // 收到说明 render 未按 udp_media=1 过滤,直接丢弃防重复解码
-            return net_msg;
-        }
-        {
-#if 0 // save file
-                px::VideoFrame frame = net_msg->video_frame();
-                std::string name = frame.mon_name().substr(3);
-                std::string t =  TimeUtil::FormatTimestamp2(TimeUtil::GetCurrentTimestamp());
-                static auto f = File::OpenForWriteB(std::format(".\\{}_{}_recv_video.h265", name, t));
-                f->Append(frame.data());
-#endif
-        }
         if (video_frame_cbk_) {
             video_frame_cbk_(net_msg);
         }
     } else if (net_msg->type() == px::kAudioFrame) {
-        if (network_type_ == ClientNetworkType::kUdpDirect && udp_media_fallback_state_.UsesUdpMedia()) {
-            // udp_direct 模式下音频走 UDP 媒体面,ws 控制面不应携带;
-            // 收到说明 render 未按 udp_media=1 过滤,直接丢弃防重复解码
-            return net_msg;
-        }
         if (audio_frame_cbk_) {
             audio_frame_cbk_(net_msg);
         }
@@ -922,9 +902,9 @@ void NetClient::HeartBeat() {
     msg->set_type(px::kHeartBeat);
     msg->set_device_id(device_id_);
     msg->set_stream_id(stream_id_);
-    auto hb = msg->mutable_heartbeat();
-    hb->set_index(hb_idx_++);
-    hb->set_timestamp((int64_t)TimeUtil::GetCurrentTimestamp());
+    auto& hb = *msg->mutable_heartbeat();
+    hb.set_index(hb_idx_++);
+    hb.set_timestamp((int64_t)TimeUtil::GetCurrentTimestamp());
     auto proto_msg = msg->SerializeAsString();
     if (auto buffer = px::ProtoAsData(msg); buffer) {
         this->PostMediaMessage(buffer);

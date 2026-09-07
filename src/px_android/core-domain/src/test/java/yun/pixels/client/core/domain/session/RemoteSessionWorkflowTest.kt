@@ -260,6 +260,29 @@ class RemoteSessionWorkflowTest {
         )
     }
 
+    @Test
+    fun mediaFailureDoesNotDisconnectControlOrStopFileTransport() = runTest {
+        val transport = FakeRemoteSessionTransport()
+        val workflow = RemoteSessionWorkflow(transport, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+        val request = request("media-failure")
+        workflow.start(request)
+        transport.eventsFlow.emit(RemoteTransportEvent.Connected(request.id, capabilities()))
+        transport.eventsFlow.emit(RemoteTransportEvent.MediaUnavailable(request.id, RemoteMediaFailure.Interrupted))
+        transport.eventsFlow.emit(RemoteTransportEvent.Connected(request.id, capabilities()))
+        transport.eventsFlow.emit(RemoteTransportEvent.ClipboardText(request.id, "still connected"))
+        advanceTimeBy(30_000)
+        runCurrent()
+        assertEquals(RemoteSessionStatus.Connected(request, capabilities()), workflow.snapshot.value.status)
+        assertEquals(RemoteMediaFailure.Interrupted, workflow.snapshot.value.mediaFailure)
+        assertEquals("still connected", workflow.snapshot.value.remoteClipboardText)
+        assertTrue(transport.stops.isEmpty())
+        workflow.stop()
+        assertEquals(null, workflow.snapshot.value.mediaFailure)
+        transport.eventsFlow.emit(RemoteTransportEvent.MediaUnavailable(request.id, RemoteMediaFailure.ProbeTimeout))
+        runCurrent()
+        assertEquals(null, workflow.snapshot.value.mediaFailure)
+    }
+
     private fun request(id: String) = RemoteSessionRequest(
         id = RemoteSessionId(id),
         target = RemoteSessionTarget.Direct(

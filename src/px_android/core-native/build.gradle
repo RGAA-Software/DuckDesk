@@ -26,6 +26,7 @@ android {
     ndkVersion = '29.0.14206865'
 
     defaultConfig {
+        consumerProguardFiles 'consumer-rules.pro'
         minSdk = 31
         testInstrumentationRunner = 'androidx.test.runner.AndroidJUnitRunner'
         ndk {

@@ -565,6 +565,24 @@ void JavaSessionCallback::VoiceCallState(const std::string& session_id, const Na
     });
 }
 
+void JavaSessionCallback::MediaUnavailable(const std::string& session_id, const bool interrupted) const {
+    const auto listener_handle = listener_handle_;
+    WithEnvironment(vm_handle_, [listener_handle, session_id, interrupted](JNIEnv& environment) {
+        // JNI local references are owned only within this synchronous environment scope.
+        const auto delete_local = [&environment](auto reference) { environment.DeleteLocalRef(reference); };
+        const std::unique_ptr<_jclass, decltype(delete_local)> listener_class{environment.GetObjectClass(reinterpret_cast<jobject>(listener_handle)),
+                                                                              delete_local};
+        const std::unique_ptr<_jstring, decltype(delete_local)> session_value{environment.NewStringUTF(session_id.c_str()), delete_local};
+        if (!listener_class || !session_value || environment.ExceptionCheck())
+            return;
+        if (environment.GetMethodID(listener_class.get(), "onMediaUnavailable", "(Ljava/lang/String;Z)V") == nullptr)
+            return;
+        environment.CallVoidMethod(reinterpret_cast<jobject>(listener_handle),
+                                   environment.GetMethodID(listener_class.get(), "onMediaUnavailable", "(Ljava/lang/String;Z)V"), session_value.get(),
+                                   interrupted);
+    });
+}
+
 void JavaSessionCallback::Disconnected(const std::string& session_id, const std::int32_t reason, const bool recoverable) const {
     const auto listener_handle = listener_handle_;
     WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
@@ -961,6 +979,11 @@ bool NativeSession::Initialize() {
                 voice_call->Stop(false, "network_lost");
             }
             self->callback_->Disconnected(self->config_.session_id, 3, true);
+        }
+    });
+    session_listener_->Listen<px::SdkMsgUdpMediaUnavailable>([weak_self](const px::SdkMsgUdpMediaUnavailable& event) {
+        if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
+            self->callback_->MediaUnavailable(self->config_.session_id, event.reason == px::UdpMediaFailure::kInterrupted);
         }
     });
     session_listener_->Listen<px::SdkMsgWsConnectionRejected>([weak_self](const auto&) {

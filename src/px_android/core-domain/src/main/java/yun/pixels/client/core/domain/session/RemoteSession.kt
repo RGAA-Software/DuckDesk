@@ -316,10 +316,13 @@ sealed interface RemoteSessionStatus {
     data class Failed(val request: RemoteSessionRequest, val reason: RemoteSessionFailure) : RemoteSessionStatus
 }
 
+enum class RemoteMediaFailure { ProbeTimeout, Interrupted }
+
 data class RemoteSessionSnapshot(
     val status: RemoteSessionStatus = RemoteSessionStatus.Idle,
     val statistics: RemoteSessionStatistics = RemoteSessionStatistics(),
     val videoSize: RemoteVideoSize? = null,
+    val mediaFailure: RemoteMediaFailure? = null,
     val remoteClipboardText: String? = null,
     val remoteClipboardFiles: RemoteClipboardFiles? = null,
     val clipboardDownload: ClipboardDownloadState = ClipboardDownloadState.Idle,
@@ -369,6 +372,8 @@ sealed interface RemoteTransportEvent {
         override val sessionId: RemoteSessionId,
         val capabilities: RemoteSessionCapabilities,
     ) : RemoteTransportEvent
+
+    data class MediaUnavailable(override val sessionId: RemoteSessionId, val reason: RemoteMediaFailure) : RemoteTransportEvent
 
     data class Reconnecting(override val sessionId: RemoteSessionId, val attempt: Int) : RemoteTransportEvent
 
@@ -484,7 +489,10 @@ class RemoteSessionWorkflow(
             when (event) {
                 is RemoteTransportEvent.Connected -> {
                     cancelReconnectDeadline()
-                    mutableSnapshot.value = RemoteSessionSnapshot(status = RemoteSessionStatus.Connected(request, event.capabilities))
+                    mutableSnapshot.value = RemoteSessionSnapshot(
+                        status = RemoteSessionStatus.Connected(request, event.capabilities),
+                        mediaFailure = mutableSnapshot.value.mediaFailure,
+                    )
                 }
                 is RemoteTransportEvent.CapabilitiesUpdated -> {
                     val connected = mutableSnapshot.value.status as? RemoteSessionStatus.Connected ?: return
@@ -494,6 +502,7 @@ class RemoteSessionWorkflow(
                     mutableSnapshot.value = mutableSnapshot.value.copy(status = RemoteSessionStatus.Reconnecting(request, event.attempt))
                     scheduleReconnectDeadline(request)
                 }
+                is RemoteTransportEvent.MediaUnavailable -> mutableSnapshot.value = mutableSnapshot.value.copy(mediaFailure = event.reason)
                 is RemoteTransportEvent.Statistics -> mutableSnapshot.value = mutableSnapshot.value.copy(statistics = event.value)
                 is RemoteTransportEvent.VideoSize -> mutableSnapshot.value = mutableSnapshot.value.copy(videoSize = event.value)
                 is RemoteTransportEvent.GamepadRumble -> Unit
