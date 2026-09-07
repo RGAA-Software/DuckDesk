@@ -2,6 +2,7 @@ package yun.pixels.client.core.nativebridge
 
 import android.content.Context
 import android.os.SystemClock
+import android.util.Log
 import android.view.Surface
 import java.io.Closeable
 import java.net.URI
@@ -163,7 +164,8 @@ class AndroidRemoteSessionTransport internal constructor(
             lock.withLock { rtcRuntime ?: WebRtcRuntime(applicationContext).also { rtcRuntime = it } }
         } catch (cancellation: CancellationException) {
             throw cancellation
-        } catch (_: Throwable) {
+        } catch (failure: Throwable) {
+            Log.w(RTC_LOG_TAG, "WebRTC runtime initialization failed", failure)
             return RemoteTransportStartResult.Rejected(RemoteSessionFailure.TransportUnavailable)
         }
         lateinit var session: WebRtcPeerSession
@@ -192,6 +194,7 @@ class AndroidRemoteSessionTransport internal constructor(
             enableFileTransfer = fileTransferBridgeReady,
             enableVoiceCall = "audio" in launch.permissions,
             preferSoftwareDecoder = request.preferences.decoderMode == RemoteDecoderMode.Software,
+            renewVoiceTicket = { renewRtcVoiceTicket(request.id) },
             onEvent = { event -> callbackScope.launch { handleRtcEvent(request.id, event) } },
         )
         val accepted = lock.withLock {
@@ -220,7 +223,8 @@ class AndroidRemoteSessionTransport internal constructor(
             session.close()
             if (fileTransferBridgeReady) native.stopRtcFileTransfer(request.id)
             throw cancellation
-        } catch (_: Throwable) {
+        } catch (failure: Throwable) {
+            Log.w(RTC_LOG_TAG, "WebRTC session start failed; falling back to native transport", failure)
             lock.withLock {
                 rtcSessions.remove(request.id, session)
                 rtcRequests.remove(request.id)
@@ -596,6 +600,24 @@ class AndroidRemoteSessionTransport internal constructor(
         AccountResult.Failure(AccountFailure.NetworkUnavailable)
     }
 
+    private suspend fun renewRtcVoiceTicket(sessionId: RemoteSessionId): String? {
+        val request = lock.withLock { rtcRequests[sessionId] } ?: return null
+        val account = request.target as? RemoteSessionTarget.Account ?: return null
+        return when (val result = renewTicketSafely(account.connectionTicket, account.clientNonce)) {
+            is AccountResult.Success -> {
+                val renewedRequest = request.withTicket(result.value)
+                lock.withLock {
+                    if (rtcRequests.containsKey(sessionId)) {
+                        rtcRequests[sessionId] = renewedRequest
+                        attemptedTickets[sessionId] = result.value.ticket
+                    }
+                }
+                result.value.ticket
+            }
+            is AccountResult.Failure -> null
+        }
+    }
+
     private suspend fun isRtcSession(sessionId: RemoteSessionId): Boolean = lock.withLock { rtcSessions.containsKey(sessionId) }
 }
 
@@ -671,6 +693,7 @@ private const val TICKET_RENEWAL_MARGIN_MILLIS = 15_000L
 private const val FALLBACK_RECONNECT_TIMEOUT_MILLIS = 25_000L
 private const val FALLBACK_RETRY_BASE_MILLIS = 500L
 private const val FALLBACK_RETRY_MAX_MILLIS = 4_000L
+private const val RTC_LOG_TAG = "PixelsRtc"
 private val NON_RETRYABLE_RENEWAL_FAILURES = setOf(
     AccountFailure.AuthenticationRequired,
     AccountFailure.Forbidden,

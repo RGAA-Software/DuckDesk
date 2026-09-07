@@ -534,8 +534,7 @@ impl RelayServer {
                 relay_conn
                     .lock()
                     .await
-                    .append_upload_data_size(data.len() as i64)
-                    .await;
+                    .append_upload_data_size(data.len() as i64);
                 let m = RelayMessage::decode(data.clone());
                 if let Err(e) = m {
                     tracing::error!("decode relay message failed: {}", e);

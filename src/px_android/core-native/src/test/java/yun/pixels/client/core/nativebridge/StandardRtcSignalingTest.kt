@@ -32,6 +32,16 @@ class StandardRtcSignalingTest {
         assertNull(url.queryParameter("instance_id"))
     }
 
+    @Test
+    fun renegotiationOfferUsesTheRotatedTicket() {
+        val offer = buildRtcOffer(parameters(instanceId = "instance-9"), "web_aabbcc", "voice-offer", "rotated-ticket")
+
+        assertEquals("rotated-ticket", offer.sigOfferSdp.connectionTicket)
+        assertEquals("voice-offer", offer.sigOfferSdp.sdp)
+        assertEquals("nonce-value", offer.sigOfferSdp.clientNonce)
+        assertEquals("instance-9", offer.sigOfferSdp.instanceId)
+    }
+
     private fun parameters(instanceId: String) = StandardRtcSignalParameters(
         relayHost = "relay.example.com",
         relayPort = 443,

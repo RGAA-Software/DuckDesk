@@ -51,7 +51,6 @@ const LEGACY_CMS_SERVICE_PATH: &str = "/cms/service";
 const LEGACY_CMS_WEBSITE_PATH: &str = "/cms/website";
 
 pub struct ConsoleServer {
-    pub host: String,
     pub port: u16,
 }
 
@@ -70,8 +69,8 @@ fn allow_ticket_renewal_origin(origin: &str, path: &str) -> bool {
 }
 
 impl ConsoleServer {
-    pub fn new(host: String, port: u16) -> Self {
-        ConsoleServer { host, port }
+    pub fn new(port: u16) -> Self {
+        ConsoleServer { port }
     }
 
     pub async fn start(&self) {

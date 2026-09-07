@@ -47,6 +47,7 @@ use crate::console_relay::relay_conn_mgr::RelayConnManager;
 use crate::console_relay::relay_redis_conn::RelayRedisConn;
 use crate::console_relay::relay_room_mgr::RelayRoomManager;
 use crate::console_relay::relay_server::RelayServer;
+use crate::console_relay::relay_traffic_recorder::RelayTrafficRecorder;
 use crate::console_server::ConsoleServer;
 use crate::console_settings::ConsoleSettings;
 use crate::device::console_device_manager::ConsoleDeviceManager;
@@ -59,8 +60,8 @@ use crate::net_cm::console_cm_mgr::ConsoleCMManager;
 use crate::net_panel::console_panel_conn_mgr::ConsolePanelConnManager;
 use crate::net_service::console_service_conn_mgr::ConsoleServiceConnManager;
 use crate::record::console_file_transfer_manager::ConsoleFileTransferManager;
-use crate::record::console_render_record_manager::ConsoleRenderRecordManager;
 use crate::record::console_remote_session_manager::ConsoleRemoteSessionManager;
+use crate::record::console_render_record_manager::ConsoleRenderRecordManager;
 use crate::record::console_visit_manager::ConsoleVisitManager;
 use crate::record::record_tunnel::RecordTunnelManager;
 use crate::rtc::manager::RtcConfigManager;
@@ -117,6 +118,7 @@ lazy_static::lazy_static! {
     pub static ref gRelayConnMgr: Arc<RelayConnManager> = Arc::new(RelayConnManager::new());
     pub static ref gRelayRoomMgr: Arc<RelayRoomManager> = Arc::new(RelayRoomManager::new());
     pub static ref gRelayRedisConn: Arc<Mutex<RelayRedisConn<ConnectionManager>>> = Arc::new(Mutex::new(RelayRedisConn::new()));
+    pub static ref gRelayTrafficRecorder: RelayTrafficRecorder = RelayTrafficRecorder::new();
 
     // Update
     pub static ref gUpdateInfoManager: Arc<UpdateInfoManager> = UpdateInfoManager::new();
@@ -358,7 +360,12 @@ async fn run_as_server(machine_code: String) {
     }
     // The Redis URL may contain a password. Keep connection details out of logs.
     tracing::info!("connected to configured Redis server");
-    gRelayRedisConn.lock().await.set_conn(redis_conn.unwrap());
+    let redis_conn = redis_conn.unwrap();
+    if let Err(error) = gRelayTrafficRecorder.start(redis_conn.clone()) {
+        tracing::error!(%error, "failed to start Relay traffic recorder");
+        return;
+    }
+    gRelayRedisConn.lock().await.set_conn(redis_conn);
 
     // generator
     gIdGenerator.lock().await.init().await;
@@ -414,7 +421,7 @@ async fn run_as_server(machine_code: String) {
     // console server
     let srv_task = async move {
         let console_port = gConsoleSettings.lock().await.console_port;
-        let server = ConsoleServer::new("0.0.0.0".to_string(), console_port);
+        let server = ConsoleServer::new(console_port);
         server.start().await;
     };
     srv_task.await;

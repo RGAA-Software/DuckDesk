@@ -383,7 +383,13 @@ impl RelayRoomManager {
         let r = conn
             .keys::<String, Vec<String>>(format!("relay-room:{}*", device_id))
             .await;
-        let room_ids = r.unwrap();
+        let room_ids = match r {
+            Ok(room_ids) => room_ids,
+            Err(error) => {
+                tracing::warn!(%error, %device_id, "failed to update Relay room heartbeat");
+                return;
+            }
+        };
         for room_id in room_ids.iter() {
             _ = conn
                 .hset::<&String, &str, String, ()>(
@@ -401,7 +407,13 @@ impl RelayRoomManager {
         tracing::warn!("will find rooms like: {}", room_id_pattern);
 
         let r = conn.keys::<String, Vec<String>>(room_id_pattern).await;
-        let room_ids = r.unwrap();
+        let room_ids = match r {
+            Ok(room_ids) => room_ids,
+            Err(error) => {
+                tracing::warn!(%error, %device_id, "failed to clear disconnected Relay room state");
+                return;
+            }
+        };
         for room_id in room_ids.iter() {
             _ = conn
                 .hset::<&String, &str, String, ()>(room_id, KEY_REMOTE_DEVICE_ID, "".to_string())

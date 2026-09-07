@@ -767,12 +767,12 @@ impl AppScheduleManager {
                         .map(|e| e.access_mode.clone())
                         .unwrap_or_default()
                 }),
-                allow_observer: req.allow_observer.unwrap_or_else(|| {
-                    existing.as_ref().map(|e| e.allow_observer).unwrap_or(true)
-                }),
-                allow_takeover: req.allow_takeover.unwrap_or_else(|| {
-                    existing.as_ref().map(|e| e.allow_takeover).unwrap_or(true)
-                }),
+                allow_observer: req
+                    .allow_observer
+                    .unwrap_or_else(|| existing.as_ref().map(|e| e.allow_observer).unwrap_or(true)),
+                allow_takeover: req
+                    .allow_takeover
+                    .unwrap_or_else(|| existing.as_ref().map(|e| e.allow_takeover).unwrap_or(true)),
                 version: existing.as_ref().map(|e| e.version + 1).unwrap_or(1),
             };
             g.apps.insert(app.app_id.clone(), app.clone());
@@ -2218,6 +2218,7 @@ impl AppScheduleManager {
     }
 
     /// Test helper: inject without network.
+    #[cfg(test)]
     pub async fn inject_for_test(
         &self,
         app: Application,
@@ -2235,12 +2236,6 @@ impl AppScheduleManager {
         g.request_index
             .insert(inst.request_id.clone(), inst.instance_id.clone());
         g.instances.insert(inst.instance_id.clone(), inst);
-    }
-
-    /// Test helper: inject a node without network/DB.
-    pub async fn inject_node_for_test(&self, node: AppNode) {
-        let mut g = self.inner.lock().await;
-        g.nodes.insert(node.node_id.clone(), node);
     }
 }
 

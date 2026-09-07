@@ -18,12 +18,16 @@ import yun.pixels.client.core.domain.voice.VoiceCallState
 
 /** Owns the standard-WebRTC call control state and the dedicated microphone/
  * voice tracks. The microphone track is created only after a user action and
- * is attached to the pre-negotiated sender only after the remote user accepts. */
+ * is attached to the sender only after the remote user accepts and the voice
+ * transceiver renegotiation succeeds. */
 internal class RtcVoiceCallController(
     private val factory: PeerConnectionFactory,
     private val scope: CoroutineScope,
     private val enabled: Boolean,
     private val sendMessage: (PxMessage.Message.Builder) -> Boolean,
+    private val prepareLocalSender: suspend () -> Boolean,
+    private val attachLocalTrack: (AudioTrack) -> Boolean,
+    private val releaseLocalTrack: () -> Unit,
     private val onState: (VoiceCallState) -> Unit,
 ) : Closeable {
     private val lock = Any()
@@ -106,13 +110,13 @@ internal class RtcVoiceCallController(
         else -> false
     }
 
-    fun start(): Boolean {
+    suspend fun start(): Boolean {
         val source = synchronized(lock) {
             if (closed || !supported || transceiver == null || state.phase != VoiceCallPhase.Idle) return false
             factory.createAudioSource(voiceAudioConstraints())
         }
         val track = factory.createAudioTrack(VOICE_MICROPHONE_TRACK_ID, source)
-        track.setEnabled(true)
+        track.setEnabled(false)
         val identity = synchronized(lock) {
             if (closed || !supported || transceiver == null || state.phase != VoiceCallPhase.Idle) {
                 null
@@ -132,6 +136,7 @@ internal class RtcVoiceCallController(
             source.dispose()
             return false
         }
+        publishState()
         val pendingTimeout = scope.launch {
             delay(VOICE_CALL_TIMEOUT_MILLIS)
             finish(identity.first, notifyRemote = true, reason = "timeout")
@@ -143,7 +148,6 @@ internal class RtcVoiceCallController(
             finish(identity.first, notifyRemote = false, reason = "control_channel_unavailable")
             return false
         }
-        publishState()
         return true
     }
 
@@ -198,21 +202,29 @@ internal class RtcVoiceCallController(
             finish(response.callId, notifyRemote = false, reason = rejectedReason)
             return
         }
-        val connected = synchronized(lock) {
-            if (state.phase != VoiceCallPhase.Requesting || response.callId != callId || response.requestId != requestId) return
-            val sender = transceiver?.sender ?: return@synchronized null
-            val microphone = localTrack ?: return@synchronized null
-            if (!sender.setTrack(microphone, false)) return@synchronized null
-            timeoutJob?.cancel()
-            timeoutJob = null
-            state = state.copy(phase = VoiceCallPhase.Connected, reason = "")
-            remoteTrack?.setEnabled(!state.speakerMuted)
-            state
-        }
-        if (connected == null) {
-            finish(response.callId, notifyRemote = true, reason = "media_attach_failed")
-        } else {
-            onState(connected)
+        scope.launch {
+            if (!prepareLocalSender()) {
+                finish(response.callId, notifyRemote = true, reason = "media_negotiation_failed")
+                return@launch
+            }
+            val connected = synchronized(lock) {
+                if (state.phase != VoiceCallPhase.Requesting || response.callId != callId || response.requestId != requestId) {
+                    return@synchronized null
+                }
+                val microphone = localTrack ?: return@synchronized null
+                if (!attachLocalTrack(microphone)) return@synchronized null
+                microphone.setEnabled(true)
+                timeoutJob?.cancel()
+                timeoutJob = null
+                state = state.copy(phase = VoiceCallPhase.Connected, reason = "")
+                remoteTrack?.setEnabled(!state.speakerMuted)
+                state
+            }
+            if (connected == null) {
+                finish(response.callId, notifyRemote = true, reason = "media_attach_failed")
+            } else {
+                onState(connected)
+            }
         }
     }
 
@@ -259,7 +271,6 @@ internal class RtcVoiceCallController(
     private fun finish(expectedCallId: String?, notifyRemote: Boolean, reason: String): Boolean {
         val release = synchronized(lock) {
             if (state.phase == VoiceCallPhase.Idle || (expectedCallId != null && expectedCallId != callId)) return false
-            transceiver?.sender?.setTrack(null, false)
             remoteTrack?.setEnabled(false)
             Release(
                 callId = callId,
@@ -279,6 +290,7 @@ internal class RtcVoiceCallController(
         }
         release.timeoutJob?.cancel()
         release.track?.setEnabled(false)
+        releaseLocalTrack()
         release.track?.dispose()
         release.source?.dispose()
         if (notifyRemote && release.callId.isNotEmpty() && release.requestId != 0L) {

@@ -70,7 +70,6 @@
     <string name="remote_shortcut_undo">撤销</string>
     <string name="remote_shortcut_task_manager">任务管理器</string>
     <string name="remote_shortcut_desktop">桌面</string>
-    <string name="remote_text_title">发送文字到远程设备</string>
     <string name="remote_text_hint">输入或粘贴文字</string>
     <string name="remote_text_send">发送</string>
     <string name="remote_text_cancel">取消</string>

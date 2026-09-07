@@ -9,10 +9,13 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.OkHttpClient
 import org.webrtc.AudioTrack
@@ -137,6 +140,7 @@ internal class WebRtcPeerSession(
     private val enableFileTransfer: Boolean,
     private val enableVoiceCall: Boolean,
     preferSoftwareDecoder: Boolean,
+    private val renewVoiceTicket: suspend () -> String?,
     private val onEvent: (WebRtcPeerEvent) -> Unit,
 ) : Closeable {
     private val stateLock = Any()
@@ -149,6 +153,8 @@ internal class WebRtcPeerSession(
     private var fileTransferChannel: DataChannel? = null
     private var videoTrack: VideoTrack? = null
     private var systemAudioTrack: AudioTrack? = null
+    private var voiceTransceiver: RtpTransceiver? = null
+    private var voiceSendingRequested = false
     private var systemAudioEnabled = enableAudio
     private var renderSurface: Surface? = surface
     private var packetIndex = 0L
@@ -159,11 +165,15 @@ internal class WebRtcPeerSession(
     private var cursorX = 0.5f
     private var cursorY = 0.5f
     private val pendingRemoteIce = ArrayDeque<IceCandidate>()
+    private val voiceNegotiationLock = Mutex()
     private val voiceCallController = RtcVoiceCallController(
         factory = peerConnectionFactory,
         scope = scope,
         enabled = enableVoiceCall,
         sendMessage = ::sendMediaMessage,
+        prepareLocalSender = ::prepareVoiceLocalSender,
+        attachLocalTrack = ::attachVoiceLocalTrack,
+        releaseLocalTrack = ::releaseVoiceLocalTrack,
         onState = { state -> onEvent(WebRtcPeerEvent.VoiceCallStateChanged(state)) },
     )
     private val recordingController = RtcRecordingController(
@@ -201,12 +211,12 @@ internal class WebRtcPeerSession(
             )
         }
         if (enableVoiceCall) {
-            voiceCallController.attachTransceiver(
-                connection.addTransceiver(
-                    MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO,
-                    RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.SEND_RECV),
-                ),
+            val transceiver = connection.addTransceiver(
+                MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO,
+                RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.RECV_ONLY),
             )
+            synchronized(stateLock) { voiceTransceiver = transceiver }
+            voiceCallController.attachTransceiver(transceiver)
         }
         mediaChannel = connection.createDataChannel(MEDIA_CHANNEL_LABEL, DataChannel.Init()).also {
             it.registerObserver(ChannelObserver(it, ChannelRole.Media))
@@ -263,13 +273,75 @@ internal class WebRtcPeerSession(
 
     fun stopRecording(recordingId: RecordingId): Boolean = recordingController.stop(recordingId)
 
-    fun startVoiceCall(): Boolean = voiceCallController.start()
+    suspend fun startVoiceCall(): Boolean = voiceCallController.start()
 
     fun stopVoiceCall(): Boolean = voiceCallController.stop()
 
     fun setVoiceMicrophoneMuted(muted: Boolean): Boolean = voiceCallController.setMicrophoneMuted(muted)
 
     fun setVoiceSpeakerMuted(muted: Boolean): Boolean = voiceCallController.setSpeakerMuted(muted)
+
+    private suspend fun prepareVoiceLocalSender(): Boolean = voiceNegotiationLock.withLock {
+        synchronized(stateLock) { voiceSendingRequested = true }
+        val ticket = renewVoiceTicket() ?: return@withLock resetVoiceSender()
+        val state = synchronized(stateLock) {
+            Triple(peerConnection, signaling, voiceTransceiver).takeUnless { closed.get() }
+        }
+        val connection = state?.first ?: return@withLock resetVoiceSender()
+        val activeSignaling = state.second ?: return@withLock resetVoiceSender()
+        val transceiver = state.third ?: return@withLock resetVoiceSender()
+        if (!synchronized(stateLock) { voiceSendingRequested }) return@withLock resetVoiceSender()
+        if (!transceiver.setDirection(RtpTransceiver.RtpTransceiverDirection.SEND_RECV)) {
+            return@withLock resetVoiceSender()
+        }
+        try {
+            val offer = connection.createOfferAwait()
+            connection.setLocalDescriptionAwait(offer)
+            val answer = activeSignaling.exchangeOffer(offer.description, ticket)
+            connection.setRemoteDescriptionAwait(SessionDescription(SessionDescription.Type.ANSWER, answer))
+            synchronized(stateLock) { voiceSendingRequested && !closed.get() }
+        } catch (_: Throwable) {
+            resetVoiceSender()
+        }
+    }
+
+    private fun attachVoiceLocalTrack(track: AudioTrack): Boolean = synchronized(stateLock) {
+        if (!voiceSendingRequested || closed.get()) return@synchronized false
+        voiceTransceiver?.sender?.setTrack(track, false) == true
+    }
+
+    private fun releaseVoiceLocalTrack() {
+        synchronized(stateLock) { voiceSendingRequested = false }
+        resetVoiceSender()
+        scope.launch {
+            voiceNegotiationLock.withLock {
+                if (synchronized(stateLock) { voiceSendingRequested || closed.get() }) return@withLock
+                val ticket = renewVoiceTicket() ?: return@withLock
+                val state = synchronized(stateLock) { peerConnection to signaling }
+                val connection = state.first ?: return@withLock
+                val activeSignaling = state.second ?: return@withLock
+                try {
+                    val offer = connection.createOfferAwait()
+                    connection.setLocalDescriptionAwait(offer)
+                    val answer = activeSignaling.exchangeOffer(offer.description, ticket)
+                    connection.setRemoteDescriptionAwait(SessionDescription(SessionDescription.Type.ANSWER, answer))
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (_: Throwable) {
+                    // The call media is already detached. A later session close
+                    // still releases the peer even if the cleanup offer fails.
+                }
+            }
+        }
+    }
+
+    private fun resetVoiceSender(): Boolean = synchronized(stateLock) {
+        val transceiver = voiceTransceiver
+        transceiver?.sender?.setTrack(null, false)
+        transceiver?.setDirection(RtpTransceiver.RtpTransceiverDirection.RECV_ONLY)
+        voiceSendingRequested = false
+        false
+    }
 
     fun replaceSurface(surface: Surface) {
         synchronized(stateLock) { renderSurface = surface }

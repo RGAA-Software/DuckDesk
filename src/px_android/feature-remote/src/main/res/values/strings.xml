@@ -70,7 +70,6 @@
     <string name="remote_shortcut_undo">Undo</string>
     <string name="remote_shortcut_task_manager">Task Manager</string>
     <string name="remote_shortcut_desktop">Desktop</string>
-    <string name="remote_text_title">Send text to the remote device</string>
     <string name="remote_text_hint">Type or paste text</string>
     <string name="remote_text_send">Send</string>
     <string name="remote_text_cancel">Cancel</string>

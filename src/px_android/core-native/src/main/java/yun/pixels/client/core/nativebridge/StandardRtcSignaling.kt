@@ -80,15 +80,16 @@ internal class StandardRtcSignaling(
         withTimeout(CONNECT_TIMEOUT_MILLIS) { roomReady.await() }
     }
 
-    suspend fun exchangeOffer(sdp: String): String {
+    suspend fun exchangeOffer(sdp: String, ticket: String = parameters.ticket): String {
         require(sdp.isNotBlank())
+        require(ticket.isNotBlank())
         val answer = synchronized(stateLock) {
             check(roomId.isNotBlank()) { "RTC signaling room is not ready" }
             check(pendingAnswer == null) { "RTC offer exchange is already active" }
             CompletableDeferred<String>().also {
                 pendingAnswer = it
                 canSendIce = true
-                sendPxMessageLocked(buildOffer(sdp))
+                sendPxMessageLocked(buildRtcOffer(parameters, clientId, sdp, ticket))
                 while (pendingLocalIce.isNotEmpty()) sendIceLocked(pendingLocalIce.removeFirst())
             }
         }
@@ -228,21 +229,6 @@ internal class StandardRtcSignaling(
         }
     }
 
-    private fun buildOffer(sdp: String): PxMessage.Message = PxMessage.Message.newBuilder()
-        .setDeviceId(clientId)
-        .setStreamId(parameters.streamId)
-        .setType(PxMessage.MessageType.kSigOfferSdpMessage)
-        .setSigOfferSdp(
-            PxSignalingMessage.SigOfferSdpMessage.newBuilder()
-                .setDeviceId(clientId)
-                .setSdp(sdp)
-                .setConnectionTicket(parameters.ticket)
-                .setClientNonce(parameters.clientNonce)
-                .setInstanceId(parameters.instanceId)
-                .setTakeover(false),
-        )
-        .build()
-
     private fun sendIceLocked(candidate: IceCandidate) {
         sendPxMessageLocked(
             PxMessage.Message.newBuilder()
@@ -320,6 +306,26 @@ internal class StandardRtcSignaling(
         }
     }
 }
+
+internal fun buildRtcOffer(
+    parameters: StandardRtcSignalParameters,
+    clientId: String,
+    sdp: String,
+    ticket: String,
+): PxMessage.Message = PxMessage.Message.newBuilder()
+    .setDeviceId(clientId)
+    .setStreamId(parameters.streamId)
+    .setType(PxMessage.MessageType.kSigOfferSdpMessage)
+    .setSigOfferSdp(
+        PxSignalingMessage.SigOfferSdpMessage.newBuilder()
+            .setDeviceId(clientId)
+            .setSdp(sdp)
+            .setConnectionTicket(ticket)
+            .setClientNonce(parameters.clientNonce)
+            .setInstanceId(parameters.instanceId)
+            .setTakeover(false),
+    )
+    .build()
 
 internal fun buildRequestUrl(parameters: StandardRtcSignalParameters, clientId: String): HttpUrl = HttpUrl.Builder()
     // OkHttp represents WebSocket request URLs as HTTP(S); newWebSocket

@@ -23,6 +23,8 @@ M0–M2 已完成。当前应用已包含 Pixels 品牌与最终包名、设备�
 
 语音通话使用 AAudio 通信流，支持麦克风/远端声音静音、听筒/耳机与扬声器切换，并在 Android 路由改变时重建音频流而不中断会话。URI 剪贴板把 Android 内容安全物化到私有缓存，通过既有虚拟文件协议按需分块传输，远端文件则通过非导出的 `FileProvider` 写回系统剪贴板。手柄双电机振动回传已完成真机闭环；标准 WebRTC 已接入票据信令、ICE/TURN、RTP、控制/输入/文件 DataChannel、双向文件型剪贴板和失败后的续票原生传输降级。M5–M6 的完整网络与发布矩阵尚未完成，未完成能力不会以占位实现伪装为可用。
 
+完整画质预设、编码输出分辨率、码率和 codec 的跨平台能力协商已经形成设计，但当前暂缓实施；Android 不显示不能由服务端真实执行的设置。当前剩余执行项是私网已登录 Console 与真实 Relay/WebRTC 的端到端收口、可执行的 Wi-Fi/生命周期短时验证，以及 LGPL/法律发布输入；公网与蜂窝等待服务部署，性能/设备/API/无障碍矩阵按当前决策不在本轮执行，详见产品规划“当前剩余工作”和第 14 节。
+
 构建基线为 Gradle 9.3.1、AGP 9.1.1、内置 Kotlin 2.4.10、Compose BOM 2026.08.00、API 37，最低系统 API 31。日常验证使用：
 
 ```powershell
@@ -57,6 +59,8 @@ $env:PIXELS_FFMPEG_SOURCE_ARCHIVE = 'C:\release-inputs\ffmpeg-6.1-source.zip'
 $env:PIXELS_LGPL_RELINK_ARCHIVE = 'C:\release-inputs\pixels-1.0.0-relink-objects.zip'
 .\build_official_release.bat
 ```
+
+本机已经在被 Git 忽略的 `signing/pixels-release.jks` 和 `keystore.properties` 中配置 RSA-4096、50 年 Pixels 产品签名；Gradle `release` 变体会直接读取该配置，证书 SHA-256 为 `C8C97549200D26FC44E17DA5694C8B1FBE80321417F924F1BDD42A863A60A0D0`。密钥库和明文密码不得提交到仓库。
 
 也可以复制 `keystore.properties.example` 为被 Git 忽略的 `keystore.properties`。脚本执行 release lint、单元测试、R8/resource shrink、
 arm64 native 构建以及 APK/AAB 签名校验；APK 与 AAB 的实际签名证书必须同时匹配显式配置的正式证书 SHA-256。脚本还通过 ELF Build ID 保证归档的

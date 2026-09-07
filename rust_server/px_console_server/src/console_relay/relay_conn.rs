@@ -2,15 +2,13 @@ use crate::console_context::ConsoleContext;
 use crate::console_relay::relay_message::{
     KEY_CLIENT_W3C_HOST, KEY_DEVICE_ID, KEY_DEVICE_NAME, KEY_LAST_UPDATE_TIMESTAMP, KEY_STREAM_ID,
 };
-use crate::{gRelayRedisConn, gRelayRoomMgr};
+use crate::{gRelayRoomMgr, gRelayTrafficRecorder};
 use axum::body::Bytes;
 use axum::extract::ws::{Message, WebSocket};
-use chrono::Utc;
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use protocol::px_relay;
 use protocol::px_relay::RelayMessage;
-use redis::AsyncCommands;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -73,58 +71,12 @@ impl RelayConn {
         }))
     }
 
-    pub async fn append_upload_data_size(&mut self, size: i64) {
-        // to redis; key: upload_{device_id}_{stream_id}_year_month
-        let now = Utc::now();
-        let key_month = format!("upload_{}:{}", self.device_id, now.format("%Y_%m"));
-        if let Err(e) = gRelayRedisConn
-            .lock()
-            .await
-            .clone_conn()
-            .incr::<String, i64, ()>(key_month.clone(), size)
-            .await
-        {
-            tracing::error!("update upload data for: {} failed: {}", key_month, e);
-        }
-
-        // to redis; key: received_{device_id}_{stream_id}_year_month_day
-        let key_day = format!("upload_{}:{}", self.device_id, now.format("%Y_%m_%d"));
-        if let Err(e) = gRelayRedisConn
-            .lock()
-            .await
-            .clone_conn()
-            .incr::<String, i64, ()>(key_day.clone(), size)
-            .await
-        {
-            tracing::error!("update upload data for: {} failed: {}", key_day, e);
-        }
+    pub fn append_upload_data_size(&self, size: i64) {
+        gRelayTrafficRecorder.record_upload(&self.device_id, size);
     }
 
-    pub async fn append_down_data_size(&mut self, size: i64) {
-        // to redis; key: sent_{device_id}_{stream_id}_year_month
-        let now = Utc::now();
-        let key_month = format!("down_{}:{}", self.device_id, now.format("%Y_%m"));
-        if let Err(e) = gRelayRedisConn
-            .lock()
-            .await
-            .clone_conn()
-            .incr::<String, i64, ()>(key_month.clone(), size)
-            .await
-        {
-            tracing::error!("update down data for: {} failed: {}", key_month, e);
-        }
-
-        // to redis; key: sent_{device_id}_{stream_id}_year_month_day
-        let key_day = format!("down_{}:{}", self.device_id, now.format("%Y_%m_%d"));
-        if let Err(e) = gRelayRedisConn
-            .lock()
-            .await
-            .clone_conn()
-            .incr::<String, i64, ()>(key_day.clone(), size)
-            .await
-        {
-            tracing::error!("update down data for: {} failed: {}", key_day, e);
-        }
+    pub fn append_down_data_size(&self, size: i64) {
+        gRelayTrafficRecorder.record_download(&self.device_id, size);
     }
 
     pub async fn on_hello(&mut self, m: RelayMessage) {
@@ -218,7 +170,7 @@ impl RelayConn {
         }
 
         // append down data size
-        self.append_down_data_size(size as i64).await;
+        self.append_down_data_size(size as i64);
 
         true
     }

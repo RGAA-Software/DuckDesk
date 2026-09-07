@@ -11,3 +11,4 @@ pub mod relay_room_handler;
 pub mod relay_room_mgr;
 pub mod relay_server;
 pub mod relay_statistics;
+pub mod relay_traffic_recorder;

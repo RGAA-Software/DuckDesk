@@ -12,7 +12,6 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.AudioDeviceInfo
-import android.os.Build
 import android.os.Binder
 import android.os.IBinder
 import android.net.Uri
@@ -391,34 +390,26 @@ class RemoteSessionService : Service() {
 
     private fun configureVoiceAudioRoute(speakerphone: Boolean) {
         audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-        if (Build.VERSION.SDK_INT >= 31) {
-            val preferredTypes = if (speakerphone) {
-                listOf(AudioDeviceInfo.TYPE_BUILTIN_SPEAKER)
-            } else {
-                listOf(
-                    AudioDeviceInfo.TYPE_BLE_HEADSET,
-                    AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
-                    AudioDeviceInfo.TYPE_WIRED_HEADSET,
-                    AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
-                    AudioDeviceInfo.TYPE_USB_HEADSET,
-                    AudioDeviceInfo.TYPE_BUILTIN_EARPIECE,
-                )
-            }
-            preferredTypes.asSequence()
-                .mapNotNull { type -> audioManager.availableCommunicationDevices.firstOrNull { it.type == type } }
-                .firstOrNull()
-                ?.let(audioManager::setCommunicationDevice)
+        val preferredTypes = if (speakerphone) {
+            listOf(AudioDeviceInfo.TYPE_BUILTIN_SPEAKER)
         } else {
-            @Suppress("DEPRECATION")
-            audioManager.isSpeakerphoneOn = speakerphone
+            listOf(
+                AudioDeviceInfo.TYPE_BLE_HEADSET,
+                AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+                AudioDeviceInfo.TYPE_WIRED_HEADSET,
+                AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+                AudioDeviceInfo.TYPE_USB_HEADSET,
+                AudioDeviceInfo.TYPE_BUILTIN_EARPIECE,
+            )
         }
+        preferredTypes.asSequence()
+            .mapNotNull { type -> audioManager.availableCommunicationDevices.firstOrNull { it.type == type } }
+            .firstOrNull()
+            ?.let(audioManager::setCommunicationDevice)
     }
 
     private fun restoreVoiceAudioRoute() {
-        if (Build.VERSION.SDK_INT >= 31) audioManager.clearCommunicationDevice() else {
-            @Suppress("DEPRECATION")
-            audioManager.isSpeakerphoneOn = false
-        }
+        audioManager.clearCommunicationDevice()
         audioManager.mode = AudioManager.MODE_NORMAL
         val previous = mutableVoiceCallState.value
         if (previous.speakerphone) mutableVoiceCallState.value = previous.copy(speakerphone = false)
