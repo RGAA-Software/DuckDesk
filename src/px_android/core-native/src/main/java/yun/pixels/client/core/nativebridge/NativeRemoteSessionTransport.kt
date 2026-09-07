@@ -27,9 +27,6 @@ import yun.pixels.client.core.domain.session.RemoteSessionTransport
 import yun.pixels.client.core.domain.session.RemoteTransportEvent
 import yun.pixels.client.core.domain.session.RemoteTransportStartResult
 import yun.pixels.client.core.domain.session.RemoteVideoSize
-import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
-import yun.pixels.client.core.domain.session.RemoteVirtualDisplayResult
-import yun.pixels.client.core.domain.session.RemoteVirtualDisplayResultState
 import yun.pixels.client.core.domain.transfer.FileTransferDirection
 import yun.pixels.client.core.domain.transfer.FileTransferEvent
 import yun.pixels.client.core.domain.transfer.FileTransferTransport
@@ -448,23 +445,6 @@ class NativeRemoteSessionTransport internal constructor(
         return PixelsNativeBridge.switchMonitor(nativeSessionId, monitorName)
     }
 
-    suspend fun requestVirtualDisplay(
-        sessionId: RemoteSessionId,
-        requestId: String,
-        operation: RemoteVirtualDisplayOperation,
-    ): Boolean {
-        if (requestId.isBlank()) return false
-        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
-        return PixelsNativeBridge.requestVirtualDisplay(
-            nativeSessionId,
-            requestId,
-            operation.nativeValue,
-            DEFAULT_VIRTUAL_DISPLAY_WIDTH,
-            DEFAULT_VIRTUAL_DISPLAY_HEIGHT,
-            DEFAULT_VIRTUAL_DISPLAY_REFRESH_HZ,
-        )
-    }
-
     suspend fun setAudioEnabled(sessionId: RemoteSessionId, enabled: Boolean): Boolean {
         val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
         return withContext(Dispatchers.IO) { PixelsNativeBridge.setAudioEnabled(nativeSessionId, enabled) }
@@ -490,10 +470,6 @@ class NativeRemoteSessionTransport internal constructor(
         supportsInput: Boolean,
         supportsFileTransfer: Boolean,
         supportsClipboard: Boolean,
-        supportsVirtualDisplays: Boolean,
-        ownedVirtualDisplayCount: Int,
-        maximumVirtualDisplayCount: Int,
-        topologyGeneration: Long,
         supportsVoiceCall: Boolean,
         voiceCallRequiresHeadset: Boolean,
     ) {
@@ -507,10 +483,6 @@ class NativeRemoteSessionTransport internal constructor(
                 supportsFileTransfer = supportsFileTransfer,
                 supportsClipboard = supportsClipboard,
                 supportsClipboardFiles = supportsClipboard,
-                supportsVirtualDisplays = supportsVirtualDisplays,
-                ownedVirtualDisplayCount = ownedVirtualDisplayCount.coerceAtLeast(0),
-                maximumVirtualDisplayCount = maximumVirtualDisplayCount.coerceAtLeast(0),
-                topologyGeneration = topologyGeneration.coerceAtLeast(0),
                 supportsVoiceCall = supportsVoiceCall,
                 voiceCallRequiresHeadset = voiceCallRequiresHeadset,
                 supportsRecording = true,
@@ -536,44 +508,6 @@ class NativeRemoteSessionTransport internal constructor(
                 ).also { capabilities[remoteSessionId] = it }
             } ?: return@launch
             mutableEvents.emit(RemoteTransportEvent.CapabilitiesUpdated(remoteSessionId, updated))
-        }
-    }
-
-    override fun onVirtualDisplayResult(
-        sessionId: String,
-        requestId: String,
-        accepted: Boolean,
-        state: Int,
-        topologyChanged: Boolean,
-        topologyGeneration: Long,
-        ownedDisplayCount: Int,
-        errorCode: String,
-        errorMessage: String,
-    ) {
-        callbackScope.launch {
-            val remoteSessionId = RemoteSessionId(sessionId)
-            val updated = lock.withLock {
-                capabilities[remoteSessionId]?.copy(
-                    ownedVirtualDisplayCount = ownedDisplayCount.coerceAtLeast(0),
-                    topologyGeneration = topologyGeneration.coerceAtLeast(0),
-                )?.also { capabilities[remoteSessionId] = it }
-            }
-            if (updated != null) mutableEvents.emit(RemoteTransportEvent.CapabilitiesUpdated(remoteSessionId, updated))
-            mutableEvents.emit(
-                RemoteTransportEvent.VirtualDisplayResult(
-                    remoteSessionId,
-                    RemoteVirtualDisplayResult(
-                        requestId = requestId,
-                        accepted = accepted,
-                        state = state.toVirtualDisplayResultState(),
-                        topologyChanged = topologyChanged,
-                        topologyGeneration = topologyGeneration.coerceAtLeast(0),
-                        ownedDisplayCount = ownedDisplayCount.coerceAtLeast(0),
-                        errorCode = errorCode,
-                        errorMessage = errorMessage,
-                    ),
-                ),
-            )
         }
     }
 
@@ -908,9 +842,6 @@ private const val MOUSE_MOVE_ABSOLUTE = 0
 private const val MOUSE_MOVE_RELATIVE = 1
 private const val MOUSE_BUTTON = 2
 private const val MOUSE_WHEEL = 3
-private const val DEFAULT_VIRTUAL_DISPLAY_WIDTH = 1920
-private const val DEFAULT_VIRTUAL_DISPLAY_HEIGHT = 1080
-private const val DEFAULT_VIRTUAL_DISPLAY_REFRESH_HZ = 60
 private const val MAX_CLIPBOARD_TEXT_BYTES = 1_048_576
 private const val MAX_CLIPBOARD_FILE_COUNT = 16
 private const val MAX_NATIVE_ERROR_CHARS = 256
@@ -960,16 +891,4 @@ internal fun remoteFileEntries(
             )
         }
     }
-}
-
-private val RemoteVirtualDisplayOperation.nativeValue: Int
-    get() = when (this) {
-        RemoteVirtualDisplayOperation.Create -> 0
-        RemoteVirtualDisplayOperation.RemoveLast -> 1
-    }
-
-private fun Int.toVirtualDisplayResultState(): RemoteVirtualDisplayResultState = when (this) {
-    0 -> RemoteVirtualDisplayResultState.Ready
-    1 -> RemoteVirtualDisplayResultState.NeedReconnect
-    else -> RemoteVirtualDisplayResultState.Failed
 }

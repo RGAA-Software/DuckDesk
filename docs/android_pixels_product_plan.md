@@ -79,7 +79,7 @@ Pixels Android 使用独立且统一的品牌资源：
 - 低延迟音频播放和音频焦点管理。
 - 直接触摸、触摸板、相对鼠标、软键盘和组合键。
 - 虚拟手柄以及 USB/蓝牙实体手柄。
-- 多显示器查看、切换和虚拟显示管理。
+- 查看并切换远端主机已经存在的显示器。Android 端只有一个观看窗口，不提供创建、删除或管理 Windows 虚拟显示器的能力。
 - 分辨率、帧率、码率、解码器和传输策略调整。
 - 实时延迟、帧率、丢包、码率和解码统计。
 - 剪贴板、文件传输、录制和语音通话入口。
@@ -187,7 +187,7 @@ px_client_sdk / protocol / media
 - 视频帧分发、MediaCodec adapter 和软件解码回退。
 - AAudio 低延迟音频输出及语音音频端点；最低 API 31 允许直接使用系统原生 API，避免额外包装依赖。
 - 鼠标、键盘、手柄和显示器命令。
-- 文件传输、剪贴板、录制、语音和虚拟显示协议核心。
+- 文件传输、剪贴板、录制和语音协议核心。
 - 统计、错误分类和可取消的关闭流程。
 
 Windows Client 的剪贴板、文件传输和录制模块不能直接携带 Qt/Win32 UI 进入 Android。应抽取平台无关的协议/任务核心，并分别注入 Windows 与 Android platform adapter。
@@ -313,11 +313,11 @@ WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
 
 ### M3：完整输入与多显示器，1–2 周
 
-状态：**产品主路径已完成（2026-09-06 已完成桌面输入、虚拟/实体手柄、ViGEm 双电机振动回传与 Android haptics、持久化配置、真实显示器发现与切换、虚拟显示管理协议，以及远程应用到会话票据的客户端闭环）；虚拟屏成功创建和已登录 Console 实际启停仍是环境矩阵复验项**。
+状态：**产品主路径已完成（2026-09-07 已完成桌面输入、虚拟/实体手柄、ViGEm 双电机振动回传与 Android haptics、持久化配置、远端已有显示器发现与切换，以及远程应用到会话票据的客户端闭环）；Android 不负责创建或删除 Windows 虚拟显示器，已登录 Console 的远程应用实际启停仍是环境矩阵复验项**。
 
 - 完成触摸、鼠标、键盘、快捷键和虚拟手柄。**已完成**
 - 完成 USB/蓝牙手柄、震动和配置保存。**已完成；Windows ViGEm 振动按原始 transport/stream 回传，Android 使用 API 31+ `VibratorManager`/`CombinedVibration`，实体手柄有多个振子时分别映射强弱电机，无可用手柄时回落到手机，零强度、断线和服务销毁均立即取消**
-- 完成多显示器切换、虚拟显示管理和远程应用列表。**Android 客户端及应用启动/重连票据/远控会话闭环已完成；虚拟屏成功创建和已登录 Console 实际启停待环境复验**
+- 完成远端已有显示器切换和远程应用列表。**显示器发现/切换与应用启动/重连票据/远控会话客户端闭环已完成；已登录 Console 实际启停待环境复验。Android 明确不提供增加或删除显示器功能**
 - 删除旧 ControlLayer、Steam/Game Activity 和 XML 手柄资源。
 
 验收：桌面操作、游戏控制、显示器切换和应用启动均可在真机完成。
@@ -334,7 +334,7 @@ WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
 
 ### M5：完整网络与质量收口，2–3 周
 
-状态：**UDP Direct 已作为 Android 默认传输接入，具备认证控制面、四秒媒体探测与同会话 WebSocket 安全回退；断线重连具有三十秒上限、类型化失败和显式重试。账号公网设备已接入一次性票据约束的 Relay 主路径，Console 只校验并注入权威绑定，Render 负责唯一兑换、逻辑会话准入和按能力路由。Android 标准 WebRTC 已固定 AAR、接入权威 protobuf-lite 协议生成、票据作用域 Relay 信令、ICE/TURN 配置校验、PeerConnection、RTP 音视频 Surface 渲染，以及可靠控制/不可靠输入 DataChannel 的 Hello、输入、双向文本与文件型剪贴板、能力消息、实体显示器切换和虚拟显示请求/结果；可靠 `ft_data_channel` 已复用项目 `FtAsyncSession`，提供目录浏览、上传、下载、取消、断点与覆盖确认，并承载既有 `NativeClipboard` 的有界文件块。标准 RTC 语音使用可靠控制通道完成呼叫与 Windows 用户同意，实际双向音频走独立第二条 WebRTC RTP 音轨；Android 只在远端同意后把麦克风挂到预协商 sender，系统声和通话声可独立静音。标准 RTC 录制直接订阅已解码 VideoFrame 和远端 PCM，以 Android MediaCodec AVC/AAC 编码并封装 MP4，不请求屏幕录制权限；能力受 `view` 权限、媒体轨道和平台编码器共同门控。连接后从标准 RTCStats 持续提供画面帧率、视频接收码率、往返延迟和视频丢包率。统一产品路由会校验 RTC 与票据有效期后选择 WebRTC，否则使用原生 UDP/Relay。客户端已接入匿名 renewal capability 续发端点，对临期或已尝试的一次性票据先旋转凭据；WebRTC 协商/连接失败会在有界窗口内续发并降级到原生 UDP/Relay，续发响应必须保持 logical session 与 stream 身份不变。真实媒体能力和完整网络矩阵仍待完成，因此当前不会向用户宣称 WebRTC 已完整交付。**
+状态：**UDP Direct 已作为 Android 默认传输接入，具备认证控制面、四秒媒体探测与同会话 WebSocket 安全回退；断线重连具有三十秒上限、类型化失败和显式重试。账号公网设备已接入一次性票据约束的 Relay 主路径，Console 只校验并注入权威绑定，Render 负责唯一兑换、逻辑会话准入和按能力路由。Android 标准 WebRTC 已固定 AAR、接入权威 protobuf-lite 协议生成、票据作用域 Relay 信令、ICE/TURN 配置校验、PeerConnection、RTP 音视频 Surface 渲染，以及可靠控制/不可靠输入 DataChannel 的 Hello、输入、双向文本与文件型剪贴板、能力消息和远端已有显示器切换；可靠 `ft_data_channel` 已复用项目 `FtAsyncSession`，提供目录浏览、上传、下载、取消、断点与覆盖确认，并承载既有 `NativeClipboard` 的有界文件块。标准 RTC 语音使用可靠控制通道完成呼叫与 Windows 用户同意，实际双向音频走独立第二条 WebRTC RTP 音轨；Android 只在远端同意后把麦克风挂到预协商 sender，系统声和通话声可独立静音。标准 RTC 录制直接订阅已解码 VideoFrame 和远端 PCM，以 Android MediaCodec AVC/AAC 编码并封装 MP4，不请求屏幕录制权限；能力受 `view` 权限、媒体轨道和平台编码器共同门控。连接后从标准 RTCStats 持续提供画面帧率、视频接收码率、往返延迟和视频丢包率。统一产品路由会校验 RTC 与票据有效期后选择 WebRTC，否则使用原生 UDP/Relay。客户端已接入匿名 renewal capability 续发端点，对临期或已尝试的一次性票据先旋转凭据；WebRTC 协商/连接失败会在有界窗口内续发并降级到原生 UDP/Relay，续发响应必须保持 logical session 与 stream 身份不变。真实媒体能力和完整网络矩阵仍待完成，因此当前不会向用户宣称 WebRTC 已完整交付。**
 
 - UDP Direct、Relay、WebRTC Direct、ICE/TURN WebRTC。
 - 传输选择、协商、失败降级、网络切换恢复。
@@ -425,9 +425,9 @@ WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
 - 工作区已增加 XInput 语义的虚拟手柄，支持双摇杆、方向键、ABXY、肩键、Start/Back、死区、扳机以及完整状态复位；Android
   `SOURCE_GAMEPAD`/`SOURCE_JOYSTICK` 的实体手柄按键和轴使用同一控制器状态。横屏显示完整布局，竖屏先提示旋转并允许用户主动继续；
   标准/南爪布局、摇杆死区与灵敏度、控件透明度和大小可在会话内调整并持久化。
-- 会话能力直接使用服务端 `monitors_info`，显示器面板展示真实名称和当前屏；切换命令与服务端回调均为类型化 JNI。虚拟显示器创建/删除使用
-  既有请求 ID、拓扑 generation 和拥有数量协议，按钮具有执行中门禁，并向用户展示服务端返回的具体失败原因。标准 WebRTC 现通过可靠媒体
-  DataChannel 复用同一套显示器切换、拓扑更新和虚拟显示请求/结果模型；虚拟显示能力只有在服务端配置、客户端输入请求和票据 `input` 权限同时满足时开放。
+- 会话能力直接使用服务端 `monitors_info`，显示器面板只展示远端已经存在的真实显示器名称和当前屏；切换命令与服务端回调均为类型化 JNI，
+  标准 WebRTC 通过可靠媒体 DataChannel 使用同一套显示器切换与更新模型。Android UI、领域模型、WebRTC/原生发送链路和 JNI 均不包含创建、删除或管理
+  Windows 虚拟显示器的能力；远端显示器如何产生属于主机端职责。
 - 远程应用库直接使用 Console 用户资源 API，账号会话之外不开放；列表展示运行状态，启动使用客户端 nonce 保证幂等，停止只接受当前账号拥有的
   instance id。新实例启动成功后会申请控制票据并直接进入复用的远控会话，已有可重连实例也提供显式连接入口；云端会话目标不再错误依赖设备卡片。
   应用页具有刷新、操作中门禁、空态、登录过期和结构化错误状态，不再把 Panel 的旧运行游戏通知误当作应用目录。
@@ -495,10 +495,8 @@ WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
   新增的同执行器嵌套 Spawn 回归用例以及 Render quick/lifecycle 套件均通过。
 - M3 复验中，Android 从服务端读取到 `\\.\DISPLAY1` 和 `\\.\DISPLAY2`，在同一会话内切换到第二块 2560×1080 屏并持续解码；
   工作区顶部工具在竖屏无溢出，横屏虚拟手柄完整显示，按键输入后 Android、Render、Service 进程均保持正常。
-- 虚拟显示管理链路实测收到服务端 `maximum=8`、`owned=0`，创建请求能够穿过 JNI、WebSocket、Render 和 Service 并将结构化结果返回界面。
-  本机首次暴露旧 `px_service.exe` 和缺失 Parsec VDD 载荷，已用当前源码增量构建服务并补齐经 SHA-256/签名校验的运行文件；随后主机上的
-  既有多实例 Parsec VDD 环境仍明确返回 `PARSEC_VDD_ADD_FAILED`，没有创建 Pixels 自有虚拟屏，也没有遗留需要删除的测试屏。正式的成功
-  创建/切换/删除门禁须在单实例、健康的 Parsec VDD 主机复验，不能把该环境失败记为功能通过。
+- 产品范围复核确认 Android 不负责增加或删除 Windows 显示器，先前为验证主机 VDD 链路而加入的 Android 入口、状态、请求/响应解析和 JNI 方法已删除。
+  远端已有实体或虚拟显示器仍统一来自服务端 `monitors_info`，手机只负责展示当前列表并发送切换请求，因此不再保留 Parsec VDD 创建/删除验收项。
 - 远程应用页已通过 USB 覆盖安装验证：未登录状态进入页面会显示明确的会话过期/登录提示而不是空白或伪造目录；列表、启动、停止的数据映射和
   ViewModel 状态转换已通过 JVM 测试；后续已补齐启动/重连后申请实例票据并进入远控工作区的客户端闭环。当前本机没有可用于 Android 的已登录
   Console 用户会话，因此真实应用启停和实例票据仍保留为环境验收项。
@@ -601,14 +599,17 @@ WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
   覆盖安装后完成设备→设置→系统返回、设备→应用→传输→设备、真实会话文件→远控，以及工具栏展开→返回收起→结束确认的短时验证；实时画面约 55 FPS / 3–5 ms，
   无 `AndroidRuntime` 或 JNI 崩溃。Android 全套单元测试、lint、arm64 native 和 debug APK 构建通过，APK SHA-256 为
   `63BCCE50A7CD6874EBB75F7C6C88016F43EDEC6FD2DD8391092A77681CA721DF`，安装使用 `adb install -r -d`，未卸载应用。
-- 2026-09-07 M5 WebRTC 显示控制补齐了标准 RTC 下的实体显示器更新和虚拟显示创建/删除请求、结构化结果与拓扑计数同步。Android 只在服务端配置、
-  本次会话输入请求和票据 `input` 权限同时允许时暴露虚拟显示入口；Render 的 DataChannel 准入也将切屏、虚拟显示和其他交互消息从默认 `view`
-  提升为强制 `input`，避免只读票据越权，并正确识别 protobuf 省略零值 `type` 字段的 Hello 握手。协议边界测试覆盖请求 ID、默认分辨率、响应限界、
-  显示器更新与 capability 门禁；Render 定向权限测试、C++
+- 2026-09-07 M5 WebRTC 显示控制补齐了标准 RTC 下的远端已有显示器更新与切换。Render 的 DataChannel 准入将切屏和其他交互消息从默认 `view`
+  提升为强制 `input`，避免只读票据越权，并正确识别 protobuf 省略零值 `type` 字段的 Hello 握手。协议边界测试覆盖显示器更新与 capability 门禁；Render 定向权限测试、C++
   ownership 门禁、Android 全套单元测试、lint、arm64 native 和 debug APK 构建均通过。`px_render_rtc_remote.dll` 的 build/dist SHA-256 一致，为
   `8DD3B51A66902A8EA53272A1DBBBC7FE34331AC895B6BB1AF2F98672092B940A`。APK 使用 `adb install -r -d` 覆盖安装，在 Xiaomi 22021211RC 上完成冷启动且无
   `AndroidRuntime`、JNI 或 native fatal；SHA-256 为 `A247C62699BE6CBDF585DD2FEE9C35565D71FD546FD098FA553C6673BB86C889`。手机仍未登录 Console，
   因此本轮不把真实公网 Relay/WebRTC 显示操作记为通过。
+- 2026-09-07 产品范围再次确认：手机只有一个观看窗口，不承担 Windows 虚拟显示器生命周期管理。Android 已删除显示页增加/删除按钮、领域状态、
+  WebRTC 与原生请求/结果链路和 JNI 方法，只保留远端已有显示器的发现与切换。Android 单元测试、lint、仪器测试源码编译、arm64 native 和 debug APK 构建通过。
+  Xiaomi 22021211RC 使用 `adb install -r -d` 覆盖安装，真实连接保持约 53 FPS / 7 ms；显示器工作表只展示服务端现有 `\\.\DISPLAY1`，没有增加、删除或
+  虚拟显示器管理入口。系统返回依次关闭工作表和工具栏，进程与会话保持存活；构建 APK 与手机 `base.apk` SHA-256 均为
+  `1F86094260C93D5CA72B8ABCD0C03D1EA5CEE3133FC897B9215EBB6853EC89F6`，测试过程未卸载应用。
 - 2026-09-07 M5 WebRTC 质量状态接入标准 RTCStats，将 inbound video 的画面帧率、累计接收字节和包计数与所选 candidate pair 的 RTT 转换为工作区已有的
   FPS、kbps、毫秒延迟和丢包率；累计计数重置、异常值和溢出均有有界处理。采样任务只在连接后启动，重复 connected 不会创建多个任务，会话关闭时取消，
   晚到回调不会继续向已关闭会话派发，展开的工作区状态栏同时显示四项指标。统计解析与跨样本码率测试、Android 全套单元测试、lint、arm64 native 和 debug APK 构建通过。APK 使用
@@ -700,7 +701,7 @@ WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
   发布归档同时改为构建目录隔离暂存：符号、许可、签名和哈希全部通过后才把完整目录一次性移动到最终位置，失败会清理暂存目录；同一版本目录一旦存在即拒绝覆盖，
   避免半成品或重跑产物被误当成正式发行。本轮只改变发布门禁，不改变 APK 运行内容，因此没有重复覆盖安装或把测试证书产物当作正式 release。
 
-这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径、物理显示器切换和虚拟显示失败反馈；
+这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径和远端已有显示器切换；
 后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁，M5 轮次关闭了 UDP Direct 协商、WebSocket 安全回退、有界重连和 H.264 首帧解析门禁。
-它不代表 M3–M6 的虚拟显示成功创建、远程应用 Console 实测、标准 WebRTC/Relay 真实远端媒体的带音录制、UDP 媒体交付、Relay/WebRTC 网络矩阵、正式签名、
+它不代表 M3–M6 的远程应用 Console 实测、标准 WebRTC/Relay 真实远端媒体的带音录制、UDP 媒体交付、Relay/WebRTC 网络矩阵、正式签名、
 最终 FFmpeg 源码/重链接归档、正式法律复核和设备矩阵已经完成。

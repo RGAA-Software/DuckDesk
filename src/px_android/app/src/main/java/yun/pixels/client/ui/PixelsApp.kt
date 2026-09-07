@@ -483,7 +483,6 @@ fun PixelsApp(graph: PixelsAppGraph) {
                         onSurfaceDestroyed = { surface -> remoteBinder?.detachSurface(surface) },
                         onInput = { command -> remoteBinder?.sendInput(command) },
                         onSwitchMonitor = { monitorName -> remoteBinder?.switchMonitor(monitorName) },
-                        onVirtualDisplayRequest = { requestId, operation -> remoteBinder?.requestVirtualDisplay(requestId, operation) },
                         onText = { text -> remoteBinder?.sendText(text) },
                         onClipboardText = { text -> remoteBinder?.sendClipboardText(text) },
                         onClipboardUris = { uris -> remoteBinder?.sendClipboardFiles(uris) },

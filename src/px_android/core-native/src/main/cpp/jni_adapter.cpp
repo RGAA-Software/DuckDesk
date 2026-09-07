@@ -559,19 +559,6 @@ jboolean NativeSwitchMonitor(JNIEnv* environment, jobject, const jlong native_se
     return session && session->SwitchMonitor(name) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean NativeRequestVirtualDisplay(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(gammaray-raw-pointer-boundary)
-                                     const jstring request_id, const jint operation, const jint width, const jint height, const jint refresh_hz) {
-    if (environment == nullptr || request_id == nullptr)
-        return JNI_FALSE;
-    const char* characters = environment->GetStringUTFChars(request_id, nullptr); // NOLINT(gammaray-raw-pointer-boundary)
-    if (characters == nullptr)
-        return JNI_FALSE;
-    const std::string id{characters};
-    environment->ReleaseStringUTFChars(request_id, characters);
-    const auto session = Registry().Find(native_session_id);
-    return session && session->RequestVirtualDisplay(id, operation, width, height, refresh_hz) ? JNI_TRUE : JNI_FALSE;
-}
-
 void NativeStop(JNIEnv*, jobject, const jlong native_session_id) { // NOLINT(gammaray-raw-pointer-boundary)
     if (const auto session = Registry().Remove(native_session_id)) {
         session->Stop();
@@ -647,8 +634,6 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) { // NOLINT(gamm
         {const_cast<char*>("sendGamepad"), const_cast<char*>("(JIIIIIII)Z"), reinterpret_cast<void*>(pixels::android::NativeSendGamepad)},
         {const_cast<char*>("switchMonitor"), const_cast<char*>("(JLjava/lang/String;)Z"),
          reinterpret_cast<void*>(pixels::android::NativeSwitchMonitor)},
-        {const_cast<char*>("requestVirtualDisplay"), const_cast<char*>("(JLjava/lang/String;IIII)Z"),
-         reinterpret_cast<void*>(pixels::android::NativeRequestVirtualDisplay)},
         {const_cast<char*>("setAudioEnabled"), const_cast<char*>("(JZ)Z"), reinterpret_cast<void*>(pixels::android::NativeSetAudioEnabled)},
         {const_cast<char*>("startRecording"), const_cast<char*>("(J[B[B)Z"), reinterpret_cast<void*>(pixels::android::NativeStartRecording)},
         {const_cast<char*>("stopRecording"), const_cast<char*>("(J[B)Z"), reinterpret_cast<void*>(pixels::android::NativeStopRecording)},

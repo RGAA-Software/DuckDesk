@@ -53,10 +53,6 @@ data class RemoteSessionCapabilities(
     val supportsFileTransfer: Boolean,
     val supportsClipboard: Boolean,
     val supportsClipboardFiles: Boolean = false,
-    val supportsVirtualDisplays: Boolean = false,
-    val ownedVirtualDisplayCount: Int = 0,
-    val maximumVirtualDisplayCount: Int = 0,
-    val topologyGeneration: Long = 0,
     val supportsVoiceCall: Boolean = false,
     val voiceCallRequiresHeadset: Boolean = true,
     val supportsRecording: Boolean = false,
@@ -74,28 +70,6 @@ data class RemoteVideoSize(val width: Int, val height: Int) {
         require(width > 0 && height > 0) { "Remote video dimensions must be positive" }
     }
 }
-
-enum class RemoteVirtualDisplayOperation {
-    Create,
-    RemoveLast,
-}
-
-enum class RemoteVirtualDisplayResultState {
-    Ready,
-    NeedReconnect,
-    Failed,
-}
-
-data class RemoteVirtualDisplayResult(
-    val requestId: String,
-    val accepted: Boolean,
-    val state: RemoteVirtualDisplayResultState,
-    val topologyChanged: Boolean,
-    val topologyGeneration: Long,
-    val ownedDisplayCount: Int,
-    val errorCode: String = "",
-    val errorMessage: String = "",
-)
 
 enum class RemoteInputMode {
     DirectTouch,
@@ -311,7 +285,6 @@ data class RemoteSessionSnapshot(
     val status: RemoteSessionStatus = RemoteSessionStatus.Idle,
     val statistics: RemoteSessionStatistics = RemoteSessionStatistics(),
     val videoSize: RemoteVideoSize? = null,
-    val lastVirtualDisplayResult: RemoteVirtualDisplayResult? = null,
     val remoteClipboardText: String? = null,
     val remoteClipboardFiles: RemoteClipboardFiles? = null,
     val clipboardDownload: ClipboardDownloadState = ClipboardDownloadState.Idle,
@@ -377,11 +350,6 @@ sealed interface RemoteTransportEvent {
             require(strongMotor in 0..255 && weakMotor in 0..255) { "Gamepad rumble strengths must fit an unsigned byte" }
         }
     }
-
-    data class VirtualDisplayResult(
-        override val sessionId: RemoteSessionId,
-        val value: RemoteVirtualDisplayResult,
-    ) : RemoteTransportEvent
 
     data class ClipboardText(override val sessionId: RemoteSessionId, val value: String) : RemoteTransportEvent
 
@@ -494,9 +462,6 @@ class RemoteSessionWorkflow(
                 is RemoteTransportEvent.Statistics -> mutableSnapshot.value = mutableSnapshot.value.copy(statistics = event.value)
                 is RemoteTransportEvent.VideoSize -> mutableSnapshot.value = mutableSnapshot.value.copy(videoSize = event.value)
                 is RemoteTransportEvent.GamepadRumble -> Unit
-                is RemoteTransportEvent.VirtualDisplayResult -> {
-                    mutableSnapshot.value = mutableSnapshot.value.copy(lastVirtualDisplayResult = event.value)
-                }
                 is RemoteTransportEvent.ClipboardText -> mutableSnapshot.value = mutableSnapshot.value.copy(remoteClipboardText = event.value)
                 is RemoteTransportEvent.ClipboardFiles -> mutableSnapshot.value = mutableSnapshot.value.copy(
                     remoteClipboardFiles = event.value,

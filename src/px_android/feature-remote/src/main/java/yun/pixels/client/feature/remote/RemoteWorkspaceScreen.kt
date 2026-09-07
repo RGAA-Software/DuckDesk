@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.graphics.SurfaceTexture
 import android.net.Uri
-import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.InputDevice
 import android.view.MotionEvent
@@ -88,7 +87,6 @@ import yun.pixels.client.core.domain.session.RemoteMouseButton
 import yun.pixels.client.core.domain.session.RemoteSessionSnapshot
 import yun.pixels.client.core.domain.session.RemoteSessionFailure
 import yun.pixels.client.core.domain.session.RemoteSessionStatus
-import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
 import yun.pixels.client.core.domain.recording.RecordingState
 import yun.pixels.client.core.domain.voice.VoiceCallPhase
 import yun.pixels.client.core.domain.voice.VoiceCallState
@@ -105,7 +103,6 @@ fun RemoteWorkspaceScreen(
     onSurfaceDestroyed: (Surface) -> Unit,
     onInput: (InputCommand) -> Unit,
     onSwitchMonitor: (String) -> Unit,
-    onVirtualDisplayRequest: (String, RemoteVirtualDisplayOperation) -> Unit,
     onText: (String) -> Unit,
     onClipboardText: (String) -> Unit,
     onClipboardUris: (List<Uri>) -> Unit,
@@ -147,7 +144,6 @@ fun RemoteWorkspaceScreen(
         )
     }
     var allowPortraitGamepad by remember { mutableStateOf(false) }
-    var pendingVirtualDisplayRequest by remember { mutableStateOf<String?>(null) }
     var confirmSecureAttention by remember { mutableStateOf(false) }
     var confirmEndSession by remember { mutableStateOf(false) }
     var controlsExpanded by rememberSaveable { mutableStateOf(false) }
@@ -197,9 +193,6 @@ fun RemoteWorkspaceScreen(
     }
     LaunchedEffect(currentSurface, surfaceConsumerReady) {
         currentSurface?.takeIf { surfaceConsumerReady && it.isValid }?.let(latestSurfaceAvailable)
-    }
-    LaunchedEffect(snapshot.lastVirtualDisplayResult) {
-        if (snapshot.lastVirtualDisplayResult?.requestId == pendingVirtualDisplayRequest) pendingVirtualDisplayRequest = null
     }
     val surfaceCallback = remember {
         object : TextureView.SurfaceTextureListener {
@@ -410,13 +403,7 @@ fun RemoteWorkspaceScreen(
     if (showDisplays && connected != null) {
         RemoteDisplaysSheet(
             snapshot = snapshot,
-            pendingRequestId = pendingVirtualDisplayRequest,
             onSwitchMonitor = onSwitchMonitor,
-            onVirtualDisplayRequest = { operation ->
-                val requestId = "android-${SystemClock.elapsedRealtimeNanos()}"
-                pendingVirtualDisplayRequest = requestId
-                onVirtualDisplayRequest(requestId, operation)
-            },
             onDismiss = { showDisplays = false },
         )
     }
@@ -691,9 +678,7 @@ private fun formatElapsed(elapsedMillis: Long): String {
 @Composable
 private fun RemoteDisplaysSheet(
     snapshot: RemoteSessionSnapshot,
-    pendingRequestId: String?,
     onSwitchMonitor: (String) -> Unit,
-    onVirtualDisplayRequest: (RemoteVirtualDisplayOperation) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val connected = snapshot.status as? RemoteSessionStatus.Connected ?: return
@@ -721,36 +706,6 @@ private fun RemoteDisplaysSheet(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text(label) }
-                }
-            }
-            if (capabilities.supportsVirtualDisplays) {
-                Text(
-                    stringResource(
-                        R.string.remote_virtual_display_count,
-                        capabilities.ownedVirtualDisplayCount,
-                        capabilities.maximumVirtualDisplayCount,
-                    ),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FilledTonalButton(
-                        onClick = { onVirtualDisplayRequest(RemoteVirtualDisplayOperation.Create) },
-                        enabled = pendingRequestId == null &&
-                            capabilities.ownedVirtualDisplayCount < capabilities.maximumVirtualDisplayCount,
-                    ) { Text(stringResource(R.string.remote_virtual_display_add)) }
-                    OutlinedButton(
-                        onClick = { onVirtualDisplayRequest(RemoteVirtualDisplayOperation.RemoveLast) },
-                        enabled = pendingRequestId == null && capabilities.ownedVirtualDisplayCount > 0,
-                    ) { Text(stringResource(R.string.remote_virtual_display_remove)) }
-                }
-                if (pendingRequestId != null) {
-                    Text(stringResource(R.string.remote_virtual_display_processing), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                snapshot.lastVirtualDisplayResult?.takeIf { !it.accepted }?.let { result ->
-                    Text(
-                        result.errorMessage.ifBlank { result.errorCode.ifBlank { stringResource(R.string.remote_virtual_display_failed) } },
-                        color = MaterialTheme.colorScheme.error,
-                    )
                 }
             }
         }

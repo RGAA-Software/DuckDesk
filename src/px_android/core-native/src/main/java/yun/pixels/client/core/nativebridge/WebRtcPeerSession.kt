@@ -39,8 +39,6 @@ import yun.pixels.client.core.domain.recording.RecordingId
 import yun.pixels.client.core.domain.session.InputCommand
 import yun.pixels.client.core.domain.session.RemoteMouseButton
 import yun.pixels.client.core.domain.session.RemoteSessionStatistics
-import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
-import yun.pixels.client.core.domain.session.RemoteVirtualDisplayResult
 import yun.pixels.client.core.domain.voice.VoiceCallState
 
 internal class WebRtcRuntime(context: Context) : Closeable {
@@ -93,8 +91,6 @@ internal sealed interface WebRtcPeerEvent {
     data class ServerConfiguration(val value: px.PxMessage.ServerConfiguration) : WebRtcPeerEvent
 
     data class MonitorsChanged(val value: RtcMonitorUpdate) : WebRtcPeerEvent
-
-    data class VirtualDisplayResult(val value: RemoteVirtualDisplayResult) : WebRtcPeerEvent
 
     data class Statistics(val value: RemoteSessionStatistics) : WebRtcPeerEvent
 
@@ -395,11 +391,6 @@ internal class WebRtcPeerSession(
         )
     }
 
-    fun requestVirtualDisplay(requestId: String, operation: RemoteVirtualDisplayOperation): Boolean {
-        val request = buildRtcVirtualDisplayRequest(requestId, operation) ?: return false
-        return sendMediaMessage(request)
-    }
-
     fun sendFileTransfer(payload: ByteArray): Boolean {
         if (payload.isEmpty() || payload.size > MAX_CHANNEL_MESSAGE_BYTES) return false
         val activeChannel = synchronized(stateLock) {
@@ -509,9 +500,6 @@ internal class WebRtcPeerSession(
                 synchronized(stateLock) { activeMonitorName = update.activeMonitorName }
                 onEvent(WebRtcPeerEvent.MonitorsChanged(update))
             }
-
-            PxMessage.MessageType.kVirtualDisplayResponse -> parseRtcVirtualDisplayResult(message)
-                ?.let { result -> onEvent(WebRtcPeerEvent.VirtualDisplayResult(result)) }
 
             PxMessage.MessageType.kClipboardInfo -> {
                 if (message.clipboardInfo.type == PxMessage.ClipboardType.kClipboardText) {

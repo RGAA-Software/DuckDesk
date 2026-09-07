@@ -9,8 +9,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import px.PxMessage
-import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
-import yun.pixels.client.core.domain.session.RemoteVirtualDisplayResultState
 
 class RtcDataChannelProtocolTest {
     @Test
@@ -51,69 +49,21 @@ class RtcDataChannelProtocolTest {
     }
 
     @Test
-    fun virtualDisplayRequestUsesBoundedProductDefaults() {
-        val message = buildRtcVirtualDisplayRequest(" request-7 ", RemoteVirtualDisplayOperation.Create)?.build()
-        requireNotNull(message)
-
-        assertEquals(PxMessage.MessageType.kVirtualDisplayRequest, message.type)
-        assertEquals("request-7", message.virtualDisplayRequest.requestId)
-        assertEquals(PxMessage.RemoteVirtualDisplayOperation.kRemoteVirtualDisplayCreate, message.virtualDisplayRequest.operation)
-        assertEquals(1920, message.virtualDisplayRequest.width)
-        assertEquals(1080, message.virtualDisplayRequest.height)
-        assertEquals(60, message.virtualDisplayRequest.refreshHz)
-        assertNull(buildRtcVirtualDisplayRequest(" ", RemoteVirtualDisplayOperation.RemoveLast))
-        assertNull(buildRtcVirtualDisplayRequest("x".repeat(129), RemoteVirtualDisplayOperation.RemoveLast))
-    }
-
-    @Test
-    fun virtualDisplayResponseMapsToTypedBoundedResult() {
-        val message = PxMessage.Message.newBuilder()
-            .setType(PxMessage.MessageType.kVirtualDisplayResponse)
-            .setVirtualDisplayResponse(
-                PxMessage.VirtualDisplayResponse.newBuilder()
-                    .setRequestId("request-8")
-                    .setAccepted(true)
-                    .setState(PxMessage.VirtualDisplayResponseState.kVirtualDisplayNeedReconnect)
-                    .setTopologyChanged(true)
-                    .setTopologyGeneration(12)
-                    .setOwnedDisplayCount(3)
-                    .setErrorMessage("m".repeat(300)),
-            )
-            .build()
-
-        val result = parseRtcVirtualDisplayResult(message)
-        requireNotNull(result)
-        assertEquals("request-8", result.requestId)
-        assertEquals(RemoteVirtualDisplayResultState.NeedReconnect, result.state)
-        assertTrue(result.accepted)
-        assertTrue(result.topologyChanged)
-        assertEquals(12, result.topologyGeneration)
-        assertEquals(3, result.ownedDisplayCount)
-        assertEquals(256, result.errorMessage.length)
-    }
-
-    @Test
-    fun rtcCapabilitiesRequireInputScopeForDisplayManagement() {
+    fun rtcCapabilitiesKeepExistingMonitorSelectionIndependentFromInputScope() {
         val config = PxMessage.ServerConfiguration.newBuilder()
             .addMonitorsInfo(PxMessage.MonitorInfo.newBuilder().setName(" DISPLAY1 "))
             .setCapturingMonitorName("DISPLAY1")
             .setCanBeOperated(true)
-            .setVirtualDisplayEnabled(true)
-            .setVirtualDisplayOwnedCount(2)
-            .setVirtualDisplayMaxCount(8)
-            .setTopologyGeneration(9)
             .build()
 
         val viewOnly = config.toRtcSessionCapabilities(false, true, false, setOf("view"))
         assertFalse(viewOnly.supportsInput)
-        assertFalse(viewOnly.supportsVirtualDisplays)
+        assertEquals(listOf("DISPLAY1"), viewOnly.monitorNames)
+        assertEquals("DISPLAY1", viewOnly.activeMonitorName)
         val controlled = config.toRtcSessionCapabilities(false, true, false, setOf("view", "input"))
         assertTrue(controlled.supportsInput)
-        assertTrue(controlled.supportsVirtualDisplays)
         assertEquals(listOf("DISPLAY1"), controlled.monitorNames)
-        assertEquals(2, controlled.ownedVirtualDisplayCount)
-        assertEquals(8, controlled.maximumVirtualDisplayCount)
-        assertEquals(9, controlled.topologyGeneration)
+        assertEquals("DISPLAY1", controlled.activeMonitorName)
     }
 
     @Test

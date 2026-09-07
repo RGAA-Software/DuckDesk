@@ -33,7 +33,6 @@ import yun.pixels.client.core.domain.session.RemoteSessionTransport
 import yun.pixels.client.core.domain.session.RemoteTransportEvent
 import yun.pixels.client.core.domain.session.RemoteTransportStartResult
 import yun.pixels.client.core.domain.session.RemoteVideoSize
-import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
 import yun.pixels.client.core.domain.transfer.FileTransferTransport
 import yun.pixels.client.core.domain.transfer.FileTransferEvent
 import yun.pixels.client.core.domain.transfer.RemoteDirectoryEvent
@@ -279,15 +278,6 @@ class AndroidRemoteSessionTransport internal constructor(
         return rtc?.switchMonitor(monitorName) ?: native.switchMonitor(sessionId, monitorName)
     }
 
-    suspend fun requestVirtualDisplay(
-        sessionId: RemoteSessionId,
-        requestId: String,
-        operation: RemoteVirtualDisplayOperation,
-    ): Boolean {
-        val rtc = lock.withLock { rtcSessions[sessionId] }
-        return rtc?.requestVirtualDisplay(requestId, operation) ?: native.requestVirtualDisplay(sessionId, requestId, operation)
-    }
-
     suspend fun setAudioEnabled(sessionId: RemoteSessionId, enabled: Boolean): Boolean {
         val rtc = lock.withLock { rtcSessions[sessionId] }
         return rtc?.setAudioEnabled(enabled) ?: native.setAudioEnabled(sessionId, enabled)
@@ -432,17 +422,6 @@ class AndroidRemoteSessionTransport internal constructor(
                     ).also { value -> rtcCapabilities[sessionId] = value }
                 } ?: return
                 mutableEvents.emit(RemoteTransportEvent.CapabilitiesUpdated(sessionId, updated))
-            }
-
-            is WebRtcPeerEvent.VirtualDisplayResult -> {
-                val updated = lock.withLock {
-                    rtcCapabilities[sessionId]?.copy(
-                        ownedVirtualDisplayCount = event.value.ownedDisplayCount,
-                        topologyGeneration = event.value.topologyGeneration,
-                    )?.also { value -> rtcCapabilities[sessionId] = value }
-                }
-                if (updated != null) mutableEvents.emit(RemoteTransportEvent.CapabilitiesUpdated(sessionId, updated))
-                mutableEvents.emit(RemoteTransportEvent.VirtualDisplayResult(sessionId, event.value))
             }
 
             is WebRtcPeerEvent.Statistics -> mutableEvents.emit(RemoteTransportEvent.Statistics(sessionId, event.value))

@@ -43,7 +43,6 @@ import yun.pixels.client.core.domain.session.RemoteGamepadState
 import yun.pixels.client.core.domain.session.RemoteMouseButton
 import yun.pixels.client.core.domain.session.RemoteSessionId
 import yun.pixels.client.core.domain.session.RemoteTransportEvent
-import yun.pixels.client.core.domain.session.RemoteVirtualDisplayOperation
 import yun.pixels.client.core.domain.transfer.FileTransferTask
 import yun.pixels.client.core.domain.transfer.FileTransferState
 import yun.pixels.client.core.domain.transfer.RemoteDirectoryState
@@ -306,11 +305,6 @@ class RemoteSessionService : Service() {
         serviceScope.launch { transport.switchMonitor(request.id, monitorName) }
     }
 
-    private fun requestVirtualDisplay(requestId: String, operation: RemoteVirtualDisplayOperation) {
-        val request = currentRequest() ?: return
-        serviceScope.launch { transport.requestVirtualDisplay(request.id, requestId, operation) }
-    }
-
     private fun startUpload(source: Uri, remoteDirectory: String) {
         val connected = workflow.snapshot.value.status as? RemoteSessionStatus.Connected ?: return
         if (!connected.capabilities.supportsFileTransfer || remoteDirectory.isBlank()) return
@@ -558,9 +552,6 @@ class RemoteSessionService : Service() {
         fun sendInput(command: InputCommand) = this@RemoteSessionService.sendInput(command)
 
         fun switchMonitor(monitorName: String) = this@RemoteSessionService.switchMonitor(monitorName)
-
-        fun requestVirtualDisplay(requestId: String, operation: RemoteVirtualDisplayOperation) =
-            this@RemoteSessionService.requestVirtualDisplay(requestId, operation)
 
         fun sendText(text: String) = this@RemoteSessionService.sendText(text)
 

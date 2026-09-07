@@ -82,13 +82,9 @@ class JavaSessionCallback final {
     JavaSessionCallback& operator=(const JavaSessionCallback&) = delete;
 
     void Connected(const NativeSessionConfig& config, const std::vector<std::string>& monitor_names, const std::string& active_monitor_name,
-                   bool supports_audio, bool supports_input, bool supports_file_transfer, bool supports_clipboard, bool supports_virtual_displays,
-                   std::int32_t owned_virtual_display_count, std::int32_t maximum_virtual_display_count, std::int64_t topology_generation,
-                   bool supports_voice_call, bool voice_call_requires_headset) const;
+                   bool supports_audio, bool supports_input, bool supports_file_transfer, bool supports_clipboard, bool supports_voice_call,
+                   bool voice_call_requires_headset) const;
     void MonitorsChanged(const std::string& session_id, const std::vector<std::string>& monitor_names, const std::string& active_monitor_name) const;
-    void VirtualDisplayResult(const std::string& session_id, const std::string& request_id, bool accepted, std::int32_t state, bool topology_changed,
-                              std::int64_t topology_generation, std::int32_t owned_display_count, const std::string& error_code,
-                              const std::string& error_message) const;
     void FrameSizeChanged(const std::string& session_id, std::int32_t width, std::int32_t height) const;
     void Statistics(const std::string& session_id, std::int32_t frames_per_second, std::int32_t latency_millis, std::int32_t bitrate_kbps) const;
     void GamepadRumble(const std::string& session_id, std::int32_t strong_motor, std::int32_t weak_motor) const;
@@ -192,8 +188,6 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     bool SetVoiceSpeakerMuted(bool muted);
     bool SendSecureAttention();
     bool SwitchMonitor(const std::string& monitor_name);
-    bool RequestVirtualDisplay(const std::string& request_id, std::int32_t operation, std::int32_t width, std::int32_t height,
-                               std::int32_t refresh_hz);
     bool SetAudioEnabled(bool enabled);
     void Stop();
 

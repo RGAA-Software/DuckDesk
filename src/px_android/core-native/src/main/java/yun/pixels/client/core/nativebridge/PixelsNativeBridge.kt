@@ -15,27 +15,11 @@ interface NativeSessionListener {
         supportsInput: Boolean,
         supportsFileTransfer: Boolean,
         supportsClipboard: Boolean,
-        supportsVirtualDisplays: Boolean,
-        ownedVirtualDisplayCount: Int,
-        maximumVirtualDisplayCount: Int,
-        topologyGeneration: Long,
         supportsVoiceCall: Boolean,
         voiceCallRequiresHeadset: Boolean,
     )
 
     fun onMonitorsChanged(sessionId: String, monitorNames: Array<String>, activeMonitorName: String)
-
-    fun onVirtualDisplayResult(
-        sessionId: String,
-        requestId: String,
-        accepted: Boolean,
-        state: Int,
-        topologyChanged: Boolean,
-        topologyGeneration: Long,
-        ownedDisplayCount: Int,
-        errorCode: String,
-        errorMessage: String,
-    )
 
     fun onFrameSizeChanged(sessionId: String, width: Int, height: Int)
 
@@ -206,15 +190,6 @@ internal object PixelsNativeBridge {
     ): Boolean
 
     external fun switchMonitor(nativeSessionId: Long, monitorName: String): Boolean
-
-    external fun requestVirtualDisplay(
-        nativeSessionId: Long,
-        requestId: String,
-        operation: Int,
-        width: Int,
-        height: Int,
-        refreshHz: Int,
-    ): Boolean
 
     external fun setAudioEnabled(nativeSessionId: Long, enabled: Boolean): Boolean
 
