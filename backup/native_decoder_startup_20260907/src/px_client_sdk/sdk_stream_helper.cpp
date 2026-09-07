@@ -13,10 +13,8 @@ struct StartCode final {
 
 std::optional<StartCode> FindStartCode(const std::string_view frame, const std::size_t from) {
     for (auto index = from; index + 3U <= frame.size(); ++index) {
-        if (frame[index] != '\0' || frame[index + 1U] != '\0')
-            continue;
-        if (frame[index + 2U] == '\1')
-            return StartCode{index, 3U};
+        if (frame[index] != '\0' || frame[index + 1U] != '\0') continue;
+        if (frame[index + 2U] == '\1') return StartCode{index, 3U};
         if (index + 4U <= frame.size() && frame[index + 2U] == '\0' && frame[index + 3U] == '\1') {
             return StartCode{index, 4U};
         }
@@ -24,12 +22,12 @@ std::optional<StartCode> FindStartCode(const std::string_view frame, const std::
     return std::nullopt;
 }
 
-template <typename Action> void ForEachAnnexBNalUnit(const std::string_view frame, Action action) {
+template <typename Action>
+void ForEachAnnexBNalUnit(const std::string_view frame, Action action) {
     auto start = FindStartCode(frame, 0U);
     while (start) {
         const auto header = start->offset + start->size;
-        if (header >= frame.size())
-            return;
+        if (header >= frame.size()) return;
         const auto next = FindStartCode(frame, header + 1U);
         const auto end = next ? next->offset : frame.size();
         action(frame.substr(start->offset, end - start->offset), static_cast<std::uint8_t>(frame[header]));
@@ -60,24 +58,9 @@ std::string StreamHelper::ExtractH265ParameterSets(const std::string_view frame)
     std::string result{};
     ForEachAnnexBNalUnit(frame, [&result](const std::string_view nal, const std::uint8_t header) {
         const auto type = static_cast<std::uint8_t>((header >> 1U) & 0x3FU);
-        if (type == 32U || type == 33U || type == 34U)
-            result.append(nal);
+        if (type == 32U || type == 33U || type == 34U) result.append(nal);
     });
     return result;
-}
-
-bool StreamHelper::HasDecoderConfiguration(const bool hevc, const std::string_view frame) {
-    if (!hevc) {
-        const auto sets = ExtractH264ParameterSets(frame);
-        return !sets.sps.empty() && !sets.pps.empty();
-    }
-    unsigned int present{};
-    ForEachAnnexBNalUnit(frame, [&present](const std::string_view, const std::uint8_t header) {
-        const auto type = static_cast<std::uint8_t>((header >> 1U) & 0x3FU);
-        if (type >= 32U && type <= 34U)
-            present |= 1U << (type - 32U);
-    });
-    return present == 7U;
 }
 
 } // namespace px

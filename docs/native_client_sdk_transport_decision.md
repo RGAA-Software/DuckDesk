@@ -208,3 +208,15 @@ RawImage 克隆保留帧资源、尺寸及颜色标记；libplacebo 映射在全
 下一步继续整理这些真实资源边界，再拆分平台解码适配和独立 SDK 构建；不扩展原生传输种类。
 旧实现完整保存在 `backup/native_vulkan_frame_ownership_20260907`，验证与限制见
 [Vulkan 显示帧交付记录](native_vulkan_frame_ownership_checkpoint_20260907.md)。
+
+## 第八检查点：USB 真机、解码启动门禁与高 DPI 光标（2026-09-07）
+
+共享 SDK 创建/重建解码器前等待完整关键帧和参数集，等待期间限频请求关键帧，修复首个 UDP 帧丢失后无参考帧启动造成的花屏。
+手机空间阻塞已解除，最终 APK 已覆盖安装；局域网及账号设备连接、实际截图、前后台恢复和结束回设备页完成短测。
+账号 Console 在 USB 测试中使用既有 localhost 地址加 ADB reverse；不代表公网或无 USB 环境验证。
+
+Windows 自连另发现物理光标像素被 Qt 按 150% DPI 重复放大，光标消息最终超过 WS 接收上限。
+现已修正图像 DPR/热点换算及像素所有权，未放大 WS 限制，也未增加传输回退。WS/WSS 保留错误原因日志，临时 Render 大消息诊断已撤回。
+Windows Client/Render、Android Debug 编译通过；8 组 CTest、20 秒 Windows 连续解码冒烟通过；dist 已同步并验证 SHA-256。
+本检查点不包含所有工具实测、iOS/macOS 适配或 SDK 平台资源隔离收口；下一步仍是 CPU/D3D11/设备上下文/Android Surface 边界整理。
+详细证据与剩余范围见 [USB 真机检查记录](native_decoder_startup_usb_checkpoint_20260907.md)。

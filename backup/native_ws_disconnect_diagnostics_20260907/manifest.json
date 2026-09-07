@@ -1,0 +1,16 @@
+{
+  "revision": "694a5d6bbc38f26b321253b78e67bcaf65885f84",
+  "reason": "Preserve WS/WSS disconnect handlers before adding transport error code and reason diagnostics",
+  "files": [
+    {
+      "path": "src/px_client_sdk/connection/ws_connection.cpp",
+      "sha256": "5E5A37FA29685D7C7053D6B5B0B70BA9C09767BCFEBBBA4F0B6DEE13C4DC02F7",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/wss_connection.cpp",
+      "sha256": "4858F1582771CEE4E572C6C31A431ADBA3D1604230CE12BADB0382A979A2513C",
+      "status": ""
+    }
+  ]
+}

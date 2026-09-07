@@ -2,14 +2,14 @@
 // Created by RGAA on 8/12/2024.
 //
 
-#include "ws_connection.h"
+#include "wss_connection.h"
 
 #include <algorithm>
 #include <chrono>
 #include <utility>
 
 #include <asio2/asio2.hpp>
-#include <asio2/websocket/ws_client.hpp>
+#include <asio2/websocket/wss_client.hpp>
 
 #include "px_common/asio_client_shutdown.h"
 #include "px_common/data.h"
@@ -22,7 +22,7 @@
 
 namespace px {
 
-WsConnection::WsConnection(
+WssConnection::WssConnection(
     const std::shared_ptr<ThunderSdkParams>& params,
     const std::shared_ptr<MessageNotifier>& notifier,
     const std::string& host,
@@ -30,11 +30,11 @@ WsConnection::WsConnection(
     const std::string& path)
     : Connection(params, notifier), host_(host), port_(port), path_(path) {}
 
-WsConnection::~WsConnection() {
+WssConnection::~WssConnection() {
     Stop();
 }
 
-void WsConnection::Start() {
+void WssConnection::Start() {
     std::unique_lock operation_lock(operation_mutex_);
     if (started_.exchange(true, std::memory_order_acq_rel)) {
         return;
@@ -43,7 +43,7 @@ void WsConnection::Start() {
     terminal_rejection_.store(false, std::memory_order_release);
     const auto runtime = msg_notifier_ ? msg_notifier_->GetAsyncRuntime() : std::shared_ptr<PxAsyncRuntime>{};
     if (!runtime || runtime->IsStopping()) {
-        LOGE("event=module.start component=sdk_ws code=ASYNC_RUNTIME_UNAVAILABLE "
+        LOGE("event=module.start component=sdk_wss code=ASYNC_RUNTIME_UNAVAILABLE "
              "operation=start_client outcome=failed recoverable=false");
         started_.store(false, std::memory_order_release);
         exiting_.store(true, std::memory_order_release);
@@ -54,11 +54,11 @@ void WsConnection::Start() {
         std::lock_guard lock(stop_mutex_);
         async_runtime_ = runtime;
         async_scope_ = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
-        reconnect_supervisor_ = PxReconnectSupervisor::Create(runtime, MakeWebSocketReconnectOptions("sdk_ws"));
-        adapter_slot_ = std::make_shared<PxReconnectAdapterSlot<asio2::ws_client>>();
+        reconnect_supervisor_ = PxReconnectSupervisor::Create(runtime, MakeWebSocketReconnectOptions("sdk_wss"));
+        adapter_slot_ = std::make_shared<PxReconnectAdapterSlot<asio2::wss_client>>();
     }
     if (!async_scope_ || !reconnect_supervisor_ || !adapter_slot_) {
-        LOGE("event=module.start component=sdk_ws code=ASYNC_WORKFLOW_CREATE_FAILED "
+        LOGE("event=module.start component=sdk_wss code=ASYNC_WORKFLOW_CREATE_FAILED "
              "operation=start_client outcome=failed recoverable=false");
         operation_lock.unlock();
         Stop();
@@ -73,10 +73,10 @@ void WsConnection::Start() {
             const auto self = weak_self.lock();
             if (!self || self->exiting_) {
                 return PxResult<void>::Failure(MakePxAsyncError(
-                    PxAsyncErrorCode::kServiceStopped, "sdk-ws.start", "SDK websocket owner is stopping"));
+                    PxAsyncErrorCode::kServiceStopped, "sdk-wss.start", "SDK secure websocket owner is stopping"));
             }
-            const auto client = std::make_shared<asio2::ws_client>();
-            const auto weak_client = std::weak_ptr<asio2::ws_client>(client);
+            const auto client = std::make_shared<asio2::wss_client>();
+            const auto weak_client = std::weak_ptr<asio2::wss_client>(client);
             client->set_auto_reconnect(false);
             client->set_timeout(std::chrono::milliseconds(2000));
             client->bind_init([weak_self, weak_client]() {
@@ -97,22 +97,21 @@ void WsConnection::Start() {
                 }
                 if (asio2::get_last_error()) {
                     static_cast<void>(supervisor->FailActive(generation, MakePxAsyncError(
-                        PxAsyncErrorCode::kServiceNotConnected, "sdk-ws.connect", asio2::last_error_msg(), true)));
+                        PxAsyncErrorCode::kServiceNotConnected, "sdk-wss.connect", asio2::last_error_msg(), true)));
                     return;
                 }
-                LOGI("event=transport.tcp_connected component=sdk_ws local_address={} local_port={}",
+                LOGI("event=transport.tcp_connected component=sdk_wss local_address={} local_port={}",
                      current->local_address(), current->local_port());
             }).bind_disconnect([weak_self, supervisor, generation]() {
                 if (const auto self = weak_self.lock(); self && !self->exiting_.load(std::memory_order_acquire)) {
-                    LOGW("SDK websocket disconnected: error={}, reason={}", asio2::get_last_error().value(), asio2::last_error_msg());
                     static_cast<void>(supervisor->MarkDisconnected(generation, MakePxAsyncError(
-                        PxAsyncErrorCode::kServiceNotConnected, "sdk-ws.disconnect", "SDK websocket disconnected", true)));
+                        PxAsyncErrorCode::kServiceNotConnected, "sdk-wss.disconnect", "SDK secure websocket disconnected", true)));
                 }
             }).bind_upgrade([weak_self, supervisor, generation]() {
                 if (const auto self = weak_self.lock(); self && !self->exiting_.load(std::memory_order_acquire)) {
                     if (asio2::get_last_error()) {
                         static_cast<void>(supervisor->FailActive(generation, MakePxAsyncError(
-                            PxAsyncErrorCode::kProtocolError, "sdk-ws.upgrade", asio2::last_error_msg(), true)));
+                            PxAsyncErrorCode::kProtocolError, "sdk-wss.upgrade", asio2::last_error_msg(), true)));
                         return;
                     }
                     static_cast<void>(supervisor->MarkReady(generation));
@@ -126,7 +125,7 @@ void WsConnection::Start() {
                 const auto rejection = ParseWsControlRejection(data);
                 if (rejection != WsControlRejection::kNone) {
                     self->terminal_rejection_.store(true, std::memory_order_release);
-                    LOGW("event=transport.connection_terminal component=sdk_ws code=SDK_WEBSOCKET_SESSION_REJECTED "
+                    LOGW("event=transport.connection_terminal component=sdk_wss code=SDK_WEBSOCKET_SESSION_REJECTED "
                          "operation=receive outcome=rejected recoverable=false reason={}", static_cast<int>(rejection));
                     if (self->msg_notifier_) {
                         self->msg_notifier_->SendAppMessage(SdkMsgWsConnectionRejected{.rejection_ = rejection});
@@ -139,10 +138,10 @@ void WsConnection::Start() {
                 }
             });
             adapter_slot->Replace(client);
-            return StartWebSocketAdapter(client, host, port, path, "sdk-ws.start");
+            return StartWebSocketAdapter(client, host, port, path, "sdk-wss.start");
         },
         .stop_attempt = [adapter_slot](const std::chrono::steady_clock::time_point deadline) {
-            return StopWebSocketAdapter(adapter_slot->Snapshot(), deadline, "sdk-ws.retry-reset");
+            return StopWebSocketAdapter(adapter_slot->Snapshot(), deadline, "sdk-wss.retry-reset");
         },
         .on_ready = [weak_self](std::uint64_t) {
             if (const auto self = weak_self.lock(); self && !self->exiting_.load(std::memory_order_acquire) && self->conn_cbk_) {
@@ -156,32 +155,32 @@ void WsConnection::Start() {
             }
         },
     };
-    if (!async_scope_->Spawn("sdk-ws-reconnect", [supervisor = reconnect_supervisor_, hooks = std::move(hooks)]() mutable {
+    if (!async_scope_->Spawn("sdk-wss-reconnect", [supervisor = reconnect_supervisor_, hooks = std::move(hooks)]() mutable {
             return PxReconnectSupervisor::Run(std::move(supervisor), std::move(hooks));
         })) {
-        LOGE("event=module.start component=sdk_ws code=ASYNC_SCOPE_SPAWN_FAILED "
+        LOGE("event=module.start component=sdk_wss code=ASYNC_SCOPE_SPAWN_FAILED "
              "operation=start_reconnect outcome=failed recoverable=false");
         operation_lock.unlock();
         Stop();
     }
 }
 
-std::shared_ptr<PxAsyncScope> WsConnection::BeginStop() {
+std::shared_ptr<PxAsyncScope> WssConnection::BeginStop() {
     if (exiting_.exchange(true, std::memory_order_acq_rel)) {
         return async_scope_;
     }
     if (reconnect_supervisor_) {
         reconnect_supervisor_->Stop();
     }
-    const auto client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::ws_client>{};
-    static_cast<void>(RequestAsioClientStop(client, "sdk-ws.adapter-stop"));
+    const auto client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::wss_client>{};
+    static_cast<void>(RequestAsioClientStop(client, "sdk-wss.adapter-stop"));
     if (async_scope_) {
         async_scope_->BeginStop();
     }
     return async_scope_;
 }
 
-void WsConnection::FinishStop() {
+void WssConnection::FinishStop() {
     std::lock_guard lock(stop_mutex_);
     if (async_scope_ && async_scope_->GetStatistics().outstanding != 0) {
         return;
@@ -196,7 +195,7 @@ void WsConnection::FinishStop() {
     deferred_stop_scheduled_.store(false, std::memory_order_release);
 }
 
-void WsConnection::ScheduleDeferredStop() {
+void WssConnection::ScheduleDeferredStop() {
     if (deferred_stop_scheduled_.exchange(true, std::memory_order_acq_rel)) {
         return;
     }
@@ -212,18 +211,18 @@ void WsConnection::ScheduleDeferredStop() {
         }
     })) {
         deferred_stop_scheduled_.store(false, std::memory_order_release);
-        LOGE("event=async.scope_drain component=sdk_ws code=ASYNC_DEFER_FAILED operation=stop_client "
+        LOGE("event=async.scope_drain component=sdk_wss code=ASYNC_DEFER_FAILED operation=stop_client "
              "outcome=failed recoverable=false");
     }
 }
 
-void WsConnection::Stop() {
+void WssConnection::Stop() {
     std::unique_lock operation_lock(operation_mutex_);
     Connection::Stop();
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
     const auto scope = BeginStop();
     if (scope && scope->IsScopeThread()) {
-        LOGI("event=async.scope_drain component=sdk_ws operation=stop_client outcome=deferred "
+        LOGI("event=async.scope_drain component=sdk_wss operation=stop_client outcome=deferred "
              "reason=shutdown_requested_from_runtime_thread outstanding={}",
              scope->GetStatistics().outstanding);
         ScheduleDeferredStop();
@@ -233,11 +232,11 @@ void WsConnection::Stop() {
         std::chrono::milliseconds::zero(),
         std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()));
     const auto scope_drained = !scope || scope->WaitFor(remaining);
-    const auto client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::ws_client>{};
-    static_cast<void>(RequestAsioClientStop(client, "sdk-ws.adapter-stop-confirm"));
+    const auto client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::wss_client>{};
+    static_cast<void>(RequestAsioClientStop(client, "sdk-wss.adapter-stop-confirm"));
     const auto adapter_stopped = WaitForAsioClientStoppedBlocking(client, deadline);
     if (!scope_drained || !adapter_stopped) {
-        LOGE("event=async.scope_drain component=sdk_ws code=ASYNC_SCOPE_DRAIN_TIMEOUT "
+        LOGE("event=async.scope_drain component=sdk_wss code=ASYNC_SCOPE_DRAIN_TIMEOUT "
              "operation=stop_client outcome=timeout recoverable=false outstanding={}",
              scope ? scope->GetStatistics().outstanding : 0);
         return;
@@ -245,17 +244,17 @@ void WsConnection::Stop() {
     FinishStop();
 }
 
-void WsConnection::PostBinaryMessage(std::shared_ptr<Data> msg) {
+void WssConnection::PostBinaryMessage(std::shared_ptr<Data> msg) {
     if (!msg) {
-        LOGW("event=transport.message_rejected component=sdk_ws code=INVALID_PAYLOAD "
+        LOGW("event=transport.message_rejected component=sdk_wss code=INVALID_PAYLOAD "
              "operation=send_binary outcome=rejected recoverable=false");
         return;
     }
-    std::shared_ptr<asio2::ws_client> client;
+    std::shared_ptr<asio2::wss_client> client;
     std::shared_ptr<PxReconnectSupervisor> supervisor;
     {
         std::lock_guard lock(stop_mutex_);
-        client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::ws_client>{};
+        client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::wss_client>{};
         supervisor = reconnect_supervisor_;
     }
     if (!exiting_.load(std::memory_order_acquire) && client && client->is_started() && supervisor && supervisor->IsReady()) {
@@ -273,12 +272,12 @@ void WsConnection::PostBinaryMessage(std::shared_ptr<Data> msg) {
     }
 }
 
-void WsConnection::PostTextMessage(const std::string& msg) {
-    std::shared_ptr<asio2::ws_client> client;
+void WssConnection::PostTextMessage(const std::string& msg) {
+    std::shared_ptr<asio2::wss_client> client;
     std::shared_ptr<PxReconnectSupervisor> supervisor;
     {
         std::lock_guard lock(stop_mutex_);
-        client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::ws_client>{};
+        client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::wss_client>{};
         supervisor = reconnect_supervisor_;
     }
     if (!exiting_.load(std::memory_order_acquire) && client && client->is_started() && supervisor && supervisor->IsReady()) {
@@ -296,14 +295,14 @@ void WsConnection::PostTextMessage(const std::string& msg) {
     }
 }
 
-bool WsConnection::IsAlive() {
+bool WssConnection::IsAlive() {
     std::lock_guard lock(stop_mutex_);
-    const auto client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::ws_client>{};
+    const auto client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::wss_client>{};
     return !exiting_.load(std::memory_order_acquire) && client && client->is_started() && reconnect_supervisor_
         && reconnect_supervisor_->IsReady();
 }
 
-std::uint64_t WsConnection::ConnectionGeneration() const {
+std::uint64_t WssConnection::ConnectionGeneration() const {
     std::lock_guard lock(stop_mutex_);
     return reconnect_supervisor_ ? reconnect_supervisor_->Generation() : 0;
 }

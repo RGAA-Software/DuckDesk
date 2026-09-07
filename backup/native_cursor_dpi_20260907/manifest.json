@@ -1,0 +1,21 @@
+{
+  "revision": "694a5d6bbc38f26b321253b78e67bcaf65885f84",
+  "reason": "Preserve pre-fix Windows cursor bitmap ownership, DPI conversion and build registration before native self-loop fix",
+  "files": [
+    {
+      "path": "src/px_client/CMakeLists.txt",
+      "sha256": "EA320627635F421435FCB34C40E37DB98C129EB996D447059654E9074A51D4CB",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.cpp",
+      "sha256": "715510B305982FE86547A00745BA638B5F63E287B39445E07B4934D640CD9AB9",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.h",
+      "sha256": "40F3E5AA20E8FF382C778AA1170DAD24F4C735D8CFF6E2696396BEFA70B5A0DC",
+      "status": ""
+    }
+  ]
+}

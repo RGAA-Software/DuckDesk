@@ -1,0 +1,31 @@
+{
+  "revision": "694a5d6bbc38f26b321253b78e67bcaf65885f84",
+  "reason": "Preserve shared SDK decoder creation and stream helper before requiring a complete key frame and parameter sets at startup",
+  "files": [
+    {
+      "path": "src/px_client_sdk/sdk_stream_helper.cpp",
+      "sha256": "5BDE8172C39AD91DC9B6A476B04DFB5D8538D4DF890842393F3BCEE43591469D",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_stream_helper.h",
+      "sha256": "E35AB540D7B213E8DFEDD17ABA7898171FF58B709FD9F79C720AB06AC57A9256",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_sdk_stream_helper.cpp",
+      "sha256": "87F174DDCF43451DB46DF2AFB384A684E594FB944208243D9D495FE65D25AE82",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/thunder_sdk.cpp",
+      "sha256": "95B7F6AC5025C13493654B9A07F6EE00D8551BAB79DB634FBF28DDC60E9517E3",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/thunder_sdk.h",
+      "sha256": "69E04C4B644B476C01B419ABB9298A0EA8C6130B9C762166DE43C29B84581DD0",
+      "status": ""
+    }
+  ]
+}

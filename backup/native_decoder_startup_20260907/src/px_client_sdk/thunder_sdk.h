@@ -17,7 +17,6 @@
 #include "sdk_messages.h"
 #include "sdk_net_client.h"
 #include "sdk_decoder_render_type.h"
-#include "decoder_startup_gate.h"
 
 namespace px {
 class Data;
@@ -150,7 +149,6 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     std::shared_ptr<Thread> misc_thread_ = nullptr;
 
     std::map<std::string, uint64_t> last_received_video_timestamps_;
-    std::map<std::string, DecoderStartupGate> decoder_startup_gates_{};
 
     std::atomic_bool has_config_msg_ = false;
     std::atomic_bool has_video_frame_msg_ = false;

@@ -15,7 +15,6 @@ class StreamHelper final {
   public:
     static H264ParameterSets ExtractH264ParameterSets(std::string_view frame);
     static std::string ExtractH265ParameterSets(std::string_view frame);
-    static bool HasDecoderConfiguration(bool hevc, std::string_view frame);
 };
 
 } // namespace px

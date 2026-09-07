@@ -22,7 +22,6 @@
 #include "sdk_net_client.h"
 #include "sdk_cast_receiver.h"
 #include "sdk_video_decoder_factory.h"
-#include "sdk_stream_helper.h"
 #include "sdk_ffmpeg_soft_decoder.h"
 #include "sdk_ffmpeg_decoder.h"
 #include "sdk_ffmpeg_vulkan_decoder.h"
@@ -245,16 +244,6 @@ namespace px
                     }
                 }
                 if (!video_decoder) {
-                    const auto configured = StreamHelper::HasDecoderConfiguration(frame.type() == px::kNetHevc, frame.data());
-                    const auto decision = self->decoder_startup_gates_[monitor_name].Observe(
-                        frame.key(), configured, std::chrono::steady_clock::now());
-                    if (decision != DecoderStartupGate::Decision::kDecode) {
-                        if (decision == DecoderStartupGate::Decision::kRequestKeyFrame) {
-                            LOGI("Waiting for decoder startup key frame and complete parameter sets");
-                            self->RequestIFrame();
-                        }
-                        return;
-                    }
 #ifdef ANDROID
                     // Some Android devices can't decode 2 or more streams at the same time, so, re-create it .
                     if (!video_decoders_.empty()) {

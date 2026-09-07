@@ -202,6 +202,9 @@ namespace px
 
         QWidget* close_event_occurred_widget_ = nullptr;
 
+        std::string last_cursor_bitmap_data_;
+        std::string cursor_bitmap_data_;
+
         QSize def_window_size_ = QSize(1366, 768);
 
         // disconnected dialog

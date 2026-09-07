@@ -190,11 +190,6 @@ target_link_libraries(test_client_clipboard_file_stream PRIVATE
     px_common px_message GTest::gtest GTest::gtest_main)
 
 if(BUILD_TESTING)
-    add_executable(test_client_cursor_image tests/test_cursor_image.cpp)
-    target_include_directories(test_client_cursor_image PRIVATE ${CMAKE_SOURCE_DIR}/src)
-    target_link_libraries(test_client_cursor_image PRIVATE Qt6::Gui GTest::gtest GTest::gtest_main)
-    add_test(NAME client_cursor_image COMMAND test_client_cursor_image)
-
     add_executable(test_client_latest_frame_dispatch_queue
         tests/test_latest_frame_dispatch_queue.cpp
     )

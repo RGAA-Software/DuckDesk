@@ -1,0 +1,11 @@
+{
+  "revision": "694a5d6bbc38f26b321253b78e67bcaf65885f84",
+  "reason": "Preserve Render router before temporary oversized-message metadata diagnostics; diagnostics removed after cursor root cause confirmation",
+  "files": [
+    {
+      "path": "src/px_render/network/ws/ws_stream_router.cpp",
+      "sha256": "8F34856E9F7AC131E663FD8BE4DC17F3B06E2880729D47F9FBB540E82DDD9D14",
+      "status": ""
+    }
+  ]
+}

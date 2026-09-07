@@ -48,7 +48,6 @@
 #include "px_client/modules/media_recording/media_recording_module.h"
 #include "ct_virtual_display_protocol.h"
 #include "ct_voice_call_protocol.h"
-#include "cursor_image.h"
 #include "px_voice_call/voice_audio_endpoint.h"
 #include "px_qt_widget/notify/notifymanager.h"
 #include "px_message/proto_converter.h"
@@ -623,13 +622,18 @@ namespace px
                     return;
                 }
                 const auto& cursor_info = msg->cursor_info_sync();
-                const auto cursor_image = MakeCursorImage(cursor_info.bitmap(), cursor_info.width(), cursor_info.height(), cursor_info.hotspot_x(),
-                                                         cursor_info.hotspot_y(), task_self->devicePixelRatioF());
-                if (!cursor_image) {
+                const std::string bitmap_data = cursor_info.bitmap();
+                if (bitmap_data.empty() || task_self->last_cursor_bitmap_data_ == bitmap_data) {
                     return;
                 }
-                const auto pixmap = QPixmap::fromImage(cursor_image->image);
-                task_self->cursor_ = QCursor(pixmap, cursor_image->logical_hotspot.x(), cursor_image->logical_hotspot.y());
+                task_self->cursor_bitmap_data_ = bitmap_data;
+                task_self->last_cursor_bitmap_data_ = bitmap_data;
+                const QImage image(
+                    reinterpret_cast<const uchar*>(task_self->cursor_bitmap_data_.data()),
+                    cursor_info.width(), cursor_info.height(), QImage::Format_RGBA8888);
+                const QPixmap pixmap = QPixmap::fromImage(image);
+                QCursor cursor(pixmap, cursor_info.hotspot_x(), cursor_info.hotspot_y());
+                task_self->cursor_ = cursor;
                 task_self->UpdateLocalCursor();
             });
         });

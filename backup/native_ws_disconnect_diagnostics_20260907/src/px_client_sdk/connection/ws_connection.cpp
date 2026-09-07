@@ -104,7 +104,6 @@ void WsConnection::Start() {
                      current->local_address(), current->local_port());
             }).bind_disconnect([weak_self, supervisor, generation]() {
                 if (const auto self = weak_self.lock(); self && !self->exiting_.load(std::memory_order_acquire)) {
-                    LOGW("SDK websocket disconnected: error={}, reason={}", asio2::get_last_error().value(), asio2::last_error_msg());
                     static_cast<void>(supervisor->MarkDisconnected(generation, MakePxAsyncError(
                         PxAsyncErrorCode::kServiceNotConnected, "sdk-ws.disconnect", "SDK websocket disconnected", true)));
                 }
