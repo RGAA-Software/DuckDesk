@@ -224,72 +224,7 @@ fun RemoteWorkspaceScreen(
         }
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        val videoAspectRatio = snapshot.videoSize?.let { it.width.toFloat() / it.height } ?: (16f / 9f)
-        val containerAspectRatio = if (maxHeight.value > 0f) maxWidth.value / maxHeight.value else videoAspectRatio
-        val videoModifier = if (videoAspectRatio >= containerAspectRatio) {
-            Modifier.fillMaxWidth().aspectRatio(videoAspectRatio)
-        } else {
-            Modifier.fillMaxHeight().aspectRatio(videoAspectRatio)
-        }
-        AndroidView(
-            factory = { viewContext ->
-                TextureView(viewContext).also { view ->
-                    view.isOpaque = true
-                    view.isFocusable = true
-                    view.isFocusableInTouchMode = true
-                    view.surfaceTextureListener = surfaceCallback
-                    view.setOnTouchListener { touchedView, event ->
-                        if (event.isFromSource(InputDevice.SOURCE_MOUSE)) {
-                            handlePhysicalMouse(event, touchedView.width, touchedView.height, latestInput)
-                            return@setOnTouchListener true
-                        }
-                        if (latestMode == RemoteInputMode.Gamepad) return@setOnTouchListener true
-                        interpreter.mode = latestMode
-                        interpreter.touchpadSensitivity = latestSensitivity
-                        interpreter.onTouch(event.toTouchSample(touchedView.width, touchedView.height))
-                        if (event.actionMasked == MotionEvent.ACTION_DOWN) touchedView.requestFocus()
-                        if (event.actionMasked == MotionEvent.ACTION_UP) touchedView.performClick()
-                        true
-                    }
-                    view.setOnGenericMotionListener { _, event ->
-                        when {
-                            event.isFromSource(InputDevice.SOURCE_JOYSTICK) -> handlePhysicalGamepadMotion(event, gamepadController)
-                            event.isFromSource(InputDevice.SOURCE_MOUSE) -> handlePhysicalMouse(event, view.width, view.height, latestInput)
-                            else -> false
-                        }
-                    }
-                    view.setOnKeyListener { _, keyCode, event ->
-                        if (event.isFromSource(InputDevice.SOURCE_GAMEPAD) || event.isFromSource(InputDevice.SOURCE_JOYSTICK)) {
-                            val button = keyCode.toRemoteGamepadButton() ?: return@setOnKeyListener false
-                            if (event.repeatCount == 0) gamepadController.setButton(button, event.action == KeyEvent.ACTION_DOWN)
-                            return@setOnKeyListener true
-                        }
-                        val key = keyCode.toRemoteKey() ?: return@setOnKeyListener false
-                        when (event.action) {
-                            KeyEvent.ACTION_DOWN -> if (event.repeatCount == 0) latestInput(InputCommand.Key(key, true))
-                            KeyEvent.ACTION_UP -> latestInput(InputCommand.Key(key, false))
-                            else -> return@setOnKeyListener false
-                        }
-                        return@setOnKeyListener true
-                    }
-                }
-            },
-            modifier = videoModifier.align(Alignment.Center),
-            onRelease = { view ->
-                interpreter.cancelGesture()
-                gamepadController.reset()
-                view.setOnTouchListener(null)
-                view.setOnGenericMotionListener(null)
-                view.setOnKeyListener(null)
-                view.surfaceTextureListener = null
-                currentSurface?.let { surface ->
-                    currentSurface = null
-                    latestSurfaceDestroyed(surface)
-                    surface.release()
-                }
-            },
-        )
+    Column(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         RemoteTopBar(
             snapshot = snapshot,
             audioEnabled = audioEnabled,
@@ -318,14 +253,81 @@ fun RemoteWorkspaceScreen(
             onOpenTransfers = onOpenTransfers,
             onEndSession = requestEndSession,
         )
-        if (inputMode == RemoteInputMode.Gamepad && snapshot.status is RemoteSessionStatus.Connected) {
-            if (maxWidth > maxHeight || allowPortraitGamepad) {
-                RemoteGamepadOverlay(gamepadController, gamepadConfiguration)
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f).background(Color.Black)) {
+            val videoAspectRatio = snapshot.videoSize?.let { it.width.toFloat() / it.height } ?: (16f / 9f)
+            val containerAspectRatio = if (maxHeight.value > 0f) maxWidth.value / maxHeight.value else videoAspectRatio
+            val videoModifier = if (videoAspectRatio >= containerAspectRatio) {
+                Modifier.fillMaxWidth().aspectRatio(videoAspectRatio)
             } else {
-                GamepadPortraitPrompt { allowPortraitGamepad = true }
+                Modifier.fillMaxHeight().aspectRatio(videoAspectRatio)
             }
+            AndroidView(
+                factory = { viewContext ->
+                    TextureView(viewContext).also { view ->
+                        view.isOpaque = true
+                        view.isFocusable = true
+                        view.isFocusableInTouchMode = true
+                        view.surfaceTextureListener = surfaceCallback
+                        view.setOnTouchListener { touchedView, event ->
+                            if (event.isFromSource(InputDevice.SOURCE_MOUSE)) {
+                                handlePhysicalMouse(event, touchedView.width, touchedView.height, latestInput)
+                                return@setOnTouchListener true
+                            }
+                            if (latestMode == RemoteInputMode.Gamepad) return@setOnTouchListener true
+                            interpreter.mode = latestMode
+                            interpreter.touchpadSensitivity = latestSensitivity
+                            interpreter.onTouch(event.toTouchSample(touchedView.width, touchedView.height))
+                            if (event.actionMasked == MotionEvent.ACTION_DOWN) touchedView.requestFocus()
+                            if (event.actionMasked == MotionEvent.ACTION_UP) touchedView.performClick()
+                            true
+                        }
+                        view.setOnGenericMotionListener { _, event ->
+                            when {
+                                event.isFromSource(InputDevice.SOURCE_JOYSTICK) -> handlePhysicalGamepadMotion(event, gamepadController)
+                                event.isFromSource(InputDevice.SOURCE_MOUSE) -> handlePhysicalMouse(event, view.width, view.height, latestInput)
+                                else -> false
+                            }
+                        }
+                        view.setOnKeyListener { _, keyCode, event ->
+                            if (event.isFromSource(InputDevice.SOURCE_GAMEPAD) || event.isFromSource(InputDevice.SOURCE_JOYSTICK)) {
+                                val button = keyCode.toRemoteGamepadButton() ?: return@setOnKeyListener false
+                                if (event.repeatCount == 0) gamepadController.setButton(button, event.action == KeyEvent.ACTION_DOWN)
+                                return@setOnKeyListener true
+                            }
+                            val key = keyCode.toRemoteKey() ?: return@setOnKeyListener false
+                            when (event.action) {
+                                KeyEvent.ACTION_DOWN -> if (event.repeatCount == 0) latestInput(InputCommand.Key(key, true))
+                                KeyEvent.ACTION_UP -> latestInput(InputCommand.Key(key, false))
+                                else -> return@setOnKeyListener false
+                            }
+                            return@setOnKeyListener true
+                        }
+                    }
+                },
+                modifier = videoModifier.align(Alignment.Center),
+                onRelease = { view ->
+                    interpreter.cancelGesture()
+                    gamepadController.reset()
+                    view.setOnTouchListener(null)
+                    view.setOnGenericMotionListener(null)
+                    view.setOnKeyListener(null)
+                    view.surfaceTextureListener = null
+                    currentSurface?.let { surface ->
+                        currentSurface = null
+                        latestSurfaceDestroyed(surface)
+                        surface.release()
+                    }
+                },
+            )
+            if (inputMode == RemoteInputMode.Gamepad && snapshot.status is RemoteSessionStatus.Connected) {
+                if (maxWidth > maxHeight || allowPortraitGamepad) {
+                    RemoteGamepadOverlay(gamepadController, gamepadConfiguration)
+                } else {
+                    GamepadPortraitPrompt { allowPortraitGamepad = true }
+                }
+            }
+            RemoteStatus(snapshot.status, onRetry)
         }
-        RemoteStatus(snapshot.status, onRetry)
     }
     if (showKeyboard) {
         RemoteKeyboardSheet(
@@ -487,18 +489,20 @@ private fun RemoteTopBar(
         is RemoteSessionStatus.Stopping -> status.request.target.displayName
         is RemoteSessionStatus.Failed -> status.request.target.displayName
     }
-    if (!expanded) {
-        Row(
-            modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(top = 8.dp, end = 8.dp),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            FilledTonalIconButton(onClick = { onExpandedChange(true) }) {
-                Icon(Icons.Outlined.MoreHoriz, contentDescription = stringResource(R.string.remote_controls_expand))
+    MaterialSurface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
+        if (!expanded) {
+            Row(
+                modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(text = title, style = MaterialTheme.typography.titleMedium)
+                FilledTonalIconButton(onClick = { onExpandedChange(true) }) {
+                    Icon(Icons.Outlined.MoreHoriz, contentDescription = stringResource(R.string.remote_controls_expand))
+                }
             }
+            return@MaterialSurface
         }
-        return
-    }
-    MaterialSurface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.86f), modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
