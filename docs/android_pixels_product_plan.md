@@ -746,7 +746,8 @@ WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
 - 2026-09-07 本轮按现有部署边界把公网与蜂窝验收延期，性能/设备/API/无障碍实机矩阵不执行。发布清理移除了 3 个无引用字符串资源、6 条无用途的 Compose/Core
   依赖声明和 API 31 以下的两条不可达音频路由分支；同时修正 release 任务识别误伤独立 native release 构建的问题。Android 全部 debug 单元测试、debug/release
   Lint、debug APK、仪器化测试源码和 arm64 release native 构建在 2 分 51 秒内通过，release Lint 无问题，debug 唯一警告来自仅供本机 Console 测试的 debug
-  网络安全配置。独立 Pixels RSA-4096 签名有效期至 2076-09-07，签名报告与批准 SHA-256 一致。标准 RTC 语音改为初始仅接收，Windows 同意后续发票据并重新协商，
+  网络安全配置，最终 debug APK SHA-256 为 `B0ED8D4C9C699106BF55EB4D1931CBD76B5A1B1EAEB92010B7C5D454AEB33E0D`。独立 Pixels RSA-4096
+  签名有效期至 2076-09-07，签名报告与批准 SHA-256 一致。标准 RTC 语音改为初始仅接收，Windows 同意后续发票据并重新协商，
   成功后才挂接麦克风；代码门禁通过，但真机在最终覆盖安装前 USB 从 ADB 消失，因此该轮动态语音和文件传输复验仍需设备重新连接后补证据。本机账号的远程应用列表为空，
   未伪造应用配置来冒充启动/停止通过。
 
