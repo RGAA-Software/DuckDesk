@@ -134,8 +134,16 @@ if ([string]::IsNullOrWhiteSpace($versionName) -or $versionCode -le 0) {
     throw 'Release output metadata does not contain a valid version.'
 }
 
-$artifactRoot = Join-Path $androidRoot "app\apk\release\$versionName"
+$artifactParent = Join-Path $androidRoot 'app\apk\release'
+$finalArtifactRoot = Join-Path $artifactParent $versionName
+if (Test-Path -LiteralPath $finalArtifactRoot) {
+    throw "Release $versionName already exists and will not be overwritten: $finalArtifactRoot"
+}
+$artifactStagingRoot = Join-Path $androidRoot "app\build\intermediates\pixels-release-publish\$([Guid]::NewGuid().ToString('N'))"
+$artifactRoot = $artifactStagingRoot
 New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
+$releasePublished = $false
+try {
 $apkDestination = Join-Path $artifactRoot "Pixels-$versionName-arm64-v8a.apk"
 $bundleDestination = Join-Path $artifactRoot "Pixels-$versionName.aab"
 Copy-Item -LiteralPath $apkPath -Destination $apkDestination -Force
@@ -348,6 +356,17 @@ $manifest = [ordered]@{
 }
 $manifestPath = Join-Path $artifactRoot 'release-manifest.json'
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+
+New-Item -ItemType Directory -Path $artifactParent -Force | Out-Null
+Move-Item -LiteralPath $artifactStagingRoot -Destination $finalArtifactRoot
+$releasePublished = $true
+$artifactRoot = $finalArtifactRoot
+$manifestPath = Join-Path $artifactRoot 'release-manifest.json'
+} finally {
+    if (-not $releasePublished -and (Test-Path -LiteralPath $artifactStagingRoot -PathType Container)) {
+        Remove-Item -LiteralPath $artifactStagingRoot -Recurse -Force
+    }
+}
 
 Write-Host "Pixels $versionName ($versionCode) release verified."
 Write-Host "Artifacts: $artifactRoot"
