@@ -86,12 +86,28 @@ class PixelsNavigationTest {
     }
 
     @Test
-    fun backFromATopLevelTabLeavesTheApplication() {
+    fun backFromASecondaryTabReturnsHomeBeforeLeavingTheApplication() {
         val activity = composeRule.activity
         composeRule.onNodeWithText(activity.getString(R.string.navigation_settings)).performClick()
 
         pressBack()
 
+        composeRule.onNodeWithText(activity.getString(DevicesR.string.quick_connect)).fetchSemanticsNode()
+        composeRule.onNodeWithText(activity.getString(R.string.navigation_devices)).assertIsSelected()
+
+        pressBack()
+
         composeRule.runOnIdle { assertTrue(activity.isFinishing) }
+    }
+
+    @Test
+    fun backFromTransfersReturnsToDevices() {
+        val activity = composeRule.activity
+        composeRule.onNodeWithText(activity.getString(R.string.navigation_transfers)).performClick()
+
+        pressBack()
+
+        composeRule.onNodeWithText(activity.getString(DevicesR.string.quick_connect)).fetchSemanticsNode()
+        composeRule.onNodeWithText(activity.getString(R.string.navigation_devices)).assertIsSelected()
     }
 }

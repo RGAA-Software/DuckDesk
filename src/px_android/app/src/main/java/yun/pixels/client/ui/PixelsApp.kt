@@ -105,6 +105,8 @@ fun PixelsApp(graph: PixelsAppGraph) {
     var remoteBinder by remember { mutableStateOf<RemoteSessionService.LocalBinder?>(null) }
     var remoteRequest by remember { mutableStateOf<RemoteSessionRequest?>(null) }
     var openTransfersWhenConnected by remember { mutableStateOf(false) }
+    var pendingDeviceRemoteDestination by remember { mutableStateOf<AppDestination?>(null) }
+    var acceptsApplicationRemoteRequest by remember { mutableStateOf(false) }
     var leavingRemoteSession by remember { mutableStateOf(false) }
     var remoteRequestAwaitingLocalNetwork by remember { mutableStateOf<RemoteSessionRequest?>(null) }
     val idleRemoteSnapshot = remember { kotlinx.coroutines.flow.MutableStateFlow(RemoteSessionSnapshot()) }
@@ -215,12 +217,23 @@ fun PixelsApp(graph: PixelsAppGraph) {
         }
     }
     LaunchedEffect(deviceHomeViewModel) {
-        deviceHomeViewModel.remoteRequests.collect { request -> remoteRequest = request }
+        deviceHomeViewModel.remoteRequests.collect { request ->
+            val destination = pendingDeviceRemoteDestination
+            pendingDeviceRemoteDestination = null
+            if (appDestination == AppDestination.Devices && destination != null) {
+                openTransfersWhenConnected = destination == AppDestination.RemoteTransfers
+                remoteRequest = request
+            }
+        }
     }
     LaunchedEffect(applicationLibraryViewModel) {
         applicationLibraryViewModel.remoteRequests.collect { request ->
-            openTransfersWhenConnected = false
-            remoteRequest = request
+            val acceptsRequest = acceptsApplicationRemoteRequest
+            acceptsApplicationRemoteRequest = false
+            if (appDestination == AppDestination.Applications && acceptsRequest) {
+                openTransfersWhenConnected = false
+                remoteRequest = request
+            }
         }
     }
     LaunchedEffect(remoteBinder, remoteRequest) {
@@ -282,7 +295,12 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     TopLevelDestination.entries.forEach { destination ->
                         NavigationBarItem(
                             selected = currentTopLevelDestination == destination,
-                            onClick = { appDestination = destination.appDestination },
+                            onClick = {
+                                pendingDeviceRemoteDestination = null
+                                acceptsApplicationRemoteRequest = false
+                                remoteRequest = null
+                                appDestination = destination.appDestination
+                            },
                             icon = { Icon(imageVector = destination.icon, contentDescription = null) },
                             label = { Text(text = stringResource(destination.labelResource)) },
                         )
@@ -313,7 +331,6 @@ fun PixelsApp(graph: PixelsAppGraph) {
                                 }
                             }
                             DeviceHomeAction.Connect, DeviceHomeAction.DiscoverLocal -> {
-                                if (action == DeviceHomeAction.Connect) openTransfersWhenConnected = false
                                 val permissionRequired = Build.VERSION.SDK_INT >= 37 && ContextCompat.checkSelfPermission(
                                     context,
                                     Manifest.permission.ACCESS_LOCAL_NETWORK,
@@ -345,20 +362,34 @@ fun PixelsApp(graph: PixelsAppGraph) {
                                     }
                                 }
                                 .addOnFailureListener { deviceHomeViewModel.onAction(DeviceHomeAction.ScannerFailed) }
-                            DeviceHomeAction.OpenAccountSettings -> appDestination = AppDestination.Settings
+                            DeviceHomeAction.OpenAccountSettings -> {
+                                pendingDeviceRemoteDestination = null
+                                remoteRequest = null
+                                appDestination = AppDestination.Settings
+                            }
+                            is DeviceHomeAction.OpenDevice -> {
+                                pendingDeviceRemoteDestination = AppDestination.Remote
+                                deviceHomeViewModel.onAction(action)
+                            }
+                            is DeviceHomeAction.OpenAccountDevice -> {
+                                pendingDeviceRemoteDestination = AppDestination.Remote
+                                deviceHomeViewModel.onAction(action)
+                            }
                             is DeviceHomeAction.StartRemoteDesktop -> {
-                                openTransfersWhenConnected = false
+                                pendingDeviceRemoteDestination = AppDestination.Remote
                                 deviceHomeViewModel.onAction(action)
                             }
                             is DeviceHomeAction.StartAccountRemoteDesktop -> {
-                                openTransfersWhenConnected = false
+                                pendingDeviceRemoteDestination = AppDestination.Remote
                                 deviceHomeViewModel.onAction(action)
                             }
                             is DeviceHomeAction.OpenFiles -> {
-                                openTransfersWhenConnected = true
+                                pendingDeviceRemoteDestination = AppDestination.RemoteTransfers
                                 deviceHomeViewModel.onAction(DeviceHomeAction.StartRemoteDesktop(action.device))
                             }
                             DeviceHomeAction.OpenApplications -> {
+                                pendingDeviceRemoteDestination = null
+                                remoteRequest = null
                                 applicationLibraryViewModel.refresh()
                                 appDestination = AppDestination.Applications
                             }
@@ -368,50 +399,70 @@ fun PixelsApp(graph: PixelsAppGraph) {
                 )
 
                 AppDestination.Applications -> {
-                    BackHandler { appDestination = AppDestination.Devices }
+                    BackHandler {
+                        acceptsApplicationRemoteRequest = false
+                        remoteRequest = null
+                        appDestination = AppDestination.Devices
+                    }
                     ApplicationLibraryScreen(
                         state = applicationLibraryState,
-                        onBack = { appDestination = AppDestination.Devices },
+                        onBack = {
+                            acceptsApplicationRemoteRequest = false
+                            remoteRequest = null
+                            appDestination = AppDestination.Devices
+                        },
                         onRefresh = applicationLibraryViewModel::refresh,
-                        onStart = applicationLibraryViewModel::start,
-                        onConnect = applicationLibraryViewModel::connect,
+                        onStart = { appId ->
+                            acceptsApplicationRemoteRequest = true
+                            applicationLibraryViewModel.start(appId)
+                        },
+                        onConnect = { instanceId ->
+                            acceptsApplicationRemoteRequest = true
+                            applicationLibraryViewModel.connect(instanceId)
+                        },
                         onStop = applicationLibraryViewModel::stop,
                     )
                 }
 
-                AppDestination.Transfers -> TransferRoute(
-                    remoteBinder = remoteBinder,
-                    idleFileTransferTasks = idleFileTransferTasks,
-                    idleRemoteSnapshot = idleRemoteSnapshot,
-                    idleRemoteDirectory = idleRemoteDirectory,
-                    onBack = null,
-                    onChooseUpload = { remoteDirectory ->
-                        pendingUploadRemoteDirectory = remoteDirectory
-                        uploadDocumentLauncher.launch(arrayOf("*/*"))
-                    },
-                    onChooseDownloadDestination = { remotePath ->
-                        pendingDownloadRemotePath = remotePath
-                        downloadDocumentLauncher.launch(remotePath.substringAfterLast('/').substringAfterLast('\\').ifBlank { "download" })
-                    },
-                )
+                AppDestination.Transfers -> {
+                    BackHandler { appDestination = AppDestination.Devices }
+                    TransferRoute(
+                        remoteBinder = remoteBinder,
+                        idleFileTransferTasks = idleFileTransferTasks,
+                        idleRemoteSnapshot = idleRemoteSnapshot,
+                        idleRemoteDirectory = idleRemoteDirectory,
+                        onBack = null,
+                        onChooseUpload = { remoteDirectory ->
+                            pendingUploadRemoteDirectory = remoteDirectory
+                            uploadDocumentLauncher.launch(arrayOf("*/*"))
+                        },
+                        onChooseDownloadDestination = { remotePath ->
+                            pendingDownloadRemotePath = remotePath
+                            downloadDocumentLauncher.launch(remotePath.substringAfterLast('/').substringAfterLast('\\').ifBlank { "download" })
+                        },
+                    )
+                }
 
-                AppDestination.Settings -> SettingsScreen(
-                    state = settingsState,
-                    appVersion = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-                    onAction = settingsViewModel::onAction,
-                    onExportDiagnostics = {
-                        coroutineScope.launch {
-                            runCatching {
-                                val sessionState = remoteBinder?.snapshot?.value?.status?.javaClass?.simpleName ?: "Idle"
-                                DiagnosticsExporter.create(context, sessionState)
-                            }.onSuccess { report ->
-                                DiagnosticsExporter.share(context, report, shareDiagnostics)
-                            }.onFailure {
-                                snackbarHostState.showSnackbar(diagnosticsFailed)
+                AppDestination.Settings -> {
+                    BackHandler { appDestination = AppDestination.Devices }
+                    SettingsScreen(
+                        state = settingsState,
+                        appVersion = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                        onAction = settingsViewModel::onAction,
+                        onExportDiagnostics = {
+                            coroutineScope.launch {
+                                runCatching {
+                                    val sessionState = remoteBinder?.snapshot?.value?.status?.javaClass?.simpleName ?: "Idle"
+                                    DiagnosticsExporter.create(context, sessionState)
+                                }.onSuccess { report ->
+                                    DiagnosticsExporter.share(context, report, shareDiagnostics)
+                                }.onFailure {
+                                    snackbarHostState.showSnackbar(diagnosticsFailed)
+                                }
                             }
-                        }
-                    },
-                )
+                        },
+                    )
+                }
 
                 AppDestination.Remote -> {
                     val sessionFlow = remoteBinder?.snapshot ?: idleRemoteSnapshot
