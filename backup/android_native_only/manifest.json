@@ -1,0 +1,526 @@
+{
+  "revision": "92ffb33f6ab6c4de2d81d5c91044ecedaf67aeb8",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "src/px_android/app/.gitignore",
+      "sha256": "EE781FD0A13161CF01035DEC4CC14EEC1006823CD36B3E8D87F13038148508E3",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/build.gradle",
+      "sha256": "A8210858DC63B55ACC93B909AC19C50D6C1CF0C8020275700841814F6C7C7A3D",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/proguard-rules.pro",
+      "sha256": "E7C315055C948FE7E2D43814A7070167F5E9694726B398191FBAB0A27D55E087",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/androidTest/java/yun/pixels/client/PixelsBrandTest.kt",
+      "sha256": "97997B509D230D34258D3D6A2325FC75D5179D46140C2E2CEA0B40C905619180",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/androidTest/java/yun/pixels/client/PixelsNavigationTest.kt",
+      "sha256": "E6E1B67733344DBE1595F76602C4FFA9D254DF4380251D3038F7F00402F2D06D",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/debug/AndroidManifest.xml",
+      "sha256": "61464CD85CFDEB603B9B6C9946E8B475637FABB9341FE1E8D80AC808582B14E2",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/debug/java/yun/pixels/client/debug/RtcRecordingSmokeReceiver.kt",
+      "sha256": "DB7CCB888F10B401E9B27DE33581BCACF0743768E9CB88F383B7A02310981FB9",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/debug/res/raw/local_console_test_ca.pem",
+      "sha256": "AD36297E27A01F162B8EDF46653C54409B5907BE457A55404DD393B2782CDDF9",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/debug/res/xml/network_security_config.xml",
+      "sha256": "164216EF1B48E0D9B9168DEA341F507366B7CB7D83D64D16C2592FD9708B129A",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/AndroidManifest.xml",
+      "sha256": "C72B61CF59DCC8E243D2FB64667AAEE5A73EEDDC1D2622E08C1457BEA77C25CA",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/java/yun/pixels/client/MainActivity.kt",
+      "sha256": "ECE0859815AE0AC9C832B5A9906594A431096C7FB97A7BDEA8DC05E968C67660",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/java/yun/pixels/client/PixelsApplication.kt",
+      "sha256": "35F79BDBFFE346278D997AC3C49A4266E050680767CC0F811C65321433D27E6C",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/java/yun/pixels/client/diagnostics/DiagnosticsExporter.kt",
+      "sha256": "C4EB6D8C04DEA5383D0186104B8136A879B7A6D39D962D520EB3F66A52923915",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/java/yun/pixels/client/remote/AndroidClipboardCoordinator.kt",
+      "sha256": "3489C1454331DE90C7FC517A367C8968C7FE03B39BB51A09B1434CEFE7C0BD5E",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/java/yun/pixels/client/remote/AndroidFileTransferCoordinator.kt",
+      "sha256": "1315CAB6C254F218355C78BEBE93EB33E7C4A6E6D0A6CFC394C7846495D03FCF",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/java/yun/pixels/client/remote/AndroidGamepadHaptics.kt",
+      "sha256": "792EDEBD495162949A010377A9041F368363076BF538127C6B81CE2FEDFDBBB3",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/java/yun/pixels/client/remote/AndroidRecordingCoordinator.kt",
+      "sha256": "67DFE1470F9BF771AABBDC9D20FB0627B6F7AFDC57C0CD9527F6303AABE01E9A",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/java/yun/pixels/client/remote/RemoteSessionService.kt",
+      "sha256": "9B9C4BFB9E42AFDD91D7E689111053706E0A06DABD141242C385A48AFB382E0B",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/java/yun/pixels/client/ui/PixelsApp.kt",
+      "sha256": "04E7E79520642D7EEACDBC7A147E9ABDAB9729EAD773E91D71464A51E5CA4DBB",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/java/yun/pixels/client/ui/theme/Color.kt",
+      "sha256": "172DE3BE8CB9DF5167C448AB50E93632284D2C1C18977C29645BBA1AD116AD08",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/java/yun/pixels/client/ui/theme/Theme.kt",
+      "sha256": "2194BD50CC89C0886F0BA508B2C6B14F780D09E040533570EBBE298DA2CD4F25",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/java/yun/pixels/client/ui/theme/Type.kt",
+      "sha256": "53C37101E6B09A3489645B1E01F4AFFA892880D75B3AB0DDD17E548EE34E2A37",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/res/drawable/ic_pixels_foreground.xml",
+      "sha256": "8A4884ABA3D0C00471F6309BFF9203BECC6275DDC3FC05D67A2D5B86E0B3F26B",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/res/drawable/ic_pixels_monochrome.xml",
+      "sha256": "79E5F93593B8E2FF3A70974A4528C21845E807AFEB12BF0CD4518F35A5922182",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/res/drawable/ic_pixels_notification.xml",
+      "sha256": "4EFFCFF8A778EE8E67A231230034B2D939D736F7B3194F7A16721AFF3B0F5F9C",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/res/mipmap-anydpi/ic_launcher.xml",
+      "sha256": "6A40C3C81F7ED6C5F4B3ECB95AE6774FD8F27C3BB7975D15580AA2D122690FB7",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/res/mipmap-anydpi/ic_launcher_round.xml",
+      "sha256": "6A40C3C81F7ED6C5F4B3ECB95AE6774FD8F27C3BB7975D15580AA2D122690FB7",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/res/values-zh-rCN/strings.xml",
+      "sha256": "03D5A24A66F042EAC80AEDF4CF99C900889BFF35B5E75A5D417B4B81682F102A",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/res/values/colors.xml",
+      "sha256": "271FAC339A5B3DF90204A1671D173D787CB21DB84C3B8F50FC4941417766958B",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/res/values/strings.xml",
+      "sha256": "8BDF48AA0B37612859E2D58343E1DA2850D1B4FAEA0678F8E3D748583C73B465",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/res/values/themes.xml",
+      "sha256": "6BABA32AA01F713856E9101AD257968443FC96DB6905A05BAA910CC9CE903042",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/res/xml/clipboard_paths.xml",
+      "sha256": "C1EAC029EEC44315C61C1933A03D855B4DA890C8F0A3627DAFB50337C6100662",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/main/res/xml/data_extraction_rules.xml",
+      "sha256": "5511FD8D67D5D7FCC1B0F61C76FBA0FAA9B2EB3D96DC64893D9011797956143F",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/test/java/yun/pixels/client/diagnostics/DiagnosticsExporterTest.kt",
+      "sha256": "E0588C98750335199E8F2ABF5D2785894F8411FAD2E1EF2D2803AB8BF402AF02",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/app/src/test/java/yun/pixels/client/remote/AndroidFileTransferPathTest.kt",
+      "sha256": "60C1AE6FF87BF106B26A7900492D28C928CDAA6A62F4FA59F9D8D98AEE5FA1DE",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-data/build.gradle",
+      "sha256": "3FAEC6321EF8D488D296042613D24C3AD82CCB7190452E5BE49F04D877B9CC32",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-data/src/main/AndroidManifest.xml",
+      "sha256": "6D189F950D9AD060C565C378FDA212988CE0C2F3A458778CFD836D8D0E004A39",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-data/src/main/java/yun/pixels/client/core/data/AndroidKeystoreTextCipher.kt",
+      "sha256": "08CE237E2F3B37C40D288A364793A788456A1817FEB444E16830996F93CF6875",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-data/src/main/java/yun/pixels/client/core/data/AndroidLanDeviceDiscovery.kt",
+      "sha256": "C7816E0441049CABDADB48BE534A06AC12846B6045733CBE733518BFB72D6A22",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-data/src/main/java/yun/pixels/client/core/data/DataStoreInstallationIdentity.kt",
+      "sha256": "73FC998EE9901EA90F513B59FDC4C1A587FB05D1A68AA835E88419AA4CCA616A",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-data/src/main/java/yun/pixels/client/core/data/DataStoreRemoteSessionPreferencesRepository.kt",
+      "sha256": "8B77A1592AC97A5349CEF557F0512441EDAD593296957DA625980D018C3E814F",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-data/src/main/java/yun/pixels/client/core/data/EncryptedAccountSessionStore.kt",
+      "sha256": "D4FBED30B2277B610022E198464D52B98FB4903CFF17EB47779D76D43FB2681C",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-data/src/main/java/yun/pixels/client/core/data/PanelDeviceResolver.kt",
+      "sha256": "E1D32B4DD030F1E18F8C9D5BE97C580117D54529EF091853D7318F2EABDF7850",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-data/src/main/java/yun/pixels/client/core/data/PixelsDatabase.kt",
+      "sha256": "31E7BB1C3A098AAEFB7E5926AD184713AE2181E46DD05C2EC8A76D718EFD46EF",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-data/src/main/java/yun/pixels/client/core/data/RoomDeviceDirectory.kt",
+      "sha256": "D6CC89E31731502A70B3D4678DD58320A9E41B0154E0CC98FFD1BACE9F28D472",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-data/src/main/java/yun/pixels/client/core/data/StoredDevice.kt",
+      "sha256": "675A5F48639DD08FCD72CC9349EC3A610D17496FDF28841DED35C7851CB30886",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-data/src/test/java/yun/pixels/client/core/data/AndroidLanDeviceDiscoveryTest.kt",
+      "sha256": "1756243F5A7ECC759628ADDE7E0C673B456A7C43787D8BF597C839DA8CAB669C",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-data/src/test/java/yun/pixels/client/core/data/ConnectionInputParserTest.kt",
+      "sha256": "35B892C77EBCC6F6662AE1DEE202A796503B6BE37BD032942925C4F7FBDCE0F5",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-data/src/test/java/yun/pixels/client/core/data/RemoteSessionPreferencesCodecTest.kt",
+      "sha256": "6E5DE2F1EC770236E47E6FAA58C846ABBD708747973212040EEA5BA9E084BFA3",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-data/src/test/java/yun/pixels/client/core/data/RoomDeviceDirectoryTest.kt",
+      "sha256": "3FBCF032437ADE5869192116DD82D5402F246D6A8FE80D89FC2A30DBA1D72B58",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/build.gradle",
+      "sha256": "CA07D5B67CB2F9FAA83E3D9856DCED6A1872C47B6F30EF6C5BD91806D2543652",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/consumer-rules.pro",
+      "sha256": "B135D0381A0F4772172D4DEE4A7A7E67BAFAB7E0908717931A1865C30FADB11B",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/androidTest/java/yun/pixels/client/core/nativebridge/RtcMp4WriterInstrumentedTest.kt",
+      "sha256": "785BCBEB10433BFB210F44797034EA38B24738F163210B7D642AC6B7278E06A3",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/debug/java/yun/pixels/client/core/nativebridge/DebugRtcRecordingSmoke.kt",
+      "sha256": "76392C61956C9006858377374C2E2274799DD06E9918CB2F4F82B2D397D73201",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/AndroidManifest.xml",
+      "sha256": "DAA0FB1F32BA7EA85A07EF6302AB3D58C3407D7FD2AA03EC132CB9E38E8D9849",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/CMakeLists.txt",
+      "sha256": "CA6DF5224596768DC8ED72AEE738190DB8D9C38D75925CFDB9C1FF41E42D5783",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/jni_adapter.cpp",
+      "sha256": "DCD4C5649CD0F79A5509D34F7FA190D44888B1B05B97FAA9118C386681CFCA12",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_audio_player.cpp",
+      "sha256": "BCB4512D996FCA0812D80D4B055CA5E60542CEE065EF49482E912EC5B300F576",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_audio_player.h",
+      "sha256": "B5D657E17AC63B82D79A81C63C8CEB11E353DBB8126332AE5F640965AA2BB942",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_clipboard.cpp",
+      "sha256": "E643E28704AFDB31032517FEDF4B967EFBC30035D25F68780729A7E0C53081FC",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_clipboard.h",
+      "sha256": "850196123512D721C18A4A37F532318C65AC877042B57C8579EA1C175740357B",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_session.cpp",
+      "sha256": "E4AF3F7E6113BEA00F8AD3C88173E7624B3DD82820DE03D76766D664C1CA22BA",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_session.h",
+      "sha256": "23575C9D5C6ACABF6B29BD0AF13A9B91F5CFA355BFDA41AC368DABDEB80CAC85",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_voice_call.cpp",
+      "sha256": "3010D00C1E273AC106C73612A8EF7DDC0075A0AC862CDFE0FD8F2DC975472845",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_voice_call.h",
+      "sha256": "EC66CDB55E43DA756689BE593F67FB3DB0A0B5240A665176202B838CD5D382E1",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/java/yun/pixels/client/core/nativebridge/AndroidRemoteSessionTransport.kt",
+      "sha256": "24AEE7BF007E9B23A746DF9EDC6566EBC33C6CBAE1742B6F253357FB3C9C54B9",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/java/yun/pixels/client/core/nativebridge/DirectSessionAuthorizer.kt",
+      "sha256": "9BFB0060D322E41C80F3DA827FEF424CFF34AD7EDCD13B35F403B473F93CD606",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/java/yun/pixels/client/core/nativebridge/NativeRemoteSessionTransport.kt",
+      "sha256": "93438CC5A9C5A7849D95A6D3EF32C850FC37B61A91768A3B9BE18AA5104B84A6",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/java/yun/pixels/client/core/nativebridge/NativeSessionConfig.kt",
+      "sha256": "78FCD70048C2DB9A9846FE8AFB497C461D38BCDE9550A1DEC8EE430B6F92BA68",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/java/yun/pixels/client/core/nativebridge/PixelsNativeBridge.kt",
+      "sha256": "6584DD7E5A07E709D3AE889FF425F2FF927282B10A92EF18A95B6311E11FC67C",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/java/yun/pixels/client/core/nativebridge/RtcDataChannelProtocol.kt",
+      "sha256": "4B45A6F7203D47525DC5E9A905E7ADA5F98ECBFEF98E20351739E906850CD1F0",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/java/yun/pixels/client/core/nativebridge/RtcIceConfiguration.kt",
+      "sha256": "EA0A093D8B42AB30AF8CA2021FA61E4CD1B09E9653993766A464E183139AE033",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/java/yun/pixels/client/core/nativebridge/RtcRecordingController.kt",
+      "sha256": "C450D8173769953EABB797BC64A54835B5A741DE482488F023EB5D0ACA260F46",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/java/yun/pixels/client/core/nativebridge/RtcStatistics.kt",
+      "sha256": "2F9F206DB9C553ED50FBCE617FC103F12B3AC5F757BE6A960DEC8850D4247B48",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/java/yun/pixels/client/core/nativebridge/RtcVoiceCallController.kt",
+      "sha256": "741612EA06B06F89BBA12651539A7D9E970B4762BAD456F029CD1E8B5BFC01AC",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/java/yun/pixels/client/core/nativebridge/StandardRtcSignaling.kt",
+      "sha256": "143278B238E96DA0F385B51F3602AA6177D6D94CDDD1465813445D2A479B9DAE",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/java/yun/pixels/client/core/nativebridge/WebRtcPeerSession.kt",
+      "sha256": "3C91B8B4CE16A1B42F05ECAF356C1D87A759A868D9F1D6CADDC58C4809976023",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/test/java/yun/pixels/client/core/nativebridge/ConnectionTicketEndpointTest.kt",
+      "sha256": "A282E93861749D0432DD5DFDC240C8DBC63D80904523218618DA139DDF94CEC1",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/test/java/yun/pixels/client/core/nativebridge/DirectSessionAuthorizerTest.kt",
+      "sha256": "F98B3DCC90663A19A216D7CBAEC7CABCCDC4AB9C9DD727C1798879E77AB20C4A",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/test/java/yun/pixels/client/core/nativebridge/RemoteDirectoryMappingTest.kt",
+      "sha256": "3E60A2D2C524C5CD2C5023E567CB7CDED1C2E6379451FF4F3267003E53F4B56E",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/test/java/yun/pixels/client/core/nativebridge/RtcDataChannelProtocolTest.kt",
+      "sha256": "92330E7EE1CC22AB3F1E163B334BA8193D0959A4723B429A52582F56D3D2D305",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/test/java/yun/pixels/client/core/nativebridge/RtcIceConfigurationTest.kt",
+      "sha256": "F0CDBFA62D181401DF33A1E021A47FA7249E9179F92045E26C88E9C07ADB0E0A",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/test/java/yun/pixels/client/core/nativebridge/RtcStatisticsTest.kt",
+      "sha256": "29336C647108B448F1B446572E977DE137C67E3DA474F68DBA3F7123CBE44178",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/test/java/yun/pixels/client/core/nativebridge/StandardRtcLaunchTest.kt",
+      "sha256": "587FB748B16F0D87B08CE255A875912D1FF938EBD909E3A7B9A537B085DE7A20",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/test/java/yun/pixels/client/core/nativebridge/StandardRtcSignalingTest.kt",
+      "sha256": "6462BA80557C7BE153E6F89972F18F3F526F8360CA4155C216394B861CDA32B7",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/build.gradle",
+      "sha256": "57F34A82D53E564C34E189ECAF3F1FD6333FBE983A895EA7C36203CCFDEA4840",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/AndroidManifest.xml",
+      "sha256": "8BD85A8FC13F61EFAB68AEEC94A7C3A76CD1946BA63DD01109278E817CF717E5",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/java/yun/pixels/client/feature/settings/OpenSourceNotices.kt",
+      "sha256": "969E7749BB81E001F0C7DBAB25475C39AC304F9EB4842DF73B9B984272E78731",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/java/yun/pixels/client/feature/settings/SettingsContract.kt",
+      "sha256": "3F745397A2CB5905E79BC9E3FE8F9F8AA02411E8E6D7070B457D4C898F878E07",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/java/yun/pixels/client/feature/settings/SettingsScreen.kt",
+      "sha256": "8C9AEBA863E3F06FA5F69C2723CD4D88A0F31DECA95FF3085BF17D13AD96F403",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/java/yun/pixels/client/feature/settings/SettingsViewModel.kt",
+      "sha256": "CA6176DA40A001FA66432336C1D9DCA01FB779AF721A78A846ABD10ADC01E087",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/res/raw/license_apache_2_0.txt",
+      "sha256": "7D5450CB2D142651B8AFA315B5F238EFC805DAD827D91BA367D8516BC9D49E7A",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/res/raw/license_boost_1_0.txt",
+      "sha256": "C9BFF75738922193E67FA726FA225535870D2AA1059F91452C411736284AD566",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/res/raw/license_ffmpeg_lgpl_2_1.txt",
+      "sha256": "6F702D94A2EE265B2B80D9B1215DBDBAD34A89C04532AEC1088A2831018737DD",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/res/raw/license_glm.txt",
+      "sha256": "62D2D642C7D054D4FB4C9B42FAAD617D6C88FCD91E317F8035AA9F277CC159C3",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/res/raw/license_leveldb_bsd_3_clause.txt",
+      "sha256": "CCC19F1DA0798ED666609B65A5B44DD8B3ABE6FC08B9C0592EB76E82E174DB19",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/res/raw/license_opus_bsd_3_clause.txt",
+      "sha256": "8338CE8D922BB4416CE3DD1E5680173332435E3F0755007AC7801CCD674FE682",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/res/raw/license_protobuf_bsd_3_clause.txt",
+      "sha256": "6E5E117324AFD944DCF67F36CF329843BC1A92229A8CD9BB573D7A83130FEA7D",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/res/raw/license_webrtc_bsd_3_clause.txt",
+      "sha256": "6D3A8389B5F7DC4C5615A801E62F1FEDF2B29A61C6897EF601FF1822BE7B805B",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/res/raw/license_zlib.txt",
+      "sha256": "845EFC77857D485D91FB3E0B884AAA929368C717AE8186B66FE1ED2495753243",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/res/raw/open_source_inventory.txt",
+      "sha256": "CA43F844E5A48E2E05865122B86BB07E6ABBCB0562235FA94AF19B860ED0B854",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/res/values-zh-rCN/strings.xml",
+      "sha256": "7011202BD165964DF5CE38D3EE305E1A99F4620A5BE7CCD44EFBA4BAB0529F56",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/main/res/values/strings.xml",
+      "sha256": "49551C2418B7B66E0151BEDDDF36BC7015EB2F2C896718FABF238BD82C063A91",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/feature-settings/src/test/java/yun/pixels/client/feature/settings/SettingsViewModelTest.kt",
+      "sha256": "32EB47B37453E7DA1B92F5787077EA2ECBE27FF54BC6305072BFE0FC2EE2F36A",
+      "status": ""
+    }
+  ]
+}

@@ -3,10 +3,6 @@ package yun.pixels.client.core.nativebridge
 import android.view.Surface
 
 interface NativeSessionListener {
-    fun onRtcFileTransferOutbound(sessionId: String, payload: ByteArray): Boolean
-
-    fun onRtcClipboardControlOutbound(sessionId: String, payload: ByteArray): Boolean
-
     fun onConnected(
         sessionId: String,
         monitorNames: Array<String>,
@@ -132,51 +128,6 @@ internal object PixelsNativeBridge {
         offsetBytes: Long,
         applyToAll: Boolean,
     ): Boolean
-
-    external fun createRtcFileTransfer(
-        sessionId: String,
-        clientDeviceId: String,
-        streamId: String,
-        enableClipboard: Boolean,
-        listener: NativeSessionListener,
-    ): Long
-
-    external fun startRtcFileTransfer(nativeFileTransferId: Long): Boolean
-
-    external fun receiveRtcFileTransfer(nativeFileTransferId: Long, payload: ByteArray): Boolean
-
-    external fun publishRtcClipboardFiles(
-        nativeFileTransferId: Long,
-        generation: String,
-        displayNames: Array<String>,
-        localPaths: Array<String>,
-        sizes: LongArray,
-    ): Boolean
-
-    external fun downloadRtcClipboardFiles(
-        nativeFileTransferId: Long,
-        generation: String,
-        destinationDirectory: String,
-    ): Boolean
-
-    external fun startRtcFileUpload(nativeFileTransferId: Long, localPath: ByteArray, remoteDirectory: ByteArray): Int
-
-    external fun startRtcFileDownload(nativeFileTransferId: Long, remotePath: ByteArray, localDirectory: ByteArray): Int
-
-    external fun listRtcRemoteDirectory(nativeFileTransferId: Long, remotePath: ByteArray): Boolean
-
-    external fun cancelRtcFileTransfer(nativeFileTransferId: Long, jobId: Int): Boolean
-
-    external fun confirmRtcFileOverwrite(
-        nativeFileTransferId: Long,
-        jobId: Int,
-        fileNumber: Int,
-        overwrite: Boolean,
-        offsetBytes: Long,
-        applyToAll: Boolean,
-    ): Boolean
-
-    external fun stopRtcFileTransfer(nativeFileTransferId: Long)
 
     external fun sendSecureAttention(nativeSessionId: Long): Boolean
 

@@ -15,14 +15,6 @@ License: Apache License 2.0
 OkHttp 5.4.0 and its Okio dependency
 License: Apache License 2.0
 
-Protocol Buffers Java Lite 4.36.1
-Copyright: Google Inc.
-License: BSD 3-Clause
-
-WebRTC Android SDK 150.7871.01 and the WebRTC project
-Copyright: The WebRTC project authors
-License: BSD 3-Clause
-
 The Google Play services code scanner is a Google Play services API and is governed by the applicable Google APIs and Google Play services terms; it is not represented here as an open-source component.
 
 Native components

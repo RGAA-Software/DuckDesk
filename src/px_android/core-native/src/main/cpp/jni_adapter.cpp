@@ -49,38 +49,6 @@ SessionRegistry& Registry() {
     return registry;
 }
 
-class RtcFileTransferRegistry final {
-  public:
-    std::int64_t Add(std::shared_ptr<NativeRtcFileTransfer> session) {
-        std::lock_guard lock(mutex_);
-        const auto id = next_id_++;
-        sessions_.emplace(id, std::move(session));
-        return id;
-    }
-
-    std::shared_ptr<NativeRtcFileTransfer> Find(const std::int64_t id) const {
-        std::lock_guard lock(mutex_);
-        const auto iterator = sessions_.find(id);
-        return iterator == sessions_.end() ? std::shared_ptr<NativeRtcFileTransfer>{} : iterator->second;
-    }
-
-    std::shared_ptr<NativeRtcFileTransfer> Remove(const std::int64_t id) {
-        std::lock_guard lock(mutex_);
-        const auto node = sessions_.extract(id);
-        return node.empty() ? std::shared_ptr<NativeRtcFileTransfer>{} : std::move(node.mapped());
-    }
-
-  private:
-    mutable std::mutex mutex_{};
-    std::unordered_map<std::int64_t, std::shared_ptr<NativeRtcFileTransfer>> sessions_{};
-    std::int64_t next_id_{1};
-};
-
-RtcFileTransferRegistry& RtcFileTransfers() {
-    static RtcFileTransferRegistry registry{};
-    return registry;
-}
-
 std::string ReadString(JNIEnv& environment, const jobject config, const jclass config_class, const std::string_view field_name) {
     const auto field = environment.GetFieldID(config_class, field_name.data(), "Ljava/lang/String;");
     if (field == nullptr) {
@@ -173,11 +141,6 @@ NativeSessionConfig ReadConfig(JNIEnv& environment, const jobject config) {
         .connection_nonce = ReadString(environment, config, config_class, "connectionNonce"),
         .connection_ticket_device_id = ReadString(environment, config, config_class, "connectionTicketDeviceId"),
         .connection_instance_id = ReadString(environment, config, config_class, "connectionInstanceId"),
-        .rtc_ice_config_json = ReadString(environment, config, config_class, "rtcIceConfigJson"),
-        .relay_host = ReadString(environment, config, config_class, "relayHost"),
-        .relay_port = ReadInt(environment, config, config_class, "relayPort"),
-        .relay_remote_device_id = ReadString(environment, config, config_class, "relayRemoteDeviceId"),
-        .network_type = ReadInt(environment, config, config_class, "networkType"),
         .enable_video = ReadBoolean(environment, config, config_class, "enableVideo"),
         .enable_audio = ReadBoolean(environment, config, config_class, "enableAudio"),
         .enable_input = ReadBoolean(environment, config, config_class, "enableInput"),
@@ -355,129 +318,6 @@ jboolean NativeConfirmFileOverwrite(JNIEnv*, jobject, const jlong native_session
                : JNI_FALSE;
 }
 
-jlong NativeCreateRtcFileTransfer(JNIEnv* environment, // NOLINT(gammaray-raw-pointer-boundary)
-                                  jobject, const jstring session_id, const jstring client_device_id, const jstring stream_id,
-                                  const jboolean enable_clipboard, const jobject listener) {
-    if (environment == nullptr || listener == nullptr) {
-        return 0;
-    }
-    auto callback = JavaSessionCallback::Create(*environment, listener);
-    auto session = NativeRtcFileTransfer::Create(ReadJavaString(*environment, session_id, 128U),
-                                                 ReadJavaString(*environment, client_device_id, 256U),
-                                                 ReadJavaString(*environment, stream_id, 256U), enable_clipboard == JNI_TRUE,
-                                                 std::move(callback));
-    return session ? RtcFileTransfers().Add(std::move(session)) : 0;
-}
-
-jboolean NativeStartRtcFileTransfer(JNIEnv*, jobject, const jlong native_file_transfer_id) { // NOLINT(gammaray-raw-pointer-boundary)
-    const auto session = RtcFileTransfers().Find(native_file_transfer_id);
-    return session && session->Start() ? JNI_TRUE : JNI_FALSE;
-}
-
-jboolean NativeReceiveRtcFileTransfer(JNIEnv* environment, // NOLINT(gammaray-raw-pointer-boundary)
-                                      jobject, const jlong native_file_transfer_id, const jbyteArray payload) {
-    if (environment == nullptr) {
-        return JNI_FALSE;
-    }
-    const auto message = ReadUtf8Bytes(*environment, payload, 4 * 1024 * 1024);
-    const auto session = RtcFileTransfers().Find(native_file_transfer_id);
-    return session && session->Receive(message) ? JNI_TRUE : JNI_FALSE;
-}
-
-jboolean NativePublishRtcClipboardFiles(JNIEnv* environment, jobject, // NOLINT(gammaray-raw-pointer-boundary)
-                                        const jlong native_file_transfer_id, const jstring generation,
-                                        const jobjectArray display_names, const jobjectArray local_paths, const jlongArray sizes) {
-    if (environment == nullptr || generation == nullptr || display_names == nullptr || local_paths == nullptr || sizes == nullptr) {
-        return JNI_FALSE;
-    }
-    constexpr jsize kMaximumFiles = 16;
-    const auto generation_value = ReadJavaString(*environment, generation, 128U);
-    const auto names = ReadStringArray(*environment, display_names, kMaximumFiles);
-    const auto paths = ReadStringArray(*environment, local_paths, kMaximumFiles);
-    const auto size_count = environment->GetArrayLength(sizes);
-    if (generation_value.empty() || names.empty() || names.size() != paths.size() || size_count != static_cast<jsize>(names.size())) {
-        return JNI_FALSE;
-    }
-    std::vector<jlong> file_sizes(names.size());
-    environment->GetLongArrayRegion(sizes, 0, size_count, file_sizes.data()); // NOLINT(gammaray-raw-pointer-boundary)
-    if (environment->ExceptionCheck()) {
-        return JNI_FALSE;
-    }
-    std::vector<NativeClipboardFile> files;
-    files.reserve(names.size());
-    for (std::size_t index = 0; index < names.size(); ++index) {
-        files.push_back({.display_name = names[index], .backing_path = paths[index], .size = file_sizes[index]});
-    }
-    const auto session = RtcFileTransfers().Find(native_file_transfer_id);
-    return session && session->PublishClipboardFiles(std::move(generation_value), std::move(files)) ? JNI_TRUE : JNI_FALSE;
-}
-
-jboolean NativeDownloadRtcClipboardFiles(JNIEnv* environment, jobject, // NOLINT(gammaray-raw-pointer-boundary)
-                                         const jlong native_file_transfer_id, const jstring generation,
-                                         const jstring destination_directory) {
-    if (environment == nullptr) {
-        return JNI_FALSE;
-    }
-    const auto generation_value = ReadJavaString(*environment, generation, 128U);
-    const auto destination_value = ReadJavaString(*environment, destination_directory);
-    const auto session = RtcFileTransfers().Find(native_file_transfer_id);
-    return session && session->DownloadClipboardFiles(generation_value, destination_value) ? JNI_TRUE : JNI_FALSE;
-}
-
-jint NativeStartRtcFileUpload(JNIEnv* environment, // NOLINT(gammaray-raw-pointer-boundary)
-                              jobject, const jlong native_file_transfer_id, const jbyteArray local_path,
-                              const jbyteArray remote_directory) {
-    if (environment == nullptr) {
-        return 0;
-    }
-    const auto session = RtcFileTransfers().Find(native_file_transfer_id);
-    return session ? session->StartUpload(ReadUtf8Bytes(*environment, local_path), ReadUtf8Bytes(*environment, remote_directory)) : 0;
-}
-
-jint NativeStartRtcFileDownload(JNIEnv* environment, // NOLINT(gammaray-raw-pointer-boundary)
-                                jobject, const jlong native_file_transfer_id, const jbyteArray remote_path,
-                                const jbyteArray local_directory) {
-    if (environment == nullptr) {
-        return 0;
-    }
-    const auto session = RtcFileTransfers().Find(native_file_transfer_id);
-    return session ? session->StartDownload(ReadUtf8Bytes(*environment, remote_path), ReadUtf8Bytes(*environment, local_directory)) : 0;
-}
-
-jboolean NativeListRtcRemoteDirectory(JNIEnv* environment, // NOLINT(gammaray-raw-pointer-boundary)
-                                      jobject, const jlong native_file_transfer_id, const jbyteArray remote_path) {
-    if (environment == nullptr) {
-        return JNI_FALSE;
-    }
-    const auto session = RtcFileTransfers().Find(native_file_transfer_id);
-    return session && session->ListRemoteDirectory(ReadUtf8Bytes(*environment, remote_path)) ? JNI_TRUE : JNI_FALSE;
-}
-
-jboolean NativeCancelRtcFileTransfer(JNIEnv*, jobject, const jlong native_file_transfer_id,
-                                     const jint job_id) { // NOLINT(gammaray-raw-pointer-boundary)
-    const auto session = RtcFileTransfers().Find(native_file_transfer_id);
-    return session && session->Cancel(job_id) ? JNI_TRUE : JNI_FALSE;
-}
-
-jboolean NativeConfirmRtcFileOverwrite(JNIEnv*, jobject, const jlong native_file_transfer_id, const jint job_id, const jint file_number,
-                                       const jboolean overwrite, const jlong offset_bytes,
-                                       const jboolean apply_to_all) { // NOLINT(gammaray-raw-pointer-boundary)
-    if (offset_bytes < 0) {
-        return JNI_FALSE;
-    }
-    const auto session = RtcFileTransfers().Find(native_file_transfer_id);
-    return session && session->ConfirmOverwrite(job_id, file_number, overwrite == JNI_TRUE, static_cast<std::uint64_t>(offset_bytes),
-                                                apply_to_all == JNI_TRUE)
-               ? JNI_TRUE
-               : JNI_FALSE;
-}
-
-void NativeStopRtcFileTransfer(JNIEnv*, jobject, const jlong native_file_transfer_id) { // NOLINT(gammaray-raw-pointer-boundary)
-    if (const auto session = RtcFileTransfers().Remove(native_file_transfer_id)) {
-        session->Stop();
-    }
-}
-
 jboolean NativeSetAudioEnabled(JNIEnv*, jobject, const jlong native_session_id, const jboolean enabled) { // NOLINT(gammaray-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->SetAudioEnabled(enabled == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
@@ -612,30 +452,6 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) { // NOLINT(gamm
         {const_cast<char*>("cancelFileTransfer"), const_cast<char*>("(JI)Z"), reinterpret_cast<void*>(pixels::android::NativeCancelFileTransfer)},
         {const_cast<char*>("confirmFileOverwrite"), const_cast<char*>("(JIIZJZ)Z"),
          reinterpret_cast<void*>(pixels::android::NativeConfirmFileOverwrite)},
-        {const_cast<char*>("createRtcFileTransfer"),
-         const_cast<char*>("(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLyun/pixels/client/core/nativebridge/NativeSessionListener;)J"),
-         reinterpret_cast<void*>(pixels::android::NativeCreateRtcFileTransfer)},
-        {const_cast<char*>("startRtcFileTransfer"), const_cast<char*>("(J)Z"),
-         reinterpret_cast<void*>(pixels::android::NativeStartRtcFileTransfer)},
-        {const_cast<char*>("receiveRtcFileTransfer"), const_cast<char*>("(J[B)Z"),
-         reinterpret_cast<void*>(pixels::android::NativeReceiveRtcFileTransfer)},
-        {const_cast<char*>("publishRtcClipboardFiles"), const_cast<char*>("(JLjava/lang/String;[Ljava/lang/String;[Ljava/lang/String;[J)Z"),
-         reinterpret_cast<void*>(pixels::android::NativePublishRtcClipboardFiles)},
-        {const_cast<char*>("downloadRtcClipboardFiles"),
-         const_cast<char*>("(JLjava/lang/String;Ljava/lang/String;)Z"),
-         reinterpret_cast<void*>(pixels::android::NativeDownloadRtcClipboardFiles)},
-        {const_cast<char*>("startRtcFileUpload"), const_cast<char*>("(J[B[B)I"),
-         reinterpret_cast<void*>(pixels::android::NativeStartRtcFileUpload)},
-        {const_cast<char*>("startRtcFileDownload"), const_cast<char*>("(J[B[B)I"),
-         reinterpret_cast<void*>(pixels::android::NativeStartRtcFileDownload)},
-        {const_cast<char*>("listRtcRemoteDirectory"), const_cast<char*>("(J[B)Z"),
-         reinterpret_cast<void*>(pixels::android::NativeListRtcRemoteDirectory)},
-        {const_cast<char*>("cancelRtcFileTransfer"), const_cast<char*>("(JI)Z"),
-         reinterpret_cast<void*>(pixels::android::NativeCancelRtcFileTransfer)},
-        {const_cast<char*>("confirmRtcFileOverwrite"), const_cast<char*>("(JIIZJZ)Z"),
-         reinterpret_cast<void*>(pixels::android::NativeConfirmRtcFileOverwrite)},
-        {const_cast<char*>("stopRtcFileTransfer"), const_cast<char*>("(J)V"),
-         reinterpret_cast<void*>(pixels::android::NativeStopRtcFileTransfer)},
         {const_cast<char*>("sendSecureAttention"), const_cast<char*>("(J)Z"), reinterpret_cast<void*>(pixels::android::NativeSendSecureAttention)},
         {const_cast<char*>("sendGamepad"), const_cast<char*>("(JIIIIIII)Z"), reinterpret_cast<void*>(pixels::android::NativeSendGamepad)},
         {const_cast<char*>("switchMonitor"), const_cast<char*>("(JLjava/lang/String;)Z"),

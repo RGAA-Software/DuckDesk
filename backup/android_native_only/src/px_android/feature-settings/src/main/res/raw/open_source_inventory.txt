@@ -1,0 +1,64 @@
+Pixels Android third-party notices
+==================================
+
+This notice describes components distributed in the Pixels Android application. Copyright remains with each upstream project and contributor. The complete license texts follow this inventory in the application.
+
+Android and JVM components
+--------------------------
+
+AndroidX Core, Activity, Lifecycle, Navigation, Room, DataStore and Jetpack Compose
+License: Apache License 2.0
+
+Kotlin 2.4.10 and kotlinx.coroutines 1.10.2
+License: Apache License 2.0
+
+OkHttp 5.4.0 and its Okio dependency
+License: Apache License 2.0
+
+Protocol Buffers Java Lite 4.36.1
+Copyright: Google Inc.
+License: BSD 3-Clause
+
+WebRTC Android SDK 150.7871.01 and the WebRTC project
+Copyright: The WebRTC project authors
+License: BSD 3-Clause
+
+The Google Play services code scanner is a Google Play services API and is governed by the applicable Google APIs and Google Play services terms; it is not represented here as an open-source component.
+
+Native components
+-----------------
+
+Asio2 and standalone Asio
+License: Boost Software License 1.0
+
+OpenSSL 3.1.4
+License: Apache License 2.0
+
+Protocol Buffers native runtime 6.33.4
+Copyright: Google Inc.
+License: BSD 3-Clause
+
+LevelDB 1.23
+Copyright: The LevelDB Authors
+License: BSD 3-Clause
+
+Opus 1.4
+Copyright: Xiph.Org, Skype Limited and contributors listed in the Opus notice
+License: BSD 3-Clause; the notice also identifies royalty-free patent grants
+
+GLM 0.9.9.8
+Copyright: G-Truc Creation
+License: MIT License or Happy Bunny License
+
+zlib 1.3
+Copyright: Jean-loup Gailly and Mark Adler
+License: zlib License
+
+FFmpeg 6.1
+License: GNU Lesser General Public License 2.1 or later
+Configured Android features: avcodec, avdevice, avfilter, avformat, swresample and swscale. The Android build does not enable FFmpeg GPL features. FFmpeg is not owned by Pixels and is provided without warranty under its license. An official Pixels release must accompany the application with the exact corresponding FFmpeg source archive and application relink archive recorded in the release manifest.
+
+Source availability
+-------------------
+
+The release manifest identifies the exact application revision, packaged notices, corresponding FFmpeg source archive and relink archive by SHA-256. Those materials must be retained and made available with the official binary distribution. A build that does not provide them is not a releasable Pixels Android artifact.

@@ -96,7 +96,6 @@ class RemoteSessionService : Service() {
         val graph = (application as PixelsApplication).graph
         audioManager = getSystemService(AudioManager::class.java)
         transport = AndroidRemoteSessionTransport(
-            this,
             graph.installationIdentity,
             serviceScope,
             graph.accountRepository::renewTicket,

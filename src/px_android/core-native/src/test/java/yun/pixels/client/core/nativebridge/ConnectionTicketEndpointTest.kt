@@ -36,25 +36,46 @@ class ConnectionTicketEndpointTest {
     }
 
     @Test
-    fun selectsRelayForPublicAccountEndpointWithBoundRelayTarget() {
-        val ticket = ticket("https://edge.example.com/web_client/").copy(
+    fun nativeConfigIgnoresRelayAndIceInstructions() {
+        val targetTicket = ticket("https://edge.example.com/web_client/?deviceId=device-42#instance=instance-7").copy(
             relayHost = "relay.example.com",
             relayPort = 443,
+            rtcIceConfigJson = """{"ice_servers":[{"urls":["turn:relay.example.com"]}]}""",
         )
-        val endpoint = requireNotNull(ticket.toNativeEndpoint("account-device"))
-
-        assertEquals(NATIVE_NETWORK_TYPE_RELAY, selectNativeNetworkType(endpoint, ticket))
+        val request = yun.pixels.client.core.domain.session.RemoteSessionRequest(
+            id = yun.pixels.client.core.domain.session.RemoteSessionId("session"),
+            target = yun.pixels.client.core.domain.session.RemoteSessionTarget.Account(
+                displayName = "Desktop",
+                fallbackRemoteDeviceId = "device-42",
+                connectionTicket = targetTicket,
+                clientNonce = "nonce",
+            ),
+        )
+        val config = requireNotNull(request.toNativeConfig("client-device", null))
+        assertEquals("edge.example.com", config.host)
+        assertEquals(443, config.port)
+        assertEquals("ticket", config.connectionTicket)
+        assertEquals("nonce", config.connectionNonce)
+        assertEquals("instance-7", config.connectionInstanceId)
+        org.junit.Assert.assertFalse(config.enableInput)
+        org.junit.Assert.assertFalse(config.enableAudio)
+        org.junit.Assert.assertFalse(config.enableClipboard)
+        val account = request.target as yun.pixels.client.core.domain.session.RemoteSessionTarget.Account
+        assertNull(request.copy(target = account.copy(connectionTicket = targetTicket.copy(permissions = setOf("input"))))
+            .toNativeConfig("client-device", null))
+        assertNull(request.copy(target = account.copy(clientNonce = "")).toNativeConfig("client-device", null))
+        // The platform contract has no protocol selector, Relay endpoint or ICE configuration.
+        org.junit.Assert.assertFalse(NativeSessionConfig::class.java.declaredFields.any {
+            it.name in setOf("networkType", "relayHost", "relayPort", "rtcIceConfigJson")
+        })
     }
 
     @Test
-    fun keepsUdpDirectForPrivateAccountEndpoint() {
-        val ticket = ticket("http://192.168.31.6:20371/web_client/?deviceId=device-42").copy(
-            relayHost = "relay.example.com",
-            relayPort = 443,
-        )
-        val endpoint = requireNotNull(ticket.toNativeEndpoint("account-device"))
-
-        assertEquals(NATIVE_NETWORK_TYPE_UDP_DIRECT, selectNativeNetworkType(endpoint, ticket))
+    fun renewsExpiringOrPreviouslyAttemptedTicket() {
+        org.junit.Assert.assertTrue(ticket("https://edge.example.com").copy(expiresAtEpochMillis = 1_010_000L)
+            .requiresRenewal(emptySet(), 1_000_000L))
+        org.junit.Assert.assertTrue(ticket("https://edge.example.com").requiresRenewal(setOf("ticket", "renewed-ticket"), 1_000_000L))
+        org.junit.Assert.assertFalse(ticket("https://edge.example.com").requiresRenewal(setOf("different"), 1_000_000L))
     }
 
     private fun ticket(launchUrl: String) = ConnectionTicket(

@@ -1,7 +1,7 @@
 # 原生客户端 SDK 与 WebRTC 产品边界
 
 > 决定日期：2026-09-07
-> 状态：已开始实施；SDK 目录与构建接入迁移已完成双端编译与 Windows 冒烟验证；传输退役与核心/平台分层仍待实施。
+> 状态：SDK 抽离、UDP 媒体回退退役、Android RTC/Relay 入口及 RTC AAR 退役已实施；Windows/Panel 旧通道与 SDK 核心/平台分层仍待实施。
 > 本文替代此前原生客户端支持 WebRTC、Windows 保留 host 直连，以及原生 WS 媒体/Direct/Relay 多传输选择的规划。
 > 归档规则：本次精简的原有代码放入根目录 `backup/`，不直接删除。下文“删除/移除”均指退出活动源码与构建依赖，原实现须先完整归档。
 
@@ -111,7 +111,7 @@ Web 的启动策略继续允许 RTC；它使用的信令 Relay/TURN 不受原生
 
 ## 5. 验收与交接
 
-- 已完成目录迁移和 UDP → WebSocket 媒体回退退役；现有代码和 APK 仍包含 RTC/Relay/独立 WS 媒体等旧入口，不得将其标记为符合新产品边界的候选包。
+- 已完成目录迁移、UDP → WebSocket 媒体回退退役及 Android 固定原生接入；Windows/SDK 仍有旧通道，Android 无真机复验，整体尚非最终候选包。
 - 取消原生 RTC、Relay、P2P、WS 视频回退待测项；验收 UDP+FEC 视频、音频恢复、控制可靠性、文件并发隔离、语音、剪贴板和录制。
 - Android 当前无 USB 手机；接入后只覆盖安装，不卸载、不清空数据，每次真机测试不超过 5 分钟。
 - Windows 使用 `build_cpp_*.bat` 聚焦构建；修改的运行产物同步到 `build_official/dist` 并逐一核对 SHA-256。
@@ -144,3 +144,13 @@ UDP 探测超时或媒体中断只发布媒体故障，不关闭已认证的控�
 Windows/Android Debug 编译通过；5 组 CTest、25 项 Android 领域测试和 20 秒 Windows 本机直连冒烟通过。
 Windows 产物已发布并核对哈希。未做手机安装、跨网测试、真实大文件或浏览器 RTC 功能验收。
 下一步清理两端通道选择和旧传输路由；详见 [UDP 故障隔离交付记录](native_udp_failure_checkpoint_20260907.md)。
+
+### 第三检查点：Android 固定原生接入
+
+Android 已退役 RTC AAR、PeerConnection/信令/统计、RTC 专属录制/语音、文件/剪贴板 JNI 和独立调试入口。
+账号与局域网连接均交给原生 SDK；平台配置不再包含协议、Relay 或 ICE 参数。保留原生文件、录制、剪贴板和语音实现，
+保留票据续期和权限校验。旧源码已保存在 `backup/android_native_only`。
+
+Debug 编译和 34 项 Android 单元测试通过；依赖图与 APK 不含 WebRTC AAR/原生库，JNI 名称对照检查通过。
+无手机，未验收实际账号连接或工具功能；SDK 中的 Relay 等旧实现仍随共享目标编译，后续与 Windows 清理一起退出，
+不能把入口固定等同于共享核心精简已完成。详见 [Android 原生接入交付记录](android_native_only_checkpoint_20260907.md)。

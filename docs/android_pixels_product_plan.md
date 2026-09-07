@@ -1,6 +1,6 @@
 # Pixels Android 客户端最终产品规划
 
-> 状态：M0–M4 保留已有实现记录；M5 收敛为 UDP+FEC 媒体与 WebSocket 控制/文件，移除原生 RTC/Relay/WS 媒体回退，代码尚未调整；M6 本机长期签名已完成，发布归档待验收；完整视频能力协商暂缓
+> 状态：M0–M4 保留已有实现记录；M5 收敛为 UDP+FEC 媒体与 WebSocket 控制/文件，Android 原生入口及 RTC 专属实现已退役，SDK 旧通道和 Windows 设置待清理；M6 本机长期签名已完成，发布归档待验收；完整视频能力协商暂缓
 > 更新日期：2026-09-07
 > 范围：`src/px_android` 及 Android 所需的项目自维护 C++ 公共模块
 
@@ -34,7 +34,7 @@ Android **不缺少也不计划增加** Windows 虚拟显示器创建/删除能�
 
 ### 当前暂停点（2026-09-07，无 USB 设备）
 
-- 新产品决定之前的实现已提交并推送到 `master`；本次 RTC 移除和 SDK 收敛尚未实施，当前不能仅凭旧验收将原生客户端标记为完成。
+- 新产品决定之前的实现已提交并推送到 `master`；Android RTC 退役已完成编译检查，SDK 深层收敛尚未完成，当前不能仅凭旧验收将原生客户端标记为完成。
 - 新决定之前的 debug APK 已完成单元测试、debug/release Lint、arm64 native 构建和打包，文件为
   `src/px_android/app/build/outputs/apk/debug/app-debug.apk`，SHA-256 为
   `B0ED8D4C9C699106BF55EB4D1931CBD76B5A1B1EAEB92010B7C5D454AEB33E0D`。
@@ -247,7 +247,7 @@ Windows Client 的剪贴板、文件传输和录制模块不能直接携带 Qt/W
 - WebSocket 文件消息：文件传输、目录与文件型剪贴板数据，沿用现有背压。普通会话复用已认证控制连接，独立文件模式保留现有文件连接。
 - UDP 不可达明确失败并允许重试，不自动回退为 WS 视频；公网 P2P、Relay 留待后续 RustDesk 方案。
 
-Android 最终构建不包含 WebRTC AAR、PeerConnection、SDP/ICE 信令和 RTC 专属文件、录制、语音路径。现有实现仍待删除；
+Android 最终构建不包含 WebRTC AAR、PeerConnection、SDP/ICE 信令和 RTC 专属文件、录制、语音路径。RTC 专属实现已归档退出活动源码，见 [第三检查点](android_native_only_checkpoint_20260907.md)；
 原生 UDP+FEC 媒体、WS 控制/文件、共享文件引擎、编码帧录制和原生语音保留，删除原生 Relay 与 WS 视频回退。账号票据及旋转 renewal capability 属于通用授权流程，仍需保留并维持
 logical session 与 stream 绑定。Web 客户端使用的服务端 RTC 能力不在此次删除范围内。
 

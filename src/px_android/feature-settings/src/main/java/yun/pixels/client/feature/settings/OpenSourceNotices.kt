@@ -23,7 +23,6 @@ private data class NoticeSection(val title: String, @RawRes val resource: Int)
 private val NOTICE_SECTIONS = listOf(
     NoticeSection("Component inventory", R.raw.open_source_inventory),
     NoticeSection("Apache License 2.0", R.raw.license_apache_2_0),
-    NoticeSection("WebRTC BSD 3-Clause notice", R.raw.license_webrtc_bsd_3_clause),
     NoticeSection("Protocol Buffers BSD 3-Clause notice", R.raw.license_protobuf_bsd_3_clause),
     NoticeSection("LevelDB BSD 3-Clause notice", R.raw.license_leveldb_bsd_3_clause),
     NoticeSection("Opus BSD 3-Clause and patent notices", R.raw.license_opus_bsd_3_clause),

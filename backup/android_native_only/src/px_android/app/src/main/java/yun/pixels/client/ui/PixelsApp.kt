@@ -1,0 +1,663 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
+package yun.pixels.client.ui
+
+import android.Manifest
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.IBinder
+import androidx.activity.compose.BackHandler
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Devices
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.SwapVert
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import yun.pixels.client.BuildConfig
+import yun.pixels.client.PixelsAppGraph
+import yun.pixels.client.R
+import yun.pixels.client.diagnostics.DiagnosticsExporter
+import yun.pixels.client.feature.devices.DeviceHomeAction
+import yun.pixels.client.feature.devices.DeviceHomeNotice
+import yun.pixels.client.feature.devices.DeviceHomeScreen
+import yun.pixels.client.feature.devices.DeviceHomeViewModel
+import yun.pixels.client.feature.devices.DeviceSessionPreferencesDialog
+import yun.pixels.client.feature.devices.ApplicationLibraryScreen
+import yun.pixels.client.feature.devices.ApplicationLibraryViewModel
+import yun.pixels.client.feature.settings.SettingsScreen
+import yun.pixels.client.feature.settings.SettingsViewModel
+import yun.pixels.client.core.domain.session.RemoteSessionRequest
+import yun.pixels.client.core.domain.session.RemoteInputMode
+import yun.pixels.client.core.domain.session.RemoteSessionPreferences
+import yun.pixels.client.core.domain.session.RemoteSessionSnapshot
+import yun.pixels.client.core.domain.session.RemoteSessionStatus
+import yun.pixels.client.core.domain.session.RemoteSessionTarget
+import yun.pixels.client.core.domain.session.preferenceKey
+import yun.pixels.client.feature.remote.RemoteWorkspaceScreen
+import yun.pixels.client.feature.transfer.TransferScreen
+import yun.pixels.client.remote.RemoteSessionService
+import yun.pixels.client.core.domain.transfer.FileTransferTask
+import yun.pixels.client.core.domain.transfer.RemoteDirectoryState
+import yun.pixels.client.core.domain.recording.RecordingState
+import yun.pixels.client.core.domain.voice.VoiceCallState
+
+private enum class TopLevelDestination(
+    @StringRes val labelResource: Int,
+    val icon: ImageVector,
+) {
+    Devices(R.string.navigation_devices, Icons.Outlined.Devices),
+    Transfers(R.string.navigation_transfers, Icons.Outlined.SwapVert),
+    Settings(R.string.navigation_settings, Icons.Outlined.Settings),
+}
+
+private enum class AppDestination(val topLevel: TopLevelDestination?) {
+    Devices(TopLevelDestination.Devices),
+    Applications(TopLevelDestination.Devices),
+    Transfers(TopLevelDestination.Transfers),
+    Settings(TopLevelDestination.Settings),
+    Remote(null),
+    RemoteTransfers(null),
+}
+
+private data class SessionPreferencesEditor(
+    val deviceKey: String,
+    val displayName: String,
+    val preferences: RemoteSessionPreferences? = null,
+    val isSaving: Boolean = false,
+)
+
+@Composable
+fun PixelsApp(graph: PixelsAppGraph) {
+    var appDestination by rememberSaveable { mutableStateOf(AppDestination.Devices) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val clipboard = LocalClipboard.current
+    val context = LocalContext.current
+    var remoteBinder by remember { mutableStateOf<RemoteSessionService.LocalBinder?>(null) }
+    var remoteRequest by remember { mutableStateOf<RemoteSessionRequest?>(null) }
+    var openTransfersWhenConnected by remember { mutableStateOf(false) }
+    var pendingDeviceRemoteDestination by remember { mutableStateOf<AppDestination?>(null) }
+    var acceptsApplicationRemoteRequest by remember { mutableStateOf(false) }
+    var leavingRemoteSession by remember { mutableStateOf(false) }
+    var remoteRequestAwaitingLocalNetwork by remember { mutableStateOf<RemoteSessionRequest?>(null) }
+    var activeSessionDeviceKey by remember { mutableStateOf<String?>(null) }
+    var activeSessionPreferences by remember { mutableStateOf<RemoteSessionPreferences?>(null) }
+    var preferencesEditor by remember { mutableStateOf<SessionPreferencesEditor?>(null) }
+    val idleRemoteSnapshot = remember { kotlinx.coroutines.flow.MutableStateFlow(RemoteSessionSnapshot()) }
+    val idleAudioEnabled = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
+    val idleFileTransferTasks = remember { kotlinx.coroutines.flow.MutableStateFlow(emptyList<FileTransferTask>()) }
+    val idleRemoteDirectory = remember { kotlinx.coroutines.flow.MutableStateFlow<RemoteDirectoryState>(RemoteDirectoryState.Idle) }
+    val idleRecordingState = remember { kotlinx.coroutines.flow.MutableStateFlow<RecordingState>(RecordingState.Idle) }
+    val idleVoiceCallState = remember { kotlinx.coroutines.flow.MutableStateFlow(VoiceCallState()) }
+    DisposableEffect(context) {
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName, service: IBinder) {
+                remoteBinder = service as RemoteSessionService.LocalBinder
+            }
+
+            override fun onServiceDisconnected(name: ComponentName) {
+                remoteBinder = null
+            }
+        }
+        context.bindService(Intent(context, RemoteSessionService::class.java), connection, Context.BIND_AUTO_CREATE)
+        onDispose {
+            runCatching { context.unbindService(connection) }
+            remoteBinder = null
+        }
+    }
+    val codeScanner = remember(context) {
+        val options = GmsBarcodeScannerOptions.Builder()
+            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+            .enableAutoZoom()
+            .build()
+        GmsBarcodeScanning.getClient(context, options)
+    }
+    val deviceHomeViewModel: DeviceHomeViewModel = viewModel(
+        factory = DeviceHomeViewModel.factory(
+            graph.deviceDirectory,
+            graph.deviceResolver,
+            graph.deviceDiscovery,
+            graph.accountRepository,
+        ),
+    )
+    val deviceHomeState by deviceHomeViewModel.uiState.collectAsStateWithLifecycle()
+    val applicationLibraryViewModel: ApplicationLibraryViewModel = viewModel(
+        factory = ApplicationLibraryViewModel.factory(graph.applicationRepository),
+    )
+    val applicationLibraryState by applicationLibraryViewModel.state.collectAsStateWithLifecycle()
+    val settingsViewModel: SettingsViewModel = viewModel(
+        factory = SettingsViewModel.factory(graph.accountRepository),
+    )
+    val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
+    val currentTopLevelDestination = appDestination.topLevel
+    val showsBottomNavigation = currentTopLevelDestination != null
+    var pendingLocalNetworkAction by remember { mutableStateOf<DeviceHomeAction?>(null) }
+    val noticeMessages by rememberUpdatedState(
+        mapOf(
+            DeviceHomeNotice.DeviceSaved to stringResource(R.string.device_saved),
+            DeviceHomeNotice.DeviceRemoved to stringResource(R.string.device_removed),
+            DeviceHomeNotice.LocalNetworkPermissionRequired to stringResource(R.string.local_network_permission_required),
+            DeviceHomeNotice.DiscoveryFinished to stringResource(R.string.discovery_finished),
+            DeviceHomeNotice.NoDevicesDiscovered to stringResource(R.string.no_devices_discovered),
+            DeviceHomeNotice.ScannerUnavailable to stringResource(R.string.scanner_unavailable),
+            DeviceHomeNotice.RemoteConnectionUnavailable to stringResource(R.string.remote_connection_unavailable),
+        ),
+    )
+    val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        val action = pendingLocalNetworkAction
+        pendingLocalNetworkAction = null
+        deviceHomeViewModel.onAction(if (granted && action != null) action else DeviceHomeAction.LocalNetworkPermissionDenied)
+    }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val microphonePermissionDenied = stringResource(R.string.microphone_permission_required)
+    val diagnosticsFailed = stringResource(R.string.diagnostics_failed)
+    val preferencesSaveFailed = stringResource(R.string.preferences_save_failed)
+    val shareDiagnostics = stringResource(R.string.share_diagnostics)
+    val microphonePermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) remoteBinder?.startVoiceCall() else coroutineScope.launch { snackbarHostState.showSnackbar(microphonePermissionDenied) }
+    }
+    var pendingUploadRemoteDirectory by remember { mutableStateOf("") }
+    var pendingDownloadRemotePath by remember { mutableStateOf("") }
+    val uploadDocumentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { source ->
+        val remoteDirectory = pendingUploadRemoteDirectory
+        pendingUploadRemoteDirectory = ""
+        if (source != null && remoteDirectory.isNotBlank()) {
+            runCatching { context.contentResolver.takePersistableUriPermission(source, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            remoteBinder?.startUpload(source, remoteDirectory)
+        }
+    }
+    val downloadDocumentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { destination ->
+        val remotePath = pendingDownloadRemotePath
+        pendingDownloadRemotePath = ""
+        if (destination != null && remotePath.isNotBlank()) {
+            runCatching { context.contentResolver.takePersistableUriPermission(destination, Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+            remoteBinder?.startDownload(remotePath, destination)
+        }
+    }
+    val remoteLocalNetworkPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val request = remoteRequestAwaitingLocalNetwork
+        remoteRequestAwaitingLocalNetwork = null
+        if (granted && request != null) {
+            remoteRequest = request
+        } else {
+            deviceHomeViewModel.onAction(DeviceHomeAction.LocalNetworkPermissionDenied)
+        }
+    }
+
+    LaunchedEffect(deviceHomeViewModel) {
+        deviceHomeViewModel.notices.collect { notice ->
+            snackbarHostState.showSnackbar(noticeMessages.getValue(notice))
+        }
+    }
+    LaunchedEffect(deviceHomeViewModel) {
+        deviceHomeViewModel.remoteRequests.collect { request ->
+            val destination = pendingDeviceRemoteDestination
+            if (appDestination == AppDestination.Devices && destination != null) {
+                val deviceKey = request.target.preferenceKey
+                val preferences = runCatching { graph.remoteSessionPreferences.load(deviceKey) }.getOrDefault(RemoteSessionPreferences())
+                if (appDestination == AppDestination.Devices && pendingDeviceRemoteDestination == destination) {
+                    pendingDeviceRemoteDestination = null
+                    openTransfersWhenConnected = destination == AppDestination.RemoteTransfers
+                    activeSessionDeviceKey = deviceKey
+                    activeSessionPreferences = preferences
+                    remoteRequest = request.copy(preferences = preferences)
+                }
+            }
+        }
+    }
+    LaunchedEffect(applicationLibraryViewModel) {
+        applicationLibraryViewModel.remoteRequests.collect { request ->
+            val acceptsRequest = acceptsApplicationRemoteRequest
+            if (appDestination == AppDestination.Applications && acceptsRequest) {
+                val deviceKey = request.target.preferenceKey
+                val preferences = runCatching { graph.remoteSessionPreferences.load(deviceKey) }.getOrDefault(RemoteSessionPreferences())
+                if (appDestination == AppDestination.Applications && acceptsApplicationRemoteRequest) {
+                    acceptsApplicationRemoteRequest = false
+                    openTransfersWhenConnected = false
+                    activeSessionDeviceKey = deviceKey
+                    activeSessionPreferences = preferences
+                    remoteRequest = request.copy(preferences = preferences)
+                }
+            }
+        }
+    }
+    LaunchedEffect(remoteBinder, remoteRequest) {
+        val binder = remoteBinder ?: return@LaunchedEffect
+        val request = remoteRequest ?: return@LaunchedEffect
+        val requiresLocalNetwork = request.target is RemoteSessionTarget.Direct ||
+            (request.target as? RemoteSessionTarget.Account)?.connectionTicket?.launchUrl?.startsWith("http://", ignoreCase = true) == true
+        if (Build.VERSION.SDK_INT >= 37 && requiresLocalNetwork && ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_LOCAL_NETWORK,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            remoteRequestAwaitingLocalNetwork = request
+            remoteRequest = null
+            remoteLocalNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+            return@LaunchedEffect
+        }
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        leavingRemoteSession = false
+        binder.prepare(request)
+        remoteRequest = null
+        appDestination = AppDestination.Remote
+    }
+    LaunchedEffect(remoteBinder) {
+        val binder = remoteBinder ?: return@LaunchedEffect
+        binder.snapshot.collect { snapshot ->
+            val sessionSurface = appDestination == AppDestination.Remote || appDestination == AppDestination.RemoteTransfers
+            when {
+                snapshot.status !is RemoteSessionStatus.Idle && !sessionSurface && !leavingRemoteSession -> {
+                    appDestination = AppDestination.Remote
+                }
+                snapshot.status is RemoteSessionStatus.Idle && sessionSurface -> {
+                    appDestination = AppDestination.Devices
+                }
+                snapshot.status is RemoteSessionStatus.Idle -> leavingRemoteSession = false
+            }
+        }
+    }
+    LaunchedEffect(remoteBinder, openTransfersWhenConnected) {
+        if (!openTransfersWhenConnected) return@LaunchedEffect
+        val binder = remoteBinder ?: return@LaunchedEffect
+        binder.snapshot.collect { snapshot ->
+            if (snapshot.status is RemoteSessionStatus.Connected) {
+                openTransfersWhenConnected = false
+                appDestination = AppDestination.RemoteTransfers
+            }
+        }
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        bottomBar = {
+            if (showsBottomNavigation) {
+                NavigationBar {
+                    TopLevelDestination.entries.forEach { destination ->
+                        NavigationBarItem(
+                            selected = currentTopLevelDestination == destination,
+                            onClick = {
+                                pendingDeviceRemoteDestination = null
+                                acceptsApplicationRemoteRequest = false
+                                remoteRequest = null
+                                appDestination = destination.appDestination
+                            },
+                            icon = { Icon(imageVector = destination.icon, contentDescription = null) },
+                            label = { Text(text = stringResource(destination.labelResource)) },
+                        )
+                    }
+                }
+            }
+        },
+    ) { contentPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(if (showsBottomNavigation) contentPadding else PaddingValues(0.dp)),
+        ) {
+            when (appDestination) {
+                AppDestination.Devices -> DeviceHomeScreen(
+                    state = deviceHomeState,
+                    onAction = { action ->
+                        when (action) {
+                            DeviceHomeAction.Paste -> {
+                                coroutineScope.launch {
+                                    val clipData = clipboard.getClipEntry()?.clipData
+                                    val pastedValue = if (clipData != null && clipData.itemCount > 0) {
+                                        clipData.getItemAt(0).coerceToText(context).toString()
+                                    } else {
+                                        ""
+                                    }
+                                    deviceHomeViewModel.onAction(DeviceHomeAction.ConnectionInputChanged(pastedValue))
+                                }
+                            }
+                            DeviceHomeAction.Connect, DeviceHomeAction.DiscoverLocal -> {
+                                val permissionRequired = Build.VERSION.SDK_INT >= 37 && ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.ACCESS_LOCAL_NETWORK,
+                                ) != PackageManager.PERMISSION_GRANTED
+                                if (permissionRequired) {
+                                    pendingLocalNetworkAction = action
+                                    localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+                                } else {
+                                    deviceHomeViewModel.onAction(action)
+                                }
+                            }
+                            DeviceHomeAction.ScanCode -> codeScanner.startScan()
+                                .addOnSuccessListener { barcode ->
+                                    val value = barcode.rawValue.orEmpty().trim()
+                                    if (value.isEmpty()) {
+                                        deviceHomeViewModel.onAction(DeviceHomeAction.ScannerFailed)
+                                    } else {
+                                        deviceHomeViewModel.onAction(DeviceHomeAction.ConnectionInputChanged(value))
+                                        val permissionRequired = Build.VERSION.SDK_INT >= 37 && ContextCompat.checkSelfPermission(
+                                            context,
+                                            Manifest.permission.ACCESS_LOCAL_NETWORK,
+                                        ) != PackageManager.PERMISSION_GRANTED
+                                        if (permissionRequired) {
+                                            pendingLocalNetworkAction = DeviceHomeAction.Connect
+                                            localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+                                        } else {
+                                            deviceHomeViewModel.onAction(DeviceHomeAction.Connect)
+                                        }
+                                    }
+                                }
+                                .addOnFailureListener { deviceHomeViewModel.onAction(DeviceHomeAction.ScannerFailed) }
+                            DeviceHomeAction.OpenAccountSettings -> {
+                                pendingDeviceRemoteDestination = null
+                                remoteRequest = null
+                                appDestination = AppDestination.Settings
+                            }
+                            is DeviceHomeAction.OpenDevice -> {
+                                pendingDeviceRemoteDestination = AppDestination.Remote
+                                deviceHomeViewModel.onAction(action)
+                            }
+                            is DeviceHomeAction.OpenAccountDevice -> {
+                                pendingDeviceRemoteDestination = AppDestination.Remote
+                                deviceHomeViewModel.onAction(action)
+                            }
+                            is DeviceHomeAction.StartRemoteDesktop -> {
+                                pendingDeviceRemoteDestination = AppDestination.Remote
+                                deviceHomeViewModel.onAction(action)
+                            }
+                            is DeviceHomeAction.StartAccountRemoteDesktop -> {
+                                pendingDeviceRemoteDestination = AppDestination.Remote
+                                deviceHomeViewModel.onAction(action)
+                            }
+                            is DeviceHomeAction.OpenFiles -> {
+                                pendingDeviceRemoteDestination = AppDestination.RemoteTransfers
+                                deviceHomeViewModel.onAction(DeviceHomeAction.StartRemoteDesktop(action.device))
+                            }
+                            is DeviceHomeAction.EditSessionPreferences -> {
+                                preferencesEditor = SessionPreferencesEditor(action.deviceKey, action.displayName)
+                                coroutineScope.launch {
+                                    val loaded = runCatching { graph.remoteSessionPreferences.load(action.deviceKey) }
+                                        .getOrDefault(RemoteSessionPreferences())
+                                    if (preferencesEditor?.deviceKey == action.deviceKey) {
+                                        preferencesEditor = preferencesEditor?.copy(preferences = loaded)
+                                    }
+                                }
+                            }
+                            DeviceHomeAction.OpenApplications -> {
+                                pendingDeviceRemoteDestination = null
+                                remoteRequest = null
+                                applicationLibraryViewModel.refresh()
+                                appDestination = AppDestination.Applications
+                            }
+                            else -> deviceHomeViewModel.onAction(action)
+                        }
+                    },
+                )
+
+                AppDestination.Applications -> {
+                    BackHandler {
+                        acceptsApplicationRemoteRequest = false
+                        remoteRequest = null
+                        appDestination = AppDestination.Devices
+                    }
+                    ApplicationLibraryScreen(
+                        state = applicationLibraryState,
+                        onBack = {
+                            acceptsApplicationRemoteRequest = false
+                            remoteRequest = null
+                            appDestination = AppDestination.Devices
+                        },
+                        onRefresh = applicationLibraryViewModel::refresh,
+                        onStart = { appId ->
+                            acceptsApplicationRemoteRequest = true
+                            applicationLibraryViewModel.start(appId)
+                        },
+                        onConnect = { instanceId ->
+                            acceptsApplicationRemoteRequest = true
+                            applicationLibraryViewModel.connect(instanceId)
+                        },
+                        onStop = applicationLibraryViewModel::stop,
+                    )
+                }
+
+                AppDestination.Transfers -> {
+                    BackHandler { appDestination = AppDestination.Devices }
+                    TransferRoute(
+                        remoteBinder = remoteBinder,
+                        idleFileTransferTasks = idleFileTransferTasks,
+                        idleRemoteSnapshot = idleRemoteSnapshot,
+                        idleRemoteDirectory = idleRemoteDirectory,
+                        onBack = null,
+                        onChooseUpload = { remoteDirectory ->
+                            pendingUploadRemoteDirectory = remoteDirectory
+                            uploadDocumentLauncher.launch(arrayOf("*/*"))
+                        },
+                        onChooseDownloadDestination = { remotePath ->
+                            pendingDownloadRemotePath = remotePath
+                            downloadDocumentLauncher.launch(remotePath.substringAfterLast('/').substringAfterLast('\\').ifBlank { "download" })
+                        },
+                    )
+                }
+
+                AppDestination.Settings -> {
+                    BackHandler { appDestination = AppDestination.Devices }
+                    SettingsScreen(
+                        state = settingsState,
+                        appVersion = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                        onAction = settingsViewModel::onAction,
+                        onExportDiagnostics = {
+                            coroutineScope.launch {
+                                runCatching {
+                                    val sessionState = remoteBinder?.snapshot?.value?.status?.javaClass?.simpleName ?: "Idle"
+                                    DiagnosticsExporter.create(context, sessionState)
+                                }.onSuccess { report ->
+                                    DiagnosticsExporter.share(context, report, shareDiagnostics)
+                                }.onFailure {
+                                    snackbarHostState.showSnackbar(diagnosticsFailed)
+                                }
+                            }
+                        },
+                    )
+                }
+
+                AppDestination.Remote -> {
+                    val sessionFlow = remoteBinder?.snapshot ?: idleRemoteSnapshot
+                    val snapshot by sessionFlow.collectAsStateWithLifecycle()
+                    val audioEnabledFlow = remoteBinder?.audioEnabled ?: idleAudioEnabled
+                    val audioEnabled by audioEnabledFlow.collectAsStateWithLifecycle()
+                    val recordingStateFlow = remoteBinder?.recordingState ?: idleRecordingState
+                    val recordingState by recordingStateFlow.collectAsStateWithLifecycle()
+                    val voiceCallStateFlow = remoteBinder?.voiceCallState ?: idleVoiceCallState
+                    val voiceCallState by voiceCallStateFlow.collectAsStateWithLifecycle()
+                    RemoteWorkspaceScreen(
+                        snapshot = snapshot,
+                        audioEnabled = audioEnabled,
+                        recordingState = recordingState,
+                        voiceCallState = voiceCallState,
+                        surfaceConsumerReady = remoteBinder != null,
+                        onSurfaceAvailable = { surface -> remoteBinder?.attachSurface(surface) },
+                        onSurfaceDestroyed = { surface -> remoteBinder?.detachSurface(surface) },
+                        onInput = { command -> remoteBinder?.sendInput(command) },
+                        onSwitchMonitor = { monitorName -> remoteBinder?.switchMonitor(monitorName) },
+                        onText = { text -> remoteBinder?.sendText(text) },
+                        onClipboardText = { text -> remoteBinder?.sendClipboardText(text) },
+                        onClipboardUris = { uris -> remoteBinder?.sendClipboardFiles(uris) },
+                        onClipboardFilesRequest = { files -> remoteBinder?.downloadClipboardFiles(files) },
+                        onAudioEnabledChange = { enabled ->
+                            remoteBinder?.setAudioEnabled(enabled)
+                            val deviceKey = activeSessionDeviceKey
+                            val current = activeSessionPreferences
+                            if (deviceKey != null && current != null) {
+                                val updated = current.copy(audioEnabled = enabled)
+                                activeSessionPreferences = updated
+                                coroutineScope.launch {
+                                    runCatching { graph.remoteSessionPreferences.save(deviceKey, updated) }
+                                        .onFailure { snackbarHostState.showSnackbar(preferencesSaveFailed) }
+                                }
+                            }
+                        },
+                        initialInputMode = activeSessionPreferences?.inputMode ?: RemoteInputMode.DirectTouch,
+                        onInputModePreferenceChange = { inputMode ->
+                            val deviceKey = activeSessionDeviceKey
+                            val current = activeSessionPreferences
+                            if (deviceKey != null && current != null) {
+                                val updated = current.copy(inputMode = inputMode)
+                                activeSessionPreferences = updated
+                                coroutineScope.launch {
+                                    runCatching { graph.remoteSessionPreferences.save(deviceKey, updated) }
+                                        .onFailure { snackbarHostState.showSnackbar(preferencesSaveFailed) }
+                                }
+                            }
+                        },
+                        onStartRecording = { remoteBinder?.startRecording() },
+                        onStopRecording = { remoteBinder?.stopRecording() },
+                        onStartVoiceCall = {
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                remoteBinder?.startVoiceCall()
+                            } else {
+                                microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
+                        onStopVoiceCall = { remoteBinder?.stopVoiceCall() },
+                        onVoiceMicrophoneMuted = { muted -> remoteBinder?.setVoiceMicrophoneMuted(muted) },
+                        onVoiceSpeakerphone = { enabled -> remoteBinder?.setVoiceSpeakerphone(enabled) },
+                        onOpenTransfers = { appDestination = AppDestination.RemoteTransfers },
+                        onRetry = { remoteBinder?.retrySession() },
+                        onEndSession = {
+                            leavingRemoteSession = true
+                            remoteBinder?.stopSession()
+                            appDestination = AppDestination.Devices
+                            activeSessionDeviceKey = null
+                            activeSessionPreferences = null
+                        },
+                    )
+                }
+
+                AppDestination.RemoteTransfers -> {
+                    BackHandler { appDestination = AppDestination.Remote }
+                    TransferRoute(
+                        remoteBinder = remoteBinder,
+                        idleFileTransferTasks = idleFileTransferTasks,
+                        idleRemoteSnapshot = idleRemoteSnapshot,
+                        idleRemoteDirectory = idleRemoteDirectory,
+                        onBack = { appDestination = AppDestination.Remote },
+                        onChooseUpload = { remoteDirectory ->
+                            pendingUploadRemoteDirectory = remoteDirectory
+                            uploadDocumentLauncher.launch(arrayOf("*/*"))
+                        },
+                        onChooseDownloadDestination = { remotePath ->
+                            pendingDownloadRemotePath = remotePath
+                            downloadDocumentLauncher.launch(remotePath.substringAfterLast('/').substringAfterLast('\\').ifBlank { "download" })
+                        },
+                    )
+                }
+            }
+        }
+    }
+    preferencesEditor?.let { editor ->
+        DeviceSessionPreferencesDialog(
+            displayName = editor.displayName,
+            preferences = editor.preferences,
+            isSaving = editor.isSaving,
+            onDismiss = { preferencesEditor = null },
+            onSave = { preferences ->
+                preferencesEditor = editor.copy(preferences = preferences, isSaving = true)
+                coroutineScope.launch {
+                    runCatching { graph.remoteSessionPreferences.save(editor.deviceKey, preferences) }
+                        .onSuccess { if (preferencesEditor?.deviceKey == editor.deviceKey) preferencesEditor = null }
+                        .onFailure {
+                            if (preferencesEditor?.deviceKey == editor.deviceKey) {
+                                preferencesEditor = preferencesEditor?.copy(isSaving = false)
+                            }
+                            snackbarHostState.showSnackbar(preferencesSaveFailed)
+                        }
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun TransferRoute(
+    remoteBinder: RemoteSessionService.LocalBinder?,
+    idleFileTransferTasks: StateFlow<List<FileTransferTask>>,
+    idleRemoteSnapshot: StateFlow<RemoteSessionSnapshot>,
+    idleRemoteDirectory: StateFlow<RemoteDirectoryState>,
+    onBack: (() -> Unit)?,
+    onChooseUpload: (String) -> Unit,
+    onChooseDownloadDestination: (String) -> Unit,
+) {
+    val transferTasks by (remoteBinder?.fileTransferTasks ?: idleFileTransferTasks).collectAsStateWithLifecycle()
+    val transferSnapshot by (remoteBinder?.snapshot ?: idleRemoteSnapshot).collectAsStateWithLifecycle()
+    val connected = transferSnapshot.status as? RemoteSessionStatus.Connected
+    val remoteDirectory by (remoteBinder?.remoteDirectory ?: idleRemoteDirectory).collectAsStateWithLifecycle()
+    LaunchedEffect(connected?.request?.id, connected?.capabilities?.supportsFileTransfer) {
+        if (connected?.capabilities?.supportsFileTransfer == true && remoteDirectory is RemoteDirectoryState.Idle) {
+            remoteBinder?.browseRemoteDirectory("/")
+        }
+    }
+    TransferScreen(
+        tasks = transferTasks,
+        remoteDirectory = remoteDirectory,
+        sessionConnected = connected != null,
+        supportsFileTransfer = connected?.capabilities?.supportsFileTransfer == true,
+        onBack = onBack,
+        onBrowseRemoteDirectory = { path -> remoteBinder?.browseRemoteDirectory(path) },
+        onChooseUpload = onChooseUpload,
+        onChooseDownloadDestination = onChooseDownloadDestination,
+        onCancel = { taskId -> remoteBinder?.cancelTransfer(taskId) },
+        onRetry = { taskId -> remoteBinder?.retryTransfer(taskId) },
+        onResolveOverwrite = { taskId, overwrite, applyToAll ->
+            remoteBinder?.resolveTransferOverwrite(taskId, overwrite, applyToAll)
+        },
+        onClearFinished = { remoteBinder?.clearFinishedTransfers() },
+    )
+}
+
+private val TopLevelDestination.appDestination: AppDestination
+    get() = when (this) {
+        TopLevelDestination.Devices -> AppDestination.Devices
+        TopLevelDestination.Transfers -> AppDestination.Transfers
+        TopLevelDestination.Settings -> AppDestination.Settings
+    }

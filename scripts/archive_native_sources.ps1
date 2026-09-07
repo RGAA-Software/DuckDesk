@@ -1,4 +1,9 @@
-param([string]$Batch = 'native_transport_simplification')
+param(
+    [string]$Batch = 'native_transport_simplification',
+    [string[]]$Paths = @('src/px_deps/px_client_sdk', 'src/px_client_sdk', 'src/px_client', 'src/px_panel', 'src/px_android',
+        'src/px_deps/CMakeLists.txt', 'src/CMakeLists.txt', 'CMakeLists.txt', 'scripts',
+        'build_cpp_client.bat', 'build_cpp_sdk.bat', 'build_cpp_tests.bat', 'build_official.bat')
+)
 
 $ErrorActionPreference = 'Stop'
 $archiveRepo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -8,10 +13,7 @@ if (-not $archiveRoot.StartsWith((Join-Path $archiveRepo 'backup/'), [StringComp
 }
 if (Test-Path -LiteralPath $archiveRoot) { throw "Archive already exists: $archiveRoot" }
 $archiveRevision = (& git -C $archiveRepo rev-parse HEAD).Trim()
-$archivePaths = @('src/px_deps/px_client_sdk', 'src/px_client_sdk', 'src/px_client', 'src/px_panel', 'src/px_android',
-    'src/px_deps/CMakeLists.txt', 'src/CMakeLists.txt', 'CMakeLists.txt', 'scripts',
-    'build_cpp_client.bat', 'build_cpp_sdk.bat', 'build_cpp_tests.bat', 'build_official.bat')
-$archiveFiles = & git -C $archiveRepo ls-files --cached --others --exclude-standard -- $archivePaths
+$archiveFiles = & git -C $archiveRepo ls-files --cached --others --exclude-standard -- $Paths
 if ($LASTEXITCODE -ne 0) { throw 'Cannot enumerate tracked source files.' }
 $archiveManifest = foreach ($relative in $archiveFiles) {
     $source = Join-Path $archiveRepo $relative
