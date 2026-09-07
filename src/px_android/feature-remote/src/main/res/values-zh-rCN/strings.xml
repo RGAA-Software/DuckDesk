@@ -7,7 +7,7 @@
     <string name="remote_failed_device_offline">远程电脑当前离线。</string>
     <string name="remote_failed_network">无法恢复网络连接。</string>
     <string name="remote_failed_transport">当前没有可用的连接链路。</string>
-    <string name="remote_failed_decoder">当前设备无法解码远程画面。</string>
+    <string name="remote_failed_decoder">硬件和软件解码器都无法解码远程画面。</string>
     <string name="remote_failed_protocol">远程电脑返回了无效响应。</string>
     <string name="remote_failed_remote_ended">远程电脑已结束会话。</string>
     <string name="remote_retry">重试</string>
@@ -74,7 +74,7 @@
     <string name="remote_text_hint">输入或粘贴文字</string>
     <string name="remote_text_send">发送</string>
     <string name="remote_text_cancel">取消</string>
-    <string name="remote_statistics">%1$d 帧/秒 · %2$d 毫秒 · %3$d kbps · 丢包 %4$.1f%%</string>
+    <string name="remote_statistics">%1$d 帧/秒 · %2$d 毫秒 · %3$d kbps · 丢包 %4$.1f%% · %5$s</string>
     <string name="remote_controls_expand">展开远控工具栏</string>
     <string name="remote_controls_collapse">收起远控工具栏</string>
 </resources>

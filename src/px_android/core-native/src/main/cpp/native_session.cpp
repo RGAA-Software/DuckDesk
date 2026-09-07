@@ -250,19 +250,21 @@ void JavaSessionCallback::FrameSizeChanged(const std::string& session_id, const 
 }
 
 void JavaSessionCallback::Statistics(const std::string& session_id, const std::int32_t frames_per_second, const std::int32_t latency_millis,
-                                     const std::int32_t bitrate_kbps) const {
+                                     const std::int32_t bitrate_kbps, const std::string& decoder_name) const {
     const auto listener_handle = listener_handle_;
     WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
         const auto listener = reinterpret_cast<jobject>(listener_handle);
         const auto listener_class_handle = reinterpret_cast<std::uintptr_t>(environment.GetObjectClass(listener));
         const auto listener_class = reinterpret_cast<jclass>(listener_class_handle);
-        const auto method = environment.GetMethodID(listener_class, "onStatistics", "(Ljava/lang/String;III)V");
+        const auto method = environment.GetMethodID(listener_class, "onStatistics", "(Ljava/lang/String;IIILjava/lang/String;)V");
         const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
-        if (method != nullptr && session_id_handle != 0U) {
+        const auto decoder_name_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(decoder_name.c_str()));
+        if (method != nullptr && session_id_handle != 0U && decoder_name_handle != 0U) {
             environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), frames_per_second, latency_millis,
-                                       bitrate_kbps);
+                                       bitrate_kbps, reinterpret_cast<jstring>(decoder_name_handle));
         }
         DeleteLocalReference(environment, session_id_handle);
+        DeleteLocalReference(environment, decoder_name_handle);
         DeleteLocalReference(environment, listener_class_handle);
     });
 }
@@ -1338,7 +1340,13 @@ bool NativeSession::Initialize() {
         if (size_changed)
             self->callback_->FrameSizeChanged(self->config_.session_id, image->img_width, image->img_height);
         if (statistics_due) {
-            self->callback_->Statistics(self->config_.session_id, frames_per_second, self->latest_latency_millis_.load(), bitrate_kbps);
+            self->callback_->Statistics(self->config_.session_id, frames_per_second, self->latest_latency_millis_.load(), bitrate_kbps,
+                                        self->statistics_->video_decoder_.Clone());
+        }
+    });
+    sdk_->SetOnVideoDecoderFailureCallback([weak_self] {
+        if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
+            self->callback_->Disconnected(self->config_.session_id, 4, false);
         }
     });
     sdk_->SetOnAudioFrameDecodedCallback(

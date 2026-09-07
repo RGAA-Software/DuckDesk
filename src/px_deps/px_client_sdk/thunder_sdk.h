@@ -42,6 +42,7 @@ using OnAudioFrameDecodedCallback = std::function<void(std::shared_ptr<Data>, in
 using OnSdkEncodedVideoFrameCallback = std::function<void(std::shared_ptr<Message>)>;
 using OnEncodedAudioFrameCallback = std::function<void(std::shared_ptr<Message>)>;
 using OnVideoFrameDecodeThreadDiscardedCallback = std::function<void()>;
+using OnVideoDecoderFailureCallback = std::function<void()>;
 using OnRenderSurfaceUpdated = std::function<void()>;
 
 class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
@@ -76,6 +77,9 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     void SetOnMonitorSwitchedCallback(OnMonitorSwitchedCallback&& cbk);
     void SetOnRawMessageCallback(OnRawMessageCallback&& cbk);
     void SetOnVideoFrameDecodeThreadDiscardedCallback(OnVideoFrameDecodeThreadDiscardedCallback&& cbk);
+    void SetOnVideoDecoderFailureCallback(OnVideoDecoderFailureCallback&& cbk) {
+        video_decoder_failure_cbk_ = std::move(cbk);
+    }
 
     void PostMediaMessage(std::shared_ptr<Data> msg);
     [[nodiscard]] FileTransferSendResult PostFileTransferMessage(std::shared_ptr<Data> msg);
@@ -112,6 +116,7 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     void ResetDecodeFailedCount(const std::string& mon_name);
     void DisableHardwareDecoder(const std::string& mon_name);
     bool IsDisabledHardwareDecoder(const std::string& mon_name);
+    void NotifyDecoderUnavailable();
 
   private:
     std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
@@ -133,6 +138,7 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     OnAudioFrameDecodedCallback audio_frame_cbk_ = nullptr;
     OnAudioSpectrumCallback audio_spectrum_cbk_ = nullptr;
     OnVideoFrameDecodeThreadDiscardedCallback video_frame_thread_discarded_cbk_ = nullptr;
+    OnVideoDecoderFailureCallback video_decoder_failure_cbk_{};
 
     DecoderRenderType drt_;
     std::atomic_bool exit_{false};
@@ -157,6 +163,7 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     std::atomic_int64_t rtc_video_frame_index_{0};
 
     std::atomic_bool need_clear_video_tasks_{false};
+    std::atomic_bool decoder_failure_notified_{false};
 
     std::map<std::string, int64_t> last_frame_indices_;
 

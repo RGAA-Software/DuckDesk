@@ -523,7 +523,7 @@ class NativeRemoteSessionTransport internal constructor(
         }
     }
 
-    override fun onStatistics(sessionId: String, framesPerSecond: Int, latencyMillis: Int, bitrateKbps: Int) {
+    override fun onStatistics(sessionId: String, framesPerSecond: Int, latencyMillis: Int, bitrateKbps: Int, decoderName: String) {
         callbackScope.launch {
             mutableEvents.emit(
                 RemoteTransportEvent.Statistics(
@@ -532,6 +532,7 @@ class NativeRemoteSessionTransport internal constructor(
                         framesPerSecond = framesPerSecond.coerceAtLeast(0),
                         latencyMillis = latencyMillis.coerceAtLeast(0),
                         bitrateKbps = bitrateKbps.coerceAtLeast(0),
+                        decoderName = decoderName.take(MAX_DECODER_NAME_CHARS),
                     ),
                 ),
             )
@@ -850,6 +851,7 @@ private const val MOUSE_WHEEL = 3
 private const val MAX_CLIPBOARD_TEXT_BYTES = 1_048_576
 private const val MAX_CLIPBOARD_FILE_COUNT = 16
 private const val MAX_NATIVE_ERROR_CHARS = 256
+private const val MAX_DECODER_NAME_CHARS = 64
 private const val MAX_REMOTE_PATH_BYTES = 4096
 private const val MAX_REMOTE_DIRECTORY_ENTRIES = 2048
 private const val MAX_RTC_FILE_MESSAGE_BYTES = 4 * 1024 * 1024

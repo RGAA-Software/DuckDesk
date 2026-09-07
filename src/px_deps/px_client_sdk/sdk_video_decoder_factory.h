@@ -7,6 +7,9 @@
 
 #include "sdk_ffmpeg_soft_decoder.h"
 #include "sdk_mediacodec_video_decoder.h"
+#ifdef ANDROID
+#include "sdk_android_software_decoder.h"
+#endif
 
 namespace px
 {
@@ -23,7 +26,11 @@ namespace px
 
         static std::shared_ptr<VideoDecoder> Make(const std::shared_ptr<ThunderSdk>& sdk, const SupportedCodec& codec) {
             if (codec == SupportedCodec::kFFmpeg) {
+#ifdef ANDROID
+                return std::make_shared<AndroidSoftwareVideoDecoder>(sdk);
+#else
                 return std::make_shared<FFmpegVideoDecoder>(sdk);
+#endif
             }
 #ifdef ANDROID
             if (codec == SupportedCodec::kMediaCodec) {

@@ -296,8 +296,15 @@ namespace px
                         // Android
                         // Begin
 #ifdef ANDROID
-                        auto codec = (self->drt_ == DecoderRenderType::kMediaCodecSurface || self->drt_ == DecoderRenderType::kMediaCodecNv21) ? SupportedCodec::kMediaCodec : SupportedCodec::kFFmpeg;
+                        const auto hardware_requested = self->drt_ == DecoderRenderType::kMediaCodecSurface ||
+                                                        self->drt_ == DecoderRenderType::kMediaCodecNv21;
+                        auto codec = hardware_requested && !self->IsDisabledHardwareDecoder(frame.mon_name()) ? SupportedCodec::kMediaCodec
+                                                                                                               : SupportedCodec::kFFmpeg;
                         video_decoder = VideoDecoderFactory::Make(self, codec);
+                        if (!video_decoder) {
+                            self->NotifyDecoderUnavailable();
+                            return;
+                        }
                         LOGI("Create video decoder, codec: {}", (int)codec);
                         // Android
                         // End
@@ -308,9 +315,25 @@ namespace px
                         if (!ready) {
                             auto result = video_decoder->Init(frame.mon_name(), frame.type(), frame.frame_width(),
                                 frame.frame_height(), frame.data(), render_surface, frame.image_format(), false);
+#ifdef ANDROID
+                            if (result != 0 && codec == SupportedCodec::kMediaCodec) {
+                                LOGW("MediaCodec initialization failed for {}; falling back to FFmpeg software decoding", frame.mon_name());
+                                video_decoder->Release();
+                                self->DisableHardwareDecoder(frame.mon_name());
+                                codec = SupportedCodec::kFFmpeg;
+                                video_decoder = VideoDecoderFactory::Make(self, codec);
+                                if (!video_decoder) {
+                                    self->NotifyDecoderUnavailable();
+                                    return;
+                                }
+                                result = video_decoder->Init(frame.mon_name(), frame.type(), frame.frame_width(), frame.frame_height(), frame.data(),
+                                    render_surface, frame.image_format(), true);
+                            }
+#endif
                             if (result != 0) {
                                 LOGE("Video decoder init failed, mon name: {}, frame type: {}, frame width: {}, frame height: {}, format: {}",
                                     frame.mon_name(), (int)frame.type(), frame.frame_width(), frame.frame_height(), (int)frame.image_format());
+                                self->NotifyDecoderUnavailable();
                                 return;
                             }
                             LOGI("Create decoder success {}x{}, type: {}", frame.frame_width(), frame.frame_height(), (int)frame.type());
@@ -387,16 +410,20 @@ namespace px
                     self->IncreaseDecodeFailedCount(frame.mon_name());
                     if (self->GetDecodeFailedCount(frame.mon_name()) > 60) {
                         self->ResetDecodeFailedCount(frame.mon_name());
+                        const auto hardware_was_enabled = !self->IsDisabledHardwareDecoder(frame.mon_name());
                         self->DisableHardwareDecoder(frame.mon_name());
                         LOGE("decode error: {}, will recreate the decoder", ret.error());
                         video_decoder->Release();
                         video_decoders_.erase(frame.mon_name());
                         LOGW("Video decoder for : {} is released.", frame.mon_name());
+                        if (!hardware_was_enabled) self->NotifyDecoderUnavailable();
                     }
                     else if (self->GetDecodeFailedCount(frame.mon_name()) > 30) {
                         self->RequestIFrame();
                         LOGE("decode error: {}, will request Key Frame", ret.error());
                     }
+                } else if (ret.has_value()) {
+                    self->ResetDecodeFailedCount(frame.mon_name());
                 }
 
                 // test
@@ -912,6 +939,11 @@ namespace px
             return hw_disabled_states_[mon_name];
         }
         return false;
+    }
+
+    void ThunderSdk::NotifyDecoderUnavailable() {
+        if (decoder_failure_notified_.exchange(true) || !video_decoder_failure_cbk_) return;
+        video_decoder_failure_cbk_();
     }
 
     void ThunderSdk::Exit() {

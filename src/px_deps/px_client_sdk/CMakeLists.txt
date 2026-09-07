@@ -50,6 +50,10 @@ set(SDK_SRCS
     ${CONN_SRCS}
 )
 
+if(ANDROID)
+    list(APPEND SDK_SRCS sdk_android_software_decoder.cpp)
+endif()
+
 set(GL_SRCS
     gl/shader_program.cpp
     gl/director.cpp

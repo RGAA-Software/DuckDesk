@@ -497,25 +497,27 @@ private fun RemoteTopBar(
             ) {
                 Text(text = title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 Column(horizontalAlignment = Alignment.End) {
-                    if (status is RemoteSessionStatus.Connected) {
-                        Text(
-                            text = stringResource(
-                                R.string.remote_statistics,
-                                snapshot.statistics.framesPerSecond,
-                                snapshot.statistics.latencyMillis,
-                                snapshot.statistics.bitrateKbps,
-                                snapshot.statistics.packetLossPercent,
-                            ),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
                     RecordingStatus(state = recordingState)
                     VoiceCallStatus(state = voiceCallState)
                 }
                 FilledTonalIconButton(onClick = { onExpandedChange(false) }) {
                     Icon(Icons.Outlined.ExpandLess, contentDescription = stringResource(R.string.remote_controls_collapse))
                 }
+            }
+            if (status is RemoteSessionStatus.Connected) {
+                Text(
+                    text = stringResource(
+                        R.string.remote_statistics,
+                        snapshot.statistics.framesPerSecond,
+                        snapshot.statistics.latencyMillis,
+                        snapshot.statistics.bitrateKbps,
+                        snapshot.statistics.packetLossPercent,
+                        snapshot.statistics.decoderName.ifBlank { "—" },
+                    ),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             Row(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),

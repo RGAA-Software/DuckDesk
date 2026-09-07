@@ -91,6 +91,7 @@ data class RemoteSessionStatistics(
     val latencyMillis: Int = 0,
     val bitrateKbps: Int = 0,
     val packetLossPercent: Float = 0f,
+    val decoderName: String = "",
 )
 
 data class RemoteVideoSize(val width: Int, val height: Int) {

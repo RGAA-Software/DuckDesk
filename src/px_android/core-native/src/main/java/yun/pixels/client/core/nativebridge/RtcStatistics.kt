@@ -49,6 +49,7 @@ internal class RtcStatisticsAccumulator {
                 .coerceIn(0, MAX_RTC_LATENCY_MILLIS),
             bitrateKbps = bitrateKbps,
             packetLossPercent = packetLossPercent,
+            decoderName = "WebRTC",
         )
     }
 }

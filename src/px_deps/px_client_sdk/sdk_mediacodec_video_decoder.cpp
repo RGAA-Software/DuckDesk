@@ -133,6 +133,7 @@ namespace px
         this->codec_type_ = codec_type;
         this->frame_width_ = width;
         this->frame_height_ = height;
+        sdk_stat_->video_decoder_.Update("MediaCodec hardware");
         inited_ = true;
 
         return AMEDIA_OK;

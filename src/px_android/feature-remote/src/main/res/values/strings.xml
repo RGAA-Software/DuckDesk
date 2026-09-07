@@ -7,7 +7,7 @@
     <string name="remote_failed_device_offline">The computer is offline.</string>
     <string name="remote_failed_network">Could not restore the network connection.</string>
     <string name="remote_failed_transport">No usable connection path is available.</string>
-    <string name="remote_failed_decoder">This device cannot decode the remote video.</string>
+    <string name="remote_failed_decoder">Neither the hardware nor software decoder can decode the remote video.</string>
     <string name="remote_failed_protocol">The remote computer returned an invalid response.</string>
     <string name="remote_failed_remote_ended">The remote computer ended the session.</string>
     <string name="remote_retry">Try again</string>
@@ -74,7 +74,7 @@
     <string name="remote_text_hint">Type or paste text</string>
     <string name="remote_text_send">Send</string>
     <string name="remote_text_cancel">Cancel</string>
-    <string name="remote_statistics">%1$d fps · %2$d ms · %3$d kbps · %4$.1f%% loss</string>
+    <string name="remote_statistics">%1$d fps · %2$d ms · %3$d kbps · %4$.1f%% loss · %5$s</string>
     <string name="remote_controls_expand">Show remote controls</string>
     <string name="remote_controls_collapse">Hide remote controls</string>
 </resources>

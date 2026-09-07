@@ -23,7 +23,7 @@ interface NativeSessionListener {
 
     fun onFrameSizeChanged(sessionId: String, width: Int, height: Int)
 
-    fun onStatistics(sessionId: String, framesPerSecond: Int, latencyMillis: Int, bitrateKbps: Int)
+    fun onStatistics(sessionId: String, framesPerSecond: Int, latencyMillis: Int, bitrateKbps: Int, decoderName: String)
 
     fun onGamepadRumble(sessionId: String, strongMotor: Int, weakMotor: Int)
 
