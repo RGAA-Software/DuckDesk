@@ -90,17 +90,6 @@ namespace px
         return fps_;
     }
 
-    bool Settings::IsRelayMode() {
-        return network_type_ == ClientNetworkType::kRelay;
-    }
-
-    bool Settings::IsDirectMode() {
-        // udp_direct 也是直连(ws 控制面 + UDP 媒体面,不经 relay)
-        return network_type_ == ClientNetworkType::kWebsocket
-            || network_type_ == ClientNetworkType::kUdpDirect
-            || network_type_ == ClientNetworkType::kWebRtcDirect;
-    }
-
     void Settings::Dump() {
         LOGI("device id: {}", device_id_);
         LOGI("stream id: {}", stream_id_);

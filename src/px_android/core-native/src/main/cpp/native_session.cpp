@@ -610,10 +610,8 @@ bool NativeSession::Initialize() {
                                       config_.stream_id, config_.client_device_id);
     params->ft_path_ = std::format("/file/transfer?remote_device_id={}&stream_id={}&visitor_device_id={}", config_.remote_device_id,
                                    config_.stream_id, config_.client_device_id);
-    params->remote_device_random_pwd_ = config_.random_password;
     params->connection_ticket_ = config_.connection_ticket;
     params->connection_nonce_ = config_.connection_nonce;
-    params->connection_ticket_device_id_ = config_.connection_ticket_device_id;
     params->connection_instance_id_ = config_.connection_instance_id;
     params->render_type_name_ = "mediacodec_surface";
 

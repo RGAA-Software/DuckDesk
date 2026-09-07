@@ -1,0 +1,101 @@
+{
+  "revision": "1f6f9c42a29415acd5efab8c152dc444a84d9a3e",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "scripts/check_native_sdk_transport.ps1",
+      "sha256": "88DBE903C5CE9DE3CB29E20295B83A931420CB2C4D2C23F99B191588E4707BF0",
+      "status": ""
+    },
+    {
+      "path": "scripts/check_windows_native_transport.ps1",
+      "sha256": "C851AE7B68DCFAC5D54955A21C9CFA5C5B70637E32CEFD6F8B705812D047E776",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_session.cpp",
+      "sha256": "AEF50BE49D70BDDBD7C1DAA4477A4720D143A1738C99DB3657E129B5DA86EF41",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.cpp",
+      "sha256": "3779B585301F8DC96785341E424CF7CA6142075A66FD6ABD029640A51D9C6798",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_main_progress.cpp",
+      "sha256": "114CD888F0450F2AD0C88B0AC7AA6605EDDEBC123853B96520A728689E50AE9B",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_main_progress.h",
+      "sha256": "B61C0E0392B2045CB4FA9DB3C4DE6F782A2A9769A02786F663DA196E2741D263",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_main_ws.cpp",
+      "sha256": "1BD304D93563AFF46373A955476718709E3006DD0B141B064784938B708501D6",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_settings.cpp",
+      "sha256": "A5CD6E8C5EA09D6450015D0484493B0011A09E887614DFC6F794407E2F4F9672",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_settings.h",
+      "sha256": "80ECEA8C7A387976C29E495AD62E29187732928C1983D59848102B6B2FF5EF67",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ui/ct_statistics_panel.cpp",
+      "sha256": "1C203DA4376BE74E6734E95F2FA5818781DD0F896337109DBE5D1D22E9D3A0A3",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ui/ct_statistics_panel.h",
+      "sha256": "2481E6EA65BEA6B4086F996E3F0BD8CAC30728CBC2D1C5F4E45F9DACFC829901",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/connection.h",
+      "sha256": "2784782B8C00E8FD1A9554BB05204997452C2FDC74894C177F42E54861B7EA14",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_messages.h",
+      "sha256": "233C9C989A07CC759F96D55D0014F3B1B860848C29C51C074197E7C9044699E9",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_net_client.cpp",
+      "sha256": "32C6FBF1D61529507FB7977D104D35D00376D50FF15298718B44BBA871059CFA",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_net_client.h",
+      "sha256": "FFF885E33FB75A7E1AA8094F9BF769198B91BA1BD7E5A17E0D333CA89F61918C",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_params.h",
+      "sha256": "A7F7F336ADBD0014CF0F816279108AD7120A31711F4B5E2F671FBE8DAB832318",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_statistics.h",
+      "sha256": "89EA6F48D34CD4FDCF65D1C666F497CB346DD3A2396EB0B80169E24BD24E19C0",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/thunder_sdk.cpp",
+      "sha256": "F2ADD835ED47605ED5431EC30586645D5838C8DA9D5D756B56897129ED1DC4AD",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/thunder_sdk.h",
+      "sha256": "97B5D4E3BF2245E983C987D6320EACBC0846339EFA8240AB50D91AEDFBD2D664",
+      "status": ""
+    }
+  ]
+}

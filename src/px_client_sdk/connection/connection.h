@@ -49,7 +49,6 @@ namespace px
         virtual void RequestPauseStream() {}
         virtual void RequestResumeStream() {}
         virtual void On16msTimeout() {}
-        virtual void RetryConnection() {}
         virtual bool IsAlive() { return true; }
         [[nodiscard]] virtual std::shared_ptr<FileTransferWritableSignal>
         AcquireFileTransferWritableSignal();

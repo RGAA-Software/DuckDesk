@@ -340,16 +340,6 @@ namespace px
             });
         });
 
-        // reconnection
-        // relay mode now, already connected
-        msg_listener_->Listen<SdkMsgReconnect>([weak_self](const SdkMsgReconnect&) {
-            if (const auto self = weak_self.lock()) {
-                self->main_progress_->ResetProgress();
-                self->main_progress_->StepForward();
-                LOGI("Step: SdkMsgReconnect, at: {}", self->main_progress_->GetCurrentProgress());
-            }
-        });
-
         msg_listener_->Listen<SdkMsgNetworkDisConnected>([weak_self](const SdkMsgNetworkDisConnected&) {
             const auto self = weak_self.lock();
             if (!self) {

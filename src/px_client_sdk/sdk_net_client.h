@@ -68,8 +68,6 @@ class NetClient : public std::enable_shared_from_this<NetClient> {
 
     void On16msTimeout();
 
-    // retry connection
-    void RetryConnection();
 
   private:
     std::shared_ptr<px::Message> ParseMessage(std::shared_ptr<Data> msg);

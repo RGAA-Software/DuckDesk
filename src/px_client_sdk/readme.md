@@ -26,10 +26,19 @@ Standalone file sessions use one authenticated WebSocket without requiring UDP.
 Repeated Start/Exit is idempotent; Exit is terminal for that connection object.
 
 Windows no longer links or packages the Client RTC DLL. Render's WebRTC DLLs and
-the voice APM DLL remain separate retained capabilities. The Windows
-decoder/render adapter still depends on Qt; this is **not yet** an independently
-consumable, platform-neutral SDK. Legacy diagnostic/message fields and decoder
-ownership boundaries still need cleanup.
+the voice APM DLL remain separate retained capabilities. Obsolete transport
+diagnostics, signaling messages, credential parameters, and the no-op retry API
+have been retired. Windows progress presentation no longer lives in the SDK.
+
+The unused SDK OpenGL presentation helpers have been archived. Production
+`px_sdk` no longer includes or directly links Qt and disables Qt code generation;
+the Windows client keeps its own Qt/OpenGL renderer. Only the optional Windows
+file-transfer test harness uses Qt Core. Frame data (`gl/raw_image.*`) remains
+shared and active.
+
+This is **not yet** an independently consumable, platform-neutral SDK:
+D3D11/Vulkan/Android decoder boundaries, frame ownership, and dependency
+composition still need separation. iOS/macOS adapters are not implemented.
 
 Run `scripts/check_native_sdk_transport.ps1` to check source/build topology,
 and `scripts/check_webrtc_dll_link_boundary.ps1` after Windows configuration

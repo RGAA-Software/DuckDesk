@@ -33,7 +33,6 @@ namespace px
         std::string media_path_;
         std::string ft_path_;
         ClientType client_type_ = ClientType::kUnknown;
-        //ClientConnectType conn_type_;
         // id only: xxxxx
         std::string bare_device_id_;
         // id only: xxxxx
@@ -76,27 +75,13 @@ namespace px
         // force gdi
         bool force_gdi_ = false;
 
-        // Remote device passwords used when a guest connects without a
-        // Console ticket, for both standard and Direct RTC.
-        // plain random password, will be md5-ed before sending as safety_pwd_md5
-        std::string remote_device_random_pwd_;
-        // safety password, already in md5 form, sent as safety_pwd_md5 directly
-        std::string remote_device_safety_pwd_;
-        // One-time Console capability grant used by WebRTC signaling. It must
-        // never be persisted or logged.
+        // One-time authorization for the reliable WebSocket binding. Never persist or log it.
         std::string connection_ticket_;
         std::string connection_nonce_;
-        std::string connection_ticket_device_id_;
         std::string connection_instance_id_;
-        // Opaque, short-lived Render-issued credential for Direct RTC retries.
-        // It is rotated on every use and must never be persisted or logged.
-        std::string direct_session_grant_;
         // Short-lived opaque key used only to associate the UDP media endpoint
         // with an already authorized WS binding. It is not a session grant.
         std::string udp_media_association_;
-        // Direct RTC callers set this only after the user requests takeover.
-        // Console tickets already carry the authorized admission mode.
-        bool direct_takeover_ = false;
     };
 
 }

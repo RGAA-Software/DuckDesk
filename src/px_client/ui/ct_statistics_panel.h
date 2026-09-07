@@ -18,7 +18,6 @@ namespace px
     class CtStatChart;
     class SdkStatistics;
     class CtStatFrameInfoItem;
-    class Settings;
     class Message;
 
     class CtStatisticsPanel : public BaseWidget {
@@ -39,7 +38,6 @@ namespace px
         CtStatChart* data_speed_stat_chart_ = nullptr;
         CtStatChart* durations_stat_chart_ = nullptr;
         std::shared_ptr<SdkStatistics> sdk_stat_;
-        Settings* settings_ = nullptr;
         QLabel* lbl_data_speed_ = nullptr;
         QLabel* lbl_received_data_ = nullptr;
         QLabel* lbl_sent_data_ = nullptr;
@@ -48,10 +46,7 @@ namespace px
         QLabel* lbl_video_capture_type_ = nullptr;
         QLabel* lbl_audio_capture_type_ = nullptr;
         QLabel* lbl_audio_encode_type_ = nullptr;
-        QLabel* lbl_conn_type_ = nullptr;
         QLabel* lbl_render_type_ = nullptr;
-        QLabel* lbl_rtc_path_ = nullptr;
-        QLabel* lbl_rtc_transport_ = nullptr;
         QLabel* lbl_remote_computer_info_ = nullptr;
         QLabel* lbl_local_computer_info_ = nullptr;
         QLabel* lbl_network_ = nullptr;

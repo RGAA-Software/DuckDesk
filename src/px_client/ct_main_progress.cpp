@@ -26,7 +26,6 @@ namespace px
         const QPointer<MainProgress> guarded_self(this);
         sdk_ = sdk;
         context_ = ctx;
-        settings_ = Settings::Instance();
         auto root_layout = new NoMarginVLayout();
         root_layout->addStretch(1);
         // logo
@@ -55,21 +54,21 @@ namespace px
             root_layout->addLayout(layout);
         }
 
-        // progress bar
+        // Progress presentation belongs to Windows UI, not the shared SDK.
         {
-            LOGI("For progressbar, network type: {}, total steps: {}", (int)settings_->network_type_, sdk_->GetProgressSteps());
-            auto layout = new NoMarginHLayout();
-            auto progress_bar = new QProgressBar();
-            progress_bar_ = progress_bar;
-            progress_bar->setFixedSize(400, 6);
-            progress_bar->setMaximum(sdk_->GetProgressSteps());
-            progress_bar->setValue(0);
+            QPointer<QWidget> row = new QWidget(this);           // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns the row.
+            QPointer<QHBoxLayout> layout = new QHBoxLayout(row); // NOLINT(gammaray-raw-pointer-boundary) Qt row owns the layout.
+            layout->setContentsMargins(0, 0, 0, 0);
+            layout->setSpacing(0);
+            progress_bar_ = new QProgressBar(row); // NOLINT(gammaray-raw-pointer-boundary) Qt row owns the progress bar.
+            progress_bar_->setFixedSize(400, 6);
+            progress_bar_->setMaximum(kConnectionProgressSteps);
+            progress_bar_->setValue(0);
             layout->addStretch();
-            layout->addWidget(progress_bar);
+            layout->addWidget(progress_bar_);
             layout->addStretch();
-
             root_layout->addSpacing(20);
-            root_layout->addLayout(layout);
+            root_layout->addWidget(row);
         }
 
         // sub messages
@@ -144,17 +143,6 @@ namespace px
 
         // begin to start
         msg_listener_->Listen<SdkMsgNetworkConnected>([guarded_self](const SdkMsgNetworkConnected&) {
-            if (guarded_self) {
-                guarded_self->context_->PostUITask([guarded_self]() {
-                    if (guarded_self) {
-                        guarded_self->lbl_sub_message_->SetTextId("id_start_connection");
-                    }
-                });
-            }
-        });
-
-        // reconnection
-        msg_listener_->Listen<SdkMsgReconnect>([guarded_self](const SdkMsgReconnect&) {
             if (guarded_self) {
                 guarded_self->context_->PostUITask([guarded_self]() {
                     if (guarded_self) {

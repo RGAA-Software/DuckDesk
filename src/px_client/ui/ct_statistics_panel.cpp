@@ -15,7 +15,6 @@
 #include "px_common/hardware.h"
 #include "ct_stat_frame_info_item.h"
 #include "px_qt_widget/widget_helper.h"
-#include "px_client/ct_settings.h"
 #include "px_label.h"
 
 namespace px
@@ -32,7 +31,6 @@ namespace px
         setWindowTitle(tcTr("id_statistics"));
         installEventFilter(this);
         sdk_stat_ = SdkStatistics::Instance();
-        settings_ = Settings::Instance();
 
         auto root_layout = new NoMarginHLayout();
         root_layout->addSpacing(20);
@@ -300,43 +298,21 @@ namespace px
                     }
 
                     {
-                        auto item_layout = new NoMarginHLayout();
-                        auto label = new TcLabel(this);
+                        QPointer<QWidget> row = new QWidget(this);               // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns the row.
+                        QPointer<QHBoxLayout> row_layout = new QHBoxLayout(row); // NOLINT(gammaray-raw-pointer-boundary) Qt row owns layout.
+                        row_layout->setContentsMargins(0, 0, 0, 0);
+                        row_layout->setSpacing(0);
+                        QPointer<TcLabel> label = new TcLabel(row); // NOLINT(gammaray-raw-pointer-boundary) Qt row owns the label.
                         label->setFixedSize(label_size);
                         label->SetTextId("id_connection_type");
                         label->setStyleSheet("font-size: 13px;");
-                        item_layout->addWidget(label);
-
-                        auto op = new QLabel(this);
-                        lbl_conn_type_ = op;
-                        op->setText([=, this]() -> QString {
-                            if (settings_->network_type_ == ClientNetworkType::kRelay) {
-                                return "Relay";
-                            }
-                            else if (settings_->network_type_ == ClientNetworkType::kWebsocket) {
-                                return "WS";
-                            }
-                            else if (settings_->network_type_ == ClientNetworkType::kWebRtc) {
-                                return "WebRTC";
-                            }
-                            else if (settings_->network_type_ == ClientNetworkType::kWebRtcDirect) {
-                                return "WebRTC Direct";
-                            }
-                            else if (settings_->network_type_ == ClientNetworkType::kUdpDirect) {
-                                return "UDP Direct";
-                            }
-                            else if (settings_->network_type_ == ClientNetworkType::kUdpKcp) {
-                                return "UDP";
-                            }
-                            else {
-                                return "";
-                            }
-                         }());
-                        op->setFixedSize(value_size);
-                        op->setStyleSheet("font-size: 13px; font-weight:500; color: #2979ff;");
-                        item_layout->addWidget(op);
-                        item_layout->addStretch();
-                        layout->addLayout(item_layout);
+                        row_layout->addWidget(label);
+                        QPointer<QLabel> value = new QLabel("UDP/FEC + WS", row); // NOLINT(gammaray-raw-pointer-boundary) Qt row owns value.
+                        value->setFixedSize(value_size);
+                        value->setStyleSheet("font-size: 13px; font-weight:500; color: #2979ff;");
+                        row_layout->addWidget(value);
+                        row_layout->addStretch();
+                        layout->addWidget(row);
                     }
 
 //                    {
@@ -359,37 +335,6 @@ namespace px
                     right_layout->addLayout(layout);
 
                 } // end line 3
-
-                // Full WebRTC route diagnostics. Keep these visible in the
-                // regular statistics panel so relay/fallback acceptance does
-                // not depend on debug logs.
-                {
-                    auto layout = new NoMarginHLayout();
-                    auto label = new QLabel("ICE Path", this);
-                    label->setFixedSize(label_size);
-                    label->setStyleSheet("font-size: 13px;");
-                    layout->addWidget(label);
-                    lbl_rtc_path_ = new QLabel(this);
-                    lbl_rtc_path_->setFixedSize(QSize(520, 30));
-                    lbl_rtc_path_->setStyleSheet("font-size: 12px; font-weight:500; color: #2979ff;");
-                    layout->addWidget(lbl_rtc_path_);
-                    layout->addStretch();
-                    right_layout->addLayout(layout);
-                }
-
-                {
-                    auto layout = new NoMarginHLayout();
-                    auto label = new QLabel("TURN / RTT", this);
-                    label->setFixedSize(label_size);
-                    label->setStyleSheet("font-size: 13px;");
-                    layout->addWidget(label);
-                    lbl_rtc_transport_ = new QLabel(this);
-                    lbl_rtc_transport_->setFixedSize(QSize(520, 30));
-                    lbl_rtc_transport_->setStyleSheet("font-size: 12px; font-weight:500; color: #2979ff;");
-                    layout->addWidget(lbl_rtc_transport_);
-                    layout->addStretch();
-                    right_layout->addLayout(layout);
-                }
 
                  // line 4
                 {
@@ -647,20 +592,6 @@ namespace px
 
             lbl_audio_encode_type_->setText(sdk_stat_->audio_encode_type_.Clone().c_str());
 
-            if (lbl_rtc_path_ && lbl_rtc_transport_) {
-                const auto local = sdk_stat_->rtc_local_candidate_.Clone();
-                const auto remote = sdk_stat_->rtc_remote_candidate_.Clone();
-                const auto ice_state = sdk_stat_->rtc_ice_state_.Clone();
-                lbl_rtc_path_->setText(QString::fromStdString(std::format(
-                    "{} | {} -> {}", ice_state, local, remote)));
-                lbl_rtc_path_->setToolTip(lbl_rtc_path_->text());
-                const auto turn = sdk_stat_->rtc_turn_node_.Clone();
-                lbl_rtc_transport_->setText(QString::fromStdString(std::format(
-                    "{} | {} ms | {} bps", turn.empty() ? "direct" : turn,
-                    sdk_stat_->rtc_rtt_ms_.load(),
-                    sdk_stat_->rtc_available_outgoing_bitrate_.load())));
-                lbl_rtc_transport_->setToolTip(lbl_rtc_transport_->text());
-            }
 
             auto& hardware = Hardware::Instance();
             std::stringstream ss;

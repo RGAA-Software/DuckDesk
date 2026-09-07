@@ -86,13 +86,11 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     void PostAudioTask(std::function<void()>&& task);
     void PostMiscTask(std::function<void()>&& task);
 
-    int GetProgressSteps() const;
     std::shared_ptr<ThunderSdkParams> GetSdkParams();
     std::shared_ptr<MessageNotifier> GetMessageNotifier();
     int64_t GetQueuingMediaMsgCount();
     int64_t GetQueuingFtMsgCount();
     // retry connection
-    void RetryConnection();
     void RequestVideoKeyFrame() {
         RequestIFrame();
     }
@@ -105,7 +103,6 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     void RegisterEventListeners();
     void SendHelloMessage();
     void RequestIFrame();
-    void ReportStatistics();
     void ClearFirstFrameState();
     void IncreaseDecodeFailedCount(const std::string& mon_name);
     int GetDecodeFailedCount(const std::string& mon_name);

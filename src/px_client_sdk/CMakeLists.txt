@@ -1,17 +1,6 @@
-#find_package(websocketpp REQUIRED)
-#find_package(Opus CONFIG REQUIRED)
-#find_package(libyuv CONFIG REQUIRED)
-find_package(glm CONFIG REQUIRED)
-#find_package(Protobuf CONFIG REQUIRED)
-
 if(ANDROID)
     find_package(FFMPEG REQUIRED)
-elseif(WIN32)
-    set(CMAKE_AUTOUIC ON)
-    set(CMAKE_AUTOMOC ON)
-    set(CMAKE_AUTORCC ON)
-    find_package(Qt6 REQUIRED COMPONENTS Widgets Core OpenGL OpenGLWidgets)
-else()
+elseif(NOT WIN32)
     message(FATAL_ERROR "The SDK platform adapter is currently implemented for Windows and Android only")
 endif()
 
@@ -42,15 +31,9 @@ if(ANDROID)
     list(APPEND SDK_SRCS sdk_android_software_decoder.cpp)
 endif()
 
-set(GL_SRCS
-    gl/shader_program.cpp
-    gl/director.cpp
-    gl/renderer.cpp
-    gl/sprite.cpp
-    gl/raw_image.cpp
-)
-
-add_library(px_sdk ${SDK_SRCS} ${GL_SRCS})
+# Frame data remains shared; actual presentation belongs to the platform client.
+add_library(px_sdk ${SDK_SRCS} gl/raw_image.cpp)
+set_target_properties(px_sdk PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
 # Export both supported include forms: <sdk_header.h> and <px_client_sdk/sdk_header.h>.
 # Consumers obtain the moved SDK root through the target, not the dependency tree.
 target_include_directories(px_sdk
@@ -64,7 +47,7 @@ target_include_directories(px_sdk
         ${PX_PROJECT_PATH}/px_3rdparty/asio2/include
         ${PX_PROJECT_PATH}/px_3rdparty/asio2/3rd
 )
-target_link_libraries(px_sdk PRIVATE Opus::opus glm::glm)#websocketpp::websocketpp
+target_link_libraries(px_sdk PRIVATE Opus::opus)
 target_link_libraries(px_sdk PRIVATE px_opus_codec px_message px_common)
 
 message("ffmpeg libraries: ${FFMPEG_LIBRARIES}")
@@ -76,12 +59,13 @@ else ()
     target_link_libraries(px_sdk PRIVATE protobuf::libprotobuf)
 
     target_link_libraries(px_sdk PRIVATE
-            Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets
             ${FFMPEG_LIBRARIES}
     )
 endif ()
 
 if(BUILD_TESTING AND NOT ANDROID)
+    # Qt is used by the file-transfer test harness only, never by px_sdk.
+    find_package(Qt6 REQUIRED COMPONENTS Core)
     find_package(GTest CONFIG REQUIRED)
     add_executable(test_ft_transport_e2e
         tests/test_ft_transport_e2e.cpp

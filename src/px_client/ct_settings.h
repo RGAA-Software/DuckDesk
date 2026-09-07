@@ -39,8 +39,6 @@ namespace px
         void SetFullColorEnabled(bool enabled);
         void SetFps(int fps);
         int GetFps() const;
-        bool IsRelayMode();
-        bool IsDirectMode();
         void Dump();
 
     public:
@@ -67,8 +65,6 @@ namespace px
         ScaleMode scale_mode_ = ScaleMode::kFillWindow;
         // for client render process --- below
         std::string stream_id_;
-        // network type
-        static constexpr ClientNetworkType network_type_{ClientNetworkType::kUdpDirect};
         // stream name
         std::string stream_name_;
         // device id
@@ -82,9 +78,6 @@ namespace px
         std::string device_safety_pwd_;
         // remote device
         std::string remote_device_id_;
-        // Exact standard-RTC/Relay target identity supplied by Console. Empty
-        // retains the historical server_<remote_device_id> convention.
-        std::string signal_remote_device_id_;
         // full remote device id
         // server_xxx_xxx
         std::string full_remote_device_id_;
@@ -95,11 +88,6 @@ namespace px
         std::string connection_ticket_;
         std::string connection_nonce_;
         std::string connection_instance_id_;
-        // Per-session ICE servers and short-lived TURN credentials, supplied
-        // through the child process environment rather than the command line.
-        std::string rtc_ice_config_json_;
-        // enable p2p
-        bool enable_p2p_ = false;
         // show max window
         bool auto_layout_screens_ = false;
         std::string display_name_;
@@ -141,12 +129,6 @@ namespace px
 
         std::string decoder_;
 
-        // 2. relay mode
-        // host: relay server address
-        // port: relay server port
-        std::string relay_host_;
-        int relay_port_ = 0;
-        std::string relay_appkey_;
 
         // force software to decode & render
         bool force_software_ = false;
@@ -166,8 +148,6 @@ namespace px
         // opengl backend
         std::string gl_backend_;
 
-        // force direct
-        bool force_direct_ = false;
 
         // Standalone file manager: the process owns only the FT channel and UI.
         bool file_transfer_only_ = false;

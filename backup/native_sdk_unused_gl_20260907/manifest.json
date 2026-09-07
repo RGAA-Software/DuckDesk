@@ -1,0 +1,71 @@
+{
+  "revision": "1f6f9c42a29415acd5efab8c152dc444a84d9a3e",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "src/px_client_sdk/CMakeLists.txt",
+      "sha256": "05E6D82EF03971D3B0E77A79CE73EADF4F9885A5AA5E756E1C7490C60263578D",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/director.cpp",
+      "sha256": "6A357395D852C75A2E47D28F680363E35C7AD6FEB14F4D41409830E7566C0202",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/director.h",
+      "sha256": "BF25DC24202950B09B964ACB564987E258240C9D3BB58FB7148EA10E46906878",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/gl_function.h",
+      "sha256": "3E77BE81BB20CECF79EFAC577AC720A61E82C2893BC337C9E60381B5A1EA4105",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/raw_image.cpp",
+      "sha256": "383062273B253EC5EF1307753AE07EF74BDB3D4CA1C66A8CA2717D8FF6CDDFE5",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/raw_image.h",
+      "sha256": "DE8FA966AC83BF77612145A59D2F7ED7A4412A52EFA825530B16EB53212CAF0E",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/renderer.cpp",
+      "sha256": "82FC52CAFF3D90244DC647348CD45BF74EF449B2A472A833072E2D2776B813DC",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/renderer.h",
+      "sha256": "4182502782719DA9D9C204F1E9C1FCF80469988157B86B8FF2450993811B1047",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/shader_program.cpp",
+      "sha256": "20A46BE768C68104F8AB0AB7E76E6EF2835EBC9E1AEF44648828363F06DEB10C",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/shader_program.h",
+      "sha256": "249B17B819153EE69FE5A70EEAC2947B9D3D259E91D963B4C0BC38F43AAA9876",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/sprite.cpp",
+      "sha256": "F0F2949F1D6BBD69E0D11FA3CA24A7BEEF619613CD3471AA27BC16BD59DE1C35",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/sprite.h",
+      "sha256": "EB22480173781D0AA881464AE78554171E40615772601422C2147A41CCFAF52A",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/video_widget_shaders.h",
+      "sha256": "08BFEEB188713FB2DFBE5788FE80A3A0D8E939F3D8B206F1C95BD55AE89F6EE0",
+      "status": ""
+    }
+  ]
+}

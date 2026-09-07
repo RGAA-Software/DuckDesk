@@ -574,17 +574,4 @@ void NetClient::On16msTimeout() {
     }
 }
 
-void NetClient::RetryConnection() {
-    if (const auto media_connection = CurrentMediaConnection()) {
-        media_connection->RetryConnection();
-    }
-    if (ft_conn_) {
-        ft_conn_->RetryConnection();
-    }
-    if (const auto udp_connection = CurrentUdpDirectConnection()) {
-        // 裸 UDP 无重连概念,先空实现(ws 控制面断线即整体断线)
-        udp_connection->RetryConnection();
-    }
-}
-
 } // namespace px

@@ -554,8 +554,6 @@ int main(int argc, char** argv) {
         .decoder_ = settings->decoder_,
         .debug_ = settings->wait_debug_,
         .force_gdi_ = settings->force_gdi_,
-        .remote_device_random_pwd_ = settings->remote_device_random_pwd_,
-        .remote_device_safety_pwd_ = settings->remote_device_safety_pwd_,
         .connection_ticket_ = settings->connection_ticket_,
         .connection_nonce_ = settings->connection_nonce_,
         .connection_instance_id_ = settings->connection_instance_id_,

@@ -1,0 +1,206 @@
+//
+// Created by RGAA on 2023-08-10.
+//
+
+#ifndef SAILFISH_CLIENT_PC_SETTINGS_H
+#define SAILFISH_CLIENT_PC_SETTINGS_H
+
+#include <memory>
+#include <string>
+#include "px_message.pb.h"
+#include "px_common/virtual_display_limits.h"
+
+namespace px
+{
+
+    enum class ScaleMode {
+        kKeepAspectRatio,
+        kFillWindow,
+        kOriginSize,
+    };
+
+    class SharedPreference;
+
+    class Settings {
+    public:
+
+        static Settings* Instance() {
+            static Settings sts;
+            return &sts;
+        }
+
+        void LoadSettings();
+        bool IsAudioEnabled() const;
+        bool IsFullColorEnabled() const;
+        void SetAudioEnabled(bool enabled);
+        void SetClipboardEnabled(bool enabled);
+        void SetWorkMode(SwitchWorkMode::WorkMode mode);
+        void SetScaleMode(ScaleMode mode);
+        void SetFullColorEnabled(bool enabled);
+        void SetFps(int fps);
+        int GetFps() const;
+        bool IsRelayMode();
+        bool IsDirectMode();
+        void Dump();
+
+    public:
+        // 1. direct mode
+        // host: remote device ip address
+        // port: remote device port
+        std::string host_;
+        int port_{0};
+        // udp_direct 模式下 render 的 UDP 媒体端口(与 ws 控制面端口分开)
+        int udp_port_{20371};
+
+        // Console
+        std::string console_host_;
+        int console_port_ = 0;
+        // whether the Console connection uses wss(true, default) or plain ws(false)
+        bool console_ssl_ = true;
+
+        std::string version_;
+        bool audio_on_ = false;
+        bool clipboard_on_ = false;
+        bool full_color_on_ = false;
+        std::shared_ptr<SharedPreference> sp_;
+        SwitchWorkMode::WorkMode work_mode_ = SwitchWorkMode::kGame;
+        ScaleMode scale_mode_ = ScaleMode::kFillWindow;
+        // for client render process --- below
+        std::string stream_id_;
+        // network type
+        static constexpr ClientNetworkType network_type_{ClientNetworkType::kUdpDirect};
+        // stream name
+        std::string stream_name_;
+        // device id
+        std::string device_id_;
+        // full device id
+        // client_xxx_xxx
+        std::string full_device_id_;
+        // device random pwd
+        std::string device_random_pwd_;
+        // device safety pwd
+        std::string device_safety_pwd_;
+        // remote device
+        std::string remote_device_id_;
+        // Exact standard-RTC/Relay target identity supplied by Console. Empty
+        // retains the historical server_<remote_device_id> convention.
+        std::string signal_remote_device_id_;
+        // full remote device id
+        // server_xxx_xxx
+        std::string full_remote_device_id_;
+        // remote device random pwd
+        std::string remote_device_random_pwd_;
+        // remote device safety pwd
+        std::string remote_device_safety_pwd_;
+        std::string connection_ticket_;
+        std::string connection_nonce_;
+        std::string connection_instance_id_;
+        // Per-session ICE servers and short-lived TURN credentials, supplied
+        // through the child process environment rather than the command line.
+        std::string rtc_ice_config_json_;
+        // enable p2p
+        bool enable_p2p_ = false;
+        // show max window
+        bool auto_layout_screens_ = false;
+        std::string display_name_;
+        std::string display_remote_name_;
+        // panel ws server port
+        int panel_server_port_ = 0;
+
+        //  screen recording path
+        std::string screen_recording_path_;
+
+        // fps 当前流路的帧率
+        int fps_ = 30;
+
+        // this device host/ip address
+        std::string my_host_;
+
+        // language
+        int language_ = 3; // default English
+
+        // don't send mouse/keyboard events if enabled
+        bool only_viewing_ = false;
+
+        // show all windows
+        bool split_windows_ = false;
+
+        // max_number_of_screen_window
+        int max_number_of_screen_window_ = static_cast<int>(kVirtualDisplayMaximumCount);
+
+        // display logo
+        bool display_logo_ = false;
+
+        // develop mode
+        bool develop_mode_ = false;
+		
+		// titlebar color
+		int titlebar_color_ = -1;
+
+        std::string appkey_;
+
+        std::string decoder_;
+
+        // 2. relay mode
+        // host: relay server address
+        // port: relay server port
+        std::string relay_host_;
+        int relay_port_ = 0;
+        std::string relay_appkey_;
+
+        // force software to decode & render
+        bool force_software_ = false;
+
+        // wait debug
+        bool wait_debug_ = false;
+
+        // show watermark
+        bool show_watermark_ = false;
+
+        // force gdi
+        bool force_gdi_ = false;
+
+        // disable_vulkan_
+        bool disable_vulkan_ = false;
+
+        // opengl backend
+        std::string gl_backend_;
+
+        // force direct
+        bool force_direct_ = false;
+
+        // Standalone file manager: the process owns only the FT channel and UI.
+        bool file_transfer_only_ = false;
+
+        // skin plugin name
+        std::string skin_name_;
+
+        ///////
+        ///////
+        // from render //
+        // audio capture enabled in render
+        bool is_render_audio_capture_enabled_ = true;
+
+        // can be operated by mouse/keyboard in render
+        bool is_render_be_operated_by_mk_ = true;
+
+        // 被控端文件传输协议版本(rustdesk 语义 = 2;0/缺省 = 旧版,不兼容,入口置灰)
+        uint32_t render_ft_protocol_version_ = 0;
+        bool render_virtual_display_enabled_ = false;
+        uint32_t render_virtual_display_owned_count_ = 0;
+        uint32_t render_virtual_display_max_count_ = kVirtualDisplayMaximumCount;
+        uint64_t render_virtual_display_topology_generation_ = 0;
+        bool render_voice_call_enabled_ = false;
+        uint32_t render_voice_call_protocol_version_ = 0;
+        bool render_voice_call_requires_headset_ = true;
+
+        // max speed of remote ethernet
+        uint64_t max_transmit_speed_ = 0;
+        uint64_t max_receive_speed_ = 0;
+        ///////
+        ///////
+    };
+
+}
+
+#endif //SAILFISH_CLIENT_PC_SETTINGS_H

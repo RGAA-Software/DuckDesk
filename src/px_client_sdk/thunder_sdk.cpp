@@ -578,7 +578,6 @@ namespace px
                     if (const auto self = weak_self.lock(); self && !self->exit_) {
                         self->statistics_->CalculateDataSpeed();
                         self->statistics_->CalculateVideoFrameFps();
-                        self->ReportStatistics();
                     }
                 });
             }
@@ -706,9 +705,6 @@ namespace px
         video_frame_thread_discarded_cbk_ = cbk;
     }
 
-    int ThunderSdk::GetProgressSteps() const {
-        return 3;
-    }
 
     std::shared_ptr<ThunderSdkParams> ThunderSdk::GetSdkParams() {
         return sdk_params_;
@@ -732,22 +728,10 @@ namespace px
         return 0;
     }
 
-    void ThunderSdk::RetryConnection() {
-        if (net_client_) {
-            net_client_->RetryConnection();
-
-            // notify reconnecting
-            msg_notifier_->SendAppMessage(SdkMsgReconnect{});
-        }
-    }
-
     uint64_t ThunderSdk::GetLastHeartbeatTimestamp() {
         return last_heartbeat_callback_;
     }
 
-    void ThunderSdk::ReportStatistics() {
-
-    }
 
     void ThunderSdk::ClearFirstFrameState() {
         has_config_msg_ = false;

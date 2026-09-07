@@ -1,7 +1,7 @@
 # 原生客户端 SDK 与 WebRTC 产品边界
 
 > 决定日期：2026-09-07
-> 状态：SDK 抽离、双端固定原生入口、SDK 旧连接实现/依赖归档已实施；Windows/Android 复用单一 UDP/FEC + WS 连接。诊断残留、核心/平台分层仍待整理。
+> 状态：SDK 抽离、单一原生传输、旧诊断/参数归档及 SDK 直接 Qt 依赖解除已实施；解码器/帧数据的平台边界和独立构建仍待整理。
 > 本文替代此前原生客户端支持 WebRTC、Windows 保留 host 直连，以及原生 WS 媒体/Direct/Relay 多传输选择的规划。
 > 归档规则：本次精简的原有代码放入根目录 `backup/`，不直接删除。下文“删除/移除”均指退出活动源码与构建依赖，原实现须先完整归档。
 
@@ -183,3 +183,16 @@ Windows Client 不再链接/发布 Client RTC DLL。Render 的两套既有 RTC D
 后续仍需清理旧诊断字段/消息、解码器平台边界和 Qt 依赖；不能据此宣布 SDK 平台无关化完成。
 旧数据库列暂不做破坏性迁移；iOS/macOS、真机验收和 Release 合规输入仍按此前范围另行推进。
 构建、短回归与产物证据见 [本轮交接](native_sdk_transport_core_checkpoint_20260907.md)。
+
+## 第六检查点：原生诊断清理与 SDK Qt 依赖解除（2026-09-07）
+
+- Windows 统计页去掉 ICE Path、TURN/RTT 和旧协议分派，连接组合固定展示 `UDP/FEC + WS`。
+- SDK 旧信令/房间消息、RTC 统计字段、闲置认证参数和空重试入口退役；WS/WSS 自动重连生命周期保持不变。
+- Windows 设置不再保留只读传输枚举及旧 Relay/P2P/ICE 字段。进度条步数归 Windows UI 管理，不再由 SDK 提供。
+- 经调用核对，SDK 的旧 OpenGL Director/Sprite/Renderer/ShaderProgram/GLFunctions 没有双端消费者；
+  Windows 使用 `front_render/opengl/ct_*`。旧辅助代码完整归档，`px_sdk` 移除 Qt/glm 直接依赖并关闭 Qt 自动代码生成。
+- `gl/raw_image.*` 仍是双端共用帧数据，必须保留。可选 Windows 文件 E2E 测试仍使用 Qt Core，不属于 SDK 产品依赖。
+
+下一步优先处理帧数据与解码器的资源所有权（D3D11、Vulkan AVFrame、Android Surface），再拆平台适配目标与核心构建。
+本轮不是 iOS/macOS 适配完成，也不把“没有直接 Qt 依赖”等同于“已经可独立集成”。
+详见 [本轮交接](native_diagnostics_cleanup_checkpoint_20260907.md)。

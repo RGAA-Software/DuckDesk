@@ -9,6 +9,7 @@
 #include <QLabel>
 #include <QPixmap>
 #include <QProgressBar>
+#include <QPointer>
 #include <memory>
 
 namespace px
@@ -16,7 +17,6 @@ namespace px
 
     class TcLabel;
     class ThunderSdk;
-    class Settings;
     class ClientContext;
     class MessageListener;
     class TcPushButton;
@@ -33,10 +33,10 @@ namespace px
     private:
         std::shared_ptr<ThunderSdk> sdk_ = nullptr;
         std::shared_ptr<ClientContext> context_ = nullptr;
-        Settings* settings_ = nullptr;
+        static constexpr int kConnectionProgressSteps{3};
         QPixmap bg_pixmap_;
         TcLabel* lbl_sub_message_ = nullptr;
-        QProgressBar* progress_bar_ = nullptr;
+        QPointer<QProgressBar> progress_bar_{};
         TcPushButton* retry_btn_ = nullptr;
         std::atomic_int progress_steps_ = { 0 };
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
