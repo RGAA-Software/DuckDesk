@@ -17,8 +17,7 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -41,6 +40,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -51,13 +51,6 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavHostController
-import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navigation
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import yun.pixels.client.BuildConfig
@@ -85,22 +78,26 @@ import yun.pixels.client.core.domain.recording.RecordingState
 import yun.pixels.client.core.domain.voice.VoiceCallState
 
 private enum class TopLevelDestination(
-    val route: String,
-    val startRoute: String,
     @StringRes val labelResource: Int,
     val icon: ImageVector,
 ) {
-    Devices("devices", "devices/home", R.string.navigation_devices, Icons.Outlined.Devices),
-    Transfers("transfers", "transfers/home", R.string.navigation_transfers, Icons.Outlined.SwapVert),
-    Settings("settings", "settings/home", R.string.navigation_settings, Icons.Outlined.Settings),
+    Devices(R.string.navigation_devices, Icons.Outlined.Devices),
+    Transfers(R.string.navigation_transfers, Icons.Outlined.SwapVert),
+    Settings(R.string.navigation_settings, Icons.Outlined.Settings),
 }
-private const val REMOTE_ROUTE = "remote"
-private const val REMOTE_TRANSFERS_ROUTE = "remote/transfers"
-private const val APPLICATIONS_ROUTE = "devices/applications"
+
+private enum class AppDestination(val topLevel: TopLevelDestination?) {
+    Devices(TopLevelDestination.Devices),
+    Applications(TopLevelDestination.Devices),
+    Transfers(TopLevelDestination.Transfers),
+    Settings(TopLevelDestination.Settings),
+    Remote(null),
+    RemoteTransfers(null),
+}
 
 @Composable
 fun PixelsApp(graph: PixelsAppGraph) {
-    val navController = rememberNavController()
+    var appDestination by rememberSaveable { mutableStateOf(AppDestination.Devices) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val clipboard = LocalClipboard.current
@@ -108,6 +105,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
     var remoteBinder by remember { mutableStateOf<RemoteSessionService.LocalBinder?>(null) }
     var remoteRequest by remember { mutableStateOf<RemoteSessionRequest?>(null) }
     var openTransfersWhenConnected by remember { mutableStateOf(false) }
+    var leavingRemoteSession by remember { mutableStateOf(false) }
     var remoteRequestAwaitingLocalNetwork by remember { mutableStateOf<RemoteSessionRequest?>(null) }
     val idleRemoteSnapshot = remember { kotlinx.coroutines.flow.MutableStateFlow(RemoteSessionSnapshot()) }
     val idleAudioEnabled = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
@@ -155,14 +153,8 @@ fun PixelsApp(graph: PixelsAppGraph) {
         factory = SettingsViewModel.factory(graph.accountRepository),
     )
     val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
-    val currentBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = currentBackStackEntry?.destination
-    val currentRoute = currentDestination?.route
-    val currentTopLevelDestination = TopLevelDestination.entries.firstOrNull { destination ->
-        currentDestination?.hierarchy?.any { it.route == destination.route } == true
-    }
+    val currentTopLevelDestination = appDestination.topLevel
     val showsBottomNavigation = currentTopLevelDestination != null
-    val isNonSessionSurface = currentRoute != REMOTE_ROUTE && currentRoute != REMOTE_TRANSFERS_ROUTE
     val unavailableMessage = stringResource(R.string.feature_being_built)
     var pendingLocalNetworkAction by remember { mutableStateOf<DeviceHomeAction?>(null) }
     val noticeMessages by rememberUpdatedState(
@@ -253,14 +245,24 @@ fun PixelsApp(graph: PixelsAppGraph) {
         ) {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+        leavingRemoteSession = false
         binder.prepare(request)
         remoteRequest = null
-        navController.navigateToRemote()
+        appDestination = AppDestination.Remote
     }
     LaunchedEffect(remoteBinder) {
-        val status = remoteBinder?.snapshot?.value?.status ?: return@LaunchedEffect
-        if (status !is RemoteSessionStatus.Idle && isNonSessionSurface) {
-            navController.navigateToRemote()
+        val binder = remoteBinder ?: return@LaunchedEffect
+        binder.snapshot.collect { snapshot ->
+            val sessionSurface = appDestination == AppDestination.Remote || appDestination == AppDestination.RemoteTransfers
+            when {
+                snapshot.status !is RemoteSessionStatus.Idle && !sessionSurface && !leavingRemoteSession -> {
+                    appDestination = AppDestination.Remote
+                }
+                snapshot.status is RemoteSessionStatus.Idle && sessionSurface -> {
+                    appDestination = AppDestination.Devices
+                }
+                snapshot.status is RemoteSessionStatus.Idle -> leavingRemoteSession = false
+            }
         }
     }
     LaunchedEffect(remoteBinder, openTransfersWhenConnected) {
@@ -269,7 +271,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
         binder.snapshot.collect { snapshot ->
             if (snapshot.status is RemoteSessionStatus.Connected) {
                 openTransfersWhenConnected = false
-                navController.navigate(REMOTE_TRANSFERS_ROUTE) { launchSingleTop = true }
+                appDestination = AppDestination.RemoteTransfers
             }
         }
     }
@@ -282,9 +284,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     TopLevelDestination.entries.forEach { destination ->
                         NavigationBarItem(
                             selected = currentTopLevelDestination == destination,
-                            onClick = {
-                                navController.selectTopLevel(destination)
-                            },
+                            onClick = { appDestination = destination.appDestination },
                             icon = { Icon(imageVector = destination.icon, contentDescription = null) },
                             label = { Text(text = stringResource(destination.labelResource)) },
                         )
@@ -293,26 +293,16 @@ fun PixelsApp(graph: PixelsAppGraph) {
             }
         },
     ) { contentPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = TopLevelDestination.Devices.route,
-            modifier = Modifier.padding(
-                if (showsBottomNavigation) contentPadding else PaddingValues(0.dp),
-            ),
-            enterTransition = { EnterTransition.None },
-            exitTransition = { ExitTransition.None },
-            popEnterTransition = { EnterTransition.None },
-            popExitTransition = { ExitTransition.None },
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(if (showsBottomNavigation) contentPadding else PaddingValues(0.dp)),
         ) {
-            navigation(
-                startDestination = TopLevelDestination.Devices.startRoute,
-                route = TopLevelDestination.Devices.route,
-            ) {
-                composable(TopLevelDestination.Devices.startRoute) {
-                    DeviceHomeScreen(
-                        state = deviceHomeState,
-                        onAction = { action ->
-                            when (action) {
+            when (appDestination) {
+                AppDestination.Devices -> DeviceHomeScreen(
+                    state = deviceHomeState,
+                    onAction = { action ->
+                        when (action) {
                             DeviceHomeAction.Paste -> {
                                 coroutineScope.launch {
                                     val clipData = clipboard.getClipEntry()?.clipData
@@ -357,7 +347,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                                     }
                                 }
                                 .addOnFailureListener { deviceHomeViewModel.onAction(DeviceHomeAction.ScannerFailed) }
-                            DeviceHomeAction.OpenAccountSettings -> navController.selectTopLevel(TopLevelDestination.Settings)
+                            DeviceHomeAction.OpenAccountSettings -> appDestination = AppDestination.Settings
                             is DeviceHomeAction.StartRemoteDesktop -> {
                                 openTransfersWhenConnected = false
                                 deviceHomeViewModel.onAction(action)
@@ -372,36 +362,114 @@ fun PixelsApp(graph: PixelsAppGraph) {
                             }
                             DeviceHomeAction.OpenApplications -> {
                                 applicationLibraryViewModel.refresh()
-                                navController.navigate(APPLICATIONS_ROUTE) { launchSingleTop = true }
+                                appDestination = AppDestination.Applications
                             }
-                                else -> deviceHomeViewModel.onAction(action)
-                            }
-                        },
-                    )
-                }
-                composable(APPLICATIONS_ROUTE) {
-                    BackHandler { navController.returnToDevices() }
+                            else -> deviceHomeViewModel.onAction(action)
+                        }
+                    },
+                )
+
+                AppDestination.Applications -> {
+                    BackHandler { appDestination = AppDestination.Devices }
                     ApplicationLibraryScreen(
                         state = applicationLibraryState,
-                        onBack = { navController.returnToDevices() },
+                        onBack = { appDestination = AppDestination.Devices },
                         onRefresh = applicationLibraryViewModel::refresh,
                         onStart = applicationLibraryViewModel::start,
                         onConnect = applicationLibraryViewModel::connect,
                         onStop = applicationLibraryViewModel::stop,
                     )
                 }
-            }
-            navigation(
-                startDestination = TopLevelDestination.Transfers.startRoute,
-                route = TopLevelDestination.Transfers.route,
-            ) {
-                composable(TopLevelDestination.Transfers.startRoute) {
+
+                AppDestination.Transfers -> TransferRoute(
+                    remoteBinder = remoteBinder,
+                    idleFileTransferTasks = idleFileTransferTasks,
+                    idleRemoteSnapshot = idleRemoteSnapshot,
+                    idleRemoteDirectory = idleRemoteDirectory,
+                    onBack = null,
+                    onChooseUpload = { remoteDirectory ->
+                        pendingUploadRemoteDirectory = remoteDirectory
+                        uploadDocumentLauncher.launch(arrayOf("*/*"))
+                    },
+                    onChooseDownloadDestination = { remotePath ->
+                        pendingDownloadRemotePath = remotePath
+                        downloadDocumentLauncher.launch(remotePath.substringAfterLast('/').substringAfterLast('\\').ifBlank { "download" })
+                    },
+                )
+
+                AppDestination.Settings -> SettingsScreen(
+                    state = settingsState,
+                    appVersion = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    onAction = settingsViewModel::onAction,
+                    onExportDiagnostics = {
+                        coroutineScope.launch {
+                            runCatching {
+                                val sessionState = remoteBinder?.snapshot?.value?.status?.javaClass?.simpleName ?: "Idle"
+                                DiagnosticsExporter.create(context, sessionState)
+                            }.onSuccess { report ->
+                                DiagnosticsExporter.share(context, report, shareDiagnostics)
+                            }.onFailure {
+                                snackbarHostState.showSnackbar(diagnosticsFailed)
+                            }
+                        }
+                    },
+                )
+
+                AppDestination.Remote -> {
+                    val sessionFlow = remoteBinder?.snapshot ?: idleRemoteSnapshot
+                    val snapshot by sessionFlow.collectAsStateWithLifecycle()
+                    val audioEnabledFlow = remoteBinder?.audioEnabled ?: idleAudioEnabled
+                    val audioEnabled by audioEnabledFlow.collectAsStateWithLifecycle()
+                    val recordingStateFlow = remoteBinder?.recordingState ?: idleRecordingState
+                    val recordingState by recordingStateFlow.collectAsStateWithLifecycle()
+                    val voiceCallStateFlow = remoteBinder?.voiceCallState ?: idleVoiceCallState
+                    val voiceCallState by voiceCallStateFlow.collectAsStateWithLifecycle()
+                    RemoteWorkspaceScreen(
+                        snapshot = snapshot,
+                        audioEnabled = audioEnabled,
+                        recordingState = recordingState,
+                        voiceCallState = voiceCallState,
+                        surfaceConsumerReady = remoteBinder != null,
+                        onSurfaceAvailable = { surface -> remoteBinder?.attachSurface(surface) },
+                        onSurfaceDestroyed = { surface -> remoteBinder?.detachSurface(surface) },
+                        onInput = { command -> remoteBinder?.sendInput(command) },
+                        onSwitchMonitor = { monitorName -> remoteBinder?.switchMonitor(monitorName) },
+                        onVirtualDisplayRequest = { requestId, operation -> remoteBinder?.requestVirtualDisplay(requestId, operation) },
+                        onText = { text -> remoteBinder?.sendText(text) },
+                        onClipboardText = { text -> remoteBinder?.sendClipboardText(text) },
+                        onClipboardUris = { uris -> remoteBinder?.sendClipboardFiles(uris) },
+                        onClipboardFilesRequest = { files -> remoteBinder?.downloadClipboardFiles(files) },
+                        onAudioEnabledChange = { enabled -> remoteBinder?.setAudioEnabled(enabled) },
+                        onStartRecording = { remoteBinder?.startRecording() },
+                        onStopRecording = { remoteBinder?.stopRecording() },
+                        onStartVoiceCall = {
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                remoteBinder?.startVoiceCall()
+                            } else {
+                                microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
+                        onStopVoiceCall = { remoteBinder?.stopVoiceCall() },
+                        onVoiceMicrophoneMuted = { muted -> remoteBinder?.setVoiceMicrophoneMuted(muted) },
+                        onVoiceSpeakerphone = { enabled -> remoteBinder?.setVoiceSpeakerphone(enabled) },
+                        onOpenTransfers = { appDestination = AppDestination.RemoteTransfers },
+                        onRetry = { remoteBinder?.retrySession() },
+                        onEndSession = {
+                            leavingRemoteSession = true
+                            remoteBinder?.stopSession()
+                            appDestination = AppDestination.Devices
+                        },
+                    )
+                }
+
+                AppDestination.RemoteTransfers -> {
+                    BackHandler { appDestination = AppDestination.Remote }
                     TransferRoute(
                         remoteBinder = remoteBinder,
                         idleFileTransferTasks = idleFileTransferTasks,
                         idleRemoteSnapshot = idleRemoteSnapshot,
                         idleRemoteDirectory = idleRemoteDirectory,
-                        onBack = null,
+                        onBack = { appDestination = AppDestination.Remote },
                         onChooseUpload = { remoteDirectory ->
                             pendingUploadRemoteDirectory = remoteDirectory
                             uploadDocumentLauncher.launch(arrayOf("*/*"))
@@ -412,95 +480,6 @@ fun PixelsApp(graph: PixelsAppGraph) {
                         },
                     )
                 }
-            }
-            navigation(
-                startDestination = TopLevelDestination.Settings.startRoute,
-                route = TopLevelDestination.Settings.route,
-            ) {
-                composable(TopLevelDestination.Settings.startRoute) {
-                    SettingsScreen(
-                        state = settingsState,
-                        appVersion = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-                        onAction = settingsViewModel::onAction,
-                        onExportDiagnostics = {
-                            coroutineScope.launch {
-                                runCatching {
-                                    val sessionState = remoteBinder?.snapshot?.value?.status?.javaClass?.simpleName ?: "Idle"
-                                    DiagnosticsExporter.create(context, sessionState)
-                                }.onSuccess { report ->
-                                    DiagnosticsExporter.share(context, report, shareDiagnostics)
-                                }.onFailure {
-                                    snackbarHostState.showSnackbar(diagnosticsFailed)
-                                }
-                            }
-                        },
-                    )
-                }
-            }
-            composable(REMOTE_ROUTE) {
-                val sessionFlow = remoteBinder?.snapshot ?: idleRemoteSnapshot
-                val snapshot by sessionFlow.collectAsStateWithLifecycle()
-                val audioEnabledFlow = remoteBinder?.audioEnabled ?: idleAudioEnabled
-                val audioEnabled by audioEnabledFlow.collectAsStateWithLifecycle()
-                val recordingStateFlow = remoteBinder?.recordingState ?: idleRecordingState
-                val recordingState by recordingStateFlow.collectAsStateWithLifecycle()
-                val voiceCallStateFlow = remoteBinder?.voiceCallState ?: idleVoiceCallState
-                val voiceCallState by voiceCallStateFlow.collectAsStateWithLifecycle()
-                RemoteWorkspaceScreen(
-                    snapshot = snapshot,
-                    audioEnabled = audioEnabled,
-                    recordingState = recordingState,
-                    voiceCallState = voiceCallState,
-                    surfaceConsumerReady = remoteBinder != null,
-                    onSurfaceAvailable = { surface -> remoteBinder?.attachSurface(surface) },
-                    onSurfaceDestroyed = { surface -> remoteBinder?.detachSurface(surface) },
-                    onInput = { command -> remoteBinder?.sendInput(command) },
-                    onSwitchMonitor = { monitorName -> remoteBinder?.switchMonitor(monitorName) },
-                    onVirtualDisplayRequest = { requestId, operation -> remoteBinder?.requestVirtualDisplay(requestId, operation) },
-                    onText = { text -> remoteBinder?.sendText(text) },
-                    onClipboardText = { text -> remoteBinder?.sendClipboardText(text) },
-                    onClipboardUris = { uris -> remoteBinder?.sendClipboardFiles(uris) },
-                    onClipboardFilesRequest = { files -> remoteBinder?.downloadClipboardFiles(files) },
-                    onAudioEnabledChange = { enabled -> remoteBinder?.setAudioEnabled(enabled) },
-                    onStartRecording = { remoteBinder?.startRecording() },
-                    onStopRecording = { remoteBinder?.stopRecording() },
-                    onStartVoiceCall = {
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                            remoteBinder?.startVoiceCall()
-                        } else {
-                            microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        }
-                    },
-                    onStopVoiceCall = { remoteBinder?.stopVoiceCall() },
-                    onVoiceMicrophoneMuted = { muted -> remoteBinder?.setVoiceMicrophoneMuted(muted) },
-                    onVoiceSpeakerphone = { enabled -> remoteBinder?.setVoiceSpeakerphone(enabled) },
-                    onOpenTransfers = { navController.navigate(REMOTE_TRANSFERS_ROUTE) { launchSingleTop = true } },
-                    onRetry = { remoteBinder?.retrySession() },
-                    onEndSession = {
-                        remoteBinder?.stopSession()
-                        navController.leaveRemoteSession()
-                    },
-                )
-            }
-            composable(REMOTE_TRANSFERS_ROUTE) {
-                BackHandler { navController.returnToRemoteWorkspace() }
-                TransferRoute(
-                    remoteBinder = remoteBinder,
-                    idleFileTransferTasks = idleFileTransferTasks,
-                    idleRemoteSnapshot = idleRemoteSnapshot,
-                    idleRemoteDirectory = idleRemoteDirectory,
-                    onBack = {
-                        navController.returnToRemoteWorkspace()
-                    },
-                    onChooseUpload = { remoteDirectory ->
-                        pendingUploadRemoteDirectory = remoteDirectory
-                        uploadDocumentLauncher.launch(arrayOf("*/*"))
-                    },
-                    onChooseDownloadDestination = { remotePath ->
-                        pendingDownloadRemotePath = remotePath
-                        downloadDocumentLauncher.launch(remotePath.substringAfterLast('/').substringAfterLast('\\').ifBlank { "download" })
-                    },
-                )
             }
         }
     }
@@ -543,48 +522,9 @@ private fun TransferRoute(
     )
 }
 
-private fun NavHostController.selectTopLevel(destination: TopLevelDestination) {
-    val currentSection = TopLevelDestination.entries.firstOrNull { candidate ->
-        currentDestination?.hierarchy?.any { it.route == candidate.route } == true
+private val TopLevelDestination.appDestination: AppDestination
+    get() = when (this) {
+        TopLevelDestination.Devices -> AppDestination.Devices
+        TopLevelDestination.Transfers -> AppDestination.Transfers
+        TopLevelDestination.Settings -> AppDestination.Settings
     }
-    if (currentSection == destination) {
-        if (currentDestination?.route != destination.startRoute) {
-            popBackStack(destination.startRoute, inclusive = false)
-        }
-        return
-    }
-    replaceWith(destination.route)
-}
-
-private fun NavHostController.navigateToRemote() {
-    if (currentDestination?.route == REMOTE_ROUTE) return
-    if (currentDestination?.route == REMOTE_TRANSFERS_ROUTE && popBackStack(REMOTE_ROUTE, inclusive = false)) return
-    navigate(REMOTE_ROUTE) {
-        popUpTo(graph.id)
-        launchSingleTop = true
-    }
-}
-
-private fun NavHostController.leaveRemoteSession() {
-    replaceWith(TopLevelDestination.Devices.route)
-}
-
-private fun NavHostController.resetToDevices() {
-    if (currentDestination?.route == TopLevelDestination.Devices.startRoute) return
-    replaceWith(TopLevelDestination.Devices.route)
-}
-
-private fun NavHostController.returnToDevices() {
-    if (!popBackStack(TopLevelDestination.Devices.startRoute, inclusive = false)) resetToDevices()
-}
-
-private fun NavHostController.replaceWith(route: String) {
-    navigate(route) {
-        popUpTo(graph.id)
-        launchSingleTop = true
-    }
-}
-
-private fun NavHostController.returnToRemoteWorkspace() {
-    if (!popBackStack(REMOTE_ROUTE, inclusive = false)) navigateToRemote()
-}
