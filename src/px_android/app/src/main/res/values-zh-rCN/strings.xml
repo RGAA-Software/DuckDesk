@@ -7,7 +7,6 @@
     <string name="navigation_settings">设置</string>
     <string name="transfers_title">传输</string>
     <string name="settings_title">设置</string>
-    <string name="feature_being_built">此产品流程正在接入新的 Pixels 会话核心。</string>
     <string name="device_saved">设备验证成功并已保存。</string>
     <string name="device_removed">设备已移除。</string>
     <string name="local_network_permission_required">请允许访问本地网络，以发现并连接你的电脑。</string>

@@ -7,7 +7,6 @@
     <string name="navigation_settings">Settings</string>
     <string name="transfers_title">Transfers</string>
     <string name="settings_title">Settings</string>
-    <string name="feature_being_built">This product flow is being connected to the new Pixels session core.</string>
     <string name="device_saved">Device verified and saved.</string>
     <string name="device_removed">Device removed.</string>
     <string name="local_network_permission_required">Allow local network access to find and connect to your computers.</string>

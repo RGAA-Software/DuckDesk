@@ -155,14 +155,12 @@ fun PixelsApp(graph: PixelsAppGraph) {
     val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
     val currentTopLevelDestination = appDestination.topLevel
     val showsBottomNavigation = currentTopLevelDestination != null
-    val unavailableMessage = stringResource(R.string.feature_being_built)
     var pendingLocalNetworkAction by remember { mutableStateOf<DeviceHomeAction?>(null) }
     val noticeMessages by rememberUpdatedState(
         mapOf(
             DeviceHomeNotice.DeviceSaved to stringResource(R.string.device_saved),
             DeviceHomeNotice.DeviceRemoved to stringResource(R.string.device_removed),
             DeviceHomeNotice.LocalNetworkPermissionRequired to stringResource(R.string.local_network_permission_required),
-            DeviceHomeNotice.FeatureUnavailable to unavailableMessage,
             DeviceHomeNotice.DiscoveryFinished to stringResource(R.string.discovery_finished),
             DeviceHomeNotice.NoDevicesDiscovered to stringResource(R.string.no_devices_discovered),
             DeviceHomeNotice.ScannerUnavailable to stringResource(R.string.scanner_unavailable),

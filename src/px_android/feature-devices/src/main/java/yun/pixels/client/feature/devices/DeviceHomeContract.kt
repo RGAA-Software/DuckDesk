@@ -44,7 +44,6 @@ enum class DeviceHomeNotice {
     DeviceSaved,
     DeviceRemoved,
     LocalNetworkPermissionRequired,
-    FeatureUnavailable,
     DiscoveryFinished,
     NoDevicesDiscovered,
     ScannerUnavailable,

@@ -155,12 +155,70 @@ class DeviceHomeViewModelTest {
         )
         val request = async(start = CoroutineStart.UNDISPATCHED) { viewModel.remoteRequests.first() }
 
-        viewModel.onAction(DeviceHomeAction.StartRemoteDesktop(device))
+        viewModel.onAction(DeviceHomeAction.OpenDevice(device))
         advanceUntilIdle()
 
         val target = request.await().target as RemoteSessionTarget.Direct
         assertEquals(device, target.device)
         assertEquals("one-time-password", target.credential)
+    }
+
+    @Test
+    fun offlineDeviceCardReportsConnectionUnavailable() = runTest(dispatcher) {
+        val viewModel = DeviceHomeViewModel(
+            FakeDeviceDirectory(),
+            FakeDeviceResolver(DeviceResolution.Failure(DeviceResolutionFailure.Unreachable)),
+            FakeDeviceDiscovery(),
+            FakeAccountRepository(),
+        )
+        val notice = async(start = CoroutineStart.UNDISPATCHED) { viewModel.notices.first() }
+
+        viewModel.onAction(
+            DeviceHomeAction.OpenDevice(resolvedDevice().device.copy(availability = DeviceAvailability.Offline)),
+        )
+        advanceUntilIdle()
+
+        assertEquals(DeviceHomeNotice.RemoteConnectionUnavailable, notice.await())
+    }
+
+    @Test
+    fun onlineAccountDeviceCardIssuesControlTicket() = runTest(dispatcher) {
+        val ticket = connectionTicket()
+        val account = FakeAccountRepository(ticketResult = AccountResult.Success(ticket))
+        val viewModel = DeviceHomeViewModel(
+            FakeDeviceDirectory(),
+            FakeDeviceResolver(DeviceResolution.Failure(DeviceResolutionFailure.Unreachable)),
+            FakeDeviceDiscovery(),
+            account,
+        )
+        val request = async(start = CoroutineStart.UNDISPATCHED) { viewModel.remoteRequests.first() }
+        val device = AccountDevice("account-device", "Office PC", true, 1_000L)
+
+        viewModel.onAction(DeviceHomeAction.OpenAccountDevice(device))
+        advanceUntilIdle()
+
+        val target = request.await().target as RemoteSessionTarget.Account
+        assertEquals("Office PC", target.displayName)
+        assertEquals(ticket, target.connectionTicket)
+        assertEquals(listOf("account-device"), account.issuedTicketDeviceIds)
+    }
+
+    @Test
+    fun offlineAccountDeviceCardDoesNotIssueTicket() = runTest(dispatcher) {
+        val account = FakeAccountRepository(ticketResult = AccountResult.Success(connectionTicket()))
+        val viewModel = DeviceHomeViewModel(
+            FakeDeviceDirectory(),
+            FakeDeviceResolver(DeviceResolution.Failure(DeviceResolutionFailure.Unreachable)),
+            FakeDeviceDiscovery(),
+            account,
+        )
+        val notice = async(start = CoroutineStart.UNDISPATCHED) { viewModel.notices.first() }
+
+        viewModel.onAction(DeviceHomeAction.OpenAccountDevice(AccountDevice("offline-device", "Offline PC", false, null)))
+        advanceUntilIdle()
+
+        assertEquals(DeviceHomeNotice.RemoteConnectionUnavailable, notice.await())
+        assertEquals(emptyList<String>(), account.issuedTicketDeviceIds)
     }
 
     private fun resolvedDevice(): ResolvedDevice = ResolvedDevice(
@@ -172,6 +230,21 @@ class DeviceHomeViewModelTest {
             endpoint = DeviceEndpoint("192.168.1.8"),
         ),
         oneTimePassword = "123456",
+    )
+
+    private fun connectionTicket() = ConnectionTicket(
+        ticket = "ticket",
+        renewalToken = "renewal",
+        launchUrl = "wss://relay.example.com/session",
+        expiresAtEpochMillis = Long.MAX_VALUE,
+        logicalSessionId = "logical-session",
+        streamId = "stream",
+        joinMode = JoinMode.Control,
+        permissions = setOf("view", "control"),
+        rtcIceConfigJson = "[]",
+        relayHost = "relay.example.com",
+        relayPort = 443,
+        signalDeviceId = "signal-device",
     )
 }
 
@@ -200,10 +273,12 @@ private class FakeDeviceResolver(private val resolution: DeviceResolution) : Dev
 
 private class FakeAccountRepository(
     private val devicesResult: AccountResult<List<AccountDevice>>? = null,
+    private val ticketResult: AccountResult<ConnectionTicket>? = null,
 ) : AccountRepository {
     private val mutableState = MutableStateFlow<AccountState>(AccountState.SignedOut)
     override val state: StateFlow<AccountState> = mutableState
     val availableDevices = listOf(AccountDevice("account-device", "Office PC", true, 1_000L))
+    val issuedTicketDeviceIds = mutableListOf<String>()
 
     fun signIn() {
         mutableState.value = AccountState.SignedIn(
@@ -230,7 +305,10 @@ private class FakeAccountRepository(
         deviceId: String,
         clientNonce: String,
         joinMode: JoinMode,
-    ): AccountResult<ConnectionTicket> = AccountResult.Failure(AccountFailure.DeviceOffline)
+    ): AccountResult<ConnectionTicket> {
+        issuedTicketDeviceIds += deviceId
+        return ticketResult ?: AccountResult.Failure(AccountFailure.DeviceOffline)
+    }
 
     override suspend fun renewTicket(
         ticket: ConnectionTicket,

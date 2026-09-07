@@ -407,7 +407,8 @@ SHA-256 发布清单，以及应用内隐私、完整第三方许可证和主动
 - `compileSdk`/`targetSdk` 为 API 37，最低系统为 API 31；正式 native 能力仍只规划 `arm64-v8a`。
 - 根工程、包名、显示名、主题、Adaptive/monochrome 图标和 Splash Screen 均已切换到 Pixels。
 - 已建立 `app`、`core-domain`、`core-data`、`core-network`、`core-native`、`feature-devices`、`feature-remote`、`feature-transfer`、`feature-settings`，
-  设备首页、Quick Connect、账号、一级导航和远程工作区使用不可变状态与类型化 Action。
+  设备首页、Quick Connect、账号、一级导航和远程工作区使用不可变状态与类型化 Action。在线本地或账号设备的整张卡片与显式远控按钮进入同一真实会话流程；
+  离线设备只返回类型化不可连接提示，不申请凭据或控制票据。
 - 旧 Fragment/XML UI、GreenDAO、事件类、Steam/频谱/演示页面、宽松网络工具、旧签名文件和旧 Android JNI/C++ 入口已删除。
 - Android App 已打包 arm64 `pixels_android_core`，通过 `RegisterNatives` 暴露类型化的小型 JNI 表面；Kotlin 只持有无地址语义的
   `SessionId`，原生 registry 持有 `shared_ptr`，Java 引用与 `ANativeWindow` 均由 RAII 边界管理。没有旧 JSON JNI 或 RTC stub。
@@ -677,6 +678,11 @@ SHA-256 发布清单，以及应用内隐私、完整第三方许可证和主动
   真机验证设备→应用→系统返回、应用→设置→设备、应用中重复点击设备 Tab、设备→传输→设置→系统退出，以及真实局域网远控→文件传输→系统返回远控→确认结束→设备均通过；
   无旧页恢复、错选 Tab、重复页面或结束会话反跳。全部 Android 单元测试、lint、debug APK 和仪器化测试源码编译通过；构建 APK 与手机已安装 `base.apk` SHA-256
   均为 `7D5257EF40F1CF1D6BF5907DA9437F2EDF234F03D4B064B87E27EF1E4C36F206`。设备的 USB 安全策略拒绝测试 APK 自动安装，因此本轮没有把仪器化执行结果误报为通过。
+- 2026-09-07 设备首页删除最后一条面向用户的“正在接入会话核心”占位流程。在线本地设备整卡点击现在读取设备目录中的加密凭据并发起 Direct 会话，在线账号设备整卡点击
+  申请 `Control` 票据并发起 Account 会话；本地/账号离线卡片统一返回明确的不可连接提示且不访问凭据或票据接口。`DeviceHomeAction` 改为穷举处理，旧的
+  `FeatureUnavailable` Notice 与中英文 `feature_being_built` 资源已全部删除。新增四条在线/离线卡片回归，完整单元测试、lint、debug APK 与仪器化测试源码编译通过。
+  Xiaomi 22021211RC 使用 `adb install -r -d` 覆盖安装；局域网发现 D-6 在线后点击卡片标题区域直接进入约 46–60 FPS 的真实远控，返回确认结束后稳定落到设备页，
+  未出现旧占位提示或会话反跳。构建 APK 与手机 `base.apk` SHA-256 均为 `90C8610701C1B62BEC4F11D469B5AC511F50F6B8708B839884CF502EDF7868A2`。
 
 这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径、物理显示器切换和虚拟显示失败反馈；
 后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁，M5 轮次关闭了 UDP Direct 协商、WebSocket 安全回退、有界重连和 H.264 首帧解析门禁。
