@@ -55,6 +55,27 @@ function Assert-ZipContent {
         $archive.Dispose()
     }
 }
+
+function Get-ElfBuildId {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$ReadElf
+    )
+    $readElfOutput = @(& $ReadElf --notes $Path 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to read ELF notes from $Path."
+    }
+    $buildIds = @(
+        [regex]::Matches(($readElfOutput -join "`n"), 'Build ID:\s*([0-9a-fA-F]+)') |
+            ForEach-Object { $_.Groups[1].Value.ToLowerInvariant() } |
+            Select-Object -Unique
+    )
+    if ($buildIds.Count -ne 1) {
+        throw "Expected one ELF Build ID in $Path, found $($buildIds.Count)."
+    }
+    return $buildIds[0]
+}
+
 Assert-ZipContent -Path $ffmpegSourceArchive -RequiredPattern '\.(c|h|S|asm)$' -Description 'FFmpeg corresponding source'
 Assert-ZipContent -Path $lgplRelinkArchive -RequiredPattern '\.(o|obj)$' -Description 'LGPL relink'
 Assert-ZipContent -Path $lgplRelinkArchive -RequiredPattern '(^|/)(README|RELINK)(\.[^/]*)?$' -Description 'LGPL relink instructions'
@@ -151,29 +172,12 @@ if (Test-Path -LiteralPath $mappingPath -PathType Leaf) {
     Copy-Item -LiteralPath $mappingPath -Destination $mappingDestination -Force
     $publishedArtifacts += $mappingDestination
 }
-$nativeSymbol = Get-ChildItem -LiteralPath (Join-Path $androidRoot 'core-native\build\intermediates\cxx\RelWithDebInfo') -Recurse -File `
+$nativeSymbolCandidates = @(Get-ChildItem -LiteralPath (Join-Path $androidRoot 'core-native\build\intermediates\cxx\RelWithDebInfo') -Recurse -File `
     -Filter 'libpixels_android_core.so.dbg' |
-    Sort-Object LastWriteTimeUtc -Descending |
-    Select-Object -First 1
-if (-not $nativeSymbol) {
+    Sort-Object LastWriteTimeUtc -Descending)
+if ($nativeSymbolCandidates.Count -eq 0) {
     throw 'The release native symbol file was not produced.'
 }
-$symbolStagingRoot = Join-Path $androidRoot "app\build\intermediates\pixels-native-symbols\$([Guid]::NewGuid().ToString('N'))"
-$symbolAbiRoot = Join-Path $symbolStagingRoot 'lib\arm64-v8a'
-$symbolsDestination = Join-Path $artifactRoot 'native-debug-symbols.zip'
-try {
-    New-Item -ItemType Directory -Path $symbolAbiRoot -Force | Out-Null
-    Copy-Item -LiteralPath $nativeSymbol.FullName -Destination (Join-Path $symbolAbiRoot 'libpixels_android_core.so')
-    if (Test-Path -LiteralPath $symbolsDestination -PathType Leaf) {
-        Remove-Item -LiteralPath $symbolsDestination -Force
-    }
-    Compress-Archive -LiteralPath (Join-Path $symbolStagingRoot 'lib') -DestinationPath $symbolsDestination -CompressionLevel Optimal
-} finally {
-    if (Test-Path -LiteralPath $symbolStagingRoot -PathType Container) {
-        Remove-Item -LiteralPath $symbolStagingRoot -Recurse -Force
-    }
-}
-$publishedArtifacts += $symbolsDestination
 
 $localPropertiesPath = Join-Path $androidRoot 'local.properties'
 $sdkRoot = [Environment]::GetEnvironmentVariable('ANDROID_SDK_ROOT')
@@ -196,9 +200,69 @@ if (-not $apksigner) {
     throw 'No apksigner.bat was found in the configured Android SDK.'
 }
 
-& $apksigner verify --verbose --print-certs $apkDestination
-if ($LASTEXITCODE -ne 0) {
+$readElf = Get-ChildItem -LiteralPath (Join-Path $sdkRoot 'ndk') -Directory |
+    Sort-Object { [version]$_.Name } -Descending |
+    ForEach-Object { Join-Path $_.FullName 'toolchains\llvm\prebuilt\windows-x86_64\bin\llvm-readelf.exe' } |
+    Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+    Select-Object -First 1
+if (-not $readElf) {
+    throw 'No llvm-readelf.exe was found in the configured Android NDK.'
+}
+
+$symbolStagingRoot = Join-Path $androidRoot "app\build\intermediates\pixels-native-symbols\$([Guid]::NewGuid().ToString('N'))"
+$packagedNativePath = Join-Path $symbolStagingRoot 'packaged\libpixels_android_core.so'
+$symbolAbiRoot = Join-Path $symbolStagingRoot 'symbols\lib\arm64-v8a'
+$symbolsDestination = Join-Path $artifactRoot 'native-debug-symbols.zip'
+$packagedNativeBuildId = $null
+try {
+    New-Item -ItemType Directory -Path (Split-Path -Parent $packagedNativePath) -Force | Out-Null
+    New-Item -ItemType Directory -Path $symbolAbiRoot -Force | Out-Null
+    $nativeApkArchive = [System.IO.Compression.ZipFile]::OpenRead($apkDestination)
+    try {
+        $packagedNativeEntry = $nativeApkArchive.GetEntry('lib/arm64-v8a/libpixels_android_core.so')
+        if (-not $packagedNativeEntry) {
+            throw 'Release APK does not contain arm64-v8a/libpixels_android_core.so.'
+        }
+        [System.IO.Compression.ZipFileExtensions]::ExtractToFile($packagedNativeEntry, $packagedNativePath, $true)
+    } finally {
+        $nativeApkArchive.Dispose()
+    }
+
+    $packagedNativeBuildId = Get-ElfBuildId -Path $packagedNativePath -ReadElf $readElf
+    $matchingSymbols = @($nativeSymbolCandidates | Where-Object {
+        (Get-ElfBuildId -Path $_.FullName -ReadElf $readElf) -eq $packagedNativeBuildId
+    })
+    if ($matchingSymbols.Count -eq 0) {
+        throw "No native symbol file matches packaged ELF Build ID $packagedNativeBuildId."
+    }
+    $nativeSymbol = $matchingSymbols | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+    Copy-Item -LiteralPath $nativeSymbol.FullName -Destination (Join-Path $symbolAbiRoot 'libpixels_android_core.so')
+    if (Test-Path -LiteralPath $symbolsDestination -PathType Leaf) {
+        Remove-Item -LiteralPath $symbolsDestination -Force
+    }
+    Compress-Archive -LiteralPath (Join-Path $symbolStagingRoot 'symbols\lib') -DestinationPath $symbolsDestination -CompressionLevel Optimal
+} finally {
+    if (Test-Path -LiteralPath $symbolStagingRoot -PathType Container) {
+        Remove-Item -LiteralPath $symbolStagingRoot -Recurse -Force
+    }
+}
+$publishedArtifacts += $symbolsDestination
+
+$apkSignerOutput = @(& $apksigner verify --verbose --print-certs $apkDestination 2>&1)
+$apkSignerExitCode = $LASTEXITCODE
+$apkSignerOutput | Write-Host
+if ($apkSignerExitCode -ne 0) {
     throw 'APK signature verification failed.'
+}
+$signingCertificateSha256 = @(
+    $apkSignerOutput |
+        ForEach-Object { [regex]::Match([string]$_, 'Signer #\d+ certificate SHA-256 digest:\s*([0-9a-fA-F]{64})') } |
+        Where-Object Success |
+        ForEach-Object { $_.Groups[1].Value.ToUpperInvariant() } |
+        Select-Object -Unique
+)
+if ($signingCertificateSha256.Count -eq 0) {
+    throw 'APK signature verification did not report a signer certificate SHA-256 digest.'
 }
 $jarsignerOutput = @(& jarsigner -verify $bundleDestination 2>&1)
 $jarsignerOutput | Write-Host
@@ -237,6 +301,8 @@ $manifest = [ordered]@{
     versionName = $versionName
     versionCode = $versionCode
     abi = 'arm64-v8a'
+    nativeBuildId = $packagedNativeBuildId
+    signingCertificateSha256 = @($signingCertificateSha256)
     gitRevision = $revision
     builtAtUtc = [DateTime]::UtcNow.ToString('o')
     lgpl = [ordered]@{

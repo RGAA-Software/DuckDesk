@@ -58,7 +58,8 @@ $env:PIXELS_LGPL_RELINK_ARCHIVE = 'C:\release-inputs\pixels-1.0.0-relink-objects
 ```
 
 也可以复制 `keystore.properties.example` 为被 Git 忽略的 `keystore.properties`。脚本执行 release lint、单元测试、R8/resource shrink、
-arm64 native 构建以及 APK/AAB 签名校验，并把 APK、AAB、R8 mapping、native symbols 和带 SHA-256 的发布清单归档到
+arm64 native 构建以及 APK/AAB 签名校验，并通过 ELF Build ID 保证归档的 native symbols 与 APK 内实际 `.so` 完全对应。脚本把签名证书 SHA-256、
+native Build ID、APK、AAB、R8 mapping、native symbols 和带 SHA-256 的发布清单归档到
 `app/apk/release/<version>/`。Android native 当前静态链接 LGPL FFmpeg，因此正式构建还必须提供与构建版本完全一致的 FFmpeg 源码 ZIP 和包含
 应用可重链接目标文件的 ZIP；流水线校验二者内容后将其与完整第三方许可材料一起归档并写入清单。缺少签名或 LGPL 合规输入时 release 打包会立即失败；
 debug 构建不受影响。版本可由

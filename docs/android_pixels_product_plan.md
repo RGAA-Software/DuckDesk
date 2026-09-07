@@ -345,8 +345,8 @@ WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
 
 ### M6：发布，1–2 周
 
-状态：**发布工程已完成首轮收口：生产签名强制门禁、语义版本注入、R8/resource shrink、APK/AAB 签名校验、R8 mapping、拆分 native symbols、
-SHA-256 发布清单，以及应用内隐私、完整第三方许可证和主动脱敏诊断导出均已实现。发布脚本会验证 APK/AAB 内的许可证资源，并对静态链接 FFmpeg
+状态：**发布工程已完成首轮收口：生产签名强制门禁、语义版本注入、R8/resource shrink、APK/AAB 签名校验、签名证书 SHA-256、R8 mapping、
+按 ELF Build ID 与包内 `.so` 精确匹配的 native symbols、SHA-256 发布清单，以及应用内隐私、完整第三方许可证和主动脱敏诊断导出均已实现。发布脚本会验证 APK/AAB 内的许可证资源，并对静态链接 FFmpeg
 强制要求对应源码包和可重链接目标包；缺失时 release 任务立即失败。测试证书及测试签名包已删除；正式签名、最终 FFmpeg 源码/重链接归档、法律复核、
 设备矩阵和正式候选安装尚未完成，不能将当前结果标记为正式发行。**
 
@@ -683,6 +683,11 @@ SHA-256 发布清单，以及应用内隐私、完整第三方许可证和主动
   `FeatureUnavailable` Notice 与中英文 `feature_being_built` 资源已全部删除。新增四条在线/离线卡片回归，完整单元测试、lint、debug APK 与仪器化测试源码编译通过。
   Xiaomi 22021211RC 使用 `adb install -r -d` 覆盖安装；局域网发现 D-6 在线后点击卡片标题区域直接进入约 46–60 FPS 的真实远控，返回确认结束后稳定落到设备页，
   未出现旧占位提示或会话反跳。构建 APK 与手机 `base.apk` SHA-256 均为 `90C8610701C1B62BEC4F11D469B5AC511F50F6B8708B839884CF502EDF7868A2`。
+- 2026-09-07 M6 发布门禁不再按修改时间猜测 native symbols。发布脚本从最终 APK 提取 `libpixels_android_core.so` 的 GNU ELF Build ID，只归档 Build ID
+  完全一致的 `.so.dbg`，找不到匹配项即终止；清单同时记录该 Build ID 和 `apksigner` 实际报告的每个签名证书 SHA-256。脚本已通过 Windows PowerShell 5.1
+  语法解析、缺少正式签名输入的预期失败门禁、当前 debug APK 的 ZIP/ELF 提取与证书摘要解析烟测。当前构建目录同时存在两个不同 Build ID 的 native 输出，
+  包内实际 ID `117549bfd5d4c5e10e592c3b38e2213a4d440bfb` 仅匹配其中一个，证明新门禁能够排除旧脚本可能误选的陈旧符号文件。正式证书和合规归档尚未提供，
+  因此没有运行或冒充正式 release 构建；本轮不改变 APK 运行内容，也不重复安装手机应用。
 
 这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径、物理显示器切换和虚拟显示失败反馈；
 后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁，M5 轮次关闭了 UDP Direct 协商、WebSocket 安全回退、有界重连和 H.264 首帧解析门禁。
