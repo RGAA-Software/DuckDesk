@@ -2,6 +2,7 @@
 #include <functional>
 #include <optional>
 #include <memory>
+#include "px_client_sdk/av_frame_ref.h"
 extern "C" {
 	#include <libavcodec/codec.h>
 	#include <libavcodec/avcodec.h>
@@ -31,8 +32,7 @@ namespace px {
 
         bool InitTestHevcDecoder();
         bool OpenTestHevcDecoder();
-        std::optional<AVFrame*> GetDecodeTestHevcYuv444Frame();
-        void FreeTestHevcYuv444Frame(AVFrame* frame);
+        AvFramePtr GetDecodeTestHevcYuv444Frame();
         void SetHwDeviceCtx(AVBufferRef* hw_device_ctx);
        
         static const uint8_t k_HEVCRExt8_444TestFrame[];

@@ -2,6 +2,10 @@
 #include <fstream>
 #include "px_common/log.h"
 
+extern "C" {
+#include <libavutil/pixdesc.h>
+}
+
 namespace px
 {
 
@@ -38,11 +42,16 @@ namespace px
     }
 #endif
 
-	std::shared_ptr<RawImage> RawImage::MakeVulkanAVFrame(AVFrame* av_frame) {
-		return std::make_shared<RawImage>(av_frame);
-	}
+    std::shared_ptr<RawImage> RawImage::MakeVulkanAVFrame(const AVFrame& av_frame) {
+        // The Vulkan renderer also uploads software-decoded CPU frames.
+        if (!av_pix_fmt_desc_get(static_cast<AVPixelFormat>(av_frame.format)) || av_frame.width <= 0 || av_frame.height <= 0) {
+            return {};
+        }
+        auto snapshot = CloneAvFrame(av_frame);
+        return snapshot ? std::make_shared<RawImage>(std::move(snapshot)) : nullptr;
+    }
 
-	RawImage::RawImage(char* data, int size, int width, int height, int ch, RawImageFormat format) {
+    RawImage::RawImage(char* data, int size, int width, int height, int ch, RawImageFormat format) {
         if (size > 0) {
             img_buf = (char *) malloc(size);
         }
@@ -54,13 +63,13 @@ namespace px
 		img_height = height;
 		img_ch = ch;
 		img_format = format;
-	}
+    }
 
-	RawImage::RawImage(AVFrame* av_frame) : vulkan_av_frame_(av_frame) {
-		img_format = kRawImageVulkanAVFrame;
-	}
+    RawImage::RawImage(AvFramePtr av_frame)
+        : img_width(av_frame ? av_frame->width : 0), img_height(av_frame ? av_frame->height : 0), img_format(kRawImageVulkanAVFrame),
+          vulkan_av_frame_(std::move(av_frame)) {}
 
-	RawImage::~RawImage() {
+    RawImage::~RawImage() {
 		if (img_buf) {
 			free(img_buf);
 		}
@@ -78,17 +87,24 @@ namespace px
 		return img_format;
 	}
 
-	std::shared_ptr<RawImage> RawImage::Clone() {
-		return std::make_shared<RawImage>(img_buf, img_buf_size, img_width, img_height, img_ch, img_format);
-	}
+    std::shared_ptr<RawImage> RawImage::Clone() {
+        if (vulkan_av_frame_) {
+            auto copy = MakeVulkanAVFrame(*vulkan_av_frame_);
+            if (copy) {
+                copy->full_color_ = full_color_;
+            }
+            return copy;
+        }
+        return std::make_shared<RawImage>(img_buf, img_buf_size, img_width, img_height, img_ch, img_format);
+    }
 
-	void RawImage::CopyTo(const std::shared_ptr<RawImage>& target) {
-		if (target->Size() >= this->Size()) {
-			memcpy(target->Data(), this->Data(), this->Size());
-		}
-	}
+    void RawImage::CopyTo(const std::shared_ptr<RawImage>& target) {
+        if (target->Size() >= this->Size()) {
+            memcpy(target->Data(), this->Data(), this->Size());
+        }
+    }
 
-	void RawImage::SaveYUV444ToFile(const std::string& filename) {
+    void RawImage::SaveYUV444ToFile(const std::string& filename) {
 		uint8_t* yuv_data = reinterpret_cast<uint8_t*>(img_buf);
 		int width = img_width;
 		int height = img_height;

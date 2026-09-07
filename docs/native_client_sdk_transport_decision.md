@@ -1,7 +1,7 @@
 # 原生客户端 SDK 与 WebRTC 产品边界
 
 > 决定日期：2026-09-07
-> 状态：SDK 抽离、单一原生传输、旧诊断/参数归档及 SDK 直接 Qt 依赖解除已实施；解码器/帧数据的平台边界和独立构建仍待整理。
+> 状态：SDK 抽离、单一原生传输、旧诊断/参数归档、SDK 直接 Qt 依赖解除及 Vulkan 显示帧独立引用已实施；其余帧所有权、解码平台边界和独立构建仍待整理。
 > 本文替代此前原生客户端支持 WebRTC、Windows 保留 host 直连，以及原生 WS 媒体/Direct/Relay 多传输选择的规划。
 > 归档规则：本次精简的原有代码放入根目录 `backup/`，不直接删除。下文“删除/移除”均指退出活动源码与构建依赖，原实现须先完整归档。
 
@@ -196,3 +196,15 @@ Windows Client 不再链接/发布 Client RTC DLL。Render 的两套既有 RTC D
 下一步优先处理帧数据与解码器的资源所有权（D3D11、Vulkan AVFrame、Android Surface），再拆平台适配目标与核心构建。
 本轮不是 iOS/macOS 适配完成，也不把“没有直接 Qt 依赖”等同于“已经可独立集成”。
 详见 [本轮交接](native_diagnostics_cleanup_checkpoint_20260907.md)。
+
+## 第七检查点：Vulkan 显示帧所有权（2026-09-07）
+
+Vulkan 显示路径接收的 AVFrame 已改为独立 FFmpeg 引用：解码器可复用或销毁工作帧，UI 排队帧仍持有底层数据与硬件帧上下文引用。
+该路径既接收 Vulkan 硬件帧，也接收软件解码后上传的 CPU 帧；不能仅按 `AV_PIX_FMT_VULKAN` 校验输入。
+RawImage 克隆保留帧资源、尺寸及颜色标记；libplacebo 映射在全部退出分支解除，成功开始的交换链帧即使渲染失败也完成提交。
+解码器帧和格式探测帧使用 RAII，初始化失败回收部分资源，重复释放安全。
+
+本轮不表示 CPU RawImage 缓冲区、D3D11 纹理、AVBufferRef 设备上下文和 Android Surface 已全部完成所有权与平台隔离。
+下一步继续整理这些真实资源边界，再拆分平台解码适配和独立 SDK 构建；不扩展原生传输种类。
+旧实现完整保存在 `backup/native_vulkan_frame_ownership_20260907`，验证与限制见
+[Vulkan 显示帧交付记录](native_vulkan_frame_ownership_checkpoint_20260907.md)。

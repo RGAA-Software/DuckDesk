@@ -49,18 +49,16 @@ namespace px {
             return false;
         }
 
-        auto frame_res = ffmpeg_vulkan_decoder_->GetDecodeTestHevcYuv444Frame();
-        if (!frame_res.has_value()) {
+        const auto frame = ffmpeg_vulkan_decoder_->GetDecodeTestHevcYuv444Frame();
+        if (!frame) {
             qDebug() << "Failed to get decoded frame";
             return false;
         }
-        AVFrame* frame = frame_res.value();
         if (AV_PIX_FMT_VULKAN != frame->format) {
             qDebug() << "frame format is not AV_PIX_FMT_VULKAN ";
             return false;
         }
-        res = pl_vulkan_->RenderFrame(render_obj, frame);
-        ffmpeg_vulkan_decoder_->FreeTestHevcYuv444Frame(frame);
+        res = pl_vulkan_->RenderFrame(render_obj, *frame);
 
         return res;
     }

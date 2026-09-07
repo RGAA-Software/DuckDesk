@@ -46,7 +46,7 @@ namespace px
     }
 
     FFmpegVulkanDecoder::~FFmpegVulkanDecoder() {
-
+        Release();
     }
 
     // img_format:
@@ -101,11 +101,17 @@ namespace px
         }
 
         if (!InitCodecContext(codec_id)) {
+            Release();
             return -2;
         }
 
         packet_ = av_packet_alloc();
-        av_frame_ = av_frame_alloc();
+        av_frame_ = AllocateAvFrame();
+        if (!av_frame_ || !packet_) {
+            Release();
+            return AVERROR(ENOMEM);
+        }
+        stop_ = false;
         inited_ = true;
         return 0;
     }
@@ -188,10 +194,10 @@ namespace px
     }
 
     Result<std::shared_ptr<RawImage>, int> FFmpegVulkanDecoder::Decode(const uint8_t* data, int size) {
-        if (!decoder_context_ || !av_frame_ || stop_) {
+        std::lock_guard<std::mutex> guard(decode_mtx_);
+        if (!decoder_context_ || !av_frame_ || !packet_ || stop_) {
             return TRError(-1);
         }
-        std::lock_guard<std::mutex> guard(decode_mtx_);
 
         auto beg = TimeUtil::GetCurrentTimestamp();
 
@@ -212,7 +218,7 @@ namespace px
         auto last_result = 0;
         std::shared_ptr<RawImage> decoded_image = nullptr;
         while (true) {
-            ret = avcodec_receive_frame(decoder_context_, av_frame_);
+            ret = avcodec_receive_frame(decoder_context_, av_frame_.get());
             if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
                 last_result = has_received_frame ? 0 : ret;
                 break;
@@ -259,7 +265,10 @@ namespace px
                 sdk_stat->video_color_.Update(image_format ? "4:4:4" : "4:2:0" );
                 sdk_stat->AppendDecodeDuration(monitor_name, decode_duration);
             });
-            decoded_image = RawImage::MakeVulkanAVFrame(av_frame_);
+            decoded_image = RawImage::MakeVulkanAVFrame(*av_frame_);
+            if (!decoded_image) {
+                return TRError(AVERROR(ENOMEM));
+            }
             decoded_image->full_color_ = img_format_ == EImageFormat::kI444;
             break;
         }
@@ -274,10 +283,11 @@ namespace px
     void FFmpegVulkanDecoder::Release() {
         std::lock_guard<std::mutex> guard(decode_mtx_);
         stop_ = true;
+        inited_ = false;
 
-        while (true) {
-            auto ret = avcodec_receive_frame(decoder_context_, av_frame_);
-            if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+        while (decoder_context_ && av_frame_) {
+            auto ret = avcodec_receive_frame(decoder_context_, av_frame_.get());
+            if (ret < 0) {
                 break;
             }
         }
@@ -287,11 +297,7 @@ namespace px
             decoder_context_ = nullptr;
         }
 
-        if (av_frame_ != nullptr) {
-            av_frame_unref(av_frame_);
-            av_free(av_frame_);
-            av_frame_ = nullptr;
-        }
+        av_frame_.reset();
 
         if (packet_ != nullptr) {
             av_packet_unref(packet_);

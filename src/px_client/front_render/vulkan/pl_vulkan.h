@@ -83,9 +83,9 @@ namespace px {
             return m_HwDeviceCtx; 
         }
 
-        bool RenderFrame(uintptr_t render_view_id, AVFrame* frame);
+        bool RenderFrame(uintptr_t render_view_id, const AVFrame& frame);
 
-        bool mapAvFrameToPlacebo(uintptr_t render_view_id, const AVFrame* frame, pl_frame* mappedFrame);
+        bool mapAvFrameToPlacebo(uintptr_t render_view_id, const AVFrame& frame, pl_frame& mappedFrame);
 
         static void lockQueue(AVHWDeviceContext* dev_ctx, uint32_t queue_family, uint32_t index);
         static void unlockQueue(AVHWDeviceContext* dev_ctx, uint32_t queue_family, uint32_t index);

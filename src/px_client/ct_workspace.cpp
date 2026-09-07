@@ -179,11 +179,11 @@ namespace px
             if (!render_views_.empty()) {
                 if (render_views_[kMainRenderViewIndex]) {
                     render_views_[kMainRenderViewIndex]->RefreshCapturedMonitorInfo(info);
-                    // WebRTC local frames arrive as I420 (no AVFrame); they must use RefreshImage.
+                    // CPU/D3D11 output has no Vulkan frame and uses the regular image renderer.
                     if (this->params_->support_vulkan_ && image->vulkan_av_frame_) {
                         const auto obj = reinterpret_cast<uintptr_t>(
                             render_views_[kMainRenderViewIndex].get());
-                        pl_vulkan_->RenderFrame(obj, image->vulkan_av_frame_);
+                        pl_vulkan_->RenderFrame(obj, *image->vulkan_av_frame_);
                         render_views_[kMainRenderViewIndex]->UpdateFullColorState(image->full_color_);
                     }
                     else {
@@ -200,11 +200,11 @@ namespace px
                 && render_views_.size() > static_cast<std::size_t>(info.mon_index_)) {
                 if (render_views_[info.mon_index_]) {
                     render_views_[info.mon_index_]->RefreshCapturedMonitorInfo(info);
-                    // WebRTC local frames arrive as I420 (no AVFrame); they must use RefreshImage.
+                    // CPU/D3D11 output has no Vulkan frame and uses the regular image renderer.
                     if (this->params_->support_vulkan_ && image->vulkan_av_frame_) {
                         pl_vulkan_->RenderFrame(
                             reinterpret_cast<uintptr_t>(render_views_[info.mon_index_].get()),
-                            image->vulkan_av_frame_);
+                            *image->vulkan_av_frame_);
                     }
                     else {
                         render_views_[info.mon_index_]->RefreshImage(image);

@@ -116,20 +116,20 @@ namespace px {
         return false;
     }
 
-    
-    void TestFFmpegVulkanDecoder::FreeTestHevcYuv444Frame(AVFrame* frame) {
-        av_frame_free(&frame);
-    }
-
-    std::optional<AVFrame*> TestFFmpegVulkanDecoder::GetDecodeTestHevcYuv444Frame() {
-        AVFrame* frame = av_frame_alloc();
+    AvFramePtr TestFFmpegVulkanDecoder::GetDecodeTestHevcYuv444Frame() {
+        const auto frame = AllocateAvFrame();
         if (!frame) {
             qDebug() << "av_frame_alloc error";
             return {};
         }
 
-        AVPacket* pkt = av_packet_alloc();
-        pkt->data = (uint8_t*)k_HEVCRExt8_444TestFrame;
+        const auto pkt = std::shared_ptr<AVPacket>(av_packet_alloc(), [](AVPacket* packet) { // NOLINT(gammaray-raw-pointer-boundary) FFmpeg deleter.
+            av_packet_free(&packet);
+        });
+        if (!pkt) {
+            return {};
+        }
+        pkt->data = const_cast<uint8_t*>(k_HEVCRExt8_444TestFrame); // FFmpeg borrows static test bytes; packet has no owning buffer.
         pkt->size = sizeof(k_HEVCRExt8_444TestFrame);
 
         int err = 0;
@@ -139,10 +139,9 @@ namespace px {
         for (int retries = 0; retries < 5; retries++) {
             // Most FFmpeg decoders process input using a "push" model.
             // We'll see those fail here if the format is not supported.
-            err = avcodec_send_packet(test_hevc_video_decoder_ctx_, pkt);
+            err = avcodec_send_packet(test_hevc_video_decoder_ctx_, pkt.get());
             if (err < 0) {
-                av_frame_free(&frame);
-                char errorstring[512];
+                char errorstring[512]{};
                 av_strerror(err, errorstring, sizeof(errorstring));
                 printf("Test decode failed (avcodec_send_packet): %s", errorstring);
                 return {};
@@ -150,42 +149,34 @@ namespace px {
 
             // A few FFmpeg decoders (hevc_mmal) process here using a "pull" model.
             // Those decoders will fail here if the format is not supported.
-            err = avcodec_receive_frame(test_hevc_video_decoder_ctx_, frame);
+            err = avcodec_receive_frame(test_hevc_video_decoder_ctx_, frame.get());
             if (err == AVERROR(EAGAIN)) {
                 // Wait a little while to let the hardware work
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            }
-            else {
+            } else {
                 // Done!
                 break;
             }
         }
 
         if (err < 0) {
-            char errorstring[512];
+            char errorstring[512]{};
             av_strerror(err, errorstring, sizeof(errorstring));
             printf("Test decode failed (avcodec_receive_frame): %s", errorstring);
-            av_frame_free(&frame);
             return {};
         }
 
-        av_packet_free(&pkt);
         avcodec_free_context(&test_hevc_video_decoder_ctx_);
 
-
-        LOGI("Frame format: {} {}",
-            frame->format,
-            av_get_pix_fmt_name((AVPixelFormat)frame->format));
+        LOGI("Frame format: {} {}", frame->format, av_get_pix_fmt_name((AVPixelFormat)frame->format));
         if (frame->hw_frames_ctx) {
-            const AVHWFramesContext* hwfc = (const AVHWFramesContext*)frame->hw_frames_ctx->data;
-            LOGI("HW device type: {}, sw_format: {}",
-                av_hwdevice_get_type_name(hwfc->device_ctx->type),
-                av_get_pix_fmt_name((AVPixelFormat)hwfc->sw_format));
-        }
-        else {
+            const auto& hwfc = *reinterpret_cast<const AVHWFramesContext*>(frame->hw_frames_ctx->data);
+            LOGI("HW device type: {}, sw_format: {}", av_hwdevice_get_type_name(hwfc.device_ctx->type),
+                 av_get_pix_fmt_name((AVPixelFormat)hwfc.sw_format));
+        } else {
             LOGI("No hw_frames_ctx!\n");
         }
 
         return frame;
     }
-}
+    } // namespace px

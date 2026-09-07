@@ -36,8 +36,15 @@ the Windows client keeps its own Qt/OpenGL renderer. Only the optional Windows
 file-transfer test harness uses Qt Core. Frame data (`gl/raw_image.*`) remains
 shared and active.
 
+The Vulkan renderer's AVFrame carrier now owns an independent FFmpeg frame
+reference, retaining buffers and hardware-frame contexts across producer reuse
+or destruction. It also accepts software-decoded frames for Vulkan upload.
+Cloning preserves frame ownership and metadata. `test_av_frame_ownership`
+checks reference lifetime and queued consumption without requiring a GPU;
+it does not validate hardware decoding or driver teardown.
+
 This is **not yet** an independently consumable, platform-neutral SDK:
-D3D11/Vulkan/Android decoder boundaries, frame ownership, and dependency
+D3D11/Vulkan/Android decoder boundaries, remaining frame/device ownership, and dependency
 composition still need separation. iOS/macOS adapters are not implemented.
 
 Run `scripts/check_native_sdk_transport.ps1` to check source/build topology,

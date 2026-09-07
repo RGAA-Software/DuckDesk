@@ -1,0 +1,61 @@
+{
+  "revision": "0b7726d4270567acc28e4e7d82f84a6c3e33f7d0",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "src/px_client/ct_workspace.cpp",
+      "sha256": "CC7B1D4258EDA38CA9B1EBDD6F8DD08FBFB626CE833FB29A486039C5FBABF253",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/front_render/vulkan/ct_test_ffmpeg_vulkan_decoder.cpp",
+      "sha256": "263015448F63B4D1E064E6F3B04F410F207A4589475BB42C72004591F4A1DD99",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/front_render/vulkan/ct_test_ffmpeg_vulkan_decoder.h",
+      "sha256": "A2457E0C2891F4F6A8F87A210F4FB7C31F314BEC09A8C696FE3778C7F0F033BD",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/front_render/vulkan/ct_vulkan_checker.cpp",
+      "sha256": "72FBB3AD12534861A81D02953ACD5ED227A38FCD0B96FE05F16C9D9EC5A1136A",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/front_render/vulkan/pl_vulkan.cpp",
+      "sha256": "D18A94453533F6B39E0D1648BFB4746D1A2010EAACF97562AA2D2A9B97A3AF8F",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/front_render/vulkan/pl_vulkan.h",
+      "sha256": "8CF7224CEA1FAD5C610210B8EAB90E5C8116B9FC99EF7CA1A0011D7982AE5BDB",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/CMakeLists.txt",
+      "sha256": "11B8BA813C05C6E809CDFC75C0E9F7C113126D958C87814309DF9936A1B0E8E4",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/raw_image.cpp",
+      "sha256": "383062273B253EC5EF1307753AE07EF74BDB3D4CA1C66A8CA2717D8FF6CDDFE5",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/raw_image.h",
+      "sha256": "DE8FA966AC83BF77612145A59D2F7ED7A4412A52EFA825530B16EB53212CAF0E",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_vulkan_decoder.cpp",
+      "sha256": "291F5DA6C64D20202E7036137214FF3878183AD5123F1107D862213555B1483E",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_vulkan_decoder.h",
+      "sha256": "0668D28D22B628CC16226FE061D46AC222138D8E2E9950992A827E9FAD06A30F",
+      "status": ""
+    }
+  ]
+}

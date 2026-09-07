@@ -1,4 +1,5 @@
 #include "pl_vulkan.h"
+#include "px_common/scope_exit.h"
 #include <set>
 #include <qdebug.h>
 #include <qsize.h>
@@ -600,27 +601,29 @@ namespace px {
         return true;
     }
 
-    bool PlVulkan::RenderFrame(uintptr_t render_view_id, AVFrame* frame) {
-  
-        const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get((AVPixelFormat) frame->format);
-        if (!desc) { // 这里需要判断下,因为如果desc是空 会导致在libplacebo库 崩溃
+    bool PlVulkan::RenderFrame(uintptr_t render_view_id, const AVFrame& frame) {
+
+        if (!av_pix_fmt_desc_get(static_cast<AVPixelFormat>(frame.format))) {
             return false;
         }
 
-        pl_frame mappedFrame;
-        pl_frame targetFrame;
+        pl_frame mappedFrame{};
+        pl_frame targetFrame{};
 
         // 1) Map AVFrame -> pl_frame (检查返回)
-        if (!mapAvFrameToPlacebo(render_view_id, frame, &mappedFrame)) {
+        if (!mapAvFrameToPlacebo(render_view_id, frame, mappedFrame)) {
             LOGE("mapAvFrameToPlacebo failed");
             return false;
         }
 
+        // Synchronous scope guard: references never outlive this rendering call.
+        const auto owner = std::ref(*this);
+        const PxScopeExit unmap([owner, mapped = std::ref(mappedFrame)] { pl_unmap_avframe(owner.get().m_Vulkan->gpu, &mapped.get()); });
+
         // 2) Start swapchain frame (必须有，不能跳过)
-        pl_swapchain_frame sw_frame;
+        pl_swapchain_frame sw_frame{};
         if (!pl_swapchain_start_frame(vulkan_swapchains_[render_view_id], &sw_frame)) {
             LOGE("pl_swapchain_start_frame failed (window occluded?)");
-            pl_unmap_avframe(m_Vulkan->gpu, &mappedFrame);
             return false;
         }
 
@@ -632,13 +635,12 @@ namespace px {
         targetFrame.overlays = nullptr;
 
         // 6) Render
-        if (!pl_render_image(vulkan_renderers_[render_view_id], &mappedFrame, &targetFrame, &pl_render_fast_params)) {
+        const bool rendered = pl_render_image(vulkan_renderers_[render_view_id], &mappedFrame, &targetFrame, &pl_render_fast_params);
+        if (!rendered) {
             LOGE("pl_render_image() failed");
-            // still fallthrough and submit
-            return false;
         }
 
-        // 7) Submit and (on Windows) swap buffers
+        // Every successful start must be paired with submit, even when rendering fails.
         if (!pl_swapchain_submit_frame(vulkan_swapchains_[render_view_id])) {
             LOGE("pl_swapchain_submit_frame() failed");
             // handle recreate if necessary
@@ -648,17 +650,15 @@ namespace px {
 #ifdef Q_OS_WIN32
         pl_swapchain_swap_buffers(vulkan_swapchains_[render_view_id]);
 #endif
-        // 8) Unmap source frame
-        pl_unmap_avframe(m_Vulkan->gpu, &mappedFrame);
-        return true;
+        // The scope guard unmaps the source on every exit path.
+        return rendered;
     }
 
-    bool PlVulkan::mapAvFrameToPlacebo(uintptr_t render_view_id, const AVFrame* frame, pl_frame* mappedFrame)
-    {
+    bool PlVulkan::mapAvFrameToPlacebo(uintptr_t render_view_id, const AVFrame& frame, pl_frame& mappedFrame) {
         pl_avframe_params mapParams = {};
-        mapParams.frame = frame;
+        mapParams.frame = &frame; // libplacebo ABI borrows the frame for this synchronous mapping call.
         mapParams.tex = textures_[render_view_id].data();
-        if (!pl_map_avframe_ex(m_Vulkan->gpu, mappedFrame, &mapParams)) {   
+        if (!pl_map_avframe_ex(m_Vulkan->gpu, &mappedFrame, &mapParams)) {
             LOGE("pl_map_avframe_ex() failed");
             return false;
         }
@@ -669,18 +669,18 @@ namespace px {
         //
         // NB: We also have to check that the AVFrame actually had metadata in the first place,
         // because libplacebo may infer metadata if the frame didn't have any.
-        if (av_frame_get_side_data(frame, AV_FRAME_DATA_MASTERING_DISPLAY_METADATA) && !mappedFrame->color.hdr.min_luma) {
-            mappedFrame->color.hdr.min_luma = PL_COLOR_HDR_BLACK;
+        if (av_frame_get_side_data(&frame, AV_FRAME_DATA_MASTERING_DISPLAY_METADATA) && !mappedFrame.color.hdr.min_luma) {
+            mappedFrame.color.hdr.min_luma = PL_COLOR_HDR_BLACK;
         }
 
         // HACK: AMF AV1 encoding on the host PC does not set full color range properly in the
         // bitstream data, so libplacebo incorrectly renders the content as limited range.
         //
         // As a workaround, set full range manually in the mapped frame ourselves.
-        mappedFrame->repr.levels = PL_COLOR_LEVELS_FULL;
+        mappedFrame.repr.levels = PL_COLOR_LEVELS_FULL;
 
-        mappedFrame->repr = pl_color_repr_uhdtv;    //  关键代码,支持更宽的色域
-        mappedFrame->color = pl_color_space_bt709;  //  关键代码
+        mappedFrame.repr = pl_color_repr_uhdtv;   //  关键代码,支持更宽的色域
+        mappedFrame.color = pl_color_space_bt709; //  关键代码
         return true;
     }
 

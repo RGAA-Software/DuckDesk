@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include <memory>
+#include "av_frame_ref.h"
 
 #ifdef WIN32
 #include <d3d11.h>
@@ -27,7 +28,7 @@ namespace px
 		kRawImageI420,
 		kRawImageI444,
         kRawImageD3D11Texture,
-		kRawImageVulkanAVFrame, //此格式实际是AVFrame(AV_PIX_FMT_VULKAN) 
+		kRawImageVulkanAVFrame, // Owned AVFrame for the Vulkan renderer, including software-decoded frames.
 	};
 
 	class RawImage {
@@ -41,10 +42,10 @@ namespace px
 #ifdef WIN32
         static std::shared_ptr<RawImage> MakeD3D11Texture(ComPtr<ID3D11Texture2D> texture, int src_subresource);
 #endif
-		static std::shared_ptr<RawImage> MakeVulkanAVFrame(AVFrame* av_frame);
+		static std::shared_ptr<RawImage> MakeVulkanAVFrame(const AVFrame& av_frame);
 
 		RawImage(char* data, int size, int width, int height, int ch, RawImageFormat format);
-		RawImage(AVFrame* av_frame);
+		explicit RawImage(AvFramePtr av_frame);
 		~RawImage();
 
 		char* Data();
@@ -64,8 +65,8 @@ namespace px
 		int img_width = 0;
 		int img_height = 0;
 		int img_ch = -1;
-		RawImageFormat img_format;
-		AVFrame* vulkan_av_frame_ = nullptr;
+		RawImageFormat img_format{kRawImageRGB};
+		std::shared_ptr<const AVFrame> vulkan_av_frame_{};
 		bool full_color_ = false;
 #ifdef WIN32
         ComPtr<ID3D11Device> device_ = nullptr;

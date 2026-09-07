@@ -8,6 +8,7 @@ Windows、Android、iOS、macOS 原生客户端均取消 WebRTC，包括 host �
 UDP+FEC 媒体、WebSocket 可靠控制和独立文件通道，组成唯一的原生直连模式；取消原生 WS 视频回退、旧 UDP/KCP、Relay 与公网 P2P。
 原生公网连接留待后续 RustDesk 方案。保留 Web 所需的 Render RTC、Console 信令、ICE/TURN、鉴权与部署能力。
 双端入口已固定原生接入，Android RTC AAR、Windows 通道设置及启动回退已退役；共享 SDK 旧 RTC/Relay/KCP 连接与独立 WS 媒体分支也已归档。旧诊断与 SDK 重复 OpenGL 代码已退出活动源码，SDK 不再直接依赖 Qt；解码器/帧数据的平台分层仍待完成。
+Vulkan 显示帧已从借用解码器工作帧改为独立 FFmpeg 引用，同时保留软件解码帧上传路径；其余帧资源和设备上下文的所有权边界仍在整理。
 既有客户端 RTC 测试记录不表示它仍属于产品目标。具体清理范围、SDK 分层与验收见
 [原生客户端 SDK 与 WebRTC 产品边界](native_client_sdk_transport_decision.md)。
 

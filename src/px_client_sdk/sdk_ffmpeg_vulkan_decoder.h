@@ -17,6 +17,7 @@ extern "C"
 
 #include <set>
 #include "sdk_video_decoder.h"
+#include "av_frame_ref.h"
 
 namespace px
 {
@@ -41,7 +42,7 @@ namespace px
         AVCodecContext* decoder_context_ = nullptr;
         AVCodec* decoder_ = nullptr;
         AVPacket* packet_ = nullptr;
-        AVFrame* av_frame_ = nullptr;
+        AvFramePtr av_frame_{};
 
         AVBufferRef* hw_device_context_ = nullptr;
 
