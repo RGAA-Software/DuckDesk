@@ -20,13 +20,29 @@ $environmentSigningNames = @(
     'PIXELS_KEYSTORE_FILE',
     'PIXELS_KEYSTORE_PASSWORD',
     'PIXELS_KEY_ALIAS',
-    'PIXELS_KEY_PASSWORD'
+    'PIXELS_KEY_PASSWORD',
+    'PIXELS_SIGNING_CERT_SHA256'
 )
 $missingEnvironmentSigning = @($environmentSigningNames | Where-Object {
     [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_))
 })
 if ($missingEnvironmentSigning.Count -ne 0 -and -not (Test-Path -LiteralPath $propertiesPath -PathType Leaf)) {
     throw 'Configure all PIXELS_* signing variables or copy keystore.properties.example to the ignored keystore.properties file.'
+}
+
+$expectedSigningCertificateSha256 = [Environment]::GetEnvironmentVariable('PIXELS_SIGNING_CERT_SHA256')
+if ([string]::IsNullOrWhiteSpace($expectedSigningCertificateSha256) -and
+    (Test-Path -LiteralPath $propertiesPath -PathType Leaf)) {
+    $certificateProperty = Get-Content -LiteralPath $propertiesPath |
+        Where-Object { $_ -match '^\s*certificateSha256\s*=' } |
+        Select-Object -First 1
+    if ($certificateProperty) {
+        $expectedSigningCertificateSha256 = ($certificateProperty -replace '^\s*certificateSha256\s*=\s*', '').Trim()
+    }
+}
+$expectedSigningCertificateSha256 = ([string]$expectedSigningCertificateSha256 -replace '[:\s]', '').ToUpperInvariant()
+if ($expectedSigningCertificateSha256 -notmatch '^[0-9A-F]{64}$') {
+    throw 'PIXELS_SIGNING_CERT_SHA256 or certificateSha256 must contain the approved 64-hex signing certificate SHA-256.'
 }
 
 if ([string]::IsNullOrWhiteSpace($ffmpegSourceArchive) -or
@@ -264,10 +280,26 @@ $signingCertificateSha256 = @(
 if ($signingCertificateSha256.Count -eq 0) {
     throw 'APK signature verification did not report a signer certificate SHA-256 digest.'
 }
+if ($signingCertificateSha256.Count -ne 1 -or $signingCertificateSha256[0] -ne $expectedSigningCertificateSha256) {
+    throw "APK signer certificate does not match the approved SHA-256 $expectedSigningCertificateSha256."
+}
 $jarsignerOutput = @(& jarsigner -verify $bundleDestination 2>&1)
 $jarsignerOutput | Write-Host
 if ($LASTEXITCODE -ne 0) {
     throw 'AAB signature verification failed.'
+}
+$bundleCertificateOutput = @(& keytool -printcert -jarfile $bundleDestination 2>&1)
+$bundleCertificateExitCode = $LASTEXITCODE
+if ($bundleCertificateExitCode -ne 0) {
+    throw 'Unable to read the AAB signing certificate.'
+}
+$bundleCertificateSha256 = @(
+    [regex]::Matches(($bundleCertificateOutput -join "`n"), 'SHA256:\s*((?:[0-9a-fA-F]{2}:){31}[0-9a-fA-F]{2})') |
+        ForEach-Object { ($_.Groups[1].Value -replace ':', '').ToUpperInvariant() } |
+        Select-Object -Unique
+)
+if ($bundleCertificateSha256.Count -ne 1 -or $bundleCertificateSha256[0] -ne $expectedSigningCertificateSha256) {
+    throw "AAB signer certificate does not match the approved SHA-256 $expectedSigningCertificateSha256."
 }
 $bundleArchive = [System.IO.Compression.ZipFile]::OpenRead($bundleDestination)
 try {
@@ -302,7 +334,7 @@ $manifest = [ordered]@{
     versionCode = $versionCode
     abi = 'arm64-v8a'
     nativeBuildId = $packagedNativeBuildId
-    signingCertificateSha256 = @($signingCertificateSha256)
+    signingCertificateSha256 = $expectedSigningCertificateSha256
     gitRevision = $revision
     builtAtUtc = [DateTime]::UtcNow.ToString('o')
     lgpl = [ordered]@{

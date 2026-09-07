@@ -20,7 +20,10 @@ def releaseStorePath = releaseValue('storeFile', 'PIXELS_KEYSTORE_FILE')
 def releaseStorePassword = releaseValue('storePassword', 'PIXELS_KEYSTORE_PASSWORD')
 def releaseKeyAlias = releaseValue('keyAlias', 'PIXELS_KEY_ALIAS')
 def releaseKeyPassword = releaseValue('keyPassword', 'PIXELS_KEY_PASSWORD')
-def releaseSigningReady = [releaseStorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { it }
+def releaseCertificateSha256 = releaseValue('certificateSha256', 'PIXELS_SIGNING_CERT_SHA256')
+def releaseCertificateReady = releaseCertificateSha256 ==~ /(?i)[0-9a-f]{64}/
+def releaseSigningReady = [releaseStorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { it } &&
+    releaseCertificateReady
 def pixelsVersionCode = (System.getenv('PIXELS_VERSION_CODE') ?: '1').toInteger()
 def pixelsVersionName = System.getenv('PIXELS_VERSION_NAME') ?: '1.0.0'
 def pixelsGitRevision = System.getenv('PIXELS_GIT_REVISION') ?: 'unknown'
@@ -116,7 +119,8 @@ def signedReleaseTaskRequested = gradle.startParameter.taskNames.any { taskName 
 }
 if (signedReleaseTaskRequested && !releaseSigningReady) {
     throw new GradleException(
-        'A release package requires PIXELS_KEYSTORE_FILE, PIXELS_KEYSTORE_PASSWORD, PIXELS_KEY_ALIAS and PIXELS_KEY_PASSWORD ' +
+        'A release package requires PIXELS_KEYSTORE_FILE, PIXELS_KEYSTORE_PASSWORD, PIXELS_KEY_ALIAS, PIXELS_KEY_PASSWORD and ' +
+            'the approved 64-hex PIXELS_SIGNING_CERT_SHA256 ' +
             'or the equivalent values in the ignored keystore.properties file.',
     )
 }

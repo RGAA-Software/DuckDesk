@@ -345,7 +345,7 @@ WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
 
 ### M6：发布，1–2 周
 
-状态：**发布工程已完成首轮收口：生产签名强制门禁、语义版本注入、R8/resource shrink、APK/AAB 签名校验、签名证书 SHA-256、R8 mapping、
+状态：**发布工程已完成首轮收口：生产签名与批准证书 SHA-256 强制门禁、语义版本注入、R8/resource shrink、APK/AAB 签名及证书一致性校验、R8 mapping、
 按 ELF Build ID 与包内 `.so` 精确匹配的 native symbols、SHA-256 发布清单，以及应用内隐私、完整第三方许可证和主动脱敏诊断导出均已实现。发布脚本会验证 APK/AAB 内的许可证资源，并对静态链接 FFmpeg
 强制要求对应源码包和可重链接目标包；缺失时 release 任务立即失败。测试证书及测试签名包已删除；正式签名、最终 FFmpeg 源码/重链接归档、法律复核、
 设备矩阵和正式候选安装尚未完成，不能将当前结果标记为正式发行。**
@@ -694,6 +694,10 @@ WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
   Android 单元测试、lint、debug APK 和仪器化测试源码编译通过。Xiaomi 22021211RC 使用 `adb install -r -d` 覆盖安装后，短时验证设置/传输返回、应用子页返回、
   应用→设置→设备清理旧子页、12 次快速 Tab 切换、设备根页退出及重新启动均通过，当前进程无 Java/JNI/native fatal。构建 APK 与手机 `base.apk` 的 SHA-256
   均为 `902ABF8C6EC12DF8E6D6681B230F77A85F888CFF96DC5877B015AF9163BF358F`；未卸载应用。
+- 2026-09-07 M6 正式签名门禁增加批准证书固定值。release 配置除 keystore、别名和密码外必须显式提供 64 位 `PIXELS_SIGNING_CERT_SHA256`；发布脚本分别从
+  `apksigner` 的 APK 结果和 `keytool` 的 AAB 结果提取实际证书摘要，要求二者都与批准值完全一致后才写入发布清单，临时或误配证书不能再仅凭“签名有效”通过。
+  Windows PowerShell 5.1 语法解析、Gradle 缺少批准证书的预期失败、发布脚本缺少签名输入的预期失败和临时签名 AAB 的证书解析烟测均通过；debug 配置解析不受影响。
+  本轮只改变发布门禁，不改变 APK 运行内容，因此没有重复覆盖安装或把测试证书产物当作正式 release。
 
 这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径、物理显示器切换和虚拟显示失败反馈；
 后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁，M5 轮次关闭了 UDP Direct 协商、WebSocket 安全回退、有界重连和 H.264 首帧解析门禁。
