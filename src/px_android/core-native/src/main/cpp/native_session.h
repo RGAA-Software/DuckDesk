@@ -59,6 +59,7 @@ struct NativeSessionConfig final {
     bool enable_audio{true};
     bool enable_input{true};
     bool enable_clipboard{true};
+    bool prefer_software_decoder{};
 };
 
 struct NativeGamepadState final {

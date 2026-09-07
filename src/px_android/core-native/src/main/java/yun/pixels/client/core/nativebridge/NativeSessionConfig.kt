@@ -23,4 +23,5 @@ internal data class NativeSessionConfig(
     val enableAudio: Boolean,
     val enableInput: Boolean,
     val enableClipboard: Boolean,
+    val preferSoftwareDecoder: Boolean,
 )

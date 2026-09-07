@@ -182,6 +182,7 @@ NativeSessionConfig ReadConfig(JNIEnv& environment, const jobject config) {
         .enable_audio = ReadBoolean(environment, config, config_class, "enableAudio"),
         .enable_input = ReadBoolean(environment, config, config_class, "enableInput"),
         .enable_clipboard = ReadBoolean(environment, config, config_class, "enableClipboard"),
+        .prefer_software_decoder = ReadBoolean(environment, config, config_class, "preferSoftwareDecoder"),
     };
     environment.DeleteLocalRef(config_class);
     return result;

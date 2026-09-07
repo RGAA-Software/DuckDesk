@@ -13,7 +13,7 @@ internal data class RtcStatisticsSample(
     val roundTripTimeSeconds: Double,
 )
 
-internal class RtcStatisticsAccumulator {
+internal class RtcStatisticsAccumulator(private val decoderName: String = "WebRTC") {
     private var previousTimestampUs: Double? = null
     private var previousVideoBytesReceived: Long? = null
 
@@ -49,7 +49,7 @@ internal class RtcStatisticsAccumulator {
                 .coerceIn(0, MAX_RTC_LATENCY_MILLIS),
             bitrateKbps = bitrateKbps,
             packetLossPercent = packetLossPercent,
-            decoderName = "WebRTC",
+            decoderName = decoderName,
         )
     }
 }

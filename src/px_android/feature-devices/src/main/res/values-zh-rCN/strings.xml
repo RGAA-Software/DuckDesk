@@ -51,6 +51,8 @@
     <string name="frame_rate_value">%1$d 帧</string>
     <string name="play_remote_audio">播放远端声音</string>
     <string name="play_remote_audio_description">以后连接时默认开启电脑声音。</string>
+    <string name="prefer_hardware_decoder">硬件解码优先</string>
+    <string name="prefer_hardware_decoder_description">关闭后强制软件解码；开启时硬解失败会自动回退。</string>
     <string name="default_input_mode">默认输入模式</string>
     <string name="input_mode_direct_touch">直接触控</string>
     <string name="input_mode_touchpad">触控板</string>

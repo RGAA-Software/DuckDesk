@@ -17,6 +17,7 @@ class RemoteSessionPreferencesTest {
         assertEquals(60, preferences.frameRate)
         assertEquals(RemoteInputMode.DirectTouch, preferences.inputMode)
         assertEquals(true, preferences.audioEnabled)
+        assertEquals(RemoteDecoderMode.Automatic, preferences.decoderMode)
     }
 
     @Test

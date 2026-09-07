@@ -24,6 +24,7 @@ import yun.pixels.client.core.domain.account.ConnectionTicket
 import yun.pixels.client.core.domain.session.InputCommand
 import yun.pixels.client.core.domain.session.InstallationIdentity
 import yun.pixels.client.core.domain.session.LocalClipboardFile
+import yun.pixels.client.core.domain.session.RemoteDecoderMode
 import yun.pixels.client.core.domain.session.RemoteSessionCapabilities
 import yun.pixels.client.core.domain.session.RemoteSessionFailure
 import yun.pixels.client.core.domain.session.RemoteSessionId
@@ -190,6 +191,7 @@ class AndroidRemoteSessionTransport internal constructor(
             enableInput = request.enableInput && "input" in launch.permissions,
             enableFileTransfer = fileTransferBridgeReady,
             enableVoiceCall = "audio" in launch.permissions,
+            preferSoftwareDecoder = request.preferences.decoderMode == RemoteDecoderMode.Software,
             onEvent = { event -> callbackScope.launch { handleRtcEvent(request.id, event) } },
         )
         val accepted = lock.withLock {

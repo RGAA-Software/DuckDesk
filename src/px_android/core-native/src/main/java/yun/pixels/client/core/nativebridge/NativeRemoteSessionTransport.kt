@@ -16,6 +16,7 @@ import yun.pixels.client.core.domain.session.ClipboardDownloadState
 import yun.pixels.client.core.domain.session.ClipboardFileDescriptor
 import yun.pixels.client.core.domain.session.LocalClipboardFile
 import yun.pixels.client.core.domain.session.RemoteClipboardFiles
+import yun.pixels.client.core.domain.session.RemoteDecoderMode
 import yun.pixels.client.core.domain.session.RemoteMouseButton
 import yun.pixels.client.core.domain.session.RemoteSessionCapabilities
 import yun.pixels.client.core.domain.session.RemoteSessionFailure
@@ -751,6 +752,7 @@ private fun RemoteSessionRequest.toNativeConfig(
             is RemoteSessionTarget.Direct -> true
             is RemoteSessionTarget.Account -> "clipboard" in sessionTarget.connectionTicket.permissions
         },
+        preferSoftwareDecoder = preferences.decoderMode == RemoteDecoderMode.Software,
     )
 }
 

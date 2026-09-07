@@ -32,6 +32,7 @@ import org.webrtc.RtpReceiver
 import org.webrtc.RtpTransceiver
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
+import org.webrtc.SoftwareVideoDecoderFactory
 import org.webrtc.SurfaceEglRenderer
 import org.webrtc.VideoTrack
 import px.PxMessage
@@ -45,21 +46,29 @@ internal class WebRtcRuntime(context: Context) : Closeable {
     private val closed = AtomicBoolean(false)
     private val eglBase: EglBase
     val eglContext: EglBase.Context
-    val factory: PeerConnectionFactory
+    private val automaticFactory: PeerConnectionFactory
+    private val softwareFactory: PeerConnectionFactory
 
     init {
         initializeWebRtc(context.applicationContext)
         eglBase = EglBase.create()
         eglContext = eglBase.eglBaseContext
-        factory = PeerConnectionFactory.builder()
+        automaticFactory = PeerConnectionFactory.builder()
             .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglContext, true, true))
             .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglContext))
             .createPeerConnectionFactory()
+        softwareFactory = PeerConnectionFactory.builder()
+            .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglContext, true, true))
+            .setVideoDecoderFactory(SoftwareVideoDecoderFactory())
+            .createPeerConnectionFactory()
     }
+
+    fun factory(preferSoftwareDecoder: Boolean): PeerConnectionFactory = if (preferSoftwareDecoder) softwareFactory else automaticFactory
 
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
-        factory.dispose()
+        automaticFactory.dispose()
+        softwareFactory.dispose()
         eglBase.release()
     }
 
@@ -127,6 +136,7 @@ internal class WebRtcPeerSession(
     private val enableInput: Boolean,
     private val enableFileTransfer: Boolean,
     private val enableVoiceCall: Boolean,
+    preferSoftwareDecoder: Boolean,
     private val onEvent: (WebRtcPeerEvent) -> Unit,
 ) : Closeable {
     private val stateLock = Any()
@@ -144,12 +154,13 @@ internal class WebRtcPeerSession(
     private var packetIndex = 0L
     private var activeMonitorName = ""
     private var statisticsJob: Job? = null
-    private val statisticsAccumulator = RtcStatisticsAccumulator()
+    private val peerConnectionFactory = runtime.factory(preferSoftwareDecoder)
+    private val statisticsAccumulator = RtcStatisticsAccumulator(if (preferSoftwareDecoder) "WebRTC software" else "WebRTC automatic")
     private var cursorX = 0.5f
     private var cursorY = 0.5f
     private val pendingRemoteIce = ArrayDeque<IceCandidate>()
     private val voiceCallController = RtcVoiceCallController(
-        factory = runtime.factory,
+        factory = peerConnectionFactory,
         scope = scope,
         enabled = enableVoiceCall,
         sendMessage = ::sendMediaMessage,
@@ -173,7 +184,7 @@ internal class WebRtcPeerSession(
             continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
             iceCandidatePoolSize = 2
         }
-        val connection = runtime.factory.createPeerConnection(rtcConfiguration, Observer())
+        val connection = peerConnectionFactory.createPeerConnection(rtcConfiguration, Observer())
             ?: throw IllegalStateException("WebRTC PeerConnection creation failed")
         synchronized(stateLock) { peerConnection = connection }
 

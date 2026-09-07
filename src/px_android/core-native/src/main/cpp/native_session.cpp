@@ -979,7 +979,8 @@ bool NativeSession::Initialize() {
         }
     });
 
-    initialized_ = sdk_->Init(params, reinterpret_cast<void*>(surface_.get()), DecoderRenderType::kMediaCodecSurface);
+    const auto decoder_render_type = config_.prefer_software_decoder ? DecoderRenderType::kFFmpegI420 : DecoderRenderType::kMediaCodecSurface;
+    initialized_ = sdk_->Init(params, reinterpret_cast<void*>(surface_.get()), decoder_render_type);
     if (!initialized_)
         return false;
     statistics_ = px::SdkStatistics::Instance();

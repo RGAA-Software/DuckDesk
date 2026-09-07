@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import yun.pixels.client.core.domain.session.RemoteDecoderMode
 import yun.pixels.client.core.domain.session.RemoteInputMode
 import yun.pixels.client.core.domain.session.RemoteSessionPreferences
 
@@ -60,6 +61,22 @@ fun DeviceSessionPreferencesDialog(
                             Text(stringResource(R.string.play_remote_audio_description))
                         }
                         Switch(checked = draft.audioEnabled, onCheckedChange = { draft = draft.copy(audioEnabled = it) })
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.prefer_hardware_decoder))
+                            Text(stringResource(R.string.prefer_hardware_decoder_description))
+                        }
+                        Switch(
+                            checked = draft.decoderMode == RemoteDecoderMode.Automatic,
+                            onCheckedChange = { enabled ->
+                                draft = draft.copy(decoderMode = if (enabled) RemoteDecoderMode.Automatic else RemoteDecoderMode.Software)
+                            },
+                        )
                     }
                     PreferenceSection(title = stringResource(R.string.default_input_mode)) {
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

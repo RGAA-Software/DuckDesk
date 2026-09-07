@@ -50,6 +50,15 @@ class RtcStatisticsTest {
         assertEquals(60, second.framesPerSecond)
         assertEquals(18, second.latencyMillis)
         assertEquals(5f, second.packetLossPercent, 0.001f)
+        assertEquals("WebRTC", second.decoderName)
+    }
+
+    @Test
+    fun reportsTheSelectedWebRtcDecoderPolicy() {
+        val statistics = RtcStatisticsAccumulator("WebRTC software")
+            .update(sample(timestampUs = 1_000_000.0, bytesReceived = 1_000L))
+
+        assertEquals("WebRTC software", statistics.decoderName)
     }
 
     @Test

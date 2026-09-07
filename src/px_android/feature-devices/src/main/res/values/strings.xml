@@ -51,6 +51,8 @@
     <string name="frame_rate_value">%1$d FPS</string>
     <string name="play_remote_audio">Play remote audio</string>
     <string name="play_remote_audio_description">Start future sessions with computer audio enabled.</string>
+    <string name="prefer_hardware_decoder">Prefer hardware decoding</string>
+    <string name="prefer_hardware_decoder_description">Turn off to force software decoding; failures fall back automatically when on.</string>
     <string name="default_input_mode">Default input mode</string>
     <string name="input_mode_direct_touch">Direct touch</string>
     <string name="input_mode_touchpad">Touchpad</string>

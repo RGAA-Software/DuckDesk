@@ -50,6 +50,7 @@ data class RemoteSessionPreferences(
     val frameRate: Int = DEFAULT_FRAME_RATE,
     val audioEnabled: Boolean = true,
     val inputMode: RemoteInputMode = RemoteInputMode.DirectTouch,
+    val decoderMode: RemoteDecoderMode = RemoteDecoderMode.Automatic,
 ) {
     init {
         require(frameRate in SUPPORTED_FRAME_RATES) { "Unsupported remote frame rate: $frameRate" }
@@ -104,6 +105,11 @@ enum class RemoteInputMode {
     DirectTouch,
     Touchpad,
     Gamepad,
+}
+
+enum class RemoteDecoderMode {
+    Automatic,
+    Software,
 }
 
 enum class RemoteMouseButton {
