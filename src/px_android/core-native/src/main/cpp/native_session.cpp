@@ -1688,6 +1688,29 @@ bool NativeSession::SwitchMonitor(const std::string& monitor_name) {
     return true;
 }
 
+bool NativeSession::SetFrameRate(const std::int32_t frame_rate) {
+    if (frame_rate < 15 || frame_rate > 120)
+        return false;
+    std::lock_guard command_lock(command_mutex_);
+    std::shared_ptr<px::ThunderSdk> sdk;
+    {
+        std::lock_guard state_lock(lifecycle_mutex_);
+        if (stopped_.load() || !started_ || !sdk_)
+            return false;
+        sdk = sdk_;
+    }
+    const auto message = std::make_shared<px::Message>();
+    message->set_type(px::kModifyFps);
+    message->set_device_id(client_signal_device_id_);
+    message->set_stream_id(config_.stream_id);
+    message->mutable_modify_fps()->set_fps(frame_rate);
+    const auto data = px::ProtoAsData(message);
+    if (!data)
+        return false;
+    sdk->PostMediaMessage(data);
+    return true;
+}
+
 bool NativeSession::SetAudioEnabled(const bool enabled) {
     std::lock_guard command_lock(command_mutex_);
     if (stopped_.load() || !audio_player_)

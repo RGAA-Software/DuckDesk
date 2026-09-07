@@ -391,6 +391,8 @@ internal class WebRtcPeerSession(
         )
     }
 
+    fun setFrameRate(frameRate: Int): Boolean = buildRtcFrameRateRequest(frameRate)?.let(::sendMediaMessage) ?: false
+
     fun sendFileTransfer(payload: ByteArray): Boolean {
         if (payload.isEmpty() || payload.size > MAX_CHANNEL_MESSAGE_BYTES) return false
         val activeChannel = synchronized(stateLock) {

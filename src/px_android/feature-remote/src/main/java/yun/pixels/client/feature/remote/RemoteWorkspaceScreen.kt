@@ -108,6 +108,8 @@ fun RemoteWorkspaceScreen(
     onClipboardUris: (List<Uri>) -> Unit,
     onClipboardFilesRequest: (RemoteClipboardFiles) -> Unit,
     onAudioEnabledChange: (Boolean) -> Unit,
+    initialInputMode: RemoteInputMode,
+    onInputModePreferenceChange: (RemoteInputMode) -> Unit,
     onStartRecording: () -> Unit,
     onStopRecording: () -> Unit,
     onStartVoiceCall: () -> Unit,
@@ -120,12 +122,7 @@ fun RemoteWorkspaceScreen(
 ) {
     val context = LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences(INPUT_PREFERENCES, 0) }
-    var inputMode by remember {
-        mutableStateOf(
-            runCatching { RemoteInputMode.valueOf(preferences.getString(INPUT_MODE, null).orEmpty()) }
-                .getOrDefault(RemoteInputMode.DirectTouch),
-        )
-    }
+    var inputMode by remember { mutableStateOf(initialInputMode) }
     var sensitivity by remember { mutableStateOf(preferences.getFloat(INPUT_SENSITIVITY, 1f).coerceIn(0.5f, 2f)) }
     var showKeyboard by remember { mutableStateOf(false) }
     var showDisplays by remember { mutableStateOf(false) }
@@ -186,7 +183,7 @@ fun RemoteWorkspaceScreen(
             RemoteBackAction.ExitGamepadMode -> {
                 gamepadController.reset()
                 inputMode = RemoteInputMode.DirectTouch
-                preferences.edit().putString(INPUT_MODE, RemoteInputMode.DirectTouch.name).apply()
+                onInputModePreferenceChange(RemoteInputMode.DirectTouch)
             }
             RemoteBackAction.RequestSessionEnd -> requestEndSession()
         }
@@ -231,7 +228,7 @@ fun RemoteWorkspaceScreen(
                 if (mode != RemoteInputMode.Gamepad) gamepadController.reset()
                 if (mode == RemoteInputMode.Gamepad) allowPortraitGamepad = false
                 inputMode = mode
-                preferences.edit().putString(INPUT_MODE, mode.name).apply()
+                onInputModePreferenceChange(mode)
             },
             onAudioEnabledChange = onAudioEnabledChange,
             onStartRecording = onStartRecording,
@@ -1089,7 +1086,6 @@ private val RemoteSessionFailure.messageResource: Int
     }
 
 private const val INPUT_PREFERENCES = "remote_input"
-private const val INPUT_MODE = "mode"
 private const val INPUT_SENSITIVITY = "sensitivity"
 private const val GAMEPAD_LAYOUT = "gamepad_layout"
 private const val GAMEPAD_DEAD_ZONE = "gamepad_dead_zone"

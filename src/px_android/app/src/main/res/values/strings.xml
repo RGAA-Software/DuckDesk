@@ -36,4 +36,5 @@
     <string name="transfer_error_invalid_remote_path">The remote folder path is invalid.</string>
     <string name="transfer_error_directory_request">The remote folder could not be opened.</string>
     <string name="transfer_error_directory_timeout">The remote computer did not return this folder in time.</string>
+    <string name="preferences_save_failed">Could not save connection preferences.</string>
 </resources>

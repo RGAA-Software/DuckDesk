@@ -26,6 +26,13 @@ internal fun buildRtcHello(
     .build()
     .toByteArray()
 
+internal fun buildRtcFrameRateRequest(frameRate: Int): PxMessage.Message.Builder? {
+    if (frameRate !in MIN_REMOTE_FRAME_RATE..MAX_REMOTE_FRAME_RATE) return null
+    return PxMessage.Message.newBuilder()
+        .setType(PxMessage.MessageType.kModifyFps)
+        .setModifyFps(PxMessage.ModifyFps.newBuilder().setFps(frameRate))
+}
+
 internal fun packRtcTlv(payload: ByteArray, packetIndex: Long): ByteArray {
     require(payload.size <= MAX_RTC_TLV_PAYLOAD_BYTES)
     return ByteBuffer.allocate(RTC_TLV_HEADER_BYTES + payload.size)
@@ -140,3 +147,5 @@ internal const val RTC_VOICE_CHANNELS = 1
 internal const val RTC_VOICE_FRAME_MILLIS = 20
 internal const val MAX_RTC_VOICE_REASON_CHARS = 256
 private const val MAX_RTC_VOICE_CALL_ID_CHARS = 128
+private const val MIN_REMOTE_FRAME_RATE = 15
+private const val MAX_REMOTE_FRAME_RATE = 120

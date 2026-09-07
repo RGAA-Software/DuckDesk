@@ -445,6 +445,11 @@ class NativeRemoteSessionTransport internal constructor(
         return PixelsNativeBridge.switchMonitor(nativeSessionId, monitorName)
     }
 
+    suspend fun setFrameRate(sessionId: RemoteSessionId, frameRate: Int): Boolean {
+        val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
+        return withContext(Dispatchers.IO) { PixelsNativeBridge.setFrameRate(nativeSessionId, frameRate) }
+    }
+
     suspend fun setAudioEnabled(sessionId: RemoteSessionId, enabled: Boolean): Boolean {
         val nativeSessionId = lock.withLock { nativeSessionIds[sessionId] } ?: return false
         return withContext(Dispatchers.IO) { PixelsNativeBridge.setAudioEnabled(nativeSessionId, enabled) }

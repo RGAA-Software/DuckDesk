@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import yun.pixels.client.core.data.EncryptedAccountSessionStore
 import yun.pixels.client.core.data.AndroidLanDeviceDiscovery
 import yun.pixels.client.core.data.DataStoreInstallationIdentity
+import yun.pixels.client.core.data.DataStoreRemoteSessionPreferencesRepository
 import yun.pixels.client.core.data.PanelDeviceResolver
 import yun.pixels.client.core.data.createDeviceDirectory
 import yun.pixels.client.core.domain.account.AccountRepository
@@ -37,6 +38,7 @@ class PixelsAppGraph(application: Application) {
     val deviceResolver: DeviceResolver = PanelDeviceResolver()
     val deviceDiscovery: DeviceDiscovery = AndroidLanDeviceDiscovery(application)
     val installationIdentity = DataStoreInstallationIdentity.create(application, applicationScope)
+    val remoteSessionPreferences = DataStoreRemoteSessionPreferencesRepository.create(application, applicationScope)
     val accountRepository: AccountRepository = ConsoleAccountRepository(
         api = consoleApi,
         sessionStore = EncryptedAccountSessionStore.create(application, applicationScope),

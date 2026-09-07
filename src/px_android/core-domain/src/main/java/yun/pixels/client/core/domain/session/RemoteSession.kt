@@ -39,11 +39,39 @@ sealed interface RemoteSessionTarget {
 data class RemoteSessionRequest(
     val id: RemoteSessionId,
     val target: RemoteSessionTarget,
+    val preferences: RemoteSessionPreferences = RemoteSessionPreferences(),
     val enableVideo: Boolean = true,
     val enableAudio: Boolean = true,
     val enableInput: Boolean = true,
     val enableClipboard: Boolean = true,
 )
+
+data class RemoteSessionPreferences(
+    val frameRate: Int = DEFAULT_FRAME_RATE,
+    val audioEnabled: Boolean = true,
+    val inputMode: RemoteInputMode = RemoteInputMode.DirectTouch,
+) {
+    init {
+        require(frameRate in SUPPORTED_FRAME_RATES) { "Unsupported remote frame rate: $frameRate" }
+    }
+
+    companion object {
+        const val DEFAULT_FRAME_RATE = 60
+        val SUPPORTED_FRAME_RATES = setOf(30, DEFAULT_FRAME_RATE)
+    }
+}
+
+interface RemoteSessionPreferencesRepository {
+    suspend fun load(deviceKey: String): RemoteSessionPreferences
+
+    suspend fun save(deviceKey: String, preferences: RemoteSessionPreferences)
+}
+
+val RemoteSessionTarget.preferenceKey: String
+    get() = when (this) {
+        is RemoteSessionTarget.Direct -> "direct:${device.id.value}"
+        is RemoteSessionTarget.Account -> "account:${fallbackRemoteDeviceId.ifBlank { connectionTicket.signalDeviceId }.ifBlank { displayName }}"
+    }
 
 data class RemoteSessionCapabilities(
     val monitorNames: List<String>,

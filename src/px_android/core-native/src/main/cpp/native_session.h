@@ -188,6 +188,7 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     bool SetVoiceSpeakerMuted(bool muted);
     bool SendSecureAttention();
     bool SwitchMonitor(const std::string& monitor_name);
+    bool SetFrameRate(std::int32_t frame_rate);
     bool SetAudioEnabled(bool enabled);
     void Stop();
 

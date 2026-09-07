@@ -122,6 +122,10 @@ class RemoteSessionService : Service() {
         serviceScope.launch {
             transport.events.collect { event ->
                 when (event) {
+                    is RemoteTransportEvent.Connected -> {
+                        val request = (currentRequest() ?: preparedRequest)?.takeIf { it.id == event.sessionId }
+                        if (request != null) transport.setFrameRate(request.id, request.preferences.frameRate)
+                    }
                     is RemoteTransportEvent.GamepadRumble -> {
                         val connected = workflow.snapshot.value.status as? RemoteSessionStatus.Connected
                         if (event.sessionId == connected?.request?.id) gamepadHaptics.apply(event.strongMotor, event.weakMotor)
@@ -185,11 +189,11 @@ class RemoteSessionService : Service() {
 
     private fun prepare(request: RemoteSessionRequest) {
         preparedRequest = request
-        userWantsAudio = request.enableAudio
-        if (request.enableAudio) requestAudioFocus() else abandonAudioFocus()
-        mutableAudioEnabled.value = request.enableAudio && hasAudioFocus
+        userWantsAudio = request.preferences.audioEnabled
+        if (userWantsAudio) requestAudioFocus() else abandonAudioFocus()
+        mutableAudioEnabled.value = userWantsAudio && hasAudioFocus
         startService(Intent(this, RemoteSessionService::class.java))
-        startForegroundSession(request.target.displayName, request.enableAudio)
+        startForegroundSession(request.target.displayName, userWantsAudio)
     }
 
     private fun attachSurface(surface: Surface) {
@@ -197,6 +201,7 @@ class RemoteSessionService : Service() {
         serviceScope.launch {
             transport.attachSurface(request.id, surface)
             workflow.start(request)
+            transport.setFrameRate(request.id, request.preferences.frameRate)
             transport.setAudioEnabled(request.id, mutableAudioEnabled.value)
         }
     }
@@ -270,13 +275,13 @@ class RemoteSessionService : Service() {
         val failed = workflow.snapshot.value.status as? RemoteSessionStatus.Failed ?: return
         val request = failed.request
         preparedRequest = request
-        userWantsAudio = request.enableAudio
-        if (request.enableAudio) requestAudioFocus() else abandonAudioFocus()
-        mutableAudioEnabled.value = request.enableAudio && hasAudioFocus
+        if (userWantsAudio) requestAudioFocus() else abandonAudioFocus()
+        mutableAudioEnabled.value = userWantsAudio && hasAudioFocus
         startService(Intent(this, RemoteSessionService::class.java))
-        startForegroundSession(request.target.displayName, request.enableAudio)
+        startForegroundSession(request.target.displayName, userWantsAudio)
         serviceScope.launch {
             workflow.start(request)
+            transport.setFrameRate(request.id, request.preferences.frameRate)
             transport.setAudioEnabled(request.id, mutableAudioEnabled.value)
         }
     }

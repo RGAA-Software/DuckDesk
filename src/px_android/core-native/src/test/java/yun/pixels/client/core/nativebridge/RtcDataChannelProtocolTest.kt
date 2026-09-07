@@ -49,6 +49,16 @@ class RtcDataChannelProtocolTest {
     }
 
     @Test
+    fun frameRateRequestUsesTypedProtocolAndRejectsUnsafeValues() {
+        val request = requireNotNull(buildRtcFrameRateRequest(30)).build()
+
+        assertEquals(PxMessage.MessageType.kModifyFps, request.type)
+        assertEquals(30, request.modifyFps.fps)
+        assertNull(buildRtcFrameRateRequest(14))
+        assertNull(buildRtcFrameRateRequest(121))
+    }
+
+    @Test
     fun rtcCapabilitiesKeepExistingMonitorSelectionIndependentFromInputScope() {
         val config = PxMessage.ServerConfiguration.newBuilder()
             .addMonitorsInfo(PxMessage.MonitorInfo.newBuilder().setName(" DISPLAY1 "))

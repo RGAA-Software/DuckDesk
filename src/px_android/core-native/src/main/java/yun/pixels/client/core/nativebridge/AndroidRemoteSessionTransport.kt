@@ -278,6 +278,11 @@ class AndroidRemoteSessionTransport internal constructor(
         return rtc?.switchMonitor(monitorName) ?: native.switchMonitor(sessionId, monitorName)
     }
 
+    suspend fun setFrameRate(sessionId: RemoteSessionId, frameRate: Int): Boolean {
+        val rtc = lock.withLock { rtcSessions[sessionId] }
+        return rtc?.setFrameRate(frameRate) ?: native.setFrameRate(sessionId, frameRate)
+    }
+
     suspend fun setAudioEnabled(sessionId: RemoteSessionId, enabled: Boolean): Boolean {
         val rtc = lock.withLock { rtcSessions[sessionId] }
         return rtc?.setAudioEnabled(enabled) ?: native.setAudioEnabled(sessionId, enabled)

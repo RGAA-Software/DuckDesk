@@ -61,14 +61,18 @@ import yun.pixels.client.feature.devices.DeviceHomeAction
 import yun.pixels.client.feature.devices.DeviceHomeNotice
 import yun.pixels.client.feature.devices.DeviceHomeScreen
 import yun.pixels.client.feature.devices.DeviceHomeViewModel
+import yun.pixels.client.feature.devices.DeviceSessionPreferencesDialog
 import yun.pixels.client.feature.devices.ApplicationLibraryScreen
 import yun.pixels.client.feature.devices.ApplicationLibraryViewModel
 import yun.pixels.client.feature.settings.SettingsScreen
 import yun.pixels.client.feature.settings.SettingsViewModel
 import yun.pixels.client.core.domain.session.RemoteSessionRequest
+import yun.pixels.client.core.domain.session.RemoteInputMode
+import yun.pixels.client.core.domain.session.RemoteSessionPreferences
 import yun.pixels.client.core.domain.session.RemoteSessionSnapshot
 import yun.pixels.client.core.domain.session.RemoteSessionStatus
 import yun.pixels.client.core.domain.session.RemoteSessionTarget
+import yun.pixels.client.core.domain.session.preferenceKey
 import yun.pixels.client.feature.remote.RemoteWorkspaceScreen
 import yun.pixels.client.feature.transfer.TransferScreen
 import yun.pixels.client.remote.RemoteSessionService
@@ -95,6 +99,13 @@ private enum class AppDestination(val topLevel: TopLevelDestination?) {
     RemoteTransfers(null),
 }
 
+private data class SessionPreferencesEditor(
+    val deviceKey: String,
+    val displayName: String,
+    val preferences: RemoteSessionPreferences? = null,
+    val isSaving: Boolean = false,
+)
+
 @Composable
 fun PixelsApp(graph: PixelsAppGraph) {
     var appDestination by rememberSaveable { mutableStateOf(AppDestination.Devices) }
@@ -109,6 +120,9 @@ fun PixelsApp(graph: PixelsAppGraph) {
     var acceptsApplicationRemoteRequest by remember { mutableStateOf(false) }
     var leavingRemoteSession by remember { mutableStateOf(false) }
     var remoteRequestAwaitingLocalNetwork by remember { mutableStateOf<RemoteSessionRequest?>(null) }
+    var activeSessionDeviceKey by remember { mutableStateOf<String?>(null) }
+    var activeSessionPreferences by remember { mutableStateOf<RemoteSessionPreferences?>(null) }
+    var preferencesEditor by remember { mutableStateOf<SessionPreferencesEditor?>(null) }
     val idleRemoteSnapshot = remember { kotlinx.coroutines.flow.MutableStateFlow(RemoteSessionSnapshot()) }
     val idleAudioEnabled = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
     val idleFileTransferTasks = remember { kotlinx.coroutines.flow.MutableStateFlow(emptyList<FileTransferTask>()) }
@@ -179,6 +193,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val microphonePermissionDenied = stringResource(R.string.microphone_permission_required)
     val diagnosticsFailed = stringResource(R.string.diagnostics_failed)
+    val preferencesSaveFailed = stringResource(R.string.preferences_save_failed)
     val shareDiagnostics = stringResource(R.string.share_diagnostics)
     val microphonePermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) remoteBinder?.startVoiceCall() else coroutineScope.launch { snackbarHostState.showSnackbar(microphonePermissionDenied) }
@@ -219,20 +234,32 @@ fun PixelsApp(graph: PixelsAppGraph) {
     LaunchedEffect(deviceHomeViewModel) {
         deviceHomeViewModel.remoteRequests.collect { request ->
             val destination = pendingDeviceRemoteDestination
-            pendingDeviceRemoteDestination = null
             if (appDestination == AppDestination.Devices && destination != null) {
-                openTransfersWhenConnected = destination == AppDestination.RemoteTransfers
-                remoteRequest = request
+                val deviceKey = request.target.preferenceKey
+                val preferences = runCatching { graph.remoteSessionPreferences.load(deviceKey) }.getOrDefault(RemoteSessionPreferences())
+                if (appDestination == AppDestination.Devices && pendingDeviceRemoteDestination == destination) {
+                    pendingDeviceRemoteDestination = null
+                    openTransfersWhenConnected = destination == AppDestination.RemoteTransfers
+                    activeSessionDeviceKey = deviceKey
+                    activeSessionPreferences = preferences
+                    remoteRequest = request.copy(preferences = preferences)
+                }
             }
         }
     }
     LaunchedEffect(applicationLibraryViewModel) {
         applicationLibraryViewModel.remoteRequests.collect { request ->
             val acceptsRequest = acceptsApplicationRemoteRequest
-            acceptsApplicationRemoteRequest = false
             if (appDestination == AppDestination.Applications && acceptsRequest) {
-                openTransfersWhenConnected = false
-                remoteRequest = request
+                val deviceKey = request.target.preferenceKey
+                val preferences = runCatching { graph.remoteSessionPreferences.load(deviceKey) }.getOrDefault(RemoteSessionPreferences())
+                if (appDestination == AppDestination.Applications && acceptsApplicationRemoteRequest) {
+                    acceptsApplicationRemoteRequest = false
+                    openTransfersWhenConnected = false
+                    activeSessionDeviceKey = deviceKey
+                    activeSessionPreferences = preferences
+                    remoteRequest = request.copy(preferences = preferences)
+                }
             }
         }
     }
@@ -387,6 +414,16 @@ fun PixelsApp(graph: PixelsAppGraph) {
                                 pendingDeviceRemoteDestination = AppDestination.RemoteTransfers
                                 deviceHomeViewModel.onAction(DeviceHomeAction.StartRemoteDesktop(action.device))
                             }
+                            is DeviceHomeAction.EditSessionPreferences -> {
+                                preferencesEditor = SessionPreferencesEditor(action.deviceKey, action.displayName)
+                                coroutineScope.launch {
+                                    val loaded = runCatching { graph.remoteSessionPreferences.load(action.deviceKey) }
+                                        .getOrDefault(RemoteSessionPreferences())
+                                    if (preferencesEditor?.deviceKey == action.deviceKey) {
+                                        preferencesEditor = preferencesEditor?.copy(preferences = loaded)
+                                    }
+                                }
+                            }
                             DeviceHomeAction.OpenApplications -> {
                                 pendingDeviceRemoteDestination = null
                                 remoteRequest = null
@@ -487,7 +524,32 @@ fun PixelsApp(graph: PixelsAppGraph) {
                         onClipboardText = { text -> remoteBinder?.sendClipboardText(text) },
                         onClipboardUris = { uris -> remoteBinder?.sendClipboardFiles(uris) },
                         onClipboardFilesRequest = { files -> remoteBinder?.downloadClipboardFiles(files) },
-                        onAudioEnabledChange = { enabled -> remoteBinder?.setAudioEnabled(enabled) },
+                        onAudioEnabledChange = { enabled ->
+                            remoteBinder?.setAudioEnabled(enabled)
+                            val deviceKey = activeSessionDeviceKey
+                            val current = activeSessionPreferences
+                            if (deviceKey != null && current != null) {
+                                val updated = current.copy(audioEnabled = enabled)
+                                activeSessionPreferences = updated
+                                coroutineScope.launch {
+                                    runCatching { graph.remoteSessionPreferences.save(deviceKey, updated) }
+                                        .onFailure { snackbarHostState.showSnackbar(preferencesSaveFailed) }
+                                }
+                            }
+                        },
+                        initialInputMode = activeSessionPreferences?.inputMode ?: RemoteInputMode.DirectTouch,
+                        onInputModePreferenceChange = { inputMode ->
+                            val deviceKey = activeSessionDeviceKey
+                            val current = activeSessionPreferences
+                            if (deviceKey != null && current != null) {
+                                val updated = current.copy(inputMode = inputMode)
+                                activeSessionPreferences = updated
+                                coroutineScope.launch {
+                                    runCatching { graph.remoteSessionPreferences.save(deviceKey, updated) }
+                                        .onFailure { snackbarHostState.showSnackbar(preferencesSaveFailed) }
+                                }
+                            }
+                        },
                         onStartRecording = { remoteBinder?.startRecording() },
                         onStopRecording = { remoteBinder?.stopRecording() },
                         onStartVoiceCall = {
@@ -506,6 +568,8 @@ fun PixelsApp(graph: PixelsAppGraph) {
                             leavingRemoteSession = true
                             remoteBinder?.stopSession()
                             appDestination = AppDestination.Devices
+                            activeSessionDeviceKey = null
+                            activeSessionPreferences = null
                         },
                     )
                 }
@@ -530,6 +594,27 @@ fun PixelsApp(graph: PixelsAppGraph) {
                 }
             }
         }
+    }
+    preferencesEditor?.let { editor ->
+        DeviceSessionPreferencesDialog(
+            displayName = editor.displayName,
+            preferences = editor.preferences,
+            isSaving = editor.isSaving,
+            onDismiss = { preferencesEditor = null },
+            onSave = { preferences ->
+                preferencesEditor = editor.copy(preferences = preferences, isSaving = true)
+                coroutineScope.launch {
+                    runCatching { graph.remoteSessionPreferences.save(editor.deviceKey, preferences) }
+                        .onSuccess { if (preferencesEditor?.deviceKey == editor.deviceKey) preferencesEditor = null }
+                        .onFailure {
+                            if (preferencesEditor?.deviceKey == editor.deviceKey) {
+                                preferencesEditor = preferencesEditor?.copy(isSaving = false)
+                            }
+                            snackbarHostState.showSnackbar(preferencesSaveFailed)
+                        }
+                }
+            },
+        )
     }
 }
 

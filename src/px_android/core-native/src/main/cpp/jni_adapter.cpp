@@ -482,6 +482,11 @@ jboolean NativeSetAudioEnabled(JNIEnv*, jobject, const jlong native_session_id, 
     return session && session->SetAudioEnabled(enabled == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
 }
 
+jboolean NativeSetFrameRate(JNIEnv*, jobject, const jlong native_session_id, const jint frame_rate) { // NOLINT(gammaray-raw-pointer-boundary)
+    const auto session = Registry().Find(native_session_id);
+    return session && session->SetFrameRate(frame_rate) ? JNI_TRUE : JNI_FALSE;
+}
+
 jboolean NativeStartRecording(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(gammaray-raw-pointer-boundary)
                               const jbyteArray recording_id, const jbyteArray staging_directory) {
     if (environment == nullptr) {
@@ -634,6 +639,7 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) { // NOLINT(gamm
         {const_cast<char*>("sendGamepad"), const_cast<char*>("(JIIIIIII)Z"), reinterpret_cast<void*>(pixels::android::NativeSendGamepad)},
         {const_cast<char*>("switchMonitor"), const_cast<char*>("(JLjava/lang/String;)Z"),
          reinterpret_cast<void*>(pixels::android::NativeSwitchMonitor)},
+        {const_cast<char*>("setFrameRate"), const_cast<char*>("(JI)Z"), reinterpret_cast<void*>(pixels::android::NativeSetFrameRate)},
         {const_cast<char*>("setAudioEnabled"), const_cast<char*>("(JZ)Z"), reinterpret_cast<void*>(pixels::android::NativeSetAudioEnabled)},
         {const_cast<char*>("startRecording"), const_cast<char*>("(J[B[B)Z"), reinterpret_cast<void*>(pixels::android::NativeStartRecording)},
         {const_cast<char*>("stopRecording"), const_cast<char*>("(J[B)Z"), reinterpret_cast<void*>(pixels::android::NativeStopRecording)},

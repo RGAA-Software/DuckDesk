@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -240,6 +241,7 @@ private fun AccountLoadingCard() {
 
 @Composable
 private fun AccountDeviceCard(device: AccountDevice, onAction: (DeviceHomeAction) -> Unit) {
+    var menuExpanded by remember { mutableStateOf(false) }
     Card(
         onClick = { onAction(DeviceHomeAction.OpenAccountDevice(device)) },
         modifier = Modifier.fillMaxWidth(),
@@ -278,6 +280,21 @@ private fun AccountDeviceCard(device: AccountDevice, onAction: (DeviceHomeAction
                 }
             } else {
                 Icon(imageVector = Icons.Outlined.CloudOff, contentDescription = null)
+            }
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.more_actions))
+                }
+                DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.connection_preferences)) },
+                        leadingIcon = { Icon(Icons.Outlined.Tune, contentDescription = null) },
+                        onClick = {
+                            menuExpanded = false
+                            onAction(DeviceHomeAction.EditSessionPreferences("account:${device.deviceId}", device.displayName))
+                        },
+                    )
+                }
             }
         }
     }
@@ -425,6 +442,14 @@ private fun DeviceCard(
                         expanded = menuExpanded,
                         onDismissRequest = { menuExpanded = false },
                     ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.connection_preferences)) },
+                            leadingIcon = { Icon(Icons.Outlined.Tune, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                onAction(DeviceHomeAction.EditSessionPreferences("direct:${device.id.value}", device.displayName))
+                            },
+                        )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.remove_device)) },
                             leadingIcon = { Icon(Icons.Outlined.DeleteOutline, contentDescription = null) },

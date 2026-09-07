@@ -36,4 +36,5 @@
     <string name="transfer_error_invalid_remote_path">远端目录路径无效。</string>
     <string name="transfer_error_directory_request">无法打开远端目录。</string>
     <string name="transfer_error_directory_timeout">远端电脑未及时返回此目录。</string>
+    <string name="preferences_save_failed">无法保存连接偏好。</string>
 </resources>

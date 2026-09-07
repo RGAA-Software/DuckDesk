@@ -191,6 +191,8 @@ internal object PixelsNativeBridge {
 
     external fun switchMonitor(nativeSessionId: Long, monitorName: String): Boolean
 
+    external fun setFrameRate(nativeSessionId: Long, frameRate: Int): Boolean
+
     external fun setAudioEnabled(nativeSessionId: Long, enabled: Boolean): Boolean
 
     external fun startRecording(nativeSessionId: Long, recordingId: ByteArray, stagingDirectory: ByteArray): Boolean

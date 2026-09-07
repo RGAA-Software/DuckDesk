@@ -105,6 +105,7 @@ class DeviceHomeViewModel(
             is DeviceHomeAction.OpenAccountDevice -> openAccountRemoteDesktop(action.device)
             is DeviceHomeAction.StartAccountRemoteDesktop -> openAccountRemoteDesktop(action.device)
             is DeviceHomeAction.OpenFiles -> Unit
+            is DeviceHomeAction.EditSessionPreferences -> Unit
             DeviceHomeAction.OpenApplications -> Unit
         }
     }
