@@ -1,0 +1,36 @@
+{
+  "revision": "87bfcfb7da98ff54ed9c5eebc1b56e8919e5d5a0",
+  "reason": "Preserve pre-fix file-transfer dispatch ordering and local-EOF completion implementations; replace with FIFO command consumption and receiver finalization acknowledgement for uploads",
+  "files": [
+    {
+      "path": "src/px_deps/px_ft_engine/ft_async_session.cpp",
+      "sha256": "AC810D2A8567A7CCA1CFF711365ED1D1BCC39F99FAEB7A8A302C11C75480E911",
+      "status": ""
+    },
+    {
+      "path": "src/px_deps/px_ft_engine/ft_async_session.h",
+      "sha256": "96D8AB4F2C45475665CDA4D59544BE6DCFC6D9452A4486C3C4AB2A5FAD9AF2D1",
+      "status": ""
+    },
+    {
+      "path": "src/px_deps/px_ft_engine/ft_engine.cpp",
+      "sha256": "E2A3A086609F43FFFE847079EE851C4B55E7C72F6E5856FDA2017D3EF87800A8",
+      "status": ""
+    },
+    {
+      "path": "src/px_deps/px_ft_engine/ft_engine.h",
+      "sha256": "E53830AEA65854B81135345FE7D1EE1352A2878B3340FE2EB1BF6499D1CF8519",
+      "status": ""
+    },
+    {
+      "path": "src/px_deps/px_ft_engine/tests/test_ft_async_session.cpp",
+      "sha256": "BE3E971F3F59149CF04232FFB83E65FE636956965E356547C81B1FEDD2C5781B",
+      "status": ""
+    },
+    {
+      "path": "src/px_deps/px_ft_engine/tests/test_ft_two_phase_send.cpp",
+      "sha256": "715A05D1F8EA27BB9AF349AD3A36D544651FA5EC41D154468F9EF28D23B452CB",
+      "status": ""
+    }
+  ]
+}

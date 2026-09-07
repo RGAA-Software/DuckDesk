@@ -1,0 +1,11 @@
+{
+  "revision": "87bfcfb7da98ff54ed9c5eebc1b56e8919e5d5a0",
+  "reason": "Preserve pre-fix connection stop that removes a still-live view surface and causes retry to report DecoderUnavailable",
+  "files": [
+    {
+      "path": "src/px_android/core-native/src/main/java/yun/pixels/client/core/nativebridge/NativeRemoteSessionTransport.kt",
+      "sha256": "A0725752EE9D005B778719D34EA2E6C9122799D803BB7D41827AFF44DABE1EBB",
+      "status": ""
+    }
+  ]
+}

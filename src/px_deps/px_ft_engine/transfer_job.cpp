@@ -430,7 +430,12 @@ void TransferJob::Write(const px::FileTransferBlock& block) {
         size_t file_num = static_cast<size_t>(block.file_num());
         if (file_num >= files_.size()) Bail("Wrong file number");
         if (file_num != static_cast<size_t>(file_num_) || !data_stream_) {
-            ModifyTime(); // 收尾上一文件
+            // Finalize only a stream owned by this job. A new transfer may find
+            // a previous interrupted job's .download; it must restart that file,
+            // not try to finalize bytes it has neither written nor verified.
+            if (data_stream_) {
+                ModifyTime();
+            }
             if (data_stream_) data_stream_->SyncAll();
             file_num_ = block.file_num();
             const px::FileEntry& entry = files_[file_num];

@@ -691,6 +691,26 @@ TEST(VoiceJitterBufferTest, BoundsPayloadAndQueueCapacity) {
     EXPECT_EQ(jitter.Stats().overflow_drops, 1u);
 }
 
+TEST(VoiceJitterBufferTest, OverflowRecoversWithoutPermanentConcealmentLoop) {
+    for (const uint32_t first : {0U, 0xfffffff8U}) {
+        VoiceJitterBuffer jitter(1, 10);
+        ASSERT_EQ(jitter.Push({first, 0, 0, {1}}), VoiceJitterPushResult::kAccepted);
+        ASSERT_EQ(jitter.Pop(0).kind, VoiceJitterPopKind::kPacket);
+        for (uint32_t offset = 1; offset <= 12; ++offset) {
+            ASSERT_EQ(jitter.Push({first + offset, offset * 20U, offset * 20U, {1}}), VoiceJitterPushResult::kAccepted);
+        }
+        for (uint32_t offset = 13; offset < 513; ++offset) {
+            ASSERT_EQ(jitter.Push({first + offset, offset * 20U, offset * 20U, {1}}), VoiceJitterPushResult::kAccepted);
+            ASSERT_EQ(jitter.Pop(offset * 20U).kind, VoiceJitterPopKind::kPacket) << "offset=" << offset;
+        }
+        EXPECT_EQ(jitter.Stats().overflow_drops, 3U);
+        EXPECT_EQ(jitter.Stats().missing, 0U);
+        EXPECT_LE(jitter.Stats().queued, 10U);
+        jitter.Reset();
+        EXPECT_EQ(jitter.Stats().accepted, 0U);
+    }
+}
+
 TEST(VoicePacketTransportTest, KeepsLatestSpeechUnderBlockedNetwork) {
     VoicePacketTransport transport;
     std::mutex mutex;

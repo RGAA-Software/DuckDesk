@@ -72,10 +72,27 @@ class ConnectionTicketEndpointTest {
 
     @Test
     fun renewsExpiringOrPreviouslyAttemptedTicket() {
-        org.junit.Assert.assertTrue(ticket("https://edge.example.com").copy(expiresAtEpochMillis = 1_010_000L)
-            .requiresRenewal(emptySet(), 1_000_000L))
-        org.junit.Assert.assertTrue(ticket("https://edge.example.com").requiresRenewal(setOf("ticket", "renewed-ticket"), 1_000_000L))
-        org.junit.Assert.assertFalse(ticket("https://edge.example.com").requiresRenewal(setOf("different"), 1_000_000L))
+        org.junit.Assert.assertTrue(ConnectionTicketAttempt(ticket("https://edge.example.com").copy(expiresAtEpochMillis = 1_010_000L))
+            .requiresRenewal(1_000_000L))
+        val attempt = ConnectionTicketAttempt(ticket("https://edge.example.com"))
+        org.junit.Assert.assertFalse(attempt.requiresRenewal(1_000_000L))
+        attempt.markAttempted()
+        org.junit.Assert.assertTrue(attempt.requiresRenewal(1_000_000L))
+    }
+
+    @Test
+    fun repeatedRejectedConnectionsRenewFromTheLatestRotatingCapability() {
+        val initial = ticket("https://edge.example.com")
+        val attempt = ConnectionTicketAttempt(initial)
+        repeat(10) { round ->
+            attempt.markAttempted() // Includes admission rejection after ticket redemption.
+            org.junit.Assert.assertTrue(attempt.requiresRenewal(1_000_000L))
+            assertEquals(if (round == 0) "renewal" else "renewal-$round", attempt.current.renewalToken)
+            val next = initial.copy(ticket = "ticket-${round + 1}", renewalToken = "renewal-${round + 1}")
+            attempt.renewed(next)
+            assertEquals(next, attempt.current)
+            org.junit.Assert.assertFalse(attempt.requiresRenewal(1_000_000L))
+        }
     }
 
     private fun ticket(launchUrl: String) = ConnectionTicket(

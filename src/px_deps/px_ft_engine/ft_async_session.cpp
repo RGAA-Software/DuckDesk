@@ -2,7 +2,9 @@
 
 #include <mutex>
 #include <future>
+#include <deque>
 #include <stdexcept>
+#include <thread>
 
 #include "px_common/async_blocking_call.h"
 #include "px_common/blocking_executor.h"
@@ -34,6 +36,12 @@ class FtAsyncSession::State final {
     std::shared_ptr<asio::steady_timer> timer;
     std::shared_ptr<asio::steady_timer> writable_timer;
     mutable std::mutex engine_mutex;
+    struct QueuedCommand {
+        std::string name{};
+        Command command{};
+    };
+    std::mutex commands_mutex{};
+    std::deque<QueuedCommand> commands{};
     std::atomic_bool stopping{false};
     std::atomic_bool has_jobs{false};
     mutable std::mutex statistics_mutex;
@@ -71,6 +79,9 @@ FtAsyncSession::~FtAsyncSession() {
 }
 
 bool FtAsyncSession::Start() {
+    // A stopped session is terminal; reconnect creates a fresh owner/runtime.
+    if (state_->stopping.load(std::memory_order_acquire))
+        return false;
     bool expected = false;
     if (!started_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
         return false;
@@ -79,9 +90,11 @@ bool FtAsyncSession::Start() {
         configure_(state_->engine);
     }
     if (owns_runtime_ && !runtime_->Start()) {
+        started_.store(false, std::memory_order_release);
         return false;
     }
     if (runtime_->IsStopping()) {
+        started_.store(false, std::memory_order_release);
         return false;
     }
     state_->blocking_executor = runtime_->BlockingExecutor();
@@ -100,15 +113,30 @@ bool FtAsyncSession::Start() {
 }
 
 bool FtAsyncSession::Post(std::string name, Command command) {
-    if (!scope_ || !command || state_->stopping.load(std::memory_order_acquire)) {
+    if (!scope_ || !command || !started_.load(std::memory_order_acquire)) {
         return false;
     }
     const auto state = state_;
-    return scope_->Spawn(std::move(name), [state, command = std::move(command)]() mutable { return ExecuteCommand(state, std::move(command)); });
+    {
+        std::lock_guard lock(state->commands_mutex);
+        if (state->stopping.load(std::memory_order_acquire))
+            return false;
+        state->commands.push_back({std::move(name), std::move(command)});
+    }
+    // Only Run consumes commands. A mutex around independent pool tasks does
+    // not preserve network arrival order (including block/EOF ordering).
+    const auto weak_state = std::weak_ptr<State>(state);
+    asio::post(scope_->Executor(), [weak_state]() {
+        if (const auto active = weak_state.lock()) {
+            CancelTimerNoThrow(active->timer);
+            CancelTimerNoThrow(active->writable_timer);
+        }
+    });
+    return true;
 }
 
 bool FtAsyncSession::PostAndWait(std::string name, Command command, std::chrono::milliseconds timeout) {
-    if (!scope_ || scope_->IsScopeThread() || !command) {
+    if (!scope_ || scope_->IsScopeThread() || !command || (state_->blocking_executor && state_->blocking_executor->IsWorkerThread())) {
         return false;
     }
     const auto completed = std::make_shared<std::promise<bool>>();
@@ -121,25 +149,53 @@ bool FtAsyncSession::PostAndWait(std::string name, Command command, std::chrono:
             completed->set_value(false);
         }
     });
-    return posted && future.wait_for(timeout) == std::future_status::ready && future.get();
+    try {
+        return posted && future.wait_for(timeout) == std::future_status::ready && future.get();
+    } catch (const std::future_error&) {
+        return false; // Shutdown discarded a queued command.
+    }
 }
 
 bool FtAsyncSession::StopAndWait(std::chrono::milliseconds timeout) {
+    const bool inside_callback = (scope_ && scope_->IsScopeThread()) || (state_->blocking_executor && state_->blocking_executor->IsWorkerThread());
     if (!started_.exchange(false, std::memory_order_acq_rel)) {
-        return true;
+        return !scope_ || (!inside_callback && scope_->WaitFor(timeout));
     }
     state_->stopping.store(true, std::memory_order_release);
     state_->blocking_cancellation->store(true, std::memory_order_release);
+    {
+        std::deque<State::QueuedCommand> discarded{};
+        {
+            std::lock_guard lock(state_->commands_mutex);
+            discarded.swap(state_->commands);
+        }
+        // Destroy captures outside the queue lock (owners may stop recursively).
+    }
     if (scope_) {
         const auto state = state_;
         asio::post(scope_->Executor(), [state]() {
             CancelTimerNoThrow(state->timer);
             CancelTimerNoThrow(state->writable_timer);
         });
-        const bool stopped = scope_->StopAndWait(timeout);
+        scope_->BeginStop();
+        const bool stopped = !inside_callback && scope_->WaitFor(timeout);
         if (owns_runtime_) {
-            runtime_->RequestStop();
-            runtime_->Join();
+            if (inside_callback) {
+                // Keep the contexts alive until this callback and the cancelled
+                // pump unwind. Stopping them here strands scope completion and
+                // forces its destructor to wait for a timeout. The runtime's
+                // join coordinator owns this shutdown thread; nothing detaches.
+                const auto runtime = runtime_;
+                const auto scope = scope_;
+                PxAsyncRuntime::DeferJoin(std::thread([runtime, scope, timeout]() {
+                    static_cast<void>(scope->WaitFor(timeout));
+                    runtime->RequestStop();
+                    runtime->Join();
+                }));
+            } else {
+                runtime_->RequestStop();
+                runtime_->Join();
+            }
         }
         return stopped;
     }
@@ -157,32 +213,6 @@ bool FtAsyncSession::HasJobs() const {
 FtAsyncSessionStatistics FtAsyncSession::GetStatistics() const {
     std::lock_guard lock(state_->statistics_mutex);
     return state_->statistics;
-}
-
-PxAwaitable<void> FtAsyncSession::ExecuteCommand(std::shared_ptr<State> state, Command command) {
-    if (!state->stopping.load(std::memory_order_acquire)) {
-        const auto completion_executor = co_await asio::this_coro::executor;
-        const auto blocking_executor = state->blocking_executor;
-        const auto poster = [blocking_executor](std::function<void()> task) {
-            if (!blocking_executor || blocking_executor->TryPost(std::move(task)) != PxBlockingSubmitResult::kAccepted) {
-                throw std::runtime_error("file-transfer blocking executor rejected command");
-            }
-        };
-        auto result = co_await AwaitBlockingCall<bool>(poster, completion_executor, std::chrono::steady_clock::now() + std::chrono::minutes(5),
-                                                       state->blocking_cancellation, "file_transfer.command",
-                                                       [state, command = std::move(command)](const std::shared_ptr<std::atomic_bool>& cancellation) {
-                                                           if (cancellation->load(std::memory_order_acquire)) return false;
-                                                           std::lock_guard lock(state->engine_mutex);
-                                                           command(state->engine);
-                                                           return true;
-                                                       });
-        if (!result && !state->stopping.load(std::memory_order_acquire)) {
-            LOGE("event=file_transfer.command code={} operation=execute outcome=failed retryable={} detail={}", result.Error().StableCode(),
-                 result.Error().retryable, result.Error().message);
-        }
-        CancelTimerNoThrow(state->timer);
-    }
-    co_return;
 }
 
 PxAwaitable<FtAsyncSession::WritableWaitResult> FtAsyncSession::WaitForWritable(std::shared_ptr<State> state,
@@ -204,7 +234,7 @@ PxAwaitable<FtAsyncSession::WritableWaitResult> FtAsyncSession::WaitForWritable(
             });
         }
     });
-    asio::error_code ignored;
+    asio::error_code ignored{};
     co_await timer->async_wait(asio::redirect_error(asio::use_awaitable, ignored));
     if (state->writable_timer == timer) {
         state->writable_timer.reset();
@@ -233,8 +263,30 @@ PxAwaitable<void> FtAsyncSession::Run(std::shared_ptr<State> state) {
         auto tick_result = co_await AwaitBlockingCall<bool>(poster, executor, std::chrono::steady_clock::now() + std::chrono::seconds(30),
                                                             state->blocking_cancellation, "file_transfer.tick",
                                                             [state](const std::shared_ptr<std::atomic_bool>& cancellation) {
-                                                                if (cancellation->load(std::memory_order_acquire)) return false;
+                                                                if (cancellation->load(std::memory_order_acquire))
+                                                                    return false;
                                                                 std::lock_guard lock(state->engine_mutex);
+                                                                for (std::size_t index = 0; index < 64; ++index) {
+                                                                    State::QueuedCommand next{};
+                                                                    {
+                                                                        std::lock_guard queue_lock(state->commands_mutex);
+                                                                        if (state->commands.empty())
+                                                                            break;
+                                                                        next = std::move(state->commands.front());
+                                                                        state->commands.pop_front();
+                                                                    }
+                                                                    if (cancellation->load(std::memory_order_acquire))
+                                                                        return false;
+                                                                    try {
+                                                                        next.command(state->engine);
+                                                                    } catch (const std::exception& error) {
+                                                                        LOGE("file-transfer command {} failed: {}", next.name, error.what());
+                                                                    } catch (...) {
+                                                                        LOGE("file-transfer command {} failed", next.name);
+                                                                    }
+                                                                }
+                                                                if (cancellation->load(std::memory_order_acquire))
+                                                                    return false;
                                                                 state->engine->Tick();
                                                                 return true;
                                                             });
@@ -248,7 +300,7 @@ PxAwaitable<void> FtAsyncSession::Run(std::shared_ptr<State> state) {
         }
         auto retry_delay = std::chrono::milliseconds(1);
         std::shared_ptr<FileTransferWritableSignal> writable_signal;
-        for (;;) {
+        while (!state->stopping.load(std::memory_order_acquire)) {
             std::optional<PreparedOutboundMessage> prepared;
             {
                 std::lock_guard lock(state->engine_mutex);
@@ -310,6 +362,13 @@ PxAwaitable<void> FtAsyncSession::Run(std::shared_ptr<State> state) {
             active = state->engine->HasPendingOutbound() || !state->engine->read_jobs().empty() || !state->engine->write_jobs().empty();
         }
         state->has_jobs.store(active, std::memory_order_release);
+        if (state->stopping.load(std::memory_order_acquire))
+            break;
+        {
+            std::lock_guard lock(state->commands_mutex);
+            if (!state->commands.empty())
+                continue;
+        }
         if (active && writable_signal) {
             {
                 std::lock_guard lock(state->statistics_mutex);
@@ -329,7 +388,7 @@ PxAwaitable<void> FtAsyncSession::Run(std::shared_ptr<State> state) {
             continue;
         }
         state->timer->expires_after(active ? retry_delay : std::chrono::seconds(1));
-        asio::error_code ignored;
+        asio::error_code ignored{};
         co_await state->timer->async_wait(asio::redirect_error(asio::use_awaitable, ignored));
     }
 

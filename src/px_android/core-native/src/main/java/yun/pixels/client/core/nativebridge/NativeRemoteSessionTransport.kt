@@ -128,11 +128,17 @@ class NativeRemoteSessionTransport internal constructor(
 
     override suspend fun stop(sessionId: RemoteSessionId) {
         val nativeSessionId = lock.withLock {
-            surfaces.remove(sessionId)
+            // Surface lifetime belongs to the view, not a connection attempt.
+            // Failed -> retry reuses the same view and has no surfaceCreated
+            // callback; only detachSurface (or close) may remove its binding.
             capabilities.remove(sessionId)
             nativeSessionIds.remove(sessionId)
         } ?: return
         withContext(Dispatchers.IO) { PixelsNativeBridge.stop(nativeSessionId) }
+    }
+
+    suspend fun clearSurfaceBindings() {
+        surfaceLock.withLock { lock.withLock { surfaces.clear() } }
     }
 
     override suspend fun sendInput(sessionId: RemoteSessionId, command: InputCommand): Boolean {

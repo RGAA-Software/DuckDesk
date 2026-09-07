@@ -44,7 +44,7 @@ class AndroidRemoteSessionTransport private constructor(
     private val lifecycle = Mutex()
     private val activeSessions = mutableSetOf<RemoteSessionId>()
     private val surfaceSessions = mutableSetOf<RemoteSessionId>()
-    private val attemptedTickets = mutableMapOf<RemoteSessionId, MutableSet<String>>()
+    private val ticketAttempts = mutableMapOf<RemoteSessionId, ConnectionTicketAttempt>()
     private var closed = false
 
     suspend fun attachSurface(sessionId: RemoteSessionId, surface: Surface) = withContext(Dispatchers.IO) {
@@ -65,17 +65,19 @@ class AndroidRemoteSessionTransport private constructor(
             if (closed) return@withLock RemoteTransportStartResult.Rejected(RemoteSessionFailure.TransportUnavailable)
             if (request.id in activeSessions) return@withLock RemoteTransportStartResult.Accepted
             val account = request.target as? RemoteSessionTarget.Account
-            val effective = if (account != null &&
-                account.connectionTicket.requiresRenewal(attemptedTickets[request.id].orEmpty(), System.currentTimeMillis())
-            ) {
-                when (val renewed = renewTicketSafely(account.connectionTicket, account.clientNonce)) {
-                    is AccountResult.Success -> request.copy(target = account.copy(connectionTicket = renewed.value))
-                    is AccountResult.Failure -> return@withLock RemoteTransportStartResult.Rejected(renewed.reason.toSessionFailure())
+            val attempt = account?.let { ticketAttempts.getOrPut(request.id) { ConnectionTicketAttempt(it.connectionTicket) } }
+            val effective = if (account != null && attempt != null) {
+                if (attempt.requiresRenewal(System.currentTimeMillis())) {
+                    when (val renewed = renewTicketSafely(attempt.current, account.clientNonce)) {
+                        is AccountResult.Success -> attempt.renewed(renewed.value)
+                        is AccountResult.Failure -> return@withLock RemoteTransportStartResult.Rejected(renewed.reason.toSessionFailure())
+                    }
                 }
+                request.copy(target = account.copy(connectionTicket = attempt.current))
             } else {
                 request
             }
-            (effective.target as? RemoteSessionTarget.Account)?.let { attemptedTickets.getOrPut(request.id) { mutableSetOf() } += it.connectionTicket.ticket }
+            attempt?.markAttempted()
             try {
                 // Once JNI creates a handle, finish publishing it before cancellation can interrupt cleanup.
                 val result = withContext(NonCancellable) { native.start(effective) }
@@ -95,9 +97,8 @@ class AndroidRemoteSessionTransport private constructor(
     override suspend fun stop(sessionId: RemoteSessionId) = withContext(Dispatchers.IO) {
         lifecycle.withLock {
             activeSessions -= sessionId
-            surfaceSessions -= sessionId
             native.stop(sessionId)
-            // Keep the attempted ticket until close: retry must renew even if the original ticket has not expired.
+            // Retain the latest rotating renewal capability, not the original request ticket.
         }
     }
 
@@ -110,9 +111,10 @@ class AndroidRemoteSessionTransport private constructor(
             if (closed) return@withLock
             closed = true
             (activeSessions + surfaceSessions).forEach { native.stop(it) }
+            native.clearSurfaceBindings()
             activeSessions.clear()
             surfaceSessions.clear()
-            attemptedTickets.clear()
+            ticketAttempts.clear()
         }
     }
 
@@ -134,5 +136,18 @@ private fun AccountFailure.toSessionFailure(): RemoteSessionFailure = when (this
     AccountFailure.InvalidEndpoint, AccountFailure.InvalidResponse -> RemoteSessionFailure.ProtocolError
 }
 
-internal fun ConnectionTicket.requiresRenewal(attemptedTickets: Set<String>, nowEpochMillis: Long): Boolean =
-    ticket in attemptedTickets || expiresAtEpochMillis <= nowEpochMillis + 15_000L
+/** Serialized by the owning transport lifecycle mutex. Never log either capability. */
+internal class ConnectionTicketAttempt(initial: ConnectionTicket) {
+    var current: ConnectionTicket = initial
+        private set
+    private var attempted = false
+
+    fun requiresRenewal(nowEpochMillis: Long): Boolean = attempted || current.expiresAtEpochMillis <= nowEpochMillis + 15_000L
+
+    fun markAttempted() { attempted = true }
+
+    fun renewed(ticket: ConnectionTicket) {
+        current = ticket
+        attempted = false
+    }
+}

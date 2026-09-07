@@ -1,0 +1,11 @@
+{
+  "revision": "87bfcfb7da98ff54ed9c5eebc1b56e8919e5d5a0",
+  "reason": "Preserve pre-extension tests before adding cancellation, interruption/retry, actual writer open/finalize failures and late-ack regressions",
+  "files": [
+    {
+      "path": "src/px_deps/px_ft_engine/tests/test_ft_two_phase_send.cpp",
+      "sha256": "460C567B7844AF5D130D098FE65F2B2EDE822C074E0AE510BD96A81D78C95310",
+      "status": " M src/px_deps/px_ft_engine/tests/test_ft_two_phase_send.cpp"
+    }
+  ]
+}

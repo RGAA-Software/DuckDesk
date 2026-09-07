@@ -1,0 +1,16 @@
+{
+  "revision": "87bfcfb7da98ff54ed9c5eebc1b56e8919e5d5a0",
+  "reason": "Preserve callback-stop implementation before fixing runtime shutdown preceding cancelled scope completion and five-second destructor delays",
+  "files": [
+    {
+      "path": "src/px_deps/px_ft_engine/ft_async_session.cpp",
+      "sha256": "FFD5685B9AE6392B9140C63E13054E4439F125B0B4B9BF19DA89C58517273382",
+      "status": " M src/px_deps/px_ft_engine/ft_async_session.cpp"
+    },
+    {
+      "path": "src/px_deps/px_ft_engine/tests/test_ft_async_session.cpp",
+      "sha256": "7A274B19CA8A6847CA83D58D77031E283BBC9FEEE3E12E2C4E36EFA4CDB6A994",
+      "status": " M src/px_deps/px_ft_engine/tests/test_ft_async_session.cpp"
+    }
+  ]
+}

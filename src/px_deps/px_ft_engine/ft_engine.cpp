@@ -100,6 +100,7 @@ bool FtEngine::RetryOutbound(std::uint64_t token) const {
 }
 
 void FtEngine::Tick() {
+    ExpireFinalizationWaits();
     // 1. 冲刷待发队列;冲不动说明通道忙,本 tick 不读盘、不积块
     if (!FlushOutbox()) {
         return;
@@ -119,7 +120,8 @@ void FtEngine::Tick() {
 
     // 3. init_jobs(fs.rs:1322):所有非挂起读作业初始化(覆盖检测 -> 发 Digest)
     for (auto& job : read_jobs_) {
-        if (job.is_last_job) continue;
+        if (job.is_last_job || finalization_waits_.contains(job.id()))
+            continue;
         try {
             auto& engine = *this;
             job.InitDataStream([&engine](const px::Message& message) {
@@ -131,14 +133,15 @@ void FtEngine::Tick() {
     }
 
     // 4. 推进一个非等待作业一块(fs.rs:1344-1376,break 语义保留)
-    std::vector<int32_t> finished;
+    std::vector<int32_t> finished{};
     for (auto& job : read_jobs_) {
-        if (job.is_last_job) continue;
+        if (job.is_last_job || finalization_waits_.contains(job.id()))
+            continue;
         // 限速:桶内令牌不足一块时不读盘
         if (rate_bps_ > 0 && bucket_tokens_ < static_cast<double>(kBlockPayloadSize)) {
             break;
         }
-        std::optional<px::FileTransferBlock> block;
+        std::optional<px::FileTransferBlock> block{};
         try {
             block = job.Read();
         } catch (const std::exception& e) {
@@ -151,14 +154,24 @@ void FtEngine::Tick() {
             }
             Send(NewBlock(std::move(*block)));
         } else if (job.job_completed()) {
-            finished.push_back(job.id());
-            std::string err = job.job_error().value_or("");
-            if (!err.empty()) {
-                Send(NewError(job.id(), err, job.file_num()));
+            const auto id = job.id();
+            const auto file_num = job.file_num();
+            const std::string err = job.job_error().value_or("");
+            const bool wait_for_receiver = err.empty() && !job.is_remote;
+            if (wait_for_receiver) {
+                finalization_waits_[id] = std::chrono::steady_clock::now() + std::chrono::seconds(30);
             } else {
-                Send(NewDone(job.id(), job.file_num()));
+                finished.push_back(id);
             }
-            if (job_done_cb_) job_done_cb_(job.id(), job.file_num(), err);
+            if (!err.empty()) {
+                Send(NewError(id, err, file_num));
+            } else {
+                Send(NewDone(id, file_num));
+            }
+            // Send may synchronously deliver an acknowledgement and remove the
+            // job in legacy loopback adapters; never borrow job after Send.
+            if (!wait_for_receiver && job_done_cb_)
+                job_done_cb_(id, file_num, err);
         }
         // fs.rs:1376 - 每 tick 只推进一个作业
         break;
@@ -169,6 +182,24 @@ void FtEngine::Tick() {
 
     // 5. 每秒进度回调(io_loop.rs:1048)
     UpdateJobsStatus();
+}
+
+void FtEngine::ExpireFinalizationWaits() {
+    const auto now = std::chrono::steady_clock::now();
+    std::vector<int32_t> expired{};
+    for (const auto& [id, deadline] : finalization_waits_) {
+        if (deadline <= now)
+            expired.push_back(id);
+    }
+    for (const auto id : expired) {
+        finalization_waits_.erase(id);
+        if (auto job = RemoveJob(id, read_jobs_)) {
+            const std::string error = "receiver finalization acknowledgement timed out";
+            Send(NewError(id, error, job->file_num()));
+            if (job_done_cb_)
+                job_done_cb_(id, job->file_num(), error);
+        }
+    }
 }
 
 void FtEngine::UpdateJobsStatus() {
@@ -331,6 +362,7 @@ void FtEngine::HandleFileAction(const px::FileAction& action, const std::string&
         }
         case U::kCancel: {
             int32_t id = action.cancel().id();
+            finalization_waits_.erase(id);
             // 写作业取消:清 .download/.digest(ui_cm_interface.rs:1036 CancelWrite)
             if (auto job = RemoveJob(id, write_jobs_)) {
                 job->RemoveDownloadFile();
@@ -373,9 +405,13 @@ void FtEngine::HandleFileResponse(const px::FileResponse& resp) {
             break;
         case U::kError: {
             const auto& e = resp.error();
+            finalization_waits_.erase(e.id());
             // 写侧作业移除;保留 .download 供续传(ui_cm WriteError 语义)
             if (auto job = RemoveJob(e.id(), write_jobs_)) {
                 if (job_done_cb_) job_done_cb_(e.id(), e.file_num(), e.error());
+            } else if (auto read_job = RemoveJob(e.id(), read_jobs_)) {
+                if (job_done_cb_)
+                    job_done_cb_(e.id(), e.file_num(), e.error());
             } else if (response_cb_) {
                 // 非作业语境的 error(create/remove/rename 等目录操作回执)透传上层。
                 // 主控端 UI 据此刷新目录/提示失败;render 壳未设 response_cb_,行为不变。
@@ -436,7 +472,7 @@ void FtEngine::HandleBlock(const px::FileTransferBlock& block) {
 void FtEngine::HandleDone(const px::FileTransferDone& done) {
     // io_loop.rs:1711
     if (auto job = RemoveJob(done.id(), write_jobs_)) {
-        std::string err;
+        std::string err{};
         try {
             job->ModifyTime();
             err = job->job_error().value_or("");
@@ -446,9 +482,16 @@ void FtEngine::HandleDone(const px::FileTransferDone& done) {
             Log(std::string("finalize job ") + std::to_string(done.id()) +
                 " failed: " + e.what());
             err = e.what();
-            Send(NewError(done.id(), err, done.file_num()));
         }
+        // Return the writer's terminal result, never an acknowledgement of a
+        // received acknowledgement. Web upload peers safely ignore this reply.
+        Send(err.empty() ? NewDone(done.id(), done.file_num()) : NewError(done.id(), err, done.file_num()));
         if (job_done_cb_) job_done_cb_(done.id(), done.file_num(), err);
+    } else if (finalization_waits_.erase(done.id()) != 0) {
+        if (auto job = RemoveJob(done.id(), read_jobs_)) {
+            if (job_done_cb_)
+                job_done_cb_(done.id(), done.file_num(), "");
+        }
     } else if (response_cb_) {
         // 非作业语境的 done(目录操作回执)透传上层,同 kError 分支。
         px::FileResponse resp;
@@ -661,6 +704,7 @@ void FtEngine::RenameFile(int32_t id, const std::string& path, const std::string
 }
 
 void FtEngine::CancelJob(int32_t id) {
+    finalization_waits_.erase(id);
     if (auto job = RemoveJob(id, write_jobs_)) {
         job->RemoveDownloadFile();
         if (job_done_cb_) job_done_cb_(id, job->file_num(), "cancel");
@@ -676,10 +720,15 @@ void FtEngine::DisconnectCleanup(const std::string& conn_id) {
     // conn_id 非空时只移除该连接的作业——迟到的断线事件不会误杀其他
     // (或同 stream id 新会话)作业;空 = 清全部(含待发队列)。
     if (conn_id.empty()) {
+        finalization_waits_.clear();
         read_jobs_.clear();
         write_jobs_.clear();
         outbox_.clear();
         return;
+    }
+    for (const auto& job : read_jobs_) {
+        if (job.conn_id() == conn_id)
+                finalization_waits_.erase(job.id());
     }
     std::erase_if(read_jobs_, [&](const TransferJob& j) { return j.conn_id() == conn_id; });
     std::erase_if(write_jobs_, [&](const TransferJob& j) { return j.conn_id() == conn_id; });

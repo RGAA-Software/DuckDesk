@@ -1,0 +1,11 @@
+{
+  "revision": "87bfcfb7da98ff54ed9c5eebc1b56e8919e5d5a0",
+  "reason": "Preserve writer initialization before restricting finalization to job-owned streams; fresh retry must not finalize an unverified previous .download",
+  "files": [
+    {
+      "path": "src/px_deps/px_ft_engine/transfer_job.cpp",
+      "sha256": "EB1478250DDD9252244C7ED3A5EC44D7F2D20737407CFD2BBB8FE0DC6D08B396",
+      "status": ""
+    }
+  ]
+}

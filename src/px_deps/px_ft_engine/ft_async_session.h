@@ -26,27 +26,17 @@ struct FtAsyncSessionStatistics {
 };
 
 class FtAsyncSession final {
-public:
-    using Sender = std::function<FileTransferSendResult(
-        const std::shared_ptr<const px::Message>&)>;
+  public:
+    using Sender = std::function<FileTransferSendResult(const std::shared_ptr<const px::Message>&)>;
     using Configure = std::function<void(const std::shared_ptr<FtEngine>&)>;
     using Command = std::function<void(const std::shared_ptr<FtEngine>&)>;
 
-    static std::shared_ptr<FtAsyncSession> Create(Sender sender,
-                                                  Configure configure = {});
-    static std::shared_ptr<FtAsyncSession> CreateOnRuntime(
-        const std::shared_ptr<PxAsyncRuntime>& runtime,
-        const std::shared_ptr<FtEngine>& engine,
-        Sender sender,
-        Configure configure = {},
-        PxAsyncLane lane = PxAsyncLane::kWorker);
+    static std::shared_ptr<FtAsyncSession> Create(Sender sender, Configure configure = {});
+    static std::shared_ptr<FtAsyncSession> CreateOnRuntime(const std::shared_ptr<PxAsyncRuntime>& runtime, const std::shared_ptr<FtEngine>& engine,
+                                                           Sender sender, Configure configure = {}, PxAsyncLane lane = PxAsyncLane::kWorker);
 
     FtAsyncSession(Sender sender, Configure configure);
-    FtAsyncSession(std::shared_ptr<PxAsyncRuntime> runtime,
-                   std::shared_ptr<FtEngine> engine,
-                   Sender sender,
-                   Configure configure,
-                   bool owns_runtime,
+    FtAsyncSession(std::shared_ptr<PxAsyncRuntime> runtime, std::shared_ptr<FtEngine> engine, Sender sender, Configure configure, bool owns_runtime,
                    PxAsyncLane lane);
     ~FtAsyncSession();
 
@@ -55,15 +45,13 @@ public:
 
     bool Start();
     bool Post(std::string name, Command command);
-    bool PostAndWait(std::string name,
-                     Command command,
-                     std::chrono::milliseconds timeout);
+    bool PostAndWait(std::string name, Command command, std::chrono::milliseconds timeout);
     bool StopAndWait(std::chrono::milliseconds timeout = std::chrono::seconds(5));
 
     [[nodiscard]] bool HasJobs() const;
     [[nodiscard]] FtAsyncSessionStatistics GetStatistics() const;
 
-private:
+  private:
     class State;
     enum class WritableWaitResult {
         kWritable,
@@ -73,11 +61,7 @@ private:
     };
 
     static PxAwaitable<void> Run(std::shared_ptr<State> state);
-    static PxAwaitable<void> ExecuteCommand(std::shared_ptr<State> state,
-                                            Command command);
-    static PxAwaitable<WritableWaitResult> WaitForWritable(
-        std::shared_ptr<State> state,
-        std::shared_ptr<FileTransferWritableSignal> signal);
+    static PxAwaitable<WritableWaitResult> WaitForWritable(std::shared_ptr<State> state, std::shared_ptr<FileTransferWritableSignal> signal);
 
     std::shared_ptr<PxAsyncRuntime> runtime_;
     std::shared_ptr<PxAsyncScope> scope_;

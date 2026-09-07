@@ -1,0 +1,16 @@
+{
+  "revision": "87bfcfb7da98ff54ed9c5eebc1b56e8919e5d5a0",
+  "reason": "Preserve pre-fix jitter overflow handling that can permanently alternate overflow and concealment instead of consuming queued audio",
+  "files": [
+    {
+      "path": "src/px_deps/px_voice_call/tests/test_voice_call.cpp",
+      "sha256": "D439C8053F16FCBD647456BB9B2E1248A132D001B886DBDF6BFDF6E7D41DCAF3",
+      "status": ""
+    },
+    {
+      "path": "src/px_deps/px_voice_call/voice_jitter_buffer.cpp",
+      "sha256": "8FA15EE1E6178D8DAD8D1E8054B80ED0DA248D02DAB6933088EE9FE329EE6F72",
+      "status": ""
+    }
+  ]
+}

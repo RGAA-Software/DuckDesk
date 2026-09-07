@@ -124,6 +124,12 @@ void VoiceJitterBuffer::DropOldestForOverflow() {
         }
     }
     const bool dropping_first = !started_ && oldest->first == first_sequence_;
+    if (started_) {
+        // Overflow intentionally trims latency. Do not emit PLC for that same
+        // discarded frame on the next tick: doing so consumes no queued packet,
+        // and a steady incoming stream then overflows forever instead of playing.
+        next_sequence_ = oldest->first + 1U;
+    }
     packets_.erase(oldest);
     ++stats_.overflow_drops;
 

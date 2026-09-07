@@ -1,0 +1,11 @@
+{
+  "revision": "87bfcfb7da98ff54ed9c5eebc1b56e8919e5d5a0",
+  "reason": "Preserve pre-fix Android surface registry ownership; retain bindings between connection attempts and clear them on transport close",
+  "files": [
+    {
+      "path": "src/px_android/core-native/src/main/java/yun/pixels/client/core/nativebridge/AndroidRemoteSessionTransport.kt",
+      "sha256": "5A0302344C9479396B1640C3AA81750A7FD4ED36BB3850E9C0C44F934E5A196C",
+      "status": ""
+    }
+  ]
+}

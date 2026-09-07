@@ -1,0 +1,370 @@
+#include <gtest/gtest.h>
+
+#include <atomic>
+#include <chrono>
+#include <future>
+#include <memory>
+#include <thread>
+
+#include "ft_async_session.h"
+
+namespace px::ft {
+namespace {
+
+using namespace std::chrono_literals;
+
+struct AsyncSendProbe {
+    std::atomic_int attempts{0};
+    std::atomic_int accepted{0};
+    std::shared_ptr<std::promise<void>> accepted_signal = std::make_shared<std::promise<void>>();
+};
+
+TEST(FtAsyncSession, BusyRetriesThenCommitsExactlyOnce) {
+    const auto probe = std::make_shared<AsyncSendProbe>();
+    auto accepted_future = probe->accepted_signal->get_future();
+    const auto session = FtAsyncSession::Create([probe](const auto& message) {
+        EXPECT_TRUE(message);
+        const auto attempt = ++probe->attempts;
+        if (attempt <= 10) {
+            return FileTransferSendResult::Busy("test backpressure");
+        }
+        if (++probe->accepted == 1) {
+            probe->accepted_signal->set_value();
+        }
+        return FileTransferSendResult::Accepted();
+    });
+
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->Post("receive", [](const std::shared_ptr<FtEngine>& engine) { engine->ReceiveFiles("remote.bin", false, "local.bin"); }));
+    ASSERT_EQ(accepted_future.wait_for(2s), std::future_status::ready);
+
+    // Allow another pump turn; a committed message must never reappear.
+    std::this_thread::sleep_for(20ms);
+    EXPECT_EQ(probe->accepted.load(), 1);
+    EXPECT_EQ(probe->attempts.load(), 11);
+    const auto statistics = session->GetStatistics();
+    EXPECT_EQ(statistics.accepted_messages, 1U);
+    EXPECT_EQ(statistics.busy_retries, 10U);
+    EXPECT_TRUE(session->StopAndWait(2s));
+}
+
+TEST(FtAsyncSession, BusyWaitsForWritableSignalInsteadOfPolling) {
+    const auto attempts = std::make_shared<std::atomic_int>(0);
+    const auto accepted = std::make_shared<std::promise<void>>();
+    auto accepted_future = accepted->get_future();
+    const auto signal = FileTransferWritableSignal::Create();
+    const auto session = FtAsyncSession::Create([attempts, accepted, signal](const auto&) {
+        if (++*attempts == 1) {
+            return FileTransferSendResult::Busy("test queue full", signal);
+        }
+        accepted->set_value();
+        return FileTransferSendResult::Accepted();
+    });
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->Post("receive", [](const auto& engine) { engine->ReceiveFiles("remote.bin", false, "local.bin"); }));
+
+    const auto wait_deadline = std::chrono::steady_clock::now() + 2s;
+    while (attempts->load() == 0 && std::chrono::steady_clock::now() < wait_deadline) {
+        std::this_thread::yield();
+    }
+    ASSERT_EQ(attempts->load(), 1);
+    std::this_thread::sleep_for(25ms);
+    EXPECT_EQ(attempts->load(), 1);
+
+    signal->NotifyWritable();
+    ASSERT_EQ(accepted_future.wait_for(2s), std::future_status::ready);
+    EXPECT_EQ(attempts->load(), 2);
+    const auto statistics = session->GetStatistics();
+    EXPECT_EQ(statistics.writable_waits, 1U);
+    EXPECT_EQ(statistics.writable_wakeups, 1U);
+    EXPECT_TRUE(session->StopAndWait(2s));
+}
+
+TEST(FtAsyncSession, CloseCancelsWritableWaitAndStopStillConverges) {
+    const auto attempts = std::make_shared<std::atomic_int>(0);
+    const auto signal = FileTransferWritableSignal::Create();
+    const auto session = FtAsyncSession::Create([attempts, signal](const auto&) {
+        ++*attempts;
+        return FileTransferSendResult::Busy("test queue full", signal);
+    });
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->Post("receive", [](const auto& engine) { engine->ReceiveFiles("remote.bin", false, "local.bin"); }));
+    const auto wait_deadline = std::chrono::steady_clock::now() + 2s;
+    while (attempts->load() == 0 && std::chrono::steady_clock::now() < wait_deadline) {
+        std::this_thread::yield();
+    }
+    ASSERT_EQ(attempts->load(), 1);
+    signal->Close();
+    const auto close_deadline = std::chrono::steady_clock::now() + 2s;
+    while (session->GetStatistics().writable_closures == 0 && std::chrono::steady_clock::now() < close_deadline) {
+        std::this_thread::yield();
+    }
+    EXPECT_EQ(session->GetStatistics().writable_closures, 1U);
+    EXPECT_TRUE(session->StopAndWait(2s));
+}
+
+TEST(FtAsyncSession, StopCancelsPendingWritableWaitAndLateWakeIsSafe) {
+    const auto attempts = std::make_shared<std::atomic_int>(0);
+    const auto signal = FileTransferWritableSignal::Create();
+    auto session = FtAsyncSession::Create([attempts, signal](const auto&) {
+        ++*attempts;
+        return FileTransferSendResult::Busy("test queue full", signal);
+    });
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->Post("receive", [](const auto& engine) { engine->ReceiveFiles("remote.bin", false, "local.bin"); }));
+    const auto wait_deadline = std::chrono::steady_clock::now() + 2s;
+    while (attempts->load() == 0 && std::chrono::steady_clock::now() < wait_deadline) {
+        std::this_thread::yield();
+    }
+    ASSERT_EQ(attempts->load(), 1);
+    EXPECT_TRUE(session->StopAndWait(2s));
+    session.reset();
+
+    // The transport may complete after the owning session was destroyed. The
+    // registered callback only holds a weak timer and must remain harmless.
+    signal->NotifyWritable();
+    SUCCEED();
+}
+
+TEST(FtAsyncSession, MissingTransportWakeUsesBoundedSafetyRetry) {
+    const auto attempts = std::make_shared<std::atomic_int>(0);
+    const auto accepted = std::make_shared<std::promise<void>>();
+    auto accepted_future = accepted->get_future();
+    const auto missing_signal = FileTransferWritableSignal::Create();
+    const auto session = FtAsyncSession::Create([attempts, accepted, missing_signal](const auto&) {
+        if (++*attempts == 1) {
+            return FileTransferSendResult::Busy("transport omitted low-water callback", missing_signal);
+        }
+        accepted->set_value();
+        return FileTransferSendResult::Accepted();
+    });
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->Post("receive", [](const auto& engine) { engine->ReceiveFiles("remote.bin", false, "local.bin"); }));
+    ASSERT_EQ(accepted_future.wait_for(2s), std::future_status::ready);
+    EXPECT_EQ(attempts->load(), 2);
+    EXPECT_EQ(session->GetStatistics().writable_timeouts, 1U);
+    EXPECT_TRUE(session->StopAndWait(2s));
+}
+
+TEST(FtAsyncSession, StopConvergesWhileTransportIsDisconnected) {
+    const auto attempts = std::make_shared<std::atomic_int>(0);
+    const auto session = FtAsyncSession::Create([attempts](const auto&) {
+        ++*attempts;
+        return FileTransferSendResult::Disconnected("offline");
+    });
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->Post("receive", [](const std::shared_ptr<FtEngine>& engine) { engine->ReceiveFiles("remote.bin", false, "local.bin"); }));
+
+    const auto deadline = std::chrono::steady_clock::now() + 2s;
+    while (attempts->load() == 0 && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::yield();
+    }
+    ASSERT_GT(attempts->load(), 0);
+    EXPECT_TRUE(session->StopAndWait(2s));
+    EXPECT_FALSE(session->HasJobs());
+}
+
+TEST(FtAsyncSession, DisconnectedRouteRetriesThenCommitsExactlyOnce) {
+    const auto attempts = std::make_shared<std::atomic_int>(0);
+    const auto accepted_count = std::make_shared<std::atomic_int>(0);
+    const auto accepted = std::make_shared<std::promise<void>>();
+    auto accepted_future = accepted->get_future();
+    const auto session = FtAsyncSession::Create([attempts, accepted_count, accepted](const auto&) {
+        const auto attempt = ++*attempts;
+        if (attempt <= 3) {
+            return FileTransferSendResult::Disconnected("route reconnecting");
+        }
+        if (++*accepted_count == 1) {
+            accepted->set_value();
+        }
+        return FileTransferSendResult::Accepted();
+    });
+
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->Post("receive", [](const std::shared_ptr<FtEngine>& engine) { engine->ReceiveFiles("remote.bin", false, "local.bin"); }));
+    ASSERT_EQ(accepted_future.wait_for(2s), std::future_status::ready);
+    std::this_thread::sleep_for(20ms);
+    EXPECT_EQ(attempts->load(), 4);
+    const auto statistics = session->GetStatistics();
+    EXPECT_EQ(statistics.disconnected_retries, 3U);
+    EXPECT_EQ(statistics.accepted_messages, 1U);
+    EXPECT_TRUE(session->StopAndWait(2s));
+}
+
+TEST(FtAsyncSession, TransportErrorDoesNotCommitBeforeAcceptedRetry) {
+    const auto attempts = std::make_shared<std::atomic_int>(0);
+    const auto accepted_count = std::make_shared<std::atomic_int>(0);
+    const auto accepted = std::make_shared<std::promise<void>>();
+    auto accepted_future = accepted->get_future();
+    const auto session = FtAsyncSession::Create([attempts, accepted_count, accepted](const auto&) {
+        const auto attempt = ++*attempts;
+        if (attempt <= 3) {
+            return FileTransferSendResult::TransportError("temporary adapter error");
+        }
+        if (++*accepted_count == 1) {
+            accepted->set_value();
+        }
+        return FileTransferSendResult::Accepted();
+    });
+
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->Post("receive", [](const std::shared_ptr<FtEngine>& engine) { engine->ReceiveFiles("remote.bin", false, "local.bin"); }));
+    ASSERT_EQ(accepted_future.wait_for(2s), std::future_status::ready);
+    std::this_thread::sleep_for(20ms);
+    EXPECT_EQ(attempts->load(), 4);
+    const auto statistics = session->GetStatistics();
+    EXPECT_EQ(statistics.transport_errors, 3U);
+    EXPECT_EQ(statistics.accepted_messages, 1U);
+    EXPECT_TRUE(session->StopAndWait(2s));
+}
+
+TEST(FtAsyncSession, RepeatedStartStopTenRounds) {
+    for (int round = 0; round < 10; ++round) {
+        const auto session = FtAsyncSession::Create([](const auto&) { return FileTransferSendResult::Accepted(); });
+        ASSERT_TRUE(session->Start()) << "round=" << round;
+        ASSERT_TRUE(session->Post("noop", [](const std::shared_ptr<FtEngine>&) {}));
+        ASSERT_TRUE(session->StopAndWait(2s)) << "round=" << round;
+    }
+}
+
+TEST(FtAsyncSession, SharedRuntimeKeepsOtherSessionAliveAfterOneStops) {
+    const auto runtime = PxAsyncRuntime::Create({.worker_threads = 2});
+    ASSERT_TRUE(runtime->Start());
+    const auto first_engine = std::make_shared<FtEngine>();
+    const auto second_engine = std::make_shared<FtEngine>();
+    const auto first_count = std::make_shared<std::atomic_int>(0);
+    const auto second_count = std::make_shared<std::atomic_int>(0);
+    const auto first = FtAsyncSession::CreateOnRuntime(runtime, first_engine, [first_count](const auto&) {
+        ++*first_count;
+        return FileTransferSendResult::Accepted();
+    });
+    const auto second = FtAsyncSession::CreateOnRuntime(runtime, second_engine, [second_count](const auto&) {
+        ++*second_count;
+        return FileTransferSendResult::Accepted();
+    });
+
+    ASSERT_TRUE(first->Start());
+    ASSERT_TRUE(second->Start());
+    ASSERT_TRUE(first->Post("first-receive", [](const auto& engine) { engine->ReceiveFiles("first.bin", false, "first.out"); }));
+    ASSERT_TRUE(second->Post("second-receive", [](const auto& engine) { engine->ReceiveFiles("second.bin", false, "second.out"); }));
+
+    const auto first_deadline = std::chrono::steady_clock::now() + 2s;
+    while (first_count->load() == 0 && std::chrono::steady_clock::now() < first_deadline) {
+        std::this_thread::yield();
+    }
+    ASSERT_GT(first_count->load(), 0);
+    ASSERT_TRUE(first->StopAndWait(2s));
+    EXPECT_FALSE(runtime->IsStopping());
+
+    const auto before = second_count->load();
+    ASSERT_TRUE(second->Post("second-still-alive", [](const auto& engine) { engine->ReadDir("/", false); }));
+    const auto second_deadline = std::chrono::steady_clock::now() + 2s;
+    while (second_count->load() == before && std::chrono::steady_clock::now() < second_deadline) {
+        std::this_thread::yield();
+    }
+    EXPECT_GT(second_count->load(), before);
+    EXPECT_TRUE(second->StopAndWait(2s));
+    runtime->RequestStop();
+    runtime->Join();
+}
+
+TEST(FtAsyncSession, SharedRuntimeRejectsNullDependencies) {
+    const auto runtime = PxAsyncRuntime::Create();
+    const auto engine = std::make_shared<FtEngine>();
+    const auto sender = [](const auto&) { return FileTransferSendResult::Accepted(); };
+    EXPECT_THROW(FtAsyncSession::CreateOnRuntime({}, engine, sender), std::invalid_argument);
+    EXPECT_THROW(FtAsyncSession::CreateOnRuntime(runtime, {}, sender), std::invalid_argument);
+}
+
+TEST(FtAsyncSession, PostAndWaitRunsFinalizerBeforeSharedSessionStops) {
+    const auto runtime = PxAsyncRuntime::Create({.worker_threads = 2});
+    ASSERT_TRUE(runtime->Start());
+    const auto engine = std::make_shared<FtEngine>();
+    const auto finalized = std::make_shared<std::atomic_bool>(false);
+    const auto session = FtAsyncSession::CreateOnRuntime(
+        runtime, engine, [](const auto&) { return FileTransferSendResult::Accepted(); }, {}, PxAsyncLane::kState);
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->PostAndWait(
+        "finalize", [finalized](const auto&) { finalized->store(true); }, 2s));
+    EXPECT_TRUE(finalized->load());
+    EXPECT_TRUE(session->StopAndWait(2s));
+    EXPECT_FALSE(runtime->IsStopping());
+    runtime->RequestStop();
+    runtime->Join();
+}
+
+TEST(FtAsyncSession, PostAndWaitReportsCommandFailure) {
+    const auto session = FtAsyncSession::Create([](const auto&) { return FileTransferSendResult::Accepted(); });
+    ASSERT_TRUE(session->Start());
+    EXPECT_FALSE(session->PostAndWait(
+        "throws", [](const auto&) { throw std::runtime_error("test"); }, 2s));
+    EXPECT_TRUE(session->StopAndWait(2s));
+}
+
+TEST(FtAsyncSession, QueuedCommandsKeepArrivalOrderOnSharedBlockingPool) {
+    const auto observed = std::make_shared<std::vector<int>>();
+    const auto release = std::make_shared<std::promise<void>>();
+    const auto gate = release->get_future().share();
+    const auto entered = std::make_shared<std::promise<void>>();
+    auto entered_future = entered->get_future();
+    const auto session = FtAsyncSession::Create([](const auto&) { return FileTransferSendResult::Accepted(); });
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->Post("hold-first-command", [entered, gate](const auto&) {
+        entered->set_value();
+        static_cast<void>(gate.wait_for(2s));
+    }));
+    ASSERT_EQ(entered_future.wait_for(2s), std::future_status::ready);
+    for (int index = 0; index < 1000; ++index) {
+        ASSERT_TRUE(session->Post("ordered-block", [observed, index](const auto&) { observed->push_back(index); }));
+    }
+    release->set_value();
+    ASSERT_TRUE(session->PostAndWait(
+        "fence", [](const auto&) {}, 3s));
+    ASSERT_EQ(observed->size(), 1000U);
+    for (int index = 0; index < 1000; ++index)
+        EXPECT_EQ(observed->at(index), index);
+    EXPECT_TRUE(session->StopAndWait(2s));
+}
+
+TEST(FtAsyncSession, StopFromCommandDoesNotWaitForItselfOrRunQueuedCallbacks) {
+    const auto stopped = std::make_shared<std::promise<bool>>();
+    auto stopped_future = stopped->get_future();
+    const auto late_calls = std::make_shared<std::atomic_int>(0);
+    auto session = FtAsyncSession::Create([](const auto&) { return FileTransferSendResult::Accepted(); });
+    const auto weak_session = std::weak_ptr<FtAsyncSession>(session);
+    ASSERT_TRUE(session->Start());
+    ASSERT_TRUE(session->Post("stop-inside-command", [weak_session, stopped, late_calls](const auto&) {
+        if (const auto owner = weak_session.lock()) {
+            EXPECT_TRUE(owner->Post("discard-on-stop", [late_calls](const auto&) { ++*late_calls; }));
+            stopped->set_value(owner->StopAndWait(2s));
+        }
+    }));
+    ASSERT_EQ(stopped_future.wait_for(1s), std::future_status::ready);
+    EXPECT_FALSE(stopped_future.get()); // Requested, but cannot join this callback.
+    EXPECT_FALSE(session->Post("after-stop", [](const auto&) {}));
+    EXPECT_FALSE(session->Start());
+    session.reset();
+    EXPECT_TRUE(weak_session.expired());
+    EXPECT_EQ(late_calls->load(), 0);
+}
+
+TEST(FtAsyncSession, ExpiredObserversAreSkipped) {
+    const auto calls = std::make_shared<std::atomic_int>(0);
+    const auto session = FtAsyncSession::Create([](const auto&) { return FileTransferSendResult::Accepted(); });
+    ASSERT_TRUE(session->Start());
+    auto observer = std::make_shared<int>(1);
+    const auto weak_observer = std::weak_ptr<int>(observer);
+    observer.reset();
+    ASSERT_TRUE(session->PostAndWait(
+        "expired-observer",
+        [weak_observer, calls](const auto&) {
+            if (const auto active = weak_observer.lock())
+                ++*calls;
+        },
+        2s));
+    EXPECT_EQ(calls->load(), 0);
+    EXPECT_TRUE(session->StopAndWait(2s));
+}
+
+} // namespace
+} // namespace px::ft

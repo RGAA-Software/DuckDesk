@@ -168,6 +168,7 @@ private:
     void HandleBlock(const px::FileTransferBlock& block);
     void HandleDone(const px::FileTransferDone& done);
     void UpdateJobsStatus();
+    void ExpireFinalizationWaits();
 
     struct OutboundEntry {
         std::uint64_t token = 0;
@@ -183,6 +184,10 @@ private:
 
     std::vector<TransferJob> read_jobs_;
     std::vector<TransferJob> write_jobs_;
+    // Locally initiated uploads are successful only after the receiver has
+    // verified and finalized the file. Remote/Web download readers retain
+    // their existing EOF contract; their receiving UI finalizes locally.
+    std::unordered_map<int32_t, std::chrono::steady_clock::time_point> finalization_waits_{};
 
     // 反压待发队列(小容量:每 tick 至多 1 块 + 少量握手消息)
     std::deque<OutboundEntry> outbox_;
