@@ -81,7 +81,6 @@ include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/qwindowkit/src)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_panel/src)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_render)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_qt_widget)
-include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_client_sdk)
 ##Binary
 include_directories(${CMAKE_BINARY_DIR}/src/px_base)
 include_directories(${CMAKE_BINARY_DIR}/src/px_panel)

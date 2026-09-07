@@ -1,0 +1,9 @@
+/.gradle/
+/.kotlin/
+/**/build/
+/**/.cxx/
+/app/apk/
+/app/src/generated/
+local.properties
+*.jks
+keystore.properties

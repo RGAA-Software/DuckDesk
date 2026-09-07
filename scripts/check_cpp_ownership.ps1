@@ -8,7 +8,9 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Push-Location $repoRoot
 try {
-    $nativeGlobs = @("*.cpp", "*.cc", "*.cxx", "*.h", "*.hpp")
+    # Exclude archives before Git detects renames: otherwise an identical backup
+    # can consume the rename match and make an unchanged relocated SDK look new.
+    $nativeGlobs = @("*.cpp", "*.cc", "*.cxx", "*.h", "*.hpp", ":(exclude)backup/**")
     $violations = [System.Collections.Generic.List[string]]::new()
 
     if ($ReportAll) {
@@ -108,7 +110,9 @@ try {
             if ($line -notmatch '^\+(?!\+\+\+)') {
                 continue
             }
-            if ($currentFile -match '^third_party/' -or
+            # Archived pre-change sources are reference-only, never new maintained code.
+            if ($currentFile -match '^backup/' -or
+                $currentFile -match '^third_party/' -or
                 $currentFile -match '^src/px_deps/px_webrtc_client/' -or
                 ($currentFile -match '^src/px_deps/px_3rdparty/' -and
                  $currentFile -notmatch '^src/px_deps/px_3rdparty/asio2/include/asio2/')) {

@@ -1,6 +1,20 @@
 # GammaRay/GoDesk 架构总览
 
-> 2026-08-24 更新。本文是项目的模块关系与整体理解的单一入口；各专题细节见文末链接的专题文档。
+> 2026-09-07 更新客户端传输产品边界，其余历史架构说明以各专题当前记录为准。本文是项目的模块关系与整体理解的单一入口。
+
+## 原生客户端与 Web 的传输边界（2026-09-07）
+
+Windows、Android、iOS、macOS 原生客户端均取消 WebRTC，包括 host 直连；iOS 和 macOS 的平台适配列为后续工作。WebRTC 只用于 Web 客户端。原生客户端使用共享 C++ SDK 的
+UDP+FEC 媒体、WebSocket 可靠控制和独立文件通道，组成唯一的原生直连模式；取消原生 WS 视频回退、旧 UDP/KCP、Relay 与公网 P2P。
+原生公网连接留待后续 RustDesk 方案。保留 Web 所需的 Render RTC、Console 信令、ICE/TURN、鉴权与部署能力。
+这项决定尚待代码实施；既有客户端 RTC 实现和测试记录不表示它仍属于产品目标。具体清理范围、SDK 分层与验收见
+[原生客户端 SDK 与 WebRTC 产品边界](native_client_sdk_transport_decision.md)。
+
+SDK 目录迁移已实施（第一检查点双端编译与 Windows 冒烟验证已通过）：`src/px_deps/px_client_sdk` → `src/px_client_sdk`，作为与客户端同级的独立项目模块。复用现有实现，
+原版按约定归档到 `backup/`；根工程、Android native、测试和构建脚本同步改用新路径。活动 SDK 已位于新目录；目录搬迁不等于传输退役或平台分层已经完成。
+
+macOS 客户端已纳入产品规划：复用同一 SDK，后续补齐桌面 UI、解码显示、音频、输入、文件/剪贴板和系统生命周期适配；
+当前尚未创建应用工程或完成 macOS 构建验收，不扩展为 macOS 被控端开发。
 
 ## 1. 这是什么
 
@@ -47,8 +61,8 @@
         ↑ ←—— panel (推授权 AuthInfo、拉起桌面 render 的 StartServer)
 
    数据面:
-   观看端 → 可直达时 net_rtc_local；不可直达时 net_rtc + ICE(host/srflx/turn relay)
-   Windows 观看端 → WS /media 直连 render
+   Web 观看端 → 可直达时 net_rtc_local；不可直达时 net_rtc + ICE(host/srflx/turn relay)
+   原生观看端（目标）→ UDP+FEC 媒体 + WebSocket 控制/文件 → 可直达 render
    注入的游戏 DLL → WS /ipc (仅 127.0.0.1) 推采集帧 → render
    桌面 render :20371；game render :32000-32999 (service 端口池)
 ```
@@ -86,7 +100,7 @@ Console Web「启动」→ Console manager 按 (app_id, device_id) 找 placement
 
 WS、RTC、文件传输是同一逻辑会话的可靠 transport binding；传输切换或单一文件通道关闭不得误报用户离线。UDP Direct 只承载已由可靠控制面关联的音视频与媒体反馈，绝不承担认证、角色、接管、输入或会话生命周期；它目前天然只能服务一个媒体接收端，首期多观察只承诺 RTC Local。完整定义、能力矩阵和改造顺序见 `logical_session_product_definition.md`。
 
-WS + UDP 模式中，WS 在会话准入后记录短期的首次 UDP 媒体端点关联；UDP Hello 只登记对应的 `IP:port`。关联码仅保护首次登记，之后由心跳维持端点、由 WS binding 撤销，并允许同一已关联端点完成 NAT 换端口；UDP 首帧探测失败时客户端重建 WS 媒体 binding。UDP 的丢包、端点更换和超时只影响媒体可用性，不能触发 `ClientConnected`、`ClientDisconnected` 或控制权改变。
+WS + UDP 模式中，WS 在会话准入后记录短期的首次 UDP 媒体端点关联；UDP Hello 只登记对应的 `IP:port`。关联码仅保护首次登记，之后由心跳维持端点、由 WS binding 撤销，并允许同一已关联端点完成 NAT 换端口。目标行为中 UDP 首帧探测失败应明确报错并允许重试，旧 WS 媒体回退待删除。UDP 的丢包、端点更换和超时只影响媒体可用性，不能触发 `ClientConnected`、`ClientDisconnected` 或控制权改变。
 
 ## 7. 已知缺口（正式化前要补）
 

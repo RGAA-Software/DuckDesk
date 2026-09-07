@@ -1,0 +1,3 @@
+!define PRODUCT_VERSION "3.3.65"
+!define PRODUCT_VERSION_CODE 30365
+!define TARGET_TYPE "Official"

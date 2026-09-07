@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>WebView popup surface test</title>
+  <style>
+    body { margin: 0; min-height: 100vh; background: #152431; color: #fff; font: 28px system-ui; }
+    main { padding: 80px; }
+    select, input { display: block; width: 520px; margin: 24px 0; padding: 16px; font-size: 28px; }
+  </style>
+</head>
+<body>
+  <main>
+    <label for="quality">QUALITY</label>
+    <select id="quality">
+      <option>Low</option>
+      <option>Medium</option>
+      <option selected>High</option>
+      <option>Ultra</option>
+      <option>Max</option>
+    </select>
+    <label for="search">AUTOCOMPLETE</label>
+    <input id="search" list="choices" placeholder="type a letter">
+    <datalist id="choices">
+      <option value="Alpha"></option>
+      <option value="Beta"></option>
+      <option value="Gamma"></option>
+    </datalist>
+  </main>
+</body>
+</html>

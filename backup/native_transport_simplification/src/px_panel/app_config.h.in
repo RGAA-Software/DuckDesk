@@ -1,0 +1,4 @@
+#pragma once
+
+#define ACC_HOST ""
+#define ACC_PORT 0

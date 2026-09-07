@@ -1,5 +1,9 @@
 # WebRTC 普通 C++ DLL 迁移实施方案
 
+> 2026-09-07 范围更新：Windows、Android、iOS 原生客户端取消全部 WebRTC，包括 host 直连。本文的 Client 接入/打包要求已被
+> [原生客户端 SDK 与 WebRTC 产品边界](native_client_sdk_transport_decision.md) 替代；Render 服务 Web 客户端的 RTC 实现与生命周期约束继续保留。
+> 以下 Client 迁移内容仅记录历史实现，不作为后续原生客户端目标。
+
 ## 1. 产品决定
 
 WebRTC 是与 WS、UDP、Relay 同层的固定网络组件，不是插件，也不是可发现的扩展点。Render 和 Client 与 WebRTC DLL 使用相同的

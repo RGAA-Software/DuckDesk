@@ -232,6 +232,12 @@ switch ($Component) {
             -Source (Join-Path $buildRoot "src\px_deps\px_webrtc_client\px_client_rtc.dll") `
             -Destination (Join-Path $distRoot "px_client_rtc.dll") `
             -ProcessName "px_client"
+        # Voice processing is a shared runtime dependency of Client and Render.
+        # The client executable above is published first, stopping any active client.
+        Publish-VerifiedFile `
+            -Source (Join-Path $buildRoot "src\px_deps\px_voice_call\px_voice_apm.dll") `
+            -Destination (Join-Path $distRoot "px_voice_apm.dll") `
+            -ProcessName "px_render"
         Remove-RetiredClientRecordingCore
         $retiredClientPluginDirectory = Join-Path $distRoot "deps\ct_plugins"
         foreach ($retiredName in @(

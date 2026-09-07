@@ -1,0 +1,36 @@
+<resources>
+    <string name="back">Back</string>
+    <string name="transfers_title">Transfers</string>
+    <string name="clear_finished">Clear finished</string>
+    <string name="transfer_requires_session">Connect to a computer to transfer files.</string>
+    <string name="transfer_not_supported">This computer does not allow file transfers.</string>
+    <string name="transfer_ready">File transfers continue while you use other parts of Pixels.</string>
+    <string name="current_remote_folder">Current remote folder</string>
+    <string name="remote_root">Computer</string>
+    <string name="parent_folder">Parent folder</string>
+    <string name="refresh_remote_folder">Refresh folder</string>
+    <string name="upload_to_current_folder">Upload here</string>
+    <string name="download_selected_file">Download selected</string>
+    <string name="remote_directory_idle">Open the connected computer to browse its files.</string>
+    <string name="loading_remote_directory">Opening remote folder…</string>
+    <string name="remote_directory_empty">This folder is empty.</string>
+    <string name="remote_directory_truncated">Only the first 2,048 items are shown.</string>
+    <string name="transfer_tasks">Transfer tasks</string>
+    <string name="no_transfer_tasks">No transfer tasks yet.</string>
+    <string name="upload">Upload</string>
+    <string name="download">Download</string>
+    <string name="preparing">Preparing</string>
+    <string name="queued">Queued</string>
+    <string name="running">Transferring</string>
+    <string name="awaiting_overwrite">Waiting for confirmation</string>
+    <string name="succeeded">Completed</string>
+    <string name="failed">Failed</string>
+    <string name="cancelled">Cancelled</string>
+    <string name="cancel_transfer">Cancel</string>
+    <string name="retry_transfer">Retry</string>
+    <string name="overwrite_title">File already exists</string>
+    <string name="overwrite_body">Replace the existing copy of %1$s?</string>
+    <string name="apply_to_all">Apply to all conflicts in this task</string>
+    <string name="overwrite">Replace</string>
+    <string name="skip">Skip</string>
+</resources>

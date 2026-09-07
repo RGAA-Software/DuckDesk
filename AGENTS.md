@@ -81,3 +81,31 @@
   unavoidable external literals are excluded.
 - The repository `.clang-format` is the formatting authority for project-authored C++. Do not mechanically reformat unrelated legacy files
   or read-only third-party trees.
+
+# Retired code archival during Native/WebRTC simplification
+
+- User decision (2026-09-07): preserve retired implementations under the repository-root `backup/` directory instead of deleting them.
+  This supersedes deletion wording in earlier Native SDK and Android plans for this simplification work.
+- Preserve repository-relative paths beneath a named archive batch, for example
+  `backup/native_transport_simplification/src/px_deps/px_client_sdk/connection/`.
+- For a fully retired file, archive the file intact. Before removing retired branches from a still-maintained file, archive its full
+  pre-change contents. Preserve uncommitted contents as well; never reconstruct the backup solely from Git HEAD.
+- Record the original path, base revision, local modification status, retirement reason and archive batch. Never overwrite an existing
+  backup; create a new batch when necessary.
+- Archived code is reference-only: exclude it from build discovery, compilation, tests, packaging and runtime loading. Do not create an
+  executable compatibility layer or maintain a second product implementation in `backup/`.
+- Code still required by Native or WebRTC consumers remains active. External reference checkouts and read-only third-party trees retain
+  their existing protections.
+
+# Local upstream source references
+
+The user provided these local checkouts for reference; their paths were confirmed on 2026-09-07:
+
+- RustDesk: `D:/GoCloud/rustdesk` — connection establishment, NAT traversal/relay, session and file-transfer architecture.
+- Sunshine: `D:/source/Sunshine` — host-side media transport, UDP packetization, FEC and pacing.
+- Moonlight Qt: `D:/source/moonlight-qt` — client-side SDK integration, media reception and platform adaptation; inspect its shared-core
+  submodules when populated.
+
+Prefer inspecting these local sources for implementation comparisons. Record the checkout revision when making version-sensitive claims;
+do not assume a local checkout matches the latest upstream release. Treat these repositories as read-only references unless the user
+explicitly requests changes to them. Their availability does not expand the current implementation scope.

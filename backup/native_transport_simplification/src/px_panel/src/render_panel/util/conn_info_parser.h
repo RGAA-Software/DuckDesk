@@ -1,0 +1,64 @@
+//
+// Created by RGAA on 20/05/2025.
+//
+
+#ifndef PX_CONN_INFO_PARSER_H
+#define PX_CONN_INFO_PARSER_H
+
+#include <memory>
+#include <string>
+#include <vector>
+#include <sstream>
+
+namespace px
+{
+
+    class PxConnectionInfo {
+    public:
+        class PxConnectionHost {
+        public:
+            std::string ip_;
+            std::string type_;
+        };
+
+    public:
+        std::string device_id_;
+        std::string device_name_;
+        std::string random_pwd_;
+        int icon_idx_{0};
+        std::vector<PxConnectionHost> hosts_;
+        int panel_srv_port_{0};
+        int render_srv_port_{0};
+        // relay server
+        std::string relay_host_;
+        int relay_port_{0};
+        std::string relay_appkey_;
+
+    public:
+        [[nodiscard]] bool IsValid() const {
+            return render_srv_port_ > 0 && !hosts_.empty();
+        }
+
+        std::string Dump() {
+            std::stringstream ss;
+            ss << "Connection info: " << std::endl;
+            ss << "Device Info: " << device_id_ << ", " << device_name_
+               << ", password: <redacted>, relay: " << relay_host_ << "," << relay_port_ << std::endl;
+            ss << "Relay appkey : <redacted>" << std::endl;
+            ss << "Device IP:" << std::endl;
+            for (const auto& ch : hosts_) {
+                ss << ch.ip_ << "" << std::endl;
+            }
+            return ss.str();
+        }
+    };
+
+    // parse link://xxxx
+    class ConnInfoParser {
+    public:
+        static std::shared_ptr<PxConnectionInfo> Parse(const std::string& info);
+    };
+
+}
+
+#endif //PX_CONN_INFO_PARSER_H

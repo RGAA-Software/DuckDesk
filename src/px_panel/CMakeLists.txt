@@ -29,7 +29,6 @@ include_directories(${PX_PROJECT_PATH}/px_3rdparty/webrtc/include/third_party/li
 include_directories(${CMAKE_SOURCE_DIR}/src/px_render)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_client)
 include_directories(${PX_PROJECT_PATH}/px_qt_widget)
-include_directories(${PX_PROJECT_PATH}/px_client_sdk)
 include_directories(${CMAKE_BINARY_DIR}/src/px_base)
 
 add_subdirectory(src)

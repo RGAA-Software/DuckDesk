@@ -1,0 +1,122 @@
+set(PANEL_SRCS
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/http_handler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/ws_panel_server.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/udp_broadcaster.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/px_service_client.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/render_api.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/px_console_client.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/records_catalog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/records_ticket.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/records_http_handler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/record_transfer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/panel_rtc_config_refresh_gate.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/db_game.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/db_game_operator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/px_database.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/visit_record.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/visit_record_operator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/file_transfer_record.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/file_transfer_record_operator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/database/stream_db_operator.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_base.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_server.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_cloud_apps.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_game.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_settings.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_server_status.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_security_internals.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_hw_info.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/st_general.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/st_client.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/st_about_me.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/st_network.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/st_network_search.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/st_network_auto_join_dialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/st_plugins.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/st_controller.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/st_plugin_item_widget.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/st_security.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/game_info_preview.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/rn_app.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/rn_empty.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/stat_chart.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/qt_circle.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/qt_vertical.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/add_game_panel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_profile.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/stat_capture_info_item.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/input_safety_pwd_dialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/st_security_visitor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/st_security_file_transfer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/st_security_visitor_item.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/st_security_file_transfer_item.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_profile_device_item.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/security_password_checker.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/user/user_login_dialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/user/user_register_dialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/user/modify_username_dialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/user/modify_password_dialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/tab_cophone.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/monitor_refresher.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/voice_call_consent_dialog.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_application.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_context.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_workspace.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/panel_shutdown_sequence.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_settings.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_statistics.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_system_monitor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_resources.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_render_controller.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_run_game_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_running_pipe.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_connected_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/px_render_msg_processor.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/app_stream_list.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/stream_resource_refresh_gate.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/stream_launch_auth_workflow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/create_stream_dialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/stream_item_widget.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/stream_content.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/running_stream_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/edit_relay_stream_dialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/stream_settings_dialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/select_stream_type_dialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/create_stream_conn_info_dialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/start_stream_loading.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/input_remote_pwd_dialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/stream_state_checker.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/connected_info_panel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/connected_info_tag.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/connected_info_sliding_window.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/stream_messages.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/infinite_loading.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/devices/px_device_manager.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/util/conn_info_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/util/opengl_helper.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/clipboard/panel_clipboard_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/clipboard/win/panel_cp_file_stream.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/clipboard/win/panel_cp_virtual_file.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/console_scanner/console_datagram_receiver.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/console_scanner/console_scanner.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/user/px_user_manager.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/upgrade/upgrade_helper.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/console/px_console_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/console/console_error_presenter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/console/px_event_manager.cpp
+
+)
+
+add_subdirectory(companion)
+
+set(PANEL_SRCS ${PANEL_SRCS} ${COMPANION_SRCS} PARENT_SCOPE)

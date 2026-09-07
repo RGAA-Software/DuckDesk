@@ -1,0 +1,4 @@
+<resources>
+    <color name="pixels_background">#080C18</color>
+    <color name="pixels_transparent">#00000000</color>
+</resources>

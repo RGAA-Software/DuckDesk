@@ -1,0 +1,47 @@
+//
+// Created by RGAA on 23/10/2025.
+//
+
+#ifndef GAMMARAYPREMIUM_ST_NETWORK_SEARCH_H
+#define GAMMARAYPREMIUM_ST_NETWORK_SEARCH_H
+
+#include <vector>
+#include <QWidget>
+#include <QListWidget>
+#include "px_qt_widget/px_custom_titlebar_dialog.h"
+
+namespace px
+{
+
+    class TcLabel;
+    class PxContext;
+    class PxApplication;
+    class MessageListener;
+    class StNetworkConsoleAccessInfo;
+
+    class StNetworkSearch : public TcCustomTitleBarDialog {
+    public:
+        explicit StNetworkSearch(const std::shared_ptr<PxApplication>& app, QWidget* parent = nullptr);
+        ~StNetworkSearch() override;
+        void closeEvent(QCloseEvent *) override;
+        void OnItemClicked(int index, const std::shared_ptr<StNetworkConsoleAccessInfo>& item_info);
+        std::shared_ptr<StNetworkConsoleAccessInfo> GetSelectedItem();
+        void resizeEvent(QResizeEvent *) override;
+
+    private:
+        void CreateLayout();
+        void UpdateItems();
+        QListWidgetItem* AddItem(int index, const std::shared_ptr<StNetworkConsoleAccessInfo>& item_info);
+
+    private:
+        std::shared_ptr<PxContext> context_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
+        std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        TcLabel* empty_lbl_ = nullptr;
+        QListWidget* list_widget_ = nullptr;
+        std::shared_ptr<StNetworkConsoleAccessInfo> selected_item_ = nullptr;
+    };
+
+}
+
+#endif //GAMMARAYPREMIUM_ST_NETWORK_SEARCH_H

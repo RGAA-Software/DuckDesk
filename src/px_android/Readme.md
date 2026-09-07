@@ -6,6 +6,7 @@
 
 - [Pixels Android 客户端最终产品规划](../../docs/android_pixels_product_plan.md)
 - [Pixels Android UI/UX 设计规范](../../docs/android_pixels_ui_design.md)
+- [原生客户端 SDK 与 WebRTC 产品边界](../../docs/native_client_sdk_transport_decision.md)
 
 ## 已确认的方向
 
@@ -16,14 +17,26 @@
 - 复用项目协议、SDK 和媒体核心，删除旧 Fragment、GreenDAO、事件总线、JSON JNI、音乐频谱和 Steam 专属 UI。
 - 最终产品包含音视频串流、完整输入、多显示器、远程应用、文件传输、剪贴板、录制、语音和完整传输能力。
 - 不保留兼容层、迁移代码、旧入口或新版/旧版并行包。
+- Windows、Android、iOS、macOS 原生客户端仅使用 UDP+FEC 媒体与 WebSocket 控制/文件这一种直连组合；iOS/macOS 平台适配列为后续工作；取消原生 RTC、Relay、旧 UDP/KCP 和 WS 视频回退。
+- WebRTC 仅用于 Web 客户端；原生公网 P2P/Relay 留待后续 RustDesk 方案，本轮不实现。
 
 ## 当前状态
+
+2026-09-07 已开始实施：共享 SDK 已迁至 `src/px_client_sdk`，Android Debug 从新目录编译成功；RTC/Relay/WS 媒体回退移除和共享核心分层尚未实施。现有代码和以下历史 APK 仍包含旧传输分支；不能把它们标记为新边界的候选包。
 
 M0–M2 已完成。当前应用已包含 Pixels 品牌与最终包名、设备发现和扫码、Quick Connect、Console 账号与设备、远程应用、短期连接票据、前台会话服务、MediaCodec Surface 视频及 FFmpeg 软件解码回退、AAudio、完整桌面输入、虚拟/实体手柄、远端已有显示器发现与切换、按设备保存并应用的帧率/音频/输入模式/解码策略偏好、双向文本及 URI 图片/文件剪贴板、基于 SAF 的双向文件传输和任务中心、直接复用编码码流并发布到 MediaStore 的本地录制，以及经 Windows 用户同意的双向 Opus 语音通话。Android 不创建或删除 Windows 虚拟显示器。
 
 语音通话使用 AAudio 通信流，支持麦克风/远端声音静音、听筒/耳机与扬声器切换，并在 Android 路由改变时重建音频流而不中断会话。URI 剪贴板把 Android 内容安全物化到私有缓存，通过既有虚拟文件协议按需分块传输，远端文件则通过非导出的 `FileProvider` 写回系统剪贴板。手柄双电机振动回传已完成真机闭环；标准 WebRTC 已接入票据信令、ICE/TURN、RTP、控制/输入/文件 DataChannel、双向文件型剪贴板和失败后的续票原生传输降级。M5–M6 的完整网络与发布矩阵尚未完成，未完成能力不会以占位实现伪装为可用。
 
-完整画质预设、编码输出分辨率、码率和 codec 的跨平台能力协商已经形成设计，但当前暂缓实施；Android 不显示不能由服务端真实执行的设置。当前剩余执行项是私网已登录 Console 与真实 Relay/WebRTC 的端到端收口、可执行的 Wi-Fi/生命周期短时验证，以及 LGPL/法律发布输入；公网与蜂窝等待服务部署，性能/设备/API/无障碍矩阵按当前决策不在本轮执行，详见产品规划“当前剩余工作”和第 14 节。
+完整画质预设、编码输出分辨率、码率和 codec 的跨平台能力协商已经形成设计，但当前暂缓实施。当前执行项为收敛原生 UDP+FEC 与 WS 控制/文件，
+验证直连账号与工具能力、文件并发隔离、Wi-Fi/生命周期，以及补齐发布输入。公网 P2P/Relay 留待 RustDesk 方案，性能/设备/API/无障碍矩阵仍不在本轮执行。
+
+### 无 USB 设备时的交接点
+
+截至 2026-09-07，新传输决定之前的 debug APK 已构建完成，SHA-256 为
+`B0ED8D4C9C699106BF55EB4D1931CBD76B5A1B1EAEB92010B7C5D454AEB33E0D`，但因手机从 ADB 消失尚未覆盖安装。手机重新连接后只执行下述
+`adb install -r -d`，不得为日常验证卸载应用或清空数据。上述旧 APK 不作为新候选包，完成 RTC 移除后重新构建并记录哈希。单次真机验证限制在 5 分钟内，
+检查 UDP+FEC 直连的语音同意、挂断释放、WS 文件/文件型剪贴板、录制和前后台/锁屏恢复；取消原生 RTC/Relay/P2P 与 WS 视频回退待测项。远程应用配置和发布输入仍待解决。
 
 构建基线为 Gradle 9.3.1、AGP 9.1.1、内置 Kotlin 2.4.10、Compose BOM 2026.08.00、API 37，最低系统 API 31。日常验证使用：
 

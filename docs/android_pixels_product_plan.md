@@ -1,18 +1,23 @@
 # Pixels Android 客户端最终产品规划
 
-> 状态：M0、M1、M2 已完成；M3、M4 产品主路径已完成；M5 已进入私网真实 Relay/WebRTC 验收；M6 发布基础设施和本机长期签名已完成，合规归档与发布矩阵待验收；跨平台视频能力协商已规划并暂缓实施
+> 状态：M0–M4 保留已有实现记录；M5 收敛为 UDP+FEC 媒体与 WebSocket 控制/文件，移除原生 RTC/Relay/WS 媒体回退，代码尚未调整；M6 本机长期签名已完成，发布归档待验收；完整视频能力协商暂缓
 > 更新日期：2026-09-07
 > 范围：`src/px_android` 及 Android 所需的项目自维护 C++ 公共模块
+
+> 最终传输决定：Windows、Android、iOS、macOS 原生客户端均不支持 WebRTC，包括 host 直连；WebRTC 只用于 Web 客户端。iOS/macOS 平台适配列为后续工作。
+> 原生端当前只有 UDP+FEC 媒体与 WebSocket 可靠控制/文件这一种直连组合；公网 P2P 和 Relay 留待后续 RustDesk 方案，本轮不实现。
+> 归档规则更新：本次精简的旧实现完整保存到根目录 `backup/`，文中“删除/移除”表示退出活动源码和构建，不直接销毁原代码。
+> 以 [原生客户端 SDK 与 WebRTC 产品边界](native_client_sdk_transport_decision.md) 为准；本文第 13 节 RTC 实施和测试内容保留为历史记录。
 
 ## 当前剩余工作
 
 Android 已具备设备接入、远控音视频、完整输入、已有显示器切换、远程应用、文件/剪贴板、录制、语音和诊断等主功能。2026-09-07
 重新评估后，剩余事项按以下顺序执行；每个真机场景单次验证不超过 5 分钟：
 
-1. **P0，真实账号和主路径验收**：先在已部署的本机 Console 与局域网 Render 上完成远程应用启动、停止、实例票据和重连，并验证真实 Relay、WebRTC、
-   ICE/TURN 下的视频、远端音频、输入和明确失败反馈。公网与蜂窝链路必须等待 Console 具备公网部署后再测，当前不得用局域网结果代替或宣称通过。
-2. **P0，已有工具能力的真实传输验收**：在同一私网真实 WebRTC/Relay 会话中分别验证文件传输、文件型剪贴板、双向语音以及带远端音频录制。
-   这些能力的实现与自动化门禁已经存在，当前缺少的是目标网络中的端到端证据，不再重复开发一套实现。
+1. **P0，传输收敛与主路径验收**：移除 Android RTC、原生 Relay、旧 UDP/KCP 与 WS 视频回退，收敛原生 SDK；在本机环境验证
+   UDP+FEC 视频、UDP 音频、WebSocket 控制/文件以及账号授权和失败反馈。远程应用启动、停止和重连等待真实应用授权。
+2. **P0，已有工具能力的真实传输验收**：复用原生实现，在直连会话验证文件传输、文件型剪贴板、双向语音和带音录制。
+   RTC、原生 Relay/P2P 和 WS 视频回退待测项取消；文件并发时验证控制不被大文件队列阻塞。
 3. **P1，当前可执行的网络和生命周期验收**：覆盖 Wi-Fi 弱网、Wi-Fi 恢复、锁屏与前后台；每轮只验证一个明确场景且不超过 5 分钟。公网、蜂窝、
    来电、耳机矩阵和系统资源压力留到相应环境具备后执行，不阻塞本轮开发收口。
 4. **本轮明确跳过的矩阵**：性能/设备矩阵以及 API 31、多形态、200% 字体、无障碍和仪器化实机矩阵不在本轮执行；代码编译和现有自动化门禁继续保留。
@@ -22,10 +27,23 @@ Android 已具备设备接入、远控音视频、完整输入、已有显示器
    APK/AAB、符号和清单归档，并安装候选包验收。
 
 以下内容已经规划但按当前产品决策**暂缓实施，不属于上述执行队列**：按设备保存完整画质预设、编码输出分辨率、码率和 codec，以及 Android、
-iOS、Windows Client 与 Windows Render 之间的统一视频能力探测和协商。当前已交付的 30/60 FPS、远端音频、输入模式、硬解优先/软件解码策略继续保留；
+iOS、macOS、Windows Client 与 Windows Render 之间的统一视频能力探测和协商。当前已交付的 30/60 FPS、远端音频、输入模式、硬解优先/软件解码策略继续保留；
 原生路径的 MediaCodec→FFmpeg 回退、实际解码器展示和双解码器失败提示继续作为现行可靠性边界。暂缓项的完整设计见第 14 节。
 
 Android **不缺少也不计划增加** Windows 虚拟显示器创建/删除能力；手机只展示和切换远端主机已经存在的显示器。
+
+### 当前暂停点（2026-09-07，无 USB 设备）
+
+- 新产品决定之前的实现已提交并推送到 `master`；本次 RTC 移除和 SDK 收敛尚未实施，当前不能仅凭旧验收将原生客户端标记为完成。
+- 新决定之前的 debug APK 已完成单元测试、debug/release Lint、arm64 native 构建和打包，文件为
+  `src/px_android/app/build/outputs/apk/debug/app-debug.apk`，SHA-256 为
+  `B0ED8D4C9C699106BF55EB4D1931CBD76B5A1B1EAEB92010B7C5D454AEB33E0D`。
+- USB 手机在最终构建完成后从 ADB 消失，因此上述 APK **尚未覆盖安装到手机**；这不是代码或构建失败，也不能把之前安装的 APK 结果作为该构建的验收证据。
+- 该 APK 仍包含 RTC，不是新产品边界的候选包。完成原生路径收敛后重新构建并记录哈希；手机接入后仅用 `adb install -r -d` 覆盖安装。
+  单次验证不超过 5 分钟，检查 UDP+FEC 直连、可靠控制/文件、语音同意和挂断释放、剪贴板、录制以及前后台/锁屏恢复。
+- 本机 Console 账号当前返回空的远程应用列表，所以应用启动/停止、实例票据和对应重连仍等待真实应用、placement 与授权配置；不得伪造记录为通过。
+- 原生公网 P2P/Relay 测试退出本轮，后续按 RustDesk 方案另行规划；性能/设备/API/无障碍矩阵按本轮决定跳过。正式 APK/AAB 仍等待匹配 FFmpeg 6.1 的源码归档、LGPL
+  relink 对象归档和法律复核；50 年 Pixels 正式签名及 Gradle 本机配置已经就绪。
 
 ## 1. 产品决策
 
@@ -103,7 +121,7 @@ Pixels Android 使用独立且统一的品牌资源：
 - 直接触摸、触摸板、相对鼠标、软键盘和组合键。
 - 虚拟手柄以及 USB/蓝牙实体手柄。
 - 查看并切换远端主机已经存在的显示器。Android 端只有一个观看窗口，不提供创建、删除或管理 Windows 虚拟显示器的能力。
-- 分辨率、帧率、码率、解码器和传输策略调整。
+- 按已实现能力提供画质、帧率和解码策略调整；不提供传输通道选择、协议优先级或回退开关。
 - 实时延迟、帧率、丢包、码率和解码统计。
 - 剪贴板、文件传输、录制和语音通话入口。
 - 断线重连、切网恢复、远端关闭和安全退出。
@@ -125,7 +143,7 @@ Pixels Android 使用独立且统一的品牌资源：
 
 ### 4.6 设置与诊断
 
-- 默认画质、音频、输入、手柄和网络策略。
+- 默认画质、音频、输入、手柄偏好及网络诊断；不提供强制或自动选择通道设置。
 - 权限状态和系统能力检查。
 - 版本、隐私、开源许可和日志导出。
 - 可复制的会话诊断摘要，不暴露令牌、密码和用户文件路径。
@@ -133,6 +151,11 @@ Pixels Android 使用独立且统一的品牌资源：
 旧版音乐频谱、固定 Steam Big Picture 入口、TV/Leanback 页面和演示 Tab 不属于最终产品，全部删除。
 
 ## 5. 目标工程结构
+
+共享原生 SDK 已从 `src/px_deps/px_client_sdk` 迁移到 `src/px_client_sdk`，独立于 Android 工程和 `px_deps`。
+Android `core-native` 的 CMake、头文件搜索与构建脚本同步接入新位置；复用现有 UDP/FEC 与 WebSocket 实现。
+迁移前原代码完整归档到 `backup/`；Android Debug 已从新目录编译成功，Windows Client/Panel 构建与本机 UDP 冒烟验证通过。
+传输退役和平台分层尚未完成，详见 [SDK 产品决定](native_client_sdk_transport_decision.md)。
 
 Android 工程采用单应用、多职责模块。`app` 是唯一组合根，其他模块不能反向依赖 `app`。
 
@@ -219,22 +242,14 @@ Windows Client 的剪贴板、文件传输和录制模块不能直接携带 Qt/W
 
 最终产品支持：
 
-- WebSocket 控制与媒体。
-- UDP Direct 媒体及可靠控制面回退。
-- Relay。
-- WebRTC Direct 和标准 ICE/TURN WebRTC。
-- 网络变化后的恢复、能力协商和可观测降级。
+- UDP Direct 媒体：视频分片与 FEC 恢复、实时音频；保留必要媒体反馈。
+- WebSocket 可靠控制：认证、端点关联、键鼠/手柄事件、配置、心跳与语音同意/挂断。
+- WebSocket 文件消息：文件传输、目录与文件型剪贴板数据，沿用现有背压。普通会话复用已认证控制连接，独立文件模式保留现有文件连接。
+- UDP 不可达明确失败并允许重试，不自动回退为 WS 视频；公网 P2P、Relay 留待后续 RustDesk 方案。
 
-Android 的 WebRTC 实现使用固定版本的第三方预编译 AAR，并由 Kotlin platform adapter 对接现有 SDP、ICE、媒体轨道和数据通道协议；
-不尝试把仅有 Windows x64 预编译库的 `px_webrtc_client` 链入 Android。依赖必须固定版本并归档许可证、校验值和 native symbols，
-不能使用动态版本。当前选定基线为 `io.github.webrtc-sdk:android:150.7871.01`。
-
-旧 `rtc_client_stub.cpp` 已随 M0 删除。当前 `core-native` 已接入真实 WebSocket transport、typed JNI 边界和固定版本 Android WebRTC AAR；
-标准 RTC platform adapter 直接消费仓库权威 protobuf，并已具备票据信令、ICE/TURN、RTP Surface 渲染、控制/输入 DataChannel、独立文件传输
-DataChannel 和本地音视频录制。产品路由仅在
-Console 提供完整且未临近过期的 RTC/Relay 作用域时选择标准 RTC，否则继续使用原生 UDP/Relay；旋转 renewal capability 已用于临期/已尝试票据和
-WebRTC 失败后的原生 UDP/Relay 降级，并验证续发响应不能改变 logical session 或 stream。真实 RTC 录制、语音和 Direct/Relay 网络矩阵完成前仍不对外宣称
-WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
+Android 最终构建不包含 WebRTC AAR、PeerConnection、SDP/ICE 信令和 RTC 专属文件、录制、语音路径。现有实现仍待删除；
+原生 UDP+FEC 媒体、WS 控制/文件、共享文件引擎、编码帧录制和原生语音保留，删除原生 Relay 与 WS 视频回退。账号票据及旋转 renewal capability 属于通用授权流程，仍需保留并维持
+logical session 与 stream 绑定。Web 客户端使用的服务端 RTC 能力不在此次删除范围内。
 
 ## 7. 渲染、音频和输入
 
@@ -357,10 +372,12 @@ WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
 
 ### M5：完整网络与质量收口，2–3 周
 
+> 2026-09-07 最新范围：原生 SDK 仅保留 UDP+FEC 媒体与 WebSocket 控制/文件。以下长段记录决定前的代码事实，RTC、Relay 和 WS 媒体回退不再是交付目标。
+
 状态：**UDP Direct 已作为 Android 默认传输接入，具备认证控制面、四秒媒体探测与同会话 WebSocket 安全回退；断线重连具有三十秒上限、类型化失败和显式重试。账号设备已接入一次性票据约束的 Relay 主路径，Console 只校验并注入权威绑定，Render 负责唯一兑换、逻辑会话准入和按能力路由。Android 标准 WebRTC 已固定 AAR、接入权威 protobuf-lite 协议生成、票据作用域 Relay 信令、ICE/TURN 配置校验、PeerConnection、RTP 音视频 Surface 渲染，以及可靠控制/不可靠输入 DataChannel 的 Hello、输入、双向文本与文件型剪贴板、能力消息和远端已有显示器切换；可靠 `ft_data_channel` 已复用项目 `FtAsyncSession`，提供目录浏览、上传、下载、取消、断点与覆盖确认，并承载既有 `NativeClipboard` 的有界文件块。标准 RTC 语音使用可靠控制通道完成呼叫与 Windows 用户同意，实际双向音频走独立第二条 WebRTC RTP 音轨；初始第二音轨仅接收，远端同意后 Android 使用新的一次性票据重新协商发送方向，成功后才挂接并启用麦克风，系统声和通话声可独立静音。标准 RTC 录制直接订阅已解码 VideoFrame 和远端 PCM，以 Android MediaCodec AVC/AAC 编码并封装 MP4，不请求屏幕录制权限；能力受 `view` 权限、媒体轨道和平台编码器共同门控。连接后从标准 RTCStats 持续提供画面帧率、视频接收码率、往返延迟和视频丢包率。统一产品路由会校验 RTC 与票据有效期后选择 WebRTC，否则使用原生 UDP/Relay。客户端已接入匿名 renewal capability 续发端点，对临期或已尝试的一次性票据先旋转凭据；WebRTC 协商/连接失败会在有界窗口内续发并降级到原生 UDP/Relay，续发响应必须保持 logical session 与 stream 身份不变。私网真实媒体已取得首轮证据，但公网与完整网络矩阵仍待环境具备，因此当前不会把局域网结果表述为公网交付。**
 
-- UDP Direct、Relay、WebRTC Direct、ICE/TURN WebRTC。
-- 传输选择、协商、失败降级、网络切换恢复。
+- UDP+FEC 媒体、WebSocket 控制与独立文件通道；删除原生多传输选择、RTC/Relay/旧 UDP/KCP 与 WS 媒体回退。
+- 同一种直连组合内的超时、明确失败与局域网恢复，不增加跨协议自动降级。
 - Wi-Fi/蜂窝、弱网、锁屏、来电、耳机切换和系统资源压力测试。
 - 性能、功耗、温度、包体和启动速度优化。
 
@@ -784,6 +801,7 @@ WebRTC 已完整交付，禁止用常量或 stub 伪造 capability。
 - **Windows Render**：探测实际可初始化的编码器和配置范围，作为最终配置执行者；码率/FPS 可动态调整时原地重配，codec 或输出尺寸变化时安全重建编码器并请求关键帧。
 - **Android Client**：查询 MediaCodec 的 codec/profile/level、尺寸/FPS 组合与硬件属性，验证候选解码器可创建；连接中硬解失败时上报排除项，协商降低参数，最后才回退 FFmpeg。
 - **iOS Client**：实现相同能力接口的 VideoToolbox 适配器，不改变公共协议和选择算法。
+- **macOS Client（后续适配）**：实现同一解码能力接口，按实际平台后端报告能力；可复用适合的 Apple 底层实现，桌面显示和生命周期单独适配。
 - **Windows Client**：作为观看端时通过 D3D11/DXVA 或当前解码后端上报解码能力，行为与移动端一致。
 - **Direct/WebRTC/Relay**：Direct 与 WebRTC 承载同一组协商消息；Relay 和信令服务只做授权、范围校验及转发，不自行猜测媒体参数。
 

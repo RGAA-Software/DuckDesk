@@ -23,7 +23,8 @@ add_compile_options(
     -Wno-error=deprecated-literal-operator
 )
 
-set(PX_PROJECT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../px_deps")
+get_filename_component(PIXELS_SOURCE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../../.." ABSOLUTE)
+set(PX_PROJECT_PATH "${PIXELS_SOURCE_ROOT}/px_deps")
 set(PX_PROJECT_BINARY_PATH "${CMAKE_BINARY_DIR}")
 
 include_directories(
@@ -31,7 +32,6 @@ include_directories(
     "${PX_PROJECT_PATH}"
     "${PX_PROJECT_PATH}/px_3rdparty"
     "${PX_PROJECT_PATH}/px_common"
-    "${PX_PROJECT_PATH}/px_client_sdk"
     "${PX_PROJECT_PATH}/px_ft_engine"
     "${PX_PROJECT_PATH}/px_message"
     "${PX_PROJECT_PATH}/px_media_record"
@@ -65,7 +65,7 @@ add_subdirectory("${PX_PROJECT_PATH}/px_opus_codec" "${CMAKE_BINARY_DIR}/px_opus
 add_subdirectory("${PX_PROJECT_PATH}/px_voice_call" "${CMAKE_BINARY_DIR}/px_voice_call")
 add_subdirectory("${PX_PROJECT_PATH}/px_server_protocol" "${CMAKE_BINARY_DIR}/px_server_protocol")
 add_subdirectory("${PX_PROJECT_PATH}/px_relay_client" "${CMAKE_BINARY_DIR}/px_relay_client")
-add_subdirectory("${PX_PROJECT_PATH}/px_client_sdk" "${CMAKE_BINARY_DIR}/px_client_sdk")
+add_subdirectory("${PIXELS_SOURCE_ROOT}/px_client_sdk" "${CMAKE_BINARY_DIR}/px_client_sdk")
 
 add_library(pixels_android_core SHARED
     jni_adapter.cpp
