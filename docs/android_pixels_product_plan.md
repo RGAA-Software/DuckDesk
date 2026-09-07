@@ -662,8 +662,17 @@ SHA-256 发布清单，以及应用内隐私、完整第三方许可证和主动
   下方开始绘制。Xiaomi 22021211RC 使用 `adb install -r -d` 覆盖安装后，应用→设置→设备落到设备首页、应用系统返回、设置系统返回退出应用及重新启动均通过；
   展开工具栏底边为 `y=388`，视频容器从其后开始且不存在节点重叠。构建 APK SHA-256 为
   `0C8805DE349579414534C6E906639C525ECF3C88F60D6D59E1E19D570D2846B5`。
+- 2026-09-07 M4 真实带音录制复核发现原实现把借用的网络包直接交给 muxer，且用回调到达时钟推算 Opus PTS，生成文件会出现 SILK 解码错误和不规则音频时长。
+  共享 `RecordWriter` 现复制音视频包、在写头后采用 muxer 最终 time base，并按每包采样数推进音频时钟；测试音频由真实 libopus 生成并逐包解码，新增突发到包、滚动分段、
+  重复启停、销毁后回调和回调内停止门禁。Android 原生会话从 SDK 解码 PCM 在录制串行队列中重新编码 Opus，避免继续封装已确认损坏的传输侧音频包。
+  Xiaomi 22021211RC 覆盖安装后录制 `android_real_av_final_20260907_085129.mp4`：12.225 秒、718688 字节、H.264 1920×1080/722 帧与 Opus
+  48 kHz 双声道/611 包；音视频完整解码均为零错误，前 610 个音频包 duration 与 DTS 步长均为 960 samples，末包按容器结尾裁为 720 samples，音量
+  mean/max 为 -19.4/-4.2 dB，文件 SHA-256 为 `6A34ECA923DAB38B19E0A07C8F2A4F6BA4D5671EC9B4A360443A80E6CDFCB0E9`。
+  `test_record_writer` 7 项、`test_media_recorder_sink` 4 项和 C++ 所有权门禁通过；`px_render.exe`、`px_client.exe` 已同步到 `build_official/dist`，构建树与发布目录
+  SHA-256 分别一致为 `D03578398CE344B5CC0452006D090542704952071009F649F212093ABD18FF73`、`2F7DF6306C3006003B8352F634B59665652F87AECB98E10717E35F32D7E1C900`。
+  最终 APK 与手机 `base.apk` SHA-256 均为 `B9AAB5272410EE8C5CF641061FBCF0C0A5A560CB0FDE351BD008DBF8B1BFC579`。
 
 这次验收关闭了 M2 的旋转/Surface 重建、前后台和切网恢复门禁，并验证了 M3 桌面输入、手柄主路径、物理显示器切换和虚拟显示失败反馈；
 后续手柄振动轮次又关闭了 ViGEm→Android haptics 回传门禁，M5 轮次关闭了 UDP Direct 协商、WebSocket 安全回退、有界重连和 H.264 首帧解析门禁。
-它不代表 M3–M6 的虚拟显示成功创建、远程应用 Console 实测、真实远端媒体的带音录制、UDP 媒体交付、Relay/WebRTC 网络矩阵、正式签名、
+它不代表 M3–M6 的虚拟显示成功创建、远程应用 Console 实测、标准 WebRTC/Relay 真实远端媒体的带音录制、UDP 媒体交付、Relay/WebRTC 网络矩阵、正式签名、
 最终 FFmpeg 源码/重链接归档、正式法律复核和设备矩阵已经完成。

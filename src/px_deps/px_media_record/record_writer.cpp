@@ -7,8 +7,8 @@
 //   本实现缓存参数集并在开段时前置补齐(缺哪个补哪个)，不依赖编码器 repeat-headers。
 // - 后续 Annex-B 包 muxer 自动转换为 length-prefixed 写入 mdat。
 // - Opus 轨必须带 >=19 字节 OpusHead extradata，否则 movenc 报 "invalid extradata size"。
-// - pts：视频 time_base 1/90000，pts = 会话毫秒 * 90；音频 time_base 1/48000，
-//   pts = 会话毫秒 * 48。同一墙钟驱动两轨 => 天然同步，丢帧互不影响。
+// - pts：写头后读取 muxer 最终 time_base，并把同一分段起点后的单调毫秒换算到两轨；
+//   等关键帧期间早于分段起点的音频丢弃，避免新分段出现只有音频的负向前导。
 // - 分段：写满 max_segment_bytes -> trailer 关文件 -> 回调请求关键帧 ->
 //   丢弃非关键视频帧(音频入队缓冲) -> 下一个关键帧开新段 -> 回填缓冲音频。
 //
@@ -30,6 +30,9 @@ extern "C" {
 #include <ctime>
 #include <filesystem>
 #include <fstream>
+#include <limits>
+#include <memory>
+#include <span>
 #include <vector>
 
 namespace px {
@@ -64,24 +67,50 @@ const uint8_t kOpusHead[19] = {
 
 // 缓冲上限：约 10 秒音频(50 包/秒 * 20ms)，超出丢最旧
 constexpr size_t kMaxAudioBufferPackets = 512;
+constexpr size_t kMaxOpusPacketBytes = 1275;
 
-struct Nal {
-    const uint8_t* data;
-    size_t size;
+bool IsValidOpusFrameSamples(const int frame_samples) {
+    return frame_samples == 120 || frame_samples == 240 || frame_samples == 480 || frame_samples == 960 || frame_samples == 1920 ||
+           frame_samples == 2880;
+}
+
+struct Nal final {
+    std::span<const uint8_t> bytes;
 };
 
+struct AvPacketDeleter final {
+    void operator()(AVPacket* packet) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+        av_packet_free(&packet);
+    }
+};
+
+struct AvFormatContextDeleter final {
+    void operator()(AVFormatContext* context) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+        if (!context) {
+            return;
+        }
+        if (context->pb) {
+            avio_closep(&context->pb);
+        }
+        avformat_free_context(context);
+    }
+};
+
+using AvPacketHandle = std::unique_ptr<AVPacket, AvPacketDeleter>;
+using AvFormatContextHandle = std::unique_ptr<AVFormatContext, AvFormatContextDeleter>;
+
 // Annex-B 拆分（支持 3/4 字节起始码）
-std::vector<Nal> SplitNals(const uint8_t* data, size_t size) {
+std::vector<Nal> SplitNals(const std::span<const uint8_t> data) {
     std::vector<Nal> nals;
-    if (!data || size == 0) {
+    if (data.empty()) {
         return nals;
     }
     auto start_code_len = [&](size_t p) -> size_t {
-        if (p + 4 <= size && data[p] == 0 && data[p + 1] == 0 &&
+        if (p + 4 <= data.size() && data[p] == 0 && data[p + 1] == 0 &&
             data[p + 2] == 0 && data[p + 3] == 1) {
             return 4;
         }
-        if (p + 3 <= size && data[p] == 0 && data[p + 1] == 0 && data[p + 2] == 1) {
+        if (p + 3 <= data.size() && data[p] == 0 && data[p + 1] == 0 && data[p + 2] == 1) {
             return 3;
         }
         return 0;
@@ -89,19 +118,19 @@ std::vector<Nal> SplitNals(const uint8_t* data, size_t size) {
 
     size_t i = 0;
     // 跳过开头的起始码
-    while (i < size && start_code_len(i) == 0) {
+    while (i < data.size() && start_code_len(i) == 0) {
         ++i;
     }
-    if (i >= size) {
+    if (i >= data.size()) {
         return nals;
     }
     i += start_code_len(i);
     size_t start = i;
-    while (i < size) {
+    while (i < data.size()) {
         size_t len = start_code_len(i);
         if (len > 0) {
             if (i > start) {
-                nals.push_back({data + start, i - start});
+                nals.push_back({data.subspan(start, i - start)});
             }
             i += len;
             start = i;
@@ -109,18 +138,18 @@ std::vector<Nal> SplitNals(const uint8_t* data, size_t size) {
             ++i;
         }
     }
-    if (size > start) {
-        nals.push_back({data + start, size - start});
+    if (data.size() > start) {
+        nals.push_back({data.subspan(start)});
     }
     return nals;
 }
 
 int H264NalType(const Nal& nal) {
-    return nal.size > 0 ? (nal.data[0] & 0x1F) : -1;
+    return nal.bytes.empty() ? -1 : (nal.bytes.front() & 0x1F);
 }
 
 int H265NalType(const Nal& nal) {
-    return nal.size > 0 ? ((nal.data[0] >> 1) & 0x3F) : -1;
+    return nal.bytes.empty() ? -1 : ((nal.bytes.front() >> 1) & 0x3F);
 }
 
 std::string SanitizeFileNamePart(std::string s) {
@@ -187,12 +216,20 @@ struct RecordWriter::Impl {
     std::vector<uint8_t> vps_, sps_, pps_;
 
     // ---- 等关键帧期间的音频缓冲 ----
-    std::vector<std::vector<uint8_t>> audio_buffer_;
+    struct BufferedAudio final {
+        std::vector<uint8_t> payload;
+        int64_t elapsed_ms{0};
+        int frame_samples{0};
+    };
+    std::vector<BufferedAudio> audio_buffer_;
 
     // ---- ffmpeg ----
-    AVFormatContext* fmt_ = nullptr;
-    AVStream* vstream_ = nullptr;
-    AVStream* astream_ = nullptr;
+    AvFormatContextHandle fmt_;
+    int video_stream_index_{-1};
+    int audio_stream_index_{-1};
+    AVRational video_time_base_{1, 90000};
+    AVRational audio_time_base_{1, 48000};
+    int64_t segment_start_elapsed_ms_{0};
     int64_t written_bytes_ = 0;
     std::string current_path_; // 当前分段路径(sidecar 标记用)
 
@@ -227,6 +264,7 @@ struct RecordWriter::Impl {
     // 对 muxer/播放器做严格单调递增保护(同段内)。
     int64_t last_video_dts_ = -1;
     int64_t last_audio_dts_ = -1;
+    int64_t last_audio_duration_ = 0;
 
     int64_t ElapsedMs() const {
         auto ms = clock_ms_() - session_start_ms_;
@@ -251,22 +289,22 @@ struct RecordWriter::Impl {
 
         // 1. 收集参数集（任何时候出现都更新缓存）
         //    注意: PPS 最短只有 4 字节(1 字节 NAL 头 + 3 字节), 过滤条件不能用 size>4
-        for (const auto& nal : SplitNals(data.data(), data.size())) {
+        for (const auto& nal : SplitNals(data)) {
             if (codec_ == RecordVideoCodec::kH264) {
                 int t = H264NalType(nal);
-                if (t == 7 && nal.size > 1) {
-                    sps_.assign(nal.data, nal.data + nal.size);
-                } else if (t == 8 && nal.size > 1) {
-                    pps_.assign(nal.data, nal.data + nal.size);
+                if (t == 7 && nal.bytes.size() > 1) {
+                    sps_.assign(nal.bytes.begin(), nal.bytes.end());
+                } else if (t == 8 && nal.bytes.size() > 1) {
+                    pps_.assign(nal.bytes.begin(), nal.bytes.end());
                 }
             } else {
                 int t = H265NalType(nal);
-                if (t == 32 && nal.size > 1) {
-                    vps_.assign(nal.data, nal.data + nal.size);
-                } else if (t == 33 && nal.size > 1) {
-                    sps_.assign(nal.data, nal.data + nal.size);
-                } else if (t == 34 && nal.size > 1) {
-                    pps_.assign(nal.data, nal.data + nal.size);
+                if (t == 32 && nal.bytes.size() > 1) {
+                    vps_.assign(nal.bytes.begin(), nal.bytes.end());
+                } else if (t == 33 && nal.bytes.size() > 1) {
+                    sps_.assign(nal.bytes.begin(), nal.bytes.end());
+                } else if (t == 34 && nal.bytes.size() > 1) {
+                    pps_.assign(nal.bytes.begin(), nal.bytes.end());
                 }
             }
         }
@@ -279,7 +317,7 @@ struct RecordWriter::Impl {
             if (!OpenFile()) {
                 return;
             }
-            WriteVideo(data.data(), data.size(), /*prepend_params=*/true);
+            WriteVideo(data, /*prepend_params=*/true);
             return;
         }
 
@@ -295,15 +333,15 @@ struct RecordWriter::Impl {
             if (!OpenFile()) {
                 return;
             }
-            WriteVideo(data.data(), data.size(), /*prepend_params=*/true);
+            WriteVideo(data, /*prepend_params=*/true);
             return;
         }
 
-        WriteVideo(data.data(), data.size(), /*prepend_params=*/false);
+        WriteVideo(data, /*prepend_params=*/false);
     }
 
-    void OnEncodedAudio(std::span<const uint8_t> data) {
-        if (!recording_ || data.empty()) {
+    void OnEncodedAudio(std::span<const uint8_t> data, const int frame_samples) {
+        if (!recording_ || data.empty() || data.size() > kMaxOpusPacketBytes || !IsValidOpusFrameSamples(frame_samples)) {
             return;
         }
         if (!writing_) {
@@ -311,10 +349,14 @@ struct RecordWriter::Impl {
             if (audio_buffer_.size() >= kMaxAudioBufferPackets) {
                 audio_buffer_.erase(audio_buffer_.begin());
             }
-            audio_buffer_.emplace_back(data.begin(), data.end());
+            audio_buffer_.push_back(BufferedAudio{
+                .payload = std::vector<uint8_t>(data.begin(), data.end()),
+                .elapsed_ms = ElapsedMs(),
+                .frame_samples = frame_samples,
+            });
             return;
         }
-        WriteAudio(data.data(), data.size());
+        WriteAudio(data, ElapsedMs(), frame_samples);
     }
 
     void Stop() {
@@ -330,14 +372,13 @@ struct RecordWriter::Impl {
     }
 
 private:
-    void WriteVideo(const uint8_t* data, size_t size, bool prepend_params) {
+    void WriteVideo(const std::span<const uint8_t> data, bool prepend_params) {
         std::vector<uint8_t> combined;
-        const uint8_t* pdata = data;
-        size_t psize = size;
+        auto packet_data = data;
         if (prepend_params && ParamsReady()) {
             // 缺哪个参数集补哪个（避免 avcC/hvcC 里出现重复 SPS/PPS）
             bool has_vps = false, has_sps = false, has_pps = false;
-            for (const auto& nal : SplitNals(data, size)) {
+            for (const auto& nal : SplitNals(data)) {
                 if (codec_ == RecordVideoCodec::kH264) {
                     int t = H264NalType(nal);
                     if (t == 7) has_sps = true;
@@ -359,52 +400,61 @@ private:
             if (!has_sps) append(sps_);
             if (!has_pps) append(pps_);
             if (!combined.empty()) {
-                combined.insert(combined.end(), data, data + size);
-                pdata = combined.data();
-                psize = combined.size();
+                combined.insert(combined.end(), data.begin(), data.end());
+                packet_data = combined;
             }
         }
 
-        AVPacket* pkt = av_packet_alloc();
+        AvPacketHandle pkt{av_packet_alloc()};
         if (!pkt) {
             return;
         }
-        pkt->stream_index = vstream_->index;
-        pkt->data = (uint8_t*)pdata;
-        pkt->size = (int)psize;
-        int64_t pts = ElapsedMs() * 90; // 1/90000 时间基
+        if (packet_data.size() > static_cast<size_t>(std::numeric_limits<int>::max()) ||
+            av_new_packet(pkt.get(), static_cast<int>(packet_data.size())) < 0) {
+            return;
+        }
+        std::memcpy(pkt->data, packet_data.data(), packet_data.size());
+        pkt->stream_index = video_stream_index_;
+        const auto segment_elapsed_ms = std::max<int64_t>(0, ElapsedMs() - segment_start_elapsed_ms_);
+        int64_t pts = av_rescale_q(segment_elapsed_ms, AVRational{1, 1000}, video_time_base_);
         if (pts <= last_video_dts_) {
-            pts = last_video_dts_ + 1; // 墙钟量化导致重复 dts, 钳制为严格递增
+            pts = last_video_dts_ + 1;
         }
         last_video_dts_ = pts;
         pkt->pts = pts;
         pkt->dts = pts;
         if (fmt_) {
-            av_interleaved_write_frame(fmt_, pkt);
+            av_interleaved_write_frame(fmt_.get(), pkt.get());
         }
-        av_packet_free(&pkt);
-        written_bytes_ += (int64_t)psize;
+        written_bytes_ += static_cast<int64_t>(packet_data.size());
     }
 
-    void WriteAudio(const uint8_t* data, size_t size) {
-        AVPacket* pkt = av_packet_alloc();
+    void WriteAudio(const std::span<const uint8_t> data, const int64_t elapsed_ms, const int frame_samples) {
+        if (elapsed_ms < segment_start_elapsed_ms_) {
+            return;
+        }
+        AvPacketHandle pkt{av_packet_alloc()};
         if (!pkt) {
             return;
         }
-        pkt->stream_index = astream_->index;
-        pkt->data = (uint8_t*)data;
-        pkt->size = (int)size;
-        int64_t pts = ElapsedMs() * 48; // 1/48000 时间基
-        if (pts <= last_audio_dts_) {
-            pts = last_audio_dts_ + 1;
+        if (av_new_packet(pkt.get(), static_cast<int>(data.size())) < 0) {
+            return;
         }
+        std::memcpy(pkt->data, data.data(), data.size());
+        pkt->stream_index = audio_stream_index_;
+        const auto duration = av_rescale_q(frame_samples, AVRational{1, 48000}, audio_time_base_);
+        const auto segment_elapsed_ms = elapsed_ms - segment_start_elapsed_ms_;
+        const auto pts = last_audio_dts_ < 0
+            ? av_rescale_q(segment_elapsed_ms, AVRational{1, 1000}, audio_time_base_)
+            : last_audio_dts_ + last_audio_duration_;
         last_audio_dts_ = pts;
+        last_audio_duration_ = duration;
         pkt->pts = pts;
         pkt->dts = pts;
+        pkt->duration = duration;
         if (fmt_) {
-            av_interleaved_write_frame(fmt_, pkt);
+            av_interleaved_write_frame(fmt_.get(), pkt.get());
         }
-        av_packet_free(&pkt);
     }
 
     std::string MakeFilePath() const {
@@ -426,45 +476,50 @@ private:
     bool OpenFile() {
         auto path = MakeFilePath();
         current_path_ = path;
-        int r = avformat_alloc_output_context2(&fmt_, nullptr, "mp4", path.c_str());
+        AVFormatContext* format_context{}; // NOLINT(gammaray-raw-pointer-boundary)
+        int r = avformat_alloc_output_context2(&format_context, nullptr, "mp4", path.c_str());
         if (r < 0) {
             std::fprintf(stderr, "[record_writer] alloc output ctx failed: %d\n", r);
-            fmt_ = nullptr;
             return false;
         }
+        fmt_.reset(format_context);
 
-        vstream_ = avformat_new_stream(fmt_, nullptr);
-        if (!vstream_) {
+        const auto video_stream_boundary = avformat_new_stream(fmt_.get(), nullptr); // NOLINT(gammaray-raw-pointer-boundary)
+        if (!video_stream_boundary) {
             CloseFile();
             return false;
         }
-        vstream_->time_base = {1, 90000};
-        auto* vc = vstream_->codecpar;
-        vc->codec_type = AVMEDIA_TYPE_VIDEO;
-        vc->codec_id = (codec_ == RecordVideoCodec::kH265) ? AV_CODEC_ID_HEVC : AV_CODEC_ID_H264;
-        vc->width = width_;
-        vc->height = height_;
+        auto& video_stream = *video_stream_boundary;
+        video_stream.time_base = {1, 90000};
+        video_stream_index_ = video_stream.index;
+        auto& video_parameters = *video_stream.codecpar;
+        video_parameters.codec_type = AVMEDIA_TYPE_VIDEO;
+        video_parameters.codec_id = (codec_ == RecordVideoCodec::kH265) ? AV_CODEC_ID_HEVC : AV_CODEC_ID_H264;
+        video_parameters.width = width_;
+        video_parameters.height = height_;
 
-        astream_ = avformat_new_stream(fmt_, nullptr);
-        if (!astream_) {
+        const auto audio_stream_boundary = avformat_new_stream(fmt_.get(), nullptr); // NOLINT(gammaray-raw-pointer-boundary)
+        if (!audio_stream_boundary) {
             CloseFile();
             return false;
         }
-        astream_->time_base = {1, 48000};
-        auto* ac = astream_->codecpar;
-        ac->codec_type = AVMEDIA_TYPE_AUDIO;
-        ac->codec_id = AV_CODEC_ID_OPUS;
-        ac->sample_rate = 48000;
-        ac->format = AV_SAMPLE_FMT_S16;
-        av_channel_layout_default(&ac->ch_layout, 2);
-        ac->extradata = (uint8_t*)av_malloc(sizeof(kOpusHead) + AV_INPUT_BUFFER_PADDING_SIZE);
-        if (!ac->extradata) {
+        auto& audio_stream = *audio_stream_boundary;
+        audio_stream.time_base = {1, 48000};
+        audio_stream_index_ = audio_stream.index;
+        auto& audio_parameters = *audio_stream.codecpar;
+        audio_parameters.codec_type = AVMEDIA_TYPE_AUDIO;
+        audio_parameters.codec_id = AV_CODEC_ID_OPUS;
+        audio_parameters.sample_rate = 48000;
+        audio_parameters.format = AV_SAMPLE_FMT_S16;
+        av_channel_layout_default(&audio_parameters.ch_layout, 2);
+        audio_parameters.extradata = static_cast<uint8_t*>(av_malloc(sizeof(kOpusHead) + AV_INPUT_BUFFER_PADDING_SIZE));
+        if (!audio_parameters.extradata) {
             CloseFile();
             return false;
         }
-        std::memcpy(ac->extradata, kOpusHead, sizeof(kOpusHead));
-        std::memset(ac->extradata + sizeof(kOpusHead), 0, AV_INPUT_BUFFER_PADDING_SIZE);
-        ac->extradata_size = (int)sizeof(kOpusHead);
+        std::memcpy(audio_parameters.extradata, kOpusHead, sizeof(kOpusHead));
+        std::memset(audio_parameters.extradata + sizeof(kOpusHead), 0, AV_INPUT_BUFFER_PADDING_SIZE);
+        audio_parameters.extradata_size = static_cast<int>(sizeof(kOpusHead));
 
         r = avio_open(&fmt_->pb, path.c_str(), AVIO_FLAG_WRITE);
         if (r < 0) {
@@ -472,12 +527,18 @@ private:
             CloseFile();
             return false;
         }
-        r = avformat_write_header(fmt_, nullptr);
+        r = avformat_write_header(fmt_.get(), nullptr);
         if (r < 0) {
             std::fprintf(stderr, "[record_writer] write_header failed: %d\n", r);
             CloseFile();
             return false;
         }
+        video_time_base_ = video_stream.time_base;
+        audio_time_base_ = audio_stream.time_base;
+        segment_start_elapsed_ms_ = ElapsedMs();
+        last_video_dts_ = -1;
+        last_audio_dts_ = -1;
+        last_audio_duration_ = 0;
 
         written_bytes_ = 0;
         ++segment_no_;
@@ -488,7 +549,7 @@ private:
 
         // 回填等关键帧期间缓冲的音频
         for (auto& a : audio_buffer_) {
-            WriteAudio(a.data(), a.size());
+            WriteAudio(a.payload, a.elapsed_ms, a.frame_samples);
         }
         audio_buffer_.clear();
         return true;
@@ -496,16 +557,18 @@ private:
 
     void CloseFile() {
         if (fmt_) {
-            av_write_trailer(fmt_);
+            av_write_trailer(fmt_.get());
             if (fmt_->pb) {
-                avio_close(fmt_->pb);
-                fmt_->pb = nullptr;
+                avio_closep(&fmt_->pb);
             }
-            avformat_free_context(fmt_); // 会释放 streams 及 codecpar.extradata
-            fmt_ = nullptr;
+            fmt_.reset();
         }
-        vstream_ = nullptr;
-        astream_ = nullptr;
+        video_stream_index_ = -1;
+        audio_stream_index_ = -1;
+        video_time_base_ = {1, 90000};
+        audio_time_base_ = {1, 48000};
+        segment_start_elapsed_ms_ = 0;
+        last_audio_duration_ = 0;
         written_bytes_ = 0;
         writing_ = false;
         RemoveRecordingMarker(); // moov 已落盘,文件可播
@@ -564,8 +627,8 @@ void RecordWriter::OnEncodedVideo(std::span<const uint8_t> data,
     impl_->OnEncodedVideo(data, codec, width, height, key);
 }
 
-void RecordWriter::OnEncodedAudio(std::span<const uint8_t> data) {
-    impl_->OnEncodedAudio(data);
+void RecordWriter::OnEncodedAudio(std::span<const uint8_t> data, const int frame_samples) {
+    impl_->OnEncodedAudio(data, frame_samples);
 }
 
 void RecordWriter::Stop() {

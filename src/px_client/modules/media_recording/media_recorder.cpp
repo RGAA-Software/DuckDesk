@@ -72,7 +72,7 @@ void MediaRecorder::RecvAudioFrame(const AudioFrame& frame) {
         return;
     }
     writer_->OnEncodedAudio(std::span<const uint8_t>(
-        reinterpret_cast<const uint8_t*>(d.data()), d.size()));
+        reinterpret_cast<const uint8_t*>(d.data()), d.size()), frame.frame_size());
 }
 
 std::optional<std::string> MediaRecorder::EndRecord() {

@@ -18,6 +18,7 @@ class SdkStatistics;
 class ThunderSdk;
 class Thread;
 class RecordWriter;
+class OpusAudioEncoder;
 class FileDirectory;
 } // namespace px
 
@@ -211,6 +212,7 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     std::shared_ptr<px::ft::FtAsyncSession> file_transfer_session_{};
     std::shared_ptr<px::Thread> recording_thread_{};
     std::shared_ptr<px::RecordWriter> recording_writer_{};
+    std::unique_ptr<px::OpusAudioEncoder> recording_audio_encoder_{};
     std::shared_ptr<NativeClipboard> clipboard_{};
     std::shared_ptr<NativeVoiceCall> voice_call_{};
     std::shared_ptr<px::SdkStatistics> statistics_{};

@@ -32,6 +32,7 @@
 #include "px_media_record/record_writer.h"
 #include "px_message/proto_message_maker.h"
 #include "px_message/proto_converter.h"
+#include "px_opus_codec/opus_codec.h"
 
 namespace pixels::android {
 namespace {
@@ -1197,32 +1198,6 @@ bool NativeSession::Initialize() {
             owner->recording_writer_->OnEncodedVideo(data, codec, frame.frame_width(), frame.frame_height(), frame.key());
         });
     });
-    sdk_->SetOnEncodedAudioFrameCallback([weak_self](std::shared_ptr<px::Message> message) {
-        const auto self = weak_self.lock();
-        if (!self || !message || self->stopped_.load() || !message->has_audio_frame() || message->audio_frame().data().empty()) {
-            return;
-        }
-        const auto generation = self->active_recording_generation_.load(std::memory_order_acquire);
-        std::shared_ptr<px::Thread> worker;
-        {
-            std::lock_guard lock(self->lifecycle_mutex_);
-            worker = self->recording_thread_;
-        }
-        if (generation == 0U || !worker) {
-            return;
-        }
-        self->recording_audio_packets_.fetch_add(1U, std::memory_order_relaxed);
-        worker->Post([weak_self, generation, message = std::move(message)] {
-            const auto owner = weak_self.lock();
-            if (!owner || owner->recording_writer_generation_ != generation || !owner->recording_writer_) {
-                return;
-            }
-            const auto& encoded = message->audio_frame().data();
-            const std::vector<std::uint8_t> data(encoded.begin(), encoded.end());
-            owner->recording_writer_->OnEncodedAudio(data);
-        });
-    });
-
     sdk_->SetOnServerConfigurationCallback([weak_self](std::shared_ptr<px::Message> message) {
         const auto self = weak_self.lock();
         if (!self || !message || self->stopped_.load()) {
@@ -1410,9 +1385,52 @@ bool NativeSession::Initialize() {
     });
     sdk_->SetOnAudioFrameDecodedCallback(
         [weak_self](const std::shared_ptr<px::Data>& pcm, const int sample_rate, const int channels, const int bits_per_sample) {
-            if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
-                static_cast<void>(self->audio_player_->Write(pcm, sample_rate, channels, bits_per_sample));
+            const auto self = weak_self.lock();
+            if (!self || self->stopped_.load() || !pcm) {
+                return;
             }
+            static_cast<void>(self->audio_player_->Write(pcm, sample_rate, channels, bits_per_sample));
+            const auto generation = self->active_recording_generation_.load(std::memory_order_acquire);
+            std::shared_ptr<px::Thread> worker;
+            {
+                std::lock_guard lock(self->lifecycle_mutex_);
+                worker = self->recording_thread_;
+            }
+            if (generation == 0U || !worker || pcm->Size() == 0U) {
+                return;
+            }
+            worker->Post([weak_self, generation, pcm, sample_rate, channels, bits_per_sample] {
+                const auto owner = weak_self.lock();
+                if (!owner || owner->recording_writer_generation_ != generation || !owner->recording_writer_ ||
+                    sample_rate != 48000 || channels != 2 || bits_per_sample != 16) {
+                    return;
+                }
+                constexpr std::size_t kBytesPerStereoFrame = 4U;
+                const auto bytes_per_frame = kBytesPerStereoFrame;
+                if (pcm->Size() % bytes_per_frame != 0U) {
+                    return;
+                }
+                const auto frame_size = static_cast<int>(pcm->Size() / bytes_per_frame);
+                if (frame_size != 120 && frame_size != 240 && frame_size != 480 && frame_size != 960 && frame_size != 1920 &&
+                    frame_size != 2880) {
+                    return;
+                }
+                if (!owner->recording_audio_encoder_) {
+                    owner->recording_audio_encoder_ =
+                        std::make_unique<px::OpusAudioEncoder>(sample_rate, channels, bits_per_sample, OPUS_APPLICATION_AUDIO, 0);
+                    if (!owner->recording_audio_encoder_->valid()) {
+                        owner->recording_audio_encoder_.reset();
+                        return;
+                    }
+                }
+                for (const auto& packet : owner->recording_audio_encoder_->Encode(std::as_bytes(pcm->Bytes()), frame_size)) {
+                    if (packet.empty()) {
+                        continue;
+                    }
+                    owner->recording_writer_->OnEncodedAudio(packet, frame_size);
+                    owner->recording_audio_packets_.fetch_add(1U, std::memory_order_relaxed);
+                }
+            });
         });
 
     return true;
@@ -1884,6 +1902,7 @@ bool NativeSession::StartRecording(const std::string& recording_id, const std::s
                     }
                 },
             });
+            self->recording_audio_encoder_.reset();
             self->recording_writer_generation_ = generation;
             self->callback_->RecordingState(self->config_.session_id, recording_id, kRecordingStarted, {});
             if (const auto active_sdk = weak_sdk.lock()) {
@@ -1893,6 +1912,7 @@ bool NativeSession::StartRecording(const std::string& recording_id, const std::s
             std::uint64_t expected = generation;
             self->active_recording_generation_.compare_exchange_strong(expected, 0U, std::memory_order_acq_rel);
             self->recording_writer_.reset();
+            self->recording_audio_encoder_.reset();
             self->recording_writer_generation_ = 0U;
             self->callback_->RecordingState(self->config_.session_id, recording_id, kRecordingFailed, error.what());
         }
@@ -1929,6 +1949,7 @@ bool NativeSession::StopRecording(const std::string& recording_id) {
                 error = exception.what();
             }
             self->recording_writer_.reset();
+            self->recording_audio_encoder_.reset();
             self->recording_writer_generation_ = 0U;
         }
         LOGI("Pixels Android recording {} finalized with {} video and {} audio packets", recording_id,
@@ -2052,6 +2073,7 @@ void NativeSession::Stop() {
                         error = exception.what();
                     }
                     self->recording_writer_.reset();
+                    self->recording_audio_encoder_.reset();
                     self->recording_writer_generation_ = 0U;
                 }
                 if (recording_generation != 0U && !recording_id.empty()) {

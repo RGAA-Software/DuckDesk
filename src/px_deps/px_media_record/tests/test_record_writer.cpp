@@ -1,7 +1,7 @@
 //
 // 共享录制核心 RecordWriter 的确定性单测。
 // - 视频: avcodec libx264 内存内生成 H264 Annex-B(首帧带 SPS/PPS)
-// - 音频: 伪 Opus 包(muxer 不校验 payload)
+// - 音频: libopus 生成可解码的 48kHz 双声道 20ms 包
 // - 时间: 虚拟时钟注入, 快且可重复
 // - 断言: 输出 MP4 用 avformat 重新打开校验(流/时长/同步/avcC/首帧关键帧/可解码)
 //
@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 
 #include "record_writer.h"
+#include "opus_codec.h"
 
 extern "C" {
 #include "libavformat/avformat.h"
@@ -23,6 +24,8 @@ extern "C" {
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <memory>
+#include <optional>
 #include <random>
 #include <string>
 #include <vector>
@@ -75,48 +78,59 @@ struct FileInfo {
     bool avcc_present = false;
 };
 
-bool OpenAndInspect(const fs::path& path, AVFormatContext** out_fc, FileInfo* out_info) {
-    AVFormatContext* fc = nullptr;
-    if (avformat_open_input(&fc, path.string().c_str(), nullptr, nullptr) < 0) {
-        return false;
+struct InputFormatDeleter final {
+    void operator()(AVFormatContext* format) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+        avformat_close_input(&format);
     }
-    if (avformat_find_stream_info(fc, nullptr) < 0) {
-        avformat_close_input(&fc);
-        return false;
+};
+
+using InputFormatHandle = std::unique_ptr<AVFormatContext, InputFormatDeleter>;
+
+struct InspectedFile final {
+    InputFormatHandle format;
+    FileInfo info;
+};
+
+std::optional<InspectedFile> OpenAndInspect(const fs::path& path) {
+    AVFormatContext* format_boundary = nullptr; // NOLINT(gammaray-raw-pointer-boundary)
+    if (avformat_open_input(&format_boundary, path.string().c_str(), nullptr, nullptr) < 0) {
+        return std::nullopt;
+    }
+    InputFormatHandle format{format_boundary};
+    if (avformat_find_stream_info(format.get(), nullptr) < 0) {
+        return std::nullopt;
     }
     FileInfo info;
-    for (unsigned i = 0; i < fc->nb_streams; ++i) {
-        auto* st = fc->streams[i];
-        auto* par = st->codecpar;
+    for (unsigned i = 0; i < format->nb_streams; ++i) {
+        auto& stream = *format->streams[i];
+        auto& parameters = *stream.codecpar;
         auto track_ms = [&]() -> int64_t {
-            if (st->duration == AV_NOPTS_VALUE || st->duration <= 0) {
+            if (stream.duration == AV_NOPTS_VALUE || stream.duration <= 0) {
                 return 0;
             }
-            return st->duration * 1000 * st->time_base.num / st->time_base.den;
+            return stream.duration * 1000 * stream.time_base.num / stream.time_base.den;
         };
-        if (par->codec_type == AVMEDIA_TYPE_VIDEO && par->codec_id == AV_CODEC_ID_H264) {
+        if (parameters.codec_type == AVMEDIA_TYPE_VIDEO && parameters.codec_id == AV_CODEC_ID_H264) {
             info.video_index = (int)i;
-            info.width = par->width;
-            info.height = par->height;
-            info.avcc_present = par->extradata_size > 0;
+            info.width = parameters.width;
+            info.height = parameters.height;
+            info.avcc_present = parameters.extradata_size > 0;
             info.video_duration_ms = track_ms();
         }
-        else if (par->codec_type == AVMEDIA_TYPE_AUDIO && par->codec_id == AV_CODEC_ID_OPUS) {
+        else if (parameters.codec_type == AVMEDIA_TYPE_AUDIO && parameters.codec_id == AV_CODEC_ID_OPUS) {
             info.audio_index = (int)i;
             info.audio_duration_ms = track_ms();
         }
     }
-    info.duration_ms = fc->duration > 0 ? fc->duration / 1000 : 0;
-    *out_fc = fc;
-    *out_info = info;
-    return true;
+    info.duration_ms = format->duration > 0 ? format->duration / 1000 : 0;
+    return InspectedFile{.format = std::move(format), .info = info};
 }
 
 // 第一个视频包必须是关键帧(段首可独立解码)
-bool FirstVideoPacketIsKey(AVFormatContext* fc, int video_index) {
+bool FirstVideoPacketIsKey(AVFormatContext& format, int video_index) {
     AVPacket* pkt = av_packet_alloc();
     bool ok = false;
-    while (av_read_frame(fc, pkt) >= 0) {
+    while (av_read_frame(&format, pkt) >= 0) {
         if (pkt->stream_index == video_index) {
             ok = (pkt->flags & AV_PKT_FLAG_KEY) != 0;
             av_packet_unref(pkt);
@@ -129,7 +143,7 @@ bool FirstVideoPacketIsKey(AVFormatContext* fc, int video_index) {
 }
 
 // 从段首开始解码, 能解出 >= min_frames 帧才算可播放
-bool DecodesFromStart(AVFormatContext* fc, int video_index, int min_frames) {
+bool DecodesFromStart(AVFormatContext& format, int video_index, int min_frames) {
     const AVCodec* dec = avcodec_find_decoder(AV_CODEC_ID_H264);
     if (!dec) {
         return false;
@@ -139,7 +153,7 @@ bool DecodesFromStart(AVFormatContext* fc, int video_index, int min_frames) {
         return false;
     }
     // 必须把流的 codecpar(含 avcC extradata)传给解码器
-    if (avcodec_parameters_to_context(ctx, fc->streams[video_index]->codecpar) < 0) {
+    if (avcodec_parameters_to_context(ctx, format.streams[video_index]->codecpar) < 0) {
         avcodec_free_context(&ctx);
         return false;
     }
@@ -147,11 +161,11 @@ bool DecodesFromStart(AVFormatContext* fc, int video_index, int min_frames) {
         avcodec_free_context(&ctx);
         return false;
     }
-    av_seek_frame(fc, -1, 0, AVSEEK_FLAG_BACKWARD);
+    av_seek_frame(&format, -1, 0, AVSEEK_FLAG_BACKWARD);
     AVPacket* pkt = av_packet_alloc();
     AVFrame* frame = av_frame_alloc();
     int decoded = 0;
-    while (av_read_frame(fc, pkt) >= 0) {
+    while (av_read_frame(&format, pkt) >= 0) {
         if (pkt->stream_index != video_index) {
             av_packet_unref(pkt);
             continue;
@@ -173,6 +187,57 @@ bool DecodesFromStart(AVFormatContext* fc, int video_index, int min_frames) {
     av_packet_free(&pkt);
     avcodec_free_context(&ctx);
     return decoded >= min_frames;
+}
+
+struct TestPacketDeleter final {
+    void operator()(AVPacket* packet) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+        av_packet_free(&packet);
+    }
+};
+
+bool AudioPacketsDecodeFromStart(AVFormatContext& format, int audio_index, int minimum_packets) {
+    OpusAudioDecoder decoder(48000, 2);
+    if (!decoder.valid()) {
+        return false;
+    }
+    av_seek_frame(&format, -1, 0, AVSEEK_FLAG_BACKWARD);
+    std::unique_ptr<AVPacket, TestPacketDeleter> packet{av_packet_alloc()};
+    if (!packet) {
+        return false;
+    }
+    int decoded_packets = 0;
+    while (av_read_frame(&format, packet.get()) >= 0 && decoded_packets < minimum_packets) {
+        if (packet->stream_index == audio_index) {
+            const std::vector<unsigned char> encoded(packet->data, packet->data + packet->size);
+            if (decoder.Decode(encoded, 5760, false).empty()) {
+                return false;
+            }
+            ++decoded_packets;
+        }
+        av_packet_unref(packet.get());
+    }
+    return decoded_packets == minimum_packets;
+}
+
+bool AudioPacketsUseSampleClock(AVFormatContext& format, int audio_index, int minimum_packets) {
+    av_seek_frame(&format, -1, 0, AVSEEK_FLAG_BACKWARD);
+    std::unique_ptr<AVPacket, TestPacketDeleter> packet{av_packet_alloc()};
+    if (!packet) {
+        return false;
+    }
+    int packets = 0;
+    int64_t previous_dts = AV_NOPTS_VALUE;
+    while (av_read_frame(&format, packet.get()) >= 0 && packets < minimum_packets) {
+        if (packet->stream_index == audio_index) {
+            if (packet->duration != 960 || (previous_dts != AV_NOPTS_VALUE && packet->dts - previous_dts != 960)) {
+                return false;
+            }
+            previous_dts = packet->dts;
+            ++packets;
+        }
+        av_packet_unref(packet.get());
+    }
+    return packets == minimum_packets;
 }
 
 // ---------------------------------------------------------------------------
@@ -249,12 +314,18 @@ std::vector<uint8_t> EncodeOneFrame(H264Gen& g, int64_t pts, bool force_key) {
     return out;
 }
 
-std::vector<uint8_t> FakeOpusPacket(size_t size, uint8_t seed) {
-    std::vector<uint8_t> p(size);
-    for (size_t i = 0; i < size; ++i) {
-        p[i] = (uint8_t)(seed + i * 7);
+std::vector<uint8_t> EncodeOpusPacket(OpusAudioEncoder& encoder, int packet_index) {
+    constexpr int kFrameSamples = 960;
+    constexpr int kChannels = 2;
+    constexpr int kFrameValueCount = 1920;
+    std::vector<opus_int16> pcm(kFrameValueCount);
+    for (int sample = 0; sample < kFrameSamples; ++sample) {
+        const auto value = static_cast<opus_int16>(((sample + packet_index * 31) % 240 - 120) * 180);
+        pcm[sample * kChannels] = value;
+        pcm[sample * kChannels + 1] = static_cast<opus_int16>(-value);
     }
-    return p;
+    const auto packets = encoder.Encode(pcm, kFrameSamples);
+    return packets.empty() ? std::vector<uint8_t>{} : packets.front();
 }
 
 struct VirtualClock {
@@ -265,6 +336,8 @@ struct VirtualClock {
 // 按真实时间交错喂 N 秒视频(30fps, GOP=30) + 音频(20ms/包), 共用同一虚拟墙钟
 void FeedAV(RecordWriter& w, H264Gen& gen, VirtualClock& clk,
             int seconds, int fps, int gop, bool with_audio) {
+    OpusAudioEncoder audio_encoder(48000, 2, 16, OPUS_APPLICATION_AUDIO, 0);
+    ASSERT_TRUE(audio_encoder.valid());
     const int64_t base = clk.ms;
     const int total_ms = seconds * 1000;
     const int frame_dur = 1000 / fps;
@@ -285,8 +358,9 @@ void FeedAV(RecordWriter& w, H264Gen& gen, VirtualClock& clk,
         }
         else {
             clk.ms = base + audio_next_ms;
-            auto a = FakeOpusPacket(40, (uint8_t)audio_idx++);
-            w.OnEncodedAudio(std::span<const uint8_t>(a));
+            auto a = EncodeOpusPacket(audio_encoder, audio_idx++);
+            ASSERT_FALSE(a.empty());
+            w.OnEncodedAudio(std::span<const uint8_t>(a), 960);
             audio_next_ms += 20;
         }
     }
@@ -314,9 +388,9 @@ TEST(RecordWriter, BasicAVSync) {
     auto files = ListMp4(dir);
     ASSERT_EQ(files.size(), 1u) << "should produce exactly one file";
 
-    AVFormatContext* fc = nullptr;
-    FileInfo info;
-    ASSERT_TRUE(OpenAndInspect(files[0], &fc, &info));
+    auto inspected = OpenAndInspect(files[0]);
+    ASSERT_TRUE(inspected.has_value());
+    const auto& info = inspected->info;
     ASSERT_GE(info.video_index, 0);
     ASSERT_GE(info.audio_index, 0);
     EXPECT_EQ(info.width, 640);
@@ -331,9 +405,10 @@ TEST(RecordWriter, BasicAVSync) {
         << "audio/video tracks must stay in sync";
 
     // 首帧关键帧 + 可从头解码
-    EXPECT_TRUE(FirstVideoPacketIsKey(fc, info.video_index));
-    EXPECT_TRUE(DecodesFromStart(fc, info.video_index, 5));
-    avformat_close_input(&fc);
+    EXPECT_TRUE(FirstVideoPacketIsKey(*inspected->format, info.video_index));
+    EXPECT_TRUE(DecodesFromStart(*inspected->format, info.video_index, 5));
+    EXPECT_TRUE(AudioPacketsDecodeFromStart(*inspected->format, info.audio_index, 100));
+    inspected.reset();
     fs::remove_all(dir);
 }
 
@@ -364,16 +439,15 @@ TEST(RecordWriter, RollingAndCleanup) {
     int64_t video_total_ms = 0;
     int64_t audio_total_ms = 0;
     for (auto& f : files) {
-        AVFormatContext* fc = nullptr;
-        FileInfo info;
-        ASSERT_TRUE(OpenAndInspect(f, &fc, &info));
+        auto inspected = OpenAndInspect(f);
+        ASSERT_TRUE(inspected.has_value());
+        const auto& info = inspected->info;
         EXPECT_GE(info.video_index, 0);
         EXPECT_TRUE(info.avcc_present);
-        EXPECT_TRUE(FirstVideoPacketIsKey(fc, info.video_index));
-        EXPECT_TRUE(DecodesFromStart(fc, info.video_index, 3));
+        EXPECT_TRUE(FirstVideoPacketIsKey(*inspected->format, info.video_index));
+        EXPECT_TRUE(DecodesFromStart(*inspected->format, info.video_index, 3));
         video_total_ms += info.video_duration_ms;
         audio_total_ms += info.audio_duration_ms;
-        avformat_close_input(&fc);
     }
     // 各段音频时长之和 ≈ 各段视频时长之和(音频连续, 误差 < 1.5s)
     EXPECT_NEAR((double)video_total_ms, (double)audio_total_ms, 1500.0)
@@ -440,12 +514,12 @@ TEST(RecordWriter, EarlyStop) {
 
     auto files = ListMp4(dir);
     ASSERT_EQ(files.size(), 1u);
-    AVFormatContext* fc = nullptr;
-    FileInfo info;
-    ASSERT_TRUE(OpenAndInspect(files[0], &fc, &info));
+    auto inspected = OpenAndInspect(files[0]);
+    ASSERT_TRUE(inspected.has_value());
+    const auto& info = inspected->info;
     EXPECT_GE(info.duration_ms, 1500);
-    EXPECT_TRUE(FirstVideoPacketIsKey(fc, info.video_index));
-    avformat_close_input(&fc);
+    EXPECT_TRUE(FirstVideoPacketIsKey(*inspected->format, info.video_index));
+    inspected.reset();
     fs::remove_all(dir);
 }
 
@@ -494,14 +568,52 @@ TEST(RecordWriter, AudioOnlyNoFile) {
     cfg.dir = dir;
     cfg.clock_ms = [&]() { return clk.ms; };
     auto w = RecordWriter::Make(cfg);
+    OpusAudioEncoder audio_encoder(48000, 2, 16, OPUS_APPLICATION_AUDIO, 0);
+    ASSERT_TRUE(audio_encoder.valid());
 
     for (int i = 0; i < 100; ++i) {
         clk.ms += 20;
-        auto a = FakeOpusPacket(40, (uint8_t)i);
-        w->OnEncodedAudio(std::span<const uint8_t>(a));
+        auto a = EncodeOpusPacket(audio_encoder, i);
+        ASSERT_FALSE(a.empty());
+        w->OnEncodedAudio(std::span<const uint8_t>(a), 960);
     }
     w->Stop();
     EXPECT_TRUE(ListMp4(dir).empty()) << "audio-only must not create a file";
+    fs::remove_all(dir);
+}
+
+TEST(RecordWriter, BurstDeliveredAudioUsesSampleClock) {
+    auto dir = MakeTempDir();
+    VirtualClock clk;
+    RecordWriterConfig cfg;
+    cfg.dir = dir;
+    cfg.clock_ms = [&]() { return clk.ms; };
+    auto writer = RecordWriter::Make(cfg);
+    H264Gen video_encoder;
+    ASSERT_TRUE(OpenH264Encoder(video_encoder, 320, 240, 30, 30));
+    auto video = EncodeOneFrame(video_encoder, 0, true);
+    ASSERT_FALSE(video.empty());
+    writer->OnEncodedVideo(video, RecordVideoCodec::kH264, 320, 240, true);
+
+    OpusAudioEncoder audio_encoder(48000, 2, 16, OPUS_APPLICATION_AUDIO, 0);
+    ASSERT_TRUE(audio_encoder.valid());
+    clk.ms += 100;
+    for (int index = 0; index < 20; ++index) {
+        auto audio = EncodeOpusPacket(audio_encoder, index);
+        ASSERT_FALSE(audio.empty());
+        writer->OnEncodedAudio(audio, 960);
+    }
+    writer->Stop();
+    CloseH264Encoder(video_encoder);
+
+    const auto files = ListMp4(dir);
+    ASSERT_EQ(files.size(), 1U);
+    auto inspected = OpenAndInspect(files.front());
+    ASSERT_TRUE(inspected.has_value());
+    const auto& info = inspected->info;
+    ASSERT_GE(info.audio_index, 0);
+    EXPECT_TRUE(AudioPacketsUseSampleClock(*inspected->format, info.audio_index, 20));
+    inspected.reset();
     fs::remove_all(dir);
 }
 

@@ -85,6 +85,7 @@ target_link_libraries(pixels_android_core PRIVATE
     px_sdk
     px_ft_engine
     px_media_record
+    px_opus_codec
     px_voice_call
 )
 

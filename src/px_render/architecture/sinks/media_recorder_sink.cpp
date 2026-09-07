@@ -44,7 +44,7 @@ class RecordWriterAdapter final : public MediaRecorderWriter {
         if (!writer_ || !frame || !frame->payload || frame->payload->empty()) {
             return;
         }
-        writer_->OnEncodedAudio(std::span<const std::uint8_t>(*frame->payload));
+        writer_->OnEncodedAudio(std::span<const std::uint8_t>(*frame->payload), static_cast<int>(frame->frame_size));
     }
 
     void Stop() override {

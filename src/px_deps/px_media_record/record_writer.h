@@ -55,8 +55,8 @@ public:
     // 编码视频帧（Annex-B，含起始码；宽高以首次到达为准）
     void OnEncodedVideo(std::span<const uint8_t> data,
                         RecordVideoCodec codec, int width, int height, bool key);
-    // 编码音频包（Opus，约定 48kHz/立体声/20ms）
-    void OnEncodedAudio(std::span<const uint8_t> data);
+    // 编码音频包（Opus，48kHz/立体声；frame_samples 是每声道采样数）
+    void OnEncodedAudio(std::span<const uint8_t> data, int frame_samples);
 
     // 结束录制：写 trailer、关文件、执行滚动清理。已入队数据由适配层先排空再调用。
     void Stop();
