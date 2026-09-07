@@ -48,7 +48,6 @@ struct StreamLaunchResolvedTicket final {
     std::string host;
     int port = 0;
     std::string remote_device_id;
-    bool direct_probe_enabled = true;
 };
 
 struct StreamLaunchAuthRequest final {
@@ -58,8 +57,6 @@ struct StreamLaunchAuthRequest final {
     std::string instance_id;
     std::string client_nonce;
     std::vector<std::string> permissions;
-    bool force_relay = false;
-    bool force_direct_transport = false;
     std::chrono::steady_clock::time_point deadline =
         std::chrono::steady_clock::now() + std::chrono::seconds(65);
 };

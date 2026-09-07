@@ -27,6 +27,16 @@ TEST(StreamLaunchChildArguments, ConsoleTicketPassesAllCredentialArguments) {
     EXPECT_EQ(arguments[2], "--connection_instance_id=instance");
 }
 
+TEST(StreamLaunchChildArguments, NativeBindingRequiresAuthenticatedRuntimeIdentity) {
+    EXPECT_TRUE(HasNativeLaunchBinding("ip-direct:grant", "", "nonce", false));
+    EXPECT_FALSE(HasNativeLaunchBinding("saved-device-row", "", "nonce", false));
+    EXPECT_FALSE(HasNativeLaunchBinding("ip-direct:grant", "", "", false));
+    EXPECT_TRUE(HasNativeLaunchBinding("issued-stream", "ticket", "nonce", false));
+    EXPECT_FALSE(HasNativeLaunchBinding("", "ticket", "nonce", false));
+    EXPECT_TRUE(HasNativeLaunchBinding("issued-file-stream", "ticket", "nonce", true));
+    EXPECT_FALSE(HasNativeLaunchBinding("ip-direct:grant", "", "nonce", true));
+}
+
 TEST(StreamLaunchChildArguments, EmptyCredentialsAddNothing) {
     EXPECT_TRUE(BuildStreamLaunchCredentialArguments({}).empty());
 }

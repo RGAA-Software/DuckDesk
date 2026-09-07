@@ -1,0 +1,238 @@
+#include "connected_info_panel.h"
+#include <qpushbutton.h>
+#include <qcheckbox.h>
+#include <qpixmap.h>
+#include <qtimer.h>
+#include "no_margin_layout.h"
+#include "px_label.h"
+#include "px_pushbutton.h"
+#include "render_panel/px_context.h"
+#include "px_qt_widget/widget_helper.h"
+#include "render_panel/px_settings.h"
+#include "px_render_panel_message.pb.h"
+#include "render_panel/px_application.h"
+#include "px_common/client_id_extractor.h"
+#include "px_common/uid_spacer.h"
+#include "px_message/rp_proto_converter.h"
+
+namespace px {
+
+	ConnectedInfoPanel::ConnectedInfoPanel(
+        const std::shared_ptr<PxContext>& ctx,
+        QWidget* parent) // NOLINT(gammaray-raw-pointer-boundary) Qt parent API
+        : QWidget(parent), ctx_(ctx), settings_(*PxSettings::Instance()) {
+		InitView();
+		WidgetHelper::AddShadow(this, 0xbbbbbb, 8);
+		InitData();
+		InitSigChannel();
+	}
+	
+	void ConnectedInfoPanel::InitView() {
+        setAttribute(Qt::WA_TranslucentBackground);
+
+		setFixedSize(500, 200);
+		root_vbox_layout_ = new NoMarginVLayout();
+		setLayout(root_vbox_layout_);
+		root_vbox_layout_->addSpacing(20);
+
+		// logo标识
+		logo_hbox_layout_ = new NoMarginHLayout();
+		logo_lab_ = new TcLabel(this);
+		QPixmap logo_pixmap(":/resources/px_icon.png");
+		logo_pixmap = logo_pixmap.scaled(20, 20, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+		logo_lab_->setPixmap(logo_pixmap);
+		logo_lab_->setFixedSize(20, 20);
+		logo_name_lab_ = new TcLabel(this);
+		logo_name_lab_->setText("Pixels");
+		logo_name_lab_->setStyleSheet("font-size: 14px; font-weight: 500; color: #2979FF;");
+		logo_hbox_layout_->addSpacing(18);
+		logo_hbox_layout_->addWidget(logo_lab_);
+		logo_hbox_layout_->addSpacing(6);
+		logo_hbox_layout_->addWidget(logo_name_lab_);
+		root_vbox_layout_->addLayout(logo_hbox_layout_);
+
+		// 连接者信息
+		avatar_name_hbox_layout_ = new NoMarginHLayout();
+		avatar_lab_ = new TcLabel(this);
+		avatar_lab_->setFixedSize(30, 30);
+		QPixmap avatar_pixmap(":/resources/avatar.png");
+		avatar_pixmap = avatar_pixmap.scaled(30, 30, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+		avatar_lab_->setPixmap(avatar_pixmap);
+
+		auto info_vbox_layout = new NoMarginVLayout();
+		key_1_lab_ = new TcLabel(this);
+		key_1_lab_->setStyleSheet("font-size: 14px; font-weight: 800;");
+		key_1_lab_->setText("");
+
+		key_2_lab_ = new TcLabel(this);
+		key_2_lab_->setStyleSheet("font-size: 12px; font-weight: 500;");
+		key_2_lab_->setText("");
+
+		info_vbox_layout->addWidget(key_1_lab_);
+		info_vbox_layout->addSpacing(4);
+		info_vbox_layout->addWidget(key_2_lab_);
+
+		conn_prompt_lab_ = new TcLabel(this);
+		conn_prompt_lab_->setStyleSheet("font-size: 14px; font-weight: 400;");
+		conn_prompt_lab_->SetTextId("id_remote_local_machine");
+		conn_prompt_lab_->adjustSize();
+		disconnect_btn_ = new TcPushButton(this);
+		disconnect_btn_->setFixedWidth(90);
+		disconnect_btn_->SetTextId("id_disconnect");
+        const QPointer<ConnectedInfoPanel> self(this);
+        connect(disconnect_btn_, &QPushButton::clicked, this, [self]() {
+            if (!self || !self->info_) {
+                return;
+            }
+            pxrp::RpMessage msg;
+            msg.set_type(pxrp::kRpDisconnectConnection);
+            auto sub = msg.mutable_disconnect_connection();
+            sub->set_device_id(self->info_->device_id());
+            sub->set_stream_id(self->info_->stream_id());
+            sub->set_room_id(self->info_->room_id());
+            sub->set_device_name(self->info_->device_name());
+            self->ctx_->GetApplication()->PostMessage2Renderer(
+                px::RpProtoAsData(&msg));
+        });
+		disconnect_btn_->setProperty("class", "danger");
+
+		avatar_name_hbox_layout_->addSpacing(18);
+		avatar_name_hbox_layout_->addWidget(avatar_lab_);
+		avatar_name_hbox_layout_->addSpacing(6);
+		avatar_name_hbox_layout_->addLayout(info_vbox_layout);
+		avatar_name_hbox_layout_->addSpacing(6);
+		avatar_name_hbox_layout_->addWidget(conn_prompt_lab_, 0, Qt::AlignTop);
+		avatar_name_hbox_layout_->addSpacing(6);
+		avatar_name_hbox_layout_->addStretch(1);
+		avatar_name_hbox_layout_->addWidget(disconnect_btn_);
+		avatar_name_hbox_layout_->addSpacing(14);
+		root_vbox_layout_->addSpacing(12);
+		root_vbox_layout_->addLayout(avatar_name_hbox_layout_);
+		root_vbox_layout_->addStretch(1);
+
+		// 允许访问
+		promtp_hbox_layout_ = new NoMarginHLayout();
+		promtp_hbox_layout_->setAlignment(Qt::AlignLeft);
+		prompt_lab_ = new TcLabel(this);
+		prompt_lab_->setStyleSheet("font-size: 14px; font-weight: 400;");
+		prompt_lab_->SetTextId("id_allow_access_to");
+
+		access_hint_lab_ = new TcLabel(this);
+		access_hint_lab_->SetTextId("id_access_hint");
+		access_hint_lab_->setStyleSheet("font-size: 14px; font-weight: 400;");
+		access_hint_lab_->hide();
+
+		promtp_hbox_layout_->addSpacing(18);
+		promtp_hbox_layout_->addWidget(prompt_lab_);
+		promtp_hbox_layout_->addSpacing(12);
+		promtp_hbox_layout_->addWidget(access_hint_lab_);
+		root_vbox_layout_->addLayout(promtp_hbox_layout_);
+
+		// 权限控制
+		access_control_hbox_layout_ = new NoMarginHLayout();
+		voice_lab_ = new TcLabel(this);
+		voice_lab_->SetTextId("id_voice");
+		voice_lab_->setStyleSheet("font-size: 14px; font-weight: 400;");
+		voice_cbox_ = new QCheckBox(this);
+
+		key_mouse_lab_ = new TcLabel(this);
+		key_mouse_lab_->SetTextId("id_key_mouse");
+		key_mouse_lab_->setStyleSheet("font-size: 14px; font-weight: 400;");
+		key_mouse_cbox_ = new QCheckBox(this);
+
+		file_lab_ = new TcLabel(this);
+		file_lab_->SetTextId("id_file");
+		file_lab_->setStyleSheet("font-size: 14px; font-weight: 400;");
+		file_cbox_ = new QCheckBox(this);
+
+		access_control_hbox_layout_->addSpacing(18);
+		access_control_hbox_layout_->addWidget(voice_lab_);
+		access_control_hbox_layout_->addSpacing(4);
+		access_control_hbox_layout_->addWidget(voice_cbox_);
+		access_control_hbox_layout_->addSpacing(12);
+		access_control_hbox_layout_->addWidget(key_mouse_lab_);
+		access_control_hbox_layout_->addSpacing(4);
+		access_control_hbox_layout_->addWidget(key_mouse_cbox_);
+		access_control_hbox_layout_->addSpacing(12);
+		access_control_hbox_layout_->addWidget(file_lab_);
+		access_control_hbox_layout_->addSpacing(4);
+		access_control_hbox_layout_->addWidget(file_cbox_);
+		access_control_hbox_layout_->addSpacing(6);
+		access_control_hbox_layout_->addStretch(1);
+		root_vbox_layout_->addSpacing(8);
+		root_vbox_layout_->addLayout(access_control_hbox_layout_);
+		root_vbox_layout_->addStretch(1);
+		root_vbox_layout_->addSpacing(20);
+	}
+
+	void ConnectedInfoPanel::paintEvent(QPaintEvent* event) {
+		QWidget::paintEvent(event);
+        QPainter painter(this);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QBrush(0xffffff));
+        painter.drawRoundedRect(0, 5, this->width(), this->height()-10, 5, 5);
+	}
+
+	void ConnectedInfoPanel::UpdateInfo(const std::shared_ptr<pxrp::RpConnectedClientInfo>& info) {
+        info_ = info;
+        auto device_id = ExtractClientId(info_->device_id());
+        if (info_->device_id().starts_with("client_")
+            || (device_id.size() == 9 && device_id.find(".") == std::string::npos)) {
+            device_id = px::SpaceId(device_id);
+        }
+		key_1_lab_->setText(device_id.c_str());
+		key_1_lab_->adjustSize();
+		key_1_lab_->setMinimumWidth(160);
+		key_2_lab_->setText(info_->device_name().c_str());
+		key_2_lab_->adjustSize();
+	}
+
+	void ConnectedInfoPanel::InitData() {
+		bool audio_access = settings_.get().IsCaptureAudioEnabled();
+		voice_cbox_->setChecked(audio_access);
+
+		bool file_access = settings_.get().IsFileTransferEnabled();
+		file_cbox_->setChecked(file_access);
+
+		bool key_mouse_access = settings_.get().IsBeingOperatedEnabled();
+		key_mouse_cbox_->setChecked(key_mouse_access);
+	}
+
+	void ConnectedInfoPanel::InitSigChannel() {
+		const QPointer<ConnectedInfoPanel> self(this);
+		connect(voice_cbox_, &QCheckBox::toggled, this, [self] {
+			if (!self) return;
+			bool audio_access = self->settings_.get().IsCaptureAudioEnabled();
+			self->voice_cbox_->setChecked(audio_access);
+			self->ShowAccessHint();
+		});
+		
+		connect(file_cbox_, &QCheckBox::toggled, this, [self] {
+			if (!self) return;
+			bool file_access = self->settings_.get().IsFileTransferEnabled();
+			self->file_cbox_->setChecked(file_access);
+			self->ShowAccessHint();
+		});
+
+		connect(key_mouse_cbox_, &QCheckBox::toggled, this, [self] {
+			if (!self) return;
+			bool key_mouse_access = self->settings_.get().IsBeingOperatedEnabled();
+			self->key_mouse_cbox_->setChecked(key_mouse_access);
+			self->ShowAccessHint();
+		});
+	}
+
+	void ConnectedInfoPanel::ShowAccessHint() {
+		access_hint_lab_->show();
+		const QPointer<ConnectedInfoPanel> self(this);
+		QTimer::singleShot(3000, this, [self] {
+			if (self && self->access_hint_lab_) {
+				self->access_hint_lab_->hide();
+			}
+		});
+	}
+
+	std::string ConnectedInfoPanel::GetStreamId() const {
+		return info_ ? info_->stream_id() : "";
+	}
+}

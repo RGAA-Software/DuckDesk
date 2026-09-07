@@ -68,7 +68,7 @@ namespace px
         // for client render process --- below
         std::string stream_id_;
         // network type
-        ClientNetworkType network_type_;
+        static constexpr ClientNetworkType network_type_{ClientNetworkType::kUdpDirect};
         // stream name
         std::string stream_name_;
         // device id

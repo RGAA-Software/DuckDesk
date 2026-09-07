@@ -30,7 +30,6 @@
 #include "px_common/time_util.h"
 #include "px_common/folder_util.h"
 #include "px_common/snowflake_id.h"
-#include "px_common/rtc_signal_identity.h"
 #include "ct_game_overlay.h"
 #include "version_config.h"
 #include "front_render/vulkan/ct_vulkan_checker.h"
@@ -43,7 +42,6 @@ using namespace px;
 
 std::string g_remote_host_;
 int g_remote_port_ = 0;
-std::string g_nt_type_;
 
 bool ParseCommandLine(QApplication& app) {
     QCommandLineParser parser;
@@ -81,9 +79,6 @@ bool ParseCommandLine(QApplication& app) {
     QCommandLineOption opt_stream_id("stream_id", "Stream id", "value", "");
     parser.addOption(opt_stream_id);
 
-    QCommandLineOption opt_network_type("network_type", "Network Type", "value", "");
-    parser.addOption(opt_network_type);
-
     QCommandLineOption opt_conn_type("conn_type", "Conn Type", "value", "");
     parser.addOption(opt_conn_type);
 
@@ -102,10 +97,6 @@ bool ParseCommandLine(QApplication& app) {
     QCommandLineOption opt_remote_device_id("remote_device_id", "remote_device id", "value", "");
     parser.addOption(opt_remote_device_id);
 
-    QCommandLineOption opt_signal_remote_device_id(
-        "signal_remote_device_id", "exact Console RTC/Relay target identity", "value", "");
-    parser.addOption(opt_signal_remote_device_id);
-
     QCommandLineOption opt_remote_device_rp("remote_device_rp", "remote_device rp", "value", "");
     parser.addOption(opt_remote_device_rp);
 
@@ -120,9 +111,6 @@ bool ParseCommandLine(QApplication& app) {
 
     QCommandLineOption opt_connection_instance_id("connection_instance_id", "Console application instance binding", "value", "");
     parser.addOption(opt_connection_instance_id);
-
-    QCommandLineOption opt_enable_p2p("enable_p2p", "enable p2p", "value", "0");
-    parser.addOption(opt_enable_p2p);
 
     QCommandLineOption opt_auto_layout_screens("auto_layout_screens", "auto layout screens", "value", "0");
     parser.addOption(opt_auto_layout_screens);
@@ -170,15 +158,6 @@ bool ParseCommandLine(QApplication& app) {
     QCommandLineOption opt_decoder("decoder", "decoder type", "value", "");
     parser.addOption(opt_decoder);
 
-    QCommandLineOption opt_relay_host("relay_host", "relay server host", "value", "");
-    parser.addOption(opt_relay_host);
-
-    QCommandLineOption opt_relay_port("relay_port", "relay server port", "0", "");
-    parser.addOption(opt_relay_port);
-
-    QCommandLineOption opt_relay_appkey("relay_appkey", "relay server appkey", "value", "");
-    parser.addOption(opt_relay_appkey);
-
     QCommandLineOption opt_force_software("force_software", "force software", "value", "");
     parser.addOption(opt_force_software);
 
@@ -196,9 +175,6 @@ bool ParseCommandLine(QApplication& app) {
 
     QCommandLineOption opt_gl_backend("gl_backend", "opengl backend", "value", "");
     parser.addOption(opt_gl_backend);
-
-    QCommandLineOption opt_force_direct("force_direct", "force direct", "value", "");
-    parser.addOption(opt_force_direct);
 
     QCommandLineOption opt_skin("skin", "Skin plugin name (e.g. skin_official, skin_opensource).", "name", "");
     parser.addOption(opt_skin);
@@ -242,39 +218,6 @@ bool ParseCommandLine(QApplication& app) {
         settings->only_viewing_ = true;
     }
     settings->stream_id_ = parser.value(opt_stream_id).toStdString();
-    g_nt_type_ = parser.value(opt_network_type).toStdString();
-    settings->network_type_ = [=]() -> ClientNetworkType {
-        if (g_nt_type_ == kStreamItemNtTypeWebSocket) {
-            return ClientNetworkType::kWebsocket;
-        }
-        else if (g_nt_type_ == kStreamItemNtTypeUdpKcp) {
-            return ClientNetworkType::kUdpKcp;
-        }
-        else if (g_nt_type_ == kStreamItemNtTypeRelay) {
-            return ClientNetworkType::kRelay;
-        }
-        else if (g_nt_type_ == kStreamItemNtTypeWebRTCDirect) {
-            return ClientNetworkType::kWebRtcDirect;
-        }
-        else if (g_nt_type_ == kStreamItemNtTypeWebRTC) {
-            return ClientNetworkType::kWebRtc;
-        }
-        else if (g_nt_type_ == kStreamItemNtTypeUdpDirect) {
-            return ClientNetworkType::kUdpDirect;
-        }
-        else {
-            return ClientNetworkType::kWebsocket;
-        }
-    }();
-
-    // UDP 直连的音频链路已经迁到裸 UDP。panel 侧旧 stream item 默认 --audio=0,
-    // 会在这个阶段把本地播放和 Hello 的 enable_audio 都压成关闭,造成“有音频包但
-    // 没声音”。UDP 模式下先强制打开本地播放,后续 UI 开关与 UDP 音频状态对齐后再
-    // 尊重 --audio 参数。
-    if (settings->network_type_ == ClientNetworkType::kUdpDirect) {
-        settings->audio_on_ = true;
-    }
-
     settings->stream_name_ = parser.value(opt_stream_name).toStdString();
     if (!settings->stream_name_.empty()) {
         settings->stream_name_ = Base64::Base64Decode(settings->stream_name_);
@@ -290,8 +233,6 @@ bool ParseCommandLine(QApplication& app) {
     }
 
     settings->remote_device_id_ = parser.value(opt_remote_device_id).toStdString();
-    settings->signal_remote_device_id_ =
-        parser.value(opt_signal_remote_device_id).toStdString();
     settings->remote_device_random_pwd_ = parser.value(opt_remote_device_rp).toStdString();
     if (!settings->remote_device_random_pwd_.empty()) {
         settings->remote_device_random_pwd_ = Base64::Base64Decode(settings->remote_device_random_pwd_);
@@ -301,10 +242,6 @@ bool ParseCommandLine(QApplication& app) {
         settings->remote_device_safety_pwd_ = Base64::Base64Decode(settings->remote_device_safety_pwd_);
     }
     settings->connection_ticket_ = Base64::Base64Decode(parser.value(opt_connection_ticket).toStdString());
-    if (const auto rtc_config = qEnvironmentVariable("PX_RTC_ICE_CONFIG"); !rtc_config.isEmpty()) {
-        settings->rtc_ice_config_json_ = rtc_config.toStdString();
-        qunsetenv("PX_RTC_ICE_CONFIG");
-    }
     settings->connection_nonce_ = parser.value(opt_connection_nonce).toStdString();
     settings->connection_instance_id_ = parser.value(opt_connection_instance_id).toStdString();
     if (settings->file_transfer_only_) {
@@ -312,17 +249,8 @@ bool ParseCommandLine(QApplication& app) {
             LOGE("Standalone file transfer requires a Console ticket and nonce");
             return false;
         }
-        const bool supported_transport = settings->network_type_ == ClientNetworkType::kWebsocket
-            || settings->network_type_ == ClientNetworkType::kRelay
-            || settings->network_type_ == ClientNetworkType::kWebRtc
-            || settings->network_type_ == ClientNetworkType::kWebRtcDirect;
-        if (!supported_transport) {
-            LOGE("Standalone file transfer does not support network type: {}", g_nt_type_);
-            return false;
-        }
     }
 
-    settings->enable_p2p_ = parser.value(opt_enable_p2p).toInt() == 1;
     settings->auto_layout_screens_ = parser.value(opt_auto_layout_screens).toInt() == 1;
 
     settings->display_name_ = parser.value(opt_display_name).toStdString();
@@ -426,11 +354,6 @@ bool ParseCommandLine(QApplication& app) {
     // decoder
     settings->decoder_ = parser.value(opt_decoder).toStdString();
 
-    // relay info
-    settings->relay_host_ = parser.value(opt_relay_host).toStdString();
-    settings->relay_port_ = parser.value(opt_relay_port).toInt();
-    settings->relay_appkey_ = parser.value(opt_relay_appkey).toStdString();
-
     // force software
     settings->force_software_ = parser.value(opt_force_software).toInt() == 1;
 
@@ -448,9 +371,6 @@ bool ParseCommandLine(QApplication& app) {
     
     // opengl backend
     settings->gl_backend_ = parser.value(opt_gl_backend).toStdString();
-
-    // force direct
-    settings->force_direct_ = parser.value(opt_force_direct).toInt() == 1;
 
     // skin
     settings->skin_name_ = parser.value(opt_skin).toStdString();
@@ -539,9 +459,8 @@ int main(int argc, char** argv) {
     auto host = g_remote_host_;
     auto port = g_remote_port_;
     bool has_direct_info = !host.empty() && port > 0;
-    bool has_relay_info = !settings->relay_host_.empty() && settings->relay_port_ > 0 && !settings->relay_appkey_.empty();
-    if (!has_relay_info && !has_direct_info) {
-        auto msg_box = SizedMessageBox::MakeOkBox("Error Params", "You must give valid (HOST & PORT) or Remote device ID.");
+    if (!has_direct_info) {
+        auto msg_box = SizedMessageBox::MakeOkBox("Error Params", "A reachable Render host and port are required.");
         msg_box->exec();
         return -1;
     }
@@ -555,14 +474,7 @@ int main(int argc, char** argv) {
 #endif
     }
 
-    auto name = [=]() -> std::string {
-        if (settings->network_type_ == ClientNetworkType::kRelay || settings->network_type_ == ClientNetworkType::kWebRtc) {
-            return settings->remote_device_id_;
-        }
-        else {
-            return settings->host_;
-        }
-    } ();
+    const auto name = settings->host_;
     auto ctx = std::make_shared<ClientContext>(name);
     ctx->Init();
 
@@ -578,12 +490,9 @@ int main(int argc, char** argv) {
     LOGI("device id: {}", settings->device_id_);
     LOGI("device random password configured: {}", !settings->device_random_pwd_.empty());
     LOGI("remote device id: {}", settings->remote_device_id_);
-    LOGI("signal remote device id: {}", settings->signal_remote_device_id_);
     LOGI("remote device password configured: {}", !settings->remote_device_random_pwd_.empty() || !settings->remote_device_safety_pwd_.empty());
     LOGI("stream id: {}", settings->stream_id_);
-    LOGI("network type: {} => {}", g_nt_type_, (int)settings->network_type_);
     LOGI("show max window: {}", (int)settings->auto_layout_screens_);
-    LOGI("enable p2p: {}", (int)settings->enable_p2p_);
     LOGI("display name: {}", settings->display_name_);
     LOGI("display remote name: {}", settings->display_remote_name_);
     LOGI("panel server port: {}", settings->panel_server_port_);
@@ -593,35 +502,26 @@ int main(int argc, char** argv) {
     LOGI("split windows: {}", settings->split_windows_);
     LOGI("titlebar color: {}", settings->titlebar_color_);
     LOGI("decoder: {}", settings->decoder_);
-    LOGI("relay host: {}", settings->relay_host_);
-    LOGI("relay port: {}", settings->relay_port_);
-    LOGI("relay appkey configured: {}", !settings->relay_appkey_.empty());
     LOGI("force software: {}", settings->force_software_);
     LOGI("show watermark: {}", settings->show_watermark_);
     LOGI("force gdi: {}", settings->force_gdi_);
     LOGI("GL Backend: {}", gl_backend);
-    LOGI("Force direct: {}", settings->force_direct_);
 
-    // WebSocket only
+    // Native UDP media with an authenticated reliable control/file channel.
     auto bare_remote_device_id = settings->remote_device_id_.empty() ? g_remote_host_ : settings->remote_device_id_;
     auto visitor_device_id = settings->device_id_.empty() ? settings->my_host_ : settings->device_id_;
     auto media_path = std::format("/media?only_audio=0&remote_device_id={}&stream_id={}&visitor_device_id={}&force_gdi={}",
                                   bare_remote_device_id, settings->stream_id_, visitor_device_id, settings->force_gdi_);
-    if (settings->network_type_ == ClientNetworkType::kUdpDirect) {
-        // udp_direct 模式下 ws 仅作控制面,通知 render 过滤媒体帧(视频走 UDP)
-        media_path += "&udp_media=1";
-    }
+    media_path += "&udp_media=1";
     auto ft_path = std::format("/file/transfer?remote_device_id={}&stream_id={}&visitor_device_id={}",
                                   bare_remote_device_id, settings->stream_id_, visitor_device_id);
     auto target_device_id = settings->device_id_.empty() ? settings->my_host_ : settings->device_id_;
     auto device_id = "client_" + target_device_id + "_" + MD5::Hex(settings->remote_device_id_);
     settings->full_device_id_ = device_id;
-    auto remote_device_id = ResolveRtcSignalRemoteDeviceId(
-        settings->remote_device_id_, settings->signal_remote_device_id_);
+    const auto remote_device_id = "server_" + settings->remote_device_id_;
     settings->full_remote_device_id_ = remote_device_id;
     auto ft_device_id = "ft_" + device_id;
-    auto ft_remote_device_id = ResolveRtcFileTransferSignalRemoteDeviceId(
-        settings->remote_device_id_, settings->signal_remote_device_id_);
+    const auto ft_remote_device_id = "ft_" + remote_device_id;
 
     LOGI("full device id: {}", settings->full_device_id_);
     LOGI("full remote device id: {}", settings->full_remote_device_id_);
@@ -647,16 +547,12 @@ int main(int argc, char** argv) {
         .ft_remote_device_id_ = ft_remote_device_id,
         .stream_id_ = settings->stream_id_,
         .stream_name_ = settings->stream_name_,
-        .enable_p2p_ = settings->enable_p2p_,
         .display_name_ = settings->display_name_,
         .display_remote_name_ = settings->display_remote_name_,
         .language_id_ = settings->language_,
         .titlebar_color_ = settings->titlebar_color_,
         .appkey_ = settings->appkey_,
         .decoder_ = settings->decoder_,
-        .relay_host_ = settings->relay_host_,
-        .relay_port_ = settings->relay_port_,
-        .relay_appkey_ = settings->relay_appkey_,
         .debug_ = settings->wait_debug_,
         .force_gdi_ = settings->force_gdi_,
         .remote_device_random_pwd_ = settings->remote_device_random_pwd_,
@@ -664,7 +560,6 @@ int main(int argc, char** argv) {
         .connection_ticket_ = settings->connection_ticket_,
         .connection_nonce_ = settings->connection_nonce_,
         .connection_instance_id_ = settings->connection_instance_id_,
-        .rtc_ice_config_json_ = settings->rtc_ice_config_json_,
     });
 
     auto beg = TimeUtil::GetCurrentTimestamp();

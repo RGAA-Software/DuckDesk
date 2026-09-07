@@ -46,13 +46,12 @@ template <typename T> T Wait(std::future<T>& future) {
     return future.get();
 }
 
-StreamLaunchResolvedTicket Resolve(px_console::ConsoleConnectionTicket ticket, bool direct_probe_enabled = true) {
+StreamLaunchResolvedTicket Resolve(px_console::ConsoleConnectionTicket ticket) {
     return StreamLaunchResolvedTicket{
         .ticket = std::move(ticket),
         .host = "10.0.0.90",
         .port = 20371,
         .remote_device_id = "001190520",
-        .direct_probe_enabled = direct_probe_enabled,
     };
 }
 
@@ -182,68 +181,40 @@ TEST(StreamLaunchAuthWorkflow, ApplicationRejectsMissingInstanceId) {
     EXPECT_EQ(result.Error().StableCode(), "INVALID_APP_INSTANCE");
 }
 
-TEST(StreamLaunchAuthWorkflow, TicketPolicyCanDisableAutomaticProbe) {
-    WorkflowEnvironment env;
+TEST(StreamLaunchAuthWorkflow, NativeTicketAlwaysProbesDirectEndpoint) {
+    WorkflowEnvironment env{};
     auto hooks = BaseHooks(env.blocking);
-    auto probes = std::make_shared<std::atomic_int>(0);
+    const auto probes = std::make_shared<std::atomic_int>(0);
     hooks.resolve_ticket = [](px_console::ConsoleConnectionTicket ticket, StreamLaunchTicketTarget) {
-        return PxResult<StreamLaunchResolvedTicket>::Success(Resolve(std::move(ticket), false));
+        ticket.rtc_ice_config_json = R"({"direct_probe_enabled":false})";
+        ticket.relay_host = "relay.example.com";
+        return PxResult<StreamLaunchResolvedTicket>::Success(Resolve(std::move(ticket)));
     };
     hooks.probe_direct = [probes](const std::string&, int) {
-        probes->fetch_add(1);
+        ++*probes;
         return true;
     };
-    auto promise = std::make_shared<std::promise<StreamLaunchAuthResult>>();
+    const auto promise = std::make_shared<std::promise<StreamLaunchAuthResult>>();
     auto future = promise->get_future();
     ASSERT_TRUE(env.workflow->Start(DeviceRequest(), std::move(hooks),
                                     [promise](std::uint64_t, StreamLaunchAuthResult result) { promise->set_value(std::move(result)); }));
-    auto result = Wait(future);
-    ASSERT_TRUE(result);
-    EXPECT_FALSE(result.Value().direct_available);
-    EXPECT_EQ(probes->load(), 0);
-}
-
-TEST(StreamLaunchAuthWorkflow, ForcedDirectOverridesTicketProbePolicy) {
-    WorkflowEnvironment env;
-    auto hooks = BaseHooks(env.blocking);
-    auto probes = std::make_shared<std::atomic_int>(0);
-    hooks.resolve_ticket = [](px_console::ConsoleConnectionTicket ticket, StreamLaunchTicketTarget) {
-        return PxResult<StreamLaunchResolvedTicket>::Success(Resolve(std::move(ticket), false));
-    };
-    hooks.probe_direct = [probes](const std::string&, int) {
-        probes->fetch_add(1);
-        return true;
-    };
-    auto request = DeviceRequest();
-    request.force_direct_transport = true;
-    auto promise = std::make_shared<std::promise<StreamLaunchAuthResult>>();
-    auto future = promise->get_future();
-    ASSERT_TRUE(env.workflow->Start(std::move(request), std::move(hooks),
-                                    [promise](std::uint64_t, StreamLaunchAuthResult result) { promise->set_value(std::move(result)); }));
-    auto result = Wait(future);
+    const auto result = Wait(future);
     ASSERT_TRUE(result);
     EXPECT_TRUE(result.Value().direct_available);
     EXPECT_EQ(probes->load(), 1);
 }
 
-TEST(StreamLaunchAuthWorkflow, ForcedRelayNeverProbes) {
-    WorkflowEnvironment env;
+TEST(StreamLaunchAuthWorkflow, UnreachableEndpointDoesNotBecomeRelaySuccess) {
+    WorkflowEnvironment env{};
     auto hooks = BaseHooks(env.blocking);
-    auto probes = std::make_shared<std::atomic_int>(0);
-    hooks.probe_direct = [probes](const std::string&, int) {
-        probes->fetch_add(1);
-        return true;
-    };
-    auto request = DeviceRequest();
-    request.force_relay = true;
-    auto promise = std::make_shared<std::promise<StreamLaunchAuthResult>>();
+    hooks.probe_direct = [](const std::string&, int) { return false; };
+    const auto promise = std::make_shared<std::promise<StreamLaunchAuthResult>>();
     auto future = promise->get_future();
-    ASSERT_TRUE(env.workflow->Start(std::move(request), std::move(hooks),
+    ASSERT_TRUE(env.workflow->Start(DeviceRequest(), std::move(hooks),
                                     [promise](std::uint64_t, StreamLaunchAuthResult result) { promise->set_value(std::move(result)); }));
-    auto result = Wait(future);
+    const auto result = Wait(future);
     ASSERT_TRUE(result);
     EXPECT_FALSE(result.Value().direct_available);
-    EXPECT_EQ(probes->load(), 0);
 }
 
 TEST(StreamLaunchAuthWorkflow, ConsoleFailurePreservesStageAndApiCode) {

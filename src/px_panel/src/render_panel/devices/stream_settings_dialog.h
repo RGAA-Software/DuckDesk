@@ -1,66 +1,32 @@
-//
-// Created by RGAA on 2023-08-18.
-//
+#pragma once
 
-#ifndef SAILFISH_CLIENT_PC_STREAM_SETTINGS_DIALOG_H
-#define SAILFISH_CLIENT_PC_STREAM_SETTINGS_DIALOG_H
-
-#include <QDialog>
-#include <QHBoxLayout>
-#include <QVBoxLayout>
-#include <QPushButton>
-#include <QLineEdit>
-#include <QLabel>
-#include <QGroupBox>
-#include <QRadioButton>
-#include <QComboBox>
-#include <QPainter>
 #include <QCheckBox>
-
+#include <QPointer>
+#include <memory>
 #include "px_console_client/console_stream.h"
 #include "px_qt_widget/px_custom_titlebar_dialog.h"
 
-namespace px
-{
+namespace px {
+class PxContext;
+class StreamDBOperator;
 
-    class PxContext;
-    class StreamDBOperator;
+class StreamSettingsDialog final : public TcCustomTitleBarDialog {
+  public:
+    StreamSettingsDialog(const std::shared_ptr<PxContext>& context, const std::shared_ptr<px_console::ConsoleStream>& item,
+                         QPointer<QWidget> parent = {});
 
-    class StreamSettingsDialog : public TcCustomTitleBarDialog {
-    public:
-        StreamSettingsDialog(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_console::ConsoleStream>& item, QWidget* parent = nullptr);
-        ~StreamSettingsDialog() override;
-
-        void paintEvent(QPaintEvent *event) override;
-
-    private:
-        void CreateLayout();
-
-    private:
-        std::shared_ptr<PxContext> context_ = nullptr;
-        std::shared_ptr<StreamDBOperator> db_mgr_ = nullptr;
-        QCheckBox* cb_audio_ = nullptr;
-        QCheckBox* cb_clipboard_ = nullptr;
-        QCheckBox* cb_only_viewing_ = nullptr;
-        QCheckBox* cb_show_max_ = nullptr;
-        QCheckBox* cb_split_windows_ = nullptr;
-        QCheckBox* cb_force_relay_ = nullptr;
-        QCheckBox* cb_force_direct_ = nullptr;
-        QCheckBox* cb_force_software_ = nullptr;
-        QCheckBox* cb_wait_debug_ = nullptr;
-        QCheckBox* cb_force_gdi_capture_ = nullptr;
-        QCheckBox* cb_disable_vulkan_render_ = nullptr;
-        QCheckBox* cb_use_webrtc_ = nullptr;
-        QCheckBox* cb_use_udp_ = nullptr;
-        QLineEdit* ed_bitrate_ = nullptr;
-        QLineEdit* ed_remote_device_id_ = nullptr;
-        QComboBox* cb_fps_ = nullptr;
-        QRadioButton* rb_ws_ = nullptr;
-        QRadioButton* rb_relay_ = nullptr;
-        std::shared_ptr<px_console::ConsoleStream> stream_item_;
-
-    };
-
-}
-
-#endif //SAILFISH_CLIENT_PC_CREATESTREAMDIALOG_H
+  private:
+    void CreateLayout();
+    void Save();
+    std::shared_ptr<StreamDBOperator> database_{};
+    std::shared_ptr<px_console::ConsoleStream> item_{};
+    QPointer<QCheckBox> audio_{};
+    QPointer<QCheckBox> clipboard_{};
+    QPointer<QCheckBox> only_viewing_{};
+    QPointer<QCheckBox> split_windows_{};
+    QPointer<QCheckBox> software_{};
+    QPointer<QCheckBox> wait_debug_{};
+    QPointer<QCheckBox> gdi_{};
+    QPointer<QCheckBox> disable_vulkan_{};
+};
+} // namespace px

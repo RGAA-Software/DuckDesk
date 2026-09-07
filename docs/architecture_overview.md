@@ -7,7 +7,8 @@
 Windows、Android、iOS、macOS 原生客户端均取消 WebRTC，包括 host 直连；iOS 和 macOS 的平台适配列为后续工作。WebRTC 只用于 Web 客户端。原生客户端使用共享 C++ SDK 的
 UDP+FEC 媒体、WebSocket 可靠控制和独立文件通道，组成唯一的原生直连模式；取消原生 WS 视频回退、旧 UDP/KCP、Relay 与公网 P2P。
 原生公网连接留待后续 RustDesk 方案。保留 Web 所需的 Render RTC、Console 信令、ICE/TURN、鉴权与部署能力。
-这项决定尚待代码实施；既有客户端 RTC 实现和测试记录不表示它仍属于产品目标。具体清理范围、SDK 分层与验收见
+双端入口已固定原生接入，Android RTC AAR 和专属实现、Windows 通道设置及启动回退已退役；共享 SDK 的旧实现/依赖仍待清理。
+既有客户端 RTC 测试记录不表示它仍属于产品目标。具体清理范围、SDK 分层与验收见
 [原生客户端 SDK 与 WebRTC 产品边界](native_client_sdk_transport_decision.md)。
 
 SDK 目录迁移已实施（第一检查点双端编译与 Windows 冒烟验证已通过）：`src/px_deps/px_client_sdk` → `src/px_client_sdk`，作为与客户端同级的独立项目模块。复用现有实现，

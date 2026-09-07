@@ -52,7 +52,7 @@ $logOffset = if (Test-Path -LiteralPath $logPath) { (Get-Item -LiteralPath $logP
 $client = $null
 try {
     $client = Start-Process -FilePath (Join-Path $smokeDist 'px_client.exe') -WorkingDirectory $smokeDist -PassThru -ArgumentList @(
-        '--host=127.0.0.1', "--port=$port", '--network_type=udp_direct', '--conn_type=direct',
+        '--host=127.0.0.1', "--port=$port", '--conn_type=direct',
         "--stream_id=$($grant.stream_id)", "--connection_nonce=$nonce", '--device_id=sdk-layout-smoke',
         '--audio=1', '--clipboard=0', '--only_viewing=1', '--language=0')
     Start-Sleep -Seconds $Seconds

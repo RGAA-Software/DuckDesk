@@ -209,13 +209,8 @@ namespace px
         stream_launch_auth_workflow_ = StreamLaunchAuthWorkflow::Create(
             context_->GetMessageNotifier()->GetAsyncRuntime());
         if (mode_ == AppStreamListMode::kRemoteDevices) {
-            constexpr auto kExclusiveConnectionModeMigration =
-                "exclusive_connection_mode_migration_v1";
-            const bool reset_legacy_connection_modes =
-                context_->SpGetInteger(kExclusiveConnectionModeMigration, 0) < 1;
             int removed_legacy_managed = 0;
             int normalized_direct = 0;
-            int normalized_connection_mode = 0;
             for (const auto& stream : db_mgr_->GetAllStreamsSortByCreatedTime()) {
                 if (!stream) {
                     continue;
@@ -234,32 +229,11 @@ namespace px
                     stream_changed = true;
                     ++normalized_direct;
                 }
-                const bool had_selected_mode = stream->force_relay_
-                    || stream->force_direct_ || stream->use_webrtc_ || stream->use_udp_;
-                if (reset_legacy_connection_modes && had_selected_mode) {
-                    stream->force_relay_ = false;
-                    stream->force_direct_ = false;
-                    stream->use_webrtc_ = false;
-                    stream->use_udp_ = false;
-                    stream_changed = true;
-                    ++normalized_connection_mode;
-                }
-                else if (!reset_legacy_connection_modes
-                    && connection_policy::NormalizeConnectionMode(
-                        stream->force_relay_, stream->force_direct_,
-                        stream->use_webrtc_, stream->use_udp_)) {
-                    stream_changed = true;
-                    ++normalized_connection_mode;
-                }
                 if (stream_changed) db_mgr_->UpdateStream(stream);
             }
-            if (reset_legacy_connection_modes) {
-                context_->SpPutInteger(kExclusiveConnectionModeMigration, 1);
-            }
-            if (removed_legacy_managed > 0 || normalized_direct > 0
-                || normalized_connection_mode > 0) {
-                LOGI("Connection policy cleanup: removed legacy managed={}, normalized direct={}, connection mode reset={}",
-                     removed_legacy_managed, normalized_direct, normalized_connection_mode);
+
+            if (removed_legacy_managed > 0 || normalized_direct > 0) {
+                LOGI("Connection policy cleanup: removed legacy managed={}, normalized direct={}", removed_legacy_managed, normalized_direct);
             }
         }
         CreateLayout();
@@ -437,10 +411,6 @@ namespace px
                 }
                 if (!item->connect_type_.empty()) {
                     exist_stream_item->connect_type_ = item->connect_type_;
-                    exist_stream_item->force_relay_ = item->force_relay_;
-                    exist_stream_item->force_direct_ = item->force_direct_;
-                    exist_stream_item->use_webrtc_ = item->use_webrtc_;
-                    exist_stream_item->use_udp_ = item->use_udp_;
                     if (connection_policy::IsConsoleTicket(item->connect_type_)) {
                         exist_stream_item->stream_host_.clear();
                         exist_stream_item->stream_port_ = 0;
@@ -798,23 +768,11 @@ namespace px
                         "INVALID_CONSOLE_ENDPOINT"));
                 }
             }
-            bool direct_probe_enabled = true;
-            try {
-                if (!ticket.rtc_ice_config_json.empty()) {
-                    direct_probe_enabled = nlohmann::json::parse(
-                        ticket.rtc_ice_config_json).value("direct_probe_enabled", true);
-                }
-            }
-            catch (const std::exception& error) {
-                LOGW("Invalid RTC ICE config in ticket response: {}", error.what());
-                direct_probe_enabled = false;
-            }
             return PxResult<StreamLaunchResolvedTicket>::Success({
                 .ticket = std::move(ticket),
                 .host = launch_url.host().toStdString(),
                 .port = launch_url.port(),
                 .remote_device_id = std::move(remote_device_id),
-                .direct_probe_enabled = direct_probe_enabled,
             });
         };
         hooks.probe_direct = [](const std::string& host, int port) {
@@ -833,18 +791,6 @@ namespace px
             return;
         }
 
-        if (connection_policy::NormalizeConnectionMode(
-                target_item->force_relay_, target_item->force_direct_,
-                target_item->use_webrtc_, target_item->use_udp_)) {
-            LOGW("Ambiguous persisted connection mode reset to automatic: {}",
-                 target_item->stream_id_);
-            if (target_item->_id > 0) {
-                db_mgr_->UpdateStream(target_item);
-            }
-        }
-        const auto mode = connection_policy::ResolveConnectionMode(
-            target_item->force_relay_, target_item->force_direct_,
-            target_item->use_webrtc_, target_item->use_udp_);
         const bool logged_in = grApp->GetUserManager()->IsLoggedIn();
         std::vector<std::string> permissions{"view"};
         if (logged_in) {
@@ -867,10 +813,6 @@ namespace px
             .client_nonce = QUuid::createUuid().toString(
                 QUuid::WithoutBraces).toStdString(),
             .permissions = std::move(permissions),
-            .force_relay = mode == connection_policy::ConnectionMode::kRelay,
-            .force_direct_transport = mode == connection_policy::ConnectionMode::kDirect
-                || mode == connection_policy::ConnectionMode::kRtc
-                || mode == connection_policy::ConnectionMode::kUdpDirect,
             .deadline = std::chrono::steady_clock::now() + std::chrono::seconds(65),
         };
         QPointer<AppStreamList> self(this);
@@ -970,12 +912,6 @@ namespace px
         target_item->connection_renewal_token_ = resolved.ticket.renewal_token;
         target_item->connection_nonce_ = payload.client_nonce;
         target_item->active_session_stream_id_ = resolved.ticket.stream_id;
-        target_item->rtc_ice_config_json_ = resolved.ticket.rtc_ice_config_json;
-        target_item->console_signal_device_id_ = resolved.ticket.signal_device_id;
-        target_item->relay_host_ = !resolved.ticket.relay_host.empty()
-            ? resolved.ticket.relay_host : settings_.get().GetRelayServerHost();
-        target_item->relay_port_ = resolved.ticket.relay_port > 0
-            ? resolved.ticket.relay_port : settings_.get().GetRelayServerPort();
         const auto has_permission = [&resolved](std::string_view permission) {
             return std::find(
                 resolved.ticket.permissions.begin(),
@@ -992,104 +928,26 @@ namespace px
         bool uses_console_ticket,
         std::optional<bool> authenticated_direct_available) {
 
-        if (connection_policy::NormalizeConnectionMode(
-                target_item->force_relay_, target_item->force_direct_,
-                target_item->use_webrtc_, target_item->use_udp_)) {
-            LOGW("Ambiguous persisted connection mode reset to automatic: {}",
-                 target_item->stream_id_);
-            if (target_item->_id > 0) db_mgr_->UpdateStream(target_item);
-        }
-        const auto connection_mode = connection_policy::ResolveConnectionMode(
-            target_item->force_relay_, target_item->force_direct_,
-            target_item->use_webrtc_, target_item->use_udp_);
-
-        bool direct_probe_enabled = true;
-        if (uses_console_ticket) {
-            try {
-                if (!target_item->rtc_ice_config_json_.empty()) {
-                    direct_probe_enabled = nlohmann::json::parse(
-                        target_item->rtc_ice_config_json_).value("direct_probe_enabled", true);
-                }
-            }
-            catch (const std::exception& error) {
-                LOGW("Invalid RTC ICE config in ticket response: {}", error.what());
-                direct_probe_enabled = false;
-            }
-        }
-
-        // Automatic Console routing obeys direct_probe_enabled. An explicitly
-        // forced direct/RTC/UDP mode must still probe its requested endpoint;
-        // Force Relay never probes or silently switches to a direct transport.
-        bool direct_available = false;
-        const bool force_direct_transport =
-            connection_mode == connection_policy::ConnectionMode::kDirect
-            || connection_mode == connection_policy::ConnectionMode::kRtc
-            || connection_mode == connection_policy::ConnectionMode::kUdpDirect;
-        const bool should_probe_direct =
-            connection_mode != connection_policy::ConnectionMode::kRelay
-            && (force_direct_transport || !uses_console_ticket || direct_probe_enabled);
-        if (authenticated_direct_available.has_value()) {
-            direct_available = *authenticated_direct_available;
-        }
-        else if (should_probe_direct) {
-            direct_available = RenderApi::GetRenderConfiguration(
-                target_item->stream_host_, target_item->stream_port_).has_value();
-        }
-
-        const bool relay_available = target_item->HasRelayInfo()
-            && !target_item->remote_device_id_.empty();
-        const auto selected_transport = connection_policy::SelectTransport(
-            connection_mode, uses_console_ticket, direct_available, relay_available);
-
-        if (selected_transport == connection_policy::SelectedTransport::kRelay) {
-            LOGI("Forced connection route selected: {}", kStreamItemNtTypeRelay);
-            running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeRelay, false);
-            return;
-        }
-        if (selected_transport == connection_policy::SelectedTransport::kWebRtcStandard) {
-            LOGI("RTC route selected: {}, direct_probe_enabled={}, direct_available={}",
-                 kStreamItemNtTypeWebRTC, direct_probe_enabled, direct_available);
-            running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeWebRTC, false);
-            return;
-        }
-        if (selected_transport == connection_policy::SelectedTransport::kUnavailable) {
-            const bool requires_relay =
-                connection_mode == connection_policy::ConnectionMode::kRelay
-                || connection_mode == connection_policy::ConnectionMode::kRtc
-                || connection_mode == connection_policy::ConnectionMode::kAuto;
-            LOGW("Selected connection mode is unavailable: mode={}, direct={}, relay={}",
-                 static_cast<int>(connection_mode), direct_available, relay_available);
-            TcDialog dialog(tcTr("id_connect_failed"),
-                            requires_relay ? tcTr("id_cant_get_remote_device_info")
-                                           : tcTr("id_device_offline"),
-                            grWorkspace.get());
-            dialog.exec();
-            return;
-        }
+        const bool direct_available = authenticated_direct_available.has_value()
+                                          ? *authenticated_direct_available
+                                          : RenderApi::GetRenderConfiguration(target_item->stream_host_, target_item->stream_port_).has_value();
 
         if (direct_available) {
             LOGI("We can connect directly: {}:{}", target_item->stream_host_, target_item->stream_port_);
-            // verify device password before launching the client(same idea as the relay flow):
+            // Prepare the authenticated native session before launching its client:
             // safety pwd(md5) preferred, fall back to md5(random pwd); re-ask on failure.
             // note: an empty candidate is fine, the render passes it when the device has no password.
             auto candidate_pwd_md5 = !target_item->remote_device_safety_pwd_.empty()
                                      ? target_item->remote_device_safety_pwd_
                                      : (!target_item->remote_device_random_pwd_.empty()
                                         ? MD5::Hex(target_item->remote_device_random_pwd_) : std::string(""));
-            const bool idless_ip_direct = !uses_console_ticket
-                && target_item->remote_device_id_.empty();
+            const bool password_direct = !uses_console_ticket;
             target_item->ip_direct_prevalidated_ = false;
-            if (idless_ip_direct) {
+            if (password_direct) {
                 target_item->connection_nonce_ = QUuid::createUuid()
                     .toString(QUuid::WithoutBraces).toStdString();
             }
-            const auto verify_before_launch = [target_item, idless_ip_direct](
-                const std::string& password_md5) {
-                if (!idless_ip_direct) {
-                    return RenderApi::VerifySecurityPassword(
-                        target_item->stream_host_, target_item->stream_port_, password_md5)
-                        .value_or(false);
-                }
+            const auto verify_before_launch = [target_item](const std::string& password_md5) {
                 auto launch = RenderApi::PrepareIpDirectLaunch(
                     target_item->stream_host_, target_item->stream_port_, password_md5,
                     target_item->connection_nonce_);
@@ -1147,15 +1005,7 @@ namespace px
                 }
             }
 
-            if (selected_transport == connection_policy::SelectedTransport::kUdpDirect) {
-                running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeUdpDirect, true);
-            }
-            else if (selected_transport == connection_policy::SelectedTransport::kWebRtcDirect) {
-                running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeWebRTCDirect, true);
-            }
-            else {
-                running_stream_mgr_->StartStream(target_item, kStreamItemNtTypeWebSocket, true);
-            }
+            running_stream_mgr_->StartStream(target_item);
         }
         else {
             LOGW("Selected direct endpoint is unavailable: {}:{}",
@@ -1301,7 +1151,7 @@ namespace px
             LOGE("read stream item from db failed: {}", item->stream_id_);
             return;
         }
-        auto dialog = new StreamSettingsDialog(context_, si.value(), grWorkspace.get());
+        const auto dialog = std::make_unique<StreamSettingsDialog>(context_, si.value());
         dialog->exec();
     }
 
@@ -1474,7 +1324,7 @@ namespace px
         }
         // A normal remote-control client already has a file-capable transport
         // (signed-in control tickets include the file permission). Reuse it and
-        // avoid a second process, ticket and competing RTC LAN connection.
+        // avoid a second process and ticket redemption.
         if (running_stream_mgr_->OpenFileTransferInRunningClient(item)) {
             return;
         }
@@ -1498,10 +1348,6 @@ namespace px
             .client_nonce = QUuid::createUuid().toString(
                 QUuid::WithoutBraces).toStdString(),
             .permissions = {"file"},
-            .force_relay = target_item->force_relay_,
-            // Standalone FT historically probes whenever Relay is not forced;
-            // this is independent of automatic remote-control route policy.
-            .force_direct_transport = !target_item->force_relay_,
             .deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10),
         };
         QPointer<AppStreamList> self(this);
@@ -1570,25 +1416,12 @@ namespace px
         target_item->stream_port_ = payload.resolved.port;
         target_item->connection_ticket_ = payload.resolved.ticket.ticket;
         target_item->connection_nonce_ = payload.client_nonce;
-        target_item->relay_host_ = !payload.resolved.ticket.relay_host.empty()
-            ? payload.resolved.ticket.relay_host : settings_.get().GetRelayServerHost();
-        target_item->relay_port_ = payload.resolved.ticket.relay_port > 0
-            ? payload.resolved.ticket.relay_port : settings_.get().GetRelayServerPort();
-        if (!target_item->force_relay_ && payload.direct_available) {
-            // Standalone file transfer uses the reliable WS endpoint. RTC LAN
-            // on the Render side is single-session; trying to create another
-            // RTC client can take over an active control connection and consume
-            // the one-time ticket during its retry. When a normal RTC client is
-            // present, the branch above reuses that RTC transport instead.
-            running_stream_mgr_->StartFileTransfer(
-                target_item, kStreamItemNtTypeWebSocket);
+        if (!payload.direct_available) {
+            context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_device_offline"));
             return;
         }
-        if (!target_item->HasRelayInfo()) {
-            context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_cant_get_remote_device_info"));
-            return;
-        }
-        running_stream_mgr_->StartFileTransfer(target_item, kStreamItemNtTypeRelay);
+        target_item->active_session_stream_id_ = payload.resolved.ticket.stream_id;
+        running_stream_mgr_->StartFileTransfer(target_item);
     }
 
     void AppStreamList::RefreshResources() {

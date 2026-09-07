@@ -1,7 +1,7 @@
 # 原生客户端 SDK 与 WebRTC 产品边界
 
 > 决定日期：2026-09-07
-> 状态：SDK 抽离、UDP 媒体回退退役、Android RTC/Relay 入口及 RTC AAR 退役已实施；Windows/Panel 旧通道与 SDK 核心/平台分层仍待实施。
+> 状态：SDK 抽离、UDP 媒体回退退役、Android RTC 退役及 Windows/Panel 固定原生入口已实施；SDK 旧传输实现/依赖和核心/平台分层仍待清理。
 > 本文替代此前原生客户端支持 WebRTC、Windows 保留 host 直连，以及原生 WS 媒体/Direct/Relay 多传输选择的规划。
 > 归档规则：本次精简的原有代码放入根目录 `backup/`，不直接删除。下文“删除/移除”均指退出活动源码与构建依赖，原实现须先完整归档。
 
@@ -111,7 +111,7 @@ Web 的启动策略继续允许 RTC；它使用的信令 Relay/TURN 不受原生
 
 ## 5. 验收与交接
 
-- 已完成目录迁移、UDP → WebSocket 媒体回退退役及 Android 固定原生接入；Windows/SDK 仍有旧通道，Android 无真机复验，整体尚非最终候选包。
+- 已完成目录迁移、UDP → WebSocket 媒体回退退役及双端固定原生接入；SDK 仍有旧通道实现和依赖，Android 无真机复验，整体尚非最终候选包。
 - 取消原生 RTC、Relay、P2P、WS 视频回退待测项；验收 UDP+FEC 视频、音频恢复、控制可靠性、文件并发隔离、语音、剪贴板和录制。
 - Android 当前无 USB 手机；接入后只覆盖安装，不卸载、不清空数据，每次真机测试不超过 5 分钟。
 - Windows 使用 `build_cpp_*.bat` 聚焦构建；修改的运行产物同步到 `build_official/dist` 并逐一核对 SHA-256。
@@ -154,3 +154,14 @@ Android 已退役 RTC AAR、PeerConnection/信令/统计、RTC 专属录制/语�
 Debug 编译和 34 项 Android 单元测试通过；依赖图与 APK 不含 WebRTC AAR/原生库，JNI 名称对照检查通过。
 无手机，未验收实际账号连接或工具功能；SDK 中的 Relay 等旧实现仍随共享目标编译，后续与 Windows 清理一起退出，
 不能把入口固定等同于共享核心精简已完成。详见 [Android 原生接入交付记录](android_native_only_checkpoint_20260907.md)。
+
+### 第四检查点：Windows/Panel 固定原生入口
+
+Windows 设置不再提供强制 Relay/Direct/RTC/UDP；Panel 不再读取旧通道选项、ICE 探测开关或执行 RTC 超时回退。
+客户端删除通道、Relay/P2P 和 ICE 环境配置入口，网络类型固定为原生 UDP。密码直连通过既有 Render 接口先取得会话凭据，
+账号会话与独立文件会话使用签发的运行时 stream ID；UDP 不再强制打开音频。
+
+Windows Client、Panel 和相关测试编译通过；7 组 CTest、7 项旧 CLI 拒绝测试及 20 秒默认 UDP 冒烟通过。
+运行产物已发布到 `build_official/dist` 并核对 SHA-256，Android Debug 再次编译通过。旧源码存于 `backup/windows_native_entry`。
+数据库旧选项列本次不做破坏性迁移，其值不再影响启动策略；SDK 内部旧实现、Windows RTC DLL 包装与平台分层仍待清理。
+详见 [Windows 原生入口交付记录](windows_native_entry_checkpoint_20260907.md)。

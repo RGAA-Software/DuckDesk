@@ -211,18 +211,14 @@ PxAwaitable<void> StreamLaunchAuthWorkflow::Run(StreamLaunchAuthRequest request,
                                    "Console returned a ticket without a runtime stream ID or renewal capability", false, "INVALID_CONSOLE_TICKET")));
         co_return;
     }
-    bool direct_available = false;
-    const bool should_probe = !request.force_relay && (request.force_direct_transport || resolved_ticket.direct_probe_enabled);
-    if (should_probe) {
-        auto probe_result = co_await AwaitBlockingCall<bool>(hooks.post_blocking, executor, request.deadline, cancelled, "stream-launch.probe",
-                                                             [probe = hooks.probe_direct, host = resolved_ticket.host, port = resolved_ticket.port](
-                                                                 const std::shared_ptr<std::atomic_bool>&) { return probe(host, port); });
-        if (!probe_result) {
-            completion(generation, StreamLaunchAuthResult::Failure(probe_result.Error()));
-            co_return;
-        }
-        direct_available = probe_result.Value();
+    auto probe_result = co_await AwaitBlockingCall<bool>(hooks.post_blocking, executor, request.deadline, cancelled, "stream-launch.probe",
+                                                         [probe = hooks.probe_direct, host = resolved_ticket.host, port = resolved_ticket.port](
+                                                             const std::shared_ptr<std::atomic_bool>&) { return probe(host, port); });
+    if (!probe_result) {
+        completion(generation, StreamLaunchAuthResult::Failure(probe_result.Error()));
+        co_return;
     }
+    const bool direct_available = probe_result.Value();
 
     completion(generation, StreamLaunchAuthResult::Success(StreamLaunchAuthPayload{
                                .generation = generation,

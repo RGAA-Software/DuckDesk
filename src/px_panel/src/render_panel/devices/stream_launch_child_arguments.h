@@ -2,11 +2,17 @@
 #define PX_STREAM_LAUNCH_CHILD_ARGUMENTS_H
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "px_common/base64.h"
 
 namespace px {
+
+// Structural validation only; Render still authenticates the supplied ticket or direct receipt.
+[[nodiscard]] inline bool HasNativeLaunchBinding(std::string_view stream_id, std::string_view ticket, std::string_view nonce, bool file_only) {
+    return !stream_id.empty() && !nonce.empty() && (!ticket.empty() || (!file_only && stream_id.starts_with("ip-direct:")));
+}
 
 struct StreamLaunchChildCredentials final {
     std::string connection_ticket;
@@ -14,12 +20,10 @@ struct StreamLaunchChildCredentials final {
     std::string connection_instance_id;
 };
 
-inline std::vector<std::string> BuildStreamLaunchCredentialArguments(
-    const StreamLaunchChildCredentials& credentials) {
+inline std::vector<std::string> BuildStreamLaunchCredentialArguments(const StreamLaunchChildCredentials& credentials) {
     std::vector<std::string> arguments;
     if (!credentials.connection_ticket.empty()) {
-        arguments.emplace_back(
-            "--connection_ticket=" + Base64::Base64Encode(credentials.connection_ticket));
+        arguments.emplace_back("--connection_ticket=" + Base64::Base64Encode(credentials.connection_ticket));
     }
     // IP-direct preparation intentionally has no Console ticket. Its nonce is
     // still part of the one-time stream binding and must reach the child.
@@ -27,8 +31,7 @@ inline std::vector<std::string> BuildStreamLaunchCredentialArguments(
         arguments.emplace_back("--connection_nonce=" + credentials.connection_nonce);
     }
     if (!credentials.connection_instance_id.empty()) {
-        arguments.emplace_back(
-            "--connection_instance_id=" + credentials.connection_instance_id);
+        arguments.emplace_back("--connection_instance_id=" + credentials.connection_instance_id);
     }
     return arguments;
 }
