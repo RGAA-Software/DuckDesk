@@ -25,7 +25,7 @@ Assert-SameNames (Captures $jni '(?m)^(?:jlong|jboolean|jint|void) (Native\w+)\(
     (Captures $jni 'pixels::android::(Native\w+)\)') 'native function bindings'
 
 if ($config -match 'networkType|relayHost|relayPort|rtcIceConfigJson' -or
-    $session -notmatch 'params->nt_type_ = px::ClientNetworkType::kUdpDirect;') {
+    $session -match 'params->(?:nt_type_|enable_p2p_|rtc_ice_config_json_)') {
     throw 'Android platform transport must be fixed native UDP.'
 }
 $gradle = Get-Content -Raw -LiteralPath (Join-Path $nativeRoot 'build.gradle')

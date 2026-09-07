@@ -594,7 +594,6 @@ bool NativeSession::Initialize() {
     params->port_ = config_.port;
     params->udp_port_ = 20371;
     params->client_type_ = px::ClientType::kAndroid;
-    params->nt_type_ = px::ClientNetworkType::kUdpDirect;
     params->bare_device_id_ = config_.client_device_id;
     params->bare_remote_device_id_ = config_.remote_device_id;
     params->device_id_ = std::format("client_{}_{}", config_.client_device_id, px::MD5::Hex(config_.remote_device_id));
@@ -611,7 +610,6 @@ bool NativeSession::Initialize() {
                                       config_.stream_id, config_.client_device_id);
     params->ft_path_ = std::format("/file/transfer?remote_device_id={}&stream_id={}&visitor_device_id={}", config_.remote_device_id,
                                    config_.stream_id, config_.client_device_id);
-    params->enable_p2p_ = false;
     params->remote_device_random_pwd_ = config_.random_password;
     params->connection_ticket_ = config_.connection_ticket;
     params->connection_nonce_ = config_.connection_nonce;

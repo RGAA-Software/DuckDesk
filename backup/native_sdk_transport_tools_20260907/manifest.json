@@ -1,0 +1,11 @@
+{
+  "revision": "f1ff7022f5b2a7654a2d286a1db96d1f43e2a659",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "scripts/run_ft_transport_e2e.ps1",
+      "sha256": "D3D5003AF2F492CB18F6C27DA15F14B6305C6B5FCB8F3A6ABB1AA4F924B9C656",
+      "status": ""
+    }
+  ]
+}

@@ -33,34 +33,12 @@ if not defined VS_ROOT (
 call "%VS_ROOT%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
 
-echo Building px_client and RTC transport in %BUILD_DIR% with %PARALLEL% jobs...
-cmake --build "%BUILD_DIR%" --config RelWithDebInfo --parallel %PARALLEL% --target px_client px_rtc_client
+echo Building px_client and native runtime dependencies in %BUILD_DIR% with %PARALLEL% jobs...
+cmake --build "%BUILD_DIR%" --config RelWithDebInfo --parallel %PARALLEL% --target px_client
 if errorlevel 1 exit /b %errorlevel%
 
-set "CLIENT_OUT=%BUILD_DIR%\src\px_client\px_client.exe"
-set "RTC_OUT=%BUILD_DIR%\src\px_deps\px_webrtc_client\px_client_rtc.dll"
-set "DIST_DIR=%BUILD_DIR%\dist"
-set "FT_DIST_DIR=%DIST_DIR%\deps\ct_plugins"
-set "LANG_SRC=%REPO_ROOT%\src\px_panel\resources\language"
-set "LANG_DIST=%DIST_DIR%\resources\language"
-if not exist "%CLIENT_OUT%" (
-    echo ERROR: px_client build completed but output was not found: %CLIENT_OUT%
-    exit /b 1
-)
-if not exist "%RTC_OUT%" (
-    echo ERROR: RTC client build completed but output was not found: %RTC_OUT%
-    exit /b 1
-)
-copy /Y "%CLIENT_OUT%" "%DIST_DIR%\px_client.exe" >nul || exit /b 1
-copy /Y "%RTC_OUT%" "%DIST_DIR%\px_client_rtc.dll" >nul || exit /b 1
-del /Q "%DIST_DIR%\px_client_recording_core.dll" 2>nul
-del /Q "%FT_DIST_DIR%\clipboard.dll" 2>nul
-del /Q "%FT_DIST_DIR%\ft.dll" 2>nul
-del /Q "%FT_DIST_DIR%\record.dll" 2>nul
-del /Q "%FT_DIST_DIR%\client_clipboard.dll" 2>nul
-del /Q "%FT_DIST_DIR%\ft_client.dll" 2>nul
-del /Q "%FT_DIST_DIR%\media_record_client.dll" 2>nul
-cmake -E copy_directory "%LANG_SRC%" "%LANG_DIST%" || exit /b 1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\publish_cpp_artifacts.ps1 -Component client -BuildDir "%BUILD_DIR%"
+if errorlevel 1 exit /b %errorlevel%
 
-echo DONE: published px_client.exe, RTC DLL and language files to %DIST_DIR%
+echo DONE: published and hash-verified Native Client runtime artifacts.
 endlocal

@@ -1,0 +1,11 @@
+{
+  "revision": "f1ff7022f5b2a7654a2d286a1db96d1f43e2a659",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "build_cpp_tests.bat",
+      "sha256": "1A73405882C1BD00158A554E134CF0D0EDE445B2895055301FE593F38082A3A3",
+      "status": ""
+    }
+  ]
+}

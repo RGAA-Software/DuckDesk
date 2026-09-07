@@ -14,8 +14,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-set(PX_RTC_TRANSPORT_AVAILABLE OFF)
-add_compile_definitions(ASIO2_ENABLE_SSL FMT_CONSTEVAL= FMT_HEADER_ONLY PX_RTC_TRANSPORT_AVAILABLE=0)
+add_compile_definitions(ASIO2_ENABLE_SSL FMT_CONSTEVAL= FMT_HEADER_ONLY)
 add_compile_options(
     -femulated-tls
     -Wno-error=deprecated-declarations
@@ -36,7 +35,6 @@ include_directories(
     "${PX_PROJECT_PATH}/px_message"
     "${PX_PROJECT_PATH}/px_media_record"
     "${PX_PROJECT_PATH}/px_voice_call"
-    "${PX_PROJECT_PATH}/px_relay_client"
     "${PX_PROJECT_PATH}/px_server_protocol"
     "${PX_PROJECT_PATH}/px_3rdparty/asio2/include"
     "${PX_PROJECT_PATH}/px_3rdparty/asio2/3rd"
@@ -64,7 +62,6 @@ add_subdirectory("${PX_PROJECT_PATH}/px_media_record" "${CMAKE_BINARY_DIR}/px_me
 add_subdirectory("${PX_PROJECT_PATH}/px_opus_codec" "${CMAKE_BINARY_DIR}/px_opus_codec")
 add_subdirectory("${PX_PROJECT_PATH}/px_voice_call" "${CMAKE_BINARY_DIR}/px_voice_call")
 add_subdirectory("${PX_PROJECT_PATH}/px_server_protocol" "${CMAKE_BINARY_DIR}/px_server_protocol")
-add_subdirectory("${PX_PROJECT_PATH}/px_relay_client" "${CMAKE_BINARY_DIR}/px_relay_client")
 add_subdirectory("${PIXELS_SOURCE_ROOT}/px_client_sdk" "${CMAKE_BINARY_DIR}/px_client_sdk")
 
 add_library(pixels_android_core SHARED

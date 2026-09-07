@@ -126,18 +126,7 @@ namespace px
         };
         fn_process_target_platform();
 
-        net_client_ = std::make_shared<NetClient>(sdk_params_,
-                                      msg_notifier_,
-                                      sdk_params_->ip_,
-                                      sdk_params_->port_,
-                                      sdk_params_->media_path_,
-                                      sdk_params_->ft_path_,
-                                      sdk_params_->nt_type_,
-                                      sdk_params_->device_id_,
-                                      sdk_params_->remote_device_id_,
-                                      sdk_params_->ft_device_id_,
-                                      sdk_params_->ft_remote_device_id_,
-                                      sdk_params_->stream_id_);
+        net_client_ = std::make_shared<NetClient>(sdk_params_, msg_notifier_, sdk_params_->media_path_, sdk_params_->ft_path_);
         return true;
     }
 
@@ -535,52 +524,7 @@ namespace px
             });
         });
 
-        // Decoded I420 callbacks run on a libwebrtc decoder thread. Never do
-        // application event dispatch or UI handoff on that thread: a blocked
-        // EventBus/UI path would stop the decoder after its first frame and make
-        // the native client appear frozen. Reuse the bounded video worker used
-        // by the encoded-frame decode path.
-        net_client_->SetOnRtcLocalVideoFrameCallback([weak_self](int w, int h, std::shared_ptr<Data> i420) {
-            const auto owner = weak_self.lock();
-            if (!owner || owner->exit_) return;
-            const auto frame_index = ++owner->rtc_video_frame_index_;
-            if (frame_index == 1) {
-                LOGI("WebRTC first decoded frame queued on SDK video worker: {}x{}", w, h);
-            }
-            owner->PostVideoTask([weak_self, w, h, i420 = std::move(i420), frame_index]() {
-                const auto self = weak_self.lock();
-                if (!self || self->exit_) return;
-                if (frame_index == 1) {
-                    LOGI("WebRTC first decoded frame executing on SDK video worker");
-                }
-                self->OnRtcLocalVideoFrame(w, h, i420);
-            }, frame_index, "rtc");
-        });
-
-        // decoded audio(16-bit interleaved PCM) from the webrtc local(direct) connection:
-        // already decoded by webrtc's built-in opus decoder, feed the player directly
-        net_client_->SetOnRtcLocalAudioCallback([weak_self](std::shared_ptr<Data> pcm, int sample_rate, int channels) {
-            const auto owner = weak_self.lock();
-            if (!owner || owner->exit_) { return; }
-            owner->PostAudioTask([weak_self, pcm = std::move(pcm), sample_rate, channels]() {
-                if (const auto self = weak_self.lock(); self && !self->exit_ && self->audio_frame_cbk_) {
-                    self->audio_frame_cbk_(pcm, sample_rate, channels, 16);
-                }
-            });
-        });
-
         net_client_->Start();
-
-        // rtc local encoded-sink mode, old-render compat: when the answer carries no
-        // "monitors" array, the single dynamic track is mapped to the capturing
-        // monitor reported via ServerConfiguration
-        net_client_->SetRtcLocalCapturingMonitorNameProvider([weak_self]() {
-            if (const auto self = weak_self.lock()) {
-                std::lock_guard<std::mutex> lk(self->rtc_cap_mon_mtx_);
-                return self->rtc_capturing_monitor_name_;
-            }
-            return std::string{};
-        });
 
         // receiver
         // cast_receiver_ = CastReceiver::Make();
@@ -598,80 +542,6 @@ namespace px
         msg.raw_image_ = image;
         msg.mon_info_ = info;
         msg_notifier_->SendAppMessage(msg);
-    }
-
-    void ThunderSdk::OnRtcLocalVideoFrame(int w, int h, std::shared_ptr<Data> i420) {
-        if (exit_) {
-            return;
-        }
-        if (!i420 || w <= 0 || h <= 0) {
-            return;
-        }
-
-        if (!has_video_frame_msg_) {
-            LOGI("WebRTC first decoded frame entered ThunderSdk processing: {}x{}", w, h);
-        }
-
-        // statistics, keep the speed chart alive
-        statistics_->AppendRecvDataSize(i420->Size());
-        const bool first_rtc_frame = !has_video_frame_msg_;
-        if (first_rtc_frame) {
-            LOGI("WebRTC first decoded frame statistics updated, bytes={}", i420->Size());
-        }
-
-        auto raw_image = RawImage::MakeI420(i420->MutableBytes().data(), (int)i420->Size(), w, h);
-        if (first_rtc_frame) {
-            LOGI("WebRTC first decoded frame copied into RawImage");
-        }
-        // rtc mode carries a single video stream, report it as the capturing monitor.
-        // use the REAL monitor name from ServerConfiguration: the render's event replayer
-        // drops mouse events tagged with an unknown monitor name.
-        const auto mon_name = [&]() {
-            std::lock_guard<std::mutex> lk(rtc_cap_mon_mtx_);
-            return !rtc_capturing_monitor_name_.empty()
-                   ? rtc_capturing_monitor_name_
-                   : std::string("rtc_local");
-        }();
-        if (first_rtc_frame) {
-            LOGI("WebRTC first decoded frame monitor resolved: {}", mon_name);
-        }
-        SdkCaptureMonitorInfo cap_mon_info {
-            .mon_name_ = mon_name,
-            .mon_index_ = 0,
-            .mon_left_ = 0,
-            .mon_top_ = 0,
-            .mon_right_ = w,
-            .mon_bottom_ = h,
-            .frame_width_ = w,
-            .frame_height_ = h,
-            .update_time_ = TimeUtil::GetCurrentTimestamp(),
-        };
-
-        auto statistics = statistics_;
-        PostMiscTask([statistics, cap_mon_info, w, h]() {
-            statistics->TickVideoRecvFps(cap_mon_info.mon_name_);
-            statistics->UpdateFrameSize(cap_mon_info.mon_name_, w, h);
-        });
-        if (first_rtc_frame) {
-            LOGI("WebRTC first decoded frame statistics task queued");
-        }
-
-        if (video_frame_cbk_) {
-            if (first_rtc_frame) {
-                LOGI("WebRTC first decoded frame dispatching to workspace");
-            }
-            video_frame_cbk_(raw_image, cap_mon_info);
-            if (first_rtc_frame) {
-                LOGI("WebRTC first decoded frame workspace dispatch returned");
-            }
-        }
-
-        if (!has_video_frame_msg_) {
-            has_video_frame_msg_ = true;
-            LOGI("WebRTC first decoded frame notifying application listeners");
-            SendFirstFrameMessage(raw_image, cap_mon_info);
-            LOGI("WebRTC first decoded frame application notification returned");
-        }
     }
 
     void ThunderSdk::PostMediaMessage(std::shared_ptr<Data> msg) {
@@ -714,12 +584,6 @@ namespace px
             }
         });
 
-        // remote device offline
-        msg_listener_->Listen<SdkMsgRelayRemoteDeviceOffline>([weak_self](const SdkMsgRelayRemoteDeviceOffline&) {
-            if (const auto self = weak_self.lock()) {
-                self->ClearFirstFrameState();
-            }
-        });
     }
 
     void ThunderSdk::SendHelloMessage() {
@@ -815,10 +679,6 @@ namespace px
                 [weak_self, callback = std::move(cbk)](std::shared_ptr<px::Message> msg) mutable {
                 const auto self = weak_self.lock();
                 if (!self) return;
-                if (msg && msg->has_config() && !msg->config().capturing_monitor_name().empty()) {
-                    std::lock_guard<std::mutex> lk(self->rtc_cap_mon_mtx_);
-                    self->rtc_capturing_monitor_name_ = msg->config().capturing_monitor_name();
-                }
                 auto first_config_message = msg;
                 callback(std::move(msg));
                 if (!self->has_config_msg_.exchange(true)) {
@@ -847,18 +707,7 @@ namespace px
     }
 
     int ThunderSdk::GetProgressSteps() const {
-        if (sdk_params_->nt_type_ == ClientNetworkType::kWebsocket) {
-            return 3;
-        }
-        else if (sdk_params_->nt_type_ == ClientNetworkType::kUdpKcp) {
-            return 3;
-        }
-        else if (sdk_params_->nt_type_ == ClientNetworkType::kWebRtc) {
-            return 3;
-        }
-        else {
-            return 3;
-        }
+        return 3;
     }
 
     std::shared_ptr<ThunderSdkParams> ThunderSdk::GetSdkParams() {
@@ -890,15 +739,6 @@ namespace px
             // notify reconnecting
             msg_notifier_->SendAppMessage(SdkMsgReconnect{});
         }
-    }
-
-    bool ThunderSdk::RestartRtcIce(const std::string& ice_config_json,
-                                   const std::string& connection_ticket,
-                                   const std::string& client_nonce,
-                                   const std::string& instance_id,
-                                   std::uint64_t revision) {
-        return net_client_ && net_client_->RestartRtcIce(
-            ice_config_json, connection_ticket, client_nonce, instance_id, revision);
     }
 
     uint64_t ThunderSdk::GetLastHeartbeatTimestamp() {

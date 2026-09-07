@@ -25,6 +25,7 @@ bool Await(const std::function<bool()>& predicate) {
 
 struct Observations final {
     std::atomic_int configurations{0};
+    std::atomic_int connections{0};
     std::atomic_int failures{0};
     std::atomic_int disconnected{0};
     std::atomic_int file_messages{0};
@@ -51,7 +52,11 @@ struct Session final {
 
     bool Start(bool file_only = false) {
         const std::weak_ptr<Observations> weak_observations = observations;
-        server->bind_accept([](const std::shared_ptr<asio2::ws_session>& session) { session->ws_stream().binary(true); });
+        server->bind_accept([weak_observations](const std::shared_ptr<asio2::ws_session>& session) {
+            session->ws_stream().binary(true);
+            if (const auto state = weak_observations.lock())
+                ++state->connections;
+        });
         server->bind_upgrade([](const std::shared_ptr<asio2::ws_session>& session) {
             Message configuration{};
             configuration.set_type(kServerConfiguration);
@@ -83,11 +88,10 @@ struct Session final {
         params->udp_port_ = blackhole->listen_port();
         params->enable_video_ = !file_only;
         params->file_transfer_only_ = file_only;
-        params->nt_type_ = ClientNetworkType::kUdpDirect;
         params->client_type_ = ClientType::kUnknown;
         params->stream_id_ = "udp-failure-test";
-        client = std::make_shared<NetClient>(params, notifier, params->ip_, params->port_, "/media?udp_media=1", "/file/transfer", params->nt_type_,
-                                             "client_test", "server_test", "file_client", "file_server", params->stream_id_);
+        params->device_id_ = "client_test";
+        client = std::make_shared<NetClient>(params, notifier, "/media?udp_media=1", "/file/transfer");
         client->SetOnDisconnectedCallback([weak_observations]() {
             if (const auto state = weak_observations.lock())
                 ++state->disconnected;
@@ -154,6 +158,25 @@ TEST(UdpMediaFailure, FileOnlySessionDoesNotRequireUdpMedia) {
     EXPECT_EQ(session.observations->failures, 0);
     EXPECT_FALSE(session.observations->fallback_requested);
     EXPECT_EQ(session.observations->media_deliveries, 0);
+}
+
+TEST(UdpMediaFailure, FileOnlyRepeatedStartAndStopNeverReopensTheSession) {
+    for (int iteration{0}; iteration < 3; ++iteration) {
+        Session session{};
+        ASSERT_TRUE(session.Start(true));
+        session.client->Start();
+        session.client->Start();
+        std::this_thread::sleep_for(50ms);
+        EXPECT_EQ(session.observations->connections, 1);
+        session.client->Exit();
+        session.client->Exit();
+        session.client->Start();
+        EXPECT_EQ(session.client->PostFileTransferMessage(Data::From("file-probe")).status(), FileTransferSendStatus::kDisconnected);
+        session.notifier->SendAppMessage(SdkMsgTimer1000{});
+        std::this_thread::sleep_for(50ms);
+        EXPECT_EQ(session.observations->connections, 1);
+        EXPECT_EQ(session.observations->file_messages, 0);
+    }
 }
 
 TEST(UdpMediaFailure, FailureCallbackCanUnregisterAndStopWithoutResurrectingTheSession) {

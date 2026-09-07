@@ -1,7 +1,7 @@
 # 原生客户端 SDK 与 WebRTC 产品边界
 
 > 决定日期：2026-09-07
-> 状态：SDK 抽离、UDP 媒体回退退役、Android RTC 退役及 Windows/Panel 固定原生入口已实施；SDK 旧传输实现/依赖和核心/平台分层仍待清理。
+> 状态：SDK 抽离、双端固定原生入口、SDK 旧连接实现/依赖归档已实施；Windows/Android 复用单一 UDP/FEC + WS 连接。诊断残留、核心/平台分层仍待整理。
 > 本文替代此前原生客户端支持 WebRTC、Windows 保留 host 直连，以及原生 WS 媒体/Direct/Relay 多传输选择的规划。
 > 归档规则：本次精简的原有代码放入根目录 `backup/`，不直接删除。下文“删除/移除”均指退出活动源码与构建依赖，原实现须先完整归档。
 
@@ -165,3 +165,21 @@ Windows Client、Panel 和相关测试编译通过；7 组 CTest、7 项旧 CLI 
 运行产物已发布到 `build_official/dist` 并核对 SHA-256，Android Debug 再次编译通过。旧源码存于 `backup/windows_native_entry`。
 数据库旧选项列本次不做破坏性迁移，其值不再影响启动策略；SDK 内部旧实现、Windows RTC DLL 包装与平台分层仍待清理。
 详见 [Windows 原生入口交付记录](windows_native_entry_checkpoint_20260907.md)。
+
+## 第五检查点：共享 SDK 单一原生传输（2026-09-07）
+
+本轮归档 SDK 的 RTC/Direct RTC、Relay、旧 UDP/KCP 连接文件和原生 ICE 重启测试；
+从 NetClient 删除独立 WS 媒体与协议分派，公开参数不再接受传输枚举、Relay 端点、P2P/ICE 设置。
+Windows 工作区的 Relay 重连、RTC 重启/鉴权监听随之退出；Android CMake 不再引入 Relay 库。
+WS/WSS 仍是可靠通道的 TLS 配置；普通会话复用控制连接传文件，独立文件会话不启动 UDP。
+
+Windows Client 不再链接/发布 Client RTC DLL。Render 的两套既有 RTC DLL 和 Web 所需能力不变；
+语音 APM DLL 的降噪/回声处理依赖保留，这不构成原生 RTC 传输。受单独审查规则保护的
+`px_webrtc_client` 适配器源码仍保留，不再进入 Native Client 的依赖链。
+
+归档批次为 `backup/native_sdk_transport_core_20260907`、`native_sdk_transport_tools_20260907`
+和 `native_sdk_transport_build_entries_20260907`。所有原文件完整保存并有 SHA-256 清单，不参与产品编译。
+
+后续仍需清理旧诊断字段/消息、解码器平台边界和 Qt 依赖；不能据此宣布 SDK 平台无关化完成。
+旧数据库列暂不做破坏性迁移；iOS/macOS、真机验收和 Release 合规输入仍按此前范围另行推进。
+构建、短回归与产物证据见 [本轮交接](native_sdk_transport_core_checkpoint_20260907.md)。

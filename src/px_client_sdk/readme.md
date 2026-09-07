@@ -13,16 +13,27 @@ Archived sources are never build inputs.
 
 ## Migration status
 
-Directory and build-target extraction is the first implementation checkpoint.
-Transport simplification and platform/core separation are subsequent checkpoints:
-the current SDK still contains the existing RTC/Relay implementations and the
-Windows decoder/render adapter still depends on Qt. This directory move alone
-does **not** establish an independently consumable, platform-neutral SDK.
+SDK extraction and native transport consolidation are implemented. The SDK no
+longer builds RTC, Relay, legacy UDP/KCP, or standalone WebSocket media paths.
+Its connection parameters no longer accept a transport type, Relay endpoint,
+P2P flag, or ICE configuration. Windows and Android use the same UDP/FEC +
+WebSocket connection code; TLS is a security setting on that reliable channel.
 
-The UDP path no longer falls back to WebSocket media. A typed media-only failure
-keeps the authenticated control/file session intact; UDP sessions reject WS
-audio/video before recording and decoding. Reconnect by ending the session and
-creating a new one. Other legacy transport entry points are not yet retired.
+UDP failure reports a typed media-only failure and keeps the authenticated
+control/file session intact. WS audio/video is rejected before recording and
+decoding. Reconnect media by ending the session and creating a new one.
+Standalone file sessions use one authenticated WebSocket without requiring UDP.
+Repeated Start/Exit is idempotent; Exit is terminal for that connection object.
+
+Windows no longer links or packages the Client RTC DLL. Render's WebRTC DLLs and
+the voice APM DLL remain separate retained capabilities. The Windows
+decoder/render adapter still depends on Qt; this is **not yet** an independently
+consumable, platform-neutral SDK. Legacy diagnostic/message fields and decoder
+ownership boundaries still need cleanup.
+
+Run `scripts/check_native_sdk_transport.ps1` to check source/build topology,
+and `scripts/check_webrtc_dll_link_boundary.ps1` after Windows configuration
+to verify that Native Client is isolated while Render keeps its RTC DLL boundary.
 
 The final native product transport is UDP/FEC media with WebSocket control/files.
 WebRTC remains a Web-client capability. iOS and macOS adapters are planned,

@@ -45,6 +45,19 @@ function Restore-RenderServiceAfterPublish {
     $script:restartRenderService = $false
 }
 
+function Move-RetiredClientRtcRuntime {
+    $retiredRtc = Join-Path $distRoot "px_client_rtc.dll"
+    if (-not (Test-Path -LiteralPath $retiredRtc -PathType Leaf)) { return }
+    # Preserve old runtime bytes outside dist; never replace an earlier archive.
+    $retiredDirectory = Join-Path $buildRoot ("retired-client-runtime/" + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $retiredDirectory | Out-Null
+    $retiredHash = Get-Sha256Hex -Path $retiredRtc
+    $retiredDestination = Join-Path $retiredDirectory "px_client_rtc.dll"
+    Move-Item -LiteralPath $retiredRtc -Destination $retiredDestination
+    if ((Get-Sha256Hex -Path $retiredDestination) -ne $retiredHash) { throw 'Retired RTC runtime archive hash mismatch.' }
+    Write-Host "ARCHIVED retired Native RTC DLL: $retiredDestination"
+}
+
 function Get-Sha256Hex {
     param([Parameter(Mandatory = $true)][string]$Path)
     $algorithm = [Security.Cryptography.SHA256]::Create()
@@ -228,10 +241,7 @@ switch ($Component) {
             -Source (Join-Path $buildRoot "src\px_client\px_client.exe") `
             -Destination (Join-Path $distRoot "px_client.exe") `
             -ProcessName "px_client"
-        Publish-VerifiedFile `
-            -Source (Join-Path $buildRoot "src\px_deps\px_webrtc_client\px_client_rtc.dll") `
-            -Destination (Join-Path $distRoot "px_client_rtc.dll") `
-            -ProcessName "px_client"
+        Move-RetiredClientRtcRuntime
         # Voice processing is a shared runtime dependency of Client and Render.
         # The client executable above is published first, stopping any active client.
         Publish-VerifiedFile `
@@ -312,10 +322,7 @@ switch ($Component) {
             -Source (Join-Path $buildRoot "src\px_client\px_client.exe") `
             -Destination (Join-Path $distRoot "px_client.exe") `
             -ProcessName "px_client"
-        Publish-VerifiedFile `
-            -Source (Join-Path $buildRoot "src\px_deps\px_webrtc_client\px_client_rtc.dll") `
-            -Destination (Join-Path $distRoot "px_client_rtc.dll") `
-            -ProcessName "px_client"
+        Move-RetiredClientRtcRuntime
         Remove-RetiredClientRecordingCore
         $retiredClientPluginDirectory = Join-Path $distRoot "deps\ct_plugins"
         foreach ($retiredName in @(

@@ -1,0 +1,441 @@
+{
+  "revision": "f1ff7022f5b2a7654a2d286a1db96d1f43e2a659",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "scripts/build_px_client.bat",
+      "sha256": "3849DFCBE7AAEA47FDB685F9B8F8F2A4BFF33F48B54B8FD75D4B50BC5BCF54EE",
+      "status": ""
+    },
+    {
+      "path": "scripts/check_android_native_transport.ps1",
+      "sha256": "73D728A5B941D56AD382282561CC3A211A1E93ED851423E612142B1E11268D90",
+      "status": ""
+    },
+    {
+      "path": "scripts/check_webrtc_dll_link_boundary.ps1",
+      "sha256": "FBFB267718EFAB6B6BDF87209C66300A4DBCD47E3792168B33FBE3A9A7D66223",
+      "status": ""
+    },
+    {
+      "path": "scripts/collect_dist.py",
+      "sha256": "979D21D4AD35E30464844503FCDC60A856B144A9E94A89F40BF5C1A4E40637EB",
+      "status": ""
+    },
+    {
+      "path": "scripts/publish_cpp_artifacts.ps1",
+      "sha256": "6A9F6CE8F91886EB760BD6A55359526F673491F213A932BA5324BB21B15BDE2B",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/CMakeLists.txt",
+      "sha256": "CA6DF5224596768DC8ED72AEE738190DB8D9C38D75925CFDB9C1FF41E42D5783",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_session.cpp",
+      "sha256": "83DA3F6AD46FFFF95E45DD4C9C950ACDE247D93E55DD345C19ED4F73308D025E",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/CMakeLists.txt",
+      "sha256": "5F47E76F0F9599F7C3EAE1824CADE0A2BA27FEBFB69C03A615E1203E528BE7C9",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_app_message.h",
+      "sha256": "EA1CACA8915D0843503E2E968C93101EBA67EC15A8A53653DEE7163D8C663CC4",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.cpp",
+      "sha256": "14A680890D07D9F6D0CC90F6D67A471043864665C1D206A6E45AE38AE2F03609",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.h",
+      "sha256": "5468F8612F016F053EC3AFCD2506718DE8B1B255ACEF396A8AE3707AA333C9DF",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_main_ws.cpp",
+      "sha256": "80685F2F4879E12AEFBA1C9165D0B65AA7F44A3CAB59379F863882903C00C650",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/network/ct_panel_client.cpp",
+      "sha256": "70EC4E8489E2BFE6246BBCF422505047E576F75EF957B14AF9CE2B1779F8819E",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/network/ct_panel_client.h",
+      "sha256": "9AE28B342953E9FCE46232FEB8CDE0F220059084DE1A0D6B8B5A0CBC7946A232",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/CMakeLists.txt",
+      "sha256": "53B31E8BBAF53DC07C2234E33BD2669510C6A6599D1CF28D91184234D107451A",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/CMakeLists.txt",
+      "sha256": "8BFCA5E4FFF4E7E994B525F31A7F13CC8F585111A24398E7FFB7EDCF126B09C5",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/connection.cpp",
+      "sha256": "6767AD77F33B85E17AABC546F2E1F4C1D36B759B1E8F3785CE626E955F74DFC4",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/connection.h",
+      "sha256": "2784782B8C00E8FD1A9554BB05204997452C2FDC74894C177F42E54861B7EA14",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/relay_connection.cpp",
+      "sha256": "EC7D5D94D0130E4E381A937857BF46390C3D3C0088DB5F5C9F115B49D6ADB8F1",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/relay_connection.h",
+      "sha256": "8FCDCCD2DC2986B5865D55AC046D4E9673665F1433C5E36A683B7FE8DB9AB94C",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/rtc_ice_restart_workflow.cpp",
+      "sha256": "91499E84FFF6B178D7DF587E6AA8FC83224E9F4AED972BC7F0A636E0421E8FCD",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/rtc_ice_restart_workflow.h",
+      "sha256": "141E1F0947410D3E1754841B693D7D295128EBE78F2F8B13E260F7FABCD19FEE",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/sdk_websocket_reconnect.h",
+      "sha256": "CF30BDFF24FBB1421A68FC0BE3BE88D9B851AD45606258A4E816F923984794F8",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/udp_connection.cpp",
+      "sha256": "73738EA22ABC8C088A53371330D94CA9F1DACF7A91A529E4398FB09394277637",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/udp_connection.h",
+      "sha256": "BEB55A9D92A4F6661D91D838FD06A8080C5CDB7FAE2A68606CCBC9877DE112AE",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/udp_direct_connection.cpp",
+      "sha256": "44DB76EBA36D4114315690B467B5578E115836919050B3F6865B72E378A36E31",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/udp_direct_connection.h",
+      "sha256": "79F3844BF731CBEDF82FBA21541DAC460E4F7EAE7E48AC1BD9815B29452D8CA2",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/udp_media_state.h",
+      "sha256": "7723282214BDAEDC2E4E9994B5F2D2CC5BC5F99AFC1170108068199181EFF11D",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/webrtc_connection.cpp",
+      "sha256": "11A878E4D8E4B126AF8CCB24AA9F9FA9EF59EA1E70EFDBA043F8F47B85FDB941",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/webrtc_connection.h",
+      "sha256": "1C829A9ACEA2E4DA57A78639612CBD172E1A211C031FED9474D6472DA0D378A0",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/webrtc_local_connection.cpp",
+      "sha256": "ECC6E3A360DD4412DB5F72020102B4565D9FFB9D028AC713E45B0E7BC1145370",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/webrtc_local_connection.h",
+      "sha256": "417FC205FCA4EC258E116A3801195B087F077FF97C4545C722A19AE4D70BEE24",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/ws_connection.cpp",
+      "sha256": "5E5A37FA29685D7C7053D6B5B0B70BA9C09767BCFEBBBA4F0B6DEE13C4DC02F7",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/ws_connection.h",
+      "sha256": "BE7732A7008CAD175E6A3359CC63A19C768C1D9524916ECB1AE35C16B50412DF",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/wss_connection.cpp",
+      "sha256": "4858F1582771CEE4E572C6C31A431ADBA3D1604230CE12BADB0382A979A2513C",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/wss_connection.h",
+      "sha256": "C9E2C73869AAA91B9402BC85FE40C0A71BAAFD73B813C3D0A213A43DD4D6D881",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/director.cpp",
+      "sha256": "6A357395D852C75A2E47D28F680363E35C7AD6FEB14F4D41409830E7566C0202",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/director.h",
+      "sha256": "BF25DC24202950B09B964ACB564987E258240C9D3BB58FB7148EA10E46906878",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/gl_function.h",
+      "sha256": "3E77BE81BB20CECF79EFAC577AC720A61E82C2893BC337C9E60381B5A1EA4105",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/raw_image.cpp",
+      "sha256": "383062273B253EC5EF1307753AE07EF74BDB3D4CA1C66A8CA2717D8FF6CDDFE5",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/raw_image.h",
+      "sha256": "DE8FA966AC83BF77612145A59D2F7ED7A4412A52EFA825530B16EB53212CAF0E",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/renderer.cpp",
+      "sha256": "82FC52CAFF3D90244DC647348CD45BF74EF449B2A472A833072E2D2776B813DC",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/renderer.h",
+      "sha256": "4182502782719DA9D9C204F1E9C1FCF80469988157B86B8FF2450993811B1047",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/shader_program.cpp",
+      "sha256": "20A46BE768C68104F8AB0AB7E76E6EF2835EBC9E1AEF44648828363F06DEB10C",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/shader_program.h",
+      "sha256": "249B17B819153EE69FE5A70EEAC2947B9D3D259E91D963B4C0BC38F43AAA9876",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/sprite.cpp",
+      "sha256": "F0F2949F1D6BBD69E0D11FA3CA24A7BEEF619613CD3471AA27BC16BD59DE1C35",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/sprite.h",
+      "sha256": "EB22480173781D0AA881464AE78554171E40615772601422C2147A41CCFAF52A",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/gl/video_widget_shaders.h",
+      "sha256": "08BFEEB188713FB2DFBE5788FE80A3A0D8E939F3D8B206F1C95BD55AE89F6EE0",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/readme.md",
+      "sha256": "FD0673D6C6DFF390F439E5BEF34AEAE926211BC24D0F4E987F207554002AEBEE",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_android_software_decoder.cpp",
+      "sha256": "5F7A114D33BC691319F9FD4EBA743A04AA439FE7C3DB2BD70A367A160944EBB9",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_android_software_decoder.h",
+      "sha256": "9EA62E8EBFC1EDDCCF09FD453DB465A4B10A4E7C3DDBFB0685E8A5C5676DF441",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_cast_receiver.cpp",
+      "sha256": "AD881BE6EACAC608C2E4FF157920525F59868C9EDA003FC1D795C1868A992B0B",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_cast_receiver.h",
+      "sha256": "9222EC9D9E37405CA547A25AAF4F43F944DC98254F6316FF56D7733F061012D3",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_decoder_render_type.h",
+      "sha256": "4EB1CE16CB807250FE82382E2979751B5E088A60FF04E92E5FE416A62280A346",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_errors.cpp",
+      "sha256": "55FA1EE2E70C206B306D78F74E6158495E8CBA7C53A2A8CBEBDCEC086B8AE31F",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_errors.h",
+      "sha256": "1817FE3B29F83FFE25210E9B4965D64817A085A94A481803F58F41B5133361B8",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_decoder.cpp",
+      "sha256": "42C3EBDEFCA77A8708A36D46F7EBA9B5222B4089E128EA9C0B57CB76C6145DF4",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_decoder.h",
+      "sha256": "3A25293671AB882895E6627B742F4EACBB3700AAC858449DA164EB50EE9848D1",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_soft_decoder.cpp",
+      "sha256": "99535569ADFB10F0914CED743C256D4C90DD6B3547453D668FDA34912A3A6D1A",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_soft_decoder.h",
+      "sha256": "154590194116A9466561CA4B634DD8A644A7A52959C9BAB752CAB224ECA62604",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_vulkan_decoder.cpp",
+      "sha256": "291F5DA6C64D20202E7036137214FF3878183AD5123F1107D862213555B1483E",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_vulkan_decoder.h",
+      "sha256": "0668D28D22B628CC16226FE061D46AC222138D8E2E9950992A827E9FAD06A30F",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_mediacodec_video_decoder.cpp",
+      "sha256": "39E8688732D7E4E7A704B233F60A15D18F60AB3E7CD88231D30243DA34859853",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_mediacodec_video_decoder.h",
+      "sha256": "49F259A849528263C977BD29B47826A3DF23B54A8E44250F6F73DD7BE71F28CA",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_messages.h",
+      "sha256": "233C9C989A07CC759F96D55D0014F3B1B860848C29C51C074197E7C9044699E9",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_net_client.cpp",
+      "sha256": "056FFDC6026B84A5B10A659457010D9506C2FB24436975F238539C443BC26F2F",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_net_client.h",
+      "sha256": "7868C744DCE90FF7D32E9CDC5C962817195D865BB672CF1A49FCBEE4C8761E1F",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_params.h",
+      "sha256": "B6F490FC8C019F8A3C1B99D4392DF2FB684E86A54794DE737AE49FE2D7363A87",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_statistics.cpp",
+      "sha256": "3C3140F1AFA900FFDF991C9753EDB59B372EBAE0F7CC9CAEFE6F39B5A461FC22",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_statistics.h",
+      "sha256": "89EA6F48D34CD4FDCF65D1C666F497CB346DD3A2396EB0B80169E24BD24E19C0",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_stream_helper.cpp",
+      "sha256": "5BDE8172C39AD91DC9B6A476B04DFB5D8538D4DF890842393F3BCEE43591469D",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_stream_helper.h",
+      "sha256": "E35AB540D7B213E8DFEDD17ABA7898171FF58B709FD9F79C720AB06AC57A9256",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_timer.cpp",
+      "sha256": "BD1517D7C2018E346C6308BA07F072AE7E009E81376F7B2DAD32D9836AC8914F",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_timer.h",
+      "sha256": "C57EFBD764AB8E2E466428085239371AF3947F7315E5AB3434FEDDB549212CFA",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_video_decoder.cpp",
+      "sha256": "1A3B60953CB566FE6CDE8F5C6D41EB8870D845FCAAA44EAFC0E44AF3AD0EE1CC",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_video_decoder.h",
+      "sha256": "1DAD1CC3DB0508498F183075CA4E9DE3A3E911A7B157CE400EFC4142553145F8",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_video_decoder_factory.h",
+      "sha256": "66060D5569466F12ACFC8D19F2F2A8A404AC87087655D227932BF9731071A6CB",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_ft_transport_e2e.cpp",
+      "sha256": "8074FD17861C344F000CC2209F47CD0776462E2D05823C5DAB3D5A445FCB6A4A",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_rtc_ice_restart_workflow.cpp",
+      "sha256": "380577E7649DDEA199A5FC57941F44017B6204B23DF0BE1423F7F0225B2017BF",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_sdk_stream_helper.cpp",
+      "sha256": "87F174DDCF43451DB46DF2AFB384A684E594FB944208243D9D495FE65D25AE82",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_sdk_websocket_reconnect.cpp",
+      "sha256": "34BDF7E6594FF17553CB67CB82500A8155E58ECF58F0D6FB8569AE2309046A07",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_udp_media_failure.cpp",
+      "sha256": "57ECABCB81E5EC33C017F0EF8B616D0246EE7F0C1E114DCD18E5CD5C6BF69B14",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_udp_media_state.cpp",
+      "sha256": "36A632976D3F6974773D056232F2096A96856E0CA418329B0A5E250E072EBAB8",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/thunder_sdk.cpp",
+      "sha256": "FE59F91FAF3F9A8F64DC0BD3878608443536282AEC6F042DE412696A3CBE26C2",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/thunder_sdk.h",
+      "sha256": "554CF61555A12040302DD1F0EA03FD5A697AB0B724C6E75E00296706485EC8D0",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/video_decode_thread_task.cpp",
+      "sha256": "46C82780031E59A72C89017196A7F61A284AB95CD989A801429E7C53221531EC",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/video_decode_thread_task.h",
+      "sha256": "3CD430070238F0517C3CE20C2DAA5F3E6B0D4E834C2C0ECFB729579F16BC6ED8",
+      "status": ""
+    }
+  ]
+}

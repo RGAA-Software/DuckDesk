@@ -282,8 +282,7 @@ TEST(FileTransferTransportE2E, UploadDownloadAndDelete) {
     if (transport.empty()) {
         GTEST_SKIP() << "PX_FT_E2E_TRANSPORT is not configured";
     }
-    ASSERT_TRUE(transport == "ws" || transport == "wss" ||
-                transport == "relay" || transport == "udp_direct");
+    ASSERT_TRUE(transport == "udp_direct" || transport == "udp_direct_tls");
 
     const auto host = RequiredEnvironment(
         environment, QStringLiteral("PX_FT_E2E_HOST"));
@@ -301,10 +300,6 @@ TEST(FileTransferTransportE2E, UploadDownloadAndDelete) {
 
     const auto port = static_cast<int>(IntegerEnvironment(
         environment, QStringLiteral("PX_FT_E2E_PORT"), 20371));
-    const auto relay_host = environment.value(
-        QStringLiteral("PX_FT_E2E_RELAY_HOST")).toStdString();
-    const auto relay_port = static_cast<int>(IntegerEnvironment(
-        environment, QStringLiteral("PX_FT_E2E_RELAY_PORT"), 0));
     const auto byte_count = static_cast<std::uint64_t>(
         IntegerEnvironment(environment, QStringLiteral("PX_FT_E2E_BYTES"),
                            16 * 1024 * 1024));
@@ -321,10 +316,6 @@ TEST(FileTransferTransportE2E, UploadDownloadAndDelete) {
     const auto timeout = std::chrono::milliseconds(
         IntegerEnvironment(environment, QStringLiteral("PX_FT_E2E_TIMEOUT_MS"),
                            300000));
-    if (transport == "relay") {
-        ASSERT_FALSE(relay_host.empty());
-        ASSERT_GT(relay_port, 0);
-    }
 
     const auto suffix = std::to_string(
         std::chrono::steady_clock::now().time_since_epoch().count());
@@ -339,14 +330,14 @@ TEST(FileTransferTransportE2E, UploadDownloadAndDelete) {
         (directory_mode ? "_dir" : ".bin");
     const auto notifier = std::make_shared<px::MessageNotifier>();
     const auto params = std::make_shared<px::ThunderSdkParams>();
-    params->ssl_ = transport == "wss";
+    params->ssl_ = transport == "udp_direct_tls";
     params->enable_audio_ = false;
     params->enable_video_ = false;
     params->enable_controller_ = false;
     // UDP-direct exercises the normal-client topology: reliable file messages
     // share the authenticated /media control socket while UDP remains media
-    // only. Other transports retain the standalone file-only route here.
-    params->file_transfer_only_ = transport != "udp_direct";
+    // only. The same topology applies with and without TLS.
+    params->file_transfer_only_ = false;
     params->ip_ = host;
     params->port_ = port;
     params->media_path_ = "/media?only_audio=0&remote_device_id=" + remote_device_id
@@ -362,11 +353,6 @@ TEST(FileTransferTransportE2E, UploadDownloadAndDelete) {
     params->ft_path_ = "/file/transfer?remote_device_id=" + remote_device_id
         + "&stream_id=" + stream_id + "&visitor_device_id=" + visitor_device_id;
     params->client_type_ = px::ClientType::kWindows;
-    params->nt_type_ = transport == "relay"
-        ? px::ClientNetworkType::kRelay
-        : transport == "udp_direct"
-            ? px::ClientNetworkType::kUdpDirect
-            : px::ClientNetworkType::kWebsocket;
     params->bare_device_id_ = visitor_device_id;
     params->bare_remote_device_id_ = remote_device_id;
     params->device_id_ = "client_" + visitor_device_id + "_e2e";
@@ -375,16 +361,10 @@ TEST(FileTransferTransportE2E, UploadDownloadAndDelete) {
     params->ft_remote_device_id_ = "ft_" + params->remote_device_id_;
     params->stream_id_ = stream_id;
     params->appkey_ = "test_appkey";
-    params->relay_host_ = relay_host;
-    params->relay_port_ = relay_port;
-    params->relay_appkey_ = "test_appkey";
     params->connection_ticket_ = ticket;
     params->connection_nonce_ = nonce;
 
-    const auto client = std::make_shared<px::NetClient>(
-        params, notifier, host, port, params->media_path_, params->ft_path_,
-        params->nt_type_, params->device_id_, params->remote_device_id_,
-        params->ft_device_id_, params->ft_remote_device_id_, stream_id);
+    const auto client = std::make_shared<px::NetClient>(params, notifier, params->media_path_, params->ft_path_);
     const auto state = std::make_shared<TransportTestState>();
     const std::weak_ptr<px::NetClient> weak_client = client;
     const std::weak_ptr<TransportTestState> weak_state = state;

@@ -142,7 +142,6 @@ namespace px
         Qt::CursorShape ToQCursorShape(uint32_t cursor_type);
 
         // reconnect when the remote device was in relay mode
-        void ReconnectInRelayMode();
         // dismiss connecting dialog
         void DismissConnectingDialog();
 

@@ -44,6 +44,8 @@ SKIP_NAMES = {
     "enc_ffmpeg.dll", "enc_amf.dll", "enc_nvenc.dll",
     "net_ws.dll", "net_udp.dll", "net_relay.dll",
     "net_rtc.dll", "net_rtc_local.dll",
+    # Native Client no longer consumes the retained WebRTC adapter.
+    "px_client_rtc.dll", "px_rtc_client.dll",
 }
 
 # Test executable prefix
@@ -198,7 +200,6 @@ def main():
         # SDL2/gflags/fftw3 are now statically linked via x64-windows-static-release
         ("libplacebo-349.dll", "libplacebo-349.dll"),
         ("src/px_render/px_render.exe", "px_render.exe"),
-        ("src/px_deps/px_webrtc_client/px_rtc_client.dll", "px_client_rtc.dll"),
         ("src/px_deps/px_voice_call/px_voice_apm.dll", "px_voice_apm.dll"),
     ]
     for rel_src, rel_dst in supplements:

@@ -38,7 +38,6 @@ namespace px
         void ReportTransportRejected();
         void ReportFileTransferBegin(const MsgClientFileTransmissionBegin& msg);
         void ReportFileTransferEnd(const MsgClientFileTransmissionEnd& msg);
-        void RequestRtcIceRestart();
         static PxAwaitable<void> RunHeartbeatLoop(std::weak_ptr<CtPanelClient> weak_client);
         void ScheduleDeferredExit();
 

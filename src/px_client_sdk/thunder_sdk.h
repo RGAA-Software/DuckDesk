@@ -26,7 +26,6 @@ class RawImage;
 class MessageNotifier;
 class MessageListener;
 class OpusAudioDecoder;
-class WebRtcClient;
 class CastReceiver;
 class SdkTimer;
 class SdkStatistics;
@@ -94,8 +93,6 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     int64_t GetQueuingFtMsgCount();
     // retry connection
     void RetryConnection();
-    bool RestartRtcIce(const std::string& ice_config_json, const std::string& connection_ticket, const std::string& client_nonce,
-                       const std::string& instance_id, std::uint64_t revision);
     void RequestVideoKeyFrame() {
         RequestIFrame();
     }
@@ -105,7 +102,6 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
 
   private:
     void SendFirstFrameMessage(std::shared_ptr<RawImage> image, const SdkCaptureMonitorInfo& info);
-    void OnRtcLocalVideoFrame(int w, int h, std::shared_ptr<Data> i420);
     void RegisterEventListeners();
     void SendHelloMessage();
     void RequestIFrame();
@@ -146,7 +142,6 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     std::shared_ptr<OpusAudioDecoder> audio_decoder_ = nullptr;
     bool debug_audio_decoder_ = false;
 
-    std::shared_ptr<WebRtcClient> webrtc_client_ = nullptr;
     std::shared_ptr<CastReceiver> cast_receiver_ = nullptr;
     std::shared_ptr<SdkTimer> sdk_timer_ = nullptr;
     std::shared_ptr<MessageListener> msg_listener_ = nullptr;
@@ -160,7 +155,6 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
 
     std::atomic_bool has_config_msg_ = false;
     std::atomic_bool has_video_frame_msg_ = false;
-    std::atomic_int64_t rtc_video_frame_index_{0};
 
     std::atomic_bool need_clear_video_tasks_{false};
     std::atomic_bool decoder_failure_notified_{false};
@@ -173,11 +167,6 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     // last heartbeat callback
     uint64_t last_heartbeat_callback_ = 0;
 
-    // capturing monitor name from ServerConfiguration, used by the webrtc local
-    // video frames so that mouse events carry the REAL monitor name
-    // (render's event replayer drops events with unknown monitor names)
-    std::mutex rtc_cap_mon_mtx_;
-    std::string rtc_capturing_monitor_name_;
 };
 
 } // namespace px

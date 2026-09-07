@@ -70,10 +70,10 @@ target_link_libraries(px_sdk PRIVATE px_opus_codec px_message px_common)
 message("ffmpeg libraries: ${FFMPEG_LIBRARIES}")
 
 if (ANDROID)
-    target_link_libraries(px_sdk PRIVATE ${FFMPEG_LIBRARIES} px_relay_client)
+    target_link_libraries(px_sdk PRIVATE ${FFMPEG_LIBRARIES})
     target_link_libraries(px_sdk PRIVATE ${ANDROID_OPENSSL_LIBS})
 else ()
-    target_link_libraries(px_sdk PRIVATE protobuf::libprotobuf px_relay_client px_rtc_client)
+    target_link_libraries(px_sdk PRIVATE protobuf::libprotobuf)
 
     target_link_libraries(px_sdk PRIVATE
             Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets
@@ -83,16 +83,6 @@ endif ()
 
 if(BUILD_TESTING AND NOT ANDROID)
     find_package(GTest CONFIG REQUIRED)
-    add_executable(test_rtc_ice_restart_workflow
-        tests/test_rtc_ice_restart_workflow.cpp
-        connection/rtc_ice_restart_workflow.cpp
-    )
-    target_include_directories(test_rtc_ice_restart_workflow PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(test_rtc_ice_restart_workflow PRIVATE
-        px_common
-        GTest::gtest
-        GTest::gtest_main
-    )
     add_executable(test_ft_transport_e2e
         tests/test_ft_transport_e2e.cpp
     )
@@ -106,11 +96,6 @@ if(BUILD_TESTING AND NOT ANDROID)
         GTest::gtest_main
     )
     add_test(NAME test_ft_transport_e2e COMMAND test_ft_transport_e2e)
-    if(WIN32)
-        set_tests_properties(test_ft_transport_e2e PROPERTIES
-            ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:px_rtc_client>"
-        )
-    endif()
     add_executable(test_udp_media_state
         tests/test_udp_media_state.cpp
     )

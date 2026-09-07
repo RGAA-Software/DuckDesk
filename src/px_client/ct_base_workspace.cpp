@@ -50,7 +50,6 @@
 #include "ct_voice_call_protocol.h"
 #include "px_voice_call/voice_audio_endpoint.h"
 #include "px_qt_widget/notify/notifymanager.h"
-#include "px_relay_client/relay_api.h"
 #include "px_message/proto_converter.h"
 #include "px_message/proto_message_maker.h"
 #include "px_common/win32/d3d11_wrapper.h"
@@ -283,23 +282,6 @@ namespace px
             }
         });
 
-        msg_listener_->Listen<MsgClientRtcIceRestart>([weak_self](const MsgClientRtcIceRestart& msg) {
-            const auto self = weak_self.lock();
-            if (!self) {
-                return;
-            }
-            if (self->settings_->network_type_ != ClientNetworkType::kWebRtc) {
-                LOGW("Ignore RTC ICE restart for non-standard RTC session");
-                return;
-            }
-            if (!self->sdk_->RestartRtcIce(msg.ice_config_json_, msg.connection_ticket_,
-                                           msg.client_nonce_, msg.instance_id_, msg.revision_)) {
-                LOGE("RTC ICE restart request failed, revision={}", msg.revision_);
-                return;
-            }
-            LOGI("RTC ICE restart started, revision={}", msg.revision_);
-        });
-
         msg_listener_->Listen<MsgClientSwitchMonitor>([weak_self](const MsgClientSwitchMonitor& msg) {
             const auto self = weak_self.lock();
             if (!self) {
@@ -395,21 +377,6 @@ namespace px
                     if (const auto task_self = weak_self.lock()) {
                         task_self->context_->NotifyAppWarningMessage(tcTr("id_warning"), tcTr("id_udp_media_unavailable"));
                     }
-                });
-            }
-        });
-
-        // webrtc local: render rejected the device password(HTTP 403), tell the user and quit
-        msg_listener_->Listen<SdkMsgRtcLocalAuthFailed>([weak_self](const SdkMsgRtcLocalAuthFailed&) {
-            if (const auto self = weak_self.lock()) {
-                self->context_->PostUITask([weak_self]() {
-                    if (!weak_self.lock()) {
-                        return;
-                    }
-                    auto box = SizedMessageBox::MakeErrorOkBox(
-                        tcTr("id_warning"), tcTr("id_rtc_local_pwd_error"));
-                    box->exec();
-                    ProcessUtil::KillProcess(QApplication::applicationPid());
                 });
             }
         });
@@ -992,45 +959,6 @@ namespace px
             }
         });
 
-        // relay error callback
-        msg_listener_->Listen<SdkMsgRelayError>([weak_self](const SdkMsgRelayError&) {
-            const auto self = weak_self.lock();
-            if (!self || self->remote_force_closed_) {
-                return;
-            }
-            //TODO: record it in event center
-            //context_->PostUITask([=, this]() {
-            //    TcDialog dialog(tcTr("id_error"), msg.msg_.c_str());
-            //    dialog.exec();
-            //});
-        });
-
-        // remote device offline
-        msg_listener_->Listen<SdkMsgRelayRemoteDeviceOffline>(
-            [weak_self](const SdkMsgRelayRemoteDeviceOffline&) {
-            const auto self = weak_self.lock();
-            if (!self || self->remote_force_closed_) {
-                return;
-            }
-            self->context_->PostDelayUITask([weak_self]() {
-                const auto task_self = weak_self.lock();
-                if (!task_self) {
-                    return;
-                }
-                TcDialog dialog(tcTr("id_error"), tcTr("id_remote_device_offline"));
-                if (dialog.exec() == kDoneOk) {
-                    task_self->context_->PostTask([weak_self]() {
-                        if (const auto reconnect_self = weak_self.lock()) {
-                            reconnect_self->ReconnectInRelayMode();
-                        }
-                    });
-                }
-                else {
-                    // exit
-                    ProcessUtil::KillProcess(QApplication::applicationPid());
-                }
-            }, 1000);
-        });
     }
 
     void BaseWorkspace::changeEvent(QEvent* event) {
@@ -1916,59 +1844,6 @@ namespace px
         if (target_screen) {
             widget->windowHandle()->setScreen(target_screen);
         }
-    }
-
-    void BaseWorkspace::ReconnectInRelayMode() {
-        if (!settings_->IsRelayMode() || remote_force_closed_) {
-            return;
-        }
-        // Reconnect
-        // 1. Can I connect relay server?
-        {
-            LOGI("will get device info in {}:{} for id: {}", settings_->relay_host_, settings_->relay_port_, settings_->full_device_id_);
-            auto r = px_relay::RelayApi::GetRelayDeviceInfo(settings_->relay_host_, settings_->relay_port_, settings_->full_device_id_, settings_->relay_appkey_);
-            if (!r.has_value()) {
-                const auto weak_self = weak_from_this();
-                context_->PostUITask([weak_self]() {
-                    if (const auto self = weak_self.lock()) {
-                        TcDialog dialog(tcTr("id_warning"),
-                                        tcTr("id_cant_get_local_device_info"), self.get());
-                        dialog.exec();
-                    }
-                });
-                return;
-            }
-        }
-
-        // 2. Can I get remote device info ?
-        {
-            LOGI("will get remote device info in {}:{} for id: {}", settings_->relay_host_, settings_->relay_port_, settings_->full_remote_device_id_);
-            auto r = px_relay::RelayApi::GetRelayDeviceInfo(settings_->relay_host_, settings_->relay_port_, settings_->full_remote_device_id_, settings_->relay_appkey_);
-            if (!r.has_value()) {
-                const auto weak_self = weak_from_this();
-                context_->PostUITask([weak_self]() {
-                    if (const auto self = weak_self.lock()) {
-                        TcDialog dialog(tcTr("id_warning"),
-                                        tcTr("id_cant_get_remote_device_info"), self.get());
-                        dialog.exec();
-                    }
-                });
-                return;
-            }
-        }
-
-        // 3. Start reconnecting
-        sdk_->RetryConnection();
-
-        // show dialog
-        const auto weak_self = weak_from_this();
-        context_->PostUITask([weak_self]() {
-            const auto self = weak_self.lock();
-            if (self && self->retry_conn_dialog_->isHidden()) {
-                WidgetHelper::SetTitleBarColor(self->retry_conn_dialog_.get());
-                self->retry_conn_dialog_->Exec();
-            }
-        });
     }
 
     void BaseWorkspace::DismissConnectingDialog() {

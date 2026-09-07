@@ -538,7 +538,6 @@ int main(int argc, char** argv) {
         .media_path_ = media_path,
         .ft_path_ = ft_path,
         .client_type_ = ClientType::kUnknown,
-        .nt_type_ = settings->network_type_,
         .bare_device_id_ = settings->device_id_,
         .bare_remote_device_id_ = settings->remote_device_id_,
         .device_id_ = device_id,

@@ -33,8 +33,8 @@ if ($renderLink -match "(?i)(?:^|[\\/\s])webrtc\.lib(?:\s|$)") {
 }
 
 $clientLink = Get-LinkBlock "[^\r\n]*[\\/]px_client\.exe:\s+CXX_EXECUTABLE_LINKER[^\r\n]*"
-if ($clientLink -notmatch [regex]::Escape("px_client_rtc.lib")) {
-    throw "px_client.exe must link the px_client_rtc.dll import library."
+if ($clientLink -match "px_client_rtc\.lib|px_relay_client\.lib") {
+    throw "Native px_client.exe must not link retired RTC or Relay transports."
 }
 if ($clientLink -match "(?i)(?:^|[\\/\s])webrtc\.lib(?:\s|$)") {
     throw "px_client.exe must not link the static libwebrtc archive webrtc.lib."
@@ -64,10 +64,6 @@ foreach ($cmakeFile in $cmakeFiles) {
 }
 
 $clientRtcBoundaryFiles = @(
-    (Join-Path $root "src/px_client_sdk/connection/webrtc_connection.h"),
-    (Join-Path $root "src/px_client_sdk/connection/webrtc_connection.cpp"),
-    (Join-Path $root "src/px_client_sdk/connection/webrtc_local_connection.h"),
-    (Join-Path $root "src/px_client_sdk/connection/webrtc_local_connection.cpp"),
     (Join-Path $root "src/px_deps/px_webrtc_client/rtc_client.h"),
     (Join-Path $root "src/px_deps/px_webrtc_client/rtc_connection.h"),
     (Join-Path $root "src/px_deps/px_webrtc_client/rtc_connection.cpp")

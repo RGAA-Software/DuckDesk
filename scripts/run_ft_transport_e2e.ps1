@@ -1,6 +1,6 @@
 param(
-    [ValidateSet('ws', 'wss', 'relay', 'udp_direct')]
-    [string]$Transport = 'ws',
+    [ValidateSet('udp_direct', 'udp_direct_tls')]
+    [string]$Transport = 'udp_direct',
     [ValidateRange(1, 1000)]
     [int]$Rounds = 1,
     [ValidateRange(0, 1073741824)]
@@ -82,7 +82,6 @@ function Invoke-JsonPost([string]$Uri, [object]$Body, [string]$Bearer = '', [int
 
 $testEnvironmentNames = @(
     'PX_FT_E2E_TRANSPORT', 'PX_FT_E2E_HOST', 'PX_FT_E2E_PORT',
-    'PX_FT_E2E_RELAY_HOST', 'PX_FT_E2E_RELAY_PORT',
     'PX_FT_E2E_REMOTE_DEVICE_ID', 'PX_FT_E2E_VISITOR_DEVICE_ID',
     'PX_FT_E2E_TICKET', 'PX_FT_E2E_NONCE', 'PX_FT_E2E_STREAM_ID', 'PX_FT_E2E_BYTES',
     'PX_FT_E2E_TIMEOUT_MS', 'PX_FT_E2E_REMOTE_DIR', 'PX_FT_E2E_REQUIRE_BUSY',
@@ -122,16 +121,10 @@ try {
             if ($issued.code -ne 200 -or -not $issued.data.ticket -or -not $issued.data.stream_id) {
                 throw 'ticket issue failed'
             }
-            if ($Transport -eq 'relay' -and
-                (-not $issued.data.relay_host -or [int]$issued.data.relay_port -le 0)) {
-                throw 'Console did not issue a Relay endpoint'
-            }
 
             $env:PX_FT_E2E_TRANSPORT = $Transport
             $env:PX_FT_E2E_HOST = $TargetHost
             $env:PX_FT_E2E_PORT = [string]$TargetPort
-            $env:PX_FT_E2E_RELAY_HOST = [string]$issued.data.relay_host
-            $env:PX_FT_E2E_RELAY_PORT = [string]$issued.data.relay_port
             $env:PX_FT_E2E_REMOTE_DEVICE_ID = $DeviceId
             $env:PX_FT_E2E_VISITOR_DEVICE_ID = $visitorDeviceId
             $env:PX_FT_E2E_TICKET = [string]$issued.data.ticket

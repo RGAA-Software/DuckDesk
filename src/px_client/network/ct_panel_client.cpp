@@ -66,15 +66,6 @@ namespace px
                 self->ReportFileTransferEnd(msg);
             });
         });
-        msg_listener_->Listen<SdkMsgRtcIceRestartNeeded>([weak_self](const SdkMsgRtcIceRestartNeeded&) {
-            if (auto self = weak_self.lock(); self && !self->exiting_ && self->context_) {
-                self->context_->PostTask([weak_self]() {
-                    if (auto self = weak_self.lock(); self && !self->exiting_) {
-                        self->RequestRtcIceRestart();
-                    }
-                });
-            }
-        });
         msg_listener_->Listen<SdkMsgNetworkConnected>([weak_self](const SdkMsgNetworkConnected&) {
             const auto self = weak_self.lock();
             if (!self || self->exiting_ || !self->context_) {
@@ -302,18 +293,6 @@ namespace px
             LOGI("Panel requested opening file transfer in the current client");
             context_->SendAppMessage(MsgClientOpenFiletrans {});
         }
-        else if (cp_msg.type() == pxcp::CpMessageType::kCpRtcIceRestart
-                 && cp_msg.has_rtc_ice_restart()) {
-            const auto& restart = cp_msg.rtc_ice_restart();
-            LOGI("Panel requested RTC ICE restart, revision={}", restart.revision());
-            context_->SendAppMessage(MsgClientRtcIceRestart {
-                .connection_ticket_ = restart.connection_ticket(),
-                .client_nonce_ = restart.client_nonce(),
-                .instance_id_ = restart.instance_id(),
-                .ice_config_json_ = restart.ice_config_json(),
-                .revision_ = restart.revision(),
-            });
-        }
     }
 
     void CtPanelClient::Hello() {
@@ -410,19 +389,6 @@ namespace px
         auto& sub = *cp_msg.mutable_heartbeat();
         sub.set_remote_device_desktop_name(stat.remote_desktop_name_.Clone());
         sub.set_remote_os_name(stat.remote_os_name_.Clone());
-        client->async_send(cp_msg.SerializeAsString());
-    }
-
-    void CtPanelClient::RequestRtcIceRestart() {
-        const auto client = ClientSnapshot();
-        if (!IsAlive() || !client) {
-            LOGW("Cannot request RTC ICE restart: Panel channel is offline");
-            return;
-        }
-        pxcp::CpMessage cp_msg;
-        cp_msg.set_type(pxcp::CpMessageType::kCpRtcIceRestartRequest);
-        const auto& settings = *Settings::Instance();
-        cp_msg.set_stream_id(settings.stream_id_);
         client->async_send(cp_msg.SerializeAsString());
     }
 

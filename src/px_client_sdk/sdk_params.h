@@ -24,18 +24,16 @@ namespace px
         bool enable_audio_ = false;
         bool enable_video_ = false;
         bool enable_controller_ = false;
-        // Standalone file manager: open only the file-transfer transport where
-        // the network type has separate media and FT connections.
+        // Standalone file manager: authenticated WebSocket only, without UDP media.
         bool file_transfer_only_ = false;
         std::string ip_;
-        int port_;
-        // udp_direct(kUdpDirect)模式下 render 的 UDP 媒体端口,与 ws 控制面端口分开
+        int port_ = 0;
+        // Render UDP media port, separate from the reliable WebSocket control port.
         int udp_port_ = 20371;
         std::string media_path_;
         std::string ft_path_;
-        ClientType client_type_;
+        ClientType client_type_ = ClientType::kUnknown;
         //ClientConnectType conn_type_;
-        ClientNetworkType nt_type_;
         // id only: xxxxx
         std::string bare_device_id_;
         // id only: xxxxx
@@ -48,7 +46,6 @@ namespace px
         std::string ft_remote_device_id_;
         std::string stream_id_;
         std::string stream_name_;
-        bool enable_p2p_ = false;
         std::string display_name_;
         std::string display_remote_name_;
 
@@ -65,11 +62,6 @@ namespace px
 #ifdef WIN32
         std::shared_ptr<D3D11DeviceWrapper> d3d11_wrapper_ = nullptr;
 #endif
-
-        // relay server info
-        std::string relay_host_;
-        int relay_port_ = 0;
-        std::string relay_appkey_;
 
         // Device context used for hwaccel decoders (vulkan use)
         AVBufferRef* vulkan_hw_device_ctx_ = nullptr;
@@ -102,7 +94,6 @@ namespace px
         // Short-lived opaque key used only to associate the UDP media endpoint
         // with an already authorized WS binding. It is not a session grant.
         std::string udp_media_association_;
-        std::string rtc_ice_config_json_;
         // Direct RTC callers set this only after the user requests takeover.
         // Console tickets already carry the authorized admission mode.
         bool direct_takeover_ = false;
