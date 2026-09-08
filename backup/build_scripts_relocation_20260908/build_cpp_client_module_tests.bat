@@ -1,0 +1,4 @@
+@echo off
+setlocal
+call "%~dp0scripts\build_cpp_target.bat" test_client_module_context_lifecycle test_client_recording_module_lifecycle test_client_file_transfer_module_lifecycle test_client_clipboard_module_lifecycle test_client_clipboard_file_stream
+exit /b %errorlevel%

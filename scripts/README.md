@@ -108,5 +108,5 @@ Run `output\px_desk\px_desk.exe` and open
 ## Other scripts
 
 - `collect_dist.py` — Collect build artifacts from `build_official/` into `build_official/dist/`.
-- `../build_cpp_common.bat` — Build the `px_common` target through the supported focused-build entry point.
+- `../scripts_build/build_cpp_common.bat` — Build the `px_common` target through the supported focused-build entry point.
 - `build_tc_tests.bat` / `run_tc_tests.bat` — Build and run tc tests.

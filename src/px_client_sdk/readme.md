@@ -136,11 +136,11 @@ Render 从当前已绑定端点获得 logical-session/stream 身份，并在交�
 仓库根目录运行，均不配置/启动 Windows UI、Gradle、npm 或 Rust workspace：
 
 ```bat
-build_cpp_sdk_standalone.bat windows full
-build_cpp_sdk_standalone.bat windows core
+scripts_build\build_cpp_sdk_standalone.bat windows full
+scripts_build\build_cpp_sdk_standalone.bat windows core
 set ANDROID_NDK_HOME=D:/android/sdk/ndk/29.0.14206865
-build_cpp_sdk_standalone.bat android full
-build_cpp_sdk_standalone.bat android core
+scripts_build\build_cpp_sdk_standalone.bat android full
+scripts_build\build_cpp_sdk_standalone.bat android core
 ```
 
 可通过 `VCPKG_ROOT`、`CPP_BUILD_JOBS` 指定依赖位置和并行度；输出分别在 `build_sdk_<platform>_<mode>`。

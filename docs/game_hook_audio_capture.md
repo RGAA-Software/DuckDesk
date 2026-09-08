@@ -292,7 +292,7 @@ CaptureAudioFrame→encode
 
 ### 8.3 构建注意
 
-- 工具链：VS 2022/2026 + Ninja `build_official`（见 `build_official.bat`）。
+- 工具链：VS 2022/2026 + Ninja `build_official`（见 `scripts_build\build_official.bat`）。
 - `collect_dist` 若因目录锁定失败，可能导致 `dist` 缺 `web_client` / plugins → 浏览器 `ERR_CONNECTION_REFUSED`。勿在占用 `dist` 时强清；优先增量拷贝 exe/dll。
 
 ### 8.4 原生 WASAPI 自测（存 WAV）

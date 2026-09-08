@@ -1,9 +1,9 @@
 # Workspace delivery rules
 
-- `build_official.bat` is a release-only full build. Do not run it for routine
+- `scripts_build\build_official.bat` is a release-only full build. Do not run it for routine
   development, focused verification, or incremental C++ changes unless the
   user explicitly requests a release/full build.
-- Routine C++ work must use the `build_cpp_*.bat` entry points, which build
+- Routine C++ work must use the `scripts_build\build_cpp_*.bat` entry points, which build
   only the requested CMake targets and do not bump versions, run npm, or build
   Rust workspaces.
 - The user starts and validates the Windows client from `build_official\dist`.

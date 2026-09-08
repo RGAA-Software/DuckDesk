@@ -26,7 +26,7 @@
 | MTU 钳 1024 | ✅ 已配置化 | `mtu` 参数,LAN 默认 1400,公网可配 1024；公网默认与实机矩阵仍待收口 |
 | UDP 不通回退 WS | ⚠️ 已实现，待 LAN 黑洞验收 | UDP 首媒体 4 秒超时或运行中 watchdog 超时时，一次性重建不带 `udp_media=1` 的直连 WS 媒体会话；generation 忽略旧回调 |
 
-构建:`build_client.bat`(`PX_SKIP_SERVERS=1`,只编安装包内容,跳过 3 个 rust server)。
+构建:`scripts_build\build_client.bat`(`PX_SKIP_SERVERS=1`,只编安装包内容,跳过 3 个 rust server)。
 探针:`scripts/udp_fec_probe.mjs`(视频 shard/FEC 统计)、`scripts/udp_audio_probe.mjs`(音频 seq/间隔统计)。
 
 ## 2. 当前状态(2026-08-13 晚,当前最优基线)
@@ -226,11 +226,11 @@
 > 目标机:`10.0.0.70` / `Administrator`。凭据见 `tests/.remote_admin.md`(未入库),不要写进本仓库可提交文档。
 
 > 只改 Render UDP/RTC 网络模块时，不必重跑全量
-> `build_client.bat`。在 VsDevCmd 环境里只编这两个目标:
+> `scripts_build\build_client.bat`。在 VsDevCmd 环境里只编这两个目标:
 >
 > ```bat
 > call "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
-> build_cpp_render_rtc.bat 18
+> scripts_build\build_cpp_render_rtc.bat 18
 > ```
 >
 > 产物在 `build_official\src\px_render\plugins\net_udp\plugin_net_udp.dll` 和
@@ -240,7 +240,7 @@
 1. **构建客户端包**
 
    ```bat
-   cmd /c build_client.bat incremental
+   cmd /c scripts_build\build_client.bat incremental
    ```
 
    成功后产物在 `build_official\dist\`。

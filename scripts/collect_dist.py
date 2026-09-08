@@ -369,7 +369,7 @@ def main():
         if not os.path.isdir(src):
             print(f"ERROR: {dst_name} build output not found: {src}", file=sys.stderr)
             print(
-                f"Run build_official.bat or: cd {'/'.join(rel_src_parts[:-1])} && npm run build",
+                f"Run scripts_build/build_official.bat or: cd {'/'.join(rel_src_parts[:-1])} && npm run build",
                 file=sys.stderr,
             )
             sys.exit(1)

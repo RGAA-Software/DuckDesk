@@ -35,7 +35,7 @@ if defined GAME_VIEW_B64 set "VIEW_ARG=--app_game_view_path=%GAME_VIEW_B64%"
 
 if not exist "%DIST%\px_render.exe" (
     echo ERROR: %DIST%\px_render.exe not found.
-    echo Run build_official.bat first.
+    echo Run scripts_build\build_official.bat first.
     exit /b 1
 )
 if not exist "%DIST%\px_gh.dll" (

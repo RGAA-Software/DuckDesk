@@ -935,7 +935,7 @@ scripts\build_px_turn.bat
 构建 Console 服务、Web、媒体和 Coturn 发布目录：
 
 ```bat
-build_px_console_server.bat
+scripts_build\build_px_console_server.bat
 ```
 
 构建同一份 Windows Client、RTC DLL 和文件插件：
@@ -996,7 +996,7 @@ WebClient voice state               19 assertions passed
 Console Web unit tests              15 passed
 Pixels Console Web production build passed
 px_web_client production build      passed
-build_px_console_server.bat release/package passed
+scripts_build\build_px_console_server.bat release/package passed
 bundled px_turn.exe --version        4.17.2
 本机真实 STUN Binding 请求           passed（40-byte success response）
 git diff --check                     passed

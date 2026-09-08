@@ -134,7 +134,7 @@ event=<事件> component=<组件> code=<稳定错误码> operation=<阶段> outc
 - `px_render_rtc_remote.dll` 和 `px_render_rtc.dll` 必须发布到 `build_official/dist` 根目录，与 `px_render.exe` 相邻；发布器必须清理
   `deps/network` 中的新旧 WebRTC 副本。
 - 所有 DLL、EXE、语言资源和运行资源发布到 `build_official/dist` 后必须与 build tree 的 SHA-256 一致。
-- 日常验证仅使用 `build_cpp_*.bat`；不得调用 release-only 的 `build_official.bat`。
+- 日常验证仅使用 `scripts_build\build_cpp_*.bat`；不得调用 release-only 的 `scripts_build\build_official.bat`。
 
 ## 8. 详细测试方案
 
@@ -178,10 +178,10 @@ event=<事件> component=<组件> code=<稳定错误码> operation=<阶段> outc
 
 ## 10. 自动化交付记录（2026-09-05）
 
-- `build_cpp_render.bat 8`、`build_cpp_client.bat 8` 与 `build_cpp_panel.bat 8` 通过；未运行 release-only 的 `build_official.bat`。
+- `scripts_build\build_cpp_render.bat 8`、`scripts_build\build_cpp_client.bat 8` 与 `scripts_build\build_cpp_panel.bat 8` 通过；未运行 release-only 的 `scripts_build\build_official.bat`。
 - Render 生命周期集合通过 19/19，其中 `webrtc_transport_lifecycle` 执行 Remote/Local 100 轮重复创建、启停和销毁，
   `rtc_client_dll_lifecycle` 覆盖 Client 具体 DLL factory、重复 Exit 和销毁。
-- `build_cpp_render_arch_tests.bat all 8` 最终通过：2 项架构门禁和 36 项 unit/lifecycle/integration 测试全部成功；证据目录为
+- `scripts_build\build_cpp_render_arch_tests.bat all 8` 最终通过：2 项架构门禁和 36 项 unit/lifecycle/integration 测试全部成功；证据目录为
   `test-results/render-architecture/20260905-022104-all`。
 - ownership、async lifetime、WebRTC link boundary、Render architecture 和 retired-module delivery 五类门禁全部通过。
 - `dumpbin /DEPENDENTS px_render.exe` 同时包含 `px_render_rtc_remote.dll` 与 `px_render_rtc.dll`；主程序链接边界不包含静态 `webrtc.lib`。
@@ -230,7 +230,7 @@ WebRTC 普通 DLL 迁移完成后，`src/px_render/plugin_interface` 中仍混�
 - `src/px_render/plugin_interface` 目录和对应 `px_plugin/px_net_plugin` CMake target 被删除。
 - `rg` 边界检查证明内建模块不包含旧插件路径，新流程节点接口不使用 `std::any`、裸指针或通用事件枚举。
 - queued callback 后销毁、dispatch 中注销、callback 中 shutdown、重复 Start/Stop 和 scope drain 测试通过。
-- 使用 `build_cpp_*.bat` 完成 Render 定向构建与架构测试；所有改变的运行产物发布到 `build_official/dist` 后 SHA-256 一致。
+- 使用 `scripts_build\build_cpp_*.bat` 完成 Render 定向构建与架构测试；所有改变的运行产物发布到 `build_official/dist` 后 SHA-256 一致。
 
 ## 12. Render 旧插件基础设施收敛实施记录（2026-09-05）
 
@@ -245,7 +245,7 @@ WebRTC 普通 DLL 迁移完成后，`src/px_render/plugin_interface` 中仍混�
   重复创建/投递/停止。
 - 架构门禁现在拒绝旧目录、旧类型、旧 include 和旧 CMake target 回归，只允许 `architecture/extensions` 下的 Source、Processor、
   Encoder、Observer 与 Sink 流程节点插件。
-- `build_cpp_render_arch_tests.bat all 8` 通过 2 项架构门禁和 36 项 unit/lifecycle/integration 测试；最终证据结论为 GO，目录为
+- `scripts_build\build_cpp_render_arch_tests.bat all 8` 通过 2 项架构门禁和 36 项 unit/lifecycle/integration 测试；最终证据结论为 GO，目录为
   `test-results/render-architecture/20260905-022104-all`。
 - 最终发布哈希：`px_render.exe` 为 `7EB6698ACEE23AE036A023CEFB9741EB91689A0C2AA0AC0EE759EB31863B32CA`，
   `px_render_rtc_remote.dll` 为 `0F8B9D6AD0FFE782E65EAC64B9EB5498BB405C8671F66A70816E9B653F0A0DAF`，

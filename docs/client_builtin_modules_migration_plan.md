@@ -92,11 +92,11 @@ Upgrade publishing removes stale copies of all historical Client plug-in DLL
 names, the temporary `px_client_recording_core.dll`, and the empty
 `deps/ct_plugins` directory.
 
-Focused verification uses `build_cpp_client_module_tests.bat`. It covers
+Focused verification uses `scripts_build\build_cpp_client_module_tests.bat`. It covers
 repeated start/stop, queued work rejected during shutdown, stop invoked inside
 worker/timer callbacks, concurrent post/stop, file-transfer reconnect, embedded
 Qt resource registration, clipboard virtual-file streaming, and the statically
 linked recording-core create/stop path. The final focused test run passed 5/5 tests,
-and `check_cpp_ownership` passed. `build_cpp_client.bat` built and published the
+and `check_cpp_ownership` passed. `scripts_build\build_cpp_client.bat` built and published the
 Client artifacts; build-tree and `build_official/dist` SHA-256 values matched.
-The release-only `build_official.bat` was not run.
+The release-only `scripts_build\build_official.bat` was not run.

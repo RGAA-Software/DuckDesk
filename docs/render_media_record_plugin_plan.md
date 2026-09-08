@@ -330,13 +330,13 @@ rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4
 |---|---|
 | 桌面构建 | `build_official/`（Ninja，RelWithDebInfo，triplet `x64-windows-static-release`，VCPKG `C:/source/vcpkg`） |
 | 可运行部署 | `build_official/dist/`：`px_render.exe` / `px_client.exe` / `px_panel.exe` / `settings.toml` / `deps/rd_plugins/*.dll`（`media_recorder.dll` 已存在，当前是空壳） |
-| 单测体系 | `TESTS_ENABLED=ON`；GTest；模式 = 模块下 `tests/` 子目录 + `add_tc_test()`；构建 `build_official_tests.bat`、运行 `run_tc_tests.bat`（现有 19 个 `test_*`） |
+| 单测体系 | `TESTS_ENABLED=ON`；GTest；模式 = 模块下 `tests/` 子目录 + `add_tc_test()`；构建 `scripts_build\build_official_tests.bat`、运行 `run_tc_tests.bat`（现有 19 个 `test_*`） |
 | 媒体工具 | `C:\source\vcpkg\installed\x64-windows-static-release\tools\ffmpeg\ffmpeg.exe` / `ffprobe.exe` |
 | 其他插件 | `mock_video_stream.dll`（可模拟流，多屏测试不用真接第二显示器） |
 
 ### 9.2 测试基建新增（随实现一起提交）
 
-1. **单测目标 `test_record_writer`**：`src/px_deps/px_media_record/tests/`，GTest，照 `px_common/tests` 模式（`TESTS_ENABLED` 门控）；加入 `build_official_tests.bat` 构建列表与 `run_tc_tests.bat` 运行列表。
+1. **单测目标 `test_record_writer`**：`src/px_deps/px_media_record/tests/`，GTest，照 `px_common/tests` 模式（`TESTS_ENABLED` 门控）；加入 `scripts_build\build_official_tests.bat` 构建列表与 `run_tc_tests.bat` 运行列表。
 2. **素材生成脚本 `scripts/gen_record_test_assets.bat`**：调 vcpkg ffmpeg 生成确定性素材——H264（`testsrc` 10s 640x360@30，`libx264` g=30，Annex-B）与 Opus（`sine` 10s 48k 立体声）。供单测与人工验证共用。
 3. **验证脚本 `scripts/verify_record_file.bat`**：封装 ffprobe 输出（流数量、编码、分辨率、两轨 duration、关键帧/包统计），一次调用即可判定文件是否合格。
 4. **测试口（建议采纳为正式配置）**：`settings.toml` 的 `[record]` 增加可选 `max_segment_bytes` / `max_file_count` 覆盖项（默认 1GB / 24）。否则滚动测试只能改代码常量重新编译。

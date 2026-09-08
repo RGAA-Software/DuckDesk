@@ -337,8 +337,8 @@ def apply_version(version: str, version_code: int | None = None) -> None:
     print(f"Updated unified product version to {version} (code {code}).")
     print()
     print("Next steps:")
-    print("  1. Rebuild: .\\build_official.bat")
-    print("  2. Rebuild servers if needed: .\\build_px_console_server.bat / build_px_auth_server.bat / build_px_desk_server.bat")
+    print("  1. Rebuild: .\\scripts_build/build_official.bat")
+    print("  2. Rebuild servers if needed: .\\scripts_build/build_px_console_server.bat / scripts_build/build_px_auth_server.bat / scripts_build/build_px_desk_server.bat")
     print("  3. Repackage installers under setup/ and src/px_panel/package/")
 
 

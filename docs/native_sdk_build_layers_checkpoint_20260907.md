@@ -46,7 +46,7 @@ cmake -P src/px_client_sdk/tests/test_sdk_source_sets.cmake
 它检查后端选择、集合互斥、全部活动实现被显式覆盖，以及未实现平台必须明确失败；只在测试中枚举源码，不用于产品自动发现。
 原生传输检查脚本同步覆盖新清单，并执行此测试。Windows CTest 注册同一项 `sdk_source_sets`。
 
-- Windows 使用 `build_cpp_tests.bat` 编译 `px_client`、文件 E2E、帧所有权、UDP 故障及 WS 重连测试，全部通过。
+- Windows 使用 `scripts_build\build_cpp_tests.bat` 编译 `px_client`、文件 E2E、帧所有权、UDP 故障及 WS 重连测试，全部通过。
 - 7 组 SDK CTest 全部通过，15.39 秒：`sdk_source_sets`、`test_ft_transport_e2e`、`test_udp_media_state`、
   `av_frame_ownership`、`udp_media_failure`、`sdk_stream_helper`、`sdk_websocket_reconnect`。
 - `build_official/dist` 20 秒本机直连冒烟通过：窗口、UDP 媒体、连续解码正常，无解码错误；随后退出测试客户端。

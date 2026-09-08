@@ -156,7 +156,7 @@
 
 | ID | 检查 | 通过条件 |
 | --- | --- | --- |
-| GATE-01 | build_official_tests.bat 构建 test_voice_call | 目标存在且构建成功 |
+| GATE-01 | scripts_build\build_official_tests.bat 构建 test_voice_call | 目标存在且构建成功 |
 | GATE-02 | 构建 test_client_voice_call_protocol | 目标存在且构建成功 |
 | GATE-03 | 构建 test_client_virtual_display | 目标存在且构建成功 |
 | GATE-04 | run_tc_tests.bat 或 CTest 运行上述目标 | 任一失败导致总入口非零 |
@@ -532,7 +532,7 @@ Console重命名采用断代策略，不测试旧数据迁移：
 ### 23.1 基线与构建
 
 - 测试提交：`51bde5408`；Console/Client 运行机：`10.0.0.16`；远端 Service/Render：`10.0.0.90`。
-- 用户明确要求整体编译，因此执行 `build_official.bat`。WebClient、Console Web、CMake/Ninja Client/Render、Console Server、Auth Server 和 Desk Server 均构建成功，版本由 `3.3.65` 更新为 `3.3.66`。
+- 用户明确要求整体编译，因此执行 `scripts_build\build_official.bat`。WebClient、Console Web、CMake/Ninja Client/Render、Console Server、Auth Server 和 Desk Server 均构建成功，版本由 `3.3.65` 更新为 `3.3.66`。
 - 构建时远端发布检查发现 `collect_dist.py` 仍从旧路径收集 RTC Client DLL，导致 `build_official/dist/px_client_rtc.dll` 陈旧；已改为收集 `px_client_rtc.dll` 新目标并重新发布。
 - 远端首次部署后 Render 因持久化参数 `--mock_video=false` 已被移除而退出；Service 现会在比较、启动和再次持久化前过滤该退休参数，并有单元测试覆盖。
 - 本机 build tree、`build_official/dist` 与 90 号机安装目录的关键运行文件已执行 SHA-256 对比，11 个抽查文件一致；`web_client`、`px_console`、`resources/language`、`deps/theme` 共 15 个资源文件也无缺失、哈希差异或额外文件。退休的 Client `clipboard.dll`、`ft.dll`、`record.dll` 及旧 Client 插件目录在远端不存在。

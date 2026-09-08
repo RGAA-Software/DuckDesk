@@ -40,7 +40,7 @@ SDK 源码边界检查同步禁止共享会话重新引入具体后端和旧 Sur
 
 ## 验证与交付
 
-- Windows 使用 `build_cpp_tests.bat px_client test_sdk_decoder_factory test_av_frame_ownership` 增量构建成功；
+- Windows 使用 `scripts_build\build_cpp_tests.bat px_client test_sdk_decoder_factory test_av_frame_ownership` 增量构建成功；
   Android `:core-native:testDebugUnitTest :app:assembleDebug` 成功（48 秒），未运行发布全量构建。
 - 最终 8 组 CTest 全部通过（27.20 秒）：源码分层、解码工厂（6 个用例）、连接参数、UDP 状态、帧所有权、
   UDP 失败处理、码流辅助及 WebSocket 重连。工厂生命周期测试验证 SDK 部分初始化失败；未模拟真实硬件初始化故障。

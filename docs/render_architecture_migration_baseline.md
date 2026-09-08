@@ -107,7 +107,7 @@ L3、30 分钟 pressure 和客户端人工验证仍是进入下一个 Observer �
 
 | 验证 | 结果 |
 |---|---|
-| `build_cpp_render_arch_tests.bat 8` | 通过 |
+| `scripts_build\build_cpp_render_arch_tests.bat 8` | 通过 |
 | 架构核心单元测试 | 8 个 suite、24 个 test 全部通过 |
 | 架构核心重复运行 | 连续 20 次全部通过 |
 | `render_retired_modules_guard` | 通过 |
@@ -127,7 +127,7 @@ Panel 聚焦链接同时修复了 Client 插件内置化后遗留的无效
 - `px_panel.exe`：`E45042D95DDB40A85CB8EB0E4A80A74125BF01803A72D4D02124567FC4324CD5`。
 
 以上均由聚焦发布脚本验证 build-tree 与 `build_official/dist` 的 SHA-256 相同；未运行
-`build_official.bat`。
+`scripts_build\build_official.bat`。
 
 ## 5. 2026-09-04 后续迁移执行记录
 
@@ -249,8 +249,8 @@ interface。
 
 ### 最终聚焦交付记录
 
-未运行 release-only 的 `build_official.bat`。按 workspace 规则使用
-`build_cpp_render_arch_tests.bat 8` 完成构建与统一 CTest，18/18 通过；此外对 13 个
+未运行 release-only 的 `scripts_build\build_official.bat`。按 workspace 规则使用
+`scripts_build\build_cpp_render_arch_tests.bat 8` 完成构建与统一 CTest，18/18 通过；此外对 13 个
 生命周期敏感 suite 执行 `--repeat until-fail:5`，65/65 次通过。RTC lifecycle suite
 每次内部对两个动态库各执行 10 轮加载、create、stop、destroy、unload；新增的固定 Host
 用例还验证：Host 自身释放后，模块 alias 仍会保持 DLL 存活，最后一个 alias 释放后 DLL
@@ -386,9 +386,9 @@ Render CTest 18/18 通过。发布脚本同步运行产物后，独立复核 bui
 
 ### 阶段 15：统一测试 runner、日志与交付证据门禁
 
-- `build_cpp_render_arch_tests.bat` 已实现 `quick`、`lifecycle`、`integration`、`hardware`、
+- `scripts_build\build_cpp_render_arch_tests.bat` 已实现 `quick`、`lifecycle`、`integration`、`hardware`、
   `all` 和 `performance` 六种模式；仍兼容原先以数字作为并行度的调用。runner 只调用精确
-  CMake target，不调用 release-only 的 `build_official.bat`。
+  CMake target，不调用 release-only 的 `scripts_build\build_official.bat`。
 - Render 自动化测试按 `render-guard`、`render-unit`、`render-lifecycle`、
   `render-integration` 和 `render-hardware` 注册。原来只构建的 RPC state、logical session、
   direct grant、plugin context、WAS reinit/process-loopback 和 recorder writer 测试均已注册到
@@ -529,12 +529,12 @@ high-watermark 和 drain duration 按 5 秒窗口聚合，时长统一使用 `st
   重复 start/stop，以及 WebRTC facade 的 100 轮 create/start/stop/destroy；DLL 保持进程级加载，不主动 unload；
 - 数据面测试覆盖 processor 顺序/失败/丢帧、observer 弱生命周期、Sink 队列背压；网络
   测试覆盖 WS async ticket/admission、UDP association、Relay route 和断开代际；
-- 完成 `build_cpp_render_arch_tests.bat` 与统一 runner 后，发布 `px_render.exe` 及发生变化的
+- 完成 `scripts_build\build_cpp_render_arch_tests.bat` 与统一 runner 后，发布 `px_render.exe` 及发生变化的
   WebRTC DLL，并逐项核对 build tree 与 `build_official/dist` SHA-256。真实 GPU、多显示器、
   LAN 弱网、30 分钟压力和 8 小时 soak 仍由最终硬件验收执行。
 
-2026-09-04 自动化交付结果：`build_cpp_render.bat` 与
-`build_cpp_render_arch_tests.bat` 均通过；统一 runner 共执行 30 项（2 项架构守卫、28 项
+2026-09-04 自动化交付结果：`scripts_build\build_cpp_render.bat` 与
+`scripts_build\build_cpp_render_arch_tests.bat` 均通过；统一 runner 共执行 30 项（2 项架构守卫、28 项
 unit/lifecycle/integration），PASS 30、FAIL 0、SKIP 0，隐私扫描和 async lifetime 检查
 通过。发布后的运行产物哈希为：
 

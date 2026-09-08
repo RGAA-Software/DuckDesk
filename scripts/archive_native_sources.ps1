@@ -2,7 +2,7 @@ param(
     [string]$Batch = 'native_transport_simplification',
     [string[]]$Paths = @('src/px_deps/px_client_sdk', 'src/px_client_sdk', 'src/px_client', 'src/px_panel', 'src/px_android',
         'src/px_deps/CMakeLists.txt', 'src/CMakeLists.txt', 'CMakeLists.txt', 'scripts',
-        'build_cpp_client.bat', 'build_cpp_sdk.bat', 'build_cpp_tests.bat', 'build_official.bat')
+        'scripts_build')
 )
 
 $ErrorActionPreference = 'Stop'

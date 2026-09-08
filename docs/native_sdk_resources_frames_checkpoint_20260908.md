@@ -40,7 +40,7 @@
 
 ## 3. 验证与产物
 
-使用日常 `build_cpp_*.bat` 增量入口，未运行 release-only `build_official.bat`。
+使用日常 `scripts_build\build_cpp_*.bat` 增量入口，未运行 release-only `scripts_build\build_official.bat`。
 
 | 检查 | 结果 |
 |---|---|

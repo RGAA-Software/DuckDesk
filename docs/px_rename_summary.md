@@ -51,7 +51,7 @@
   | `px_desk_server.exe` | `px_desk.exe` | `desk_settings.toml` | `px_desk.toml` |
 
 - **配置模板**：`rust_server/px_cms_server/src/px_cms.toml`（含顶层镜像 `rust_server/px_cms.toml`），由 `build.rs` 拷贝到 `target/release/`，`build_px_cms_server.bat` 首次启动时种子到 `output/`。
-- **构建脚本**：`build_px_cms_server.bat` / `build_px_auth_server.bat` / `build_px_desk_server.bat` —— `SERVER_NAME=px_*_server`、`EXE_NAME=px_cms/px_auth/px_desk`、`%EXE_NAME%.toml` 配置种子、`ensure_tls_cert.bat` 共享证书种子。
+- **构建脚本**：`build_px_cms_server.bat` / `scripts_build\build_px_auth_server.bat` / `scripts_build\build_px_desk_server.bat` —— `SERVER_NAME=px_*_server`、`EXE_NAME=px_cms/px_auth/px_desk`、`%EXE_NAME%.toml` 配置种子、`ensure_tls_cert.bat` 共享证书种子。
 - **共享证书**：cms TLS 证书统一使用仓库根 `certs/`（gitignored）；删除 `rust_server/px_cms_server/certs/*`；`build.rs` 指向 `../../certs/`。
 - **License 密钥**：生成默认 Ed25519 密钥对 `auth_license_private.key` / `auth_license_public.key`。
 
@@ -200,13 +200,13 @@
 
 | 步骤 | 结果 |
 |---|---|
-| `build_client.bat full`（增量，改名后首轮） | ✅ exit 0 |
-| 删除 `build_official/` → `build_client.bat full`（全新编译，验收流程） | ✅ exit 0 |
+| `scripts_build\build_client.bat full`（增量，改名后首轮） | ✅ exit 0 |
+| 删除 `build_official/` → `scripts_build\build_client.bat full`（全新编译，验收流程） | ✅ exit 0 |
 | rust_server 全 workspace `cargo check` | ✅（prost 重新生成的 4 个 `cms_*.rs` 与改名版一致，仅 1 处生成格式微差，保留生成版） |
 | rust_server / rust_client `cargo test` | ✅ 见上 |
 | 版本号还原 | ✅ 7 个版本文件 `git restore`，无残留 diff |
 
-> 说明：`build_client.bat` 带 `GR_SKIP_SERVERS=1`，不编译 rust_server 的 release 二进制；服务器以 `cargo check`/`cargo test` 验证。如需 release 服务器产物，请另行执行 `build_official.bat full`。
+> 说明：`scripts_build\build_client.bat` 带 `GR_SKIP_SERVERS=1`，不编译 rust_server 的 release 二进制；服务器以 `cargo check`/`cargo test` 验证。如需 release 服务器产物，请另行执行 `scripts_build\build_official.bat full`。
 
 ---
 
@@ -215,7 +215,7 @@
 1. **运行配置重新生成**：`spvr_port` 配置键已改 `cms_port`，`cms_settings.rs` 解析不到会 panic。请删除 `output/px_cms_server/px_cms.toml`（以及 `output/` 下其它旧 toml），让 `build_px_cms_server.bat` 等重新种子配置。
 2. **旧数据不迁移**：QSettings 旧键（`spvr_server_host` 等）、已保存的 `spvr://access##` 字符串、旧 license 中的 `SpvrAdmin` 用户名不会自动迁移（开发环境无影响）。
 3. **构建前停服务**：GammaRayService（Windows 服务）会重启 GammaRayRender/UserProxy/SysInfo 导致 DLL 锁定，构建前 `Stop-Service GammaRayService` 并结束相关进程。
-4. **发布版服务器**：建议跑一次 `build_official.bat full` 验证三个服务器 release 产物。
+4. **发布版服务器**：建议跑一次 `scripts_build\build_official.bat full` 验证三个服务器 release 产物。
 5. **版本号**：`set_app_version.py --bump` 每次构建自增（3.3.x），按约定一律还原、不提交。
 
 ---

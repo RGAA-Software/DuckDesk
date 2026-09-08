@@ -19,7 +19,7 @@
 ## 编译与验证
 
 ```text
-build_cpp_tests.bat px_client px_panel test_connection_policy test_stream_launch_auth_workflow
+scripts_build\build_cpp_tests.bat px_client px_panel test_connection_policy test_stream_launch_auth_workflow
     test_stream_launch_child_arguments test_udp_media_state test_udp_media_failure
 gradlew.bat :app:assembleDebug
 ```

@@ -102,7 +102,7 @@ client 端:
 
 ## 测试计划
 
-- **单元测试**(随 `build_official_tests.bat`,gtest):shard 切分/组帧往返、乱序/丢包判丢、帧边界状态机、包头序列化反序列化;P2 加 RS 编解码往返、FEC 恢复，以及 EOF 到达后缺失超过 parity 上限时的立即判丢。UDP 回退状态机覆盖首媒体成功、超时/watchdog 竞争回退和停止后的迟到回调。
+- **单元测试**(随 `scripts_build\build_official_tests.bat`,gtest):shard 切分/组帧往返、乱序/丢包判丢、帧边界状态机、包头序列化反序列化;P2 加 RS 编解码往返、FEC 恢复，以及 EOF 到达后缺失超过 parity 上限时的立即判丢。UDP 回退状态机覆盖首媒体成功、超时/watchdog 竞争回退和停止后的迟到回调。
 - **集成验证**:P1 双机实测(见上)。
 
 ## 风险

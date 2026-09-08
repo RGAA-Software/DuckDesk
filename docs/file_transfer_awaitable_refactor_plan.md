@@ -648,14 +648,14 @@ MessageNotifier 或等待可靠文件队列。
 1. 运行 `check_cpp_ownership`，新代码零裸指针、零异步裸 `this`；
 2. 运行 AsyncRuntime、Scope、FT Engine、各 transport focused tests；
 3. 关键 suite 连续 10 轮；
-4. 使用 `build_cpp_*.bat` 或 `scripts/build_cpp_target.bat` 只构建本批受影响的
-   CMake target；日常开发不得调用 `build_official.bat`；
+4. 使用 `scripts_build\build_cpp_*.bat` 或 `scripts/build_cpp_target.bat` 只构建本批受影响的
+   CMake target；日常开发不得调用 `scripts_build\build_official.bat`；
 5. 同批按需构建 Client EXE、SDK/RTC DLL 和所有受影响插件 DLL；
 6. 将所有变化的 EXE、DLL、语言资源和 Web 资源同步到
    `build_official\dist`；
 7. 比对 build tree 与 dist 的 SHA-256；
 8. 部署到 90 后再次比对 SHA-256并执行实机矩阵；
-9. 只有用户明确要求发版/整体编译时，才运行 `build_official.bat` 作为最终发布门禁。
+9. 只有用户明确要求发版/整体编译时，才运行 `scripts_build\build_official.bat` 作为最终发布门禁。
 
 只编译通过、只替换 EXE、只完成 Engine 单测或只在一种 transport 上传一个小文件，
 都不构成交付完成。
@@ -936,14 +936,14 @@ load/transfer/stop/unload，以及公网跨网 TURN UDP/TCP 场景仍需单独�
 单个 Render 插件、全部 Render 插件和任意测试目标都可以单独构建。统一底层脚本只调用
 现有 Ninja 构建树中的明确 CMake target，不递增版本、不运行 npm、不调用 Cargo、不重建
 Web，也不收集整个 dist。需要运行的 EXE/DLL 仅按组件发布到 `build_official\\dist`，随后
-逐文件比较 SHA-256。`build_official.bat` 明确保留为用户要求发版时才执行的全量门禁。
+逐文件比较 SHA-256。`scripts_build\build_official.bat` 明确保留为用户要求发版时才执行的全量门禁。
 
 本地验收结果：
 
 | 门禁 | 结果 |
 | --- | --- |
-| `build_cpp_render.bat` | `px_render` 增量编译和 dist 发布 PASS |
-| `build_cpp_tests.bat` | 3 个相关测试目标增量编译 PASS |
+| `scripts_build\build_cpp_render.bat` | `px_render` 增量编译和 dist 发布 PASS |
+| `scripts_build\build_cpp_tests.bat` | 3 个相关测试目标增量编译 PASS |
 | 异步运行时 | 11 tests × 10 轮 PASS |
 | MessageNotifier | 32 tests × 10 轮 PASS（错误日志为异常/背压预期用例） |
 | Render Service RPC 状态机 | 3 tests × 10 轮 PASS |
@@ -960,9 +960,9 @@ pending gate 合并并发 refresh，用 callback 作为拓扑重建兜底，再�
 `topology_generation + owned_display_count` 幂等应用。最终 10 轮日志中 20 个客户端新增/
 删除请求均有 20 个 Service 结果，`REQUEST_IN_PROGRESS`、超时、断连和 pending 泄漏为 0。
 
-最终验收没有使用 `build_official.bat`。实现过程中曾误触发该入口，发现后立即终止；它造成
+最终验收没有使用 `scripts_build\build_official.bat`。实现过程中曾误触发该入口，发现后立即终止；它造成
 的临时版本号改动已逐项恢复，被清空的 Web/Console dist 目录也已从现有构建产物恢复，且
-其输出不计入本批验收。本文结果全部来自 `build_cpp_*.bat` 的局部 C++ 构建。这里不把
+其输出不计入本批验收。本文结果全部来自 `scripts_build\build_cpp_*.bat` 的局部 C++ 构建。这里不把
 “局部 C++ 与实机功能通过”写成“发版整体验收通过”；公网 TURN 仍受环境限制。
 
 ### 12.11 Phase 6 capability、块序号与最终 SHA-256 门禁
@@ -1001,7 +1001,7 @@ pending gate 合并并发 refresh，用 callback 作为拓扑重建兜底，再�
 测试结束后临时 Console user/session/ticket 为 0，远端测试文件已删除；`px_service` 为
 Running，20371 可达。
 
-本批只执行 C++ 按需构建，没有调用 `build_official.bat`。最终 FT 运行产物已发布到
+本批只执行 C++ 按需构建，没有调用 `scripts_build\build_official.bat`。最终 FT 运行产物已发布到
 `build_official\dist` 并部署到 90，build tree/dist/90 三方 SHA-256 一致：
 
 | 产物 | SHA-256 |
@@ -1015,9 +1015,9 @@ protobuf 对象布局的网络插件必须由同一生成版本构建并原子�
 已到 FT 插件但确认无法返回。90 已同步部署 `px_render.exe`、Client/Render FT、
 `net_ws`、`net_relay`、`net_rtc`、`net_rtc_local` 和 `net_udp` 后完成上述实机矩阵；以后
 发布脚本必须把这组产物视为同一协议兼容单元。仓库新增
-`build_cpp_ft_protocol.bat` 作为唯一的 FT `.proto` 变更按需入口：它同时覆盖 Panel 的
+`scripts_build\build_cpp_ft_protocol.bat` 作为唯一的 FT `.proto` 变更按需入口：它同时覆盖 Panel 的
 Cp/Rp 审计消息消费者，只构建上述 C++ 目标，不运行 npm/Cargo、不递增版本，也不触发
-`build_official.bat`，随后整组发布到 dist 并逐项执行 SHA-256 门禁。
+`scripts_build\build_official.bat`，随后整组发布到 dist 并逐项执行 SHA-256 门禁。
 
 ### 12.12 Phase 6 结构化终态、Windows 提示与 Console 审计
 
@@ -1052,7 +1052,7 @@ Cp/Rp 审计消息消费者，只构建上述 C++ 目标，不运行 npm/Cargo�
 `c87f2edbd8e31bf4d83d444691dbb2cf7cc0185720e8e0a2badc6ff0f8f1abe0`。
 
 本批只使用 FT C++、Console Web 和 Console Rust 的独立按需入口，没有运行
-`build_official.bat`。C++ 协议兼容单元和三份语言资源已发布到
+`scripts_build\build_official.bat`。C++ 协议兼容单元和三份语言资源已发布到
 `build_official\dist`；同一批 14 个 C++ 运行文件部署到 90 后逐文件 SHA-256 全部一致。
 为验证取消终态，WebClient 调试 API 增加受控的 pattern upload/cancel 入口，WebClient
 生产包 5 个文件也已完成 source/dist/90 逐文件 SHA-256 门禁；
@@ -1101,7 +1101,7 @@ Ticket 是否残留。
 | `git diff --check` | PASS |
 | 90 服务状态 | `px_service` Running，TCP 20371 可达，`resume50_*` 残留 0 |
 
-本批只运行 `build_cpp_ft_protocol.bat` 和明确测试目标，没有调用 `build_official.bat`。
+本批只运行 `scripts_build\build_cpp_ft_protocol.bat` 和明确测试目标，没有调用 `scripts_build\build_official.bat`。
 最终 FT DLL 的 build tree、`build_official\dist` 和 90 安装目录三方 SHA-256 一致：
 
 | 产物 | SHA-256 |
@@ -1139,7 +1139,7 @@ timer IO 线程投递异步取消；主线程随后立即释放最后一个 `sha
 | --- | --- |
 | 真实 FT DLL load/queued work/stop/destroy/unload | 10/10 PASS；每轮 64 个排队请求，单轮约 1.8 秒 |
 | 插件上下文异步销毁 | 4 tests ×10 轮 PASS；覆盖 timer/work callback 内 shutdown、64 个排队延时任务取消、重复构造/销毁 |
-| 全部 Render 插件按需重链 | 24/24 PASS；未运行 Rust、Web 或 `build_official.bat` |
+| 全部 Render 插件按需重链 | 24/24 PASS；未运行 Rust、Web 或 `scripts_build\build_official.bat` |
 | Render 插件 build tree/dist | 24/24 SHA-256 一致 |
 | Render 插件 dist/90 | 24/24 SHA-256 一致，missing=0、mismatch=0 |
 | `px_render.exe` build tree/dist/90 | 一致：`D2300A6D487278B0EA2EF487C9AD2F91555F230AE7C8146FFE49538D16E3BC3C` |
@@ -1148,7 +1148,7 @@ timer IO 线程投递异步取消；主线程随后立即释放最后一个 `sha
 
 共享 `px_plugin` 被静态链接到 Render 主程序和各 Render 插件，因此本次没有只发布
 `ft.dll`：先由 `build_cpp_render_plugins.bat` 重链并发布全部 24 个插件，再由
-`build_cpp_render.bat` 重链并发布 `px_render.exe`，最后在 90 的停服窗口原子替换并恢复
+`scripts_build\build_cpp_render.bat` 重链并发布 `px_render.exe`，最后在 90 的停服窗口原子替换并恢复
 `px_service`。最终服务为 Running，20371 可达。
 
 ### 12.15 Phase 7 RTC 配置更新的第一批 awaitable 收敛
@@ -1185,7 +1185,7 @@ callback 只发一个消息，Panel 回传配置后同步返回 `true`，真正�
 | 覆盖场景 | 请求→配置→恢复、重复/过期 revision、新 revision 替换、旧 apply 迟到失败、应用失败、超时、取消、10 次重复生命周期 |
 | MessageNotifier 回归 | 10/10 PASS |
 | PxAsyncRuntime 回归 | 10/10 PASS |
-| Windows Client 增量编译 | `px_client` PASS；未调用 `build_official.bat`，未编译 Rust/Web |
+| Windows Client 增量编译 | `px_client` PASS；未调用 `scripts_build\build_official.bat`，未编译 Rust/Web |
 | 本机 dist Windows Client → 90 标准 RTC | 10 次成功；RTC connected、首帧进入 UI、音频初始化、FT 通道就绪，临时 user/user-session/guest-session/ticket 每轮均清零 |
 | 活跃标准 RTC 配置热更新 | 10/10 PASS；每轮第二张一次性 ticket + 最新 ICE snapshot，`SetConfiguration/RestartIce` 最终 completed，媒体、音频和 FT 会话保持工作 |
 | revision 防护 | 10/10 PASS；每轮同时注入同 revision 与 revision-1，均记录为 duplicate/stale 并拒绝重复应用 |
@@ -1241,7 +1241,7 @@ HTTPS API。该线程不属于任何可停止作用域，Panel Stop 无法等待
 | Panel refresh gate | 7 tests × 10 轮，共 70 次 PASS |
 | gate 覆盖 | 首次启动、并发合并、最新 revision、启动回滚、Stop/迟到完成、32 线程并发、10 次重复生命周期 |
 | 共享 PxAsyncRuntime | 11 tests × 10 轮，共 110 次 PASS；包含排队取消、callback 内 Stop 和重复 start/stop |
-| Panel 按需编译 | `px_panel` PASS；只编译 Panel 相关 C++，未运行 `build_official.bat` |
+| Panel 按需编译 | `px_panel` PASS；只编译 Panel 相关 C++，未运行 `scripts_build\build_official.bat` |
 | dist 启动 smoke | `px_panel.exe` 从 `build_official\dist` 启动并保持 15 秒；Service WebSocket、Render WebSocket 与 HTTPS Console 均连接成功 |
 | C++ ownership / `git diff --check` | PASS |
 
@@ -1280,7 +1280,7 @@ Console 请求 Panel 回传录像文件时，原实现创建一条专用 `std::t
 | 队列覆盖 | FIFO、去重、重试入队、32/64 线程并发、pump 启停竞争、Stop、Abort、迟到 retry、10 次重复生命周期 |
 | 真实 multipart 取消 | 3 tests × 10 轮，共 30 次 PASS；覆盖传输中取消、开始前取消、受管 worker 取消后 join |
 | 共享 PxAsyncRuntime | 11 tests × 10 轮，共 110 次 PASS |
-| Panel 按需编译 | `px_panel` PASS；未运行 `build_official.bat`，未编译 Rust/Web |
+| Panel 按需编译 | `px_panel` PASS；未运行 `scripts_build\build_official.bat`，未编译 Rust/Web |
 | dist 启动 smoke | 新 `px_panel.exe` 保持运行 15 秒；Service、Render、HTTPS Console 连接成功，单线程上传 worker 启动 |
 | C++ ownership / `git diff --check` | PASS；record fetch 旧线程、`WaitPop`、detach 搜索为零 |
 
@@ -1319,7 +1319,7 @@ RTC 配置通知和录像回传命令都会被同步扫盘阻塞。
 | 录像上传回归 | 24 tests × 10 轮，共 240 次 PASS |
 | 真实 HTTP 取消 | 3 tests × 10 轮，共 30 次 PASS |
 | 共享 PxAsyncRuntime | 11 tests × 10 轮，共 110 次 PASS |
-| Panel 按需编译 | `px_panel` PASS；未运行 `build_official.bat`，未编译 Rust/Web |
+| Panel 按需编译 | `px_panel` PASS；未运行 `scripts_build\build_official.bat`，未编译 Rust/Web |
 | dist 启动 smoke | 新 Panel 保持运行 15 秒；Service、Render、HTTPS Console 均连接成功，两个隔离 worker 均启动 |
 | C++ ownership / `git diff --check` | PASS |
 
@@ -1354,7 +1354,7 @@ awaitable 引入，但会干扰所有 Panel 长时间验收。
 | Thread 异常边界 | 7 tests × 10 轮，共 70 次 PASS；覆盖标准异常、非标准异常、后续任务继续、once task、self-stop 和 10 次生命周期 |
 | SQLite 锁等待 | 2 tests × 10 轮，共 20 次 PASS；真实双连接写锁等待 100 ms，释放后第二写入成功；storage copy 的 busy timeout 为 3000 ms |
 | 公共异步回归 | TaskRuntime、MessageNotifier、PxAsyncRuntime 各 10/10 轮 PASS |
-| Panel 按需编译 | `px_panel` PASS；未运行 `build_official.bat`，未编译 Rust/Web |
+| Panel 按需编译 | `px_panel` PASS；未运行 `scripts_build\build_official.bat`，未编译 Rust/Web |
 | dist 延长 smoke | 真实复现旧锁异常后，防崩版本同 PID 110 秒；根治版本同 PID 120 秒，Console hello 与设备链接更新正常 |
 | 日志与系统事件 | 根治版本启动后无 `database is locked`、未捕获任务异常、terminate/fatal 或新的 WER/Application Error |
 | C++ ownership / `git diff --check` | PASS |
@@ -1403,7 +1403,7 @@ Console 普通用户 API 注册、登录并签发真实 ticket，再使用 Windo
 `px_ft_ui_*` 文件残留均为 0，临时 user/session/ticket 均为 0。90 的 C 盘可用空间不足 2 GiB，
 因此没有重复 12.13 已完成的 1 GiB 双向完整传输；本节 1 GiB 只用于即时取消，避免填满测试机。
 
-本批只按需构建 `test_ft_plugin_dll_lifecycle`，没有执行 `build_official.bat`，也没有编译
+本批只按需构建 `test_ft_plugin_dll_lifecycle`，没有执行 `scripts_build\build_official.bat`，也没有编译
 Rust 或 Web。按需重链的 Render `ft.dll` 已在停止对应 Render 进程后同步到 dist，服务自动
 拉起新 Render；build tree 与 `build_official\dist\deps\rd_plugins\ft.dll` 的 SHA-256 均为
 `CF89AE9D203190811A0E5CB97A160DED7C969CA1818A04942B43FE9BF51317C7`。
@@ -1435,7 +1435,7 @@ upgrade 失败、断开、超时、替换和 Stop 都产生类型化终态。旧
 | --- | --- |
 | connection workflow | 9 tests × 10 轮，共 90 次 PASS |
 | 状态覆盖 | ready 单终态、类型化失败、新代替换、可重试超时、ready 后断线清状态、ready 前 Stop、析构时排队完成、completion 内 Stop、10 次重复生命周期 |
-| Panel / Render 按需编译 | `px_panel`、`px_render`、`test_connection_attempt_workflow` PASS；未运行整体 `build_official.bat`，未编译 Rust/Web |
+| Panel / Render 按需编译 | `px_panel`、`px_render`、`test_connection_attempt_workflow` PASS；未运行整体 `scripts_build\build_official.bat`，未编译 Rust/Web |
 | Render → Panel 真实重连 | 显式从 dist 重启 Panel 10 轮，10/10 ready；Render PID 全程不变，generation 15→24 |
 | Service 托管重启 | 重启 Windows `px_service` 10 轮；每轮 Service 和托管 Render 均换新 PID，20371 恢复监听，Render→Service Established 且新增 await-ready 日志，10/10 PASS |
 | 标准 RTC 功能回归 | dist Windows Client、账号 ticket、90 机器、标准 RTC 10/10 PASS；每轮视频 UI、音频初始化、FT 通道均正常，临时 user/session/ticket/guest-session 均为 0 |
@@ -1476,7 +1476,7 @@ QueryApps → IssueInstanceTicket → resolve endpoint → optional direct probe
 | 启动授权 workflow | 11 tests × 10 轮，共 110 次 PASS |
 | 状态覆盖 | 设备 ticket、应用 starting→running、空 instance ID、配置关闭探测、强制 Direct、强制 Relay、Console 类型化失败、deadline、新代替换、Stop/迟到完成、10 次重复生命周期 |
 | 连接策略与 Console 错误兼容 | `test_connection_policy`、`test_console_api_error` 各 10 轮 PASS |
-| Panel 按需编译 | `test_stream_launch_auth_workflow`、`px_panel` PASS；仅使用 C++ focused target，未运行整体 `build_official.bat`，未编译 Rust/Web |
+| Panel 按需编译 | `test_stream_launch_auth_workflow`、`px_panel` PASS；仅使用 C++ focused target，未运行整体 `scripts_build\build_official.bat`，未编译 Rust/Web |
 | 账号设备真实连接 | 本机登录态 Panel 点击 90 的 `001190520` 卡片连续 10/10 PASS；generation 1→10，零授权失败，每轮客户端响应且建立两条到 `10.0.0.90:20371` 的连接；首轮实拍确认 90 桌面画面，不是白屏 |
 | 显式 IP 直连回归 | `10.0.0.90` 卡片以 `conn_type=direct` 启动，未增加 Console workflow generation；视频首帧进入 UI、FT 通道连接，证明密码直连分支未被强制改成 ticket |
 | 独立文件传输入口 | generation 11 完成 file ticket 与探测，`dist` 客户端打开；本机和 90 两侧真实目录均成功列出 |
@@ -1509,7 +1509,7 @@ QueryApps → IssueInstanceTicket → resolve endpoint → optional direct probe
   因而出现“首帧进入 UI”后持续白屏。CPU 帧现在复用 Client 初始化阶段持有的
   `D3D11DeviceWrapper`，把 Y/U/V 平面上传到动态纹理；硬解 D3D11 texture 路径保持不变。
 
-本批没有执行 `build_official.bat`，仅用 C++ focused target 构建
+本批没有执行 `scripts_build\build_official.bat`，仅用 C++ focused target 构建
 `test_client_virtual_display`、`test_stream_launch_auth_workflow`、`test_connection_policy`、
 `test_console_api_error`、`px_panel` 和 `px_client`，并沿用前一阶段已经完成的 Render/插件
 focused build。没有重新编译 Rust 或 Web。
@@ -1558,7 +1558,7 @@ focused build。没有重新编译 Rust 或 Web。
 - Panel 连接状态由 `DirectRtcFallbackState` 封装并受既有 mutex 保护，避免本地控制通道和
   远端数据通道再次混用。
 
-本批仍未执行 `build_official.bat`。仅使用 focused C++ target 构建
+本批仍未执行 `scripts_build\build_official.bat`。仅使用 focused C++ target 构建
 `test_direct_rtc_fallback_state`、`px_client` 和 `px_panel`，随后按发布规则同步到
 `build_official\dist`。
 
@@ -1607,7 +1607,7 @@ Panel 的 Console 自动发现原先使用一条独立 `Thread`：UDP socket 被
 | 真实 UDP receiver | 9 tests × 10 轮，共 90 次 PASS |
 | receiver 覆盖 | loopback datagram、重复 Start、挂起 receive 时 Stop/析构、回调内 Stop、端口占用后恢复、重试 timer 中 Stop、handler 异常后继续、10 次内部生命周期 |
 | 公共异步回归 | `test_async_runtime` 11 tests × 10、`test_message_notifier` 32 tests × 10，共 430 次 PASS |
-| Panel focused build | `px_panel` PASS；未运行 `build_official.bat`，未编译 Rust/Web |
+| Panel focused build | `px_panel` PASS；未运行 `scripts_build\build_official.bat`，未编译 Rust/Web |
 | 真实 dist 生命周期 | `build_official\dist\px_panel.exe` 启动、PID 持有 UDP 30501、退出释放端口连续 10/10 PASS |
 | 生产 smoke | 最终 dist Panel 绑定 UDP 30501，Console WebSocket ready，Service Running |
 | 旧实现残留 | `udp_receiver_thread_`、non-blocking receive、100 ms/2 秒 polling sleep 均为 0 |
@@ -1647,7 +1647,7 @@ Render 的 Relay 插件原先在 `OnCreate` 中启动永久 detached 线程，�
 | Relay DLL 真实生命周期 | 单次测试内 10 轮真实 LoadLibrary / Start / 配置更新 / Stop / OnDestroy / FreeLibrary，10/10 PASS；每轮模块句柄归零 |
 | 故障覆盖 | 连接建立中停止、host/port/appkey 活跃更新、旧 generation 失效、重复创建销毁、排队回调销毁及 join 锁序 |
 | 公共异步/插件回归 | `test_async_runtime` 11 tests、`test_plugin_context_lifecycle` 4 tests、`test_ft_plugin_dll_lifecycle` 1 test，全部 PASS；其中公共运行时与 Context 自带 10 轮重复生命周期 |
-| focused C++ build | `net_relay`、`net_ws`、`net_udp`、`net_rtc`、`net_rtc_local`、`px_render` PASS；未运行 `build_official.bat`，未编译 Rust/Web |
+| focused C++ build | `net_relay`、`net_ws`、`net_udp`、`net_rtc`、`net_rtc_local`、`px_render` PASS；未运行 `scripts_build\build_official.bat`，未编译 Rust/Web |
 | ownership 门禁 | `check_cpp_ownership.ps1` PASS；新 Relay 运行态、SDK 回调和测试没有新增裸指针、手工 ownership 或 `[this]` 捕获；测试中的插件指针仅为已标注的加载 ABI 边界 |
 | 真实 dist 服务回归 | 本机 `px_service` 启停 10 轮，10/10 从 `build_official\dist` 拉起新 Render；每轮均恢复两条到 `10.0.0.16:30502` 的 Established Relay 连接（媒体 + 文件） |
 | 最终状态 | `px_service` Running；dist Render 正常运行，Relay 媒体/文件双通道 Established |
@@ -1688,7 +1688,7 @@ Render 的 Relay 插件原先在 `OnCreate` 中启动永久 detached 线程，�
 | 真实音频重建 | 本机 Realtek 默认扬声器，播放 880 Hz 测试音期间主动重建；重建后继续输出 48 kHz / 2 ch / 16 bit PCM，峰值 8191，非静音 |
 | 完整重建稳定性 | 启动、触发重建、继续采集、停止连续 10/10 PASS |
 | Stop 取消 | 测试程序内 10 轮在 80 ms pending delay 内立即 Stop；每轮均在 500 ms 内返回，successful reinit 保持 0 |
-| focused build | `cap_was_audio`、`test_plugin_was_audio_capture`、`test_miniaudio_reinit_cancel` PASS；未运行 `build_official.bat`，未编译 Rust/Web |
+| focused build | `cap_was_audio`、`test_plugin_was_audio_capture`、`test_miniaudio_reinit_cancel` PASS；未运行 `scripts_build\build_official.bat`，未编译 Rust/Web |
 | ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；项目代码无新增裸指针、manual ownership、detached thread 或 `[this]` 捕获 |
 | dist smoke | build tree 与 dist 插件哈希一致；`px_service` Running，dist Render 已实际加载新版 `cap_was_audio.dll`，原 Relay 媒体/文件双通道仍 Established |
 
@@ -1712,8 +1712,8 @@ Render 的 Relay 插件原先在 `OnCreate` 中启动永久 detached 线程，�
   旧 capture 的迟到 stop 回调不能复活新会话；
 - `Shutdown` 先禁用事件通道，再取消 worker、停止 capture 并 join；返回后旧 PCM/
   stop 回调即使被人工触发也不能再访问插件或发布事件；
-- 新增 `build_cpp_was_audio_tests.bat`，只增量编译 WAS 音频插件及相关 C++
-  测试，不运行 `build_official.bat`、Rust 或 Web 构建。
+- 新增 `scripts_build\build_cpp_was_audio_tests.bat`，只增量编译 WAS 音频插件及相关 C++
+  测试，不运行 `scripts_build\build_official.bat`、Rust 或 Web 构建。
 
 专项验收结果：
 
@@ -1752,7 +1752,7 @@ detached 线程依次 sleep 800 ms、启动 service helper、sleep 1500 ms 并�
   上的明确状态链；回调仅通过 `weak_ptr`、`shared_ptr` 和 `QPointer` 边界访问状态；
 - `ServiceManager::ShutdownDetached` 返回 helper 是否成功启动；启动成功时保留 1.5s
   兜底窗口，启动失败时立即进入本地清理；
-- 新增 `build_cpp_panel_shutdown_tests.bat`，只编译 Panel 关闭测试和 `px_panel`，
+- 新增 `scripts_build\build_cpp_panel_shutdown_tests.bat`，只编译 Panel 关闭测试和 `px_panel`，
   不运行发版整编。
 
 专项验收结果：
@@ -1762,7 +1762,7 @@ detached 线程依次 sleep 800 ms、启动 service helper、sleep 1500 ms 并�
 | Panel 关闭状态链 | 4 tests 连续 10 轮，40/40 PASS |
 | 顺序/时序 | prepare 500 ms → helper 800 ms → 成功后 fallback 1500 ms；重复 Start 幂等 |
 | 故障覆盖 | helper 启动失败的 0 ms 兜底、排队时 owner 销毁、prepare/helper 抛异常后继续兜底，全部 PASS |
-| focused build | `px_client`、客户端三个运行时插件、`px_rtc_client`、`px_panel`、`test_panel_shutdown_sequence` PASS；未运行 `build_official.bat` |
+| focused build | `px_client`、客户端三个运行时插件、`px_rtc_client`、`px_panel`、`test_panel_shutdown_sequence` PASS；未运行 `scripts_build\build_official.bat` |
 | ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；本批无新增裸指针、`[this]`、detached thread 或阻塞 sleep |
 | dist smoke | 最终 Client/Panel 已发布到 dist 并启动 Panel；`px_service` Running，dist Render 存活，Relay 媒体/文件两条 30502 连接 Established |
 
@@ -1790,7 +1790,7 @@ Render 端 `media_recorder` 原先把 `Drain` 和 `Finalize` 投递到插件 Con
   `this`；销毁后的旧 writer 回调会立即失效；
 - `RecordWriter` 的项目接口统一改为 `std::span<const uint8_t>`，移除调用链中的裸缓冲区
   参数；客户端和 Render 适配层仅在既有 `Data`/FFmpeg ABI 边界瞬时包装；
-- 新增 `build_cpp_media_recorder_tests.bat`，仅构建录制核心、Runtime、DLL 生命周期测试
+- 新增 `scripts_build\build_cpp_media_recorder_tests.bat`，仅构建录制核心、Runtime、DLL 生命周期测试
   与插件，不触发 Rust、npm、版本升级或发版整编。
 
 专项验收结果：
@@ -1802,7 +1802,7 @@ Render 端 `media_recorder` 原先把 `Drain` 和 `Finalize` 投递到插件 Con
 | 自动录制/幂等 | 首个客户端开始、最后客户端断开停止；重复 Stop/Shutdown 全部 PASS |
 | 真实 remux 回归 | `test_record_writer` 6/6 PASS，覆盖音视频同步、滚动清理、sidecar、提前停止、命名和纯音频无文件 |
 | DLL 生命周期 | 10 轮 LoadLibrary / OnCreate / start / stop / OnStop / OnDestroy / FreeLibrary PASS；每轮模块句柄归零 |
-| focused build | `media_recorder`、`media_record_client`、Runtime/DLL/RecordWriter 测试 PASS；未运行 `build_official.bat` |
+| focused build | `media_recorder`、`media_record_client`、Runtime/DLL/RecordWriter 测试 PASS；未运行 `scripts_build\build_official.bat` |
 | ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；新增 Runtime 无裸指针、`[this]` 或 detached thread；DLL 测试仅保留标注的插件 ABI 例外 |
 | dist smoke | Client 录屏插件和 Render 录制插件均发布到 dist；`px_service` Running，dist Render 已实际加载新 `media_recorder.dll` |
 
@@ -1831,7 +1831,7 @@ worker 捕获插件 `this`；Format/Stream/Codec/FIFO/Resampler/Packet/Frame 又
 - RTMP connect、header、packet write、trailer 使用无线程对象指针的 FFmpeg interrupt
   callback 和 thread-local 1 秒 deadline，失败连接的 10 轮测试由原先约 54 秒降至
   约 10.8 秒，Runtime 在连接失败中 Shutdown 为约 1.09 秒；
-- 新增 `build_cpp_live_pusher_tests.bat`，只构建 Runtime、FFmpeg、DLL 生命周期测试与
+- 新增 `scripts_build\build_cpp_live_pusher_tests.bat`，只构建 Runtime、FFmpeg、DLL 生命周期测试与
   `live_pusher`，不触发发版整编。
 
 专项验收结果：
@@ -1868,7 +1868,7 @@ worker 捕获插件 `this`；Format/Stream/Codec/FIFO/Resampler/Packet/Frame 又
 - 输入采样率、声道或位深变化时清空半帧缓存并重建 encoder/decoder；frame size 改为
   根据实际位深和声道计算，不再硬编码双声道；
 - 调试 PCM 文件不再使用函数静态对象，随 Runtime worker 关闭；新增
-  `build_cpp_opus_encoder_tests.bat`，不触发发版整编。
+  `scripts_build\build_cpp_opus_encoder_tests.bat`，不触发发版整编。
 
 专项验收结果：
 
@@ -1878,7 +1878,7 @@ worker 捕获插件 `this`；Format/Stream/Codec/FIFO/Resampler/Packet/Frame 又
 | 格式变化 | 48 kHz 双声道半帧后切换 24 kHz 单声道，旧缓存丢弃，新 encoder 输出 480-sample 帧且元数据正确 |
 | 回调/销毁 | delivery 回调内 Shutdown 无 self-join；无效输入、Shutdown 后 Enqueue、重复 Shutdown 全部 PASS |
 | DLL 生命周期 | 10 轮 LoadLibrary / OnCreate / 两段真实 Encode / event / OnStop / OnDestroy / FreeLibrary PASS；每轮模块句柄归零 |
-| focused build | `enc_opus`、`test_opus_encoder_runtime`、`test_opus_encoder_plugin_dll_lifecycle` PASS；未运行 `build_official.bat` |
+| focused build | `enc_opus`、`test_opus_encoder_runtime`、`test_opus_encoder_plugin_dll_lifecycle` PASS；未运行 `scripts_build\build_official.bat` |
 | ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；新增代码无项目裸指针、`[this]` 或 detached thread，DLL 测试仅保留插件 ABI 例外 |
 | dist smoke | `enc_opus.dll` 已发布到 dist；`px_service` Running，dist Render 已实际加载新 DLL |
 
@@ -1918,7 +1918,7 @@ HANDLE。单独看正常 Stop 可工作，但无法从类型上证明对象销�
 | MiniAudio 真实回环 | Realtek 默认扬声器播放 880 Hz，2 秒采集 384000 bytes、峰值 8191，主动重建后继续采集，PASS |
 | MiniAudio 取消 | pending reinit 后立即 Stop 10/10 PASS |
 | DLL 生命周期 | LoadLibrary / OnCreate / Start / Stop / OnDestroy / FreeLibrary 10/10 PASS |
-| focused build | `build_cpp_was_audio_tests.bat` 覆盖 Runtime、process-loopback、reinit、真实回环、DLL 和 `cap_was_audio`；未运行 `build_official.bat` |
+| focused build | `scripts_build\build_cpp_was_audio_tests.bat` 覆盖 Runtime、process-loopback、reinit、真实回环、DLL 和 `cap_was_audio`；未运行 `scripts_build\build_official.bat` |
 | ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；新代码无项目裸指针、manual ownership 或 `[this]`，仅保留显式标注的 Win32/COM/miniaudio 瞬时 ABI 边界 |
 | dist | `cap_was_audio.dll` 已同步并由 dist Render 实际加载；build/dist SHA-256 一致 |
 
@@ -1944,7 +1944,7 @@ GDI fallback capture 原先把 `std::thread([this])`、三个裸 GDI handle 和�
 - `publish_cpp_artifacts.ps1` 在 Render DLL 被占用时会临时停止 `px_service`，等待/终止
   旧 Render、复制并校验 SHA-256，最后在 `finally` 中恢复服务，解决服务自动拉起导致
   focused 发布反复失败的问题；
-- 新增 `build_cpp_gdi_capture_tests.bat` 和真实 DLL lifecycle 测试。
+- 新增 `scripts_build\build_cpp_gdi_capture_tests.bat` 和真实 DLL lifecycle 测试。
 
 专项验收结果：
 
@@ -1954,7 +1954,7 @@ GDI fallback capture 原先把 `std::thread([this])`、三个裸 GDI handle 和�
 | 重复启停 | 同一插件实例 Start/采集事件/Stop 连续 10/10 PASS，Stop 均低于 2 秒 |
 | GDI 资源 | 每轮枚举真实显示器并创建 DC/bitmap；RAII 顺序清理，无 joinable thread 或 GDI owned raw member |
 | 非交互桌面 | 当前测试会话 `SelectInputDesktop`/BitBlt 不可用被明确记录；fallback 事件可用且失败路径限速。本项不是像素内容验收 |
-| focused build | `test_gdi_capture_plugin_dll_lifecycle`、`cap_gdi` PASS；未运行 `build_official.bat` |
+| focused build | `test_gdi_capture_plugin_dll_lifecycle`、`cap_gdi` PASS；未运行 `scripts_build\build_official.bat` |
 | ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；无新增项目裸指针、manual ownership 或 `[this]`，插件实例与 Win32 ABI 边界已标注 |
 | dist | focused 发布自动停止/恢复服务成功；dist Render 已实际加载新版 DLL，build/dist SHA-256 一致 |
 
@@ -2019,7 +2019,7 @@ IO 线程。后者已经由新增测试稳定复现为首轮 Context 销毁后�
 | 10 轮稳定性 | 完整 8-test suite 连续执行 10/10 PASS，共 80 项测试通过 |
 | Client 回归 | virtual display 32/32、voice protocol 5/5、latest-frame queue 5/5 PASS |
 | FT transport E2E | 测试目标编译并可运行；因未配置 `PX_FT_E2E_TRANSPORT` 明确 SKIP，不计为通过 |
-| focused build | `px_client`、`px_rtc_client`、clipboard、ft、record 全部成功；未运行 `build_official.bat` |
+| focused build | `px_client`、`px_rtc_client`、clipboard、ft、record 全部成功；未运行 `scripts_build\build_official.bat` |
 | ownership | 新代码无项目裸指针、manual ownership 或 `[this]`；测试 `main` 仅为系统 ABI 边界 |
 | dist | Client EXE、RTC DLL、3 个插件及语言资源同步完成并逐文件 SHA-256 一致 |
 
@@ -2134,7 +2134,7 @@ Client `clipboard` 插件原先把 loader-owned 插件地址传入 `ClipboardMan
 | Client 插件组 | 公共 event、record、FT、clipboard 四组 lifecycle 全部 PASS；record/FT/clipboard 各自执行真实 10 轮 DLL 生命周期 |
 | clipboard common | echo 9/9、file builder 8/8、Windows platform 14/14 PASS，包含真实 Unicode/多行文本、文件 drop 和 Clear |
 | ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；新代码无项目裸指针、manual ownership 或 `[this]`，仅保留明确标注的 Win32/COM/插件 ABI 瞬时边界 |
-| focused build | 仅使用 `build_cpp_*.bat` 定向编译 Client、RTC 和三个 Client 插件；未运行 `build_official.bat` |
+| focused build | 仅使用 `scripts_build\build_cpp_*.bat` 定向编译 Client、RTC 和三个 Client 插件；未运行 `scripts_build\build_official.bat` |
 | dist | Client EXE、RTC DLL、clipboard/FT/record 插件和语言资源已同步，发布脚本逐文件 SHA-256 一致 |
 
 本批主要 build/dist SHA-256：
@@ -2264,7 +2264,7 @@ FT 引擎 Runtime 已与插件解耦，但 UI 链仍把插件独占的 `FtCore` 
   ABI 边界把系统提供的瞬时地址转成有长度视图，Mixer 不保存该地址；
 - 删除已经由编译开关永久禁用的 WAV `FILE*` 状态与死代码，不再在维护代码中保留手工文件
   所有权；
-- 新增 `build_cpp_hook_audio.bat`，只编译 Hook Audio 生命周期测试与 `px_gh`，并发布、校验
+- 新增 `scripts_build\build_cpp_hook_audio.bat`，只编译 Hook Audio 生命周期测试与 `px_gh`，并发布、校验
   `dist/px_gh.dll`，不触发 Rust、npm 或发版整编。
 
 专项验收结果：
@@ -2277,7 +2277,7 @@ FT 引擎 Runtime 已与插件解耦，但 UI 链仍把插件独占的 `FtCore` 
 | Mixer 停止 | 20 ms PCM 完整混合发送；Stop 后迟到 Push 不增加计数，PASS |
 | 10 轮 | 上述 4 个场景连续执行 10/10 PASS，共 40 项；CTest 注册运行 PASS |
 | ownership / whitespace | `check_cpp_ownership.ps1`、`git diff --check` PASS；worker 无 `[this]` 或裸观察捕获 |
-| focused build/dist | 只用 `build_cpp_hook_audio.bat` 定向编译发布；未运行 `build_official.bat` |
+| focused build/dist | 只用 `scripts_build\build_cpp_hook_audio.bat` 定向编译发布；未运行 `scripts_build\build_official.bat` |
 
 `px_gh.dll` build/dist SHA-256：
 `7A6EE9479F58BB22366D46D7CE8566593B17FBDC45633DEC44B1C38329372DC5`。
@@ -2301,7 +2301,7 @@ Panel 单实例通知原先由 `PxRunningPipe` 以 `shared_ptr<std::thread>` 启
   API 边界值出现；失败、停止和正常退出都自动关闭；
 - 构造函数允许注入测试管道名，生产默认名保持
   `\\.\pipe\running\render_panel` 不变；Start 前会先完整停止上一轮，可重复启动；
-- `build_cpp_panel_shutdown_tests.bat` 增加该专项目标，仍只做 C++ 定向构建。
+- `scripts_build\build_cpp_panel_shutdown_tests.bat` 增加该专项目标，仍只做 C++ 定向构建。
 
 专项验收结果：
 
@@ -2335,7 +2335,7 @@ AuthManager 和 SharedPreference 析构，形成悬空访问；该双向引用�
   已进入的请求则以 shared lifetime 完成后再退出；
 - 删除 companion 中缓存的 `ConsoleSettings*`；配置更新在同步调用边界访问现有 ABI 单例，
   不把该地址存入项目对象；
-- `build_cpp_panel_shutdown_tests.bat` 纳入授权生命周期目标，仍仅做 C++ 定向构建。
+- `scripts_build\build_cpp_panel_shutdown_tests.bat` 纳入授权生命周期目标，仍仅做 C++ 定向构建。
 
 专项验收结果：
 
@@ -2519,7 +2519,7 @@ WinMessageLoop` 强引用环，消息线程使用成员 `std::thread` 并在回�
 | owner 销毁/排队 action | QObject 销毁后连续触发 10 个已保存 action，零派发；专项 CTest 连续 10/10 PASS |
 | Panel 生命周期回归 | common weak callback、shutdown、pipe、auth、消息窗与 Qt guard 六个 CTest 各连续 10 轮，共 60 次 PASS |
 | ownership / whitespace | `check_cpp_ownership` 与 `git diff --check` PASS；本批无新增裸指针声明、手工 ownership 或 `[this]` 捕获 |
-| focused build/dist | `build_cpp_panel_shutdown_tests.bat` 定向编译测试与 `px_panel`；未运行发版整编；运行中的 Panel 已停止并发布，build/dist 哈希一致 |
+| focused build/dist | `scripts_build\build_cpp_panel_shutdown_tests.bat` 定向编译测试与 `px_panel`；未运行发版整编；运行中的 Panel 已停止并发布，build/dist 哈希一致 |
 
 `px_panel.exe` build/dist SHA-256：
 `C232F6863314C331265B0D0725B96F5253594E405B51291EA81C9C665FAE764A`。
@@ -2558,7 +2558,7 @@ Panel 主窗口原先从 worker 直接回调 `CheckOffSiteUpdate(this)`，启动
 | weak owner | 排队后销毁、并发销毁和 callback 内释放最后 owner 的 common 测试连续 10 轮 PASS |
 | Panel 生命周期回归 | common weak callback、shutdown、pipe、auth、消息窗与 Qt guard 六个 CTest 各连续 10 轮，共 60 次 PASS |
 | ownership / whitespace | `check_cpp_ownership` 与 `git diff --check` PASS；新增路径无裸指针声明、手工 ownership 或 `[this]` 捕获 |
-| focused build/dist | `build_cpp_panel_shutdown_tests.bat` 定向编译测试与 `px_panel`；未运行发版整编；Panel build/dist 哈希一致 |
+| focused build/dist | `scripts_build\build_cpp_panel_shutdown_tests.bat` 定向编译测试与 `px_panel`；未运行发版整编；Panel build/dist 哈希一致 |
 
 `px_panel.exe` build/dist SHA-256：
 `19C63292539A04A0D845FF3F1C20D2E1C8AB7F48B3FFFA410A06FDA9C82E2CB8`。
@@ -2592,7 +2592,7 @@ Panel 主窗口原先从 worker 直接回调 `CheckOffSiteUpdate(this)`，启动
 | generation / shutdown | check/download 独立、替换取消、迟到 completion、Stop 和重复 start/stop 连续 10/10 PASS |
 | Panel shutdown 回归 | `panel_shutdown_sequence` 连续 10/10 PASS |
 | ownership / whitespace | `check_cpp_ownership` 与 `git diff --check` PASS；新增路径无裸指针声明、手工 ownership 或 `[this]` 捕获 |
-| focused build/dist | `build_cpp_panel.bat` 定向编译并发布；未运行发版整编；Panel build/dist 哈希一致 |
+| focused build/dist | `scripts_build\build_cpp_panel.bat` 定向编译并发布；未运行发版整编；Panel build/dist 哈希一致 |
 
 `px_panel.exe` build/dist SHA-256：
 `9495859917D8BA90B75CFB2199BB1F1CE9E64765A844D548441B4C5048AE77C0`。
@@ -2767,7 +2767,7 @@ UI listener，并为 `if (0)` 永远不会创建的运行游戏标签注册长�
 | shutdown / Qt owner | `panel_shutdown_sequence`、`panel_qt_lifetime_guard` 各连续 10/10 PASS |
 | auth lifecycle | `panel_auth_manager_lifecycle` 连续 10/10 PASS；插件虚接口未变化 |
 | ownership / async audit | `check_cpp_ownership`、`check_async_lifetime` 与 `git diff --check` PASS |
-| focused build/dist | `build_cpp_panel.bat` 定向编译并发布；未运行发版整编；Panel build/dist 哈希一致 |
+| focused build/dist | `scripts_build\build_cpp_panel.bat` 定向编译并发布；未运行发版整编；Panel build/dist 哈希一致 |
 
 `px_panel.exe` build/dist SHA-256：
 `A9C324DC09705C645B6B9C5E1EAA85E85EA926F79F111EE1E671821AF96D2E06`。
@@ -2805,7 +2805,7 @@ UI listener，并为 `if (0)` 永远不会创建的运行游戏标签注册长�
 | Qt owner / shutdown | `panel_qt_lifetime_guard`、`panel_shutdown_sequence` 各连续 10/10 PASS |
 | Qt plug-in ownership | `client_record_plugin_dll_lifecycle`、`client_ft_plugin_dll_lifecycle` 各连续 10/10 PASS |
 | ownership / async audit | `check_cpp_ownership`、`check_async_lifetime` 与 `git diff --check` PASS |
-| focused build/dist | `build_cpp_panel.bat`、`build_cpp_client.bat` 定向编译并发布；未运行发版整编；所有相关 build/dist 哈希一致 |
+| focused build/dist | `scripts_build\build_cpp_panel.bat`、`scripts_build\build_cpp_client.bat` 定向编译并发布；未运行发版整编；所有相关 build/dist 哈希一致 |
 
 `px_panel.exe` build/dist SHA-256：
 `9D4956FF2250E2B6DBDFB018D06DCD47B20CA93AB532284BDBE23F949B33F86D`。
@@ -2824,7 +2824,7 @@ Phase 7 最终收敛后执行正式发布构建。全量构建首先暴露 `test
 
 本次发布完成：
 
-- `build_official.bat full` 生成版本 3.3.63；随后在同一 build tree 完成全部 CMake 目标、
+- `scripts_build\build_official.bat full` 生成版本 3.3.63；随后在同一 build tree 完成全部 CMake 目标、
   客户端 Rust/.NET 组件及三个 Rust 服务端；
 - 运行正式测试脚本 38/38 套件 PASS，并以发布 dist 的 Qt/插件运行时运行 CTest 31/31 PASS；
 - `check_cpp_ownership`、全仓 `check_async_lifetime -ReportAll` 与 `git diff --check` 均 PASS；
@@ -2863,7 +2863,7 @@ Phase 7 最终收敛后执行正式发布构建。全量构建首先暴露 `test
 | --- | --- |
 | Panel 生命周期 | `panel_shutdown_sequence`、`panel_qt_lifetime_guard` 各连续 10/10 PASS |
 | ownership / async audit | 增量 `check_cpp_ownership`、`check_async_lifetime` 与 `git diff --check` PASS；全仓报告无 Panel 命中 |
-| focused build/dist | `build_cpp_panel.bat` 定向编译并发布；未运行发版整编；Panel 与主题/语言资源 build/dist 哈希一致 |
+| focused build/dist | `scripts_build\build_cpp_panel.bat` 定向编译并发布；未运行发版整编；Panel 与主题/语言资源 build/dist 哈希一致 |
 
 `px_panel.exe` build/dist SHA-256：
 `DBBC5F93B7A0B020E80F7E7935AEF0A36B4C83F832169B56D158EF72DD83D06F`。
@@ -2951,7 +2951,7 @@ UDP 同时把 server callback、周期 timer 和异步发送完成回调绑定�
 | UDP DLL 生命周期 | 10 次 gtest 重复 × 每次 10 轮，共 100 次创建/停止/销毁/卸载 PASS |
 | Hook worker 生命周期 | 现有 `hook_audio_worker_lifecycle` 内部 10 轮 PASS；`InProcessLoopbackCapture` 当前无 CMake 编译目标，未宣称其已被该测试编译 |
 | ownership / async audit | 增量 ownership 与 whitespace PASS；全仓报告剩余 16 处，本批路径无命中 |
-| focused build/dist | `build_cpp_hook_audio.bat` 和 `build_cpp_render_plugin.bat net_udp` 定向构建；未运行发版整编；运行时 DLL 已发布且 build/dist 哈希一致 |
+| focused build/dist | `scripts_build\build_cpp_hook_audio.bat` 和 `build_cpp_render_plugin.bat net_udp` 定向构建；未运行发版整编；运行时 DLL 已发布且 build/dist 哈希一致 |
 
 本批 DLL build/dist SHA-256：
 
@@ -3018,7 +3018,7 @@ UDP 同时把 server callback、周期 timer 和异步发送完成回调绑定�
 | Notify Qt 生命周期 | 1 test × 20 次 gtest 重复 × 每次 20 组父树销毁，共 400 组 queued animation/timer destroy PASS |
 | Relay 生命周期 | 3 tests × 20 次 gtest 重复，共 60 项 PASS；覆盖销毁后 callback、销毁后排队发送和每次测试内 20 轮 Start/Stop |
 | ownership / async audit | 增量 ownership、全仓 async 与 whitespace PASS；全仓异步报告 0 命中 |
-| focused build/dist | `build_cpp_client.bat` 与 `build_cpp_tests.bat` PASS；未运行发版整编；Client 及关联 DLL/语言资源已发布且 build/dist 哈希一致 |
+| focused build/dist | `scripts_build\build_cpp_client.bat` 与 `scripts_build\build_cpp_tests.bat` PASS；未运行发版整编；Client 及关联 DLL/语言资源已发布且 build/dist 哈希一致 |
 
 最终 Client build/dist SHA-256：
 

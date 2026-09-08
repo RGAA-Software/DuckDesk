@@ -59,8 +59,8 @@
 Windows 聚焦增量构建通过，未运行 release-only 全量构建：
 
 ```text
-build_cpp_tests.bat px_client test_sdk_stream_helper test_udp_media_failure test_sdk_websocket_reconnect
-build_cpp_tests.bat px_client px_render test_client_cursor_image
+scripts_build\build_cpp_tests.bat px_client test_sdk_stream_helper test_udp_media_failure test_sdk_websocket_reconnect
+scripts_build\build_cpp_tests.bat px_client px_render test_client_cursor_image
 ```
 
 Android `:app:assembleDebug` 通过，最终构建用时 1 分 47 秒。

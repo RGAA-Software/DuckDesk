@@ -1,6 +1,6 @@
 # Console Web 前端开发调试指南（web/px_console）
 
-> 记录时间：2026-08。本文档说明 Console 管理后台前端（`web/px_console`，Vue 3 + Vite）的两种使用方式：日常开发用 `npm run dev` 热更新调试，正式发布用 `build_console_web.bat` 编译部署。
+> 记录时间：2026-08。本文档说明 Console 管理后台前端（`web/px_console`，Vue 3 + Vite）的两种使用方式：日常开发用 `npm run dev` 热更新调试，正式发布用 `scripts_build\build_console_web.bat` 编译部署。
 
 ## 1. 端口与后端结构
 
@@ -44,12 +44,12 @@
 > 代理目标端口默认 30500；如后端改了端口，用环境变量覆盖：
 > `CONSOLE_PROXY_TARGET=https://127.0.0.1:30501 npm run dev`
 
-## 3. 正式编译部署（`build_console_web.bat`）
+## 3. 正式编译部署（`scripts_build\build_console_web.bat`）
 
 只改前端、需要产出可部署产物时，在仓库根目录执行：
 
 ```
-.\build_console_web.bat
+.\scripts_build\build_console_web.bat
 ```
 
 脚本做两件事（不重编 Rust 服务端）：
@@ -59,4 +59,4 @@
 
 部署后如 `px_console_server` 正在运行，重启它才会加载新前端资源。
 
-> 如需连 Rust 服务端一起编译，用 `build_px_console_server.bat`；首次完整部署（证书/配置/运行时目录）用 `scripts\package_px_console_server.bat`。
+> 如需连 Rust 服务端一起编译，用 `scripts_build\build_px_console_server.bat`；首次完整部署（证书/配置/运行时目录）用 `scripts\package_px_console_server.bat`。

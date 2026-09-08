@@ -34,7 +34,7 @@ set "REPO_ROOT=%cd%"
 
 set "CLIENT_EXE=%REPO_ROOT%\build_official\dist\px_client.exe"
 if not exist "%CLIENT_EXE%" (
-    echo ERROR: %CLIENT_EXE% not found. Run build_official.bat first.
+    echo ERROR: %CLIENT_EXE% not found. Run scripts_build\build_official.bat first.
     exit /b 1
 )
 

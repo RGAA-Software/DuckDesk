@@ -125,7 +125,7 @@
 - [x] Rust Console 全量单元测试。
 - [x] Web 类型检查与生产构建。
 - [x] `px_panel` / `px_render` 增量 Release 编译。
-- [x] 完成 `build_official.bat` 全部 975 个 C++ 构建步骤；停止占用旧发布文件的进程后完成 dist 收集，并分别完成 Console/Auth/Desk release 构建与部署。
+- [x] 完成 `scripts_build\build_official.bat` 全部 975 个 C++ 构建步骤；停止占用旧发布文件的进程后完成 dist 收集，并分别完成 Console/Auth/Desk release 构建与部署。
 - [x] 启动 Console、Panel、Render，验证正常结束、5 秒内重连、Render 断开、Panel 重启恢复和 Console 离线补报。
 - [x] 验证 SQLite outbox 在 Console 离线时持久保留并退避重试，Console 恢复后自动清空；Console 幂等终态、冲突终态和磁盘事件聚合均通过真实 API 验证。
 - [x] 验证 Console Web 首页与生产资源可访问；访问、文件传输和管理审计页面已通过类型检查及生产构建。

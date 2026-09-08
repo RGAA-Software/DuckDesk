@@ -151,7 +151,7 @@ OBS lifecycle 额外连续执行 20 轮通过；SDK WS/WSS、Relay WS、公共 s
 - ownership gate 忽略纯格式变化产生的等价删除/新增行，避免把既有边界误判为新增，同时仍拒绝真正新增的裸指针、`new/delete` 和 `[this]`。
 
 验证结果：SDK WS、Relay WS、OBS IPC 三组真实服务启停/重连测试并行各连续 20 轮，共 60 轮全部通过；最终
-`build_cpp_render_arch_tests.bat all 8` 的 2 项架构门禁和 36 项测试全部通过，汇总 PASS 38、FAIL 0、SKIP 0、unexpected ERROR 0。
+`scripts_build\build_cpp_render_arch_tests.bat all 8` 的 2 项架构门禁和 36 项测试全部通过，汇总 PASS 38、FAIL 0、SKIP 0、unexpected ERROR 0。
 证据目录为 `test-results/render-architecture/20260905-022104-all`。该结论覆盖自动化软件门禁；硬件、LAN、30 分钟压力和 8 小时 soak
 仍由最终验收环境执行。
 
@@ -608,8 +608,8 @@ supervisor 的 `connection_attempts`、`successful_connections`、`reconnect_wai
 
 - 运行 ownership gate，新增行不得出现项目 raw pointer、`[this]`、`[&]` 异步捕获和 manual `new/delete`。
 - 增加 initialization/architecture guard，检查未初始化成员、通用 transport/plugin 接口、私有 runtime 和同步 callback wait 不得回归。
-- 使用 `build_cpp_common.bat`、`build_cpp_render_network_libraries.bat`、`build_cpp_render.bat` 和对应 focused test runner；不运行 release-only
-  `build_official.bat`。
+- 使用 `scripts_build\build_cpp_common.bat`、`scripts_build\build_cpp_render_network_libraries.bat`、`scripts_build\build_cpp_render.bat` 和对应 focused test runner；不运行 release-only
+  `scripts_build\build_official.bat`。
 - 改动运行产物同步到 `build_official/dist` 后逐项比较 SHA-256；哈希不一致不得报告可验收。
 - 保存 JUnit、日志隐私扫描、性能对比、process metrics 和 artifact hash 到独立 test-results 目录。
 

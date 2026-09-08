@@ -215,7 +215,7 @@ Windows 应用、Android JNI 都使用同一套公开接入方式；最小示例
 
 ### 发布和记录
 
-- Windows 使用 `build_cpp_*.bat`；未获明确发布请求，不运行 `build_official.bat`。
+- Windows 使用 `scripts_build\build_cpp_*.bat`；未获明确发布请求，不运行 `scripts_build\build_official.bat`。
 - 修改的 exe/DLL/语言资源/必要 Web 资源同步到 `build_official/dist`，与构建树逐项比对 SHA-256。
   占用则停止对应进程，发布后恢复需要运行的本地服务。
 - Android 构建 Debug；有 USB 时 `adb install -r -d` 覆盖安装，核对安装产物，不卸载、不清数据。

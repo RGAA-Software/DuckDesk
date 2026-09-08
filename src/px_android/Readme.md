@@ -54,7 +54,7 @@ adb shell am start -n yun.pixels.client.debug/yun.pixels.client.MainActivity
 
 日常真机验证只做 `-r` 覆盖安装，不主动卸载或清空应用数据。`core-native` 打包 `pixels_android_core`，并通过 `RegisterNatives` 提供类型化 JNI；没有旧 JSON JNI 或 RTC stub。
 
-后续 native C++ 聚焦验证使用仓库的 `build_cpp_android_*.bat` 入口。Windows release-only `build_official.bat` 不是 Android 开发命令。
+后续 native C++ 聚焦验证使用仓库的 `scripts_build\build_cpp_android_*.bat` 入口。Windows release-only `scripts_build\build_official.bat` 不是 Android 开发命令。
 
 ## 发布构建
 

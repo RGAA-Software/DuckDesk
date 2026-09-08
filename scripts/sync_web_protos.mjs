@@ -2,7 +2,7 @@
 // into the web clients' proto dirs. These dirs are gitignored / generated.
 //
 // Wired into:
-//   - build_official.bat (before the web frontend build)
+//   - scripts_build\build_official.bat (before the web frontend build)
 //   - web/px_web_client package.json "predev"/"prebuild"
 //   - src/px_web_client package.json "predev"/"prebuild"
 import fs from 'node:fs'

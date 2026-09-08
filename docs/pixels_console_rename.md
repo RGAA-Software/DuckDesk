@@ -53,7 +53,7 @@ scripts\build_px_client.bat build_official 8
 构建并部署 Console Web、Rust 服务端、媒体服务与 TURN：
 
 ```bat
-build_px_console_server.bat
+scripts_build\build_px_console_server.bat
 ```
 
 首次完整打包可运行：
@@ -65,7 +65,7 @@ scripts\package_px_console_server.bat
 仅更新 Web：
 
 ```bat
-build_console_web.bat
+scripts_build\build_console_web.bat
 ```
 
 上述服务端脚本会检查并部署 `px_media.exe`、`px_turn.exe`、`config.ini`、`turnserver.conf` 和 `COTURN_LICENSE`。

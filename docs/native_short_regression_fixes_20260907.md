@@ -24,7 +24,7 @@ FIFO 与回调内退出重复 10 轮通过；最后一轮这两项合计 4 毫�
 
 ## 构建和自动测试
 
-- 使用 `build_cpp_tests.bat` 增量构建 `px_client`、`px_render` 及相关测试，未运行 `build_official.bat`。
+- 使用 `scripts_build\build_cpp_tests.bat` 增量构建 `px_client`、`px_render` 及相关测试，未运行 `scripts_build\build_official.bat`。
 - Android `:core-domain:test`、`:core-native:testDebugUnitTest`、`:app:assembleDebug` 通过。
 - 最终构建的 10 个 CTest 测试组通过，10.68 秒：9 组文件传输测试及 `voice_call_core`。
 - 新增覆盖：1000 条命令顺序、阻塞回调内停止/丢弃排队命令、弱观察者失效、8 MiB 双异步会话传输、

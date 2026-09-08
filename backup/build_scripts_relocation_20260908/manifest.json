@@ -1,0 +1,206 @@
+{
+  "revision": "f2137767bb7552a2f73eac63a23e3b9c43ebcc08",
+  "reason": "Preserve original root build entry points and helpers before relocating them to scripts_build; archived files are reference-only",
+  "files": [
+    {
+      "path": ".gitattributes",
+      "sha256": "E841440FF85FB385543B955D16AF4692B4FBE1A72F1011D07808C22963AE9ECB",
+      "status": ""
+    },
+    {
+      "path": "build_client.bat",
+      "sha256": "C862306FC1724F148520EE6DF80CADCEE83C54D7628710EC5800D57A87250AD8",
+      "status": ""
+    },
+    {
+      "path": "build_console_web.bat",
+      "sha256": "22B0A093A640E112224815BFEBD6C6719B53E51B73B3409CFEF0C240AD7629E0",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_android_common.bat",
+      "sha256": "531363D1867BCE4BCED86FDF4BA113CC50A2FCB19525F790F87A139039DA0A03",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_client.bat",
+      "sha256": "FFB117BBA9A23BE2A64D28D7FC33DFB7D02EAADD4E9C75FBB905D02BC0C81668",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_client_module_tests.bat",
+      "sha256": "5D8FE48B019CD2646354B95E19DA0208A00CB8A8A3DC62AE5024AC1F57C5267D",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_common.bat",
+      "sha256": "935E6008C9786C686C9C542DEE896546D873D8915CB24D7F7EEF9F0CF73086B3",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_ft_protocol.bat",
+      "sha256": "B1D60B08BDB2008E5B91494887C5F7F851DDAC1982E94C7F7DCD62A438E3E98C",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_gdi_capture_tests.bat",
+      "sha256": "2E669168FF10861141741E7AB7ECBD922C47800A03843EB4EFDA5AB3C2C51204",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_hook_audio.bat",
+      "sha256": "6DA3CBD9BB3D83DC999810AE08A7DA019AF1118711D16E25A7CE8B589C4165A9",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_live_pusher_tests.bat",
+      "sha256": "92D121CAF866845D3EB50E70380A553DED690CE9EE86BB418E9EE9BD6BC417B6",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_media_recorder_tests.bat",
+      "sha256": "14BDD5BF2C9DEF0CBA4504095FB767F7949C8157BE2615B20720D31B0492D765",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_opus_encoder_tests.bat",
+      "sha256": "5BEBA500A7E95BD9102475731A2EB4B53A9CC4E0D248E1BA754C97B9EE302A17",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_panel.bat",
+      "sha256": "3ACFDCC3BA6CF488C6FB4EACE7BE784DD8669EF48F74C1FDCCB8CD8D5156CC6D",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_panel_shutdown_tests.bat",
+      "sha256": "D927726057EE7F01CFB8E3DA0366A536D3CDD64C6E537D40B3EC7201C92C4E66",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_render.bat",
+      "sha256": "02CE2D5B1244F73F3C65CD4FC7264B654F3161BA889D30F2CEFE6FA5504080B7",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_render_arch_tests.bat",
+      "sha256": "D70B53FD4BF27C30FF5FA51E9B4460BA106D7827247DFBD93E8A884506A6A359",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_render_lifecycle_tests.bat",
+      "sha256": "D7E314E83D6A75930AE04709D57246EE6A17C3D6ED2D515C688103E92D8FE8F5",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_render_network_libraries.bat",
+      "sha256": "6BFAA61530AB14B8D3CFA7D9C35BE2B4E46D618BE2DEAAFB6872EC99ACA4EF7A",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_render_network_library.bat",
+      "sha256": "79B90571AF694E98FA42AA4FA7B5667AA99F9999A0FFF5E56AE2BF2F81EC320F",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_render_rtc.bat",
+      "sha256": "C7C7430D24BA932C9888A767C94865176D48E142343BBED67DEC78A283CAF049",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_render_rtc_tests.bat",
+      "sha256": "13D1CFC146C48FB0EA5028DA91D64AA472B8E49857C17E9DFE5FDEC85E2D3348",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_sdk.bat",
+      "sha256": "8565C0E56F0DA7FC057E86BC09114D7D8BDFC8B7B54C016B1B7322621569F58C",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_sdk_standalone.bat",
+      "sha256": "22C82B23E35C0D93B5A25237B7ABA4B469AC6AFED8C399AD1F40BAF08B5DF15E",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_tests.bat",
+      "sha256": "22DD71F588984EFD612E82D3F1E9741130B624E2B48D2CE70642087BE579F38E",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_voice_call_tests.bat",
+      "sha256": "7F12ADAD30B83353EC45C02BA2938272169BC38EB98D2D3046F21D7E24E20BF0",
+      "status": ""
+    },
+    {
+      "path": "build_cpp_was_audio_tests.bat",
+      "sha256": "A5BC7409E3F9F647195D6A8941902A619157FE7F518BFFC70CCF500A0661FCF2",
+      "status": ""
+    },
+    {
+      "path": "build_official.bat",
+      "sha256": "7CA0837BB14B4490F1706CE9B818CD16779BD827282945B8B789F43EA7FB0DFE",
+      "status": ""
+    },
+    {
+      "path": "build_official_tests.bat",
+      "sha256": "35409029136656405BFAC7D092BB36C97A2FC8D7133542B1A3E3DF9F8977CF1D",
+      "status": ""
+    },
+    {
+      "path": "build_px_auth_server.bat",
+      "sha256": "F52FE34FCF08C71A4D4C5AC9A3CEDC49588E8B20E1E82AF7CFE3279727B57DDE",
+      "status": ""
+    },
+    {
+      "path": "build_px_console_server.bat",
+      "sha256": "A3289EFFA3B5F49CE3C46E72AF92571703A620E5A9B18777E7518347339CBD44",
+      "status": ""
+    },
+    {
+      "path": "build_px_desk_server.bat",
+      "sha256": "EFB812784877B97F807E1B294A5E0154430115E9C6B9D0DEE32C924AFF4836D2",
+      "status": ""
+    },
+    {
+      "path": "scripts/archive_native_sources.ps1",
+      "sha256": "CFACBF7A267FE940A2369027198BBCA7CE602D3E61AC3C4A938A82E74019A22C",
+      "status": ""
+    },
+    {
+      "path": "scripts/build_tc_tests.bat",
+      "sha256": "E381D308BE06AF488C80AD9153A05C3EE1696BB4C595D5DDB962593CA8BE153D",
+      "status": ""
+    },
+    {
+      "path": "scripts/collect_dist.py",
+      "sha256": "5D2B33B991C7E3A26EFDA9EE2AAD954FB1D47A32662A2227B60A6A1F9B3A48F1",
+      "status": ""
+    },
+    {
+      "path": "scripts/run_game_hook_render.bat",
+      "sha256": "CAA3CC3597CBF6F0713128C4AEBE40F2BBED8587DE21650A45BEC0DAD3286ACD",
+      "status": ""
+    },
+    {
+      "path": "scripts/service_test_ctl.bat",
+      "sha256": "DEAA25F9E284B78C2043B49D6F88ED30532716A1A42963A6F0B64B51301AFEEB",
+      "status": ""
+    },
+    {
+      "path": "scripts/sync_web_protos.mjs",
+      "sha256": "EF3DBB76586D5BB1B1700A6EACDD56F3DA242E94BD946DDDEFE07905CCE846D8",
+      "status": ""
+    },
+    {
+      "path": "scripts/test_webrtc_local.bat",
+      "sha256": "EA71FE114FB3F9EF84BEB804B26D8C9D782874030B0B5683DB363FDB893969D4",
+      "status": ""
+    },
+    {
+      "path": "set_app_version.py",
+      "sha256": "F5D5897C6D7C080328887B05A08ADE9D5D02F858026DE8C80DDE70AA8D0B1B50",
+      "status": ""
+    }
+  ]
+}

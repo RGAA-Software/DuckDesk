@@ -42,7 +42,7 @@ Windows 通过不能替代移动端运行验证；移动端剩余项是发布/�
 
 ### 1.3 移动平台证据与边界（2026-09-05）
 
-- Android NDK arm64-v8a 的 `px_common` 与 `px_sdk` 聚焦构建通过；入口为 `build_cpp_android_common.bat`。
+- Android NDK arm64-v8a 的 `px_common` 与 `px_sdk` 聚焦构建通过；入口为 `scripts_build\build_cpp_android_common.bat`。
 - Android 全应用最终链接仍受既有 Android `RtcClient` 实现缺失阻塞；Common/SDK 静态库已经越过编译和链接门禁。
 - 当前 Windows 工作区没有 AppleClang/Xcode 构建环境，也没有可用的 iOS 工程/设备，因此不能声明 iOS 已实机验证。
 - iOS 的代码策略仍是标准 C++23、`std::filesystem::path` 原生 POSIX 字节路径和 bounded blocking executor；必须在 macOS CI 补做编译、
@@ -473,7 +473,7 @@ Render quick 的机器可读证据位于 `test-results/render-architecture/20260
 
 - 每个阶段独立提交，依赖升级与业务改造不混在同一提交。
 - 每次提交写明已运行的目标和测试。
-- 不运行 `build_official.bat`，除非用户明确要求发布级全量构建。
+- 不运行 `scripts_build\build_official.bat`，除非用户明确要求发布级全量构建。
 - 保留用户现有未跟踪文件和无关修改，不纳入提交。
 
 ## 15. 外部依据

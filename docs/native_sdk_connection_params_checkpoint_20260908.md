@@ -31,7 +31,7 @@
 
 验证结果：
 
-- Windows `build_cpp_tests.bat` 构建 Client 和相关 SDK 测试通过；未运行 release 全量入口。
+- Windows `scripts_build\build_cpp_tests.bat` 构建 Client 和相关 SDK 测试通过；未运行 release 全量入口。
 - Android `:core-native:testDebugUnitTest :app:assembleDebug` 通过；`e2b3b128` 覆盖安装成功并启动应用，未卸载/清数据。
 - 最终 7 组 CTest 全部通过，14.76 秒：源码/头依赖边界、连接配置、UDP 媒体状态、AVFrame 所有权、
   UDP 故障、码流辅助、WS/WSS 重连。新增配置组包含 4 项测试。

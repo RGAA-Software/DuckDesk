@@ -34,9 +34,9 @@ SDK 产品源码没有 Qt include；可选 Windows 文件传输 E2E 程序单独
 Windows 使用增量入口：
 
 ```text
-build_cpp_tests.bat px_client test_udp_media_failure test_sdk_websocket_reconnect
+scripts_build\build_cpp_tests.bat px_client test_udp_media_failure test_sdk_websocket_reconnect
     test_udp_media_state test_sdk_stream_helper test_ft_transport_e2e check_cpp_ownership
-build_cpp_tests.bat px_client
+scripts_build\build_cpp_tests.bat px_client
 ```
 
 最终构建均成功；未运行 release-only 全量构建。

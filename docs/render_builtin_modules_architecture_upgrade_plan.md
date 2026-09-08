@@ -40,7 +40,7 @@ Render 当前的大多数功能都是产品固定能力，不需要独立发现�
 - 不为 WebRTC 再建立 `IWebRtcTransport` 或通用 `ITransport` 虚接口。
 - 架构稳定前不以“大文件移动”代替迁移；稳定后必须按职责移动实现并删除
   `src/px_render/plugins`，避免交付形态与源码归属继续矛盾。
-- 不使用 `build_official.bat` 做日常开发或聚焦验证。
+- 不使用 `scripts_build\build_official.bat` 做日常开发或聚焦验证。
 
 ## 3. 目标架构
 
@@ -767,15 +767,15 @@ L1-L3 必须能够在没有真实显示器变更、外部 Relay 或公网 Coturn
    - `render-hardware`
    - `render-e2e`
    - `render-performance`
-3. 新增聚焦入口 `build_cpp_render_arch_tests.bat`，职责为：
+3. 新增聚焦入口 `scripts_build\build_cpp_render_arch_tests.bat`，职责为：
    - 调用 `scripts/build_cpp_target.bat` 构建精确测试目标；
    - 执行 L0 门禁；
    - 使用 `ctest --test-dir build_official --output-on-failure` 执行 L1-L3；
    - 保留退出码，任何测试失败都使脚本失败；
    - 将 JUnit/控制台日志写入本次 run 的证据目录。
-4. 原有 `build_cpp_gdi_capture_tests.bat`、`build_cpp_was_audio_tests.bat`、
-   `build_cpp_opus_encoder_tests.bat`、`build_cpp_media_recorder_tests.bat`、
-   `build_cpp_live_pusher_tests.bat` 和 `build_cpp_voice_call_tests.bat` 在模块迁移时调整为
+4. 原有 `scripts_build\build_cpp_gdi_capture_tests.bat`、`scripts_build\build_cpp_was_audio_tests.bat`、
+   `scripts_build\build_cpp_opus_encoder_tests.bat`、`scripts_build\build_cpp_media_recorder_tests.bat`、
+   `scripts_build\build_cpp_live_pusher_tests.bat` 和 `scripts_build\build_cpp_voice_call_tests.bat` 在模块迁移时调整为
    构建并运行对应的新 module/runtime 测试，而不是只编译旧 DLL lifecycle 测试。
 5. 硬件测试若不满足前置条件，结果必须明确为 `SKIP: reason`；发布验收环境中必需硬件的
    SKIP 视为未完成，而不是 PASS。
@@ -783,26 +783,26 @@ L1-L3 必须能够在没有真实显示器变更、外部 Relay 或公网 Coturn
 计划中的 runner 模式：
 
 ```text
-build_cpp_render_arch_tests.bat quick
+scripts_build\build_cpp_render_arch_tests.bat quick
     L0 + L1，供每次本地修改使用
 
-build_cpp_render_arch_tests.bat lifecycle
+scripts_build\build_cpp_render_arch_tests.bat lifecycle
     L0 + 全部生命周期/并发测试
 
-build_cpp_render_arch_tests.bat integration
+scripts_build\build_cpp_render_arch_tests.bat integration
     L0 + L1 + L2 + L3
 
-build_cpp_render_arch_tests.bat hardware
+scripts_build\build_cpp_render_arch_tests.bat hardware
     构建并执行当前机器满足条件的 DDA/GDI/NVENC/AMF/WAS 测试
 
-build_cpp_render_arch_tests.bat all
+scripts_build\build_cpp_render_arch_tests.bat all
     L0 + L1 + L2 + L3；不隐式启动外部 LAN E2E
 
-build_cpp_render_arch_tests.bat performance
+scripts_build\build_cpp_render_arch_tests.bat performance
     执行固定配置的基线/对比测试并生成 performance comparison
 ```
 
-runner 只调用 `build_cpp_*`/精确 CMake target，不调用 `build_official.bat`。LAN E2E 需要
+runner 只调用 `build_cpp_*`/精确 CMake target，不调用 `scripts_build\build_official.bat`。LAN E2E 需要
 明确的目标设备和凭据注入，继续由对应 `scripts/run_*.ps1` 显式启动，不能由普通单元测试
 偷偷访问外部环境。
 
@@ -1319,8 +1319,8 @@ test-results/render-architecture/<run-id>/
 
 ## 13. 构建和交付规则
 
-日常开发使用 `build_cpp_render.bat`、对应 `build_cpp_*_tests.bat` 或精确 CMake target。
-不为此升级运行 release-only 的 `build_official.bat`。
+日常开发使用 `scripts_build\build_cpp_render.bat`、对应 `build_cpp_*_tests.bat` 或精确 CMake target。
+不为此升级运行 release-only 的 `scripts_build\build_official.bat`。
 
 每个迁移批次交付前：
 

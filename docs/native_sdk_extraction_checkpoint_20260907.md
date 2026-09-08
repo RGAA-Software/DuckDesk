@@ -13,7 +13,7 @@
 
 ## 验证结果
 
-Windows 使用 `build_cpp_tests.bat` 构建下列目标，未运行 `build_official.bat`，未构建 Rust 或 npm：
+Windows 使用 `scripts_build\build_cpp_tests.bat` 构建下列目标，未运行 `scripts_build\build_official.bat`，未构建 Rust 或 npm：
 
 ```text
 px_client px_panel skin_interface skin_loader skin_official skin_opensource

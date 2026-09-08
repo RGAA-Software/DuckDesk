@@ -57,7 +57,7 @@ Windows、Android、iOS、macOS 复用同一 C++ 会话、协议与媒体任务�
 
 - 迁移前按归档规则保存原 SDK 的完整内容，包括未提交改动；迁移后的活动源码只保留在 `src/px_client_sdk`。
 - 原路径不保留可编译副本、转发 CMake、符号链接或兼容头；`backup/` 内原版不参与构建。
-- 同步修改根工程与 Android native 的 CMake 接入、SDK 内部相对依赖、调用方 include 路径、测试、`build_cpp_*.bat` 相关脚本和维护工具。
+- 同步修改根工程与 Android native 的 CMake 接入、SDK 内部相对依赖、调用方 include 路径、测试、`scripts_build\build_cpp_*.bat` 相关脚本和维护工具。
 - SDK 使用自身明确的源码根目录与 target 级 include/link 声明，不再通过 `PX_PROJECT_PATH/px_client_sdk` 假定 SDK 位于依赖目录。
 - 目录迁移阶段可以保留现有 `px_sdk` 构建目标名；公共接口和平台适配整理独立验证，不以表面改名扩大改造范围。
 - `px_common`、`px_message`、`px_ft_engine`、`px_media_record`、`px_voice_call` 等共享依赖本次不随目录搬迁而整体移动或复制；
@@ -115,7 +115,7 @@ Web 的启动策略继续允许 RTC；它使用的信令 Relay/TURN 不受原生
 - 已完成目录迁移、旧 Native 通道退役及双端固定原生接入；Windows/Android 已做短时实连。SDK 剩余边界按上述收尾计划完成，整体尚非最终候选包。
 - 取消原生 RTC、Relay、P2P、WS 视频回退待测项；验收 UDP+FEC 视频、音频恢复、控制可靠性、文件并发隔离、语音、剪贴板和录制。
 - Android 有 USB 手机时只覆盖安装，不卸载、不清空数据，每次真机测试不超过 5 分钟；历史真机结果不替代改动后版本验收。
-- Windows 使用 `build_cpp_*.bat` 聚焦构建；修改的运行产物同步到 `build_official/dist` 并逐一核对 SHA-256。
+- Windows 使用 `scripts_build\build_cpp_*.bat` 聚焦构建；修改的运行产物同步到 `build_official/dist` 并逐一核对 SHA-256。
 - SDK 验证覆盖销毁后排队回调、分发时注销、回调内关闭与重复启动/停止；Web 侧必须验证保留的 RTC 路径未被误删。
 - 设置与入口回归确认无强制通道、协议优先级或自动选择开关，旧设置值不能恢复已退役路径。
 - 性能/设备/API/无障碍实机矩阵仍按此前决定跳过；签名、FFmpeg 发布输入和真实应用授权等现有交接条件保持适用。

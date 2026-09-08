@@ -12,7 +12,7 @@
 - 为 px_common 增加宿主组件开关，补齐公共 include/link 传播；SDK 与 Opus 只依赖实际需要的公共组件。
 - 将 Windows 设备名/client type 的填写从 ThunderSdk 移回 BaseWorkspace。新增测试保证 SDK 不覆盖宿主身份。
 - 归档退出未启用的 libyuv RGB 转换与无用 D3D debug include，不为独立构建拉入无用媒体依赖。
-- 增加 `build_cpp_sdk_standalone.bat` 和 `examples/lifecycle`；不调用 release、npm、Gradle 或 Rust 构建。
+- 增加 `scripts_build\build_cpp_sdk_standalone.bat` 和 `examples/lifecycle`；不调用 release、npm、Gradle 或 Rust 构建。
   示例使用真实 SDK/平台工厂，离线创建/初始化、重复退出 3 轮，不请求账号或建立伪连接。
 
 ## 验证

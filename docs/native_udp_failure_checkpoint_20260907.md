@@ -16,7 +16,7 @@
 Windows 聚焦构建：
 
 ```text
-build_cpp_tests.bat px_client test_udp_media_state test_udp_media_failure test_sdk_websocket_reconnect
+scripts_build\build_cpp_tests.bat px_client test_udp_media_state test_udp_media_failure test_sdk_websocket_reconnect
 ```
 
 5 组 CTest 全通过，共 14.19 秒：`common_message_notifier`、`common_async_runtime`、

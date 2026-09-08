@@ -21,10 +21,10 @@
 
 ## 验证与交付
 
-Windows 使用聚焦增量构建，未运行 `build_official.bat`：
+Windows 使用聚焦增量构建，未运行 `scripts_build\build_official.bat`：
 
 ```text
-build_cpp_tests.bat px_client test_av_frame_ownership test_udp_media_failure test_sdk_websocket_reconnect
+scripts_build\build_cpp_tests.bat px_client test_av_frame_ownership test_udp_media_failure test_sdk_websocket_reconnect
 ```
 
 Android `gradlew.bat :app:assembleDebug` 成功。无手机，未安装、卸载或清空数据。

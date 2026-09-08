@@ -430,8 +430,8 @@ logical session 与 stream 绑定。Web 客户端使用的服务端 RTC 能力�
 
 ### 11.3 构建约定
 
-- 日常 Android 构建使用 Gradle 的聚焦任务和 `build_cpp_android_*.bat` C++ 入口。
-- 不为 Android 日常验证运行仓库的 Windows release-only `build_official.bat`。
+- 日常 Android 构建使用 Gradle 的聚焦任务和 `scripts_build\build_cpp_android_*.bat` C++ 入口。
+- 不为 Android 日常验证运行仓库的 Windows release-only `scripts_build\build_official.bat`。
 - 每个里程碑至少完成一次 arm64 debug 清洁构建、USB 真机覆盖安装、启动和日志检查；日常验证不得主动卸载应用。
 - 发布候选必须记录 APK/AAB SHA-256、签名证书、native ABI、version code/name 和测试设备信息。
 
@@ -857,5 +857,5 @@ logical session 与 stream 绑定。Web 客户端使用的服务端 RTC 能力�
 7. Windows Client 与 iOS 平台适配器。
 
 验收至少覆盖：能力交集为空、硬件声明但创建失败、硬解运行时失败、codec/分辨率切换、晚到确认、重连、网络升降档、连续 start/stop、回调内关闭和销毁后排队回调。
-Windows 端改动必须使用对应 `build_cpp_*.bat` 构建；发生运行产物变化时同步到 `build_official/dist` 并核对 SHA-256。Android 真机继续只用
+Windows 端改动必须使用对应 `scripts_build\build_cpp_*.bat` 构建；发生运行产物变化时同步到 `build_official/dist` 并核对 SHA-256。Android 真机继续只用
 `adb install -r -d` 覆盖安装，每个验证场景不超过 5 分钟。

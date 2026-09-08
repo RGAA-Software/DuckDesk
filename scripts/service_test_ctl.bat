@@ -21,7 +21,7 @@ exit /b 1
 
 :start
 if not exist "%EXE%" (
-    echo ERROR: %EXE% not found. Run build_official.bat first.
+    echo ERROR: %EXE% not found. Run scripts_build\build_official.bat first.
     exit /b 1
 )
 tasklist /FI "IMAGENAME eq px_service.exe" | findstr /I "px_service.exe" >nul

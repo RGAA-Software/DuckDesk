@@ -21,7 +21,7 @@
 
 ## 验证与交付
 
-`build_cpp_tests.bat px_client test_udp_media_state test_udp_media_failure test_sdk_stream_helper test_sdk_websocket_reconnect test_ft_transport_e2e`
+`scripts_build\build_cpp_tests.bat px_client test_udp_media_state test_udp_media_failure test_sdk_stream_helper test_sdk_websocket_reconnect test_ft_transport_e2e`
 最终增量构建退出码为 0。未执行 release-only 全量构建。
 
 Android `gradlew.bat :app:assembleDebug` 最终构建成功，当前 Debug Ninja 图无 RTC/Relay/KCP 旧连接输入。
