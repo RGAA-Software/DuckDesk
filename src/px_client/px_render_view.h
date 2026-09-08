@@ -27,10 +27,12 @@ namespace px
     class Thread;
     class MediaRecordSignLab;
     class OverlayWidget;
+    struct WindowsVideoResources;
 
     class PxRenderView : public QWidget {
     public:
-        PxRenderView(const std::shared_ptr<ClientContext>& ctx, std::shared_ptr<ThunderSdk>& sdk, const std::shared_ptr<ThunderSdkParams>& params, QWidget* parent);
+        PxRenderView(const std::shared_ptr<ClientContext>& ctx, const std::shared_ptr<ThunderSdk>& sdk,
+                     const std::shared_ptr<const WindowsVideoResources>& resources, QPointer<QWidget> parent);
         ~PxRenderView() override;
         void resizeEvent(QResizeEvent* event) override;
         void enterEvent(QEnterEvent* event) override;
@@ -64,13 +66,14 @@ namespace px
 
     private:
         std::reference_wrapper<Settings> settings_;
-        std::shared_ptr<VideoWidget> video_widget_;
+        // Qt-parent owned; Video() borrows its non-QObject interface synchronously.
+        QPointer<QWidget> video_widget_{};
+        VideoWidget& Video() const;
     #if TEST_SDL
         std::shared_ptr<SDLVideoWidget> sdl_video_widget_;
     #endif
         std::shared_ptr<ClientContext> ctx_ = nullptr;
         std::shared_ptr<ThunderSdk> sdk_ = nullptr;
-        std::shared_ptr<ThunderSdkParams> params_;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::string monitor_name_;
         bool active_ = false;

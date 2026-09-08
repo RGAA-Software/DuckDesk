@@ -11,8 +11,7 @@
 #include <qlist.h>
 #include "thunder_sdk.h"
 #include "px_client/ct_app_message.h"
-#include "px_voice_call/voice_call_state.h"
-#include "px_voice_call/voice_packet_transport.h"
+#include "px_client_sdk/sdk_voice_call.h"
 #include "theme/QtAdvancedStylesheet.h"
 
 #ifdef WIN32
@@ -41,6 +40,7 @@ namespace px
     class FloatButtonStateIndicator;
     class MainProgress;
     class PxRenderView;
+    struct WindowsVideoResources;
     class CtPanelClient;
     class ClientModuleManager;
     class ClientMediaRecordingModule;
@@ -51,7 +51,6 @@ namespace px
     class PlVulkan;
     class SkinInterface;
     class OverlayWidget;
-    class VoiceAudioEndpoint;
 
     class BaseWorkspace : public QMainWindow, public std::enable_shared_from_this<BaseWorkspace> {
     public:
@@ -118,16 +117,11 @@ namespace px
         virtual void SwitchToFillWindow();
         void SendChangeMonitorResolutionMessage(const MsgClientChangeMonitorResolution& msg);
         void SendVirtualDisplayRequest(const MsgClientVirtualDisplayRequest& msg);
+        void InitVoiceCall();
         void SendVoiceCallCommand(const MsgClientVoiceCallCommand& msg);
         void ProcessVoiceCallMessage(const std::shared_ptr<px::Message>& msg);
         void StopVoiceCall(bool notify_remote, const std::string& reason);
         void NotifyVoiceCallStatus(const std::string& reason = {});
-        void QueueVoiceAudioFrame(const std::string& call_id, uint32_t sequence,
-                                 uint64_t capture_time_ms,
-                                 const std::vector<uint8_t>& opus);
-        void DispatchVoiceAudioFrame(const std::string& call_id, uint32_t sequence,
-                                 uint64_t capture_time_ms,
-                                 const std::vector<uint8_t>& opus);
         void UpdateFloatButtonIndicatorPosition();
         void UpdateVideoWidgetSize();
         virtual void UpdateRenderViewsStatus(bool force_layout_screens) {}
@@ -158,6 +152,7 @@ namespace px
     protected:
         Settings* settings_ = nullptr;
         std::shared_ptr<ThunderSdkParams> params_ = nullptr;
+        std::shared_ptr<WindowsVideoResources> video_resources_{};
         std::shared_ptr<ClientContext> context_ = nullptr;
         std::shared_ptr<ThunderSdk> sdk_ = nullptr;
         std::shared_ptr<AudioPlayer> audio_player_ = nullptr;
@@ -170,14 +165,10 @@ namespace px
         FloatButtonStateIndicator* btn_indicator_ = nullptr;
         std::atomic_bool has_frame_arrived_ = false;
         std::atomic_uint64_t virtual_display_request_seq_ = 0;
-        std::mutex voice_call_mutex_;
-        VoiceCallState voice_call_state_;
-        std::shared_ptr<VoiceAudioEndpoint> voice_audio_endpoint_;
-        VoicePacketTransport voice_packet_transport_;
-        bool voice_microphone_muted_ = false;
-        bool voice_speaker_muted_ = false;
-        std::string voice_capture_device_id_;
-        std::string voice_playout_device_id_;
+        std::mutex voice_call_mutex_{};
+        std::shared_ptr<VoiceCallController> voice_call_{};
+        std::string voice_capture_device_id_{};
+        std::string voice_playout_device_id_{};
 
         // progress
         MainProgress* main_progress_ = nullptr;

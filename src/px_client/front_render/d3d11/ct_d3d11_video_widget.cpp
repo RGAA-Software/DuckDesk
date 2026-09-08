@@ -4,6 +4,8 @@
 
 #include <QSurface>
 #include "ct_d3d11_video_widget.h"
+#include "px_client_sdk/platform/windows/windows_video_resources.h"
+#include "px_client_sdk/platform/windows/windows_video_frame.h"
 #include "px_common/log.h"
 #include "px_common/data.h"
 #include "px_common/thread.h"
@@ -55,7 +57,7 @@ namespace px
             int row_bytes,
             int row_count,
             std::string_view plane_name) {
-            if (!context || !texture || !image || !image->Data()
+            if (!context || !texture || !image || image->Bytes().empty()
                 || source_offset + static_cast<std::size_t>(source_stride) * row_count
                     > static_cast<std::size_t>(image->Size())) {
                 LOGE("Invalid CPU {} plane: offset={}, stride={}, rows={}, image_bytes={}",
@@ -82,7 +84,7 @@ namespace px
             for (int row = 0; row < row_count; ++row) {
                 std::memcpy(
                     mapped.data() + static_cast<std::size_t>(resource.RowPitch) * row,
-                    image->Data() + source_offset + static_cast<std::size_t>(source_stride) * row,
+                    image->Bytes().subspan(source_offset + static_cast<std::size_t>(source_stride) * row).data(),
                     row_bytes);
             }
             context->Unmap(texture.Get(), 0);
@@ -92,8 +94,9 @@ namespace px
 
 
     D3D11VideoWidget::D3D11VideoWidget(const std::shared_ptr<ClientContext> &ctx, const std::shared_ptr<ThunderSdk> &sdk,
-                                   int dup_idx, RawImageFormat format, QWidget *parent)
-            : QWidget(parent), VideoWidget(ctx, sdk, dup_idx) {
+                                   std::shared_ptr<const WindowsVideoResources> resources, int dup_idx, RawImageFormat format,
+                                   QPointer<QWidget> parent)
+            : QWidget(parent.data()), VideoWidget(ctx, sdk, dup_idx), resources_(std::move(resources)) {
         this->raw_image_format_ = format;
         
         QPalette pal = palette();
@@ -173,13 +176,14 @@ namespace px
 
         const bool is_cpu_yuv = image->Format() == RawImageFormat::kRawImageI420
             || image->Format() == RawImageFormat::kRawImageI444;
-        auto render_device = image->device_;
-        auto render_context = image->device_context_;
+        const auto gpu_frame = D3D11FrameOf(image);
+        const auto device_owner = gpu_frame ? gpu_frame->device_owner : (resources_ ? resources_->d3d11 : nullptr);
+        auto render_device = device_owner ? device_owner->d3d11_device_ : Microsoft::WRL::ComPtr<ID3D11Device>{};
+        auto render_context = device_owner ? device_owner->d3d11_device_context_ : Microsoft::WRL::ComPtr<ID3D11DeviceContext>{};
         if ((!render_device || !render_context)
             && is_cpu_yuv
             && sdk_) {
-            const auto params = sdk_->GetSdkParams();
-            const auto wrapper = params ? params->d3d11_wrapper_ : nullptr;
+            const auto wrapper = resources_ ? resources_->d3d11 : nullptr;
             if (wrapper && wrapper->IsValid()) {
                 render_device = wrapper->d3d11_device_;
                 render_context = wrapper->d3d11_device_context_;
@@ -219,7 +223,7 @@ namespace px
                 LOGE("Don't have a valid texture to draw.");
                 return;
             }
-            if (!image->texture_) {
+            if (!gpu_frame || !gpu_frame->texture) {
                 LOGE("The image format is D3D11Texture, but there isn't a valid texture.");
                 return;
             }
@@ -287,7 +291,10 @@ namespace px
         srcBox.bottom = image->img_height;
         srcBox.front = 0;
         srcBox.back = 1;
-        image->device_context_->CopySubresourceRegion(render_mgr_->GetTexture().Get(), 0, 0, 0, 0, image->texture_.Get(), image->src_subresource_, &srcBox);
+        const auto gpu_frame = D3D11FrameOf(image);
+        if (!gpu_frame || !gpu_frame->device_owner) return;
+        gpu_frame->device_owner->d3d11_device_context_->CopySubresourceRegion(
+            render_mgr_->GetTexture().Get(), 0, 0, 0, 0, gpu_frame->texture.Get(), gpu_frame->subresource, &srcBox);
 
         bool occluded = false;
         auto r = render_mgr_->UpdateApplicationWindow(&occluded);

@@ -1,6 +1,9 @@
 #ifdef WIN32
 
 #include "sdk_ffmpeg_vulkan_decoder.h"
+#include "ffmpeg_frame_adapter.h"
+#include "platform/windows/windows_video_frame.h"
+#include "platform/windows/windows_video_resources.h"
 #include <iostream>
 #include <thread>
 #include <fstream>
@@ -41,9 +44,8 @@ namespace px
         return AV_PIX_FMT_NONE; 
     }
 
-    FFmpegVulkanDecoder::FFmpegVulkanDecoder(const std::shared_ptr<ThunderSdk>& sdk) : VideoDecoder(sdk) {
-        sdk_->GetSdkParams();
-    }
+    FFmpegVulkanDecoder::FFmpegVulkanDecoder(const std::shared_ptr<ThunderSdk>& sdk, std::shared_ptr<const WindowsVideoResources> resources)
+        : VideoDecoder(sdk), resources_(std::move(resources)) {}
 
     FFmpegVulkanDecoder::~FFmpegVulkanDecoder() {
         Release();
@@ -52,12 +54,13 @@ namespace px
     // img_format:
     // kI420 = 0,
     // kI444 = 1,
-    int FFmpegVulkanDecoder::Init(const std::string& mon_name, int codec_type, int width, int height, const std::string& frame, void* surface, int img_format, bool ignore_hw) {
-        VideoDecoder::Init(mon_name, codec_type, width, height, frame, surface, img_format, ignore_hw);
+    int FFmpegVulkanDecoder::Init(const std::string& mon_name, int codec_type, int width, int height,
+            const std::string& frame, int img_format, bool ignore_hw) {
+        VideoDecoder::Init(mon_name, codec_type, width, height, frame, img_format, ignore_hw);
         if (inited_) {
             return 0;
         }
-        auto sdk_params = sdk_->GetSdkParams();
+        if (!resources_) return AVERROR(EINVAL);
         monitor_name_ = mon_name;
         img_format_ = img_format;
         frame_width_ = width;
@@ -105,7 +108,7 @@ namespace px
             return -2;
         }
 
-        packet_ = av_packet_alloc();
+        packet_.reset(av_packet_alloc());
         av_frame_ = AllocateAvFrame();
         if (!av_frame_ || !packet_) {
             Release();
@@ -123,7 +126,7 @@ namespace px
             return false;
         }
 
-        decoder_context_ = avcodec_alloc_context3(decoder_);
+        decoder_context_.reset(avcodec_alloc_context3(decoder_));
         if (!decoder_context_) {
             LOGE("avcodec_alloc_context3 error");
             return false;
@@ -154,13 +157,13 @@ namespace px
         init_msg.height_ = frame_height_;
         init_msg.format_ = (EImageFormat)img_format_;
       
-        auto params = sdk_->GetSdkParams();
-        if (params->decoder_ == "Auto" || params->decoder_ == "Hardware") { //硬解码
+        if (!ignore_hw_decoder_ && (resources_->decoder_preference == "Auto" || resources_->decoder_preference == "Hardware")) {
+            if (!resources_->vulkan_device) return false;
             pix_format_ = decoder_context_->pix_fmt = AV_PIX_FMT_VULKAN;// 表示 解码输出的像素格式
             decoder_context_->get_format = VulkanFFGetFormat;// 是 FFmpeg 解码器在解码初始化阶段调用的回调函数，用来由你（应用层）选择最终的输出像素格式
 
-            LOGI("params->vulkan_hw_device_ctx_ : {}", (void*)params->vulkan_hw_device_ctx_);
-            decoder_context_->hw_device_ctx = av_buffer_ref(params->vulkan_hw_device_ctx_);
+            decoder_context_->hw_device_ctx = av_buffer_ref(resources_->vulkan_device.get());
+            if (!decoder_context_->hw_device_ctx) return false;
             // No threading for HW decode
             decoder_context_->thread_count = 1;
             init_msg.hard_ware_ = true;
@@ -182,7 +185,7 @@ namespace px
         }
 
         AVDictionary* options = nullptr;
-        int err = avcodec_open2(decoder_context_, decoder_, &options);
+        int err = avcodec_open2(decoder_context_.get(), decoder_, &options);
         av_dict_free(&options);
         if (0 != err) {
             return false;
@@ -193,7 +196,7 @@ namespace px
         return true;
     }
 
-    Result<std::shared_ptr<RawImage>, int> FFmpegVulkanDecoder::Decode(const uint8_t* data, int size) {
+    Result<std::shared_ptr<RawImage>, int> FFmpegVulkanDecoder::Decode(std::span<const std::uint8_t> encoded) {
         std::lock_guard<std::mutex> guard(decode_mtx_);
         if (!decoder_context_ || !av_frame_ || !packet_ || stop_) {
             return TRError(-1);
@@ -201,10 +204,9 @@ namespace px
 
         auto beg = TimeUtil::GetCurrentTimestamp();
 
-        packet_->data = (uint8_t*)data;
-        packet_->size = size;
+        if (!PrepareDecoderPacket(*packet_, encoded)) return TRError(AVERROR(EINVAL));
 
-        int ret = avcodec_send_packet(decoder_context_, packet_);
+        int ret = avcodec_send_packet(decoder_context_.get(), packet_.get());
         if (ret == AVERROR(EAGAIN)) {
             LOGW("EAGAIN...");
             return TRError(0);
@@ -218,7 +220,7 @@ namespace px
         auto last_result = 0;
         std::shared_ptr<RawImage> decoded_image = nullptr;
         while (true) {
-            ret = avcodec_receive_frame(decoder_context_, av_frame_.get());
+            ret = avcodec_receive_frame(decoder_context_.get(), av_frame_.get());
             if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
                 last_result = has_received_frame ? 0 : ret;
                 break;
@@ -265,7 +267,7 @@ namespace px
                 sdk_stat->video_color_.Update(image_format ? "4:4:4" : "4:2:0" );
                 sdk_stat->AppendDecodeDuration(monitor_name, decode_duration);
             });
-            decoded_image = RawImage::MakeVulkanAVFrame(*av_frame_);
+            decoded_image = MakeVulkanImage(*av_frame_, resources_->vulkan_device);
             if (!decoded_image) {
                 return TRError(AVERROR(ENOMEM));
             }
@@ -281,30 +283,12 @@ namespace px
     }
 
     void FFmpegVulkanDecoder::Release() {
-        std::lock_guard<std::mutex> guard(decode_mtx_);
+        std::lock_guard guard(decode_mtx_);
         stop_ = true;
         inited_ = false;
-
-        while (decoder_context_ && av_frame_) {
-            auto ret = avcodec_receive_frame(decoder_context_, av_frame_.get());
-            if (ret < 0) {
-                break;
-            }
-        }
-
-        if (decoder_context_ != nullptr) {
-            avcodec_free_context(&decoder_context_);
-            decoder_context_ = nullptr;
-        }
-
         av_frame_.reset();
-
-        if (packet_ != nullptr) {
-            av_packet_unref(packet_);
-            av_packet_free(&packet_);
-            packet_ = nullptr;
-        }
-        LOGI("FFmpeg video decoder release.");
+        packet_.reset();
+        decoder_context_.reset();
     }
 
     bool FFmpegVulkanDecoder::Ready() {

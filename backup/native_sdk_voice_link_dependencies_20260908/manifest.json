@@ -1,0 +1,11 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "P3c voice engine explicit async runtime and SSL dependency linkage exposed by standalone unit-test target",
+  "files": [
+    {
+      "path": "src/px_deps/px_voice_call/CMakeLists.txt",
+      "sha256": "CA10C3E6E711FD6F025E38928E70DEA02D29F27C61DE77D9E38F73A5D8F87DE5",
+      "status": ""
+    }
+  ]
+}

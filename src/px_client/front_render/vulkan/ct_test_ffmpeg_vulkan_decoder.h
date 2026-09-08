@@ -33,7 +33,8 @@ namespace px {
         bool InitTestHevcDecoder();
         bool OpenTestHevcDecoder();
         AvFramePtr GetDecodeTestHevcYuv444Frame();
-        void SetHwDeviceCtx(AVBufferRef* hw_device_ctx);
+        void SetHwDeviceCtx(std::shared_ptr<AVBufferRef> hw_device_ctx);
+        std::shared_ptr<AVBufferRef> device_owner_{};
        
         static const uint8_t k_HEVCRExt8_444TestFrame[];
     };

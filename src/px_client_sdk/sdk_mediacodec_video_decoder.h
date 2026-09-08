@@ -14,23 +14,27 @@
 #include <media/NdkMediaFormat.h>
 
 #include "sdk_video_decoder.h"
+#include "platform/android/android_video_output.h"
 
 namespace px
 {
 
     class MediacodecVideoDecoder : public VideoDecoder {
     public:
-        MediacodecVideoDecoder(const std::shared_ptr<ThunderSdk>& sdk);
+        MediacodecVideoDecoder(const std::shared_ptr<ThunderSdk>& sdk, std::shared_ptr<AndroidVideoOutput> output);
         ~MediacodecVideoDecoder() override;
         // to do : 安卓端也要设置 img_format, 并根据img_format是否 变化，来重新创建解码器
-        int Init(const std::string& mon_name, int codec_type, int width, int height, const std::string& frame, void* surface, int img_format, bool ignore_hw) override;
-        Result<std::shared_ptr<RawImage>, int> Decode(const uint8_t* data, int size) override;
+        int Init(const std::string& mon_name, int codec_type, int width, int height,
+            const std::string& frame, int img_format, bool ignore_hw) override;
+        Result<std::shared_ptr<RawImage>, int> Decode(std::span<const std::uint8_t> encoded) override;
         void Release() override;
-        bool UpdateRenderSurface(std::uintptr_t surface_handle) override;
+        bool RefreshOutput() override;
         bool Ready() override;
         bool NeedReConstruct(int codec_type, int width, int height, int img_format) override;
 
     private:
+        const std::shared_ptr<AndroidVideoOutput> output_{};
+        std::shared_ptr<ANativeWindow> window_{};
         std::unique_ptr<AMediaCodec, decltype(&AMediaCodec_delete)> media_codec_{nullptr, &AMediaCodec_delete};
         std::unique_ptr<AMediaFormat, decltype(&AMediaFormat_delete)> media_format_{nullptr, &AMediaFormat_delete};
         bool use_oes_ = false;

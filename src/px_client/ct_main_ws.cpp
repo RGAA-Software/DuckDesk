@@ -548,25 +548,14 @@ int main(int argc, char** argv) {
         .stream_name_ = settings->stream_name_,
         .display_name_ = settings->display_name_,
         .display_remote_name_ = settings->display_remote_name_,
-        .language_id_ = settings->language_,
-        .titlebar_color_ = settings->titlebar_color_,
         .appkey_ = settings->appkey_,
-        .decoder_ = settings->decoder_,
         .debug_ = settings->wait_debug_,
-        .force_gdi_ = settings->force_gdi_,
         .connection_ticket_ = settings->connection_ticket_,
         .connection_nonce_ = settings->connection_nonce_,
         .connection_instance_id_ = settings->connection_instance_id_,
     });
 
     auto beg = TimeUtil::GetCurrentTimestamp();
-
-    if (!settings->file_transfer_only_ && !settings->force_software_ && !settings->disable_vulkan_) {
-        auto vulkan_checker = VulkanChecker::Make();
-        bool support_vulkan = vulkan_checker->TestDecodeAndRenderHevcYuv444Frame();
-        LOGI("support vulkan(hevc decode yuv444 and render): {}", support_vulkan);
-        params->support_vulkan_ = support_vulkan;
-    }
 
     static auto ws = Workspace::Make(ctx, params);
     if (settings->file_transfer_only_) {

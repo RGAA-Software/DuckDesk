@@ -58,6 +58,7 @@ public:
         std::string status,
         std::string reason) override;
     void NotifyRecordingComplete(std::string directory) override;
+    void NotifyRecordingFailure(uint64_t intent, std::string reason) override;
 
 private:
     [[nodiscard]] ClientModuleConfig BuildConfig() const;

@@ -1,0 +1,11 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "src/px_client_sdk/tests/test_udp_media_failure.cpp",
+      "sha256": "2BC21ECBDCF1211336CCEF32A613AB986190FC10050ABB9988530EA8C6295873",
+      "status": " M src/px_client_sdk/tests/test_udp_media_failure.cpp"
+    }
+  ]
+}

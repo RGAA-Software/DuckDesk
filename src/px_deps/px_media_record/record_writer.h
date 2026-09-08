@@ -56,6 +56,7 @@ public:
     void OnEncodedVideo(std::span<const uint8_t> data,
                         RecordVideoCodec codec, int width, int height, bool key);
     // 编码音频包（Opus，48kHz/立体声；frame_samples 是每声道采样数）
+    // Empty data represents one lost packet: preserve its duration without writing a fake Opus payload.
     void OnEncodedAudio(std::span<const uint8_t> data, int frame_samples);
 
     // 结束录制：写 trailer、关文件、执行滚动清理。已入队数据由适配层先排空再调用。
@@ -63,6 +64,10 @@ public:
 
     // 是否处于录制会话中（含等待关键帧阶段）
     bool IsRecording() const;
+
+    // Serial worker-thread status; the first failure survives Stop(). Only finalized segments count.
+    [[nodiscard]] const std::string& Error() const;
+    [[nodiscard]] uint64_t CompletedSegments() const;
 
     RecordWriter(ConstructionToken, const RecordWriterConfig& cfg);
 

@@ -1,0 +1,21 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Split shared, session and platform SDK build targets; retire mixed platform source list and move MediaCodec link dependency to its adapter",
+  "files": [
+    {
+      "path": "src/px_android/core-native/src/main/cpp/CMakeLists.txt",
+      "sha256": "9CC2B0B03D9BEBA11BA2ED344BA783DA563E3DD25C019FDC20CD8A67F74A3475",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/CMakeLists.txt",
+      "sha256": "2D35D8E138083224F5F362255684DE5E0C8CDE8B6922545903C72DCC1849A7C4",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/CMakeLists.txt",
+      "sha256": "1D8FD559A0101DCE857272D33B416FAE3C3FEA7942F4B13E6482741454B9073A",
+      "status": ""
+    }
+  ]
+}

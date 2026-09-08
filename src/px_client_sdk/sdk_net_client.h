@@ -8,7 +8,9 @@
 #include "px_message.pb.h"
 #include <atomic>
 #include <mutex>
-#include "sdk_params.h"
+#include "sdk_connection_params.h"
+#include <functional>
+#include <memory>
 #include "px_common/file_transfer_send_result.h"
 #include "connection/udp_media_state.h"
 
@@ -41,14 +43,14 @@ class SdkStatistics;
 
 class NetClient : public std::enable_shared_from_this<NetClient> {
   public:
-    explicit NetClient(const std::shared_ptr<ThunderSdkParams>& params, const std::shared_ptr<MessageNotifier>& notifier,
-                       const std::string& media_path, const std::string& ft_path);
+    explicit NetClient(SdkConnectionParams params, const std::shared_ptr<MessageNotifier>& notifier);
     ~NetClient();
 
     void Start();
     void Exit();
 
     void PostMediaMessage(std::shared_ptr<Data> msg);
+    [[nodiscard]] bool PostVoiceAudioMessage(const std::shared_ptr<Message>& message);
     [[nodiscard]] FileTransferSendResult PostFileTransferMessage(std::shared_ptr<Data> msg);
 
     void SetOnVideoFrameMsgCallback(OnVideoFrameMsgCallback&& cbk);
@@ -104,12 +106,8 @@ class NetClient : public std::enable_shared_from_this<NetClient> {
     OnMonitorSwitchedCallback monitor_switched_cbk_;
     OnRawMessageCallback raw_msg_cbk_;
 
-    std::shared_ptr<ThunderSdkParams> sdk_params_;
-
-    std::string media_path_{};
-    std::string ft_path_;
-    std::string device_id_;
-    std::string stream_id_;
+    const SdkConnectionParams params_{};
+    const std::string udp_media_association_{};
 
     std::atomic_int queuing_message_count_ = 0;
     std::atomic_bool exited_{false};

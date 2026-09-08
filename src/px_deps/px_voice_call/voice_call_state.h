@@ -30,7 +30,7 @@ public:
     static constexpr uint64_t kRequestTimeoutMs = 30'000;
     static constexpr size_t kMaxCallIdBytes = 128;
 
-    bool BeginOutgoing(std::string call_id, uint64_t request_id, uint64_t now_ms);
+    bool BeginOutgoing(std::string call_id, uint64_t request_id, uint64_t now_ms, uint64_t timeout_ms = kRequestTimeoutMs);
     IncomingVoiceCallResult BeginIncoming(
         std::string call_id, uint64_t request_id, uint64_t now_ms);
     bool AcceptIncoming(const std::string& call_id, uint64_t request_id);

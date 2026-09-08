@@ -42,14 +42,17 @@ namespace px
         return now.tv_sec*1000*1000 +(int64_t)now.tv_nsec/(1000);
     }
 
-    MediacodecVideoDecoder::MediacodecVideoDecoder(const std::shared_ptr<ThunderSdk>& sdk) : VideoDecoder(sdk) {
-
-    }
+    MediacodecVideoDecoder::MediacodecVideoDecoder(const std::shared_ptr<ThunderSdk>& sdk, std::shared_ptr<AndroidVideoOutput> output)
+        : VideoDecoder(sdk), output_(std::move(output)) {}
 
     MediacodecVideoDecoder::~MediacodecVideoDecoder() { Release(); }
 
-    int MediacodecVideoDecoder::Init(const std::string& mon_name, int codec_type, int width, int height, const std::string& frame, void* surface, int img_format, bool ignore_hw) {
+    int MediacodecVideoDecoder::Init(const std::string& mon_name, int codec_type, int width, int height,
+            const std::string& frame, int img_format, bool ignore_hw) {
         std::lock_guard<std::mutex> guard(decode_mtx_);
+        if (!output_ || inited_ || width <= 0 || height <= 0) return -1;
+        window_ = output_->Snapshot();
+        if (!window_) return -1;
         monitor_name_ = mon_name;
         auto decoder_name = [&]() -> std::string {
             if (codec_type == 1) {
@@ -60,7 +63,7 @@ namespace px
             }
         }();
 
-        use_oes_ = surface != nullptr;
+        use_oes_ = true;
         std::string csd0;
         std::string csd1;
         if (use_oes_) {
@@ -108,10 +111,9 @@ namespace px
             AMediaFormat_setBuffer(media_format_.get(), "csd-1", csd1.data(), csd1.size());
         }
 
-        ANativeWindow* target = use_oes_ ? (ANativeWindow*)(surface) : nullptr;
-        LOGI("decoder name: {}, target: {}", decoder_name, (void*)target);
+        LOGI("decoder name: {}, surface output enabled", decoder_name);
         media_status_t status = AMediaCodec_configure(media_codec_.get(), media_format_.get(),
-                                                      target,
+                                                      window_.get(),
                                                       nullptr,
                                                       0);//解码，flags 给0，编码给AMEDIACODEC_CONFIGURE_FLAG_ENCODE
         if (status != AMEDIA_OK) {
@@ -139,94 +141,47 @@ namespace px
         return AMEDIA_OK;
     }
 
-    Result<std::shared_ptr<RawImage>, int> MediacodecVideoDecoder::Decode(const uint8_t *in_data, int in_size) {
-        auto beg = TimeUtil::GetCurrentTimestamp();
-        if (!media_codec_ || !in_data || in_size <= 0) {
-            LOGE("param valid...");
-            return TRError(-1);
-        }
-        ssize_t buf_idx = AMediaCodec_dequeueInputBuffer(media_codec_.get(), 2000);
-        if (buf_idx >= 0) {
-            size_t buf_size = 0;
-            auto* buf = AMediaCodec_getInputBuffer(media_codec_.get(), buf_idx, &buf_size); // NOLINT(gammaray-raw-pointer-boundary)
-            if (!buf || static_cast<size_t>(in_size) > buf_size) {
-                LOGE("getInputBuffer failed or encoded frame exceeds buffer: frame={}, buffer={}", in_size, buf_size);
-                return TRError(-1);
-            }
-            memcpy(buf, in_data, in_size);
-            uint64_t presentationTimeUs = getTimeUsec();
-            const auto queue_status = AMediaCodec_queueInputBuffer(media_codec_.get(), buf_idx, 0, in_size, presentationTimeUs, 0);
-            if (queue_status != AMEDIA_OK) {
-                LOGE("queueInputBuffer failed: {}", static_cast<int>(queue_status));
+    Result<std::shared_ptr<RawImage>, int> MediacodecVideoDecoder::Decode(std::span<const std::uint8_t> encoded) {
+        std::lock_guard guard(decode_mtx_);
+        if (!media_codec_ || encoded.empty()) return TRError(-1);
+        const auto started_at = TimeUtil::GetCurrentTimestamp();
+        const auto input_index = AMediaCodec_dequeueInputBuffer(media_codec_.get(), 2000);
+        if (input_index >= 0) {
+            std::size_t capacity{};
+            // The first boundary check avoids constructing a nonempty span from null.
+            if (!AMediaCodec_getInputBuffer(media_codec_.get(), input_index, &capacity)) return TRError(-1);
+            const std::span<std::uint8_t> buffer{AMediaCodec_getInputBuffer(media_codec_.get(), input_index, &capacity), capacity};
+            if (encoded.size() > buffer.size()) return TRError(-1);
+            std::memcpy(buffer.data(), encoded.data(), encoded.size());
+            if (AMediaCodec_queueInputBuffer(media_codec_.get(), input_index, 0, encoded.size(), getTimeUsec(), 0) != AMEDIA_OK) {
                 return TRError(-1);
             }
         }
-
-        AMediaCodecBufferInfo info;
-        do {
-            buf_idx = AMediaCodec_dequeueOutputBuffer(media_codec_.get(), &info, 2000);
-            if (buf_idx >= 0) {
-                size_t out_buf_size = 0;
-                uint8_t* buf = nullptr;
-                int real_frame_size = 0;
-                std::unique_ptr<AMediaFormat, decltype(&AMediaFormat_delete)> format(AMediaCodec_getOutputFormat(media_codec_.get()),
-                                                                                    &AMediaFormat_delete);
-                if (!format) {
-                    LOGE("getOutputFormat failed");
-                    return TRError(-1);
-                }
-                // to do 格式变化的时候 android 这里也要注意下
-                int width, height;
-                AMediaFormat_getInt32(format.get(), "width", &width);
-                AMediaFormat_getInt32(format.get(), "height", &height);
-                int32_t color_format;
-                AMediaFormat_getInt32(format.get(), AMEDIAFORMAT_KEY_COLOR_FORMAT,&color_format);
-//                real_frame_size = info.size;
-//                buf = AMediaCodec_getOutputBuffer(media_codec_, buf_idx, &out_buf_size);
-//
-//                // test/beg
-//                // static int i = 0;
-//                // if (i < 5) {
-//                //     std::string name = fmt::format("/data/data/com.px.client/cache/aa_{}.yuv", i++);
-//                //     std::ofstream file(name, std::ios::binary);
-//                //     file.write((char *) buf, real_frame_size);
-//                //     file.close();
-//                // }
-//                // test/end
-//
-//                LOGI("out:[{}]X[{}], format: {}, real_frame_size:{}, buf_size: {} ", width, height, color_format, real_frame_size, out_buf_size); //21 == nv21
-//                if (buf && cbk && real_frame_size > 0 && !use_oes_) {
-//                    auto image = RawImage::Make((char *) buf, real_frame_size, width, height, -1, RawImageFormat::kNV12);
-//                    cbk(image);
-//                }
-//                else {
-//                    cbk(nullptr);
-//                }
-
-                // only callback frame info
-                auto image = RawImage::Make(nullptr, 0, width, height, -1, RawImageFormat::kRawImageNV12);
-                AMediaCodec_releaseOutputBuffer(media_codec_.get(), buf_idx, true);
-                auto end = TimeUtil::GetCurrentTimestamp();
-                SdkStatistics::Instance()->AppendDecodeDuration(monitor_name_, end-beg);
+        for (int attempt{}; attempt < 4; ++attempt) {
+            AMediaCodecBufferInfo info{};
+            const auto output_index = AMediaCodec_dequeueOutputBuffer(media_codec_.get(), &info, 2000);
+            if (output_index >= 0) {
+                struct OutputLease final {
+                    std::reference_wrapper<AMediaCodec> codec;
+                    std::size_t index{};
+                    bool present{};
+                    ~OutputLease() { AMediaCodec_releaseOutputBuffer(&codec.get(), index, present); }
+                };
+                OutputLease output{*media_codec_, static_cast<std::size_t>(output_index), false};
+                const std::unique_ptr<AMediaFormat, decltype(&AMediaFormat_delete)> format{
+                    AMediaCodec_getOutputFormat(media_codec_.get()), &AMediaFormat_delete};
+                std::int32_t width{};
+                std::int32_t height{};
+                if (!format || !AMediaFormat_getInt32(format.get(), AMEDIAFORMAT_KEY_WIDTH, &width) ||
+                    !AMediaFormat_getInt32(format.get(), AMEDIAFORMAT_KEY_HEIGHT, &height)) return TRError(-1);
+                auto image = RawImage::MakePresented(width, height);
+                if (!image) return TRError(-1);
+                output.present = true;
+                sdk_stat_->AppendDecodeDuration(monitor_name_, TimeUtil::GetCurrentTimestamp() - started_at);
                 return image;
-            } else if (buf_idx == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
-                int width, height;
-                std::unique_ptr<AMediaFormat, decltype(&AMediaFormat_delete)> format(AMediaCodec_getOutputFormat(media_codec_.get()),
-                                                                                    &AMediaFormat_delete);
-                if (!format) {
-                    return TRError(-1);
-                }
-                AMediaFormat_getInt32(format.get(), "width", &width);
-                AMediaFormat_getInt32(format.get(), "height", &height);
-                int32_t color_format;
-                AMediaFormat_getInt32(format.get(), AMEDIAFORMAT_KEY_COLOR_FORMAT,&color_format);
-            } else if (buf_idx == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
-
-            } else {
-
             }
-        } while (buf_idx > 0);
-
+            if (output_index != AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED && output_index != AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) break;
+        }
         return TRError(0);
     }
 
@@ -241,19 +196,21 @@ namespace px
 
         LOGI("will delete media format");
         media_format_.reset();
+        window_.reset();
         inited_ = false;
     }
 
-    bool MediacodecVideoDecoder::UpdateRenderSurface(const std::uintptr_t surface_handle) {
+    bool MediacodecVideoDecoder::RefreshOutput() {
         std::lock_guard<std::mutex> guard(decode_mtx_);
-        if (!media_codec_ || surface_handle == 0U) return false;
-        const auto status = AMediaCodec_setOutputSurface(media_codec_.get(),
-            reinterpret_cast<ANativeWindow*>(surface_handle)); // NOLINT(gammaray-raw-pointer-boundary)
+        const auto replacement = output_ ? output_->Snapshot() : std::shared_ptr<ANativeWindow>{};
+        if (!media_codec_ || !replacement) return false;
+        const auto status = AMediaCodec_setOutputSurface(media_codec_.get(), replacement.get());
         if (status != AMEDIA_OK) {
             LOGE("MediaCodec output surface update failed: {}", static_cast<int>(status));
             return false;
         }
         LOGI("MediaCodec output surface updated");
+        window_ = replacement;
         return true;
     }
 

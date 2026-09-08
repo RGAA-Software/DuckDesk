@@ -1,0 +1,16 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Use SDK encoded audio/video subscriptions instead of generic raw messages; fix missing Windows recording audio.",
+  "files": [
+    {
+      "path": "src/px_client/ct_base_workspace.cpp",
+      "sha256": "3AEE20B92B35001B6C8DD71B247ADE934729A5BFA418DD3217281A8F454A5E2F",
+      "status": " M src/px_client/ct_base_workspace.cpp"
+    },
+    {
+      "path": "src/px_client/modules/client_module_manager.cpp",
+      "sha256": "6BE918FCB96C53301805BDE1FF5784CDDBA17B2AB7CD67EE2FA761E6952B32D7",
+      "status": " M src/px_client/modules/client_module_manager.cpp"
+    }
+  ]
+}

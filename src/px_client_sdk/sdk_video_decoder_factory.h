@@ -1,47 +1,30 @@
-//
-// Created by RGAA on 2024/1/26.
-//
+#pragma once
 
-#ifndef TC_CLIENT_ANDROID_VIDEO_DECODER_FACTORY_H
-#define TC_CLIENT_ANDROID_VIDEO_DECODER_FACTORY_H
+#include <memory>
 
-#include "sdk_ffmpeg_soft_decoder.h"
-#include "sdk_mediacodec_video_decoder.h"
-#ifdef ANDROID
-#include "sdk_android_software_decoder.h"
-#endif
+namespace px {
 
-namespace px
-{
+class ThunderSdk;
+class VideoDecoder;
+class VideoFrame;
 
-    enum SupportedCodec {
-        kFFmpeg,
-        kMediaCodec
-    };
+struct VideoDecoderCreation final {
+    std::shared_ptr<VideoDecoder> decoder{};
+    bool disable_hardware{};
+};
 
-    class ThunderSdk;
+// Platform adapters are injected by the client composition root. The session
+// knows neither concrete decoder classes nor output handles.
+class VideoDecoderFactory {
+  public:
+    virtual ~VideoDecoderFactory() = default;
+    [[nodiscard]] virtual VideoDecoderCreation Create(const std::shared_ptr<ThunderSdk>& sdk, const VideoFrame& first_frame,
+                                                      bool hardware_disabled) = 0;
+    [[nodiscard]] virtual bool SupportsMultipleStreams() const noexcept = 0;
 
-    class VideoDecoderFactory {
-    public:
+  protected:
+    [[nodiscard]] static std::shared_ptr<VideoDecoder> Initialize(std::shared_ptr<VideoDecoder> decoder, const VideoFrame& first_frame,
+                                                                  bool ignore_hardware);
+};
 
-        static std::shared_ptr<VideoDecoder> Make(const std::shared_ptr<ThunderSdk>& sdk, const SupportedCodec& codec) {
-            if (codec == SupportedCodec::kFFmpeg) {
-#ifdef ANDROID
-                return std::make_shared<AndroidSoftwareVideoDecoder>(sdk);
-#else
-                return std::make_shared<FFmpegVideoDecoder>(sdk);
-#endif
-            }
-#ifdef ANDROID
-            if (codec == SupportedCodec::kMediaCodec) {
-                return std::make_shared<MediacodecVideoDecoder>(sdk);
-            }
-#endif
-            return nullptr;
-        }
-
-    };
-
-}
-
-#endif //TC_CLIENT_ANDROID_VIDEO_DECODER_FACTORY_H
+} // namespace px

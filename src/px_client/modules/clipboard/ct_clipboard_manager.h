@@ -6,12 +6,14 @@
 #define GAMMARAYPC_CLIPBOARD_H
 
 #include <memory>
+#include <mutex>
 #include <QObject>
 #include <objidl.h>
 #include <wrl/client.h>
 #include "px_common/clipboard/clipboard_echo.h"
 #include "px_common/clipboard/clipboard_platform.h"
 #include "px_message.pb.h"
+#include "px_client_sdk/sdk_clipboard_protocol.h"
 
 namespace px
 {
@@ -33,7 +35,11 @@ namespace px
         void OnRemoteFileRespMessage(std::shared_ptr<px::Message> msg);
         void OnLocalClipboardUpdated();
 
-    private:
+      private:
+        void ApplyRemoteClipboardMessage(const std::shared_ptr<Message>& message, std::uint64_t epoch);
+        void CancelVirtualFiles();
+        ClipboardUpdateEpoch update_epoch_{};
+        std::mutex virtual_file_mutex_{};
         std::shared_ptr<ClipboardRuntimeBridge> runtime_bridge_;
         clipboard::EchoFilter echo_filter_;
         std::unique_ptr<clipboard::IPlatform> clipboard_platform_;

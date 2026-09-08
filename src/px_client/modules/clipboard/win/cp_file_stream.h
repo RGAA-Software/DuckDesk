@@ -15,6 +15,7 @@
 #include "cp_file_struct.h"
 #include "px_message.pb.h"
 #include "px_common/md5.h"
+#include "px_client_sdk/sdk_clipboard_protocol.h"
 
 namespace px
 {
@@ -77,7 +78,8 @@ namespace px
             return E_NOTIMPL;
         }
 
-        HRESULT Read(void *pv, ULONG cb, ULONG *pcbRead) override;
+        // NOLINT(gammaray-raw-pointer-boundary): borrowed IStream ABI buffers, converted to spans during Read only.
+        HRESULT Read(void* pv, ULONG cb, ULONG* pcbRead) override;
 
         HRESULT Write(const void *pv, ULONG cb, ULONG *pcbWritten) override {
             return S_OK;
@@ -89,6 +91,9 @@ namespace px
 
         void OnClipboardRespBuffer(const ClipboardRespBuffer& rb);
         void Exit();
+        [[nodiscard]] bool IsComplete() const {
+            return !exit_.load() && cp_file_.file_.total_size() >= 0 && current_position_.load() >= cp_file_.file_.total_size();
+        }
         std::string GetFileId();
         std::string GetFileName();
         std::string GetFullPath();
@@ -97,7 +102,7 @@ namespace px
         LONG ref_;
         uint64_t file_size_ {0};
         std::atomic_int64_t current_position_ = 0;
-        std::atomic_int64_t req_index_ = 0;
+        ClipboardPendingRead pending_read_{};
         ClipboardFileWrapper cp_file_;
         std::shared_ptr<std::atomic_bool> lifetime_token_ = nullptr;
         RequestBufferCallback request_buffer_cb_ = nullptr;

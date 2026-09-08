@@ -470,6 +470,24 @@ void NetworkEventIngress::ProcessCapturingMonitorInfoEvent(const std::shared_ptr
     }
 }
 
+void NetworkEventIngress::ProcessUdpVoiceFrame(const std::shared_ptr<UdpVoiceFrameEvent>& event) {
+    if (!event || !event->frame || !event->is_current_binding || !event->is_current_binding() || !voice_call_service_) {
+        return;
+    }
+    const auto registry = app_->GetLogicalSessionRegistry();
+    if (!registry) {
+        return;
+    }
+    const auto sessions = registry->SnapshotActive(CurrentSystemMilliseconds());
+    const auto active = std::ranges::find_if(sessions, [&event](const LogicalSessionSnapshot& session) {
+        return session.logical_session_id == event->logical_session_id && session.stream_id == event->stream_id;
+    });
+    if (active == sessions.end() || !event->is_current_binding()) {
+        return;
+    }
+    voice_call_service_->HandleUdpVoiceFrame(event->stream_id, *event->frame);
+}
+
 void NetworkEventIngress::ProcessNetEvent(const std::shared_ptr<NetworkClientEvent>& event, const std::string& source_id) {
     if (event->is_proto_ && event->message_) {
         auto msg = std::make_shared<Message>();

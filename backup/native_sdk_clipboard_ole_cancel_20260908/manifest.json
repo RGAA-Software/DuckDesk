@@ -1,0 +1,16 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "P3b-1 explicit OLE stream cancellation and truthful operation completion; preserve COM identity and ABI",
+  "files": [
+    {
+      "path": "src/px_client/modules/clipboard/win/cp_virtual_file.cpp",
+      "sha256": "6834E850A1BAEC15822C39124CD80B0740E572CFDCE3C380BEEA17724A44924A",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/modules/clipboard/win/cp_virtual_file.h",
+      "sha256": "95969652DFCD5B061B1E0ABD55F96CC6F5275322B56142F7E7EB1202C9ED826E",
+      "status": ""
+    }
+  ]
+}

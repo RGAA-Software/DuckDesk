@@ -1,0 +1,21 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Preserve original shared writer before propagating file/finalization errors and protecting in-progress recording markers.",
+  "files": [
+    {
+      "path": "src/px_deps/px_media_record/record_writer.cpp",
+      "sha256": "C0D7C3E38517FF779074971F6BA4F655A20B8D6158CEECA85E6261A0FA8D7466",
+      "status": ""
+    },
+    {
+      "path": "src/px_deps/px_media_record/record_writer.h",
+      "sha256": "45F1F63FD3AEAEDF6FB8AD6F6A0456654F30291CF02ADB4315D7C3A19C58D01B",
+      "status": ""
+    },
+    {
+      "path": "src/px_deps/px_media_record/tests/test_record_writer.cpp",
+      "sha256": "610C8D26D6E88900E6A95245B39D8ACC2E94986E21F6136F86EA9EC0DBB27D4B",
+      "status": ""
+    }
+  ]
+}

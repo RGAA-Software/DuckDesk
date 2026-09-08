@@ -12,7 +12,7 @@ add_library(px_media_record STATIC
         record_writer.cpp
 )
 
-target_include_directories(px_media_record PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(px_media_record PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} PRIVATE ${FFMPEG_INCLUDE_DIRS})
 # 静态库的 PRIVATE 链接依赖在最终链接时自动传递给使用者
 target_link_libraries(px_media_record PRIVATE ${FFMPEG_LIBRARIES})
 

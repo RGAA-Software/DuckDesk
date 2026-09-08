@@ -1,0 +1,76 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "P3b-1 shared clipboard read validation, per-offer file authorization and callback-safe cancellation; preserved working-tree bytes",
+  "files": [
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_clipboard.cpp",
+      "sha256": "E643E28704AFDB31032517FEDF4B967EFBC30035D25F68780729A7E0C53081FC",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_clipboard.h",
+      "sha256": "850196123512D721C18A4A37F532318C65AC877042B57C8579EA1C175740357B",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/CMakeLists.txt",
+      "sha256": "24C18FFA7B22578F9BAA8347BFD3B7F2A867407AFA56DD703C0D37249A80DD2B",
+      "status": " M src/px_client/CMakeLists.txt"
+    },
+    {
+      "path": "src/px_client/modules/clipboard/clipboard_module.cpp",
+      "sha256": "91A4BAC92853ACC26C734ECC3D115E39F8B4A52E271E2B85CE25AB9A3B884049",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/modules/clipboard/clipboard_module.h",
+      "sha256": "01B51021BF108458547E946FE594E8DD06515FF240E17BB54B162539A5A008DF",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/modules/clipboard/clipboard_runtime_bridge.cpp",
+      "sha256": "EA4BBBD0D7264874124517850A305AF153528D513A87AE938C8D8A3F51FE50CE",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/modules/clipboard/clipboard_runtime_bridge.h",
+      "sha256": "A4AD98C501BAA524BFD7525EED943B4FFFEE53948AF074E4FA1726C94E8A30DB",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/modules/clipboard/ct_clipboard_manager.cpp",
+      "sha256": "2C21B409121CD2AE19531124EA7CB642672CCBB15A6D4E1358F91EC5BE49FCF4",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/modules/clipboard/win/cp_file_stream.cpp",
+      "sha256": "F29677D4122E08791CC0A5F627BA733D7C96B9DA02907E2E7CDD4BDADBCC757B",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/modules/clipboard/win/cp_file_stream.h",
+      "sha256": "66BEB208E31ECE31C1542561641A2E7664B3EADB01E3B5CE521476F08DA57BCC",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/tests/fake_client_module_services.h",
+      "sha256": "DFA2A95688B6E70E2034875E536E03B687AC56FCC0A1D759EE94E924C1F06177",
+      "status": " M src/px_client/tests/fake_client_module_services.h"
+    },
+    {
+      "path": "src/px_client/tests/test_client_clipboard_file_stream.cpp",
+      "sha256": "12B34FE04C9A0A7A40F75B0B8036853DB2D6648E0405F9FE17DD5E258E29116D",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/tests/test_client_clipboard_module_lifecycle.cpp",
+      "sha256": "877C380E1148FF34D92E904A896AEB21300D85FDC65E9CEA1E7566D0694B9DBF",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/CMakeLists.txt",
+      "sha256": "546CBCF5E7EFAEE34D1B3AE5B073DC7903658442F0278B0B220060D69E643A45",
+      "status": " M src/px_client_sdk/CMakeLists.txt"
+    }
+  ]
+}

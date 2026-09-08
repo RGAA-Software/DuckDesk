@@ -2,7 +2,8 @@
 
 #include "native_audio_player.h"
 #include "native_clipboard.h"
-#include "native_voice_call.h"
+#include "px_client_sdk/sdk_voice_call.h"
+#include "px_client_sdk/platform/voice_audio_endpoint_port.h"
 #include "data.h"
 
 #include <android/native_window_jni.h>
@@ -19,7 +20,8 @@
 #include "ft_async_session.h"
 #include "ft_engine.h"
 #include "px_client_sdk/gl/raw_image.h"
-#include "px_client_sdk/sdk_decoder_render_type.h"
+#include "px_client_sdk/platform/android/android_decoder_factory.h"
+#include "px_client_sdk/platform/android/android_video_output.h"
 #include "px_client_sdk/sdk_params.h"
 #include "px_client_sdk/sdk_statistics.h"
 #include "px_client_sdk/sdk_messages.h"
@@ -29,10 +31,9 @@
 #include "px_common/message_notifier.h"
 #include "px_common/thread.h"
 #include "px_common/time_util.h"
-#include "px_media_record/record_writer.h"
+#include "px_client_sdk/sdk_recording_session.h"
 #include "px_message/proto_message_maker.h"
 #include "px_message/proto_converter.h"
-#include "px_opus_codec/opus_codec.h"
 
 namespace pixels::android {
 namespace {
@@ -498,7 +499,9 @@ void JavaSessionCallback::RecordingState(const std::string& session_id, const st
     });
 }
 
-void JavaSessionCallback::VoiceCallState(const std::string& session_id, const NativeVoiceCallStatus& status) const {
+void JavaSessionCallback::VoiceCallState(const std::string& session_id, const px::VoiceCallStatus& status) const {
+    // The Java UI contract uses 0/1/2; the shared state also has an incoming-pending phase.
+    const jint phase = status.phase == px::VoiceCallPhase::kConnected ? 2 : status.phase == px::VoiceCallPhase::kIdle ? 0 : 1;
     const auto listener_handle = listener_handle_;
     WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
         const auto listener = reinterpret_cast<jobject>(listener_handle);
@@ -508,7 +511,7 @@ void JavaSessionCallback::VoiceCallState(const std::string& session_id, const Na
         const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
         const auto reason_handle = MakeByteArray(environment, status.reason);
         if (method != nullptr && session_id_handle != 0U && reason_handle != 0U) {
-            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), status.phase, status.microphone_muted,
+            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), phase, status.microphone_muted,
                                        status.speaker_muted, status.requires_headset, reinterpret_cast<jbyteArray>(reason_handle));
         }
         DeleteLocalReference(environment, session_id_handle);
@@ -618,7 +621,7 @@ bool NativeSession::Initialize() {
     const auto weak_self = weak_from_this();
     session_listener_->Listen<px::SdkMsgNetworkDisConnected>([weak_self](const auto&) {
         if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
-            std::shared_ptr<NativeVoiceCall> voice_call;
+            std::shared_ptr<px::VoiceCallController> voice_call{};
             {
                 std::lock_guard lock(self->lifecycle_mutex_);
                 voice_call = self->voice_call_;
@@ -631,6 +634,14 @@ bool NativeSession::Initialize() {
     });
     session_listener_->Listen<px::SdkMsgUdpMediaUnavailable>([weak_self](const px::SdkMsgUdpMediaUnavailable& event) {
         if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
+            std::shared_ptr<px::VoiceCallController> voice_call{};
+            {
+                std::lock_guard lock(self->lifecycle_mutex_);
+                voice_call = self->voice_call_;
+            }
+            if (voice_call) {
+                voice_call->SetTransportAvailable(false);
+            }
             self->callback_->MediaUnavailable(self->config_.session_id, event.reason == px::UdpMediaFailure::kInterrupted);
         }
     });
@@ -645,51 +656,71 @@ bool NativeSession::Initialize() {
         }
     });
 
-    const auto decoder_render_type = config_.prefer_software_decoder ? DecoderRenderType::kFFmpegI420 : DecoderRenderType::kMediaCodecSurface;
-    initialized_ = sdk_->Init(params, reinterpret_cast<void*>(surface_.get()), decoder_render_type);
+    decoder_output_ = std::make_shared<px::AndroidVideoOutput>(surface_);
+    initialized_ = sdk_->Init(params, px::MakeAndroidVideoDecoderFactory(decoder_output_, config_.prefer_software_decoder));
     if (!initialized_)
         return false;
     statistics_ = px::SdkStatistics::Instance();
     last_received_bytes_ = statistics_->recv_data_size_.load();
 
-    voice_call_ = NativeVoiceCall::Create(
-        [weak_self](std::shared_ptr<px::Data> data) {
-            const auto self = weak_self.lock();
-            if (!self || !data || self->stopped_.load()) {
-                return false;
-            }
-            std::shared_ptr<px::ThunderSdk> sdk;
-            {
-                std::lock_guard lock(self->lifecycle_mutex_);
-                sdk = self->sdk_;
-            }
-            if (!sdk) {
-                return false;
-            }
-            sdk->PostMediaMessage(std::move(data));
-            return true;
-        },
-        [weak_self](std::function<void()> task) {
-            const auto self = weak_self.lock();
-            if (!self || !task || self->stopped_.load()) {
-                return false;
-            }
-            std::shared_ptr<px::ThunderSdk> sdk;
-            {
-                std::lock_guard lock(self->lifecycle_mutex_);
-                sdk = self->sdk_;
-            }
-            if (!sdk) {
-                return false;
-            }
-            sdk->PostMiscTask(std::move(task));
-            return true;
-        },
-        [weak_self](const NativeVoiceCallStatus& status) {
-            if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
-                self->callback_->VoiceCallState(self->config_.session_id, status);
-            }
-        });
+    const px::VoiceCallDependencies::MessageSender send_voice = [weak_self](std::shared_ptr<px::Message> message) {
+        const auto self = weak_self.lock();
+        if (!self || !message || self->stopped_.load()) {
+            return false;
+        }
+        std::shared_ptr<px::ThunderSdk> sdk{};
+        {
+            std::lock_guard lock(self->lifecycle_mutex_);
+            sdk = self->sdk_;
+        }
+        const auto data = px::ProtoAsData(message);
+        if (!sdk || !data) {
+            return false;
+        }
+        sdk->PostMediaMessage(data);
+        return true;
+    };
+    px::VoiceCallDependencies voice_dependencies{
+        .send_control = send_voice,
+        .send_audio =
+            [weak_self](std::shared_ptr<px::Message> message) {
+                const auto self = weak_self.lock();
+                if (!self || self->stopped_.load()) {
+                    return false;
+                }
+                std::shared_ptr<px::ThunderSdk> sdk{};
+                {
+                    std::lock_guard lock(self->lifecycle_mutex_);
+                    sdk = self->sdk_;
+                }
+                return sdk && sdk->PostVoiceAudioMessage(message);
+            },
+        .create_audio = [] { return std::make_shared<px::VoiceAudioEndpointPort>(); },
+        .post_task =
+            [weak_self](std::function<void()> task) {
+                const auto self = weak_self.lock();
+                if (!self || !task || self->stopped_.load()) {
+                    return false;
+                }
+                std::shared_ptr<px::ThunderSdk> sdk{};
+                {
+                    std::lock_guard lock(self->lifecycle_mutex_);
+                    sdk = self->sdk_;
+                }
+                if (!sdk) {
+                    return false;
+                }
+                sdk->PostMiscTask(std::move(task));
+                return true;
+            },
+        .status_changed =
+            [weak_self](const px::VoiceCallStatus& status) {
+                if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
+                    self->callback_->VoiceCallState(self->config_.session_id, status);
+                }
+            },
+    };
+    voice_call_ = px::VoiceCallController::Create({client_signal_device_id_, config_.stream_id}, std::move(voice_dependencies));
     if (!voice_call_) {
         return false;
     }
@@ -804,38 +835,13 @@ bool NativeSession::Initialize() {
         LOGE("Pixels Android file-transfer session failed to start");
     }
 
-    recording_thread_ = px::Thread::Make("pixels-recording", -1);
-    recording_thread_->Poll();
-
-    sdk_->SetOnEncodedVideoFrameCallback([weak_self](std::shared_ptr<px::Message> message) {
-        const auto self = weak_self.lock();
-        if (!self || !message || self->stopped_.load() || !message->has_video_frame()) {
-            return;
+    const auto record_encoded = [weak_self](std::shared_ptr<px::Message> message) {
+        if (const auto self = weak_self.lock()) {
+            self->SubmitRecordingFrame(std::move(message));
         }
-        const auto generation = self->active_recording_generation_.load(std::memory_order_acquire);
-        std::shared_ptr<px::Thread> worker;
-        {
-            std::lock_guard lock(self->lifecycle_mutex_);
-            worker = self->recording_thread_;
-        }
-        if (generation == 0U || !worker) {
-            return;
-        }
-        self->recording_video_packets_.fetch_add(1U, std::memory_order_relaxed);
-        worker->Post([weak_self, generation, message = std::move(message)] {
-            const auto owner = weak_self.lock();
-            if (!owner || owner->recording_writer_generation_ != generation || !owner->recording_writer_) {
-                return;
-            }
-            const auto& frame = message->video_frame();
-            if (frame.data().empty() || frame.frame_width() <= 0 || frame.frame_height() <= 0) {
-                return;
-            }
-            const std::vector<std::uint8_t> data(frame.data().begin(), frame.data().end());
-            const auto codec = frame.type() == px::kNetHevc ? px::RecordVideoCodec::kH265 : px::RecordVideoCodec::kH264;
-            owner->recording_writer_->OnEncodedVideo(data, codec, frame.frame_width(), frame.frame_height(), frame.key());
-        });
-    });
+    };
+    sdk_->SetOnEncodedVideoFrameCallback(record_encoded);
+    sdk_->SetOnEncodedAudioFrameCallback(record_encoded);
     sdk_->SetOnServerConfigurationCallback([weak_self](std::shared_ptr<px::Message> message) {
         const auto self = weak_self.lock();
         if (!self || !message || self->stopped_.load()) {
@@ -863,7 +869,7 @@ bool NativeSession::Initialize() {
             self->config_.enable_input && server_config.can_be_operated(), self->file_transfer_ready_ && server_config.file_transfer_enabled(),
             self->config_.enable_clipboard && server_config.can_be_operated(),
             server_config.voice_call_enabled() && server_config.voice_call_protocol_version() == 1U, server_config.voice_call_requires_headset());
-        std::shared_ptr<NativeVoiceCall> voice_call;
+        std::shared_ptr<px::VoiceCallController> voice_call{};
         {
             std::lock_guard lock(self->lifecycle_mutex_);
             voice_call = self->voice_call_;
@@ -899,7 +905,7 @@ bool NativeSession::Initialize() {
         }
         if (message->type() == px::kVoiceCallRequest || message->type() == px::kVoiceCallResponse || message->type() == px::kVoiceAudioConfig ||
             message->type() == px::kVoiceAudioFrame) {
-            std::shared_ptr<NativeVoiceCall> voice_call;
+            std::shared_ptr<px::VoiceCallController> voice_call{};
             {
                 std::lock_guard lock(self->lifecycle_mutex_);
                 voice_call = self->voice_call_;
@@ -954,18 +960,17 @@ bool NativeSession::Initialize() {
             !message->has_clipboard_info()) {
             return;
         }
+        std::shared_ptr<NativeClipboard> clipboard{};
+        {
+            std::lock_guard lock(self->lifecycle_mutex_);
+            clipboard = self->clipboard_;
+        }
+        if (clipboard) {
+            clipboard->AcceptRemoteFiles(message);
+        }
         const auto& clipboard_info = message->clipboard_info();
         if (clipboard_info.type() == px::kClipboardText && !clipboard_info.msg().empty() && clipboard_info.msg().size() <= 1'048'576U) {
             self->callback_->ClipboardText(self->config_.session_id, clipboard_info.msg());
-        } else if (clipboard_info.type() == px::kClipboardFiles) {
-            std::shared_ptr<NativeClipboard> clipboard;
-            {
-                std::lock_guard lock(self->lifecycle_mutex_);
-                clipboard = self->clipboard_;
-            }
-            if (clipboard) {
-                clipboard->AcceptRemoteFiles(message);
-            }
         }
     });
     sdk_->SetOnHeartBeatCallback([weak_self](std::shared_ptr<px::Message> message) {
@@ -1019,51 +1024,9 @@ bool NativeSession::Initialize() {
     sdk_->SetOnAudioFrameDecodedCallback(
         [weak_self](const std::shared_ptr<px::Data>& pcm, const int sample_rate, const int channels, const int bits_per_sample) {
             const auto self = weak_self.lock();
-            if (!self || self->stopped_.load() || !pcm) {
-                return;
+            if (self && !self->stopped_.load() && pcm) {
+                static_cast<void>(self->audio_player_->Write(pcm, sample_rate, channels, bits_per_sample));
             }
-            static_cast<void>(self->audio_player_->Write(pcm, sample_rate, channels, bits_per_sample));
-            const auto generation = self->active_recording_generation_.load(std::memory_order_acquire);
-            std::shared_ptr<px::Thread> worker;
-            {
-                std::lock_guard lock(self->lifecycle_mutex_);
-                worker = self->recording_thread_;
-            }
-            if (generation == 0U || !worker || pcm->Size() == 0U) {
-                return;
-            }
-            worker->Post([weak_self, generation, pcm, sample_rate, channels, bits_per_sample] {
-                const auto owner = weak_self.lock();
-                if (!owner || owner->recording_writer_generation_ != generation || !owner->recording_writer_ ||
-                    sample_rate != 48000 || channels != 2 || bits_per_sample != 16) {
-                    return;
-                }
-                constexpr std::size_t kBytesPerStereoFrame = 4U;
-                const auto bytes_per_frame = kBytesPerStereoFrame;
-                if (pcm->Size() % bytes_per_frame != 0U) {
-                    return;
-                }
-                const auto frame_size = static_cast<int>(pcm->Size() / bytes_per_frame);
-                if (frame_size != 120 && frame_size != 240 && frame_size != 480 && frame_size != 960 && frame_size != 1920 &&
-                    frame_size != 2880) {
-                    return;
-                }
-                if (!owner->recording_audio_encoder_) {
-                    owner->recording_audio_encoder_ =
-                        std::make_unique<px::OpusAudioEncoder>(sample_rate, channels, bits_per_sample, OPUS_APPLICATION_AUDIO, 0);
-                    if (!owner->recording_audio_encoder_->valid()) {
-                        owner->recording_audio_encoder_.reset();
-                        return;
-                    }
-                }
-                for (const auto& packet : owner->recording_audio_encoder_->Encode(std::as_bytes(pcm->Bytes()), frame_size)) {
-                    if (packet.empty()) {
-                        continue;
-                    }
-                    owner->recording_writer_->OnEncodedAudio(packet, frame_size);
-                    owner->recording_audio_packets_.fetch_add(1U, std::memory_order_relaxed);
-                }
-            });
         });
 
     return true;
@@ -1096,14 +1059,13 @@ bool NativeSession::RebindSurface(std::unique_ptr<ANativeWindow, NativeWindowRel
 
 bool NativeSession::DetachSurface() {
     std::lock_guard command_lock(command_mutex_);
-    std::lock_guard state_lock(lifecycle_mutex_);
-    return !stopped_.load() && sdk_ != nullptr;
+    return QueueSurfaceUpdate({});
 }
 
 bool NativeSession::QueueSurfaceUpdate(std::shared_ptr<ANativeWindow> surface) {
-    std::shared_ptr<px::ThunderSdk> sdk;
-    std::shared_ptr<ANativeWindow> retiring_surface;
-    std::uintptr_t surface_handle{};
+    std::shared_ptr<px::ThunderSdk> sdk{};
+    std::shared_ptr<ANativeWindow> retiring_surface{};
+    std::shared_ptr<ANativeWindow> replacement{};
     {
         std::lock_guard state_lock(lifecycle_mutex_);
         if (stopped_.load() || !sdk_) {
@@ -1116,17 +1078,17 @@ bool NativeSession::QueueSurfaceUpdate(std::shared_ptr<ANativeWindow> surface) {
         }
         retiring_surface = std::exchange(surface_, std::shared_ptr<ANativeWindow>{std::move(surface)});
         sdk = sdk_;
-        surface_handle = surface_ ? reinterpret_cast<std::uintptr_t>(surface_.get()) : 0U; // NOLINT(gammaray-raw-pointer-boundary)
+        replacement = surface_;
         surface_update_in_progress_ = true;
     }
-    DispatchSurfaceUpdate(std::move(sdk), std::move(retiring_surface), surface_handle);
+    DispatchSurfaceUpdate(std::move(sdk), std::move(retiring_surface), std::move(replacement));
     return true;
 }
 
 void NativeSession::CompleteSurfaceUpdate() {
-    std::shared_ptr<px::ThunderSdk> sdk;
-    std::shared_ptr<ANativeWindow> retiring_surface;
-    std::uintptr_t surface_handle{};
+    std::shared_ptr<px::ThunderSdk> sdk{};
+    std::shared_ptr<ANativeWindow> retiring_surface{};
+    std::shared_ptr<ANativeWindow> replacement{};
     {
         std::lock_guard state_lock(lifecycle_mutex_);
         surface_update_in_progress_ = false;
@@ -1136,20 +1098,27 @@ void NativeSession::CompleteSurfaceUpdate() {
         has_pending_surface_update_ = false;
         sdk = sdk_;
         retiring_surface = std::exchange(surface_, std::move(pending_surface_));
-        surface_handle = surface_ ? reinterpret_cast<std::uintptr_t>(surface_.get()) : 0U; // NOLINT(gammaray-raw-pointer-boundary)
+        replacement = surface_;
         surface_update_in_progress_ = true;
     }
-    DispatchSurfaceUpdate(std::move(sdk), std::move(retiring_surface), surface_handle);
+    DispatchSurfaceUpdate(std::move(sdk), std::move(retiring_surface), std::move(replacement));
 }
 
 void NativeSession::DispatchSurfaceUpdate(std::shared_ptr<px::ThunderSdk> sdk, std::shared_ptr<ANativeWindow> retiring_surface,
-                                          const std::uintptr_t surface_handle) {
+                                          std::shared_ptr<ANativeWindow> replacement) {
+    const auto output_available = replacement != nullptr;
+    {
+        std::lock_guard lock(lifecycle_mutex_);
+        if (stopped_.load() || !decoder_output_) return;
+    }
     const auto weak_self = weak_from_this();
-    sdk->UpdateRenderSurface(surface_handle, [weak_self, retiring_surface = std::move(retiring_surface)]() {
-        static_cast<void>(retiring_surface);
-        if (const auto self = weak_self.lock())
-            self->CompleteSurfaceUpdate();
-    });
+    sdk->RefreshVideoOutput(
+        output_available,
+        [weak_self, retiring_surface = std::move(retiring_surface)]() {
+            static_cast<void>(retiring_surface);
+            if (const auto self = weak_self.lock()) self->CompleteSurfaceUpdate();
+        },
+        [output = decoder_output_, replacement = std::move(replacement)]() mutable { output->Replace(std::move(replacement)); });
 }
 
 bool NativeSession::SendMouse(const std::int32_t action, const std::int32_t button, const bool down, const float x_ratio, const float y_ratio,
@@ -1281,14 +1250,19 @@ bool NativeSession::SendText(const std::string& text) {
 
 bool NativeSession::SendClipboardText(const std::string& text) {
     std::lock_guard command_lock(command_mutex_);
-    std::shared_ptr<px::ThunderSdk> sdk;
+    std::shared_ptr<px::ThunderSdk> sdk{};
+    std::shared_ptr<NativeClipboard> clipboard{};
     {
         std::lock_guard state_lock(lifecycle_mutex_);
         if (!started_ || stopped_.load() || !config_.enable_clipboard || text.empty() || text.size() > 1'048'576U)
             return false;
         sdk = sdk_;
+        clipboard = clipboard_;
     }
-    px::Message message;
+    if (clipboard) {
+        clipboard->RevokeLocalFiles();
+    }
+    px::Message message{};
     message.set_type(px::kClipboardInfo);
     message.set_device_id(config_.remote_device_id);
     message.set_stream_id(config_.stream_id);
@@ -1495,109 +1469,90 @@ bool NativeSession::ConfirmFileOverwrite(const std::int32_t job_id, const std::i
     });
 }
 
+void NativeSession::SubmitRecordingFrame(std::shared_ptr<px::Message> message) {
+    std::shared_ptr<px::RecordingSession> recording{};
+    {
+        std::lock_guard lock(lifecycle_mutex_);
+        if (stopped_.load())
+            return;
+        recording = recording_session_;
+    }
+    if (recording)
+        static_cast<void>(recording->Submit(std::move(message)));
+}
+
 bool NativeSession::StartRecording(const std::string& recording_id, const std::string& staging_directory) {
     std::lock_guard command_lock(command_mutex_);
-    if (recording_id.empty() || staging_directory.empty() || recording_id.size() > 128U || staging_directory.size() > 4096U ||
-        active_recording_generation_.load(std::memory_order_acquire) != 0U) {
+    if (recording_id.empty() || staging_directory.empty() || recording_id.size() > 128U || staging_directory.size() > 4096U)
         return false;
-    }
-    std::shared_ptr<px::Thread> worker;
-    std::shared_ptr<px::ThunderSdk> sdk;
-    std::string monitor_name;
+    std::shared_ptr<px::ThunderSdk> sdk{};
+    std::shared_ptr<px::RecordingSession> recording{};
     {
         std::lock_guard state_lock(lifecycle_mutex_);
-        if (stopped_.load() || !started_ || !recording_thread_ || !sdk_) {
+        if (stopped_.load() || !started_ || !sdk_)
+            return false;
+        std::erase_if(finishing_recordings_, [](const auto& run) { return run->WaitFor(std::chrono::milliseconds::zero()); });
+        if (recording_session_ && recording_session_->WaitFor(std::chrono::milliseconds::zero()))
+            recording_session_.reset();
+        if (recording_session_ || finishing_recordings_.size() >= 4U)
+            return false;
+        sdk = sdk_;
+        const auto weak_callback = std::weak_ptr<JavaSessionCallback>(callback_);
+        const auto session_id = config_.session_id;
+        recording = px::RecordingSession::Create(
+            {.writer = {
+                 .dir = staging_directory,
+                 .monitor_name = active_monitor_name_,
+                 .file_prefix = "pixels_",
+                 .max_segment_bytes = 8LL * 1024 * 1024 * 1024,
+                 .max_file_count = 0,
+                 .on_request_keyframe = [weak_sdk = std::weak_ptr<px::ThunderSdk>(sdk)] {
+                     if (const auto active = weak_sdk.lock())
+                         active->RequestVideoKeyFrame();
+                 },
+             }},
+            {.started = [weak_callback, session_id, recording_id] {
+                 if (const auto callback = weak_callback.lock())
+                     callback->RecordingState(session_id, recording_id, kRecordingStarted, {});
+             },
+             .finished = [weak_callback, session_id, recording_id](const px::RecordingSessionResult& result) {
+                 LOGI("Pixels Android recording {} finalized with {} video and {} audio packets", recording_id,
+                      result.video_packets, result.audio_packets);
+                 if (const auto callback = weak_callback.lock())
+                     callback->RecordingState(session_id, recording_id, result.error.empty() ? kRecordingCompleted : kRecordingFailed, result.error);
+             }});
+        if (!recording)
+            return false;
+        recording_session_ = recording;
+        active_recording_id_ = recording_id;
+        if (!recording->Start()) {
+            recording_session_.reset();
+            active_recording_id_.clear();
             return false;
         }
-        worker = recording_thread_;
-        sdk = sdk_;
-        monitor_name = active_monitor_name_;
     }
-    const auto generation = ++next_recording_generation_;
-    recording_video_packets_.store(0U, std::memory_order_relaxed);
-    recording_audio_packets_.store(0U, std::memory_order_relaxed);
-    active_recording_id_ = recording_id;
-    active_recording_generation_.store(generation, std::memory_order_release);
-    const auto weak_self = weak_from_this();
-    worker->Post([weak_self, weak_sdk = std::weak_ptr<px::ThunderSdk>{sdk}, generation, recording_id, staging_directory, monitor_name] {
-        const auto self = weak_self.lock();
-        if (!self || self->active_recording_generation_.load(std::memory_order_acquire) != generation) {
-            return;
-        }
-        try {
-            self->recording_writer_ = px::RecordWriter::Make(px::RecordWriterConfig{
-                .dir = staging_directory,
-                .monitor_name = monitor_name,
-                .file_prefix = "pixels_",
-                .max_segment_bytes = 8LL * 1024 * 1024 * 1024,
-                .max_file_count = 0,
-                .on_request_keyframe = [weak_sdk] {
-                    if (const auto active_sdk = weak_sdk.lock()) {
-                        active_sdk->RequestVideoKeyFrame();
-                    }
-                },
-            });
-            self->recording_audio_encoder_.reset();
-            self->recording_writer_generation_ = generation;
-            self->callback_->RecordingState(self->config_.session_id, recording_id, kRecordingStarted, {});
-            if (const auto active_sdk = weak_sdk.lock()) {
-                active_sdk->RequestVideoKeyFrame();
-            }
-        } catch (const std::exception& error) {
-            std::uint64_t expected = generation;
-            self->active_recording_generation_.compare_exchange_strong(expected, 0U, std::memory_order_acq_rel);
-            self->recording_writer_.reset();
-            self->recording_audio_encoder_.reset();
-            self->recording_writer_generation_ = 0U;
-            self->callback_->RecordingState(self->config_.session_id, recording_id, kRecordingFailed, error.what());
-        }
-    });
+    sdk->RequestVideoKeyFrame();
     return true;
 }
 
 bool NativeSession::StopRecording(const std::string& recording_id) {
     std::lock_guard command_lock(command_mutex_);
-    if (recording_id.empty() || recording_id != active_recording_id_) {
-        return false;
-    }
-    const auto generation = active_recording_generation_.exchange(0U, std::memory_order_acq_rel);
-    active_recording_id_.clear();
-    std::shared_ptr<px::Thread> worker;
+    std::shared_ptr<px::RecordingSession> recording{};
     {
         std::lock_guard state_lock(lifecycle_mutex_);
-        worker = recording_thread_;
+        if (recording_id.empty() || recording_id != active_recording_id_ || !recording_session_)
+            return false;
+        active_recording_id_.clear();
+        recording = std::move(recording_session_);
+        finishing_recordings_.push_back(recording);
     }
-    if (generation == 0U || !worker) {
-        return false;
-    }
-    const auto weak_self = weak_from_this();
-    worker->Post([weak_self, generation, recording_id] {
-        const auto self = weak_self.lock();
-        if (!self) {
-            return;
-        }
-        std::string error;
-        if (self->recording_writer_generation_ == generation && self->recording_writer_) {
-            try {
-                self->recording_writer_->Stop();
-            } catch (const std::exception& exception) {
-                error = exception.what();
-            }
-            self->recording_writer_.reset();
-            self->recording_audio_encoder_.reset();
-            self->recording_writer_generation_ = 0U;
-        }
-        LOGI("Pixels Android recording {} finalized with {} video and {} audio packets", recording_id,
-             self->recording_video_packets_.load(std::memory_order_relaxed), self->recording_audio_packets_.load(std::memory_order_relaxed));
-        self->callback_->RecordingState(self->config_.session_id, recording_id,
-                                        error.empty() ? kRecordingCompleted : kRecordingFailed, error);
-    });
+    recording->Stop();
     return true;
 }
 
 bool NativeSession::StartVoiceCall() {
     std::lock_guard command_lock(command_mutex_);
-    std::shared_ptr<NativeVoiceCall> voice_call;
+    std::shared_ptr<px::VoiceCallController> voice_call{};
     {
         std::lock_guard state_lock(lifecycle_mutex_);
         if (stopped_.load() || !started_ || !voice_call_) {
@@ -1605,12 +1560,12 @@ bool NativeSession::StartVoiceCall() {
         }
         voice_call = voice_call_;
     }
-    return voice_call->Start(client_signal_device_id_, config_.stream_id);
+    return voice_call->Start();
 }
 
 bool NativeSession::StopVoiceCall() {
     std::lock_guard command_lock(command_mutex_);
-    std::shared_ptr<NativeVoiceCall> voice_call;
+    std::shared_ptr<px::VoiceCallController> voice_call{};
     {
         std::lock_guard state_lock(lifecycle_mutex_);
         if (stopped_.load() || !started_ || !voice_call_) {
@@ -1624,7 +1579,7 @@ bool NativeSession::StopVoiceCall() {
 
 bool NativeSession::SetVoiceMicrophoneMuted(const bool muted) {
     std::lock_guard command_lock(command_mutex_);
-    std::shared_ptr<NativeVoiceCall> voice_call;
+    std::shared_ptr<px::VoiceCallController> voice_call{};
     {
         std::lock_guard state_lock(lifecycle_mutex_);
         if (stopped_.load() || !started_ || !voice_call_) {
@@ -1637,7 +1592,7 @@ bool NativeSession::SetVoiceMicrophoneMuted(const bool muted) {
 
 bool NativeSession::SetVoiceSpeakerMuted(const bool muted) {
     std::lock_guard command_lock(command_mutex_);
-    std::shared_ptr<NativeVoiceCall> voice_call;
+    std::shared_ptr<px::VoiceCallController> voice_call{};
     {
         std::lock_guard state_lock(lifecycle_mutex_);
         if (stopped_.load() || !started_ || !voice_call_) {
@@ -1655,17 +1610,18 @@ void NativeSession::Stop() {
     }
     std::shared_ptr<px::ThunderSdk> sdk;
     std::shared_ptr<px::ft::FtAsyncSession> file_transfer_session;
-    std::shared_ptr<px::Thread> recording_thread;
+    std::vector<std::shared_ptr<px::RecordingSession>> recordings{};
     std::shared_ptr<NativeClipboard> clipboard;
-    std::shared_ptr<NativeVoiceCall> voice_call;
+    std::shared_ptr<px::VoiceCallController> voice_call{};
     std::shared_ptr<ANativeWindow> surface;
-    const auto recording_generation = active_recording_generation_.exchange(0U, std::memory_order_acq_rel);
-    const auto recording_id = std::exchange(active_recording_id_, {});
+    active_recording_id_.clear();
     {
         std::lock_guard lock(lifecycle_mutex_);
         sdk = std::move(sdk_);
         file_transfer_session = std::move(file_transfer_session_);
-        recording_thread = std::move(recording_thread_);
+        recordings = std::move(finishing_recordings_);
+        if (recording_session_)
+            recordings.push_back(std::move(recording_session_));
         clipboard = std::move(clipboard_);
         voice_call = std::move(voice_call_);
         file_transfer_ready_ = false;
@@ -1694,33 +1650,11 @@ void NativeSession::Stop() {
             std::chrono::seconds(2)));
         static_cast<void>(file_transfer_session->StopAndWait(std::chrono::seconds(2)));
     }
-    if (recording_thread) {
-        const auto finalized = std::make_shared<std::promise<void>>();
-        const auto completion = finalized->get_future();
-        const auto weak_self = weak_from_this();
-        recording_thread->Post([weak_self, recording_generation, recording_id, finalized] {
-            if (const auto self = weak_self.lock()) {
-                std::string error;
-                if (self->recording_writer_generation_ == recording_generation && self->recording_writer_) {
-                    try {
-                        self->recording_writer_->Stop();
-                    } catch (const std::exception& exception) {
-                        error = exception.what();
-                    }
-                    self->recording_writer_.reset();
-                    self->recording_audio_encoder_.reset();
-                    self->recording_writer_generation_ = 0U;
-                }
-                if (recording_generation != 0U && !recording_id.empty()) {
-                    self->callback_->RecordingState(self->config_.session_id, recording_id,
-                                                    error.empty() ? kRecordingCompleted : kRecordingFailed, error);
-                }
-            }
-            finalized->set_value();
-        });
-        static_cast<void>(completion.wait_for(std::chrono::seconds(5)));
-        recording_thread->Exit();
-    }
+    for (const auto& recording : recordings)
+        recording->Stop();
+    for (const auto& recording : recordings)
+        static_cast<void>(recording->WaitFor(std::chrono::seconds(5)));
+    recordings.clear();
     if (clipboard) {
         clipboard->Stop();
     }
@@ -1728,10 +1662,11 @@ void NativeSession::Stop() {
         // The SDK transport is about to close and stopped_ already rejects new
         // asynchronous sends. Tear the media endpoint down deterministically;
         // the peer observes the session transport closing.
-        voice_call->Stop(false, "session_ended");
+        voice_call->Close();
     }
     if (sdk)
         sdk->Exit();
+    if (decoder_output_) decoder_output_->Replace({});
     audio_player_->Stop();
 }
 

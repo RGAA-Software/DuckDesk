@@ -61,6 +61,7 @@ namespace px
         static constexpr uint8_t kPktVideo = 1;
         static constexpr uint8_t kPktAudio = 2;
         static constexpr uint8_t kPktCtrl = 3;
+        static constexpr uint8_t kPktVoice = 4; // Independent duplex voice; see px_udp_voice_protocol.h.
 
         static constexpr uint8_t kFlagKey = 0x1;
         static constexpr uint8_t kFlagSof = 0x2;
@@ -127,7 +128,8 @@ namespace px
             if (R16(data) != kMagic) return 0;
             if (static_cast<uint8_t>(data[2]) != kVersion) return 0;
             const auto t = static_cast<uint8_t>(data[3]);
-            if (t < kPktVideo || t > kPktCtrl) return 0;
+            if (t < kPktVideo || t > kPktVoice)
+                return 0;
             return t;
         }
 

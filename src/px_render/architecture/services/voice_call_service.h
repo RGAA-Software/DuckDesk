@@ -18,6 +18,7 @@ class Message;
 class MsgVoiceCallConsentDecision;
 class VoiceCallRuntime;
 struct VoiceCallRuntimeEvent;
+struct UdpVoiceFrame;
 }
 
 namespace px::render {
@@ -84,6 +85,7 @@ public:
 
     void On1Second();
     void HandleMessage(const std::shared_ptr<Message>& message);
+    void HandleUdpVoiceFrame(const std::string& stream_id, const UdpVoiceFrame& frame);
     void HandleConsentDecision(const MsgVoiceCallConsentDecision& decision);
     void HandleClientConnected(const std::string& visitor_device_id,
                                const std::string& stream_id,

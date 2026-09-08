@@ -28,11 +28,7 @@ namespace px
     class WssConnection : public Connection,
                           public std::enable_shared_from_this<WssConnection> {
     public:
-        WssConnection(const std::shared_ptr<ThunderSdkParams>& params,
-                     const std::shared_ptr<MessageNotifier>& notifier,
-                     const std::string& host,
-                     int port,
-                     const std::string& path);
+        WssConnection(const std::shared_ptr<MessageNotifier>& notifier, const std::string& host, int port, const std::string& path);
         ~WssConnection() override;
         void Start() override;
         void Stop() override;

@@ -67,17 +67,14 @@ class AndroidRemoteSessionTransport private constructor(
             val account = request.target as? RemoteSessionTarget.Account
             val attempt = account?.let { ticketAttempts.getOrPut(request.id) { ConnectionTicketAttempt(it.connectionTicket) } }
             val effective = if (account != null && attempt != null) {
-                if (attempt.requiresRenewal(System.currentTimeMillis())) {
-                    when (val renewed = renewTicketSafely(attempt.current, account.clientNonce)) {
-                        is AccountResult.Success -> attempt.renewed(renewed.value)
-                        is AccountResult.Failure -> return@withLock RemoteTransportStartResult.Rejected(renewed.reason.toSessionFailure())
-                    }
+                when (val prepared = attempt.prepareForStart(System.currentTimeMillis(), account.clientNonce, ::renewTicketSafely)) {
+                    is AccountResult.Success -> request.copy(target = account.copy(connectionTicket = prepared.value))
+                    is AccountResult.Failure -> return@withLock RemoteTransportStartResult.Rejected(prepared.reason.toSessionFailure())
                 }
-                request.copy(target = account.copy(connectionTicket = attempt.current))
             } else {
                 request
             }
-            attempt?.markAttempted()
+            currentCoroutineContext().ensureActive()
             try {
                 // Once JNI creates a handle, finish publishing it before cancellation can interrupt cleanup.
                 val result = withContext(NonCancellable) { native.start(effective) }
@@ -111,7 +108,7 @@ class AndroidRemoteSessionTransport private constructor(
             if (closed) return@withLock
             closed = true
             (activeSessions + surfaceSessions).forEach { native.stop(it) }
-            native.clearSurfaceBindings()
+            native.close()
             activeSessions.clear()
             surfaceSessions.clear()
             ticketAttempts.clear()
@@ -143,6 +140,25 @@ internal class ConnectionTicketAttempt(initial: ConnectionTicket) {
     private var attempted = false
 
     fun requiresRenewal(nowEpochMillis: Long): Boolean = attempted || current.expiresAtEpochMillis <= nowEpochMillis + 15_000L
+
+    suspend fun prepareForStart(
+        nowEpochMillis: Long,
+        clientNonce: String,
+        renew: suspend (ConnectionTicket, String) -> AccountResult<ConnectionTicket>,
+    ): AccountResult<ConnectionTicket> {
+        currentCoroutineContext().ensureActive()
+        if (requiresRenewal(nowEpochMillis)) {
+            when (val result = renew(current, clientNonce)) {
+                is AccountResult.Success -> renewed(result.value)
+                is AccountResult.Failure -> return result
+            }
+        }
+        // A non-cooperative renewal may return after cancellation. Retain its rotated capability,
+        // but never start JNI or consume the fresh ticket for a cancelled attempt.
+        currentCoroutineContext().ensureActive()
+        markAttempted()
+        return AccountResult.Success(current)
+    }
 
     fun markAttempted() { attempted = true }
 

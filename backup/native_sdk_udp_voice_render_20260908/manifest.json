@@ -1,0 +1,61 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "src/px_render/architecture/events/render_event.h",
+      "sha256": "EC744D8126DDFFD4DC7B880289A438B5D28DA23F33016829BDD7ECF86FABA59B",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/architecture/services/voice_call/voice_call_runtime.cpp",
+      "sha256": "C91A75E33205DFA42E039D700DC4BC7CEA1839A47B2EE82B0FD020720312BC0E",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/architecture/services/voice_call/voice_call_runtime.h",
+      "sha256": "DDCA75BD9BF3B917BA3D7739811CCD14D8CF985B75DE4189D74C1ED7191CA0E3",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/architecture/services/voice_call_service.cpp",
+      "sha256": "F831A4A51840CE965555D0D60AE686186506F990380A7A4B721AE178146E5656",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/architecture/services/voice_call_service.h",
+      "sha256": "5D9E6A43BB241675CBBE931F1FE2F9B17B36F6427539D9C372B6F1482511DEDA",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/ingress/network_event_ingress.cpp",
+      "sha256": "0228F6506B75B696DAE040CA994D3098D2255F69B8273CF0A72C5619D63D849F",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/ingress/network_event_ingress.h",
+      "sha256": "99BED3F116EC61840139EEFDF88CE54FCDAFF04896A6BCEB3AAC3E874400D74F",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/ingress/render_event_ingress.cpp",
+      "sha256": "CB2B73647F0727EEF9433B33B16949B54AC1F96EB3DCEE3DAEF3C19473CFA2DE",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/modules/render_module_registry.cpp",
+      "sha256": "9607E4362494056E2189FA9785845B4F23C05F0550C51339BAF9C809130067D8",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/network/udp/udp_transport.cpp",
+      "sha256": "DCE975CDC09B0ABB386257613DFA4D1D9845DAC628CAFC7740D48C7AAD6A55F3",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/network/udp/udp_transport.h",
+      "sha256": "8C963C76CC164745F73B75ADD9489AD5658139A5363AE1D2E5E54D2E5DF7DC56",
+      "status": ""
+    }
+  ]
+}

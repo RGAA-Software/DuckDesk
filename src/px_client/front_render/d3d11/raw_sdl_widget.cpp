@@ -6,6 +6,7 @@
 #include "px_common/log.h"
 #include "d3d11_render_manager.h"
 #include "gl/raw_image.h"
+#include "px_client_sdk/platform/windows/windows_video_frame.h"
 #include "px_common/time_util.h"
 
 namespace px
@@ -50,12 +51,13 @@ namespace px
     }
 
     void RawSdlWidget::RefreshImage(const std::shared_ptr<RawImage>& image) {
-        if (image->Format() != RawImageFormat::kRawImageD3D11Texture) {
+        const auto gpu_frame = D3D11FrameOf(image);
+        if (!gpu_frame || !gpu_frame->texture) {
             return;
         }
         auto beg = TimeUtil::GetCurrentTimestamp();
         ComPtr<ID3D11Device> device = nullptr;
-        image->texture_->GetDevice(&device);
+        gpu_frame->texture->GetDevice(&device);
 
         ComPtr<ID3D11DeviceContext> context = nullptr;
         device->GetImmediateContext(&context);
@@ -69,7 +71,7 @@ namespace px
         srcBox.bottom = image->img_height;
         srcBox.front = 0;
         srcBox.back = 1;
-        context->CopySubresourceRegion(output.GetTexture().Get(), 0, 0, 0, 0, image->texture_.Get(), image->src_subresource_, &srcBox);
+        context->CopySubresourceRegion(output.GetTexture().Get(), 0, 0, 0, 0, gpu_frame->texture.Get(), gpu_frame->subresource, &srcBox);
 
         bool Occluded = false;
         auto Ret = output.UpdateApplicationWindow(&Occluded);

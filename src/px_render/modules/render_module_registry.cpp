@@ -32,6 +32,7 @@
 #include "px_render/network/udp/udp_transport.h"
 #include "px_render/network/relay/relay_transport.h"
 #include "network/webrtc_transport_host.h"
+#include "px_message.pb.h"
 
 namespace px {
 namespace {
@@ -1105,15 +1106,40 @@ bool RenderModuleRegistry::SendVoiceMessageOnRoute(const std::string& transport_
     if (!message || stream_id.empty()) {
         return false;
     }
-    bool delivered = false;
-    std::shared_ptr<WsTransport> ws;
-    std::shared_ptr<UdpTransport> udp;
-    std::shared_ptr<RelayTransport> relay;
+    bool delivered{};
+    std::shared_ptr<WsTransport> ws{};
+    std::shared_ptr<UdpTransport> udp{};
+    std::shared_ptr<RelayTransport> relay{};
     {
         std::shared_lock lock(modules_mtx_);
         ws = ws_transport_;
         udp = udp_transport_;
         relay = relay_transport_;
+    }
+    if (transport_id == kNetWsTransportId || transport_id == kNetUdpTransportId) {
+        Message envelope{};
+        // Protobuf ABI borrows these bytes only for this bounded synchronous parse.
+        if (message->Size() > 4096U || !envelope.ParseFromArray(message->Bytes().data(), static_cast<int>(message->Size())) ||
+            envelope.stream_id() != stream_id) {
+            return false;
+        }
+        if (envelope.type() == kVoiceAudioFrame) {
+            if (!udp || !envelope.has_voice_audio_frame()) {
+                return false;
+            }
+            const auto& audio = envelope.voice_audio_frame();
+            if (audio.opus().empty() || audio.opus().size() > UdpVoiceProtocol::kMaxOpusBytes) {
+                return false;
+            }
+            return udp->SendVoiceFrame(stream_id, UdpVoiceFrame{
+                                                      .call_id = audio.call_id(),
+                                                      .sequence = audio.sequence(),
+                                                      .capture_time_ms = audio.capture_time_ms(),
+                                                      .opus = {audio.opus().begin(), audio.opus().end()},
+                                                  });
+        }
+        // Native call signaling uses only its owning reliable transport, never an RTC/Relay fallback.
+        return ws && ws->SendToStream(stream_id, message, true);
     }
     const auto send_selected = [&](const auto& transport) {
         if (transport && (transport_id.empty() || transport->Id() == transport_id)) {

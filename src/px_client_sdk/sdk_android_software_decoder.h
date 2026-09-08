@@ -6,26 +6,25 @@
 #include <memory>
 
 #include "sdk_video_decoder.h"
+#include "platform/android/android_video_output.h"
 
 namespace px {
 
 class AndroidSoftwareVideoDecoder final : public VideoDecoder {
 public:
-    explicit AndroidSoftwareVideoDecoder(const std::shared_ptr<ThunderSdk>& sdk);
+    AndroidSoftwareVideoDecoder(const std::shared_ptr<ThunderSdk>& sdk, std::shared_ptr<AndroidVideoOutput> output);
     ~AndroidSoftwareVideoDecoder() override;
 
     int Init(const std::string& monitor_name, int codec_type, int width, int height, const std::string& frame,
-             void* surface, // NOLINT(gammaray-raw-pointer-boundary)
              int image_format, bool ignore_hardware) override;
-    Result<std::shared_ptr<RawImage>, int> Decode(
-        const std::uint8_t* data, // NOLINT(gammaray-raw-pointer-boundary)
-        int size) override;
+    Result<std::shared_ptr<RawImage>, int> Decode(std::span<const std::uint8_t> encoded) override;
     void Release() override;
-    bool UpdateRenderSurface(std::uintptr_t surface_handle) override;
+    bool RefreshOutput() override;
     bool Ready() override;
 
 private:
     class State;
+    const std::shared_ptr<AndroidVideoOutput> output_{};
     std::unique_ptr<State> state_{};
 };
 

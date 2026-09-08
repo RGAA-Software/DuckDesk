@@ -9,6 +9,7 @@
 #include <functional>
 #include <mutex>
 #include <cstdint>
+#include <span>
 #include "px_common/expected.h"
 #include "sdk_messages.h"
 
@@ -24,12 +25,13 @@ namespace px
         explicit VideoDecoder(const std::shared_ptr<ThunderSdk>& sdk);
         virtual ~VideoDecoder();
 
-        virtual int Init(const std::string& mon_name, int codec_type, int width, int height, const std::string& frame, void* surface, int img_format, bool ignore_hw);
+        virtual int Init(const std::string& mon_name, int codec_type, int width, int height,
+            const std::string& frame, int img_format, bool ignore_hw);
         virtual Result<std::shared_ptr<RawImage>, int> Decode(const std::shared_ptr<Data>& frame);
         virtual Result<std::shared_ptr<RawImage>, int> Decode(const std::string& frame);
-        virtual Result<std::shared_ptr<RawImage>, int> Decode(const uint8_t* data, int size) = 0;
+        virtual Result<std::shared_ptr<RawImage>, int> Decode(std::span<const std::uint8_t> encoded) = 0;
         virtual void Release();
-        virtual bool UpdateRenderSurface(std::uintptr_t surface_handle);
+        virtual bool RefreshOutput();
         virtual bool NeedReConstruct(int codec_type, int width, int height, int img_format);
         virtual bool Ready() = 0;
         void SendInitMsg(SdkMsgVideoDecodeInit msg);

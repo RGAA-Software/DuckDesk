@@ -6,7 +6,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -46,7 +45,7 @@ import java.net.URLDecoder
 
 class NativeRemoteSessionTransport internal constructor(
     private val installationIdentity: InstallationIdentity,
-    private val callbackScope: CoroutineScope,
+    callbackScope: CoroutineScope,
     private val directSessionAuthorizer: DirectSessionAuthorizer,
 ) : RemoteSessionTransport, FileTransferTransport, RecordingTransport, VoiceCallTransport, NativeSessionListener {
     constructor(installationIdentity: InstallationIdentity, callbackScope: CoroutineScope) : this(
@@ -64,6 +63,8 @@ class NativeRemoteSessionTransport internal constructor(
     private val mutableVoiceCallEvents = MutableSharedFlow<VoiceCallEvent>(extraBufferCapacity = 16)
     private val surfaces = mutableMapOf<RemoteSessionId, Surface>()
     private val nativeSessionIds = mutableMapOf<RemoteSessionId, Long>()
+    private val callbackAttempts = NativeCallbackAttempts(callbackScope)
+    private val sessionAttempts = mutableMapOf<RemoteSessionId, NativeCallbackAttempts.Attempt>()
     private val capabilities = mutableMapOf<RemoteSessionId, RemoteSessionCapabilities>()
 
     override val events: Flow<RemoteTransportEvent> = mutableEvents.asSharedFlow()
@@ -108,37 +109,61 @@ class NativeRemoteSessionTransport internal constructor(
         }
         val config = request.toNativeConfig(installationIdentity.value(), directAuthorization)
             ?: return RemoteTransportStartResult.Rejected(RemoteSessionFailure.InvalidRequest)
-        val nativeSessionId = withContext(Dispatchers.IO) { PixelsNativeBridge.create(config, this@NativeRemoteSessionTransport, surface) }
-        if (nativeSessionId == 0L) return RemoteTransportStartResult.Rejected(RemoteSessionFailure.TransportUnavailable)
+        val attempt = callbackAttempts.begin(request.id.value)
+        val nativeSessionId = try {
+            withContext(Dispatchers.IO) {
+                PixelsNativeBridge.create(config.copy(sessionId = attempt.callbackId), this@NativeRemoteSessionTransport, surface)
+            }
+        } catch (error: Exception) {
+            callbackAttempts.finish(attempt)
+            throw error
+        }
+        if (nativeSessionId == 0L) {
+            callbackAttempts.finish(attempt)
+            return RemoteTransportStartResult.Rejected(RemoteSessionFailure.TransportUnavailable)
+        }
         val accepted = lock.withLock {
             if (nativeSessionIds.containsKey(request.id)) false else {
                 nativeSessionIds[request.id] = nativeSessionId
+                sessionAttempts[request.id] = attempt
                 true
             }
         }
         if (!accepted) {
-            withContext(Dispatchers.IO) { PixelsNativeBridge.stop(nativeSessionId) }
+            callbackAttempts.cancel(attempt)
+            try { withContext(Dispatchers.IO) { PixelsNativeBridge.stop(nativeSessionId) } }
+            finally { callbackAttempts.finish(attempt) }
             return RemoteTransportStartResult.Accepted
         }
         if (withContext(Dispatchers.IO) { PixelsNativeBridge.start(nativeSessionId) }) return RemoteTransportStartResult.Accepted
-        lock.withLock { nativeSessionIds.remove(request.id, nativeSessionId) }
-        withContext(Dispatchers.IO) { PixelsNativeBridge.stop(nativeSessionId) }
+        lock.withLock {
+            nativeSessionIds.remove(request.id, nativeSessionId)
+            sessionAttempts.remove(request.id, attempt)
+        }
+        callbackAttempts.cancel(attempt)
+        try { withContext(Dispatchers.IO) { PixelsNativeBridge.stop(nativeSessionId) } }
+        finally { callbackAttempts.finish(attempt) }
         return RemoteTransportStartResult.Rejected(RemoteSessionFailure.TransportUnavailable)
     }
 
     override suspend fun stop(sessionId: RemoteSessionId) {
-        val nativeSessionId = lock.withLock {
+        val retiring = lock.withLock {
             // Surface lifetime belongs to the view, not a connection attempt.
             // Failed -> retry reuses the same view and has no surfaceCreated
             // callback; only detachSurface (or close) may remove its binding.
             capabilities.remove(sessionId)
-            nativeSessionIds.remove(sessionId)
-        } ?: return
-        withContext(Dispatchers.IO) { PixelsNativeBridge.stop(nativeSessionId) }
+            val nativeSessionId = nativeSessionIds.remove(sessionId) ?: return
+            nativeSessionId to sessionAttempts.remove(sessionId)
+        }
+        retiring.second?.let(callbackAttempts::cancel)
+        try { withContext(Dispatchers.IO) { PixelsNativeBridge.stop(retiring.first) } }
+        finally { retiring.second?.let(callbackAttempts::finish) }
     }
 
-    suspend fun clearSurfaceBindings() {
+    suspend fun close() {
+        lock.withLock { nativeSessionIds.keys.toList() }.forEach { stop(it) }
         surfaceLock.withLock { lock.withLock { surfaces.clear() } }
+        callbackAttempts.close()
     }
 
     override suspend fun sendInput(sessionId: RemoteSessionId, command: InputCommand): Boolean {
@@ -345,8 +370,8 @@ class NativeRemoteSessionTransport internal constructor(
         supportsVoiceCall: Boolean,
         voiceCallRequiresHeadset: Boolean,
     ) {
-        callbackScope.launch {
-            val remoteSessionId = RemoteSessionId(sessionId)
+        callbackAttempts.dispatch(sessionId) { publicSessionId ->
+            val remoteSessionId = RemoteSessionId(publicSessionId)
             val sessionCapabilities = RemoteSessionCapabilities(
                 monitorNames = monitorNames.filter(String::isNotBlank).distinct(),
                 activeMonitorName = activeMonitorName,
@@ -370,31 +395,31 @@ class NativeRemoteSessionTransport internal constructor(
     }
 
     override fun onMonitorsChanged(sessionId: String, monitorNames: Array<String>, activeMonitorName: String) {
-        callbackScope.launch {
-            val remoteSessionId = RemoteSessionId(sessionId)
+        callbackAttempts.dispatch(sessionId) { publicSessionId ->
+            val remoteSessionId = RemoteSessionId(publicSessionId)
             val updated = lock.withLock {
                 val current = capabilities[remoteSessionId] ?: return@withLock null
                 current.copy(
                     monitorNames = monitorNames.filter(String::isNotBlank).distinct(),
                     activeMonitorName = activeMonitorName,
                 ).also { capabilities[remoteSessionId] = it }
-            } ?: return@launch
+            } ?: return@dispatch
             mutableEvents.emit(RemoteTransportEvent.CapabilitiesUpdated(remoteSessionId, updated))
         }
     }
 
     override fun onFrameSizeChanged(sessionId: String, width: Int, height: Int) {
         if (width <= 0 || height <= 0) return
-        callbackScope.launch {
-            mutableEvents.emit(RemoteTransportEvent.VideoSize(RemoteSessionId(sessionId), RemoteVideoSize(width, height)))
+        callbackAttempts.dispatch(sessionId) { publicSessionId ->
+            mutableEvents.emit(RemoteTransportEvent.VideoSize(RemoteSessionId(publicSessionId), RemoteVideoSize(width, height)))
         }
     }
 
     override fun onStatistics(sessionId: String, framesPerSecond: Int, latencyMillis: Int, bitrateKbps: Int, decoderName: String) {
-        callbackScope.launch {
+        callbackAttempts.dispatch(sessionId) { publicSessionId ->
             mutableEvents.emit(
                 RemoteTransportEvent.Statistics(
-                    sessionId = RemoteSessionId(sessionId),
+                    sessionId = RemoteSessionId(publicSessionId),
                     value = RemoteSessionStatistics(
                         framesPerSecond = framesPerSecond.coerceAtLeast(0),
                         latencyMillis = latencyMillis.coerceAtLeast(0),
@@ -409,22 +434,22 @@ class NativeRemoteSessionTransport internal constructor(
     override fun onGamepadRumble(sessionId: String, strongMotor: Int, weakMotor: Int) {
         val strong = strongMotor.coerceIn(0, 255)
         val weak = weakMotor.coerceIn(0, 255)
-        callbackScope.launch {
-            mutableEvents.emit(RemoteTransportEvent.GamepadRumble(RemoteSessionId(sessionId), strong, weak))
+        callbackAttempts.dispatch(sessionId) { publicSessionId ->
+            mutableEvents.emit(RemoteTransportEvent.GamepadRumble(RemoteSessionId(publicSessionId), strong, weak))
         }
     }
 
     override fun onClipboardText(sessionId: String, utf8Text: ByteArray) {
         if (utf8Text.isEmpty() || utf8Text.size > MAX_CLIPBOARD_TEXT_BYTES) return
         val value = runCatching { utf8Text.decodeToString(throwOnInvalidSequence = true) }.getOrNull()?.takeIf(String::isNotEmpty) ?: return
-        callbackScope.launch { mutableEvents.emit(RemoteTransportEvent.ClipboardText(RemoteSessionId(sessionId), value)) }
+        callbackAttempts.dispatch(sessionId) { publicSessionId -> mutableEvents.emit(RemoteTransportEvent.ClipboardText(RemoteSessionId(publicSessionId), value)) }
     }
 
     override fun onClipboardFiles(sessionId: String, generation: String, displayNames: Array<String>, sizes: LongArray) {
         if (generation.isBlank() || displayNames.isEmpty() || displayNames.size != sizes.size) return
         val files = displayNames.indices.map { index -> ClipboardFileDescriptor(displayNames[index], sizes[index]) }
-        callbackScope.launch {
-            mutableEvents.emit(RemoteTransportEvent.ClipboardFiles(RemoteSessionId(sessionId), RemoteClipboardFiles(generation, files)))
+        callbackAttempts.dispatch(sessionId) { publicSessionId ->
+            mutableEvents.emit(RemoteTransportEvent.ClipboardFiles(RemoteSessionId(publicSessionId), RemoteClipboardFiles(generation, files)))
         }
     }
 
@@ -435,7 +460,7 @@ class NativeRemoteSessionTransport internal constructor(
         } else {
             ClipboardDownloadState.Failed(generation, error.ifBlank { "clipboard_download_failed" })
         }
-        callbackScope.launch { mutableEvents.emit(RemoteTransportEvent.ClipboardDownload(RemoteSessionId(sessionId), state)) }
+        callbackAttempts.dispatch(sessionId) { publicSessionId -> mutableEvents.emit(RemoteTransportEvent.ClipboardDownload(RemoteSessionId(publicSessionId), state)) }
     }
 
     override fun onFileTransferProgress(
@@ -450,10 +475,10 @@ class NativeRemoteSessionTransport internal constructor(
         download: Boolean,
     ) {
         if (jobId <= 0) return
-        callbackScope.launch {
+        callbackAttempts.dispatch(sessionId) { publicSessionId ->
             mutableFileTransferEvents.emit(
                 FileTransferEvent.Progress(
-                    sessionId = RemoteSessionId(sessionId),
+                    sessionId = RemoteSessionId(publicSessionId),
                     jobId = jobId,
                     fileNumber = fileNumber.coerceAtLeast(0),
                     fileCount = fileCount.coerceAtLeast(0),
@@ -470,7 +495,7 @@ class NativeRemoteSessionTransport internal constructor(
     override fun onFileTransferDone(sessionId: String, jobId: Int, utf8Error: ByteArray) {
         if (jobId <= 0) return
         val error = utf8Error.decodeUtf8OrEmpty()
-        callbackScope.launch { mutableFileTransferEvents.emit(FileTransferEvent.Completed(RemoteSessionId(sessionId), jobId, error)) }
+        callbackAttempts.dispatch(sessionId) { publicSessionId -> mutableFileTransferEvents.emit(FileTransferEvent.Completed(RemoteSessionId(publicSessionId), jobId, error)) }
     }
 
     override fun onFileTransferOverwrite(
@@ -482,10 +507,10 @@ class NativeRemoteSessionTransport internal constructor(
         identical: Boolean,
     ) {
         if (jobId <= 0) return
-        callbackScope.launch {
+        callbackAttempts.dispatch(sessionId) { publicSessionId ->
             mutableFileTransferEvents.emit(
                 FileTransferEvent.OverwriteRequired(
-                    sessionId = RemoteSessionId(sessionId),
+                    sessionId = RemoteSessionId(publicSessionId),
                     jobId = jobId,
                     fileNumber = fileNumber.coerceAtLeast(0),
                     path = utf8Path.decodeUtf8OrEmpty(),
@@ -508,22 +533,23 @@ class NativeRemoteSessionTransport internal constructor(
     ) {
         val path = utf8Path.decodeUtf8OrEmpty().takeIf(String::isNotBlank) ?: return
         val entries = remoteFileEntries(utf8Names, entryTypes, utf8AbsolutePaths, sizes, modifiedTimes) ?: return
-        callbackScope.launch {
+        callbackAttempts.dispatch(sessionId) { publicSessionId ->
             mutableRemoteDirectoryEvents.emit(
-                RemoteDirectoryEvent(RemoteSessionId(sessionId), path, entries, truncated),
+                RemoteDirectoryEvent(RemoteSessionId(publicSessionId), path, entries, truncated),
             )
         }
     }
 
     override fun onRecordingState(sessionId: String, recordingId: String, state: Int, utf8Error: ByteArray) {
         val id = runCatching { RecordingId(recordingId) }.getOrNull() ?: return
-        val remoteSessionId = RemoteSessionId(sessionId)
-        val event = when (state) {
-            RECORDING_STARTED -> RecordingEvent.Started(remoteSessionId, id)
-            RECORDING_COMPLETED, RECORDING_FAILED -> RecordingEvent.Finished(remoteSessionId, id, utf8Error.decodeUtf8OrEmpty())
-            else -> return
+        when (state) {
+            RECORDING_STARTED -> callbackAttempts.dispatch(sessionId) { publicSessionId ->
+                mutableRecordingEvents.emit(RecordingEvent.Started(RemoteSessionId(publicSessionId), id))
+            }
+            RECORDING_COMPLETED, RECORDING_FAILED -> callbackAttempts.dispatchRecordingFinalization(sessionId) { publicSessionId ->
+                mutableRecordingEvents.emit(RecordingEvent.Finished(RemoteSessionId(publicSessionId), id, utf8Error.decodeUtf8OrEmpty()))
+            }
         }
-        callbackScope.launch { mutableRecordingEvents.emit(event) }
     }
 
     override fun onVoiceCallState(
@@ -545,7 +571,7 @@ class NativeRemoteSessionTransport internal constructor(
             requiresHeadset = requiresHeadset,
             reason = utf8Reason.decodeUtf8OrEmpty(),
         )
-        callbackScope.launch { mutableVoiceCallEvents.emit(VoiceCallEvent(RemoteSessionId(sessionId), state)) }
+        callbackAttempts.dispatch(sessionId) { publicSessionId -> mutableVoiceCallEvents.emit(VoiceCallEvent(RemoteSessionId(publicSessionId), state)) }
     }
 
     override fun onMediaUnavailable(sessionId: String, interrupted: Boolean) {
@@ -554,14 +580,14 @@ class NativeRemoteSessionTransport internal constructor(
         } else {
             yun.pixels.client.core.domain.session.RemoteMediaFailure.ProbeTimeout
         }
-        callbackScope.launch { mutableEvents.emit(RemoteTransportEvent.MediaUnavailable(RemoteSessionId(sessionId), failure)) }
+        callbackAttempts.dispatch(sessionId) { publicSessionId -> mutableEvents.emit(RemoteTransportEvent.MediaUnavailable(RemoteSessionId(publicSessionId), failure)) }
     }
 
     override fun onDisconnected(sessionId: String, reason: Int, recoverable: Boolean) {
-        callbackScope.launch {
+        callbackAttempts.dispatch(sessionId) { publicSessionId ->
             mutableEvents.emit(
                 RemoteTransportEvent.Disconnected(
-                    sessionId = RemoteSessionId(sessionId),
+                    sessionId = RemoteSessionId(publicSessionId),
                     reason = reason.toFailure(),
                     recoverable = recoverable,
                 ),

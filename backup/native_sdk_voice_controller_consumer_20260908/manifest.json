@@ -1,0 +1,16 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Before linking the real shared voice controller into the SDK-only consumer and forbidding host audio-device dependencies",
+  "files": [
+    {
+      "path": "src/px_client_sdk/examples/lifecycle/CMakeLists.txt",
+      "sha256": "9130202BFD2AB4F6A13A0EBA5BEA9E3EB403131C000A4811D2106077A1C7B655",
+      "status": "?? src/px_client_sdk/examples/lifecycle/CMakeLists.txt"
+    },
+    {
+      "path": "src/px_client_sdk/examples/lifecycle/main.cpp",
+      "sha256": "6573BF3F91B90C855273E9B21FB1652FDE20F8008F98CA8CA9D119346E0218B2",
+      "status": "?? src/px_client_sdk/examples/lifecycle/main.cpp"
+    }
+  ]
+}

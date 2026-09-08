@@ -1,0 +1,46 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_session.cpp",
+      "sha256": "69FF2BE371C1A1DC546E64D5861FC8D0E52F1CD24E419E1BEAAA7276A1A3F0EF",
+      "status": " M src/px_android/core-native/src/main/cpp/native_session.cpp"
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.cpp",
+      "sha256": "DA7A65F0C479B5C51FF49718A615D9503C4A80E7E12A149EBA5C7B78FD433A09",
+      "status": " M src/px_client/ct_base_workspace.cpp"
+    },
+    {
+      "path": "src/px_client_sdk/connection/udp_direct_connection.cpp",
+      "sha256": "AE4C851670CB7C194BC403CE43FB78C871475D58CA61562C0927CCB1F3A9FCAF",
+      "status": " M src/px_client_sdk/connection/udp_direct_connection.cpp"
+    },
+    {
+      "path": "src/px_client_sdk/connection/udp_direct_connection.h",
+      "sha256": "AC095BA801105BEBAA618A56B573C8B5ACA4A1A79DEAE4D1985D338139C56325",
+      "status": " M src/px_client_sdk/connection/udp_direct_connection.h"
+    },
+    {
+      "path": "src/px_client_sdk/sdk_net_client.cpp",
+      "sha256": "09ADBD9C6CF4DF10BDA499B6924CEE9555A2E6B438D607757E2D315DBF1F7428",
+      "status": " M src/px_client_sdk/sdk_net_client.cpp"
+    },
+    {
+      "path": "src/px_client_sdk/sdk_net_client.h",
+      "sha256": "5A0F1BB8F1CF6FB3A2578B71FE420AACB6E6B035ABA9662440A7A7A99EE577EC",
+      "status": " M src/px_client_sdk/sdk_net_client.h"
+    },
+    {
+      "path": "src/px_client_sdk/thunder_sdk.cpp",
+      "sha256": "281D0BF2FA23475BBA9E14F898ECA7C86705BB4B8B998A56FCA4D19865BAAA23",
+      "status": " M src/px_client_sdk/thunder_sdk.cpp"
+    },
+    {
+      "path": "src/px_client_sdk/thunder_sdk.h",
+      "sha256": "16F66E43ABC23532776EE2C29F86E5761B570C3892EC8F4CEB1DA21CA7E77E46",
+      "status": " M src/px_client_sdk/thunder_sdk.h"
+    }
+  ]
+}

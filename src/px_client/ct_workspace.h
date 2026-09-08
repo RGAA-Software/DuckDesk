@@ -51,7 +51,7 @@ namespace px
         void EnsureRenderViewCount(int requested_count);
         void PositionRenderViews();
     private:
-        std::vector<std::shared_ptr<PxRenderView>> render_views_;
+        std::vector<QPointer<PxRenderView>> render_views_{};
         std::shared_ptr<LatestFrameDispatchQueue<int, PendingDecodedVideoFrame>> video_frame_dispatch_queue_
             = std::make_shared<LatestFrameDispatchQueue<int, PendingDecodedVideoFrame>>();
   

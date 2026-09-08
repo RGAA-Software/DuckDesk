@@ -4,6 +4,7 @@
 
 #include "cp_file_stream.h"
 #include "px_common/log.h"
+#include <span>
 
 namespace px
 {
@@ -25,80 +26,69 @@ namespace px
         return E_NOINTERFACE;
     }
 
-    HRESULT STDMETHODCALLTYPE CpFileStream::Read(void *pv, ULONG cb, ULONG *pcbRead) {
-        std::unique_lock read_lock(read_mtx_);
-        if (!pv) {
+    // NOLINT(gammaray-raw-pointer-boundary): IStream ABI, neither destination nor byte count is retained.
+    HRESULT STDMETHODCALLTYPE CpFileStream::Read(void* pv, ULONG cb, ULONG* pcbRead) {
+        const auto destination = pv ? std::span(static_cast<char*>(pv), cb) : std::span<char>{};
+        const auto count = pcbRead ? std::span(pcbRead, 1) : std::span<ULONG>{};
+        if (!count.empty()) {
+            count.front() = 0;
+        }
+        if (!pv && cb != 0) {
             return STG_E_INVALIDPOINTER;
         }
-        if (pcbRead) {
-            *pcbRead = 0;
-        }
+        std::unique_lock read_lock(read_mtx_);
         if (exit_ || !request_buffer_cb_ || !lifetime_token_ || !lifetime_token_->load()) {
             return S_FALSE;
         }
-        // Cap each request well below the file-transfer channel's max message size
-        // (~256 KiB): a 256 KiB payload plus the protobuf/TLV header exceeds it and
-        // the message is dropped, truncating the pasted file. Match the Rust side's
-        // MAX_READ_CHUNK_SIZE (128 KiB); the shell re-issues IStream::Read for the
-        // remaining bytes.
-        ULONG req_size = cb;
-        if (req_size > 128u * 1024u) {
-            req_size = 128u * 1024u;
+        if (cb == 0) {
+            return S_OK;
         }
-        if (!request_buffer_cb_(cp_file_, req_index_.load(), current_position_.load(), req_size)) {
+        const auto position = current_position_.load();
+        const auto total = cp_file_.file_.total_size();
+        if (position < 0 || total < 0 || position >= total) {
             return S_FALSE;
         }
-
-        std::unique_lock lk(wait_data_mtx_);
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        const auto size = std::min({static_cast<std::int64_t>(cb), kClipboardReadChunkBytes, total - position});
+        std::optional<ClipboardReadRequest> request{};
+        {
+            std::lock_guard lock(wait_data_mtx_);
+            resp_buffer_.reset();
+            request = pending_read_.Begin(cp_file_.file_.full_path(), position, size);
+        }
+        if (!request) {
+            return STG_E_READFAULT;
+        }
+        bool sent{};
+        try {
+            sent = request_buffer_cb_(cp_file_, request->index, request->offset, static_cast<ULONG>(request->size));
+        } catch (...) {
+            sent = false;
+        }
+        std::unique_lock lock(wait_data_mtx_);
+        if (!sent) {
+            pending_read_.Cancel();
+            resp_buffer_.reset();
+            return S_FALSE;
+        }
         const auto exit_state = std::ref(exit_);
         const auto response_state = std::ref(resp_buffer_);
-        while (true) {
-            data_cv_.wait_until(lk, deadline, [exit_state, response_state]() {
-                return exit_state.get().load() ||
-                    response_state.get().has_value();
-            });
-
-            if (exit_) {
-                LOGW("exit copy file: {}", cp_file_.file_.ref_path());
-                return S_FALSE;
-            }
-            if (!resp_buffer_.has_value()) {
-                LOGW("timeout waiting clipboard resp: {}", cp_file_.file_.ref_path());
-                return S_FALSE;
-            }
-            if (req_index_ == resp_buffer_->req_index()) {
-                break; // got the matching resp
-            }
-            // Stale resp (e.g. duplicated by the net channel); drop it and keep waiting.
-            LOGW("stale clipboard resp index {}, expected {}, continue waiting",
-                 resp_buffer_->req_index(), req_index_.load());
+        data_cv_.wait_for(lock, std::chrono::seconds(10),
+                          [exit_state, response_state] { return exit_state.get().load() || response_state.get().has_value(); });
+        pending_read_.Cancel();
+        if (exit_ || !lifetime_token_->load() || !resp_buffer_) {
             resp_buffer_.reset();
+            return S_FALSE;
         }
-
-        // copy data
-        auto resp_buffer = resp_buffer_.value();
-        const auto read_size = static_cast<size_t>(resp_buffer.read_size());
-        if (read_size > cb) {
-            LOGE("clipboard response too large, req size: {}, resp size: {}", cb, read_size);
-            return STG_E_READFAULT;
-        }
-        if (read_size > resp_buffer.buffer().size()) {
-            LOGE("clipboard response buffer too small, declared: {}, actual: {}", read_size, resp_buffer.buffer().size());
-            return STG_E_READFAULT;
-        }
-        if (read_size > 0) {
-            memcpy(pv, resp_buffer.buffer().data(), resp_buffer.read_size());
-            if (pcbRead) {
-                *pcbRead = resp_buffer.read_size();
-            }
-            current_position_ += resp_buffer.read_size();
-        }
-        req_index_ += 1;
-
-        // clear data
+        auto response = std::move(*resp_buffer_);
         resp_buffer_.reset();
-        return S_OK;
+        // The same shared validator already rejected mismatched or oversized responses at ingress.
+        const auto bytes = std::span(response.buffer());
+        std::ranges::copy(bytes, destination.begin());
+        current_position_ += response.read_size();
+        if (!count.empty()) {
+            count.front() = static_cast<ULONG>(bytes.size());
+        }
+        return bytes.empty() ? S_FALSE : S_OK;
     }
 
     HRESULT STDMETHODCALLTYPE CpFileStream::Seek(LARGE_INTEGER dlibMove, DWORD dwOrigin, ULARGE_INTEGER* new_pos) {
@@ -133,27 +123,20 @@ namespace px
 
     void CpFileStream::OnClipboardRespBuffer(const ClipboardRespBuffer& rb) {
         std::unique_lock lk(wait_data_mtx_);
-        const auto expected_index = req_index_.load();
-        if (rb.req_index() < expected_index) {
-            LOGW("ignore completed clipboard resp index {}, expected {}",
-                 rb.req_index(), expected_index);
-            return;
+        if (exit_ || !lifetime_token_ || !lifetime_token_->load() || resp_buffer_ || !pending_read_.Accepts(rb)) {
+                return;
         }
-        if (resp_buffer_.has_value() &&
-            resp_buffer_->req_index() == expected_index &&
-            rb.req_index() != expected_index) {
-            LOGW("keep matching clipboard resp index {}, ignore incoming {}",
-                 expected_index, rb.req_index());
-            return;
-        }
-        ClipboardRespBuffer buffer;
-        buffer.CopyFrom(rb);
-        resp_buffer_ = buffer;
+        resp_buffer_ = rb;
         data_cv_.notify_all();
     }
 
     void CpFileStream::Exit() {
-        exit_ = true;
+        {
+                std::lock_guard lock(wait_data_mtx_);
+                exit_ = true;
+                pending_read_.Cancel();
+                resp_buffer_.reset();
+        }
         data_cv_.notify_all();
     }
 

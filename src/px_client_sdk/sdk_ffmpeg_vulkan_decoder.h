@@ -17,18 +17,21 @@ extern "C"
 
 #include <set>
 #include "sdk_video_decoder.h"
+#include "ffmpeg_decoder_handles.h"
 #include "av_frame_ref.h"
 
 namespace px
 {
+    struct WindowsVideoResources;
 
     class FFmpegVulkanDecoder : public VideoDecoder {
     public:
-        explicit FFmpegVulkanDecoder(const std::shared_ptr<ThunderSdk>& sdk);
+        FFmpegVulkanDecoder(const std::shared_ptr<ThunderSdk>& sdk, std::shared_ptr<const WindowsVideoResources> resources);
         ~FFmpegVulkanDecoder() override;
 
-        int Init(const std::string& mon_name, int codec_type, int width, int height, const std::string& frame, void* surface, int img_format, bool ignore_hw) override;
-        Result<std::shared_ptr<RawImage>, int> Decode(const uint8_t* data, int size) override;
+        int Init(const std::string& mon_name, int codec_type, int width, int height,
+            const std::string& frame, int img_format, bool ignore_hw) override;
+        Result<std::shared_ptr<RawImage>, int> Decode(std::span<const std::uint8_t> encoded) override;
 
         void Release() override;
         bool Ready() override;
@@ -39,12 +42,12 @@ namespace px
         
         bool InitCodecContext(AVCodecID codec_id);
     private:
-        AVCodecContext* decoder_context_ = nullptr;
+        DecoderContextPtr decoder_context_{};
         AVCodec* decoder_ = nullptr;
-        AVPacket* packet_ = nullptr;
+        DecoderPacketPtr packet_{};
         AvFramePtr av_frame_{};
 
-        AVBufferRef* hw_device_context_ = nullptr;
+        const std::shared_ptr<const WindowsVideoResources> resources_{};
 
         AVPixelFormat pix_format_ = AV_PIX_FMT_NONE;
     };

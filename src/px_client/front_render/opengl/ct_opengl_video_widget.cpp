@@ -132,7 +132,7 @@ namespace px
             auto ba = qf.readAll();
             auto data = px::Data::Copy(std::span<const char>{ba.constData(), static_cast<std::size_t>(ba.size())});
             auto image = Image::MakeByCompressedImage(data);
-            auto raw_image = RawImage::MakeRGBA(image->data->MutableBytes().data(), image->data->Size(), image->width, image->height);
+            auto raw_image = RawImage::Make(kRawImageRGBA, image->width, image->height, image->data->Bytes());
             logo_->UpdateImage(raw_image);
             logo_->ForceImageSize(image->width, image->height);
         }
@@ -339,10 +339,12 @@ namespace px
             return;
         }
 
-        auto buf = (uint32_t *)cursor->img_buf;
+        if (!cursor || cursor->Format() != kRawImageRGBA) return;
+        auto bytes = cursor->MutableBytes();
         for (int row = 0; row < cursor->img_height; row++) {
-            auto last_pixel = buf + row * cursor->img_width + (cursor->img_width - 1);
-            *last_pixel = 0x00000000;
+            const auto offset = (static_cast<std::size_t>(row) * cursor->img_width + cursor->img_width - 1) * 4;
+            if (offset + 4 > bytes.size()) return;
+            std::ranges::fill(bytes.subspan(offset, 4), 0);
         }
 
         int cal_tex_width = tex_right - tex_left;

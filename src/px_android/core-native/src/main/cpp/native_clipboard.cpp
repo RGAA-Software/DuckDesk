@@ -1,6 +1,8 @@
 #include "native_clipboard.h"
 
 #include "data.h"
+#include "px_common/async_runtime.h"
+#include "px_common/uuid.h"
 #include "px_message.pb.h"
 #include "proto_converter.h"
 
@@ -18,7 +20,7 @@ namespace {
 constexpr std::size_t kMaximumClipboardFiles = 16U;
 constexpr std::int64_t kMaximumClipboardFileBytes = 512LL * 1024LL * 1024LL;
 constexpr std::int64_t kMaximumClipboardTotalBytes = 1024LL * 1024LL * 1024LL;
-constexpr std::int64_t kClipboardChunkBytes = 256LL * 1024LL;
+constexpr std::int64_t kClipboardChunkBytes = px::kClipboardReadChunkBytes;
 constexpr auto kChunkTimeout = std::chrono::seconds(5);
 
 std::string SafeFileName(std::string name, const std::size_t index) {
@@ -34,7 +36,11 @@ std::string SafeFileName(std::string name, const std::size_t index) {
     }
     constexpr std::size_t kMaximumNameBytes = 180U;
     if (name.size() > kMaximumNameBytes) {
-        name.resize(kMaximumNameBytes);
+        auto end = kMaximumNameBytes;
+        while (end > 0 && (static_cast<unsigned char>(name[end]) & 0xc0U) == 0x80U) {
+            --end;
+        }
+        name.resize(end);
     }
     return name;
 }
@@ -44,8 +50,10 @@ bool ValidateFiles(const std::vector<NativeClipboardFile>& files, const bool req
         return false;
     }
     std::int64_t total_size{};
+    std::unordered_set<std::string> transfer_names{};
     for (const auto& file : files) {
-        if (file.display_name.empty() || file.transfer_name.empty() || file.size < 0 || file.size > kMaximumClipboardFileBytes ||
+        if (!px::IsClipboardFileDescriptorValid(file.display_name, file.transfer_name, file.size) ||
+            !transfer_names.insert(file.transfer_name).second || file.size > kMaximumClipboardFileBytes ||
             (require_backing_path && file.backing_path.empty()) || total_size > kMaximumClipboardTotalBytes - file.size) {
             return false;
         }
@@ -79,8 +87,9 @@ bool NativeClipboard::PublishLocalFiles(std::string generation, std::vector<Nati
     if (generation.empty() || generation.size() > 128U) {
         return false;
     }
+    const auto offer_id = px::GetUUID();
     for (std::size_t index = 0; index < files.size(); ++index) {
-        files[index].transfer_name = "pixels-clipboard://" + generation + "/" + std::to_string(index);
+        files[index].transfer_name = "pixels-clipboard://" + offer_id + "/" + std::to_string(index);
     }
     if (!ValidateFiles(files, true)) {
         return false;
@@ -109,6 +118,7 @@ bool NativeClipboard::PublishLocalFiles(std::string generation, std::vector<Nati
     for (const auto& file : files) {
         auto& target = *clipboard.add_files();
         target.set_file_name(file.display_name);
+        target.set_ref_path(file.display_name);
         target.set_full_path(file.transfer_name);
         target.set_total_size(file.size);
     }
@@ -116,8 +126,15 @@ bool NativeClipboard::PublishLocalFiles(std::string generation, std::vector<Nati
 }
 
 void NativeClipboard::AcceptRemoteFiles(const std::shared_ptr<px::Message>& message) {
-    if (!message || message->type() != px::kClipboardInfo || !message->has_clipboard_info() ||
-        message->clipboard_info().type() != px::kClipboardFiles) {
+    if (!message || message->type() != px::kClipboardInfo || !message->has_clipboard_info()) {
+        return;
+    }
+    {
+        std::lock_guard lock(mutex_);
+        local_files_ = {};
+        remote_files_ = {};
+    }
+    if (message->clipboard_info().type() != px::kClipboardFiles) {
         return;
     }
     NativeClipboardFiles files;
@@ -138,6 +155,11 @@ void NativeClipboard::AcceptRemoteFiles(const std::shared_ptr<px::Message>& mess
     files_callback_(files);
 }
 
+void NativeClipboard::RevokeLocalFiles() {
+    std::lock_guard lock(mutex_);
+    local_files_ = {};
+}
+
 void NativeClipboard::HandleFileMessage(const std::shared_ptr<px::Message>& message) {
     if (!message) {
         return;
@@ -156,9 +178,7 @@ void NativeClipboard::HandleFileMessage(const std::shared_ptr<px::Message>& mess
     }
     const auto& response = message->cp_resp_buffer();
     std::lock_guard lock(mutex_);
-    if (stopped_ || response.req_index() != awaited_request_index_ || response.full_name() != awaited_transfer_name_ ||
-        response.req_start() < 0 || response.req_size() < 0 || response.read_size() < 0 || response.read_size() > response.req_size() ||
-        response.buffer().size() != static_cast<std::size_t>(response.read_size())) {
+    if (stopped_ || received_chunk_ || !pending_read_.Accepts(response)) {
         return;
     }
     received_chunk_ = ClipboardChunk{
@@ -187,7 +207,11 @@ bool NativeClipboard::DownloadRemoteFiles(const std::string& generation, const s
         files = remote_files_;
     }
     if (completed_thread.joinable()) {
-        completed_thread.join();
+        if (completed_thread.get_id() == std::this_thread::get_id()) {
+            px::PxAsyncRuntime::DeferJoin(std::move(completed_thread));
+        } else {
+            completed_thread.join();
+        }
     }
     const auto weak_self = weak_from_this();
     std::lock_guard lock(mutex_);
@@ -208,7 +232,7 @@ void NativeClipboard::RespondToBufferRequest(const std::shared_ptr<px::Message>&
     NativeClipboardFile source;
     {
         std::lock_guard lock(mutex_);
-        if (stopped_ || request.req_start() < 0 || request.req_size() <= 0 || request.req_size() > kClipboardChunkBytes) {
+        if (stopped_ || !px::ClipboardReadRequest::From(request).IsValid()) {
             return;
         }
         const auto iterator = std::ranges::find_if(local_files_.files, [&](const auto& file) { return file.transfer_name == request.full_name(); });
@@ -218,16 +242,27 @@ void NativeClipboard::RespondToBufferRequest(const std::shared_ptr<px::Message>&
         source = *iterator;
     }
 
-    std::vector<char> bytes(static_cast<std::size_t>(request.req_size()));
+    const auto limit = px::ClipboardReadRequest::From(request).ReadSize(source.size);
+    if (!limit) {
+        return;
+    }
+    std::vector<char> bytes(static_cast<std::size_t>(*limit));
     std::ifstream input(std::filesystem::path(source.backing_path), std::ios::binary);
     std::int64_t read_size{};
-    if (input && request.req_start() <= source.size) {
+    if (input && !bytes.empty()) {
         input.seekg(request.req_start());
         input.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
         read_size = static_cast<std::int64_t>(input.gcount());
     }
 
-    px::Message response;
+    {
+        std::lock_guard lock(mutex_);
+        if (stopped_ ||
+            std::ranges::none_of(local_files_.files, [&request](const auto& file) { return file.transfer_name == request.full_name(); })) {
+            return;
+        }
+    }
+    px::Message response{};
     response.set_type(px::kClipboardRespBuffer);
     response.set_device_id(device_id_);
     response.set_stream_id(stream_id_);
@@ -284,6 +319,9 @@ void NativeClipboard::RunDownload(const std::stop_token stop_token, NativeClipbo
             offset += static_cast<std::int64_t>(chunk->bytes.size());
         }
         output.close();
+        if (!output && error.empty()) {
+            error = "destination_write_failed";
+        }
         const bool success = error.empty() && !stop_token.stop_requested() && offset == file.size;
         static_cast<void>(SendTransferBoundary(file, false, success));
         if (!success) {
@@ -301,8 +339,7 @@ void NativeClipboard::RunDownload(const std::stop_token stop_token, NativeClipbo
     {
         std::lock_guard lock(mutex_);
         download_active_ = false;
-        awaited_request_index_ = 0;
-        awaited_transfer_name_.clear();
+        pending_read_.Cancel();
         received_chunk_.reset();
     }
     download_callback_(files.generation, completed_paths, error);
@@ -326,16 +363,17 @@ bool NativeClipboard::SendTransferBoundary(const NativeClipboardFile& file, cons
 std::optional<NativeClipboard::ClipboardChunk> NativeClipboard::RequestChunk(const NativeClipboardFile& file, const std::int64_t offset,
                                                                              const std::int64_t size,
                                                                              const std::stop_token stop_token) {
-    std::int64_t request_index{};
+    std::optional<px::ClipboardReadRequest> pending{};
     {
         std::lock_guard lock(mutex_);
         if (stopped_) {
             return std::nullopt;
         }
-        request_index = next_request_index_++;
-        awaited_request_index_ = request_index;
-        awaited_transfer_name_ = file.transfer_name;
+        pending = pending_read_.Begin(file.transfer_name, offset, size);
         received_chunk_.reset();
+    }
+    if (!pending) {
+        return {};
     }
 
     px::Message message;
@@ -346,15 +384,18 @@ std::optional<NativeClipboard::ClipboardChunk> NativeClipboard::RequestChunk(con
     request.set_full_name(file.transfer_name);
     request.set_req_size(size);
     request.set_req_start(offset);
-    request.set_req_index(request_index);
+    request.set_req_index(pending->index);
     if (!send_file_(px::ProtoAsData(&message))) {
+        std::lock_guard lock(mutex_);
+        pending_read_.Cancel();
         return std::nullopt;
     }
 
     std::unique_lock lock(mutex_);
-    const auto received = response_condition_.wait_for(lock, kChunkTimeout, [&] {
-        return stopped_ || stop_token.stop_requested() || (received_chunk_ && received_chunk_->request_index == request_index);
-    });
+    const auto self = shared_from_this();
+    const auto received = response_condition_.wait_for(
+        lock, kChunkTimeout, [self, stop_token] { return self->stopped_ || stop_token.stop_requested() || self->received_chunk_.has_value(); });
+    pending_read_.Cancel();
     if (!received || stopped_ || stop_token.stop_requested() || !received_chunk_) {
         return std::nullopt;
     }
@@ -371,6 +412,7 @@ void NativeClipboard::Stop() {
             return;
         }
         stopped_ = true;
+        pending_read_.Cancel();
         download_thread_.request_stop();
         response_condition_.notify_all();
         thread = std::move(download_thread_);
@@ -378,7 +420,11 @@ void NativeClipboard::Stop() {
         remote_files_ = {};
     }
     if (thread.joinable()) {
-        thread.join();
+        if (thread.get_id() == std::this_thread::get_id()) {
+            px::PxAsyncRuntime::DeferJoin(std::move(thread));
+        } else {
+            thread.join();
+        }
     }
 }
 

@@ -74,7 +74,7 @@ struct Session final {
                 return;
             ++state->file_messages;
             // A misconfigured host must not sneak WS audio/video into decoding or recording after UDP fails.
-            for (const auto type : {kVideoFrame, kAudioFrame}) {
+            for (const auto type : {kVideoFrame, kAudioFrame, kVoiceAudioFrame}) {
                 Message media{};
                 media.set_type(type);
                 session->async_send(media.SerializeAsString());
@@ -82,16 +82,18 @@ struct Session final {
         });
         if (!server->start("127.0.0.1", 0) || !blackhole->start("127.0.0.1", 0))
             return false;
-        const auto params = std::make_shared<ThunderSdkParams>();
-        params->ip_ = "127.0.0.1";
-        params->port_ = server->listen_port();
-        params->udp_port_ = blackhole->listen_port();
-        params->enable_video_ = !file_only;
-        params->file_transfer_only_ = file_only;
-        params->client_type_ = ClientType::kUnknown;
-        params->stream_id_ = "udp-failure-test";
-        params->device_id_ = "client_test";
-        client = std::make_shared<NetClient>(params, notifier, "/media?udp_media=1", "/file/transfer");
+        const SdkConnectionParams params{
+            .enable_video_ = !file_only,
+            .file_transfer_only_ = file_only,
+            .ip_ = "127.0.0.1",
+            .port_ = server->listen_port(),
+            .udp_port_ = blackhole->listen_port(),
+            .media_path_ = "/media?udp_media=1",
+            .ft_path_ = "/file/transfer",
+            .device_id_ = "client_test",
+            .stream_id_ = "udp-failure-test",
+        };
+        client = std::make_shared<NetClient>(params, notifier);
         client->SetOnDisconnectedCallback([weak_observations]() {
             if (const auto state = weak_observations.lock())
                 ++state->disconnected;
@@ -101,7 +103,8 @@ struct Session final {
                 ++state->configurations;
         });
         client->SetOnRawMessageCallback([weak_observations](const std::shared_ptr<Message>& message) {
-            if (const auto state = weak_observations.lock(); state && (message->type() == kVideoFrame || message->type() == kAudioFrame)) {
+            if (const auto state = weak_observations.lock(); state && (message->type() == kVideoFrame || message->type() == kAudioFrame ||
+                                                                    message->type() == kVoiceAudioFrame)) {
                 ++state->media_deliveries;
             }
         });

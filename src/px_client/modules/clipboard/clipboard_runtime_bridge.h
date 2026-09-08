@@ -3,7 +3,9 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "px_client/modules/client_module_settings.h"
@@ -27,6 +29,7 @@ public:
     [[nodiscard]] bool IsEnabled() const;
     [[nodiscard]] ClientModuleSettings SettingsSnapshot() const;
     [[nodiscard]] const std::shared_ptr<std::atomic_bool>& LifetimeToken() const;
+    void RevokeLocalFiles() const;
 
     void SendClipboardUpdate(
         ClipboardType type,
@@ -53,8 +56,10 @@ public:
     void OnRequestFileBuffer(const std::shared_ptr<Message>& message) const;
     void OnRequestFileEnd(const std::shared_ptr<Message>& message) const;
 
-private:
+  private:
+    [[nodiscard]] std::optional<ClipboardFile> PublishedFile(const std::string& transfer_name) const;
     mutable std::mutex mutex_;
+    mutable std::unordered_map<std::string, ClipboardFile> published_files_{};
     ClientModuleSettings settings_;
     std::weak_ptr<ClientModuleServices> services_;
     std::shared_ptr<std::atomic_bool> lifetime_token_ =

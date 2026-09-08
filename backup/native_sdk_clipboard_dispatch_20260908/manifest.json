@@ -1,0 +1,16 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "P3b-1 serialize Windows clipboard publication on STA and invalidate stale queued updates; preserved working-tree bytes",
+  "files": [
+    {
+      "path": "src/px_client/modules/clipboard/ct_clipboard_manager.cpp",
+      "sha256": "123037955E63B87D396534B3DA6C0B471908027D735E9D9D6E6616EC81E73DD8",
+      "status": " M src/px_client/modules/clipboard/ct_clipboard_manager.cpp"
+    },
+    {
+      "path": "src/px_client/modules/clipboard/ct_clipboard_manager.h",
+      "sha256": "34FA052F0DECC868E3E7AAC1969BCF61978E67B142461BC9CB69CB60C18F4A86",
+      "status": ""
+    }
+  ]
+}

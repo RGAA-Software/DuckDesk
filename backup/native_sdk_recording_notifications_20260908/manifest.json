@@ -1,0 +1,26 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Add typed recording failure notification to the internal Client module service boundary.",
+  "files": [
+    {
+      "path": "src/px_client/modules/client_module_manager.cpp",
+      "sha256": "CEB488B0A5C37D1E2ADDB2A2D8F21A14FCCD42E21B801BEA3F4A0C09F87B3483",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/modules/client_module_manager.h",
+      "sha256": "12166D215F2F53CCA7CD2AD1B856747ABCEB3D0718B076359B924159B350E70E",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/modules/client_module_services.h",
+      "sha256": "674E588432279A541F921211E14860C022BEF5B3CE45750A095A5A4B26FA114B",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/tests/fake_client_module_services.h",
+      "sha256": "DEBA4E0A6FA857468044DE114CE1060B8EC500ABE9CD52BE8B1D7E53CEE8EBAC",
+      "status": ""
+    }
+  ]
+}

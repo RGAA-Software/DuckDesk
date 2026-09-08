@@ -20,24 +20,26 @@ namespace px
 
     }
 
-    int VideoDecoder::Init(const std::string& mon_name, int codec_type, int width, int height, const std::string& frame, void* surface, int img_format, bool ignore_hw) {
+    int VideoDecoder::Init(const std::string& mon_name, int codec_type, int width, int height,
+            const std::string& frame, int img_format, bool ignore_hw) {
         ignore_hw_decoder_ = ignore_hw;
         return 0;
     }
 
     Result<std::shared_ptr<RawImage>, int> VideoDecoder::Decode(const std::shared_ptr<Data>& frame) {
-        return this->Decode((uint8_t*)frame->Bytes().data(), frame->Size());
+        if (!frame) return TRError(-1);
+        return Decode(std::span<const std::uint8_t>{reinterpret_cast<const std::uint8_t*>(frame->Bytes().data()), frame->Bytes().size()});
     }
 
     Result<std::shared_ptr<RawImage>, int> VideoDecoder::Decode(const std::string& frame) {
-        return this->Decode((uint8_t*)frame.data(), frame.size());
+        return Decode(std::span<const std::uint8_t>{reinterpret_cast<const std::uint8_t*>(frame.data()), frame.size()});
     }
 
     void VideoDecoder::Release() {
 
     }
 
-    bool VideoDecoder::UpdateRenderSurface(const std::uintptr_t) {
+    bool VideoDecoder::RefreshOutput() {
         return false;
     }
 

@@ -50,8 +50,10 @@ namespace px
 
         void Exit();
 
-        void SetRecording(bool recording);
+        uint64_t SetRecording(bool recording);
         bool GetRecording();
+        uint64_t GetRecordingIntent() const;
+        bool FailRecordingIntent(uint64_t intent);
 
         void InitNotifyManager(QWidget* parent);
         std::shared_ptr<NotifyManager> GetNotifyManager() const;
@@ -67,7 +69,7 @@ namespace px
         std::string name_;
         std::map<std::string, SdkCaptureMonitorInfo> capturing_info_map_;
         std::weak_ptr<ClientModuleManager> module_manager_;
-        std::atomic_bool recording_ = false;
+        std::atomic_uint64_t recording_intent_{};
         std::shared_ptr<NotifyManager> notify_manager_ = nullptr;
         std::atomic_bool exiting_ = false;
     };

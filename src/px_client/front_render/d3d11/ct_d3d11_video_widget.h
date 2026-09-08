@@ -6,6 +6,10 @@
 #define GAMMARAYPREMIUM_CT_D3D11_VIDEO_WIDGET_H
 
 #include <QWidget>
+#include <QPointer>
+#include <d3d11.h>
+#include <wrl/client.h>
+using Microsoft::WRL::ComPtr;
 #include <memory>
 #include "px_message.pb.h"
 #include "px_client_sdk/gl/raw_image.h"
@@ -24,6 +28,7 @@ namespace px
     class Settings;
     class Thread;
     class D3D11RenderManager;
+    struct WindowsVideoResources;
     // for testing
     class RawSdlWidget;
 
@@ -31,7 +36,7 @@ namespace px
     class D3D11VideoWidget : public QWidget, public VideoWidget {
     public:
         D3D11VideoWidget(const std::shared_ptr<ClientContext> &ctx, const std::shared_ptr<ThunderSdk> &sdk,
-                       int dup_idx, RawImageFormat format, QWidget *parent = nullptr);
+                       std::shared_ptr<const WindowsVideoResources> resources, int dup_idx, RawImageFormat format, QPointer<QWidget> parent = {});
         ~D3D11VideoWidget() override;
 
         bool InitD3DEnvIfNeeded(RawImageFormat raw_format, int frame_width, int frame_height, ComPtr<ID3D11Device>,  ComPtr<ID3D11DeviceContext>);
@@ -64,6 +69,7 @@ namespace px
     private:
         bool init = false;
         std::shared_ptr<D3D11RenderManager> render_mgr_ = nullptr;
+        const std::shared_ptr<const WindowsVideoResources> resources_{};
 
         // for testing
         //RawSdlWidget* raw_sdl_widget_ = nullptr;

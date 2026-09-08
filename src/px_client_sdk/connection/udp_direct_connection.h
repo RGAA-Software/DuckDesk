@@ -12,6 +12,8 @@
 #include <chrono>
 #include <map>
 #include "px_common/px_udp_protocol.h"
+#include "px_common/px_udp_voice_protocol.h"
+#include "px_common/udp_voice_send_budget.h"
 
 namespace asio2
 {
@@ -25,7 +27,7 @@ namespace px
 
     // GameStream 风格的裸 UDP 媒体通道(非 KCP),控制面仍走 ws,
     // 由 sdk_net_client.cpp 的 kUdpDirect 分支与 WsConnection 一起启动:
-    // - 上行:hello(携带 WS 预关联码登记媒体端点)/heartbeat/IDR 请求,均为 PxUdpProtocol 控制包
+    // - 上行:hello(携带 WS 预关联码登记媒体端点)/heartbeat/IDR 控制包，以及独立的已关联 Voice 包。
     // - 下行:视频 shard 经 PxUdpFrameReassembler 组帧后合成标准 kVideoFrame proto 上送,
     //   与 webrtc_local 的 encoded-sink 路径一致(不回 Ack);
     //   音频包经 PxUdpAudioJitterBuffer 按序交付,合成标准 kAudioFrame proto 上送,
@@ -34,8 +36,7 @@ namespace px
     class UdpDirectConnection : public Connection,
                                 public std::enable_shared_from_this<UdpDirectConnection> {
     public:
-        UdpDirectConnection(const std::shared_ptr<ThunderSdkParams>& params,
-                            const std::shared_ptr<MessageNotifier>& notifier);
+        explicit UdpDirectConnection(const std::shared_ptr<MessageNotifier>& notifier);
         ~UdpDirectConnection() override;
 
         // host/port 为 render 的 UDP 媒体端口;association_code 只能由已授权 WS
@@ -47,6 +48,10 @@ namespace px
 
         // 仅用于上行 UDP 控制包(hello/heartbeat/IDR),proto 媒体消息不走这里
         void PostBinaryMessage(std::shared_ptr<Data> msg) override;
+        [[nodiscard]] bool PostVoiceFrame(const std::string& call_id, std::uint32_t sequence, std::uint64_t capture_time_ms,
+                                          std::span<const std::uint8_t> opus);
+        // Install before Start; callbacks receive owning frames only from this connection's current association.
+        void SetOnVoiceFrameCallback(std::function<void(UdpVoiceFrame)> callback);
 
         // 组帧完成后合成的 kVideoFrame proto,回调语义与 WebRtcLocalConnection::SetOnVideoMessageCallback 一致
         void SetOnVideoMessageCallback(const std::function<void(std::shared_ptr<px::Message>)>& cbk);
@@ -91,6 +96,8 @@ namespace px
 
         std::function<void(std::shared_ptr<px::Message>)> video_msg_cbk_;
         std::function<void(std::shared_ptr<px::Message>)> audio_msg_cbk_;
+        std::function<void(UdpVoiceFrame)> voice_frame_cbk_{};
+        UdpVoiceSendBudget voice_send_budget_{};
         std::function<void(const std::string& reason)> on_kick_cbk_;
         std::function<void()> media_ready_cbk_;
         bool media_ready_reported_ = false;

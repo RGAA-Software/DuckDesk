@@ -250,6 +250,20 @@ void VoiceCallService::HandleMessage(const std::shared_ptr<Message>& message) {
     }
 }
 
+void VoiceCallService::HandleUdpVoiceFrame(const std::string& stream_id, const UdpVoiceFrame& frame) {
+    std::shared_ptr<VoiceCallRuntime> runtime{};
+    {
+        std::lock_guard lock(mutex_);
+        if (!running_) {
+            return;
+        }
+        runtime = runtime_;
+    }
+    if (runtime) {
+        runtime->ReceiveUdpVoiceFrame(stream_id, frame);
+    }
+}
+
 void VoiceCallService::HandleConsentDecision(
     const MsgVoiceCallConsentDecision& decision) {
     std::shared_ptr<VoiceCallRuntime> runtime;

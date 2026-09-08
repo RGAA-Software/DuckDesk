@@ -69,12 +69,12 @@ namespace px
         void OnClipboardFilesInfo(const std::vector<ClipboardFile>& files);
         void OnClipboardRespBuffer(const ClipboardRespBuffer& resp_buffer);
 
-    private:
+        void ExitAllStreams(bool operation_succeeded = false);
+
+      private:
         void ReportFileTransferBegin(
             const Microsoft::WRL::ComPtr<CpFileStream>& stream);
-        void ReportFileTransferEnd(
-            const Microsoft::WRL::ComPtr<CpFileStream>& stream);
-        void ExitAllStreams();
+        void ReportFileTransferEnd(const Microsoft::WRL::ComPtr<CpFileStream>& stream, bool operation_succeeded = false);
         void RemoveStreamByPath(const std::string& full_path);
         Microsoft::WRL::ComPtr<CpFileStream> FindStreamByPath(
             const std::string& full_path);

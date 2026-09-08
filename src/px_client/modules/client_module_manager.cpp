@@ -128,12 +128,6 @@ void ClientModuleManager::HandleMessage(
         return;
     }
     switch (message->type()) {
-    case MessageType::kVideoFrame:
-    case MessageType::kAudioFrame:
-        if (const auto module = GetMediaRecordingModule()) {
-            module->HandleMessage(message);
-        }
-        break;
     case MessageType::kClipboardInfo:
     case MessageType::kClipboardInfoResp:
     case MessageType::kClipboardReqAtBegin:
@@ -298,6 +292,17 @@ void ClientModuleManager::NotifyRecordingComplete(std::string directory) {
             [path]() {
                 FolderUtil::OpenDir(path);
             });
+    }
+}
+
+void ClientModuleManager::NotifyRecordingFailure(uint64_t intent, std::string reason) {
+    if (const auto context = context_.lock()) {
+        if (context->FailRecordingIntent(intent)) {
+            context->SendAppMessage(MsgClientMediaRecord{.intent_ = intent & ~uint64_t{1}});
+            context->SendAppMessage(MsgClientFloatControllerPanelUpdate{
+                .update_type_ = MsgClientFloatControllerPanelUpdate::EUpdate::kMediaRecordStatus});
+        }
+        context->NotifyAppErrMessage("Screen recording failed", QString::fromStdString(reason));
     }
 }
 

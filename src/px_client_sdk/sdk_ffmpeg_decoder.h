@@ -25,19 +25,23 @@ extern "C"
 
 #include <set>
 #include "sdk_video_decoder.h"
+#include "ffmpeg_decoder_handles.h"
+#include "av_buffer_ref.h"
 
 namespace px
 {
 
     class D3D11DeviceWrapper;
+    struct WindowsVideoResources;
 
     class FFmpegDecoder : public VideoDecoder {
     public:
-        explicit FFmpegDecoder(const std::shared_ptr<ThunderSdk>& sdk);
+        FFmpegDecoder(const std::shared_ptr<ThunderSdk>& sdk, std::shared_ptr<const WindowsVideoResources> resources);
         ~FFmpegDecoder() override;
 
-        int Init(const std::string& mon_name, int codec_type, int width, int height, const std::string& frame, void* surface, int img_format, bool ignore_hw) override;
-        Result<std::shared_ptr<RawImage>, int> Decode(const uint8_t* data, int size) override;
+        int Init(const std::string& mon_name, int codec_type, int width, int height,
+            const std::string& frame, int img_format, bool ignore_hw) override;
+        Result<std::shared_ptr<RawImage>, int> Decode(std::span<const std::uint8_t> encoded) override;
         void Release() override;
         bool Ready() override;
 
@@ -48,18 +52,19 @@ namespace px
         bool IsHardwareAccelerated();
 
     private:
-        AVCodecContext* decoder_context_ = nullptr;
+        DecoderContextPtr decoder_context_{};
         AVCodec* decoder_ = nullptr;
-        AVPacket* packet_ = nullptr;
-        AVFrame* av_frame_ = nullptr;
+        DecoderPacketPtr packet_{};
+        AvFramePtr av_frame_{};
 
-        AVBufferRef* hw_device_context_ = nullptr;
-        AVBufferRef* hw_frames_context_ = nullptr;
+        AvBufferPtr hw_device_context_{};
+        AvBufferPtr hw_frames_context_{};
         AVCodecHWConfig* hw_decode_config = nullptr;
 
         AVPixelFormat last_format_ = AV_PIX_FMT_NONE;
         std::shared_ptr<RawImage> decoded_image_ = nullptr;
         std::shared_ptr<D3D11DeviceWrapper> d3d11_wrapper_ = nullptr;
+        const std::shared_ptr<const WindowsVideoResources> resources_{};
     };
 
 }

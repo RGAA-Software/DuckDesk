@@ -1,0 +1,36 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Preserve ordered UDP audio loss duration without inventing encoded Opus packets.",
+  "files": [
+    {
+      "path": "src/px_client_sdk/sdk_recording_session.cpp",
+      "sha256": "5F1A82D398747B629A755069F1ABA576B8A79E59ED5E7B126CBDFF27365EC745",
+      "status": "?? src/px_client_sdk/sdk_recording_session.cpp"
+    },
+    {
+      "path": "src/px_client_sdk/sdk_recording_session.h",
+      "sha256": "FA647DC270AAA167E886F0FFB998C695B8719233C8C4023109A2F8265FF88745",
+      "status": "?? src/px_client_sdk/sdk_recording_session.h"
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_sdk_recording_session.cpp",
+      "sha256": "1C1784A57329B7E40FEC3D2D70B5BDA7CA8FCD1D492C76E090A92A48BED4EFAF",
+      "status": "?? src/px_client_sdk/tests/test_sdk_recording_session.cpp"
+    },
+    {
+      "path": "src/px_deps/px_media_record/record_writer.cpp",
+      "sha256": "D098BEB46753EE9780D52EC8014D6C60D54BB360F71B485BA475020C4AD02F9C",
+      "status": " M src/px_deps/px_media_record/record_writer.cpp"
+    },
+    {
+      "path": "src/px_deps/px_media_record/record_writer.h",
+      "sha256": "0AEE4962EE70E1C0D4449CDD2930E1BB42A95DF67AAC9BC0F4EF90651C26220D",
+      "status": " M src/px_deps/px_media_record/record_writer.h"
+    },
+    {
+      "path": "src/px_deps/px_media_record/tests/test_record_writer.cpp",
+      "sha256": "D09D63DE11A7AA6B345107EFA3992C0FA6727AA0FD0D960D38D737C2004B9B50",
+      "status": " M src/px_deps/px_media_record/tests/test_record_writer.cpp"
+    }
+  ]
+}

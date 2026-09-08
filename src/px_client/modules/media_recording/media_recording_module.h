@@ -3,42 +3,41 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #include "px_client/modules/client_module_settings.h"
 
 namespace px {
 
-class ClientModuleContext;
 class ClientModuleServices;
-class MediaRecordRuntime;
+class RecordingSession;
 class Message;
 
 class ClientMediaRecordingModule final {
-public:
-    explicit ClientMediaRecordingModule(
-        std::weak_ptr<ClientModuleServices> services);
+  public:
+    explicit ClientMediaRecordingModule(std::weak_ptr<ClientModuleServices> services);
     ~ClientMediaRecordingModule();
 
     ClientMediaRecordingModule(const ClientMediaRecordingModule&) = delete;
-    ClientMediaRecordingModule& operator=(
-        const ClientMediaRecordingModule&) = delete;
+    ClientMediaRecordingModule& operator=(const ClientMediaRecordingModule&) = delete;
 
     bool Start(const ClientModuleConfig& config);
     void Stop();
     void HandleMessage(const std::shared_ptr<Message>& message);
     void UpdateSettings(const ClientModuleSettings& settings);
 
-    void StartRecording();
+    void StartRecording(uint64_t intent = 0);
     void StopRecording();
     [[nodiscard]] std::string GetScreenRecordingPath() const;
 
-private:
+  private:
     std::weak_ptr<ClientModuleServices> services_;
-    std::shared_ptr<ClientModuleContext> context_;
-    std::shared_ptr<MediaRecordRuntime> runtime_;
-    std::string screen_recording_path_;
-    mutable std::mutex lifecycle_mutex_;
+    std::shared_ptr<RecordingSession> recording_{};
+    uint64_t active_intent_{};
+    std::vector<std::shared_ptr<RecordingSession>> finishing_{};
+    std::string screen_recording_path_{};
+    mutable std::mutex lifecycle_mutex_{};
     bool stopped_ = true;
 };
 
-}  // namespace px
+} // namespace px

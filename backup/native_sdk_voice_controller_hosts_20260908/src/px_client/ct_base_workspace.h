@@ -1,0 +1,256 @@
+//
+// Created by RGAA on 2023-12-27.
+//
+#pragma once
+
+#include <QWidget>
+#include <QMainWindow>
+#include <map>
+#include <mutex>
+#include <vector>
+#include <qlist.h>
+#include "thunder_sdk.h"
+#include "px_client/ct_app_message.h"
+#include "px_voice_call/voice_call_state.h"
+#include "px_client_sdk/sdk_voice_protocol.h"
+#include "px_voice_call/voice_packet_transport.h"
+#include "theme/QtAdvancedStylesheet.h"
+
+#ifdef WIN32
+#include <d3d11.h>
+#include <wrl/client.h>
+#include <array>
+
+using namespace Microsoft::WRL;
+
+#endif
+
+namespace px
+{
+
+    class ClientContext;
+    class ThunderSdk;
+    class OpenGLVideoWidget;
+    class AudioPlayer;
+    class FloatController;
+    class FloatControllerPanel;
+    class MessageListener;
+    class Settings;
+    class FloatNotificationHandle;
+    class NotificationPanel;
+    class CtStatisticsPanel;
+    class FloatButtonStateIndicator;
+    class MainProgress;
+    class PxRenderView;
+    struct WindowsVideoResources;
+    class CtPanelClient;
+    class ClientModuleManager;
+    class ClientMediaRecordingModule;
+    class RetryConnDialog;
+    class D3D11DeviceWrapper;
+    class HWInfoWidget;
+    class CtConsoleClient;
+    class PlVulkan;
+    class SkinInterface;
+    class OverlayWidget;
+    class VoiceAudioEndpoint;
+
+    class BaseWorkspace : public QMainWindow, public std::enable_shared_from_this<BaseWorkspace> {
+    public:
+
+        ~BaseWorkspace() override;
+
+        void closeEvent(QCloseEvent *event) override;
+        void changeEvent(QEvent* event) override;
+        [[nodiscard]] bool IsActiveNow() const;
+        void resizeEvent(QResizeEvent *event) override;
+        void dragEnterEvent(QDragEnterEvent *event) override;
+        void dragMoveEvent(QDragMoveEvent *event) override;
+        void dropEvent(QDropEvent *event) override;
+        bool eventFilter(QObject* watched, QEvent* event) override;
+        bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
+        void moveEvent(QMoveEvent* event) override;
+        void showEvent(QShowEvent* event) override;
+        void hideEvent(QHideEvent* event) override;
+        void mouseReleaseEvent(QMouseEvent* event) override;
+        virtual void SendWindowsKey(unsigned long vk, bool down);
+        void enterEvent(QEnterEvent *event) override;
+        void leaveEvent(QEvent *event) override;
+
+        std::shared_ptr<ThunderSdk> GetThunderSdk();
+        std::shared_ptr<ClientContext> GetContext();
+        std::shared_ptr<D3D11DeviceWrapper> GetD3D11DeviceWrapper(uint64_t adapter_uid);
+        void PostMediaMessage(std::shared_ptr<Data> msg);
+        void PostFileTransferMessage(std::shared_ptr<Data> msg);
+
+        // skin
+        SkinInterface* GetSkin();
+
+    protected:
+        explicit BaseWorkspace(const std::shared_ptr<ClientContext>& ctx, const std::shared_ptr<ThunderSdkParams>& params, QWidget* parent = nullptr);
+        virtual void Init();
+        void InitModuleManager();
+        void InitTheme();
+        void InitSampleWidget();
+        virtual void InitListener();
+        void InitPanelClient();
+
+        virtual void RegisterSdkMsgCallbacks();
+        void Exit();
+        //void UpdateNotificationHandlePosition();
+        void UpdateLocalCursor();
+
+        virtual void RegisterBaseListeners();
+        void RegisterControllerPanelListeners();
+
+        void UpdateDebugPanelPosition();
+        void SendClipboardMessage(const MsgClientClipboard& msg) const;
+        void SendSwitchMonitorMessage(const std::string& name) const;
+        void SendSwitchWorkModeMessage(SwitchWorkMode::WorkMode mode);
+        void SendSwitchFullColorMessage(bool enable);
+        // client->render 发送刷新桌面的消息
+        void SendUpdateDesktopMessage() const;
+        // client->render 发送修改帧率的消息
+        void SendModifyFpsMessage() const;
+        // client->render 发送退出被控端的消息
+        void SendExitControlledEndMessage();
+        void SendHardUpdateDesktopMessage();
+        void SwitchScaleMode(const ScaleMode& mode);
+        virtual void CalculateAspectRatio();
+        virtual void SwitchToFillWindow();
+        void SendChangeMonitorResolutionMessage(const MsgClientChangeMonitorResolution& msg);
+        void SendVirtualDisplayRequest(const MsgClientVirtualDisplayRequest& msg);
+        void SendVoiceCallCommand(const MsgClientVoiceCallCommand& msg);
+        void ProcessVoiceCallMessage(const std::shared_ptr<px::Message>& msg);
+        void StopVoiceCall(bool notify_remote, const std::string& reason);
+        void NotifyVoiceCallStatus(const std::string& reason = {});
+        void QueueVoiceAudioFrame(const std::string& call_id, uint32_t sequence,
+                                 uint64_t capture_time_ms,
+                                 const std::vector<uint8_t>& opus);
+        void DispatchVoiceAudioFrame(const std::string& call_id, uint32_t sequence,
+                                 uint64_t capture_time_ms,
+                                 const std::vector<uint8_t>& opus);
+        void UpdateFloatButtonIndicatorPosition();
+        void UpdateVideoWidgetSize();
+        virtual void UpdateRenderViewsStatus(bool force_layout_screens) {}
+        virtual void OnGetCaptureMonitorsCount(int monitors_count);
+        virtual void OnGetCaptureMonitorName(std::string monitor_name);
+        virtual void InitRenderViews(const std::shared_ptr<ThunderSdkParams>& params);
+        void WidgetSelectMonitor(QWidget* widget, QList<QScreen*>& screens);
+        void ExitClientWithDialog();
+        void UpdateOverlayWidgetPos();
+
+        // 匹配鼠标形状
+        Qt::CursorShape ToQCursorShape(uint32_t cursor_type);
+
+        // reconnect when the remote device was in relay mode
+        // dismiss connecting dialog
+        void DismissConnectingDialog();
+
+        // messages defined in px_message.proto
+        void ProcessNetworkMessage(const std::shared_ptr<px::Message>& msg);
+
+    private:
+        //uint64_t adapter_uid
+        bool GenerateD3DDevice();
+
+        // exit sdk
+        void ExitSdk();
+
+    protected:
+        Settings* settings_ = nullptr;
+        std::shared_ptr<ThunderSdkParams> params_ = nullptr;
+        std::shared_ptr<WindowsVideoResources> video_resources_{};
+        std::shared_ptr<ClientContext> context_ = nullptr;
+        std::shared_ptr<ThunderSdk> sdk_ = nullptr;
+        std::shared_ptr<AudioPlayer> audio_player_ = nullptr;
+        bool is_window_active_ = false;
+        acss::QtAdvancedStylesheet* theme_{};
+        std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+        uint32_t cursor_type_ = 100000;
+        bool force_update_cursor_ = true;
+        CtStatisticsPanel* st_panel_ = nullptr;
+        FloatButtonStateIndicator* btn_indicator_ = nullptr;
+        std::atomic_bool has_frame_arrived_ = false;
+        std::atomic_uint64_t virtual_display_request_seq_ = 0;
+        std::mutex voice_call_mutex_;
+        VoiceCallState voice_call_state_;
+        VoiceCallRequestSequence voice_request_sequence_{};
+        std::shared_ptr<VoiceAudioEndpoint> voice_audio_endpoint_;
+        VoicePacketTransport voice_packet_transport_;
+        bool voice_microphone_muted_ = false;
+        bool voice_speaker_muted_ = false;
+        std::string voice_capture_device_id_;
+        std::string voice_playout_device_id_;
+
+        // progress
+        MainProgress* main_progress_ = nullptr;
+
+        int title_bar_height_ = 0; //35;
+
+        bool full_screen_ = false;
+
+        //
+        std::shared_ptr<CtPanelClient> panel_client_ = nullptr;
+
+        std::shared_ptr<ClientModuleManager> module_manager_;
+        std::shared_ptr<ClientMediaRecordingModule> media_recording_module_;
+
+        QCursor cursor_;
+
+        QString origin_title_name_;
+     
+        std::map<int, std::string> monitor_index_map_name_;
+
+        int monitors_count_ = 0;
+
+        QWidget* close_event_occurred_widget_ = nullptr;
+
+        QSize def_window_size_ = QSize(1366, 768);
+
+        // disconnected dialog
+        std::shared_ptr<RetryConnDialog> retry_conn_dialog_ = nullptr;
+        std::atomic_bool remote_force_closed_ = false;
+
+        // uint64_t adapter_uid <==> D3D11Device/D3D11DeviceContext
+        std::map<uint64_t, std::shared_ptr<D3D11DeviceWrapper>> d3d11_devices_;
+
+        // show remote hardware info
+        HWInfoWidget* hw_info_widget_ = nullptr;
+
+        // console client
+        std::shared_ptr<CtConsoleClient> console_client_ = nullptr;
+
+        // can generate relative d3d11device & context
+        bool gen_d3d11_device_ = false;
+
+        // libplacebo vulkan
+        std::shared_ptr<PlVulkan> pl_vulkan_ = nullptr;
+
+        std::string render_type_name_ = "unknow";
+
+        /*
+        * fps_array_ 参考如下枚举(float_sub_fps_panel.h)
+        enum class EFps {
+            k15Fps ,
+            k30Fps ,
+            k60Fps ,
+            k90Fps ,
+            k120Fps,
+            k144Fps,
+        };
+        */
+        std::array<int, 6> fps_array_ = {15, 30, 60, 90, 120, 144};
+        std::uint64_t last_reduce_fps_time_ = 0;
+
+        // skin
+        SkinInterface* skin_ = nullptr;
+
+        // overlay widget
+        OverlayWidget* overlay_widget_ = nullptr;
+
+    };
+
+    extern std::shared_ptr<BaseWorkspace> gWorkspace;
+
+}

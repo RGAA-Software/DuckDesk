@@ -34,6 +34,7 @@ public:
         std::string status,
         std::string reason) = 0;
     virtual void NotifyRecordingComplete(std::string directory) = 0;
+    virtual void NotifyRecordingFailure(uint64_t intent, std::string reason) = 0;
 };
 
 }  // namespace px

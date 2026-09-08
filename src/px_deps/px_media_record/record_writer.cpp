@@ -40,29 +40,25 @@ namespace px {
 namespace {
 
 int64_t DefaultClockMs() {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::steady_clock::now().time_since_epoch())
-        .count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
 // 墙上时钟毫秒(Unix epoch)。仅用于文件名时间戳——单调时钟(DefaultClockMs)
 // 从系统启动起算, 格式化出来是 1970 年的假日期。
 int64_t WallClockMs() {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::system_clock::now().time_since_epoch())
-        .count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
 // OpusHead(19 字节)：Magic/版本/声道数/预跳过(312)/采样率(48000)/增益/mapping family。
 // 缺它 MP4 里的 Opus 轨无法播放（movenc 报 invalid extradata size）。
 const uint8_t kOpusHead[19] = {
-    'O', 'p', 'u', 's', 'H', 'e', 'a', 'd', // Magic signature
-    0x01,                                   // Version
-    0x02,                                   // Channel count
-    0x38, 0x01,                             // Pre-skip (312 LE)
-    0x80, 0xBB, 0x00, 0x00,                 // Sample rate (48000 LE)
-    0x00, 0x00,                             // Output gain
-    0x00,                                   // Channel mapping family
+    'O',  'p',  'u',  's',  'H', 'e', 'a', 'd', // Magic signature
+    0x01,                                       // Version
+    0x02,                                       // Channel count
+    0x38, 0x01,                                 // Pre-skip (312 LE)
+    0x80, 0xBB, 0x00, 0x00,                     // Sample rate (48000 LE)
+    0x00, 0x00,                                 // Output gain
+    0x00,                                       // Channel mapping family
 };
 
 // 缓冲上限：约 10 秒音频(50 包/秒 * 20ms)，超出丢最旧
@@ -158,9 +154,8 @@ std::string SanitizeFileNamePart(std::string s) {
         s = s.substr(4);
     }
     for (auto& c : s) {
-        if (c == '\\' || c == '/' || c == ':' || c == '*' || c == '?' ||
-            c == '"' || c == '<' || c == '>' || c == '|' || c == ' ' ||
-            c == '\t' || c == '\n' || c == '\r') {
+        if (c == '\\' || c == '/' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|' || c == ' ' || c == '\t' ||
+            c == '\n' || c == '\r') {
             c = '_';
         }
     }
@@ -188,12 +183,8 @@ std::string FormatTimestamp(int64_t ms) {
 
 struct RecordWriter::Impl {
     explicit Impl(const RecordWriterConfig& cfg)
-        : cfg_(cfg),
-          clock_ms_(cfg.clock_ms ? cfg.clock_ms : std::function<int64_t()>(DefaultClockMs)),
-          session_start_ms_(clock_ms_()),
-          recording_(true) {
-        CleanupStaleRecordingMarkers();
-    }
+        : cfg_(cfg), clock_ms_(cfg.clock_ms ? cfg.clock_ms : std::function<int64_t()>(DefaultClockMs)), session_start_ms_(clock_ms_()),
+          recording_(true) {}
 
     ~Impl() {
         Stop();
@@ -206,6 +197,14 @@ struct RecordWriter::Impl {
     bool recording_ = false;
     bool writing_ = false;
     int64_t segment_no_ = 0;
+    std::string error_{};
+    uint64_t completed_segments_{};
+
+    void Fail(std::string reason) {
+        if (error_.empty())
+            error_ = std::move(reason);
+        recording_ = false;
+    }
 
     // ---- 媒体信息 ----
     RecordVideoCodec codec_ = RecordVideoCodec::kH264;
@@ -237,28 +236,23 @@ struct RecordWriter::Impl {
     // 文件打开(写完 header)后创建,关闭(moov 落盘)后删除;
     // 录像查看功能据此过滤不可播的进行中文件,不用 mtime 启发式
     void CreateRecordingMarker() {
-        if (current_path_.empty()) return;
-        std::ofstream(current_path_ + ".recording", std::ios::trunc).close();
+        if (current_path_.empty())
+            return;
+        auto marker = std::ofstream(current_path_ + ".recording", std::ios::trunc);
+        marker.close();
+        if (!marker)
+            Fail("recording_marker_create_failed");
     }
 
     void RemoveRecordingMarker() {
-        if (current_path_.empty()) return;
+        if (current_path_.empty())
+            return;
         std::error_code ec;
         std::filesystem::remove(current_path_ + ".recording", ec);
         current_path_.clear();
     }
 
-    // 进程启动时本 writer 尚无打开文件,目录里残留的标记都是上次崩溃的孤儿
-    void CleanupStaleRecordingMarkers() {
-        namespace fs = std::filesystem;
-        std::error_code ec;
-        if (!fs::exists(cfg_.dir, ec)) return;
-        for (auto& e : fs::directory_iterator(cfg_.dir, ec)) {
-            if (e.path().extension() == ".recording") {
-                fs::remove(e.path(), ec);
-            }
-        }
-    }
+    // Other runs may still be writing. A stale marker also does not prove its MP4 was finalized.
 
     // 墙钟 ms*90 / ms*48 量化后可能出现同毫秒多帧 => dts 重复。
     // 对 muxer/播放器做严格单调递增保护(同段内)。
@@ -278,8 +272,7 @@ struct RecordWriter::Impl {
         return !sps_.empty() && !pps_.empty();
     }
 
-    void OnEncodedVideo(std::span<const uint8_t> data,
-                        RecordVideoCodec codec, int width, int height, bool key) {
+    void OnEncodedVideo(std::span<const uint8_t> data, RecordVideoCodec codec, int width, int height, bool key) {
         if (!recording_ || data.empty()) {
             return;
         }
@@ -324,6 +317,8 @@ struct RecordWriter::Impl {
         // 3. 已开段：写满则滚动
         if (written_bytes_ >= cfg_.max_segment_bytes) {
             CloseFile();
+            if (!error_.empty())
+                return;
             if (cfg_.on_request_keyframe) {
                 cfg_.on_request_keyframe();
             }
@@ -341,7 +336,13 @@ struct RecordWriter::Impl {
     }
 
     void OnEncodedAudio(std::span<const uint8_t> data, const int frame_samples) {
-        if (!recording_ || data.empty() || data.size() > kMaxOpusPacketBytes || !IsValidOpusFrameSamples(frame_samples)) {
+        if (!recording_ || data.size() > kMaxOpusPacketBytes || !IsValidOpusFrameSamples(frame_samples)) {
+            return;
+        }
+        if (data.empty()) {
+            // Before the first packet/segment, ElapsedMs already includes the gap.
+            if (writing_ && last_audio_dts_ >= 0)
+                last_audio_duration_ += av_rescale_q(frame_samples, AVRational{1, 48000}, audio_time_base_);
             return;
         }
         if (!writing_) {
@@ -371,7 +372,7 @@ struct RecordWriter::Impl {
         return recording_;
     }
 
-private:
+  private:
     void WriteVideo(const std::span<const uint8_t> data, bool prepend_params) {
         std::vector<uint8_t> combined;
         auto packet_data = data;
@@ -381,24 +382,33 @@ private:
             for (const auto& nal : SplitNals(data)) {
                 if (codec_ == RecordVideoCodec::kH264) {
                     int t = H264NalType(nal);
-                    if (t == 7) has_sps = true;
-                    else if (t == 8) has_pps = true;
+                    if (t == 7)
+                        has_sps = true;
+                    else if (t == 8)
+                        has_pps = true;
                 } else {
                     int t = H265NalType(nal);
-                    if (t == 32) has_vps = true;
-                    else if (t == 33) has_sps = true;
-                    else if (t == 34) has_pps = true;
+                    if (t == 32)
+                        has_vps = true;
+                    else if (t == 33)
+                        has_sps = true;
+                    else if (t == 34)
+                        has_pps = true;
                 }
             }
             static const uint8_t kSc[4] = {0, 0, 0, 1};
             auto append = [&](const std::vector<uint8_t>& nal) {
-                if (nal.empty()) return;
+                if (nal.empty())
+                    return;
                 combined.insert(combined.end(), kSc, kSc + 4);
                 combined.insert(combined.end(), nal.begin(), nal.end());
             };
-            if (codec_ == RecordVideoCodec::kH265 && !has_vps) append(vps_);
-            if (!has_sps) append(sps_);
-            if (!has_pps) append(pps_);
+            if (codec_ == RecordVideoCodec::kH265 && !has_vps)
+                append(vps_);
+            if (!has_sps)
+                append(sps_);
+            if (!has_pps)
+                append(pps_);
             if (!combined.empty()) {
                 combined.insert(combined.end(), data.begin(), data.end());
                 packet_data = combined;
@@ -407,10 +417,12 @@ private:
 
         AvPacketHandle pkt{av_packet_alloc()};
         if (!pkt) {
+            Fail("recording_packet_alloc_failed");
             return;
         }
         if (packet_data.size() > static_cast<size_t>(std::numeric_limits<int>::max()) ||
             av_new_packet(pkt.get(), static_cast<int>(packet_data.size())) < 0) {
+            Fail("recording_packet_alloc_failed");
             return;
         }
         std::memcpy(pkt->data, packet_data.data(), packet_data.size());
@@ -424,7 +436,8 @@ private:
         pkt->pts = pts;
         pkt->dts = pts;
         if (fmt_) {
-            av_interleaved_write_frame(fmt_.get(), pkt.get());
+            if (av_interleaved_write_frame(fmt_.get(), pkt.get()) < 0)
+                Fail("recording_video_write_failed");
         }
         written_bytes_ += static_cast<int64_t>(packet_data.size());
     }
@@ -435,9 +448,11 @@ private:
         }
         AvPacketHandle pkt{av_packet_alloc()};
         if (!pkt) {
+            Fail("recording_packet_alloc_failed");
             return;
         }
         if (av_new_packet(pkt.get(), static_cast<int>(data.size())) < 0) {
+            Fail("recording_packet_alloc_failed");
             return;
         }
         std::memcpy(pkt->data, data.data(), data.size());
@@ -453,7 +468,8 @@ private:
         pkt->dts = pts;
         pkt->duration = duration;
         if (fmt_) {
-            av_interleaved_write_frame(fmt_.get(), pkt.get());
+            if (av_interleaved_write_frame(fmt_.get(), pkt.get()) < 0)
+                Fail("recording_audio_write_failed");
         }
     }
 
@@ -478,14 +494,16 @@ private:
         current_path_ = path;
         AVFormatContext* format_context{}; // NOLINT(gammaray-raw-pointer-boundary)
         int r = avformat_alloc_output_context2(&format_context, nullptr, "mp4", path.c_str());
-        if (r < 0) {
+        fmt_.reset(format_context);
+        if (r < 0 || !fmt_) {
+            Fail("recording_format_alloc_failed");
             std::fprintf(stderr, "[record_writer] alloc output ctx failed: %d\n", r);
             return false;
         }
-        fmt_.reset(format_context);
 
         const auto video_stream_boundary = avformat_new_stream(fmt_.get(), nullptr); // NOLINT(gammaray-raw-pointer-boundary)
         if (!video_stream_boundary) {
+            Fail("recording_stream_alloc_failed");
             CloseFile();
             return false;
         }
@@ -500,6 +518,7 @@ private:
 
         const auto audio_stream_boundary = avformat_new_stream(fmt_.get(), nullptr); // NOLINT(gammaray-raw-pointer-boundary)
         if (!audio_stream_boundary) {
+            Fail("recording_stream_alloc_failed");
             CloseFile();
             return false;
         }
@@ -514,6 +533,7 @@ private:
         av_channel_layout_default(&audio_parameters.ch_layout, 2);
         audio_parameters.extradata = static_cast<uint8_t*>(av_malloc(sizeof(kOpusHead) + AV_INPUT_BUFFER_PADDING_SIZE));
         if (!audio_parameters.extradata) {
+            Fail("recording_audio_parameters_alloc_failed");
             CloseFile();
             return false;
         }
@@ -523,12 +543,19 @@ private:
 
         r = avio_open(&fmt_->pb, path.c_str(), AVIO_FLAG_WRITE);
         if (r < 0) {
+            Fail("recording_file_open_failed");
             std::fprintf(stderr, "[record_writer] avio_open failed: %d\n", r);
+            CloseFile();
+            return false;
+        }
+        CreateRecordingMarker();
+        if (!error_.empty()) {
             CloseFile();
             return false;
         }
         r = avformat_write_header(fmt_.get(), nullptr);
         if (r < 0) {
+            Fail("recording_header_write_failed");
             std::fprintf(stderr, "[record_writer] write_header failed: %d\n", r);
             CloseFile();
             return false;
@@ -543,9 +570,7 @@ private:
         written_bytes_ = 0;
         ++segment_no_;
         writing_ = true;
-        CreateRecordingMarker();
-        std::fprintf(stderr, "[record_writer] segment %lld opened: %s\n",
-                     (long long)segment_no_, path.c_str());
+        std::fprintf(stderr, "[record_writer] segment %lld opened: %s\n", (long long)segment_no_, path.c_str());
 
         // 回填等关键帧期间缓冲的音频
         for (auto& a : audio_buffer_) {
@@ -557,11 +582,20 @@ private:
 
     void CloseFile() {
         if (fmt_) {
-            av_write_trailer(fmt_.get());
+            if (writing_ && av_write_trailer(fmt_.get()) < 0)
+                Fail("recording_trailer_write_failed");
             if (fmt_->pb) {
-                avio_closep(&fmt_->pb);
+                avio_flush(fmt_->pb);
+                if (fmt_->pb->error < 0)
+                    Fail("recording_io_failed");
+                if (avio_closep(&fmt_->pb) < 0)
+                    Fail("recording_file_close_failed");
             }
             fmt_.reset();
+        }
+        if (writing_ && error_.empty()) {
+            ++completed_segments_;
+            RemoveRecordingMarker();
         }
         video_stream_index_ = -1;
         audio_stream_index_ = -1;
@@ -571,7 +605,7 @@ private:
         last_audio_duration_ = 0;
         written_bytes_ = 0;
         writing_ = false;
-        RemoveRecordingMarker(); // moov 已落盘,文件可播
+        current_path_.clear(); // Failed segments keep their marker and cannot be reported as playable.
         CleanupOldFiles();
     }
 
@@ -590,31 +624,28 @@ private:
             if (!e.is_regular_file(ec)) {
                 continue;
             }
+            if (fs::exists(e.path().string() + ".recording", ec))
+                continue;
             auto name = e.path().filename().string();
-            if (name.rfind(cfg_.file_prefix, 0) == 0 && name.size() > 4 &&
-                name.compare(name.size() - 4, 4, ".mp4") == 0) {
+            if (name.rfind(cfg_.file_prefix, 0) == 0 && name.size() > 4 && name.compare(name.size() - 4, 4, ".mp4") == 0) {
                 ours.push_back(e);
             }
         }
         if (ours.size() <= (size_t)cfg_.max_file_count) {
             return;
         }
-        std::sort(ours.begin(), ours.end(), [&](const fs::directory_entry& a,
-                                                const fs::directory_entry& b) {
-            return a.last_write_time(ec) < b.last_write_time(ec);
-        });
+        std::sort(ours.begin(), ours.end(),
+                  [&](const fs::directory_entry& a, const fs::directory_entry& b) { return a.last_write_time(ec) < b.last_write_time(ec); });
         size_t to_remove = ours.size() - (size_t)cfg_.max_file_count;
         for (size_t i = 0; i < to_remove; ++i) {
             std::error_code ec2;
             fs::remove(ours[i].path(), ec2);
-            std::fprintf(stderr, "[record_writer] cleanup removed: %s\n",
-                         ours[i].path().string().c_str());
+            std::fprintf(stderr, "[record_writer] cleanup removed: %s\n", ours[i].path().string().c_str());
         }
     }
 };
 
-RecordWriter::RecordWriter(ConstructionToken, const RecordWriterConfig& cfg)
-    : impl_(std::make_unique<Impl>(cfg)) {}
+RecordWriter::RecordWriter(ConstructionToken, const RecordWriterConfig& cfg) : impl_(std::make_unique<Impl>(cfg)) {}
 
 RecordWriter::~RecordWriter() = default;
 
@@ -622,8 +653,7 @@ std::shared_ptr<RecordWriter> RecordWriter::Make(const RecordWriterConfig& cfg) 
     return std::make_shared<RecordWriter>(ConstructionToken{}, cfg);
 }
 
-void RecordWriter::OnEncodedVideo(std::span<const uint8_t> data,
-                                  RecordVideoCodec codec, int width, int height, bool key) {
+void RecordWriter::OnEncodedVideo(std::span<const uint8_t> data, RecordVideoCodec codec, int width, int height, bool key) {
     impl_->OnEncodedVideo(data, codec, width, height, key);
 }
 
@@ -639,4 +669,12 @@ bool RecordWriter::IsRecording() const {
     return impl_->IsRecording();
 }
 
+const std::string& RecordWriter::Error() const {
+    return impl_->error_;
 }
+
+uint64_t RecordWriter::CompletedSegments() const {
+    return impl_->completed_segments_;
+}
+
+} // namespace px

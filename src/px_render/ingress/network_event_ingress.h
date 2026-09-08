@@ -38,6 +38,7 @@ namespace px
             const std::shared_ptr<RdApplication>& app);
         explicit NetworkEventIngress(const std::shared_ptr<RdApplication>& app);
         void ProcessNetEvent(const std::shared_ptr<NetworkClientEvent>& event, const std::string& source_id);
+        void ProcessUdpVoiceFrame(const std::shared_ptr<UdpVoiceFrameEvent>& event);
         void ProcessClientConnectedEvent(const std::shared_ptr<ClientConnectedEvent>& event, const std::string& source_id);
         void ProcessClientDisConnectedEvent(const std::shared_ptr<ClientDisconnectedEvent>& event, const std::string& source_id);
         void ProcessCapturingMonitorInfoEvent(const std::shared_ptr<CaptureMonitorInfoChangedEvent>& event) const;

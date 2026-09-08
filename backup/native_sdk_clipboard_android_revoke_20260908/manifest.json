@@ -1,0 +1,11 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "P3b-1 Android session clipboard replacement revokes prior file offers; preserved working-tree bytes after P3a",
+  "files": [
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_session.cpp",
+      "sha256": "E69DDF40891DE841915EF3DBEA4D051D9E562A8DA147C40A321B17A5B826B140",
+      "status": " M src/px_android/core-native/src/main/cpp/native_session.cpp"
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Share Windows and Android recording run ownership and drain lifecycle in pixels::sdk; retain retired Windows recorder implementation.",
+  "files": [
+    {
+      "path": "src/px_client_sdk/cmake/sdk_dependencies.cmake",
+      "sha256": "F54B392AEF8AF41A3026146572D59841789BE2B01A10A827D352E9B7C91CABAC",
+      "status": "?? src/px_client_sdk/cmake/sdk_dependencies.cmake"
+    },
+    {
+      "path": "src/px_client_sdk/cmake/sdk_source_sets.cmake",
+      "sha256": "66F1EF51CDA98AC21D17FE8E3EEBDCB1C51D20306F3722EA0CE37E4202B7615F",
+      "status": "?? src/px_client_sdk/cmake/sdk_source_sets.cmake"
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_session.cpp",
+      "sha256": "33900DB2104C4C26AA4EF8CE4E9FFBE62C8EB5DA524D42D2C3CE268C0A1EBD50",
+      "status": " M src/px_android/core-native/src/main/cpp/native_session.cpp"
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_session.h",
+      "sha256": "9AB5B04743BB43DA00FC1E15333B2D5E065195C6B466A0C5F3B61AB9AA338AB0",
+      "status": " M src/px_android/core-native/src/main/cpp/native_session.h"
+    },
+    {
+      "path": "src/px_client/CMakeLists.txt",
+      "sha256": "24C18FFA7B22578F9BAA8347BFD3B7F2A867407AFA56DD703C0D37249A80DD2B",
+      "status": " M src/px_client/CMakeLists.txt"
+    },
+    {
+      "path": "src/px_client/modules/media_recording/CMakeLists.txt",
+      "sha256": "14D2F04107BE0721AE0602C343EEF872A489B67017EE0BDF11C958A63CCAA0B8",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/modules/media_recording/ReadMe.md",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/modules/media_recording/media_recorder.cpp",
+      "sha256": "0C9E397F9FAE48A9CD32207DE1E00C4A1E2398DCC9CABE42E21DAB91C3EC5274",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/modules/media_recording/media_recorder.h",
+      "sha256": "4A6D82ECF860CE4CB11545B754E611C2B0429425A81C897584433C8FA07AD214",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/modules/media_recording/media_recording_module.cpp",
+      "sha256": "DF15ED33DBF729F0C5FCB329B0B3770D241B1B07ED60A11036EFADB98985C713",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/modules/media_recording/media_recording_module.h",
+      "sha256": "6DD8624A3198E36EC6C43E8331CB134AB268AEA312699D90BC8DA0CFBC45E74C",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/CMakeLists.txt",
+      "sha256": "98585A3BC7609E34D01999B65207DB400EA1888D964E1CA8A33AE7E344CAE888",
+      "status": " M src/px_client_sdk/CMakeLists.txt"
+    },
+    {
+      "path": "src/px_deps/px_media_record/CMakeLists.txt",
+      "sha256": "197A5CFCF57FC34F1391D244C10F19660ABD717B8CAB96C7799A0B4E2ABF61DA",
+      "status": ""
+    }
+  ]
+}

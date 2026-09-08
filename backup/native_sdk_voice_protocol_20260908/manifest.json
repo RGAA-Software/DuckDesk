@@ -1,0 +1,61 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "P3c-1 shared SDK voice protocol builders and per-controller request sequence; preserved working-tree bytes before removing duplicate Client/Android builders",
+  "files": [
+    {
+      "path": "src/px_client_sdk/cmake/sdk_source_sets.cmake",
+      "sha256": "580AAF831EC9461A69D34FCEC493D3BAA51F4046D845E3D2A07D41923A33F4B3",
+      "status": "?? src/px_client_sdk/cmake/sdk_source_sets.cmake"
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_voice_call.cpp",
+      "sha256": "3010D00C1E273AC106C73612A8EF7DDC0075A0AC862CDFE0FD8F2DC975472845",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_voice_call.h",
+      "sha256": "EC66CDB55E43DA756689BE593F67FB3DB0A0B5240A665176202B838CD5D382E1",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/CMakeLists.txt",
+      "sha256": "EA0473F48FEBD8BF188531C5D24B757169E8C4643120D6D54E6E3859AB360C28",
+      "status": " M src/px_client/CMakeLists.txt"
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.cpp",
+      "sha256": "AF345C5458F52EE556577DE979E0C857457DD0A6B888D3D0544B5A738EB0BEE8",
+      "status": " M src/px_client/ct_base_workspace.cpp"
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.h",
+      "sha256": "F832A55C28F4953E71A6D2F922773997DE6F4FD830440A1C47075942789EB80B",
+      "status": " M src/px_client/ct_base_workspace.h"
+    },
+    {
+      "path": "src/px_client/ct_voice_call_protocol.cpp",
+      "sha256": "81D5C182A65C860D76323D04C1B2398FB79634AA40A84CB57ECC4A0D9552510D",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_voice_call_protocol.h",
+      "sha256": "D4CFF0F9868A3D9D282C98CC2FCF76E91304DB10D09CBC3892EDE7315160D339",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/tests/test_voice_call_protocol.cpp",
+      "sha256": "46FFAB7E7609B2ADD7406CE4633887996558BCA66C521ED07F83120D4FBC7434",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/CMakeLists.txt",
+      "sha256": "4B5863BDBA93CE76BA0B6C0BD26A558D488359613FC3D1CCC52328C48B7C40DD",
+      "status": " M src/px_client_sdk/CMakeLists.txt"
+    },
+    {
+      "path": "src/px_deps/px_voice_call/voice_audio_endpoint.h",
+      "sha256": "B1B6F7213799BF6BF3F95C4FEF18C3202BDC469456041CEDDAA7BBC4A3880E57",
+      "status": ""
+    }
+  ]
+}

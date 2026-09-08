@@ -7,10 +7,7 @@
 namespace px
 {
 
-    Connection::Connection(const std::shared_ptr<ThunderSdkParams>& params, const std::shared_ptr<MessageNotifier>& notifier) {
-        sdk_params_ = params;
-        msg_notifier_ = notifier;
-    }
+    Connection::Connection(const std::shared_ptr<MessageNotifier>& notifier) : msg_notifier_(notifier) {}
 
     Connection::~Connection() {
 

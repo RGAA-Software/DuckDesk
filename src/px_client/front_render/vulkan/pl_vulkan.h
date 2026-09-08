@@ -4,6 +4,7 @@
 #include <map>
 #include <array>
 #include <cstdint>
+#include "px_client_sdk/av_buffer_ref.h"
 #include <Windows.h>
 
 #include <SDL.h>
@@ -54,7 +55,7 @@ namespace px {
 
     using PDECODER_PARAMETERS = DECODER_PARAMETERS*;
 
-	class PlVulkan {
+	class PlVulkan : public std::enable_shared_from_this<PlVulkan> {
 	public:
         static std::shared_ptr<PlVulkan> Make();
         PlVulkan();
@@ -79,9 +80,7 @@ namespace px {
         bool populateQueues(int videoFormat);
 
         bool prepareDecoderContext(AVCodecContext* context, AVDictionary**);
-        AVBufferRef* GetHwDeviceCtx() { 
-            return m_HwDeviceCtx; 
-        }
+        AvBufferPtr ShareHwDeviceContext();
 
         bool RenderFrame(uintptr_t render_view_id, const AVFrame& frame);
 
@@ -98,7 +97,7 @@ namespace px {
         bool m_HwAccelBackend = true;
 
         // Device context used for hwaccel decoders
-        AVBufferRef* m_HwDeviceCtx = nullptr;
+        AvBufferPtr m_HwDeviceCtx{};
 
         //创建多个交换链等 以支持渲染多个窗口
         std::map<uintptr_t, VkSurfaceKHR> vulkan_surfaces_;

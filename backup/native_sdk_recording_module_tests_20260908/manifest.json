@@ -1,0 +1,16 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Extend recording module lifecycle tests to verify generation-specific failure notifications.",
+  "files": [
+    {
+      "path": "src/px_client/tests/fake_client_module_services.h",
+      "sha256": "2D8BBA3AE5EEA2C4944C025B6D887EBBAD5E5FA47E8212B971B7E375F67453A5",
+      "status": " M src/px_client/tests/fake_client_module_services.h"
+    },
+    {
+      "path": "src/px_client/tests/test_client_recording_module_lifecycle.cpp",
+      "sha256": "B6B15F72BDF0583CA119EBC9CDE3FE7271A725E4B66E720B0647B555B65D588B",
+      "status": ""
+    }
+  ]
+}

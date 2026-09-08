@@ -15,6 +15,7 @@
 #include "px_voice_call/voice_call_state.h"
 #include "px_voice_call/voice_consent_decision_cache.h"
 #include "px_voice_call/voice_packet_transport.h"
+#include "px_common/udp_voice_frame.h"
 
 namespace px {
 
@@ -74,6 +75,7 @@ public:
     void ClearEventDelivery();
     void On1Second();
     void OnMessage(const std::shared_ptr<Message>& message);
+    void ReceiveUdpVoiceFrame(const std::string& stream_id, const UdpVoiceFrame& frame);
     void ApplyConsentDecision(const VoiceCallConsentDecision& decision);
     void OnClientConnected(
         const std::string& visitor_device_id,

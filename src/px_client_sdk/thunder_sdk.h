@@ -16,13 +16,13 @@
 #include "sdk_params.h"
 #include "sdk_messages.h"
 #include "sdk_net_client.h"
-#include "sdk_decoder_render_type.h"
 #include "decoder_startup_gate.h"
 
 namespace px {
 class Data;
 class Thread;
 class VideoDecoder;
+class VideoDecoderFactory;
 class RawImage;
 class MessageNotifier;
 class MessageListener;
@@ -52,8 +52,9 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     explicit ThunderSdk(const std::shared_ptr<MessageNotifier>& notifier);
     ~ThunderSdk();
 
-    bool Init(const std::shared_ptr<ThunderSdkParams>& params, void* surface, const DecoderRenderType& drt);
-    void UpdateRenderSurface(std::uintptr_t surface_handle, OnRenderSurfaceUpdated&& completion = {});
+    bool Init(const std::shared_ptr<ThunderSdkParams>& params, std::shared_ptr<VideoDecoderFactory> decoder_factory);
+    // Reconfigure platform-owned output on the video lane before decoder refresh.
+    void RefreshVideoOutput(bool output_available, OnRenderSurfaceUpdated&& completion = {}, std::function<void()> configure_output = {});
     void Start();
     void Exit();
 
@@ -82,6 +83,7 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     }
 
     void PostMediaMessage(std::shared_ptr<Data> msg);
+    [[nodiscard]] bool PostVoiceAudioMessage(const std::shared_ptr<Message>& message);
     [[nodiscard]] FileTransferSendResult PostFileTransferMessage(std::shared_ptr<Data> msg);
     void PostVideoTask(std::function<void()>&& task, int64_t frame_index, const std::string& monitor_name);
     void PostAudioTask(std::function<void()>&& task);
@@ -120,10 +122,9 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     std::map<std::string, int> decode_failed_counts_;
     std::map<std::string, bool> hw_disabled_states_;
 
-    // Borrowed native surface/handle accepted at the public ABI boundary.
-    // Keep the opaque value rather than retaining a raw pointer in object state.
-    std::atomic_uintptr_t render_surface_handle_{0};
+    std::shared_ptr<VideoDecoderFactory> decoder_factory_{};
     std::atomic_bool render_surface_update_pending_{false};
+    std::atomic_bool output_available_{true};
 
     // callbacks
     OnVideoFrameDecodedCallback video_frame_cbk_ = nullptr;
@@ -134,7 +135,7 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     OnVideoFrameDecodeThreadDiscardedCallback video_frame_thread_discarded_cbk_ = nullptr;
     OnVideoDecoderFailureCallback video_decoder_failure_cbk_{};
 
-    DecoderRenderType drt_;
+    std::atomic_bool started_{false};
     std::atomic_bool exit_{false};
 
     std::shared_ptr<OpusAudioDecoder> audio_decoder_ = nullptr;

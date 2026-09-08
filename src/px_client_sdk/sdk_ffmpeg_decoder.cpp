@@ -3,6 +3,9 @@
 //
 
 #include "sdk_ffmpeg_decoder.h"
+#include "ffmpeg_frame_adapter.h"
+#include "platform/windows/windows_video_frame.h"
+#include "platform/windows/windows_video_resources.h"
 #include <iostream>
 #include <thread>
 #include <fstream>
@@ -21,18 +24,16 @@
 #include <windows.h>
 #include <atlbase.h>
 #include "px_common/win32/d3d11_wrapper.h"
-#include "px_common/win32/d3d_debug_helper.h"
 #endif
 
 namespace px
 {
 
-    FFmpegDecoder::FFmpegDecoder(const std::shared_ptr<ThunderSdk>& sdk) : VideoDecoder(sdk) {
-        
-    }
+    FFmpegDecoder::FFmpegDecoder(const std::shared_ptr<ThunderSdk>& sdk, std::shared_ptr<const WindowsVideoResources> resources)
+        : VideoDecoder(sdk), d3d11_wrapper_(resources ? resources->d3d11 : nullptr), resources_(std::move(resources)) {}
 
     FFmpegDecoder::~FFmpegDecoder() {
-
+        Release();
     }
 #ifdef WIN32
     static std::string PrintAdapterInfo(ComPtr<ID3D11Device> device) {
@@ -70,12 +71,13 @@ namespace px
     // img_format:
     // kI420 = 0,
     // kI444 = 1,
-    int FFmpegDecoder::Init(const std::string& mon_name, int codec_type, int width, int height, const std::string& frame, void* surface, int img_format, bool ignore_hw) {
-        VideoDecoder::Init(mon_name, codec_type, width, height, frame, surface, img_format, ignore_hw);
+    int FFmpegDecoder::Init(const std::string& mon_name, int codec_type, int width, int height,
+            const std::string& frame, int img_format, bool ignore_hw) {
+        VideoDecoder::Init(mon_name, codec_type, width, height, frame, img_format, ignore_hw);
         if (inited_) {
             return 0;
         }
-        auto sdk_params = sdk_->GetSdkParams();
+        if (!resources_) return AVERROR(EINVAL);
         monitor_name_ = mon_name;
         img_format_ = img_format;
 
@@ -123,14 +125,15 @@ namespace px
         };
 
 #ifdef WIN32
-        LOGI("Decoder prefer: {}, ignore hw? {}, has d3d11 device? {}", sdk_params->decoder_, ignore_hw_decoder_, sdk_params->d3d11_wrapper_ != nullptr);
+        LOGI("Decoder prefer: {}, ignore hw? {}, has d3d11 device? {}", resources_->decoder_preference,
+             ignore_hw_decoder_, d3d11_wrapper_ != nullptr);
 #else
-        LOGI("Decoder prefer: {}, ignore hw? {}", sdk_params->decoder_, ignore_hw_decoder_);
+        LOGI("Decoder prefer: {}, ignore hw? {}", resources_->decoder_preference, ignore_hw_decoder_);
 #endif
 
-        if ((sdk_params->decoder_ == "Auto" || sdk_params->decoder_ == "Hardware")
+        if ((resources_->decoder_preference == "Auto" || resources_->decoder_preference == "Hardware")
             #ifdef WIN32
-            && !ignore_hw_decoder_ && sdk_params->d3d11_wrapper_
+            && !ignore_hw_decoder_ && d3d11_wrapper_
             #endif
             ) {
             LOGI("Available codecs:");
@@ -227,7 +230,7 @@ namespace px
                 sdk_stat_->video_decoder_.Update("Unknown");
             }
 
-            decoder_context_ = avcodec_alloc_context3(decoder_);
+            decoder_context_.reset(avcodec_alloc_context3(decoder_));
             if (!decoder_context_) {
                 LOGE("Unable to allocate video decoder context");
                 return -1;
@@ -267,38 +270,38 @@ namespace px
 
             AVDictionary* options = nullptr;
             decoder_context_->opaque = this;
-            int err = avcodec_open2(decoder_context_, decoder_, &options);
+            int err = avcodec_open2(decoder_context_.get(), decoder_, &options);
             av_dict_free(&options);
             if (err < 0) {
                 LOGE("Unable to open decoder for format: {}", img_format);
                 return err;
             }
 
-            hw_device_context_ = av_hwdevice_ctx_alloc(hw_decode_config->device_type);
+            hw_device_context_ = AvBufferPtr(av_hwdevice_ctx_alloc(hw_decode_config->device_type), AvBufferDeleter{});
             if (!hw_device_context_) {
                 LOGE("Failed to create D3D11VA device context");
                 return -1;
             }
 
 #ifdef WIN32
-            const auto hw_ctx = (AVHWDeviceContext*)hw_device_context_->data;
-            const auto d3d11ctx = (AVD3D11VADeviceContext*)hw_ctx->hwctx;
+            const auto& hw_ctx = *reinterpret_cast<AVHWDeviceContext*>(hw_device_context_->data);
+            auto& d3d11ctx = *static_cast<AVD3D11VADeviceContext*>(hw_ctx.hwctx);
 
-            d3d11_wrapper_ = sdk_->GetSdkParams()->d3d11_wrapper_;
             if (!d3d11_wrapper_) {
                 LOGE("Don't have d3d11 wrapper, failed to init d3d11va decoder.");
                 return -1;
             }
             LOGI("d3d11device adapter uid: {}", d3d11_wrapper_->adapter_uid_);
 
-            auto info = PrintAdapterInfo(d3d11ctx->device);
+            auto info = PrintAdapterInfo(d3d11_wrapper_->d3d11_device_);
             LOGI("ORIGIN D3D INFO: {}", info);
 
-            d3d11ctx->device = d3d11_wrapper_->d3d11_device_.Get();
-            d3d11ctx->device_context = d3d11_wrapper_->d3d11_device_context_.Get();
+            // FFmpeg owns independent COM references while queued frames retain its pool.
+            if (FAILED(d3d11_wrapper_->d3d11_device_.CopyTo(&d3d11ctx.device)) ||
+                FAILED(d3d11_wrapper_->d3d11_device_context_.CopyTo(&d3d11ctx.device_context))) return AVERROR(ENOMEM);
 
-            decoder_context_->hw_device_ctx = av_buffer_ref(hw_device_context_);
-            err = av_hwdevice_ctx_init(hw_device_context_);
+            decoder_context_->hw_device_ctx = av_buffer_ref(hw_device_context_.get());
+            err = av_hwdevice_ctx_init(hw_device_context_.get());
             if (err < 0) {
                 LOGE("Failed to initialize D3D11VA device context: {}", err);
                 return err;
@@ -306,7 +309,7 @@ namespace px
 
             ////
 
-            hw_frames_context_ = av_hwframe_ctx_alloc(hw_device_context_);
+            hw_frames_context_ = AvBufferPtr(av_hwframe_ctx_alloc(hw_device_context_.get()), AvBufferDeleter{});
             if (!hw_frames_context_) {
                 LOGE("Failed to allocate D3D11VA frame context");
                 return -1;
@@ -343,7 +346,7 @@ namespace px
             //     d3d11vaFramesContext->BindFlags |= D3D11_BIND_SHADER_RESOURCE;
             // }
 
-            err = av_hwframe_ctx_init(hw_frames_context_);
+            err = av_hwframe_ctx_init(hw_frames_context_.get());
             if (err < 0) {
                 LOGE("Failed to initialize D3D11VA frame context: {}", err);
                 return err;
@@ -386,46 +389,34 @@ namespace px
                 return -1;
             }
 
-            decoder_context_ = avcodec_alloc_context3(decoder);
+            decoder_context_.reset(avcodec_alloc_context3(decoder));
             if (decoder_context_ == nullptr) {
                 LOGE("Could not alloc video context!");
                 return -1;
             }
 
-            AVCodecParameters* codec_params = avcodec_parameters_alloc();
-            if (avcodec_parameters_from_context(codec_params, decoder_context_) < 0) {
-                LOGE("Failed to copy av codec parameters from codec context.");
-                avcodec_parameters_free(&codec_params);
-                avcodec_free_context(&decoder_context_);
-                return -1;
-            }
-
-            if (!codec_params) {
-                LOGE("Source codec context is NULL.");
-                return -1;
-            }
             auto pix_format = img_format_ == EImageFormat::kI420 ? AV_PIX_FMT_YUV420P : AV_PIX_FMT_YUV444P;
             decoder_context_->pix_fmt = pix_format;
             decoder_context_->thread_count = std::min(8, (int)std::thread::hardware_concurrency());
             decoder_context_->thread_type = FF_THREAD_SLICE;
 
-            if (avcodec_open2(decoder_context_, decoder, nullptr) < 0) {
+            if (avcodec_open2(decoder_context_.get(), decoder, nullptr) < 0) {
                 LOGE("Failed to open decoder");
                 Release();
                 return -1;
             }
 
-            av_opt_set_int(decoder_context_, "flags", AV_CODEC_FLAG_LOW_DELAY, 0);
+            av_opt_set_int(decoder_context_.get(), "flags", AV_CODEC_FLAG_LOW_DELAY, 0);
 
             LOGI("Decoder thread count: {}", decoder_context_->thread_count);
 
-            avcodec_parameters_free(&codec_params);
             
             init_msg.hard_ware_ = false;
         }
 
-        packet_ = av_packet_alloc();
-        av_frame_ = av_frame_alloc();
+        packet_.reset(av_packet_alloc());
+        av_frame_ = AllocateAvFrame();
+        if (!packet_ || !av_frame_) { Release(); return AVERROR(ENOMEM); }
         
         inited_ = true;
 
@@ -455,7 +446,7 @@ namespace px
             // to override the default get_format() which will try
             // to gracefully fall back to software decode and break us.
             if (*p == desiredFmt/* && decoder->m_BackendRenderer->prepareDecoderContextInGetFormat(context, *p)*/) {
-                context->hw_frames_ctx = av_buffer_ref(decoder->hw_frames_context_);
+                context->hw_frames_ctx = av_buffer_ref(decoder->hw_frames_context_.get());
                 return *p;
             }
         }
@@ -474,20 +465,19 @@ namespace px
         return AV_PIX_FMT_NONE;
     }
 
-    Result<std::shared_ptr<RawImage>, int> FFmpegDecoder::Decode(const uint8_t* data, int size) {
+    Result<std::shared_ptr<RawImage>, int> FFmpegDecoder::Decode(std::span<const std::uint8_t> encoded) {
         if (!decoder_context_ || !av_frame_ || stop_) {
             return TRError(-1);
         }
         std::lock_guard<std::mutex> guard(decode_mtx_);
 
         auto beg = TimeUtil::GetCurrentTimestamp();
-        av_frame_unref(av_frame_);
-        av_packet_unref(packet_);
+        av_frame_unref(av_frame_.get());
+        av_packet_unref(packet_.get());
 
-        packet_->data = (uint8_t*)data;
-        packet_->size = size;
+        if (!PrepareDecoderPacket(*packet_, encoded)) return TRError(AVERROR(EINVAL));
 
-        int ret = avcodec_send_packet(decoder_context_, packet_);
+        int ret = avcodec_send_packet(decoder_context_.get(), packet_.get());
         if (ret == AVERROR(EAGAIN)) {
             LOGW("EAGAIN...");
             return TRError(0);
@@ -501,7 +491,7 @@ namespace px
         auto last_result = 0;
         std::shared_ptr<RawImage> decoded_image = nullptr;
         while (true) {
-            ret = avcodec_receive_frame(decoder_context_, av_frame_);
+            ret = avcodec_receive_frame(decoder_context_.get(), av_frame_.get());
             if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
                 last_result = has_received_frame ? 0 : ret;
                 break;
@@ -526,38 +516,8 @@ namespace px
             // ONLY D3D11 NOW
             if (av_frame_->format == AV_PIX_FMT_D3D11) {
 #ifdef WIN32
-                auto resource = (ID3D11Resource*)av_frame_->data[0];
-                if (!resource) {
-                    LOGE("Null texture in AVFrame!");
-                    break;
-                }
-                auto src_subresource = (int)(intptr_t)av_frame_->data[1];
-                //LOGI("resources: {:p}, index: {}", (void*)resource, src_subresource);
-
-                ComPtr<ID3D11Texture2D> acquired_texture = nullptr;
-                HRESULT hr = resource->QueryInterface(IID_PPV_ARGS(acquired_texture.GetAddressOf()));
-                if (FAILED(hr)) {
-                    LOGE("Not a d3d11 texture");
-                    break;
-                }
-
-                D3D11_RESOURCE_DIMENSION type = D3D11_RESOURCE_DIMENSION_UNKNOWN;
-                acquired_texture->GetType(&type);
-                if (D3D11_RESOURCE_DIMENSION_TEXTURE2D != type) {
-                    LOGE("Not a d3d11 texture");
-                    break;
-                }
-
-                D3D11_TEXTURE2D_DESC desc;
-                acquired_texture->GetDesc(&desc);
-                //LOGI("resources size: {}x{}, dxgi format: {}, pix format: {}, D3D11: {}, Usage: {}", desc.Width, desc.Height, (int)desc.Format, (int)pix_format, AV_PIX_FMT_D3D11, desc.Usage);
-
-                auto d3d11_wrapper = sdk_->GetSdkParams()->d3d11_wrapper_;
-                decoded_image = RawImage::MakeD3D11Texture(acquired_texture, src_subresource);
-                decoded_image->img_width = desc.Width;
-                decoded_image->img_height = height;//desc.Height;
-                decoded_image->device_ = d3d11_wrapper->d3d11_device_;
-                decoded_image->device_context_ = d3d11_wrapper->d3d11_device_context_;
+                decoded_image = MakeD3D11Image(*av_frame_, d3d11_wrapper_);
+                if (!decoded_image) return TRError(AVERROR(EINVAL));
                 decoded_image->full_color_ = false;
                 auto end = TimeUtil::GetCurrentTimestamp();
                 const auto sdk_stat = sdk_stat_;
@@ -573,95 +533,11 @@ namespace px
 
             }
             else {
-                bool format_change = false;
-                auto format = (AVPixelFormat) decoder_context_->pix_fmt;
-                if (last_format_ != format) {
-                    LOGI("format : {} change to : {}", (int)last_format_, (int)format);
-                    last_format_ = format;
-                    format_change = true;
-                }
-
-                if (format == AVPixelFormat::AV_PIX_FMT_YUV420P || format == AVPixelFormat::AV_PIX_FMT_NV12) {
-                    sdk_stat_->video_color_.Update("4:2:0");
-                    frame_width_ = width;
-                    frame_height_ = height;
-                    if (!decoded_image_ || frame_width_ != decoded_image_->img_width ||
-                        frame_height_ != decoded_image_->img_height || format_change) {
-                        decoded_image_ = RawImage::MakeI420(nullptr, frame_width_ * frame_height_ * 1.5, frame_width_, frame_height_);
-                        decoded_image_->full_color_ = false;
-                        
-#ifdef WIN32
-                        auto d3d11_wrapper = sdk_->GetSdkParams()->d3d11_wrapper_;
-                        if (d3d11_wrapper && d3d11_wrapper->IsValid()) {
-                            decoded_image_->device_ = d3d11_wrapper->d3d11_device_;
-                            decoded_image_->device_context_ = d3d11_wrapper->d3d11_device_context_;
-                        }
-#endif
-                    }
-
-                    int y_h = frame_height_;
-                    int uv_w = frame_width_ / 2;
-                    int uv_h = frame_height_ / 2;
-                    int y_size = frame_width_ * frame_height_;
-                    int uv_size = uv_w * uv_h;
-                    char *buffer = decoded_image_->Data();
-
-                    auto y = buffer;
-                    auto u = buffer + y_size;
-                    auto v = buffer + y_size + uv_size;
-
-                    // Y plane
-                    for (int i = 0; i < y_h; i++) {
-                        memcpy(y + i * frame_width_,
-                               av_frame_->data[0] + i * av_frame_->linesize[0],
-                               frame_width_);
-                    }
-
-                    // U plane
-                    for (int i = 0; i < uv_h; i++) {
-                        memcpy(u + i * uv_w,
-                               av_frame_->data[1] + i * av_frame_->linesize[1],
-                               uv_w);
-                    }
-
-                    // V plane
-                    for (int i = 0; i < uv_h; i++) {
-                        memcpy(v + i * uv_w,
-                               av_frame_->data[2] + i * av_frame_->linesize[2],
-                               uv_w);
-                    }
-                }
-                else if (format == AVPixelFormat::AV_PIX_FMT_YUV444P) {
-                    sdk_stat_->video_color_.Update("4:4:4");
-                    frame_width_ = width;
-                    frame_height_ = height;
-                    if (!decoded_image_ || frame_width_ != decoded_image_->img_width ||
-                        frame_height_ != decoded_image_->img_height || format_change) {
-                        decoded_image_ = RawImage::MakeI444(nullptr, frame_width_ * frame_height_ * 3, frame_width_, frame_height_);
-                        decoded_image_->full_color_ = true;
-#ifdef WIN32
-                        auto d3d11_wrapper = sdk_->GetSdkParams()->d3d11_wrapper_;
-                        if (d3d11_wrapper && d3d11_wrapper->IsValid()) {
-                            decoded_image_->device_ = d3d11_wrapper->d3d11_device_;
-                            decoded_image_->device_context_ = d3d11_wrapper->d3d11_device_context_;
-                        }
-#endif
-                    }
-                    char *buffer = decoded_image_->Data();
-                    for (int i = 0; i < frame_height_; i++) {
-                        memcpy(buffer + frame_width_ * i, av_frame_->data[0] + x1 * i, frame_width_);
-                    }
-
-                    int y_offset = frame_width_ * frame_height_;
-                    for (int j = 0; j < frame_height_; j++) {
-                        memcpy(buffer + y_offset + (frame_width_ * j), av_frame_->data[1] + x2 * j, frame_width_);
-                    }
-
-                    int yu_offset = y_offset + (frame_width_ * frame_height_);
-                    for (int k = 0; k < frame_height_; k++) {
-                        memcpy(buffer + yu_offset + (frame_width_ * k), av_frame_->data[2] + x3 * k, frame_width_);
-                    }
-                }
+                frame_width_ = width;
+                frame_height_ = height;
+                decoded_image = CopyCpuAvFrame(*av_frame_, decoded_image_);
+                if (!decoded_image) return TRError(AVERROR(EINVAL));
+                sdk_stat_->video_color_.Update(decoded_image->full_color_ ? "4:4:4" : "4:2:0");
 
                 if (decoded_image_ && !stop_) {
                     auto end = TimeUtil::GetCurrentTimestamp();
@@ -679,9 +555,9 @@ namespace px
                 break;
             }
             //
-            //av_frame_unref(av_frame_);
+            //av_frame_unref(av_frame_.get());
         }
-        //av_packet_unref(packet_);
+        //av_packet_unref(packet_.get());
 
         if (decoded_image) {
             return decoded_image;
@@ -691,48 +567,15 @@ namespace px
     }
 
     void FFmpegDecoder::Release() {
-        std::lock_guard<std::mutex> guard(decode_mtx_);
+        std::lock_guard guard(decode_mtx_);
         stop_ = true;
-
-        while (true) {
-            auto ret = avcodec_receive_frame(decoder_context_, av_frame_);
-            if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-                break;
-            }
-        }
-
-        if (decoder_context_ != nullptr) {
-            avcodec_free_context(&decoder_context_);
-            decoder_context_ = nullptr;
-        }
-
-        if (av_frame_ != nullptr) {
-            av_frame_unref(av_frame_);
-            av_free(av_frame_);
-            av_frame_ = nullptr;
-        }
-
-        if (packet_ != nullptr) {
-            av_packet_unref(packet_);
-            av_packet_free(&packet_);
-            packet_ = nullptr;
-        }
-
-        if (hw_frames_context_) {
-            av_buffer_unref(&hw_frames_context_);
-        }
-#ifdef WIN32
-        if (hw_device_context_) {
-            auto hw_ctx = (AVHWDeviceContext*)hw_device_context_->data;
-            auto d3d11ctx = (AVD3D11VADeviceContext*)hw_ctx->hwctx;
-            if (d3d11ctx) {
-                d3d11ctx->device = nullptr;
-                d3d11ctx->device_context = nullptr;
-            }
-            av_buffer_unref(&hw_device_context_);
-        }
-#endif
-        LOGI("FFmpeg video decoder release.");
+        inited_ = false;
+        decoded_image_.reset();
+        av_frame_.reset();
+        packet_.reset();
+        decoder_context_.reset();
+        hw_frames_context_.reset();
+        hw_device_context_.reset();
     }
 
     bool FFmpegDecoder::Ready() {

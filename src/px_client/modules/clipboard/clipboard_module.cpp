@@ -10,11 +10,8 @@
 
 namespace px {
 
-ClientClipboardModule::ClientClipboardModule(
-    std::weak_ptr<ClientModuleServices> services)
-    : runtime_bridge_(
-          std::make_shared<ClipboardRuntimeBridge>(std::move(services))) {
-}
+ClientClipboardModule::ClientClipboardModule(std::weak_ptr<ClientModuleServices> services)
+    : services_(std::move(services)), runtime_bridge_(std::make_shared<ClipboardRuntimeBridge>(services_)) {}
 
 ClientClipboardModule::~ClientClipboardModule() {
     Stop();
@@ -26,6 +23,8 @@ bool ClientClipboardModule::Start(const ClientModuleConfig& config) {
         return true;
     }
     stopped_ = false;
+    // Each run owns its bridge/token; retained OLE streams and queued work cannot revive on restart.
+    runtime_bridge_ = std::make_shared<ClipboardRuntimeBridge>(services_);
     context_ = std::make_shared<ClientModuleContext>("client.clipboard");
     runtime_bridge_->Activate(config.settings_);
     clipboard_manager_ = std::make_shared<ClipboardManager>(runtime_bridge_);

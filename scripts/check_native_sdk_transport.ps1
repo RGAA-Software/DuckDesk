@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $sdk = Join-Path $repo 'src/px_client_sdk'
-$connectionBuild = Get-Content -Raw -LiteralPath (Join-Path $sdk 'connection/CMakeLists.txt')
+$connectionBuild = Get-Content -Raw -LiteralPath (Join-Path $sdk 'cmake/sdk_source_sets.cmake')
 $sdkBuild = Get-Content -Raw -LiteralPath (Join-Path $sdk 'CMakeLists.txt')
 $net = Get-Content -Raw -LiteralPath (Join-Path $sdk 'sdk_net_client.cpp')
 $params = Get-Content -Raw -LiteralPath (Join-Path $sdk 'sdk_params.h')
@@ -15,7 +15,7 @@ foreach ($retired in @('udp_connection', 'relay_connection', 'webrtc_connection'
     }
     if ($connectionBuild -match [regex]::Escape($retired + '.cpp')) { throw "Retired SDK build input: $retired" }
 }
-if ($sdkBuild -match 'px_rtc_client|px_relay_client|test_rtc_ice_restart_workflow' -or
+if (($sdkBuild + $connectionBuild) -match 'px_rtc_client|px_relay_client|test_rtc_ice_restart_workflow' -or
     $androidBuild -match 'PX_RTC_TRANSPORT_AVAILABLE|px_relay_client') {
     throw 'Native SDK build graph contains a retired transport dependency.'
 }
@@ -41,8 +41,11 @@ foreach ($retiredGl in @('director', 'sprite', 'renderer', 'shader_program', 'gl
         }
     }
 }
-if ($sdkBuild -match '(?s)target_link_libraries\(px_sdk\b[^)]*Qt6::' -or
-    $sdkBuild -notmatch 'set_target_properties\(px_sdk PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF\)') {
+if ($sdkBuild -match '(?s)target_link_libraries\(px_sdk(?:_core|_platform)?\b[^)]*Qt6::' -or
+    $sdkBuild -notmatch 'set\(sdk_targets px_sdk_core\)' -or
+    $sdkBuild -notmatch 'list\(APPEND sdk_targets px_sdk_platform px_sdk\)' -or
+    $sdkBuild -notmatch 'foreach\(sdk_target IN LISTS sdk_targets\)' -or
+    $sdkBuild -notmatch 'set_target_properties\(\$\{sdk_target\} PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF\)') {
     throw 'Native SDK must not link Qt or enable Qt code generation.'
 }
 Get-ChildItem -LiteralPath $sdk -Recurse -File | Where-Object {
@@ -52,4 +55,6 @@ Get-ChildItem -LiteralPath $sdk -Recurse -File | Where-Object {
         throw "SDK production source includes Qt: $($_.FullName)"
     }
 }
+& cmake -P (Join-Path $sdk 'tests/test_sdk_source_sets.cmake')
+if ($LASTEXITCODE -ne 0) { throw 'SDK build-layer source boundaries failed.' }
 Write-Host 'PASS: Native SDK has one transport topology and no RTC/Relay/KCP source or build dependencies.'

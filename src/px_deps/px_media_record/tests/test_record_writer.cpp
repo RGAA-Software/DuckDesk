@@ -41,8 +41,7 @@ namespace {
 
 std::string MakeTempDir() {
     static std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
-    auto dir = fs::temp_directory_path() /
-        ("record_writer_test_" + std::to_string(rng()));
+    auto dir = fs::temp_directory_path() / ("record_writer_test_" + std::to_string(rng()));
     fs::remove_all(dir);
     fs::create_directories(dir);
     return dir.string();
@@ -59,8 +58,7 @@ std::vector<fs::path> ListMp4(const std::string& dir) {
             continue;
         }
         auto name = e.path().filename().string();
-        if (name.rfind("rec_", 0) == 0 && name.size() > 4 &&
-            name.compare(name.size() - 4, 4, ".mp4") == 0) {
+        if (name.rfind("rec_", 0) == 0 && name.size() > 4 && name.compare(name.size() - 4, 4, ".mp4") == 0) {
             out.push_back(e.path());
         }
     }
@@ -219,7 +217,7 @@ bool AudioPacketsDecodeFromStart(AVFormatContext& format, int audio_index, int m
     return decoded_packets == minimum_packets;
 }
 
-bool AudioPacketsUseSampleClock(AVFormatContext& format, int audio_index, int minimum_packets) {
+bool AudioPacketsUseSampleClock(AVFormatContext& format, int audio_index, int minimum_packets, std::optional<int> gap_at = {}) {
     av_seek_frame(&format, -1, 0, AVSEEK_FLAG_BACKWARD);
     std::unique_ptr<AVPacket, TestPacketDeleter> packet{av_packet_alloc()};
     if (!packet) {
@@ -229,7 +227,8 @@ bool AudioPacketsUseSampleClock(AVFormatContext& format, int audio_index, int mi
     int64_t previous_dts = AV_NOPTS_VALUE;
     while (av_read_frame(&format, packet.get()) >= 0 && packets < minimum_packets) {
         if (packet->stream_index == audio_index) {
-            if (packet->duration != 960 || (previous_dts != AV_NOPTS_VALUE && packet->dts - previous_dts != 960)) {
+            const int expected_delta = gap_at == packets ? 2880 : 960;
+            if ((!gap_at && packet->duration != 960) || (previous_dts != AV_NOPTS_VALUE && packet->dts - previous_dts != expected_delta)) {
                 return false;
             }
             previous_dts = packet->dts;
@@ -285,8 +284,7 @@ std::vector<uint8_t> EncodeOneFrame(H264Gen& g, int64_t pts, bool force_key) {
     av_frame_get_buffer(frame, 32);
     for (int y = 0; y < g.ctx->height; ++y) {
         for (int x = 0; x < g.ctx->width; ++x) {
-            frame->data[0][y * frame->linesize[0] + x] =
-                (uint8_t)((x * 2 + y + pts * 3) & 0xFF);
+            frame->data[0][y * frame->linesize[0] + x] = (uint8_t)((x * 2 + y + pts * 3) & 0xFF);
         }
     }
     for (int y = 0; y < g.ctx->height / 2; ++y) {
@@ -330,7 +328,9 @@ std::vector<uint8_t> EncodeOpusPacket(OpusAudioEncoder& encoder, int packet_inde
 
 struct VirtualClock {
     int64_t ms = 100000; // 从非 0 起点, 验证时间基换算
-    int64_t operator()() { return ms; }
+    int64_t operator()() {
+        return ms;
+    }
 };
 
 // 按真实时间交错喂 N 秒视频(30fps, GOP=30) + 音频(20ms/包), 共用同一虚拟墙钟
@@ -351,12 +351,10 @@ void FeedAV(RecordWriter& w, H264Gen& gen, VirtualClock& clk,
             bool key = (frame_no % gop == 0);
             auto pkt = EncodeOneFrame(gen, frame_no, key);
             if (!pkt.empty()) {
-                w.OnEncodedVideo(std::span<const uint8_t>(pkt), RecordVideoCodec::kH264,
-                                 gen.ctx->width, gen.ctx->height, key);
+                w.OnEncodedVideo(std::span<const uint8_t>(pkt), RecordVideoCodec::kH264, gen.ctx->width, gen.ctx->height, key);
             }
             video_next_ms += frame_dur;
-        }
-        else {
+        } else {
             clk.ms = base + audio_next_ms;
             auto a = EncodeOpusPacket(audio_encoder, audio_idx++);
             ASSERT_FALSE(a.empty());
@@ -401,8 +399,7 @@ TEST(RecordWriter, BasicAVSync) {
     EXPECT_GT(info.video_duration_ms, 9000);
     EXPECT_LT(info.video_duration_ms, 11000);
     EXPECT_GT(info.audio_duration_ms, 8000);
-    EXPECT_NEAR(info.video_duration_ms, info.audio_duration_ms, 300)
-        << "audio/video tracks must stay in sync";
+    EXPECT_NEAR(info.video_duration_ms, info.audio_duration_ms, 300) << "audio/video tracks must stay in sync";
 
     // 首帧关键帧 + 可从头解码
     EXPECT_TRUE(FirstVideoPacketIsKey(*inspected->format, info.video_index));
@@ -450,8 +447,7 @@ TEST(RecordWriter, RollingAndCleanup) {
         audio_total_ms += info.audio_duration_ms;
     }
     // 各段音频时长之和 ≈ 各段视频时长之和(音频连续, 误差 < 1.5s)
-    EXPECT_NEAR((double)video_total_ms, (double)audio_total_ms, 1500.0)
-        << "audio must stay continuous across segments";
+    EXPECT_NEAR((double)video_total_ms, (double)audio_total_ms, 1500.0) << "audio must stay continuous across segments";
     // 幸存段(3 个上限)至少覆盖 ~2 个完整段; 旧段被删是滚动清理的预期行为
     EXPECT_GT(video_total_ms, 9000) << "surviving segments must cover at least ~2 full segments";
 }
@@ -482,7 +478,7 @@ TEST(RecordWriter, RecordingSidecarMarker) {
         EXPECT_TRUE(fs::exists(files[0]));
     }
 
-    // 崩溃残留: 手工造孤儿标记,新 writer 构造时应清理(此时本 writer 无打开文件)
+    // A different run cannot distinguish a live writer from an unfinalized crash artifact.
     auto files = ListMp4(dir);
     ASSERT_EQ(files.size(), 1u);
     const auto orphan = files[0].string() + ".recording";
@@ -490,7 +486,7 @@ TEST(RecordWriter, RecordingSidecarMarker) {
         std::ofstream(orphan, std::ios::trunc).close();
         ASSERT_TRUE(fs::exists(orphan));
         auto w2 = RecordWriter::Make(cfg);
-        EXPECT_FALSE(fs::exists(orphan)) << "stale orphan marker must be cleaned on start";
+        EXPECT_TRUE(fs::exists(orphan)) << "another writer must not expose an unfinalized recording";
         w2->Stop();
     }
 
@@ -545,8 +541,7 @@ TEST(RecordWriter, NamingAndSanitize) {
     ASSERT_EQ(files.size(), 1u);
     auto name = files[0].filename().string();
     // 结构: rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4 (无 device id / 毫秒)
-    EXPECT_EQ(name.rfind("rec_DISPLAY1_", 0), 0u)
-        << "unexpected name: " << name;
+    EXPECT_EQ(name.rfind("rec_DISPLAY1_", 0), 0u) << "unexpected name: " << name;
     EXPECT_EQ(name.compare(name.size() - 4, 4, ".mp4"), 0);
 
     // 时间戳必须是墙上时钟(人类可读): 17 位 "20260817_12.43.28", 年份不能是 1970
@@ -613,6 +608,40 @@ TEST(RecordWriter, BurstDeliveredAudioUsesSampleClock) {
     const auto& info = inspected->info;
     ASSERT_GE(info.audio_index, 0);
     EXPECT_TRUE(AudioPacketsUseSampleClock(*inspected->format, info.audio_index, 20));
+    inspected.reset();
+    fs::remove_all(dir);
+}
+
+TEST(RecordWriter, LostPacketsPreserveTimelineWithoutFakePayloads) {
+    const auto dir = MakeTempDir();
+    const auto clock = std::make_shared<VirtualClock>();
+    const auto writer = RecordWriter::Make({.dir = dir, .clock_ms = [clock] { return clock->ms; }});
+    // Generated 64x64 libx264 keyframe, with informational SEI omitted.
+    const std::vector<uint8_t> video{0,    0,    0,    1,    0x67, 0x42, 0xc0, 0x0a, 0xda, 0x10, 0x9b, 1,    0x10, 0,   0,
+                                     3,    0,    0x10, 0,    0,    3,    3,    0xc8, 0xf1, 0x22, 0x6a, 0,    0,    0,   1,
+                                     0x68, 0xce, 0x0f, 0xc8, 0,    0,    1,    0x65, 0x88, 0x84, 0x3a, 0x26, 0x28, 0,   9,
+                                     2,    0xc9, 0xc9, 0xc9, 0xd7, 0x5d, 0x75, 0xd7, 0x5d, 0x75, 0xd7, 0x5d, 0x75, 0xe0};
+    writer->OnEncodedVideo(video, RecordVideoCodec::kH264, 64, 64, true);
+    OpusAudioEncoder encoder(48000, 2, 16, OPUS_APPLICATION_AUDIO, 0);
+    ASSERT_TRUE(encoder.valid());
+    for (int index{}; index < 4; ++index) {
+        if (index == 2) {
+            writer->OnEncodedAudio({}, 960);
+            writer->OnEncodedAudio({}, 960);
+        }
+        const auto packet = EncodeOpusPacket(encoder, index);
+        ASSERT_FALSE(packet.empty());
+        writer->OnEncodedAudio(packet, 960);
+    }
+    writer->Stop();
+    ASSERT_TRUE(writer->Error().empty());
+    const auto files = ListMp4(dir);
+    ASSERT_EQ(files.size(), 1U);
+    auto inspected = OpenAndInspect(files.front());
+    ASSERT_TRUE(inspected.has_value());
+    ASSERT_GE(inspected->info.audio_index, 0);
+    EXPECT_TRUE(AudioPacketsUseSampleClock(*inspected->format, inspected->info.audio_index, 4, 2));
+    EXPECT_TRUE(AudioPacketsDecodeFromStart(*inspected->format, inspected->info.audio_index, 4));
     inspected.reset();
     fs::remove_all(dir);
 }

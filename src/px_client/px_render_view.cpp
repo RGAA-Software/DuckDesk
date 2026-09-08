@@ -1,4 +1,5 @@
 #include "px_render_view.h"
+#include "px_client_sdk/platform/windows/windows_video_resources.h"
 #include <qsizepolicy.h>
 #include <qpalette.h>
 #include <QTimer>
@@ -36,9 +37,10 @@ namespace px
 
     bool PxRenderView::s_mouse_in_ = false;
 
-    PxRenderView::PxRenderView(const std::shared_ptr<ClientContext>& ctx, std::shared_ptr<ThunderSdk>& sdk, const std::shared_ptr<ThunderSdkParams>& params, QWidget* parent)
-        : QWidget(parent), settings_(*Settings::Instance()), ctx_(ctx), sdk_(sdk), params_(params) {
-        WidgetHelper::SetTitleBarColor(this, this->params_->titlebar_color_);
+    PxRenderView::PxRenderView(const std::shared_ptr<ClientContext>& ctx, const std::shared_ptr<ThunderSdk>& sdk,
+                             const std::shared_ptr<const WindowsVideoResources>& resources, QPointer<QWidget> parent)
+        : QWidget(parent.data()), settings_(*Settings::Instance()), ctx_(ctx), sdk_(sdk) {
+        WidgetHelper::SetTitleBarColor(this, settings_.get().titlebar_color_);
         msg_listener_ = ctx_->ObtainUIMessageListener();
         this->setAttribute(Qt::WA_StyledBackground, true);
         auto beg = TimeUtil::GetCurrentTimestamp();
@@ -50,40 +52,40 @@ namespace px
         if (parent) {
             sdl_video_widget_ = std::make_shared<SDLVideoWidget>(
                 ctx, sdk_, 0, RawImageFormat::kRawImageI420, nullptr);
-            sdl_video_widget_->setFixedSize(1280, 768);
-            sdl_video_widget_->show();
+            sdl_Video().setFixedSize(1280, 768);
+            sdl_Video().show();
         }
     #endif
 
 #ifdef WIN32
-        if (params_->support_vulkan_) {
+        if (resources->use_vulkan) {
             LOGI("*** Use vulkan to render frames");
-            video_widget_ = std::make_shared<VulkanVideoWidget>(
+            video_widget_ = new VulkanVideoWidget( // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns this child.
                 ctx, sdk_, 0, RawImageFormat::kRawImageVulkanAVFrame, this);
         }
         else {
-            if (params_->d3d11_wrapper_) {
-                video_widget_ = std::make_shared<D3D11VideoWidget>(
-                    ctx, sdk_, 0, RawImageFormat::kRawImageD3D11Texture, this);
+            if (resources->d3d11) {
+                video_widget_ = new D3D11VideoWidget( // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns this child.
+                    ctx, sdk_, resources, 0, RawImageFormat::kRawImageD3D11Texture, this);
                 LOGI("*** Use D3D11 to render frames");
             }
             else {
-                video_widget_ = std::make_shared<OpenGLVideoWidget>(
+                video_widget_ = new OpenGLVideoWidget( // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns this child.
                     ctx, sdk_, 0, RawImageFormat::kRawImageI420, this);
                 LOGI("*** Use OpenGL to render frames");
             }
         }
 #else
-        video_widget_ = std::make_shared<OpenGLVideoWidget>(
+        video_widget_ = new OpenGLVideoWidget( // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns this child.
             ctx, sdk_, 0, RawImageFormat::kRawImageI420, this);
 #endif
         auto end = TimeUtil::GetCurrentTimestamp();
         LOGI("Create OpenGLWidget used: {}ms", (end-beg));
 
-        auto size_policy = video_widget_->AsWidget()->sizePolicy();
+        auto size_policy = Video().AsWidget()->sizePolicy();
         size_policy.setHorizontalPolicy(QSizePolicy::Expanding);
         size_policy.setVerticalPolicy(QSizePolicy::Expanding);
-        video_widget_->AsWidget()->setSizePolicy(size_policy);
+        Video().AsWidget()->setSizePolicy(size_policy);
 
         InitFloatController();
 
@@ -128,7 +130,7 @@ namespace px
 
         msg_listener_->Listen<SdkMsgTimer1000>([guarded_self](const SdkMsgTimer1000&) {
             if (guarded_self && guarded_self->video_widget_) {
-                guarded_self->video_widget_->OnTimer1S();
+                guarded_self->Video().OnTimer1S();
             }
         });
 
@@ -137,7 +139,7 @@ namespace px
             if (guarded_self) {
                 guarded_self->ctx_->PostUITask([guarded_self]() {
                     if (guarded_self && guarded_self->video_widget_) {
-                        guarded_self->video_widget_->ReleaseAllPressedInputs();
+                        guarded_self->Video().ReleaseAllPressedInputs();
                     }
                 });
             }
@@ -148,6 +150,11 @@ namespace px
                 guarded_self->SnapshotStream();
             }
         });
+    }
+
+    VideoWidget& PxRenderView::Video() const {
+        Q_ASSERT(video_widget_);
+        return dynamic_cast<VideoWidget&>(*video_widget_);
     }
 
     PxRenderView::~PxRenderView() {
@@ -180,7 +187,7 @@ namespace px
 
     void PxRenderView::RefreshImage(const std::shared_ptr<RawImage>& image) {
         if (video_widget_) {
-            video_widget_->RefreshImage(image);
+            Video().RefreshImage(image);
         }
         UpdateFullColorState(image->full_color_);
     }
@@ -198,33 +205,33 @@ namespace px
     }
 
     void PxRenderView::RefreshI420Image(const std::shared_ptr<RawImage>& image) {
-        if (video_widget_->GetDisplayImageFormat() != kRawImageI420) {
-            video_widget_->SetDisplayImageFormat(kRawImageI420);
+        if (Video().GetDisplayImageFormat() != kRawImageI420) {
+            Video().SetDisplayImageFormat(kRawImageI420);
         }
-        video_widget_->RefreshImage(image);
+        Video().RefreshImage(image);
 
     #if TEST_SDL
         const QPointer<PxRenderView> guarded_self(this);
         ctx_->PostUITask([guarded_self, image]() {
             if (guarded_self && guarded_self->sdl_video_widget_) {
-                guarded_self->sdl_video_widget_->RefreshI420Image(image);
+                guarded_self->sdl_Video().RefreshI420Image(image);
             }
         });
     #endif
     }
 
     void PxRenderView::RefreshI444Image(const std::shared_ptr<RawImage>& image) {
-        if (video_widget_->GetDisplayImageFormat() != kRawImageI444) {
-            video_widget_->SetDisplayImageFormat(kRawImageI444);
+        if (Video().GetDisplayImageFormat() != kRawImageI444) {
+            Video().SetDisplayImageFormat(kRawImageI444);
         }
-        video_widget_->RefreshImage(image);
+        Video().RefreshImage(image);
     }
 
     void PxRenderView::RefreshCapturedMonitorInfo(const SdkCaptureMonitorInfo& mon_info) {
         // 若按比例缩放的情况下，切换了屏幕，屏幕分辨率未必一致，如一个4K,一个2K，故重新计算
         if (need_recalculate_aspect_
             && ScaleMode::kKeepAspectRatio == settings_.get().scale_mode_) {
-            const auto& exist_mon_info = video_widget_->GetCaptureMonitorInfo();
+            const auto& exist_mon_info = Video().GetCaptureMonitorInfo();
             if (mon_info.mon_name_ != exist_mon_info.mon_name_ && !exist_mon_info.mon_name_.empty()) {
                 const QPointer<PxRenderView> guarded_self(this);
                 ctx_->PostDelayUITask([guarded_self]() {
@@ -235,24 +242,24 @@ namespace px
                 need_recalculate_aspect_ = false;
             }
         }
-        video_widget_->RefreshCapturedMonitorInfo(mon_info);
+        Video().RefreshCapturedMonitorInfo(mon_info);
     }
 
     void PxRenderView::SendKeyEvent(quint32 vk, bool down) {
-        video_widget_->SendKeyEvent(vk, down);
+        Video().SendKeyEvent(vk, down);
     }
 
     void PxRenderView::SwitchToFillWindow() {
         auto target_title_bar_height = this->isFullScreen() ? 0 : kTitleBarHeight;
-        video_widget_->AsWidget()->setGeometry(0, target_title_bar_height, this->width(), this->height() - kTitleBarHeight);
+        Video().AsWidget()->setGeometry(0, target_title_bar_height, this->width(), this->height() - kTitleBarHeight);
     }
 
     void PxRenderView::CalculateAspectRatio() {
-        auto vw = video_widget_->GetCapturingMonitorWidth();
-        auto vh = video_widget_->GetCapturingMonitorHeight();
+        auto vw = Video().GetCapturingMonitorWidth();
+        auto vh = Video().GetCapturingMonitorHeight();
         // no frame, fill the window
         if (vw <= 0 || vh <= 0) {
-            video_widget_->AsWidget()->setGeometry(0, kTitleBarHeight, this->width(), this->height());
+            Video().AsWidget()->setGeometry(0, kTitleBarHeight, this->width(), this->height());
             return;
         }
 
@@ -277,7 +284,8 @@ namespace px
             target_height = vh * (this->width() * 1.0f / vw);
         }
 
-        video_widget_->AsWidget()->setGeometry((this->width() - target_width) / 2, (available_height - target_height) / 2 + target_title_bar_height, target_width, target_height);
+        Video().AsWidget()->setGeometry((this->width() - target_width) / 2, (available_height - target_height) / 2 + target_title_bar_height,
+                                       target_width, target_height);
 
     }
 
@@ -296,7 +304,7 @@ namespace px
         if (window() && window() != this) {
             window()->installEventFilter(this);
         }
-        video_widget_->AsWidget()->installEventFilter(this);
+        Video().AsWidget()->installEventFilter(this);
 
         const QPointer<PxRenderView> guarded_self(this);
         float_controller_->SetOnClickListener([guarded_self]() {
@@ -416,7 +424,7 @@ namespace px
                 break;
             }
         }
-        if (watched == video_widget_->AsWidget() && event->type() == QEvent::KeyPress) {
+        if (watched == Video().AsWidget() && event->type() == QEvent::KeyPress) {
             auto* key_event = static_cast<QKeyEvent*>(event);
             const auto modifiers = key_event->modifiers();
             const bool ctrl_alt_v = key_event->key() == Qt::Key_V &&
@@ -485,7 +493,7 @@ namespace px
         if (this->isHidden()) {
             return;
         }
-        auto image = video_widget_->CaptureImage();
+        auto image = Video().CaptureImage();
         if (image.isNull()) {
             return;
         }
@@ -514,7 +522,7 @@ namespace px
     }
 
     HWND PxRenderView::GetVideoHwnd() {
-        return (HWND)video_widget_->GetRenderWId();
+        return (HWND)Video().GetRenderWId();
     }
 
     void PxRenderView::showEvent(QShowEvent* event) {
@@ -561,7 +569,7 @@ namespace px
         if (!video_widget_) {
             return "";
         }
-        return video_widget_->GetRenderTypeName();
+        return Video().GetRenderTypeName();
     }
 
     void PxRenderView::moveEvent(QMoveEvent* event) {

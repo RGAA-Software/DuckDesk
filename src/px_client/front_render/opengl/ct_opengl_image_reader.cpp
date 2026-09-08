@@ -1,52 +1,25 @@
 #include "ct_opengl_image_reader.h"
 #include "px_client_sdk/gl/raw_image.h"
-#include <QDebug>
 
-namespace px
-{
-	std::shared_ptr<RawImage> ImageReader::ReadNV12(const std::string& path, int width, int height) {
-		int size = width * height * 1.5;
-		std::ifstream in_file;
-		in_file.open(path, std::ios::binary);
-
-		if (!in_file.good()) {
-			qDebug() << "file error : " << path.c_str();
-			return nullptr;
-		}
-
-		char* buf = (char*)malloc(size);
-		in_file.read(buf, size);
-
-		return RawImage::MakeNV12(buf, size, width, height);
-	}
-
-	std::shared_ptr<RawImage> ImageReader::ReadRGBA(const std::string& path, int width, int height) {
-		int size = width * height * 4;
-		std::ifstream in_file;
-		in_file.open(path, std::ios::binary);
-
-		if (!in_file.good()) {
-			qDebug() << "file error : " << path.c_str();
-			return nullptr;
-		}
-
-		char* buf = (char*)malloc(size);
-		in_file.read(buf, size);
-		return RawImage::MakeRGBA(buf, size, width, height);
-	}
-
-	std::shared_ptr<RawImage> ImageReader::ReadI420(const std::string& path, int width, int height) {
-		int size = width * height * 1.5;
-		qDebug() << "size : " << size;
-		std::ifstream in_file;
-		in_file.open(path, std::ios::binary);
-		if (!in_file.good()) {
-			qDebug() << "file error : " << path.c_str();
-			return nullptr;
-		}
-
-		char* buf = (char*)malloc(size);
-		in_file.read(buf, size);
-		return RawImage::MakeI420(buf, size, width, height);
-	}
+namespace px {
+namespace {
+std::shared_ptr<RawImage> ReadImage(const std::string& path, int width, int height, RawImageFormat format) {
+    auto image = RawImage::Make(format, width, height);
+    if (!image)
+        return {};
+    std::ifstream file(path, std::ios::binary);
+    if (!file || !file.read(image->MutableBytes().data(), image->Size()))
+        return {};
+    return image;
 }
+} // namespace
+std::shared_ptr<RawImage> ImageReader::ReadNV12(const std::string& path, int width, int height) {
+    return ReadImage(path, width, height, kRawImageNV12);
+}
+std::shared_ptr<RawImage> ImageReader::ReadRGBA(const std::string& path, int width, int height) {
+    return ReadImage(path, width, height, kRawImageRGBA);
+}
+std::shared_ptr<RawImage> ImageReader::ReadI420(const std::string& path, int width, int height) {
+    return ReadImage(path, width, height, kRawImageI420);
+}
+} // namespace px

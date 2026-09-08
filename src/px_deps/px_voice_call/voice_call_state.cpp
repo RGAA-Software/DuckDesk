@@ -2,6 +2,7 @@
 #include "px_common/privacy_log.h"
 
 #include <utility>
+#include <limits>
 
 namespace px {
 
@@ -10,15 +11,16 @@ std::string VoiceCallLogId(std::string_view value) {
 }
 
 bool VoiceCallState::BeginOutgoing(
-    std::string call_id, uint64_t request_id, uint64_t now_ms) {
+    std::string call_id, uint64_t request_id, uint64_t now_ms, uint64_t timeout_ms) {
     if (phase_ != VoiceCallPhase::kIdle || call_id.empty() ||
-        call_id.size() > kMaxCallIdBytes || request_id == 0) {
+        call_id.size() > kMaxCallIdBytes || request_id == 0 || timeout_ms == 0 ||
+        timeout_ms > kRequestTimeoutMs || now_ms > std::numeric_limits<uint64_t>::max() - timeout_ms) {
         return false;
     }
     phase_ = VoiceCallPhase::kOutgoingPending;
     call_id_ = std::move(call_id);
     request_id_ = request_id;
-    deadline_ms_ = now_ms + kRequestTimeoutMs;
+    deadline_ms_ = now_ms + timeout_ms;
     return true;
 }
 

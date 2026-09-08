@@ -34,6 +34,8 @@
 #include "px_qt_widget/widgetframe/mainwindow_wrapper.h"
 #include "px_dialog.h"
 #include "px_render_view.h"
+#include "px_client_sdk/platform/windows/windows_video_resources.h"
+#include "px_client_sdk/platform/windows/windows_video_frame.h"
 #include "render_view_capacity.h"
 #include "ct_const_def.h"
 #include "px_common/file.h"
@@ -168,6 +170,7 @@ namespace px
         if (!image || remote_force_closed_) {
             return;
         }
+        const auto vulkan_frame = VulkanFrameOf(image);
         if (!has_frame_arrived_) {
             has_frame_arrived_ = true;
             LOGI("First decoded video frame reached UI renderer: monitor={}, {}x{}",
@@ -180,10 +183,10 @@ namespace px
                 if (render_views_[kMainRenderViewIndex]) {
                     render_views_[kMainRenderViewIndex]->RefreshCapturedMonitorInfo(info);
                     // CPU/D3D11 output has no Vulkan frame and uses the regular image renderer.
-                    if (this->params_->support_vulkan_ && image->vulkan_av_frame_) {
+                    if (video_resources_->use_vulkan && vulkan_frame) {
                         const auto obj = reinterpret_cast<uintptr_t>(
-                            render_views_[kMainRenderViewIndex].get());
-                        pl_vulkan_->RenderFrame(obj, *image->vulkan_av_frame_);
+                            render_views_[kMainRenderViewIndex].data());
+                        pl_vulkan_->RenderFrame(obj, *vulkan_frame->frame);
                         render_views_[kMainRenderViewIndex]->UpdateFullColorState(image->full_color_);
                     }
                     else {
@@ -201,10 +204,10 @@ namespace px
                 if (render_views_[info.mon_index_]) {
                     render_views_[info.mon_index_]->RefreshCapturedMonitorInfo(info);
                     // CPU/D3D11 output has no Vulkan frame and uses the regular image renderer.
-                    if (this->params_->support_vulkan_ && image->vulkan_av_frame_) {
+                    if (video_resources_->use_vulkan && vulkan_frame) {
                         pl_vulkan_->RenderFrame(
-                            reinterpret_cast<uintptr_t>(render_views_[info.mon_index_].get()),
-                            *image->vulkan_av_frame_);
+                            reinterpret_cast<uintptr_t>(render_views_[info.mon_index_].data()),
+                            *vulkan_frame->frame);
                     }
                     else {
                         render_views_[info.mon_index_]->RefreshImage(image);
@@ -288,7 +291,7 @@ namespace px
                         }
                         else {
                             if (!force_layout_screens) {
-                                WidgetSelectMonitor(render_view.get(), screens);
+                                WidgetSelectMonitor(render_view.data(), screens);
                             }
                             render_view->showFullScreen();
                         }
@@ -469,20 +472,21 @@ namespace px
             return;
         }
 
-        const bool support_vulkan = params_->support_vulkan_;
+        const bool support_vulkan = video_resources_->use_vulkan;
         render_views_.reserve(target_count);
         while (render_views_.size() < target_count) {
             const auto index = render_views_.size();
-            std::shared_ptr<PxRenderView> render_view;
+            QPointer<PxRenderView> render_view{};
             if (index == kMainRenderViewIndex) {
-                render_view = std::make_shared<PxRenderView>(context_, sdk_, params_, this);
+                // QMainWindow owns its central view; the vector only observes it.
+                render_view = new PxRenderView(context_, sdk_, video_resources_, this); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it.
                 render_view->resize(def_window_size_);
                 render_view->show();
                 render_view->SetMainView(true);
-                setCentralWidget(render_view.get());
+                setCentralWidget(render_view.data());
                 if (support_vulkan) {
                     const auto hwnd = render_view->GetVideoHwnd();
-                    const auto obj = reinterpret_cast<uintptr_t>(render_view.get());
+                    const auto obj = reinterpret_cast<uintptr_t>(render_view.data());
                     const bool res = pl_vulkan_->Initialize(obj, hwnd);
                     if (!res) {
                         LOGE("pl_vulkan_->Initialize failed.");
@@ -490,7 +494,8 @@ namespace px
                 }
             }
             else {
-                render_view = std::make_shared<PxRenderView>(context_, sdk_, params_, nullptr);
+                render_view = new PxRenderView(context_, sdk_, video_resources_, this); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it.
+                render_view->setWindowFlag(Qt::Window, true);
                 render_view->InitOverlayWidget();
                 render_view->resize(def_window_size_);
                 render_view->hide();
@@ -500,7 +505,7 @@ namespace px
                     origin_title_name_
                     + QStringLiteral(" (Desktop:%1)").arg(QString::number(index + 1)));
        
-                const auto obj = reinterpret_cast<uintptr_t>(render_view.get());
+                const auto obj = reinterpret_cast<uintptr_t>(render_view.data());
                 if (support_vulkan) {
                     const auto hwnd = render_view->GetVideoHwnd();
                     const bool res = pl_vulkan_->CreateRenderComponent(obj, hwnd);
@@ -546,11 +551,11 @@ namespace px
                 continue;
             }
             
-            if (render_view.get() == watched) {
+            if (render_view.data() == watched) {
                 switch (event->type())
                 {
                     case QEvent::Close: {
-                        close_event_occurred_widget_ = render_view.get();
+                        close_event_occurred_widget_ = render_view.data();
                         event->ignore();
                         this->close();
                         return true;

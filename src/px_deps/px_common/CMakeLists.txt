@@ -4,7 +4,10 @@ project(px_common)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(cpr CONFIG REQUIRED)
+option(PX_COMMON_HOST_COMPONENTS "Build host HTTP, settings and desktop utilities" ON)
+if(PX_COMMON_HOST_COMPONENTS)
+    find_package(cpr CONFIG REQUIRED)
+endif()
 find_package(fmt CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(miniz CONFIG REQUIRED)
@@ -28,6 +31,8 @@ function(px_add_common_component target)
     add_library(${target} STATIC ${ARGN})
     target_compile_features(${target} PUBLIC cxx_std_23)
     target_include_directories(${target} PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${CMAKE_CURRENT_SOURCE_DIR}
         ${PX_PROJECT_PATH}/px_3rdparty
     )
 endfunction()
@@ -78,15 +83,17 @@ if(NOT WIN32)
     )
 endif()
 
-px_add_common_component(px_common_net
-    http_client.cpp
-    base_handler.cpp
-    http_base_op.cpp
-)
-target_link_libraries(px_common_net PUBLIC px_common_core px_common_async px_common_file px::asio2 cpr::cpr)
+if(PX_COMMON_HOST_COMPONENTS)
+    px_add_common_component(px_common_net
+        http_client.cpp
+        base_handler.cpp
+        http_base_op.cpp
+    )
+    target_link_libraries(px_common_net PUBLIC px_common_core px_common_async px_common_file px::asio2 cpr::cpr)
 
-px_add_common_component(px_common_storage shared_preference.cpp)
-target_link_libraries(px_common_storage PUBLIC px_common_core leveldb::leveldb)
+    px_add_common_component(px_common_storage shared_preference.cpp)
+    target_link_libraries(px_common_storage PUBLIC px_common_core leveldb::leveldb)
+endif()
 
 px_add_common_component(px_common_crypto
     md5.cpp
@@ -104,12 +111,13 @@ set(PX_COMMON_COMPONENTS
     px_common_core
     px_common_async
     px_common_file
-    px_common_net
-    px_common_storage
     px_common_crypto
 )
+if(PX_COMMON_HOST_COMPONENTS)
+    list(APPEND PX_COMMON_COMPONENTS px_common_net px_common_storage)
+endif()
 
-if(WIN32)
+if(WIN32 AND PX_COMMON_HOST_COMPONENTS)
     px_add_common_component(px_common_win
         dump_helper.cpp
         key_helper.cpp

@@ -1,0 +1,16 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "src/px_android/core-native/src/main/cpp/CMakeLists.txt",
+      "sha256": "49B734FE8C717531E85389A0EA6F540373A01DAACCC9E03C1D05932B936686AA",
+      "status": " M src/px_android/core-native/src/main/cpp/CMakeLists.txt"
+    },
+    {
+      "path": "src/px_client/CMakeLists.txt",
+      "sha256": "81FF274F8BF84F385E65A6A7F41E4C48283F1279B06F643D0707B6AAC83D16BA",
+      "status": ""
+    }
+  ]
+}

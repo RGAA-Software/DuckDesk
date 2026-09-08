@@ -10,7 +10,6 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
-#include "sdk_params.h"
 #include "px_common/file_transfer_send_result.h"
 
 namespace px
@@ -25,7 +24,7 @@ namespace px
 
     class Connection {
     public:
-        Connection(const std::shared_ptr<ThunderSdkParams>& params, const std::shared_ptr<MessageNotifier>& notifier);
+        explicit Connection(const std::shared_ptr<MessageNotifier>& notifier);
 
         virtual ~Connection();
 
@@ -62,7 +61,6 @@ namespace px
         OnMessageCallback msg_cbk_;
         std::atomic_int64_t queuing_message_count_ = 0;
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
-        std::shared_ptr<ThunderSdkParams> sdk_params_;
         std::mutex writable_signal_mutex_;
         std::shared_ptr<FileTransferWritableSignal> writable_signal_;
     };

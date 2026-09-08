@@ -129,7 +129,8 @@ namespace px
 
 		functions->glActiveTexture(GL_TEXTURE0);
 		functions->glBindTexture(GL_TEXTURE_2D, texture_id);
-		functions->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_->img_width, image_->img_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_->Data());
+        functions->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_->img_width, image_->img_height,
+                               0, GL_RGBA, GL_UNSIGNED_BYTE, image_->Bytes().data());
 		functions->glUniform1i(functions->glGetUniformLocation(shader_program->GetProgramId(), "image1"), 0);
 		functions->glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 

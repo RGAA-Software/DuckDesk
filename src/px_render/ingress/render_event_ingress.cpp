@@ -132,6 +132,8 @@ void RenderEventIngress::ProcessRenderEvent(const RenderEventEnvelope& envelope)
             using Event = typename std::decay_t<decltype(event)>::element_type;
             if constexpr (std::is_same_v<Event, NetworkClientEvent>) {
                 owner.network_ingress_->ProcessNetEvent(event, envelope.source_id);
+            } else if constexpr (std::is_same_v<Event, UdpVoiceFrameEvent>) {
+                owner.network_ingress_->ProcessUdpVoiceFrame(event);
             } else if constexpr (std::is_same_v<Event, ClientConnectedEvent>) {
                 owner.network_ingress_->ProcessClientConnectedEvent(event, envelope.source_id);
             } else if constexpr (std::is_same_v<Event, ClientDisconnectedEvent>) {

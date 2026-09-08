@@ -108,6 +108,8 @@ TEST(ClientClipboardFileStream, ReadsMatchingChunksAndIgnoresStaleResponse) {
     ClipboardRespBuffer first_response;
     first_response.set_full_name("C:/remote/remote.bin");
     first_response.set_req_index(0);
+    first_response.set_req_start(0);
+    first_response.set_req_size(128 * 1024);
     first_response.set_read_size(4);
     first_response.set_buffer("data");
     stream->OnClipboardRespBuffer(first_response);
@@ -133,6 +135,8 @@ TEST(ClientClipboardFileStream, ReadsMatchingChunksAndIgnoresStaleResponse) {
     ClipboardRespBuffer second_response;
     second_response.set_full_name("C:/remote/remote.bin");
     second_response.set_req_index(1);
+    second_response.set_req_start(4);
+    second_response.set_req_size(16);
     second_response.set_read_size(2);
     second_response.set_buffer("ok");
     stream->OnClipboardRespBuffer(second_response);
@@ -169,15 +173,28 @@ TEST(ClientClipboardFileStream, ExitWakesPendingRead) {
 }
 
 TEST(ClientClipboardFileStream, MatchingResponseCannotBeOverwrittenByUnrelatedData) {
+    const auto requests = std::make_shared<RequestState>();
     auto stream = CreateClipboardFileStream(
-        [](const ClipboardFileWrapper&, int64_t, int64_t, ULONG) {
+        [requests](const ClipboardFileWrapper&, int64_t, int64_t, ULONG) {
+            {
+                std::lock_guard lock(requests->mutex);
+                ++requests->count;
+            }
+            requests->condition.notify_all();
             return true;
         },
         std::make_shared<std::atomic_bool>(true), MakeFileWrapper());
 
+    const auto result = std::make_shared<ReadResult>();
+    const auto completed = std::make_shared<std::promise<void>>();
+    auto future = completed->get_future();
+    auto worker = StartRead(stream, 16, result, completed);
+    ASSERT_TRUE(WaitForRequests(requests, 1));
+
     ClipboardRespBuffer matching;
     matching.set_full_name("C:/remote/remote.bin");
     matching.set_req_index(0);
+    matching.set_req_size(16);
     matching.set_read_size(4);
     matching.set_buffer("good");
     stream->OnClipboardRespBuffer(matching);
@@ -189,11 +206,11 @@ TEST(ClientClipboardFileStream, MatchingResponseCannotBeOverwrittenByUnrelatedDa
     stale.set_buffer("bad");
     stream->OnClipboardRespBuffer(stale);
 
-    std::vector<char> output(16);
-    ULONG bytes_read = 0;
-    EXPECT_EQ(stream->Read(output.data(), output.size(), &bytes_read), S_OK);
-    EXPECT_EQ(bytes_read, 4u);
-    EXPECT_EQ(std::string(output.data(), bytes_read), "good");
+    ASSERT_EQ(future.wait_for(2s), std::future_status::ready);
+    worker.join();
+    EXPECT_EQ(result->result, S_OK);
+    EXPECT_EQ(result->bytes_read, 4u);
+    EXPECT_EQ(std::string(result->bytes.data(), result->bytes_read), "good");
 }
 
 TEST(ClientClipboardFileStream, InactiveLifetimeRejectsRead) {
@@ -210,6 +227,82 @@ TEST(ClientClipboardFileStream, InactiveLifetimeRejectsRead) {
     EXPECT_EQ(stream->Read(output.data(), output.size(), &bytes_read), S_FALSE);
     EXPECT_EQ(bytes_read, 0u);
     EXPECT_EQ(request_count->load(), 0);
+}
+
+TEST(ClientClipboardFileStream, RejectsWrongIdentityAndOversizedPayloadBeforeAcceptingRealChunk) {
+    const auto requests = std::make_shared<RequestState>();
+    auto stream = CreateClipboardFileStream(
+        [requests](const ClipboardFileWrapper&, int64_t, int64_t, ULONG) {
+            {
+                std::lock_guard lock(requests->mutex);
+                ++requests->count;
+            }
+            requests->condition.notify_all();
+            return true;
+        },
+        std::make_shared<std::atomic_bool>(true), MakeFileWrapper());
+    const auto result = std::make_shared<ReadResult>();
+    const auto completed = std::make_shared<std::promise<void>>();
+    auto future = completed->get_future();
+    auto worker = StartRead(stream, 16, result, completed);
+    ASSERT_TRUE(WaitForRequests(requests, 1));
+    ClipboardRespBuffer good{};
+    good.set_full_name("C:/remote/remote.bin");
+    good.set_req_index(0);
+    good.set_req_size(16);
+    good.set_read_size(4);
+    good.set_buffer("good");
+    auto bad = good;
+    bad.set_req_start(1);
+    stream->OnClipboardRespBuffer(bad);
+    bad = good;
+    bad.set_full_name("C:/remote/other.bin");
+    stream->OnClipboardRespBuffer(bad);
+    bad = good;
+    bad.set_req_size(32);
+    stream->OnClipboardRespBuffer(bad);
+    bad = good;
+    bad.set_buffer(std::string(17, 'x'));
+    bad.set_read_size(17);
+    stream->OnClipboardRespBuffer(bad);
+    bad = good;
+    bad.set_read_size(3);
+    stream->OnClipboardRespBuffer(bad);
+    EXPECT_EQ(future.wait_for(50ms), std::future_status::timeout);
+    stream->OnClipboardRespBuffer(good);
+    ASSERT_EQ(future.wait_for(2s), std::future_status::ready);
+    worker.join();
+    EXPECT_EQ(result->result, S_OK);
+    EXPECT_EQ(result->bytes_read, 4U);
+}
+
+TEST(ClientClipboardFileStream, FailedSendAdvancesIdentityAndSynchronousCallbackMayExit) {
+    const auto indices = std::make_shared<std::vector<std::int64_t>>();
+    auto stream = CreateClipboardFileStream(
+        [indices](const ClipboardFileWrapper&, int64_t index, int64_t, ULONG) {
+            indices->push_back(index);
+            return false;
+        },
+        std::make_shared<std::atomic_bool>(true), MakeFileWrapper());
+    std::vector<char> output(16);
+    ULONG bytes{};
+    EXPECT_EQ(stream->Read(output.data(), 16, &bytes), S_FALSE);
+    EXPECT_EQ(stream->Read(output.data(), 16, &bytes), S_FALSE);
+    ASSERT_EQ(indices->size(), 2U);
+    EXPECT_NE(indices->front(), indices->back());
+
+    const auto owner = std::make_shared<Microsoft::WRL::ComPtr<CpFileStream>>();
+    const auto weak_owner = std::weak_ptr(owner);
+    *owner = CreateClipboardFileStream(
+        [weak_owner](const ClipboardFileWrapper&, int64_t, int64_t, ULONG) {
+            if (const auto locked = weak_owner.lock()) {
+                (*locked)->Exit();
+            }
+            return true;
+        },
+        std::make_shared<std::atomic_bool>(true), MakeFileWrapper());
+    EXPECT_EQ((*owner)->Read(output.data(), 16, &bytes), S_FALSE);
+    EXPECT_EQ(bytes, 0U);
 }
 
 TEST(ClientClipboardFileStream, RejectedRequestReturnsWithoutWaiting) {

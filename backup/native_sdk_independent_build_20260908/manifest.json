@@ -1,0 +1,51 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "P4: preserve current working-tree build and session implementations before SDK-only source integration, target dependency closure and host identity injection",
+  "files": [
+    {
+      "path": "src/px_client_sdk/tests/test_sdk_source_sets.cmake",
+      "sha256": "785C9A85744B8D3697DC2F7E030226F112A3B7EFC80B95F82C6B2FDD9FC14ECE",
+      "status": "?? src/px_client_sdk/tests/test_sdk_source_sets.cmake"
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.cpp",
+      "sha256": "94B25AFFDB334A349F55007FCA4F9C3FE2C07065F6B77AB2FB66877DB6D7C0F0",
+      "status": " M src/px_client/ct_base_workspace.cpp"
+    },
+    {
+      "path": "src/px_client_sdk/CMakeLists.txt",
+      "sha256": "C28446D18A2D0ABDF667D7773C45BF547D60E2C347857F717D2816C889FED97F",
+      "status": " M src/px_client_sdk/CMakeLists.txt"
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_decoder.cpp",
+      "sha256": "64C7E0F3C8E4C5792AFBD11E6CA9CA11B1B0A7F81BFCC56C23C5B40CE444E357",
+      "status": " M src/px_client_sdk/sdk_ffmpeg_decoder.cpp"
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_soft_decoder.cpp",
+      "sha256": "6AB886B67337FCB1F9E7732D01C119535EC9DF4ED2DA4716C7E594DE3DA12F42",
+      "status": " M src/px_client_sdk/sdk_ffmpeg_soft_decoder.cpp"
+    },
+    {
+      "path": "src/px_client_sdk/thunder_sdk.cpp",
+      "sha256": "F7599EAF0D9ADB375F899C1B7E41B1E6D1FC1C0549264BFA0FC177CD9B74D2FC",
+      "status": " M src/px_client_sdk/thunder_sdk.cpp"
+    },
+    {
+      "path": "src/px_deps/px_common/CMakeLists.txt",
+      "sha256": "7440139F87CE43DB0C19E815CA06FA2AADB1FCB32AF2BFDCA11630AD2B1CAC8F",
+      "status": ""
+    },
+    {
+      "path": "src/px_deps/px_message/CMakeLists.txt",
+      "sha256": "7C37EE5C8D9803410A893F3ABFB6E01D70DB5F2E96D311BB59D2F324709E81F6",
+      "status": ""
+    },
+    {
+      "path": "src/px_deps/px_opus_codec/CMakeLists.txt",
+      "sha256": "79F3339F7AC7141BA7F09E51A58C812AD58740E0E0FB394B5CAEF7C0487FB269",
+      "status": ""
+    }
+  ]
+}

@@ -28,7 +28,8 @@ public:
     void UpdateSettings(const ClientModuleSettings& settings);
     [[nodiscard]] bool IsClipboardEnabled() const;
 
-private:
+  private:
+    std::weak_ptr<ClientModuleServices> services_{};
     std::shared_ptr<ClientModuleContext> context_;
     std::shared_ptr<ClipboardManager> clipboard_manager_;
     std::shared_ptr<ClipboardRuntimeBridge> runtime_bridge_;

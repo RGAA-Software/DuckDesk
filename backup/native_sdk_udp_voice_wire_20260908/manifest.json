@@ -1,0 +1,16 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "src/px_client_sdk/CMakeLists.txt",
+      "sha256": "4FB82F39522215EF4D59FFF0CBB1251DC26F6098512618C74ED13ADF3276CEE4",
+      "status": " M src/px_client_sdk/CMakeLists.txt"
+    },
+    {
+      "path": "src/px_deps/px_common/px_udp_protocol.h",
+      "sha256": "D5D5D913C8BBEDF968087F1C93D1C6100047897A47A576131EAB9FA8D1B20ED4",
+      "status": ""
+    }
+  ]
+}

@@ -41,7 +41,7 @@ namespace px {
             return false;
         }
 
-        AVBufferRef* hw_device_ctx = pl_vulkan_->GetHwDeviceCtx();
+        const auto hw_device_ctx = pl_vulkan_->ShareHwDeviceContext();
         ffmpeg_vulkan_decoder_->SetHwDeviceCtx(hw_device_ctx);
         res = ffmpeg_vulkan_decoder_->OpenTestHevcDecoder();
         if (!res) {

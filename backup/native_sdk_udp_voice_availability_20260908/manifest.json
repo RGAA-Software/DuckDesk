@@ -1,0 +1,21 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "src/px_client_sdk/sdk_voice_call.cpp",
+      "sha256": "44384A82FEB212EA94332C83247BC84225CFA04FF9A67C146677322383AD4C49",
+      "status": "?? src/px_client_sdk/sdk_voice_call.cpp"
+    },
+    {
+      "path": "src/px_client_sdk/sdk_voice_call.h",
+      "sha256": "14F39C69A7AAA21B0DE615C0E5D33F6956792F9F8DDABDB5BE6F33F804D5526B",
+      "status": "?? src/px_client_sdk/sdk_voice_call.h"
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_sdk_voice_call.cpp",
+      "sha256": "A03C9DAC93FF55468BC1B4DF2D81A4BADC8B36AD6238146A2F8C81D9C66AA8FE",
+      "status": "?? src/px_client_sdk/tests/test_sdk_voice_call.cpp"
+    }
+  ]
+}

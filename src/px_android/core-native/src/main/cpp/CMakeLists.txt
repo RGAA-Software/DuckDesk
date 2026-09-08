@@ -69,17 +69,15 @@ add_library(pixels_android_core SHARED
     native_audio_player.cpp
     native_clipboard.cpp
     native_session.cpp
-    native_voice_call.cpp
 )
 
 target_link_libraries(pixels_android_core PRIVATE
     aaudio
     android
     log
-    mediandk
     px_common
     px_message
-    px_sdk
+    pixels::sdk
     px_ft_engine
     px_media_record
     px_opus_codec

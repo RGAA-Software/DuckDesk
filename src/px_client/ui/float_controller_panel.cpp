@@ -584,7 +584,7 @@ namespace px
                 }
 
                 const bool res = guarded_self->context_->GetRecording();
-                guarded_self->context_->SetRecording(!res);
+                const auto intent = guarded_self->context_->SetRecording(!res);
                 if (!res) {
                     guarded_self->media_record_lab_->setText(
                         tcTr("id_stop_recording"));
@@ -600,7 +600,7 @@ namespace px
                 guarded_self->context_->SendAppMessage(
                     MsgClientFloatControllerPanelUpdate{
                         .update_type_ = MsgClientFloatControllerPanelUpdate::EUpdate::kMediaRecordStatus });
-                guarded_self->context_->SendAppMessage(MsgClientMediaRecord{});
+                guarded_self->context_->SendAppMessage(MsgClientMediaRecord{.intent_ = intent});
                 const auto task_context = guarded_self->context_;
                 guarded_self->context_->PostTask([task_context]() {
                     task_context->SendAppMessage(MsgClientHidePanel{});

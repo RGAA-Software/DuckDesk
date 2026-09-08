@@ -1,0 +1,16 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "src/px_client_sdk/tests/test_sdk_decoder_factory.cpp",
+      "sha256": "B48EDA8A7180E7EC248B539B13B740A95F2F4D9E196B03EB0607BB2AF996E581",
+      "status": "?? src/px_client_sdk/tests/test_sdk_decoder_factory.cpp"
+    },
+    {
+      "path": "scripts/check_native_sdk_transport.ps1",
+      "sha256": "DDA3B484546CC7D5C7B61A65AE28E04611B20815A318B8F6FDBD4053B0B8BF92",
+      "status": " M scripts/check_native_sdk_transport.ps1"
+    }
+  ]
+}

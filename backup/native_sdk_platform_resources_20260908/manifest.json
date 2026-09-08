@@ -1,0 +1,126 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "P1: archive working-tree implementations before separating Windows hardware resources from common SDK parameters and correcting Qt/Vulkan resource lifetime",
+  "files": [
+    {
+      "path": "src/px_client_sdk/platform/windows/windows_decoder_factory.cpp",
+      "sha256": "194945969FCB7B8BA6F652017E540FA139164DE29A2DA59377FD13277EE08705",
+      "status": "?? src/px_client_sdk/platform/windows/windows_decoder_factory.cpp"
+    },
+    {
+      "path": "src/px_client_sdk/platform/windows/windows_decoder_factory.h",
+      "sha256": "6243343238DF4421A185C8C0B4B6DB60935DDA935C7669079B0281E3A0789953",
+      "status": "?? src/px_client_sdk/platform/windows/windows_decoder_factory.h"
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_sdk_decoder_factory.cpp",
+      "sha256": "29B569F6A812BBF9F9792FCA3DCEDDC089A1B04BCBDF930A63E647E80A199977",
+      "status": "?? src/px_client_sdk/tests/test_sdk_decoder_factory.cpp"
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_sdk_source_sets.cmake",
+      "sha256": "8F72A8024E3A1A0A422515725E6F0941946BEECB5BCE308D5992352AF4C8E11B",
+      "status": "?? src/px_client_sdk/tests/test_sdk_source_sets.cmake"
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.cpp",
+      "sha256": "DD58EB714F7C0AA1E73282D3141AB9C4938EF3B917E0ACA0C5F92CEEF73EBE78",
+      "status": " M src/px_client/ct_base_workspace.cpp"
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.h",
+      "sha256": "C1B852561092A9A3966CC39EB6B249C038D73F97DE777BC6FD6C867118B07383",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_main_ws.cpp",
+      "sha256": "49B448BE2E787D9784D1441BF1A0BE31587A5CB8D40A54B392C4FEB278EA0D51",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_workspace.cpp",
+      "sha256": "3468E904E140AEEC17E7A356CEF1C7B93D4E6F27977103F5BDF08D0294152B1A",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_workspace.h",
+      "sha256": "F1D1E81DD4EE31B38F927C6D4D6168A682F92BB0BD958D5C01F97A32DA9BF34A",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/front_render/d3d11/ct_d3d11_video_widget.cpp",
+      "sha256": "D9AA6953F9F40B69BAC488B490E5B9BBDE7EB6C84DCCFF632F3122E21BCACA6B",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/front_render/d3d11/ct_d3d11_video_widget.h",
+      "sha256": "0324F8473AABAD7912EB2E9895F74BF16B1779257659E98376A7CF2676C6E33E",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/front_render/vulkan/ct_test_ffmpeg_vulkan_decoder.cpp",
+      "sha256": "94FC66139A93F571C80AB87A12B88580B0761B1FA98BAA2B2B1BB18D73D9B068",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/front_render/vulkan/ct_test_ffmpeg_vulkan_decoder.h",
+      "sha256": "109FD12B34D60A9B54987D65B5C38471F5C3C07A37E84EAFB7CBC2B79E657ABE",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/front_render/vulkan/ct_vulkan_checker.cpp",
+      "sha256": "605F1A169F6944A7A44C93BE4A6AA930BD1F697278715EBB4EE050C6B2ED65AE",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/front_render/vulkan/pl_vulkan.cpp",
+      "sha256": "29B9430DC0E2EA239877A6691C7165EE06D978C508B1983F07141772C85554E1",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/front_render/vulkan/pl_vulkan.h",
+      "sha256": "1308CEF225F116C06CF5C750905A903672E7A6B1602D170781C443CCE70312BD",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/px_render_view.cpp",
+      "sha256": "5BB57BEEC5BCD05D8C4D7E796540469FCB4893D7E703DD7E7FFCBD054803C4B6",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/px_render_view.h",
+      "sha256": "D6A2E6D4A8F6BB62287AEDB6F6AA4A1789AF8D1B35A7A0C1FDA1D20DD367B760",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/CMakeLists.txt",
+      "sha256": "C28446D18A2D0ABDF667D7773C45BF547D60E2C347857F717D2816C889FED97F",
+      "status": " M src/px_client_sdk/CMakeLists.txt"
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_decoder.cpp",
+      "sha256": "85AAF916A35F6CBEF672B14DA08F95394F1311DD49F3C2FA22E852F8D371CF45",
+      "status": " M src/px_client_sdk/sdk_ffmpeg_decoder.cpp"
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_decoder.h",
+      "sha256": "3870833AD45B961E3872C53DD771771D5D2E75BA165E943E7071C6406EABBA1E",
+      "status": " M src/px_client_sdk/sdk_ffmpeg_decoder.h"
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_vulkan_decoder.cpp",
+      "sha256": "CA44593A8DA5CA0860291A0B90496D10E0A742018AF1EBB5314EBB04D426283D",
+      "status": " M src/px_client_sdk/sdk_ffmpeg_vulkan_decoder.cpp"
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_vulkan_decoder.h",
+      "sha256": "EA20AA8EBFD571D8F34DDD263055190782AE3C6CCEFFD14983332F0816FEA8F4",
+      "status": " M src/px_client_sdk/sdk_ffmpeg_vulkan_decoder.h"
+    },
+    {
+      "path": "src/px_client_sdk/sdk_params.h",
+      "sha256": "2BB8E82766E54E5949D6FE965B5C82694B22DC83E61E0A714791CB8D2CE2E551",
+      "status": ""
+    }
+  ]
+}

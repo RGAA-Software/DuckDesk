@@ -27,30 +27,25 @@
 
 namespace px {
 
-NetClient::NetClient(const std::shared_ptr<ThunderSdkParams>& params, const std::shared_ptr<MessageNotifier>& notifier, const std::string& media_path,
-                     const std::string& ft_path)
-    : sdk_params_(params), media_path_(media_path), ft_path_(ft_path), device_id_(params->device_id_), stream_id_(params->stream_id_),
-      msg_notifier_(notifier), stat_(SdkStatistics::Instance()) {
-    if (sdk_params_->udp_media_association_.empty()) {
-        sdk_params_->udp_media_association_ = GetUUID();
-    }
-}
+NetClient::NetClient(SdkConnectionParams params, const std::shared_ptr<MessageNotifier>& notifier)
+    : params_(std::move(params)), udp_media_association_(params_.udp_media_association_.empty() ? GetUUID() : params_.udp_media_association_),
+      msg_notifier_(notifier), stat_(SdkStatistics::Instance()) {}
 
 NetClient::~NetClient() {
     Exit();
 }
 
 std::string NetClient::MakeAuthenticatedWebSocketPath(std::string path, const bool file_only) const {
-    if (sdk_params_->connection_ticket_.empty()) {
-        if (!sdk_params_->connection_nonce_.empty() && sdk_params_->stream_id_.starts_with("ip-direct:")) {
-            path += "&client_nonce=" + UrlHelper::EncodeQueryComponent(sdk_params_->connection_nonce_);
+    if (params_.connection_ticket_.empty()) {
+        if (!params_.connection_nonce_.empty() && params_.stream_id_.starts_with("ip-direct:")) {
+            path += "&client_nonce=" + UrlHelper::EncodeQueryComponent(params_.connection_nonce_);
         }
         return path;
     }
-    path += "&ticket=" + UrlHelper::EncodeQueryComponent(sdk_params_->connection_ticket_) +
-            "&client_nonce=" + UrlHelper::EncodeQueryComponent(sdk_params_->connection_nonce_);
-    if (!sdk_params_->connection_instance_id_.empty()) {
-        path += "&instance_id=" + UrlHelper::EncodeQueryComponent(sdk_params_->connection_instance_id_);
+    path += "&ticket=" + UrlHelper::EncodeQueryComponent(params_.connection_ticket_) +
+            "&client_nonce=" + UrlHelper::EncodeQueryComponent(params_.connection_nonce_);
+    if (!params_.connection_instance_id_.empty()) {
+        path += "&instance_id=" + UrlHelper::EncodeQueryComponent(params_.connection_instance_id_);
     }
     if (file_only) {
         path += "&file_only=1";
@@ -59,19 +54,19 @@ std::string NetClient::MakeAuthenticatedWebSocketPath(std::string path, const bo
 }
 
 std::shared_ptr<Connection> NetClient::MakeDirectWebSocketMediaConnection() const {
-    std::string path = media_path_;
+    std::string path = params_.media_path_;
     constexpr std::string_view kUdpMediaQuery = "&udp_media=1";
     if (path.find("udp_media=1") == std::string::npos) {
         path += path.find('?') == std::string::npos ? "?udp_media=1" : std::string(kUdpMediaQuery);
     }
-    if (!sdk_params_->udp_media_association_.empty()) {
-        path += "&udp_media_association=" + UrlHelper::EncodeQueryComponent(sdk_params_->udp_media_association_);
+    if (!udp_media_association_.empty()) {
+        path += "&udp_media_association=" + UrlHelper::EncodeQueryComponent(udp_media_association_);
     }
     path = MakeAuthenticatedWebSocketPath(std::move(path));
-    if (sdk_params_->ssl_) {
-        return std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, path);
+    if (params_.ssl_) {
+        return std::make_shared<WssConnection>(msg_notifier_, params_.ip_, params_.port_, path);
     }
-    return std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, path);
+    return std::make_shared<WsConnection>(msg_notifier_, params_.ip_, params_.port_, path);
 }
 
 bool NetClient::IsCurrentManagedMediaConnection(uint64_t generation) const {
@@ -143,7 +138,7 @@ void NetClient::StartManagedUdpMediaConnection(const std::shared_ptr<Connection>
 }
 
 void NetClient::StartUdpDirectMedia() {
-    if (!sdk_params_->enable_video_ && !sdk_params_->enable_audio_)
+    if (!params_.enable_video_ && !params_.enable_audio_)
         return;
     bool expected = false;
     if (!udp_direct_started_.compare_exchange_strong(expected, true)) {
@@ -156,7 +151,7 @@ void NetClient::StartUdpDirectMedia() {
     }
     udp_media_probe_deadline_ms_ = TimeUtil::GetCurrentTimestamp() + kUdpMediaProbeTimeoutMs;
     LOGI("Authenticated WS control ready; start associated UDP media.");
-    udp_connection->Start(sdk_params_->ip_, sdk_params_->udp_port_, stream_id_, sdk_params_->udp_media_association_);
+    udp_connection->Start(params_.ip_, params_.udp_port_, params_.stream_id_, udp_media_association_);
 }
 
 void NetClient::StartFileTransferConnection() {
@@ -202,7 +197,7 @@ void NetClient::ReportUdpMediaUnavailable() {
 void NetClient::Start() {
     if (exited_ || started_.exchange(true))
         return;
-    if (!sdk_params_->file_transfer_only_ && !udp_media_state_.BeginProbe())
+    if (!params_.file_transfer_only_ && !udp_media_state_.BeginProbe())
         return;
     const auto weak_self = weak_from_this();
     connection_notified_ = false;
@@ -216,24 +211,23 @@ void NetClient::Start() {
     }
     // GameStream 风格双通道:ws 控制面(可靠消息/状态机全复用) + 裸 UDP 媒体面,
     // 见 docs/udp_gamestream_channel_plan.md
-    LOGI("Will connect by UDP direct, ws ctrl: {}:{}, udp media: {}:{}", sdk_params_->ip_, sdk_params_->port_, sdk_params_->ip_,
-         sdk_params_->udp_port_);
+    LOGI("Will connect by UDP direct, ws ctrl: {}:{}, udp media: {}:{}", params_.ip_, params_.port_, params_.ip_, params_.udp_port_);
     // Reliable control and file-transfer messages share the already
     // authenticated /media WebSocket. UDP carries audio/video only.
     // Opening another route would redeem the one-time ticket again and
     // later reconnects would be rejected after the ticket expires.
-    if (!sdk_params_->file_transfer_only_) {
+    if (!params_.file_transfer_only_) {
         ReplaceMediaConnection(MakeDirectWebSocketMediaConnection());
     } else {
-        const auto ft_path = MakeAuthenticatedWebSocketPath(ft_path_, true);
-        if (sdk_params_->ssl_) {
-            ft_conn_ = std::make_shared<WssConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, ft_path);
+        const auto ft_path = MakeAuthenticatedWebSocketPath(params_.ft_path_, true);
+        if (params_.ssl_) {
+            ft_conn_ = std::make_shared<WssConnection>(msg_notifier_, params_.ip_, params_.port_, ft_path);
         } else {
-            ft_conn_ = std::make_shared<WsConnection>(sdk_params_, msg_notifier_, sdk_params_->ip_, sdk_params_->port_, ft_path);
+            ft_conn_ = std::make_shared<WsConnection>(msg_notifier_, params_.ip_, params_.port_, ft_path);
         }
     }
-    if (!sdk_params_->file_transfer_only_) {
-        ReplaceUdpDirectConnection(std::make_shared<UdpDirectConnection>(sdk_params_, msg_notifier_));
+    if (!params_.file_transfer_only_) {
+        ReplaceUdpDirectConnection(std::make_shared<UdpDirectConnection>(msg_notifier_));
     }
 
     const auto media_connection = CurrentMediaConnection();
@@ -299,6 +293,26 @@ void NetClient::Start() {
                 self->audio_frame_cbk_(m);
             }
         });
+        udp_connection->SetOnVoiceFrameCallback([weak_self](UdpVoiceFrame frame) {
+            const auto self = weak_self.lock();
+            if (!self || self->exited_.load() || !self->udp_media_state_.AcceptsMedia()) {
+                return;
+            }
+            const auto message = std::make_shared<Message>();
+            message->set_type(kVoiceAudioFrame);
+            message->set_device_id(self->params_.device_id_);
+            message->set_stream_id(self->params_.stream_id_);
+            auto& voice = *message->mutable_voice_audio_frame();
+            voice.set_call_id(std::move(frame.call_id));
+            voice.set_sequence(frame.sequence);
+            voice.set_capture_time_ms(frame.capture_time_ms);
+            voice.set_opus(std::string(frame.opus.begin(), frame.opus.end()));
+            self->OnUdpMediaReady();
+            self->stat_->AppendRecvDataSize(static_cast<std::int64_t>(message->ByteSizeLong()));
+            if (self->raw_msg_cbk_) {
+                self->raw_msg_cbk_(message);
+            }
+        });
         // UDP 控制包踢人(kCtrlKick):复用"被接管"逻辑,与 kConnectionTakenOver 一致
         udp_connection->SetOnKickCallback([weak_self](const std::string& reason) {
             LOGW("Udp direct connection kicked, reason: {}", reason);
@@ -358,7 +372,7 @@ std::shared_ptr<Message> NetClient::ParseMessage(std::shared_ptr<Data> msg) {
         return nullptr;
     }
 
-    if (net_msg->type() == px::kVideoFrame || net_msg->type() == px::kAudioFrame) {
+    if (net_msg->type() == px::kVideoFrame || net_msg->type() == px::kAudioFrame || net_msg->type() == px::kVoiceAudioFrame) {
         return net_msg;
     }
 
@@ -430,6 +444,23 @@ std::shared_ptr<Message> NetClient::ParseMessage(std::shared_ptr<Data> msg) {
     return net_msg;
 }
 
+bool NetClient::PostVoiceAudioMessage(const std::shared_ptr<Message>& message) {
+    if (exited_.load() || !message || message->type() != kVoiceAudioFrame || !message->has_voice_audio_frame() ||
+        message->device_id() != params_.device_id_ || message->stream_id() != params_.stream_id_ || !udp_media_state_.AcceptsMedia()) {
+        return false;
+    }
+    const auto connection = CurrentUdpDirectConnection();
+    if (!connection) {
+        return false;
+    }
+    const auto& frame = message->voice_audio_frame();
+    if (frame.opus().empty() || frame.opus().size() > UdpVoiceProtocol::kMaxOpusBytes) {
+        return false;
+    }
+    const std::vector<std::uint8_t> opus(frame.opus().begin(), frame.opus().end());
+    return connection->PostVoiceFrame(frame.call_id(), frame.sequence(), frame.capture_time_ms(), opus);
+}
+
 void NetClient::PostMediaMessage(std::shared_ptr<Data> msg) {
     {
         const auto media_connection = CurrentMediaConnection();
@@ -465,7 +496,7 @@ FileTransferSendResult NetClient::PostFileTransferMessage(std::shared_ptr<Data> 
 
     {
 
-        const auto file_connection = sdk_params_->file_transfer_only_ ? ft_conn_ : CurrentMediaConnection();
+        const auto file_connection = params_.file_transfer_only_ ? ft_conn_ : CurrentMediaConnection();
         if (!file_connection || !file_connection->IsAlive()) {
             return FileTransferSendResult::Disconnected("file-transfer connection is not alive");
         }
@@ -531,14 +562,14 @@ void NetClient::HeartBeat() {
     CheckUdpMediaProbeTimeout();
     auto msg = std::make_shared<Message>();
     msg->set_type(px::kHeartBeat);
-    msg->set_device_id(device_id_);
-    msg->set_stream_id(stream_id_);
+    msg->set_device_id(params_.device_id_);
+    msg->set_stream_id(params_.stream_id_);
     auto& hb = *msg->mutable_heartbeat();
     hb.set_index(hb_idx_++);
     hb.set_timestamp((int64_t)TimeUtil::GetCurrentTimestamp());
     if (auto buffer = px::ProtoAsData(msg); buffer) {
         this->PostMediaMessage(buffer);
-        if (sdk_params_->file_transfer_only_) {
+        if (params_.file_transfer_only_) {
             static_cast<void>(this->PostFileTransferMessage(buffer));
         }
     }
@@ -553,7 +584,7 @@ int64_t NetClient::GetQueuingMediaMsgCount() {
 }
 
 int64_t NetClient::GetQueuingFtMsgCount() {
-    if (!sdk_params_->file_transfer_only_) {
+    if (!params_.file_transfer_only_) {
         if (const auto media_connection = CurrentMediaConnection()) {
             return media_connection->GetQueuingMsgCount();
         }

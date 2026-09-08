@@ -1,0 +1,116 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Inject platform decoder factories, replace erased Surface addresses with Android-owned native window snapshots, and drain decoder work before shutdown cleanup",
+  "files": [
+    {
+      "path": "src/px_client_sdk/cmake/sdk_source_sets.cmake",
+      "sha256": "0E3C586B23E9F783D278FD1999A778CD7E9140B6E0B045AC570F3F0E802D76B7",
+      "status": "?? src/px_client_sdk/cmake/sdk_source_sets.cmake"
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_sdk_source_sets.cmake",
+      "sha256": "89B0739ECE8562F90182B21775A291CFC8BE3A420EEA41F5BFBA2D6F26C4EC0A",
+      "status": "?? src/px_client_sdk/tests/test_sdk_source_sets.cmake"
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_session.cpp",
+      "sha256": "7392378BC1D0AD4C35136846A8042E586C14EB55E5EEEC068A04B1B3186F9D4E",
+      "status": ""
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_session.h",
+      "sha256": "FD331FD68F9798525F996668F9A2AB8BC317FD1E28AA25073894FCD1795CBBA5",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.cpp",
+      "sha256": "D4664098E4BF399B41D96657924A4CE935E2A51E7D0ABDD651D85B8EC74E4CE3",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/CMakeLists.txt",
+      "sha256": "838452EDF5E3E3C47EA944E5FEB53A80F7FDC2059EE3FD92685BE7C3770E28AB",
+      "status": " M src/px_client_sdk/CMakeLists.txt"
+    },
+    {
+      "path": "src/px_client_sdk/sdk_android_software_decoder.cpp",
+      "sha256": "5F7A114D33BC691319F9FD4EBA743A04AA439FE7C3DB2BD70A367A160944EBB9",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_android_software_decoder.h",
+      "sha256": "9EA62E8EBFC1EDDCCF09FD453DB465A4B10A4E7C3DDBFB0685E8A5C5676DF441",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_decoder_render_type.h",
+      "sha256": "4EB1CE16CB807250FE82382E2979751B5E088A60FF04E92E5FE416A62280A346",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_decoder.cpp",
+      "sha256": "42C3EBDEFCA77A8708A36D46F7EBA9B5222B4089E128EA9C0B57CB76C6145DF4",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_decoder.h",
+      "sha256": "3A25293671AB882895E6627B742F4EACBB3700AAC858449DA164EB50EE9848D1",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_soft_decoder.cpp",
+      "sha256": "99535569ADFB10F0914CED743C256D4C90DD6B3547453D668FDA34912A3A6D1A",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_soft_decoder.h",
+      "sha256": "154590194116A9466561CA4B634DD8A644A7A52959C9BAB752CAB224ECA62604",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_vulkan_decoder.cpp",
+      "sha256": "E7F5811C1C85656567EE5AD636D79A82C4860032C4BA82C1BCBA7A08CF50FD8E",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_vulkan_decoder.h",
+      "sha256": "1B3BA48BA8C535438175A8F25608022692ACE5206024D07E9257C06E87CA6B67",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_mediacodec_video_decoder.cpp",
+      "sha256": "39E8688732D7E4E7A704B233F60A15D18F60AB3E7CD88231D30243DA34859853",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_mediacodec_video_decoder.h",
+      "sha256": "49F259A849528263C977BD29B47826A3DF23B54A8E44250F6F73DD7BE71F28CA",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_video_decoder.cpp",
+      "sha256": "1A3B60953CB566FE6CDE8F5C6D41EB8870D845FCAAA44EAFC0E44AF3AD0EE1CC",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_video_decoder.h",
+      "sha256": "1DAD1CC3DB0508498F183075CA4E9DE3A3E911A7B157CE400EFC4142553145F8",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_video_decoder_factory.h",
+      "sha256": "66060D5569466F12ACFC8D19F2F2A8A404AC87087655D227932BF9731071A6CB",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/thunder_sdk.cpp",
+      "sha256": "55BB2274BE65C1ECCA49096C6F14426371757A1A1371AA4A7AC0D42333AA11DE",
+      "status": " M src/px_client_sdk/thunder_sdk.cpp"
+    },
+    {
+      "path": "src/px_client_sdk/thunder_sdk.h",
+      "sha256": "843B9490C1926E9AA7758F8C426C7FB72EFF932A7B8AC945759439517326EEFD",
+      "status": ""
+    }
+  ]
+}

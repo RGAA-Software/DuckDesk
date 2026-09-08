@@ -62,11 +62,10 @@ namespace px
         SdkCaptureMonitorInfo GetCaptureMonitorInfo();
         void RefreshCapturedMonitorInfo(const SdkCaptureMonitorInfo &mon_info);
 
-        virtual void RefreshRGBBuffer(const char *buf, int width, int height, int channel);
+        virtual void RefreshRGBBuffer(std::span<const char> bytes, int width, int height, int channel);
         virtual void RefreshI420Image(const std::shared_ptr<RawImage> &image);
-        virtual void RefreshI420Buffer(const char *y, int y_size, const char *u, int u_size, const char *v, int v_size, int width, int height);
         virtual void RefreshI444Image(const std::shared_ptr<RawImage>& image);
-        virtual void RefreshI444Buffer(const char* y, int y_size, const char* u, int u_size, const char* v, int v_size, int width, int height);
+        void RefreshYuvImage(const std::shared_ptr<RawImage>& image);
         virtual QWidget* AsWidget();
         virtual void RefreshImage(const std::shared_ptr<RawImage> &image);
         virtual void OnTimer1S();

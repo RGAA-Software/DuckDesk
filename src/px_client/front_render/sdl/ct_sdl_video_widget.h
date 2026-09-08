@@ -50,7 +50,7 @@ namespace px
 
     private:
         void RefreshI420Image(const std::shared_ptr<RawImage>& image);
-        void RefreshI420Buffer(const char* y_buf, int y_buf_size, const char* u_buf, int u_buf_size, const char* v_buf, int v_buf_size, int width, int height);
+        void RefreshI420Buffer(std::span<const char> y, std::span<const char> u, std::span<const char> v, int width, int height);
 
     private:
         std::shared_ptr<ClientContext> context = nullptr;

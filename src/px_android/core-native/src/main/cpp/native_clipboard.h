@@ -1,4 +1,5 @@
 #pragma once
+#include "px_client_sdk/sdk_clipboard_protocol.h"
 
 #include <condition_variable>
 #include <cstdint>
@@ -49,6 +50,7 @@ class NativeClipboard final : public std::enable_shared_from_this<NativeClipboar
     NativeClipboard& operator=(const NativeClipboard&) = delete;
 
     [[nodiscard]] bool PublishLocalFiles(std::string generation, std::vector<NativeClipboardFile> files);
+    void RevokeLocalFiles();
     void AcceptRemoteFiles(const std::shared_ptr<px::Message>& message);
     void HandleFileMessage(const std::shared_ptr<px::Message>& message);
     [[nodiscard]] bool DownloadRemoteFiles(const std::string& generation, const std::string& destination_directory);
@@ -80,13 +82,11 @@ class NativeClipboard final : public std::enable_shared_from_this<NativeClipboar
     NativeClipboardFiles local_files_{};
     NativeClipboardFiles remote_files_{};
     std::optional<ClipboardChunk> received_chunk_{};
-    std::int64_t awaited_request_index_{};
-    std::string awaited_transfer_name_{};
+    px::ClipboardPendingRead pending_read_{};
     std::condition_variable response_condition_{};
     std::jthread download_thread_{};
     bool download_active_{};
     bool stopped_{};
-    std::int64_t next_request_index_{1};
 };
 
 } // namespace pixels::android

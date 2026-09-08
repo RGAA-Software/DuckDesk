@@ -1,0 +1,26 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Gate Native WebSocket ingress by the current ready attempt before delivering messages or terminal rejections.",
+  "files": [
+    {
+      "path": "src/px_client_sdk/connection/sdk_websocket_reconnect.h",
+      "sha256": "CF30BDFF24FBB1421A68FC0BE3BE88D9B851AD45606258A4E816F923984794F8",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/ws_connection.cpp",
+      "sha256": "75D5748DC750D6E15BF27A05AE6F708BEFEC753D8790CC77EE2CFB6057D4EC38",
+      "status": " M src/px_client_sdk/connection/ws_connection.cpp"
+    },
+    {
+      "path": "src/px_client_sdk/connection/wss_connection.cpp",
+      "sha256": "8FA39942BDB93AC18FEB5616B1DB0D50FE91D9971E404DFA8527A39C22B2FFF3",
+      "status": " M src/px_client_sdk/connection/wss_connection.cpp"
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_sdk_websocket_reconnect.cpp",
+      "sha256": "9F1EBF4FCF9309F0480E5E75B87BC538222DF36B0F99146E46B7302DE88F2224",
+      "status": " M src/px_client_sdk/tests/test_sdk_websocket_reconnect.cpp"
+    }
+  ]
+}

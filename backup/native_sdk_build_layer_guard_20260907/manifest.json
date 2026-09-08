@@ -1,0 +1,11 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Update native transport guard for explicit SDK source sets and all three build layers",
+  "files": [
+    {
+      "path": "scripts/check_native_sdk_transport.ps1",
+      "sha256": "84C603BE345DD177747842596CB3DF2642317644FFFEAD9AF1134E2694A4C4DF",
+      "status": ""
+    }
+  ]
+}

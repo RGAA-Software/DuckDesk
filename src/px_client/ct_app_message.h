@@ -248,6 +248,7 @@ namespace px
 
     class MsgClientMediaRecord : public MsgClientBase {
     public:
+        uint64_t intent_{};
     };
 
     class MsgClientMouseEnterView : public MsgClientBase {

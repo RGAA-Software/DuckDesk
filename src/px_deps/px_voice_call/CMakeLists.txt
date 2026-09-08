@@ -3,6 +3,10 @@ project(px_voice_call)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if(NOT TARGET px_voice_call_core)
+    add_subdirectory(core)
+endif()
+
 if(WIN32)
     # Keep libwebrtc in a DLL boundary. The vendored archive embeds a protobuf
     # runtime that must not be co-linked with the product's vcpkg protobuf.
@@ -23,10 +27,8 @@ if(WIN32)
 endif()
 
 add_library(px_voice_call
-    voice_call_state.cpp
     voice_consent_decision_cache.cpp
     voice_jitter_buffer.cpp
-    voice_packet_transport.cpp
     voice_audio_backend.cpp
     voice_audio_endpoint.cpp
 )
@@ -36,7 +38,7 @@ else()
     target_sources(px_voice_call PRIVATE voice_audio_backend_sdl.cpp)
 endif()
 target_include_directories(px_voice_call PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(px_voice_call PUBLIC px_opus_codec)
+target_link_libraries(px_voice_call PUBLIC px_opus_codec px_voice_call_core)
 if(ANDROID)
     target_link_libraries(px_voice_call PUBLIC aaudio)
 else()

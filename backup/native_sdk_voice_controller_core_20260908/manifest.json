@@ -1,0 +1,46 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Before extracting the existing device-free voice state/packet target and adding the shared SDK voice controller",
+  "files": [
+    {
+      "path": "src/px_client_sdk/cmake/sdk_dependencies.cmake",
+      "sha256": "EDCBAAE4D29E50C2ADF1B36EAA393123D066C60C3BA3CA0FEC3A2EDEBABAC566",
+      "status": "?? src/px_client_sdk/cmake/sdk_dependencies.cmake"
+    },
+    {
+      "path": "src/px_client_sdk/cmake/sdk_source_sets.cmake",
+      "sha256": "C30C1FFEAAE1879354CA38B5EDF3781E422150E17929DE269130D5EEA08C66FD",
+      "status": "?? src/px_client_sdk/cmake/sdk_source_sets.cmake"
+    },
+    {
+      "path": "src/px_client_sdk/CMakeLists.txt",
+      "sha256": "47D4ABF363C9FAD17B5627C5D0CEF204A4FF2A2582F8A62F0B06E82C6E103110",
+      "status": " M src/px_client_sdk/CMakeLists.txt"
+    },
+    {
+      "path": "src/px_deps/px_voice_call/CMakeLists.txt",
+      "sha256": "759545BA35101BA58D4DBA4D844E855D2675472802574CDBFDB07AB33D68E8BC",
+      "status": " M src/px_deps/px_voice_call/CMakeLists.txt"
+    },
+    {
+      "path": "src/px_deps/px_voice_call/tests/test_voice_call.cpp",
+      "sha256": "0A58C467C63B8A5F83179FAA600166FADB3C710DFB261F38FD7BB78CE7A62410",
+      "status": ""
+    },
+    {
+      "path": "src/px_deps/px_voice_call/voice_audio_endpoint.h",
+      "sha256": "61505C18C920706B05940E63CB96B04F378E057CFF751FF02CFAAAAF0F06A585",
+      "status": " M src/px_deps/px_voice_call/voice_audio_endpoint.h"
+    },
+    {
+      "path": "src/px_deps/px_voice_call/voice_call_state.cpp",
+      "sha256": "9BC9AA356EABDF80F95F37780730BACAB4BF6729F58913C55D6ADE474D042C67",
+      "status": ""
+    },
+    {
+      "path": "src/px_deps/px_voice_call/voice_call_state.h",
+      "sha256": "97EBC75A08A5DC7EFDA176C9275DA29D9B81D92A0461BB40DBBCBD936FF356AF",
+      "status": ""
+    }
+  ]
+}

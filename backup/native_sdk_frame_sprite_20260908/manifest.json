@@ -1,0 +1,11 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "P2: preserve the OpenGL sprite consumer before migrating its upload boundary to the owning RawImage byte span",
+  "files": [
+    {
+      "path": "src/px_client/front_render/opengl/ct_sprite.cpp",
+      "sha256": "7298E62448BB71505BBB659A79990DE7054467A8161220A209DDCADD1200CD5D",
+      "status": ""
+    }
+  ]
+}

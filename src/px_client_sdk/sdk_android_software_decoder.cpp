@@ -1,4 +1,5 @@
 #include "sdk_android_software_decoder.h"
+#include "ffmpeg_frame_adapter.h"
 
 #ifdef ANDROID
 
@@ -49,12 +50,6 @@ struct ScaleContextRelease final {
     }
 };
 
-struct NativeWindowRelease final {
-    void operator()(ANativeWindow* window) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
-        if (window != nullptr) ANativeWindow_release(window);
-    }
-};
-
 class LockedNativeWindow final {
 public:
     explicit LockedNativeWindow(std::shared_ptr<ANativeWindow> window) : window_(std::move(window)) {}
@@ -85,19 +80,11 @@ private:
     bool locked_{};
 };
 
-std::shared_ptr<ANativeWindow> RetainWindow(const std::uintptr_t surface_handle) {
-    if (surface_handle == 0U) return {};
-    auto* window = reinterpret_cast<ANativeWindow*>(surface_handle); // NOLINT(gammaray-raw-pointer-boundary)
-    ANativeWindow_acquire(window);
-    std::unique_ptr<ANativeWindow, NativeWindowRelease> retained{window};
-    return std::shared_ptr<ANativeWindow>{std::move(retained)};
-}
-
 } // namespace
 
 class AndroidSoftwareVideoDecoder::State final {
 public:
-    [[nodiscard]] bool Initialize(const AVCodecID codec_id, const std::uintptr_t surface_handle) {
+    [[nodiscard]] bool Initialize(const AVCodecID codec_id, std::shared_ptr<ANativeWindow> window) {
         const auto codec_handle = reinterpret_cast<std::uintptr_t>(avcodec_find_decoder(codec_id));
         if (codec_handle == 0U) return false;
         codec_context_.reset(avcodec_alloc_context3(reinterpret_cast<const AVCodec*>(codec_handle))); // NOLINT(gammaray-raw-pointer-boundary)
@@ -112,12 +99,11 @@ public:
         }
         packet_.reset(av_packet_alloc());
         frame_.reset(av_frame_alloc());
-        window_ = RetainWindow(surface_handle);
+        window_ = std::move(window);
         return packet_ && frame_ && window_;
     }
 
-    [[nodiscard]] bool UpdateSurface(const std::uintptr_t surface_handle) {
-        auto replacement = RetainWindow(surface_handle);
+    [[nodiscard]] bool UpdateSurface(std::shared_ptr<ANativeWindow> replacement) {
         if (!replacement) return false;
         window_ = std::move(replacement);
         window_width_ = 0;
@@ -127,9 +113,7 @@ public:
 
     [[nodiscard]] Result<std::shared_ptr<RawImage>, int> Decode(const std::span<const std::uint8_t> encoded) {
         if (!codec_context_ || !packet_ || !frame_ || !window_ || encoded.empty()) return TRError(-1);
-        av_packet_unref(packet_.get());
-        packet_->data = const_cast<std::uint8_t*>(encoded.data()); // NOLINT(gammaray-raw-pointer-boundary)
-        packet_->size = static_cast<int>(encoded.size());
+        if (!PrepareDecoderPacket(*packet_, encoded)) return TRError(-1);
         const auto send_result = avcodec_send_packet(codec_context_.get(), packet_.get());
         if (send_result < 0 && send_result != AVERROR(EAGAIN)) return TRError(send_result);
 
@@ -137,7 +121,7 @@ public:
         if (receive_result == AVERROR(EAGAIN) || receive_result == AVERROR_EOF) return TRError(0);
         if (receive_result < 0) return TRError(receive_result);
         if (!Render()) return TRError(-1);
-        return RawImage::Make(nullptr, 0, frame_->width, frame_->height, -1, RawImageFormat::kRawImageRGBA);
+        return RawImage::MakePresented(frame_->width, frame_->height);
     }
 
 private:
@@ -182,7 +166,8 @@ private:
     AVPixelFormat scaler_format_{AV_PIX_FMT_NONE};
 };
 
-AndroidSoftwareVideoDecoder::AndroidSoftwareVideoDecoder(const std::shared_ptr<ThunderSdk>& sdk) : VideoDecoder(sdk) {}
+AndroidSoftwareVideoDecoder::AndroidSoftwareVideoDecoder(const std::shared_ptr<ThunderSdk>& sdk, std::shared_ptr<AndroidVideoOutput> output)
+    : VideoDecoder(sdk), output_(std::move(output)) {}
 
 AndroidSoftwareVideoDecoder::~AndroidSoftwareVideoDecoder() {
     Release();
@@ -190,15 +175,15 @@ AndroidSoftwareVideoDecoder::~AndroidSoftwareVideoDecoder() {
 
 int AndroidSoftwareVideoDecoder::Init(const std::string& monitor_name, const int codec_type, const int width, const int height,
                                       const std::string&,
-                                      void* surface, // NOLINT(gammaray-raw-pointer-boundary)
                                       const int image_format, const bool ignore_hardware) {
-    if (inited_ || width <= 0 || height <= 0 || surface == nullptr) return -1;
+    const auto window = output_ ? output_->Snapshot() : std::shared_ptr<ANativeWindow>{};
+    if (inited_ || width <= 0 || height <= 0 || !window) return -1;
     const auto codec_id = codec_type == VideoType::kNetH264 ? AV_CODEC_ID_H264
                          : codec_type == VideoType::kNetHevc ? AV_CODEC_ID_HEVC
                                                             : AV_CODEC_ID_NONE;
     if (codec_id == AV_CODEC_ID_NONE) return -1;
     auto state = std::make_unique<State>();
-    if (!state->Initialize(codec_id, reinterpret_cast<std::uintptr_t>(surface))) { // NOLINT(gammaray-raw-pointer-boundary)
+    if (!state->Initialize(codec_id, window)) {
         return -1;
     }
     monitor_name_ = monitor_name;
@@ -215,13 +200,11 @@ int AndroidSoftwareVideoDecoder::Init(const std::string& monitor_name, const int
     return 0;
 }
 
-Result<std::shared_ptr<RawImage>, int> AndroidSoftwareVideoDecoder::Decode(
-    const std::uint8_t* data, // NOLINT(gammaray-raw-pointer-boundary)
-    const int size) {
-    if (!state_ || stop_ || data == nullptr || size <= 0) return TRError(-1);
+Result<std::shared_ptr<RawImage>, int> AndroidSoftwareVideoDecoder::Decode(std::span<const std::uint8_t> encoded) {
+    if (!state_ || stop_ || encoded.empty()) return TRError(-1);
     std::lock_guard lock(decode_mtx_);
     const auto started_at = TimeUtil::GetCurrentTimestamp();
-    auto result = state_->Decode({data, static_cast<std::size_t>(size)}); // NOLINT(gammaray-raw-pointer-boundary)
+    auto result = state_->Decode(encoded);
     if (result.has_value()) sdk_stat_->AppendDecodeDuration(monitor_name_, TimeUtil::GetCurrentTimestamp() - started_at);
     return result;
 }
@@ -233,9 +216,9 @@ void AndroidSoftwareVideoDecoder::Release() {
     state_.reset();
 }
 
-bool AndroidSoftwareVideoDecoder::UpdateRenderSurface(const std::uintptr_t surface_handle) {
+bool AndroidSoftwareVideoDecoder::RefreshOutput() {
     std::lock_guard lock(decode_mtx_);
-    return state_ && state_->UpdateSurface(surface_handle);
+    return state_ && output_ && state_->UpdateSurface(output_->Snapshot());
 }
 
 bool AndroidSoftwareVideoDecoder::Ready() {

@@ -29,7 +29,7 @@
 #include "px_message.pb.h"
 #include "px_message/proto_converter.h"
 #include "sdk_net_client.h"
-#include "sdk_params.h"
+#include "sdk_connection_params.h"
 
 namespace {
 
@@ -329,42 +329,33 @@ TEST(FileTransferTransportE2E, UploadDownloadAndDelete) {
     const auto remote_path = remote_dir + "/px_ft_transport_" + suffix +
         (directory_mode ? "_dir" : ".bin");
     const auto notifier = std::make_shared<px::MessageNotifier>();
-    const auto params = std::make_shared<px::ThunderSdkParams>();
-    params->ssl_ = transport == "udp_direct_tls";
-    params->enable_audio_ = false;
-    params->enable_video_ = false;
-    params->enable_controller_ = false;
+    px::SdkConnectionParams params{};
+    params.ssl_ = transport == "udp_direct_tls";
+    params.enable_audio_ = false;
+    params.enable_video_ = false;
     // UDP-direct exercises the normal-client topology: reliable file messages
     // share the authenticated /media control socket while UDP remains media
     // only. The same topology applies with and without TLS.
-    params->file_transfer_only_ = false;
-    params->ip_ = host;
-    params->port_ = port;
-    params->media_path_ = "/media?only_audio=0&remote_device_id=" + remote_device_id
-        + "&stream_id=" + stream_id + "&visitor_device_id=" + visitor_device_id;
+    params.file_transfer_only_ = false;
+    params.ip_ = host;
+    params.port_ = port;
+    params.media_path_ =
+        "/media?only_audio=0&remote_device_id=" + remote_device_id + "&stream_id=" + stream_id + "&visitor_device_id=" + visitor_device_id;
     if (transport == "udp_direct") {
-        params->udp_media_association_ = "ft-e2e-" + suffix;
-        params->media_path_ += "&udp_media=1";
+        params.udp_media_association_ = "ft-e2e-" + suffix;
+        params.media_path_ += "&udp_media=1";
         // Deliberately leave the UDP media endpoint unreachable so this E2E
-        // covers the authenticated in-session WS fallback instead of merely
-        // proving the healthy UDP path. The WS control socket still uses port.
-        params->udp_port_ = port == 65535 ? 1 : port + 1;
+        // covers reliable file transfer while UDP media is unavailable.
+        // No WS media fallback exists. The control socket still uses port.
+        params.udp_port_ = port == 65535 ? 1 : port + 1;
     }
-    params->ft_path_ = "/file/transfer?remote_device_id=" + remote_device_id
-        + "&stream_id=" + stream_id + "&visitor_device_id=" + visitor_device_id;
-    params->client_type_ = px::ClientType::kWindows;
-    params->bare_device_id_ = visitor_device_id;
-    params->bare_remote_device_id_ = remote_device_id;
-    params->device_id_ = "client_" + visitor_device_id + "_e2e";
-    params->remote_device_id_ = "server_" + remote_device_id;
-    params->ft_device_id_ = "ft_" + params->device_id_;
-    params->ft_remote_device_id_ = "ft_" + params->remote_device_id_;
-    params->stream_id_ = stream_id;
-    params->appkey_ = "test_appkey";
-    params->connection_ticket_ = ticket;
-    params->connection_nonce_ = nonce;
+    params.ft_path_ = "/file/transfer?remote_device_id=" + remote_device_id + "&stream_id=" + stream_id + "&visitor_device_id=" + visitor_device_id;
+    params.device_id_ = "client_" + visitor_device_id + "_e2e";
+    params.stream_id_ = stream_id;
+    params.connection_ticket_ = ticket;
+    params.connection_nonce_ = nonce;
 
-    const auto client = std::make_shared<px::NetClient>(params, notifier, params->media_path_, params->ft_path_);
+    const auto client = std::make_shared<px::NetClient>(std::move(params), notifier);
     const auto state = std::make_shared<TransportTestState>();
     const std::weak_ptr<px::NetClient> weak_client = client;
     const std::weak_ptr<TransportTestState> weak_state = state;

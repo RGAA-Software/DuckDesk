@@ -188,5 +188,73 @@ TEST(VoiceCallRuntimeTest, TenRepeatedLifecyclesDropLateWork) {
     }
 }
 
-}  // namespace
-}  // namespace px
+TEST(VoiceCallRuntimeTest, NativeUdpFramesRequireConsentAndCannotUseReliableFallback) {
+    ASSERT_EQ(SDL_setenv("SDL_AUDIODRIVER", "dummy", 1), 0);
+    const auto endpoint = std::make_shared<VoiceAudioEndpoint>([] { return CreateSdlVoiceAudioBackend(); });
+    const auto creations = std::make_shared<std::atomic_uint>();
+    const auto runtime = VoiceCallRuntime::Make(true, {}, [endpoint, creations] {
+        ++*creations;
+        return endpoint;
+    });
+    runtime->SetEventDelivery([](const VoiceCallRuntimeEvent&) {});
+    runtime->OnClientConnected("visitor", "stream", "Direct");
+    runtime->OnMessage(MakeCallRequest("stream", "call", 71));
+    UdpVoiceFrame frame{.call_id = "call", .sequence = 0, .capture_time_ms = 1, .opus = {0xf8, 0xff, 0xfe}};
+    runtime->ReceiveUdpVoiceFrame("stream", frame);
+    EXPECT_EQ(creations->load(), 0U);
+    EXPECT_FALSE(endpoint->IsRunning());
+    runtime->ApplyConsentDecision({.stream_id = "stream", .call_id = "call", .request_id = 71, .accepted = true});
+    ASSERT_TRUE(endpoint->IsRunning());
+    EXPECT_EQ(creations->load(), 1U);
+
+    auto wrong_call = frame;
+    wrong_call.call_id = "old-call";
+    runtime->ReceiveUdpVoiceFrame("stream", wrong_call);
+    runtime->ReceiveUdpVoiceFrame("old-stream", frame);
+    auto empty = frame;
+    empty.opus.clear();
+    runtime->ReceiveUdpVoiceFrame("stream", empty);
+    const auto reliable = std::make_shared<Message>();
+    reliable->set_type(kVoiceAudioFrame);
+    reliable->set_device_id("controlled-device");
+    reliable->set_stream_id("stream");
+    auto& audio = *reliable->mutable_voice_audio_frame();
+    audio.set_call_id(frame.call_id);
+    audio.set_sequence(frame.sequence);
+    audio.set_opus(std::string(frame.opus.begin(), frame.opus.end()));
+    runtime->OnMessage(reliable);
+    EXPECT_EQ(endpoint->Stats().jitter_peak_packets, 0U);
+
+    runtime->ReceiveUdpVoiceFrame("stream", frame);
+    EXPECT_GT(endpoint->Stats().jitter_peak_packets, 0U);
+    runtime->ReceiveUdpVoiceFrame("stream", frame);
+    EXPECT_EQ(endpoint->Stats().jitter_duplicates, 0U);
+    runtime->OnClientDisconnected("stream");
+    EXPECT_FALSE(endpoint->IsRunning());
+    runtime->ReceiveUdpVoiceFrame("stream", frame);
+    EXPECT_FALSE(endpoint->IsRunning());
+    runtime->Shutdown("test_complete");
+}
+
+TEST(VoiceCallRuntimeTest, BrowserConsentDoesNotAuthorizePrivateUdpVoice) {
+    ASSERT_EQ(SDL_setenv("SDL_AUDIODRIVER", "dummy", 1), 0);
+    const auto endpoint = std::make_shared<VoiceAudioEndpoint>([] { return CreateSdlVoiceAudioBackend(); });
+    const auto runtime = VoiceCallRuntime::Make(true, {}, [endpoint] { return endpoint; });
+    runtime->SetEventDelivery([](const VoiceCallRuntimeEvent& event) {
+        if (event.authorization_applied) {
+            event.authorization_applied->store(true);
+        }
+    });
+    runtime->OnClientConnected("visitor", "web-stream", "RTC");
+    runtime->OnMessage(MakeCallRequest("web-stream", "web-call", 72));
+    runtime->ApplyConsentDecision({.stream_id = "web-stream", .call_id = "web-call", .request_id = 72, .accepted = true});
+    ASSERT_TRUE(endpoint->IsRunning());
+    runtime->ReceiveUdpVoiceFrame("web-stream", {.call_id = "web-call", .opus = {0xf8, 0xff, 0xfe}});
+    EXPECT_EQ(endpoint->Stats().jitter_peak_packets, 0U);
+    runtime->ReceiveWebRtcPcm("web-stream", "web-call", std::vector<std::int16_t>(480U), 48000, 1);
+    EXPECT_GT(endpoint->Stats().received_pcm_samples, 0U);
+    runtime->Shutdown("test_complete");
+}
+
+} // namespace
+} // namespace px

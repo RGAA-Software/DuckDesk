@@ -22,13 +22,8 @@
 
 namespace px {
 
-WssConnection::WssConnection(
-    const std::shared_ptr<ThunderSdkParams>& params,
-    const std::shared_ptr<MessageNotifier>& notifier,
-    const std::string& host,
-    const int port,
-    const std::string& path)
-    : Connection(params, notifier), host_(host), port_(port), path_(path) {}
+WssConnection::WssConnection(const std::shared_ptr<MessageNotifier>& notifier, const std::string& host, const int port, const std::string& path)
+    : Connection(notifier), host_(host), port_(port), path_(path) {}
 
 WssConnection::~WssConnection() {
     Stop();
@@ -120,7 +115,7 @@ void WssConnection::Start() {
             }).bind_recv([weak_self, supervisor, generation](std::string_view data) {
                 const auto self = weak_self.lock();
                 if (!self || self->exiting_.load(std::memory_order_acquire)
-                    || self->terminal_rejection_.load(std::memory_order_acquire)) {
+                    || self->terminal_rejection_.load(std::memory_order_acquire) || !CanDeliverSdkWebSocketMessage(supervisor, generation)) {
                     return;
                 }
                 const auto rejection = ParseWsControlRejection(data);

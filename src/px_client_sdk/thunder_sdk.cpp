@@ -23,14 +23,9 @@
 #include "sdk_cast_receiver.h"
 #include "sdk_video_decoder_factory.h"
 #include "sdk_stream_helper.h"
-#include "sdk_ffmpeg_soft_decoder.h"
-#include "sdk_ffmpeg_decoder.h"
-#include "sdk_ffmpeg_vulkan_decoder.h"
+#include "sdk_video_decoder.h"
 #include "video_decode_thread_task.h"
 #include "px_message/proto_converter.h"
-#ifdef WIN32
-#include "px_common/hardware.h"
-#endif
 
 namespace px
 {
@@ -95,47 +90,44 @@ namespace px
         Exit();
     }
 
-    bool ThunderSdk::Init(const std::shared_ptr<ThunderSdkParams>& params, void* surface, const DecoderRenderType& drt) {
+    bool ThunderSdk::Init(const std::shared_ptr<ThunderSdkParams>& params, std::shared_ptr<VideoDecoderFactory> decoder_factory) {
+        if (!params || !decoder_factory || net_client_ || exit_) return false;
         sdk_params_ = params;
-        drt_ = drt;
-        render_surface_handle_.store(reinterpret_cast<std::uintptr_t>(surface));
+        decoder_factory_ = std::move(decoder_factory);
         last_heartbeat_callback_ = TimeUtil::GetCurrentTimestamp();
 
-        auto fn_process_target_platform = [&]() {
-            #if defined(_WIN32)
-                sdk_params_->device_name_ = Hardware::GetDesktopName();
-                sdk_params_->client_type_ = ClientType::kWindows;
-                return ClientType::kWindows;
-            #elif defined(__APPLE__)
-                #include "TargetConditionals.h"
-                #if TARGET_OS_IPHONE || TARGET_OS_SIMULATOR
-                    // iOS或iOS模拟器
-                    return ClientType::kiOS;
-                #elif TARGET_OS_MAC
-                    // macOS
-                    return ClientType::kMacOS;
-                #endif
-            #elif defined(__ANDROID__)
-                // Android
-                return ClientType::kAndroid;
-            #elif defined(__linux__)
-                // Linux (not Android)
-                return ClientType::kLinux;
-            #else
-                return ClientType::kUnknown;
-            #endif
-        };
-        fn_process_target_platform();
+        // Device identity is supplied by the host; the shared session does not query desktop APIs.
 
-        net_client_ = std::make_shared<NetClient>(sdk_params_, msg_notifier_, sdk_params_->media_path_, sdk_params_->ft_path_);
+        // The session composition boundary projects only transport values. The
+        // network runtime must not retain renderer devices or mutable UI params.
+        net_client_ = std::make_shared<NetClient>(
+            SdkConnectionParams{
+                .ssl_ = params->ssl_,
+                .enable_audio_ = params->enable_audio_,
+                .enable_video_ = params->enable_video_,
+                .file_transfer_only_ = params->file_transfer_only_,
+                .ip_ = params->ip_,
+                .port_ = params->port_,
+                .udp_port_ = params->udp_port_,
+                .media_path_ = params->media_path_,
+                .ft_path_ = params->ft_path_,
+                .device_id_ = params->device_id_,
+                .stream_id_ = params->stream_id_,
+                .connection_ticket_ = params->connection_ticket_,
+                .connection_nonce_ = params->connection_nonce_,
+                .connection_instance_id_ = params->connection_instance_id_,
+                .udp_media_association_ = params->udp_media_association_,
+            },
+            msg_notifier_);
         return true;
     }
 
-    void ThunderSdk::UpdateRenderSurface(const std::uintptr_t surface_handle, OnRenderSurfaceUpdated&& completion) {
-        render_surface_handle_.store(surface_handle);
+    void ThunderSdk::RefreshVideoOutput(const bool output_available, OnRenderSurfaceUpdated&& completion, std::function<void()> configure_output) {
+        output_available_.store(output_available, std::memory_order_release);
         render_surface_update_pending_.store(true, std::memory_order_release);
         const auto thread = video_thread_;
         if (!thread || exit_) {
+            if (!exit_ && configure_output) configure_output();
             render_surface_update_pending_.store(false, std::memory_order_release);
             if (completion) completion();
             return;
@@ -143,14 +135,16 @@ namespace px
         thread->Clear();
         need_clear_video_tasks_.store(false, std::memory_order_release);
         const auto weak_self = weak_from_this();
-        thread->Post(SimpleThreadTask::Make([weak_self, surface_handle, completion = std::move(completion)]() mutable {
+        thread->Post(SimpleThreadTask::Make([weak_self, output_available, completion = std::move(completion),
+                                            configure_output = std::move(configure_output)]() mutable {
             const auto self = weak_self.lock();
             if (self) {
                 if (!self->exit_) {
-                    bool surface_updated = surface_handle != 0U && !self->video_decoders_.empty();
+                    if (configure_output) configure_output();
+                    bool surface_updated = output_available && !self->video_decoders_.empty();
                     for (const auto& [monitor_name, decoder] : self->video_decoders_) {
                         static_cast<void>(monitor_name);
-                        if (!decoder->UpdateRenderSurface(surface_handle)) {
+                        if (!decoder->RefreshOutput()) {
                             surface_updated = false;
                             break;
                         }
@@ -164,13 +158,14 @@ namespace px
                     }
                 }
                 self->render_surface_update_pending_.store(false, std::memory_order_release);
-                if (!self->exit_ && surface_handle != 0U) self->RequestIFrame();
+                if (!self->exit_ && output_available) self->RequestIFrame();
             }
             if (completion) completion();
         }));
     }
 
     void ThunderSdk::Start() {
+        if (!net_client_ || !decoder_factory_ || exit_ || started_.exchange(true)) return;
         const auto weak_self = weak_from_this();
         statistics_ = SdkStatistics::Instance();
         statistics_->render_type_.Update(sdk_params_->render_type_name_);
@@ -224,14 +219,13 @@ namespace px
 
             auto video_task = [weak_self, frame]() ->void {
                 const auto self = weak_self.lock();
-                if (!self || self->exit_) return;
+                if (!self || self->exit_ || !self->output_available_.load(std::memory_order_acquire)) return;
                 auto& video_decoders_ = self->video_decoders_;
                 auto& last_received_video_timestamps_ = self->last_received_video_timestamps_;
                 auto& last_frame_indices_ = self->last_frame_indices_;
                 auto& received_files_ = self->received_files_;
                 auto sdk_params_ = self->sdk_params_;
                 auto statistics_ = self->statistics_;
-                auto render_surface = reinterpret_cast<void*>(self->render_surface_handle_.load()); // NOLINT(gammaray-raw-pointer-boundary)
                 const auto& monitor_name = frame.mon_name();
                 std::shared_ptr<VideoDecoder> video_decoder = nullptr;
                 if (video_decoders_.contains(monitor_name)) {
@@ -255,89 +249,19 @@ namespace px
                         }
                         return;
                     }
-#ifdef ANDROID
-                    // Some Android devices can't decode 2 or more streams at the same time, so, re-create it .
-                    if (!video_decoders_.empty()) {
-                        for (auto& [mon_name, decoder] : video_decoders_) {
+                    if (!self->decoder_factory_->SupportsMultipleStreams()) {
+                        for (const auto& [name, decoder] : video_decoders_) {
+                            static_cast<void>(name);
                             decoder->Release();
                         }
                         video_decoders_.clear();
                     }
-#endif
-                    //auto codec = (drt_ == DecoderRenderType::kMediaCodecSurface || drt_ == DecoderRenderType::kMediaCodecNv21) ? SupportedCodec::kMediaCodec : SupportedCodec::kFFmpeg;
-                    //video_decoder = VideoDecoderFactory::Make(shared_from_this(), codec);
-#if WIN32
-                    // from now on, it's for d3d11va decoder
-                    // we'll combine decoders into the same decoder class in the future
-                    LOGI("We will try hardware decoder.");
-
-                    if (sdk_params_->support_vulkan_) {
-                        video_decoder = std::make_shared<FFmpegVulkanDecoder>(self);
-                    }
-                    else {
-                        video_decoder = std::make_shared<FFmpegDecoder>(self);
-                    }
-                    auto r = video_decoder->Init(frame.mon_name(), frame.type(), frame.frame_width(), frame.frame_height(), frame.data(), render_surface, frame.image_format(),
-                        self->IsDisabledHardwareDecoder(frame.mon_name()));
-                    if (r != 0) {
-                        LOGE("Init D3D11VA decoder failed, will try software decoder");
-                        video_decoder->Release();
-                        video_decoder.reset();
-                    }
-
-                    if (!self->IsDisabledHardwareDecoder(frame.mon_name())) {
-                    }
-                    else {
-                        LOGI("Hardware decoder for: {} is disabled, use software.", frame.mon_name());
-                    }
-#endif
-
+                    auto created = self->decoder_factory_->Create(self, frame, self->IsDisabledHardwareDecoder(monitor_name));
+                    if (created.disable_hardware) self->DisableHardwareDecoder(monitor_name);
+                    video_decoder = std::move(created.decoder);
                     if (!video_decoder) {
-                        // Android
-                        // Begin
-#ifdef ANDROID
-                        const auto hardware_requested = self->drt_ == DecoderRenderType::kMediaCodecSurface ||
-                                                        self->drt_ == DecoderRenderType::kMediaCodecNv21;
-                        auto codec = hardware_requested && !self->IsDisabledHardwareDecoder(frame.mon_name()) ? SupportedCodec::kMediaCodec
-                                                                                                               : SupportedCodec::kFFmpeg;
-                        video_decoder = VideoDecoderFactory::Make(self, codec);
-                        if (!video_decoder) {
-                            self->NotifyDecoderUnavailable();
-                            return;
-                        }
-                        LOGI("Create video decoder, codec: {}", (int)codec);
-                        // Android
-                        // End
-#else
-                        video_decoder = std::make_shared<FFmpegVideoDecoder>(self);
-#endif
-                        bool ready = video_decoder->Ready();
-                        if (!ready) {
-                            auto result = video_decoder->Init(frame.mon_name(), frame.type(), frame.frame_width(),
-                                frame.frame_height(), frame.data(), render_surface, frame.image_format(), false);
-#ifdef ANDROID
-                            if (result != 0 && codec == SupportedCodec::kMediaCodec) {
-                                LOGW("MediaCodec initialization failed for {}; falling back to FFmpeg software decoding", frame.mon_name());
-                                video_decoder->Release();
-                                self->DisableHardwareDecoder(frame.mon_name());
-                                codec = SupportedCodec::kFFmpeg;
-                                video_decoder = VideoDecoderFactory::Make(self, codec);
-                                if (!video_decoder) {
-                                    self->NotifyDecoderUnavailable();
-                                    return;
-                                }
-                                result = video_decoder->Init(frame.mon_name(), frame.type(), frame.frame_width(), frame.frame_height(), frame.data(),
-                                    render_surface, frame.image_format(), true);
-                            }
-#endif
-                            if (result != 0) {
-                                LOGE("Video decoder init failed, mon name: {}, frame type: {}, frame width: {}, frame height: {}, format: {}",
-                                    frame.mon_name(), (int)frame.type(), frame.frame_width(), frame.frame_height(), (int)frame.image_format());
-                                self->NotifyDecoderUnavailable();
-                                return;
-                            }
-                            LOGI("Create decoder success {}x{}, type: {}", frame.frame_width(), frame.frame_height(), (int)frame.type());
-                        }
+                        self->NotifyDecoderUnavailable();
+                        return;
                     }
                     video_decoders_[monitor_name] = video_decoder;
                 }
@@ -561,6 +485,10 @@ namespace px
         }
     }
 
+    bool ThunderSdk::PostVoiceAudioMessage(const std::shared_ptr<Message>& message) {
+        return !exit_.load() && net_client_ && net_client_->PostVoiceAudioMessage(message);
+    }
+
     FileTransferSendResult ThunderSdk::PostFileTransferMessage(std::shared_ptr<Data> msg) {
         if (!msg) {
             return FileTransferSendResult::TransportError("file-transfer message is empty");
@@ -631,7 +559,8 @@ namespace px
     }
 
     void ThunderSdk::PostVideoTask(std::function<void()>&& task, int64_t frame_index, const std::string& monitor_name) {
-        if (!video_thread_ || exit_ || render_surface_update_pending_.load(std::memory_order_acquire)) return;
+        if (!video_thread_ || exit_ || !output_available_.load(std::memory_order_acquire) ||
+            render_surface_update_pending_.load(std::memory_order_acquire)) return;
         auto video_task = VideoDecodeThreadTask::Make(std::move(task));
         video_task->frame_index_ = frame_index;
         video_task->monitor_name_ = monitor_name;
@@ -802,13 +731,6 @@ namespace px
             net_client_->Exit();
         }
 
-        LOGI("will exit video decoder.");
-        for (const auto& [mon_name, video_decoder] : video_decoders_) {
-            if (video_decoder) {
-                video_decoder->Release();
-            }
-        }
-
         LOGI("Will exit video thread.");
         if (video_thread_) {
             video_thread_->Exit();
@@ -821,6 +743,18 @@ namespace px
         if (misc_thread_) {
             misc_thread_->Exit();
         }
+
+        // Stop the video worker before touching its decoder map. Release after
+        // draining, so initialization/decoding cannot race shutdown.
+        LOGI("will exit video decoder.");
+        for (const auto& [mon_name, video_decoder] : video_decoders_) {
+            if (video_decoder) {
+                video_decoder->Release();
+            }
+        }
+
+        video_decoders_.clear();
+        decoder_factory_.reset();
 
         LOGI("ThunderSdk exited");
     }

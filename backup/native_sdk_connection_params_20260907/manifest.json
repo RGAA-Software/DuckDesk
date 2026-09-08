@@ -1,0 +1,91 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Give native networking a value-only immutable connection configuration; remove unused platform parameter ownership from WS/WSS/UDP and link network tests without SDK decoders",
+  "files": [
+    {
+      "path": "src/px_client_sdk/tests/test_sdk_source_sets.cmake",
+      "sha256": "BD112C0CEF00B454FC48CF28E5E0B1964C47A434E9D7FA86EFFB6DED460161A9",
+      "status": "?? src/px_client_sdk/tests/test_sdk_source_sets.cmake"
+    },
+    {
+      "path": "scripts/check_native_sdk_transport.ps1",
+      "sha256": "DDA3B484546CC7D5C7B61A65AE28E04611B20815A318B8F6FDBD4053B0B8BF92",
+      "status": " M scripts/check_native_sdk_transport.ps1"
+    },
+    {
+      "path": "src/px_client_sdk/CMakeLists.txt",
+      "sha256": "577C3447518EE7CCBFF966212629F55350A8573572D444B895A008D473109421",
+      "status": " M src/px_client_sdk/CMakeLists.txt"
+    },
+    {
+      "path": "src/px_client_sdk/connection/connection.cpp",
+      "sha256": "6767AD77F33B85E17AABC546F2E1F4C1D36B759B1E8F3785CE626E955F74DFC4",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/connection.h",
+      "sha256": "C9121DCE04CDD7D427AEDFF8361EF28DE00BC4F4F891E0516E85219F1EF3F61A",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/udp_direct_connection.cpp",
+      "sha256": "44DB76EBA36D4114315690B467B5578E115836919050B3F6865B72E378A36E31",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/udp_direct_connection.h",
+      "sha256": "79F3844BF731CBEDF82FBA21541DAC460E4F7EAE7E48AC1BD9815B29452D8CA2",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/ws_connection.cpp",
+      "sha256": "49E48E5BD2942C237D0DDD8FA7AAB950517F385FE49BF957D8F28FDC62047F4A",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/ws_connection.h",
+      "sha256": "BE7732A7008CAD175E6A3359CC63A19C768C1D9524916ECB1AE35C16B50412DF",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/wss_connection.cpp",
+      "sha256": "BDE10C44DBA17D380F540DF33C43585D58BC5B64EF07D1AAAC0CC369FB22835A",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/connection/wss_connection.h",
+      "sha256": "C9E2C73869AAA91B9402BC85FE40C0A71BAAFD73B813C3D0A213A43DD4D6D881",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_net_client.cpp",
+      "sha256": "83D6BB2C55BFD5FB43F579672225C63EFE1CA81C0AD6801A63A0E05E650FFB83",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_net_client.h",
+      "sha256": "AFFCEE2F3CC59DD59C7074DB5D7797457F66975FB6F304B173C1E67C4F8F2949",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_ft_transport_e2e.cpp",
+      "sha256": "30241D4C5B4A5165157513A992040F827C8C1D6CDA08E547AB243B1A584ADE55",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_sdk_websocket_reconnect.cpp",
+      "sha256": "34BDF7E6594FF17553CB67CB82500A8155E58ECF58F0D6FB8569AE2309046A07",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_udp_media_failure.cpp",
+      "sha256": "305F730E1D661AF729096AFC88130808AA4F97E2BE28E24AC4533715B666F00C",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/thunder_sdk.cpp",
+      "sha256": "F498E0CB6389A01F1A589716118DB20C1364289AB6D70202409BE2C99C0F0A75",
+      "status": ""
+    }
+  ]
+}

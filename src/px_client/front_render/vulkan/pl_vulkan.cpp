@@ -103,6 +103,7 @@ namespace px {
             }
         }
 
+        m_HwDeviceCtx.reset();
         if (m_Vulkan) {
             pl_vulkan_destroy(&m_Vulkan);
         }
@@ -116,10 +117,6 @@ namespace px {
             }
         }
 
-        if (m_HwDeviceCtx != nullptr) {
-            av_buffer_unref(&m_HwDeviceCtx);
-        }
-
         if (m_PlVkInstance) {
             pl_vk_inst_destroy(&m_PlVkInstance);
         }
@@ -129,6 +126,19 @@ namespace px {
             pl_log_destroy(&m_Log);
         }
 	}
+
+    AvBufferPtr PlVulkan::ShareHwDeviceContext() {
+        if (!m_HwDeviceCtx) return {};
+        struct DeviceLease final {
+            std::shared_ptr<PlVulkan> renderer{};
+            AvBufferPtr buffer{};
+        };
+        // A device's FFmpeg callbacks borrow this renderer's queues. Keep the
+        // renderer alive as well as the buffer; release the buffer first.
+        const auto lease = std::make_shared<DeviceLease>(shared_from_this(), CloneAvBuffer(*m_HwDeviceCtx));
+        if (!lease->buffer) return {};
+        return AvBufferPtr(lease, lease->buffer.get());
+    }
 
     bool PlVulkan::CreatePlVulkanInstance() {
         // 创建 Vulkan 实例参数
@@ -230,7 +240,7 @@ namespace px {
     }
 
     bool PlVulkan::InitAVHWDeviceContext() {
-        m_HwDeviceCtx = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_VULKAN);
+        m_HwDeviceCtx = AvBufferPtr(av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_VULKAN), AvBufferDeleter{});
         if (m_HwDeviceCtx == nullptr) {
             LOGE("av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_VULKAN) failed");
             return false;
@@ -256,7 +266,7 @@ namespace px {
         // Populate the device queues for decoding this video format
         populateQueues(/*params->videoFormat*/ -1); // LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(59, 34, 100) 不用videoFormat参数
 
-        int err = av_hwdevice_ctx_init(m_HwDeviceCtx);
+        int err = av_hwdevice_ctx_init(m_HwDeviceCtx.get());
         if (err < 0) {
             LOGE("av_hwdevice_ctx_init() failed: {}", err);
             return false;
@@ -592,7 +602,7 @@ namespace px {
     bool PlVulkan::prepareDecoderContext(AVCodecContext* context, AVDictionary**) {
         if (m_HwAccelBackend) {
             LOGI("Using Vulkan video decoding");
-            context->hw_device_ctx = av_buffer_ref(m_HwDeviceCtx);
+            context->hw_device_ctx = av_buffer_ref(m_HwDeviceCtx.get());
         }
         else {
             LOGI("Using Vulkan renderer");

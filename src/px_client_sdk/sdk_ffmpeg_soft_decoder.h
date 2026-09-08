@@ -17,6 +17,7 @@ extern "C" {
 }
 
 #include "sdk_video_decoder.h"
+#include "ffmpeg_decoder_handles.h"
 
 namespace px
 {
@@ -26,8 +27,9 @@ namespace px
         explicit FFmpegVideoDecoder(const std::shared_ptr<ThunderSdk>& sdk);
         ~FFmpegVideoDecoder() override;
 
-        int Init(const std::string& mon_name, int codec_type, int width, int height, const std::string& frame, void* surface, int img_format, bool ignore_hw) override;
-        Result<std::shared_ptr<RawImage>, int> Decode(const uint8_t* data, int size) override;
+        int Init(const std::string& mon_name, int codec_type, int width, int height,
+            const std::string& frame, int img_format, bool ignore_hw) override;
+        Result<std::shared_ptr<RawImage>, int> Decode(std::span<const std::uint8_t> encoded) override;
         void Release() override;
         bool Ready() override;
         void EnableToRGBFormat();
@@ -36,10 +38,10 @@ namespace px
         void ListCodecs();
 
     private:
-        AVCodecContext* codec_context = nullptr;
+        DecoderContextPtr codec_context{};
         AVCodec* codec = nullptr;
-        AVPacket* packet = nullptr;
-        AVFrame* av_frame = nullptr;
+        DecoderPacketPtr packet{};
+        AvFramePtr av_frame{};
         AVPixelFormat last_format_ = AV_PIX_FMT_NONE;
         bool cvt_to_rgb_ = false;
         std::shared_ptr<RawImage> decoded_image_ = nullptr;

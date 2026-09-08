@@ -12,14 +12,17 @@
 #include <vector>
 
 namespace px {
+class Message;
 class MessageNotifier;
 class MessageListener;
 class SdkStatistics;
 class ThunderSdk;
+class AndroidVideoOutput;
 class Thread;
-class RecordWriter;
-class OpusAudioEncoder;
+class RecordingSession;
 class FileDirectory;
+class VoiceCallController;
+struct VoiceCallStatus;
 } // namespace px
 
 namespace px::ft {
@@ -31,10 +34,8 @@ namespace pixels::android {
 
 class NativeAudioPlayer;
 class NativeClipboard;
-class NativeVoiceCall;
 struct NativeClipboardFile;
 struct NativeClipboardFiles;
-struct NativeVoiceCallStatus;
 
 struct NativeSessionConfig final {
     std::string session_id{};
@@ -95,7 +96,7 @@ class JavaSessionCallback final {
                                bool identical) const;
     void RemoteDirectory(const std::string& session_id, const px::FileDirectory& directory) const;
     void RecordingState(const std::string& session_id, const std::string& recording_id, std::int32_t state, const std::string& error) const;
-    void VoiceCallState(const std::string& session_id, const NativeVoiceCallStatus& status) const;
+    void VoiceCallState(const std::string& session_id, const px::VoiceCallStatus& status) const;
     void MediaUnavailable(const std::string& session_id, bool interrupted) const;
     void Disconnected(const std::string& session_id, std::int32_t reason, bool recoverable) const;
 
@@ -149,23 +150,25 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     void Stop();
 
   private:
+    void SubmitRecordingFrame(std::shared_ptr<px::Message> message);
     bool QueueSurfaceUpdate(std::shared_ptr<ANativeWindow> surface);
     void CompleteSurfaceUpdate();
-    void DispatchSurfaceUpdate(std::shared_ptr<px::ThunderSdk> sdk, std::shared_ptr<ANativeWindow> retiring_surface, std::uintptr_t surface_handle);
+    void DispatchSurfaceUpdate(std::shared_ptr<px::ThunderSdk> sdk, std::shared_ptr<ANativeWindow> retiring_surface,
+                               std::shared_ptr<ANativeWindow> replacement);
 
     NativeSessionConfig config_{};
     std::shared_ptr<JavaSessionCallback> callback_{};
     std::shared_ptr<ANativeWindow> surface_{};
+    std::shared_ptr<px::AndroidVideoOutput> decoder_output_{};
     std::shared_ptr<ANativeWindow> pending_surface_{};
     std::shared_ptr<px::MessageNotifier> message_notifier_{};
     std::shared_ptr<px::MessageListener> session_listener_{};
     std::shared_ptr<px::ThunderSdk> sdk_{};
     std::shared_ptr<px::ft::FtAsyncSession> file_transfer_session_{};
-    std::shared_ptr<px::Thread> recording_thread_{};
-    std::shared_ptr<px::RecordWriter> recording_writer_{};
-    std::unique_ptr<px::OpusAudioEncoder> recording_audio_encoder_{};
+    std::shared_ptr<px::RecordingSession> recording_session_{};
+    std::vector<std::shared_ptr<px::RecordingSession>> finishing_recordings_{};
     std::shared_ptr<NativeClipboard> clipboard_{};
-    std::shared_ptr<NativeVoiceCall> voice_call_{};
+    std::shared_ptr<px::VoiceCallController> voice_call_{};
     std::shared_ptr<px::SdkStatistics> statistics_{};
     std::unique_ptr<NativeAudioPlayer> audio_player_{};
     std::mutex command_mutex_{};
@@ -173,11 +176,6 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     bool initialized_{};
     bool started_{};
     std::atomic_bool file_transfer_ready_{};
-    std::atomic_uint64_t active_recording_generation_{};
-    std::atomic_uint64_t recording_video_packets_{};
-    std::atomic_uint64_t recording_audio_packets_{};
-    std::uint64_t next_recording_generation_{};
-    std::uint64_t recording_writer_generation_{};
     std::string active_recording_id_{};
     bool surface_update_in_progress_{};
     bool has_pending_surface_update_{};

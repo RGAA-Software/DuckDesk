@@ -1,0 +1,61 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Bind Windows recording UI intents and failure callbacks to individual recording generations.",
+  "files": [
+    {
+      "path": "src/px_client/ct_app_message.h",
+      "sha256": "B8F40AD5ABFEF4AA82D3858311FF5F2049A253E38375E4393A86BBAB89DC91CE",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.cpp",
+      "sha256": "B8F1C0E3EEB192042F82382583B75FE24C75E7EF8F3B6A691C89486FF8AA82F5",
+      "status": " M src/px_client/ct_base_workspace.cpp"
+    },
+    {
+      "path": "src/px_client/ct_client_context.cpp",
+      "sha256": "7D3DF3B6A83581B2EAEA598A8B5098B9F65CB7AA75926823FA7D067CAF6E89E2",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_client_context.h",
+      "sha256": "97A6290E5E7A227161B195351A8BD2742F9863015414D570D67143292363D117",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/modules/client_module_manager.cpp",
+      "sha256": "B4CA9119A24A9EC7B93254205E74644E547E6638E7DF0F42D43B7BF3D2CEAE8B",
+      "status": " M src/px_client/modules/client_module_manager.cpp"
+    },
+    {
+      "path": "src/px_client/modules/client_module_manager.h",
+      "sha256": "D8EBEA7216CBD62444A57337E4DF7D5988A2A41650694730A337404F75A91347",
+      "status": " M src/px_client/modules/client_module_manager.h"
+    },
+    {
+      "path": "src/px_client/modules/client_module_services.h",
+      "sha256": "60784FAAC477C0746A338C1A31FA97A019192615F5782F141670F38C8519493B",
+      "status": " M src/px_client/modules/client_module_services.h"
+    },
+    {
+      "path": "src/px_client/modules/media_recording/media_recording_module.cpp",
+      "sha256": "2D97CB34BED9886FD50EFE4204CFB69FDF86DF294E5638BC280AE4AF87A81380",
+      "status": " M src/px_client/modules/media_recording/media_recording_module.cpp"
+    },
+    {
+      "path": "src/px_client/modules/media_recording/media_recording_module.h",
+      "sha256": "168EBC057252C4103612D37FB97F2E4F8BE802091D15CF7F079EE9707961E912",
+      "status": " M src/px_client/modules/media_recording/media_recording_module.h"
+    },
+    {
+      "path": "src/px_client/tests/fake_client_module_services.h",
+      "sha256": "42DD19B8AB827EC035EE5E781EEAA21D50D048D4C1E098885CD932E1FAE24242",
+      "status": " M src/px_client/tests/fake_client_module_services.h"
+    },
+    {
+      "path": "src/px_client/ui/float_controller_panel.cpp",
+      "sha256": "5F487FCC55D7D05B67986C851EF9B056A5BBDA7F0BC95A5776E93FDEA5D824AD",
+      "status": ""
+    }
+  ]
+}

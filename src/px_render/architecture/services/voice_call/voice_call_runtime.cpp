@@ -440,11 +440,35 @@ void VoiceCallRuntime::ReceiveWebRtcPcm(const std::string& stream_id, const std:
     }
 }
 
+void VoiceCallRuntime::ReceiveUdpVoiceFrame(const std::string& stream_id, const UdpVoiceFrame& frame) {
+    if (frame.opus.empty() || frame.opus.size() > 1275U) {
+        return;
+    }
+    std::shared_ptr<VoiceAudioEndpoint> endpoint{};
+    {
+        std::lock_guard lock(mutex_);
+        const auto connection = connection_types_.find(stream_id);
+        if (!IsAccepting() || !connected_clients_.contains(stream_id) || stream_id != active_stream_id_ || connection == connection_types_.end() ||
+            connection->second != "Direct" || !state_.AcceptMedia(frame.call_id, frame.sequence)) {
+            return;
+        }
+        endpoint = endpoint_;
+    }
+    if (endpoint) {
+        static_cast<void>(endpoint->ReceiveOpus(frame.sequence, frame.capture_time_ms, frame.opus));
+    }
+}
+
 void VoiceCallRuntime::ProcessAudioFrame(const std::shared_ptr<Message>& message) {
     const auto& frame = message->voice_audio_frame();
-    std::shared_ptr<VoiceAudioEndpoint> endpoint;
+    std::shared_ptr<VoiceAudioEndpoint> endpoint{};
     {
         std::scoped_lock lock(mutex_);
+        const auto connection = connection_types_.find(message->stream_id());
+        // Native voice has no reliable-channel fallback. Browser RTC behavior remains separate.
+        if (connection != connection_types_.end() && connection->second == "Direct") {
+            return;
+        }
         if (!IsAuthenticatedSessionLocked(message->device_id(), message->stream_id()) || message->stream_id() != active_stream_id_ ||
             !state_.AcceptMedia(frame.call_id(), frame.sequence())) {
             return;

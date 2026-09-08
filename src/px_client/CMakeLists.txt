@@ -46,7 +46,6 @@ set(SRCS_WS
     ct_workspace.cpp
     ct_base_workspace.cpp
     ct_virtual_display_protocol.cpp
-    ct_voice_call_protocol.cpp
     front_render/ct_video_widget.cpp
     front_render/opengl/ct_director.cpp
     front_render/opengl/ct_opengl_video_widget.cpp
@@ -133,7 +132,7 @@ if (APPLE)
 endif()
 
 target_link_libraries(px_client PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Svg Qt6::Charts
-        px_common px_message px_cp_message px_sdk px_qt_widget OpenSSL::SSL OpenSSL::Crypto
+        px_common px_message px_cp_message pixels::sdk px_qt_widget OpenSSL::SSL OpenSSL::Crypto
         $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static> Winmm.lib px_server_message
         Dwmapi.lib unofficial::sqlite3::sqlite3 libplacebo vulkan-1 px_hw_info skin_interface skin_loader
         client_clipboard_module client_file_transfer_module client_media_recording_module
@@ -148,12 +147,6 @@ add_executable(test_client_virtual_display
 target_include_directories(test_client_virtual_display PRIVATE ${CMAKE_SOURCE_DIR}/src/px_deps)
 target_link_libraries(test_client_virtual_display PRIVATE px_message GTest::gtest GTest::gtest_main)
 
-add_executable(test_client_voice_call_protocol
-    tests/test_voice_call_protocol.cpp
-    ct_voice_call_protocol.cpp
-)
-target_link_libraries(test_client_voice_call_protocol PRIVATE
-    px_message px_voice_call GTest::gtest GTest::gtest_main)
 
 add_executable(test_client_module_context_lifecycle
     tests/test_client_module_context_lifecycle.cpp
@@ -187,9 +180,16 @@ add_executable(test_client_clipboard_file_stream
     modules/clipboard/win/cp_file_stream.cpp
 )
 target_link_libraries(test_client_clipboard_file_stream PRIVATE
-    px_common px_message GTest::gtest GTest::gtest_main)
+    pixels::transport px_common px_message GTest::gtest GTest::gtest_main)
 
 if(BUILD_TESTING)
+    # Exercise the Android host's std-only clipboard adapter without a device or JNI.
+    add_executable(test_native_clipboard_protocol
+        tests/test_native_clipboard_protocol.cpp
+        ../px_android/core-native/src/main/cpp/native_clipboard.cpp)
+    set_target_properties(test_native_clipboard_protocol PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+    target_link_libraries(test_native_clipboard_protocol PRIVATE pixels::transport GTest::gtest GTest::gtest_main)
+    add_test(NAME native_clipboard_protocol COMMAND test_native_clipboard_protocol)
     add_executable(test_client_cursor_image tests/test_cursor_image.cpp)
     target_include_directories(test_client_cursor_image PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(test_client_cursor_image PRIVATE Qt6::Gui GTest::gtest GTest::gtest_main)
@@ -201,7 +201,6 @@ if(BUILD_TESTING)
     target_include_directories(test_client_latest_frame_dispatch_queue PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(test_client_latest_frame_dispatch_queue PRIVATE GTest::gtest GTest::gtest_main)
 
-    add_test(NAME client_voice_call_protocol COMMAND test_client_voice_call_protocol)
     add_test(NAME client_virtual_display COMMAND test_client_virtual_display)
     add_test(NAME client_latest_frame_dispatch_queue COMMAND test_client_latest_frame_dispatch_queue)
     add_test(NAME client_module_context_lifecycle COMMAND test_client_module_context_lifecycle)

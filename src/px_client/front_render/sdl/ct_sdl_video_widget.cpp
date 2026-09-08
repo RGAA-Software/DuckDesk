@@ -67,28 +67,22 @@ namespace px
 
     void SDLVideoWidget::RefreshImage(const std::shared_ptr<RawImage> &image) {
         if (image->img_format == RawImageFormat::kRawImageI420) {
-            this->RefreshImage(image);
+            this->RefreshI420Image(image);
         }
     }
 
     void SDLVideoWidget::RefreshI420Image(const std::shared_ptr<RawImage>& image) {
         Init(image->img_width, image->img_height);
 
-        int y_buf_size = image->img_width * image->img_height;
-        int uv_buf_size = y_buf_size / 4;
-        char* buf = image->Data();
-        RefreshI420Buffer(buf, y_buf_size, // y
-                          buf + y_buf_size, uv_buf_size, // u
-                          buf + y_buf_size + uv_buf_size, uv_buf_size, // v
-                          image->img_width, image->img_height
-        );
+        RefreshI420Buffer(image->Plane(0), image->Plane(1), image->Plane(2), image->img_width, image->img_height);
     }
 
-    void SDLVideoWidget::RefreshI420Buffer(const char* y_buf, int y_buf_size, const char* u_buf, int u_buf_size, const char* v_buf, int v_buf_size, int width, int height) {
+    void SDLVideoWidget::RefreshI420Buffer(std::span<const char> y, std::span<const char> u, std::span<const char> v, int width, int height) {
+        if (y.empty() || u.empty() || v.empty()) return;
         int ret = SDL_UpdateYUVTexture(sdlTexture, NULL,
-                                       (uint8_t*)y_buf, width,
-                                       (uint8_t*)u_buf, width/2,
-                                       (uint8_t*)v_buf, width/2);
+                                       reinterpret_cast<const uint8_t*>(y.data()), width,
+                                       reinterpret_cast<const uint8_t*>(u.data()), width / 2 + width % 2,
+                                       reinterpret_cast<const uint8_t*>(v.data()), width / 2 + width % 2);
         ret = SDL_RenderClear(sdlRenderer);
         ret = SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, NULL);
         SDL_RenderPresent(sdlRenderer);

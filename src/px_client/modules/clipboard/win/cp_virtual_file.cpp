@@ -266,10 +266,10 @@ namespace px
         return S_OK;
     }
 
-    HRESULT STDMETHODCALLTYPE CpVirtualFile::EndOperation(HRESULT hResult, IBindCtx *pbcReserved, DWORD dwEffects) {
+    HRESULT STDMETHODCALLTYPE CpVirtualFile::EndOperation(HRESULT hResult, IBindCtx* pbcReserved, DWORD dwEffects) {
         in_async_op_ = false;
         LOGI("EndOperation....");
-        ExitAllStreams();
+        ExitAllStreams(SUCCEEDED(hResult));
         return S_OK;
     }
 
@@ -322,31 +322,31 @@ namespace px
         runtime_bridge_->PostMediaMessage(std::move(buffer));
     }
 
-    void CpVirtualFile::ReportFileTransferEnd(
-        const Microsoft::WRL::ComPtr<CpFileStream>& stream) {
+    void CpVirtualFile::ReportFileTransferEnd(const Microsoft::WRL::ComPtr<CpFileStream>& stream, bool operation_succeeded) {
         if (!stream || !runtime_bridge_ || !module_lifetime_token_ ||
             !module_lifetime_token_->load()) {
             return;
         }
         const auto settings = runtime_bridge_->SettingsSnapshot();
 
-        runtime_bridge_->ReportFileTransferEnd(
-            stream->GetFileId(), true, "success", {});
+        const bool success = operation_succeeded && stream->IsComplete();
+        runtime_bridge_->ReportFileTransferEnd(stream->GetFileId(), success, success ? "success" : "failed",
+                                               success ? std::string{} : "clipboard operation cancelled or incomplete");
 
         // send end message to client
-        px::Message msg;
+        px::Message msg{};
         msg.set_device_id(settings.device_id_);
         msg.set_stream_id(settings.stream_id_);
         msg.set_type(MessageType::kClipboardReqAtEnd);
-        auto req_buffer = msg.mutable_cp_req_at_end();
-        req_buffer->set_full_name(stream->GetFullPath());
-        req_buffer->set_success(true);
+        auto& req_buffer = *msg.mutable_cp_req_at_end();
+        req_buffer.set_full_name(stream->GetFullPath());
+        req_buffer.set_success(success);
         auto buffer = ProtoAsData(&msg);
         runtime_bridge_->PostMediaMessage(std::move(buffer));
     }
 
-    void CpVirtualFile::ExitAllStreams() {
-        std::vector<Microsoft::WRL::ComPtr<CpFileStream>> streams;
+    void CpVirtualFile::ExitAllStreams(bool operation_succeeded) {
+        std::vector<Microsoft::WRL::ComPtr<CpFileStream>> streams{};
         {
             std::lock_guard<std::mutex> lock(active_streams_mtx_);
             streams.reserve(active_streams_.size());
@@ -356,7 +356,7 @@ namespace px
             active_streams_.clear();
         }
         for (const auto& stream : streams) {
-            ReportFileTransferEnd(stream);
+            ReportFileTransferEnd(stream, operation_succeeded);
             stream->Exit();
         }
     }

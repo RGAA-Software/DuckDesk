@@ -7,6 +7,8 @@
 #include "px_common/log.h"
 #include "px_common/md5.h"
 #include "px_common/path_codec.h"
+#include "px_common/uuid.h"
+#include "px_client_sdk/sdk_clipboard_protocol.h"
 #include "px_message/proto_converter.h"
 #include "win/cp_file_struct.h"
 
@@ -27,10 +29,28 @@ void ClipboardRuntimeBridge::UpdateSettings(
     const ClientModuleSettings& settings) {
     std::lock_guard lock(mutex_);
     settings_ = settings;
+    if (!settings_.clipboard_enabled_) {
+        published_files_.clear();
+    }
 }
 
 void ClipboardRuntimeBridge::Deactivate() {
     lifetime_token_->store(false);
+    RevokeLocalFiles();
+}
+
+void ClipboardRuntimeBridge::RevokeLocalFiles() const {
+    std::lock_guard lock(mutex_);
+    published_files_.clear();
+}
+
+std::optional<ClipboardFile> ClipboardRuntimeBridge::PublishedFile(const std::string& transfer_name) const {
+    std::lock_guard lock(mutex_);
+    if (!lifetime_token_->load() || !settings_.clipboard_enabled_) {
+        return {};
+    }
+    const auto file = published_files_.find(transfer_name);
+    return file == published_files_.end() ? std::nullopt : std::optional(file->second);
 }
 
 bool ClipboardRuntimeBridge::IsEnabled() const {
@@ -51,12 +71,32 @@ void ClipboardRuntimeBridge::SendClipboardUpdate(
     ClipboardType type,
     std::string text,
     std::vector<ClipboardFile> files) const {
-    if (!lifetime_token_->load()) {
+    if (!IsEnabled()) {
         return;
     }
     if (const auto services = services_.lock()) {
-        services->SendClipboardUpdate(
-            type, std::move(text), std::move(files));
+        std::unordered_map<std::string, ClipboardFile> offered{};
+        const auto generation = GetUUID();
+        if (type == kClipboardFiles) {
+            for (std::size_t index{}; index < files.size(); ++index) {
+                auto& file = files[index];
+                if (!IsClipboardFileDescriptorValid(file.file_name(), file.full_path(), file.total_size())) {
+                    RevokeLocalFiles();
+                    return;
+                }
+                const auto token = "pixels-clipboard://" + generation + "/" + std::to_string(index);
+                offered.emplace(token, file);
+                file.set_full_path(token);
+            }
+        }
+        {
+            std::lock_guard lock(mutex_);
+            if (!lifetime_token_->load() || !settings_.clipboard_enabled_) {
+                return;
+            }
+            published_files_ = std::move(offered);
+        }
+        services->SendClipboardUpdate(type, std::move(text), std::move(files));
     }
 }
 
@@ -107,12 +147,9 @@ void ClipboardRuntimeBridge::ReportFileTransferEnd(
     }
 }
 
-bool ClipboardRuntimeBridge::RequestBuffer(
-    const ClipboardFileWrapper& file_wrapper,
-    std::int64_t request_index,
-    std::int64_t request_start,
-    unsigned long request_size) const {
-    if (!lifetime_token_->load()) {
+bool ClipboardRuntimeBridge::RequestBuffer(const ClipboardFileWrapper& file_wrapper, std::int64_t request_index, std::int64_t request_start,
+                                           unsigned long request_size) const {
+    if (!IsEnabled()) {
         return false;
     }
     const auto services = services_.lock();
@@ -129,6 +166,9 @@ bool ClipboardRuntimeBridge::RequestBuffer(
     request.set_req_size(request_size);
     request.set_req_start(request_start);
     request.set_full_name(file_wrapper.file_.full_path());
+    if (!ClipboardReadRequest::From(request).IsValid()) {
+        return false;
+    }
     return services->PostFileTransferMessage(ProtoAsData(&message)).accepted();
 }
 
@@ -139,8 +179,11 @@ void ClipboardRuntimeBridge::OnRequestFileBegin(
         return;
     }
     const auto& request = message->cp_req_at_begin();
-    services->ReportFileTransferBegin(
-        MD5::Hex(request.full_name()), request.full_name(), "Out");
+    const auto file = PublishedFile(request.full_name());
+    if (!message->has_cp_req_at_begin() || !file) {
+        return;
+    }
+    services->ReportFileTransferBegin(MD5::Hex(request.full_name()), file->full_path(), "Out");
 }
 
 void ClipboardRuntimeBridge::OnRequestFileBuffer(
@@ -150,16 +193,28 @@ void ClipboardRuntimeBridge::OnRequestFileBuffer(
         return;
     }
     const auto& request = message->cp_req_buffer();
-    DataPtr data;
-    const auto full_path = PathFromUtf8(request.full_name());
+    const auto published = PublishedFile(request.full_name());
+    if (!message->has_cp_req_buffer() || !published) {
+        return;
+    }
+    const auto read_size_limit = ClipboardReadRequest::From(request).ReadSize(published->total_size());
+    if (!read_size_limit) {
+        return;
+    }
+    DataPtr data{};
+    const auto full_path = PathFromUtf8(published->full_path());
     if (!full_path) {
         LOGE("event=client.clipboard.invalid_file_path stage=decode_utf8 error={}", full_path.Error().message);
     } else {
         const auto file = File::OpenForReadB(full_path.Value());
-        if (file->Exists()) {
-            std::uint64_t read_size = 0;
-            data = file->Read(request.req_start(), request.req_size(), read_size);
+        if (file && file->Exists() && *read_size_limit > 0) {
+            std::uint64_t read_size{};
+            data = file->Read(request.req_start(), *read_size_limit, read_size);
         }
+    }
+
+    if (!PublishedFile(request.full_name())) {
+        return;
     }
 
     const auto settings = SettingsSnapshot();
@@ -187,6 +242,9 @@ void ClipboardRuntimeBridge::OnRequestFileEnd(
         return;
     }
     const auto& request = message->cp_req_at_end();
+    if (!message->has_cp_req_at_end() || !PublishedFile(request.full_name())) {
+        return;
+    }
     services->ReportFileTransferEnd(
         MD5::Hex(request.full_name()), request.success(),
         request.success() ? "success" : "failed",

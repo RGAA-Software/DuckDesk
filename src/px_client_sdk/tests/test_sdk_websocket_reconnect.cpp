@@ -15,7 +15,7 @@
 #include "connection/ws_connection.h"
 #include "connection/wss_connection.h"
 #include "px_common/message_notifier.h"
-#include "sdk_params.h"
+#include "sdk_messages.h"
 
 namespace px {
 namespace {
@@ -36,15 +36,13 @@ bool WaitUntil(const std::function<bool()>& predicate, const std::chrono::steady
 std::shared_ptr<WsConnection> MakeConnection(
     const std::shared_ptr<MessageNotifier>& notifier,
     const int port) {
-    return std::make_shared<WsConnection>(
-        std::make_shared<ThunderSdkParams>(), notifier, "127.0.0.1", port, "/sdk-reconnect-test");
+    return std::make_shared<WsConnection>(notifier, "127.0.0.1", port, "/sdk-reconnect-test");
 }
 
 std::shared_ptr<WssConnection> MakeSecureConnection(
     const std::shared_ptr<MessageNotifier>& notifier,
     const int port) {
-    return std::make_shared<WssConnection>(
-        std::make_shared<ThunderSdkParams>(), notifier, "127.0.0.1", port, "/sdk-secure-reconnect-test");
+    return std::make_shared<WssConnection>(notifier, "127.0.0.1", port, "/sdk-secure-reconnect-test");
 }
 
 std::shared_ptr<asio2::wss_server> MakeSecureServer() {
@@ -188,6 +186,86 @@ TEST(SdkWebSocketReconnect, StopFromReadyCallbackDrainsAndAllowsRestart) {
     }, 10s));
 
     connection->Stop();
+    server->stop();
+    notifier->Stop(MessageBusStopMode::kCancel);
+}
+
+TEST(SdkWebSocketReconnect, IngressRejectsStaleAndStoppedAttemptGenerations) {
+    const auto notifier = std::make_shared<MessageNotifier>();
+    const auto runtime = notifier->GetAsyncRuntime();
+    const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
+    const auto supervisor = PxReconnectSupervisor::Create(
+        runtime, {.component = "sdk-ingress-test", .backoff = {.initial_delay = 1ms, .maximum_delay = 2ms, .jitter_ratio = 0.0}});
+    ASSERT_TRUE(supervisor);
+    EXPECT_FALSE(CanDeliverSdkWebSocketMessage({}, 1));
+    EXPECT_FALSE(CanDeliverSdkWebSocketMessage(supervisor, 0));
+    PxReconnectSupervisorHooks hooks{
+        .start_attempt =
+            [weak_supervisor = std::weak_ptr<PxReconnectSupervisor>(supervisor)](std::uint64_t generation) {
+                if (const auto current = weak_supervisor.lock()) {
+                    EXPECT_FALSE(CanDeliverSdkWebSocketMessage(current, generation));
+                    EXPECT_TRUE(current->MarkReady(generation));
+                }
+                return PxResult<void>::Success();
+            },
+        .stop_attempt = [](std::chrono::steady_clock::time_point) -> PxAwaitable<PxResult<void>> { co_return PxResult<void>::Success(); },
+    };
+    ASSERT_TRUE(scope->Spawn("sdk-ingress-generation",
+                             [supervisor, hooks = std::move(hooks)]() mutable { return PxReconnectSupervisor::Run(supervisor, std::move(hooks)); }));
+    ASSERT_TRUE(WaitUntil([supervisor] { return supervisor->IsReady(); }, 1s));
+    const auto previous = supervisor->Generation();
+    EXPECT_TRUE(CanDeliverSdkWebSocketMessage(supervisor, previous));
+    EXPECT_TRUE(
+        supervisor->MarkDisconnected(previous, MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "test.disconnect", "test disconnect", true)));
+    EXPECT_FALSE(CanDeliverSdkWebSocketMessage(supervisor, previous));
+    ASSERT_TRUE(WaitUntil([supervisor, previous] { return supervisor->Generation() > previous && supervisor->IsReady(); }, 1s));
+    EXPECT_FALSE(CanDeliverSdkWebSocketMessage(supervisor, previous));
+    EXPECT_TRUE(CanDeliverSdkWebSocketMessage(supervisor, supervisor->Generation()));
+    supervisor->Stop();
+    EXPECT_FALSE(CanDeliverSdkWebSocketMessage(supervisor, supervisor->Generation()));
+    scope->BeginStop();
+    EXPECT_TRUE(scope->WaitFor(1s));
+    notifier->Stop(MessageBusStopMode::kCancel);
+}
+
+TEST(SdkWebSocketReconnect, RealAdmissionRejectionStopsRetryAndLaterBusinessMessages) {
+    const auto notifier = std::make_shared<MessageNotifier>();
+    const auto server = std::make_shared<asio2::ws_server>();
+    const auto accepts = std::make_shared<std::atomic_int>(0);
+    server->bind_upgrade([accepts](const std::shared_ptr<asio2::ws_session>& session) {
+        if (++*accepts == 1) {
+            session->async_send(std::string(kWsSessionOccupiedSignal));
+            session->async_send(std::string("business-after-rejection"));
+        } else {
+            session->async_send(std::string("fresh-session-message"));
+        }
+    });
+    const auto port = 51000 + static_cast<int>(GetCurrentProcessId() % 1000);
+    ASSERT_TRUE(server->start("127.0.0.1", port));
+    const auto rejection = std::make_shared<std::atomic_bool>(false);
+    const auto listener = notifier->CreateListener();
+    listener->Listen<SdkMsgWsConnectionRejected>([rejection](const SdkMsgWsConnectionRejected& event) {
+        EXPECT_EQ(event.rejection_, WsControlRejection::kOccupied);
+        *rejection = true;
+    });
+    const auto messages = std::make_shared<std::atomic_int>(0);
+    const auto connection = MakeConnection(notifier, port);
+    connection->RegisterOnMessageCallback([messages](std::shared_ptr<Data>) { ++*messages; });
+    connection->Start();
+    ASSERT_TRUE(WaitUntil([rejection] { return rejection->load(); }, 3s));
+    std::this_thread::sleep_for(1200ms);
+    EXPECT_EQ(accepts->load(), 1);
+    EXPECT_EQ(messages->load(), 0);
+    EXPECT_FALSE(connection->IsAlive());
+    connection->Stop();
+    const auto fresh = MakeConnection(notifier, port);
+    fresh->RegisterOnMessageCallback([messages](std::shared_ptr<Data>) { ++*messages; });
+    fresh->Start();
+    ASSERT_TRUE(WaitUntil([messages] { return messages->load() == 1; }, 3s));
+    EXPECT_EQ(accepts->load(), 2);
+    EXPECT_TRUE(fresh->IsAlive());
+    fresh->Stop();
+    listener->UnListenAll();
     server->stop();
     notifier->Stop(MessageBusStopMode::kCancel);
 }

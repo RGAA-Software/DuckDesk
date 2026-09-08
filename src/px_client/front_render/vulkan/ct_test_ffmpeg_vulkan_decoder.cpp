@@ -63,11 +63,12 @@ namespace px {
 	}
 
 	TestFFmpegVulkanDecoder::~TestFFmpegVulkanDecoder() {
-
+        avcodec_free_context(&test_hevc_video_decoder_ctx_);
 	}
 
-    void TestFFmpegVulkanDecoder::SetHwDeviceCtx(AVBufferRef* hw_device_ctx) {
-        test_hevc_video_decoder_ctx_->hw_device_ctx = av_buffer_ref(hw_device_ctx);
+    void TestFFmpegVulkanDecoder::SetHwDeviceCtx(std::shared_ptr<AVBufferRef> hw_device_ctx) {
+        device_owner_ = std::move(hw_device_ctx);
+        test_hevc_video_decoder_ctx_->hw_device_ctx = device_owner_ ? av_buffer_ref(device_owner_.get()) : nullptr;
     }
 
     // test hevc

@@ -18,6 +18,8 @@
 #include "px_common/concurrent_hashmap.h"
 #include "px_common/async_result.h"
 #include "px_common/async_runtime.h"
+#include "px_common/px_udp_voice_protocol.h"
+#include "px_common/udp_voice_send_budget.h"
 
 #ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
 #define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002
@@ -50,6 +52,7 @@ class UdpSession {
     std::atomic<int64_t> last_heartbeat_ms_{0};
     // 最近一次收到该 endpoint 任意 UDP 包的时间;未绑定/被踢会话据此超时摘除
     std::atomic<int64_t> last_seen_ms_{0};
+    UdpVoiceSendBudget voice_send_budget_{};
 };
 
 class UdpTransport final : public RenderModule {
@@ -72,6 +75,7 @@ class UdpTransport final : public RenderModule {
     // Opus payload 发 UDP(wire 级手扫,不引 protobuf 头);控制消息走 ws 通道
     void Broadcast(std::shared_ptr<Data> message, bool run_through = false);
     bool SendToStream(const std::string& stream_id, std::shared_ptr<Data> message, bool run_through = false);
+    [[nodiscard]] bool SendVoiceFrame(const std::string& stream_id, const UdpVoiceFrame& frame);
     int ConnectedClientCount() const;
     bool HasOnlyAudioClients() const noexcept;
     bool IsWorking() const override;
@@ -92,7 +96,7 @@ class UdpTransport final : public RenderModule {
 
   private:
     std::shared_ptr<PxAsyncRuntime> async_runtime_{};
-    std::shared_ptr<UdpRuntimeState> runtime_{};
+    std::atomic<std::shared_ptr<UdpRuntimeState>> runtime_{};
     int udp_listen_port_{};
     // 视频 shard MTU:LAN 默认 1400;公网/UDP 分片敏感场景可配 1024。
     int udp_mtu_{1400};

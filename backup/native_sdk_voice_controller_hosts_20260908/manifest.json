@@ -1,0 +1,41 @@
+{
+  "revision": "e90892046aba57fe2ae33480eab93a29405d1eb1",
+  "reason": "Before replacing duplicated Windows and Android voice orchestration with the shared SDK controller; original working-tree bytes retained",
+  "files": [
+    {
+      "path": "src/px_android/core-native/src/main/cpp/CMakeLists.txt",
+      "sha256": "5B8E7E4DB4C1C14289C025E9B8353AF994691A91432C4E97665D7CE761A2977C",
+      "status": " M src/px_android/core-native/src/main/cpp/CMakeLists.txt"
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_session.cpp",
+      "sha256": "EE7AC9BBC984388B491A6100C3E619CE506873260F3DCA834605C457C6710697",
+      "status": " M src/px_android/core-native/src/main/cpp/native_session.cpp"
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_session.h",
+      "sha256": "D31C62CD1F637AA6706E15B53D9E6B9276E971057D6A0E22AF9309001B5599CE",
+      "status": " M src/px_android/core-native/src/main/cpp/native_session.h"
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_voice_call.cpp",
+      "sha256": "112D7FE52DF3F009AC17DF801FF52BA0BFFDB9D182088ADBBFFF6A92AD0847FE",
+      "status": " M src/px_android/core-native/src/main/cpp/native_voice_call.cpp"
+    },
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_voice_call.h",
+      "sha256": "AA48C301D889E7691EB39D7BAE60514FA6BFD2C3AED08C738D9ED6548E3F3A36",
+      "status": " M src/px_android/core-native/src/main/cpp/native_voice_call.h"
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.cpp",
+      "sha256": "17AFD873D37430E453EAA1E477286CB34B676D70DF25BE629A8EEF2FC6560C4B",
+      "status": " M src/px_client/ct_base_workspace.cpp"
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.h",
+      "sha256": "D77577A5004963921D227832AB6B3539314EC14CF649BEFC0B192E802C5644E7",
+      "status": " M src/px_client/ct_base_workspace.h"
+    }
+  ]
+}

@@ -13,10 +13,7 @@
 namespace px
 {
 
-    UdpDirectConnection::UdpDirectConnection(const std::shared_ptr<ThunderSdkParams>& params,
-                                             const std::shared_ptr<MessageNotifier>& notifier)
-                                             : Connection(params, notifier) {
-    }
+    UdpDirectConnection::UdpDirectConnection(const std::shared_ptr<MessageNotifier>& notifier) : Connection(notifier) {}
 
     UdpDirectConnection::~UdpDirectConnection() {
         Stop();
@@ -242,6 +239,32 @@ namespace px
         }
     }
 
+    void UdpDirectConnection::SetOnVoiceFrameCallback(std::function<void(UdpVoiceFrame)> callback) {
+        voice_frame_cbk_ = std::move(callback);
+    }
+
+    bool UdpDirectConnection::PostVoiceFrame(const std::string& call_id, std::uint32_t sequence, std::uint64_t capture_time_ms,
+                                             std::span<const std::uint8_t> opus) {
+        if (stopped_.load() || !connected_.load()) {
+            return false;
+        }
+        const auto socket = udp_client_;
+        if (!socket || !socket->is_started()) {
+            return false;
+        }
+        const auto reservation = voice_send_budget_.TryAcquire();
+        if (!reservation) {
+            return false;
+        }
+        const auto packet = UdpVoiceProtocol::Build(association_code_, call_id, sequence, capture_time_ms, opus);
+        if (!packet) {
+            return false;
+        }
+        // asio2 borrows the buffer during submission; the callback owns its storage and queue reservation.
+        socket->async_send(packet->Bytes().data(), packet->Size(), [packet, reservation](std::size_t) {});
+        return true;
+    }
+
     void UdpDirectConnection::OnUdpPacket(std::span<const char> data) {
         if (stopped_) {
             return;
@@ -264,8 +287,13 @@ namespace px
             if (PxUdpProtocol::ParseAudioPacket(data, audio)) {
                 audio_jitter_.AddPacket(audio.seq_, audio.timestamp_ms_, audio.payload_);
             }
-        }
-        else if (pkt_type == PxUdpProtocol::kPktCtrl) {
+        } else if (pkt_type == PxUdpProtocol::kPktVoice) {
+            auto frame = UdpVoiceProtocol::Parse(data);
+            if (frame && frame->association_code == association_code_ && voice_frame_cbk_) {
+                received_media_packet_ = true;
+                voice_frame_cbk_(std::move(*frame));
+            }
+        } else if (pkt_type == PxUdpProtocol::kPktCtrl) {
             std::string s1, s2;
             auto subtype = PxUdpProtocol::ParseCtrl(data, s1, s2);
             if (subtype == PxUdpProtocol::kCtrlKick) {

@@ -11,6 +11,7 @@
 #include "px_capture/capture_message.h"
 #include "px_common/data.h"
 #include "px_common/image.h"
+#include "px_common/udp_voice_frame.h"
 #include "px_render/network/transport_types.h"
 #include "session/logical_session_registry.h"
 
@@ -58,6 +59,13 @@ struct NetworkClientEvent final {
     TransportChannel channel_type_{TransportChannel::kMedia};
     std::function<void(const std::shared_ptr<NetMessageAck>&)> ack_callback_;
     std::string connection_instance_id_;
+};
+
+struct UdpVoiceFrameEvent final {
+    std::string logical_session_id{};
+    std::string stream_id{};
+    std::shared_ptr<const UdpVoiceFrame> frame{};
+    std::function<bool()> is_current_binding{};
 };
 
 struct ClientConnectedEvent final {
@@ -129,8 +137,8 @@ struct DataSentEvent final {
 };
 
 using RenderEvent =
-    std::variant<std::shared_ptr<NetworkClientEvent>, std::shared_ptr<ClientConnectedEvent>, std::shared_ptr<ClientDisconnectedEvent>,
-                 std::shared_ptr<CaptureMonitorInfoChangedEvent>, std::shared_ptr<KeyFrameRequestEvent>,
+    std::variant<std::shared_ptr<NetworkClientEvent>, std::shared_ptr<UdpVoiceFrameEvent>, std::shared_ptr<ClientConnectedEvent>,
+                 std::shared_ptr<ClientDisconnectedEvent>, std::shared_ptr<CaptureMonitorInfoChangedEvent>, std::shared_ptr<KeyFrameRequestEvent>,
                  std::shared_ptr<ReferenceFrameInvalidationEvent>, std::shared_ptr<EncodedVideoFrameEvent>, std::shared_ptr<CapturedVideoFrameEvent>,
                  std::shared_ptr<CursorUpdatedEvent>, std::shared_ptr<RelayPausedEvent>, std::shared_ptr<RelayResumedEvent>,
                  std::shared_ptr<PanelStreamMessageEvent>, std::shared_ptr<RelayAliveEvent>, std::shared_ptr<StreamingParametersRequestedEvent>,

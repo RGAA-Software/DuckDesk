@@ -55,6 +55,10 @@ class UdpRuntimeState final : public std::enable_shared_from_this<UdpRuntimeStat
     bool HasBoundSession();
     void SweepDeadSessions();
     void UpdateMediaAssociation(const UdpMediaAssociation& association);
+    void HandleVoicePacket(const std::shared_ptr<UdpSession>& session, std::span<const char> bytes);
+    [[nodiscard]] std::optional<std::pair<std::string, std::string>> VoiceBinding(const std::shared_ptr<UdpSession>& session,
+                                                                                  const std::string& association_code);
+    [[nodiscard]] bool SendVoiceFrame(const std::string& stream_id, const UdpVoiceFrame& frame);
 
     std::shared_ptr<asio2::udp_server> server_;
     ConcurrentHashMap<std::string, std::shared_ptr<UdpSession>> sessions_;
@@ -132,7 +136,7 @@ bool UdpTransport::Start(const RenderModuleConfiguration& configuration) {
         RenderModule::Stop();
         return false;
     }
-    runtime_ = std::make_shared<UdpRuntimeState>(async_runtime_, MakeImmediateEventDispatcher(), fec_percent);
+    const auto runtime = std::make_shared<UdpRuntimeState>(async_runtime_, MakeImmediateEventDispatcher(), fec_percent);
     // Windows sleep 默认 15.6ms 粒度,先把计时器分辨率提到 1ms(高精度 waitable timer 不受此限)
     timer_resolution_active_ = timeBeginPeriod(1) == TIMERR_NOERROR;
     // Sunshine 同款高精度 pacing 定时器(Win10 1809+;失败退回普通 waitable timer)
@@ -141,22 +145,22 @@ bool UdpTransport::Start(const RenderModuleConfiguration& configuration) {
         pace_timer_.reset(CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS));
     }
     LOGI("Listen port: {}, fec percent: {}, mtu: {}, pacing: {}Mbps rate-limited (sunshine), timer={}", udp_listen_port_,
-         runtime_->fec_percent_.load(), udp_mtu_, kRateControlBitsPerSec / 1000000, pace_timer_ ? "ok" : "none");
-    if (!runtime_->Start(udp_listen_port_)) {
-        runtime_.reset();
+         runtime->fec_percent_.load(), udp_mtu_, kRateControlBitsPerSec / 1000000, pace_timer_ ? "ok" : "none");
+    if (!runtime->Start(udp_listen_port_)) {
         ReleasePacingResources();
         RenderModule::Stop();
         return false;
     }
+    runtime_.store(runtime);
     return true;
 }
 
 bool UdpTransport::Destroy() {
     RenderModule::Stop();
-    if (runtime_) {
-        runtime_->Stop();
-        if (runtime_->IsQuiescent()) {
-            runtime_.reset();
+    if (const auto runtime = runtime_.load()) {
+        runtime->Stop();
+        if (runtime->IsQuiescent()) {
+            runtime_.store({});
         }
     }
     ReleasePacingResources();
@@ -168,14 +172,14 @@ PxAwaitable<PxResult<void>> UdpTransport::StopAsync(std::shared_ptr<UdpTransport
         co_return PxResult<void>::Failure(MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "net-udp.stop", "UDP transport owner is missing"));
     }
     owner->RenderModule::Stop();
-    const auto runtime = owner->runtime_;
+    const auto runtime = owner->runtime_.load();
     if (runtime) {
         const auto stopped = co_await UdpRuntimeState::StopAsync(runtime, deadline);
         if (!stopped) {
             co_return stopped;
         }
     }
-    owner->runtime_.reset();
+    owner->runtime_.store({});
     owner->ReleasePacingResources();
     co_return PxResult<void>::Success();
 }
@@ -189,10 +193,9 @@ void UdpTransport::ReleasePacingResources() {
 }
 
 void UdpTransport::UpdateUdpMediaAssociation(const UdpMediaAssociation& association) {
-    if (!runtime_) {
-        return;
+    if (const auto runtime = runtime_.load()) {
+        runtime->UpdateMediaAssociation(association);
     }
-    runtime_->UpdateMediaAssociation(association);
 }
 
 // Scan the px.Message wire format for AudioFrame.data without importing protobuf into this low-level transport translation unit.
@@ -329,7 +332,7 @@ void UdpTransport::Broadcast(std::shared_ptr<Data> msg, bool run_through) {
     if (!payload) {
         return;
     }
-    const auto runtime = runtime_;
+    const auto runtime = runtime_.load();
     if (!runtime || !runtime->HasBoundSession()) {
         return;
     }
@@ -359,6 +362,84 @@ bool UdpTransport::SendToStream(const std::string& stream_id, std::shared_ptr<Da
     return false;
 }
 
+bool UdpTransport::SendVoiceFrame(const std::string& stream_id, const UdpVoiceFrame& frame) {
+    const auto runtime = runtime_.load();
+    return runtime && runtime->SendVoiceFrame(stream_id, frame);
+}
+
+std::optional<std::pair<std::string, std::string>> UdpRuntimeState::VoiceBinding(const std::shared_ptr<UdpSession>& session,
+                                                                                 const std::string& association_code) {
+    std::lock_guard lock(bind_mutex_);
+    if (stopping_.load() || !session || !session->bound_.load() || session->kicked_.load() || association_code != active_media_association_code_ ||
+        session->association_code_ != association_code) {
+        return {};
+    }
+    const auto association = media_associations_.find(association_code);
+    const auto current = sessions_.TryGet(session->connection_id_);
+    if (association == media_associations_.end() || association->second.endpoint_id_ != session->connection_id_ ||
+        association->second.stream_id_ != session->stream_id_ || !current || *current != session) {
+        return {};
+    }
+    return std::pair{association->second.logical_session_id_, association->second.stream_id_};
+}
+
+void UdpRuntimeState::HandleVoicePacket(const std::shared_ptr<UdpSession>& session, std::span<const char> bytes) {
+    auto frame = UdpVoiceProtocol::Parse(bytes);
+    if (!frame) {
+        return;
+    }
+    const auto binding = VoiceBinding(session, frame->association_code);
+    if (!binding) {
+        return;
+    }
+    const auto weak_runtime = weak_from_this();
+    const auto weak_session = std::weak_ptr(session);
+    auto event = std::make_shared<UdpVoiceFrameEvent>();
+    event->logical_session_id = binding->first;
+    event->stream_id = binding->second;
+    event->is_current_binding = [weak_runtime, weak_session, association = frame->association_code, expected = *binding] {
+        const auto runtime = weak_runtime.lock();
+        const auto session = weak_session.lock();
+        return runtime && session && runtime->VoiceBinding(session, association) == expected;
+    };
+    event->frame = std::make_shared<const UdpVoiceFrame>(std::move(*frame));
+    // Dispatch synchronously from this UDP I/O lane: no unbounded reliable/control queue.
+    // The receiver revalidates the binding before delivering to the bounded audio endpoint.
+    event_dispatcher_(RenderEventEnvelope{.source_id = kNetUdpTransportId, .payload = event});
+}
+
+bool UdpRuntimeState::SendVoiceFrame(const std::string& stream_id, const UdpVoiceFrame& frame) {
+    std::shared_ptr<UdpSession> session{};
+    std::string association_code{};
+    {
+        std::lock_guard lock(bind_mutex_);
+        if (stopping_.load() || stream_id.empty()) {
+            return false;
+        }
+        const auto association = media_associations_.find(active_media_association_code_);
+        if (association == media_associations_.end() || association->second.stream_id_ != stream_id) {
+            return false;
+        }
+        const auto current = sessions_.TryGet(association->second.endpoint_id_);
+        if (!current || !(*current)->bound_.load() || (*current)->kicked_.load()) {
+            return false;
+        }
+        session = *current;
+        association_code = association->first;
+    }
+    const auto reservation = session->voice_send_budget_.TryAcquire();
+    if (!reservation || !session->sess_ || !VoiceBinding(session, association_code)) {
+        return false;
+    }
+    const auto packet = UdpVoiceProtocol::Build(association_code, frame.call_id, frame.sequence, frame.capture_time_ms, frame.opus);
+    if (!packet) {
+        return false;
+    }
+    // asio2 submission boundary; retain datagram storage and capacity until callback completion or cancellation.
+    session->sess_->async_send(packet->Bytes().data(), packet->Size(), [packet, reservation](std::size_t) {});
+    return true;
+}
+
 bool UdpRuntimeState::Start(int listen_port) {
     if (!control_scope_ || !control_scope_->IsAccepting()) {
         LOGE("event=module.start component=net_udp code=ASYNC_SCOPE_CREATE_FAILED "
@@ -384,9 +465,11 @@ bool UdpRuntimeState::Start(int listen_port) {
                 return;
             }
             opt_sess.value()->last_seen_ms_ = (int64_t)TimeUtil::GetCurrentTimestamp();
-            // ParseCommon 分流:只处理控制包(上行视频/音频 P2 才启用)
-            if (PxUdpProtocol::ParseCommon(std::span<const char>{data}) == PxUdpProtocol::kPktCtrl) {
+            const auto packet_type = PxUdpProtocol::ParseCommon(std::span<const char>{data});
+            if (packet_type == PxUdpProtocol::kPktCtrl) {
                 runtime->HandleCtrlPacket(opt_sess.value(), std::span<const char>{data});
+            } else if (packet_type == PxUdpProtocol::kPktVoice) {
+                runtime->HandleVoicePacket(opt_sess.value(), std::span<const char>{data});
             }
         })
         .bind_connect([weak_runtime, connection_id](std::shared_ptr<asio2::udp_session>& session) {
@@ -912,7 +995,7 @@ void UdpTransport::PaceSleep(const std::chrono::steady_clock::duration& duration
 // data: encode video frame, h264/h265/...
 void UdpTransport::SubmitEncodedVideo(const std::string& mon_name, const EncodedVideoType& video_type, const std::shared_ptr<Data>& data,
                                       uint64_t frame_index, int frame_width, int frame_height, bool key) {
-    const auto runtime = runtime_;
+    const auto runtime = runtime_.load();
     if (!runtime || !data || data->Size() <= 0 || !runtime->HasBoundSession()) {
         return;
     }
@@ -1014,7 +1097,7 @@ void UdpTransport::SubmitEncodedVideo(const std::string& mon_name, const Encoded
 }
 
 int UdpTransport::ConnectedClientCount() const {
-    const auto runtime = runtime_;
+    const auto runtime = runtime_.load();
     return runtime ? runtime->bound_count_.load() : 0;
 }
 

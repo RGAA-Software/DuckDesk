@@ -176,6 +176,16 @@ TEST(VoiceCallStateTest, PendingRequestExpiresAtThirtySeconds) {
     EXPECT_EQ(state.Phase(), VoiceCallPhase::kIdle);
 }
 
+TEST(VoiceCallStateTest, OutgoingTimeoutMayBeShorterButCannotOverflowOrExtendServerConsent) {
+    VoiceCallState state{};
+    EXPECT_FALSE(state.BeginOutgoing("call", 1, 100, 0));
+    EXPECT_FALSE(state.BeginOutgoing("call", 1, 100, VoiceCallState::kRequestTimeoutMs + 1));
+    EXPECT_FALSE(state.BeginOutgoing("call", 1, UINT64_MAX, 1));
+    ASSERT_TRUE(state.BeginOutgoing("call", 1, 100, 20));
+    EXPECT_FALSE(state.Expire(119));
+    EXPECT_TRUE(state.Expire(120));
+}
+
 TEST(VoiceCallStateTest, MediaRequiresConnectedMatchingCall) {
     VoiceCallState state;
     ASSERT_TRUE(state.BeginOutgoing("call", 1, 0));

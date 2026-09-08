@@ -34,6 +34,7 @@ web/px_auth/playwright-report/*
 build_official/*
 build_opensource/*
 build_probe/*
+/build_sdk_*/
 output/*
 test-results/render-architecture/*
 setup/app/*

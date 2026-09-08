@@ -65,3 +65,5 @@ elseif(WIN32 OR APPLE OR UNIX)
     target_link_libraries(px_rp_message protobuf::libprotobuf)
 
 endif()
+target_include_directories(px_message PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(px_message px_common_core)

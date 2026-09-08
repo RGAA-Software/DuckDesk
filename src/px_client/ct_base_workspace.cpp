@@ -14,6 +14,9 @@
 #include <d3d10.h>
 #include <dwmapi.h>
 #include "thunder_sdk.h"
+#include "px_client_sdk/platform/windows/windows_decoder_factory.h"
+#include "px_client_sdk/platform/windows/windows_video_resources.h"
+#include "front_render/vulkan/ct_vulkan_checker.h"
 #include "px_client/ct_client_context.h"
 #include "px_common/data.h"
 #include "px_common/log.h"
@@ -40,6 +43,7 @@
 #include "px_common/file.h"
 #include "px_common/string_util.h"
 #include "ui/retry_conn_dialog.h"
+#include "px_common/hardware.h"
 #include "network/ct_panel_client.h"
 #include "px_common/md5.h"
 #include "px_common/time_util.h"
@@ -47,9 +51,9 @@
 #include "px_client/modules/file_transfer/file_transfer_module.h"
 #include "px_client/modules/media_recording/media_recording_module.h"
 #include "ct_virtual_display_protocol.h"
-#include "ct_voice_call_protocol.h"
+#include "px_client_sdk/sdk_voice_call.h"
 #include "cursor_image.h"
-#include "px_voice_call/voice_audio_endpoint.h"
+#include "px_client_sdk/platform/voice_audio_endpoint_port.h"
 #include "px_qt_widget/notify/notifymanager.h"
 #include "px_message/proto_converter.h"
 #include "px_message/proto_message_maker.h"
@@ -125,6 +129,12 @@ namespace px
 
         InitTheme();
 
+        video_resources_ = std::make_shared<WindowsVideoResources>();
+        video_resources_->decoder_preference = settings_->decoder_;
+        if (!settings_->file_transfer_only_ && !settings_->force_software_ && !settings_->disable_vulkan_) {
+            video_resources_->use_vulkan = VulkanChecker::Make()->TestDecodeAndRenderHevcYuv444Frame();
+        }
+
 #ifdef WIN32
         if (!settings_->file_transfer_only_) {
             if (!settings_->force_software_) {
@@ -133,7 +143,7 @@ namespace px
             if (gen_d3d11_device_) {
                 for (const auto &[adapter_uid, wrapper]: d3d11_devices_) {
                     // TODO: find the primary or using d3d11 device
-                    this->params_->d3d11_wrapper_ = wrapper;
+                    video_resources_->d3d11 = wrapper;
                     LOGI("Using the D3D11Device, ID: {}", wrapper->adapter_uid_);
                     break;
                 }
@@ -145,7 +155,7 @@ namespace px
 #endif
 
         sdk_ = ThunderSdk::Make(this->context_->GetMessageNotifier());
-        sdk_->Init(this->params_, nullptr, DecoderRenderType::kFFmpegI420);
+        InitVoiceCall();
 
         // A Console ticket launch is already authenticated and lifecycle-managed
         // by Panel. The legacy device WebSocket cannot authenticate a guest or
@@ -175,8 +185,8 @@ namespace px
             InitRenderViews(this->params_);
 
         // vulkan 
-        if (this->params_->support_vulkan_) {
-            this->params_->vulkan_hw_device_ctx_ = pl_vulkan_->GetHwDeviceCtx();
+        if (video_resources_->use_vulkan) {
+            video_resources_->vulkan_device = pl_vulkan_->ShareHwDeviceContext();
         }
 
             InitSampleWidget();
@@ -188,6 +198,11 @@ namespace px
             // resources, and avoid event-path null dereferences.
             InitSampleWidget();
         }
+
+        // Device publication is complete before any decoder/network work starts.
+        params_->device_name_ = Hardware::GetDesktopName();
+        params_->client_type_ = ClientType::kWindows;
+        sdk_->Init(this->params_, MakeWindowsVideoDecoderFactory(video_resources_));
 
         // message listener
         InitListener();
@@ -227,7 +242,7 @@ namespace px
     }
 
     void BaseWorkspace::InitTheme() {
-        WidgetHelper::SetTitleBarColor(this, this->params_->titlebar_color_);
+        WidgetHelper::SetTitleBarColor(this, settings_->titlebar_color_);
 
         if (this->params_->stream_name_.empty()) {
             origin_title_name_ = tcTr("id_gr_client");
@@ -364,6 +379,9 @@ namespace px
 
         msg_listener_->Listen<SdkMsgUdpMediaUnavailable>([weak_self](const SdkMsgUdpMediaUnavailable&) {
             if (const auto self = weak_self.lock()) {
+                if (self->voice_call_) {
+                    self->voice_call_->SetTransportAvailable(false);
+                }
                 self->context_->PostUITask([weak_self]() {
                     if (const auto task_self = weak_self.lock()) {
                         task_self->context_->NotifyAppWarningMessage(tcTr("id_warning"), tcTr("id_udp_media_unavailable"));
@@ -709,7 +727,10 @@ namespace px
                 .max_display_count_ = self->settings_->render_virtual_display_max_count_,
                 .topology_generation_ = self->settings_->render_virtual_display_topology_generation_,
             });
-            self->NotifyVoiceCallStatus();
+            if (self->voice_call_) {
+                self->voice_call_->SetCapabilities(config.voice_call_enabled() && config.voice_call_protocol_version() == 1,
+                                                   config.voice_call_requires_headset());
+            }
 
             self->context_->SendAppMessage(msg);
 
@@ -741,6 +762,14 @@ namespace px
                 .index_ = ms.index()
             });
         });
+
+        const auto record_encoded = [weak_recording = std::weak_ptr<ClientMediaRecordingModule>(module_manager_->GetMediaRecordingModule())](
+                                        std::shared_ptr<px::Message> message) {
+            if (const auto recording = weak_recording.lock())
+                recording->HandleMessage(message);
+        };
+        sdk_->SetOnEncodedVideoFrameCallback(record_encoded);
+        sdk_->SetOnEncodedAudioFrameCallback(record_encoded);
 
         sdk_->SetOnRawMessageCallback([weak_self](std::shared_ptr<px::Message> msg) {
             const auto self = weak_self.lock();
@@ -877,19 +906,19 @@ namespace px
             }
         });
 
-        msg_listener_->Listen<MsgClientMediaRecord>([weak_self](const MsgClientMediaRecord&) {
+        msg_listener_->Listen<MsgClientMediaRecord>([weak_self](const MsgClientMediaRecord& event) {
             const auto self = weak_self.lock();
-            if (!self || !self->sdk_ || !self->media_recording_module_) {
+            if (!self || !self->sdk_ || !self->media_recording_module_ || event.intent_ != self->context_->GetRecordingIntent()) {
                 return;
             }
             px::Message m;
             m.set_device_id(self->settings_->device_id_);
             m.set_stream_id(self->settings_->stream_id_);
-            bool res = self->context_->GetRecording();
+            const bool res = (event.intent_ & 1U) != 0;
             if (res) {
                 LOGI("StartRecord");
                 m.set_type(px::kStartMediaRecordClientSide);
-                self->media_recording_module_->StartRecording();
+                self->media_recording_module_->StartRecording(event.intent_);
             }
             else {
                 LOGI("EndRecord");
@@ -1336,415 +1365,140 @@ namespace px
         report_local_failure("REQUEST_ENCODE_FAILED", "The virtual display request could not be encoded.");
     }
 
-    void BaseWorkspace::SendVoiceCallCommand(const MsgClientVoiceCallCommand& command) {
-        VoiceCallPhase core_phase;
-        {
-            std::scoped_lock lock(voice_call_mutex_);
-            core_phase = voice_call_state_.Phase();
-        }
-        LOGI("[VoiceCall] command action={}, core_phase={}, enabled={}, protocol={}",
-             static_cast<int>(command.action_), static_cast<int>(core_phase),
-             settings_->render_voice_call_enabled_,
-             settings_->render_voice_call_protocol_version_);
-        if (command.action_ == MsgClientVoiceCallCommand::Action::kSelectAudioDevices) {
-            {
-                std::scoped_lock lock(voice_call_mutex_);
-                if (voice_call_state_.Phase() != VoiceCallPhase::kIdle) {
-                    return;
+    void BaseWorkspace::InitVoiceCall() {
+        const auto weak_self = weak_from_this();
+        const auto weak_sdk = std::weak_ptr(sdk_);
+        const auto weak_context = std::weak_ptr(context_);
+        const VoiceCallDependencies::MessageSender send_voice = [weak_self, weak_sdk](std::shared_ptr<Message> message) {
+            const auto self = weak_self.lock();
+            const auto sdk = weak_sdk.lock();
+            if (!self || !sdk || !message || self->remote_force_closed_.load()) {
+                return false;
+            }
+            const auto data = ProtoAsData(std::move(message));
+            if (!data) {
+                return false;
+            }
+            sdk->PostMediaMessage(data);
+            return true;
+        };
+        VoiceCallDependencies dependencies{
+            .send_control = send_voice,
+            .send_audio =
+                [weak_self, weak_sdk](std::shared_ptr<Message> message) {
+                    const auto self = weak_self.lock();
+                    const auto sdk = weak_sdk.lock();
+                    return self && sdk && !self->remote_force_closed_.load() && sdk->PostVoiceAudioMessage(message);
+                },
+            .create_audio = [weak_self]() -> std::shared_ptr<VoiceAudioPort> {
+                const auto self = weak_self.lock();
+                if (!self) {
+                    return {};
                 }
+                VoiceAudioBackendConfig config{};
+                {
+                    std::lock_guard lock(self->voice_call_mutex_);
+                    config.capture_device_id = self->voice_capture_device_id_;
+                    config.playout_device_id = self->voice_playout_device_id_;
+                }
+                return std::make_shared<VoiceAudioEndpointPort>(std::move(config));
+            },
+            .post_task =
+                [weak_context](std::function<void()> task) {
+                    const auto context = weak_context.lock();
+                    if (!context || !task) {
+                        return false;
+                    }
+                    context->PostUITask(std::move(task));
+                    return true;
+                },
+            .status_changed =
+                [weak_self](const VoiceCallStatus&) {
+                    if (const auto self = weak_self.lock()) {
+                        self->NotifyVoiceCallStatus();
+                    }
+                },
+        };
+        voice_call_ = VoiceCallController::Create({settings_->device_id_, settings_->stream_id_}, std::move(dependencies));
+    }
+
+    void BaseWorkspace::SendVoiceCallCommand(const MsgClientVoiceCallCommand& command) {
+        const auto controller = voice_call_;
+        if (!controller) {
+            return;
+        }
+        const auto status = controller->Status();
+        if (command.action_ == MsgClientVoiceCallCommand::Action::kSelectAudioDevices) {
+            if (status.phase != VoiceCallPhase::kIdle) {
+                return;
+            }
+            {
+                std::lock_guard lock(voice_call_mutex_);
                 voice_capture_device_id_ = command.capture_device_id_;
                 voice_playout_device_id_ = command.playout_device_id_;
             }
-            LOGI("[VoiceCall] audio device selection updated, capture={}, playout={}",
-                 command.capture_device_id_.empty() ? "default" : "explicit",
-                 command.playout_device_id_.empty() ? "default" : "explicit");
             NotifyVoiceCallStatus();
-            return;
-        }
-        if (command.action_ == MsgClientVoiceCallCommand::Action::kToggleMicrophoneMute ||
-            command.action_ == MsgClientVoiceCallCommand::Action::kToggleSpeakerMute) {
-            std::shared_ptr<VoiceAudioEndpoint> endpoint;
-            bool microphone_muted = false;
-            bool speaker_muted = false;
-            {
-                std::scoped_lock lock(voice_call_mutex_);
-                if (voice_call_state_.Phase() != VoiceCallPhase::kConnected ||
-                    !voice_audio_endpoint_) {
-                    return;
-                }
-                endpoint = voice_audio_endpoint_;
-                if (command.action_ ==
-                    MsgClientVoiceCallCommand::Action::kToggleMicrophoneMute) {
-                    voice_microphone_muted_ = !voice_microphone_muted_;
-                } else {
-                    voice_speaker_muted_ = !voice_speaker_muted_;
-                }
-                microphone_muted = voice_microphone_muted_;
-                speaker_muted = voice_speaker_muted_;
-            }
-            endpoint->SetMicrophoneMuted(microphone_muted);
-            endpoint->SetSpeakerMuted(speaker_muted);
-            LOGI("[VoiceCall] local controls microphone_muted={}, speaker_muted={}",
-                 microphone_muted, speaker_muted);
-            NotifyVoiceCallStatus();
-            return;
-        }
-        if (command.action_ == MsgClientVoiceCallCommand::Action::kHangUp) {
-            StopVoiceCall(true, "local_hangup");
-            return;
-        }
-        if (!settings_->render_voice_call_enabled_ ||
-            settings_->render_voice_call_protocol_version_ != 1) {
-            NotifyVoiceCallStatus("unsupported");
-            return;
-        }
-        if (!sdk_ || remote_force_closed_) {
+        } else if (command.action_ == MsgClientVoiceCallCommand::Action::kToggleMicrophoneMute) {
+            static_cast<void>(controller->SetMicrophoneMuted(!status.microphone_muted));
+        } else if (command.action_ == MsgClientVoiceCallCommand::Action::kToggleSpeakerMute) {
+            static_cast<void>(controller->SetSpeakerMuted(!status.speaker_muted));
+        } else if (command.action_ == MsgClientVoiceCallCommand::Action::kHangUp) {
+            controller->Stop(true, "local_hangup");
+        } else if (!sdk_ || remote_force_closed_.load()) {
             NotifyVoiceCallStatus("not_connected");
-            return;
-        }
-
-        const auto call_id = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
-        const auto request_id = NextNativeVoiceCallRequestId();
-        {
-            std::scoped_lock lock(voice_call_mutex_);
-            if (!voice_call_state_.BeginOutgoing(
-                    call_id, request_id,
-                    static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
-                        std::chrono::steady_clock::now().time_since_epoch()).count()))) {
-                return;
-            }
-        }
-        auto request = MakeVoiceCallRequestMessage(
-            settings_->device_id_, settings_->stream_id_, call_id, request_id, true);
-        if (const auto data = ProtoAsData(&request); data) {
-            sdk_->PostMediaMessage(data);
-            NotifyVoiceCallStatus();
         } else {
-            StopVoiceCall(false, "request_encode_failed");
-            return;
+            static_cast<void>(controller->Start());
         }
-
-        const auto weak_self = weak_from_this();
-        QTimer::singleShot(static_cast<int>(VoiceCallState::kRequestTimeoutMs), this,
-            [weak_self, call_id, request_id]() {
-                const auto self = weak_self.lock();
-                if (!self) {
-                    return;
-                }
-                bool expired = false;
-                {
-                    std::scoped_lock lock(self->voice_call_mutex_);
-                    if (self->voice_call_state_.CallId() == call_id &&
-                        self->voice_call_state_.RequestId() == request_id) {
-                        const auto now = static_cast<uint64_t>(
-                            std::chrono::duration_cast<std::chrono::milliseconds>(
-                                std::chrono::steady_clock::now().time_since_epoch()).count());
-                        expired = self->voice_call_state_.Expire(now);
-                    }
-                }
-                if (expired) {
-                    if (self->sdk_ && !self->remote_force_closed_) {
-                        auto cancel = MakeVoiceCallRequestMessage(
-                            self->settings_->device_id_, self->settings_->stream_id_,
-                            call_id, request_id, false);
-                        if (const auto data = ProtoAsData(&cancel); data) {
-                            self->sdk_->PostMediaMessage(data);
-                        }
-                    }
-                    LOGI("[VoiceCall] outgoing request timed out, remote cancel sent, call={}",
-                         VoiceCallLogId(call_id));
-                    self->NotifyVoiceCallStatus("timeout");
-                }
-            });
     }
 
-    void BaseWorkspace::ProcessVoiceCallMessage(const std::shared_ptr<Message>& msg) {
-        if (!msg) {
-            return;
-        }
-        if (msg->device_id() != settings_->device_id_ ||
-            msg->stream_id() != settings_->stream_id_) {
-            LOGW("[VoiceCall] drop message for another session, stream={}", msg->stream_id());
-            return;
-        }
-        if (msg->type() == kVoiceCallRequest) {
-            const auto& request = msg->voice_call_request();
-            if (!request.connect()) {
-                bool matched = false;
-                {
-                    std::scoped_lock lock(voice_call_mutex_);
-                    matched = voice_call_state_.CallId() == request.call_id();
-                }
-                if (matched) {
-                    StopVoiceCall(false, "remote_hangup");
-                }
-                return;
-            }
-            // Native controller v1 does not expose an incoming-call surface.
-            Message response;
-            response.set_type(kVoiceCallResponse);
-            response.set_device_id(settings_->device_id_);
-            response.set_stream_id(settings_->stream_id_);
-            auto* sub = response.mutable_voice_call_response();
-            sub->set_call_id(request.call_id());
-            sub->set_request_id(request.request_id());
-            sub->set_accepted(false);
-            sub->set_reason("unsupported_direction");
-            if (const auto data = ProtoAsData(&response); data && sdk_) {
-                sdk_->PostMediaMessage(data);
-            }
-            return;
-        }
-        if (msg->type() == kVoiceCallResponse) {
-            const auto& response = msg->voice_call_response();
-            bool matched = false;
-            {
-                std::scoped_lock lock(voice_call_mutex_);
-                matched = voice_call_state_.ApplyResponse(
-                    response.call_id(), response.request_id(), response.accepted());
-            }
-            if (!matched) {
-                LOGW("[VoiceCall] stale/replayed response dropped, call={}",
-                     VoiceCallLogId(response.call_id()));
-                return;
-            }
-            if (!response.accepted()) {
-                NotifyVoiceCallStatus(response.reason().empty() ? "rejected" : response.reason());
-                return;
-            }
-
-            auto endpoint = std::make_shared<VoiceAudioEndpoint>();
-            const std::weak_ptr<VoiceAudioEndpoint> weak_endpoint = endpoint;
-            VoiceAudioBackendConfig backend_config;
-            {
-                std::scoped_lock lock(voice_call_mutex_);
-                backend_config.capture_device_id = voice_capture_device_id_;
-                backend_config.playout_device_id = voice_playout_device_id_;
-            }
-            std::string error;
-            const auto weak_self = weak_from_this();
-            if (!voice_packet_transport_.Start(
-                    [weak_self, call_id = response.call_id()](const VoiceTransportPacket& packet) {
-                        if (const auto self = weak_self.lock()) {
-                            self->DispatchVoiceAudioFrame(
-                                call_id, packet.sequence, packet.capture_time_ms, packet.opus);
-                        }
-                    })) {
-                StopVoiceCall(true, "transport_unavailable");
-                return;
-            }
-            if (!endpoint->Start(
-                    [weak_self, call_id = response.call_id()](
-                        uint32_t sequence, uint64_t capture_time_ms,
-                        const std::vector<uint8_t>& opus) {
-                        if (const auto self = weak_self.lock()) {
-                            self->QueueVoiceAudioFrame(call_id, sequence, capture_time_ms, opus);
-                        }
-                    }, backend_config, error,
-                    [weak_self, call_id = response.call_id(), weak_endpoint](
-                        const std::string& reason) {
-                        const auto self = weak_self.lock();
-                        if (!self) {
-                            return;
-                        }
-                        self->context_->PostUITask(
-                            [weak_self, call_id, weak_endpoint, reason]() {
-                                const auto task_self = weak_self.lock();
-                                if (!task_self) {
-                                    return;
-                                }
-                                const auto expected_endpoint = weak_endpoint.lock();
-                                bool still_active = false;
-                                {
-                                    std::scoped_lock lock(task_self->voice_call_mutex_);
-                                    still_active = expected_endpoint &&
-                                        task_self->voice_call_state_.IsMediaAllowed(call_id) &&
-                                        task_self->voice_audio_endpoint_ == expected_endpoint;
-                                }
-                                if (still_active) {
-                                    task_self->StopVoiceCall(true,
-                                        reason.empty() ? "device_lost" : reason);
-                                }
-                            });
-                    })) {
-                LOGE("[VoiceCall] local audio endpoint failed: {}", error);
-                StopVoiceCall(true, "no_mic");
-                return;
-            }
-            const auto backend_info = endpoint->BackendInfo();
-            LOGI("[VoiceCall] local audio backend={}, capture={}, playout={}, apm=aec+ns+agc",
-                 backend_info.backend, backend_info.capture_device,
-                 backend_info.playout_device);
-            bool keep_endpoint = false;
-            {
-                std::scoped_lock lock(voice_call_mutex_);
-                keep_endpoint = voice_call_state_.IsMediaAllowed(response.call_id());
-                if (keep_endpoint) {
-                    voice_audio_endpoint_ = endpoint;
-                    voice_microphone_muted_ = false;
-                    voice_speaker_muted_ = false;
-                }
-            }
-            if (!keep_endpoint) {
-                endpoint->Stop();
-                voice_packet_transport_.Stop();
-                return;
-            }
-            auto config = MakeVoiceAudioConfigMessage(
-                settings_->device_id_, settings_->stream_id_, response.call_id());
-            if (const auto data = ProtoAsData(&config); data && sdk_) {
-                sdk_->PostMediaMessage(data);
-            }
-            NotifyVoiceCallStatus();
-            return;
-        }
-        if (msg->type() == kVoiceAudioConfig) {
-            const auto& config = msg->voice_audio_config();
-            bool active_call = false;
-            {
-                std::scoped_lock lock(voice_call_mutex_);
-                active_call = voice_call_state_.IsMediaAllowed(config.call_id());
-            }
-            if (!active_call) {
-                return;
-            }
-            if (config.sample_rate() != VoiceAudioEndpoint::kSampleRate ||
-                config.channels() != VoiceAudioEndpoint::kChannels ||
-                config.frame_ms() != VoiceAudioEndpoint::kFrameMs) {
-                StopVoiceCall(true, "incompatible_audio_config");
-                NotifyVoiceCallStatus("incompatible_audio_config");
-            }
-            return;
-        }
-        if (msg->type() == kVoiceAudioFrame) {
-            const auto& frame = msg->voice_audio_frame();
-            std::shared_ptr<VoiceAudioEndpoint> endpoint;
-            {
-                std::scoped_lock lock(voice_call_mutex_);
-                if (!voice_call_state_.AcceptMedia(frame.call_id(), frame.sequence())) {
-                    return;
-                }
-                endpoint = voice_audio_endpoint_;
-            }
-            if (endpoint && !frame.opus().empty()) {
-                endpoint->ReceiveOpus(
-                    frame.sequence(), frame.capture_time_ms(),
-                    std::span<const uint8_t>(
-                        reinterpret_cast<const uint8_t*>(frame.opus().data()),
-                        frame.opus().size())); // NOLINT(gammaray-raw-pointer-boundary): protobuf byte-view boundary
-            }
+    void BaseWorkspace::ProcessVoiceCallMessage(const std::shared_ptr<Message>& message) {
+        if (voice_call_) {
+            voice_call_->HandleMessage(message);
         }
     }
 
     void BaseWorkspace::StopVoiceCall(bool notify_remote, const std::string& reason) {
-        std::shared_ptr<VoiceAudioEndpoint> endpoint;
-        std::string call_id;
-        uint64_t request_id = 0;
-        {
-            std::scoped_lock lock(voice_call_mutex_);
-            if (voice_call_state_.Phase() == VoiceCallPhase::kIdle) {
-                return;
-            }
-            call_id = voice_call_state_.CallId();
-            request_id = voice_call_state_.RequestId();
-            voice_call_state_.Reset();
-            endpoint = std::move(voice_audio_endpoint_);
-            voice_microphone_muted_ = false;
-            voice_speaker_muted_ = false;
+        if (voice_call_) {
+            voice_call_->Stop(notify_remote, reason);
         }
-        voice_packet_transport_.Stop();
-        if (endpoint) {
-            const auto stats = endpoint->Stats();
-            const auto transport_stats = voice_packet_transport_.Stats();
-            endpoint->Stop();
-            LOGI("[VoiceCall] local end reason={}, tx={}, rx={}, underrun={}, plc={}, "
-                 "jitter_peak={}, jitter_late={}, jitter_drop={}, apm_fail={}/{}, device_rebuilds={}, transport_drop={}",
-                 reason, stats.encoded_packets, stats.decoded_packets,
-                 stats.playout_underruns, stats.plc_packets,
-                 stats.jitter_peak_packets, stats.jitter_late,
-                 stats.jitter_overflow_drops, stats.apm_capture_failures,
-                 stats.apm_render_failures, stats.device_rebuilds,
-                 transport_stats.congestion_drops);
-        }
-        if (notify_remote && sdk_ && !remote_force_closed_ && !call_id.empty()) {
-            auto request = MakeVoiceCallRequestMessage(
-                settings_->device_id_, settings_->stream_id_, call_id, request_id, false);
-            if (const auto data = ProtoAsData(&request); data) {
-                sdk_->PostMediaMessage(data);
-            }
-        }
-        NotifyVoiceCallStatus(reason);
     }
 
     void BaseWorkspace::NotifyVoiceCallStatus(const std::string& reason) {
-        // Voice commands originate from MessageNotifier::process().  Dispatching
-        // a status synchronously from that callback recursively enters the same
-        // event bus and can spin the UI thread.  A queued Qt invocation also
-        // serializes SDK/network-thread status changes onto the UI thread.
+        if (!voice_call_ || !context_) {
+            return;
+        }
+        // Queue past MessageNotifier dispatch and reject a status superseded by another call or Close().
         const auto weak_self = weak_from_this();
-        context_->PostUITask([weak_self, reason]() {
+        const auto weak_controller = std::weak_ptr(voice_call_);
+        const auto revision = voice_call_->Status().revision;
+        context_->PostUITask([weak_self, weak_controller, revision, reason] {
             const auto self = weak_self.lock();
-            if (!self) {
+            const auto controller = weak_controller.lock();
+            if (!self || !controller || !self->context_) {
                 return;
             }
-            VoiceCallPhase phase;
-            bool microphone_muted = false;
-            bool speaker_muted = false;
-            std::string capture_device_id;
-            std::string playout_device_id;
+            const auto status = controller->Status();
+            if (status.revision != revision) {
+                return;
+            }
+            std::string capture_device_id{};
+            std::string playout_device_id{};
             {
-                std::scoped_lock lock(self->voice_call_mutex_);
-                phase = self->voice_call_state_.Phase();
-                microphone_muted = self->voice_microphone_muted_;
-                speaker_muted = self->voice_speaker_muted_;
+                std::lock_guard lock(self->voice_call_mutex_);
                 capture_device_id = self->voice_capture_device_id_;
                 playout_device_id = self->voice_playout_device_id_;
             }
-            self->context_->SendAppMessage(MsgClientVoiceCallStatus {
-                .supported_ = self->settings_->render_voice_call_enabled_ &&
-                              self->settings_->render_voice_call_protocol_version_ == 1,
-                .requires_headset_ = self->settings_->render_voice_call_requires_headset_,
-                .microphone_muted_ = microphone_muted,
-                .speaker_muted_ = speaker_muted,
+            self->context_->SendAppMessage(MsgClientVoiceCallStatus{
+                .supported_ = status.supported,
+                .requires_headset_ = status.requires_headset,
+                .microphone_muted_ = status.microphone_muted,
+                .speaker_muted_ = status.speaker_muted,
                 .capture_device_id_ = std::move(capture_device_id),
                 .playout_device_id_ = std::move(playout_device_id),
-                .phase_ = phase,
-                .reason_ = reason,
+                .phase_ = status.phase,
+                .reason_ = reason.empty() ? status.reason : reason,
             });
         });
-    }
-
-    void BaseWorkspace::QueueVoiceAudioFrame(
-        const std::string& call_id, uint32_t sequence, uint64_t capture_time_ms,
-        const std::vector<uint8_t>& opus) {
-        {
-            std::scoped_lock lock(voice_call_mutex_);
-            if (!voice_call_state_.IsMediaAllowed(call_id) || !sdk_ || remote_force_closed_) {
-                return;
-            }
-        }
-        voice_packet_transport_.Enqueue({
-            .sequence = sequence,
-            .capture_time_ms = capture_time_ms,
-            .opus = opus,
-        });
-    }
-
-    void BaseWorkspace::DispatchVoiceAudioFrame(
-        const std::string& call_id, uint32_t sequence, uint64_t capture_time_ms,
-        const std::vector<uint8_t>& opus) {
-        {
-            std::scoped_lock lock(voice_call_mutex_);
-            if (!voice_call_state_.IsMediaAllowed(call_id) || !sdk_ || remote_force_closed_) {
-                return;
-            }
-        }
-        auto message = MakeVoiceAudioFrameMessage(
-            settings_->device_id_, settings_->stream_id_, call_id,
-            sequence, capture_time_ms, opus);
-        if (const auto data = ProtoAsData(&message); data) {
-            sdk_->PostMediaMessage(data);
-        }
     }
 
     void BaseWorkspace::UpdateVideoWidgetSize() {
@@ -1764,6 +1518,9 @@ namespace px
     }
 
     void BaseWorkspace::Exit() {
+        if (voice_call_) {
+            voice_call_->Close();
+        }
         if (media_recording_module_) {
             media_recording_module_->StopRecording();
             media_recording_module_.reset();
@@ -2080,7 +1837,9 @@ namespace px
     }
 
     void BaseWorkspace::ExitSdk() {
-        StopVoiceCall(false, "client_exit");
+        if (voice_call_) {
+            voice_call_->Close();
+        }
         if (sdk_) {
             sdk_->Exit();
             sdk_ = nullptr;
