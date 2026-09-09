@@ -145,6 +145,15 @@ enum MessageType {
   // This is not a video frame and must never enter a lossy media queue.
   kRdpStream = 600;
 
+  // Reliable application text control v1. Never send these on the lossy input
+  // channel; absence of capabilities means unsupported (no legacy fallback).
+  kApplicationTextCapabilities = 610;
+  kApplicationTextState = 611;
+  kApplicationTextSubmit = 612;
+  kApplicationTextResult = 613;
+  kApplicationTextBarrier = 614;
+  kApplicationTextBarrierResult = 615;
+
 }
 
 enum VideoType {
@@ -391,6 +400,88 @@ message MouseEvent {
 
 message TextInput {
   string text = 1;
+}
+
+message ApplicationTextCapabilities {
+  uint32 version = 1;
+  uint32 max_utf8_bytes = 2;
+  bool final_text_supported = 3;
+  bool state_hints_supported = 4;
+  enum Backend {
+    UNAVAILABLE = 0;
+    CEF_COMMIT = 1;
+    OWNED_HOOK_WINDOW = 2;
+  }
+  Backend backend = 5;
+}
+
+message ApplicationTextTarget {
+  string instance_id = 1;
+  // Decimal strings avoid precision loss in JavaScript consumers.
+  string lease_generation = 2;
+  string target_generation = 3;
+}
+
+message ApplicationTextState {
+  ApplicationTextTarget target = 1;
+  enum Editability {
+    UNKNOWN = 0;
+    EDITABLE = 1;
+    NOT_EDITABLE = 2;
+  }
+  Editability editability = 2;
+  enum Source {
+    NONE = 0;
+    CEF = 1;
+    IMM = 2;
+  }
+  Source source = 3;
+}
+
+message ApplicationTextSubmit {
+  string request_id = 1;
+  ApplicationTextTarget target = 2;
+  string text = 3;
+  // Granted by an acknowledged begin-edit barrier, not a client-chosen token.
+  string input_generation = 4;
+}
+
+enum ApplicationTextOutcome {
+  TEXT_OUTCOME_UNSPECIFIED = 0;
+  TEXT_ACCEPTED = 1;
+  TEXT_SUBMITTED = 2;
+  TEXT_UNSUPPORTED = 3;
+  TEXT_PERMISSION_DENIED = 4;
+  TEXT_TARGET_CHANGED = 5;
+  TEXT_TARGET_UNAVAILABLE = 6;
+  TEXT_INVALID = 7;
+  TEXT_BUSY = 8;
+  TEXT_FAILED = 9;
+  TEXT_OUTCOME_UNKNOWN = 10;
+}
+
+message ApplicationTextResult {
+  string request_id = 1;
+  ApplicationTextTarget target = 2;
+  ApplicationTextOutcome outcome = 3;
+  uint32 accepted_bytes = 4;
+  // Stable machine-readable code only. Never echo submitted text.
+  string error_code = 5;
+}
+
+message ApplicationTextBarrier {
+  string request_id = 1;
+  ApplicationTextTarget target = 2;
+  bool begin_editing = 3;
+  string expected_input_generation = 4;
+}
+
+message ApplicationTextBarrierResult {
+  string request_id = 1;
+  ApplicationTextTarget target = 2;
+  ApplicationTextOutcome outcome = 3;
+  string input_generation = 4;
+  bool editing = 5;
 }
 
 message CursorInfoSync {
@@ -805,4 +896,13 @@ message Message {
   VoiceAudioConfig voice_audio_config = 582;
   VoiceAudioFrame voice_audio_frame = 583;
   RdpStreamPacket rdp_stream = 600;
+  ApplicationTextCapabilities application_text_capabilities = 610;
+  ApplicationTextState application_text_state = 611;
+  ApplicationTextSubmit application_text_submit = 612;
+  ApplicationTextResult application_text_result = 613;
+  ApplicationTextBarrier application_text_barrier = 614;
+  ApplicationTextBarrierResult application_text_barrier_result = 615;
+  // Ordinary key/mouse/legacy text messages carry this once v1 is negotiated.
+  // Empty is legacy only; after a barrier it must not bypass generation checks.
+  string input_generation = 616;
 }

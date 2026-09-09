@@ -184,6 +184,9 @@ target_link_libraries(test_client_clipboard_file_stream PRIVATE
     pixels::transport px_common px_message GTest::gtest GTest::gtest_main)
 
 if(BUILD_TESTING)
+    add_executable(test_application_text_protocol tests/test_application_text_protocol.cpp)
+    target_link_libraries(test_application_text_protocol PRIVATE px_message GTest::gtest GTest::gtest_main)
+    add_test(NAME application_text_protocol COMMAND test_application_text_protocol)
     # Exercise the Android host's std-only clipboard adapter without a device or JNI.
     add_executable(test_native_clipboard_protocol
         tests/test_native_clipboard_protocol.cpp
