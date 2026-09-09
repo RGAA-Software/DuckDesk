@@ -137,6 +137,23 @@ TEST(ApplicationTextInput, CompositionDoesNotSendPreeditAndCancellingDoesNotComm
     EXPECT_EQ(fixture.messages->size(), 2);
 }
 
+TEST(ApplicationTextInput, PlaceholderDoesNotOverlapPreeditAndReturnsAfterCancellation) {
+    Fixture fixture{};
+    const auto editor{fixture.Editor()};
+    const auto placeholder{editor->placeholderText()};
+    ASSERT_FALSE(placeholder.isEmpty());
+    QInputMethodEvent composing{QStringLiteral("nihao"), {}};
+    QApplication::sendEvent(editor.data(), &composing);
+    EXPECT_TRUE(editor->placeholderText().isEmpty());
+    EXPECT_TRUE(editor->toPlainText().isEmpty());
+    QInputMethodEvent continuing{QStringLiteral("nihaoa"), {}};
+    QApplication::sendEvent(editor.data(), &continuing);
+    QInputMethodEvent cancelled{};
+    QApplication::sendEvent(editor.data(), &cancelled);
+    EXPECT_EQ(editor->placeholderText(), placeholder);
+    EXPECT_TRUE(editor->toPlainText().isEmpty());
+}
+
 TEST(ApplicationTextInput, ReadOnlyAndDisconnectNeverSend) {
     Fixture fixture{};
     fixture.Ready();

@@ -17,11 +17,20 @@ class ApplicationTextEditor final : public QPlainTextEdit {
   public:
     explicit ApplicationTextEditor(QPointer<QWidget> parent) : QPlainTextEdit(parent.data()) {}
     bool composing_{};
+    QString placeholder_before_composition_{};
     std::function<void()> composition_changed_{};
 
   protected:
     void inputMethodEvent(QInputMethodEvent* event) override { // NOLINT(gammaray-raw-pointer-boundary) Borrowed Qt event, synchronous only.
-        composing_ = !event->preeditString().isEmpty();
+        const bool composing{!event->preeditString().isEmpty()};
+        if (composing && !composing_) {
+            placeholder_before_composition_ = placeholderText();
+            setPlaceholderText({});
+        } else if (!composing && composing_) {
+            setPlaceholderText(placeholder_before_composition_);
+            placeholder_before_composition_.clear();
+        }
+        composing_ = composing;
         QPlainTextEdit::inputMethodEvent(event);
         if (composition_changed_)
             composition_changed_();

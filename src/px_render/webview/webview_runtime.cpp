@@ -706,7 +706,8 @@ public:
                 } else {
                     // CEF commits the complete UTF-16 string, including surrogate
                     // pairs, without clipboard mutation or synthetic Enter.
-                    self->browser_->GetHost()->ImeCommitText(CefString(text), CefRange{}, 0);
+                    // An empty valid range means offset zero, not the current selection.
+                    self->browser_->GetHost()->ImeCommitText(CefString(text), CefRange::InvalidRange(), 0);
                     outcome = TEXT_SUBMITTED;
                 }
             }
