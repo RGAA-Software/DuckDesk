@@ -66,6 +66,9 @@ namespace px
     class WinDesktopManager;
     class D3D11DeviceWrapper;
     class WebViewRuntime;
+    struct ApplicationTextBackend;
+    class GameTextBackend;
+    struct CaptureTextReply;
     class MouseEvent;
     class KeyEvent;
     class TextInput;
@@ -173,6 +176,8 @@ namespace px
         void SendWebViewMouseEvent(const MouseEvent& event);
         void SendWebViewKeyEvent(const KeyEvent& event);
         void SendWebViewTextInput(const TextInput& event);
+        ApplicationTextBackend CreateApplicationTextBackend();
+        void HandleGameTextReply(std::uint32_t pid, const CaptureTextReply& reply);
         void SendWebViewFocusEvent(bool focused);
         void SetWebViewClipboardText(std::string text);
 
@@ -283,6 +288,7 @@ namespace px
 
         std::shared_ptr<WinDesktopManager> desktop_mgr_ = nullptr;
         std::unique_ptr<WebViewRuntime> webview_runtime_;
+        std::shared_ptr<GameTextBackend> game_text_backend_{};
         std::atomic<std::shared_ptr<rdp::RdpProxyProcess>> rdp_proxy_{};
 
         // timer count

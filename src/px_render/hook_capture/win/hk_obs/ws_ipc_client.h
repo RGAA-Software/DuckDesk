@@ -12,6 +12,7 @@
 #include <chrono>
 #include <cstdint>
 #include <mutex>
+#include <unordered_map>
 #include <asio2/websocket/ws_client.hpp>
 
 #include "px_common/async_result.h"
@@ -22,6 +23,9 @@ namespace px {
 class Message;
 class CaptureBaseMessage;
 class PxReconnectSupervisor;
+class HookGameTextInput;
+class KeyboardEventMessage;
+class MouseEventMessage;
 template <typename Client> class PxReconnectAdapterSlot;
 template <typename T> class PxAsyncMailbox;
 
@@ -73,6 +77,9 @@ class WsIpcClient : public std::enable_shared_from_this<WsIpcClient> {
     std::atomic_bool exiting_{false};
     std::mutex operation_mutex_{};
     mutable std::mutex lifecycle_mutex_{};
+    std::unique_ptr<HookGameTextInput> text_input_{};
+    std::unordered_map<std::uint32_t, std::shared_ptr<KeyboardEventMessage>> held_keys_{};
+    std::unordered_map<std::int32_t, std::shared_ptr<MouseEventMessage>> held_buttons_{};
 };
 
 } // namespace px

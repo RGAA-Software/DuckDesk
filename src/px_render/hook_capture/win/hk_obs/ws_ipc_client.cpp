@@ -17,6 +17,7 @@
 #include "px_common/websocket_reconnect_adapter.h"
 #include "px_common/log.h"
 #include "px_capture/capture_message.h"
+#include "game_text_input.h"
 
 namespace px {
 
@@ -24,6 +25,11 @@ namespace {
 
 constexpr auto kIpcConnectionTimeout = std::chrono::seconds(10);
 constexpr std::size_t kIpcMessageCapacity = 1024;
+bool IsCurrentProcessInputWindow(std::uint64_t window) {
+    DWORD process_id{};
+    return window != 0 && IsWindow(reinterpret_cast<HWND>(window)) &&
+           GetWindowThreadProcessId(reinterpret_cast<HWND>(window), &process_id) != 0 && process_id == GetCurrentProcessId();
+}
 const PxReconnectBackoffOptions kIpcReconnectOptions{
     .initial_delay = std::chrono::milliseconds(100),
     .maximum_delay = std::chrono::seconds(5),
@@ -55,7 +61,8 @@ std::shared_ptr<WsIpcClient> WsIpcClient::Make(int port) {
     return std::make_shared<WsIpcClient>(port);
 }
 
-WsIpcClient::WsIpcClient(int port) : port_(port), adapter_slot_(std::make_shared<PxReconnectAdapterSlot<asio2::ws_client>>()) {}
+WsIpcClient::WsIpcClient(int port)
+    : port_(port), adapter_slot_(std::make_shared<PxReconnectAdapterSlot<asio2::ws_client>>()), text_input_(std::make_unique<HookGameTextInput>()) {}
 
 WsIpcClient::~WsIpcClient() {
     Exit();
@@ -286,6 +293,7 @@ PxAwaitable<PxResult<void>> WsIpcClient::StopAsync(std::shared_ptr<WsIpcClient> 
 std::shared_ptr<PxAsyncScope> WsIpcClient::BeginStop() {
     const auto state = SnapshotAsyncState();
     exiting_.store(true, std::memory_order_release);
+    text_input_->Reset();
     if (state.mailbox) {
         static_cast<void>(state.mailbox->Close(MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "ipc.receive", "IPC websocket is stopping")));
     }
@@ -302,6 +310,8 @@ std::shared_ptr<PxAsyncScope> WsIpcClient::BeginStop() {
 
 void WsIpcClient::FinishStop() {
     adapter_slot_->Clear();
+    held_keys_.clear();
+    held_buttons_.clear();
     {
         std::lock_guard lifecycle_lock(lifecycle_mutex_);
         incoming_messages_.reset();
@@ -365,10 +375,47 @@ PxAwaitable<void> WsIpcClient::RunIncomingMessageLoop(std::weak_ptr<WsIpcClient>
 }
 
 void WsIpcClient::DispatchIpcMessage(const std::string& msg) {
-    WsIpcMessageCallback callback;
+    WsIpcMessageCallback callback{};
     {
         std::lock_guard lock(callback_mutex_);
         callback = ipc_cbk_;
+    }
+    if (const auto command = DecodeCaptureTextCommand(msg)) {
+        if (!exiting_.load(std::memory_order_acquire)) {
+            if (command->operation == CaptureTextOperation::kRelease) {
+                CaptureTextReply reply{.request_id = command->request_id};
+                if (callback && command->target_pid == GetCurrentProcessId()) {
+                    bool targets_valid{true};
+                    for (const auto& entry : held_keys_) {
+                        if (!IsCurrentProcessInputWindow(entry.second->hwnd_)) {
+                            targets_valid = false;
+                            continue;
+                        }
+                        auto released = std::make_shared<KeyboardEventMessage>(*entry.second);
+                        released->down_ = 0;
+                        callback(released);
+                    }
+                    for (const auto& entry : held_buttons_) {
+                        if (!IsCurrentProcessInputWindow(entry.second->hwnd_)) {
+                            targets_valid = false;
+                            continue;
+                        }
+                        auto released = std::make_shared<MouseEventMessage>(*entry.second);
+                        released->pressed_ = 0;
+                        released->released_ = 1;
+                        callback(released);
+                    }
+                    held_keys_.clear();
+                    held_buttons_.clear();
+                    callback(std::make_shared<CaptureResetInputMessage>());
+                    reply.status = targets_valid ? CaptureTextStatus::kReady : CaptureTextStatus::kOutcomeUnknown;
+                }
+                PostIpcMessage(EncodeCaptureTextReply(reply));
+                return;
+            }
+            PostIpcMessage(EncodeCaptureTextReply(text_input_->Execute(*command)));
+        }
+        return;
     }
     if (!callback || msg.size() < sizeof(CaptureBaseMessage)) {
         return;
@@ -379,19 +426,33 @@ void WsIpcClient::DispatchIpcMessage(const std::string& msg) {
             LOGE("msg size != sizeof(MouseEventMessage), msg size: {}, event size: {}", msg.size(), sizeof(MouseEventMessage));
             return;
         }
-        callback(std::make_shared<MouseEventMessage>(DecodeIpcValue<MouseEventMessage>(msg)));
+        const auto event = std::make_shared<MouseEventMessage>(DecodeIpcValue<MouseEventMessage>(msg));
+        if (event->released_) {
+            held_buttons_.erase(event->button_);
+        } else if (event->pressed_ && held_buttons_.size() < 16) {
+            held_buttons_[event->button_] = event;
+        }
+        callback(event);
     } else if (base_message.type_ == kKeyboardEventMessage) {
         if (msg.size() != sizeof(KeyboardEventMessage)) {
             LOGE("msg size != sizeof(KeyboardEventMessage), msg size: {}, event size: {}", msg.size(), sizeof(KeyboardEventMessage));
             return;
         }
-        callback(std::make_shared<KeyboardEventMessage>(DecodeIpcValue<KeyboardEventMessage>(msg)));
+        const auto event = std::make_shared<KeyboardEventMessage>(DecodeIpcValue<KeyboardEventMessage>(msg));
+        if (!event->down_) {
+            held_keys_.erase(event->key_);
+        } else if (event->key_ < 256) {
+            held_keys_[event->key_] = event;
+        }
+        callback(event);
     } else if (base_message.type_ == kCaptureResetInputMessage) {
         if (msg.size() != sizeof(CaptureResetInputMessage)) {
             LOGE("msg size != sizeof(CaptureResetInputMessage), msg size: {}", msg.size());
             return;
         }
         callback(std::make_shared<CaptureResetInputMessage>(DecodeIpcValue<CaptureResetInputMessage>(msg)));
+        held_keys_.clear();
+        held_buttons_.clear();
     }
 }
 

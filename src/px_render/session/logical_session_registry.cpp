@@ -24,6 +24,24 @@ bool LogicalSessionRegistry::HasControllerBinding(const Session& session) const 
         });
 }
 
+bool LogicalSessionRegistry::HasInputBinding(const Session& session) const {
+    return session.input_allowed && std::any_of(session.bindings.begin(), session.bindings.end(), [](const auto& item) {
+        return item.second.transport != LogicalSessionTransport::kFileTransfer && item.second.input_allowed;
+    });
+}
+
+void LogicalSessionRegistry::UpdateInputCapabilityByStream(const std::string& stream_id, bool allowed) {
+    std::scoped_lock lock(mutex_);
+    for (auto& entry : sessions_) {
+        auto& session = entry.second;
+        if (session.stream_id == stream_id && session.input_allowed != allowed) {
+            session.input_allowed = allowed;
+            // Restoring permission never revalidates a request queued before revocation.
+            session.input_capability_generation = next_input_capability_generation_++;
+        }
+    }
+}
+
 void LogicalSessionRegistry::RemoveStaleSessionsLocked(const int64_t now_ms) {
     for (auto it = sessions_.begin(); it != sessions_.end();) {
         const bool stale_controller = it->second.role == LogicalSessionRole::kController
@@ -76,6 +94,7 @@ LogicalSessionAdmission LogicalSessionRegistry::AdoptControllerLocked(
     auto [session_it, inserted] = sessions_.try_emplace(grant.logical_session_id);
     auto& session = session_it->second;
     if (inserted) {
+        session.input_capability_generation = next_input_capability_generation_++;
         session.stream_id = grant.stream_id;
         session.subject_id = grant.subject_id;
         session.expires_at_ms = grant.expires_at_ms;
@@ -93,9 +112,10 @@ LogicalSessionAdmission LogicalSessionRegistry::AdoptControllerLocked(
     }
     if (renew_controller_lease) {
         session.lease_generation++;
+        session.input_capability_generation = next_input_capability_generation_++;
     }
     session.controller_disconnected_at_ms = 0;
-    session.bindings.insert_or_assign(binding_id, Binding{transport, binding_id});
+    session.bindings.insert_or_assign(binding_id, Binding{transport, binding_id, next_binding_generation_++, grant.input_allowed});
     controller_session_id_ = grant.logical_session_id;
     result.code = LogicalSessionAdmissionCode::kAccepted;
     result.role = LogicalSessionRole::kController;
@@ -133,7 +153,7 @@ LogicalSessionAdmission LogicalSessionRegistry::Bind(const LogicalSessionGrant& 
             return {.code = LogicalSessionAdmissionCode::kInvalidGrant};
         }
         auto& session = session_it->second;
-        session.bindings.insert_or_assign(binding_id, Binding{transport, binding_id});
+        session.bindings.insert_or_assign(binding_id, Binding{transport, binding_id, next_binding_generation_++, grant.input_allowed});
         return {.code = LogicalSessionAdmissionCode::kAccepted,
                 .role = session.role,
                 .lease_generation = session.lease_generation};
@@ -150,6 +170,7 @@ LogicalSessionAdmission LogicalSessionRegistry::Bind(const LogicalSessionGrant& 
     auto [session_it, inserted] = sessions_.try_emplace(grant.logical_session_id);
     auto& session = session_it->second;
     if (inserted) {
+        session.input_capability_generation = next_input_capability_generation_++;
         session.stream_id = grant.stream_id;
         session.subject_id = grant.subject_id;
         session.expires_at_ms = grant.expires_at_ms;
@@ -159,7 +180,7 @@ LogicalSessionAdmission LogicalSessionRegistry::Bind(const LogicalSessionGrant& 
     } else if (session.stream_id != grant.stream_id || session.subject_id != grant.subject_id) {
         return {.code = LogicalSessionAdmissionCode::kInvalidGrant};
     }
-    session.bindings.insert_or_assign(binding_id, Binding{transport, binding_id});
+    session.bindings.insert_or_assign(binding_id, Binding{transport, binding_id, next_binding_generation_++, grant.input_allowed});
     return {.code = LogicalSessionAdmissionCode::kAccepted,
             .role = LogicalSessionRole::kObserver,
             .lease_generation = session.lease_generation};
@@ -219,7 +240,7 @@ bool LogicalSessionRegistry::AuthorizeControllerInput(const std::string& logical
     return found != sessions_.end()
         && found->second.role == LogicalSessionRole::kController
         && found->second.lease_generation == lease_generation
-        && HasControllerBinding(found->second);
+        && HasInputBinding(found->second);
 }
 
 bool LogicalSessionRegistry::AuthorizeControllerInputBinding(
@@ -237,21 +258,59 @@ std::optional<LogicalSessionInputLease> LogicalSessionRegistry::FindControllerIn
     static_cast<void>(now_ms);
     std::scoped_lock lock(mutex_);
     for (const auto& [logical_session_id, session] : sessions_) {
-        if (!session.bindings.contains(binding_id)) {
+        const auto binding{session.bindings.find(binding_id)};
+        if (binding == session.bindings.end()) {
             continue;
+        }
+        if (binding->second.transport == LogicalSessionTransport::kFileTransfer || !binding->second.input_allowed || !session.input_allowed) {
+            return std::nullopt;
         }
         if (controller_session_id_ == logical_session_id
             && session.role == LogicalSessionRole::kController
-            && HasControllerBinding(session)) {
+            && HasInputBinding(session)) {
             return LogicalSessionInputLease{
                 .logical_session_id = logical_session_id,
                 .binding_id = binding_id,
                 .generation = session.lease_generation,
+                .binding_generation = binding->second.generation,
+                .input_capability_generation = session.input_capability_generation,
             };
         }
         return std::nullopt;
     }
     return std::nullopt;
+}
+
+std::optional<LogicalSessionInputLease> LogicalSessionRegistry::AuthorizeAuxiliaryInputGrant(
+    const LogicalSessionGrant& grant, const std::string& parent_binding_id, const int64_t now_ms) const {
+    std::scoped_lock lock{mutex_};
+    if (grant.join_mode != "control" || !grant.input_allowed || grant.logical_session_id.empty() || parent_binding_id.empty() ||
+        (grant.expires_at_ms > 0 && now_ms >= grant.expires_at_ms) || controller_session_id_ != grant.logical_session_id) {
+        return std::nullopt;
+    }
+    const auto found{sessions_.find(grant.logical_session_id)};
+    if (found == sessions_.end()) {
+        return std::nullopt;
+    }
+    const auto& session{found->second};
+    const auto binding{session.bindings.find(parent_binding_id)};
+    if (session.role != LogicalSessionRole::kController || session.stream_id != grant.stream_id || session.subject_id != grant.subject_id ||
+        binding == session.bindings.end() || binding->second.transport == LogicalSessionTransport::kFileTransfer ||
+        !session.input_allowed || !binding->second.input_allowed) {
+        return std::nullopt;
+    }
+    return LogicalSessionInputLease{.logical_session_id = grant.logical_session_id,
+                                    .binding_id = parent_binding_id,
+                                    .generation = session.lease_generation,
+                                    .binding_generation = binding->second.generation,
+                                    .input_capability_generation = session.input_capability_generation};
+}
+
+bool LogicalSessionRegistry::IsCurrentInputBinding(const LogicalSessionInputLease& lease, const int64_t now_ms) const {
+    const auto current{FindControllerInputLeaseByBinding(lease.binding_id, now_ms)};
+    return current && lease.binding_generation != 0 && current->logical_session_id == lease.logical_session_id &&
+           current->generation == lease.generation && current->binding_generation == lease.binding_generation &&
+           current->input_capability_generation == lease.input_capability_generation;
 }
 
 std::optional<LogicalSessionInputLease> LogicalSessionRegistry::FindControllerLeaseByBinding(
@@ -268,6 +327,7 @@ std::optional<LogicalSessionInputLease> LogicalSessionRegistry::FindControllerLe
                 .logical_session_id = logical_session_id,
                 .binding_id = binding_id,
                 .generation = session.lease_generation,
+                .binding_generation = session.bindings.at(binding_id).generation,
             };
         }
         return std::nullopt;
@@ -297,12 +357,12 @@ std::optional<LogicalSessionInputLease> LogicalSessionRegistry::FindControllerIn
         }
         if (controller_session_id_ != logical_session_id
             || session.role != LogicalSessionRole::kController
-            || !HasControllerBinding(session)) {
+            || !HasInputBinding(session)) {
             return std::nullopt;
         }
         const auto binding = std::find_if(session.bindings.begin(), session.bindings.end(),
             [](const auto& item) {
-                return item.second.transport != LogicalSessionTransport::kFileTransfer;
+                return item.second.transport != LogicalSessionTransport::kFileTransfer && item.second.input_allowed;
             });
         if (binding == session.bindings.end()) {
             return std::nullopt;
@@ -311,6 +371,8 @@ std::optional<LogicalSessionInputLease> LogicalSessionRegistry::FindControllerIn
             .logical_session_id = logical_session_id,
             .binding_id = binding->first,
             .generation = session.lease_generation,
+            .binding_generation = binding->second.generation,
+            .input_capability_generation = session.input_capability_generation,
         };
     }
     return std::nullopt;

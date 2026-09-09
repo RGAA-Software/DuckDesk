@@ -287,6 +287,12 @@ namespace px
     }
 
     void VideoWidget::SendKeyEvent(quint32 vk, bool down) {
+        const auto generation = context_->application_text_input_gate_->OrdinaryInputGeneration();
+        if (!generation) {
+            pressed_keys_.clear();
+            pressed_mouse_buttons_.clear();
+            return;
+        }
         if (settings_->only_viewing_) {
             LOGW("[InputSend] drop key vk=0x{:x} down={}, only_viewing", vk, down);
             return;
@@ -310,21 +316,21 @@ namespace px
         msg->set_type(px::kKeyEvent);
         msg->set_device_id(settings_->device_id_);
         msg->set_stream_id(settings_->stream_id_);
-        auto key_event = new px::KeyEvent();
-        key_event->set_down(down);
-        key_event->set_key_code(vk);
-        key_event->set_num_lock_status(num_lock_state);
-        key_event->set_caps_lock_status(caps_lock_state);
+        msg->set_input_generation(*generation);
+        auto& key_event = *msg->mutable_key_event();
+        key_event.set_down(down);
+        key_event.set_key_code(vk);
+        key_event.set_num_lock_status(num_lock_state);
+        key_event.set_caps_lock_status(caps_lock_state);
         if (num_lock_state != -1) {
-            key_event->set_status_check(px::KeyEvent::kCheckNumLock);
+            key_event.set_status_check(px::KeyEvent::kCheckNumLock);
         } else if (caps_lock_state != -1) {
-            key_event->set_status_check(px::KeyEvent::kCheckCapsLock);
+            key_event.set_status_check(px::KeyEvent::kCheckCapsLock);
         } else {
-            key_event->set_status_check(px::KeyEvent::kDontCareLockKey);
+            key_event.set_status_check(px::KeyEvent::kDontCareLockKey);
         }
         auto cur_time = GetCurrentTime();
-        key_event->set_timestamp(cur_time);
-        msg->set_allocated_key_event(key_event);
+        key_event.set_timestamp(cur_time);
 
         // 记录按下状态(仅 UI 线程访问),用于重连后补发 release
         if (down) {
@@ -348,6 +354,8 @@ namespace px
     }
 
     void VideoWidget::SendTextInput(const QString& text) {
+        const auto generation = context_->application_text_input_gate_->OrdinaryInputGeneration();
+        if (!generation) return;
         if (settings_->only_viewing_ || text.isEmpty()) {
             return;
         }
@@ -358,6 +366,7 @@ namespace px
         }
         auto msg = std::make_shared<Message>();
         msg->set_type(px::kTextInput);
+        msg->set_input_generation(*generation);
         msg->set_device_id(settings_->device_id_);
         msg->set_stream_id(settings_->stream_id_);
         msg->mutable_text_input()->set_text(utf8.constData(), utf8.size());
@@ -370,6 +379,14 @@ namespace px
     }
 
     void VideoWidget::SendMouseEvent(const MouseEventDesc& mouse_event_desc) {
+        const auto generation = context_->application_text_input_gate_->OrdinaryInputGeneration();
+        if (!generation) {
+            pressed_keys_.clear();
+            pressed_mouse_buttons_.clear();
+            last_cursor_x_ = invalid_position;
+            last_cursor_y_ = invalid_position;
+            return;
+        }
         if (!sdk_ || settings_->only_viewing_) {
             if (!IsPureMouseMove(mouse_event_desc)) {
                 LOGW("[InputSend] drop mouse {}, sdk={} only_viewing={}",
@@ -386,19 +403,19 @@ namespace px
         msg->set_type(px::kMouseEvent);
         msg->set_device_id(settings_->device_id_);
         msg->set_stream_id(settings_->stream_id_);
-        auto mouse_event = new px::MouseEvent();
-        mouse_event->set_x_ratio(mouse_event_desc.x_ratio);
-        mouse_event->set_y_ratio(mouse_event_desc.y_ratio);
-        mouse_event->set_button(mouse_event_desc.buttons);
+        msg->set_input_generation(*generation);
+        auto& mouse_event = *msg->mutable_mouse_event();
+        mouse_event.set_x_ratio(mouse_event_desc.x_ratio);
+        mouse_event.set_y_ratio(mouse_event_desc.y_ratio);
+        mouse_event.set_button(mouse_event_desc.buttons);
         auto cur_time = GetCurrentTime();
-        mouse_event->set_timestamp(cur_time);
-        mouse_event->set_monitor_name(cap_mon_info_.mon_name_);
-        mouse_event->set_data(mouse_event_desc.data);
-        mouse_event->set_delta_x(mouse_event_desc.dx);
-        mouse_event->set_delta_y(mouse_event_desc.dy);
-        mouse_event->set_pressed(mouse_event_desc.pressed);
-        mouse_event->set_released(mouse_event_desc.released);
-        msg->set_allocated_mouse_event(mouse_event);
+        mouse_event.set_timestamp(cur_time);
+        mouse_event.set_monitor_name(cap_mon_info_.mon_name_);
+        mouse_event.set_data(mouse_event_desc.data);
+        mouse_event.set_delta_x(mouse_event_desc.dx);
+        mouse_event.set_delta_y(mouse_event_desc.dy);
+        mouse_event.set_pressed(mouse_event_desc.pressed);
+        mouse_event.set_released(mouse_event_desc.released);
 
         // 记录按下状态(仅 UI 线程访问),存下对应的 release flag,用于重连后补发 release
         if (mouse_event_desc.pressed) {

@@ -48,6 +48,7 @@ class WsTransport final : public RenderModule {
     void SendUserProxy(std::shared_ptr<Data> message);
     bool IsUserProxyConnected();
     void SendIpc(std::shared_ptr<Data> message);
+    bool SendIpcForPid(std::uint32_t pid, std::shared_ptr<Data> message, std::function<bool()> authorize);
     void RegisterIpcPid(uint32_t pid);
 
     bool HasOnlyAudioClients();

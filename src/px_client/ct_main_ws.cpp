@@ -590,6 +590,11 @@ int main(int argc, char** argv) {
         if (Settings::Instance()->only_viewing_) {
             return CallNextHookEx(nullptr, code, wParam, lParam);
         }
+        // Local text editing owns IME/system shortcuts too: do not consume
+        // Win+Space/Alt keys merely because their remote forwarding is paused.
+        if (ws && !ws->GetContext()->application_text_input_gate_->OrdinaryInputGeneration()) {
+            return CallNextHookEx(nullptr, code, wParam, lParam);
+        }
 
         if (code >= 0 && ws->IsActiveNow()) {
             const auto& keyboard = *reinterpret_cast<const KBDLLHOOKSTRUCT*>(lParam); // Transient Win32 hook ABI.

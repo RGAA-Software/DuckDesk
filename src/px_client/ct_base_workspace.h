@@ -51,6 +51,7 @@ namespace px
     class PlVulkan;
     class SkinInterface;
     class OverlayWidget;
+    class ApplicationTextInput;
 
     class BaseWorkspace : public QMainWindow, public std::enable_shared_from_this<BaseWorkspace> {
     public:
@@ -155,6 +156,7 @@ namespace px
         std::shared_ptr<WindowsVideoResources> video_resources_{};
         std::shared_ptr<ClientContext> context_ = nullptr;
         std::shared_ptr<ThunderSdk> sdk_ = nullptr;
+        std::shared_ptr<ApplicationTextInput> application_text_input_{};
         std::shared_ptr<AudioPlayer> audio_player_ = nullptr;
         bool is_window_active_ = false;
         acss::QtAdvancedStylesheet* theme_{};

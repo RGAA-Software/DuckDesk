@@ -59,6 +59,7 @@ class WsServer : public std::enable_shared_from_this<WsServer> {
 
     void PostNetMessage(std::shared_ptr<Data> msg);
     void PostIpcBinaryMessage(std::shared_ptr<Data> msg);
+    bool PostIpcBinaryMessageForPid(std::uint32_t pid, std::shared_ptr<Data> message, std::function<bool()> authorize);
     bool PostTargetStreamMessage(const std::string& stream_id, std::shared_ptr<Data> msg);
     FileTransferSendResult PostTargetFileTransferMessage(const std::string& stream_id, const std::shared_ptr<Data>& msg,
                                                          const std::string& connection_instance_id = {});

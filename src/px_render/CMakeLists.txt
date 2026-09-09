@@ -50,6 +50,7 @@ set(SRCS
         ingress/render_event_ingress.cpp
         pipeline/encoded_video_fanout.cpp
         ingress/network_event_ingress.cpp
+        ingress/application_text_service.cpp
         webview/webview_runtime.cpp
         rdp/rdp_application.cpp
 )
@@ -61,6 +62,7 @@ add_library(main ${SRCS})
 
 if(WIN32)
     target_sources(main PRIVATE
+            app/win/game_text_backend.cpp
             ${WIN32_SRCS}
     )
 else()

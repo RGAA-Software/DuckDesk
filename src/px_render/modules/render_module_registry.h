@@ -104,6 +104,7 @@ class RenderModuleRegistry : public std::enable_shared_from_this<RenderModuleReg
     [[nodiscard]] bool PostRtcLocalMessage(const std::shared_ptr<Data>& message, bool run_through);
     void SendRelaySignalingMessage(const std::string& stream_id, const std::shared_ptr<Data>& message);
     void PostWsIpcBinaryMessage(const std::shared_ptr<Data>& message);
+    bool PostWsIpcBinaryMessageForPid(std::uint32_t pid, std::shared_ptr<Data> message, std::function<bool()> authorize);
     void RegisterWsIpcPid(std::uint32_t pid);
     void PostWsUserProxyMessage(const std::shared_ptr<Data>& message);
     [[nodiscard]] bool IsWsUserProxyConnected();

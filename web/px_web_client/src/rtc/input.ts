@@ -46,7 +46,48 @@ type TouchMode = 'none' | 'single' | 'two' | 'two-ending' | 'rest'
 type MovePos = { x: number; y: number }
 
 export class InputController {
-  viewOnly = false
+  private readOnly = false
+  private suspended = false
+  private inputGeneration = ''
+  private applicationText = false
+  private keysHeld = new Set<number>()
+  get viewOnly() { return this.readOnly || this.suspended }
+  set viewOnly(value: boolean) {
+    if (value && !this.readOnly) this.releaseHeldInput()
+    this.readOnly = value
+  }
+
+  setApplicationTextEnabled(value: boolean) {
+    this.applicationText = value
+  }
+
+  setInputGeneration(value: string) { this.inputGeneration = value }
+
+  setTextEditing(value: boolean) {
+    if (value && !this.suspended) this.releaseHeldInput()
+    this.suspended = value
+    if (value) this.destroyTextSink()
+    else if (this.attached) this.createTextSink()
+  }
+
+  releaseHeldInput() {
+    for (const keyCode of this.keysHeld) {
+      this.send({ type: MSG_TYPE_KEY_EVENT, keyEvent: {
+        keyCode, down: false, numLockStatus: -1, capsLockStatus: -1,
+        statusCheck: LOCK_KEY_DONT_CARE, timestamp: Date.now(),
+      } })
+    }
+    this.keysHeld.clear()
+    for (const button of this.buttonsHeld) {
+      this.send({ type: MSG_TYPE_MOUSE_EVENT, mouseEvent: {
+        monitorName: this.opts.monitorName, button: UP_FLAGS[button], released: true,
+        xRatio: this.virtX, yRatio: this.virtY, timestamp: Date.now(),
+      } })
+    }
+    this.buttonsHeld.clear()
+    this.pendingMove = null
+    this.resetTouchState()
+  }
   // 指针锁定(相对鼠标)模式:用 movementX/Y 更新虚拟光标比例坐标后发送。
   // client 只上报 ratio(+按键);相对位移由 server 根据绝对坐标换算。
   // ButtonFlag 无相对移动标志位,故相对模式页内维护虚拟光标再发 ratio。
@@ -63,6 +104,7 @@ export class InputController {
   // rAF 合并:同帧内多次 mousemove 只在帧末补发最新 ratio;帧内首次立即发送
   private pendingMove: MovePos | null = null
   private rafPending = false
+  private animationFrame: number | null = null
   private moveSentThisFrame = false
   // 当前按下的鼠标键(0/1/2);按住拖动时不因缓冲积压丢 MOVE
   private buttonsHeld = new Set<number>()
@@ -141,6 +183,7 @@ export class InputController {
 
   detach() {
     if (!this.attached) return
+    this.releaseHeldInput()
     this.attached = false
     const v = this.opts.video
     v.removeEventListener('mousedown', this.onMouseDown)
@@ -161,6 +204,8 @@ export class InputController {
     this.resizeObserver = null
     this.destroyTextSink()
     this.pendingMove = null
+    if (this.animationFrame !== null) cancelAnimationFrame(this.animationFrame)
+    this.animationFrame = null
     this.rafPending = false
     this.moveSentThisFrame = false
     this.geoValid = false
@@ -175,9 +220,9 @@ export class InputController {
   }
 
   private createTextSink() {
-    if (this.textSink) return
+    if (this.textSink || this.suspended) return
     const sink = document.createElement('textarea')
-    sink.setAttribute('aria-hidden', 'true')
+    sink.setAttribute('aria-label', 'Remote keyboard input')
     sink.tabIndex = -1
     Object.assign(sink.style, {
       position: 'fixed',
@@ -207,6 +252,7 @@ export class InputController {
 
   private focusTextSink() {
     if (!this.viewOnly && this.textSink) this.textSink.focus({ preventScroll: true })
+    else if (!this.viewOnly && this.applicationText) this.opts.video.focus({ preventScroll: true })
   }
 
   private sendText(text: string) {
@@ -260,6 +306,7 @@ export class InputController {
     const payload = encodeMessage({
       deviceId: this.opts.deviceId,
       streamId: this.opts.streamId,
+      inputGeneration: this.inputGeneration,
       ...fields,
     })
     dc.send(packTlv(payload, this.pktIndex++))
@@ -439,7 +486,9 @@ export class InputController {
     }
     if (!this.rafPending) {
       this.rafPending = true
-      requestAnimationFrame(() => {
+      this.animationFrame = requestAnimationFrame(() => {
+        this.animationFrame = null
+        if (!this.attached) return
         this.rafPending = false
         this.moveSentThisFrame = false
         if (this.pendingMove && !this.viewOnly) {
@@ -712,6 +761,8 @@ export class InputController {
       this.opts.onLog?.(`[InputSend] drop key unmapped code=${e.code} down=${down}`)
       return
     }
+    if (down) this.keysHeld.add(vk)
+    else this.keysHeld.delete(vk)
     let numLockStatus = -1
     let capsLockStatus = -1
     let statusCheck = LOCK_KEY_DONT_CARE
@@ -748,6 +799,7 @@ export class InputController {
 
   private onKeyDown = (e: KeyboardEvent) => {
     if (this.viewOnly) return
+    if (e.isComposing || e.keyCode === 229) return
     if (this.isFormTarget(e)) {
       this.opts.onLog?.(`[InputSend] drop key ${e.code}: focus on form, click video first`)
       return
@@ -759,27 +811,13 @@ export class InputController {
   }
 
   private onKeyUp = (e: KeyboardEvent) => {
-    if (this.viewOnly || this.isFormTarget(e)) return
+    if (this.viewOnly) return
+    if (this.isFormTarget(e) && !this.keysHeld.has(VK_MAP[e.code])) return
     e.preventDefault()
     this.sendKey(e, false)
   }
 
   private onBlur = () => {
-    if (this.viewOnly) return
-    // 对齐 win_event_replayer.cpp HandleFocusOutEvent:补发修饰键 release
-    const modifiers = [0xa2, 0xa3, 0x11, 0xa0, 0xa1, 0x10, 0xa4, 0xa5, 0x12, 0x5b, 0x5c]
-    for (const vk of modifiers) {
-      this.send({
-        type: MSG_TYPE_KEY_EVENT,
-        keyEvent: {
-          keyCode: vk,
-          down: false,
-          numLockStatus: -1,
-          capsLockStatus: -1,
-          statusCheck: LOCK_KEY_DONT_CARE,
-          timestamp: Date.now(),
-        },
-      })
-    }
+    this.releaseHeldInput()
   }
 }

@@ -22,6 +22,7 @@ namespace px
         class VoiceCallService;
     }
     class RdApplication;
+    class ApplicationTextService;
     class RdSettings;
     class Data;
     class RdStatistics;
@@ -127,6 +128,7 @@ namespace px
         std::shared_ptr<RenderModuleRegistry> module_registry_ = nullptr;
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
         std::shared_ptr<VirtualDisplayCoordinator> virtual_display_ = nullptr;
+        std::shared_ptr<ApplicationTextService> application_text_{};
 
         // Hook-mode input is tracked by the owner and generation of the
         // controller lease. A replacement lease can never release a new

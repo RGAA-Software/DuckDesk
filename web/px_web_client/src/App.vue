@@ -48,6 +48,11 @@ import {
 import type { VoiceCallPhase } from './rtc/voice_call_state'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import FloatBall from './FloatBall.vue'
+import TextInputPanel from './TextInputPanel.vue'
+import { TextInputWorkflow } from './rtc/text_input_workflow'
+import type { TextSubmission } from './rtc/text_input_workflow'
+import { ApplicationTextTransport, reliableApplicationControlChannel } from './rtc/application_text'
+import type { ApplicationTextMessage } from './rtc/application_text'
 import FileTransferWindow from './FileTransferWindow.vue'
 import { useFileTransfer } from './useFileTransfer'
 import { sha256Hex } from './rtc/file_transfer'
@@ -476,7 +481,8 @@ async function handleVoiceCallResponse(response: {
 
 // 悬浮工具条的控制消息发送入口(走 media_data_channel)
 function sendControl(fields: Record<string, unknown>): boolean {
-  return sendControlMessage(dc, form.deviceId, form.streamId, fields)
+  if (textSuspended && [50, 60, 80, 580, 330].includes(Number(fields.type))) return false
+  return sendControlMessage(dc, form.deviceId, form.streamId, { ...fields, inputGeneration: ordinaryInputGeneration })
 }
 
 // ---------- 游戏手柄(Gamepad API -> kGamepadState -> render ViGEm 虚拟手柄)----------
@@ -498,6 +504,7 @@ function getGamepad(): GamepadController {
 }
 
 function toggleGamepad() {
+  if (textSuspended) return
   const gc = getGamepad()
   if (gamepadOn.value) {
     gc.disable()
@@ -521,6 +528,100 @@ const pendingStandardRemoteIce: RTCIceCandidateInit[] = []
 let pingTimer: number | null = null
 const pingRttMs = ref(-1)
 let input: InputController | null = null
+
+const textWorkflow = reactive(new TextInputWorkflow())
+const textPanel = ref<InstanceType<typeof TextInputPanel> | null>(null)
+const textVisible = ref(false)
+const textReady = ref(false)
+const textHint = ref(false)
+const textHintsEnabled = ref(true)
+const textStatus = ref('远端未提供文字输入能力。')
+let textTransport: ApplicationTextTransport | null = null
+let ordinaryInputGeneration = ''
+let textSuspended = false
+
+function discoverApplicationText(message: ApplicationTextMessage) {
+  const caps = message.applicationTextCapabilities
+  if (message.type !== 610 || !caps || caps.version !== 1 || !caps.finalTextSupported
+    || textTransport || !connectionInstanceId.value || !reliableApplicationControlChannel(dc)
+    || !hasGrantedPermission('input') || viewOnly.value) return
+  input?.setApplicationTextEnabled(true)
+  textStatus.value = '正在确认远端文字输入能力。'
+  textTransport = new ApplicationTextTransport({
+      workflow: textWorkflow,
+      instanceId: connectionInstanceId.value,
+      send: sendControl,
+      canSend: () => reliableApplicationControlChannel(dc) && (dc?.bufferedAmount ?? 65536) < 65536,
+      suspend: (value, generation) => {
+        textSuspended = value
+        ordinaryInputGeneration = generation
+        input?.setInputGeneration(generation)
+        input?.setTextEditing(value)
+        if (value) { gamepad?.disable(); gamepadOn.value = false }
+      },
+      changed: (ready, hint, message) => {
+        textReady.value = ready
+        textHint.value = hint && !viewOnly.value
+        textStatus.value = message
+      },
+  })
+  textTransport.start()
+}
+
+function openTextInput() {
+  if (!textReady.value || viewOnly.value || !hasGrantedPermission('input')) return
+  if (document.fullscreenElement === videoRef.value) {
+    textStatus.value = '请退出视频独占全屏，使用工具栏的页面全屏后打开文字输入。'
+    ElMessage.info(textStatus.value)
+    return
+  }
+  if (document.pointerLockElement) document.exitPointerLock()
+  if (!textTransport?.beginEditing()) return
+  textVisible.value = true
+  // v-show is updated synchronously before focusing, preserving mobile user activation.
+  textPanel.value?.focus()
+  void nextTick(() => textPanel.value?.focus())
+}
+
+function closeTextInput() {
+  textVisible.value = false
+  textTransport?.endEditing()
+}
+
+function onTextWindowBlur() { if (textVisible.value) closeTextInput() }
+function onTextVisibilityChange() { if (document.hidden) onTextWindowBlur() }
+onMounted(() => {
+  window.addEventListener('blur', onTextWindowBlur)
+  document.addEventListener('visibilitychange', onTextVisibilityChange)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('blur', onTextWindowBlur)
+  document.removeEventListener('visibilitychange', onTextVisibilityChange)
+  resetApplicationText(true)
+})
+
+function submitApplicationText(submission: TextSubmission) { textTransport?.submit(submission) }
+
+function resetApplicationText(clearDraft = false) {
+  textTransport?.dispose()
+  textTransport = null
+  textReady.value = false
+  textHint.value = false
+  textVisible.value = false
+  textSuspended = false
+  ordinaryInputGeneration = ''
+  if (clearDraft) textWorkflow.clear()
+}
+
+watch(grantedPermissions, () => {
+  if (!hasGrantedPermission('input')) {
+    if (input) input.viewOnly = true
+    gamepad?.disable()
+    gamepadOn.value = false
+    resetApplicationText(true)
+  }
+})
+watch(connectionInstanceId, () => resetApplicationText(true))
 
 function decodeRtcIceConfig(encoded: string): RtcSessionIceConfig | null {
   if (!encoded) return null
@@ -712,6 +813,10 @@ function handleDcBinary(buf: ArrayBuffer) {
       msg = decodeMessage(payload)
     } catch {
       continue
+    }
+    if (msg.type >= 610 && msg.type <= 615) {
+      if (msg.type === 610) discoverApplicationText(msg as ApplicationTextMessage)
+      textTransport?.receive(msg as ApplicationTextMessage)
     }
     if (msg.type === MSG_TYPE_CLIPBOARD_INFO) {
       const text = parseClipboardText(payload)
@@ -1099,6 +1204,9 @@ async function initInput() {
     onLog: addLog,
   })
   input.viewOnly = viewOnly.value
+  input.setApplicationTextEnabled(!!textTransport)
+  input.setInputGeneration(ordinaryInputGeneration)
+  input.setTextEditing(textSuspended)
   input.setRelativeMode(pointerLocked.value)
   input.attach()
   addLog(`输入回传已启用, monitor: ${monitorName || '(未知)'}`)
@@ -1110,6 +1218,7 @@ watch(viewOnly, (v) => {
     return
   }
   if (input) input.viewOnly = v
+  if (v && textVisible.value) closeTextInput()
 })
 
 watch(pointerLocked, (v) => {
@@ -1349,6 +1458,7 @@ function waitIceGatheringComplete(peer: RTCPeerConnection): Promise<void> {
 }
 
 function cleanup() {
+  resetApplicationText()
   stopConnWatchdog()
   if (directFallbackTimer !== null) {
     window.clearTimeout(directFallbackTimer)
@@ -1658,10 +1768,11 @@ async function connect() {
     }
 
     // 数据通道,为后续控制消息预留
-    dc = pc.createDataChannel(DATA_CHANNEL_LABEL)
+    dc = pc.createDataChannel(DATA_CHANNEL_LABEL, { ordered: true })
     dc.binaryType = 'arraybuffer' // render 会推 kClipboardInfo 等二进制控制消息
     dc.onopen = () => {
       addLog(`datachannel "${DATA_CHANNEL_LABEL}" onopen`)
+      sendControl({ type: 610, applicationTextCapabilities: { version: 1 } })
       if (!hasVideo.value) {
         setConnectStep('video', `控制通道 ${DATA_CHANNEL_LABEL} 已打开`)
       }
@@ -1696,8 +1807,14 @@ async function connect() {
         addLog(`datachannel onmessage: ${String(ev.data).slice(0, 200)}`)
       }
     }
-    dc.onclose = () => addLog('datachannel onclose')
-    dc.onerror = (ev: Event) => addLog(`datachannel onerror: ${String(ev)}`)
+    dc.onclose = () => {
+      textTransport?.disconnected()
+      addLog('datachannel onclose')
+    }
+    dc.onerror = (ev: Event) => {
+      textTransport?.disconnected()
+      addLog(`datachannel onerror: ${String(ev)}`)
+    }
 
     // 文件传输通道(render 侧 rtc_server.cpp:90 按此名字识别)
     ftDc = pc.createDataChannel(FT_DATA_CHANNEL_LABEL)
@@ -2097,6 +2214,8 @@ onBeforeUnmount(() => {
     </div>
 
     <FloatBall
+      :open-text-input="openTextInput"
+      :text-input-ready="textReady && !viewOnly && hasGrantedPermission('input')"
       v-model:muted="muted"
       v-model:view-only="viewOnly"
       v-model:ft-visible="ftVisible"
@@ -2137,6 +2256,13 @@ onBeforeUnmount(() => {
       :disconnect="disconnect"
       :log="addLog"
     />
+
+    <div v-if="textHintsEnabled && textHint && textReady && !textVisible" class="text-input-hint">
+      <button type="button" @click="openTextInput">检测到文字输入：打开本机输入面板</button>
+      <button type="button" aria-label="关闭自动文字输入提示" @click="textHintsEnabled = false">×</button>
+    </div>
+    <TextInputPanel ref="textPanel" :workflow="textWorkflow" :visible="textVisible" :transport-status="textStatus"
+      @close="closeTextInput" @submit="submitApplicationText" />
 
     <audio ref="voiceAudioRef" autoplay playsinline></audio>
 
@@ -2236,6 +2362,8 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.text-input-hint { position: absolute; z-index: 90; right: 12px; bottom: 12px; display: flex; gap: 8px; }
+.text-input-hint button { min-height: 40px; padding: 8px 12px; color: #fff; background: #252932; border: 1px solid #777; border-radius: 6px; }
 .page {
   position: fixed;
   inset: 0;

@@ -83,6 +83,7 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     }
 
     void PostMediaMessage(std::shared_ptr<Data> msg);
+    [[nodiscard]] bool PostReliableControlMessage(std::shared_ptr<Data> msg);
     [[nodiscard]] bool PostVoiceAudioMessage(const std::shared_ptr<Message>& message);
     [[nodiscard]] FileTransferSendResult PostFileTransferMessage(std::shared_ptr<Data> msg);
     void PostVideoTask(std::function<void()>&& task, int64_t frame_index, const std::string& monitor_name);

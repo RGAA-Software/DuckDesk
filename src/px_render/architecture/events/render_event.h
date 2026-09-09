@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "px_capture/capture_message.h"
+#include "px_capture/capture_text_input.h"
 #include "px_common/data.h"
 #include "px_common/image.h"
 #include "px_common/udp_voice_frame.h"
@@ -66,6 +67,11 @@ struct UdpVoiceFrameEvent final {
     std::string stream_id{};
     std::shared_ptr<const UdpVoiceFrame> frame{};
     std::function<bool()> is_current_binding{};
+};
+
+struct GameTextReplyEvent final {
+    std::uint32_t authenticated_pid{0};
+    CaptureTextReply reply{};
 };
 
 struct ClientConnectedEvent final {
@@ -144,7 +150,7 @@ using RenderEvent =
                  std::shared_ptr<PanelStreamMessageEvent>, std::shared_ptr<RelayAliveEvent>, std::shared_ptr<StreamingParametersRequestedEvent>,
                  std::shared_ptr<RedeemConnectionTicketEvent>, std::shared_ptr<AdmitLogicalSessionEvent>,
                  std::shared_ptr<CloseLogicalSessionBindingEvent>, std::shared_ptr<ApplyLogicalSessionCapabilitiesEvent>,
-                 std::shared_ptr<DataSentEvent>>;
+                 std::shared_ptr<DataSentEvent>, std::shared_ptr<GameTextReplyEvent>>;
 
 struct RenderEventEnvelope final {
     std::string source_id;

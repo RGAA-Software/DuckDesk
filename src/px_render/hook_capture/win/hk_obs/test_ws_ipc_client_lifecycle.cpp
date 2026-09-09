@@ -9,6 +9,8 @@
 #include <Windows.h>
 
 #include "ws_ipc_client.h"
+#include "px_capture/capture_text_input.h"
+#include "px_capture/capture_message.h"
 
 namespace px {
 namespace {
@@ -137,6 +139,65 @@ TEST(WsIpcClientLifecycle, InitiallyUnavailableServerIsRetriedUntilItStarts) {
     client->Exit();
     server->stop();
     EXPECT_FALSE(client->IsStarted());
+}
+
+TEST(WsIpcClientLifecycle, TextReleaseCallbackCanUnregisterDuringDispatch) {
+    const auto server = std::make_shared<asio2::ws_server>();
+    const auto port = 20000 + static_cast<int>(GetCurrentProcessId() % 5000);
+    const auto replies = std::make_shared<std::atomic_int>(0);
+    server->bind_upgrade([](std::shared_ptr<asio2::ws_session>& session) {
+        CaptureTextCommand release{};
+        release.operation = CaptureTextOperation::kRelease;
+        release.target_pid = GetCurrentProcessId();
+        release.request_id = 1;
+        session->async_send(EncodeCaptureTextCommand(release));
+        release.request_id = 2;
+        session->async_send(EncodeCaptureTextCommand(release));
+    });
+    server->bind_recv([replies](std::shared_ptr<asio2::ws_session>&, std::string_view bytes) {
+        if (DecodeCaptureTextReply(bytes)) {
+            replies->fetch_add(1);
+        }
+    });
+    ASSERT_TRUE(server->start("127.0.0.1", port));
+    const auto client = WsIpcClient::Make(port);
+    const auto callbacks = std::make_shared<std::atomic_int>(0);
+    client->RegisterIpcMessageCallback([weak = std::weak_ptr<WsIpcClient>(client), callbacks](const std::shared_ptr<CaptureBaseMessage>&) {
+        callbacks->fetch_add(1);
+        if (const auto owner = weak.lock()) {
+            owner->RegisterIpcMessageCallback({});
+        }
+    });
+    client->Start();
+    EXPECT_TRUE(WaitUntil([replies] { return replies->load() == 2; }, 5s));
+    EXPECT_EQ(callbacks->load(), 1);
+    client->Exit();
+    server->stop();
+}
+
+TEST(WsIpcClientLifecycle, TextReleaseCallbackCanRequestShutdown) {
+    const auto server = std::make_shared<asio2::ws_server>();
+    const auto port = 25000 + static_cast<int>(GetCurrentProcessId() % 5000);
+    server->bind_upgrade([](std::shared_ptr<asio2::ws_session>& session) {
+        CaptureTextCommand release{};
+        release.operation = CaptureTextOperation::kRelease;
+        release.target_pid = GetCurrentProcessId();
+        release.request_id = 1;
+        session->async_send(EncodeCaptureTextCommand(release));
+    });
+    ASSERT_TRUE(server->start("127.0.0.1", port));
+    const auto client = WsIpcClient::Make(port);
+    const auto callbacks = std::make_shared<std::atomic_int>(0);
+    client->RegisterIpcMessageCallback([weak = std::weak_ptr<WsIpcClient>(client), callbacks](const std::shared_ptr<CaptureBaseMessage>&) {
+        callbacks->fetch_add(1);
+        if (const auto owner = weak.lock()) {
+            owner->Exit();
+        }
+    });
+    client->Start();
+    EXPECT_TRUE(WaitUntil([callbacks, client] { return callbacks->load() == 1 && !client->IsStarted(); }, 5s));
+    client->Exit();
+    server->stop();
 }
 
 } // namespace

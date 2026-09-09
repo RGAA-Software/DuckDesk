@@ -414,6 +414,7 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
                 .expires_at_ms = expires_at_ms,
                 .allow_observer = allow_observer,
                 .allow_takeover = allow_takeover,
+                .input_allowed = HasRelayPermission(permissions, "input"),
             };
             admission->transport_ = LogicalSessionTransport::kRelay;
             admission->binding_id_ = binding_id;

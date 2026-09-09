@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <memory>
 
 #include "session/logical_session_registry.h"
 
@@ -234,6 +235,144 @@ TEST(LogicalSessionRegistry, TicketPolicyRejectsObserverAndTakeover) {
         ControlGrant("two", "stream-two", "carol"), LogicalSessionTransport::kRtcLocal,
         "rtc-two", true, 3);
     EXPECT_EQ(replacement.code, LogicalSessionAdmissionCode::kTakeoverDisabled);
+}
+
+TEST(LogicalSessionRegistry, AuxiliaryInputRequiresExactAuthenticatedParentAndDoesNotAddOccupancy) {
+    auto registry{LogicalSessionRegistry{}};
+    const auto grant{ControlGrant("one", "stream-one", "alice")};
+    EXPECT_FALSE(registry.AuthorizeAuxiliaryInputGrant(grant, "parent", 1));
+    ASSERT_EQ(registry.Bind(grant, LogicalSessionTransport::kWs, "parent", false, 1).code, LogicalSessionAdmissionCode::kAccepted);
+    const auto lease{registry.AuthorizeAuxiliaryInputGrant(grant, "parent", 2)};
+    ASSERT_TRUE(lease);
+    EXPECT_TRUE(registry.IsCurrentInputBinding(*lease, 2));
+    EXPECT_EQ(registry.ActiveSessionCount(), 1U);
+    EXPECT_EQ(registry.SnapshotActive(2).front().transports.size(), 1U);
+    auto forged{grant};
+    forged.subject_id = "bob";
+    EXPECT_FALSE(registry.AuthorizeAuxiliaryInputGrant(forged, "parent", 2));
+    forged = grant;
+    forged.stream_id = "other";
+    EXPECT_FALSE(registry.AuthorizeAuxiliaryInputGrant(forged, "parent", 2));
+    forged = grant;
+    forged.join_mode = "observe";
+    EXPECT_FALSE(registry.AuthorizeAuxiliaryInputGrant(forged, "parent", 2));
+    EXPECT_FALSE(registry.AuthorizeAuxiliaryInputGrant(grant, "parent", 60'000));
+    EXPECT_FALSE(registry.AuthorizeAuxiliaryInputGrant(grant, "missing", 2));
+    registry.CloseBindingById("parent", 3);
+    EXPECT_FALSE(registry.IsCurrentInputBinding(*lease, 4));
+}
+
+TEST(LogicalSessionRegistry, AuxiliaryInputCannotReviveWhenParentIdentifierIsReused) {
+    auto registry{LogicalSessionRegistry{}};
+    const auto grant{ControlGrant("one", "stream-one", "alice")};
+    ASSERT_EQ(registry.Bind(grant, LogicalSessionTransport::kWs, "parent", false, 1).code, LogicalSessionAdmissionCode::kAccepted);
+    ASSERT_EQ(registry.Bind(grant, LogicalSessionTransport::kRtcLocal, "other-media", false, 1).code,
+              LogicalSessionAdmissionCode::kAccepted);
+    const auto old{registry.AuthorizeAuxiliaryInputGrant(grant, "parent", 2)};
+    ASSERT_TRUE(old);
+    registry.CloseBindingById("parent", 3);
+    ASSERT_EQ(registry.Bind(grant, LogicalSessionTransport::kWs, "parent", false, 4).code, LogicalSessionAdmissionCode::kAccepted);
+    const auto current{registry.AuthorizeAuxiliaryInputGrant(grant, "parent", 4)};
+    ASSERT_TRUE(current);
+    EXPECT_EQ(old->generation, current->generation);
+    EXPECT_NE(old->binding_generation, current->binding_generation);
+    EXPECT_FALSE(registry.IsCurrentInputBinding(*old, 4));
+    EXPECT_TRUE(registry.IsCurrentInputBinding(*current, 4));
+}
+
+TEST(LogicalSessionRegistry, FileChannelNeverBecomesInputParentEvenWhileMediaIsActive) {
+    auto registry{LogicalSessionRegistry{}};
+    const auto grant{ControlGrant("one", "stream-one", "alice")};
+    ASSERT_EQ(registry.Bind(grant, LogicalSessionTransport::kWs, "parent", false, 1).code, LogicalSessionAdmissionCode::kAccepted);
+    ASSERT_EQ(registry.Bind(grant, LogicalSessionTransport::kFileTransfer, "file", false, 1).code, LogicalSessionAdmissionCode::kAccepted);
+    EXPECT_FALSE(registry.FindControllerInputLeaseByBinding("file", 2));
+    EXPECT_FALSE(registry.AuthorizeAuxiliaryInputGrant(grant, "file", 2));
+    EXPECT_TRUE(registry.FindControllerLeaseByBinding("file", 2));
+}
+
+TEST(LogicalSessionRegistry, TicketWithoutInputCannotAuthorizeItsBindingOrAuxiliaryChannel) {
+    LogicalSessionRegistry registry{};
+    auto grant = ControlGrant("one", "stream-one", "alice");
+    grant.input_allowed = false;
+    ASSERT_EQ(registry.Bind(grant, LogicalSessionTransport::kWs, "view-only", false, 1).code, LogicalSessionAdmissionCode::kAccepted);
+    EXPECT_FALSE(registry.FindControllerInputLeaseByBinding("view-only", 2));
+    EXPECT_FALSE(registry.FindControllerInputLeaseByStream("stream-one", 2));
+    EXPECT_FALSE(registry.AuthorizeAuxiliaryInputGrant(grant, "view-only", 2));
+    EXPECT_TRUE(registry.FindControllerLeaseByBinding("view-only", 2));
+    grant.input_allowed = true;
+    ASSERT_EQ(registry.Bind(grant, LogicalSessionTransport::kRtcLocal, "input", false, 2).code, LogicalSessionAdmissionCode::kAccepted);
+    EXPECT_TRUE(registry.FindControllerInputLeaseByBinding("input", 3));
+    EXPECT_FALSE(registry.FindControllerInputLeaseByBinding("view-only", 3));
+    EXPECT_FALSE(registry.AuthorizeAuxiliaryInputGrant(grant, "view-only", 3));
+}
+
+TEST(LogicalSessionRegistry, RevokeAndRestoreNeverRevalidatesQueuedInputOrChangesFileLease) {
+    const auto registry = std::make_shared<LogicalSessionRegistry>();
+    const auto grant = ControlGrant("one", "stream-one", "alice");
+    ASSERT_EQ(registry->Bind(grant, LogicalSessionTransport::kWs, "input", false, 1).code, LogicalSessionAdmissionCode::kAccepted);
+    ASSERT_EQ(registry->Bind(grant, LogicalSessionTransport::kFileTransfer, "file", false, 1).code, LogicalSessionAdmissionCode::kAccepted);
+    const auto original = registry->FindControllerInputLeaseByBinding("input", 2);
+    const auto file = registry->FindControllerLeaseByBinding("file", 2);
+    ASSERT_TRUE(original);
+    ASSERT_TRUE(file);
+    const auto queued_authorizer = [registry, lease = *original] { return registry->IsCurrentInputBinding(lease, 3); };
+    ASSERT_TRUE(queued_authorizer());
+    registry->UpdateInputCapabilityByStream("stream-one", false);
+    registry->UpdateInputCapabilityByStream("stream-one", false);
+    EXPECT_FALSE(queued_authorizer());
+    EXPECT_FALSE(registry->FindControllerInputLeaseByStream("stream-one", 3));
+    EXPECT_FALSE(registry->AuthorizeAuxiliaryInputGrant(grant, "input", 3));
+    registry->UpdateInputCapabilityByStream("stream-one", true);
+    EXPECT_FALSE(queued_authorizer());
+    const auto restored = registry->FindControllerInputLeaseByBinding("input", 4);
+    const auto retained_file = registry->FindControllerLeaseByBinding("file", 4);
+    ASSERT_TRUE(restored);
+    ASSERT_TRUE(retained_file);
+    EXPECT_TRUE(registry->IsCurrentInputBinding(*restored, 4));
+    EXPECT_NE(original->input_capability_generation, restored->input_capability_generation);
+    EXPECT_EQ(original->generation, restored->generation);
+    EXPECT_EQ(file->generation, retained_file->generation);
+    EXPECT_EQ(file->binding_generation, retained_file->binding_generation);
+    registry->UpdateInputCapabilityByStream("stream-one", true);
+    EXPECT_TRUE(registry->IsCurrentInputBinding(*restored, 5));
+}
+
+TEST(LogicalSessionRegistry, NewBindingCannotBypassExplicitCapabilityRevocation) {
+    LogicalSessionRegistry registry{};
+    const auto grant = ControlGrant("one", "stream-one", "alice");
+    ASSERT_EQ(registry.Bind(grant, LogicalSessionTransport::kWs, "original", false, 1).code, LogicalSessionAdmissionCode::kAccepted);
+    registry.UpdateInputCapabilityByStream("stream-one", false);
+    ASSERT_EQ(registry.Bind(grant, LogicalSessionTransport::kRtcLocal, "replacement", false, 2).code, LogicalSessionAdmissionCode::kAccepted);
+    EXPECT_FALSE(registry.FindControllerInputLeaseByBinding("replacement", 3));
+    registry.UpdateInputCapabilityByStream("unrelated", true);
+    EXPECT_FALSE(registry.FindControllerInputLeaseByBinding("replacement", 3));
+}
+
+TEST(LogicalSessionRegistry, FileOnlyTicketFirstDoesNotSuppressLaterAuthorizedInputBinding) {
+    LogicalSessionRegistry registry{};
+    auto grant = ControlGrant("one", "stream-one", "alice");
+    grant.input_allowed = false;
+    ASSERT_EQ(registry.Bind(grant, LogicalSessionTransport::kFileTransfer, "file", false, 1).code, LogicalSessionAdmissionCode::kAccepted);
+    grant.input_allowed = true;
+    ASSERT_EQ(registry.Bind(grant, LogicalSessionTransport::kWs, "input", false, 2).code, LogicalSessionAdmissionCode::kAccepted);
+    EXPECT_TRUE(registry.FindControllerInputLeaseByBinding("input", 3));
+    EXPECT_FALSE(registry.FindControllerInputLeaseByBinding("file", 3));
+}
+
+TEST(LogicalSessionRegistry, ControllerLeaseRenewalMintsNewWireInputIdentity) {
+    LogicalSessionRegistry registry{};
+    const auto grant = ControlGrant("one", "stream-one", "alice");
+    ASSERT_EQ(registry.Bind(grant, LogicalSessionTransport::kWs, "input", false, 1).code, LogicalSessionAdmissionCode::kAccepted);
+    const auto before = registry.FindControllerInputLeaseByBinding("input", 2);
+    ASSERT_TRUE(before);
+    registry.CloseBindingById("input", 3);
+    ASSERT_EQ(registry.Bind(grant, LogicalSessionTransport::kWs, "input", false, 4).code, LogicalSessionAdmissionCode::kAccepted);
+    const auto after = registry.FindControllerInputLeaseByBinding("input", 5);
+    ASSERT_TRUE(after);
+    EXPECT_NE(before->generation, after->generation);
+    EXPECT_NE(before->input_capability_generation, after->input_capability_generation);
+    EXPECT_FALSE(registry.IsCurrentInputBinding(*before, 5));
+    EXPECT_TRUE(registry.IsCurrentInputBinding(*after, 5));
 }
 
 } // namespace

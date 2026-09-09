@@ -5,8 +5,16 @@
 
 #include "application_text_validation.h"
 #include "px_message.pb.h"
+#include "message_type_ids.h"
 
 namespace px {
+
+static_assert(static_cast<int>(wire::kApplicationTextCapabilities) == kApplicationTextCapabilities);
+static_assert(static_cast<int>(wire::kApplicationTextState) == kApplicationTextState);
+static_assert(static_cast<int>(wire::kApplicationTextSubmit) == kApplicationTextSubmit);
+static_assert(static_cast<int>(wire::kApplicationTextResult) == kApplicationTextResult);
+static_assert(static_cast<int>(wire::kApplicationTextBarrier) == kApplicationTextBarrier);
+static_assert(static_cast<int>(wire::kApplicationTextBarrierResult) == kApplicationTextBarrierResult);
 
 TEST(ApplicationTextValidation, PreservesWhitespaceAndCountsBytes) {
     EXPECT_TRUE(ValidApplicationText(" \t\r\n", 4));

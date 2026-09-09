@@ -83,6 +83,11 @@ void WsStreamRouter::OnMessage(std::shared_ptr<asio2::http_session>& sess_ptr, i
         return;
     }
     px::Message parsed;
+    if (parsed.ParseFromArray(data.data(), static_cast<int>(data.size())) &&
+        (parsed.type() == kApplicationTextCapabilities || parsed.type() == kApplicationTextSubmit || parsed.type() == kApplicationTextBarrier) &&
+        !input_allowed_.load()) {
+        return;
+    }
     if (parsed.ParsePartialFromArray(data.data(), static_cast<int>(data.size())) &&
         (parsed.type() == MessageType::kFileAction || parsed.type() == MessageType::kFileResponse) && !file_allowed_.load()) {
         const auto decision = permission_log_gate_.Evaluate("file_transfer", std::chrono::steady_clock::now());

@@ -16,6 +16,8 @@ enum class TransportKind {
 enum class TransportChannel {
     kMedia,
     kFileTransfer,
+    // Existing ordered/reliable RTC data channel; metadata, not a new connection.
+    kReliableControl,
 };
 
 class NetMessageAck {

@@ -70,6 +70,7 @@ namespace px
         // clipboard payloads are filtered by WsServer before broadcast.
         std::atomic_bool clipboard_allowed_ = false;
         std::atomic_bool file_allowed_ = false;
+        std::atomic_bool input_allowed_{false};
         std::string visitor_device_id_;
         std::string stream_id_;
         std::string logical_session_id_;

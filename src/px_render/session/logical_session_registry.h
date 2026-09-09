@@ -41,6 +41,8 @@ struct LogicalSessionGrant {
     int64_t expires_at_ms = 0;
     bool allow_observer = true;
     bool allow_takeover = true;
+    // Explicitly populated by ticket adapters. Trusted pre-ticket/native callers retain their existing control grant semantics.
+    bool input_allowed{true};
 };
 
 struct LogicalSessionAdmission {
@@ -65,6 +67,8 @@ struct LogicalSessionInputLease {
     std::string logical_session_id;
     std::string binding_id;
     uint64_t generation = 0;
+    uint64_t binding_generation = 0;
+    uint64_t input_capability_generation{0};
 };
 
 struct LogicalSessionSnapshot {
@@ -88,6 +92,7 @@ public:
     LogicalSessionRegistry& operator=(const LogicalSessionRegistry&) = delete;
 
     void SetPolicy(bool allow_observer, bool allow_takeover);
+    void UpdateInputCapabilityByStream(const std::string& stream_id, bool allowed);
 
     LogicalSessionAdmission Bind(const LogicalSessionGrant& grant,
                                  LogicalSessionTransport transport,
@@ -110,6 +115,11 @@ public:
                                         int64_t now_ms) const;
     std::optional<LogicalSessionInputLease> FindControllerInputLeaseByBinding(
         const std::string& binding_id, int64_t now_ms) const;
+    // Auxiliary channels do not create a binding or extend occupancy. Their
+    // authenticated grant must match an existing physical controller binding.
+    std::optional<LogicalSessionInputLease> AuthorizeAuxiliaryInputGrant(const LogicalSessionGrant& grant,
+                                                                       const std::string& parent_binding_id, int64_t now_ms) const;
+    bool IsCurrentInputBinding(const LogicalSessionInputLease& lease, int64_t now_ms) const;
     // File-transfer bindings may establish a Controller logical session, but
     // they can never authorize OS input. This lookup is only for Controller-
     // scoped auxiliary capabilities such as file transfer.
@@ -130,6 +140,8 @@ private:
     struct Binding {
         LogicalSessionTransport transport = LogicalSessionTransport::kWs;
         std::string binding_id;
+        uint64_t generation{0};
+        bool input_allowed{true};
     };
 
     struct Session {
@@ -142,10 +154,13 @@ private:
         int64_t controller_disconnected_at_ms = 0;
         bool allow_observer = true;
         bool allow_takeover = true;
+        bool input_allowed{true};
         std::unordered_map<std::string, Binding> bindings;
+        uint64_t input_capability_generation{0};
     };
 
     bool HasControllerBinding(const Session& session) const;
+    bool HasInputBinding(const Session& session) const;
     LogicalSessionBindingClosed CloseBindingLocked(
         std::unordered_map<std::string, Session>::iterator session_it,
         const std::string& binding_id, int64_t now_ms);
@@ -162,6 +177,8 @@ private:
     int64_t controller_reconnect_grace_ms_ = 5000;
     std::unordered_map<std::string, Session> sessions_;
     std::string controller_session_id_;
+    uint64_t next_binding_generation_{1};
+    uint64_t next_input_capability_generation_{1};
 };
 
 } // namespace px

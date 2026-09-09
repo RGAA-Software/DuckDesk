@@ -3,6 +3,7 @@
 //
 
 #include "rtc_server.h"
+#include "message_type_ids.h"
 #include "peer_callback.h"
 #include "webrtc_local_transport.h"
 #include "rtc_data_channel.h"
@@ -30,7 +31,7 @@ using namespace webrtc;
 
 namespace px {
 namespace {
-constexpr int kHeartbeatMessageType = 20; // px::kHeartBeat wire value; keep protobuf ABI out of this library.
+constexpr int kHeartbeatMessageType = wire::kHeartBeat;
 
 int64_t CurrentSteadyMilliseconds() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -403,28 +404,42 @@ std::optional<int> ExtractMessageType(const std::string& data) {
 }
 
 bool IsClipboardMessage(const int type) {
-    return type == 160 || type == 161 || type == 349 || type == 350 || type == 351 || type == 360;
+    switch (type) {
+    case wire::kClipboardInfo:
+    case wire::kClipboardInfoResp:
+    case wire::kClipboardReqAtBegin:
+    case wire::kClipboardReqBuffer:
+    case wire::kClipboardReqAtEnd:
+    case wire::kClipboardRespBuffer:
+        return true;
+    default:
+        return false;
+    }
 }
 
 bool IsInteractiveControlMessage(const int type) {
     switch (type) {
-    case 50:  // key
-    case 60:  // mouse
-    case 80:  // gamepad
-    case 170: // switch monitor
-    case 190: // switch work mode
-    case 200: // change resolution
-    case 230: // insert key frame
-    case 328: // lock device
-    case 329: // stop render
-    case 330: // ctrl-alt-delete
-    case 340: // update desktop
-    case 341: // hard update desktop
-    case 460: // full color
-    case 470: // start recording
-    case 471: // stop recording
-    case 480: // modify fps
-    case 570: // virtual display management
+    case wire::kApplicationTextCapabilities:
+    case wire::kApplicationTextSubmit:
+    case wire::kApplicationTextBarrier:
+    case wire::kKeyEvent:
+    case wire::kMouseEvent:
+    case wire::kGamepadState:
+    case wire::kSwitchMonitor:
+    case wire::kSwitchWorkMode:
+    case wire::kChangeMonitorResolution:
+    case wire::kInsertKeyFrame:
+    case wire::kLockDevice:
+    case wire::kStopRender:
+    case wire::kReqCtrlAltDelete:
+    case wire::kUpdateDesktop:
+    case wire::kHardUpdateDesktop:
+    case wire::kSwitchFullColorMode:
+    case wire::kStartMediaRecordClientSide:
+    case wire::kStopMediaRecordClientSide:
+    case wire::kModifyFps:
+    case wire::kVirtualDisplayRequest:
+    case wire::kTextInput:
         return true;
     default:
         return false;
@@ -590,9 +605,10 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
                 return;
             }
             server->media_data_channel_ = std::make_shared<RtcDataChannel>(name, server, ch);
+            const bool reliable_control{ch->ordered() && ch->reliable()};
 
             // data callback
-            server->media_data_channel_->SetOnDataCallback([weak_server](const std::string& data) {
+            server->media_data_channel_->SetOnDataCallback([weak_server, reliable_control](const std::string& data) {
                 const auto locked = weak_server.lock();
                 if (!locked) {
                     return;
@@ -616,7 +632,14 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
                     }
                 }
                 auto payload_msg = Data::From(data);
-                locked->runtime_->DispatchClientEvent(false, TransportChannel::kMedia, std::move(payload_msg),
+                const bool application_text{message_type && (*message_type == wire::kApplicationTextCapabilities ||
+                                                             *message_type == wire::kApplicationTextSubmit ||
+                                                             *message_type == wire::kApplicationTextBarrier)};
+                if (application_text && !reliable_control) {
+                    return;
+                }
+                locked->runtime_->DispatchClientEvent(false, application_text ? TransportChannel::kReliableControl : TransportChannel::kMedia,
+                                                      std::move(payload_msg),
                                                       std::string("rtc-local:") + locked->stream_id_);
             });
         } else if (name == "ft_data_channel") {

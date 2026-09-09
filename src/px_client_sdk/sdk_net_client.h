@@ -50,6 +50,7 @@ class NetClient : public std::enable_shared_from_this<NetClient> {
     void Exit();
 
     void PostMediaMessage(std::shared_ptr<Data> msg);
+    [[nodiscard]] bool PostReliableControlMessage(std::shared_ptr<Data> msg);
     void PostRdpMessage(std::shared_ptr<Data> msg, std::function<void(bool)> completion);
     // Configure before Start. Runtime receive dispatch snapshots this callback under its own mutex.
     void SetOnRdpMessageCallback(std::function<void(std::shared_ptr<Data>)> callback);

@@ -1,6 +1,7 @@
 #include "render_event_ingress.h"
 
 #include <chrono>
+#include <algorithm>
 #include <functional>
 #include <type_traits>
 #include <unordered_set>
@@ -132,6 +133,8 @@ void RenderEventIngress::ProcessRenderEvent(const RenderEventEnvelope& envelope)
             using Event = typename std::decay_t<decltype(event)>::element_type;
             if constexpr (std::is_same_v<Event, NetworkClientEvent>) {
                 owner.network_ingress_->ProcessNetEvent(event, envelope.source_id);
+            } else if constexpr (std::is_same_v<Event, GameTextReplyEvent>) {
+                owner.app_->HandleGameTextReply(event->authenticated_pid, event->reply);
             } else if constexpr (std::is_same_v<Event, UdpVoiceFrameEvent>) {
                 owner.network_ingress_->ProcessUdpVoiceFrame(event);
             } else if constexpr (std::is_same_v<Event, ClientConnectedEvent>) {
@@ -204,7 +207,16 @@ void RenderEventIngress::ProcessRenderEvent(const RenderEventEnvelope& envelope)
                     });
                 }
             } else if constexpr (std::is_same_v<Event, ApplyLogicalSessionCapabilitiesEvent>) {
+                const auto registry{owner.app_->GetLogicalSessionRegistry()};
+                const bool input_allowed{std::ranges::find(event->update_.permissions_, "input") != event->update_.permissions_.end()};
+                const auto now_ms{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()};
+                const auto previous_input{registry && !input_allowed
+                                              ? registry->FindControllerInputLeaseByStream(event->update_.stream_id_, now_ms)
+                                              : std::optional<LogicalSessionInputLease>{}};
                 owner.module_registry_->ApplyLogicalSessionCapabilities(event->update_);
+                if (previous_input && owner.network_ingress_) {
+                    owner.network_ingress_->ReleaseControllerInput(*previous_input);
+                }
             }
         },
         envelope.payload);

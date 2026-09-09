@@ -7,8 +7,11 @@
 
 #include "px_capture/capture_message.h"
 #include "px_message.pb.h"
+#include "ingress/application_text_service.h"
 
 namespace px {
+
+using WebViewTextTarget = ApplicationTextBackendState;
 
 struct WebViewRuntimeConfig {
     std::string url_b64;
@@ -27,6 +30,7 @@ struct WebViewRuntimeCallbacks {
     std::function<void(const CaptureAudioFrame&)> on_audio_frame;
     std::function<void(const CaptureCursorBitmap&)> on_cursor;
     std::function<void(const std::string&)> on_clipboard_text;
+    std::function<void(const WebViewTextTarget&)> on_text_target;
     std::function<void(const std::string&)> on_failed;
     std::function<void()> on_first_frame;
 };
@@ -56,6 +60,10 @@ public:
     void SendTextInput(const TextInput& event);
     void SendFocusEvent(bool focused);
     void SetClipboardText(std::string text);
+    void QueryTextTarget(std::function<void(WebViewTextTarget)> completion);
+    void ReleaseTextInputKeys(std::function<void()> completion);
+    void CommitApplicationText(std::string text, std::string expected_generation, std::function<bool()> authorize,
+                               std::function<void(ApplicationTextOutcome)> completion);
 
 private:
     class Impl;

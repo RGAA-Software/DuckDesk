@@ -183,6 +183,10 @@ add_executable(test_logical_session_registry
 target_link_libraries(test_logical_session_registry
     PRIVATE GTest::gtest GTest::gtest_main)
 add_test(NAME logical_session_registry COMMAND test_logical_session_registry)
+add_executable(test_application_text_service test_application_text_service.cpp
+    ../ingress/application_text_service.cpp ../session/logical_session_registry.cpp)
+target_link_libraries(test_application_text_service PRIVATE px_message px_ft_engine GTest::gtest GTest::gtest_main)
+add_test(NAME application_text_service COMMAND test_application_text_service)
 
 add_executable(test_direct_session_grant_store
     test_direct_session_grant_store.cpp

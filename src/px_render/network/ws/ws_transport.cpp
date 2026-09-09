@@ -175,6 +175,10 @@ void WsTransport::SendIpc(std::shared_ptr<Data> msg) {
     }));
 }
 
+bool WsTransport::SendIpcForPid(std::uint32_t pid, std::shared_ptr<Data> message, std::function<bool()> authorize) {
+    return IsWorking() && message && ws_server_ && ws_server_->PostIpcBinaryMessageForPid(pid, std::move(message), std::move(authorize));
+}
+
 void WsTransport::RegisterIpcPid(uint32_t pid) {
     if (!IsWorking() || !ws_server_) {
         return;

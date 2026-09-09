@@ -1,4 +1,5 @@
 #include "webview_runtime.h"
+#include "application_text_validation.h"
 
 #include <Windows.h>
 #include <d3d11_1.h>
@@ -501,6 +502,7 @@ public:
         if (frame && frame->IsMain()) {
             main_load_failed_ = false;
             paint_seen_for_load_ = false;
+            InvalidateTextTargetOnUi();
             // A keyboard event (for example Enter in a form) may synchronously
             // start navigation before CefBrowserHost::SendKeyEvent returns.
             // Calling SendKeyEvent again from this callback re-enters libcef.
@@ -604,12 +606,13 @@ public:
         PostToCefUi([self, active] {
             auto target = self;
             const bool value = active;
+            target->active_ = value;
             if (!value) {
                 target->ReleaseInputOnUi();
+                target->InvalidateTextTargetOnUi();
                 target->selected_text_.clear();
                 target->clipboard_text_.reset();
             }
-            target->active_ = value;
             if (target->browser_) {
                 target->browser_->GetHost()->SetWindowlessFrameRate(
                     value ? target->config_.frame_rate : 1);
@@ -653,17 +656,100 @@ public:
         PostToCefUi([self, input] { self->SendTextOnUi(input); });
     }
 
+    void OnVirtualKeyboardRequested(CefRefPtr<CefBrowser>, TextInputMode mode) override {
+        CEF_REQUIRE_UI_THREAD();
+        const auto editability{mode == CEF_TEXT_INPUT_MODE_NONE ? ApplicationTextState::NOT_EDITABLE : ApplicationTextState::EDITABLE};
+        if (editability == text_editability_) {
+            return;
+        }
+        if (editability == ApplicationTextState::NOT_EDITABLE) {
+            ++text_generation_;
+        }
+        text_editability_ = editability;
+        NotifyTextTargetOnUi();
+    }
+
+    void QueryTextTarget(std::function<void(WebViewTextTarget)> completion) {
+        const auto self{CefRefPtr<WebViewClient>(this)};
+        PostToCefUi([self, completion = std::move(completion)] {
+            if (completion) {
+                completion(self->TextTargetOnUi());
+            }
+        });
+    }
+
+    void ReleaseTextInputKeys(std::function<void()> completion) {
+        const auto self{CefRefPtr<WebViewClient>(this)};
+        PostToCefUi([self, completion = std::move(completion)] {
+            self->ReleaseInputOnUi();
+            // Local panel focus is not remote browser focus loss.
+            if (completion) {
+                completion();
+            }
+        });
+    }
+
+    void CommitApplicationText(std::string text, std::string expected_generation, std::function<bool()> authorize,
+                               std::function<void(ApplicationTextOutcome)> completion) {
+        const auto self{CefRefPtr<WebViewClient>(this)};
+        PostToCefUi([self, text = std::move(text), expected_generation = std::move(expected_generation), authorize = std::move(authorize),
+                     completion = std::move(completion)] {
+            auto outcome{TEXT_PERMISSION_DENIED};
+            if (authorize && authorize()) {
+                const auto target{self->TextTargetOnUi()};
+                if (!ValidApplicationText(text)) {
+                    outcome = TEXT_INVALID;
+                } else if (target.generation != expected_generation) {
+                    outcome = TEXT_TARGET_CHANGED;
+                } else if (!target.available || target.editability == ApplicationTextState::NOT_EDITABLE) {
+                    outcome = TEXT_TARGET_UNAVAILABLE;
+                } else {
+                    // CEF commits the complete UTF-16 string, including surrogate
+                    // pairs, without clipboard mutation or synthetic Enter.
+                    self->browser_->GetHost()->ImeCommitText(CefString(text), CefRange{}, 0);
+                    outcome = TEXT_SUBMITTED;
+                }
+            }
+            if (completion) {
+                completion(outcome);
+            }
+        });
+    }
+
     void SendFocus(bool focused) {
         auto self = CefRefPtr<WebViewClient>(this);
         PostToCefUi([self, focused] {
             if (self->browser_) {
-                if (!focused) self->ReleaseInputOnUi();
+                if (!focused) {
+                    self->ReleaseInputOnUi();
+                    self->InvalidateTextTargetOnUi();
+                }
                 self->browser_->GetHost()->SetFocus(focused);
             }
         });
     }
 
 private:
+    WebViewTextTarget TextTargetOnUi() const {
+        CEF_REQUIRE_UI_THREAD();
+        const auto frame{browser_ ? browser_->GetFocusedFrame() : CefRefPtr<CefFrame>{}};
+        return {.generation = std::to_string(text_generation_),
+                .editability = text_editability_,
+                .available = active_.load() && frame && frame->IsValid()};
+    }
+
+    void NotifyTextTargetOnUi() {
+        if (callbacks_.on_text_target) {
+            callbacks_.on_text_target(TextTargetOnUi());
+        }
+    }
+
+    void InvalidateTextTargetOnUi() {
+        ++text_generation_;
+        text_editability_ = ApplicationTextState::UNKNOWN;
+        NotifyTextTargetOnUi();
+    }
+
     CefRect AdjustPopupRect(const CefRect& original) const {
         CefRect rect = original;
         rect.x = std::max(rect.x, 0);
@@ -1147,6 +1233,8 @@ private:
     bool shift_down_ = false;
     bool alt_down_ = false;
     std::string selected_text_{};
+    std::uint64_t text_generation_{static_cast<std::uint64_t>(std::chrono::steady_clock::now().time_since_epoch().count())};
+    ApplicationTextState::Editability text_editability_{ApplicationTextState::UNKNOWN};
     std::optional<std::string> clipboard_text_{};
     std::unique_ptr<clipboard::IPlatform> clipboard_platform_{clipboard::CreatePlatform()};
     std::mutex close_mutex_;
@@ -1289,6 +1377,31 @@ void WebViewRuntime::SendFocusEvent(bool focused) {
 
 void WebViewRuntime::SetClipboardText(std::string text) {
     if (impl_->client_) impl_->client_->SetClipboardText(std::move(text));
+}
+
+void WebViewRuntime::QueryTextTarget(std::function<void(WebViewTextTarget)> completion) {
+    if (impl_->client_) {
+        impl_->client_->QueryTextTarget(std::move(completion));
+    } else if (completion) {
+        completion({});
+    }
+}
+
+void WebViewRuntime::ReleaseTextInputKeys(std::function<void()> completion) {
+    if (impl_->client_) {
+        impl_->client_->ReleaseTextInputKeys(std::move(completion));
+    } else if (completion) {
+        completion();
+    }
+}
+
+void WebViewRuntime::CommitApplicationText(std::string text, std::string expected_generation, std::function<bool()> authorize,
+                                         std::function<void(ApplicationTextOutcome)> completion) {
+    if (impl_->client_) {
+        impl_->client_->CommitApplicationText(std::move(text), std::move(expected_generation), std::move(authorize), std::move(completion));
+    } else if (completion) {
+        completion(TEXT_TARGET_UNAVAILABLE);
+    }
 }
 
 } // namespace px

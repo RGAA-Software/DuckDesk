@@ -7,6 +7,7 @@
 #include <mutex>
 #include <type_traits>
 #include "rd_app.h"
+#include "session/logical_session_registry.h"
 #include "px_render/modules/module_ids.h"
 #include "rd_context.h"
 #include "px_common/log.h"
@@ -712,6 +713,10 @@ void RenderModuleRegistry::DispatchNetworkAppEvent(const std::shared_ptr<AppBase
 }
 
 void RenderModuleRegistry::ApplyLogicalSessionCapabilities(const PxLogicalSessionCapabilityUpdate& update) {
+    if (const auto registry = app_ ? app_->GetLogicalSessionRegistry() : std::shared_ptr<LogicalSessionRegistry>{}) {
+        const auto allowed = std::find(update.permissions_.begin(), update.permissions_.end(), "input") != update.permissions_.end();
+        registry->UpdateInputCapabilityByStream(update.stream_id_, allowed);
+    }
     std::shared_ptr<WsTransport> ws;
     {
         std::shared_lock lock(modules_mtx_);
@@ -760,6 +765,15 @@ void RenderModuleRegistry::PostWsIpcBinaryMessage(const std::shared_ptr<Data>& m
     if (ws && message) {
         ws->SendIpc(message);
     }
+}
+
+bool RenderModuleRegistry::PostWsIpcBinaryMessageForPid(std::uint32_t pid, std::shared_ptr<Data> message, std::function<bool()> authorize) {
+    std::shared_ptr<WsTransport> ws{};
+    {
+        std::shared_lock lock{modules_mtx_};
+        ws = ws_transport_;
+    }
+    return ws && message && ws->SendIpcForPid(pid, std::move(message), std::move(authorize));
 }
 
 void RenderModuleRegistry::RegisterWsIpcPid(const std::uint32_t pid) {

@@ -15,11 +15,17 @@
 #include "px_common/win32/process_helper.h"
 #include "px_message.pb.h"
 #include "owned_game_process.h"
+#include "px_capture/capture_text_input.h"
 
 namespace px
 {
 
     class RdSettings;
+
+    struct OwnedGameTextTarget final {
+        CaptureTextCommand command{};
+        std::shared_ptr<UniqueWinHandle> process{};
+    };
 
     class AppManagerWinImpl : public AppManager {
     public:
@@ -35,6 +41,9 @@ namespace px
         void* GetWindowHandle() override;
         void CloseCurrentApp() override;
         bool CanHookProcess(uint32_t pid) const override;
+        // Pins this launch's Job AND normalized-path-authorized process across a text IPC operation.
+        std::shared_ptr<UniqueWinHandle> AcquireHookTarget(uint32_t pid) const;
+        std::optional<OwnedGameTextTarget> AcquireTextTarget() const;
 
     private:
         void InjectCaptureDllIfNeeded();
@@ -56,8 +65,6 @@ namespace px
         // 拉起游戏进程：优先以控制台会话登录用户身份（SYSTEM 直接拉会落在
         // SYSTEM profile，游戏网络/用户配置不对）；无 token 时仅允许当前控制台用户启动。
         uint32_t LaunchGameProcess(const std::string& u8_exec, const std::string& arguments);
-        // 同时验证本次私有 Job 归属和完整 exe 路径；句柄保活防止注入期间 PID 复用。
-        std::shared_ptr<UniqueWinHandle> AcquireHookTarget(uint32_t pid) const;
         // 游戏状态变化（死亡重启/恢复）广播给已连接客户端
         void NotifyGameStatus(px::GameStatusChanged::GameStatus status, const std::string& detail);
         bool InjectDll(uint32_t pid, uint32_t tid, bool is_x86, const std::string& x86_dll, const std::string& x64_dll);
@@ -69,6 +76,7 @@ namespace px
         RdSettings& settings_;
         std::atomic_ulong target_pid_ = 0;
         WindowInfo target_window_info_{};
+        mutable std::mutex target_window_mutex_{};
         std::atomic<bool> injected_ = false;
         // 找到的所有的属于这个应用的pid
         std::vector<ProcessInfoPtr> found_process_info_;

@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import type { TextInputWorkflow, TextSubmission } from './rtc/text_input_workflow'
+import type { TextInputModel, TextSubmission } from './rtc/text_input_workflow'
 
 // The composition owner must pass a reactive workflow, acknowledge the remote
 // input barrier before opening, and place this panel inside its fullscreen root.
-const props = defineProps<{ workflow: TextInputWorkflow }>()
+const props = defineProps<{ workflow: TextInputModel; visible?: boolean; transportStatus?: string }>()
 const emit = defineEmits<{
   submit: [submission: TextSubmission]
   close: []
 }>()
 const editor = ref<HTMLTextAreaElement | null>(null)
 const viewportHeight = ref('100dvh')
+const viewportBottom = ref('0px')
 let compositionSettling = false
 let alive = true
 const status = computed(() => {
@@ -24,9 +25,12 @@ const status = computed(() => {
 
 function updateViewport() {
   viewportHeight.value = `${window.visualViewport?.height ?? window.innerHeight}px`
+  const viewport = window.visualViewport
+  viewportBottom.value = `${viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0}px`
 }
 
 function input(event: Event) {
+  if (event instanceof InputEvent && event.isComposing) props.workflow.setComposing(true)
   if (event.target instanceof HTMLTextAreaElement) props.workflow.edit(event.target.value)
 }
 
@@ -62,12 +66,19 @@ function close() {
 }
 
 // Called synchronously from a user gesture by the owner for mobile keyboards.
-function focus() { editor.value?.focus() }
+function focus() {
+  // Open directly during the user gesture; Vue's v-show flush follows. Mobile
+  // Safari will not open its keyboard if focus waits for network/barrier work.
+  const panel = editor.value?.closest<HTMLElement>('.text-input-panel')
+  if (panel) panel.style.display = ''
+  editor.value?.focus()
+}
 defineExpose({ focus })
 
 onMounted(() => {
   updateViewport()
   window.visualViewport?.addEventListener('resize', updateViewport)
+  window.visualViewport?.addEventListener('scroll', updateViewport)
   window.addEventListener('resize', updateViewport)
 })
 onBeforeUnmount(() => {
@@ -75,13 +86,14 @@ onBeforeUnmount(() => {
   compositionSettling = false
   props.workflow.setComposing(false)
   window.visualViewport?.removeEventListener('resize', updateViewport)
+  window.visualViewport?.removeEventListener('scroll', updateViewport)
   window.removeEventListener('resize', updateViewport)
 })
 </script>
 
 <template>
-  <section v-show="workflow.isOpen" class="text-input-panel" role="dialog" aria-label="输入文字"
-    :style="{ maxHeight: `calc(${viewportHeight} - 24px)` }"
+  <section v-show="visible ?? workflow.isOpen" class="text-input-panel" role="dialog" aria-label="输入文字"
+    :style="{ maxHeight: `calc(${viewportHeight} - 24px)`, bottom: `max(12px, calc(${viewportBottom} + env(safe-area-inset-bottom)))` }"
     @keydown.stop @keyup.stop @pointerdown.stop @pointerup.stop @click.stop @wheel.stop @touchstart.stop @touchmove.stop>
     <label class="editor-label">输入文字
       <textarea ref="editor" :value="workflow.draft" rows="5" autocomplete="off" autocapitalize="off" spellcheck="false"
@@ -89,6 +101,7 @@ onBeforeUnmount(() => {
     </label>
     <p>请使用本机输入法选词，再点击发送。多行文字可能被目标应用解释为提交。</p>
     <p role="status" aria-live="polite">{{ status }}</p>
+    <p v-if="transportStatus" role="status">{{ transportStatus }}</p>
     <div class="actions">
       <button type="button" @click="close">关闭</button>
       <button type="button" :disabled="!workflow.canSend" @click="submit">发送文字</button>

@@ -413,6 +413,8 @@ message ApplicationTextCapabilities {
     OWNED_HOOK_WINDOW = 2;
   }
   Backend backend = 5;
+  string parent_binding_id = 6;
+  string input_generation = 7;
 }
 
 message ApplicationTextTarget {

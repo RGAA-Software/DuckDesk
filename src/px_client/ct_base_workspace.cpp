@@ -2,6 +2,7 @@
 // Created by RGAA on 2023-12-27.
 //
 #include "px_client/ct_base_workspace.h"
+#include "application_text_input.h"
 #include <span>
 #include <QHBoxLayout>
 #include <QApplication>
@@ -156,6 +157,21 @@ namespace px
 
         sdk_ = ThunderSdk::Make(this->context_->GetMessageNotifier());
         InitVoiceCall();
+        if (!settings_->file_transfer_only_) {
+            const auto weak = weak_from_this();
+            application_text_input_ = ApplicationTextInput::Make(QPointer<QWidget>(this), context_->application_text_input_gate_,
+                [weak](const Message& message) {
+                    const auto self = weak.lock();
+                    if (!self || self->remote_force_closed_.load() || !self->sdk_ || self->settings_->only_viewing_) return false;
+                    auto envelope = std::make_shared<Message>(message);
+                    envelope->set_device_id(self->settings_->device_id_);
+                    envelope->set_stream_id(self->settings_->stream_id_);
+                    return self->sdk_->PostReliableControlMessage(ProtoAsData(envelope));
+                }, [weak]() {
+                    const auto self = weak.lock();
+                    return !self || self->settings_->only_viewing_ || self->remote_force_closed_.load();
+                });
+        }
 
         // A Console ticket launch is already authenticated and lifecycle-managed
         // by Panel. The legacy device WebSocket cannot authenticate a guest or
@@ -353,6 +369,7 @@ namespace px
                     LOGI("File-transfer transport connected; notify module");
                     task_self->module_manager_->OnTransportConnected();
                 }
+                if (task_self->application_text_input_) task_self->application_text_input_->Connected();
             });
         });
 
@@ -362,6 +379,10 @@ namespace px
                 return;
             }
             self->StopVoiceCall(false, "disconnect");
+            self->context_->PostUITask([weak_self]() {
+                if (const auto task_self = weak_self.lock(); task_self && task_self->application_text_input_)
+                    task_self->application_text_input_->Disconnected();
+            });
             if (self->remote_force_closed_) {
                 return;
             }
@@ -1615,6 +1636,13 @@ namespace px
     }
 
     void BaseWorkspace::ProcessNetworkMessage(const std::shared_ptr<px::Message>& msg) {
+        if (msg->type() >= kApplicationTextCapabilities && msg->type() <= kApplicationTextBarrierResult) {
+            const auto weak = weak_from_this();
+            context_->PostUITask([weak, msg]() {
+                if (const auto self = weak.lock(); self && self->application_text_input_) self->application_text_input_->HandleMessage(*msg);
+            });
+            return;
+        }
         if (msg->type() == MessageType::kDisconnectConnection) {
             const auto& sub = msg->disconnect_connection();
             LOGI("DISCONNECT, device id: {}, stream id: {}", sub.device_id(), sub.stream_id());

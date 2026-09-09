@@ -45,6 +45,7 @@ add_library(${PROJECT_NAME} SHARED
         hook_manager.cpp
         app_shared_info_reader.cpp
         ws_ipc_client.cpp
+        game_text_input.cpp
         ../hk_video/d3d_utils.cpp
         ../hk_video/shared_texture.cpp
         ../hk_audio/HookCoreApi.cpp
@@ -73,6 +74,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
         ole32
         winmm
         dsound
+        imm32
 )
 
 # Local test: force in-process audio hook, inject into a game, expect WAV dump.
@@ -108,9 +110,16 @@ set_target_properties(test_wasapi_tone PROPERTIES
 )
 
 if(BUILD_TESTING)
+    add_executable(test_game_text_input test_game_text_input.cpp game_text_input.cpp)
+    target_include_directories(test_game_text_input PRIVATE ${CMAKE_SOURCE_DIR}/src/px_render)
+    target_link_libraries(test_game_text_input PRIVATE px_capture GTest::gtest GTest::gtest_main user32 Iphlpapi ws2_32 imm32)
+    set_target_properties(test_game_text_input PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}")
+    add_test(NAME game_text_input COMMAND test_game_text_input)
+
     add_executable(test_ws_ipc_client_lifecycle
             test_ws_ipc_client_lifecycle.cpp
             ws_ipc_client.cpp
+            game_text_input.cpp
     )
     target_link_libraries(test_ws_ipc_client_lifecycle PRIVATE
             px_common
@@ -119,6 +128,7 @@ if(BUILD_TESTING)
             protobuf::libprotobuf
             GTest::gtest
             GTest::gtest_main
+            imm32
     )
     set_target_properties(test_ws_ipc_client_lifecycle PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}"

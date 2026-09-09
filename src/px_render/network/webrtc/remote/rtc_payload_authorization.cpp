@@ -1,4 +1,5 @@
 #include "rtc_messages.h"
+#include "message_type_ids.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -73,7 +74,7 @@ bool ReadMessageType(const std::string& payload, std::uint64_t& message_type) {
     if (!has_hello_payload) {
         return false;
     }
-    message_type = 0;
+    message_type = wire::kHello;
     return true;
 }
 
@@ -89,39 +90,46 @@ bool IsRtcPayloadAuthorized(const std::string& payload, const std::vector<std::s
         return false;
     }
     switch (type) {
-    case 50:  // kKeyEvent
-    case 60:  // kMouseEvent
-    case 80:  // kGamepadState
-    case 170: // kSwitchMonitor
-    case 190: // kSwitchWorkMode
-    case 200: // kChangeMonitorResolution
-    case 230: // kInsertKeyFrame
-    case 328: // kLockDevice
-    case 329: // kStopRender
-    case 330: // kReqCtrlAltDelete
-    case 340: // kUpdateDesktop
-    case 341: // kHardUpdateDesktop
-    case 460: // kSwitchFullColorMode
-    case 470: // kStartMediaRecordClientSide
-    case 471: // kStopMediaRecordClientSide
-    case 480: // kModifyFps
-    case 570: // kVirtualDisplayRequest
-    case 580: // kTextInput
+    case wire::kApplicationTextCapabilities:
+    case wire::kApplicationTextState:
+    case wire::kApplicationTextSubmit:
+    case wire::kApplicationTextResult:
+    case wire::kApplicationTextBarrier:
+    case wire::kApplicationTextBarrierResult:
         return HasPermission(permissions, "input");
-    case 160: // kClipboardInfo
-    case 161: // kClipboardInfoResp
-    case 349: // kClipboardReqAtBegin
-    case 350: // kClipboardReqBuffer
-    case 351: // kClipboardReqAtEnd
-    case 360: // kClipboardRespBuffer
+    case wire::kKeyEvent:
+    case wire::kMouseEvent:
+    case wire::kGamepadState:
+    case wire::kSwitchMonitor:
+    case wire::kSwitchWorkMode:
+    case wire::kChangeMonitorResolution:
+    case wire::kInsertKeyFrame:
+    case wire::kLockDevice:
+    case wire::kStopRender:
+    case wire::kReqCtrlAltDelete:
+    case wire::kUpdateDesktop:
+    case wire::kHardUpdateDesktop:
+    case wire::kSwitchFullColorMode:
+    case wire::kStartMediaRecordClientSide:
+    case wire::kStopMediaRecordClientSide:
+    case wire::kModifyFps:
+    case wire::kVirtualDisplayRequest:
+    case wire::kTextInput:
+        return HasPermission(permissions, "input");
+    case wire::kClipboardInfo:
+    case wire::kClipboardInfoResp:
+    case wire::kClipboardReqAtBegin:
+    case wire::kClipboardReqBuffer:
+    case wire::kClipboardReqAtEnd:
+    case wire::kClipboardRespBuffer:
         return HasPermission(permissions, "clipboard");
-    case 270: // kFileAction
-    case 280: // kFileResponse
+    case wire::kFileAction:
+    case wire::kFileResponse:
         return HasPermission(permissions, "file");
-    case 590: // kVoiceCallRequest
-    case 591: // kVoiceCallResponse
-    case 592: // kVoiceAudioConfig
-    case 593: // kVoiceAudioFrame
+    case wire::kVoiceCallRequest:
+    case wire::kVoiceCallResponse:
+    case wire::kVoiceAudioConfig:
+    case wire::kVoiceAudioFrame:
         return HasPermission(permissions, "audio");
     default:
         return HasPermission(permissions, "view");

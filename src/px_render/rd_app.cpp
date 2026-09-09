@@ -3,6 +3,7 @@
 //
 
 #include "rd_app.h"
+#include "app/win/game_text_backend.h"
 #include "app/application_exit_status.h"
 #include "app/game_frame_identity.h"
 #include <filesystem>
@@ -624,6 +625,15 @@ int RdApplication::Run() {
 
     // app manager
     app_manager_ = AppManagerFactory::Make(context_);
+    if (settings_.IsGameHookMode()) {
+        const std::weak_ptr<RenderModuleRegistry> weak_modules{module_registry_};
+        game_text_backend_ = std::make_shared<GameTextBackend>(
+            std::dynamic_pointer_cast<AppManagerWinImpl>(app_manager_), context_->GetAsyncRuntime(),
+            [weak_modules](std::uint32_t pid, const CaptureTextCommand& command, std::function<bool()> authorize) {
+                const auto modules{weak_modules.lock()};
+                return modules && modules->PostWsIpcBinaryMessageForPid(pid, Data::From(EncodeCaptureTextCommand(command)), std::move(authorize));
+            });
+    }
     // encoder in thread
     encoder_thread_ = EncoderThread::Make(shared_from_this());
     // event bus listener
@@ -1505,6 +1515,74 @@ void RdApplication::SendWebViewKeyEvent(const KeyEvent& event) {
 void RdApplication::SendWebViewTextInput(const TextInput& event) {
     if (webview_runtime_)
         webview_runtime_->SendTextInput(event);
+}
+
+ApplicationTextBackend RdApplication::CreateApplicationTextBackend() {
+    if (!settings_.IsWebViewMode() && !settings_.IsGameHookMode()) {
+        return {};
+    }
+    const auto weak{weak_from_this()};
+    return {
+        .kind = settings_.IsWebViewMode() ? ApplicationTextCapabilities::CEF_COMMIT : ApplicationTextCapabilities::OWNED_HOOK_WINDOW,
+        .query = [weak](std::function<void(ApplicationTextBackendState)> completion) {
+            if (const auto self{weak.lock()}) {
+                self->PostGlobalTask([weak, completion = std::move(completion)] {
+                    const auto self{weak.lock()};
+                    if (self && !self->exit_app_ && self->webview_runtime_) {
+                        self->webview_runtime_->QueryTextTarget(completion);
+                    } else if (self && !self->exit_app_ && self->game_text_backend_) {
+                        self->game_text_backend_->Adapter().query(completion);
+                    } else {
+                        completion({});
+                    }
+                });
+            } else {
+                completion({});
+            }
+        },
+        .release_keys = [weak](std::function<void(bool)> completion) {
+            if (const auto self{weak.lock()}) {
+                self->PostGlobalTask([weak, completion = std::move(completion)] {
+                    const auto self{weak.lock()};
+                    if (self && !self->exit_app_ && self->webview_runtime_) {
+                        self->webview_runtime_->ReleaseTextInputKeys([completion] { completion(true); });
+                    } else if (self && !self->exit_app_ && self->game_text_backend_) {
+                        self->game_text_backend_->Adapter().release_keys(completion);
+                    } else {
+                        completion(false);
+                    }
+                });
+            } else {
+                completion(false);
+            }
+        },
+        .commit = [weak](std::string text, std::string generation, std::function<bool()> authorize,
+                         std::function<void(ApplicationTextOutcome)> completion) {
+            if (const auto self{weak.lock()}) {
+                self->PostGlobalTask([weak, text = std::move(text), generation = std::move(generation), authorize = std::move(authorize),
+                                      completion = std::move(completion)]() mutable {
+                    const auto self{weak.lock()};
+                    if (self && !self->exit_app_ && self->webview_runtime_) {
+                        self->webview_runtime_->CommitApplicationText(std::move(text), std::move(generation), std::move(authorize), completion);
+                    } else if (self && !self->exit_app_ && self->game_text_backend_) {
+                        self->game_text_backend_->Adapter().commit(std::move(text), std::move(generation), std::move(authorize), completion);
+                    } else {
+                        completion(TEXT_TARGET_UNAVAILABLE);
+                    }
+                });
+            } else {
+                completion(TEXT_TARGET_UNAVAILABLE);
+            }
+        },
+    };
+}
+
+void RdApplication::HandleGameTextReply(const std::uint32_t pid, const CaptureTextReply& reply) {
+    PostGlobalTask([weak = weak_from_this(), pid, reply] {
+        if (const auto self{weak.lock()}; self && !self->exit_app_ && self->game_text_backend_) {
+            self->game_text_backend_->HandleReply(pid, reply);
+        }
+    });
 }
 
 void RdApplication::SetWebViewClipboardText(std::string text) {
@@ -2492,6 +2570,9 @@ void RdApplication::Exit() {
     }
     if (exit_app_.exchange(true)) {
         return;
+    }
+    if (game_text_backend_) {
+        game_text_backend_->Stop();
     }
     const auto shutdown_started = std::chrono::steady_clock::now();
     const auto shutdown_deadline = shutdown_started + kApplicationShutdownBudget;

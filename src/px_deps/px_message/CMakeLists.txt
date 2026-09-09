@@ -1,6 +1,21 @@
 cmake_minimum_required(VERSION 3.22)
 project(px_message)
 
+# WebRTC ships a different Abseil version. Consumers that only classify wire
+# messages use an enum-only header generated from the same authoritative schema.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/px_message.proto")
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/px_message.proto" PX_MESSAGE_SCHEMA)
+string(REGEX MATCH "enum MessageType[ \r\n]*\\{[^}]*\\}" PX_MESSAGE_ENUM "${PX_MESSAGE_SCHEMA}")
+if(NOT PX_MESSAGE_ENUM)
+    message(FATAL_ERROR "px_message.proto MessageType enum was not found")
+endif()
+string(REGEX MATCHALL "[A-Za-z_][A-Za-z0-9_]*[ \t]*=[ \t]*[0-9]+" PX_MESSAGE_ENUM_ITEMS "${PX_MESSAGE_ENUM}")
+set(PX_MESSAGE_TYPE_ENTRIES "")
+foreach(PX_MESSAGE_ENUM_ITEM IN LISTS PX_MESSAGE_ENUM_ITEMS)
+    string(APPEND PX_MESSAGE_TYPE_ENTRIES "    ${PX_MESSAGE_ENUM_ITEM},\n")
+endforeach()
+configure_file(message_type_ids.h.in message_type_ids.h @ONLY)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 

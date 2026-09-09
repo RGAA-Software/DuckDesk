@@ -18,6 +18,8 @@ export type TextSubmission = Readonly<{
 export type TextOutcome = 'accepted' | 'submitted' | 'permission_denied' | 'target_changed'
   | 'target_unavailable' | 'invalid_text' | 'busy' | 'failed' | 'outcome_unknown' | 'unsupported'
 
+export type TextInputModel = Pick<TextInputWorkflow, keyof TextInputWorkflow>
+
 export function validSubmissionText(text: string, maxBytes: number): boolean {
   if (!text || !Number.isInteger(maxBytes) || maxBytes < 1 || maxBytes > 16384) return false
   // Reject unpaired UTF-16 surrogates before TextEncoder silently replaces them.
@@ -61,6 +63,12 @@ export class TextInputWorkflow {
     this.target = Object.freeze({ ...target })
     // Reconnection must not silently re-enable a still-open editor.
     this.panelOpen = false
+  }
+
+  /** Select the in-memory draft scope before a user can type while the barrier is pending. */
+  prepareInstance(instanceId: string): void {
+    if (this.instanceId !== instanceId) this.clear()
+    this.instanceId = instanceId
   }
 
   open(): boolean {

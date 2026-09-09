@@ -46,6 +46,7 @@ set(SRCS_WS
     ct_client_context.cpp
     ct_workspace.cpp
     ct_base_workspace.cpp
+    application_text_input.cpp
     ct_virtual_display_protocol.cpp
     front_render/ct_video_widget.cpp
     front_render/opengl/ct_director.cpp
@@ -184,6 +185,9 @@ target_link_libraries(test_client_clipboard_file_stream PRIVATE
     pixels::transport px_common px_message GTest::gtest GTest::gtest_main)
 
 if(BUILD_TESTING)
+    add_executable(test_client_application_text_input tests/test_application_text_input.cpp application_text_input.cpp)
+    target_link_libraries(test_client_application_text_input PRIVATE px_message Qt6::Widgets GTest::gtest)
+    add_test(NAME client_application_text_input COMMAND test_client_application_text_input)
     add_executable(test_application_text_protocol tests/test_application_text_protocol.cpp)
     target_link_libraries(test_application_text_protocol PRIVATE px_message GTest::gtest GTest::gtest_main)
     add_test(NAME application_text_protocol COMMAND test_application_text_protocol)

@@ -114,9 +114,10 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
         const bool may_file = std::find(server->permissions_.begin(), server->permissions_.end(), "file") != server->permissions_.end();
         if (name == "media_data_channel" && may_view) {
             server->media_data_channel_ = std::make_shared<RtcDataChannel>(name, server, ch);
+            const bool reliable_control{ch->ordered() && ch->reliable()};
 
             // data callback
-            server->media_data_channel_->SetOnDataCallback([weak_server](const std::string& data) {
+            server->media_data_channel_->SetOnDataCallback([weak_server, reliable_control](const std::string& data) {
                 const auto locked = weak_server.lock();
                 if (!locked) {
                     return;
@@ -126,7 +127,8 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
                     return;
                 }
                 auto payload_msg = Data::From(data);
-                locked->runtime_->DispatchClientEvent(false, TransportChannel::kMedia, std::move(payload_msg),
+                locked->runtime_->DispatchClientEvent(false, reliable_control ? TransportChannel::kReliableControl : TransportChannel::kMedia,
+                                                      std::move(payload_msg),
                                                       std::string("rtc:") + locked->stream_id_);
             });
         } else if (name == "ft_data_channel" && may_file) {

@@ -1,6 +1,7 @@
 #include "px_render/network/webrtc/remote/rtc_messages.h"
 
 #include <gtest/gtest.h>
+#include <array>
 
 #include "px_message.pb.h"
 
@@ -45,6 +46,48 @@ TEST(RtcPayloadAuthorization, KeepsFeaturePermissionsIsolated) {
     EXPECT_TRUE(IsRtcPayloadAuthorized(SerializeMessage(kFileAction), {"file"}));
     EXPECT_FALSE(IsRtcPayloadAuthorized(SerializeMessage(kVoiceCallRequest), {"view"}));
     EXPECT_TRUE(IsRtcPayloadAuthorized(SerializeMessage(kVoiceCallRequest), {"audio"}));
+}
+
+TEST(RtcPayloadAuthorization, NamedInteractiveMessageClassesRequireInput) {
+    constexpr std::array interactive{kKeyEvent,
+                                     kMouseEvent,
+                                     kGamepadState,
+                                     kSwitchMonitor,
+                                     kSwitchWorkMode,
+                                     kChangeMonitorResolution,
+                                     kInsertKeyFrame,
+                                     kLockDevice,
+                                     kStopRender,
+                                     kReqCtrlAltDelete,
+                                     kUpdateDesktop,
+                                     kHardUpdateDesktop,
+                                     kSwitchFullColorMode,
+                                     kStartMediaRecordClientSide,
+                                     kStopMediaRecordClientSide,
+                                     kModifyFps,
+                                     kVirtualDisplayRequest,
+                                     kTextInput,
+                                     kApplicationTextCapabilities,
+                                     kApplicationTextState,
+                                     kApplicationTextSubmit,
+                                     kApplicationTextResult,
+                                     kApplicationTextBarrier,
+                                     kApplicationTextBarrierResult};
+    for (const auto type : interactive) {
+        SCOPED_TRACE(MessageType_Name(type));
+        EXPECT_FALSE(IsRtcPayloadAuthorized(SerializeMessage(type), {"view", "clipboard", "file", "audio"}));
+        EXPECT_TRUE(IsRtcPayloadAuthorized(SerializeMessage(type), {"input"}));
+    }
+}
+
+TEST(RtcPayloadAuthorization, NamedClipboardMessageClassesRequireClipboard) {
+    constexpr std::array clipboard{kClipboardInfo,      kClipboardInfoResp, kClipboardReqAtBegin,
+                                   kClipboardReqBuffer, kClipboardReqAtEnd, kClipboardRespBuffer};
+    for (const auto type : clipboard) {
+        SCOPED_TRACE(MessageType_Name(type));
+        EXPECT_FALSE(IsRtcPayloadAuthorized(SerializeMessage(type), {"view", "input", "file", "audio"}));
+        EXPECT_TRUE(IsRtcPayloadAuthorized(SerializeMessage(type), {"clipboard"}));
+    }
 }
 
 } // namespace

@@ -6,6 +6,10 @@
 #include "app/app_messages.h"
 #include "px_common/asio_client_shutdown.h"
 #include "px_common/async_scope_drain.h"
+#include "px_common/reliable_websocket_send.h"
+#include "app/win/ipc_peer_identity.h"
+#include "px_capture/capture_text_input.h"
+#include "message_type_ids.h"
 
 #include <array>
 #include <atomic>
@@ -282,11 +286,11 @@ static bool IsMediaFrameMessage(const std::shared_ptr<Data>& msg) {
             }
             // px_message.proto: kVideoFrame = 30, kAudioFrame = 40
             // udp_media 客户端的音视频都走 UDP,ws 下发前都过滤掉
-            return type == 30 || type == 40;
+            return type == px::wire::kVideoFrame || type == px::wire::kAudioFrame;
         }
         switch (wire) {
         case 0: {
-            uint64_t v;
+            uint64_t v{};
             if (!read_varint(v)) {
                 return false;
             }
@@ -374,7 +378,8 @@ static std::optional<int> ExtractProtocolMessageType(const std::shared_ptr<Data>
 
 static bool IsClipboardProtocolMessage(const std::shared_ptr<Data>& msg) {
     const auto type = ExtractProtocolMessageType(msg);
-    return type && (*type == 160 || *type == 161 || *type == 349 || *type == 350 || *type == 351 || *type == 360);
+    return type && (*type == px::wire::kClipboardInfo || *type == px::wire::kClipboardInfoResp || *type == px::wire::kClipboardReqAtBegin ||
+                    *type == px::wire::kClipboardReqBuffer || *type == px::wire::kClipboardReqAtEnd || *type == px::wire::kClipboardRespBuffer);
 }
 
 WsServer::WsServer(std::weak_ptr<WsTransport> transport, std::shared_ptr<PxAsyncRuntime> async_runtime, const uint16_t listen_port,
@@ -643,6 +648,12 @@ void WsServer::UpdateLogicalSessionCapabilities(const PxLogicalSessionCapability
     }
     const bool clipboard_allowed = std::find(update.permissions_.begin(), update.permissions_.end(), "clipboard") != update.permissions_.end();
     const bool file_allowed = std::find(update.permissions_.begin(), update.permissions_.end(), "file") != update.permissions_.end();
+    const bool input_allowed{std::ranges::find(update.permissions_, "input") != update.permissions_.end()};
+    stream_routers_.ApplyAll([&update, input_allowed](const std::uint64_t&, const std::shared_ptr<WsStreamRouter>& router) {
+        if (router && router->stream_id_ == update.stream_id_) {
+            router->input_allowed_.store(input_allowed);
+        }
+    });
     stream_routers_.ApplyAll([&update, clipboard_allowed, file_allowed](const uint64_t&, const std::shared_ptr<WsStreamRouter>& router) {
         if (router && router->stream_id_ == update.stream_id_) {
             router->clipboard_allowed_.store(clipboard_allowed);
@@ -689,11 +700,37 @@ void WsServer::PostIpcBinaryMessage(std::shared_ptr<Data> msg) {
     }
 }
 
+bool WsServer::PostIpcBinaryMessageForPid(std::uint32_t pid, std::shared_ptr<Data> message, std::function<bool()> authorize) {
+    if (exiting_ || !message || !authorize || !IsIpcPidAllowed(pid)) {
+        return false;
+    }
+    std::shared_ptr<asio2::http_session> destination{};
+    std::size_t matches{};
+    ipc_sessions_.ApplyAll([&](const std::uint64_t& socket, const std::shared_ptr<asio2::http_session>& session) {
+        if (ipc_session_pids_.TryGet(socket).value_or(0) == pid && session && session->is_started()) {
+            destination = session;
+            ++matches;
+        }
+    });
+    if (matches != 1 || !destination || FindLoopbackTcpClientPid(destination->remote_port(), destination->local_port()) != pid) {
+        return false;
+    }
+    PostReliableWebSocketWrite(destination, std::move(message), [](bool) {},
+                              [weak = weak_from_this(), session = std::weak_ptr<asio2::http_session>{destination}, pid,
+                               authorize = std::move(authorize)] {
+        const auto server{weak.lock()};
+        const auto peer{session.lock()};
+        return server && !server->exiting_ && peer && peer->is_started() && server->IsIpcPidAllowed(pid) &&
+               FindLoopbackTcpClientPid(peer->remote_port(), peer->local_port()) == pid && authorize();
+    });
+    return true;
+}
+
 bool WsServer::PostTargetStreamMessage(const std::string& stream_id, std::shared_ptr<Data> msg) {
     bool found_target_stream = false;
     const bool is_media_frame = IsMediaFrameMessage(msg);
     const bool is_clipboard_message = IsClipboardProtocolMessage(msg);
-    const bool is_voice_audio_frame = ExtractProtocolMessageType(msg) == 593;
+    const bool is_voice_audio_frame = ExtractProtocolMessageType(msg) == px::wire::kVoiceAudioFrame;
     stream_routers_.ApplyAll([=, &found_target_stream](const uint64_t& socket_fd, const std::shared_ptr<WsStreamRouter>& router) {
         static_cast<void>(socket_fd);
         if (stream_id == router->stream_id_ || stream_id.empty()) {
@@ -930,6 +967,19 @@ void WsServer::AddIpcRouter() {
                                   return;
                               }
                               self->transport_performance_.ObserveInbound(data.size());
+                              if (const auto reply{DecodeCaptureTextReply(data)}) {
+                                  const auto socket{static_cast<std::uint64_t>(sess_ptr->socket().native_handle())};
+                                  const auto pid{self->ipc_session_pids_.TryGet(socket)};
+                                  if (pid && FindLoopbackTcpClientPid(sess_ptr->remote_port(), sess_ptr->local_port()) == *pid) {
+                                      if (const auto transport{self->transport_.lock()}) {
+                                          const auto event{std::make_shared<GameTextReplyEvent>()};
+                                          event->authenticated_pid = *pid;
+                                          event->reply = *reply;
+                                          transport->EmitEvent(event);
+                                      }
+                                  }
+                                  return;
+                              }
                               if (data.size() < sizeof(CaptureBaseMessage)) {
                                   return;
                               }
@@ -1076,7 +1126,8 @@ void WsServer::AddIpcRouter() {
                               if (auto it = params.find("pid"); it != params.end()) {
                                   client_pid = static_cast<uint32_t>(std::strtoul(it->second.c_str(), nullptr, 10));
                               }
-                              if (client_pid == 0 || !self->IsIpcPidAllowed(client_pid)) {
+                              if (client_pid == 0 || !self->IsIpcPidAllowed(client_pid) ||
+                                  FindLoopbackTcpClientPid(sess_ptr->remote_port(), sess_ptr->local_port()) != client_pid) {
                                   static std::atomic<uint64_t> s_reject{0};
                                   const auto n = ++s_reject;
                                   if (n == 1 || (n % 50) == 0) {
@@ -1179,6 +1230,7 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(std::weak_ptr<WsServer> owner, st
                                          .expires_at_ms = ticket.expires_at_ms_,
                                          .allow_observer = ticket.allow_observer_,
                                          .allow_takeover = ticket.allow_takeover_,
+                                         .input_allowed = std::ranges::find(ticket.permissions_, "input") != ticket.permissions_.end(),
                                      },
                                      path == kUrlFileTransfer ? LogicalSessionTransport::kFileTransfer : LogicalSessionTransport::kWs, binding_id);
     if (!admission_result.HasValue() || admission_result.Value().code != LogicalSessionAdmissionCode::kAccepted) {
@@ -1304,6 +1356,7 @@ void WsServer::FinalizeWebSocketOpen(const std::shared_ptr<asio2::http_session>&
         router->binding_id_ = binding_id;
         router->clipboard_allowed_.store(std::find(ticket.permissions_.begin(), ticket.permissions_.end(), "clipboard") != ticket.permissions_.end());
         router->file_allowed_.store(std::find(ticket.permissions_.begin(), ticket.permissions_.end(), "file") != ticket.permissions_.end());
+        router->input_allowed_.store(std::find(ticket.permissions_.begin(), ticket.permissions_.end(), "input") != ticket.permissions_.end());
         router->udp_media_association_code_ = udp_media_association_code;
         router->force_gdi_ = force_gdi;
         const auto weak_self = weak_from_this();
@@ -1430,6 +1483,7 @@ void WsServer::CloseLogicalSessionBinding(const std::string& logical_session_id,
         transport->EmitEvent(event);
     }
 }
+
 
 void WsServer::UpdateUdpMediaAssociation(const std::string& association_code, const std::string& logical_session_id, const std::string& stream_id,
                                          const bool force_gdi, const bool revoke) {

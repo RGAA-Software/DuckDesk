@@ -546,6 +546,21 @@ void NetClient::PostMediaMessage(std::shared_ptr<Data> msg) {
     stat_->AppendSentDataSize(msg->Size());
 }
 
+bool NetClient::PostReliableControlMessage(std::shared_ptr<Data> msg) {
+    if (exited_.load() || params_.session_mode_ == SdkSessionMode::kRdp || !msg || msg->Size() == 0 || msg->Size() > 32768) return false;
+    Message envelope{};
+    if (!envelope.ParseFromArray(msg->Bytes().data(), static_cast<int>(msg->Size())) ||
+        (envelope.type() != kApplicationTextCapabilities && envelope.type() != kApplicationTextSubmit &&
+         envelope.type() != kApplicationTextBarrier)) return false;
+    const auto connection = CurrentMediaConnection();
+    if (!connection || !connection->IsAlive() || connection->GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages) return false;
+    // The managed media connection is the reliable WS/WSS control connection;
+    // UDP video/audio has a separate owner. A server result, not this enqueue,
+    // determines success. Lost writes time out without an automatic replay.
+    connection->PostReliableBinaryMessage(std::move(msg), [](bool) {});
+    return true;
+}
+
 FileTransferSendResult NetClient::PostFileTransferMessage(std::shared_ptr<Data> msg) {
     if (params_.session_mode_ == SdkSessionMode::kRdp) {
         return FileTransferSendResult::Disconnected("Host file transfer is unavailable in RDP mode");

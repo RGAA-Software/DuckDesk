@@ -13,6 +13,7 @@
 #include <map>
 #include "px_common/message_notifier.h"
 #include "px_client_sdk/sdk_messages.h"
+#include "application_text_input_gate.h"
 
 namespace px
 {
@@ -62,6 +63,7 @@ namespace px
         void NotifyAppErrMessage(const QString& title, const QString& msg, std::function<void()>&& cbk = []() {});
 
         bool full_functionality_ = false;
+        std::shared_ptr<ApplicationTextInputGate> application_text_input_gate_ = std::make_shared<ApplicationTextInputGate>();
     private:
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
         std::shared_ptr<SharedPreference> sp_;

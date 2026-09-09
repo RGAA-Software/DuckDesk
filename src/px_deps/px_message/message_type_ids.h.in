@@ -1,0 +1,9 @@
+#pragma once
+
+// Generated from px_message.proto by CMake. This enum-only view keeps the RTC
+// adapter independent of protobuf/Abseil headers; never maintain wire IDs here.
+namespace px::wire {
+enum MessageType : int {
+@PX_MESSAGE_TYPE_ENTRIES@
+};
+} // namespace px::wire

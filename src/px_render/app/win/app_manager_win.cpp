@@ -76,6 +76,7 @@ namespace px
                     self->InjectCaptureDllIfNeeded();
                     if (self->target_pid_ > 0) {
                         auto infos = px::AppManagerWinImpl::SearchWindowByPid(self->target_pid_);
+                        std::lock_guard window_lock(self->target_window_mutex_);
                         self->target_window_info_ = GetTargetWindowInfo(infos);
                     }
                 });
@@ -517,7 +518,26 @@ namespace px
     }
 
     void* AppManagerWinImpl::GetWindowHandle() {
+        std::lock_guard lock(target_window_mutex_);
         return reinterpret_cast<void*>(target_window_info_.win_handle);
+    }
+
+    std::optional<OwnedGameTextTarget> AppManagerWinImpl::AcquireTextTarget() const {
+        const auto pid = static_cast<std::uint32_t>(target_pid_.load());
+        const auto process = AcquireHookTarget(pid);
+        if (!process) {
+            return std::nullopt;
+        }
+        std::lock_guard lock(target_window_mutex_);
+        DWORD window_pid{};
+        if (!IsWindow(reinterpret_cast<HWND>(target_window_info_.win_handle)) ||
+            !GetWindowThreadProcessId(reinterpret_cast<HWND>(target_window_info_.win_handle), &window_pid) || window_pid != pid) {
+            return std::nullopt;
+        }
+        CaptureTextCommand command{};
+        command.target_pid = pid;
+        command.root_window = target_window_info_.win_handle;
+        return OwnedGameTextTarget{std::move(command), process};
     }
 
     void AppManagerWinImpl::CloseCurrentApp() {

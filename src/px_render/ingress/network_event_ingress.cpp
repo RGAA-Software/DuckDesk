@@ -3,6 +3,7 @@
 //
 
 #include "network_event_ingress.h"
+#include "application_text_service.h"
 #include <memory>
 #include <iostream>
 #include <thread>
@@ -93,7 +94,8 @@ int64_t CurrentSystemMilliseconds() {
 }
 
 bool IsControllerOnlyMessage(const MessageType type) {
-    return type == MessageType::kMouseEvent || type == MessageType::kKeyEvent || type == MessageType::kTextInput ||
+    return type == kApplicationTextCapabilities || type == kApplicationTextBarrier || type == kApplicationTextSubmit ||
+           type == MessageType::kMouseEvent || type == MessageType::kKeyEvent || type == MessageType::kTextInput ||
            type == MessageType::kGamepadState || type == kReqCtrlAltDelete || type == kClipboardInfo || type == kClipboardInfoResp ||
            type == MessageType::kClipboardReqAtBegin || type == MessageType::kClipboardReqAtEnd || type == MessageType::kClipboardReqBuffer ||
            type == MessageType::kClipboardRespBuffer;
@@ -290,6 +292,10 @@ NetworkEventIngress::NetworkEventIngress(const std::shared_ptr<RdApplication>& a
 }
 
 void NetworkEventIngress::InitListeners() {
+    const auto instance{settings_.webview_instance_id_.empty()
+                            ? std::to_string(GetCurrentProcessId()) + ":" + std::to_string(CurrentSystemMilliseconds())
+                            : settings_.webview_instance_id_};
+    application_text_ = std::make_shared<ApplicationTextService>(instance, app_->GetLogicalSessionRegistry(), app_->CreateApplicationTextBackend());
     msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
     const auto weak_self = weak_from_this();
     msg_listener_->Listen<CaptureMonitorInfoMessage>([weak_self](const CaptureMonitorInfoMessage& msg) {
@@ -527,6 +533,34 @@ void NetworkEventIngress::ProcessNetEvent(const std::shared_ptr<NetworkClientEve
             }
         }
         const std::string source_connection_id = event->connection_instance_id_;
+        if (application_text_ && input_lease &&
+            (msg->type() == kApplicationTextCapabilities || msg->type() == kApplicationTextBarrier || msg->type() == kApplicationTextSubmit)) {
+            const auto registry{app_->GetLogicalSessionRegistry()};
+            const auto stream{registry->FindStreamId(input_lease->logical_session_id)};
+            if (!stream) {
+                return;
+            }
+            const auto lease{*input_lease};
+            const std::weak_ptr<LogicalSessionRegistry> weak_registry{registry};
+            const std::weak_ptr<RenderModuleRegistry> weak_modules{module_registry_};
+            const auto alive{[weak_registry, lease] {
+                const auto registry{weak_registry.lock()};
+                return registry && registry->IsCurrentInputBinding(lease, CurrentSystemMilliseconds());
+            }};
+            const bool reliable{event->transport_type_ == TransportKind::kWebSocket || event->channel_type_ == TransportChannel::kReliableControl};
+            application_text_->Handle(*msg, lease, reliable, alive,
+                                       [weak_modules, stream = *stream, route = source_id, alive](Message response) {
+                if (const auto modules{weak_modules.lock()}; modules && alive()) {
+                    static_cast<void>(modules->SendControlMessageOnRoute(route, stream, Data::From(response.SerializeAsString()), false));
+                }
+            });
+            return;
+        }
+        if (application_text_ && input_lease &&
+            (msg->type() == kKeyEvent || msg->type() == kMouseEvent || msg->type() == kTextInput || msg->type() == kGamepadState) &&
+            !application_text_->AllowsOrdinaryInput(*input_lease, msg->input_generation())) {
+            return;
+        }
         if (msg->type() == MessageType::kFileAction || msg->type() == MessageType::kFileResponse) {
             const auto registry = app_->GetLogicalSessionRegistry();
             const auto lease = registry && !source_connection_id.empty()
@@ -598,7 +632,8 @@ void NetworkEventIngress::ProcessNetEvent(const std::shared_ptr<NetworkClientEve
                                     .join_mode = "control",
                                     .expires_at_ms = now_ms + std::chrono::minutes(15).count() * 60 * 1000,
                                     .allow_observer = true,
-                                    .allow_takeover = true},
+                                    .allow_takeover = true,
+                                    .input_allowed = true},
                                    LogicalSessionTransport::kRtcLocal, std::string("rtc-local:") + stream_id, sub.takeover(), now_ms);
                 if (direct_admission.code != LogicalSessionAdmissionCode::kAccepted) {
                     LOGW("Reject direct RTC offer: controller lease is occupied");
@@ -666,7 +701,8 @@ void NetworkEventIngress::ProcessNetEvent(const std::shared_ptr<NetworkClientEve
                                                            .join_mode = join_mode,
                                                            .expires_at_ms = expires_at_ms,
                                                            .allow_observer = allow_observer,
-                                                           .allow_takeover = allow_takeover},
+                                                           .allow_takeover = allow_takeover,
+                                                           .input_allowed = std::ranges::find(permissions, "input") != permissions.end()},
                                                           LogicalSessionTransport::kRtcLocal, std::string("rtc-local:") + ticket_stream_id, takeover,
                                                           CurrentSystemMilliseconds());
                     if (admission.code != LogicalSessionAdmissionCode::kAccepted) {
@@ -921,6 +957,7 @@ void NetworkEventIngress::ProcessNetEvent(const std::shared_ptr<NetworkClientEve
     } else {
     }
 }
+
 
 void NetworkEventIngress::ProcessHelloEvent(std::shared_ptr<Message>&& msg) {
     const auto& hello = msg->hello();

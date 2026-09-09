@@ -60,6 +60,8 @@ interface MonitorSpec {
 const props = withDefaults(
   defineProps<{
   connected: boolean
+  textInputReady: boolean
+  openTextInput: () => void
   // ft_data_channel 是否已就绪
   ftReady: boolean
   // 对端 FT 协议版本是否兼容(rustdesk 语义 = 2;旧版被控置灰入口)
@@ -737,6 +739,9 @@ onBeforeUnmount(() => {
 
     <!-- 菜单列表 -->
     <div class="menu">
+      <button class="menu-item" :disabled="!connected || !textInputReady" @click="openTextInput">
+        <IconKeyboard :size="18" /><span>输入文字（本机输入法）</span>
+      </button>
       <button class="menu-item" :class="{ open: subPanel === 'control' }" @click="toggleSubPanel('control', $event)">
         <span class="menu-icon"><IconSettings :size="17" /></span>
         <span class="menu-text">{{ t('float.control') }}</span>

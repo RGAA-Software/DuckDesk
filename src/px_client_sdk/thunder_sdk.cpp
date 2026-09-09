@@ -485,6 +485,10 @@ namespace px
         }
     }
 
+    bool ThunderSdk::PostReliableControlMessage(std::shared_ptr<Data> msg) {
+        return !exit_.load() && net_client_ && net_client_->PostReliableControlMessage(std::move(msg));
+    }
+
     bool ThunderSdk::PostVoiceAudioMessage(const std::shared_ptr<Message>& message) {
         return !exit_.load() && net_client_ && net_client_->PostVoiceAudioMessage(message);
     }
