@@ -29,8 +29,8 @@ namespace px
         FFmpegVulkanDecoder(const std::shared_ptr<ThunderSdk>& sdk, std::shared_ptr<const WindowsVideoResources> resources);
         ~FFmpegVulkanDecoder() override;
 
-        int Init(const std::string& mon_name, int codec_type, int width, int height,
-            const std::string& frame, int img_format, bool ignore_hw) override;
+        int Init(const std::string& mon_name, VideoType codec_type, int width, int height, const std::string& frame, EImageFormat img_format,
+                 bool ignore_hw) override;
         Result<std::shared_ptr<RawImage>, int> Decode(std::span<const std::uint8_t> encoded) override;
 
         void Release() override;

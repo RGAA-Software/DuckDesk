@@ -71,9 +71,10 @@ namespace px
     // img_format:
     // kI420 = 0,
     // kI444 = 1,
-    int FFmpegDecoder::Init(const std::string& mon_name, int codec_type, int width, int height,
-            const std::string& frame, int img_format, bool ignore_hw) {
-        VideoDecoder::Init(mon_name, codec_type, width, height, frame, img_format, ignore_hw);
+    int FFmpegDecoder::Init(const std::string& mon_name, VideoType codec_type, int width, int height, const std::string& frame,
+                            EImageFormat img_format, bool ignore_hw) {
+        if (VideoDecoder::Init(mon_name, codec_type, width, height, frame, img_format, ignore_hw) != 0)
+            return AVERROR(EINVAL);
         if (inited_) {
             return 0;
         }
@@ -84,7 +85,7 @@ namespace px
         SdkMsgVideoDecodeInit init_msg;
         init_msg.width_ = width;
         init_msg.height_ = height;
-        init_msg.format_ = (EImageFormat)img_format_;
+        init_msg.format_ = img_format;
 
         av_log_set_callback([](void* ptr, int level, const char* fmt, va_list vl) {
             char buffer[4096] = {0};

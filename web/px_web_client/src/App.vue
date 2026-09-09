@@ -18,6 +18,7 @@ import {
 } from './rtc/clipboard'
 import { decodeConnectToken } from './rtc/connect_token'
 import { decodeMessage } from './rtc/proto'
+import { MessageType, ClientType, VideoCodec, GameStatus, VirtualDisplayState, VirtualDisplayOperation } from './rtc/protocol_enums'
 import { StandardRtcSignaling } from './rtc/standard_signaling'
 import { applyDocumentTitle } from './locales/i18n'
 import logoUrl from './assets/px_icon.png'
@@ -542,7 +543,7 @@ let textSuspended = false
 
 function discoverApplicationText(message: ApplicationTextMessage) {
   const caps = message.applicationTextCapabilities
-  if (message.type !== 610 || !caps || caps.version !== 1 || !caps.finalTextSupported
+  if (message.type !== MessageType.ApplicationTextCapabilities || !caps || caps.version !== 1 || !caps.finalTextSupported
     || textTransport || !connectionInstanceId.value || !reliableApplicationControlChannel(dc)
     || !hasGrantedPermission('input') || viewOnly.value) return
   input?.setApplicationTextEnabled(true)
@@ -769,7 +770,7 @@ function requestVirtualDisplay(operation: 'create' | 'remove'): boolean {
     type: MSG_TYPE_VIRTUAL_DISPLAY_REQUEST,
     virtualDisplayRequest: {
       requestId,
-      operation: operation === 'create' ? 0 : 1,
+      operation: operation === 'create' ? VirtualDisplayOperation.Create : VirtualDisplayOperation.RemoveLast,
       width: 1920,
       height: 1080,
       refreshHz: 60,
@@ -790,7 +791,7 @@ function requestVirtualDisplay(operation: 'create' | 'remove'): boolean {
 let dcMediaDrops = 0
 function isMediaFramePayload(p: Uint8Array): boolean {
   if (p.length < 2 || p[0] !== 0x08) return false // field 1 (type), varint
-  let type = 0
+  let type: number = MessageType.Hello
   let shift = 0
   let i = 1
   while (i < p.length && i < 11) {
@@ -799,7 +800,7 @@ function isMediaFramePayload(p: Uint8Array): boolean {
     if (!(b & 0x80)) break
     shift += 7
   }
-  return type === 30 || type === 40
+  return type === MessageType.VideoFrame || type === MessageType.AudioFrame
 }
 
 function handleDcBinary(buf: ArrayBuffer) {
@@ -815,7 +816,7 @@ function handleDcBinary(buf: ArrayBuffer) {
       continue
     }
     if (msg.type >= 610 && msg.type <= 615) {
-      if (msg.type === 610) discoverApplicationText(msg as ApplicationTextMessage)
+      if (msg.type === MessageType.ApplicationTextCapabilities) discoverApplicationText(msg as ApplicationTextMessage)
       textTransport?.receive(msg as ApplicationTextMessage)
     }
     if (msg.type === MSG_TYPE_CLIPBOARD_INFO) {
@@ -884,7 +885,7 @@ function handleDcBinary(buf: ArrayBuffer) {
     } else if (msg.type === MSG_TYPE_VIRTUAL_DISPLAY_RESPONSE && msg.virtualDisplayResponse) {
       const r = msg.virtualDisplayResponse
       virtualDisplayPending.value = false
-      if (!r.accepted || r.state === 2) {
+      if (!r.accepted || r.state === VirtualDisplayState.Failed) {
         const detail = `${r.errorCode || 'VIRTUAL_DISPLAY_FAILED'}: ${r.errorMessage || 'unknown error'}`
         addLog(`虚拟显示器请求失败: ${detail}`)
         ElMessage.error(detail)
@@ -895,7 +896,7 @@ function handleDcBinary(buf: ArrayBuffer) {
         virtualDisplayOwnedCount.value = r.ownedDisplayCount
         virtualDisplayGeneration.value = String(r.topologyGeneration ?? 0)
         addLog(`虚拟显示器请求完成: owned=${r.ownedDisplayCount}, state=${r.state}, generation=${virtualDisplayGeneration.value}`)
-        if (r.state === 1) {
+        if (r.state === VirtualDisplayState.NeedReconnect) {
           scheduleTopologyReconnect(virtualDisplayGeneration.value)
         }
       }
@@ -918,7 +919,7 @@ function handleDcBinary(buf: ArrayBuffer) {
     } else if (msg.type === MSG_TYPE_VIDEO_CODEC_CHANGED && msg.videoCodecChanged) {
       const c = msg.videoCodecChanged
       // VideoType: kNetH264=0, kNetHevc=1
-      if (c.videoType === 1) {
+      if (c.videoType === VideoCodec.Hevc) {
         const reason = c.fullColor ? '全彩模式' : '编码设置'
         addLog(`远端编码已切换为 H.265/HEVC (${reason})`)
         ElMessageBox.alert(
@@ -952,7 +953,7 @@ function handleDcBinary(buf: ArrayBuffer) {
     } else if (msg.type === MSG_TYPE_GAME_STATUS_CHANGED && msg.gameStatusChanged) {
       // game-hook 游戏状态:0=运行/恢复, 2=死亡后看门狗重启中
       const g = msg.gameStatusChanged
-      if (g.status === 2) {
+      if (g.status === GameStatus.Restarting) {
         addLog(`游戏异常退出,正在自动重启 (${g.detail || '-'})`)
         ElNotification.closeAll()
         ElNotification({
@@ -961,7 +962,7 @@ function handleDcBinary(buf: ArrayBuffer) {
           type: 'warning',
           duration: 0,
         })
-      } else if (g.status === 0) {
+      } else if (g.status === GameStatus.Running) {
         addLog(`游戏已恢复 (${g.detail || '-'})`)
         ElNotification.closeAll()
         ElNotification({
@@ -1772,7 +1773,7 @@ async function connect() {
     dc.binaryType = 'arraybuffer' // render 会推 kClipboardInfo 等二进制控制消息
     dc.onopen = () => {
       addLog(`datachannel "${DATA_CHANNEL_LABEL}" onopen`)
-      sendControl({ type: 610, applicationTextCapabilities: { version: 1 } })
+      sendControl({ type: MessageType.ApplicationTextCapabilities, applicationTextCapabilities: { version: 1 } })
       if (!hasVideo.value) {
         setConnectStep('video', `控制通道 ${DATA_CHANNEL_LABEL} 已打开`)
       }
@@ -1783,7 +1784,7 @@ async function connect() {
           enableAudio: true,
           enableVideo: true,
           enableController: true,
-          clientType: 100, // ClientType.kUnknown
+          clientType: ClientType.Unknown, // ClientType.kUnknown
           deviceName: 'web_client',
         },
       })
@@ -2116,7 +2117,7 @@ function exposeInputConnDebug() {
     create: () => requestVirtualDisplay('create'),
     remove: () => requestVirtualDisplay('remove'),
     switchMonitor: (name: string) =>
-      sendControl({ type: 170, switchMonitor: { name } }),
+      sendControl({ type: MessageType.SwitchMonitor, switchMonitor: { name } }),
   }
   // 手柄调试:enable/testSend 可在无头 Chrome(无物理手柄)下验证打包与 render 回放链路
   w.__gamepad = {

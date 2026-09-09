@@ -45,6 +45,7 @@ constexpr std::int32_t kMouseWheel = 3;
 constexpr std::int32_t kRecordingStarted = 1;
 constexpr std::int32_t kRecordingCompleted = 2;
 constexpr std::int32_t kRecordingFailed = 3;
+enum class JavaVoicePhase : jint { kIdle = 0, kRequesting = 1, kConnected = 2 };
 constexpr std::size_t kMaximumRemoteDirectoryEntries = 2048U;
 
 std::int32_t MouseButtonFlag(const std::int32_t button, const bool down) {
@@ -501,7 +502,9 @@ void JavaSessionCallback::RecordingState(const std::string& session_id, const st
 
 void JavaSessionCallback::VoiceCallState(const std::string& session_id, const px::VoiceCallStatus& status) const {
     // The Java UI contract uses 0/1/2; the shared state also has an incoming-pending phase.
-    const jint phase = status.phase == px::VoiceCallPhase::kConnected ? 2 : status.phase == px::VoiceCallPhase::kIdle ? 0 : 1;
+    const auto phase = status.phase == px::VoiceCallPhase::kConnected ? JavaVoicePhase::kConnected
+                       : status.phase == px::VoiceCallPhase::kIdle    ? JavaVoicePhase::kIdle
+                                                                      : JavaVoicePhase::kRequesting;
     const auto listener_handle = listener_handle_;
     WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
         const auto listener = reinterpret_cast<jobject>(listener_handle);
@@ -511,8 +514,9 @@ void JavaSessionCallback::VoiceCallState(const std::string& session_id, const px
         const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
         const auto reason_handle = MakeByteArray(environment, status.reason);
         if (method != nullptr && session_id_handle != 0U && reason_handle != 0U) {
-            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), phase, status.microphone_muted,
-                                       status.speaker_muted, status.requires_headset, reinterpret_cast<jbyteArray>(reason_handle));
+            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), static_cast<jint>(phase),
+                                       status.microphone_muted, status.speaker_muted, status.requires_headset,
+                                       reinterpret_cast<jbyteArray>(reason_handle));
         }
         DeleteLocalReference(environment, session_id_handle);
         DeleteLocalReference(environment, reason_handle);

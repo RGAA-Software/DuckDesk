@@ -20,8 +20,11 @@ namespace px
 
     }
 
-    int VideoDecoder::Init(const std::string& mon_name, int codec_type, int width, int height,
-            const std::string& frame, int img_format, bool ignore_hw) {
+    int VideoDecoder::Init(const std::string& mon_name, VideoType codec_type, int width, int height, const std::string& frame,
+                           EImageFormat img_format, bool ignore_hw) {
+        if ((codec_type != VideoType::kNetH264 && codec_type != VideoType::kNetHevc) ||
+            (img_format != EImageFormat::kI420 && img_format != EImageFormat::kI444))
+            return -1;
         ignore_hw_decoder_ = ignore_hw;
         return 0;
     }
@@ -43,7 +46,7 @@ namespace px
         return false;
     }
 
-    bool VideoDecoder::NeedReConstruct(int codec_type, int width, int height, int img_format) {
+    bool VideoDecoder::NeedReConstruct(VideoType codec_type, int width, int height, EImageFormat img_format) {
         // for Windows.
         return codec_type != this->codec_type_ || width != this->frame_width_ || height != this->frame_height_ || img_format != this->img_format_;
     }

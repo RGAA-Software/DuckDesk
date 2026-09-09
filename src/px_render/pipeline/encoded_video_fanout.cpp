@@ -68,10 +68,10 @@ namespace px
             //LOGI("Encoded frame: {}", frame_index);
         }
 
-        MsgVideoFrameEncoded msg {
+        MsgVideoFrameEncoded msg{
             .frame_width_ = static_cast<uint32_t>(frame_width),
             .frame_height_ = static_cast<uint32_t>(frame_height),
-            .frame_encode_type_ = (uint32_t)event->type_,
+            .frame_encode_type_ = event->type_ == EncodedVideoType::kH264 ? VideoType::kNetH264 : VideoType::kNetHevc,
             .frame_index_ = frame_index,
             .key_frame_ = key,
             .data_ = event->data_,
@@ -122,10 +122,7 @@ namespace px
             });
         }
 
-        auto video_type = [=]() -> px::VideoType {
-            return (Encoder::EncoderFormat)msg.frame_encode_type_ == Encoder::EncoderFormat::kH264 ? px::VideoType::kNetH264
-                                                                                                   : px::VideoType::kNetHevc;
-        }();
+        const auto video_type = msg.frame_encode_type_;
 
         auto img_format = [=]() -> px::EImageFormat {
             if (RawImageType::kI420 == msg.frame_image_format_) {

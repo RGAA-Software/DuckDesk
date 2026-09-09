@@ -1,22 +1,32 @@
+import { MessageType, TextEditability, TextOutcomeCode } from './protocol_enums'
 import type { TextInputModel, TextOutcome, TextSubmission, TextTarget } from './text_input_workflow'
 
 export type ApplicationTextTarget = Omit<TextTarget, 'inputGeneration' | 'maxBytes'>
 export interface ApplicationTextMessage {
-  type: number
+  type: MessageType
   applicationTextCapabilities?: {
     version: number; maxUtf8Bytes: number; finalTextSupported: boolean; stateHintsSupported: boolean
     parentBindingId: string; inputGeneration: string
   }
-  applicationTextState?: { target?: ApplicationTextTarget; editability: number }
+  applicationTextState?: { target?: ApplicationTextTarget; editability: TextEditability }
   applicationTextBarrierResult?: {
-    requestId: string; target?: ApplicationTextTarget; outcome: number; inputGeneration: string; editing: boolean
+    requestId: string; target?: ApplicationTextTarget; outcome: TextOutcomeCode; inputGeneration: string; editing: boolean
   }
-  applicationTextResult?: { requestId: string; target?: ApplicationTextTarget; outcome: number }
+  applicationTextResult?: { requestId: string; target?: ApplicationTextTarget; outcome: TextOutcomeCode }
 }
 
-const outcomes: Readonly<Record<number, TextOutcome>> = {
-  1: 'accepted', 2: 'submitted', 3: 'unsupported', 4: 'permission_denied', 5: 'target_changed',
-  6: 'target_unavailable', 7: 'invalid_text', 8: 'busy', 9: 'failed', 10: 'outcome_unknown',
+const outcomes: Readonly<Record<TextOutcomeCode, TextOutcome>> = {
+  [TextOutcomeCode.Unspecified]: 'outcome_unknown',
+  [TextOutcomeCode.Accepted]: 'accepted',
+  [TextOutcomeCode.Submitted]: 'submitted',
+  [TextOutcomeCode.Unsupported]: 'unsupported',
+  [TextOutcomeCode.PermissionDenied]: 'permission_denied',
+  [TextOutcomeCode.TargetChanged]: 'target_changed',
+  [TextOutcomeCode.TargetUnavailable]: 'target_unavailable',
+  [TextOutcomeCode.Invalid]: 'invalid_text',
+  [TextOutcomeCode.Busy]: 'busy',
+  [TextOutcomeCode.Failed]: 'failed',
+  [TextOutcomeCode.Unknown]: 'outcome_unknown',
 }
 
 export function textRequestId(): string {
@@ -50,7 +60,7 @@ export class ApplicationTextTransport {
   private timer: ReturnType<typeof setTimeout> | null = null
   private hintTimer: ReturnType<typeof setInterval> | null = null
   private alive = true
-  private editability = 0
+  private editability = TextEditability.Unknown
   private closeAfterBegin = false
   private awaitingSubmission = false
   private closeAfterSubmission = false
@@ -61,12 +71,12 @@ export class ApplicationTextTransport {
   start() {
     if (!this.alive || this.started || !this.opts.canSend()) return
     this.started = true
-    this.send({ type: 610, applicationTextCapabilities: { version: 1 } })
+    this.send({ type: MessageType.ApplicationTextCapabilities, applicationTextCapabilities: { version: 1 } })
     // Advisory queries share the existing reliable control channel; no new
     // connection, ticket exchange, media path or unbounded queue is created.
     this.hintTimer = setInterval(() => {
       if (!this.pending && !this.awaitingSubmission && this.opts.canSend()) {
-        this.send({ type: 610, applicationTextCapabilities: { version: 1 } })
+        this.send({ type: MessageType.ApplicationTextCapabilities, applicationTextCapabilities: { version: 1 } })
       }
     }, 750)
     this.armTimeout('远端文字输入能力确认超时，请重新连接。')
@@ -93,7 +103,7 @@ export class ApplicationTextTransport {
   receive(message: ApplicationTextMessage) {
     if (!this.alive || !this.started) return
     const caps = message.applicationTextCapabilities
-    if (message.type === 610 && caps) {
+    if (message.type === MessageType.ApplicationTextCapabilities && caps) {
       if (caps.version !== 1 || !caps.finalTextSupported || caps.maxUtf8Bytes < 1 || caps.maxUtf8Bytes > 16384) {
         this.fail('远端不支持文字输入。'); return
       }
@@ -101,11 +111,12 @@ export class ApplicationTextTransport {
       this.generation = caps.inputGeneration || '0'
     }
     const state = message.applicationTextState
-    if (message.type === 611 && state && this.validTarget(state.target)) {
+    if (message.type === MessageType.ApplicationTextState && state && this.validTarget(state.target)) {
       const changed = this.target && (state.target.targetGeneration !== this.target.targetGeneration
         || state.target.leaseGeneration !== this.target.leaseGeneration)
       this.target = { ...state.target }
-      this.editability = state.editability
+      this.editability = state.editability === TextEditability.Editable ? TextEditability.Editable
+        : state.editability === TextEditability.NotEditable ? TextEditability.NotEditable : TextEditability.Unknown
       if (changed && (this.editing || this.pending)) {
         this.invalidTarget = true
         this.opts.workflow.disconnect()
@@ -114,11 +125,11 @@ export class ApplicationTextTransport {
       }
     }
     const barrier = message.applicationTextBarrierResult
-    if (message.type === 615 && barrier && this.pending?.id === barrier.requestId) {
+    if (message.type === MessageType.ApplicationTextBarrierResult && barrier && this.pending?.id === barrier.requestId) {
       const begin = this.pending.begin
       this.pending = null
       this.clearTimer()
-      if (barrier.outcome !== 2 || barrier.editing !== begin || !this.validTarget(barrier.target)
+      if (barrier.outcome !== TextOutcomeCode.Submitted || barrier.editing !== begin || !this.validTarget(barrier.target)
         || !/^\d+$/.test(barrier.inputGeneration)) {
         this.fail('输入屏障未确认，请重新连接后再操作。'); return
       }
@@ -133,12 +144,12 @@ export class ApplicationTextTransport {
         this.opts.workflow.open()
         this.opts.workflow.setComposing(composing)
       } else this.opts.workflow.close()
-      this.opts.changed(this.ready, this.editability === 1, begin ? '可以使用本机输入法编辑。' : '')
+      this.opts.changed(this.ready, this.editability === TextEditability.Editable, begin ? '可以使用本机输入法编辑。' : '')
       if (begin && this.closeAfterBegin) { this.closeAfterBegin = false; this.endEditing() }
       return
     }
     const result = message.applicationTextResult
-    if (message.type === 613 && result && this.validTarget(result.target)) {
+    if (message.type === MessageType.ApplicationTextResult && result && this.validTarget(result.target)) {
       const outcome = outcomes[result.outcome] ?? 'outcome_unknown'
       if (this.opts.workflow.resolve(result.requestId, result.target.leaseGeneration, outcome) && outcome !== 'accepted') {
         this.clearTimer()
@@ -154,7 +165,7 @@ export class ApplicationTextTransport {
       }
       if (!this.ready) this.clearTimer()
       this.ready = true
-      this.opts.changed(true, this.editability === 1, '')
+      this.opts.changed(true, this.editability === TextEditability.Editable, '')
       this.opts.suspend(this.editing, this.generation)
     }
   }
@@ -172,7 +183,7 @@ export class ApplicationTextTransport {
     this.opts.suspend(true, this.generation)
     const id = textRequestId()
     this.pending = { id, begin }
-    if (!this.send({ type: 614, applicationTextBarrier: {
+    if (!this.send({ type: MessageType.ApplicationTextBarrier, applicationTextBarrier: {
       requestId: id, target: this.target, beginEditing: begin, expectedInputGeneration: this.generation,
     } })) { this.fail('文字通道不可用，请重新连接。'); return false }
     this.armTimeout('输入屏障确认超时；请重新连接，避免旧按键重新生效。')
@@ -180,7 +191,7 @@ export class ApplicationTextTransport {
   }
 
   submit(submission: TextSubmission) {
-    if (!this.editing || this.pending || !this.send({ type: 612, applicationTextSubmit: {
+    if (!this.editing || this.pending || !this.send({ type: MessageType.ApplicationTextSubmit, applicationTextSubmit: {
       requestId: submission.requestId, target: submission.target, text: submission.text,
       inputGeneration: submission.target.inputGeneration,
     } })) { this.fail('提交结果不确定，请先查看远端，不要重复发送。'); return }

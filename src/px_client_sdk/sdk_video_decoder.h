@@ -10,6 +10,8 @@
 #include <mutex>
 #include <cstdint>
 #include <span>
+#include <optional>
+#include "px_message.pb.h"
 #include "px_common/expected.h"
 #include "sdk_messages.h"
 
@@ -25,22 +27,22 @@ namespace px
         explicit VideoDecoder(const std::shared_ptr<ThunderSdk>& sdk);
         virtual ~VideoDecoder();
 
-        virtual int Init(const std::string& mon_name, int codec_type, int width, int height,
-            const std::string& frame, int img_format, bool ignore_hw);
+        virtual int Init(const std::string& mon_name, VideoType codec_type, int width, int height, const std::string& frame, EImageFormat img_format,
+                         bool ignore_hw);
         virtual Result<std::shared_ptr<RawImage>, int> Decode(const std::shared_ptr<Data>& frame);
         virtual Result<std::shared_ptr<RawImage>, int> Decode(const std::string& frame);
         virtual Result<std::shared_ptr<RawImage>, int> Decode(std::span<const std::uint8_t> encoded) = 0;
         virtual void Release();
         virtual bool RefreshOutput();
-        virtual bool NeedReConstruct(int codec_type, int width, int height, int img_format);
+        virtual bool NeedReConstruct(VideoType codec_type, int width, int height, EImageFormat img_format);
         virtual bool Ready() = 0;
         void SendInitMsg(SdkMsgVideoDecodeInit msg);
     protected:
         bool inited_ = false;
-        int codec_type_ = -1;
+        std::optional<VideoType> codec_type_{};
         int frame_width_ = 0;
         int frame_height_ = 0;
-        int img_format_ = -1;
+        std::optional<EImageFormat> img_format_{};
 
         bool stop_ = false;
         std::mutex decode_mtx_;

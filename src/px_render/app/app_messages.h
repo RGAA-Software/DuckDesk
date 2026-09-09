@@ -6,6 +6,7 @@
 #define TC_APPLICATION_APP_MESSAGES_H
 
 #include <memory>
+#include "px_message.pb.h"
 
 #include "px_steam_manager/steam_entities.h"
 #include "px_controller/vigem/vigem_defs.h"
@@ -39,7 +40,7 @@ namespace px
     public:
         uint32_t frame_width_ = 0;
         uint32_t frame_height_ = 0;
-        uint32_t frame_encode_type_ = 0;
+        VideoType frame_encode_type_{VideoType::kNetH264};
         uint64_t frame_index_ = 0;
         bool key_frame_ = false;
         std::shared_ptr<Data> data_ = nullptr;
@@ -164,7 +165,7 @@ namespace px
         bool enable_video_ = false;
         bool enable_controller = false;
         // see: ClientType in px_messages.proto
-        int client_type_ = 100; // 100 is Unknown
+        ClientType client_type_{ClientType::kUnknown};
         std::string device_name_;
     };
 

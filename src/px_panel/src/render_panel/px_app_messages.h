@@ -4,6 +4,9 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <optional>
+#include "px_client_panel_message.pb.h"
+#include "px_qt_widget/translator/px_translator.h"
 #include <QVariantMap>
 #include "notify/notify_defs.h"
 #include "px_console_client/console_stream.h"
@@ -170,7 +173,7 @@ namespace px
     public:
         std::string stream_id_;
         //pxcp::CpSessionType
-        int sess_type_{-1};
+        std::optional<pxcp::CpSessionType> sess_type_{};
     };
 
     // The client process has completed its remote transport handshake. This
@@ -184,7 +187,7 @@ namespace px
     class MsgClientTransportRejectedPanel {
     public:
         std::string stream_id_;
-        int reason_ = 0;
+        pxcp::CpTransportRejection reason_{pxcp::kCpRejectionUnspecified};
     };
 
     class MsgRtcIceConfigUpdated {
@@ -201,7 +204,7 @@ namespace px
     class MsgLanguageChanged {
     public:
         // LanguageKind
-        int language_kind_ = 3;
+      LanguageKind language_kind_{LanguageKind::kEnglish};
     };
 
     // security password updated

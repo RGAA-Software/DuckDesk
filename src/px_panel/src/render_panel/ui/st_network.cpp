@@ -494,11 +494,10 @@ StNetwork::StNetwork(const std::shared_ptr<PxApplication>& app,
             segment_layout->addSpacing(5);
             segment_layout->addLayout(layout);
             edit->setChecked(network_settings_.get().udp_kcp_enabled_ == kStTrue);
-            connect(edit, &QCheckBox::stateChanged, this, [self](int state) {
+            connect(edit, &QCheckBox::toggled, this, [self](bool enabled) {
                 if (!self) {
                     return;
                 }
-                const bool enabled = state == 2;
                 self->network_settings_.get().SetUdpKcpEnabled(enabled);
                 if (self->edt_udp_kcp_) {
                     self->edt_udp_kcp_->setEnabled(enabled);
@@ -541,9 +540,9 @@ StNetwork::StNetwork(const std::shared_ptr<PxApplication>& app,
             segment_layout->addSpacing(5);
             segment_layout->addLayout(layout);
             edit->setChecked(network_settings_.get().webrtc_enabled_ == kStTrue);
-            connect(edit, &QCheckBox::stateChanged, this, [self](int state) {
+            connect(edit, &QCheckBox::toggled, this, [self](bool enabled) {
                 if (self) {
-                    self->network_settings_.get().SetWebRTCEnabled(state == 2);
+                    self->network_settings_.get().SetWebRTCEnabled(enabled);
                 }
             });
         }

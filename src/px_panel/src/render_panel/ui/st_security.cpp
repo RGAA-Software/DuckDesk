@@ -161,9 +161,7 @@ namespace px
                 const auto context = context_;
                 const auto settings = security_settings_;
                 QPointer<QCheckBox> edit_guard(edit);
-                connect(edit, &QCheckBox::stateChanged, this,
-                        [context, edit_guard, settings](int state) {
-                    const bool enabled = state == 2;
+                connect(edit, &QCheckBox::toggled, this, [context, edit_guard, settings](bool enabled) {
                     if (!enabled) {
                         context->PostUIDelayTask(
                             MakeQtLifetimeAction(edit_guard,
@@ -197,9 +195,7 @@ namespace px
                 const auto context = context_;
                 const auto settings = security_settings_;
                 QPointer<QCheckBox> edit_guard(edit);
-                connect(edit, &QCheckBox::stateChanged, this,
-                        [context, edit_guard, settings](int state) {
-                    const bool enabled = state == 2;
+                connect(edit, &QCheckBox::toggled, this, [context, edit_guard, settings](bool enabled) {
                     if (!enabled) {
                         context->PostUIDelayTask(
                             MakeQtLifetimeAction(edit_guard,
@@ -233,9 +229,7 @@ namespace px
                 const auto context = context_;
                 const auto settings = security_settings_;
                 QPointer<QCheckBox> edit_guard(edit);
-                connect(edit, &QCheckBox::stateChanged, this,
-                        [context, edit_guard, settings](int state) {
-                    const bool enabled = state == 2;
+                connect(edit, &QCheckBox::toggled, this, [context, edit_guard, settings](bool enabled) {
                     if (!enabled) {
                         context->PostUIDelayTask(
                             MakeQtLifetimeAction(edit_guard,

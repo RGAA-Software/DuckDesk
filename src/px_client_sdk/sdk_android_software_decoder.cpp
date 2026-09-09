@@ -173,9 +173,10 @@ AndroidSoftwareVideoDecoder::~AndroidSoftwareVideoDecoder() {
     Release();
 }
 
-int AndroidSoftwareVideoDecoder::Init(const std::string& monitor_name, const int codec_type, const int width, const int height,
-                                      const std::string&,
-                                      const int image_format, const bool ignore_hardware) {
+int AndroidSoftwareVideoDecoder::Init(const std::string& monitor_name, const VideoType codec_type, const int width, const int height,
+                                      const std::string& frame, const EImageFormat image_format, const bool ignore_hardware) {
+    if (VideoDecoder::Init(monitor_name, codec_type, width, height, frame, image_format, ignore_hardware) != 0)
+        return -1;
     const auto window = output_ ? output_->Snapshot() : std::shared_ptr<ANativeWindow>{};
     if (inited_ || width <= 0 || height <= 0 || !window) return -1;
     const auto codec_id = codec_type == VideoType::kNetH264 ? AV_CODEC_ID_H264

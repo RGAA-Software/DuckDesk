@@ -15,8 +15,8 @@ public:
     AndroidSoftwareVideoDecoder(const std::shared_ptr<ThunderSdk>& sdk, std::shared_ptr<AndroidVideoOutput> output);
     ~AndroidSoftwareVideoDecoder() override;
 
-    int Init(const std::string& monitor_name, int codec_type, int width, int height, const std::string& frame,
-             int image_format, bool ignore_hardware) override;
+    int Init(const std::string& monitor_name, VideoType codec_type, int width, int height, const std::string& frame, EImageFormat image_format,
+             bool ignore_hardware) override;
     Result<std::shared_ptr<RawImage>, int> Decode(std::span<const std::uint8_t> encoded) override;
     void Release() override;
     bool RefreshOutput() override;

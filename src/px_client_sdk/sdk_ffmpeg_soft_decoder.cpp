@@ -31,9 +31,10 @@ namespace px
         Release();
     }
 
-    int FFmpegVideoDecoder::Init(const std::string& mon_name, int codec_type, int width, int height,
-            const std::string& frame, int img_format, bool ignore_hw) {
-        VideoDecoder::Init(mon_name, codec_type, width, height, frame, img_format, ignore_hw);
+    int FFmpegVideoDecoder::Init(const std::string& mon_name, VideoType codec_type, int width, int height, const std::string& frame,
+                                 EImageFormat img_format, bool ignore_hw) {
+        if (VideoDecoder::Init(mon_name, codec_type, width, height, frame, img_format, ignore_hw) != 0)
+            return AVERROR(EINVAL);
         if (inited_) {
             return 0;
         }

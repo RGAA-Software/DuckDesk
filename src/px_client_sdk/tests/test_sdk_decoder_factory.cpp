@@ -155,7 +155,9 @@ TEST(SdkDecoderFactory, RealDecoderCleanupIsSafeBeforeInitAndAfterUnsupportedCod
                                                               std::make_shared<FFmpegVideoDecoder>(harness.sdk)};
     for (const auto& decoder : decoders) {
         decoder->Release();
-        EXPECT_NE(decoder->Init("failure-test", -1, 16, 16, {}, 0, true), 0);
+        EXPECT_NE(decoder->Init("failure-test", static_cast<VideoType>(-1), 16, 16, {}, EImageFormat::kI420, true), 0);
+        EXPECT_NE(decoder->Init("unsupported-codec", VideoType::kNetVp9, 16, 16, {}, EImageFormat::kI420, true), 0);
+        EXPECT_NE(decoder->Init("invalid-format", VideoType::kNetH264, 16, 16, {}, static_cast<EImageFormat>(99), true), 0);
         decoder->Release();
         decoder->Release();
         EXPECT_FALSE(decoder->Ready());

@@ -47,18 +47,19 @@ namespace px
 
     MediacodecVideoDecoder::~MediacodecVideoDecoder() { Release(); }
 
-    int MediacodecVideoDecoder::Init(const std::string& mon_name, int codec_type, int width, int height,
-            const std::string& frame, int img_format, bool ignore_hw) {
+    int MediacodecVideoDecoder::Init(const std::string& mon_name, VideoType codec_type, int width, int height, const std::string& frame,
+                                     EImageFormat img_format, bool ignore_hw) {
         std::lock_guard<std::mutex> guard(decode_mtx_);
+        if (VideoDecoder::Init(mon_name, codec_type, width, height, frame, img_format, ignore_hw) != 0)
+            return -1;
         if (!output_ || inited_ || width <= 0 || height <= 0) return -1;
         window_ = output_->Snapshot();
         if (!window_) return -1;
         monitor_name_ = mon_name;
         auto decoder_name = [&]() -> std::string {
-            if (codec_type == 1) {
+            if (codec_type == VideoType::kNetHevc) {
                 return "video/hevc";
-            }
-            else {
+            } else {
                 return "video/avc";
             }
         }();
@@ -67,7 +68,7 @@ namespace px
         std::string csd0;
         std::string csd1;
         if (use_oes_) {
-            if(codec_type == 0) {
+            if (codec_type == VideoType::kNetH264) {
                 auto parameter_sets = StreamHelper::ExtractH264ParameterSets(frame);
                 csd0 = std::move(parameter_sets.sps);
                 csd1 = std::move(parameter_sets.pps);
@@ -75,9 +76,7 @@ namespace px
                     LOGW("H.264 access unit has no complete SPS/PPS; initialize for in-band codec configuration");
                 }
                 sdk_stat_->video_format_ = "H264";
-            }
-            else
-            {
+            } else {
                 csd0 = StreamHelper::ExtractH265ParameterSets(frame);
                 if (csd0.empty()) {
                     LOGW("H.265 access unit has no VPS/SPS/PPS; initialize for in-band codec configuration");
@@ -133,6 +132,7 @@ namespace px
         }
 
         this->codec_type_ = codec_type;
+        img_format_ = img_format;
         this->frame_width_ = width;
         this->frame_height_ = height;
         sdk_stat_->video_decoder_.Update("MediaCodec hardware");
@@ -218,10 +218,9 @@ namespace px
         return inited_;
     }
 
-    bool MediacodecVideoDecoder::NeedReConstruct(int codec_type, int width, int height, int img_format) {
-        return codec_type != this->codec_type_ || width != this->frame_width_ || height != this->frame_height_;
+    bool MediacodecVideoDecoder::NeedReConstruct(VideoType codec_type, int width, int height, EImageFormat img_format) {
+        return VideoDecoder::NeedReConstruct(codec_type, width, height, img_format);
     }
-
 }
 
 #endif

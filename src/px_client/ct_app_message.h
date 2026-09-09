@@ -37,9 +37,9 @@ namespace px
     // Clipboard
     class MsgClientClipboard : public MsgClientBase {
     public:
-        int type_;
-        std::string msg_;
-        std::vector<ClipboardFile> files_;
+      ClipboardType type_{ClipboardType::kClipboardText};
+      std::string msg_;
+      std::vector<ClipboardFile> files_;
     };
 
     // Mouse pressed

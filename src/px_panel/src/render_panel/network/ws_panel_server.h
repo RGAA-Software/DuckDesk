@@ -10,6 +10,8 @@
 #endif
 
 #include <memory>
+#include <optional>
+#include "px_client_panel_message.pb.h"
 #include <atomic>
 #include <mutex>
 #include <unordered_map>
@@ -37,7 +39,7 @@ namespace px
     class WSSession {
     public:
         uint64_t socket_fd_ = 0;
-        int session_type_ = -1;
+        std::optional<pxcp::CpSessionType> session_type_{};
         std::shared_ptr<asio2::http_session> session_ = nullptr;
         std::string stream_id_;
         bool audit_registered_ = false;

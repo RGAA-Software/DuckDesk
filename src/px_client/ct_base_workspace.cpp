@@ -1213,26 +1213,28 @@ namespace px
         if (!sdk_ || remote_force_closed_) {
             return;
         }
-        px::Message m;
-        m.set_type(px::kClipboardInfo);
-        m.set_device_id(settings_->device_id_);
-        m.set_stream_id(settings_->stream_id_);
-        auto sub = m.mutable_clipboard_info();
-        sub->set_type((ClipboardType)msg.type_);
+        if (msg.type_ != ClipboardType::kClipboardText && msg.type_ != ClipboardType::kClipboardFiles)
+            return;
+        const auto m = std::make_shared<px::Message>();
+        m->set_type(px::kClipboardInfo);
+        m->set_device_id(settings_->device_id_);
+        m->set_stream_id(settings_->stream_id_);
+        auto& sub = *m->mutable_clipboard_info();
+        sub.set_type(msg.type_);
         if (msg.type_ == ClipboardType::kClipboardText) {
-            sub->set_msg(msg.msg_);
+            sub.set_msg(msg.msg_);
         }
         else if (msg.type_ == ClipboardType::kClipboardFiles) {
             for (const auto& file : msg.files_) {
-                auto pf = sub->mutable_files()->Add();
-                pf->set_file_name(file.file_name());
-                pf->set_full_path(file.full_path());
-                pf->set_ref_path(file.ref_path());
-                pf->set_total_size(file.total_size());
+                auto& pf = *sub.add_files();
+                pf.set_file_name(file.file_name());
+                pf.set_full_path(file.full_path());
+                pf.set_ref_path(file.ref_path());
+                pf.set_total_size(file.total_size());
                 LOGI("SendClipboardMessage, file: {}", file.file_name());
             }
         }
-        if (auto buffer = px::ProtoAsData(&m); buffer) {
+        if (auto buffer = px::ProtoAsData(m); buffer) {
             sdk_->PostMediaMessage(buffer);
         }
     }

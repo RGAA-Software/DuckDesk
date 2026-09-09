@@ -54,9 +54,10 @@ namespace px
     // img_format:
     // kI420 = 0,
     // kI444 = 1,
-    int FFmpegVulkanDecoder::Init(const std::string& mon_name, int codec_type, int width, int height,
-            const std::string& frame, int img_format, bool ignore_hw) {
-        VideoDecoder::Init(mon_name, codec_type, width, height, frame, img_format, ignore_hw);
+    int FFmpegVulkanDecoder::Init(const std::string& mon_name, VideoType codec_type, int width, int height, const std::string& frame,
+                                  EImageFormat img_format, bool ignore_hw) {
+        if (VideoDecoder::Init(mon_name, codec_type, width, height, frame, img_format, ignore_hw) != 0)
+            return AVERROR(EINVAL);
         if (inited_) {
             return 0;
         }
@@ -120,6 +121,9 @@ namespace px
     }
 
     bool FFmpegVulkanDecoder::InitCodecContext(AVCodecID codec_id) {
+        if (!img_format_)
+            return false;
+        const auto img_format = *img_format_;
         decoder_ = const_cast<AVCodec*>(avcodec_find_decoder(codec_id));
         if (!decoder_) {
             LOGI("can not find decoder for codec_id: {}", (int)codec_id);
@@ -155,8 +159,8 @@ namespace px
         SdkMsgVideoDecodeInit init_msg;
         init_msg.width_ = frame_width_;
         init_msg.height_ = frame_height_;
-        init_msg.format_ = (EImageFormat)img_format_;
-      
+        init_msg.format_ = img_format;
+
         if (!ignore_hw_decoder_ && (resources_->decoder_preference == "Auto" || resources_->decoder_preference == "Hardware")) {
             if (!resources_->vulkan_device) return false;
             pix_format_ = decoder_context_->pix_fmt = AV_PIX_FMT_VULKAN;// 表示 解码输出的像素格式
@@ -174,10 +178,10 @@ namespace px
             }
         }
         else {  //软解码
-            auto fnGetPreferredPixelFormat = [](int format) -> AVPixelFormat {
+            auto fnGetPreferredPixelFormat = [](EImageFormat format) -> AVPixelFormat {
                 return format == EImageFormat::kI420 ? AV_PIX_FMT_YUV420P : AV_PIX_FMT_YUV444P;
             };
-            pix_format_ = decoder_context_->pix_fmt = fnGetPreferredPixelFormat(img_format_);
+            pix_format_ = decoder_context_->pix_fmt = fnGetPreferredPixelFormat(img_format);
             decoder_context_->get_format = img_format_ == EImageFormat::kI420 ? YUV420FFGetFormat : YUV444FFGetFormat;;
             decoder_context_->thread_type = FF_THREAD_SLICE;
             decoder_context_->thread_count = std::min(8, (int)std::thread::hardware_concurrency());
@@ -264,7 +268,7 @@ namespace px
             const auto image_format = img_format_;
             const auto decode_duration = end - beg;
             sdk_->PostMiscTask([sdk_stat, monitor_name, image_format, decode_duration]() {
-                sdk_stat->video_color_.Update(image_format ? "4:4:4" : "4:2:0" );
+                sdk_stat->video_color_.Update(image_format == EImageFormat::kI444 ? "4:4:4" : "4:2:0");
                 sdk_stat->AppendDecodeDuration(monitor_name, decode_duration);
             });
             decoded_image = MakeVulkanImage(*av_frame_, resources_->vulkan_device);

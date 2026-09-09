@@ -21,6 +21,7 @@
 #include <QLineEdit>
 #include <QComboBox>
 #include <QCheckBox>
+#include <QPointer>
 #include <QDebug>
 #include <QFileDialog>
 #include <qstandardpaths.h>
@@ -34,6 +35,7 @@
 namespace px {
 
 StGeneral::StGeneral(const std::shared_ptr<PxApplication>& app, QWidget* parent) : TabBase(app, parent) {
+    const QPointer<StGeneral> self(this); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns this widget.
     auto root_layout = new NoMarginHLayout();
     auto column1_layout = new NoMarginVLayout();
     root_layout->addLayout(column1_layout);
@@ -206,14 +208,11 @@ StGeneral::StGeneral(const std::shared_ptr<PxApplication>& app, QWidget* parent)
             });
         }
         // Resize resolution
-        auto func_set_res_edit_enabled = [=, this](bool enabled) {
-            if (enabled) {
-                et_res_width_->setEnabled(true);
-                et_res_height_->setEnabled(true);
-            } else {
-                et_res_width_->setEnabled(false);
-                et_res_height_->setEnabled(false);
-            }
+        const auto func_set_res_edit_enabled = [self](bool enabled) {
+            if (!self)
+                return;
+            self->et_res_width_->setEnabled(enabled);
+            self->et_res_height_->setEnabled(enabled);
         };
         {
             auto layout = new NoMarginHLayout();
@@ -231,10 +230,11 @@ StGeneral::StGeneral(const std::shared_ptr<PxApplication>& app, QWidget* parent)
             segment_layout->addSpacing(5);
             segment_layout->addLayout(layout);
             edit->setChecked(settings_->IsResResizeEnabled());
-            connect(edit, &QCheckBox::stateChanged, this, [=, this](int state) {
-                bool enabled = state == 2;
+            connect(edit, &QCheckBox::toggled, this, [self, func_set_res_edit_enabled](bool enabled) {
+                if (!self)
+                    return;
                 func_set_res_edit_enabled(enabled);
-                settings_->SetEnableResResize(enabled);
+                self->settings_->SetEnableResResize(enabled);
             });
         }
         {
@@ -306,9 +306,10 @@ StGeneral::StGeneral(const std::shared_ptr<PxApplication>& app, QWidget* parent)
             segment_layout->addLayout(layout);
 
             edit->setChecked(settings_->capture_video_ == kStTrue);
-            connect(edit, &QCheckBox::stateChanged, this, [=, this](int state) {
-                bool enabled = state == 2;
-                settings_->SetCaptureVideo(enabled);
+            connect(edit, &QCheckBox::toggled, this, [self](bool enabled) {
+                if (!self)
+                    return;
+                self->settings_->SetCaptureVideo(enabled);
                 // cb_capture_monitor_->setEnabled(enabled);
             });
         }
@@ -373,9 +374,10 @@ StGeneral::StGeneral(const std::shared_ptr<PxApplication>& app, QWidget* parent)
             segment_layout->addSpacing(5);
             segment_layout->addLayout(layout);
             edit->setChecked(settings_->IsCaptureAudioEnabled());
-            connect(edit, &QCheckBox::stateChanged, this, [=, this](int state) {
-                bool enabled = state == 2;
-                settings_->SetCaptureAudio(enabled);
+            connect(edit, &QCheckBox::toggled, this, [self](bool enabled) {
+                if (!self)
+                    return;
+                self->settings_->SetCaptureAudio(enabled);
             });
         }
         // Audio capture always follows the OS default playback device (no panel picker).

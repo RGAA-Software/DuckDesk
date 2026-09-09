@@ -2,6 +2,7 @@
 // px_message.proto import 了 px_signaling_message.proto;两者同 package px,
 // 先解析被依赖的文件、并剥掉 import 语句,即可在同一 Root 内完成解析。
 import protobuf from 'protobufjs'
+import { MessageType } from './protocol_enums'
 import pxSignalingProto from '../../proto/px_signaling_message.proto?raw'
 import pxFileTransferProto from '../../proto/px_file_transfer.proto?raw'
 import pxMessageProto from '../../proto/px_message.proto?raw'
@@ -18,37 +19,37 @@ export const RelayMessage = root.lookupType('px_relay.RelayMessage')
 export const RelayMessageType = root.lookupEnum('px_relay.RelayMessageType')
 
 // MessageType 枚举值(px_message.proto)
-export const MSG_TYPE_HELLO = 0 // kHello
-export const MSG_TYPE_SERVER_CONFIGURATION = 2 // kServerConfiguration
-export const MSG_TYPE_KEY_EVENT = 50 // kKeyEvent
-export const MSG_TYPE_MOUSE_EVENT = 60 // kMouseEvent
-export const MSG_TYPE_TEXT_INPUT = 580 // kTextInput (UTF-8 layout/IME commit)
-export const MSG_TYPE_APPLICATION_TEXT_CAPABILITIES = 610
-export const MSG_TYPE_APPLICATION_TEXT_STATE = 611
-export const MSG_TYPE_APPLICATION_TEXT_SUBMIT = 612
-export const MSG_TYPE_APPLICATION_TEXT_RESULT = 613
-export const MSG_TYPE_APPLICATION_TEXT_BARRIER = 614
-export const MSG_TYPE_APPLICATION_TEXT_BARRIER_RESULT = 615
-export const MSG_TYPE_CLIPBOARD_INFO = 160 // kClipboardInfo
-export const MSG_TYPE_CLIPBOARD_INFO_RESP = 161 // kClipboardInfoResp
-export const MSG_TYPE_MONITOR_SWITCHED = 180 // kMonitorSwitched
-export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION = 200 // kChangeMonitorResolution
-export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT = 210 // kChangeMonitorResolutionResult
-export const MSG_TYPE_FILE_ACTION = 270 // kFileAction (client -> render,rustdesk 语义)
-export const MSG_TYPE_FILE_RESPONSE = 280 // kFileResponse (render -> client,rustdesk 语义)
-export const MSG_TYPE_SWITCH_FULL_COLOR_MODE = 460 // kSwitchFullColorMode
-export const MSG_TYPE_CONNECTION_TAKEN_OVER = 550 // kConnectionTakenOver (render -> client)
-export const MSG_TYPE_VIDEO_CODEC_CHANGED = 530 // kVideoCodecChanged (render -> client)
-export const MSG_TYPE_GAME_STATUS_CHANGED = 540 // kGameStatusChanged (render -> client)
-export const MSG_TYPE_INSTANCE_STOPPED = 560 // kInstanceStopped (render -> client)
-export const MSG_TYPE_VIRTUAL_DISPLAY_REQUEST = 570 // kVirtualDisplayRequest (client -> render)
-export const MSG_TYPE_VIRTUAL_DISPLAY_RESPONSE = 571 // kVirtualDisplayResponse (render -> client)
-export const MSG_TYPE_VOICE_CALL_REQUEST = 590
-export const MSG_TYPE_VOICE_CALL_RESPONSE = 591
-export const MSG_TYPE_VOICE_AUDIO_CONFIG = 592
-export const MSG_TYPE_SIG_OFFER_SDP = 370
-export const MSG_TYPE_SIG_ANSWER_SDP = 380
-export const MSG_TYPE_SIG_ICE = 390
+export const MSG_TYPE_HELLO = MessageType.Hello // kHello
+export const MSG_TYPE_SERVER_CONFIGURATION = MessageType.ServerConfiguration // kServerConfiguration
+export const MSG_TYPE_KEY_EVENT = MessageType.KeyEvent // kKeyEvent
+export const MSG_TYPE_MOUSE_EVENT = MessageType.MouseEvent // kMouseEvent
+export const MSG_TYPE_TEXT_INPUT = MessageType.TextInput // kTextInput (UTF-8 layout/IME commit)
+export const MSG_TYPE_APPLICATION_TEXT_CAPABILITIES = MessageType.ApplicationTextCapabilities
+export const MSG_TYPE_APPLICATION_TEXT_STATE = MessageType.ApplicationTextState
+export const MSG_TYPE_APPLICATION_TEXT_SUBMIT = MessageType.ApplicationTextSubmit
+export const MSG_TYPE_APPLICATION_TEXT_RESULT = MessageType.ApplicationTextResult
+export const MSG_TYPE_APPLICATION_TEXT_BARRIER = MessageType.ApplicationTextBarrier
+export const MSG_TYPE_APPLICATION_TEXT_BARRIER_RESULT = MessageType.ApplicationTextBarrierResult
+export const MSG_TYPE_CLIPBOARD_INFO = MessageType.ClipboardInfo // kClipboardInfo
+export const MSG_TYPE_CLIPBOARD_INFO_RESP = MessageType.ClipboardInfoResp // kClipboardInfoResp
+export const MSG_TYPE_MONITOR_SWITCHED = MessageType.MonitorSwitched // kMonitorSwitched
+export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION = MessageType.ChangeMonitorResolution // kChangeMonitorResolution
+export const MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT = MessageType.ChangeMonitorResolutionResult // kChangeMonitorResolutionResult
+export const MSG_TYPE_FILE_ACTION = MessageType.FileAction // kFileAction (client -> render,rustdesk 语义)
+export const MSG_TYPE_FILE_RESPONSE = MessageType.FileResponse // kFileResponse (render -> client,rustdesk 语义)
+export const MSG_TYPE_SWITCH_FULL_COLOR_MODE = MessageType.SwitchFullColorMode // kSwitchFullColorMode
+export const MSG_TYPE_CONNECTION_TAKEN_OVER = MessageType.ConnectionTakenOver // kConnectionTakenOver (render -> client)
+export const MSG_TYPE_VIDEO_CODEC_CHANGED = MessageType.VideoCodecChanged // kVideoCodecChanged (render -> client)
+export const MSG_TYPE_GAME_STATUS_CHANGED = MessageType.GameStatusChanged // kGameStatusChanged (render -> client)
+export const MSG_TYPE_INSTANCE_STOPPED = MessageType.InstanceStopped // kInstanceStopped (render -> client)
+export const MSG_TYPE_VIRTUAL_DISPLAY_REQUEST = MessageType.VirtualDisplayRequest // kVirtualDisplayRequest (client -> render)
+export const MSG_TYPE_VIRTUAL_DISPLAY_RESPONSE = MessageType.VirtualDisplayResponse // kVirtualDisplayResponse (render -> client)
+export const MSG_TYPE_VOICE_CALL_REQUEST = MessageType.VoiceCallRequest
+export const MSG_TYPE_VOICE_CALL_RESPONSE = MessageType.VoiceCallResponse
+export const MSG_TYPE_VOICE_AUDIO_CONFIG = MessageType.VoiceAudioConfig
+export const MSG_TYPE_SIG_OFFER_SDP = MessageType.SigOfferSdp
+export const MSG_TYPE_SIG_ANSWER_SDP = MessageType.SigAnswerSdp
+export const MSG_TYPE_SIG_ICE = MessageType.SigIce
 
 // ClipboardType(px_message.proto)
 export const CLIPBOARD_TYPE_TEXT = 0 // kClipboardText

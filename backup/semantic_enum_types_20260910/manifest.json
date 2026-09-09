@@ -1,0 +1,156 @@
+{
+  "revision": "ceecb52dc7da04f8784a3edb034f9d990b80439e",
+  "reason": "Preserve pre-change implementations before replacing message, codec, session, UI and application-text magic numbers with semantic enums; wire values remain unchanged.",
+  "files": [
+    {
+      "path": "src/px_android/core-native/src/main/cpp/native_session.cpp",
+      "sha256": "63E877C03A095771F54CFC210BC86D2167636B7F704EAFFA8FBF6CF7D42DCB52",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_app_message.h",
+      "sha256": "537730F3B887B638C5DDFA4F607547A2AA4F0C73B2490522FBE4E6BE4260CD9A",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/ct_base_workspace.cpp",
+      "sha256": "EDDB91EA6CE1CDFF2CCBEF3E34334869B14E74E32D1FBEDBDF0AF4C6403BECAC",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_android_software_decoder.cpp",
+      "sha256": "A36578CC26F2271E28AA4D665FA16E38BA00D548E7C320961CEBCB8FEF2936C7",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_android_software_decoder.h",
+      "sha256": "B5A716127B6C922F1088CF78C16E20B482A1586C64DA407DC814D7714913554F",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_decoder.cpp",
+      "sha256": "AEE6C235FDC2001ABC8192BC32CBECC6CCE600AD6058BA7C3A2E2FEE0E3FE6EC",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_decoder.h",
+      "sha256": "CA8A3D33FC85E1F3250019A90D8208FD808872D817F55A200508BB7262E056B1",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_soft_decoder.cpp",
+      "sha256": "85CE11FD476E31BC5DD1A38703438ACFDC08973712F6D3560232AB718CB1FA1F",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_soft_decoder.h",
+      "sha256": "FE952A0E38338AD74911F8DC3C1DF3B2DC820069B0D1CDA1869845F64CB45C62",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_vulkan_decoder.cpp",
+      "sha256": "9F58F8B2E60AFD8D2EA73F916108AC026F42F645E3D76B00E85E6F6821971799",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_ffmpeg_vulkan_decoder.h",
+      "sha256": "EA670DB72AA965316EC39DDA02F2CEB35FDC55B142ECB46E90F0EB2AE7AC10E0",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_mediacodec_video_decoder.cpp",
+      "sha256": "C204088380DAE8A4767680FDE29C46AB37007F1BB8D5643EF55A151483694B22",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_mediacodec_video_decoder.h",
+      "sha256": "8E22A955AF9F360A478CC5E425A253632719E58CD7A7EE4C978749842B9F9CC5",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_video_decoder.cpp",
+      "sha256": "EC7A23EA0FF53B23AD37D1625B3F02A6BB635074CE79E71C7F51D3C29BB38204",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_video_decoder.h",
+      "sha256": "6C54AB95838724572D41F7529DCE70ACD55A614FC1E604785BF42F49A75CA6A4",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_video_decoder_factory.cpp",
+      "sha256": "B72F8A7A17C7CFC3AE572E5D969D4DA50B778167830935CE32E58204E6DC7B33",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/sdk_video_decoder_factory.h",
+      "sha256": "7D9F30C71D3EA65B4AAB990C50F33D83ED4ABB7F76E39289493DC4B5F2A25970",
+      "status": ""
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_sdk_decoder_factory.cpp",
+      "sha256": "3D852A1148603472507E9AF2A233282F54985FE7E0AF29F0E7CFD61F9ADA2F8B",
+      "status": ""
+    },
+    {
+      "path": "src/px_panel/src/render_panel/network/ws_panel_server.cpp",
+      "sha256": "D3E1EBC6EFE61473B615E7AD4AB8CC3912459DE820E2298F5268E93C3FA1C3B2",
+      "status": ""
+    },
+    {
+      "path": "src/px_panel/src/render_panel/network/ws_panel_server.h",
+      "sha256": "3BE387ABF0E5E2A31F5061A2CBAC91F74B5586FFED8C2CA9990ADD8DD3F04954",
+      "status": ""
+    },
+    {
+      "path": "src/px_panel/src/render_panel/px_app_messages.h",
+      "sha256": "81A294CF8566485FD01217EACCA6E705DC38F06943E944DF74B55F396EC6962A",
+      "status": ""
+    },
+    {
+      "path": "src/px_panel/src/render_panel/ui/st_general.cpp",
+      "sha256": "9BD54E18BFC48AA21B584B445AAADC4A4D0245F62E8CA10C0336902E119EF68D",
+      "status": ""
+    },
+    {
+      "path": "src/px_panel/src/render_panel/ui/st_network.cpp",
+      "sha256": "BF867C4F0323A2E111FCB5D1FF814C0204FB3AE4094259AED92FA23A26290134",
+      "status": ""
+    },
+    {
+      "path": "src/px_panel/src/render_panel/ui/st_security.cpp",
+      "sha256": "1B1646CD3EEB189F7166872A1E19E73FCB742C186AE9F2F374B5E18E58B8B803",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/app/app_messages.h",
+      "sha256": "8E2813689B73C02B9C93BBD46DFF387A1EC431F773E4C91635A0FC9665B0620E",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/pipeline/encoded_video_fanout.cpp",
+      "sha256": "9D9E6ACA534D2F2B48C43584F188D619E94DB515B9E7B27252B35F7FEDF768AF",
+      "status": ""
+    },
+    {
+      "path": "web/px_web_client/src/App.vue",
+      "sha256": "6366D49CD2360B2D994249B3EFAA4B77E2587CFB5C0C63588B748A3A281199B9",
+      "status": ""
+    },
+    {
+      "path": "web/px_web_client/src/rtc/application_text.ts",
+      "sha256": "E7276DD4C59022F717526D2992CA67B069B6027B86C85C1880D2A5BF98A51E30",
+      "status": ""
+    },
+    {
+      "path": "web/px_web_client/src/rtc/proto.ts",
+      "sha256": "8483D496845F0818BF2D6FA2C634D4089F1AA31A99CD57B524E0C9BF63A9F480",
+      "status": ""
+    },
+    {
+      "path": "web/px_web_client/test/application_text.test.ts",
+      "sha256": "7CAA0CAF3F542912A7C75547D4585445DC7EF842024DD2CC342DAEE50096C000",
+      "status": ""
+    }
+  ]
+}

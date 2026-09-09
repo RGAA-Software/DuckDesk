@@ -532,6 +532,8 @@ bool WsPanelServer::ParsePanelMessage(uint64_t socket_fd, std::string_view msg) 
         return false;
     }
     if (proto_msg->type() == pxcp::CpMessageType::kCpHello) {
+        if (!proto_msg->has_hello() || !pxcp::CpSessionType_IsValid(proto_msg->hello().type()))
+            return false;
         auto hello = proto_msg->hello();
         const auto weak_self = weak_from_this();
         panel_sessions_.VisitAll([weak_self, socket_fd, hello, proto_msg](uint64_t, std::shared_ptr<WSSession>& v) {
@@ -544,7 +546,7 @@ bool WsPanelServer::ParsePanelMessage(uint64_t socket_fd, std::string_view msg) 
                         self->PanelSocketOpened(v->stream_id_);
                     }
                 }
-                LOGI("Update session type: {} for socket: {}", v->session_type_, socket_fd);
+                LOGI("Update session type: {} for socket: {}", pxcp::CpSessionType_Name(hello.type()), socket_fd);
             }
         });
 
@@ -563,7 +565,7 @@ bool WsPanelServer::ParsePanelMessage(uint64_t socket_fd, std::string_view msg) 
              static_cast<int>(proto_msg->transport_rejected().reason()));
         context_->SendAppMessage(MsgClientTransportRejectedPanel{
             .stream_id_ = proto_msg->stream_id(),
-            .reason_ = static_cast<int>(proto_msg->transport_rejected().reason()),
+            .reason_ = proto_msg->transport_rejected().reason(),
         });
     } else if (proto_msg->type() == pxcp::CpMessageType::kCpHeartBeat) {
         auto hb = proto_msg->heartbeat();

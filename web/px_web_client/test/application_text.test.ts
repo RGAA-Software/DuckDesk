@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApplicationTextTransport, reliableApplicationControlChannel } from '../src/rtc/application_text'
 import { TextInputWorkflow } from '../src/rtc/text_input_workflow'
+import { MessageType, TextEditability, TextOutcomeCode } from '../src/rtc/protocol_enums'
 
 const target = { instanceId: 'app-a', leaseGeneration: '9007199254740993', targetGeneration: '2' }
 function fixture() {
@@ -29,6 +30,26 @@ function fixture() {
 afterEach(() => vi.useRealTimers())
 
 describe('reliable application text adapter', () => {
+  it('treats unknown wire editability as unknown rather than editable', () => {
+    const f = fixture()
+    f.adapter.receive({ type: MessageType.ApplicationTextState,
+      applicationTextState: { target, editability: 99 as TextEditability } })
+    expect(f.changed).toHaveBeenLastCalledWith(true, false, '')
+    f.adapter.dispose()
+  })
+
+  it('rejects an unknown barrier outcome without enabling editing', () => {
+    const f = fixture()
+    expect(f.adapter.beginEditing()).toBe(true)
+    f.adapter.receive({ type: MessageType.ApplicationTextBarrierResult, applicationTextBarrierResult: {
+      requestId: f.sent.at(-1)!.applicationTextBarrier.requestId, target, outcome: 99 as TextOutcomeCode,
+      inputGeneration: '1', editing: true,
+    } })
+    expect(f.suspend).not.toHaveBeenCalledWith(true, '1')
+    expect(f.changed).toHaveBeenLastCalledWith(false, false, expect.any(String))
+    f.adapter.dispose()
+  })
+
   it('accepts only the existing fully reliable ordered control channel', () => {
     const channel = { readyState: 'open' as RTCDataChannelState, ordered: true, maxRetransmits: null, maxPacketLifeTime: null }
     expect(reliableApplicationControlChannel(channel)).toBe(true)
