@@ -6,9 +6,11 @@
 #include "connection_policy.h"
 #include <QApplication>
 #include <QDateTime>
+#include <QProcessEnvironment>
 #include <QUuid>
 #include <filesystem>
 #include <algorithm>
+#include <nlohmann/json.hpp>
 
 #include "px_common/base64.h"
 #include "px_common/folder_util.h"
@@ -37,6 +39,14 @@ namespace px
 
     void RunningStreamManager::InitMessageListeners() {
         const auto weak_self = weak_from_this();
+        const auto clear_recovery = [weak_self] {
+            if (const auto self = weak_self.lock()) {
+                std::scoped_lock lock(self->running_mutex_);
+                self->rdp_recovery_.Clear();
+            }
+        };
+        msg_listener_->Listen<MsgUserLoggedIn>([clear_recovery](const MsgUserLoggedIn&) { clear_recovery(); });
+        msg_listener_->Listen<MsgUserLoggedOut>([clear_recovery](const MsgUserLoggedOut&) { clear_recovery(); });
         msg_listener_->Listen<MsgClientTransportConnectedPanel>(
             [weak_self](const MsgClientTransportConnectedPanel& msg) {
             const auto self = weak_self.lock();
@@ -109,6 +119,10 @@ namespace px
     void RunningStreamManager::StartStream(const std::shared_ptr<px_console::ConsoleStream>& item) {
         if (!item || !HasNativeLaunchBinding(item->active_session_stream_id_, item->connection_ticket_, item->connection_nonce_, false)) {
             context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_connection_ticket_required"));
+            return;
+        }
+        if (item->rdp_mode_) {
+            StartRdpStream(item);
             return;
         }
         // loading dialog
@@ -291,9 +305,121 @@ namespace px
         return true;
     }
 
-    bool RunningStreamManager::OpenFileTransferInRunningClient(
-        const std::shared_ptr<px_console::ConsoleStream>& item) {
-        if (!item || !context_) {
+    void RunningStreamManager::StartRdpStream(const std::shared_ptr<px_console::ConsoleStream>& item) {
+        if (!item->rdp_configuration_ || item->console_instance_id_.empty() || item->only_viewing_) {
+            context_->NotifyAppErrMessage(tcTr("id_error"), QStringLiteral("RDP 工作区需要新的控制连接票据"));
+            return;
+        }
+        const auto stream_id = item->active_session_stream_id_;
+        nlohmann::json launch{
+            {"schema", 1}, {"host", item->stream_host_}, {"port", item->stream_port_}, {"stream_id", stream_id},
+            {"ticket", item->connection_ticket_}, {"nonce", item->connection_nonce_}, {"instance_id", item->console_instance_id_},
+            {"device_id", item->remote_device_id_}, {"visitor_id", settings_.GetDeviceId()},
+            {"audio", item->audio_enabled_ != 0}, {"clipboard", item->clipboard_enabled_ != 0},
+            {"rdp", nlohmann::json::parse(item->rdp_configuration_->View())},
+        };
+        const auto secret = SecretBuffer::Take(launch.dump());
+        auto& password = launch.at("rdp").at("password").get_ref<std::string&>();
+        OPENSSL_cleanse(password.data(), password.size());
+        launch.clear();
+        const auto recovery = std::make_shared<RdpLaunchRecovery>(RdpLaunchRecovery{
+            .app_id = item->console_app_id_, .instance_id = item->console_instance_id_, .nonce = item->connection_nonce_,
+            .logical_id = item->connection_logical_session_id_, .stream_id = stream_id, .host = item->stream_host_,
+            .port = item->stream_port_, .device_id = item->remote_device_id_,
+            .renewal = SecretBuffer::Take(std::move(item->connection_renewal_token_)), .configuration = item->rdp_configuration_,
+        });
+        item->rdp_configuration_.reset();
+        auto process = std::make_shared<QProcess>(); // Parentless, exclusively C++ owned.
+        process->setProcessChannelMode(QProcess::ForwardedErrorChannel);
+        // A private inherited stdin pipe carries the one-shot launch envelope.
+        // Passwords/tickets are never command-line arguments, environment values or files.
+        QObject::connect(process.get(), &QProcess::started, context_.get(),
+            [weak_process = std::weak_ptr<QProcess>{process}, secret] {
+                if (const auto child = weak_process.lock()) {
+                    const auto bytes = secret->Bytes();
+                    if (child->write(bytes.data(), static_cast<qint64>(bytes.size())) != static_cast<qint64>(bytes.size())) {
+                        child->kill();
+                    }
+                    child->closeWriteChannel();
+                }
+            }, Qt::SingleShotConnection);
+        QObject::connect(process.get(), qOverload<int, QProcess::ExitStatus>(&QProcess::finished), context_.get(),
+            [weak = weak_from_this(), stream_id, child = std::weak_ptr<QProcess>{process}](int, QProcess::ExitStatus) {
+                if (const auto self = weak.lock()) {
+                    self->FinishRdpStream(stream_id, child);
+                }
+            });
+        QObject::connect(process.get(), &QProcess::errorOccurred, context_.get(),
+            [weak = weak_from_this(), stream_id, child = std::weak_ptr<QProcess>{process}](QProcess::ProcessError error) {
+                if (error != QProcess::FailedToStart) { return; }
+                if (const auto self = weak.lock()) {
+                    self->context_->NotifyAppErrMessage(tcTr("id_error"), QStringLiteral("RDP 客户端启动失败，请检查本机安装"));
+                    self->FinishRdpStream(stream_id, child);
+                }
+            });
+        {
+            std::scoped_lock lock(running_mutex_);
+            running_items_[stream_id] = item;
+            running_session_stream_ids_[item->stream_id_] = stream_id;
+            running_processes_[stream_id] = process;
+            rdp_recovery_.Remember(recovery);
+        }
+        auto environment = QProcessEnvironment::systemEnvironment();
+        environment.insert("OPENSSL_MODULES", QCoreApplication::applicationDirPath());
+        environment.insert("WINPR_NATIVE_SSPI", "1");
+        process->setProcessEnvironment(environment);
+        process->start(QCoreApplication::applicationDirPath() + "/" + QString::fromStdString(kPxClientName), {"--rdp-launch-stdin"});
+    }
+
+    void RunningStreamManager::FinishRdpStream(std::string stream_id, std::weak_ptr<QProcess> process) {
+        // Erase after QProcess signal dispatch; a late callback cannot erase a
+        // replacement process or its Panel-to-runtime mapping.
+        context_->PostUITask([weak = weak_from_this(), stream_id = std::move(stream_id), process = std::move(process)] {
+            const auto self = weak.lock();
+            const auto child = process.lock();
+            if (!self || !child) {
+                return;
+            }
+            {
+                std::scoped_lock lock(self->running_mutex_);
+                const auto found = self->running_processes_.find(stream_id);
+                if (found == self->running_processes_.end() || found->second != child) {
+                    return;
+                }
+                if (const auto item = self->running_items_.find(stream_id); item != self->running_items_.end()) {
+                    self->rdp_recovery_.Closed(item->second->console_app_id_, stream_id, RdpRecoveryStore::Clock::now());
+                }
+                self->running_processes_.erase(found);
+                self->running_items_.erase(stream_id);
+                std::erase_if(self->running_session_stream_ids_, [&stream_id](const auto& entry) { return entry.second == stream_id; });
+            }
+            self->context_->PostUIDelayTask(
+                [weak] {
+                    if (const auto owner = weak.lock()) {
+                        std::scoped_lock recovery_lock(owner->running_mutex_);
+                        owner->rdp_recovery_.Prune(RdpRecoveryStore::Clock::now());
+                    }
+                },
+                5100);
+        });
+    }
+
+    std::shared_ptr<const RdpLaunchRecovery> RunningStreamManager::TakeRdpRecovery(const std::string& app_id) {
+        std::scoped_lock lock(running_mutex_);
+        // A finished signal's queued cleanup may not have executed yet.
+        for (const auto& [stream_id, item] : running_items_) {
+            if (item->rdp_mode_ && item->console_app_id_ == app_id) {
+                const auto process = running_processes_.find(stream_id);
+                if (process != running_processes_.end() && process->second->state() == QProcess::NotRunning) {
+                    rdp_recovery_.Closed(app_id, stream_id, RdpRecoveryStore::Clock::now());
+                }
+            }
+        }
+        return rdp_recovery_.Take(app_id, RdpRecoveryStore::Clock::now());
+    }
+
+    bool RunningStreamManager::OpenFileTransferInRunningClient(const std::shared_ptr<px_console::ConsoleStream>& item) {
+        if (!item || !context_ || item->rdp_mode_) {
             return false;
         }
         const auto app = context_->GetApplication();
@@ -321,6 +447,10 @@ namespace px
     }
 
     void RunningStreamManager::StartFileTransfer(const std::shared_ptr<px_console::ConsoleStream>& item) {
+        if (item && item->rdp_mode_) {
+            context_->NotifyAppErrMessage(tcTr("id_error"), QStringLiteral("RDP 工作区不使用宿主文件管理通道"));
+            return;
+        }
         if (!item || !HasNativeLaunchBinding(item->active_session_stream_id_, item->connection_ticket_, item->connection_nonce_, true)) {
             context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_connection_ticket_required"));
             return;

@@ -50,6 +50,9 @@ class NetClient : public std::enable_shared_from_this<NetClient> {
     void Exit();
 
     void PostMediaMessage(std::shared_ptr<Data> msg);
+    void PostRdpMessage(std::shared_ptr<Data> msg, std::function<void(bool)> completion);
+    // Configure before Start. Runtime receive dispatch snapshots this callback under its own mutex.
+    void SetOnRdpMessageCallback(std::function<void(std::shared_ptr<Data>)> callback);
     [[nodiscard]] bool PostVoiceAudioMessage(const std::shared_ptr<Message>& message);
     [[nodiscard]] FileTransferSendResult PostFileTransferMessage(std::shared_ptr<Data> msg);
 
@@ -90,6 +93,8 @@ class NetClient : public std::enable_shared_from_this<NetClient> {
 
   private:
     mutable std::mutex media_connection_mutex_;
+    std::mutex rdp_callback_mutex_{};
+    std::function<void(std::shared_ptr<Data>)> rdp_message_callback_{};
     std::shared_ptr<Connection> media_conn_ = nullptr;
     mutable std::mutex udp_direct_connection_mutex_;
     std::shared_ptr<Connection> ft_conn_ = nullptr;

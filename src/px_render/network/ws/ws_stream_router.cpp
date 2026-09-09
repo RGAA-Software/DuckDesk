@@ -8,22 +8,69 @@
 #include "px_common/privacy_log.h"
 #include "px_common/thread_util.h"
 #include "px_common/ws_control_signal.h"
+#include "px_common/reliable_websocket_send.h"
 #include "ws_transport.h"
 #include "px_message.pb.h"
 
 namespace px {
 
+WsStreamRouter::~WsStreamRouter() {
+    if (rdp_bridge_) {
+        rdp_bridge_->Stop();
+    }
+    if (const auto release = std::exchange(rdp_release_, {})) {
+        release();
+    }
+}
+
 void WsStreamRouter::OnOpen(std::shared_ptr<asio2::http_session>& sess_ptr) {
+    {
+        std::lock_guard lock(reliable_session_mutex_);
+        reliable_session_ = sess_ptr;
+    }
     WsRouter::OnOpen(sess_ptr);
 }
 
 void WsStreamRouter::OnClose(std::shared_ptr<asio2::http_session>& sess_ptr) {
+    {
+        std::lock_guard lock(reliable_session_mutex_);
+        reliable_session_.reset();
+    }
+    if (rdp_bridge_) {
+        rdp_bridge_->Stop();
+        rdp_bridge_.reset();
+    }
+    if (const auto release = std::exchange(rdp_release_, {})) {
+        release();
+    }
     NotifyClosed();
     WsRouter::OnClose(sess_ptr);
 }
 
 void WsStreamRouter::OnMessage(std::shared_ptr<asio2::http_session>& sess_ptr, int64_t socket_fd, std::string_view data) {
     WsRouter::OnMessage(sess_ptr, socket_fd, data);
+    if (rdp_mode_.load()) {
+        Message envelope{};
+        if (data.size() > rdp::kMaxWireBytes || !envelope.ParseFromArray(data.data(), static_cast<int>(data.size()))) {
+            sess_ptr->stop();
+            return;
+        }
+        if (envelope.type() == kRdpStream && rdp_bridge_) {
+            if (!rdp_bridge_->Receive(Data::From(data))) {
+                sess_ptr->stop();
+            }
+        } else if (envelope.type() == kHeartBeat && envelope.has_heartbeat()) {
+            // Never expose the host desktop, monitors, clipboard, files or input handlers through this workspace.
+            Message reply{};
+            reply.set_type(kOnHeartBeat);
+            auto& heartbeat = *reply.mutable_on_heartbeat();
+            heartbeat.set_timestamp(envelope.heartbeat().timestamp());
+            PostReliableBinaryMessage(Data::From(reply.SerializeAsString()), [](bool) {});
+        } else {
+            sess_ptr->stop();
+        }
+        return;
+    }
     if (IsWsUseWebSocketMediaSignal(data)) {
         if (udp_media_.exchange(false)) {
             LOGI("event=transport.route component=net_ws operation=udp_fallback "
@@ -63,7 +110,27 @@ void WsStreamRouter::OnPong(std::shared_ptr<asio2::http_session>& sess_ptr) {
     WsRouter::OnPong(sess_ptr);
 }
 
+void WsStreamRouter::PostReliableBinaryMessage(std::shared_ptr<Data> data, std::function<void(bool)> completion) {
+    auto session = std::shared_ptr<asio2::http_session>{};
+    {
+        std::lock_guard lock(reliable_session_mutex_);
+        session = reliable_session_.lock();
+    }
+    PostReliableWebSocketWrite(session, std::move(data), std::move(completion),
+                              [weak = weak_from_this(), weak_session = std::weak_ptr<asio2::http_session>(session)] {
+        const auto self = weak.lock();
+        if (!self) {
+            return false;
+        }
+        std::lock_guard lock(self->reliable_session_mutex_);
+        return self->reliable_session_.lock() == weak_session.lock();
+    });
+}
+
 void WsStreamRouter::PostBinaryMessage(std::shared_ptr<Data> data) {
+    if (rdp_mode_.load()) {
+        return; // RDP never participates in native broadcast or host feature routing.
+    }
     if (!session_ || !session_->is_started()) {
         return;
     }
@@ -100,12 +167,65 @@ void WsStreamRouter::PostBinaryMessage(std::shared_ptr<Data> data) {
     });
 }
 
+bool WsStreamRouter::StartRdp(asio::any_io_executor executor, const std::uint16_t proxy_port, std::function<void()> release,
+                              std::function<void()> closed) {
+    if (proxy_port == 0 || rdp_mode_.exchange(true) || !session_) {
+        if (release) {
+            release();
+        }
+        return false;
+    }
+    rdp_release_ = std::move(release);
+    const rdp::StreamBinding binding{.connection_id = GetUUID(), .generation = 1};
+    const auto weak = weak_from_this();
+    const auto weak_session = std::weak_ptr<asio2::http_session>(session_);
+    rdp_bridge_ = rdp::RdpTcpBridge::Create(
+        std::move(executor), binding,
+        [weak](std::shared_ptr<Data> wire, rdp::RdpTcpBridge::SendCompletion completion) {
+            if (const auto self = weak.lock()) {
+                self->PostReliableBinaryMessage(std::move(wire), std::move(completion));
+            } else {
+                completion(false);
+            }
+        },
+        [weak_session, closed = std::move(closed)](rdp::BridgeCloseReason reason) {
+            if (const auto session = weak_session.lock()) {
+                session->post([weak_session, closed, reason] {
+                    if (const auto active = weak_session.lock()) {
+                        // The RDP TCP endpoint is already closed. Asio2 may still
+                        // be draining a WebSocket close handshake; do not retain
+                        // the application seat until that transport drain ends.
+                        LOGI("event=rdp.route.closed reason={}", static_cast<int>(reason));
+                        if (closed) {
+                            closed();
+                        }
+                        active->stop();
+                    }
+                });
+            }
+        });
+    if (!rdp_bridge_) {
+        return false;
+    }
+    const auto weak_bridge = std::weak_ptr<rdp::RdpTcpBridge>(rdp_bridge_);
+    PostReliableBinaryMessage(rdp::EncodeOpen(binding), [weak_bridge, proxy_port](bool sent) {
+        if (const auto bridge = weak_bridge.lock()) {
+            if (sent) {
+                bridge->ConnectLoopback(proxy_port);
+            } else {
+                bridge->Stop();
+            }
+        }
+    });
+    return true;
+}
+
 void WsStreamRouter::PostBinaryMessage(const std::string& data) {
     this->PostBinaryMessage(Data::From(data));
 }
 
 void WsStreamRouter::PostTextMessage(const std::string& data) {
-    if (!session_ || !session_->is_started()) {
+    if (rdp_mode_.load() || !session_ || !session_->is_started()) {
         return;
     }
 
@@ -136,6 +256,9 @@ void WsStreamRouter::PostTextMessage(const std::string& data) {
 }
 
 FileTransferSendResult WsStreamRouter::TryPostFileTransferMessage(const std::shared_ptr<Data>& data) {
+    if (rdp_mode_.load()) {
+        return FileTransferSendResult::Disconnected("Host file transfer is unavailable in RDP mode");
+    }
     if (!file_allowed_.load()) {
         return FileTransferSendResult::Disconnected("WebSocket control session has no file-transfer capability");
     }
@@ -154,6 +277,21 @@ FileTransferSendResult WsStreamRouter::TryPostFileTransferMessage(const std::sha
 
 void WsStreamRouter::SetUdpMediaFallbackCallback(std::function<void()> callback) {
     udp_media_fallback_callback_ = std::move(callback);
+}
+
+void WsStreamRouter::RevokeRdp() {
+    std::weak_ptr<asio2::http_session> weak_session{};
+    {
+        std::lock_guard lock(reliable_session_mutex_);
+        weak_session = reliable_session_;
+    }
+    if (const auto session = weak_session.lock()) {
+        session->post([weak_session] {
+            if (const auto current = weak_session.lock()) {
+                current->stop();
+            }
+        });
+    }
 }
 
 std::shared_ptr<FileTransferWritableSignal> WsStreamRouter::AcquireWritableSignal() {

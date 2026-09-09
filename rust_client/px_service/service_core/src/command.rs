@@ -201,6 +201,7 @@ mod tests {
                 index: 1,
                 from: "panel".to_string(),
                 auth_info: Some(auth_info.clone()),
+                logical_sessions_json: String::new(),
             }),
             ..Default::default()
         });

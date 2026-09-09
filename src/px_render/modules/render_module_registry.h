@@ -71,6 +71,7 @@ class RenderModuleRegistry : public std::enable_shared_from_this<RenderModuleReg
     ~RenderModuleRegistry();
 
     void StartModules();
+    [[nodiscard]] bool IsRdpListenerReady() const;
     void BindIngressCallbacks();
     void StopRouting();
     [[nodiscard]] PxAwaitable<PxResult<void>> StopNetworkIngressAsync(std::chrono::steady_clock::time_point deadline);

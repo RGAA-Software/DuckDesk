@@ -14,6 +14,14 @@
 
 # Project-wide modern C++ ownership and asynchronous safety
 
+- Game Hook product decision (2026-09-09): only hook Apps launched by this product. Admission is an AND condition:
+  membership in this launch's private Windows Job AND a matching normalized full executable path. A matching basename,
+  matching full path alone, or an independently restarted process never authorizes adoption, injection or cleanup.
+  Assign the suspended root to the Job before execution; configured view executables must also be descendants in that Job.
+  Do not restore Steam URL discovery/adoption. Preserve Windows path spaces, Unicode and argument quoting.
+  Service cleanup must not sweep game/view processes by executable path or adopt a replacement Render by port.
+  Stopping an already Stopped instance is an idempotent success; do not downgrade it to Failed or touch reused PID/port resources.
+
 - `src/px_render/hook_capture/win/hk_audio/InProcessLoopbackCapture.h` and
   `InProcessLoopbackCapture.cpp` are retained project implementations. Do not
   delete, rename, replace, stub out, or exclude them as dead code; changes in
@@ -99,13 +107,57 @@
 
 # Local upstream source references
 
-The user provided these local checkouts for reference; their paths were confirmed on 2026-09-07:
+Local reference checkouts (original references confirmed on 2026-09-07; session/RDP references added on 2026-09-08):
 
-- RustDesk: `D:/GoCloud/rustdesk` — connection establishment, NAT traversal/relay, session and file-transfer architecture.
+- RustDesk: `D:/source/rustdesk` — connection establishment, NAT traversal/relay, session and file-transfer architecture. Path updated and verified on 2026-09-08; use this external checkout for all RustDesk references and do not clone a second copy under this repository.
 - Sunshine: `D:/source/Sunshine` — host-side media transport, UDP packetization, FEC and pacing.
 - Moonlight Qt: `D:/source/moonlight-qt` — client-side SDK integration, media reception and platform adaptation; inspect its shared-core
   submodules when populated.
+- Dolit streamer: `D:/dolit/streamer` — capture inside Windows RDP sessions, desktop readiness and DDA/GDI recovery.
+- Dolit AppGuard: `D:/dolit/dlAppGuard` — user provisioning, loopback RDP login, session supervision and exact lifecycle reference.
+- Project-owned Qt RDP client: `D:/dolit/rdp` — substantial but unfinished implementation; prioritize reuse of its protocol lifecycle,
+  graphics/input and clipboard handling for the new RDP mode. Feature/validation inventory: `docs/rdp_qt_client_reuse_inventory.md`.
+  Its FreeRDP source is `D:/dolit/rdp/FreeRDP`. Existing GUI integration and local patches do not establish headless bridging or 60 FPS.
 
 Prefer inspecting these local sources for implementation comparisons. Record the checkout revision when making version-sensitive claims;
 do not assume a local checkout matches the latest upstream release. Treat these repositories as read-only references unless the user
 explicitly requests changes to them. Their availability does not expand the current implementation scope.
+
+# Enterprise isolated desktop planning
+
+- User approval (2026-09-09): maintain a minimal, version-pinned FreeRDP decoder patch for the RDP mode.
+  Keep the original `D:/dolit/rdp` reference and pristine upstream checkout read-only. Store reviewed patches in
+  `patches/freerdp/`, apply them only to an isolated build copy, and record base revision plus patch/runtime hashes.
+  This exception permits the targeted decoder fix, not unrelated third-party modernization or ownership redesign.
+
+- User decision (2026-09-08): existing game-hook and webview modes do not create Windows users. Preserve their current user environment
+  and app-instance lifecycle; do not add an RDP-login prerequisite for them.
+- Latest user direction (2026-09-08): add an RDP application mode parallel to game-hook and webview. FreeRDP receives the target user's
+  session graphics and carries input; do not additionally capture that desktop with DDA/GDI or fall back to host desktop/input.
+  Dedicated users and Windows sessions apply to this new mode; it does not change game-hook/webview user provisioning.
+- Current design and validation stages: `docs/rdp_application_mode_design.md`. Earlier keepalive-plus-capture design, repository revisions
+  and FreeRDP/60-FPS references remain in `docs/enterprise_windows_session_isolation_plan.md` as historical research.
+  Neither document is evidence of an implemented or benchmarked capability. Public FreeRDP callbacks are the first integration candidate;
+  modifying its internals remains conditional on concrete limitations, and reference checkouts remain read-only.
+- Superseding RDP decisions (2026-09-08): preserve native RDP encoding; GammaRay provides provisioning, authorization, proxy transport
+  and session management, with RDP decoding/composition/display in the Client. Do not decode and re-encode video in Render.
+  The user permits reuse of the project-owned Qt demo; reuse must still meet project C++ standards, and does not authorize unrelated edits.
+- Clarified RDP lifecycle (2026-09-08): Render, proxy processes and RDP connections may stop when access ends. Preserve Windows accounts,
+  profiles and logged-in sessions: ordinary disconnect/stop, idle time, ticket expiry or transport failure must not trigger logoff,
+  account/profile deletion or termination of workspace applications. Explicit destructive administration is a separate authorized action.
+  On the next authorized visit, start the required runtime and reconnect to the existing session when available; verify identity and state
+  instead of blindly creating another session or relaunching applications. Do not keep reconnecting after an intentional stop.
+  No always-on Render or backend RDP protocol endpoint is required. A full RDP tunnel remains a candidate, subject to authentication and
+  channel-policy design; preserving a Windows session does not require preserving the old transport connection.
+  Render must retain the existing last-client-disconnect grace/timeout exit behavior: reconnecting during the grace period cancels the
+  pending exit, and remaining clients prevent it. Do not introduce immediate exit, an RDP-specific idle timer or an always-on runtime.
+  Closing Render and its RDP transport must not be implemented as Windows session logoff or workspace-application cleanup.
+  The RDP mode is planned for one active frontend per workspace/session, not existing multi-viewer broadcast semantics. Its sole
+  client's departure triggers the same grace/timeout behavior. Multiple channels for that client are not multiple occupants.
+  User-confirmed admission policy: reject a second client when the workspace is busy. Explicit takeover is not in the first version.
+  Do not introduce automatic takeover or a server-wide single-user lock; other modes remain unchanged.
+  Section 0 of `docs/rdp_application_mode_design.md` supersedes its retained earlier re-encoding design and cleanup assumptions.
+- RDP implementation entry point: `docs/rdp_application_mode_implementation_plan.md`. Validate the existing FreeRDP proxy and an opaque
+  tunnel baseline before freezing authentication/transport boundaries. Do not silently expose production Windows credentials to clients.
+  A dedicated reliable RDP protocol carrier is a proposed mode-specific extension, not restoration of Native WS video fallback,
+  RTC, KCP, Relay or public P2P. Windows Client/Console and node 10.0.0.90 are the first validation scope; other RDP clients are not yet supported.

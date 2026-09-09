@@ -30,6 +30,10 @@ message ConsoleServiceHello {
   string device_id = 1;
   string appkey = 2;
   string version = 3;
+  bool rdp_available = 4;
+  // Public node trust metadata. Never credentials; advertised only over verified Console TLS.
+  string rdp_domain = 5;
+  string rdp_proxy_certificate_sha256 = 6;
 }
 
 message ConsoleServiceHeartBeat {
@@ -82,6 +86,16 @@ message ConsoleServiceStartAppInstance {
   string relay_server_host = 19;
   int32 relay_server_port = 20;
   string relay_appkey = 21;
+  // Private Console -> Service payload. Never copy into public application DTOs or process arguments.
+  RdpWorkspaceProvision rdp_workspace = 22;
+}
+
+message RdpWorkspaceProvision {
+  string workspace_id = 1;
+  string node_id = 2;
+  string account_name = 3;
+  string password = 4;
+  uint32 credential_version = 5;
 }
 
 message ConsoleServiceStopAppInstance {
@@ -129,6 +143,9 @@ message ConsoleServiceRedeemConnectionTicket {
   string ticket = 3;
   string client_nonce = 4;
   string instance_id = 5;
+  // Service-only live RDP authorization check; mutually exclusive with ticket/nonce.
+  // Console binds this to the authenticated node, instance and original login session.
+  string rdp_logical_session_id = 6;
 }
 
 message ConsoleConnectionGrant {

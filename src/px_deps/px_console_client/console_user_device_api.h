@@ -13,6 +13,7 @@
 
 #include "px_common/expected.h"
 #include "console_errors.h"
+#include "px_common/secret_buffer.h"
 
 namespace px_console
 {
@@ -20,6 +21,7 @@ namespace px_console
     class ConsoleUserDevice;
 
     struct ConsoleConnectionTicket {
+        std::shared_ptr<const px::SecretBuffer> rdp_configuration{};
         std::string ticket;
         // Rotating capability used to renew the same logical session. It is
         // transient launch state and must never be persisted by callers.

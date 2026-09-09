@@ -9,6 +9,7 @@
 #include <QFontDatabase>
 #include <QMessageBox>
 #include <QCoreApplication>
+#include <QProcess>
 #include <QCommandLineParser>
 #include <QOpenGLWidget>
 #include "thunder_sdk.h"
@@ -33,6 +34,8 @@
 #include "ct_game_overlay.h"
 #include "version_config.h"
 #include "front_render/vulkan/ct_vulkan_checker.h"
+#include "rdp/rdp_workspace.h"
+#include "px_common/win32/unique_win_handle.h"
 
 #ifdef PX_PROTECTION_ENABLED
 #include "px_protection.h"
@@ -187,93 +190,93 @@ bool ParseCommandLine(QApplication& app) {
     g_remote_host_ = parser.value(opt_host).toStdString();
     g_remote_port_ = parser.value(opt_port).toInt();
 
-    auto settings = px::Settings::Instance();
-    settings->host_ = g_remote_host_;
-    settings->port_ = g_remote_port_;
+    auto& settings = *px::Settings::Instance(); // Transient legacy settings boundary, synchronous reference only.
+    settings.host_ = g_remote_host_;
+    settings.port_ = g_remote_port_;
     const auto mode = parser.value(opt_mode);
-    settings->file_transfer_only_ = mode == "file-transfer";
-    if (mode != "remote-control" && !settings->file_transfer_only_) {
+    settings.file_transfer_only_ = mode == "file-transfer";
+    if (mode != "remote-control" && !settings.file_transfer_only_) {
         parser.showHelp(2);
     }
 
     // TCP(ws 控制面)与 UDP(媒体面)共用同一端口
-    settings->udp_port_ = settings->port_;
-    settings->appkey_ = parser.value(opt_appkey).toStdString();
+    settings.udp_port_ = settings.port_;
+    settings.appkey_ = parser.value(opt_appkey).toStdString();
 
     // console
-    settings->console_host_ = parser.value(opt_console_host).toStdString();
-    settings->console_port_ = parser.value(opt_console_port).toInt();
+    settings.console_host_ = parser.value(opt_console_host).toStdString();
+    settings.console_port_ = parser.value(opt_console_port).toInt();
     // Console is HTTPS/WSS-only. Keep accepting the legacy CLI option so old
     // launchers do not fail argument parsing, but never downgrade to plain WS.
-    settings->console_ssl_ = true;
+    settings.console_ssl_ = true;
 
     auto audio_on = parser.value(opt_audio).toInt();
-    settings->audio_on_ = (audio_on == 1);
+    settings.audio_on_ = (audio_on == 1);
 
     auto clipboard_on = parser.value(opt_clipboard).toInt();
-    settings->clipboard_on_ = (clipboard_on == 1);
-    if (settings->file_transfer_only_) {
-        settings->audio_on_ = false;
-        settings->clipboard_on_ = false;
-        settings->only_viewing_ = true;
+    settings.clipboard_on_ = (clipboard_on == 1);
+    if (settings.file_transfer_only_) {
+        settings.audio_on_ = false;
+        settings.clipboard_on_ = false;
+        settings.only_viewing_ = true;
     }
-    settings->stream_id_ = parser.value(opt_stream_id).toStdString();
-    settings->stream_name_ = parser.value(opt_stream_name).toStdString();
-    if (!settings->stream_name_.empty()) {
-        settings->stream_name_ = Base64::Base64Decode(settings->stream_name_);
+    settings.stream_id_ = parser.value(opt_stream_id).toStdString();
+    settings.stream_name_ = parser.value(opt_stream_name).toStdString();
+    if (!settings.stream_name_.empty()) {
+        settings.stream_name_ = Base64::Base64Decode(settings.stream_name_);
     }
-    settings->device_id_ = parser.value(opt_device_id).toStdString();
-    settings->device_random_pwd_ = parser.value(opt_device_rp).toStdString();
-    if (!settings->device_random_pwd_.empty()) {
-        settings->device_random_pwd_ = Base64::Base64Decode(settings->device_random_pwd_);
+    settings.device_id_ = parser.value(opt_device_id).toStdString();
+    settings.device_random_pwd_ = parser.value(opt_device_rp).toStdString();
+    if (!settings.device_random_pwd_.empty()) {
+        settings.device_random_pwd_ = Base64::Base64Decode(settings.device_random_pwd_);
     }
-    settings->device_safety_pwd_ = parser.value(opt_device_sp).toStdString();
-    if (!settings->device_safety_pwd_.empty()) {
-        settings->device_safety_pwd_ = Base64::Base64Decode(settings->device_safety_pwd_);
+    settings.device_safety_pwd_ = parser.value(opt_device_sp).toStdString();
+    if (!settings.device_safety_pwd_.empty()) {
+        settings.device_safety_pwd_ = Base64::Base64Decode(settings.device_safety_pwd_);
     }
 
-    settings->remote_device_id_ = parser.value(opt_remote_device_id).toStdString();
-    settings->remote_device_random_pwd_ = parser.value(opt_remote_device_rp).toStdString();
-    if (!settings->remote_device_random_pwd_.empty()) {
-        settings->remote_device_random_pwd_ = Base64::Base64Decode(settings->remote_device_random_pwd_);
+    settings.remote_device_id_ = parser.value(opt_remote_device_id).toStdString();
+    settings.remote_device_random_pwd_ = parser.value(opt_remote_device_rp).toStdString();
+    if (!settings.remote_device_random_pwd_.empty()) {
+        settings.remote_device_random_pwd_ = Base64::Base64Decode(settings.remote_device_random_pwd_);
     }
-    settings->remote_device_safety_pwd_ = parser.value(opt_remote_device_sp).toStdString();
-    if (!settings->remote_device_safety_pwd_.empty()) {
-        settings->remote_device_safety_pwd_ = Base64::Base64Decode(settings->remote_device_safety_pwd_);
+    settings.remote_device_safety_pwd_ = parser.value(opt_remote_device_sp).toStdString();
+    if (!settings.remote_device_safety_pwd_.empty()) {
+        settings.remote_device_safety_pwd_ = Base64::Base64Decode(settings.remote_device_safety_pwd_);
     }
-    settings->connection_ticket_ = Base64::Base64Decode(parser.value(opt_connection_ticket).toStdString());
-    settings->connection_nonce_ = parser.value(opt_connection_nonce).toStdString();
-    settings->connection_instance_id_ = parser.value(opt_connection_instance_id).toStdString();
-    if (settings->file_transfer_only_) {
-        if (settings->connection_ticket_.empty() || settings->connection_nonce_.empty()) {
+    settings.connection_ticket_ = Base64::Base64Decode(parser.value(opt_connection_ticket).toStdString());
+    settings.connection_nonce_ = parser.value(opt_connection_nonce).toStdString();
+    settings.connection_instance_id_ = parser.value(opt_connection_instance_id).toStdString();
+    if (settings.file_transfer_only_) {
+        if (settings.connection_ticket_.empty() || settings.connection_nonce_.empty()) {
             LOGE("Standalone file transfer requires a Console ticket and nonce");
             return false;
         }
     }
 
-    settings->auto_layout_screens_ = parser.value(opt_auto_layout_screens).toInt() == 1;
+    settings.auto_layout_screens_ = parser.value(opt_auto_layout_screens).toInt() == 1;
 
-    settings->display_name_ = parser.value(opt_display_name).toStdString();
-    settings->display_remote_name_ = parser.value(opt_display_remote_name).toStdString();
+    settings.display_name_ = parser.value(opt_display_name).toStdString();
+    settings.display_remote_name_ = parser.value(opt_display_remote_name).toStdString();
 
     {
         auto value = parser.value(opt_panel_server_port);
         if (!value.isEmpty()) {
-            settings->panel_server_port_ = value.toInt();
+            settings.panel_server_port_ = value.toInt();
         }
         else {
-            settings->panel_server_port_ = 20369;
+            settings.panel_server_port_ = 20369;
         }
     }
 
     {
         auto value = parser.value(opt_screen_recording_path);
         if (!value.isEmpty()) {
-            settings->screen_recording_path_ = value.toStdString();
+            settings.screen_recording_path_ = value.toStdString();
         }
         else {
             // 默认: C:\Users\Public\Pixels\px_client_records (与数据根同约定)
-            settings->screen_recording_path_ =
+            settings.screen_recording_path_ =
                 (std::filesystem::path(FolderUtil::GetProgramDataPath()) / "px_client_records").string();
         }
     }
@@ -282,7 +285,7 @@ bool ParseCommandLine(QApplication& app) {
     {
         auto value = parser.value(opt_my_host);
         if (!value.isEmpty()) {
-            settings->my_host_ = value.toStdString();
+            settings.my_host_ = value.toStdString();
         }
     }
 
@@ -290,7 +293,7 @@ bool ParseCommandLine(QApplication& app) {
     {
         auto value = parser.value(opt_language);
         if (!value.isEmpty()) {
-            settings->language_ = value.toInt();
+            settings.language_ = value.toInt();
         }
     }
 
@@ -298,24 +301,24 @@ bool ParseCommandLine(QApplication& app) {
     {
         auto value = parser.value(opt_only_viewing);
         if (!value.isEmpty()) {
-            settings->only_viewing_ = value.toInt() == 1;
+            settings.only_viewing_ = value.toInt() == 1;
         }
     }
     // The standalone file manager never grants a control surface, regardless
     // of command-line defaults inherited from the normal client launcher.
-    if (settings->file_transfer_only_) {
-        settings->only_viewing_ = true;
+    if (settings.file_transfer_only_) {
+        settings.only_viewing_ = true;
     }
 
     // split windows
     {
         auto value = parser.value(opt_split_windows);
         if (!value.isEmpty()) {
-            settings->split_windows_ = value.toInt() == 1;
+            settings.split_windows_ = value.toInt() == 1;
         }
 
-        if (settings->auto_layout_screens_) {
-            settings->split_windows_ = true;
+        if (settings.auto_layout_screens_) {
+            settings.split_windows_ = true;
         }
     }
 
@@ -323,7 +326,7 @@ bool ParseCommandLine(QApplication& app) {
     {
         auto value = parser.value(opt_max_num_of_screen);
         if (!value.isEmpty()) {
-            settings->max_number_of_screen_window_ = value.toInt();
+            settings.max_number_of_screen_window_ = value.toInt();
         }
     }
 
@@ -331,7 +334,7 @@ bool ParseCommandLine(QApplication& app) {
     {
         auto value = parser.value(opt_display_logo);
         if (!value.isEmpty()) {
-            settings->display_logo_ = value.toInt() == 1;
+            settings.display_logo_ = value.toInt() == 1;
         }
     }
 
@@ -339,7 +342,7 @@ bool ParseCommandLine(QApplication& app) {
     {
         auto value = parser.value(opt_develop_mode);
         if (!value.isEmpty()) {
-            settings->develop_mode_ = value.toInt() == 1;
+            settings.develop_mode_ = value.toInt() == 1;
         }
     }
 
@@ -347,33 +350,33 @@ bool ParseCommandLine(QApplication& app) {
     {
         auto value = parser.value(opt_titlebar_color);
         if (!value.isEmpty()) {
-            settings->titlebar_color_ = value.toInt();
+            settings.titlebar_color_ = value.toInt();
         }
     }
 
     // decoder
-    settings->decoder_ = parser.value(opt_decoder).toStdString();
+    settings.decoder_ = parser.value(opt_decoder).toStdString();
 
     // force software
-    settings->force_software_ = parser.value(opt_force_software).toInt() == 1;
+    settings.force_software_ = parser.value(opt_force_software).toInt() == 1;
 
     // wait debug
-    settings->wait_debug_ = parser.value(opt_wait_debug).toInt() == 1;
+    settings.wait_debug_ = parser.value(opt_wait_debug).toInt() == 1;
 
     // show watermark
-    settings->show_watermark_ = parser.value(opt_show_watermark).toInt() == 1;
+    settings.show_watermark_ = parser.value(opt_show_watermark).toInt() == 1;
 
     // force gdi capture
-    settings->force_gdi_ = parser.value(opt_force_gdi_capture).toInt() == 1;
+    settings.force_gdi_ = parser.value(opt_force_gdi_capture).toInt() == 1;
 
     // disable vulkan render
-    settings->disable_vulkan_ = parser.value(opt_disable_vulkan_render).toInt() == 1;
+    settings.disable_vulkan_ = parser.value(opt_disable_vulkan_render).toInt() == 1;
     
     // opengl backend
-    settings->gl_backend_ = parser.value(opt_gl_backend).toStdString();
+    settings.gl_backend_ = parser.value(opt_gl_backend).toStdString();
 
     // skin
-    settings->skin_name_ = parser.value(opt_skin).toStdString();
+    settings.skin_name_ = parser.value(opt_skin).toStdString();
     return true;
 }
 
@@ -399,6 +402,8 @@ bool PrepareDirs(const QString& base_path) {
 
 int main(int argc, char** argv) {
 #ifdef WIN32
+    const auto launch_arguments = QProcess::splitCommand(QString::fromWCharArray(GetCommandLineW())); // Transient Win32 command-line ABI.
+    const bool rdp_launch = launch_arguments.contains(QStringLiteral("--rdp-launch-stdin"));
     // dump
     //CaptureDump();
     // Breakpad
@@ -406,7 +411,7 @@ int main(int argc, char** argv) {
         .version_ = PROJECT_VERSION,
         .app_name_ = "px_client",
     });
-    [[maybe_unused]] const auto dump_registration = CaptureDumpByBreakpad(std::move(bc));
+    [[maybe_unused]] const auto dump_registration = rdp_launch ? std::shared_ptr<BreakpadRegistration>{} : CaptureDumpByBreakpad(std::move(bc));
 
 #ifdef PX_PROTECTION_ENABLED
     PxEnableAntiHookingProtection();
@@ -426,12 +431,16 @@ int main(int argc, char** argv) {
     //QCoreApplication::setAttribute(Qt::AA_DontCreateNativeWidgetSiblings);
 
     QApplication app(argc, argv);
+    if (app.arguments().contains(QStringLiteral("--rdp-launch-stdin"))) {
+        if (app.arguments().size() != 2) { return 3; }
+        return px::rdp::RunClient(app);
+    }
     if (!ParseCommandLine(app)) {
         return 3;
     }
-    auto settings = px::Settings::Instance();
+    auto& settings = *px::Settings::Instance(); // Transient legacy settings boundary, synchronous reference only.
 
-    auto gl_backend = settings->gl_backend_;
+    auto gl_backend = settings.gl_backend_;
     if ("angle" == gl_backend) {
         QCoreApplication::setAttribute(Qt::AA_UseOpenGLES);
     }
@@ -466,99 +475,99 @@ int main(int argc, char** argv) {
     }
 
     // init language
-    tcTrMgr()->InitLanguage((LanguageKind)settings->language_);
+    tcTrMgr()->InitLanguage((LanguageKind)settings.language_);
 
-    if (settings->wait_debug_) {
+    if (settings.wait_debug_) {
 #ifdef WIN32
         MessageBox(0,0,0,0);
 #endif
     }
 
-    const auto name = settings->host_;
+    const auto name = settings.host_;
     auto ctx = std::make_shared<ClientContext>(name);
     ctx->Init();
 
     LOGI("host: {}", g_remote_host_);
     LOGI("port: {}", g_remote_port_);
-    LOGI("udp port: {}", settings->udp_port_);
-    LOGI("appkey configured: {}", !settings->appkey_.empty());
-    LOGI("console host: {}", settings->console_host_);
-    LOGI("console port: {}", settings->console_port_);
-    LOGI("console ssl: {}", settings->console_ssl_);
-    LOGI("audio on: {}", settings->audio_on_);
-    LOGI("clipboard on: {}", settings->clipboard_on_);
-    LOGI("device id: {}", settings->device_id_);
-    LOGI("device random password configured: {}", !settings->device_random_pwd_.empty());
-    LOGI("remote device id: {}", settings->remote_device_id_);
-    LOGI("remote device password configured: {}", !settings->remote_device_random_pwd_.empty() || !settings->remote_device_safety_pwd_.empty());
-    LOGI("stream id: {}", settings->stream_id_);
-    LOGI("show max window: {}", (int)settings->auto_layout_screens_);
-    LOGI("display name: {}", settings->display_name_);
-    LOGI("display remote name: {}", settings->display_remote_name_);
-    LOGI("panel server port: {}", settings->panel_server_port_);
-    LOGI("screen recording path: {}", settings->screen_recording_path_);
-    LOGI("my host: {}", settings->my_host_);
-    LOGI("only viewing: {}", settings->only_viewing_);
-    LOGI("split windows: {}", settings->split_windows_);
-    LOGI("titlebar color: {}", settings->titlebar_color_);
-    LOGI("decoder: {}", settings->decoder_);
-    LOGI("force software: {}", settings->force_software_);
-    LOGI("show watermark: {}", settings->show_watermark_);
-    LOGI("force gdi: {}", settings->force_gdi_);
+    LOGI("udp port: {}", settings.udp_port_);
+    LOGI("appkey configured: {}", !settings.appkey_.empty());
+    LOGI("console host: {}", settings.console_host_);
+    LOGI("console port: {}", settings.console_port_);
+    LOGI("console ssl: {}", settings.console_ssl_);
+    LOGI("audio on: {}", settings.audio_on_);
+    LOGI("clipboard on: {}", settings.clipboard_on_);
+    LOGI("device id: {}", settings.device_id_);
+    LOGI("device random password configured: {}", !settings.device_random_pwd_.empty());
+    LOGI("remote device id: {}", settings.remote_device_id_);
+    LOGI("remote device password configured: {}", !settings.remote_device_random_pwd_.empty() || !settings.remote_device_safety_pwd_.empty());
+    LOGI("stream id: {}", settings.stream_id_);
+    LOGI("show max window: {}", (int)settings.auto_layout_screens_);
+    LOGI("display name: {}", settings.display_name_);
+    LOGI("display remote name: {}", settings.display_remote_name_);
+    LOGI("panel server port: {}", settings.panel_server_port_);
+    LOGI("screen recording path: {}", settings.screen_recording_path_);
+    LOGI("my host: {}", settings.my_host_);
+    LOGI("only viewing: {}", settings.only_viewing_);
+    LOGI("split windows: {}", settings.split_windows_);
+    LOGI("titlebar color: {}", settings.titlebar_color_);
+    LOGI("decoder: {}", settings.decoder_);
+    LOGI("force software: {}", settings.force_software_);
+    LOGI("show watermark: {}", settings.show_watermark_);
+    LOGI("force gdi: {}", settings.force_gdi_);
     LOGI("GL Backend: {}", gl_backend);
 
     // Native UDP media with an authenticated reliable control/file channel.
-    auto bare_remote_device_id = settings->remote_device_id_.empty() ? g_remote_host_ : settings->remote_device_id_;
-    auto visitor_device_id = settings->device_id_.empty() ? settings->my_host_ : settings->device_id_;
+    auto bare_remote_device_id = settings.remote_device_id_.empty() ? g_remote_host_ : settings.remote_device_id_;
+    auto visitor_device_id = settings.device_id_.empty() ? settings.my_host_ : settings.device_id_;
     auto media_path = std::format("/media?only_audio=0&remote_device_id={}&stream_id={}&visitor_device_id={}&force_gdi={}",
-                                  bare_remote_device_id, settings->stream_id_, visitor_device_id, settings->force_gdi_);
+                                  bare_remote_device_id, settings.stream_id_, visitor_device_id, settings.force_gdi_);
     media_path += "&udp_media=1";
     auto ft_path = std::format("/file/transfer?remote_device_id={}&stream_id={}&visitor_device_id={}",
-                                  bare_remote_device_id, settings->stream_id_, visitor_device_id);
-    auto target_device_id = settings->device_id_.empty() ? settings->my_host_ : settings->device_id_;
-    auto device_id = "client_" + target_device_id + "_" + MD5::Hex(settings->remote_device_id_);
-    settings->full_device_id_ = device_id;
-    const auto remote_device_id = "server_" + settings->remote_device_id_;
-    settings->full_remote_device_id_ = remote_device_id;
+                                  bare_remote_device_id, settings.stream_id_, visitor_device_id);
+    auto target_device_id = settings.device_id_.empty() ? settings.my_host_ : settings.device_id_;
+    auto device_id = "client_" + target_device_id + "_" + MD5::Hex(settings.remote_device_id_);
+    settings.full_device_id_ = device_id;
+    const auto remote_device_id = "server_" + settings.remote_device_id_;
+    settings.full_remote_device_id_ = remote_device_id;
     auto ft_device_id = "ft_" + device_id;
     const auto ft_remote_device_id = "ft_" + remote_device_id;
 
-    LOGI("full device id: {}", settings->full_device_id_);
-    LOGI("full remote device id: {}", settings->full_remote_device_id_);
+    LOGI("full device id: {}", settings.full_device_id_);
+    LOGI("full remote device id: {}", settings.full_remote_device_id_);
 
     auto params = std::make_shared<ThunderSdkParams>(ThunderSdkParams {
         .ssl_ = false,
-        .enable_audio_ = settings->audio_on_,
-        .enable_video_ = !settings->file_transfer_only_,
+        .enable_audio_ = settings.audio_on_,
+        .enable_video_ = !settings.file_transfer_only_,
         .enable_controller_ = false,
-        .file_transfer_only_ = settings->file_transfer_only_,
+        .file_transfer_only_ = settings.file_transfer_only_,
         .ip_ = host,
         .port_ = port,
-        .udp_port_ = settings->udp_port_,
+        .udp_port_ = settings.udp_port_,
         .media_path_ = media_path,
         .ft_path_ = ft_path,
         .client_type_ = ClientType::kUnknown,
-        .bare_device_id_ = settings->device_id_,
-        .bare_remote_device_id_ = settings->remote_device_id_,
+        .bare_device_id_ = settings.device_id_,
+        .bare_remote_device_id_ = settings.remote_device_id_,
         .device_id_ = device_id,
         .remote_device_id_ = remote_device_id,
         .ft_device_id_ = ft_device_id,
         .ft_remote_device_id_ = ft_remote_device_id,
-        .stream_id_ = settings->stream_id_,
-        .stream_name_ = settings->stream_name_,
-        .display_name_ = settings->display_name_,
-        .display_remote_name_ = settings->display_remote_name_,
-        .appkey_ = settings->appkey_,
-        .debug_ = settings->wait_debug_,
-        .connection_ticket_ = settings->connection_ticket_,
-        .connection_nonce_ = settings->connection_nonce_,
-        .connection_instance_id_ = settings->connection_instance_id_,
+        .stream_id_ = settings.stream_id_,
+        .stream_name_ = settings.stream_name_,
+        .display_name_ = settings.display_name_,
+        .display_remote_name_ = settings.display_remote_name_,
+        .appkey_ = settings.appkey_,
+        .debug_ = settings.wait_debug_,
+        .connection_ticket_ = settings.connection_ticket_,
+        .connection_nonce_ = settings.connection_nonce_,
+        .connection_instance_id_ = settings.connection_instance_id_,
     });
 
     auto beg = TimeUtil::GetCurrentTimestamp();
 
     static auto ws = Workspace::Make(ctx, params);
-    if (settings->file_transfer_only_) {
+    if (settings.file_transfer_only_) {
         ws->hide();
         if (const auto manager = ctx->GetModuleManager()) {
             if (const auto module = manager->GetFileTransferModule()) {
@@ -569,36 +578,36 @@ int main(int argc, char** argv) {
         ws->show();
     }
     // ctx->PostDelayUITask([=]() {
-    //     if (settings->auto_layout_screens_) {
+    //     if (settings.auto_layout_screens_) {
     //         ws->showMaximized();
     //     }
     // }, 100);
     auto end = TimeUtil::GetCurrentTimestamp();
     LOGI("Init used: {}ms", (end-beg));
 
-    HHOOK keyboardHook = settings->file_transfer_only_ ? nullptr : SetWindowsHookExA(WH_KEYBOARD_LL, [](int code, WPARAM wParam, LPARAM lParam) -> LRESULT {
+    const auto keyboard_hook = UniqueWinHook{settings.file_transfer_only_ ? nullptr : SetWindowsHookExA(WH_KEYBOARD_LL,
+        [](int code, WPARAM wParam, LPARAM lParam) -> LRESULT {
         if (Settings::Instance()->only_viewing_) {
             return CallNextHookEx(nullptr, code, wParam, lParam);
         }
 
-        auto kbd_struct = (KBDLLHOOKSTRUCT *)lParam;
         if (code >= 0 && ws->IsActiveNow()) {
+            const auto& keyboard = *reinterpret_cast<const KBDLLHOOKSTRUCT*>(lParam); // Transient Win32 hook ABI.
             bool down = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
-            if (kbd_struct->vkCode == VK_LWIN || kbd_struct->vkCode == VK_RWIN || kbd_struct->vkCode == VK_LMENU || kbd_struct->vkCode == VK_RMENU) {
-                ws->SendWindowsKey(kbd_struct->vkCode, down);
+            if (keyboard.vkCode == VK_LWIN || keyboard.vkCode == VK_RWIN || keyboard.vkCode == VK_LMENU || keyboard.vkCode == VK_RMENU) {
+                ws->SendWindowsKey(keyboard.vkCode, down);
                 return 1; // ignore it , send to remote
             }
 
             // Tab was sent in video_widget_event.cpp, and the ALT + TAB are pressed together, sending the TAB here.
-            if (kbd_struct->vkCode == VK_TAB && (GetKeyState(VK_LMENU) < 0 || GetKeyState(VK_RMENU) < 0)) {
-                ws->SendWindowsKey(kbd_struct->vkCode, down);
+            if (keyboard.vkCode == VK_TAB && (GetKeyState(VK_LMENU) < 0 || GetKeyState(VK_RMENU) < 0)) {
+                ws->SendWindowsKey(keyboard.vkCode, down);
                 return 1;
             }
         }
         return CallNextHookEx(nullptr, code, wParam, lParam);
-    }, nullptr, 0);
+    }, nullptr, 0)};
 
     auto r = app.exec();
-    if (keyboardHook) UnhookWindowsHookEx(keyboardHook);
     return r;
 }

@@ -13,6 +13,7 @@
 
 #include <QProcess>
 #include "px_console_client/console_stream.h"
+#include "rdp_launch_recovery.h"
 
 namespace px
 {
@@ -32,8 +33,11 @@ namespace px
         void StartFileTransfer(const std::shared_ptr<px_console::ConsoleStream>& item);
         // False means the user cancelled closing a running local client.
         bool StopStream(const std::shared_ptr<px_console::ConsoleStream>& item);
+        std::shared_ptr<const RdpLaunchRecovery> TakeRdpRecovery(const std::string& app_id);
 
     private:
+        void StartRdpStream(const std::shared_ptr<px_console::ConsoleStream>& item);
+        void FinishRdpStream(std::string stream_id, std::weak_ptr<QProcess> process);
         PxSettings& settings_;
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
@@ -44,6 +48,7 @@ namespace px
         // what the client and Panel control channel must use.
         std::map<std::string, std::string> running_session_stream_ids_;
         std::mutex running_mutex_;
+        RdpRecoveryStore rdp_recovery_{};
     };
 
 }

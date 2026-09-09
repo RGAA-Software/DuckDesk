@@ -40,6 +40,10 @@ std::string WsTransport::Description() const {
 }
 
 bool WsTransport::Start(const px::RenderModuleConfiguration& configuration) {
+    if ((configuration.app_mode == "rdp") != (configuration.rdp_proxy_port != 0)) {
+        LOGE("RDP transport requires an explicitly configured local proxy endpoint");
+        return false;
+    }
     if (!RenderModule::Start(configuration)) {
         return false;
     }
@@ -57,7 +61,7 @@ bool WsTransport::Start(const px::RenderModuleConfiguration& configuration) {
              "reason=ws_transport_requires_shared_ownership");
         return false;
     }
-    ws_server_ = std::make_shared<WsServer>(weak_self, async_runtime_, static_cast<uint16_t>(listen_port));
+    ws_server_ = std::make_shared<WsServer>(weak_self, async_runtime_, static_cast<uint16_t>(listen_port), configuration.rdp_proxy_port);
     if (!ws_server_->Start()) {
         ws_server_.reset();
         RenderModule::Stop();

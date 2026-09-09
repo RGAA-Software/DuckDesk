@@ -14,6 +14,7 @@
 #include <set>
 #include <unordered_map>
 #include "network/ws_router.h"
+#include "px_rdp/rdp_frontend_lease.h"
 #include "px_common/concurrent_hashmap.h"
 #include "px_common/file_transfer_send_result.h"
 #include "px_common/async_result.h"
@@ -49,7 +50,8 @@ struct LogicalSessionAdmission;
 // - No mutex or borrowed request/response value crosses co_await.
 class WsServer : public std::enable_shared_from_this<WsServer> {
   public:
-    explicit WsServer(std::weak_ptr<WsTransport> transport, std::shared_ptr<PxAsyncRuntime> async_runtime, uint16_t listen_port);
+    explicit WsServer(std::weak_ptr<WsTransport> transport, std::shared_ptr<PxAsyncRuntime> async_runtime, uint16_t listen_port,
+                      std::uint16_t rdp_proxy_port = 0);
 
     [[nodiscard]] bool Start();
     void Exit();
@@ -112,6 +114,8 @@ class WsServer : public std::enable_shared_from_this<WsServer> {
     // Weak observer: WsTransport owns this server and must not form a cycle.
     std::weak_ptr<WsTransport> transport_;
     uint16_t listen_port_ = 0;
+    const std::uint16_t rdp_proxy_port_{0};
+    rdp::FrontendLease rdp_frontend_{};
     // std::shared_ptr<asio2::https_server> server_ = nullptr;
     std::shared_ptr<asio2::http_server> server_{};
 

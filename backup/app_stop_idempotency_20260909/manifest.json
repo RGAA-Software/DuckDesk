@@ -1,0 +1,16 @@
+{
+  "revision": "3e38249f9332572502cd341ebed9860b81ebac82",
+  "reason": "Retire path-only game cleanup and non-idempotent stopped-instance handling; preserve full working-tree contents",
+  "files": [
+    {
+      "path": "rust_client/px_service/src/service_host.rs",
+      "sha256": "965317BA96FBCAB46107B72919C319190DE9A2DF3413EAA38EF373B78E50A5A1",
+      "status": " M rust_client/px_service/src/service_host.rs"
+    },
+    {
+      "path": "rust_server/px_console_server/src/app_schedule/manager.rs",
+      "sha256": "015F9B8D17329E2C3CE967C643FABBA685D53715FEC733D498BA8A098B307798",
+      "status": " M rust_server/px_console_server/src/app_schedule/manager.rs"
+    }
+  ]
+}

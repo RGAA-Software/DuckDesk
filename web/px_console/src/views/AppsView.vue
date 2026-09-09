@@ -55,7 +55,7 @@ const form = ref({
   app_id: '',
   version: 0,
   name: '',
-  app_type: 'game-hook' as 'game-hook' | 'webview',
+  app_type: 'game-hook' as 'game-hook' | 'webview' | 'rdp',
   entry_url: '',
   game_path: '',
   default_game_args: '',
@@ -99,6 +99,8 @@ function openNodeList(row: ViewRow) {
 }
 
 const onlineIds = computed(() => new Set(services.value.map((s) => s.device_id)))
+const rdpNodeForm = computed(() => rowsRaw.value.find(row => row.app_id === nodeForm.value.app_id)?.app_type === 'rdp')
+const rdpReadyIds = computed(() => new Set(services.value.filter(service => service.rdp_available === true).map(service => service.device_id)))
 
 interface DeviceOption {
   device_id: string
@@ -202,6 +204,7 @@ function collapsePath(path: string): string {
 }
 
 function appEntry(row: ViewRow): string {
+  if (row.app_type === 'rdp') return '应用 + 节点的持久 Windows 工作区'
   return row.app_type === 'webview' ? row.entry_url : row.game_path
 }
 
@@ -318,7 +321,8 @@ function openEdit(row: ViewRow) {
 
 async function openNodeCreate(row: ViewRow) {
   nodeEditing.value = false
-  const deviceId = services.value[0]?.device_id || deviceOptions.value[0]?.device_id || ''
+  const deviceId = (row.app_type === 'rdp' ? services.value.find(service => service.rdp_available === true)?.device_id : '') ||
+    services.value[0]?.device_id || deviceOptions.value[0]?.device_id || ''
   const port = deviceId ? ((await nextPort(deviceId)) ?? 32000) : 32000
   nodeForm.value = {
     node_id: '',
@@ -564,6 +568,10 @@ async function handleStop(node: ViewNode) {
 }
 
 function handleOpenClient(node: ViewNode) {
+  if (rows.value.find(row => row.app_id === node.app_id)?.app_type === 'rdp') {
+    message.info('RDP 工作区请使用 Windows 客户端连接；浏览器远程画面暂不支持。')
+    return
+  }
   const inst = node.instance
   if (!inst || inst.state !== 'running' || !inst.listen_port) {
     message.warning('请先启动并等到「运行中」')
@@ -639,8 +647,8 @@ onUnmounted(() => {
       </a-table-column>
       <a-table-column title="类型" width="110">
         <template #default="{ record }">
-          <a-tag :color="record.app_type === 'webview' ? 'purple' : 'blue'">
-            {{ record.app_type === 'webview' ? 'WebView' : '游戏' }}
+          <a-tag :color="record.app_type === 'rdp' ? 'green' : record.app_type === 'webview' ? 'purple' : 'blue'">
+            {{ record.app_type === 'rdp' ? 'RDP 工作区' : record.app_type === 'webview' ? 'WebView' : '游戏' }}
           </a-tag>
         </template>
       </a-table-column>
@@ -842,6 +850,7 @@ onUnmounted(() => {
           <a-radio-group v-model:value="form.app_type" :disabled="editing && rows.find(row => row.app_id === form.app_id)?.nodes.some(node => !!node.instance)">
             <a-radio value="game-hook">游戏程序</a-radio>
             <a-radio value="webview">WebView 网页</a-radio>
+            <a-radio value="rdp">RDP 工作区</a-radio>
           </a-radio-group>
         </a-form-item>
         <a-form-item v-if="form.app_type === 'game-hook'" label="程序路径" required>
@@ -854,7 +863,7 @@ onUnmounted(() => {
             勿从网页表格复制路径（浏览器会把连续空格压成一个）。请从资源管理器地址栏粘贴。
           </div>
         </a-form-item>
-        <a-form-item v-else label="入口 URL" required>
+        <a-form-item v-else-if="form.app_type === 'webview'" label="入口 URL" required>
           <a-input
             v-model:value="form.entry_url"
             placeholder="https://example.com 或内网 http://192.168.x.x"
@@ -866,7 +875,9 @@ onUnmounted(() => {
         <a-form-item v-if="form.app_type === 'game-hook'" label="启动参数">
           <a-input v-model:value="form.default_game_args" placeholder="可选" />
         </a-form-item>
-        <a-form-item label="编码">
+        <a-alert v-if="form.app_type === 'rdp'" type="info" show-icon class="mb-4"
+          message="每个应用 + 节点保留一个标准 Windows 账号，同时仅允许一个客户端。不同访问者先后共享此工作区；停止连接不会注销会话。画面使用 RDP 原生编码。" />
+        <a-form-item v-if="form.app_type !== 'rdp'" label="编码">
           <div class="flex gap-2 items-center flex-wrap">
             <a-select v-model:value="form.encoder_format" style="width: 100px">
               <a-select-option value="h264">h264</a-select-option>
@@ -878,7 +889,7 @@ onUnmounted(() => {
             <span class="text-xs text-gray-400">Mbps</span>
           </div>
         </a-form-item>
-        <a-form-item label="远控会话">
+        <a-form-item v-if="form.app_type !== 'rdp'" label="远控会话">
           <a-space direction="vertical">
             <a-switch v-model:checked="form.allow_observer" checked-children="允许观看" un-checked-children="禁止观看" />
             <a-switch v-model:checked="form.allow_takeover" checked-children="允许接管" un-checked-children="禁止接管" />
@@ -906,6 +917,7 @@ onUnmounted(() => {
         <a-form-item label="机器" required>
           <a-select
             v-model:value="nodeForm.device_id"
+            :disabled="rdpNodeForm && nodeEditing"
             class="w-full"
             show-search
             placeholder="选择机器（离线也可配置）"
@@ -917,6 +929,7 @@ onUnmounted(() => {
               :value="device.device_id"
             >
               {{ device.label }}（{{ device.online ? '在线' : '离线' }}）
+              {{ rdpNodeForm && device.online ? (rdpReadyIds.has(device.device_id) ? ' · RDP 已就绪' : ' · RDP 未部署或未建立信任') : '' }}
             </a-select-option>
           </a-select>
         </a-form-item>
@@ -924,6 +937,8 @@ onUnmounted(() => {
           <a-input-number v-model:value="nodeForm.listen_port" :min="32000" :max="65535" />
           <span class="ml-2 text-xs text-gray-400">按机器分配，默认从 32000 递增；冲突会提示</span>
         </a-form-item>
+        <a-alert v-if="rdpNodeForm" type="info" show-icon
+          message="工作区绑定此机器，保存后不可直接迁移。离线或 RDP 未就绪的节点可保存，但部署受信任的 RDP 运行环境后才能启动。" />
       </a-form>
       <div class="mt-4 text-right">
         <a-button class="mr-2" @click="nodeDialogVisible = false">取消</a-button>

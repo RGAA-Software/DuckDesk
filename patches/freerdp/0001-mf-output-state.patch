@@ -1,0 +1,214 @@
+diff --git a/libfreerdp/codec/h264.c b/libfreerdp/codec/h264.c
+index 5434829..7f010b1 100644
+--- a/libfreerdp/codec/h264.c
++++ b/libfreerdp/codec/h264.c
+@@ -149,6 +149,9 @@ static int log_decompress(H264_CONTEXT* h264, const BYTE* pSrcData, UINT32 SrcSi
+                           const RECTANGLE_16* rects, UINT32 nrRects)
+ {
+ 	const int status = h264->subsystem->Decompress(h264, pSrcData, SrcSize);
++	/* A decoder awaiting more input has not produced a surface to validate. */
++	if (status == 0)
++		return 0;
+ 	if (status < 0)
+ 	{
+ 		WLog_Print(h264->log, WLOG_WARN, "H264 decompress failed with %d", status);
+@@ -603,7 +606,10 @@ static BOOL avc444_process_rects(H264_CONTEXT* h264, const BYTE* pSrcData, UINT3
+ 	BYTE** ppYUVDstData = h264->pYUV444Data;
+ 	const UINT32* piStride = h264->iStride;
+ 
+-	if (log_decompress(h264, pSrcData, SrcSize, rects, nrRects) < 0)
++	const int status = log_decompress(h264, pSrcData, SrcSize, rects, nrRects);
++	if (status == 0)
++		return TRUE;
++	if (status < 0)
+ 		return FALSE;
+ 
+ 	pYUVData[0] = h264->pYUVData[0];
+diff --git a/libfreerdp/codec/h264_mf.c b/libfreerdp/codec/h264_mf.c
+index 41bf227..13db7c1 100644
+--- a/libfreerdp/codec/h264_mf.c
++++ b/libfreerdp/codec/h264_mf.c
+@@ -98,7 +98,7 @@ static HRESULT mf_find_output_type(H264_CONTEXT_MF* sys, const GUID* guid,
+                                    IMFMediaType** ppMediaType)
+ {
+ 	DWORD idx = 0;
+-	GUID mediaGuid;
++	GUID mediaGuid = WINPR_C_ARRAY_INIT;
+ 	HRESULT hr = S_OK;
+ 	IMFMediaType* pMediaType = nullptr;
+ 
+@@ -127,7 +127,7 @@ static HRESULT mf_find_output_type(H264_CONTEXT_MF* sys, const GUID* guid,
+ static HRESULT mf_create_output_sample(H264_CONTEXT* h264, H264_CONTEXT_MF* sys)
+ {
+ 	HRESULT hr = S_OK;
+-	MFT_OUTPUT_STREAM_INFO streamInfo;
++	MFT_OUTPUT_STREAM_INFO streamInfo = WINPR_C_ARRAY_INIT;
+ 
+ 	if (sys->outputSample)
+ 	{
+@@ -159,7 +159,9 @@ static HRESULT mf_create_output_sample(H264_CONTEXT* h264, H264_CONTEXT_MF* sys)
+ 		goto error;
+ 	}
+ 
+-	sys->outputSample->lpVtbl->AddBuffer(sys->outputSample, sys->outputBuffer);
++	hr = sys->outputSample->lpVtbl->AddBuffer(sys->outputSample, sys->outputBuffer);
++	sys->outputBuffer->lpVtbl->Release(sys->outputBuffer);
++	sys->outputBuffer = nullptr;
+ 
+ 	if (FAILED(hr))
+ 	{
+@@ -167,7 +169,6 @@ static HRESULT mf_create_output_sample(H264_CONTEXT* h264, H264_CONTEXT_MF* sys)
+ 		goto error;
+ 	}
+ 
+-	sys->outputBuffer->lpVtbl->Release(sys->outputBuffer);
+ error:
+ 	return hr;
+ }
+@@ -179,6 +180,10 @@ static int mf_decompress(H264_CONTEXT* WINPR_RESTRICT h264, const BYTE* WINPR_RE
+ 	DWORD cbMaxLength = 0;
+ 	DWORD cbCurrentLength = 0;
+ 	DWORD outputStatus = 0;
++	UINT32 formatChanges = 0;
++	int result = -1;
++	BOOL inputLocked = FALSE;
++	BOOL outputLocked = FALSE;
+ 	IMFSample* inputSample = nullptr;
+ 	IMFMediaBuffer* inputBuffer = nullptr;
+ 	IMFMediaBuffer* outputBuffer = nullptr;
+@@ -206,6 +211,7 @@ static int mf_decompress(H264_CONTEXT* WINPR_RESTRICT h264, const BYTE* WINPR_RE
+ 	}
+ 
+ 	CopyMemory(pbBuffer, pSrcData, SrcSize);
++	inputLocked = TRUE;
+ 	hr = inputBuffer->lpVtbl->SetCurrentLength(inputBuffer, SrcSize);
+ 
+ 	if (FAILED(hr))
+@@ -215,6 +221,7 @@ static int mf_decompress(H264_CONTEXT* WINPR_RESTRICT h264, const BYTE* WINPR_RE
+ 	}
+ 
+ 	hr = inputBuffer->lpVtbl->Unlock(inputBuffer);
++	inputLocked = FALSE;
+ 
+ 	if (FAILED(hr))
+ 	{
+@@ -230,7 +237,7 @@ static int mf_decompress(H264_CONTEXT* WINPR_RESTRICT h264, const BYTE* WINPR_RE
+ 		goto error;
+ 	}
+ 
+-	inputSample->lpVtbl->AddBuffer(inputSample, inputBuffer);
++	hr = inputSample->lpVtbl->AddBuffer(inputSample, inputBuffer);
+ 
+ 	if (FAILED(hr))
+ 	{
+@@ -239,6 +246,7 @@ static int mf_decompress(H264_CONTEXT* WINPR_RESTRICT h264, const BYTE* WINPR_RE
+ 	}
+ 
+ 	inputBuffer->lpVtbl->Release(inputBuffer);
++	inputBuffer = nullptr;
+ 	hr = sys->transform->lpVtbl->ProcessInput(sys->transform, 0, inputSample, 0);
+ 
+ 	if (FAILED(hr))
+@@ -255,17 +263,31 @@ static int mf_decompress(H264_CONTEXT* WINPR_RESTRICT h264, const BYTE* WINPR_RE
+ 		goto error;
+ 	}
+ 
++retry_output:
++	outputStatus = 0;
+ 	outputDataBuffer.dwStreamID = 0;
+ 	outputDataBuffer.dwStatus = 0;
+ 	outputDataBuffer.pEvents = nullptr;
+ 	outputDataBuffer.pSample = sys->outputSample;
+ 	hr = sys->transform->lpVtbl->ProcessOutput(sys->transform, 0, 1, &outputDataBuffer,
+ 	                                           &outputStatus);
++	if (outputDataBuffer.pEvents)
++	{
++		outputDataBuffer.pEvents->lpVtbl->Release(outputDataBuffer.pEvents);
++		outputDataBuffer.pEvents = nullptr;
++	}
+ 
+ 	if (hr == MF_E_TRANSFORM_STREAM_CHANGE)
+ 	{
+ 		UINT32 stride = 0;
+ 		UINT64 frameSize = 0;
++		/* A format notification does not consume the pending output sample.
++		 * Retry output, not input, with a newly sized buffer. Bound a broken MFT. */
++		if (++formatChanges > 4)
++		{
++			WLog_Print(h264->log, WLOG_ERROR, "MF output format did not stabilize");
++			goto error;
++		}
+ 
+ 		if (sys->outputType)
+ 		{
+@@ -320,9 +342,12 @@ static int mf_decompress(H264_CONTEXT* WINPR_RESTRICT h264, const BYTE* WINPR_RE
+ 
+ 		if (!avc420_ensure_buffer(h264, stride, sys->frameWidth, sys->frameHeight))
+ 			goto error;
++		goto retry_output;
+ 	}
+ 	else if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT)
+ 	{
++		result = 0;
++		goto cleanup;
+ 	}
+ 	else if (FAILED(hr))
+ 	{
+@@ -359,6 +384,14 @@ static int mf_decompress(H264_CONTEXT* WINPR_RESTRICT h264, const BYTE* WINPR_RE
+ 			WLog_Print(h264->log, WLOG_ERROR, "Lock failure: 0x%08" PRIX32 "", hr);
+ 			goto error;
+ 		}
++		outputLocked = TRUE;
++		const UINT64 required = (UINT64)iStride[0] * sys->frameHeight +
++		                        ((UINT64)iStride[1] + iStride[2]) * (sys->frameHeight / 2);
++		if (!pYUVData[0] || !pYUVData[1] || !pYUVData[2] || required > cbCurrentLength)
++		{
++			WLog_Print(h264->log, WLOG_ERROR, "MF decoded output buffer is incomplete");
++			goto error;
++		}
+ 
+ 		CopyMemory(pYUVData[0], &buffer[offset], iStride[0] * sys->frameHeight);
+ 		offset += iStride[0] * sys->frameHeight;
+@@ -367,6 +400,7 @@ static int mf_decompress(H264_CONTEXT* WINPR_RESTRICT h264, const BYTE* WINPR_RE
+ 		CopyMemory(pYUVData[2], &buffer[offset], iStride[2] * (sys->frameHeight / 2));
+ 		offset += iStride[2] * (sys->frameHeight / 2);
+ 		hr = outputBuffer->lpVtbl->Unlock(outputBuffer);
++		outputLocked = FALSE;
+ 
+ 		if (FAILED(hr))
+ 		{
+@@ -375,15 +409,31 @@ static int mf_decompress(H264_CONTEXT* WINPR_RESTRICT h264, const BYTE* WINPR_RE
+ 		}
+ 
+ 		outputBuffer->lpVtbl->Release(outputBuffer);
++		outputBuffer = nullptr;
+ 		h264->YUVWidth = sys->frameWidth;
+ 		h264->YUVHeight = sys->frameHeight;
+ 	}
+ 
+-	inputSample->lpVtbl->Release(inputSample);
+-	return 1;
++	result = 1;
++	goto cleanup;
+ error:
+ 	(void)fprintf(stderr, "mf_decompress error\n");
+-	return -1;
++cleanup:
++	if (outputBuffer)
++	{
++		if (outputLocked)
++			outputBuffer->lpVtbl->Unlock(outputBuffer);
++		outputBuffer->lpVtbl->Release(outputBuffer);
++	}
++	if (inputBuffer)
++	{
++		if (inputLocked)
++			inputBuffer->lpVtbl->Unlock(inputBuffer);
++		inputBuffer->lpVtbl->Release(inputBuffer);
++	}
++	if (inputSample)
++		inputSample->lpVtbl->Release(inputSample);
++	return result;
+ }
+ 
+ static int mf_compress(H264_CONTEXT* WINPR_RESTRICT h264, const BYTE** WINPR_RESTRICT ppSrcYuv,

@@ -1,0 +1,36 @@
+{
+  "revision": "3e38249f9332572502cd341ebed9860b81ebac82",
+  "reason": "Replace ambiguous normal-exit process-loss classification with generation-bound kernel exit observation; preserve full working-tree contents",
+  "files": [
+    {
+      "path": "rust_client/px_service/service_core/src/app_instance.rs",
+      "sha256": "821EF4CE4BDF93A4FDB65BE3AB2E4AD214B3EB91DBA043EBE8040F67C871F2C7",
+      "status": " M rust_client/px_service/service_core/src/app_instance.rs"
+    },
+    {
+      "path": "rust_client/px_service/src/service_host.rs",
+      "sha256": "D501DE895E3D248C04F60B2690113892D94807DBCEFBE64266924E660B2963F9",
+      "status": " M rust_client/px_service/src/service_host.rs"
+    },
+    {
+      "path": "rust_client/px_service/src/windows_process.rs",
+      "sha256": "488BFF662C75ED318865BD1E885B2AAA47DDBC31636B121D1BCE1CC9B216DFBA",
+      "status": " M rust_client/px_service/src/windows_process.rs"
+    },
+    {
+      "path": "rust_server/px_console_server/src/app_schedule/manager.rs",
+      "sha256": "74ABF63C82A5289814A5D7BDBA86E2EC8415A56D672360A039DCECAED9E4A8F7",
+      "status": " M rust_server/px_console_server/src/app_schedule/manager.rs"
+    },
+    {
+      "path": "src/px_render/rd_app.cpp",
+      "sha256": "2A6D03A73693CA75621E93FAEF6FDDCE0F7BCDB0436D266506BDC20B4B76CB1B",
+      "status": " M src/px_render/rd_app.cpp"
+    },
+    {
+      "path": "src/px_render/rd_app.h",
+      "sha256": "F09CAA64029861B0E272F68237C89B7AB2243669F0C886F04153D8C735FBD3C7",
+      "status": " M src/px_render/rd_app.h"
+    }
+  ]
+}

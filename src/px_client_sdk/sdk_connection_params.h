@@ -4,10 +4,13 @@
 
 namespace px {
 
+enum class SdkSessionMode { kNative, kRdp };
+
 // Value configuration for the native transport. No renderer, codec, OS handle or
 // UI state belongs here. NetClient owns an immutable snapshot for one session;
 // a new authorization attempt creates a new client with its new credentials.
 struct SdkConnectionParams final {
+    SdkSessionMode session_mode_{SdkSessionMode::kNative};
     bool ssl_{false};
     bool enable_audio_{false};
     bool enable_video_{false};

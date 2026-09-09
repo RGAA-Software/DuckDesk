@@ -8,6 +8,7 @@
 #include <map>
 #include <string>
 #include "px_steam_manager/steam_entities.h"
+#include "px_rdp/rdp_proxy_process.h"
 
 namespace px
 {
@@ -101,7 +102,7 @@ namespace px
         InjectMethod inject_method_{kEasyHook};
         SteamApp steam_app_;
         bool debug_enabled_{false};
-        EventReplayMode event_replay_mode_;
+        EventReplayMode event_replay_mode_{kGlobal};
 
     public:
         [[nodiscard]] bool IsSteamUrl() const {
@@ -120,12 +121,14 @@ namespace px
         kDesktop,
         kGameHook,
         kWebView,
+        kRdp,
     };
 
     enum class InputTarget {
         kSystemSendInput,
         kGameHookIpc,
         kCefBrowser,
+        kRdpProtocol,
     };
 
     class RdSettings {
@@ -147,7 +150,11 @@ namespace px
         bool IsWebViewMode() const {
             return application_mode_ == ApplicationMode::kWebView;
         }
+        [[nodiscard]] bool IsRdpMode() const { return application_mode_ == ApplicationMode::kRdp; }
         [[nodiscard]] InputTarget GetInputTarget() const {
+            if (IsRdpMode()) {
+                return InputTarget::kRdpProtocol;
+            }
             if (application_mode_ == ApplicationMode::kWebView) {
                 return InputTarget::kCefBrowser;
             }
@@ -166,6 +173,7 @@ namespace px
         Transmission transmission_{};
         TargetApplication app_;
         ApplicationMode application_mode_ = ApplicationMode::kDesktop;
+        rdp::RdpProxyLaunch rdp_launch_{};
 
         bool block_debug_ = false;
         std::string panel_server_host_ = "127.0.0.1";

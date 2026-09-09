@@ -7,6 +7,13 @@ pub struct ConsoleServiceHello {
     pub appkey: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub version: ::prost::alloc::string::String,
+    #[prost(bool, tag = "4")]
+    pub rdp_available: bool,
+    /// Public node trust metadata. Never credentials; advertised only over verified Console TLS.
+    #[prost(string, tag = "5")]
+    pub rdp_domain: ::prost::alloc::string::String,
+    #[prost(string, tag = "6")]
+    pub rdp_proxy_certificate_sha256: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ConsoleServiceHeartBeat {
@@ -86,6 +93,22 @@ pub struct ConsoleServiceStartAppInstance {
     pub relay_server_port: i32,
     #[prost(string, tag = "21")]
     pub relay_appkey: ::prost::alloc::string::String,
+    /// Private Console -> Service payload. Never copy into public application DTOs or process arguments.
+    #[prost(message, optional, tag = "22")]
+    pub rdp_workspace: ::core::option::Option<RdpWorkspaceProvision>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RdpWorkspaceProvision {
+    #[prost(string, tag = "1")]
+    pub workspace_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub node_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub account_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub password: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "5")]
+    pub credential_version: u32,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ConsoleServiceStopAppInstance {
@@ -161,6 +184,10 @@ pub struct ConsoleServiceRedeemConnectionTicket {
     pub client_nonce: ::prost::alloc::string::String,
     #[prost(string, tag = "5")]
     pub instance_id: ::prost::alloc::string::String,
+    /// Service-only live RDP authorization check; mutually exclusive with ticket/nonce.
+    /// Console binds this to the authenticated node, instance and original login session.
+    #[prost(string, tag = "6")]
+    pub rdp_logical_session_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ConsoleConnectionGrant {

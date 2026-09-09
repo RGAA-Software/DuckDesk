@@ -6,6 +6,7 @@ pub enum RenderMode {
     Inner,
     GameHook,
     Webview,
+    Rdp,
     Unknown,
 }
 
@@ -15,6 +16,7 @@ pub enum ProcessKind {
     InnerRender,
     GameHookRender,
     WebviewRender,
+    RdpRender,
     Other,
 }
 
@@ -56,6 +58,8 @@ impl ProcessSnapshot {
             RenderMode::GameHook
         } else if self.cmdline.contains("--app_mode=webview") {
             RenderMode::Webview
+        } else if self.cmdline.split_whitespace().any(|arg| arg == "--app_mode=rdp") {
+            RenderMode::Rdp
         } else if self.cmdline.contains("--app_mode=inner") {
             // Legacy alias; prefer game-hook for Console-scheduled apps.
             RenderMode::Inner
@@ -93,6 +97,7 @@ impl ProcessSnapshot {
             RenderMode::Inner => ProcessKind::InnerRender,
             RenderMode::GameHook => ProcessKind::GameHookRender,
             RenderMode::Webview => ProcessKind::WebviewRender,
+            RenderMode::Rdp => ProcessKind::RdpRender,
             RenderMode::Unknown => ProcessKind::Other,
         }
     }
@@ -108,7 +113,7 @@ impl ProcessSnapshot {
         !self.cmdline.contains("--type=")
             && matches!(
                 self.kind(),
-                ProcessKind::GameHookRender | ProcessKind::WebviewRender
+                ProcessKind::GameHookRender | ProcessKind::WebviewRender | ProcessKind::RdpRender
             )
     }
 

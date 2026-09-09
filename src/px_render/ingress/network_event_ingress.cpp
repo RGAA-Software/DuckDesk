@@ -330,6 +330,18 @@ void NetworkEventIngress::InitListeners() {
 }
 
 void NetworkEventIngress::ProcessClientConnectedEvent(const std::shared_ptr<ClientConnectedEvent>& event, const std::string& source_id) {
+    if (settings_.IsRdpMode()) {
+        context_->SendAppMessage(MsgClientConnected{
+            .connection_id_ = event->connection_id_,
+            .connection_type_ = event->connection_type_,
+            .stream_id_ = event->stream_id_,
+            .visitor_device_id_ = event->visitor_device_id_,
+            .begin_timestamp_ = event->begin_timestamp_,
+        });
+        ReportClientConnected(event);
+        // In particular, never send Ctrl+Alt+Delete to the Service/host desktop.
+        return;
+    }
     context_->SendAppMessage(MsgInsertIDR{});
     context_->SendAppMessage(MsgRefreshScreen{});
     LOGI("Connection established");

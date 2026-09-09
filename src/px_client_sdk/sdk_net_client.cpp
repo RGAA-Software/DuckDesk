@@ -13,6 +13,8 @@
 #include "px_common/file.h"
 #include "px_common/message_notifier.h"
 #include "px_common/ws_control_signal.h"
+#include "px_common/reliable_websocket_send.h"
+#include "px_rdp/rdp_stream_packet.h"
 #include "sdk_messages.h"
 #include "connection/ws_connection.h"
 #include "connection/wss_connection.h"
@@ -55,6 +57,14 @@ std::string NetClient::MakeAuthenticatedWebSocketPath(std::string path, const bo
 
 std::shared_ptr<Connection> NetClient::MakeDirectWebSocketMediaConnection() const {
     std::string path = params_.media_path_;
+    if (params_.session_mode_ == SdkSessionMode::kRdp) {
+        path += path.find('?') == std::string::npos ? "?rdp=1" : "&rdp=1";
+        path = MakeAuthenticatedWebSocketPath(std::move(path));
+        if (params_.ssl_) {
+            return std::make_shared<WssConnection>(msg_notifier_, params_.ip_, params_.port_, path);
+        }
+        return std::make_shared<WsConnection>(msg_notifier_, params_.ip_, params_.port_, path);
+    }
     constexpr std::string_view kUdpMediaQuery = "&udp_media=1";
     if (path.find("udp_media=1") == std::string::npos) {
         path += path.find('?') == std::string::npos ? "?udp_media=1" : std::string(kUdpMediaQuery);
@@ -119,6 +129,30 @@ void NetClient::StartManagedUdpMediaConnection(const std::shared_ptr<Connection>
         if (!self || !self->IsCurrentManagedMediaConnection(generation))
             return;
         self->stat_->AppendRecvDataSize(data->Size());
+        if (self->params_.session_mode_ == SdkSessionMode::kRdp) {
+            px::Message envelope{};
+            if (data->Size() > rdp::kMaxWireBytes || !envelope.ParseFromArray(data->Bytes().data(), static_cast<int>(data->Size())) ||
+                (envelope.type() != kRdpStream && envelope.type() != kOnHeartBeat && envelope.type() != kInstanceStopped) ||
+                (envelope.type() == kRdpStream && !envelope.has_rdp_stream())) {
+                if (const auto active_connection = weak_connection.lock()) {
+                    active_connection->Stop();
+                }
+                return;
+            }
+            if (envelope.type() == kRdpStream && envelope.has_rdp_stream()) {
+                auto callback = std::function<void(std::shared_ptr<Data>)>{};
+                {
+                    std::lock_guard lock(self->rdp_callback_mutex_);
+                    callback = self->rdp_message_callback_;
+                }
+                if (callback) {
+                    callback(std::move(data));
+                }
+                return; // RDP owns its framing; do not generate one GammaRay ACK per chunk.
+            }
+            static_cast<void>(self->ParseMessage(std::move(data)));
+            return; // No native UDP or host file/clipboard channel in RDP mode.
+        }
         if (auto message = self->ParseMessage(data); message) {
             self->StartFileTransferConnection();
             // A transport-level WS connected callback can run even when
@@ -195,9 +229,13 @@ void NetClient::ReportUdpMediaUnavailable() {
 }
 
 void NetClient::Start() {
+    if (params_.session_mode_ == SdkSessionMode::kRdp && params_.file_transfer_only_) {
+        LOGE("RDP cannot use the host file-transfer connection.");
+        return;
+    }
     if (exited_ || started_.exchange(true))
         return;
-    if (!params_.file_transfer_only_ && !udp_media_state_.BeginProbe())
+    if (params_.session_mode_ != SdkSessionMode::kRdp && !params_.file_transfer_only_ && !udp_media_state_.BeginProbe())
         return;
     const auto weak_self = weak_from_this();
     connection_notified_ = false;
@@ -211,7 +249,7 @@ void NetClient::Start() {
     }
     // GameStream 风格双通道:ws 控制面(可靠消息/状态机全复用) + 裸 UDP 媒体面,
     // 见 docs/udp_gamestream_channel_plan.md
-    LOGI("Will connect by UDP direct, ws ctrl: {}:{}, udp media: {}:{}", params_.ip_, params_.port_, params_.ip_, params_.udp_port_);
+    LOGI("Start native connection mode={}, control={}:{}", static_cast<int>(params_.session_mode_), params_.ip_, params_.port_);
     // Reliable control and file-transfer messages share the already
     // authenticated /media WebSocket. UDP carries audio/video only.
     // Opening another route would redeem the one-time ticket again and
@@ -226,7 +264,7 @@ void NetClient::Start() {
             ft_conn_ = std::make_shared<WsConnection>(msg_notifier_, params_.ip_, params_.port_, ft_path);
         }
     }
-    if (!params_.file_transfer_only_) {
+    if (!params_.file_transfer_only_ && params_.session_mode_ != SdkSessionMode::kRdp) {
         ReplaceUdpDirectConnection(std::make_shared<UdpDirectConnection>(msg_notifier_));
     }
 
@@ -461,6 +499,25 @@ bool NetClient::PostVoiceAudioMessage(const std::shared_ptr<Message>& message) {
     return connection->PostVoiceFrame(frame.call_id(), frame.sequence(), frame.capture_time_ms(), opus);
 }
 
+void NetClient::SetOnRdpMessageCallback(std::function<void(std::shared_ptr<Data>)> callback) {
+    std::lock_guard lock(rdp_callback_mutex_);
+    rdp_message_callback_ = std::move(callback);
+}
+
+void NetClient::PostRdpMessage(std::shared_ptr<Data> msg, std::function<void(bool)> completion) {
+    const auto pending = std::make_shared<ReliableWriteCompletion>(std::move(completion));
+    if (exited_.load() || params_.session_mode_ != SdkSessionMode::kRdp || !msg || msg->Size() == 0 || msg->Size() > rdp::kMaxWireBytes) {
+        return;
+    }
+    Message envelope{};
+    if (!envelope.ParseFromArray(msg->Bytes().data(), static_cast<int>(msg->Size())) || envelope.type() != kRdpStream || !envelope.has_rdp_stream()) {
+        return;
+    }
+    if (const auto connection = CurrentMediaConnection()) {
+        connection->PostReliableBinaryMessage(std::move(msg), [pending](bool success) { pending->Complete(success); });
+    }
+}
+
 void NetClient::PostMediaMessage(std::shared_ptr<Data> msg) {
     {
         const auto media_connection = CurrentMediaConnection();
@@ -490,6 +547,9 @@ void NetClient::PostMediaMessage(std::shared_ptr<Data> msg) {
 }
 
 FileTransferSendResult NetClient::PostFileTransferMessage(std::shared_ptr<Data> msg) {
+    if (params_.session_mode_ == SdkSessionMode::kRdp) {
+        return FileTransferSendResult::Disconnected("Host file transfer is unavailable in RDP mode");
+    }
     if (!msg) {
         return FileTransferSendResult::TransportError("file-transfer message is empty");
     }

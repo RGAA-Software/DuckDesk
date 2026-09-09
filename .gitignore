@@ -73,3 +73,6 @@ rustdesk/
 /tests/*
 !/tests/webview_e2e/
 !/tests/webview_e2e/index.html
+
+# RDP probe credentials, generated keys, private logs, and local harnesses
+/.cache/

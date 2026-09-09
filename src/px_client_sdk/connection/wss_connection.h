@@ -33,6 +33,7 @@ namespace px
         void Start() override;
         void Stop() override;
         void PostBinaryMessage(std::shared_ptr<Data> msg) override;
+        void PostReliableBinaryMessage(std::shared_ptr<Data> msg, std::function<void(bool)> completion) override;
         void PostTextMessage(const std::string& msg) override;
         bool IsAlive() override;
         [[nodiscard]] std::uint64_t ConnectionGeneration() const;

@@ -51,6 +51,7 @@ set(SRCS
         pipeline/encoded_video_fanout.cpp
         ingress/network_event_ingress.cpp
         webview/webview_runtime.cpp
+        rdp/rdp_application.cpp
 )
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/app)
@@ -69,6 +70,7 @@ endif()
 target_link_libraries(main app_manager protobuf::libprotobuf px_message
         render_architecture_core render_media_recorder)
 target_link_libraries(main render_live_pusher)
+target_link_libraries(main px_rdp_stream)
 target_link_libraries(main render_frame_processors)
 target_link_libraries(main render_audio_processors)
 target_link_libraries(main render_audio_sources)

@@ -42,16 +42,15 @@ RdContext::~RdContext() {
     if (exiting_.exchange(true)) {
         return;
     }
-    {
-        std::lock_guard lock(ui_task_mutex_);
-        std::queue<std::function<void()>> empty;
-        ui_tasks_.swap(empty);
-    }
+    ui_tasks_.Close();
     if (msg_notifier_) {
         msg_notifier_->Stop(MessageBusStopMode::kCancel);
     }
     if (delay_timer_) {
-        delay_timer_->stop_all_timers();
+        // Cancellation alone posts work retaining the timer. Drain and join
+        // while this owner is alive, so its last reference cannot disappear
+        // inside its own iopool thread and destroy a joinable std::thread.
+        delay_timer_->stop();
         delay_timer_.reset();
     }
     if (const auto task_executor = task_executor_.exchange({})) {
@@ -198,31 +197,16 @@ void RdContext::PostUITask(std::function<void()>&& task) {
     if (exiting_ || !task) {
         return;
     }
-    std::lock_guard<std::mutex> lock(ui_task_mutex_);
-    if (exiting_) {
-        return;
+    if (!ui_tasks_.Post(std::move(task))) {
+        LOGE("event=task.rejected component=render_context operation=post_ui reason=closed_or_wakeup_failed");
     }
-    ui_tasks_.push(std::move(task));
 }
 
 void RdContext::ExecutePendingUITasks() {
     if (exiting_) {
         return;
     }
-    std::queue<std::function<void()>> local;
-    {
-        std::lock_guard<std::mutex> lock(ui_task_mutex_);
-        local.swap(ui_tasks_);
-    }
-    while (!local.empty()) {
-        if (exiting_) {
-            return;
-        }
-        if (local.front()) {
-            local.front()();
-        }
-        local.pop();
-    }
+    ui_tasks_.Drain();
 }
 
 void RdContext::PostDelayTask(std::function<void()>&& task, int delay) {

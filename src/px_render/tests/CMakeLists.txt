@@ -1,5 +1,15 @@
 find_package(GTest CONFIG REQUIRED)
 
+add_executable(test_render_ui_task_queue unit/test_ui_task_queue.cpp)
+add_executable(test_rdp_route_close unit/test_rdp_route_close.cpp)
+target_link_libraries(test_rdp_route_close PRIVATE net_ws render_architecture_core px_rdp_stream GTest::gtest GTest::gtest_main)
+add_test(NAME rdp_route_close COMMAND test_rdp_route_close)
+set_tests_properties(rdp_route_close PROPERTIES TIMEOUT 30)
+target_include_directories(test_render_ui_task_queue PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_link_libraries(test_render_ui_task_queue PRIVATE GTest::gtest GTest::gtest_main user32)
+add_test(NAME render_ui_task_queue COMMAND test_render_ui_task_queue)
+set_tests_properties(render_ui_task_queue PROPERTIES TIMEOUT 15)
+
 add_executable(test_render_architecture_core
     unit/test_render_architecture_core.cpp)
 target_link_libraries(test_render_architecture_core
@@ -231,6 +241,29 @@ target_link_libraries(test_rtc_payload_authorization PRIVATE px_message GTest::g
 add_test(NAME rtc_payload_authorization COMMAND test_rtc_payload_authorization)
 
 add_executable(test_render_builtin_linkage unit/test_render_builtin_linkage.cpp)
+if(WIN32)
+    add_executable(test_render_context_shutdown unit/test_render_context_shutdown.cpp)
+    target_link_libraries(test_render_context_shutdown PRIVATE $<TARGET_PROPERTY:px_render,LINK_LIBRARIES> GTest::gtest GTest::gtest_main)
+    target_link_directories(test_render_context_shutdown PRIVATE ${VCPKG_ROOT}/installed/x64-windows/lib)
+    add_test(NAME render_context_shutdown COMMAND test_render_context_shutdown)
+    set_tests_properties(render_context_shutdown PROPERTIES TIMEOUT 30 LABELS "render-lifecycle"
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/dist")
+    add_executable(test_game_process_identity unit/test_game_process_identity.cpp)
+    target_link_libraries(test_game_process_identity PRIVATE GTest::gtest GTest::gtest_main)
+    add_test(NAME game_process_identity COMMAND test_game_process_identity)
+    add_executable(owned_game_fixture unit/owned_game_fixture.cpp)
+    target_include_directories(owned_game_fixture PRIVATE ${CMAKE_SOURCE_DIR}/src/px_deps)
+    set_target_properties(owned_game_fixture PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/owned process fixtures"
+        OUTPUT_NAME "owned game fixture")
+    add_executable(test_game_owned_process unit/test_game_owned_process.cpp ../app/win/owned_game_process.cpp)
+    target_include_directories(test_game_owned_process PRIVATE ${CMAKE_SOURCE_DIR}/src/px_deps)
+    target_compile_definitions(test_game_owned_process PRIVATE GAME_OWNERSHIP_FIXTURE="$<TARGET_FILE:owned_game_fixture>")
+    target_link_libraries(test_game_owned_process PRIVATE GTest::gtest GTest::gtest_main Wtsapi32 Userenv Advapi32)
+    add_dependencies(test_game_owned_process owned_game_fixture)
+    add_test(NAME game_owned_process COMMAND test_game_owned_process)
+    set_tests_properties(game_process_identity game_owned_process PROPERTIES TIMEOUT 30 LABELS "render-unit")
+endif()
 target_link_libraries(test_render_builtin_linkage PRIVATE
     cap_dda cap_gdi enc_ffmpeg enc_amf enc_nvenc net_ws net_udp net_relay
     GTest::gtest GTest::gtest_main)

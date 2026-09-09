@@ -162,6 +162,28 @@ TEST(StreamLaunchAuthWorkflow, ApplicationPollsUntilMatchingInstanceRuns) {
     EXPECT_EQ(queries->load(), 2);
 }
 
+TEST(StreamLaunchAuthWorkflow, RdpTicketSkipsNativeHostConfigurationProbe) {
+    WorkflowEnvironment env;
+    auto hooks = BaseHooks(env.blocking);
+    const auto probes = std::make_shared<std::atomic_int>(0);
+    hooks.probe_direct = [probes](const std::string&, int) { ++*probes; return false; };
+    hooks.issue_instance_ticket = [](const std::string&, const std::string&, const std::vector<std::string>&) {
+        auto ticket = Ticket();
+        ticket.rdp_configuration = std::make_shared<SecretBuffer>("test-only-private-bootstrap");
+        ticket.permissions.push_back("rdp");
+        return StreamLaunchConsoleCall<px_console::ConsoleConnectionTicket>::Success(std::move(ticket));
+    };
+    auto promise = std::make_shared<std::promise<StreamLaunchAuthResult>>();
+    auto future = promise->get_future();
+    ASSERT_TRUE(env.workflow->Start(AppRequest(), std::move(hooks),
+        [promise](std::uint64_t, StreamLaunchAuthResult result) { promise->set_value(std::move(result)); }));
+    auto result = Wait(future);
+    ASSERT_TRUE(result);
+    EXPECT_TRUE(result.Value().direct_available);
+    EXPECT_NE(result.Value().resolved.ticket.rdp_configuration, nullptr);
+    EXPECT_EQ(probes->load(), 0);
+}
+
 TEST(StreamLaunchAuthWorkflow, ApplicationRejectsMissingInstanceId) {
     WorkflowEnvironment env;
     auto hooks = BaseHooks(env.blocking);
@@ -309,6 +331,112 @@ TEST(StreamLaunchAuthWorkflow, RepeatedLifecycleTenRounds) {
         EXPECT_TRUE(Wait(future));
         env.workflow->Stop();
         EXPECT_FALSE(env.workflow->Start(DeviceRequest(), BaseHooks(env.blocking), [](std::uint64_t, StreamLaunchAuthResult) {}));
+    }
+}
+
+std::shared_ptr<RdpLaunchRecovery> Recovery() {
+    return std::make_shared<RdpLaunchRecovery>(RdpLaunchRecovery{
+        .app_id = "app-1", .instance_id = "instance-1", .nonce = "original-nonce", .logical_id = "logical-one",
+        .stream_id = "stream-ticket-session", .host = "10.0.0.90", .port = 32016, .device_id = "001190520",
+        .renewal = SecretBuffer::Take("recovery-capability"), .configuration = SecretBuffer::Take("protected-test-configuration"),
+    });
+}
+
+StreamLaunchAuthRequest RecoveryRequest() {
+    auto request = AppRequest();
+    request.recovery = Recovery();
+    request.instance_id = request.recovery->instance_id;
+    request.client_nonce = request.recovery->nonce;
+    return request;
+}
+
+TEST(RdpRecoveryStore, OnlyClosedOwnerCanConsumeOnceAndExpiryReleasesSecrets) {
+    auto store = RdpRecoveryStore{};
+    const auto now = RdpRecoveryStore::Clock::now();
+    auto recovery = Recovery();
+    const auto secret = std::weak_ptr<const SecretBuffer>{recovery->configuration};
+    store.Remember(recovery);
+    EXPECT_FALSE(store.Take("app-1", now));
+    store.Closed("app-1", "old-stream", now);
+    EXPECT_FALSE(store.Take("app-1", now));
+    store.Closed("app-1", recovery->stream_id, now);
+    EXPECT_EQ(store.Take("app-1", now + 1s), recovery);
+    EXPECT_FALSE(store.Take("app-1", now + 1s));
+    store.Remember(recovery);
+    store.Closed("app-1", recovery->stream_id, now);
+    recovery.reset();
+    EXPECT_FALSE(secret.expired());
+    EXPECT_FALSE(store.Take("app-1", now + 5s));
+    EXPECT_TRUE(secret.expired());
+}
+
+TEST(RdpRecoveryStore, IdentityChangeAndOldCloseCannotReviveOrExpireReplacement) {
+    auto store = RdpRecoveryStore{};
+    const auto now = RdpRecoveryStore::Clock::now();
+    auto recovery = Recovery();
+    store.Remember(recovery);
+    store.Clear();
+    store.Closed("app-1", recovery->stream_id, now);
+    EXPECT_FALSE(store.Take("app-1", now));
+    auto replacement = Recovery();
+    replacement->stream_id = "replacement-stream";
+    store.Remember(replacement);
+    store.Closed("app-1", recovery->stream_id, now);
+    EXPECT_FALSE(store.Take("app-1", now + 1s));
+    store.Closed("app-1", replacement->stream_id, now);
+    EXPECT_EQ(store.Take("app-1", now + 1s), replacement);
+}
+
+TEST(StreamLaunchAuthWorkflow, RdpRecoveryRenewsOriginalOwnerWithoutStartingOrIssuingNewTicket) {
+    WorkflowEnvironment env;
+    auto hooks = BaseHooks(env.blocking);
+    hooks.start_app = [](const std::string&, const std::string&) {
+        ADD_FAILURE() << "Recovery must not start another instance";
+        return StreamLaunchConsoleCall<px_console::ConsoleUserAppInstance>::Failure(px_console::ConsoleApiError::kInternalError);
+    };
+    hooks.issue_instance_ticket = [](const std::string&, const std::string&, const std::vector<std::string>&) {
+        ADD_FAILURE() << "Recovery must not issue a different logical owner";
+        return StreamLaunchConsoleCall<px_console::ConsoleConnectionTicket>::Failure(px_console::ConsoleApiError::kInternalError);
+    };
+    hooks.renew_rdp_ticket = [](const RdpLaunchRecovery& recovery) {
+        EXPECT_EQ(recovery.nonce, "original-nonce");
+        EXPECT_EQ(recovery.renewal->View(), "recovery-capability");
+        auto ticket = Ticket();
+        ticket.logical_session_id = recovery.logical_id;
+        ticket.join_mode = "control";
+        ticket.permissions.push_back("rdp");
+        return StreamLaunchConsoleCall<px_console::ConsoleConnectionTicket>::Success(std::move(ticket));
+    };
+    auto promise = std::make_shared<std::promise<StreamLaunchAuthResult>>();
+    auto future = promise->get_future();
+    ASSERT_TRUE(env.workflow->Start(RecoveryRequest(), std::move(hooks),
+        [promise](std::uint64_t, StreamLaunchAuthResult result) { promise->set_value(std::move(result)); }));
+    auto result = Wait(future);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result.Value().client_nonce, "original-nonce");
+    EXPECT_EQ(result.Value().resolved.ticket.logical_session_id, "logical-one");
+    EXPECT_EQ(result.Value().resolved.ticket.rdp_configuration->View(), "protected-test-configuration");
+    EXPECT_EQ(result.Value().resolved.port, 32016);
+}
+
+TEST(StreamLaunchAuthWorkflow, RdpRecoveryRejectsChangedBindingAndCancellation) {
+    for (const bool cancel : {false, true}) {
+        WorkflowEnvironment env;
+        auto hooks = BaseHooks(env.blocking);
+        hooks.renew_rdp_ticket = [](const RdpLaunchRecovery&) {
+            std::this_thread::sleep_for(50ms);
+            auto ticket = Ticket();
+            ticket.logical_session_id = "another-owner";
+            return StreamLaunchConsoleCall<px_console::ConsoleConnectionTicket>::Success(std::move(ticket));
+        };
+        auto promise = std::make_shared<std::promise<StreamLaunchAuthResult>>();
+        auto future = promise->get_future();
+        ASSERT_TRUE(env.workflow->Start(RecoveryRequest(), std::move(hooks),
+            [promise](std::uint64_t, StreamLaunchAuthResult result) { promise->set_value(std::move(result)); }));
+        if (cancel) { env.workflow->Stop(); }
+        auto result = Wait(future);
+        ASSERT_FALSE(result);
+        EXPECT_EQ(result.Error().code, cancel ? PxAsyncErrorCode::kCancelled : PxAsyncErrorCode::kProtocolError);
     }
 }
 

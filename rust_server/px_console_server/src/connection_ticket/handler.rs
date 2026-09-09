@@ -10,6 +10,7 @@ use crate::user::session::{AuthenticatedGuest, AuthenticatedUser};
 use crate::{gConsoleSettings, gDeviceManager, gRtcConfigManager};
 use axum::extract::{ConnectInfo, Extension, Path};
 use axum::Json;
+use axum::response::{IntoResponse, Response};
 use px_base::{ok_resp, RespMessage};
 use serde::Deserialize;
 use std::net::{IpAddr, SocketAddr};
@@ -22,6 +23,16 @@ pub struct TicketRequest {
     /// read-only observer. Render remains the authority that arbitrates it.
     #[serde(default = "default_join_mode")]
     pub join_mode: String,
+    /// Older/browser clients cannot consume native RDP; never hand them Windows credentials.
+    #[serde(default)]
+    pub client_capability: String,
+}
+
+fn private_ticket_response(response: TicketResponse) -> Response {
+    (
+        [(axum::http::header::CACHE_CONTROL, "no-store, private")],
+        Json(ok_resp(response)),
+    ).into_response()
 }
 
 fn default_join_mode() -> String {
@@ -62,6 +73,9 @@ fn host_for_url(host: &str) -> String {
 async fn issue_rtc_config(
     ticket: &ConnectionTicket,
 ) -> Result<crate::rtc::model::RtcSessionIceConfig, ConsoleApiError> {
+    if ticket.permissions.iter().any(|permission| permission == "rdp") {
+        return Ok(Default::default());
+    }
     gRtcConfigManager
         .issue_session_config(&ticket.session_id)
         .await
@@ -79,7 +93,38 @@ async fn relay_endpoint() -> (String, u16) {
     (settings.server_w3c_ip.clone(), settings.relay_port)
 }
 
-async fn validate_renewal_resource(ticket: &ConnectionTicket) -> Result<(), ConsoleApiError> {
+async fn rdp_client_configuration(
+    app: &crate::app_schedule::manager::Application,
+    instance: &crate::app_schedule::manager::AppInstance,
+    request: &TicketRequest,
+) -> Result<Option<super::model::RdpClientConfiguration>, ConsoleApiError> {
+    use crate::app_schedule::manager::ApplicationType;
+    if app.app_type != ApplicationType::Rdp { return Ok(None); }
+    if request.join_mode != "control" || request.client_capability != "windows-rdp-v1" {
+        return Err(ConsoleApiError::InvalidParams);
+    }
+    let conn = crate::gConsoleServiceConnMgr.get_conn(instance.device_id.clone()).await?;
+    let (domain, certificate) = {
+        let conn = conn.lock().await;
+        if !conn.rdp_available { return Err(ConsoleApiError::DeviceOffline); }
+        (conn.rdp_domain.clone(), conn.rdp_proxy_certificate_sha256.clone())
+    };
+    let collection = crate::gConsoleDatabase.lock().await.c_rdp_workspace.clone()
+        .ok_or(ConsoleApiError::DatabaseError)?;
+    let key_path = gConsoleSettings.lock().await.rdp_master_key_path.clone();
+    let vault = crate::app_schedule::rdp_workspace::RdpWorkspaceVault::load(std::path::Path::new(&key_path))
+        .map_err(|_| ConsoleApiError::InternalError)?;
+    let credential = vault.open_existing(&collection, &instance.app_id, &instance.node_id, &instance.device_id)
+        .await.map_err(|_| ConsoleApiError::InternalError)?;
+    Ok(Some(super::model::RdpClientConfiguration {
+        schema: 1, workspace_id: credential.record.workspace_id, instance_id: instance.instance_id.clone(),
+        node_id: instance.node_id.clone(), device_id: instance.device_id.clone(),
+        account_name: credential.record.account_name, credential_version: credential.record.credential_version,
+        password: super::model::RdpPassword(credential.password), domain, proxy_certificate_sha256: certificate,
+    }))
+}
+
+pub(crate) async fn validate_renewal_resource(ticket: &ConnectionTicket) -> Result<(), ConsoleApiError> {
     match (ticket.subject_type.as_str(), ticket.kind.as_str()) {
         ("user", "device") => {
             let device = gDeviceManager
@@ -176,7 +221,7 @@ pub async fn issue_device_ticket(
     Path(device_id): Path<String>,
     Extension(subject): Extension<AuthenticatedUser>,
     Json(request): Json<TicketRequest>,
-) -> Result<Json<RespMessage<TicketResponse>>, ConsoleApiError> {
+) -> Result<Response, ConsoleApiError> {
     validate_join_mode(&request.join_mode)?;
     let device = gDeviceManager
         .query_device_by_id(device_id.clone())
@@ -240,7 +285,8 @@ pub async fn issue_device_ticket(
         granted.join(",")
     );
     let (relay_host, relay_port) = relay_endpoint().await;
-    Ok(Json(ok_resp(TicketResponse {
+    Ok(private_ticket_response(TicketResponse {
+        rdp: None,
         ticket: raw,
         renewal_token,
         launch_url,
@@ -253,14 +299,14 @@ pub async fn issue_device_ticket(
         relay_host,
         relay_port,
         signal_device_id: format!("server_{device_id}"),
-    })))
+    }))
 }
 
 pub async fn issue_instance_ticket(
     Path(instance_id): Path<String>,
     Extension(subject): Extension<AuthenticatedUser>,
     Json(request): Json<TicketRequest>,
-) -> Result<Json<RespMessage<TicketResponse>>, ConsoleApiError> {
+) -> Result<Response, ConsoleApiError> {
     validate_join_mode(&request.join_mode)?;
     let instance = gAppScheduleManager
         .get_instance(&instance_id)
@@ -295,7 +341,10 @@ pub async fn issue_instance_ticket(
         .next()
         .map(|(host, _)| host)
         .ok_or(ConsoleApiError::DeviceOffline)?;
-    let granted = permissions_for_join(&request.join_mode, &["view", "input", "audio"]);
+    let rdp = rdp_client_configuration(&app, &instance, &request).await?;
+    let granted = permissions_for_join(&request.join_mode, if rdp.is_some() {
+        &["view", "input", "audio", "clipboard", "rdp"]
+    } else { &["view", "input", "audio"] });
     let (raw, renewal_token, mut ticket) = ConnectionTicketManager::issue(
         "app_instance",
         "user",
@@ -312,8 +361,8 @@ pub async fn issue_instance_ticket(
     ConnectionTicketManager::set_remote_session_policy(
         &ticket.ticket_hash,
         &ticket.join_mode,
-        app.allow_observer,
-        app.allow_takeover,
+        rdp.is_none() && app.allow_observer,
+        rdp.is_none() && app.allow_takeover,
     )
     .await?;
     audit::record(
@@ -339,8 +388,14 @@ pub async fn issue_instance_ticket(
         ticket.join_mode,
         granted.join(",")
     );
-    let (relay_host, relay_port) = relay_endpoint().await;
-    Ok(Json(ok_resp(TicketResponse {
+    // RDP launch metadata is consumed by the native workflow, not a browser page.
+    // No credential, ticket or renewal capability is put into its URL.
+    let launch_url = if rdp.is_some() {
+        format!("ws://{}:{}/?deviceId={}", host_for_url(&host), instance.listen_port, instance.device_id)
+    } else { launch_url };
+    let (relay_host, relay_port) = if rdp.is_some() { (String::new(), 0) } else { relay_endpoint().await };
+    Ok(private_ticket_response(TicketResponse {
+        rdp,
         ticket: raw,
         renewal_token,
         launch_url,
@@ -356,14 +411,14 @@ pub async fn issue_instance_ticket(
             "server_{}__instance__{}",
             instance.device_id, instance.instance_id
         ),
-    })))
+    }))
 }
 
 pub async fn issue_guest_instance_ticket(
     Path(instance_id): Path<String>,
     Extension(subject): Extension<AuthenticatedGuest>,
     Json(request): Json<TicketRequest>,
-) -> Result<Json<RespMessage<TicketResponse>>, ConsoleApiError> {
+) -> Result<Response, ConsoleApiError> {
     validate_join_mode(&request.join_mode)?;
     let instance = gAppScheduleManager
         .get_instance(&instance_id)
@@ -388,7 +443,10 @@ pub async fn issue_guest_instance_ticket(
         .next()
         .map(|(host, _)| host)
         .ok_or(ConsoleApiError::DeviceOffline)?;
-    let granted = permissions_for_join(&request.join_mode, &["view", "input", "audio"]);
+    let rdp = rdp_client_configuration(&app, &instance, &request).await?;
+    let granted = permissions_for_join(&request.join_mode, if rdp.is_some() {
+        &["view", "input", "audio", "clipboard", "rdp"]
+    } else { &["view", "input", "audio"] });
     let (raw, renewal_token, mut ticket) = ConnectionTicketManager::issue(
         "app_instance",
         "guest",
@@ -405,8 +463,8 @@ pub async fn issue_guest_instance_ticket(
     ConnectionTicketManager::set_remote_session_policy(
         &ticket.ticket_hash,
         &ticket.join_mode,
-        app.allow_observer,
-        app.allow_takeover,
+        rdp.is_none() && app.allow_observer,
+        rdp.is_none() && app.allow_takeover,
     )
     .await?;
     audit::record(
@@ -432,8 +490,14 @@ pub async fn issue_guest_instance_ticket(
         ticket.join_mode,
         granted.join(",")
     );
-    let (relay_host, relay_port) = relay_endpoint().await;
-    Ok(Json(ok_resp(TicketResponse {
+    // RDP launch metadata is consumed by the native workflow, not a browser page.
+    // No credential, ticket or renewal capability is put into its URL.
+    let launch_url = if rdp.is_some() {
+        format!("ws://{}:{}/?deviceId={}", host_for_url(&host), instance.listen_port, instance.device_id)
+    } else { launch_url };
+    let (relay_host, relay_port) = if rdp.is_some() { (String::new(), 0) } else { relay_endpoint().await };
+    Ok(private_ticket_response(TicketResponse {
+        rdp,
         ticket: raw,
         renewal_token,
         launch_url,
@@ -449,12 +513,25 @@ pub async fn issue_guest_instance_ticket(
             "server_{}__instance__{}",
             instance.device_id, instance.instance_id
         ),
-    })))
+    }))
 }
 
 #[cfg(test)]
 mod tests {
     use super::permissions_for_join;
+
+    #[test]
+    fn legacy_clients_do_not_implicitly_claim_rdp_support() {
+        let request: super::TicketRequest = serde_json::from_str(r#"{"client_nonce":"abc"}"#).unwrap();
+        assert!(request.client_capability.is_empty());
+        assert_eq!(request.join_mode, "control");
+    }
+
+    #[test]
+    fn ticket_response_disables_http_storage() {
+        let response = super::private_ticket_response(super::TicketResponse::default());
+        assert_eq!(response.headers().get(axum::http::header::CACHE_CONTROL).unwrap(), "no-store, private");
+    }
 
     #[test]
     fn observer_role_has_no_mutating_capabilities() {

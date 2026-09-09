@@ -1,0 +1,26 @@
+{
+  "revision": "3e38249f9332572502cd341ebed9860b81ebac82",
+  "reason": "Retire external game-process adoption: Hook requires launch ownership AND exact Windows executable path; preserve full pre-change working-tree contents",
+  "files": [
+    {
+      "path": "src/px_render/app/app_manager.h",
+      "sha256": "2AB327D549655573566FF75726A9DA86AE5921C33F675B11264D48C8F9983B41",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/app/win/app_manager_win.cpp",
+      "sha256": "97EB2EE33A725677755314FA4151B5B0A96A76B94A4D3BFA13B797A627CF2FA1",
+      "status": " M src/px_render/app/win/app_manager_win.cpp"
+    },
+    {
+      "path": "src/px_render/app/win/app_manager_win.h",
+      "sha256": "AB37F75DCF88D88E910D9118F450F627AE6FF4CE7E9CC897688A2166889A47FB",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/rd_app.cpp",
+      "sha256": "BA2DE3816CF6AEA083418CBB636A59AB60587B753906419CA11A3C7466013A68",
+      "status": " M src/px_render/rd_app.cpp"
+    }
+  ]
+}

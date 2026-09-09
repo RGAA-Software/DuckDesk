@@ -1,4 +1,6 @@
 use std::ffi::c_void;
+use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
+use std::sync::Arc;
 
 use serde::Deserialize;
 use service_core::process::ProcessSnapshot;
@@ -21,6 +23,9 @@ use windows::Win32::UI::WindowsAndMessaging::SW_SHOW;
 use wmi::{COMLibrary, WMIConnection};
 
 pub trait ProcessManager: Send + Sync {
+    fn observe_exit(&self, _pid: u32, _expected_path: &str) -> Result<Arc<dyn ProcessExitObserver>, String> {
+        Err("process exit observation unavailable".into())
+    }
     fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String>;
     fn kill_process(&self, pid: u32) -> Result<(), String>;
     fn start_process_as_active_user(
@@ -29,6 +34,11 @@ pub trait ProcessManager: Send + Sync {
         app_path: &str,
         args: &[String],
     ) -> Result<(), String>;
+
+    /// RDP workers stay in the Service security context; never use an interactive user's token.
+    fn start_process_as_service(&self, _work_dir: &str, _app_path: &str, _args: &[String]) -> Result<(), String> {
+        Err("Service-context process launch is unavailable".into())
+    }
 
     /// Launch strictly with the logged-on user's WTS token (no SYSTEM token
     /// fallback). Required for UserProxy, which must run as the session user.
@@ -39,6 +49,32 @@ pub trait ProcessManager: Send + Sync {
         args: &[String],
     ) -> Result<(), String> {
         self.start_process_as_active_user(work_dir, app_path, args)
+    }
+}
+
+pub trait ProcessExitObserver: Send + Sync {
+    /// None means this exact process generation is still alive.
+    fn exit_code(&self) -> Result<Option<u32>, String>;
+}
+
+struct WindowsExitObserver(OwnedHandle);
+
+impl ProcessExitObserver for WindowsExitObserver {
+    fn exit_code(&self) -> Result<Option<u32>, String> {
+        use windows::Win32::Foundation::{WAIT_OBJECT_0, WAIT_TIMEOUT};
+        use windows::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject};
+        unsafe {
+            let handle = HANDLE(self.0.as_raw_handle());
+            match WaitForSingleObject(handle, 0) {
+                WAIT_TIMEOUT => Ok(None),
+                WAIT_OBJECT_0 => {
+                    let mut code = 0;
+                    GetExitCodeProcess(handle, &mut code).map_err(|error| error.to_string())?;
+                    Ok(Some(code))
+                }
+                _ => Err("process exit observation failed".into()),
+            }
+        }
     }
 }
 
@@ -102,6 +138,39 @@ fn redact_args(args: &[String]) -> Vec<String> {
 }
 
 impl ProcessManager for WindowsProcessManager {
+    fn observe_exit(&self, pid: u32, expected_path: &str) -> Result<Arc<dyn ProcessExitObserver>, String> {
+        use windows::Win32::System::Threading::{QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_SYNCHRONIZE};
+        unsafe {
+            let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE, false, pid)
+                .map_err(|error| error.to_string())?;
+            let owned = OwnedHandle::from_raw_handle(handle.0);
+            let mut path = vec![0_u16; 32768];
+            let mut length = path.len() as u32;
+            QueryFullProcessImageNameW(HANDLE(owned.as_raw_handle()), PROCESS_NAME_WIN32, PWSTR(path.as_mut_ptr()), &mut length)
+                .map_err(|error| error.to_string())?;
+            let actual = String::from_utf16(&path[..length as usize]).map_err(|error| error.to_string())?;
+            if !ProcessSnapshot::new(pid, actual, "").exe_path_eq(expected_path) {
+                return Err("process exit observer executable mismatch".into());
+            }
+            Ok(Arc::new(WindowsExitObserver(owned)))
+        }
+    }
+    fn start_process_as_service(&self, work_dir: &str, app_path: &str, args: &[String]) -> Result<(), String> {
+        use std::os::windows::process::CommandExt;
+        let child = std::process::Command::new(app_path)
+            .args(args)
+            .current_dir(work_dir)
+            .creation_flags(windows::Win32::System::Threading::CREATE_NO_WINDOW.0)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|error| format!("Service-context Render launch failed: {error}"))?;
+        info!("Service-context Render launched, pid={}", child.id());
+        // Dropping Child closes our handles but does not terminate the Windows process.
+        drop(child);
+        Ok(())
+    }
     fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String> {
         let com = COMLibrary::new().map_err(|err| err.to_string())?;
         let wmi = WMIConnection::new(com).map_err(|err| err.to_string())?;
@@ -429,7 +498,7 @@ fn start_process_direct(work_dir: &str, app_path: &str, args: &[String]) -> Resu
         Ok(child) => {
             info!("direct CreateProcess succeeded, pid={}", child.id());
             // Detach: do not wait; Windows keeps the process after Child drop.
-            std::mem::forget(child);
+            drop(child);
             Ok(())
         }
         Err(err) => {
@@ -475,6 +544,37 @@ fn escape_arg(arg: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{build_command_line, redact_args};
+
+    #[test]
+    fn exit_observer_child_fixture() {
+        if std::env::var_os("GAMMARAY_EXIT_OBSERVER_FIXTURE").is_none() { return; }
+        use std::io::Read;
+        let mut signal = [0_u8; 1];
+        let _ = std::io::stdin().read(&mut signal);
+        std::process::exit(7);
+    }
+
+    #[test]
+    fn exit_observer_retains_the_exact_process_after_child_handle_is_dropped() {
+        use super::{ProcessManager, WindowsProcessManager};
+        use std::io::Write;
+        use std::os::windows::process::CommandExt;
+        let command = std::env::current_exe().unwrap();
+        let mut child = std::process::Command::new(&command)
+            .args(["--exact", "windows_process::tests::exit_observer_child_fixture", "--nocapture"])
+            .env("GAMMARAY_EXIT_OBSERVER_FIXTURE", "1")
+            .creation_flags(windows::Win32::System::Threading::CREATE_NO_WINDOW.0)
+            .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().unwrap();
+        let manager = WindowsProcessManager::new();
+        let observer = manager.observe_exit(child.id(), &command.to_string_lossy()).unwrap();
+        assert_eq!(observer.exit_code().unwrap(), None);
+        assert!(manager.observe_exit(child.id(), "C:/different.exe").is_err());
+        child.stdin.take().unwrap().write_all(b"x").unwrap();
+        assert_eq!(child.wait().unwrap().code(), Some(7));
+        drop(child);
+        assert_eq!(observer.exit_code().unwrap(), Some(7));
+        assert_eq!(observer.exit_code().unwrap(), Some(7));
+    }
 
     #[test]
     fn sensitive_process_arguments_are_redacted_for_logs() {

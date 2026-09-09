@@ -15,6 +15,7 @@
 #include "px_common/async_runtime.h"
 #include "px_console_client/console_user_app_api.h"
 #include "px_console_client/console_user_device_api.h"
+#include "rdp_launch_recovery.h"
 
 namespace px {
 
@@ -59,6 +60,7 @@ struct StreamLaunchAuthRequest final {
     std::vector<std::string> permissions;
     std::chrono::steady_clock::time_point deadline =
         std::chrono::steady_clock::now() + std::chrono::seconds(65);
+    std::shared_ptr<const RdpLaunchRecovery> recovery{};
 };
 
 struct StreamLaunchAuthPayload final {
@@ -70,6 +72,7 @@ struct StreamLaunchAuthPayload final {
 };
 
 struct StreamLaunchAuthHooks final {
+    std::function<StreamLaunchConsoleCall<px_console::ConsoleConnectionTicket>(const RdpLaunchRecovery&)> renew_rdp_ticket{};
     std::function<void(std::function<void()>)> post_blocking;
     std::function<StreamLaunchConsoleCall<px_console::ConsoleUserAppInstance>(
         const std::string&, const std::string&)> start_app;

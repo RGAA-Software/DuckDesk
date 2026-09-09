@@ -1,7 +1,7 @@
 export interface Application {
   app_id: string
   name: string
-  app_type: 'game-hook' | 'webview'
+  app_type: 'game-hook' | 'webview' | 'rdp'
   entry_url: string
   game_path?: string
   game_exe_rel: string
@@ -59,7 +59,7 @@ export interface AppInstance {
 export interface AppRow {
   app_id: string
   name: string
-  app_type: 'game-hook' | 'webview'
+  app_type: 'game-hook' | 'webview' | 'rdp'
   entry_url: string
   game_path: string
   default_game_args: string
@@ -76,7 +76,7 @@ export interface AppRow {
 export interface SaveAppReq {
   app_id?: string
   name: string
-  app_type?: 'game-hook' | 'webview'
+  app_type?: 'game-hook' | 'webview' | 'rdp'
   entry_url?: string
   game_path: string
   default_game_args?: string

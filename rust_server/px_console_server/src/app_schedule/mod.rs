@@ -2,6 +2,7 @@ pub mod handler;
 pub mod manager;
 pub mod router;
 pub mod store;
+pub mod rdp_workspace;
 
 pub use manager::AppScheduleManager;
 

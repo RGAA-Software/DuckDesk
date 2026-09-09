@@ -377,8 +377,9 @@ static bool IsClipboardProtocolMessage(const std::shared_ptr<Data>& msg) {
     return type && (*type == 160 || *type == 161 || *type == 349 || *type == 350 || *type == 351 || *type == 360);
 }
 
-WsServer::WsServer(std::weak_ptr<WsTransport> transport, std::shared_ptr<PxAsyncRuntime> async_runtime, const uint16_t listen_port)
-    : transport_(std::move(transport)), listen_port_(listen_port), async_runtime_(std::move(async_runtime)) {}
+WsServer::WsServer(std::weak_ptr<WsTransport> transport, std::shared_ptr<PxAsyncRuntime> async_runtime, const uint16_t listen_port,
+                   const std::uint16_t rdp_proxy_port)
+    : transport_(std::move(transport)), listen_port_(listen_port), rdp_proxy_port_(rdp_proxy_port), async_runtime_(std::move(async_runtime)) {}
 
 bool WsServer::Start() {
     if (server_ || async_scope_) {
@@ -412,6 +413,7 @@ bool WsServer::Start() {
             const auto& val = opt_val.value();
             self->UpdateUdpMediaAssociation(val->udp_media_association_code_, val->logical_session_id_, val->stream_id_, false, true);
             self->CloseLogicalSessionBinding(val->logical_session_id_, val->binding_id_);
+            val->OnClose(sess_ptr);
             self->NotifyMediaClientDisConnected(val->connection_id_, val->stream_id_, val->visitor_device_id_, val->created_timestamp_,
                                                 val->binding_id_, val->logical_session_id_);
             LOGI("event=session.close component=net_ws outcome=removed "
@@ -451,12 +453,14 @@ bool WsServer::Start() {
 
     // media websocket
     AddWebsocketRouter(kUrlMedia);
-    AddWebsocketRouter(kUrlFileTransfer);
-    // game-hook DLL (px_gh) posts CaptureVideoFrame here
-    AddIpcRouter();
+    if (rdp_proxy_port_ == 0) {
+        AddWebsocketRouter(kUrlFileTransfer);
+        // Native host integrations are never reachable on an RDP workspace listener.
+        AddIpcRouter();
 #if PX_USER_PROXY_ENABLED
-    AddUserProxyRouter();
+        AddUserProxyRouter();
 #endif
+    }
 
     // ping
     AddHttpRouter(kApiPing, [weak_self](const std::string&, std::shared_ptr<asio2::http_session>&, http::web_request& req, http::web_response& rep) {
@@ -626,6 +630,17 @@ void WsServer::PostNetMessage(std::shared_ptr<Data> msg) {
 }
 
 void WsServer::UpdateLogicalSessionCapabilities(const PxLogicalSessionCapabilityUpdate& update) {
+    const bool rdp_allowed = std::ranges::all_of(std::array{"rdp", "view", "input", "audio", "clipboard"}, [&update](std::string_view capability) {
+        return std::ranges::find(update.permissions_, capability) != update.permissions_.end();
+    });
+    if (rdp_proxy_port_ != 0 && !rdp_allowed) {
+        stream_routers_.ApplyAll([&update](const uint64_t&, const std::shared_ptr<WsStreamRouter>& router) {
+            if (router && router->stream_id_ == update.stream_id_) {
+                router->RevokeRdp();
+            }
+        });
+        return;
+    }
     const bool clipboard_allowed = std::find(update.permissions_.begin(), update.permissions_.end(), "clipboard") != update.permissions_.end();
     const bool file_allowed = std::find(update.permissions_.begin(), update.permissions_.end(), "file") != update.permissions_.end();
     stream_routers_.ApplyAll([&update, clipboard_allowed, file_allowed](const uint64_t&, const std::shared_ptr<WsStreamRouter>& router) {
@@ -1118,6 +1133,25 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(std::weak_ptr<WsServer> owner, st
         co_return;
     }
     auto ticket = ticket_result.TakeValue();
+    const bool rdp_requested = params.contains("rdp") && params.at("rdp") == "1";
+    if (server->rdp_proxy_port_ != 0) {
+        if (!rdp_requested || path != kUrlMedia || params.contains("udp_media") ||
+            !std::ranges::all_of(std::array{"rdp", "view", "input", "audio", "clipboard"}, [&ticket](std::string_view capability) {
+                return std::ranges::find(ticket.permissions_, capability) != ticket.permissions_.end();
+            })) {
+            RejectWebSocketSession(session, kWsAuthorizationRejectedSignal);
+            co_return;
+        }
+        ticket.allow_observer_ = false;
+        ticket.allow_takeover_ = false;
+        if (ticket.join_mode_ != "control") {
+            RejectWebSocketSession(session, kWsSessionRejectedSignal);
+            co_return;
+        }
+    } else if (rdp_requested) {
+        RejectWebSocketSession(session, kWsSessionRejectedSignal);
+        co_return;
+    }
     const auto stream_it = params.find("stream_id");
     const auto stream_id = stream_it == params.end() ? std::string{} : stream_it->second;
     if (stream_id.empty() || stream_id != ticket.stream_id_) {
@@ -1215,6 +1249,51 @@ void WsServer::FinalizeWebSocketOpen(const std::shared_ptr<asio2::http_session>&
     LOGI("Force GDI : {}", force_gdi);
     session->set_no_delay(true);
     if (path == kUrlMedia) {
+        if (rdp_proxy_port_ != 0) {
+            const auto generation = rdp_frontend_.Acquire(ticket.logical_session_id_);
+            if (!generation) {
+                DispatchCloseLogicalSessionBinding(transport_, ticket.logical_session_id_, binding_id);
+                RejectWebSocketSession(session, kWsSessionOccupiedSignal);
+                return;
+            }
+            const auto router = WsStreamRouter::Make(ws_data_, false, visitor_device_id, stream_id);
+            router->logical_session_id_ = ticket.logical_session_id_;
+            router->binding_id_ = binding_id;
+            auto mutable_session = session;
+            router->OnOpen(mutable_session);
+            const auto weak = weak_from_this();
+            const bool started = router->StartRdp(
+                async_runtime_->Executor(PxAsyncLane::kWorker), rdp_proxy_port_,
+                [weak, generation = *generation] {
+                    if (const auto self = weak.lock()) {
+                        self->rdp_frontend_.Release(generation);
+                    }
+                },
+                [weak, socket_fd, weak_router = std::weak_ptr<WsStreamRouter>{router}, weak_session = std::weak_ptr<asio2::http_session>{session}] {
+                    const auto self = weak.lock();
+                    const auto route = weak_router.lock();
+                    auto client = weak_session.lock();
+                    if (!self || self->exiting_ || !route || !client) {
+                        return;
+                    }
+                    // A late callback must not remove a new route if Windows has
+                    // reused the socket value. RemoveIf is atomic with insertion.
+                    const auto removed = self->stream_routers_.RemoveIf(socket_fd, [&route](const auto& current) { return current == route; });
+                    if (!removed) {
+                        return;
+                    }
+                    route->OnClose(client);
+                    self->CloseLogicalSessionBinding(route->logical_session_id_, route->binding_id_);
+                    self->NotifyMediaClientDisConnected(route->connection_id_, route->stream_id_, route->visitor_device_id_,
+                                                        route->created_timestamp_, route->binding_id_, route->logical_session_id_);
+                });
+            stream_routers_.Insert(socket_fd, router);
+            NotifyMediaClientConnected(router->connection_id_, stream_id, visitor_device_id);
+            if (!started) {
+                session->stop();
+            }
+            return;
+        }
         const auto event = std::make_shared<StreamingParametersRequestedEvent>();
         event->stream_id_ = stream_id;
         event->force_gdi_ = force_gdi;
@@ -1312,6 +1391,7 @@ void WsServer::AddWebsocketRouter(const std::string& path) {
                     if (path == kUrlMedia) {
                         if (auto opt_val = self->stream_routers_.Remove(socket_fd); opt_val.has_value()) {
                             const auto& val = opt_val.value();
+                            val->OnClose(sess_ptr);
                             self->UpdateUdpMediaAssociation(val->udp_media_association_code_, val->logical_session_id_, val->stream_id_, false, true);
                             self->CloseLogicalSessionBinding(val->logical_session_id_, val->binding_id_);
                             self->NotifyMediaClientDisConnected(val->connection_id_, val->stream_id_, val->visitor_device_id_,
@@ -1380,6 +1460,9 @@ void WsServer::UpdateUdpMediaAssociation(const std::string& association_code, co
 
 void WsServer::AddHttpRouter(const std::string& path, std::function<void(const std::string& path, std::shared_ptr<asio2::http_session>& session_ptr,
                                                                          http::web_request& req, http::web_response& rep)>&& callback) {
+    if (rdp_proxy_port_ != 0) {
+        return;
+    }
     auto weak_self = weak_from_this();
     // bind it
     server_->bind<http::verb::get, http::verb::post>(
@@ -1396,6 +1479,9 @@ void WsServer::AddHttpRouter(const std::string& path, std::function<void(const s
 }
 
 void WsServer::AddWebClientRouter() {
+    if (rdp_proxy_port_ != 0) {
+        return;
+    }
     auto web_client_dir = std::filesystem::path(FolderUtil::GetCurrentFolderPath()) / "web_client";
     std::error_code ec;
     if (!std::filesystem::is_directory(web_client_dir, ec)) {

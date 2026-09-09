@@ -7,6 +7,9 @@ pub mod state;
 pub mod storage;
 pub mod ue_bootstrap;
 pub mod windows_util;
+pub mod rdp_account;
+pub mod rdp_workspace;
+pub mod rdp_deployment;
 
 pub use app_instance::{
     build_game_hook_launch_spec, build_web_client_url, cmdline_has_listen_port,

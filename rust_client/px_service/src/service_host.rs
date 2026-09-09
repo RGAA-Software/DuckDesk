@@ -3,7 +3,7 @@ use rand::RngCore;
 use std::sync::Arc;
 use std::time::Duration;
 
-use service_core::app_instance::{cmdline_has_listen_port, pid_belongs_to_instance};
+use service_core::app_instance::cmdline_has_listen_port;
 use service_core::command::Command;
 use service_core::config::ServiceConfig;
 use service_core::storage::PersistedRenderLaunchSpec;
@@ -19,7 +19,7 @@ use crate::user_proxy;
 use crate::virtual_display_manager::VirtualDisplayManager;
 use crate::websocket_server::WebsocketService;
 use crate::windows_actions::SystemActions;
-use crate::windows_process::ProcessManager;
+use crate::windows_process::{ProcessExitObserver, ProcessManager};
 
 pub struct ServiceRuntime {
     pub config: ServiceConfig,
@@ -28,13 +28,15 @@ pub struct ServiceRuntime {
     pub windows_actions: Arc<dyn SystemActions>,
     pub state: ServiceState,
     pub app_registry: AppInstanceRegistry,
+    app_exit_observers: std::collections::HashMap<String, (String, Arc<dyn ProcessExitObserver>)>,
+    pub rdp_console_trusted: bool,
     /// render ws 下发通道: key = "render_{listen_port}"(心跳 from),
     /// 用于 Console 停止实例时主动给 render 推 kSrvStopServer。
     pub render_senders: std::collections::HashMap<String, mpsc::UnboundedSender<Vec<u8>>>,
     /// Latest logical-session snapshot per Render endpoint. Desktop and every
     /// Console application Render heartbeat independently; a single shared
     /// string would make them overwrite one another nondeterministically.
-    render_logical_sessions: std::collections::HashMap<String, String>,
+    pub(crate) render_logical_sessions: std::collections::HashMap<String, String>,
     /// One-shot Browser/first-frame acknowledgements for WebView starts.
     pub webview_ready_waiters:
         std::collections::HashMap<String, oneshot::Sender<Result<(), String>>>,
@@ -54,6 +56,7 @@ pub struct TicketRedeemRequest {
     pub ticket: String,
     pub client_nonce: String,
     pub instance_id: String,
+    pub rdp_logical_session_id: String,
     pub response: oneshot::Sender<TicketRedeemResult>,
 }
 
@@ -124,9 +127,11 @@ impl ServiceRuntime {
             windows_actions,
             state: ServiceState::default(),
             app_registry: AppInstanceRegistry::new(),
+            app_exit_observers: std::collections::HashMap::new(),
             render_senders: std::collections::HashMap::new(),
             render_logical_sessions: std::collections::HashMap::new(),
             webview_ready_waiters: std::collections::HashMap::new(),
+            rdp_console_trusted: false,
             ticket_redeem_tx: None,
             virtual_display_manager,
             virtual_display_init_error,
@@ -246,6 +251,24 @@ impl ServiceRuntime {
         Ok(())
     }
 
+    async fn refresh_desktop_processes(runtime: &Arc<Mutex<Self>>) -> Result<bool, String> {
+        let (manager, launch, started, pid, stopped) = {
+            let guard = runtime.lock().await;
+            (guard.process_manager.clone(), guard.state.last_desktop_launch.clone(),
+             guard.state.desktop_started_at, guard.state.desktop_pid, guard.state.stop_requested)
+        };
+        let processes = tokio::task::spawn_blocking(move || manager.list_processes())
+            .await.map_err(|error| error.to_string())??;
+        let mut guard = runtime.lock().await;
+        // An explicit start/stop during WMI must not be overwritten by an old snapshot.
+        if guard.state.last_desktop_launch != launch || guard.state.desktop_started_at != started
+            || guard.state.desktop_pid != pid || guard.state.stop_requested != stopped {
+            return Ok(false);
+        }
+        guard.state.update_processes(&processes);
+        Ok(true)
+    }
+
     pub fn handle_command(
         &mut self,
         command: Command,
@@ -273,7 +296,8 @@ impl ServiceRuntime {
                 auth_info,
                 logical_sessions_json,
             } => {
-                self.sync_process_state()?;
+                // Heartbeats use the monitor's snapshot. A full WMI enumeration
+                // for every Render/Panel heartbeat blocks ticket RPCs under this lock.
                 // 应用层心跳:render 主循环每秒上报(from = "render_{port}"),
                 // 用于 hang 检测——进程活着但消息循环死掉时心跳会中断。
                 if from.starts_with("render_") {
@@ -395,7 +419,15 @@ impl ServiceRuntime {
     ) -> Result<(u16, u32), String> {
         let app_mode = service_core::app_instance::normalized_app_mode(&req.app_mode)?;
         let is_webview = app_mode == service_core::app_instance::APP_MODE_WEBVIEW;
-        let game_path = if is_webview {
+        let is_rdp = app_mode == service_core::app_instance::APP_MODE_RDP;
+        let rdp_account = req.rdp_account.clone();
+        let rdp_device_id = req.device_id.clone();
+        if is_rdp && rdp_account.is_none() {
+            return Err("RDP workspace credential missing".into());
+        }
+        let game_path = if is_rdp {
+            None
+        } else if is_webview {
             service_core::app_instance::decode_webview_url(&req.webview_url_b64)?;
             None
         } else {
@@ -410,9 +442,12 @@ impl ServiceRuntime {
         };
         let (record, process_manager, ipc_token, webview_ready_rx) = {
             let mut guard = runtime.lock().await;
+            if is_rdp && !guard.rdp_console_trusted {
+                return Err("RDP requires a verified Console TLS connection".into());
+            }
             let work_dir = guard.pick_app_work_dir()?;
             let record = guard.app_registry.begin_start(&work_dir, req)?.clone();
-            let ready_rx = if is_webview {
+            let ready_rx = if is_webview || is_rdp {
                 let (ready_tx, ready_rx) = oneshot::channel();
                 guard
                     .webview_ready_waiters
@@ -431,6 +466,31 @@ impl ServiceRuntime {
         let instance_id = record.instance_id.clone();
         let port = record.listen_port;
         let mut launch = record.launch.clone();
+        let _rdp_bootstrap = if is_rdp {
+            let account = rdp_account.ok_or_else(|| "RDP workspace credential missing".to_string())?;
+            let directory = std::path::PathBuf::from(&launch.work_dir).join("rdp");
+            let workspace_instance = instance_id.clone();
+            let workspace_app = record.app_id.clone();
+            let workspace_node = record.rdp_node_id.clone();
+            let prepared = tokio::task::spawn_blocking(move || {
+                service_core::rdp_deployment::prepare_runtime(&directory, &account, &workspace_instance, &workspace_app,
+                    &workspace_node, &rdp_device_id)
+            }).await.map_err(|_| "RDP account/bootstrap worker failed".to_string()).and_then(|result| result);
+            match prepared {
+                Ok(bootstrap) => {
+                    launch.args.push(format!("--rdp_proxy_port={}", bootstrap.binding.proxy_port));
+                    launch.args.push(format!("--rdp_target_certificate_sha256={}", bootstrap.binding.target_certificate_sha256));
+                    launch.args.push(format!("--rdp_proxy_certificate_sha256={}", bootstrap.binding.proxy_certificate_sha256));
+                    Some(bootstrap)
+                }
+                Err(error) => {
+                    let mut guard = runtime.lock().await;
+                    guard.webview_ready_waiters.remove(&instance_id);
+                    let _ = guard.app_registry.mark_failed(&instance_id, error.clone());
+                    return Err(error);
+                }
+            }
+        } else { None };
         launch
             .args
             .retain(|arg| !arg.starts_with("--service_ipc_token="));
@@ -444,11 +504,26 @@ impl ServiceRuntime {
             launch.work_dir,
             port
         );
-        if let Err(err) = process_manager.start_process_as_active_user(
-            &launch.work_dir,
-            &launch.app_path,
-            &launch.args,
-        ) {
+        let launch_result = if is_rdp {
+            // Account creation can outlive a concurrent Stop or loss of Console
+            // trust. Recheck while holding the registry lock through spawning.
+            let mut guard = runtime.lock().await;
+            if !guard.rdp_console_trusted || !guard.app_registry.get(&instance_id)
+                .is_some_and(|current| current.state == service_core::AppInstanceState::Starting) {
+                guard.webview_ready_waiters.remove(&instance_id);
+                // Preserve an explicit concurrent Stop; only fail a start that
+                // lost its trusted Console connection while provisioning.
+                if guard.app_registry.get(&instance_id)
+                    .is_some_and(|current| current.state == service_core::AppInstanceState::Starting) {
+                    let _ = guard.app_registry.mark_failed(&instance_id, "RDP startup lost its trusted Console connection");
+                }
+                return Err("RDP startup was cancelled before Render launch".into());
+            }
+            process_manager.start_process_as_service(&launch.work_dir, &launch.app_path, &launch.args)
+        } else {
+            process_manager.start_process_as_active_user(&launch.work_dir, &launch.app_path, &launch.args)
+        };
+        if let Err(err) = launch_result {
             let mut guard = runtime.lock().await;
             guard.webview_ready_waiters.remove(&instance_id);
             let _ = guard.app_registry.mark_failed(&instance_id, err.clone());
@@ -456,14 +531,28 @@ impl ServiceRuntime {
         }
         // Resolve the Browser/root render only. CEF children carry --type and
         // are deliberately excluded by find_app_render_pid_by_port.
-        let pid = match wait_app_render_pid_by_port(&process_manager, port, 40, 100).await {
+        let observed_pid = if is_rdp {
+            let mut observed = None;
+            for _ in 0..40 {
+                if let Ok(processes) = process_manager.list_processes() {
+                    observed = processes.iter().find(|process| service_core::app_instance::rdp_process_matches(&record, process))
+                        .map(|process| process.pid);
+                }
+                if observed.is_some() { break; }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            observed
+        } else { wait_app_render_pid_by_port(&process_manager, port, 40, 100).await };
+        let pid = match observed_pid {
             Some(pid) => pid,
             None => {
                 let msg = format!("Render 已启动但未找到监听端口 {port} 的进程");
                 warn!("app instance {instance_id}: {msg}");
                 // spawn 可能已成功但 WMI/参数匹配没跟上:再查一次并杀树兜底,
                 // 确认清干净再 mark_failed,避免孤儿进程占用端口。
-                if let Some(orphan_pid) = find_app_render_pid_by_port(&process_manager, port) {
+                if is_rdp {
+                    stop_failed_app_render(&process_manager, &record, None);
+                } else if let Some(orphan_pid) = find_app_render_pid_by_port(&process_manager, port) {
                     warn!("killing orphaned render pid={orphan_pid} on port {port}");
                     kill_process_tree(&process_manager, orphan_pid);
                     if !wait_app_render_exit_by_port(&process_manager, port, 10, 100).await {
@@ -476,6 +565,16 @@ impl ServiceRuntime {
                 return Err(msg);
             }
         };
+
+        match process_manager.observe_exit(pid, &record.launch.app_path) {
+            Ok(observer) => {
+                let mut guard = runtime.lock().await;
+                if guard.app_registry.get(&instance_id).is_some_and(|current| current.request_id == record.request_id && current.is_active()) {
+                    guard.app_exit_observers.insert(instance_id.clone(), (record.request_id.clone(), observer));
+                }
+            }
+            Err(_) => warn!("application exit observation unavailable; unexpected disappearance will remain unclassified"),
+        }
 
         // Game-hook must actually launch the game. WebView readiness is
         // reported by its Render integration and does not have a game process.
@@ -502,12 +601,12 @@ impl ServiceRuntime {
             let error = match ready {
                 Ok(Ok(Ok(()))) => None,
                 Ok(Ok(Err(error))) => Some(error),
-                Ok(Err(_)) => Some("WebView Ready 等待通道已关闭".to_string()),
-                Err(_) => Some("WebView 在 20 秒内未产生可编码首帧".to_string()),
+                Ok(Err(_)) => Some(if is_rdp { "RDP 代理 Ready 等待通道已关闭" } else { "WebView Ready 等待通道已关闭" }.to_string()),
+                Err(_) => Some(if is_rdp { "RDP 代理未在 20 秒内就绪" } else { "WebView 在 20 秒内未产生可编码首帧" }.to_string()),
             };
             if let Some(error) = error {
                 warn!("app instance {instance_id}: {error}");
-                kill_process_tree(&process_manager, pid);
+                stop_failed_app_render(&process_manager, &record, Some(pid));
                 let mut guard = runtime.lock().await;
                 guard.webview_ready_waiters.remove(&instance_id);
                 let _ = guard.app_registry.mark_failed(&instance_id, error.clone());
@@ -520,29 +619,10 @@ impl ServiceRuntime {
         if let Err(err) = guard.app_registry.mark_running(&instance_id, pid) {
             // 等待期间并发 Stop 已终结该实例:杀掉刚拉起的进程树,避免孤儿。
             warn!("start app instance {instance_id}: {err}; killing spawned tree");
-            let view_path = guard
-                .app_registry
-                .get(&instance_id)
-                .and_then(|r| r.view_game_path.clone());
             drop(guard);
-            kill_process_tree(&process_manager, pid);
-            let processes = process_manager.list_processes().unwrap_or_default();
-            if !game_path_str.is_empty() {
-                for game_pid in
-                    service_core::process::find_pids_for_game_exe(&processes, &game_path_str)
-                {
-                    let _ = process_manager.kill_process(game_pid);
-                }
-            }
-            // UE view 进程同样兜底清理。
-            if let Some(view_path) = view_path {
-                for view_pid in service_core::process::find_pids_for_game_exe(
-                    &processes,
-                    &view_path.to_string_lossy(),
-                ) {
-                    let _ = process_manager.kill_process(view_pid);
-                }
-            }
+            stop_failed_app_render(&process_manager, &record, Some(pid));
+            // Render owns the game's private Job, including detached view children.
+            // Never sweep independently launched games by executable path.
             return Err(err);
         }
         Ok((port, pid))
@@ -587,35 +667,78 @@ impl ServiceRuntime {
     /// lookup timed out during start), kill the tree and remove the record so the
     /// port is really freed. Called before Console heartbeats so HB no longer claims
     /// ghost "running" instances.
-    pub fn reap_dead_app_instances(&mut self) {
+    pub async fn refresh_app_processes(runtime: &Arc<Mutex<Self>>) {
         use service_core::AppInstanceState;
-        self.app_registry.prune_finished(FINISHED_RECORD_TTL);
-        let candidates: Vec<(String, u16, Option<u32>, AppInstanceState)> = self
-            .app_registry
-            .list()
-            .into_iter()
-            .filter(|r| {
-                matches!(
-                    r.state,
-                    AppInstanceState::Running
-                        | AppInstanceState::Stopping
-                        | AppInstanceState::Failed
-                )
-            })
-            .map(|r| (r.instance_id.clone(), r.listen_port, r.pid, r.state.clone()))
-            .collect();
+        let (candidates, process_manager) = {
+            let mut guard = runtime.lock().await;
+            guard.app_registry.prune_finished(FINISHED_RECORD_TTL);
+            let retained: std::collections::HashSet<_> = guard.app_registry.list().iter()
+                .filter(|record| record.is_active()).map(|record| record.instance_id.clone()).collect();
+            guard.app_exit_observers.retain(|id, _| retained.contains(id));
+            let candidates: Vec<_> = guard.app_registry.list().into_iter().filter(|record| {
+                matches!(record.state, AppInstanceState::Running | AppInstanceState::Stopping | AppInstanceState::Failed)
+            }).cloned().collect();
+            (candidates, guard.process_manager.clone())
+        };
         if candidates.is_empty() {
             return;
         }
+        // WMI may take seconds. Query once for the entire heartbeat, outside
+        // both the Tokio worker and the runtime lock needed by ticket replies.
+        let result = tokio::task::spawn_blocking(move || process_manager.list_processes()).await;
+        match result {
+            Ok(Ok(processes)) => runtime.lock().await.reap_dead_app_instances(candidates, &processes),
+            _ => warn!("application process snapshot failed; retaining existing instance state"),
+        }
+    }
+
+    fn reap_dead_app_instances(&mut self, candidates: Vec<service_core::app_instance::AppInstanceRecord>,
+        processes: &[service_core::process::ProcessSnapshot]) {
+        use service_core::AppInstanceState;
         let process_manager = self.process_manager.clone();
-        for (instance_id, listen_port, pid, state) in candidates {
-            match find_app_render_pid_by_port(&process_manager, listen_port) {
+        for record in candidates {
+            // A stop/start or removal during WMI must not be overwritten by
+            // this earlier observation, even if the numeric port is reused.
+            if self.app_registry.get(&record.instance_id) != Some(&record) || record.exit_detail.is_some() {
+                continue;
+            }
+            let instance_id = record.instance_id.clone();
+            let listen_port = record.listen_port;
+            let pid = record.pid;
+            let state = record.state.clone();
+            if service_core::app_instance::is_rdp_launch(&record.launch) {
+                // A port can be reused by another application. Never adopt or
+                // kill an RDP process using only its port or numeric PID.
+                let current = processes.iter().find(|process| service_core::app_instance::rdp_process_matches(&record, process));
+                match current {
+                    Some(process) if state == AppInstanceState::Failed => {
+                        let _ = process_manager.kill_process(process.pid);
+                        // Keep the reservation until a subsequent observation
+                        // confirms both process exit and kernel lease release.
+                    }
+                    Some(process) if state == AppInstanceState::Running && pid != Some(process.pid) => {
+                        let _ = self.app_registry.mark_running(&instance_id, process.pid);
+                    }
+                    None if state != AppInstanceState::Failed => { self.finish_missing_app(&record); }
+                    None => { self.app_registry.remove(&instance_id); }
+                    _ => {}
+                }
+                continue;
+            }
+            let current = processes.iter().find(|process| record.pid == Some(process.pid)
+                && process.exe_path_eq(&record.launch.app_path) && process.is_app_instance_render_process()
+                && cmdline_has_listen_port(&process.cmdline, listen_port)).map(|process| process.pid);
+            match current {
                 Some(live_pid) => {
                     if state == AppInstanceState::Failed {
                         warn!(
                             "reap failed app instance {instance_id}: render pid={live_pid} still alive on port {listen_port}, killing tree"
                         );
-                        kill_process_tree(&process_manager, live_pid);
+                        for child_pid in service_core::process::collect_process_tree(processes, live_pid) {
+                            if process_manager.kill_process(child_pid).is_err() {
+                                warn!("failed application process cleanup did not complete");
+                            }
+                        }
                         self.app_registry.remove(&instance_id);
                     } else if pid != Some(live_pid) {
                         let _ = self.app_registry.mark_running(&instance_id, live_pid);
@@ -626,13 +749,28 @@ impl ServiceRuntime {
                     if state == AppInstanceState::Failed {
                         continue;
                     }
-                    // No game-hook render on the listen port → instance is gone.
-                    info!(
-                        "reap dead app instance {instance_id}: listen_port={listen_port} pid={pid:?} gone"
-                    );
-                    let _ = self.app_registry.mark_stopped(&instance_id);
+                    self.finish_missing_app(&record);
                 }
             }
+        }
+    }
+
+    fn finish_missing_app(&mut self, record: &service_core::app_instance::AppInstanceRecord) {
+        let code = match self.app_exit_observers.get(&record.instance_id) {
+            Some((generation, observer)) if *generation == record.request_id => match observer.exit_code() {
+                // Kernel handle takes precedence over an incomplete WMI snapshot.
+                Ok(None) => return,
+                Ok(Some(code)) => Some(code),
+                Err(_) => None,
+            },
+            _ => None,
+        };
+        info!("application exit observed: instance={} pid={:?} exit_code={code:?}", record.instance_id, record.pid);
+        self.app_exit_observers.remove(&record.instance_id);
+        if record.state == service_core::AppInstanceState::Stopping {
+            let _ = self.app_registry.mark_stopped(&record.instance_id);
+        } else {
+            let _ = self.app_registry.mark_observed_exit(&record.instance_id, code);
         }
     }
 
@@ -643,6 +781,13 @@ impl ServiceRuntime {
     ) -> Result<(), String> {
         let (rec, process_manager) = {
             let mut guard = runtime.lock().await;
+            if guard.app_registry.get(instance_id)
+                .is_some_and(|record| record.state == service_core::AppInstanceState::Stopped) {
+                // A natural Render exit can be reaped before Console observes it.
+                // A repeated stop must acknowledge completion without touching
+                // a replacement instance or reusing the old port/PID.
+                return Ok(());
+            }
             let rec = guard.app_registry.begin_stop(instance_id)?.clone();
             // A concurrent stop must immediately cancel a WebView startup that
             // is waiting for the first CEF frame instead of leaving it blocked
@@ -680,8 +825,22 @@ impl ServiceRuntime {
         }
         tokio::time::sleep(Duration::from_millis(800)).await;
         let processes = process_manager.list_processes().unwrap_or_default();
-        let game_path = service_core::resolve_game_path(&rec.install_root, &rec.game_exe_rel).ok();
-
+        if service_core::app_instance::is_rdp_launch(&rec.launch) {
+            // Terminate only the positively identified Render. Its kill-on-close
+            // Job owns the proxy; never enumerate/kill Windows workspace apps.
+            for process in processes.iter().filter(|process| service_core::app_instance::rdp_process_matches(&rec, process)) {
+                process_manager.kill_process(process.pid)?;
+            }
+            for _ in 0..10 {
+                let processes = process_manager.list_processes()?;
+                if !processes.iter().any(|process| service_core::app_instance::rdp_process_matches(&rec, process)) {
+                    runtime.lock().await.app_registry.mark_stopped(instance_id)?;
+                    return Ok(());
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            return Err("RDP Render is still alive; its workspace reservation is retained".into());
+        }
         let mut kill_pids: Vec<u32> = Vec::new();
         let mut identity_mismatch = false;
         // Kill 前校验 pid 当前身份:render 崩溃后 Windows 会复用 pid,只比数值
@@ -692,10 +851,10 @@ impl ServiceRuntime {
         });
         let render_pid = recorded_render_pid
             .and_then(|pid| {
-                let belongs = game_path
-                    .as_ref()
-                    .map(|gp| pid_belongs_to_instance(&processes, rec.listen_port, gp, pid))
-                    .unwrap_or(false);
+                let belongs = processes.iter().any(|process| process.pid == pid
+                    && process.exe_path_eq(&rec.launch.app_path)
+                    && process.is_app_instance_render_process()
+                    && cmdline_has_listen_port(&process.cmdline, rec.listen_port));
                 if belongs {
                     Some(pid)
                 } else if processes.iter().any(|p| p.pid == pid) {
@@ -708,33 +867,13 @@ impl ServiceRuntime {
                     // Recorded pid is gone entirely — nothing to kill for it.
                     None
                 }
-            })
-            .or_else(|| find_app_render_pid_by_port(&process_manager, rec.listen_port));
+            });
 
         if let Some(pid) = render_pid {
             kill_pids.extend(service_core::process::collect_process_tree(&processes, pid));
         }
-        if let Some(gp) = game_path.as_ref() {
-            for pid in
-                service_core::process::find_pids_for_game_exe(&processes, &gp.to_string_lossy())
-            {
-                if !kill_pids.contains(&pid) {
-                    kill_pids.push(pid);
-                }
-            }
-        }
-        // UE boot/view：外壳可能拉起真游戏后先行退出，boot 树杀不到已成孤儿的
-        // view 进程，按 view 路径补杀。
-        if let Some(view_path) = rec.view_game_path.as_ref() {
-            for pid in service_core::process::find_pids_for_game_exe(
-                &processes,
-                &view_path.to_string_lossy(),
-            ) {
-                if !kill_pids.contains(&pid) {
-                    kill_pids.push(pid);
-                }
-            }
-        }
+        // Render's private Job closes owned game/view processes on exit.
+        // Same-path processes outside that launch are never cleanup targets.
 
         if kill_pids.is_empty() && identity_mismatch {
             return Err(format!(
@@ -894,6 +1033,25 @@ async fn wait_game_process(
     false
 }
 
+fn stop_failed_app_render(process_manager: &Arc<dyn ProcessManager>, record: &service_core::app_instance::AppInstanceRecord, pid: Option<u32>) {
+    if !service_core::app_instance::is_rdp_launch(&record.launch) {
+        if let Some(pid) = pid { kill_process_tree(process_manager, pid); }
+        return;
+    }
+    match process_manager.list_processes() {
+        Ok(processes) => {
+            for process in processes.iter().filter(|process| service_core::app_instance::rdp_process_matches(record, process)) {
+                // Close only the positively identified Render. Its Job owns the
+                // proxy; Windows sessions and their app trees are never swept.
+                if let Err(error) = process_manager.kill_process(process.pid) {
+                    warn!("failed RDP Render cleanup failed: {error}");
+                }
+            }
+        }
+        Err(error) => warn!("RDP cleanup cannot establish process identity: {error}"),
+    }
+}
+
 fn kill_process_tree(process_manager: &Arc<dyn ProcessManager>, root_pid: u32) {
     let processes = process_manager.list_processes().unwrap_or_default();
     for pid in service_core::process::collect_process_tree(&processes, root_pid) {
@@ -959,6 +1117,7 @@ pub async fn run_service(
                 Err(err) => Err(err.to_string()),
             }
         }
+        result = crate::rdp_authorization::run(runtime.clone()) => result,
     }
 }
 
@@ -971,11 +1130,15 @@ async fn monitor_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), String>
     loop {
         tokio::select! {
             _ = interval.tick() => {
-                let mut guard = runtime.lock().await;
-                if let Err(err) = guard.sync_process_state() {
-                    error!("sync_process_state failed: {err}");
-                    continue;
+                match ServiceRuntime::refresh_desktop_processes(&runtime).await {
+                    Ok(true) => {}
+                    Ok(false) => continue,
+                    Err(err) => {
+                        error!("refresh_desktop_processes failed: {err}");
+                        continue;
+                    }
                 }
+                let mut guard = runtime.lock().await;
                 if guard.state.desktop_alive {
                     guard.state.reset_restart_backoff();
                 }
@@ -1055,6 +1218,9 @@ mod tests {
     use service_core::process::ProcessSnapshot;
 
     struct MockProcessManager {
+        list_calls: std::sync::atomic::AtomicUsize,
+        list_delay_ms: std::sync::atomic::AtomicU64,
+        list_entered: AtomicBool,
         processes: StdMutex<Vec<ProcessSnapshot>>,
         launches: StdMutex<Vec<RenderLaunchSpec>>,
         session_user_launches: StdMutex<Vec<RenderLaunchSpec>>,
@@ -1068,6 +1234,9 @@ mod tests {
     impl MockProcessManager {
         fn new(processes: Vec<ProcessSnapshot>) -> Self {
             Self {
+                list_calls: std::sync::atomic::AtomicUsize::new(0),
+                list_delay_ms: std::sync::atomic::AtomicU64::new(0),
+                list_entered: AtomicBool::new(false),
                 processes: StdMutex::new(processes),
                 launches: StdMutex::new(Vec::new()),
                 session_user_launches: StdMutex::new(Vec::new()),
@@ -1082,6 +1251,9 @@ mod tests {
 
     impl ProcessManager for MockProcessManager {
         fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String> {
+            self.list_calls.fetch_add(1, Ordering::SeqCst);
+            self.list_entered.store(true, Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(self.list_delay_ms.load(Ordering::SeqCst)));
             let mut remaining = self.stale_lists_after_kill.lock().unwrap();
             if *remaining > 0 {
                 *remaining -= 1;
@@ -1248,6 +1420,7 @@ mod tests {
             "D:/px_render.exe",
             "--app_mode=desktop",
         )]);
+        runtime.sync_process_state().unwrap();
         let response = runtime
             .handle_command(Command::HeartBeat {
                 index: 3,
@@ -1261,6 +1434,49 @@ mod tests {
             response.heart_beat_resp.unwrap().render_status_enum(),
             Some(service_core::RenderStatus::Working)
         );
+    }
+
+    #[test]
+    fn heartbeat_does_not_enumerate_processes() {
+        let manager = Arc::new(MockProcessManager::new(Vec::new()));
+        let mut runtime = test_runtime(Vec::new());
+        runtime.process_manager = manager.clone();
+        for index in 0..20 {
+            runtime.handle_command(Command::HeartBeat {
+                index, from: "render_32014".to_string(),
+                logical_sessions_json: String::new(), auth_info: None,
+            }).unwrap();
+        }
+        assert_eq!(manager.list_calls.load(Ordering::SeqCst), 0);
+        assert!(runtime.state.last_render_heartbeat.is_some());
+    }
+
+    #[tokio::test]
+    async fn desktop_snapshot_does_not_block_heartbeats_or_overwrite_new_launch() {
+        let manager = Arc::new(MockProcessManager::new(Vec::new()));
+        manager.list_delay_ms.store(250, Ordering::SeqCst);
+        let mut service = test_runtime(Vec::new());
+        service.process_manager = manager.clone();
+        let runtime = Arc::new(Mutex::new(service));
+        let task_runtime = runtime.clone();
+        let refresh = tokio::spawn(async move { ServiceRuntime::refresh_desktop_processes(&task_runtime).await });
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !manager.list_entered.load(Ordering::SeqCst) {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        }).await.unwrap();
+        {
+            let mut guard = tokio::time::timeout(Duration::from_millis(50), runtime.lock()).await.unwrap();
+            guard.state.update_desktop_launch(RenderLaunchSpec {
+                work_dir: "D:/new".to_string(), app_path: "D:/new/px_render.exe".to_string(),
+                args: vec!["--app_mode=desktop".to_string()],
+            });
+            guard.state.desktop_alive = true;
+            guard.state.desktop_pid = Some(1234);
+        }
+        assert!(!refresh.await.unwrap().unwrap());
+        assert_eq!(runtime.lock().await.state.desktop_pid, Some(1234));
+        assert_eq!(manager.list_calls.load(Ordering::SeqCst), 1);
     }
 
     fn test_auth_info() -> service_core::MsgAuthInfo {
@@ -1554,6 +1770,8 @@ mod tests {
             app_id: "app-car".to_string(),
             app_mode: "game-hook".to_string(),
             webview_url_b64: String::new(),
+            rdp_node_id: String::new(),
+            rdp_account: None,
             install_root: install_root.to_string(),
             game_exe_rel: r"Binaries\Win64\game.exe".to_string(),
             game_arguments: String::new(),
@@ -1571,6 +1789,52 @@ mod tests {
             relay_server_port: 30502,
             relay_appkey: "app-key".to_string(),
         }
+    }
+
+    #[tokio::test]
+    async fn rdp_reaper_slow_snapshot_does_not_lock_out_stop_or_apply_stale_state() {
+        let dirs = make_app_test_dirs("reaper_race");
+        let manager = Arc::new(MockProcessManager::new(vec![ProcessSnapshot::new(
+            4321, dirs.render_path.to_string_lossy().into_owned(), "--app_mode=game-hook --network_listen_port=32140",
+        )]));
+        manager.list_delay_ms.store(250, Ordering::SeqCst);
+        let mut service = test_runtime(vec![]);
+        service.process_manager = manager.clone();
+        service.app_registry.begin_start(&dirs.work_dir_s, sample_start_req("reaper-race", 32140, &dirs.game_root_s)).unwrap();
+        service.app_registry.mark_running("reaper-race", 4321).unwrap();
+        let runtime = Arc::new(Mutex::new(service));
+        let task = tokio::spawn({
+            let runtime = runtime.clone();
+            async move { ServiceRuntime::refresh_app_processes(&runtime).await }
+        });
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !manager.list_entered.load(Ordering::SeqCst) {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        }).await.unwrap();
+        {
+            let mut guard = tokio::time::timeout(Duration::from_millis(50), runtime.lock()).await.unwrap();
+            guard.app_registry.mark_stopped("reaper-race").unwrap();
+        }
+        task.await.unwrap();
+        assert_eq!(runtime.lock().await.app_registry.get("reaper-race").unwrap().state, service_core::AppInstanceState::Stopped);
+        assert_eq!(manager.list_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn rdp_reaper_queries_once_for_all_instances() {
+        let dirs = make_app_test_dirs("reaper_batch");
+        let manager = Arc::new(MockProcessManager::new(vec![]));
+        let mut service = test_runtime(vec![]);
+        service.process_manager = manager.clone();
+        for (id, port) in [("reaper-a", 32141), ("reaper-b", 32142)] {
+            service.app_registry.begin_start(&dirs.work_dir_s, sample_start_req(id, port, &dirs.game_root_s)).unwrap();
+            service.app_registry.mark_running(id, port as u32).unwrap();
+        }
+        let runtime = Arc::new(Mutex::new(service));
+        ServiceRuntime::refresh_app_processes(&runtime).await;
+        assert_eq!(manager.list_calls.load(Ordering::SeqCst), 1);
+        assert!(runtime.lock().await.app_registry.list().iter().all(|record| record.state == service_core::AppInstanceState::Stopped));
     }
 
     fn sample_webview_req(id: &str, port: i32) -> StartAppRequest {
@@ -1675,6 +1939,97 @@ mod tests {
         // desktop pid not killed
         assert!(!kills.contains(&1));
         assert!(manager.list_processes().unwrap().iter().any(|p| p.pid == 1));
+    }
+
+    #[tokio::test]
+    async fn stop_after_natural_exit_is_idempotent_and_does_not_touch_replacement() {
+        let dirs = make_app_test_dirs("stop_reaped");
+        let manager = Arc::new(MockProcessManager::new(Vec::new()));
+        let config = ServiceConfig::new(20375, std::path::PathBuf::from(&dirs.work_dir_s).join("data"),
+            std::path::PathBuf::from(&dirs.work_dir_s).join("logs"));
+        let mut service = ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
+        service.app_registry.begin_start(&dirs.work_dir_s, sample_start_req("reaped", 32144, &dirs.game_root_s)).unwrap();
+        service.app_registry.mark_running("reaped", 4321).unwrap();
+        let runtime = Arc::new(Mutex::new(service));
+        ServiceRuntime::refresh_app_processes(&runtime).await;
+        assert_eq!(runtime.lock().await.app_registry.get("reaped").unwrap().state, service_core::AppInstanceState::Stopped);
+        manager.processes.lock().unwrap().extend([
+            ProcessSnapshot::new(4321, dirs.render_path.to_string_lossy(), "--app_mode=game-hook --network_listen_port=32144"),
+            ProcessSnapshot::new(8765, dirs.game_exe.to_string_lossy(), ""),
+        ]);
+        let snapshots_before = manager.list_calls.load(Ordering::SeqCst);
+        for _ in 0..3 { ServiceRuntime::stop_app_instance(&runtime, "reaped").await.unwrap(); }
+        assert_eq!(manager.list_calls.load(Ordering::SeqCst), snapshots_before);
+        assert!(manager.kills.lock().unwrap().is_empty());
+        assert_eq!(manager.processes.lock().unwrap().len(), 2);
+        assert_eq!(runtime.lock().await.app_registry.get("reaped").unwrap().state, service_core::AppInstanceState::Stopped);
+    }
+
+    #[tokio::test]
+    async fn stop_does_not_sweep_external_game_with_identical_path() {
+        let dirs = make_app_test_dirs("stop_external_game");
+        let manager = Arc::new(MockProcessManager::new(Vec::new()));
+        let config = ServiceConfig::new(20375, std::path::PathBuf::from(&dirs.work_dir_s).join("data"),
+            std::path::PathBuf::from(&dirs.work_dir_s).join("logs"));
+        let mut service = ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
+        service.state.last_desktop_launch = Some(RenderLaunchSpec {
+            work_dir: dirs.work_dir_s.clone(), app_path: dirs.render_path.to_string_lossy().into(), args: vec!["--app_mode=desktop".into()],
+        });
+        let runtime = Arc::new(Mutex::new(service));
+        let (_, root) = ServiceRuntime::start_app_instance(&runtime, sample_start_req("owned", 32145, &dirs.game_root_s)).await.unwrap();
+        manager.processes.lock().unwrap().push(ProcessSnapshot::new(8765, dirs.game_exe.to_string_lossy(), ""));
+        ServiceRuntime::stop_app_instance(&runtime, "owned").await.unwrap();
+        assert!(manager.kills.lock().unwrap().contains(&root));
+        assert!(!manager.kills.lock().unwrap().contains(&8765));
+        assert_eq!(manager.processes.lock().unwrap().iter().map(|p| p.pid).collect::<Vec<_>>(), vec![8765]);
+    }
+
+    #[tokio::test]
+    async fn stop_of_failed_instance_does_not_silently_report_success() {
+        let dirs = make_app_test_dirs("stop_failed");
+        let manager = Arc::new(MockProcessManager::new(Vec::new()));
+        let config = ServiceConfig::new(20375, std::path::PathBuf::from(&dirs.work_dir_s).join("data"),
+            std::path::PathBuf::from(&dirs.work_dir_s).join("logs"));
+        let mut service = ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
+        service.app_registry.begin_start(&dirs.work_dir_s, sample_start_req("failed", 32146, &dirs.game_root_s)).unwrap();
+        service.app_registry.mark_failed("failed", "launch failure").unwrap();
+        let runtime = Arc::new(Mutex::new(service));
+        assert!(ServiceRuntime::stop_app_instance(&runtime, "failed").await.is_err());
+        assert_eq!(runtime.lock().await.app_registry.get("failed").unwrap().state, service_core::AppInstanceState::Failed);
+        assert!(manager.kills.lock().unwrap().is_empty());
+    }
+
+    struct TestExitObserver(std::sync::atomic::AtomicU64);
+    impl ProcessExitObserver for TestExitObserver {
+        fn exit_code(&self) -> Result<Option<u32>, String> {
+            let value = self.0.load(Ordering::SeqCst);
+            Ok(if value == 0 { None } else { Some((value - 1) as u32) })
+        }
+    }
+
+    #[tokio::test]
+    async fn kernel_alive_overrides_missing_snapshot_and_exit_evidence_is_reported() {
+        let dirs = make_app_test_dirs("kernel_exit");
+        let manager = Arc::new(MockProcessManager::new(Vec::new()));
+        let config = ServiceConfig::new(20375, std::path::PathBuf::from(&dirs.work_dir_s).join("data"),
+            std::path::PathBuf::from(&dirs.work_dir_s).join("logs"));
+        let mut service = ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
+        let record = service.app_registry.begin_start(&dirs.work_dir_s, sample_start_req("kernel-exit", 32147, &dirs.game_root_s)).unwrap().clone();
+        service.app_registry.mark_running("kernel-exit", 4321).unwrap();
+        let observer = Arc::new(TestExitObserver(std::sync::atomic::AtomicU64::new(0)));
+        service.app_exit_observers.insert("kernel-exit".into(), (record.request_id, observer.clone()));
+        let runtime = Arc::new(Mutex::new(service));
+        ServiceRuntime::refresh_app_processes(&runtime).await;
+        assert_eq!(runtime.lock().await.app_registry.get("kernel-exit").unwrap().state, service_core::AppInstanceState::Running);
+        observer.0.store(u64::from(service_core::app_instance::EXIT_NO_CLIENTS) + 1, Ordering::SeqCst);
+        ServiceRuntime::refresh_app_processes(&runtime).await;
+        let guard = runtime.lock().await;
+        let finished = guard.app_registry.get("kernel-exit").unwrap();
+        assert_eq!(finished.state, service_core::AppInstanceState::Stopped);
+        assert!(finished.error.is_empty());
+        assert_eq!(finished.exit_detail.as_ref().unwrap().reason, "no_clients");
+        assert!(guard.app_exit_observers.is_empty());
+        assert!(manager.kills.lock().unwrap().is_empty());
     }
 
     #[tokio::test]

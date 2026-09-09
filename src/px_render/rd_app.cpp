@@ -3,6 +3,8 @@
 //
 
 #include "rd_app.h"
+#include "app/application_exit_status.h"
+#include "app/game_frame_identity.h"
 #include <filesystem>
 #include <windows.h>
 #include <future>
@@ -183,9 +185,7 @@ std::shared_ptr<RdApplication> RdApplication::Make(const AppParams& args) {
     // Linux
 }
 
-RdApplication::RdApplication(const AppParams& args) {
-    auto settings = RdSettings::Instance();
-    settings_ = settings;
+RdApplication::RdApplication(const AppParams& args) : settings_(*RdSettings::Instance()) {
     logical_session_registry_ = std::make_shared<LogicalSessionRegistry>();
 
     // debug
@@ -204,7 +204,7 @@ void RdApplication::Init(int argc, char** argv) {
     // sp
     sp_ = SharedPreference::Instance();
     auto path = FolderUtil::GetProgramDataPath() + L"/px_data";
-    std::string sp_name = std::format("pixels_render_{}.dat", settings_->transmission_.listening_port_);
+    std::string sp_name = std::format("pixels_render_{}.dat", settings_.transmission_.listening_port_);
     if (!sp_->Init(std::filesystem::path{path}, sp_name)) {
         init_failed_ = true;
         init_error_ =
@@ -223,6 +223,9 @@ int RdApplication::Run() {
     // context
     context_ = std::make_shared<RdContext>();
     context_->Init();
+    if (settings_.IsRdpMode()) {
+        return RunRdp();
+    }
     const std::weak_ptr<RdApplication> weak_application = weak_from_this();
 
     const auto builtin_catalog = render::BuiltinModuleCatalog::Create();
@@ -262,16 +265,16 @@ int RdApplication::Run() {
                                          .raw_log_interval = std::chrono::seconds(1),
                                      });
     const std::weak_ptr<RdContext> weak_context = context_;
-    auto record_directory = settings_->record_dir_;
+    auto record_directory = settings_.record_dir_;
     if (record_directory.empty()) {
         record_directory = (std::filesystem::path(FolderUtil::GetProgramDataPath()) / L"px_render_records").string();
     }
     media_recorder_sink_ = render::MediaRecorderSink::Create(encoded_media_bus_,
                                                              render::MediaRecorderOptions{
                                                                  .record_directory = std::move(record_directory),
-                                                                 .auto_enabled = settings_->record_auto_,
-                                                                 .max_segment_bytes = settings_->record_max_segment_bytes_,
-                                                                 .max_file_count = settings_->record_max_file_count_,
+                                                                 .auto_enabled = settings_.record_auto_,
+                                                                 .max_segment_bytes = settings_.record_max_segment_bytes_,
+                                                                 .max_file_count = settings_.record_max_file_count_,
                                                                  .queue_capacity = 512,
                                                              },
                                                              [weak_context] {
@@ -279,18 +282,18 @@ int RdApplication::Run() {
                                                                      context->SendAppMessage(MsgInsertIDR{});
                                                                  }
                                                              });
-    const auto push_configuration_valid = !settings_->push_rtmp_url_.empty() && !settings_->live_stream_id_.empty();
-    if (settings_->push_enabled_ && !push_configuration_valid) {
+    const auto push_configuration_valid = !settings_.push_rtmp_url_.empty() && !settings_.live_stream_id_.empty();
+    if (settings_.push_enabled_ && !push_configuration_valid) {
         LOGE("event=module.configure component=live_pusher "
              "outcome=disabled reason=missing_url_or_stream_id");
     }
     live_pusher_sink_ = render::LivePusherSink::Create(
         encoded_media_bus_,
         render::LivePusherOptions{
-            .enabled = settings_->push_enabled_ && push_configuration_valid,
-            .publish_url = render::BuildLivePublishUrl(settings_->push_rtmp_url_, settings_->live_stream_id_),
-            .primary_monitor = settings_->push_primary_monitor_,
-            .audio_bitrate = settings_->push_audio_bitrate_,
+            .enabled = settings_.push_enabled_ && push_configuration_valid,
+            .publish_url = render::BuildLivePublishUrl(settings_.push_rtmp_url_, settings_.live_stream_id_),
+            .primary_monitor = settings_.push_primary_monitor_,
+            .audio_bitrate = settings_.push_audio_bitrate_,
             .queue_capacity = 48,
         },
         [weak_context] {
@@ -367,9 +370,9 @@ int RdApplication::Run() {
         });
     file_transfer_service_ = render::FileTransferService::Create(
         render::FileTransferServiceOptions{
-            .device_id = settings_->device_id_,
-            .enabled = settings_->file_transfer_enabled_,
-            .max_transmit_speed_bits_per_second = settings_->max_transmit_speed_,
+            .device_id = settings_.device_id_,
+            .enabled = settings_.file_transfer_enabled_,
+            .max_transmit_speed_bits_per_second = settings_.max_transmit_speed_,
         },
         [weak_hub = std::weak_ptr<render::NetworkTransportHub>(network_transport_hub_)](
             const std::string& transport_id, const std::string& stream_id, const std::shared_ptr<Data>& message, const std::string& connection_id) {
@@ -395,7 +398,7 @@ int RdApplication::Run() {
             }
         });
     voice_call_service_ = render::VoiceCallService::Create(
-        settings_->voice_call_enabled_,
+        settings_.voice_call_enabled_,
         [weak_application](std::function<void()>&& task) {
             if (const auto application = weak_application.lock()) {
                 application->PostGlobalTask(std::move(task));
@@ -639,7 +642,7 @@ int RdApplication::Run() {
     // notification and skip restoration of persisted virtual-display state.
     service_client_->Start();
     // global audio capture
-    if (settings_->capture_.enable_audio_) {
+    if (settings_.capture_.enable_audio_) {
         InitAudioCapture();
     }
 
@@ -647,7 +650,7 @@ int RdApplication::Run() {
     // control_thread_ = Thread::Make("control", 16);
     // control_thread_->Poll();
     // desktop capture
-    if (settings_->capture_.IsVideoInnerCapture()) {
+    if (settings_.capture_.IsVideoInnerCapture()) {
         LOGI("Use inner capture.");
     } else {
         dda_capture_source_ = module_registry_->GetDdaCapture();
@@ -668,10 +671,10 @@ int RdApplication::Run() {
         // capture_source_ = gdi_capture_source_;
         // test only gdi end
 
-        LOGI("Use capture fps: {}", settings_->encoder_.fps_);
+        LOGI("Use capture fps: {}", settings_.encoder_.fps_);
         if (capture_source_ && capture_source_->IsEnabled()) {
             LOGI("Use dda capture module.");
-            capture_source_->SetCaptureFps(settings_->encoder_.fps_);
+            capture_source_->SetCaptureFps(settings_.encoder_.fps_);
             const auto weak_self = weak_from_this();
             capture_source_->SetCaptureErrorCallback([weak_self](const MonitorCaptureError& err) {
                 const auto self = weak_self.lock();
@@ -710,12 +713,12 @@ int RdApplication::Run() {
         }
     }
 
-    if (settings_->capture_.enable_video_) {
+    if (settings_.capture_.enable_video_) {
         // application.mode in settings.toml decides path:
         // game-hook → start/inject game; desktop → screen capture (never launch game-path).
-        if (settings_->IsWebViewMode()) {
+        if (settings_.IsWebViewMode()) {
             StartWebView();
-        } else if (settings_->IsGameHookMode()) {
+        } else if (settings_.IsGameHookMode()) {
             StartProcessWithHook();
         } else {
             StartProcessWithScreenCapture();
@@ -731,6 +734,10 @@ int RdApplication::Run() {
     // desktop manager
     desktop_mgr_ = WinDesktopManager::Make(context_);
 
+    return RunMessageLoop();
+}
+
+int RdApplication::RunMessageLoop() {
     main_thread_id_ = GetCurrentThreadId();
 
     MSG msg{};
@@ -762,7 +769,7 @@ int RdApplication::Run() {
         }
     }
     Exit();
-    return 0;
+    return static_cast<int>(process_exit_status_.load());
 }
 
 void RdApplication::InitAppTimer() {
@@ -770,7 +777,102 @@ void RdApplication::InitAppTimer() {
     app_timer_->StartTimers();
 }
 
+void RdApplication::InitConnectionLifecycle() {
+    const auto weak_self = weak_from_this();
+    msg_listener_->Listen<MsgClientConnected>([weak_self](const MsgClientConnected& msg) {
+        const auto self = weak_self.lock();
+        if (!self || self->exit_app_) {
+            return;
+        }
+        // A reconnect during the grace window invalidates any shutdown
+        // scheduled by the previous "last client disconnected" event.
+        // Only connections with a stable id participate in game lifetime.
+        // The transport name is deliberately not filtered: current web
+        // clients may negotiate Direct, UDP or another registered net
+        // module while preserving the same connect/disconnect id.
+        const bool tracked_game_client = (self->settings_.IsGameHookMode() || self->settings_.IsRdpMode()) && !msg.connection_id_.empty();
+        if (tracked_game_client) {
+            self->game_hook_has_seen_client_ = true;
+            std::lock_guard<std::mutex> lock(self->game_hook_clients_mutex_);
+            self->game_hook_client_ids_.insert(msg.connection_id_);
+        }
+        ++self->client_disconnect_generation_;
+        if (self->settings_.IsWebViewMode() && self->webview_runtime_) {
+            self->webview_runtime_->SetActive(true);
+            self->webview_runtime_->SendFocusEvent(true);
+        }
+    });
+
+    msg_listener_->Listen<MsgClientDisconnected>([weak_self](const MsgClientDisconnected& msg) {
+        const auto self = weak_self.lock();
+        if (!self || self->exit_app_) {
+            return;
+        }
+        if (self->settings_.IsWebViewMode()) {
+            const auto generation = ++self->client_disconnect_generation_;
+            const auto weak_webview = weak_self;
+            self->context_->PostDelayTask(
+                [weak_webview, generation]() {
+                    const auto self = weak_webview.lock();
+                    if (!self || self->exit_app_ || self->client_disconnect_generation_ != generation || self->HasConnectedPeer() ||
+                        !self->webview_runtime_) {
+                        return;
+                    }
+                    self->webview_runtime_->SendFocusEvent(false);
+                    self->webview_runtime_->SetActive(false);
+                },
+                100);
+            return;
+        }
+        if (!self->settings_.IsGameHookMode() && !self->settings_.IsRdpMode()) {
+            return;
+        }
+        bool removed_tracked_client = false;
+        if (!msg.connection_id_.empty()) {
+            std::lock_guard<std::mutex> lock(self->game_hook_clients_mutex_);
+            removed_tracked_client = self->game_hook_client_ids_.erase(msg.connection_id_) > 0;
+        }
+        // Still update the tracked set during startup so short-lived setup
+        // sockets cannot keep the process alive.  Only the stop decision
+        // is suppressed until the embedded web listener is ready.
+        if (!self->game_hook_startup_grace_complete_) {
+            LOGI("Ignore application client-disconnect during startup grace period.");
+            return;
+        }
+        if (!removed_tracked_client) {
+            LOGI("Ignore untracked application client-disconnect event.");
+            return;
+        }
+        if (self->HasConnectedPeer()) {
+            LOGI("Still has connected clients");
+            return;
+        }
+        if (!self->game_hook_has_seen_client_) {
+            LOGW("Ignore application client-disconnect before the first confirmed client connection.");
+            return;
+        }
+
+        const auto generation = ++self->client_disconnect_generation_;
+        LOGI("Last application client disconnected; stop render in 5 seconds unless a client reconnects.");
+        self->context_->PostDelayTask(
+            [weak_self, generation]() {
+                const auto self = weak_self.lock();
+                if (!self || self->exit_app_ || self->client_disconnect_generation_ != generation) {
+                    return;
+                }
+                if (self->HasConnectedPeer()) {
+                    return;
+                }
+                LOGI("Application grace period elapsed with no clients; stopping render.");
+                self->ExitForIdle(false);
+            },
+            5000);
+    });
+
+}
+
 void RdApplication::InitMessages() {
+    InitConnectionLifecycle();
     auto weak_self = weak_from_this();
     msg_listener_->Listen<MsgBeforeInject>([weak_self](const MsgBeforeInject& msg) {
         const auto self = weak_self.lock();
@@ -779,7 +881,7 @@ void RdApplication::InitMessages() {
         }
         // Prefer PrepareGameHookBoot() called synchronously before InjectDll.
         // This async path is a fallback only.
-        if (self->settings_->capture_.IsVideoInnerCapture()) {
+        if (self->settings_.capture_.IsVideoInnerCapture()) {
             self->PrepareGameHookBoot(msg.pid_);
         }
     });
@@ -790,7 +892,7 @@ void RdApplication::InitMessages() {
             return;
         }
         // Game-hook audio: start/restart host capture as PID process-loopback (never device mix).
-        if (!self->settings_->capture_.IsVideoInnerCapture() || msg.pid_ == 0) {
+        if (!self->settings_.capture_.IsVideoInnerCapture() || msg.pid_ == 0) {
             return;
         }
         if (!PreferProcessLoopbackCapture()) {
@@ -923,30 +1025,6 @@ void RdApplication::InitMessages() {
 #endif
     });
 
-    msg_listener_->Listen<MsgClientConnected>([weak_self](const MsgClientConnected& msg) {
-        const auto self = weak_self.lock();
-        if (!self || self->exit_app_) {
-            return;
-        }
-        // A reconnect during the grace window invalidates any shutdown
-        // scheduled by the previous "last client disconnected" event.
-        // Only connections with a stable id participate in game lifetime.
-        // The transport name is deliberately not filtered: current web
-        // clients may negotiate Direct, UDP or another registered net
-        // module while preserving the same connect/disconnect id.
-        const bool tracked_game_client = self->settings_->IsGameHookMode() && !msg.connection_id_.empty();
-        if (tracked_game_client) {
-            self->game_hook_has_seen_client_ = true;
-            std::lock_guard<std::mutex> lock(self->game_hook_clients_mutex_);
-            self->game_hook_client_ids_.insert(msg.connection_id_);
-        }
-        ++self->client_disconnect_generation_;
-        if (self->settings_->IsWebViewMode() && self->webview_runtime_) {
-            self->webview_runtime_->SetActive(true);
-            self->webview_runtime_->SendFocusEvent(true);
-        }
-    });
-
     msg_listener_->Listen<MsgClientHello>([weak_self](const MsgClientHello&) {
         const auto self = weak_self.lock();
         if (!self || self->exit_app_) {
@@ -960,72 +1038,6 @@ void RdApplication::InitMessages() {
             // send configuration back to client
             self->SendConfigurationBack();
         });
-    });
-
-    msg_listener_->Listen<MsgClientDisconnected>([weak_self](const MsgClientDisconnected& msg) {
-        const auto self = weak_self.lock();
-        if (!self || self->exit_app_) {
-            return;
-        }
-        if (self->settings_->IsWebViewMode()) {
-            const auto generation = ++self->client_disconnect_generation_;
-            const auto weak_webview = weak_self;
-            self->context_->PostDelayTask(
-                [weak_webview, generation]() {
-                    const auto self = weak_webview.lock();
-                    if (!self || self->exit_app_ || self->client_disconnect_generation_ != generation || self->HasConnectedPeer() ||
-                        !self->webview_runtime_) {
-                        return;
-                    }
-                    self->webview_runtime_->SendFocusEvent(false);
-                    self->webview_runtime_->SetActive(false);
-                },
-                100);
-            return;
-        }
-        if (!self->settings_->IsGameHookMode()) {
-            return;
-        }
-        bool removed_tracked_client = false;
-        if (!msg.connection_id_.empty()) {
-            std::lock_guard<std::mutex> lock(self->game_hook_clients_mutex_);
-            removed_tracked_client = self->game_hook_client_ids_.erase(msg.connection_id_) > 0;
-        }
-        // Still update the tracked set during startup so short-lived setup
-        // sockets cannot keep the process alive.  Only the stop decision
-        // is suppressed until the embedded web listener is ready.
-        if (!self->game_hook_startup_grace_complete_) {
-            LOGI("Ignore game-hook client-disconnect during startup grace period.");
-            return;
-        }
-        if (!removed_tracked_client) {
-            LOGI("Ignore untracked game-hook client-disconnect event.");
-            return;
-        }
-        if (self->HasConnectedPeer()) {
-            LOGI("Still has connected clients");
-            return;
-        }
-        if (!self->game_hook_has_seen_client_) {
-            LOGW("Ignore game-hook client-disconnect before the first confirmed client connection.");
-            return;
-        }
-
-        const auto generation = ++self->client_disconnect_generation_;
-        LOGI("Last game-hook client disconnected; stop render in 5 seconds unless a client reconnects.");
-        self->context_->PostDelayTask(
-            [weak_self, generation]() {
-                const auto self = weak_self.lock();
-                if (!self || self->exit_app_ || self->client_disconnect_generation_ != generation) {
-                    return;
-                }
-                if (self->HasConnectedPeer()) {
-                    return;
-                }
-                LOGI("Game-hook grace period elapsed with no clients; stopping render.");
-                ProcessUtil::KillProcess(GetCurrentProcessId());
-            },
-            5000);
     });
 
     msg_listener_->Listen<ClipboardMessage>([weak_self](const ClipboardMessage& msg) {
@@ -1071,7 +1083,7 @@ void RdApplication::InitMessages() {
                 return;
             }
             self->SendConfigurationBack();
-            if (self->settings_->virtual_display_enabled_ && !self->settings_->IsGameHookMode()) {
+            if (self->settings_.virtual_display_enabled_ && !self->settings_.IsGameHookMode()) {
                 // The display driver may publish the Windows topology
                 // notification before the Service operation response is
                 // delivered. Query the authoritative ownership state after
@@ -1096,7 +1108,7 @@ void RdApplication::InitMessages() {
 
     msg_listener_->Listen<MsgRenderConnected2Service>([weak_self](const MsgRenderConnected2Service&) {
         const auto self = weak_self.lock();
-        if (!self || self->exit_app_ || !self->settings_->virtual_display_enabled_ || self->settings_->IsGameHookMode()) {
+        if (!self || self->exit_app_ || !self->settings_.virtual_display_enabled_ || self->settings_.IsGameHookMode()) {
             return;
         }
         self->RefreshVirtualDisplayStatus("render-startup-query");
@@ -1132,7 +1144,7 @@ void RdApplication::InitMessages() {
         }
         std::lock_guard<std::mutex> lk(self->capture_source_mtx_);
         if (self->capture_source_) {
-            self->settings_->encoder_.fps_ = msg.fps_;
+            self->settings_.encoder_.fps_ = msg.fps_;
             self->capture_source_->SetCaptureFps(msg.fps_);
         }
     });
@@ -1189,7 +1201,7 @@ void RdApplication::InitMessages() {
         if (!self || self->exit_app_) {
             return;
         }
-        if (self->settings_->IsGameHookMode()) {
+        if (self->settings_.IsGameHookMode()) {
             return;
         }
         ++self->restart_counter_;
@@ -1278,11 +1290,11 @@ void RdApplication::InitAudioCapture() {
     auto weak_self = weak_from_this();
     // WebView audio is delivered by CefAudioHandler, never by the OS
     // default device or another process's loopback stream.
-    if (settings_->IsWebViewMode()) {
+    if (settings_.IsWebViewMode()) {
         LOGI("WebView audio: use CEF stream callback");
         return;
     }
-    if (settings_->capture_.capture_audio_type_ != Capture::CaptureAudioType::kAudioGlobal) {
+    if (settings_.capture_.capture_audio_type_ != Capture::CaptureAudioType::kAudioGlobal) {
         return;
     }
     if (!audio_capture_source_) {
@@ -1292,7 +1304,7 @@ void RdApplication::InitAudioCapture() {
     // Desktop: start default-device loopback immediately.
     // Game-hook: wait for MsgObsInjected → PID process-loopback (never device mix).
     // If OS lacks process-loopback, rely on in-process WASAPI hook only.
-    if (settings_->capture_.IsVideoInnerCapture()) {
+    if (settings_.capture_.IsVideoInnerCapture()) {
         if (PreferProcessLoopbackCapture()) {
             LOGI("game-hook audio: defer until inject (PID process-loopback)");
         } else {
@@ -1328,7 +1340,7 @@ void RdApplication::PostGlobalTask(std::function<void()>&& task) {
 void RdApplication::PostIpcMessage(std::shared_ptr<Data>&& msg) {}
 
 void RdApplication::PostIpcMessage(const std::string& msg) const {
-    if (!settings_->capture_.IsVideoInnerCapture() || msg.empty()) {
+    if (!settings_.capture_.IsVideoInnerCapture() || msg.empty()) {
         return;
     }
     auto data = Data::From(msg);
@@ -1346,7 +1358,7 @@ void RdApplication::PostNetMessage(std::shared_ptr<Data> msg) const {
 void RdApplication::StartProcessWithHook() {
     // Frames arrive via /ipc through the typed WS media ingress and enter
     // the same capture/encode path as desktop sources.
-    if (!settings_->IsGameHookMode()) {
+    if (!settings_.IsGameHookMode()) {
         LOGI("StartProcessWithHook skipped: application.mode is desktop");
         return;
     }
@@ -1357,21 +1369,21 @@ void RdApplication::StartProcessWithHook() {
     context_->PostDelayTask(
         [weak_self]() {
             const auto self = weak_self.lock();
-            if (!self || self->exit_app_ || !self->settings_->IsGameHookMode())
+            if (!self || self->exit_app_ || !self->settings_.IsGameHookMode())
                 return;
             self->game_hook_startup_grace_complete_ = true;
             if (self->HasConnectedPeer())
                 return;
             LOGI("Game-hook startup grace elapsed with no clients; stopping render.");
-            ProcessUtil::KillProcess(GetCurrentProcessId());
+            self->ExitForIdle(true);
             // Browser startup, Console ticket issuance and game injection can
             // overlap on a cold machine. Fifteen seconds was shorter than a real
             // cold Chromium launch and could close the listener while the first
             // page was already loading.
         },
         45000);
-    LOGI("StartProcessWithHook: game_path={}, capture_method={}", settings_->app_.game_path_, (int)settings_->app_.inject_method_);
-    if (settings_->app_.game_path_.empty()) {
+    LOGI("StartProcessWithHook: game_path={}, capture_method={}", settings_.app_.game_path_, (int)settings_.app_.inject_method_);
+    if (settings_.app_.game_path_.empty()) {
         LOGE("StartProcessWithHook: game-path is empty, cannot start game.");
         init_failed_ = true;
         init_error_ = "game-path is empty";
@@ -1379,29 +1391,29 @@ void RdApplication::StartProcessWithHook() {
     }
     bool ok = app_manager_->StartProcessWithHook();
     if (!ok) {
-        LOGE("StartProcessWithHook failed for: {}", settings_->app_.game_path_);
+        LOGE("StartProcessWithHook failed for: {}", settings_.app_.game_path_);
         // Fail fast so Service can report to Console (no orphan Render without game).
         init_failed_ = true;
-        init_error_ = std::format("StartProcessWithHook failed: {}", settings_->app_.game_path_);
+        init_error_ = std::format("StartProcessWithHook failed: {}", settings_.app_.game_path_);
     } else {
         LOGI("StartProcessWithHook requested OK, inject timer will attach px_gh.dll");
     }
 }
 
 void RdApplication::StartWebView() {
-    if (!settings_->IsWebViewMode()) {
+    if (!settings_.IsWebViewMode()) {
         return;
     }
     webview_runtime_ = std::make_unique<WebViewRuntime>();
     auto weak_self = weak_from_this();
     WebViewRuntimeConfig config{
-        .url_b64 = settings_->webview_url_b64_,
-        .instance_id = settings_->webview_instance_id_,
-        .width = settings_->webview_width_,
-        .height = settings_->webview_height_,
-        .frame_rate = settings_->encoder_.fps_,
-        .enable_audio = settings_->capture_.enable_audio_,
-        .accelerated_paint = settings_->webview_gpu_,
+        .url_b64 = settings_.webview_url_b64_,
+        .instance_id = settings_.webview_instance_id_,
+        .width = settings_.webview_width_,
+        .height = settings_.webview_height_,
+        .frame_rate = settings_.encoder_.fps_,
+        .enable_audio = settings_.capture_.enable_audio_,
+        .accelerated_paint = settings_.webview_gpu_,
     };
     WebViewRuntimeCallbacks callbacks{
         .on_video_frame =
@@ -1439,19 +1451,19 @@ void RdApplication::StartWebView() {
                     return;
                 LOGE("WebView runtime failure: {}", error);
                 if (self->service_client_) {
-                    self->service_client_->NotifyAppInstanceReady(self->settings_->webview_instance_id_,
-                                                                  self->settings_->transmission_.listening_port_, false, error);
+                    self->service_client_->NotifyAppInstanceReady(self->settings_.webview_instance_id_,
+                                                                  self->settings_.transmission_.listening_port_, false, error);
                 }
             },
         .on_first_frame =
             [weak_self]() {
                 LOGI("WebView first off-screen frame is ready");
                 if (const auto self = weak_self.lock(); self && self->service_client_) {
-                    self->service_client_->NotifyAppInstanceReady(self->settings_->webview_instance_id_,
-                                                                  self->settings_->transmission_.listening_port_, true, "");
+                    self->service_client_->NotifyAppInstanceReady(self->settings_.webview_instance_id_,
+                                                                  self->settings_.transmission_.listening_port_, true, "");
                 }
                 if (const auto self = weak_self.lock();
-                    self && self->webview_runtime_ && !self->HasConnectedPeer() && !self->settings_->webview_smoke_test_) {
+                    self && self->webview_runtime_ && !self->HasConnectedPeer() && !self->settings_.webview_smoke_test_) {
                     self->webview_runtime_->SetActive(false);
                 }
             },
@@ -1462,7 +1474,7 @@ void RdApplication::StartWebView() {
         init_error_ = error.empty() ? "WebView runtime start failed" : error;
         LOGE("StartWebView failed: {}", init_error_);
         if (service_client_) {
-            service_client_->NotifyAppInstanceReady(settings_->webview_instance_id_, settings_->transmission_.listening_port_, false, init_error_);
+            service_client_->NotifyAppInstanceReady(settings_.webview_instance_id_, settings_.transmission_.listening_port_, false, init_error_);
         }
         webview_runtime_.reset();
         return;
@@ -1573,7 +1585,7 @@ void RdApplication::DeliverCapturedVideoFrame(const CaptureVideoFrame& frame) co
     if (exit_app_) {
         return;
     }
-    if (settings_->IsGameHookMode()) {
+    if (settings_.IsGameHookMode()) {
         std::lock_guard<std::mutex> lock(latest_game_hook_frame_mutex_);
         latest_game_hook_frame_ = frame;
         latest_game_hook_replay_frame_index_ = frame.frame_index_;
@@ -1584,7 +1596,7 @@ void RdApplication::DeliverCapturedVideoFrame(const CaptureVideoFrame& frame) co
     if (!HasConnectedPeer()) {
         return;
     }
-    if (!settings_->IsGameHookMode()) {
+    if (!settings_.IsGameHookMode()) {
         if (!module_registry_->HasWorkingVideoClient()) {
             LOGI("Only audio clients, ignore video frame.");
             return;
@@ -1708,7 +1720,7 @@ render::MediaSubmitResult RdApplication::DeliverCapturedAudioFrame(const std::sh
 }
 
 void RdApplication::ReplayLatestGameHookFrame() const {
-    if (exit_app_ || !settings_->IsGameHookMode() || !HasConnectedPeer()) {
+    if (exit_app_ || !settings_.IsGameHookMode() || !HasConnectedPeer()) {
         return;
     }
     std::optional<CaptureVideoFrame> frame;
@@ -1739,11 +1751,15 @@ void RdApplication::OnCapturedCursorBitmap(const CaptureCursorBitmap& cursor) co
                                                           cursor.visible_, cursor.data_, cursor.type_));
 }
 
-void RdApplication::OnIpcVideoFrame(const std::shared_ptr<CaptureVideoFrame>& msg) const {
-    if (!HasConnectedPeer()) {
+void RdApplication::OnIpcVideoFrame(const CaptureVideoFrame& incoming) const {
+    if (settings_.IsGameHookMode()) {
+        auto frame = incoming;
+        if (EnsureGameFrameIdentity(frame.display_name_)) {
+            OnCapturedVideoFrame(frame);
+        }
         return;
     }
-    OnCapturedVideoFrame(*msg);
+    OnCapturedVideoFrame(incoming);
 }
 
 void RdApplication::OnIpcAudioFrame(const CaptureAudioFrame& frame) {
@@ -1768,7 +1784,7 @@ bool RdApplication::HasConnectedPeer() const {
     if (module_registry_->GetTotalMediaConsumersCount()) {
         return true;
     }
-    if (!settings_->IsGameHookMode()) {
+    if (!settings_.IsGameHookMode()) {
         return false;
     }
     std::lock_guard<std::mutex> lock(game_hook_clients_mutex_);
@@ -1780,6 +1796,10 @@ void RdApplication::WriteBoostUpInfoForPid(uint32_t pid) {
 }
 
 void RdApplication::PrepareGameHookBoot(uint32_t pid) {
+    if (!app_manager_ || !app_manager_->CanHookProcess(pid)) {
+        LOGE("Hook bootstrap refused: pid={} is not an owned executable target", pid);
+        return;
+    }
     if (!app_shared_message_) {
         LOGE("PrepareGameHookBoot: no AppSharedMessage (offsets/port)");
         return;
@@ -1788,7 +1808,7 @@ void RdApplication::PrepareGameHookBoot(uint32_t pid) {
         LOGE("PrepareGameHookBoot: no AppSharedInfo writer");
         return;
     }
-    app_shared_message_->ipc_port_ = settings_->transmission_.listening_port_;
+    app_shared_message_->ipc_port_ = settings_.transmission_.listening_port_;
     app_shared_message_->self_size_ = sizeof(AppSharedMessage);
     app_shared_message_->enable_hook_events_ = 1;
     // Prefer OS process-loopback when available; otherwise (or PIXELS_FORCE_HOOK_AUDIO=1)
@@ -1881,12 +1901,12 @@ void RdApplication::SendConfigurationBack() {
         monitors = capture_source->CaptureMonitors();
         capturing_name = capture_source->CapturingMonitorName();
         this->UpdateCapturingMonitorInfo();
-    } else if (settings_->IsGameHookMode()) {
+    } else if (settings_.IsGameHookMode()) {
         // Inner/game-hook capture has no desktop monitor module. It is a
         // single application surface, so expose a synthetic monitor to the
         // standard client configuration/decode pipeline.
-        int width = settings_->encoder_.encode_width_;
-        int height = settings_->encoder_.encode_height_;
+        int width = settings_.encoder_.encode_width_;
+        int height = settings_.encoder_.encode_height_;
         if (app_manager_) {
             const auto hwnd = static_cast<HWND>(app_manager_->GetWindowHandle());
             RECT client_rect{};
@@ -1898,9 +1918,9 @@ void RdApplication::SendConfigurationBack() {
         }
         append_synthetic_monitor("Application", width, height);
         LOGI("Use synthetic game-hook monitor configuration: {}x{}", width, height);
-    } else if (settings_->IsWebViewMode()) {
-        append_synthetic_monitor("webview", settings_->webview_width_, settings_->webview_height_);
-        LOGI("Use synthetic WebView monitor configuration: {}x{}", settings_->webview_width_, settings_->webview_height_);
+    } else if (settings_.IsWebViewMode()) {
+        append_synthetic_monitor("webview", settings_.webview_width_, settings_.webview_height_);
+        LOGI("Use synthetic WebView monitor configuration: {}x{}", settings_.webview_width_, settings_.webview_height_);
     } else {
         LOGE("SendConfigurationBack failed, working monitor capture module is null.");
         return;
@@ -1930,20 +1950,20 @@ void RdApplication::SendConfigurationBack() {
         info.set_current_height(monitor.Height());
         monitors_info->Add(std::move(info));
     }
-    LOGI("Will send configuration back, fps: {}", settings_->encoder_.fps_);
-    config->set_fps(settings_->encoder_.fps_);
+    LOGI("Will send configuration back, fps: {}", settings_.encoder_.fps_);
+    config->set_fps(settings_.encoder_.fps_);
     config->set_capturing_monitor_name(capturing_name);
-    config->set_file_transfer_enabled(settings_->file_transfer_enabled_);
+    config->set_file_transfer_enabled(settings_.file_transfer_enabled_);
     // FT 协议版本:rustdesk 语义 = 2(旧实现已删除,主控按此门控)
     config->set_ft_protocol_version(2);
-    config->set_audio_enabled(settings_->audio_enabled_);
-    config->set_can_be_operated(settings_->can_be_operated_);
-    config->set_virtual_display_enabled(settings_->virtual_display_enabled_ && !settings_->IsGameHookMode());
+    config->set_audio_enabled(settings_.audio_enabled_);
+    config->set_can_be_operated(settings_.can_be_operated_);
+    config->set_virtual_display_enabled(settings_.virtual_display_enabled_ && !settings_.IsGameHookMode());
     config->set_virtual_display_owned_count(virtual_display_owned_count_.load());
     config->set_virtual_display_max_count(kVirtualDisplayMaximumCount);
     config->set_topology_generation(virtual_display_topology_generation_.load());
-    config->set_voice_call_enabled(settings_->voice_call_enabled_);
-    config->set_voice_call_protocol_version(settings_->voice_call_enabled_ ? 1 : 0);
+    config->set_voice_call_enabled(settings_.voice_call_enabled_);
+    config->set_voice_call_protocol_version(settings_.voice_call_enabled_ ? 1 : 0);
     config->set_voice_call_requires_headset(true);
     //
     auto buffer = ProtoAsData(&m);
@@ -2256,7 +2276,7 @@ void RdApplication::UpdateVirtualDisplayStatus(const MsgVirtualDisplayServiceRes
 }
 
 void RdApplication::RefreshVirtualDisplayStatus(const std::string& request_prefix) {
-    if (exit_app_ || !settings_->virtual_display_enabled_ || settings_->IsGameHookMode()) {
+    if (exit_app_ || !settings_.virtual_display_enabled_ || settings_.IsGameHookMode()) {
         return;
     }
     if (virtual_display_refresh_pending_.exchange(true, std::memory_order_acq_rel)) {
@@ -2324,7 +2344,7 @@ bool RdApplication::SwitchGdiCapture() {
         return false;
     }
     capture_source_ = gdi_capture_source_;
-    capture_source_->SetCaptureFps(settings_->encoder_.fps_);
+    capture_source_->SetCaptureFps(settings_.encoder_.fps_);
     capture_source_->SetEnabled(true);
     LOGI("Use gdi capture module.");
     return true;
@@ -2345,7 +2365,7 @@ bool RdApplication::SwitchDdaCapture() {
         return false;
     }
     capture_source_ = dda_capture_source_;
-    capture_source_->SetCaptureFps(settings_->encoder_.fps_);
+    capture_source_->SetCaptureFps(settings_.encoder_.fps_);
     capture_source_->SetEnabled(true);
     LOGI("Use dda capture module.");
     return true;
@@ -2386,7 +2406,7 @@ void RdApplication::HandleForceGdiEvent(bool force_gdi) {
     // WebView frames come from CEF OSR and do not have a desktop capture
     // module. Relay's legacy RequestControl hint must not try to switch a
     // nonexistent DDA/GDI source.
-    if (settings_->IsWebViewMode()) {
+    if (settings_.IsWebViewMode()) {
         return;
     }
     force_gdi_ = force_gdi;
@@ -2426,6 +2446,18 @@ void RdApplication::UpdateCapturingMonitorInfo() {
     if (input_replay_service_) {
         input_replay_service_->UpdateCaptureMonitorInfo(cm_msg);
         LOGI("Update CaptureMonitorInfo to input replay service finished.");
+    }
+}
+
+void RdApplication::ExitForIdle(bool startup) {
+    const auto status = startup ? ApplicationExitStatus::kStartupIdle : ApplicationExitStatus::kNoClients;
+    process_exit_status_.store(static_cast<std::uint32_t>(status));
+    if (settings_.IsGameHookMode()) {
+        // Preserve the existing immediate game-runtime teardown and Job cleanup,
+        // but distinguish intentional idle exit from an external kill/crash.
+        TerminateProcess(GetCurrentProcess(), process_exit_status_.load());
+    } else {
+        Exit();
     }
 }
 
@@ -2517,6 +2549,9 @@ void RdApplication::Exit() {
     if (webview_runtime_) {
         webview_runtime_->Stop();
         webview_runtime_.reset();
+    }
+    if (const auto proxy = rdp_proxy_.exchange({})) {
+        proxy->Stop();
     }
     // Stop capture producers before their concrete module owners. The former
     // plug-in lifetime workaround is no longer valid after built-in modules
@@ -2623,7 +2658,7 @@ WinApplication::~WinApplication() {
 int WinApplication::Run() {
     // WebView never injects the graphics hook and must not depend on the
     // auxiliary DXGI address probe executable being deployed.
-    if (!settings_->IsWebViewMode()) {
+    if (!settings_.IsWebViewMode() && !settings_.IsRdpMode()) {
         LoadDxAddress();
     }
     return RdApplication::Run();
@@ -2666,7 +2701,7 @@ void WinApplication::CaptureControlC() {
 void WinApplication::LoadDxAddress() {
     app_shared_message_ = DxAddressLoader::LoadDxAddress();
     if (app_shared_message_) {
-        app_shared_message_->ipc_port_ = settings_->transmission_.listening_port_;
+        app_shared_message_->ipc_port_ = settings_.transmission_.listening_port_;
         app_shared_message_->self_size_ = sizeof(AppSharedMessage);
         app_shared_message_->enable_hook_events_ = 1;
     } else {

@@ -22,6 +22,9 @@ pub struct ConsoleServiceConn {
     pub device_id: String,
     pub appkey: String,
     pub version: String,
+    pub rdp_available: bool,
+    pub rdp_domain: String,
+    pub rdp_proxy_certificate_sha256: String,
     pub hello_timestamp: i64,
     pub last_update_timestamp: i64,
     pub hb_index: i64,
@@ -33,6 +36,8 @@ pub struct ConsoleServiceConn {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ConsoleServiceConnVo {
+    #[serde(default)]
+    pub rdp_available: bool,
     pub device_id: String,
     pub version: String,
     pub hello_timestamp: i64,
@@ -60,6 +65,9 @@ impl ConsoleServiceConn {
             device_id,
             appkey,
             version: "".to_string(),
+            rdp_available: false,
+            rdp_domain: String::new(),
+            rdp_proxy_certificate_sha256: String::new(),
             hello_timestamp: 0,
             last_update_timestamp: 0,
             hb_index: 0,
@@ -72,6 +80,7 @@ impl ConsoleServiceConn {
 
     pub fn as_info(&self) -> ConsoleServiceConnVo {
         ConsoleServiceConnVo {
+            rdp_available: self.rdp_available,
             device_id: self.device_id.to_string(),
             version: self.version.to_string(),
             hello_timestamp: self.hello_timestamp,
@@ -100,6 +109,13 @@ impl ConsoleServiceConn {
             self.last_update_timestamp = self.hello_timestamp;
             let device_id = sub.device_id;
             self.version = sub.version;
+            self.rdp_available = sub.rdp_available;
+            self.rdp_domain = sub.rdp_domain;
+            self.rdp_proxy_certificate_sha256 = sub.rdp_proxy_certificate_sha256;
+            self.rdp_available &= !self.rdp_domain.is_empty() && self.rdp_domain.len() <= 15
+                && self.rdp_domain.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+                && self.rdp_proxy_certificate_sha256.len() == 64
+                && self.rdp_proxy_certificate_sha256.bytes().all(|byte| byte.is_ascii_hexdigit());
             self.send_hello(device_id).await;
         } else if m.msg_type == ConsoleServiceMessageType::KConsoleServiceHeartBeat {
             let Some(sub) = m.heartbeat else {
@@ -149,32 +165,51 @@ impl ConsoleServiceConn {
             let request_id = request.request_id.clone();
             let instance_id =
                 (!request.instance_id.is_empty()).then_some(request.instance_id.as_str());
-            let result = crate::connection_ticket::manager::ConnectionTicketManager::redeem(
-                &request.ticket,
-                &self.device_id,
-                &request.client_nonce,
-                instance_id,
-                &request_id,
-            )
-            .await;
+            let runtime_check = !request.rdp_logical_session_id.is_empty();
+            let result = if runtime_check {
+                if !request.ticket.is_empty() || !request.client_nonce.is_empty() {
+                    Err(crate::console_api_error::ConsoleApiError::InvalidParams)
+                } else {
+                    crate::connection_ticket::rdp_authorization::validate(
+                        &self.device_id,
+                        &request.instance_id,
+                        &request.rdp_logical_session_id,
+                    )
+                    .await
+                }
+            } else {
+                crate::connection_ticket::manager::ConnectionTicketManager::redeem(
+                    &request.ticket,
+                    &self.device_id,
+                    &request.client_nonce,
+                    instance_id,
+                    &request_id,
+                )
+                .await
+            };
             let response = match result {
                 Ok(grant) => {
                     let grant_permission_count = grant.permissions.len();
-                    tracing::info!(
-                        grant_permission_count,
-                        "connection ticket redeemed with an authorized grant"
-                    );
+                    if runtime_check {
+                        tracing::debug!("RDP runtime authorization confirmed");
+                    } else {
+                        tracing::info!(grant_permission_count, "connection ticket redeemed with an authorized grant");
+                    }
                     let rtc_subject = format!("{}:{}", self.device_id, request_id);
-                    let rtc_ice_config_json = crate::gRtcConfigManager
-                        .issue_session_config(&rtc_subject)
-                        .await
-                        .and_then(|config| {
-                            serde_json::to_string(&config).map_err(|error| error.to_string())
-                        })
-                        .unwrap_or_else(|error| {
-                            tracing::error!(%error, "issue RTC ICE credentials after ticket redemption failed");
-                            String::new()
-                        });
+                    let rtc_ice_config_json = if runtime_check {
+                        "{}".to_string()
+                    } else {
+                        crate::gRtcConfigManager
+                            .issue_session_config(&rtc_subject)
+                            .await
+                            .and_then(|config| {
+                                serde_json::to_string(&config).map_err(|error| error.to_string())
+                            })
+                            .unwrap_or_else(|error| {
+                                tracing::error!(%error, "issue RTC ICE credentials after ticket redemption failed");
+                                String::new()
+                            })
+                    };
                     ConsoleServiceRedeemConnectionTicketResult {
                         request_id,
                         ok: !rtc_ice_config_json.is_empty(),
@@ -244,6 +279,9 @@ impl ConsoleServiceConn {
             device_id,
             appkey: self.appkey.clone(),
             version: self.version.clone(),
+            rdp_available: self.rdp_available,
+            rdp_domain: self.rdp_domain.clone(),
+            rdp_proxy_certificate_sha256: self.rdp_proxy_certificate_sha256.clone(),
         });
         let buffer = sv_msg.encode_to_vec();
         self.send_bin_message_vec(buffer).await;

@@ -14,12 +14,12 @@
 #include "app/app_manager.h"
 #include "px_common/win32/process_helper.h"
 #include "px_message.pb.h"
+#include "owned_game_process.h"
 
 namespace px
 {
 
     class RdSettings;
-    class SteamGame;
 
     class AppManagerWinImpl : public AppManager {
     public:
@@ -34,51 +34,48 @@ namespace px
         void OnCapturedVideoFrame() override;
         void* GetWindowHandle() override;
         void CloseCurrentApp() override;
+        bool CanHookProcess(uint32_t pid) const override;
 
     private:
         void InjectCaptureDllIfNeeded();
         void InjectWorkerLoop();
         // 返回值：本轮是否真正执行了一次注入尝试（成功或失败）；
         // false 表示目标进程尚未出现等"还不到注入时机"的情况，不计入失败次数
-        bool InjectCaptureDllForSteamApp();
         bool InjectCaptureDllForNormalApp();
         void VerifyInjectedStillAlive();
         void ResetInjectRetryState();
-        // gave_up 状态下的低频探测：目标进程消失或同 exe 出现新 pid（游戏重启）
+        // gave_up 状态下的低频探测：本次拥有的目标消失
         // 则清除 gave_up 并恢复注入流程
         void ProbeGaveUpTargetGone();
         // 游戏看门狗（仅 game-hook 模式）：游戏进程死了则重新拉起（5s 节流），
-        // 被外部手动重启（同 exe 新 pid）则收养新 pid 交给注入流程 re-hook。
+        // 只重新启动自己拥有的进程树，绝不接管外部启动的同路径进程。
         // 仅在游戏成功跑起来过一次（game_ever_seen_）之后才介入，避免与首轮启动竞争。
         void EnsureGameRunning();
         // StartProcessWithHook 成功拉起游戏后调用：标记"游戏拉起过"，并刷新重启节流计时
         void MarkGameLaunched();
         // 拉起游戏进程：优先以控制台会话登录用户身份（SYSTEM 直接拉会落在
-        // SYSTEM profile，游戏网络/用户配置不对），拿不到 token 回退普通 CreateProcess
-        uint32_t LaunchGameProcess(const std::string& u8_exec, const std::vector<std::string>& args);
-        // 把游戏进程挂进 game_job_(KILL_ON_JOB_CLOSE):render 无论被停止还是强杀,
-        // 句柄关闭时 OS 自动杀掉整棵游戏进程树,不再残留注入过的游戏
-        void AssignGameToJob(uint32_t pid);
+        // SYSTEM profile，游戏网络/用户配置不对）；无 token 时仅允许当前控制台用户启动。
+        uint32_t LaunchGameProcess(const std::string& u8_exec, const std::string& arguments);
+        // 同时验证本次私有 Job 归属和完整 exe 路径；句柄保活防止注入期间 PID 复用。
+        std::shared_ptr<UniqueWinHandle> AcquireHookTarget(uint32_t pid) const;
         // 游戏状态变化（死亡重启/恢复）广播给已连接客户端
         void NotifyGameStatus(px::GameStatusChanged::GameStatus status, const std::string& detail);
-        // 进程是否存活（OpenProcess + STILL_ACTIVE）
-        static bool IsProcessAlive(uint32_t pid);
         bool InjectDll(uint32_t pid, uint32_t tid, bool is_x86, const std::string& x86_dll, const std::string& x64_dll);
         void AddFoundPid(const ProcessInfoPtr& target_pi);
         static WindowInfos SearchWindowByPid(uint32_t pid);
         static WindowInfo GetTargetWindowInfo(const WindowInfos& infos);
 
     private:
-        RdSettings* settings_;
+        RdSettings& settings_;
         std::atomic_ulong target_pid_ = 0;
-        WindowInfo target_window_info_;
+        WindowInfo target_window_info_{};
         std::atomic<bool> injected_ = false;
         // 找到的所有的属于这个应用的pid
         std::vector<ProcessInfoPtr> found_process_info_;
-        std::shared_ptr<SteamGame> steam_game_ = nullptr;
-        // game-hook 模式下持有:把拉起/收养的游戏进程都挂进来,render 进程退出
+        // 只持有本次挂起创建、加入私有 Job 后才执行的游戏进程树；Render 退出
         // (包括被 taskkill)时由 OS 连带杀掉游戏进程树
-        HANDLE game_job_ = nullptr;
+        std::shared_ptr<OwnedGameProcess> owned_game_{};
+        mutable std::mutex game_owner_mutex_{};
 
         // 注入在独立 worker 线程上执行，MsgTimer 只负责"踢"一下，不在消息线程上阻塞等待 injector
         std::shared_ptr<std::thread> inject_worker_ = nullptr;
@@ -90,14 +87,14 @@ namespace px
         int inject_attempts_ = 0;
         int inject_alive_fail_count_ = 0;
         // 最近一次实际尝试注入的目标 pid（含失败/32 位拒绝），gave_up 探测用它
-        // 判断游戏是否已重启（steam 场景 target_pid_ 在注入成功前一直是 0）
+        // 判断本次拥有的目标是否已退出
         std::atomic<uint32_t> last_inject_target_pid_ = 0;
 
         // 游戏看门狗状态：游戏拉起/存活过一次之后才允许自动重启（避免首轮启动阶段误介入）
         std::atomic<bool> game_ever_seen_ = false;
         // UE view 进程出现过才置位：区分"首轮加载中"与"view 崩溃后外壳残留"
         std::atomic<bool> view_ever_seen_ = false;
-        // 看门狗重启（或收养外部重启）后置位；重启后第一帧到达才向客户端发"已恢复"——
+        // 看门狗重新启动本次进程树后置位；重启后第一帧到达才向客户端发"已恢复"——
         // 注入成功时游戏往往还在冷启动（注入仅需几十 ms，出画面要几十秒）
         std::atomic<bool> waiting_first_frame_ = false;
         std::atomic<int64_t> last_game_restart_ms_ = 0;

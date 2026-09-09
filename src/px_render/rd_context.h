@@ -12,6 +12,7 @@
 
 #include "px_common/message_notifier.h"
 #include "px_common/thread.h"
+#include "app/render_ui_task_queue.h"
 
 namespace asio2 {
 class timer;
@@ -110,8 +111,7 @@ class RdContext : public std::enable_shared_from_this<RdContext> {
     std::atomic_uint64_t delay_task_id_ = 0;
     std::atomic_bool exiting_ = false;
 
-    std::mutex ui_task_mutex_;
-    std::queue<std::function<void()>> ui_tasks_;
+    render::UiTaskQueue ui_tasks_{};
 };
 } // namespace px
 

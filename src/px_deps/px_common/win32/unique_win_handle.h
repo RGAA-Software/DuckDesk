@@ -26,6 +26,13 @@ struct WinIconCloser final {
 
 using UniqueWinIcon = std::unique_ptr<std::remove_pointer_t<HICON>, WinIconCloser>;
 
+struct WinHookCloser final {
+    void operator()(std::remove_pointer_t<HHOOK>* hook) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): owned Win32 hook ABI.
+        if (hook) { UnhookWindowsHookEx(hook); }
+    }
+};
+using UniqueWinHook = std::unique_ptr<std::remove_pointer_t<HHOOK>, WinHookCloser>;
+
 }  // namespace px
 
 #endif  // PX_COMMON_NEW_WIN32_UNIQUE_WIN_HANDLE_H

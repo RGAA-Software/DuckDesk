@@ -24,6 +24,7 @@ pub struct RunningInstanceSummary {
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ApplicationCard {
     pub app_id: String,
+    pub app_type: crate::app_schedule::manager::ApplicationType,
     pub name: String,
     pub access_mode: AppAccessMode,
     pub cover_url: String,
@@ -157,6 +158,7 @@ async fn authorized_apps(uid: &str) -> Result<Vec<ApplicationCard>, ConsoleApiEr
             });
         cards.push(ApplicationCard {
             app_id: app.app_id,
+            app_type: app.app_type,
             name: app.name,
             access_mode: app.access_mode,
             cover_url: String::new(),
@@ -391,6 +393,7 @@ async fn public_app_catalog() -> Vec<ApplicationCard> {
         }
         cards.push(ApplicationCard {
             app_id: app.app_id,
+            app_type: app.app_type,
             name: app.name,
             access_mode: app.access_mode,
             cover_url: String::new(),

@@ -141,6 +141,10 @@ enum MessageType {
   kVoiceAudioConfig = 592;
   kVoiceAudioFrame = 593;
 
+  // Ordered RDP protocol bytes on the existing authenticated WebSocket.
+  // This is not a video frame and must never enter a lossy media queue.
+  kRdpStream = 600;
+
 }
 
 enum VideoType {
@@ -719,6 +723,21 @@ message VoiceAudioFrame {
   bytes opus = 4;
 }
 
+message RdpStreamPacket {
+  enum Kind {
+    UNSPECIFIED = 0;
+    DATA = 1;
+    CLOSE = 2;
+    // Server -> Client, only after authenticated RDP admission. Assigns a fresh byte-stream binding.
+    OPEN = 3;
+  }
+  uint32 version = 1;
+  string connection_id = 2;
+  uint64 generation = 3;
+  Kind kind = 4;
+  bytes payload = 5;
+}
+
 message Message {
   string device_id = 3;
   string stream_id = 4;
@@ -785,4 +804,5 @@ message Message {
   VoiceCallResponse voice_call_response = 581;
   VoiceAudioConfig voice_audio_config = 582;
   VoiceAudioFrame voice_audio_frame = 583;
+  RdpStreamPacket rdp_stream = 600;
 }

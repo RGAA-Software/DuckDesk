@@ -84,6 +84,7 @@ ConsoleUserAppApi::QueryApps(const std::string& host, int port, const std::strin
             app.app_id = item.value("app_id", "");
             app.name = item.value("name", "");
             app.access_mode = item.value("access_mode", "public");
+            app.app_type = item.value("app_type", "");
             app.cover_url = item.value("cover_url", "");
             app.version = item.value("version", 0LL);
             if (item.contains("running_instance") && !item["running_instance"].is_null()) {
@@ -132,15 +133,29 @@ ConsoleUserAppApi::IssueInstanceTicket(const std::string& host, int port,
         : std::format("/api/v1/user/instances/{}/ticket", instance_id);
     const auto client = MakeConsoleHttpClient(host, port, path, 3000);
     client->SetHeader("Authorization", "Bearer " + access_token);
-    const auto response = client->Post({}, json{{"client_nonce", client_nonce},
+    auto response = client->Post({}, json{{"client_nonce", client_nonce},
+        {"client_capability", client->IsPeerVerificationEnabled() ? "windows-rdp-v1" : ""},
         {"join_mode", std::find(requested_permissions.begin(), requested_permissions.end(), "input")
             == requested_permissions.end() ? "observe" : "control"}}.dump(), "application/json");
     if (response.status != 200 || response.body.empty()) {
         return HttpError<ConsoleConnectionTicket>("IssueInstanceTicket", response);
     }
     try {
-        const auto data = json::parse(response.body).at(kResponseData);
-        ConsoleConnectionTicket ticket;
+        auto data = json::parse(response.body).at(kResponseData);
+        // Sensitive HTTP response is never logged. Its raw backing bytes are cleared after parsing.
+        OPENSSL_cleanse(response.body.data(), response.body.size());
+        response.body.clear();
+        ConsoleConnectionTicket ticket{};
+        if (data.contains("rdp") && !data.at("rdp").is_null()) {
+            auto& rdp = data.at("rdp");
+            if (rdp.value("schema", 0) != 1 || rdp.value("instance_id", "") != instance_id || !rdp.at("password").is_string()) {
+                return TcErr(ConsoleApiError::kParseJsonFailed);
+            }
+            ticket.rdp_configuration = SecretBuffer::Take(rdp.dump());
+            auto& password = rdp.at("password").get_ref<std::string&>();
+            OPENSSL_cleanse(password.data(), password.size());
+            rdp.clear();
+        }
         ticket.ticket = data.value("ticket", "");
         ticket.renewal_token = data.value("renewal_token", "");
         ticket.launch_url = data.value("launch_url", "");
@@ -160,7 +175,8 @@ ConsoleUserAppApi::IssueInstanceTicket(const std::string& host, int port,
         }
         return ticket;
     } catch (const std::exception& error) {
-        LOGE("IssueInstanceTicket parse failed: {}", error.what());
+        if (!response.body.empty()) { OPENSSL_cleanse(response.body.data(), response.body.size()); }
+        LOGE("IssueInstanceTicket response parsing failed"); // Parser diagnostics can echo credential-bearing input.
         return TcErr(ConsoleApiError::kParseJsonFailed);
     }
 }

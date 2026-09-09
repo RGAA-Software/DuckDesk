@@ -36,6 +36,8 @@ namespace px
             application_mode_ = ApplicationMode::kGameHook;
         } else if (std::string(mode) == "webview") {
             application_mode_ = ApplicationMode::kWebView;
+        } else if (std::string(mode) == "rdp") {
+            application_mode_ = ApplicationMode::kRdp;
         } else {
             application_mode_ = ApplicationMode::kDesktop;
         }
@@ -84,7 +86,19 @@ namespace px
     }
 
     void RdSettings::ApplyApplicationMode() {
-        if (application_mode_ == ApplicationMode::kGameHook) {
+        if (IsRdpMode()) {
+            capture_.enable_audio_ = false;
+            capture_.enable_video_ = false;
+            virtual_display_enabled_ = false;
+            file_transfer_enabled_ = false;
+            audio_enabled_ = false;
+            voice_call_enabled_ = false;
+            relay_enabled_ = false;
+            direct_allow_takeover_ = false;
+            record_auto_ = false;
+            push_enabled_ = false;
+            LOGI("application.mode=rdp -> native protocol proxy, no host capture, input or resource redirection");
+        } else if (application_mode_ == ApplicationMode::kGameHook) {
             capture_.capture_video_type_ = Capture::CaptureVideoType::kVideoInner;
             app_mode_ = AppMode::kInnerCapture;
             // Multi-instance cloud gaming: in-process inject only (never OS SendInput).
@@ -123,7 +137,7 @@ namespace px
         ss << "Transmission: \n";
         ss << "  - listening port: " << transmission_.listening_port_ << std::endl;
         ss << "RdApplication: \n";
-        const char* application_mode = application_mode_ == ApplicationMode::kGameHook
+        const std::string application_mode = IsRdpMode() ? "rdp" : application_mode_ == ApplicationMode::kGameHook
             ? "game-hook"
             : (application_mode_ == ApplicationMode::kWebView ? "webview" : "desktop");
         ss << "  - application mode: " << application_mode << std::endl;

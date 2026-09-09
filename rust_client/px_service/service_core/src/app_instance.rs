@@ -14,6 +14,7 @@ use std::time::{Duration, Instant};
 
 pub const APP_MODE_GAME_HOOK: &str = "game-hook";
 pub const APP_MODE_WEBVIEW: &str = "webview";
+pub const APP_MODE_RDP: &str = "rdp";
 pub const DEFAULT_ENCODER_FPS: i32 = 60;
 pub const DEFAULT_ENCODER_BITRATE: i32 = 20;
 pub const DEFAULT_ENCODER_FORMAT: &str = "h264";
@@ -31,6 +32,16 @@ pub enum AppInstanceState {
     Stopping,
     Failed,
     Stopped,
+}
+
+// Must match src/px_render/app/application_exit_status.h.
+pub const EXIT_NO_CLIENTS: u32 = 0x4752_0001;
+pub const EXIT_STARTUP_IDLE: u32 = 0x4752_0002;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppExitDetail {
+    pub reason: String,
+    pub exit_code: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,6 +62,8 @@ pub struct StartAppRequest {
     pub push_rtmp_url: String,
     pub app_mode: String,
     pub webview_url_b64: String,
+    pub rdp_node_id: String,
+    pub rdp_account: Option<crate::rdp_account::RdpAccountSpec>,
     pub device_id: String,
     pub relay_device_id: String,
     pub relay_server_host: String,
@@ -60,12 +73,15 @@ pub struct StartAppRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppInstanceRecord {
+    pub exit_detail: Option<AppExitDetail>,
     pub request_id: String,
     pub instance_id: String,
     pub app_id: String,
     pub install_root: String,
     pub game_exe_rel: String,
     pub app_mode: String,
+    pub rdp_workspace_id: String,
+    pub rdp_node_id: String,
     pub listen_port: u16,
     pub pid: Option<u32>,
     pub state: AppInstanceState,
@@ -82,6 +98,7 @@ pub fn normalized_app_mode(value: &str) -> Result<&'static str, String> {
     match value.trim().to_ascii_lowercase().as_str() {
         "" | APP_MODE_GAME_HOOK => Ok(APP_MODE_GAME_HOOK),
         APP_MODE_WEBVIEW => Ok(APP_MODE_WEBVIEW),
+        APP_MODE_RDP => Ok(APP_MODE_RDP),
         _ => Err("unsupported app_mode".to_string()),
     }
 }
@@ -133,6 +150,12 @@ impl AppInstanceRecord {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppInstanceSummary {
+    #[serde(default)]
+    pub request_id: String,
+    #[serde(default)]
+    pub stop_reason: String,
+    #[serde(default)]
+    pub exit_code: Option<u32>,
     pub instance_id: String,
     pub app_id: String,
     pub listen_port: u16,
@@ -343,6 +366,47 @@ pub fn is_webview_launch(spec: &RenderLaunchSpec) -> bool {
     spec.args.iter().any(|a| a == "--app_mode=webview")
 }
 
+pub fn is_rdp_launch(spec: &RenderLaunchSpec) -> bool {
+    spec.args.iter().any(|arg| arg == "--app_mode=rdp")
+}
+
+pub fn rdp_process_matches(record: &AppInstanceRecord, process: &ProcessSnapshot) -> bool {
+    if !is_rdp_launch(&record.launch) || process.kind() != crate::process::ProcessKind::RdpRender
+        || !process.is_app_instance_render_process() || !process.exe_path_eq(&record.launch.app_path)
+        || !cmdline_has_listen_port(&process.cmdline, record.listen_port) {
+        return false;
+    }
+    [format!("--rdp_instance_id={}", record.instance_id), format!("--rdp_workspace_id={}", record.rdp_workspace_id),
+        format!("--rdp_node_id={}", record.rdp_node_id)].iter()
+        .all(|expected| process.cmdline.split_whitespace().any(|argument| argument == expected))
+}
+
+pub fn build_rdp_launch_spec(work_dir: &str, req: &StartAppRequest, listen_port: u16) -> Result<RenderLaunchSpec, String> {
+    let account = req.rdp_account.as_ref().ok_or("RDP account provisioning missing")?;
+    account.validate()?;
+    for identity in [&req.instance_id, &req.app_id, &req.rdp_node_id, &req.device_id] {
+        if identity.is_empty() || identity.len() > 128
+            || !identity.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_')) {
+            return Err("RDP launch identity invalid".into());
+        }
+    }
+    Ok(RenderLaunchSpec {
+        work_dir: work_dir.to_owned(),
+        app_path: PathBuf::from(work_dir).join(RENDER_EXE_NAME).to_string_lossy().to_string(),
+        args: vec![
+            "--logfile".into(), "--app_mode=rdp".into(),
+            format!("--rdp_instance_id={}", req.instance_id),
+            format!("--rdp_workspace_id={}", account.workspace_id),
+            format!("--rdp_node_id={}", req.rdp_node_id),
+            format!("--rdp_device_id={}", req.device_id),
+            format!("--device_id={}", req.device_id),
+            format!("--network_listen_port={listen_port}"),
+            "--capture_video=false".into(), "--capture_audio=false".into(),
+            "--webrtc_enabled=false".into(), "--websocket_enabled=true".into(),
+        ],
+    })
+}
+
 #[derive(Debug, Default)]
 pub struct AppInstanceRegistry {
     instances: HashMap<String, AppInstanceRecord>,
@@ -376,14 +440,16 @@ impl AppInstanceRegistry {
         self.instances.values().collect()
     }
 
-    /// Only active states (starting/running/stopping) are reported in the
-    /// heartbeat; Console reconcile treats absence as stopped, and stop/start
-    /// failures are already delivered via explicit result messages.
+    /// Active rows and generation-bound observed exits are reported. Retained
+    /// terminal evidence is pruned with the existing finished-record TTL.
     pub fn summaries(&self) -> Vec<AppInstanceSummary> {
         self.instances
             .values()
-            .filter(|r| r.is_active())
+            .filter(|r| r.is_active() || r.exit_detail.is_some())
             .map(|r| AppInstanceSummary {
+                request_id: r.request_id.clone(),
+                stop_reason: r.exit_detail.as_ref().map(|detail| detail.reason.clone()).unwrap_or_default(),
+                exit_code: r.exit_detail.as_ref().and_then(|detail| detail.exit_code),
                 instance_id: r.instance_id.clone(),
                 app_id: r.app_id.clone(),
                 listen_port: r.listen_port,
@@ -485,8 +551,20 @@ impl AppInstanceRegistry {
             }
         }
         let app_mode = normalized_app_mode(&req.app_mode)?;
+        if app_mode == APP_MODE_RDP {
+            let account = req.rdp_account.as_ref().ok_or("RDP account provisioning missing")?;
+            account.validate()?;
+            if self.instances.values().any(|record| record.is_active() && record.app_mode == APP_MODE_RDP &&
+                (record.rdp_workspace_id == account.workspace_id || (record.app_id == req.app_id && record.rdp_node_id == req.rdp_node_id))) {
+                return Err("RDP workspace busy".into());
+            }
+        } else if req.rdp_account.is_some() || !req.rdp_node_id.is_empty() {
+            return Err("RDP account supplied to a non-RDP application".into());
+        }
         let port = self.allocate_port(req.listen_port)?;
-        let (launch, view) = if app_mode == APP_MODE_WEBVIEW {
+        let (launch, view) = if app_mode == APP_MODE_RDP {
+            (build_rdp_launch_spec(work_dir, &req, port)?, None)
+        } else if app_mode == APP_MODE_WEBVIEW {
             (build_webview_launch_spec(work_dir, &req, port)?, None)
         } else {
             let game_path = resolve_game_path(&req.install_root, &req.game_exe_rel)?;
@@ -499,12 +577,15 @@ impl AppInstanceRegistry {
         };
         self.used_ports.insert(port, req.instance_id.clone());
         let record = AppInstanceRecord {
+            exit_detail: None,
             request_id: req.request_id.clone(),
             instance_id: req.instance_id.clone(),
             app_id: req.app_id.clone(),
             install_root: req.install_root.clone(),
             game_exe_rel: req.game_exe_rel.clone(),
             app_mode: app_mode.to_string(),
+            rdp_workspace_id: req.rdp_account.as_ref().map(|account| account.workspace_id.clone()).unwrap_or_default(),
+            rdp_node_id: req.rdp_node_id.clone(),
             listen_port: port,
             pid: None,
             state: AppInstanceState::Starting,
@@ -533,6 +614,7 @@ impl AppInstanceRegistry {
             ));
         }
         rec.pid = Some(pid);
+        rec.exit_detail = None;
         rec.state = AppInstanceState::Running;
         rec.error.clear();
         Ok(())
@@ -569,6 +651,23 @@ impl AppInstanceRegistry {
         }
         rec.state = AppInstanceState::Stopping;
         Ok(self.instances.get(instance_id).unwrap())
+    }
+
+    pub fn mark_observed_exit(&mut self, instance_id: &str, code: Option<u32>) -> Result<(), String> {
+        let (reason, failed) = match code {
+            Some(EXIT_NO_CLIENTS) => ("no_clients", false),
+            Some(EXIT_STARTUP_IDLE) => ("startup_idle", false),
+            Some(0) => ("clean_exit", false),
+            Some(_) => ("abnormal_exit", true),
+            None => ("process_lost", false),
+        };
+        self.mark_stopped(instance_id)?;
+        let rec = self.instances.get_mut(instance_id).ok_or("instance disappeared")?;
+        rec.exit_detail = Some(AppExitDetail { reason: reason.into(), exit_code: code });
+        rec.error = if failed { format!("RENDER_EXIT_{:08X}", code.unwrap_or_default()) }
+            else if code.is_none() { "PROCESS_LOST".into() } else { String::new() };
+        if failed { rec.state = AppInstanceState::Failed; }
+        Ok(())
     }
 
     pub fn mark_stopped(&mut self, instance_id: &str) -> Result<(), String> {
@@ -623,7 +722,7 @@ impl AppInstanceRegistry {
         match self.instances.get(instance_id) {
             Some(rec) => {
                 rec.pid == Some(pid)
-                    && (is_game_hook_launch(&rec.launch) || is_webview_launch(&rec.launch))
+                    && (is_game_hook_launch(&rec.launch) || is_webview_launch(&rec.launch) || is_rdp_launch(&rec.launch))
             }
             None => false,
         }
@@ -666,6 +765,8 @@ mod tests {
             app_id: "app-car".to_string(),
             app_mode: APP_MODE_GAME_HOOK.to_string(),
             webview_url_b64: String::new(),
+            rdp_node_id: String::new(),
+            rdp_account: None,
             install_root: r"D:\apps\CarGame".to_string(),
             game_exe_rel: r"Binaries\Win64\VehicleGame-Win64-Shipping.exe".to_string(),
             game_arguments: "-dx11".to_string(),
@@ -690,6 +791,75 @@ mod tests {
         let p = resolve_game_path(r"D:\apps\CarGame", r"Binaries\Win64\game.exe").unwrap();
         assert!(p.to_string_lossy().contains("CarGame"));
         assert!(p.to_string_lossy().ends_with("game.exe"));
+    }
+
+    #[test]
+    fn observed_exit_classifies_idle_crash_and_unknown_without_conflating_them() {
+        let contract = include_str!("../../../../src/px_render/app/application_exit_status.h");
+        assert!(contract.contains("kNoClients = 0x47520001"));
+        assert!(contract.contains("kStartupIdle = 0x47520002"));
+        for (code, state, reason) in [
+            (Some(EXIT_NO_CLIENTS), AppInstanceState::Stopped, "no_clients"),
+            (Some(EXIT_STARTUP_IDLE), AppInstanceState::Stopped, "startup_idle"),
+            (Some(0), AppInstanceState::Stopped, "clean_exit"),
+            (Some(0xc000_0005), AppInstanceState::Failed, "abnormal_exit"),
+            (None, AppInstanceState::Stopped, "process_lost"),
+        ] {
+            let mut registry = AppInstanceRegistry::new();
+            registry.begin_start(r"D:\Pixels", sample_req("observed", 0)).unwrap();
+            registry.mark_running("observed", 1234).unwrap();
+            registry.mark_observed_exit("observed", code).unwrap();
+            let record = registry.get("observed").unwrap();
+            assert_eq!(record.state, state);
+            assert_eq!(record.pid, None);
+            assert_eq!(record.exit_detail.as_ref().unwrap().reason, reason);
+            assert_eq!(registry.summaries()[0].exit_code, code);
+            assert!(!registry.summaries()[0].request_id.is_empty());
+            if matches!(code, Some(EXIT_NO_CLIENTS | EXIT_STARTUP_IDLE | 0)) { assert!(record.error.is_empty()); }
+        }
+    }
+
+    fn rdp_req(instance_id: &str, port: i32) -> StartAppRequest {
+        let mut req = sample_req(instance_id, port);
+        req.app_mode = APP_MODE_RDP.into();
+        req.install_root.clear();
+        req.game_exe_rel.clear();
+        req.rdp_node_id = "rdp-node".into();
+        req.rdp_account = Some(crate::rdp_account::RdpAccountSpec { workspace_id: "workspace".into(),
+            account_name: "grdp_testaccount".into(), password: zeroize::Zeroizing::new("aA1!01234567890123456789012345678901".into()),
+            credential_version: 1, expected_sid: None });
+        req
+    }
+
+    #[test]
+    fn rdp_launch_contains_binding_but_never_credentials_capture_or_live_push() {
+        let req = rdp_req("rdp-1", 0);
+        let spec = build_rdp_launch_spec(r"D:\Pixels", &req, 32012).unwrap();
+        assert!(is_rdp_launch(&spec));
+        assert!(spec.args.iter().any(|arg| arg == "--rdp_device_id=device-a"));
+        assert!(spec.args.iter().any(|arg| arg == "--capture_video=false"));
+        assert!(spec.args.iter().any(|arg| arg == "--capture_audio=false"));
+        let args = spec.args.join(" ");
+        assert!(!args.contains(req.rdp_account.as_ref().unwrap().password.as_str()));
+        assert!(!args.contains("--push_rtmp_url"));
+        assert!(!args.contains("--app_game_path"));
+    }
+
+    #[test]
+    fn rdp_workspace_is_exclusive_and_process_identity_is_not_just_a_pid_or_port() {
+        let mut registry = AppInstanceRegistry::new();
+        let record = registry.begin_start(r"D:\Pixels", rdp_req("rdp-1", 0)).unwrap().clone();
+        assert!(registry.begin_start(r"D:\Pixels", rdp_req("rdp-2", 0)).is_err());
+        let process = ProcessSnapshot::new(100, &record.launch.app_path, record.launch.args.join(" "));
+        assert!(rdp_process_matches(&record, &process));
+        for (from, to) in [("--rdp_instance_id=rdp-1", "--rdp_instance_id=rdp-other"),
+            ("--rdp_workspace_id=workspace", "--rdp_workspace_id=other"), ("--app_mode=rdp", "--app_mode=desktop")] {
+            let mut changed = process.clone(); changed.cmdline = changed.cmdline.replace(from, to);
+            assert!(!rdp_process_matches(&record, &changed));
+        }
+        registry.begin_stop("rdp-1").unwrap();
+        registry.mark_stopped("rdp-1").unwrap();
+        assert!(registry.begin_start(r"D:\Pixels", rdp_req("rdp-2", 0)).is_ok());
     }
 
     #[test]

@@ -6,6 +6,8 @@ export interface ServiceConn {
   last_update_timestamp: number
   hb_index: number
   render_alive: boolean
+  /** Verified Console trust and the pinned RDP node runtime are installed. */
+  rdp_available?: boolean
   auth_info_json: string
   /** Service HeartBeat 上报的本机实例摘要 JSON */
   instances_json?: string

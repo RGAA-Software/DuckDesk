@@ -69,6 +69,15 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
         let app_secret = calculate_app_secret(auth_info.appkey.clone());
         let token = generate_connection_token(&auth_info.appkey, &app_secret);
         *sender.lock().await = None;
+        let (connector, trusted_console) = match rdp_console_connector() {
+            Ok(value) => value,
+            Err(error) => {
+                error!("{error}");
+                sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
+                continue; // A broken installed trust anchor must never downgrade to the legacy verifier.
+            }
+        };
+        runtime.lock().await.rdp_console_trusted = false;
         let mut connected_stream = None;
         for legacy_route in [false, true] {
             let url = build_console_url_for_route(
@@ -90,7 +99,7 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                 url.clone(),
                 None,
                 false,
-                Some(tls_connector()),
+                Some(connector.clone()),
             );
             match timeout(Duration::from_secs(CONNECT_TIMEOUT_SECS), connect).await {
                 Ok(Ok((stream, _response))) => {
@@ -114,9 +123,21 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
 
         let (sink, mut receiver) = stream.split();
         *sender.lock().await = Some(sink);
+        runtime.lock().await.rdp_console_trusted = trusted_console;
 
         // say hello right after connecting
-        let hello = encode_message(&hello_message(&auth_info.device_id, &auth_info.appkey));
+        let mut hello = hello_message(&auth_info.device_id, &auth_info.appkey);
+        if let Some(payload) = hello.hello.as_mut() {
+            if trusted_console {
+                if let Some(deployment) = rdp_install_dir()
+                    .and_then(|dir| service_core::rdp_deployment::RdpDeployment::load(&dir).ok()) {
+                    payload.rdp_available = true;
+                    payload.rdp_domain = deployment.target_domain;
+                    payload.rdp_proxy_certificate_sha256 = deployment.proxy_certificate_sha256;
+                }
+            }
+        }
+        let hello = encode_message(&hello);
         if !send_frame(&sender, hello).await {
             warn!("send hello to console failed, reconnecting");
             sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
@@ -138,9 +159,9 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                 tokio::select! {
                     _ = interval.tick() => {
                         hb_index += 1;
+                        ServiceRuntime::refresh_app_processes(&hb_runtime).await;
                         let (render_alive, auth_json, instances_json, logical_sessions_json) = {
-                            let mut guard = hb_runtime.lock().await;
-                            guard.reap_dead_app_instances();
+                            let guard = hb_runtime.lock().await;
                             let has_active = guard.app_registry.list().iter().any(|r| {
                                 matches!(
                                     r.state,
@@ -206,12 +227,13 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                                     if let Some(reply) = pending_tickets.remove(&result.request_id) {
                                         let grant_present = result.grant.is_some();
                                         let grant = result.grant.unwrap_or_default();
-                                        info!(
-                                            ticket_redemption_ok = result.ok,
-                                            grant_present,
-                                            grant_permission_count = grant.permissions.len(),
-                                            "received connection ticket redemption result from Console"
-                                        );
+                                        if grant.kind == "rdp_runtime" {
+                                            tracing::debug!("received RDP runtime authorization confirmation");
+                                        } else {
+                                            info!(ticket_redemption_ok = result.ok, grant_present,
+                                                grant_permission_count = grant.permissions.len(),
+                                                "received connection ticket redemption result from Console");
+                                        }
                                         let _ = reply.send(TicketRedeemResult {
                                             ok: result.ok,
                                             code: result.code,
@@ -262,6 +284,7 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                 }
                 request = ticket_rx.recv() => {
                     let Some(request) = request else { continue; };
+                    pending_tickets.retain(|_, reply| !reply.is_closed());
                     if pending_tickets.contains_key(&request.request_id) {
                         let _ = request.response.send(TicketRedeemResult {
                             code: "DUPLICATE_REQUEST_ID".to_string(),
@@ -275,6 +298,7 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                         &request.ticket,
                         &request.client_nonce,
                         &request.instance_id,
+                        &request.rdp_logical_session_id,
                     ));
                     if send_frame(&sender, frame).await {
                         pending_tickets.insert(request.request_id, request.response);
@@ -296,6 +320,7 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
             }
         }
 
+        runtime.lock().await.rdp_console_trusted = false;
         heartbeat_task.abort();
         for (_, response) in pending_tickets.drain() {
             let _ = response.send(TicketRedeemResult {
@@ -513,6 +538,9 @@ fn hello_message(device_id: &str, appkey: &str) -> ConsoleServiceMessage {
             device_id: device_id.to_string(),
             appkey: appkey.to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
+            rdp_available: false,
+            rdp_domain: String::new(),
+            rdp_proxy_certificate_sha256: String::new(),
         }),
         heartbeat: None,
         start_app_instance: None,
@@ -573,6 +601,20 @@ pub fn parse_console_inbound(bytes: &[u8]) -> Result<Option<ConsoleInboundComman
     match ConsoleServiceMessageType::try_from(msg.msg_type) {
         Ok(ConsoleServiceMessageType::KConsoleServiceStartAppInstance) => {
             let s = msg.start_app_instance.ok_or("missing start_app_instance")?;
+            let (rdp_node_id, rdp_account) = match s.rdp_workspace {
+                Some(workspace) => {
+                    if s.app_mode != service_core::app_instance::APP_MODE_RDP || workspace.node_id.is_empty() {
+                        return Err("RDP workspace supplied for an incompatible application".into());
+                    }
+                    let account = service_core::rdp_account::RdpAccountSpec {
+                        workspace_id: workspace.workspace_id, account_name: workspace.account_name,
+                        password: workspace.password.into(), credential_version: workspace.credential_version, expected_sid: None,
+                    };
+                    account.validate()?;
+                    (workspace.node_id, Some(account))
+                }
+                None => (String::new(), None),
+            };
             Ok(Some(ConsoleInboundCommand::StartApp(StartAppRequest {
                 request_id: s.request_id,
                 instance_id: s.instance_id,
@@ -590,6 +632,8 @@ pub fn parse_console_inbound(bytes: &[u8]) -> Result<Option<ConsoleInboundComman
                 push_rtmp_url: s.push_rtmp_url,
                 app_mode: s.app_mode,
                 webview_url_b64: s.webview_url_b64,
+                rdp_node_id,
+                rdp_account,
                 device_id: s.device_id,
                 relay_device_id: s.relay_device_id,
                 relay_server_host: s.relay_server_host,
@@ -641,6 +685,7 @@ fn redeem_ticket_message(
     ticket: &str,
     client_nonce: &str,
     instance_id: &str,
+    rdp_logical_session_id: &str,
 ) -> ConsoleServiceMessage {
     ConsoleServiceMessage {
         msg_type: ConsoleServiceMessageType::KConsoleServiceRedeemConnectionTicket as i32,
@@ -651,6 +696,7 @@ fn redeem_ticket_message(
             ticket: ticket.to_string(),
             client_nonce: client_nonce.to_string(),
             instance_id: instance_id.to_string(),
+            rdp_logical_session_id: rdp_logical_session_id.to_string(),
         }),
         ..Default::default()
     }
@@ -816,6 +862,10 @@ pub fn encode_start_app_command(device_id: &str, req: &StartAppRequest) -> Vec<u
             push_rtmp_url: req.push_rtmp_url.clone(),
             app_mode: req.app_mode.clone(),
             webview_url_b64: req.webview_url_b64.clone(),
+            rdp_workspace: req.rdp_account.as_ref().map(|account| protocol::console_service::RdpWorkspaceProvision {
+                workspace_id: account.workspace_id.clone(), node_id: req.rdp_node_id.clone(), account_name: account.account_name.clone(),
+                password: account.password.to_string(), credential_version: account.credential_version,
+            }),
             device_id: req.device_id.clone(),
             relay_device_id: req.relay_device_id.clone(),
             relay_server_host: req.relay_server_host.clone(),
@@ -1033,6 +1083,29 @@ impl ServerCertVerifier for NoCertVerifier {
     }
 }
 
+fn rdp_install_dir() -> Option<std::path::PathBuf> {
+    std::env::current_exe().ok()?.parent().map(|path| path.join("rdp"))
+}
+
+fn rdp_console_connector() -> Result<(Connector, bool), String> {
+    let Some(path) = rdp_install_dir().map(|dir| dir.join("console-ca.der")) else {
+        return Err("Cannot locate service deployment trust directory".into());
+    };
+    let certificate = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok((tls_connector(), false)),
+        Err(_) => return Err("RDP Console trust anchor unreadable; refusing TLS downgrade".into()),
+    };
+    if certificate.is_empty() || certificate.len() > 65536 {
+        return Err("RDP Console trust anchor invalid".into());
+    }
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+    let mut roots = rustls::RootCertStore::empty();
+    roots.add(CertificateDer::from(certificate)).map_err(|_| "RDP Console trust anchor invalid".to_string())?;
+    let config = rustls::ClientConfig::builder().with_root_certificates(roots).with_no_client_auth();
+    Ok((Connector::Rustls(Arc::new(config)), true))
+}
+
 fn tls_connector() -> Connector {
     // 依赖图里同时存在 aws-lc-rs 与 ring 两个 provider 时,rustls 无法自动
     // 选择,ClientConfig::builder() 会 panic。显式安装默认 provider(幂等)。
@@ -1178,6 +1251,8 @@ mod tests {
             app_id: "app-1".into(),
             app_mode: "game-hook".into(),
             webview_url_b64: String::new(),
+            rdp_node_id: String::new(),
+            rdp_account: None,
             install_root: r"D:\apps\Car".into(),
             game_exe_rel: r"Binaries\game.exe".into(),
             game_arguments: "-dx11".into(),

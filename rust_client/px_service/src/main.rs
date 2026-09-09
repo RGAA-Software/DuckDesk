@@ -2,6 +2,7 @@
 
 mod app;
 mod console_client;
+mod rdp_authorization;
 mod parsec_vdd;
 mod service_host;
 mod service_windows;

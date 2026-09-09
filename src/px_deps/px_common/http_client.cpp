@@ -2,6 +2,7 @@
 
 #include "log.h"
 #include <memory>
+#include <filesystem>
 #include <string>
 #include <cpr/error.h>
 #include <cpr/cpr.h>
@@ -14,6 +15,27 @@
 namespace px
 {
     namespace {
+        bool ConfigurePrivateCa(cpr::Session& session, const std::string& ca_file) {
+            if (ca_file.empty()) {
+                return true;
+            }
+            session.SetSslOptions(cpr::Ssl(cpr::ssl::CaInfo{std::filesystem::path{ca_file}}));
+#ifdef _WIN32
+            // Private deployment CAs may have no CRL distribution point. Keep
+            // chain/name/revoked-certificate validation; tolerate only unavailable
+            // revocation information. Do not enable NO_REVOKE or add system CAs.
+            const auto holder = session.GetCurlHolder();
+            return holder && curl_easy_setopt(holder->handle, CURLOPT_SSL_OPTIONS, static_cast<long>(CURLSSLOPT_REVOKE_BEST_EFFORT)) == CURLE_OK;
+#else
+            return true;
+#endif
+        }
+
+        HttpResponse PrivateCaConfigurationError() {
+            return {.status = 0, .body = {}, .error_code = static_cast<int>(cpr::ErrorCode::SSL_CONNECT_ERROR),
+                    .error_message = "Private CA TLS configuration failed"};
+        }
+
         cpr::Header ToCprHeader(const std::map<std::string, std::string>& headers) {
             cpr::Header header;
             for (const auto& [k, v] : headers) {
@@ -91,6 +113,9 @@ namespace px
         session.SetUrl(url);
         session.SetBody(body);
         session.SetVerifySsl(verify_ssl_);
+        if (!ConfigurePrivateCa(session, trusted_ca_file_)) {
+            return PrivateCaConfigurationError();
+        }
         session.SetTimeout(cpr::Timeout{this->timeout_ms_});
         if (cancellation_signal_) {
             session.SetCancellationParam(cancellation_signal_);
@@ -122,6 +147,9 @@ namespace px
         cpr::Session session;
         session.SetUrl(url);
         session.SetVerifySsl(verify_ssl_);
+        if (!ConfigurePrivateCa(session, trusted_ca_file_)) {
+            return PrivateCaConfigurationError();
+        }
         session.SetBody(body);
         session.SetTimeout(cpr::Timeout{this->timeout_ms_});
         if (cancellation_signal_) {
@@ -151,6 +179,9 @@ namespace px
         cpr::Session session;
         session.SetUrl(cpr::Url{url_path});
         session.SetVerifySsl(verify_ssl_);
+        if (!ConfigurePrivateCa(session, trusted_ca_file_)) {
+            return PrivateCaConfigurationError();
+        }
         session.SetBody(body);
         session.SetTimeout(cpr::Timeout{this->timeout_ms_});
         if (cancellation_signal_) {
@@ -199,6 +230,9 @@ namespace px
         cpr::Session session;
         session.SetUrl(url);
         session.SetVerifySsl(verify_ssl_);
+        if (!ConfigurePrivateCa(session, trusted_ca_file_)) {
+            return PrivateCaConfigurationError();
+        }
         session.SetTimeout(cpr::Timeout{timeout_ms_});
         if (cancellation_signal_) {
             session.SetCancellationParam(cancellation_signal_);
@@ -248,6 +282,9 @@ namespace px
         cpr::Session session;
         session.SetUrl(cpr::Url{url_path});
         session.SetVerifySsl(verify_ssl_);
+        if (!ConfigurePrivateCa(session, trusted_ca_file_)) {
+            return PrivateCaConfigurationError();
+        }
         session.SetTimeout(cpr::Timeout{timeout_ms_});
         if (cancellation_signal_) {
             session.SetCancellationParam(cancellation_signal_);
@@ -338,6 +375,11 @@ namespace px
 
     void HttpClient::SetVerifySsl(bool verify_ssl) {
         verify_ssl_ = verify_ssl;
+    }
+
+    void HttpClient::SetTrustedCaFile(std::string path) {
+        trusted_ca_file_ = std::move(path);
+        verify_ssl_ = true;
     }
 
     void HttpClient::SetCancellationSignal(

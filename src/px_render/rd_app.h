@@ -70,6 +70,7 @@ namespace px
     class KeyEvent;
     class TextInput;
     class LogicalSessionRegistry;
+    namespace rdp { class RdpProxyProcess; }
     namespace render {
         class CapturedMediaPipeline;
         class MediaSourcePort;
@@ -103,6 +104,7 @@ namespace px
         virtual void Init(int argc, char** argv);
         virtual int Run();
         virtual void Exit();
+        void ExitForIdle(bool startup);
         virtual void CaptureControlC() = 0;
 
         void PostGlobalAppMessage(std::shared_ptr<AppMessage>&& msg);
@@ -116,7 +118,7 @@ namespace px
         void ReplayLatestGameHookFrame() const;
         void OnCapturedAudioFrame(const CaptureAudioFrame& frame);
         void OnCapturedCursorBitmap(const CaptureCursorBitmap& cursor) const;
-        void OnIpcVideoFrame(const std::shared_ptr<CaptureVideoFrame>& msg) const;
+        void OnIpcVideoFrame(const CaptureVideoFrame& frame) const;
         // In-process hook audio from px_gh.dll via /ipc.
         void OnIpcAudioFrame(const CaptureAudioFrame& frame);
         // Sync: write file bootstrap for injected DLL (port + DXGI offsets). Not SHM.
@@ -196,6 +198,9 @@ namespace px
         void SendAudioSpectrumMessage() const;
         void SendClipboardMessage(const std::string& msg) const;
         void SendConfigurationBack();
+        int RunRdp();
+        int RunMessageLoop();
+        void InitConnectionLifecycle();
         void RequestRestartMe() const;
         void ReportFileTransferAuditBegin(
             const render::FileTransferAuditBegin& audit);
@@ -215,7 +220,7 @@ namespace px
             const std::shared_ptr<Data>& source_data = {});
 
     protected:
-        RdSettings* settings_ = nullptr;
+        RdSettings& settings_;
         std::shared_ptr<WsPanelClient> ws_panel_client_ = nullptr;
         std::shared_ptr<AppManager> app_manager_ = nullptr;
         std::shared_ptr<RdContext> context_ = nullptr;
@@ -259,6 +264,7 @@ namespace px
         std::mutex task_mutex_;
         std::queue<std::shared_ptr<AppMessage>> pending_tasks_;
         DWORD main_thread_id_ = 0;
+        std::atomic_uint32_t process_exit_status_{};
         // working capture plugin
         std::mutex capture_source_mtx_;
         std::shared_ptr<MonitorCaptureSource> capture_source_;
@@ -276,6 +282,7 @@ namespace px
 
         std::shared_ptr<WinDesktopManager> desktop_mgr_ = nullptr;
         std::unique_ptr<WebViewRuntime> webview_runtime_;
+        std::atomic<std::shared_ptr<rdp::RdpProxyProcess>> rdp_proxy_{};
 
         // timer count
         int64_t timer_count_16ms_ = 0;

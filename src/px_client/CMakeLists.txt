@@ -26,6 +26,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/icon.rc ${CMAKE_CURRENT_BINARY_DIR}/i
 message("Client => CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Core OpenGL OpenGLWidgets Svg Charts)
+add_subdirectory(rdp)
 find_package(OpenSSL REQUIRED)
 
 include_directories(${VK_SDK_ROOT}/Include)
@@ -131,7 +132,7 @@ if (APPLE)
     )
 endif()
 
-target_link_libraries(px_client PRIVATE Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Svg Qt6::Charts
+target_link_libraries(px_client PRIVATE px_client_rdp_workspace Qt6::Widgets Qt6::Core Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Svg Qt6::Charts
         px_common px_message px_cp_message pixels::sdk px_qt_widget OpenSSL::SSL OpenSSL::Crypto
         $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static> Winmm.lib px_server_message
         Dwmapi.lib unofficial::sqlite3::sqlite3 libplacebo vulkan-1 px_hw_info skin_interface skin_loader
@@ -233,6 +234,7 @@ if (WIN32)
             COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/deps/theme"
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${PX_PROJECT_BINARY_PATH}/px_skins" "${CMAKE_CURRENT_BINARY_DIR}/deps/theme"
     )
+    gammaray_stage_rdp_client(px_client)
 
 elseif (APPLE)
 elseif (UNIX)

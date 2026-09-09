@@ -160,6 +160,7 @@ namespace px
                 stream->stream_name_ = application.name;
                 stream->connect_type_ = connection_policy::kConsoleAppTicket;
                 stream->console_app_id_ = application.app_id;
+                stream->rdp_mode_ = application.app_type == "rdp";
                 stream->console_access_mode_ = application.access_mode;
                 stream->console_instance_state_ = "stopped";
                 if (!application.cover_url.empty()) {
@@ -692,11 +693,25 @@ namespace px
         const auto user_manager = grApp->GetUserManager();
         const auto context = context_;
         StreamLaunchAuthHooks hooks;
-        hooks.post_blocking = [context](std::function<void()> task) {
-            context->PostTask(std::move(task));
+        hooks.renew_rdp_ticket = [user_manager](const RdpLaunchRecovery& recovery) {
+            struct ScopedToken final {
+                explicit ScopedToken(std::string_view source) : value(source) {}
+                ~ScopedToken() {
+                    OPENSSL_cleanse(value.data(), value.size());
+                }
+                ScopedToken(const ScopedToken&) = delete;
+                ScopedToken& operator=(const ScopedToken&) = delete;
+                std::string value{};
+            };
+            const ScopedToken token{recovery.renewal->View()};
+            auto result = user_manager->RenewConnectionTicket(token.value, recovery.nonce);
+            if (result.has_value()) {
+                return StreamLaunchConsoleCall<px_console::ConsoleConnectionTicket>::Success(result.value());
+            }
+            return StreamLaunchConsoleCall<px_console::ConsoleConnectionTicket>::Failure(result.error(), px_console::ConsoleApiLastErrorMessage());
         };
-        hooks.start_app = [user_manager](
-            const std::string& app_id, const std::string& nonce) {
+        hooks.post_blocking = [context](std::function<void()> task) { context->PostTask(std::move(task)); };
+        hooks.start_app = [user_manager](const std::string& app_id, const std::string& nonce) {
             auto result = user_manager->StartApp(app_id, nonce);
             if (result.has_value()) {
                 return StreamLaunchConsoleCall<px_console::ConsoleUserAppInstance>::Success(
@@ -817,6 +832,18 @@ namespace px
         };
         QPointer<AppStreamList> self(this);
         const auto context = context_;
+        if (uses_console_app_ticket && !target_item->only_viewing_) {
+            request.recovery = running_stream_mgr_->TakeRdpRecovery(request.app_id);
+            if (request.recovery) {
+                request.instance_id = request.recovery->instance_id;
+                request.client_nonce = request.recovery->nonce;
+                LOGI("event=rdp.panel.recovery outcome=renewing");
+            } else if (target_item->rdp_mode_) {
+                // Reconcile a stale card with Console after the old runtime's
+                // grace has ended. Start is idempotent and still enforces busy.
+                request.instance_id.clear();
+            }
+        }
         const auto generation = stream_launch_auth_workflow_->Start(
             std::move(request), MakeStreamLaunchAuthHooks(),
             [self, context, target_item, uses_console_app_ticket](
@@ -909,7 +936,10 @@ namespace px
             target_item->remote_device_id_ = resolved.remote_device_id;
         }
         target_item->connection_ticket_ = resolved.ticket.ticket;
+        target_item->rdp_configuration_ = std::move(resolved.ticket.rdp_configuration);
+        target_item->rdp_mode_ = static_cast<bool>(target_item->rdp_configuration_);
         target_item->connection_renewal_token_ = resolved.ticket.renewal_token;
+        target_item->connection_logical_session_id_ = resolved.ticket.logical_session_id;
         target_item->connection_nonce_ = payload.client_nonce;
         target_item->active_session_stream_id_ = resolved.ticket.stream_id;
         const auto has_permission = [&resolved](std::string_view permission) {

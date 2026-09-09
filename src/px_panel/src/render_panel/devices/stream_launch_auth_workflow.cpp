@@ -55,7 +55,15 @@ PxResult<void> ValidateRequest(const StreamLaunchAuthRequest& request, const Str
     const bool target_valid = request.target == StreamLaunchTicketTarget::kDevice
                                   ? (!request.device_id.empty() && hooks.issue_device_ticket)
                                   : (!request.app_id.empty() && hooks.start_app && hooks.query_apps && hooks.issue_instance_ticket);
-    if (!common_valid || !target_valid) {
+    const bool recovery_valid =
+        !request.recovery ||
+        (request.target == StreamLaunchTicketTarget::kApplicationInstance && hooks.renew_rdp_ticket && request.recovery->app_id == request.app_id &&
+         request.recovery->instance_id == request.instance_id && request.recovery->nonce == request.client_nonce && request.recovery->renewal &&
+         request.recovery->configuration && !request.recovery->logical_id.empty() && !request.recovery->stream_id.empty() &&
+         !request.recovery->host.empty() && !request.recovery->device_id.empty() && !request.recovery->instance_id.empty() &&
+         !request.recovery->renewal->Bytes().empty() && !request.recovery->configuration->Bytes().empty() && request.recovery->port > 0 &&
+         request.recovery->port <= 65535);
+    if (!common_valid || !target_valid || !recovery_valid) {
         return PxResult<void>::Failure(
             MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "stream-launch.validate", "stream launch authentication request is incomplete"));
     }
@@ -117,6 +125,40 @@ PxAwaitable<void> StreamLaunchAuthWorkflow::Run(StreamLaunchAuthRequest request,
                                                 std::shared_ptr<std::atomic_bool> cancelled, std::uint64_t generation) {
     const auto executor = co_await asio::this_coro::executor;
     std::optional<px_console::ConsoleUserAppInstance> instance;
+
+    if (request.recovery) {
+        const auto recovery = request.recovery;
+        auto call = co_await RunBlockingCall<px_console::ConsoleConnectionTicket>(
+            hooks, executor, request.deadline, cancelled, "stream-launch.renew-rdp-ticket",
+            [renew = hooks.renew_rdp_ticket, recovery] { return renew(*recovery); });
+        auto result = TakeConsoleValue(std::move(call), "stream-launch.renew-rdp-ticket");
+        if (!result) {
+            completion(generation, StreamLaunchAuthResult::Failure(result.Error()));
+            co_return;
+        }
+        auto ticket = result.TakeValue();
+        if (ticket.ticket.empty() || ticket.renewal_token.empty() || ticket.logical_session_id != recovery->logical_id ||
+            ticket.stream_id != recovery->stream_id || ticket.join_mode != "control" ||
+            std::find(ticket.permissions.begin(), ticket.permissions.end(), "rdp") == ticket.permissions.end()) {
+            completion(generation,
+                       StreamLaunchAuthResult::Failure(MakePxAsyncError(PxAsyncErrorCode::kProtocolError, "stream-launch.renew-rdp-ticket",
+                                                                        "Console changed the RDP recovery binding")));
+            co_return;
+        }
+        // Renewal does not carry Windows credentials or a new endpoint. Restore
+        // only the protected configuration bound to this exact logical owner.
+        ticket.rdp_configuration = recovery->configuration;
+        completion(
+            generation,
+            StreamLaunchAuthResult::Success(StreamLaunchAuthPayload{
+                .generation = generation,
+                .client_nonce = recovery->nonce,
+                .resolved = {.ticket = std::move(ticket), .host = recovery->host, .port = recovery->port, .remote_device_id = recovery->device_id},
+                .instance = px_console::ConsoleUserAppInstance{.instance_id = recovery->instance_id, .state = "running"},
+                .direct_available = true,
+            }));
+        co_return;
+    }
 
     if (request.target == StreamLaunchTicketTarget::kApplicationInstance) {
         if (request.instance_id.empty()) {
@@ -211,7 +253,8 @@ PxAwaitable<void> StreamLaunchAuthWorkflow::Run(StreamLaunchAuthRequest request,
                                    "Console returned a ticket without a runtime stream ID or renewal capability", false, "INVALID_CONSOLE_TICKET")));
         co_return;
     }
-    auto probe_result = co_await AwaitBlockingCall<bool>(hooks.post_blocking, executor, request.deadline, cancelled, "stream-launch.probe",
+    auto probe_result = resolved_ticket.ticket.rdp_configuration ? PxResult<bool>::Success(true) :
+        co_await AwaitBlockingCall<bool>(hooks.post_blocking, executor, request.deadline, cancelled, "stream-launch.probe",
                                                          [probe = hooks.probe_direct, host = resolved_ticket.host, port = resolved_ticket.port](
                                                              const std::shared_ptr<std::atomic_bool>&) { return probe(host, port); });
     if (!probe_result) {

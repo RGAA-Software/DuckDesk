@@ -6,6 +6,7 @@
 #define GAMMARAYPREMIUM_CONSOLE_STREAM_H
 
 #include <string>
+#include "px_common/secret_buffer.h"
 
 namespace px_console
 {
@@ -66,7 +67,7 @@ namespace px_console
 
         int bg_color_ = 0;
 
-        int encode_fps_;
+        int encode_fps_{0};
 
         // direct / signaling
         std::string connect_type_;
@@ -127,6 +128,8 @@ namespace px_console
 
         // Extra
         ///// NOT in database
+        std::shared_ptr<const px::SecretBuffer> rdp_configuration_{};
+        bool rdp_mode_{false};
         bool direct_online_ = false;
 
         //
@@ -138,6 +141,7 @@ namespace px_console
         // Ephemeral Console capability grant. Never persisted by the stream DB.
         std::string connection_ticket_;
         std::string connection_renewal_token_;
+        std::string connection_logical_session_id_{};
         std::string connection_nonce_;
         // Panel has already validated the id-less IP-direct password and
         // prepared active_session_stream_id_ on Render. Never persisted.

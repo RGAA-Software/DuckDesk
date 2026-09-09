@@ -153,6 +153,9 @@ mod tests {
             device_id: device_id.to_string(),
             appkey: appkey.to_string(),
             version: "1.0.0".to_string(),
+            rdp_available: false,
+            rdp_domain: String::new(),
+            rdp_proxy_certificate_sha256: String::new(),
             hello_timestamp: 100,
             last_update_timestamp: 200,
             hb_index: 3,
@@ -260,6 +263,9 @@ mod tests {
                 device_id: "d1".to_string(),
                 appkey: "appkey-1".to_string(),
                 version: "2.0.0".to_string(),
+                rdp_available: false,
+            rdp_domain: String::new(),
+            rdp_proxy_certificate_sha256: String::new(),
             });
             assert!(
                 c.process_message(

@@ -1,0 +1,42 @@
+; Isolated native-SSPI LAN probe, not a production configuration.
+; Process environment: WINPR_NATIVE_SSPI=1; OPENSSL_MODULES=<matching provider directory>.
+; Replace placeholders at runtime inside an ACL-restricted directory. Never commit credentials.
+; Loopback-only RDP proxy for the WS adapter probe. Restrict WS TCP 13390 to the test console.
+; Direct TCP-only validation requires an explicit isolated bind/firewall change. Remove secrets/rules on exit.
+[Server]
+Host=127.0.0.1
+Port=13389
+[Target]
+Host=127.0.0.1
+Port=3389
+FixedTarget=true
+User=@TARGET_USER@
+Domain=@TARGET_DOMAIN@
+Password=@RUNTIME_TARGET_PASSWORD@
+[Channels]
+GFX=true
+DisplayControl=true
+Clipboard=true
+AudioInput=false
+AudioOutput=true
+DeviceRedirection=false
+VideoRedirection=false
+CameraRedirection=false
+RemoteApp=false
+PassthroughIsBlacklist=false
+Passthrough=drdynvc,cliprdr,rdpsnd,Microsoft::Windows::RDS::Graphics,Microsoft::Windows::RDS::DisplayControl
+[Input]
+Keyboard=true
+Mouse=true
+Multitouch=false
+[Security]
+ServerTlsSecurity=true
+ServerNlaSecurity=true
+ServerRdpSecurity=false
+ClientTlsSecurity=true
+ClientNlaSecurity=true
+ClientRdpSecurity=false
+ClientAllowFallbackToTls=false
+[Certificates]
+CertificateFile=@PROBE_ROOT@\proxy.crt
+PrivateKeyFile=@PROBE_ROOT@\proxy.key

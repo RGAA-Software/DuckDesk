@@ -179,6 +179,7 @@ async fn handle_connection(
                             ticket,
                             client_nonce,
                             instance_id,
+                            rdp_logical_session_id: String::new(),
                             response: reply_tx,
                         };
                         match channel.send(request).await {

@@ -6,6 +6,7 @@
 #define TC_APPLICATION_APP_MANAGER_H
 
 #include <memory>
+#include <cstdint>
 
 #include "px_capture/inject_params.h"
 
@@ -27,6 +28,7 @@ namespace px
         virtual bool StartProcessWithHook();
         virtual void Exit();
         virtual void OnCapturedVideoFrame();
+        virtual bool CanHookProcess(uint32_t) const { return false; }
         virtual void* GetWindowHandle() = 0;
         virtual void CloseCurrentApp();
 

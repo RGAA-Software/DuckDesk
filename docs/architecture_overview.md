@@ -20,6 +20,14 @@ macOS 客户端已纳入产品规划：复用同一 SDK，后续补齐桌面 UI�
 
 ## 1. 这是什么
 
+> 2026-09-08 新增规划：[RDP 应用模式](rdp_application_mode_design.md)，与 game-hook/webview 平行，独立代理已验证，产品集成待实现。
+> [分阶段开发计划](rdp_application_mode_implementation_plan.md)：RDP 原生代理、不二次编码、单工作区单客户端；
+> 账号按 RDP 应用+节点映射，由 px_console 生成并加密保存凭证；允许未登录自动准入，无额外授权确认弹窗。
+> Render 沿用断连超时退出，Windows 账号/会话不主动注销，首版 Windows Client 复用现有 WebSocket 承载 RDP 数据。
+> 专属用户 Session 的画面和输入由 FreeRDP 接入，目标会话不再另做 DDA/GDI 桌面采集；
+> 早期保活方案与参考仓库见 [企业会话调研记录](enterprise_windows_session_isolation_plan.md)。
+> 现有 game-hook、webview 继续使用现有用户环境，不新建用户、不新增 RDP 登录流程；下文单桌面说明描述现有实现。
+
 远程桌面 + 游戏串流系统。两种产品形态共用同一套组件：
 
 - **远程桌面**：每台被控机永远一个默认 render（屏采），panel 是本机管理端；

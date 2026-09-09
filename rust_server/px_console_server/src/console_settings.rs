@@ -208,6 +208,9 @@ impl Default for ConsoleUserSettings {
 
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct ConsoleSettings {
+    /// ACL-restricted 32-byte key file, independent of the database. Empty disables RDP provisioning.
+    #[serde(default)]
+    pub rdp_master_key_path: String,
     /// Deployment guard used by destructive maintenance commands.
     #[serde(default = "default_environment")]
     pub environment: String,

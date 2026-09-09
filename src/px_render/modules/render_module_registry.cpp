@@ -109,7 +109,8 @@ void RenderModuleRegistry::StartModules() {
         .relay_port = settings_.relay_port_,
         .language = settings_.language_,
         .appkey = settings_.appkey_,
-        .app_mode = settings_.IsGameHookMode() ? "game-hook" : (settings_.IsWebViewMode() ? "webview" : "desktop"),
+        .app_mode = settings_.IsRdpMode() ? "rdp" : settings_.IsGameHookMode() ? "game-hook" : (settings_.IsWebViewMode() ? "webview" : "desktop"),
+        .rdp_proxy_port = settings_.IsRdpMode() ? settings_.rdp_launch_.proxy_port : std::uint16_t{},
     };
     const auto register_builtin = [base_configuration](const std::shared_ptr<RenderModule>& module, const std::string& module_name) -> bool {
         auto configuration = base_configuration;
@@ -125,6 +126,13 @@ void RenderModuleRegistry::StartModules() {
              module_name);
         return true;
     };
+    if (settings_.IsRdpMode()) {
+        const auto transport = std::make_shared<WsTransport>(context_->GetAsyncRuntime());
+        if (register_builtin(transport, "net_ws")) {
+            ws_transport_ = transport;
+        }
+        return; // No capture, encoders, native media, RTC, relay or host IPC in this composition.
+    }
     const auto dda_capture = std::make_shared<DdaCaptureSource>();
     const auto weak_registry = weak_from_this();
     dda_capture->ConfigureMediaBacklogProbe([weak_registry]() {
@@ -231,7 +239,7 @@ void RenderModuleRegistry::StartModules() {
     ws_transport->ConfigureIpcMediaIngress(
         [weak_application](const CaptureVideoFrame& frame) {
             if (const auto application = weak_application.lock()) {
-                application->OnCapturedVideoFrame(frame);
+                application->OnIpcVideoFrame(frame);
             }
         },
         [weak_application](const CaptureAudioFrame& frame) {
@@ -343,6 +351,10 @@ void RenderModuleRegistry::BindIngressCallbacks() {
                 envelope.payload);
         });
     });
+}
+
+bool RenderModuleRegistry::IsRdpListenerReady() const {
+    return settings_.IsRdpMode() && ws_transport_ && ws_transport_->IsWorking();
 }
 
 void RenderModuleRegistry::StopRouting() {

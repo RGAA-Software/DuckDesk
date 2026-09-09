@@ -12,6 +12,7 @@ tracing = "0.1.44"
 px_base = { path = "../../../rust_base/px_base" }
 base64 = "0.22"
 url = "2.5"
+zeroize = "1.8"
 windows = { version = "0.62.2", features = [
     "Win32_Foundation",
     "Win32_System_RemoteDesktop",
@@ -19,6 +20,10 @@ windows = { version = "0.62.2", features = [
     "Win32_System_Diagnostics_ToolHelp",
     "Win32_System_ProcessStatus",
     "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Security_Cryptography",
+    "Win32_Storage_FileSystem",
+    "Win32_NetworkManagement_NetManagement",
     "Win32_System_Environment",
     "Win32_System_WindowsProgramming",
     "Win32_UI_WindowsAndMessaging",

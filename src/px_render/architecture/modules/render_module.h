@@ -54,6 +54,8 @@ struct RenderModuleConfiguration final {
     int language{1};
     std::string appkey;
     std::string app_mode;
+    // Supplied by the trusted RDP runtime after proxy startup, never by a WS query.
+    std::uint16_t rdp_proxy_port{0};
     int udp_fec_percent{20};
     int udp_mtu{1400};
 };

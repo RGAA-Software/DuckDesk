@@ -21,6 +21,7 @@ struct ConsoleUserAppInstance {
 
 struct ConsoleUserApplication {
     std::string app_id;
+    std::string app_type{};
     std::string name;
     std::string access_mode;
     std::string cover_url;

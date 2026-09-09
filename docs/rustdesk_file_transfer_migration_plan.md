@@ -10,7 +10,9 @@
 > Qt 客户端插件 core + Web `file_transfer.ts`），替换为 rustdesk 的协议语义与传输引擎
 > （`FileAction`/`FileResponse` 消息族 + `fs.rs` 的 `.download`/`.digest` 续传、Digest 覆盖确认、路径安全校验）。
 >
-> 参考代码：`rustdesk/`（仓库根下 clone 的 rustdesk master，`7aa98d43c`）。
+> 参考代码统一使用外部目录 `D:/source/rustdesk`（2026-09-08 核实），不再在本仓库根目录保留 RustDesk 副本。
+> 本文后续 `rustdesk/...` 路径均指该外部目录下的对应文件；例如 `rustdesk/libs/hbb_common/src/fs.rs` 对应 `D:/source/rustdesk/libs/hbb_common/src/fs.rs`。
+> 原迁移研究基线为 `7aa98d43c`；2026-09-08 外部目录版本为 `7f804a0e4`。下文历史行号以原基线为准，实际参考时须核对外部目录当前版本与符号位置。
 > 本文档取代此前的"增量嫁接"思路。
 
 ---

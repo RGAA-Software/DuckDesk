@@ -43,6 +43,12 @@ namespace px
         virtual void Start();
         virtual void Stop();
         virtual void PostBinaryMessage(std::shared_ptr<Data> msg) = 0;
+        // Reliable protocol streams require a real write completion. Unsupported transports fail explicitly.
+        virtual void PostReliableBinaryMessage(std::shared_ptr<Data>, std::function<void(bool)> completion) {
+            if (completion) {
+                completion(false);
+            }
+        }
         virtual void PostTextMessage(const std::string& msg) {}
         virtual int64_t GetQueuingMsgCount();
         virtual void RequestPauseStream() {}

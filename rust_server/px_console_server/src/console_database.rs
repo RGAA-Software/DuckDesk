@@ -1,4 +1,5 @@
 use crate::app_schedule::manager::{AppInstance, AppNode, AppPlacement, Application};
+use crate::app_schedule::rdp_workspace::RdpWorkspaceRecord;
 use crate::connection_ticket::model::ConnectionTicket;
 use crate::device::console_device::ConsoleDevice;
 use crate::event::console_event::ConsoleEvent;
@@ -59,6 +60,7 @@ pub struct ConsoleDatabase {
     pub c_app_placement: Option<Arc<Mutex<Collection<AppPlacement>>>>,
     pub c_app_node: Option<Arc<Mutex<Collection<AppNode>>>>,
     pub c_app_instance: Option<Arc<Mutex<Collection<AppInstance>>>>,
+    pub c_rdp_workspace: Option<Collection<RdpWorkspaceRecord>>,
 }
 
 impl ConsoleDatabase {
@@ -325,6 +327,9 @@ impl ConsoleDatabase {
                     IndexModel::builder()
                         .keys(doc! { "session_id": 1, "consumed_at": 1 })
                         .build(),
+                    IndexModel::builder()
+                        .keys(doc! { "device_id": 1, "instance_id": 1, "logical_session_id": 1 })
+                        .build(),
                 ] {
                     if let Err(e) = c_connection_ticket.create_index(index).await {
                         tracing::error!("create c_connection_ticket index failed: {}", e);
@@ -527,6 +532,18 @@ impl ConsoleDatabase {
                     }
                 }
                 self.c_app_instance = Some(Arc::new(Mutex::new(c_app_instance)));
+
+                let c_rdp_workspace: Collection<RdpWorkspaceRecord> = database.collection("c_rdp_workspace");
+                for keys in [doc! { "app_id": 1, "node_id": 1 }, doc! { "workspace_id": 1 },
+                             doc! { "device_id": 1, "account_name": 1 }] {
+                    let index = IndexModel::builder().keys(keys)
+                        .options(IndexOptions::builder().unique(true).build()).build();
+                    if c_rdp_workspace.create_index(index).await.is_err() {
+                        tracing::error!("RDP workspace uniqueness index unavailable");
+                        return false;
+                    }
+                }
+                self.c_rdp_workspace = Some(c_rdp_workspace);
 
                 true
             }

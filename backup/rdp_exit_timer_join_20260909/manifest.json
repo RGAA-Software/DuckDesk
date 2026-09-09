@@ -1,0 +1,16 @@
+{
+  "revision": "3e38249f9332572502cd341ebed9860b81ebac82",
+  "reason": "Preserve working sources before fixing Render delay-timer self-thread destruction during ordered shutdown",
+  "files": [
+    {
+      "path": "src/px_render/rd_context.cpp",
+      "sha256": "37E9C0C834ED4032EFA11471CF5AA7A4D70C9051A9DA87BDD08D0B12E5C2D0DC",
+      "status": " M src/px_render/rd_context.cpp"
+    },
+    {
+      "path": "src/px_render/tests/CMakeLists.txt",
+      "sha256": "81D40232F81EB98EFFDC24B7811A3EA7E8286C3C4E86798D8688F580E57CF3B7",
+      "status": " M src/px_render/tests/CMakeLists.txt"
+    }
+  ]
+}
