@@ -641,6 +641,17 @@ namespace px
                     return;
                 }
                 const auto& cursor_info = msg->cursor_info_sync();
+                // Desktop capture omits unchanged pixels but retains bitmap geometry; preserve the last custom cursor.
+                if (cursor_info.visible() && cursor_info.bitmap().empty() && (cursor_info.width() != 0 || cursor_info.height() != 0)) {
+                    return;
+                }
+                const auto shape = ResolveCursorShape(cursor_info.visible(), !cursor_info.bitmap().empty(),
+                                                      task_self->ToQCursorShape(cursor_info.type()));
+                if (shape) {
+                    task_self->cursor_ = QCursor(*shape);
+                    task_self->UpdateLocalCursor();
+                    return;
+                }
                 const auto cursor_image = MakeCursorImage(cursor_info.bitmap(), cursor_info.width(), cursor_info.height(), cursor_info.hotspot_x(),
                                                          cursor_info.hotspot_y(), task_self->devicePixelRatioF());
                 if (!cursor_image) {

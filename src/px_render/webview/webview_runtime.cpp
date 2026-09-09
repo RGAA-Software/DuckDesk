@@ -14,6 +14,7 @@
 #include <cstring>
 #include <filesystem>
 #include <mutex>
+#include <optional>
 #include <unordered_set>
 #include <vector>
 
@@ -37,6 +38,7 @@
 #include "px_common/data.h"
 #include "px_common/image.h"
 #include "px_common/log.h"
+#include "px_common/clipboard/clipboard_platform.h"
 
 namespace px {
 namespace {
@@ -602,7 +604,11 @@ public:
         PostToCefUi([self, active] {
             auto target = self;
             const bool value = active;
-            if (!value) target->ReleaseInputOnUi();
+            if (!value) {
+                target->ReleaseInputOnUi();
+                target->selected_text_.clear();
+                target->clipboard_text_.reset();
+            }
             target->active_ = value;
             if (target->browser_) {
                 target->browser_->GetHost()->SetWindowlessFrameRate(
@@ -618,6 +624,23 @@ public:
     void SendMouse(const MouseEvent& event) {
         auto self = CefRefPtr<WebViewClient>(this);
         PostToCefUi([self, event] { self->SendMouseOnUi(event); });
+    }
+
+    void SetClipboardText(std::string text) {
+        auto self = CefRefPtr<WebViewClient>(this);
+        PostToCefUi([self, text = std::move(text)] {
+            if (self->browser_ && text.size() <= 1024 * 1024) {
+                self->clipboard_text_ = text;
+            }
+        });
+    }
+
+    void OnTextSelectionChanged(CefRefPtr<CefBrowser>, const CefString& selected_text, const CefRange&) override {
+        CEF_REQUIRE_UI_THREAD();
+        selected_text_ = selected_text.ToString();
+        if (selected_text_.size() > 1024 * 1024) {
+            selected_text_.clear();
+        }
     }
 
     void SendKey(const KeyEvent& event) {
@@ -985,6 +1008,32 @@ private:
         if (value.down()) pressed_keys_.insert(vk);
         else pressed_keys_.erase(vk);
 
+        // OSR has no native browser widget to dispatch standard editing accelerators.
+        if (value.down() && control_down_ && !alt_down_ && !shift_down_) {
+            if (const auto frame = browser_->GetFocusedFrame()) {
+                if (vk == 'A') {
+                    frame->SelectAll();
+                    return;
+                }
+                if (vk == 'C' || vk == 'X') {
+                    if (!selected_text_.empty() && callbacks_.on_clipboard_text) {
+                        clipboard_text_ = selected_text_;
+                        callbacks_.on_clipboard_text(selected_text_);
+                        if (vk == 'X') {
+                            frame->Cut();
+                        }
+                    }
+                    return;
+                }
+                if (vk == 'V') {
+                    if (clipboard_text_ && clipboard_platform_->WriteText(*clipboard_text_)) {
+                        frame->Paste();
+                    }
+                    return;
+                }
+            }
+        }
+
         CefKeyEvent event{};
         event.type = value.down() ? KEYEVENT_RAWKEYDOWN : KEYEVENT_KEYUP;
         event.windows_key_code = static_cast<int>(vk);
@@ -1097,6 +1146,9 @@ private:
     bool control_down_ = false;
     bool shift_down_ = false;
     bool alt_down_ = false;
+    std::string selected_text_{};
+    std::optional<std::string> clipboard_text_{};
+    std::unique_ptr<clipboard::IPlatform> clipboard_platform_{clipboard::CreatePlatform()};
     std::mutex close_mutex_;
     std::condition_variable close_cv_;
     bool closed_ = false;
@@ -1233,6 +1285,10 @@ void WebViewRuntime::SendTextInput(const TextInput& event) {
 
 void WebViewRuntime::SendFocusEvent(bool focused) {
     if (impl_->client_) impl_->client_->SendFocus(focused);
+}
+
+void WebViewRuntime::SetClipboardText(std::string text) {
+    if (impl_->client_) impl_->client_->SetClipboardText(std::move(text));
 }
 
 } // namespace px

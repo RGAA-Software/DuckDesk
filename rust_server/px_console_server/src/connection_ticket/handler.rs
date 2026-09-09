@@ -1,4 +1,5 @@
 use crate::app_schedule::gAppScheduleManager;
+use crate::app_schedule::manager::ApplicationType;
 use crate::connection_ticket::manager::ConnectionTicketManager;
 use crate::connection_ticket::model::{ConnectionTicket, TicketRenewResponse, TicketResponse};
 use crate::console_api_error::ConsoleApiError;
@@ -61,6 +62,17 @@ fn permissions_for_join(join_mode: &str, controller_permissions: &[&str]) -> Vec
         .iter()
         .map(|permission| permission.to_string())
         .collect()
+}
+
+fn app_permissions(join_mode: &str, webview: bool, rdp: bool) -> Vec<String> {
+    let capabilities: &[&str] = if rdp {
+        &["view", "input", "audio", "clipboard", "rdp"]
+    } else if webview {
+        &["view", "input", "audio", "clipboard"]
+    } else {
+        &["view", "input", "audio"]
+    };
+    permissions_for_join(join_mode, capabilities)
 }
 
 fn host_for_url(host: &str) -> String {
@@ -342,9 +354,7 @@ pub async fn issue_instance_ticket(
         .map(|(host, _)| host)
         .ok_or(ConsoleApiError::DeviceOffline)?;
     let rdp = rdp_client_configuration(&app, &instance, &request).await?;
-    let granted = permissions_for_join(&request.join_mode, if rdp.is_some() {
-        &["view", "input", "audio", "clipboard", "rdp"]
-    } else { &["view", "input", "audio"] });
+    let granted = app_permissions(&request.join_mode, app.app_type == ApplicationType::Webview, rdp.is_some());
     let (raw, renewal_token, mut ticket) = ConnectionTicketManager::issue(
         "app_instance",
         "user",
@@ -444,9 +454,7 @@ pub async fn issue_guest_instance_ticket(
         .map(|(host, _)| host)
         .ok_or(ConsoleApiError::DeviceOffline)?;
     let rdp = rdp_client_configuration(&app, &instance, &request).await?;
-    let granted = permissions_for_join(&request.join_mode, if rdp.is_some() {
-        &["view", "input", "audio", "clipboard", "rdp"]
-    } else { &["view", "input", "audio"] });
+    let granted = app_permissions(&request.join_mode, app.app_type == ApplicationType::Webview, rdp.is_some());
     let (raw, renewal_token, mut ticket) = ConnectionTicketManager::issue(
         "app_instance",
         "guest",
@@ -519,6 +527,14 @@ pub async fn issue_guest_instance_ticket(
 #[cfg(test)]
 mod tests {
     use super::permissions_for_join;
+
+    #[test]
+    fn webview_clipboard_is_control_only_and_does_not_expand_other_modes() {
+        assert_eq!(super::app_permissions("control", true, false), vec!["view", "input", "audio", "clipboard"]);
+        assert_eq!(super::app_permissions("observe", true, false), vec!["view", "audio"]);
+        assert_eq!(super::app_permissions("control", false, false), vec!["view", "input", "audio"]);
+        assert_eq!(super::app_permissions("control", false, true), vec!["view", "input", "audio", "clipboard", "rdp"]);
+    }
 
     #[test]
     fn legacy_clients_do_not_implicitly_claim_rdp_support() {

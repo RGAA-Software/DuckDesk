@@ -12,6 +12,17 @@
 #include <utility>
 
 namespace px {
+// Standard CEF cursors carry a type without pixels. Hidden state takes precedence over either representation.
+inline std::optional<Qt::CursorShape> ResolveCursorShape(bool visible, bool has_bitmap, Qt::CursorShape standard_shape) {
+    if (!visible) {
+        return Qt::BlankCursor;
+    }
+    if (has_bitmap) {
+        return std::nullopt;
+    }
+    return standard_shape == Qt::BitmapCursor ? Qt::ArrowCursor : standard_shape;
+}
+
 struct CursorImage final {
     QImage image{};
     QPoint logical_hotspot{};

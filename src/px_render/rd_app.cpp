@@ -1444,6 +1444,11 @@ void RdApplication::StartWebView() {
                 self->PostNetMessage(NetMessageMaker::MakeCursorInfoSyncMsg(cursor.x_, cursor.y_, cursor.hotspot_x_, cursor.hotspot_y_, cursor.width_,
                                                                             cursor.height_, cursor.visible_, cursor.data_, cursor.type_));
             },
+        .on_clipboard_text = [weak_self](const std::string& text) {
+            if (const auto self = weak_self.lock(); self && !self->exit_app_) {
+                self->SendClipboardMessage(text);
+            }
+        },
         .on_failed =
             [weak_self](const std::string& error) {
                 const auto self = weak_self.lock();
@@ -1500,6 +1505,12 @@ void RdApplication::SendWebViewKeyEvent(const KeyEvent& event) {
 void RdApplication::SendWebViewTextInput(const TextInput& event) {
     if (webview_runtime_)
         webview_runtime_->SendTextInput(event);
+}
+
+void RdApplication::SetWebViewClipboardText(std::string text) {
+    if (webview_runtime_) {
+        webview_runtime_->SetClipboardText(std::move(text));
+    }
 }
 
 void RdApplication::SendWebViewFocusEvent(bool focused) {
@@ -1744,7 +1755,8 @@ void RdApplication::ReplayLatestGameHookFrame() const {
 }
 
 void RdApplication::OnCapturedCursorBitmap(const CaptureCursorBitmap& cursor) const {
-    if (exit_app_) {
+    // App-owned cursor sources must not be overwritten by the host desktop capture loop.
+    if (exit_app_ || settings_.IsWebViewMode() || settings_.IsRdpMode()) {
         return;
     }
     PostNetMessage(NetMessageMaker::MakeCursorInfoSyncMsg(cursor.x_, cursor.y_, cursor.hotspot_x_, cursor.hotspot_y_, cursor.width_, cursor.height_,

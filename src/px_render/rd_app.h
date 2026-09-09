@@ -174,6 +174,7 @@ namespace px
         void SendWebViewKeyEvent(const KeyEvent& event);
         void SendWebViewTextInput(const TextInput& event);
         void SendWebViewFocusEvent(bool focused);
+        void SetWebViewClipboardText(std::string text);
 
     public:
         template<typename T>

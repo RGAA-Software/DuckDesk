@@ -711,6 +711,13 @@ void NetworkEventIngress::ProcessNetEvent(const std::shared_ptr<NetworkClientEve
             });
             return;
         }
+        if (settings_.IsWebViewMode() && msg->type() == kClipboardInfo) {
+            const auto& clipboard = msg->clipboard_info();
+            if (clipboard.type() == kClipboardText && clipboard.msg().size() <= 1024 * 1024) {
+                app_->SetWebViewClipboardText(clipboard.msg());
+            }
+            return;
+        }
 #if PX_USER_PROXY_ENABLED
         if (msg->type() == MessageType::kClipboardInfo) {
             LOGI("[LAT-clip] render recv kClipboardInfo, type: {}, files: {}, len: {}", (int)msg->clipboard_info().type(),

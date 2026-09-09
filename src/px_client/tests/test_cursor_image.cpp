@@ -6,6 +6,24 @@
 #include "px_client/cursor_image.h"
 
 namespace px {
+TEST(CursorImageTest, StandardCursorsDoNotRequirePixels) {
+    for (const auto shape : {Qt::ArrowCursor, Qt::IBeamCursor, Qt::PointingHandCursor, Qt::WaitCursor, Qt::CrossCursor, Qt::SizeHorCursor,
+                             Qt::SizeVerCursor, Qt::SizeFDiagCursor, Qt::SizeBDiagCursor, Qt::SizeAllCursor}) {
+        EXPECT_EQ(ResolveCursorShape(true, false, shape), shape);
+    }
+    EXPECT_EQ(ResolveCursorShape(true, false, Qt::BitmapCursor), Qt::ArrowCursor);
+}
+
+TEST(CursorImageTest, HiddenStateOverridesPixelsAndRepeatedTransitionsRestoreShape) {
+    for (int iteration = 0; iteration < 64; ++iteration) {
+        EXPECT_FALSE(ResolveCursorShape(true, true, Qt::ArrowCursor));
+        EXPECT_EQ(ResolveCursorShape(false, true, Qt::ArrowCursor), Qt::BlankCursor);
+        EXPECT_EQ(ResolveCursorShape(false, false, Qt::IBeamCursor), Qt::BlankCursor);
+        EXPECT_EQ(ResolveCursorShape(true, false, Qt::IBeamCursor), Qt::IBeamCursor);
+        EXPECT_EQ(ResolveCursorShape(true, false, Qt::PointingHandCursor), Qt::PointingHandCursor);
+    }
+}
+
 TEST(CursorImageTest, PhysicalSizeDoesNotGrowAcrossRepeatedDpiCaptures) {
     for (const qreal ratio : {1.0, 1.25, 1.5, 2.0, 3.0}) {
         auto physical_size = QSize(48, 48);
