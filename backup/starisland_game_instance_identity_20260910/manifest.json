@@ -1,0 +1,26 @@
+{
+  "revision": "70f0ad2f6ea4da3acaa98fff8d2e838f5764f2cf",
+  "reason": "Preserve Game launch and Render identity sources before propagating the Console application instance into text-target identity",
+  "files": [
+    {
+      "path": "rust_client/px_service/service_core/src/app_instance.rs",
+      "sha256": "3BC8114C0C3BC20FDC8090DCCC6B9CDB2D27536F9580B7C72DCE076EA3DFE229",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/ingress/network_event_ingress.cpp",
+      "sha256": "E8B2FE839C0DD0F1E4CAA7EDF60DC2662FF5BD2B23C5E242447EA253789C254C",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/rd_main.cpp",
+      "sha256": "755857254CCAD179E0C5A428F77C0BEA1273B3044ADEC333EC248B91413154E5",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/settings/rd_settings.h",
+      "sha256": "D2347F6F073D5A69672D4F2F7A42C4AF3CC6ACF7A7C55EDEA8C50F10E0D8978E",
+      "status": ""
+    }
+  ]
+}

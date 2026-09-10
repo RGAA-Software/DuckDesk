@@ -1,10 +1,53 @@
 #include "app/win/ipc_peer_identity.h"
 #include "app/win/game_text_write_permit.h"
 #include "game_text_input.h"
+#include "window_message_key.h"
 #include <gtest/gtest.h>
 
 namespace px {
 namespace {
+TEST(GameWindowKeyboardState, QueuedSnapshotsDoNotReadTheLaterModifierRelease) {
+    const auto pressed = WindowKeyboardSnapshot{.key = 'A', .down = true, .control = true}.Pack();
+    const auto released = WindowKeyboardSnapshot{.key = VK_LCONTROL, .down = false}.Pack();
+    EXPECT_TRUE(WindowKeyboardSnapshot::Unpack(pressed).control);
+    EXPECT_FALSE(WindowKeyboardSnapshot::Unpack(released).control);
+    std::array<BYTE, 256> original{};
+    ASSERT_TRUE(GetKeyboardState(original.data()));
+    for (int iteration{}; iteration < 20; ++iteration) {
+        {
+            const ScopedWindowKeyboardState outer{WindowKeyboardSnapshot::Unpack(pressed)};
+            ASSERT_TRUE(outer.Active());
+            std::array<BYTE, 256> state{};
+            ASSERT_TRUE(GetKeyboardState(state.data()));
+            EXPECT_NE(state[VK_LCONTROL] & 0x80, 0);
+            {
+                const ScopedWindowKeyboardState inner{WindowKeyboardSnapshot::Unpack(released)};
+                ASSERT_TRUE(inner.Active());
+                ASSERT_TRUE(GetKeyboardState(state.data()));
+                EXPECT_EQ(state[VK_LCONTROL] & 0x80, 0);
+            }
+            ASSERT_TRUE(GetKeyboardState(state.data()));
+            EXPECT_NE(state[VK_LCONTROL] & 0x80, 0);
+        }
+        std::array<BYTE, 256> restored{};
+        ASSERT_TRUE(GetKeyboardState(restored.data()));
+        EXPECT_EQ(restored, original);
+    }
+}
+
+TEST(GameWindowMessageKey, NormalizesOnlySidedModifiersForWindowMessages) {
+    EXPECT_EQ(WindowMessageKey(VK_LCONTROL), VK_CONTROL);
+    EXPECT_EQ(WindowMessageKey(VK_RCONTROL), VK_CONTROL);
+    EXPECT_EQ(WindowMessageKey(VK_LSHIFT), VK_SHIFT);
+    EXPECT_EQ(WindowMessageKey(VK_RSHIFT), VK_SHIFT);
+    EXPECT_EQ(WindowMessageKey(VK_LMENU), VK_MENU);
+    EXPECT_EQ(WindowMessageKey(VK_RMENU), VK_MENU);
+    EXPECT_EQ(WindowMessageKey(VK_CONTROL), VK_CONTROL);
+    EXPECT_EQ(WindowMessageKey('A'), 'A');
+    EXPECT_EQ(WindowMessageKey(VK_LEFT), VK_LEFT);
+    EXPECT_EQ(WindowMessageKey(VK_LWIN), VK_LWIN);
+}
+
 struct TestWindowDeleter final {
     void operator()(HWND window) const noexcept { // NOLINT(gammaray-raw-pointer-boundary) Owns only this test's Win32 window.
         if (window) {

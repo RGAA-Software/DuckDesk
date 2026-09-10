@@ -1,6 +1,7 @@
 #pragma once
 
 #include "application_text_input_gate.h"
+#include "application_text_query.h"
 #include "px_message.pb.h"
 #include <QPointer>
 #include <QString>
@@ -65,10 +66,7 @@ class ApplicationTextInput final : public std::enable_shared_from_this<Applicati
     std::uint64_t draft_revision_{};
     std::uint64_t submitted_revision_{};
     std::chrono::steady_clock::time_point deadline_{};
-    std::chrono::steady_clock::time_point next_query_{};
-    std::chrono::steady_clock::time_point query_deadline_{};
-    bool query_pending_{};
-    bool initial_query_sent_{};
+    ApplicationTextQuery query_{};
     bool connected_{};
     bool panel_open_{};
     bool hints_enabled_{true};

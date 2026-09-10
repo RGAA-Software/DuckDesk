@@ -1,0 +1,21 @@
+{
+  "revision": "70f0ad2f6ea4da3acaa98fff8d2e838f5764f2cf",
+  "reason": "Preserve Web client sources before fixing missing Direct RTC protocol heartbeat discovered during StarIsland acceptance",
+  "files": [
+    {
+      "path": "web/px_web_client/src/App.vue",
+      "sha256": "E2F180C1BB0168CF137B13355EA6D5A6E222696F47245C439D0B46B0DFCE9027",
+      "status": ""
+    },
+    {
+      "path": "web/px_web_client/src/rtc/protocol_enums.ts",
+      "sha256": "E25BC75711FDDBC234BC77BC1B6AE0B889E02CE5E8695809F9616CE7996DBCCD",
+      "status": ""
+    },
+    {
+      "path": "web/px_web_client/test/protocol_enums.test.ts",
+      "sha256": "EA14F01BEBA2C57113323E60BF37D84FFDA9F2B993A4CBAD0A552DC9534A9E53",
+      "status": ""
+    }
+  ]
+}

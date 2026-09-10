@@ -1,0 +1,11 @@
+{
+  "revision": "70f0ad2f6ea4da3acaa98fff8d2e838f5764f2cf",
+  "reason": "Preserve the original client text-input implementation before adding payload-free negotiation diagnostics for StarIsland acceptance",
+  "files": [
+    {
+      "path": "src/px_client/application_text_input.cpp",
+      "sha256": "12EF226C31AA4D04724BEE6201BFBD61E115037BEFCE88C39F7275A72DD8BCE5",
+      "status": ""
+    }
+  ]
+}

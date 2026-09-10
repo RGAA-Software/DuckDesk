@@ -76,6 +76,50 @@ struct Fixture final {
     }
 };
 
+TEST(ApplicationTextQuery, LostAdmissionTimeQueryRetriesOnlyThreeTimes) {
+    ApplicationTextQuery query{};
+    const auto now = ApplicationTextQuery::Clock::time_point{};
+    EXPECT_TRUE(query.Due(now));
+    for (int attempt{0}; attempt < 3; ++attempt) {
+        const auto sent = now + std::chrono::seconds(attempt * 3);
+        ASSERT_TRUE(query.Due(sent));
+        query.Sent(true, sent);
+        EXPECT_FALSE(query.Due(sent + std::chrono::seconds(2)));
+    }
+    EXPECT_FALSE(query.Due(now + std::chrono::hours(1)));
+    query.Reset();
+    EXPECT_TRUE(query.Due(now + std::chrono::hours(1)));
+}
+
+TEST(ApplicationTextQuery, AdmissionRecoveryStartsTargetPollingAndUnsupportedStopsIt) {
+    ApplicationTextQuery query{};
+    const auto now = ApplicationTextQuery::Clock::time_point{};
+    query.Sent(true, now);
+    ASSERT_TRUE(query.Due(now + std::chrono::seconds(3)));
+    query.Sent(true, now + std::chrono::seconds(3));
+    query.Replied(true);
+    EXPECT_FALSE(query.Due(now + std::chrono::milliseconds(3500)));
+    EXPECT_TRUE(query.Due(now + std::chrono::seconds(4)));
+    for (int second{4}; second < 12; ++second) {
+        ASSERT_TRUE(query.Due(now + std::chrono::seconds(second)));
+        query.Sent(true, now + std::chrono::seconds(second));
+        query.Replied(true);
+    }
+    query.Replied(false);
+    EXPECT_FALSE(query.Due(now + std::chrono::hours(1)));
+}
+
+TEST(ApplicationTextQuery, QueueRejectionIsPacedAndDoesNotConsumeNetworkAttempts) {
+    ApplicationTextQuery query{};
+    const auto now = ApplicationTextQuery::Clock::time_point{};
+    for (int second{0}; second < 5; ++second) {
+        ASSERT_TRUE(query.Due(now + std::chrono::seconds(second)));
+        query.Sent(false, now + std::chrono::seconds(second));
+        EXPECT_FALSE(query.Due(now + std::chrono::seconds(second) + std::chrono::milliseconds(500)));
+    }
+    EXPECT_TRUE(query.Due(now + std::chrono::seconds(5)));
+}
+
 TEST(ApplicationTextInput, UnsupportedNeverSubmitsAndCanClose) {
     Fixture fixture{};
     fixture.Button(QStringLiteral("applicationTextInputButton"))->click();

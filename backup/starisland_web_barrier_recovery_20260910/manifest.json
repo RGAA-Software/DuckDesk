@@ -1,0 +1,16 @@
+{
+  "revision": "70f0ad2f6ea4da3acaa98fff8d2e838f5764f2cf",
+  "reason": "Preserve Web barrier handling before recovery from an explicitly rejected, unchanged-generation begin request",
+  "files": [
+    {
+      "path": "web/px_web_client/src/rtc/application_text.ts",
+      "sha256": "D57C1A06F1D2C144AE793EF2A4B26029F4D233819212F7BBA530C78A0C656E83",
+      "status": ""
+    },
+    {
+      "path": "web/px_web_client/test/application_text.test.ts",
+      "sha256": "FA8A1130591E90B783129540FCB97195E0AAE1719CEAC280F451822521D89B20",
+      "status": ""
+    }
+  ]
+}

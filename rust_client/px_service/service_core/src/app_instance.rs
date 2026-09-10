@@ -227,6 +227,7 @@ pub fn build_game_hook_launch_spec(
     let mut args = vec![
         "--logfile".to_string(),
         format!("--app_mode={APP_MODE_GAME_HOOK}"),
+        format!("--app_instance_id={}", req.instance_id),
         format!("--app_game_path={game_b64}"),
         "--capture_video=true".to_string(),
         "--capture_video_type=inner".to_string(),
@@ -912,6 +913,7 @@ mod tests {
         assert!(decoded.contains("VehicleGame"));
         // game args flag must match render's gflags name (app_game_args).
         assert!(spec.args.iter().any(|a| a == "--app_game_args=-dx11"));
+        assert!(spec.args.iter().any(|a| a == "--app_instance_id=i1"));
         assert!(!spec
             .args
             .iter()

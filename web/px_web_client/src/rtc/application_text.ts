@@ -65,6 +65,7 @@ export class ApplicationTextTransport {
   private awaitingSubmission = false
   private closeAfterSubmission = false
   private invalidTarget = false
+  private beginRejected = false
 
   constructor(private readonly opts: TextTransportOptions) { opts.workflow.prepareInstance(opts.instanceId) }
 
@@ -104,6 +105,9 @@ export class ApplicationTextTransport {
     if (!this.alive || !this.started) return
     const caps = message.applicationTextCapabilities
     if (message.type === MessageType.ApplicationTextCapabilities && caps) {
+      if (this.beginRejected && caps.inputGeneration !== this.generation) {
+        this.fail('输入代次已改变，请重新连接后再操作。'); return
+      }
       if (caps.version !== 1 || !caps.finalTextSupported || caps.maxUtf8Bytes < 1 || caps.maxUtf8Bytes > 16384) {
         this.fail('远端不支持文字输入。'); return
       }
@@ -112,6 +116,9 @@ export class ApplicationTextTransport {
     }
     const state = message.applicationTextState
     if (message.type === MessageType.ApplicationTextState && state && this.validTarget(state.target)) {
+      if (this.beginRejected && state.target.leaseGeneration !== this.target?.leaseGeneration) {
+        this.fail('控制租约已改变，请重新连接后再操作。'); return
+      }
       const changed = this.target && (state.target.targetGeneration !== this.target.targetGeneration
         || state.target.leaseGeneration !== this.target.leaseGeneration)
       this.target = { ...state.target }
@@ -129,6 +136,18 @@ export class ApplicationTextTransport {
       const begin = this.pending.begin
       this.pending = null
       this.clearTimer()
+      // Only a definitive rejection on the same lease and unchanged input
+      // generation can recover locally. Unknown outcomes remain fenced.
+      if (begin && !barrier.editing && this.validTarget(barrier.target)
+        && barrier.target.leaseGeneration === this.target?.leaseGeneration
+        && barrier.inputGeneration === this.generation
+        && [TextOutcomeCode.TargetChanged, TextOutcomeCode.TargetUnavailable, TextOutcomeCode.Busy].includes(barrier.outcome)) {
+        this.beginRejected = true
+        this.opts.workflow.disconnect()
+        this.opts.changed(false, false, '远端输入位置尚未就绪，请关闭面板、重新选择输入位置后再打开。')
+        if (this.closeAfterBegin) { this.closeAfterBegin = false; this.endEditing() }
+        return
+      }
       if (barrier.outcome !== TextOutcomeCode.Submitted || barrier.editing !== begin || !this.validTarget(barrier.target)
         || !/^\d+$/.test(barrier.inputGeneration)) {
         this.fail('输入屏障未确认，请重新连接后再操作。'); return
@@ -159,6 +178,10 @@ export class ApplicationTextTransport {
       return
     }
     if (this.target && this.maxBytes > 0 && !this.pending) {
+      if (this.beginRejected) {
+        this.opts.changed(false, false, '远端输入位置尚未就绪，请关闭面板、重新选择输入位置后再打开。')
+        return
+      }
       if (this.invalidTarget && this.editing) {
         this.opts.changed(false, false, '远端输入目标已改变，请关闭面板并重新选择输入位置。')
         return
@@ -175,11 +198,17 @@ export class ApplicationTextTransport {
     this.opts.workflow.close()
     if (this.pending?.begin) { this.closeAfterBegin = true; return true }
     if (this.awaitingSubmission) { this.closeAfterSubmission = true; return true }
+    if (this.beginRejected) {
+      this.beginRejected = false
+      this.opts.suspend(false, this.generation)
+      this.opts.changed(this.ready, this.editability === TextEditability.Editable, '')
+      return true
+    }
     return this.barrier(false)
   }
 
   private barrier(begin: boolean): boolean {
-    if (!this.ready || !this.target || this.pending || (begin && this.editing)) return false
+    if (!this.ready || !this.target || this.pending || this.beginRejected || (begin && this.editing)) return false
     this.opts.suspend(true, this.generation)
     const id = textRequestId()
     this.pending = { id, begin }
@@ -206,7 +235,8 @@ export class ApplicationTextTransport {
     this.opts.workflow.disconnect()
     // After a lost barrier reply the ordinary input generation is unknown. Keep
     // input suspended until a new primary connection establishes a fresh lease.
-    if (this.pending || this.editing) this.opts.suspend(true, this.generation)
+    if (this.pending || this.editing || this.beginRejected) this.opts.suspend(true, this.generation)
+    this.beginRejected = false
     this.opts.changed(false, false, status)
     this.stopPolling()
   }

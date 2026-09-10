@@ -1,0 +1,16 @@
+{
+  "revision": "70f0ad2f6ea4da3acaa98fff8d2e838f5764f2cf",
+  "reason": "Preserve Hook window-message translation before normalizing left/right modifier virtual keys at the Win32 message boundary",
+  "files": [
+    {
+      "path": "src/px_render/hook_capture/win/hk_obs/hook_manager.cpp",
+      "sha256": "C1727F4D064EB516BAD24D16BA849ABA455EE3A261D97A4D70D9D45BE8EDF825",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/hook_capture/win/hk_obs/test_game_text_input.cpp",
+      "sha256": "5FC6CC419BA97DA512CAC72D14A8A50E239E73752792BB418C225B6CC617BB8B",
+      "status": ""
+    }
+  ]
+}

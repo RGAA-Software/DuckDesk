@@ -165,10 +165,8 @@ void ApplicationTextInput::Connected() {
     ApplyGate();
     Message query{};
     query.set_type(kApplicationTextCapabilities);
-    query_pending_ = sender_ && sender_(query);
-    initial_query_sent_ = query_pending_;
-    query_deadline_ = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-    next_query_ = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    query_.Reset();
+    query_.Sent(sender_ && sender_(query), std::chrono::steady_clock::now());
     SetStatus(QStringLiteral("正在检查文字输入能力；重新连接后请再次确认远端输入框。"));
     Refresh();
 }
@@ -301,8 +299,8 @@ void ApplicationTextInput::HandleMessage(const Message& message) {
     if (!connected_ || !host_)
         return;
     if (message.type() == kApplicationTextCapabilities && message.has_application_text_capabilities()) {
-        query_pending_ = false;
         capabilities_ = message.application_text_capabilities();
+        query_.Replied(capabilities_.version() == 1 && capabilities_.final_text_supported());
         if (capabilities_.version() == 1 && capabilities_.final_text_supported() && capabilities_.max_utf8_bytes() > 0 &&
             capabilities_.max_utf8_bytes() <= 16384 && !capabilities_.input_generation().empty() && phase_ == Phase::Unavailable) {
             generation_ = capabilities_.input_generation();
@@ -318,6 +316,7 @@ void ApplicationTextInput::HandleMessage(const Message& message) {
                 editor_->clear();
             phase_ = Phase::Unavailable;
             capabilities_.Clear();
+            query_.Replied(false);
             request_id_.clear();
             submitted_snapshot_.clear();
             SetStatus(QStringLiteral("应用实例或控制权限已变化，草稿已清除，请重新连接。"));
@@ -372,6 +371,7 @@ void ApplicationTextInput::HandleMessage(const Message& message) {
                     editor_->clear();
                 phase_ = Phase::Unavailable;
                 capabilities_.Clear();
+                query_.Replied(false);
             }
         }
         submitted_snapshot_.clear();
@@ -388,18 +388,12 @@ void ApplicationTextInput::Tick() {
     // panel is closed, so do not globally require the main window to be active.
     background_ = QApplication::applicationState() != Qt::ApplicationActive || (panel_open_ && !host_->isActiveWindow());
     const auto now = std::chrono::steady_clock::now();
-    if (query_pending_ && now >= query_deadline_)
-        query_pending_ = false;
-    // Old servers are queried only once per reconnect. A negotiated backend is
-    // polled without focus changes to refresh hints and invalidate navigated targets.
-    if (connected_ && !background_ && (!initial_query_sent_ || (capabilities_.version() == 1 && capabilities_.final_text_supported())) &&
-        !query_pending_ && now >= next_query_ && !(read_only_ && read_only_())) {
+    // WebSocket upgrade can precede ticket admission. Retry only this read-only
+    // query up to three times; a negotiated backend is then polled for target changes.
+    if (connected_ && !background_ && query_.Due(now) && !(read_only_ && read_only_())) {
         Message query{};
         query.set_type(kApplicationTextCapabilities);
-        query_pending_ = sender_ && sender_(query);
-        initial_query_sent_ = initial_query_sent_ || query_pending_;
-        query_deadline_ = now + std::chrono::seconds(3);
-        next_query_ = now + std::chrono::seconds(1);
+        query_.Sent(sender_ && sender_(query), now);
     }
     if (read_only_ && read_only_()) {
         if (editor_ && !editor_->toPlainText().isEmpty())

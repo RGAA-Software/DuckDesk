@@ -3,6 +3,7 @@
 export enum MessageType {
   Hello = 0,
   ServerConfiguration = 2,
+  HeartBeat = 20,
   KeyEvent = 50,
   MouseEvent = 60,
   TextInput = 580,

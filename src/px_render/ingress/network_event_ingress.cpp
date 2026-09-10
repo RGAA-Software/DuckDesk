@@ -292,9 +292,11 @@ NetworkEventIngress::NetworkEventIngress(const std::shared_ptr<RdApplication>& a
 }
 
 void NetworkEventIngress::InitListeners() {
-    const auto instance{settings_.webview_instance_id_.empty()
-                            ? std::to_string(GetCurrentProcessId()) + ":" + std::to_string(CurrentSystemMilliseconds())
-                            : settings_.webview_instance_id_};
+    auto instance{settings_.app_instance_id_};
+    if (instance.empty())
+        instance = settings_.webview_instance_id_;
+    if (instance.empty())
+        instance = std::to_string(GetCurrentProcessId()) + ":" + std::to_string(CurrentSystemMilliseconds());
     application_text_ = std::make_shared<ApplicationTextService>(instance, app_->GetLogicalSessionRegistry(), app_->CreateApplicationTextBackend());
     msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
     const auto weak_self = weak_from_this();

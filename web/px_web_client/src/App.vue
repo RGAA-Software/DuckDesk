@@ -54,6 +54,7 @@ import { TextInputWorkflow } from './rtc/text_input_workflow'
 import type { TextSubmission } from './rtc/text_input_workflow'
 import { ApplicationTextTransport, reliableApplicationControlChannel } from './rtc/application_text'
 import type { ApplicationTextMessage } from './rtc/application_text'
+import { startControlHeartbeat } from './rtc/control_heartbeat'
 import FileTransferWindow from './FileTransferWindow.vue'
 import { useFileTransfer } from './useFileTransfer'
 import { sha256Hex } from './rtc/file_transfer'
@@ -519,6 +520,7 @@ function toggleGamepad() {
 
 let pc: RTCPeerConnection | null = null
 let dc: RTCDataChannel | null = null
+let stopControlHeartbeat: (() => void) | null = null
 let inputDc: RTCDataChannel | null = null
 let pingDc: RTCDataChannel | null = null
 let standardSignaling: StandardRtcSignaling | null = null
@@ -1459,6 +1461,8 @@ function waitIceGatheringComplete(peer: RTCPeerConnection): Promise<void> {
 }
 
 function cleanup() {
+  stopControlHeartbeat?.()
+  stopControlHeartbeat = null
   resetApplicationText()
   stopConnWatchdog()
   if (directFallbackTimer !== null) {
@@ -1773,6 +1777,11 @@ async function connect() {
     dc.binaryType = 'arraybuffer' // render 会推 kClipboardInfo 等二进制控制消息
     dc.onopen = () => {
       addLog(`datachannel "${DATA_CHANNEL_LABEL}" onopen`)
+      stopControlHeartbeat?.()
+      const heartbeatChannel = dc
+      stopControlHeartbeat = startControlHeartbeat(fields =>
+        dc === heartbeatChannel && reliableApplicationControlChannel(heartbeatChannel)
+        && (heartbeatChannel?.bufferedAmount ?? 65536) < 65536 && sendControl(fields))
       sendControl({ type: MessageType.ApplicationTextCapabilities, applicationTextCapabilities: { version: 1 } })
       if (!hasVideo.value) {
         setConnectStep('video', `控制通道 ${DATA_CHANNEL_LABEL} 已打开`)
@@ -1809,6 +1818,8 @@ async function connect() {
       }
     }
     dc.onclose = () => {
+      stopControlHeartbeat?.()
+      stopControlHeartbeat = null
       textTransport?.disconnected()
       addLog('datachannel onclose')
     }

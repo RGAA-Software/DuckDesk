@@ -1,0 +1,16 @@
+{
+  "revision": "70f0ad2f6ea4da3acaa98fff8d2e838f5764f2cf",
+  "reason": "Preserve text-input negotiation state and tests before fixing the query lost during asynchronous ticket admission",
+  "files": [
+    {
+      "path": "src/px_client/application_text_input.h",
+      "sha256": "CAD3ED32AD7F9AA215E673AA1F051AFE8D6E0CE0FF94951F403AF2D3CD585BEE",
+      "status": ""
+    },
+    {
+      "path": "src/px_client/tests/test_application_text_input.cpp",
+      "sha256": "0A91658D31EF513E0C6D06C4168C9ED14C0A83E065D5279A066DE187EAF322DF",
+      "status": ""
+    }
+  ]
+}

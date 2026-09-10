@@ -15,6 +15,7 @@ describe('semantic protocol enums', () => {
     checkWireEnum('px.MessageType', {
       kHello: MessageType.Hello,
       kServerConfiguration: MessageType.ServerConfiguration,
+      kHeartBeat: MessageType.HeartBeat,
       kKeyEvent: MessageType.KeyEvent,
       kMouseEvent: MessageType.MouseEvent,
       kTextInput: MessageType.TextInput,

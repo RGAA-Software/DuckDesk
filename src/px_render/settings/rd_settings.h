@@ -237,6 +237,8 @@ namespace px
         // child instance. Appended for binary compatibility with plugins;
         // ticket redemption still uses device_id_.
         std::string relay_device_id_;
+        // Console application identity, distinct from a process/transport identifier.
+        std::string app_instance_id_{};
 
     private:
         const std::string kFullColorModeKey = "enable_full_color_mode";

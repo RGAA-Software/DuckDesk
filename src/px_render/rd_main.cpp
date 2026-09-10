@@ -90,6 +90,7 @@ DEFINE_bool(relay_enabled, true, "");
 DEFINE_int32(language, 0, "");
 
 DEFINE_string(app_mode, "", "desktop | game-hook | inner_capture; empty => settings.toml application.mode");
+DEFINE_string(app_instance_id, "", "Console application instance id");
 DEFINE_string(webview_url_b64, "", "Base64URL-encoded WebView entry URL (never log decoded value)");
 DEFINE_string(webview_instance_id, "", "Console WebView instance id");
 DEFINE_string(rdp_instance_id, "", "Console RDP runtime instance id");
@@ -221,6 +222,7 @@ void UpdateSettings(RdSettings& settings) {
 
     settings.webview_url_b64_ = FLAGS_webview_url_b64;
     settings.webview_instance_id_ = FLAGS_webview_instance_id;
+    settings.app_instance_id_ = FLAGS_app_instance_id;
     settings.webview_width_ = std::clamp(FLAGS_webview_width, 320, 7680);
     settings.webview_height_ = std::clamp(FLAGS_webview_height, 240, 4320);
     settings.webview_gpu_ = FLAGS_webview_gpu;

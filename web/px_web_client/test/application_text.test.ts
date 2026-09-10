@@ -30,6 +30,71 @@ function fixture() {
 afterEach(() => vi.useRealTimers())
 
 describe('reliable application text adapter', () => {
+  it.each([TextOutcomeCode.TargetChanged, TextOutcomeCode.TargetUnavailable, TextOutcomeCode.Busy])(
+    'recovers only after explicitly closing a definitively rejected begin (%s)', outcome => {
+      vi.useFakeTimers()
+      const f = fixture()
+      f.adapter.beginEditing()
+      f.workflow.edit('保留草稿')
+      f.adapter.receive({ type: MessageType.ApplicationTextBarrierResult, applicationTextBarrierResult: {
+        requestId: f.sent.at(-1)!.applicationTextBarrier.requestId, target, outcome, inputGeneration: '0', editing: false,
+      } })
+      expect(f.workflow.draft).toBe('保留草稿')
+      expect(f.adapter.beginEditing()).toBe(false)
+      const nextTarget = { ...target, targetGeneration: '3' }
+      f.adapter.receive({ type: MessageType.ApplicationTextState,
+        applicationTextState: { target: nextTarget, editability: TextEditability.Unknown } })
+      expect(f.suspend).toHaveBeenLastCalledWith(true, '0')
+      const count = f.sent.length
+      expect(f.adapter.endEditing()).toBe(true)
+      expect(f.sent).toHaveLength(count)
+      expect(f.suspend).toHaveBeenLastCalledWith(false, '0')
+      expect(f.adapter.beginEditing()).toBe(true)
+      expect(f.sent.at(-1)!.applicationTextBarrier.target).toEqual(nextTarget)
+      f.adapter.dispose()
+    })
+
+  it('keeps uncertain or changed-generation rejection fenced even after close', () => {
+    for (const [outcome, generation] of [[TextOutcomeCode.Unknown, '0'], [TextOutcomeCode.TargetChanged, '1']] as const) {
+      const f = fixture()
+      f.adapter.beginEditing()
+      f.adapter.receive({ type: MessageType.ApplicationTextBarrierResult, applicationTextBarrierResult: {
+        requestId: f.sent.at(-1)!.applicationTextBarrier.requestId, target, outcome, inputGeneration: generation, editing: false,
+      } })
+      expect(f.adapter.endEditing()).toBe(false)
+      expect(f.suspend).toHaveBeenLastCalledWith(true, '0')
+      f.adapter.dispose()
+    }
+  })
+
+  it('honors a queued close after a definitive begin rejection', () => {
+    const f = fixture()
+    f.adapter.beginEditing()
+    f.adapter.endEditing()
+    const count = f.sent.length
+    f.adapter.receive({ type: MessageType.ApplicationTextBarrierResult, applicationTextBarrierResult: {
+      requestId: f.sent.at(-1)!.applicationTextBarrier.requestId, target, outcome: TextOutcomeCode.TargetChanged,
+      inputGeneration: '0', editing: false,
+    } })
+    expect(f.sent).toHaveLength(count)
+    expect(f.suspend).toHaveBeenLastCalledWith(false, '0')
+    f.adapter.dispose()
+  })
+
+  it('revokes local rejection recovery when a later lease changes', () => {
+    const f = fixture()
+    f.adapter.beginEditing()
+    f.adapter.receive({ type: MessageType.ApplicationTextBarrierResult, applicationTextBarrierResult: {
+      requestId: f.sent.at(-1)!.applicationTextBarrier.requestId, target, outcome: TextOutcomeCode.TargetChanged,
+      inputGeneration: '0', editing: false,
+    } })
+    f.adapter.receive({ type: MessageType.ApplicationTextState,
+      applicationTextState: { target: { ...target, leaseGeneration: '4' }, editability: TextEditability.Unknown } })
+    expect(f.adapter.endEditing()).toBe(false)
+    expect(f.suspend).toHaveBeenLastCalledWith(true, '0')
+    f.adapter.dispose()
+  })
+
   it('treats unknown wire editability as unknown rather than editable', () => {
     const f = fixture()
     f.adapter.receive({ type: MessageType.ApplicationTextState,

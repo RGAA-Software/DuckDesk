@@ -146,6 +146,7 @@ TEST(WsIpcClientLifecycle, TextReleaseCallbackCanUnregisterDuringDispatch) {
     const auto port = 20000 + static_cast<int>(GetCurrentProcessId() % 5000);
     const auto replies = std::make_shared<std::atomic_int>(0);
     server->bind_upgrade([](std::shared_ptr<asio2::ws_session>& session) {
+        session->ws_stream().binary(true); // IPC payloads contain arbitrary bytes, not UTF-8 WebSocket text.
         CaptureTextCommand release{};
         release.operation = CaptureTextOperation::kRelease;
         release.target_pid = GetCurrentProcessId();
@@ -179,6 +180,7 @@ TEST(WsIpcClientLifecycle, TextReleaseCallbackCanRequestShutdown) {
     const auto server = std::make_shared<asio2::ws_server>();
     const auto port = 25000 + static_cast<int>(GetCurrentProcessId() % 5000);
     server->bind_upgrade([](std::shared_ptr<asio2::ws_session>& session) {
+        session->ws_stream().binary(true); // Match the production Render IPC carrier.
         CaptureTextCommand release{};
         release.operation = CaptureTextOperation::kRelease;
         release.target_pid = GetCurrentProcessId();

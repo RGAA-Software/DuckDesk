@@ -3,6 +3,7 @@
 //
 
 #include "hook_manager.h"
+#include "window_message_key.h"
 #include "px_common/data.h"
 #include "px_common/log.h"
 #include "px_common/file.h"
@@ -95,6 +96,21 @@ namespace px
     static WNDPROC g_focus_guard_origin = nullptr;
 
     static LRESULT CALLBACK GameFocusGuardWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+        if (const auto queued = QueuedKeyboardMessage(); queued != 0 && msg == queued) {
+            const auto snapshot = WindowKeyboardSnapshot::Unpack(wp);
+            const ScopedWindowKeyboardState keyboard{snapshot};
+            if (!keyboard.Active()) {
+                return 0;
+            }
+            // MSG is transient Win32 boundary storage; no HWND or payload is retained.
+            MSG translated{};
+            translated.hwnd = hwnd;
+            translated.message = snapshot.down ? WM_KEYDOWN : WM_KEYUP;
+            translated.wParam = WindowMessageKey(snapshot.key);
+            translated.lParam = lp;
+            TranslateMessage(&translated);
+            return CallWindowProc(g_focus_guard_origin, hwnd, translated.message, translated.wParam, lp);
+        }
         if (msg == WM_KILLFOCUS
             || (msg == WM_ACTIVATE && wp == WA_INACTIVE)
             || (msg == WM_ACTIVATEAPP && wp == FALSE)) {
@@ -794,7 +810,6 @@ namespace px
         }
         UpdateModifierState(k, down, key_msg->caps_lock_state_);
 
-        int msg = down ? WM_KEYDOWN : WM_KEYUP;
         LPARAM lp = 0;
         if (!down) {
             lp = 1;            // repeat count
@@ -825,7 +840,15 @@ namespace px
         // UE often needs KEYUP twice for some keys (streamer parity).
         const int exec_count = down ? 1 : 2;
         for (int i = 0; i < exec_count; ++i) {
-            PostMessage(hwnd, msg, k, lp);
+            const WindowKeyboardSnapshot snapshot{k,
+                                                  down,
+                                                  shift_pressed_.load(std::memory_order_relaxed),
+                                                  control_pressed_.load(std::memory_order_relaxed),
+                                                  menu_pressed_.load(std::memory_order_relaxed),
+                                                  caps_lock_status_.load(std::memory_order_relaxed) != 0};
+            if (const auto queued = QueuedKeyboardMessage(); queued != 0) {
+                PostMessage(hwnd, queued, snapshot.Pack(), lp);
+            }
         }
         // Unity/UE RawInput: caller already PushIpcMessage'd once; duplicate + WM_INPUT×2
         // (streamer HandleKeyEvent) so GetRawInputData sees the key.

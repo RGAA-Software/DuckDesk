@@ -1,0 +1,11 @@
+{
+  "revision": "70f0ad2f6ea4da3acaa98fff8d2e838f5764f2cf",
+  "reason": "Preserve Game text backend before adding metadata-only IPC failure diagnostics during real browser acceptance",
+  "files": [
+    {
+      "path": "src/px_render/app/win/game_text_backend.cpp",
+      "sha256": "C724EB307773311D2C5C1D087DA9A6F26138A495F42B9AB42004876B6B20B20A",
+      "status": ""
+    }
+  ]
+}

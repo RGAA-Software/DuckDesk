@@ -1,0 +1,21 @@
+{
+  "revision": "70f0ad2f6ea4da3acaa98fff8d2e838f5764f2cf",
+  "reason": "Preserve window input before carrying a modifier snapshot to the game GUI thread and scoped GetKeyboardState restoration",
+  "files": [
+    {
+      "path": "src/px_render/hook_capture/win/hk_obs/window_message_key.h",
+      "sha256": "FCEF2C8387650E074C7833FF4AE5AA295425226142268159271EFF73930C78FE",
+      "status": "?? src/px_render/hook_capture/win/hk_obs/window_message_key.h"
+    },
+    {
+      "path": "src/px_render/hook_capture/win/hk_obs/hook_manager.cpp",
+      "sha256": "A419292219DFD72777C6F5A6D0A6B63F384C63C53B44BC775593636E7375D617",
+      "status": " M src/px_render/hook_capture/win/hk_obs/hook_manager.cpp"
+    },
+    {
+      "path": "src/px_render/hook_capture/win/hk_obs/test_game_text_input.cpp",
+      "sha256": "57C0F30F07004FF4A0CD563306A8183C3F3F69ECC1C60EDA4FA6260C7E8E6B5F",
+      "status": " M src/px_render/hook_capture/win/hk_obs/test_game_text_input.cpp"
+    }
+  ]
+}

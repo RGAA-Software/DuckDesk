@@ -1,7 +1,8 @@
 # Game 最终文字提交后端
 
-状态：2026-09-10 本机实现、增量编译及自动化回归完成，远端 90 离线，实机验收暂停。
-构建、发布哈希及测试记录见 `application_text_input_progress_20260909.md`。本文不是游戏兼容性通过声明。
+状态：2026-09-10 已改用本机 Auth/Console/Service 和 StarIsland 进行 Qt/Web 实机验收，不再等待远端 90。
+本轮修复、真实游戏证据、构建哈希及覆盖边界见 `starisland_game_input_capture_plan_20260910.md`。
+早期自动化记录仍见 `application_text_input_progress_20260909.md`；单款游戏通过不代表所有引擎/API 兼容。
 
 ## 路径及授权
 

@@ -1,0 +1,11 @@
+{
+  "revision": "70f0ad2f6ea4da3acaa98fff8d2e838f5764f2cf",
+  "reason": "Preserve the IPC lifecycle test before declaring binary WebSocket frames, matching production and avoiding PID-dependent UTF-8 failures.",
+  "files": [
+    {
+      "path": "src/px_render/hook_capture/win/hk_obs/test_ws_ipc_client_lifecycle.cpp",
+      "sha256": "EC197B7458F281774F3B6C47D43037542112A03EDA05BF1041542007B0E6E9AF",
+      "status": ""
+    }
+  ]
+}
