@@ -1,0 +1,16 @@
+{
+  "revision": "17bf21f17d6d08b946a61f944a2880d6f96cb0cd",
+  "reason": "Preserve hook initialization before adding release/acquire readiness for Vulkan Loader callbacks",
+  "files": [
+    {
+      "path": "src/px_render/hook_capture/win/hk_obs/graphics/graphics-hook.cpp",
+      "sha256": "1FA17CEECA0D4AF36EC0B8184B81CDB3017B8CF3EA0A2083CBA9A77ABC4CD67F",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/hook_capture/win/hk_obs/hook_manager.h",
+      "sha256": "534B0C764C4A6ACF1AC0B7A21687DA9BD557E03133E51ABB2390EF89942205F6",
+      "status": ""
+    }
+  ]
+}

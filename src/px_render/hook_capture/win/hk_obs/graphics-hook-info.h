@@ -9,23 +9,23 @@
 
 #include "hook-helpers.h"
 
-#define EVENT_CAPTURE_RESTART L"CaptureHook_Restart"
-#define EVENT_CAPTURE_STOP L"CaptureHook_Stop"
+#define EVENT_CAPTURE_RESTART L"PixelsCaptureHook_Restart"
+#define EVENT_CAPTURE_STOP L"PixelsCaptureHook_Stop"
 
-#define EVENT_HOOK_READY L"CaptureHook_HookReady"
-#define EVENT_HOOK_EXIT L"CaptureHook_Exit"
+#define EVENT_HOOK_READY L"PixelsCaptureHook_HookReady"
+#define EVENT_HOOK_EXIT L"PixelsCaptureHook_Exit"
 
-#define EVENT_HOOK_INIT L"CaptureHook_Initialize"
+#define EVENT_HOOK_INIT L"PixelsCaptureHook_Initialize"
 
-#define WINDOW_HOOK_KEEPALIVE L"CaptureHook_KeepAlive"
+#define WINDOW_HOOK_KEEPALIVE L"PixelsCaptureHook_KeepAlive"
 
-#define MUTEX_TEXTURE1 L"CaptureHook_TextureMutex1"
-#define MUTEX_TEXTURE2 L"CaptureHook_TextureMutex2"
+#define MUTEX_TEXTURE1 L"PixelsCaptureHook_TextureMutex1"
+#define MUTEX_TEXTURE2 L"PixelsCaptureHook_TextureMutex2"
 
-#define SHMEM_HOOK_INFO L"CaptureHook_HookInfo"
-#define SHMEM_TEXTURE L"CaptureHook_Texture"
+#define SHMEM_HOOK_INFO L"PixelsCaptureHook_HookInfo"
+#define SHMEM_TEXTURE L"PixelsCaptureHook_Texture"
 
-#define PIPE_NAME "CaptureHook_Pipe"
+#define PIPE_NAME "PixelsCaptureHook_Pipe"
 
 #pragma pack(push, 8)
 

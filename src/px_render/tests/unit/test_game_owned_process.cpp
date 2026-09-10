@@ -3,6 +3,7 @@
 #include <TlHelp32.h>
 #include <chrono>
 #include <thread>
+#include <array>
 
 namespace {
 const std::filesystem::path kFixture{GAME_OWNERSHIP_FIXTURE};
@@ -95,4 +96,89 @@ TEST(GameOwnedProcess, RejectsInvalidLaunchWithoutCreatingAnOwner) {
     EXPECT_FALSE(px::OwnedGameProcess::Launch(L"game.exe", L"", false));
     EXPECT_FALSE(px::OwnedGameProcess::Launch(L"steam://run/123", L"", false));
     EXPECT_FALSE(px::OwnedGameProcess::Launch(kFixture.parent_path() / "missing.exe", L"", false));
+}
+
+TEST(GameOwnedProcess, SuspendedRootIsAdmittedBeforeAnyChildCanExecute) {
+    const auto owner = px::OwnedGameProcess::LaunchSuspended(kFixture, L"--spawn-child", false);
+    ASSERT_TRUE(owner);
+    EXPECT_TRUE(owner->Acquire(owner->RootPid(), kFixture, false));
+    EXPECT_EQ(FindChild(owner->RootPid()), 0u);
+    EXPECT_TRUE(owner->Resume());
+    EXPECT_FALSE(owner->Resume());
+}
+
+TEST(GameOwnedProcess, BootstrapFailureDestroysSuspendedProcessAndStopPreventsResume) {
+    auto owner = px::OwnedGameProcess::LaunchSuspended(kFixture, L"--spawn-child", false);
+    ASSERT_TRUE(owner);
+    const auto guard = owner->Acquire(owner->RootPid(), kFixture, false);
+    ASSERT_TRUE(guard);
+    owner->Stop();
+    EXPECT_FALSE(owner->Resume());
+    owner.reset();
+    EXPECT_EQ(WaitForSingleObject(guard->get(), 3000), WAIT_OBJECT_0);
+}
+
+TEST(GameOwnedProcess, RejectsMalformedEnvironmentBeforeCreatingProcess) {
+    EXPECT_FALSE(px::OwnedGameProcess::LaunchSuspended(kFixture, L"", false, {{L"BAD=NAME", L"value"}}));
+    EXPECT_FALSE(px::OwnedGameProcess::LaunchSuspended(kFixture, L"", false, {{L"", L"value"}}));
+}
+
+TEST(GameOwnedProcess, StandardUserPolicyDoesNotLaunchAnElevatedGame) {
+    const auto owner = px::OwnedGameProcess::LaunchSuspended(
+        kFixture, L"--check-environment", false, {{L"PIXELS_LAUNCH_ENV_FIXTURE", L"child-only Unicode 中文"}}, px::GameTokenPolicy::kStandardUser);
+    ASSERT_TRUE(owner);
+    const auto process = owner->Acquire(owner->RootPid(), kFixture, false);
+    ASSERT_TRUE(process);
+    HANDLE result{}; // NOLINT(gammaray-raw-pointer-boundary) Win32 token output immediately wrapped.
+    ASSERT_TRUE(OpenProcessToken(process->get(), TOKEN_QUERY, &result));
+    const px::UniqueWinHandle token{result};
+    TOKEN_ELEVATION elevation{};
+    DWORD returned{};
+    ASSERT_TRUE(GetTokenInformation(token.get(), TokenElevation, &elevation, sizeof(elevation), &returned));
+    EXPECT_EQ(elevation.TokenIsElevated, 0u);
+    std::array<std::byte, SECURITY_MAX_SID_SIZE + sizeof(TOKEN_MANDATORY_LABEL)> integrity{};
+    ASSERT_TRUE(GetTokenInformation(token.get(), TokenIntegrityLevel, integrity.data(), static_cast<DWORD>(integrity.size()), &returned));
+    const auto level = *GetSidSubAuthority(reinterpret_cast<const TOKEN_MANDATORY_LABEL*>(integrity.data())->Label.Sid, 0);
+    EXPECT_LT(level, SECURITY_MANDATORY_HIGH_RID);
+    EXPECT_TRUE(owner->Resume());
+    ASSERT_EQ(WaitForSingleObject(process->get(), 3000), WAIT_OBJECT_0);
+    DWORD exit_code{};
+    ASSERT_TRUE(GetExitCodeProcess(process->get(), &exit_code));
+    EXPECT_EQ(exit_code, 0u);
+}
+
+TEST(GameOwnedProcess, EnvironmentOverrideIsChildOnlyAndPreservesUnicode) {
+    std::array<wchar_t, 128> before{};
+    const auto before_size = GetEnvironmentVariableW(L"PIXELS_LAUNCH_ENV_FIXTURE", before.data(), static_cast<DWORD>(before.size()));
+    const auto owner =
+        px::OwnedGameProcess::LaunchSuspended(kFixture, L"--check-environment", false, {{L"PIXELS_LAUNCH_ENV_FIXTURE", L"child-only Unicode 中文"}});
+    ASSERT_TRUE(owner);
+    const auto process = owner->Acquire(owner->RootPid(), kFixture, false);
+    ASSERT_TRUE(process);
+    ASSERT_TRUE(owner->Resume());
+    ASSERT_EQ(WaitForSingleObject(process->get(), 3000), WAIT_OBJECT_0);
+    DWORD result{};
+    ASSERT_TRUE(GetExitCodeProcess(process->get(), &result));
+    EXPECT_EQ(result, 0u);
+    std::array<wchar_t, 128> after{};
+    EXPECT_EQ(GetEnvironmentVariableW(L"PIXELS_LAUNCH_ENV_FIXTURE", after.data(), static_cast<DWORD>(after.size())), before_size);
+    EXPECT_EQ(before, after);
+}
+
+TEST(GameOwnedProcess, MediumCallerCanLaunchWithoutServicePrivileges) {
+    std::vector<wchar_t> path(32768, L'\0');
+    const auto length = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
+    ASSERT_GT(length, 0u);
+    ASSERT_LT(length, path.size());
+    const std::filesystem::path executable{std::wstring(path.data(), length)};
+    const auto owner = px::OwnedGameProcess::LaunchSuspended(
+        executable, L"--gtest_filter=GameOwnedProcess.StandardUserPolicyDoesNotLaunchAnElevatedGame", false, {}, px::GameTokenPolicy::kStandardUser);
+    ASSERT_TRUE(owner);
+    const auto process = owner->Acquire(owner->RootPid(), executable, false);
+    ASSERT_TRUE(process);
+    ASSERT_TRUE(owner->Resume());
+    ASSERT_EQ(WaitForSingleObject(process->get(), 5000), WAIT_OBJECT_0);
+    DWORD result{};
+    ASSERT_TRUE(GetExitCodeProcess(process->get(), &result));
+    EXPECT_EQ(result, 0u);
 }

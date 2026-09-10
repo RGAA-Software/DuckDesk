@@ -243,11 +243,13 @@ static inline bool capture_should_init(void) {
 extern __declspec(thread) int vk_presenting;
 #endif
 
+extern bool gl_capture_in_progress(void);
+
 static inline bool should_passthrough() {
 #if COMPILE_VULKAN_HOOK
-    return vk_presenting > 0;
+    return vk_presenting > 0 || gl_capture_in_progress();
 #else
-    return false;
+    return gl_capture_in_progress();
 #endif
 }
 

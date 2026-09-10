@@ -315,6 +315,7 @@ def main():
     # 6. Hook capture
     # ------------------------------------------------------------------
     hook_capture_files = [
+        ("src/px_render/hook_capture/win/hk_obs/layers/pixels-vulkan64.json", "layers/pixels-vulkan64.json"),
         ("src/px_render/hook_capture/win/hk_obs/px_gh.dll", "px_gh.dll"),
         ("src/px_render/hook_capture/win/hk_obs/injector/px_gh_injector.exe", "px_gh_injector.exe"),
         ("src/px_render/hook_capture/win/hk_obs/offsets/px_gh_address.exe", "px_gh_address.exe"),

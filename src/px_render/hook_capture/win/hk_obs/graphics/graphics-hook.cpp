@@ -797,7 +797,7 @@ void capture_free(void) {
     active = false;
 }
 
-#define HOOK_NAME L"graphics_hook_dup_mutex"
+#define HOOK_NAME L"Pixels_graphics_hook_dup_mutex"
 
 static inline HANDLE open_mutex_plus_id(const wchar_t *name, DWORD id) {
     wchar_t new_name[64];
@@ -914,6 +914,7 @@ static DWORD WINAPI HookDeferredInitThread(LPVOID param) {
         LOGE("init mutexes failed.");
         return 0;
     }
+    g_hook_manager->graphics_ready_.store(true, std::memory_order_release);
 
     /* this prevents the library from being automatically unloaded
      * by the next FreeLibrary call */

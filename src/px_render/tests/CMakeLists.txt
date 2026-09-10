@@ -256,6 +256,8 @@ if(WIN32)
     target_link_libraries(test_game_process_identity PRIVATE GTest::gtest GTest::gtest_main)
     add_test(NAME game_process_identity COMMAND test_game_process_identity)
     add_executable(owned_game_fixture unit/owned_game_fixture.cpp)
+    add_executable(game_d3d11_fixture unit/game_d3d11_fixture.cpp)
+    target_link_libraries(game_d3d11_fixture PRIVATE d3d11 dxgi user32)
     target_include_directories(owned_game_fixture PRIVATE ${CMAKE_SOURCE_DIR}/src/px_deps)
     set_target_properties(owned_game_fixture PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/owned process fixtures"

@@ -11,6 +11,7 @@
 
 #include "gl-decs.h"
 #include "graphics-hook.h"
+#include "product-frame.h"
 
 #include <detours/detours.h>
 
@@ -77,7 +78,12 @@ struct gl_data {
 static HMODULE gl = NULL;
 static bool nv_capture_available = false;
 static struct gl_data data = {0};
-__declspec(thread) static int swap_recurse;
+__declspec(thread) static int swap_recurse = 0;
+
+bool gl_capture_in_progress(void)
+{
+	return swap_recurse > 0;
+}
 
 static inline bool gl_error(const char *func, const char *str)
 {
@@ -559,7 +565,8 @@ static int gl_init(HDC hdc)
 		if (!success)
 			ret = INIT_SHTEX_FAILED;
 	} else {
-		success = gl_shmem_init(window);
+		/* The retained OBS CPU path has no product frame output. */
+		ret = INIT_SHTEX_FAILED;
 	}
 
 	if (!success)
@@ -570,22 +577,22 @@ static int gl_init(HDC hdc)
 	return ret;
 }
 
-static void gl_copy_backbuffer(GLuint dst)
+static bool gl_copy_backbuffer(GLuint dst)
 {
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, data.fbo);
 	if (gl_error("gl_copy_backbuffer", "failed to bind FBO")) {
-		return;
+		return false;
 	}
 
 	glBindTexture(GL_TEXTURE_2D, dst);
 	if (gl_error("gl_copy_backbuffer", "failed to bind texture")) {
-		return;
+		return false;
 	}
 
 	glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 			       GL_TEXTURE_2D, dst, 0);
 	if (gl_error("gl_copy_backbuffer", "failed to set frame buffer")) {
-		return;
+		return false;
 	}
 
 	glReadBuffer(GL_BACK);
@@ -596,20 +603,20 @@ static void gl_copy_backbuffer(GLuint dst)
 
 	glDrawBuffer(GL_COLOR_ATTACHMENT0);
 	if (gl_error("gl_copy_backbuffer", "failed to set draw buffer")) {
-		return;
+		return false;
 	}
 
-	glBlitFramebuffer(0, 0, data.cx, data.cy, 0, 0, data.cx, data.cy,
+	/* Product frames are top-down; there is no OBS flip flag in product IPC. */
+	glBlitFramebuffer(0, 0, data.cx, data.cy, 0, data.cy, data.cx, 0,
 			  GL_COLOR_BUFFER_BIT, GL_LINEAR);
-	gl_error("gl_copy_backbuffer", "failed to blit");
+	return !gl_error("gl_copy_backbuffer", "failed to blit");
 }
 
 static void gl_shtex_capture(void)
 {
-	GLint last_fbo;
-	GLint last_tex;
-
-	obsglDXLockObjectsNV(data.gl_device, 1, &data.gl_dxobj);
+	GLint last_fbo = 0;
+	GLint last_tex = 0;
+	bool copied = false;
 
 	glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &last_fbo);
 	if (gl_error("gl_shtex_capture", "failed to get last fbo")) {
@@ -621,12 +628,20 @@ static void gl_shtex_capture(void)
 		return;
 	}
 
-	gl_copy_backbuffer(data.texture);
+	if (!obsglDXLockObjectsNV(data.gl_device, 1, &data.gl_dxobj)) {
+		return;
+	}
+	copied = gl_copy_backbuffer(data.texture);
 
 	glBindTexture(GL_TEXTURE_2D, last_tex);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, last_fbo);
 
-	obsglDXUnlockObjectsNV(data.gl_device, 1, &data.gl_dxobj);
+	if (!obsglDXUnlockObjectsNV(data.gl_device, 1, &data.gl_dxobj)) {
+		return;
+	}
+	if (copied) {
+		px_publish_shared_frame(data.d3d11_tex);
+	}
 
 	IDXGISwapChain_Present(data.dxgi_swap, 0, 0);
 }
@@ -738,18 +753,20 @@ static void gl_capture(HDC hdc)
 	/* reset error flag */
 	glGetError();
 
-	if (capture_should_stop()) {
+	/* Product IPC owns the session; an OBS keepalive mutex is never created. */
+	if (capture_active() && capture_stopped()) {
 		gl_free();
 	}
 	if (capture_should_init()) {
 		if (gl_init(hdc) == INIT_SHTEX_FAILED) {
-			data.shmem_fallback = true;
-			gl_init(hdc);
+			hlog("OpenGL capture unsupported: NV shared texture interop unavailable");
+			critical_failure = true;
+			return;
 		}
 	}
 	if (capture_ready() && hdc == data.hdc) {
-		uint32_t new_cx;
-		uint32_t new_cy;
+		uint32_t new_cx = 0;
+		uint32_t new_cy = 0;
 
 		/* reset capture if resized */
 		get_window_size(hdc, &new_cx, &new_cy);
@@ -777,11 +794,11 @@ static inline void gl_swap_begin(HDC hdc)
 
 static inline void gl_swap_end(HDC hdc)
 {
-	--swap_recurse;
-	const bool first = swap_recurse == 0;
+	const bool first = swap_recurse == 1;
 
 	if (first && global_hook_info->capture_overlay)
 		gl_capture(hdc);
+	--swap_recurse;
 }
 
 static BOOL WINAPI hook_swap_buffers(HDC hdc)

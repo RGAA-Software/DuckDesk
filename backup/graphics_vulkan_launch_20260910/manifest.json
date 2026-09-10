@@ -1,0 +1,46 @@
+{
+  "revision": "17bf21f17d6d08b946a61f944a2880d6f96cb0cd",
+  "reason": "Preserve owned game launch and Vulkan adapter before suspended bootstrap and per-process Layer activation",
+  "files": [
+    {
+      "path": "scripts/publish_cpp_artifacts.ps1",
+      "sha256": "8782CD5FDD6968CEE1E3164E97DCDA6F029A1E1EABC2D87A33CC58F752D697DE",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/app/win/app_manager_win.cpp",
+      "sha256": "19E3C5737F5098BC84FEE3A1BA703045195E84C90E662E33B1A55163008F3F88",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/app/win/owned_game_process.cpp",
+      "sha256": "9A9E91FB306A62B21A858FBBD6DE9893BDC42433DF1C8A0026733ABFAA08C1DB",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/app/win/owned_game_process.h",
+      "sha256": "AD910AA2939BF8696B5941A3DCFE69398132882732FA04A767F18C9C4677CEB8",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/hook_capture/win/hk_obs/graphics/vulkan-capture.c",
+      "sha256": "DB0D2EDCD5B711AA30751F57D22E1FD98D54AEEECDFDDBB835BDC889ED939ECA",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/rd_app.cpp",
+      "sha256": "4393C379E84ED9C72DC228037E288687CD4110ECA6F6652096443959EA09C839",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/rd_app.h",
+      "sha256": "96937C62BA579C53618D3FD9772928416583CF1542E8D5F13CC48A35FDCB9315",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/tests/unit/test_game_owned_process.cpp",
+      "sha256": "685D916FD0EDC7BD41C6289DF955A53D5283494C4C5E9A783D20133DF53953E8",
+      "status": ""
+    }
+  ]
+}

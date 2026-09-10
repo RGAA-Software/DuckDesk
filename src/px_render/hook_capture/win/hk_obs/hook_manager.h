@@ -96,6 +96,7 @@ namespace px
 
     public:
         uint32_t current_pid_{};
+        std::atomic_bool graphics_ready_{false};
         std::wstring dll_path_;
         std::shared_ptr<SharedTexture> shared_texture_ = nullptr;
         uint64_t frame_index_ = 0;

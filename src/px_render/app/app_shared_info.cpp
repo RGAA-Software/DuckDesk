@@ -1,144 +1,109 @@
-//
-// Created by RGAA on 2024/3/17.
-//
-// Boot config for the injected capture DLL. Intentionally NOT shared-memory:
-// frame IPC uses plain WebSocket (/ipc). This file only carries port + DXGI
-// offsets so the DLL knows where to connect.
-
 #include "app_shared_info.h"
-
 #include <Windows.h>
-#include <aclapi.h>
 #include <sddl.h>
-
-#include <filesystem>
-#include <fstream>
+#include <format>
+#include <limits>
+#include <optional>
 #include <vector>
-
 #include "px_common/folder_util.h"
 #include "px_common/log.h"
-#include "px_common/string_util.h"
 
-namespace px
-{
-    namespace {
-
-        std::filesystem::path HookBootDir() {
-            return std::filesystem::path(FolderUtil::GetProgramDataPath()) / L"hook_boot";
-        }
-
-        // hook_boot lives under C:\Users\Public — any local user could otherwise read
-        // the boot file, steal the /ipc token and forge /ipc connections. Replace the
-        // inherited DACL with a protected one: only the current user / SYSTEM /
-        // Administrators can access the file.
-        void RestrictBootFileAcl(const std::filesystem::path& path) {
-            HANDLE token = nullptr;
-            if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
-                LOGW("RestrictBootFileAcl: OpenProcessToken failed, err={}", GetLastError());
-                return;
-            }
-            DWORD len = 0;
-            GetTokenInformation(token, TokenUser, nullptr, 0, &len);
-            std::vector<BYTE> buf(len);
-            const bool got_user = len > 0 && GetTokenInformation(token, TokenUser, buf.data(), len, &len);
-            CloseHandle(token);
-            if (!got_user) {
-                LOGW("RestrictBootFileAcl: GetTokenInformation failed, err={}", GetLastError());
-                return;
-            }
-            auto* token_user = reinterpret_cast<TOKEN_USER*>(buf.data());
-            LPWSTR sid_str = nullptr;
-            if (!ConvertSidToStringSidW(token_user->User.Sid, &sid_str)) {
-                LOGW("RestrictBootFileAcl: ConvertSidToStringSid failed, err={}", GetLastError());
-                return;
-            }
-            // D:P = protected DACL (drops inherited ACEs, e.g. Everyone from Public).
-            const std::wstring sddl =
-                std::format(L"D:P(A;;FA;;;{})(A;;FA;;;SY)(A;;FA;;;BA)", sid_str);
-            LocalFree(sid_str);
-            PSECURITY_DESCRIPTOR sd = nullptr;
-            if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(
-                    sddl.c_str(), SDDL_REVISION_1, &sd, nullptr)) {
-                LOGW("RestrictBootFileAcl: SDDL convert failed, err={}", GetLastError());
-                return;
-            }
-            PACL dacl = nullptr;
-            BOOL present = FALSE, defaulted = FALSE;
-            GetSecurityDescriptorDacl(sd, &present, &dacl, &defaulted);
-            const DWORD rc = SetNamedSecurityInfoW(
-                const_cast<LPWSTR>(path.wstring().c_str()), SE_FILE_OBJECT,
-                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-                nullptr, nullptr, present ? dacl : nullptr, nullptr);
-            LocalFree(sd);
-            if (rc != ERROR_SUCCESS) {
-                LOGW("RestrictBootFileAcl: SetNamedSecurityInfo failed rc={} path={}",
-                     rc, StringUtil::ToUTF8(path.wstring()));
-            }
-        }
-
-    } // namespace
-
-    std::filesystem::path AppSharedInfo::BootConfigPath(uint32_t pid) {
-        return HookBootDir() / std::format(L"application_{}.bin", pid);
-    }
-
-    std::shared_ptr<AppSharedInfo> AppSharedInfo::Make(const std::shared_ptr<RdContext>& ctx) {
-        return std::make_shared<AppSharedInfo>(ctx);
-    }
-
-    AppSharedInfo::AppSharedInfo(const std::shared_ptr<RdContext>& ctx) {
-        context_ = ctx;
-    }
-
-    void AppSharedInfo::WriteData(const std::string& shm_name, const std::string& data) {
-        // shm_name kept for call-site compatibility; expected form: application_shm_{pid}
-        uint32_t pid = 0;
-        auto pos = shm_name.rfind('_');
-        if (pos != std::string::npos) {
-            try {
-                pid = static_cast<uint32_t>(std::stoul(shm_name.substr(pos + 1)));
-            } catch (...) {
-                pid = 0;
-            }
-        }
-        if (pid == 0) {
-            LOGE("Write hook boot config failed: cannot parse pid from {}", shm_name);
-            return;
-        }
-        if (!WriteBootConfig(pid, data)) {
-            LOGE("Write hook boot config failed for pid {}", pid);
+namespace px {
+namespace {
+struct LocalMemoryCloser final {
+    void operator()(void* value) const noexcept { // NOLINT(gammaray-raw-pointer-boundary) LocalAlloc output ownership.
+        if (value) {
+            LocalFree(value);
         }
     }
+};
+using LocalMemory = std::unique_ptr<void, LocalMemoryCloser>;
+using LocalString = std::unique_ptr<wchar_t, LocalMemoryCloser>;
 
-    bool AppSharedInfo::WriteBootConfig(uint32_t pid, const std::string& data) {
-        try {
-            auto dir = HookBootDir();
-            std::error_code ec;
-            std::filesystem::create_directories(dir, ec);
-            auto path = BootConfigPath(pid);
-            std::ofstream ofs(path, std::ios::binary | std::ios::trunc);
-            if (!ofs) {
-                LOGE("Open hook boot file failed: {}", StringUtil::ToUTF8(path.wstring()));
-                return false;
-            }
-            ofs.write(data.data(), static_cast<std::streamsize>(data.size()));
-            ofs.close();
-            if (!ofs) {
-                LOGE("Write hook boot file failed: {}", StringUtil::ToUTF8(path.wstring()));
-                return false;
-            }
-            RestrictBootFileAcl(path);
-            LOGI("Wrote hook boot config (WS IPC bootstrap, not SHM): {} ({} bytes)",
-                 StringUtil::ToUTF8(path.wstring()), data.size());
-            return true;
-        } catch (const std::exception& ex) {
-            LOGE("WriteBootConfig exception: {}", ex.what());
-            return false;
-        }
+std::optional<std::wstring> UserSid(const UniqueWinHandle& token) {
+    DWORD length{};
+    GetTokenInformation(token.get(), TokenUser, nullptr, 0, &length);
+    if (!length) {
+        return {};
     }
-
-    void AppSharedInfo::Exit() {
-        // Leave boot files for the injected DLL; cleaned up on next write/overwrite.
+    std::vector<std::byte> information(length);
+    if (!GetTokenInformation(token.get(), TokenUser, information.data(), length, &length)) {
+        return {};
     }
-
+    LPWSTR result{}; // NOLINT(gammaray-raw-pointer-boundary) SID string API output immediately wrapped.
+    if (!ConvertSidToStringSidW(reinterpret_cast<const TOKEN_USER*>(information.data())->User.Sid, &result)) {
+        return {};
+    }
+    const LocalString sid{result};
+    return std::wstring(sid.get());
 }
+} // namespace
+
+std::filesystem::path AppSharedInfo::BootConfigPath(uint32_t pid) {
+    return std::filesystem::path(FolderUtil::GetProgramDataPath()) / L"hook_boot" / std::format(L"application_{}.bin", pid);
+}
+
+std::shared_ptr<AppSharedInfo> AppSharedInfo::Make(const std::shared_ptr<RdContext>& context) {
+    return std::make_shared<AppSharedInfo>(context);
+}
+
+AppSharedInfo::AppSharedInfo(const std::shared_ptr<RdContext>& context) : context_(context) {}
+
+bool AppSharedInfo::WriteBootConfig(const UniqueWinHandle& admitted_process, const std::string& data) {
+    if (!admitted_process || data.size() > std::numeric_limits<DWORD>::max()) {
+        return false;
+    }
+    HANDLE game_result{}; // NOLINT(gammaray-raw-pointer-boundary) Win32 token output immediately wrapped.
+    if (!OpenProcessToken(admitted_process.get(), TOKEN_QUERY, &game_result)) {
+        return false;
+    }
+    const UniqueWinHandle game_token{game_result};
+    HANDLE writer_result{}; // NOLINT(gammaray-raw-pointer-boundary) Win32 token output immediately wrapped.
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &writer_result)) {
+        return false;
+    }
+    const UniqueWinHandle writer_token{writer_result};
+    const auto game_sid = UserSid(game_token);
+    const auto writer_sid = UserSid(writer_token);
+    if (!game_sid || !writer_sid) {
+        return false;
+    }
+    const auto sddl = std::format(L"D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FA;;;{})(A;;GR;;;{})", *writer_sid, *game_sid);
+    PSECURITY_DESCRIPTOR descriptor_result{}; // NOLINT(gammaray-raw-pointer-boundary) SDDL output immediately wrapped.
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.c_str(), SDDL_REVISION_1, &descriptor_result, nullptr)) {
+        return false;
+    }
+    const LocalMemory descriptor{descriptor_result};
+    SECURITY_ATTRIBUTES security{};
+    security.nLength = sizeof(security);
+    security.lpSecurityDescriptor = descriptor.get();
+    const auto pid = GetProcessId(admitted_process.get());
+    const auto path = BootConfigPath(pid);
+    std::error_code error{};
+    std::filesystem::create_directories(path.parent_path(), error);
+    if (error) {
+        return false;
+    }
+    // Protect before writing secrets, including when replacing a stale PID's file. Never follow a reparse point.
+    const UniqueWinHandle file{CreateFileW(path.c_str(), GENERIC_WRITE | WRITE_DAC, FILE_SHARE_READ, &security, OPEN_ALWAYS,
+                                           FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr)};
+    if (!file || file.get() == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    BY_HANDLE_FILE_INFORMATION information{};
+    if (!GetFileInformationByHandle(file.get(), &information) || (information.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) ||
+        information.nNumberOfLinks != 1 ||
+        !SetKernelObjectSecurity(file.get(), DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, descriptor.get())) {
+        return false;
+    }
+    DWORD written{};
+    if (!SetEndOfFile(file.get()) || !WriteFile(file.get(), data.data(), static_cast<DWORD>(data.size()), &written, nullptr) ||
+        written != data.size()) {
+        return false;
+    }
+    LOGI("Wrote protected hook bootstrap pid={} bytes={}", pid, written);
+    return true;
+}
+
+void AppSharedInfo::Exit() {}
+} // namespace px

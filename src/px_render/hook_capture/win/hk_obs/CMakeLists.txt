@@ -10,6 +10,7 @@ add_subdirectory(offsets)
 
 cmake_minimum_required(VERSION 3.26)
 project(px_gh)
+configure_file(graphics/pixels-vulkan64.json ${CMAKE_CURRENT_BINARY_DIR}/layers/pixels-vulkan64.json COPYONLY)
 
 set(CMAKE_CXX_STANDARD 23)
 add_definitions(-DCOMPILE_VULKAN_HOOK)
@@ -37,6 +38,7 @@ add_library(${PROJECT_NAME} SHARED
         graphics/d3d12-capture.cpp
         graphics/dxgi-capture.cpp
         graphics/gl-capture.c
+        graphics/product-frame.cpp
         graphics/graphics-hook.cpp
         graphics/graphics-hook.rc
         graphics/graphics-hook-config.h.in

@@ -1,0 +1,11 @@
+{
+  "revision": "17bf21f17d6d08b946a61f944a2880d6f96cb0cd",
+  "reason": "Preserve launch fixture before verifying child-only environment overrides",
+  "files": [
+    {
+      "path": "src/px_render/tests/unit/owned_game_fixture.cpp",
+      "sha256": "FCDEFEDAE8B8E7C8B49EB113D4AB7AB9B3525BD0DEB3938E16B378BDE128E4FB",
+      "status": ""
+    }
+  ]
+}

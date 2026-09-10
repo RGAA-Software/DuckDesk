@@ -11,6 +11,7 @@
 #include <string>
 
 #include "px_capture/capture_message.h"
+#include "px_common/win32/unique_win_handle.h"
 
 namespace px
 {
@@ -26,9 +27,8 @@ namespace px
         static std::filesystem::path BootConfigPath(uint32_t pid);
 
         explicit AppSharedInfo(const std::shared_ptr<RdContext>& ctx);
-        // Compatible entry: shm_name like "application_shm_{pid}" → file bootstrap.
-        void WriteData(const std::string& shm_name, const std::string& data);
-        bool WriteBootConfig(uint32_t pid, const std::string& data);
+        // Caller supplies a process pinned by private Job + exact executable admission.
+        bool WriteBootConfig(const UniqueWinHandle& admitted_process, const std::string& data);
         void Exit();
 
     private:

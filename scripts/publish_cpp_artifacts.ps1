@@ -301,6 +301,10 @@ switch ($Component) {
     }
     "hook_audio" {
         Publish-VerifiedFile `
+            -Source (Join-Path $buildRoot "src\px_render\hook_capture\win\hk_obs\layers\pixels-vulkan64.json") `
+            -Destination (Join-Path $distRoot "layers\pixels-vulkan64.json") `
+            -ProcessName "px_render"
+        Publish-VerifiedFile `
             -Source (Join-Path $buildRoot "src\px_render\hook_capture\win\hk_obs\px_gh.dll") `
             -Destination (Join-Path $distRoot "px_gh.dll") `
             -ProcessName "px_render"

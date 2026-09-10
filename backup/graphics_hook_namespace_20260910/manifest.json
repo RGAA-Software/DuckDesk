@@ -1,0 +1,16 @@
+{
+  "revision": "17bf21f17d6d08b946a61f944a2880d6f96cb0cd",
+  "reason": "Preserve OBS-derived object names before isolating Pixels capture from installed OBS Layers",
+  "files": [
+    {
+      "path": "src/px_render/hook_capture/win/hk_obs/graphics-hook-info.h",
+      "sha256": "E5C785BFA7C5126BB06EF996EA0DB004773A059AD730AA49CBFB20EC2854CC3A",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/hook_capture/win/hk_obs/hook-helpers.h",
+      "sha256": "68702F04731468DC5D28674636C557877BADA312375A197468AFCD52027C0B77",
+      "status": ""
+    }
+  ]
+}

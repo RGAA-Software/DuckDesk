@@ -200,3 +200,20 @@ Qt/Web 各负向项若只由自动化覆盖，不升级为真实游戏人工操�
 实现约束：旧分支修改前归档原始字节；新增项目 C++ 从首个所有权边界使用智能指针/typed RAII，
 不为跨 API 桥接引入异步裸指针。只改本项目维护范围，外部 OBS、Godot 游戏和其他参考工程保持只读。
 优先解决已证实的链路缺口，不重做已通过的 Native/WebRTC 传输，不扩展公网 P2P/Relay 或 iOS/macOS 适配。
+
+## 本轮实施结果（2026-09-10）
+
+用户确认四 API 目标后，本轮已经补齐 OpenGL 帧 IPC、Vulkan Layer 与安全启动，并完成 Windows 本机验收。
+原有探索记录和待实施措辞保留为历史；当前结果以
+[四 API 实施与验收记录](game_graphics_hook_delivery_20260910.md) 为准。
+
+| API | 本轮状态 |
+| --- | --- |
+| D3D11 | 独立 D3D11 硬件 swapchain 样例实际出图；Godot 4 没有 D3D11 后端，不用 D3D12 冒充。 |
+| D3D12 | StarIsland Qt 中文 / Emoji、进入场景、移动和跳跃回归通过。 |
+| OpenGL | Qt / Web 实际画面、中文 / Emoji 和控制通过；窗口缩放恢复后仍保持 OpenGL 后端。 |
+| Vulkan | 产品 Layer 回调与实际共享纹理帧通过；Qt / Web 中文和控制、窗口缩放恢复通过。 |
+
+额外修复了管理员完整性导致 Loader 忽略私有 Layer 路径、Windows manifest 路径格式、
+系统 OBS 命名对象冲突、bootstrap 对普通游戏用户的读取权限，以及 Loader 提前加载遗漏窗口 / 音频登记。
+具体实例编号、自动测试、产物 hash 和硬件 / 启动方式边界见验收记录；不扩大为任意游戏、显卡或外部启动器都已支持。

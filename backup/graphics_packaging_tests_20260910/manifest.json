@@ -1,0 +1,16 @@
+{
+  "revision": "17bf21f17d6d08b946a61f944a2880d6f96cb0cd",
+  "reason": "Preserve distribution collection and test targets before product Vulkan manifest and D3D11 acceptance fixture",
+  "files": [
+    {
+      "path": "scripts/collect_dist.py",
+      "sha256": "0AA51BE57333726665CC7130BA46CB406BCCACE6419D86516A2C29D551AECD9B",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/tests/CMakeLists.txt",
+      "sha256": "80529829A38DAB0A30E24F0C21E87DB0EACF02A1FDF8DFCA1FA8F1A012969295",
+      "status": ""
+    }
+  ]
+}

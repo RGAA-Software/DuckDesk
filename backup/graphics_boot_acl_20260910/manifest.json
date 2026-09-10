@@ -1,0 +1,16 @@
+{
+  "revision": "17bf21f17d6d08b946a61f944a2880d6f96cb0cd",
+  "reason": "Preserve administrator-only bootstrap before granting read access to the admitted game's actual user token",
+  "files": [
+    {
+      "path": "src/px_render/app/app_shared_info.cpp",
+      "sha256": "0716C5FE6D6BF9D1E71CB890E3D5DD573815A246A9AA97C123EF508BD6281BFB",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/app/app_shared_info.h",
+      "sha256": "CEE8DEF837831B0A7A7EF15ED9C8208038A3BB74A4DCA14E775CF89C5AD58A44",
+      "status": ""
+    }
+  ]
+}

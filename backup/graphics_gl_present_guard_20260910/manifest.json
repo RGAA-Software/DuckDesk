@@ -1,0 +1,11 @@
+{
+  "revision": "17bf21f17d6d08b946a61f944a2880d6f96cb0cd",
+  "reason": "Preserve DXGI passthrough selection before excluding nested OpenGL driver presents during resize",
+  "files": [
+    {
+      "path": "src/px_render/hook_capture/win/hk_obs/graphics/graphics-hook.h",
+      "sha256": "255940FF3B2B91926291A1ACF85127F400FFFC50D386EC86BCB48DE9ABE09087",
+      "status": ""
+    }
+  ]
+}

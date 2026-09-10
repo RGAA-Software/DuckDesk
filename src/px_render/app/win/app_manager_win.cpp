@@ -141,7 +141,25 @@ namespace px
         return target_pid_ > 0;
     }
     uint32_t AppManagerWinImpl::LaunchGameProcess(const std::string& executable, const std::string& arguments) {
-        const auto launched = OwnedGameProcess::Launch(PathFromUTF8(executable), StringUtil::ToWString(arguments));
+        const bool early_hook = settings_.capture_.IsVideoInnerCapture() && settings_.app_.game_view_path_.empty();
+        OwnedGameProcess::EnvironmentOverrides environment{};
+        if (early_hook) {
+            std::wstring module(32768, L'\0');
+            const auto length = GetModuleFileNameW(nullptr, module.data(), static_cast<DWORD>(module.size()));
+            if (!length || length >= module.size()) {
+                return 0;
+            }
+            module.resize(length);
+            const auto layer_directory = std::filesystem::path(module).parent_path() / L"layers";
+            if (!std::filesystem::is_regular_file(layer_directory / L"pixels-vulkan64.json")) {
+                LOGE("Game hook launch refused: product Vulkan Layer manifest is missing.");
+                return 0;
+            }
+            environment.emplace_back(L"VK_LAYER_PATH", layer_directory.native());
+            environment.emplace_back(L"VK_INSTANCE_LAYERS", L"VK_LAYER_PIXELS_capture");
+        }
+        const auto launched = OwnedGameProcess::LaunchSuspended(PathFromUTF8(executable), StringUtil::ToWString(arguments), true, environment,
+                                                               early_hook ? GameTokenPolicy::kStandardUser : GameTokenPolicy::kInherit);
         if (!launched) {
             LOGE("Owned game launch failed: process was not admitted to a private Job.");
             return 0;
@@ -156,6 +174,13 @@ namespace px
         }
         if (previous) {
             previous->Stop();
+        }
+        // CanHookProcess now checks this suspended root's private Job AND exact executable path.
+        // Loader activation cannot race the PID-scoped bootstrap because no game instruction has run yet.
+        if ((early_hook && (!rdApp || !rdApp->PrepareGameHookBoot(launched->RootPid()))) || !launched->Resume()) {
+            launched->Stop();
+            LOGE("Owned game launch failed before execution: bootstrap or resume failed.");
+            return 0;
         }
         LOGI("event=game.launch outcome=owned pid={} path={}", launched->RootPid(), executable);
         return launched->RootPid();
@@ -373,11 +398,16 @@ namespace px
             auto process_exe_name = FileUtil::GetFileNameFromPath(target_process_info->exe_full_path_);
             if (result.ok_ && result.value_) {
                 LOGI("Pid: {} for: {} is already injected....", target_process_info->pid_, process_exe_name);
+                // Loader-activated Vulkan is already mapped before the injector runs. It still needs window tracking and PID audio.
+                AddFoundPid(target_process_info);
                 this->injected_ = true;
                 // 与 VerifyInjectedStillAlive 监控的 target_pid_ 保持一致，
                 // 否则它会盯着一个旧 pid 反复误判"DLL 被卸载"并重置注入状态
                 target_pid_ = target_process_info->pid_;
                 ResetInjectRetryState();
+                MsgObsInjected ready{};
+                ready.pid_ = target_process_info->pid_;
+                context_->SendAppMessage(ready);
                 return true;
             }
             LOGI("Not injected, will inject for pid: {}, exe: {}", target_process_info->pid_, process_exe_name);

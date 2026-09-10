@@ -1885,18 +1885,18 @@ void RdApplication::WriteBoostUpInfoForPid(uint32_t pid) {
     PrepareGameHookBoot(pid);
 }
 
-void RdApplication::PrepareGameHookBoot(uint32_t pid) {
+bool RdApplication::PrepareGameHookBoot(uint32_t pid) {
     if (!app_manager_ || !app_manager_->CanHookProcess(pid)) {
         LOGE("Hook bootstrap refused: pid={} is not an owned executable target", pid);
-        return;
+        return false;
     }
     if (!app_shared_message_) {
         LOGE("PrepareGameHookBoot: no AppSharedMessage (offsets/port)");
-        return;
+        return false;
     }
     if (!app_shared_info_) {
         LOGE("PrepareGameHookBoot: no AppSharedInfo writer");
-        return;
+        return false;
     }
     app_shared_message_->ipc_port_ = settings_.transmission_.listening_port_;
     app_shared_message_->self_size_ = sizeof(AppSharedMessage);
@@ -1909,17 +1909,20 @@ void RdApplication::PrepareGameHookBoot(uint32_t pid) {
          "os_supported={}, enable_hook_audio={}",
          pid, prefer_pid, ForceInProcessHookAudio(), IsProcessLoopbackCaptureSupported(), app_shared_message_->enable_hook_audio_);
 
-    std::string buffer;
+    std::string buffer{};
     buffer.resize(sizeof(AppSharedMessage));
     memcpy(buffer.data(), app_shared_message_.get(), sizeof(AppSharedMessage));
-    if (!app_shared_info_->WriteBootConfig(pid, buffer)) {
+    const auto manager = std::dynamic_pointer_cast<AppManagerWinImpl>(app_manager_);
+    const auto process = manager ? manager->AcquireHookTarget(pid) : std::shared_ptr<UniqueWinHandle>{};
+    if (!process || !app_shared_info_->WriteBootConfig(*process, buffer)) {
         LOGE("PrepareGameHookBoot failed for pid {}", pid);
-        return;
+        return false;
     }
     // Allow this pid on /ipc (net_ws). Game restarts get here again with the new
     // pid, so each live game generation is re-registered; stale games injected by
     // dead renders are never registered and get rejected on connect.
     module_registry_->RegisterWsIpcPid(pid);
+    return true;
 }
 
 void RdApplication::SendAudioSpectrumMessage() const {

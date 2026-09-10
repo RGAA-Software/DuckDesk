@@ -1,0 +1,16 @@
+{
+  "revision": "17bf21f17d6d08b946a61f944a2880d6f96cb0cd",
+  "reason": "Preserve original OpenGL hook before connecting shared frames to product IPC",
+  "files": [
+    {
+      "path": "src/px_render/hook_capture/win/hk_obs/CMakeLists.txt",
+      "sha256": "888A130F531B521186240F57893D0C2632B93EB2DD08EEC1A364CFAC6332C5FE",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/hook_capture/win/hk_obs/graphics/gl-capture.c",
+      "sha256": "607DBC41E43351CC19F346D7A7A8EFE40761B4EFB807A9BEA95BCE8ABB62CFD6",
+      "status": ""
+    }
+  ]
+}

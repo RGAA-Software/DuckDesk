@@ -1,5 +1,6 @@
 #include <windows.h>
 #include "graphics-hook.h"
+#include "product-frame.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
 
@@ -1195,8 +1196,13 @@ static void vk_shtex_capture(struct vk_data *data,
     debug_res("QueueSubmit", res);
 #endif
 
-    if (res == VK_SUCCESS)
+    if (res == VK_SUCCESS) {
         frame_data->cmd_buffer_busy = true;
+        /* Cross-API visibility: notify Render only after the Vulkan copy has completed. */
+        if (funcs->WaitForFences(device, 1, &fence, VK_TRUE, 100000000ULL) == VK_SUCCESS) {
+            px_publish_shared_frame(swap->d3d11_tex);
+        }
+    }
 }
 
 static inline bool valid_rect(struct vk_swap_data *swap) {
@@ -1232,7 +1238,7 @@ static void vk_capture(struct vk_data *data, VkQueue queue,
         return;
     }
 
-    if (capture_should_stop()) {
+    if (capture_active() && capture_stopped()) {
         vk_shtex_free(data);
     }
     if (capture_should_init()) {
@@ -1258,7 +1264,7 @@ static VkResult VKAPI_CALL OBS_QueuePresentKHR(VkQueue queue,
     struct vk_queue_data *const queue_data = get_queue_data(data, queue);
     struct vk_device_funcs *const funcs = &data->funcs;
 
-    if (data->valid && queue_data->supports_transfer) {
+    if (px_graphics_ready() && data->valid && queue_data->supports_transfer) {
         vk_capture(data, queue, info);
     }
 

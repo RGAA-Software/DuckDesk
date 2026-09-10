@@ -125,7 +125,7 @@ namespace px
         // In-process hook audio from px_gh.dll via /ipc.
         void OnIpcAudioFrame(const CaptureAudioFrame& frame);
         // Sync: write file bootstrap for injected DLL (port + DXGI offsets). Not SHM.
-        void PrepareGameHookBoot(uint32_t pid);
+        bool PrepareGameHookBoot(uint32_t pid);
         void ResetMonitorResolution(const std::string& name, int w, int h);
         std::shared_ptr<RenderModuleRegistry> GetRenderModuleRegistry();
         std::shared_ptr<MonitorCaptureSource> GetWorkingMonitorCaptureSource();
