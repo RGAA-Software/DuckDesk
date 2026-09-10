@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window>
+  <Font id="0" name="Microsoft YaHei UI" size="16" default="true" />
+  <VerticalLayout bkcolor="#FFF1F5FA" inset="24,24,24,18" childpadding="16">
+    <Label text="GammaRay · 应用工作区" height="38" textcolor="#FF16243A" />
+    <Label text="DuiLib 最小 UI 验证 / 不接管系统桌面" height="28" textcolor="#FF61718A" />
+    <VerticalLayout bkcolor="#FFFFFFFF" inset="24,24,24,24" childpadding="12">
+      <Label name="status" text="准备就绪：点击底部按钮切换演示内容" height="36" textcolor="#FF24466B" />
+      <Label text="中文显示：应用、浏览器、文件预览" height="30" />
+      <Label text="这是普通窗口，不创建用户，不隐藏 Explorer，不启动业务程序。" height="30" />
+      <Label name="scale" text="界面缩放" height="30" />
+      <Control />
+    </VerticalLayout>
+    <HorizontalLayout height="52" childpadding="12" bkcolor="#FF19283F" inset="10,8,10,8">
+      <Button name="app" text="应用" width="110" bkcolor="#FFDBEAFE" hotbkcolor="#FFBFDBFE" />
+      <Button name="browser" text="浏览器" width="110" bkcolor="#FFDBEAFE" hotbkcolor="#FFBFDBFE" />
+      <Button name="preview" text="文件预览" width="110" bkcolor="#FFDBEAFE" hotbkcolor="#FFBFDBFE" />
+      <Control />
+      <Button name="close" text="退出演示" width="110" bkcolor="#FFE2E8F0" hotbkcolor="#FFCBD5E1" />
+    </HorizontalLayout>
+  </VerticalLayout>
+</Window>

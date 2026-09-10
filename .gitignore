@@ -76,3 +76,4 @@ rustdesk/
 
 # RDP probe credentials, generated keys, private logs, and local harnesses
 /.cache/
+/build_workspace_demo/
