@@ -1,6 +1,9 @@
 # Relocatable, pinned SDK. Build/install it with build_cpp_rdp_sdk.bat;
 # never use Qt 5 demo binaries or an implicitly selected system FreeRDP.
 set(GAMMARAY_RDP_SDK_ROOT "${CMAKE_SOURCE_DIR}/.cache/rdp_sdk" CACHE PATH "Pinned GammaRay FreeRDP 3.31 SDK")
+if(NOT EXISTS "${GAMMARAY_RDP_SDK_ROOT}/gammaray-rdp-sdk.json")
+    message(FATAL_ERROR "RDP SDK missing. Run scripts_build/build_cpp_rdp_sdk.bat to build the pinned source dependency first.")
+endif()
 file(READ "${GAMMARAY_RDP_SDK_ROOT}/include/freerdp3/freerdp/version.h" _rdp_version)
 if(NOT _rdp_version MATCHES "FREERDP_GIT_REVISION \"aa8650b\"")
     message(FATAL_ERROR "RDP SDK must use pinned FreeRDP aa8650b300aa4cabd85d9c72b431301509b9043f")

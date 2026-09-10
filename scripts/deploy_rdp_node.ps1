@@ -3,8 +3,8 @@ param(
     [Parameter(Mandatory)][System.Management.Automation.Runspaces.PSSession]$Session,
     [Parameter(Mandatory)][string]$RenderDist,
     [Parameter(Mandatory)][string]$ServiceExe,
-    [Parameter(Mandatory)][string]$FreeRdpBuild,
-    [Parameter(Mandatory)][string]$SdkDirectory,
+    [string]$FreeRdpBuild,
+    [string]$SdkDirectory = (Join-Path $PSScriptRoot '../.cache/rdp_sdk'),
     [Parameter(Mandatory)][string]$PolicyDll,
     [Parameter(Mandatory)][string]$ProxyTrustDirectory,
     [Parameter(Mandatory)][string]$ConsoleCaDer,
@@ -27,14 +27,28 @@ foreach ($runtime in $sdkManifest.runtime_sha256.PSObject.Properties) {
         throw "SDK runtime hash mismatch: $($runtime.Name)"
     }
 }
-foreach ($entry in @{
-    'libfreerdp/Release/freerdp3.dll' = 'freerdp3.dll'
-    'client/common/Release/freerdp-client3.dll' = 'freerdp-client3.dll'
-    'winpr/libwinpr/Release/winpr3.dll' = 'winpr3.dll'
-}.GetEnumerator()) {
-    if ((Get-FileHash -LiteralPath (Join-Path $FreeRdpBuild $entry.Key) -Algorithm SHA256).Hash -ne
-        $sdkManifest.runtime_sha256.($entry.Value)) {
-        throw 'Proxy build and Client SDK are from different builds'
+if ($FreeRdpBuild) {
+    foreach ($entry in @{
+        'libfreerdp/Release/freerdp3.dll' = 'freerdp3.dll'
+        'client/common/Release/freerdp-client3.dll' = 'freerdp-client3.dll'
+        'winpr/libwinpr/Release/winpr3.dll' = 'winpr3.dll'
+    }.GetEnumerator()) {
+        if ((Get-FileHash -LiteralPath (Join-Path $FreeRdpBuild $entry.Key) -Algorithm SHA256).Hash -ne
+            $sdkManifest.runtime_sha256.($entry.Value)) {
+            throw 'Proxy build and Client SDK are from different builds'
+        }
+    }
+    $proxyExe = Join-Path $FreeRdpBuild 'server/proxy/cli/Release/freerdp-proxy.exe'
+    $proxyDll = Join-Path $FreeRdpBuild 'server/proxy/Release/freerdp-server-proxy3.dll'
+    $serverDll = Join-Path $FreeRdpBuild 'server/common/Release/freerdp-server3.dll'
+} else {
+    $proxyExe = Join-Path $SdkDirectory 'bin/freerdp-proxy.exe'
+    $proxyDll = Join-Path $SdkDirectory 'bin/freerdp-server-proxy3.dll'
+    $serverDll = Join-Path $SdkDirectory 'bin/freerdp-server3.dll'
+    if (-not $sdkManifest.proxy_exe_sha256 -or
+        (Get-FileHash -LiteralPath $proxyExe).Hash -ne $sdkManifest.proxy_exe_sha256 -or
+        (Get-FileHash -LiteralPath $proxyDll).Hash -ne $sdkManifest.runtime_sha256.'freerdp-server-proxy3.dll') {
+        throw 'Complete source-built SDK with matching proxy hashes is required'
     }
 }
 $rdpFiles = [ordered]@{
@@ -43,9 +57,9 @@ $rdpFiles = [ordered]@{
     'px_render_rtc.dll' = (Join-Path $RenderDist 'px_render_rtc.dll')
     'px_render_rtc_remote.dll' = (Join-Path $RenderDist 'px_render_rtc_remote.dll')
     'px_voice_apm.dll' = (Join-Path $RenderDist 'px_voice_apm.dll')
-    'rdp\freerdp-proxy.exe' = (Join-Path $FreeRdpBuild 'server/proxy/cli/Release/freerdp-proxy.exe')
-    'rdp\freerdp-server-proxy3.dll' = (Join-Path $FreeRdpBuild 'server/proxy/Release/freerdp-server-proxy3.dll')
-    'rdp\freerdp-server3.dll' = (Join-Path $FreeRdpBuild 'server/common/Release/freerdp-server3.dll')
+    'rdp\freerdp-proxy.exe' = $proxyExe
+    'rdp\freerdp-server-proxy3.dll' = $proxyDll
+    'rdp\freerdp-server3.dll' = $serverDll
     'rdp\proxy\proxy-gammaray-policy-plugin.dll' = $PolicyDll
     'rdp\proxy.crt' = (Join-Path $ProxyTrustDirectory 'proxy.crt')
     'rdp\proxy.key' = (Join-Path $ProxyTrustDirectory 'proxy.key')

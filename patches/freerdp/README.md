@@ -24,6 +24,11 @@ MF 仍是上游标注为 experimental 的解码器；修复首帧不意味着已
 
 ## 重建及一致性门禁
 
+2026-09-10：已改为仓库源码子模块依赖，普通开发不再需要外部绝对路径。
+先运行无参 `scripts_build\build_cpp_rdp_sdk.bat`，再运行 `scripts_build\build_cpp_rdp_policy.bat`。
+新机器准备、依赖固定与升级步骤见 [源码依赖说明](../../third_party/freerdp/README.md)。
+下方显式路径命令和旧构建目录仍作为历史验证记录；新的默认构建目录按源码/补丁/依赖摘要生成。
+
 ```bat
 scripts_build\build_cpp_rdp_sdk.bat <干净的固定版本源码> <独立构建目录> <SDK目录>
 scripts_build\build_cpp_rdp_policy.bat <SDK目录> <SDK目录>

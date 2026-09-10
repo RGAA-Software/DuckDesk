@@ -3,13 +3,18 @@ param(
     [ValidateSet("render", "client", "panel", "render_network_libraries", "render_network_library", "hook_audio", "ft_protocol")]
     [string]$Component,
     [string]$LibraryTarget = "",
-    [string]$BuildDir = "build_official"
+    [string]$BuildDir = "build_official",
+    [string]$DistDir = ""
 )
 
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $buildRoot = Join-Path $repoRoot $BuildDir
 $distRoot = Join-Path $buildRoot "dist"
+if (-not [string]::IsNullOrWhiteSpace($DistDir)) {
+    # An isolated clean build can publish into the user's existing validation tree.
+    $distRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot $DistDir))
+}
 $restartRenderService = $false
 
 if (-not (Test-Path -LiteralPath $distRoot -PathType Container)) {
@@ -246,6 +251,13 @@ switch ($Component) {
                             'libssl-3-x64.dll', 'libcrypto-3-x64.dll', 'zlib1.dll', 'cjson.dll', 'legacy.dll', 'openh264-6.dll')) {
             Publish-VerifiedFile -Source (Join-Path $buildRoot ('src\px_client\' + $name)) `
                 -Destination (Join-Path $distRoot $name) -ProcessName 'px_client'
+        }
+        # windeployqt/vcpkg may stage GPU compiler and loader runtimes during a clean build.
+        foreach ($name in @('d3dcompiler_47.dll', 'dxcompiler.dll', 'dxil.dll', 'vulkan-1.dll')) {
+            $source = Join-Path $buildRoot ('src\px_client\' + $name)
+            if (Test-Path -LiteralPath $source -PathType Leaf) {
+                Publish-VerifiedFile -Source $source -Destination (Join-Path $distRoot $name) -ProcessName 'px_client'
+            }
         }
         foreach ($relative in @('rdp\sdk.json', 'rdp\licenses\FreeRDP-LICENSE', 'rdp\licenses\openssl-LICENSE',
             'rdp\licenses\libusb-LICENSE', 'rdp\licenses\zlib-LICENSE', 'rdp\licenses\cjson-LICENSE', 'rdp\licenses\openh264-LICENSE')) {

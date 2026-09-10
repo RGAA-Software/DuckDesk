@@ -1,3 +1,5 @@
 scripts_build/*.bat text eol=crlf
 # Archived originals must retain exact bytes so their SHA-256 manifests survive checkout.
 backup/** -text
+# Keep the source-dependency fingerprint identical on all developer machines.
+third_party/freerdp/vcpkg.json text eol=lf
