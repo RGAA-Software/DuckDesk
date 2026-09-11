@@ -49,6 +49,7 @@ namespace px
     }
 
     void NvencEncoderModule::RequestKeyFrame() {
+        const std::lock_guard lock(encoders_mutex_);
         VideoEncoderModule::RequestKeyFrame();
         if (IsWorking()) {
             for (const auto& [monitor_index, video_encoder] : video_encoders_) {
@@ -58,6 +59,7 @@ namespace px
     }
 
     void NvencEncoderModule::RequestKeyFrame(const std::string& mon_name) {
+        const std::lock_guard lock(encoders_mutex_);
         if (mon_name.empty()) {
             RequestKeyFrame();
             return;
@@ -70,6 +72,7 @@ namespace px
     }
 
     bool NvencEncoderModule::InvalidateReferenceFrame(const std::string& mon_name, uint64_t invalid_frame_index) {
+        const std::lock_guard lock(encoders_mutex_);
         bool accepted = false;
         if (mon_name.empty()) {
             for (const auto& [_, encoder] : video_encoders_) {
@@ -87,6 +90,7 @@ namespace px
     }
 
     bool NvencEncoderModule::IsWorking() const {
+        const std::lock_guard lock(encoders_mutex_);
         return enabled_.load() && !video_encoders_.empty();
     }
 
@@ -95,6 +99,7 @@ namespace px
     }
 
     bool NvencEncoderModule::HasEncoderForMonitor(const std::string& monitor_name) const {
+        const std::lock_guard lock(encoders_mutex_);
 #if 0
         LOGW("HasEncoderForMonitor monitor_name: {}", monitor_name);
 
@@ -106,6 +111,7 @@ namespace px
     }
 
     bool NvencEncoderModule::Initialize(const EncoderConfig& config, const std::string& monitor_name) {
+        const std::lock_guard lock(encoders_mutex_);
         if (!enabled_.load()) {
             LOGE("event=encoder.initialize component=nvenc outcome=rejected reason=disabled");
             return false;
@@ -128,6 +134,7 @@ namespace px
         const Microsoft::WRL::ComPtr<ID3D11Texture2D>& tex2d,
         uint64_t frame_index,
         const CaptureVideoFrame& capture_frame) {
+        const std::lock_guard lock(encoders_mutex_);
         auto monitor_name = std::string(capture_frame.display_name_);
         if (!HasEncoderForMonitor(monitor_name)) {
             return VideoEncoderError::NotFound();
@@ -140,6 +147,7 @@ namespace px
     }
 
     void NvencEncoderModule::Remove(const std::string& monitor_name) {
+        const std::lock_guard lock(encoders_mutex_);
         if (video_encoders_.find(monitor_name) != video_encoders_.end()) {
             video_encoders_[monitor_name]->Exit();
             video_encoders_.erase(monitor_name);
@@ -148,10 +156,16 @@ namespace px
     }
 
     void NvencEncoderModule::RemoveAll() {
-
+        const std::lock_guard lock(encoders_mutex_);
+        for (const auto& [monitor, encoder] : video_encoders_) {
+            if (encoder)
+                encoder->Exit();
+        }
+        video_encoders_.clear();
     }
 
     std::map<std::string, WorkingEncoderInfoPtr> NvencEncoderModule::WorkingCaptures() const {
+        const std::lock_guard lock(encoders_mutex_);
         std::map<std::string, WorkingEncoderInfoPtr> result;
         for (const auto& [name, encoder] : video_encoders_) {
             result.insert({name, std::make_shared<WorkingEncoderInfo>(WorkingEncoderInfo {
@@ -165,6 +179,7 @@ namespace px
     }
 
     void NvencEncoderModule::Reconfigure(const std::string& mon_name, uint32_t bps, uint32_t fps) {
+        const std::lock_guard lock(encoders_mutex_);
         if (bps == 0 || fps == 0) {
             return;
         }
@@ -182,6 +197,7 @@ namespace px
     }
 
     std::optional<EncoderCapability> NvencEncoderModule::Capability(const std::string& monitor_name) const {
+        const std::lock_guard lock(encoders_mutex_);
         const auto found = video_encoders_.find(monitor_name);
         const auto encoder = found == video_encoders_.end() ? nullptr : found->second;
         if (!encoder) {

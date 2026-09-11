@@ -6,6 +6,7 @@
 #define PX_NVENC_ENCODER_MODULE_H
 
 #include "px_render/architecture/encoders/video_encoder_module.h"
+#include <mutex>
 
 namespace px
 {
@@ -41,7 +42,10 @@ namespace px
 
         std::optional<EncoderCapability> Capability(const std::string& monitor_name) const override;
     private:
-        std::map<std::string, std::shared_ptr<NVENCVideoEncoder>> video_encoders_;
+      // Public operations call each other (Encode/HasEncoder, RequestKeyFrame/IsWorking).
+      // Serialize map lifetime with control-thread recovery and encoder replacement.
+      mutable std::recursive_mutex encoders_mutex_{};
+      std::map<std::string, std::shared_ptr<NVENCVideoEncoder>> video_encoders_;
     };
 
 }

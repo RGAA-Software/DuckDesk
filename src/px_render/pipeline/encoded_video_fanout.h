@@ -8,6 +8,7 @@
 #include <memory>
 #include <atomic>
 #include "px_render/architecture/events/render_event.h"
+#include "px_client_sdk/media_transport/video_backlog.h"
 
 namespace px
 {
@@ -17,17 +18,22 @@ namespace px
     class RenderModuleRegistry;
     class RdStatistics;
     class MessageListener;
+    class Thread;
 
     class EncodedVideoFanout : public std::enable_shared_from_this<EncodedVideoFanout> {
     public:
         static std::shared_ptr<EncodedVideoFanout> Make(
             const std::shared_ptr<RdApplication>& app);
         explicit EncodedVideoFanout(const std::shared_ptr<RdApplication>& app);
+        ~EncodedVideoFanout();
 
         void ProcessEncodedVideoFrameEvent(const std::shared_ptr<EncodedVideoFrameEvent>& event);
 
     private:
         void InitListener();
+        void DrainVideo();
+        media::VideoBacklog<std::shared_ptr<EncodedVideoFrameEvent>> video_backlog_{};
+        std::shared_ptr<Thread> video_dispatch_{};
         std::shared_ptr<RdStatistics> statistics_ = nullptr;
         std::shared_ptr<RdApplication> app_ = nullptr;
         std::shared_ptr<RdContext> context_ = nullptr;

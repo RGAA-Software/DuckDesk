@@ -4,7 +4,10 @@
 //
 
 #include "udp_transport.h"
+#include "windows_udp_batch.h"
+#include "media_transport/packet_timing.h"
 #include <chrono>
+#include <charconv>
 #include <optional>
 #include <span>
 #include <algorithm>
@@ -28,6 +31,18 @@ namespace {
 constexpr auto kHeartbeatScanInterval = std::chrono::seconds(2);
 constexpr auto kFecWindow = std::chrono::seconds(5);
 constexpr auto kControlScopeDrainTimeout = std::chrono::seconds(5);
+void TrackVideoSend(media::VideoPacketTiming& timing, const media::Packet& packet) {
+    const auto datagram = media::ParseMedia(packet);
+    const auto identity = datagram ? media::InspectVideoPacket(*datagram) : std::nullopt;
+    if (!identity)
+        return;
+    const auto now_us = media::MediaSteadyMicros();
+    if (const auto gap = timing.Observe(*identity, now_us)) {
+        LOGW("UDP timing send_gap: steady_us={}, gap_us={}, stream={}, previous={}/{}/{}, current={}/{}/{}, sequence={}",
+             now_us, gap->current_us - gap->previous_us, identity->stream, gap->previous.frame, gap->previous.block, gap->previous.shard,
+             identity->frame, identity->block, identity->shard, identity->sequence);
+    }
+}
 } // namespace
 
 void UdpWinHandleCloser::operator()(void* handle) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): Win32 HANDLE boundary
@@ -52,6 +67,9 @@ class UdpRuntimeState final : public std::enable_shared_from_this<UdpRuntimeStat
     void HandleHeartbeat(const std::shared_ptr<UdpSession>& udp_session, const std::string& association_code);
     void HandleFrameStatus(uint32_t frame_index, uint16_t received, uint16_t lost);
     void AdjustFecWindow();
+    [[nodiscard]] bool SendMediaBatch(std::vector<media::Packet> packets, bool audio = false);
+    std::atomic_uint64_t stat_batch_wait_max_us_{};
+    std::atomic_uint64_t stat_batch_timeouts_{};
     bool HasBoundSession();
     void SweepDeadSessions();
     void UpdateMediaAssociation(const UdpMediaAssociation& association);
@@ -82,7 +100,11 @@ class UdpRuntimeState final : public std::enable_shared_from_this<UdpRuntimeStat
     std::atomic_int stat_recovered_shards_{0};
     std::atomic_uint64_t stat_sent_shards_{0};
     std::atomic_uint64_t stat_send_short_writes_{0};
-    std::atomic_bool rfi_pending_{false};
+    std::atomic_bool media_send_pending_{false};
+    std::atomic_bool audio_send_pending_{false};
+    std::atomic_uint64_t stat_batch_packets_{};
+    std::atomic_uint64_t stat_batch_fallbacks_{};
+    media::VideoPacketTiming send_timing_{}; // Only the socket executor observes successful physical send calls.
 
   private:
     static PxAwaitable<void> RunHeartbeatSweepLoop(std::weak_ptr<UdpRuntimeState> weak_runtime);
@@ -125,11 +147,13 @@ bool UdpTransport::Start(const RenderModuleConfiguration& configuration) {
     if (!RenderModule::Start(configuration)) {
         return false;
     }
-    const int fec_percent = configuration.udp_fec_percent;
+    const int fec_percent = std::clamp(configuration.udp_fec_percent, 0, 100);
     udp_listen_port_ = static_cast<int>(configuration.udp_listen_port);
     if (configuration.udp_mtu >= 576 && configuration.udp_mtu <= 1500) {
         udp_mtu_ = configuration.udp_mtu;
     }
+    send_budget_ =
+        media::SendBudget::FromTotal(configuration.udp_media_budget_bps, static_cast<unsigned>(fec_percent), static_cast<std::uint16_t>(udp_mtu_));
     if (!async_runtime_ || async_runtime_->IsStopping()) {
         LOGE("event=module.start component=net_udp code=ASYNC_RUNTIME_UNAVAILABLE "
              "operation=start_control_workflows outcome=failed recoverable=false");
@@ -144,8 +168,9 @@ bool UdpTransport::Start(const RenderModuleConfiguration& configuration) {
     if (!pace_timer_) {
         pace_timer_.reset(CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS));
     }
-    LOGI("Listen port: {}, fec percent: {}, mtu: {}, pacing: {}Mbps rate-limited (sunshine), timer={}", udp_listen_port_,
-         runtime->fec_percent_.load(), udp_mtu_, kRateControlBitsPerSec / 1000000, pace_timer_ ? "ok" : "none");
+    LOGI("UDP media budget: port={}, fec={}%, mtu={}, total_bps={}, video_bps={}, video_wire_bps={}, audio_reserve_bps={}, timer={}",
+         udp_listen_port_, fec_percent, udp_mtu_, send_budget_.total_bps, send_budget_.video_bps, send_budget_.video_wire_bps,
+         send_budget_.audio_reserve_bps, pace_timer_ ? "ok" : "none");
     if (!runtime->Start(udp_listen_port_)) {
         ReleasePacingResources();
         RenderModule::Stop();
@@ -185,7 +210,12 @@ PxAwaitable<PxResult<void>> UdpTransport::StopAsync(std::shared_ptr<UdpTransport
 }
 
 void UdpTransport::ReleasePacingResources() {
+    const std::scoped_lock lock(video_send_mutex_, audio_send_mutex_);
     pace_timer_.reset();
+    video_sequences_.clear();
+    video_frame_indices_.clear();
+    audio_packetizer_.Reset();
+    ratecontrol_next_frame_start_ = {};
     if (timer_resolution_active_) {
         timeEndPeriod(1);
         timer_resolution_active_ = false;
@@ -326,35 +356,15 @@ static std::optional<std::span<const char>> ExtractAudioPayload(const std::share
 }
 
 void UdpTransport::Broadcast(std::shared_ptr<Data> msg, bool run_through) {
-    // 只关心 kAudioFrame:提取 Opus payload 打成 UDP 音频包广播给绑定会话;
-    // 其它 proto(控制类)仍走 ws 通道,这里直接忽略
+    static_cast<void>(run_through);
     const auto payload = ExtractAudioPayload(msg);
-    if (!payload) {
-        return;
-    }
     const auto runtime = runtime_.load();
-    if (!runtime || !runtime->HasBoundSession()) {
+    if (!payload || !runtime || !runtime->HasBoundSession())
         return;
-    }
-    // 与视频同一时钟源:steady_clock 单调毫秒
-    auto ts =
-        (uint32_t)(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() & 0xffffffff);
-    auto pkt = PxUdpProtocol::BuildAudioPacket(audio_seq_++, ts, std::span<const char>{*payload});
-    if (!pkt) {
-        return;
-    }
-    int64_t total_sent = 0;
-    runtime->sessions_.ApplyAll([&](const std::string& k, const std::shared_ptr<UdpSession>& us) {
-        if (!us->bound_ || !us->sess_) {
-            return;
-        }
-        total_sent += pkt->Size();
-        // pkt 捕获进回调保活,直到 asio 拷进发件缓冲
-        us->sess_->async_send(pkt->Bytes().data(), pkt->Size(), [pkt](std::size_t) {});
-    });
-    if (total_sent > 0) {
-        ReportDataSent(total_sent);
-    }
+    const std::lock_guard lock(audio_send_mutex_);
+    auto packets = audio_packetizer_.Push(std::span<const std::uint8_t>{reinterpret_cast<const std::uint8_t*>(payload->data()), payload->size()},
+                                          static_cast<std::uint16_t>(udp_mtu_));
+    static_cast<void>(runtime->SendMediaBatch(std::move(packets), true));
 }
 
 bool UdpTransport::SendToStream(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
@@ -631,7 +641,7 @@ void UdpRuntimeState::FinishStop() {
     if ((server_ && !server_->is_stopped()) || (control_scope_ && control_scope_->GetStatistics().outstanding != 0)) {
         return;
     }
-    server_.reset();
+    // Keep the stopped adapter owned until this runtime dies; media producers may still hold this runtime while stopping.
     sessions_.Clear();
     std::scoped_lock lock(bind_mutex_);
     media_associations_.clear();
@@ -765,14 +775,11 @@ void UdpRuntimeState::HandleCtrlPacket(const std::shared_ptr<UdpSession>& udp_se
         // 丢整帧后优先走参考帧失效,不插 IDR;不支持 RFI 的编码器由上层忽略,
         // 客户端会在 2s 无完整帧后回退 IDR keepalive。
         auto event = std::make_shared<ReferenceFrameInvalidationEvent>();
-        try {
-            event->invalid_frame_index_ = std::stoull(s1);
-        } catch (...) {
-            event->invalid_frame_index_ = 0;
-        }
+        const auto parsed = std::from_chars(s1.data(), s1.data() + s1.size(), event->invalid_frame_index_);
+        if (parsed.ec != std::errc{} || parsed.ptr != s1.data() + s1.size())
+            return;
         event->monitor_name_ = s2;
         LOGI("udp rfi request: invalid_frame={}, mon={}", event->invalid_frame_index_, event->monitor_name_);
-        rfi_pending_ = true;
         event_dispatcher_(RenderEventEnvelope{.source_id = kNetUdpTransportId, .payload = event});
         break;
     }
@@ -789,28 +796,19 @@ void UdpRuntimeState::HandleFrameStatus(uint32_t frame_index, uint16_t received,
 }
 
 void UdpRuntimeState::AdjustFecWindow() {
-    int complete = stat_complete_frames_.exchange(0);
-    int lost = stat_lost_frames_.exchange(0);
-    int recovered = stat_recovered_shards_.exchange(0);
-    uint64_t sent_shards = stat_sent_shards_.exchange(0);
-    uint64_t short_writes = stat_send_short_writes_.exchange(0);
-    int total = complete + lost;
-    if (total <= 0) {
-        return; // 窗口内无媒体流量,不调整不刷日志
-    }
-    double loss_rate = (double)lost / (double)total;
-    int cur = fec_percent_.load();
-    if (lost > 0 && cur < kFecMaxPercent) {
-        fec_percent_ = std::min(kFecMaxPercent, cur + 10);
-        LOGW("udp fec window: loss {:.1f}% ({}/{} frames), recovered {} shards, raise fec {}% -> {}%", loss_rate * 100.0, lost, total, recovered, cur,
-             fec_percent_.load());
-    } else if (lost == 0 && recovered == 0 && cur > configured_fec_percent_) {
-        fec_percent_ = std::max(configured_fec_percent_, cur - 5);
-        LOGI("udp fec window: loss {:.1f}% ({}/{} frames), recovered {} shards, lower fec {}% -> {}%", loss_rate * 100.0, lost, total, recovered, cur,
-             fec_percent_.load());
-    } else {
-        LOGI("udp fec window: frames {} (lost {}, {:.1f}%), recovered {} shards, sent {} shards, short_writes {}, fec {}%", total, lost,
-             loss_rate * 100.0, recovered, sent_shards, short_writes, cur);
+    const auto delivered = stat_complete_frames_.exchange(0);
+    const auto requests = stat_lost_frames_.exchange(0);
+    const auto recovered = stat_recovered_shards_.exchange(0);
+    const auto sent = stat_sent_shards_.exchange(0);
+    const auto failed = stat_send_short_writes_.exchange(0);
+    const auto batch_wait_us = stat_batch_wait_max_us_.exchange(0);
+    const auto batch_timeouts = stat_batch_timeouts_.exchange(0);
+    const auto batch_packets = stat_batch_packets_.exchange(0);
+    const auto batch_fallbacks = stat_batch_fallbacks_.exchange(0);
+    if (delivered || requests || sent || failed || batch_timeouts) {
+        LOGI("UDP media v2: delivered={}, recovery_requests={}, recovered={}, socket_packets={}, send_failures={}, fixed_fec={}%, "
+             "batch_wait_max_us={}, batch_timeouts={}, batch_packets={}, batch_fallbacks={}",
+             delivered, requests, recovered, sent, failed, fec_percent_.load(), batch_wait_us, batch_timeouts, batch_packets, batch_fallbacks);
     }
 }
 
@@ -822,6 +820,94 @@ bool UdpRuntimeState::HasBoundSession() {
         }
     });
     return has_bound;
+}
+
+bool UdpRuntimeState::SendMediaBatch(std::vector<media::Packet> packets, bool audio) {
+    auto& pending = audio ? audio_send_pending_ : media_send_pending_;
+    if (stopping_ || !server_ || !server_->is_started() || server_->running_in_this_thread() || pending.exchange(true))
+        return false;
+    const auto completion = std::make_shared<std::promise<bool>>();
+    const auto cancelled = std::make_shared<std::atomic_bool>(false);
+    const auto started = std::chrono::steady_clock::now();
+    auto result = completion->get_future();
+    const auto weak_runtime = weak_from_this();
+    server_->post([weak_runtime, completion, cancelled, audio, packets = std::move(packets)]() {
+        const auto runtime = weak_runtime.lock();
+        bool succeeded = runtime && !runtime->stopping_ && !cancelled->load() && runtime->server_->is_started();
+        if (succeeded) {
+            // Socket operations and close run on the adapter IO thread. This is the upstream per-datagram fallback,
+            // not an async enqueue measured as a send. At most one bounded video batch is outstanding.
+            try {
+                runtime->sessions_.ApplyAll([&](const std::string&, const std::shared_ptr<UdpSession>& session) {
+                    if (!session->bound_ || !session->sess_)
+                        return;
+                    if (!audio && packets.size() > 1 && !cancelled->load() && !runtime->stopping_) {
+                        asio::error_code error{};
+                        runtime->server_->acceptor().non_blocking(true, error);
+                        if (error) {
+                            succeeded = false;
+                            return;
+                        }
+                        const auto batch = TryWindowsUdpBatch(runtime->server_->acceptor(), session->sess_->hash_key(), packets);
+                        if (batch == UdpBatchResult::kSent) {
+                            runtime->stat_sent_shards_ += packets.size();
+                            runtime->stat_batch_packets_ += packets.size();
+                            for (const auto& packet : packets)
+                                TrackVideoSend(runtime->send_timing_, packet);
+                            return;
+                        }
+                        if (batch == UdpBatchResult::kIncomplete) {
+                            ++runtime->stat_send_short_writes_;
+                            succeeded = false;
+                            return;
+                        }
+                        ++runtime->stat_batch_fallbacks_;
+                    }
+                    for (const auto& packet : packets) {
+                        if (cancelled->load() || runtime->stopping_) {
+                            succeeded = false;
+                            break;
+                        }
+                        asio::error_code error{};
+                        runtime->server_->acceptor().non_blocking(true, error);
+                        if (error) {
+                            succeeded = false;
+                            break;
+                        }
+                        const auto bytes = runtime->server_->acceptor().send_to(asio::buffer(packet), session->sess_->hash_key(), 0, error);
+                        if (error || bytes != packet.size()) {
+                            ++runtime->stat_send_short_writes_;
+                            succeeded = false;
+                            break;
+                        }
+                        ++runtime->stat_sent_shards_;
+                        if (!audio)
+                            TrackVideoSend(runtime->send_timing_, packet);
+                    }
+                });
+            } catch (const std::exception& error) {
+                LOGW("UDP media v2 socket batch failed: {}", error.what());
+                succeeded = false;
+            }
+        }
+        if (runtime)
+            (audio ? runtime->audio_send_pending_ : runtime->media_send_pending_).store(false);
+        completion->set_value(succeeded);
+    });
+    bool ready{};
+    do {
+        ready = result.wait_for(std::chrono::milliseconds(1)) == std::future_status::ready;
+    } while (!ready && !stopping_ && std::chrono::steady_clock::now() - started < std::chrono::milliseconds(100));
+    if (!ready)
+        cancelled->store(true);
+    const auto waited =
+        static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - started).count());
+    auto previous = stat_batch_wait_max_us_.load();
+    while (waited > previous && !stat_batch_wait_max_us_.compare_exchange_weak(previous, waited)) {
+    }
+    if (!ready)
+        ++stat_batch_timeouts_;
+    return ready && result.get();
 }
 
 void UdpRuntimeState::HandleHello(const std::shared_ptr<UdpSession>& udp_sess, const std::string& association_code, const std::string& stream_id) {
@@ -975,125 +1061,100 @@ uint8_t UdpTransport::MonSlotOf(const std::string& mon_name) {
 
 // Sunshine 同款:CreateWaitableTimerEx(HIGH_RESOLUTION) + SetWaitableTimer + WaitForSingleObject,
 // 精确睡到 due 时间点(亚毫秒),而不是 std::this_thread::sleep_for 的粗粒度。
-void UdpTransport::PaceSleep(const std::chrono::steady_clock::duration& duration) {
-    auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
-    if (ns <= 0) {
-        return;
+bool UdpTransport::PaceSleep(const std::chrono::steady_clock::duration& duration) {
+    const auto due = std::chrono::steady_clock::now() + duration;
+    const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
+    if (ns <= 0)
+        return !IsStoppingOrDestroyed();
+    LARGE_INTEGER due_time{};
+    due_time.QuadPart = -std::max<std::int64_t>(1, ns / 100);
+    const bool timer_set = pace_timer_ && SetWaitableTimer(pace_timer_.get(), &due_time, 0, nullptr, nullptr, false);
+    while (!IsStoppingOrDestroyed() && std::chrono::steady_clock::now() < due) {
+        if (timer_set) {
+            const auto result = WaitForSingleObject(pace_timer_.get(), 2);
+            if (result == WAIT_OBJECT_0)
+                break;
+            if (result == WAIT_FAILED)
+                return false;
+        } else {
+            std::this_thread::sleep_for(
+                std::min(due - std::chrono::steady_clock::now(), std::chrono::steady_clock::duration(std::chrono::milliseconds(1))));
+        }
     }
-    if (!pace_timer_) {
-        std::this_thread::sleep_for(duration);
-        return;
-    }
-    LARGE_INTEGER due_time;
-    due_time.QuadPart = ns / -100; // 100ns 单位,负数 = 相对时间
-    SetWaitableTimer(pace_timer_.get(), &due_time, 0, nullptr, nullptr,
-                     false); // NOLINT(gammaray-raw-pointer-boundary): transient Win32 HANDLE boundary
-    WaitForSingleObject(pace_timer_.get(),
-                        INFINITE); // NOLINT(gammaray-raw-pointer-boundary): transient Win32 HANDLE boundary
+    return !IsStoppingOrDestroyed();
 }
 
 // data: encode video frame, h264/h265/...
 void UdpTransport::SubmitEncodedVideo(const std::string& mon_name, const EncodedVideoType& video_type, const std::shared_ptr<Data>& data,
-                                      uint64_t frame_index, int frame_width, int frame_height, bool key) {
+                                      uint64_t frame_index, int frame_width, int frame_height, bool key, EncodedReferenceState reference_state) {
+    const std::lock_guard lock(video_send_mutex_);
     const auto runtime = runtime_.load();
-    if (!runtime || !data || data->Size() <= 0 || !runtime->HasBoundSession()) {
+    if (!runtime || !IsWorking() || !data || data->Size() <= 0 || !runtime->HasBoundSession() || frame_width <= 0 || frame_width > 65535 ||
+        frame_height <= 0 || frame_height > 65535)
+        return;
+    if (video_type != EncodedVideoType::kH264 && video_type != EncodedVideoType::kH265)
+        return;
+    media::VideoFrame frame{};
+    frame.codec = video_type == EncodedVideoType::kH265 ? media::VideoCodec::kH265 : media::VideoCodec::kH264;
+    frame.kind = key ? media::VideoFrameKind::kIdr : media::VideoFrameKind::kPredicted;
+    if (!key && reference_state == EncodedReferenceState::kRecoveryConfirmed)
+        frame.kind = media::VideoFrameKind::kReferenceRecovery;
+    frame.frame_index = frame_index;
+    frame.width = static_cast<std::uint16_t>(frame_width);
+    frame.height = static_cast<std::uint16_t>(frame_height);
+    frame.stream = MonSlotOf(mon_name);
+    frame.monitor = mon_name;
+    frame.encoded.assign(data->Bytes().begin(), data->Bytes().end());
+    media::VideoPacketParameters parameters{};
+    parameters.sequence = video_sequences_[frame.stream];
+    parameters.frame_index = ++video_frame_indices_[frame.stream];
+    parameters.datagram_size = static_cast<std::uint16_t>(udp_mtu_);
+    parameters.fec_percent = static_cast<std::uint8_t>(runtime->fec_percent_.load());
+    parameters.timestamp_90khz = static_cast<std::uint32_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() * 9 / 100);
+    auto packetized = media::PacketizeVideoFrame(frame, parameters);
+    if (!packetized) {
+        LOGW("UDP media v2 frame rejected: index={}, bytes={}, mtu={}", frame_index, data->Size(), udp_mtu_);
         return;
     }
-    static std::atomic_uint64_t s_udp_enc_frames{0};
-    auto enc_n = ++s_udp_enc_frames;
-    if (enc_n == 1 || enc_n % 300 == 0) {
-        LOGI("udp OnEncodedVideoFrame #{}, bound_count={}, sessions={}, frame_index={}, key={}, bytes={}", enc_n, runtime->bound_count_.load(),
-             runtime->sessions_.Size(), frame_index, key, data->Size());
+    video_sequences_[frame.stream] = packetized->next_sequence;
+    const auto packet_size = static_cast<std::size_t>(udp_mtu_);
+    // Reserve worst-case IPv6/UDP headers as well as the complete Pixels media datagram and parity.
+    const auto wire_packet_size = packet_size + 48;
+    const auto packets_per_ms = std::max<std::size_t>(1, send_budget_.video_wire_bps / 8 / 1000 / wire_packet_size);
+    const auto batch_size = std::min(packets_per_ms, 65536 / packet_size);
+    const auto frame_start = std::max(ratecontrol_next_frame_start_, std::chrono::steady_clock::now());
+    const auto packet_interval = send_budget_.VideoDuration(wire_packet_size);
+    auto batch_due = frame_start;
+    std::size_t submitted{};
+    for (std::size_t offset{}; offset < packetized->packets.size(); offset += batch_size) {
+        if (!IsWorking() || IsStoppingOrDestroyed())
+            break;
+        const auto now = std::chrono::steady_clock::now();
+        if (now < batch_due && !PaceSleep(batch_due - now))
+            break;
+        const auto batch_started = std::chrono::steady_clock::now();
+        const auto count = std::min(batch_size, packetized->packets.size() - offset);
+        std::vector<media::Packet> batch{};
+        batch.reserve(count);
+        for (std::size_t index{}; index < count; ++index)
+            batch.push_back(std::move(packetized->packets[offset + index]));
+        if (!runtime->SendMediaBatch(std::move(batch)))
+            break;
+        submitted += count;
+        const auto batch_duration = packet_interval * count;
+        batch_due = media::NextBatchDeadline(batch_due, batch_started, batch_duration);
     }
-    uint8_t codec;
-    if (video_type == EncodedVideoType::kH264) {
-        codec = PxUdpProtocol::kCodecH264;
-    } else if (video_type == EncodedVideoType::kH265) {
-        codec = PxUdpProtocol::kCodecH265;
-    } else {
-        return; // 其它编码类型不在 UDP 媒体面范围内
+    ratecontrol_next_frame_start_ = batch_due;
+    if (submitted < packetized->packets.size() && !IsStoppingOrDestroyed()) {
+        auto recovery = std::make_shared<KeyFrameRequestEvent>();
+        recovery->monitor_name_ = mon_name;
+        EmitEvent(recovery);
+        LOGW("UDP incomplete send: frame={}, sent={}, total={}; request IDR", frame_index, submitted, packetized->packets.size());
     }
-
-    PxUdpProtocol::VideoFrameMeta meta;
-    // 透传编码器 frame_index。RFI 恢复依赖客户端上报的 frame_index 与 NVENC
-    // inputTimeStamp 完全一致;回退/重连场景已由 client 侧 SOF+key 重流识别处理。
-    meta.frame_index_ = (uint32_t)(frame_index & 0xffffffff);
-    // steady_clock 单调时钟,客户端按它算帧间间隔/延迟,不受系统时间跳变影响
-    meta.timestamp_ms_ =
-        (uint32_t)(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() & 0xffffffff);
-    meta.key_ = key;
-    meta.codec_ = codec;
-    meta.frame_width_ = (uint16_t)frame_width;
-    meta.frame_height_ = (uint16_t)frame_height;
-    meta.mon_slot_ = MonSlotOf(mon_name);
-    meta.mon_name_ = mon_name;
-    meta.rfi_recover_ = runtime->rfi_pending_.exchange(false);
-
-    auto shards = PxUdpProtocol::ShardVideoFrame(meta, data->Bytes(), udp_mtu_, runtime->fec_percent_);
-    if (shards.empty()) {
-        return;
-    }
-
-    int64_t total_sent = 0;
-    // Sunshine 同款 pacing(stream.cpp):按速率上限把一帧的 shard 平滑摊开;
-    // 每批发前算精确 due 时间,用高精度 waitable timer 睡到点,跨帧锚定 ratecontrol_next_frame_start。
-    // 速率上限按百兆网 80Mbps(而非 Sunshine 的 1Gbps*80%=800Mbps),避免 64KB 级突发打爆路由器缓冲。
-    const size_t blocksize = (size_t)udp_mtu_;
-    // ratecontrol_packets_in_1ms = 80Mbps/1000/blocksize/8 = 10000/blocksize
-    const size_t packets_per_ms = (size_t)(kRateControlBitsPerSec / 1000 / blocksize / 8);
-    // Sunshine 单批上限是 64KB,但我们网络是百兆且路由器缓冲小,
-    // 64KB 突发会丢包;把单批压到 10 shard(约 14KB),与之前实测最好的 10 shard/1ms 一致。
-    const size_t send_batch_size = std::min<size_t>(10, 64 * 1024 / blocksize);
-
-    auto ratecontrol_frame_start = std::max(ratecontrol_next_frame_start_, std::chrono::steady_clock::now());
-    size_t ratecontrol_frame_packets_sent = 0;
-    size_t ratecontrol_group_packets_sent = 0;
-
-    const size_t total_pkts = shards.size();
-    size_t next_shard_to_send = 0;
-    for (size_t x = 0; x < total_pkts; x++) {
-        if (x - next_shard_to_send + 1 >= send_batch_size || x + 1 == total_pkts) {
-            if (ratecontrol_group_packets_sent >= packets_per_ms || ratecontrol_frame_packets_sent == 0) {
-                auto due = ratecontrol_frame_start + std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::milliseconds(1)) *
-                                                         ratecontrol_frame_packets_sent / packets_per_ms;
-                auto now = std::chrono::steady_clock::now();
-                if (now < due) {
-                    PaceSleep(due - now);
-                }
-                ratecontrol_group_packets_sent = 0;
-            }
-            const size_t current_batch_size = x - next_shard_to_send + 1;
-            runtime->sessions_.ApplyAll([&](const std::string&, const std::shared_ptr<UdpSession>& us) {
-                if (!us->bound_ || !us->sess_) {
-                    return;
-                }
-                for (size_t i = next_shard_to_send; i <= x; i++) {
-                    const auto& shard = shards[i];
-                    total_sent += shard->Size();
-                    // shard 捕获进回调保活,直到 asio 拷进发件缓冲
-                    runtime->stat_sent_shards_++;
-                    const auto weak_runtime = std::weak_ptr<UdpRuntimeState>(runtime);
-                    us->sess_->async_send(shard->Bytes().data(), shard->Size(), [shard, weak_runtime](std::size_t bytes_sent) {
-                        if (bytes_sent != shard->Size()) {
-                            if (const auto locked = weak_runtime.lock()) {
-                                locked->stat_send_short_writes_++;
-                            }
-                        }
-                    });
-                }
-            });
-            ratecontrol_group_packets_sent += current_batch_size;
-            ratecontrol_frame_packets_sent += current_batch_size;
-            next_shard_to_send = x + 1;
-        }
-    }
-
-    ratecontrol_next_frame_start_ = ratecontrol_frame_start + std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::milliseconds(1)) *
-                                                                  ratecontrol_frame_packets_sent / packets_per_ms;
-
-    if (total_sent > 0) {
-        ReportDataSent(total_sent);
-    }
+    const auto submitted_bytes = submitted * packet_size;
+    if (submitted)
+        ReportDataSent(static_cast<std::int64_t>(submitted_bytes));
 }
 
 int UdpTransport::ConnectedClientCount() const {

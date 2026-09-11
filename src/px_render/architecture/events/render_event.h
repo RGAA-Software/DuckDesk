@@ -46,6 +46,7 @@ struct AdmitLogicalSessionEvent final {
 struct CloseLogicalSessionBindingEvent final {
     std::string logical_session_id_;
     std::string binding_id_;
+    bool preserve_reconnect_grace_{true};
 };
 
 struct ApplyLogicalSessionCapabilitiesEvent final {
@@ -90,6 +91,7 @@ struct ClientDisconnectedEvent final {
     std::string visitor_device_id_;
     std::int64_t end_timestamp_{0};
     std::int64_t duration_{0};
+    bool preserve_reconnect_grace_{true};
 };
 
 struct KeyFrameRequestEvent final {
@@ -101,12 +103,15 @@ struct ReferenceFrameInvalidationEvent final {
     std::uint64_t invalid_frame_index_{0};
 };
 
+enum class EncodedReferenceState : std::uint8_t { kDependent, kRecoveryConfirmed };
+
 struct EncodedVideoFrameEvent final {
     EncodedVideoType type_{EncodedVideoType::kH264};
     std::shared_ptr<Data> data_;
     std::uint32_t frame_width_{0};
     std::uint32_t frame_height_{0};
     bool key_frame_{false};
+    EncodedReferenceState reference_state_{EncodedReferenceState::kDependent};
     std::uint64_t frame_index_{0};
     RawImageType frame_format_{RawImageType::kI420};
     CaptureVideoFrame capture_frame_;

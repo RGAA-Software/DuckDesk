@@ -7,6 +7,8 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <numeric>
+#include <random>
 
 #include "px_common/px_udp_protocol.h"
 
@@ -105,11 +107,11 @@ TEST(PxUdpProtocol, ReassembleInOrder) {
 
 TEST(PxUdpProtocol, ReassembleOutOfOrder) {
     auto frame = MakeFrameBytes(8000);
-    auto meta = MakeMeta(4, false);
+    auto meta = MakeMeta(4, true);
     auto pkts = PxUdpProtocol::ShardVideoFrame(meta, std::span<const char>{frame});
     ASSERT_GT(pkts.size(), 2u);
 
-    // P frame as the very first frame of the stream is decodable (no prior loss)
+    // A new stream starts with an independently decodable key frame.
     PxUdpFrameReassembler reasm;
     std::vector<PxUdpFrameReassembler::CompleteFrame> frames;
     reasm.on_frame_ = [&](const PxUdpFrameReassembler::CompleteFrame& f) { frames.push_back(f); };
@@ -128,7 +130,7 @@ TEST(PxUdpProtocol, ReassembleLateSofKeepsPreSofCounters) {
     // 恢复,也会在下一帧到来时被误判丢帧,画面卡顿。正确行为是 SOF 只补元信息,
     // 不清空已经收到的数据/parity 计数。
     auto frame = MakeFrameBytes(20000);
-    auto meta = MakeMeta(20, false);
+    auto meta = MakeMeta(20, true);
     auto pkts = PxUdpProtocol::ShardVideoFrame(meta, std::span<const char>{frame},
                                                PxUdpProtocol::kDefaultMtu, 20);
     ASSERT_GT(pkts.size(), 2u);
@@ -340,7 +342,7 @@ TEST(PxUdpProtocol, FecRecoversShardZero) {
 
 TEST(PxUdpProtocol, FecRecoversUpToParityCount) {
     auto frame = MakeFrameBytes(12000);
-    auto meta = MakeMeta(33, false);
+    auto meta = MakeMeta(33, true);
     auto pkts = ShardFec(meta, frame, 20);
     uint16_t d = DataShardsOf(pkts);
     size_t parity = pkts.size() - d;
@@ -359,7 +361,7 @@ TEST(PxUdpProtocol, FecRecoversUpToParityCount) {
     EXPECT_EQ(std::memcmp(frames[0].data_->Bytes().data(), frame.data(), frame.size()), 0);
 }
 
-TEST(PxUdpProtocol, FecLossBeyondParityDeclaresLossAtEof) {
+TEST(PxUdpProtocol, FecLossBeyondParityWaitsForNextFrame) {
     auto frame_n = MakeFrameBytes(12000);
     auto meta_n = MakeMeta(40, false);
     auto pkts_n = ShardFec(meta_n, frame_n, 20);
@@ -376,21 +378,125 @@ TEST(PxUdpProtocol, FecLossBeyondParityDeclaresLossAtEof) {
     reasm.on_frame_ = [&](const PxUdpFrameReassembler::CompleteFrame& f) { frames.push_back(f); };
     reasm.on_frame_lost_ = [&](uint8_t, uint32_t idx) { lost.push_back(idx); };
 
-    // 丢 parity+1 个数据 shard。EOF 到达说明发送端数据 shard 已发完，
-    // 即使后续全部 parity 到达也不够恢复，因此不等待下一帧就必须判丢。
+    // Missing data may still be reordered behind EOF, so EOF alone cannot declare loss.
     for (size_t i = parity + 1; i < pkts_n.size(); i++) {
         reasm.AddPacket(pkts_n[i]->Bytes());
     }
     EXPECT_TRUE(frames.empty());
-    ASSERT_EQ(lost.size(), 1u);
-    EXPECT_EQ(lost[0], 40u);
+    EXPECT_TRUE(lost.empty());
 
     // 迟到的旧帧包不得重复判丢；后续 key 帧正常交付，流恢复。
     for (auto& p : pkts_key) reasm.AddPacket(p->Bytes());
-    EXPECT_EQ(lost.size(), 1u);
+    ASSERT_EQ(lost.size(), 1u);
+    EXPECT_EQ(lost[0], 40u);
     ASSERT_EQ(frames.size(), 1u);
     EXPECT_TRUE(frames[0].key_);
     EXPECT_EQ(frames[0].frame_index_, 41u);
+}
+
+TEST(PxUdpProtocol, FecEofBeforeDataDoesNotDeclareLoss) {
+    const auto frame = MakeFrameBytes(20000);
+    const auto packets = ShardFec(MakeMeta(50, true), frame, 20);
+    const auto data_count = DataShardsOf(packets);
+    auto delivered = std::make_shared<std::vector<std::string>>();
+    auto losses = std::make_shared<int>(0);
+    PxUdpFrameReassembler reassembler{};
+    reassembler.on_frame_ = [delivered](const PxUdpFrameReassembler::CompleteFrame& result) {
+        delivered->emplace_back(result.data_->Bytes().begin(), result.data_->Bytes().end());
+    };
+    reassembler.on_frame_lost_ = [losses](uint8_t, uint32_t) { ++*losses; };
+    // EOF first, then all earlier shards in reverse order. No network loss.
+    for (size_t index = data_count; index > 0; --index) {
+        reassembler.AddPacket(packets[index - 1]->Bytes());
+    }
+    EXPECT_EQ(*losses, 0);
+    ASSERT_EQ(delivered->size(), 1u);
+    EXPECT_EQ(delivered->front(), frame);
+}
+
+TEST(PxUdpProtocol, RfiRequestFlagCannotRepairBrokenReferenceChain) {
+    const auto frame = MakeFrameBytes(500);
+    auto delivered = std::make_shared<std::vector<uint32_t>>();
+    PxUdpFrameReassembler reassembler{};
+    reassembler.on_frame_ = [delivered](const PxUdpFrameReassembler::CompleteFrame& result) { delivered->push_back(result.frame_index_); };
+    for (const auto& packet : ShardFec(MakeMeta(1, true), frame, 20))
+        reassembler.AddPacket(packet->Bytes());
+    auto unsafe_meta = MakeMeta(3, false);
+    unsafe_meta.rfi_recover_ = true;
+    for (const auto& packet : ShardFec(unsafe_meta, frame, 20))
+        reassembler.AddPacket(packet->Bytes());
+    for (const auto& packet : ShardFec(MakeMeta(4, false), frame, 20))
+        reassembler.AddPacket(packet->Bytes());
+    for (const auto& packet : ShardFec(MakeMeta(5, true), frame, 20))
+        reassembler.AddPacket(packet->Bytes());
+    EXPECT_EQ(*delivered, (std::vector<uint32_t>{1, 5}));
+}
+
+TEST(PxUdpProtocol, FecRetainsAvailableParityAtSingleBlockLimit) {
+    const auto frame = MakeFrameBytes(260000);
+    const auto packets = ShardFec(MakeMeta(60, true), frame, 60);
+    const auto data_count = DataShardsOf(packets);
+    ASSERT_LT(data_count, DATA_SHARDS_MAX);
+    ASSERT_EQ(packets.size(), static_cast<size_t>(DATA_SHARDS_MAX));
+    ASSERT_GT(packets.size(), data_count);
+    auto delivered = std::make_shared<std::vector<std::string>>();
+    PxUdpFrameReassembler reassembler{};
+    reassembler.on_frame_ = [delivered](const PxUdpFrameReassembler::CompleteFrame& result) {
+        delivered->emplace_back(result.data_->Bytes().begin(), result.data_->Bytes().end());
+    };
+    // Recover missing SOF using retained parity, including protected metadata.
+    for (size_t index = 1; index < packets.size(); ++index)
+        reassembler.AddPacket(packets[index]->Bytes());
+    ASSERT_EQ(delivered->size(), 1u);
+    EXPECT_EQ(delivered->front(), frame);
+}
+
+TEST(PxUdpProtocol, NewStreamRequiresKeyAndOldKeyCannotResetWatermark) {
+    const auto frame = MakeFrameBytes(500);
+    auto delivered = std::make_shared<std::vector<uint32_t>>();
+    PxUdpFrameReassembler reassembler{};
+    reassembler.on_frame_ = [delivered](const PxUdpFrameReassembler::CompleteFrame& result) { delivered->push_back(result.frame_index_); };
+    for (const auto& packet : ShardFec(MakeMeta(8, false), frame, 20))
+        reassembler.AddPacket(packet->Bytes());
+    for (const auto& packet : ShardFec(MakeMeta(9, true), frame, 20))
+        reassembler.AddPacket(packet->Bytes());
+    for (const auto& packet : ShardFec(MakeMeta(10, false), frame, 20))
+        reassembler.AddPacket(packet->Bytes());
+    for (const auto& packet : ShardFec(MakeMeta(9, true), frame, 20))
+        reassembler.AddPacket(packet->Bytes());
+    EXPECT_EQ(*delivered, (std::vector<uint32_t>{9, 10}));
+    reassembler.Reset();
+    for (const auto& packet : ShardFec(MakeMeta(1, true), frame, 20))
+        reassembler.AddPacket(packet->Bytes());
+    EXPECT_EQ(*delivered, (std::vector<uint32_t>{9, 10, 1}));
+}
+
+TEST(PxUdpProtocol, FecRecoversDeterministicLossAndReordering) {
+    const auto frame = MakeFrameBytes(20000);
+    const auto packets = ShardFec(MakeMeta(1, true), frame, 40);
+    const auto data_count = DataShardsOf(packets);
+    for (uint32_t seed{}; seed < 64; ++seed) {
+        SCOPED_TRACE(seed);
+        std::mt19937 random{seed};
+        std::vector<size_t> order(packets.size());
+        std::iota(order.begin(), order.end(), size_t{});
+        std::shuffle(order.begin(), order.end(), random);
+        // Deliver exactly D shards: every trial consumes the entire erasure budget.
+        auto delivered = std::make_shared<std::vector<std::string>>();
+        auto losses = std::make_shared<int>(0);
+        PxUdpFrameReassembler reassembler{};
+        reassembler.on_frame_ = [delivered](const PxUdpFrameReassembler::CompleteFrame& result) {
+            delivered->emplace_back(result.data_->Bytes().begin(), result.data_->Bytes().end());
+        };
+        reassembler.on_frame_lost_ = [losses](uint8_t, uint32_t) { ++*losses; };
+        for (size_t index{}; index < data_count; ++index) {
+            reassembler.AddPacket(packets[order[index]]->Bytes());
+            reassembler.AddPacket(packets[order[index]]->Bytes()); // Duplicates never count as extra protection.
+        }
+        ASSERT_EQ(delivered->size(), 1u);
+        EXPECT_EQ(delivered->front(), frame);
+        EXPECT_EQ(*losses, 0);
+    }
 }
 
 TEST(PxUdpProtocol, FecDisabledBehavesLikeBefore) {

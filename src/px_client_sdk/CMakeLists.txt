@@ -13,6 +13,7 @@ endif()
 option(PX_SDK_BUILD_QT_TESTS "Build the optional Qt file-transfer UI test harness" ${sdk_qt_test_default})
 include(cmake/sdk_dependencies.cmake)
 include(cmake/sdk_source_sets.cmake)
+add_subdirectory(media_transport)
 
 if(NOT PX_SDK_CORE_ONLY AND ANDROID)
     set(PX_SDK_PLATFORM android)
@@ -54,7 +55,7 @@ foreach(sdk_target IN LISTS sdk_targets)
 endforeach()
 
 # The transport core needs no desktop hardware helpers, renderer or codec.
-target_link_libraries(px_sdk_core PUBLIC px_message px_common_async px_common_file px_common_crypto)
+target_link_libraries(px_sdk_core PUBLIC px_message px_common_async px_common_file px_common_crypto pixels::media_transport)
 target_include_directories(px_sdk_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..

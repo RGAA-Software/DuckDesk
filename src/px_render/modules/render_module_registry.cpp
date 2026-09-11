@@ -110,8 +110,11 @@ void RenderModuleRegistry::StartModules() {
         .relay_port = settings_.relay_port_,
         .language = settings_.language_,
         .appkey = settings_.appkey_,
-        .app_mode = settings_.IsRdpMode() ? "rdp" : settings_.IsGameHookMode() ? "game-hook" : (settings_.IsWebViewMode() ? "webview" : "desktop"),
+        .app_mode = settings_.IsRdpMode()        ? "rdp"
+                    : settings_.IsGameHookMode() ? "game-hook"
+                                                 : (settings_.IsWebViewMode() ? "webview" : "desktop"),
         .rdp_proxy_port = settings_.IsRdpMode() ? settings_.rdp_launch_.proxy_port : std::uint16_t{},
+        .udp_media_budget_bps = static_cast<std::uint64_t>(std::max(1, settings_.encoder_.bitrate_)) * 1'000'000,
     };
     const auto register_builtin = [base_configuration](const std::shared_ptr<RenderModule>& module, const std::string& module_name) -> bool {
         auto configuration = base_configuration;
@@ -674,24 +677,40 @@ void RenderModuleRegistry::BroadcastRawAudio(const std::shared_ptr<Data>& data, 
     });
 }
 
+std::uint64_t RenderModuleRegistry::EffectiveVideoBitrate(std::uint64_t requested_bps) const {
+    std::shared_lock lock(modules_mtx_);
+    return udp_transport_ && udp_transport_->ConnectedClientCount() > 0 ? udp_transport_->VideoEncodingBitrate() : requested_bps;
+}
+
+bool RenderModuleRegistry::HasNativeMediaClient() const {
+    std::shared_lock lock(modules_mtx_);
+    return udp_transport_ && udp_transport_->ConnectedClientCount() > 0;
+}
+
+void RenderModuleRegistry::PublishNativeEncodedVideo(const std::string& monitor_name, const std::shared_ptr<EncodedVideoFrameEvent>& event) {
+    std::shared_ptr<UdpTransport> udp{};
+    {
+        std::shared_lock lock(modules_mtx_);
+        udp = udp_transport_;
+    }
+    if (udp && event && event->data_) {
+        udp->SubmitEncodedVideo(monitor_name, event->type_, event->data_, event->frame_index_, static_cast<int>(event->frame_width_),
+                                static_cast<int>(event->frame_height_), event->key_frame_, event->reference_state_);
+    }
+}
+
 void RenderModuleRegistry::PublishEncodedVideoMetadata(const std::string& monitor_name, const std::shared_ptr<EncodedVideoFrameEvent>& event) {
     if (!event || !event->data_) {
         return;
     }
-    std::shared_ptr<WsTransport> ws;
-    std::shared_ptr<UdpTransport> udp;
+    std::shared_ptr<WsTransport> ws{};
     {
         std::shared_lock lock(modules_mtx_);
         ws = ws_transport_;
-        udp = udp_transport_;
     }
     if (ws) {
         ws->SubmitEncodedVideo(monitor_name, event->type_, event->data_, event->frame_index_, static_cast<int>(event->frame_width_),
                                static_cast<int>(event->frame_height_), event->key_frame_);
-    }
-    if (udp) {
-        udp->SubmitEncodedVideo(monitor_name, event->type_, event->data_, event->frame_index_, static_cast<int>(event->frame_width_),
-                                static_cast<int>(event->frame_height_), event->key_frame_);
     }
     VisitWebRtcLibraries([&monitor_name, &event](const std::shared_ptr<WebRtcTransportHandle>& library) {
         library->SubmitEncodedVideo(monitor_name, ToWebRtcEncodedVideoType(event->type_), event->data_, event->frame_index_,

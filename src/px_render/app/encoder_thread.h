@@ -13,6 +13,7 @@
 #include "px_capture/capture_message.h"
 #include "settings/rd_settings.h"
 #include "px_encoder/encoder_config.h"
+#include "frame_rate_policy.h"
 
 namespace px
 {
@@ -39,6 +40,8 @@ namespace px
         ~EncoderThread();
 
         void Encode(const CaptureVideoFrame& msg);
+        void SetFrameRate(int fps) noexcept;
+        [[nodiscard]] int FrameRate() const noexcept;
         void HandleD3DDeviceFailure(uint64_t adapter_uid);
         void Exit();
         std::map<std::string, std::shared_ptr<VideoEncoderModule>>
@@ -60,6 +63,8 @@ namespace px
 
     private:
         RdSettings& settings_;
+        std::atomic_int frame_rate_{60};
+        std::map<std::string, render::FrameRateAdmission> frame_admission_{};
         std::shared_ptr<RdStatistics> stat_ = nullptr;
         std::shared_ptr<Thread> enc_thread_ = nullptr;
         std::shared_ptr<RdContext> context_ = nullptr;

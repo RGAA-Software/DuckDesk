@@ -201,7 +201,7 @@ namespace px
 
         // split one encoded frame into UDP packets (<= mtu each)
         // fec_percent > 0 时按 RS(D, parity) 追加 parity 包;parity = max(1, ceil(D*fec_percent/100)),
-        // D + parity > 255 时本帧退化为无 FEC。fec_percent == 0 时行为与旧版一致(仅 SOF 扩展多 frame_size)。
+        // Parity is capped by the RS block limit; frames with >=255 data shards still need multi-block FEC.
         static std::vector<std::shared_ptr<Data>> ShardVideoFrame(const VideoFrameMeta& meta, std::span<const char> data,
                                                                   int mtu = kDefaultMtu, int fec_percent = 0) {
             std::vector<std::shared_ptr<Data>> out;
@@ -221,9 +221,9 @@ namespace px
             int parity_count = 0;
             if (fec_percent > 0) {
                 parity_count = std::max(1, (int)((total * (size_t)fec_percent + 99) / 100));
-                if (total + parity_count > DATA_SHARDS_MAX) {
-                    parity_count = 0;
-                }
+                // Keep the available protection instead of dropping all parity when
+                // the requested percentage exceeds the single-block RS limit.
+                parity_count = std::min(parity_count, std::max(0, DATA_SHARDS_MAX - static_cast<int>(total)));
             }
 
             // pass 1: 逐 shard 生成 P 字节保护块(shard 0 = SOF扩展+载荷,其余 = 载荷,末尾零填充)
@@ -473,10 +473,8 @@ namespace px
     // 已收 distinct 块数(数据+parity)达到 data_shards 且有数据块缺失时立刻 RS 恢复,
     // 重组帧按 SOF 扩展里的 frame_size 精确截断(去掉零填充)。
     // Loss policy: a newer frame_index for the same mon_slot declares the in-progress
-    // frame lost (recovery attempted first). For FEC frames, receipt of EOF proves
-    // the sender has emitted every data shard; if the missing-data count already
-    // exceeds the entire parity budget, declare that frame lost immediately instead
-    // of waiting for the next frame. After any loss, P frames are dropped until a key
+    // frame lost (recovery attempted first). EOF is not a receive-order barrier:
+    // earlier data shards can arrive after it. After any loss, P frames are dropped until a key
     // frame completes (mirrors the webrtc_local convention that the first delivered
     // frame must be an IDR).
     class PxUdpFrameReassembler {
@@ -542,16 +540,9 @@ namespace px
             // 已完成/已判丢帧的迟到包(含恢复后晚到的 parity)直接丢
             auto fit = finished_.find(shard.mon_slot_);
             if (fit != finished_.end() && shard.frame_index_ <= fit->second) {
-                // render 编码器在重连/接管后 frame_index 可能整体回退(本次实测 836 → 63)。
-                // 新流的首包是 SOF+key,把它当成新流并清掉该 mon_slot 的旧水位,而不是继续丢包。
-                bool new_stream = (shard.flags_ & PxUdpProtocol::kFlagSof) &&
-                                  (shard.flags_ & PxUdpProtocol::kFlagKey) &&
-                                  shard.frame_index_ < fit->second;
-                if (!new_stream) return;
-                assemblies_.erase(shard.mon_slot_);
-                need_key_.erase(shard.mon_slot_);
-                finished_.erase(shard.mon_slot_);
-                fit = finished_.end();
+                // A reordered old key frame is not a new stream. Only the
+                // connection lifecycle may reset the receive watermark via Reset().
+                return;
             }
 
             auto& cur = assemblies_[shard.mon_slot_];
@@ -655,19 +646,6 @@ namespace px
             }
             if (data_filled == cur.data_shards_) {
                 CompleteWithStatus(shard.mon_slot_, cur);
-                MarkFinished(shard.mon_slot_, cur.frame_index_);
-                cur = Assembly{};
-            }
-            else if ((shard.flags_ & PxUdpProtocol::kFlagEof) &&
-                     cur.shards_.size() > (size_t)cur.data_shards_ &&
-                     data_filled + (int)(cur.shards_.size() - cur.data_shards_) < cur.data_shards_) {
-                // EOF 是发送端已发完所有数据 shard 的明确边界。此时即便后续所有 parity
-                // 都到达，当前缺失的数据块仍超过 FEC 能恢复的上限；直接上报 RFI，不等下一帧。
-                // 只在 EOF 上判定而非“首个 parity”上判定，保留 UDP 包乱序时 parity 先到、
-                // 数据块随后到达的正常恢复路径。
-                DeclareLoss(shard.mon_slot_, cur.frame_index_,
-                            (uint16_t)cur.net_data_received_,
-                            (uint16_t)(cur.data_shards_ - cur.net_data_received_));
                 MarkFinished(shard.mon_slot_, cur.frame_index_);
                 cur = Assembly{};
             }
@@ -823,8 +801,12 @@ namespace px
                             (uint16_t)(cur.data_shards_ - cur.net_data_received_));
                 return false;
             }
-            bool decodable = f.key_ || cur.rfi_recover_ || !need_key_[mon_slot];
-            if (f.key_ || cur.rfi_recover_) need_key_[mon_slot] = false;
+            // The legacy RFI flag acknowledges a request, not encoder completion.
+            // It cannot prove that this frame no longer references a lost picture.
+            const auto key_state = need_key_.try_emplace(mon_slot, true).first;
+            const bool decodable = f.key_ || !key_state->second;
+            if (f.key_)
+                need_key_[mon_slot] = false;
             if (decodable && on_frame_) on_frame_(f);
             return true;
         }

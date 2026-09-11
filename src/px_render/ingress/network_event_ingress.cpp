@@ -1251,16 +1251,11 @@ void NetworkEventIngress::ProcessSwitchWorkMode(std::shared_ptr<Message>&& msg) 
         if (!self) {
             return;
         }
-        auto wm = msg->work_mode();
-        const auto capture_source = self->app_->GetWorkingMonitorCaptureSource();
-        if (!capture_source) {
-            LOGE("Working monitor capture is empty!");
-            return;
-        }
+        const auto wm = msg->work_mode();
         if (wm.mode() == SwitchWorkMode::kWork) {
-            capture_source->SetCaptureFps(30);
+            self->app_->SetFrameRate(30);
         } else if (wm.mode() == SwitchWorkMode::kGame) {
-            capture_source->SetCaptureFps(60);
+            self->app_->SetFrameRate(60);
         }
     });
 }

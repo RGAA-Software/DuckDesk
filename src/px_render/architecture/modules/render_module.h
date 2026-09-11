@@ -58,6 +58,7 @@ struct RenderModuleConfiguration final {
     std::uint16_t rdp_proxy_port{0};
     int udp_fec_percent{20};
     int udp_mtu{1400};
+    std::uint64_t udp_media_budget_bps{8'000'000};
 };
 
 using RenderModuleSettings = RenderRuntimeSettings;

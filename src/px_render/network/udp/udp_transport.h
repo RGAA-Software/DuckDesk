@@ -20,6 +20,9 @@
 #include "px_common/async_runtime.h"
 #include "px_common/px_udp_voice_protocol.h"
 #include "px_common/udp_voice_send_budget.h"
+#include "px_client_sdk/media_transport/video_stream.h"
+#include "px_client_sdk/media_transport/audio_stream.h"
+#include "px_client_sdk/media_transport/send_policy.h"
 
 #ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
 #define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002
@@ -29,6 +32,7 @@ namespace px {
 class Data;
 class PxAsyncRuntime;
 class UdpRuntimeState;
+enum class EncodedReferenceState : std::uint8_t;
 
 struct UdpWinHandleCloser final {
     void operator()(void* handle) const noexcept; // NOLINT(gammaray-raw-pointer-boundary): Win32 HANDLE boundary
@@ -81,17 +85,20 @@ class UdpTransport final : public RenderModule {
     bool IsWorking() const override;
 
     bool HasMediaCapacity() const noexcept;
+    [[nodiscard]] std::uint64_t VideoEncodingBitrate() const noexcept {
+        return send_budget_.video_bps;
+    }
     bool HasFileTransferCapacity() const noexcept;
 
     // data: encode video frame, h264/h265/...(编码线程回调,逐帧分包直发)
     void SubmitEncodedVideo(const std::string& mon_name, const EncodedVideoType& video_type, const std::shared_ptr<Data>& data, uint64_t frame_index,
-                            int frame_width, int frame_height, bool key);
+                            int frame_width, int frame_height, bool key, EncodedReferenceState reference_state);
 
   private:
     // mon_name -> 单调递增 slot(u8),插件生命周期内保持稳定
     uint8_t MonSlotOf(const std::string& mon_name);
     // Sunshine 同款高精度 sleep:CreateWaitableTimerEx(HIGH_RESOLUTION) + SetWaitableTimer。
-    void PaceSleep(const std::chrono::steady_clock::duration& duration);
+    [[nodiscard]] bool PaceSleep(const std::chrono::steady_clock::duration& duration);
     void ReleasePacingResources();
 
   private:
@@ -106,10 +113,8 @@ class UdpTransport final : public RenderModule {
     std::map<std::string, uint8_t> mon_slots_;
     uint8_t next_mon_slot_ = 0;
 
-    // Sunshine 同款 pacing(stream.cpp),但速率上限按百兆网而非 1Gbps:
-    // ratecontrol_packets_in_1ms = 100Mbps*80%/1000/blocksize/8 = 10000/blocksize。
-    // 单批上限 64KB / 64 包,避开 Windows 64KB SO_SNDBUF 绕过问题。
-    static constexpr uint64_t kRateControlBitsPerSec = 80000000ULL; // 80 Mbps
+    // Upstream byte/time anchor; rate derives from the session budget, including parity and IP/UDP headers.
+    media::SendBudget send_budget_{};
     UdpWinHandle pace_timer_;
     bool timer_resolution_active_{false};
     // 跨帧锚定的速率控制起点(Sunshine ratecontrol_next_frame_start)
@@ -117,7 +122,11 @@ class UdpTransport final : public RenderModule {
 
     // 音频包序号(PostProtoMessage 由 rd_app 单线程调用,无需原子);
     // 50pps 小包,不走帧内 pacing
-    uint32_t audio_seq_ = 0;
+    media::AudioPacketizer audio_packetizer_{};
+    std::mutex audio_send_mutex_{};
+    std::mutex video_send_mutex_{};
+    std::map<std::uint8_t, std::uint16_t> video_sequences_{};
+    std::map<std::uint8_t, std::uint32_t> video_frame_indices_{};
 };
 
 } // namespace px

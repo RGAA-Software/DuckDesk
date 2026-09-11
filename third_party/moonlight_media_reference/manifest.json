@@ -1,0 +1,239 @@
+{
+  "moonlight_revision": "e41355ea01670fd4c830b384009d31dd0339a705",
+  "nanors_revision": "b1e3c22ca0cdc0bb83e3cd6ed1a2fc77869ed99a",
+  "enet_revision": "aca87840b57f045a1f7f9299e4b1b9b8e2a5e2f1",
+  "files": [
+    {
+      "path": "LICENSE.txt",
+      "sha256": "53927BD0B739D38C87A0A82236FD9B070C2DFFF11C0C119BE50372005D5047AD"
+    },
+    {
+      "path": "enet/LICENSE",
+      "sha256": "3C326D1182A09BDD48101B7EAB2BF2312C76286E756B46CD24844359D7DFECF3"
+    },
+    {
+      "path": "enet/include/enet/callbacks.h",
+      "sha256": "07503C89A70C602D0713299EFB9A548E743E260B0EDE204931A06FFAE6AD2E1B"
+    },
+    {
+      "path": "enet/include/enet/enet.h",
+      "sha256": "9DFA7D80DDB088DDB7E7307F860360448620AAE5C11335AA46F797DE7344F254"
+    },
+    {
+      "path": "enet/include/enet/list.h",
+      "sha256": "A8B8F60C838E12B2505FE1BDA66A1C31046BC0C5225D2A9731D0508A19387C2F"
+    },
+    {
+      "path": "enet/include/enet/protocol.h",
+      "sha256": "7CCFE356D899BD69E024ACF1200DFCB306FCB70F428CA1E8AAB94BDF924E104F"
+    },
+    {
+      "path": "enet/include/enet/time.h",
+      "sha256": "B025AEE33536C608E15E7C2E3354D64C5A0E7CF81C3ED5E79FECF413133299BC"
+    },
+    {
+      "path": "enet/include/enet/types.h",
+      "sha256": "5A3DD1641333F8CFCF5565E7539CD0D00DA497777FE8E3C9CC9C538A2DDFBA59"
+    },
+    {
+      "path": "enet/include/enet/unix.h",
+      "sha256": "4FCCE7170E2A0BA9DF986DD14670959F673C6A8C72C78D5F5117E0FAB0B845F4"
+    },
+    {
+      "path": "enet/include/enet/utility.h",
+      "sha256": "7AC6C7D50C8E74CAA5181ADD463D35E75F721324B7BE1470265EC6016318D210"
+    },
+    {
+      "path": "enet/include/enet/win32.h",
+      "sha256": "0BB57F58EDFEEB67CA89B89F1DAE01D67CA2F8A2717AFF370F0A1D0703AC1088"
+    },
+    {
+      "path": "nanors/LICENSE",
+      "sha256": "22372A6DA1D4FBF640798A70C1014FF47B9669E2CD97A98BCA5FC6D38FC67A82"
+    },
+    {
+      "path": "nanors/rs.c",
+      "sha256": "35D5E10A4B3C401CF3C21BC7012AC87F2E02278558CC79673267F604AA227323"
+    },
+    {
+      "path": "nanors/rs.h",
+      "sha256": "8BEFCC19E942900906332EAF9CEEAD15208E9A0F384A28F40E7C9D139927BB71"
+    },
+    {
+      "path": "nanors/deps/obl/gf2_8_affine_mat.h",
+      "sha256": "BA3C169CA53AE6F17523E4D0CA7BD96CB51F994B12D5839592BD49A7B725AA89"
+    },
+    {
+      "path": "nanors/deps/obl/gf2_8_tables.h",
+      "sha256": "5068E10330230581FDDBB6CB3864359327555964E7E73233CA3C06D9EABE2126"
+    },
+    {
+      "path": "nanors/deps/obl/oblas_common.c",
+      "sha256": "10533C2B9F3D30FB98B815CBA13B3A01FCF1A3B1D63DEE0C64B5CE751F21C7B6"
+    },
+    {
+      "path": "nanors/deps/obl/oblas_common.h",
+      "sha256": "EAD563C1710C52381BCDA8F3A448B8F5589103ADDB7D95A00B37851F790F095F"
+    },
+    {
+      "path": "nanors/deps/obl/oblas_lite.c",
+      "sha256": "6AF1839D11603C1A5114844EC593D40911A4C5D3C0F273F4370ACA15A9D56750"
+    },
+    {
+      "path": "nanors/deps/obl/oblas_lite.h",
+      "sha256": "D2A285071C51B3C6B90C96B33D3F32AD1E98E2B3705620462321492ED0FEF760"
+    },
+    {
+      "path": "nanors/deps/obl/oblas16_afft.c",
+      "sha256": "55A68902601D2546911D9140C3D07183D72838764F2CCFC2D840C32B6C1D8BBE"
+    },
+    {
+      "path": "nanors/deps/obl/oblas16_afft.h",
+      "sha256": "486A7C66F8E5F7DA7C7BEE7E90420C9840FE2048906D2A587BF3BBEB1D58CC8C"
+    },
+    {
+      "path": "nanors/deps/obl/oblas16.c",
+      "sha256": "064E56BD48BEC7F810E39FF3EC76231D9BFBA477DC3F85FED0F8F1464CC5B5DC"
+    },
+    {
+      "path": "nanors/deps/obl/oblas16.h",
+      "sha256": "663772BE165F998AE6566F82CE85191142F6B1B4FD69F0BBA9F8E97F2F305344"
+    },
+    {
+      "path": "src/AudioStream.c",
+      "sha256": "F4DF18972B16D1BE35461D72C60DCE8BA3075E6AFCD2E2FC3821CDB83417B842"
+    },
+    {
+      "path": "src/ByteBuffer.c",
+      "sha256": "AFFAC47BC6CD66CEC028CAC33262E02585C660B919E4ED11F283E853DC07F632"
+    },
+    {
+      "path": "src/ByteBuffer.h",
+      "sha256": "8D79DA7491850B65F6F28E25996741A6CC84ADB948273FA17CFE0F948BF9915A"
+    },
+    {
+      "path": "src/Connection.c",
+      "sha256": "029B084A74E4944CEE8A552B271F08FF02ECF6423552F544C1A8EA67C314B0F6"
+    },
+    {
+      "path": "src/ConnectionTester.c",
+      "sha256": "31BE38EB5BDEC3AD011DFC5A4BEB5806A15C083CB7EC502F3FDB6B696B54FE63"
+    },
+    {
+      "path": "src/ControlStream.c",
+      "sha256": "A3ABF8867B17DDF03D14BFED2EFF8AB590E0D4FFD0C2B96541AD7F45AA97FE9C"
+    },
+    {
+      "path": "src/FakeCallbacks.c",
+      "sha256": "D45117760313A9172FE6DD9511243FC9FEC3404C6F3BB72D8E7EA96D4ED26861"
+    },
+    {
+      "path": "src/Input.h",
+      "sha256": "A8BFD9F885ADD907A242FEAC1BFCBEAD3BD1C8427CBC50B5685BA85061660743"
+    },
+    {
+      "path": "src/InputStream.c",
+      "sha256": "F79054413B843557B3C02E33D53A7CEAD6A0172718466A63D6D22B1F8FB2E2E2"
+    },
+    {
+      "path": "src/Limelight-internal.h",
+      "sha256": "533A3D15854FE6D4112AAB317901984CFE20CFB5D4F6173551ECBEA2A4EA188B"
+    },
+    {
+      "path": "src/Limelight.h",
+      "sha256": "6B1EB5CC6CB9601A7BE5FF734EF9BEC6AD51AF5A335C1EC3A80E14ABDF328C4B"
+    },
+    {
+      "path": "src/LinkedBlockingQueue.c",
+      "sha256": "A6507EBDFF3FF230F995A8EA69B484926B1F805941CA71F622F749C58538224E"
+    },
+    {
+      "path": "src/LinkedBlockingQueue.h",
+      "sha256": "3E3D3F622080BA9835816079E983008B4D5CF175575EA503E044E3A80005A68F"
+    },
+    {
+      "path": "src/Misc.c",
+      "sha256": "F7B7DCECE3447BBE22C88AC18AAD72E58042D52AE976523F7BC0A4CD298DAE56"
+    },
+    {
+      "path": "src/Platform.c",
+      "sha256": "BFAD9961D10D7A134AB4CDDACE8F6F1B0BB3AA1229CD1B96A0FB9B85BE73445E"
+    },
+    {
+      "path": "src/Platform.h",
+      "sha256": "618776F0330B477BB1C502EDB4F3984EA1F6EF92D5EC405869F263ABBC93B5C3"
+    },
+    {
+      "path": "src/PlatformCrypto.c",
+      "sha256": "F86D6A2710CA0561E2A6BCAAA41E00F8837E677C001966F3F77B8F86894CE9FC"
+    },
+    {
+      "path": "src/PlatformCrypto.h",
+      "sha256": "177DEF4422BB9F3C1A8928654102FA6414D1ADC102F1C8F9E647A1143F12746C"
+    },
+    {
+      "path": "src/PlatformSockets.c",
+      "sha256": "3A0C8438E73D564395D6C8B223008740490BFAFC13811298C4E9B50663A837EE"
+    },
+    {
+      "path": "src/PlatformSockets.h",
+      "sha256": "4164F911495557039BBFDC10D0D16E9D989AA47FAC1D090807E956BA42F56840"
+    },
+    {
+      "path": "src/PlatformThreads.h",
+      "sha256": "9D72F802350431EA85470E92445287A91ADE84B9874B8C5E50FEE6306A5529C0"
+    },
+    {
+      "path": "src/RecorderCallbacks.c",
+      "sha256": "BE74F586FE76ED32A0C171D7110008BD1F74B9CD097F5811223831ECAB0B2A8E"
+    },
+    {
+      "path": "src/RtpAudioQueue.c",
+      "sha256": "7077645D69F8A666C23406B99F210DA74D1B3F5D36EAB37ED0EF88D4076C2F19"
+    },
+    {
+      "path": "src/RtpAudioQueue.h",
+      "sha256": "6249C32C4F70F043010CAF9546F542D323E96F3525D6C2C9A8444D483DA25DF2"
+    },
+    {
+      "path": "src/RtpVideoQueue.c",
+      "sha256": "97456F966EE4D100AD66560D24F9F3A4DD428C06EC5878FA3B37A8A19E6733B1"
+    },
+    {
+      "path": "src/RtpVideoQueue.h",
+      "sha256": "F3AF92D639701389E8B187D2190DF77CEE5064CD1B620E29825DA055C5CB12B4"
+    },
+    {
+      "path": "src/Rtsp.h",
+      "sha256": "65AAAC15BA3F568EC88781A77AD5E34B44CAC9F9654ED13734A8322BE94B92CC"
+    },
+    {
+      "path": "src/RtspConnection.c",
+      "sha256": "23758AA5DF1BF55DD61DE4AF0466FD0F1D0B79F41A9524EE0877FFBC55C3D2A8"
+    },
+    {
+      "path": "src/RtspParser.c",
+      "sha256": "B80DDF5C020B33DD25D44401E1A9D2E081EE128B1DE88A7D6F646663844C7A88"
+    },
+    {
+      "path": "src/SdpGenerator.c",
+      "sha256": "AF1BA1A0C9E5C8C1B1982F15BBAC1E73D6434006939D9CE632B28F76C712C14D"
+    },
+    {
+      "path": "src/SimpleStun.c",
+      "sha256": "2E3A33FAED3C26B47EA1FCBC32C1B04CD928321C67949834B7BB85B6556440F0"
+    },
+    {
+      "path": "src/Video.h",
+      "sha256": "2B2D59A4446491CB351EF95BFBAC6BE332BA7590CA9F2C6AEEC51C48B098C294"
+    },
+    {
+      "path": "src/VideoDepacketizer.c",
+      "sha256": "B918971BCB15877748710583D3D8E5D7A88AF53ABF70DBF49D2A9F078FA4D8A4"
+    },
+    {
+      "path": "src/VideoStream.c",
+      "sha256": "89834BA42AF49F25820A6E243E4B5AB5284A0ADAF23B27CC8424967C728BFE7E"
+    }
+  ]
+}

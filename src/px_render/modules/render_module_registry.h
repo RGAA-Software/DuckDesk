@@ -99,6 +99,8 @@ class RenderModuleRegistry : public std::enable_shared_from_this<RenderModuleReg
     void BroadcastFileTransferMessage(const std::string& stream_id, const std::shared_ptr<Data>& message, bool run_through);
     void BroadcastRawAudio(const std::shared_ptr<Data>& data, int samples, int channels, int bits);
     void PublishEncodedVideoMetadata(const std::string& monitor_name, const std::shared_ptr<EncodedVideoFrameEvent>& event);
+    void PublishNativeEncodedVideo(const std::string& monitor_name, const std::shared_ptr<EncodedVideoFrameEvent>& event);
+    [[nodiscard]] bool HasNativeMediaClient() const;
     void DispatchNetworkAppEvent(const std::shared_ptr<AppBaseEvent>& event);
     void ApplyLogicalSessionCapabilities(const PxLogicalSessionCapabilityUpdate& update);
     [[nodiscard]] bool PostRtcLocalMessage(const std::shared_ptr<Data>& message, bool run_through);
@@ -117,6 +119,7 @@ class RenderModuleRegistry : public std::enable_shared_from_this<RenderModuleReg
     void ClearModuleD3DResources(std::uint64_t adapter_uid);
     void InsertIdr(const std::string& monitor_name = {});
     [[nodiscard]] bool InvalidateReferenceFrame(const std::string& monitor_name, std::uint64_t invalid_frame_index);
+    [[nodiscard]] std::uint64_t EffectiveVideoBitrate(std::uint64_t requested_bps) const;
     [[nodiscard]] int64_t QueuedNetworkMediaMessages();
     [[nodiscard]] int64_t QueuedNetworkFileTransferMessages();
     int GetTotalConnectedClientsCount();
@@ -158,7 +161,7 @@ class RenderModuleRegistry : public std::enable_shared_from_this<RenderModuleReg
     std::shared_ptr<RdContext> context_ = nullptr;
     // Guards the explicit module composition. Visitors take a shared lock;
     // StopModules atomically detaches every owner under an exclusive lock.
-    std::shared_mutex modules_mtx_;
+    mutable std::shared_mutex modules_mtx_;
     std::shared_ptr<VideoEncoderModule> ffmpeg_encoder_;
     std::shared_ptr<VideoEncoderModule> nvenc_encoder_;
     std::shared_ptr<VideoEncoderModule> amf_encoder_;

@@ -14,6 +14,9 @@
 #include "px_common/px_udp_protocol.h"
 #include "px_common/px_udp_voice_protocol.h"
 #include "px_common/udp_voice_send_budget.h"
+#include "media_transport/video_stream.h"
+#include "media_transport/audio_stream.h"
+#include "media_transport/packet_timing.h"
 
 namespace asio2
 {
@@ -28,9 +31,9 @@ namespace px
     // GameStream 风格的裸 UDP 媒体通道(非 KCP),控制面仍走 ws,
     // 由 sdk_net_client.cpp 的 kUdpDirect 分支与 WsConnection 一起启动:
     // - 上行:hello(携带 WS 预关联码登记媒体端点)/heartbeat/IDR 控制包，以及独立的已关联 Voice 包。
-    // - 下行:视频 shard 经 PxUdpFrameReassembler 组帧后合成标准 kVideoFrame proto 上送,
+    // - 下行:视频经 media::VideoStreamReceiver 恢复和组帧后合成标准 kVideoFrame proto 上送,
     //   与 webrtc_local 的 encoded-sink 路径一致(不回 Ack);
-    //   音频包经 PxUdpAudioJitterBuffer 按序交付,合成标准 kAudioFrame proto 上送,
+    //   音频包经 media::AudioReceiveQueue 恢复并按序交付,合成标准 kAudioFrame proto 上送,
     //   缺口合成空 data proto 通知解码层走 Opus PLC
     // - watchdog:10s 收不到任何 UDP 包视为媒体面断开,走正常断线回调
     class UdpDirectConnection : public Connection,
@@ -70,9 +73,9 @@ namespace px
         bool IsAlive() override;
 
     private:
-        void InstallCallbacks();
         void OnUdpPacket(std::span<const char> data);
-        void OnCompleteFrame(const PxUdpFrameReassembler::CompleteFrame& frame);
+        void OnCompleteFrame(const media::VideoFrame& frame);
+        void OnAudioFrame(const media::AudioDelivery& frame);
         void RequestIdr(const std::string& mon_name);
         void RequestIdrKeepalive(const std::string& mon_name);
         void RequestRfi(uint64_t invalid_frame_index, const std::string& mon_name);
@@ -91,8 +94,23 @@ namespace px
         std::string association_code_;
 
         std::shared_ptr<asio2::udp_client> udp_client_ = nullptr;
-        PxUdpFrameReassembler reassembler_;
-        PxUdpAudioJitterBuffer audio_jitter_;
+        media::VideoStreamReceiver video_receiver_{};
+        media::AudioReceiveQueue audio_receiver_{};
+        struct MediaWindow final {
+            std::uint64_t start_us{};
+            std::uint64_t frames{};
+            std::uint64_t recovered_shards{};
+            std::uint64_t losses{};
+            std::uint64_t idr_requests{};
+            std::uint64_t rfi_requests{};
+            std::uint64_t max_gap_us{};
+            std::uint64_t gaps_over_100ms{};
+            std::uint64_t audio_plc{};
+        };
+        MediaWindow media_window_{}; // Accessed only by the UDP receive executor; reset after the old executor stops.
+        std::uint64_t last_delivered_us_{};
+        media::VideoPacketTiming receive_timing_{}; // UDP executor only, reset after the previous socket stops.
+        std::map<std::uint8_t, media::VideoReceiveStatistics> receive_statistics_{};
 
         std::function<void(std::shared_ptr<px::Message>)> video_msg_cbk_;
         std::function<void(std::shared_ptr<px::Message>)> audio_msg_cbk_;

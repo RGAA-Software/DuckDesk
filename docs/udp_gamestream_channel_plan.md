@@ -1,5 +1,7 @@
 # 云游戏 UDP 传输通道(GameStream 风格)实施规划
 
+> 历史方案：本次 UDP 音视频替换以 [Sunshine / Moonlight 对齐实施方案](native_udp_fec_upstream_implementation_plan.md) 为准。下文“已完成”不代表新方案已验收，旧内容保留供追溯。
+
 > 关联文档:[gamestream_protocol_analysis.md](gamestream_protocol_analysis.md)(Moonlight/Sunshine 协议分析)
 > **当前状态见 [udp_gamestream_channel_state.md](udp_gamestream_channel_state.md)**(实现清单、未解决问题、Moonlight/Sunshine 借鉴对照、排障记录)
 > 状态:P2 全部完成(2026-08-12);音频已迁 UDP 但实测未过(2026-08-13,视频卡死+无声,详见状态文档)

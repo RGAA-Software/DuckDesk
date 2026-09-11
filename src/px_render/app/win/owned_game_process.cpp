@@ -26,8 +26,9 @@ struct CurrentEnvironmentCloser final {
 using CurrentEnvironment = std::unique_ptr<wchar_t, CurrentEnvironmentCloser>;
 } // namespace
 
-OwnedGameProcess::OwnedGameProcess(ConstructionKey, UniqueWinHandle job, UniqueWinHandle root, UniqueWinHandle thread)
-    : job_(std::move(job)), root_(std::move(root)), thread_(std::move(thread)) {}
+OwnedGameProcess::OwnedGameProcess(ConstructionKey, UniqueWinHandle job, UniqueWinHandle root, UniqueWinHandle thread,
+                                 std::unique_ptr<GameDisplayPower> power)
+    : job_(std::move(job)), root_(std::move(root)), thread_(std::move(thread)), display_power_(std::move(power)) {}
 
 OwnedGameProcess::~OwnedGameProcess() {
     Stop();
@@ -44,6 +45,10 @@ std::shared_ptr<OwnedGameProcess> OwnedGameProcess::LaunchSuspended(const std::f
     const auto path = NormalizeGameExecutable(executable);
     auto command = GameCommandLine(executable, arguments);
     if (!path || !command) {
+        return {};
+    }
+    auto display_power = console_user ? GameDisplayPower::Acquire() : std::unique_ptr<GameDisplayPower>{};
+    if (console_user && !display_power) {
         return {};
     }
     UniqueWinHandle job{CreateJobObjectW(nullptr, nullptr)};
@@ -193,7 +198,7 @@ std::shared_ptr<OwnedGameProcess> OwnedGameProcess::LaunchSuspended(const std::f
         WaitForSingleObject(root.get(), 3000);
         return {};
     }
-    return std::make_shared<OwnedGameProcess>(ConstructionKey{}, std::move(job), std::move(root), std::move(thread));
+    return std::make_shared<OwnedGameProcess>(ConstructionKey{}, std::move(job), std::move(root), std::move(thread), std::move(display_power));
 }
 
 bool OwnedGameProcess::Resume() {
@@ -244,6 +249,7 @@ void OwnedGameProcess::Stop() {
     if (!stopped_.exchange(true) && job_) {
         TerminateJobObject(job_.get(), 0);
     }
+    display_power_.reset();
 }
 
 } // namespace px

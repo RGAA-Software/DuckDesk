@@ -19,90 +19,45 @@ namespace px
         Stop();
     }
 
-    void UdpDirectConnection::InstallCallbacks() {
-        const auto weak_self = weak_from_this();
-        // 组帧完成:合成标准 kVideoFrame proto 上送(走与 webrtc_local 相同的回调通道,不回 Ack)
-        reassembler_.on_frame_ = [weak_self](const PxUdpFrameReassembler::CompleteFrame& frame) {
-            if (const auto self = weak_self.lock()) self->OnCompleteFrame(frame);
-        };
-        // 判丢:请 render 重发 IDR(空 mon_name = 所有屏)。
-        // IDR 节流(moonlight 同款):网络差时狂要 IDR 只会加重拥塞——巨型 IDR 帧
-        // (可能 150+ shard)本身最易丢,丢了又要,无限 GOP 下永远花屏;按 mon_slot 1s 去重
-        reassembler_.on_frame_lost_ = [weak_self](uint8_t mon_slot, uint32_t lost_frame_index) {
-            const auto self = weak_self.lock();
-            if (!self) return;
-            auto now = std::chrono::steady_clock::now();
-            auto& last = self->last_rfi_time_[mon_slot];
-            if (last.time_since_epoch().count() != 0 &&
-                now - last < std::chrono::milliseconds(UdpDirectConnection::kRfiThrottleMs)) {
-                return;
+    void UdpDirectConnection::OnAudioFrame(const media::AudioDelivery& frame) {
+        if (stopped_ || !audio_msg_cbk_) {
+            return;
+        }
+        const auto payload = media::UnwrapAudioPayload(frame.payload);
+        const bool lost = !payload;
+        if (!lost && frame.sequence % 250 == 0)
+            LOGI("UDP media v2 audio delivered: sequence={}, opus_bytes={}", frame.sequence, payload->size());
+        if (lost) {
+            ++media_window_.audio_plc;
+            if (++audio_lost_log_count_ == 1 || audio_lost_log_count_ % 50 == 0) {
+                LOGW("UDP media v2 audio PLC, sequence={}, burst={}", frame.sequence, audio_lost_log_count_);
             }
-            last = now;
-            LOGW("Udp direct frame lost, mon slot: {}, frame: {}, request RFI.", mon_slot, lost_frame_index);
-            self->RequestRfi(lost_frame_index, "");
-            self->last_rfi_request_ms_ = TimeUtil::GetCurrentTimestamp();
-        };
-        // 帧状态反馈:每帧一条(完成/判丢都报),驱动 render 端动态调 FEC 百分比;
-        // PostBinaryMessage 走 asio2 async_send 非阻塞,不会拖慢接收线程
-        reassembler_.on_frame_status_ = [weak_self](uint8_t mon_slot, uint32_t frame_index,
-                                               uint16_t received, uint16_t lost) {
-            (void)mon_slot;
-            if (const auto self = weak_self.lock()) {
-                self->PostBinaryMessage(PxUdpProtocol::BuildFrameStatus(frame_index, received, lost));
+        } else {
+            audio_lost_log_count_ = 0;
+            if (!media_ready_reported_) {
+                media_ready_reported_ = true;
+                if (media_ready_cbk_)
+                    media_ready_cbk_();
             }
-        };
-        // 音频按序交付:合成标准 kAudioFrame proto 上送(参数与 render opus_encoder 一致:
-        // 48k/2ch/16bit,20ms 一帧 960 samples)
-        audio_jitter_.on_frame_ = [weak_self](uint32_t seq, uint32_t timestamp_ms, std::span<const char> payload) {
-            (void)seq;
-            (void)timestamp_ms;
-            const auto self = weak_self.lock();
-            if (!self || self->stopped_ || !self->audio_msg_cbk_) {
-                return;
-            }
-            self->audio_lost_log_count_ = 0; // 恢复正常交付,下一次判丢重新计数
-            if (!self->media_ready_reported_) {
-                self->media_ready_reported_ = true;
-                if (self->media_ready_cbk_) self->media_ready_cbk_();
-            }
-            auto msg = std::make_shared<px::Message>();
-            msg->set_type(px::kAudioFrame);
-            auto& audio = *msg->mutable_audio_frame();
-            audio.set_samples(48000);
-            audio.set_channels(2);
-            audio.set_bits(16);
-            audio.set_frame_size(960);
-            audio.set_data(payload.data(), payload.size());
-            // debug 标记:区分 UDP 合成帧与其它 kAudioFrame 来源(参照视频的 udp_synth)
-            audio.set_extra("udp_synth");
-            self->audio_msg_cbk_(msg);
-        };
-        // 丢帧信号:空 data 的 kAudioFrame proto,thunder_sdk 收到后调 DecodeDummy 走 PLC 补 20ms
-        audio_jitter_.on_lost_ = [weak_self](uint32_t seq) {
-            const auto self = weak_self.lock();
-            if (!self || self->stopped_ || !self->audio_msg_cbk_) {
-                return;
-            }
-            // 丢包风暴时逐条打日志会刷爆磁盘并拖垮 UDP 接收线程(真机踩过),每 50 条汇总一次
-            if (++self->audio_lost_log_count_ == 1 || self->audio_lost_log_count_ % 50 == 0) {
-                LOGW("Udp direct audio frame lost, seq: {}, PLC conceal. (burst: {})", seq, self->audio_lost_log_count_);
-            }
-            auto msg = std::make_shared<px::Message>();
-            msg->set_type(px::kAudioFrame);
-            auto& audio = *msg->mutable_audio_frame();
-            audio.set_samples(48000);
-            audio.set_channels(2);
-            audio.set_bits(16);
-            audio.set_frame_size(960);
-            audio.set_extra("udp_lost");
-            self->audio_msg_cbk_(msg);
-        };
+        }
+        if (stopped_)
+            return;
+        auto msg = std::make_shared<px::Message>();
+        msg->set_type(px::kAudioFrame);
+        auto& audio = *msg->mutable_audio_frame();
+        audio.set_samples(48000);
+        audio.set_channels(2);
+        audio.set_bits(16);
+        audio.set_frame_size(960);
+        if (payload)
+            audio.set_data(payload->data(), payload->size());
+        audio.set_extra(lost ? "udp_lost" : "udp_synth");
+        audio_msg_cbk_(msg);
     }
 
     void UdpDirectConnection::Start(const std::string& host, int udp_port, const std::string& stream_id,
                                     const std::string& association_code) {
         const auto weak_self = weak_from_this();
-        InstallCallbacks();
         host_ = host;
         udp_port_ = udp_port;
         stream_id_ = stream_id;
@@ -126,8 +81,12 @@ namespace px
         audio_lost_log_count_ = 0;
         media_ready_reported_ = false;
         received_media_packet_ = false;
-        reassembler_.Reset();
-        audio_jitter_.Reset();
+        video_receiver_.Reset();
+        audio_receiver_.Reset();
+        media_window_ = {};
+        last_delivered_us_ = 0;
+        receive_timing_.Reset();
+        receive_statistics_.clear();
 
         udp_client_ = std::make_shared<asio2::udp_client>();
         // 注意:裸 UDP,不传 asio2::use_kcp(可靠重传对视频是负优化,见 udp_gamestream_channel_plan.md)
@@ -181,7 +140,7 @@ namespace px
                     }
                 });
                 // 无完整视频帧兜底:2s 内没组出帧再请 IDR(节流 1s)。
-                // 丢帧恢复走 RFI 重试,不走这里。
+                // Lost frames request throttled IDR; this timer also handles total silence.
                 self->udp_client_->start_timer(kTimerIdrRetry, 1000, [weak_self]() {
                     if (const auto locked = weak_self.lock()) locked->CheckNeedIdr();
                 });
@@ -270,22 +229,73 @@ namespace px
             return;
         }
         last_recv_ms_ = TimeUtil::GetCurrentTimestamp();
+        const auto now_us = static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+        if (!media_window_.start_us)
+            media_window_.start_us = now_us;
         auto total = ++recv_pkt_count_;
         auto pkt_type = PxUdpProtocol::ParseCommon(data);
-        if (pkt_type == PxUdpProtocol::kPktVideo) {
+        const auto datagram = media::ParseMedia(std::span<const std::uint8_t>{reinterpret_cast<const std::uint8_t*>(data.data()), data.size()});
+        if (datagram && datagram->kind == media::MediaKind::kVideo) {
+            const auto identity = media::InspectVideoPacket(*datagram);
+            if (identity) {
+                if (const auto gap = receive_timing_.Observe(*identity, now_us)) {
+                    LOGW("UDP timing receive_gap: steady_us={}, gap_us={}, stream={}, previous={}/{}/{}, current={}/{}/{}, sequence={}",
+                         now_us, gap->current_us - gap->previous_us, identity->stream, gap->previous.frame, gap->previous.block,
+                         gap->previous.shard, identity->frame, identity->block, identity->shard, identity->sequence);
+                }
+            }
             received_media_packet_ = true;
             recv_video_pkt_count_++;
-            PxUdpProtocol::VideoShardInfo shard;
-            if (!PxUdpProtocol::ParseVideoShard(data, shard)) {
+            auto result = video_receiver_.Feed(*datagram, now_us);
+            if (result.statistics)
+                receive_statistics_[datagram->stream] = *result.statistics;
+            media_window_.recovered_shards += result.recovered;
+            media_window_.losses += result.losses.size();
+            if (result.rejected) {
                 malformed_video_pkt_count_++;
             }
-            reassembler_.AddPacket(data);
-        }
-        else if (pkt_type == PxUdpProtocol::kPktAudio) {
+            if (result.needs_idr) {
+                const auto now_ms = TimeUtil::GetCurrentTimestamp();
+                if (now_ms - last_idr_request_ms_.load() >= kIdrThrottleMs) {
+                    last_idr_request_ms_ = now_ms;
+                    ++media_window_.idr_requests;
+                    RequestIdr("");
+                }
+            } else if (result.invalid_reference_frame) {
+                // Invalidate after the last delivered encoder timestamp, never using the independent RTP frame number.
+                RequestRfi(*result.invalid_reference_frame, "");
+                ++media_window_.rfi_requests;
+            }
+            if (result.frame) {
+                ++media_window_.frames;
+                if (last_delivered_us_) {
+                    const auto gap = now_us - last_delivered_us_;
+                    media_window_.max_gap_us = std::max(media_window_.max_gap_us, gap);
+                    if (gap > 100000) {
+                        ++media_window_.gaps_over_100ms;
+                        if (identity) {
+                            LOGW("UDP timing frame_gap: steady_us={}, gap_us={}, stream={}, trigger={}/{}/{}, encoder_frame={}, recovered={}",
+                                 now_us, gap, identity->stream, identity->frame, identity->block, identity->shard,
+                                 result.frame->frame_index, result.recovered);
+                        }
+                    }
+                }
+                last_delivered_us_ = now_us;
+                PostBinaryMessage(PxUdpProtocol::BuildFrameStatus(static_cast<std::uint32_t>(result.frame->frame_index), 1,
+                                                                  static_cast<std::uint16_t>(result.recovered)));
+                OnCompleteFrame(*result.frame);
+            }
+            const auto elapsed_us = media::MediaSteadyMicros() - now_us;
+            if (elapsed_us > 5000 && identity) {
+                LOGW("UDP timing receive_work: steady_us={}, elapsed_us={}, stream={}, trigger={}/{}/{}, delivered={}, rejected={}", now_us,
+                     elapsed_us, identity->stream, identity->frame, identity->block, identity->shard, result.frame.has_value(), result.rejected);
+            }
+        } else if (datagram && datagram->kind == media::MediaKind::kAudio) {
             received_media_packet_ = true;
-            PxUdpProtocol::AudioPacketInfo audio;
-            if (PxUdpProtocol::ParseAudioPacket(data, audio)) {
-                audio_jitter_.AddPacket(audio.seq_, audio.timestamp_ms_, audio.payload_);
+            auto result = audio_receiver_.Feed(datagram->payload, now_us);
+            for (const auto& frame : result.packets) {
+                OnAudioFrame(frame);
             }
         } else if (pkt_type == PxUdpProtocol::kPktVoice) {
             auto frame = UdpVoiceProtocol::Parse(data);
@@ -303,35 +313,56 @@ namespace px
                 }
             }
         }
+        if (now_us - media_window_.start_us >= 5000000) {
+            const auto& window = media_window_;
+            LOGI("UDP media v2 window: frames={}, fps={:.1f}, max_gap_ms={:.1f}, gaps_gt_100ms={}, recovered_shards={}, loss_events={}, "
+                 "idr={}, rfi={}, audio_plc={}",
+                 window.frames, 1000000.0 * window.frames / (now_us - window.start_us), window.max_gap_us / 1000.0, window.gaps_over_100ms,
+                 window.recovered_shards, window.losses, window.idr_requests, window.rfi_requests, window.audio_plc);
+            media_window_ = {};
+            media_window_.start_us = now_us;
+            for (const auto& [stream, stats] : receive_statistics_) {
+                LOGI("UDP video totals: stream={}, data={}, parity={}, duplicates={}, late={}, reordered={}, recovered={}, complete={}, "
+                     "predicted={}, corrected={}, final_loss_events={}, unrecoverable={}, malformed={}",
+                     stream, stats.data_packets, stats.parity_packets, stats.duplicates, stats.late_packets, stats.reordered_packets,
+                     stats.recovered_data, stats.completed_frames, stats.predicted_losses, stats.prediction_corrections,
+                     stats.final_loss_events, stats.unrecoverable_frames, stats.malformed_packets);
+            }
+        }
         if (total == 1 || total % 500 == 0) {
-            LOGI("udp recv pkt total={}, video={}, malformed_video={}",
-                 total, recv_video_pkt_count_.load(), malformed_video_pkt_count_.load());
+            LOGI("udp recv pkt total={}, video={}, malformed_video={}", total, recv_video_pkt_count_.load(), malformed_video_pkt_count_.load());
         }
     }
 
-    void UdpDirectConnection::OnCompleteFrame(const PxUdpFrameReassembler::CompleteFrame& frame) {
+    void UdpDirectConnection::OnCompleteFrame(const media::VideoFrame& frame) {
         last_video_frame_ms_ = TimeUtil::GetCurrentTimestamp();
-        if (stopped_ || !video_msg_cbk_ || !frame.data_ || frame.data_->Size() == 0) {
+        if (stopped_ || !video_msg_cbk_ || frame.encoded.empty()) {
             return;
         }
+        if (frame.frame_index % 300 == 0 || frame.kind != media::VideoFrameKind::kPredicted)
+            LOGI("UDP media v2 video delivered: frame={}, kind={}, bytes={}, size={}x{}", frame.frame_index, static_cast<int>(frame.kind),
+                 frame.encoded.size(), frame.width, frame.height);
         if (!media_ready_reported_) {
             media_ready_reported_ = true;
-            if (media_ready_cbk_) media_ready_cbk_();
+            if (media_ready_cbk_)
+                media_ready_cbk_();
         }
+        if (stopped_)
+            return;
 
         // 合成与 relay/ws 路径完全一致的标准 kVideoFrame proto,
         // 让 sdk 的按屏解码链原样接上(reassembler 保证首帧必为 IDR)
         auto msg = std::make_shared<px::Message>();
         msg->set_type(px::kVideoFrame);
         auto& video = *msg->mutable_video_frame();
-        video.set_type(frame.codec_ == PxUdpProtocol::kCodecH265 ? px::kNetHevc : px::kNetH264);
-        video.set_data(frame.data_->Bytes().data(), frame.data_->Size());
-        video.set_frame_index(frame.frame_index_);
-        video.set_key(frame.key_);
-        video.set_frame_width(frame.frame_width_);
-        video.set_frame_height(frame.frame_height_);
-        video.set_mon_name(frame.mon_name_);
-        video.set_mon_index(frame.mon_slot_);
+        video.set_type(frame.codec == media::VideoCodec::kH265 ? px::kNetHevc : px::kNetH264);
+        video.set_data(frame.encoded.data(), frame.encoded.size());
+        video.set_frame_index(frame.frame_index);
+        video.set_key(frame.kind == media::VideoFrameKind::kIdr);
+        video.set_frame_width(frame.width);
+        video.set_frame_height(frame.height);
+        video.set_mon_name(frame.monitor);
+        video.set_mon_index(frame.stream);
         // debug 标记:区分 UDP 合成帧与其它 kVideoFrame 来源(参照 webrtc_local 的 rtc_synth)
         video.set_extra("udp_synth");
 
@@ -357,7 +388,7 @@ namespace px
         auto now = TimeUtil::GetCurrentTimestamp();
         auto last_frame = last_video_frame_ms_.load();
 
-        // 单帧/多帧丢包靠 RFI 重试恢复(Moonlight 同款),这里只做"长时间完全没帧"的兜底。
+        // Also retry when an IDR request or the resulting key frame was lost.
         if (last_frame != 0 && now - last_frame < kNoFrameTimeoutMs) {
             return;
         }

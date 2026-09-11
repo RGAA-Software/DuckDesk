@@ -86,6 +86,7 @@ namespace px
 
     EncoderThread::EncoderThread(const std::shared_ptr<RdApplication>& app)
         : settings_(*RdSettings::Instance()) {
+        frame_rate_.store(render::InitialFrameRate(settings_.encoder_.fps_));
         app_ = app;
         stat_ = RdStatistics::Instance();
         context_ = app->GetContext();
@@ -116,6 +117,15 @@ namespace px
         });
     }
 
+    void EncoderThread::SetFrameRate(int fps) noexcept {
+        if (render::ValidFrameRate(fps) && !exiting_)
+            frame_rate_.store(fps);
+    }
+
+    int EncoderThread::FrameRate() const noexcept {
+        return frame_rate_.load();
+    }
+
     void EncoderThread::Encode(const CaptureVideoFrame& cap_video_msg) {
         if (exiting_ || !frame_carrier_processor_) {
             return;
@@ -140,6 +150,7 @@ namespace px
         CaptureVideoFrame cap_video_msg, const std::shared_ptr<void>& inflight_guard) {
             // 保持 inflight_guard 存活到本任务结束;若任务被队列挤掉未执行,lambda 析构时仍会 --in_flight
             (void)inflight_guard;
+            const auto target_fps = FrameRate();
             auto diag_task_beg = TimeUtil::GetCurrentTimestamp();
             struct DiagGuard {
                 int64_t beg_;
@@ -181,6 +192,9 @@ namespace px
             auto frame_index = cap_video_msg.frame_index_;
             //auto adapter_uid = cap_video_msg.adapter_uid_;
             auto monitor_name = std::string(cap_video_msg.display_name_);
+            const bool admit_frame = frame_admission_[monitor_name].Admit(render::FrameRateAdmission::Clock::now(), target_fps);
+            if (!admit_frame && cap_video_msg.handle_ == 0)
+                return;
             bool frame_meta_info_changed = [&]() {
                 auto last_video_frame_exists = last_video_frames_.contains(monitor_name);
                 if (!last_video_frame_exists) {
@@ -195,6 +209,7 @@ namespace px
             }();
 
             bool full_color_mode_changed = false;
+            bool frame_rate_changed{};
             auto target_encoder = GetEncoderForMonitor(monitor_name);
 
             // Size thrash (windowed ↔ exclusive fullscreen) used to Exit/recreate NVENC every
@@ -231,10 +246,15 @@ namespace px
                 pending_frame_size_.erase(monitor_name);
                 pending_frame_size_since_ms_.erase(monitor_name);
             }
+            const auto effective_bitrate =
+                module_registry_->EffectiveVideoBitrate(static_cast<std::uint64_t>(std::max(1, settings->encoder_.bitrate_)) * 1'000'000);
+            bool bitrate_changed{};
             if (target_encoder) {
                 auto encoder_config_res = target_encoder->Configuration(monitor_name);
                 if (encoder_config_res.has_value()) {
                     const auto selected_encoder_config = encoder_config_res.value();
+                    frame_rate_changed = selected_encoder_config.fps != target_fps;
+                    bitrate_changed = selected_encoder_config.bitrate != effective_bitrate;
                     if (selected_encoder_config.enable_full_color_mode_ != settings_.EnableFullColorMode() ) {
                         full_color_mode_changed = true;
                         LOGI("full_color_mode_changed!!!");
@@ -256,14 +276,18 @@ namespace px
             const bool switched_to_hevc = (effective_format == Encoder::EncoderFormat::kHEVC
                                           && encoder_format_ != Encoder::EncoderFormat::kHEVC);
 
-            if (full_color_mode_changed || frame_meta_info_changed || encoder_format_ != effective_format
-                || !target_encoder || !target_encoder->IsEnabled()) {
+            if (bitrate_changed || frame_rate_changed || full_color_mode_changed || frame_meta_info_changed || encoder_format_ != effective_format ||
+                !target_encoder || !target_encoder->IsEnabled()) {
+                if (frame_rate_changed) {
+                    LOGI("Synchronize capture admission and encoder: monitor={}, fps={}", monitor_name, target_fps);
+                    cap_video_msg.request_idr_ = true;
+                }
                 if (target_encoder) {
                     // todo : Test it!
                     target_encoder->Remove(monitor_name);
                     target_encoder = nullptr;
                 }
-                px::EncoderConfig encoder_config;
+                px::EncoderConfig encoder_config{};
                 // WebView OSR frames arrive as CPU BGRA images without a
                 // desktop-capture module. Route frames through the CPU-input
                 // encoder chain just like GDI frames; texture-only encoders
@@ -295,11 +319,7 @@ namespace px
                 encoder_config.enable_adaptive_quantization = true;
                 encoder_config.gop_size = -1;
                 encoder_config.quality_preset = 1;
-                // MUST have a value > 0
-                encoder_config.fps = settings_.encoder_.fps_;
-                if (encoder_config.fps < 15 || encoder_config.fps > 120) {
-                    encoder_config.fps = 60;
-                }
+                encoder_config.fps = target_fps;
                 encoder_config.multi_pass = px::ENvdiaEncMultiPass::kMultiPassDisabled;
                 encoder_config.rate_control_mode = px::ERateControlMode::kRateControlModeCbr;
                 encoder_config.sample_desc_count = 1;
@@ -314,7 +334,7 @@ namespace px
                      || cap_fmt == DXGI_FORMAT_R8G8B8A8_UNORM)
                     ? cap_video_msg.frame_format_
                     : static_cast<int>(DXGI_FORMAT_B8G8R8A8_UNORM);
-                encoder_config.bitrate = settings->encoder_.bitrate_ * 1000000;
+                encoder_config.bitrate = effective_bitrate;
                 encoder_config.adapter_uid_ = cap_video_msg.adapter_uid_;
                 encoder_config.enable_full_color_mode_ = settings_.EnableFullColorMode();
 
@@ -531,6 +551,10 @@ namespace px
                     LOGE("CopyTexture failed: empty result or texture");
                     return;
                 }
+                // The Hook producer waits for this texture's keyed-mutex handoff. Always consume/release it,
+                // even when this input is above the encoding frame-rate budget, or capture can stop permanently.
+                if (!admit_frame)
+                    return;
 
                 ComPtr<ID3D11Texture2D> target_texture = cp_result->texture;
                 // 2. resize ?

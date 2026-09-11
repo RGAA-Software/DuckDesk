@@ -16,6 +16,7 @@
 #include <mutex>
 #include "px_common/fps_stat.h"
 #include "px_capture/capture_message.h"
+#include "px_client_sdk/media_transport/send_policy.h"
 
 using namespace Microsoft::WRL;
 
@@ -54,11 +55,12 @@ namespace px
         static NV_ENC_BUFFER_FORMAT DxgiFormatToNvEncFormat(DXGI_FORMAT dxgiFormat);
         bool CreateNvEncoder();
         bool ApplyPendingConfigLocked();
+        void ApplyReferenceRecoveryLocked();
 
-    private:
+      private:
         std::shared_ptr<NvEncoder> nv_encoder_ = nullptr;
-        EncoderConfig encoder_config_;
-        bool insert_idr_ = false;
+        EncoderConfig encoder_config_{};
+        std::atomic_bool insert_idr_{false};
         std::weak_ptr<NvencEncoderModule> owner_;
 
         ComPtr<ID3D11Device> d3d11_device_;
@@ -67,12 +69,15 @@ namespace px
         std::shared_ptr<FpsStat> fps_stat_ = nullptr;
         std::deque<int32_t> encode_durations_;
 
-        NV_ENC_BUFFER_FORMAT e_buffer_format_;
+        NV_ENC_BUFFER_FORMAT e_buffer_format_{NV_ENC_BUFFER_FORMAT_UNDEFINED};
 
         bool enable_yuv444_ = false;
 
         bool has_transmit_frames_ = false;
         uint64_t last_encoded_frame_index_ = 0;
+        bool rfi_pending_{false}; // Protected by encode_mtx_; consumed only after a subsequent synchronous output packet.
+        media::ReferenceRecovery reference_recovery_{};
+        std::size_t reference_capacity_{};
 
         // ConfigEncoder 常在全局/插件线程触发,而 Encode 在 encoder_thread。
         // NVENC Reconfigure 与 EncodeFrame 并发会卡死(切屏新建第二路 encoder 时尤其易中招)。

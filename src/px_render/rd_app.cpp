@@ -684,7 +684,7 @@ int RdApplication::Run() {
         LOGI("Use capture fps: {}", settings_.encoder_.fps_);
         if (capture_source_ && capture_source_->IsEnabled()) {
             LOGI("Use dda capture module.");
-            capture_source_->SetCaptureFps(settings_.encoder_.fps_);
+            capture_source_->SetCaptureFps(FrameRate());
             const auto weak_self = weak_from_this();
             capture_source_->SetCaptureErrorCallback([weak_self](const MonitorCaptureError& err) {
                 const auto self = weak_self.lock();
@@ -1152,11 +1152,7 @@ void RdApplication::InitMessages() {
         if (!self || self->exit_app_) {
             return;
         }
-        std::lock_guard<std::mutex> lk(self->capture_source_mtx_);
-        if (self->capture_source_) {
-            self->settings_.encoder_.fps_ = msg.fps_;
-            self->capture_source_->SetCaptureFps(msg.fps_);
-        }
+        self->SetFrameRate(msg.fps_);
     });
 
     // request from Remote Panel's context menu or same function
@@ -2043,8 +2039,8 @@ void RdApplication::SendConfigurationBack() {
         info.set_current_height(monitor.Height());
         monitors_info->Add(std::move(info));
     }
-    LOGI("Will send configuration back, fps: {}", settings_.encoder_.fps_);
-    config->set_fps(settings_.encoder_.fps_);
+    LOGI("Will send configuration back, fps: {}", FrameRate());
+    config->set_fps(FrameRate());
     config->set_capturing_monitor_name(capturing_name);
     config->set_file_transfer_enabled(settings_.file_transfer_enabled_);
     // FT 协议版本:rustdesk 语义 = 2(旧实现已删除,主控按此门控)
@@ -2140,6 +2136,20 @@ std::shared_ptr<RenderModuleRegistry> RdApplication::GetRenderModuleRegistry() {
 std::shared_ptr<MonitorCaptureSource> RdApplication::GetWorkingMonitorCaptureSource() {
     std::lock_guard<std::mutex> lk(capture_source_mtx_);
     return capture_source_;
+}
+
+void RdApplication::SetFrameRate(int fps) {
+    if (exit_app_ || !render::ValidFrameRate(fps) || !encoder_thread_)
+        return;
+    // Hook has no desktop capture module. Admission and encoder configuration still share this target.
+    encoder_thread_->SetFrameRate(fps);
+    if (const auto capture = GetWorkingMonitorCaptureSource())
+        capture->SetCaptureFps(fps);
+    LOGI("Requested media frame rate: {}", fps);
+}
+
+int RdApplication::FrameRate() const noexcept {
+    return encoder_thread_ ? encoder_thread_->FrameRate() : render::InitialFrameRate(settings_.encoder_.fps_);
 }
 
 std::map<std::string, std::shared_ptr<VideoEncoderModule>> RdApplication::GetWorkingVideoEncoders() const {
@@ -2437,7 +2447,7 @@ bool RdApplication::SwitchGdiCapture() {
         return false;
     }
     capture_source_ = gdi_capture_source_;
-    capture_source_->SetCaptureFps(settings_.encoder_.fps_);
+    capture_source_->SetCaptureFps(FrameRate());
     capture_source_->SetEnabled(true);
     LOGI("Use gdi capture module.");
     return true;
@@ -2458,7 +2468,7 @@ bool RdApplication::SwitchDdaCapture() {
         return false;
     }
     capture_source_ = dda_capture_source_;
-    capture_source_->SetCaptureFps(settings_.encoder_.fps_);
+    capture_source_->SetCaptureFps(FrameRate());
     capture_source_->SetEnabled(true);
     LOGI("Use dda capture module.");
     return true;

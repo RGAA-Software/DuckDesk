@@ -129,6 +129,8 @@ namespace px
         void ResetMonitorResolution(const std::string& name, int w, int h);
         std::shared_ptr<RenderModuleRegistry> GetRenderModuleRegistry();
         std::shared_ptr<MonitorCaptureSource> GetWorkingMonitorCaptureSource();
+        void SetFrameRate(int fps);
+        [[nodiscard]] int FrameRate() const noexcept;
         std::map<std::string, std::shared_ptr<VideoEncoderModule>>
             GetWorkingVideoEncoders() const;
         bool GenerateD3DDevice(uint64_t adapter_uid);

@@ -81,22 +81,38 @@ namespace px
         if (!nv_encoder_ || !has_transmit_frames_) {
             return false;
         }
-        constexpr uint64_t kMaxRfiRange = 16;
-        if (last_encoded_frame_index_ < invalid_frame_index ||
-            last_encoded_frame_index_ - invalid_frame_index + 1 >= kMaxRfiRange) {
-            LOGW("NvEncInvalidateRefFrames invalid/too large range: first={}, last={}, fallback IDR.",
-                 invalid_frame_index, last_encoded_frame_index_);
-            return false;
+        NV_ENC_CONFIG active_config{NV_ENC_CONFIG_VER};
+        NV_ENC_INITIALIZE_PARAMS active_params{NV_ENC_INITIALIZE_PARAMS_VER};
+        active_params.encodeConfig = &active_config; // Synchronous NVENC ABI; the wrapper copies its current configuration here.
+        nv_encoder_->GetInitializeParams(&active_params);
+        const auto dpb_frames = encoder_config_.codec_type == EVideoCodecType::kHEVC ? active_config.encodeCodecConfig.hevcConfig.maxNumRefFramesInDPB
+                                                                                     : active_config.encodeCodecConfig.h264Config.maxNumRefFrames;
+        if (dpb_frames < 2 || active_config.frameIntervalP != 1 || active_config.rcParams.enableLookahead ||
+            !nv_encoder_->GetCapabilityValue(active_params.encodeGUID, NV_ENC_CAPS_SUPPORT_REF_PIC_INVALIDATION)) {
+            return false; // No safe synchronous output/DPB proof: caller requests IDR.
+        }
+        reference_capacity_ = dpb_frames;
+        reference_recovery_.Request(invalid_frame_index);
+        return true; // Accepted for coalescing, not yet confirmed. Apply once before the next encode.
+    }
+
+    void NVENCVideoEncoder::ApplyReferenceRecoveryLocked() {
+        if (!reference_recovery_.Pending())
+            return;
+        const auto timestamps = reference_recovery_.Take(reference_capacity_);
+        if (!timestamps) {
+            insert_idr_ = true;
+            return;
         }
         try {
-            for (auto ts = invalid_frame_index; ts <= last_encoded_frame_index_; ts++) {
+            for (const auto ts : *timestamps) {
                 nv_encoder_->InvalidateRefFrames(ts);
             }
-            LOGI("NvEncInvalidateRefFrames success, range=[{},{}]", invalid_frame_index, last_encoded_frame_index_);
-            return true;
-        } catch (NVENCException& e) {
-            LOGE("NvEncInvalidateRefFrames failed, code: {}, err: {}", (int)e.getErrorCode(), e.what());
-            return false;
+            rfi_pending_ = !timestamps->empty();
+        } catch (const std::exception& error) {
+            LOGW("Reference recovery failed, request IDR: {}", error.what());
+            rfi_pending_ = false;
+            insert_idr_ = true;
         }
     }
 
@@ -106,6 +122,9 @@ namespace px
 
     void NVENCVideoEncoder::Shutdown() {
         std::lock_guard<std::mutex> lk(encode_mtx_);
+        rfi_pending_ = false;
+        reference_recovery_.Reset();
+        reference_capacity_ = 0;
         if (nv_encoder_) {
             if (has_transmit_frames_) {
                 std::vector<std::vector<uint8_t>> out_packet;
@@ -189,18 +208,18 @@ namespace px
         if (!ApplyPendingConfigLocked()) {
             return false;
         }
+        ApplyReferenceRecoveryLocked();
         auto beg = TimeUtil::GetCurrentTimestamp();
-        std::vector<std::vector<uint8_t>> out_packet;
-        const NvEncInputFrame *input_frame = nv_encoder_->GetNextInputFrame();
-        auto pInputTexture = reinterpret_cast<ID3D11Texture2D*>(input_frame->inputPtr);
-        d3d11_device_context_->CopyResource(pInputTexture, tex2d.Get());
+        std::vector<std::vector<uint8_t>> out_packet{};
+        const auto& input_frame = *nv_encoder_->GetNextInputFrame(); // Synchronous, borrowed NVENC input slot.
+        const ComPtr<ID3D11Texture2D> input_texture{static_cast<ID3D11Texture2D*>(input_frame.inputPtr)};
+        d3d11_device_context_->CopyResource(input_texture.Get(), tex2d.Get());
 
         bool is_key_frame = false;
         NV_ENC_PIC_PARAMS picParams = {};
         picParams.inputTimeStamp = frame_index;
-        if (insert_idr_ || capture_frame.request_idr_) {
+        if (insert_idr_.exchange(false) || capture_frame.request_idr_) {
             picParams.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR;
-            insert_idr_ = false;
             is_key_frame = true;
         }
         try {
@@ -219,7 +238,12 @@ namespace px
         has_transmit_frames_ = true;
         last_encoded_frame_index_ = frame_index;
 
-        CD3D11_TEXTURE2D_DESC desc;
+        const bool recovery_confirmed = rfi_pending_ && out_packet.size() == 1;
+        if (out_packet.size() == 1)
+            reference_recovery_.Output(frame_index, is_key_frame);
+        if (!out_packet.empty())
+            rfi_pending_ = false;
+        CD3D11_TEXTURE2D_DESC desc{};
         tex2d->GetDesc(&desc);
 
         for (std::vector<uint8_t> &packet: out_packet) {
@@ -232,6 +256,7 @@ namespace px
             event->frame_width_ = desc.Width;
             event->frame_height_ = desc.Height;
             event->key_frame_ = is_key_frame;
+            event->reference_state_ = recovery_confirmed ? EncodedReferenceState::kRecoveryConfirmed : EncodedReferenceState::kDependent;
             event->frame_index_ = frame_index;
             event->capture_frame_ = capture_frame;
             if (enable_yuv444_) {

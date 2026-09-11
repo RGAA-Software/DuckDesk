@@ -1,5 +1,11 @@
 find_package(GTest CONFIG REQUIRED)
 
+add_executable(test_frame_rate_policy unit/test_frame_rate_policy.cpp)
+target_include_directories(test_frame_rate_policy PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_link_libraries(test_frame_rate_policy PRIVATE GTest::gtest GTest::gtest_main)
+add_test(NAME frame_rate_policy COMMAND test_frame_rate_policy)
+set_tests_properties(frame_rate_policy PROPERTIES TIMEOUT 15)
+
 add_executable(test_render_ui_task_queue unit/test_ui_task_queue.cpp)
 add_executable(test_rdp_route_close unit/test_rdp_route_close.cpp)
 target_link_libraries(test_rdp_route_close PRIVATE net_ws render_architecture_core px_rdp_stream GTest::gtest GTest::gtest_main)
@@ -200,6 +206,7 @@ target_link_libraries(test_render_execution_context_lifecycle PRIVATE render_arc
 add_test(NAME render_execution_context_lifecycle COMMAND test_render_execution_context_lifecycle)
 
 add_executable(test_udp_transport_shutdown test_udp_transport_shutdown.cpp)
+target_link_libraries(test_udp_transport_shutdown PRIVATE pixels::media_transport)
 target_link_libraries(test_udp_transport_shutdown PRIVATE
     net_udp render_architecture_core GTest::gtest GTest::gtest_main)
 add_test(NAME udp_transport_shutdown COMMAND test_udp_transport_shutdown)
@@ -268,6 +275,11 @@ if(WIN32)
     target_link_libraries(test_game_owned_process PRIVATE GTest::gtest GTest::gtest_main Wtsapi32 Userenv Advapi32)
     add_dependencies(test_game_owned_process owned_game_fixture)
     add_test(NAME game_owned_process COMMAND test_game_owned_process)
+    add_executable(test_game_display_power unit/test_game_display_power.cpp)
+    target_include_directories(test_game_display_power PRIVATE ${CMAKE_SOURCE_DIR}/src/px_deps)
+    target_link_libraries(test_game_display_power PRIVATE GTest::gtest GTest::gtest_main)
+    add_test(NAME game_display_power COMMAND test_game_display_power)
+    set_tests_properties(game_display_power PROPERTIES TIMEOUT 10 LABELS "render-unit")
     set_tests_properties(game_process_identity game_owned_process PROPERTIES TIMEOUT 30 LABELS "render-unit")
 endif()
 target_link_libraries(test_render_builtin_linkage PRIVATE

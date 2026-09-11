@@ -8,6 +8,7 @@
 #include <vector>
 #include <utility>
 #include "px_common/win32/unique_win_handle.h"
+#include "game_display_power.h"
 
 namespace px {
 
@@ -24,7 +25,7 @@ class OwnedGameProcess final {
     static std::shared_ptr<OwnedGameProcess> LaunchSuspended(const std::filesystem::path& executable, std::wstring_view arguments,
                                                              bool console_user = true, const EnvironmentOverrides& overrides = {},
                                                              GameTokenPolicy token_policy = GameTokenPolicy::kInherit);
-    OwnedGameProcess(ConstructionKey, UniqueWinHandle job, UniqueWinHandle root, UniqueWinHandle thread);
+    OwnedGameProcess(ConstructionKey, UniqueWinHandle job, UniqueWinHandle root, UniqueWinHandle thread, std::unique_ptr<GameDisplayPower> power);
     ~OwnedGameProcess();
     [[nodiscard]] DWORD RootPid() const;
     [[nodiscard]] bool HasLiveProcesses() const;
@@ -36,6 +37,7 @@ class OwnedGameProcess final {
     UniqueWinHandle job_{};
     UniqueWinHandle root_{};
     UniqueWinHandle thread_{};
+    std::unique_ptr<GameDisplayPower> display_power_{};
     std::mutex launch_mutex_{};
     std::atomic_bool stopped_{};
 };

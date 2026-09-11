@@ -17,6 +17,7 @@
 #include "rd_app.h"
 #include "px_common/message_notifier.h"
 #include "px_common/time_util.h"
+#include "px_common/thread.h"
 #include "architecture/observers/frame_debugger_observer.h"
 #include "architecture/pipeline/encoded_media_bus.h"
 #include "architecture/pipeline/media_types.h"
@@ -38,6 +39,8 @@ namespace px
     }
 
     void EncodedVideoFanout::InitListener() {
+        video_dispatch_ = Thread::Make("encoded video dispatch", 1);
+        video_dispatch_->Poll();
         msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
         const auto weak_self = weak_from_this();
         msg_listener_->Listen<CaptureMonitorInfoMessage>([weak_self](const CaptureMonitorInfoMessage&) {
@@ -143,11 +146,40 @@ namespace px
 
         module_registry_->BroadcastNetworkMessage(net_msg, false);
 
-        const auto module_registry = module_registry_;
-        context_->PostMediaTask([module_registry, msg, event]() {
-            module_registry->PublishEncodedVideoMetadata(
-                msg.monitor_name_, event);
+        const std::weak_ptr<RenderModuleRegistry> weak_registry = module_registry_;
+        context_->PostMediaTask([weak_registry, monitor = msg.monitor_name_, event]() {
+            if (const auto registry = weak_registry.lock())
+                registry->PublishEncodedVideoMetadata(monitor, event);
+        });
+        if (!module_registry_->HasNativeMediaClient())
+            return;
+        if (!video_backlog_.Push(
+                {msg.monitor_name_, event, static_cast<std::size_t>(event->data_->Size()), event->key_frame_, std::chrono::steady_clock::now()})) {
+            module_registry_->InsertIdr(msg.monitor_name_);
+            return;
+        }
+        const auto weak_self = weak_from_this();
+        video_dispatch_->Post([weak_self]() {
+            if (const auto self = weak_self.lock())
+                self->DrainVideo();
         });
     }
 
+    EncodedVideoFanout::~EncodedVideoFanout() {
+        video_backlog_.Close();
+        if (video_dispatch_)
+            video_dispatch_->Exit();
+    }
+
+    void EncodedVideoFanout::DrainVideo() {
+        while (const auto delivery = video_backlog_.Pop(std::chrono::steady_clock::now())) {
+            if (delivery->discard) {
+                module_registry_->InsertIdr(delivery->frame.stream);
+                LOGW("Video backlog rejected dependent/expired frame: stream={}, dropped={}, pending_bytes={}", delivery->frame.stream,
+                     video_backlog_.Dropped(), video_backlog_.Bytes());
+                continue;
+            }
+            module_registry_->PublishNativeEncodedVideo(delivery->frame.stream, delivery->frame.payload);
+        }
+    }
 }
