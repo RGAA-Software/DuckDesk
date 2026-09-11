@@ -1,8 +1,15 @@
 # GammaRay/GoDesk 架构总览
 
+> 2026-09-11 桌面 UI 迁移决策：共享 SDL3 + Dear ImGui UI 基础，Windows 首版使用 D3D11 后端；先完成 Panel，再迁移 Client。
+> 本轮只修改 UI，保持现有业务逻辑、配置和协议，包括恢复的 WebSocket 媒体直连、WebSocket Relay、force_tcp/force_relay 和现有 RDP 入口。
+> 随页面替换必要的 Qt 接口，不以前置全量 Core 重构扩展范围；移动端 UI 和其他平台完整业务适配另行推进。完整阶段、边界和门禁见
+> [Panel 与 Windows Client 的 Dear ImGui 迁移计划](dear_imgui_ui_migration_plan.md)。
 > 2026-09-07 更新客户端传输产品边界，其余历史架构说明以各专题当前记录为准。本文是项目的模块关系与整体理解的单一入口。
 
 ## 原生客户端与 Web 的传输边界（2026-09-07）
+
+> 历史决策记录：下文关于仅保留 UDP、取消 WS 媒体/Relay/通道设置的描述已被后续恢复功能的决定部分取代。
+> 本文其他旧端口、功能进度和已知缺口也需结合当前代码核实，不能据此裁剪 UI 迁移功能。UI 迁移按当前代码建立基线，保留已有行为。
 
 Windows、Android、iOS、macOS 原生客户端均取消 WebRTC，包括 host 直连；iOS 和 macOS 的平台适配列为后续工作。WebRTC 只用于 Web 客户端。原生客户端使用共享 C++ SDK 的
 UDP+FEC 媒体、WebSocket 可靠控制和独立文件通道，组成唯一的原生直连模式；取消原生 WS 视频回退、旧 UDP/KCP、Relay 与公网 P2P。
@@ -40,8 +47,8 @@ macOS 客户端已纳入产品规划：复用同一 SDK，后续补齐桌面 UI�
 | 组件 | 位置 | 角色 |
 |---|---|---|
 | px_render | `src/px_render` | 采集/编码/流媒体宿主。同一 exe 两种模式：desktop（DDA/GDI 屏采）/ game-hook（启动游戏并注入 `px_gh.dll`，帧经本机 `/ipc` 回传） |
-| px_panel | `src/px_panel` | 被控端 Qt 管理 UI。管理桌面 render、把授权推给本机 service、拉起 Windows 观看客户端 |
-| px_client | `src/px_client` | Windows 观看端（WS `/media`），由 panel 拉起 |
+| px_panel | `src/px_panel` | 被控端管理 UI。当前为 Qt，先迁移到 SDL3+Dear ImGui；保留现有授权、Service/Render 管理和 Client 启动逻辑 |
+| px_client | `src/px_client` | Windows 观看与控制端。Panel 完成后迁移 UI；保留 UDP/FEC、WS 媒体直连、WS Relay、强制连接设置和现有 RDP 等功能 |
 | Pixels Android Client | `src/px_android` | Android 观看与控制端。当前按最终产品原地重建，不保留旧 Android 兼容层；M1 已接通类型化设备目录、Panel 信息验证、DataStore 和 Keystore，目标覆盖完整会话、音视频、输入、多显示器、远程应用、文件、剪贴板、录制、语音和全传输能力 |
 | px_service | `rust_client/px_service` | 被控机常驻服务。拉起/看管 render、执行 Console 调度（启停游戏实例）、本机控制面 WS `:20375` |
 | px_osinfo | `rust_client/px_sysinfo` | 系统信息采集上报 |
@@ -129,3 +136,4 @@ WS + UDP 模式中，WS 在会话准入后记录短期的首次 UDP 媒体端点
 - 多用户会话、控制租约与无 Console 直连产品契约：`logical_session_product_definition.md`
 - Pixels Android 最终产品、架构、删除范围和交付门禁：`android_pixels_product_plan.md`
 - Pixels Android 页面、视觉、交互、响应式布局和组件规范：`android_pixels_ui_design.md`
+- Panel 先行、Windows Client 后续的 Qt → Dear ImGui 迁移计划：`dear_imgui_ui_migration_plan.md`
