@@ -48,7 +48,9 @@ namespace px
         last_error_.clear();
         db_storage_.reset();
         stream_operator_ = std::make_shared<StreamDBOperator>(shared_from_this());
+#if 0 // Retired local game catalog storage.
         db_game_operator_ = std::make_shared<DBGameOperator>(context_, shared_from_this());
+#endif
         visit_record_op_ = std::make_shared<VisitRecordOperator>(context_, shared_from_this());
         ft_record_op_ = std::make_shared<FileTransferRecordOperator>(context_, shared_from_this());
 

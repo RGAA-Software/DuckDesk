@@ -31,7 +31,9 @@ namespace px
     HttpHandler::HttpHandler(const std::shared_ptr<PxApplication>& app) {
         this->context_ = app->GetContext();
         this->app_ = app;
+#if 0 // Retired local game HTTP workflow.
         this->run_game_mgr_ = app->GetContext()->GetRunGameManager();
+#endif
     }
 
     void HttpHandler::HandlePing(http::web_request &req, http::web_response &rep) {

@@ -28,7 +28,9 @@
 
 #include "px_qt_widget/custom_tab_btn.h"
 #include "px_qt_widget/widget_helper.h"
+#if 0 // Retired local Installed Games workflow; Console cloud applications own game launches.
 #include "render_panel/ui/tab_game.h"
+#endif
 #include "render_panel/ui/tab_server.h"
 #include "render_panel/ui/tab_cloud_apps.h"
 #include "render_panel/ui/tab_settings.h"
@@ -313,6 +315,7 @@ namespace px
                 layout->addWidget(btn, 0, Qt::AlignHCenter);
             }
 
+#if 0 // Retired local Installed Games navigation.
             if (skin_ && skin_->IsGameEnabled()) {
                 auto btn = new CustomTabBtn(AppColors::kTabBtnInActiveColor, AppColors::kTabBtnHoverColor, this);
                 btn->AddIcon(":/resources/image/ic_game_selected.svg", ":/resources/image/ic_game_normal.svg", 20, 20);
@@ -327,6 +330,7 @@ namespace px
                 layout->addSpacing(10);
                 layout->addWidget(btn, 0, Qt::AlignHCenter);
             }
+#endif
 
             if (skin_ && skin_->IsCoPhoneEnabled()) {
                 auto btn = new CustomTabBtn(AppColors::kTabBtnInActiveColor, AppColors::kTabBtnHoverColor, this);
@@ -511,9 +515,11 @@ namespace px
             tabs_.insert({TabName::kTabServer, new TabServer(app_, this)});
             tabs_.insert({TabName::kTabCloudApps, new TabCloudApps(app_, this)});
             tabs_.insert({TabName::kTabServerStatus, new TabServerStatus(app_, this)});
+#if 0 // Retired local Installed Games page.
             if (skin_ && skin_->IsGameEnabled()) {
                 tabs_.insert({TabName::kTabGames, new TabGame(app_, this)});
             }
+#endif
             if (skin_ && skin_->IsCoPhoneEnabled()) {
                 tabs_.insert({TabName::kTabCoPhone, new TabCoPhone(app_, this)});
             }
@@ -525,9 +531,11 @@ namespace px
             tabs_[TabName::kTabServer]->SetAttach(btn_tab_server_);
             tabs_[TabName::kTabCloudApps]->SetAttach(btn_tab_cloud_apps_);
             tabs_[TabName::kTabServerStatus]->SetAttach(btn_tab_server_status_);
+#if 0 // Retired local Installed Games page.
             if (skin_ && skin_->IsGameEnabled()) {
                 tabs_[TabName::kTabGames]->SetAttach(btn_tab_games_);
             }
+#endif
             if (skin_ && skin_->IsCoPhoneEnabled()) {
                 tabs_[TabName::kTabCoPhone]->SetAttach(btn_tab_cophone_);
             }
@@ -542,9 +550,11 @@ namespace px
             stack_widget->addWidget(tabs_[TabName::kTabServer]);
             stack_widget->addWidget(tabs_[TabName::kTabCloudApps]);
             stack_widget->addWidget(tabs_[TabName::kTabServerStatus]);
+#if 0 // Retired local Installed Games page.
             if (skin_ && skin_->IsGameEnabled()) {
                 stack_widget->addWidget(tabs_[TabName::kTabGames]);
             }
+#endif
             if (skin_ && skin_->IsCoPhoneEnabled()) {
                 stack_widget->addWidget(tabs_[TabName::kTabCoPhone]);
             }

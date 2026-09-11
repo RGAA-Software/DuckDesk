@@ -97,6 +97,7 @@ bool PxContext::Init(const std::shared_ptr<PxApplication>& app) {
         LOGE("StreamDBOperator init failed");
     }
 
+#if 0 // Retired local game catalog; Console application scheduling is the active launch path.
     db_game_manager_ = database_->GetDBGameOperator();
     if (!db_game_manager_) {
         if (!db_error_.empty()) {
@@ -105,8 +106,9 @@ bool PxContext::Init(const std::shared_ptr<PxApplication>& app) {
         db_error_ += "DBGameOperator init failed";
         LOGE("DBGameOperator init failed");
     }
+#endif
 
-    db_ready_ = db_ready_ && stream_db_mgr_ != nullptr && db_game_manager_ != nullptr;
+    db_ready_ = db_ready_ && stream_db_mgr_ != nullptr;
 
     if (!db_ready_ && db_error_.empty()) {
         db_error_ = "Database is not ready";
@@ -135,8 +137,10 @@ bool PxContext::Init(const std::shared_ptr<PxApplication>& app) {
         return false;
     }
 
+#if 0 // Retired local Steam discovery.
     steam_mgr_ = SteamManager::Make();
     steam_mgr_->ScanInstalledSteamPath();
+#endif
 
     msg_notifier_ = app->GetMessageNotifier();
 
@@ -151,7 +155,9 @@ bool PxContext::Init(const std::shared_ptr<PxApplication>& app) {
     res_manager_ = std::make_shared<PxResources>(shared_from_this());
     res_manager_->ExtractIconsIfNeeded();
 
+#if 0 // Retired local game process manager.
     run_game_manager_ = std::make_shared<PxRunGameManager>(shared_from_this());
+#endif
     console_manager_ = std::make_shared<PxConsoleManager>(shared_from_this());
     event_manager_ = std::make_shared<PxEventManager>(shared_from_this());
     service_manager_ = ServiceManager::Make();

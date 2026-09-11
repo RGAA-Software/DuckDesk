@@ -144,6 +144,7 @@ namespace px
                     }
                 });
 
+#if 0 // Retired local game monitoring and broadcast.
                 // check running game
                 const auto skin = self->app_->GetSkin();
                 if (skin && skin->IsGameEnabled()) {
@@ -166,6 +167,7 @@ namespace px
                         });
                     });
                 }
+#endif
 
                 // check service status
                 if (has_service_binaries) {

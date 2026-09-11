@@ -213,6 +213,7 @@ void WsPanelServer::Start() {
                          }
                      }));
 
+#if 0 // Retired local game catalog/start/stop API. Console cloud applications own launches.
     // response all apps that we found in system and added by user
     AddHttpGetRouter(kPathGames, MakeWeakVoidCallback(weak_self, [](const auto& self, const auto&, auto& req, auto& rep) {
                          if (!self->exiting_) {
@@ -240,6 +241,7 @@ void WsPanelServer::Start() {
                              self->http_handler_->HandleRunningGames(req, rep);
                          }
                      }));
+#endif
 
     // stop the px_render.exe
     AddHttpGetRouter(kPathStopServer, MakeWeakVoidCallback(weak_self, [](const auto& self, const auto&, auto& req, auto& rep) {
@@ -291,11 +293,13 @@ void WsPanelServer::Start() {
                      }));
 
     // cache
+#if 0 // Retired local Steam cover endpoint.
     AddHttpGetRouter("/steam/cache/*", MakeWeakVoidCallback(weak_self, [](const auto& self, const auto&, auto& req, auto& rep) {
                          if (!self->exiting_) {
                              self->http_handler_->HandleSteamCacheFile(req, rep);
                          }
                      }));
+#endif
 
     // default
     server_->bind<http::verb::get, http::verb::post>(
