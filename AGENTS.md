@@ -79,6 +79,16 @@
 - Code structure must follow explicit responsibilities and dependency direction: composition roots create concrete modules,
   constructor/factory injection supplies required capabilities, external APIs stay behind adapters, and lifecycle transitions live in
   explicit state machines or workflow objects. Prefer composition over inheritance.
+- New features and migrations must be decomposed into cohesive modules with one clear reason to change. Do not combine platform/window
+  integration, rendering backends, UI composition, persistence, network/business workflows, and process lifecycle in one large source file
+  or god class. Keep the composition root thin, split files at real responsibility boundaries, and enforce dependency direction through
+  narrow typed interfaces. File splitting alone is not architecture; avoid both monoliths and speculative one-method abstraction layers.
+- New user-facing UI must be localization-ready from its first implementation. English and Simplified Chinese are the initial required
+  catalogs; user-facing text uses typed localization keys instead of literals scattered through pages. A language change must reuse the
+  same UI and business flow, and missing-key/catalog parity checks must be testable without launching the UI.
+- New desktop UI must support Pixels light and dark themes from its first implementation. Theme colors come from shared semantic tokens;
+  pages must not embed independent palettes. Theme changes reuse the same widgets and business state and must not accumulate DPI/style
+  scaling. Persistence belongs to the application settings adapter, not individual pages.
 - Apply design patterns only where they make ownership, variability, or lifecycle clearer. Do not add service locators, mutable global
   singletons, generic `void*`/`std::any` bags, speculative interfaces, or inheritance layers for built-in modules. Interfaces must be small,
   typed, capability-specific, and backed by a real extension boundary.
