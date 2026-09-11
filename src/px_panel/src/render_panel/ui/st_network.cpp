@@ -26,184 +26,18 @@
 #include "px_common/message_notifier.h"
 #include "render_panel/console_scanner/console_scanner.h"
 #include "render_panel/console/console_error_presenter.h"
+#include "render_panel/network/network_settings_workflow.h"
 #include "st_network_auto_join_dialog.h"
 #include <QPushButton>
 #include <QLineEdit>
 #include <QDebug>
 #include <QFileDialog>
-#include <QUrl>
-#include <chrono>
-#include <optional>
-#include "px_common/async_blocking_call.h"
 #include "px_common/async_runtime.h"
 #include "px_common/latest_serial_request_gate.h"
 #include "render_panel/devices/px_device_manager.h"
 #include "render_panel/ui/qt_lifetime_guard.h"
 
 namespace px {
-namespace {
-struct NetworkEndpointRequest final {
-    std::string host;
-    int console_port = 0;
-    std::string appkey;
-};
-
-struct ConsolePingResult final {
-    Result<bool, px_console::ConsoleApiError> result;
-    std::string server_message;
-};
-
-struct VerifyNetworkResult final {
-    enum class Failure {
-        kNone,
-        kAsync,
-        kConsole,
-    };
-
-    Failure failure = Failure::kNone;
-    PxAsyncError async_error;
-    px_console::ConsoleApiError console_error = px_console::ConsoleApiError::kInternalError;
-    std::string console_message;
-};
-
-struct SaveNetworkResult final {
-    enum class Failure {
-        kNone,
-        kAsync,
-        kDevice,
-    };
-
-    Failure failure = Failure::kNone;
-    PxAsyncError async_error;
-    px_console::ConsoleApiError device_error = px_console::ConsoleApiError::kInternalError;
-    std::shared_ptr<px_console::ConsoleDevice> new_device;
-};
-
-bool IsValidNodeAccessHost(const QString& value) {
-    if (value.isEmpty()) {
-        return true;
-    }
-    const QUrl endpoint("https://" + value, QUrl::StrictMode);
-    return value.trimmed() == value && endpoint.isValid() && !endpoint.host().isEmpty() && endpoint.userInfo().isEmpty() && endpoint.port(-1) == -1 &&
-           !endpoint.hasQuery() && !endpoint.hasFragment() && (endpoint.path().isEmpty() || endpoint.path() == "/") && endpoint.host() != "0.0.0.0" &&
-           endpoint.host() != "::";
-}
-
-template <typename T>
-PxAwaitable<PxResult<std::optional<T>>> AwaitGatedBlockingCall(std::shared_ptr<LatestSerialRequestGate> gate,
-                                                               LatestSerialRequestGate::Request request, PxBlockingTaskPoster poster,
-                                                               std::chrono::steady_clock::time_point deadline, std::string stage,
-                                                               std::function<T(const std::shared_ptr<std::atomic_bool>&)> call) {
-    const auto executor = co_await asio::this_coro::executor;
-    co_return co_await AwaitBlockingCall<std::optional<T>>(
-        poster, executor, deadline, request.cancellation, std::move(stage),
-        [gate, request, call = std::move(call)](const std::shared_ptr<std::atomic_bool>& cancellation) mutable {
-            std::optional<T> result;
-            static_cast<void>(gate->RunIfCurrent(request.generation, [&result, &call, &cancellation]() { result.emplace(call(cancellation)); }));
-            return result;
-        });
-}
-
-PxAwaitable<void> RunVerifyNetwork(std::shared_ptr<LatestSerialRequestGate> gate, LatestSerialRequestGate::Request request,
-                                   PxBlockingTaskPoster poster, NetworkEndpointRequest endpoint, std::function<void(VerifyNetworkResult)> done) {
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(8);
-    auto console_call = co_await AwaitGatedBlockingCall<ConsolePingResult>(
-        gate, request, poster, deadline, "panel-network.verify-console", [endpoint](const std::shared_ptr<std::atomic_bool>& cancellation) {
-            auto result = px_console::ConsoleDeviceApi::Ping(endpoint.host, endpoint.console_port, endpoint.appkey, cancellation);
-            return ConsolePingResult{
-                .result = std::move(result),
-                .server_message = px_console::ConsoleApiLastErrorMessage(),
-            };
-        });
-    if (!console_call) {
-        done(VerifyNetworkResult{
-            .failure = VerifyNetworkResult::Failure::kAsync,
-            .async_error = console_call.Error(),
-        });
-        co_return;
-    }
-    auto console_completion = console_call.TakeValue();
-    if (!console_completion) {
-        co_return;
-    }
-    if (!console_completion->result.has_value() || !console_completion->result.value()) {
-        done(VerifyNetworkResult{
-            .failure = VerifyNetworkResult::Failure::kConsole,
-            .console_error =
-                console_completion->result.has_value() ? px_console::ConsoleApiError::kServiceUnavailable : console_completion->result.error(),
-            .console_message = std::move(console_completion->server_message),
-        });
-        co_return;
-    }
-
-    // Ping checks reachability only. Save authenticates the node through the protected device query / registration endpoints.
-    done({});
-    co_return;
-}
-
-PxAwaitable<void> RunSaveNetwork(std::shared_ptr<LatestSerialRequestGate> gate, LatestSerialRequestGate::Request request, PxBlockingTaskPoster poster,
-                                 std::shared_ptr<PxDeviceManager> device_manager, std::string device_id, std::string default_device_name,
-                                 std::function<void(SaveNetworkResult)> done) {
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-    // Device APIs validate the installation credential; the administrator-only license API is not part of node registration.
-    bool request_new_device = device_id.empty();
-    if (!request_new_device) {
-        auto query_call = co_await AwaitGatedBlockingCall<Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError>>(
-            gate, request, poster, deadline, "panel-network.query-device",
-            [device_manager, device_id](const std::shared_ptr<std::atomic_bool>& cancellation) {
-                return device_manager->QueryDevice(device_id, cancellation);
-            });
-        if (!query_call) {
-            done(SaveNetworkResult{
-                .failure = SaveNetworkResult::Failure::kAsync,
-                .async_error = query_call.Error(),
-            });
-            co_return;
-        }
-        auto query = query_call.TakeValue();
-        if (!query) {
-            co_return;
-        }
-        if (!query->has_value() && query->error() != px_console::ConsoleApiError::kDeviceNotFound) {
-            done(SaveNetworkResult{.failure = SaveNetworkResult::Failure::kDevice, .device_error = query->error()});
-            co_return;
-        }
-        request_new_device = !query->has_value() || !query->value() || query->value()->device_id_.empty();
-    }
-
-    if (!request_new_device) {
-        done({});
-        co_return;
-    }
-    auto create_call = co_await AwaitGatedBlockingCall<Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError>>(
-        gate, request, poster, deadline, "panel-network.create-device",
-        [device_manager, default_device_name](const std::shared_ptr<std::atomic_bool>& cancellation) {
-            return device_manager->RequestNewDevice(default_device_name, "", cancellation);
-        });
-    if (!create_call) {
-        done(SaveNetworkResult{
-            .failure = SaveNetworkResult::Failure::kAsync,
-            .async_error = create_call.Error(),
-        });
-        co_return;
-    }
-    auto created = create_call.TakeValue();
-    if (!created) {
-        co_return;
-    }
-    if (!created->has_value() || !created->value() || created->value()->device_id_.empty() || created->value()->gen_random_pwd_.empty()) {
-        done(SaveNetworkResult{
-            .failure = SaveNetworkResult::Failure::kDevice,
-            .device_error = created->has_value() ? px_console::ConsoleApiError::kInternalError : created->error(),
-        });
-        co_return;
-    }
-    done(SaveNetworkResult{
-        .new_device = created->value(),
-    });
-    co_return;
-}
-} // namespace
 
 StNetwork::StNetwork(const std::shared_ptr<PxApplication>& app,
                      QWidget* parent) // NOLINT(gammaray-raw-pointer-boundary) Qt parent API
@@ -536,7 +370,7 @@ void StNetwork::VerifyAccessInfo() {
     }
     const NetworkEndpointRequest endpoint{
         .host = ac_info->console_config_.srv_w3c_ip_,
-        .console_port = ac_info->console_config_.srv_console_port_,
+        .consolePort = ac_info->console_config_.srv_console_port_,
         .appkey = ac_info->console_config_.srv_appkey_,
     };
     const auto context = context_;
@@ -550,23 +384,23 @@ void StNetwork::VerifyAccessInfo() {
                     if (!self || !gate->Complete(generation)) {
                         return;
                     }
-                    if (result.failure == VerifyNetworkResult::Failure::kAsync) {
-                        LOGE("Verify network failed: stage={}, reason={}", result.async_error.stage, result.async_error.message);
-                        if (result.async_error.code == PxAsyncErrorCode::kCancelled) {
+                    if (result.failure == VerifyNetworkResult::Failure::Async) {
+                        LOGE("Verify network failed: stage={}, reason={}", result.asyncError.stage, result.asyncError.message);
+                        if (result.asyncError.code == PxAsyncErrorCode::kCancelled) {
                             return;
                         }
                         TcDialog dialog(tcTr("id_error"),
                                         MakeConsoleErrorMessage(ConsoleErrorOperation::kCheckConsole,
-                                                                px_console::ConsoleApiError::kNetworkUnavailable, result.async_error.message,
-                                                                MakeConsoleEndpoint(endpoint.host, endpoint.console_port)),
+                                                                px_console::ConsoleApiError::kNetworkUnavailable, result.asyncError.message,
+                                                                MakeConsoleEndpoint(endpoint.host, endpoint.consolePort)),
                                         self);
                         dialog.exec();
                         return;
                     }
-                    if (result.failure == VerifyNetworkResult::Failure::kConsole) {
+                    if (result.failure == VerifyNetworkResult::Failure::Console) {
                         TcDialog dialog(tcTr("id_error"),
-                                        MakeConsoleErrorMessage(ConsoleErrorOperation::kCheckConsole, result.console_error, result.console_message,
-                                                                MakeConsoleEndpoint(endpoint.host, endpoint.console_port)),
+                                        MakeConsoleErrorMessage(ConsoleErrorOperation::kCheckConsole, result.consoleError, result.consoleMessage,
+                                                                MakeConsoleEndpoint(endpoint.host, endpoint.consolePort)),
                                         self);
                         dialog.exec();
                         return;
@@ -597,7 +431,7 @@ void StNetwork::Save(bool auto_restart_render) {
     const auto& relay_host = ac_info->console_config_.srv_w3c_ip_;
     const auto relay_port = std::to_string(ac_info->console_config_.srv_relay_port_);
     const auto node_access_host = edt_node_access_host_->text().trimmed();
-    if (!IsValidNodeAccessHost(node_access_host)) {
+    if (!IsValidNodeAccessHost(node_access_host.toStdString())) {
         TcDialog dialog(tcTr("id_error"), tcTr("id_node_access_host_invalid"));
         dialog.exec();
         return;
@@ -634,7 +468,7 @@ void StNetwork::Save(bool auto_restart_render) {
     }
     const NetworkEndpointRequest endpoint{
         .host = settings.GetConsoleServerHost(),
-        .console_port = settings.GetConsoleServerPort(),
+        .consolePort = settings.GetConsoleServerPort(),
         .appkey = ac_info->console_config_.srv_appkey_,
     };
 
@@ -668,34 +502,34 @@ void StNetwork::Save(bool auto_restart_render) {
                     if (!self || !gate->Complete(generation)) {
                         return;
                     }
-                    if (result.failure == SaveNetworkResult::Failure::kAsync) {
-                        LOGE("Save network failed: stage={}, reason={}", result.async_error.stage, result.async_error.message);
-                        if (result.async_error.code != PxAsyncErrorCode::kCancelled) {
-                            TcDialog dialog(tcTr("id_warning"), QString::fromStdString(result.async_error.message), self);
+                    if (result.failure == SaveNetworkResult::Failure::Async) {
+                        LOGE("Save network failed: stage={}, reason={}", result.asyncError.stage, result.asyncError.message);
+                        if (result.asyncError.code != PxAsyncErrorCode::kCancelled) {
+                            TcDialog dialog(tcTr("id_warning"), QString::fromStdString(result.asyncError.message), self);
                             dialog.exec();
                         }
                         return;
                     }
-                    if (result.failure == SaveNetworkResult::Failure::kDevice) {
-                        LOGE("Request Device ID failed, code: {}", static_cast<int>(result.device_error));
+                    if (result.failure == SaveNetworkResult::Failure::Device) {
+                        LOGE("Request Device ID failed, code: {}", static_cast<int>(result.deviceError));
                         TcDialog dialog(tcTr("id_warning"),
-                                        MakeConsoleErrorMessage(ConsoleErrorOperation::kUpdateDevice, result.device_error, {},
-                                                                MakeConsoleEndpoint(endpoint.host, endpoint.console_port)),
+                                        MakeConsoleErrorMessage(ConsoleErrorOperation::kUpdateDevice, result.deviceError, {},
+                                                                MakeConsoleEndpoint(endpoint.host, endpoint.consolePort)),
                                         self);
                         dialog.exec();
                         return;
                     }
-                    if (result.new_device) {
+                    if (result.newDevice) {
                         auto& settings = self->network_settings_.get();
-                        settings.SetDeviceId(result.new_device->device_id_);
-                        settings.SetDeviceName(result.new_device->device_name_);
-                        settings.SetDeviceRandomPwd(result.new_device->gen_random_pwd_);
+                        settings.SetDeviceId(result.newDevice->device_id_);
+                        settings.SetDeviceName(result.newDevice->device_name_);
+                        settings.SetDeviceRandomPwd(result.newDevice->gen_random_pwd_);
                         if (self->app_->GetCompanion()) {
-                            self->app_->GetCompanion()->UpdateDeviceId(result.new_device->device_id_);
+                            self->app_->GetCompanion()->UpdateDeviceId(result.newDevice->device_id_);
                         }
                         self->context_->SendAppMessage(MsgRequestedNewDevice{
-                            .device_id_ = result.new_device->device_id_,
-                            .device_random_pwd_ = result.new_device->gen_random_pwd_,
+                            .device_id_ = result.newDevice->device_id_,
+                            .device_random_pwd_ = result.newDevice->gen_random_pwd_,
                             .force_update_ = true,
                         });
                         self->context_->SendAppMessage(MsgSyncSettingsToRender{});

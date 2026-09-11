@@ -7,6 +7,7 @@
 #include "px_ui/px_ui_theme.h"
 
 #include <backends/imgui_impl_sdl3.h>
+#include <backends/imgui_impl_dx11.h>
 #include <imgui.h>
 
 #include <functional>
@@ -35,14 +36,17 @@ std::expected<ImGuiSession, std::string> ImGuiSession::Create(WindowHost& window
         ImGui::DestroyContext();
         return std::unexpected{"Dear ImGui D3D11 backend initialization failed"};
     }
-    return ImGuiSession{renderer, true};
+    auto session = ImGuiSession{renderer, true};
+    session.displayScale_ = window.DisplayScale();
+    return session;
 }
 
 ImGuiSession::ImGuiSession(std::reference_wrapper<D3d11Renderer> renderer, const bool sdlBackendInitialized) noexcept
     : renderer_{renderer}, sdlBackendInitialized_{sdlBackendInitialized} {}
 
 ImGuiSession::ImGuiSession(ImGuiSession&& other) noexcept
-    : renderer_{other.renderer_}, sdlBackendInitialized_{std::exchange(other.sdlBackendInitialized_, false)} {}
+    : renderer_{other.renderer_}, sdlBackendInitialized_{std::exchange(other.sdlBackendInitialized_, false)}, theme_{other.theme_},
+      displayScale_{other.displayScale_} {}
 
 ImGuiSession::~ImGuiSession() {
     if (sdlBackendInitialized_) {
@@ -60,6 +64,25 @@ void ImGuiSession::BeginFrame() const {
 
 bool ImGuiSession::NeedsInteractiveRefresh() const {
     return ImGui::IsAnyItemActive() || ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
+}
+
+bool ImGuiSession::ApplyAppearance(const px::ui::Theme theme, const float displayScale) {
+    const float safeScale{displayScale > 0.0F ? displayScale : 1.0F};
+    if (theme == theme_ && safeScale == displayScale_) {
+        return true;
+    }
+
+    theme_ = theme;
+    if (safeScale != displayScale_) {
+        displayScale_ = safeScale;
+        ImGui_ImplDX11_InvalidateDeviceObjects();
+        ImGui::GetIO().Fonts->Clear();
+        if (!ConfigureFonts(displayScale_) || !ImGui_ImplDX11_CreateDeviceObjects()) {
+            return false;
+        }
+    }
+    px::ui::ApplyPixelsTheme(theme_, displayScale_);
+    return true;
 }
 
 } // namespace px::desktop

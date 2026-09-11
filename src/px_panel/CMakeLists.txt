@@ -31,14 +31,14 @@ include_directories(${CMAKE_SOURCE_DIR}/src/px_client)
 include_directories(${PX_PROJECT_PATH}/px_qt_widget)
 include_directories(${CMAKE_BINARY_DIR}/src/px_base)
 
-if(WIN32)
-    add_subdirectory(ui_imgui)
-endif()
-
 add_subdirectory(src)
 add_subdirectory(src/tests)
 add_subdirectory(src/service)
 add_subdirectory(src/ui/gd_gui)
+
+if(WIN32)
+    add_subdirectory(ui_imgui)
+endif()
 
 set(RES resources/main.qrc resources/qss.qrc res.qrc)
 add_executable(px_panel WIN32

@@ -10,6 +10,8 @@ namespace px::panel::ui {
 
 enum class NetworkPageAction : std::uint8_t {
     None,
+    AuthorizationChanged,
+    VerifyRequested,
     SaveRequested,
 };
 
@@ -17,6 +19,7 @@ class NetworkSettingsPage final {
   public:
     NetworkPageAction Draw(const px::ui::Localizer& localizer);
     const NetworkSettingsDraft& Draft() const noexcept;
+    void SetDraft(NetworkSettingsDraft draft);
     void SetStatus(px::ui::TextId status) noexcept;
 
   private:

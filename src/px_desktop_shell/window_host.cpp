@@ -1,8 +1,12 @@
 #include "window_host.h"
 
+#include "windows_title_bar_behavior.h"
+
 #include <SDL3/SDL.h>
 
+#include <algorithm>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -13,6 +17,17 @@ constexpr float kTitleBarHeight{48.0F};
 constexpr int kResizeBorder{7};
 constexpr int kCaptionButtonWidth{46};
 constexpr int kCaptionButtonCount{3};
+
+float InitialDisplayScale() {
+    const SDL_DisplayID display{SDL_GetPrimaryDisplay()};
+    const float scale{display == 0 ? 1.0F : SDL_GetDisplayContentScale(display)};
+    return scale > 0.0F ? scale : 1.0F;
+}
+
+int ScaledWindowDimension(const int logicalSize, const float scale, const int availableSize) {
+    const int requested{static_cast<int>(static_cast<float>(logicalSize) * scale)};
+    return availableSize > 0 ? std::min(requested, static_cast<int>(static_cast<float>(availableSize) * 0.92F)) : requested;
+}
 
 struct SdlWindowDeleter final {
     void operator()(SDL_Window* window) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
@@ -27,10 +42,13 @@ SDL_HitTestResult SDLCALL HitTest(SDL_Window* window, const SDL_Point* area, voi
     int height{};
     SDL_GetWindowSize(window, &width, &height);
 
-    const bool left{area->x < kResizeBorder};
-    const bool right{area->x >= width - kResizeBorder};
-    const bool top{area->y < kResizeBorder};
-    const bool bottom{area->y >= height - kResizeBorder};
+    const float displayScale{SDL_GetWindowDisplayScale(window)};
+    const auto scale = [displayScale](const int value) { return static_cast<int>(static_cast<float>(value) * displayScale); };
+    const int resizeBorder{scale(kResizeBorder)};
+    const bool left{area->x < resizeBorder};
+    const bool right{area->x >= width - resizeBorder};
+    const bool top{area->y < resizeBorder};
+    const bool bottom{area->y >= height - resizeBorder};
     if (top && left) {
         return SDL_HITTEST_RESIZE_TOPLEFT;
     }
@@ -56,8 +74,8 @@ SDL_HitTestResult SDLCALL HitTest(SDL_Window* window, const SDL_Point* area, voi
         return SDL_HITTEST_RESIZE_RIGHT;
     }
 
-    const int captionButtonsStart{width - kCaptionButtonWidth * kCaptionButtonCount};
-    if (area->y < static_cast<int>(kTitleBarHeight) && area->x < captionButtonsStart) {
+    const int captionButtonsStart{width - scale(kCaptionButtonWidth) * kCaptionButtonCount};
+    if (area->y < scale(static_cast<int>(kTitleBarHeight)) && area->x < captionButtonsStart) {
         return SDL_HITTEST_DRAGGABLE;
     }
     return SDL_HITTEST_NORMAL;
@@ -71,9 +89,11 @@ std::string LastSdlError(const std::string& operation) {
 
 struct WindowHost::Impl final {
     SdlWindow window{};
+    std::optional<WindowsTitleBarBehavior> titleBarBehavior{};
     bool sdlInitialized{false};
 
     ~Impl() {
+        titleBarBehavior.reset();
         window.reset();
         if (sdlInitialized) {
             SDL_Quit();
@@ -88,14 +108,30 @@ std::expected<WindowHost, std::string> WindowHost::Create(const std::string& tit
     }
     impl->sdlInitialized = true;
 
-    constexpr SDL_WindowFlags flags{SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_BORDERLESS};
-    impl->window.reset(SDL_CreateWindow(title.c_str(), width, height, flags));
+    const float initialScale{InitialDisplayScale()};
+    SDL_Rect usableBounds{};
+    const SDL_DisplayID primaryDisplay{SDL_GetPrimaryDisplay()};
+    if (primaryDisplay != 0) {
+        SDL_GetDisplayUsableBounds(primaryDisplay, &usableBounds);
+    }
+    const int scaledWidth{ScaledWindowDimension(width, initialScale, usableBounds.w)};
+    const int scaledHeight{ScaledWindowDimension(height, initialScale, usableBounds.h)};
+    constexpr SDL_WindowFlags flags{SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_BORDERLESS | SDL_WINDOW_HIDDEN};
+    impl->window.reset(SDL_CreateWindow(title.c_str(), scaledWidth, scaledHeight, flags));
     if (!impl->window) {
         return std::unexpected{LastSdlError("SDL_CreateWindow")};
     }
-    SDL_SetWindowMinimumSize(impl->window.get(), 900, 600);
+    SDL_SetWindowMinimumSize(impl->window.get(), static_cast<int>(900.0F * initialScale), static_cast<int>(600.0F * initialScale));
     if (!SDL_SetWindowHitTest(impl->window.get(), HitTest, nullptr)) {
         return std::unexpected{LastSdlError("SDL_SetWindowHitTest")};
+    }
+    auto titleBarResult = WindowsTitleBarBehavior::Create(*impl->window);
+    if (!titleBarResult) {
+        return std::unexpected{titleBarResult.error()};
+    }
+    impl->titleBarBehavior.emplace(std::move(titleBarResult.value()));
+    if (!SDL_SetWindowPosition(impl->window.get(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED) || !SDL_ShowWindow(impl->window.get())) {
+        return std::unexpected{LastSdlError("Show centered window")};
     }
     return WindowHost{std::move(impl)};
 }

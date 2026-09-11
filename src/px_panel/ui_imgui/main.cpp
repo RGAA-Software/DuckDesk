@@ -12,5 +12,13 @@ int main() {
 
     auto shell = std::move(shellResult.value());
     px::panel::ui::PanelPreview panel{};
-    return shell.Run([&panel] { panel.Draw(); });
+    return shell.Run([&panel, &shell] {
+        const auto action = panel.Draw();
+        if (action.selectedTheme.has_value()) {
+            shell.SetTheme(*action.selectedTheme);
+        }
+        if (action.exitRequested) {
+            shell.RequestExit();
+        }
+    });
 }

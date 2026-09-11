@@ -1,7 +1,7 @@
 # Panel 与 Client 跨平台 UI 迁移计划
 
 创建：2026-09-11。修订：按用户确认收窄为**只修改 UI，不修改业务逻辑**。
-状态：P1 实施中；独立 Panel UI 骨架已建立，正式 `px_panel` 尚未切换。
+状态：P2 实施中；正式业务入口的并行 ImGui Panel 已建立，现有 `px_panel` 尚未切换。
 
 当前进度（2026-09-11）：
 
@@ -9,8 +9,13 @@
 - Windows SDL3 + D3D11 + ImGui 窗口已编译并通过重复短时启动，预览 EXE 运行依赖中无 Qt；正式 Panel 和 Client 仍保持原入口。
 - 已提供类型化简体中文/英文词典、Pixels 深色/浅色主题及词典完整性、主题重复缩放测试。
 - 桌面外壳已按窗口、D3D11 渲染、ImGui 生命周期、字体、标题栏和 composition root 拆分；持有资源使用 RAII/智能指针。
-- Network 页面已拆成独立 draft/page，当前仍使用明确的预览数据；真实配置读取、授权解析/验证/保存尚未接入，不得按已完成描述。
-- Windows Snap Layout、动态 DPI、中文 IME 候选框、正常关闭/重复创建销毁和可视主题交互仍需完成 P1 验收。
+- Network 页面已拆成独立 draft/page/presenter/port；正式 ImGui Panel 已接入现有配置读取、授权解析、Console 验证、保存及设备注册工作流，预览版继续使用隔离数据。
+- Windows 最大化按钮已通过原生 `HTMAXBUTTON` 接入 Snap Layout，平台 subclass 由 RAII 管理；显示缩放变化会从基础尺寸重放主题和字体配置。
+- 4K（3840×2160、150%）已完成窗口居中、字体、标题栏、导航、操作按钮和端口表格的实机可视验收；窗口初始/最小尺寸及自定义命中区域统一随 DPI 缩放。
+- 官方 ImGui SDL3 后端已负责文本输入光标区域到 SDL 的传递，Windows SDL 后端据此定位系统 IME 候选框；仍需人工完成跨屏 DPI、中文候选窗和 Snap 菜单的可视验收。
+- 深浅主题状态已归一到桌面壳层，正常关闭、语言测试、ownership 门禁及 build/dist 哈希核对通过。
+- 旧 Qt 网络页的 Console 验证和设备注册异步操作已抽到 UI 无关工作流，旧页面继续调用相同实现；下一步由 ImGui 业务适配器复用，避免复制网络语义。
+- 服务状态页已接入现有 Application、Statistics 和消息系统，显示驱动、Render、Service、网络、端口和音频状态；安装驱动和重启 Render 复用原业务入口。
 
 ## 1. 目标与硬边界
 

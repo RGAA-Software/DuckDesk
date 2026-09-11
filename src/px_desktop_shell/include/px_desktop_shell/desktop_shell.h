@@ -5,6 +5,8 @@
 #include <memory>
 #include <string>
 
+#include "px_ui/px_ui_theme.h"
+
 namespace px::desktop {
 
 struct WindowConfig {
@@ -27,6 +29,8 @@ class DesktopShell final {
     DesktopShell& operator=(const DesktopShell&) = delete;
 
     int Run(const RenderCallback& render);
+    bool SetTheme(px::ui::Theme theme);
+    void RequestExit() noexcept;
 
   private:
     struct Impl;

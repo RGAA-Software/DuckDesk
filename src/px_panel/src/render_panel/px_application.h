@@ -83,6 +83,7 @@ namespace px
 
         // companion for private logics
         PanelCompanion* GetCompanion();
+        std::shared_ptr<PanelCompanion> GetCompanionShared() { return companion_; }
         void JumpToOffSiteUpdate();
         bool HasOffSiteUpdate();
 

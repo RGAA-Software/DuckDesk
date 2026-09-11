@@ -1,8 +1,14 @@
 #include "panel_preview.h"
 
+#include "placeholder_page.h"
+
+#include "px_ui/layout_metrics.h"
+
 #include <imgui.h>
 
+#include <algorithm>
 #include <string_view>
+#include <utility>
 
 namespace px::panel::ui {
 namespace {
@@ -15,36 +21,20 @@ void DrawDisabledText(const std::string_view text) {
 
 } // namespace
 
-void PanelPreview::DrawNavigation() {
-    const auto text = [&localizer = localizer_](const px::ui::TextId id) { return localizer.Text(id); };
-    ImGui::BeginChild("Navigation", ImVec2{224.0F, 0.0F}, ImGuiChildFlags_Borders);
-    ImGui::TextColored(ImVec4{0.35F, 0.68F, 1.00F, 1.00F}, "PIXELS");
-    DrawDisabledText(text(px::ui::TextId::RenderNodeConsole));
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
+PanelPreview::PanelPreview(PanelPreviewServices services)
+    : networkSettings_{std::move(services.networkSettings)}, serverStatus_{std::move(services.serverStatus)} {}
 
-    constexpr ImVec2 navigationButtonSize{-1.0F, 42.0F};
-    ImGui::Button(text(px::ui::TextId::RemoteControl).data(), navigationButtonSize);
-    ImGui::Button(text(px::ui::TextId::CloudApplications).data(), navigationButtonSize);
-    ImGui::Button(text(px::ui::TextId::ServerStatus).data(), navigationButtonSize);
-    ImGui::Button(text(px::ui::TextId::Security).data(), navigationButtonSize);
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{0.12F, 0.36F, 0.82F, 1.00F});
-    ImGui::Button(text(px::ui::TextId::Settings).data(), navigationButtonSize);
-    ImGui::PopStyleColor();
-    ImGui::Button(text(px::ui::TextId::Hardware).data(), navigationButtonSize);
-
-    ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 58.0F);
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{0.72F, 0.12F, 0.18F, 1.00F});
-    ImGui::Button(text(px::ui::TextId::ExitPrograms).data(), navigationButtonSize);
-    ImGui::PopStyleColor();
-    ImGui::EndChild();
-}
-
-void PanelPreview::DrawNetworkPage() {
+PanelPreviewAction PanelPreview::DrawNetworkPage() {
+    PanelPreviewAction action{};
     const auto text = [&localizer = localizer_](const px::ui::TextId id) { return localizer.Text(id); };
     ImGui::BeginChild("NetworkPage", ImVec2{0.0F, 0.0F}, ImGuiChildFlags_Borders);
-    ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 305.0F);
+    const auto buttonWidth = [&text](const px::ui::TextId id) {
+        return ImGui::CalcTextSize(text(id).data()).x + ImGui::GetStyle().FramePadding.x * 2.0F;
+    };
+    const float toolbarWidth{buttonWidth(px::ui::TextId::SimplifiedChinese) + buttonWidth(px::ui::TextId::English) +
+                             buttonWidth(px::ui::TextId::DarkTheme) + buttonWidth(px::ui::TextId::LightTheme) +
+                             ImGui::GetStyle().ItemSpacing.x * 3.0F};
+    ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowWidth() - toolbarWidth - ImGui::GetStyle().WindowPadding.x));
     if (ImGui::SmallButton(text(px::ui::TextId::SimplifiedChinese).data())) {
         localizer_.SetLanguage(px::ui::Language::SimplifiedChinese);
     }
@@ -55,24 +45,35 @@ void PanelPreview::DrawNetworkPage() {
     ImGui::SameLine();
     if (ImGui::SmallButton(text(px::ui::TextId::DarkTheme).data())) {
         theme_ = px::ui::Theme::Dark;
-        px::ui::ApplyPixelsColors(theme_);
+        action.selectedTheme = theme_;
     }
     ImGui::SameLine();
     if (ImGui::SmallButton(text(px::ui::TextId::LightTheme).data())) {
         theme_ = px::ui::Theme::Light;
-        px::ui::ApplyPixelsColors(theme_);
+        action.selectedTheme = theme_;
     }
 
-    if (networkPage_.Draw(localizer_) == NetworkPageAction::SaveRequested) {
-        networkPage_.SetStatus(px::ui::TextId::PreviewSavedStatus);
-    }
+    networkSettings_.Draw(localizer_);
     ImGui::EndChild();
+    return action;
 }
 
-void PanelPreview::Draw() {
-    DrawNavigation();
+PanelPreviewAction PanelPreview::Draw() {
+    const NavigationAction navigationAction{navigation_.Draw(localizer_)};
     ImGui::SameLine();
-    DrawNetworkPage();
+    if (navigationAction.selectedPage == PanelPage::Settings) {
+        auto action = DrawNetworkPage();
+        action.exitRequested = navigationAction.exitRequested;
+        return action;
+    }
+    ImGui::BeginChild("PageContent", ImVec2{0.0F, 0.0F}, ImGuiChildFlags_Borders);
+    if (navigationAction.selectedPage == PanelPage::ServerStatus) {
+        serverStatus_.Draw(localizer_);
+    } else {
+        DrawPlaceholderPage(navigationAction.selectedPage, localizer_);
+    }
+    ImGui::EndChild();
+    return {.exitRequested = navigationAction.exitRequested};
 }
 
 } // namespace px::panel::ui

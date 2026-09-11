@@ -22,6 +22,7 @@ struct DesktopShell::Impl final {
     D3d11Renderer renderer;
     std::optional<ImGuiSession> imgui{};
     bool running{true};
+    px::ui::Theme theme{px::ui::Theme::Dark};
 };
 
 std::expected<DesktopShell, std::string> DesktopShell::Create(const WindowConfig& config) {
@@ -63,6 +64,10 @@ int DesktopShell::Run(const RenderCallback& render) {
                 if (event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED && !impl_->renderer.Resize(event.window.data1, event.window.data2)) {
                     return 2;
                 }
+                if (event.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED &&
+                    !impl_->imgui->ApplyAppearance(impl_->theme, impl_->window.DisplayScale())) {
+                    return 3;
+                }
             } while (SDL_PollEvent(&event));
         }
         if (!impl_->running) {
@@ -85,6 +90,15 @@ int DesktopShell::Run(const RenderCallback& render) {
         firstFrame = false;
     }
     return 0;
+}
+
+bool DesktopShell::SetTheme(const px::ui::Theme theme) {
+    impl_->theme = theme;
+    return impl_->imgui->ApplyAppearance(theme, impl_->window.DisplayScale());
+}
+
+void DesktopShell::RequestExit() noexcept {
+    impl_->running = false;
 }
 
 } // namespace px::desktop

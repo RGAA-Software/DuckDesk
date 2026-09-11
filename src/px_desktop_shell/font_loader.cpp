@@ -7,12 +7,12 @@
 
 namespace px::desktop {
 
-bool ConfigureFonts(const float displayScale) {
+bool ConfigureFonts(const float) {
     const std::string basePathText{SDL_GetBasePath() == nullptr ? "" : SDL_GetBasePath()};
     const std::filesystem::path basePath{basePathText};
     const std::filesystem::path latinFont{basePath / "resources" / "fonts" / "Roboto-Regular.ttf"};
     ImGuiIO& io = ImGui::GetIO();
-    const float pixelSize{18.0F * displayScale};
+    constexpr float pixelSize{18.0F};
     if (!io.Fonts->AddFontFromFileTTF(latinFont.string().c_str(), pixelSize)) {
         io.Fonts->AddFontDefault();
     }

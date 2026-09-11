@@ -10,6 +10,8 @@ set(PANEL_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/network/records_http_handler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/network/record_transfer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/network/panel_rtc_config_refresh_gate.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/network_settings_workflow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/network/panel_network_settings_controller.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/database/db_game.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/database/db_game_operator.cpp

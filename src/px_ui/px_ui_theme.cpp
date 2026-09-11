@@ -60,6 +60,7 @@ void ApplyPixelsTheme(const Theme theme, const float scale) {
     style.ScrollbarRounding = 8.0F;
     style.GrabRounding = 7.0F;
     style.ScaleAllSizes(scale);
+    style.FontScaleDpi = scale;
     ApplyPixelsColors(theme);
 }
 
