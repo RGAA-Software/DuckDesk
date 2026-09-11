@@ -11,7 +11,7 @@ class ConnectionInputParserTest {
         val target = ConnectionInputParser.parse("192.168.50.12")
 
         assertEquals("192.168.50.12", target?.endpoints?.single()?.host)
-        assertEquals(20369, target?.endpoints?.single()?.panelPort)
+        assertEquals(4999, target?.endpoints?.single()?.panelPort)
         assertEquals(20371, target?.endpoints?.single()?.renderPort)
     }
 

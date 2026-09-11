@@ -121,7 +121,7 @@ port = 4602
 # 90 示例避开已存在的 SSH 5300。端口可按容量自行扩大，代码不限制为此区间。
 # 4608–4612 仅作预留，不产生监听；系统管理及数据库端口不在此处修改。
 relay_min_port = 5301
-relay_max_port = 5999
+relay_max_port = 5428
 realm = "pixels-console"
 enable_udp = true
 enable_tcp = true

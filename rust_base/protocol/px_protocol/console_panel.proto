@@ -23,7 +23,7 @@ message ConsolePanelHello {
   // local NIC IPv4 list (loopback / link-local excluded), reported at handshake
   // for the console render-records view (docs/console_render_records_view_design.md 5.2)
   repeated string panel_lan_ips = 4;
-  // panel http server port (records api, default 20369)
+  // panel http server port (records api, default 4999)
   int32 panel_http_port = 5;
 }
 

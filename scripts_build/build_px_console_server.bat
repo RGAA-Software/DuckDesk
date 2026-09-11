@@ -13,9 +13,8 @@ rem           frontend -> output\px_console\web\
 rem           (the server serves static files from the web\ dir next to the exe)
 rem
 rem Notes:
-rem   - Existing *.toml configs, certs\ and runtime data under output\ are
-rem     preserved. The frozen px_media/px_turn runtime is refreshed on every
-rem     deployment so the server and its managed media services stay in sync.
+rem   - The repository TOML template and frozen px_media/px_turn runtime are
+rem     refreshed on every build. Certificates and runtime data stay preserved.
 rem   - For the first full deployment (certs, config template, runtime dirs)
 rem     use scripts\package_px_console_server.bat instead.
 rem   - A running server locks its exe; stop it first, otherwise the exe copy
@@ -155,14 +154,10 @@ if not exist "%OUTPUT_DIR%" (
     mkdir "%OUTPUT_DIR%"
 )
 
-rem Preserve local configuration, certificates, authorization cache and user
-rem uploads when upgrading from the former output\px_cms deployment layout.
+rem Preserve certificates, authorization cache and user uploads when upgrading
+rem from the former output\px_cms deployment layout. Configuration is refreshed
+rem from the repository below, so do not migrate a stale legacy TOML.
 if exist "%LEGACY_OUTPUT_DIR%" (
-    if not exist "%OUTPUT_DIR%\px_console.toml" if exist "%LEGACY_OUTPUT_DIR%\px_cms.toml" (
-        copy /Y "%LEGACY_OUTPUT_DIR%\px_cms.toml" "%OUTPUT_DIR%\px_console.toml" >nul
-        if errorlevel 1 exit /b 1
-        echo       Migrated legacy configuration to px_console.toml.
-    )
     if not exist "%OUTPUT_DIR%\storage" if exist "%LEGACY_OUTPUT_DIR%\cms_storage" (
         robocopy "%LEGACY_OUTPUT_DIR%\cms_storage" "%OUTPUT_DIR%\storage" /E /NFL /NDL /NJH /NJS /NP >nul
         if errorlevel 8 exit /b 1
@@ -189,11 +184,10 @@ if errorlevel 1 (
     exit /b 1
 )
 
-rem config template (seed on first deploy only; never overwrite an existing config)
-if not exist "%OUTPUT_DIR%\%EXE_NAME%.toml" (
-    copy /Y "%REPO_ROOT%\rust_server\target\release\%EXE_NAME%.toml" "%OUTPUT_DIR%\%EXE_NAME%.toml" >nul
-    if errorlevel 1 echo WARNING: Failed to copy %EXE_NAME%.toml.
-)
+rem Refresh the repository template on every build. Machine-specific deployment
+rem profiles are applied after this build and must not live only under output\.
+copy /Y "%REPO_ROOT%\px_console.toml" "%OUTPUT_DIR%\%EXE_NAME%.toml" >nul
+if errorlevel 1 echo WARNING: Failed to refresh %EXE_NAME%.toml.
 
 rem Fixed ZLMediaKit/Coturn runtime. Keep the sidecars and their DLL/config
 rem beside px_console.exe on every normal build, not only first-time packaging.

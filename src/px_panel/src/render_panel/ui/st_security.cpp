@@ -3,13 +3,8 @@
 //
 
 #include "st_security.h"
-#include <QLabel>
 #include <QPushButton>
-#include <QLineEdit>
-#include <QComboBox>
 #include <QCheckBox>
-#include <QDebug>
-#include <QFileDialog>
 #include <QStandardPaths>
 #include <QPointer>
 #include "px_dialog.h"
@@ -19,14 +14,9 @@
 #include "render_panel/px_context.h"
 #include "render_panel/px_application.h"
 #include "render_panel/px_settings.h"
-#include "px_qt_widget/sized_msg_box.h"
-#include "px_common/win32/dxgi_mon_detector.h"
 #include "px_common/log.h"
 #include "px_common/string_util.h"
-#include "px_common/win32/audio_device_helper.h"
 #include "render_panel/px_app_messages.h"
-#include "px_common/ip_util.h"
-#include "px_console_client/console_device_api.h"
 #include "input_safety_pwd_dialog.h"
 #include "render_panel/devices/infinite_loading.h"
 #include "px_qt_widget/px_dialog_util.h"
@@ -47,10 +37,6 @@ namespace px
         auto root_layout = new NoMarginHLayout();
         auto column1_layout = new NoMarginVLayout();
         root_layout->addLayout(column1_layout);
-
-        auto column2_layout = new NoMarginVLayout();
-        root_layout->addSpacing(10);
-        root_layout->addLayout(column2_layout);
 
         root_layout->addStretch();
 
@@ -97,152 +83,6 @@ namespace px
                             }));
             }
 
-            // Mouse&Keyboard
-            {
-                auto layout = new NoMarginHLayout();
-                auto label = new TcLabel(this);
-                label->SetTextId("id_allowed_mouse_keyboard");
-                label->setFixedSize(tips_label_size);
-                label->setStyleSheet("font-size: 14px; font-weight: 500;");
-                layout->addWidget(label);
-
-                auto edit = new QCheckBox(this);
-                edit->setFixedSize(input_size);
-                layout->addWidget(edit);
-                layout->addStretch();
-                segment_layout->addSpacing(5);
-                segment_layout->addLayout(layout);
-                edit->setChecked(security_settings_.get().IsBeingOperatedEnabled());
-                const auto settings = security_settings_;
-                connect(edit, &QCheckBox::checkStateChanged, this, [settings](Qt::CheckState state) {
-                    settings.get().SetCanBeOperated(state == Qt::CheckState::Checked);
-                });
-            }
-
-            // File Transfer
-            {
-                auto layout = new NoMarginHLayout();
-                auto label = new TcLabel(this);
-                label->SetTextId("id_allowed_file_transfer");
-                label->setFixedSize(tips_label_size);
-                label->setStyleSheet("font-size: 14px; font-weight: 500;");
-                layout->addWidget(label);
-
-                auto edit = new QCheckBox(this);
-                edit->setFixedSize(input_size);
-                layout->addWidget(edit);
-                layout->addStretch();
-                segment_layout->addSpacing(5);
-                segment_layout->addLayout(layout);
-                edit->setChecked(security_settings_.get().IsFileTransferEnabled());
-                const auto settings = security_settings_;
-                connect(edit, &QCheckBox::checkStateChanged, this, [settings](Qt::CheckState state) {
-                    settings.get().SetFileTransferEnabled(state == Qt::CheckState::Checked);
-                });
-            }
-
-            // SSL Always Enabled
-            {
-                auto layout = new NoMarginHLayout();
-                auto label = new TcLabel(this);
-                label->SetTextId("id_ssl_enabled");
-                label->setFixedSize(tips_label_size);
-                label->setStyleSheet("font-size: 14px; font-weight: 500;");
-                layout->addWidget(label);
-
-                auto edit = new QCheckBox(this);
-                edit->setFixedSize(input_size);
-                layout->addWidget(edit);
-                layout->addStretch();
-                segment_layout->addSpacing(5);
-                segment_layout->addLayout(layout);
-                edit->setChecked(security_settings_.get().IsSSLConnectionEnabled());
-
-                const auto context = context_;
-                const auto settings = security_settings_;
-                QPointer<QCheckBox> edit_guard(edit);
-                connect(edit, &QCheckBox::toggled, this, [context, edit_guard, settings](bool enabled) {
-                    if (!enabled) {
-                        context->PostUIDelayTask(
-                            MakeQtLifetimeAction(edit_guard,
-                                [settings](const QPointer<QCheckBox>& checkbox) {
-                                    TcDialog dialog(tcTr("id_tips"), tcTr("id_dialog_ssl_always_on"));
-                                    dialog.exec();
-                                    checkbox->setChecked(settings.get().IsSSLConnectionEnabled());
-                                }),
-                            50);
-                    }
-                });
-            }
-
-            // record visitor
-            {
-                auto layout = new NoMarginHLayout();
-                auto label = new TcLabel(this);
-                label->SetTextId("id_record_visitor");
-                label->setFixedSize(tips_label_size);
-                label->setStyleSheet("font-size: 14px; font-weight: 500;");
-                layout->addWidget(label);
-
-                auto edit = new QCheckBox(this);
-                edit->setFixedSize(input_size);
-                layout->addWidget(edit);
-                layout->addStretch();
-                segment_layout->addSpacing(5);
-                segment_layout->addLayout(layout);
-                edit->setChecked(security_settings_.get().IsVisitHistoryEnabled());
-
-                const auto context = context_;
-                const auto settings = security_settings_;
-                QPointer<QCheckBox> edit_guard(edit);
-                connect(edit, &QCheckBox::toggled, this, [context, edit_guard, settings](bool enabled) {
-                    if (!enabled) {
-                        context->PostUIDelayTask(
-                            MakeQtLifetimeAction(edit_guard,
-                                [settings](const QPointer<QCheckBox>& checkbox) {
-                                    TcDialog dialog(tcTr("id_tips"), tcTr("id_dialog_record_visitor_always_on"));
-                                    dialog.exec();
-                                    checkbox->setChecked(settings.get().IsVisitHistoryEnabled());
-                                }),
-                            50);
-                    }
-                });
-            }
-
-            // record file transfer
-            {
-                auto layout = new NoMarginHLayout();
-                auto label = new TcLabel(this);
-                label->SetTextId("id_record_file_transfer");
-                label->setFixedSize(tips_label_size);
-                label->setStyleSheet("font-size: 14px; font-weight: 500;");
-                layout->addWidget(label);
-
-                auto edit = new QCheckBox(this);
-                edit->setFixedSize(input_size);
-                layout->addWidget(edit);
-                layout->addStretch();
-                segment_layout->addSpacing(5);
-                segment_layout->addLayout(layout);
-                edit->setChecked(security_settings_.get().IsFileTransferHistoryEnabled());
-
-                const auto context = context_;
-                const auto settings = security_settings_;
-                QPointer<QCheckBox> edit_guard(edit);
-                connect(edit, &QCheckBox::toggled, this, [context, edit_guard, settings](bool enabled) {
-                    if (!enabled) {
-                        context->PostUIDelayTask(
-                            MakeQtLifetimeAction(edit_guard,
-                                [settings](const QPointer<QCheckBox>& checkbox) {
-                                    TcDialog dialog(tcTr("id_tips"), tcTr("id_dialog_record_file_transfer_always_on"));
-                                    dialog.exec();
-                                    checkbox->setChecked(settings.get().IsFileTransferHistoryEnabled());
-                                }),
-                            50);
-                    }
-                });
-            }
-
             // disconnected auto lock screen
             {
                 auto layout = new NoMarginHLayout();
@@ -264,6 +104,15 @@ namespace px
                 connect(edit, &QCheckBox::checkStateChanged, this, [settings](Qt::CheckState state) {
                     settings.get().SetDisconnectAutoLockScreen(state == Qt::CheckState::Checked);
                 });
+            }
+
+            // Maintenance actions are operational tools, not security policy switches.
+            {
+                auto label = new TcLabel(this);
+                label->SetTextId("id_maintenance_tools");
+                label->setStyleSheet("font-size: 16px; font-weight: 700;");
+                segment_layout->addSpacing(20);
+                segment_layout->addWidget(label);
             }
 
             // clear all data
@@ -301,44 +150,6 @@ namespace px
                                     context->SendAppMessage(MsgForceClearProgramData{});
                                 }
                             }));
-            }
-
-            ///
-            {
-                // title
-                auto label = new TcLabel(this);
-                label->SetTextId("id_application");
-                label->setStyleSheet("font-size: 16px; font-weight: 700;");
-                segment_layout->addSpacing(20);
-                segment_layout->addWidget(label);
-            }
-
-            // develop mode
-            {
-                auto layout = new NoMarginHLayout();
-                auto label = new TcLabel(this);
-                label->SetTextId("id_developer_mode");
-                label->setFixedSize(tips_label_size);
-                label->setStyleSheet("font-size: 14px; font-weight: 500;");
-                layout->addWidget(label);
-
-                auto edit = new QCheckBox(this);
-                edit->setFixedSize(input_size);
-                layout->addWidget(edit);
-                layout->addStretch();
-                segment_layout->addSpacing(5);
-                segment_layout->addLayout(layout);
-                edit->setChecked(security_settings_.get().IsDevelopMode());
-                const auto context = context_;
-                const auto settings = security_settings_;
-                connect(edit, &QCheckBox::checkStateChanged, this,
-                        [context, settings](Qt::CheckState state) {
-                    const auto enabled = state == Qt::CheckState::Checked;
-                    settings.get().SetDevelopModeEnabled(enabled);
-                    context->SendAppMessage(MsgDevelopModeUpdated {
-                        .enabled_ = enabled,
-                    });
-                });
             }
 
             // Collect logs
@@ -433,58 +244,6 @@ namespace px
                                     FileUtil::SelectFileInExplorer(std::filesystem::path(target_dir.toStdWString()));
                                 });
                             }));
-            }
-
-            // Exit All Programs
-            {
-                auto layout = new NoMarginHLayout();
-                auto label = new TcLabel(this);
-                label->SetTextId("id_exit_all_programs");
-                label->setFixedSize(tips_label_size);
-                label->setStyleSheet("font-size: 14px; font-weight: 500;");
-                layout->addWidget(label);
-
-                auto edit = new TcPushButton(this);
-                edit->setProperty("class", "danger");
-                edit->SetTextId("id_exit");
-                edit->setFixedSize(QSize(80, 30));
-                edit->setEnabled(true);
-                layout->addWidget(edit, 0, Qt::AlignVCenter);
-                layout->addStretch();
-                segment_layout->addSpacing(5);
-                segment_layout->addLayout(layout);
-                const auto context = context_;
-                connect(edit, &QPushButton::clicked, this, [context]() {
-                    context->SendAppMessage(MsgForceStopAllPrograms{
-                        .uninstall_service_ = false,
-                    });
-                });
-            }
-
-            // Uninstall Programs
-            {
-                auto layout = new NoMarginHLayout();
-                auto label = new TcLabel(this);
-                label->SetTextId("id_uninstall_all_programs");
-                label->setFixedSize(tips_label_size);
-                label->setStyleSheet("font-size: 14px; font-weight: 500;");
-                layout->addWidget(label);
-
-                auto edit = new TcPushButton(this);
-                edit->setProperty("class", "danger");
-                edit->SetTextId("id_uninstall");
-                edit->setFixedSize(QSize(80, 30));
-                edit->setEnabled(true);
-                layout->addWidget(edit, 0, Qt::AlignVCenter);
-                layout->addStretch();
-                segment_layout->addSpacing(5);
-                segment_layout->addLayout(layout);
-                const auto context = context_;
-                connect(edit, &QPushButton::clicked, this, [context]() {
-                    context->SendAppMessage(MsgForceStopAllPrograms{
-                        .uninstall_service_ = true,
-                    });
-                });
             }
 
             column1_layout->addLayout(segment_layout);

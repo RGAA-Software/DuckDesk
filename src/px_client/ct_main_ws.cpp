@@ -278,7 +278,7 @@ bool ParseCommandLine(QApplication& app) {
             settings.panel_server_port_ = value.toInt();
         }
         else {
-            settings.panel_server_port_ = 20369;
+            settings.panel_server_port_ = 4999;
         }
     }
 

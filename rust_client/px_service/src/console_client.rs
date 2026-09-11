@@ -158,19 +158,6 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
         let hb_sender = sender.clone();
         let hb_runtime = runtime.clone();
         let device_id = auth_info.device_id.clone();
-        let node_endpoints = {
-            let guard = runtime.lock().await;
-            let node = &guard.config.node;
-            protocol::console_service::NodeEndpoints {
-                schema_version: 1,
-                access_host: node.access_host.clone(),
-                desktop_port: u32::from(node.network.desktop_port),
-                application_port_start: u32::from(node.applications.port_start),
-                application_port_end: u32::from(node.applications.port_end),
-                rtc_port_start: u32::from(node.rtc.port_start),
-                rtc_port_end: u32::from(node.rtc.port_end),
-            }
-        };
         let mut hb_stop_rx = {
             let guard = runtime.lock().await;
             guard.subscribe_stop()
@@ -182,7 +169,7 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                     _ = interval.tick() => {
                         hb_index += 1;
                         ServiceRuntime::refresh_app_processes(&hb_runtime).await;
-                        let (render_alive, auth_json, instances_json, logical_sessions_json) = {
+                        let (render_alive, auth_json, instances_json, logical_sessions_json, node_endpoints) = {
                             let guard = hb_runtime.lock().await;
                             let has_active = guard.app_registry.list().iter().any(|r| {
                                 matches!(
@@ -202,6 +189,7 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                                     .unwrap_or_default(),
                                 guard.app_registry.instances_json(),
                                 guard.state.logical_sessions_json.clone(),
+                                node_endpoints(&guard.config.node),
                             )
                         };
                         let mut heartbeat = heartbeat_message(
@@ -237,6 +225,8 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
         let poll_seconds = RTC_CONFIG_POLL_SECS + jitter - 15;
         let mut rtc_config_interval = tokio::time::interval(Duration::from_secs(poll_seconds));
         rtc_config_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut auth_change_interval = tokio::time::interval(Duration::from_secs(AUTH_INFO_POLL_SECS));
+        auth_change_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         // Initial pull was already scheduled above.
         rtc_config_interval.tick().await;
         loop {
@@ -338,6 +328,13 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                 _ = rtc_config_interval.tick() => {
                     spawn_rtc_config_refresh(runtime.clone(), auth_info.clone(), 0);
                 }
+                _ = auth_change_interval.tick() => {
+                    let current = runtime.lock().await.state.last_auth_info.clone();
+                    if current.as_ref().is_some_and(|current| console_connection_identity_changed(&auth_info, current)) {
+                        info!("Panel changed the Console authorization endpoint; reconnecting immediately");
+                        break;
+                    }
+                }
                 _ = stop_rx.recv() => {
                     info!("console client loop received stop signal");
                     should_stop = true;
@@ -364,6 +361,25 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
         );
         sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
     }
+}
+
+fn node_endpoints(node: &service_core::node_config::NodeConfig) -> protocol::console_service::NodeEndpoints {
+    protocol::console_service::NodeEndpoints {
+        schema_version: 1,
+        access_host: node.access_host.clone(),
+        desktop_port: u32::from(node.network.desktop_port),
+        application_port_start: u32::from(node.applications.port_start),
+        application_port_end: u32::from(node.applications.port_end),
+        rtc_port_start: u32::from(node.rtc.port_start),
+        rtc_port_end: u32::from(node.rtc.port_end),
+    }
+}
+
+fn console_connection_identity_changed(connected: &MsgAuthInfo, current: &MsgAuthInfo) -> bool {
+    connected.device_id != current.device_id
+        || connected.appkey != current.appkey
+        || connected.console_host != current.console_host
+        || connected.console_port != current.console_port
 }
 
 fn require_console_tls(mut auth_info: MsgAuthInfo) -> MsgAuthInfo {
@@ -1162,6 +1178,7 @@ mod tests {
             console_host: "console.example.com".to_string(),
             console_port: 8443,
             console_ssl: true,
+            node_access_host: "203.0.113.8".to_string(),
         }
     }
 

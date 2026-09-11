@@ -29,10 +29,9 @@
 #include "st_network_auto_join_dialog.h"
 #include <QPushButton>
 #include <QLineEdit>
-#include <QComboBox>
-#include <QCheckBox>
 #include <QDebug>
 #include <QFileDialog>
+#include <QUrl>
 #include <chrono>
 #include <optional>
 #include "px_common/async_blocking_call.h"
@@ -79,6 +78,16 @@ struct SaveNetworkResult final {
     px_console::ConsoleApiError device_error = px_console::ConsoleApiError::kInternalError;
     std::shared_ptr<px_console::ConsoleDevice> new_device;
 };
+
+bool IsValidNodeAccessHost(const QString& value) {
+    if (value.isEmpty()) {
+        return true;
+    }
+    const QUrl endpoint("https://" + value, QUrl::StrictMode);
+    return value.trimmed() == value && endpoint.isValid() && !endpoint.host().isEmpty() && endpoint.userInfo().isEmpty() && endpoint.port(-1) == -1 &&
+           !endpoint.hasQuery() && !endpoint.hasFragment() && (endpoint.path().isEmpty() || endpoint.path() == "/") && endpoint.host() != "0.0.0.0" &&
+           endpoint.host() != "::";
+}
 
 template <typename T>
 PxAwaitable<PxResult<std::optional<T>>> AwaitGatedBlockingCall(std::shared_ptr<LatestSerialRequestGate> gate,
@@ -215,7 +224,7 @@ StNetwork::StNetwork(const std::shared_ptr<PxApplication>& app,
     root_layout->addStretch();
 
     // segment encoder
-    auto tips_label_width = 300;
+    auto tips_label_width = 360;
     auto tips_label_height = 35;
     auto tips_label_size = QSize(tips_label_width, tips_label_height);
     auto input_size = QSize(280, tips_label_height);
@@ -288,35 +297,17 @@ StNetwork::StNetwork(const std::shared_ptr<PxApplication>& app,
             segment_layout->addLayout(layout);
         }
 
-        // Manager Server
+        // Ports decoded from the authorization string. Hosts stay encapsulated in the signed authorization data.
         {
             auto layout = new NoMarginHLayout(); // NOLINT(gammaray-raw-pointer-boundary): transient Qt ownership handoff
             auto label = new TcLabel(this);
-            label->SetTextId("id_server_host");
+            label->SetTextId("id_parsed_console_port");
             label->setFixedSize(tips_label_size);
             label->setStyleSheet("font-size: 14px; font-weight: 500;");
             layout->addWidget(label);
 
             auto edit = new QLineEdit(this);
-            edit->setEnabled(false);
-            edt_console_server_host_ = edit;
-            edit->setFixedSize(input_size);
-            edit->setText(network_settings_.get().GetConsoleServerHost().c_str());
-            layout->addWidget(edit);
-            layout->addStretch();
-            segment_layout->addSpacing(5);
-            segment_layout->addLayout(layout);
-        }
-        {
-            auto layout = new NoMarginHLayout(); // NOLINT(gammaray-raw-pointer-boundary): transient Qt ownership handoff
-            auto label = new TcLabel(this);
-            label->SetTextId("id_server_port");
-            label->setFixedSize(tips_label_size);
-            label->setStyleSheet("font-size: 14px; font-weight: 500;");
-            layout->addWidget(label);
-
-            auto edit = new QLineEdit(this);
-            edit->setEnabled(false);
+            edit->setReadOnly(true);
             edt_console_server_port_ = edit;
             edit->setFixedSize(input_size);
             edit->setValidator(new QIntValidator);
@@ -327,35 +318,16 @@ StNetwork::StNetwork(const std::shared_ptr<PxApplication>& app,
             segment_layout->addLayout(layout);
         }
 
-        // Relay Server
         {
             auto layout = new NoMarginHLayout(); // NOLINT(gammaray-raw-pointer-boundary): transient Qt ownership handoff
             auto label = new TcLabel(this);
-            label->SetTextId("id_relay_host");
+            label->SetTextId("id_parsed_relay_port");
             label->setFixedSize(tips_label_size);
             label->setStyleSheet("font-size: 14px; font-weight: 500;");
             layout->addWidget(label);
 
             auto edit = new QLineEdit(this);
-            edit->setEnabled(false);
-            edt_relay_server_host_ = edit;
-            edit->setFixedSize(input_size);
-            edit->setText(network_settings_.get().GetRelayServerHost().c_str());
-            layout->addWidget(edit);
-            layout->addStretch();
-            segment_layout->addSpacing(5);
-            segment_layout->addLayout(layout);
-        }
-        {
-            auto layout = new NoMarginHLayout(); // NOLINT(gammaray-raw-pointer-boundary): transient Qt ownership handoff
-            auto label = new TcLabel(this);
-            label->SetTextId("id_relay_port");
-            label->setFixedSize(tips_label_size);
-            label->setStyleSheet("font-size: 14px; font-weight: 500;");
-            layout->addWidget(label);
-
-            auto edit = new QLineEdit(this);
-            edit->setEnabled(false);
+            edit->setReadOnly(true);
             edt_relay_server_port_ = edit;
             edit->setFixedSize(input_size);
             edit->setValidator(new QIntValidator);
@@ -366,203 +338,63 @@ StNetwork::StNetwork(const std::shared_ptr<PxApplication>& app,
             segment_layout->addLayout(layout);
         }
 
-        // PORT settings
+        // Public address advertised to clients for this node.
         {
-            // title
+            auto layout = new NoMarginHLayout(); // NOLINT(gammaray-raw-pointer-boundary): transient Qt ownership handoff
+            auto label = new TcLabel(this);      // NOLINT(gammaray-raw-pointer-boundary): Qt parent owns the widget
+            label->SetTextId("id_node_access_host");
+            label->setFixedSize(tips_label_size);
+            label->setStyleSheet("font-size: 14px; font-weight: 500;");
+            layout->addWidget(label);
+
+            auto edit = new QLineEdit(this); // NOLINT(gammaray-raw-pointer-boundary): Qt parent owns the widget
+            edt_node_access_host_ = edit;
+            edit->setFixedSize(input_size);
+            edit->setText(QString::fromStdString(network_settings_.get().GetNodeAccessHost()));
+            edit->setPlaceholderText(tcTr("id_node_access_host_hint"));
+            layout->addWidget(edit);
+            layout->addStretch();
+            segment_layout->addSpacing(5);
+            segment_layout->addLayout(layout);
+        }
+
+        // Package-defined node ports are shown for firewall and deployment checks, but are not edited per machine.
+        {
             auto label = new TcLabel(this);
-            label->SetTextId("id_network_settings");
+            label->SetTextId("id_fixed_node_ports");
             label->setStyleSheet("font-size: 16px; font-weight: 700;");
             segment_layout->addSpacing(20);
             segment_layout->addWidget(label);
             segment_layout->addSpacing(2);
         }
-        // Network type
-        {
-            auto layout = new NoMarginHLayout(); // NOLINT(gammaray-raw-pointer-boundary): transient Qt ownership handoff
-            auto label = new TcLabel(this);
-            label->SetTextId("id_websocket");
-            label->setFixedSize(tips_label_size);
-            label->setStyleSheet("font-size: 14px; font-weight: 500;");
-            layout->addWidget(label);
-
-            auto edit = new QCheckBox(this);
-            cb_websocket_ = edit;
-            edit->setFixedSize(input_size);
-            layout->addWidget(edit);
-            layout->addStretch();
-            segment_layout->addSpacing(5);
-            segment_layout->addLayout(layout);
-            edit->setChecked(network_settings_.get().IsWebSocketEnabled());
-            connect(edit, &QCheckBox::checkStateChanged, this, [self](Qt::CheckState state) {
-                if (state == Qt::CheckState::Checked || !self) {
-                    return;
-                }
-                const auto context = self->context_;
-                context->PostUIDelayTask(
-                    [self]() {
-                        if (!self) {
-                            return;
-                        }
-                        TcDialog dialog(tcTr("id_tips"), tcTr("id_dialog_ssl_streaming_always_on"));
-                        dialog.exec();
-                        self->network_settings_.get().SetWebSocketEnabled(true);
-                        if (self->cb_websocket_) {
-                            self->cb_websocket_->setChecked(true);
-                        }
-                    },
-                    50);
-            });
-        }
-        // Streaming WebSocket port
-        {
-            auto layout = new NoMarginHLayout(); // NOLINT(gammaray-raw-pointer-boundary): transient Qt ownership handoff
-            auto label = new TcLabel(this);
-            label->SetTextId("id_streaming_websocket_port");
-            label->setFixedSize(tips_label_size);
-            label->setStyleSheet("font-size: 14px; font-weight: 500;");
-            layout->addWidget(label);
-
-            auto edit = new QLineEdit(this);
-            edt_websocket_ = edit;
-            edit->setFixedSize(input_size);
-            edit->setText(std::to_string(network_settings_.get().GetRenderServerPort()).c_str());
-            edit->setEnabled(network_settings_.get().IsWebSocketEnabled());
-            layout->addWidget(edit);
-            layout->addStretch();
-            segment_layout->addSpacing(5);
-            segment_layout->addLayout(layout);
-        }
-        {
-            auto layout = new NoMarginHLayout(); // NOLINT(gammaray-raw-pointer-boundary): transient Qt ownership handoff
-            auto label = new TcLabel(this);
-            label->SetTextId("id_udp");
-            label->setFixedSize(tips_label_size);
-            label->setStyleSheet("font-size: 14px; font-weight: 500;");
-            layout->addWidget(label);
-
-            auto edit = new QCheckBox(this);
-            cb_udp_kcp_ = edit;
-            edit->setFixedSize(input_size);
-            edit->setEnabled(true);
-            layout->addWidget(edit);
-            layout->addStretch();
-            segment_layout->addSpacing(5);
-            segment_layout->addLayout(layout);
-            edit->setChecked(network_settings_.get().udp_kcp_enabled_ == kStTrue);
-            connect(edit, &QCheckBox::toggled, this, [self](bool enabled) {
-                if (!self) {
-                    return;
-                }
-                self->network_settings_.get().SetUdpKcpEnabled(enabled);
-                if (self->edt_udp_kcp_) {
-                    self->edt_udp_kcp_->setEnabled(enabled);
-                }
-            });
-        }
-        // UdpKcp port
-        {
-            auto layout = new NoMarginHLayout(); // NOLINT(gammaray-raw-pointer-boundary): transient Qt ownership handoff
-            auto label = new TcLabel(this);
-            label->SetTextId("id_streaming_udp_port");
-            label->setFixedSize(tips_label_size);
-            label->setStyleSheet("font-size: 14px; font-weight: 500;");
-            layout->addWidget(label);
-
-            auto edit = new QLineEdit(this);
-            edt_udp_kcp_ = edit;
-            edit->setFixedSize(input_size);
-            edit->setText(std::to_string(network_settings_.get().udp_listen_port_).c_str());
-            edit->setEnabled(network_settings_.get().udp_kcp_enabled_ == kStTrue);
-            layout->addWidget(edit);
-            layout->addStretch();
-            segment_layout->addSpacing(5);
-            segment_layout->addLayout(layout);
-        }
-        {
-            auto layout = new NoMarginHLayout(); // NOLINT(gammaray-raw-pointer-boundary): transient Qt ownership handoff
-            auto label = new TcLabel(this);
-            label->SetTextId("id_rtc");
-            label->setFixedSize(tips_label_size);
-            label->setStyleSheet("font-size: 14px; font-weight: 500;");
-            layout->addWidget(label);
-
-            auto edit = new QCheckBox(this);
-            cb_webrtc_ = edit;
-            edit->setFixedSize(input_size);
-            edit->setEnabled(true);
-            layout->addWidget(edit);
-            layout->addStretch();
-            segment_layout->addSpacing(5);
-            segment_layout->addLayout(layout);
-            edit->setChecked(network_settings_.get().webrtc_enabled_ == kStTrue);
-            connect(edit, &QCheckBox::toggled, this, [self](bool enabled) {
-                if (self) {
-                    self->network_settings_.get().SetWebRTCEnabled(enabled);
-                }
-            });
-        }
-        // Ethernet adapter
-        {
-            auto layout = new NoMarginHLayout(); // NOLINT(gammaray-raw-pointer-boundary): transient Qt ownership handoff
-            auto label = new TcLabel(this);
-            label->SetTextId("id_ethernet_adapter");
-            label->setFixedSize(tips_label_size);
-            label->setStyleSheet("font-size: 14px; font-weight: 500;");
-            layout->addWidget(label);
-
-            auto edit = new QComboBox(this);
-            edit->setFixedSize(input_size);
-            edit->addItem("Auto");
-            auto all_et_info = context_->GetIps();
-            int index = 0;
-            int target_index_ = -1;
-            for (const auto& et_info : all_et_info) {
-                if (et_info.ip_addr_ == network_settings_.get().network_listening_ip_ && !et_info.ip_addr_.empty()) {
-                    target_index_ = index;
-                }
-                edit->addItem(std::format("{} {} {}", et_info.ip_addr_, (et_info.nt_type_ == IPNetworkType::kWired ? "WIRED" : "WIRELESS"),
-                                          et_info.human_readable_name_)
-                                  .c_str());
-                index++;
+        const QPointer<NoMarginVLayout> ports_layout(segment_layout);
+        const auto add_read_only_port = [self, ports_layout, tips_label_size, input_size](const QString& text_id, const QString& value) {
+            if (!self || !ports_layout) {
+                return;
             }
-            if (target_index_ != -1) {
-                edit->setCurrentIndex(target_index_ + 1);
-            }
-            connect(edit, &QComboBox::currentIndexChanged, this, [self, all_et_info](int idx) {
-                if (!self) {
-                    return;
-                }
-                if (idx <= 0) {
-                    self->network_settings_.get().SetListeningIp("");
-                    return;
-                }
-                auto target_ip = all_et_info.at(idx - 1).ip_addr_;
-                self->network_settings_.get().SetListeningIp(target_ip);
-            });
-            layout->addWidget(edit);
-            layout->addStretch();
-            segment_layout->addSpacing(5);
-            segment_layout->addLayout(layout);
-        }
-        // Panel listening port
-        {
-            auto layout = new NoMarginHLayout(); // NOLINT(gammaray-raw-pointer-boundary): transient Qt ownership handoff
-            auto label = new TcLabel(this);
-            label->SetTextId("id_panel_listening_port");
+            auto layout = new NoMarginHLayout();               // NOLINT(gammaray-raw-pointer-boundary): transient Qt ownership handoff
+            const QPointer<TcLabel> label = new TcLabel(self); // NOLINT(gammaray-raw-pointer-boundary): Qt parent owns the widget
+            label->SetTextId(text_id);
             label->setFixedSize(tips_label_size);
             label->setStyleSheet("font-size: 14px; font-weight: 500;");
-            layout->addWidget(label);
-
-            auto edit = new QLineEdit(this);
-            edt_panel_port_ = edit;
+            layout->addWidget(label.data());
+            const QPointer<QLineEdit> edit = new QLineEdit(self); // NOLINT(gammaray-raw-pointer-boundary): Qt parent owns the widget
             edit->setFixedSize(input_size);
-            edit->setText(std::to_string(network_settings_.get().GetPanelServerPort()).c_str());
-            edit->setEnabled(true);
-            layout->addWidget(edit);
+            edit->setText(value);
+            edit->setReadOnly(true);
+            layout->addWidget(edit.data());
             layout->addStretch();
-            segment_layout->addSpacing(5);
-            segment_layout->addLayout(layout);
-        }
+            ports_layout->addSpacing(5);
+            ports_layout->addLayout(layout);
+        };
+        add_read_only_port("id_service_management_port", QString::number(network_settings_.get().GetServiceServerPort()));
+        add_read_only_port("id_desktop_connection_port", QString::number(network_settings_.get().GetRenderServerPort()));
+        add_read_only_port(
+            "id_application_port_pool",
+            QString("%1-%2").arg(network_settings_.get().GetApplicationPortStart()).arg(network_settings_.get().GetApplicationPortEnd()));
+        add_read_only_port("id_rtc_port_pool",
+                           QString("%1-%2").arg(network_settings_.get().GetRtcPortStart()).arg(network_settings_.get().GetRtcPortEnd()));
+        add_read_only_port("id_panel_listening_port", QString::number(network_settings_.get().GetPanelServerPort()));
 
         column1_layout->addLayout(segment_layout);
     }
@@ -592,9 +424,7 @@ StNetwork::StNetwork(const std::shared_ptr<PxApplication>& app,
             return;
         }
         self->edt_console_access_->setText("");
-        self->edt_console_server_host_->setText("");
         self->edt_console_server_port_->setText("");
-        self->edt_relay_server_host_->setText("");
         self->edt_relay_server_port_->setText("");
     });
 
@@ -626,28 +456,16 @@ std::shared_ptr<ConsoleAccessInfo> StNetwork::ParseConsoleAccessInfo(const std::
 
 void StNetwork::DisplayConsoleAccessInfo(const std::shared_ptr<ConsoleAccessInfo>& info) {
     if (!info || !info->console_config_.IsValid()) {
-        if (edt_console_server_host_) {
-            edt_console_server_host_->setText("");
-        }
         if (edt_console_server_port_) {
             edt_console_server_port_->setText("");
-        }
-        if (edt_relay_server_host_) {
-            edt_relay_server_host_->setText("");
         }
         if (edt_relay_server_port_) {
             edt_relay_server_port_->setText("");
         }
         return;
     }
-    if (edt_console_server_host_) {
-        edt_console_server_host_->setText(info->console_config_.srv_w3c_ip_.c_str());
-    }
     if (edt_console_server_port_) {
         edt_console_server_port_->setText(QString::number(info->console_config_.srv_console_port_));
-    }
-    if (edt_relay_server_host_) {
-        edt_relay_server_host_->setText(info->console_config_.srv_w3c_ip_.c_str());
     }
     if (edt_relay_server_port_) {
         edt_relay_server_port_->setText(QString::number(info->console_config_.srv_relay_port_));
@@ -774,10 +592,16 @@ void StNetwork::Save(bool auto_restart_render) {
         dialog.exec();
         return;
     }
-    const auto console_host = edt_console_server_host_->text().toStdString();
-    const auto console_port = edt_console_server_port_->text().toStdString();
-    const auto relay_host = edt_relay_server_host_->text().toStdString();
-    const auto relay_port = edt_relay_server_port_->text().toStdString();
+    const auto& console_host = ac_info->console_config_.srv_w3c_ip_;
+    const auto console_port = std::to_string(ac_info->console_config_.srv_console_port_);
+    const auto& relay_host = ac_info->console_config_.srv_w3c_ip_;
+    const auto relay_port = std::to_string(ac_info->console_config_.srv_relay_port_);
+    const auto node_access_host = edt_node_access_host_->text().trimmed();
+    if (!IsValidNodeAccessHost(node_access_host)) {
+        TcDialog dialog(tcTr("id_error"), tcTr("id_node_access_host_invalid"));
+        dialog.exec();
+        return;
+    }
     auto& settings = network_settings_.get();
     bool force_update_device_id = false;
     if (!console_host.empty() &&
@@ -793,8 +617,7 @@ void StNetwork::Save(bool auto_restart_render) {
     }
     settings.SetConsoleServerHost(console_host);
     settings.SetConsoleServerPort(console_port);
-    settings.SetPanelServerPort(edt_panel_port_->text().toInt());
-
+    settings.SetNodeAccessHost(node_access_host.toStdString());
     settings.SetRelayServerHost(relay_host);
     settings.SetRelayServerPort(relay_port);
 

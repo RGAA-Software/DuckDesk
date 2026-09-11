@@ -191,11 +191,8 @@ namespace px {
 		bool audio_access = settings_.get().IsCaptureAudioEnabled();
 		voice_cbox_->setChecked(audio_access);
 
-		bool file_access = settings_.get().IsFileTransferEnabled();
-		file_cbox_->setChecked(file_access);
-
-		bool key_mouse_access = settings_.get().IsBeingOperatedEnabled();
-		key_mouse_cbox_->setChecked(key_mouse_access);
+		file_cbox_->setChecked(true);
+		key_mouse_cbox_->setChecked(true);
 	}
 
 	void ConnectedInfoPanel::InitSigChannel() {
@@ -209,15 +206,13 @@ namespace px {
 		
 		connect(file_cbox_, &QCheckBox::toggled, this, [self] {
 			if (!self) return;
-			bool file_access = self->settings_.get().IsFileTransferEnabled();
-			self->file_cbox_->setChecked(file_access);
+			self->file_cbox_->setChecked(true);
 			self->ShowAccessHint();
 		});
 
 		connect(key_mouse_cbox_, &QCheckBox::toggled, this, [self] {
 			if (!self) return;
-			bool key_mouse_access = self->settings_.get().IsBeingOperatedEnabled();
-			self->key_mouse_cbox_->setChecked(key_mouse_access);
+			self->key_mouse_cbox_->setChecked(true);
 			self->ShowAccessHint();
 		});
 	}

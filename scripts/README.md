@@ -34,7 +34,7 @@ Start Time       : 2026-06-12 15:38:24
 Command Line     : D:/source/GoCloud/GammaRayPremium/build_official/dist/px_render.exe
                    --app_mode=desktop
                    --panel_server_host=127.0.0.1
-                   --panel_server_port=20369
+                   --panel_server_port=4999
                    --service_server_host=127.0.0.1
                    --service_server_port=20375
                    ...

@@ -52,27 +52,24 @@
 - 不把 Console 的地址当作 Render 地址，不让 Console 全局端口池代替各节点分配器。
 - 保存节点报告的实际配置版本、访问端点、在线 / 就绪状态和失败原因。
 - 区分“节点已连接 Console”“Render 已就绪”“客户端数据连接可达”。管理在线不是业务可达证明。
-- 中心批量下发模板不是本次前置条件：第一版以节点本机配置为唯一生效来源，Console 保存其回执。
+- 中心批量下发模板不是本次前置条件：第一版以节点 Panel UI 下发并由 Service 持久化的数据为唯一地址来源，Console 保存其回执。
   后续若增加模板下发，再定义期望版本、已应用版本及冲突处理，不能无版本地覆盖本机配置。
 
 ### 3.2 节点 Service / Render
 
-用户最新确认：普通部署只填写两个地址，不要求逐项配置端口。
+用户最新确认：Render 安装包必须统一，普通部署只在 Panel UI 完成 Console 授权和节点公网地址配置，不编辑机器专属文件。
 
-```toml
-console_url = "https://console.example.com:4600"
-access_host = "render.example.com"
-```
-
-- 普通配置页面仅显示以上两项。现有注册 / 授权流程提供节点身份，不要求把管理员密码填入这份配置。
-- 默认桌面业务端口 4601、本机管理端口 4603、应用池 4613–4999、RTC 媒体池 5000–5299，默认内外同号。
+- Console 地址来自授权信息并保存到 Panel 设置；节点公网地址是同一页面上的可选字段。Panel 将二者随授权持续下发给 Service。
+- Service 只在 Console 确认授权后将地址和节点身份一并加密持久化；重启后自行恢复，不依赖 Panel 抢先启动。
+- 默认桌面业务端口 4601、本机管理端口 4603、应用池 4613–4998、Panel 管理与录像端口 4999、节点 RTC 媒体池
+  5000–5031，默认内外同号。Console 托管 RTC 转发池为 5301–5428；端口池按单机实际承载能力设置，不代表软件并发上限。
   这些是可修改默认值，不是代码硬限制；局域网发现默认关闭。
 - 默认值由代码补齐；完整端口表、网卡绑定和异号映射放在“高级配置”，无需复制完整示例才能启动。
 - 不要求 Console 重复填写每台 Render 地址，节点自动上报。不强制填写内外网两套地址。
-- 两个地址只简化应用配置，部署者仍需在网络侧放行 / 映射所用端口，并完成节点授权。
-- 生效的本机配置优先于旧 UI 缓存；未配置的新安装保持明确的待配置状态，不自行猜公网入口。
+- UI 配置只简化应用配置，部署者仍需在网络侧放行 / 映射所用端口，并完成节点授权。
+- 未配置的新安装保持明确的待授权状态，不自行猜公网入口。
 
-优先扩展已有 `px_service.toml`，不新增全组件共享配置文件。
+`px_service.toml` 只保留安装包统一的高级端口默认值，不存 Console、节点公网地址或凭据，也不新增 node90 等机器专属部署配置。
 Service 拥有节点端口资源与映射；Render 使用 Service 注入的实例配置。独立启动 Render 的入口也必须明确其生效配置。
 
 第一版仅要求一个明确的客户端访问入口，语义如下；字段名和协议编号在实现前核对现有模型后冻结。
@@ -155,7 +152,7 @@ P1 契约确定后优先完成本项，防止 Web 故障继续影响已可用的
 ### P3：修复 Web RTC 直连
 
 - [x] 分开访问者身份地址和服务器通告地址；前者继续用于认证 / 审计，不改变原 IP 绑定安全语义。
-- [x] Service 从受控节点 `access_host` 的 IPv4 值向 Render 注入通告地址；独立 Render 可在 `[rtc].advertised_ipv4` 显式设置。
+- [x] Service 从 Panel UI 下发的节点公网 IPv4 向 Render 注入通告地址；独立 Render 可在 `[rtc].advertised_ipv4` 显式设置。
 - [x] 补充同端口 UDP host 候选并保留 libwebrtc 原候选；公开副本使用独立 foundation 和仅高一级优先级，避免浏览器去重或优先选择不可达私网候选；不改写 TCP / srflx 候选，不使用访问者 IP。
 - [x] 覆盖空值、非法 IPv4、无候选、已有通告地址和 UDP / TCP / srflx 混合候选的单元测试。
 - [ ] IPv6 和域名的受控解析 / 刷新仍待实现；不会在 HTTP 请求线程解析客户端提供的主机名。
@@ -170,7 +167,7 @@ P1 契约确定后优先完成本项，防止 Web 故障继续影响已可用的
 
 - [ ] 核对现有标准模式信令实现；恢复其必要的 Console 入口与节点注册，不新增 Native Relay 路由。
 - [ ] 将监听开关、公开信令 URL、节点路由及浏览器下发配置接通，禁止“开关关闭但仍被宣布可用”。
-- [ ] 明确 90 上是否继续使用 4605 作为该信令入口；确认后更新映射、防火墙、配置和文档。
+- [x] 90 使用 4605 作为 Console Relay 与配套信令入口；仓库部署配置默认启用，并按内外同号映射。
   这属于浏览器信令部署，不等于让 Native 支持公网 Relay。
 - [ ] 检查 Coturn 启动、绑定地址、公开地址、转发池、协议启用情况和受控访问范围。
 - [ ] 浏览器与 Render 使用一致、未过期的 ICE 服务配置；凭据刷新不能泄露共享秘密。
@@ -257,8 +254,8 @@ P1 契约确定后优先完成本项，防止 Web 故障继续影响已可用的
 
 ### 2026-09-10 第一批实现进度
 
-- 默认节点模板已收敛为 `console_url`、`access_host` 两项；高级监听配置另见 [配置说明](node_connection_configuration.md)。默认内外端口一致，不要求同时填写局域网和公网地址。
-- Service / Panel 读取同目录节点配置；非空 Console 地址优先于旧缓存与心跳中的地址。Panel 将访问地址接入现有桌面地址上报链路。
+- 节点模板只保留统一端口默认值；Console 和节点公网地址由 Panel UI 随授权下发，Service 在授权成功后加密持久化。高级监听配置另见 [配置说明](node_connection_configuration.md)。
+- Panel 只从同目录节点配置读取本机 Service / Render 默认端口，不再读取或覆盖地址。Panel 将节点公网地址接入 Service 上报链路。
 - Service 默认端口已与规划一致；新增地址校验和配置优先级测试。Service 79 项、核心库 82 项通过，1 项环境测试跳过。
 - Panel 增量构建、Service Release 构建完成，均已同步 `build_official/dist` 并通过 SHA-256 校验；本机 Service 已重启。
 - P1 仍只完成基础配置切片：高级异号映射、正式端点注册、无 Panel 注册闭环及两种 RTC 模式联调仍未完成。本批没有新增远端功能验收，不将既有测试结果当作新实现通过证明。
@@ -274,7 +271,7 @@ P1 契约确定后优先完成本项，防止 Web 故障继续影响已可用的
 ### P3 RTC 直连候选配置实现（2026-09-10）
 
 - `req_ip_` 继续仅表示访问者来源；Render 不再把它写入回答 SDP。
-- `px_service` 启动 Render 时，若节点 `access_host` 是 IPv4，则注入 `--rtc_advertised_ipv4`。未使用 Service 的独立 Render 可在 `settings.toml` 的 `[rtc].advertised_ipv4` 设置同一值。
+- `px_service` 启动 Render 时，若 UI 下发的节点公网地址是 IPv4，则注入 `--rtc_advertised_ipv4`。未使用 Service 的独立 Render 可在 `settings.toml` 的 `[rtc].advertised_ipv4` 设置同一值。
 - 回答 SDP 仅为 UDP `typ host` 候选添加一个同端口的通告 IPv4 副本，保留原候选、优先级和其他候选类型；配置为空或不合法时保持原 SDP，不猜测公网入口。
 - 自动化验证：`rtc_candidate_sdp`、`logical_session_registry`、`rtc_payload_authorization`、`check_cpp_ownership` 与 `service_core node_config` 通过。Render / Service 已发布到 90，三个远端文件与本地产物 SHA-256 一致。
 - 90 真实 Chrome 首次直连通过：`media-ready`、60 帧、远端候选 `39.71.45.66:5000/udp host`、无标准模式回退。随后两次快速重新分配均由 Render 接受并成功兑换票据，但 Chrome 诊断未取得视频统计，不能作为第二次媒体成功。

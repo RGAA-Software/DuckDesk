@@ -15,7 +15,6 @@ namespace pxrp
 {
     class RpMessage;
     class RpCaptureStatistics;
-    class RpPluginsInfo;
     class RpServerAudioSpectrum;
     class RpConnectedClientInfo;
     class RpRemoteClipboardResp;
@@ -151,12 +150,6 @@ namespace px
     class ClearWorkspace {
     public:
         std::shared_ptr<px_console::ConsoleStream> item_;
-    };
-
-    // reported plugins info
-    class MsgPluginsInfo {
-    public:
-        std::shared_ptr<pxrp::RpPluginsInfo> plugins_info_;
     };
 
     // remote peer info

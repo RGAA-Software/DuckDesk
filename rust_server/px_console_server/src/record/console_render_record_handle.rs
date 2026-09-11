@@ -30,7 +30,7 @@ use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
 
-pub const DEFAULT_PANEL_HTTP_PORT: i64 = 20369;
+pub const DEFAULT_PANEL_HTTP_PORT: i64 = 4999;
 /// write c_records progress at most once per this many received bytes
 const PROGRESS_STEP_BYTES: i64 = 4 * 1024 * 1024;
 /// timeout for one direct-pull attempt from panel

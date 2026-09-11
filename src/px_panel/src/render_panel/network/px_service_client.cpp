@@ -269,6 +269,7 @@ namespace px
         auth_info.set_console_host(settings->GetConsoleServerHost());
         auth_info.set_console_port(settings->GetConsoleServerPort());
         auth_info.set_console_ssl(settings->IsConsoleSslEnabled());
+        auth_info.set_node_access_host(settings->GetNodeAccessHost());
         auto companion = app_->GetCompanion();
         auto auth = companion ? companion->GetAuth() : nullptr;
         if (!auth) {

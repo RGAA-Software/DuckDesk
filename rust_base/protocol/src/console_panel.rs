@@ -11,7 +11,7 @@ pub struct ConsolePanelHello {
     /// for the console render-records view (docs/console_render_records_view_design.md 5.2)
     #[prost(string, repeated, tag = "4")]
     pub panel_lan_ips: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    /// panel http server port (records api, default 20369)
+    /// panel http server port (records api, default 4999)
     #[prost(int32, tag = "5")]
     pub panel_http_port: i32,
 }

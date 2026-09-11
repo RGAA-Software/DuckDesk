@@ -88,6 +88,11 @@ function Publish-VerifiedFile {
     }
     $destinationDirectory = Split-Path -Parent $Destination
     New-Item -ItemType Directory -Force -Path $destinationDirectory | Out-Null
+    $sourceHash = Get-Sha256Hex -Path $Source
+    if ((Test-Path -LiteralPath $Destination -PathType Leaf) -and (Get-Sha256Hex -Path $Destination) -eq $sourceHash) {
+        Write-Host "HASH OK  $($Destination.Substring($distRoot.Length + 1))  $sourceHash"
+        return
+    }
     try {
         Copy-Item -LiteralPath $Source -Destination $Destination -Force
     }
@@ -126,7 +131,6 @@ function Publish-VerifiedFile {
         }
     }
 
-    $sourceHash = Get-Sha256Hex -Path $Source
     $destinationHash = Get-Sha256Hex -Path $Destination
     if ($sourceHash -ne $destinationHash) {
         throw "SHA-256 mismatch after publish: $Destination"

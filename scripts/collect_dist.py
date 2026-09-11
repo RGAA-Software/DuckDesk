@@ -213,11 +213,12 @@ def main():
         os.path.join(source_dir, "rust_client", "target", "release", "px_service.exe"),
         os.path.join(dist_dir, "px_service.exe"),
     )
-    # Node-local configuration is independent of Console. Never overwrite an
-    # installation's chosen port pools during incremental collection.
-    node_config = os.path.join(dist_dir, "px_service.toml")
-    if not os.path.isfile(node_config):
-        copy_file(os.path.join(source_dir, "rust_client", "px_service", "px_service.toml"), node_config)
+    # Every Render node receives the same package defaults. Machine-specific
+    # addresses and authorization are entered in Panel and persisted by Service.
+    copy_file(
+        os.path.join(source_dir, "rust_client", "px_service", "px_service.toml"),
+        os.path.join(dist_dir, "px_service.toml"),
+    )
     copy_file(
         os.path.join(build_dir, "px_display", "px_display.exe"),
         os.path.join(dist_dir, "px_display.exe"),

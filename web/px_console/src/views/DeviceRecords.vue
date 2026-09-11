@@ -228,7 +228,7 @@ const init = async () => {
     if (access.online && access.panel_lan_ips.length > 0) {
       try {
         const ticket = await getRecordTicket(deviceId, '*')
-        const port = access.panel_port > 0 ? access.panel_port : 20369
+        const port = access.panel_port > 0 ? access.panel_port : 4999
         for (const ip of access.panel_lan_ips) {
           if (await probePanel(ip, port, ticket)) {
             topology.value = 'direct'

@@ -6,8 +6,10 @@
 #define TC_SERVER_STEAM_TABSETTINGS_H
 
 #include "tab_base.h"
+#include <QPointer>
 #include <QStackedWidget>
 #include <QPushButton>
+#include <map>
 
 namespace px
 {
@@ -16,9 +18,7 @@ namespace px
         kStGeneral,
         kStNetwork,
         kStSecurity,
-        kStPlugins,
         kStController,
-        kStOtherClients,
         kStAboutMe,
     };
 
@@ -35,17 +35,13 @@ namespace px
         void ChangeTab(const StTabName& tn);
 
     private:
-
-        std::map<StTabName, TabBase*> tabs_;
-        QStackedWidget* stacked_widget_ = nullptr;
-        QPushButton* btn_network_ = nullptr;
-        QPushButton* btn_security_ = nullptr;
-        QPushButton* btn_input_ = nullptr;
-        QPushButton* btn_plugins_ = nullptr;
-        QPushButton* btn_controller = nullptr;
-        QPushButton* btn_other_clients = nullptr;
-        QPushButton* btn_about_me_ = nullptr;
-
+        std::map<StTabName, QPointer<TabBase>> tabs_;
+        QPointer<QStackedWidget> stacked_widget_;
+        QPointer<QPushButton> btn_network_;
+        QPointer<QPushButton> btn_security_;
+        QPointer<QPushButton> btn_input_;
+        QPointer<QPushButton> btn_controller_;
+        QPointer<QPushButton> btn_about_me_;
     };
 
 }

@@ -239,6 +239,9 @@ impl ServiceRuntime {
         self.state.last_desktop_launch = persisted.desktop_launch.map(Into::into);
         if let Some(auth_info) = self.node_auth_store.load()? {
             let auth_info = self.normalize_auth_info(auth_info)?;
+            self.config
+                .node
+                .set_access_host(auth_info.node_access_host.clone())?;
             self.approved_auth_info = Some(auth_info.clone());
             self.state.last_auth_info = Some(auth_info);
         }
@@ -252,12 +255,10 @@ impl ServiceRuntime {
 
     fn normalize_auth_info(
         &self,
-        mut auth_info: service_core::MsgAuthInfo,
+        auth_info: service_core::MsgAuthInfo,
     ) -> Result<service_core::MsgAuthInfo, String> {
-        if let Some((host, port)) = self.config.node.console_endpoint()? {
-            auth_info.console_host = host;
-            auth_info.console_port = i32::from(port);
-            auth_info.console_ssl = true;
+        if !auth_info.console_host.is_empty() && auth_info.console_host.trim() != auth_info.console_host {
+            return Err("invalid Console endpoint received from Panel".into());
         }
         Ok(auth_info)
     }
@@ -265,6 +266,9 @@ impl ServiceRuntime {
     fn accepts_panel_auth_info(&self, auth_info: &service_core::MsgAuthInfo) -> bool {
         !auth_info.device_id.is_empty()
             && !auth_info.appkey.is_empty()
+            && !auth_info.console_host.is_empty()
+            && auth_info.console_port > 0
+            && auth_info.console_port <= i32::from(u16::MAX)
             && !self.rejected_panel_appkeys.contains(&auth_info.appkey)
     }
 
@@ -278,12 +282,28 @@ impl ServiceRuntime {
             );
             return Ok(false);
         }
+        self.config
+            .node
+            .set_access_host(auth_info.node_access_host.clone())?;
+        let approved_endpoint_unchanged = self.approved_auth_info.as_ref().is_some_and(|approved| {
+            approved.device_id == auth_info.device_id
+                && approved.appkey == auth_info.appkey
+                && approved.console_host == auth_info.console_host
+                && approved.console_port == auth_info.console_port
+        });
+        if approved_endpoint_unchanged && self.approved_auth_info.as_ref() != Some(&auth_info) {
+            self.node_auth_store.save(&auth_info)?;
+            self.approved_auth_info = Some(auth_info.clone());
+        }
         self.state.last_auth_info = Some(auth_info);
         Ok(true)
     }
 
     pub fn approve_console_auth_info(&mut self, auth_info: service_core::MsgAuthInfo) -> Result<(), String> {
         let auth_info = self.normalize_auth_info(auth_info)?;
+        self.config
+            .node
+            .set_access_host(auth_info.node_access_host.clone())?;
         self.node_auth_store.save(&auth_info)?;
         self.rejected_panel_appkeys.remove(&auth_info.appkey);
         self.approved_auth_info = Some(auth_info.clone());
@@ -302,10 +322,18 @@ impl ServiceRuntime {
             self.node_auth_store.clear()?;
             self.approved_auth_info = None;
             self.state.last_auth_info = None;
+            self.config.node.set_access_host(String::new())?;
             warn!("Console rejected the approved node authorization; awaiting new Panel authorization");
         } else {
             self.rejected_panel_appkeys.insert(attempted.appkey.clone());
             self.state.last_auth_info = self.approved_auth_info.clone();
+            let access_host = self
+                .state
+                .last_auth_info
+                .as_ref()
+                .map(|auth| auth.node_access_host.clone())
+                .unwrap_or_default();
+            self.config.node.set_access_host(access_host)?;
             warn!("Console rejected Panel authorization; restored the last Console-approved authorization");
         }
         Ok(())
@@ -1611,6 +1639,7 @@ mod tests {
             console_host: "console.example.com".to_string(),
             console_port: 8443,
             console_ssl: true,
+            node_access_host: "203.0.113.8".to_string(),
         }
     }
 
@@ -2178,25 +2207,21 @@ mod tests {
     }
 
     #[test]
-    fn configured_console_overrides_stale_auth_and_heartbeat() {
+    fn panel_auth_updates_console_and_node_access_host() {
         let mut runtime = test_runtime(Vec::new());
-        runtime.config.node.console_url = "https://configured.example:4600".into();
-        let stale = test_auth_info();
-        let mut expected = stale.clone();
-        expected.console_host = "configured.example".into();
-        expected.console_port = 4600;
-        expected.console_ssl = true;
+        let expected = test_auth_info();
         for command in [
-            Command::AuthInfo(stale.clone()),
+            Command::AuthInfo(expected.clone()),
             Command::HeartBeat {
                 index: 1,
                 from: "panel".into(),
                 logical_sessions_json: String::new(),
-                auth_info: Some(stale),
+                auth_info: Some(expected.clone()),
             },
         ] {
             runtime.handle_command(command).unwrap();
             assert_eq!(runtime.state.last_auth_info, Some(expected.clone()));
+            assert_eq!(runtime.config.node.access_host, "203.0.113.8");
         }
     }
 

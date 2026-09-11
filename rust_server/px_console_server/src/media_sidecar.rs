@@ -94,8 +94,14 @@ fn synchronize_http_port(config_path: &Path, expected_port: u16) -> Result<(), S
     synchronize_section_port(config_path, "http", expected_port)
 }
 
-fn synchronize_section_port(config_path: &Path, section: &str, expected_port: u16) -> Result<(), String> {
-    if expected_port == 0 { return Err("media port must be between 1 and 65535".into()); }
+fn synchronize_section_port(
+    config_path: &Path,
+    section: &str,
+    expected_port: u16,
+) -> Result<(), String> {
+    if expected_port == 0 {
+        return Err("media port must be between 1 and 65535".into());
+    }
     let config = std::fs::read_to_string(config_path)
         .map_err(|error| format!("read {} failed: {error}", config_path.display()))?;
     let newline = if config.contains("\r\n") {
@@ -103,7 +109,9 @@ fn synchronize_section_port(config_path: &Path, section: &str, expected_port: u1
     } else {
         "\n"
     };
+    let has_trailing_newline = config.ends_with('\n');
     let mut in_http = false;
+    let mut found = false;
     let mut changed = false;
     let mut output = Vec::new();
 
@@ -112,24 +120,39 @@ fn synchronize_section_port(config_path: &Path, section: &str, expected_port: u1
         if trimmed.starts_with('[') && trimmed.ends_with(']') {
             in_http = trimmed.eq_ignore_ascii_case(&format!("[{section}]"));
         }
-        if in_http && !changed && trimmed.starts_with("port=") {
-            output.push(format!("port={expected_port}"));
-            changed = true;
+        if in_http && !found && trimmed.starts_with("port=") {
+            found = true;
+            let replacement = format!("port={expected_port}");
+            changed = trimmed != replacement;
+            output.push(if changed {
+                replacement
+            } else {
+                line.to_string()
+            });
         } else {
             output.push(line.to_string());
         }
     }
+    if !found {
+        return Err(format!(
+            "[{section}].port was not found in px_media/config.ini"
+        ));
+    }
     if !changed {
-        return Err(format!("[{section}].port was not found in px_media/config.ini"));
+        return Ok(());
     }
 
-    let updated = output.join(newline);
+    let mut updated = output.join(newline);
+    if has_trailing_newline {
+        updated.push_str(newline);
+    }
     if updated != config {
         std::fs::write(config_path, updated)
             .map_err(|error| format!("write {} failed: {error}", config_path.display()))?;
         tracing::info!(
             port = expected_port,
-            section, "synchronized media port from Console configuration"
+            section,
+            "synchronized media port from Console configuration"
         );
     }
     Ok(())
@@ -190,7 +213,9 @@ pub async fn ensure_started(settings: &ConsoleLiveSettings) {
         return;
     }
     let publish_port = url::Url::parse(&settings.publish_rtmp_url)
-        .ok().filter(|url| url.scheme() == "rtmp").map(|url| url.port().unwrap_or(1935));
+        .ok()
+        .filter(|url| url.scheme() == "rtmp")
+        .map(|url| url.port().unwrap_or(1935));
     let Some(publish_port) = publish_port else {
         tracing::error!("media startup skipped: invalid publication URL");
         return;
@@ -451,7 +476,8 @@ fn turn_config_argument(console_dir: &Path, config_path: &Path) -> std::path::Pa
 #[cfg(test)]
 mod tests {
     use super::{
-        local_media_port, synchronize_http_port, turn_config_argument, write_turn_runtime_config,
+        local_media_port, synchronize_http_port, synchronize_section_port, turn_config_argument,
+        write_turn_runtime_config,
     };
     use crate::rtc::model::ManagedTurnServerConfig;
 
@@ -476,10 +502,26 @@ mod tests {
         synchronize_http_port(&config, 18080).unwrap();
         assert_eq!(
             std::fs::read_to_string(&config).unwrap(),
-            "[http]\nport=18080\n[rtmp]\nport=1935"
+            "[http]\nport=18080\n[rtmp]\nport=1935\n"
         );
         let _ = std::fs::remove_file(config);
         let _ = std::fs::remove_dir(dir);
+    }
+
+    #[test]
+    fn matching_media_port_preserves_file_bytes() {
+        let dir =
+            std::env::temp_dir().join(format!("px_media_sidecar_stable_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let config = dir.join("config.ini");
+        let original = "[http]\r\nport=4606\r\n[rtmp]\r\nport=4607\r\n";
+        std::fs::write(&config, original).unwrap();
+
+        synchronize_http_port(&config, 4606).unwrap();
+        synchronize_section_port(&config, "rtmp", 4607).unwrap();
+
+        assert_eq!(std::fs::read(&config).unwrap(), original.as_bytes());
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

@@ -8,8 +8,6 @@
 #include <vector>
 #include <string>
 #include <memory>
-#include <optional>
-#include <utility>
 #include "px_exe_names.h"
 
 namespace px
@@ -36,7 +34,6 @@ namespace px
     static const std::string kStAppGamePath = "app_game_path";
     static const std::string kStAppGameArgs = "app_game_args";
     static const std::string kStDebugBlock = "debug_block";
-    static const std::string kStPanelListeningPort = "panel_listen_port";
     static const std::string kStPanelServerHost = "panel_server_host";
     static const std::string kStServiceServerHost = "service_server_host";
     static const std::string kStServiceServerPort = "service_server_port";
@@ -55,20 +52,17 @@ namespace px
     static const std::string kStRelayServerPort = "relay_server_port";
     static const std::string kStConsoleServerHost = "console_server_host";
     static const std::string kStConsoleServerPort = "console_server_port";
+    static const std::string kStNodeAccessHost = "node_access_host";
     static const std::string kLegacyStCmsServerHost = "cms_server_host";
     static const std::string kLegacyStCmsServerPort = "cms_server_port";
     static const std::string kStScreenRecordingPath = "screen_recording_path";
     static const std::string kStShowMaxWindow = "show_max_window";
     static const std::string kStMaxNumOfScreen = "max_num_of_screen";
     static const std::string kStCanBeOperated = "can_be_operated";
-    static const std::string kStSSLConnection = "ssl_connection";
-    static const std::string kStRecordVisitHistory = "record_visit_history";
-    static const std::string kStRecordFileTransferHistory = "record_file_transfer_history";
     static const std::string kStDisconnectAutoLockScreen = "disconnect_auto_lock_screen";
     static const std::string kStRelayEnabled = "relay_enabled";
     static const std::string kStDevelopMode = "develop_mode";
     static const std::string kStDisplayClientLogo = "display_client_logo";
-    static const std::string kStFileTransferEnabled = "file_transfer_enabled";
     static const std::string kStColorfulTitlebar = "colorful_titlebar";
     static const std::string kStDisplayRandomPwd = "display_random_pwd";
     static const std::string kStPreferDecoder = "prefer_decoder";
@@ -159,7 +153,6 @@ namespace px
         std::string GetDeviceSecurityPwd();
 
         // Panel Server Port
-        void SetPanelServerPort(int port);
         int GetPanelServerPort();
 
         // Panel Server Host
@@ -177,6 +170,10 @@ namespace px
         // Render Server Port
         void SetRenderServerPort(int port);
         int GetRenderServerPort();
+        int GetApplicationPortStart() const;
+        int GetApplicationPortEnd() const;
+        int GetRtcPortStart() const;
+        int GetRtcPortEnd() const;
 
         // Console
         // Host
@@ -186,7 +183,8 @@ namespace px
         // Port
         void SetConsoleServerPort(const std::string& port);
         int GetConsoleServerPort();
-        const std::string& GetNodeAccessHost() const { return configured_access_host_; }
+        void SetNodeAccessHost(const std::string& host);
+        std::string GetNodeAccessHost() const;
 
         bool HasConsoleServerConfig();
 
@@ -220,26 +218,6 @@ namespace px
         void SetDisplayClientLogo(int enable);
         bool IsClientLogoDisplaying();
 
-        // can be operated
-        // Settings->Security Settings
-        void SetCanBeOperated(bool enable);
-        bool IsBeingOperatedEnabled();
-
-        // use ssl connection
-        // Settings->Security Settings
-        void SetUsingSSLConnection(bool enable);
-        bool IsSSLConnectionEnabled();
-
-        // record visit history
-        // Settings->Security Settings
-        void SetRecordingVisitHistory(bool enable);
-        bool IsVisitHistoryEnabled();
-
-        // record file transfer history
-        // Settings->Security Settings
-        void SetRecordingFileTransferHistory(bool enable);
-        bool IsFileTransferHistoryEnabled();
-
         // disconnect auto lock screen
         // Settings->Security Settings
         void SetDisconnectAutoLockScreen(bool enable);
@@ -254,11 +232,6 @@ namespace px
         // Settings -> Security Settings
         void SetDevelopModeEnabled(bool enable);
         bool IsDevelopMode();
-
-        // file transfer enabled
-        // Settings -> Security Settings
-        void SetFileTransferEnabled(bool enable);
-        bool IsFileTransferEnabled();
 
         void SetColorfulTitleBar(bool enable);
         bool IsColorfulTitleBarEnabled();
@@ -316,15 +289,16 @@ namespace px
         std::string file_transfer_folder_;
 
         int sys_service_port_{4603};
+        int panel_server_port_{4999};
+        int application_port_start_{4613};
+        int application_port_end_{4998};
+        int rtc_port_start_{5000};
+        int rtc_port_end_{5031};
         int console_discovery_port_{4604};
         bool console_discovery_enabled_{false};
-        std::optional<std::pair<std::string, int>> configured_console_endpoint_{};
-        std::string configured_access_host_{};
-
         std::string px_data_path_;
 
         std::string gl_backend_;
-
     };
 
 }

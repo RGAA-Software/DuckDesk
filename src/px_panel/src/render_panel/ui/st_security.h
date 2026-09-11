@@ -7,7 +7,6 @@
 
 #include <functional>
 
-#include <QLabel>
 #include "tab_base.h"
 
 namespace px

@@ -86,13 +86,19 @@ impl ConsoleServiceConnManager {
         let connection = self.get_conn(device_id.clone()).await.ok()?;
         let endpoint = {
             let guard = connection.lock().await;
-            if px_base::get_current_timestamp().saturating_sub(guard.last_update_timestamp) > 30_000 {
+            if px_base::get_current_timestamp().saturating_sub(guard.last_update_timestamp) > 30_000
+            {
                 return None;
             }
-            guard.node_endpoints.as_ref().and_then(|report| report.desktop_endpoint())
+            guard
+                .node_endpoints
+                .as_ref()
+                .and_then(|report| report.desktop_endpoint())
         };
         let current = self.get_conn(device_id).await.ok()?;
-        if !Arc::ptr_eq(&connection, &current) { return None; }
+        if !Arc::ptr_eq(&connection, &current) {
+            return None;
+        }
         endpoint
     }
 
@@ -162,8 +168,13 @@ mod tests {
 
     fn endpoint_report(host: &str) -> protocol::console_service::NodeEndpoints {
         protocol::console_service::NodeEndpoints {
-            schema_version: 1, access_host: host.into(), desktop_port: 4601,
-            application_port_start: 4613, application_port_end: 4999, rtc_port_start: 5000, rtc_port_end: 5299,
+            schema_version: 1,
+            access_host: host.into(),
+            desktop_port: 4601,
+            application_port_start: 4613,
+            application_port_end: 4998,
+            rtc_port_start: 5000,
+            rtc_port_end: 5031,
         }
     }
 
@@ -179,8 +190,14 @@ mod tests {
         }
         manager.add_conn("node-a".into(), first.clone()).await;
         manager.add_conn("node-b".into(), second.clone()).await;
-        assert_eq!(manager.node_endpoint("node-a".into()).await, Some(("a.example.com".into(), 4601)));
-        assert_eq!(manager.node_endpoint("node-b".into()).await, Some(("b.example.com".into(), 4601)));
+        assert_eq!(
+            manager.node_endpoint("node-a".into()).await,
+            Some(("a.example.com".into(), 4601))
+        );
+        assert_eq!(
+            manager.node_endpoint("node-b".into()).await,
+            Some(("b.example.com".into(), 4601))
+        );
         let replacement = make_conn("node-a", "key-a");
         manager.add_conn("node-a".into(), replacement.clone()).await;
         first.lock().await.node_endpoints = Some(endpoint_report("stale.example.com"));
@@ -191,7 +208,10 @@ mod tests {
             guard.node_endpoints = Some(endpoint_report("new.example.com"));
             guard.last_update_timestamp = px_base::get_current_timestamp();
         }
-        assert_eq!(manager.node_endpoint("node-a".into()).await, Some(("new.example.com".into(), 4601)));
+        assert_eq!(
+            manager.node_endpoint("node-a".into()).await,
+            Some(("new.example.com".into(), 4601))
+        );
         replacement.lock().await.last_update_timestamp = px_base::get_current_timestamp() - 31_000;
         assert_eq!(manager.node_endpoint("node-a".into()).await, None);
         manager.remove_conn("node-b".into(), &second).await;
@@ -203,18 +223,41 @@ mod tests {
         let connection = make_conn("node-a", "key-a");
         let mut guard = connection.lock().await;
         let mut message = protocol::console_service::ConsoleServiceMessage {
-            msg_type: protocol::console_service::ConsoleServiceMessageType::KConsoleServiceHeartBeat as i32,
+            msg_type: protocol::console_service::ConsoleServiceMessageType::KConsoleServiceHeartBeat
+                as i32,
             device_id: "node-a".into(),
             heartbeat: Some(protocol::console_service::ConsoleServiceHeartBeat {
-                device_id: "node-b".into(), node_endpoints: Some(endpoint_report("a.example.com")), ..Default::default()
-            }), ..Default::default()
+                device_id: "node-b".into(),
+                node_endpoints: Some(endpoint_report("a.example.com")),
+                ..Default::default()
+            }),
+            ..Default::default()
         };
-        assert!(!guard.process_message("test".into(), message.encode_to_vec().into()).await);
+        assert!(
+            !guard
+                .process_message("test".into(), message.encode_to_vec().into())
+                .await
+        );
         message.heartbeat.as_mut().unwrap().device_id = "node-a".into();
-        assert!(guard.process_message("test".into(), message.encode_to_vec().into()).await);
+        assert!(
+            guard
+                .process_message("test".into(), message.encode_to_vec().into())
+                .await
+        );
         assert_eq!(guard.node_endpoints, Some(endpoint_report("a.example.com")));
-        message.heartbeat.as_mut().unwrap().node_endpoints.as_mut().unwrap().desktop_port = 0;
-        assert!(!guard.process_message("test".into(), message.encode_to_vec().into()).await);
+        message
+            .heartbeat
+            .as_mut()
+            .unwrap()
+            .node_endpoints
+            .as_mut()
+            .unwrap()
+            .desktop_port = 0;
+        assert!(
+            !guard
+                .process_message("test".into(), message.encode_to_vec().into())
+                .await
+        );
         assert!(guard.node_endpoints.is_none());
     }
 
@@ -337,8 +380,8 @@ mod tests {
                 appkey: "appkey-1".to_string(),
                 version: "2.0.0".to_string(),
                 rdp_available: false,
-            rdp_domain: String::new(),
-            rdp_proxy_certificate_sha256: String::new(),
+                rdp_domain: String::new(),
+                rdp_proxy_certificate_sha256: String::new(),
             });
             assert!(
                 c.process_message(

@@ -13,7 +13,7 @@ setlocal enabledelayedexpansion
 ::       see docs\px_console_auth_pull.md).
 ::
 :: Result: run output\px_console\px_console.exe --running-mode=server
-::         and open https://localhost:30500 in a browser.
+::         and open https://localhost:4600 in a browser.
 
 cd /d "%~dp0\.."
 set "REPO_ROOT=%cd%"
@@ -40,14 +40,9 @@ if errorlevel 1 exit /b 1
 :: --- Create output directory ---
 if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
 
-:: Upgrade an existing Pixels CMS deployment without losing local state. The
-:: copy is only performed when the corresponding Console destination is absent.
+:: Upgrade an existing Pixels CMS deployment without losing runtime state.
+:: Static configuration is refreshed from the repository later in this script.
 if exist "%LEGACY_OUTPUT_DIR%" (
-    if not exist "%OUTPUT_DIR%\px_console.toml" if exist "%LEGACY_OUTPUT_DIR%\px_cms.toml" (
-        copy /Y "%LEGACY_OUTPUT_DIR%\px_cms.toml" "%OUTPUT_DIR%\px_console.toml" >nul
-        if errorlevel 1 exit /b 1
-        echo Migrated legacy configuration to px_console.toml.
-    )
     if not exist "%OUTPUT_DIR%\storage" if exist "%LEGACY_OUTPUT_DIR%\cms_storage" (
         robocopy "%LEGACY_OUTPUT_DIR%\cms_storage" "%OUTPUT_DIR%\storage" /E /NFL /NDL /NJH /NJS /NP >nul
         if errorlevel 8 exit /b 1
@@ -135,13 +130,12 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: config (preserve an existing or migrated deployment configuration)
-if not exist "%OUTPUT_DIR%\px_console.toml" (
-    copy /Y "%SERVER_SRC%\src\px_console.toml" "%OUTPUT_DIR%\px_console.toml" >nul
-    if errorlevel 1 (
-        echo ERROR: Failed to copy px_console.toml.
-        exit /b 1
-    )
+:: config template. Deployment-specific files are applied by their deployment
+:: profile; never let a stale output TOML silently override repository changes.
+copy /Y "%REPO_ROOT%\px_console.toml" "%OUTPUT_DIR%\px_console.toml" >nul
+if errorlevel 1 (
+    echo ERROR: Failed to refresh px_console.toml.
+    exit /b 1
 )
 
 :: Fixed media sidecars. ZLMediaKit requires its complete runtime because
@@ -213,12 +207,8 @@ echo.
 echo Before running:
 echo   1. Start MongoDB (default: mongodb://localhost:27017/)
 echo   2. Start Redis   (default: redis://127.0.0.1:6379/)
-echo   3. Edit %OUTPUT_DIR%\px_console.toml
-echo      - server_w3c_ip     : set this machine's public IP (or leave empty for auto)
-echo      - mongodb_url       : set if MongoDB is not on localhost
-echo      - redis_url         : set if Redis is not on localhost
-echo      - auth_server_url   : address of the px_auth_server issuing licenses
-echo      - [app_credential]  : same appkey/app_secret as the auth server (if required)
+echo   3. Open/map the ports documented by the repository deployment profile.
+echo      Do not edit the packaged TOML on the running machine.
 echo   4. Ensure %CERT_DIR%\auth_license_public.key is present
 echo      (issued by px_auth_server).
 echo   5. The Console auto-registers as a trial device on first run; switch it to
@@ -231,8 +221,8 @@ echo Run (panel UI mode):
 echo   %OUTPUT_DIR%\px_console.exe
 echo.
 echo Open in browser:
-echo   https://localhost:30500
-echo   Health check: https://localhost:30500/ping
+echo   https://localhost:4600
+echo   Health check: https://localhost:4600/ping
 echo.
 echo NOTE: Since the certificate is self-signed, browsers will show a
 echo       security warning. Accept the risk or replace certs\cert.pem

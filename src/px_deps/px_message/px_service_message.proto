@@ -60,6 +60,8 @@ message MsgAuthInfo {
   int32 console_port = 11;
   // whether the Console websocket connection uses TLS (wss) or plain ws
   bool console_ssl = 12;
+  // client-reachable address advertised for this Render node; no scheme or port
+  string node_access_host = 13;
 }
 
 message MsgHeartBeat {

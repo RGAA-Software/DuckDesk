@@ -119,7 +119,7 @@ namespace px
         args.push_back(std::format("--service_server_port={}", settings->GetServiceServerPort()));
         args.push_back(std::format("--{}={}", kStRelayServerHost, settings->GetRelayServerHost()));
         args.push_back(std::format("--{}={}", kStRelayServerPort, settings->GetRelayServerPort()));
-        args.push_back(std::format("--{}={}", kStCanBeOperated, settings->IsBeingOperatedEnabled()));
+        args.push_back(std::format("--{}={}", kStCanBeOperated, true));
         args.push_back(std::format("--{}={}", kStRelayEnabled, settings->IsRelayEnabled()));
         args.push_back(std::format("--language={}", (int)tcTrMgr()->GetSelectedLanguage()));
         args.push_back(std::format("--{}={}", kStLogFile, settings->log_file_));

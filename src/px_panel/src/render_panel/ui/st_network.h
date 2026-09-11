@@ -7,7 +7,6 @@
 
 #include <QLabel>
 #include <QLineEdit>
-#include <QCheckBox>
 #include <QTextEdit>
 #include <QPointer>
 #include <functional>
@@ -41,16 +40,9 @@ namespace px
     private:
         std::reference_wrapper<PxSettings> network_settings_;
         QPointer<QTextEdit> edt_console_access_;
-        QPointer<QLineEdit> edt_console_server_host_;
         QPointer<QLineEdit> edt_console_server_port_;
-        QPointer<QLineEdit> edt_relay_server_host_;
         QPointer<QLineEdit> edt_relay_server_port_;
-        QPointer<QCheckBox> cb_websocket_;
-        QPointer<QLineEdit> edt_websocket_;
-        QPointer<QCheckBox> cb_udp_kcp_;
-        QPointer<QLineEdit> edt_udp_kcp_;
-        QPointer<QCheckBox> cb_webrtc_;
-        QPointer<QLineEdit> edt_panel_port_;
+        QPointer<QLineEdit> edt_node_access_host_;
         std::shared_ptr<PxAsyncScope> request_scope_;
         std::shared_ptr<LatestSerialRequestGate> verify_gate_;
         std::shared_ptr<LatestSerialRequestGate> save_gate_;

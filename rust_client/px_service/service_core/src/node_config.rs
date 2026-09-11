@@ -5,7 +5,7 @@ use std::path::Path;
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct NodeConfig {
-    pub console_url: String,
+    #[serde(skip)]
     pub access_host: String,
     pub network: NetworkConfig,
     pub applications: PortRange,
@@ -18,6 +18,7 @@ pub struct NetworkConfig {
     pub listen_host: String,
     pub listen_port: u16,
     pub desktop_port: u16,
+    pub panel_port: u16,
     pub discovery_port: u16,
     pub discovery_enabled: bool,
 }
@@ -35,6 +36,7 @@ impl Default for NetworkConfig {
             listen_host: "127.0.0.1".into(),
             listen_port: 4603,
             desktop_port: 4601,
+            panel_port: 4999,
             discovery_port: 4604,
             discovery_enabled: false,
         }
@@ -44,16 +46,15 @@ impl Default for NetworkConfig {
 impl Default for NodeConfig {
     fn default() -> Self {
         Self {
-            console_url: String::new(),
             access_host: String::new(),
             network: NetworkConfig::default(),
             applications: PortRange {
                 port_start: 4613,
-                port_end: 4999,
+                port_end: 4998,
             },
             rtc: PortRange {
                 port_start: 5000,
-                port_end: 5299,
+                port_end: 5031,
             },
         }
     }
@@ -81,20 +82,7 @@ impl NodeConfig {
     }
 
     pub fn validate(&self) -> Result<(), String> {
-        self.console_endpoint()?;
-        if !self.access_host.is_empty() {
-            let host = url::Host::parse(&self.access_host).map_err(|_| "access_host must be an IP address or hostname")?;
-            if self.access_host.trim() != self.access_host || self.access_host.contains(['/', '?', '#', '@']) {
-                return Err("access_host must not contain a URL, port or credentials".into());
-            }
-            match host {
-                url::Host::Ipv4(ip) if ip.is_unspecified() || ip.is_multicast() || ip.is_broadcast() =>
-                    return Err("access_host must be a usable destination".into()),
-                url::Host::Ipv6(ip) if ip.is_unspecified() || ip.is_multicast() =>
-                    return Err("access_host must be a usable destination".into()),
-                _ => {}
-            }
-        }
+        validate_access_host(&self.access_host)?;
         if self
             .network
             .listen_host
@@ -103,8 +91,11 @@ impl NodeConfig {
         {
             return Err("network.listen_host must be a local IP address".into());
         }
-        if self.network.listen_port == 0 || self.network.desktop_port == 0 {
-            return Err("management and desktop ports must be between 1 and 65535".into());
+        if self.network.listen_port == 0
+            || self.network.desktop_port == 0
+            || self.network.panel_port == 0
+        {
+            return Err("management, desktop and panel ports must be between 1 and 65535".into());
         }
         if self.network.discovery_enabled && self.network.discovery_port == 0 {
             return Err("enabled discovery requires a port between 1 and 65535".into());
@@ -115,12 +106,16 @@ impl NodeConfig {
                     "{name} requires 1 <= port_start <= port_end <= 65535"
                 ));
             }
-            if range.contains(self.network.listen_port) || range.contains(self.network.desktop_port)
+            if range.contains(self.network.listen_port)
+                || range.contains(self.network.desktop_port)
+                || range.contains(self.network.panel_port)
             {
                 return Err(format!("{name} overlaps a node listener"));
             }
         }
         if self.network.listen_port == self.network.desktop_port
+            || self.network.listen_port == self.network.panel_port
+            || self.network.desktop_port == self.network.panel_port
             || self.applications.port_start <= self.rtc.port_end
                 && self.rtc.port_start <= self.applications.port_end
         {
@@ -129,28 +124,21 @@ impl NodeConfig {
         Ok(())
     }
 
-    /// Address configuration never carries credentials; registration remains a separate workflow.
-    pub fn console_endpoint(&self) -> Result<Option<(String, u16)>, String> {
-        if self.console_url.is_empty() { return Ok(None); }
-        let endpoint = url::Url::parse(&self.console_url).map_err(|_| "console_url must be an HTTPS URL")?;
-        if endpoint.scheme() != "https" || endpoint.host_str().is_none() || !endpoint.username().is_empty()
-            || endpoint.password().is_some() || endpoint.query().is_some() || endpoint.fragment().is_some()
-            || endpoint.path() != "/" || self.console_url.trim() != self.console_url {
-            return Err("console_url requires an HTTPS origin without credentials, path, query or fragment".into());
-        }
-        let port = endpoint.port_or_known_default().ok_or("console_url has no valid port")?;
-        if port == 0 { return Err("console_url port must be between 1 and 65535".into()); }
-        let host = match endpoint.host().ok_or("console_url has no host")? {
-            url::Host::Domain(value) => value.to_owned(),
-            url::Host::Ipv4(value) => value.to_string(),
-            url::Host::Ipv6(value) => value.to_string(),
-        };
-        Ok(Some((host, port)))
+    pub fn set_access_host(&mut self, access_host: String) -> Result<(), String> {
+        validate_access_host(&access_host)?;
+        self.access_host = access_host;
+        Ok(())
     }
 
     /// Service owns these arguments; persisted launches cannot retain stale listener settings.
     pub fn configure_render(&self, args: &mut Vec<String>, desktop: bool) {
-        let mut names = vec!["service_server_port", "rtc_port_start", "rtc_port_end", "rtc_advertised_ipv4"];
+        let mut names = vec![
+            "service_server_port",
+            "panel_server_port",
+            "rtc_port_start",
+            "rtc_port_end",
+            "rtc_advertised_ipv4",
+        ];
         if desktop {
             names.push("network_listen_port");
         }
@@ -175,6 +163,7 @@ impl NodeConfig {
             "--service_server_port={}",
             self.network.listen_port
         ));
+        args.push(format!("--panel_server_port={}", self.network.panel_port));
         args.push(format!("--rtc_port_start={}", self.rtc.port_start));
         args.push(format!("--rtc_port_end={}", self.rtc.port_end));
         if let Ok(advertised_ipv4) = self.access_host.parse::<std::net::Ipv4Addr>() {
@@ -189,6 +178,26 @@ impl NodeConfig {
     }
 }
 
+fn validate_access_host(access_host: &str) -> Result<(), String> {
+    if access_host.is_empty() {
+        return Ok(());
+    }
+    let host = url::Host::parse(access_host)
+        .map_err(|_| "node access host must be an IP address or hostname")?;
+    if access_host.trim() != access_host || access_host.contains(['/', '?', '#', '@']) {
+        return Err("node access host must not contain a URL, port or credentials".into());
+    }
+    match host {
+        url::Host::Ipv4(ip) if ip.is_unspecified() || ip.is_multicast() || ip.is_broadcast() => {
+            Err("node access host must be a usable destination".into())
+        }
+        url::Host::Ipv6(ip) if ip.is_unspecified() || ip.is_multicast() => {
+            Err("node access host must be a usable destination".into())
+        }
+        _ => Ok(()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,13 +208,14 @@ mod tests {
         let mut config = NodeConfig::default();
         config.network.listen_port = 4603;
         config.network.desktop_port = 4601;
+        config.network.panel_port = 4999;
         config.applications = PortRange {
             port_start: 4613,
-            port_end: 4999,
+            port_end: 4998,
         };
         config.rtc = PortRange {
             port_start: 5000,
-            port_end: 5299,
+            port_end: 5031,
         };
         config.validate().unwrap();
         config.applications = PortRange {
@@ -236,10 +246,13 @@ mod tests {
             "1".into(),
             "--rtc_port_start=2".into(),
             "--network_listen_port=12345".into(),
+            "--panel_server_port=20369".into(),
             "--game_path=中文 game.exe".into(),
         ];
         config.configure_render(&mut args, false);
         assert!(args.contains(&"--network_listen_port=12345".into()));
+        assert!(args.contains(&"--panel_server_port=4999".into()));
+        assert!(!args.contains(&"--panel_server_port=20369".into()));
         assert!(args.contains(&"--game_path=中文 game.exe".into()));
         let first = args.clone();
         config.configure_render(&mut args, false);
@@ -247,37 +260,52 @@ mod tests {
         config.configure_render(&mut args, true);
         assert!(!args.contains(&"--network_listen_port=12345".into()));
         assert!(args.contains(&"--network_listen_port=4601".into()));
+        assert!(args.contains(&"--panel_server_port=4999".into()));
+        assert!(!args.contains(&"--panel_server_port=20369".into()));
         config.access_host = "203.0.113.8".into();
         config.configure_render(&mut args, true);
         assert!(args.contains(&"--rtc_advertised_ipv4=203.0.113.8".into()));
         config.access_host = "render.example.com".into();
         config.configure_render(&mut args, true);
-        assert!(!args.iter().any(|arg| arg.starts_with("--rtc_advertised_ipv4=")));
+        assert!(!args
+            .iter()
+            .any(|arg| arg.starts_with("--rtc_advertised_ipv4=")));
     }
 
     #[test]
-    fn minimal_configuration_requires_only_two_addresses() {
-        let config: NodeConfig = toml::from_str("console_url='https://console.example.com:4600'\naccess_host='render.example.com'").unwrap();
+    fn package_configuration_uses_built_in_port_defaults() {
+        let config: NodeConfig = toml::from_str(include_str!("../../px_service.toml")).unwrap();
         config.validate().unwrap();
-        assert_eq!(config.console_endpoint().unwrap(), Some(("console.example.com".into(), 4600)));
+        assert!(config.access_host.is_empty());
         assert_eq!(config.network.desktop_port, 4601);
+        assert_eq!(config.network.panel_port, 4999);
         assert_eq!(config.applications.port_start, 4613);
-        assert_eq!(config.rtc.port_end, 5299);
+        assert_eq!(config.applications.port_end, 4998);
+        assert_eq!(config.rtc.port_end, 5031);
         assert!(!config.network.discovery_enabled);
     }
 
     #[test]
-    fn addresses_reject_credentials_and_ambiguous_destinations() {
-        for value in ["http://console.example.com", "https://user:secret@example.com", "https://example.com/path", "https://example.com?key=secret", "https://example.com:0"] {
-            let config = NodeConfig { console_url: value.into(), ..Default::default() };
-            assert!(config.validate().is_err(), "invalid URL accepted");
-        }
-        for value in ["0.0.0.0", "[::]", "239.1.1.1", "https://render.example.com", "render.example.com:4601", "user@host", " host"] {
-            let config = NodeConfig { access_host: value.into(), ..Default::default() };
+    fn access_host_rejects_credentials_and_ambiguous_destinations() {
+        for value in [
+            "0.0.0.0",
+            "[::]",
+            "239.1.1.1",
+            "https://render.example.com",
+            "render.example.com:4601",
+            "user@host",
+            " host",
+        ] {
+            let config = NodeConfig {
+                access_host: value.into(),
+                ..Default::default()
+            };
             assert!(config.validate().is_err(), "invalid host accepted");
         }
-        let config = NodeConfig { console_url: "https://[2001:db8::1]:4600".into(), access_host: "[2001:db8::2]".into(), ..Default::default() };
+        let config = NodeConfig {
+            access_host: "[2001:db8::2]".into(),
+            ..Default::default()
+        };
         config.validate().unwrap();
-        assert_eq!(config.console_endpoint().unwrap(), Some(("2001:db8::1".into(), 4600)));
     }
 }

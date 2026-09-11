@@ -5,14 +5,12 @@
 #include "px_settings.h"
 #include <sstream>
 #include <QApplication>
-#include <QUrl>
 
 #include "px_application.h"
 #include "version_config.h"
 #include "px_app_messages.h"
 #include "companion/panel_companion.h"
 #include "px_common/log.h"
-#include "px_common/md5.h"
 #include "px_common/md5.h"
 #include "px_common/uuid.h"
 #include "px_common/base64.h"
@@ -34,42 +32,35 @@ namespace px
 
     void PxSettings::Load() {
         sp_ = SharedPreference::Instance();
-        configured_console_endpoint_.reset();
-        configured_access_host_.clear();
         const auto service_config_path = std::filesystem::path(QCoreApplication::applicationDirPath().toStdWString()) / "px_service.toml";
         if (std::filesystem::exists(service_config_path)) {
             const auto node_config = toml::parse_file(service_config_path.string());
             const int service_port = node_config["network"]["listen_port"].value_or(4603);
             const int desktop_port = node_config["network"]["desktop_port"].value_or(4601);
+            const int panel_port = node_config["network"]["panel_port"].value_or(4999);
+            const int application_port_start = node_config["applications"]["port_start"].value_or(4613);
+            const int application_port_end = node_config["applications"]["port_end"].value_or(4998);
+            const int rtc_port_start = node_config["rtc"]["port_start"].value_or(5000);
+            const int rtc_port_end = node_config["rtc"]["port_end"].value_or(5031);
             console_discovery_port_ = node_config["network"]["discovery_port"].value_or(4604);
             console_discovery_enabled_ = node_config["network"]["discovery_enabled"].value_or(false);
-            const auto console_text = QString::fromStdString(node_config["console_url"].value_or(std::string{}));
-            if (!console_text.isEmpty()) {
-                const QUrl endpoint(console_text, QUrl::StrictMode);
-                if (!endpoint.isValid() || endpoint.scheme() != "https" || endpoint.host().isEmpty() || !endpoint.userInfo().isEmpty()
-                    || endpoint.hasQuery() || endpoint.hasFragment() || (!endpoint.path().isEmpty() && endpoint.path() != "/")
-                    || console_text.trimmed() != console_text || endpoint.port(443) <= 0) {
-                    throw std::runtime_error("Invalid node console_url: expected an HTTPS origin without credentials");
-                }
-                configured_console_endpoint_ = std::make_pair(endpoint.host().toStdString(), endpoint.port(443));
-            }
-            const auto access_text = QString::fromStdString(node_config["access_host"].value_or(std::string{}));
-            if (!access_text.isEmpty()) {
-                const QUrl endpoint("https://" + access_text, QUrl::StrictMode);
-                if (!endpoint.isValid() || endpoint.host().isEmpty() || !endpoint.userInfo().isEmpty() || !endpoint.path().isEmpty()
-                    || endpoint.port(-1) != -1 || endpoint.hasQuery() || endpoint.hasFragment() || access_text.trimmed() != access_text
-                    || endpoint.host() == "0.0.0.0" || endpoint.host() == "::") {
-                    throw std::runtime_error("Invalid node access_host: expected an IP address or hostname without a port");
-                }
-                configured_access_host_ = endpoint.host().toStdString();
-            }
             if (console_discovery_enabled_ && (console_discovery_port_ <= 0 || console_discovery_port_ > 65535)) {
                 throw std::runtime_error("Invalid discovery port configuration");
             }
-            if (service_port <= 0 || service_port > 65535 || desktop_port <= 0 || desktop_port > 65535) {
+            if (service_port <= 0 || service_port > 65535 || desktop_port <= 0 || desktop_port > 65535 || panel_port <= 0 || panel_port > 65535 ||
+                application_port_start <= 0 || application_port_start > application_port_end || application_port_end > 65535 || rtc_port_start <= 0 ||
+                rtc_port_start > rtc_port_end || rtc_port_end > 65535 || service_port == desktop_port || service_port == panel_port ||
+                desktop_port == panel_port || (application_port_start <= panel_port && panel_port <= application_port_end) ||
+                (rtc_port_start <= panel_port && panel_port <= rtc_port_end) ||
+                (application_port_start <= rtc_port_end && rtc_port_start <= application_port_end)) {
                 throw std::runtime_error("Invalid node listener port configuration");
             }
             sys_service_port_ = service_port;
+            panel_server_port_ = panel_port;
+            application_port_start_ = application_port_start;
+            application_port_end_ = application_port_end;
+            rtc_port_start_ = rtc_port_start;
+            rtc_port_end_ = rtc_port_end;
             SetServiceServerPort(service_port);
             SetRenderServerPort(desktop_port);
         }
@@ -148,6 +139,7 @@ namespace px
         this->SetDeviceSecurityPwd("");
         this->SetConsoleServerHost("");
         this->SetConsoleServerPort("");
+        this->SetNodeAccessHost("");
         this->SetRelayServerHost("");
         this->SetRelayServerPort("");
         this->SetConsoleAccessInfo("");
@@ -304,15 +296,9 @@ namespace px
         return sp_->Get(kStDeviceSafetyPwd, "");
     }
 
-    // Panel Server Port // Set
-    void PxSettings::SetPanelServerPort(int port) {
-        sp_->Put(kStPanelListeningPort, std::to_string(port));
-    }
-
     // Panel Server Port // Get
     int PxSettings::GetPanelServerPort() {
-        auto value = std::atoi(sp_->Get(kStPanelListeningPort, "").c_str());
-        return value > 0 ? value : 20369;
+        return panel_server_port_;
     }
 
     // Panel Server Host // Set
@@ -391,9 +377,6 @@ namespace px
     // Console
     // Get Host
     std::string PxSettings::GetConsoleServerHost() {
-        if (configured_console_endpoint_) {
-            return configured_console_endpoint_->first;
-        }
         auto value = sp_->Get(kStConsoleServerHost, "");
         if (value.empty()) {
             value = sp_->Get(kLegacyStCmsServerHost, "");
@@ -413,9 +396,6 @@ namespace px
     // Console
     // Get Port
     int PxSettings::GetConsoleServerPort() {
-        if (configured_console_endpoint_) {
-            return configured_console_endpoint_->second;
-        }
         auto value = sp_->Get(kStConsoleServerPort, "");
         if (value.empty()) {
             value = sp_->Get(kLegacyStCmsServerPort, "");
@@ -424,6 +404,30 @@ namespace px
             }
         }
         return std::atoi(value.c_str());
+    }
+
+    int PxSettings::GetApplicationPortStart() const {
+        return application_port_start_;
+    }
+
+    int PxSettings::GetApplicationPortEnd() const {
+        return application_port_end_;
+    }
+
+    int PxSettings::GetRtcPortStart() const {
+        return rtc_port_start_;
+    }
+
+    int PxSettings::GetRtcPortEnd() const {
+        return rtc_port_end_;
+    }
+
+    void PxSettings::SetNodeAccessHost(const std::string& host) {
+        sp_->Put(kStNodeAccessHost, host);
+    }
+
+    std::string PxSettings::GetNodeAccessHost() const {
+        return sp_->Get(kStNodeAccessHost, "");
     }
 
     bool PxSettings::HasConsoleServerConfig() {
@@ -465,50 +469,6 @@ namespace px
         return !value.empty() && value == kStTrue;
     }
 
-    // can be operated
-    // Settings->Security Settings
-    void PxSettings::SetCanBeOperated(bool enable) {
-        sp_->Put(kStCanBeOperated, enable ? kStTrue : kStFalse);
-    }
-
-    bool PxSettings::IsBeingOperatedEnabled() {
-        auto value = sp_->Get(kStCanBeOperated);
-        return value.empty() || value == kStTrue;
-    }
-
-    // use ssl connection
-    // Settings->Security Settings
-    void PxSettings::SetUsingSSLConnection(bool enable) {
-        sp_->Put(kStSSLConnection, enable ? kStTrue : kStFalse);
-    }
-
-    bool PxSettings::IsSSLConnectionEnabled() {
-        auto value = sp_->Get(kStSSLConnection);
-        return value.empty() || value == kStTrue;
-    }
-
-    // record visit history
-    // Settings->Security Settings
-    void PxSettings::SetRecordingVisitHistory(bool enable) {
-        sp_->Put(kStRecordVisitHistory, enable ? kStTrue : kStFalse);
-    }
-
-    bool PxSettings::IsVisitHistoryEnabled() {
-        auto value = sp_->Get(kStRecordVisitHistory);
-        return value.empty() || value == kStTrue;
-    }
-
-    // record file transfer history
-    // Settings->Security Settings
-    void PxSettings::SetRecordingFileTransferHistory(bool enable) {
-        sp_->Put(kStRecordFileTransferHistory, enable ? kStTrue : kStFalse);
-    }
-
-    bool PxSettings::IsFileTransferHistoryEnabled() {
-        auto value = sp_->Get(kStRecordFileTransferHistory);
-        return value.empty() || value == kStTrue;
-    }
-
     void PxSettings::SetDisconnectAutoLockScreen(bool enable) {
         sp_->Put(kStDisconnectAutoLockScreen, enable ? kStTrue : kStFalse);
     }
@@ -534,15 +494,6 @@ namespace px
     bool PxSettings::IsDevelopMode() {
         auto value = sp_->Get(kStDevelopMode);
         return !value.empty() && value == kStTrue;
-    }
-
-    void PxSettings::SetFileTransferEnabled(bool enable) {
-        sp_->Put(kStFileTransferEnabled, enable ? kStTrue : kStFalse);
-    }
-
-    bool PxSettings::IsFileTransferEnabled() {
-        auto value = sp_->Get(kStFileTransferEnabled);
-        return value.empty() || value == kStTrue;
     }
 
     void PxSettings::SetColorfulTitleBar(bool enable) {

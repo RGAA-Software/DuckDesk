@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::net::IpAddr;
 
-pub const DEFAULT_TURN_PORT: u16 = 20128;
-pub const DEFAULT_TURN_MIN_RELAY_PORT: u16 = 20200;
-pub const DEFAULT_TURN_MAX_RELAY_PORT: u16 = 20500;
+pub const DEFAULT_TURN_PORT: u16 = 4602;
+pub const DEFAULT_TURN_MIN_RELAY_PORT: u16 = 5301;
+pub const DEFAULT_TURN_MAX_RELAY_PORT: u16 = 5428;
 pub const DEFAULT_TURN_CREDENTIAL_TTL_SECONDS: u64 = 300;
 
 fn default_turn_port() -> u16 {
@@ -374,7 +374,7 @@ mod tests {
         assert_eq!(view.servers.len(), 1);
         assert!(view.servers[0]
             .urls
-            .contains(&"turn:10.0.0.9:20128?transport=udp".to_string()));
+            .contains(&"turn:10.0.0.9:4602?transport=udp".to_string()));
     }
 
     #[test]

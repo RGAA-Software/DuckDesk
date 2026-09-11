@@ -178,7 +178,7 @@ if (FORCE_CONSOLE_TUNNEL) {
   // reachable. Block only that endpoint in this browser so the production
   // Console tunnel (RecordFetchReq -> multipart upload -> playback) is tested
   // deterministically, even when the E2E runner shares the Panel's LAN.
-  await cmd('Network.setBlockedURLs', { urls: ['http://*:20369/*'] })
+  await cmd('Network.setBlockedURLs', { urls: ['http://*:4999/*'] })
 }
 await cmd('Page.enable')
 

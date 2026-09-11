@@ -31,7 +31,7 @@ async fn main() {
     let _profiler = dhat::Profiler::new_heap();
 
     let args = Cli::parse();
-    let port = args.port.unwrap_or(20369);
+    let port = args.port.unwrap_or(4999);
 
     let log_root = default_log_root();
     let _guard = log_util::init_log(

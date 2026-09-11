@@ -25,7 +25,7 @@ data class DeviceEndpoint(
     }
 
     companion object {
-        const val DEFAULT_PANEL_PORT = 20369
+        const val DEFAULT_PANEL_PORT = 4999
         const val DEFAULT_RENDER_PORT = 20371
     }
 }

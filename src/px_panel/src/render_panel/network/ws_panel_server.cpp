@@ -643,10 +643,10 @@ void WsPanelServer::RpSyncPanelInfo() {
     sub->set_device_safety_pwd(PxSettings::Instance()->GetDeviceSecurityPwd());
     sub->set_relay_host(PxSettings::Instance()->GetRelayServerHost());
     sub->set_relay_port(std::to_string(PxSettings::Instance()->GetRelayServerPort()));
-    sub->set_can_be_operated(PxSettings::Instance()->IsBeingOperatedEnabled());
+    sub->set_can_be_operated(true);
     sub->set_relay_enabled(PxSettings::Instance()->IsRelayEnabled());
     sub->set_language((int)tcTrMgr()->GetSelectedLanguage());
-    sub->set_file_transfer_enabled(PxSettings::Instance()->IsFileTransferEnabled());
+    sub->set_file_transfer_enabled(true);
     sub->set_audio_enabled(PxSettings::Instance()->IsCaptureAudioEnabled());
     sub->set_appkey(grApp->GetAppkey());
     sub->set_max_transmit_speed(this->max_transmit_speed_);
@@ -692,12 +692,6 @@ void WsPanelServer::ParseRendererMessage(uint64_t socket_fd, std::string_view ms
         });
     } else if (proto_msg->type() == pxrp::kRpRestartServer) {
         context_->SendAppMessage(AppMsgRestartServer{});
-    } else if (proto_msg->type() == pxrp::kRpPluginsInfo) {
-        auto plugins_info = std::make_shared<pxrp::RpPluginsInfo>();
-        plugins_info->CopyFrom(proto_msg->plugins_info());
-        context_->SendAppMessage(MsgPluginsInfo{
-            .plugins_info_ = plugins_info,
-        });
     } else if (proto_msg->type() == pxrp::kRpClientConnected) {
         auto weak_self = weak_from_this();
         context_->PostDBTask([weak_self, proto_msg, socket_fd]() {

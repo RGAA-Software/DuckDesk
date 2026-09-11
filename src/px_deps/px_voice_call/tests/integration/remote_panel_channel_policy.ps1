@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$HostName,
-    [int]$Port = 20369,
+    [int]$Port = 4999,
     [int]$TimeoutMilliseconds = 3000
 )
 
