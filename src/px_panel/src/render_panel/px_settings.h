@@ -8,6 +8,8 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <optional>
+#include <utility>
 #include "px_exe_names.h"
 
 namespace px
@@ -184,6 +186,7 @@ namespace px
         // Port
         void SetConsoleServerPort(const std::string& port);
         int GetConsoleServerPort();
+        const std::string& GetNodeAccessHost() const { return configured_access_host_; }
 
         bool HasConsoleServerConfig();
 
@@ -312,7 +315,11 @@ namespace px
 
         std::string file_transfer_folder_;
 
-        int sys_service_port_ = 20375;
+        int sys_service_port_{4603};
+        int console_discovery_port_{4604};
+        bool console_discovery_enabled_{false};
+        std::optional<std::pair<std::string, int>> configured_console_endpoint_{};
+        std::string configured_access_host_{};
 
         std::string px_data_path_;
 

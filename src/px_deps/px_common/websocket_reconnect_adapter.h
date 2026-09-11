@@ -54,10 +54,7 @@ inline PxReconnectSupervisorOptions MakeWebSocketReconnectOptions(std::string co
         .adapter_stop_timeout = std::chrono::seconds(3),
         .backoff =
             PxReconnectBackoffOptions{
-                .initial_delay = std::chrono::milliseconds(250),
-                .maximum_delay = std::chrono::seconds(30),
-                .multiplier = 2.0,
-                .jitter_ratio = 0.2,
+                .retry_delay = std::chrono::milliseconds(250),
             },
     };
 }

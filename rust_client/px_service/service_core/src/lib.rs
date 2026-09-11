@@ -1,6 +1,7 @@
 pub mod app_instance;
 pub mod command;
 pub mod config;
+pub mod node_config;
 pub mod process;
 pub mod proto;
 pub mod state;

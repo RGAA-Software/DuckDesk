@@ -65,92 +65,106 @@ void WssConnection::Start() {
     const auto adapter_slot = adapter_slot_;
     const auto supervisor = reconnect_supervisor_;
     PxReconnectSupervisorHooks hooks{
-        .start_attempt = [weak_self, adapter_slot, supervisor, host = host_, port = port_, path = path_](const std::uint64_t generation) {
-            const auto self = weak_self.lock();
-            if (!self || self->exiting_) {
-                return PxResult<void>::Failure(MakePxAsyncError(
-                    PxAsyncErrorCode::kServiceStopped, "sdk-wss.start", "SDK secure websocket owner is stopping"));
-            }
-            const auto client = std::make_shared<asio2::wss_client>();
-            const auto weak_client = std::weak_ptr<asio2::wss_client>(client);
-            client->set_auto_reconnect(false);
-            client->set_timeout(std::chrono::milliseconds(2000));
-            client->bind_init([weak_self, weak_client]() {
+        .start_attempt =
+            [weak_self, adapter_slot, supervisor, host = host_, port = port_, path = path_](const std::uint64_t generation) {
                 const auto self = weak_self.lock();
-                const auto current = weak_client.lock();
-                if (!self || !current || self->exiting_.load(std::memory_order_acquire)) {
-                    return;
+                if (!self || self->exiting_) {
+                    return PxResult<void>::Failure(
+                        MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "sdk-wss.start", "SDK secure websocket owner is stopping"));
                 }
-                current->set_no_delay(true);
-                current->ws_stream().set_option(websocket::stream_base::decorator([](websocket::request_type& request) {
-                    request.set(http::field::authorization, "websocket-client-authorization");
-                }));
-            }).bind_connect([weak_self, weak_client, supervisor, generation]() {
-                const auto self = weak_self.lock();
-                const auto current = weak_client.lock();
-                if (!self || !current || self->exiting_.load(std::memory_order_acquire)) {
-                    return;
-                }
-                if (asio2::get_last_error()) {
-                    static_cast<void>(supervisor->FailActive(generation, MakePxAsyncError(
-                        PxAsyncErrorCode::kServiceNotConnected, "sdk-wss.connect", asio2::last_error_msg(), true)));
-                    return;
-                }
-                LOGI("event=transport.tcp_connected component=sdk_wss local_address={} local_port={}",
-                     current->local_address(), current->local_port());
-            }).bind_disconnect([weak_self, supervisor, generation]() {
+                const auto client = std::make_shared<asio2::wss_client>();
+                const auto weak_client = std::weak_ptr<asio2::wss_client>(client);
+                client->set_auto_reconnect(false);
+                client->set_timeout(std::chrono::milliseconds(2000));
+                client
+                    ->bind_init([weak_self, weak_client]() {
+                        const auto self = weak_self.lock();
+                        const auto current = weak_client.lock();
+                        if (!self || !current || self->exiting_.load(std::memory_order_acquire)) {
+                            return;
+                        }
+                        current->set_no_delay(true);
+                        current->ws_stream().set_option(websocket::stream_base::decorator(
+                            [](websocket::request_type& request) { request.set(http::field::authorization, "websocket-client-authorization"); }));
+                    })
+                    .bind_connect([weak_self, weak_client, supervisor, generation]() {
+                        const auto self = weak_self.lock();
+                        const auto current = weak_client.lock();
+                        if (!self || !current || self->exiting_.load(std::memory_order_acquire)) {
+                            return;
+                        }
+                        if (asio2::get_last_error()) {
+                            static_cast<void>(supervisor->FailActive(generation, MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected,
+                                                                                                  "sdk-wss.connect", asio2::last_error_msg(), true)));
+                            return;
+                        }
+                        LOGI("event=transport.tcp_connected component=sdk_wss local_address={} local_port={}", current->local_address(),
+                             current->local_port());
+                    })
+                    .bind_disconnect([weak_self, supervisor, generation]() {
+                        if (const auto self = weak_self.lock(); self && !self->exiting_.load(std::memory_order_acquire)) {
+                            LOGW("SDK secure websocket disconnected: error={}, reason={}", asio2::get_last_error().value(), asio2::last_error_msg());
+                            static_cast<void>(supervisor->MarkDisconnected(generation, MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected,
+                                                                                                        "sdk-wss.disconnect",
+                                                                                                        "SDK secure websocket disconnected", true)));
+                        }
+                    })
+                    .bind_upgrade([weak_self, supervisor, generation]() {
+                        if (const auto self = weak_self.lock(); self && !self->exiting_.load(std::memory_order_acquire)) {
+                            if (asio2::get_last_error()) {
+                                static_cast<void>(
+                                    supervisor->FailActive(generation, MakePxAsyncError(PxAsyncErrorCode::kProtocolError, "sdk-wss.upgrade",
+                                                                                        asio2::last_error_msg(), true)));
+                                return;
+                            }
+                            static_cast<void>(supervisor->MarkReady(generation));
+                        }
+                    })
+                    .bind_recv([weak_self, supervisor, generation](std::string_view data) {
+                        const auto self = weak_self.lock();
+                        if (!self || self->exiting_.load(std::memory_order_acquire) || self->terminal_rejection_.load(std::memory_order_acquire) ||
+                            !CanDeliverSdkWebSocketMessage(supervisor, generation)) {
+                            return;
+                        }
+                        const auto rejection = ParseWsControlRejection(data);
+                        if (rejection != WsControlRejection::kNone) {
+                            self->terminal_rejection_.store(true, std::memory_order_release);
+                            LOGW("event=transport.connection_rejected component=sdk_wss code=SDK_WEBSOCKET_SESSION_REJECTED "
+                                 "operation=receive outcome=retrying reason={}",
+                                 static_cast<int>(rejection));
+                            if (self->msg_notifier_) {
+                                self->msg_notifier_->SendAppMessage(SdkMsgWsConnectionRejected{.rejection_ = rejection});
+                            }
+                            static_cast<void>(supervisor->MarkDisconnected(generation, MakeSdkWebSocketRejectionError(rejection)));
+                            return;
+                        }
+                        if (self->msg_cbk_) {
+                            self->msg_cbk_(Data::From(std::string(data)));
+                        }
+                    });
+                adapter_slot->Replace(client);
+                return StartWebSocketAdapter(client, host, port, path, "sdk-wss.start");
+            },
+        .stop_attempt =
+            [adapter_slot](const std::chrono::steady_clock::time_point deadline) {
+                return StopWebSocketAdapter(adapter_slot->Snapshot(), deadline, "sdk-wss.retry-reset");
+            },
+        .on_ready =
+            [weak_self](std::uint64_t) {
                 if (const auto self = weak_self.lock(); self && !self->exiting_.load(std::memory_order_acquire)) {
-                    LOGW("SDK secure websocket disconnected: error={}, reason={}", asio2::get_last_error().value(), asio2::last_error_msg());
-                    static_cast<void>(supervisor->MarkDisconnected(generation, MakePxAsyncError(
-                        PxAsyncErrorCode::kServiceNotConnected, "sdk-wss.disconnect", "SDK secure websocket disconnected", true)));
-                }
-            }).bind_upgrade([weak_self, supervisor, generation]() {
-                if (const auto self = weak_self.lock(); self && !self->exiting_.load(std::memory_order_acquire)) {
-                    if (asio2::get_last_error()) {
-                        static_cast<void>(supervisor->FailActive(generation, MakePxAsyncError(
-                            PxAsyncErrorCode::kProtocolError, "sdk-wss.upgrade", asio2::last_error_msg(), true)));
-                        return;
+                    self->terminal_rejection_.store(false, std::memory_order_release);
+                    if (self->conn_cbk_) {
+                        self->conn_cbk_();
                     }
-                    static_cast<void>(supervisor->MarkReady(generation));
                 }
-            }).bind_recv([weak_self, supervisor, generation](std::string_view data) {
-                const auto self = weak_self.lock();
-                if (!self || self->exiting_.load(std::memory_order_acquire)
-                    || self->terminal_rejection_.load(std::memory_order_acquire) || !CanDeliverSdkWebSocketMessage(supervisor, generation)) {
-                    return;
+            },
+        .on_lost =
+            [weak_self](std::uint64_t, const PxAsyncError&, const bool was_ready) {
+                if (const auto self = weak_self.lock(); self && was_ready && !self->terminal_rejection_.load(std::memory_order_acquire) &&
+                                                        !self->exiting_.load(std::memory_order_acquire) && self->dis_conn_cbk_) {
+                    self->dis_conn_cbk_();
                 }
-                const auto rejection = ParseWsControlRejection(data);
-                if (rejection != WsControlRejection::kNone) {
-                    self->terminal_rejection_.store(true, std::memory_order_release);
-                    LOGW("event=transport.connection_terminal component=sdk_wss code=SDK_WEBSOCKET_SESSION_REJECTED "
-                         "operation=receive outcome=rejected recoverable=false reason={}", static_cast<int>(rejection));
-                    if (self->msg_notifier_) {
-                        self->msg_notifier_->SendAppMessage(SdkMsgWsConnectionRejected{.rejection_ = rejection});
-                    }
-                    static_cast<void>(supervisor->MarkDisconnected(generation, MakeSdkWebSocketRejectionError(rejection)));
-                    return;
-                }
-                if (self->msg_cbk_) {
-                    self->msg_cbk_(Data::From(std::string(data)));
-                }
-            });
-            adapter_slot->Replace(client);
-            return StartWebSocketAdapter(client, host, port, path, "sdk-wss.start");
-        },
-        .stop_attempt = [adapter_slot](const std::chrono::steady_clock::time_point deadline) {
-            return StopWebSocketAdapter(adapter_slot->Snapshot(), deadline, "sdk-wss.retry-reset");
-        },
-        .on_ready = [weak_self](std::uint64_t) {
-            if (const auto self = weak_self.lock(); self && !self->exiting_.load(std::memory_order_acquire) && self->conn_cbk_) {
-                self->conn_cbk_();
-            }
-        },
-        .on_lost = [weak_self](std::uint64_t, const PxAsyncError&, const bool was_ready) {
-            if (const auto self = weak_self.lock(); self && was_ready && !self->terminal_rejection_.load(std::memory_order_acquire)
-                && !self->exiting_.load(std::memory_order_acquire) && self->dis_conn_cbk_) {
-                self->dis_conn_cbk_();
-            }
-        },
+            },
     };
     if (!async_scope_->Spawn("sdk-wss-reconnect", [supervisor = reconnect_supervisor_, hooks = std::move(hooks)]() mutable {
             return PxReconnectSupervisor::Run(std::move(supervisor), std::move(hooks));
@@ -196,17 +210,14 @@ void WssConnection::ScheduleDeferredStop() {
     if (deferred_stop_scheduled_.exchange(true, std::memory_order_acq_rel)) {
         return;
     }
-    const auto weak_self = weak_from_this();
+    const auto self = weak_from_this().lock();
     std::shared_ptr<PxAsyncRuntime> runtime;
     {
         std::lock_guard lock(stop_mutex_);
         runtime = async_runtime_;
     }
-    if (!runtime || !runtime->DeferBlocking([weak_self] {
-        if (const auto self = weak_self.lock()) {
-            self->Stop();
-        }
-    })) {
+    // Shutdown owns the connection until the private I/O pool has been joined off its callback thread.
+    if (!runtime || !self || !runtime->DeferBlocking([self] { self->Stop(); })) {
         deferred_stop_scheduled_.store(false, std::memory_order_release);
         LOGE("event=async.scope_drain component=sdk_wss code=ASYNC_DEFER_FAILED operation=stop_client "
              "outcome=failed recoverable=false");
@@ -214,6 +225,17 @@ void WssConnection::ScheduleDeferredStop() {
 }
 
 void WssConnection::Stop() {
+    const auto adapter = [self = weak_from_this().lock()] {
+        if (!self) {
+            return std::shared_ptr<asio2::wss_client>{};
+        }
+        std::lock_guard lock(self->stop_mutex_);
+        return self->adapter_slot_ ? self->adapter_slot_->Snapshot() : std::shared_ptr<asio2::wss_client>{};
+    }();
+    if (adapter && adapter->iopool().running_in_threads()) {
+        ScheduleDeferredStop();
+        return;
+    }
     std::unique_lock operation_lock(operation_mutex_);
     Connection::Stop();
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
@@ -225,9 +247,8 @@ void WssConnection::Stop() {
         ScheduleDeferredStop();
         return;
     }
-    const auto remaining = std::max(
-        std::chrono::milliseconds::zero(),
-        std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()));
+    const auto remaining = std::max(std::chrono::milliseconds::zero(),
+                                    std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()));
     const auto scope_drained = !scope || scope->WaitFor(remaining);
     const auto client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::wss_client>{};
     static_cast<void>(RequestAsioClientStop(client, "sdk-wss.adapter-stop-confirm"));
@@ -277,16 +298,16 @@ void WssConnection::PostReliableBinaryMessage(std::shared_ptr<Data> msg, std::fu
         client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::wss_client>{};
         generation = reconnect_supervisor_ ? reconnect_supervisor_->Generation() : 0;
     }
-    PostReliableWebSocketWrite(client, std::move(msg), std::move(completion),
-                              [weak = weak_from_this(), weak_client = std::weak_ptr<asio2::wss_client>(client), generation] {
-        const auto self = weak.lock();
-        if (!self || self->exiting_.load() || self->terminal_rejection_.load()) {
-            return false;
-        }
-        std::lock_guard lock(self->stop_mutex_);
-        return self->adapter_slot_ && self->adapter_slot_->Snapshot() == weak_client.lock() && self->reconnect_supervisor_ &&
-               self->reconnect_supervisor_->Generation() == generation && self->reconnect_supervisor_->IsReady();
-    });
+    PostReliableWebSocketWrite(
+        client, std::move(msg), std::move(completion), [weak = weak_from_this(), weak_client = std::weak_ptr<asio2::wss_client>(client), generation] {
+            const auto self = weak.lock();
+            if (!self || self->exiting_.load() || self->terminal_rejection_.load()) {
+                return false;
+            }
+            std::lock_guard lock(self->stop_mutex_);
+            return self->adapter_slot_ && self->adapter_slot_->Snapshot() == weak_client.lock() && self->reconnect_supervisor_ &&
+                   self->reconnect_supervisor_->Generation() == generation && self->reconnect_supervisor_->IsReady();
+        });
 }
 
 void WssConnection::PostTextMessage(const std::string& msg) {
@@ -315,8 +336,7 @@ void WssConnection::PostTextMessage(const std::string& msg) {
 bool WssConnection::IsAlive() {
     std::lock_guard lock(stop_mutex_);
     const auto client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::wss_client>{};
-    return !exiting_.load(std::memory_order_acquire) && client && client->is_started() && reconnect_supervisor_
-        && reconnect_supervisor_->IsReady();
+    return !exiting_.load(std::memory_order_acquire) && client && client->is_started() && reconnect_supervisor_ && reconnect_supervisor_->IsReady();
 }
 
 std::uint64_t WssConnection::ConnectionGeneration() const {

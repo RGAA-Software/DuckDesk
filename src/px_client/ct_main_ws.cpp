@@ -114,6 +114,12 @@ bool ParseCommandLine(QApplication& app) {
 
     QCommandLineOption opt_connection_instance_id("connection_instance_id", "Console application instance binding", "value", "");
     parser.addOption(opt_connection_instance_id);
+    QCommandLineOption opt_relay_host("relay_host", "Relay service host", "value", "");
+    parser.addOption(opt_relay_host);
+    QCommandLineOption opt_relay_port("relay_port", "Relay service port", "value", "0");
+    parser.addOption(opt_relay_port);
+    QCommandLineOption opt_relay_remote_device_id("relay_remote_device_id", "Relay target identity", "value", "");
+    parser.addOption(opt_relay_remote_device_id);
 
     QCommandLineOption opt_auto_layout_screens("auto_layout_screens", "auto layout screens", "value", "0");
     parser.addOption(opt_auto_layout_screens);
@@ -165,6 +171,8 @@ bool ParseCommandLine(QApplication& app) {
     parser.addOption(opt_force_software);
     const QCommandLineOption opt_force_tcp("force_tcp", "Use WebSocket/TCP for audio and video (0 or 1)", "value", "0");
     parser.addOption(opt_force_tcp);
+    const QCommandLineOption opt_force_relay("force_relay", "Use the Console WebSocket Relay (0 or 1)", "value", "0");
+    parser.addOption(opt_force_relay);
 
     QCommandLineOption opt_wait_debug("wait_debug", "wait debug", "value", "");
     parser.addOption(opt_wait_debug);
@@ -249,6 +257,9 @@ bool ParseCommandLine(QApplication& app) {
     settings.connection_ticket_ = Base64::Base64Decode(parser.value(opt_connection_ticket).toStdString());
     settings.connection_nonce_ = parser.value(opt_connection_nonce).toStdString();
     settings.connection_instance_id_ = parser.value(opt_connection_instance_id).toStdString();
+    settings.relay_host_ = parser.value(opt_relay_host).toStdString();
+    settings.relay_port_ = parser.value(opt_relay_port).toInt();
+    settings.relay_remote_device_id_ = parser.value(opt_relay_remote_device_id).toStdString();
     if (settings.file_transfer_only_) {
         if (settings.connection_ticket_.empty() || settings.connection_nonce_.empty()) {
             LOGE("Standalone file transfer requires a Console ticket and nonce");
@@ -362,6 +373,16 @@ bool ParseCommandLine(QApplication& app) {
     // force software
     settings.force_software_ = parser.value(opt_force_software).toInt() == 1;
     settings.force_tcp_ = parser.value(opt_force_tcp) == "1";
+    settings.force_relay_ = parser.value(opt_force_relay) == "1";
+    if (settings.force_tcp_ && settings.force_relay_) {
+        LOGE("force_tcp and force_relay select different connection routes and cannot be enabled together");
+        return false;
+    }
+    if (settings.force_relay_ && (settings.connection_ticket_.empty() || settings.connection_nonce_.empty() || settings.relay_host_.empty() ||
+                                  settings.relay_port_ <= 0 || settings.remote_device_id_.empty())) {
+        LOGE("WebSocket Relay requires a Console ticket, nonce, target device, and Relay endpoint");
+        return false;
+    }
 
     // wait debug
     settings.wait_debug_ = parser.value(opt_wait_debug).toInt() == 1;
@@ -531,6 +552,10 @@ int main(int argc, char** argv) {
     auto device_id = "client_" + target_device_id + "_" + MD5::Hex(settings.remote_device_id_);
     settings.full_device_id_ = device_id;
     const auto remote_device_id = "server_" + settings.remote_device_id_;
+    const auto default_relay_remote_device_id = settings.connection_instance_id_.empty()
+                                                    ? remote_device_id
+                                                    : remote_device_id + "__instance__" + settings.connection_instance_id_;
+    const auto relay_remote_device_id = settings.relay_remote_device_id_.empty() ? default_relay_remote_device_id : settings.relay_remote_device_id_;
     settings.full_remote_device_id_ = remote_device_id;
     auto ft_device_id = "ft_" + device_id;
     const auto ft_remote_device_id = "ft_" + remote_device_id;
@@ -539,7 +564,8 @@ int main(int argc, char** argv) {
     LOGI("full remote device id: {}", settings.full_remote_device_id_);
 
     auto params = std::make_shared<ThunderSdkParams>(ThunderSdkParams {
-        .media_transport_ = settings.force_tcp_ ? SdkMediaTransport::kWebSocket : SdkMediaTransport::kUdp,
+        .media_transport_ = (settings.force_tcp_ || settings.force_relay_) ? SdkMediaTransport::kWebSocket : SdkMediaTransport::kUdp,
+        .connection_route_ = settings.force_relay_ ? SdkConnectionRoute::kWebSocketRelay : SdkConnectionRoute::kDirect,
         .ssl_ = false,
         .enable_audio_ = settings.audio_on_,
         .enable_video_ = !settings.file_transfer_only_,
@@ -562,6 +588,11 @@ int main(int argc, char** argv) {
         .display_name_ = settings.display_name_,
         .display_remote_name_ = settings.display_remote_name_,
         .appkey_ = settings.appkey_,
+        .relay_host_ = settings.relay_host_,
+        .relay_port_ = settings.relay_port_,
+        .relay_remote_device_id_ = relay_remote_device_id,
+        .relay_ticket_device_id_ = settings.remote_device_id_,
+        .force_gdi_ = settings.force_gdi_,
         .debug_ = settings.wait_debug_,
         .connection_ticket_ = settings.connection_ticket_,
         .connection_nonce_ = settings.connection_nonce_,

@@ -6,6 +6,8 @@
 #define PX_RELAY_NET_CLIENT_H
 
 #include <memory>
+#include <string>
+#include <functional>
 
 #include "relay_callbacks.h"
 
@@ -29,6 +31,12 @@ namespace px
 
         virtual void PostBinaryMessage(const std::string &msg) {
 
+        }
+
+        virtual void PostReliableBinaryMessage(std::string, std::function<void(bool)> completion) {
+            if (completion) {
+                completion(false);
+            }
         }
 
         virtual void PostTextMessage(const std::string& msg) {

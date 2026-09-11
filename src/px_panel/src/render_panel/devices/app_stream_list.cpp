@@ -536,13 +536,20 @@ namespace px
             const QPointer<QAction> view_action = menu->addAction(tcTr("id_only_viewing"));
             const QPointer<QAction> stop_action = menu->addAction(tcTr("id_stop_application"));
             const QPointer<QAction> tcp_action = menu->addAction(tcTr("id_force_tcp"));
+            const QPointer<QAction> relay_action = menu->addAction(tcTr("id_force_relay"));
             tcp_action->setCheckable(true);
+            relay_action->setCheckable(true);
             const auto preference = db_mgr_->GetStreamByStreamId(stream->stream_id_);
             tcp_action->setChecked(preference.has_value() && preference.value()->force_tcp_);
+            relay_action->setChecked(preference.has_value() && preference.value()->force_relay_);
             tcp_action->setEnabled(!stream->rdp_mode_);
-            connect(tcp_action.data(), &QAction::triggered, this, [self, stream](bool enabled) {
+            relay_action->setEnabled(!stream->rdp_mode_);
+            connect(tcp_action.data(), &QAction::triggered, this, [self, stream, relay_action](bool enabled) {
                 if (!self) {
                     return;
+                }
+                if (enabled && relay_action) {
+                    relay_action->setChecked(false);
                 }
                 const auto saved = self->db_mgr_->GetStreamByStreamId(stream->stream_id_);
                 // Persist only display/preferences, never the live app instance or its authorization ticket.
@@ -551,6 +558,31 @@ namespace px
                 preference->stream_name_ = stream->stream_name_;
                 preference->connect_type_ = connection_policy::kConsoleAppTicket;
                 preference->force_tcp_ = enabled;
+                if (enabled) {
+                    preference->force_relay_ = false;
+                }
+                if (saved.has_value()) {
+                    self->db_mgr_->UpdateStream(preference);
+                } else {
+                    self->db_mgr_->AddStream(preference);
+                }
+            });
+            connect(relay_action.data(), &QAction::triggered, this, [self, stream, tcp_action](bool enabled) {
+                if (!self) {
+                    return;
+                }
+                if (enabled && tcp_action) {
+                    tcp_action->setChecked(false);
+                }
+                const auto saved = self->db_mgr_->GetStreamByStreamId(stream->stream_id_);
+                const auto preference = saved.value_or(std::make_shared<px_console::ConsoleStream>());
+                preference->stream_id_ = stream->stream_id_;
+                preference->stream_name_ = stream->stream_name_;
+                preference->connect_type_ = connection_policy::kConsoleAppTicket;
+                preference->force_relay_ = enabled;
+                if (enabled) {
+                    preference->force_tcp_ = false;
+                }
                 if (saved.has_value()) {
                     self->db_mgr_->UpdateStream(preference);
                 } else {
@@ -664,6 +696,7 @@ namespace px
             target_item = item;
             const auto preference = db_mgr_->GetStreamByStreamId(item->stream_id_);
             target_item->force_tcp_ = preference.has_value() && preference.value()->force_tcp_;
+            target_item->force_relay_ = preference.has_value() && preference.value()->force_relay_;
         } else {
             auto si = db_mgr_->GetStreamByStreamId(item->stream_id_);
             if (!si.has_value()) {
@@ -953,6 +986,9 @@ namespace px
             target_item->remote_device_id_ = resolved.remote_device_id;
         }
         target_item->connection_ticket_ = resolved.ticket.ticket;
+        target_item->relay_host_ = resolved.ticket.relay_host;
+        target_item->relay_port_ = resolved.ticket.relay_port;
+        target_item->console_signal_device_id_ = resolved.ticket.signal_device_id;
         target_item->rdp_configuration_ = std::move(resolved.ticket.rdp_configuration);
         target_item->rdp_mode_ = static_cast<bool>(target_item->rdp_configuration_);
         target_item->connection_renewal_token_ = resolved.ticket.renewal_token;
@@ -979,7 +1015,11 @@ namespace px
                                           ? *authenticated_direct_available
                                           : RenderApi::GetRenderConfiguration(target_item->stream_host_, target_item->stream_port_).has_value();
 
-        if (direct_available) {
+        const bool relay_available = uses_console_ticket && target_item->force_relay_ && target_item->HasRelayInfo();
+        if (direct_available || relay_available) {
+            if (relay_available) {
+                LOGI("Use explicit Relay endpoint: {}:{}", target_item->relay_host_, target_item->relay_port_);
+            }
             LOGI("We can connect directly: {}:{}", target_item->stream_host_, target_item->stream_port_);
             // Prepare the authenticated native session before launching its client:
             // safety pwd(md5) preferred, fall back to md5(random pwd); re-ask on failure.

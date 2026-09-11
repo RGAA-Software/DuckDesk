@@ -231,7 +231,7 @@ namespace px
 
     class MsgModifyFps {
     public:
-        int fps_ = 30;
+        int fps_ = 60;
     };
 
     // 当监听到显示变更的windows消息,然后分发到 dda capture plugin

@@ -44,6 +44,9 @@ struct WebRtcTransportConfiguration final {
     bool relay_enabled{true};
     int language{1};
     std::string appkey;
+    int rtc_port_start{60430};
+    int rtc_port_end{60490};
+    std::string rtc_advertised_ipv4;
 };
 
 struct WebRtcTransportSettings final {
@@ -99,6 +102,7 @@ struct WebRtcClientDisconnectedEvent final {
     std::string visitor_device_id;
     std::int64_t end_timestamp{0};
     std::int64_t duration{0};
+    bool preserve_reconnect_grace{true};
 };
 
 struct WebRtcFileTransferDisconnectedEvent final {

@@ -44,6 +44,7 @@ namespace px
         void SetOnRelayErrorCallback(OnRelayError&& cbk);
         void SetOnRelayRemoteDeviceOffline(OnRelayRemoteDeviceOffline&& cbk);
         void RelayProtoMessage(std::shared_ptr<Data> msg);
+        void RelayProtoMessageReliable(std::shared_ptr<Data> msg, std::function<void(bool)> completion);
 
         std::shared_ptr<RelayNetClient> GetNetClient();
         int64_t GetQueuingMsgCount();

@@ -1,0 +1,66 @@
+{
+  "revision": "5d90f4de288d0cd85166c0f75646ec3d9c43b873",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "rust_client/px_service/service_core/Cargo.toml",
+      "sha256": "E8554151713D0A6A11ED8D9E7CB86B42F3914F1FCD8BD7427CEB7C580F9B3197",
+      "status": ""
+    },
+    {
+      "path": "rust_client/px_service/service_core/src/lib.rs",
+      "sha256": "D0AD7AED29550836FC6F63E0779DE69BD2F15A6651E7A4C233975F5804D8F3F0",
+      "status": ""
+    },
+    {
+      "path": "rust_client/px_service/src/service_windows.rs",
+      "sha256": "8ABF7A56EFD434E1BC042CE40591C40B245F64CB48847836AF1156C260BE74C2",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/modules/render_module_registry.cpp",
+      "sha256": "56F758761222D900EFC567B6EE3D0A3BFB78E489690A1260EE5806B37EB270CD",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/network/webrtc/local/webrtc_local_transport.cpp",
+      "sha256": "67DFB32C8832496A35ECEC67E4672B117E1F7ACD5BE8592C742E06A26CAA8641",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/network/webrtc/local/webrtc_local_transport.h",
+      "sha256": "828D05F90065AE74CA479357EB485D660DDAB54269CFE547DAD2F4D9E014E872",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/network/webrtc/remote/webrtc_remote_transport.cpp",
+      "sha256": "C6B15B7C0CF1278532A4671AFD8DF353D654A2971E54B71C1B77117BCD912313",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/network/webrtc/remote/webrtc_remote_transport.h",
+      "sha256": "C2D8444F74B068DFCB77E999D14AD7492AA11A06E7AE58AF00745212821CA093",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/network/webrtc/webrtc_transport_types.h",
+      "sha256": "93506432A04A9BF46FAC21802CA6F3BB179EB427DF5023EFAFBD22091732630E",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/settings/CMakeLists.txt",
+      "sha256": "A5563701A621C8350F12168D16C251CFC1AED098E0DEF7D17B4EF712135B427B",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/settings/rd_settings.cpp",
+      "sha256": "3F3157A46846A3C8A233A04255199EF8F6459D8D9E0EB1552627356D981BC2F1",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/settings/rd_settings.h",
+      "sha256": "88D98A93F8724EF48AB3A02534B1B8F2FDBBEF44D6678365649EE2FD879BCFBB",
+      "status": ""
+    }
+  ]
+}

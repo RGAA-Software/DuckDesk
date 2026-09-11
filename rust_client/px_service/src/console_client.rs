@@ -79,6 +79,7 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
         };
         runtime.lock().await.rdp_console_trusted = false;
         let mut connected_stream = None;
+        let mut authorization_rejected = false;
         for legacy_route in [false, true] {
             let url = build_console_url_for_route(
                 &auth_info.console_host,
@@ -109,6 +110,7 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                 }
                 Ok(Err(err)) => {
                     warn!("connect to console {endpoint} failed: {err}");
+                    authorization_rejected |= err.to_string().contains("401");
                 }
                 Err(_) => {
                     warn!("connect to console {endpoint} timed out");
@@ -116,6 +118,9 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
             }
         }
         let Some(stream) = connected_stream else {
+            if authorization_rejected {
+                runtime.lock().await.reject_console_auth_info(&auth_info)?;
+            }
             error!("canonical and legacy Console routes are unavailable");
             sleep(Duration::from_secs(RECONNECT_DELAY_SECS)).await;
             continue;
@@ -123,7 +128,11 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
 
         let (sink, mut receiver) = stream.split();
         *sender.lock().await = Some(sink);
-        runtime.lock().await.rdp_console_trusted = trusted_console;
+        {
+            let mut guard = runtime.lock().await;
+            guard.rdp_console_trusted = trusted_console;
+            guard.approve_console_auth_info(auth_info.clone())?;
+        }
 
         // say hello right after connecting
         let mut hello = hello_message(&auth_info.device_id, &auth_info.appkey);
@@ -149,6 +158,19 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
         let hb_sender = sender.clone();
         let hb_runtime = runtime.clone();
         let device_id = auth_info.device_id.clone();
+        let node_endpoints = {
+            let guard = runtime.lock().await;
+            let node = &guard.config.node;
+            protocol::console_service::NodeEndpoints {
+                schema_version: 1,
+                access_host: node.access_host.clone(),
+                desktop_port: u32::from(node.network.desktop_port),
+                application_port_start: u32::from(node.applications.port_start),
+                application_port_end: u32::from(node.applications.port_end),
+                rtc_port_start: u32::from(node.rtc.port_start),
+                rtc_port_end: u32::from(node.rtc.port_end),
+            }
+        };
         let mut hb_stop_rx = {
             let guard = runtime.lock().await;
             guard.subscribe_stop()
@@ -182,14 +204,18 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                                 guard.state.logical_sessions_json.clone(),
                             )
                         };
-                        let frame = encode_message(&heartbeat_message(
+                        let mut heartbeat = heartbeat_message(
                             hb_index,
                             &device_id,
                             render_alive,
                             &auth_json,
                             &instances_json,
                             &logical_sessions_json,
-                        ));
+                        );
+                        if let Some(body) = heartbeat.heartbeat.as_mut() {
+                            body.node_endpoints = Some(node_endpoints.clone());
+                        }
+                        let frame = encode_message(&heartbeat);
                         if !send_frame(&hb_sender, frame).await {
                             break;
                         }
@@ -572,6 +598,7 @@ fn heartbeat_message(
             auth_info_json: auth_info_json.to_string(),
             instances_json: instances_json.to_string(),
             logical_sessions_json: logical_sessions_json.to_string(),
+            node_endpoints: None,
         }),
         start_app_instance: None,
         stop_app_instance: None,

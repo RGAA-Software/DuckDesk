@@ -23,6 +23,7 @@ set(LIBRARY_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/webrtc_local_transport.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/rtc_server.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/rtc_data_channel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/rtc_candidate_sdp.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/peer_callback.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/rtc_video_encoder.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/rtc_video_encoder_factory.cpp

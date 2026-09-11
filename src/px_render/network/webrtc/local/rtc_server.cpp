@@ -493,6 +493,16 @@ void RtcServer::NotifyTerminal() {
     }
 }
 
+void RtcServer::CloseTerminal(const std::string& reason) {
+    bool expected = false;
+    if (!exit_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+        return;
+    }
+    LOGW("Rtc server terminal, conn_id: {}, reason: {}, will be swept by library.", connection_id_, reason);
+    EmitClientDisconnectedEvent();
+    NotifyTerminal();
+}
+
 bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp, PxLocalRtcSessionRole session_role,
                       const std::string& ice_config_json) {
     this->stream_id_ = stream_id;
@@ -528,7 +538,15 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
         server->peer_conn_->CreateAnswer(server->create_answer_callback_.get(), options);
     });
 
-    set_remote_offer_sdp_callback_->SetSdpFailedCallback([](const std::string& m) { LOGE("Set remote sdp failed: {}", m); });
+    set_remote_offer_sdp_callback_->SetSdpFailedCallback([weak_server](const std::string& message) {
+        if (const auto server = weak_server.lock()) {
+            LOGE("Set remote sdp failed: {}", message);
+            server->CloseTerminal("remote SDP rejected");
+            if (server->answer_sdp_callback_) {
+                server->answer_sdp_callback_("");
+            }
+        }
+    });
 
     // set local answer sdp
     set_local_answer_sdp_callback_->SetSdpSuccessCallback([weak_server]() {
@@ -547,6 +565,7 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
             std::string answer_sdp;
             if (!server->peer_conn_->local_description()->ToString(&answer_sdp)) {
                 LOGE("Get local standard RTC answer failed");
+                server->CloseTerminal("local standard RTC answer serialization failed");
                 if (server->answer_sdp_callback_) {
                     server->answer_sdp_callback_("");
                 }
@@ -560,7 +579,15 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
         }
     });
 
-    set_local_answer_sdp_callback_->SetSdpFailedCallback([](const std::string& m) { LOGI("Set local answer sdp failed:{}", m); });
+    set_local_answer_sdp_callback_->SetSdpFailedCallback([weak_server](const std::string& message) {
+        if (const auto server = weak_server.lock()) {
+            LOGE("Set local answer sdp failed: {}", message);
+            server->CloseTerminal("local SDP rejected");
+            if (server->answer_sdp_callback_) {
+                server->answer_sdp_callback_("");
+            }
+        }
+    });
 
     // create answer sdp callback
     create_answer_callback_->SetOnCreateSdpSuccessCallback(
@@ -572,8 +599,11 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
 
     create_answer_callback_->SetOnCreateSdpFailedCallback([weak_server](const std::string& m) {
         LOGE("Create answer sdp failed: {}", m);
-        if (const auto server = weak_server.lock(); server && server->answer_sdp_callback_) {
-            server->answer_sdp_callback_("");
+        if (const auto server = weak_server.lock()) {
+            server->CloseTerminal("answer SDP creation failed");
+            if (server->answer_sdp_callback_) {
+                server->answer_sdp_callback_("");
+            }
         }
     });
 
@@ -632,15 +662,14 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
                     }
                 }
                 auto payload_msg = Data::From(data);
-                const bool application_text{message_type && (*message_type == wire::kApplicationTextCapabilities ||
-                                                             *message_type == wire::kApplicationTextSubmit ||
-                                                             *message_type == wire::kApplicationTextBarrier)};
+                const bool application_text{message_type &&
+                                            (*message_type == wire::kApplicationTextCapabilities || *message_type == wire::kApplicationTextSubmit ||
+                                             *message_type == wire::kApplicationTextBarrier)};
                 if (application_text && !reliable_control) {
                     return;
                 }
                 locked->runtime_->DispatchClientEvent(false, application_text ? TransportChannel::kReliableControl : TransportChannel::kMedia,
-                                                      std::move(payload_msg),
-                                                      std::string("rtc-local:") + locked->stream_id_);
+                                                      std::move(payload_msg), std::string("rtc-local:") + locked->stream_id_);
             });
         } else if (name == "ft_data_channel") {
             if (!server->HasPermission("file")) {
@@ -730,10 +759,7 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
     peer_callback_->SetOnIceTerminalCallback([weak_server]() {
         if (const auto server = weak_server.lock()) {
             server->ice_connected_ = false;
-            LOGW("Rtc server terminal, conn_id: {}, will be swept by library.", server->connection_id_);
-            server->exit_ = true;
-            server->EmitClientDisconnectedEvent();
-            server->NotifyTerminal();
+            server->CloseTerminal("ICE entered a terminal state");
         }
     });
 
@@ -749,6 +775,7 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
         std::string answer_sdp;
         if (!server->peer_conn_->local_description()->ToString(&answer_sdp)) {
             LOGE("Get local answer failed");
+            server->CloseTerminal("local direct RTC answer serialization failed");
             if (server->answer_sdp_callback_) {
                 server->answer_sdp_callback_("");
             }
@@ -764,9 +791,7 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
     if (!ice_config_json_.empty() && !ApplyIceConfiguration(ice_config_json_, false)) {
         return false;
     }
-    CreatePeerConnectionFactory();
-    CreatePeerConnection();
-    return peer_conn_ != nullptr;
+    return CreatePeerConnectionFactory() && CreatePeerConnection() && SetRemoteOffer(offer_sdp_);
 }
 
 bool RtcServer::RestartWithOffer(const std::string& offer_sdp, const std::string& ice_config_json) {
@@ -802,7 +827,7 @@ void RtcServer::CreateSomeMediaDeps(PeerConnectionFactoryDependencies& media_dep
     media_deps.audio_processing = webrtc::AudioProcessingBuilder().Create();
 }
 
-void RtcServer::CreatePeerConnectionFactory() {
+bool RtcServer::CreatePeerConnectionFactory() {
     configuration_.sdp_semantics = webrtc::SdpSemantics::kUnifiedPlan;
     configuration_.media_config.video.periodic_alr_bandwidth_probing = true;
     // configuration_.enable_dtls_srtp = true;
@@ -831,12 +856,13 @@ void RtcServer::CreatePeerConnectionFactory() {
 
     if (peer_conn_factory_.get() == nullptr) {
         LOGE("Error on CreateModularPeerConnectionFactory.");
-        return;
+        return false;
     }
     if (adm_->Init() != 0 || adm_->InitPlayout() != 0 || adm_->StartPlayout() != 0) {
         LOGE("Failed to start discard-only WebRTC playout clock");
     }
     LOGI("CreatePeerConnectionFactory success.");
+    return true;
 }
 
 bool RtcServer::ApplyIceConfiguration(const std::string& ice_config_json, bool update_peer_connection) {
@@ -872,13 +898,13 @@ bool RtcServer::ApplyIceConfiguration(const std::string& ice_config_json, bool u
     return true;
 }
 
-void RtcServer::CreatePeerConnection() {
-    configuration_.port_allocator_config.min_port = 60430;
-    configuration_.port_allocator_config.max_port = 60490;
+bool RtcServer::CreatePeerConnection() {
+    configuration_.port_allocator_config.min_port = runtime_->rtc_port_start;
+    configuration_.port_allocator_config.max_port = runtime_->rtc_port_end;
     auto result = peer_conn_factory_->CreatePeerConnectionOrError(configuration_, webrtc::PeerConnectionDependencies(peer_callback_.get()));
     if (!result.ok()) {
         std::cerr << "create peer connection failed: " << result.error().message() << std::endl;
-        return;
+        return false;
     }
     this->peer_conn_ = result.value();
 
@@ -920,7 +946,7 @@ void RtcServer::CreatePeerConnection() {
             auto rtc_error_or = peer_conn_->AddTrack(video_track, {std::format("{}_{}", kMediaStreamId, track_index)});
             if (!rtc_error_or.ok()) {
                 LOGE("peer connection add video track {} failed. with {}", track_index, rtc_error_or.error().message());
-                return;
+                return false;
             }
             video_tracks_.push_back(mvt);
         }
@@ -939,7 +965,7 @@ void RtcServer::CreatePeerConnection() {
         auto rtc_error_or = peer_conn_->AddTrack(video_track, {kMediaStreamId});
         if (!rtc_error_or.ok()) {
             LOGE("peer connection add track failed. with {}", rtc_error_or.error().message());
-            return;
+            return false;
         }
         video_tracks_.push_back(mvt);
     }
@@ -1008,8 +1034,7 @@ void RtcServer::CreatePeerConnection() {
     // (consumed_seq_ = GetLatestEncodedSeq),只消费之后新产的帧,
     // 配合 mWaitIDRFrame 保证首帧必为关键帧。
     runtime_->InsertIdr();
-
-    SetRemoteOffer(offer_sdp_);
+    return true;
 }
 
 bool RtcServer::SetRemoteOffer(const std::string& offer_sdp) {
@@ -1218,6 +1243,7 @@ bool RtcServer::IsDataChannelConnected() {
 }
 
 void RtcServer::OnMediaDataChannelOpened() {
+    media_data_channel_ever_connected_ = true;
     const auto now_ms = CurrentSteadyMilliseconds();
     if (!standard_rtc_) {
         heartbeat_watchdog_.Arm(now_ms);
@@ -1232,14 +1258,8 @@ bool RtcServer::ExpireIfHeartbeatTimedOut(const int64_t now_ms) {
     if (wall_observer_ || !heartbeat_watchdog_.HasExpired(now_ms)) {
         return false;
     }
-    bool expected = false;
-    if (!exit_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
-        return true;
-    }
-    LOGW("Rtc server heartbeat timeout, conn_id: {}, last_heartbeat_ms: {}, will be swept.", connection_id_,
-         heartbeat_watchdog_.LastHeartbeatMs());
-    EmitClientDisconnectedEvent();
-    NotifyTerminal();
+    LOGW("Rtc server heartbeat timeout, conn_id: {}, last_heartbeat_ms: {}.", connection_id_, heartbeat_watchdog_.LastHeartbeatMs());
+    CloseTerminal("heartbeat timed out");
     return true;
 }
 
@@ -1255,9 +1275,8 @@ bool RtcServer::IsMediaConsumerActive() {
     if (ExpireIfHeartbeatTimedOut(now_ms)) {
         return false;
     }
-    // Observer offers intentionally have no data channel. Count the
-    // allocated session while ICE is being established, then its ICE
-    // lifecycle owns cleanup. Interactive sessions retain legacy behavior.
+    // Wall observers have no data channel. Interactive sessions become media consumers when their control channel opens;
+    // this query is repeated independently of capture, so waiting for that channel does not permanently idle capture.
     return IsWallObserver() || (media_data_channel_ && media_data_channel_->IsConnected());
 }
 
@@ -1287,21 +1306,17 @@ std::shared_ptr<FileTransferWritableSignal> RtcServer::AcquireFtWritableSignal()
 
 void RtcServer::On100msTimeout() {
     const auto steady_now_ms = CurrentSteadyMilliseconds();
-    if (!exit_ && wall_observer_ && !ice_ever_connected_) {
+    const bool initial_connection_ready = IsWallObserver() ? ice_ever_connected_.load() : media_data_channel_ever_connected_.load();
+    if (!exit_ && !initial_connection_ready) {
         auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
-        if (now - created_timestamp_ms_ >= kWallObserverConnectTimeoutMs) {
-            LOGW("Wall observer connect timeout, conn_id: {}, will be swept.", connection_id_);
-            exit_ = true;
-            NotifyTerminal();
+        if (now - created_timestamp_ms_ >= kInitialConnectTimeoutMs) {
+            CloseTerminal("initial connection timed out");
         }
     }
     if (!exit_ && ice_disconnected_since_ms_.load() != 0) {
         auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
         if (now - ice_disconnected_since_ms_.load() >= kIceDisconnectedTimeoutMs) {
-            LOGW("Rtc server ice disconnected timeout, conn_id: {}, will be swept.", connection_id_);
-            exit_ = true;
-            EmitClientDisconnectedEvent();
-            NotifyTerminal();
+            CloseTerminal("ICE remained disconnected past the grace period");
         }
     }
     static_cast<void>(ExpireIfHeartbeatTimedOut(steady_now_ms));
@@ -1482,6 +1497,7 @@ void RtcServer::EmitClientDisconnectedEvent() {
     event.stream_id = !stream_id_.empty() ? stream_id_ : (media_data_channel_ ? media_data_channel_->the_connection_id_ : "");
     event.end_timestamp = static_cast<std::int64_t>(TimeUtil::GetCurrentTimestamp());
     event.duration = media_data_channel_ ? event.end_timestamp - media_data_channel_->created_timestamp_ : 0;
+    event.preserve_reconnect_grace = media_data_channel_ever_connected_.load();
     const auto disconnected_stream_id = event.stream_id;
     // A terminal callback can be the last work WebRTC is able to execute for
     // this peer. Deliver the lifecycle event before sweeping the instance so
@@ -1521,7 +1537,23 @@ void RtcServer::Exit() {
         peer_conn_->Close();
         peer_conn_ = nullptr;
     }
+    // Channel destructors synchronously unregister observers on libwebrtc's signaling thread. Release all proxy objects
+    // before stopping that thread, otherwise the sweeper blocks forever and subsequent queued IDR requests cannot run.
+    media_data_channel_.reset();
+    ft_data_channel_.reset();
+    input_data_channel_.reset();
+    ping_data_channel_.reset();
+    {
+        std::lock_guard lock(video_tracks_mutex_);
+        video_tracks_.clear();
+    }
+    audio_source_ = nullptr;
+    voice_audio_source_ = nullptr;
+    if (adm_) {
+        adm_->StopPlayout();
+    }
     peer_conn_factory_ = nullptr;
+    adm_ = nullptr;
 
     if (network_thread_) {
         network_thread_->Stop();
@@ -1533,11 +1565,7 @@ void RtcServer::Exit() {
         sig_thread_->Stop();
     }
 
-    // 打断 RtcServer <-> RtcDataChannel 的 shared_ptr 循环引用,避免泄漏
-    media_data_channel_ = nullptr;
-    ft_data_channel_ = nullptr;
-    input_data_channel_ = nullptr;
-    ping_data_channel_ = nullptr;
+    LOGI("RTC peer cleanup completed, conn_id: {}", connection_id_);
 }
 
 } // namespace px

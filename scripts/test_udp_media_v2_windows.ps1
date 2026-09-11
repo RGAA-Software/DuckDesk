@@ -4,9 +4,10 @@ param(
     [ValidateRange(15, 240)][int]$ObserveSeconds = 180,
     [switch]$MoveRight,
     [switch]$ForceTcp,
+    [switch]$ForceRelay,
     [switch]$MouseSweep,
     [ValidateRange(1,180)][int]$MouseSweepSeconds = 120,
-    [ValidateRange(15,120)][int]$ExpectedFramesPerSecond = 30,
+    [ValidateRange(15,120)][int]$ExpectedFramesPerSecond = 60,
     [ValidateRange(0.1,0.9)][double]$MouseSweepWidth = 0.85,
     [ValidateRange(0.1,0.8)][double]$MouseSweepHeight = 0.75
 )
@@ -16,7 +17,7 @@ $base = 'https://39.71.45.66:4600'
 $clientPath = Join-Path $repo 'build_official/dist/px_client.exe'
 $sourcePath = Join-Path $repo 'build_official/src/px_client/px_client.exe'
 if ((Get-FileHash $clientPath).Hash -ne (Get-FileHash $sourcePath).Hash) { throw 'Client has not been published to dist.' }
-$transportDirectory = if ($ForceTcp) { 'tcp-media' } else { 'udp-media-v2' }
+$transportDirectory = if ($ForceRelay) { 'websocket-relay' } elseif ($ForceTcp) { 'tcp-media' } else { 'udp-media-v2' }
 $output = Join-Path $repo ('test-results/' + $transportDirectory + '/' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 Add-Type -AssemblyName System.Drawing, System.Windows.Forms
@@ -102,6 +103,15 @@ try {
         "--connection_ticket=$([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($ticket.ticket)))","--connection_nonce=$nonce")
     foreach($argument in $args){$start.ArgumentList.Add($argument)}
     if ($ForceTcp) { $start.ArgumentList.Add('--force_tcp=1') }
+    if ($ForceRelay) {
+        if (-not $ticket.relay_host -or $ticket.relay_port -le 0 -or -not $ticket.signal_device_id) {
+            throw 'Console ticket does not contain a valid Relay route.'
+        }
+        $start.ArgumentList.Add('--force_relay=1')
+        $start.ArgumentList.Add("--relay_host=$($ticket.relay_host)")
+        $start.ArgumentList.Add("--relay_port=$($ticket.relay_port)")
+        $start.ArgumentList.Add("--relay_remote_device_id=$($ticket.signal_device_id)")
+    }
     $client=[Diagnostics.Process]::Start($start)
     Write-Output "CLIENT_STARTED pid=$($client.Id) instance=$($instance.instance_id) route=$($route.Host):$($route.Port) output=$output"
     $deadline=(Get-Date).AddSeconds($ObserveSeconds)
@@ -161,7 +171,7 @@ try {
         transport=$transportDirectory
         tcp_video_received=($evidence -match 'TCP media video delivered')
         tcp_audio_received=($evidence -match 'TCP media audio delivered')
-        unexpected_udp_in_tcp=($ForceTcp -and $evidence -match 'UDP media v2 video delivered|start associated UDP media')
+        unexpected_udp_in_tcp=(($ForceTcp -or $ForceRelay) -and $evidence -match 'UDP media v2 video delivered|start associated UDP media')
         expected_fps=$ExpectedFramesPerSecond
         window_count=$windows.Count
         average_fps=($windows|Measure-Object fps -Average).Average
@@ -177,7 +187,7 @@ try {
     }
     $summary.receive_window_pass=$windows.Count -ge 5 -and $summary.minimum_fps -ge $ExpectedFramesPerSecond*0.95 -and
         $summary.max_delivery_gap_ms -lt 100 -and (-not $MouseSweep -or $mouseCompleted) -and -not $client.HasExited
-    if ($ForceTcp) {
+    if ($ForceTcp -or $ForceRelay) {
         $summary.receive_window_pass = $summary.receive_window_pass -and $summary.tcp_video_received -and
             $summary.tcp_audio_received -and -not $summary.unexpected_udp_in_tcp
     }

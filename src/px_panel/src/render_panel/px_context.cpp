@@ -156,7 +156,7 @@ bool PxContext::Init(const std::shared_ptr<PxApplication>& app) {
     event_manager_ = std::make_shared<PxEventManager>(shared_from_this());
     service_manager_ = ServiceManager::Make();
     std::string base_path = qApp->applicationDirPath().toStdString();
-    std::string bin_path = std::format("\"{}/{}\" {}", base_path, px::kPxServiceExeName, settings_.get().sys_service_port_);
+    const std::string bin_path = std::format("\"{}/{}\"", base_path, px::kPxServiceExeName);
     LOGI("Service path: {}", bin_path);
     service_manager_->Init("px_service", bin_path, "px_service", "** px_service **");
     // service_manager_->Install();
@@ -332,11 +332,12 @@ std::string PxContext::MakeDesktopLinkMessage(const std::vector<EthernetInfo>& i
         ips = this->GetIps();
     }
 
-    for (auto& item : ips) {
-        json ip_obj;
-        ip_obj["ip"] = item.ip_addr_;
-        // ip_obj["type"] = "";//item.nt_type_ == IPNetworkType::kWired ? "WIRED" : "WIRELESS";
-        ip_array.push_back(ip_obj);
+    if (const auto& access_host = settings_.get().GetNodeAccessHost(); !access_host.empty()) {
+        ip_array.push_back(json{{"ip", access_host}});
+    } else {
+        for (const auto& item : ips) {
+            ip_array.push_back(json{{"ip", item.ip_addr_}});
+        }
     }
     obj["ips"] = ip_array;
 

@@ -5,6 +5,7 @@
 #include "rd_settings.h"
 
 #include <sstream>
+#include <string_view>
 
 #include <toml++/toml.hpp>
 #include "px_common/string_util.h"
@@ -15,7 +16,7 @@ namespace px
 {
 
     bool RdSettings::LoadSettings(const std::string& path) {
-        toml::parse_result result;
+        toml::parse_result result{};
         try {
             result = toml::parse_file(path);
         } catch (std::exception& e) {
@@ -26,7 +27,22 @@ namespace px
         desc_.author_ = result["description"]["author"].value_or("");
         desc_.version_ = result["description"]["version"].value_or("0.0.1");
 
-        // NOTE: encoder/capture/transmission are no longer read from this file.
+        for (const auto key : {std::string_view{"listen_port"}, std::string_view{"service_port"}}) {
+            const auto field = result["network"][key];
+            if (field && !field.value<int>().has_value()) { return false; }
+        }
+        for (const auto key : {std::string_view{"port_start"}, std::string_view{"port_end"}}) {
+            const auto field = result["rtc"][key];
+            if (field && !field.value<int>().has_value()) { return false; }
+        }
+        transmission_.listening_port_ = result["network"]["listen_port"].value_or(transmission_.listening_port_);
+        service_server_host_ = result["network"]["service_host"].value_or(service_server_host_);
+        service_server_port_ = result["network"]["service_port"].value_or(service_server_port_);
+        rtc_port_start_ = result["rtc"]["port_start"].value_or(rtc_port_start_);
+        rtc_port_end_ = result["rtc"]["port_end"].value_or(rtc_port_end_);
+        rtc_advertised_ipv4_ = result["rtc"]["advertised_ipv4"].value_or(rtc_advertised_ipv4_);
+
+        // NOTE: encoder/capture are no longer read from this file.
         // Desktop mode: the panel passes them as command line args (see UpdateSettings).
         // Standalone: built-in defaults in rd_settings.h are used.
 

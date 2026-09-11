@@ -124,7 +124,8 @@ namespace px
                     std::lock_guard lock(self->network_mutex_);
                     self->client_ = client;
                 }
-                return StartWebSocketAdapter(client, "127.0.0.1", 20375, "/service/message?from=panel", "panel-service.start");
+                return StartWebSocketAdapter(client, "127.0.0.1", PxSettings::Instance()->GetServiceServerPort(),
+                                             "/service/message?from=panel", "panel-service.start");
             },
             .stop_attempt = [weak_self](const std::chrono::steady_clock::time_point deadline) -> PxAwaitable<PxResult<void>> {
                 const auto self = weak_self.lock();

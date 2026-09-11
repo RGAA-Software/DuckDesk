@@ -186,6 +186,9 @@ void RenderModuleRegistry::StartModules() {
         .relay_enabled = settings_.relay_enabled_,
         .language = settings_.language_,
         .appkey = settings_.appkey_,
+        .rtc_port_start = settings_.rtc_port_start_,
+        .rtc_port_end = settings_.rtc_port_end_,
+        .rtc_advertised_ipv4 = settings_.rtc_advertised_ipv4_,
     };
     for (const auto& transport : webrtc_transport_host_->CreateTransports()) {
         if (!transport) {

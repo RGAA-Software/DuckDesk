@@ -103,6 +103,7 @@ namespace px
         net_client_ = std::make_shared<NetClient>(
             SdkConnectionParams{
                 .media_transport_ = params->media_transport_,
+                .route_ = params->connection_route_,
                 .ssl_ = params->ssl_,
                 .enable_audio_ = params->enable_audio_,
                 .enable_video_ = params->enable_video_,
@@ -114,6 +115,14 @@ namespace px
                 .ft_path_ = params->ft_path_,
                 .device_id_ = params->device_id_,
                 .stream_id_ = params->stream_id_,
+                .relay_host_ = params->relay_host_,
+                .relay_port_ = params->relay_port_,
+                .relay_device_id_ = params->device_id_,
+                .relay_remote_device_id_ = params->relay_remote_device_id_,
+                .relay_ticket_device_id_ = params->relay_ticket_device_id_,
+                .device_name_ = params->device_name_,
+                .appkey_ = params->appkey_,
+                .force_gdi_ = params->force_gdi_,
                 .connection_ticket_ = params->connection_ticket_,
                 .connection_nonce_ = params->connection_nonce_,
                 .connection_instance_id_ = params->connection_instance_id_,

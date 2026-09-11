@@ -36,10 +36,7 @@ constexpr auto kTicketRedemptionTimeout = std::chrono::seconds(5);
 constexpr auto kRenderServiceConnectionTimeout = std::chrono::seconds(10);
 constexpr std::size_t kIncomingServiceMessageCapacity = 1024;
 const PxReconnectBackoffOptions kRenderServiceReconnectOptions{
-    .initial_delay = std::chrono::milliseconds(250),
-    .maximum_delay = std::chrono::seconds(30),
-    .multiplier = 2.0,
-    .jitter_ratio = 0.2,
+    .retry_delay = std::chrono::milliseconds(250),
 };
 
 std::string LogicalTransportName(const LogicalSessionTransport transport) {

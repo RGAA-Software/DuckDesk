@@ -3,6 +3,7 @@
 //
 
 #include "webrtc_local_transport.h"
+#include "rtc_candidate_sdp.h"
 #include "rtc_server.h"
 #include "architecture/sources/capture_types.h"
 #include "px_common/log.h"
@@ -15,11 +16,14 @@
 #include "px_render/modules/module_ids.h"
 
 #include <functional>
+#include <format>
 #include <optional>
+#include <Windows.h>
 
 namespace px {
-WebRtcLocalRuntime::WebRtcLocalRuntime(std::weak_ptr<WebRtcLocalTransport> owner, std::weak_ptr<WebRtcExecutionContext> context)
-    : owner_(std::move(owner)), context_(std::move(context)) {}
+WebRtcLocalRuntime::WebRtcLocalRuntime(std::weak_ptr<WebRtcLocalTransport> owner, std::weak_ptr<WebRtcExecutionContext> context, int port_start,
+                                       int port_end)
+    : rtc_port_start(port_start), rtc_port_end(port_end), owner_(std::move(owner)), context_(std::move(context)) {}
 
 void WebRtcLocalRuntime::WithOwner(const std::function<void(WebRtcLocalTransport&)>& operation) {
     std::scoped_lock lock(owner_mutex_);
@@ -158,12 +162,16 @@ bool WebRtcLocalTransport::Start(const WebRtcTransportConfiguration& configurati
     if (lifecycle_.load(std::memory_order_acquire) == WebRtcTransportLifecycle::kRunning) {
         return true;
     }
+    // This DLL has its own logging registry; the executable's logger does not capture its media diagnostics.
+    const auto log_path = std::format(L"{}/px_logs/px_rtc_local_{}.log", configuration.base_data_path, GetCurrentProcessId());
+    Logger::InitLog(log_path, true);
+    advertised_candidate_ipv4_ = configuration.rtc_advertised_ipv4;
     execution_context_ = WebRtcExecutionContext::Create(configuration.async_runtime, kNetWebRtcLocalLibraryId);
     if (!execution_context_) {
         LOGE("event=webrtc.transport.start component={} code=WEBRTC_RUNTIME_MISSING outcome=failed", kNetWebRtcLocalLibraryId);
         return false;
     }
-    runtime_ = std::make_shared<WebRtcLocalRuntime>(weak_from_this(), execution_context_);
+    runtime_ = std::make_shared<WebRtcLocalRuntime>(weak_from_this(), execution_context_, configuration.rtc_port_start, configuration.rtc_port_end);
 
     if (!enabled_.load(std::memory_order_acquire)) {
         lifecycle_.store(WebRtcTransportLifecycle::kRunning, std::memory_order_release);
@@ -333,8 +341,7 @@ void WebRtcLocalTransport::OnRemoteSdp(const MsgRtcRemoteSdp& message) {
                 return;
             }
             LOGW("Standard RTC in-place restart failed, replacing peer: {}", conn_id);
-            static_cast<void>(
-                runtime->servers.RemoveIf(conn_id, [server](const std::shared_ptr<RtcServer>& current) { return current == server; }));
+            static_cast<void>(runtime->servers.RemoveIf(conn_id, [server](const std::shared_ptr<RtcServer>& current) { return current == server; }));
             PxAsyncRuntime::DeferJoin(std::jthread([server]() { server->Exit(); }));
         }
 
@@ -965,93 +972,54 @@ PxLocalRtcAllocResult WebRtcLocalTransport::AllocNewLocalRtcInstance(const std::
     rtc_server->SetConnId(conn_id);
     rtc_server->SetClientNonce(req->client_nonce_);
     rtc_server->SetPermissions(req->capability_enforced_, req->permissions_);
-    rtc_server->Start(req->stream_id_, req->sdp_, req->session_role_);
     const auto weak_runtime = std::weak_ptr<WebRtcLocalRuntime>(runtime);
     const auto weak_server = std::weak_ptr<RtcServer>(rtc_server);
-    rtc_server->SetOnAnswerCallback([weak_runtime, weak_server, req, callback = std::move(callback)](const std::string& answer_sdp) {
-        const auto server = weak_server.lock();
-        if (!server) {
-            return;
-        }
-        auto answer = server->GetAnswerSdp();
-        auto new_answer = AddCandidateIpToAnswer(req->req_ip_, answer);
-        auto reply = std::make_shared<PxLocalRtcReplyInfo>(PxLocalRtcReplyInfo{
-            .answer_sdp_ = new_answer,
-        });
-        // 显示器列表(与 video track 同序),多 track 客户端据此做 track→mon_name 映射
-        if (const auto locked = weak_runtime.lock()) {
-            locked->WithOwner([&](WebRtcLocalTransport& owner) {
-                for (const auto& m : owner.GetRtcTrackMonitors()) {
-                    reply->monitors_.push_back(PxLocalRtcMonitorInfo{
-                        .name_ = m.name_,
-                        .width_ = (int)m.Width(),
-                        .height_ = (int)m.Height(),
-                        .left_ = (int)m.left_,
-                        .top_ = (int)m.top_,
-                        .right_ = (int)m.right_,
-                        .bottom_ = (int)m.bottom_,
-                    });
-                }
+    const auto advertised_candidate_ipv4 = advertised_candidate_ipv4_;
+    rtc_server->SetOnAnswerCallback(
+        [weak_runtime, weak_server, req, advertised_candidate_ipv4, callback = std::move(callback)](const std::string& answer_sdp) {
+            const auto server = weak_server.lock();
+            if (!server) {
+                return;
+            }
+            if (answer_sdp.empty() || server->IsExitRequested()) {
+                callback({});
+                return;
+            }
+            auto answer = server->GetAnswerSdp();
+            if (answer.empty()) {
+                answer = answer_sdp;
+            }
+            auto new_answer = AddAdvertisedIpv4HostCandidates(advertised_candidate_ipv4, answer);
+            auto reply = std::make_shared<PxLocalRtcReplyInfo>(PxLocalRtcReplyInfo{
+                .answer_sdp_ = new_answer,
             });
-            callback(reply);
-        }
-    });
+            // 显示器列表(与 video track 同序),多 track 客户端据此做 track→mon_name 映射
+            if (const auto locked = weak_runtime.lock()) {
+                locked->WithOwner([&](WebRtcLocalTransport& owner) {
+                    for (const auto& m : owner.GetRtcTrackMonitors()) {
+                        reply->monitors_.push_back(PxLocalRtcMonitorInfo{
+                            .name_ = m.name_,
+                            .width_ = (int)m.Width(),
+                            .height_ = (int)m.Height(),
+                            .left_ = (int)m.left_,
+                            .top_ = (int)m.top_,
+                            .right_ = (int)m.right_,
+                            .bottom_ = (int)m.bottom_,
+                        });
+                    }
+                });
+                callback(reply);
+            }
+        });
+    if (!rtc_server->Start(req->stream_id_, req->sdp_, req->session_role_) || rtc_server->IsExitRequested()) {
+        LOGE("RTC server creation failed, conn_id: {}", conn_id);
+        rtc_server->Exit();
+        return PxLocalRtcAllocResult::kFailed;
+    }
     runtime_->servers.Insert(conn_id, rtc_server);
     LOGI("Insert to map, will return information");
 
     return PxLocalRtcAllocResult::kOk;
-}
-
-std::string WebRtcLocalTransport::AddCandidateIpToAnswer(const std::string& ip, const std::string& answer) {
-    // std::unique_ptr<webrtc::SessionDescriptionInterface>
-    auto session_desc = webrtc::CreateSessionDescription(webrtc::SdpType::kAnswer, answer);
-    const auto& candidate_collection = *session_desc->candidates(0);
-
-    uint32_t max_priority = 0;
-    for (int i = 0; i < candidate_collection.count(); ++i) {
-        const auto& ice_candidate = *candidate_collection.at(i);
-        const cricket::Candidate& candidate = ice_candidate.candidate();
-        if (candidate.priority() > max_priority) {
-            max_priority = candidate.priority();
-        }
-        if (candidate.address().EqualIPs(rtc::SocketAddress(ip, 0))) {
-            LOGI("Found same! {}", ip);
-            return answer;
-        }
-    }
-
-    std::vector<std::unique_ptr<webrtc::IceCandidateInterface>> new_ice_candidates;
-    for (int i = 0; i < candidate_collection.count(); ++i) {
-        const auto& ice_candidate = *candidate_collection.at(i);
-        cricket::Candidate candidate = ice_candidate.candidate();
-
-        rtc::SocketAddress address = candidate.address();
-        address.SetIP(ip);
-        candidate.set_address(address);
-
-        uint32_t udp_priority = static_cast<uint32_t>(std::min(static_cast<uint64_t>(max_priority) + 1, static_cast<uint64_t>(UINT_MAX)));
-        uint32_t tcp_priority = static_cast<uint32_t>(std::min(static_cast<uint64_t>(max_priority) + 2, static_cast<uint64_t>(UINT_MAX)));
-
-        if (candidate.protocol() == "udp") {
-            candidate.set_priority(udp_priority);
-        } else {
-            candidate.set_priority(tcp_priority);
-        }
-        auto new_ice = webrtc::CreateIceCandidate(ice_candidate.sdp_mid(), ice_candidate.sdp_mline_index(), candidate);
-        new_ice_candidates.emplace_back(std::move(new_ice));
-    }
-
-    for (const auto& new_ice_candidate : new_ice_candidates) {
-        session_desc->AddCandidate(new_ice_candidate.get());
-        std::string out_string;
-        new_ice_candidate->ToString(&out_string);
-        LOGI("** AddCandidate {}", out_string);
-    }
-    std::string sdp;
-    if (!session_desc->ToString(&sdp)) {
-        LOGE("AddCandidateIpToAnswer failed.");
-    }
-    return sdp;
 }
 
 } // namespace px

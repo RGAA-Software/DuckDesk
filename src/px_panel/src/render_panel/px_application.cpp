@@ -168,7 +168,9 @@ namespace px
         RegisterMessageListener();
         StartWindowsMessagesLooping();
         console_scanner_ = std::make_shared<ConsoleScanner>(shared_from_this());
-        console_scanner_->StartUdpReceiver(30501);
+        if (settings_->console_discovery_enabled_) {
+            console_scanner_->StartUdpReceiver(settings_->console_discovery_port_);
+        }
 
         // update device id
         if (const auto comp = grApp->GetCompanion(); comp) {

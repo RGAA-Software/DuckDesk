@@ -1,0 +1,11 @@
+{
+  "revision": "5d90f4de288d0cd85166c0f75646ec3d9c43b873",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "rust_server/px_console_server/media/config.ini",
+      "sha256": "884AFB5995A8F64598586BBD6B3BAA1B9E4D9994CA2ACF4D7BB15E29D5232CDE",
+      "status": ""
+    }
+  ]
+}

@@ -38,6 +38,20 @@ void StreamSettingsDialog::CreateLayout() {
     split_windows_ = AddOption(body, form, "id_split_windows", item_->split_windows_);
     software_ = AddOption(body, form, "id_force_software", item_->force_software_);
     tcp_ = AddOption(body, form, "id_force_tcp", item_->force_tcp_);
+    relay_ = AddOption(body, form, "id_force_relay", item_->force_relay_);
+    if (relay_->isChecked()) {
+        tcp_->setChecked(false);
+    }
+    connect(tcp_.data(), &QCheckBox::toggled, this, [relay = relay_](bool enabled) {
+        if (enabled && relay) {
+            relay->setChecked(false);
+        }
+    });
+    connect(relay_.data(), &QCheckBox::toggled, this, [tcp = tcp_](bool enabled) {
+        if (enabled && tcp) {
+            tcp->setChecked(false);
+        }
+    });
     wait_debug_ = AddOption(body, form, "id_wait_debug", item_->wait_debug_);
     gdi_ = AddOption(body, form, "id_force_gdi_capture", item_->force_gdi_capture_);
     disable_vulkan_ = AddOption(body, form, "id_disable_vulkan_render", item_->disable_vulkan_render_);
@@ -60,6 +74,7 @@ void StreamSettingsDialog::Save() {
     item_->split_windows_ = split_windows_->isChecked();
     item_->force_software_ = software_->isChecked();
     item_->force_tcp_ = tcp_->isChecked();
+    item_->force_relay_ = relay_->isChecked();
     item_->wait_debug_ = wait_debug_->isChecked();
     item_->force_gdi_capture_ = gdi_->isChecked();
     item_->disable_vulkan_render_ = disable_vulkan_->isChecked();

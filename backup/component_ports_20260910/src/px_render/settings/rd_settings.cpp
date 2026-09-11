@@ -1,0 +1,170 @@
+//
+// Created by RGAA on 2023-12-17.
+//
+
+#include "rd_settings.h"
+
+#include <sstream>
+
+#include <toml++/toml.hpp>
+#include "px_common/string_util.h"
+#include "px_common/log.h"
+#include "px_common/shared_preference.h"
+
+namespace px
+{
+
+    bool RdSettings::LoadSettings(const std::string& path) {
+        toml::parse_result result;
+        try {
+            result = toml::parse_file(path);
+        } catch (std::exception& e) {
+            return false;
+        }
+
+        // description
+        desc_.author_ = result["description"]["author"].value_or("");
+        desc_.version_ = result["description"]["version"].value_or("0.0.1");
+
+        // NOTE: encoder/capture/transmission are no longer read from this file.
+        // Desktop mode: the panel passes them as command line args (see UpdateSettings).
+        // Standalone: built-in defaults in rd_settings.h are used.
+
+        // TargetApplication
+        auto mode = result["application"]["mode"].value_or("desktop");
+        if (std::string(mode) == "game-hook") {
+            application_mode_ = ApplicationMode::kGameHook;
+        } else if (std::string(mode) == "webview") {
+            application_mode_ = ApplicationMode::kWebView;
+        } else if (std::string(mode) == "rdp") {
+            application_mode_ = ApplicationMode::kRdp;
+        } else {
+            application_mode_ = ApplicationMode::kDesktop;
+        }
+
+        app_.game_path_ = result["application"]["game-path"].value_or("");
+        app_.game_arguments_ = result["application"]["game-arguments"].value_or("");
+        app_.hide_after_started_ = result["application"]["hide-after-started"].value_or(false);
+        app_.force_fullscreen_ = result["application"]["force-fullscreen"].value_or(false);
+        auto inject_method = result["application"]["capture-method"].value_or("obs");
+        app_.inject_method_ = [&]() -> TargetApplication::InjectMethod {
+            return std::string(inject_method) == "prepare"
+                ? TargetApplication::InjectMethod::kEasyHook : TargetApplication::InjectMethod::kOBS;
+        }();
+        if (app_.IsSteamUrl()) {
+            std::vector<std::string> split_value;
+            StringUtil::Split(app_.game_path_, split_value, "/");
+            if (!split_value.empty()) {
+                auto id = std::atoi(split_value[split_value.size()-1].c_str());
+                app_.steam_app_.app_id_ = id;
+            }
+            app_.steam_app_.steam_url_ = app_.game_path_;
+        }
+        app_.debug_enabled_ = result["application"]["debug-enabled"].value_or(false);
+        app_.event_replay_mode_ = std::string("global") == result["application"]["event-replay-mode"].value_or("global")
+                                  ? TargetApplication::EventReplayMode::kGlobal : TargetApplication::EventReplayMode::kHookInner;
+
+        // [record] server-side screen recording
+        record_auto_ = result["record"]["auto_enabled"].value_or(false);
+        record_dir_ = result["record"]["dir"].value_or("");
+        record_max_segment_bytes_ = result["record"]["max_segment_bytes"].value_or(1024LL * 1024 * 1024);
+        record_max_file_count_ = (int)result["record"]["max_file_count"].value_or(24LL);
+
+        // [push] live streaming. Plugin parameters are still explicitly
+        // injected by RenderModuleRegistry because DLLs do not share this singleton.
+        push_enabled_ = result["push"]["enabled"].value_or(false);
+        push_rtmp_url_ = result["push"]["rtmp_url"].value_or("");
+        push_audio_bitrate_ = (int)result["push"]["audio_bitrate"].value_or(96000LL);
+        push_primary_monitor_ = result["push"]["primary_monitor"].value_or("");
+
+        // Explicitly separate voice permission from desktop-audio capture.
+        voice_call_enabled_ = result["voice"]["enabled"].value_or(true);
+
+        // Mode drives capture type; rd_main re-applies after CLI UpdateSettings.
+        ApplyApplicationMode();
+        return true;
+    }
+
+    void RdSettings::ApplyApplicationMode() {
+        if (IsRdpMode()) {
+            capture_.enable_audio_ = false;
+            capture_.enable_video_ = false;
+            virtual_display_enabled_ = false;
+            file_transfer_enabled_ = false;
+            audio_enabled_ = false;
+            voice_call_enabled_ = false;
+            relay_enabled_ = false;
+            direct_allow_takeover_ = false;
+            record_auto_ = false;
+            push_enabled_ = false;
+            LOGI("application.mode=rdp -> native protocol proxy, no host capture, input or resource redirection");
+        } else if (application_mode_ == ApplicationMode::kGameHook) {
+            capture_.capture_video_type_ = Capture::CaptureVideoType::kVideoInner;
+            app_mode_ = AppMode::kInnerCapture;
+            // Multi-instance cloud gaming: in-process inject only (never OS SendInput).
+            app_.event_replay_mode_ = TargetApplication::EventReplayMode::kHookInner;
+            LOGI("application.mode=game-hook → inner capture + start/inject game "
+                 "(force event-replay-mode=inner)");
+        } else if (application_mode_ == ApplicationMode::kWebView) {
+            capture_.capture_video_type_ = Capture::CaptureVideoType::kVideoInner;
+            capture_.capture_audio_type_ = Capture::CaptureAudioType::kAudioInner;
+            app_mode_ = AppMode::kInnerCapture;
+            app_.event_replay_mode_ = TargetApplication::EventReplayMode::kHookInner;
+            LOGI("application.mode=webview -> CEF off-screen capture + direct CEF input");
+        } else {
+            capture_.capture_video_type_ = Capture::CaptureVideoType::kCaptureScreen;
+            app_mode_ = AppMode::kDesktop;
+            LOGI("application.mode=desktop → screen capture (game-path not launched)");
+        }
+    }
+
+    std::string RdSettings::Dump() {
+        std::stringstream ss;
+        ss << "Description: \n";
+        ss << "  - author: " << desc_.author_ << std::endl;
+        ss << "  - version: " << desc_.version_ << std::endl;
+        ss << "Encoder: \n";
+        ss << "  - encoder format: " << encoder_.encoder_format_ << " (0 => H264, 1 => HEVC)" << std::endl;
+        ss << "  - bitrate: " << encoder_.bitrate_ << std::endl;
+        ss << "  - encode resolution type: " << (int)encoder_.encode_res_type_ << " (0 => origin, 1=> specify) " <<  std::endl;
+        ss << "  - encode fps: " << encoder_.fps_ << std::endl;
+        ss << "  - encode width: " << encoder_.encode_width_ << ", height: " << encoder_.encode_height_ << std::endl;
+        ss << "Capture: \n";
+        ss << "  - enable audio: " << capture_.enable_audio_ << std::endl;
+        ss << "  - capture audio type: " << capture_.capture_audio_type_ << " (0 => Hook, 1 => Global) " << std::endl;
+        ss << "  - enable audio: " << capture_.enable_video_ << std::endl;
+        ss << "  - capture video type: " << capture_.capture_video_type_ << " (0 => Hook 1 => Primary Screen) " << std::endl;
+        ss << "Transmission: \n";
+        ss << "  - listening port: " << transmission_.listening_port_ << std::endl;
+        ss << "RdApplication: \n";
+        const std::string application_mode = IsRdpMode() ? "rdp" : application_mode_ == ApplicationMode::kGameHook
+            ? "game-hook"
+            : (application_mode_ == ApplicationMode::kWebView ? "webview" : "desktop");
+        ss << "  - application mode: " << application_mode << std::endl;
+        ss << "  - game path: " << app_.game_path_ << std::endl;
+        ss << "  - game arguments: " << app_.game_arguments_ << std::endl;
+        ss << "  - steam app:" << std::endl;
+        ss << "    - app id: " << app_.steam_app_.app_id_ << std::endl;
+        ss << "    - steam url: " << app_.steam_app_.steam_url_ << std::endl;
+        ss << "  - hide after started: " << app_.hide_after_started_ << std::endl;
+        ss << "  - force fullscreen: " << app_.force_fullscreen_ << std::endl;
+        ss << "  - event relay mode: " << app_.event_replay_mode_ << std::endl;
+        return ss.str();
+    }
+
+
+    void RdSettings::LoadSettingsFromDatabase() {
+        auto sp = SharedPreference::Instance();
+        enable_full_color_mode_ = sp->GetInt(kFullColorModeKey, 0);
+    }
+
+    bool RdSettings::EnableFullColorMode() {
+        return enable_full_color_mode_;
+    }
+
+    void RdSettings::SetFullColorMode(bool enable) {
+        enable_full_color_mode_ = enable;
+        auto sp = SharedPreference::Instance();
+        sp->PutInt(kFullColorModeKey, enable ? 1 : 0);
+    }
+}

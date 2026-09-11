@@ -43,6 +43,7 @@ namespace px
         void Start() override;
         void Stop() override;
         void PostBinaryMessage(const std::string& msg) override;
+        void PostReliableBinaryMessage(std::string msg, std::function<void(bool)> completion) override;
         void SyncDeviceId(const std::string& device_id) override;
         int64_t GetQueuingMsgCount() override;
         void SetDeviceNetInfo(const std::vector<px::RelayDeviceNetInfo>& info);

@@ -439,7 +439,9 @@ void NetworkEventIngress::ProcessClientDisConnectedEvent(const std::shared_ptr<C
             binding_id = std::string("rtc-local:") + event->stream_id_;
         }
         if (!binding_id.empty()) {
-            const auto closed = registry->CloseBindingById(binding_id, CurrentSystemMilliseconds());
+            const auto closed = event->preserve_reconnect_grace_
+                                    ? registry->CloseBindingById(binding_id, CurrentSystemMilliseconds())
+                                    : registry->CloseFailedBindingById(binding_id, CurrentSystemMilliseconds());
             if (closed.release_controller_input) {
                 ReleaseControllerInput(LogicalSessionInputLease{
                     .logical_session_id = closed.logical_session_id,

@@ -31,7 +31,10 @@ class WebRtcRemoteTransport;
 
 class WebRtcRemoteRuntime final {
   public:
-    WebRtcRemoteRuntime(std::weak_ptr<WebRtcRemoteTransport> owner, std::weak_ptr<WebRtcExecutionContext> context);
+    WebRtcRemoteRuntime(std::weak_ptr<WebRtcRemoteTransport> owner, std::weak_ptr<WebRtcExecutionContext> context,
+                        int rtc_port_start = 60430, int rtc_port_end = 60490);
+    const int rtc_port_start{60430};
+    const int rtc_port_end{60490};
 
     void DeactivateOwner();
     [[nodiscard]] std::shared_ptr<WebRtcExecutionContext> GetContext() const;

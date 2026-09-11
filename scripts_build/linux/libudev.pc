@@ -1,0 +1,7 @@
+libdir=${pcfiledir}/../lib
+
+Name: libudev
+Description: Target host libudev for GNU Linux cross-linking (not a stub)
+Version: 255
+Libs: -L${libdir} -ludev
+Cflags:

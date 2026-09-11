@@ -1,0 +1,21 @@
+{
+  "revision": "5d90f4de288d0cd85166c0f75646ec3d9c43b873",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "rust_server/px_console_server/src/px_console.toml",
+      "sha256": "C358FA17166393488403AD7E1B7E18569E0F8FC1E2D75BE28A2EC192004B3CE3",
+      "status": ""
+    },
+    {
+      "path": "src/px_panel/src/render_panel/px_context.cpp",
+      "sha256": "C965EA46676A00D56DF2F93C5F365CC7689506C5518FBB6FB95BB683089F0527",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/settings.toml",
+      "sha256": "583EE0DA233A464F84B9902F86E3C5621AB40DE1F3B9E327042C876806F8CA4B",
+      "status": ""
+    }
+  ]
+}

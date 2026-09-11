@@ -40,7 +40,10 @@ class WebRtcLocalTransport;
 
 class WebRtcLocalRuntime final {
   public:
-    WebRtcLocalRuntime(std::weak_ptr<WebRtcLocalTransport> owner, std::weak_ptr<WebRtcExecutionContext> context);
+    WebRtcLocalRuntime(std::weak_ptr<WebRtcLocalTransport> owner, std::weak_ptr<WebRtcExecutionContext> context,
+                       int rtc_port_start = 60430, int rtc_port_end = 60490);
+    const int rtc_port_start{60430};
+    const int rtc_port_end{60490};
 
     void WithOwner(const std::function<void(WebRtcLocalTransport&)>& operation);
     [[nodiscard]] bool IsOwnerActive() const;
@@ -160,8 +163,6 @@ class PX_NET_RTC_LOCAL_API WebRtcLocalTransport final : public std::enable_share
     void WaitForMediaChannelActive();
     // 定期清扫已终止的 RtcServer,防止死连接残留拖垮媒体投递
     void SweepDeadRtcServers();
-    static std::string AddCandidateIpToAnswer(const std::string& ip, const std::string& answer);
-
   private:
     std::shared_ptr<WebRtcLocalRuntime> runtime_;
     std::shared_ptr<WebRtcExecutionContext> execution_context_;
@@ -195,6 +196,7 @@ class PX_NET_RTC_LOCAL_API WebRtcLocalTransport final : public std::enable_share
     // libwebrtc 的 SSL 环境是进程级资源。RTC Local 允许多个会话并存后，
     // 不能再由单个 RtcServer 的退出去清理，否则会破坏其余在线连接。
     bool ssl_initialized_ = false;
+    std::string advertised_candidate_ipv4_;
 };
 
 [[nodiscard]] PX_NET_RTC_LOCAL_API std::shared_ptr<WebRtcLocalTransport> CreateWebRtcLocalTransport();

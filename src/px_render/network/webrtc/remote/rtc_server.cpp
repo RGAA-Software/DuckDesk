@@ -278,8 +278,8 @@ void RtcServer::CreatePeerConnection() {
         LOGE("Cannot create full RTC PeerConnection without a factory");
         return;
     }
-    configuration_.port_allocator_config.min_port = 60430;
-    configuration_.port_allocator_config.max_port = 60490;
+    configuration_.port_allocator_config.min_port = runtime_->rtc_port_start;
+    configuration_.port_allocator_config.max_port = runtime_->rtc_port_end;
     auto result = peer_conn_factory_->CreatePeerConnectionOrError(configuration_, webrtc::PeerConnectionDependencies(peer_callback_.get()));
     if (!result.ok()) {
         std::cerr << "create peer connection failed: " << result.error().message() << std::endl;

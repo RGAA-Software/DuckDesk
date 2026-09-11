@@ -180,6 +180,9 @@ namespace px
         int panel_server_port_ = 0;
         std::string service_server_host_ = "127.0.0.1";
         int service_server_port_ = 20375;
+        int rtc_port_start_{60430};
+        int rtc_port_end_{60490};
+        std::string rtc_advertised_ipv4_;
         std::string service_ipc_token_;
         std::string device_id_;
         std::string device_random_pwd_;

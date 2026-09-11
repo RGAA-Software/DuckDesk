@@ -281,7 +281,7 @@
   "id_relay_server": "中轉服務",
   "id_relay_ft_server": "中轉文檔服務",
   "id_force_software": "強制軟解碼",
-  "id_force_tcp": "強制 TCP 連線（下次連線生效）",
+  "id_force_tcp": "強制 TCP 直連（下次連線生效）",
   "id_wait_debug": "等待調試",
   "id_verifying": "校驗中...",
   "id_op_error": "操作错误",

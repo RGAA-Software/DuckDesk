@@ -239,6 +239,12 @@ pub fn build_game_hook_launch_spec(
         format!("--encoder_bitrate={bitrate}"),
         format!("--encoder_format={format}"),
         format!("--network_listen_port={listen_port}"),
+        format!("--device_id={}", req.device_id.trim()),
+        format!("--relay_device_id={}", req.relay_device_id.trim()),
+        format!("--relay_server_host={}", req.relay_server_host.trim()),
+        format!("--relay_server_port={}", req.relay_server_port),
+        format!("--appkey={}", req.relay_appkey.trim()),
+        "--relay_enabled=true".to_string(),
     ];
     if !req.live_stream_id.trim().is_empty() {
         args.push(format!("--live_stream_id={}", req.live_stream_id.trim()));
@@ -307,6 +313,7 @@ pub fn build_webview_launch_spec(
         format!("--relay_server_host={}", req.relay_server_host.trim()),
         format!("--relay_server_port={}", req.relay_server_port),
         format!("--appkey={}", req.relay_appkey.trim()),
+        "--relay_enabled=true".to_string(),
     ];
     if !req.live_stream_id.trim().is_empty() {
         args.push(format!("--live_stream_id={}", req.live_stream_id.trim()));
@@ -887,6 +894,11 @@ mod tests {
         let decoded = px_base::crypto_util::base64_decode(b64).unwrap();
         assert!(decoded.contains("VehicleGame"));
         assert!(spec.args.iter().any(|a| a == "--capture_video_type=inner"));
+        assert!(spec.args.iter().any(|a| a == "--device_id=device-a"));
+        assert!(spec.args.iter().any(|a| a == "--relay_device_id=device-a__instance__i1"));
+        assert!(spec.args.iter().any(|a| a == "--relay_server_host=console.test"));
+        assert!(spec.args.iter().any(|a| a == "--relay_server_port=30502"));
+        assert!(spec.args.iter().any(|a| a == "--relay_enabled=true"));
         assert!(spec
             .args
             .iter()

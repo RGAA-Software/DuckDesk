@@ -91,6 +91,11 @@ fn parse_port(port: &str) -> Result<u16, String> {
 }
 
 fn synchronize_http_port(config_path: &Path, expected_port: u16) -> Result<(), String> {
+    synchronize_section_port(config_path, "http", expected_port)
+}
+
+fn synchronize_section_port(config_path: &Path, section: &str, expected_port: u16) -> Result<(), String> {
+    if expected_port == 0 { return Err("media port must be between 1 and 65535".into()); }
     let config = std::fs::read_to_string(config_path)
         .map_err(|error| format!("read {} failed: {error}", config_path.display()))?;
     let newline = if config.contains("\r\n") {
@@ -105,7 +110,7 @@ fn synchronize_http_port(config_path: &Path, expected_port: u16) -> Result<(), S
     for line in config.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            in_http = trimmed.eq_ignore_ascii_case("[http]");
+            in_http = trimmed.eq_ignore_ascii_case(&format!("[{section}]"));
         }
         if in_http && !changed && trimmed.starts_with("port=") {
             output.push(format!("port={expected_port}"));
@@ -115,7 +120,7 @@ fn synchronize_http_port(config_path: &Path, expected_port: u16) -> Result<(), S
         }
     }
     if !changed {
-        return Err("[http].port was not found in px_media/config.ini".to_string());
+        return Err(format!("[{section}].port was not found in px_media/config.ini"));
     }
 
     let updated = output.join(newline);
@@ -124,7 +129,7 @@ fn synchronize_http_port(config_path: &Path, expected_port: u16) -> Result<(), S
             .map_err(|error| format!("write {} failed: {error}", config_path.display()))?;
         tracing::info!(
             port = expected_port,
-            "synchronized px_media HTTP port from Console configuration"
+            section, "synchronized media port from Console configuration"
         );
     }
     Ok(())
@@ -182,6 +187,16 @@ pub async fn ensure_started(settings: &ConsoleLiveSettings) {
     }
     if let Err(error) = synchronize_http_port(&media_config, port) {
         tracing::error!("px_media sidecar startup skipped: {error}");
+        return;
+    }
+    let publish_port = url::Url::parse(&settings.publish_rtmp_url)
+        .ok().filter(|url| url.scheme() == "rtmp").map(|url| url.port().unwrap_or(1935));
+    let Some(publish_port) = publish_port else {
+        tracing::error!("media startup skipped: invalid publication URL");
+        return;
+    };
+    if let Err(error) = synchronize_section_port(&media_config, "rtmp", publish_port) {
+        tracing::error!("media startup skipped: {error}");
         return;
     }
     if port_is_open("127.0.0.1", port).await {

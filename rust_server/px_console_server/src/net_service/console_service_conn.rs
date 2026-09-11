@@ -32,10 +32,12 @@ pub struct ConsoleServiceConn {
     pub auth_info_json: String,
     pub instances_json: String,
     pub logical_sessions_json: String,
+    pub node_endpoints: Option<protocol::console_service::NodeEndpoints>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ConsoleServiceConnVo {
+    pub node_endpoints: Option<protocol::console_service::NodeEndpoints>,
     #[serde(default)]
     pub rdp_available: bool,
     pub device_id: String,
@@ -75,11 +77,13 @@ impl ConsoleServiceConn {
             auth_info_json: "".to_string(),
             instances_json: "".to_string(),
             logical_sessions_json: "[]".to_string(),
+            node_endpoints: None,
         }
     }
 
     pub fn as_info(&self) -> ConsoleServiceConnVo {
         ConsoleServiceConnVo {
+            node_endpoints: self.node_endpoints.clone(),
             rdp_available: self.rdp_available,
             device_id: self.device_id.to_string(),
             version: self.version.to_string(),
@@ -100,12 +104,16 @@ impl ConsoleServiceConn {
             return false;
         }
         let m = m.unwrap();
+        if !m.device_id.is_empty() && m.device_id != self.device_id {
+            return false;
+        }
         if m.msg_type == ConsoleServiceMessageType::KConsoleServiceHello {
             let Some(sub) = m.hello else {
                 tracing::warn!("service hello message without hello body!");
                 return true;
             };
             self.hello_timestamp = px_base::get_current_timestamp();
+            if sub.device_id != self.device_id || sub.appkey != self.appkey { return false; }
             self.last_update_timestamp = self.hello_timestamp;
             let device_id = sub.device_id;
             self.version = sub.version;
@@ -122,6 +130,13 @@ impl ConsoleServiceConn {
                 tracing::warn!("service heartbeat message without heartbeat body!");
                 return true;
             };
+            if sub.device_id != self.device_id { return false; }
+            if sub.node_endpoints.as_ref().is_some_and(|report| report.validate().is_err()) {
+                self.node_endpoints = None;
+                tracing::warn!("rejecting invalid node endpoints for {}", self.device_id);
+                return false;
+            }
+            self.node_endpoints = sub.node_endpoints;
             self.last_update_timestamp = px_base::get_current_timestamp();
             let hb_index = sub.hb_index;
             self.hb_index = hb_index;
@@ -298,6 +313,7 @@ impl ConsoleServiceConn {
             auth_info_json: "".to_string(),
             instances_json: "".to_string(),
             logical_sessions_json: "".to_string(),
+            node_endpoints: None,
         });
         self.send_bin_message_vec(sv_msg.encode_to_vec()).await;
     }

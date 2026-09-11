@@ -1,0 +1,12 @@
+# 本文件放在 px_service.exe 同目录；普通部署只填写以下两项。
+# Console 的 HTTPS 地址，例如 https://console.example.com:4600。
+console_url = ""
+# 客户端可访问本节点的 IP 或域名，不填协议、端口或路径。
+# 局域网部署填本节点的局域网地址；公网部署填映射到本节点的公网地址。
+access_host = ""
+
+# 空值表示地址未配置，保留现有注册入口；不会猜测公网地址。
+# 授权仍走节点注册流程，不在此保存密码。修改后重启 Service 和 Panel。
+# 默认：管理 4603、桌面 4601、应用 4613–4999、RTC 5000–5299；发现关闭。
+# 默认内外端口相同；不同机器可复用端口，不要把节点端口映射到 Console。
+# 高级端口配置见 docs/node_connection_configuration.md。

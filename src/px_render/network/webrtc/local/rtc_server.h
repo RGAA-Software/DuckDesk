@@ -49,6 +49,11 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
     [[nodiscard]] std::shared_ptr<WebRtcExecutionContext> GetExecutionContext() const;
     void DispatchEvent(WebRtcEvent event) const;
     void NotifyTerminal();
+    // Transition a failed or abandoned peer to terminal exactly once. The
+    // transport sweeper owns the blocking teardown; this method only stops
+    // further work and releases the logical-session binding through the
+    // normal disconnect event.
+    void CloseTerminal(const std::string& reason);
 
     bool Start(const std::string& stream_id, const std::string& offer_sdp, PxLocalRtcSessionRole session_role,
                const std::string& ice_config_json = "");
@@ -158,8 +163,8 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
     void OnVoiceCallPcm(const std::string& call_id, std::span<const std::int16_t> samples, int sample_rate, int channels);
 
   private:
-    void CreatePeerConnectionFactory();
-    void CreatePeerConnection();
+    bool CreatePeerConnectionFactory();
+    bool CreatePeerConnection();
     bool ApplyIceConfiguration(const std::string& ice_config_json, bool update_peer_connection);
     bool SetRemoteOffer(const std::string& offer_sdp);
     // 按屏路由 + 构造 NotifyFrameFrameBuffer 推给 video source(OnNewFrameCaptured/
@@ -217,6 +222,10 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
     // ICE connection. Once connected, transient disconnects use the normal
     // reconnect grace period instead of being mistaken for offer timeout.
     std::atomic_bool ice_ever_connected_ = false;
+    // A controller or ordinary observer is established only after its media
+    // data channel opens. ICE alone is not sufficient because a failed SCTP
+    // association would otherwise retain the controller seat forever.
+    std::atomic_bool media_data_channel_ever_connected_ = false;
     int64_t created_timestamp_ms_ = 0;
     std::function<void(const std::string& answer_sdp)> answer_sdp_callback_;
     // ICE 进入 Disconnected 的起始时间(0 = 未处于 Disconnected)。
@@ -230,11 +239,10 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
     // ICE 的 Disconnected 可能只是网卡切换/短暂丢包。给连接 5 秒恢复窗口，
     // 与媒体消费者退出后的采集保活窗口一致，避免监看墙和普通客户端闪断。
     static constexpr int64_t kIceDisconnectedTimeoutMs = 5000;
-    // A browser may abandon an offer before ICE connects. Hidden wall
-    // sessions have no data channel whose close event could reclaim them,
-    // so expire incomplete observers explicitly instead of leaking one of
-    // the bounded observer slots forever.
-    static constexpr int64_t kWallObserverConnectTimeoutMs = 15000;
+    // A browser may abandon an offer before the session becomes usable.
+    // Start this budget at allocation, not after answer or heartbeat: wall
+    // observers require ICE, while every other role requires media SCTP.
+    static constexpr int64_t kInitialConnectTimeoutMs = 15000;
     // Direct RTC uses the application heartbeat as an independent liveness
     // signal because libwebrtc may retain ICE/DataChannel "connected" after
     // an abruptly terminated client. Standard RTC arms this only after it

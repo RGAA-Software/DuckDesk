@@ -387,7 +387,30 @@ async function main() {
     prev = s
     finalSample = s
   }
-  if (!first?.inbound || !last?.inbound) throw new Error('观测窗口缺少视频统计')
+  if (!first?.inbound || !last?.inbound) {
+    const noMediaDetail = await evaluate(`(() => {
+      const peer = window.__pc
+      if (!peer) return { peer: 'missing' }
+      return {
+        connectionState: peer.connectionState,
+        iceConnectionState: peer.iceConnectionState,
+        signalingState: peer.signalingState,
+        sctpState: peer.sctp?.transport?.state ?? 'none',
+        receivers: peer.getReceivers().map((receiver) => ({
+          kind: receiver.track?.kind ?? 'none', id: receiver.track?.id ?? '',
+          readyState: receiver.track?.readyState ?? '', muted: receiver.track?.muted ?? null,
+        })),
+        transceivers: peer.getTransceivers().map((transceiver) => ({
+          currentDirection: transceiver.currentDirection, direction: transceiver.direction,
+          receiverKind: transceiver.receiver.track?.kind ?? 'none',
+          receiverState: transceiver.receiver.track?.readyState ?? '',
+        })),
+        page: window.__conn?.status?.() ?? 'unknown',
+        path: window.__conn?.selectedPath?.() ?? null,
+      }
+    })()`).catch((error) => ({ diagnosticError: String(error) }))
+    throw new Error(`观测窗口缺少视频统计: ${JSON.stringify({ finalSample, noMediaDetail })}`)
+  }
   // `last` intentionally retains the most recent valid media sample for
   // bitrate calculations. It must not, however, hide a peer that vanished
   // near the end of the observation window (notably after takeover).
@@ -411,12 +434,13 @@ async function main() {
     } while (Date.now() < inputDeadline)
     if (EXPECT_INPUT === 'enabled') {
       if (!inputState?.attached) throw new Error('Controller 输入通道未就绪')
-      const probe = await evaluate(`(() => {
-        const result = window.__input?.testSend?.({ x: 0.5, y: 0.5, keyCode: 'None' })
-        return { result }
+      const probe = await evaluate(`(async () => {
+        const stats = await window.__pc.getStats()
+        return Array.from(stats.values()).filter((report) => report.type === 'data-channel')
+          .map((report) => ({ label: report.label, state: report.state }))
       })()`)
-      if (!probe?.result?.ok || probe.result.dc !== 'open') {
-        throw new Error(`Controller 输入探针未发送: ${JSON.stringify(probe)}`)
+      if (!probe?.some((channel) => channel.label === 'input_data_channel' && channel.state === 'open')) {
+        throw new Error(`Controller 输入通道未打开: ${JSON.stringify(probe)}`)
       }
     } else if (inputState?.attached) {
       throw new Error(`Observer 不应创建输入通道: ${JSON.stringify(inputState)}`)

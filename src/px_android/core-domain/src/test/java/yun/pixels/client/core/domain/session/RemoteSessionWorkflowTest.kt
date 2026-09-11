@@ -111,12 +111,11 @@ class RemoteSessionWorkflowTest {
     }
 
     @Test
-    fun recoverableDisconnectHasABoundedDeadlineAndStopsTransport() = runTest {
+    fun recoverableDisconnectKeepsRetryingUntilExplicitStop() = runTest {
         val transport = FakeRemoteSessionTransport()
         val workflow = RemoteSessionWorkflow(
             transport,
             CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
-            reconnectTimeoutMillis = 5_000,
         )
         val request = request("session-1")
         workflow.start(request)
@@ -128,17 +127,16 @@ class RemoteSessionWorkflowTest {
         advanceTimeBy(5_000)
         runCurrent()
 
-        assertEquals(RemoteSessionStatus.Failed(request, RemoteSessionFailure.NetworkUnavailable), workflow.snapshot.value.status)
-        assertEquals(listOf(request.id), transport.stops)
+        assertEquals(RemoteSessionStatus.Reconnecting(request, 1), workflow.snapshot.value.status)
+        assertTrue(transport.stops.isEmpty())
     }
 
     @Test
-    fun reconnectBeforeDeadlineCancelsTheFailure() = runTest {
+    fun reconnectAfterLongRecoveryPeriodKeepsTheSession() = runTest {
         val transport = FakeRemoteSessionTransport()
         val workflow = RemoteSessionWorkflow(
             transport,
             CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
-            reconnectTimeoutMillis = 5_000,
         )
         val request = request("session-1")
         workflow.start(request)

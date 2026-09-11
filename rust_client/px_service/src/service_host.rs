@@ -20,13 +20,17 @@ use crate::virtual_display_manager::VirtualDisplayManager;
 use crate::websocket_server::WebsocketService;
 use crate::windows_actions::SystemActions;
 use crate::windows_process::{ProcessExitObserver, ProcessManager};
+use crate::node_auth_store::NodeAuthStore;
 
 pub struct ServiceRuntime {
     pub config: ServiceConfig,
     pub storage: ServiceStorage,
+    node_auth_store: NodeAuthStore,
     pub process_manager: Arc<dyn ProcessManager>,
     pub windows_actions: Arc<dyn SystemActions>,
     pub state: ServiceState,
+    approved_auth_info: Option<service_core::MsgAuthInfo>,
+    rejected_panel_appkeys: std::collections::HashSet<String>,
     pub app_registry: AppInstanceRegistry,
     app_exit_observers: std::collections::HashMap<String, (String, Arc<dyn ProcessExitObserver>)>,
     pub rdp_console_trusted: bool,
@@ -98,6 +102,7 @@ impl ServiceRuntime {
         windows_actions: Arc<dyn SystemActions>,
     ) -> Self {
         let storage = ServiceStorage::new(config.storage_file());
+        let node_auth_store = NodeAuthStore::new(config.data_root.clone());
         let driver_dir = std::env::current_exe()
             .ok()
             .and_then(|path| path.parent().map(|parent| parent.join("parsec_vdd")))
@@ -120,13 +125,18 @@ impl ServiceRuntime {
         let (stop_tx, _) = broadcast::channel(4);
         let mut ipc_bytes = [0_u8; 32];
         rand::rng().fill_bytes(&mut ipc_bytes);
+        let app_registry = AppInstanceRegistry::new()
+            .with_port_range(config.node.applications.port_start, config.node.applications.port_end);
         Self {
             config,
             storage,
+            node_auth_store,
             process_manager,
             windows_actions,
             state: ServiceState::default(),
-            app_registry: AppInstanceRegistry::new(),
+            approved_auth_info: None,
+            rejected_panel_appkeys: std::collections::HashSet::new(),
+            app_registry,
             app_exit_observers: std::collections::HashMap::new(),
             render_senders: std::collections::HashMap::new(),
             render_logical_sessions: std::collections::HashMap::new(),
@@ -227,10 +237,77 @@ impl ServiceRuntime {
     pub fn load_persisted_state(&mut self) -> Result<(), String> {
         let persisted = self.storage.load().map_err(|err| err.to_string())?;
         self.state.last_desktop_launch = persisted.desktop_launch.map(Into::into);
+        if let Some(auth_info) = self.node_auth_store.load()? {
+            let auth_info = self.normalize_auth_info(auth_info)?;
+            self.approved_auth_info = Some(auth_info.clone());
+            self.state.last_auth_info = Some(auth_info);
+        }
         info!(
-            "loaded persisted state, desktop_launch_present={}",
-            self.state.last_desktop_launch.is_some()
+            "loaded persisted state, desktop_launch_present={}, node_authorization_present={}",
+            self.state.last_desktop_launch.is_some(),
+            self.approved_auth_info.is_some()
         );
+        Ok(())
+    }
+
+    fn normalize_auth_info(
+        &self,
+        mut auth_info: service_core::MsgAuthInfo,
+    ) -> Result<service_core::MsgAuthInfo, String> {
+        if let Some((host, port)) = self.config.node.console_endpoint()? {
+            auth_info.console_host = host;
+            auth_info.console_port = i32::from(port);
+            auth_info.console_ssl = true;
+        }
+        Ok(auth_info)
+    }
+
+    fn accepts_panel_auth_info(&self, auth_info: &service_core::MsgAuthInfo) -> bool {
+        !auth_info.device_id.is_empty()
+            && !auth_info.appkey.is_empty()
+            && !self.rejected_panel_appkeys.contains(&auth_info.appkey)
+    }
+
+    fn apply_panel_auth_info(&mut self, auth_info: service_core::MsgAuthInfo) -> Result<bool, String> {
+        let auth_info = self.normalize_auth_info(auth_info)?;
+        if !self.accepts_panel_auth_info(&auth_info) {
+            warn!(
+                "ignored incomplete or previously rejected panel authorization, device_id_present={}, appkey_present={}",
+                !auth_info.device_id.is_empty(),
+                !auth_info.appkey.is_empty()
+            );
+            return Ok(false);
+        }
+        self.state.last_auth_info = Some(auth_info);
+        Ok(true)
+    }
+
+    pub fn approve_console_auth_info(&mut self, auth_info: service_core::MsgAuthInfo) -> Result<(), String> {
+        let auth_info = self.normalize_auth_info(auth_info)?;
+        self.node_auth_store.save(&auth_info)?;
+        self.rejected_panel_appkeys.remove(&auth_info.appkey);
+        self.approved_auth_info = Some(auth_info.clone());
+        self.state.last_auth_info = Some(auth_info);
+        Ok(())
+    }
+
+    pub fn reject_console_auth_info(&mut self, attempted: &service_core::MsgAuthInfo) -> Result<(), String> {
+        let current_is_attempted = self.state.last_auth_info.as_ref().is_some_and(|current| {
+            current.device_id == attempted.device_id && current.appkey == attempted.appkey
+        });
+        if !current_is_attempted {
+            return Ok(());
+        }
+        if self.approved_auth_info.as_ref().is_some_and(|approved| approved.appkey == attempted.appkey) {
+            self.node_auth_store.clear()?;
+            self.approved_auth_info = None;
+            self.state.last_auth_info = None;
+            warn!("Console rejected the approved node authorization; awaiting new Panel authorization");
+        } else {
+            self.rejected_panel_appkeys.insert(attempted.appkey.clone());
+            self.state.last_auth_info = self.approved_auth_info.clone();
+            warn!("Console rejected Panel authorization; restored the last Console-approved authorization");
+        }
         Ok(())
     }
 
@@ -309,19 +386,22 @@ impl ServiceRuntime {
                     }
                 }
                 if let Some(auth_info) = auth_info {
-                    self.state.last_auth_info = Some(auth_info);
+                    self.apply_panel_auth_info(auth_info)?;
                 }
                 Ok(Some(self.state.heartbeat_response(index)))
             }
             Command::AuthInfo(auth_info) => {
+                let applied = self.apply_panel_auth_info(auth_info)?;
+                let Some(auth_info) = self.state.last_auth_info.as_ref() else {
+                    return Ok(None);
+                };
                 info!(
                     "received auth info, device_id={}, appkey_configured={}, console={}:{}",
                     auth_info.device_id,
-                    !auth_info.appkey.is_empty(),
+                    applied && !auth_info.appkey.is_empty(),
                     auth_info.console_host,
                     auth_info.console_port
                 );
-                self.state.last_auth_info = Some(auth_info);
                 Ok(None)
             }
             Command::CtrlAltDelete { .. } => {
@@ -337,7 +417,8 @@ impl ServiceRuntime {
         }
     }
 
-    pub fn start_desktop(&mut self, spec: RenderLaunchSpec) -> Result<(), String> {
+    pub fn start_desktop(&mut self, mut spec: RenderLaunchSpec) -> Result<(), String> {
+        self.config.node.configure_render(&mut spec.args, true);
         info!(
             "start desktop requested, work_dir={}, app_path={}",
             spec.work_dir, spec.app_path
@@ -440,7 +521,7 @@ impl ServiceRuntime {
             }
             Some(path)
         };
-        let (record, process_manager, ipc_token, webview_ready_rx) = {
+        let (record, process_manager, ipc_token, webview_ready_rx, node_config) = {
             let mut guard = runtime.lock().await;
             if is_rdp && !guard.rdp_console_trusted {
                 return Err("RDP requires a verified Console TLS connection".into());
@@ -461,11 +542,13 @@ impl ServiceRuntime {
                 guard.process_manager.clone(),
                 guard.ipc_token.clone(),
                 ready_rx,
+                guard.config.node.clone(),
             )
         };
         let instance_id = record.instance_id.clone();
         let port = record.listen_port;
         let mut launch = record.launch.clone();
+        node_config.configure_render(&mut launch.args, false);
         let _rdp_bootstrap = if is_rdp {
             let account = rdp_account.ok_or_else(|| "RDP workspace credential missing".to_string())?;
             let directory = std::path::PathBuf::from(&launch.work_dir).join("rdp");
@@ -876,6 +959,32 @@ impl ServiceRuntime {
         // Same-path processes outside that launch are never cleanup targets.
 
         if kill_pids.is_empty() && identity_mismatch {
+            // WMI can lose executable/command-line metadata while the original
+            // process is exiting. Only its generation-bound kernel observer may
+            // confirm completion; never kill a PID whose identity is uncertain.
+            for _ in 0..20 {
+                {
+                    let mut guard = runtime.lock().await;
+                    if guard.app_registry.get(instance_id).is_none_or(|current| current.request_id != rec.request_id) {
+                        return Err("instance generation changed during stop".into());
+                    }
+                    if guard.app_registry.get(instance_id).is_some_and(|current| current.state == service_core::AppInstanceState::Stopped) {
+                        return Ok(());
+                    }
+                    let Some((generation, observer)) = guard.app_exit_observers.get(instance_id) else { break };
+                    if *generation != rec.request_id { break; }
+                    match observer.exit_code() {
+                        Ok(Some(_)) => {
+                            guard.app_exit_observers.remove(instance_id);
+                            guard.app_registry.mark_stopped(instance_id)?;
+                            return Ok(());
+                        }
+                        Ok(None) => {}
+                        Err(_) => break,
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
             return Err(format!(
                 "instance {instance_id} recorded pid is now owned by an unrelated process, refusing to kill"
             ));
@@ -1217,6 +1326,12 @@ mod tests {
 
     use service_core::process::ProcessSnapshot;
 
+    fn test_config(port: u16, data: std::path::PathBuf, logs: std::path::PathBuf) -> ServiceConfig {
+        let mut config = ServiceConfig::new(port, data, logs);
+        config.node.applications = service_core::node_config::PortRange { port_start: 32000, port_end: 32999 };
+        config
+    }
+
     struct MockProcessManager {
         list_calls: std::sync::atomic::AtomicUsize,
         list_delay_ms: std::sync::atomic::AtomicU64,
@@ -1360,7 +1475,7 @@ mod tests {
     }
 
     fn test_runtime(processes: Vec<ProcessSnapshot>) -> ServiceRuntime {
-        let config = ServiceConfig::new(
+        let config = test_config(
             20375,
             std::env::temp_dir().join("px_data_test"),
             std::env::temp_dir().join("px_logs_test"),
@@ -1381,12 +1496,14 @@ mod tests {
             args: vec!["--app_mode=desktop".to_string()],
         };
         runtime.start_desktop(spec.clone()).unwrap();
-        assert_eq!(runtime.state.last_desktop_launch, Some(spec));
+        let mut expected = spec;
+        runtime.config.node.configure_render(&mut expected.args, true);
+        assert_eq!(runtime.state.last_desktop_launch, Some(expected));
     }
 
     #[test]
     fn start_desktop_launches_user_proxy_with_session_user_token() {
-        let config = ServiceConfig::new(
+        let config = test_config(
             20375,
             std::env::temp_dir().join("px_data_test_up"),
             std::env::temp_dir().join("px_logs_test_up"),
@@ -1394,6 +1511,7 @@ mod tests {
         let manager = Arc::new(MockProcessManager::new(Vec::new()));
         let mut runtime =
             ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
+        runtime.config.node.network.desktop_port = 20400;
         runtime
             .start_desktop(RenderLaunchSpec {
                 work_dir: "D:/app".to_string(),
@@ -1566,6 +1684,33 @@ mod tests {
     }
 
     #[test]
+    fn rejected_panel_auth_restores_approved_auth_and_does_not_retry_it() {
+        let mut runtime = test_runtime(Vec::new());
+        let approved = test_auth_info();
+        runtime.approved_auth_info = Some(approved.clone());
+        runtime.state.last_auth_info = Some(approved.clone());
+        let mut rejected = approved.clone();
+        rejected.appkey = "obsolete-appkey".to_string();
+        assert!(runtime.apply_panel_auth_info(rejected.clone()).unwrap());
+        assert_eq!(runtime.state.last_auth_info, Some(rejected.clone()));
+        runtime.reject_console_auth_info(&rejected).unwrap();
+        assert_eq!(runtime.state.last_auth_info, Some(approved));
+        assert!(!runtime.apply_panel_auth_info(rejected).unwrap());
+    }
+
+    #[test]
+    fn incomplete_panel_auth_does_not_erase_approved_auth() {
+        let mut runtime = test_runtime(Vec::new());
+        let approved = test_auth_info();
+        runtime.approved_auth_info = Some(approved.clone());
+        runtime.state.last_auth_info = Some(approved.clone());
+        let mut incomplete = approved.clone();
+        incomplete.appkey.clear();
+        assert!(!runtime.apply_panel_auth_info(incomplete).unwrap());
+        assert_eq!(runtime.state.last_auth_info, Some(approved));
+    }
+
+    #[test]
     fn ctrl_alt_delete_is_forwarded() {
         let mut runtime = test_runtime(Vec::new());
         runtime
@@ -1591,7 +1736,7 @@ mod tests {
 
     #[test]
     fn persisted_state_is_loaded_back() {
-        let config = ServiceConfig::new(
+        let config = test_config(
             20375,
             std::env::temp_dir().join("px_service_state_load"),
             std::env::temp_dir().join("px_logs"),
@@ -1640,7 +1785,7 @@ mod tests {
 
     #[test]
     fn stop_desktop_command_clears_launch_and_persists_cleared_state() {
-        let config = ServiceConfig::new(
+        let config = test_config(
             20375,
             std::env::temp_dir().join("px_service_stop_desktop"),
             std::env::temp_dir().join("px_logs_stop_desktop"),
@@ -1876,7 +2021,7 @@ mod tests {
     #[tokio::test]
     async fn start_and_stop_app_instance_does_not_touch_desktop() {
         let dirs = make_app_test_dirs("startstop");
-        let config = ServiceConfig::new(
+        let config = test_config(
             20375,
             std::env::temp_dir().join("px_data_app_inst"),
             std::env::temp_dir().join("px_logs_app_inst"),
@@ -1945,7 +2090,7 @@ mod tests {
     async fn stop_after_natural_exit_is_idempotent_and_does_not_touch_replacement() {
         let dirs = make_app_test_dirs("stop_reaped");
         let manager = Arc::new(MockProcessManager::new(Vec::new()));
-        let config = ServiceConfig::new(20375, std::path::PathBuf::from(&dirs.work_dir_s).join("data"),
+        let config = test_config(20375, std::path::PathBuf::from(&dirs.work_dir_s).join("data"),
             std::path::PathBuf::from(&dirs.work_dir_s).join("logs"));
         let mut service = ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
         service.app_registry.begin_start(&dirs.work_dir_s, sample_start_req("reaped", 32144, &dirs.game_root_s)).unwrap();
@@ -1969,7 +2114,7 @@ mod tests {
     async fn stop_does_not_sweep_external_game_with_identical_path() {
         let dirs = make_app_test_dirs("stop_external_game");
         let manager = Arc::new(MockProcessManager::new(Vec::new()));
-        let config = ServiceConfig::new(20375, std::path::PathBuf::from(&dirs.work_dir_s).join("data"),
+        let config = test_config(20375, std::path::PathBuf::from(&dirs.work_dir_s).join("data"),
             std::path::PathBuf::from(&dirs.work_dir_s).join("logs"));
         let mut service = ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
         service.state.last_desktop_launch = Some(RenderLaunchSpec {
@@ -1988,7 +2133,7 @@ mod tests {
     async fn stop_of_failed_instance_does_not_silently_report_success() {
         let dirs = make_app_test_dirs("stop_failed");
         let manager = Arc::new(MockProcessManager::new(Vec::new()));
-        let config = ServiceConfig::new(20375, std::path::PathBuf::from(&dirs.work_dir_s).join("data"),
+        let config = test_config(20375, std::path::PathBuf::from(&dirs.work_dir_s).join("data"),
             std::path::PathBuf::from(&dirs.work_dir_s).join("logs"));
         let mut service = ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
         service.app_registry.begin_start(&dirs.work_dir_s, sample_start_req("failed", 32146, &dirs.game_root_s)).unwrap();
@@ -2008,10 +2153,58 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn stop_with_incomplete_snapshot_accepts_only_original_kernel_exit() {
+        let dirs = make_app_test_dirs("stop_kernel_exit");
+        let manager = Arc::new(MockProcessManager::new(Vec::new()));
+        let config = test_config(20375, std::path::PathBuf::from(&dirs.work_dir_s).join("data"),
+            std::path::PathBuf::from(&dirs.work_dir_s).join("logs"));
+        let mut service = ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
+        let record = service.app_registry.begin_start(&dirs.work_dir_s, sample_start_req("kernel-stop", 32148, &dirs.game_root_s)).unwrap().clone();
+        service.app_registry.mark_running("kernel-stop", 4321).unwrap();
+        manager.processes.lock().unwrap().push(ProcessSnapshot::new(4321, "", ""));
+        let observer = Arc::new(TestExitObserver(std::sync::atomic::AtomicU64::new(0)));
+        service.app_exit_observers.insert("kernel-stop".into(), (record.request_id, observer.clone()));
+        let runtime = Arc::new(Mutex::new(service));
+        let exit = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(950)).await;
+            observer.0.store(1, Ordering::SeqCst);
+        });
+        ServiceRuntime::stop_app_instance(&runtime, "kernel-stop").await.unwrap();
+        exit.await.unwrap();
+        assert_eq!(runtime.lock().await.app_registry.get("kernel-stop").unwrap().state, service_core::AppInstanceState::Stopped);
+        assert!(manager.kills.lock().unwrap().is_empty());
+        ServiceRuntime::stop_app_instance(&runtime, "kernel-stop").await.unwrap();
+        assert!(manager.kills.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn configured_console_overrides_stale_auth_and_heartbeat() {
+        let mut runtime = test_runtime(Vec::new());
+        runtime.config.node.console_url = "https://configured.example:4600".into();
+        let stale = test_auth_info();
+        let mut expected = stale.clone();
+        expected.console_host = "configured.example".into();
+        expected.console_port = 4600;
+        expected.console_ssl = true;
+        for command in [
+            Command::AuthInfo(stale.clone()),
+            Command::HeartBeat {
+                index: 1,
+                from: "panel".into(),
+                logical_sessions_json: String::new(),
+                auth_info: Some(stale),
+            },
+        ] {
+            runtime.handle_command(command).unwrap();
+            assert_eq!(runtime.state.last_auth_info, Some(expected.clone()));
+        }
+    }
+
+    #[tokio::test]
     async fn kernel_alive_overrides_missing_snapshot_and_exit_evidence_is_reported() {
         let dirs = make_app_test_dirs("kernel_exit");
         let manager = Arc::new(MockProcessManager::new(Vec::new()));
-        let config = ServiceConfig::new(20375, std::path::PathBuf::from(&dirs.work_dir_s).join("data"),
+        let config = test_config(20375, std::path::PathBuf::from(&dirs.work_dir_s).join("data"),
             std::path::PathBuf::from(&dirs.work_dir_s).join("logs"));
         let mut service = ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
         let record = service.app_registry.begin_start(&dirs.work_dir_s, sample_start_req("kernel-exit", 32147, &dirs.game_root_s)).unwrap().clone();
@@ -2035,7 +2228,7 @@ mod tests {
     #[tokio::test]
     async fn webview_start_waits_for_matching_first_frame_ready() {
         let dirs = make_app_test_dirs("webview_ready");
-        let config = ServiceConfig::new(
+        let config = test_config(
             20375,
             std::env::temp_dir().join("px_data_webview_ready"),
             std::env::temp_dir().join("px_logs_webview_ready"),
@@ -2097,7 +2290,7 @@ mod tests {
     #[tokio::test]
     async fn stop_app_instance_refuses_to_kill_reused_pid() {
         let dirs = make_app_test_dirs("reuse");
-        let config = ServiceConfig::new(
+        let config = test_config(
             20375,
             std::env::temp_dir().join("px_data_app_reuse"),
             std::env::temp_dir().join("px_logs_app_reuse"),
@@ -2154,7 +2347,7 @@ mod tests {
     #[tokio::test]
     async fn stop_app_instance_kill_failure_keeps_port_reserved() {
         let dirs = make_app_test_dirs("killfail");
-        let config = ServiceConfig::new(
+        let config = test_config(
             20375,
             std::env::temp_dir().join("px_data_app_killfail"),
             std::env::temp_dir().join("px_logs_app_killfail"),
@@ -2288,7 +2481,7 @@ mod tests {
         let dirs = make_app_test_dirs("multi");
         let manager = Arc::new(MockProcessManager::new(Vec::new()));
         let mut runtime = ServiceRuntime::new(
-            ServiceConfig::new(
+            test_config(
                 20375,
                 std::env::temp_dir().join("px_data_app_multi"),
                 std::env::temp_dir().join("px_logs_app_multi"),

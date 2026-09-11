@@ -44,6 +44,9 @@ DEFINE_string(capture_video_type, "inner", "inner/global");
 DEFINE_bool(webrtc_enabled, true, "");
 DEFINE_bool(websocket_enabled, true, "");
 DEFINE_int32(network_listen_port, 20371, "");
+DEFINE_int32(rtc_port_start, 60430, "RTC media range start");
+DEFINE_int32(rtc_port_end, 60490, "RTC media range end");
+DEFINE_string(rtc_advertised_ipv4, "", "Render public IPv4 advertised to Web RTC peers");
 DEFINE_bool(udp_kcp_enabled, true, "");
 
 DEFINE_string(sig_server_address, "", "");
@@ -157,7 +160,18 @@ void UpdateSettings(RdSettings& settings) {
     // Ignored: audio capture plugin always uses the OS default playback device.
     settings.capture_.capture_audio_device_.clear();
     (void)FLAGS_capture_audio_device;
-    settings.transmission_.listening_port_ = FLAGS_network_listen_port;
+    if (!gflags::GetCommandLineFlagInfoOrDie("network_listen_port").is_default) {
+        settings.transmission_.listening_port_ = FLAGS_network_listen_port;
+    }
+    if (!gflags::GetCommandLineFlagInfoOrDie("rtc_port_start").is_default) {
+        settings.rtc_port_start_ = FLAGS_rtc_port_start;
+    }
+    if (!gflags::GetCommandLineFlagInfoOrDie("rtc_port_end").is_default) {
+        settings.rtc_port_end_ = FLAGS_rtc_port_end;
+    }
+    if (!gflags::GetCommandLineFlagInfoOrDie("rtc_advertised_ipv4").is_default) {
+        settings.rtc_advertised_ipv4_ = FLAGS_rtc_advertised_ipv4;
+    }
 
     // app: path arrives as Base64(UTF-8); decode with existing Base64 helper (no ACP convert).
     if (!FLAGS_app_game_path.empty()) {
@@ -181,8 +195,12 @@ void UpdateSettings(RdSettings& settings) {
 
     settings.panel_server_host_ = FLAGS_panel_server_host;
     settings.panel_server_port_ = FLAGS_panel_server_port;
-    settings.service_server_host_ = FLAGS_service_server_host;
-    settings.service_server_port_ = FLAGS_service_server_port;
+    if (!gflags::GetCommandLineFlagInfoOrDie("service_server_host").is_default) {
+        settings.service_server_host_ = FLAGS_service_server_host;
+    }
+    if (!gflags::GetCommandLineFlagInfoOrDie("service_server_port").is_default) {
+        settings.service_server_port_ = FLAGS_service_server_port;
+    }
     settings.service_ipc_token_ = FLAGS_service_ipc_token;
 
     // can be operated
@@ -336,8 +354,17 @@ int main(int argc, char** argv) {
     // 2. CLI overrides (panel: --app_mode=desktop; game-hook script: --app_mode=game-hook)
     // 3. ApplyApplicationMode syncs capture path + whether to launch game-path
     auto& settings = *RdSettings::Instance();
-    settings.LoadSettings("settings.toml");
+    if (!settings.LoadSettings("settings.toml") && std::filesystem::exists("settings.toml")) {
+        LOGE("Cannot load Render configuration");
+        return 1;
+    }
     UpdateSettings(settings);
+    const auto valid_port = [](int port) { return port > 0 && port <= 65535; };
+    if (!valid_port(settings.transmission_.listening_port_) || !valid_port(settings.service_server_port_) ||
+        !valid_port(settings.rtc_port_start_) || !valid_port(settings.rtc_port_end_) || settings.rtc_port_start_ > settings.rtc_port_end_) {
+        LOGE("Invalid network or RTC port configuration");
+        return 1;
+    }
     settings.ApplyApplicationMode();
     settings.LoadSettingsFromDatabase();
 

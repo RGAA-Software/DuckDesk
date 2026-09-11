@@ -15,6 +15,7 @@ namespace px {
 class ThunderSdkParams {
   public:
     SdkMediaTransport media_transport_{SdkMediaTransport::kUdp};
+    SdkConnectionRoute connection_route_{SdkConnectionRoute::kDirect};
     bool ssl_ = false;
     bool enable_audio_ = false;
     bool enable_video_ = false;
@@ -48,6 +49,11 @@ class ThunderSdkParams {
 
     // appkey
     std::string appkey_;
+    std::string relay_host_{};
+    int relay_port_{0};
+    std::string relay_remote_device_id_{};
+    std::string relay_ticket_device_id_{};
+    bool force_gdi_{false};
     std::string render_type_name_ = "unknow";
 
     // debug

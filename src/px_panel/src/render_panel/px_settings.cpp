@@ -5,6 +5,7 @@
 #include "px_settings.h"
 #include <sstream>
 #include <QApplication>
+#include <QUrl>
 
 #include "px_application.h"
 #include "version_config.h"
@@ -22,6 +23,8 @@
 #include "px_common/win32/dxgi_mon_detector.h"
 #include "px_console_client/console_http_client.h"
 #include "px_profile_client/profile_api.h"
+#include <toml++/toml.hpp>
+#include <filesystem>
 namespace px
 {
 
@@ -31,6 +34,45 @@ namespace px
 
     void PxSettings::Load() {
         sp_ = SharedPreference::Instance();
+        configured_console_endpoint_.reset();
+        configured_access_host_.clear();
+        const auto service_config_path = std::filesystem::path(QCoreApplication::applicationDirPath().toStdWString()) / "px_service.toml";
+        if (std::filesystem::exists(service_config_path)) {
+            const auto node_config = toml::parse_file(service_config_path.string());
+            const int service_port = node_config["network"]["listen_port"].value_or(4603);
+            const int desktop_port = node_config["network"]["desktop_port"].value_or(4601);
+            console_discovery_port_ = node_config["network"]["discovery_port"].value_or(4604);
+            console_discovery_enabled_ = node_config["network"]["discovery_enabled"].value_or(false);
+            const auto console_text = QString::fromStdString(node_config["console_url"].value_or(std::string{}));
+            if (!console_text.isEmpty()) {
+                const QUrl endpoint(console_text, QUrl::StrictMode);
+                if (!endpoint.isValid() || endpoint.scheme() != "https" || endpoint.host().isEmpty() || !endpoint.userInfo().isEmpty()
+                    || endpoint.hasQuery() || endpoint.hasFragment() || (!endpoint.path().isEmpty() && endpoint.path() != "/")
+                    || console_text.trimmed() != console_text || endpoint.port(443) <= 0) {
+                    throw std::runtime_error("Invalid node console_url: expected an HTTPS origin without credentials");
+                }
+                configured_console_endpoint_ = std::make_pair(endpoint.host().toStdString(), endpoint.port(443));
+            }
+            const auto access_text = QString::fromStdString(node_config["access_host"].value_or(std::string{}));
+            if (!access_text.isEmpty()) {
+                const QUrl endpoint("https://" + access_text, QUrl::StrictMode);
+                if (!endpoint.isValid() || endpoint.host().isEmpty() || !endpoint.userInfo().isEmpty() || !endpoint.path().isEmpty()
+                    || endpoint.port(-1) != -1 || endpoint.hasQuery() || endpoint.hasFragment() || access_text.trimmed() != access_text
+                    || endpoint.host() == "0.0.0.0" || endpoint.host() == "::") {
+                    throw std::runtime_error("Invalid node access_host: expected an IP address or hostname without a port");
+                }
+                configured_access_host_ = endpoint.host().toStdString();
+            }
+            if (console_discovery_enabled_ && (console_discovery_port_ <= 0 || console_discovery_port_ > 65535)) {
+                throw std::runtime_error("Invalid discovery port configuration");
+            }
+            if (service_port <= 0 || service_port > 65535 || desktop_port <= 0 || desktop_port > 65535) {
+                throw std::runtime_error("Invalid node listener port configuration");
+            }
+            sys_service_port_ = service_port;
+            SetServiceServerPort(service_port);
+            SetRenderServerPort(desktop_port);
+        }
         version_ = std::format("V {}", PROJECT_VERSION);
 
         log_file_ = sp_->Get(kStLogFile, "true");
@@ -349,6 +391,9 @@ namespace px
     // Console
     // Get Host
     std::string PxSettings::GetConsoleServerHost() {
+        if (configured_console_endpoint_) {
+            return configured_console_endpoint_->first;
+        }
         auto value = sp_->Get(kStConsoleServerHost, "");
         if (value.empty()) {
             value = sp_->Get(kLegacyStCmsServerHost, "");
@@ -368,6 +413,9 @@ namespace px
     // Console
     // Get Port
     int PxSettings::GetConsoleServerPort() {
+        if (configured_console_endpoint_) {
+            return configured_console_endpoint_->second;
+        }
         auto value = sp_->Get(kStConsoleServerPort, "");
         if (value.empty()) {
             value = sp_->Get(kLegacyStCmsServerPort, "");

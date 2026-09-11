@@ -393,24 +393,17 @@ async fn run_as_server(machine_code: String) {
     // 网络上报授权：启动时立即 pull 一次，之后按 auth_pull_interval_secs 周期 pull。
     crate::auth::console_auth_pull::start_pull_loop().await;
 
-    let port = gConsoleSettings.lock().await.udp_broadcast_port;
-    gConsoleContext
-        .lock()
-        .await
-        .broadcast_access_info(port)
-        .await;
-    tracing::info!("broadcast port at: {}", port);
-
-    // gConsoleContext
-    //     .lock().await
-    //     .test_broadcast(port).await;
-
-    // relay server
-    tokio::spawn(async {
-        let relay_port = gConsoleSettings.lock().await.relay_port;
-        let server = RelayServer::new("0.0.0.0".to_string(), relay_port, gConsoleContext.clone());
-        server.start().await;
-    });
+    let listener_settings = gConsoleSettings.lock().await.clone();
+    if listener_settings.udp_broadcast_enabled {
+        gConsoleContext.lock().await.broadcast_access_info(listener_settings.udp_broadcast_port).await;
+        tracing::info!("discovery port at: {}", listener_settings.udp_broadcast_port);
+    }
+    if listener_settings.relay_enabled {
+        tokio::spawn(async move {
+            let server = RelayServer::new("0.0.0.0".to_string(), listener_settings.relay_port, gConsoleContext.clone());
+            server.start().await;
+        });
+    }
 
     // render-records temp-cache cleanup (TTL 24h / 10GB threshold, keep exempt)
     crate::record::record_cleaner::start_cleanup_task(

@@ -1,0 +1,81 @@
+{
+  "revision": "5d90f4de288d0cd85166c0f75646ec3d9c43b873",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "rust_client/px_service/service_core/src/config.rs",
+      "sha256": "F4C1D2FFD16A3A929B5172E031B6EEAE8B2A29E99FAEA446C0E61B7062464271",
+      "status": ""
+    },
+    {
+      "path": "rust_client/px_service/src/app.rs",
+      "sha256": "6356F506EAD0BE8EA9C7B626E867117CD7A2AEC6D74243871D34163AEF918DFF",
+      "status": ""
+    },
+    {
+      "path": "rust_client/px_service/src/service_host.rs",
+      "sha256": "B9F685AAABD81308C035F345FD58121BF7721403297E41FF346E639F8C3373C2",
+      "status": ""
+    },
+    {
+      "path": "rust_client/px_service/src/user_proxy.rs",
+      "sha256": "F3E19355F76C98BAD726BC90CF95355196466675F452B3B71AD004ABB4556CBB",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/src/app_schedule/manager.rs",
+      "sha256": "AE3962839C85C0240BB2B9DDE995B87AF270B9E4342529BDE9C614C44C04D335",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/src/console_settings.rs",
+      "sha256": "6A71F663B2D478047C9AFB8A28F26B36951F7FEF27433BD3A5113D340687D796",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/src/main.rs",
+      "sha256": "BEDEF0DA98482097615AE17785E012D912FA640522D46BE69ADD63BB2B7380FA",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/src/media_sidecar.rs",
+      "sha256": "B210670BAA2AA84E1AB9EE4B273BC00F73409D46110E4881FD5C314B15317804",
+      "status": ""
+    },
+    {
+      "path": "src/px_panel/src/render_panel/network/px_service_client.cpp",
+      "sha256": "5E07F86094B5F311B2520C177596DD51985E15B8F7A4CA96C5CE809CC5BFA8CD",
+      "status": ""
+    },
+    {
+      "path": "src/px_panel/src/render_panel/px_application.cpp",
+      "sha256": "90887236ECEE9408C3C024CED580A4A6D0A6FB05C9DF480B5BA39568CEBA1137",
+      "status": ""
+    },
+    {
+      "path": "src/px_panel/src/render_panel/px_settings.cpp",
+      "sha256": "6BC52E5CC0456AC80F2D8E5F90624B9D8AA401B27798AB672BE16DE225570541",
+      "status": ""
+    },
+    {
+      "path": "src/px_panel/src/render_panel/px_settings.h",
+      "sha256": "6F268892D25AFD34EE7DACC3F18AF1917EB93073AFC354DF00895F9154DCF540",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/network/webrtc/local/rtc_server.cpp",
+      "sha256": "DC15982030DBE589E82FB373460D3784034263DA4178034DC8949A1069B9C5A4",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/network/webrtc/remote/rtc_server.cpp",
+      "sha256": "2EB0C70C949C655707C79C7113237AB1D4481820AF7AAA5952F9C3F57853CEF8",
+      "status": ""
+    },
+    {
+      "path": "src/px_render/rd_main.cpp",
+      "sha256": "90A3D5D386C19D043658012D1EFE3BECE5BA34085A8965818FCFB3C1F28820F4",
+      "status": ""
+    }
+  ]
+}

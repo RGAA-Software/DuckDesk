@@ -4576,10 +4576,12 @@ version = "3.3.65"
 dependencies = [
  "prost",
  "prost-build",
+ "serde",
  "tonic",
  "tonic-build",
  "tonic-prost",
  "tonic-prost-build",
+ "url",
 ]
 
 [[package]]

@@ -19,6 +19,7 @@ use uuid::Uuid;
 const START_RESULT_TIMEOUT: Duration = Duration::from_secs(25);
 const STOP_RESULT_TIMEOUT: Duration = Duration::from_secs(10);
 const PROCESS_LOST_GRACE_MS: i64 = 15_000;
+const DEFAULT_NATIVE_SESSION_FPS: i32 = 60;
 
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
@@ -221,8 +222,6 @@ pub struct SaveNodeReq {
     pub listen_port: Option<i32>,
 }
 
-const DEFAULT_LISTEN_PORT_START: i32 = 32000;
-const DEFAULT_LISTEN_PORT_END: i32 = 32999;
 
 /// Split absolute game path into (install_root, game_exe_rel=file_name).
 pub fn split_game_path(game_path: &str) -> Result<(String, String), String> {
@@ -487,7 +486,8 @@ impl AppScheduleManager {
             } else {
                 String::new()
             },
-            encoder_fps: req.encoder_fps.unwrap_or(60),
+            // Native Render starts at the product default. A connected client may adjust it per session.
+            encoder_fps: DEFAULT_NATIVE_SESSION_FPS,
             encoder_bitrate: req.encoder_bitrate.unwrap_or(20),
             encoder_format: req.encoder_format.unwrap_or_else(|| "h264".to_string()),
             webrtc_enabled: app_type != ApplicationType::Rdp,
@@ -589,59 +589,9 @@ impl AppScheduleManager {
         rows
     }
 
-    /// 端口占用以「机器」为维度:同机节的端口 + 同机活跃实例的端口。
-    fn collect_used_ports_locked(g: &Inner, device_id: &str) -> Vec<i32> {
-        let mut used = Vec::new();
-        for node in g.nodes.values() {
-            if !device_id.is_empty() && node.device_id != device_id {
-                continue;
-            }
-            if node.listen_port > 0 {
-                used.push(node.listen_port);
-            }
-        }
-        for inst in g.instances.values() {
-            if !device_id.is_empty() && inst.device_id != device_id {
-                continue;
-            }
-            if matches!(
-                inst.state,
-                InstanceState::Starting | InstanceState::Running | InstanceState::Stopping
-            ) && inst.listen_port > 0
-            {
-                used.push(inst.listen_port);
-            }
-        }
-        used
-    }
-
-    /// Suggest the next free listen port on a device for the Web form. Capped
-    /// at `DEFAULT_LISTEN_PORT_END`: past the pool tail fall back to the first
-    /// free port from the pool start; error when the pool is exhausted.
-    pub async fn suggest_next_port(&self, device_id: &str) -> Result<i32, String> {
-        let g = self.inner.lock().await;
-        Self::suggest_next_port_locked(&g, device_id)
-    }
-
-    fn suggest_next_port_locked(g: &Inner, device_id: &str) -> Result<i32, String> {
-        let used = Self::collect_used_ports_locked(g, device_id);
-        let max = used
-            .iter()
-            .copied()
-            .max()
-            .unwrap_or(DEFAULT_LISTEN_PORT_START - 1);
-        let next = (max + 1).max(DEFAULT_LISTEN_PORT_START);
-        if next <= DEFAULT_LISTEN_PORT_END {
-            return Ok(next);
-        }
-        for port in DEFAULT_LISTEN_PORT_START..=DEFAULT_LISTEN_PORT_END {
-            if !used.contains(&port) {
-                return Ok(port);
-            }
-        }
-        Err(format!(
-            "端口已用完（{DEFAULT_LISTEN_PORT_START}-{DEFAULT_LISTEN_PORT_END}）"
-        ))
+    /// Zero requests allocation by the target Service from its own configured pool.
+    pub async fn suggest_next_port(&self, _device_id: &str) -> Result<i32, String> {
+        Ok(0)
     }
 
     fn ensure_node_port_available_locked(
@@ -650,10 +600,11 @@ impl AppScheduleManager {
         port: i32,
         exclude_node_id: Option<&str>,
     ) -> Result<(), String> {
-        if !(DEFAULT_LISTEN_PORT_START..=DEFAULT_LISTEN_PORT_END).contains(&port) {
-            return Err(format!(
-                "端口必须在 {DEFAULT_LISTEN_PORT_START}-{DEFAULT_LISTEN_PORT_END} 之间"
-            ));
+        if port == 0 {
+            return Ok(());
+        }
+        if !(1..=65535).contains(&port) {
+            return Err("端口必须在 1-65535 之间，或填 0 由目标机器自动分配".into());
         }
         for node in g.nodes.values() {
             if exclude_node_id.is_some_and(|id| id == node.node_id) {
@@ -757,9 +708,8 @@ impl AppScheduleManager {
                 game_path,
                 game_exe_rel,
                 default_game_args,
-                encoder_fps: req
-                    .encoder_fps
-                    .unwrap_or_else(|| existing.as_ref().map(|e| e.encoder_fps).unwrap_or(60)),
+                // Do not persist a server-side frame-rate limit. Client session controls adjust it after connection.
+                encoder_fps: DEFAULT_NATIVE_SESSION_FPS,
                 encoder_bitrate: req
                     .encoder_bitrate
                     .unwrap_or_else(|| existing.as_ref().map(|e| e.encoder_bitrate).unwrap_or(20)),
@@ -797,7 +747,7 @@ impl AppScheduleManager {
             entry_url: app.entry_url,
             game_path: app.game_path,
             default_game_args: app.default_game_args,
-            encoder_fps: app.encoder_fps,
+            encoder_fps: DEFAULT_NATIVE_SESSION_FPS,
             encoder_bitrate: app.encoder_bitrate,
             encoder_format: app.encoder_format,
             access_mode: app.access_mode,
@@ -862,15 +812,14 @@ impl AppScheduleManager {
                 });
                 if has_active
                     && (old.device_id != device_id
-                        || (req.listen_port.unwrap_or(0) > 0
-                            && req.listen_port.unwrap_or(0) != old.listen_port))
+                        || req.listen_port.is_some_and(|port| port != old.listen_port))
                 {
                     return Err("节点运行中，不能更换机器或端口".to_string());
                 }
             }
 
-            let listen_port = match req.listen_port.unwrap_or(0) {
-                p if p > 0 => {
+            let listen_port = match req.listen_port {
+                Some(p) => {
                     Self::ensure_node_port_available_locked(
                         &g,
                         &device_id,
@@ -885,7 +834,7 @@ impl AppScheduleManager {
                     // 编辑且未指定端口:保留原端口(已校验过)
                     existing.as_ref().unwrap().listen_port
                 }
-                _ => Self::suggest_next_port_locked(&g, &device_id)?,
+                _ => 0,
             };
 
             let install_root = match req.install_root.as_ref().map(|s| s.trim()) {
@@ -1192,7 +1141,7 @@ impl AppScheduleManager {
                     });
                     let port_busy = g.instances.values().any(|i| {
                         i.device_id == n.device_id
-                            && i.listen_port == n.listen_port
+                            && n.listen_port > 0 && i.listen_port == n.listen_port
                             && matches!(
                                 i.state,
                                 InstanceState::Starting
@@ -1496,7 +1445,7 @@ impl AppScheduleManager {
             game_exe_rel,
             game_arguments: app.default_game_args.clone(),
             listen_port: inst.listen_port,
-            encoder_fps: app.encoder_fps,
+            encoder_fps: DEFAULT_NATIVE_SESSION_FPS,
             encoder_bitrate: app.encoder_bitrate,
             encoder_format: app.encoder_format.clone(),
             webrtc_enabled: app.webrtc_enabled,
@@ -2285,9 +2234,9 @@ impl AppScheduleManager {
             let listen_port = if app.listen_port > 0 {
                 app.listen_port
             } else {
-                Self::suggest_next_port_locked(g, &device_id).unwrap_or(0)
+                0
             };
-            if listen_port <= 0 {
+            if !(0..=65535).contains(&listen_port) {
                 tracing::warn!(
                     "migrate: skip node migration for app {} (no port available)",
                     app_id
@@ -2825,7 +2774,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn save_node_assigns_incremental_ports_and_rejects_conflict() {
+    async fn save_node_defers_allocation_and_rejects_explicit_conflict() {
         let mgr = AppScheduleManager::new();
         let app = mgr
             .save_app(SaveAppReq {
@@ -2845,7 +2794,7 @@ mod tests {
             })
             .await
             .unwrap();
-        // 同机两个节:端口递增
+        // 同机两个自动节点在实际启动前不预占任何端口。
         let n1 = mgr
             .save_node(SaveNodeReq {
                 node_id: None,
@@ -2857,7 +2806,7 @@ mod tests {
             })
             .await
             .unwrap();
-        assert_eq!(n1.listen_port, 32000);
+        assert_eq!(n1.listen_port, 0);
         assert_eq!(n1.name, "节点1");
         // install_root 从应用 game_path 推导
         assert_eq!(n1.install_root, r"D:\games\a");
@@ -2872,9 +2821,13 @@ mod tests {
             })
             .await
             .unwrap();
-        assert_eq!(n2.listen_port, 32001);
+        assert_eq!(n2.listen_port, 0);
         assert_eq!(n2.name, "节点2");
-        // 同机端口冲突:拒绝
+        mgr.save_node(SaveNodeReq {
+            node_id: Some(n1.node_id), app_id: app.app_id.clone(), name: None,
+            device_id: "m1".into(), install_root: None, listen_port: Some(32000),
+        }).await.unwrap();
+        // 同机显式端口冲突:拒绝。
         let err = mgr
             .save_node(SaveNodeReq {
                 node_id: None,
@@ -2920,9 +2873,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn suggest_next_port_increments_from_pool_start() {
+    async fn suggest_next_port_requests_node_allocation() {
         let mgr = AppScheduleManager::new();
-        assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 32000);
+        assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 0);
         {
             let mut g = mgr.inner.lock().await;
             g.nodes
@@ -2930,31 +2883,36 @@ mod tests {
             g.nodes
                 .insert("n2".into(), node_with_port("a", "m1", 32001));
         }
-        assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 32002);
+        assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 0);
         // 另一台机器不受影响
-        assert_eq!(mgr.suggest_next_port("m2").await.unwrap(), 32000);
+        assert_eq!(mgr.suggest_next_port("m2").await.unwrap(), 0);
     }
 
     #[tokio::test]
-    async fn suggest_next_port_wraps_to_first_free_after_pool_end() {
+    async fn explicit_ports_are_not_limited_to_legacy_pool() {
         let mgr = AppScheduleManager::new();
         {
             let mut g = mgr.inner.lock().await;
             g.nodes
                 .insert("n1".into(), node_with_port("a", "m1", 32999));
         }
-        // max+1 exceeds the pool: suggest the first free port from the start.
-        assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 32000);
+        assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 0);
         {
             let mut g = mgr.inner.lock().await;
             g.nodes
                 .insert("n2".into(), node_with_port("a", "m1", 32000));
         }
-        assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 32001);
+        let g = mgr.inner.lock().await;
+        for port in [0, 4613, 40000, 65535] {
+            assert!(AppScheduleManager::ensure_node_port_available_locked(&g, "m1", port, None).is_ok());
+        }
+        for port in [-1, 65536, 32999] {
+            assert!(AppScheduleManager::ensure_node_port_available_locked(&g, "m1", port, None).is_err());
+        }
     }
 
     #[tokio::test]
-    async fn suggest_next_port_errors_when_pool_full() {
+    async fn legacy_pool_full_does_not_prevent_node_allocation() {
         let mgr = AppScheduleManager::new();
         {
             let mut g = mgr.inner.lock().await;
@@ -2963,9 +2921,7 @@ mod tests {
                 g.nodes.insert(n.node_id.clone(), n);
             }
         }
-        let err = mgr.suggest_next_port("m1").await.unwrap_err();
-        assert!(err.contains("端口已用完"), "{err}");
-        assert!(err.contains("32000-32999"), "{err}");
+        assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 0);
     }
 
     fn fixture(state: InstanceState) -> (Application, AppPlacement, AppInstance) {
@@ -3252,7 +3208,7 @@ mod tests {
             })
             .await
             .unwrap();
-        for port in [31999, 33000] {
+        for port in [-1, 65536] {
             let err = mgr
                 .save_node(SaveNodeReq {
                     node_id: None,
@@ -3264,7 +3220,7 @@ mod tests {
                 })
                 .await
                 .unwrap_err();
-            assert!(err.contains("32000-32999"), "port {port}: {err}");
+            assert!(err.contains("1-65535"), "port {port}: {err}");
         }
     }
 
@@ -3901,7 +3857,7 @@ mod tests {
                 entry_url: Some("https://example.com/dashboard".into()),
                 game_path: String::new(),
                 default_game_args: None,
-                encoder_fps: Some(60),
+                encoder_fps: Some(30),
                 encoder_bitrate: Some(20),
                 encoder_format: Some("h264".into()),
                 access_mode: None,
@@ -3912,6 +3868,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(app.app_type, ApplicationType::Webview);
+        assert_eq!(app.encoder_fps, DEFAULT_NATIVE_SESSION_FPS);
         assert!(app.game_path.is_empty());
         let node = mgr
             .save_node(SaveNodeReq {

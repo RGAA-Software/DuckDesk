@@ -36,13 +36,8 @@ fn control_sender() -> &'static Mutex<Option<mpsc::UnboundedSender<ControlEvent>
     CONTROL_SENDER.get_or_init(|| Mutex::new(None))
 }
 
-pub fn dispatch_service(port: u16) -> Result<(), String> {
-    info!("dispatch service requested, port={port}");
-    let config = ServiceConfig::new(
-        port,
-        default_service_data_root(),
-        default_service_log_root(),
-    );
+pub fn dispatch_service(config: ServiceConfig) -> Result<(), String> {
+    info!("dispatch service requested, port={}", config.listen_port);
     let _ = BOOTSTRAP_CONFIG.set(config);
     let mut table = [
         SERVICE_TABLE_ENTRYW {

@@ -81,8 +81,8 @@ const STANDARD_RTC_CONFIG_POLL_MS = 60000
 type ConnStatus = 'idle' | 'connecting' | 'connected' | 'failed' | 'reconnecting'
 
 // ---------- 会话恢复/自动重连 ----------
-// disconnected/failed/closed(非手动断开)时等待 3s 走完整重连,最多自动重试 3 次
-const MAX_AUTO_RECONNECT = 3
+// disconnected/failed/closed(非手动断开)时固定等待 3s 后走完整重连。
+// 只允许用户主动断开或页面卸载结束恢复；不可因累计失败而放弃。
 const RECONNECT_DELAY_MS = 3000
 const reconnectCount = ref(0)
 // 手动「断开」置位,阻止 onconnectionstatechange 里的 closed 触发自动重连
@@ -195,19 +195,12 @@ function scheduleReconnect(reason: string) {
       ? `[rtc-route] Direct 会话未连通(${reason})，自动换新票据并重开 RTC Standard`
       : `[rtc-route] Direct 会话未连通(${reason})，使用设备密码重开 RTC Standard`)
   }
-  if (reconnectCount.value >= MAX_AUTO_RECONNECT) {
-    status.value = 'failed'
-    errorMsg.value = `连接${reason},自动重连 ${MAX_AUTO_RECONNECT} 次后仍失败`
-    setConnectStep(connectStep.value === 'idle' ? 'init' : connectStep.value, errorMsg.value)
-    addLog(errorMsg.value)
-    return
-  }
   reconnectCount.value += 1
   status.value = 'reconnecting'
   errorMsg.value = ''
   setConnectStep(
     'reconnect',
-    `${reason}, ${RECONNECT_DELAY_MS / 1000}s 后第 ${reconnectCount.value}/${MAX_AUTO_RECONNECT} 次`,
+    `${reason}, ${RECONNECT_DELAY_MS / 1000}s 后第 ${reconnectCount.value} 次自动重连`,
   )
   reconnectTimer = window.setTimeout(() => {
     reconnectTimer = null

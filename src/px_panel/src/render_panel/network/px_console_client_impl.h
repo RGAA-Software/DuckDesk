@@ -805,14 +805,7 @@ class PxConsoleClientImpl : public PxConsoleClient, public std::enable_shared_fr
             }
 
             task.attempt += 1;
-            LOGE("upload record failed (attempt {}/{}): {}, {}", task.attempt, RecordFetchQueue::kMaxAttempts, task.filename, err);
-            if (task.attempt >= RecordFetchQueue::kMaxAttempts) {
-                queue->Finish(task.filename);
-                if (const auto current = weak_self.lock(); current && !current->stopping_) {
-                    current->SendRecordFetchDone(task, false, err);
-                }
-                continue;
-            }
+            LOGE("upload record failed (attempt {}): {}, {}; retrying until cancelled", task.attempt, task.filename, err);
 
             const auto delay = RecordFetchQueue::RetryDelayMs(task.attempt);
             if (!co_await WaitForRecordFetchRetry(coroutine_executor, std::chrono::milliseconds(delay))) {

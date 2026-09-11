@@ -1,0 +1,380 @@
+#include <iostream>
+
+#include "rd_app.h"
+#include "settings/rd_settings.h"
+#include "rd_context.h"
+#include "px_common/log.h"
+#include "px_common/dump_helper.h"
+#include "px_common/base64.h"
+#include "px_common/folder_util.h"
+#include "px_common/hardware.h"
+#include "px_common/process_util.h"
+#include "px_common/win32/render_instance_lease.h"
+#include "gflags/gflags.h"
+#include "version_config.h"
+#include "webview/webview_runtime.h"
+
+#include <Windows.h>
+#include <algorithm>
+#include <cctype>
+#include <filesystem>
+
+using namespace px;
+
+DEFINE_int32(steam_app_id, 0, "steam app id");
+DEFINE_bool(logfile, true, "log to file");
+
+// encoder
+DEFINE_string(encoder_select_type, "auto", "auto/specify");
+DEFINE_string(encoder_name, "nvenc", "nvenc/amf/ffmpeg");
+DEFINE_string(encoder_format, "h264", "h264/h265");
+DEFINE_int32(encoder_bitrate, 20, "encoder bitrate");
+DEFINE_int32(encoder_fps, 60, "encoder fps");
+DEFINE_string(encoder_resolution_type, "origin", "origin/specify");
+DEFINE_int32(encoder_width, 1280, "");
+DEFINE_int32(encoder_height, 720, "");
+
+// capture
+DEFINE_bool(capture_audio, true, "");
+DEFINE_string(capture_audio_type, "global", "inner/global");
+DEFINE_bool(capture_video, true, "");
+DEFINE_string(capture_video_type, "inner", "inner/global");
+
+// network
+DEFINE_bool(webrtc_enabled, true, "");
+DEFINE_bool(websocket_enabled, true, "");
+DEFINE_int32(network_listen_port, 20371, "");
+DEFINE_bool(udp_kcp_enabled, true, "");
+
+DEFINE_string(sig_server_address, "", "");
+DEFINE_string(sig_server_port, "", "");
+DEFINE_string(coturn_server_address, "", "");
+DEFINE_string(coturn_server_port, "", "");
+
+DEFINE_string(capture_audio_device, "", "capture audio device");
+
+// application
+// --app_game_path is Base64(UTF-8 path) to avoid Windows argv code-page issues (spaces/Chinese).
+DEFINE_string(app_game_path, "", "Base64-encoded UTF-8 game path");
+// --app_game_view_path: Base64(UTF-8)，UE 外壳场景的真游戏进程完整路径（service 解析下发）
+DEFINE_string(app_game_view_path, "", "Base64-encoded UTF-8 UE view (real game) exe path");
+DEFINE_string(app_game_args, "", "");
+
+DEFINE_bool(debug_block, false, "block the render process");
+DEFINE_string(device_id, "", "device id");
+DEFINE_string(relay_device_id, "", "independent relay identity for a child render");
+DEFINE_string(device_random_pwd, "", "device random pwd");
+DEFINE_string(device_safety_pwd, "", "device safety pwd");
+
+DEFINE_string(relay_server_host, "", "relay host");
+DEFINE_string(relay_server_port, "", "relay port");
+
+DEFINE_string(panel_server_host, "127.0.0.1", "");
+DEFINE_int32(panel_server_port, 0, "");
+DEFINE_string(service_server_host, "127.0.0.1", "");
+DEFINE_int32(service_server_port, 20375, "");
+DEFINE_string(service_ipc_token, "", "ephemeral px_service IPC credential");
+// can be operated by mouse / keyboard
+DEFINE_bool(can_be_operated, true, "");
+DEFINE_bool(direct_allow_takeover, true,
+            "allow explicit takeover for no-Console Direct RTC connections");
+DEFINE_bool(enable_virtual_display, true, "allow controlled virtual display management in desktop mode");
+// file transfer enabled
+DEFINE_bool(file_transfer_enabled, true, "");
+// audio enabled
+DEFINE_bool(audio_enabled, true, "");
+
+// relay enabled
+DEFINE_bool(relay_enabled, true, "");
+
+DEFINE_int32(language, 0, "");
+
+DEFINE_string(app_mode, "", "desktop | game-hook | inner_capture; empty => settings.toml application.mode");
+DEFINE_string(app_instance_id, "", "Console application instance id");
+DEFINE_string(webview_url_b64, "", "Base64URL-encoded WebView entry URL (never log decoded value)");
+DEFINE_string(webview_instance_id, "", "Console WebView instance id");
+DEFINE_string(rdp_instance_id, "", "Console RDP runtime instance id");
+DEFINE_string(rdp_workspace_id, "", "Persistent Console RDP workspace id");
+DEFINE_string(rdp_node_id, "", "Pinned Console RDP node id");
+DEFINE_string(rdp_device_id, "", "Pinned Service RDP device id");
+DEFINE_int32(rdp_proxy_port, 0, "Service-selected loopback proxy port");
+DEFINE_string(rdp_target_certificate_sha256, "", "Service-provisioned RDS certificate identity");
+DEFINE_string(rdp_proxy_certificate_sha256, "", "Service-provisioned proxy certificate identity");
+DEFINE_int32(webview_width, 1920, "WebView off-screen width");
+DEFINE_int32(webview_height, 1080, "WebView off-screen height");
+DEFINE_bool(webview_gpu, true, "Use CEF accelerated OSR shared textures");
+DEFINE_bool(webview_smoke_test, false, "Render WebView frames without a connected peer for diagnostics");
+// appkey
+DEFINE_string(appkey, "", "appkey");
+DEFINE_string(live_stream_id, "", "Console-issued live stream id");
+DEFINE_string(push_rtmp_url, "", "Console-issued RTMP publish URL template");
+DEFINE_string(push_primary_monitor, "", "primary monitor name for live push");
+
+void UpdateSettings(RdSettings& settings) {
+    if (FLAGS_steam_app_id > 0) {
+        settings.app_.steam_app_.app_id_ = FLAGS_steam_app_id;
+        settings.app_.steam_app_.steam_url_ = std::format("steam://rungameid/{}", FLAGS_steam_app_id);
+    }
+
+    auto encoder_format = FLAGS_encoder_format;
+    std::ranges::transform(encoder_format, encoder_format.begin(),
+                           [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    if (encoder_format == "h264" || encoder_format == "avc") {
+        settings.encoder_.encoder_format_ = Encoder::EncoderFormat::kH264;
+    }
+    else {
+        settings.encoder_.encoder_format_ = Encoder::EncoderFormat::kHEVC;
+    }
+
+    settings.encoder_.bitrate_ = FLAGS_encoder_bitrate;
+    settings.encoder_.fps_ = FLAGS_encoder_fps;
+
+    if (FLAGS_encoder_resolution_type == "origin") {
+        settings.encoder_.encode_res_type_ = Encoder::EncodeResolutionType::kOrigin;
+    }
+    else {
+        settings.encoder_.encode_res_type_ = Encoder::EncodeResolutionType::kSpecify;
+    }
+    settings.encoder_.encode_width_ = FLAGS_encoder_width;
+    settings.encoder_.encode_height_ = FLAGS_encoder_height;
+
+    // capture
+    settings.capture_.enable_audio_ = FLAGS_capture_audio;
+    if (FLAGS_capture_audio_type == "global") {
+        settings.capture_.capture_audio_type_ = Capture::CaptureAudioType::kAudioGlobal;
+    }
+    else {
+        settings.capture_.capture_audio_type_ = Capture::CaptureAudioType::kAudioInner;
+    }
+
+    settings.capture_.enable_video_ = FLAGS_capture_video;
+    if (FLAGS_capture_video_type == "global") {
+        settings.capture_.capture_video_type_ = Capture::CaptureVideoType::kCaptureScreen;
+    }
+    else {
+        settings.capture_.capture_video_type_ = Capture::CaptureVideoType::kVideoInner;
+    }
+    // Ignored: audio capture plugin always uses the OS default playback device.
+    settings.capture_.capture_audio_device_.clear();
+    (void)FLAGS_capture_audio_device;
+    settings.transmission_.listening_port_ = FLAGS_network_listen_port;
+
+    // app: path arrives as Base64(UTF-8); decode with existing Base64 helper (no ACP convert).
+    if (!FLAGS_app_game_path.empty()) {
+        settings.app_.game_path_ = Base64::Base64Decode(FLAGS_app_game_path);
+    }
+    if (!FLAGS_app_game_view_path.empty()) {
+        settings.app_.game_view_path_ = Base64::Base64Decode(FLAGS_app_game_view_path);
+    }
+    if (!FLAGS_app_game_args.empty()) {
+        settings.app_.game_arguments_ = FLAGS_app_game_args;
+    }
+
+    settings.block_debug_ = FLAGS_debug_block;
+    settings.device_id_ = FLAGS_device_id;
+    settings.relay_device_id_ = FLAGS_relay_device_id;
+    settings.device_random_pwd_ = FLAGS_device_random_pwd;
+    settings.device_safety_pwd_ = FLAGS_device_safety_pwd;
+
+    settings.relay_host_ = FLAGS_relay_server_host;
+    settings.relay_port_ = FLAGS_relay_server_port;
+
+    settings.panel_server_host_ = FLAGS_panel_server_host;
+    settings.panel_server_port_ = FLAGS_panel_server_port;
+    settings.service_server_host_ = FLAGS_service_server_host;
+    settings.service_server_port_ = FLAGS_service_server_port;
+    settings.service_ipc_token_ = FLAGS_service_ipc_token;
+
+    // can be operated
+    settings.can_be_operated_ = FLAGS_can_be_operated;
+    settings.direct_allow_takeover_ = FLAGS_direct_allow_takeover;
+    settings.virtual_display_enabled_ = FLAGS_enable_virtual_display;
+    // file transfer enabled
+    settings.file_transfer_enabled_ = FLAGS_file_transfer_enabled;
+    // audio enabled
+    settings.audio_enabled_ = FLAGS_audio_enabled;
+    // relay enabled
+    settings.relay_enabled_ = FLAGS_relay_enabled;
+    // language
+    settings.language_ = FLAGS_language;
+    // app mode: explicit CLI overrides settings.toml application.mode
+    if (FLAGS_app_mode == "desktop") {
+        settings.application_mode_ = ApplicationMode::kDesktop;
+    }
+    else if (FLAGS_app_mode == "game-hook" || FLAGS_app_mode == "inner_capture") {
+        settings.application_mode_ = ApplicationMode::kGameHook;
+    }
+    else if (FLAGS_app_mode == "webview") {
+        settings.application_mode_ = ApplicationMode::kWebView;
+    }
+    else if (FLAGS_app_mode == "rdp") {
+        settings.application_mode_ = ApplicationMode::kRdp;
+        settings.rdp_launch_.workspace_id = FLAGS_rdp_workspace_id;
+        settings.rdp_launch_.instance_id = FLAGS_rdp_instance_id;
+        settings.rdp_launch_.node_id = FLAGS_rdp_node_id;
+        settings.rdp_launch_.device_id = FLAGS_rdp_device_id;
+        settings.device_id_ = FLAGS_rdp_device_id;
+        settings.rdp_launch_.proxy_port = FLAGS_rdp_proxy_port > 0 && FLAGS_rdp_proxy_port <= 65535
+            ? static_cast<std::uint16_t>(FLAGS_rdp_proxy_port) : std::uint16_t{};
+        settings.rdp_launch_.target_certificate_sha256 = FLAGS_rdp_target_certificate_sha256;
+        settings.rdp_launch_.proxy_certificate_sha256 = FLAGS_rdp_proxy_certificate_sha256;
+    }
+
+    settings.webview_url_b64_ = FLAGS_webview_url_b64;
+    settings.webview_instance_id_ = FLAGS_webview_instance_id;
+    settings.app_instance_id_ = FLAGS_app_instance_id;
+    settings.webview_width_ = std::clamp(FLAGS_webview_width, 320, 7680);
+    settings.webview_height_ = std::clamp(FLAGS_webview_height, 240, 4320);
+    settings.webview_gpu_ = FLAGS_webview_gpu;
+    settings.webview_smoke_test_ = FLAGS_webview_smoke_test;
+
+    // appkey
+    settings.appkey_ = FLAGS_appkey;
+    if (!FLAGS_live_stream_id.empty()) {
+        settings.live_stream_id_ = FLAGS_live_stream_id;
+    }
+    if (!FLAGS_push_rtmp_url.empty()) {
+        settings.push_rtmp_url_ = FLAGS_push_rtmp_url;
+    }
+    // A Console-scheduled application supplies both values explicitly.  Treat that
+    // pair as the live-push enable signal so a packaged settings.toml can keep
+    // passive pushing disabled for ordinary desktop/standalone launches.
+    if (!FLAGS_live_stream_id.empty() && !FLAGS_push_rtmp_url.empty()) {
+        settings.push_enabled_ = true;
+    }
+    if (!FLAGS_push_primary_monitor.empty()) {
+        settings.push_primary_monitor_ = FLAGS_push_primary_monitor;
+    }
+}
+
+void PrintInputArgs() {
+    auto& settings = *RdSettings::Instance();
+    LOGI("--------------In args begin--------------");
+    LOGI("steam_app_id: {}", FLAGS_steam_app_id);
+    LOGI("logfile: {}", FLAGS_logfile);
+    LOGI("encoder_select_type: {}", FLAGS_encoder_select_type);
+    LOGI("encoder_name: {}", FLAGS_encoder_name);
+    LOGI("encoder_format: {}", FLAGS_encoder_format);
+    LOGI("encoder_bitrate: {}", FLAGS_encoder_bitrate);
+    LOGI("encoder_fps: {}", FLAGS_encoder_fps);
+    LOGI("encoder_resolution_type: {}", FLAGS_encoder_resolution_type);
+    LOGI("encoder_width: {}", FLAGS_encoder_width);
+    LOGI("encoder_height: {}", FLAGS_encoder_height);
+    LOGI("capture_audio: {}", FLAGS_capture_audio);
+    LOGI("capture_audio_type: {}", FLAGS_capture_audio_type);
+    LOGI("capture_video: {}", FLAGS_capture_video);
+    LOGI("capture_video_type: {}", FLAGS_capture_video_type);
+    LOGI("websocket enabled: {}", FLAGS_websocket_enabled);
+    LOGI("webrtc enabled: {}", FLAGS_webrtc_enabled);
+    LOGI("network_listen_port: {}", FLAGS_network_listen_port);
+    LOGI("capture audio device: <os-default>");
+    LOGI("app_game_path(b64): {}", FLAGS_app_game_path);
+    LOGI("app_game_path: {}", settings.app_.game_path_);
+    LOGI("app_game_args: {}", FLAGS_app_game_args);
+    LOGI("block debug: {}", FLAGS_debug_block);
+    LOGI("sig server address: {}", FLAGS_sig_server_address);
+    LOGI("sig server port: {}", FLAGS_sig_server_port);
+    LOGI("coturn server address: {}", FLAGS_coturn_server_address);
+    LOGI("coturn server port: {}", FLAGS_coturn_server_port);
+    LOGI("device id: {}", FLAGS_device_id);
+    LOGI("device random password configured: {}", !FLAGS_device_random_pwd.empty());
+    LOGI("panel server host: {}", FLAGS_panel_server_host);
+    LOGI("panel server port: {}", FLAGS_panel_server_port);
+    LOGI("service server host: {}", FLAGS_service_server_host);
+    LOGI("service server port: {}", FLAGS_service_server_port);
+    LOGI("relay host: {}", FLAGS_relay_server_host);
+    LOGI("relay port: {}", FLAGS_relay_server_port);
+    LOGI("can be operated: {}", FLAGS_can_be_operated);
+    LOGI("virtual display enabled: {}", settings.virtual_display_enabled_);
+    LOGI("file transfer enabled: {}", settings.file_transfer_enabled_);
+    LOGI("audio enabled: {}", settings.audio_enabled_);
+    LOGI("relay enabled: {}", FLAGS_relay_enabled);
+    LOGI("language: {}", FLAGS_language);
+    LOGI("app mode: {} => {}", FLAGS_app_mode, (int)settings.app_mode_);
+    LOGI("webview url configured: {}", !settings.webview_url_b64_.empty());
+    LOGI("webview instance id: {}", settings.webview_instance_id_);
+    LOGI("webview viewport: {}x{}", settings.webview_width_, settings.webview_height_);
+    LOGI("webview accelerated paint: {}", settings.webview_gpu_);
+    LOGI("event replay mode: {} (0=global,1=inner)", (int)settings.app_.event_replay_mode_);
+    LOGI("appkey configured: {}", !FLAGS_appkey.empty());
+    LOGI("live stream id: {}", settings.live_stream_id_);
+    LOGI("push rtmp url configured: {}", !settings.push_rtmp_url_.empty());
+    LOGI("push primary monitor: {}", settings.push_primary_monitor_);
+    LOGI("--------------In args end----------------");
+}
+
+int main(int argc, char** argv) {
+    // CEF renderer/GPU/utility children re-enter px_render.exe. They must be
+    // dispatched before gflags, dump handlers, singleton locks or service links.
+    if (const int cef_exit_code = ExecuteCefSubprocess(GetModuleHandleW(nullptr));
+        cef_exit_code >= 0) {
+        return cef_exit_code;
+    }
+
+    // hook 模式下 render 需要按游戏窗口真实物理像素换算鼠标坐标；
+    // 不设 DPI aware 时 GetClientRect/ClientToScreen 会被系统虚拟化（如 4K@150% 下只有 2560x1440），
+    // 导致游戏内光标位置整体偏向左上角
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
+    gflags::ParseCommandLineFlags(&argc, &argv, true);
+
+    // dump
+    //CaptureDump();
+    // Breakpad
+    auto bc = std::make_shared<BreakpadContext>(BreakpadContext {
+        .version_ = PROJECT_VERSION,
+        .app_name_ = "px_render",
+    });
+    [[maybe_unused]] const auto dump_registration = CaptureDumpByBreakpad(std::move(bc));
+
+    // run in high level
+    px::ProcessUtil::SetProcessInHighLevel();
+    // 混合架构 CPU(8P+8E):钉到大核,避免采集/编码线程被调度到小核
+    px::ProcessUtil::PinToPerformanceCores();
+
+    // 1. settings.toml defaults (application.mode / game-path / capture-method)
+    // 2. CLI overrides (panel: --app_mode=desktop; game-hook script: --app_mode=game-hook)
+    // 3. ApplyApplicationMode syncs capture path + whether to launch game-path
+    auto& settings = *RdSettings::Instance();
+    settings.LoadSettings("settings.toml");
+    UpdateSettings(settings);
+    settings.ApplyApplicationMode();
+    settings.LoadSettingsFromDatabase();
+
+    // Log
+    auto log_file_path = std::format(L"{}/px_logs/pixels_render_{}.log",
+         FolderUtil::GetProgramDataPath(), settings.transmission_.listening_port_);
+    Logger::InitLog(log_file_path, FLAGS_logfile);
+
+    PrintInputArgs();
+
+    auto settings_str = settings.Dump();
+    LOGI("\n" + settings_str);
+
+    //settings.block_debug_ = true;
+    if (settings.block_debug_) {
+        MessageBoxA(0, 0, 0, 0);
+    }
+
+    DWORD lease_error{};
+    const auto instance_mutex = AcquireRenderInstanceLease(settings.transmission_.listening_port_, lease_error);
+    if (!instance_mutex) {
+        LOGE("event=render.instance.lease outcome=failed port={} win32_error={}", settings.transmission_.listening_port_, lease_error);
+        return -1;
+    }
+
+    // start application
+    px::AppParams params = {};
+    auto app = px::RdApplication::Make(params);
+    app->Init(argc, argv);
+    app->CaptureControlC();
+
+    // hardware
+    if (!settings.IsRdpMode()) {
+        auto& hardware = Hardware::Instance();
+        hardware.Detect(false, true, false);
+        hardware.Dump();
+    }
+
+    return app->Run();
+}

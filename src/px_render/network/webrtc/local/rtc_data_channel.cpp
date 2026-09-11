@@ -67,10 +67,7 @@ void RtcDataChannel::OnStateChange() {
         const auto rtc_server = rtc_server_.lock();
         if (name_ == "media_data_channel" && rtc_server && !rtc_server->IsExitRequested()) {
             LOGW("media_data_channel closed independently, request rtc server exit: {}", rtc_server->GetConnId());
-            // 先通知插件层(含 ft 文件传输清理),再走退出流程
-            rtc_server->EmitClientDisconnectedEvent();
-            rtc_server->RequestExit();
-            rtc_server->NotifyTerminal();
+            rtc_server->CloseTerminal("media data channel closed");
         }
         // FT can close independently while media remains healthy. Retire
         // only this transport route; it is not a client disconnect and

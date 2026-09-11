@@ -76,6 +76,11 @@ pub struct ConsoleDevice {
 }
 
 impl ConsoleDevice {
+    /// Session-scoped report: no database write and no fallback to an old Panel address.
+    pub async fn get_current_render_endpoints(&self) -> Vec<(String, i32)> {
+        crate::gConsoleServiceConnMgr.node_endpoint(self.device_id.clone()).await.into_iter().collect()
+    }
+
     pub fn get_ip_from_link(&self) -> String {
         match DesktopLinkRaw::from(self.desktop_link_raw.as_str()) {
             Ok(v) => {

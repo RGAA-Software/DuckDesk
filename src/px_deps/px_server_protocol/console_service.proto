@@ -50,6 +50,18 @@ message ConsoleServiceHeartBeat {
   // Console derives current status and audit transitions from this reliable
   // control-plane report; UDP never reports lifecycle state directly.
   string logical_sessions_json = 6;
+  // Authoritative node-local configuration, repeated after every reconnect.
+  NodeEndpoints node_endpoints = 7;
+}
+
+message NodeEndpoints {
+  uint32 schema_version = 1;
+  string access_host = 2;
+  uint32 desktop_port = 3;
+  uint32 application_port_start = 4;
+  uint32 application_port_end = 5;
+  uint32 rtc_port_start = 6;
+  uint32 rtc_port_end = 7;
 }
 
 message ConsoleServiceStartAppInstance {

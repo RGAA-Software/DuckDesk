@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use px_base::log_util;
-use service_core::config::{ServiceConfig, DEFAULT_LISTEN_PORT, SERVICE_LOG_FILE};
+use service_core::config::{ServiceConfig, SERVICE_LOG_FILE};
 use service_core::windows_util::{default_service_data_root, default_service_log_root};
 use tokio::sync::Mutex;
 use tracing::info;
@@ -80,10 +80,16 @@ pub fn run_virtual_display_session_worker(
 }
 
 pub async fn run(port: Option<u16>, console_mode: bool) -> Result<(), String> {
-    let actual_port = port.unwrap_or(DEFAULT_LISTEN_PORT);
+    let config_path = std::env::current_exe().map_err(|err| err.to_string())?.with_file_name("px_service.toml");
+    let mut node = service_core::node_config::NodeConfig::load(&config_path)?;
+    if let Some(port) = port { node.network.listen_port = port; }
+    node.validate()?;
+    let actual_port = node.network.listen_port;
     let data_root = default_service_data_root();
     let log_root = default_service_log_root();
-    let config = ServiceConfig::new(actual_port, data_root, log_root.clone());
+    let mut config = ServiceConfig::new(actual_port, data_root, log_root.clone());
+    config.listen_host = node.network.listen_host.clone();
+    config.node = node;
     let _guard = log_util::init_log(
         log_root.to_string_lossy().to_string(),
         SERVICE_LOG_FILE.to_string(),
@@ -109,5 +115,5 @@ pub async fn run(port: Option<u16>, console_mode: bool) -> Result<(), String> {
     }
 
     info!("running as windows service");
-    crate::service_windows::dispatch_service(actual_port)
+    crate::service_windows::dispatch_service(config)
 }

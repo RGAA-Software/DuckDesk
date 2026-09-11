@@ -1,0 +1,68 @@
+[description]
+author = "Pixels"
+version = "1.0.1"
+
+# NOTE: encoder/capture/transmission settings were removed.
+# In desktop mode they are overridden by command line args from the panel;
+# the render falls back to built-in defaults when running standalone.
+# Listen port for standalone debug: pass --network_listen_port (see scripts/start_render_hook.bat).
+
+# application settings
+[application]
+# desktop | game-hook
+# default desktop for panel (screen capture; game-path is NOT launched).
+# game-hook debug: pass --app_mode=game-hook (see scripts/start_render_hook.bat).
+mode = "desktop"
+# game-path
+# 1.exe path，attention: UE games use exe in specific subdir => "XXGame/Binaries/Win64/XXGame.exe
+# 2.steam://rungameid/xxx
+# 3.steam://open/bigpicture Steam Big Picture Mode
+
+# Fill locally for game-hook debug; do not commit machine-specific paths.
+game-path = ""
+#game-path = "D:\\path\\to\\Game.exe"
+# Steam BIG Picture Mode
+#game-path = "steam://open/bigpicture"
+
+game-arguments = ""
+#game-arguments = "-force-d3d11 -D3D11 -dx11"
+#game-arguments = "-force-d3d12 -D3D12 -dx12"
+
+# unused by current launcher
+hide-after-started = false
+force-fullscreen = false
+
+# capture method
+# prepare => start app with easyhook
+# search => start & find process to hook
+capture-method = "search"
+
+# debug
+debug-enabled = false
+
+# global => replay events by SendInput
+# inner => replay events in process
+event-replay-mode = "global"
+
+# server-side screen recording (render 端录屏插件)
+# auto_enabled = true 时, 有人连接自动开始录制, 无人连接自动停止
+# dir 为空时使用默认目录: C:\Users\Public\Pixels\px_render_records
+# max_segment_bytes / max_file_count 可选覆盖滚动录制参数(默认 1GB / 24 个)
+[record]
+auto_enabled = true
+dir = ""
+#max_segment_bytes = 1073741824
+#max_file_count = 24
+
+# Passive live push: only consumes media while an existing remote-control
+# client has caused render to capture and encode. Console/Panel supplies
+# live_stream_id at launch; standalone can pass --live_stream_id.
+[push]
+enabled = false
+rtmp_url = "rtmp://127.0.0.1:1935/live/{live_stream_id}"
+audio_bitrate = 96000
+#primary_monitor = "\\\\.\\DISPLAY1" # optional; empty locks the first active stream
+
+[voice]
+# Incoming calls still require an explicit local Yes/No confirmation.
+enabled = true

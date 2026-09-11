@@ -251,6 +251,12 @@ add_executable(test_rtc_payload_authorization
 target_link_libraries(test_rtc_payload_authorization PRIVATE px_message GTest::gtest GTest::gtest_main)
 add_test(NAME rtc_payload_authorization COMMAND test_rtc_payload_authorization)
 
+add_executable(test_rtc_candidate_sdp
+    test_rtc_candidate_sdp.cpp
+    ../network/webrtc/local/rtc_candidate_sdp.cpp)
+target_link_libraries(test_rtc_candidate_sdp PRIVATE px_common GTest::gtest GTest::gtest_main)
+add_test(NAME rtc_candidate_sdp COMMAND test_rtc_candidate_sdp)
+
 add_executable(test_render_builtin_linkage unit/test_render_builtin_linkage.cpp)
 if(WIN32)
     add_executable(test_render_context_shutdown unit/test_render_context_shutdown.cpp)

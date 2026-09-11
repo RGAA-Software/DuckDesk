@@ -1,0 +1,26 @@
+{
+  "revision": "5d90f4de288d0cd85166c0f75646ec3d9c43b873",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "deploy/node90/network_ports.json",
+      "sha256": "4AECCAF997EBB584969AF1A84E1A6097D09A94A6558844CF68EF2682D805E930",
+      "status": "?? deploy/node90/network_ports.json"
+    },
+    {
+      "path": "rust_base/px_base/src/network_ports.rs",
+      "sha256": "4BC95A4F00B905E39A23CC71E6667263E32D07E5410A21C386980716334D1E13",
+      "status": "?? rust_base/px_base/src/network_ports.rs"
+    },
+    {
+      "path": "src/px_deps/px_common/network_port_profile.h",
+      "sha256": "C66B89E47A1DB0A7036F280E223DF2B834661ACD2D23C0C1DBDCB5DF6F5CFA87",
+      "status": "?? src/px_deps/px_common/network_port_profile.h"
+    },
+    {
+      "path": "rust_base/px_base/src/lib.rs",
+      "sha256": "13CBE37773ECC6AC24A759E9605519C865EEBBB6BC3DEA3DF4CFD9BA875E21AE",
+      "status": " M rust_base/px_base/src/lib.rs"
+    }
+  ]
+}

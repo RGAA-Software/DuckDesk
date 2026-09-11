@@ -59,7 +59,6 @@ const form = ref({
   entry_url: '',
   game_path: '',
   default_game_args: '',
-  encoder_fps: 60,
   encoder_bitrate: 20,
   encoder_format: 'h264',
   allow_observer: true,
@@ -74,7 +73,7 @@ const nodeForm = ref({
   app_id: '',
   name: '',
   device_id: '',
-  listen_port: 32000,
+  listen_port: 0,
 })
 
 // 节列表弹窗（分页）
@@ -148,7 +147,7 @@ function activeInstanceOf(appId: string, node: AppNode): AppInstance | undefined
         i.app_id === appId &&
         (i.node_id
           ? i.node_id === node.node_id
-          : i.device_id === node.device_id && i.listen_port === node.listen_port) &&
+          : node.listen_port > 0 && i.device_id === node.device_id && i.listen_port === node.listen_port) &&
         (i.state === 'running' || i.state === 'starting' || i.state === 'stopping'),
     )
     .slice()
@@ -287,7 +286,6 @@ function resetFormForCreate() {
     entry_url: '',
     game_path: '',
     default_game_args: '',
-    encoder_fps: 60,
     encoder_bitrate: 20,
     encoder_format: 'h264',
     allow_observer: true,
@@ -310,7 +308,6 @@ function openEdit(row: ViewRow) {
     entry_url: row.entry_url || '',
     game_path: row.game_path,
     default_game_args: row.default_game_args || '',
-    encoder_fps: row.encoder_fps || 60,
     encoder_bitrate: row.encoder_bitrate || 20,
     encoder_format: row.encoder_format || 'h264',
     allow_observer: row.allow_observer !== false,
@@ -323,7 +320,7 @@ async function openNodeCreate(row: ViewRow) {
   nodeEditing.value = false
   const deviceId = (row.app_type === 'rdp' ? services.value.find(service => service.rdp_available === true)?.device_id : '') ||
     services.value[0]?.device_id || deviceOptions.value[0]?.device_id || ''
-  const port = deviceId ? ((await nextPort(deviceId)) ?? 32000) : 32000
+  const port = deviceId ? ((await nextPort(deviceId)) ?? 0) : 0
   nodeForm.value = {
     node_id: '',
     app_id: row.app_id,
@@ -341,14 +338,14 @@ function openNodeEdit(node: ViewNode) {
     app_id: node.app_id,
     name: node.name,
     device_id: node.device_id,
-    listen_port: node.listen_port || 32000,
+    listen_port: node.listen_port || 0,
   }
   nodeDialogVisible.value = true
 }
 
 async function onNodeDeviceChange(deviceId: string) {
   if (nodeEditing.value) return
-  nodeForm.value.listen_port = (await nextPort(deviceId)) ?? 32000
+  nodeForm.value.listen_port = (await nextPort(deviceId)) ?? 0
 }
 
 async function refresh() {
@@ -397,7 +394,6 @@ async function submitSave() {
       entry_url: f.app_type === 'webview' ? f.entry_url.trim() : undefined,
       game_path: f.app_type === 'game-hook' ? f.game_path.trim() : '',
       default_game_args: f.app_type === 'game-hook' ? (f.default_game_args || undefined) : undefined,
-      encoder_fps: f.encoder_fps,
       encoder_bitrate: f.encoder_bitrate,
       encoder_format: f.encoder_format,
       allow_observer: f.allow_observer,
@@ -421,8 +417,8 @@ async function submitNodeSave() {
     message.warning('请选择机器')
     return
   }
-  if (!f.listen_port || f.listen_port < 32000) {
-    message.warning('端口需 ≥ 32000')
+  if (!Number.isInteger(f.listen_port) || f.listen_port < 0 || f.listen_port > 65535) {
+    message.warning('端口需为 1–65535；填 0 由目标机器自动分配')
     return
   }
   nodeSaving.value = true
@@ -765,7 +761,9 @@ onUnmounted(() => {
             </a-tag>
           </template>
         </a-table-column>
-        <a-table-column data-index="listen_port" title="端口" width="80" />
+        <a-table-column data-index="listen_port" title="端口" width="80">
+          <template #default="{ text }">{{ text || '自动' }}</template>
+        </a-table-column>
         <a-table-column title="状态" width="100">
           <template #default="{ record: node }">
             <a-tag :color="stateTag(stateOf(node))">
@@ -883,8 +881,6 @@ onUnmounted(() => {
               <a-select-option value="h264">h264</a-select-option>
               <a-select-option value="h265">h265</a-select-option>
             </a-select>
-            <a-input-number v-model:value="form.encoder_fps" :min="1" :max="120" />
-            <span class="text-xs text-gray-400">fps</span>
             <a-input-number v-model:value="form.encoder_bitrate" :min="1" :max="200" />
             <span class="text-xs text-gray-400">Mbps</span>
           </div>
@@ -934,8 +930,8 @@ onUnmounted(() => {
           </a-select>
         </a-form-item>
         <a-form-item label="端口" required>
-          <a-input-number v-model:value="nodeForm.listen_port" :min="32000" :max="65535" />
-          <span class="ml-2 text-xs text-gray-400">按机器分配，默认从 32000 递增；冲突会提示</span>
+          <a-input-number v-model:value="nodeForm.listen_port" :min="0" :max="65535" :precision="0" />
+          <span class="ml-2 text-xs text-gray-400">0 表示由目标机器按本机端口池自动分配；指定端口需属于该机器的端口池</span>
         </a-form-item>
         <a-alert v-if="rdpNodeForm" type="info" show-icon
           message="工作区绑定此机器，保存后不可直接迁移。离线或 RDP 未就绪的节点可保存，但部署受信任的 RDP 运行环境后才能启动。" />

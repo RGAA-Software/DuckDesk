@@ -193,7 +193,7 @@ LogicalSessionBindingClosed LogicalSessionRegistry::CloseBinding(
     if (found == sessions_.end()) {
         return {};
     }
-    return CloseBindingLocked(found, binding_id, now_ms);
+    return CloseBindingLocked(found, binding_id, now_ms, true);
 }
 
 LogicalSessionBindingClosed LogicalSessionRegistry::CloseBindingById(
@@ -201,7 +201,18 @@ LogicalSessionBindingClosed LogicalSessionRegistry::CloseBindingById(
     std::scoped_lock lock(mutex_);
     for (auto session_it = sessions_.begin(); session_it != sessions_.end(); ++session_it) {
         if (session_it->second.bindings.contains(binding_id)) {
-            return CloseBindingLocked(session_it, binding_id, now_ms);
+            return CloseBindingLocked(session_it, binding_id, now_ms, true);
+        }
+    }
+    return {};
+}
+
+LogicalSessionBindingClosed LogicalSessionRegistry::CloseFailedBindingById(
+    const std::string& binding_id, const int64_t now_ms) {
+    std::scoped_lock lock(mutex_);
+    for (auto session_it = sessions_.begin(); session_it != sessions_.end(); ++session_it) {
+        if (session_it->second.bindings.contains(binding_id)) {
+            return CloseBindingLocked(session_it, binding_id, now_ms, false);
         }
     }
     return {};
@@ -209,16 +220,29 @@ LogicalSessionBindingClosed LogicalSessionRegistry::CloseBindingById(
 
 LogicalSessionBindingClosed LogicalSessionRegistry::CloseBindingLocked(
     const std::unordered_map<std::string, Session>::iterator session_it,
-    const std::string& binding_id, const int64_t now_ms) {
+    const std::string& binding_id, const int64_t now_ms, const bool preserve_reconnect_grace) {
     auto& session = session_it->second;
     if (session.bindings.erase(binding_id) == 0) {
         return {};
     }
     LogicalSessionBindingClosed result{.logical_session_id = session_it->first};
     if (session.role == LogicalSessionRole::kController && !HasControllerBinding(session)) {
-        session.controller_disconnected_at_ms = now_ms;
         result.release_controller_input = true;
         result.lease_generation = session.lease_generation;
+        if (preserve_reconnect_grace) {
+            session.controller_disconnected_at_ms = now_ms;
+            return result;
+        }
+        session.controller_disconnected_at_ms = 0;
+        if (controller_session_id_ == session_it->first) {
+            controller_session_id_.clear();
+        }
+        if (session.bindings.empty()) {
+            sessions_.erase(session_it);
+            result.logical_session_closed = true;
+        } else {
+            session.role = LogicalSessionRole::kObserver;
+        }
         return result;
     }
     if (session.bindings.empty() && session.role == LogicalSessionRole::kObserver) {

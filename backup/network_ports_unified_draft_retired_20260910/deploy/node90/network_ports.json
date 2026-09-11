@@ -1,0 +1,14 @@
+{
+  "console": 4600,
+  "desktop_render": 4601,
+  "turn": 4602,
+  "service": 4603,
+  "discovery": 4604,
+  "legacy_relay": 4605,
+  "media_http": 4606,
+  "media_rtmp": 4607,
+  "apps": { "start": 4613, "end": 4999 },
+  "rtc": { "start": 5000, "end": 5299 },
+  "turn_relay": { "start": 5301, "end": 5999 },
+  "reserved": [4608, 4609, 4610, 4611, 4612, 5300]
+}

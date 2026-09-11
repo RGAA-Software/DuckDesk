@@ -219,7 +219,11 @@ pub struct ConsoleSettings {
     #[serde(alias = "cms_port")]
     pub console_port: u16,
     pub udp_broadcast_port: u16,
+    #[serde(default = "default_optional_listener_enabled")]
+    pub udp_broadcast_enabled: bool,
     pub relay_port: u16,
+    #[serde(default = "default_optional_listener_enabled")]
+    pub relay_enabled: bool,
     pub mongodb_url: String,
     pub redis_url: String,
     pub ssl_cert: String,
@@ -286,6 +290,8 @@ fn default_environment() -> String {
     "production".to_string()
 }
 
+fn default_optional_listener_enabled() -> bool { true }
+
 impl ConsoleSettings {
     pub fn new() -> Self {
         ConsoleSettings::default()
@@ -295,6 +301,12 @@ impl ConsoleSettings {
     /// started. Test deployments may bypass authorization, but Console itself
     /// still serves HTTPS/WSS so every client exercises the production transport.
     pub fn validate_for_server(&self) -> Result<(), String> {
+        if self.console_port == 0
+            || self.udp_broadcast_enabled && self.udp_broadcast_port == 0
+            || self.relay_enabled && (self.relay_port == 0 || self.relay_port == self.console_port)
+        {
+            return Err("enabled listeners require valid, non-conflicting ports".into());
+        }
         if !matches!(self.environment.as_str(), "test" | "production") {
             return Err("environment must be either 'test' or 'production'".to_string());
         }
@@ -431,6 +443,7 @@ mod security_tests {
         settings.ssl_key = "key.pem".to_string();
         settings.privacy_hash_salt = "installation-specific-salt".to_string();
         settings.server_w3c_ip = "127.0.0.1".to_string();
+        settings.console_port = 4600;
         settings.user.ticket_expire_seconds = 30;
         settings
     }
@@ -472,7 +485,21 @@ mod security_tests {
         let canonical = include_str!("px_console.toml");
         let legacy = canonical.replace("console_port =", "cms_port =");
         let settings: ConsoleSettings = toml::from_str(&legacy).unwrap();
-        assert_eq!(settings.console_port, 30500);
+        assert_eq!(settings.console_port, 4600);
+        assert!(!settings.udp_broadcast_enabled);
+        assert!(settings.relay_enabled);
+    }
+
+    #[test]
+    fn relay_listener_defaults_to_enabled_when_setting_is_absent() {
+        let canonical = include_str!("px_console.toml");
+        let without_relay_setting = canonical
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("relay_enabled ="))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let settings: ConsoleSettings = toml::from_str(&without_relay_setting).unwrap();
+        assert!(settings.relay_enabled);
     }
 
     #[test]

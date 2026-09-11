@@ -178,6 +178,28 @@ namespace px
         });
     }
 
+    void RelayClientSdk::RelayProtoMessageReliable(std::shared_ptr<Data> msg, std::function<void(bool)> completion) {
+        std::string room_id;
+        std::shared_ptr<RelayNetClient> net_client;
+        {
+            std::lock_guard<std::mutex> lock(relay_mtx_);
+            if (!room_ || !room_->IsValid() || !ws_client_ || !msg) {
+                if (completion) completion(false);
+                return;
+            }
+            room_id = room_->room_id_;
+            net_client = ws_client_;
+        }
+        RelayMessage relay_message{};
+        relay_message.set_from_device_id(sdk_param_.device_id_);
+        relay_message.set_type(RelayMessageType::kRelayTargetMessage);
+        auto& relay = *relay_message.mutable_relay();
+        relay.set_relay_msg_index(relay_msg_index_++);
+        relay.mutable_room_ids()->Add(std::move(room_id));
+        relay.set_payload(msg->AsString());
+        net_client->PostReliableBinaryMessage(relay_message.SerializeAsString(), std::move(completion));
+    }
+
     void RelayClientSdk::PostBinMessage(const std::string& msg) {
         if (ws_client_) {
             ws_client_->PostBinaryMessage(msg);

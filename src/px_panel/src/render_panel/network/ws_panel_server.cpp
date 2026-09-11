@@ -1009,8 +1009,7 @@ void WsPanelServer::FlushAuditOutbox() {
                 db->CompleteAuditOutbox(item.id_);
             } else {
                 const int attempts = item.attempts_ + 1;
-                const int shift = std::min(attempts, 8);
-                const int64_t delay_ms = std::min<int64_t>(300000, (1LL << shift) * 1000);
+                constexpr int64_t delay_ms = 2000;
                 db->RetryAuditOutbox(item.id_, attempts, completed_at + delay_ms, std::format("http_status={}", resp_status));
                 LOGE("Audit outbox delivery failed, key: {}, status: {}, retry in {} ms", item.event_key_, resp_status, delay_ms);
             }

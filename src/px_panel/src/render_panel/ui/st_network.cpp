@@ -23,7 +23,6 @@
 #include "px_console_client/console_device_api.h"
 #include "px_console_client/console_device.h"
 #include "px_console_client/console_http_client.h"
-#include "px_relay_client/relay_api.h"
 #include "px_common/message_notifier.h"
 #include "render_panel/console_scanner/console_scanner.h"
 #include "render_panel/console/console_error_presenter.h"
@@ -47,7 +46,6 @@ namespace {
 struct NetworkEndpointRequest final {
     std::string host;
     int console_port = 0;
-    int relay_port = 0;
     std::string appkey;
 };
 
@@ -61,21 +59,18 @@ struct VerifyNetworkResult final {
         kNone,
         kAsync,
         kConsole,
-        kRelay,
     };
 
     Failure failure = Failure::kNone;
     PxAsyncError async_error;
     px_console::ConsoleApiError console_error = px_console::ConsoleApiError::kInternalError;
     std::string console_message;
-    int relay_error = 0;
 };
 
 struct SaveNetworkResult final {
     enum class Failure {
         kNone,
         kAsync,
-        kAuth,
         kDevice,
     };
 
@@ -132,60 +127,16 @@ PxAwaitable<void> RunVerifyNetwork(std::shared_ptr<LatestSerialRequestGate> gate
         co_return;
     }
 
-    auto relay_call = co_await AwaitGatedBlockingCall<Result<bool, int>>(
-        gate, request, poster, deadline, "panel-network.verify-relay", [endpoint](const std::shared_ptr<std::atomic_bool>& cancellation) {
-            return px_relay::RelayApi::Ping(endpoint.host, endpoint.relay_port, endpoint.appkey, cancellation);
-        });
-    if (!relay_call) {
-        done(VerifyNetworkResult{
-            .failure = VerifyNetworkResult::Failure::kAsync,
-            .async_error = relay_call.Error(),
-        });
-        co_return;
-    }
-    auto relay_completion = relay_call.TakeValue();
-    if (!relay_completion) {
-        co_return;
-    }
-    if (!relay_completion->has_value() || !relay_completion->value()) {
-        done(VerifyNetworkResult{
-            .failure = VerifyNetworkResult::Failure::kRelay,
-            .relay_error = relay_completion->has_value() ? 0 : relay_completion->error(),
-        });
-        co_return;
-    }
+    // Ping checks reachability only. Save authenticates the node through the protected device query / registration endpoints.
     done({});
     co_return;
 }
 
 PxAwaitable<void> RunSaveNetwork(std::shared_ptr<LatestSerialRequestGate> gate, LatestSerialRequestGate::Request request, PxBlockingTaskPoster poster,
-                                 std::function<std::shared_ptr<Authorization>(const std::shared_ptr<std::atomic_bool>&)> request_auth,
                                  std::shared_ptr<PxDeviceManager> device_manager, std::string device_id, std::string default_device_name,
                                  std::function<void(SaveNetworkResult)> done) {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-    if (request_auth) {
-        auto auth_call = co_await AwaitGatedBlockingCall<std::shared_ptr<Authorization>>(
-            gate, request, poster, deadline, "panel-network.request-auth",
-            [request_auth](const std::shared_ptr<std::atomic_bool>& cancellation) { return request_auth(cancellation); });
-        if (!auth_call) {
-            done(SaveNetworkResult{
-                .failure = SaveNetworkResult::Failure::kAsync,
-                .async_error = auth_call.Error(),
-            });
-            co_return;
-        }
-        auto auth = auth_call.TakeValue();
-        if (!auth) {
-            co_return;
-        }
-        if (!*auth) {
-            done(SaveNetworkResult{
-                .failure = SaveNetworkResult::Failure::kAuth,
-            });
-            co_return;
-        }
-    }
-
+    // Device APIs validate the installation credential; the administrator-only license API is not part of node registration.
     bool request_new_device = device_id.empty();
     if (!request_new_device) {
         auto query_call = co_await AwaitGatedBlockingCall<Result<std::shared_ptr<px_console::ConsoleDevice>, px_console::ConsoleApiError>>(
@@ -202,6 +153,10 @@ PxAwaitable<void> RunSaveNetwork(std::shared_ptr<LatestSerialRequestGate> gate, 
         }
         auto query = query_call.TakeValue();
         if (!query) {
+            co_return;
+        }
+        if (!query->has_value() && query->error() != px_console::ConsoleApiError::kDeviceNotFound) {
+            done(SaveNetworkResult{.failure = SaveNetworkResult::Failure::kDevice, .device_error = query->error()});
             co_return;
         }
         request_new_device = !query->has_value() || !query->value() || query->value()->device_id_.empty();
@@ -748,7 +703,7 @@ void StNetwork::SearchAccessInfo(bool auto_restart_render) {
 void StNetwork::VerifyAccessInfo() {
     const auto ac_info = ParseConsoleAccessInfo(edt_console_access_->toPlainText().trimmed().toStdString());
     if (!ac_info) {
-        LOGE("Parse access info failed: {}", edt_console_access_->toPlainText().toStdString());
+        LOGE("Parse access info failed");
         TcDialog dialog(tcTr("id_error"), tcTr("id_console_access_info_invalid"));
         dialog.exec();
         return;
@@ -764,7 +719,6 @@ void StNetwork::VerifyAccessInfo() {
     const NetworkEndpointRequest endpoint{
         .host = ac_info->console_config_.srv_w3c_ip_,
         .console_port = ac_info->console_config_.srv_console_port_,
-        .relay_port = ac_info->console_config_.srv_relay_port_,
         .appkey = ac_info->console_config_.srv_appkey_,
     };
     const auto context = context_;
@@ -799,15 +753,6 @@ void StNetwork::VerifyAccessInfo() {
                         dialog.exec();
                         return;
                     }
-                    if (result.failure == VerifyNetworkResult::Failure::kRelay) {
-                        const auto relay_endpoint =
-                            QStringLiteral("http://%1:%2").arg(QString::fromStdString(endpoint.host)).arg(endpoint.relay_port);
-                        const auto message = tcTr("id_verify_relay_failed_actionable") + "\n" + tcTr("id_error_endpoint_label") + ": " +
-                                             relay_endpoint + "\n" + tcTr("id_error_code_label") + ": RELAY-" + QString::number(result.relay_error);
-                        TcDialog dialog(tcTr("id_error"), message, self);
-                        dialog.exec();
-                        return;
-                    }
                     TcDialog dialog(tcTr("id_tips"), tcTr("id_verify_success"), self);
                     dialog.exec();
                 });
@@ -821,6 +766,12 @@ void StNetwork::VerifyAccessInfo() {
 
 void StNetwork::Save(bool auto_restart_render) {
     if (!request_scope_) {
+        return;
+    }
+    const auto ac_info = ParseConsoleAccessInfo(edt_console_access_->toPlainText().trimmed().toStdString());
+    if (!ac_info || !ac_info->console_config_.IsValid()) {
+        TcDialog dialog(tcTr("id_error"), tcTr("id_console_access_info_invalid"));
+        dialog.exec();
         return;
     }
     const auto console_host = edt_console_server_host_->text().toStdString();
@@ -852,19 +803,17 @@ void StNetwork::Save(bool auto_restart_render) {
     settings.Load();
 
     // companion
-    std::function<std::shared_ptr<Authorization>(const std::shared_ptr<std::atomic_bool>&)> request_auth;
     if (app_->GetCompanion()) {
         app_->GetCompanion()->UpdateConsoleServerConfig(settings.GetConsoleServerHost(), settings.GetConsoleServerPort(),
                                                         settings.IsConsoleSslEnabled());
 
-        const auto ac_info = ParseConsoleAccessInfo(edt_console_access_->toPlainText().trimmed().toStdString());
-        if (ac_info && !ac_info->console_config_.srv_appkey_.empty()) {
-            app_->GetCompanion()->UpdateAppkey(ac_info->console_config_.srv_appkey_);
-        }
-        request_auth = [application = app_](const std::shared_ptr<std::atomic_bool>&) {
-            return application->GetCompanion() ? application->GetCompanion()->RequestAuth() : nullptr;
-        };
+        app_->GetCompanion()->UpdateAppkey(ac_info->console_config_.srv_appkey_);
     }
+    const NetworkEndpointRequest endpoint{
+        .host = settings.GetConsoleServerHost(),
+        .console_port = settings.GetConsoleServerPort(),
+        .appkey = ac_info->console_config_.srv_appkey_,
+    };
 
     app_->RefreshClientManagerSettings();
     std::string default_device_name = "D-NULL";
@@ -886,13 +835,13 @@ void StNetwork::Save(bool auto_restart_render) {
     const auto device_id = settings.GetDeviceId();
     const QPointer<StNetwork> self(this);
     const PxBlockingTaskPoster poster = [context](std::function<void()> task) { context->PostNetworkTask(std::move(task)); };
-    const bool spawned = request_scope_->Spawn("panel-network-save", [gate, request, poster, request_auth, device_manager, device_id,
+    const bool spawned = request_scope_->Spawn("panel-network-save", [gate, request, poster, endpoint, device_manager, device_id,
                                                                       default_device_name = std::move(default_device_name), context, self,
                                                                       force_update_device_id, auto_restart_render]() mutable {
         return RunSaveNetwork(
-            gate, request, poster, request_auth, device_manager, std::move(device_id), std::move(default_device_name),
-            [gate, generation = request.generation, context, self, force_update_device_id, auto_restart_render](SaveNetworkResult result) mutable {
-                context->PostUITask([gate, generation, self, force_update_device_id, auto_restart_render, result = std::move(result)]() mutable {
+            gate, request, poster, device_manager, std::move(device_id), std::move(default_device_name),
+            [gate, generation = request.generation, endpoint, context, self, force_update_device_id, auto_restart_render](SaveNetworkResult result) {
+                context->PostUITask([gate, generation, endpoint, self, force_update_device_id, auto_restart_render, result = std::move(result)]() {
                     if (!self || !gate->Complete(generation)) {
                         return;
                     }
@@ -904,14 +853,12 @@ void StNetwork::Save(bool auto_restart_render) {
                         }
                         return;
                     }
-                    if (result.failure == SaveNetworkResult::Failure::kAuth) {
-                        TcDialog dialog(tcTr("id_warning"), tcTr("id_cant_request_auth"), self);
-                        dialog.exec();
-                        return;
-                    }
                     if (result.failure == SaveNetworkResult::Failure::kDevice) {
                         LOGE("Request Device ID failed, code: {}", static_cast<int>(result.device_error));
-                        TcDialog dialog(tcTr("id_warning"), tcTr("id_request_device_id_failed"), self);
+                        TcDialog dialog(tcTr("id_warning"),
+                                        MakeConsoleErrorMessage(ConsoleErrorOperation::kUpdateDevice, result.device_error, {},
+                                                                MakeConsoleEndpoint(endpoint.host, endpoint.console_port)),
+                                        self);
                         dialog.exec();
                         return;
                     }

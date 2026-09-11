@@ -105,6 +105,11 @@ public:
                                              int64_t now_ms);
     LogicalSessionBindingClosed CloseBindingById(const std::string& binding_id,
                                                  int64_t now_ms);
+    // A reservation that never established its media channel is not a
+    // reconnect. Release its controller seat immediately instead of applying
+    // the connected-session grace window.
+    LogicalSessionBindingClosed CloseFailedBindingById(const std::string& binding_id,
+                                                       int64_t now_ms);
 
     bool AuthorizeControllerInput(const std::string& logical_session_id,
                                   uint64_t lease_generation,
@@ -163,7 +168,8 @@ private:
     bool HasInputBinding(const Session& session) const;
     LogicalSessionBindingClosed CloseBindingLocked(
         std::unordered_map<std::string, Session>::iterator session_it,
-        const std::string& binding_id, int64_t now_ms);
+        const std::string& binding_id, int64_t now_ms,
+        bool preserve_reconnect_grace);
     void RemoveStaleSessionsLocked(int64_t now_ms);
     LogicalSessionAdmission AdoptControllerLocked(const LogicalSessionGrant& grant,
                                                   LogicalSessionTransport transport,

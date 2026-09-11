@@ -10,6 +10,7 @@ set(PX_SDK_CORE_SOURCES
     sdk_statistics.cpp
     sdk_errors.cpp
     connection/connection.cpp
+    connection/relay_connection.cpp
     connection/udp_direct_connection.cpp
     connection/ws_connection.cpp
     connection/wss_connection.cpp

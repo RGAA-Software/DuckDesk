@@ -157,10 +157,7 @@ PxAwaitable<void> PxReconnectSupervisor::Run(std::shared_ptr<PxReconnectSupervis
         if (supervisor->IsStopping() || IsStopResult(failure)) {
             co_return;
         }
-        std::optional<PxReconnectBackoffStep> reconnect_step{};
-        if (failure.retryable) {
-            reconnect_step = supervisor->NextBackoff();
-        }
+        const auto reconnect_step = supervisor->NextBackoff();
         supervisor->LogConnectionLost(ticket.generation, failure);
         if (hooks.on_lost) {
             hooks.on_lost(ticket.generation, failure, was_ready);
@@ -169,21 +166,9 @@ PxAwaitable<void> PxReconnectSupervisor::Run(std::shared_ptr<PxReconnectSupervis
         if (!co_await ResetAdapterUntilStopped(supervisor, hooks.stop_attempt)) {
             co_return;
         }
-        if (!failure.retryable) {
-            LOGE("event=transport.connection_terminal component={} generation={} stage={} code={} operation=supervise "
-                 "outcome=stopped recoverable=false reason={}",
-                 supervisor->options_.component, ticket.generation, failure.stage, failure.StableCode(), failure.message);
-            if (hooks.on_terminal) {
-                hooks.on_terminal(ticket.generation, failure);
-            }
-            co_return;
-        }
-
-        const auto& step = *reconnect_step;
-        if (step.delay >= supervisor->options_.backoff.maximum_delay) {
-            LOGI("event=transport.reconnect_wait component={} generation={} attempt={} delay_ms={} outcome=waiting", supervisor->options_.component,
-                 ticket.generation, step.attempt, step.delay.count());
-        }
+        const auto& step = reconnect_step;
+        LOGI("event=transport.reconnect_wait component={} generation={} attempt={} delay_ms={} outcome=waiting", supervisor->options_.component,
+             ticket.generation, step.attempt, step.delay.count());
         const auto waited = co_await PxReconnectBackoff::Wait(step.delay);
         if (!waited) {
             co_return;

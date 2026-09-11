@@ -2,6 +2,7 @@
 
 mod app;
 mod console_client;
+mod node_auth_store;
 mod rdp_authorization;
 mod parsec_vdd;
 mod service_host;

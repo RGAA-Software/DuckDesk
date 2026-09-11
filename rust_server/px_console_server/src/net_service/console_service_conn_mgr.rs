@@ -82,6 +82,20 @@ impl ConsoleServiceConnManager {
         Ok(conn.as_info())
     }
 
+    pub async fn node_endpoint(&self, device_id: String) -> Option<(String, i32)> {
+        let connection = self.get_conn(device_id.clone()).await.ok()?;
+        let endpoint = {
+            let guard = connection.lock().await;
+            if px_base::get_current_timestamp().saturating_sub(guard.last_update_timestamp) > 30_000 {
+                return None;
+            }
+            guard.node_endpoints.as_ref().and_then(|report| report.desktop_endpoint())
+        };
+        let current = self.get_conn(device_id).await.ok()?;
+        if !Arc::ptr_eq(&connection, &current) { return None; }
+        endpoint
+    }
+
     pub async fn get_all_conn(&self) -> Result<Vec<ConsoleServiceConn>, ConsoleApiError> {
         let mut all_conn = Vec::new();
         for conn in self.state.lock().await.connections.values() {
@@ -146,6 +160,64 @@ mod tests {
     use prost::Message as ProstMessage;
     use std::sync::Arc;
 
+    fn endpoint_report(host: &str) -> protocol::console_service::NodeEndpoints {
+        protocol::console_service::NodeEndpoints {
+            schema_version: 1, access_host: host.into(), desktop_port: 4601,
+            application_port_start: 4613, application_port_end: 4999, rtc_port_start: 5000, rtc_port_end: 5299,
+        }
+    }
+
+    #[tokio::test]
+    async fn node_endpoint_is_scoped_to_live_generation_and_node() {
+        let manager = ConsoleServiceConnManager::new();
+        let first = make_conn("node-a", "key-a");
+        let second = make_conn("node-b", "key-b");
+        for (conn, host) in [(&first, "a.example.com"), (&second, "b.example.com")] {
+            let mut guard = conn.lock().await;
+            guard.node_endpoints = Some(endpoint_report(host));
+            guard.last_update_timestamp = px_base::get_current_timestamp();
+        }
+        manager.add_conn("node-a".into(), first.clone()).await;
+        manager.add_conn("node-b".into(), second.clone()).await;
+        assert_eq!(manager.node_endpoint("node-a".into()).await, Some(("a.example.com".into(), 4601)));
+        assert_eq!(manager.node_endpoint("node-b".into()).await, Some(("b.example.com".into(), 4601)));
+        let replacement = make_conn("node-a", "key-a");
+        manager.add_conn("node-a".into(), replacement.clone()).await;
+        first.lock().await.node_endpoints = Some(endpoint_report("stale.example.com"));
+        manager.remove_conn("node-a".into(), &first).await;
+        assert_eq!(manager.node_endpoint("node-a".into()).await, None);
+        {
+            let mut guard = replacement.lock().await;
+            guard.node_endpoints = Some(endpoint_report("new.example.com"));
+            guard.last_update_timestamp = px_base::get_current_timestamp();
+        }
+        assert_eq!(manager.node_endpoint("node-a".into()).await, Some(("new.example.com".into(), 4601)));
+        replacement.lock().await.last_update_timestamp = px_base::get_current_timestamp() - 31_000;
+        assert_eq!(manager.node_endpoint("node-a".into()).await, None);
+        manager.remove_conn("node-b".into(), &second).await;
+        assert_eq!(manager.node_endpoint("node-b".into()).await, None);
+    }
+
+    #[tokio::test]
+    async fn node_endpoint_rejects_impersonation_and_invalid_reports() {
+        let connection = make_conn("node-a", "key-a");
+        let mut guard = connection.lock().await;
+        let mut message = protocol::console_service::ConsoleServiceMessage {
+            msg_type: protocol::console_service::ConsoleServiceMessageType::KConsoleServiceHeartBeat as i32,
+            device_id: "node-a".into(),
+            heartbeat: Some(protocol::console_service::ConsoleServiceHeartBeat {
+                device_id: "node-b".into(), node_endpoints: Some(endpoint_report("a.example.com")), ..Default::default()
+            }), ..Default::default()
+        };
+        assert!(!guard.process_message("test".into(), message.encode_to_vec().into()).await);
+        message.heartbeat.as_mut().unwrap().device_id = "node-a".into();
+        assert!(guard.process_message("test".into(), message.encode_to_vec().into()).await);
+        assert_eq!(guard.node_endpoints, Some(endpoint_report("a.example.com")));
+        message.heartbeat.as_mut().unwrap().node_endpoints.as_mut().unwrap().desktop_port = 0;
+        assert!(!guard.process_message("test".into(), message.encode_to_vec().into()).await);
+        assert!(guard.node_endpoints.is_none());
+    }
+
     fn make_conn(device_id: &str, appkey: &str) -> ConsoleServiceConnPtr {
         Arc::new(Mutex::new(ConsoleServiceConn {
             context: Arc::new(Mutex::new(ConsoleContext::new())),
@@ -163,6 +235,7 @@ mod tests {
             auth_info_json: "{}".to_string(),
             instances_json: "[]".to_string(),
             logical_sessions_json: "[]".to_string(),
+            node_endpoints: None,
         }))
     }
 
@@ -283,6 +356,7 @@ mod tests {
                 protocol::console_service::ConsoleServiceMessageType::KConsoleServiceHeartBeat,
             );
             hb.heartbeat = Some(protocol::console_service::ConsoleServiceHeartBeat {
+                node_endpoints: None,
                 hb_index: 42,
                 device_id: "d1".to_string(),
                 render_alive: false,

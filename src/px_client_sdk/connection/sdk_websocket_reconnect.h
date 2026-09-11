@@ -12,7 +12,7 @@
 
 namespace px {
 
-// Apply to every ingress message before either business dispatch or a terminal rejection side effect.
+// Apply to every ingress message before either business dispatch or a rejection side effect.
 inline bool CanDeliverSdkWebSocketMessage(const std::shared_ptr<PxReconnectSupervisor>& supervisor, std::uint64_t generation) {
     return supervisor && generation != 0 && supervisor->Generation() == generation && supervisor->IsReady();
 }
@@ -20,26 +20,21 @@ inline bool CanDeliverSdkWebSocketMessage(const std::shared_ptr<PxReconnectSuper
 inline PxAsyncError MakeSdkWebSocketRejectionError(const WsControlRejection rejection) {
     std::string message;
     switch (rejection) {
-        case WsControlRejection::kAuthorization:
-            message = "websocket authorization was rejected";
-            break;
-        case WsControlRejection::kOccupied:
-            message = "websocket session is occupied";
-            break;
-        case WsControlRejection::kSessionPolicy:
-            message = "websocket session policy rejected the connection";
-            break;
-        case WsControlRejection::kNone:
-        default:
-            message = "websocket session was rejected";
-            break;
+    case WsControlRejection::kAuthorization:
+        message = "websocket authorization was rejected";
+        break;
+    case WsControlRejection::kOccupied:
+        message = "websocket session is occupied";
+        break;
+    case WsControlRejection::kSessionPolicy:
+        message = "websocket session policy rejected the connection";
+        break;
+    case WsControlRejection::kNone:
+    default:
+        message = "websocket session was rejected";
+        break;
     }
-    return MakePxAsyncError(
-        PxAsyncErrorCode::kProtocolError,
-        "sdk.websocket.rejection",
-        std::move(message),
-        false,
-        "SDK_WEBSOCKET_SESSION_REJECTED");
+    return MakePxAsyncError(PxAsyncErrorCode::kProtocolError, "sdk.websocket.rejection", std::move(message), true, "SDK_WEBSOCKET_SESSION_REJECTED");
 }
 
 } // namespace px

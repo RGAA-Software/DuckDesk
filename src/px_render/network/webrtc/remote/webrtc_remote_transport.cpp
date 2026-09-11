@@ -15,8 +15,9 @@
 #include <mutex>
 
 namespace px {
-WebRtcRemoteRuntime::WebRtcRemoteRuntime(std::weak_ptr<WebRtcRemoteTransport> owner, std::weak_ptr<WebRtcExecutionContext> context)
-    : owner_(std::move(owner)), context_(std::move(context)) {}
+WebRtcRemoteRuntime::WebRtcRemoteRuntime(std::weak_ptr<WebRtcRemoteTransport> owner, std::weak_ptr<WebRtcExecutionContext> context,
+                                       int port_start, int port_end)
+    : rtc_port_start(port_start), rtc_port_end(port_end), owner_(std::move(owner)), context_(std::move(context)) {}
 
 void WebRtcRemoteRuntime::DeactivateOwner() {
     std::scoped_lock lock(owner_mutex_);
@@ -82,7 +83,7 @@ bool WebRtcRemoteTransport::Start(const WebRtcTransportConfiguration& configurat
         LOGE("event=webrtc.transport.start component={} code=WEBRTC_RUNTIME_MISSING outcome=failed", kNetWebRtcRemoteLibraryId);
         return false;
     }
-    runtime_ = std::make_shared<WebRtcRemoteRuntime>(weak_from_this(), execution_context_);
+    runtime_ = std::make_shared<WebRtcRemoteRuntime>(weak_from_this(), execution_context_, configuration.rtc_port_start, configuration.rtc_port_end);
 
     //
     const auto weak_runtime = std::weak_ptr<WebRtcRemoteRuntime>(runtime_);

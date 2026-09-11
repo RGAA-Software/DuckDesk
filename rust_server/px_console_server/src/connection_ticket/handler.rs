@@ -246,7 +246,7 @@ pub async fn issue_device_ticket(
         return Err(ConsoleApiError::ResourceNotFound);
     }
     let (host, port) = device
-        .get_render_endpoints()
+        .get_current_render_endpoints().await
         .into_iter()
         .next()
         .ok_or(ConsoleApiError::DeviceOffline)?;
@@ -348,7 +348,7 @@ pub async fn issue_instance_ticket(
         .await
         .map_err(|_| ConsoleApiError::ResourceNotFound)?;
     let host = device
-        .get_render_endpoints()
+        .get_current_render_endpoints().await
         .into_iter()
         .next()
         .map(|(host, _)| host)
@@ -448,7 +448,7 @@ pub async fn issue_guest_instance_ticket(
         .await
         .map_err(|_| ConsoleApiError::ResourceNotFound)?;
     let host = device
-        .get_render_endpoints()
+        .get_current_render_endpoints().await
         .into_iter()
         .next()
         .map(|(host, _)| host)

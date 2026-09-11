@@ -2,10 +2,27 @@
 author = "Pixels"
 version = "1.0.1"
 
-# NOTE: encoder/capture/transmission settings were removed.
+# NOTE: encoder/capture settings were removed.
 # In desktop mode they are overridden by command line args from the panel;
 # the render falls back to built-in defaults when running standalone.
-# Listen port for standalone debug: pass --network_listen_port (see scripts/start_render_hook.bat).
+# 网络配置优先级：显式命令行 > 本文件 > 内置默认值。
+# Service 启动的实例由 px_service.toml 生成命令行，本节主要用于独立启动。
+[network]
+# TCP + UDP，客户端连接此 Render 的端口；对外映射到本渲染机器，不是 Console。
+listen_port = 4601
+# 管理接口地址与 TCP 端口。默认同机回环访问，不需要公网开放。
+# 必须与本机 px_service.toml 的 network.listen_port 一致。
+service_host = "127.0.0.1"
+service_port = 4603
+
+[rtc]
+# UDP，浏览器实时会话的媒体端口池，起止均包含；按本机实际网络环境设置。
+# 不得与 Render 主端口重叠。范围可自行扩大，不限制为此部署示例。
+port_start = 5000
+port_end = 5299
+# Optional public IPv4 for Web RTC direct media. Service normally injects this
+# from its node access_host; use this only when Render runs without Service.
+advertised_ipv4 = ""
 
 # application settings
 [application]

@@ -16,21 +16,18 @@ PxAwaitable<void> WaitForBackoff(std::chrono::milliseconds delay, std::shared_pt
 }
 
 TEST(ReconnectBackoff, RejectsInvalidOptions) {
-    EXPECT_FALSE(PxReconnectBackoff::Create({.initial_delay = 2s, .maximum_delay = 1s}));
-    EXPECT_FALSE(PxReconnectBackoff::Create({.multiplier = 0.5}));
-    EXPECT_FALSE(PxReconnectBackoff::Create({.jitter_ratio = 1.1}));
+    EXPECT_FALSE(PxReconnectBackoff::Create({.retry_delay = -1ms}));
 }
 
-TEST(ReconnectBackoff, ExponentialDelayIsBoundedAndResettable) {
-    const auto backoff = PxReconnectBackoff::Create(
-        {.initial_delay = 100ms, .maximum_delay = 500ms, .multiplier = 2.0, .jitter_ratio = 0.0, .random_seed = 7});
+TEST(ReconnectBackoff, RetryDelayIsFixedAndResettable) {
+    const auto backoff = PxReconnectBackoff::Create({.retry_delay = 100ms});
     ASSERT_TRUE(backoff);
 
     EXPECT_EQ(backoff->Next().delay, 100ms);
-    EXPECT_EQ(backoff->Next().delay, 200ms);
-    EXPECT_EQ(backoff->Next().delay, 400ms);
-    EXPECT_EQ(backoff->Next().delay, 500ms);
-    EXPECT_EQ(backoff->Next().delay, 500ms);
+    EXPECT_EQ(backoff->Next().delay, 100ms);
+    EXPECT_EQ(backoff->Next().delay, 100ms);
+    EXPECT_EQ(backoff->Next().delay, 100ms);
+    EXPECT_EQ(backoff->Next().delay, 100ms);
     EXPECT_EQ(backoff->AttemptCount(), 5U);
 
     backoff->Reset();
@@ -38,17 +35,13 @@ TEST(ReconnectBackoff, ExponentialDelayIsBoundedAndResettable) {
     EXPECT_EQ(backoff->Next().delay, 100ms);
 }
 
-TEST(ReconnectBackoff, DeterministicJitterStaysInsideConfiguredWindow) {
-    const auto backoff = PxReconnectBackoff::Create(
-        {.initial_delay = 1000ms, .maximum_delay = 10s, .multiplier = 2.0, .jitter_ratio = 0.2, .random_seed = 42});
+TEST(ReconnectBackoff, RetryDelayNeverGrowsAfterManyFailures) {
+    const auto backoff = PxReconnectBackoff::Create({.retry_delay = 1000ms});
     ASSERT_TRUE(backoff);
 
-    const auto first = backoff->Next();
-    const auto second = backoff->Next();
-    EXPECT_GE(first.delay, 800ms);
-    EXPECT_LE(first.delay, 1200ms);
-    EXPECT_GE(second.delay, 1600ms);
-    EXPECT_LE(second.delay, 2400ms);
+    for (int attempt{}; attempt != 1000; ++attempt) {
+        EXPECT_EQ(backoff->Next().delay, 1000ms);
+    }
 }
 
 TEST(ReconnectBackoff, ScopeCancellationInterruptsWait) {

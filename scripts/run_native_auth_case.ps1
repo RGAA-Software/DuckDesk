@@ -7,7 +7,7 @@ param(
     [int]$TargetPort = 20371,
     [string]$DeviceId = '001190520',
     [ValidateSet('webrtc_direct', 'webrtc', 'websocket', 'udp_direct')]
-    [string]$NetworkType = 'webrtc_direct',
+    [string]$NetworkType = 'udp_direct',
     [string]$RemotePassword = $env:PX_TEST_REMOTE_PASSWORD,
     [string]$ClientExe = '',
     [switch]$SplitWindows,
@@ -212,8 +212,11 @@ $initialRtcLines = if (Test-Path -LiteralPath $rtcLogPath) {
 } else { 0 }
 
 try {
-    if ($Mode -eq 'guest' -and $NetworkType -ne 'webrtc_direct') {
-        throw 'password-direct native acceptance must use webrtc_direct'
+    if ($Mode -eq 'guest') {
+        throw 'password-direct native acceptance is retired; use a Console-issued account ticket for WS + UDP'
+    }
+    if ($NetworkType -notin @('udp_direct', 'websocket')) {
+        throw 'native WebRTC acceptance is retired: native clients use authenticated WebSocket control/file transfer plus UDP media'
     }
     if ($OmitRemoteDeviceId -and $Mode -ne 'guest') {
         throw '-OmitRemoteDeviceId is only valid for password-direct guest acceptance'
@@ -310,12 +313,9 @@ try {
         "--console_host=$(([uri]$ConsoleBase).Host)", "--console_port=$(([uri]$ConsoleBase).Port)",
         '--console_ssl=true', '--audio=1', '--clipboard=1',
         "--stream_id=$streamId", "--conn_type=$(if ($Mode -eq 'account') {'console_ticket'} else {'direct'})",
-        "--network_type=$NetworkType", "--device_id=$clientId",
-        "--remote_device_id=$clientRemoteDeviceId", '--enable_p2p=1', '--only_viewing=0',
+        "--device_id=$clientId", "--remote_device_id=$clientRemoteDeviceId", '--only_viewing=0',
         "--split_windows=$($SplitWindows.IsPresent.ToString().ToLowerInvariant())",
-        "--max_num_of_screen=$MaxScreens",
-        "--force_direct=$(if ($NetworkType -eq 'webrtc_direct') {1} else {0})",
-        "--relay_host=$relayHost", "--relay_port=$relayPort"
+        "--max_num_of_screen=$MaxScreens"
     )
     if ($RtcRestartAcceptance) {
         $arguments += "--panel_server_port=$PanelProbePort"

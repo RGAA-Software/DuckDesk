@@ -11,6 +11,7 @@
 #include "px_common/asio_client_shutdown.h"
 #include "px_common/reconnect_supervisor.h"
 #include "px_common/websocket_reconnect_adapter.h"
+#include "px_common/reliable_websocket_send.h"
 #include <asio2/websocket/ws_client.hpp>
 #include <asio2/asio2.hpp>
 #include "relay_message.pb.h"
@@ -296,6 +297,25 @@ namespace px
         std::lock_guard lock(stop_mutex_);
         const auto client = adapter_slot_->Snapshot();
         return !exiting_ && client && client->is_started() && reconnect_supervisor_ && reconnect_supervisor_->IsReady();
+    }
+
+    void RelayWsClient::PostReliableBinaryMessage(std::string msg, std::function<void(bool)> completion) {
+        auto client = std::shared_ptr<asio2::ws_client>{};
+        std::uint64_t generation{0};
+        {
+            std::lock_guard lock(stop_mutex_);
+            client = adapter_slot_ ? adapter_slot_->Snapshot() : std::shared_ptr<asio2::ws_client>{};
+            generation = reconnect_supervisor_ ? reconnect_supervisor_->Generation() : 0;
+        }
+        PostReliableWebSocketWrite(
+            client, Data::From(std::move(msg)), std::move(completion),
+            [weak_self = weak_from_this(), weak_client = std::weak_ptr<asio2::ws_client>(client), generation] {
+                const auto self = weak_self.lock();
+                if (!self || self->exiting_.load(std::memory_order_acquire)) return false;
+                std::lock_guard lock(self->stop_mutex_);
+                return self->adapter_slot_ && self->adapter_slot_->Snapshot() == weak_client.lock() && self->reconnect_supervisor_ &&
+                       self->reconnect_supervisor_->Generation() == generation && self->reconnect_supervisor_->IsReady();
+            });
     }
 
     std::uint64_t RelayWsClient::ConnectionGeneration() const {

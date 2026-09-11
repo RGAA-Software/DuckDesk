@@ -197,6 +197,7 @@ void HttpHandler::CloseAdmittedLogicalSessionBinding(const std::string& logical_
     const auto event = std::make_shared<CloseLogicalSessionBindingEvent>();
     event->logical_session_id_ = logical_session_id;
     event->binding_id_ = binding_id;
+    event->preserve_reconnect_grace_ = false;
     if (const auto transport = transport_.lock()) {
         transport->EmitEvent(event);
     }

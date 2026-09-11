@@ -116,7 +116,7 @@ namespace px
     // 修改帧率 client->render
     class MsgClientModifyFps : public MsgClientBase {
     public:
-        int fps_ = 30;
+        int fps_ = 60;
     };
 
     // 切换全彩模式

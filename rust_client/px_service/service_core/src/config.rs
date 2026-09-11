@@ -27,10 +27,13 @@ pub struct ServiceConfig {
     pub ws_path: String,
     pub data_root: PathBuf,
     pub log_root: PathBuf,
+    pub node: crate::node_config::NodeConfig,
 }
 
 impl ServiceConfig {
     pub fn new(listen_port: u16, data_root: PathBuf, log_root: PathBuf) -> Self {
+        let mut node = crate::node_config::NodeConfig::default();
+        node.network.listen_port = listen_port;
         Self {
             service_name: DEFAULT_SERVICE_NAME.to_string(),
             display_name: DEFAULT_SERVICE_DISPLAY_NAME.to_string(),
@@ -40,6 +43,7 @@ impl ServiceConfig {
             ws_path: DEFAULT_SERVICE_PATH.to_string(),
             data_root,
             log_root,
+            node,
         }
     }
 

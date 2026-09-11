@@ -89,6 +89,7 @@ struct TransportHarness final {
 TEST(SdkConnectionParams, DefaultsDoNotEnableMediaOrContainAuthorization) {
     const SdkConnectionParams params{};
     EXPECT_EQ(params.media_transport_, SdkMediaTransport::kUdp);
+    EXPECT_EQ(params.route_, SdkConnectionRoute::kDirect);
     EXPECT_FALSE(params.ssl_);
     EXPECT_FALSE(params.enable_audio_);
     EXPECT_FALSE(params.enable_video_);
@@ -98,6 +99,11 @@ TEST(SdkConnectionParams, DefaultsDoNotEnableMediaOrContainAuthorization) {
     EXPECT_TRUE(params.connection_ticket_.empty());
     EXPECT_TRUE(params.connection_nonce_.empty());
     EXPECT_TRUE(params.connection_instance_id_.empty());
+    EXPECT_TRUE(params.relay_host_.empty());
+    EXPECT_EQ(params.relay_port_, 0);
+    EXPECT_TRUE(params.relay_device_id_.empty());
+    EXPECT_TRUE(params.relay_remote_device_id_.empty());
+    EXPECT_TRUE(params.relay_ticket_device_id_.empty());
     EXPECT_TRUE(params.udp_media_association_.empty());
 }
 

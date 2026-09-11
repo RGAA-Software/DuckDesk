@@ -1,0 +1,11 @@
+{
+  "revision": "5d90f4de288d0cd85166c0f75646ec3d9c43b873",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "scripts/collect_dist.py",
+      "sha256": "66331B3E35B20248CAA55D930E326BD7942D05F5EC2345D1FD69DD4062538030",
+      "status": ""
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><title>Pixels 连接测试</title>
+<style>
+body{margin:0;background:#112238;color:#fff;font:28px system-ui;padding:55px}
+h1{color:#7cdfcf}input,button{font:24px system-ui;padding:16px;border-radius:12px;margin:10px 0}
+#clock{font:50px monospace;color:#fbcd71}.ball{width:80px;height:80px;border-radius:50%;background:#7cdfcf;animation:slide 3s infinite alternate}
+@keyframes slide{to{transform:translateX(600px)}}
+</style>
+<h1>Pixels · 90 节点连接测试</h1><p>应用画面、远程输入与自动端口分配</p>
+<div id="clock"></div><div class="ball"></div>
+<p><input id="entry" placeholder="输入测试文字"><button id="send">确认输入</button></p>
+<p id="result">等待输入</p>
+<script>
+setInterval(()=>document.querySelector('#clock').textContent=new Date().toLocaleTimeString(),100);
+document.querySelector('#send').onclick=()=>document.querySelector('#result').textContent='已收到：'+document.querySelector('#entry').value;
+</script></html>

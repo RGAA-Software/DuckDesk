@@ -1,0 +1,11 @@
+{
+  "revision": "5d90f4de288d0cd85166c0f75646ec3d9c43b873",
+  "reason": "Native SDK extraction and single UDP/FEC + WebSocket transport",
+  "files": [
+    {
+      "path": "web/px_console/src/views/AppsView.vue",
+      "sha256": "7A63C70E485CF7D13A78BB9B774E7E524C43F4CA112348AA403AA20607766A30",
+      "status": ""
+    }
+  ]
+}

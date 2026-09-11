@@ -138,6 +138,22 @@ TEST(LogicalSessionRegistry, ControllerDisconnectReleasesInputAndCanReconnect) {
     EXPECT_TRUE(registry.AuthorizeControllerInput("one", reconnected.lease_generation, 13));
 }
 
+TEST(LogicalSessionRegistry, FailedRtcReservationReleasesControllerSeatWithoutReconnectGrace) {
+    LogicalSessionRegistry registry;
+    const auto admitted = registry.Bind(ControlGrant("failed", "stream-failed", "alice"),
+                                        LogicalSessionTransport::kRtcLocal, "rtc-local:stream-failed", false, 1);
+    ASSERT_EQ(admitted.code, LogicalSessionAdmissionCode::kAccepted);
+
+    const auto closed = registry.CloseFailedBindingById("rtc-local:stream-failed", 2);
+    EXPECT_TRUE(closed.release_controller_input);
+    EXPECT_TRUE(closed.logical_session_closed);
+    EXPECT_EQ(registry.ActiveSessionCount(), 0U);
+
+    const auto native = registry.Bind(ControlGrant("native", "stream-native", "bob"),
+                                      LogicalSessionTransport::kWs, "ws:stream-native", false, 2);
+    EXPECT_EQ(native.code, LogicalSessionAdmissionCode::kAccepted);
+}
+
 TEST(LogicalSessionRegistry, ControllerReconnectGraceKeepsOneLogicalSnapshot) {
     LogicalSessionRegistry registry;
     ASSERT_EQ(registry.Bind(ControlGrant("one", "stream-one", "alice"),

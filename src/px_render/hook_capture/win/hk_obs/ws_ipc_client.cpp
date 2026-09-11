@@ -27,14 +27,11 @@ constexpr auto kIpcConnectionTimeout = std::chrono::seconds(10);
 constexpr std::size_t kIpcMessageCapacity = 1024;
 bool IsCurrentProcessInputWindow(std::uint64_t window) {
     DWORD process_id{};
-    return window != 0 && IsWindow(reinterpret_cast<HWND>(window)) &&
-           GetWindowThreadProcessId(reinterpret_cast<HWND>(window), &process_id) != 0 && process_id == GetCurrentProcessId();
+    return window != 0 && IsWindow(reinterpret_cast<HWND>(window)) && GetWindowThreadProcessId(reinterpret_cast<HWND>(window), &process_id) != 0 &&
+           process_id == GetCurrentProcessId();
 }
 const PxReconnectBackoffOptions kIpcReconnectOptions{
-    .initial_delay = std::chrono::milliseconds(100),
-    .maximum_delay = std::chrono::seconds(5),
-    .multiplier = 2.0,
-    .jitter_ratio = 0.2,
+    .retry_delay = std::chrono::milliseconds(100),
 };
 
 template <typename T> T DecodeIpcValue(std::string_view bytes) {

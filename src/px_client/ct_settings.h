@@ -88,6 +88,9 @@ namespace px
         std::string connection_ticket_;
         std::string connection_nonce_;
         std::string connection_instance_id_;
+        std::string relay_host_{};
+        int relay_port_{0};
+        std::string relay_remote_device_id_{};
         // show max window
         bool auto_layout_screens_ = false;
         std::string display_name_;
@@ -99,7 +102,7 @@ namespace px
         std::string screen_recording_path_;
 
         // fps 当前流路的帧率
-        int fps_ = 30;
+        int fps_ = 60;
 
         // this device host/ip address
         std::string my_host_;
@@ -133,6 +136,7 @@ namespace px
         // force software to decode & render
         bool force_software_ = false;
         bool force_tcp_{false};
+        bool force_relay_{false};
 
         // wait debug
         bool wait_debug_ = false;

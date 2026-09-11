@@ -20,6 +20,7 @@
 #include "connection/ws_connection.h"
 #include "connection/wss_connection.h"
 #include "connection/udp_direct_connection.h"
+#include "connection/relay_connection.h"
 #include "px_common/time_util.h"
 #include "px_common/url_helper.h"
 #include "sdk_statistics.h"
@@ -267,6 +268,14 @@ void NetClient::Start() {
     }
     if (exited_ || started_.exchange(true))
         return;
+    if (params_.route_ == SdkConnectionRoute::kWebSocketRelay &&
+        (params_.session_mode_ != SdkSessionMode::kNative || params_.file_transfer_only_ ||
+         params_.media_transport_ != SdkMediaTransport::kWebSocket ||
+         params_.relay_host_.empty() || params_.relay_port_ <= 0 || params_.relay_device_id_.empty() || params_.relay_remote_device_id_.empty() ||
+         params_.relay_ticket_device_id_.empty() || params_.connection_ticket_.empty() || params_.connection_nonce_.empty())) {
+        LOGE("Relay connection parameters are incomplete or incompatible with this session.");
+        return;
+    }
     if (params_.media_transport_ == SdkMediaTransport::kUdp && params_.session_mode_ != SdkSessionMode::kRdp && !params_.file_transfer_only_ &&
         !udp_media_state_.BeginProbe())
         return;
@@ -282,14 +291,17 @@ void NetClient::Start() {
     }
     // GameStream 风格双通道:ws 控制面(可靠消息/状态机全复用) + 裸 UDP 媒体面,
     // 见 docs/udp_gamestream_channel_plan.md
-    LOGI("Start native connection mode={}, control={}:{}", static_cast<int>(params_.session_mode_), params_.ip_, params_.port_);
+    LOGI("Start native connection mode={}, route={}, control={}:{}", static_cast<int>(params_.session_mode_), static_cast<int>(params_.route_),
+         params_.ip_, params_.port_);
     LOGI("Native media transport: {}", params_.media_transport_ == SdkMediaTransport::kWebSocket ? "WebSocket/TCP" : "UDP/FEC");
     // Reliable control and file-transfer messages share the already
     // authenticated /media WebSocket. UDP carries audio/video only.
     // Opening another route would redeem the one-time ticket again and
     // later reconnects would be rejected after the ticket expires.
     if (!params_.file_transfer_only_) {
-        ReplaceMediaConnection(MakeDirectWebSocketMediaConnection());
+        ReplaceMediaConnection(params_.route_ == SdkConnectionRoute::kWebSocketRelay
+                                   ? std::static_pointer_cast<Connection>(std::make_shared<RelayConnection>(params_, msg_notifier_))
+                                   : MakeDirectWebSocketMediaConnection());
     } else {
         const auto ft_path = MakeAuthenticatedWebSocketPath(params_.ft_path_, true);
         if (params_.ssl_) {
@@ -298,7 +310,8 @@ void NetClient::Start() {
             ft_conn_ = std::make_shared<WsConnection>(msg_notifier_, params_.ip_, params_.port_, ft_path);
         }
     }
-    if (params_.media_transport_ == SdkMediaTransport::kUdp && !params_.file_transfer_only_ && params_.session_mode_ != SdkSessionMode::kRdp) {
+    if (params_.route_ == SdkConnectionRoute::kDirect && params_.media_transport_ == SdkMediaTransport::kUdp && !params_.file_transfer_only_ &&
+        params_.session_mode_ != SdkSessionMode::kRdp) {
         ReplaceUdpDirectConnection(std::make_shared<UdpDirectConnection>(msg_notifier_));
     }
 

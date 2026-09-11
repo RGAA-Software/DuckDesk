@@ -64,6 +64,7 @@ void RenderEventIngress::ProcessWebRtcEvent(const std::string& source_id, const 
                 disconnected->visitor_device_id_ = value.visitor_device_id;
                 disconnected->end_timestamp_ = value.end_timestamp;
                 disconnected->duration_ = value.duration;
+                disconnected->preserve_reconnect_grace_ = value.preserve_reconnect_grace;
                 owner.network_ingress_->ProcessClientDisConnectedEvent(disconnected, source_id);
             } else if constexpr (std::is_same_v<Event, WebRtcFileTransferDisconnectedEvent>) {
                 const auto prefix = source_id == kNetWebRtcRemoteLibraryId ? "rtc:" : "rtc-local:";
@@ -198,7 +199,9 @@ void RenderEventIngress::ProcessRenderEvent(const RenderEventEnvelope& envelope)
                 }
                 const auto now_ms =
                     std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-                const auto closed = registry->CloseBinding(event->logical_session_id_, event->binding_id_, now_ms);
+                const auto closed = event->preserve_reconnect_grace_
+                                        ? registry->CloseBinding(event->logical_session_id_, event->binding_id_, now_ms)
+                                        : registry->CloseFailedBindingById(event->binding_id_, now_ms);
                 if (closed.release_controller_input && owner.network_ingress_) {
                     owner.network_ingress_->ReleaseControllerInput(LogicalSessionInputLease{
                         .logical_session_id = closed.logical_session_id,

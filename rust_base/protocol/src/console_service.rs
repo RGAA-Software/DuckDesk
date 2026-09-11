@@ -36,6 +36,27 @@ pub struct ConsoleServiceHeartBeat {
     /// control-plane report; UDP never reports lifecycle state directly.
     #[prost(string, tag = "6")]
     pub logical_sessions_json: ::prost::alloc::string::String,
+    /// Authoritative node-local configuration, repeated after every reconnect.
+    #[prost(message, optional, tag = "7")]
+    pub node_endpoints: ::core::option::Option<NodeEndpoints>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct NodeEndpoints {
+    #[prost(uint32, tag = "1")]
+    pub schema_version: u32,
+    #[prost(string, tag = "2")]
+    pub access_host: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "3")]
+    pub desktop_port: u32,
+    #[prost(uint32, tag = "4")]
+    pub application_port_start: u32,
+    #[prost(uint32, tag = "5")]
+    pub application_port_end: u32,
+    #[prost(uint32, tag = "6")]
+    pub rtc_port_start: u32,
+    #[prost(uint32, tag = "7")]
+    pub rtc_port_end: u32,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ConsoleServiceStartAppInstance {
