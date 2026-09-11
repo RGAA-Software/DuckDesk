@@ -23,7 +23,7 @@ StreamSettingsDialog::StreamSettingsDialog(const std::shared_ptr<PxContext>& con
                                            QPointer<QWidget> parent)
     : TcCustomTitleBarDialog("", parent.data()), database_(context->GetStreamDBManager()), item_(item) {
     setWindowTitle(tcTr("id_device_settings"));
-    setFixedSize(375, 410);
+    setFixedSize(410, 450);
     CreateLayout();
 }
 
@@ -37,6 +37,7 @@ void StreamSettingsDialog::CreateLayout() {
     only_viewing_ = AddOption(body, form, "id_only_viewing", item_->only_viewing_);
     split_windows_ = AddOption(body, form, "id_split_windows", item_->split_windows_);
     software_ = AddOption(body, form, "id_force_software", item_->force_software_);
+    tcp_ = AddOption(body, form, "id_force_tcp", item_->force_tcp_);
     wait_debug_ = AddOption(body, form, "id_wait_debug", item_->wait_debug_);
     gdi_ = AddOption(body, form, "id_force_gdi_capture", item_->force_gdi_capture_);
     disable_vulkan_ = AddOption(body, form, "id_disable_vulkan_render", item_->disable_vulkan_render_);
@@ -58,6 +59,7 @@ void StreamSettingsDialog::Save() {
     item_->only_viewing_ = only_viewing_->isChecked();
     item_->split_windows_ = split_windows_->isChecked();
     item_->force_software_ = software_->isChecked();
+    item_->force_tcp_ = tcp_->isChecked();
     item_->wait_debug_ = wait_debug_->isChecked();
     item_->force_gdi_capture_ = gdi_->isChecked();
     item_->disable_vulkan_render_ = disable_vulkan_->isChecked();

@@ -237,6 +237,7 @@ namespace px
             << std::format("--titlebar_color={}", settings_.IsColorfulTitleBarEnabled() ? item->bg_color_ : -1).c_str()
             << std::format("--decoder={}", settings_.GetPreferDecoder()).c_str()
             << std::format("--force_software={}", item->force_software_ ? 1 : 0).c_str()
+            << std::format("--force_tcp={}", item->force_tcp_ ? 1 : 0).c_str()
             << std::format("--wait_debug={}", item->wait_debug_ ? 1 : 0).c_str()
             << std::format("--force_gdi_capture={}", item->force_gdi_capture_ ? 1 : 0).c_str()
             << std::format("--disable_vulkan_render={}", item->disable_vulkan_render_ ? 1 : 0).c_str()

@@ -8,6 +8,7 @@
 #include "base_widget.h"
 #include "px_message.pb.h"
 #include <QLabel>
+#include <QPointer>
 #include <QStackedWidget>
 
 namespace px
@@ -40,6 +41,7 @@ namespace px
         std::shared_ptr<SdkStatistics> sdk_stat_;
         QLabel* lbl_data_speed_ = nullptr;
         QLabel* lbl_received_data_ = nullptr;
+        QPointer<QLabel> media_transport_label_{};
         QLabel* lbl_sent_data_ = nullptr;
         QLabel* lbl_video_format_ = nullptr;
         QLabel* lbl_video_color_ = nullptr;

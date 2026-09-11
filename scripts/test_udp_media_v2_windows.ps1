@@ -3,6 +3,7 @@ param(
     [string]$AppId = 'app-10-ac0adf25',
     [ValidateRange(15, 240)][int]$ObserveSeconds = 180,
     [switch]$MoveRight,
+    [switch]$ForceTcp,
     [switch]$MouseSweep,
     [ValidateRange(1,180)][int]$MouseSweepSeconds = 120,
     [ValidateRange(15,120)][int]$ExpectedFramesPerSecond = 30,
@@ -15,7 +16,8 @@ $base = 'https://39.71.45.66:4600'
 $clientPath = Join-Path $repo 'build_official/dist/px_client.exe'
 $sourcePath = Join-Path $repo 'build_official/src/px_client/px_client.exe'
 if ((Get-FileHash $clientPath).Hash -ne (Get-FileHash $sourcePath).Hash) { throw 'Client has not been published to dist.' }
-$output = Join-Path $repo ('test-results/udp-media-v2/' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+$transportDirectory = if ($ForceTcp) { 'tcp-media' } else { 'udp-media-v2' }
+$output = Join-Path $repo ('test-results/' + $transportDirectory + '/' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 Add-Type -AssemblyName System.Drawing, System.Windows.Forms
 if (-not ('PixelsMediaAcceptance' -as [type])) {
@@ -99,6 +101,7 @@ try {
         "--connection_instance_id=$($instance.instance_id)",
         "--connection_ticket=$([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($ticket.ticket)))","--connection_nonce=$nonce")
     foreach($argument in $args){$start.ArgumentList.Add($argument)}
+    if ($ForceTcp) { $start.ArgumentList.Add('--force_tcp=1') }
     $client=[Diagnostics.Process]::Start($start)
     Write-Output "CLIENT_STARTED pid=$($client.Id) instance=$($instance.instance_id) route=$($route.Host):$($route.Port) output=$output"
     $deadline=(Get-Date).AddSeconds($ObserveSeconds)
@@ -147,7 +150,7 @@ try {
     $finalScreenshot=$false
     if(-not $client.HasExited){$finalScreenshot=Capture $client 'final'}
     $evidence=(@(Get-Content $logPath)|Select-Object -Skip $initialLines)-join "`n"
-    $selected=$evidence -split "`n"|Where-Object {$_ -match 'UDP media v2|udp recv pkt|frame.*decoded|Decoder.*error|decode.*fail|watchdog|Video size changed|present.*frame|LAT-decode|LAT-net|Video frame came'}
+    $selected=$evidence -split "`n"|Where-Object {$_ -match 'TCP media|Native media transport|UDP media v2|udp recv pkt|frame.*decoded|Decoder.*error|decode.*fail|watchdog|Video size changed|present.*frame|LAT-decode|LAT-net|Video frame came'}
     $selected | Set-Content -LiteralPath (Join-Path $output 'media-evidence.log') -Encoding utf8
     $windows=@($selected | ForEach-Object {
         if($_ -match 'window: frames=(\d+), fps=([\d.]+), max_gap_ms=([\d.]+), gaps_gt_100ms=(\d+)'){
@@ -155,6 +158,10 @@ try {
         }
     })
     $summary=[ordered]@{
+        transport=$transportDirectory
+        tcp_video_received=($evidence -match 'TCP media video delivered')
+        tcp_audio_received=($evidence -match 'TCP media audio delivered')
+        unexpected_udp_in_tcp=($ForceTcp -and $evidence -match 'UDP media v2 video delivered|start associated UDP media')
         expected_fps=$ExpectedFramesPerSecond
         window_count=$windows.Count
         average_fps=($windows|Measure-Object fps -Average).Average
@@ -170,10 +177,14 @@ try {
     }
     $summary.receive_window_pass=$windows.Count -ge 5 -and $summary.minimum_fps -ge $ExpectedFramesPerSecond*0.95 -and
         $summary.max_delivery_gap_ms -lt 100 -and (-not $MouseSweep -or $mouseCompleted) -and -not $client.HasExited
+    if ($ForceTcp) {
+        $summary.receive_window_pass = $summary.receive_window_pass -and $summary.tcp_video_received -and
+            $summary.tcp_audio_received -and -not $summary.unexpected_udp_in_tcp
+    }
     $summary|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $output 'summary.json') -Encoding utf8
-    $selected|Where-Object {$_ -match 'UDP media v2 window|Decoder.*error|decode.*fail'}|ForEach-Object{Write-Output $_}
+    $selected|Where-Object {$_ -match 'TCP media window|UDP media v2 window|Decoder.*error|decode.*fail'}|ForEach-Object{Write-Output $_}
     Write-Output "RECEIVE_WINDOW_PASS=$($summary.receive_window_pass) mouse_completed=$mouseCompleted summary=$output/summary.json"
-    Write-Output "RESULT exited=$($client.HasExited) screenshot=$captured v2_video=$($evidence -match 'UDP media v2 video delivered') v2_audio=$($evidence -match 'UDP media v2 audio delivered')"
+    Write-Output "RESULT transport=$transportDirectory exited=$($client.HasExited) screenshot=$captured tcp_video=$($summary.tcp_video_received) tcp_audio=$($summary.tcp_audio_received)"
 } finally {
     if($client -and -not $client.HasExited){$client.Kill();$client.WaitForExit(5000)|Out-Null}
     if($instance -and $token){

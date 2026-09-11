@@ -163,6 +163,8 @@ bool ParseCommandLine(QApplication& app) {
 
     QCommandLineOption opt_force_software("force_software", "force software", "value", "");
     parser.addOption(opt_force_software);
+    const QCommandLineOption opt_force_tcp("force_tcp", "Use WebSocket/TCP for audio and video (0 or 1)", "value", "0");
+    parser.addOption(opt_force_tcp);
 
     QCommandLineOption opt_wait_debug("wait_debug", "wait debug", "value", "");
     parser.addOption(opt_wait_debug);
@@ -359,6 +361,7 @@ bool ParseCommandLine(QApplication& app) {
 
     // force software
     settings.force_software_ = parser.value(opt_force_software).toInt() == 1;
+    settings.force_tcp_ = parser.value(opt_force_tcp) == "1";
 
     // wait debug
     settings.wait_debug_ = parser.value(opt_wait_debug).toInt() == 1;
@@ -521,7 +524,7 @@ int main(int argc, char** argv) {
     auto visitor_device_id = settings.device_id_.empty() ? settings.my_host_ : settings.device_id_;
     auto media_path = std::format("/media?only_audio=0&remote_device_id={}&stream_id={}&visitor_device_id={}&force_gdi={}",
                                   bare_remote_device_id, settings.stream_id_, visitor_device_id, settings.force_gdi_);
-    media_path += "&udp_media=1";
+    // The SDK adds UDP association parameters only when UDP media is selected.
     auto ft_path = std::format("/file/transfer?remote_device_id={}&stream_id={}&visitor_device_id={}",
                                   bare_remote_device_id, settings.stream_id_, visitor_device_id);
     auto target_device_id = settings.device_id_.empty() ? settings.my_host_ : settings.device_id_;
@@ -536,6 +539,7 @@ int main(int argc, char** argv) {
     LOGI("full remote device id: {}", settings.full_remote_device_id_);
 
     auto params = std::make_shared<ThunderSdkParams>(ThunderSdkParams {
+        .media_transport_ = settings.force_tcp_ ? SdkMediaTransport::kWebSocket : SdkMediaTransport::kUdp,
         .ssl_ = false,
         .enable_audio_ = settings.audio_on_,
         .enable_video_ = !settings.file_transfer_only_,

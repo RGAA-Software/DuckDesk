@@ -530,21 +530,46 @@ namespace px
         const auto stream = streams_.at(index);
         QPointer<AppStreamList> self(this);
         if (stream->connect_type_ == connection_policy::kConsoleAppTicket) {
-            auto menu = new QMenu();
-            auto connect_action = menu->addAction(tcTr(
-                stream->console_instance_state_ == "running"
-                    ? "id_enter_application"
-                    : "id_start_application"));
-            auto view_action = menu->addAction(tcTr("id_only_viewing"));
-            auto stop_action = menu->addAction(tcTr("id_stop_application"));
-            connect(connect_action, &QAction::triggered, this,
-                    [self, stream]() { if (self) self->StartStream(stream, false); });
-            connect(view_action, &QAction::triggered, this,
-                    [self, stream]() { if (self) self->StartStream(stream, true); });
-            connect(stop_action, &QAction::triggered, this,
-                    [self, stream]() { if (self) self->StopStream(stream); });
+            const auto menu = std::make_unique<QMenu>();
+            const QPointer<QAction> connect_action =
+                menu->addAction(tcTr(stream->console_instance_state_ == "running" ? "id_enter_application" : "id_start_application"));
+            const QPointer<QAction> view_action = menu->addAction(tcTr("id_only_viewing"));
+            const QPointer<QAction> stop_action = menu->addAction(tcTr("id_stop_application"));
+            const QPointer<QAction> tcp_action = menu->addAction(tcTr("id_force_tcp"));
+            tcp_action->setCheckable(true);
+            const auto preference = db_mgr_->GetStreamByStreamId(stream->stream_id_);
+            tcp_action->setChecked(preference.has_value() && preference.value()->force_tcp_);
+            tcp_action->setEnabled(!stream->rdp_mode_);
+            connect(tcp_action.data(), &QAction::triggered, this, [self, stream](bool enabled) {
+                if (!self) {
+                    return;
+                }
+                const auto saved = self->db_mgr_->GetStreamByStreamId(stream->stream_id_);
+                // Persist only display/preferences, never the live app instance or its authorization ticket.
+                const auto preference = saved.value_or(std::make_shared<px_console::ConsoleStream>());
+                preference->stream_id_ = stream->stream_id_;
+                preference->stream_name_ = stream->stream_name_;
+                preference->connect_type_ = connection_policy::kConsoleAppTicket;
+                preference->force_tcp_ = enabled;
+                if (saved.has_value()) {
+                    self->db_mgr_->UpdateStream(preference);
+                } else {
+                    self->db_mgr_->AddStream(preference);
+                }
+            });
+            connect(connect_action.data(), &QAction::triggered, this, [self, stream]() {
+                if (self)
+                    self->StartStream(stream, false);
+            });
+            connect(view_action.data(), &QAction::triggered, this, [self, stream]() {
+                if (self)
+                    self->StartStream(stream, true);
+            });
+            connect(stop_action.data(), &QAction::triggered, this, [self, stream]() {
+                if (self)
+                    self->StopStream(stream);
+            });
             menu->exec(QCursor::pos());
-            delete menu;
             return;
         }
         std::vector<QString> actions = {
@@ -561,7 +586,7 @@ namespace px
             "",
             tcTr("id_settings"),
         };
-        auto menu = new QMenu();
+        const auto menu = std::make_unique<QMenu>();
         for (int i = 0; i < actions.size(); i++) {
             const QString& action_name = actions.at(i);
             if (action_name.isEmpty()) {
@@ -569,44 +594,35 @@ namespace px
                 continue;
             }
 
-            auto action = new QAction(action_name, menu);
-            menu->addAction(action);
-            connect(action, &QAction::triggered, this, [self, i, index]() {
+            const QPointer<QAction> action = menu->addAction(action_name);
+            connect(action.data(), &QAction::triggered, this, [self, i, index]() {
                 if (self && index >= 0 && index < self->streams_.size()) {
                     self->ProcessAction(i, self->streams_.at(index));
                 }
             });
         }
         menu->exec(QCursor::pos());
-        delete menu;
     }
 
-    void AppStreamList::ProcessAction(
-        int index, const std::shared_ptr<px_console::ConsoleStream>& item) {
+    void AppStreamList::ProcessAction(int index, const std::shared_ptr<px_console::ConsoleStream>& item) {
         if (index == 0) {
             // connect
             StartStream(item, false);
-        }
-        else if (index == 1) {
+        } else if (index == 1) {
             // stop
             StopStream(item);
-        }
-        else if (index == 2) {
+        } else if (index == 2) {
             // only viewing
             StartStream(item, true);
-        }
-        else if (index == 3) {
+        } else if (index == 3) {
             StartFileTransfer(item);
-        }
-        else if (index == 4) {
+        } else if (index == 4) {
             // lock device
             LockDevice(item);
-        }
-        else if (index == 5) {
+        } else if (index == 5) {
             // restart device
             RestartDevice(item);
-        }
-        else if (index == 6) {
+        } else if (index == 6) {
             // shutdown device
             ShutdownDevice(item);
         }
@@ -614,8 +630,7 @@ namespace px
         else if (index == 8) {
             // edit
             EditStream(item);
-        }
-        else if (index == 9) {
+        } else if (index == 9) {
             // delete
             DeleteStream(item);
         }
@@ -647,6 +662,8 @@ namespace px
         const bool uses_console_app_ticket = item->connect_type_ == connection_policy::kConsoleAppTicket;
         if (uses_console_app_ticket) {
             target_item = item;
+            const auto preference = db_mgr_->GetStreamByStreamId(item->stream_id_);
+            target_item->force_tcp_ = preference.has_value() && preference.value()->force_tcp_;
         } else {
             auto si = db_mgr_->GetStreamByStreamId(item->stream_id_);
             if (!si.has_value()) {

@@ -6,6 +6,7 @@
 #define PX_SDK_PARAMS_H
 
 #include "px_message.pb.h"
+#include "sdk_connection_params.h"
 
 #include <string>
 
@@ -13,6 +14,7 @@ namespace px {
 
 class ThunderSdkParams {
   public:
+    SdkMediaTransport media_transport_{SdkMediaTransport::kUdp};
     bool ssl_ = false;
     bool enable_audio_ = false;
     bool enable_video_ = false;

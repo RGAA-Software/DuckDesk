@@ -102,6 +102,7 @@ namespace px
         // network runtime must not retain renderer devices or mutable UI params.
         net_client_ = std::make_shared<NetClient>(
             SdkConnectionParams{
+                .media_transport_ = params->media_transport_,
                 .ssl_ = params->ssl_,
                 .enable_audio_ = params->enable_audio_,
                 .enable_video_ = params->enable_video_,

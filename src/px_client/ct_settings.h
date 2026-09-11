@@ -132,6 +132,7 @@ namespace px
 
         // force software to decode & render
         bool force_software_ = false;
+        bool force_tcp_{false};
 
         // wait debug
         bool wait_debug_ = false;

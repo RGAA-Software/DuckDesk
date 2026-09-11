@@ -125,6 +125,15 @@ class NetClient : public std::enable_shared_from_this<NetClient> {
     std::atomic_bool udp_direct_started_{false};
     std::atomic_bool file_transfer_started_{false};
     std::atomic_bool connection_notified_{false};
+    // Accessed only by the serialized WebSocket receive callback.
+    struct TcpReceiveWindow final {
+        std::int64_t start_ms{0};
+        std::int64_t last_frame_ms{0};
+        std::int64_t max_gap_ms{0};
+        std::uint64_t frames{0};
+        std::uint64_t stalls{0};
+        bool audio_seen{false};
+    } tcp_receive_window_{};
     static constexpr int64_t kUdpMediaProbeTimeoutMs = 4000;
     uint64_t hb_idx_ = 0;
 

@@ -286,6 +286,7 @@
   "id_relay_server": "Relay",
   "id_relay_ft_server": "Relay File",
   "id_force_software": "Force Software Decode",
+  "id_force_tcp": "Force TCP (next connection)",
   "id_wait_debug": "Wait Debugger",
   "id_force_gdi_capture": "Force GDI capture",
   "id_disable_vulkan_render": "Disable vulkan render",

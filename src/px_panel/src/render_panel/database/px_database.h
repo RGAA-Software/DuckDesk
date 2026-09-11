@@ -94,6 +94,7 @@ namespace px
                     make_column("force_relay", &px_console::ConsoleStream::force_relay_, default_value(false)),
                     make_column("force_direct", &px_console::ConsoleStream::force_direct_, default_value(false)),
                     make_column("force_software", &px_console::ConsoleStream::force_software_, default_value(false)),
+                    make_column("force_tcp", &px_console::ConsoleStream::force_tcp_, default_value(false)),
                     make_column("wait_debug", &px_console::ConsoleStream::wait_debug_, default_value(false)),
                     make_column("force_gdi_capture", &px_console::ConsoleStream::force_gdi_capture_, default_value(false)),
                     make_column("disable_vulkan_render", &px_console::ConsoleStream::disable_vulkan_render_, default_value(false)),

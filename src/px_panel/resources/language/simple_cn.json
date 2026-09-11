@@ -286,6 +286,7 @@
   "id_relay_server": "中转服务",
   "id_relay_ft_server": "中转文件服务",
   "id_force_software": "强制软解码",
+  "id_force_tcp": "强制 TCP 连接（下次连接生效）",
   "id_wait_debug": "等待调试",
   "id_force_gdi_capture": "强制用GDI采集",
   "id_disable_vulkan_render": "禁用vulkan渲染",

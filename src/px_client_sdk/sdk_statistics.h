@@ -12,6 +12,7 @@
 #include <atomic>
 #include <memory>
 #include "px_message.pb.h"
+#include "sdk_connection_params.h"
 #include "px_common/fps_stat.h"
 #include "px_common/concurrent_type.h"
 #include "px_common/concurrent_vector.h"
@@ -81,6 +82,7 @@ namespace px
     public:
         // recv data
         std::atomic_int64_t recv_data_size_ = 0;
+        std::atomic<SdkMediaTransport> media_transport_{SdkMediaTransport::kUdp};
         std::atomic_int64_t last_recv_data_size_ = 0;
 
         // send data

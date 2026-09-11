@@ -307,7 +307,8 @@ namespace px
                         label->SetTextId("id_connection_type");
                         label->setStyleSheet("font-size: 13px;");
                         row_layout->addWidget(label);
-                        QPointer<QLabel> value = new QLabel("UDP/FEC + WS", row); // NOLINT(gammaray-raw-pointer-boundary) Qt row owns value.
+                        QPointer<QLabel> value = new QLabel(row); // NOLINT(gammaray-raw-pointer-boundary) Qt row owns value.
+                        media_transport_label_ = value;
                         value->setFixedSize(value_size);
                         value->setStyleSheet("font-size: 13px; font-weight:500; color: #2979ff;");
                         row_layout->addWidget(value);
@@ -583,6 +584,10 @@ namespace px
 
         {
             lbl_received_data_->setText(NumFormatter::FormatStorageSize(sdk_stat_->recv_data_size_).c_str());
+            if (media_transport_label_) {
+                const bool tcp = sdk_stat_->media_transport_.load() == SdkMediaTransport::kWebSocket;
+                media_transport_label_->setText(tcp ? "WebSocket/TCP" : "UDP/FEC + WS");
+            }
             lbl_video_format_->setText(sdk_stat_->video_format_.Clone().c_str());
             lbl_video_color_->setText(sdk_stat_->video_color_.Clone().c_str());
             lbl_sent_data_->setText(NumFormatter::FormatStorageSize(sdk_stat_->send_data_size_).c_str());

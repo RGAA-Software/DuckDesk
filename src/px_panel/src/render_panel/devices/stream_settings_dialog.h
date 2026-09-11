@@ -25,6 +25,7 @@ class StreamSettingsDialog final : public TcCustomTitleBarDialog {
     QPointer<QCheckBox> only_viewing_{};
     QPointer<QCheckBox> split_windows_{};
     QPointer<QCheckBox> software_{};
+    QPointer<QCheckBox> tcp_{};
     QPointer<QCheckBox> wait_debug_{};
     QPointer<QCheckBox> gdi_{};
     QPointer<QCheckBox> disable_vulkan_{};

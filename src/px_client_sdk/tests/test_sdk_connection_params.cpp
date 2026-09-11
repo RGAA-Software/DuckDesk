@@ -88,6 +88,7 @@ struct TransportHarness final {
 
 TEST(SdkConnectionParams, DefaultsDoNotEnableMediaOrContainAuthorization) {
     const SdkConnectionParams params{};
+    EXPECT_EQ(params.media_transport_, SdkMediaTransport::kUdp);
     EXPECT_FALSE(params.ssl_);
     EXPECT_FALSE(params.enable_audio_);
     EXPECT_FALSE(params.enable_video_);
@@ -156,6 +157,24 @@ TEST(SdkConnectionParams, EmptyAssociationIsGeneratedPerClientWithoutMutatingCal
         EXPECT_NE(target, previous_target);
         previous_target = target;
     }
+}
+
+TEST(SdkConnectionParams, TcpSelectionPreservesAuthorizationWhenOnlyCachedUdpQueryWasPresent) {
+    TransportHarness harness{};
+    ASSERT_TRUE(harness.StartServer());
+    const SdkConnectionParams params{
+        .media_transport_ = SdkMediaTransport::kWebSocket,
+        .ip_ = "127.0.0.1",
+        .port_ = harness.server->listen_port(),
+        .media_path_ = "/media?udp_media=1&udp_media_association=old",
+        .connection_ticket_ = "test-ticket",
+        .connection_nonce_ = "test-nonce",
+        .connection_instance_id_ = "test-instance",
+    };
+    harness.client = std::make_shared<NetClient>(params, harness.notifier);
+    ASSERT_TRUE(harness.StartClient());
+    std::lock_guard lock(harness.observations->mutex);
+    EXPECT_EQ(harness.observations->target, "/media?ticket=test-ticket&client_nonce=test-nonce&instance_id=test-instance");
 }
 
 TEST(SdkConnectionParams, ExplicitAssociationIsPreservedAfterSourceDestruction) {
