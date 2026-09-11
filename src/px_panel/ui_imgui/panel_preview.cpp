@@ -7,22 +7,10 @@
 namespace px::panel::ui {
 namespace {
 
-void DrawText(const std::string_view text) {
-    ImGui::TextUnformatted(text.data(), text.data() + text.size());
-}
-
 void DrawDisabledText(const std::string_view text) {
     ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-    DrawText(text);
+    ImGui::TextUnformatted(text.data(), text.data() + text.size());
     ImGui::PopStyleColor();
-}
-
-void DrawEndpoint(const std::string_view label, const std::string_view value, const std::string_view purpose) {
-    DrawDisabledText(label);
-    ImGui::SameLine(190.0F);
-    DrawText(value);
-    ImGui::SameLine(430.0F);
-    DrawDisabledText(purpose);
 }
 
 } // namespace
@@ -56,9 +44,7 @@ void PanelPreview::DrawNavigation() {
 void PanelPreview::DrawNetworkPage() {
     const auto text = [&localizer = localizer_](const px::ui::TextId id) { return localizer.Text(id); };
     ImGui::BeginChild("NetworkPage", ImVec2{0.0F, 0.0F}, ImGuiChildFlags_Borders);
-    DrawText(text(px::ui::TextId::SettingsNetwork));
-    DrawDisabledText(text(px::ui::TextId::ConnectionAddresses));
-    ImGui::SameLine(ImGui::GetWindowWidth() - 205.0F);
+    ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 305.0F);
     if (ImGui::SmallButton(text(px::ui::TextId::SimplifiedChinese).data())) {
         localizer_.SetLanguage(px::ui::Language::SimplifiedChinese);
     }
@@ -76,43 +62,10 @@ void PanelPreview::DrawNetworkPage() {
         theme_ = px::ui::Theme::Light;
         px::ui::ApplyPixelsColors(theme_);
     }
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
 
-    DrawText(text(px::ui::TextId::Authorization));
-    ImGui::SetNextItemWidth(-1.0F);
-    ImGui::InputTextMultiline("##authorization", authorizationInfo_.data(), authorizationInfo_.size(), ImVec2{-1.0F, 92.0F});
-
-    ImGui::Spacing();
-    DrawText(text(px::ui::TextId::ResolvedControlEndpoints));
-    ImGui::BeginChild("ResolvedEndpoints", ImVec2{0.0F, 108.0F}, ImGuiChildFlags_Borders);
-    DrawEndpoint(text(px::ui::TextId::Supervisor), "--", text(px::ui::TextId::NodeManagement));
-    DrawEndpoint(text(px::ui::TextId::Relay), "--", text(px::ui::TextId::ReliableRoutedConnection));
-    ImGui::EndChild();
-
-    ImGui::Spacing();
-    DrawText(text(px::ui::TextId::NodePublicAddress));
-    DrawDisabledText(text(px::ui::TextId::OptionalPublicAddress));
-    ImGui::SetNextItemWidth(-1.0F);
-    ImGui::InputTextWithHint("##publicAddress", text(px::ui::TextId::PublicAddressHint).data(), publicAddress_.data(), publicAddress_.size());
-
-    ImGui::Spacing();
-    DrawText(text(px::ui::TextId::NodeListeningPorts));
-    ImGui::BeginChild("NodePorts", ImVec2{0.0F, 138.0F}, ImGuiChildFlags_Borders);
-    DrawEndpoint(text(px::ui::TextId::ServiceManagementPort), "4603/TCP", text(px::ui::TextId::ServiceManagementPurpose));
-    DrawEndpoint(text(px::ui::TextId::DesktopConnectionPort), "4601/TCP", text(px::ui::TextId::DesktopConnectionPurpose));
-    DrawEndpoint(text(px::ui::TextId::ApplicationPortPool), "4613-4998", text(px::ui::TextId::ApplicationPortPurpose));
-    DrawEndpoint(text(px::ui::TextId::RtcMediaPool), "5000-5031", text(px::ui::TextId::RtcPortPurpose));
-    DrawEndpoint(text(px::ui::TextId::PanelListeningPort), "4999/TCP", text(px::ui::TextId::PanelListeningPurpose));
-    ImGui::EndChild();
-
-    ImGui::Spacing();
-    if (ImGui::Button(text(px::ui::TextId::Save).data(), ImVec2{150.0F, 40.0F})) {
-        status_ = px::ui::TextId::PreviewSavedStatus;
+    if (networkPage_.Draw(localizer_) == NetworkPageAction::SaveRequested) {
+        networkPage_.SetStatus(px::ui::TextId::PreviewSavedStatus);
     }
-    ImGui::SameLine();
-    DrawDisabledText(text(status_));
     ImGui::EndChild();
 }
 

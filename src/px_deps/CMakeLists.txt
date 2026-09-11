@@ -17,6 +17,7 @@ if(WIN32)
         px_imgui/imgui_widgets.cpp
         px_imgui/backends/imgui_impl_dx11.cpp
         px_imgui/backends/imgui_impl_sdl3.cpp
+        px_imgui/misc/cpp/imgui_stdlib.cpp
     )
     target_include_directories(px_imgui SYSTEM PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}/px_imgui"

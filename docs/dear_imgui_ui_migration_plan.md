@@ -1,7 +1,16 @@
 # Panel 与 Client 跨平台 UI 迁移计划
 
 创建：2026-09-11。修订：按用户确认收窄为**只修改 UI，不修改业务逻辑**。
-状态：规划阶段，尚未开始迁移实现。
+状态：P1 实施中；独立 Panel UI 骨架已建立，正式 `px_panel` 尚未切换。
+
+当前进度（2026-09-11）：
+
+- 已固定 SDL3/ImGui 上游 revision，建立 `px_ui`、`px_desktop_shell` 与独立 `px_panel_imgui_preview` 定向构建。
+- Windows SDL3 + D3D11 + ImGui 窗口已编译并通过重复短时启动，预览 EXE 运行依赖中无 Qt；正式 Panel 和 Client 仍保持原入口。
+- 已提供类型化简体中文/英文词典、Pixels 深色/浅色主题及词典完整性、主题重复缩放测试。
+- 桌面外壳已按窗口、D3D11 渲染、ImGui 生命周期、字体、标题栏和 composition root 拆分；持有资源使用 RAII/智能指针。
+- Network 页面已拆成独立 draft/page，当前仍使用明确的预览数据；真实配置读取、授权解析/验证/保存尚未接入，不得按已完成描述。
+- Windows Snap Layout、动态 DPI、中文 IME 候选框、正常关闭/重复创建销毁和可视主题交互仍需完成 P1 验收。
 
 ## 1. 目标与硬边界
 

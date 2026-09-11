@@ -1,7 +1,6 @@
 #pragma once
 
-#include <array>
-
+#include "network_settings_page.h"
 #include "px_ui/localization.h"
 #include "px_ui/px_ui_theme.h"
 
@@ -15,11 +14,9 @@ class PanelPreview final {
     void DrawNavigation();
     void DrawNetworkPage();
 
-    std::array<char, 2048> authorizationInfo_{};
-    std::array<char, 256> publicAddress_{};
     px::ui::Localizer localizer_{};
     px::ui::Theme theme_{px::ui::Theme::Dark};
-    px::ui::TextId status_{px::ui::TextId::PreviewInitialStatus};
+    NetworkSettingsPage networkPage_{};
 };
 
 } // namespace px::panel::ui

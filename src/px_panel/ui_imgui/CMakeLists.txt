@@ -1,5 +1,6 @@
 add_executable(px_panel_imgui_preview
     main.cpp
+    network_settings_page.cpp
     panel_preview.cpp
 )
 
