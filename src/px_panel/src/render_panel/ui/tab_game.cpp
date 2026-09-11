@@ -203,7 +203,9 @@ namespace px
         empty_tip_->setPixmap(pixmap);
 
         ShowEmptyTip();
+#if 0 // Retired startup discovery of locally installed Steam games.
         ScanInstalledGames();
+#endif
     }
 
     TabGame::~TabGame() {
