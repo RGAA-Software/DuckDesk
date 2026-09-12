@@ -1,7 +1,9 @@
 # GammaRay/GoDesk 架构总览
 
 > 2026-09-11 桌面 UI 迁移决策：共享 SDL3 + Dear ImGui UI 基础，Windows 首版使用 D3D11 后端；先完成 Panel，再迁移 Client。
-> 本轮只修改 UI，保持现有业务逻辑、配置和协议，包括恢复的 WebSocket 媒体直连、WebSocket Relay、force_tcp/force_relay 和现有 RDP 入口。
+> UI 迁移保持现有业务逻辑、配置和协议，包括恢复的 WebSocket 媒体直连、WebSocket Relay、force_tcp/force_relay 和现有 RDP 入口。
+> 2026-09-12 另行纠正 Client 的本地视频接合：Vulkan 硬解/原生显示优先，D3D11VA 次之，最后才是保持 YUV 的软件解码；不再把 Native
+> 视频经 libyuv 转为 BGRA 后做 CPU 动态纹理上传，也不再强制垂直同步 Present。
 > 随页面替换必要的 Qt 接口，不以前置全量 Core 重构扩展范围；移动端 UI 和其他平台完整业务适配另行推进。完整阶段、边界和门禁见
 > [Panel 与 Windows Client 的 Dear ImGui 迁移计划](dear_imgui_ui_migration_plan.md)。
 > 2026-09-07 更新客户端传输产品边界，其余历史架构说明以各专题当前记录为准。本文是项目的模块关系与整体理解的单一入口。
@@ -15,7 +17,8 @@ Windows、Android、iOS、macOS 原生客户端均取消 WebRTC，包括 host �
 UDP+FEC 媒体、WebSocket 可靠控制和独立文件通道，组成唯一的原生直连模式；取消原生 WS 视频回退、旧 UDP/KCP、Relay 与公网 P2P。
 原生公网连接留待后续 RustDesk 方案。保留 Web 所需的 Render RTC、Console 信令、ICE/TURN、鉴权与部署能力。
 双端入口已固定原生接入，Android RTC AAR、Windows 通道设置及启动回退已退役；共享 SDK 旧 RTC/Relay/KCP 连接与独立 WS 媒体分支也已归档。旧诊断与 SDK 重复 OpenGL 代码已退出活动源码，SDK 不再直接依赖 Qt；解码器/帧数据的平台分层仍待完成。
-Vulkan 显示帧已从借用解码器工作帧改为独立 FFmpeg 引用，同时保留软件解码帧上传路径；其余帧资源和设备上下文的所有权边界仍在整理。
+Vulkan 显示帧使用独立 FFmpeg 引用和 renderer/device lease；D3D11VA 显示帧同时持有 COM 纹理、设备及解码池源帧引用。软件解码帧以
+I420/I444/NV12 平面上传，CPU 不生成 Native 视频的 RGB 中间帧。平台解码工厂和帧资源边界已经建立，其余历史解码器内部实现仍需按触及范围持续整理。
 既有客户端 RTC 测试记录不表示它仍属于产品目标。具体清理范围、SDK 分层与验收见
 [原生客户端 SDK 与 WebRTC 产品边界](native_client_sdk_transport_decision.md)。
 

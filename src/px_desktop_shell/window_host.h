@@ -10,7 +10,8 @@ namespace px::desktop {
 
 class WindowHost final {
   public:
-    static std::expected<WindowHost, std::string> Create(const std::string& title, int width, int height, bool initiallyVisible);
+    static std::expected<WindowHost, std::string> Create(const std::string& title, int width, int height, bool initiallyVisible,
+                                                         bool requestVulkanSurface);
 
     WindowHost(WindowHost&&) noexcept;
     WindowHost& operator=(WindowHost&&) noexcept;
@@ -24,6 +25,7 @@ class WindowHost final {
     void ToggleMaximize() const;
     bool ToggleFullscreen();
     bool IsMaximized() const;
+    [[nodiscard]] bool VulkanSurfaceAvailable() const noexcept;
     float DisplayScale() const;
     void Hide() const;
     void ShowAndRaise() const;

@@ -304,6 +304,10 @@ switch ($Component) {
                 Publish-VerifiedFile -Source $source -Destination (Join-Path $distRoot $name) -ProcessName 'px_client'
             }
         }
+        Publish-VerifiedFile `
+            -Source (Join-Path $buildRoot 'src\px_deps\libplacebo-349.dll') `
+            -Destination (Join-Path $distRoot 'libplacebo-349.dll') `
+            -ProcessName 'px_client'
         foreach ($relative in @('rdp\sdk.json', 'rdp\licenses\FreeRDP-LICENSE', 'rdp\licenses\openssl-LICENSE',
             'rdp\licenses\libusb-LICENSE', 'rdp\licenses\zlib-LICENSE', 'rdp\licenses\cjson-LICENSE', 'rdp\licenses\openh264-LICENSE')) {
             Publish-VerifiedFile -Source (Join-Path $buildRoot ('src\px_client\' + $relative)) `
@@ -340,6 +344,12 @@ switch ($Component) {
             -Source (Join-Path $buildRoot "src\px_deps\px_panel.exe") `
             -Destination (Join-Path $distRoot "px_panel.exe") `
             -ProcessName "px_panel"
+        foreach ($name in @('d3dcompiler_47.dll', 'dxcompiler.dll', 'dxil.dll', 'vulkan-1.dll', 'libplacebo-349.dll')) {
+            $source = Join-Path $buildRoot ('src\px_deps\' + $name)
+            if (Test-Path -LiteralPath $source -PathType Leaf) {
+                Publish-VerifiedFile -Source $source -Destination (Join-Path $distRoot $name) -ProcessName 'px_panel'
+            }
+        }
         Publish-VerifiedFile `
             -Source (Join-Path $buildRoot "src\px_deps\resources\fonts\Roboto-Regular.ttf") `
             -Destination (Join-Path $distRoot "resources\fonts\Roboto-Regular.ttf") `

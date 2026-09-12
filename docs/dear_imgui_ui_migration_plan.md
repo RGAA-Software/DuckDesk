@@ -29,9 +29,15 @@ SDL3 + Dear ImGui 承载。Win32 只保留窗口、凭据保险库、进程、�
 - 已提供类型化简体中文/英文词典、Pixels 深色/浅色主题及词典完整性、主题重复缩放测试。
 - 桌面外壳已按窗口、D3D11 渲染、ImGui 生命周期、字体、标题栏和 composition root 拆分；持有资源使用 RAII/智能指针。
 - Network 页面已拆成独立 draft/page/presenter/port；正式 ImGui Panel 已接入现有配置读取、授权解析、Console 验证、保存及设备注册工作流，预览版继续使用隔离数据。
-- Windows 最大化按钮已通过原生 `HTMAXBUTTON` 接入 Snap Layout，平台 subclass 由 RAII 管理；显示缩放变化会从基础尺寸重放主题和字体配置。
-- 4K（3840×2160、150%）已完成窗口居中、字体、标题栏、导航、操作按钮和端口表格的实机可视验收；窗口初始/最小尺寸及自定义命中区域统一随 DPI 缩放。
-- 官方 ImGui SDL3 后端已负责文本输入光标区域到 SDL 的传递，Windows SDL 后端据此定位系统 IME 候选框；仍需人工完成跨屏 DPI、中文候选窗和 Snap 菜单的可视验收。
+- Windows 最大化按钮已通过原生 `HTMAXBUTTON` 接入 Snap Layout，平台 subclass 由 RAII 管理；显示缩放变化会从基础尺寸重放主题配置。
+- DPI 使用单一缩放源：字体图集固定按 18 px 基准加载，运行时只由 `FontScaleDpi` 缩放；主题和显式布局尺寸各从基准值缩放一次。
+  已移除曾使 4K/150% 字体从 18 重复放大到约 40.5 px 的二次缩放。当前 4K 有效字体为 27 px，100% DPI/约 1K 屏幕为 18 px；
+  正式 Panel 的初始逻辑尺寸为 960×640，窗口初始/最小尺寸及自定义命中区域统一随当前显示器 DPI 缩放。Windows 适配层采用
+  `WM_GETDPISCALEDSIZE` 的系统线性结果及 `WM_DPICHANGED` 推荐矩形，避免 SDL3 默认保持物理客户区大小；最小尺寸也按目标 DPI 动态计算，
+  不再把启动显示器的 1350×900 下限带到 100% 显示器。
+- 官方 ImGui SDL3 后端已负责文本输入光标区域到 SDL 的传递，Windows SDL 后端据此定位系统 IME 候选框；仍需人工完成中文候选窗和 Snap
+  菜单的可视验收。双屏实机已连续验证两轮 Panel `144 DPI: 1440×960 → 96 DPI: 960×640 → 144 DPI: 1440×960`，Client 也保持
+  1440×900 的逻辑尺寸往返，未再出现尺寸累积。
 - 深浅主题状态已归一到桌面壳层，正常关闭、语言测试、ownership 门禁及 build/dist 哈希核对通过。
 - 旧 Qt 网络页的 Console 验证和设备注册异步操作已抽到 UI 无关工作流，旧页面继续调用相同实现；下一步由 ImGui 业务适配器复用，避免复制网络语义。
 - 服务状态页已接入现有 Application、Statistics 和消息系统，显示驱动、Render、Service、网络、端口和音频状态；安装驱动和重启 Render 复用原业务入口。
@@ -75,8 +81,9 @@ SDL3 + Dear ImGui 承载。Win32 只保留窗口、凭据保险库、进程、�
 | 桌面外壳 | px_desktop_shell | SDL3 生命周期、UI 渲染接入、平台窗口行为 |
 | 产品页面 | Panel/Client 各自维护 | 页面布局、局部交互状态、调用现有业务入口 |
 
-Windows 首版使用 SDL3 + D3D11 官方 ImGui 后端。其他平台增加所需 UI 后端，不要求统一 GPU API。
-本计划不确定或重构视频解码、采集和媒体渲染方案；Client 只完成新 UI 与现有画面展示边界的必要接合。
+Panel 的 Windows 首版使用 SDL3 + D3D11 官方 ImGui 后端；Client 根据视频能力选择 Vulkan 或 D3D11 ImGui 后端。其他平台增加所需 UI
+后端，不要求统一 GPU API。UI 迁移本身不改变远端编码、采集和传输协议；2026-09-12 复核发现迁移接合层错误地把解码帧统一转为
+BGRA 并经 CPU 动态纹理上传，因此按原有硬解目标修正了本地解码和显示边界，详见本节末尾的“视频显示链路纠正”。
 不因为迁移 UI 将 Panel 改用 SDL_GPU，也不要求重写 Client 的其他现存显示路径。
 
 SDL3 是公共桌面平台基础，Windows 原生扩展负责 DWM、Snap Layout 等细节。
@@ -376,13 +383,14 @@ Panel 第一阶段完成后才进入 Client 的 C0 基线。Hardware 页面继�
 
 #### `px_client` Dear ImGui 迁移
 
-- 正式 `px_client.exe` 唯一入口现为 SDL3 + D3D11 + Dear ImGui，旧 QWidget Client、Qt 文件传输窗口、Qt 剪贴板模块和 Qt 录制模块
+- 正式 `px_client.exe` 唯一入口现为 SDL3 + Dear ImGui，并按能力使用 Vulkan 或 D3D11 显示后端；旧 QWidget Client、Qt 文件传输窗口、Qt 剪贴板模块和 Qt 录制模块
   均不参与正式 Client 构建图；`clipboard.dll`、`ft.dll`、`record.dll` 不再作为 Client 插件恢复。
 - 新 Client 按启动配置、会话、窗口、工具栏、文件传输、音频输出、RDP 协议和类型化中英文本拆分，没有单文件承载全部职责。
   正式目标覆盖 UDP/FEC、WebSocket 直连、WebSocket Relay、硬/软解码选择、画面与音频、鼠标键盘/UTF-8 文本输入、剪贴板、文件传输、
   录制、语音、显示器切换、分辨率、虚拟显示、截图、统计、帧率、声音、全屏、深浅主题和简体中文/英文切换。
-- Client 控制入口保持远程工具的轻量悬浮球形态：默认只显示悬浮球，可拖动到窗口内任意位置；单击才展开或收起
-  “显示/控制/工具/语音/设置”两级菜单，单纯 hover 不触发菜单。菜单作为画面上的独立 overlay，不挤占视频布局空间。
+- Client 控制入口保持远程工具的轻量悬浮球形态：默认只显示悬浮球，可拖动到窗口内任意位置；单击先只展开
+  “显示/控制/工具/语音/设置”一级导航，进入具体导航项后才展开对应的详情层。菜单作为画面上的独立 overlay，不挤占视频布局空间；
+  点击菜单外部只关闭本地菜单并吞掉该次点击，不把同一次操作发送给远端。
 - SDL 输入适配独立于窗口和菜单：覆盖左右修饰键、导航键、功能键、Windows OEM 标点与数字小键盘；窗口失焦时主动释放仍按下的键鼠，
   持续启用文本输入并只将 IME/Unicode 提交交给文本协议，避免普通 ASCII 键盘事件与文本事件重复发送。
 - Client 视频窗口按显示器刷新节奏持续呈现；Panel 等非视频程序继续采用事件驱动刷新，避免把远程画面错误降到低频 UI 空闲刷新。
@@ -393,16 +401,29 @@ Panel 第一阶段完成后才进入 Client 的 C0 基线。Hardware 页面继�
 - 定向构建脚本只构建 Client/测试及必要 RTC 目标，并将 EXE、FreeRDP 运行库、语音处理 DLL、字体和语言资源同步到
   `build_official/dist` 后逐项验证 SHA-256。正式 Client 的 Qt 导入与运行模块检查是最终验收门禁。
 
+#### 视频显示链路纠正（2026-09-12）
+
+- 自动模式的后端顺序固定为 Vulkan 硬件解码/原生 Vulkan 帧显示 → D3D11VA 硬件解码/D3D11 GPU 帧显示 → FFmpeg 软件解码。
+  Vulkan 只有在真实 GPU、FFmpeg Vulkan 配置以及 H.264/HEVC Vulkan Video 扩展均可用时才入选，否则窗口建立阶段即回退 D3D11。
+- Vulkan 硬件帧保留 `AVFrame`/设备 lease，经 libplacebo 直接映射并在 GPU 上完成缩放和色彩处理；D3D11VA 帧保留解码池引用，
+  在同一设备上复制 NV12 纹理并以 GPU shader 显示。对齐填充区通过纹理坐标裁剪，不做 CPU RGB 转换。
+- 软件兜底保留 I420/I444/NV12，CPU 只上传原始 YUV 平面，色彩转换在 GPU 完成。Native 编码视频不再调用 libyuv 转 BGRA，
+  也不再写入 D3D11 动态 BGRA 纹理；BGRA 上传接口仅保留给 FreeRDP 已解码画面。
+- D3D11 使用 flip-discard、最大帧延迟 1 和可用时的 tearing；Vulkan 优先 immediate、其次 mailbox，均不再强制垂直同步等待。
+- Vulkan 已初始化但具体解码器创建失败时，解码工厂继续尝试 D3D11VA；该异常兜底只同步下载 NV12 再交给 Vulkan GPU 显示，
+  不生成 RGB 中间帧。正常 Vulkan 与正常 D3D11VA 路径均不发生 GPU 回读。
+
 #### 最终验收（2026-09-12）
 
 - `scripts_build/build_cpp_client.bat` 通过；3 项 Native/RDP 无票据启动信封测试通过。`build_official/src/px_deps/px_client.exe` 与
-  `build_official/dist/px_client.exe` 的 SHA-256 均为 `D1B81CEFDCC3BA4532AB3A5257BC37326906046D727A88D496D8A3AF8985156E`；
-  FreeRDP、语音、字体和语言运行资源逐项哈希一致。
-- `scripts/test_native_imgui_node90.ps1` 使用正式 dist Client、当前 Console 和 90 Render，分别完成 UDP/FEC 与强制 WebSocket 真实首帧
-  验收；两次均为 `PASS`、`QtModuleCount=0`、`DecoderRebuildCount=0`，测试实例退出后由 Console 清理。无启动信封与错误密码两种
-  失败路径的 ImGui 对话框也已分别验证可见且 Qt 模块数为 0。
+  `build_official/dist/px_client.exe` 的当前 SHA-256 均为 `31A552055D57136D84031DB16B44D39E7DAA6C5C0980EDD442A4349C87758E8E`；
+  Vulkan loader、libplacebo、FreeRDP、语音、字体和语言运行资源逐项哈希一致。
+- `scripts/test_native_imgui_node90.ps1` 曾使用正式 dist Client、当前 Console 和 90 Render，分别完成 UDP/FEC 与强制 WebSocket 真实首帧
+  验收；这些结果覆盖连接和无 Qt 基线，不替代 2026-09-12 新视频显示链路的真流复验。新链路已在本机分别验证 Vulkan、D3D11 后端
+  成功初始化且标准错误为空，真实系统点击悬浮按钮后日志为 `menu_open=true`；本次 90 复验在启动 Client 前被节点 WinRM 拒绝访问，待更新
+  当前节点运维凭据后补做真首帧和流畅度验收。无启动信封与错误密码两种失败路径的 ImGui 对话框此前已分别验证可见且 Qt 模块数为 0。
 - `scripts_build/build_cpp_panel.bat` 的 6 项 Panel 测试通过，正式 Panel 哈希为
-  `1ABED28231AE97C6A02D91AC6CD7B07E59A02F7EE685018C9C3230EBD4D0CD5B`，构建树、dist 和 90 部署副本一致；本机及 90 运行模块均无 Qt。
+  `971DF91964FB42070E5668EDBFD555EFF6466214F16B887CE64F232AC6CDECFB`，构建树和 dist 一致；本机及既有 90 验收的运行模块均无 Qt。
 - Console 的 Native 描述结构测试明确禁止 `ticket`、`renewal_token`、`reservation`、`expires_at` 字段；RDP 密钥脱敏测试和
   `cargo check -p px_console_server` 通过。90 已部署最终 Console，二进制 SHA-256 为
   `6EBE5A6F900B5EFF2C8F68CC4CF2961E2A416019618BC615DF2B81B6C522DB6B`，仓库配置哈希为

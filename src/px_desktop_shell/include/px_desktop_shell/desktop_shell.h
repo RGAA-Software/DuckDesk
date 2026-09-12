@@ -9,6 +9,11 @@
 
 #include "px_ui/px_ui_theme.h"
 
+namespace px {
+class RawImage;
+struct WindowsVideoResources;
+} // namespace px
+
 namespace px::desktop {
 
 struct DesktopInputEvent final {
@@ -31,6 +36,7 @@ struct WindowConfig {
     bool minimizeToTray{false};
     bool continuousTextInput{false};
     bool continuousRendering{false};
+    bool preferVulkanVideo{false};
 };
 
 class DesktopShell final {
@@ -49,7 +55,9 @@ class DesktopShell final {
 
     int Run(const RenderCallback& render, const InputCallback& input = {});
     bool UpdateVideoTexture(int width, int height, std::span<const std::uint8_t> bgra);
+    bool UpdateVideoFrame(const std::shared_ptr<RawImage>& image);
     [[nodiscard]] std::uint64_t VideoTextureId() const noexcept;
+    [[nodiscard]] std::shared_ptr<WindowsVideoResources> VideoResources(const std::string& decoderPreference);
     bool SetTheme(px::ui::Theme theme);
     bool ToggleFullscreen();
     void RequestExit() noexcept;

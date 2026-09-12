@@ -92,6 +92,7 @@ struct WindowHost::Impl final {
     std::optional<WindowsTitleBarBehavior> titleBarBehavior{};
     bool sdlInitialized{false};
     bool fullscreen{};
+    bool vulkanSurfaceAvailable{};
 
     ~Impl() {
         titleBarBehavior.reset();
@@ -102,7 +103,8 @@ struct WindowHost::Impl final {
     }
 };
 
-std::expected<WindowHost, std::string> WindowHost::Create(const std::string& title, const int width, const int height, const bool initiallyVisible) {
+std::expected<WindowHost, std::string> WindowHost::Create(const std::string& title, const int width, const int height, const bool initiallyVisible,
+                                                          const bool requestVulkanSurface) {
     auto impl = std::make_unique<Impl>();
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         return std::unexpected{LastSdlError("SDL_Init")};
@@ -117,12 +119,18 @@ std::expected<WindowHost, std::string> WindowHost::Create(const std::string& tit
     }
     const int scaledWidth{ScaledWindowDimension(width, initialScale, usableBounds.w)};
     const int scaledHeight{ScaledWindowDimension(height, initialScale, usableBounds.h)};
-    constexpr SDL_WindowFlags flags{SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_BORDERLESS | SDL_WINDOW_HIDDEN};
-    impl->window.reset(SDL_CreateWindow(title.c_str(), scaledWidth, scaledHeight, flags));
+    constexpr SDL_WindowFlags commonFlags{SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_BORDERLESS | SDL_WINDOW_HIDDEN};
+    const SDL_WindowFlags requestedFlags{requestVulkanSurface ? commonFlags | SDL_WINDOW_VULKAN : commonFlags};
+    impl->window.reset(SDL_CreateWindow(title.c_str(), scaledWidth, scaledHeight, requestedFlags));
+    impl->vulkanSurfaceAvailable = requestVulkanSurface && impl->window;
+    if (!impl->window && requestVulkanSurface) {
+        SDL_ClearError();
+        impl->window.reset(SDL_CreateWindow(title.c_str(), scaledWidth, scaledHeight, commonFlags));
+    }
     if (!impl->window) {
         return std::unexpected{LastSdlError("SDL_CreateWindow")};
     }
-    SDL_SetWindowMinimumSize(impl->window.get(), static_cast<int>(900.0F * initialScale), static_cast<int>(600.0F * initialScale));
+    SDL_SetWindowMinimumSize(impl->window.get(), 900, 600);
     if (!SDL_SetWindowHitTest(impl->window.get(), HitTest, nullptr)) {
         return std::unexpected{LastSdlError("SDL_SetWindowHitTest")};
     }
@@ -147,6 +155,10 @@ SDL_Window& WindowHost::Native() const noexcept {
     return *impl_->window;
 }
 
+bool WindowHost::VulkanSurfaceAvailable() const noexcept {
+    return impl_->vulkanSurfaceAvailable;
+}
+
 void WindowHost::Minimize() const {
     SDL_MinimizeWindow(impl_->window.get());
 }
@@ -161,7 +173,8 @@ void WindowHost::ToggleMaximize() const {
 
 bool WindowHost::ToggleFullscreen() {
     const bool requested{!impl_->fullscreen};
-    if (!SDL_SetWindowFullscreen(impl_->window.get(), requested)) return false;
+    if (!SDL_SetWindowFullscreen(impl_->window.get(), requested))
+        return false;
     impl_->fullscreen = requested;
     return true;
 }

@@ -213,7 +213,7 @@ void ClientSession::ApplyRdpFrame(const std::shared_ptr<const px::rdp::DesktopFr
                 sourceOffset += rowBytes;
             }
         }
-        latestFrame_ = std::make_shared<ClientVideoFrame>(ClientVideoFrame{rdpWidth_, rdpHeight_, rdpFrameBuffer_});
+        latestFrame_ = std::make_shared<ClientVideoFrame>(ClientVideoFrame{.width = rdpWidth_, .height = rdpHeight_, .bgra = rdpFrameBuffer_});
         session = rdpSession_;
     }
     if (session)

@@ -46,6 +46,9 @@ add_custom_command(TARGET px_client POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/src/px_ui/resources/fonts/Roboto-Regular.ttf"
         "$<TARGET_FILE_DIR:px_client>/resources/fonts/Roboto-Regular.ttf"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/libplacebo/lib/libplacebo-349.dll"
+        "$<TARGET_FILE_DIR:px_client>/libplacebo-349.dll"
 )
 gammaray_stage_rdp_client(px_client)
 

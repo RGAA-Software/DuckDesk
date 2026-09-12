@@ -25,6 +25,11 @@ class WindowsVideoDecoderFactory final : public VideoDecoderFactory {
         }
         if (auto ready = Initialize(std::move(primary), frame, hardware_disabled))
             return {.decoder = std::move(ready)};
+        if (resources_->use_vulkan && resources_->d3d11 && !hardware_disabled) {
+            LOGW("Vulkan decoder initialization failed; trying D3D11VA hardware decoding");
+            if (auto ready = Initialize(std::make_shared<FFmpegDecoder>(sdk, resources_), frame, false))
+                return {.decoder = std::move(ready)};
+        }
         LOGW("Windows primary decoder initialization failed; trying FFmpeg software decoding");
         return {.decoder = Initialize(std::make_shared<FFmpegVideoDecoder>(sdk), frame, false)};
     }

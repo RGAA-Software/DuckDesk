@@ -1,13 +1,12 @@
 #include "imgui_session.h"
 
-#include "d3d11_renderer.h"
+#include "desktop_renderer.h"
 #include "font_loader.h"
 #include "window_host.h"
 
 #include "px_ui/px_ui_theme.h"
 
 #include <backends/imgui_impl_sdl3.h>
-#include <backends/imgui_impl_dx11.h>
 #include <imgui.h>
 
 #include <functional>
@@ -15,19 +14,20 @@
 
 namespace px::desktop {
 
-std::expected<ImGuiSession, std::string> ImGuiSession::Create(WindowHost& window, D3d11Renderer& renderer) {
+std::expected<ImGuiSession, std::string> ImGuiSession::Create(WindowHost& window, DesktopRenderer& renderer) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.IniFilename = nullptr;
-    if (!ConfigureFonts(window.DisplayScale())) {
+    if (!ConfigureFonts()) {
         ImGui::DestroyContext();
         return std::unexpected{"UI font initialization failed"};
     }
     px::ui::ApplyPixelsTheme(px::ui::Theme::Dark, window.DisplayScale());
 
-    if (!ImGui_ImplSDL3_InitForD3D(&window.Native())) {
+    const bool sdlInitialized{renderer.UsesVulkan() ? ImGui_ImplSDL3_InitForVulkan(&window.Native()) : ImGui_ImplSDL3_InitForD3D(&window.Native())};
+    if (!sdlInitialized) {
         ImGui::DestroyContext();
         return std::unexpected{"Dear ImGui SDL3 backend initialization failed"};
     }
@@ -41,7 +41,7 @@ std::expected<ImGuiSession, std::string> ImGuiSession::Create(WindowHost& window
     return session;
 }
 
-ImGuiSession::ImGuiSession(std::reference_wrapper<D3d11Renderer> renderer, const bool sdlBackendInitialized) noexcept
+ImGuiSession::ImGuiSession(std::reference_wrapper<DesktopRenderer> renderer, const bool sdlBackendInitialized) noexcept
     : renderer_{renderer}, sdlBackendInitialized_{sdlBackendInitialized} {}
 
 ImGuiSession::ImGuiSession(ImGuiSession&& other) noexcept
@@ -73,14 +73,7 @@ bool ImGuiSession::ApplyAppearance(const px::ui::Theme theme, const float displa
     }
 
     theme_ = theme;
-    if (safeScale != displayScale_) {
-        displayScale_ = safeScale;
-        ImGui_ImplDX11_InvalidateDeviceObjects();
-        ImGui::GetIO().Fonts->Clear();
-        if (!ConfigureFonts(displayScale_) || !ImGui_ImplDX11_CreateDeviceObjects()) {
-            return false;
-        }
-    }
+    displayScale_ = safeScale;
     px::ui::ApplyPixelsTheme(theme_, displayScale_);
     return true;
 }

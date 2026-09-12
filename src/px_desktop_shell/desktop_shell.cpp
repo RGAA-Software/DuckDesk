@@ -1,9 +1,11 @@
 #include "px_desktop_shell/desktop_shell.h"
 
-#include "d3d11_renderer.h"
+#include "desktop_renderer.h"
 #include "imgui_session.h"
 #include "title_bar.h"
 #include "window_host.h"
+
+#include "px_client_sdk/platform/windows/windows_video_resources.h"
 
 #include <SDL3/SDL.h>
 #include <backends/imgui_impl_sdl3.h>
@@ -48,13 +50,13 @@ SdlTray CreateTray() {
 } // namespace
 
 struct DesktopShell::Impl final {
-    Impl(WindowHost windowValue, D3d11Renderer rendererValue, const bool minimizeToTrayValue, const bool continuousTextInputValue,
+    Impl(WindowHost windowValue, DesktopRenderer rendererValue, const bool minimizeToTrayValue, const bool continuousTextInputValue,
          const bool continuousRenderingValue)
         : window{std::move(windowValue)}, renderer{std::move(rendererValue)}, minimizeToTray{minimizeToTrayValue},
           continuousTextInput{continuousTextInputValue}, continuousRendering{continuousRenderingValue} {}
 
     WindowHost window;
-    D3d11Renderer renderer;
+    DesktopRenderer renderer;
     std::optional<ImGuiSession> imgui{};
     bool running{true};
     px::ui::Theme theme{px::ui::Theme::Dark};
@@ -65,11 +67,11 @@ struct DesktopShell::Impl final {
 };
 
 std::expected<DesktopShell, std::string> DesktopShell::Create(const WindowConfig& config) {
-    auto windowResult = WindowHost::Create(config.title, config.width, config.height, config.initiallyVisible);
+    auto windowResult = WindowHost::Create(config.title, config.width, config.height, config.initiallyVisible, config.preferVulkanVideo);
     if (!windowResult) {
         return std::unexpected{windowResult.error()};
     }
-    auto rendererResult = D3d11Renderer::Create(windowResult.value());
+    auto rendererResult = DesktopRenderer::Create(windowResult.value(), config.preferVulkanVideo);
     if (!rendererResult) {
         return std::unexpected{rendererResult.error()};
     }
@@ -177,8 +179,16 @@ bool DesktopShell::UpdateVideoTexture(const int width, const int height, const s
     return impl_->renderer.UpdateVideoTexture(width, height, bgra);
 }
 
+bool DesktopShell::UpdateVideoFrame(const std::shared_ptr<RawImage>& image) {
+    return impl_->renderer.UpdateVideoFrame(image);
+}
+
 std::uint64_t DesktopShell::VideoTextureId() const noexcept {
     return impl_->renderer.VideoTextureId();
+}
+
+std::shared_ptr<WindowsVideoResources> DesktopShell::VideoResources(const std::string& decoderPreference) {
+    return impl_->renderer.VideoResources(decoderPreference);
 }
 
 bool DesktopShell::SetTheme(const px::ui::Theme theme) {

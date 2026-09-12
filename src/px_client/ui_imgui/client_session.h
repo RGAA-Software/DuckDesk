@@ -20,6 +20,7 @@ class RecordingSession;
 class SdkStatistics;
 class VoiceCallController;
 class NetClient;
+struct WindowsVideoResources;
 struct VoiceCallStatus;
 namespace ft {
 class FtAsyncSession;
@@ -94,8 +95,8 @@ struct ClientOverwriteRequest final {
 
 class ClientSession final : public std::enable_shared_from_this<ClientSession> {
   public:
-    static std::shared_ptr<ClientSession> Create(ClientLaunchConfig config);
-    explicit ClientSession(ClientLaunchConfig config);
+    static std::shared_ptr<ClientSession> Create(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources);
+    ClientSession(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources);
     ~ClientSession();
 
     bool Initialize();
@@ -143,6 +144,7 @@ class ClientSession final : public std::enable_shared_from_this<ClientSession> {
     void SetState(ClientConnectionState state, std::string status, ClientConnectionFailure failure = ClientConnectionFailure::None);
 
     ClientLaunchConfig config_{};
+    std::shared_ptr<px::WindowsVideoResources> videoResources_{};
     std::shared_ptr<px::MessageNotifier> notifier_{};
     std::shared_ptr<px::MessageListener> listener_{};
     std::shared_ptr<px::ThunderSdk> sdk_{};

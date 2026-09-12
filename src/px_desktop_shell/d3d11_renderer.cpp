@@ -1,10 +1,15 @@
 #include "d3d11_renderer.h"
 
+#include "d3d11_video_presenter.h"
 #include "window_host.h"
+
+#include "px_common/win32/d3d11_wrapper.h"
 
 #include <SDL3/SDL.h>
 #include <backends/imgui_impl_dx11.h>
 #include <d3d11.h>
+#include <d3d10.h>
+#include <dxgi1_5.h>
 #include <wrl/client.h>
 
 #include <array>
@@ -13,6 +18,15 @@
 #include <utility>
 
 namespace px::desktop {
+namespace {
+
+void EnableMultithreadProtection(const Microsoft::WRL::ComPtr<ID3D11DeviceContext>& context) {
+    Microsoft::WRL::ComPtr<ID3D10Multithread> multithread{};
+    if (SUCCEEDED(context.As(&multithread)))
+        multithread->SetMultithreadProtected(TRUE);
+}
+
+} // namespace
 
 struct D3d11Renderer::Impl final {
     Microsoft::WRL::ComPtr<ID3D11Device> device{};
@@ -21,9 +35,12 @@ struct D3d11Renderer::Impl final {
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> renderTarget{};
     Microsoft::WRL::ComPtr<ID3D11Texture2D> videoTexture{};
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> videoTextureView{};
+    std::shared_ptr<px::D3D11DeviceWrapper> deviceResources{};
+    std::shared_ptr<D3d11VideoPresenter> videoPresenter{};
     int videoWidth{};
     int videoHeight{};
     bool imguiBackendInitialized{false};
+    bool allowTearing{};
 
     bool CreateRenderTarget() {
         Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer{};
@@ -48,18 +65,55 @@ std::expected<D3d11Renderer, std::string> D3d11Renderer::Create(const WindowHost
     description.OutputWindow = nativeWindow;
     description.SampleDesc.Count = 1;
     description.Windowed = TRUE;
-    description.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+    description.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+
+    Microsoft::WRL::ComPtr<IDXGIFactory5> factory{};
+    if (SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(factory.ReleaseAndGetAddressOf())))) {
+        BOOL supported{};
+        if (SUCCEEDED(factory->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &supported, sizeof(supported))) && supported) {
+            description.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+        }
+    }
 
     auto impl = std::make_unique<Impl>();
     constexpr std::array featureLevels{D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0};
     D3D_FEATURE_LEVEL selectedFeatureLevel{};
     const HRESULT result{D3D11CreateDeviceAndSwapChain(
-        nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, featureLevels.data(), static_cast<UINT>(featureLevels.size()), D3D11_SDK_VERSION, &description,
-        impl->swapChain.GetAddressOf(), impl->device.GetAddressOf(), &selectedFeatureLevel, impl->deviceContext.GetAddressOf())};
+        nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_VIDEO_SUPPORT | D3D11_CREATE_DEVICE_BGRA_SUPPORT, featureLevels.data(),
+        static_cast<UINT>(featureLevels.size()), D3D11_SDK_VERSION, &description, impl->swapChain.GetAddressOf(), impl->device.GetAddressOf(),
+        &selectedFeatureLevel, impl->deviceContext.GetAddressOf())};
     if (FAILED(result) || !impl->CreateRenderTarget()) {
         return std::unexpected{"D3D11 device or render target creation failed"};
     }
+    EnableMultithreadProtection(impl->deviceContext);
+    impl->allowTearing = (description.Flags & DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING) != 0U;
+    Microsoft::WRL::ComPtr<IDXGIDevice1> latencyDevice{};
+    if (SUCCEEDED(impl->device.As(&latencyDevice)))
+        static_cast<void>(latencyDevice->SetMaximumFrameLatency(1));
+    impl->deviceResources = std::make_shared<px::D3D11DeviceWrapper>();
+    impl->deviceResources->d3d11_device_ = impl->device;
+    impl->deviceResources->d3d11_device_context_ = impl->deviceContext;
+    impl->videoPresenter = D3d11VideoPresenter::Create(impl->deviceResources);
+    if (!impl->videoPresenter)
+        return std::unexpected{"D3D11 video presenter initialization failed"};
     return D3d11Renderer{std::move(impl)};
+}
+
+std::shared_ptr<D3D11DeviceWrapper> D3d11Renderer::CreateVideoDeviceResources() {
+    Microsoft::WRL::ComPtr<ID3D11Device> device{};
+    Microsoft::WRL::ComPtr<ID3D11DeviceContext> context{};
+    constexpr std::array featureLevels{D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0};
+    D3D_FEATURE_LEVEL selectedFeatureLevel{};
+    if (FAILED(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_VIDEO_SUPPORT | D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                                 featureLevels.data(), static_cast<UINT>(featureLevels.size()), D3D11_SDK_VERSION, device.ReleaseAndGetAddressOf(),
+                                 &selectedFeatureLevel, context.ReleaseAndGetAddressOf()))) {
+        return {};
+    }
+    EnableMultithreadProtection(context);
+    auto resources = std::make_shared<D3D11DeviceWrapper>();
+    resources->d3d11_device_ = std::move(device);
+    resources->d3d11_device_context_ = std::move(context);
+    return resources;
 }
 
 D3d11Renderer::D3d11Renderer(std::unique_ptr<Impl> impl) noexcept : impl_{std::move(impl)} {}
@@ -94,7 +148,8 @@ bool D3d11Renderer::Resize(const int width, const int height) {
         return true;
     }
     impl_->renderTarget.Reset();
-    if (FAILED(impl_->swapChain->ResizeBuffers(0, static_cast<UINT>(width), static_cast<UINT>(height), DXGI_FORMAT_UNKNOWN, 0))) {
+    const UINT flags{impl_->allowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0U};
+    if (FAILED(impl_->swapChain->ResizeBuffers(0, static_cast<UINT>(width), static_cast<UINT>(height), DXGI_FORMAT_UNKNOWN, flags))) {
         return false;
     }
     return impl_->CreateRenderTarget();
@@ -138,8 +193,17 @@ bool D3d11Renderer::UpdateVideoTexture(const int width, const int height, const 
     return true;
 }
 
+bool D3d11Renderer::UpdateVideoFrame(const std::shared_ptr<RawImage>& image) {
+    return impl_->videoPresenter && impl_->videoPresenter->Present(image);
+}
+
 std::uint64_t D3d11Renderer::VideoTextureId() const noexcept {
-    return reinterpret_cast<std::uint64_t>(impl_->videoTextureView.Get());
+    const auto nativeVideo = impl_->videoPresenter ? impl_->videoPresenter->TextureId() : 0U;
+    return nativeVideo != 0U ? nativeVideo : reinterpret_cast<std::uint64_t>(impl_->videoTextureView.Get());
+}
+
+std::shared_ptr<D3D11DeviceWrapper> D3d11Renderer::DeviceResources() const noexcept {
+    return impl_->deviceResources;
 }
 
 void D3d11Renderer::Render() const {
@@ -147,7 +211,8 @@ void D3d11Renderer::Render() const {
     impl_->deviceContext->OMSetRenderTargets(1, impl_->renderTarget.GetAddressOf(), nullptr);
     impl_->deviceContext->ClearRenderTargetView(impl_->renderTarget.Get(), clearColor.data());
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-    impl_->swapChain->Present(1, 0);
+    const UINT flags{impl_->allowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0U};
+    static_cast<void>(impl_->swapChain->Present(0, flags));
 }
 
 } // namespace px::desktop

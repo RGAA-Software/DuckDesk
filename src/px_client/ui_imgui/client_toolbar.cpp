@@ -56,6 +56,11 @@ bool ClientToolbar::CapturesPointer(const float x, const float y) const noexcept
 }
 
 bool ClientToolbar::HandlePointerEvent(const px::desktop::DesktopInputEvent& event) {
+    if (dismissPointerDown_) {
+        if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.mouseButton == SDL_BUTTON_LEFT)
+            dismissPointerDown_ = false;
+        return true;
+    }
     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.mouseButton == SDL_BUTTON_LEFT) {
         if (launcherBounds_.Contains(event.x, event.y)) {
             launcherPointerDown_ = true;
@@ -67,8 +72,14 @@ bool ClientToolbar::HandlePointerEvent(const px::desktop::DesktopInputEvent& eve
             LOGI("Client input route: floating controller press x={:.1f} y={:.1f}", event.x, event.y);
             return true;
         }
-        if (expanded_ && !navigationBounds_.Contains(event.x, event.y) && !sectionBounds_.Contains(event.x, event.y))
+        if (expanded_ && !navigationBounds_.Contains(event.x, event.y) && !sectionBounds_.Contains(event.x, event.y)) {
             expanded_ = false;
+            sectionExpanded_ = false;
+            navigationNeedsFocus_ = false;
+            sectionNeedsFocus_ = false;
+            dismissPointerDown_ = true;
+            return true;
+        }
     }
     if (event.type == SDL_EVENT_MOUSE_MOTION && launcherPointerDown_) {
         const float deltaX{event.x - dragOriginX_};
@@ -81,10 +92,13 @@ bool ClientToolbar::HandlePointerEvent(const px::desktop::DesktopInputEvent& eve
         return true;
     }
     if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.mouseButton == SDL_BUTTON_LEFT && launcherPointerDown_) {
-        if (!launcherDragged_) {
+        if (!launcherDragged_ && launcherBounds_.Contains(event.x, event.y)) {
             expanded_ = !expanded_;
+            sectionExpanded_ = false;
+            navigationNeedsFocus_ = expanded_;
+            sectionNeedsFocus_ = false;
             LOGI("Client input route: floating controller click, menu_open={}", expanded_);
-        } else {
+        } else if (launcherDragged_) {
             LOGI("Client input route: floating controller moved x={:.1f} y={:.1f}", launcherX_, launcherY_);
         }
         launcherPointerDown_ = false;
@@ -100,7 +114,11 @@ ClientToolbarAction ClientToolbar::Draw(const std::shared_ptr<ClientSession>& se
     if (expanded_) {
         const auto snapshot = session->Snapshot();
         hovered = DrawNavigation(snapshot, english) || hovered;
-        hovered = DrawSection(session, snapshot, english, darkTheme, action) || hovered;
+        if (sectionExpanded_) {
+            hovered = DrawSection(session, snapshot, english, darkTheme, action) || hovered;
+        } else {
+            sectionBounds_ = {};
+        }
     } else {
         navigationBounds_ = {};
         sectionBounds_ = {};
@@ -126,15 +144,21 @@ bool ClientToolbar::DrawLauncher() {
     }
     launcherX_ = std::clamp(launcherX_, workX_, std::max(workX_, workX_ + workWidth_ - diameter));
     launcherY_ = std::clamp(launcherY_, workY_, std::max(workY_, workY_ + workHeight_ - diameter));
-    const ImVec2 center{launcherX_ + diameter * 0.5F, launcherY_ + diameter * 0.5F};
-    const ImU32 color{ImGui::GetColorU32(launcherPointerDown_ ? ImVec4{0.08F, 0.30F, 0.72F, 1.00F} : ImVec4{0.10F, 0.38F, 0.86F, 0.94F})};
-    ImGui::GetForegroundDrawList()->AddCircleFilled(center, diameter * 0.5F, color, 48);
-    const ImVec2 textSize{ImGui::CalcTextSize("P")};
-    ImGui::GetForegroundDrawList()->AddText({launcherX_ + (diameter - textSize.x) * 0.5F, launcherY_ + (diameter - textSize.y) * 0.5F},
-                                            ImGui::GetColorU32(ImVec4{1.0F, 1.0F, 1.0F, 1.0F}), "P");
     launcherBounds_ = {.x = launcherX_, .y = launcherY_, .width = diameter, .height = diameter};
     const ImVec2 mouse{ImGui::GetIO().MousePos};
     const bool hovered{launcherBounds_.Contains(mouse.x, mouse.y)};
+    const ImVec2 center{launcherX_ + diameter * 0.5F, launcherY_ + diameter * 0.5F};
+    const float radius{diameter * 0.5F};
+    // The controller must remain above the root video window even after the root receives focus.
+    // Pointer routing is handled from SDL events, so a focusable ImGui overlay window is neither needed nor desirable here.
+    auto& drawList = *ImGui::GetForegroundDrawList();
+    drawList.AddCircleFilled(center, radius + 10.0F, ImGui::GetColorU32(ImVec4{0.0F, 0.0F, 0.0F, 0.05F}), 48);
+    drawList.AddCircleFilled(center, radius + 7.0F, ImGui::GetColorU32(ImVec4{0.0F, 0.0F, 0.0F, 0.08F}), 48);
+    drawList.AddCircleFilled(center, radius + 4.0F, ImGui::GetColorU32(ImVec4{0.0F, 0.0F, 0.0F, 0.12F}), 48);
+    const ImU32 color{ImGui::GetColorU32(launcherPointerDown_ ? ImVec4{0.08F, 0.30F, 0.72F, 1.00F} : ImVec4{0.10F, 0.38F, 0.86F, 0.98F})};
+    drawList.AddCircleFilled(center, radius, color, 48);
+    const ImVec2 textSize{ImGui::CalcTextSize("P")};
+    drawList.AddText({center.x - textSize.x * 0.5F, center.y - textSize.y * 0.5F}, ImGui::GetColorU32(ImVec4{1.0F, 1.0F, 1.0F, 1.0F}), "P");
     if (hovered)
         ImGui::SetTooltip("Pixels");
     return hovered || launcherPointerDown_;
@@ -153,6 +177,10 @@ bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const 
     ImGui::SetNextWindowPos({navigationX, y}, ImGuiCond_Always);
     ImGui::SetNextWindowSize({menuWidth, 0.0F}, ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(0.96F);
+    if (navigationNeedsFocus_) {
+        ImGui::SetNextWindowFocus();
+        navigationNeedsFocus_ = false;
+    }
     ImGui::Begin("##pixels-controller-navigation", {}, kOverlayFlags);
     ImGui::TextUnformatted("Pixels");
     ImGui::SameLine();
@@ -160,11 +188,18 @@ bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const 
     ImGui::Separator();
 
     auto& selectedSection = section_;
-    const auto navigationItem = [&selectedSection](const std::string_view label, const Section section, const bool enabled = true) {
+    auto& sectionExpanded = sectionExpanded_;
+    auto& sectionNeedsFocus = sectionNeedsFocus_;
+    const auto navigationItem = [&selectedSection, &sectionExpanded, &sectionNeedsFocus](const std::string_view label, const Section section,
+                                                                                         const bool enabled = true) {
         ImGui::BeginDisabled(!enabled);
         const bool selected{ImGui::Selectable(label.data(), selectedSection == section)};
-        if (enabled && (selected || ImGui::IsItemHovered()))
+        if (enabled && (selected || ImGui::IsItemHovered())) {
+            if (!sectionExpanded || selectedSection != section)
+                sectionNeedsFocus = true;
             selectedSection = section;
+            sectionExpanded = true;
+        }
         ImGui::EndDisabled();
     };
     navigationItem(english ? "Display  >" : "显示  >", Section::Display);
@@ -200,6 +235,10 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
     ImGui::SetNextWindowPos({sectionX, y}, ImGuiCond_Always);
     ImGui::SetNextWindowSize({sectionWidth, 0.0F}, ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(0.96F);
+    if (sectionNeedsFocus_) {
+        ImGui::SetNextWindowFocus();
+        sectionNeedsFocus_ = false;
+    }
     ImGui::Begin("##pixels-controller-section", {}, kOverlayFlags);
 
     if (section_ == Section::Display) {

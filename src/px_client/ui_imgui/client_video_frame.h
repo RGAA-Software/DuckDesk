@@ -14,8 +14,9 @@ struct ClientVideoFrame final {
     int width{};
     int height{};
     std::vector<std::uint8_t> bgra{};
+    std::shared_ptr<px::RawImage> native{};
 };
 
-[[nodiscard]] std::shared_ptr<ClientVideoFrame> ConvertVideoFrame(const std::shared_ptr<px::RawImage>& image);
+[[nodiscard]] std::shared_ptr<ClientVideoFrame> RetainVideoFrame(std::shared_ptr<px::RawImage> image);
 
 } // namespace px::client::imgui

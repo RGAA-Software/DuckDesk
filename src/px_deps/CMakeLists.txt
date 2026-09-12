@@ -16,6 +16,7 @@ if(WIN32)
         px_imgui/imgui_tables.cpp
         px_imgui/imgui_widgets.cpp
         px_imgui/backends/imgui_impl_dx11.cpp
+        px_imgui/backends/imgui_impl_vulkan.cpp
         px_imgui/backends/imgui_impl_sdl3.cpp
         px_imgui/misc/cpp/imgui_stdlib.cpp
     )
@@ -23,7 +24,8 @@ if(WIN32)
         "${CMAKE_CURRENT_SOURCE_DIR}/px_imgui"
         "${CMAKE_CURRENT_SOURCE_DIR}/px_imgui/backends"
     )
-    target_link_libraries(px_imgui PUBLIC SDL3::SDL3-static d3d11.lib dxgi.lib)
+    find_package(Vulkan REQUIRED)
+    target_link_libraries(px_imgui PUBLIC SDL3::SDL3-static Vulkan::Vulkan d3d11.lib dxgi.lib)
 endif()
 
 #add_subdirectory(px_capture)

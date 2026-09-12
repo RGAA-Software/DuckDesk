@@ -60,9 +60,12 @@ void ClientWindow::Draw() {
         windowVisible_ = true;
         shell_.get().RequestShowAndRaise();
     }
-    if (snapshot.frame && snapshot.frame != uploadedFrame_ &&
-        shell_.get().UpdateVideoTexture(snapshot.frame->width, snapshot.frame->height, snapshot.frame->bgra)) {
-        uploadedFrame_ = snapshot.frame;
+    if (snapshot.frame && snapshot.frame != uploadedFrame_) {
+        const bool uploaded{snapshot.frame->native
+                                ? shell_.get().UpdateVideoFrame(snapshot.frame->native)
+                                : shell_.get().UpdateVideoTexture(snapshot.frame->width, snapshot.frame->height, snapshot.frame->bgra)};
+        if (uploaded)
+            uploadedFrame_ = snapshot.frame;
     }
     const auto toolbarAction = toolbar_->Draw(session_, english_, darkTheme_);
     if (toolbarAction.toggleLanguage)

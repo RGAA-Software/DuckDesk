@@ -2,6 +2,6 @@
 
 namespace px::desktop {
 
-bool ConfigureFonts(float displayScale);
+bool ConfigureFonts();
 
 } // namespace px::desktop

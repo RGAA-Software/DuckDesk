@@ -57,12 +57,13 @@ std::string VoiceStatusText(const px::VoiceCallStatus& status) {
 
 } // namespace
 
-std::shared_ptr<ClientSession> ClientSession::Create(ClientLaunchConfig config) {
-    auto result = std::make_shared<ClientSession>(std::move(config));
+std::shared_ptr<ClientSession> ClientSession::Create(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources) {
+    auto result = std::make_shared<ClientSession>(std::move(config), std::move(videoResources));
     return result->Initialize() ? result : std::shared_ptr<ClientSession>{};
 }
 
-ClientSession::ClientSession(ClientLaunchConfig config) : config_{std::move(config)}, audio_{std::make_unique<ClientAudioOutput>()} {}
+ClientSession::ClientSession(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources)
+    : config_{std::move(config)}, videoResources_{std::move(videoResources)}, audio_{std::make_unique<ClientAudioOutput>()} {}
 ClientSession::~ClientSession() {
     Stop();
 }
@@ -118,9 +119,7 @@ bool ClientSession::Initialize() {
                     UrlHelper::EncodeQueryComponent(config_.remoteDeviceId), UrlHelper::EncodeQueryComponent(config_.streamId),
                     UrlHelper::EncodeQueryComponent(config_.localDeviceId), UrlHelper::EncodeQueryComponent(config_.remotePasswordHash));
 
-    auto resources = std::make_shared<px::WindowsVideoResources>();
-    resources->decoder_preference = config_.decoder;
-    if (!sdk_->Init(params, px::MakeWindowsVideoDecoderFactory(resources))) {
+    if (!videoResources_ || !sdk_->Init(params, px::MakeWindowsVideoDecoderFactory(videoResources_))) {
         return false;
     }
 
@@ -302,7 +301,7 @@ bool ClientSession::Initialize() {
         if (!self || self->stopped_.load()) {
             return;
         }
-        auto converted = ConvertVideoFrame(image);
+        auto converted = RetainVideoFrame(image);
         if (!converted) {
             return;
         }

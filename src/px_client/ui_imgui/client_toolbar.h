@@ -50,6 +50,10 @@ class ClientToolbar final {
     Bounds sectionBounds_{};
     Section section_{Section::Display};
     bool expanded_{};
+    bool sectionExpanded_{};
+    bool navigationNeedsFocus_{};
+    bool sectionNeedsFocus_{};
+    bool dismissPointerDown_{};
     bool launcherPointerDown_{};
     bool launcherDragged_{};
     bool showStatistics_{};

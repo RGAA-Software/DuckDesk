@@ -73,7 +73,7 @@ int main(int argc, char* argv[]) { // NOLINT(gammaray-raw-pointer-boundary): pro
     }
     px::Logger::InitLog((basePath / "px_logs" / "pixels.log").wstring(), true);
     auto shellResult = px::desktop::DesktopShell::Create(
-        {.title = "Pixels", .width = 1180, .height = 760, .initiallyVisible = !options.runAutomatically, .minimizeToTray = true});
+        {.title = "Pixels", .width = 960, .height = 640, .initiallyVisible = !options.runAutomatically, .minimizeToTray = true});
     if (!shellResult) {
         return 3;
     }

@@ -7,7 +7,7 @@
 
 namespace px::desktop {
 
-bool ConfigureFonts(const float) {
+bool ConfigureFonts() {
     const std::string basePathText{SDL_GetBasePath() == nullptr ? "" : SDL_GetBasePath()};
     const std::filesystem::path basePath{basePathText};
     const std::filesystem::path latinFont{basePath / "resources" / "fonts" / "Roboto-Regular.ttf"};
@@ -21,7 +21,9 @@ bool ConfigureFonts(const float) {
     chineseConfig.MergeMode = true;
     chineseConfig.PixelSnapH = true;
     io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/msyh.ttc", pixelSize, &chineseConfig, io.Fonts->GetGlyphRangesChineseFull());
-    return io.Fonts->Build();
+    // Modern renderer backends build and upload the dynamic atlas during NewFrame().
+    // Building it before the renderer advertises texture support produces an invalid atlas state.
+    return !io.Fonts->Fonts.empty();
 }
 
 } // namespace px::desktop

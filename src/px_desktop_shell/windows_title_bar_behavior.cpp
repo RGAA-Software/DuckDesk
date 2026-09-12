@@ -16,6 +16,8 @@ constexpr int kTitleBarHeight{48};
 constexpr int kResizeBorder{7};
 constexpr int kCaptionButtonWidth{46};
 constexpr int kCaptionButtonCount{3};
+constexpr int kMinimumWindowWidth{900};
+constexpr int kMinimumWindowHeight{600};
 constexpr UINT_PTR kSubclassId{0x50584D42};
 
 bool IsMaximizeButton(const HWND window, const LPARAM position) {
@@ -37,6 +39,25 @@ bool IsMaximizeButton(const HWND window, const LPARAM position) {
 }
 
 LRESULT CALLBACK TitleBarSubclass(const HWND window, const UINT message, const WPARAM wParam, const LPARAM lParam, const UINT_PTR, const DWORD_PTR) {
+    if (message == WM_GETMINMAXINFO) {
+        const LRESULT result{DefSubclassProc(window, message, wParam, lParam)};
+        auto& limits{*reinterpret_cast<MINMAXINFO*>(lParam)}; // NOLINT(gammaray-raw-pointer-boundary): Win32 message ABI.
+        const UINT dpi{GetDpiForWindow(window)};
+        limits.ptMinTrackSize.x = MulDiv(kMinimumWindowWidth, static_cast<int>(dpi), USER_DEFAULT_SCREEN_DPI);
+        limits.ptMinTrackSize.y = MulDiv(kMinimumWindowHeight, static_cast<int>(dpi), USER_DEFAULT_SCREEN_DPI);
+        return result;
+    }
+    if (message == WM_GETDPISCALEDSIZE) {
+        // SDL keeps the physical client size fixed on Windows. Pixels UI instead follows the
+        // platform's default linear DPI scaling so its logical size is stable across monitors.
+        return DefWindowProcW(window, message, wParam, lParam);
+    }
+    if (message == WM_DPICHANGED) {
+        const RECT& suggestedBounds{*reinterpret_cast<const RECT*>(lParam)}; // NOLINT(gammaray-raw-pointer-boundary): Win32 message ABI.
+        static_cast<void>(SetWindowPos(window, nullptr, suggestedBounds.left, suggestedBounds.top, suggestedBounds.right - suggestedBounds.left,
+                                       suggestedBounds.bottom - suggestedBounds.top, SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOZORDER));
+        return 0;
+    }
     if (message == WM_NCHITTEST && IsMaximizeButton(window, lParam)) {
         return HTMAXBUTTON;
     }

@@ -85,6 +85,9 @@ add_custom_command(TARGET px_panel POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/src/px_ui/resources/fonts/Roboto-Regular.ttf"
         "$<TARGET_FILE_DIR:px_panel>/resources/fonts/Roboto-Regular.ttf"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/libplacebo/lib/libplacebo-349.dll"
+        "$<TARGET_FILE_DIR:px_panel>/libplacebo-349.dll"
 )
 target_link_options(px_panel_imgui_preview PRIVATE "/ENTRY:mainCRTStartup")
 

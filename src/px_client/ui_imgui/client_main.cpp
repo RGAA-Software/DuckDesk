@@ -47,12 +47,14 @@ int main() {
             return 0;
         }
     }
-    auto shellResult = px::desktop::DesktopShell::Create({.title = config->streamName.empty() ? "Pixels Client" : "Pixels - " + config->streamName,
-                                                          .width = 1440,
-                                                          .height = 900,
-                                                          .initiallyVisible = false,
-                                                          .continuousTextInput = true,
-                                                          .continuousRendering = true});
+    auto shellResult =
+        px::desktop::DesktopShell::Create({.title = config->streamName.empty() ? "Pixels Client" : "Pixels - " + config->streamName,
+                                           .width = 1440,
+                                           .height = 900,
+                                           .initiallyVisible = false,
+                                           .continuousTextInput = true,
+                                           .continuousRendering = true,
+                                           .preferVulkanVideo = !config->rdp && !config->disableVulkan && config->decoder != "Software"});
     const bool english = config->language == "en-US";
     if (!shellResult) {
         static_cast<void>(px::client::imgui::ShowStartupDialog(
@@ -62,7 +64,7 @@ int main() {
         return 3;
     }
     auto shell = std::move(shellResult.value());
-    auto session = px::client::imgui::ClientSession::Create(*config);
+    auto session = px::client::imgui::ClientSession::Create(*config, shell.VideoResources(config->decoder));
     if (!session) {
         static_cast<void>(px::client::imgui::ShowStartupDialog(
             english ? "Pixels Client could not initialize this connection. Check the launch data and installed runtime files, then retry."
