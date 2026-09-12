@@ -20,7 +20,7 @@ if (($sdkBuild + $connectionBuild) -match 'px_rtc_client|px_relay_client|test_rt
     throw 'Native SDK build graph contains a retired transport dependency.'
 }
 if ($net -match 'ClientNetworkType|PX_RTC_TRANSPORT_AVAILABLE|WebRtcConnection|RelayConnection' -or
-    $params -match '\b(?:nt_type_|enable_p2p_|relay_host_|relay_port_|rtc_ice_config_json_|remote_device_random_pwd_|remote_device_safety_pwd_|connection_ticket_device_id_|direct_session_grant_|direct_takeover_)\b') {
+    $params -match '\b(?:nt_type_|enable_p2p_|relay_host_|relay_port_|rtc_ice_config_json_|remote_device_random_pwd_|remote_device_safety_pwd_|direct_session_grant_|direct_takeover_)\b') {
     throw 'Native SDK still accepts a protocol selector or retired transport options.'
 }
 if ($net -notmatch 'MakeDirectWebSocketMediaConnection' -or $net -notmatch 'make_shared<UdpDirectConnection>') {

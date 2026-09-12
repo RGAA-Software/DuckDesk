@@ -7,11 +7,8 @@ mod generated {
 }
 
 pub use generated::{
-    MsgAppInstanceReady, MsgAuthInfo, MsgConnectionGrant, MsgHeartBeat, MsgHeartBeatResp,
-    MsgRedeemConnectionTicket, MsgRedeemConnectionTicketResp, MsgReqCtrlAltDelete,
-    MsgRestartServer, MsgStartServer, MsgStopServer, MsgVirtualDisplayRequest,
-    MsgVirtualDisplayResult, RenderStatus, ServiceMessage, ServiceMessageType,
-    VirtualDisplayOperation,
+    MsgAppInstanceReady, MsgAuthInfo, MsgHeartBeat, MsgHeartBeatResp, MsgReqCtrlAltDelete, MsgRestartServer, MsgStartServer, MsgStopServer,
+    MsgVirtualDisplayRequest, MsgVirtualDisplayResult, RenderStatus, ServiceMessage, ServiceMessageType, VirtualDisplayOperation,
 };
 
 // prost only derives PartialEq; all MsgAuthInfo fields are scalar so Eq is sound
@@ -27,8 +24,6 @@ impl ServiceMessageType {
     pub const HeartBeatResp: Self = Self::KSrvHeartBeatResp;
     pub const ReqCtrlAltDelete: Self = Self::KSrvReqCtrlAltDelete;
     pub const AuthInfo: Self = Self::KSrvAuthInfo;
-    pub const RedeemConnectionTicket: Self = Self::KSrvRedeemConnectionTicket;
-    pub const RedeemConnectionTicketResp: Self = Self::KSrvRedeemConnectionTicketResp;
     pub const VirtualDisplayRequest: Self = Self::KSrvVirtualDisplayRequest;
     pub const VirtualDisplayResult: Self = Self::KSrvVirtualDisplayResult;
     pub const AppInstanceReady: Self = Self::KSrvAppInstanceReady;

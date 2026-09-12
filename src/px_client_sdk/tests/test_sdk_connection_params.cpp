@@ -96,14 +96,13 @@ TEST(SdkConnectionParams, DefaultsDoNotEnableMediaOrContainAuthorization) {
     EXPECT_FALSE(params.file_transfer_only_);
     EXPECT_EQ(params.port_, 0);
     EXPECT_EQ(params.udp_port_, 20371);
-    EXPECT_TRUE(params.connection_ticket_.empty());
     EXPECT_TRUE(params.connection_nonce_.empty());
     EXPECT_TRUE(params.connection_instance_id_.empty());
     EXPECT_TRUE(params.relay_host_.empty());
     EXPECT_EQ(params.relay_port_, 0);
     EXPECT_TRUE(params.relay_device_id_.empty());
     EXPECT_TRUE(params.relay_remote_device_id_.empty());
-    EXPECT_TRUE(params.relay_ticket_device_id_.empty());
+    EXPECT_TRUE(params.remote_password_hash_.empty());
     EXPECT_TRUE(params.udp_media_association_.empty());
 }
 
@@ -117,7 +116,6 @@ TEST(SdkConnectionParams, SnapshotPreservesEndpointAuthorizationAndIdentityAfter
         .ft_path_ = "/file/transfer?original=1",
         .device_id_ = "snapshot-device",
         .stream_id_ = "snapshot-stream",
-        .connection_ticket_ = "test-ticket",
         .connection_nonce_ = "test-nonce",
         .connection_instance_id_ = "test-instance",
     };
@@ -131,8 +129,7 @@ TEST(SdkConnectionParams, SnapshotPreservesEndpointAuthorizationAndIdentityAfter
     }));
     {
         std::lock_guard lock(harness.observations->mutex);
-        EXPECT_EQ(harness.observations->target,
-                  "/file/transfer?original=1&ticket=test-ticket&client_nonce=test-nonce&instance_id=test-instance&file_only=1");
+        EXPECT_EQ(harness.observations->target, "/file/transfer?original=1&client_nonce=test-nonce");
     }
     const std::weak_ptr<NetClient> weak_client = harness.client;
     harness.client->Exit();
@@ -165,7 +162,7 @@ TEST(SdkConnectionParams, EmptyAssociationIsGeneratedPerClientWithoutMutatingCal
     }
 }
 
-TEST(SdkConnectionParams, TcpSelectionPreservesAuthorizationWhenOnlyCachedUdpQueryWasPresent) {
+TEST(SdkConnectionParams, TcpSelectionPreservesPasswordPathWhenOnlyCachedUdpQueryWasPresent) {
     TransportHarness harness{};
     ASSERT_TRUE(harness.StartServer());
     const SdkConnectionParams params{
@@ -173,14 +170,13 @@ TEST(SdkConnectionParams, TcpSelectionPreservesAuthorizationWhenOnlyCachedUdpQue
         .ip_ = "127.0.0.1",
         .port_ = harness.server->listen_port(),
         .media_path_ = "/media?udp_media=1&udp_media_association=old",
-        .connection_ticket_ = "test-ticket",
         .connection_nonce_ = "test-nonce",
         .connection_instance_id_ = "test-instance",
     };
     harness.client = std::make_shared<NetClient>(params, harness.notifier);
     ASSERT_TRUE(harness.StartClient());
     std::lock_guard lock(harness.observations->mutex);
-    EXPECT_EQ(harness.observations->target, "/media?ticket=test-ticket&client_nonce=test-nonce&instance_id=test-instance");
+    EXPECT_EQ(harness.observations->target, "/media?client_nonce=test-nonce");
 }
 
 TEST(SdkConnectionParams, ExplicitAssociationIsPreservedAfterSourceDestruction) {

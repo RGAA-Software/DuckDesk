@@ -2,7 +2,7 @@ use crate::console_api_error::ConsoleApiError;
 use crate::gConsoleDatabase;
 use crate::record::console_file_transfer::{ConsoleFileTransfer, ConsoleUpdateFileTransfer};
 use futures_util::StreamExt;
-use mongodb::bson::{Bson, doc};
+use mongodb::bson::{doc, Bson};
 use std::collections::HashMap;
 use std::sync::Arc;
 

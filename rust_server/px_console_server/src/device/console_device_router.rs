@@ -2,8 +2,8 @@ use crate::console_context::ConsoleContext;
 use crate::device::console_device_handler::{
     append_used_time, handle_count_devices, handle_create_new_device, handle_query_devices,
     handle_query_total_used_time, query_device_by_id, update_desktop_link, update_device_active,
-    update_device_name, update_random_password, update_safety_password, verify_device_info,
-    update_remote_session_policy,
+    update_device_name, update_random_password, update_remote_session_policy,
+    update_safety_password, verify_device_info,
 };
 use crate::filter::console_appkey_filter;
 use crate::filter::console_device_filter::filter as console_device_id_filter;

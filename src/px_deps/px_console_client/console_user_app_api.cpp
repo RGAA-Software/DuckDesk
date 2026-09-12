@@ -136,65 +136,6 @@ px::Result<ConsoleUserAppInstance, ConsoleApiError> ConsoleUserAppApi::StartApp(
     }
 }
 
-px::Result<ConsoleConnectionTicket, ConsoleApiError>
-ConsoleUserAppApi::IssueInstanceTicket(const std::string& host, int port, const std::string& access_token, const std::string& instance_id,
-                                       const std::string& client_nonce, const std::vector<std::string>& requested_permissions, bool guest) {
-    const auto path =
-        guest ? std::format("/api/v1/public/instances/{}/ticket", instance_id) : std::format("/api/v1/user/instances/{}/ticket", instance_id);
-    const auto client = MakeConsoleHttpClient(host, port, path, 3000);
-    client->SetHeader("Authorization", "Bearer " + access_token);
-    auto response = client->Post(
-        {},
-        json{{"client_nonce", client_nonce},
-             {"client_capability", client->IsPeerVerificationEnabled() ? "windows-rdp-v1" : ""},
-             {"join_mode",
-              std::find(requested_permissions.begin(), requested_permissions.end(), "input") == requested_permissions.end() ? "observe" : "control"}}
-            .dump(),
-        "application/json");
-    if (response.status != 200 || response.body.empty()) {
-        return HttpError<ConsoleConnectionTicket>("IssueInstanceTicket", response);
-    }
-    try {
-        auto data = json::parse(response.body).at(kResponseData);
-        // Sensitive HTTP response is never logged. Its raw backing bytes are cleared after parsing.
-        OPENSSL_cleanse(response.body.data(), response.body.size());
-        response.body.clear();
-        ConsoleConnectionTicket ticket{};
-        if (data.contains("rdp") && !data.at("rdp").is_null()) {
-            auto& rdp = data.at("rdp");
-            if (rdp.value("schema", 0) != 1 || rdp.value("instance_id", "") != instance_id || !rdp.at("password").is_string()) {
-                return TcErr(ConsoleApiError::kParseJsonFailed);
-            }
-            ticket.rdp_configuration = SecretBuffer::Take(rdp.dump());
-            auto& password = rdp.at("password").get_ref<std::string&>();
-            OPENSSL_cleanse(password.data(), password.size());
-            rdp.clear();
-        }
-        ticket.ticket = data.value("ticket", "");
-        ticket.renewal_token = data.value("renewal_token", "");
-        ticket.launch_url = data.value("launch_url", "");
-        ticket.expires_at = data.value("expires_at", 0LL);
-        ticket.logical_session_id = data.value("logical_session_id", "");
-        ticket.stream_id = data.value("stream_id", "");
-        ticket.join_mode = data.value("join_mode", "control");
-        ticket.permissions = data.value("permissions", std::vector<std::string>{});
-        ticket.rtc_ice_config_json = data.contains("rtc_ice_config") ? data.at("rtc_ice_config").dump() : "";
-        ticket.relay_host = data.value("relay_host", "");
-        ticket.relay_port = data.value("relay_port", 0);
-        ticket.signal_device_id = data.value("signal_device_id", "");
-        if (ticket.ticket.empty() || ticket.renewal_token.empty() || ticket.stream_id.empty() || ticket.launch_url.empty()) {
-            return TcErr(ConsoleApiError::kParseJsonFailed);
-        }
-        return ticket;
-    } catch (const std::exception& error) {
-        if (!response.body.empty()) {
-            OPENSSL_cleanse(response.body.data(), response.body.size());
-        }
-        LOGE("IssueInstanceTicket response parsing failed"); // Parser diagnostics can echo credential-bearing input.
-        return TcErr(ConsoleApiError::kParseJsonFailed);
-    }
-}
-
 px::Result<ConsoleNativeApplicationConnection, ConsoleApiError>
 ConsoleUserAppApi::QueryNativeConnection(const std::string& host, const int port, const std::string& access_token,
                                          const std::string& instance_id, const bool view_only, const bool guest) {
@@ -215,6 +156,7 @@ ConsoleUserAppApi::QueryNativeConnection(const std::string& host, const int port
                                                   .device_id = data.value("device_id", ""),
                                                   .instance_id = data.value("instance_id", ""),
                                                   .app_type = data.value("app_type", ""),
+                                                  .password_hash = data.value("password_hash", ""),
                                                   .signal_device_id = data.value("signal_device_id", ""),
                                                   .relay_host = data.value("relay_host", ""),
                                                   .relay_port = data.value("relay_port", 0)};

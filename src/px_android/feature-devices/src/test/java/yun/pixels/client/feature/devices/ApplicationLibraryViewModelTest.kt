@@ -15,8 +15,7 @@ import org.junit.Before
 import org.junit.Test
 import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.account.ApplicationRepository
-import yun.pixels.client.core.domain.account.ConnectionTicket
-import yun.pixels.client.core.domain.account.JoinMode
+import yun.pixels.client.core.domain.account.AccountConnection
 import yun.pixels.client.core.domain.account.RemoteApplication
 import yun.pixels.client.core.domain.account.RemoteApplicationInstance
 
@@ -59,7 +58,7 @@ class ApplicationLibraryViewModelTest {
         viewModel.connect(viewModel.state.value.applications.single())
         advanceUntilIdle()
 
-        assertEquals("session-1", remoteRequest.await().id.value)
+        assert(remoteRequest.await().id.value.isNotBlank())
         assertEquals(0, repository.startCount)
     }
 }
@@ -85,21 +84,13 @@ private class FakeApplicationRepository(runningInitially: Boolean = false) : App
         return AccountResult.Success(Unit)
     }
 
-    override suspend fun issueTicket(
-        instanceId: String,
-        clientNonce: String,
-        joinMode: JoinMode,
-    ): AccountResult<ConnectionTicket> = AccountResult.Success(
-        ConnectionTicket(
-            ticket = "ticket",
-            renewalToken = "renewal",
-            launchUrl = "http://192.168.1.2:20371/web_client/?deviceId=device-1",
-            expiresAtEpochMillis = Long.MAX_VALUE,
-            logicalSessionId = "session-1",
-            streamId = "stream-1",
-            joinMode = joinMode,
-            permissions = setOf("view", "input", "audio"),
-            rtcIceConfigJson = "",
+    override suspend fun resolveConnection(instanceId: String): AccountResult<AccountConnection> = AccountResult.Success(
+        AccountConnection(
+            host = "192.168.1.2",
+            port = 4601,
+            deviceId = "device-1",
+            instanceId = instanceId,
+            passwordHash = "password-hash",
             relayHost = "",
             relayPort = 0,
             signalDeviceId = "server_device-1__instance__instance-1",

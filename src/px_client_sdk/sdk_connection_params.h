@@ -30,13 +30,11 @@ struct SdkConnectionParams final {
     int relay_port_{0};
     std::string relay_device_id_{};
     std::string relay_remote_device_id_{};
-    std::string relay_ticket_device_id_{};
+    std::string remote_password_hash_{};
     std::string device_name_{};
     std::string appkey_{};
     bool force_gdi_{false};
 
-    // Short-lived authorization material: never persist or log these values.
-    std::string connection_ticket_{};
     std::string connection_nonce_{};
     std::string connection_instance_id_{};
     // Associates UDP with the authenticated WS binding; not a session grant.

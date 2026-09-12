@@ -8,6 +8,7 @@
 > 原生端当前只有 UDP+FEC 媒体与 WebSocket 可靠控制/文件这一种直连组合；公网 P2P 和 Relay 留待后续 RustDesk 方案，本轮不实现。
 > 归档规则更新：本次精简的旧实现完整保存到根目录 `backup/`，文中“删除/移除”表示退出活动源码和构建，不直接销毁原代码。
 > 以 [原生客户端 SDK 与 WebRTC 产品边界](native_client_sdk_transport_decision.md) 为准；本文第 13 节 RTC 实施和测试内容保留为历史记录。
+> 2026-09-12 鉴权更新：Android 已删除一次性连接票据与续期状态机。账号设备和应用入口从 Console 获取稳定 Native 端点与设备密码摘要，最终仍由 Render 直接鉴权；旧 M5 票据内容仅为历史记录。
 
 ## 当前剩余工作
 
@@ -637,13 +638,7 @@ logical session 与 stream 绑定。Web 客户端使用的服务端 RTC 能力�
   以及真实局域网远控均通过；手柄竖屏提示下首次系统返回只退出手柄模式，第二次返回显示结束确认，取消后视频会话继续，确认后才停止会话并回到设备页。
   全套 Android 单元测试、lint 和 debug APK 构建通过，无 `AndroidRuntime` 崩溃；APK SHA-256 为
   `1178ADA387E2EC9488E76A7F1579E917B78C19FC284FCD9AC6946E7AF2EE7640`，测试过程未卸载应用。
-- 2026-09-07 M5 票据恢复链路接入 Console `/api/v1/connection-tickets/renew` 的旋转 renewal capability。Android 会在票据临期或同一一次性票据已尝试后
-  主动续发；续发只继承原始启动路由，并拒绝 logical session 或 stream 发生变化的响应。WebRTC 初始协商失败会以新票据切换到原生 UDP/Relay，已连接
-  WebRTC 失败则进入最长 25 秒的有界续发/降级重试；等待 Surface 重建期间不消耗 renewal token，停止与销毁会取消排队重试，显式重试继续复用仍有效的
-  Compose Surface。客户端解析、续发身份约束、一次性票据判定和账号仓库状态已有单元测试；全套 Android 单元测试、lint、arm64 native 和 debug APK
-  构建通过。APK 以 `adb install -r -d` 覆盖安装后完成冷启动、局域网发现和 54 FPS / 4 ms 的真实直连回归，无崩溃；SHA-256 为
-  `DA0DF265C703437B38A579C733CDF82BCA3FAA90FA9D4B34DBCCC09FCB73ABDE`。手机当前未登录 Console，因此真实公网 Relay/WebRTC 切换仍属于网络矩阵待验收项，
-  不以单元测试替代该项证据。
+- 2026-09-12：上述 M5 临时授权恢复方案已经整体退役。Android 现在获取稳定连接描述，并由 Render 直接校验设备密码摘要；不再续发、兑换或缓存连接票据。
 - 2026-09-07 导航与远控遮挡复核把应用详情纳入设备 Tab 的选中层级，允许直接切换一级栏目，切换后只返回对应根页；远控和会话文件页保持无底栏全屏栈，
   文件根页系统返回只退回远控，结束会话回到连接前父页。远控工具栏默认收成右上角单按钮，展开后系统返回先收起，不再常驻遮挡画面。Xiaomi 22021211RC
   覆盖安装后完成设备→设置→系统返回、设备→应用→传输→设备、真实会话文件→远控，以及工具栏展开→返回收起→结束确认的短时验证；实时画面约 55 FPS / 3–5 ms，

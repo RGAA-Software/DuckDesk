@@ -12,6 +12,7 @@ include(rdp/rdp_freerdp_sdk.cmake)
 add_library(px_client_imgui_runtime STATIC
     ui_imgui/client_audio_output.cpp
     ui_imgui/client_file_transfer_panel.cpp
+    ui_imgui/client_input_mapper.cpp
     ui_imgui/client_launch_config.cpp
     ui_imgui/client_session.cpp
     ui_imgui/client_session_display.cpp
@@ -53,6 +54,11 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
     target_include_directories(test_client_imgui_launch_config PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
     target_link_libraries(test_client_imgui_launch_config PRIVATE px_common nlohmann_json::nlohmann_json GTest::gtest GTest::gtest_main)
     add_test(NAME client_imgui_launch_config COMMAND test_client_imgui_launch_config)
+
+    add_executable(test_client_input_mapper tests/test_client_input_mapper.cpp ui_imgui/client_input_mapper.cpp)
+    target_include_directories(test_client_input_mapper PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
+    target_link_libraries(test_client_input_mapper PRIVATE SDL3::SDL3-static GTest::gtest GTest::gtest_main)
+    add_test(NAME client_input_mapper COMMAND test_client_input_mapper)
 endif()
 
 if(PX_PROTECTION_ENABLED)

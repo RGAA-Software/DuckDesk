@@ -139,15 +139,11 @@ namespace px_console
         //
         bool console_online_ = false;
 
-        // Ephemeral Console capability grant. Never persisted by the stream DB.
-        std::string connection_ticket_;
-        std::string connection_renewal_token_;
-        std::string connection_logical_session_id_{};
         std::string connection_nonce_;
         // Panel has already validated the id-less IP-direct password and
         // prepared active_session_stream_id_ on Render. Never persisted.
         bool ip_direct_prevalidated_ = false;
-        // Ticket stream IDs are per logical remote-control session. Keep them
+        // Active stream IDs are per logical remote-control session. Keep them
         // separate from stream_id_, which identifies the saved Panel entry.
         std::string active_session_stream_id_;
         std::string rtc_ice_config_json_;

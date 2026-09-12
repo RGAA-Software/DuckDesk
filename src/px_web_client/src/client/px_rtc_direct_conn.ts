@@ -96,9 +96,7 @@ export class PxRtcDirectConn extends PxConn {
         const streamId = this.grConnParams.clientNonce ?? crypto.randomUUID();
         const body = {
             "sdp": offer.sdp,
-            "ticket": this.grConnParams.ticket ?? "",
             "client_nonce": this.grConnParams.clientNonce ?? streamId,
-            "instance_id": this.grConnParams.instanceId ?? "",
         };
         const allocResult = await this.allocRemoteLocalRtc(deviceId, streamId, body);
         if (allocResult == null) {
@@ -125,12 +123,12 @@ export class PxRtcDirectConn extends PxConn {
     async allocRemoteLocalRtc(deviceId: string, streamId: string, body: { [key: string]: any }) {
         try {
             const contentType = this.grConnParams.instanceId ? '&content_type=game_stream' : '';
-            const url = `/api/alloc/local/rtc?device_id=${encodeURIComponent(deviceId)}&stream_id=${encodeURIComponent(streamId)}${contentType}`;
+            const password = encodeURIComponent(this.grConnParams.safetyPwdMd5 ?? '');
+            const url = `/api/alloc/local/rtc?device_id=${encodeURIComponent(deviceId)}&stream_id=${encodeURIComponent(streamId)}&safety_pwd_md5=${password}${contentType}`;
             console.log("request url", url);
             const response: AxiosResponse<PxResponse> = await axios.post(url, body);
             return response.data;
         } catch (_error) {
-            // Axios errors retain the request body, including the one-time ticket.
             console.error("RTC signaling request failed");
             return null;
         }

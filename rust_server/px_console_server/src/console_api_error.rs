@@ -126,9 +126,6 @@ pub enum ConsoleApiError {
     #[error("resource not found")]
     ResourceNotFound,
 
-    #[error("ticket expired or already used")]
-    TicketExpiredOrUsed,
-
     #[error("rate limit exceeded")]
     RateLimited,
 
@@ -182,7 +179,6 @@ impl ConsoleApiError {
             | ConsoleApiError::DeviceNotFound
             | ConsoleApiError::UserNotFound => "RESOURCE_NOT_FOUND",
             ConsoleApiError::VersionConflict => "VERSION_CONFLICT",
-            ConsoleApiError::TicketExpiredOrUsed => "TICKET_EXPIRED_OR_USED",
             ConsoleApiError::RateLimited => "RATE_LIMITED",
             ConsoleApiError::QuotaExceeded => "QUOTA_EXCEEDED",
             ConsoleApiError::DeviceOffline => "DEVICE_OFFLINE",
@@ -230,7 +226,6 @@ impl ConsoleApiError {
             ConsoleApiError::GroupNotFound => 634,
             ConsoleApiError::VersionConflict => 635,
             ConsoleApiError::ResourceNotFound => 636,
-            ConsoleApiError::TicketExpiredOrUsed => 637,
             ConsoleApiError::RateLimited => 638,
             ConsoleApiError::QuotaExceeded => 639,
         }
@@ -249,7 +244,6 @@ impl ConsoleApiError {
             ConsoleApiError::GroupNotFound | ConsoleApiError::ResourceNotFound => {
                 StatusCode::NOT_FOUND
             }
-            ConsoleApiError::TicketExpiredOrUsed => StatusCode::GONE,
             ConsoleApiError::RateLimited | ConsoleApiError::QuotaExceeded => {
                 StatusCode::TOO_MANY_REQUESTS
             }

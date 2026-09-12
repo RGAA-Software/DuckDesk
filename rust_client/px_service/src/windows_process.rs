@@ -100,8 +100,6 @@ impl WindowsProcessManager {
 const SENSITIVE_ARG_NAMES: &[&str] = &[
     "--service_ipc_token",
     "--user_session_token",
-    "--connection_ticket",
-    "--ticket",
     "--appkey",
     "--app_key",
     "--password",

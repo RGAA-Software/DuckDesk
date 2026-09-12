@@ -266,8 +266,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
     LaunchedEffect(remoteBinder, remoteRequest) {
         val binder = remoteBinder ?: return@LaunchedEffect
         val request = remoteRequest ?: return@LaunchedEffect
-        val requiresLocalNetwork = request.target is RemoteSessionTarget.Direct ||
-            (request.target as? RemoteSessionTarget.Account)?.connectionTicket?.launchUrl?.startsWith("http://", ignoreCase = true) == true
+        val requiresLocalNetwork = request.target is RemoteSessionTarget.Direct || request.target is RemoteSessionTarget.Account
         if (Build.VERSION.SDK_INT >= 37 && requiresLocalNetwork && ContextCompat.checkSelfPermission(
                 context,
                 Manifest.permission.ACCESS_LOCAL_NETWORK,

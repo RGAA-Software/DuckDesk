@@ -148,19 +148,20 @@ try {
         throw "Instance $instanceId was not restored as running after Console restart"
     }
 
-    $ticketNonce = [Guid]::NewGuid().ToString('N')
-    $ticket = Invoke-ConsoleJson -Path "/api/v1/public/instances/$([Uri]::EscapeDataString($instanceId))/ticket" `
+    $connectionNonce = [Guid]::NewGuid().ToString('N')
+    $connection = Invoke-ConsoleJson -Path "/api/v1/public/instances/$([Uri]::EscapeDataString($instanceId))/web-connection" `
         -Method POST -Session $session -Headers @{ Origin = $ConsoleUrl; 'X-CSRF-Token' = $csrf } `
-        -Body @{ client_nonce = $ticketNonce; join_mode = 'observe' }
-    if ([string]::IsNullOrWhiteSpace([string]$ticket.data.ticket)) {
-        throw 'Restored instance did not issue a new connection ticket'
+        -Body @{ client_nonce = $connectionNonce; join_mode = 'observe' }
+    if ([string]::IsNullOrWhiteSpace([string]$connection.data.launch_url) -or
+        [string]::IsNullOrWhiteSpace([string]$connection.data.password_hash)) {
+        throw 'Restored instance did not return a password-authenticated web connection'
     }
-    $permissions = @($ticket.data.permissions)
+    $permissions = @($connection.data.permissions)
     if ($permissions.Count -ne 2 -or $permissions[0] -ne 'view' -or $permissions[1] -ne 'audio') {
-        throw "Restored instance returned unexpected ticket permissions: $($ticket.data.permissions -join ',')"
+        throw "Restored instance returned unexpected connection permissions: $($connection.data.permissions -join ',')"
     }
 
-    Write-Host "PASS: instance $instanceId remained running and issued an observer ticket after Console restart."
+    Write-Host "PASS: instance $instanceId remained running and returned an observer connection after Console restart."
 }
 finally {
     if (-not $restartCompleted) {

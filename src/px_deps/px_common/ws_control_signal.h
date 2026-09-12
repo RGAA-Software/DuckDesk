@@ -13,7 +13,7 @@ inline constexpr std::string_view kWsSessionRejectedSignal =
     "px-control:session-rejected";
 // Sent by an already authenticated UDP-direct client over its reliable
 // WebSocket control channel. Render stops filtering media on that same socket,
-// so UDP fallback never has to redeem the one-time connection ticket again.
+// so UDP fallback uses the same authenticated logical connection.
 inline constexpr std::string_view kWsUseWebSocketMediaSignal =
     "px-control:use-websocket-media";
 

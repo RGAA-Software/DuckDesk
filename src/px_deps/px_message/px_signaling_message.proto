@@ -6,12 +6,12 @@ message SigOfferSdpMessage {
   string device_id = 1;
   string room_id = 2;
   string sdp = 3;
-  string connection_ticket = 4;
+  reserved 4;
   string client_nonce = 5;
-  string instance_id = 6;
-  // Guest-only device credential. The client sends an MD5 digest for
-  // compatibility with the existing Direct RTC password verifier; logged-in
-  // sessions leave this empty and authenticate with connection_ticket.
+  reserved 6;
+  reserved "instance_id";
+  // Every browser session authenticates directly with the Render device
+  // password digest. Console supplies routing and RTC configuration only.
   string safety_pwd_md5 = 7;
   // Direct RTC only: an explicitly requested replacement of the current
   // Controller.  It is evaluated against the device's allow_takeover policy,

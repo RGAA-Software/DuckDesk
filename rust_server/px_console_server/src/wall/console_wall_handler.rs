@@ -67,7 +67,12 @@ pub async fn create_wall_session(
         return Err(ConsoleApiError::SafetyPwdMissing);
     }
 
-    let Some((render_ip, render_port)) = device.get_current_render_endpoints().await.into_iter().next() else {
+    let Some((render_ip, render_port)) = device
+        .get_current_render_endpoints()
+        .await
+        .into_iter()
+        .next()
+    else {
         return Err(ConsoleApiError::ConnectionNotFound);
     };
     let service_conn = gConsoleServiceConnMgr

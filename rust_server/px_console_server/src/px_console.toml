@@ -88,10 +88,6 @@ web_absolute_days = 30
 admin_sliding_hours = 2
 admin_absolute_hours = 8
 guest_absolute_hours = 24
-ticket_expire_seconds = 30
-# Rotating browser reconnect capability absolute lifetime (default 24h).
-ticket_renew_expire_seconds = 86400
-
 [user.rate_limit]
 login_per_ip_per_minute = 10
 login_per_account_per_15_minutes = 20

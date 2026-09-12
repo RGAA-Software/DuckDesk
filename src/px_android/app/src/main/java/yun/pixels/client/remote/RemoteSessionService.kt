@@ -98,7 +98,6 @@ class RemoteSessionService : Service() {
         transport = AndroidRemoteSessionTransport(
             graph.installationIdentity,
             serviceScope,
-            graph.accountRepository::renewTicket,
         )
         workflow = RemoteSessionWorkflow(transport, serviceScope)
         fileTransfers = AndroidFileTransferCoordinator(this, transport, serviceScope)

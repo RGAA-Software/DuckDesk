@@ -24,7 +24,7 @@ export class PxRtcConn extends PxConn {
 
     async start() {
         const p = this.grConnParams;
-        if (!p.ticket || !p.clientNonce || !p.deviceId || !p.relayHost || !p.relayPort || !p.rtcIceConfig) {
+        if (!p.safetyPwdMd5 || !p.clientNonce || !p.deviceId || !p.relayHost || !p.relayPort || !p.rtcIceConfig) {
             throw new Error('Standard RTC launch parameters are incomplete');
         }
         const iceServers: RTCIceServer[] = p.rtcIceConfig.ice_servers.map((server) => ({
@@ -63,10 +63,9 @@ export class PxRtcConn extends PxConn {
             device_name: 'WebClient',
             stream_id: p.clientNonce,
             rtc_signal: '1',
-            ticket: p.ticket,
-            client_nonce: p.clientNonce,
+            password_auth: '1',
+            target_device_id: p.deviceId,
         });
-        if (p.instanceId) query.set('instance_id', p.instanceId);
         this.socket = new WebSocket(`${scheme}://${p.relayHost}:${p.relayPort}/relay?${query}`);
         this.socket.binaryType = 'arraybuffer';
         this.socket.onopen = () => {
@@ -145,6 +144,7 @@ export class PxRtcConn extends PxConn {
                     deviceName: 'WebClient',
                     streamId: this.grConnParams.clientNonce,
                     forceGdi: false,
+                    safetyPwdMd5: this.grConnParams.safetyPwdMd5,
                 },
             });
         } else if (msg.type === this.relayType('kRelayRoomPrepared')) {
@@ -167,9 +167,8 @@ export class PxRtcConn extends PxConn {
             sigOfferSdp: {
                 deviceId: this.clientId,
                 sdp: offer.sdp || '',
-                connectionTicket: this.grConnParams.ticket,
                 clientNonce: this.grConnParams.clientNonce,
-                instanceId: this.grConnParams.instanceId || '',
+                safetyPwdMd5: this.grConnParams.safetyPwdMd5,
             },
         });
     }

@@ -271,10 +271,7 @@ void JavaSessionCallback::Statistics(const std::string& session_id, const std::i
     });
 }
 
-void JavaSessionCallback::GamepadRumble(
-    const std::string& session_id,
-    const std::int32_t strong_motor,
-    const std::int32_t weak_motor) const {
+void JavaSessionCallback::GamepadRumble(const std::string& session_id, const std::int32_t strong_motor, const std::int32_t weak_motor) const {
     const auto listener_handle = listener_handle_;
     WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
         const auto listener = reinterpret_cast<jobject>(listener_handle);
@@ -283,8 +280,7 @@ void JavaSessionCallback::GamepadRumble(
         const auto method = environment.GetMethodID(listener_class, "onGamepadRumble", "(Ljava/lang/String;II)V");
         const auto session_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(session_id.c_str()));
         if (method != nullptr && session_id_handle != 0U) {
-            environment.CallVoidMethod(
-                listener, method, reinterpret_cast<jstring>(session_id_handle), strong_motor, weak_motor);
+            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), strong_motor, weak_motor);
         }
         DeleteLocalReference(environment, session_id_handle);
         DeleteLocalReference(environment, listener_class_handle);
@@ -345,8 +341,8 @@ void JavaSessionCallback::ClipboardFiles(const std::string& session_id, const Na
     });
 }
 
-void JavaSessionCallback::ClipboardFilesReady(const std::string& session_id, const std::string& generation,
-                                              const std::vector<std::string>& paths, const std::string& error) const {
+void JavaSessionCallback::ClipboardFilesReady(const std::string& session_id, const std::string& generation, const std::vector<std::string>& paths,
+                                              const std::string& error) const {
     const auto listener_handle = listener_handle_;
     WithEnvironment(vm_handle_, [&](JNIEnv& environment) {
         const auto listener = reinterpret_cast<jobject>(listener_handle);
@@ -460,8 +456,8 @@ void JavaSessionCallback::RemoteDirectory(const std::string& session_id, const p
         const auto paths_handle = MakeByteArrayArray(environment, absolute_paths);
         const auto sizes_handle = MakeLongArray(environment, sizes);
         const auto times_handle = MakeLongArray(environment, modified_times);
-        if (method != nullptr && session_handle != 0U && path_handle != 0U && names_handle != 0U && types_handle != 0U &&
-            paths_handle != 0U && sizes_handle != 0U && times_handle != 0U) {
+        if (method != nullptr && session_handle != 0U && path_handle != 0U && names_handle != 0U && types_handle != 0U && paths_handle != 0U &&
+            sizes_handle != 0U && times_handle != 0U) {
             environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_handle), reinterpret_cast<jbyteArray>(path_handle),
                                        reinterpret_cast<jobjectArray>(names_handle), reinterpret_cast<jintArray>(types_handle),
                                        reinterpret_cast<jobjectArray>(paths_handle), reinterpret_cast<jlongArray>(sizes_handle),
@@ -490,8 +486,8 @@ void JavaSessionCallback::RecordingState(const std::string& session_id, const st
         const auto recording_id_handle = reinterpret_cast<std::uintptr_t>(environment.NewStringUTF(recording_id.c_str()));
         const auto error_handle = MakeByteArray(environment, error);
         if (method != nullptr && session_id_handle != 0U && recording_id_handle != 0U && error_handle != 0U) {
-            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle),
-                                       reinterpret_cast<jstring>(recording_id_handle), state, reinterpret_cast<jbyteArray>(error_handle));
+            environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), reinterpret_cast<jstring>(recording_id_handle),
+                                       state, reinterpret_cast<jbyteArray>(error_handle));
         }
         DeleteLocalReference(environment, session_id_handle);
         DeleteLocalReference(environment, recording_id_handle);
@@ -617,9 +613,9 @@ bool NativeSession::Initialize() {
                                       config_.stream_id, config_.client_device_id);
     params->ft_path_ = std::format("/file/transfer?remote_device_id={}&stream_id={}&visitor_device_id={}", config_.remote_device_id,
                                    config_.stream_id, config_.client_device_id);
-    params->connection_ticket_ = config_.connection_ticket;
     params->connection_nonce_ = config_.connection_nonce;
     params->connection_instance_id_ = config_.connection_instance_id;
+    params->remote_password_hash_ = config_.remote_password_hash;
     params->render_type_name_ = "mediacodec_surface";
 
     const auto weak_self = weak_from_this();
@@ -921,14 +917,12 @@ bool NativeSession::Initialize() {
         }
         if (message->type() == px::kGamepadRumble && message->has_gamepad_rumble()) {
             const auto& rumble = message->gamepad_rumble();
-            self->callback_->GamepadRumble(
-                self->config_.session_id,
-                static_cast<std::int32_t>(std::min(rumble.strong_motor(), 255U)),
-                static_cast<std::int32_t>(std::min(rumble.weak_motor(), 255U)));
+            self->callback_->GamepadRumble(self->config_.session_id, static_cast<std::int32_t>(std::min(rumble.strong_motor(), 255U)),
+                                           static_cast<std::int32_t>(std::min(rumble.weak_motor(), 255U)));
             return;
         }
-        if (message->type() == px::kClipboardReqAtBegin || message->type() == px::kClipboardReqBuffer ||
-            message->type() == px::kClipboardReqAtEnd || message->type() == px::kClipboardRespBuffer) {
+        if (message->type() == px::kClipboardReqAtBegin || message->type() == px::kClipboardReqBuffer || message->type() == px::kClipboardReqAtEnd ||
+            message->type() == px::kClipboardRespBuffer) {
             std::shared_ptr<NativeClipboard> clipboard;
             {
                 std::lock_guard lock(self->lifecycle_mutex_);
@@ -1113,14 +1107,16 @@ void NativeSession::DispatchSurfaceUpdate(std::shared_ptr<px::ThunderSdk> sdk, s
     const auto output_available = replacement != nullptr;
     {
         std::lock_guard lock(lifecycle_mutex_);
-        if (stopped_.load() || !decoder_output_) return;
+        if (stopped_.load() || !decoder_output_)
+            return;
     }
     const auto weak_self = weak_from_this();
     sdk->RefreshVideoOutput(
         output_available,
         [weak_self, retiring_surface = std::move(retiring_surface)]() {
             static_cast<void>(retiring_surface);
-            if (const auto self = weak_self.lock()) self->CompleteSurfaceUpdate();
+            if (const auto self = weak_self.lock())
+                self->CompleteSurfaceUpdate();
         },
         [output = decoder_output_, replacement = std::move(replacement)]() mutable { output->Replace(std::move(replacement)); });
 }
@@ -1437,8 +1433,7 @@ bool NativeSession::ListRemoteDirectory(const std::string& remote_path) {
         }
         session = file_transfer_session_;
     }
-    return session && session->Post("pixels-android-ft-list-directory",
-                                    [remote_path](const auto& engine) { engine->ReadDir(remote_path, false); });
+    return session && session->Post("pixels-android-ft-list-directory", [remote_path](const auto& engine) { engine->ReadDir(remote_path, false); });
 }
 
 bool NativeSession::CancelFileTransfer(const std::int32_t job_id) {
@@ -1503,28 +1498,33 @@ bool NativeSession::StartRecording(const std::string& recording_id, const std::s
         sdk = sdk_;
         const auto weak_callback = std::weak_ptr<JavaSessionCallback>(callback_);
         const auto session_id = config_.session_id;
-        recording = px::RecordingSession::Create(
-            {.writer = {
-                 .dir = staging_directory,
-                 .monitor_name = active_monitor_name_,
-                 .file_prefix = "pixels_",
-                 .max_segment_bytes = 8LL * 1024 * 1024 * 1024,
-                 .max_file_count = 0,
-                 .on_request_keyframe = [weak_sdk = std::weak_ptr<px::ThunderSdk>(sdk)] {
-                     if (const auto active = weak_sdk.lock())
-                         active->RequestVideoKeyFrame();
-                 },
-             }},
-            {.started = [weak_callback, session_id, recording_id] {
-                 if (const auto callback = weak_callback.lock())
-                     callback->RecordingState(session_id, recording_id, kRecordingStarted, {});
-             },
-             .finished = [weak_callback, session_id, recording_id](const px::RecordingSessionResult& result) {
-                 LOGI("Pixels Android recording {} finalized with {} video and {} audio packets", recording_id,
-                      result.video_packets, result.audio_packets);
-                 if (const auto callback = weak_callback.lock())
-                     callback->RecordingState(session_id, recording_id, result.error.empty() ? kRecordingCompleted : kRecordingFailed, result.error);
-             }});
+        recording = px::RecordingSession::Create({.writer =
+                                                      {
+                                                          .dir = staging_directory,
+                                                          .monitor_name = active_monitor_name_,
+                                                          .file_prefix = "pixels_",
+                                                          .max_segment_bytes = 8LL * 1024 * 1024 * 1024,
+                                                          .max_file_count = 0,
+                                                          .on_request_keyframe =
+                                                              [weak_sdk = std::weak_ptr<px::ThunderSdk>(sdk)] {
+                                                                  if (const auto active = weak_sdk.lock())
+                                                                      active->RequestVideoKeyFrame();
+                                                              },
+                                                      }},
+                                                 {.started =
+                                                      [weak_callback, session_id, recording_id] {
+                                                          if (const auto callback = weak_callback.lock())
+                                                              callback->RecordingState(session_id, recording_id, kRecordingStarted, {});
+                                                      },
+                                                  .finished =
+                                                      [weak_callback, session_id, recording_id](const px::RecordingSessionResult& result) {
+                                                          LOGI("Pixels Android recording {} finalized with {} video and {} audio packets",
+                                                               recording_id, result.video_packets, result.audio_packets);
+                                                          if (const auto callback = weak_callback.lock())
+                                                              callback->RecordingState(session_id, recording_id,
+                                                                                       result.error.empty() ? kRecordingCompleted : kRecordingFailed,
+                                                                                       result.error);
+                                                      }});
         if (!recording)
             return false;
         recording_session_ = recording;
@@ -1670,7 +1670,8 @@ void NativeSession::Stop() {
     }
     if (sdk)
         sdk->Exit();
-    if (decoder_output_) decoder_output_->Replace({});
+    if (decoder_output_)
+        decoder_output_->Replace({});
     audio_player_->Stop();
 }
 

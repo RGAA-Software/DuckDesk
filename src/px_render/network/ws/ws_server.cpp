@@ -38,7 +38,6 @@
 #include "px_common/ws_control_signal.h"
 #include "http_handler.h"
 #include "ws_callback_workflow.h"
-#include "direct_session_grant_store.h"
 #include "px_common/async_operation.h"
 #include "px_common/async_result.h"
 #include "px_render/architecture/runtime/await_callback.h"
@@ -88,7 +87,7 @@ static int64_t CurrentSystemMilliseconds() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
-struct WsTicketAdmission {
+struct WsPasswordAdmission {
     std::vector<std::string> permissions_;
     std::string logical_session_id_;
     std::string stream_id_;
@@ -128,85 +127,37 @@ static void DispatchCloseLogicalSessionBinding(const std::weak_ptr<WsTransport>&
     owner->EmitEvent(event);
 }
 
-static PxAwaitable<PxResult<WsTicketAdmission>> RedeemWsTicketAsync(std::weak_ptr<WsTransport> transport,
-                                                                    std::unordered_map<std::string, std::string> params, std::string remote_address) {
-    const auto ticket_it = params.find("ticket");
-    if (ticket_it == params.end() || ticket_it->second.empty()) {
-        const auto owner = transport.lock();
-        const auto stream_it = params.find("stream_id");
-        const auto nonce_it = params.find("client_nonce");
-        const auto password_it = params.find("safety_pwd_md5");
-        if (!owner || stream_it == params.end() || stream_it->second.empty() || nonce_it == params.end() || nonce_it->second.empty() ||
-            password_it == params.end() || password_it->second.empty()) {
-            co_return PxResult<WsTicketAdmission>::Failure(
-                MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "ws_password_auth", "device password is missing"));
-        }
-        const auto settings = owner->Settings();
-        const bool validSafety = !settings.device_safety_password.empty() && settings.device_safety_password == password_it->second;
-        const bool validTemporary = !settings.device_random_password.empty() && MD5::Hex(settings.device_random_password) == password_it->second;
-        if ((!settings.device_safety_password.empty() || !settings.device_random_password.empty()) && !validSafety && !validTemporary) {
-            co_return PxResult<WsTicketAdmission>::Failure(
-                MakePxAsyncError(PxAsyncErrorCode::kServiceRejected, "ws_password_auth", "device password was rejected", false,
-                                 "SESSION_PASSWORD_REJECTED"));
-        }
-        const std::string logicalSessionId{"direct:" + MD5::Hex(stream_it->second + "|" + nonce_it->second + "|" + remote_address)};
-        co_return PxResult<WsTicketAdmission>::Success(WsTicketAdmission{
-            .permissions_ = {"view", "input", "clipboard", "file", "audio", "rdp"},
-            .logical_session_id_ = logicalSessionId,
-            .stream_id_ = stream_it->second,
-            .join_mode_ = "control",
-            .subject_id_ = "direct:" + MD5::Hex(remote_address + "|" + nonce_it->second),
-            .expires_at_ms_ = CurrentSystemMilliseconds() + std::chrono::hours(24).count() * 60 * 60 * 1000,
-            .allow_observer_ = false,
-            .allow_takeover_ = true,
-        });
-    }
+static PxAwaitable<PxResult<WsPasswordAdmission>> AuthenticateWsPasswordAsync(std::weak_ptr<WsTransport> transport,
+                                                                              std::unordered_map<std::string, std::string> params,
+                                                                              std::string remote_address) {
+    const auto owner = transport.lock();
+    const auto stream_it = params.find("stream_id");
     const auto nonce_it = params.find("client_nonce");
-    if (nonce_it == params.end() || nonce_it->second.empty()) {
-        co_return PxResult<WsTicketAdmission>::Failure(
-            MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "ws_ticket_redeem", "client nonce is missing"));
+    const auto password_it = params.find("safety_pwd_md5");
+    if (!owner || stream_it == params.end() || stream_it->second.empty() || nonce_it == params.end() || nonce_it->second.empty() ||
+        password_it == params.end() || password_it->second.empty()) {
+        co_return PxResult<WsPasswordAdmission>::Failure(
+            MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "ws_password_auth", "device password is missing"));
     }
-    const auto ticket = ticket_it->second;
-    const auto nonce = nonce_it->second;
-    std::string instance_id;
-    if (const auto instance = params.find("instance_id"); instance != params.end()) {
-        instance_id = instance->second;
+    const auto settings = owner->Settings();
+    const bool validSafety = !settings.device_safety_password.empty() && settings.device_safety_password == password_it->second;
+    const bool validTemporary = !settings.device_random_password.empty() && MD5::Hex(settings.device_random_password) == password_it->second;
+    if ((!settings.device_safety_password.empty() || !settings.device_random_password.empty()) && !validSafety && !validTemporary) {
+        co_return PxResult<WsPasswordAdmission>::Failure(
+            MakePxAsyncError(PxAsyncErrorCode::kServiceRejected, "ws_password_auth", "device password was rejected", false,
+                             "SESSION_PASSWORD_REJECTED"));
     }
-    co_return co_await render::AwaitOwnedCallback<WsTicketAdmission>(
-        [transport, ticket, nonce, instance_id](render::OwnedCallbackCompletion<WsTicketAdmission> completion) {
-            const auto owner = transport.lock();
-            if (!owner) {
-                return false;
-            }
-            const auto event = std::make_shared<RedeemConnectionTicketEvent>();
-            event->ticket_ = ticket;
-            event->client_nonce_ = nonce;
-            event->instance_id_ = instance_id;
-            event->callback_ = [completion = std::move(completion)](
-                                   const bool ok, const std::string& code, const std::vector<std::string>& permissions, const std::string&,
-                                   const std::string& logical_session_id, const std::string& stream_id, const std::string& join_mode,
-                                   const std::string& subject_id, const int64_t expires_at_ms, const bool allow_observer, const bool allow_takeover) {
-                if (!ok || stream_id.empty()) {
-                    completion(PxResult<WsTicketAdmission>::Failure(MakePxAsyncError(PxAsyncErrorCode::kServiceRejected, "ws_ticket_redeem",
-                                                                                     code.empty() ? "ticket was rejected" : code, false,
-                                                                                     "SESSION_TICKET_REJECTED")));
-                    return;
-                }
-                completion(PxResult<WsTicketAdmission>::Success(WsTicketAdmission{
-                    .permissions_ = permissions,
-                    .logical_session_id_ = logical_session_id,
-                    .stream_id_ = stream_id,
-                    .join_mode_ = join_mode,
-                    .subject_id_ = subject_id,
-                    .expires_at_ms_ = expires_at_ms,
-                    .allow_observer_ = allow_observer,
-                    .allow_takeover_ = allow_takeover,
-                }));
-            };
-            owner->EmitEvent(event);
-            return true;
-        },
-        std::chrono::steady_clock::now() + std::chrono::seconds(3), "ws_ticket_redeem");
+    const std::string logicalSessionId{"password:" + MD5::Hex(stream_it->second + "|" + nonce_it->second + "|" + remote_address)};
+    co_return PxResult<WsPasswordAdmission>::Success(WsPasswordAdmission{
+        .permissions_ = {"view", "input", "clipboard", "file", "audio", "rdp"},
+        .logical_session_id_ = logicalSessionId,
+        .stream_id_ = stream_it->second,
+        .join_mode_ = "control",
+        .subject_id_ = "password:" + MD5::Hex(remote_address + "|" + nonce_it->second),
+        .expires_at_ms_ = 0,
+        .allow_observer_ = false,
+        .allow_takeover_ = true,
+    });
 }
 
 static PxAwaitable<PxResult<LogicalSessionAdmission>> AdmitWsSessionAsync(std::weak_ptr<WsTransport> weak_transport, LogicalSessionGrant grant,
@@ -402,8 +353,7 @@ bool WsServer::Start() {
              "operation=start_control_workflows outcome=failed recoverable=false");
         return false;
     }
-    direct_session_grants_ = std::make_shared<DirectSessionGrantStore>();
-    http_handler_ = std::make_shared<HttpHandler>(transport_, async_scope_, direct_session_grants_);
+    http_handler_ = std::make_shared<HttpHandler>(transport_, async_scope_);
     auto weak_self = weak_from_this();
     server_ = std::make_shared<asio2::http_server>();
     server_->bind_disconnect([weak_self](std::shared_ptr<asio2::http_session>& sess_ptr) {
@@ -595,7 +545,6 @@ void WsServer::FinishStop() {
     }
     async_scope_.reset();
     http_handler_.reset();
-    direct_session_grants_.reset();
     server_.reset();
     ws_data_.reset();
     user_proxy_router_.reset();
@@ -785,7 +734,7 @@ FileTransferSendResult WsServer::PostTargetFileTransferMessage(const std::string
     }
     // UDP-direct intentionally multiplexes reliable file traffic over its
     // authenticated WS control binding. This avoids a second redemption of
-    // the one-time Console ticket and keeps all non-media logic reliable.
+    // the authenticated control connection and keeps all non-media logic reliable.
     stream_routers_.ApplyAll([&](const uint64_t& socket_fd, const std::shared_ptr<WsStreamRouter>& router) {
         static_cast<void>(socket_fd);
         const bool matches =
@@ -1172,29 +1121,29 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(std::weak_ptr<WsServer> owner, st
         co_return;
     }
     const auto transport = server->transport_;
-    auto ticket_result = co_await RedeemWsTicketAsync(transport, params, session->remote_address());
-    if (!ticket_result.HasValue()) {
-        const auto& error = ticket_result.Error();
+    auto authentication_result = co_await AuthenticateWsPasswordAsync(transport, params, session->remote_address());
+    if (!authentication_result.HasValue()) {
+        const auto& error = authentication_result.Error();
         LOGW("event=session.admit component=net_ws code={} "
-             "operation=redeem_ticket outcome=rejected recoverable={} reason={}",
+             "operation=password_auth outcome=rejected recoverable={} reason={}",
              error.StableCode(), error.retryable, error.message);
         server->transport_performance_.ObserveDropped();
         RejectWebSocketSession(session, kWsAuthorizationRejectedSignal);
         co_return;
     }
-    auto ticket = ticket_result.TakeValue();
+    auto authentication = authentication_result.TakeValue();
     const bool rdp_requested = params.contains("rdp") && params.at("rdp") == "1";
     if (server->rdp_proxy_port_ != 0) {
         if (!rdp_requested || path != kUrlMedia || params.contains("udp_media") ||
-            !std::ranges::all_of(std::array{"rdp", "view", "input", "audio", "clipboard"}, [&ticket](std::string_view capability) {
-                return std::ranges::find(ticket.permissions_, capability) != ticket.permissions_.end();
+            !std::ranges::all_of(std::array{"rdp", "view", "input", "audio", "clipboard"}, [&authentication](std::string_view capability) {
+                return std::ranges::find(authentication.permissions_, capability) != authentication.permissions_.end();
             })) {
             RejectWebSocketSession(session, kWsAuthorizationRejectedSignal);
             co_return;
         }
-        ticket.allow_observer_ = false;
-        ticket.allow_takeover_ = false;
-        if (ticket.join_mode_ != "control") {
+        authentication.allow_observer_ = false;
+        authentication.allow_takeover_ = false;
+        if (authentication.join_mode_ != "control") {
             RejectWebSocketSession(session, kWsSessionRejectedSignal);
             co_return;
         }
@@ -1204,14 +1153,15 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(std::weak_ptr<WsServer> owner, st
     }
     const auto stream_it = params.find("stream_id");
     const auto stream_id = stream_it == params.end() ? std::string{} : stream_it->second;
-    if (stream_id.empty() || stream_id != ticket.stream_id_) {
+    if (stream_id.empty() || stream_id != authentication.stream_id_) {
         LOGW("event=session.admit component=net_ws code=SESSION_STREAM_MISMATCH "
              "operation=validate_route outcome=rejected recoverable=false");
         server->transport_performance_.ObserveDropped();
         RejectWebSocketSession(session, kWsAuthorizationRejectedSignal);
         co_return;
     }
-    if (path == kUrlFileTransfer && std::find(ticket.permissions_.begin(), ticket.permissions_.end(), "file") == ticket.permissions_.end()) {
+    if (path == kUrlFileTransfer &&
+        std::find(authentication.permissions_.begin(), authentication.permissions_.end(), "file") == authentication.permissions_.end()) {
         LOGW("event=session.admit component=net_ws code=SESSION_CAPABILITY_DENIED "
              "operation=file_transfer outcome=rejected recoverable=false");
         server->transport_performance_.ObserveDropped();
@@ -1222,14 +1172,15 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(std::weak_ptr<WsServer> owner, st
     auto admission_result =
         co_await AdmitWsSessionAsync(transport,
                                      LogicalSessionGrant{
-                                         .logical_session_id = ticket.logical_session_id_,
-                                         .stream_id = ticket.stream_id_,
-                                         .subject_id = ticket.subject_id_,
-                                         .join_mode = ticket.join_mode_,
-                                         .expires_at_ms = ticket.expires_at_ms_,
-                                         .allow_observer = ticket.allow_observer_,
-                                         .allow_takeover = ticket.allow_takeover_,
-                                         .input_allowed = std::ranges::find(ticket.permissions_, "input") != ticket.permissions_.end(),
+                                         .logical_session_id = authentication.logical_session_id_,
+                                         .stream_id = authentication.stream_id_,
+                                         .subject_id = authentication.subject_id_,
+                                         .join_mode = authentication.join_mode_,
+                                         .expires_at_ms = authentication.expires_at_ms_,
+                                         .allow_observer = authentication.allow_observer_,
+                                         .allow_takeover = authentication.allow_takeover_,
+                                         .input_allowed =
+                                             std::ranges::find(authentication.permissions_, "input") != authentication.permissions_.end(),
                                      },
                                      path == kUrlFileTransfer ? LogicalSessionTransport::kFileTransfer : LogicalSessionTransport::kWs, binding_id);
     if (!admission_result.HasValue() || admission_result.Value().code != LogicalSessionAdmissionCode::kAccepted) {
@@ -1244,27 +1195,28 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(std::weak_ptr<WsServer> owner, st
     }
     auto admission = admission_result.TakeValue();
     if (!session->is_started()) {
-        DispatchCloseLogicalSessionBinding(transport, ticket.logical_session_id_, binding_id);
+        DispatchCloseLogicalSessionBinding(transport, authentication.logical_session_id_, binding_id);
         co_return;
     }
-    session->post_queued_event([owner, transport, session, path = std::move(path), params = std::move(params), ticket = std::move(ticket),
+    session->post_queued_event([owner, transport, session, path = std::move(path), params = std::move(params),
+                                authentication = std::move(authentication),
                                 admission = std::move(admission), binding_id, socket_fd]() mutable {
         const auto active_server = owner.lock();
         if (!active_server || active_server->exiting_ || !session->is_started()) {
-            DispatchCloseLogicalSessionBinding(transport, ticket.logical_session_id_, binding_id);
+            DispatchCloseLogicalSessionBinding(transport, authentication.logical_session_id_, binding_id);
             return;
         }
-        active_server->FinalizeWebSocketOpen(session, path, params, ticket, admission, binding_id, socket_fd);
+        active_server->FinalizeWebSocketOpen(session, path, params, authentication, admission, binding_id, socket_fd);
     });
     co_return;
 }
 
 void WsServer::FinalizeWebSocketOpen(const std::shared_ptr<asio2::http_session>& session, const std::string& path,
-                                     const std::unordered_map<std::string, std::string>& params, const WsTicketAdmission& ticket,
+                                     const std::unordered_map<std::string, std::string>& params, const WsPasswordAdmission& authentication,
                                      const LogicalSessionAdmission&, const std::string& binding_id, const std::uint64_t socket_fd) {
     const auto transport = transport_.lock();
     if (!transport) {
-        DispatchCloseLogicalSessionBinding(transport_, ticket.logical_session_id_, binding_id);
+        DispatchCloseLogicalSessionBinding(transport_, authentication.logical_session_id_, binding_id);
         session->stop();
         return;
     }
@@ -1292,7 +1244,7 @@ void WsServer::FinalizeWebSocketOpen(const std::shared_ptr<asio2::http_session>&
                  PrivacyLogId(stream_id));
             udp_media = false;
         } else {
-            UpdateUdpMediaAssociation(udp_media_association_code, ticket.logical_session_id_, stream_id, force_gdi, false);
+            UpdateUdpMediaAssociation(udp_media_association_code, authentication.logical_session_id_, stream_id, force_gdi, false);
         }
     } else if (udp_media) {
         udp_media = false;
@@ -1301,14 +1253,14 @@ void WsServer::FinalizeWebSocketOpen(const std::shared_ptr<asio2::http_session>&
     session->set_no_delay(true);
     if (path == kUrlMedia) {
         if (rdp_proxy_port_ != 0) {
-            const auto generation = rdp_frontend_.Acquire(ticket.logical_session_id_);
+            const auto generation = rdp_frontend_.Acquire(authentication.logical_session_id_);
             if (!generation) {
-                DispatchCloseLogicalSessionBinding(transport_, ticket.logical_session_id_, binding_id);
+                DispatchCloseLogicalSessionBinding(transport_, authentication.logical_session_id_, binding_id);
                 RejectWebSocketSession(session, kWsSessionOccupiedSignal);
                 return;
             }
             const auto router = WsStreamRouter::Make(ws_data_, false, visitor_device_id, stream_id);
-            router->logical_session_id_ = ticket.logical_session_id_;
+            router->logical_session_id_ = authentication.logical_session_id_;
             router->binding_id_ = binding_id;
             auto mutable_session = session;
             router->OnOpen(mutable_session);
@@ -1351,11 +1303,14 @@ void WsServer::FinalizeWebSocketOpen(const std::shared_ptr<asio2::http_session>&
         transport->EmitEvent(event);
         auto router = WsStreamRouter::Make(ws_data_, only_audio, visitor_device_id, stream_id);
         router->udp_media_.store(udp_media);
-        router->logical_session_id_ = ticket.logical_session_id_;
+        router->logical_session_id_ = authentication.logical_session_id_;
         router->binding_id_ = binding_id;
-        router->clipboard_allowed_.store(std::find(ticket.permissions_.begin(), ticket.permissions_.end(), "clipboard") != ticket.permissions_.end());
-        router->file_allowed_.store(std::find(ticket.permissions_.begin(), ticket.permissions_.end(), "file") != ticket.permissions_.end());
-        router->input_allowed_.store(std::find(ticket.permissions_.begin(), ticket.permissions_.end(), "input") != ticket.permissions_.end());
+        router->clipboard_allowed_.store(std::find(authentication.permissions_.begin(), authentication.permissions_.end(), "clipboard") !=
+                                         authentication.permissions_.end());
+        router->file_allowed_.store(std::find(authentication.permissions_.begin(), authentication.permissions_.end(), "file") !=
+                                    authentication.permissions_.end());
+        router->input_allowed_.store(std::find(authentication.permissions_.begin(), authentication.permissions_.end(), "input") !=
+                                     authentication.permissions_.end());
         router->udp_media_association_code_ = udp_media_association_code;
         router->force_gdi_ = force_gdi;
         const auto weak_self = weak_from_this();
@@ -1375,9 +1330,10 @@ void WsServer::FinalizeWebSocketOpen(const std::shared_ptr<asio2::http_session>&
         router->OnOpen(mutable_session);
     } else if (path == kUrlFileTransfer) {
         auto router = WsFileTransferRouter::Make(ws_data_, only_audio, visitor_device_id, stream_id);
-        router->logical_session_id_ = ticket.logical_session_id_;
+        router->logical_session_id_ = authentication.logical_session_id_;
         router->binding_id_ = binding_id;
-        router->file_allowed_.store(std::find(ticket.permissions_.begin(), ticket.permissions_.end(), "file") != ticket.permissions_.end());
+        router->file_allowed_.store(std::find(authentication.permissions_.begin(), authentication.permissions_.end(), "file") !=
+                                    authentication.permissions_.end());
         ft_routers_.Insert(socket_fd, router);
         auto mutable_session = session;
         router->OnOpen(mutable_session);

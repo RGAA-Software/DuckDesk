@@ -9,8 +9,8 @@ pub mod console_panel;
 pub mod console_relay;
 pub mod console_service;
 pub mod grpc_relay;
-pub mod px_relay;
 pub mod node_endpoints;
+pub mod px_relay;
 
 impl PartialEq<RelayMessageType> for i32 {
     fn eq(&self, other: &RelayMessageType) -> bool {

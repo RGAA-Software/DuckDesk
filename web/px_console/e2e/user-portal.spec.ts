@@ -27,9 +27,9 @@ async function installUserApi(page: Page, initiallyAuthenticated = true) {
     meCalls: 0,
     csrfCalls: 0,
     registerCalls: 0,
-    ticketCalls: 0,
-    ticketBody: undefined as Record<string, unknown> | undefined,
-    ticketCsrf: '',
+    connectionCalls: 0,
+    connectionBody: undefined as Record<string, unknown> | undefined,
+    connectionCsrf: '',
     apps: [] as Array<Record<string, unknown>>,
     registerBody: undefined as Record<string, unknown> | undefined,
     get authenticated() { return authenticated },
@@ -87,15 +87,18 @@ async function installUserApi(page: Page, initiallyAuthenticated = true) {
         ? json(route, ok({ items: state.apps, page: 1, page_size: 9, total: state.apps.length }))
         : json(route, { code: 'AUTH_REQUIRED', message: 'authentication required', data: null }, 401)
     }
-    if (/^\/api\/v1\/user\/instances\/[^/]+\/ticket$/.test(path)) {
-      state.ticketCalls += 1
-      state.ticketBody = request.postDataJSON()
-      state.ticketCsrf = request.headers()['x-csrf-token'] || ''
+    if (/^\/api\/v1\/user\/instances\/[^/]+\/web-connection$/.test(path)) {
+      state.connectionCalls += 1
+      state.connectionBody = request.postDataJSON()
+      state.connectionCsrf = request.headers()['x-csrf-token'] || ''
       const origin = new URL(request.url()).origin
       return json(route, ok({
-        launch_url: `${origin}/user/apps?opened=1#ticket=ticket-1&renew=renew-1&nonce=nonce-1`,
-        renewal_token: 'renew-1',
-        permissions: state.ticketBody?.join_mode === 'observe'
+        launch_url: `${origin}/user/apps?opened=1`,
+        device_id: 'device-1',
+        instance_id: 'instance-1',
+        stream_id: 'web-session-1',
+        password_hash: '0123456789abcdef0123456789abcdef',
+        permissions: state.connectionBody?.join_mode === 'observe'
           ? ['view', 'audio']
           : ['view', 'input', 'clipboard', 'file', 'audio'],
       }))
@@ -183,13 +186,11 @@ test('a fresh authenticated tab recovers csrf and opens an authorized applicatio
   await expect.poll(() => api.csrfCalls).toBe(1)
   await page.getByRole('button', { name: /进\s*入/ }).click()
 
-  await expect.poll(() => api.ticketCalls).toBe(1)
-  expect(api.ticketCsrf).toBe('csrf-recovered')
-  expect(api.ticketBody?.join_mode).toBe('control')
+  await expect.poll(() => api.connectionCalls).toBe(1)
+  expect(api.connectionCsrf).toBe('csrf-recovered')
+  expect(api.connectionBody?.join_mode).toBe('control')
   await expect(page).toHaveURL(/opened=1/)
   const fragment = new URLSearchParams(new URL(page.url()).hash.slice(1))
-  expect(fragment.get('renew')).toBe('renew-1')
-  expect(fragment.get('renew_url')).toContain('/api/v1/connection-tickets/renew')
   expect(fragment.get('perms')).toBe('view,input,clipboard,file,audio')
 })
 
@@ -207,8 +208,8 @@ test('view-only application entry requests a server-enforced view grant', async 
   await page.goto('/user/apps')
   await page.getByRole('button', { name: '仅观看' }).click()
 
-  await expect.poll(() => api.ticketCalls).toBe(1)
-  expect(api.ticketBody?.join_mode).toBe('observe')
+  await expect.poll(() => api.connectionCalls).toBe(1)
+  expect(api.connectionBody?.join_mode).toBe('observe')
   await expect(page).toHaveURL(/opened=1/)
   const fragment = new URLSearchParams(new URL(page.url()).hash.slice(1))
   expect(fragment.get('perms')).toBe('view,audio')

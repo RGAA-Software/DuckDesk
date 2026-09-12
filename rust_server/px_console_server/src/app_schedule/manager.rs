@@ -68,7 +68,7 @@ pub struct Application {
     pub listen_port: i32,
     #[serde(default)]
     pub access_mode: AppAccessMode,
-    /// Whether a running game/WebView instance may issue read-only tickets.
+    /// Whether a running game/WebView instance may allow read-only connections.
     /// Legacy rows intentionally retain the product default when this field is
     /// absent.
     #[serde(default = "default_true")]
@@ -221,7 +221,6 @@ pub struct SaveNodeReq {
     /// 0 / None = auto next free port on this device.
     pub listen_port: Option<i32>,
 }
-
 
 /// Split absolute game path into (install_root, game_exe_rel=file_name).
 pub fn split_game_path(game_path: &str) -> Result<(String, String), String> {
@@ -728,12 +727,14 @@ impl AppScheduleManager {
                         .map(|e| e.access_mode.clone())
                         .unwrap_or_default()
                 }),
-                allow_observer: app_type != ApplicationType::Rdp && req
-                    .allow_observer
-                    .unwrap_or_else(|| existing.as_ref().map(|e| e.allow_observer).unwrap_or(true)),
-                allow_takeover: app_type != ApplicationType::Rdp && req
-                    .allow_takeover
-                    .unwrap_or_else(|| existing.as_ref().map(|e| e.allow_takeover).unwrap_or(true)),
+                allow_observer: app_type != ApplicationType::Rdp
+                    && req.allow_observer.unwrap_or_else(|| {
+                        existing.as_ref().map(|e| e.allow_observer).unwrap_or(true)
+                    }),
+                allow_takeover: app_type != ApplicationType::Rdp
+                    && req.allow_takeover.unwrap_or_else(|| {
+                        existing.as_ref().map(|e| e.allow_takeover).unwrap_or(true)
+                    }),
                 version: existing.as_ref().map(|e| e.version + 1).unwrap_or(1),
             };
             g.apps.insert(app.app_id.clone(), app.clone());
@@ -799,7 +800,9 @@ impl AppScheduleManager {
             // 活跃实例存在时不允许换机器/端口(运行身份不可变)
             if let Some(ref old) = existing {
                 if app.app_type == ApplicationType::Rdp && old.device_id != device_id {
-                    return Err("RDP 工作区固定绑定机器；迁移需要独立的数据和账号迁移流程".to_string());
+                    return Err(
+                        "RDP 工作区固定绑定机器；迁移需要独立的数据和账号迁移流程".to_string()
+                    );
                 }
                 let has_active = g.instances.values().any(|i| {
                     i.node_id == old.node_id
@@ -844,7 +847,13 @@ impl AppScheduleManager {
                     .map(|e| e.install_root.clone())
                     .filter(|s| !s.is_empty())
                     .or_else(|| split_game_path(&app.game_path).ok().map(|(root, _)| root))
-                    .or_else(|| matches!(app.app_type, ApplicationType::Webview | ApplicationType::Rdp).then(String::new))
+                    .or_else(|| {
+                        matches!(
+                            app.app_type,
+                            ApplicationType::Webview | ApplicationType::Rdp
+                        )
+                        .then(String::new)
+                    })
                     .ok_or_else(|| "install_root 为空且无法从应用路径推导".to_string())?,
             };
 
@@ -1141,7 +1150,8 @@ impl AppScheduleManager {
                     });
                     let port_busy = g.instances.values().any(|i| {
                         i.device_id == n.device_id
-                            && n.listen_port > 0 && i.listen_port == n.listen_port
+                            && n.listen_port > 0
+                            && i.listen_port == n.listen_port
                             && matches!(
                                 i.state,
                                 InstanceState::Starting
@@ -1391,29 +1401,55 @@ impl AppScheduleManager {
                 if !conn.lock().await.rdp_available {
                     return Err("目标节点未就绪：需要 RDP 组件及受信任的 Console 连接".to_string());
                 }
-                let collection = crate::gConsoleDatabase.lock().await.c_rdp_workspace.clone()
+                let collection = crate::gConsoleDatabase
+                    .lock()
+                    .await
+                    .c_rdp_workspace
+                    .clone()
                     .ok_or_else(|| "RDP 工作区需要可用的持久数据库".to_string())?;
-                let key_path = crate::gConsoleSettings.lock().await.rdp_master_key_path.clone();
-                if key_path.is_empty() { return Err("尚未部署 RDP 凭证加密密钥".to_string()); }
-                let vault = super::rdp_workspace::RdpWorkspaceVault::load(std::path::Path::new(&key_path))?;
-                let credential = vault.ensure(&collection, &app.app_id, &inst.node_id, &inst.device_id).await?;
+                let key_path = crate::gConsoleSettings
+                    .lock()
+                    .await
+                    .rdp_master_key_path
+                    .clone();
+                if key_path.is_empty() {
+                    return Err("尚未部署 RDP 凭证加密密钥".to_string());
+                }
+                let vault =
+                    super::rdp_workspace::RdpWorkspaceVault::load(std::path::Path::new(&key_path))?;
+                let credential = vault
+                    .ensure(&collection, &app.app_id, &inst.node_id, &inst.device_id)
+                    .await?;
                 Ok(protocol::console_service::RdpWorkspaceProvision {
                     workspace_id: credential.record.workspace_id,
-                    node_id: inst.node_id.clone(), account_name: credential.record.account_name,
-                    password: credential.password.to_string(), credential_version: credential.record.credential_version,
+                    node_id: inst.node_id.clone(),
+                    account_name: credential.record.account_name,
+                    password: credential.password.to_string(),
+                    credential_version: credential.record.credential_version,
                 })
-            }.await;
+            }
+            .await;
             match prepared {
                 Ok(workspace) => Some(workspace),
                 Err(error) => {
-                    self.on_start_result(inst.device_id.clone(), ConsoleServiceStartAppInstanceResult {
-                        request_id: request_id.clone(), instance_id: instance_id.clone(), ok: false,
-                        error: error.clone(), listen_port: 0, pid: 0,
-                    }).await;
+                    self.on_start_result(
+                        inst.device_id.clone(),
+                        ConsoleServiceStartAppInstanceResult {
+                            request_id: request_id.clone(),
+                            instance_id: instance_id.clone(),
+                            ok: false,
+                            error: error.clone(),
+                            listen_port: 0,
+                            pid: 0,
+                        },
+                    )
+                    .await;
                     return Err(error);
                 }
             }
-        } else { None };
+        } else {
+            None
+        };
         let (live, relay_server_host, relay_server_port) = {
             let settings = crate::gConsoleSettings.lock().await;
             (
@@ -1423,10 +1459,18 @@ impl AppScheduleManager {
             )
         };
         let is_rdp = app.app_type == ApplicationType::Rdp;
-        let push_rtmp_url = if is_rdp { String::new() } else { live.resolved_publish_rtmp_url(&relay_server_host)? };
+        let push_rtmp_url = if is_rdp {
+            String::new()
+        } else {
+            live.resolved_publish_rtmp_url(&relay_server_host)?
+        };
         let relay_appkey = conn.lock().await.appkey.clone();
         let relay_device_id = format!("{}__instance__{}", inst.device_id, instance_id);
-        let live_stream_id = if is_rdp { String::new() } else { format!("{}__app__{}", inst.device_id, app.app_id) };
+        let live_stream_id = if is_rdp {
+            String::new()
+        } else {
+            format!("{}__app__{}", inst.device_id, app.app_id)
+        };
         tracing::info!(
             instance_id = %instance_id,
             live_stream_id = %live_stream_id,
@@ -1774,7 +1818,12 @@ impl AppScheduleManager {
                 }
                 if treat_stopped {
                     inst.state = InstanceState::Stopped;
-                    inst.stop_reason = if already_gone { "already_absent" } else { "requested_stop" }.into();
+                    inst.stop_reason = if already_gone {
+                        "already_absent"
+                    } else {
+                        "requested_stop"
+                    }
+                    .into();
                     inst.exit_code = None;
                     inst.version += 1;
                     inst.stopped_at_ms = now_ms();
@@ -1815,7 +1864,12 @@ impl AppScheduleManager {
             } else {
                 if treat_stopped {
                     inst.state = InstanceState::Stopped;
-                    inst.stop_reason = if already_gone { "already_absent" } else { "requested_stop" }.into();
+                    inst.stop_reason = if already_gone {
+                        "already_absent"
+                    } else {
+                        "requested_stop"
+                    }
+                    .into();
                     inst.exit_code = None;
                     inst.version += 1;
                     inst.stopped_at_ms = now_ms();
@@ -1931,15 +1985,29 @@ impl AppScheduleManager {
                 // Do not turn a stale heartbeat into a stop of a replacement or
                 // override an explicit Console stop that has its own receipt.
                 if matches!(inst.state, InstanceState::Starting | InstanceState::Running) {
-                    if let Some(rep) = reported.iter().find(|rep| rep.instance_id == inst.instance_id
-                        && !rep.request_id.is_empty() && rep.request_id == inst.request_id
-                        && matches!(rep.state.as_str(), "stopped" | "failed")) {
+                    if let Some(rep) = reported.iter().find(|rep| {
+                        rep.instance_id == inst.instance_id
+                            && !rep.request_id.is_empty()
+                            && rep.request_id == inst.request_id
+                            && matches!(rep.state.as_str(), "stopped" | "failed")
+                    }) {
                         let classified = match (rep.stop_reason.as_str(), rep.exit_code) {
-                            ("no_clients", Some(0x4752_0001)) | ("startup_idle", Some(0x4752_0002)) | ("clean_exit", Some(0))
-                                if rep.state == "stopped" => Some((InstanceState::Stopped, String::new())),
-                            ("process_lost", None) if rep.state == "stopped" => Some((InstanceState::Stopped, "PROCESS_LOST".into())),
-                            ("abnormal_exit", Some(code)) if rep.state == "failed" && !matches!(code, 0 | 0x4752_0001 | 0x4752_0002) =>
-                                Some((InstanceState::Failed, format!("RENDER_EXIT_{code:08X}"))),
+                            ("no_clients", Some(0x4752_0001))
+                            | ("startup_idle", Some(0x4752_0002))
+                            | ("clean_exit", Some(0))
+                                if rep.state == "stopped" =>
+                            {
+                                Some((InstanceState::Stopped, String::new()))
+                            }
+                            ("process_lost", None) if rep.state == "stopped" => {
+                                Some((InstanceState::Stopped, "PROCESS_LOST".into()))
+                            }
+                            ("abnormal_exit", Some(code))
+                                if rep.state == "failed"
+                                    && !matches!(code, 0 | 0x4752_0001 | 0x4752_0002) =>
+                            {
+                                Some((InstanceState::Failed, format!("RENDER_EXIT_{code:08X}")))
+                            }
                             _ => None,
                         };
                         if let Some((state, error)) = classified {
@@ -1960,7 +2028,10 @@ impl AppScheduleManager {
                 }
                 if let Some((rep, reported_state)) = active.get(&inst.instance_id) {
                     if matches!(inst.state, InstanceState::Stopped | InstanceState::Failed)
-                        && inst.exit_code.is_some() && !rep.request_id.is_empty() && rep.request_id == inst.request_id {
+                        && inst.exit_code.is_some()
+                        && !rep.request_id.is_empty()
+                        && rep.request_id == inst.request_id
+                    {
                         continue;
                     }
                     suspect_since.remove(&inst.instance_id);
@@ -2728,28 +2799,56 @@ mod tests {
     #[tokio::test]
     async fn observed_exit_heartbeat_is_generation_bound_and_idempotent() {
         for (reason, code, state, expected) in [
-            ("no_clients", 0x4752_0001_u32, "stopped", InstanceState::Stopped),
-            ("startup_idle", 0x4752_0002, "stopped", InstanceState::Stopped),
-            ("abnormal_exit", 0xc000_0005, "failed", InstanceState::Failed),
+            (
+                "no_clients",
+                0x4752_0001_u32,
+                "stopped",
+                InstanceState::Stopped,
+            ),
+            (
+                "startup_idle",
+                0x4752_0002,
+                "stopped",
+                InstanceState::Stopped,
+            ),
+            (
+                "abnormal_exit",
+                0xc000_0005,
+                "failed",
+                InstanceState::Failed,
+            ),
         ] {
             let mgr = AppScheduleManager::new();
             let (app, placement, instance) = fixture(InstanceState::Running);
             mgr.inject_for_test(app, placement, instance).await;
-            let report = |request: &str| serde_json::json!([{"instance_id":"i", "request_id":request,
-                "state":state, "stop_reason":reason, "exit_code":code}]).to_string();
-            mgr.reconcile_from_service_hb("d".into(), &report("old-generation")).await;
+            let report = |request: &str| {
+                serde_json::json!([{"instance_id":"i", "request_id":request,
+                "state":state, "stop_reason":reason, "exit_code":code}])
+                .to_string()
+            };
+            mgr.reconcile_from_service_hb("d".into(), &report("old-generation"))
+                .await;
             assert_eq!(mgr.list_instances().await[0].state, InstanceState::Running);
-            mgr.reconcile_from_service_hb("other-device".into(), &report("r")).await;
+            mgr.reconcile_from_service_hb("other-device".into(), &report("r"))
+                .await;
             assert_eq!(mgr.list_instances().await[0].state, InstanceState::Running);
-            mgr.reconcile_from_service_hb("d".into(), &report("r")).await;
+            mgr.reconcile_from_service_hb("d".into(), &report("r"))
+                .await;
             let finished = mgr.list_instances().await[0].clone();
             assert_eq!(finished.state, expected);
             assert_eq!(finished.stop_reason, reason);
             assert_eq!(finished.exit_code, Some(code));
-            if state == "stopped" { assert!(finished.error.is_empty()); }
-            mgr.reconcile_from_service_hb("d".into(), &report("r")).await;
+            if state == "stopped" {
+                assert!(finished.error.is_empty());
+            }
+            mgr.reconcile_from_service_hb("d".into(), &report("r"))
+                .await;
             assert_eq!(mgr.list_instances().await[0], finished);
-            mgr.reconcile_from_service_hb("d".into(), r#"[{"instance_id":"i","request_id":"r","state":"running","pid":42}]"#).await;
+            mgr.reconcile_from_service_hb(
+                "d".into(),
+                r#"[{"instance_id":"i","request_id":"r","state":"running","pid":42}]"#,
+            )
+            .await;
             assert_eq!(mgr.list_instances().await[0], finished);
         }
     }
@@ -2824,9 +2923,15 @@ mod tests {
         assert_eq!(n2.listen_port, 0);
         assert_eq!(n2.name, "节点2");
         mgr.save_node(SaveNodeReq {
-            node_id: Some(n1.node_id), app_id: app.app_id.clone(), name: None,
-            device_id: "m1".into(), install_root: None, listen_port: Some(32000),
-        }).await.unwrap();
+            node_id: Some(n1.node_id),
+            app_id: app.app_id.clone(),
+            name: None,
+            device_id: "m1".into(),
+            install_root: None,
+            listen_port: Some(32000),
+        })
+        .await
+        .unwrap();
         // 同机显式端口冲突:拒绝。
         let err = mgr
             .save_node(SaveNodeReq {
@@ -2904,10 +3009,15 @@ mod tests {
         }
         let g = mgr.inner.lock().await;
         for port in [0, 4613, 40000, 65535] {
-            assert!(AppScheduleManager::ensure_node_port_available_locked(&g, "m1", port, None).is_ok());
+            assert!(
+                AppScheduleManager::ensure_node_port_available_locked(&g, "m1", port, None).is_ok()
+            );
         }
         for port in [-1, 65536, 32999] {
-            assert!(AppScheduleManager::ensure_node_port_available_locked(&g, "m1", port, None).is_err());
+            assert!(
+                AppScheduleManager::ensure_node_port_available_locked(&g, "m1", port, None)
+                    .is_err()
+            );
         }
     }
 
@@ -3887,28 +3997,61 @@ mod tests {
     #[tokio::test]
     async fn rdp_node_is_pinned_and_cannot_enable_observers_or_takeover() {
         let mgr = AppScheduleManager::new();
-        let app = mgr.save_app(SaveAppReq {
-            app_id: None, name: "Isolated workspace".into(), app_type: Some(ApplicationType::Rdp),
-            entry_url: None, game_path: String::new(), default_game_args: None,
-            encoder_fps: None, encoder_bitrate: None, encoder_format: None, access_mode: None,
-            allow_observer: Some(true), allow_takeover: Some(true), version: None,
-        }).await.unwrap();
+        let app = mgr
+            .save_app(SaveAppReq {
+                app_id: None,
+                name: "Isolated workspace".into(),
+                app_type: Some(ApplicationType::Rdp),
+                entry_url: None,
+                game_path: String::new(),
+                default_game_args: None,
+                encoder_fps: None,
+                encoder_bitrate: None,
+                encoder_format: None,
+                access_mode: None,
+                allow_observer: Some(true),
+                allow_takeover: Some(true),
+                version: None,
+            })
+            .await
+            .unwrap();
         assert!(!app.allow_observer);
         assert!(!app.allow_takeover);
         assert_eq!(app.app_type, ApplicationType::Rdp);
-        let node = mgr.save_node(SaveNodeReq {
-            node_id: None, app_id: app.app_id.clone(), name: Some("Workspace".into()),
-            device_id: "device-rdp-1".into(), install_root: None, listen_port: Some(32991),
-        }).await.unwrap();
+        let node = mgr
+            .save_node(SaveNodeReq {
+                node_id: None,
+                app_id: app.app_id.clone(),
+                name: Some("Workspace".into()),
+                device_id: "device-rdp-1".into(),
+                install_root: None,
+                listen_port: Some(32991),
+            })
+            .await
+            .unwrap();
         assert!(node.install_root.is_empty());
-        assert!(mgr.save_node(SaveNodeReq {
-            node_id: Some(node.node_id.clone()), app_id: app.app_id.clone(), name: Some("Move".into()),
-            device_id: "device-rdp-2".into(), install_root: None, listen_port: Some(32991),
-        }).await.is_err());
-        let unchanged = mgr.save_node(SaveNodeReq {
-            node_id: Some(node.node_id), app_id: app.app_id, name: Some("Renamed".into()),
-            device_id: "device-rdp-1".into(), install_root: None, listen_port: Some(32991),
-        }).await.unwrap();
+        assert!(mgr
+            .save_node(SaveNodeReq {
+                node_id: Some(node.node_id.clone()),
+                app_id: app.app_id.clone(),
+                name: Some("Move".into()),
+                device_id: "device-rdp-2".into(),
+                install_root: None,
+                listen_port: Some(32991),
+            })
+            .await
+            .is_err());
+        let unchanged = mgr
+            .save_node(SaveNodeReq {
+                node_id: Some(node.node_id),
+                app_id: app.app_id,
+                name: Some("Renamed".into()),
+                device_id: "device-rdp-1".into(),
+                install_root: None,
+                listen_port: Some(32991),
+            })
+            .await
+            .unwrap();
         assert_eq!(unchanged.device_id, "device-rdp-1");
     }
 }

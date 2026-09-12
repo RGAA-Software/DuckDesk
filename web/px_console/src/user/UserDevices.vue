@@ -22,7 +22,7 @@ async function refresh(showLoading = false) {
   catch { if (showLoading) message.error('设备列表加载失败') }
   finally { refreshing = false; loading.value = false }
 }
-async function connect(device: DeviceSummary, viewOnly = false) { try { await openDevice(device.device_id, viewOnly) } catch { message.error('连接票据签发失败，请确认设备在线或授权仍有效') } }
+async function connect(device: DeviceSummary, viewOnly = false) { try { await openDevice(device.device_id, viewOnly) } catch { message.error('无法获取连接信息，请确认设备在线且密码可用') } }
 function search() { page.value = 1; void refresh(true) }
 function changePage(value: number) { page.value = value; void refresh(true) }
 onMounted(() => { void refresh(true); timer = window.setInterval(() => void refresh(), 10000) })

@@ -10,9 +10,8 @@ import yun.pixels.client.core.domain.account.AccountFailure
 import yun.pixels.client.core.domain.account.AccountProfile
 import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.account.AccountSession
-import yun.pixels.client.core.domain.account.ConnectionTicket
+import yun.pixels.client.core.domain.account.AccountConnection
 import yun.pixels.client.core.domain.account.ConsoleEndpoint
-import yun.pixels.client.core.domain.account.JoinMode
 import yun.pixels.client.core.domain.account.RemoteApplication
 import yun.pixels.client.core.domain.account.RemoteApplicationInstance
 import java.net.HttpURLConnection
@@ -28,18 +27,7 @@ interface ConsoleAccountApi {
 
     suspend fun devices(session: AccountSession): AccountResult<List<AccountDevice>>
 
-    suspend fun issueTicket(
-        session: AccountSession,
-        deviceId: String,
-        clientNonce: String,
-        joinMode: JoinMode,
-    ): AccountResult<ConnectionTicket>
-
-    suspend fun renewTicket(
-        session: AccountSession,
-        ticket: ConnectionTicket,
-        clientNonce: String,
-    ): AccountResult<ConnectionTicket>
+    suspend fun resolveConnection(session: AccountSession, deviceId: String): AccountResult<AccountConnection>
 }
 
 class ConsoleApiClient(
@@ -70,23 +58,15 @@ class ConsoleApiClient(
             ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
     }
 
-    override suspend fun issueTicket(
-        session: AccountSession,
-        deviceId: String,
-        clientNonce: String,
-        joinMode: JoinMode,
-    ): AccountResult<ConnectionTicket> = withContext(ioDispatcher) {
+    override suspend fun resolveConnection(session: AccountSession, deviceId: String): AccountResult<AccountConnection> = withContext(ioDispatcher) {
         val encodedDeviceId = URLEncoder.encode(deviceId, StandardCharsets.UTF_8.name()).replace("+", "%20")
-        val body = JSONObject()
-            .put("client_nonce", clientNonce)
-            .put("join_mode", if (joinMode == JoinMode.Control) "control" else "observe")
         request(
             session.endpoint,
-            "/api/v1/user/devices/$encodedDeviceId/ticket",
+            "/api/v1/user/devices/$encodedDeviceId/native-connection",
             "POST",
             session.accessToken,
-            body,
-        )?.toAccountResult { data -> parseTicket(data as JSONObject) }
+            JSONObject(),
+        )?.toAccountResult { data -> parseAccountConnection(data as JSONObject) }
             ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
     }
 
@@ -116,43 +96,18 @@ class ConsoleApiClient(
         } ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
     }
 
-    override suspend fun issueApplicationTicket(
+    override suspend fun resolveApplicationConnection(
         session: AccountSession,
         instanceId: String,
-        clientNonce: String,
-        joinMode: JoinMode,
-    ): AccountResult<ConnectionTicket> = withContext(ioDispatcher) {
+    ): AccountResult<AccountConnection> = withContext(ioDispatcher) {
         val encodedInstanceId = encodePathSegment(instanceId)
-        val body = JSONObject()
-            .put("client_nonce", clientNonce)
-            .put("join_mode", if (joinMode == JoinMode.Control) "control" else "observe")
         request(
             session.endpoint,
-            "/api/v1/user/instances/$encodedInstanceId/ticket",
+            "/api/v1/user/instances/$encodedInstanceId/native-connection",
             "POST",
             session.accessToken,
-            body,
-        )?.toAccountResult { data -> parseTicket(data as JSONObject) }
-            ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
-    }
-
-    override suspend fun renewTicket(
-        session: AccountSession,
-        ticket: ConnectionTicket,
-        clientNonce: String,
-    ): AccountResult<ConnectionTicket> = withContext(ioDispatcher) {
-        if (ticket.renewalToken.isBlank() || clientNonce.isBlank()) {
-            return@withContext AccountResult.Failure(AccountFailure.InvalidResponse)
-        }
-        val body = JSONObject()
-            .put("renewal_token", ticket.renewalToken)
-            .put("client_nonce", clientNonce)
-        request(
-            session.endpoint,
-            "/api/v1/connection-tickets/renew",
-            "POST",
-            body = body,
-        )?.toAccountResult { data -> parseTicket(data as JSONObject, ticket) }
+            JSONObject().put("view_only", false).put("client_capability", "android-native-v1"),
+        )?.toAccountResult { data -> parseAccountConnection(data as JSONObject) }
             ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
     }
 
@@ -227,7 +182,7 @@ internal fun accountFailure(status: Int, body: String): AccountFailure {
     val error = runCatching { JSONObject(body).optString("error") }.getOrDefault("")
     return when (error) {
         "AUTH_INVALID_CREDENTIALS" -> AccountFailure.InvalidCredentials
-        "AUTH_REQUIRED", "TICKET_EXPIRED_OR_USED" -> AccountFailure.AuthenticationRequired
+        "AUTH_REQUIRED" -> AccountFailure.AuthenticationRequired
         "SUBJECT_FORBIDDEN" -> AccountFailure.Forbidden
         "RATE_LIMITED", "QUOTA_EXCEEDED" -> AccountFailure.RateLimited
         "DEVICE_OFFLINE" -> AccountFailure.DeviceOffline
@@ -309,29 +264,18 @@ private fun parseApplicationInstance(data: JSONObject): RemoteApplicationInstanc
     reconnectable = data.optBoolean("reconnectable", false),
 )
 
-internal fun parseTicket(data: JSONObject, inherited: ConnectionTicket? = null): AccountResult<ConnectionTicket> {
-    val permissionsJson = data.optJSONArray("permissions") ?: JSONArray()
-    val permissions = buildSet {
-        repeat(permissionsJson.length()) { index -> add(permissionsJson.getString(index)) }
-    }
-    val parsed = ConnectionTicket(
-        ticket = data.getString("ticket"),
-        renewalToken = data.getString("renewal_token"),
-        launchUrl = data.optString("launch_url").ifBlank { inherited?.launchUrl.orEmpty() },
-        expiresAtEpochMillis = data.getLong("expires_at"),
-        logicalSessionId = data.getString("logical_session_id"),
-        streamId = data.getString("stream_id"),
-        joinMode = if (data.optString("join_mode") == "observe") JoinMode.Observe else JoinMode.Control,
-        permissions = permissions,
-        rtcIceConfigJson = data.optJSONObject("rtc_ice_config")?.toString().orEmpty(),
-        relayHost = data.optString("relay_host").ifBlank { inherited?.relayHost.orEmpty() },
-        relayPort = data.optInt("relay_port").takeIf { it in 1..65535 } ?: inherited?.relayPort ?: 0,
-        signalDeviceId = data.optString("signal_device_id").ifBlank { inherited?.signalDeviceId.orEmpty() },
+internal fun parseAccountConnection(data: JSONObject): AccountResult<AccountConnection> {
+    val parsed = AccountConnection(
+        host = data.optString("host"),
+        port = data.optInt("port"),
+        deviceId = data.optString("device_id"),
+        instanceId = data.optString("instance_id"),
+        passwordHash = data.optString("password_hash"),
+        relayHost = data.optString("relay_host"),
+        relayPort = data.optInt("relay_port"),
+        signalDeviceId = data.optString("signal_device_id"),
     )
-    if (parsed.ticket.isBlank() || parsed.renewalToken.isBlank() || parsed.launchUrl.isBlank() || parsed.streamId.isBlank()) {
-        return AccountResult.Failure(AccountFailure.InvalidResponse)
-    }
-    if (inherited != null && (parsed.logicalSessionId != inherited.logicalSessionId || parsed.streamId != inherited.streamId)) {
+    if (parsed.host.isBlank() || parsed.port !in 1..65535 || parsed.deviceId.isBlank() || parsed.passwordHash.isBlank()) {
         return AccountResult.Failure(AccountFailure.InvalidResponse)
     }
     return AccountResult.Success(parsed)

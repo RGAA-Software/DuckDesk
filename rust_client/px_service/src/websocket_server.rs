@@ -144,8 +144,7 @@ async fn handle_connection(
                     // Driver/session operations are independent of this
                     // connection's read loop. Awaiting one here used to queue
                     // Render heartbeats (including auth info) behind a missing
-                    // interactive worker and made every connection ticket time
-                    // out. The writer channel preserves response ordering per
+                    // interactive worker. The writer channel preserves response ordering per
                     // completed operation without blocking incoming control.
                     let operation_runtime = runtime.clone();
                     let operation_tx = tx.clone();
@@ -164,57 +163,6 @@ async fn handle_connection(
                         }
                     });
                     None
-                }
-                service_core::command::Command::RedeemConnectionTicket {
-                    request_id,
-                    ticket,
-                    client_nonce,
-                    instance_id,
-                } => {
-                    let channel = runtime.lock().await.ticket_redeem_tx.clone();
-                    if let Some(channel) = channel {
-                        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
-                        let request = crate::service_host::TicketRedeemRequest {
-                            request_id: request_id.clone(),
-                            ticket,
-                            client_nonce,
-                            instance_id,
-                            rdp_logical_session_id: String::new(),
-                            response: reply_tx,
-                        };
-                        match channel.send(request).await {
-                            Ok(()) => match tokio::time::timeout(
-                                std::time::Duration::from_secs(3),
-                                reply_rx,
-                            )
-                            .await
-                            {
-                                Ok(Ok(result)) => Some(ticket_response(request_id, result)),
-                                _ => Some(ticket_response(
-                                    request_id,
-                                    crate::service_host::TicketRedeemResult {
-                                        code: "CONSOLE_TIMEOUT".to_string(),
-                                        ..Default::default()
-                                    },
-                                )),
-                            },
-                            Err(_) => Some(ticket_response(
-                                request_id,
-                                crate::service_host::TicketRedeemResult {
-                                    code: "CONSOLE_UNAVAILABLE".to_string(),
-                                    ..Default::default()
-                                },
-                            )),
-                        }
-                    } else {
-                        Some(ticket_response(
-                            request_id,
-                            crate::service_host::TicketRedeemResult {
-                                code: "CONSOLE_UNAVAILABLE".to_string(),
-                                ..Default::default()
-                            },
-                        ))
-                    }
                 }
                 command => {
                     let mut guard = runtime.lock().await;
@@ -240,42 +188,6 @@ async fn handle_connection(
     drop(tx);
     let _ = writer.await;
     Ok(())
-}
-
-fn ticket_response(
-    request_id: String,
-    result: crate::service_host::TicketRedeemResult,
-) -> service_core::ServiceMessage {
-    tracing::info!(
-        ticket_redemption_ok = result.ok,
-        grant_permission_count = result.permissions.len(),
-        "forwarding connection ticket redemption result to Render"
-    );
-    service_core::ServiceMessage {
-        r#type: service_core::ServiceMessageType::RedeemConnectionTicketResp as i32,
-        redeem_connection_ticket_resp: Some(service_core::MsgRedeemConnectionTicketResp {
-            request_id,
-            ok: result.ok,
-            code: result.code,
-            grant: result.ok.then_some(service_core::MsgConnectionGrant {
-                kind: result.kind,
-                device_id: result.device_id,
-                app_id: result.app_id,
-                instance_id: result.instance_id,
-                subject_type: result.subject_type,
-                subject_id: result.subject_id,
-                permissions: result.permissions,
-                expires_at: result.expires_at,
-                logical_session_id: result.logical_session_id,
-                stream_id: result.stream_id,
-                join_mode: result.join_mode,
-                allow_observer: result.allow_observer,
-                allow_takeover: result.allow_takeover,
-            }),
-            rtc_ice_config_json: result.rtc_ice_config_json,
-        }),
-        ..Default::default()
-    }
 }
 
 fn virtual_display_service_message(
@@ -422,7 +334,7 @@ fn virtual_display_result(
         // Do not synchronously query again here. The original operation may
         // have failed specifically because its interactive worker timed out;
         // retrying on the same IPC receive task used to double the outage and
-        // starve Render heartbeats, Console auth setup, and ticket redemption.
+        // starve Render heartbeats, Console auth setup, and control operations.
         Err(err) => service_core::MsgVirtualDisplayResult {
             request_id: request_id.to_string(),
             accepted: false,

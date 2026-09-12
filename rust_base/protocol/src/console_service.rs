@@ -101,7 +101,7 @@ pub struct ConsoleServiceStartAppInstance {
     /// UTF-8 Base64URL (no padding) entry URL. Required for app_mode=webview.
     #[prost(string, tag = "16")]
     pub webview_url_b64: ::prost::alloc::string::String,
-    /// The physical device identity remains bound to connection tickets.
+    /// Physical device identity of the child Render.
     #[prost(string, tag = "17")]
     pub device_id: ::prost::alloc::string::String,
     /// Unique Relay identity for this child Render. It must not replace the
@@ -193,65 +193,33 @@ pub struct ConsoleServiceCreateWallSessionResult {
     pub answer_sdp: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ConsoleServiceRedeemConnectionTicket {
+pub struct ConsoleServiceValidateRdpSession {
     #[prost(string, tag = "1")]
     pub request_id: ::prost::alloc::string::String,
-    /// Informational only. Console uses the device identity bound to this WebSocket.
     #[prost(string, tag = "2")]
-    pub device_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub ticket: ::prost::alloc::string::String,
-    #[prost(string, tag = "4")]
-    pub client_nonce: ::prost::alloc::string::String,
-    #[prost(string, tag = "5")]
     pub instance_id: ::prost::alloc::string::String,
-    /// Service-only live RDP authorization check; mutually exclusive with ticket/nonce.
     /// Console binds this to the authenticated node, instance and original login session.
-    #[prost(string, tag = "6")]
-    pub rdp_logical_session_id: ::prost::alloc::string::String,
-}
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ConsoleConnectionGrant {
-    #[prost(string, tag = "1")]
-    pub kind: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub device_id: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
-    pub app_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "4")]
-    pub instance_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "5")]
-    pub subject_type: ::prost::alloc::string::String,
-    #[prost(string, tag = "6")]
-    pub subject_id: ::prost::alloc::string::String,
-    #[prost(string, repeated, tag = "7")]
-    pub permissions: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(int64, tag = "8")]
-    pub expires_at: i64,
-    #[prost(string, tag = "9")]
     pub logical_session_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "10")]
-    pub stream_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "11")]
-    pub join_mode: ::prost::alloc::string::String,
-    #[prost(bool, tag = "12")]
-    pub allow_observer: bool,
-    #[prost(bool, tag = "13")]
-    pub allow_takeover: bool,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ConsoleServiceRedeemConnectionTicketResult {
+pub struct ConsoleServiceValidateRdpSessionResult {
     #[prost(string, tag = "1")]
     pub request_id: ::prost::alloc::string::String,
     #[prost(bool, tag = "2")]
     pub ok: bool,
     #[prost(string, tag = "3")]
     pub code: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "4")]
-    pub grant: ::core::option::Option<ConsoleConnectionGrant>,
-    /// Serialized RtcSessionIceConfig, issued only after ticket redemption.
+    #[prost(string, tag = "4")]
+    pub device_id: ::prost::alloc::string::String,
     #[prost(string, tag = "5")]
-    pub rtc_ice_config_json: ::prost::alloc::string::String,
+    pub instance_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "6")]
+    pub subject_type: ::prost::alloc::string::String,
+    #[prost(string, tag = "7")]
+    pub subject_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "8")]
+    pub logical_session_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RtcIceConfigChanged {
@@ -289,12 +257,10 @@ pub struct ConsoleServiceMessage {
         ConsoleServiceCreateWallSessionResult,
     >,
     #[prost(message, optional, tag = "100")]
-    pub redeem_connection_ticket: ::core::option::Option<
-        ConsoleServiceRedeemConnectionTicket,
-    >,
+    pub validate_rdp_session: ::core::option::Option<ConsoleServiceValidateRdpSession>,
     #[prost(message, optional, tag = "110")]
-    pub redeem_connection_ticket_result: ::core::option::Option<
-        ConsoleServiceRedeemConnectionTicketResult,
+    pub validate_rdp_session_result: ::core::option::Option<
+        ConsoleServiceValidateRdpSessionResult,
     >,
     #[prost(message, optional, tag = "120")]
     pub rtc_ice_config_changed: ::core::option::Option<RtcIceConfigChanged>,
@@ -315,9 +281,10 @@ pub enum ConsoleServiceMessageType {
     KConsoleServiceCreateWallSession = 6,
     /// Service -> Console
     KConsoleServiceCreateWallSessionResult = 7,
-    /// Service -> Console, then Console -> Service.
-    KConsoleServiceRedeemConnectionTicket = 8,
-    KConsoleServiceRedeemConnectionTicketResult = 9,
+    /// Service -> Console, then Console -> Service. Validates that a locally
+    /// running RDP workspace still belongs to an active Console session.
+    KConsoleServiceValidateRdpSession = 8,
+    KConsoleServiceValidateRdpSessionResult = 9,
     /// Console -> Service. Invalidation only; Service pulls the new version.
     KRtcIceConfigChanged = 10,
 }
@@ -342,11 +309,11 @@ impl ConsoleServiceMessageType {
             Self::KConsoleServiceCreateWallSessionResult => {
                 "kConsoleServiceCreateWallSessionResult"
             }
-            Self::KConsoleServiceRedeemConnectionTicket => {
-                "kConsoleServiceRedeemConnectionTicket"
+            Self::KConsoleServiceValidateRdpSession => {
+                "kConsoleServiceValidateRdpSession"
             }
-            Self::KConsoleServiceRedeemConnectionTicketResult => {
-                "kConsoleServiceRedeemConnectionTicketResult"
+            Self::KConsoleServiceValidateRdpSessionResult => {
+                "kConsoleServiceValidateRdpSessionResult"
             }
             Self::KRtcIceConfigChanged => "kRtcIceConfigChanged",
         }
@@ -374,11 +341,11 @@ impl ConsoleServiceMessageType {
             "kConsoleServiceCreateWallSessionResult" => {
                 Some(Self::KConsoleServiceCreateWallSessionResult)
             }
-            "kConsoleServiceRedeemConnectionTicket" => {
-                Some(Self::KConsoleServiceRedeemConnectionTicket)
+            "kConsoleServiceValidateRdpSession" => {
+                Some(Self::KConsoleServiceValidateRdpSession)
             }
-            "kConsoleServiceRedeemConnectionTicketResult" => {
-                Some(Self::KConsoleServiceRedeemConnectionTicketResult)
+            "kConsoleServiceValidateRdpSessionResult" => {
+                Some(Self::KConsoleServiceValidateRdpSessionResult)
             }
             "kRtcIceConfigChanged" => Some(Self::KRtcIceConfigChanged),
             _ => None,

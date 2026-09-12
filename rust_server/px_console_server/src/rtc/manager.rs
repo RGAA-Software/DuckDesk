@@ -122,7 +122,7 @@ impl RtcConfigManager {
         {
             return Err("RTC credential subject is invalid".to_string());
         }
-        // Ticket issuance is latency-sensitive. Never let a stalled runtime
+        // RTC configuration issuance is latency-sensitive. Never let a stalled runtime
         // configuration update keep the HTTP request (and therefore the whole
         // WebClient launch page) pending forever. Clone both values inside
         // short critical sections and release their guards before doing HMAC

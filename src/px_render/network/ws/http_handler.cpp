@@ -26,21 +26,14 @@ constexpr auto kHandlerErrNoSafetyPasswordInRenderer = 701;
 constexpr auto kHandlerErrNoWebRtcLocalLibrary = 702;
 constexpr auto kHandlerErrCreateRtcLocalServerFailed = 703;
 constexpr auto kHandlerErrRtcLocalOccupied = 704;
-constexpr auto kHandlerErrConnectionTicketRejected = 705;
-constexpr auto kHandlerErrDirectGrantRejected = 706;
+constexpr auto kHandlerErrSessionRejected = 705;
 constexpr auto kHandlerErrIpDirectAuthorizationRejected = 707;
 
 int64_t CurrentSystemMilliseconds() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
-std::string DirectAuditSubject(const DirectSessionGrantBinding& binding) {
-    // The persistent transport log identifies the direct subject without
-    // retaining the nonce, token, password, offer SDP, or full address.
-    return MD5::Hex(binding.device_id_ + "|" + binding.client_nonce_ + "|" + binding.remote_address_);
-}
-
-struct RtcTicketAdmission {
+struct RtcPasswordAdmission {
     std::vector<std::string> permissions_;
     std::string logical_session_id_;
     std::string stream_id_;
@@ -56,9 +49,8 @@ struct DeferredHttpReply {
     http::status status_ = http::status::ok;
 };
 
-HttpHandler::HttpHandler(std::weak_ptr<WsTransport> transport, std::shared_ptr<PxAsyncScope> async_scope,
-                         std::shared_ptr<DirectSessionGrantStore> direct_session_grants)
-    : transport_(std::move(transport)), async_scope_(std::move(async_scope)), direct_session_grants_(std::move(direct_session_grants)) {}
+HttpHandler::HttpHandler(std::weak_ptr<WsTransport> transport, std::shared_ptr<PxAsyncScope> async_scope)
+    : transport_(std::move(transport)), async_scope_(std::move(async_scope)) {}
 
 std::string HttpHandler::GetErrorMessage(int code) {
     if (code == kHandlerErrVerifySafetyPasswordFailed) {
@@ -71,10 +63,8 @@ std::string HttpHandler::GetErrorMessage(int code) {
         return "Create Rtc local server failed";
     } else if (code == kHandlerErrRtcLocalOccupied) {
         return "Rtc local connection occupied";
-    } else if (code == kHandlerErrConnectionTicketRejected) {
-        return "Connection ticket rejected";
-    } else if (code == kHandlerErrDirectGrantRejected) {
-        return "Direct session grant rejected";
+    } else if (code == kHandlerErrSessionRejected) {
+        return "Session rejected";
     } else if (code == kHandlerErrIpDirectAuthorizationRejected) {
         return "IP direct authorization rejected";
     }
@@ -233,164 +223,46 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(std::weak_ptr<HttpHandler> 
     };
 
     std::string sdp;
-    std::string ticket;
     std::string body_nonce;
-    std::string body_instance_id;
-    std::string direct_session_grant;
     try {
         const auto object = nlohmann::json::parse(body);
         sdp = object.at("sdp").get<std::string>();
-        ticket = object.value("ticket", "");
         body_nonce = object.value("client_nonce", "");
-        body_instance_id = object.value("instance_id", "");
-        direct_session_grant = object.value("direct_session_grant", "");
     } catch (...) {
         complete(make_reply(kHandlerErrParams));
         co_return;
     }
     const auto device_id = self->GetParam(params, "device_id").value_or(std::string{});
-    if (sdp.empty() || (!ticket.empty() && device_id.empty())) {
+    if (sdp.empty()) {
         complete(make_reply(kHandlerErrParams));
         co_return;
     }
-    const bool password_only_ip_direct = ticket.empty() && device_id.empty();
-    RtcTicketAdmission ticket_admission;
-    if (!ticket.empty()) {
-        if (body_nonce.empty()) {
-            complete(make_reply(kHandlerErrParams));
-            co_return;
-        }
-        auto redeemed = co_await render::AwaitOwnedCallback<RtcTicketAdmission>(
-            [weak_transport = self->transport_, ticket, body_nonce,
-             body_instance_id](render::OwnedCallbackCompletion<RtcTicketAdmission> completion) {
-                const auto active_plugin = weak_transport.lock();
-                if (!active_plugin) {
-                    return false;
-                }
-                const auto event = std::make_shared<RedeemConnectionTicketEvent>();
-                event->ticket_ = ticket;
-                event->client_nonce_ = body_nonce;
-                event->instance_id_ = body_instance_id;
-                event->callback_ =
-                    [completion = std::move(completion)](const bool ok, const std::string& code, const std::vector<std::string>& permissions,
-                                                         const std::string&, const std::string& logical_session_id, const std::string& stream_id,
-                                                         const std::string& join_mode, const std::string& subject_id, const int64_t expires_at_ms,
-                                                         const bool allow_observer, const bool allow_takeover) {
-                        if (!ok) {
-                            completion(PxResult<RtcTicketAdmission>::Failure(MakePxAsyncError(PxAsyncErrorCode::kServiceRejected, "rtc_ticket_redeem",
-                                                                                              code.empty() ? "ticket was rejected" : code, false,
-                                                                                              "SESSION_TICKET_REJECTED")));
-                            return;
-                        }
-                        completion(PxResult<RtcTicketAdmission>::Success(RtcTicketAdmission{
-                            .permissions_ = permissions,
-                            .logical_session_id_ = logical_session_id,
-                            .stream_id_ = stream_id,
-                            .join_mode_ = join_mode,
-                            .subject_id_ = subject_id,
-                            .expires_at_ms_ = expires_at_ms,
-                            .allow_observer_ = allow_observer,
-                            .allow_takeover_ = allow_takeover,
-                        }));
-                    };
-                active_plugin->EmitEvent(event);
-                return true;
-            },
-            std::chrono::steady_clock::now() + std::chrono::seconds(3), "rtc_ticket_redeem");
-        if (!redeemed.HasValue()) {
-            LOGW("event=session.admit component=net_ws code={} "
-                 "operation=rtc_ticket_redeem outcome=rejected "
-                 "recoverable={} reason={}",
-                 redeemed.Error().StableCode(), redeemed.Error().retryable, redeemed.Error().message);
-            complete(make_reply(kHandlerErrConnectionTicketRejected, http::status::forbidden));
-            co_return;
-        }
-        ticket_admission = redeemed.TakeValue();
-        const bool may_view =
-            std::find(ticket_admission.permissions_.begin(), ticket_admission.permissions_.end(), "view") != ticket_admission.permissions_.end();
-        const bool may_transfer_files =
-            std::find(ticket_admission.permissions_.begin(), ticket_admission.permissions_.end(), "file") != ticket_admission.permissions_.end();
-        if ((!may_view && !may_transfer_files) || ticket_admission.logical_session_id_.empty() || ticket_admission.stream_id_.empty() ||
-            ticket_admission.join_mode_.empty()) {
-            complete(make_reply(kHandlerErrConnectionTicketRejected, http::status::forbidden));
-            co_return;
-        }
+    const auto nonce_param = self->GetParam(params, "client_nonce");
+    const auto client_nonce = !body_nonce.empty() ? body_nonce : nonce_param.value_or(std::string{});
+    if (client_nonce.empty()) {
+        complete(make_reply(kHandlerErrParams));
+        co_return;
     }
-
-    bool direct_access = false;
-    DirectSessionGrantBinding direct_grant_binding;
-    std::string direct_issued_stream_id;
-    if (password_only_ip_direct) {
-        const auto nonce_param = self->GetParam(params, "client_nonce");
-        const auto route_seed = !body_nonce.empty() ? body_nonce : (nonce_param && !nonce_param->empty() ? *nonce_param : GetUUID());
-        const auto requested_stream_id = self->GetParam(params, "stream_id").value_or(std::string{});
-        const DirectSessionGrantBinding auth_binding{
-            .device_id_ = {},
-            .stream_id_ = requested_stream_id,
-            .client_nonce_ = route_seed,
-            .remote_address_ = remote_address,
-        };
-        if (!requested_stream_id.empty() && self->direct_session_grants_ &&
-            self->direct_session_grants_->Redeem(requested_stream_id, auth_binding, CurrentSystemMilliseconds())) {
-            direct_issued_stream_id = requested_stream_id;
-        } else if (self->VerifySafetyPassword(params)) {
-            direct_issued_stream_id = std::string("ip-direct:") + MD5::Hex(remote_address + "|" + route_seed);
-        } else {
-            const auto code = requested_stream_id.empty() ? kHandlerErrVerifySafetyPasswordFailed : kHandlerErrIpDirectAuthorizationRejected;
-            complete(make_reply(code, http::status::forbidden));
-            co_return;
-        }
-        ticket_admission.logical_session_id_ = direct_issued_stream_id;
-        ticket_admission.stream_id_ = direct_issued_stream_id;
-        ticket_admission.join_mode_ = "control";
-        ticket_admission.subject_id_ = std::string("ip-direct:") + MD5::Hex(remote_address + "|" + route_seed);
-        ticket_admission.expires_at_ms_ =
-            CurrentSystemMilliseconds() + std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::minutes(5)).count();
-        ticket_admission.allow_observer_ = false;
-        ticket_admission.allow_takeover_ = transport->Settings().direct_allow_takeover;
-        direct_access = true;
-    } else if (ticket.empty()) {
-        const auto nonce_param = self->GetParam(params, "client_nonce");
-        const auto direct_nonce = !body_nonce.empty() ? body_nonce : (nonce_param ? *nonce_param : std::string{});
-        if (direct_nonce.empty()) {
-            complete(make_reply(kHandlerErrParams));
-            co_return;
-        }
-        direct_access = true;
-        direct_issued_stream_id = std::string("direct:") + MD5::Hex(remote_address + "|" + device_id + "|" + direct_nonce);
-        direct_grant_binding = {
-            .device_id_ = device_id,
-            .stream_id_ = direct_issued_stream_id,
-            .client_nonce_ = direct_nonce,
-            .remote_address_ = remote_address,
-        };
-        if (direct_session_grant.empty()) {
-            if (!self->VerifySafetyPassword(params)) {
-                LOGW("event=session.admit component=net_ws "
-                     "code=SESSION_PASSWORD_REJECTED operation=direct_rtc_auth "
-                     "outcome=rejected recoverable=false device={} subject={}",
-                     PrivacyLogId(device_id), PrivacyLogId(DirectAuditSubject(direct_grant_binding)));
-                complete(make_reply(kHandlerErrVerifySafetyPasswordFailed, http::status::forbidden));
-                co_return;
-            }
-        } else if (!self->direct_session_grants_ ||
-                   !self->direct_session_grants_->Redeem(direct_session_grant, direct_grant_binding, CurrentSystemMilliseconds())) {
-            LOGW("event=session.admit component=net_ws "
-                 "code=SESSION_DIRECT_GRANT_REJECTED operation=redeem_direct_grant "
-                 "outcome=rejected recoverable=false device={} subject={}",
-                 PrivacyLogId(device_id), PrivacyLogId(DirectAuditSubject(direct_grant_binding)));
-            complete(make_reply(kHandlerErrDirectGrantRejected, http::status::forbidden));
-            co_return;
-        }
-        ticket_admission.logical_session_id_ = direct_issued_stream_id;
-        ticket_admission.stream_id_ = direct_issued_stream_id;
-        ticket_admission.join_mode_ = "control";
-        ticket_admission.subject_id_ = std::string("direct:") + MD5::Hex(remote_address + "|" + direct_nonce);
-        ticket_admission.expires_at_ms_ =
-            CurrentSystemMilliseconds() + std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::minutes(5)).count();
-        ticket_admission.allow_observer_ = false;
-        ticket_admission.allow_takeover_ = transport->Settings().direct_allow_takeover;
+    if (!self->VerifySafetyPassword(params)) {
+        LOGW("event=session.admit component=net_ws code=SESSION_PASSWORD_REJECTED operation=rtc_password_auth "
+             "outcome=rejected recoverable=false device={}",
+             PrivacyLogId(device_id));
+        complete(make_reply(kHandlerErrVerifySafetyPasswordFailed, http::status::forbidden));
+        co_return;
     }
+    const auto requested_stream_id = self->GetParam(params, "stream_id").value_or(std::string{});
+    const auto stream_id = requested_stream_id.empty() ? std::string("password:") + MD5::Hex(remote_address + "|" + client_nonce)
+                                                       : requested_stream_id;
+    RtcPasswordAdmission authentication{
+        .permissions_ = {"view", "input", "clipboard", "file", "audio"},
+        .logical_session_id_ = std::string("password:") + MD5::Hex(device_id + "|" + stream_id + "|" + client_nonce),
+        .stream_id_ = stream_id,
+        .join_mode_ = "control",
+        .subject_id_ = std::string("password:") + MD5::Hex(remote_address + "|" + client_nonce),
+        .expires_at_ms_ = 0,
+        .allow_observer_ = false,
+        .allow_takeover_ = transport->Settings().direct_allow_takeover,
+    };
 
     if (!transport->HasLocalRtcService()) {
         complete(make_reply(kHandlerErrNoWebRtcLocalLibrary));
@@ -400,17 +272,16 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(std::weak_ptr<HttpHandler> 
         const auto value = self->GetParam(params, "takeover");
         return value && (*value == "1" || *value == "true");
     }();
-    const auto admitted_binding_id = std::string("rtc-local:") + ticket_admission.stream_id_;
+    const auto admitted_binding_id = std::string("rtc-local:") + authentication.stream_id_;
     const auto admission_grant = LogicalSessionGrant{
-        .logical_session_id = ticket_admission.logical_session_id_,
-        .stream_id = ticket_admission.stream_id_,
-        .subject_id = ticket_admission.subject_id_,
-        .join_mode = ticket_admission.join_mode_,
-        .expires_at_ms = ticket_admission.expires_at_ms_,
-        .allow_observer = ticket_admission.allow_observer_,
-        .allow_takeover = ticket_admission.allow_takeover_,
-        .input_allowed = std::find(ticket_admission.permissions_.begin(), ticket_admission.permissions_.end(), "input") !=
-                         ticket_admission.permissions_.end(),
+        .logical_session_id = authentication.logical_session_id_,
+        .stream_id = authentication.stream_id_,
+        .subject_id = authentication.subject_id_,
+        .join_mode = authentication.join_mode_,
+        .expires_at_ms = authentication.expires_at_ms_,
+        .allow_observer = authentication.allow_observer_,
+        .allow_takeover = authentication.allow_takeover_,
+        .input_allowed = true,
     };
     auto admitted = co_await AwaitWsValueCallback<LogicalSessionAdmission>(
         [weak_transport = self->transport_, admission_grant, admitted_binding_id,
@@ -429,7 +300,7 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(std::weak_ptr<HttpHandler> 
             return true;
         },
         std::chrono::steady_clock::now() + std::chrono::seconds(3), "rtc_session_admit",
-        [owner, logical_session_id = ticket_admission.logical_session_id_, admitted_binding_id](const LogicalSessionAdmission& late) {
+        [owner, logical_session_id = authentication.logical_session_id_, admitted_binding_id](const LogicalSessionAdmission& late) {
             if (late.code == LogicalSessionAdmissionCode::kAccepted) {
                 if (const auto active_owner = owner.lock()) {
                     active_owner->CloseAdmittedLogicalSessionBinding(logical_session_id, admitted_binding_id);
@@ -437,33 +308,26 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(std::weak_ptr<HttpHandler> 
             }
         });
     if (!admitted.HasValue()) {
-        complete(make_reply(kHandlerErrConnectionTicketRejected));
+        complete(make_reply(kHandlerErrSessionRejected));
         co_return;
     }
     const auto admission = admitted.TakeValue();
     if (admission.code != LogicalSessionAdmissionCode::kAccepted) {
         const auto code =
-            admission.code == LogicalSessionAdmissionCode::kOccupied ? kHandlerErrRtcLocalOccupied : kHandlerErrConnectionTicketRejected;
-        if (direct_access && !password_only_ip_direct) {
-            LOGW("event=session.admit component=net_ws "
-                 "code=SESSION_ADMISSION_DENIED operation=admit_direct_rtc "
-                 "outcome=rejected recoverable=false device={} subject={} "
-                 "response_code={}",
-                 PrivacyLogId(device_id), PrivacyLogId(DirectAuditSubject(direct_grant_binding)), code);
-        }
+            admission.code == LogicalSessionAdmissionCode::kOccupied ? kHandlerErrRtcLocalOccupied : kHandlerErrSessionRejected;
         complete(make_reply(code, http::status::forbidden));
         co_return;
     }
 
     const auto rtc_request = std::make_shared<PxLocalRtcRequestInfo>();
     rtc_request->device_id_ = device_id;
-    rtc_request->stream_id_ = ticket_admission.stream_id_;
+    rtc_request->stream_id_ = authentication.stream_id_;
     rtc_request->req_ip_ = remote_address;
     rtc_request->sdp_ = sdp;
     rtc_request->content_type_ = self->GetParam(params, "content_type") == std::optional<std::string>("game_stream")
                                      ? PxLocalRtcContentType::kGameStream
                                      : PxLocalRtcContentType::kDesktop;
-    rtc_request->capability_enforced_ = !ticket.empty();
+    rtc_request->capability_enforced_ = true;
     rtc_request->takeover_ = takeover_requested;
     if (admission.role == LogicalSessionRole::kObserver) {
         rtc_request->session_role_ = PxLocalRtcSessionRole::kObserver;
@@ -473,7 +337,7 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(std::weak_ptr<HttpHandler> 
     }
     if (self->GetParam(params, "session_role") == std::optional<std::string>("wall_observer")) {
         if (remote_address != "127.0.0.1" && remote_address != "::1") {
-            self->CloseAdmittedLogicalSessionBinding(ticket_admission.logical_session_id_, admitted_binding_id);
+            self->CloseAdmittedLogicalSessionBinding(authentication.logical_session_id_, admitted_binding_id);
             complete(make_reply(kHandlerErrParams));
             co_return;
         }
@@ -502,7 +366,7 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(std::weak_ptr<HttpHandler> 
     auto rtc_reply = co_await PxAsyncOneShot<std::shared_ptr<PxLocalRtcReplyInfo>>::WaitUntil(rtc_operation, std::chrono::steady_clock::now() +
                                                                                                                  std::chrono::seconds(10));
     if (!rtc_reply.HasValue()) {
-        self->CloseAdmittedLogicalSessionBinding(ticket_admission.logical_session_id_, admitted_binding_id);
+        self->CloseAdmittedLogicalSessionBinding(authentication.logical_session_id_, admitted_binding_id);
         const auto code = rtc_reply.Error().detail_code == "RTC_LOCAL_OCCUPIED" ? kHandlerErrRtcLocalOccupied : kHandlerErrCreateRtcLocalServerFailed;
         LOGW("event=workflow.complete component=net_ws code={} "
              "operation=rtc_local_allocate outcome=failed recoverable={} "
@@ -530,18 +394,9 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(std::weak_ptr<HttpHandler> 
         });
     }
     result["monitors"] = monitors;
-    if (password_only_ip_direct) {
-        result["stream_id"] = direct_issued_stream_id;
-        LOGI("IP direct password authentication admitted");
-    } else if (direct_access) {
-        const auto now_ms = CurrentSystemMilliseconds();
-        result["stream_id"] = direct_issued_stream_id;
-        result["direct_session_grant"] = self->direct_session_grants_->Issue(direct_grant_binding, now_ms);
-        result["direct_session_grant_expires_at_ms"] = now_ms + DirectSessionGrantStore::kLifetimeMilliseconds;
-        LOGI("event=session.admit component=net_ws operation=direct_rtc "
-             "outcome=accepted device={} subject={} takeover={}",
-             PrivacyLogId(device_id), PrivacyLogId(DirectAuditSubject(direct_grant_binding)), rtc_request->takeover_);
-    }
+    result["stream_id"] = authentication.stream_id_;
+    LOGI("event=session.admit component=net_ws operation=rtc_password_auth outcome=accepted device={} takeover={}", PrivacyLogId(device_id),
+         rtc_request->takeover_);
     complete(DeferredHttpReply{
         .payload_ = self->WrapBasicInfo(200, self->GetErrorMessage(200), result),
         .status_ = http::status::ok,

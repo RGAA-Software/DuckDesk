@@ -4,13 +4,33 @@
 #include "client_window.h"
 
 #include "px_desktop_shell/desktop_shell.h"
+#include "px_common/log.h"
 
 #include <Windows.h>
+#include <array>
+#include <filesystem>
 #include <iostream>
 #include <iterator>
 #include <memory>
 
+namespace {
+
+void InitializeClientLog() {
+    std::array<wchar_t, 32'768> executablePath{};
+    const DWORD length{GetModuleFileNameW(nullptr, executablePath.data(), static_cast<DWORD>(executablePath.size()))};
+    std::filesystem::path basePath{length > 0U && length < executablePath.size() ? std::filesystem::path{executablePath.data()}.parent_path()
+                                                                                 : std::filesystem::current_path()};
+    const auto logDirectory = basePath / "px_logs";
+    std::error_code error{};
+    std::filesystem::create_directories(logDirectory, error);
+    static_cast<void>(px::Logger::InitLog((logDirectory / "px_client.log").wstring(), true));
+}
+
+} // namespace
+
 int main() {
+    InitializeClientLog();
+    LOGI("Pixels Client starting, input route diagnostics enabled");
     std::string envelope{std::istreambuf_iterator<char>{std::cin}, std::istreambuf_iterator<char>{}};
     const auto config = px::client::imgui::ParseClientLaunchEnvelope(envelope);
     if (!envelope.empty())
@@ -30,7 +50,9 @@ int main() {
     auto shellResult = px::desktop::DesktopShell::Create({.title = config->streamName.empty() ? "Pixels Client" : "Pixels - " + config->streamName,
                                                           .width = 1440,
                                                           .height = 900,
-                                                          .initiallyVisible = false});
+                                                          .initiallyVisible = false,
+                                                          .continuousTextInput = true,
+                                                          .continuousRendering = true});
     const bool english = config->language == "en-US";
     if (!shellResult) {
         static_cast<void>(px::client::imgui::ShowStartupDialog(

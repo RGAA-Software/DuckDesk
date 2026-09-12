@@ -1,7 +1,7 @@
 use crate::app_schedule::manager::{AppAccessMode, AppInstance, InstanceState};
 use std::collections::BTreeSet;
 
-/// Single authorization rule shared by catalog, start and ticket issuance.
+/// Single authorization rule shared by catalog, start and connection discovery.
 /// Keeping this pure makes the identity matrix deterministic and prevents the
 /// three HTTP paths from drifting apart as ACL behavior evolves.
 pub fn user_can_access_app(

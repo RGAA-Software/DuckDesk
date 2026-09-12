@@ -30,6 +30,7 @@ pub struct NativeConnectionDescriptor {
     pub device_id: String,
     pub instance_id: String,
     pub app_type: String,
+    pub password_hash: String,
     pub signal_device_id: String,
     pub relay_host: String,
     pub relay_port: u16,
@@ -42,6 +43,7 @@ pub struct NativeDeviceConnectionDescriptor {
     pub host: String,
     pub port: i32,
     pub device_id: String,
+    pub password_hash: String,
     pub signal_device_id: String,
     pub relay_host: String,
     pub relay_port: u16,
@@ -75,6 +77,7 @@ pub async fn user_native_device_connection(
         host,
         port,
         device_id: device_id.clone(),
+        password_hash: device_password_hash(&device)?,
         signal_device_id: format!("server_{device_id}"),
         relay_host: settings.server_w3c_ip.clone(),
         relay_port: settings.relay_port,
@@ -148,6 +151,7 @@ async fn build_descriptor(
         device_id: instance.device_id.clone(),
         instance_id: instance.instance_id.clone(),
         app_type: app.app_type.as_str().to_string(),
+        password_hash: device_password_hash(&device)?,
         signal_device_id: format!(
             "server_{}__instance__{}",
             instance.device_id, instance.instance_id
@@ -161,6 +165,18 @@ async fn build_descriptor(
         Json(ok_resp(response)),
     )
         .into_response())
+}
+
+fn device_password_hash(device: &crate::device::console_device::ConsoleDevice) -> Result<String, ConsoleApiError> {
+    let value = if device.safety_pwd_md5.is_empty() {
+        &device.random_pwd_md5
+    } else {
+        &device.safety_pwd_md5
+    };
+    if value.is_empty() {
+        return Err(ConsoleApiError::DeviceOffline);
+    }
+    Ok(value.clone())
 }
 
 pub async fn user_native_connection(
@@ -191,6 +207,7 @@ mod tests {
             device_id: "device-90".to_string(),
             instance_id: "instance-1".to_string(),
             app_type: "game".to_string(),
+            password_hash: "device-password-hash".to_string(),
             signal_device_id: "server_device-90__instance__instance-1".to_string(),
             relay_host: "relay.example.test".to_string(),
             relay_port: 4605,
@@ -201,18 +218,17 @@ mod tests {
         let object = json
             .as_object()
             .expect("native descriptor must be a JSON object");
-        assert!(!object.contains_key("ticket"));
-        assert!(!object.contains_key("renewal_token"));
         assert!(!object.contains_key("reservation"));
         assert!(!object.contains_key("expires_at"));
     }
 
     #[test]
-    fn native_device_descriptor_has_no_password_or_ticket() {
+    fn native_device_descriptor_contains_render_password_hash() {
         let descriptor = NativeDeviceConnectionDescriptor {
             host: "render.example.test".to_string(),
             port: 4601,
             device_id: "device-90".to_string(),
+            password_hash: "device-password-hash".to_string(),
             signal_device_id: "server_device-90".to_string(),
             relay_host: "relay.example.test".to_string(),
             relay_port: 4605,
@@ -222,14 +238,8 @@ mod tests {
         let object = json
             .as_object()
             .expect("native device descriptor must be an object");
-        for forbidden in [
-            "password",
-            "password_hash",
-            "ticket",
-            "renewal_token",
-            "reservation",
-            "expires_at",
-        ] {
+        assert_eq!(object["password_hash"], "device-password-hash");
+        for forbidden in ["password", "reservation", "expires_at"] {
             assert!(!object.contains_key(forbidden));
         }
     }

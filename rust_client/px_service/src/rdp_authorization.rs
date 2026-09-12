@@ -1,4 +1,4 @@
-use crate::service_host::{ServiceRuntime, TicketRedeemRequest, TicketRedeemResult};
+use crate::service_host::{RdpValidationRequest, RdpValidationResult, ServiceRuntime};
 use futures_util::{stream, StreamExt};
 use service_core::app_instance::AppInstanceRecord;
 use service_core::AppInstanceState;
@@ -35,9 +35,8 @@ fn logical_owner(snapshot: &str) -> Result<Option<String>, ()> {
     Ok(Some(logical.to_string()))
 }
 
-fn matches_grant(candidate: &Candidate, result: &TicketRedeemResult) -> bool {
+fn matches_authorization(candidate: &Candidate, result: &RdpValidationResult) -> bool {
     result.ok
-        && result.kind == "rdp_runtime"
         && result.instance_id == candidate.record.instance_id
         && result.logical_session_id == candidate.logical_id
         && result.device_id == candidate.device_id
@@ -45,7 +44,7 @@ fn matches_grant(candidate: &Candidate, result: &TicketRedeemResult) -> bool {
 
 async fn authorized(
     candidate: &Candidate,
-    channel: Option<mpsc::Sender<TicketRedeemRequest>>,
+    channel: Option<mpsc::Sender<RdpValidationRequest>>,
 ) -> bool {
     let Some(channel) = channel else {
         return false;
@@ -54,12 +53,10 @@ async fn authorized(
         return false;
     }
     let (response, receiver) = oneshot::channel();
-    let request = TicketRedeemRequest {
+    let request = RdpValidationRequest {
         request_id: format!("rdp-auth-{:016x}", rand::random::<u64>()),
-        ticket: String::new(),
-        client_nonce: String::new(),
         instance_id: candidate.record.instance_id.clone(),
-        rdp_logical_session_id: candidate.logical_id.clone(),
+        logical_session_id: candidate.logical_id.clone(),
         response,
     };
     // Queue + Console response share one deadline. Cancellation drops the
@@ -67,7 +64,7 @@ async fn authorized(
     matches!(tokio::time::timeout(Duration::from_secs(3), async {
         channel.send(request).await.map_err(|_| ())?;
         receiver.await.map_err(|_| ())
-    }).await, Ok(Ok(result)) if matches_grant(candidate, &result))
+    }).await, Ok(Ok(result)) if matches_authorization(candidate, &result))
 }
 
 async fn check(runtime: Arc<Mutex<ServiceRuntime>>) {
@@ -110,7 +107,7 @@ async fn check(runtime: Arc<Mutex<ServiceRuntime>>) {
             candidates,
             guard
                 .rdp_console_trusted
-                .then(|| guard.ticket_redeem_tx.clone())
+                .then(|| guard.rdp_validation_tx.clone())
                 .flatten(),
         )
     };
@@ -200,10 +197,9 @@ mod tests {
         }
     }
 
-    fn grant() -> TicketRedeemResult {
-        TicketRedeemResult {
+    fn authorization() -> RdpValidationResult {
+        RdpValidationResult {
             ok: true,
-            kind: "rdp_runtime".to_string(),
             instance_id: "inst-one".to_string(),
             logical_session_id: "logical-one".to_string(),
             device_id: "node-one".to_string(),
@@ -214,50 +210,45 @@ mod tests {
     #[test]
     fn only_exact_runtime_grant_extends_authorization() {
         let candidate = candidate();
-        assert!(matches_grant(&candidate, &grant()));
+        assert!(matches_authorization(&candidate, &authorization()));
         for invalid in [
-            TicketRedeemResult {
+            RdpValidationResult {
                 ok: false,
-                ..grant()
+                ..authorization()
             },
-            TicketRedeemResult {
-                kind: "app_instance".to_string(),
-                ..grant()
-            },
-            TicketRedeemResult {
+            RdpValidationResult {
                 instance_id: "other".to_string(),
-                ..grant()
+                ..authorization()
             },
-            TicketRedeemResult {
+            RdpValidationResult {
                 logical_session_id: "other".to_string(),
-                ..grant()
+                ..authorization()
             },
-            TicketRedeemResult {
+            RdpValidationResult {
                 device_id: "other".to_string(),
-                ..grant()
+                ..authorization()
             },
         ] {
-            assert!(!matches_grant(&candidate, &invalid));
+            assert!(!matches_authorization(&candidate, &invalid));
         }
     }
 
     #[tokio::test]
-    async fn runtime_request_contains_no_ticket_and_waits_for_exact_ack() {
+    async fn runtime_request_waits_for_exact_ack() {
         let candidate = candidate();
-        let (sender, mut receiver) = mpsc::channel::<TicketRedeemRequest>(1);
+        let (sender, mut receiver) = mpsc::channel::<RdpValidationRequest>(1);
         let check = tokio::spawn(async move { authorized(&candidate, Some(sender)).await });
         let request = receiver.recv().await.unwrap();
-        assert!(request.ticket.is_empty() && request.client_nonce.is_empty());
-        assert_eq!(request.rdp_logical_session_id, "logical-one");
+        assert_eq!(request.logical_session_id, "logical-one");
         assert!(!check.is_finished());
-        request.response.send(grant()).unwrap();
+        request.response.send(authorization()).unwrap();
         assert!(check.await.unwrap());
     }
 
     #[tokio::test]
     async fn missing_console_and_cancelled_check_cannot_leave_a_live_waiter() {
         assert!(!authorized(&candidate(), None).await);
-        let (sender, mut receiver) = mpsc::channel::<TicketRedeemRequest>(1);
+        let (sender, mut receiver) = mpsc::channel::<RdpValidationRequest>(1);
         let check = tokio::spawn(async move { authorized(&candidate(), Some(sender)).await });
         let request = receiver.recv().await.unwrap();
         check.abort();

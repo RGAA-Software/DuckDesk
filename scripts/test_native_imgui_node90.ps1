@@ -6,6 +6,8 @@ param(
     [ValidateRange(10, 120)]
     [int]$TimeoutSeconds = 45,
     [switch]$ForceTcp,
+    [switch]$ForceRelay,
+    [switch]$ExerciseInput,
     [switch]$Rdp,
     [switch]$ExpectRejected
 )
@@ -61,6 +63,8 @@ $session = $null
 $instance = $null
 $client = $null
 $token = ''
+$clientLogPath = Join-Path (Split-Path $clientPath -Parent) 'px_logs/px_client.log'
+$clientLogOffset = if (Test-Path -LiteralPath $clientLogPath) { (Get-Item -LiteralPath $clientLogPath).Length } else { 0L }
 $preferenceSnapshot = Join-Path $env:TEMP "pixels-node90-preferences-$PID-$([guid]::NewGuid().ToString('N'))"
 try {
     $login = Invoke-ConsoleApi '/api/v1/session/user/login' @{
@@ -151,7 +155,7 @@ try {
         $launch.decoder = 'Auto'
         $launch.only_viewing = $false
         $launch.force_tcp = [bool]$ForceTcp
-        $launch.force_relay = $false
+        $launch.force_relay = [bool]$ForceRelay
         $launch.split_windows = $false
         $launch.relay_host = [string]$descriptor.relay_host
         $launch.relay_port = [int]$descriptor.relay_port
@@ -187,10 +191,51 @@ try {
     if ($modules.Count -ne 0) {
         throw 'ImGui Client loaded a Qt runtime module.'
     }
+    if ($ExerciseInput) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class PixelsInputProbe {
+    [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra);
+}
+'@
+        $rect = [PixelsInputProbe+Rect]::new()
+        [void][PixelsInputProbe]::GetWindowRect($client.MainWindowHandle, [ref]$rect)
+        [void][PixelsInputProbe]::SetForegroundWindow($client.MainWindowHandle)
+        $centerX = [int](($rect.Left + $rect.Right) / 2)
+        $centerY = [int](($rect.Top + $rect.Bottom) / 2)
+        [void][PixelsInputProbe]::SetCursorPos($centerX, $centerY)
+        [PixelsInputProbe]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+        [PixelsInputProbe]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+        $launcherX = $rect.Right - 70
+        $launcherY = [int](($rect.Top + $rect.Bottom) / 2)
+        [void][PixelsInputProbe]::SetCursorPos($launcherX, $launcherY)
+        [PixelsInputProbe]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+        foreach ($step in 1..8) {
+            [void][PixelsInputProbe]::SetCursorPos(
+                [int]($launcherX + (120 - $launcherX) * $step / 8),
+                [int]($launcherY + (120 - $launcherY) * $step / 8))
+            Start-Sleep -Milliseconds 20
+        }
+        [PixelsInputProbe]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+    }
     Start-Sleep -Seconds 2
     $client.Kill()
     [void]$client.WaitForExit(5000)
-    $evidence = [string]$stdoutDrain.Result
+    $logEvidence = ''
+    if (Test-Path -LiteralPath $clientLogPath) {
+        $stream = [IO.File]::Open($clientLogPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+        try {
+            [void]$stream.Seek([Math]::Min($clientLogOffset, $stream.Length), [IO.SeekOrigin]::Begin)
+            $reader = [IO.StreamReader]::new($stream)
+            try { $logEvidence = $reader.ReadToEnd() } finally { $reader.Dispose() }
+        } finally { $stream.Dispose() }
+    }
+    $evidence = [string]$stdoutDrain.Result + $logEvidence
     $decoderRebuilds = ([regex]::Matches($evidence, 'Rebuild video decoder')).Count
     if (-not $ExpectRejected -and ((-not $Rdp -and $evidence -notmatch 'Video frame came|Video frame stream reset|key frame') -or
             $decoderRebuilds -gt 1)) {
@@ -198,7 +243,7 @@ try {
     }
     [pscustomobject]@{
         Result = 'PASS'
-        Mode = if ($ExpectRejected) { 'Rejected password' } elseif ($Rdp) { 'RDP' } elseif ($ForceTcp) { 'WebSocket' } else { 'UDP/FEC' }
+        Mode = if ($ExpectRejected) { 'Rejected password' } elseif ($Rdp) { 'RDP' } elseif ($ForceRelay) { 'WebSocket Relay' } elseif ($ForceTcp) { 'WebSocket' } else { 'UDP/FEC' }
         InstanceId = $instance.instance_id
         Endpoint = "$($descriptor.host):$($descriptor.port)"
         ClientProcessId = $client.Id

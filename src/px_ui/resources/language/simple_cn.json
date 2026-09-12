@@ -194,7 +194,6 @@
   "id_only_viewing": "仅观看",
   "id_split_windows": "多窗口同显",
   "id_connect_failed": "连接失败",
-  "id_connection_ticket_required": "该设备连接需要有效的 Console Ticket，请登录后重新连接。",
   "id_general_settings": "通用设置",
   "id_start_auto_layout_2_screens": "自动排列双屏",
   "id_display_client_logo": "显示Logo",

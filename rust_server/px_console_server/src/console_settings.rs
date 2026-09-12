@@ -182,8 +182,6 @@ pub struct ConsoleUserSettings {
     pub admin_sliding_hours: i64,
     pub admin_absolute_hours: i64,
     pub guest_absolute_hours: i64,
-    pub ticket_expire_seconds: i64,
-    pub ticket_renew_expire_seconds: i64,
     pub rate_limit: UserRateLimitSettings,
     pub quota: UserQuotaSettings,
 }
@@ -198,8 +196,6 @@ impl Default for ConsoleUserSettings {
             admin_sliding_hours: 2,
             admin_absolute_hours: 8,
             guest_absolute_hours: 24,
-            ticket_expire_seconds: 30,
-            ticket_renew_expire_seconds: 24 * 60 * 60,
             rate_limit: UserRateLimitSettings::default(),
             quota: UserQuotaSettings::default(),
         }
@@ -328,14 +324,6 @@ impl ConsoleSettings {
                 );
             }
         }
-        if !(5..=300).contains(&self.user.ticket_expire_seconds) {
-            return Err("user.ticket_expire_seconds must be between 5 and 300".to_string());
-        }
-        if !(60..=7 * 24 * 60 * 60).contains(&self.user.ticket_renew_expire_seconds) {
-            return Err(
-                "user.ticket_renew_expire_seconds must be between 60 and 604800".to_string(),
-            );
-        }
         self.live.resolved_publish_rtmp_url(&self.server_w3c_ip)?;
         Ok(())
     }
@@ -446,7 +434,6 @@ mod security_tests {
         settings.privacy_hash_salt = "installation-specific-salt".to_string();
         settings.server_w3c_ip = "127.0.0.1".to_string();
         settings.console_port = 4600;
-        settings.user.ticket_expire_seconds = 30;
         settings
     }
 
@@ -465,7 +452,7 @@ mod security_tests {
     }
 
     #[test]
-    fn only_explicit_environment_names_and_bounded_ticket_ttl_are_accepted() {
+    fn only_explicit_environment_names_are_accepted() {
         let mut settings = base();
         settings.environment = "prod".to_string();
         assert!(settings.validate_for_server().is_err());
@@ -475,11 +462,6 @@ mod security_tests {
         assert!(settings.validate_for_server().is_err());
         settings.ssl_enable = true;
         assert!(settings.validate_for_server().is_ok());
-        settings.user.ticket_expire_seconds = 301;
-        assert!(settings.validate_for_server().is_err());
-        settings.user.ticket_expire_seconds = 30;
-        settings.user.ticket_renew_expire_seconds = 59;
-        assert!(settings.validate_for_server().is_err());
     }
 
     #[test]

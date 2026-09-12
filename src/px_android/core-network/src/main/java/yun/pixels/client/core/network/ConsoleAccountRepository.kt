@@ -10,8 +10,7 @@ import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.account.AccountSession
 import yun.pixels.client.core.domain.account.AccountSessionStore
 import yun.pixels.client.core.domain.account.AccountState
-import yun.pixels.client.core.domain.account.ConnectionTicket
-import yun.pixels.client.core.domain.account.JoinMode
+import yun.pixels.client.core.domain.account.AccountConnection
 
 class ConsoleAccountRepository(
     private val api: ConsoleAccountApi,
@@ -52,17 +51,8 @@ class ConsoleAccountRepository(
 
     override suspend fun devices(): AccountResult<List<AccountDevice>> = withSession { session -> api.devices(session) }
 
-    override suspend fun issueTicket(
-        deviceId: String,
-        clientNonce: String,
-        joinMode: JoinMode,
-    ): AccountResult<ConnectionTicket> = withSession { session -> api.issueTicket(session, deviceId, clientNonce, joinMode) }
-
-    override suspend fun renewTicket(ticket: ConnectionTicket, clientNonce: String): AccountResult<ConnectionTicket> {
-        val session = (mutableState.value as? AccountState.SignedIn)?.session
-            ?: return AccountResult.Failure(AccountFailure.AuthenticationRequired)
-        return api.renewTicket(session, ticket, clientNonce)
-    }
+    override suspend fun resolveConnection(deviceId: String): AccountResult<AccountConnection> =
+        withSession { session -> api.resolveConnection(session, deviceId) }
 
     private fun currentSession(): AccountSession? = (mutableState.value as? AccountState.SignedIn)?.session?.takeIf {
         it.expiresAtEpochMillis > now()

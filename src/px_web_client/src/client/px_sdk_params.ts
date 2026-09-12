@@ -28,7 +28,7 @@ export class PxSdkParams {
 export class PxConnParams {
     host: string;
     port: number;
-    ticket?: string;
+    safetyPwdMd5?: string;
     clientNonce?: string;
     deviceId?: string;
     instanceId?: string;
@@ -38,7 +38,7 @@ export class PxConnParams {
     constructor(params: {
         host: string;
         port: number;
-        ticket?: string;
+        safetyPwdMd5?: string;
         clientNonce?: string;
         deviceId?: string;
         instanceId?: string;
@@ -48,7 +48,7 @@ export class PxConnParams {
     }) {
         this.host = params.host;
         this.port = params.port;
-        this.ticket = params.ticket;
+        this.safetyPwdMd5 = params.safetyPwdMd5;
         this.clientNonce = params.clientNonce;
         this.deviceId = params.deviceId;
         this.instanceId = params.instanceId;

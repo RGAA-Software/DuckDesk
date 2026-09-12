@@ -164,8 +164,6 @@ void RenderEventIngress::ProcessRenderEvent(const RenderEventEnvelope& envelope)
                 owner.ReportRelayAlive(event->device_id_, static_cast<std::int64_t>(envelope.created_timestamp));
             } else if constexpr (std::is_same_v<Event, StreamingParametersRequestedEvent>) {
                 owner.app_->HandleForceGdiEvent(event->force_gdi_);
-            } else if constexpr (std::is_same_v<Event, RedeemConnectionTicketEvent>) {
-                owner.app_->RedeemConnectionTicket(event->ticket_, event->client_nonce_, event->instance_id_, std::move(event->callback_));
             } else if constexpr (std::is_same_v<Event, AdmitLogicalSessionEvent>) {
                 if (!event->callback_) {
                     return;

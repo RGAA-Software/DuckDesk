@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import yun.pixels.client.core.domain.account.ConnectionTicket
+import yun.pixels.client.core.domain.account.AccountConnection
 import yun.pixels.client.core.domain.device.RemoteDevice
 
 @JvmInline
@@ -30,7 +30,7 @@ sealed interface RemoteSessionTarget {
     data class Account(
         override val displayName: String,
         val fallbackRemoteDeviceId: String,
-        val connectionTicket: ConnectionTicket,
+        val connection: AccountConnection,
         val clientNonce: String,
     ) : RemoteSessionTarget
 }
@@ -70,7 +70,7 @@ interface RemoteSessionPreferencesRepository {
 val RemoteSessionTarget.preferenceKey: String
     get() = when (this) {
         is RemoteSessionTarget.Direct -> "direct:${device.id.value}"
-        is RemoteSessionTarget.Account -> "account:${fallbackRemoteDeviceId.ifBlank { connectionTicket.signalDeviceId }.ifBlank { displayName }}"
+        is RemoteSessionTarget.Account -> "account:${fallbackRemoteDeviceId.ifBlank { connection.deviceId }.ifBlank { displayName }}"
     }
 
 data class RemoteSessionCapabilities(

@@ -6,7 +6,7 @@
 
 namespace px::client::imgui {
 
-TEST(ClientImguiLaunchConfigTest, ParsesDirectPasswordLaunchWithoutTicket) {
+TEST(ClientImguiLaunchConfigTest, ParsesDirectPasswordLaunch) {
     const auto config = ParseClientLaunchEnvelope(R"({
         "schema": 1,
         "host": "127.0.0.1",
@@ -28,7 +28,7 @@ TEST(ClientImguiLaunchConfigTest, RejectsLegacyCommandLineAndMissingPassword) {
     EXPECT_FALSE(ParseClientLaunchEnvelope(R"({"schema":1,"host":"127.0.0.1","port":4601})"));
 }
 
-TEST(ClientImguiLaunchConfigTest, ParsesProtectedRdpLaunchWithoutConsoleTicket) {
+TEST(ClientImguiLaunchConfigTest, ParsesProtectedRdpLaunch) {
     const auto config = ParseClientLaunchEnvelope(R"({
         "schema":1,"host":"127.0.0.1","port":5403,"stream_id":"rdp-1","device_id":"client-1",
         "remote_device_id":"render-1","connection_nonce":"nonce","connection_instance_id":"instance-1",

@@ -24,7 +24,7 @@ export class PxApp {
 
         const queryParams = new URLSearchParams(window.location.search);
         const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-        const ticket = fragment.get('ticket') ?? undefined;
+        const safetyPwdMd5 = queryParams.get('pwd_md5') ?? undefined;
         const clientNonce = fragment.get('nonce') ?? queryParams.get('nonce') ?? undefined;
         const instanceId = fragment.get('instance') ?? queryParams.get('instanceId') ?? undefined;
         const deviceId = queryParams.get('deviceId') ?? undefined;
@@ -57,7 +57,7 @@ export class PxApp {
 
         this.rendererManager = new PxRendererManager(rendererName, canvas, remoteVideoElement);
 
-        let sdkConnType = ticket ? PxSdkConnType.kWebRtcDirect : PxSdkConnType.kWebSocket;
+        let sdkConnType = PxSdkConnType.kWebSocket;
         if (connType == "ws") {
             sdkConnType = PxSdkConnType.kWebSocket;
             remoteVideoElement.style.display = "none";
@@ -82,7 +82,7 @@ export class PxApp {
             // host: "10.0.0.112",
             host: hostParam,
             port: window.location.port ? Number(window.location.port) : 20371,
-            ticket,
+            safetyPwdMd5,
             clientNonce,
             deviceId,
             instanceId,

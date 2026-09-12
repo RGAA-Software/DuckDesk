@@ -28,9 +28,7 @@ bool WaitUntil(const std::function<bool()>& predicate, const std::chrono::steady
 }
 
 std::shared_ptr<RelayWsClient> MakeClient(const std::shared_ptr<PxAsyncRuntime>& runtime, const int port) {
-    return std::make_shared<RelayWsClient>(
-        "127.0.0.1", port, "server-test", "test", "stream-test", "appkey-test", false, "", "", "", "", "",
-        RelayTicketScope::kLegacy, runtime);
+    return std::make_shared<RelayWsClient>("127.0.0.1", port, "server-test", "test", "stream-test", "appkey-test", false, "", runtime);
 }
 
 TEST(RelayWsReconnect, InitiallyUnavailableAndRepeatedServerRestartRecover) {
@@ -41,12 +39,8 @@ TEST(RelayWsReconnect, InitiallyUnavailableAndRepeatedServerRestartRecover) {
     const auto client = MakeClient(runtime, port);
     const auto connected = std::make_shared<std::atomic_uint32_t>(0);
     const auto disconnected = std::make_shared<std::atomic_uint32_t>(0);
-    client->SetOnRelayServerConnectedCallback([connected] {
-        connected->fetch_add(1, std::memory_order_acq_rel);
-    });
-    client->SetOnRelayServerDisConnectedCallback([disconnected] {
-        disconnected->fetch_add(1, std::memory_order_acq_rel);
-    });
+    client->SetOnRelayServerConnectedCallback([connected] { connected->fetch_add(1, std::memory_order_acq_rel); });
+    client->SetOnRelayServerDisConnectedCallback([disconnected] { disconnected->fetch_add(1, std::memory_order_acq_rel); });
     client->Start();
     ASSERT_TRUE(WaitUntil([client] { return client->ConnectionGeneration() >= 2; }, 6s));
 
@@ -58,9 +52,8 @@ TEST(RelayWsReconnect, InitiallyUnavailableAndRepeatedServerRestartRecover) {
         server->stop();
         ASSERT_TRUE(WaitUntil([client] { return !client->IsAlive(); }, 3s));
         ASSERT_TRUE(server->start("127.0.0.1", port));
-        ASSERT_TRUE(WaitUntil([client, previous_generation] {
-            return client->IsAlive() && client->ConnectionGeneration() > previous_generation;
-        }, 10s));
+        ASSERT_TRUE(
+            WaitUntil([client, previous_generation] { return client->IsAlive() && client->ConnectionGeneration() > previous_generation; }, 10s));
         previous_generation = client->ConnectionGeneration();
     }
     EXPECT_EQ(connected->load(std::memory_order_acquire), 3U);
@@ -92,10 +85,12 @@ TEST(RelayWsReconnect, StopFromReadyCallbackDrainsAndAllowsRestart) {
 
     client->Start();
     ASSERT_TRUE(WaitUntil([connected] { return connected->load(std::memory_order_acquire) == 1; }, 5s));
-    ASSERT_TRUE(WaitUntil([client, connected] {
-        client->Start();
-        return connected->load(std::memory_order_acquire) >= 2 && client->IsAlive();
-    }, 10s));
+    ASSERT_TRUE(WaitUntil(
+        [client, connected] {
+            client->Start();
+            return connected->load(std::memory_order_acquire) >= 2 && client->IsAlive();
+        },
+        10s));
 
     client->Stop();
     server->stop();

@@ -26,25 +26,16 @@ data class AccountDevice(
     val lastSeenEpochMillis: Long?,
 )
 
-data class ConnectionTicket(
-    val ticket: String,
-    val renewalToken: String,
-    val launchUrl: String,
-    val expiresAtEpochMillis: Long,
-    val logicalSessionId: String,
-    val streamId: String,
-    val joinMode: JoinMode,
-    val permissions: Set<String>,
-    val rtcIceConfigJson: String,
+data class AccountConnection(
+    val host: String,
+    val port: Int,
+    val deviceId: String,
+    val instanceId: String,
+    val passwordHash: String,
     val relayHost: String,
     val relayPort: Int,
     val signalDeviceId: String,
 )
-
-enum class JoinMode {
-    Control,
-    Observe,
-}
 
 enum class AccountFailure {
     InvalidEndpoint,
@@ -92,7 +83,5 @@ interface AccountRepository {
 
     suspend fun devices(): AccountResult<List<AccountDevice>>
 
-    suspend fun issueTicket(deviceId: String, clientNonce: String, joinMode: JoinMode): AccountResult<ConnectionTicket>
-
-    suspend fun renewTicket(ticket: ConnectionTicket, clientNonce: String): AccountResult<ConnectionTicket>
+    suspend fun resolveConnection(deviceId: String): AccountResult<AccountConnection>
 }

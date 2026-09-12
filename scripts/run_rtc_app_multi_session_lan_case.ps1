@@ -174,7 +174,6 @@ var ids=db.c_app_instance.find({owner_type:'user',owner_id:u},{instance_id:1,_id
 var sessionIds=db.c_remote_session.distinct('logical_session_id',{subject_id:u});
 var registration=db.c_event.findOne({action:'user_register',target_id:u,result:'success'});
 if(registration){db.c_user_session.deleteMany({subject_id:registration.actor_id});}
-db.c_connection_ticket.deleteMany({subject_id:u});
 db.c_remote_session_event.deleteMany({logical_session_id:{`$in:sessionIds}});
 db.c_remote_session.deleteMany({subject_id:u});
 db.c_app_instance.deleteMany({owner_type:'user',owner_id:u});
@@ -183,7 +182,7 @@ db.c_user_group_member.deleteMany({uid:u});
 db.c_user_device.deleteMany({uid:u});
 db.c_user.deleteMany({uid:u});
 db.c_event.deleteMany({`$or:[{actor_id:u},{target_id:u},{target_id:{`$in:ids}}]});
-printjson({users:db.c_user.count({uid:u}),instances:db.c_app_instance.count({owner_id:u}),tickets:db.c_connection_ticket.count({subject_id:u})});
+printjson({users:db.c_user.count({uid:u}),instances:db.c_app_instance.count({owner_id:u})});
 "@
         & $MongoExe db_gr_console_server --quiet --eval $cleanup
     }

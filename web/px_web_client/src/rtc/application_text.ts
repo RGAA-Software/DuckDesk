@@ -74,7 +74,7 @@ export class ApplicationTextTransport {
     this.started = true
     this.send({ type: MessageType.ApplicationTextCapabilities, applicationTextCapabilities: { version: 1 } })
     // Advisory queries share the existing reliable control channel; no new
-    // connection, ticket exchange, media path or unbounded queue is created.
+    // connection, authentication exchange, media path or unbounded queue is created.
     this.hintTimer = setInterval(() => {
       if (!this.pending && !this.awaitingSubmission && this.opts.canSend()) {
         this.send({ type: MessageType.ApplicationTextCapabilities, applicationTextCapabilities: { version: 1 } })

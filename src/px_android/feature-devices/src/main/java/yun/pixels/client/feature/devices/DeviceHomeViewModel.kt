@@ -19,7 +19,6 @@ import yun.pixels.client.core.domain.account.AccountFailure
 import yun.pixels.client.core.domain.account.AccountRepository
 import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.account.AccountState
-import yun.pixels.client.core.domain.account.JoinMode
 import yun.pixels.client.core.domain.device.DeviceAvailability
 import yun.pixels.client.core.domain.device.DeviceDirectory
 import yun.pixels.client.core.domain.device.DeviceDiscovery
@@ -132,14 +131,14 @@ class DeviceHomeViewModel(
         }
         viewModelScope.launch {
             val clientNonce = UUID.randomUUID().toString()
-            when (val result = accountRepository.issueTicket(device.deviceId, clientNonce, JoinMode.Control)) {
+            when (val result = accountRepository.resolveConnection(device.deviceId)) {
                 is AccountResult.Success -> mutableRemoteRequests.emit(
                     RemoteSessionRequest(
-                        id = RemoteSessionId(result.value.logicalSessionId.ifBlank { UUID.randomUUID().toString() }),
+                        id = RemoteSessionId(UUID.randomUUID().toString()),
                         target = RemoteSessionTarget.Account(
                             displayName = device.displayName,
                             fallbackRemoteDeviceId = device.deviceId,
-                            connectionTicket = result.value,
+                            connection = result.value,
                             clientNonce = clientNonce,
                         ),
                     ),

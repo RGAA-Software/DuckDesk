@@ -1,4 +1,5 @@
 import { hasUserCsrf, setUserCsrf, userHttp } from './http'
+import { encodeConnectToken } from '../../../px_web_client/src/rtc/connect_token'
 
 export interface UserProfile {
   uid: string
@@ -51,9 +52,12 @@ export interface ResourcePage<T> {
   total: number
 }
 
-export interface TicketLaunch {
+export interface WebConnection {
   launch_url: string
-  renewal_token: string
+  device_id: string
+  instance_id: string
+  stream_id: string
+  password_hash: string
   permissions: string[]
   rtc_ice_config?: {
     revision: number
@@ -179,8 +183,10 @@ function nonce(key: string) {
   return value
 }
 
-export function prepareLaunchUrl(result: TicketLaunch) {
+export function prepareLaunchUrl(result: WebConnection) {
   const launch = new URL(result.launch_url, window.location.href)
+  launch.searchParams.set('c', encodeConnectToken({ deviceId: result.device_id, pwdMd5: result.password_hash }))
+  launch.searchParams.set('stream_id', result.stream_id)
   if (result.rtc_ice_config) {
     launch.searchParams.set(
       'connType',
@@ -188,11 +194,6 @@ export function prepareLaunchUrl(result: TicketLaunch) {
     )
   }
   const fragment = new URLSearchParams(launch.hash.replace(/^#/, ''))
-  fragment.set(
-    'renew_url',
-    `${window.location.origin}/api/v1/connection-tickets/renew`,
-  )
-  if (result.renewal_token) fragment.set('renew', result.renewal_token)
   if (result.permissions?.length) fragment.set('perms', result.permissions.join(','))
   if (result.relay_host) fragment.set('relay_host', result.relay_host)
   if (result.relay_port) fragment.set('relay_port', String(result.relay_port))
@@ -212,8 +213,8 @@ function joinMode(viewOnly: boolean) {
 }
 
 export async function openDevice(deviceId: string, viewOnly = false) {
-  const result = data<TicketLaunch>(
-    await userHttp.post(`/api/v1/user/devices/${encodeURIComponent(deviceId)}/ticket`, {
+  const result = data<WebConnection>(
+    await userHttp.post(`/api/v1/user/devices/${encodeURIComponent(deviceId)}/web-connection`, {
       client_nonce: nonce(`device_${deviceId}`),
       join_mode: joinMode(viewOnly),
     }),
@@ -232,9 +233,9 @@ export async function startApp(appId: string) {
 }
 
 export async function openInstance(instance: InstanceView, clientNonce?: string, viewOnly = false) {
-  const result = data<TicketLaunch>(
+  const result = data<WebConnection>(
     await userHttp.post(
-      `/api/v1/user/instances/${encodeURIComponent(instance.instance_id)}/ticket`,
+      `/api/v1/user/instances/${encodeURIComponent(instance.instance_id)}/web-connection`,
       {
         client_nonce: clientNonce || nonce(`instance_${instance.instance_id}`),
         join_mode: joinMode(viewOnly),

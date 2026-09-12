@@ -145,14 +145,6 @@ namespace px
         }
         std::shared_ptr<render::MediaSourcePort> CreateMediaSourcePort() const;
         void ReqCtrlAltDelete(const std::string& device_id, const std::string& stream_id) const;
-        void RedeemConnectionTicket(
-            const std::string& ticket,
-            const std::string& client_nonce,
-            const std::string& instance_id,
-            std::function<void(bool, const std::string&, const std::vector<std::string>&,
-                               const std::string&, const std::string&, const std::string&,
-                               const std::string&, const std::string&, int64_t,
-                               bool, bool)>&& callback) const;
         // service 经 ws 下发 kSrvStopServer(Console 停止实例):先广播 kInstanceStopped
         // 给所有 RTC 客户端,留出发送时间后自行退出(不等服务强杀)
         void OnServiceRequestedStop();

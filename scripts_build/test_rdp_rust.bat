@@ -23,5 +23,5 @@ if errorlevel 1 exit /b %errorlevel%
 cd /d "%RDP_REPO%\rust_server" || exit /b 2
 cargo test --release -p px_console_server app_schedule::
 if errorlevel 1 exit /b %errorlevel%
-cargo test --release -p px_console_server connection_ticket::
+cargo test --release -p px_console_server rdp_session_authorization::
 exit /b %errorlevel%

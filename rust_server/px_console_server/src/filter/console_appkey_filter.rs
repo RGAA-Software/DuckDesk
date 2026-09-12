@@ -64,32 +64,17 @@ pub async fn filter(req: Request<Body>, next: Next) -> Response {
     }
 
     // Browser standard WebRTC uses the application Relay only for signaling.
-    // It cannot receive the installation appkey. A logged-in browser presents a
-    // fully bound short-lived ticket; a guest is restricted to one named device
-    // here and the Render authenticates its password digest in the SDP offer.
+    // It cannot receive the installation appkey. The Relay restricts the route
+    // to one Render identity and that Render verifies the device password.
     if path == "/relay" {
         let query = req.uri().query().unwrap_or("");
         let params =
             serde_urlencoded::from_str::<HashMap<String, String>>(query).unwrap_or_default();
-        if params.get("media_ticket").is_some_and(|value| value == "1") {
-            return match crate::console_relay::relay_server::validate_ticketed_media_relay(&params)
-                .await
-            {
-                Ok(Some(_)) => next.run(req).await,
-                Ok(None) => ConsoleApiError::InvalidParams.into_response(),
-                Err(error) => error.into_response(),
-            };
-        }
         if params.get("rtc_signal").is_some_and(|value| value == "1") {
-            if crate::console_relay::relay_server::is_scoped_guest_rtc_signal(&params) {
+            if crate::console_relay::relay_server::is_password_rtc_signal(&params) {
                 return next.run(req).await;
             }
-            return match crate::console_relay::relay_server::validate_ticketed_rtc_signal(&params)
-                .await
-            {
-                Ok(()) => next.run(req).await,
-                Err(error) => error.into_response(),
-            };
+            return ConsoleApiError::InvalidParams.into_response();
         }
     }
 

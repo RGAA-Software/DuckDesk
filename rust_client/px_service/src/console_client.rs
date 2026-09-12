@@ -18,8 +18,8 @@ use tracing::{error, info, warn};
 
 use protocol::console_service::{
     ConsoleServiceCreateWallSession, ConsoleServiceCreateWallSessionResult,
-    ConsoleServiceHeartBeat, ConsoleServiceHello, ConsoleServiceMessage, ConsoleServiceMessageType,
-    ConsoleServiceRedeemConnectionTicket, ConsoleServiceRedeemConnectionTicketResult,
+    ConsoleServiceHeartBeat, ConsoleServiceHello, ConsoleServiceMessage, ConsoleServiceMessageType, ConsoleServiceValidateRdpSession,
+    ConsoleServiceValidateRdpSessionResult,
     ConsoleServiceStartAppInstance, ConsoleServiceStartAppInstanceResult,
     ConsoleServiceStopAppInstance, ConsoleServiceStopAppInstanceResult,
 };
@@ -27,7 +27,7 @@ use px_auth_mgr::app_secret_util::calculate_app_secret;
 use px_auth_mgr::auth_token::{generate_connection_token, ConnectionToken};
 use service_core::StartAppRequest;
 
-use crate::service_host::{ServiceRuntime, TicketRedeemRequest, TicketRedeemResult};
+use crate::service_host::{RdpValidationRequest, RdpValidationResult, ServiceRuntime};
 
 type WsSink = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, TungsteniteMessage>;
 
@@ -50,8 +50,8 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
     };
     let sender: Arc<Mutex<Option<WsSink>>> = Arc::new(Mutex::new(None));
     let mut hb_index: i64 = 0;
-    let (ticket_tx, mut ticket_rx) = tokio::sync::mpsc::channel::<TicketRedeemRequest>(32);
-    runtime.lock().await.ticket_redeem_tx = Some(ticket_tx);
+    let (validation_tx, mut validation_rx) = tokio::sync::mpsc::channel::<RdpValidationRequest>(32);
+    runtime.lock().await.rdp_validation_tx = Some(validation_tx);
 
     loop {
         // wait until the panel has delivered the authorization info
@@ -215,7 +215,7 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
 
         // receive loop: handle Start/Stop app commands from Console
         let mut should_stop = false;
-        let mut pending_tickets: HashMap<String, tokio::sync::oneshot::Sender<TicketRedeemResult>> =
+        let mut pending_validations: HashMap<String, tokio::sync::oneshot::Sender<RdpValidationResult>> =
             HashMap::new();
         let jitter = auth_info
             .device_id
@@ -239,34 +239,17 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                         }
                         Some(Ok(TungsteniteMessage::Binary(bin))) => {
                             match parse_console_inbound(&bin) {
-                                Ok(Some(ConsoleInboundCommand::RedeemTicketResult(result))) => {
-                                    if let Some(reply) = pending_tickets.remove(&result.request_id) {
-                                        let grant_present = result.grant.is_some();
-                                        let grant = result.grant.unwrap_or_default();
-                                        if grant.kind == "rdp_runtime" {
-                                            tracing::debug!("received RDP runtime authorization confirmation");
-                                        } else {
-                                            info!(ticket_redemption_ok = result.ok, grant_present,
-                                                grant_permission_count = grant.permissions.len(),
-                                                "received connection ticket redemption result from Console");
-                                        }
-                                        let _ = reply.send(TicketRedeemResult {
+                                Ok(Some(ConsoleInboundCommand::RdpValidationResult(result))) => {
+                                    if let Some(reply) = pending_validations.remove(&result.request_id) {
+                                        tracing::debug!("received RDP runtime authorization confirmation");
+                                        let _ = reply.send(RdpValidationResult {
                                             ok: result.ok,
                                             code: result.code,
-                                            kind: grant.kind,
-                                            device_id: grant.device_id,
-                                            app_id: grant.app_id,
-                                            instance_id: grant.instance_id,
-                                            subject_type: grant.subject_type,
-                                            subject_id: grant.subject_id,
-                                            logical_session_id: grant.logical_session_id,
-                                            stream_id: grant.stream_id,
-                                            join_mode: grant.join_mode,
-                                            allow_observer: grant.allow_observer,
-                                            allow_takeover: grant.allow_takeover,
-                                            permissions: grant.permissions,
-                                            expires_at: grant.expires_at,
-                                            rtc_ice_config_json: result.rtc_ice_config_json,
+                                            device_id: result.device_id,
+                                            instance_id: result.instance_id,
+                                            subject_type: result.subject_type,
+                                            subject_id: result.subject_id,
+                                            logical_session_id: result.logical_session_id,
                                         });
                                     }
                                 }
@@ -298,28 +281,26 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
                         }
                     }
                 }
-                request = ticket_rx.recv() => {
+                request = validation_rx.recv() => {
                     let Some(request) = request else { continue; };
-                    pending_tickets.retain(|_, reply| !reply.is_closed());
-                    if pending_tickets.contains_key(&request.request_id) {
-                        let _ = request.response.send(TicketRedeemResult {
+                    pending_validations.retain(|_, reply| !reply.is_closed());
+                    if pending_validations.contains_key(&request.request_id) {
+                        let _ = request.response.send(RdpValidationResult {
                             code: "DUPLICATE_REQUEST_ID".to_string(),
                             ..Default::default()
                         });
                         continue;
                     }
-                    let frame = encode_message(&redeem_ticket_message(
+                    let frame = encode_message(&validate_rdp_session_message(
                         &auth_info.device_id,
                         &request.request_id,
-                        &request.ticket,
-                        &request.client_nonce,
                         &request.instance_id,
-                        &request.rdp_logical_session_id,
+                        &request.logical_session_id,
                     ));
                     if send_frame(&sender, frame).await {
-                        pending_tickets.insert(request.request_id, request.response);
+                        pending_validations.insert(request.request_id, request.response);
                     } else {
-                        let _ = request.response.send(TicketRedeemResult {
+                        let _ = request.response.send(RdpValidationResult {
                             code: "CONSOLE_UNAVAILABLE".to_string(),
                             ..Default::default()
                         });
@@ -345,8 +326,8 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
 
         runtime.lock().await.rdp_console_trusted = false;
         heartbeat_task.abort();
-        for (_, response) in pending_tickets.drain() {
-            let _ = response.send(TicketRedeemResult {
+        for (_, response) in pending_validations.drain() {
+            let _ = response.send(RdpValidationResult {
                 code: "CONSOLE_DISCONNECTED".to_string(),
                 ..Default::default()
             });
@@ -634,7 +615,7 @@ pub enum ConsoleInboundCommand {
         instance_id: String,
     },
     CreateWallSession(ConsoleServiceCreateWallSession),
-    RedeemTicketResult(ConsoleServiceRedeemConnectionTicketResult),
+    RdpValidationResult(ConsoleServiceValidateRdpSessionResult),
     RtcIceConfigChanged(u64),
 }
 
@@ -697,10 +678,10 @@ pub fn parse_console_inbound(bytes: &[u8]) -> Result<Option<ConsoleInboundComman
                     .ok_or("missing create_wall_session")?,
             )))
         }
-        Ok(ConsoleServiceMessageType::KConsoleServiceRedeemConnectionTicketResult) => {
-            Ok(Some(ConsoleInboundCommand::RedeemTicketResult(
-                msg.redeem_connection_ticket_result
-                    .ok_or("missing redeem_connection_ticket_result")?,
+        Ok(ConsoleServiceMessageType::KConsoleServiceValidateRdpSessionResult) => {
+            Ok(Some(ConsoleInboundCommand::RdpValidationResult(
+                msg.validate_rdp_session_result
+                    .ok_or("missing validate_rdp_session_result")?,
             )))
         }
         Ok(ConsoleServiceMessageType::KRtcIceConfigChanged) => {
@@ -715,31 +696,26 @@ pub fn parse_console_inbound(bytes: &[u8]) -> Result<Option<ConsoleInboundComman
         | Ok(ConsoleServiceMessageType::KConsoleServiceStartAppInstanceResult)
         | Ok(ConsoleServiceMessageType::KConsoleServiceStopAppInstanceResult)
         | Ok(ConsoleServiceMessageType::KConsoleServiceCreateWallSessionResult) => Ok(None),
-        Ok(ConsoleServiceMessageType::KConsoleServiceRedeemConnectionTicket) => {
-            Err("Console must not send ticket redemption requests".to_string())
+        Ok(ConsoleServiceMessageType::KConsoleServiceValidateRdpSession) => {
+            Err("Console must not send RDP session validation requests".to_string())
         }
         Err(_) => Err(format!("unknown console service msg_type {}", msg.msg_type)),
     }
 }
 
-fn redeem_ticket_message(
+fn validate_rdp_session_message(
     device_id: &str,
     request_id: &str,
-    ticket: &str,
-    client_nonce: &str,
     instance_id: &str,
-    rdp_logical_session_id: &str,
+    logical_session_id: &str,
 ) -> ConsoleServiceMessage {
     ConsoleServiceMessage {
-        msg_type: ConsoleServiceMessageType::KConsoleServiceRedeemConnectionTicket as i32,
+        msg_type: ConsoleServiceMessageType::KConsoleServiceValidateRdpSession as i32,
         device_id: device_id.to_string(),
-        redeem_connection_ticket: Some(ConsoleServiceRedeemConnectionTicket {
+        validate_rdp_session: Some(ConsoleServiceValidateRdpSession {
             request_id: request_id.to_string(),
-            device_id: device_id.to_string(),
-            ticket: ticket.to_string(),
-            client_nonce: client_nonce.to_string(),
             instance_id: instance_id.to_string(),
-            rdp_logical_session_id: rdp_logical_session_id.to_string(),
+            logical_session_id: logical_session_id.to_string(),
         }),
         ..Default::default()
     }
@@ -1041,7 +1017,7 @@ fn spawn_console_command_handler(
                     result,
                 )))
             }
-            ConsoleInboundCommand::RedeemTicketResult(_) => None,
+            ConsoleInboundCommand::RdpValidationResult(_) => None,
             ConsoleInboundCommand::RtcIceConfigChanged(_) => None,
         };
         if let Some(frame) = reply {

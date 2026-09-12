@@ -40,11 +40,6 @@ class RenderServiceClient : public std::enable_shared_from_this<RenderServiceCli
     bool IsAlive() const;
     void PostNetMessage(const std::string& msg);
     void NotifyAppInstanceReady(const std::string& instance_id, int listen_port, bool ok, const std::string& error);
-    void RedeemConnectionTicket(const std::string& ticket, const std::string& client_nonce, const std::string& instance_id,
-                                std::function<void(bool, const std::string&, const std::vector<std::string>&, const std::string&, const std::string&,
-                                                   const std::string&, const std::string&, const std::string&, int64_t, bool, bool)>&& callback);
-    PxAwaitable<PxResult<RedeemedConnectionTicket>> RedeemConnectionTicketAsync(std::string ticket, std::string client_nonce, std::string instance_id,
-                                                                                std::chrono::steady_clock::time_point deadline);
     void RequestVirtualDisplay(const std::string& request_id, int operation, uint32_t width, uint32_t height, uint32_t refresh_hz,
                                std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback);
     PxAwaitable<PxResult<MsgVirtualDisplayServiceResult>> RequestVirtualDisplayAsync(std::string request_id, int operation, uint32_t width,

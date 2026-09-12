@@ -44,7 +44,7 @@ pub struct ServiceRuntime {
     /// One-shot Browser/first-frame acknowledgements for WebView starts.
     pub webview_ready_waiters:
         std::collections::HashMap<String, oneshot::Sender<Result<(), String>>>,
-    pub ticket_redeem_tx: Option<mpsc::Sender<TicketRedeemRequest>>,
+    pub rdp_validation_tx: Option<mpsc::Sender<RdpValidationRequest>>,
     pub virtual_display_manager: Option<Arc<VirtualDisplayManager>>,
     pub virtual_display_init_error: Option<String>,
     pub virtual_display_results:
@@ -55,33 +55,22 @@ pub struct ServiceRuntime {
     stop_tx: broadcast::Sender<()>,
 }
 
-pub struct TicketRedeemRequest {
+pub struct RdpValidationRequest {
     pub request_id: String,
-    pub ticket: String,
-    pub client_nonce: String,
     pub instance_id: String,
-    pub rdp_logical_session_id: String,
-    pub response: oneshot::Sender<TicketRedeemResult>,
+    pub logical_session_id: String,
+    pub response: oneshot::Sender<RdpValidationResult>,
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct TicketRedeemResult {
+pub struct RdpValidationResult {
     pub ok: bool,
     pub code: String,
-    pub kind: String,
     pub device_id: String,
-    pub app_id: String,
     pub instance_id: String,
     pub subject_type: String,
     pub subject_id: String,
     pub logical_session_id: String,
-    pub stream_id: String,
-    pub join_mode: String,
-    pub allow_observer: bool,
-    pub allow_takeover: bool,
-    pub permissions: Vec<String>,
-    pub expires_at: i64,
-    pub rtc_ice_config_json: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -142,7 +131,7 @@ impl ServiceRuntime {
             render_logical_sessions: std::collections::HashMap::new(),
             webview_ready_waiters: std::collections::HashMap::new(),
             rdp_console_trusted: false,
-            ticket_redeem_tx: None,
+            rdp_validation_tx: None,
             virtual_display_manager,
             virtual_display_init_error,
             virtual_display_results: std::collections::HashMap::new(),
@@ -402,7 +391,7 @@ impl ServiceRuntime {
                 logical_sessions_json,
             } => {
                 // Heartbeats use the monitor's snapshot. A full WMI enumeration
-                // for every Render/Panel heartbeat blocks ticket RPCs under this lock.
+                // for every Render/Panel heartbeat blocks control RPCs under this lock.
                 // 应用层心跳:render 主循环每秒上报(from = "render_{port}"),
                 // 用于 hang 检测——进程活着但消息循环死掉时心跳会中断。
                 if from.starts_with("render_") {
@@ -435,9 +424,6 @@ impl ServiceRuntime {
             Command::CtrlAltDelete { .. } => {
                 self.windows_actions.send_ctrl_alt_delete()?;
                 Ok(None)
-            }
-            Command::RedeemConnectionTicket { .. } => {
-                Err("ticket redemption must use the asynchronous service path".to_string())
             }
             Command::VirtualDisplay { .. } => {
                 Err("virtual display operations must use the asynchronous service path".to_string())
@@ -795,7 +781,7 @@ impl ServiceRuntime {
             return;
         }
         // WMI may take seconds. Query once for the entire heartbeat, outside
-        // both the Tokio worker and the runtime lock needed by ticket replies.
+        // both the Tokio worker and the runtime lock needed by control replies.
         let result = tokio::task::spawn_blocking(move || process_manager.list_processes()).await;
         match result {
             Ok(Ok(processes)) => runtime.lock().await.reap_dead_app_instances(candidates, &processes),

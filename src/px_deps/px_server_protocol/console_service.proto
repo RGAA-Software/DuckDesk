@@ -19,9 +19,10 @@ enum ConsoleServiceMessageType {
   kConsoleServiceCreateWallSession = 6;
   // Service -> Console
   kConsoleServiceCreateWallSessionResult = 7;
-  // Service -> Console, then Console -> Service.
-  kConsoleServiceRedeemConnectionTicket = 8;
-  kConsoleServiceRedeemConnectionTicketResult = 9;
+  // Service -> Console, then Console -> Service. Validates that a locally
+  // running RDP workspace still belongs to an active Console session.
+  kConsoleServiceValidateRdpSession = 8;
+  kConsoleServiceValidateRdpSessionResult = 9;
   // Console -> Service. Invalidation only; Service pulls the new version.
   kRtcIceConfigChanged = 10;
 }
@@ -90,7 +91,7 @@ message ConsoleServiceStartAppInstance {
   string app_mode = 15;
   // UTF-8 Base64URL (no padding) entry URL. Required for app_mode=webview.
   string webview_url_b64 = 16;
-  // The physical device identity remains bound to connection tickets.
+  // Physical device identity of the child Render.
   string device_id = 17;
   // Unique Relay identity for this child Render. It must not replace the
   // desktop Render connection which uses device_id.
@@ -148,41 +149,22 @@ message ConsoleServiceCreateWallSessionResult {
   string answer_sdp = 5;
 }
 
-message ConsoleServiceRedeemConnectionTicket {
+message ConsoleServiceValidateRdpSession {
   string request_id = 1;
-  // Informational only. Console uses the device identity bound to this WebSocket.
-  string device_id = 2;
-  string ticket = 3;
-  string client_nonce = 4;
-  string instance_id = 5;
-  // Service-only live RDP authorization check; mutually exclusive with ticket/nonce.
+  string instance_id = 2;
   // Console binds this to the authenticated node, instance and original login session.
-  string rdp_logical_session_id = 6;
+  string logical_session_id = 3;
 }
 
-message ConsoleConnectionGrant {
-  string kind = 1;
-  string device_id = 2;
-  string app_id = 3;
-  string instance_id = 4;
-  string subject_type = 5;
-  string subject_id = 6;
-  repeated string permissions = 7;
-  int64 expires_at = 8;
-  string logical_session_id = 9;
-  string stream_id = 10;
-  string join_mode = 11;
-  bool allow_observer = 12;
-  bool allow_takeover = 13;
-}
-
-message ConsoleServiceRedeemConnectionTicketResult {
+message ConsoleServiceValidateRdpSessionResult {
   string request_id = 1;
   bool ok = 2;
   string code = 3;
-  ConsoleConnectionGrant grant = 4;
-  // Serialized RtcSessionIceConfig, issued only after ticket redemption.
-  string rtc_ice_config_json = 5;
+  string device_id = 4;
+  string instance_id = 5;
+  string subject_type = 6;
+  string subject_id = 7;
+  string logical_session_id = 8;
 }
 
 message RtcIceConfigChanged {
@@ -201,7 +183,7 @@ message ConsoleServiceMessage {
   ConsoleServiceStopAppInstanceResult stop_app_instance_result = 70;
   ConsoleServiceCreateWallSession create_wall_session = 80;
   ConsoleServiceCreateWallSessionResult create_wall_session_result = 90;
-  ConsoleServiceRedeemConnectionTicket redeem_connection_ticket = 100;
-  ConsoleServiceRedeemConnectionTicketResult redeem_connection_ticket_result = 110;
+  ConsoleServiceValidateRdpSession validate_rdp_session = 100;
+  ConsoleServiceValidateRdpSessionResult validate_rdp_session_result = 110;
   RtcIceConfigChanged rtc_ice_config_changed = 120;
 }

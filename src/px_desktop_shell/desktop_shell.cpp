@@ -48,8 +48,10 @@ SdlTray CreateTray() {
 } // namespace
 
 struct DesktopShell::Impl final {
-    Impl(WindowHost windowValue, D3d11Renderer rendererValue, const bool minimizeToTrayValue)
-        : window{std::move(windowValue)}, renderer{std::move(rendererValue)}, minimizeToTray{minimizeToTrayValue} {}
+    Impl(WindowHost windowValue, D3d11Renderer rendererValue, const bool minimizeToTrayValue, const bool continuousTextInputValue,
+         const bool continuousRenderingValue)
+        : window{std::move(windowValue)}, renderer{std::move(rendererValue)}, minimizeToTray{minimizeToTrayValue},
+          continuousTextInput{continuousTextInputValue}, continuousRendering{continuousRenderingValue} {}
 
     WindowHost window;
     D3d11Renderer renderer;
@@ -58,6 +60,8 @@ struct DesktopShell::Impl final {
     px::ui::Theme theme{px::ui::Theme::Dark};
     SdlTray tray{};
     bool minimizeToTray{false};
+    bool continuousTextInput{false};
+    bool continuousRendering{false};
 };
 
 std::expected<DesktopShell, std::string> DesktopShell::Create(const WindowConfig& config) {
@@ -70,7 +74,8 @@ std::expected<DesktopShell, std::string> DesktopShell::Create(const WindowConfig
         return std::unexpected{rendererResult.error()};
     }
 
-    auto impl = std::make_unique<Impl>(std::move(windowResult.value()), std::move(rendererResult.value()), config.minimizeToTray);
+    auto impl = std::make_unique<Impl>(std::move(windowResult.value()), std::move(rendererResult.value()), config.minimizeToTray,
+                                       config.continuousTextInput, config.continuousRendering);
     if (config.minimizeToTray) {
         impl->tray = CreateTray();
     }
@@ -79,6 +84,8 @@ std::expected<DesktopShell, std::string> DesktopShell::Create(const WindowConfig
         return std::unexpected{imguiResult.error()};
     }
     impl->imgui.emplace(std::move(imguiResult.value()));
+    if (impl->continuousTextInput)
+        static_cast<void>(SDL_StartTextInput(&impl->window.Native()));
     return DesktopShell{std::move(impl)};
 }
 
@@ -92,7 +99,7 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
     bool interactiveFrame{false};
     while (impl_->running) {
         SDL_Event event{};
-        const int waitMilliseconds{firstFrame ? 0 : (interactiveFrame ? 16 : 200)};
+        const int waitMilliseconds{firstFrame ? 0 : (impl_->continuousRendering || interactiveFrame ? 16 : 200)};
         if (SDL_WaitEventTimeout(&event, waitMilliseconds)) {
             do {
                 ImGui_ImplSDL3_ProcessEvent(&event);
@@ -101,7 +108,7 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
                     if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) {
                         translated.key = event.key.key;
                         translated.scanCode = event.key.scancode;
-                    } else if (event.type == SDL_EVENT_TEXT_INPUT) {
+                    } else if (event.type == SDL_EVENT_TEXT_INPUT || event.type == SDL_EVENT_TEXT_EDITING) {
                         translated.text = event.text.text;
                     } else if (event.type == SDL_EVENT_MOUSE_MOTION) {
                         translated.x = event.motion.x;
@@ -141,6 +148,8 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
         }
 
         impl_->imgui->BeginFrame();
+        if (impl_->continuousTextInput && !SDL_TextInputActive(&impl_->window.Native()))
+            static_cast<void>(SDL_StartTextInput(&impl_->window.Native()));
         const ImGuiViewport& viewport = *ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(viewport.Pos);
         ImGui::SetNextWindowSize(viewport.Size);

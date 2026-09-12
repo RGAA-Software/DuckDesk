@@ -62,6 +62,7 @@ add_subdirectory("${PX_PROJECT_PATH}/px_media_record" "${CMAKE_BINARY_DIR}/px_me
 add_subdirectory("${PX_PROJECT_PATH}/px_opus_codec" "${CMAKE_BINARY_DIR}/px_opus_codec")
 add_subdirectory("${PX_PROJECT_PATH}/px_voice_call" "${CMAKE_BINARY_DIR}/px_voice_call")
 add_subdirectory("${PX_PROJECT_PATH}/px_server_protocol" "${CMAKE_BINARY_DIR}/px_server_protocol")
+add_subdirectory("${PX_PROJECT_PATH}/px_relay_client" "${CMAKE_BINARY_DIR}/px_relay_client")
 add_subdirectory("${PIXELS_SOURCE_ROOT}/px_client_sdk" "${CMAKE_BINARY_DIR}/px_client_sdk")
 
 add_library(pixels_android_core SHARED

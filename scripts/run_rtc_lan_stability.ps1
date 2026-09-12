@@ -130,13 +130,12 @@ finally {
 var u='$uid';
 var registration=db.c_event.findOne({action:'user_register',target_id:u,result:'success'});
 if(registration){db.c_user_session.deleteMany({subject_id:registration.actor_id});}
-db.c_connection_ticket.deleteMany({subject_id:u});
 db.c_user_session.deleteMany({subject_id:u});
 db.c_user_group_member.deleteMany({uid:u});
 db.c_user_device.deleteMany({uid:u});
 db.c_user.deleteMany({uid:u});
 db.c_event.deleteMany({`$or:[{actor_id:u},{target_id:u}]});
-printjson({users:db.c_user.count({uid:u}),sessions:db.c_user_session.count({subject_id:u}),tickets:db.c_connection_ticket.count({subject_id:u})});
+printjson({users:db.c_user.count({uid:u}),sessions:db.c_user_session.count({subject_id:u})});
 "@
         & $MongoExe db_gr_console_server --quiet --eval $cleanup
     }

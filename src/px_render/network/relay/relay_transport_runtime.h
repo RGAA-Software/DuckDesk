@@ -91,7 +91,6 @@ class RelayTransportRuntime final : public std::enable_shared_from_this<RelayTra
         std::string logical_session_id;
         std::vector<std::string> permissions;
         int64_t created_timestamp = 0;
-        bool ticket_enforced = false;
     };
 
     static void Monitor(std::weak_ptr<RelayTransportRuntime> runtime, const std::shared_ptr<MonitorControl>& control);

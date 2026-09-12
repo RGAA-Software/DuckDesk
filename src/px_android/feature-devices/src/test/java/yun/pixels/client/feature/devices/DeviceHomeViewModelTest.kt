@@ -36,9 +36,8 @@ import yun.pixels.client.core.domain.account.AccountRepository
 import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.account.AccountSession
 import yun.pixels.client.core.domain.account.AccountState
-import yun.pixels.client.core.domain.account.ConnectionTicket
+import yun.pixels.client.core.domain.account.AccountConnection
 import yun.pixels.client.core.domain.account.ConsoleEndpoint
-import yun.pixels.client.core.domain.account.JoinMode
 import yun.pixels.client.core.domain.session.RemoteSessionTarget
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -182,9 +181,9 @@ class DeviceHomeViewModelTest {
     }
 
     @Test
-    fun onlineAccountDeviceCardIssuesControlTicket() = runTest(dispatcher) {
-        val ticket = connectionTicket()
-        val account = FakeAccountRepository(ticketResult = AccountResult.Success(ticket))
+    fun onlineAccountDeviceCardResolvesConnection() = runTest(dispatcher) {
+        val connection = accountConnection()
+        val account = FakeAccountRepository(connectionResult = AccountResult.Success(connection))
         val viewModel = DeviceHomeViewModel(
             FakeDeviceDirectory(),
             FakeDeviceResolver(DeviceResolution.Failure(DeviceResolutionFailure.Unreachable)),
@@ -199,13 +198,13 @@ class DeviceHomeViewModelTest {
 
         val target = request.await().target as RemoteSessionTarget.Account
         assertEquals("Office PC", target.displayName)
-        assertEquals(ticket, target.connectionTicket)
-        assertEquals(listOf("account-device"), account.issuedTicketDeviceIds)
+        assertEquals(connection, target.connection)
+        assertEquals(listOf("account-device"), account.resolvedDeviceIds)
     }
 
     @Test
-    fun offlineAccountDeviceCardDoesNotIssueTicket() = runTest(dispatcher) {
-        val account = FakeAccountRepository(ticketResult = AccountResult.Success(connectionTicket()))
+    fun offlineAccountDeviceCardDoesNotResolveConnection() = runTest(dispatcher) {
+        val account = FakeAccountRepository(connectionResult = AccountResult.Success(accountConnection()))
         val viewModel = DeviceHomeViewModel(
             FakeDeviceDirectory(),
             FakeDeviceResolver(DeviceResolution.Failure(DeviceResolutionFailure.Unreachable)),
@@ -218,7 +217,7 @@ class DeviceHomeViewModelTest {
         advanceUntilIdle()
 
         assertEquals(DeviceHomeNotice.RemoteConnectionUnavailable, notice.await())
-        assertEquals(emptyList<String>(), account.issuedTicketDeviceIds)
+        assertEquals(emptyList<String>(), account.resolvedDeviceIds)
     }
 
     private fun resolvedDevice(): ResolvedDevice = ResolvedDevice(
@@ -232,16 +231,12 @@ class DeviceHomeViewModelTest {
         oneTimePassword = "123456",
     )
 
-    private fun connectionTicket() = ConnectionTicket(
-        ticket = "ticket",
-        renewalToken = "renewal",
-        launchUrl = "wss://relay.example.com/session",
-        expiresAtEpochMillis = Long.MAX_VALUE,
-        logicalSessionId = "logical-session",
-        streamId = "stream",
-        joinMode = JoinMode.Control,
-        permissions = setOf("view", "control"),
-        rtcIceConfigJson = "[]",
+    private fun accountConnection() = AccountConnection(
+        host = "render.example.com",
+        port = 4601,
+        deviceId = "account-device",
+        instanceId = "",
+        passwordHash = "password-hash",
         relayHost = "relay.example.com",
         relayPort = 443,
         signalDeviceId = "signal-device",
@@ -273,12 +268,12 @@ private class FakeDeviceResolver(private val resolution: DeviceResolution) : Dev
 
 private class FakeAccountRepository(
     private val devicesResult: AccountResult<List<AccountDevice>>? = null,
-    private val ticketResult: AccountResult<ConnectionTicket>? = null,
+    private val connectionResult: AccountResult<AccountConnection>? = null,
 ) : AccountRepository {
     private val mutableState = MutableStateFlow<AccountState>(AccountState.SignedOut)
     override val state: StateFlow<AccountState> = mutableState
     val availableDevices = listOf(AccountDevice("account-device", "Office PC", true, 1_000L))
-    val issuedTicketDeviceIds = mutableListOf<String>()
+    val resolvedDeviceIds = mutableListOf<String>()
 
     fun signIn() {
         mutableState.value = AccountState.SignedIn(
@@ -301,17 +296,8 @@ private class FakeAccountRepository(
 
     override suspend fun devices(): AccountResult<List<AccountDevice>> = devicesResult ?: AccountResult.Success(availableDevices)
 
-    override suspend fun issueTicket(
-        deviceId: String,
-        clientNonce: String,
-        joinMode: JoinMode,
-    ): AccountResult<ConnectionTicket> {
-        issuedTicketDeviceIds += deviceId
-        return ticketResult ?: AccountResult.Failure(AccountFailure.DeviceOffline)
+    override suspend fun resolveConnection(deviceId: String): AccountResult<AccountConnection> {
+        resolvedDeviceIds += deviceId
+        return connectionResult ?: AccountResult.Failure(AccountFailure.DeviceOffline)
     }
-
-    override suspend fun renewTicket(
-        ticket: ConnectionTicket,
-        clientNonce: String,
-    ): AccountResult<ConnectionTicket> = AccountResult.Failure(AccountFailure.AuthenticationRequired)
 }

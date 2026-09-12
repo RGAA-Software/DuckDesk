@@ -166,7 +166,7 @@ impl ConsoleUserDeviceManager {
     ) -> Result<Vec<ConsoleUserDeviceSummary>, ConsoleApiError> {
         // A valid Console account can use every registered device. Personal and
         // group device grants are retained only for storage/API compatibility;
-        // they no longer participate in device visibility or ticket issuance.
+        // they no longer participate in device visibility or connection routing.
         gUserManager.query_user_by_id(uid).await?;
         let c_device = gConsoleDatabase.lock().await.device();
         let mut cursor = c_device.lock().await.find(doc! {}).await.map_err(|e| {

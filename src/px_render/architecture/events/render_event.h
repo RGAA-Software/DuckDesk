@@ -26,15 +26,6 @@ enum class EncodedVideoType {
     kAv1,
 };
 
-struct RedeemConnectionTicketEvent final {
-    std::string ticket_;
-    std::string client_nonce_;
-    std::string instance_id_;
-    std::function<void(bool, const std::string&, const std::vector<std::string>&, const std::string&, const std::string&, const std::string&,
-                       const std::string&, const std::string&, std::int64_t, bool, bool)>
-        callback_;
-};
-
 struct AdmitLogicalSessionEvent final {
     LogicalSessionGrant grant_;
     LogicalSessionTransport transport_{LogicalSessionTransport::kWs};
@@ -153,8 +144,8 @@ using RenderEvent =
                  std::shared_ptr<ReferenceFrameInvalidationEvent>, std::shared_ptr<EncodedVideoFrameEvent>, std::shared_ptr<CapturedVideoFrameEvent>,
                  std::shared_ptr<CursorUpdatedEvent>, std::shared_ptr<RelayPausedEvent>, std::shared_ptr<RelayResumedEvent>,
                  std::shared_ptr<PanelStreamMessageEvent>, std::shared_ptr<RelayAliveEvent>, std::shared_ptr<StreamingParametersRequestedEvent>,
-                 std::shared_ptr<RedeemConnectionTicketEvent>, std::shared_ptr<AdmitLogicalSessionEvent>,
-                 std::shared_ptr<CloseLogicalSessionBindingEvent>, std::shared_ptr<ApplyLogicalSessionCapabilitiesEvent>,
+                 std::shared_ptr<AdmitLogicalSessionEvent>, std::shared_ptr<CloseLogicalSessionBindingEvent>,
+                 std::shared_ptr<ApplyLogicalSessionCapabilitiesEvent>,
                  std::shared_ptr<DataSentEvent>, std::shared_ptr<GameTextReplyEvent>>;
 
 struct RenderEventEnvelope final {

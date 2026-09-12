@@ -41,22 +41,10 @@ NetClient::~NetClient() {
     Exit();
 }
 
-std::string NetClient::MakeAuthenticatedWebSocketPath(std::string path, const bool file_only) const {
-    if (params_.connection_ticket_.empty()) {
-        if (!params_.connection_nonce_.empty()) {
-            path += path.find('?') == std::string::npos ? "?client_nonce=" : "&client_nonce=";
-            path += UrlHelper::EncodeQueryComponent(params_.connection_nonce_);
-        }
-        return path;
-    }
-    path += path.find('?') == std::string::npos ? "?ticket=" : "&ticket=";
-    path +=
-        UrlHelper::EncodeQueryComponent(params_.connection_ticket_) + "&client_nonce=" + UrlHelper::EncodeQueryComponent(params_.connection_nonce_);
-    if (!params_.connection_instance_id_.empty()) {
-        path += "&instance_id=" + UrlHelper::EncodeQueryComponent(params_.connection_instance_id_);
-    }
-    if (file_only) {
-        path += "&file_only=1";
+std::string NetClient::MakeAuthenticatedWebSocketPath(std::string path) const {
+    if (!params_.connection_nonce_.empty()) {
+        path += path.find('?') == std::string::npos ? "?client_nonce=" : "&client_nonce=";
+        path += UrlHelper::EncodeQueryComponent(params_.connection_nonce_);
     }
     return path;
 }
@@ -270,9 +258,8 @@ void NetClient::Start() {
         return;
     if (params_.route_ == SdkConnectionRoute::kWebSocketRelay &&
         (params_.session_mode_ != SdkSessionMode::kNative || params_.file_transfer_only_ ||
-         params_.media_transport_ != SdkMediaTransport::kWebSocket ||
-         params_.relay_host_.empty() || params_.relay_port_ <= 0 || params_.relay_device_id_.empty() || params_.relay_remote_device_id_.empty() ||
-         params_.appkey_.empty())) {
+         params_.media_transport_ != SdkMediaTransport::kWebSocket || params_.relay_host_.empty() || params_.relay_port_ <= 0 ||
+         params_.relay_device_id_.empty() || params_.relay_remote_device_id_.empty() || params_.appkey_.empty())) {
         LOGE("Relay connection parameters are incomplete or incompatible with this session.");
         return;
     }
@@ -303,7 +290,7 @@ void NetClient::Start() {
                                    ? std::static_pointer_cast<Connection>(std::make_shared<RelayConnection>(params_, msg_notifier_))
                                    : MakeDirectWebSocketMediaConnection());
     } else {
-        const auto ft_path = MakeAuthenticatedWebSocketPath(params_.ft_path_, true);
+        const auto ft_path = MakeAuthenticatedWebSocketPath(params_.ft_path_);
         if (params_.ssl_) {
             ft_conn_ = std::make_shared<WssConnection>(msg_notifier_, params_.ip_, params_.port_, ft_path);
         } else {
@@ -470,7 +457,7 @@ std::shared_ptr<Message> NetClient::ParseMessage(std::shared_ptr<Data> msg) {
                 LOGI("TCP media video delivered over WebSocket.");
             }
             if (window.last_frame_ms != 0) {
-                const auto gap = now - window.last_frame_ms;
+                const std::int64_t gap = static_cast<std::int64_t>(now - window.last_frame_ms);
                 window.max_gap_ms = std::max(window.max_gap_ms, gap);
                 window.stalls += gap > 100 ? 1 : 0;
             }
@@ -644,13 +631,15 @@ void NetClient::PostMediaMessage(std::shared_ptr<Data> msg) {
 }
 
 bool NetClient::PostReliableControlMessage(std::shared_ptr<Data> msg) {
-    if (exited_.load() || params_.session_mode_ == SdkSessionMode::kRdp || !msg || msg->Size() == 0 || msg->Size() > 32768) return false;
+    if (exited_.load() || params_.session_mode_ == SdkSessionMode::kRdp || !msg || msg->Size() == 0 || msg->Size() > 32768)
+        return false;
     Message envelope{};
     if (!envelope.ParseFromArray(msg->Bytes().data(), static_cast<int>(msg->Size())) ||
-        (envelope.type() != kApplicationTextCapabilities && envelope.type() != kApplicationTextSubmit &&
-         envelope.type() != kApplicationTextBarrier)) return false;
+        (envelope.type() != kApplicationTextCapabilities && envelope.type() != kApplicationTextSubmit && envelope.type() != kApplicationTextBarrier))
+        return false;
     const auto connection = CurrentMediaConnection();
-    if (!connection || !connection->IsAlive() || connection->GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages) return false;
+    if (!connection || !connection->IsAlive() || connection->GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages)
+        return false;
     // The managed media connection is the reliable WS/WSS control connection;
     // UDP video/audio has a separate owner. A server result, not this enqueue,
     // determines success. Lost writes time out without an automatic replay.

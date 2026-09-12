@@ -23,9 +23,8 @@ import yun.pixels.client.core.domain.account.AccountRepository
 import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.account.AccountSession
 import yun.pixels.client.core.domain.account.AccountState
-import yun.pixels.client.core.domain.account.ConnectionTicket
+import yun.pixels.client.core.domain.account.AccountConnection
 import yun.pixels.client.core.domain.account.ConsoleEndpoint
-import yun.pixels.client.core.domain.account.JoinMode
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {
@@ -100,16 +99,8 @@ private class FakeAccountRepository(
 
     override suspend fun devices(): AccountResult<List<AccountDevice>> = AccountResult.Success(emptyList())
 
-    override suspend fun issueTicket(
-        deviceId: String,
-        clientNonce: String,
-        joinMode: JoinMode,
-    ): AccountResult<ConnectionTicket> = AccountResult.Failure(AccountFailure.DeviceOffline)
-
-    override suspend fun renewTicket(
-        ticket: ConnectionTicket,
-        clientNonce: String,
-    ): AccountResult<ConnectionTicket> = AccountResult.Failure(AccountFailure.AuthenticationRequired)
+    override suspend fun resolveConnection(deviceId: String): AccountResult<AccountConnection> =
+        AccountResult.Failure(AccountFailure.DeviceOffline)
 
     private fun accountSession(endpoint: String, username: String) = AccountSession(
         endpoint = ConsoleEndpoint(endpoint),

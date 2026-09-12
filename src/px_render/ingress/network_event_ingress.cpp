@@ -607,137 +607,55 @@ void NetworkEventIngress::ProcessNetEvent(const std::shared_ptr<NetworkClientEve
             const auto stream_id = msg->stream_id();
             const auto device_id = msg->device_id();
             const auto sdp = sub.sdp();
-            if (sub.connection_ticket().empty()) {
-                if (!VerifyGuestDeviceCredential(self->settings_, sub.safety_pwd_md5())) {
-                    LOGW("Reject guest full RTC offer: device password mismatch");
-                    return;
-                }
-                const auto registry = self->app_->GetLogicalSessionRegistry();
-                if (!registry || stream_id.empty()) {
-                    LOGW("Reject direct RTC offer without a local logical-session registry");
-                    return;
-                }
-                if (sub.client_nonce().empty()) {
-                    LOGW("Reject direct RTC offer without client nonce");
-                    return;
-                }
-                // Direct RTC has no Console issuer, but it still
-                // enters the same lease registry after the
-                // device-local password check. The client nonce
-                // makes SDP re-offers a reconnect of one direct
-                // session instead of trusting a caller-selected
-                // stream id as its identity.
-                const auto now_ms = CurrentSystemMilliseconds();
-                const auto direct_session_key = MD5::Hex(device_id + "|" + stream_id + "|" + sub.client_nonce());
-                const auto direct_admission =
-                    registry->Bind({.logical_session_id = std::string("direct:") + direct_session_key,
-                                    .stream_id = stream_id,
-                                    .subject_id = std::string("direct:") + direct_session_key,
-                                    .join_mode = "control",
-                                    .expires_at_ms = now_ms + std::chrono::minutes(15).count() * 60 * 1000,
-                                    .allow_observer = true,
-                                    .allow_takeover = true,
-                                    .input_allowed = true},
-                                   LogicalSessionTransport::kRtcLocal, std::string("rtc-local:") + stream_id, sub.takeover(), now_ms);
-                if (direct_admission.code != LogicalSessionAdmissionCode::kAccepted) {
-                    LOGW("Reject direct RTC offer: controller lease is occupied");
-                    return;
-                }
-                if (direct_admission.release_previous_controller_input) {
-                    self->ReleaseControllerInput(LogicalSessionInputLease{
-                        .logical_session_id = direct_admission.previous_controller_session_id,
-                        .generation = direct_admission.previous_controller_lease_generation,
-                    });
-                    const auto previous_stream = registry->FindStreamId(direct_admission.previous_controller_session_id);
-                    if (previous_stream.has_value()) {
-                        const auto update = PxLogicalSessionCapabilityUpdate{
-                            .stream_id_ = *previous_stream,
-                            .permissions_ = {"view", "audio"},
-                        };
-                        self->module_registry_->ApplyLogicalSessionCapabilities(update);
-                    }
-                }
-                // A guest has no Console ticket from which to mint
-                // temporary TURN credentials. An empty server list
-                // still selects standard RTC and permits host ICE;
-                // managed TURN remains available to ticketed users.
-                self->module_registry_->ApplyRtcLocalRemoteSdp(MsgRtcRemoteSdp{
-                    .stream_id_ = stream_id,
-                    .device_id_ = device_id,
-                    .sdp_ = sdp,
-                    .ice_config_json_ = R"({"ice_servers":[]})",
-                    .permissions_ = {"view", "input", "clipboard", "file", "audio"},
-                });
+            if (!VerifyGuestDeviceCredential(self->settings_, sub.safety_pwd_md5())) {
+                LOGW("Reject RTC offer: device password mismatch");
+                self->SendRtcSignalingError(stream_id, "RTC_PASSWORD_REJECTED", "Device password was rejected");
                 return;
             }
-            if (sub.client_nonce().empty()) {
-                LOGW("Reject ticketed full RTC offer without client nonce");
+            const auto registry = self->app_->GetLogicalSessionRegistry();
+            if (!registry || stream_id.empty() || sub.client_nonce().empty()) {
+                LOGW("Reject RTC offer without a session registry, stream id, or client nonce");
+                self->SendRtcSignalingError(stream_id, "RTC_INVALID_REQUEST", "RTC request is incomplete");
                 return;
             }
-            self->app_->RedeemConnectionTicket(
-                sub.connection_ticket(), sub.client_nonce(), sub.instance_id(),
-                [weak_self, stream_id, device_id, sdp, takeover = sub.takeover()](
-                    bool ok, const std::string& code, const std::vector<std::string>& permissions, const std::string& ice_config_json,
-                    const std::string& logical_session_id, const std::string& ticket_stream_id, const std::string& join_mode,
-                    const std::string& subject_id, const int64_t expires_at_ms, const bool allow_observer, const bool allow_takeover) {
-                    const auto self = weak_self.lock();
-                    if (!self) {
-                        return;
-                    }
-                    const bool may_view = std::find(permissions.begin(), permissions.end(), "view") != permissions.end();
-                    const bool may_file = std::find(permissions.begin(), permissions.end(), "file") != permissions.end();
-                    if (!ok || (!may_view && !may_file) || ice_config_json.empty()) {
-                        LOGW("Reject full RTC ticket: code={}, config_available={}", code, !ice_config_json.empty());
-                        return;
-                    }
-                    if (stream_id != ticket_stream_id) {
-                        LOGW("Reject full RTC ticket: stream mismatch");
-                        return;
-                    }
-                    const auto registry = self->app_->GetLogicalSessionRegistry();
-                    if (!registry) {
-                        LOGW("Reject full RTC ticket: logical-session registry unavailable");
-                        return;
-                    }
-                    const auto admission = registry->Bind({.logical_session_id = logical_session_id,
-                                                           .stream_id = ticket_stream_id,
-                                                           .subject_id = subject_id,
-                                                           .join_mode = join_mode,
-                                                           .expires_at_ms = expires_at_ms,
-                                                           .allow_observer = allow_observer,
-                                                           .allow_takeover = allow_takeover,
-                                                           .input_allowed = std::ranges::find(permissions, "input") != permissions.end()},
-                                                          LogicalSessionTransport::kRtcLocal, std::string("rtc-local:") + ticket_stream_id, takeover,
-                                                          CurrentSystemMilliseconds());
-                    if (admission.code != LogicalSessionAdmissionCode::kAccepted) {
-                        const bool occupied = admission.code == LogicalSessionAdmissionCode::kOccupied;
-                        LOGW("Reject full RTC ticket: logical-session admission denied, occupied={}", occupied);
-                        self->SendRtcSignalingError(stream_id, occupied ? "RTC_OCCUPIED" : "RTC_ACCESS_DENIED",
-                                                    occupied ? "Remote controller is occupied" : "Remote session admission denied");
-                        return;
-                    }
-                    if (admission.release_previous_controller_input) {
-                        self->ReleaseControllerInput(LogicalSessionInputLease{
-                            .logical_session_id = admission.previous_controller_session_id,
-                            .generation = admission.previous_controller_lease_generation,
-                        });
-                        const auto previous_stream = registry->FindStreamId(admission.previous_controller_session_id);
-                        if (previous_stream.has_value()) {
-                            const auto update = PxLogicalSessionCapabilityUpdate{
-                                .stream_id_ = *previous_stream,
-                                .permissions_ = {"view", "audio"},
-                            };
-                            self->module_registry_->ApplyLogicalSessionCapabilities(update);
-                        }
-                    }
-                    self->module_registry_->ApplyRtcLocalRemoteSdp(MsgRtcRemoteSdp{
-                        .stream_id_ = stream_id,
-                        .device_id_ = device_id,
-                        .sdp_ = sdp,
-                        .ice_config_json_ = ice_config_json,
-                        .permissions_ = permissions,
-                    });
+            const auto now_ms = CurrentSystemMilliseconds();
+            const auto session_key = MD5::Hex(device_id + "|" + stream_id + "|" + sub.client_nonce());
+            const auto admission = registry->Bind({.logical_session_id = std::string("password:") + session_key,
+                                                   .stream_id = stream_id,
+                                                   .subject_id = std::string("password:") + session_key,
+                                                   .join_mode = "control",
+                                                   .expires_at_ms = 0,
+                                                   .allow_observer = true,
+                                                   .allow_takeover = true,
+                                                   .input_allowed = true},
+                                                  LogicalSessionTransport::kRtcLocal, std::string("rtc-local:") + stream_id, sub.takeover(), now_ms);
+            if (admission.code != LogicalSessionAdmissionCode::kAccepted) {
+                const bool occupied = admission.code == LogicalSessionAdmissionCode::kOccupied;
+                LOGW("Reject RTC offer: logical-session admission denied, occupied={}", occupied);
+                self->SendRtcSignalingError(stream_id, occupied ? "RTC_OCCUPIED" : "RTC_ACCESS_DENIED",
+                                            occupied ? "Remote controller is occupied" : "Remote session admission denied");
+                return;
+            }
+            if (admission.release_previous_controller_input) {
+                self->ReleaseControllerInput(LogicalSessionInputLease{
+                    .logical_session_id = admission.previous_controller_session_id,
+                    .generation = admission.previous_controller_lease_generation,
                 });
+                const auto previous_stream = registry->FindStreamId(admission.previous_controller_session_id);
+                if (previous_stream.has_value()) {
+                    self->module_registry_->ApplyLogicalSessionCapabilities(PxLogicalSessionCapabilityUpdate{
+                        .stream_id_ = *previous_stream,
+                        .permissions_ = {"view", "audio"},
+                    });
+                }
+            }
+            self->module_registry_->ApplyRtcLocalRemoteSdp(MsgRtcRemoteSdp{
+                .stream_id_ = stream_id,
+                .device_id_ = device_id,
+                .sdp_ = sdp,
+                .ice_config_json_ = R"({"ice_servers":[]})",
+                .permissions_ = {"view", "input", "clipboard", "file", "audio"},
+            });
             return;
         }
         if (msg->type() == MessageType::kSigIceMessage) {

@@ -1,4 +1,3 @@
-use crate::connection_ticket::handler::{issue_device_ticket, issue_instance_ticket};
 use crate::console_api_error::ConsoleApiError;
 use crate::console_context::ConsoleContext;
 use crate::gUserSessionManager;
@@ -8,6 +7,7 @@ use crate::identity::resource_handler::{
 };
 use crate::identity::user_handler::logout_all;
 use crate::native_connection::{user_native_connection, user_native_device_connection};
+use crate::web_connection::{user_web_device_connection, user_web_instance_connection};
 use crate::user::session_handler::{
     admin_cookie_values, admin_login, admin_logout, admin_me, change_password, cookie_value,
     guest_session, login, logout, me, refresh_user_csrf, register_user, update_avatar,
@@ -388,8 +388,8 @@ pub fn make_user_self_router(
             get(handle_query_my_devices_page).layer(middleware::from_fn(require_active_user)),
         )
         .route(
-            "/devices/{device_id}/ticket",
-            post(issue_device_ticket).layer(middleware::from_fn(require_active_user_write)),
+            "/devices/{device_id}/web-connection",
+            post(user_web_device_connection).layer(middleware::from_fn(require_active_user_write)),
         )
         .route(
             "/devices/{device_id}/native-connection",
@@ -421,8 +421,8 @@ pub fn make_user_self_router(
             get(list_user_instances_page).layer(middleware::from_fn(require_active_user)),
         )
         .route(
-            "/instances/{instance_id}/ticket",
-            post(issue_instance_ticket).layer(middleware::from_fn(require_active_user_write)),
+            "/instances/{instance_id}/web-connection",
+            post(user_web_instance_connection).layer(middleware::from_fn(require_active_user_write)),
         )
         .route(
             "/instances/{instance_id}/native-connection",

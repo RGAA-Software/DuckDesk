@@ -104,7 +104,7 @@ bool ClientSession::Initialize() {
     params->relay_host_ = config_.relayHost;
     params->relay_port_ = config_.relayPort;
     params->relay_remote_device_id_ = config_.relayRemoteDeviceId.empty() ? remoteSignalId : config_.relayRemoteDeviceId;
-    params->relay_ticket_device_id_ = config_.remoteDeviceId;
+    params->remote_password_hash_ = config_.remotePasswordHash;
     params->force_gdi_ = config_.forceGdiCapture;
     params->debug_ = config_.waitForDebugger;
     params->connection_nonce_ = config_.nonce;

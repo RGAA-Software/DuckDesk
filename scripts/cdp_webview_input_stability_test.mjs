@@ -413,27 +413,30 @@ async function main() {
     const requestedPermissions = ${JSON.stringify(TEST_PERMISSIONS)}
     const requestedDeviceId = ${JSON.stringify(TEST_DEVICE_ID)}
     if (requestedDeviceId) {
-      if (!authenticated) return { error: 'device-ticket-requires-user' }
+      if (!authenticated) return { error: 'device-connection-requires-user' }
       const devices = await json('/api/v1/user/devices', { credentials: 'same-origin' })
       const device = (devices.data || []).find((item) => item.device_id === requestedDeviceId)
       if (!device) return { error: 'device-not-granted', devices: (devices.data || []).map((item) => item.device_id) }
-      const ticket = await json('/api/v1/user/devices/' + encodeURIComponent(requestedDeviceId) + '/ticket', {
+      const connection = await json('/api/v1/user/devices/' + encodeURIComponent(requestedDeviceId) + '/web-connection', {
         method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-        body: JSON.stringify({ client_nonce: nonce, requested_permissions: requestedPermissions }),
+        body: JSON.stringify({ client_nonce: nonce, join_mode: requestedPermissions.includes('input') ? 'control' : 'observe' }),
       })
-      if (!ticket.data?.launch_url) return { error: 'device-ticket-failed', ticket }
-      const url = new URL(ticket.data.launch_url, location.href)
-      const rtc = ticket.data.rtc_ice_config
+      if (!connection.data?.launch_url || !connection.data?.password_hash) return { error: 'device-connection-failed', connection }
+      const url = new URL(connection.data.launch_url, location.href)
+      const rtc = connection.data.rtc_ice_config
       const route = ${JSON.stringify(RTC_ROUTE)}
       url.searchParams.set('connType', route === 'standard' ? 'rtc' : route === 'direct' ? 'rtc_direct' : (rtc?.direct_probe_enabled ? 'rtc_direct' : 'rtc'))
+      const connectJson = JSON.stringify({ d: connection.data.device_id, m: connection.data.password_hash })
+      const connectBytes = new TextEncoder().encode(connectJson); let connectBinary = ''
+      for (const byte of connectBytes) connectBinary += String.fromCharCode(byte)
+      url.searchParams.set('c', btoa(connectBinary).split('+').join('-').split('/').join('_').replace(/=+$/g, ''))
+      url.searchParams.set('stream_id', connection.data.stream_id)
       const fragment = new URLSearchParams(url.hash.replace(/^#/, ''))
-      fragment.set('renew_url', location.origin + '/api/v1/connection-tickets/renew')
-      if (ticket.data.renewal_token) fragment.set('renew', ticket.data.renewal_token)
       fragment.set('perms', requestedPermissions.join(','))
-      if (ticket.data.relay_host) fragment.set('relay_host', ticket.data.relay_host)
-      if (ticket.data.relay_port) fragment.set('relay_port', String(ticket.data.relay_port))
-      if (ticket.data.signal_device_id) fragment.set('signal_device_id', ticket.data.signal_device_id)
+      if (connection.data.relay_host) fragment.set('relay_host', connection.data.relay_host)
+      if (connection.data.relay_port) fragment.set('relay_port', String(connection.data.relay_port))
+      if (connection.data.signal_device_id) fragment.set('signal_device_id', connection.data.signal_device_id)
       if (rtc) {
         const bytes = new TextEncoder().encode(JSON.stringify(rtc)); let binary = ''
         for (const byte of bytes) binary += String.fromCharCode(byte)
@@ -460,14 +463,14 @@ async function main() {
       await new Promise((resolve) => setTimeout(resolve, 400))
     }
     if (instance.state !== 'running') return { error: 'instance-not-running', instance }
-    const ticket = await json(apiRoot + '/instances/' + encodeURIComponent(instanceId) + '/ticket', {
+    const connection = await json(apiRoot + '/instances/' + encodeURIComponent(instanceId) + '/web-connection', {
       method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-      body: JSON.stringify({ client_nonce: nonce, requested_permissions: requestedPermissions }),
+      body: JSON.stringify({ client_nonce: nonce, join_mode: requestedPermissions.includes('input') ? 'control' : 'observe' }),
     })
-    if (!ticket.data?.launch_url) return { error: 'ticket-failed', ticket }
-    const url = new URL(ticket.data.launch_url, location.href)
-    const rtc = ticket.data.rtc_ice_config
+    if (!connection.data?.launch_url || !connection.data?.password_hash) return { error: 'connection-failed', connection }
+    const url = new URL(connection.data.launch_url, location.href)
+    const rtc = connection.data.rtc_ice_config
     const route = ${JSON.stringify(RTC_ROUTE)}
     url.searchParams.set(
       'connType',
@@ -475,13 +478,17 @@ async function main() {
         : route === 'direct' ? 'rtc_direct'
           : (rtc?.direct_probe_enabled ? 'rtc_direct' : 'rtc'),
     )
+    const connectJson = JSON.stringify({ d: connection.data.device_id, m: connection.data.password_hash })
+    const connectBytes = new TextEncoder().encode(connectJson)
+    let connectBinary = ''
+    for (const byte of connectBytes) connectBinary += String.fromCharCode(byte)
+    url.searchParams.set('c', btoa(connectBinary).split('+').join('-').split('/').join('_').replace(/=+$/g, ''))
+    url.searchParams.set('stream_id', connection.data.stream_id)
     const fragment = new URLSearchParams(url.hash.replace(/^#/, ''))
-    fragment.set('renew_url', location.origin + '/api/v1/connection-tickets/renew')
-    if (ticket.data.renewal_token) fragment.set('renew', ticket.data.renewal_token)
     fragment.set('perms', requestedPermissions.join(','))
-    if (ticket.data.relay_host) fragment.set('relay_host', ticket.data.relay_host)
-    if (ticket.data.relay_port) fragment.set('relay_port', String(ticket.data.relay_port))
-    if (ticket.data.signal_device_id) fragment.set('signal_device_id', ticket.data.signal_device_id)
+    if (connection.data.relay_host) fragment.set('relay_host', connection.data.relay_host)
+    if (connection.data.relay_port) fragment.set('relay_port', String(connection.data.relay_port))
+    if (connection.data.signal_device_id) fragment.set('signal_device_id', connection.data.signal_device_id)
     if (rtc) {
       const bytes = new TextEncoder().encode(JSON.stringify(rtc))
       let binary = ''

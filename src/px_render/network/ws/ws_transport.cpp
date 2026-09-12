@@ -41,7 +41,8 @@ std::string WsTransport::Description() const {
 
 bool WsTransport::Start(const px::RenderModuleConfiguration& configuration) {
     if ((configuration.app_mode == "rdp") != (configuration.rdp_proxy_port != 0)) {
-        LOGE("RDP transport requires an explicitly configured local proxy endpoint");
+        LOGE("event=module.start component=net_ws code=RDP_PROXY_ENDPOINT_MISSING "
+             "operation=validate_configuration outcome=failed recoverable=false");
         return false;
     }
     if (!RenderModule::Start(configuration)) {

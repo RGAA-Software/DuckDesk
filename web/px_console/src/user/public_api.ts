@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { prepareLaunchUrl, type ApplicationCard, type InstanceView, type TicketLaunch } from './api'
+import { prepareLaunchUrl, type ApplicationCard, type InstanceView, type WebConnection } from './api'
 
 const CSRF_KEY = 'px_guest_csrf'
 const guestHttp = axios.create({ baseURL: '', timeout: 15000, withCredentials: true })
@@ -94,9 +94,9 @@ export async function getGuestInstances() {
 }
 
 export async function openGuestInstance(instance: InstanceView, clientNonce: string, viewOnly = false) {
-  const result = unwrap<TicketLaunch>(
+  const result = unwrap<WebConnection>(
     await guestHttp.post(
-      `/api/v1/public/instances/${encodeURIComponent(instance.instance_id)}/ticket`,
+      `/api/v1/public/instances/${encodeURIComponent(instance.instance_id)}/web-connection`,
       { client_nonce: clientNonce, join_mode: viewOnly ? 'observe' : 'control' },
     ),
   )

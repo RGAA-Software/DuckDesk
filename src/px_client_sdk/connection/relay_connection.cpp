@@ -22,11 +22,7 @@ RelayConnection::RelayConnection(SdkConnectionParams params, const std::shared_p
                                                                 .device_name_ = params_.device_name_,
                                                                 .appkey_ = params_.appkey_,
                                                                 .force_gdi_ = params_.force_gdi_,
-                                                                .connection_ticket_ = params_.connection_ticket_,
-                                                                .connection_nonce_ = params_.connection_nonce_,
-                                                                .connection_ticket_device_id_ = params_.relay_ticket_device_id_,
-                                                                .connection_instance_id_ = params_.connection_instance_id_,
-                                                                .ticket_scope_ = RelayTicketScope::kMedia,
+                                                                .remote_password_hash_ = params_.remote_password_hash_,
                                                             },
                                                             notifier->GetAsyncRuntime())) {}
 
@@ -100,7 +96,8 @@ void RelayConnection::PostBinaryMessage(std::shared_ptr<Data> message) {
 
 void RelayConnection::PostReliableBinaryMessage(std::shared_ptr<Data> message, std::function<void(bool)> completion) {
     if (!message || !IsAlive()) {
-        if (completion) completion(false);
+        if (completion)
+            completion(false);
         return;
     }
     relay_sdk_->RelayProtoMessageReliable(std::move(message), std::move(completion));

@@ -5,7 +5,9 @@
 
 #include <functional>
 #include <chrono>
+#include <array>
 #include <memory>
+#include <unordered_set>
 
 namespace px::client::imgui {
 
@@ -20,8 +22,8 @@ class ClientWindow final {
     void HandleInput(const px::desktop::DesktopInputEvent& event);
 
   private:
-    [[nodiscard]] std::uint32_t VirtualKey(const px::desktop::DesktopInputEvent& event) const;
     [[nodiscard]] bool InVideo(float x, float y) const noexcept;
+    void ReleasePressedInput();
     void SynchronizeClipboard();
 
     std::reference_wrapper<px::desktop::DesktopShell> shell_;
@@ -33,13 +35,20 @@ class ClientWindow final {
     float videoTop_{};
     float videoWidth_{};
     float videoHeight_{};
+    float lastMouseXRatio_{0.5F};
+    float lastMouseYRatio_{0.5F};
+    std::unordered_set<std::uint32_t> pressedKeys_{};
+    std::array<bool, 4> pressedMouseButtons_{};
+    std::array<bool, 4> localPointerButtons_{};
     bool english_{};
     bool darkTheme_{true};
     bool windowVisible_{};
     bool terminalErrorShown_{};
     bool terminalErrorPopupOpened_{};
+    bool textCompositionActive_{};
     std::string clipboardText_{};
     std::chrono::steady_clock::time_point nextClipboardCheck_{};
+    std::chrono::steady_clock::time_point nextMouseRouteLog_{};
 };
 
 } // namespace px::client::imgui

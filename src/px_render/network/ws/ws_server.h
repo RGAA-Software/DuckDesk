@@ -34,8 +34,7 @@ class MsgClientHello;
 class PxLogicalSessionCapabilityUpdate;
 class PxAsyncRuntime;
 class PxAsyncScope;
-class DirectSessionGrantStore;
-struct WsTicketAdmission;
+struct WsPasswordAdmission;
 struct LogicalSessionAdmission;
 
 // Lifetime:
@@ -97,7 +96,7 @@ class WsServer : public std::enable_shared_from_this<WsServer> {
     static PxAwaitable<void> OpenWebSocketAsync(std::weak_ptr<WsServer> owner, std::shared_ptr<asio2::http_session> session, std::string path,
                                                 std::unordered_map<std::string, std::string> params, std::uint64_t socket_fd);
     void FinalizeWebSocketOpen(const std::shared_ptr<asio2::http_session>& session, const std::string& path,
-                               const std::unordered_map<std::string, std::string>& params, const WsTicketAdmission& ticket,
+                               const std::unordered_map<std::string, std::string>& params, const WsPasswordAdmission& authentication,
                                const LogicalSessionAdmission& admission, const std::string& binding_id, std::uint64_t socket_fd);
 
     void AddHttpRouter(const std::string& path, std::function<void(const std::string& path, std::shared_ptr<asio2::http_session>& session_ptr,
@@ -134,7 +133,6 @@ class WsServer : public std::enable_shared_from_this<WsServer> {
     uint64_t ipc_pid_sweep_ticks_ = 0;
 
     std::shared_ptr<HttpHandler> http_handler_{};
-    std::shared_ptr<DirectSessionGrantStore> direct_session_grants_{};
     std::shared_ptr<WsUserProxyRouter> user_proxy_router_{};
     // The runtime is injected by the Render composition root. This server owns only its cancellable scope.
     std::shared_ptr<PxAsyncRuntime> async_runtime_{};

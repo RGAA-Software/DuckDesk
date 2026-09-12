@@ -2331,17 +2331,6 @@ void RdApplication::ReqCtrlAltDelete(const std::string& device_id, const std::st
     service_client_->PostNetMessage(m.SerializeAsString());
 }
 
-void RdApplication::RedeemConnectionTicket(
-    const std::string& ticket, const std::string& client_nonce, const std::string& instance_id,
-    std::function<void(bool, const std::string&, const std::vector<std::string>&, const std::string&, const std::string&, const std::string&,
-                       const std::string&, const std::string&, int64_t, bool, bool)>&& callback) const {
-    if (!service_client_ || !service_client_->IsAlive()) {
-        callback(false, "SERVICE_UNAVAILABLE", {}, "", "", "", "", "", 0, true, true);
-        return;
-    }
-    service_client_->RedeemConnectionTicket(ticket, client_nonce, instance_id, std::move(callback));
-}
-
 void RdApplication::RequestVirtualDisplay(const std::string& request_id, int operation, uint32_t width, uint32_t height, uint32_t refresh_hz,
                                           std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback) {
     if (!service_client_ || !service_client_->IsAlive()) {

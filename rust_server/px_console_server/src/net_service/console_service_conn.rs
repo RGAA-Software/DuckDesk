@@ -4,11 +4,8 @@ use axum::extract::ws::{Message, WebSocket};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use prost::Message as ProstMessage;
-use protocol::console_service::{
-    ConsoleConnectionGrant, ConsoleServiceCreateWallSession, ConsoleServiceHeartBeat,
-    ConsoleServiceHello, ConsoleServiceMessage, ConsoleServiceMessageType,
-    ConsoleServiceRedeemConnectionTicketResult, RtcIceConfigChanged,
-};
+use protocol::console_service::{ConsoleServiceCreateWallSession, ConsoleServiceHeartBeat, ConsoleServiceHello, ConsoleServiceMessage,
+                                ConsoleServiceMessageType, ConsoleServiceValidateRdpSessionResult, RtcIceConfigChanged};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -113,25 +110,40 @@ impl ConsoleServiceConn {
                 return true;
             };
             self.hello_timestamp = px_base::get_current_timestamp();
-            if sub.device_id != self.device_id || sub.appkey != self.appkey { return false; }
+            if sub.device_id != self.device_id || sub.appkey != self.appkey {
+                return false;
+            }
             self.last_update_timestamp = self.hello_timestamp;
             let device_id = sub.device_id;
             self.version = sub.version;
             self.rdp_available = sub.rdp_available;
             self.rdp_domain = sub.rdp_domain;
             self.rdp_proxy_certificate_sha256 = sub.rdp_proxy_certificate_sha256;
-            self.rdp_available &= !self.rdp_domain.is_empty() && self.rdp_domain.len() <= 15
-                && self.rdp_domain.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+            self.rdp_available &= !self.rdp_domain.is_empty()
+                && self.rdp_domain.len() <= 15
+                && self
+                    .rdp_domain
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
                 && self.rdp_proxy_certificate_sha256.len() == 64
-                && self.rdp_proxy_certificate_sha256.bytes().all(|byte| byte.is_ascii_hexdigit());
+                && self
+                    .rdp_proxy_certificate_sha256
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit());
             self.send_hello(device_id).await;
         } else if m.msg_type == ConsoleServiceMessageType::KConsoleServiceHeartBeat {
             let Some(sub) = m.heartbeat else {
                 tracing::warn!("service heartbeat message without heartbeat body!");
                 return true;
             };
-            if sub.device_id != self.device_id { return false; }
-            if sub.node_endpoints.as_ref().is_some_and(|report| report.validate().is_err()) {
+            if sub.device_id != self.device_id {
+                return false;
+            }
+            if sub
+                .node_endpoints
+                .as_ref()
+                .is_some_and(|report| report.validate().is_err())
+            {
                 self.node_endpoints = None;
                 tracing::warn!("rejecting invalid node endpoints for {}", self.device_id);
                 return false;
@@ -149,8 +161,13 @@ impl ConsoleServiceConn {
                 database.c_remote_session.is_some() && database.c_remote_session_event.is_some()
             };
             if database_ready {
-                crate::gRemoteSessionManager.reconcile_snapshot(
-                    self.device_id.clone(), self.logical_sessions_json.clone(), self.last_update_timestamp).await;
+                crate::gRemoteSessionManager
+                    .reconcile_snapshot(
+                        self.device_id.clone(),
+                        self.logical_sessions_json.clone(),
+                        self.last_update_timestamp,
+                    )
+                    .await;
             }
             crate::app_schedule::gAppScheduleManager
                 .reconcile_from_service_hb(self.device_id.clone(), &self.instances_json)
@@ -172,107 +189,42 @@ impl ConsoleServiceConn {
             if let Some(sub) = m.create_wall_session_result {
                 crate::wall::console_wall_handler::on_wall_session_result(sub).await;
             }
-        } else if m.msg_type == ConsoleServiceMessageType::KConsoleServiceRedeemConnectionTicket {
-            let Some(request) = m.redeem_connection_ticket else {
-                tracing::warn!("ticket redemption message without request body");
+        } else if m.msg_type == ConsoleServiceMessageType::KConsoleServiceValidateRdpSession {
+            let Some(request) = m.validate_rdp_session else {
+                tracing::warn!("RDP session validation message without request body");
                 return true;
             };
             let request_id = request.request_id.clone();
-            let instance_id =
-                (!request.instance_id.is_empty()).then_some(request.instance_id.as_str());
-            let runtime_check = !request.rdp_logical_session_id.is_empty();
-            let result = if runtime_check {
-                if !request.ticket.is_empty() || !request.client_nonce.is_empty() {
-                    Err(crate::console_api_error::ConsoleApiError::InvalidParams)
-                } else {
-                    crate::connection_ticket::rdp_authorization::validate(
-                        &self.device_id,
-                        &request.instance_id,
-                        &request.rdp_logical_session_id,
-                    )
-                    .await
-                }
-            } else {
-                crate::connection_ticket::manager::ConnectionTicketManager::redeem(
-                    &request.ticket,
-                    &self.device_id,
-                    &request.client_nonce,
-                    instance_id,
-                    &request_id,
-                )
-                .await
-            };
+            let result = crate::rdp_session_authorization::validate(&self.device_id, &request.instance_id, &request.logical_session_id).await;
             let response = match result {
-                Ok(grant) => {
-                    let grant_permission_count = grant.permissions.len();
-                    if runtime_check {
-                        tracing::debug!("RDP runtime authorization confirmed");
-                    } else {
-                        tracing::info!(grant_permission_count, "connection ticket redeemed with an authorized grant");
-                    }
-                    let rtc_subject = format!("{}:{}", self.device_id, request_id);
-                    let rtc_ice_config_json = if runtime_check {
-                        "{}".to_string()
-                    } else {
-                        crate::gRtcConfigManager
-                            .issue_session_config(&rtc_subject)
-                            .await
-                            .and_then(|config| {
-                                serde_json::to_string(&config).map_err(|error| error.to_string())
-                            })
-                            .unwrap_or_else(|error| {
-                                tracing::error!(%error, "issue RTC ICE credentials after ticket redemption failed");
-                                String::new()
-                            })
-                    };
-                    ConsoleServiceRedeemConnectionTicketResult {
+                Ok(authorization) => {
+                    tracing::debug!("RDP runtime authorization confirmed");
+                    ConsoleServiceValidateRdpSessionResult {
                         request_id,
-                        ok: !rtc_ice_config_json.is_empty(),
-                        code: if rtc_ice_config_json.is_empty() {
-                            "RTC_CONFIG_UNAVAILABLE"
-                        } else {
-                            "OK"
-                        }
-                        .to_string(),
-                        grant: Some(ConsoleConnectionGrant {
-                            kind: grant.kind,
-                            device_id: grant.device_id,
-                            app_id: grant.app_id.unwrap_or_default(),
-                            instance_id: grant.instance_id.unwrap_or_default(),
-                            subject_type: grant.subject_type,
-                            subject_id: grant.subject_id,
-                            permissions: grant.permissions,
-                            expires_at: grant.expires_at,
-                            logical_session_id: grant.logical_session_id,
-                            stream_id: grant.stream_id,
-                            join_mode: grant.join_mode,
-                            allow_observer: grant.allow_observer,
-                            allow_takeover: grant.allow_takeover,
-                        }),
-                        rtc_ice_config_json,
+                        ok: true,
+                        code: "OK".to_string(),
+                        device_id: authorization.device_id,
+                        instance_id: authorization.instance_id,
+                        subject_type: authorization.subject_type,
+                        subject_id: authorization.subject_id,
+                        logical_session_id: authorization.logical_session_id,
                     }
                 }
                 Err(error) => {
-                    tracing::warn!(request_id = %request_id, "connection ticket redemption rejected");
-                    ConsoleServiceRedeemConnectionTicketResult {
+                    tracing::warn!(request_id = %request_id, "RDP runtime authorization rejected");
+                    ConsoleServiceValidateRdpSessionResult {
                         request_id,
                         ok: false,
                         code: match error {
-                            crate::console_api_error::ConsoleApiError::TicketExpiredOrUsed => {
-                                "TICKET_EXPIRED_OR_USED"
-                            }
-                            crate::console_api_error::ConsoleApiError::InvalidParams => {
-                                "INVALID_ARGUMENT"
-                            }
-                            _ => "TICKET_REJECTED",
+                            crate::console_api_error::ConsoleApiError::InvalidParams => "INVALID_ARGUMENT",
+                            _ => "RDP_SESSION_REJECTED",
                         }
                         .to_string(),
-                        grant: None,
-                        rtc_ice_config_json: String::new(),
+                        ..Default::default()
                     }
                 }
             };
-            self.send_redeem_result(response).await;
+            self.send_rdp_validation_result(response).await;
         }
 
         true
@@ -354,15 +306,11 @@ impl ConsoleServiceConn {
             .await
     }
 
-    async fn send_redeem_result(
-        &mut self,
-        response: ConsoleServiceRedeemConnectionTicketResult,
-    ) -> bool {
+    async fn send_rdp_validation_result(&mut self, response: ConsoleServiceValidateRdpSessionResult) -> bool {
         let mut message = ConsoleServiceMessage::default();
-        message
-            .set_msg_type(ConsoleServiceMessageType::KConsoleServiceRedeemConnectionTicketResult);
+        message.set_msg_type(ConsoleServiceMessageType::KConsoleServiceValidateRdpSessionResult);
         message.device_id = self.device_id.clone();
-        message.redeem_connection_ticket_result = Some(response);
+        message.validate_rdp_session_result = Some(response);
         self.send_bin_message_bytes(Bytes::from(message.encode_to_vec()))
             .await
     }

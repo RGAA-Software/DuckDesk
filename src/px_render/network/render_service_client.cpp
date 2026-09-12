@@ -10,7 +10,6 @@
 #include "rd_context.h"
 #include "rd_statistics.h"
 #include "px_common/log.h"
-#include "px_common/md5.h"
 #include "px_common/message_notifier.h"
 #include "px_common/async_mailbox.h"
 #include "px_common/async_scope_drain.h"
@@ -32,7 +31,6 @@ const int kMaxClientQueuedMessage = 4096;
 
 namespace {
 
-constexpr auto kTicketRedemptionTimeout = std::chrono::seconds(5);
 constexpr auto kRenderServiceConnectionTimeout = std::chrono::seconds(10);
 constexpr std::size_t kIncomingServiceMessageCapacity = 1024;
 const PxReconnectBackoffOptions kRenderServiceReconnectOptions{
@@ -103,31 +101,6 @@ std::chrono::steady_clock::duration VirtualDisplayResponseTimeout(int operation)
     default:
         return kVirtualDisplayMutationRenderTimeout;
     }
-}
-
-using TicketCallback = std::function<void(bool, const std::string&, const std::vector<std::string>&, const std::string&, const std::string&,
-                                          const std::string&, const std::string&, const std::string&, int64_t, bool, bool)>;
-
-PxAwaitable<void> CompleteLegacyTicketRequest(std::weak_ptr<RenderServiceClient> weak_client, std::string ticket, std::string client_nonce,
-                                              std::string instance_id, std::shared_ptr<TicketCallback> callback) {
-    auto client = weak_client.lock();
-    if (!client) {
-        (*callback)(false, "SERVICE_STOPPED", {}, {}, {}, {}, {}, {}, 0, true, true);
-        co_return;
-    }
-    auto request = client->RedeemConnectionTicketAsync(std::move(ticket), std::move(client_nonce), std::move(instance_id),
-                                                       std::chrono::steady_clock::now() + kTicketRedemptionTimeout);
-    client.reset();
-    auto result = co_await std::move(request);
-    if (result.HasValue()) {
-        auto value = result.TakeValue();
-        (*callback)(true, {}, value.permissions, value.rtc_ice_config_json, value.logical_session_id, value.stream_id, value.join_mode,
-                    value.subject_id, value.expires_at_ms, value.allow_observer, value.allow_takeover);
-    } else {
-        const auto& error = result.Error();
-        (*callback)(false, error.StableCode(), {}, {}, {}, {}, {}, {}, 0, true, true);
-    }
-    co_return;
 }
 
 using VirtualDisplayCallback = std::function<void(const MsgVirtualDisplayServiceResult&)>;
@@ -374,33 +347,6 @@ void RenderServiceClient::ParseMessage(const std::string& msg) {
         // Console stopped this instance: notify clients then exit gracefully
         LOGW("kSrvStopServer received from service, stopping render...");
         app_->OnServiceRequestedStop();
-    } else if (sm.type() == ServiceMessageType::kSrvRedeemConnectionTicketResp) {
-        const auto& sub = sm.redeem_connection_ticket_resp();
-        LOGI("Received connection ticket redemption response: ok={}, grant_present={}, grant_permission_count={}", sub.ok(), sub.has_grant(),
-             sub.has_grant() ? sub.grant().permissions_size() : 0);
-        PxResult<RedeemedConnectionTicket> result = [&sub]() {
-            if (!sub.ok()) {
-                return PxResult<RedeemedConnectionTicket>::Failure(MakePxAsyncError(PxAsyncErrorCode::kServiceRejected, "redeem_ticket",
-                                                                                    "Service rejected the connection ticket", false, sub.code()));
-            }
-            RedeemedConnectionTicket ticket;
-            if (sub.has_grant()) {
-                ticket.permissions.assign(sub.grant().permissions().begin(), sub.grant().permissions().end());
-                ticket.logical_session_id = sub.grant().logical_session_id();
-                ticket.stream_id = sub.grant().stream_id();
-                ticket.join_mode = sub.grant().join_mode();
-                ticket.subject_id = sub.grant().subject_id();
-                ticket.expires_at_ms = sub.grant().expires_at();
-                ticket.allow_observer = sub.grant().allow_observer();
-                ticket.allow_takeover = sub.grant().allow_takeover();
-            }
-            ticket.rtc_ice_config_json = sub.rtc_ice_config_json();
-            return PxResult<RedeemedConnectionTicket>::Success(std::move(ticket));
-        }();
-        const auto state = SnapshotAsyncState();
-        if (!state.rpc_state || !state.rpc_state->ticket_requests_->Complete(sub.request_id(), std::move(result))) {
-            LOGW("Ignore late or unknown ticket response: request_id={}", sub.request_id());
-        }
     } else if (sm.type() == ServiceMessageType::kSrvVirtualDisplayResult) {
         const auto& sub = sm.virtual_display_result();
         MsgVirtualDisplayServiceResult result;
@@ -629,10 +575,9 @@ void RenderServiceClient::FailPendingRequests(const PxAsyncError& error) {
     if (!state.rpc_state) {
         return;
     }
-    const auto ticket_count = state.rpc_state->ticket_requests_->FailAll(error);
     const auto display_count = state.rpc_state->virtual_display_requests_->FailAll(error);
-    if (ticket_count != 0 || display_count != 0) {
-        LOGW("Render Service pending requests failed: tickets={}, virtual_displays={}, code={}", ticket_count, display_count, error.StableCode());
+    if (display_count != 0) {
+        LOGW("Render Service pending requests failed: virtual_displays={}, code={}", display_count, error.StableCode());
     }
 }
 
@@ -665,65 +610,6 @@ void RenderServiceClient::SendPendingAppInstanceReady() {
         ready_pending_ = false;
     }
     PostNetMessage(message.SerializeAsString());
-}
-
-void RenderServiceClient::RedeemConnectionTicket(
-    const std::string& ticket, const std::string& client_nonce, const std::string& instance_id,
-    std::function<void(bool, const std::string&, const std::vector<std::string>&, const std::string&, const std::string&, const std::string&,
-                       const std::string&, const std::string&, int64_t, bool, bool)>&& callback) {
-    if (!callback) {
-        return;
-    }
-    const auto state = SnapshotAsyncState();
-    if (!state.scope || !state.scope->IsAccepting()) {
-        callback(false, "SERVICE_STOPPED", {}, "", "", "", "", "", 0, true, true);
-        return;
-    }
-    const auto callback_state = std::make_shared<TicketCallback>(std::move(callback));
-    const auto weak_self = weak_from_this();
-    if (!state.scope->Spawn("redeem-connection-ticket", [weak_self, ticket, client_nonce, instance_id, callback_state]() {
-            return CompleteLegacyTicketRequest(weak_self, ticket, client_nonce, instance_id, callback_state);
-        })) {
-        (*callback_state)(false, "SERVICE_STOPPED", {}, "", "", "", "", "", 0, true, true);
-    }
-}
-
-PxAwaitable<PxResult<RedeemedConnectionTicket>> RenderServiceClient::RedeemConnectionTicketAsync(std::string ticket, std::string client_nonce,
-                                                                                                 std::string instance_id,
-                                                                                                 std::chrono::steady_clock::time_point deadline) {
-    if (ticket.empty() || client_nonce.empty()) {
-        return ReadyAsyncResult(PxResult<RedeemedConnectionTicket>::Failure(
-            MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "redeem_ticket", "ticket and client nonce are required")));
-    }
-    const auto state = SnapshotAsyncState();
-    if (!IsAlive() || !websocket_upgraded_.load(std::memory_order_acquire) || !state.rpc_state) {
-        return ReadyAsyncResult(PxResult<RedeemedConnectionTicket>::Failure(
-            MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "redeem_ticket", "Render is not connected to Service", true)));
-    }
-    // The Direct RTC signaling flow may legitimately redeem the same ticket
-    // twice: the first allocation reports kOccupied and the second retries
-    // with takeover=1.  Keep the redemption id stable for that logical
-    // connection so Console can treat only that exact retry as idempotent.
-    // The ticket itself is never put in logs or on the wire as an id.
-    const auto redemption_fingerprint = MD5::Hex(ticket + "\n" + client_nonce + "\n" + instance_id);
-    const auto request_id = std::format("render-{}-{}", RdSettings::Instance()->transmission_.listening_port_, redemption_fingerprint);
-    auto registered = state.rpc_state->ticket_requests_->Register(request_id);
-    if (!registered.HasValue()) {
-        return ReadyAsyncResult(PxResult<RedeemedConnectionTicket>::Failure(registered.Error()));
-    }
-    const auto operation = registered.Value();
-    px::ServiceMessage message;
-    message.set_type(ServiceMessageType::kSrvRedeemConnectionTicket);
-    auto& request = *message.mutable_redeem_connection_ticket();
-    request.set_request_id(request_id);
-    request.set_ticket(ticket);
-    request.set_client_nonce(client_nonce);
-    request.set_instance_id(instance_id);
-    const auto send_result = TryPostNetMessage(message.SerializeAsString());
-    if (!send_result.HasValue()) {
-        static_cast<void>(state.rpc_state->ticket_requests_->Complete(request_id, PxResult<RedeemedConnectionTicket>::Failure(send_result.Error())));
-    }
-    return WaitForRegisteredRequest(state.rpc_state->ticket_requests_, request_id, operation, deadline);
 }
 
 void RenderServiceClient::RequestVirtualDisplay(const std::string& request_id, int operation, uint32_t width, uint32_t height, uint32_t refresh_hz,

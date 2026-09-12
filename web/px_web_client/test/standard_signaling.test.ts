@@ -56,13 +56,11 @@ class FakeWebSocket {
 const params: StandardRtcSignalParams = {
   relayHost: '10.0.0.1',
   relayPort: 20366,
-  remoteDeviceId: 'device-90',
-  ticketDeviceId: 'ticket-device-90',
+  remoteDeviceId: 'server_device-90',
+  targetDeviceId: 'device-90',
   streamId: 'desktop',
-  ticket: 'one-time-ticket',
   clientNonce: 'nonce-1',
-  instanceId: 'instance-1',
-  safetyPwdMd5: '',
+  safetyPwdMd5: 'device-password-md5',
   secure: false,
 }
 
@@ -117,9 +115,8 @@ describe('StandardRtcSignaling lifecycle', () => {
     const socket = FakeWebSocket.instances[0]
     const url = new URL(socket.url)
     expect(url.pathname).toBe('/relay')
-    expect(url.searchParams.get('ticket')).toBe(params.ticket)
-    expect(url.searchParams.get('client_nonce')).toBe(params.clientNonce)
-    expect(url.searchParams.get('instance_id')).toBe(params.instanceId)
+    expect(url.searchParams.get('password_auth')).toBe('1')
+    expect(url.searchParams.get('target_device_id')).toBe(params.targetDeviceId)
 
     let settled = false
     void connected.then(() => { settled = true })
@@ -136,13 +133,11 @@ describe('StandardRtcSignaling lifecycle', () => {
     signaling.stop()
   })
 
-  it('opens a password-authenticated guest Relay without ticket material', () => {
+  it('opens a password-authenticated Relay without bearer capability material', () => {
     const signaling = new StandardRtcSignaling(
       {
         ...params,
-        ticket: '',
         clientNonce: '',
-        instanceId: '',
         safetyPwdMd5: 'device-password-md5',
       },
       async () => {},
@@ -151,8 +146,7 @@ describe('StandardRtcSignaling lifecycle', () => {
     void signaling.connect().catch(() => {})
     const socket = FakeWebSocket.instances[0]
     const url = new URL(socket.url)
-    expect(url.searchParams.get('guest_password')).toBe('1')
-    expect(url.searchParams.get('ticket')).toBeNull()
+    expect(url.searchParams.get('password_auth')).toBe('1')
     expect(url.searchParams.get('client_nonce')).toBeNull()
     expect(url.searchParams.get('instance_id')).toBeNull()
     signaling.stop()
@@ -209,7 +203,7 @@ describe('StandardRtcSignaling negotiation', () => {
       signaling.sendIce({ candidate: `candidate-${i}`, sdpMid: '0', sdpMLineIndex: 0 } as RTCIceCandidate)
     }
     const socket = await connectReady(signaling)
-    const answer = signaling.exchangeOffer('offer-sdp', 'rotated-ticket', 'nonce-2', 'instance-2')
+    const answer = signaling.exchangeOffer('offer-sdp', params.safetyPwdMd5)
     const payloads = targetPayloads(socket)
     expect(payloads[0].type).toBe(MSG_TYPE_SIG_OFFER_SDP)
     const ice = payloads.filter((message) => message.type === MSG_TYPE_SIG_ICE)
@@ -221,18 +215,17 @@ describe('StandardRtcSignaling negotiation', () => {
     await expect(answer).rejects.toThrow('已停止')
   })
 
-  it('puts only the device password digest in a guest SDP offer', async () => {
+  it('puts the device password digest in every SDP offer', async () => {
     const signaling = new StandardRtcSignaling(
-      { ...params, ticket: '', clientNonce: '', instanceId: '', safetyPwdMd5: 'guest-md5' },
+      { ...params, clientNonce: 'nonce-password', safetyPwdMd5: 'device-md5' },
       async () => {},
       () => {},
     )
     const socket = await connectReady(signaling)
-    const answer = signaling.exchangeOffer('guest-offer', '', '', '', 'guest-md5')
+    const answer = signaling.exchangeOffer('password-offer', 'device-md5')
     const offer = targetPayloads(socket).find((message) => message.type === MSG_TYPE_SIG_OFFER_SDP)
-    expect(offer.sigOfferSdp.connectionTicket).toBe('')
-    expect(offer.sigOfferSdp.clientNonce).toBe('')
-    expect(offer.sigOfferSdp.safetyPwdMd5).toBe('guest-md5')
+    expect(offer.sigOfferSdp.clientNonce).toBe('nonce-password')
+    expect(offer.sigOfferSdp.safetyPwdMd5).toBe('device-md5')
     signaling.stop()
     await expect(answer).rejects.toThrow('已停止')
   })
@@ -240,8 +233,8 @@ describe('StandardRtcSignaling negotiation', () => {
   it('rejects concurrent offers and resolves exactly one matching answer', async () => {
     const { signaling } = createSignaling()
     const socket = await connectReady(signaling)
-    const first = signaling.exchangeOffer('offer-1', 'ticket-1', 'nonce-1', '')
-    await expect(signaling.exchangeOffer('offer-2', 'ticket-2', 'nonce-2', '')).rejects.toThrow('正在进行')
+    const first = signaling.exchangeOffer('offer-1', params.safetyPwdMd5)
+    await expect(signaling.exchangeOffer('offer-2', params.safetyPwdMd5)).rejects.toThrow('正在进行')
 
     const px = PxMessage.encode(PxMessage.create({
       type: MSG_TYPE_SIG_ANSWER_SDP,
@@ -258,7 +251,7 @@ describe('StandardRtcSignaling negotiation', () => {
   it('returns a structured occupied result without closing the Relay, so a confirmed takeover can retry', async () => {
     const { signaling } = createSignaling()
     const socket = await connectReady(signaling)
-    const rejected = signaling.exchangeOffer('offer-1', 'ticket-1', 'nonce-1', '')
+    const rejected = signaling.exchangeOffer('offer-1', params.safetyPwdMd5)
     const occupied = PxMessage.encode(PxMessage.create({
       type: MSG_TYPE_SIG_ANSWER_SDP,
       sigAnswerSdp: { errorCode: 'RTC_OCCUPIED' },
@@ -270,7 +263,7 @@ describe('StandardRtcSignaling negotiation', () => {
     await expect(rejected).rejects.toThrow('RTC_OCCUPIED')
     expect(socket.closeCount).toBe(0)
 
-    const accepted = signaling.exchangeOffer('offer-2', 'ticket-2', 'nonce-2', '', '', true)
+    const accepted = signaling.exchangeOffer('offer-2', params.safetyPwdMd5, true)
     const offer = targetPayloads(socket).at(-1)
     expect(offer.sigOfferSdp.takeover).toBe(true)
     const answer = PxMessage.encode(PxMessage.create({
@@ -288,7 +281,7 @@ describe('StandardRtcSignaling negotiation', () => {
   it('makes answer timeout terminal so a late answer cannot pollute a retry', async () => {
     const { signaling } = createSignaling()
     const socket = await connectReady(signaling)
-    const first = signaling.exchangeOffer('offer-1', 'ticket-1', 'nonce-1', '')
+    const first = signaling.exchangeOffer('offer-1', params.safetyPwdMd5)
     const rejected = expect(first).rejects.toThrow('Answer SDP 等待超时')
     await vi.advanceTimersByTimeAsync(15_000)
     await rejected
@@ -302,6 +295,6 @@ describe('StandardRtcSignaling negotiation', () => {
       type: relayType('kRelayTargetMessage'),
       relay: { roomIds: ['room-1'], payload: px },
     })
-    await expect(signaling.exchangeOffer('offer-2', 'ticket-2', 'nonce-2', '')).rejects.toThrow('尚未准备')
+    await expect(signaling.exchangeOffer('offer-2', params.safetyPwdMd5)).rejects.toThrow('尚未准备')
   })
 })

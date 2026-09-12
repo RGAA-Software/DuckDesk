@@ -29,6 +29,8 @@ struct WindowConfig {
     int height{760};
     bool initiallyVisible{true};
     bool minimizeToTray{false};
+    bool continuousTextInput{false};
+    bool continuousRendering{false};
 };
 
 class DesktopShell final {

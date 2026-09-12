@@ -2,22 +2,24 @@ import { describe, expect, it } from 'vitest'
 import { prepareLaunchUrl } from './api'
 
 describe('prepareLaunchUrl', () => {
-  it('keeps secrets in the fragment and attaches the rotating renewal endpoint', () => {
+  it('encodes the Render password and routing metadata without a bearer capability', () => {
     const value = prepareLaunchUrl({
-      launch_url: 'http://device.local:32004/web_client/?deviceId=D-1#ticket=t-1&nonce=n-1',
-      renewal_token: 'r-1',
+      launch_url: 'http://device.local:32004/web_client/',
+      device_id: 'D-1',
+      instance_id: '',
+      stream_id: 'web-session-1',
+      password_hash: '0123456789abcdef0123456789abcdef',
       permissions: ['view'],
+      relay_host: '',
+      relay_port: 0,
+      signal_device_id: 'server_D-1',
     })
     const url = new URL(value)
     const fragment = new URLSearchParams(url.hash.slice(1))
 
-    expect(url.searchParams.get('ticket')).toBeNull()
-    expect(fragment.get('ticket')).toBe('t-1')
-    expect(fragment.get('renew')).toBe('r-1')
+    expect(url.searchParams.get('c')).toBeTruthy()
+    expect(url.searchParams.get('stream_id')).toBe('web-session-1')
     expect(fragment.get('perms')).toBe('view')
-    expect(fragment.get('renew_url')).toBe(
-      `${window.location.origin}/api/v1/connection-tickets/renew`,
-    )
   })
 
   it.each([
@@ -39,8 +41,11 @@ describe('prepareLaunchUrl', () => {
       ],
     }
     const value = prepareLaunchUrl({
-      launch_url: 'https://render.example.test:32004/web_client/?deviceId=D-1#ticket=t-1&nonce=n-1',
-      renewal_token: 'r-1',
+      launch_url: 'https://render.example.test:32004/web_client/',
+      device_id: 'D-1',
+      instance_id: 'instance-1',
+      stream_id: 'web-session-1',
+      password_hash: '0123456789abcdef0123456789abcdef',
       permissions: ['view', 'input', 'file'],
       relay_host: 'relay.example.test',
       relay_port: 30502,
@@ -52,8 +57,6 @@ describe('prepareLaunchUrl', () => {
     expect(url.searchParams.get('connType')).toBe(expected)
     expect(fragment.get('relay_host')).toBe('relay.example.test')
     expect(fragment.get('relay_port')).toBe('30502')
-    expect(fragment.get('ticket')).toBe('t-1')
-    expect(url.searchParams.get('ticket')).toBeNull()
 
     const encoded = fragment.get('ice')!
     const padded = encoded.replace(/-/g, '+').replace(/_/g, '/')

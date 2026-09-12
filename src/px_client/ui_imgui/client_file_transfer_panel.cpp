@@ -14,18 +14,46 @@ void ClientFileTransferPanel::Open() {
     open_ = true;
 }
 
+bool ClientFileTransferPanel::CapturesPointer(const float x, const float y) const noexcept {
+    return open_ && x >= windowX_ && y >= windowY_ && x < windowX_ + windowWidth_ && y < windowY_ + windowHeight_;
+}
+
+bool ClientFileTransferPanel::CapturesKeyboard() const noexcept {
+    return open_ && capturesKeyboard_;
+}
+
 void ClientFileTransferPanel::Draw(const std::shared_ptr<ClientSession>& session, const bool english) {
-    if (!open_ || !session) return;
+    if (!open_ || !session) {
+        capturesKeyboard_ = false;
+        return;
+    }
     const auto text = [english](const ClientText id) { return ClientTextValue(id, english).data(); };
     ImGui::SetNextWindowSize({980.0F, 650.0F}, ImGuiCond_FirstUseEver);
     if (!ImGui::Begin(text(ClientText::FileTransfer), &open_)) {
+        const ImVec2 position{ImGui::GetWindowPos()};
+        const ImVec2 size{ImGui::GetWindowSize()};
+        windowX_ = position.x;
+        windowY_ = position.y;
+        windowWidth_ = size.x;
+        windowHeight_ = size.y;
+        capturesKeyboard_ = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
         ImGui::End();
         return;
     }
 
+    const ImVec2 position{ImGui::GetWindowPos()};
+    const ImVec2 size{ImGui::GetWindowSize()};
+    windowX_ = position.x;
+    windowY_ = position.y;
+    windowWidth_ = size.x;
+    windowHeight_ = size.y;
+    capturesKeyboard_ =
+        ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && (ImGui::GetIO().WantCaptureKeyboard || ImGui::GetIO().WantTextInput);
+
     ImGui::InputText(text(ClientText::RemotePath), remotePath_.data(), remotePath_.size());
     ImGui::SameLine();
-    if (ImGui::Button(text(ClientText::Open))) static_cast<void>(session->ListRemoteDirectory(remotePath_.data()));
+    if (ImGui::Button(text(ClientText::Open)))
+        static_cast<void>(session->ListRemoteDirectory(remotePath_.data()));
     ImGui::InputText(text(ClientText::LocalPath), localPath_.data(), localPath_.size());
     if (ImGui::Button(text(ClientText::UploadLocalPath))) {
         static_cast<void>(session->StartUpload(localPath_.data(), remotePath_.data()));
@@ -36,8 +64,7 @@ void ClientFileTransferPanel::Draw(const std::shared_ptr<ClientSession>& session
     }
 
     ImGui::SeparatorText(text(ClientText::RemoteFiles));
-    if (ImGui::BeginTable("remote-files", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_ScrollY,
-                          {0.0F, 300.0F})) {
+    if (ImGui::BeginTable("remote-files", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_ScrollY, {0.0F, 300.0F})) {
         ImGui::TableSetupColumn(text(ClientText::Name));
         ImGui::TableSetupColumn(text(ClientText::Type), ImGuiTableColumnFlags_WidthFixed, 100.0F);
         ImGui::TableSetupColumn(text(ClientText::Size), ImGuiTableColumnFlags_WidthFixed, 150.0F);
@@ -72,9 +99,11 @@ void ClientFileTransferPanel::Draw(const std::shared_ptr<ClientSession>& session
         ImGui::Text("%.1f KB/s", job.bytesPerSecond / 1024.0);
         if (!job.done) {
             ImGui::SameLine();
-            if (ImGui::SmallButton(text(ClientText::Cancel))) static_cast<void>(session->CancelTransfer(job.id));
+            if (ImGui::SmallButton(text(ClientText::Cancel)))
+                static_cast<void>(session->CancelTransfer(job.id));
         }
-        if (!job.error.empty()) ImGui::TextDisabled("%s", job.error.c_str());
+        if (!job.error.empty())
+            ImGui::TextDisabled("%s", job.error.c_str());
         ImGui::PopID();
     }
 

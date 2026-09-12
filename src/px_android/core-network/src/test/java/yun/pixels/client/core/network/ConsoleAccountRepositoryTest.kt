@@ -11,9 +11,8 @@ import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.account.AccountSession
 import yun.pixels.client.core.domain.account.AccountSessionStore
 import yun.pixels.client.core.domain.account.AccountState
-import yun.pixels.client.core.domain.account.ConnectionTicket
+import yun.pixels.client.core.domain.account.AccountConnection
 import yun.pixels.client.core.domain.account.ConsoleEndpoint
-import yun.pixels.client.core.domain.account.JoinMode
 
 class ConsoleAccountRepositoryTest {
     @Test
@@ -64,18 +63,17 @@ class ConsoleAccountRepositoryTest {
     }
 
     @Test
-    fun renewalUsesRotatingCapabilityWithoutChangingAccountState() = runTest {
-        val current = ticket("ticket-1", "renewal-1")
-        val renewed = ticket("ticket-2", "renewal-2")
+    fun resolvingConnectionKeepsAccountState() = runTest {
+        val connection = connection()
         val signedIn = session(expiresAt = 200)
         val api = FakeApi(
             loginResult = AccountResult.Success(signedIn),
-            renewalResult = AccountResult.Success(renewed),
+            connectionResult = AccountResult.Success(connection),
         )
         val repository = ConsoleAccountRepository(api, FakeSessionStore(), now = { 100 })
         repository.login("https://console.example", "alice", "password")
 
-        assertEquals(AccountResult.Success(renewed), repository.renewTicket(current, "nonce"))
+        assertEquals(AccountResult.Success(connection), repository.resolveConnection("device"))
         assertEquals(AccountState.SignedIn(signedIn), repository.state.value)
     }
 
@@ -87,16 +85,12 @@ class ConsoleAccountRepositoryTest {
         absoluteExpiresAtEpochMillis = expiresAt + 100,
     )
 
-    private fun ticket(raw: String, renewal: String) = ConnectionTicket(
-        ticket = raw,
-        renewalToken = renewal,
-        launchUrl = "https://console.example/web_client/",
-        expiresAtEpochMillis = 1_000,
-        logicalSessionId = "logical",
-        streamId = "stream",
-        joinMode = JoinMode.Control,
-        permissions = setOf("view"),
-        rtcIceConfigJson = "{}",
+    private fun connection() = AccountConnection(
+        host = "render.example",
+        port = 4601,
+        deviceId = "device",
+        instanceId = "",
+        passwordHash = "password-hash",
         relayHost = "relay.example",
         relayPort = 443,
         signalDeviceId = "server_device",
@@ -118,7 +112,7 @@ private class FakeSessionStore(var session: AccountSession? = null) : AccountSes
 private class FakeApi(
     private val loginResult: AccountResult<AccountSession> = AccountResult.Failure(AccountFailure.InvalidCredentials),
     private val devicesResult: AccountResult<List<AccountDevice>> = AccountResult.Success(emptyList()),
-    private val renewalResult: AccountResult<ConnectionTicket> = AccountResult.Failure(AccountFailure.AuthenticationRequired),
+    private val connectionResult: AccountResult<AccountConnection> = AccountResult.Failure(AccountFailure.AuthenticationRequired),
 ) : ConsoleAccountApi {
     override suspend fun login(endpointInput: String, username: String, password: String) = loginResult
 
@@ -126,16 +120,5 @@ private class FakeApi(
 
     override suspend fun devices(session: AccountSession) = devicesResult
 
-    override suspend fun issueTicket(
-        session: AccountSession,
-        deviceId: String,
-        clientNonce: String,
-        joinMode: JoinMode,
-    ): AccountResult<ConnectionTicket> = AccountResult.Failure(AccountFailure.DeviceOffline)
-
-    override suspend fun renewTicket(
-        session: AccountSession,
-        ticket: ConnectionTicket,
-        clientNonce: String,
-    ): AccountResult<ConnectionTicket> = renewalResult
+    override suspend fun resolveConnection(session: AccountSession, deviceId: String): AccountResult<AccountConnection> = connectionResult
 }

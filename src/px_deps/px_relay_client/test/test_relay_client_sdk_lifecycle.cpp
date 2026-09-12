@@ -15,15 +15,21 @@ namespace px {
 namespace {
 
 class FakeRelayNetClient final : public RelayNetClient {
-public:
-    void Start() override { ++start_count_; }
-    void Stop() override { ++stop_count_; }
+  public:
+    void Start() override {
+        ++start_count_;
+    }
+    void Stop() override {
+        ++stop_count_;
+    }
 
     void PostBinaryMessage(const std::string& msg) override {
         sent_messages_.push_back(msg);
     }
 
-    [[nodiscard]] bool IsAlive() override { return true; }
+    [[nodiscard]] bool IsAlive() override {
+        return true;
+    }
 
     void PostNetTask(std::function<void()>&& task) override {
         queued_tasks_.push_back(std::move(task));
@@ -43,10 +49,16 @@ public:
         }
     }
 
-    void ClearSentMessages() { sent_messages_.clear(); }
+    void ClearSentMessages() {
+        sent_messages_.clear();
+    }
 
-    [[nodiscard]] int StartCount() const { return start_count_; }
-    [[nodiscard]] int StopCount() const { return stop_count_; }
+    [[nodiscard]] int StartCount() const {
+        return start_count_;
+    }
+    [[nodiscard]] int StopCount() const {
+        return stop_count_;
+    }
     [[nodiscard]] size_t SentMessageCount() const {
         return sent_messages_.size();
     }
@@ -57,7 +69,7 @@ public:
         return sent_messages_.back();
     }
 
-private:
+  private:
     int start_count_ = 0;
     int stop_count_ = 0;
     std::vector<std::string> sent_messages_;
@@ -77,8 +89,7 @@ TEST(RelayClientSdkLifecycle, CallbackDoesNotRetainDestroyedSdk) {
     const auto net_client = std::make_shared<FakeRelayNetClient>();
     auto sdk = std::make_shared<RelayClientSdk>(MakeSdkParam(), net_client);
     int connected_count = 0;
-    sdk->SetOnRelayServerConnectedCallback(
-        [&connected_count]() { ++connected_count; });
+    sdk->SetOnRelayServerConnectedCallback([&connected_count]() { ++connected_count; });
 
     net_client->FireConnected();
     EXPECT_EQ(connected_count, 1);
@@ -96,8 +107,7 @@ TEST(RelayClientSdkLifecycle, QueuedSendDropsAfterSdkDestruction) {
 
     const auto created_room = std::make_shared<px_relay::RelayMessage>();
     created_room->mutable_create_room_resp()->set_device_id("local-device");
-    created_room->mutable_create_room_resp()->set_remote_device_id(
-        "remote-device");
+    created_room->mutable_create_room_resp()->set_remote_device_id("remote-device");
     created_room->mutable_create_room_resp()->set_room_id("room");
     sdk->OnCreatedRoomResp(created_room);
 
@@ -124,13 +134,10 @@ TEST(RelayClientSdkLifecycle, RepeatedStartStopUsesSameNetClient) {
     EXPECT_EQ(net_client->StopCount(), kCycles);
 }
 
-TEST(RelayClientSdkLifecycle, TicketedMediaControlCarriesRenderRedemptionMaterial) {
+TEST(RelayClientSdkLifecycle, MediaControlCarriesDevicePasswordHash) {
     const auto net_client = std::make_shared<FakeRelayNetClient>();
     auto param = MakeSdkParam();
-    param.connection_ticket_ = "one-time-ticket";
-    param.connection_nonce_ = "client-nonce";
-    param.connection_instance_id_ = "instance-id";
-    param.ticket_scope_ = RelayTicketScope::kMedia;
+    param.remote_password_hash_ = "password-hash";
     const auto sdk = std::make_shared<RelayClientSdk>(param, net_client);
 
     const auto created_room = std::make_shared<px_relay::RelayMessage>();
@@ -146,10 +153,8 @@ TEST(RelayClientSdkLifecycle, TicketedMediaControlCarriesRenderRedemptionMateria
     px_relay::RelayMessage sent;
     ASSERT_TRUE(sent.ParseFromString(net_client->LastSentMessage()));
     ASSERT_TRUE(sent.has_request_control());
-    EXPECT_EQ(sent.request_control().connection_ticket(), "one-time-ticket");
-    EXPECT_EQ(sent.request_control().client_nonce(), "client-nonce");
-    EXPECT_EQ(sent.request_control().instance_id(), "instance-id");
+    EXPECT_EQ(sent.request_control().safety_pwd_md5(), "password-hash");
 }
 
-}  // namespace
-}  // namespace px
+} // namespace
+} // namespace px

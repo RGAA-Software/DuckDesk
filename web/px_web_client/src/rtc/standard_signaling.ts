@@ -11,12 +11,10 @@ export interface StandardRtcSignalParams {
   relayHost: string
   relayPort: number
   remoteDeviceId: string
-  ticketDeviceId: string
+  targetDeviceId: string
   streamId: string
-  ticket: string
   clientNonce: string
-  instanceId: string
-  /** Guest sessions authenticate at Render with the device password digest. */
+  /** Every browser session authenticates at Render with the device password digest. */
   safetyPwdMd5: string
   secure: boolean
 }
@@ -42,11 +40,9 @@ function relayClientId(): string {
 
 /** Console application-Relay signaling for standard WebRTC.
  *
- * Logged-in sessions authenticate the Relay with a short-lived ticket and the
- * Render atomically redeems it with the SDP offer. Guest sessions carry no
- * ticket: the Relay only scopes the signaling target and Render validates the
- * device password digest in the SDP offer. Media, input and file payloads never
- * use this socket after the PeerConnection is up.
+ * Relay only scopes the signaling target. Render validates the device password
+ * digest in the SDP offer. Media, input and file payloads never use this socket
+ * after the PeerConnection is up.
  */
 export class StandardRtcSignaling {
   private socket: WebSocket | null = null
@@ -74,18 +70,12 @@ export class StandardRtcSignaling {
     const query = new URLSearchParams({
       device_id: this.clientId,
       remote_device_id: this.params.remoteDeviceId,
-      ticket_device_id: this.params.ticketDeviceId,
+      target_device_id: this.params.targetDeviceId,
       device_name: 'WebClient',
       stream_id: this.params.streamId,
       rtc_signal: '1',
+      password_auth: '1',
     })
-    if (this.params.ticket) {
-      query.set('ticket', this.params.ticket)
-      query.set('client_nonce', this.params.clientNonce)
-      if (this.params.instanceId) query.set('instance_id', this.params.instanceId)
-    } else {
-      query.set('guest_password', '1')
-    }
     const url = `${scheme}://${this.params.relayHost}:${this.params.relayPort}/relay?${query}`
     this.closed = false
     await new Promise<void>((resolve, reject) => {
@@ -134,10 +124,7 @@ export class StandardRtcSignaling {
 
   async exchangeOffer(
     sdp: string,
-    ticket: string,
-    clientNonce: string,
-    instanceId: string,
-    safetyPwdMd5 = '',
+    safetyPwdMd5: string,
     takeover = false,
   ): Promise<string> {
     if (!this.roomId) throw new Error('标准 RTC 信令房间尚未准备完成')
@@ -155,10 +142,8 @@ export class StandardRtcSignaling {
         sigOfferSdp: {
           deviceId: this.clientId,
           sdp,
-          connectionTicket: ticket,
-          clientNonce,
-          instanceId,
-          safetyPwdMd5: ticket ? '' : safetyPwdMd5,
+          clientNonce: this.params.clientNonce,
+          safetyPwdMd5,
           takeover,
         },
       })
@@ -228,6 +213,7 @@ export class StandardRtcSignaling {
           deviceName: 'WebClient',
           streamId: this.params.streamId,
           forceGdi: false,
+          safetyPwdMd5: this.params.safetyPwdMd5,
         },
       })
     } else if (message.type === typeValue('kRelayRoomPrepared')) {

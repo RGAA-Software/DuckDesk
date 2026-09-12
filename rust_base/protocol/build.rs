@@ -50,7 +50,10 @@ fn main() {
 
     tonic_prost_build::configure()
         .build_server(false)
-        .type_attribute("console_service.NodeEndpoints", "#[derive(serde::Serialize, serde::Deserialize)]")
+        .type_attribute(
+            "console_service.NodeEndpoints",
+            "#[derive(serde::Serialize, serde::Deserialize)]",
+        )
         .out_dir("src/")
         .compile_protos(
             &[

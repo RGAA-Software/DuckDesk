@@ -8,7 +8,7 @@ use crate::filter::console_ws_token_filter::{
 use crate::{gConsoleContext, gConsoleSettings};
 use axum::extract::{DefaultBodyLimit, State};
 use axum::response::IntoResponse;
-use axum::routing::{any, get, post};
+use axum::routing::{any, get};
 use axum::{Json, Router};
 use axum_server::tls_rustls::RustlsConfig;
 use px_base::{get_current_timestamp, RespMessage};
@@ -40,7 +40,6 @@ use crate::update::update_router::make_update_router;
 use crate::user::session_router::{make_session_router, make_user_self_router};
 use crate::wall::console_wall_router::make_wall_router;
 use axum::middleware::{self};
-use tower_http::cors::{AllowOrigin, CorsLayer};
 
 // Compatibility routes for clients deployed before the Pixels Console rename.
 // Canonical clients use /console/* and /api/v1/console/control.
@@ -61,11 +60,6 @@ fn resolve_runtime_path(runtime_dir: &Path, configured_path: &str) -> PathBuf {
     } else {
         runtime_dir.join(path)
     }
-}
-
-fn allow_ticket_renewal_origin(origin: &str, path: &str) -> bool {
-    path == "/api/v1/connection-tickets/renew"
-        && (origin.starts_with("http://") || origin.starts_with("https://"))
 }
 
 impl ConsoleServer {
@@ -103,16 +97,6 @@ impl ConsoleServer {
 
         // Only the rotating bearer-capability renewal endpoint is callable by
         // a Web Client hosted on a Render/device origin. It accepts no Console
-        // cookies; every other API remains same-origin only.
-        let cors = CorsLayer::new()
-            .allow_origin(AllowOrigin::predicate(|origin, request| {
-                origin
-                    .to_str()
-                    .is_ok_and(|value| allow_ticket_renewal_origin(value, request.uri.path()))
-            }))
-            .allow_methods([axum::http::Method::POST])
-            .allow_headers([axum::http::header::CONTENT_TYPE]);
-
         let index_html_path = web_console_dir.join("index.html");
 
         let router = Router::new()
@@ -148,10 +132,6 @@ impl ConsoleServer {
             )
             // user
             .nest("/api/v1/session", make_session_router(context.clone()))
-            .route(
-                "/api/v1/connection-tickets/renew",
-                post(crate::connection_ticket::handler::renew_connection_ticket),
-            )
             .nest("/api/v1/user", make_user_self_router(context.clone()))
             .nest(
                 "/api/v1/admin",
@@ -248,7 +228,6 @@ impl ConsoleServer {
             .layer(middleware::from_fn(console_statistics_filter))
             .layer(DefaultBodyLimit::max(1024 * 1024 * 1024)) // 1GB
             //
-            .layer(cors)
             // SPA fallback: any path not matched by API routes or static
             // files returns index.html, so Vue Router (history mode) routes
             // like /devices-list work on direct access or page refresh.
@@ -287,24 +266,8 @@ impl ConsoleServer {
 
 #[cfg(test)]
 mod cors_tests {
-    use super::{allow_ticket_renewal_origin, resolve_runtime_path};
+    use super::resolve_runtime_path;
     use std::path::Path;
-
-    #[test]
-    fn cross_origin_is_limited_to_rotating_ticket_renewal() {
-        assert!(allow_ticket_renewal_origin(
-            "http://device.local:32004",
-            "/api/v1/connection-tickets/renew"
-        ));
-        assert!(!allow_ticket_renewal_origin(
-            "http://device.local:32004",
-            "/api/v1/user/apps"
-        ));
-        assert!(!allow_ticket_renewal_origin(
-            "null",
-            "/api/v1/connection-tickets/renew"
-        ));
-    }
 
     #[test]
     fn tls_paths_are_resolved_relative_to_the_console_runtime() {

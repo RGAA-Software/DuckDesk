@@ -10,6 +10,7 @@
 #include "px_common/hardware.h"
 #include "px_common/ip_util.h"
 #include "px_common/log.h"
+#include "px_common/md5.h"
 #include "px_common/time_util.h"
 #include "px_relay_client/relay_connected_info.h"
 #include "px_relay_client/relay_room.h"
@@ -29,6 +30,17 @@ namespace {
 
 bool HasRelayPermission(const std::vector<std::string>& permissions, const std::string_view permission) {
     return std::any_of(permissions.begin(), permissions.end(), [permission](const std::string& candidate) { return candidate == permission; });
+}
+
+bool VerifyRelayDeviceCredential(const RenderModuleSettings& settings, const std::string& password_hash) {
+    if (settings.device_safety_password.empty() && settings.device_random_password.empty()) {
+        return true;
+    }
+    if (password_hash.empty()) {
+        return false;
+    }
+    return (!settings.device_safety_password.empty() && settings.device_safety_password == password_hash) ||
+           (!settings.device_random_password.empty() && MD5::Hex(settings.device_random_password) == password_hash);
 }
 
 void DispatchCloseLogicalSessionBinding(const RenderEventCallback& dispatcher, const std::string& logical_session_id, const std::string& binding_id) {
@@ -357,73 +369,55 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
             self->ReportRelayAlive(device_id);
         }
     });
-    sdk->SetOnRequestControlCallback([weak_self, weak_sdk = std::weak_ptr<RelayServerSdk>(sdk),
-                                      generation](const std::shared_ptr<RelayMessage>& message) {
-        const auto self = weak_self.lock();
-        if (!self || !self->IsCurrentMediaGeneration(generation)) {
-            return;
-        }
-        const auto& request = message->request_control();
-        LOGI("Relay control request, device: {}, remote: {}, stream: {}, force GDI: {}", request.device_id(), request.remote_device_id(),
-             request.stream_id(), request.force_gdi());
-        if (request.connection_ticket().empty()) {
-            const auto event = std::make_shared<StreamingParametersRequestedEvent>();
-            event->stream_id_ = request.stream_id();
-            event->force_gdi_ = request.force_gdi();
-            self->Emit(event);
-            return;
-        }
-        const auto active_sdk = weak_sdk.lock();
-        if (!active_sdk || request.client_nonce().empty() || request.stream_id().empty() || request.room_id().empty()) {
-            if (active_sdk) {
-                active_sdk->RespondToControl(message, false, "invalid ticketed Relay request");
+    sdk->SetOnRequestControlCallback(
+        [weak_self, weak_sdk = std::weak_ptr<RelayServerSdk>(sdk), generation](const std::shared_ptr<RelayMessage>& message) {
+            const auto self = weak_self.lock();
+            if (!self || !self->IsCurrentMediaGeneration(generation)) {
+                return;
             }
-            return;
-        }
-        const auto redeem = std::make_shared<RedeemConnectionTicketEvent>();
-        RenderEventCallback lifecycle_dispatcher;
-        {
-            std::lock_guard lock(self->sink_mutex_);
-            lifecycle_dispatcher = self->event_callback_;
-        }
-        redeem->ticket_ = request.connection_ticket();
-        redeem->client_nonce_ = request.client_nonce();
-        redeem->instance_id_ = request.instance_id();
-        redeem->callback_ = [weak_self, weak_sdk, generation, message, lifecycle_dispatcher](
-                                const bool ok, const std::string&, const std::vector<std::string>& permissions, const std::string&,
-                                const std::string& logical_session_id, const std::string& ticket_stream_id, const std::string& join_mode,
-                                const std::string& subject_id, const int64_t expires_at_ms, const bool allow_observer, const bool allow_takeover) {
-            const auto owner = weak_self.lock();
+            const auto& request = message->request_control();
+            LOGI("Relay control request, device: {}, remote: {}, stream: {}, force GDI: {}", request.device_id(), request.remote_device_id(),
+                 request.stream_id(), request.force_gdi());
             const auto server = weak_sdk.lock();
-            if (!owner || !server || !owner->IsCurrentMediaGeneration(generation)) {
+            const auto visitor_device_id = ExtractClientId(request.device_id());
+            const auto settings = self->ConfigSnapshot().settings;
+            if (!server || request.stream_id().empty() || request.room_id().empty() || visitor_device_id.empty()) {
+                if (server) {
+                    server->RespondToControl(message, false, "invalid Relay control request");
+                }
                 return;
             }
-            const auto& control = message->request_control();
-            if (!ok || logical_session_id.empty() || join_mode.empty() || ticket_stream_id != control.stream_id() ||
-                !HasRelayPermission(permissions, "view")) {
-                server->RespondToControl(message, false, "Relay ticket rejected");
+            if (!VerifyRelayDeviceCredential(settings, request.safety_pwd_md5())) {
+                server->RespondToControl(message, false, "device password was rejected");
                 return;
             }
-            const auto binding_id = "relay:" + control.room_id();
+            const auto logical_session_id = "relay-session:" + request.room_id();
+            const auto binding_id = "relay:" + request.room_id();
+            const auto permissions = std::vector<std::string>{"view", "audio", "input", "clipboard", "file"};
             const auto admission = std::make_shared<AdmitLogicalSessionEvent>();
             admission->grant_ = LogicalSessionGrant{
                 .logical_session_id = logical_session_id,
-                .stream_id = ticket_stream_id,
-                .subject_id = subject_id,
-                .join_mode = join_mode,
-                .expires_at_ms = expires_at_ms,
-                .allow_observer = allow_observer,
-                .allow_takeover = allow_takeover,
-                .input_allowed = HasRelayPermission(permissions, "input"),
+                .stream_id = request.stream_id(),
+                .subject_id = visitor_device_id,
+                .join_mode = "control",
+                .expires_at_ms = 0,
+                .allow_observer = false,
+                .allow_takeover = false,
+                .input_allowed = true,
             };
             admission->transport_ = LogicalSessionTransport::kRelay;
             admission->binding_id_ = binding_id;
             admission->takeover_ = false;
-            admission->callback_ = [weak_self, weak_sdk, generation, message, permissions, logical_session_id, binding_id,
+            RenderEventCallback lifecycle_dispatcher;
+            {
+                std::lock_guard lock(self->sink_mutex_);
+                lifecycle_dispatcher = self->event_callback_;
+            }
+            admission->callback_ = [weak_self, weak_sdk, generation, message, logical_session_id, binding_id, permissions,
                                     lifecycle_dispatcher](const LogicalSessionAdmission& result) {
-                const auto active_owner = weak_self.lock();
+                const auto owner = weak_self.lock();
                 const auto active_server = weak_sdk.lock();
-                if (!active_owner || !active_server || !active_owner->IsCurrentMediaGeneration(generation)) {
+                if (!owner || !active_server || !owner->IsCurrentMediaGeneration(generation)) {
                     if (result.code == LogicalSessionAdmissionCode::kAccepted) {
                         DispatchCloseLogicalSessionBinding(lifecycle_dispatcher, logical_session_id, binding_id);
                     }
@@ -432,11 +426,12 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
                 const auto& accepted_control = message->request_control();
                 if (result.code != LogicalSessionAdmissionCode::kAccepted) {
                     active_server->RespondToControl(message, false,
-                                                    result.code == LogicalSessionAdmissionCode::kOccupied ? "remote controller is occupied"
-                                                                                                          : "Relay session admission denied");
+                                                    result.code == LogicalSessionAdmissionCode::kOccupied
+                                                        ? "remote controller is occupied; try again in a few seconds"
+                                                        : "Relay session admission denied");
                     return;
                 }
-                if (!active_owner->StoreMediaRoute(
+                if (!owner->StoreMediaRoute(
                         MediaRelayRouteInfo{
                             .room_id = accepted_control.room_id(),
                             .stream_id = accepted_control.stream_id(),
@@ -445,7 +440,6 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
                             .logical_session_id = logical_session_id,
                             .permissions = permissions,
                             .created_timestamp = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp()),
-                            .ticket_enforced = true,
                         },
                         generation)) {
                     DispatchCloseLogicalSessionBinding(lifecycle_dispatcher, logical_session_id, binding_id);
@@ -457,17 +451,15 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
                     .stream_id_ = accepted_control.stream_id(),
                     .permissions_ = permissions,
                 };
-                active_owner->Emit(capabilities);
+                owner->Emit(capabilities);
                 const auto streaming = std::make_shared<StreamingParametersRequestedEvent>();
                 streaming->stream_id_ = accepted_control.stream_id();
                 streaming->force_gdi_ = accepted_control.force_gdi();
-                active_owner->Emit(streaming);
+                owner->Emit(streaming);
                 active_server->RespondToControl(message, true, "ok");
             };
-            owner->Emit(admission);
-        };
-        self->Emit(redeem);
-    });
+            self->Emit(admission);
+        });
     sdk->SetOnRoomPreparedCallback([weak_self, generation](const std::shared_ptr<RelayMessage>& message) {
         const auto self = weak_self.lock();
         if (!self || !self->IsCurrentMediaGeneration(generation)) {
@@ -546,7 +538,7 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
         }
         const auto payload = Data::From(relay.payload());
         const auto route = self->FindMediaRouteByRoom(room_id);
-        if (route && route->ticket_enforced && !IsRelayPayloadAuthorized(payload, route->permissions)) {
+        if (route && !IsRelayPayloadAuthorized(payload, route->permissions)) {
             LOGW("Drop Relay payload denied by the logical-session capability grant");
             return;
         }
@@ -701,7 +693,7 @@ std::vector<std::string> RelayTransportRuntime::AuthorizedMediaRooms(const std::
             continue;
         }
         const auto route = FindMediaRouteByRoom(client->room_id_);
-        if (!route || !route->ticket_enforced || IsRelayPayloadAuthorized(message, route->permissions)) {
+        if (route && IsRelayPayloadAuthorized(message, route->permissions)) {
             room_ids.push_back(client->room_id_);
         }
     }
@@ -719,7 +711,7 @@ void RelayTransportRuntime::CloseMediaRoute(const std::string& room_id) {
         route = current->second;
         media_routes_.erase(current);
     }
-    if (route.ticket_enforced && !route.logical_session_id.empty()) {
+    if (!route.logical_session_id.empty()) {
         const auto close = std::make_shared<CloseLogicalSessionBindingEvent>();
         close->logical_session_id_ = route.logical_session_id;
         close->binding_id_ = route.connection_instance_id;

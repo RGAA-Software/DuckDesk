@@ -606,9 +606,11 @@ foreach ($required in @(
 }
 $wsHttpSource = Get-Content -LiteralPath `
     (Join-Path $RepoRoot "src\px_render\network\ws\http_handler.cpp") -Raw
-if ($wsServerSource -notmatch "co_await\s+RedeemWsTicketAsync" -or
-    $wsServerSource -notmatch "co_await\s+AdmitWsSessionAsync") {
-    $violations.Add("net_ws/ws_server.cpp: websocket ticket and admission workflows must remain typed awaitables")
+if ($wsServerSource -notmatch "co_await\s+AdmitWsSessionAsync") {
+    $violations.Add("net_ws/ws_server.cpp: websocket admission workflow must remain a typed awaitable")
+}
+if ($wsServerSource -match "RedeemWsTicketAsync|connection_ticket|ConnectionTicket") {
+    $violations.Add("net_ws/ws_server.cpp: retired connection-ticket authentication must not return")
 }
 if ($wsHttpSource -notmatch "response\.defer|resp\.defer" -or
     $wsHttpSource -notmatch "AllocateLocalRtcAsync") {

@@ -1,14 +1,15 @@
 #include "client_window.h"
 #include "client_file_transfer_panel.h"
+#include "client_input_mapper.h"
 #include "client_text.h"
 #include "client_toolbar.h"
+#include "px_common/log.h"
 
-#include <Windows.h>
 #include <SDL3/SDL.h>
 #include <imgui.h>
 
 #include <algorithm>
-#include <cctype>
+#include <functional>
 #include <memory>
 
 namespace px::client::imgui {
@@ -63,17 +64,14 @@ void ClientWindow::Draw() {
         shell_.get().UpdateVideoTexture(snapshot.frame->width, snapshot.frame->height, snapshot.frame->bgra)) {
         uploadedFrame_ = snapshot.frame;
     }
-    toolbar_->Draw(session_, english_);
-    ImGui::SameLine();
-    if (ImGui::SmallButton(english_ ? "中文" : "EN"))
+    const auto toolbarAction = toolbar_->Draw(session_, english_, darkTheme_);
+    if (toolbarAction.toggleLanguage)
         english_ = !english_;
-    ImGui::SameLine();
-    if (ImGui::SmallButton(text(darkTheme_ ? ClientText::Light : ClientText::Dark))) {
+    if (toolbarAction.toggleTheme) {
         darkTheme_ = !darkTheme_;
         static_cast<void>(shell_.get().SetTheme(darkTheme_ ? px::ui::Theme::Dark : px::ui::Theme::Light));
     }
-    ImGui::SameLine();
-    if (ImGui::SmallButton(text(ClientText::Fullscreen)))
+    if (toolbarAction.toggleFullscreen)
         static_cast<void>(shell_.get().ToggleFullscreen());
     fileTransfer_->Draw(session_, english_);
 
@@ -134,24 +132,87 @@ void ClientWindow::Draw() {
 }
 
 void ClientWindow::HandleInput(const px::desktop::DesktopInputEvent& event) {
+    if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
+        ReleasePressedInput();
+        localPointerButtons_.fill(false);
+        textCompositionActive_ = false;
+        return;
+    }
+    if (event.type == SDL_EVENT_TEXT_EDITING) {
+        textCompositionActive_ = true;
+        return;
+    }
     const auto& io = ImGui::GetIO();
-    const bool mouseCaptured = io.WantCaptureMouse;
-    const bool keyboardCaptured = io.WantCaptureKeyboard || io.WantTextInput;
+    const float pointerX{event.type == SDL_EVENT_MOUSE_WHEEL ? io.MousePos.x : event.x};
+    const float pointerY{event.type == SDL_EVENT_MOUSE_WHEEL ? io.MousePos.y : event.y};
+    const bool popupOpen{ImGui::IsPopupOpen({}, ImGuiPopupFlags_AnyPopupId)};
+    const bool mouseEvent{event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
+                          event.type == SDL_EVENT_MOUSE_BUTTON_UP || event.type == SDL_EVENT_MOUSE_WHEEL};
+    const bool toolbarCaptured{mouseEvent && toolbar_->HandlePointerEvent(event)};
+    const bool overLocalUi{toolbarCaptured || fileTransfer_->CapturesPointer(pointerX, pointerY) || popupOpen};
+    if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && overLocalUi && event.mouseButton < localPointerButtons_.size())
+        localPointerButtons_[event.mouseButton] = true;
+    const bool localPointerGesture{std::ranges::any_of(localPointerButtons_, std::identity{})};
+    const bool mouseCaptured{overLocalUi || localPointerGesture};
+    const bool keyboardCaptured{fileTransfer_->CapturesKeyboard() || popupOpen};
     if (!mouseCaptured && event.type == SDL_EVENT_MOUSE_MOTION && InVideo(event.x, event.y)) {
-        static_cast<void>(session_->SendMouseMove((event.x - videoLeft_) / videoWidth_, (event.y - videoTop_) / videoHeight_));
+        lastMouseXRatio_ = (event.x - videoLeft_) / videoWidth_;
+        lastMouseYRatio_ = (event.y - videoTop_) / videoHeight_;
+        const bool sent{session_->SendMouseMove(lastMouseXRatio_, lastMouseYRatio_)};
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= nextMouseRouteLog_) {
+            const auto snapshot = session_->Snapshot();
+            LOGI("Client input route: mouse move local=({:.1f},{:.1f}) remote=({:.3f},{:.3f}) sent={} state={} monitor=[{}]", event.x, event.y,
+                 lastMouseXRatio_, lastMouseYRatio_, sent, static_cast<int>(snapshot.state), snapshot.monitorName);
+            nextMouseRouteLog_ = now + std::chrono::milliseconds{500};
+        }
     } else if (!mouseCaptured && (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) &&
                InVideo(event.x, event.y)) {
-        static_cast<void>(session_->SendMouseButton(event.mouseButton, event.type == SDL_EVENT_MOUSE_BUTTON_DOWN,
-                                                    (event.x - videoLeft_) / videoWidth_, (event.y - videoTop_) / videoHeight_));
+        lastMouseXRatio_ = (event.x - videoLeft_) / videoWidth_;
+        lastMouseYRatio_ = (event.y - videoTop_) / videoHeight_;
+        const bool down{event.type == SDL_EVENT_MOUSE_BUTTON_DOWN};
+        if (event.mouseButton < pressedMouseButtons_.size())
+            pressedMouseButtons_[event.mouseButton] = down;
+        const bool sent{session_->SendMouseButton(event.mouseButton, down, lastMouseXRatio_, lastMouseYRatio_)};
+        const auto snapshot = session_->Snapshot();
+        LOGI("Client input route: mouse button={} down={} remote=({:.3f},{:.3f}) sent={} state={} monitor=[{}]", event.mouseButton, down,
+             lastMouseXRatio_, lastMouseYRatio_, sent, static_cast<int>(snapshot.state), snapshot.monitorName);
     } else if (!mouseCaptured && event.type == SDL_EVENT_MOUSE_WHEEL && InVideo(io.MousePos.x, io.MousePos.y)) {
-        static_cast<void>(session_->SendMouseWheel(event.wheelX, event.wheelY));
+        const bool sent{session_->SendMouseWheel(event.wheelX, event.wheelY)};
+        LOGI("Client input route: wheel horizontal={:.1f} vertical={:.1f} sent={}", event.wheelX, event.wheelY, sent);
     } else if (!keyboardCaptured && (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP)) {
-        if (const auto key = VirtualKey(event); key != 0U) {
-            static_cast<void>(session_->SendKey(key, event.type == SDL_EVENT_KEY_DOWN));
+        if (const auto key = WindowsVirtualKey(event.key); key != 0U) {
+            const bool down{event.type == SDL_EVENT_KEY_DOWN};
+            if (down)
+                pressedKeys_.insert(key);
+            else
+                pressedKeys_.erase(key);
+            const bool sent{session_->SendKey(key, down)};
+            LOGI("Client input route: key={} down={} sent={}", key, down, sent);
         }
     } else if (!keyboardCaptured && event.type == SDL_EVENT_TEXT_INPUT && !event.text.empty()) {
-        static_cast<void>(session_->SendText(event.text));
+        if (textCompositionActive_ || ContainsNonAscii(event.text)) {
+            const bool sent{session_->SendText(event.text)};
+            LOGI("Client input route: committed text bytes={} sent={}", event.text.size(), sent);
+        }
+        textCompositionActive_ = false;
+    } else if (mouseEvent && mouseCaptured && event.type != SDL_EVENT_MOUSE_MOTION) {
+        LOGI("Client input route: local UI captured type={} x={:.1f} y={:.1f} toolbar={} popup={}", event.type, pointerX, pointerY, toolbarCaptured,
+             popupOpen);
     }
+    if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.mouseButton < localPointerButtons_.size())
+        localPointerButtons_[event.mouseButton] = false;
+}
+
+void ClientWindow::ReleasePressedInput() {
+    for (const auto key : pressedKeys_)
+        static_cast<void>(session_->SendKey(key, false));
+    pressedKeys_.clear();
+    for (std::size_t button = 1; button < pressedMouseButtons_.size(); ++button) {
+        if (pressedMouseButtons_[button])
+            static_cast<void>(session_->SendMouseButton(static_cast<std::uint8_t>(button), false, lastMouseXRatio_, lastMouseYRatio_));
+    }
+    pressedMouseButtons_.fill(false);
 }
 
 namespace {
@@ -178,84 +239,6 @@ void ClientWindow::SynchronizeClipboard() {
         return;
     clipboardText_ = value.get();
     static_cast<void>(session_->SendClipboardText(clipboardText_));
-}
-
-std::uint32_t ClientWindow::VirtualKey(const px::desktop::DesktopInputEvent& event) const {
-    const auto key = static_cast<SDL_Keycode>(event.key);
-    if (key >= SDLK_A && key <= SDLK_Z)
-        return static_cast<std::uint32_t>('A' + (key - SDLK_A));
-    if (key >= SDLK_0 && key <= SDLK_9)
-        return static_cast<std::uint32_t>('0' + (key - SDLK_0));
-    switch (key) {
-    case SDLK_RETURN:
-        return VK_RETURN;
-    case SDLK_ESCAPE:
-        return VK_ESCAPE;
-    case SDLK_BACKSPACE:
-        return VK_BACK;
-    case SDLK_TAB:
-        return VK_TAB;
-    case SDLK_SPACE:
-        return VK_SPACE;
-    case SDLK_DELETE:
-        return VK_DELETE;
-    case SDLK_INSERT:
-        return VK_INSERT;
-    case SDLK_HOME:
-        return VK_HOME;
-    case SDLK_END:
-        return VK_END;
-    case SDLK_PAGEUP:
-        return VK_PRIOR;
-    case SDLK_PAGEDOWN:
-        return VK_NEXT;
-    case SDLK_LEFT:
-        return VK_LEFT;
-    case SDLK_RIGHT:
-        return VK_RIGHT;
-    case SDLK_UP:
-        return VK_UP;
-    case SDLK_DOWN:
-        return VK_DOWN;
-    case SDLK_LCTRL:
-    case SDLK_RCTRL:
-        return VK_CONTROL;
-    case SDLK_LSHIFT:
-    case SDLK_RSHIFT:
-        return VK_SHIFT;
-    case SDLK_LALT:
-    case SDLK_RALT:
-        return VK_MENU;
-    case SDLK_LGUI:
-    case SDLK_RGUI:
-        return VK_LWIN;
-    case SDLK_F1:
-        return VK_F1;
-    case SDLK_F2:
-        return VK_F2;
-    case SDLK_F3:
-        return VK_F3;
-    case SDLK_F4:
-        return VK_F4;
-    case SDLK_F5:
-        return VK_F5;
-    case SDLK_F6:
-        return VK_F6;
-    case SDLK_F7:
-        return VK_F7;
-    case SDLK_F8:
-        return VK_F8;
-    case SDLK_F9:
-        return VK_F9;
-    case SDLK_F10:
-        return VK_F10;
-    case SDLK_F11:
-        return VK_F11;
-    case SDLK_F12:
-        return VK_F12;
-    default:
-        return key > 0 && key <= 0xFF ? static_cast<std::uint32_t>(std::toupper(static_cast<unsigned char>(key))) : 0U;
-    }
 }
 
 bool ClientWindow::InVideo(const float x, const float y) const noexcept {

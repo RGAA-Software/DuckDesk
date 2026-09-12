@@ -4,6 +4,7 @@
 > 适用范围：单个 Console 部署（单租户）下的终端用户、Console 管理者、设备和云端应用。
 > 安全底线：appkey 只作为部署级内部凭据，不能代表终端用户或 Console 管理者。
 > 数据策略：项目尚处测试阶段，不迁移、不兼容旧身份与 ACL 数据；升级时清空相关测试数据并按新模型初始化。
+> 2026-09-12 最终鉴权决定：远程连接不再使用一次性连接票据、续期能力或兑换流程。Console 负责账号 ACL、应用调度和端点/RTC 配置下发；Client 在启动连接前取得设备密码，Render 对 Native、Web Direct 和 Web Standard 均直接校验设备密码摘要。本文后续旧票据章节仅作为历史设计记录，不得作为实现依据。
 
 ## 0. 目标与非目标
 
@@ -11,7 +12,7 @@
 
 1. 将终端用户与 Console 管理者彻底分离，避免 appkey、uid 或设备静态密码被当作登录态。
 2. 有效终端用户账号可访问全部 Console 设备；用户组只用于成员管理和私有应用权限。
-3. 公开应用允许游客发现和启动，但所有连接都必须经过短时票据。
+3. 公开应用允许游客发现和启动；实际连接由 Render 统一校验设备密码。
 4. Panel、浏览器用户门户和 Console 管理后台使用同一套服务端授权事实，但使用相互隔离的会话。
 5. 设备连接与应用实例连接都形成闭环：授权、启动、连接、控制、停止和审计属于同一主体。
 6. 支持禁用用户、改密、组权限变更后立即阻止新的敏感操作，并可撤销既有会话。
@@ -188,29 +189,9 @@ pub struct AppInstanceOwner {
 - 同一用户重复启动的复用规则由 app 调度策略决定，不能仅靠 IP 判断。
 - guest 实例绑定 guest session。关闭浏览器不会立即停止实例，按应用空闲策略回收。
 
-### 3.6 `c_connection_ticket`
+### 3.6 连接描述
 
-```rust
-pub struct ConnectionTicket {
-    pub ticket_hash: String,
-    pub kind: String,               // device | app_instance
-    pub subject_type: String,       // guest | user | admin
-    pub subject_id: String,
-    pub session_id: String,
-    pub device_id: String,
-    pub app_id: Option<String>,
-    pub instance_id: Option<String>,
-    pub permissions: Vec<String>,   // view, input, clipboard, file, audio
-    pub client_nonce: String,
-    pub expires_at: i64,
-    pub consumed_at: Option<i64>,
-}
-```
-
-- 原始 ticket 至少 256 bit，只在签发响应中出现一次；数据库保存 ticket_hash。
-- 默认有效期 30 秒，一次性消费。兑换时使用 `未消费 && 未过期 && 全部绑定字段匹配` 的原子条件更新。
-- 重连必须重新向 Console 申请票据；不能复用旧票据。浏览器使用只存在于 URL fragment/内存中的轮换 renewal capability 换取新票据；renewal 每次成功使用后立即轮换。设备票据重新校验用户 session、设备存在性和在线状态；应用票据继续校验 ACL、owner 和实例状态。
-- 票据只用于建立连接，不替代 user/admin session。
+Console 不持久化远程连接凭据。用户或游客通过当前登录会话请求连接描述，Console 校验 ACL、实例 owner 和在线状态后返回目标端点、设备密码摘要、流 ID、权限与 RTC 配置。Render 在实际建连时直接校验设备密码摘要。
 
 ## 4. 授权计算
 
@@ -221,9 +202,9 @@ pub struct ConnectionTicket {
 ```
 
 - 登录成功且账号未禁用/删除即可访问全部设备，不计算个人或用户组设备 grant。
-- 用户身份必须从 session 提取，不能读取请求体中的 uid；设备被删除后列表和新票据立即失效。
+- 用户身份必须从 session 提取，不能读取请求体中的 uid；设备被删除后列表和新的连接请求立即失效。
 - 用户设备 DTO 只返回名称、在线状态、能力等展示字段，不返回 `desktop_link`、静态密码、内部节点地址。
-- 点击连接后 Console 再签发 device ticket 和短时 `launch_url`。
+- 点击连接后 Console 实时返回设备连接描述和 `launch_url`。
 
 ### 4.2 应用
 
@@ -234,11 +215,11 @@ pub struct ConnectionTicket {
 
 - 用户应用 DTO 不返回 node_id、device_id、端口、游戏路径和调度权重。
 - DTO 可返回 `grant_sources: [{ gid, name }]` 供“我的组”筛选；public 应用不返回无意义的 grant_sources。
-- 从组移除授权后，新的列表、启动和连接票据请求立即收缩。已建立的媒体连接默认不中断；若业务要求强制踢出，使用单独的 revoke-active-connections 操作并审计。
+- 从组移除授权后，新的列表、启动和连接请求立即收缩。已建立的媒体连接默认不中断；若业务要求强制踢出，使用单独的 revoke-active-connections 操作并审计。
 
 ### 4.3 权限快照
 
-连接票据中的 `permissions` 是本次连接的最小权限快照：
+连接描述中的 `permissions` 是本次连接的最小权限集合：
 
 - 设备远控能力包含 `view,input,clipboard,file,audio`；客户端仍可通过 `requested_permissions` 只申请本次需要的最小集合。
 - 后台监控等内部观察者使用独立 service/admin 流程，不伪装为 user，也不能继承输入权限。
@@ -294,19 +275,21 @@ PUT   /api/v1/user/me/avatar                  # multipart(file)，最大 2 MiB
 POST  /api/v1/user/me/password                # { current_password, new_password }；成功后撤销旧会话并换发当前 token
 GET  /api/v1/user/resources/summary
 GET  /api/v1/user/devices
-POST /api/v1/user/devices/{device_id}/ticket
+POST /api/v1/user/devices/{device_id}/web-connection
+POST /api/v1/user/devices/{device_id}/native-connection
 GET  /api/v1/user/apps
 POST /api/v1/user/apps/{app_id}/start
 GET  /api/v1/user/instances
-POST /api/v1/user/instances/{instance_id}/ticket
+POST /api/v1/user/instances/{instance_id}/web-connection
+POST /api/v1/user/instances/{instance_id}/native-connection
 POST /api/v1/user/instances/{instance_id}/stop
 ```
 
 `GET /api/v1/user/devices` 返回 Console 中全部已注册设备的 `DeviceSummary`；不得返回 `desktop_link`、静态密码或内部地址。设备访问不读取个人或用户组 grant。
 
 - 所有 uid/owner_id 从 session 获取。
-- start 返回用户可见的实例状态；成功时可同时返回一次性 `launch_url`。
-- `launch_url` 会包含浏览器必须访问的 Render 地址，但不含设备密码和长期 session。资源列表 DTO 不提前暴露节点信息。
+- start 返回用户可见的实例状态；连接描述接口返回 `launch_url` 与鉴权所需字段。
+- `launch_url` 包含浏览器必须访问的 Render 地址；设备密码摘要仅在连接描述中返回，资源列表 DTO 不提前暴露节点信息。
 
 ### 6.3 管理接口
 
@@ -333,30 +316,22 @@ POST /api/v1/user/instances/{instance_id}/stop
 | 限流或配额耗尽 | 429 |
 | 实例正在启动/资源占用 | 409 |
 
-## 7. 连接票据闭环
-
-Render 不直接访问 Mongo；一次性票据通过现有 Console ↔ px_service 长连接兑换。
+## 7. 密码鉴权连接闭环
 
 ```text
 Panel/浏览器
   → Console：携带 user/admin/guest session 请求连接
-  → Console：实时 ACL + 实例 owner + 配额校验
-  → Console：创建 ticket_hash，返回一次性 ticket + launch_url
-  → Web Client：从 URL fragment 读取 ticket，立即 history.replaceState 清除
-  → Render：在 WebRTC 信令 body/header 中收到 ticket
-  → Render → localhost px_service：请求兑换
-  → px_service → Console service WS：RedeemConnectionTicket
-  → Console：原子消费，返回 device/instance/permissions/client_nonce
-  → Render：核对本机 device/instance 后建立对应权限的 RTC 会话
+  → Console：实时校验 ACL、实例 owner、配额和节点在线状态
+  → Console：返回端点、设备密码摘要、流 ID、权限和 RTC 配置
+  → Client：在启动连接前完成描述解析和必要的密码收集
+  → Render：直接校验设备密码摘要，再建立 Native 或 Web 会话
 ```
 
 要求：
 
-- ticket 放 URL fragment，不放 query；fragment 不发送给 HTTP 服务端，也不进入代理访问日志。
-- Web Client 读取后立即清除 fragment，并只在信令 Header/Body 中发送一次。
-- px_service 到 Render 的兑换接口只允许 loopback，并使用服务端随机 IPC 凭据或命名管道 ACL。
-- Console service WS 消息必须绑定已认证 device_id，不能由请求字段覆盖连接身份。
-- 兑换超时、重复、错设备、错实例、错 client_nonce、已撤销 session 均拒绝。
+- Console 登录态只负责资源访问和调度，不作为 Render 的连接凭据。
+- Render 必须核对目标 device、instance、stream 和密码摘要；不创建预留、一次性票据或续期能力。
+- 被占用、五秒宽限、密码错误、设备离线和实例无效均返回明确业务错误；Client 启动后不再做 Console 二次授权。
 - Console 不可达时不降级为静态设备密码；用户门户连接明确失败。手工 ID/密码模式只保留为管理员显式开启的调试功能。
 
 ## 8. 前端设计
@@ -452,7 +427,7 @@ public 应用允许匿名启动，但必须具备以下保护：
 
 - `c_user`、`c_user_device`；
 - 旧用户组、成员和授权数据（若测试分支已经创建）；
-- user/admin/guest session 和连接 ticket；
+- user/admin/guest session；
 - 归属于旧主体的应用实例、启动记录与临时调度状态；
 - 缺少 `access_mode` 或仍依赖旧授权字段的测试应用及其节点记录。
 
@@ -460,11 +435,11 @@ public 应用允许匿名启动，但必须具备以下保护：
 
 ### 11.2 初始化顺序
 
-1. 启动新 Console，创建新集合以及 group/member/grant/session/ticket 的唯一索引和 TTL 索引。
+1. 启动新 Console，创建 group/member/grant/session 等集合的唯一索引和 TTL 索引。
 2. 建立 license 管理者会话配置；当前产品决策为开放直接注册，新用户默认无用户组但可访问全部 Console 设备。
 3. 重新创建测试用户；密码只生成 Argon2id hash。
 4. 重新创建应用并显式写入 `access_mode`，再创建用户组、成员以及应用授权；不登记设备授权。
-5. 使用无个人/组设备 grant 的用户验证设备列表、控制票据和文件票据，再启动新的应用实例并签发应用 ticket。
+5. 使用无个人/组设备 grant 的用户验证设备列表、密码鉴权连接和文件传输，再启动新的应用实例并获取连接描述。
 6. 完成权限矩阵和双机 E2E 后才允许继续使用该测试环境。
 
 ### 11.3 代码清理要求
@@ -703,8 +678,10 @@ PATCH  /api/v1/admin/apps/{app_id}/access   { version, access_mode, group_ids[] 
 ```text
 GET  /api/v1/user/devices
 GET  /api/v1/user/devices/page?page=&page_size=&keyword=
-POST /api/v1/user/devices/{device_id}/ticket
-     { client_nonce, requested_permissions[] }
+POST /api/v1/user/devices/{device_id}/web-connection
+     { client_nonce, join_mode }
+POST /api/v1/user/devices/{device_id}/native-connection
+     { view_only, client_capability }
 
 GET  /api/v1/user/apps
 GET  /api/v1/user/apps/page?page=&page_size=&keyword=
@@ -712,18 +689,17 @@ POST /api/v1/user/apps/{app_id}/start
      { client_nonce }
 GET  /api/v1/user/instances
 GET  /api/v1/user/instances/page?page=&page_size=&keyword=&state=
-POST /api/v1/user/instances/{instance_id}/ticket
-     { client_nonce, requested_permissions[] }
+POST /api/v1/user/instances/{instance_id}/web-connection
+     { client_nonce, join_mode }
+POST /api/v1/user/instances/{instance_id}/native-connection
+     { view_only, client_capability }
 POST /api/v1/user/instances/{instance_id}/stop
      { reason? }
-
-POST /api/v1/connection-tickets/renew
-     { renewal_token, client_nonce }
 ```
 
-- `requested_permissions` 只能缩小服务端允许集合，不能扩大；未知权限返回 400。
+- `join_mode` 只接受 `control` 或 `observe`；观察模式只能获得只读权限。
 - start 返回 200（复用已有实例）或 202（新实例 starting），两者都返回 `InstanceView`；启动失败通过实例状态查询得到稳定 error_code。
-- ticket 请求只有在设备在线或实例处于 running 且 owner/ACL 均有效时成功。
+- 连接描述请求只有在设备在线或实例处于 running 且 owner/ACL 均有效时成功。
 - 管理接口、服务接口和用户接口使用独立 Router 与认证中间件，不允许一个 handler 根据可选凭据猜测身份。
 
 ### 15.6 业务错误码
@@ -735,7 +711,6 @@ POST /api/v1/connection-tickets/renew
 | 403 | `SUBJECT_FORBIDDEN` / `CSRF_REJECTED` | 主体类型或浏览器来源不允许 |
 | 404 | `RESOURCE_NOT_FOUND` | 不存在或无权私有资源，统一防枚举 |
 | 409 | `VERSION_CONFLICT` / `INSTANCE_CONFLICT` | 乐观锁或实例状态冲突 |
-| 410 | `TICKET_EXPIRED_OR_USED` | ticket 过期、撤销或已消费 |
 | 429 | `RATE_LIMITED` / `QUOTA_EXCEEDED` | 限流或配额耗尽 |
 | 503 | `DEVICE_OFFLINE` / `SCHEDULER_UNAVAILABLE` | 目标离线或调度器不可用 |
 
@@ -751,7 +726,6 @@ POST /api/v1/connection-tickets/renew
 | `c_user_device` | 旧兼容集合；unique(`uid`,`device_id`)，(`device_id`,`uid`) |
 | `c_user_session` | unique(`token_hash`)，unique(`sid`)，TTL(`cleanup_at`, expireAfterSeconds=0)，(`subject_type`,`subject_id`,`revoked_at`) |
 | `c_guest_block` | unique(`kind`,`value`)；kind 为 `guest_id` 或脱敏 `ip_hash` |
-| `c_connection_ticket` | unique(`ticket_hash`)，TTL(`expires_at`, 0)，(`session_id`,`consumed_at`) |
 | `c_app` | unique(`app_id`)，(`access_mode`,`name`) |
 | `c_app_instance` | unique(`instance_id`)，unique(`owner_session_id`,`app_id`,`client_nonce`) partial active，(`owner_type`,`owner_id`,`state`) |
 
@@ -760,27 +734,13 @@ POST /api/v1/connection-tickets/renew
 - 服务启动必须创建/校验全部关键唯一索引和 TTL 索引；任一失败时 Console 不进入监听阶段。
 - 重置工具只允许数据库名精确等于 `db_gr_console_server` 且配置显式 `environment = "test"` 时运行；执行前打印集合和文档数量，要求命令行 `--confirm-reset-test-identity-data`，不提供 HTTP 重置接口。
 
-## 17. Service WebSocket 与票据兑换契约
+## 17. Service WebSocket 契约
 
 沿用现有 appkey/app_secret HMAC WebSocket 握手作为部署鉴权，但握手成功后必须将连接绑定到 query 中的 device_id；同一 device_id 的新连接替换旧连接并递增 connection_epoch。
 
-```text
-Service -> Console  RedeemConnectionTicketRequest {
-  request_id, device_id, ticket, client_nonce, instance_id?
-}
-
-Console -> Service  RedeemConnectionTicketResponse {
-  request_id, ok, code,
-  grant?: { kind, device_id, app_id?, instance_id?, subject_type,
-            subject_id, permissions[], expires_at }
-}
-```
-
-- protocol protobuf 分配固定消息号；request_id 在单条 WS 上唯一，Console 回包必须原样携带。
-- Console 以该 WS 已绑定的 device_id 覆盖请求字段并原子消费 ticket；设备不一致返回拒绝且不消费，防止错误节点使合法 ticket 失效。
-- ticket 原文不得出现在 tracing、protobuf Debug 输出或错误响应中；只记录 ticket_hash 前 8 位和 request_id。
-- Service 兑换超时后连接失败，客户端重新向 Console 申请新 ticket；成功 ticket 由 Mongo 原子条件保证只能被消费一次。request_id 回包保持一致，跨重连响应缓存属于后续增强。
-- Console/Service 断线时停止新兑换；已建立 RTC 连接可继续，除非收到 revoke/stop。重连后先完成实例心跳对账，再开放 ticket 兑换。
+- Service 与 Console 只交换设备注册、心跳、应用生命周期和 RDP 会话有效性等控制信息，不参与远程连接密码校验。
+- protocol protobuf 使用固定消息号；request_id 在单条 WS 上唯一，Console 回包必须原样携带。
+- Console/Service 断线时停止新的调度操作；已建立的 Render 连接按自身生命周期继续，重连后先完成实例心跳对账。
 - appkey/app_secret 至少每 90 天轮换，允许当前和上一把密钥重叠 10 分钟；`force_authorize=false` 只能在 loopback 自动化测试启用，非 loopback 启动必须拒绝。
 
 ## 18. 应用实例状态机

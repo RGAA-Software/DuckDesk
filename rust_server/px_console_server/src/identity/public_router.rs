@@ -1,9 +1,9 @@
-use crate::connection_ticket::handler::issue_guest_instance_ticket;
 use crate::console_context::ConsoleContext;
 use crate::identity::resource_handler::{
     list_guest_instances, list_public_apps, start_public_app, stop_guest_instance,
 };
 use crate::native_connection::guest_native_connection;
+use crate::web_connection::guest_web_instance_connection;
 use crate::user::session_router::{require_guest, require_guest_write};
 use axum::routing::{get, post};
 use axum::{middleware, Router};
@@ -24,8 +24,8 @@ pub fn make_public_resource_router(
             get(list_guest_instances).layer(middleware::from_fn(require_guest)),
         )
         .route(
-            "/instances/{instance_id}/ticket",
-            post(issue_guest_instance_ticket).layer(middleware::from_fn(require_guest_write)),
+            "/instances/{instance_id}/web-connection",
+            post(guest_web_instance_connection).layer(middleware::from_fn(require_guest_write)),
         )
         .route(
             "/instances/{instance_id}/native-connection",

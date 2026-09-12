@@ -23,10 +23,8 @@ pub use process::{
     collect_process_tree, find_pids_for_game_exe, ProcessKind, ProcessSnapshot, RenderMode,
 };
 pub use proto::{
-    decode_service_message, encode_service_message, MsgAuthInfo, MsgConnectionGrant, MsgHeartBeat,
-    MsgHeartBeatResp, MsgRedeemConnectionTicket, MsgRedeemConnectionTicketResp,
-    MsgReqCtrlAltDelete, MsgRestartServer, MsgStartServer, MsgStopServer, MsgVirtualDisplayRequest,
-    MsgVirtualDisplayResult, RenderStatus, ServiceMessage, ServiceMessageType,
+    decode_service_message, encode_service_message, MsgAuthInfo, MsgHeartBeat, MsgHeartBeatResp, MsgReqCtrlAltDelete, MsgRestartServer,
+    MsgStartServer, MsgStopServer, MsgVirtualDisplayRequest, MsgVirtualDisplayResult, RenderStatus, ServiceMessage, ServiceMessageType,
     VirtualDisplayOperation,
 };
 pub use state::{RenderLaunchSpec, ServiceState, RENDER_HEARTBEAT_TIMEOUT, RENDER_STARTUP_GRACE};

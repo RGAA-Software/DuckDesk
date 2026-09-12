@@ -6,8 +6,7 @@ import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.account.AccountSession
 import yun.pixels.client.core.domain.account.AccountState
 import yun.pixels.client.core.domain.account.ApplicationRepository
-import yun.pixels.client.core.domain.account.ConnectionTicket
-import yun.pixels.client.core.domain.account.JoinMode
+import yun.pixels.client.core.domain.account.AccountConnection
 import yun.pixels.client.core.domain.account.RemoteApplication
 import yun.pixels.client.core.domain.account.RemoteApplicationInstance
 
@@ -22,12 +21,7 @@ interface ConsoleApplicationApi {
 
     suspend fun stopApplication(session: AccountSession, instanceId: String): AccountResult<Unit>
 
-    suspend fun issueApplicationTicket(
-        session: AccountSession,
-        instanceId: String,
-        clientNonce: String,
-        joinMode: JoinMode,
-    ): AccountResult<ConnectionTicket>
+    suspend fun resolveApplicationConnection(session: AccountSession, instanceId: String): AccountResult<AccountConnection>
 }
 
 class ConsoleApplicationRepository(
@@ -43,12 +37,8 @@ class ConsoleApplicationRepository(
     override suspend fun stop(instanceId: String): AccountResult<Unit> =
         withSession { session -> api.stopApplication(session, instanceId) }
 
-    override suspend fun issueTicket(
-        instanceId: String,
-        clientNonce: String,
-        joinMode: JoinMode,
-    ): AccountResult<ConnectionTicket> = withSession { session ->
-        api.issueApplicationTicket(session, instanceId, clientNonce, joinMode)
+    override suspend fun resolveConnection(instanceId: String): AccountResult<AccountConnection> = withSession { session ->
+        api.resolveApplicationConnection(session, instanceId)
     }
 
     private suspend fun <T> withSession(block: suspend (AccountSession) -> AccountResult<T>): AccountResult<T> {

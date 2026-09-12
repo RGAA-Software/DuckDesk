@@ -34,7 +34,8 @@ inline PxAsyncError MakeSdkWebSocketRejectionError(const WsControlRejection reje
         message = "websocket session was rejected";
         break;
     }
-    return MakePxAsyncError(PxAsyncErrorCode::kProtocolError, "sdk.websocket.rejection", std::move(message), true, "SDK_WEBSOCKET_SESSION_REJECTED");
+    return MakePxAsyncError(PxAsyncErrorCode::kProtocolError, "sdk.websocket.rejection", std::move(message), false,
+                            "SDK_WEBSOCKET_SESSION_REJECTED");
 }
 
 } // namespace px

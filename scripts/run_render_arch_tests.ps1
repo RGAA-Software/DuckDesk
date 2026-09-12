@@ -95,7 +95,6 @@ $unitTargets = @(
     "test_file_transfer_service",
     "test_render_service_rpc_state",
     "test_logical_session_registry",
-    "test_direct_session_grant_store",
     "test_rtc_heartbeat_watchdog",
     "test_voice_call_service"
 )

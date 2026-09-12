@@ -10,8 +10,7 @@ enum ServiceMessageType {
   kSrvHeartBeatResp = 4;
   kSrvReqCtrlAltDelete = 5;
   kSrvAuthInfo = 6;
-  kSrvRedeemConnectionTicket = 7;
-  kSrvRedeemConnectionTicketResp = 8;
+  reserved 7, 8;
   kSrvVirtualDisplayRequest = 9;
   kSrvVirtualDisplayResult = 10;
   kSrvAppInstanceReady = 11;
@@ -84,37 +83,6 @@ message MsgReqCtrlAltDelete {
   string req_stream_id = 2;
 }
 
-message MsgRedeemConnectionTicket {
-  string request_id = 1;
-  string ticket = 2;
-  string client_nonce = 3;
-  string instance_id = 4;
-}
-
-message MsgConnectionGrant {
-  string kind = 1;
-  string device_id = 2;
-  string app_id = 3;
-  string instance_id = 4;
-  string subject_type = 5;
-  string subject_id = 6;
-  repeated string permissions = 7;
-  int64 expires_at = 8;
-  string logical_session_id = 9;
-  string stream_id = 10;
-  string join_mode = 11;
-  bool allow_observer = 12;
-  bool allow_takeover = 13;
-}
-
-message MsgRedeemConnectionTicketResp {
-  string request_id = 1;
-  bool ok = 2;
-  string code = 3;
-  MsgConnectionGrant grant = 4;
-  string rtc_ice_config_json = 5;
-}
-
 message MsgVirtualDisplayRequest {
   string request_id = 1;
   VirtualDisplayOperation operation = 2;
@@ -156,8 +124,7 @@ message ServiceMessage {
   MsgReqCtrlAltDelete req_ctrl_alt_delete = 7;
   // sent by panel right after connecting, and embedded in every heartbeat
   MsgAuthInfo auth_info = 8;
-  MsgRedeemConnectionTicket redeem_connection_ticket = 9;
-  MsgRedeemConnectionTicketResp redeem_connection_ticket_resp = 10;
+  reserved 9, 10;
   MsgVirtualDisplayRequest virtual_display_request = 11;
   MsgVirtualDisplayResult virtual_display_result = 12;
   MsgAppInstanceReady app_instance_ready = 13;

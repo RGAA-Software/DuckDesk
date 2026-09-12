@@ -1,14 +1,13 @@
 use crate::app_schedule::manager::{AppInstance, AppNode, AppPlacement, Application};
 use crate::app_schedule::rdp_workspace::RdpWorkspaceRecord;
-use crate::connection_ticket::model::ConnectionTicket;
 use crate::device::console_device::ConsoleDevice;
 use crate::event::console_event::ConsoleEvent;
 use crate::gConsoleSettings;
 use crate::identity::model::{GroupAppGrant, GroupDeviceGrant, UserGroup, UserGroupMember};
 use crate::net_client::console_client_conn::ConsoleClientConnVo;
 use crate::record::console_file_transfer::ConsoleFileTransfer;
-use crate::record::console_render_record::ConsoleRenderRecord;
 use crate::record::console_remote_session::{ConsoleRemoteSession, ConsoleRemoteSessionEvent};
+use crate::record::console_render_record::ConsoleRenderRecord;
 use crate::record::console_visit::ConsoleVisit;
 use crate::stream::console_stream::ConsoleStream;
 use crate::update::update_info::UpdateInfo;
@@ -38,7 +37,6 @@ pub struct ConsoleDatabase {
     pub c_user_group_member: Option<Arc<Mutex<Collection<UserGroupMember>>>>,
     pub c_group_device_grant: Option<Arc<Mutex<Collection<GroupDeviceGrant>>>>,
     pub c_group_app_grant: Option<Arc<Mutex<Collection<GroupAppGrant>>>>,
-    pub c_connection_ticket: Option<Arc<Mutex<Collection<ConnectionTicket>>>>,
     // stream
     pub c_stream: Option<Arc<Mutex<Collection<ConsoleStream>>>>,
     // record: visit
@@ -305,39 +303,6 @@ impl ConsoleDatabase {
                 }
                 self.c_group_app_grant = Some(Arc::new(Mutex::new(c_group_app_grant)));
 
-                let c_connection_ticket: Collection<ConnectionTicket> =
-                    database.collection("c_connection_ticket");
-                for index in [
-                    IndexModel::builder()
-                        .keys(doc! { "ticket_hash": 1 })
-                        .options(IndexOptions::builder().unique(true).build())
-                        .build(),
-                    IndexModel::builder()
-                        .keys(doc! { "renewal_hash": 1 })
-                        .options(IndexOptions::builder().unique(true).sparse(true).build())
-                        .build(),
-                    IndexModel::builder()
-                        .keys(doc! { "cleanup_at": 1 })
-                        .options(
-                            IndexOptions::builder()
-                                .expire_after(std::time::Duration::from_secs(0))
-                                .build(),
-                        )
-                        .build(),
-                    IndexModel::builder()
-                        .keys(doc! { "session_id": 1, "consumed_at": 1 })
-                        .build(),
-                    IndexModel::builder()
-                        .keys(doc! { "device_id": 1, "instance_id": 1, "logical_session_id": 1 })
-                        .build(),
-                ] {
-                    if let Err(e) = c_connection_ticket.create_index(index).await {
-                        tracing::error!("create c_connection_ticket index failed: {}", e);
-                        return false;
-                    }
-                }
-                self.c_connection_ticket = Some(Arc::new(Mutex::new(c_connection_ticket)));
-
                 // stream
                 let c_stream: Collection<ConsoleStream> = database.collection("c_stream");
                 self.c_stream = Some(Arc::new(Mutex::new(c_stream)));
@@ -411,9 +376,13 @@ impl ConsoleDatabase {
                 let c_remote_session: Collection<ConsoleRemoteSession> =
                     database.collection("c_remote_session");
                 for index in [
-                    IndexModel::builder().keys(doc! { "logical_session_id": 1 }).options(
-                        IndexOptions::builder().unique(true).build()).build(),
-                    IndexModel::builder().keys(doc! { "device_id": 1, "active": 1 }).build(),
+                    IndexModel::builder()
+                        .keys(doc! { "logical_session_id": 1 })
+                        .options(IndexOptions::builder().unique(true).build())
+                        .build(),
+                    IndexModel::builder()
+                        .keys(doc! { "device_id": 1, "active": 1 })
+                        .build(),
                 ] {
                     if let Err(e) = c_remote_session.create_index(index).await {
                         tracing::error!("create remote session index failed: {}", e);
@@ -424,10 +393,16 @@ impl ConsoleDatabase {
                 let c_remote_session_event: Collection<ConsoleRemoteSessionEvent> =
                     database.collection("c_remote_session_event");
                 for index in [
-                    IndexModel::builder().keys(doc! { "event_id": 1 }).options(
-                        IndexOptions::builder().unique(true).build()).build(),
-                    IndexModel::builder().keys(doc! { "device_id": 1, "timestamp": -1 }).build(),
-                    IndexModel::builder().keys(doc! { "logical_session_id": 1, "timestamp": -1 }).build(),
+                    IndexModel::builder()
+                        .keys(doc! { "event_id": 1 })
+                        .options(IndexOptions::builder().unique(true).build())
+                        .build(),
+                    IndexModel::builder()
+                        .keys(doc! { "device_id": 1, "timestamp": -1 })
+                        .build(),
+                    IndexModel::builder()
+                        .keys(doc! { "logical_session_id": 1, "timestamp": -1 })
+                        .build(),
                 ] {
                     if let Err(e) = c_remote_session_event.create_index(index).await {
                         tracing::error!("create remote session event index failed: {}", e);
@@ -533,11 +508,17 @@ impl ConsoleDatabase {
                 }
                 self.c_app_instance = Some(Arc::new(Mutex::new(c_app_instance)));
 
-                let c_rdp_workspace: Collection<RdpWorkspaceRecord> = database.collection("c_rdp_workspace");
-                for keys in [doc! { "app_id": 1, "node_id": 1 }, doc! { "workspace_id": 1 },
-                             doc! { "device_id": 1, "account_name": 1 }] {
-                    let index = IndexModel::builder().keys(keys)
-                        .options(IndexOptions::builder().unique(true).build()).build();
+                let c_rdp_workspace: Collection<RdpWorkspaceRecord> =
+                    database.collection("c_rdp_workspace");
+                for keys in [
+                    doc! { "app_id": 1, "node_id": 1 },
+                    doc! { "workspace_id": 1 },
+                    doc! { "device_id": 1, "account_name": 1 },
+                ] {
+                    let index = IndexModel::builder()
+                        .keys(keys)
+                        .options(IndexOptions::builder().unique(true).build())
+                        .build();
                     if c_rdp_workspace.create_index(index).await.is_err() {
                         tracing::error!("RDP workspace uniqueness index unavailable");
                         return false;
@@ -588,10 +569,6 @@ impl ConsoleDatabase {
 
     pub fn group_app_grant(&self) -> Arc<Mutex<Collection<GroupAppGrant>>> {
         self.c_group_app_grant.clone().unwrap()
-    }
-
-    pub fn connection_ticket(&self) -> Arc<Mutex<Collection<ConnectionTicket>>> {
-        self.c_connection_ticket.clone().unwrap()
     }
 
     pub fn stream(&self) -> Arc<Mutex<Collection<ConsoleStream>>> {

@@ -2,6 +2,8 @@
 
 日期：2026-09-10。状态：实施中；P2 的本机代码、单元回归、Render 构建和产物发布已完成。P3 的 IPv4 候选配置链与单元测试已完成，真实 Render 端到端验收仍按本文件矩阵执行。
 
+> 2026-09-12 鉴权更新：Native 与 Web 均不再使用远程连接票据。Console 只下发稳定端点、实例、权限和 RTC 路由配置，Render 使用设备密码摘要完成最终鉴权。本文中旧的签发、续期、兑换描述均已作废。
+
 ## 1. 已确认的产品边界
 
 当前目标是云电脑、云渲染应用和云游戏：Console 管理和授权，客户端访问指定 Render。
@@ -14,7 +16,7 @@
 | Web | WebRTC | 保留 RTC 直连、RTC 标准两种模式；优先直连，标准模式最低优先级兜底 |
 
 - Native 不接入或回退到 WebRTC；不在本次开发 Native 公网 P2P 打洞 / Relay。
-- Web 不添加 WS / UDP 媒体回退；HTTP / WSS 信令、登录、票据接口不算另一套业务媒体通道。
+- Web 不添加 WS / UDP 媒体回退；HTTP / WSS 信令与登录接口不算另一套业务媒体通道。
 - RTC 标准模式可以通过现有 Coturn 完成 TURN 转发；它不是尚未开发的 Native Relay。
 - 标准模式优先级最低，不等于删除、长期禁用或不验收；最终要让其信令和 Coturn 正常工作。
 - 不恢复客户端“强制选择通道”设置。测试工具可隔离验证指定模式，不作为产品用户选项。
@@ -195,7 +197,7 @@ P1 契约确定后优先完成本项，防止 Web 故障继续影响已可用的
 | 工作范围 | 优先核对的位置 | 原则 |
 |---|---|---|
 | 节点配置、分配、生命周期 | `rust_client/px_service/service_core/src/node_config.rs`、`rust_client/px_service/src/service_host.rs` | 扩展现有节点职责，保留已修复的进程身份检查 |
-| Console 调度、端点下发 | `rust_server/px_console_server/src/app_schedule/`、`connection_ticket/`、设备与 Service 管理模块 | 根据实际回执下发目标端点 |
+| Console 调度、端点下发 | `rust_server/px_console_server/src/app_schedule/`、`native_connection.rs`、`web_connection.rs`、设备与 Service 管理模块 | 根据实际回执下发目标端点和密码鉴权参数 |
 | 服务协议 | `src/px_deps/px_message/` 及对应 Rust 协议生成链 | 先定义字段语义，再生成；不手工修改生成代码 |
 | Native 连接入口 | `src/px_client/ct_main_ws.cpp`、现有共享 Native SDK、Android 调用层 | 仅消费 WS / UDP 端点，不引入 RTC |
 | 直连 HTTP / RTC | `src/px_render/network/ws/http_handler.cpp`、`network/webrtc/local/` | 地址分离、映射、异步取消与失败回收 |

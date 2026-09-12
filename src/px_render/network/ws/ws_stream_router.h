@@ -40,7 +40,7 @@ namespace px
         void OnPong(std::shared_ptr<asio2::http_session> &sess_ptr) override;
         void PostBinaryMessage(std::shared_ptr<Data> data) override;
         void PostReliableBinaryMessage(std::shared_ptr<Data> data, std::function<void(bool)> completion);
-        // Called only by WsServer after ticket redemption and exclusive admission, on the session executor.
+        // Called only by WsServer after password authentication and exclusive admission, on the session executor.
         [[nodiscard]] bool StartRdp(asio::any_io_executor executor, std::uint16_t proxy_port, std::function<void()> release,
                                    std::function<void()> closed);
         void RevokeRdp();
@@ -66,7 +66,7 @@ namespace px
         // udp_media=1 的客户端:媒体帧由 net_udp 插件裸 UDP 直发,本 ws 会话
         // 只承担控制面,kVideoFrame/kAudioFrame proto 不再下发(见 ws_server.cpp)
         std::atomic_bool udp_media_ = false;
-        // Capability comes from the redeemed logical-session ticket. Outbound
+        // Capability comes from the authenticated logical session. Outbound
         // clipboard payloads are filtered by WsServer before broadcast.
         std::atomic_bool clipboard_allowed_ = false;
         std::atomic_bool file_allowed_ = false;

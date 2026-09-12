@@ -6,15 +6,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import yun.pixels.client.core.domain.account.AccountFailure
-import yun.pixels.client.core.domain.account.AccountResult
-import yun.pixels.client.core.domain.account.ConnectionTicket
 import yun.pixels.client.core.domain.session.InstallationIdentity
 import yun.pixels.client.core.domain.session.RemoteSessionFailure
 import yun.pixels.client.core.domain.session.RemoteSessionId
@@ -26,10 +21,9 @@ import yun.pixels.client.core.domain.transfer.FileTransferTransport
 import yun.pixels.client.core.domain.recording.RecordingTransport
 import yun.pixels.client.core.domain.voice.VoiceCallTransport
 
-/** Android lifecycle and one-time ticket ownership around the single native SDK. */
+/** Android lifecycle ownership around the single native SDK. */
 class AndroidRemoteSessionTransport private constructor(
     private val native: NativeRemoteSessionTransport,
-    private val renewTicket: suspend (ConnectionTicket, String) -> AccountResult<ConnectionTicket>,
 ) : RemoteSessionTransport by native,
     FileTransferTransport by native,
     RecordingTransport by native,
@@ -38,13 +32,11 @@ class AndroidRemoteSessionTransport private constructor(
     constructor(
         installationIdentity: InstallationIdentity,
         callbackScope: CoroutineScope,
-        renewTicket: suspend (ConnectionTicket, String) -> AccountResult<ConnectionTicket>,
-    ) : this(NativeRemoteSessionTransport(installationIdentity, callbackScope), renewTicket)
+    ) : this(NativeRemoteSessionTransport(installationIdentity, callbackScope))
 
     private val lifecycle = Mutex()
     private val activeSessions = mutableSetOf<RemoteSessionId>()
     private val surfaceSessions = mutableSetOf<RemoteSessionId>()
-    private val ticketAttempts = mutableMapOf<RemoteSessionId, ConnectionTicketAttempt>()
     private var closed = false
 
     suspend fun attachSurface(sessionId: RemoteSessionId, surface: Surface) = withContext(Dispatchers.IO) {
@@ -64,21 +56,9 @@ class AndroidRemoteSessionTransport private constructor(
         lifecycle.withLock {
             if (closed) return@withLock RemoteTransportStartResult.Rejected(RemoteSessionFailure.TransportUnavailable)
             if (request.id in activeSessions) return@withLock RemoteTransportStartResult.Accepted
-            val account = request.target as? RemoteSessionTarget.Account
-            val attempt = account?.let { ticketAttempts.getOrPut(request.id) { ConnectionTicketAttempt(it.connectionTicket) } }
-            val effective = if (account != null && attempt != null) {
-                when (val prepared = attempt.prepareForStart(System.currentTimeMillis(), account.clientNonce, ::renewTicketSafely)) {
-                    is AccountResult.Success -> request.copy(target = account.copy(connectionTicket = prepared.value))
-                    is AccountResult.Failure -> return@withLock RemoteTransportStartResult.Rejected(prepared.reason.toSessionFailure())
-                }
-            } else {
-                request
-            }
-            currentCoroutineContext().ensureActive()
             try {
                 // Once JNI creates a handle, finish publishing it before cancellation can interrupt cleanup.
-                val result = withContext(NonCancellable) { native.start(effective) }
-                currentCoroutineContext().ensureActive()
+                val result = withContext(NonCancellable) { native.start(request) }
                 if (result == RemoteTransportStartResult.Accepted) activeSessions += request.id
                 result
             } catch (cancellation: CancellationException) {
@@ -95,7 +75,6 @@ class AndroidRemoteSessionTransport private constructor(
         lifecycle.withLock {
             activeSessions -= sessionId
             native.stop(sessionId)
-            // Retain the latest rotating renewal capability, not the original request ticket.
         }
     }
 
@@ -111,59 +90,6 @@ class AndroidRemoteSessionTransport private constructor(
             native.close()
             activeSessions.clear()
             surfaceSessions.clear()
-            ticketAttempts.clear()
         }
-    }
-
-    private suspend fun renewTicketSafely(ticket: ConnectionTicket, clientNonce: String): AccountResult<ConnectionTicket> = try {
-        renewTicket(ticket, clientNonce)
-    } catch (cancellation: CancellationException) {
-        throw cancellation
-    } catch (_: Exception) {
-        AccountResult.Failure(AccountFailure.NetworkUnavailable)
-    }
-}
-
-private fun AccountFailure.toSessionFailure(): RemoteSessionFailure = when (this) {
-    AccountFailure.AuthenticationRequired, AccountFailure.Forbidden, AccountFailure.InvalidCredentials ->
-        RemoteSessionFailure.AuthenticationRejected
-    AccountFailure.DeviceOffline, AccountFailure.NotFound -> RemoteSessionFailure.DeviceOffline
-    AccountFailure.NetworkUnavailable, AccountFailure.RateLimited, AccountFailure.ServerError ->
-        RemoteSessionFailure.NetworkUnavailable
-    AccountFailure.InvalidEndpoint, AccountFailure.InvalidResponse -> RemoteSessionFailure.ProtocolError
-}
-
-/** Serialized by the owning transport lifecycle mutex. Never log either capability. */
-internal class ConnectionTicketAttempt(initial: ConnectionTicket) {
-    var current: ConnectionTicket = initial
-        private set
-    private var attempted = false
-
-    fun requiresRenewal(nowEpochMillis: Long): Boolean = attempted || current.expiresAtEpochMillis <= nowEpochMillis + 15_000L
-
-    suspend fun prepareForStart(
-        nowEpochMillis: Long,
-        clientNonce: String,
-        renew: suspend (ConnectionTicket, String) -> AccountResult<ConnectionTicket>,
-    ): AccountResult<ConnectionTicket> {
-        currentCoroutineContext().ensureActive()
-        if (requiresRenewal(nowEpochMillis)) {
-            when (val result = renew(current, clientNonce)) {
-                is AccountResult.Success -> renewed(result.value)
-                is AccountResult.Failure -> return result
-            }
-        }
-        // A non-cooperative renewal may return after cancellation. Retain its rotated capability,
-        // but never start JNI or consume the fresh ticket for a cancelled attempt.
-        currentCoroutineContext().ensureActive()
-        markAttempted()
-        return AccountResult.Success(current)
-    }
-
-    fun markAttempted() { attempted = true }
-
-    fun renewed(ticket: ConnectionTicket) {
-        current = ticket
-        attempted = false
     }
 }

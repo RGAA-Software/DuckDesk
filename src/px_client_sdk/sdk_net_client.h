@@ -74,7 +74,6 @@ class NetClient : public std::enable_shared_from_this<NetClient> {
 
     void On16msTimeout();
 
-
   private:
     std::shared_ptr<px::Message> ParseMessage(std::shared_ptr<Data> msg);
     void HeartBeat();
@@ -83,7 +82,7 @@ class NetClient : public std::enable_shared_from_this<NetClient> {
     void ReportUdpMediaUnavailable();
     void StartUdpDirectMedia();
     void StartFileTransferConnection();
-    [[nodiscard]] std::string MakeAuthenticatedWebSocketPath(std::string path, bool file_only = false) const;
+    [[nodiscard]] std::string MakeAuthenticatedWebSocketPath(std::string path) const;
     std::shared_ptr<Connection> MakeDirectWebSocketMediaConnection() const;
     void StartManagedUdpMediaConnection(const std::shared_ptr<Connection>& connection, uint64_t generation);
     [[nodiscard]] bool IsCurrentManagedMediaConnection(uint64_t generation) const;

@@ -40,8 +40,6 @@ import yun.pixels.client.core.domain.voice.VoiceCallEvent
 import yun.pixels.client.core.domain.voice.VoiceCallPhase
 import yun.pixels.client.core.domain.voice.VoiceCallState
 import yun.pixels.client.core.domain.voice.VoiceCallTransport
-import java.net.URI
-import java.net.URLDecoder
 
 class NativeRemoteSessionTransport internal constructor(
     private val installationIdentity: InstallationIdentity,
@@ -610,20 +608,15 @@ internal fun RemoteSessionRequest.toNativeConfig(
                 ssl = false,
                 remoteDeviceId = sessionTarget.device.id.value,
                 streamId = directAuthorization?.streamId ?: return null,
-                randomPassword = "",
+                remotePasswordHash = sessionTarget.credential.orEmpty(),
+                instanceId = "",
             )
         }
-        is RemoteSessionTarget.Account -> sessionTarget.connectionTicket.toNativeEndpoint(sessionTarget.fallbackRemoteDeviceId) ?: return null
+        is RemoteSessionTarget.Account -> sessionTarget.connection.toNativeEndpoint(sessionTarget.clientNonce)
     }
     if (endpoint.remoteDeviceId.isBlank() || endpoint.streamId.isBlank() || clientDeviceId.isBlank()) return null
     val accountTarget = target as? RemoteSessionTarget.Account
-    val accountTicket = accountTarget?.connectionTicket
-    if (accountTarget != null && (accountTicket == null || accountTicket.ticket.isBlank() || accountTarget.clientNonce.isBlank() ||
-        accountTarget.fallbackRemoteDeviceId.isBlank() || "view" !in accountTicket.permissions)
-    ) return null
-    val connectionInstanceId = accountTicket?.launchUrl
-        ?.let { runCatching { URI(it) }.getOrNull()?.fragmentParameter("instance") }
-        .orEmpty()
+    if (accountTarget != null && (accountTarget.connection.passwordHash.isBlank() || accountTarget.clientNonce.isBlank())) return null
     return NativeSessionConfig(
         sessionId = id.value,
         host = endpoint.host,
@@ -633,36 +626,26 @@ internal fun RemoteSessionRequest.toNativeConfig(
         displayName = target.displayName,
         streamId = endpoint.streamId,
         clientDeviceId = clientDeviceId,
-        randomPassword = endpoint.randomPassword,
-        connectionTicket = accountTicket?.ticket.orEmpty(),
+        remotePasswordHash = endpoint.remotePasswordHash,
         connectionNonce = accountTarget?.clientNonce ?: directAuthorization?.clientNonce.orEmpty(),
-        connectionTicketDeviceId = accountTarget?.fallbackRemoteDeviceId.orEmpty(),
-        connectionInstanceId = connectionInstanceId,
+        connectionInstanceId = endpoint.instanceId,
         enableVideo = enableVideo,
-        enableAudio = enableAudio && (accountTicket == null || "audio" in accountTicket.permissions),
-        enableInput = enableInput && (accountTicket == null || "input" in accountTicket.permissions),
-        enableClipboard = enableClipboard && when (val sessionTarget = target) {
-            is RemoteSessionTarget.Direct -> true
-            is RemoteSessionTarget.Account -> "clipboard" in sessionTarget.connectionTicket.permissions
-        },
+        enableAudio = enableAudio,
+        enableInput = enableInput,
+        enableClipboard = enableClipboard,
         preferSoftwareDecoder = preferences.decoderMode == RemoteDecoderMode.Software,
     )
 }
 
-internal fun yun.pixels.client.core.domain.account.ConnectionTicket.toNativeEndpoint(fallbackDeviceId: String): NativeEndpoint? {
-    val uri = runCatching { URI(launchUrl) }.getOrNull() ?: return null
-    if (uri.scheme?.lowercase() !in setOf("http", "https")) return null
-    val host = uri.host?.takeIf(String::isNotBlank) ?: return null
-    val ssl = uri.scheme.equals("https", ignoreCase = true)
-    if (!ssl && !host.isPrivateOrCarrierGradeAddress()) return null
-    val port = uri.port.takeIf { it in 1..65535 } ?: if (ssl) 443 else 80
+internal fun yun.pixels.client.core.domain.account.AccountConnection.toNativeEndpoint(clientNonce: String): NativeEndpoint {
     return NativeEndpoint(
         host = host,
         port = port,
-        ssl = ssl,
-        remoteDeviceId = uri.queryParameter("deviceId").orEmpty().ifBlank { fallbackDeviceId },
-        streamId = streamId,
-        randomPassword = "",
+        ssl = false,
+        remoteDeviceId = deviceId,
+        streamId = "android-$clientNonce",
+        remotePasswordHash = passwordHash,
+        instanceId = instanceId,
     )
 }
 
@@ -672,24 +655,9 @@ internal data class NativeEndpoint(
     val ssl: Boolean,
     val remoteDeviceId: String,
     val streamId: String,
-    val randomPassword: String,
+    val remotePasswordHash: String,
+    val instanceId: String,
 )
-
-private fun URI.queryParameter(name: String): String? = rawQuery
-    ?.split('&')
-    ?.asSequence()
-    ?.map { component -> component.substringBefore('=') to component.substringAfter('=', "") }
-    ?.firstOrNull { (key) -> URLDecoder.decode(key, "UTF-8") == name }
-    ?.second
-    ?.let { URLDecoder.decode(it, "UTF-8") }
-
-private fun URI.fragmentParameter(name: String): String? = rawFragment
-    ?.split('&')
-    ?.asSequence()
-    ?.map { component -> component.substringBefore('=') to component.substringAfter('=', "") }
-    ?.firstOrNull { (key) -> URLDecoder.decode(key, "UTF-8") == name }
-    ?.second
-    ?.let { URLDecoder.decode(it, "UTF-8") }
 
 internal fun String.isPrivateOrCarrierGradeAddress(): Boolean {
     val octets = split('.').mapNotNull(String::toIntOrNull)

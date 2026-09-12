@@ -194,7 +194,6 @@
   "id_only_viewing": "Only Viewing",
   "id_split_windows": "Using Multiple Windows",
   "id_connect_failed": "Connect Failed",
-  "id_connection_ticket_required": "This device connection requires a valid Console ticket. Sign in and reconnect.",
   "id_general_settings": "General Settings",
   "id_start_auto_layout_2_screens": "Auto layout 2 Screens",
   "id_display_client_logo": "Display Logo",

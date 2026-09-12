@@ -9,6 +9,7 @@
 #include "console_errors.h"
 #include "console_user_device_api.h"
 #include "px_common/expected.h"
+#include "px_common/secret_buffer.h"
 
 namespace px_console {
 
@@ -39,6 +40,7 @@ struct ConsoleNativeApplicationConnection final {
     std::string device_id{};
     std::string instance_id{};
     std::string app_type{};
+    std::string password_hash{};
     std::string signal_device_id{};
     std::string relay_host{};
     int relay_port{};
@@ -58,10 +60,6 @@ class ConsoleUserAppApi {
     static px::Result<ConsoleUserAppInstance, ConsoleApiError> StartApp(const std::string& host, int port, const std::string& access_token,
                                                                         const std::string& app_id, const std::string& client_nonce,
                                                                         bool guest = false);
-
-    static px::Result<ConsoleConnectionTicket, ConsoleApiError>
-    IssueInstanceTicket(const std::string& host, int port, const std::string& access_token, const std::string& instance_id,
-                        const std::string& client_nonce, const std::vector<std::string>& requested_permissions, bool guest = false);
 
     static px::Result<ConsoleNativeApplicationConnection, ConsoleApiError>
     QueryNativeConnection(const std::string& host, int port, const std::string& access_token, const std::string& instance_id,

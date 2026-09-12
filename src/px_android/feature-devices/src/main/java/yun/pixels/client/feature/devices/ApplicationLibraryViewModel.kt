@@ -14,7 +14,6 @@ import kotlinx.coroutines.launch
 import yun.pixels.client.core.domain.account.AccountFailure
 import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.account.ApplicationRepository
-import yun.pixels.client.core.domain.account.JoinMode
 import yun.pixels.client.core.domain.account.RemoteApplication
 import yun.pixels.client.core.domain.account.RemoteApplicationInstance
 import yun.pixels.client.core.domain.session.RemoteSessionId
@@ -87,7 +86,7 @@ class ApplicationLibraryViewModel(private val repository: ApplicationRepository)
         instance: RemoteApplicationInstance,
         clientNonce: String,
     ) {
-        when (val result = repository.issueTicket(instance.instanceId, clientNonce, JoinMode.Control)) {
+        when (val result = repository.resolveConnection(instance.instanceId)) {
             is AccountResult.Success -> {
                 mutableState.value = mutableState.value.copy(
                     applications = mutableState.value.applications.map { item ->
@@ -98,11 +97,11 @@ class ApplicationLibraryViewModel(private val repository: ApplicationRepository)
                 )
                 mutableRemoteRequests.emit(
                     RemoteSessionRequest(
-                        id = RemoteSessionId(result.value.logicalSessionId.ifBlank { UUID.randomUUID().toString() }),
+                        id = RemoteSessionId(UUID.randomUUID().toString()),
                         target = RemoteSessionTarget.Account(
                             displayName = application.name,
                             fallbackRemoteDeviceId = "",
-                            connectionTicket = result.value,
+                            connection = result.value,
                             clientNonce = clientNonce,
                         ),
                     ),

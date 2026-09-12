@@ -52,15 +52,13 @@ class ThunderSdkParams {
     std::string relay_host_{};
     int relay_port_{0};
     std::string relay_remote_device_id_{};
-    std::string relay_ticket_device_id_{};
+    std::string remote_password_hash_{};
     bool force_gdi_{false};
     std::string render_type_name_ = "unknow";
 
     // debug
     bool debug_ = false;
 
-    // One-time authorization for the reliable WebSocket binding. Never persist or log it.
-    std::string connection_ticket_;
     std::string connection_nonce_;
     std::string connection_instance_id_;
     // Short-lived opaque key used only to associate the UDP media endpoint

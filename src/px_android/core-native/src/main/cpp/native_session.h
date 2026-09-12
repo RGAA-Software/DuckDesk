@@ -46,10 +46,8 @@ struct NativeSessionConfig final {
     std::string display_name{};
     std::string stream_id{};
     std::string client_device_id{};
-    std::string random_password{};
-    std::string connection_ticket{};
+    std::string remote_password_hash{};
     std::string connection_nonce{};
-    std::string connection_ticket_device_id{};
     std::string connection_instance_id{};
     bool enable_video{true};
     bool enable_audio{true};

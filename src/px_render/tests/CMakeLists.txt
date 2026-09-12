@@ -194,13 +194,6 @@ add_executable(test_application_text_service test_application_text_service.cpp
 target_link_libraries(test_application_text_service PRIVATE px_message px_ft_engine GTest::gtest GTest::gtest_main)
 add_test(NAME application_text_service COMMAND test_application_text_service)
 
-add_executable(test_direct_session_grant_store
-    test_direct_session_grant_store.cpp
-    ../network/ws/direct_session_grant_store.cpp)
-target_link_libraries(test_direct_session_grant_store
-    PRIVATE px_common GTest::gtest GTest::gtest_main)
-add_test(NAME direct_session_grant_store COMMAND test_direct_session_grant_store)
-
 add_executable(test_render_execution_context_lifecycle test_render_execution_context_lifecycle.cpp)
 target_link_libraries(test_render_execution_context_lifecycle PRIVATE render_architecture_core GTest::gtest GTest::gtest_main)
 add_test(NAME render_execution_context_lifecycle COMMAND test_render_execution_context_lifecycle)
@@ -305,7 +298,6 @@ set_tests_properties(
     file_transfer_service
     render_service_rpc_state
     logical_session_registry
-    direct_session_grant_store
     rtc_heartbeat_watchdog
     rtc_payload_authorization
     PROPERTIES LABELS "render-unit")

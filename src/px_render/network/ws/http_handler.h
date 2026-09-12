@@ -11,7 +11,6 @@
 #include <unordered_map>
 #include "px_common/base_handler.h"
 #include "px_common/async_runtime.h"
-#include "direct_session_grant_store.h"
 
 using namespace nlohmann;
 
@@ -30,8 +29,7 @@ class WsTransport;
 // - Final response mutation runs on the asio2 session queue.
 class HttpHandler : public BaseHandler, public std::enable_shared_from_this<HttpHandler> {
   public:
-    HttpHandler(std::weak_ptr<WsTransport> transport, std::shared_ptr<PxAsyncScope> async_scope,
-                std::shared_ptr<DirectSessionGrantStore> direct_session_grants);
+    HttpHandler(std::weak_ptr<WsTransport> transport, std::shared_ptr<PxAsyncScope> async_scope);
     std::string GetErrorMessage(int code) override;
 
     // /api/ping
@@ -62,7 +60,6 @@ class HttpHandler : public BaseHandler, public std::enable_shared_from_this<Http
     std::weak_ptr<WsTransport> transport_;
     // Shared owner: stopped and drained by WsServer before teardown.
     std::shared_ptr<PxAsyncScope> async_scope_;
-    std::shared_ptr<DirectSessionGrantStore> direct_session_grants_;
 };
 
 } // namespace px

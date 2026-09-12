@@ -95,21 +95,23 @@ try {
     if ($BlockDirectUdp) { Add-BlockRule 'direct_udp' $TargetHost }
 
     $nonce = "${ConnectionMode}_$suffix"
-    $ticketPath = if ($InstanceId) {
-        "/api/v1/user/instances/$([Uri]::EscapeDataString($InstanceId))/ticket"
+    $connectionPath = if ($InstanceId) {
+        "/api/v1/user/instances/$([Uri]::EscapeDataString($InstanceId))/web-connection"
     } else {
-        "/api/v1/user/devices/$([Uri]::EscapeDataString($DeviceId))/ticket"
+        "/api/v1/user/devices/$([Uri]::EscapeDataString($DeviceId))/web-connection"
     }
-    $ticket = Invoke-JsonPost "$ConsoleBase$ticketPath" `
+    $connection = Invoke-JsonPost "$ConsoleBase$connectionPath" `
         @{ client_nonce = $nonce; join_mode = $JoinMode } `
         $accessToken
-    if ($ticket.code -ne 200 -or -not $ticket.data.ticket) { throw 'ticket issue failed' }
-    $value = $ticket.data
+    if ($connection.code -ne 200 -or -not $connection.data.launch_url -or -not $connection.data.password_hash) {
+        throw 'web connection resolution failed'
+    }
+    $value = $connection.data
     $actualPermissions = @($value.permissions | ForEach-Object { [string]$_ } | Sort-Object -Unique)
     $expectedPermissions = if ($JoinMode -eq 'observe') {
         @('audio', 'view')
     } elseif ($InstanceId) {
-        @('audio', 'input', 'view')
+        @('audio', 'clipboard', 'input', 'view')
     } else {
         @('audio', 'clipboard', 'file', 'input', 'view')
     }
@@ -134,9 +136,9 @@ try {
     $launch = [uri]$value.launch_url
     $query = [Web.HttpUtility]::ParseQueryString($launch.Query)
     $query['connType'] = $ConnectionMode
+    $query['stream_id'] = $value.stream_id
+    $query['c'] = ConvertTo-Base64Url (@{d=$value.device_id; m=$value.password_hash} | ConvertTo-Json -Compress)
     $fragment = [Web.HttpUtility]::ParseQueryString($launch.Fragment.TrimStart('#'))
-    $fragment['renew_url'] = "$ConsoleBase/api/v1/connection-tickets/renew"
-    $fragment['renew'] = $value.renewal_token
     $fragment['perms'] = $value.permissions -join ','
     $fragment['relay_host'] = $value.relay_host
     $fragment['relay_port'] = [string]$value.relay_port
@@ -184,13 +186,12 @@ finally {
 var u='$uid';
 var registration=db.c_event.findOne({action:'user_register',target_id:u,result:'success'});
 if(registration){db.c_user_session.deleteMany({subject_id:registration.actor_id});}
-db.c_connection_ticket.deleteMany({subject_id:u});
 db.c_user_session.deleteMany({subject_id:u});
 db.c_user_group_member.deleteMany({uid:u});
 db.c_user_device.deleteMany({uid:u});
 db.c_user.deleteMany({uid:u});
 db.c_event.deleteMany({`$or:[{actor_id:u},{target_id:u}]});
-printjson({users:db.c_user.count({uid:u}),sessions:db.c_user_session.count({subject_id:u}),tickets:db.c_connection_ticket.count({subject_id:u})});
+printjson({users:db.c_user.count({uid:u}),sessions:db.c_user_session.count({subject_id:u})});
 "@
         $cleanupResult = & $MongoExe db_gr_console_server --quiet --eval $cleanup
         if (-not $Quiet) { $cleanupResult }
