@@ -9,5 +9,5 @@ if errorlevel 1 exit /b %errorlevel%
 if errorlevel 1 exit /b %errorlevel%
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\scripts\publish_cpp_artifacts.ps1" -Component panel
 if errorlevel 1 exit /b %errorlevel%
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\scripts\check_panel_no_qt.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\scripts\check_no_qt.ps1"
 exit /b %errorlevel%

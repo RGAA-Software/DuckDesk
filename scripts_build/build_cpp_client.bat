@@ -6,4 +6,6 @@ if errorlevel 1 exit /b %errorlevel%
 "%~dp0..\build_official\src\px_client\test_client_imgui_launch_config.exe"
 if errorlevel 1 exit /b %errorlevel%
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\scripts\publish_cpp_artifacts.ps1" -Component client
+if errorlevel 1 exit /b %errorlevel%
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\scripts\check_no_qt.ps1"
 exit /b %errorlevel%

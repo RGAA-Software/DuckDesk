@@ -5,8 +5,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_definitions(-DWEBRTC_WIN=1 -DWEBRTC_USE_H264=1)
 add_definitions(-D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN -DNOMINMAX)
-add_definitions(-DQT_DEPRECATED_WARNINGS -DQT_NO_KEYWORDS) #
-
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 #target_compile_options(${PROJECT_NAME}
@@ -22,8 +20,6 @@ include_directories(${WEBRTC_ROOT}/include/third_party/jsoncpp/source/include/)
 include_directories(${WEBRTC_ROOT}/include/base)
 link_directories(${PX_PROJECT_PATH}/px_3rdparty/webrtc/x64)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
-
 set(LIBRARY_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/peer_callback.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/rtc_client.cpp
@@ -38,7 +34,7 @@ add_library(${PROJECT_NAME} SHARED ${LIBRARY_SRCS})
 target_compile_definitions(${PROJECT_NAME} PRIVATE PX_RTC_CLIENT_BUILD=1)
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME px_client_rtc)
 #add_library(${PROJECT_NAME} ${PLUGIN_SRCS})
-target_link_libraries(${PROJECT_NAME} PRIVATE px_common Qt6::Core Qt6::Widgets
+target_link_libraries(${PROJECT_NAME} PRIVATE px_common
         ${WEBRTC_ROOT}/x64/webrtc.lib
         Winmm
         ws2_32

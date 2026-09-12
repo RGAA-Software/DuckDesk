@@ -211,7 +211,6 @@ target_link_libraries(test_udp_transport_shutdown PRIVATE
     net_udp render_architecture_core GTest::gtest GTest::gtest_main)
 add_test(NAME udp_transport_shutdown COMMAND test_udp_transport_shutdown)
 add_executable(test_native_udp_voice test_native_udp_voice.cpp)
-set_target_properties(test_native_udp_voice PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
 target_link_libraries(test_native_udp_voice PRIVATE net_udp px_sdk_core render_architecture_core GTest::gtest GTest::gtest_main)
 add_test(NAME native_udp_voice COMMAND test_native_udp_voice)
 

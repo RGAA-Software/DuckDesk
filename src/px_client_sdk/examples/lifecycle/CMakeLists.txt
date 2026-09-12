@@ -7,8 +7,8 @@ include(CTest)
 get_filename_component(default_sdk_root "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 set(PIXELS_SDK_SOURCE_DIR "${default_sdk_root}" CACHE PATH "Pixels SDK source checkout")
 add_subdirectory("${PIXELS_SDK_SOURCE_DIR}" pixels_sdk)
-foreach(forbidden IN ITEMS Qt6::Core Qt6::Widgets px_rtc_client px_webrtc_client px_relay_client px_common_win px_common_net px_common_storage
-        px_voice_call px_voice_apm SDL2::SDL2 SDL2::SDL2-static)
+foreach(forbidden IN ITEMS px_rtc_client px_webrtc_client px_relay_client px_common_win px_common_net px_common_storage px_voice_call px_voice_apm
+        SDL2::SDL2 SDL2::SDL2-static)
     if(TARGET ${forbidden})
         message(FATAL_ERROR "SDK-only consumer unexpectedly configured host/RTC target: ${forbidden}")
     endif()

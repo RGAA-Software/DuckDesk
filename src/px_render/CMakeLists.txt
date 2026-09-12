@@ -104,7 +104,6 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/settings.toml"  "${PX_PROJECT_BINARY_PATH}"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:net_rtc> $<TARGET_FILE_DIR:${PROJECT_NAME}>
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:net_rtc_local> $<TARGET_FILE_DIR:${PROJECT_NAME}>
-        #COMMAND ${QT_ROOT}/bin/windeployqt.exe $<TARGET_FILE:${PROJECT_NAME}> --release
         # ffmpeg is now statically linked via vcpkg; no DLLs to copy
         # COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avcodec-61.dll"  "${PX_PROJECT_BINARY_PATH}"
         # COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avdevice-61.dll"  "${PX_PROJECT_BINARY_PATH}"

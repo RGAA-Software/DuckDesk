@@ -140,11 +140,40 @@ function Publish-VerifiedFile {
 }
 
 function Publish-LanguageResources {
-    $sourceRoot = Join-Path $repoRoot "src\px_panel\resources\language"
+    $sourceRoot = Join-Path $repoRoot "src\px_ui\resources\language"
     $destinationRoot = Join-Path $distRoot "resources\language"
     Get-ChildItem -LiteralPath $sourceRoot -File -Recurse | ForEach-Object {
         $relative = $_.FullName.Substring($sourceRoot.Length).TrimStart([char]'\')
         Publish-VerifiedFile -Source $_.FullName -Destination (Join-Path $destinationRoot $relative)
+    }
+}
+
+function Remove-RetiredQtArtifacts {
+    $distFullPath = [IO.Path]::GetFullPath($distRoot).TrimEnd([char]'\')
+    foreach ($file in Get-ChildItem -LiteralPath $distRoot -File -ErrorAction SilentlyContinue) {
+        if ($file.Name -notmatch '(?i)^Qt[56].*\.dll$' -and $file.Name -notin @('skin_official.dll', 'skin_opensource.dll')) {
+            continue
+        }
+        if (-not $file.FullName.StartsWith($distFullPath + '\', [StringComparison]::OrdinalIgnoreCase)) {
+            throw "refusing to remove artifact outside dist: $($file.FullName)"
+        }
+        Remove-Item -LiteralPath $file.FullName -Force
+        Write-Host "REMOVED retired Qt runtime $($file.FullName)"
+    }
+    foreach ($relativePath in @('generic', 'iconengines', 'imageformats', 'networkinformation', 'platforms', 'styles', 'tls', 'deps\theme')) {
+        $retiredPath = [IO.Path]::GetFullPath((Join-Path $distRoot $relativePath))
+        if (-not $retiredPath.StartsWith($distFullPath + '\', [StringComparison]::OrdinalIgnoreCase)) {
+            throw "refusing to remove directory outside dist: $retiredPath"
+        }
+        if (Test-Path -LiteralPath $retiredPath -PathType Container) {
+            Remove-Item -LiteralPath $retiredPath -Recurse -Force
+            Write-Host "REMOVED retired Qt directory $retiredPath"
+        }
+    }
+    $retiredClientPlugin = Join-Path $distRoot 'deps\ct_plugins\multi_screens.dll'
+    if (Test-Path -LiteralPath $retiredClientPlugin -PathType Leaf) {
+        Remove-Item -LiteralPath $retiredClientPlugin -Force
+        Write-Host "REMOVED retired Qt Client plug-in $retiredClientPlugin"
     }
 }
 
@@ -257,6 +286,7 @@ switch ($Component) {
         }
     }
     "client" {
+        Remove-RetiredQtArtifacts
         Publish-VerifiedFile `
             -Source (Join-Path $buildRoot "src\px_deps\px_client.exe") `
             -Destination (Join-Path $distRoot "px_client.exe") `
@@ -267,7 +297,7 @@ switch ($Component) {
             Publish-VerifiedFile -Source (Join-Path $buildRoot ('src\px_client\' + $name)) `
                 -Destination (Join-Path $distRoot $name) -ProcessName 'px_client'
         }
-        # windeployqt/vcpkg may stage GPU compiler and loader runtimes during a clean build.
+        # The build may stage GPU compiler and loader runtimes during a clean build.
         foreach ($name in @('d3dcompiler_47.dll', 'dxcompiler.dll', 'dxil.dll', 'vulkan-1.dll')) {
             $source = Join-Path $buildRoot ('src\px_client\' + $name)
             if (Test-Path -LiteralPath $source -PathType Leaf) {
@@ -304,6 +334,7 @@ switch ($Component) {
         Publish-LanguageResources
     }
     "panel" {
+        Remove-RetiredQtArtifacts
         Remove-RetiredPanelArtifacts
         Publish-VerifiedFile `
             -Source (Join-Path $buildRoot "src\px_deps\px_panel.exe") `
@@ -341,6 +372,7 @@ switch ($Component) {
         }
     }
     "ft_protocol" {
+        Remove-RetiredQtArtifacts
         Remove-LegacyRenderPluginDirectory
         Remove-RetiredRenderNetworkLibraries
         # px_file_transfer.proto objects cross these executable/plugin boundaries.

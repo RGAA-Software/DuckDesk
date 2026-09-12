@@ -9,7 +9,7 @@
 #include "px_console_client/console_device.h"
 #include "px_console_client/console_device_api.h"
 #include "px_console_client/console_user_device.h"
-#include "render_panel/network/render_api.h"
+#include "render_api.h"
 
 #include <SDL3/SDL.h>
 

@@ -13,7 +13,6 @@
 #include "rtc_encoded_frame_sink.h"
 #include "rtc_audio_sink.h"
 #include "rtc_null_decoder_factory.h"
-#include <QApplication>
 #include <px_common/folder_util.h>
 #include <px_common/string_util.h>
 #include <algorithm>
@@ -73,7 +72,6 @@ RtcConnection::~RtcConnection() = default;
 bool RtcConnection::Init(const std::string& remote_device_id) {
     this->remote_device_id_ = remote_device_id;
     auto beg = TimeUtil::GetCurrentTimestamp();
-    auto exe_dir = qApp->applicationDirPath();
     auto data_path = FolderUtil::GetProgramDataPath();
     const auto log_path = std::format(L"{}/px_logs/app.rtc.{}.log", data_path, StringUtil::ToWString(remote_device_id));
     Logger::InitLog(log_path, true);

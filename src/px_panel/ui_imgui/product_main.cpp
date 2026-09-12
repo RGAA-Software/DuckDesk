@@ -8,7 +8,7 @@
 #include "px_common/hardware.h"
 #include "px_common/log.h"
 #include "px_common/process_util.h"
-#include "render_panel/px_running_pipe.h"
+#include "product/panel_running_pipe.h"
 
 #include <array>
 #include <atomic>

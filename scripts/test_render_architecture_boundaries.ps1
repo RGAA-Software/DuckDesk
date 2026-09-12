@@ -457,10 +457,6 @@ foreach ($required in @(
 }
 
 $projectReconnectFiles = @(
-    "src\px_client\network\ct_panel_client.cpp",
-    "src\px_client\network\ct_console_client.cpp",
-    "src\px_panel\src\render_panel\network\px_service_client.cpp",
-    "src\px_panel\src\render_panel\network\px_console_client_impl.h",
     "src\px_deps\px_relay_client\relay_ws_client.cpp"
 )
 foreach ($relativePath in $projectReconnectFiles) {

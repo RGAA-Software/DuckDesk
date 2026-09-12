@@ -17,7 +17,6 @@ add_library(px_panel_imgui_views STATIC
 )
 
 target_link_libraries(px_panel_imgui_views PUBLIC px_desktop_shell px_ui px_imgui SDL3::SDL3-static)
-set_target_properties(px_panel_imgui_views PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
 
 add_executable(px_panel_imgui_preview
     main.cpp
@@ -42,6 +41,8 @@ add_executable(px_panel WIN32
     product/panel_client_launcher.cpp
     product/panel_connection_input.cpp
     product/panel_connection_links.cpp
+    product/panel_running_pipe.cpp
+    product/render_api.cpp
     product/panel_credential_vault.cpp
     product/panel_audit_store.cpp
     product/panel_config_store.cpp
@@ -59,12 +60,10 @@ add_executable(px_panel WIN32
     product/product_settings_port.cpp
     product/product_voice_call_consent_overlay.cpp
     ${CMAKE_BINARY_DIR}/src/px_base/icon.rc
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/render_panel/px_running_pipe.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/render_panel/network/render_api.cpp
 )
 
 target_include_directories(px_panel PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/product)
-set_target_properties(px_panel PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\"")
+set_target_properties(px_panel PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\"")
 target_link_options(px_panel PRIVATE "/ENTRY:mainCRTStartup")
 
 target_link_libraries(px_panel PRIVATE
@@ -84,7 +83,7 @@ set_target_properties(px_panel PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT
 add_custom_command(TARGET px_panel POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:px_panel>/resources/fonts"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/../resources/qt_material/fonts/roboto/Roboto-Regular.ttf"
+        "${CMAKE_SOURCE_DIR}/src/px_ui/resources/fonts/Roboto-Regular.ttf"
         "$<TARGET_FILE_DIR:px_panel>/resources/fonts/Roboto-Regular.ttf"
 )
 target_link_options(px_panel_imgui_preview PRIVATE "/ENTRY:mainCRTStartup")
@@ -92,7 +91,7 @@ target_link_options(px_panel_imgui_preview PRIVATE "/ENTRY:mainCRTStartup")
 add_custom_command(TARGET px_panel_imgui_preview POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:px_panel_imgui_preview>/resources/fonts"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/../resources/qt_material/fonts/roboto/Roboto-Regular.ttf"
+        "${CMAKE_SOURCE_DIR}/src/px_ui/resources/fonts/Roboto-Regular.ttf"
         "$<TARGET_FILE_DIR:px_panel_imgui_preview>/resources/fonts/Roboto-Regular.ttf"
 )
 
@@ -115,6 +114,5 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
         GTest::gtest
         GTest::gtest_main
     )
-    set_target_properties(px_panel_product_tests PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
     add_test(NAME px_panel_product_tests COMMAND px_panel_product_tests)
 endif()

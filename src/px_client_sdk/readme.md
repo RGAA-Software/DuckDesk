@@ -152,4 +152,4 @@ Windows 自动运行 20 秒超时的离线生命周期测试；Android 只交叉
 独立工程主动拒绝 Qt/RTC/Relay/宿主工具目标；core 模式额外拒绝 codec/platform target。
 
 `BUILD_TESTING=ON` 可配置 SDK 行为测试，不要求 Qt。文件 UI harness 是单独的
-`PX_SDK_BUILD_QT_TESTS=ON` 选项，仅用于已提供 Qt/文件引擎的宿主工程，不能作为 SDK 基础依赖。
+SDK 和测试均不依赖桌面 UI 框架；文件传输验收由独立协议测试与产品级 Client 测试覆盖。

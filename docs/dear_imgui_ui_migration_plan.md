@@ -404,7 +404,17 @@ Panel 第一阶段完成后才进入 Client 的 C0 基线。Hardware 页面继�
   `A0F57C72B0E2FC56AFAD2F85079678318CBC9A76B6975FAD3E055572A8929F8B`。
 - `scripts/check_cpp_ownership.ps1` 通过；新 Client 与本轮触及的维护代码没有新增项目裸指针、手工所有权或异步 `[this]` 捕获。
 
-## 11. 参考
+## 11. Qt 清理收尾（2026-09-12）
+
+- 根构建图不再查找 Qt、设置 Qt 自动代码生成或加入 Qt 控件库；Panel、Client、Render、SDK、WebRTC 适配器和捕获目标均不链接 Qt。
+- 旧 Panel/Client QWidget 实现、旧皮肤、硬件统计 UI、`px_qt_widget` 和仅供旧 Qt 文件传输测试使用的入口统一迁入
+  `backup/qt_legacy_20260912`，不参与任何活动构建或发布。保留该目录仅用于历史追溯，不允许从产品 CMake 再次引用。
+- Panel 仍需使用的 Render API、运行管道、字体和语言文件已迁入 `ui_imgui/product` 与 `src/px_ui/resources`；活动代码不依赖备份目录。
+- 发布脚本会主动删除 `Qt5/Qt6` DLL、平台/图像/样式等 Qt 插件目录、旧皮肤和旧多屏插件；全量收集脚本也不再复制这些内容。
+- `scripts/check_no_qt.ps1` 同时检查活动源码/构建声明、正式产品导入表和 `build_official/dist` 运行闭包。Client、Panel、Render
+  的定向构建入口都会执行该门禁，防止后续重新引入 Qt。
+
+## 12. 参考
 
 - [Dear ImGui](https://github.com/ocornut/imgui)
 - [官方后端](https://github.com/ocornut/imgui/blob/master/docs/BACKENDS.md)

@@ -30,7 +30,6 @@
 #include "app/app_manager_factory.h"
 #include "app/app_messages.h"
 #include "settings/rd_settings.h"
-#include "render_panel/network/ws_panel_server.h"
 #include "app/encoder_thread.h"
 #include "network/net_message_maker.h"
 #include "px_message.pb.h"

@@ -6,10 +6,6 @@ set(CMAKE_CXX_STANDARD 23)
 add_definitions(-DUNICODE -D_UNICODE -DWIN32_LEAN_AND_MEAN -DNOMINMAX)
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
-if(WIN32)
-    find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Core5Compat)
-    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Core5Compat)
-endif ()
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/win)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/win/hk_obs)
@@ -30,7 +26,7 @@ if (WIN32)
         win/desktop_capture/cursor_capture.cpp
     )
     add_library(px_capture ${CAPTURE_SRCS})
-    target_link_libraries(px_capture px_message protobuf::libprotobuf Winmm Qt6::Core Qt6::Core5Compat)
+    target_link_libraries(px_capture px_message protobuf::libprotobuf Winmm)
 
     ## capture dll
     set(DLL_SRCS

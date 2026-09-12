@@ -1,7 +1,3 @@
-set(CMAKE_AUTOUIC OFF)
-set(CMAKE_AUTOMOC OFF)
-set(CMAKE_AUTORCC OFF)
-
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -28,11 +24,6 @@ include_directories(${PX_PROJECT_PATH}/px_3rdparty/webrtc/include/third_party/li
 include_directories(${CMAKE_SOURCE_DIR}/src/px_render)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_client)
 include_directories(${CMAKE_BINARY_DIR}/src/px_base)
-
-# Client still consumes the legacy skin plug-ins. Keep their independent
-# targets available to the aggregate build without configuring the retired
-# Qt Panel application, its widgets, or its tests.
-add_subdirectory(src/skin)
 
 if(WIN32)
     add_subdirectory(ui_imgui)

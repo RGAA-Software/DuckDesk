@@ -4,7 +4,7 @@
 #include "px_common/md5.h"
 #include "px_common/uuid.h"
 #include "px_console_client/console_errors.h"
-#include "render_panel/network/render_api.h"
+#include "render_api.h"
 
 #include <chrono>
 #include <mutex>

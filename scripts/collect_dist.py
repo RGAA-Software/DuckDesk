@@ -14,8 +14,6 @@ import sys
 # Directories inside src/px_deps/ that we keep as-is
 KEEP_DIRS = {
     "certs", "resources", "translations", "www", "package",
-    "generic", "iconengines", "imageformats", "networkinformation",
-    "platforms", "styles", "tls",
 }
 
 # Build-system dirs to skip when scanning
@@ -46,6 +44,8 @@ SKIP_NAMES = {
     "net_rtc.dll", "net_rtc_local.dll",
     # Native Client no longer consumes the retained WebRTC adapter.
     "px_client_rtc.dll", "px_rtc_client.dll",
+    # Retired Qt UI and plug-in artifacts.
+    "multi_screens.dll", "skin_official.dll", "skin_opensource.dll",
 }
 
 # Test executable prefix
@@ -70,7 +70,10 @@ PRODUCT_EXES = {
 
 
 def should_copy_file(name: str) -> bool:
-    if name.lower() in SKIP_NAMES:
+    lowered = name.lower()
+    if lowered.startswith(("qt5", "qt6")) and lowered.endswith(".dll"):
+        return False
+    if lowered in SKIP_NAMES:
         return False
     base, ext = os.path.splitext(name)
     if ext.lower() in SKIP_EXTS:
@@ -144,7 +147,7 @@ def main():
     os.makedirs(dist_dir, exist_ok=True)
 
     # ------------------------------------------------------------------
-    # 1. Base: src/px_deps/ (main exes, Qt DLLs, resources, etc.)
+    # 1. Base: src/px_deps/ (main executables and runtime resources)
     # ------------------------------------------------------------------
     gamma_ray_dir = os.path.join(build_dir, "src", "px_deps")
     if os.path.isdir(gamma_ray_dir):
@@ -163,19 +166,18 @@ def main():
                 if should_copy_file(entry):
                     shutil.copy2(src_path, dst_path)
 
-    # px_client owns the runtime language and Qt material resources used by
-    # its floating controller.  Overlay its post-build resource directory so
-    # newly added client strings cannot be shadowed by stale px_deps output.
+    # Overlay Client runtime resources so newly added data cannot be shadowed
+    # by stale px_deps output.
     client_resources_dir = os.path.join(build_dir, "src", "px_client", "resources")
     if os.path.isdir(client_resources_dir):
         copy_tree(client_resources_dir, os.path.join(dist_dir, "resources"))
         print("  + resources/  (from px_client post-build output)")
 
-    # Language JSON is runtime data rather than a compiled Qt resource.  The
+    # Language JSON is runtime data rather than a compiled resource. The
     # post-build directory may be stale when only wording changes, so always
     # overlay the authoritative source files for packaging.
     source_language_dir = os.path.join(
-        source_dir, "src", "px_panel", "resources", "language")
+        source_dir, "src", "px_ui", "resources", "language")
     if not os.path.isdir(source_language_dir):
         print(f"ERROR: missing runtime language directory: {source_language_dir}", file=sys.stderr)
         sys.exit(1)
@@ -304,21 +306,7 @@ def main():
         os.rmdir(px_plugins_client_dst)
 
     # ------------------------------------------------------------------
-    # 5. Skins  →  dist/deps/theme/
-    # ------------------------------------------------------------------
-    px_skins_dst = os.path.join(dist_dir, "deps", "theme")
-    os.makedirs(px_skins_dst, exist_ok=True)
-
-    # skin_official / skin_opensource DLLs + config, built directly into px_skins/
-    # (see src/px_panel/src/skin/{official,opensource}/CMakeLists.txt RUNTIME_OUTPUT_DIRECTORY).
-    skins_src = os.path.join(build_dir, "src", "px_deps", "px_skins")
-    if os.path.isdir(skins_src):
-        for f in os.listdir(skins_src):
-            if (f.startswith("skin_") and f.endswith(".dll")) or f == "skin_config.toml":
-                copy_file(os.path.join(skins_src, f), os.path.join(px_skins_dst, f))
-
-    # ------------------------------------------------------------------
-    # 6. Hook capture
+    # 5. Hook capture
     # ------------------------------------------------------------------
     hook_capture_files = [
         ("src/px_render/hook_capture/win/hk_obs/layers/pixels-vulkan64.json", "layers/pixels-vulkan64.json"),

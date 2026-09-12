@@ -595,7 +595,6 @@ namespace px
         if (codec_name.rfind("_omx") != std::string::npos) {
             caps |= AV_CODEC_CAP_HARDWARE;
         }
-        //if (QString::fromUtf8(codec->name).endsWith("_omx", Qt::CaseInsensitive)) {
         //    caps |= AV_CODEC_CAP_HARDWARE;
         //}
         return caps;

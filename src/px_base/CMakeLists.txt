@@ -5,8 +5,4 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version_config.h.in ${CMAKE_CURRENT_B
 configure_file(${CMAKE_SOURCE_DIR}/src/px_panel/icon.ico ${CMAKE_CURRENT_BINARY_DIR}/icon.ico COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/icon.rc.in ${CMAKE_CURRENT_BINARY_DIR}/icon.rc @ONLY)
 
-# This directory currently only provides shared headers.
-# The plugin_interface library has been moved to px_client.
-
-add_subdirectory(hw_info)
-add_subdirectory(skin/interface)
+# This directory provides shared generated headers and version resources.

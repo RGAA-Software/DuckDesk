@@ -10,6 +10,12 @@ if(WIN32)
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         COMMENT "Checking new C++ ownership and asynchronous lifetime violations"
         VERBATIM)
+    add_custom_target(check_no_qt
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
+                -File "${CMAKE_SOURCE_DIR}/scripts/check_no_qt.ps1"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        COMMENT "Checking active source and product artifacts for retired Qt dependencies"
+        VERBATIM)
 endif()
 
 include(env_premium.cmake)
@@ -29,12 +35,7 @@ else()
     message("TARGET_TYPE: ${TARGET_TYPE}, will use official type.")
 endif()
 
-set(CMAKE_PREFIX_PATH ${QT_ROOT}/lib/cmake)
 set(CMAKE_TOOLCHAIN_FILE ${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
-
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -69,29 +70,18 @@ include_directories(${CMAKE_SOURCE_DIR}/src/px_deps)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_message)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_server_protocol)
-include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/qwindowkit/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/asio2/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/asio2/3rd)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/asio2/3rd/asio)
 include_directories(${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}/include)
 include_directories(${FFMPEG_ROOT}/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/webrtc/include/third_party/libyuv/include)
-include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/qwindowkit)
-include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/qwindowkit/src)
-include_directories(${CMAKE_SOURCE_DIR}/src/px_panel/src)
 include_directories(${CMAKE_SOURCE_DIR}/src/px_render)
-include_directories(${CMAKE_SOURCE_DIR}/src/px_deps/px_qt_widget)
 ##Binary
 include_directories(${CMAKE_BINARY_DIR}/src/px_base)
 include_directories(${CMAKE_BINARY_DIR}/src/px_panel)
 include_directories(${CMAKE_BINARY_DIR}/src/px_deps/px_message)
 include_directories(${CMAKE_BINARY_DIR}/src/px_deps/px_server_protocol)
-
-## Client
-# include_directories(${CMAKE_SOURCE_DIR}/src/px_client)
-# include_directories(${CMAKE_SOURCE_DIR}/src/px_client/plugins)
-
-# include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 
 ## Server
 include_directories(${CMAKE_SOURCE_DIR}/src/GammaRayServer)
@@ -126,9 +116,6 @@ add_definitions(-DUNICODE -D_UNICODE -DWIN32_LEAN_AND_MEAN -DNOMINMAX -DENABLE_S
 add_definitions(-DSPDLOG_WCHAR_FILENAMES)
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
-
-find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets Network Core Core5Compat WebSockets Charts Svg)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Network Core Core5Compat WebSockets Charts Svg)
 
 find_package(SDL2 CONFIG REQUIRED)
 set(GFLAGS_USE_TARGET_NAMESPACE ON)
@@ -358,18 +345,15 @@ add_dependencies(px_build_premium_all
     px_gh px_gh_injector px_gh_address
     net_rtc_local
 
-    ### skins
-    skin_interface skin_official skin_loader skin_opensource
-
     ### anti hooking
     px_protection
 
     ### from former px_build_all (deps + rust stages)
     px_render px_service_stage px_service_manager_stage px_display_build px_message px_vigem
-    px_client px_relay_client px_rtc_client px_cp_message px_function_stage px_hw_info
+    px_client px_relay_client px_rtc_client px_cp_message px_function_stage
     px_osinfo_stage
     net_ws enc_ffmpeg cap_dda
-    px_sdk px_qt_widget px_translator
+    px_sdk
     px_console_client px_account_sdk px_rp_message px_profile_client
     px_server_message
 )

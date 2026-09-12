@@ -44,9 +44,8 @@ foreach ($retiredGl in @('director', 'sprite', 'renderer', 'shader_program', 'gl
 if ($sdkBuild -match '(?s)target_link_libraries\(px_sdk(?:_core|_platform)?\b[^)]*Qt6::' -or
     $sdkBuild -notmatch 'set\(sdk_targets px_sdk_core\)' -or
     $sdkBuild -notmatch 'list\(APPEND sdk_targets px_sdk_platform px_sdk\)' -or
-    $sdkBuild -notmatch 'foreach\(sdk_target IN LISTS sdk_targets\)' -or
-    $sdkBuild -notmatch 'set_target_properties\(\$\{sdk_target\} PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF\)') {
-    throw 'Native SDK must not link Qt or enable Qt code generation.'
+    $sdkBuild -notmatch 'foreach\(sdk_target IN LISTS sdk_targets\)') {
+    throw 'Native SDK target topology or dependency isolation is invalid.'
 }
 Get-ChildItem -LiteralPath $sdk -Recurse -File | Where-Object {
     $_.Extension -in @('.h', '.cpp') -and $_.FullName -notmatch '[\\/]tests[\\/]'

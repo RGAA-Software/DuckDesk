@@ -1,0 +1,153 @@
+//
+// Created by RGAA on 21/05/2025.
+//
+
+#include "start_stream_loading.h"
+#include <QResizeEvent>
+#include <QPainter>
+#include <QPixmap>
+#include "px_label.h"
+#include "widget_helper.h"
+#include "no_margin_layout.h"
+#include "px_common/uid_spacer.h"
+#include "px_console_client/console_stream.h"
+#include "render_panel/px_application.h"
+#include "skin/interface/skin_interface.h"
+#include "px_base/ct_stream_item_net_type.h"
+#include "px_qt_widget/loadings/winstyle/win10circleloadingwidget.h"
+#include "px_qt_widget/loadings/winstyle/win10horizontalloadingwidget.h"
+
+namespace px
+{
+
+    StartStreamLoading::StartStreamLoading(const std::shared_ptr<PxContext>& ctx, const std::shared_ptr<px_console::ConsoleStream>& item, const std::string& network_type)
+        : QDialog() {
+
+        setWindowFlags(Qt::FramelessWindowHint|Qt::Dialog);
+        setAttribute(Qt::WA_TranslucentBackground);
+        //this->setStyleSheet("background:#00000000;");
+        setFixedSize(480, 320);
+        QPointer<NoMarginVLayout> root_layout{
+            new NoMarginVLayout}; // NOLINT(gammaray-raw-pointer-boundary): setLayout establishes Qt ownership below
+
+        {
+            int size = 70;
+            QPointer<QLabel> lbl_icon{
+                new QLabel(this)}; // NOLINT(gammaray-raw-pointer-boundary): Qt parent owns the label
+            lbl_icon->setFixedSize(size, size);
+            lbl_icon->setScaledContents(true);
+            QPixmap logo;
+            if (const auto sk = grApp->GetSkin(); sk) {
+                logo = sk->GetSquareLogo();
+            }
+            if (logo.isNull()) {
+                logo.load(":/resources/px_icon.png");
+            }
+            if (!logo.isNull()) {
+                logo = logo.scaled(size, size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                lbl_icon->setPixmap(logo);
+            }
+            root_layout->addSpacing(60);
+
+            QPointer<NoMarginHLayout> layout{
+                new NoMarginHLayout}; // NOLINT(gammaray-raw-pointer-boundary): addLayout establishes Qt ownership below
+            layout->addStretch();
+            layout->addWidget(lbl_icon);
+            layout->addStretch();
+
+            root_layout->addLayout(layout);
+        }
+
+        {
+            auto stream_name = [item]() -> std::string {
+                if (!item->stream_name_.empty()) {
+                    return item->stream_name_;
+                }
+                else if (!item->remote_device_id_.empty()) {
+                    return item->remote_device_id_;
+                }
+                else if (!item->stream_host_.empty()) {
+                    return item->stream_host_;
+                }
+                else {
+                    return "Remote Device";
+                }
+            }();
+
+            std::string nt_type = "Unknown";
+            if (network_type == kStreamItemNtTypeWebSocket) {
+                nt_type = tcTr("id_direct").toStdString();
+            }
+            else if (network_type == kStreamItemNtTypeRelay) {
+                nt_type = tcTr("id_relay").toStdString();
+            }
+            else if (network_type == kStreamItemNtTypeWebRTCDirect) {
+                nt_type = std::format("IP {}", tcTr("id_direct").toStdString());
+            }
+            else if (network_type == kStreamItemNtTypeUdpDirect) {
+                nt_type = "UDP Local";
+            }
+
+            QString pre_msg = tcTr("id_start_streaming");
+            QPointer<QLabel> lbl_title{
+                new QLabel(pre_msg + std::format(R"((<span style="color:#2979ff; font-weight:bold;">{}</span>) <span style="color:#2979ff;">{}</span>)", nt_type, px::SpaceId(stream_name)).c_str(), this)}; // NOLINT(gammaray-raw-pointer-boundary): Qt parent owns the label
+            lbl_title->setFixedWidth(this->width());
+            lbl_title->setAlignment(Qt::AlignCenter);
+            lbl_title->setStyleSheet("font-size: 15px; font-weight:bold; color: #555555;");
+            root_layout->addSpacing(20);
+            root_layout->addWidget(lbl_title);
+        }
+
+        {
+            QPointer<NoMarginHLayout> layout{
+                new NoMarginHLayout}; // NOLINT(gammaray-raw-pointer-boundary): addLayout establishes Qt ownership below
+            h_loading_widget_ = QPointer<Win10HorizontalLoadingWidget>{
+                new Win10HorizontalLoadingWidget(this)}; // NOLINT(gammaray-raw-pointer-boundary): Qt parent owns the widget
+            h_loading_widget_->setFixedSize(250, 60);
+            h_loading_widget_->show();
+            h_loading_widget_->setBackgroundColor(QColor("#ffffff"));
+            h_loading_widget_->setItemLength(8);
+            h_loading_widget_->setExtendDuration(240);
+            h_loading_widget_->setItemCount(6);
+            h_loading_widget_->setDuration(1000);
+            QList<QColor> colors;
+            colors << QColor("#2962FF") << QColor("#2979FF")
+                   << QColor("#448AFF") << QColor("#82B1FF")
+                   << QColor("#90CAF9") << QColor("#A0DAF9");
+            h_loading_widget_->setItemColors(colors);
+            h_loading_widget_->updateFrameData();
+            h_loading_widget_->start();
+
+            layout->addStretch();
+            layout->addWidget(h_loading_widget_);
+            layout->addStretch();
+
+            root_layout->addSpacing(15);
+            root_layout->addLayout(layout);
+            root_layout->addStretch();
+        }
+
+        setLayout(root_layout);
+
+        //
+        WidgetHelper::AddShadow(this, 0x666666, 30);
+    }
+
+    void StartStreamLoading::resizeEvent(QResizeEvent *event) { // NOLINT(gammaray-raw-pointer-boundary): Qt virtual event ABI
+        QWidget::resizeEvent(event);
+    }
+
+    void StartStreamLoading::paintEvent(QPaintEvent *event) { // NOLINT(gammaray-raw-pointer-boundary): Qt virtual event ABI
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QBrush(0xffffff));
+
+        int offset = 30;
+        int radius = 7;
+        QRect rect(offset, offset, this->width() - offset*2, this->height()-offset*2);
+        painter.drawRoundedRect(rect, radius, radius);
+    }
+
+}
