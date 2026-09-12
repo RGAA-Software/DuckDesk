@@ -1,7 +1,8 @@
 #pragma once
 
+#include "rdp_frame.h"
+
 #include <freerdp/client/disp.h>
-#include <QSize>
 #include <memory>
 #include <optional>
 
@@ -19,7 +20,7 @@ class DisplayChannel final {
             channel_->DisplayControlCaps = Capabilities;
         }
     }
-    void Request(QSize size) {
+    void Request(Size size) {
         requested_ = size;
     }
     bool Flush() {
@@ -28,8 +29,8 @@ class DisplayChannel final {
         }
         DISPLAY_CONTROL_MONITOR_LAYOUT monitor{};
         monitor.Flags = DISPLAY_CONTROL_MONITOR_PRIMARY;
-        monitor.Width = static_cast<UINT32>(requested_->width()) & ~1u;
-        monitor.Height = static_cast<UINT32>(requested_->height());
+        monitor.Width = static_cast<UINT32>(requested_->width) & ~1u;
+        monitor.Height = static_cast<UINT32>(requested_->height);
         monitor.PhysicalWidth = 300;
         monitor.PhysicalHeight = 200;
         monitor.DesktopScaleFactor = 100;
@@ -54,8 +55,8 @@ class DisplayChannel final {
         return CHANNEL_RC_OK;
     }
     std::shared_ptr<DispClientContext> channel_{};
-    std::optional<QSize> requested_{};
-    std::optional<QSize> sent_{};
+    std::optional<Size> requested_{};
+    std::optional<Size> sent_{};
 };
 
 } // namespace px::rdp

@@ -27,21 +27,6 @@ std::string DirectSessionGrantStore::Issue(const DirectSessionGrantBinding& bind
     return token;
 }
 
-std::string DirectSessionGrantStore::IssueStreamBinding(DirectSessionGrantBinding binding, const int64_t now_ms) {
-    std::scoped_lock lock(mutex_);
-    RemoveExpiredLocked(now_ms);
-    // The stream id is used in URL query strings by the local Panel and
-    // Render signaling endpoints. Use a URL-safe hexadecimal identity so
-    // '+' can never be decoded as a space by form-style query parsers.
-    const auto stream_id = std::string("ip-direct:") + GetUUIDInMD5();
-    binding.stream_id_ = stream_id;
-    grants_.insert_or_assign(stream_id, GrantRecord{
-                                            .binding_ = std::move(binding),
-                                            .expires_at_ms_ = now_ms + kLifetimeMilliseconds,
-                                        });
-    return stream_id;
-}
-
 bool DirectSessionGrantStore::Redeem(const std::string& token, const DirectSessionGrantBinding& expected, const int64_t now_ms) {
     std::scoped_lock lock(mutex_);
     RemoveExpiredLocked(now_ms);

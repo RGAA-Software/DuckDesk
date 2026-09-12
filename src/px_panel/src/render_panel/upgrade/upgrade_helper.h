@@ -1,19 +1,26 @@
 ﻿#pragma once
-#include <qwidget.h>
-#include <qevent.h>
-#include <qstackedwidget.h>
 #include <QObject>
-#include <qpointer.h>
-#include <qdialog.h>
+#include <QString>
+#include <QVariantMap>
+
+#if !defined(PX_PANEL_IMGUI_HEADLESS)
+#include <QDialog>
+#include <QEvent>
+#include <QPointer>
+#include <QStackedWidget>
+#include <QWidget>
+#endif
 
 #include <functional>
 #include <memory>
 
+#if !defined(PX_PANEL_IMGUI_HEADLESS)
 class QLabel;
 class QTextEdit;
 class QPushButton;
 class GDButton;
 class GDCustomProgressBar;
+#endif
 
 namespace px {
 
@@ -22,7 +29,8 @@ namespace px {
 
 	using GetRemoteUpdateVersionCallbackFuncType = std::function<void(const QString&)>;
 
-	class UpgradeHelperWidget : public QDialog { 
+#if !defined(PX_PANEL_IMGUI_HEADLESS)
+	class UpgradeHelperWidget : public QDialog {
         Q_OBJECT
 	public:
 		UpgradeHelperWidget(QWidget* parent = nullptr);
@@ -68,6 +76,7 @@ namespace px {
 
 		bool forced_ = false;
 	};
+#endif
 
 	class UpdateManager : public QObject
 	{

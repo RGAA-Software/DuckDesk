@@ -148,6 +148,17 @@ function Publish-LanguageResources {
     }
 }
 
+function Remove-RetiredPanelArtifacts {
+    foreach ($name in @("px_panel_imgui.exe", "px_panel_imgui_preview.exe", "px_panel_product_tests.exe")) {
+        $retiredPath = Join-Path $distRoot $name
+        if (-not (Test-Path -LiteralPath $retiredPath -PathType Leaf)) {
+            continue
+        }
+        Remove-Item -LiteralPath $retiredPath -Force
+        Write-Host "REMOVED retired Panel artifact $retiredPath"
+    }
+}
+
 function Remove-RetiredClientRecordingCore {
     $stalePath = Join-Path $distRoot "px_client_recording_core.dll"
     if (-not (Test-Path -LiteralPath $stalePath -PathType Leaf)) {
@@ -247,7 +258,7 @@ switch ($Component) {
     }
     "client" {
         Publish-VerifiedFile `
-            -Source (Join-Path $buildRoot "src\px_client\px_client.exe") `
+            -Source (Join-Path $buildRoot "src\px_deps\px_client.exe") `
             -Destination (Join-Path $distRoot "px_client.exe") `
             -ProcessName "px_client"
         Move-RetiredClientRtcRuntime
@@ -293,18 +304,15 @@ switch ($Component) {
         Publish-LanguageResources
     }
     "panel" {
+        Remove-RetiredPanelArtifacts
         Publish-VerifiedFile `
             -Source (Join-Path $buildRoot "src\px_deps\px_panel.exe") `
             -Destination (Join-Path $distRoot "px_panel.exe") `
             -ProcessName "px_panel"
-        Get-ChildItem -LiteralPath (Join-Path $buildRoot "src\px_deps\px_skins") -File | `
-            Where-Object { $_.Name -eq "skin_config.toml" -or $_.Name -like "skin_*.dll" } | `
-            ForEach-Object {
-                Publish-VerifiedFile `
-                    -Source $_.FullName `
-                    -Destination (Join-Path $distRoot ("deps\theme\" + $_.Name)) `
-                    -ProcessName "px_panel"
-            }
+        Publish-VerifiedFile `
+            -Source (Join-Path $buildRoot "src\px_deps\resources\fonts\Roboto-Regular.ttf") `
+            -Destination (Join-Path $distRoot "resources\fonts\Roboto-Regular.ttf") `
+            -ProcessName "px_panel"
         Publish-LanguageResources
     }
     "render_network_library" {
@@ -349,7 +357,7 @@ switch ($Component) {
             Publish-RenderNetworkLibrary -Target $target
         }
         Publish-VerifiedFile `
-            -Source (Join-Path $buildRoot "src\px_client\px_client.exe") `
+            -Source (Join-Path $buildRoot "src\px_deps\px_client.exe") `
             -Destination (Join-Path $distRoot "px_client.exe") `
             -ProcessName "px_client"
         Move-RetiredClientRtcRuntime

@@ -91,6 +91,7 @@ struct WindowHost::Impl final {
     SdlWindow window{};
     std::optional<WindowsTitleBarBehavior> titleBarBehavior{};
     bool sdlInitialized{false};
+    bool fullscreen{};
 
     ~Impl() {
         titleBarBehavior.reset();
@@ -101,7 +102,7 @@ struct WindowHost::Impl final {
     }
 };
 
-std::expected<WindowHost, std::string> WindowHost::Create(const std::string& title, const int width, const int height) {
+std::expected<WindowHost, std::string> WindowHost::Create(const std::string& title, const int width, const int height, const bool initiallyVisible) {
     auto impl = std::make_unique<Impl>();
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         return std::unexpected{LastSdlError("SDL_Init")};
@@ -130,7 +131,8 @@ std::expected<WindowHost, std::string> WindowHost::Create(const std::string& tit
         return std::unexpected{titleBarResult.error()};
     }
     impl->titleBarBehavior.emplace(std::move(titleBarResult.value()));
-    if (!SDL_SetWindowPosition(impl->window.get(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED) || !SDL_ShowWindow(impl->window.get())) {
+    if (!SDL_SetWindowPosition(impl->window.get(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED) ||
+        (initiallyVisible && !SDL_ShowWindow(impl->window.get()))) {
         return std::unexpected{LastSdlError("Show centered window")};
     }
     return WindowHost{std::move(impl)};
@@ -157,12 +159,29 @@ void WindowHost::ToggleMaximize() const {
     }
 }
 
+bool WindowHost::ToggleFullscreen() {
+    const bool requested{!impl_->fullscreen};
+    if (!SDL_SetWindowFullscreen(impl_->window.get(), requested)) return false;
+    impl_->fullscreen = requested;
+    return true;
+}
+
 bool WindowHost::IsMaximized() const {
     return (SDL_GetWindowFlags(impl_->window.get()) & SDL_WINDOW_MAXIMIZED) != 0;
 }
 
 float WindowHost::DisplayScale() const {
     return SDL_GetWindowDisplayScale(impl_->window.get());
+}
+
+void WindowHost::Hide() const {
+    SDL_HideWindow(impl_->window.get());
+}
+
+void WindowHost::ShowAndRaise() const {
+    SDL_ShowWindow(impl_->window.get());
+    SDL_RestoreWindow(impl_->window.get());
+    SDL_RaiseWindow(impl_->window.get());
 }
 
 } // namespace px::desktop

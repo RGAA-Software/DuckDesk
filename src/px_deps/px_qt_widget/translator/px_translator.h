@@ -1,12 +1,14 @@
 #pragma once
 
 #include <QString>
-#include <QWidget>
-#include <QLayout>
+#include <QObject>
 
 #include <vector>
 #include <map>
 #include <mutex>
+
+class QLayout;
+class QWidget;
 
 #define tcTr(x) TcTranslatorManager::Instance()->GetTrString(x)
 #define tcTrMgr() TcTranslatorManager::Instance()

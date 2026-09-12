@@ -16,7 +16,6 @@ if(ANDROID)
     target_link_libraries(${PROJECT_NAME} px_relay_message protobuf::libprotobuf protobuf::libprotobuf-lite)
 else ()
     target_link_libraries(${PROJECT_NAME} px_relay_message protobuf::libprotobuf)
-    target_link_libraries(${PROJECT_NAME} Qt6::Core Qt6::Core5Compat Qt6::Widgets)
 
     add_subdirectory(test)
 endif ()

@@ -86,8 +86,7 @@ void HttpHandler::HandlePing(http::web_request& req, http::web_response& resp) {
     resp.fill_json(data);
 }
 
-void HttpHandler::HandleVerifySecurityPassword(const std::shared_ptr<asio2::http_session>& session, http::web_request& req,
-                                               http::web_response& resp) {
+void HttpHandler::HandleVerifySecurityPassword(http::web_request& req, http::web_response& resp) {
     auto params = GetQueryParams(req.query());
     auto value = GetParam(params, "safety_pwd_md5");
     if (!value.has_value()) {
@@ -99,25 +98,6 @@ void HttpHandler::HandleVerifySecurityPassword(const std::shared_ptr<asio2::http
     // and pass when the device has no password at all
     if (!VerifySafetyPassword(params)) {
         SendErrorJson(resp, kHandlerErrVerifySafetyPasswordFailed);
-        return;
-    }
-    // The Panel validates an id-less IP-direct password before it starts
-    // px_client. Reserve the normal one-time stream id here, so the child
-    // only connects to that prepared stream and never receives a password
-    // or a second authorization credential.
-    const auto client_nonce = GetParam(params, "client_nonce").value_or(std::string{});
-    if (!client_nonce.empty() && session && direct_session_grants_) {
-        DirectSessionGrantBinding binding{
-            .device_id_ = {},
-            .stream_id_ = {},
-            .client_nonce_ = client_nonce,
-            .remote_address_ = session->remote_address(),
-        };
-        const auto now_ms = CurrentSystemMilliseconds();
-        nlohmann::json result;
-        result["stream_id"] = direct_session_grants_->IssueStreamBinding(std::move(binding), now_ms);
-        result["expires_at_ms"] = now_ms + DirectSessionGrantStore::kLifetimeMilliseconds;
-        SendOkJson(resp, result.dump());
         return;
     }
     SendOkJson(resp, "");

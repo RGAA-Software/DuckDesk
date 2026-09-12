@@ -6,6 +6,7 @@
 #define GAMMARAYPREMIUM_USERMANAGER_H
 
 #include <memory>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -24,9 +25,9 @@ namespace px
     class PxUserManager {
     public:
         explicit PxUserManager(const std::shared_ptr<PxContext>& ctx);
-        bool Register(const std::string& username, const std::string& password);
+        bool Register(const std::string& username, const std::string& password, bool show_dialog = true);
         bool Login(const std::string& username, const std::string& password, bool show_dialog = true);
-        bool Logout();
+        bool Logout(bool show_dialog = true);
         bool ModifyUsername(const std::string& username);
         bool ModifyPassword(const std::string& current_password, const std::string& new_password);
         bool UpdateAvatar(const std::string& avatar_path);
@@ -71,7 +72,7 @@ namespace px
         static std::string KeyAvatarPath();
 
     private:
-        PxSettings* settings_ = nullptr;
+        std::reference_wrapper<PxSettings> settings_;
         std::shared_ptr<PxContext> context_ = nullptr;
         std::mutex guest_session_mutex_;
         std::string guest_access_token_;

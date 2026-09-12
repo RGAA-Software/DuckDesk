@@ -43,6 +43,10 @@ namespace px
         int frame_width_ = 0;
         int frame_height_ = 0;
         std::optional<EImageFormat> img_format_{};
+        int configured_width_ = 0;
+        int configured_height_ = 0;
+        std::optional<VideoType> configured_codec_type_{};
+        std::optional<EImageFormat> configured_img_format_{};
 
         bool stop_ = false;
         std::mutex decode_mtx_;

@@ -4,7 +4,6 @@
 
 #include "px_console_manager.h"
 
-#include "px_dialog.h"
 #include "render_panel/px_context.h"
 #include "render_panel/px_settings.h"
 #include "render_panel/px_application.h"
@@ -14,14 +13,12 @@
 namespace px
 {
 
-    PxConsoleManager::PxConsoleManager(const std::shared_ptr<PxContext>& context) {
-        context_ = context;
-        settings_ = PxSettings::Instance();
-    }
+    PxConsoleManager::PxConsoleManager(const std::shared_ptr<PxContext>& context)
+        : settings_{*PxSettings::Instance()}, context_{context} {}
 
     std::optional<px_console::AliveConnections> PxConsoleManager::QueryAliveConnections(bool show_err_dialog) const {
-        const auto host = settings_->GetConsoleServerHost();
-        const auto port = settings_->GetConsoleServerPort();
+        const auto host = settings_.get().GetConsoleServerHost();
+        const auto port = settings_.get().GetConsoleServerPort();
         const auto appkey = grApp->GetAppkey();
         const auto r = px_console::ConsoleApi::QueryAliveConnections(host, port, appkey);
         if (!r.has_value()) {
@@ -29,10 +26,10 @@ namespace px
                 auto err = r.error();
                 auto server_message = px_console::ConsoleApiLastErrorMessage();
                 const auto endpoint = MakeConsoleEndpoint(host, port);
-                context_->PostUITask([err, server_message, endpoint]() {
-                    TcDialog dialog(tcTr("id_error"), MakeConsoleErrorMessage(
+                const auto context = context_;
+                context_->PostUITask([context, err, server_message, endpoint]() {
+                    context->NotifyAppErrMessage(tcTr("id_error"), MakeConsoleErrorMessage(
                         ConsoleErrorOperation::kCheckConsole, err, server_message, endpoint));
-                    dialog.exec();
                 });
             }
             return std::nullopt;
@@ -41,8 +38,8 @@ namespace px
     }
 
     std::optional<px_console::AvailableNewConnection> PxConsoleManager::QueryNewConnection(bool show_err_dialog) const {
-        const auto host = settings_->GetConsoleServerHost();
-        const auto port = settings_->GetConsoleServerPort();
+        const auto host = settings_.get().GetConsoleServerHost();
+        const auto port = settings_.get().GetConsoleServerPort();
         const auto appkey = grApp->GetAppkey();
         if (host.empty() || port <= 0 || appkey.empty()) {
             return std::nullopt;
@@ -53,10 +50,10 @@ namespace px
                 auto err = r.error();
                 auto server_message = px_console::ConsoleApiLastErrorMessage();
                 const auto endpoint = MakeConsoleEndpoint(host, port);
-                context_->PostUITask([err, server_message, endpoint]() {
-                    TcDialog dialog(tcTr("id_error"), MakeConsoleErrorMessage(
+                const auto context = context_;
+                context_->PostUITask([context, err, server_message, endpoint]() {
+                    context->NotifyAppErrMessage(tcTr("id_error"), MakeConsoleErrorMessage(
                         ConsoleErrorOperation::kCheckConsole, err, server_message, endpoint));
-                    dialog.exec();
                 });
             }
             return std::nullopt;

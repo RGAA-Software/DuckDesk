@@ -8,7 +8,6 @@
 #include "px_client_panel_message.pb.h"
 #include "px_qt_widget/translator/px_translator.h"
 #include <QVariantMap>
-#include "notify/notify_defs.h"
 #include "px_console_client/console_stream.h"
 
 namespace pxrp
@@ -216,12 +215,6 @@ namespace px
     class MsgForceStopAllPrograms {
     public:
         bool uninstall_service_ = false;
-    };
-
-    // notification clicked
-    class MsgNotificationClicked {
-    public:
-        NotifyItem data_;
     };
 
     // update connected clients info

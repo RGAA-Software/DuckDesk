@@ -25,10 +25,12 @@ mod identity;
 mod interact;
 mod live;
 mod media_sidecar;
+mod native_connection;
 mod net_client;
 mod net_cm;
 mod net_panel;
 mod net_service;
+mod rdp_connection;
 mod record;
 mod rtc;
 mod stream;
@@ -395,12 +397,23 @@ async fn run_as_server(machine_code: String) {
 
     let listener_settings = gConsoleSettings.lock().await.clone();
     if listener_settings.udp_broadcast_enabled {
-        gConsoleContext.lock().await.broadcast_access_info(listener_settings.udp_broadcast_port).await;
-        tracing::info!("discovery port at: {}", listener_settings.udp_broadcast_port);
+        gConsoleContext
+            .lock()
+            .await
+            .broadcast_access_info(listener_settings.udp_broadcast_port)
+            .await;
+        tracing::info!(
+            "discovery port at: {}",
+            listener_settings.udp_broadcast_port
+        );
     }
     if listener_settings.relay_enabled {
         tokio::spawn(async move {
-            let server = RelayServer::new("0.0.0.0".to_string(), listener_settings.relay_port, gConsoleContext.clone());
+            let server = RelayServer::new(
+                "0.0.0.0".to_string(),
+                listener_settings.relay_port,
+                gConsoleContext.clone(),
+            );
             server.start().await;
         });
     }

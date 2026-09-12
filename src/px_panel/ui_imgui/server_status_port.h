@@ -21,6 +21,7 @@ struct ServerStatusState final {
     int audioSamples{};
     int audioChannels{};
     int audioBits{};
+    int connectedClients{};
 };
 
 class ServerStatusPort {

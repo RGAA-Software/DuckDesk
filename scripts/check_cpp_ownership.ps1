@@ -141,11 +141,14 @@ try {
             if ($added -match '^\s*(?://|/\*|\*|\*/)') {
                 continue
             }
+            # Ownership keywords and asterisks inside ordinary string literals
+            # are data, not C++ declarations or new/delete expressions.
+            $codeOnly = $added -replace '"(?:\\.|[^"\\])*"', '""'
             $isReviewedRawPointerBoundary =
                 $added -match 'NOLINT\(gammaray-raw-pointer-boundary\)'
-            if ($added -match '\[[^\]]*\bthis\b[^\]]*\]' -or
-                $added -match '\bnew\s+[A-Za-z_:]' -or
-                $added -match '\bdelete\s+[A-Za-z_]') {
+            if ($codeOnly -match '\[[^\]]*\bthis\b[^\]]*\]' -or
+                $codeOnly -match '\bnew\s+[A-Za-z_:]' -or
+                $codeOnly -match '\bdelete\s+[A-Za-z_]') {
                 if (-not $isReviewedRawPointerBoundary) {
                     $violations.Add("${currentFile}: $added")
                 }
@@ -154,16 +157,16 @@ try {
             # members, returns or parameters. A declaration forced by an
             # external ABI requires the reviewed boundary annotation defined
             # in docs/cpp_smart_pointer_standard.md.
-            $rawPointerAtLineStart = $added -match '^\s*(?:(?:static|const|constexpr|volatile|mutable|inline|virtual|typename)\s+)*(?:[A-Za-z_][A-Za-z0-9_:]*(?:\s*<[^;{}()=]+>)?|auto)\s*\*+\s*(?:const\s+)?[A-Za-z_][A-Za-z0-9_]*'
-            $rawPointerParameter = $added -match '[\(,]\s*(?:const\s+)?(?:[A-Za-z_][A-Za-z0-9_:]*(?:\s*<[^;{}()=]+>)?|auto)\s*\*+\s*(?:const\s+)?[A-Za-z_][A-Za-z0-9_]*'
-            $inferredRawPointer = $added -match '^\s*(?:const\s+)?auto\s+[A-Za-z_][A-Za-z0-9_]*\s*=.*(?:mutable_[A-Za-z0-9_]+\s*\(|(?:->|\.)Add\s*\()'
-            $isDereferenceReturn = $added -match '^\s*(?:co_)?return\s+\*'
-            $isTestAssertion = $added -match '^\s*(?:EXPECT|ASSERT)_[A-Z_]+'
+            $rawPointerAtLineStart = $codeOnly -match '^\s*(?:(?:static|const|constexpr|volatile|mutable|inline|virtual|typename)\s+)*(?:[A-Za-z_][A-Za-z0-9_:]*(?:\s*<[^;{}()=]+>)?|auto)\s*\*+\s*(?:const\s+)?[A-Za-z_][A-Za-z0-9_]*'
+            $rawPointerParameter = $codeOnly -match '[\(,]\s*(?:const\s+)?(?:[A-Za-z_][A-Za-z0-9_:]*(?:\s*<[^;{}()=]+>)?|auto)\s*\*+\s*(?:const\s+)?[A-Za-z_][A-Za-z0-9_]*'
+            $inferredRawPointer = $codeOnly -match '^\s*(?:const\s+)?auto\s+[A-Za-z_][A-Za-z0-9_]*\s*=.*(?:mutable_[A-Za-z0-9_]+\s*\(|(?:->|\.)Add\s*\()'
+            $isDereferenceReturn = $codeOnly -match '^\s*(?:co_)?return\s+\*'
+            $isTestAssertion = $codeOnly -match '^\s*(?:EXPECT|ASSERT)_[A-Z_]+'
             if (($rawPointerAtLineStart -or $rawPointerParameter -or $inferredRawPointer) -and
                 -not $isDereferenceReturn -and -not $isTestAssertion -and -not $isReviewedRawPointerBoundary) {
                 $violations.Add("${currentFile}: $added")
             }
-            if ($added -match '\.release\s*\(\s*\)' -and
+            if ($codeOnly -match '\.release\s*\(\s*\)' -and
                 -not $isReviewedRawPointerBoundary) {
                 $violations.Add(
                     "${currentFile}: smart-pointer release() requires a reviewed external ABI boundary and must never transfer ownership to a Qt parent: $added")

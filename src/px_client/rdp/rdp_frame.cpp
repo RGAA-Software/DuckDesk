@@ -5,45 +5,42 @@
 namespace px::rdp {
 
 bool DesktopFrame::IsValid() const noexcept {
-    if (desktop.width() <= 0 || desktop.height() <= 0 || desktop.width() > 8192 || desktop.height() > 8192 ||
-        static_cast<qsizetype>(desktop.width()) * desktop.height() * 4 > kMaximumFrameBytes || rectangles.empty() || rectangles.size() > 4096 ||
-        pixels.size() > kMaximumFrameBytes) {
+    if (desktop.Empty() || desktop.width > 8192 || desktop.height > 8192 ||
+        static_cast<std::size_t>(desktop.width) * static_cast<std::size_t>(desktop.height) * 4U > kMaximumFrameBytes || rectangles.empty() ||
+        rectangles.size() > 4096U || pixels.size() > kMaximumFrameBytes) {
         return false;
     }
-    qsizetype expected{};
+    std::size_t expected{};
     for (const auto& rectangle : rectangles) {
-        if (rectangle.x() < 0 || rectangle.y() < 0 || rectangle.width() <= 0 || rectangle.height() <= 0 || rectangle.width() > desktop.width() ||
-            rectangle.height() > desktop.height() || rectangle.x() > desktop.width() - rectangle.width() ||
-            rectangle.y() > desktop.height() - rectangle.height()) {
+        if (rectangle.x < 0 || rectangle.y < 0 || rectangle.Empty() || rectangle.width > desktop.width || rectangle.height > desktop.height ||
+            rectangle.x > desktop.width - rectangle.width || rectangle.y > desktop.height - rectangle.height) {
             return false;
         }
-        const auto count = static_cast<qsizetype>(rectangle.width()) * rectangle.height() * 4;
-        if (count > kMaximumFrameBytes - expected) {
-            return false;
-        }
+        const auto count = static_cast<std::size_t>(rectangle.width) * static_cast<std::size_t>(rectangle.height) * 4U;
+        if (count > kMaximumFrameBytes - expected) return false;
         expected += count;
     }
     return expected == pixels.size();
 }
 
-QRect DesktopViewport(QSize desktop, QSize view) noexcept {
-    if (desktop.isEmpty() || view.isEmpty()) {
-        return {};
-    }
-    const auto scaled = desktop.scaled(view, Qt::KeepAspectRatio);
-    return {(view.width() - scaled.width()) / 2, (view.height() - scaled.height()) / 2, scaled.width(), scaled.height()};
+Rectangle DesktopViewport(const Size desktop, const Size view) noexcept {
+    if (desktop.Empty() || view.Empty()) return {};
+    const double scale = std::min(static_cast<double>(view.width) / desktop.width, static_cast<double>(view.height) / desktop.height);
+    const int width = std::max(1, static_cast<int>(desktop.width * scale));
+    const int height = std::max(1, static_cast<int>(desktop.height * scale));
+    return {(view.width - width) / 2, (view.height - height) / 2, width, height};
 }
 
-std::optional<QPoint> MapDesktopPoint(QSize desktop, QSize view, QPoint point, bool clamp) noexcept {
+std::optional<Point> MapDesktopPoint(const Size desktop, const Size view, const Point point, const bool clamp) noexcept {
     const auto target = DesktopViewport(desktop, view);
-    if (target.isEmpty() || (!clamp && !target.contains(point))) {
-        return {};
+    if (target.Empty() || (!clamp && (point.x < target.x || point.y < target.y || point.x >= target.x + target.width ||
+                                      point.y >= target.y + target.height))) {
+        return std::nullopt;
     }
-    // The demo divided by the unscaled desktop size; use the actual fitted viewport.
-    const auto x = (static_cast<std::int64_t>(point.x()) - target.x()) * desktop.width() / target.width();
-    const auto y = (static_cast<std::int64_t>(point.y()) - target.y()) * desktop.height() / target.height();
-    return QPoint{static_cast<int>(std::clamp<std::int64_t>(x, 0, desktop.width() - 1)),
-                  static_cast<int>(std::clamp<std::int64_t>(y, 0, desktop.height() - 1))};
+    const auto x = (static_cast<std::int64_t>(point.x) - target.x) * desktop.width / target.width;
+    const auto y = (static_cast<std::int64_t>(point.y) - target.y) * desktop.height / target.height;
+    return Point{static_cast<int>(std::clamp<std::int64_t>(x, 0, desktop.width - 1)),
+                 static_cast<int>(std::clamp<std::int64_t>(y, 0, desktop.height - 1))};
 }
 
 } // namespace px::rdp

@@ -3,7 +3,7 @@
 #include <QIODevice>
 #include <QDebug>
 #include <QLocale>
-#include <QApplication>
+#include <QCoreApplication>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include "px_common/log.h"
@@ -110,7 +110,7 @@ namespace px
         }
         this->kind_ = kind;
 
-        auto base_dir = QApplication::applicationDirPath();
+        auto base_dir = QCoreApplication::applicationDirPath();
         return LoadLanguage(base_dir + "/" + path);
     }
 

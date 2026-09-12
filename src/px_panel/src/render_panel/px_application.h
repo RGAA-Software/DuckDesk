@@ -9,7 +9,6 @@
 #include <atomic>
 #include <QTimer>
 #include <QObject>
-#include <QAbstractNativeEventFilter>
 #include "px_common/message_notifier.h"
 
 namespace px
@@ -35,19 +34,16 @@ namespace px
     class PanelCompanion;
     class PxConsoleClient;
     class ConsoleScanner;
-    class SkinInterface;
     class PxUserManager;
     class PxDeviceManager;
-    class MonitorRefresher;
 
-    class PxApplication : public QObject, public QAbstractNativeEventFilter, public std::enable_shared_from_this<PxApplication> {
+    class PxApplication : public QObject, public std::enable_shared_from_this<PxApplication> {
     public:
 
-        static std::shared_ptr<PxApplication> Make(QWidget* main_window, bool run_automatically, const std::string& skin_name = "");
+        static std::shared_ptr<PxApplication> Make(bool runAutomatically, const std::string& skinName = "");
 
         ~PxApplication() override;
 
-        bool nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result) override;
         void PrepareForShutdown();
         void Exit();
 
@@ -57,6 +53,7 @@ namespace px
         std::shared_ptr<PxRenderMsgProcessor> GetRenderMsgProcessor() { return rd_msg_processor_; }
         std::shared_ptr<ClipboardManager> GetClipboardManager() { return clipboard_mgr_; }
         std::shared_ptr<WinMessageLoop> GetWinMessageLoop() { return win_msg_loop_; }
+        std::shared_ptr<PxConnectedManager> GetConnectedManager() { return px_connected_manager_; }
         bool IsServiceConnected() const;
         // panel -> service
         // msg: protobuf message
@@ -96,8 +93,6 @@ namespace px
         // console scanner
         std::shared_ptr<ConsoleScanner> GetConsoleScanner();
 
-        // skin
-        SkinInterface* GetSkin();
         std::string GetSkinName();
 
         // console ws client alive or not
@@ -117,15 +112,12 @@ namespace px
         [[nodiscard]] bool CanConnectConsoleServer();
 
     protected:
-        explicit PxApplication(QWidget* main_window, bool run_automatically, const std::string& skin_name = "");
+        explicit PxApplication(bool runAutomatically, const std::string& skinName = "");
 
     private:
         void Init();
         void RegisterMessageListener();
         void RegisterFirewall();
-
-        // if there isn't a security password, will pop up a dialog for you to input it
-        void CheckSecurityPassword();
 
         // windows messages looping
         void StartWindowsMessagesLooping();
@@ -137,14 +129,12 @@ namespace px
         void StartConsoleClientIfNeeded();
 
     private:
-        QWidget* main_window_ = nullptr;
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<WsPanelServer> ws_panel_server_ = nullptr;
         //std::shared_ptr<UdpBroadcaster> udp_broadcaster_ = nullptr;
         std::shared_ptr<PxSystemMonitor> sys_monitor_ = nullptr;
         std::shared_ptr<PxServiceClient> service_client_ = nullptr;
-        QTimer* timer_ = nullptr;
-        PxSettings* settings_ = nullptr;
+        std::reference_wrapper<PxSettings> settings_;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::shared_ptr<MessageListener> state_msg_listener_ = nullptr;
         std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
@@ -173,17 +163,11 @@ namespace px
         // console scanner
         std::shared_ptr<ConsoleScanner> console_scanner_ = nullptr;
 
-        // skin interface
-        SkinInterface* skin_ = nullptr;
-
         // user manager
         std::shared_ptr<PxUserManager> user_mgr_ = nullptr;
 
         // device manager
         std::shared_ptr<PxDeviceManager> device_mgr_ = nullptr;
-
-        // monitor refresher
-        std::shared_ptr<MonitorRefresher> monitor_refresher_ = nullptr;
 
         // requested skin name from command line
         std::string requested_skin_name_;

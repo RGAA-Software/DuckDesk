@@ -129,35 +129,34 @@ static void DispatchCloseLogicalSessionBinding(const std::weak_ptr<WsTransport>&
 }
 
 static PxAwaitable<PxResult<WsTicketAdmission>> RedeemWsTicketAsync(std::weak_ptr<WsTransport> transport,
-                                                                    std::shared_ptr<DirectSessionGrantStore> direct_session_grants,
                                                                     std::unordered_map<std::string, std::string> params, std::string remote_address) {
     const auto ticket_it = params.find("ticket");
     if (ticket_it == params.end() || ticket_it->second.empty()) {
+        const auto owner = transport.lock();
         const auto stream_it = params.find("stream_id");
         const auto nonce_it = params.find("client_nonce");
-        if (!direct_session_grants || stream_it == params.end() || stream_it->second.empty() || nonce_it == params.end() ||
-            nonce_it->second.empty()) {
+        const auto password_it = params.find("safety_pwd_md5");
+        if (!owner || stream_it == params.end() || stream_it->second.empty() || nonce_it == params.end() || nonce_it->second.empty() ||
+            password_it == params.end() || password_it->second.empty()) {
             co_return PxResult<WsTicketAdmission>::Failure(
-                MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "ws_ticket_redeem", "connection ticket is missing"));
+                MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "ws_password_auth", "device password is missing"));
         }
-        const DirectSessionGrantBinding binding{
-            .device_id_ = {},
-            .stream_id_ = stream_it->second,
-            .client_nonce_ = nonce_it->second,
-            .remote_address_ = std::move(remote_address),
-        };
-        if (!direct_session_grants->Validate(stream_it->second, binding, CurrentSystemMilliseconds())) {
-            co_return PxResult<WsTicketAdmission>::Failure(MakePxAsyncError(PxAsyncErrorCode::kServiceRejected, "ws_direct_receipt_validate",
-                                                                            "direct session receipt was rejected", false,
-                                                                            "SESSION_DIRECT_RECEIPT_REJECTED"));
+        const auto settings = owner->Settings();
+        const bool validSafety = !settings.device_safety_password.empty() && settings.device_safety_password == password_it->second;
+        const bool validTemporary = !settings.device_random_password.empty() && MD5::Hex(settings.device_random_password) == password_it->second;
+        if ((!settings.device_safety_password.empty() || !settings.device_random_password.empty()) && !validSafety && !validTemporary) {
+            co_return PxResult<WsTicketAdmission>::Failure(
+                MakePxAsyncError(PxAsyncErrorCode::kServiceRejected, "ws_password_auth", "device password was rejected", false,
+                                 "SESSION_PASSWORD_REJECTED"));
         }
+        const std::string logicalSessionId{"direct:" + MD5::Hex(stream_it->second + "|" + nonce_it->second + "|" + remote_address)};
         co_return PxResult<WsTicketAdmission>::Success(WsTicketAdmission{
-            .permissions_ = {"view", "input", "clipboard", "file", "audio"},
-            .logical_session_id_ = stream_it->second,
+            .permissions_ = {"view", "input", "clipboard", "file", "audio", "rdp"},
+            .logical_session_id_ = logicalSessionId,
             .stream_id_ = stream_it->second,
             .join_mode_ = "control",
-            .subject_id_ = "ip-direct:" + MD5::Hex(binding.remote_address_ + "|" + binding.client_nonce_),
-            .expires_at_ms_ = CurrentSystemMilliseconds() + DirectSessionGrantStore::kLifetimeMilliseconds,
+            .subject_id_ = "direct:" + MD5::Hex(remote_address + "|" + nonce_it->second),
+            .expires_at_ms_ = CurrentSystemMilliseconds() + std::chrono::hours(24).count() * 60 * 60 * 1000,
             .allow_observer_ = false,
             .allow_takeover_ = true,
         });
@@ -478,7 +477,7 @@ bool WsServer::Start() {
     AddHttpRouter(kApiVerifySecurityPassword, [weak_self](const std::string&, std::shared_ptr<asio2::http_session>& session_ptr,
                                                           http::web_request& req, http::web_response& rep) {
         if (const auto self = weak_self.lock(); self && !self->exiting_) {
-            self->http_handler_->HandleVerifySecurityPassword(session_ptr, req, rep);
+            self->http_handler_->HandleVerifySecurityPassword(req, rep);
         }
     });
 
@@ -1173,7 +1172,7 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(std::weak_ptr<WsServer> owner, st
         co_return;
     }
     const auto transport = server->transport_;
-    auto ticket_result = co_await RedeemWsTicketAsync(transport, server->direct_session_grants_, params, session->remote_address());
+    auto ticket_result = co_await RedeemWsTicketAsync(transport, params, session->remote_address());
     if (!ticket_result.HasValue()) {
         const auto& error = ticket_result.Error();
         LOGW("event=session.admit component=net_ws code={} "

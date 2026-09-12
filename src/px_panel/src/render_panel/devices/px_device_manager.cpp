@@ -11,8 +11,6 @@
 #include "render_panel/px_context.h"
 #include "render_panel/px_settings.h"
 #include "render_panel/px_application.h"
-#include "px_label.h"
-#include "px_dialog.h"
 
 namespace px
 {

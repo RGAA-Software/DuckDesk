@@ -22,43 +22,61 @@ constexpr auto kResponseData = "data";
 ConsoleUserAppInstance ParseInstance(const json& data) {
     ConsoleUserAppInstance instance;
     instance.instance_id = data.value("instance_id", "");
+    instance.app_id = data.value("app_id", "");
     instance.state = data.value("state", "");
     // A successful instance has no error code. Console represents that state as
     // JSON null, while nlohmann::json::value() only applies its default when
     // the key is absent and throws when the key exists with a null value.
     // Treat both a missing key and null as the expected empty error code.
-    if (const auto error_code = data.find("error_code");
-        error_code != data.end() && !error_code->is_null()) {
+    if (const auto error_code = data.find("error_code"); error_code != data.end() && !error_code->is_null()) {
         instance.error_code = error_code->get<std::string>();
     }
     instance.reconnectable = data.value("reconnectable", false);
     return instance;
 }
 
-template <typename T>
-px::Result<T, ConsoleApiError> HttpError(std::string_view operation,
-                                        const px::HttpResponse& response) {
+template <typename T> px::Result<T, ConsoleApiError> HttpError(std::string_view operation, const px::HttpResponse& response) {
     const auto error = ToConsoleUserApiError(response);
     const auto message = ConsoleApiLastErrorMessage();
-    LOGE("{} failed: HTTP {}, transport: {}, message: {}", operation, response.status,
-         response.error_code, message.empty() ? "<empty>" : message);
+    LOGE("{} failed: HTTP {}, transport: {}, message: {}", operation, response.status, response.error_code, message.empty() ? "<empty>" : message);
     return TcErr(error);
 }
 
+} // namespace
+
+px::Result<std::vector<ConsoleUserAppInstance>, ConsoleApiError>
+ConsoleUserAppApi::QueryInstances(const std::string& host, int port, const std::string& access_token, const bool guest) {
+    const auto client = MakeConsoleHttpClient(host, port, guest ? "/api/v1/public/instances" : "/api/v1/user/instances", 3000);
+    client->SetHeader("Authorization", "Bearer " + access_token);
+    const auto response = client->Request();
+    if (response.status != 200 || response.body.empty()) {
+        return HttpError<std::vector<ConsoleUserAppInstance>>("QueryInstances", response);
+    }
+    try {
+        std::vector<ConsoleUserAppInstance> instances{};
+        for (const auto& item : json::parse(response.body).at(kResponseData)) {
+            auto instance = ParseInstance(item);
+            if (!instance.instance_id.empty() && !instance.app_id.empty()) {
+                instances.push_back(std::move(instance));
+            }
+        }
+        return instances;
+    } catch (const std::exception& error) {
+        LOGE("QueryInstances parse failed: {}", error.what());
+        return TcErr(ConsoleApiError::kParseJsonFailed);
+    }
 }
 
-px::Result<std::string, ConsoleApiError>
-ConsoleUserAppApi::CreateGuestSession(const std::string& host, int port,
-                                  const std::string& client_nonce) {
+px::Result<std::string, ConsoleApiError> ConsoleUserAppApi::CreateGuestSession(const std::string& host, int port, const std::string& client_nonce) {
     const auto client = MakeConsoleHttpClient(host, port, "/api/v1/session/guest", 3000);
-    const auto response = client->Post({}, json{{"client_nonce", client_nonce},
-        {"client_type", "panel"}}.dump(), "application/json");
+    const auto response = client->Post({}, json{{"client_nonce", client_nonce}, {"client_type", "panel"}}.dump(), "application/json");
     if (response.status != 200 || response.body.empty()) {
         return HttpError<std::string>("CreateGuestSession", response);
     }
     try {
         const auto token = json::parse(response.body).at(kResponseData).value("access_token", "");
-        if (token.empty()) return TcErr(ConsoleApiError::kParseJsonFailed);
+        if (token.empty())
+            return TcErr(ConsoleApiError::kParseJsonFailed);
         return token;
     } catch (const std::exception& error) {
         LOGE("CreateGuestSession parse failed: {}", error.what());
@@ -66,11 +84,9 @@ ConsoleUserAppApi::CreateGuestSession(const std::string& host, int port,
     }
 }
 
-px::Result<std::vector<ConsoleUserApplication>, ConsoleApiError>
-ConsoleUserAppApi::QueryApps(const std::string& host, int port, const std::string& access_token,
-                         bool guest) {
-    const auto client = MakeConsoleHttpClient(host, port,
-        guest ? "/api/v1/public/apps" : "/api/v1/user/apps", 3000);
+px::Result<std::vector<ConsoleUserApplication>, ConsoleApiError> ConsoleUserAppApi::QueryApps(const std::string& host, int port,
+                                                                                              const std::string& access_token, bool guest) {
+    const auto client = MakeConsoleHttpClient(host, port, guest ? "/api/v1/public/apps" : "/api/v1/user/apps", 3000);
     client->SetHeader("Authorization", "Bearer " + access_token);
     const auto response = client->Request();
     if (response.status != 200 || response.body.empty()) {
@@ -90,7 +106,8 @@ ConsoleUserAppApi::QueryApps(const std::string& host, int port, const std::strin
             if (item.contains("running_instance") && !item["running_instance"].is_null()) {
                 app.running_instance = std::make_shared<ConsoleUserAppInstance>(ParseInstance(item["running_instance"]));
             }
-            if (!app.app_id.empty()) apps.push_back(std::move(app));
+            if (!app.app_id.empty())
+                apps.push_back(std::move(app));
         }
         return apps;
     } catch (const std::exception& error) {
@@ -99,12 +116,10 @@ ConsoleUserAppApi::QueryApps(const std::string& host, int port, const std::strin
     }
 }
 
-px::Result<ConsoleUserAppInstance, ConsoleApiError>
-ConsoleUserAppApi::StartApp(const std::string& host, int port, const std::string& access_token,
-                        const std::string& app_id, const std::string& client_nonce, bool guest) {
-    const auto path = guest
-        ? std::format("/api/v1/public/apps/{}/start", app_id)
-        : std::format("/api/v1/user/apps/{}/start", app_id);
+px::Result<ConsoleUserAppInstance, ConsoleApiError> ConsoleUserAppApi::StartApp(const std::string& host, int port, const std::string& access_token,
+                                                                                const std::string& app_id, const std::string& client_nonce,
+                                                                                bool guest) {
+    const auto path = guest ? std::format("/api/v1/public/apps/{}/start", app_id) : std::format("/api/v1/user/apps/{}/start", app_id);
     const auto client = MakeConsoleHttpClient(host, port, path, 30000);
     client->SetHeader("Authorization", "Bearer " + access_token);
     const auto response = client->Post({}, json{{"client_nonce", client_nonce}}.dump(), "application/json");
@@ -122,21 +137,20 @@ ConsoleUserAppApi::StartApp(const std::string& host, int port, const std::string
 }
 
 px::Result<ConsoleConnectionTicket, ConsoleApiError>
-ConsoleUserAppApi::IssueInstanceTicket(const std::string& host, int port,
-                                   const std::string& access_token,
-                                   const std::string& instance_id,
-                                   const std::string& client_nonce,
-                                   const std::vector<std::string>& requested_permissions,
-                                   bool guest) {
-    const auto path = guest
-        ? std::format("/api/v1/public/instances/{}/ticket", instance_id)
-        : std::format("/api/v1/user/instances/{}/ticket", instance_id);
+ConsoleUserAppApi::IssueInstanceTicket(const std::string& host, int port, const std::string& access_token, const std::string& instance_id,
+                                       const std::string& client_nonce, const std::vector<std::string>& requested_permissions, bool guest) {
+    const auto path =
+        guest ? std::format("/api/v1/public/instances/{}/ticket", instance_id) : std::format("/api/v1/user/instances/{}/ticket", instance_id);
     const auto client = MakeConsoleHttpClient(host, port, path, 3000);
     client->SetHeader("Authorization", "Bearer " + access_token);
-    auto response = client->Post({}, json{{"client_nonce", client_nonce},
-        {"client_capability", client->IsPeerVerificationEnabled() ? "windows-rdp-v1" : ""},
-        {"join_mode", std::find(requested_permissions.begin(), requested_permissions.end(), "input")
-            == requested_permissions.end() ? "observe" : "control"}}.dump(), "application/json");
+    auto response = client->Post(
+        {},
+        json{{"client_nonce", client_nonce},
+             {"client_capability", client->IsPeerVerificationEnabled() ? "windows-rdp-v1" : ""},
+             {"join_mode",
+              std::find(requested_permissions.begin(), requested_permissions.end(), "input") == requested_permissions.end() ? "observe" : "control"}}
+            .dump(),
+        "application/json");
     if (response.status != 200 || response.body.empty()) {
         return HttpError<ConsoleConnectionTicket>("IssueInstanceTicket", response);
     }
@@ -164,29 +178,71 @@ ConsoleUserAppApi::IssueInstanceTicket(const std::string& host, int port,
         ticket.stream_id = data.value("stream_id", "");
         ticket.join_mode = data.value("join_mode", "control");
         ticket.permissions = data.value("permissions", std::vector<std::string>{});
-        ticket.rtc_ice_config_json = data.contains("rtc_ice_config")
-            ? data.at("rtc_ice_config").dump() : "";
+        ticket.rtc_ice_config_json = data.contains("rtc_ice_config") ? data.at("rtc_ice_config").dump() : "";
         ticket.relay_host = data.value("relay_host", "");
         ticket.relay_port = data.value("relay_port", 0);
         ticket.signal_device_id = data.value("signal_device_id", "");
-        if (ticket.ticket.empty() || ticket.renewal_token.empty()
-            || ticket.stream_id.empty() || ticket.launch_url.empty()) {
+        if (ticket.ticket.empty() || ticket.renewal_token.empty() || ticket.stream_id.empty() || ticket.launch_url.empty()) {
             return TcErr(ConsoleApiError::kParseJsonFailed);
         }
         return ticket;
     } catch (const std::exception& error) {
-        if (!response.body.empty()) { OPENSSL_cleanse(response.body.data(), response.body.size()); }
+        if (!response.body.empty()) {
+            OPENSSL_cleanse(response.body.data(), response.body.size());
+        }
         LOGE("IssueInstanceTicket response parsing failed"); // Parser diagnostics can echo credential-bearing input.
         return TcErr(ConsoleApiError::kParseJsonFailed);
     }
 }
 
+px::Result<ConsoleNativeApplicationConnection, ConsoleApiError>
+ConsoleUserAppApi::QueryNativeConnection(const std::string& host, const int port, const std::string& access_token,
+                                         const std::string& instance_id, const bool view_only, const bool guest) {
+    const auto path = guest ? std::format("/api/v1/public/instances/{}/native-connection", instance_id)
+                            : std::format("/api/v1/user/instances/{}/native-connection", instance_id);
+    const auto client = MakeConsoleHttpClient(host, port, path, 5'000);
+    client->SetHeader("Authorization", "Bearer " + access_token);
+    auto response = client->Post({}, json{{"view_only", view_only}, {"client_capability", "windows-rdp-v1"}}.dump(), "application/json");
+    if (response.status != 200 || response.body.empty()) {
+        return HttpError<ConsoleNativeApplicationConnection>("QueryNativeConnection", response);
+    }
+    try {
+        auto data = json::parse(response.body).at(kResponseData);
+        OPENSSL_cleanse(response.body.data(), response.body.size());
+        response.body.clear();
+        ConsoleNativeApplicationConnection result{.host = data.value("host", ""),
+                                                  .port = data.value("port", 0),
+                                                  .device_id = data.value("device_id", ""),
+                                                  .instance_id = data.value("instance_id", ""),
+                                                  .app_type = data.value("app_type", ""),
+                                                  .signal_device_id = data.value("signal_device_id", ""),
+                                                  .relay_host = data.value("relay_host", ""),
+                                                  .relay_port = data.value("relay_port", 0)};
+        if (data.contains("rdp") && !data.at("rdp").is_null()) {
+            auto& rdp = data.at("rdp");
+            if (rdp.value("schema", 0) != 1 || rdp.value("instance_id", "") != instance_id || !rdp.at("password").is_string()) {
+                return TcErr(ConsoleApiError::kParseJsonFailed);
+            }
+            result.rdp_configuration = SecretBuffer::Take(rdp.dump());
+            auto& password = rdp.at("password").get_ref<std::string&>();
+            OPENSSL_cleanse(password.data(), password.size());
+            rdp.clear();
+        }
+        if (result.host.empty() || result.port <= 0 || result.port > 65'535 || result.device_id.empty() || result.instance_id != instance_id) {
+            return TcErr(ConsoleApiError::kParseJsonFailed);
+        }
+        return result;
+    } catch (const std::exception&) {
+        if (!response.body.empty()) OPENSSL_cleanse(response.body.data(), response.body.size());
+        LOGE("QueryNativeConnection response parsing failed");
+        return TcErr(ConsoleApiError::kParseJsonFailed);
+    }
+}
+
 px::Result<ConsoleUserAppInstance, ConsoleApiError>
-ConsoleUserAppApi::StopInstance(const std::string& host, int port, const std::string& access_token,
-                            const std::string& instance_id, bool guest) {
-    const auto path = guest
-        ? std::format("/api/v1/public/instances/{}/stop", instance_id)
-        : std::format("/api/v1/user/instances/{}/stop", instance_id);
+ConsoleUserAppApi::StopInstance(const std::string& host, int port, const std::string& access_token, const std::string& instance_id, bool guest) {
+    const auto path =
+        guest ? std::format("/api/v1/public/instances/{}/stop", instance_id) : std::format("/api/v1/user/instances/{}/stop", instance_id);
     const auto client = MakeConsoleHttpClient(host, port, path, 5000);
     client->SetHeader("Authorization", "Bearer " + access_token);
     const auto response = client->Post({}, "{}", "application/json");
@@ -201,4 +257,4 @@ ConsoleUserAppApi::StopInstance(const std::string& host, int port, const std::st
     }
 }
 
-}
+} // namespace px_console

@@ -21,6 +21,10 @@ relay_port = 4605
 environment = "test"
 mongodb_url = "mongodb://localhost:27017/"
 
+# RDP 工作区凭据加密密钥。相对路径以 Console 安装目录为基准。
+# 部署脚本仅在首次安装时安全生成并限制访问权限，升级不会覆盖；不要提交密钥文件。
+rdp_master_key_path = "secrets/rdp_workspace.key"
+
 # redis装在本机，则不需要修改
 # redis url address
 redis_url = "redis://127.0.0.1:6379/"
@@ -87,7 +91,7 @@ guest_session_per_ip_per_hour = 30
 start_per_subject_per_minute = 6
 
 [user.quota]
-guest_concurrent_instances = 1
+guest_concurrent_instances = 3
 user_concurrent_instances = 3
 guest_daily_minutes = 60
 public_app_global_concurrency = 20

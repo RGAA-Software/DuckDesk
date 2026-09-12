@@ -1,7 +1,9 @@
 #pragma once
 
+#include <cstdint>
 #include <expected>
 #include <memory>
+#include <span>
 #include <string>
 
 namespace px::desktop {
@@ -23,6 +25,8 @@ class D3d11Renderer final {
     void ShutdownImGuiBackend();
     void BeginImGuiFrame() const;
     bool Resize(int width, int height);
+    bool UpdateVideoTexture(int width, int height, std::span<const std::uint8_t> bgra);
+    [[nodiscard]] std::uint64_t VideoTextureId() const noexcept;
     void Render() const;
 
   private:

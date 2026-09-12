@@ -4,7 +4,6 @@
 
 #include <imgui.h>
 
-#include <format>
 #include <utility>
 
 namespace px::panel::ui {
@@ -30,22 +29,19 @@ void ServerStatusPage::Draw(const px::ui::Localizer& localizer) {
     ImGui::TextUnformatted(localizer.Text(px::ui::TextId::ServerStatus).data());
     ImGui::Separator();
     ImGui::Spacing();
-    DrawStatusRow(localizer, px::ui::TextId::ControllerDriver, state.controllerDriverReady, !state.controllerDriverReady,
-                  px::ui::TextId::Install, [port = port_] { port->InstallControllerDriver(); });
+    DrawStatusRow(localizer, px::ui::TextId::ControllerDriver, state.controllerDriverReady, !state.controllerDriverReady, px::ui::TextId::Install,
+                  [port = port_] { port->InstallControllerDriver(); });
     DrawStatusRow(localizer, px::ui::TextId::RenderService, state.renderReady, true, px::ui::TextId::Restart,
                   [port = port_] { port->RestartRender(); });
     DrawStatusRow(localizer, px::ui::TextId::NodeService, state.serviceReady, false, px::ui::TextId::Install, [] {});
+    ImGui::Text("%s: %d", localizer.Text(px::ui::TextId::ConnectedClients).data(), state.connectedClients);
     ImGui::Spacing();
     ImGui::SeparatorText(localizer.Text(px::ui::TextId::NetworkAddresses).data());
     for (const auto& address : state.addresses) {
-        ImGui::Text("%s  (%s)", address.address.c_str(),
-                    localizer.Text(address.wired ? px::ui::TextId::Wired : px::ui::TextId::Wireless).data());
+        ImGui::Text("%s  (%s)", address.address.c_str(), localizer.Text(address.wired ? px::ui::TextId::Wired : px::ui::TextId::Wireless).data());
     }
     ImGui::Text("%s: %d", localizer.Text(px::ui::TextId::PanelListeningPort).data(), state.panelPort);
     ImGui::Text("%s: %d", localizer.Text(px::ui::TextId::DesktopConnectionPort).data(), state.renderPort);
-    ImGui::Spacing();
-    ImGui::SeparatorText(localizer.Text(px::ui::TextId::AudioFormat).data());
-    ImGui::Text("%s", std::format("{}/{}/{}", state.audioSamples, state.audioChannels, state.audioBits).c_str());
 }
 
 } // namespace px::panel::ui

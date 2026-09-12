@@ -25,6 +25,10 @@ namespace px
         if ((codec_type != VideoType::kNetH264 && codec_type != VideoType::kNetHevc) ||
             (img_format != EImageFormat::kI420 && img_format != EImageFormat::kI444))
             return -1;
+        configured_codec_type_ = codec_type;
+        configured_width_ = width;
+        configured_height_ = height;
+        configured_img_format_ = img_format;
         ignore_hw_decoder_ = ignore_hw;
         return 0;
     }
@@ -47,8 +51,10 @@ namespace px
     }
 
     bool VideoDecoder::NeedReConstruct(VideoType codec_type, int width, int height, EImageFormat img_format) {
-        // for Windows.
-        return codec_type != this->codec_type_ || width != this->frame_width_ || height != this->frame_height_ || img_format != this->img_format_;
+        // Decoded dimensions can be codec-aligned (for example 1279 -> 1280).
+        // Reconfiguration follows the encoded stream metadata captured at Init.
+        return codec_type != configured_codec_type_ || width != configured_width_ || height != configured_height_ ||
+               img_format != configured_img_format_;
     }
 
     void VideoDecoder::SendInitMsg(SdkMsgVideoDecodeInit msg) {

@@ -1,33 +1,7 @@
+use crate::rdp_connection::RdpClientConfiguration;
 use crate::rtc::model::RtcSessionIceConfig;
 use mongodb::bson::DateTime;
 use serde::{Deserialize, Serialize};
-
-/// Serialized only in the authorized HTTPS ticket response, never in URLs or audit DTOs.
-#[derive(Clone)]
-pub struct RdpPassword(pub zeroize::Zeroizing<String>);
-
-impl std::fmt::Debug for RdpPassword {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str("[REDACTED]") }
-}
-impl Serialize for RdpPassword {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(self.0.as_str())
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct RdpClientConfiguration {
-    pub schema: u32,
-    pub workspace_id: String,
-    pub instance_id: String,
-    pub node_id: String,
-    pub device_id: String,
-    pub account_name: String,
-    pub credential_version: u32,
-    pub password: RdpPassword,
-    pub domain: String,
-    pub proxy_certificate_sha256: String,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionTicket {
@@ -132,15 +106,4 @@ fn default_join_mode() -> String {
 
 fn default_true() -> bool {
     true
-}
-
-#[cfg(test)]
-mod rdp_tests {
-    #[test]
-    fn secret_debug_is_redacted_but_protected_serialization_is_explicit() {
-        let secret = super::RdpPassword(zeroize::Zeroizing::new("test-secret-password".to_string()));
-        assert_eq!(format!("{secret:?}"), "[REDACTED]");
-        assert!(!format!("{secret:?}").contains("test-secret"));
-        assert_eq!(serde_json::to_string(&secret).unwrap(), "\"test-secret-password\"");
-    }
 }

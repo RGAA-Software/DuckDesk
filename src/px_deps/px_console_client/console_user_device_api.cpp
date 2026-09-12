@@ -102,6 +102,36 @@ namespace px_console
         }
     }
 
+    px::Result<ConsoleNativeDeviceConnection, ConsoleApiError>
+    ConsoleUserDeviceApi::QueryNativeConnection(const std::string& host,
+                                                 const int port,
+                                                 const std::string& access_token,
+                                                 const std::string& device_id) {
+        const auto path = std::format("/api/v1/user/devices/{}/native-connection", device_id);
+        const auto client = MakeConsoleHttpClient(host, port, path, 3000);
+        client->SetHeader("Authorization", "Bearer " + access_token);
+        const auto response = client->Post({}, "{}", "application/json");
+        if (response.status != 200 || response.body.empty()) {
+            return HttpError<ConsoleNativeDeviceConnection>("QueryNativeDeviceConnection", response);
+        }
+        try {
+            const auto data = json::parse(response.body).at(kData);
+            ConsoleNativeDeviceConnection result{.host = data.value("host", ""),
+                                                 .port = data.value("port", 0),
+                                                 .device_id = data.value("device_id", ""),
+                                                 .signal_device_id = data.value("signal_device_id", ""),
+                                                 .relay_host = data.value("relay_host", ""),
+                                                 .relay_port = data.value("relay_port", 0)};
+            if (result.host.empty() || result.port <= 0 || result.port > 65535 || result.device_id.empty()) {
+                return TcErr(ConsoleApiError::kParseJsonFailed);
+            }
+            return result;
+        } catch (const std::exception& error) {
+            LOGE("QueryNativeDeviceConnection parse failed: {}", error.what());
+            return TcErr(ConsoleApiError::kParseJsonFailed);
+        }
+    }
+
     px::Result<ConsoleConnectionTicket, ConsoleApiError>
     ConsoleUserDeviceApi::IssueDeviceTicket(const std::string& host,
                                         int port,

@@ -4,17 +4,11 @@
 
 #include "px_application.h"
 #include <QTimer>
-#include <QScreen>
-#include <QApplication>
-#include <QMessageBox>
-#include "px_dialog.h"
-#include "px_workspace.h"
-#include "px_label.h"
+#include <QCoreApplication>
 #include "px_context.h"
 #include "px_settings.h"
 #include "px_statistics.h"
 #include "px_app_messages.h"
-#include "skin/skin_loader.h"
 #include "px_common/log.h"
 #include "px_system_monitor.h"
 #include "px_connected_manager.h"
@@ -24,11 +18,8 @@
 #include "companion/panel_companion.h"
 #include "companion/panel_companion_impl.h"
 #include "console_scanner/console_scanner.h"
-#include "ui/input_safety_pwd_dialog.h"
-#include "ui/monitor_refresher.h"
 #include <nlohmann/json.hpp>
 #include "px_relay_client/relay_api.h"
-#include "skin/interface/skin_interface.h"
 #include "px_console_client/console_device_api.h"
 #include "px_console_client/console_device.h"
 #include "px_steam_manager/steam_manager.h"
@@ -60,21 +51,18 @@ namespace px
 
     std::shared_ptr<PxApplication> grApp;
 
-    std::shared_ptr<PxApplication> PxApplication::Make(QWidget* main_window, bool run_automatically, const std::string& skin_name) {
+    std::shared_ptr<PxApplication> PxApplication::Make(const bool runAutomatically, const std::string& skinName) {
         struct PxApplicationEnabler final : PxApplication {
-            PxApplicationEnabler(QWidget* window, bool auto_run, const std::string& skin) : PxApplication(window, auto_run, skin) {}
+            PxApplicationEnabler(const bool autoRun, const std::string& skin) : PxApplication(autoRun, skin) {}
         };
 
-        auto app = std::make_shared<PxApplicationEnabler>(main_window, run_automatically, skin_name);
+        auto app = std::make_shared<PxApplicationEnabler>(runAutomatically, skinName);
         app->Init();
         return app;
     }
 
-    PxApplication::PxApplication(QWidget* main_window, bool run_automatically, const std::string& skin_name) : QObject(main_window) {
-        main_window_ = main_window;
-        run_automatically_ = run_automatically;
-        requested_skin_name_ = skin_name;
-    }
+    PxApplication::PxApplication(const bool runAutomatically, const std::string& skinName)
+        : settings_{*PxSettings::Instance()}, run_automatically_{runAutomatically}, requested_skin_name_{skinName} {}
 
     PxApplication::~PxApplication() {
         Exit();
@@ -87,31 +75,21 @@ namespace px
         msg_notifier_ = std::make_shared<MessageNotifier>();
 
         auto begin_ctx_init_ts = TimeUtil::GetCurrentTimestamp();
-        settings_ = PxSettings::Instance();
-        settings_->Init(msg_notifier_);
-        settings_->Load();
-        settings_->Dump();
+        settings_.get().Init(msg_notifier_);
+        settings_.get().Load();
+        settings_.get().Dump();
 
         // panel companion
         LoadPanelCompanion();
         if (companion_) {
-            companion_->UpdateConsoleServerConfig(settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), settings_->IsConsoleSslEnabled());
+            companion_->UpdateConsoleServerConfig(settings_.get().GetConsoleServerHost(), settings_.get().GetConsoleServerPort(),
+                                                  settings_.get().IsConsoleSslEnabled());
         }
 
-        skin_ = SkinLoader::LoadSkin(requested_skin_name_);
-        if (!skin_) {
-            LOGE("Load skin failed!!!");
-        }
-
-        //auto exeDir = QApplication::applicationDirPath().toStdString();
-        //FolderUtil::CreateDir(std::format("{}/clients/windows", exeDir));
-        //FolderUtil::CreateDir(std::format("{}/clients/android", exeDir));
-
-        context_ = std::make_shared<PxContext>(main_window_);
+        context_ = std::make_shared<PxContext>();
         context_->Init(shared_from_this());
         if (!context_->IsDatabaseReady()) {
-            const auto db_error = QString::fromStdString(context_->GetDatabaseError());
-            QMessageBox::warning(nullptr, "Database degraded", "Local database init failed. Related features will run in degraded mode.\n\n" + db_error);
+            LOGE("Local database initialization failed; related features are degraded: {}", context_->GetDatabaseError());
         }
         auto ctx_init_diff = TimeUtil::GetCurrentTimestamp() - begin_ctx_init_ts;
         LOGI("** Context init used: {}ms", ctx_init_diff);
@@ -135,7 +113,7 @@ namespace px
         st->SetContext(context_);
         st->RegisterEventListeners();
 
-        px_connected_manager_ = std::make_shared<PxConnectedManager>(context_);
+        px_connected_manager_ = PxConnectedManager::Create(context_);
         clipboard_mgr_ = std::make_shared<ClipboardManager>(context_);
         rd_msg_processor_ = std::make_shared<PxRenderMsgProcessor>(context_);
 
@@ -153,14 +131,6 @@ namespace px
         sys_monitor_ = PxSystemMonitor::Make(shared_from_this());
         sys_monitor_->Start();
 
-        //udp_broadcaster_ = UdpBroadcaster::Make(context_);
-
-        QCoreApplication::instance()->installNativeEventFilter(px_connected_manager_.get());
-
-        // monitor refresher
-        monitor_refresher_ = std::make_shared<MonitorRefresher>(context_, nullptr);
-        monitor_refresher_->InitMessageListeners();
-
         auto conn_diff = TimeUtil::GetCurrentTimestamp() - begin_conn_ts;
         LOGI("** Connection used: {}ms", conn_diff);
 
@@ -168,13 +138,13 @@ namespace px
         RegisterMessageListener();
         StartWindowsMessagesLooping();
         console_scanner_ = std::make_shared<ConsoleScanner>(shared_from_this());
-        if (settings_->console_discovery_enabled_) {
-            console_scanner_->StartUdpReceiver(settings_->console_discovery_port_);
+        if (settings_.get().console_discovery_enabled_) {
+            console_scanner_->StartUdpReceiver(settings_.get().console_discovery_port_);
         }
 
         // update device id
         if (const auto comp = grApp->GetCompanion(); comp) {
-            comp->UpdateDeviceId(settings_->GetDeviceId());
+            comp->UpdateDeviceId(settings_.get().GetDeviceId());
         }
 
         if (!run_automatically_) {
@@ -226,10 +196,6 @@ namespace px
         if (win_msg_thread_ && win_msg_thread_->IsJoinable()) {
             win_msg_thread_->Join();
         }
-        if (monitor_refresher_) {
-            monitor_refresher_->Exit();
-            monitor_refresher_ = nullptr;
-        }
         if (console_client_) {
             console_client_->Stop();
             console_client_ = nullptr;
@@ -242,10 +208,7 @@ namespace px
             ws_panel_server_->Exit();
             ws_panel_server_ = nullptr;
         }
-        if (px_connected_manager_) {
-            QCoreApplication::instance()->removeNativeEventFilter(px_connected_manager_.get());
-            px_connected_manager_.reset();
-        }
+        px_connected_manager_.reset();
         clipboard_mgr_.reset();
         rd_msg_processor_.reset();
         user_mgr_.reset();
@@ -260,37 +223,6 @@ namespace px
         }
         context_.reset();
         msg_notifier_.reset();
-    }
-
-    bool PxApplication::nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result) {
-        if(eventType == "windows_generic_MSG" || eventType == "windows_dispatcher_MSG")
-        {
-            const auto pMsg = static_cast<MSG*>(message);
-            if(pMsg->message == WM_COPYDATA) {
-
-            }
-            else if(pMsg->message == WM_DROPFILES) {
-
-            }
-            else if (pMsg->message == WM_DISPLAYCHANGE) {
-                LOGI("WM_DISPLAYCHANGE, Monitor changed!");
-                if (monitor_refresher_) {
-                    LOGW("Will exit monitor refresher and recreate it.");
-                    monitor_refresher_->Exit();
-                    monitor_refresher_.reset();
-                    auto weak_self = weak_from_this();
-                    context_->PostUIDelayTask([weak_self]() {
-                        auto self = weak_self.lock();
-                        if (!self || !self->context_) {
-                            return;
-                        }
-                        self->monitor_refresher_ = std::make_shared<MonitorRefresher>(self->context_, nullptr);
-                        self->monitor_refresher_->InitMessageListeners();
-                   }, 5000);
-                }
-            }
-        }
-        return false;
     }
 
     bool PxApplication::IsServiceConnected() const {
@@ -336,7 +268,7 @@ namespace px
             }
             LOGI("Settings changed...");
             self->RefreshClientManagerSettings();
-            const bool force_update = self->settings_->GetDeviceId().empty();
+            const bool force_update = self->settings_.get().GetDeviceId().empty();
             self->RequestNewClientId(force_update);
         });
 
@@ -373,7 +305,7 @@ namespace px
             if (!self || self->exiting_) {
                 return;
             }
-            if (self->settings_->GetDeviceId().empty()) {
+            if (self->settings_.get().GetDeviceId().empty()) {
                 self->RequestNewClientId(true);
             }
             if (self->companion_) {
@@ -390,7 +322,7 @@ namespace px
     }
 
     bool PxApplication::RequestNewClientId(bool force_update, bool sync) {
-        if (!force_update && !settings_->GetDeviceId().empty() && !settings_->GetDeviceRandomPwd().empty()) {
+        if (!force_update && !settings_.get().GetDeviceId().empty() && !settings_.get().GetDeviceRandomPwd().empty()) {
             return false;
         }
 
@@ -400,7 +332,7 @@ namespace px
             if (!self || !self->context_) {
                 return false;
             }
-            if (!self->settings_->HasConsoleServerConfig()) {
+            if (!self->settings_.get().HasConsoleServerConfig()) {
                 return false;
             }
 
@@ -430,12 +362,12 @@ namespace px
                 return false;
             }
 
-            self->settings_->SetDeviceId(device->device_id_);
+            self->settings_.get().SetDeviceId(device->device_id_);
             if (const auto comp = grApp->GetCompanion(); comp) {
                 comp->UpdateDeviceId(device->device_id_);
             }
-            self->settings_->SetDeviceName(device->device_name_);
-            self->settings_->SetDeviceRandomPwd(device->gen_random_pwd_);
+            self->settings_.get().SetDeviceName(device->device_name_);
+            self->settings_.get().SetDeviceRandomPwd(device->gen_random_pwd_);
 
             self->context_->SendAppMessage(MsgRequestedNewDevice {
                 .device_id_ = device->device_id_,
@@ -503,18 +435,8 @@ namespace px
             return true;
         }
 
-        auto err_msg = "Your device info invalid, ID is empty or password invalid";
-        QString pre_msg = tcTr("id_local_device_info_error");
-        TcDialog dialog(tcTr("id_error"), pre_msg + std::format(" {}", err_msg).c_str(), grWorkspace.get());
-        dialog.exec();
+        context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_local_device_info_error"));
         return false;
-    }
-
-    void PxApplication::CheckSecurityPassword() {
-        if (settings_->GetDeviceSecurityPwd().empty()) {
-            InputSafetyPwdDialog dialog(grApp, grWorkspace.get());
-            dialog.exec();
-        }
     }
 
     void PxApplication::UpdateServerSecurityPasswordIfNeeded() {
@@ -524,7 +446,7 @@ namespace px
             if (!self || !self->context_) {
                 return;
             }
-            if (self->settings_->GetDeviceSecurityPwd().empty()) {
+            if (self->settings_.get().GetDeviceSecurityPwd().empty()) {
                 return;
             }
         });
@@ -622,19 +544,20 @@ namespace px
 
     void PxApplication::StartConsoleClientIfNeeded() {
         auto appkey = GetAppkey();
-        auto console_host = settings_->GetConsoleServerHost();
-        auto console_port = settings_->GetConsoleServerPort();
-        auto device_id = settings_->GetDeviceId();
+        auto console_host = settings_.get().GetConsoleServerHost();
+        auto console_port = settings_.get().GetConsoleServerPort();
+        auto device_id = settings_.get().GetDeviceId();
         if (appkey.empty() || console_host.empty() || console_port <= 0 || device_id.empty()) {
             return;
         }
 
         const bool host_changed = (console_host != using_console_host_);
         const bool port_changed = (console_port != using_console_port_);
-        const bool ssl_changed = (settings_->IsConsoleSslEnabled() != using_console_ssl_);
+        const bool ssl_changed = (settings_.get().IsConsoleSslEnabled() != using_console_ssl_);
         if (appkey != using_appkey_ || host_changed || port_changed || ssl_changed) {
             LOGW("Console config changed, credential_changed: {}, host: {} => {}, port: {} => {}, ssl: {} => {}, will release WS:ConsoleClient and recreate it.",
-                 appkey != using_appkey_, using_console_host_, console_host, using_console_port_, console_port, using_console_ssl_, settings_->IsConsoleSslEnabled());
+                 appkey != using_appkey_, using_console_host_, console_host, using_console_port_, console_port, using_console_ssl_,
+                 settings_.get().IsConsoleSslEnabled());
             if (console_client_) {
                 console_client_->Stop();
                 console_client_ = nullptr;
@@ -650,19 +573,15 @@ namespace px
         using_appkey_ = appkey;
         using_console_host_ = console_host;
         using_console_port_ = console_port;
-        using_console_ssl_ = settings_->IsConsoleSslEnabled();
+        using_console_ssl_ = settings_.get().IsConsoleSslEnabled();
     }
 
     std::shared_ptr<ConsoleScanner> PxApplication::GetConsoleScanner() {
         return console_scanner_;
     }
 
-    SkinInterface* PxApplication::GetSkin() {
-        return skin_;
-    }
-
     std::string PxApplication::GetSkinName() {
-        return skin_ ? skin_->GetSkinName().toStdString() : "";
+        return requested_skin_name_.empty() ? "Official" : requested_skin_name_;
     }
 
     bool PxApplication::IsConsoleClientAlive() {
@@ -674,9 +593,9 @@ namespace px
     }
 
     bool PxApplication::IsDeviceInfoOk() {
-        auto device_id = settings_->GetDeviceId();
-        auto device_random_pwd = settings_->GetDeviceRandomPwd();
-        auto device_safety_pwd = settings_->GetDeviceSecurityPwd();
+        auto device_id = settings_.get().GetDeviceId();
+        auto device_random_pwd = settings_.get().GetDeviceRandomPwd();
+        auto device_safety_pwd = settings_.get().GetDeviceSecurityPwd();
 
         if (device_id.empty() || device_random_pwd.empty()) {
             LOGE("Check device info error, device id is empty.");
@@ -690,7 +609,8 @@ namespace px
     }
 
     bool PxApplication::CanConnectConsoleServer() {
-        const auto r = px_console::ConsoleDeviceApi::Ping(settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), this->GetAppkey());
+        const auto r = px_console::ConsoleDeviceApi::Ping(settings_.get().GetConsoleServerHost(), settings_.get().GetConsoleServerPort(),
+                                                          this->GetAppkey());
         return r.has_value() ? r.value() : false;
     }
 

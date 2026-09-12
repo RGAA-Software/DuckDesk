@@ -418,14 +418,11 @@ impl RelayServer {
             let device_id = params.get("device_id").unwrap_or(&"".to_string()).clone();
             let device_name = params.get("device_name").unwrap_or(&"".to_string()).clone();
             let stream_id = params.get("stream_id").unwrap_or(&"".to_string()).clone();
-            let authorized_remote_device_id = params
-                .get("remote_device_id")
-                .filter(|_| {
-                    params.get("file_only").is_some_and(|value| value == "1")
-                        || params.get("media_ticket").is_some_and(|value| value == "1")
-                        || params.get("rtc_signal").is_some_and(|value| value == "1")
-                })
-                .cloned();
+            // Every Relay socket is restricted to the target declared by its
+            // handshake. Password-authenticated native sessions do not need a
+            // Console ticket, but they must not be able to switch targets after
+            // the connection has been accepted.
+            let authorized_remote_device_id = params.get("remote_device_id").cloned();
             // socket sender
             let sender = Arc::new(Mutex::new(sender));
 
@@ -786,5 +783,24 @@ mod relay_scope_tests {
             None,
             &mut legacy_with_ticket,
         ));
+    }
+
+    #[test]
+    fn password_authenticated_relay_control_accepts_bound_target_without_ticket() {
+        let mut control = RelayRequestControlMessage {
+            device_id: "client_visitor".into(),
+            remote_device_id: "server_target".into(),
+            ..Default::default()
+        };
+
+        assert!(authorize_relay_control(
+            "client_visitor",
+            Some("server_target"),
+            None,
+            &mut control,
+        ));
+        assert!(control.connection_ticket.is_empty());
+        assert!(control.client_nonce.is_empty());
+        assert!(control.instance_id.is_empty());
     }
 }

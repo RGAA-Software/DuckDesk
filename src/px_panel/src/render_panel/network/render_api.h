@@ -20,12 +20,6 @@ namespace px
         std::string relay_port_{0};
     };
 
-    class IpDirectLaunch {
-    public:
-        std::string stream_id_;
-        std::int64_t expires_at_ms_ = 0;
-    };
-
     // api to Renderer
     class RenderApi {
     public:
@@ -35,13 +29,6 @@ namespace px
         // verify security password in Renderer
         static Result<bool, int> VerifySecurityPassword(const std::string& host, int port, const std::string& safety_pwd_md5);
 
-        // Validate before launching px_client and return an opaque receipt for
-        // the child signaling request. The receipt contains no password.
-        static Result<IpDirectLaunch, int> PrepareIpDirectLaunch(
-            const std::string& host,
-            int port,
-            const std::string& safety_pwd_md5,
-            const std::string& client_nonce);
     };
 
 }

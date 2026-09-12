@@ -164,7 +164,7 @@ pub struct UserQuotaSettings {
 impl Default for UserQuotaSettings {
     fn default() -> Self {
         Self {
-            guest_concurrent_instances: 1,
+            guest_concurrent_instances: 3,
             user_concurrent_instances: 3,
             guest_daily_minutes: 60,
             public_app_global_concurrency: 20,
@@ -290,7 +290,9 @@ fn default_environment() -> String {
     "production".to_string()
 }
 
-fn default_optional_listener_enabled() -> bool { true }
+fn default_optional_listener_enabled() -> bool {
+    true
+}
 
 impl ConsoleSettings {
     pub fn new() -> Self {

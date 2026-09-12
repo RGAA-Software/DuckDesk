@@ -42,6 +42,15 @@ namespace px_console
         std::string signal_device_id;
     };
 
+    struct ConsoleNativeDeviceConnection final {
+        std::string host{};
+        int port{};
+        std::string device_id{};
+        std::string signal_device_id{};
+        std::string relay_host{};
+        int relay_port{};
+    };
+
     class ConsoleUserDeviceApi {
     public:
         // query user-devices
@@ -50,6 +59,12 @@ namespace px_console
         QueryUserBindDevices(const std::string& host,
                              int port,
                              const std::string& access_token);
+
+        static px::Result<ConsoleNativeDeviceConnection, ConsoleApiError>
+        QueryNativeConnection(const std::string& host,
+                              int port,
+                              const std::string& access_token,
+                              const std::string& device_id);
 
         // Issue a short-lived, one-time device connection ticket.
         static

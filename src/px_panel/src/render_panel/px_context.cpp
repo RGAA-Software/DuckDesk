@@ -8,15 +8,11 @@
 #include "px_common/blocking_executor.h"
 #include "px_common/shared_preference.h"
 #include "px_common/uuid.h"
-#include "px_steam_manager/steam_manager.h"
 #include "px_common/log.h"
 #include "px_common/time_util.h"
 #include <nlohmann/json.hpp>
 #include "px_settings.h"
-#include "render_panel/database/db_game_operator.h"
-#include "px_resources.h"
 #include "px_render_controller.h"
-#include "px_run_game_manager.h"
 #include "px_app_messages.h"
 #include "px_common/hardware.h"
 #include "px_common/md5.h"
@@ -26,10 +22,7 @@
 #include "database/stream_db_operator.h"
 #include "px_console_client/console_device_api.h"
 #include "devices/running_stream_manager.h"
-#include "px_qt_widget/notify/notifymanager.h"
-#include "px_dialog.h"
-#include "px_label.h"
-#include "px_workspace.h"
+#include "px_qt_widget/translator/px_translator.h"
 #include "database/px_database.h"
 #include "px_account_sdk/acc_sdk.h"
 #include "px_relay_client/relay_api.h"
@@ -37,7 +30,7 @@
 #include "app_config.h"
 #include "console/px_console_manager.h"
 #include "console/px_event_manager.h"
-#include <QApplication>
+#include <QCoreApplication>
 
 using namespace nlohmann;
 
@@ -66,9 +59,7 @@ void SubmitTask(const std::shared_ptr<PxBlockingExecutor>& executor, std::functi
 }
 } // namespace
 
-PxContext::PxContext(
-    QWidget* main_window)  // NOLINT(gammaray-raw-pointer-boundary): observed Qt widget is immediately retained as QPointer.
-    : QObject(nullptr), main_window_(main_window), settings_(*PxSettings::Instance()) {}
+PxContext::PxContext() : QObject(nullptr), settings_(*PxSettings::Instance()) {}
 
 PxContext::~PxContext() {
     Exit();
@@ -152,16 +143,13 @@ bool PxContext::Init(const std::shared_ptr<PxApplication>& app) {
         LOGI("IP: {} -> {}", item.ip_addr_, item.nt_type_ == IPNetworkType::kWired ? "WIRED" : "WIRELESS");
     }
 
-    res_manager_ = std::make_shared<PxResources>(shared_from_this());
-    res_manager_->ExtractIconsIfNeeded();
-
 #if 0 // Retired local game process manager.
     run_game_manager_ = std::make_shared<PxRunGameManager>(shared_from_this());
 #endif
     console_manager_ = std::make_shared<PxConsoleManager>(shared_from_this());
     event_manager_ = std::make_shared<PxEventManager>(shared_from_this());
     service_manager_ = ServiceManager::Make();
-    std::string base_path = qApp->applicationDirPath().toStdString();
+    std::string base_path = QCoreApplication::applicationDirPath().toStdString();
     const std::string bin_path = std::format("\"{}/{}\"", base_path, px::kPxServiceExeName);
     LOGI("Service path: {}", bin_path);
     service_manager_->Init("px_service", bin_path, "px_service", "** px_service **");
@@ -169,20 +157,6 @@ bool PxContext::Init(const std::shared_ptr<PxApplication>& app) {
 
     running_stream_mgr_ = std::make_shared<RunningStreamManager>(shared_from_this());
     running_stream_mgr_->InitMessageListeners();
-
-    notify_mgr_ = std::make_shared<NotifyManager>(main_window_.data());
-    auto weak_self = weak_from_this();
-    connect(notify_mgr_.get(), &NotifyManager::notifyDetail, this, [weak_self](const NotifyItem& data) {
-        if (auto self = weak_self.lock(); self && !self->exiting_) {
-            self->PostTask([weak_self, data]() {
-                if (auto self = weak_self.lock(); self && !self->exiting_) {
-                    self->SendAppMessage(MsgNotificationClicked{
-                        .data_ = data,
-                    });
-                }
-            });
-        }
-    });
 
     StartTimers();
     return true;
@@ -210,7 +184,10 @@ void PxContext::Exit() {
     running_stream_mgr_.reset();
     event_manager_.reset();
     console_manager_.reset();
-    notify_mgr_.reset();
+    {
+        const std::scoped_lock lock{notification_mutex_};
+        notification_sink_ = {};
+    }
     run_game_manager_.reset();
     service_manager_.reset();
     srv_manager_.reset();
@@ -459,36 +436,35 @@ std::shared_ptr<RunningStreamManager> PxContext::GetRunningStreamManager() {
     return running_stream_mgr_;
 }
 
-std::shared_ptr<NotifyManager> PxContext::GetNotifyManager() {
-    return notify_mgr_;
+void PxContext::SetNotificationSink(NotificationSink sink) {
+    const std::scoped_lock lock{notification_mutex_};
+    notification_sink_ = std::move(sink);
 }
 
 void PxContext::NotifyAppMessage(const QString& title, const QString& msg, std::function<void()>&& cbk) {
-    auto weak_self = weak_from_this();
-    QMetaObject::invokeMethod(this, [weak_self, title, msg, cbk = std::move(cbk)]() {
-        if (auto self = weak_self.lock(); self && !self->exiting_ && self->notify_mgr_) {
-            self->notify_mgr_->notify(NotifyItem{
-                .type_ = NotifyItemType::kNormal,
-                .title_ = title,
-                .body_ = msg,
-                .cbk_ = cbk,
-            });
-        }
-    });
+    NotificationSink sink{};
+    {
+        const std::scoped_lock lock{notification_mutex_};
+        sink = notification_sink_;
+    }
+    if (sink) {
+        sink(title.toStdString(), msg.toStdString(), false, std::move(cbk));
+    } else {
+        LOGI("{}: {}", title.toStdString(), msg.toStdString());
+    }
 }
 
 void PxContext::NotifyAppErrMessage(const QString& title, const QString& msg, std::function<void()>&& cbk) {
-    auto weak_self = weak_from_this();
-    QMetaObject::invokeMethod(this, [weak_self, title, msg, cbk = std::move(cbk)]() {
-        if (auto self = weak_self.lock(); self && !self->exiting_ && self->notify_mgr_) {
-            self->notify_mgr_->notify(NotifyItem{
-                .type_ = NotifyItemType::kError,
-                .title_ = title,
-                .body_ = msg,
-                .cbk_ = cbk,
-            });
-        }
-    });
+    NotificationSink sink{};
+    {
+        const std::scoped_lock lock{notification_mutex_};
+        sink = notification_sink_;
+    }
+    if (sink) {
+        sink(title.toStdString(), msg.toStdString(), true, std::move(cbk));
+    } else {
+        LOGE("{}: {}", title.toStdString(), msg.toStdString());
+    }
 }
 
 std::shared_ptr<PxDatabase> PxContext::GetDatabase() {
@@ -512,8 +488,7 @@ std::shared_ptr<px_relay::RelayDeviceInfo> PxContext::GetRelayServerSideDeviceIn
         LOGE("Get device info in [Relay Server] for: {} failed: {}, code: {}", srv_remote_device_id,
              px_relay::RelayError2String(relay_result.error()), relay_result.error());
         if (show_dialog) {
-            TcDialog dialog(tcTr("id_error"), tcTr("id_cant_get_remote_device_info"), grWorkspace.get());
-            dialog.exec();
+            NotifyAppErrMessage(tcTr("id_error"), tcTr("id_cant_get_remote_device_info"));
         }
         return nullptr;
     }

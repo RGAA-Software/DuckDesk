@@ -1,34 +1,27 @@
 #pragma once
-#include <memory>
-#include <map>
+
 #include <atomic>
-#include <qobject.h>
-#include <qabstractnativeeventfilter.h>
+#include <memory>
 
-namespace px { 
-	class PxContext;
-	class MessageListener;
-	class ConnectedInfoSlidingWindow;
-	
-	class PxConnectedManager : public QObject, public QAbstractNativeEventFilter {
-	public:
-		PxConnectedManager(const std::shared_ptr<PxContext>& ctx);
-		~PxConnectedManager() override;
-		void RegisterMessageListener();
-		void TestShowPanel();
-		bool nativeEventFilter(const QByteArray& eventType, void* message, qintptr* result) override;
-	private:
-		void CreatePanel();
-		void AdjustPanelPosition();
-		void InitPanel();
-		void HideAllPanels();
-		void ShowAllPanels();
-	private:
-		std::shared_ptr<PxContext> px_ctx_ = nullptr;
-		std::shared_ptr<MessageListener> msg_listener_ = nullptr;
+namespace px {
 
-		std::map<int, std::unique_ptr<ConnectedInfoSlidingWindow>> connected_info_panel_group_;
+class MessageListener;
+class PxContext;
 
-		std::atomic<int> client_connected_count_{0};
-	};
-}
+class PxConnectedManager final : public std::enable_shared_from_this<PxConnectedManager> {
+  public:
+    static std::shared_ptr<PxConnectedManager> Create(const std::shared_ptr<PxContext>& context);
+    explicit PxConnectedManager(std::shared_ptr<PxContext> context);
+    ~PxConnectedManager();
+
+    int ConnectedClientCount() const noexcept;
+
+  private:
+    void RegisterMessageListener();
+
+    std::shared_ptr<PxContext> context_{};
+    std::shared_ptr<MessageListener> messageListener_{};
+    std::atomic_int connectedClientCount_{0};
+};
+
+} // namespace px

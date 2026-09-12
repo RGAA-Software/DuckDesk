@@ -43,7 +43,7 @@ NetClient::~NetClient() {
 
 std::string NetClient::MakeAuthenticatedWebSocketPath(std::string path, const bool file_only) const {
     if (params_.connection_ticket_.empty()) {
-        if (!params_.connection_nonce_.empty() && params_.stream_id_.starts_with("ip-direct:")) {
+        if (!params_.connection_nonce_.empty()) {
             path += path.find('?') == std::string::npos ? "?client_nonce=" : "&client_nonce=";
             path += UrlHelper::EncodeQueryComponent(params_.connection_nonce_);
         }
@@ -272,7 +272,7 @@ void NetClient::Start() {
         (params_.session_mode_ != SdkSessionMode::kNative || params_.file_transfer_only_ ||
          params_.media_transport_ != SdkMediaTransport::kWebSocket ||
          params_.relay_host_.empty() || params_.relay_port_ <= 0 || params_.relay_device_id_.empty() || params_.relay_remote_device_id_.empty() ||
-         params_.relay_ticket_device_id_.empty() || params_.connection_ticket_.empty() || params_.connection_nonce_.empty())) {
+         params_.appkey_.empty())) {
         LOGE("Relay connection parameters are incomplete or incompatible with this session.");
         return;
     }

@@ -20,7 +20,6 @@ namespace px
 
     class PxContext;
     class PxSettings;
-    class StartStreamLoading;
     class MessageListener;
 
     class RunningStreamManager : public std::enable_shared_from_this<RunningStreamManager> {
@@ -42,7 +41,6 @@ namespace px
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::map<std::string, std::shared_ptr<QProcess>> running_processes_;
-        std::map<std::string, std::shared_ptr<StartStreamLoading>> loading_dialogs_;
         std::map<std::string, std::shared_ptr<px_console::ConsoleStream>> running_items_;
         // Saved Panel stream ID -> per-ticket runtime stream ID. The latter is
         // what the client and Panel control channel must use.

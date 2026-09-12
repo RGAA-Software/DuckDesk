@@ -1,19 +1,10 @@
 #include "upgrade_helper.h"
-#include "render_panel/ui/qt_lifetime_guard.h"
-#include <qwindow.h>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <Windows.h>
-#include <dwmapi.h>
-#include <qboxlayout.h>
-#include <qlabel.h>
-#include <qpushbutton.h>
+#include <shellapi.h>
 #include <qdir.h>
-#include <qtextedit.h>
 #include <qfileinfo.h>
-#include <qdesktopservices.h>
-#include <qpainter.h>
-#include <qpixmap.h>
 #include <qurl.h>
 #include <qjsonarray.h>
 #include <qstandardpaths.h>
@@ -21,10 +12,7 @@
 #include <px_common/log.h>
 #include <px_common/md5.h>
 #include <px_common/string_util.h>
-#include "px_qt_widget/px_dialog.h"
 #include "translator/px_translator.h"
-#include "gd_button.h"
-#include "gd_custom_progress_bar.h"
 #include "version_config.h"
 #include "render_panel/px_settings.h"
 #include "render_panel/px_application.h"
@@ -32,9 +20,26 @@
 #include "render_panel/upgrade/upgrade_request_state.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <optional>
+
+#if !defined(PX_PANEL_IMGUI_HEADLESS)
+#include "render_panel/ui/qt_lifetime_guard.h"
+#include "px_qt_widget/px_dialog.h"
+#include "gd_button.h"
+#include "gd_custom_progress_bar.h"
+#include <dwmapi.h>
+#include <qboxlayout.h>
+#include <qdesktopservices.h>
+#include <qlabel.h>
+#include <qpainter.h>
+#include <qpixmap.h>
+#include <qpushbutton.h>
+#include <qtextedit.h>
+#include <qwindow.h>
+#endif
 
 
 
@@ -167,6 +172,7 @@ namespace px {
 		}
 	}
 
+#if !defined(PX_PANEL_IMGUI_HEADLESS)
 	void UpgradeHelperWidget::paintEvent(QPaintEvent* event) {
 		QPainter painter(this);
 		// 启用抗锯齿
@@ -669,6 +675,8 @@ namespace px {
 			&compositionEnabled, sizeof(compositionEnabled));
 	}
 
+#endif
+
 	UpdateManager::UpdateManager()
 		: request_state_(std::make_shared<UpgradeRequestState>()) {}
 
@@ -1001,7 +1009,13 @@ namespace px {
 	}
 
 	void UpdateManager::OpenInstallFile() {
+		#if defined(PX_PANEL_IMGUI_HEADLESS)
+		const auto result = reinterpret_cast<std::intptr_t>(::ShellExecuteW(nullptr, L"open", save_path_.toStdWString().c_str(), nullptr, nullptr,
+		                                                                  SW_SHOWNORMAL));
+		const bool res = result > 32;
+		#else
 		const bool res = QDesktopServices::openUrl(QUrl::fromLocalFile(save_path_));
+		#endif
 		if (!res) {
 			emit SigOpenInstallFileError();
 		}

@@ -10,7 +10,7 @@ namespace px::desktop {
 
 class WindowHost final {
   public:
-    static std::expected<WindowHost, std::string> Create(const std::string& title, int width, int height);
+    static std::expected<WindowHost, std::string> Create(const std::string& title, int width, int height, bool initiallyVisible);
 
     WindowHost(WindowHost&&) noexcept;
     WindowHost& operator=(WindowHost&&) noexcept;
@@ -22,8 +22,11 @@ class WindowHost final {
     SDL_Window& Native() const noexcept;
     void Minimize() const;
     void ToggleMaximize() const;
+    bool ToggleFullscreen();
     bool IsMaximized() const;
     float DisplayScale() const;
+    void Hide() const;
+    void ShowAndRaise() const;
 
   private:
     struct Impl;

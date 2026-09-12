@@ -7,6 +7,7 @@ use crate::identity::resource_handler::{
     start_user_app, stop_user_instance, user_resource_summary,
 };
 use crate::identity::user_handler::logout_all;
+use crate::native_connection::{user_native_connection, user_native_device_connection};
 use crate::user::session_handler::{
     admin_cookie_values, admin_login, admin_logout, admin_me, change_password, cookie_value,
     guest_session, login, logout, me, refresh_user_csrf, register_user, update_avatar,
@@ -391,6 +392,11 @@ pub fn make_user_self_router(
             post(issue_device_ticket).layer(middleware::from_fn(require_active_user_write)),
         )
         .route(
+            "/devices/{device_id}/native-connection",
+            post(user_native_device_connection)
+                .layer(middleware::from_fn(require_active_user_write)),
+        )
+        .route(
             "/resources/summary",
             get(user_resource_summary).layer(middleware::from_fn(require_active_user)),
         )
@@ -417,6 +423,10 @@ pub fn make_user_self_router(
         .route(
             "/instances/{instance_id}/ticket",
             post(issue_instance_ticket).layer(middleware::from_fn(require_active_user_write)),
+        )
+        .route(
+            "/instances/{instance_id}/native-connection",
+            post(user_native_connection).layer(middleware::from_fn(require_active_user_write)),
         )
         .route(
             "/instances/{instance_id}/stop",

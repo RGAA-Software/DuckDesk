@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <optional>
+#include <functional>
 #include "px_console_client/console_api.h"
 
 namespace px
@@ -22,7 +23,7 @@ namespace px
         std::optional<px_console::AvailableNewConnection> QueryNewConnection(bool show_err_dialog) const;
 
     private:
-        PxSettings* settings_ = nullptr;
+        std::reference_wrapper<PxSettings> settings_;
         std::shared_ptr<PxContext> context_ = nullptr;
     };
 

@@ -543,11 +543,12 @@ int main(int argc, char** argv) {
     // Native UDP media with an authenticated reliable control/file channel.
     auto bare_remote_device_id = settings.remote_device_id_.empty() ? g_remote_host_ : settings.remote_device_id_;
     auto visitor_device_id = settings.device_id_.empty() ? settings.my_host_ : settings.device_id_;
-    auto media_path = std::format("/media?only_audio=0&remote_device_id={}&stream_id={}&visitor_device_id={}&force_gdi={}",
-                                  bare_remote_device_id, settings.stream_id_, visitor_device_id, settings.force_gdi_);
+    auto media_path = std::format("/media?only_audio=0&remote_device_id={}&stream_id={}&visitor_device_id={}&force_gdi={}&safety_pwd_md5={}",
+                                  bare_remote_device_id, settings.stream_id_, visitor_device_id, settings.force_gdi_,
+                                  settings.remote_device_safety_pwd_);
     // The SDK adds UDP association parameters only when UDP media is selected.
-    auto ft_path = std::format("/file/transfer?remote_device_id={}&stream_id={}&visitor_device_id={}",
-                                  bare_remote_device_id, settings.stream_id_, visitor_device_id);
+    auto ft_path = std::format("/file/transfer?remote_device_id={}&stream_id={}&visitor_device_id={}&safety_pwd_md5={}", bare_remote_device_id,
+                               settings.stream_id_, visitor_device_id, settings.remote_device_safety_pwd_);
     auto target_device_id = settings.device_id_.empty() ? settings.my_host_ : settings.device_id_;
     auto device_id = "client_" + target_device_id + "_" + MD5::Hex(settings.remote_device_id_);
     settings.full_device_id_ = device_id;

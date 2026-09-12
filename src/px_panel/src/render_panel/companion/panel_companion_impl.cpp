@@ -3,9 +3,10 @@
 //
 
 #include "panel_companion_impl.h"
-#include <QApplication>
-#include <QDesktopServices>
-#include <QUrl>
+#include <Windows.h>
+#include <shellapi.h>
+#include <QString>
+#include <QStringList>
 #include <filesystem>
 #include <span>
 #include "console/auth_manager.h"
@@ -203,7 +204,7 @@ namespace px
     }
 
     void PanelCompanionImpl::JumpToGithub() {
-        QDesktopServices::openUrl(QUrl("https://github.com/RGAA-Software/GammaRay"));
+        static_cast<void>(::ShellExecuteW(nullptr, L"open", L"https://github.com/RGAA-Software/GammaRay", nullptr, nullptr, SW_SHOWNORMAL));
     }
 
     // version1 == version2 return 0;  version1 > version2 return 1; version1 < version2 return -1;

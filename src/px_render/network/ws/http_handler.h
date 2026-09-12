@@ -38,7 +38,7 @@ class HttpHandler : public BaseHandler, public std::enable_shared_from_this<Http
     void HandlePing(http::web_request& req, http::web_response& resp);
 
     // /verify/security/password
-    void HandleVerifySecurityPassword(const std::shared_ptr<asio2::http_session>& session, http::web_request& req, http::web_response& resp);
+    void HandleVerifySecurityPassword(http::web_request& req, http::web_response& resp);
 
     // /get/render/configuration
     void HandleGetRenderConfiguration(http::web_request& req, http::web_response& resp);

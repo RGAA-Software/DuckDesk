@@ -255,7 +255,7 @@ namespace px
         sub->set_device_name(sdk_param_.device_name_);
         sub->set_stream_id(sdk_param_.stream_id_);
         sub->set_force_gdi(sdk_param_.force_gdi_);
-        if (sdk_param_.ticket_scope_ == RelayTicketScope::kMedia) {
+        if (sdk_param_.ticket_scope_ == RelayTicketScope::kMedia && !sdk_param_.connection_ticket_.empty()) {
             sub->set_connection_ticket(sdk_param_.connection_ticket_);
             sub->set_client_nonce(sdk_param_.connection_nonce_);
             sub->set_instance_id(sdk_param_.connection_instance_id_);

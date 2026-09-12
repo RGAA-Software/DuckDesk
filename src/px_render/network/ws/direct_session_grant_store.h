@@ -21,9 +21,6 @@ struct DirectSessionGrantBinding {
 class DirectSessionGrantStore {
   public:
     [[nodiscard]] std::string Issue(const DirectSessionGrantBinding& binding, int64_t now_ms);
-    // Creates the normal high-entropy stream id for a password-validated
-    // IP-direct launch and reserves that id as the one-time store key.
-    [[nodiscard]] std::string IssueStreamBinding(DirectSessionGrantBinding binding, int64_t now_ms);
     [[nodiscard]] bool Redeem(const std::string& token, const DirectSessionGrantBinding& expected, int64_t now_ms);
     // Validates a prepared IP-direct stream receipt without consuming it.
     // WebSocket media and file bindings share the same logical session and

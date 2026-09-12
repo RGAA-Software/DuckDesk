@@ -6,7 +6,7 @@
 #include "px_exe_names.h"
 #include <qdir.h>
 #include <qfileinfo.h>
-#include <QApplication>
+#include <QCoreApplication>
 #include "px_context.h"
 #include "px_application.h"
 #include "px_app_messages.h"
@@ -28,10 +28,8 @@
 #include "px_common/http_base_op.h"
 #include "px_common/cpu_frequency.h"
 #include "px_profile_client/profile_api.h"
-#include "px_qt_widget/px_dialog.h"
 #include "px_qt_widget/translator/px_translator.h"
 #include "companion/panel_companion.h"
-#include "skin/interface/skin_interface.h"
 
 #pragma comment(lib, "version.lib")
 #pragma comment(lib, "kernel32.lib")
@@ -72,12 +70,8 @@ namespace px
         return std::make_shared<PxSystemMonitor>(app);
     }
 
-    PxSystemMonitor::PxSystemMonitor(const std::shared_ptr<PxApplication>& app) {
-        this->app_ = app;
-        this->context_ = app->GetContext();
-        this->service_manager_ = context_->GetServiceManager();
-        this->settings_ = PxSettings::Instance();
-    }
+    PxSystemMonitor::PxSystemMonitor(const std::shared_ptr<PxApplication>& app)
+        : settings_{*PxSettings::Instance()}, app_{app}, context_{app->GetContext()}, service_manager_{context_->GetServiceManager()} {}
 
     PxSystemMonitor::~PxSystemMonitor() {
         Exit();
@@ -113,7 +107,7 @@ namespace px
                     break;
                 }
                 // check system servers
-                if (self->settings_->HasConsoleServerConfig()) {
+                if (self->settings_.get().HasConsoleServerConfig()) {
                     self->context_->PostTask([weak_self]() {
                         const auto self = weak_self.lock();
                         if (!self || self->exit_) {
@@ -407,38 +401,9 @@ namespace px
         LOGI("cur_exe_parent_path: {}", cur_exe_parent_path);
 
         if (serv_parent_path != cur_exe_parent_path) {
-            uint32_t cur_pid = QCoreApplication::applicationPid();
             QString msg = QString("{path: %1}").arg(QString::fromStdString(serv_parent_path));
-            TcDialog dialog(tcTr("id_tips"), tcTr("id_run_other_service_instances") + " ? " + msg, nullptr);
-            if (QDialog::Accepted != dialog.exec()) {
-                px::ProcessHelper::CloseProcess(cur_pid);
-                return;
-            }
-            this->service_manager_->Remove(true);
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            auto processes = px::ProcessHelper::GetProcessList(false);
-            for (auto& process : processes) {
-                if (process->exe_full_path_.find(kPxClientName) != std::string::npos) {
-                    LOGI("Kill exe: {}", process->exe_full_path_);
-                    px::ProcessHelper::CloseProcess(process->pid_);
-                    break;
-                }
-            }
-            for (auto& process : processes) {
-                if (process->exe_full_path_.find(kPxRenderName) != std::string::npos) {
-                    LOGI("Kill exe: {}", process->exe_full_path_);
-                    px::ProcessHelper::CloseProcess(process->pid_);
-                    break;
-                }
-            }
-            for (auto& process : processes) {
-                if (process->exe_full_path_.find(kPxPanelName) != std::string::npos) {
-                    LOGI("Kill exe: {}", process->exe_full_path_);
-                    if (cur_pid != process->pid_) {
-                        px::ProcessHelper::CloseProcess(process->pid_);
-                    }
-                }
-            }
+            context_->NotifyAppErrMessage(tcTr("id_tips"), tcTr("id_run_other_service_instances") + " " + msg);
+            return;
         }
     }
 
@@ -454,48 +419,50 @@ namespace px
     void PxSystemMonitor::CheckThisDeviceInfo() {
         //LOGI("CheckThisDeviceInfo...");
         // profile server
-        auto has_pr_server = HttpBaseOp::CanPingServer(settings_->IsConsoleSslEnabled(), settings_->GetConsoleServerHost(), settings_->GetConsoleServerPort(), grApp->GetAppkey());
-        if (!has_pr_server) {
+        const auto pingResult = HttpBaseOp::CanPingServer(settings_.get().IsConsoleSslEnabled(), settings_.get().GetConsoleServerHost(),
+                                                          settings_.get().GetConsoleServerPort(), grApp->GetAppkey());
+        if (!pingResult) {
             return;
         }
 
         // don't have device id, force to update
-        if (settings_->GetDeviceId().empty() && has_pr_server) {
+        if (settings_.get().GetDeviceId().empty()) {
             context_->SendAppMessage(MsgForceRequestDeviceId{});
             return;
         }
 
         // has a device
-        auto opt_device = px_console::ConsoleDeviceApi::QueryDevice(settings_->GetConsoleServerHost(),
-                                                     settings_->GetConsoleServerPort(),
+        auto opt_device = px_console::ConsoleDeviceApi::QueryDevice(settings_.get().GetConsoleServerHost(),
+                                                     settings_.get().GetConsoleServerPort(),
                                                      grApp->GetAppkey(),
-                                                     settings_->GetDeviceId());
+                                                     settings_.get().GetDeviceId());
         if (!opt_device.has_value()) {
             if (auto err = opt_device.error(); err == px_console::ConsoleApiError::kDeviceNotFound) {
-                LOGI("Don't have device in server, id: {}, will request a new one.", settings_->GetDeviceId());
+                LOGI("Device is absent from Console; requesting a replacement identifier: {}",
+                     settings_.get().GetDeviceId());
                 context_->SendAppMessage(MsgForceRequestDeviceId{});
             }
             return;
         }
         auto device = opt_device.value();
         if (!device) {
-            LOGE("Query device for : {} failed.", settings_->GetDeviceId());
+            LOGE("Query device for : {} failed.", settings_.get().GetDeviceId());
             return;
         }
 
-        auto local_random_pwd_md5 = MD5::Hex(settings_->GetDeviceRandomPwd());
+        auto local_random_pwd_md5 = MD5::Hex(settings_.get().GetDeviceRandomPwd());
         if (device->random_pwd_md5_ != local_random_pwd_md5) {
             LOGW("Remote random-password verifier changed; refreshing it");
-            auto opt_update_device = px_console::ConsoleDeviceApi::UpdateRandomPwd(settings_->GetConsoleServerHost(),
-                                                                    settings_->GetConsoleServerPort(),
+            auto opt_update_device = px_console::ConsoleDeviceApi::UpdateRandomPwd(settings_.get().GetConsoleServerHost(),
+                                                                    settings_.get().GetConsoleServerPort(),
                                                                     grApp->GetAppkey(),
-                                                                    settings_->GetDeviceId());
+                                                                    settings_.get().GetDeviceId());
             if (opt_update_device.has_value()) {
                 auto update_device =  opt_update_device.value();
                 if (update_device && !update_device->gen_random_pwd_.empty()) {
-                    settings_->SetDeviceRandomPwd(update_device->gen_random_pwd_);
+                    settings_.get().SetDeviceRandomPwd(update_device->gen_random_pwd_);
                     context_->SendAppMessage(MsgRandomPasswordUpdated {
-                        .device_id_ = settings_->GetDeviceId(),
+                        .device_id_ = settings_.get().GetDeviceId(),
                         .device_random_pwd_ = update_device->gen_random_pwd_,
                     });
                     context_->SendAppMessage(MsgSyncSettingsToRender{});
@@ -503,20 +470,20 @@ namespace px
             }
         }
 
-        auto current_device_security_pwd = settings_->GetDeviceSecurityPwd();
-        if (device->safety_pwd_md5_ != settings_->GetDeviceSecurityPwd() && !current_device_security_pwd.empty()) {
+        auto current_device_security_pwd = settings_.get().GetDeviceSecurityPwd();
+        if (device->safety_pwd_md5_ != settings_.get().GetDeviceSecurityPwd() && !current_device_security_pwd.empty()) {
             LOGW("Remote safety-password verifier changed; refreshing it");
             // update safety password
-            auto update_device = px_console::ConsoleDeviceApi::UpdateSafetyPwd(settings_->GetConsoleServerHost(),
-                                                                settings_->GetConsoleServerPort(),
+            auto update_device = px_console::ConsoleDeviceApi::UpdateSafetyPwd(settings_.get().GetConsoleServerHost(),
+                                                                settings_.get().GetConsoleServerPort(),
                                                                 grApp->GetAppkey(),
-                                                                settings_->GetDeviceId(),
+                                                                settings_.get().GetDeviceId(),
                                                                 current_device_security_pwd);
             if (!update_device) {
-                LOGE("***UpdateSafetyPwd failed for device: {}", settings_->GetDeviceId());
+                LOGE("***UpdateSafetyPwd failed for device: {}", settings_.get().GetDeviceId());
             }
             else {
-                LOGI("***UpdateSafetyPwd succeeded for device: {}", settings_->GetDeviceId());
+                LOGI("***UpdateSafetyPwd succeeded for device: {}", settings_.get().GetDeviceId());
             }
         }
     }

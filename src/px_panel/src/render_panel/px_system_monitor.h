@@ -51,7 +51,7 @@ namespace px
         void CheckThisDeviceInfo();
 
     private:
-        PxSettings* settings_ = nullptr;
+        std::reference_wrapper<PxSettings> settings_;
         std::shared_ptr<PxApplication> app_ = nullptr;
         std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<Thread> monitor_thread_ = nullptr;

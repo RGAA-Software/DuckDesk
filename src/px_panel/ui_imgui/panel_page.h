@@ -10,7 +10,6 @@ enum class PanelPage : std::uint8_t {
     ServerStatus,
     Security,
     Settings,
-    Hardware,
 };
 
 } // namespace px::panel::ui

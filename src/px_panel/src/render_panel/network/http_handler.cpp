@@ -5,23 +5,17 @@
 #include "apis.h"
 #include "px_common/log.h"
 #include "render_panel/px_context.h"
-#include "px_steam_manager/steam_manager.h"
-#include "px_steam_manager/steam_entities.h"
 #include <nlohmann/json.hpp>
 #include "render_panel/px_application.h"
 #include "render_panel/px_render_controller.h"
 #include "px_common/net_resp.h"
 #include <nlohmann/json.hpp>
-#include "render_panel//px_run_game_manager.h"
-#include "render_panel/database/db_game.h"
-#include "render_panel/database/db_game_operator.h"
 #include "render_panel/px_app_messages.h"
 #include "px_common/win32/process_helper.h"
 #include "px_common/string_util.h"
 #include "px_common/process_util.h"
 #include "px_common/folder_util.h"
 #include "px_common/file_util.h"
-#include <QString>
 
 using namespace nlohmann;
 
@@ -47,6 +41,7 @@ namespace px
         rep.fill_json(data);
     }
 
+#if 0 // Retired local game HTTP implementation.
     void HttpHandler::HandleGames(http::web_request &req, http::web_response &rep) {
         auto data = GetInstalledGamesAsJson();
         rep.fill_json(data);
@@ -113,6 +108,7 @@ namespace px
         auto data = WrapBasicInfo(200, "ok", run_games_info);
         rep.fill_json(data);
     }
+#endif
 
     void HttpHandler::HandleStopServer(http::web_request &req, http::web_response &rep) {
         auto srv_mgr = context_->GetRenderController();
@@ -126,8 +122,7 @@ namespace px
     }
 
     void HttpHandler::HandleAllRunningProcesses(http::web_request &req, http::web_response &rep) {
-        auto rgm = context_->GetRunGameManager();
-        auto rps = rgm->GetRunningProcesses();
+        auto rps = ProcessHelper::GetProcessList(true);
         json obj = json::array();
         for (const std::shared_ptr<ProcessInfo>& rp : rps) {
             json item;
@@ -168,6 +163,7 @@ namespace px
         rep.fill_file(target);
     }
 
+#if 0 // Retired local Steam resource implementation.
     void HttpHandler::HandleSteamCacheFile(http::web_request &req, http::web_response &rep) {
         std::string_view target = req.target();
         std::string_view query = req.query();
@@ -250,6 +246,7 @@ namespace px
         obj["data"] = game_array;
         return obj.dump();
     }
+#endif
 
     std::string HttpHandler::WrapBasicInfo(int code, const std::string& msg, const std::string& data) {
         json obj;

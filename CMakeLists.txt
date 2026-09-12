@@ -358,9 +358,6 @@ add_dependencies(px_build_premium_all
     px_gh px_gh_injector px_gh_address
     net_rtc_local
 
-    ### client built-in modules
-    client_media_recording_module client_clipboard_module client_file_transfer_module
-
     ### skins
     skin_interface skin_official skin_loader skin_opensource
 

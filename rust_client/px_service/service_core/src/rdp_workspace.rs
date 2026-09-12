@@ -191,10 +191,12 @@ impl WorkspaceStore {
 mod platform {
     use super::*;
     use std::os::windows::ffi::OsStrExt;
-    use windows::core::PCWSTR;
+    use windows::core::{PCWSTR, PWSTR};
     use windows::Win32::Foundation::{HLOCAL, LocalFree};
-    use windows::Win32::Security::{ACL, DACL_SECURITY_INFORMATION, GetSecurityDescriptorDacl, PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
-    use windows::Win32::Security::Authorization::{ConvertStringSecurityDescriptorToSecurityDescriptorW, GetNamedSecurityInfoW, SE_FILE_OBJECT};
+    use windows::Win32::Security::{DACL_SECURITY_INFORMATION, GetFileSecurityW, GetSecurityDescriptorControl,
+        PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES, SE_DACL_PROTECTED};
+    use windows::Win32::Security::Authorization::{ConvertSecurityDescriptorToStringSecurityDescriptorW,
+        ConvertStringSecurityDescriptorToSecurityDescriptorW};
     use windows::Win32::Storage::FileSystem::{CreateDirectoryW, MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH};
     use windows::Win32::Security::Cryptography::{CryptProtectData, CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN};
 
@@ -225,6 +227,55 @@ mod platform {
     impl Drop for Descriptor {
         fn drop(&mut self) { if !self.0.0.is_null() { unsafe { LocalFree(Some(HLOCAL(self.0.0))); } } }
     }
+
+    struct LocalWideString(PWSTR);
+    impl Drop for LocalWideString {
+        fn drop(&mut self) {
+            if !self.0.is_null() { unsafe { LocalFree(Some(HLOCAL(self.0.as_ptr().cast()))); } }
+        }
+    }
+
+    fn canonical_dacl(descriptor: PSECURITY_DESCRIPTOR) -> Result<String, String> {
+        let mut text = LocalWideString(PWSTR::null());
+        unsafe { ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor, 1, DACL_SECURITY_INFORMATION, &mut text.0, None) }
+            .map_err(|_| "RDP private directory ACL invalid".to_string())?;
+        let text = unsafe { text.0.to_string() }.map_err(|_| "RDP private directory ACL encoding invalid".to_string())?;
+        let ace_offset = text.find('(').ok_or_else(|| "RDP private directory has no restrictive ACL".to_string())?;
+        if !text.starts_with("D:") { return Err("RDP private directory ACL invalid".into()); }
+        // DACL control flags are checked through GetSecurityDescriptorControl. Compare every ACE while
+        // ignoring only their separate P/AI bookkeeping representation in the SDDL prefix.
+        let ace_text = &text[ace_offset..];
+        let mut aces: Vec<&str> = ace_text.split_inclusive(')').collect();
+        if aces.is_empty() || aces.iter().map(|ace| ace.len()).sum::<usize>() != ace_text.len()
+            || aces.iter().any(|ace| !ace.starts_with('(') || !ace.ends_with(')')) {
+            return Err("RDP private directory ACL invalid".into());
+        }
+        // Windows is free to canonicalize equal allow ACEs into a different order.
+        aces.sort_unstable();
+        Ok(aces.concat())
+    }
+
+    fn dacl_is_protected(descriptor: PSECURITY_DESCRIPTOR) -> Result<bool, String> {
+        let mut control = 0u16;
+        let mut revision = 0u32;
+        unsafe { GetSecurityDescriptorControl(descriptor, &mut control, &mut revision) }
+            .map_err(|_| "RDP private directory ACL control invalid".to_string())?;
+        Ok(control & SE_DACL_PROTECTED.0 != 0)
+    }
+
+    fn file_security_descriptor(name: &[u16]) -> Result<Vec<u8>, String> {
+        let mut required = 0u32;
+        let _ = unsafe { GetFileSecurityW(PCWSTR(name.as_ptr()), DACL_SECURITY_INFORMATION.0, None, 0, &mut required) };
+        if required == 0 { return Err("RDP private directory ACL unavailable".into()); }
+        let mut descriptor = vec![0u8; required as usize];
+        let pointer = PSECURITY_DESCRIPTOR(descriptor.as_mut_ptr().cast());
+        let loaded = unsafe {
+            GetFileSecurityW(PCWSTR(name.as_ptr()), DACL_SECURITY_INFORMATION.0, Some(pointer), required, &mut required)
+        };
+        if !loaded.as_bool() { return Err("RDP private directory ACL unavailable".into()); }
+        Ok(descriptor)
+    }
+
     fn wide_path(path: &Path) -> Vec<u16> { path.as_os_str().encode_wide().chain(Some(0)).collect() }
 
     pub fn ensure_private_directory(path: &Path) -> Result<(), String> {
@@ -245,20 +296,15 @@ mod platform {
         if !metadata.is_dir() || metadata.file_attributes() & 0x400 != 0 {
             return Err("RDP private directory reparse point refused".into());
         }
-        let mut actual = Descriptor(PSECURITY_DESCRIPTOR::default());
-        let status = unsafe { GetNamedSecurityInfoW(PCWSTR(name.as_ptr()), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
-            None, None, None, None, &mut actual.0) };
-        if status.0 != 0 { return Err("RDP private directory ACL unavailable".into()); }
-        fn acl_bytes(descriptor: &Descriptor) -> Result<Vec<u8>, String> {
-            let mut present = false.into();
-            let mut defaulted = false.into();
-            let mut acl: *mut ACL = std::ptr::null_mut();
-            unsafe { GetSecurityDescriptorDacl(descriptor.0, &mut present, &mut acl, &mut defaulted) }
-                .map_err(|_| "RDP private directory ACL invalid".to_string())?;
-            if !present.as_bool() || acl.is_null() { return Err("RDP private directory has no restrictive ACL".into()); }
-            Ok(unsafe { std::slice::from_raw_parts(acl.cast::<u8>(), (*acl).AclSize as usize) }.to_vec())
+        let mut actual = file_security_descriptor(&name)?;
+        let actual_pointer = PSECURITY_DESCRIPTOR(actual.as_mut_ptr().cast());
+        let protected = dacl_is_protected(actual_pointer)?;
+        let actual_dacl = canonical_dacl(actual_pointer)?;
+        let expected_dacl = canonical_dacl(expected.0)?;
+        if !protected || actual_dacl != expected_dacl {
+            tracing::warn!(protected, actual_dacl, expected_dacl, "RDP private directory ACL rejected");
+            return Err("RDP private directory ACL changed; access refused".into());
         }
-        if acl_bytes(&actual)? != acl_bytes(&expected)? { return Err("RDP private directory ACL changed; access refused".into()); }
         Ok(())
     }
 

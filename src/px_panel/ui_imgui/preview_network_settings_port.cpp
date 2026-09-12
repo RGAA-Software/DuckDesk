@@ -1,7 +1,10 @@
+#include "cloud_applications_port.h"
 #include "network_settings_port.h"
-
 #include "panel_preview.h"
+#include "remote_control_port.h"
 #include "server_status_port.h"
+#include "settings_port.h"
+#include "security_records_port.h"
 
 #include <mutex>
 #include <utility>
@@ -54,6 +57,11 @@ std::shared_ptr<NetworkSettingsPort> CreatePreviewNetworkSettingsPort() {
 }
 
 PanelPreview::PanelPreview()
-    : PanelPreview{PanelPreviewServices{.networkSettings = CreatePreviewNetworkSettingsPort(), .serverStatus = CreatePreviewServerStatusPort()}} {}
+    : PanelPreview{PanelPreviewServices{.account = CreatePreviewAccountPort(), .notifications = std::make_shared<NotificationCenter>(),
+                                        .networkSettings = CreatePreviewNetworkSettingsPort(),
+                                        .serverStatus = CreatePreviewServerStatusPort(),
+                                        .remoteControl = CreatePreviewRemoteControlPort(),
+                                        .cloudApplications = CreatePreviewCloudApplicationsPort(), .settings = CreatePreviewSettingsPort(),
+                                        .securityRecords = CreatePreviewSecurityRecordsPort()}} {}
 
 } // namespace px::panel::ui

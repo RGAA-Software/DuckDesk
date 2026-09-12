@@ -1,6 +1,6 @@
 #include "rdp_session.h"
-#include "rdp_clipboard_channel.h"
 #include "rdp_display_channel.h"
+#include "rdp_text_clipboard_channel.h"
 
 #include "px_common/async_runtime.h"
 #include "px_common/log.h"
@@ -8,6 +8,7 @@
 #include "px_rdp/rdp_proxy_policy.h"
 #include <freerdp/client.h>
 #include <freerdp/client/channels.h>
+#include <freerdp/client/cliprdr.h>
 #include <freerdp/client/disp.h>
 #include <freerdp/channels/channels.h>
 #include <freerdp/codec/color.h>
@@ -34,9 +35,27 @@ bool SafeName(std::string_view value) {
     });
 }
 
-bool ValidSize(QSize size) {
-    return size.width() >= 200 && size.height() >= 200 && size.width() <= 8192 && size.height() <= 8192 &&
-           static_cast<std::int64_t>(size.width()) * size.height() * 4 <= kMaximumFrameBytes;
+bool ValidSize(const Size size) {
+    return size.width >= 200 && size.height >= 200 && size.width <= 8192 && size.height <= 8192 &&
+           static_cast<std::int64_t>(size.width) * size.height * 4 <= static_cast<std::int64_t>(kMaximumFrameBytes);
+}
+
+Rectangle Unite(const Rectangle left, const Rectangle right) {
+    if (left.Empty()) return right;
+    if (right.Empty()) return left;
+    const int x = std::min(left.x, right.x);
+    const int y = std::min(left.y, right.y);
+    const int rightEdge = std::max(left.x + left.width, right.x + right.width);
+    const int bottom = std::max(left.y + left.height, right.y + right.height);
+    return {x, y, rightEdge - x, bottom - y};
+}
+
+Rectangle Intersect(const Rectangle left, const Rectangle right) {
+    const int x = std::max(left.x, right.x);
+    const int y = std::max(left.y, right.y);
+    const int rightEdge = std::min(left.x + left.width, right.x + right.width);
+    const int bottom = std::min(left.y + left.height, right.y + right.height);
+    return rightEdge <= x || bottom <= y ? Rectangle{} : Rectangle{x, y, rightEdge - x, bottom - y};
 }
 
 template <typename Function> BOOL Guard(Function function) noexcept {
@@ -71,8 +90,6 @@ struct Command final {
 
 bool InitializeRdpRuntime() {
     // OpenSSL's compiled-in provider path belongs to the SDK build host.
-    // qputenv updates the shared CRT environment used by the DLL as well as
-    // the Win32 process environment; SetEnvironmentVariable alone does not.
     std::array<wchar_t, 32768> executable{};
     const auto length = GetModuleFileNameW(nullptr, executable.data(), static_cast<DWORD>(executable.size()));
     if (length == 0 || length >= executable.size()) {
@@ -82,8 +99,8 @@ bool InitializeRdpRuntime() {
     const auto provider = directory / "legacy.dll";
     const auto attributes = GetFileAttributesW(provider.c_str());
     return attributes != INVALID_FILE_ATTRIBUTES && (attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) == 0 &&
-           qputenv("OPENSSL_MODULES", QString::fromStdWString(directory.wstring()).toUtf8()) &&
-           SetEnvironmentVariableW(L"OPENSSL_MODULES", directory.c_str()) && SetEnvironmentVariableW(L"WINPR_NATIVE_SSPI", L"1");
+           _wputenv_s(L"OPENSSL_MODULES", directory.c_str()) == 0 && SetEnvironmentVariableW(L"OPENSSL_MODULES", directory.c_str()) &&
+           SetEnvironmentVariableW(L"WINPR_NATIVE_SSPI", L"1");
 }
 
 SessionSecret::SessionSecret(std::span<const char> bytes) : bytes_(bytes.begin(), bytes.end()) {
@@ -102,9 +119,9 @@ bool SessionSecret::IsValid() const noexcept {
     return bytes.size() >= 32 && bytes.size() <= 256 && std::ranges::none_of(bytes, [](char byte) { return byte == '\0'; });
 }
 bool SessionConfiguration::IsValid() const noexcept {
-    return loopback_port != 0 && SafeName(account) && account.starts_with("grdp_") && account.size() >= 8 && account.size() <= 20 &&
+    return loopbackPort != 0 && SafeName(account) && account.starts_with("grdp_") && account.size() >= 8 && account.size() <= 20 &&
            SafeName(domain) && domain.size() <= 15 && password && password->IsValid() && ValidSize(desktop) &&
-           proxy_certificate_sha256.size() == 64 && std::ranges::all_of(proxy_certificate_sha256, [](unsigned char byte) {
+           proxyCertificateSha256.size() == 64 && std::ranges::all_of(proxyCertificateSha256, [](unsigned char byte) {
                return (byte >= '0' && byte <= '9') || (byte >= 'a' && byte <= 'f') || (byte >= 'A' && byte <= 'F');
            });
 }
@@ -116,25 +133,20 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
         rdpClientContext base{};
         std::weak_ptr<State> owner{};
     };
-    struct Pointer final {
-        rdpPointer base{};
-        std::uint64_t id{0};
-    };
     SessionConfiguration configuration{};
     SessionCallbacks callbacks{};
     std::atomic<std::shared_ptr<rdpContext>> context{};
     DisplayChannel display{};
-    std::unique_ptr<ClipboardChannel> clipboard{};
-    std::atomic<std::shared_ptr<const ClipboardData>> pending_clipboard{};
-    std::shared_ptr<const ClipboardData> local_clipboard{};
+    std::unique_ptr<TextClipboardChannel> clipboard{};
+    std::atomic<std::shared_ptr<const std::string>> pending_clipboard{};
+    std::string local_clipboard{};
     UniqueWinHandle command_event{CreateEventW(nullptr, FALSE, FALSE, nullptr)};
     std::atomic_bool stopping{false};
     std::mutex commands_mutex{};
     std::deque<Command> commands{};
-    QRect dirty{};
+    Rectangle dirty{};
     std::uint64_t frame_id{0};
     std::uint64_t in_flight{0};
-    std::uint64_t pointer_id{0};
     bool connected{false};
     std::chrono::steady_clock::time_point diagnostic_deadline{};
 
@@ -223,8 +235,8 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
         const auto hostname = std::string_view{host};
         return Guard([&current, pem, hostname, port, flags] {
             const auto self = Owner(*current.context);
-            return self && !self->stopping.load() && hostname == "127.0.0.1" && port == self->configuration.loopback_port && flags == 0 &&
-                   VerifyPinnedCertificate(pem, self->configuration.proxy_certificate_sha256);
+            return self && !self->stopping.load() && hostname == "127.0.0.1" && port == self->configuration.loopbackPort && flags == 0 &&
+                   VerifyPinnedCertificate(pem, self->configuration.proxyCertificateSha256);
         });
     }
     static BOOL PreConnect(freerdp* instance) { // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
@@ -237,7 +249,7 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
             auto& settings = *current.context->settings;
             const auto& config = self->configuration;
             bool ok = freerdp_settings_set_string(&settings, FreeRDP_ServerHostname, "127.0.0.1") &&
-                      freerdp_settings_set_uint32(&settings, FreeRDP_ServerPort, config.loopback_port) &&
+                      freerdp_settings_set_uint32(&settings, FreeRDP_ServerPort, config.loopbackPort) &&
                       freerdp_settings_set_string(&settings, FreeRDP_Username, config.account.c_str()) &&
                       freerdp_settings_set_string(&settings, FreeRDP_Domain, config.domain.c_str()) &&
                       freerdp_settings_set_string(&settings, FreeRDP_Password, config.password->Bytes().data());
@@ -245,8 +257,8 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
             // Static channel threads and the independent drdynvc worker both
             // need disabling; ThreadingFlags alone does not control drdynvc.
             for (const auto& setting : std::array<std::pair<FreeRDP_Settings_Keys_UInt32, UINT32>, 8>{
-                     {{FreeRDP_DesktopWidth, static_cast<UINT32>(config.desktop.width())},
-                      {FreeRDP_DesktopHeight, static_cast<UINT32>(config.desktop.height())},
+                     {{FreeRDP_DesktopWidth, static_cast<UINT32>(config.desktop.width)},
+                      {FreeRDP_DesktopHeight, static_cast<UINT32>(config.desktop.height)},
                       {FreeRDP_ColorDepth, 32},
                       {FreeRDP_TcpConnectTimeout, 5000},
                       {FreeRDP_KeyboardLayout, 0x0409},
@@ -298,19 +310,11 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
             update.BeginPaint = BeginPaint;
             update.EndPaint = EndPaint;
             update.DesktopResize = DesktopResize;
-            rdpPointer prototype{}; // Transient FreeRDP registration ABI; graphics_register_pointer copies this value.
-            prototype.size = sizeof(Pointer);
-            prototype.New = PointerNew;
-            prototype.Free = PointerFree;
-            prototype.Set = PointerSet;
-            prototype.SetNull = PointerNull;
-            prototype.SetDefault = PointerDefault;
-            graphics_register_pointer(current.context->graphics, &prototype);
             self->connected = true;
             // A newly allocated GDI surface is not a remote frame. Only an
             // actual EndPaint damage notification may make the UI ready.
             self->dirty = {};
-            self->Report(SessionPhase::kConnected, {});
+            self->Report(SessionPhase::Connected, {});
             return true;
         });
     }
@@ -328,9 +332,7 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
             if (std::string_view{update.name} == DISP_DVC_CHANNEL_NAME) {
                 self->display.Attach(std::shared_ptr<DispClientContext>{self->context.load(), static_cast<DispClientContext*>(update.pInterface)});
             } else if (std::string_view{update.name} == CLIPRDR_SVC_CHANNEL_NAME) {
-                if (!self->configuration.clipboard || !update.pInterface) {
-                    return false;
-                }
+                if (!self->configuration.clipboard || !update.pInterface) return false;
                 const auto channel =
                     std::shared_ptr<CliprdrClientContext>{self->context.load(), static_cast<CliprdrClientContext*>(update.pInterface)};
                 channel->MonitorReady = ClipboardReady;
@@ -339,19 +341,13 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
                 channel->ServerFormatListResponse = ClipboardFormatsResponse;
                 channel->ServerFormatDataRequest = ClipboardDataRequest;
                 channel->ServerFormatDataResponse = ClipboardDataResponse;
-                channel->ServerFileContentsRequest = ClipboardFileRequest;
-                channel->ServerFileContentsResponse = ClipboardFileResponse;
-                channel->ServerLockClipboardData = ClipboardLock;
-                channel->ServerUnlockClipboardData = ClipboardUnlock;
-                const auto weak = self->weak_from_this();
-                self->clipboard = std::make_unique<ClipboardChannel>(channel, [weak](std::shared_ptr<const ClipboardData> data) {
+                const std::weak_ptr<State> weak{self};
+                self->clipboard = std::make_unique<TextClipboardChannel>(channel, [weak](std::string text) {
                     if (const auto owner = weak.lock(); owner && !owner->stopping.load() && owner->callbacks.clipboard) {
-                        owner->callbacks.clipboard(std::move(data));
+                        owner->callbacks.clipboard(std::move(text));
                     }
                 });
-                if (self->local_clipboard && !self->clipboard->SetLocal(self->local_clipboard)) {
-                    return false;
-                }
+                if (!self->local_clipboard.empty() && !self->clipboard->SetLocal(self->local_clipboard)) return false;
             } else {
                 freerdp_client_OnChannelConnectedEventHandler(&base, &update);
             }
@@ -374,60 +370,39 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
             }
         }
     }
+
     template <typename Action> static UINT WithClipboard(CliprdrClientContext& channel, Action action) noexcept {
         return Guard([&channel, &action] {
-            if (!channel.rdpcontext) {
-                return false;
-            }
+            if (!channel.rdpcontext) return false;
             const auto self = Owner(*channel.rdpcontext);
             return self && !self->stopping.load() && self->clipboard && action(*self->clipboard);
         })
                    ? CHANNEL_RC_OK
                    : ERROR_INVALID_DATA;
     }
-    // FreeRDP callback ABI below. Borrowed parameters are immediately converted
-    // to synchronous references; channel.rdpcontext resolves a weak root owner.
-    static UINT ClipboardReady(CliprdrClientContext* channel, const CLIPRDR_MONITOR_READY*) { // NOLINT(gammaray-raw-pointer-boundary)
-        return WithClipboard(*channel, [](ClipboardChannel& clipboard) { return clipboard.Ready(); });
+    static UINT ClipboardReady(CliprdrClientContext* channel, const CLIPRDR_MONITOR_READY*) { // NOLINT(gammaray-raw-pointer-boundary): ABI.
+        return WithClipboard(*channel, [](TextClipboardChannel& clipboard) { return clipboard.Ready(); });
     }
     static UINT ClipboardCapabilities(CliprdrClientContext* channel, const CLIPRDR_CAPABILITIES* value) { // NOLINT(gammaray-raw-pointer-boundary)
         const auto& capabilities = *value;
-        return WithClipboard(*channel, [&capabilities](ClipboardChannel& clipboard) { return clipboard.Capabilities(capabilities); });
+        return WithClipboard(*channel, [&capabilities](TextClipboardChannel& clipboard) { return clipboard.Capabilities(capabilities); });
     }
-    static UINT ClipboardFormats(CliprdrClientContext* channel, const CLIPRDR_FORMAT_LIST* value) { // NOLINT(gammaray-raw-pointer-boundary)
-        const auto& list = *value;
-        return WithClipboard(*channel, [&list](ClipboardChannel& clipboard) { return clipboard.Formats(list); });
+    static UINT ClipboardFormats(CliprdrClientContext* channel, const CLIPRDR_FORMAT_LIST* value) { // NOLINT(gammaray-raw-pointer-boundary): ABI.
+        const auto& formats = *value;
+        return WithClipboard(*channel, [&formats](TextClipboardChannel& clipboard) { return clipboard.Formats(formats); });
     }
-    static UINT ClipboardFormatsResponse(CliprdrClientContext*, const CLIPRDR_FORMAT_LIST_RESPONSE*) { // NOLINT(gammaray-raw-pointer-boundary)
+    static UINT ClipboardFormatsResponse(CliprdrClientContext*, const CLIPRDR_FORMAT_LIST_RESPONSE*) { // NOLINT(gammaray-raw-pointer-boundary): ABI.
         return CHANNEL_RC_OK;
     }
-    static UINT ClipboardDataRequest(CliprdrClientContext* channel,              // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
-                                     const CLIPRDR_FORMAT_DATA_REQUEST* value) { // NOLINT(gammaray-raw-pointer-boundary)
+    static UINT ClipboardDataRequest( // NOLINT(gammaray-raw-pointer-boundary): FreeRDP callback ABI.
+        CliprdrClientContext* channel, const CLIPRDR_FORMAT_DATA_REQUEST* value) { // NOLINT(gammaray-raw-pointer-boundary): callback ABI.
         const auto& request = *value;
-        return WithClipboard(*channel, [&request](ClipboardChannel& clipboard) { return clipboard.DataRequest(request); });
+        return WithClipboard(*channel, [&request](TextClipboardChannel& clipboard) { return clipboard.DataRequest(request); });
     }
-    static UINT ClipboardDataResponse(CliprdrClientContext* channel,               // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
-                                      const CLIPRDR_FORMAT_DATA_RESPONSE* value) { // NOLINT(gammaray-raw-pointer-boundary)
+    static UINT ClipboardDataResponse( // NOLINT(gammaray-raw-pointer-boundary): FreeRDP callback ABI.
+        CliprdrClientContext* channel, const CLIPRDR_FORMAT_DATA_RESPONSE* value) { // NOLINT(gammaray-raw-pointer-boundary): callback ABI.
         const auto& response = *value;
-        return WithClipboard(*channel, [&response](ClipboardChannel& clipboard) { return clipboard.DataResponse(response); });
-    }
-    static UINT ClipboardFileRequest(CliprdrClientContext* channel,                // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
-                                     const CLIPRDR_FILE_CONTENTS_REQUEST* value) { // NOLINT(gammaray-raw-pointer-boundary)
-        const auto& request = *value;
-        return WithClipboard(*channel, [&request](ClipboardChannel& clipboard) { return clipboard.FileRequest(request); });
-    }
-    static UINT ClipboardFileResponse(CliprdrClientContext* channel,                 // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
-                                      const CLIPRDR_FILE_CONTENTS_RESPONSE* value) { // NOLINT(gammaray-raw-pointer-boundary)
-        const auto& response = *value;
-        return WithClipboard(*channel, [&response](ClipboardChannel& clipboard) { return clipboard.FileResponse(response); });
-    }
-    static UINT ClipboardLock(CliprdrClientContext* channel, const CLIPRDR_LOCK_CLIPBOARD_DATA* value) { // NOLINT(gammaray-raw-pointer-boundary)
-        const auto id = value->clipDataId;
-        return WithClipboard(*channel, [id](ClipboardChannel& clipboard) { return clipboard.Lock(id); });
-    }
-    static UINT ClipboardUnlock(CliprdrClientContext* channel, const CLIPRDR_UNLOCK_CLIPBOARD_DATA* value) { // NOLINT(gammaray-raw-pointer-boundary)
-        const auto id = value->clipDataId;
-        return WithClipboard(*channel, [id](ClipboardChannel& clipboard) { return clipboard.Unlock(id); });
+        return WithClipboard(*channel, [&response](TextClipboardChannel& clipboard) { return clipboard.DataResponse(response); });
     }
     static BOOL BeginPaint(rdpContext* borrowed) { // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
         if (!borrowed->gdi || !borrowed->gdi->primary || !borrowed->gdi->primary->hdc || !borrowed->gdi->primary->hdc->hwnd) {
@@ -457,19 +432,19 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
             }
             for (int index{}; index < window.ninvalid; ++index) {
                 const auto& region = window.cinvalid[index];
-                const QRect rectangle{region.x, region.y, region.w, region.h};
-                if (rectangle.x() < 0 || rectangle.y() < 0 || rectangle.width() < 0 || rectangle.height() < 0 ||
-                    rectangle.width() > current.gdi->width || rectangle.height() > current.gdi->height ||
-                    rectangle.x() > current.gdi->width - rectangle.width() || rectangle.y() > current.gdi->height - rectangle.height()) {
+                const Rectangle rectangle{region.x, region.y, region.w, region.h};
+                if (rectangle.x < 0 || rectangle.y < 0 || rectangle.width < 0 || rectangle.height < 0 || rectangle.width > current.gdi->width ||
+                    rectangle.height > current.gdi->height || rectangle.x > current.gdi->width - rectangle.width ||
+                    rectangle.y > current.gdi->height - rectangle.height) {
                     return false;
                 }
-                self->dirty = self->dirty.united(rectangle);
+                self->dirty = Unite(self->dirty, rectangle);
             }
             return self->Publish(current);
         });
     }
     bool Publish(rdpContext& borrowed) {
-        if (in_flight != 0 || dirty.isEmpty() || stopping.load()) {
+        if (in_flight != 0 || dirty.Empty() || stopping.load()) {
             return true;
         }
         if (!borrowed.gdi || !borrowed.gdi->primary_buffer) {
@@ -480,23 +455,24 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
             return false;
         }
         auto frame = std::make_shared<DesktopFrame>();
-        frame->frame_id = ++frame_id;
-        frame->captured_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        frame->frameId = ++frame_id;
+        frame->capturedMicroseconds =
+            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
         frame->desktop = {gdi.width, gdi.height};
-        const auto rectangle = dirty.intersected(QRect{0, 0, gdi.width, gdi.height});
-        if (rectangle.isEmpty()) {
+        const auto rectangle = Intersect(dirty, {0, 0, gdi.width, gdi.height});
+        if (rectangle.Empty()) {
             return false;
         }
         frame->rectangles.push_back(rectangle);
-        const auto row_bytes = static_cast<qsizetype>(rectangle.width()) * 4;
-        frame->pixels.resize(rectangle.height() * row_bytes);
-        for (int row{}; row < rectangle.height(); ++row) {
+        const auto row_bytes = static_cast<std::size_t>(rectangle.width) * 4U;
+        frame->pixels.resize(static_cast<std::size_t>(rectangle.height) * row_bytes);
+        for (int row{}; row < rectangle.height; ++row) {
             std::memcpy(frame->pixels.data() + row * row_bytes,
-                        gdi.primary_buffer + static_cast<size_t>(rectangle.y() + row) * gdi.stride + static_cast<size_t>(rectangle.x()) * 4,
-                        static_cast<size_t>(row_bytes)); // Synchronous borrow of the FreeRDP-owned surface.
+                        gdi.primary_buffer + static_cast<std::size_t>(rectangle.y + row) * gdi.stride + static_cast<std::size_t>(rectangle.x) * 4U,
+                        row_bytes); // Synchronous borrow of the FreeRDP-owned surface.
         }
         dirty = {};
-        in_flight = frame->frame_id;
+        in_flight = frame->frameId;
         callbacks.frame(std::move(frame));
         return true;
     }
@@ -517,70 +493,18 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
             return true;
         });
     }
-    static BOOL PointerNew(rdpContext* borrowed, rdpPointer* pointer) { // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
-        auto& current = *borrowed;
-        auto& pointer_value = *pointer;
-        return Guard([&current, &pointer_value] {
-            const auto self = Owner(current);
-            if (!self || !current.gdi || pointer_value.width == 0 || pointer_value.height == 0 || pointer_value.width > 512 ||
-                pointer_value.height > 512) {
-                return false;
-            }
-            auto image = QImage{static_cast<int>(pointer_value.width), static_cast<int>(pointer_value.height), QImage::Format_ARGB32};
-            if (image.isNull() || !freerdp_image_copy_from_pointer_data(image.bits(), PIXEL_FORMAT_BGRA32, image.bytesPerLine(), 0, 0,
-                                                                        pointer_value.width, pointer_value.height, pointer_value.xorMaskData,
-                                                                        pointer_value.lengthXorMask, pointer_value.andMaskData,
-                                                                        pointer_value.lengthAndMask, pointer_value.xorBpp, &current.gdi->palette)) {
-                return false;
-            }
-            auto& extended = reinterpret_cast<Pointer&>(pointer_value);
-            extended.id = ++self->pointer_id;
-            self->callbacks.pointer({PointerOperation::kCreate,
-                                     extended.id,
-                                     std::move(image),
-                                     {static_cast<int>(pointer_value.xPos), static_cast<int>(pointer_value.yPos)}});
-            return true;
-        });
-    }
-    static BOOL NotifyPointer(rdpContext& borrowed, PointerOperation operation, std::uint64_t id = 0) {
-        return Guard([&] {
-            const auto self = Owner(borrowed);
-            if (!self) {
-                return false;
-            }
-            self->callbacks.pointer({operation, id});
-            return true;
-        });
-    }
-    static void PointerFree(rdpContext* context, rdpPointer* pointer) { // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
-        static_cast<void>(NotifyPointer(*context, PointerOperation::kRemove, reinterpret_cast<Pointer&>(*pointer).id));
-    }
-    static BOOL PointerSet(rdpContext* context, rdpPointer* pointer) { // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
-        return NotifyPointer(*context, PointerOperation::kActivate, reinterpret_cast<Pointer&>(*pointer).id);
-    }
-    static BOOL PointerDefault(rdpContext* context) { // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
-        return NotifyPointer(*context, PointerOperation::kDefault);
-    } // NOLINT(gammaray-raw-pointer-boundary)
-    static BOOL PointerNull(rdpContext* context) { // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
-        return NotifyPointer(*context, PointerOperation::kNull);
-    } // NOLINT(gammaray-raw-pointer-boundary)
-
     bool ProcessCommands(rdpContext& borrowed) {
         const auto diagnostic_now = std::chrono::steady_clock::now();
         if (diagnostic_now >= diagnostic_deadline) {
             diagnostic_deadline = diagnostic_now + std::chrono::seconds(10);
-            LOGI("event=rdp.frame.progress published={} in_flight={} dirty={} display_channel={}", frame_id, in_flight, !dirty.isEmpty(),
+            LOGI("event=rdp.frame.progress published={} in_flight={} dirty={} display_channel={}", frame_id, in_flight, !dirty.Empty(),
                  display.Connected());
         }
         if (const auto changed = pending_clipboard.exchange({})) {
-            local_clipboard = changed;
-            if (clipboard && !clipboard->SetLocal(changed)) {
-                return false;
-            }
+            local_clipboard = *changed;
+            if (clipboard && !clipboard->SetLocal(local_clipboard)) return false;
         }
-        if (clipboard && !clipboard->Tick()) {
-            return false;
-        }
+        if (clipboard && !clipboard->Tick()) return false;
         std::deque<Command> current{};
         {
             std::lock_guard lock(commands_mutex);
@@ -644,7 +568,7 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
     void Run() noexcept {
         bool success{false};
         try {
-            Report(SessionPhase::kConnecting, {});
+            Report(SessionPhase::Connecting, {});
             RDP_CLIENT_ENTRY_POINTS entry{};
             entry.Size = sizeof(entry);
             entry.Version = RDP_CLIENT_INTERFACE_VERSION;
@@ -684,7 +608,7 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
                 }
             }
             if (!success && !stopping.load()) {
-                Report(SessionPhase::kFailed, "RDP connection failed, code=" + std::to_string(freerdp_get_last_error(current.get())));
+                Report(SessionPhase::Failed, "RDP connection failed, code=" + std::to_string(freerdp_get_last_error(current.get())));
             }
             static_cast<void>(freerdp_disconnect(current->instance));
             display.Attach({});
@@ -696,23 +620,21 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
             }
             display.Attach({});
             clipboard.reset();
-            Report(SessionPhase::kFailed, "RDP protocol initialization or processing failed");
+            Report(SessionPhase::Failed, "RDP protocol initialization or processing failed");
         }
         connected = false;
         stopping.store(true);
         configuration.password.reset();
-        local_clipboard.reset();
-        pending_clipboard.store({});
         {
             std::lock_guard lock(commands_mutex);
             commands.clear();
         }
-        Report(SessionPhase::kDisconnected, {});
+        Report(SessionPhase::Disconnected, {});
     }
 };
 
 std::shared_ptr<RdpSession> RdpSession::Create(SessionConfiguration configuration, SessionCallbacks callbacks) {
-    if (!configuration.IsValid() || !callbacks.frame || !callbacks.pointer || !callbacks.phase) {
+    if (!configuration.IsValid() || !callbacks.frame || !callbacks.phase) {
         return {};
     }
     auto state = std::make_shared<State>(std::move(configuration), std::move(callbacks));
@@ -749,8 +671,8 @@ void RdpSession::Synchronize(std::uint16_t toggles) {
 void RdpSession::Pause() {
     state_->Enqueue({CommandKind::kPause});
 }
-void RdpSession::Resize(QSize size) {
-    state_->Enqueue({CommandKind::kResize, 0, size.width(), size.height()});
+void RdpSession::Resize(const Size size) {
+    state_->Enqueue({CommandKind::kResize, 0, size.width, size.height});
 }
 void RdpSession::ConsumeFrame(std::uint64_t frame_id) {
     state_->Enqueue({CommandKind::kFrameConsumed, frame_id});
@@ -758,15 +680,9 @@ void RdpSession::ConsumeFrame(std::uint64_t frame_id) {
 void RdpSession::Refresh() {
     state_->Enqueue({CommandKind::kRefresh});
 }
-void RdpSession::PublishClipboard(std::shared_ptr<const ClipboardData> data) {
-    if (!data || !state_->configuration.clipboard || state_->stopping.load()) {
-        return;
-    }
-    if ((data->text && data->text->size() > kClipboardDataLimit / 2 - 1) || (data->html && data->html->size() > kClipboardDataLimit / 4) ||
-        data->image.sizeInBytes() > kClipboardImageLimit || data->urls.size() > kClipboardEntryLimit) {
-        return;
-    }
-    state_->pending_clipboard.store(std::move(data));
+void RdpSession::PublishClipboard(std::string text) {
+    if (!state_->configuration.clipboard || state_->stopping.load() || text.empty() || text.size() > 16U * 1024U * 1024U) return;
+    state_->pending_clipboard.store(std::make_shared<const std::string>(std::move(text)));
     SetEvent(state_->command_event.get());
 }
 

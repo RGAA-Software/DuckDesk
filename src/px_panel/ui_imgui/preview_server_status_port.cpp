@@ -16,6 +16,7 @@ class PreviewServerStatusPort final : public ServerStatusPort {
             .audioSamples = 48000,
             .audioChannels = 2,
             .audioBits = 16,
+            .connectedClients = 1,
         };
     }
     void RestartRender() override {}

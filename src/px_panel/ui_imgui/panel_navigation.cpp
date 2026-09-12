@@ -6,6 +6,7 @@
 
 #include <array>
 #include <string_view>
+#include <utility>
 
 namespace px::panel::ui {
 namespace {
@@ -21,7 +22,6 @@ constexpr std::array kNavigationItems{
     NavigationItem{PanelPage::ServerStatus, px::ui::TextId::ServerStatus},
     NavigationItem{PanelPage::Security, px::ui::TextId::Security},
     NavigationItem{PanelPage::Settings, px::ui::TextId::Settings},
-    NavigationItem{PanelPage::Hardware, px::ui::TextId::Hardware},
 };
 
 void DrawDisabledText(const std::string_view text) {
@@ -32,11 +32,16 @@ void DrawDisabledText(const std::string_view text) {
 
 } // namespace
 
+PanelNavigation::PanelNavigation(std::shared_ptr<AccountPort> accountPort) : account_{std::move(accountPort)} {}
+
 NavigationAction PanelNavigation::Draw(const px::ui::Localizer& localizer) {
     NavigationAction action{.selectedPage = selectedPage_};
-    ImGui::BeginChild("Navigation", ImVec2{px::ui::Scale(224.0F), 0.0F}, ImGuiChildFlags_Borders);
+    constexpr ImGuiWindowFlags navigationFlags{ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse};
+    ImGui::BeginChild("Navigation", ImVec2{px::ui::Scale(224.0F), 0.0F}, ImGuiChildFlags_Borders, navigationFlags);
     ImGui::TextColored(ImVec4{0.35F, 0.68F, 1.00F, 1.00F}, "PIXELS");
     DrawDisabledText(localizer.Text(px::ui::TextId::RenderNodeConsole));
+    ImGui::Spacing();
+    account_.Draw(localizer);
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
@@ -44,15 +49,16 @@ NavigationAction PanelNavigation::Draw(const px::ui::Localizer& localizer) {
     const ImVec2 buttonSize{-1.0F, px::ui::Scale(42.0F)};
     for (const auto& item : kNavigationItems) {
         const bool wasSelected{item.page == selectedPage_};
-        if (wasSelected) {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{0.12F, 0.36F, 0.82F, 1.00F});
-        }
+        const ImVec4 buttonColor{wasSelected ? ImVec4{0.12F, 0.36F, 0.82F, 1.00F} : ImGui::GetStyleColorVec4(ImGuiCol_FrameBg)};
+        const ImVec4 hoverColor{wasSelected ? ImVec4{0.16F, 0.43F, 0.94F, 1.00F} : ImGui::GetStyleColorVec4(ImGuiCol_FrameBgHovered)};
+        const ImVec4 activeColor{wasSelected ? ImVec4{0.10F, 0.30F, 0.72F, 1.00F} : ImGui::GetStyleColorVec4(ImGuiCol_FrameBgActive)};
+        ImGui::PushStyleColor(ImGuiCol_Button, buttonColor);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, hoverColor);
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, activeColor);
         if (ImGui::Button(localizer.Text(item.text).data(), buttonSize)) {
             selectedPage_ = item.page;
         }
-        if (wasSelected) {
-            ImGui::PopStyleColor();
-        }
+        ImGui::PopStyleColor(3);
     }
 
     ImGui::SetCursorPosY(ImGui::GetWindowHeight() - px::ui::Scale(58.0F));

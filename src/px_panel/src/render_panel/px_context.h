@@ -8,6 +8,7 @@
 #include <memory>
 #include <atomic>
 #include <functional>
+#include <mutex>
 #include <string>
 #include "px_common/ip_util.h"
 #include "px_common/message_notifier.h"
@@ -15,7 +16,6 @@
 #include "px_common/expected.h"
 
 #include <QObject>
-#include <QPointer>
 #include <QTimer>
 
 namespace px_relay {
@@ -33,7 +33,6 @@ class PxRenderController;
 class PxRunGameManager;
 class ServiceManager;
 class PxApplication;
-class NotifyManager;
 class PxDatabase;
 class PxConsoleManager;
 class PxEventManager;
@@ -45,8 +44,9 @@ class RunningStreamManager;
 
 class PxContext : public QObject, public std::enable_shared_from_this<PxContext> {
   public:
-    explicit PxContext(
-        QWidget* main_window);  // NOLINT(gammaray-raw-pointer-boundary): observed Qt widget is immediately retained as QPointer.
+    using NotificationSink = std::function<void(std::string, std::string, bool, std::function<void()>)>;
+
+    PxContext();
     ~PxContext() override;
 
     bool Init(const std::shared_ptr<PxApplication>& app);
@@ -105,7 +105,7 @@ class PxContext : public QObject, public std::enable_shared_from_this<PxContext>
     std::string GetDeviceIdOrIpAddress();
 
     // Display a message at right-bottom
-    std::shared_ptr<NotifyManager> GetNotifyManager();
+    void SetNotificationSink(NotificationSink sink);
     void NotifyAppMessage(
         const QString& title, const QString& msg, std::function<void()>&& cbk = []() {});
     void NotifyAppErrMessage(
@@ -132,7 +132,6 @@ class PxContext : public QObject, public std::enable_shared_from_this<PxContext>
     void StartTimers();
 
   private:
-    QPointer<QWidget> main_window_{};
     std::reference_wrapper<PxSettings> settings_;
     std::shared_ptr<SharedPreference> sp_{};
     std::weak_ptr<PxApplication> app_{};
@@ -150,7 +149,8 @@ class PxContext : public QObject, public std::enable_shared_from_this<PxContext>
     std::shared_ptr<ServiceManager> service_manager_ = nullptr;
     std::shared_ptr<StreamDBOperator> stream_db_mgr_ = nullptr;
     std::shared_ptr<RunningStreamManager> running_stream_mgr_ = nullptr;
-    std::shared_ptr<NotifyManager> notify_mgr_ = nullptr;
+    std::mutex notification_mutex_{};
+    NotificationSink notification_sink_{};
     std::shared_ptr<PxDatabase> database_ = nullptr;
     std::shared_ptr<PxConsoleManager> console_manager_ = nullptr;
     std::shared_ptr<PxEventManager> event_manager_ = nullptr;

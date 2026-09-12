@@ -8,6 +8,7 @@
 #include <wrl/client.h>
 
 #include <array>
+#include <cstring>
 #include <memory>
 #include <utility>
 
@@ -18,6 +19,10 @@ struct D3d11Renderer::Impl final {
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> deviceContext{};
     Microsoft::WRL::ComPtr<IDXGISwapChain> swapChain{};
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> renderTarget{};
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> videoTexture{};
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> videoTextureView{};
+    int videoWidth{};
+    int videoHeight{};
     bool imguiBackendInitialized{false};
 
     bool CreateRenderTarget() {
@@ -93,6 +98,48 @@ bool D3d11Renderer::Resize(const int width, const int height) {
         return false;
     }
     return impl_->CreateRenderTarget();
+}
+
+bool D3d11Renderer::UpdateVideoTexture(const int width, const int height, const std::span<const std::uint8_t> bgra) {
+    if (width <= 0 || height <= 0 || bgra.size() != static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U) {
+        return false;
+    }
+    if (!impl_->videoTexture || impl_->videoWidth != width || impl_->videoHeight != height) {
+        impl_->videoTextureView.Reset();
+        impl_->videoTexture.Reset();
+        D3D11_TEXTURE2D_DESC description{};
+        description.Width = static_cast<UINT>(width);
+        description.Height = static_cast<UINT>(height);
+        description.MipLevels = 1;
+        description.ArraySize = 1;
+        description.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+        description.SampleDesc.Count = 1;
+        description.Usage = D3D11_USAGE_DYNAMIC;
+        description.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        if (FAILED(impl_->device->CreateTexture2D(&description, nullptr, impl_->videoTexture.ReleaseAndGetAddressOf())) ||
+            FAILED(impl_->device->CreateShaderResourceView(impl_->videoTexture.Get(), nullptr, impl_->videoTextureView.ReleaseAndGetAddressOf()))) {
+            return false;
+        }
+        impl_->videoWidth = width;
+        impl_->videoHeight = height;
+    }
+    D3D11_MAPPED_SUBRESOURCE mapped{};
+    if (FAILED(impl_->deviceContext->Map(impl_->videoTexture.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
+        return false;
+    }
+    const std::size_t sourceStride{static_cast<std::size_t>(width) * 4U};
+    const auto destination = static_cast<std::uint8_t*>(mapped.pData); // NOLINT(gammaray-raw-pointer-boundary): transient mapped D3D memory
+    for (int row{}; row < height; ++row) {
+        std::memcpy(destination + static_cast<std::size_t>(row) * mapped.RowPitch, bgra.data() + static_cast<std::size_t>(row) * sourceStride,
+                    sourceStride);
+    }
+    impl_->deviceContext->Unmap(impl_->videoTexture.Get(), 0);
+    return true;
+}
+
+std::uint64_t D3d11Renderer::VideoTextureId() const noexcept {
+    return reinterpret_cast<std::uint64_t>(impl_->videoTextureView.Get());
 }
 
 void D3d11Renderer::Render() const {

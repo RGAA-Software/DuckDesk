@@ -3,7 +3,7 @@
 #ifdef _WIN32
 #include <algorithm>
 #include <memory>
-#include <span>
+#include <optional>
 #include <vector>
 #include <aclapi.h>
 #include <sddl.h>
@@ -19,15 +19,34 @@ struct SecurityDescriptorCloser final {
 };
 using Descriptor = std::unique_ptr<void, SecurityDescriptorCloser>;
 
-std::vector<unsigned char> AclBytes(const Descriptor& descriptor) {
+std::optional<std::vector<std::vector<unsigned char>>> CanonicalAclEntries(const Descriptor& descriptor) {
+    SECURITY_DESCRIPTOR_CONTROL control{};
+    DWORD revision{};
+    if (!GetSecurityDescriptorControl(descriptor.get(), &control, &revision) || !(control & SE_DACL_PROTECTED)) {
+        return std::nullopt;
+    }
     PACL acl{}; // NOLINT(gammaray-raw-pointer-boundary): synchronous Win32 borrowed out value, immediately copied into a value buffer.
     BOOL present{};
     BOOL defaulted{};
     if (!GetSecurityDescriptorDacl(descriptor.get(), &present, &acl, &defaulted) || !present || !acl || !IsValidAcl(acl)) {
-        return {};
+        return std::nullopt;
     }
-    const auto bytes = std::span<const unsigned char>{reinterpret_cast<const unsigned char*>(acl), acl->AclSize};
-    return {bytes.begin(), bytes.end()};
+    std::vector<std::vector<unsigned char>> entries{};
+    entries.reserve(acl->AceCount);
+    for (DWORD index{}; index < acl->AceCount; ++index) {
+        void* ace{}; // NOLINT(gammaray-raw-pointer-boundary): synchronous GetAce borrowed ABI, copied before the next call.
+        if (!GetAce(acl, index, &ace) || !ace) {
+            return std::nullopt;
+        }
+        const auto& header = *static_cast<const ACE_HEADER*>(ace);
+        if (header.AceSize < sizeof(ACE_HEADER)) {
+            return std::nullopt;
+        }
+        const auto* begin = static_cast<const unsigned char*>(ace); // NOLINT(gammaray-raw-pointer-boundary): transient borrowed ABI range.
+        entries.emplace_back(begin, begin + header.AceSize);
+    }
+    std::ranges::sort(entries);
+    return entries;
 }
 
 bool TrustedOwner(const Descriptor& descriptor) {
@@ -90,8 +109,8 @@ UniqueWinHandle OpenPrivateRdpDirectory(const std::filesystem::path& path, bool 
         return {};
     }
     const auto actual = Descriptor{actual_output};
-    const auto expected_acl = AclBytes(expected);
-    if (expected_acl.empty() || AclBytes(actual) != expected_acl || !TrustedOwner(actual)) {
+    const auto expected_acl = CanonicalAclEntries(expected);
+    if (!expected_acl || CanonicalAclEntries(actual) != expected_acl || !TrustedOwner(actual)) {
         return {};
     }
     return directory;

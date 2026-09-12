@@ -1,155 +1,56 @@
 #include "px_connected_manager.h"
-#include <qapplication.h>
-#include <Windows.h>
-#include "px_context.h"
-#include "px_common/message_notifier.h"
-#include "px_common/log.h"
+
 #include "px_app_messages.h"
-#include "px_render_panel_message.pb.h"
-#include "px_common/client_id_extractor.h"
-#include "devices/connected_info_panel.h"
-#include "devices/connected_info_tag.h"
-#include "devices/connected_info_sliding_window.h"
+#include "px_context.h"
 #include "px_settings.h"
-#include <QPointer>
 
-namespace px { 
-	PxConnectedManager::PxConnectedManager(const std::shared_ptr<PxContext>& ctx) : px_ctx_(ctx) {
-		if (!px_ctx_) {
-			LOGE("px_ctx_ is nullptr.");
-			return;
-		}
+#include "px_common/message_notifier.h"
 
-        CreatePanel();
-        RegisterMessageListener();
-        InitPanel();
-	}
+#include <Windows.h>
 
-    PxConnectedManager::~PxConnectedManager() {
-        if (msg_listener_) {
-            msg_listener_->UnListenAll();
-        }
-        connected_info_panel_group_.clear();
-    }
+#include <functional>
+#include <utility>
 
-    bool PxConnectedManager::nativeEventFilter(const QByteArray& eventType, void* message, qintptr* result) {
-        MSG* msg = static_cast<MSG*>(message);
-        if (msg->message == WM_DISPLAYCHANGE) {
-            if (px_ctx_) {
-                QPointer<PxConnectedManager> self(this);
-                px_ctx_->PostUIDelayTask([self]() {
-                    if (!self) {
-                        return;
-                    }
-                    //LOGI("nativeEventFilter WM_DISPLAYCHANGE");
-                    self->AdjustPanelPosition();
-                }, 4000);
-            }
-        }
-        return false;
-    }
+namespace px {
 
-    void PxConnectedManager::RegisterMessageListener() {
-        msg_listener_ = px_ctx_->ObtainUIMessageListener();
-        QPointer<PxConnectedManager> self(this);
-        msg_listener_->Listen<MsgUpdateConnectedClientsInfo>([self](const MsgUpdateConnectedClientsInfo& msg) {
-            if (!self || !self->px_ctx_) {
-                LOGE("px_ctx_ is nullptr.");
-                return;
-            }
+std::shared_ptr<PxConnectedManager> PxConnectedManager::Create(const std::shared_ptr<PxContext>& context) {
+    auto manager = std::make_shared<PxConnectedManager>(context);
+    manager->RegisterMessageListener();
+    return manager;
+}
 
-            self->client_connected_count_ = msg.clients_info_.size();
+PxConnectedManager::PxConnectedManager(std::shared_ptr<PxContext> context) : context_{std::move(context)} {}
 
-            int client_size = msg.clients_info_.size();
-            if (0 == client_size) {
-                self->HideAllPanels();
-                return;
-            }
-            for (int index = 0; index < client_size; ++index) {
-                auto client_info = msg.clients_info_[index];
-                if (self->connected_info_panel_group_.count(index) > 0) {
-                    self->connected_info_panel_group_[index]->show();
-                    const std::string old_stream_id = self->connected_info_panel_group_[index]->GetStreamId();
-                    self->connected_info_panel_group_[index]->UpdateInfo(client_info);
-                    if (old_stream_id != client_info->stream_id()) {
-                        self->connected_info_panel_group_[index]->Expand();
-                    }
-                }
-            }
-
-            int group_index = -1;
-            for (auto& item : self->connected_info_panel_group_) {
-                ++group_index;
-                if (group_index < client_size) {
-                    continue;
-                }
-                item.second->hide();
-            }
-        });
-
-        msg_listener_->Listen<MsgOneClientDisconnect>([self](const MsgOneClientDisconnect&) {
-            if (!self || !self->px_ctx_) {
-                LOGE("px_ctx_ is nullptr.");
-                return;
-            }
-
-            self->px_ctx_->PostUIDelayTask([self]() {
-                if (!self) {
-                    return;
-                }
-                auto settings = PxSettings::Instance();
-                if (0 == self->client_connected_count_ && settings->IsDisconnectAutoLockScreenEnabled()) {
-                    LockWorkStation();
-                }
-            }, 6000);
-        });
-    }
-
-    void PxConnectedManager::TestShowPanel() {
-        // test
-    }
-
-    void PxConnectedManager::AdjustPanelPosition() {
-        auto primary_screen = QApplication::primaryScreen();
-        if (!primary_screen) {
-            return;
-        }
-        auto screen_rect = primary_screen->availableGeometry();
-        int screen_width = screen_rect.width();
-        int screen_height = screen_rect.height();
-        int index = 0;
-        for (auto& item: connected_info_panel_group_) {
-            int panel_x = screen_width - item.second->width();
-            int panel_y = screen_height - item.second->height() - 8 - item.first * item.second->height() * 1.1;
-            item.second->move(panel_x, panel_y);
-            //LOGI("index: {}, panel_x: {}, panel_y: {}", index, panel_x, panel_y);
-            ++index;
-        }
-    }
-
-    void PxConnectedManager::HideAllPanels() {
-        for (auto& item : connected_info_panel_group_) {
-            item.second->hide();
-        }
-    }
-
-    void PxConnectedManager::ShowAllPanels() {
-        for (auto& item : connected_info_panel_group_) {
-            item.second->show();
-        }
-    }
-
-    void PxConnectedManager::InitPanel() {
-        AdjustPanelPosition();
-    }
-
-    void PxConnectedManager::CreatePanel() {
-        connected_info_panel_group_.clear();
-        const int kMaxCount = 2;
-        for (int index = 0; index < kMaxCount; ++index) {
-            auto sliding_window = std::make_unique<ConnectedInfoSlidingWindow>(px_ctx_);
-            sliding_window->hide();
-            connected_info_panel_group_[index] = std::move(sliding_window);
-        }
+PxConnectedManager::~PxConnectedManager() {
+    if (messageListener_) {
+        messageListener_->UnListenAll();
     }
 }
+
+int PxConnectedManager::ConnectedClientCount() const noexcept {
+    return connectedClientCount_.load(std::memory_order_acquire);
+}
+
+void PxConnectedManager::RegisterMessageListener() {
+    messageListener_ = context_->ObtainUIMessageListener();
+    const std::weak_ptr<PxConnectedManager> weakSelf{shared_from_this()};
+    messageListener_->Listen<MsgUpdateConnectedClientsInfo>([weakSelf](const MsgUpdateConnectedClientsInfo& message) {
+        if (const auto self = weakSelf.lock()) {
+            self->connectedClientCount_.store(static_cast<int>(message.clients_info_.size()), std::memory_order_release);
+        }
+    });
+    messageListener_->Listen<MsgOneClientDisconnect>([weakSelf](const MsgOneClientDisconnect&) {
+        if (const auto self = weakSelf.lock()) {
+            const std::weak_ptr<PxConnectedManager> delayedSelf{self};
+            self->context_->PostUIDelayTask([delayedSelf] {
+                const auto manager = delayedSelf.lock();
+                const std::reference_wrapper<PxSettings> settings{*PxSettings::Instance()};
+                if (manager && manager->ConnectedClientCount() == 0 && settings.get().IsDisconnectAutoLockScreenEnabled()) {
+                    ::LockWorkStation();
+                }
+            }, 6000);
+        }
+    });
+}
+
+} // namespace px

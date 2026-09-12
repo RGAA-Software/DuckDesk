@@ -4,7 +4,7 @@
 
 #include "running_stream_manager.h"
 #include "connection_policy.h"
-#include <QApplication>
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QProcessEnvironment>
 #include <QUuid>
@@ -19,8 +19,6 @@
 #include "px_common/log.h"
 #include "render_panel/px_app_messages.h"
 #include "render_panel/px_application.h"
-#include "px_qt_widget/px_dialog.h"
-#include "start_stream_loading.h"
 #include "stream_launch_child_arguments.h"
 #include "px_qt_widget/translator/px_translator.h"
 #include "px_base/ct_stream_item_net_type.h"
@@ -47,67 +45,6 @@ namespace px
         };
         msg_listener_->Listen<MsgUserLoggedIn>([clear_recovery](const MsgUserLoggedIn&) { clear_recovery(); });
         msg_listener_->Listen<MsgUserLoggedOut>([clear_recovery](const MsgUserLoggedOut&) { clear_recovery(); });
-        msg_listener_->Listen<MsgClientTransportConnectedPanel>(
-            [weak_self](const MsgClientTransportConnectedPanel& msg) {
-            const auto self = weak_self.lock();
-            if (!self) {
-                return;
-            }
-            {
-                std::scoped_lock lock(self->running_mutex_);
-                if (!self->running_items_.contains(msg.stream_id_)) {
-                    return;
-                }
-            }
-            // The loading dialog reflects the remote transport, not merely the
-            // local Panel websocket.
-            self->context_->PostUIDelayTask([weak_self, msg]() {
-                const auto self = weak_self.lock();
-                if (!self) {
-                    return;
-                }
-                if (self->loading_dialogs_.contains(msg.stream_id_)) {
-                    self->loading_dialogs_[msg.stream_id_]->hide();
-                    self->loading_dialogs_.erase(msg.stream_id_);
-                }
-            }, 200);
-        });
-
-        msg_listener_->Listen<MsgClientTransportRejectedPanel>(
-            [weak_self](const MsgClientTransportRejectedPanel& msg) {
-                const auto self = weak_self.lock();
-                if (!self) {
-                    return;
-                }
-                self->context_->PostUITask([weak_self, stream_id = msg.stream_id_]() {
-                    const auto self = weak_self.lock();
-                    if (!self) {
-                        return;
-                    }
-                    if (const auto loading = self->loading_dialogs_.find(stream_id);
-                        loading != self->loading_dialogs_.end()) {
-                        loading->second->hide();
-                        self->loading_dialogs_.erase(loading);
-                    }
-                });
-            });
-
-        msg_listener_->Listen<MsgNoAvailableConnection>([weak_self](const MsgNoAvailableConnection& msg) {
-            const auto self = weak_self.lock();
-            if (!self) {
-                return;
-            }
-            self->context_->PostUITask([weak_self, msg]() {
-                const auto self = weak_self.lock();
-                if (!self) {
-                    return;
-                }
-                if (self->loading_dialogs_.contains(msg.stream_id_)) {
-                    self->loading_dialogs_[msg.stream_id_]->hide();
-                    self->loading_dialogs_.erase(msg.stream_id_);
-                }
-            });
-        });
     }
 
     RunningStreamManager::~RunningStreamManager() {
@@ -125,10 +62,6 @@ namespace px
             StartRdpStream(item);
             return;
         }
-        // loading dialog
-        auto loading = std::make_shared<StartStreamLoading>(context_, item, kStreamItemNtTypeUdpDirect);
-        loading->setWindowFlag(Qt::WindowStaysOnTopHint, true);
-        loading->show();
         const auto saved_stream_id = item->stream_id_;
         const auto stream_id = item->active_session_stream_id_.empty()
             ? saved_stream_id : item->active_session_stream_id_;
@@ -137,45 +70,19 @@ namespace px
             running_items_[stream_id] = item;
             running_session_stream_ids_[saved_stream_id] = stream_id;
         }
-        loading_dialogs_.insert({stream_id, loading});
-        const auto weak_self = weak_from_this();
-        QTimer::singleShot(10000, context_.get(), [weak_self, stream_id]() {
-            if (const auto self = weak_self.lock()) {
-                if (const auto loading = self->loading_dialogs_.find(stream_id); loading != self->loading_dialogs_.end()) {
-                    loading->second->hide();
-                    self->loading_dialogs_.erase(loading);
-                }
-            }
-        });
-
-        auto func_hide_loading_dialog = [weak_self, stream_id]() {
-            const auto self = weak_self.lock();
-            if (!self) {
-                return;
-            }
-            if (self->loading_dialogs_.contains(stream_id)) {
-                self->loading_dialogs_[stream_id]->hide();
-                self->loading_dialogs_.erase(stream_id);
-            }
-        };
-
         const auto launch_policy = connection_policy::Classify(
             item->connect_type_, item->remote_device_id_, item->stream_host_, item->stream_port_);
         if (launch_policy == connection_policy::LaunchPolicy::kReject) {
-            func_hide_loading_dialog();
             LOGE("Reject unsupported stream launch policy: type={}, remote_device_id={}, endpoint={}:{}",
                  item->connect_type_, item->remote_device_id_, item->stream_host_, item->stream_port_);
-            TcDialog dialog(tcTr("id_connect_failed"), tcTr("id_connection_ticket_required"), nullptr);
-            dialog.exec();
+            context_->NotifyAppErrMessage(tcTr("id_connect_failed"), tcTr("id_connection_ticket_required"));
             return;
         }
         const bool uses_console_ticket = launch_policy == connection_policy::LaunchPolicy::kConsoleTicket;
         if (uses_console_ticket
             && (item->connection_ticket_.empty() || item->connection_nonce_.empty())) {
-            func_hide_loading_dialog();
             LOGE("Reject Console stream without ticket or nonce: {}", item->stream_id_);
-            TcDialog dialog(tcTr("id_connect_failed"), tcTr("id_connection_ticket_required"), nullptr);
-            dialog.exec();
+            context_->NotifyAppErrMessage(tcTr("id_connect_failed"), tcTr("id_connection_ticket_required"));
             return;
         }
 
@@ -271,7 +178,45 @@ namespace px
             }
         }
 
-        auto client_inner_path = qApp->applicationDirPath() + "/" + kPxClientName.c_str();
+        auto client_inner_path = QCoreApplication::applicationDirPath() + "/" + kPxClientName.c_str();
+        const auto weak_self = weak_from_this();
+        const std::weak_ptr<QProcess> weak_process{process};
+        QObject::connect(process.get(), &QProcess::errorOccurred, context_.get(),
+                         [weak_self, weak_process, stream_id](const QProcess::ProcessError error) {
+            if (error != QProcess::FailedToStart) {
+                return;
+            }
+            const auto self = weak_self.lock();
+            const auto child = weak_process.lock();
+            if (!self || !child) {
+                return;
+            }
+            LOGE("Native client failed to start: stream={}, reason={}", stream_id, child->errorString().toStdString());
+            self->context_->NotifyAppErrMessage(tcTr("id_error"), tcTr("id_start_failed"));
+            std::scoped_lock lock(self->running_mutex_);
+            if (const auto found = self->running_processes_.find(stream_id);
+                found != self->running_processes_.end() && found->second == child) {
+                self->running_processes_.erase(found);
+                self->running_items_.erase(stream_id);
+                std::erase_if(self->running_session_stream_ids_, [&stream_id](const auto& entry) { return entry.second == stream_id; });
+            }
+        });
+        QObject::connect(process.get(), qOverload<int, QProcess::ExitStatus>(&QProcess::finished), context_.get(),
+                         [weak_self, weak_process, stream_id](const int exit_code, const QProcess::ExitStatus exit_status) {
+            const auto self = weak_self.lock();
+            const auto child = weak_process.lock();
+            if (!self || !child) {
+                return;
+            }
+            LOGI("Native client exited: stream={}, code={}, status={}", stream_id, exit_code, static_cast<int>(exit_status));
+            std::scoped_lock lock(self->running_mutex_);
+            if (const auto found = self->running_processes_.find(stream_id);
+                found != self->running_processes_.end() && found->second == child) {
+                self->running_processes_.erase(found);
+                self->running_items_.erase(stream_id);
+                std::erase_if(self->running_session_stream_ids_, [&stream_id](const auto& entry) { return entry.second == stream_id; });
+            }
+        });
         process->start(client_inner_path, arguments);
         {
             std::scoped_lock lock(running_mutex_);
@@ -293,10 +238,6 @@ namespace px
         if (running_processes_.contains(stream_id)) {
             auto process = running_processes_[stream_id];
             if (process) {
-                TcDialog dialog(tcTr("id_warning"), tcTr("id_exit_client"), nullptr);
-                if (dialog.exec() != kDoneOk) {
-                    return false;
-                }
                 process->kill();
                 running_processes_.erase(stream_id);
                 std::scoped_lock lock(running_mutex_);
@@ -477,7 +418,7 @@ namespace px
              << std::format("--connection_ticket={}", Base64::Base64Encode(item->connection_ticket_)).c_str()
              << std::format("--connection_nonce={}", item->connection_nonce_).c_str()
              << std::format("--language={}", (int)tcTrMgr()->GetSelectedLanguage()).c_str();
-        const auto path = qApp->applicationDirPath() + "/" + kPxClientName.c_str();
+        const auto path = QCoreApplication::applicationDirPath() + "/" + kPxClientName.c_str();
         process->start(path, args);
         running_processes_.insert({session_id, process});
         QObject::connect(process.get(), qOverload<int, QProcess::ExitStatus>(&QProcess::finished),

@@ -33,12 +33,11 @@ namespace px {
         message.set_type(kVirtualDisplayRequest);
         message.set_device_id(device_id);
         message.set_stream_id(stream_id);
-        auto* request = message.mutable_virtual_display_request();
-        request->set_request_id(request_id);
-        request->set_operation(operation);
-        request->set_width(width);
-        request->set_height(height);
-        request->set_refresh_hz(refresh_hz);
+        message.mutable_virtual_display_request()->set_request_id(request_id);
+        message.mutable_virtual_display_request()->set_operation(operation);
+        message.mutable_virtual_display_request()->set_width(width);
+        message.mutable_virtual_display_request()->set_height(height);
+        message.mutable_virtual_display_request()->set_refresh_hz(refresh_hz);
         return message;
     }
 

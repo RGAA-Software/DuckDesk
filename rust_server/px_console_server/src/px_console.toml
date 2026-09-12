@@ -99,7 +99,7 @@ guest_session_per_ip_per_hour = 30
 start_per_subject_per_minute = 6
 
 [user.quota]
-guest_concurrent_instances = 1
+guest_concurrent_instances = 3
 user_concurrent_instances = 3
 guest_daily_minutes = 60
 public_app_global_concurrency = 20
