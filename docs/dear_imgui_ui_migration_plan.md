@@ -33,7 +33,8 @@ SDL3 + Dear ImGui 承载。Win32 只保留窗口、凭据保险库、进程、�
 - DPI 使用单一缩放源：字体图集固定按 18 px 基准加载，运行时只由 `FontScaleDpi` 缩放；主题和显式布局尺寸各从基准值缩放一次。
   已移除曾使 4K/150% 字体从 18 重复放大到约 40.5 px 的二次缩放。当前 4K 有效字体为 27 px，100% DPI/约 1K 屏幕为 18 px；
   正式 Panel 的初始逻辑尺寸为 960×640，窗口初始/最小尺寸及自定义命中区域统一随当前显示器 DPI 缩放。Windows 适配层采用
-  `WM_GETDPISCALEDSIZE` 的系统线性结果及 `WM_DPICHANGED` 推荐矩形，避免 SDL3 默认保持物理客户区大小；最小尺寸也按目标 DPI 动态计算，
+  `WM_GETDPISCALEDSIZE` 的系统线性结果及 `WM_DPICHANGED` 推荐矩形；SDL 先接收 DPI 通知并同步显示器与鼠标坐标状态，随后再应用推荐矩形，
+  避免 SDL3 默认保持物理客户区大小，也避免窗口显示正常但鼠标输入仍使用旧 DPI。最小尺寸按目标 DPI 动态计算，
   不再把启动显示器的 1350×900 下限带到 100% 显示器。
 - 官方 ImGui SDL3 后端已负责文本输入光标区域到 SDL 的传递，Windows SDL 后端据此定位系统 IME 候选框；仍需人工完成中文候选窗和 Snap
   菜单的可视验收。双屏实机已连续验证两轮 Panel `144 DPI: 1440×960 → 96 DPI: 960×640 → 144 DPI: 1440×960`，Client 也保持
@@ -416,14 +417,14 @@ Panel 第一阶段完成后才进入 Client 的 C0 基线。Hardware 页面继�
 #### 最终验收（2026-09-12）
 
 - `scripts_build/build_cpp_client.bat` 通过；3 项 Native/RDP 无票据启动信封测试通过。`build_official/src/px_deps/px_client.exe` 与
-  `build_official/dist/px_client.exe` 的当前 SHA-256 均为 `31A552055D57136D84031DB16B44D39E7DAA6C5C0980EDD442A4349C87758E8E`；
+  `build_official/dist/px_client.exe` 的当前 SHA-256 均为 `BB7FBFF4D5D5558AA4858CA196D0C954E782617C657B88724AAFDA70E62910BE`；
   Vulkan loader、libplacebo、FreeRDP、语音、字体和语言运行资源逐项哈希一致。
 - `scripts/test_native_imgui_node90.ps1` 曾使用正式 dist Client、当前 Console 和 90 Render，分别完成 UDP/FEC 与强制 WebSocket 真实首帧
   验收；这些结果覆盖连接和无 Qt 基线，不替代 2026-09-12 新视频显示链路的真流复验。新链路已在本机分别验证 Vulkan、D3D11 后端
   成功初始化且标准错误为空，真实系统点击悬浮按钮后日志为 `menu_open=true`；本次 90 复验在启动 Client 前被节点 WinRM 拒绝访问，待更新
   当前节点运维凭据后补做真首帧和流畅度验收。无启动信封与错误密码两种失败路径的 ImGui 对话框此前已分别验证可见且 Qt 模块数为 0。
 - `scripts_build/build_cpp_panel.bat` 的 6 项 Panel 测试通过，正式 Panel 哈希为
-  `971DF91964FB42070E5668EDBFD555EFF6466214F16B887CE64F232AC6CDECFB`，构建树和 dist 一致；本机及既有 90 验收的运行模块均无 Qt。
+  `65CC6031FB6E7C95C5C8263361AF2B28AEFA4B249F699DB86A16CD59B1C9CD28`，构建树和 dist 一致；本机及既有 90 验收的运行模块均无 Qt。
 - Console 的 Native 描述结构测试明确禁止 `ticket`、`renewal_token`、`reservation`、`expires_at` 字段；RDP 密钥脱敏测试和
   `cargo check -p px_console_server` 通过。90 已部署最终 Console，二进制 SHA-256 为
   `6EBE5A6F900B5EFF2C8F68CC4CF2961E2A416019618BC615DF2B81B6C522DB6B`，仓库配置哈希为
