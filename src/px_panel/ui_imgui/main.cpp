@@ -5,7 +5,14 @@
 #include <utility>
 
 int main() {
-    auto shellResult = px::desktop::DesktopShell::Create({.title = "Pixels Panel UI Preview", .width = 1180, .height = 760});
+    auto shellResult = px::desktop::DesktopShell::Create({.title = "Pixels Panel UI Preview",
+                                                          .width = 1180,
+                                                          .height = 760,
+                                                          .showMinimizeButton = true,
+                                                          .showMaximizeButton = false,
+                                                          .allowTitleBarMaximize = false,
+                                                          .useRoundedWindow = true,
+                                                          .resizable = true});
     if (!shellResult) {
         return 1;
     }

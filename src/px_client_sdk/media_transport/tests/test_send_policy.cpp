@@ -32,10 +32,16 @@ TEST(SendBudget, ExtremeInputsAreInitializedBoundedAndMonotonic) {
             EXPECT_GT(budget.video_bps, 0);
             EXPECT_LT(budget.video_bps, budget.total_bps);
             EXPECT_LE(budget.total_bps, 1'000'000'000);
-            EXPECT_GT(budget.VideoDuration(1448).count(), 0);
-            EXPECT_GE(budget.VideoDuration(1448 * 20), budget.VideoDuration(1448) * 20);
         }
     }
+}
+TEST(VideoPacketPacing, UsesSunshineBurstRateInsteadOfEncoderBudget) {
+    constexpr std::uint64_t wire_packet_bytes = 1448;
+    EXPECT_EQ(VideoPacketPacing::kWireBitsPerSecond, 800'000'000);
+    EXPECT_EQ(VideoPacketPacing::PacketsPerMillisecond(wire_packet_bytes), 69);
+    EXPECT_GT(VideoPacketPacing::Duration(wire_packet_bytes).count(), 0);
+    EXPECT_EQ(VideoPacketPacing::Duration(wire_packet_bytes * 20), VideoPacketPacing::Duration(wire_packet_bytes) * 20);
+    EXPECT_LT(VideoPacketPacing::Duration(275 * 1024), std::chrono::milliseconds(3));
 }
 TEST(ReferenceRecovery, CoalescesRequestsAndUsesEncodedHistoryNotCaptureDistance) {
     ReferenceRecovery recovery{};

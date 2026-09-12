@@ -1,7 +1,7 @@
 // End-to-end WebClient acceptance test for virtual displays.
 // The page must expose window.__virtualDisplay (App.vue debug contract).
 // Usage:
-//   WEB_URL=http://host:port/web_client/?deviceId=... OUT_DIR=tests/artifacts/virtual_display_e2e \
+//   WEB_URL=http://host:port/web/?deviceId=... OUT_DIR=tests/artifacts/virtual_display_e2e \
 //     node scripts/cdp_virtual_display_e2e.mjs
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'

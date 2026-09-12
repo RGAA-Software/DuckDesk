@@ -4,10 +4,12 @@
 #include "settings_port.h"
 
 #include <filesystem>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace px {
 class SharedPreference;
@@ -55,6 +57,14 @@ struct RemoteDevicePreference final {
     bool disableVulkan{};
 };
 
+struct RemoteDeviceHistory final {
+    std::string deviceId{};
+    std::string name{};
+    std::string host{};
+    int port{};
+    std::int64_t lastConnectedAt{};
+};
+
 struct CloudApplicationPreference final {
     bool forceTcp{};
     bool forceRelay{};
@@ -74,11 +84,15 @@ class PanelConfigStore final {
     [[nodiscard]] NodePorts Ports() const;
     [[nodiscard]] ui::SettingsSnapshot Settings() const;
     [[nodiscard]] bool ShowTemporaryPassword() const;
+    [[nodiscard]] bool DeviceNameIsCustom() const;
+    [[nodiscard]] bool RemoteDeviceHidden(const std::string& deviceId) const;
     [[nodiscard]] std::optional<RemoteDevicePreference> LoadRemoteDevicePreference(const std::string& deviceId) const;
+    [[nodiscard]] std::vector<RemoteDeviceHistory> LoadRemoteDeviceHistory() const;
     [[nodiscard]] CloudApplicationPreference LoadCloudApplicationPreference(const std::string& applicationId) const;
 
     bool SaveNetwork(const std::string& authorization, const std::string& publicAddress, const ConsoleEndpoint& endpoint);
     bool SaveIdentity(const PanelIdentity& identity);
+    bool SaveCustomDeviceName(const std::string& deviceName);
     bool SaveGeneral(const ui::GeneralSettings& settings);
     bool SaveController(const ui::ControllerSettings& settings);
     bool SaveDisconnectAutoLock(bool enabled);
@@ -88,6 +102,10 @@ class PanelConfigStore final {
     bool SaveShowTemporaryPassword(bool visible);
     bool SaveRemoteDevicePreference(const std::string& deviceId, const RemoteDevicePreference& preference);
     bool DeleteRemoteDevicePreference(const std::string& deviceId);
+    bool SaveRemoteDeviceHistory(const RemoteDeviceHistory& device);
+    bool DeleteRemoteDeviceHistory(const std::string& deviceId);
+    bool HideRemoteDevice(const std::string& deviceId);
+    bool UnhideRemoteDevice(const std::string& deviceId);
     bool SaveCloudApplicationPreference(const std::string& applicationId, const CloudApplicationPreference& preference);
     void Clear();
 

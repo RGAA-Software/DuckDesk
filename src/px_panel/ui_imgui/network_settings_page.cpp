@@ -32,12 +32,15 @@ void DrawEndpoint(const std::string_view label, const std::string_view value, co
     DrawDisabledText(purpose);
 }
 
-void BeginEndpointTable(const std::string_view identifier) {
+bool BeginEndpointTable(const std::string_view identifier) {
     constexpr ImGuiTableFlags flags{ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH};
-    ImGui::BeginTable(identifier.data(), 3, flags);
+    if (!ImGui::BeginTable(identifier.data(), 3, flags)) {
+        return false;
+    }
     ImGui::TableSetupColumn("label", ImGuiTableColumnFlags_WidthStretch, 0.95F);
     ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_WidthStretch, 0.70F);
     ImGui::TableSetupColumn("purpose", ImGuiTableColumnFlags_WidthStretch, 1.85F);
+    return true;
 }
 
 std::string DisplayPort(const std::optional<int> port) {
@@ -68,10 +71,11 @@ NetworkPageAction NetworkSettingsPage::Draw(const px::ui::Localizer& localizer) 
     ImGui::Spacing();
     DrawText(text(px::ui::TextId::ResolvedControlEndpoints));
     ImGui::BeginChild("ResolvedEndpoints", ImVec2{0.0F, px::ui::Scale(108.0F)}, ImGuiChildFlags_Borders);
-    BeginEndpointTable("ResolvedEndpointTable");
-    DrawEndpoint(text(px::ui::TextId::Supervisor), DisplayPort(draft_.consolePort), text(px::ui::TextId::NodeManagement));
-    DrawEndpoint(text(px::ui::TextId::Relay), DisplayPort(draft_.relayPort), text(px::ui::TextId::ReliableRoutedConnection));
-    ImGui::EndTable();
+    if (BeginEndpointTable("ResolvedEndpointTable")) {
+        DrawEndpoint(text(px::ui::TextId::Supervisor), DisplayPort(draft_.consolePort), text(px::ui::TextId::NodeManagement));
+        DrawEndpoint(text(px::ui::TextId::Relay), DisplayPort(draft_.relayPort), text(px::ui::TextId::ReliableRoutedConnection));
+        ImGui::EndTable();
+    }
     ImGui::EndChild();
 
     ImGui::Spacing();
@@ -83,15 +87,17 @@ NetworkPageAction NetworkSettingsPage::Draw(const px::ui::Localizer& localizer) 
     ImGui::Spacing();
     DrawText(text(px::ui::TextId::NodeListeningPorts));
     ImGui::BeginChild("NodePorts", ImVec2{0.0F, px::ui::Scale(172.0F)}, ImGuiChildFlags_Borders);
-    BeginEndpointTable("NodePortTable");
-    DrawEndpoint(text(px::ui::TextId::ServiceManagementPort), std::to_string(draft_.serviceManagementPort),
-                 text(px::ui::TextId::ServiceManagementPurpose));
-    DrawEndpoint(text(px::ui::TextId::DesktopConnectionPort), std::to_string(draft_.desktopConnectionPort),
-                 text(px::ui::TextId::DesktopConnectionPurpose));
-    DrawEndpoint(text(px::ui::TextId::ApplicationPortPool), DisplayRange(draft_.applicationPorts), text(px::ui::TextId::ApplicationPortPurpose));
-    DrawEndpoint(text(px::ui::TextId::RtcMediaPool), DisplayRange(draft_.rtcPorts), text(px::ui::TextId::RtcPortPurpose));
-    DrawEndpoint(text(px::ui::TextId::PanelListeningPort), std::to_string(draft_.panelListeningPort), text(px::ui::TextId::PanelListeningPurpose));
-    ImGui::EndTable();
+    if (BeginEndpointTable("NodePortTable")) {
+        DrawEndpoint(text(px::ui::TextId::ServiceManagementPort), std::to_string(draft_.serviceManagementPort),
+                     text(px::ui::TextId::ServiceManagementPurpose));
+        DrawEndpoint(text(px::ui::TextId::DesktopConnectionPort), std::to_string(draft_.desktopConnectionPort),
+                     text(px::ui::TextId::DesktopConnectionPurpose));
+        DrawEndpoint(text(px::ui::TextId::ApplicationPortPool), DisplayRange(draft_.applicationPorts), text(px::ui::TextId::ApplicationPortPurpose));
+        DrawEndpoint(text(px::ui::TextId::RtcMediaPool), DisplayRange(draft_.rtcPorts), text(px::ui::TextId::RtcPortPurpose));
+        DrawEndpoint(text(px::ui::TextId::PanelListeningPort), std::to_string(draft_.panelListeningPort),
+                     text(px::ui::TextId::PanelListeningPurpose));
+        ImGui::EndTable();
+    }
     ImGui::EndChild();
 
     ImGui::Spacing();

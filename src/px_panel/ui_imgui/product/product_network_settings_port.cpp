@@ -1,9 +1,8 @@
 #include "panel_product_runtime.h"
+#include "panel_device_name.h"
 
 #include "px_console_client/console_device.h"
 #include "px_console_client/console_device_api.h"
-
-#include <Windows.h>
 
 #include <algorithm>
 #include <mutex>
@@ -12,19 +11,6 @@
 
 namespace px::panel::product {
 namespace {
-
-std::string DefaultDeviceName() {
-    std::array<wchar_t, MAX_COMPUTERNAME_LENGTH + 1> buffer{};
-    DWORD length{static_cast<DWORD>(buffer.size())};
-    if (!GetComputerNameW(buffer.data(), &length))
-        return "Pixels Node";
-    const int count = WideCharToMultiByte(CP_UTF8, 0, buffer.data(), static_cast<int>(length), nullptr, 0, nullptr, nullptr);
-    if (count <= 0)
-        return "Pixels Node";
-    std::string result(static_cast<std::size_t>(count), '\0');
-    return WideCharToMultiByte(CP_UTF8, 0, buffer.data(), static_cast<int>(length), result.data(), count, nullptr, nullptr) == count ? result
-                                                                                                                                     : "Pixels Node";
-}
 
 bool ValidPublicAddress(const std::string& value) {
     if (value.empty())
@@ -119,7 +105,7 @@ class ProductNetworkSettingsPort final : public ui::NetworkSettingsPort, public 
             }
             if (!identityReady) {
                 const auto created =
-                    px_console::ConsoleDeviceApi::RequestNewDevice(endpoint.host, endpoint.port, endpoint.appKey, DefaultDeviceName(), "");
+                    px_console::ConsoleDeviceApi::RequestNewDevice(endpoint.host, endpoint.port, endpoint.appKey, BuildDefaultDeviceName(), "");
                 if (!created || !created.value()) {
                     if (const auto self = weakSelf.lock())
                         self->SetFailure(ui::NetworkOperation::Failed, "Device registration failed");

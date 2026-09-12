@@ -50,10 +50,10 @@ SdlTray CreateTray() {
 } // namespace
 
 struct DesktopShell::Impl final {
-    Impl(WindowHost windowValue, DesktopRenderer rendererValue, const bool minimizeToTrayValue, const bool continuousTextInputValue,
-         const bool continuousRenderingValue)
+    Impl(WindowHost windowValue, DesktopRenderer rendererValue, WindowChromeConfig chromeValue, const bool minimizeToTrayValue,
+         const bool continuousTextInputValue, const bool continuousRenderingValue)
         : window{std::move(windowValue)}, renderer{std::move(rendererValue)}, minimizeToTray{minimizeToTrayValue},
-          continuousTextInput{continuousTextInputValue}, continuousRendering{continuousRenderingValue} {}
+          continuousTextInput{continuousTextInputValue}, continuousRendering{continuousRenderingValue}, chrome{chromeValue} {}
 
     WindowHost window;
     DesktopRenderer renderer;
@@ -64,10 +64,16 @@ struct DesktopShell::Impl final {
     bool minimizeToTray{false};
     bool continuousTextInput{false};
     bool continuousRendering{false};
+    WindowChromeConfig chrome{};
 };
 
 std::expected<DesktopShell, std::string> DesktopShell::Create(const WindowConfig& config) {
-    auto windowResult = WindowHost::Create(config.title, config.width, config.height, config.initiallyVisible, config.preferVulkanVideo);
+    const WindowChromeConfig chrome{.showMinimizeButton = config.showMinimizeButton,
+                                    .showMaximizeButton = config.showMaximizeButton,
+                                    .allowTitleBarMaximize = config.allowTitleBarMaximize,
+                                    .useRoundedWindow = config.useRoundedWindow,
+                                    .resizable = config.resizable};
+    auto windowResult = WindowHost::Create(config.title, config.width, config.height, config.initiallyVisible, config.preferVulkanVideo, chrome);
     if (!windowResult) {
         return std::unexpected{windowResult.error()};
     }
@@ -76,7 +82,7 @@ std::expected<DesktopShell, std::string> DesktopShell::Create(const WindowConfig
         return std::unexpected{rendererResult.error()};
     }
 
-    auto impl = std::make_unique<Impl>(std::move(windowResult.value()), std::move(rendererResult.value()), config.minimizeToTray,
+    auto impl = std::make_unique<Impl>(std::move(windowResult.value()), std::move(rendererResult.value()), chrome, config.minimizeToTray,
                                        config.continuousTextInput, config.continuousRendering);
     if (config.minimizeToTray) {
         impl->tray = CreateTray();
@@ -156,8 +162,9 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
         ImGui::SetNextWindowPos(viewport.Pos);
         ImGui::SetNextWindowSize(viewport.Size);
         constexpr ImGuiWindowFlags rootFlags{ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings};
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0F);
         ImGui::Begin("PixelsRoot", nullptr, rootFlags);
-        if (!DrawTitleBar(impl_->window)) {
+        if (!DrawTitleBar(impl_->window, impl_->chrome)) {
             if (impl_->minimizeToTray) {
                 impl_->window.Hide();
             } else {
@@ -166,6 +173,7 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
         }
         render();
         ImGui::End();
+        ImGui::PopStyleVar();
 
         interactiveFrame = impl_->imgui->NeedsInteractiveRefresh();
         ImGui::Render();

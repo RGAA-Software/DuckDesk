@@ -12,7 +12,7 @@ use crate::console_http_util::{
 use crate::device::console_device::ConsoleDevice;
 use crate::device::console_device_vo::ConsoleDeviceVo;
 use crate::device::console_id_generator::PrIdGenerator;
-use crate::{gConsolePanelConnMgr, gDeviceManager, gIdGenerator};
+use crate::{gConsolePanelConnMgr, gConsoleServiceConnMgr, gDeviceManager, gIdGenerator};
 use axum::body::Body;
 use axum::extract::{Query, State};
 use axum::Json;
@@ -175,9 +175,14 @@ pub async fn handle_query_devices(
         tracing::info!(device_id = %device.device_id, "desktop link updated");
 
         // online or not
-        let online = gConsolePanelConnMgr
+        let panel_online = gConsolePanelConnMgr
             .is_panel_online(device.device_id.clone())
             .await?;
+        let online = panel_online
+            && gConsoleServiceConnMgr
+                .node_endpoint(device.device_id.clone())
+                .await
+                .is_some();
 
         if !online_state.is_empty() && online_state != KEY_ALL {
             if online_state == KEY_ONLINE {
@@ -402,6 +407,30 @@ pub async fn update_device_name(
         .await?;
 
     let device = gDeviceManager.query_device_by_id(device_id.clone()).await?;
+    Ok(Json(ok_resp(device)))
+}
+
+pub async fn update_own_device_name(
+    State(_context): State<Arc<Mutex<ConsoleContext>>>,
+    b: Body,
+) -> Result<Json<RespMessage<ConsoleDevice>>, ConsoleApiError> {
+    let body = get_body(b).await?;
+    let request: Value = serde_json::from_str(&body).map_err(|_| ConsoleApiError::InvalidParams)?;
+    let device_id = get_body_str(&request, KEY_DEVICE_ID)?;
+    let device_name = get_body_str(&request, KEY_DEVICE_NAME)?;
+    let random_password_md5 = get_body_str(&request, "random_pwd_md5")?;
+    if device_name.trim().is_empty() || device_name.chars().count() > 64 {
+        return Err(ConsoleApiError::InvalidParams);
+    }
+
+    let device = gDeviceManager.query_device_by_id(device_id.clone()).await?;
+    if random_password_md5.is_empty() || random_password_md5 != device.random_pwd_md5 {
+        return Err(ConsoleApiError::PasswordInvalid);
+    }
+    gDeviceManager
+        .update_device_field(device_id.clone(), KEY_DEVICE_NAME.to_string(), device_name)
+        .await?;
+    let device = gDeviceManager.query_device_by_id(device_id).await?;
     Ok(Json(ok_resp(device)))
 }
 

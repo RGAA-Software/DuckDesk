@@ -1,4 +1,5 @@
 #include "panel_service_bridge.h"
+#include "panel_connection_links.h"
 
 #include "px_common/log.h"
 #include "px_service_message.pb.h"
@@ -155,7 +156,7 @@ void PanelServiceBridge::SendHeartbeat(const std::shared_ptr<State>& state) {
     auth.set_console_host(endpoint ? endpoint->host : std::string{});
     auth.set_console_port(endpoint ? endpoint->port : 0);
     auth.set_console_ssl(true);
-    auth.set_node_access_host(state->config->NodePublicAddress());
+    auth.set_node_access_host(ResolveNodeAccessHost(state->config->NodePublicAddress(), CollectPanelLocalAddresses()));
     auth.set_appkey(endpoint ? endpoint->appKey : std::string{});
     std::shared_ptr<asio2::ws_client> client{};
     {

@@ -19,6 +19,10 @@
 #include "px_common/base64.h"
 #include "px_common/uuid.h"
 
+#include <algorithm>
+#include <ranges>
+#include <vector>
+
 using namespace px;
 using namespace nlohmann;
 
@@ -50,7 +54,7 @@ const std::string kApiQueryPanelConnByDeviceId = kConsolePanelControl + "/query/
 const std::string kApiUpdateDesktopLink = kConsoleDeviceControl + "/update/desktop/link";
 
 // update device name
-const std::string kApiUpdateDeviceName = kConsoleDeviceControl + "/update/device/name";
+const std::string kApiUpdateDeviceName = kConsoleDeviceControl + "/update/device/self-name";
 
 // /append/used/time
 const std::string kApiAppendUsedTime = kConsoleDeviceControl + "/append/used/time";
@@ -103,13 +107,20 @@ namespace px_console
         std::string hw_info;
         if (info.empty()) {
             auto hardware_desc = Hardware::Instance().GetHardwareDescription();
-            auto et_info = IPUtil::ScanIPs();
-            std::string mac_address;
-            for (auto &item: et_info) {
-                if (!item.mac_address_.empty() && mac_address.find(item.mac_address_) != std::string::npos) {
-                    continue;
+            const auto et_info = IPUtil::ScanIPs();
+            std::vector<std::string> mac_addresses{};
+            mac_addresses.reserve(et_info.size());
+            for (const auto& item : et_info) {
+                if (!item.mac_address_.empty()) {
+                    mac_addresses.push_back(item.mac_address_);
                 }
-                mac_address = mac_address.append(item.mac_address_);
+            }
+            std::ranges::sort(mac_addresses);
+            const auto unique_end = std::ranges::unique(mac_addresses).begin();
+            mac_addresses.erase(unique_end, mac_addresses.end());
+            std::string mac_address;
+            for (const auto& value : mac_addresses) {
+                mac_address.append(value);
             }
             if (hardware_desc.empty()) {
                 LOGW("Hardware desc is empty! Can't request new device!");
@@ -309,12 +320,14 @@ namespace px_console
                                                                             const std::string& appkey,
                                                                             const std::string& device_id,
                                                                             const std::string& device_name,
+                                                                            const std::string& random_password_md5,
                                                                             const std::shared_ptr<std::atomic_bool>& cancellation) {
         auto client = MakeConsoleHttpClient(host, port, kApiUpdateDeviceName, 2000);
         ApplyCancellationSignal(client, cancellation);
         json obj;
         obj[kDeviceId] = device_id;
         obj[kDeviceName] = device_name;
+        obj[kDeviceRandomPwd] = random_password_md5;
         auto resp = client->Post({
             {"appkey", appkey}
         }, obj.dump());

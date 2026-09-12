@@ -37,6 +37,11 @@ struct WindowConfig {
     bool continuousTextInput{false};
     bool continuousRendering{false};
     bool preferVulkanVideo{false};
+    bool showMinimizeButton{true};
+    bool showMaximizeButton{true};
+    bool allowTitleBarMaximize{true};
+    bool useRoundedWindow{false};
+    bool resizable{true};
 };
 
 class DesktopShell final {

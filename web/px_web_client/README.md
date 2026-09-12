@@ -38,4 +38,4 @@ npm run build
 
 ## 部署
 
-render 端在同源 `/web_client/` 路径下托管本前端。将 `dist/` 内容交给后端打包/拷贝到对应静态目录即可,信令请求走同源相对路径 `/alloc/local/rtc`,无需额外配置跨域。
+render 端在同源 `/web/` 路径下托管本前端。将 `dist/` 内容交给后端打包/拷贝到对应静态目录即可,信令请求走同源相对路径 `/alloc/local/rtc`,无需额外配置跨域。

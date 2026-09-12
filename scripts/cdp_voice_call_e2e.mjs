@@ -1,6 +1,6 @@
 // Real-browser WebClient voice-call acceptance probe.
 // The caller must arrange the real px_panel decision while this script waits:
-//   WEB_URL='http://host:port/web_client/?...' EXPECTED_DECISION=accept \
+//   WEB_URL='http://host:port/web/?...' EXPECTED_DECISION=accept \
 //     node scripts/cdp_voice_call_e2e.mjs
 // No credentials are embedded; the evidence file redacts sensitive query keys.
 import { spawn } from 'node:child_process'

@@ -3,6 +3,7 @@ add_library(px_panel_imgui_views STATIC
     about_settings_page.cpp
     cloud_applications_page.cpp
     controller_settings_page.cpp
+    device_list_page.cpp
     general_settings_page.cpp
     network_settings_page.cpp
     network_settings_presenter.cpp
@@ -10,6 +11,7 @@ add_library(px_panel_imgui_views STATIC
     panel_navigation.cpp
     panel_preview.cpp
     remote_control_page.cpp
+    remote_device_actions.cpp
     server_status_page.cpp
     settings_page.cpp
     security_settings_page.cpp
@@ -41,6 +43,8 @@ add_executable(px_panel WIN32
     product/panel_client_launcher.cpp
     product/panel_connection_input.cpp
     product/panel_connection_links.cpp
+    product/panel_device_name.cpp
+    product/panel_device_registration.cpp
     product/panel_running_pipe.cpp
     product/render_api.cpp
     product/panel_credential_vault.cpp
@@ -48,6 +52,7 @@ add_executable(px_panel WIN32
     product/panel_config_store.cpp
     product/panel_console_session.cpp
     product/panel_local_server.cpp
+    product/panel_node_presence.cpp
     product/panel_product_runtime.cpp
     product/panel_service_bridge.cpp
     product/panel_worker.cpp
@@ -71,6 +76,7 @@ target_link_libraries(px_panel PRIVATE
     px_common
     px_console_client
     px_cp_message
+    px_server_message
     px_rp_message
     px_message
     unofficial::sqlite3::sqlite3
@@ -82,9 +88,13 @@ set_target_properties(px_panel PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT
 
 add_custom_command(TARGET px_panel POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:px_panel>/resources/fonts"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:px_panel>/resources/licenses"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/src/px_ui/resources/fonts/Roboto-Regular.ttf"
         "$<TARGET_FILE_DIR:px_panel>/resources/fonts/Roboto-Regular.ttf"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/src/px_ui/resources/icons/LICENSE.lucide"
+        "$<TARGET_FILE_DIR:px_panel>/resources/licenses/Lucide.txt"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/libplacebo/lib/libplacebo-349.dll"
         "$<TARGET_FILE_DIR:px_panel>/libplacebo-349.dll"
@@ -104,6 +114,7 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
         product/panel_audit_store.cpp
         product/panel_connection_input.cpp
         product/panel_connection_links.cpp
+        product/panel_device_name.cpp
         product/panel_config_store.cpp
         product/panel_worker.cpp
     )

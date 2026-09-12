@@ -13,9 +13,9 @@ class PreviewRemoteControlPort final : public RemoteControlPort {
         return {
             .deviceId = "109022351",
             .temporaryPassword = "1706",
-            .deviceName = "Pixels Preview",
+            .deviceName = deviceName_,
             .desktopLink = "link://preview",
-            .webClientAddress = "http://192.168.1.10:4601/web_client/",
+            .webClientAddress = "http://192.168.1.10:4601/web/",
             .showTemporaryPassword = passwordVisible_,
             .managerOnline = true,
             .devices = {{.streamId = "preview-90", .name = "Pixels node90", .deviceId = "90", .online = true}},
@@ -24,6 +24,10 @@ class PreviewRemoteControlPort final : public RemoteControlPort {
 
     void SetPasswordVisible(const bool visible) override {
         passwordVisible_ = visible;
+    }
+    void UpdateLocalDeviceName(std::string deviceName) override {
+        if (!deviceName.empty())
+            deviceName_ = std::move(deviceName);
     }
     void Refresh() override {}
     bool RequiresPassword(const std::string&) const override {
@@ -45,6 +49,7 @@ class PreviewRemoteControlPort final : public RemoteControlPort {
 
   private:
     bool passwordVisible_{false};
+    std::string deviceName_{"MC-10"};
 };
 
 } // namespace

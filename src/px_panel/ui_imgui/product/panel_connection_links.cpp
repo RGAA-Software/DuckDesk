@@ -1,6 +1,7 @@
 #include "panel_connection_links.h"
 
 #include "px_common/base64.h"
+#include "px_common/ip_util.h"
 
 #include <charconv>
 #include <cstdint>
@@ -33,6 +34,24 @@ std::string UrlSafeBase64(std::string value) {
 
 } // namespace
 
+std::vector<std::string> CollectPanelLocalAddresses() {
+    std::vector<std::string> addresses{};
+    for (const auto& adapter : IPUtil::ScanIPs()) {
+        if (!adapter.ip_addr_.empty()) {
+            addresses.push_back(adapter.ip_addr_);
+        }
+    }
+    return addresses;
+}
+
+std::string ResolveNodeAccessHost(const std::string& configuredAddress, const std::vector<std::string>& localAddresses) {
+    if (!configuredAddress.empty()) {
+        return configuredAddress;
+    }
+    const auto address = std::ranges::find_if(localAddresses, [](const std::string& value) { return !value.empty() && value != "127.0.0.1"; });
+    return address == localAddresses.end() ? std::string{} : *address;
+}
+
 PanelConnectionLinks BuildPanelConnectionLinks(const PanelIdentity& identity, const NodePorts& ports, const std::optional<ConsoleEndpoint>& console,
                                                const std::string& publicAddress, const std::vector<std::string>& localAddresses) {
     if (identity.deviceId.empty() || identity.randomPassword.empty()) {
@@ -62,10 +81,10 @@ PanelConnectionLinks BuildPanelConnectionLinks(const PanelIdentity& identity, co
                                         {"rlak", console ? console->appKey : std::string{}}};
     PanelConnectionLinks links{.desktop = "link://" + Base64::Base64Encode(desktopPayload.dump())};
 
-    const std::string host{!publicAddress.empty() ? publicAddress : (localAddresses.empty() ? std::string{} : localAddresses.front())};
+    const std::string host{ResolveNodeAccessHost(publicAddress, localAddresses)};
     if (!host.empty()) {
         const nlohmann::json webPayload{{"d", identity.deviceId}, {"p", identity.randomPassword}};
-        links.web = std::format("http://{}:{}/web_client/?c={}", host, ports.desktop, UrlSafeBase64(Base64::Base64Encode(webPayload.dump())));
+        links.web = std::format("http://{}:{}/web/?c={}", host, ports.desktop, UrlSafeBase64(Base64::Base64Encode(webPayload.dump())));
     }
     return links;
 }

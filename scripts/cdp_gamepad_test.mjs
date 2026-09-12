@@ -14,7 +14,7 @@ const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
 // joystick 插件有独立日志(joystick.dll.log),分配虚拟手柄的记录在这里
 const RENDER_LOG = 'C:/Users/Public/Pixels/px_logs/joystick.dll.log'
 const PAGE_URL =
-  'http://127.0.0.1:20371/web_client/?deviceId=600378210&streamId=gamepad1&pwd_md5=698d51a19d8a121ce581499d7b701668'
+  'http://127.0.0.1:20371/web/?deviceId=600378210&streamId=gamepad1&pwd_md5=698d51a19d8a121ce581499d7b701668'
 const CDP_PORT = 9223
 
 // 测试注入的 XInput 状态:A(0x1000) + LT=200 + LX=32767 + LY=-32768 + RY=12345

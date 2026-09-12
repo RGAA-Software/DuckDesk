@@ -24,7 +24,7 @@ set "WEBSOCKET_ENABLED=true"
 set "ENCODER_FPS=60"
 set "ENCODER_BITRATE=20"
 set "ENCODER_FORMAT=h264"
-set "WEB_URL=http://127.0.0.1:%PORT%/web_client/?deviceId=%DEVICE_ID%"
+set "WEB_URL=http://127.0.0.1:%PORT%/web/?deviceId=%DEVICE_ID%"
 
 rem Optional: UE bootstrap launcher → real game exe. Set GAME_VIEW_B64 to the
 rem Base64(UTF-8) of the real renderer exe full path (service resolves this via

@@ -72,8 +72,16 @@ int main(int argc, char* argv[]) { // NOLINT(gammaray-raw-pointer-boundary): pro
         return 1;
     }
     px::Logger::InitLog((basePath / "px_logs" / "pixels.log").wstring(), true);
-    auto shellResult = px::desktop::DesktopShell::Create(
-        {.title = "Pixels", .width = 960, .height = 640, .initiallyVisible = !options.runAutomatically, .minimizeToTray = true});
+    auto shellResult = px::desktop::DesktopShell::Create({.title = "Pixels",
+                                                          .width = 960,
+                                                          .height = 640,
+                                                          .initiallyVisible = !options.runAutomatically,
+                                                          .minimizeToTray = true,
+                                                          .showMinimizeButton = true,
+                                                          .showMaximizeButton = false,
+                                                          .allowTitleBarMaximize = false,
+                                                          .useRoundedWindow = true,
+                                                          .resizable = true});
     if (!shellResult) {
         return 3;
     }

@@ -205,6 +205,12 @@ constexpr Catalog kEnglish{
     "Time remaining (seconds):",
     "Accept",
     "Reject",
+    "Device list",
+    "Search by name or device ID",
+    "All devices",
+    "Device details",
+    "Select a device to view its details.",
+    "Remove this device from recent devices and the device list?",
 };
 
 constexpr Catalog kSimplifiedChinese{
@@ -402,6 +408,12 @@ constexpr Catalog kSimplifiedChinese{
     "剩余时间（秒）：",
     "接受",
     "拒绝",
+    "设备列表",
+    "搜索设备名称或设备 ID",
+    "所有设备",
+    "设备详情",
+    "请选择一个设备查看详情。",
+    "确定从最近设备和设备列表中移除此设备吗？",
 };
 
 static_assert(kEnglish.size() == kTextCount);

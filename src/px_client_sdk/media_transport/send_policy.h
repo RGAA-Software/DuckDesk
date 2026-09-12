@@ -36,9 +36,20 @@ struct SendBudget final {
         result.video_bps = video;
         return result;
     }
+};
 
-    [[nodiscard]] std::chrono::nanoseconds VideoDuration(std::uint64_t wire_bytes) const {
-        return std::chrono::nanoseconds(wire_bytes * 8'000'000'000ULL / std::max<std::uint64_t>(1, video_wire_bps));
+// The encoder budget controls sustained network usage. Packet pacing has a different job: it only spaces short UDP bursts enough to avoid
+// overflowing the socket/driver queue. Sunshine uses roughly 80% of a 1 Gbps link here rather than pacing every frame at the configured
+// encoder bitrate. Using the encoder budget as the packet pacing rate makes a large IDR block the video sender for hundreds of milliseconds.
+struct VideoPacketPacing final {
+    static constexpr std::uint64_t kWireBitsPerSecond = 800'000'000;
+
+    [[nodiscard]] static std::size_t PacketsPerMillisecond(const std::uint64_t wire_packet_bytes) {
+        return std::max<std::size_t>(1, kWireBitsPerSecond / 8 / 1000 / std::max<std::uint64_t>(1, wire_packet_bytes));
+    }
+
+    [[nodiscard]] static std::chrono::nanoseconds Duration(const std::uint64_t wire_bytes) {
+        return std::chrono::nanoseconds(wire_bytes * 8'000'000'000ULL / kWireBitsPerSecond);
     }
 };
 

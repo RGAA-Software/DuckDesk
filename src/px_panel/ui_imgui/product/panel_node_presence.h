@@ -3,6 +3,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
 
 namespace asio2 {
@@ -33,6 +34,7 @@ class PanelNodePresence final : public std::enable_shared_from_this<PanelNodePre
     std::shared_ptr<PanelConfigStore> config_{};
     mutable std::mutex clientMutex_{};
     std::shared_ptr<asio2::wss_client> client_{};
+    std::string connectedDeviceId_{};
     std::jthread worker_{};
     std::atomic_bool stopping_{};
     std::atomic_bool connecting_{};

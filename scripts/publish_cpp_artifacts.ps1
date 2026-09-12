@@ -354,6 +354,10 @@ switch ($Component) {
             -Source (Join-Path $buildRoot "src\px_deps\resources\fonts\Roboto-Regular.ttf") `
             -Destination (Join-Path $distRoot "resources\fonts\Roboto-Regular.ttf") `
             -ProcessName "px_panel"
+        Publish-VerifiedFile `
+            -Source (Join-Path $buildRoot "src\px_deps\resources\licenses\Lucide.txt") `
+            -Destination (Join-Path $distRoot "resources\licenses\Lucide.txt") `
+            -ProcessName "px_panel"
         Publish-LanguageResources
     }
     "render_network_library" {

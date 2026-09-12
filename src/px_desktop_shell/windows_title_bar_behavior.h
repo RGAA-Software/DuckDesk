@@ -10,7 +10,8 @@ namespace px::desktop {
 
 class WindowsTitleBarBehavior final {
   public:
-    static std::expected<WindowsTitleBarBehavior, std::string> Create(SDL_Window& window);
+    static std::expected<WindowsTitleBarBehavior, std::string> Create(SDL_Window& window, bool allowTitleBarMaximize, bool useRoundedWindow,
+                                                                      bool resizable);
 
     WindowsTitleBarBehavior(WindowsTitleBarBehavior&&) noexcept;
     WindowsTitleBarBehavior& operator=(WindowsTitleBarBehavior&&) noexcept;

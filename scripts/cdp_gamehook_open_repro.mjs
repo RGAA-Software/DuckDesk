@@ -90,7 +90,7 @@ try {
     return (list.data || []).find((item) => item.node_id === ${JSON.stringify(nodeId)} && item.state === 'running') || null
   })()`)
   if (!running) throw new Error('no running instance for node')
-  const clientUrl = `http://127.0.0.1:${running.listen_port}/web_client/?deviceId=${encodeURIComponent(running.device_id)}&instanceId=${encodeURIComponent(running.instance_id)}`
+  const clientUrl = `http://127.0.0.1:${running.listen_port}/web/?deviceId=${encodeURIComponent(running.device_id)}&instanceId=${encodeURIComponent(running.instance_id)}`
   await command('Page.navigate', { url: clientUrl })
   const queryInstance = async () => {
     const list = await (await fetch(consoleBase + '/api/v1/app/control/app/instance/list')).json()

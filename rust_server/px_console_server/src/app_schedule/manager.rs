@@ -1753,7 +1753,7 @@ impl AppScheduleManager {
                     inst.pid = result.pid;
                     inst.error.clear();
                     inst.web_client_hint = format!(
-                        "/web_client/?deviceId={}&instanceId={}",
+                        "/web/?deviceId={}&instanceId={}",
                         inst.device_id, inst.instance_id
                     );
                     // 记录节最近运行时间(应用级启动选"最久未运行"的节)
@@ -2062,7 +2062,7 @@ impl AppScheduleManager {
                             inst.exit_code = None;
                             if inst.state == InstanceState::Running {
                                 inst.web_client_hint = format!(
-                                    "/web_client/?deviceId={}&instanceId={}",
+                                    "/web/?deviceId={}&instanceId={}",
                                     inst.device_id, inst.instance_id
                                 );
                             }
@@ -2103,7 +2103,7 @@ impl AppScheduleManager {
                                 }
                                 inst.error.clear();
                                 inst.web_client_hint = format!(
-                                    "/web_client/?deviceId={}&instanceId={}",
+                                    "/web/?deviceId={}&instanceId={}",
                                     inst.device_id, inst.instance_id
                                 );
                                 out.push(inst.clone());

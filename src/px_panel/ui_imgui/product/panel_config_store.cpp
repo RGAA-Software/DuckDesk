@@ -12,6 +12,7 @@
 #include <array>
 #include <charconv>
 #include <fstream>
+#include <functional>
 #include <map>
 #include <string_view>
 #include <system_error>
@@ -203,6 +204,14 @@ bool PanelConfigStore::ShowTemporaryPassword() const {
     return ReadBool(preferences_, "display_random_pwd", true);
 }
 
+bool PanelConfigStore::DeviceNameIsCustom() const {
+    return ReadBool(preferences_, "device_name_custom", false);
+}
+
+bool PanelConfigStore::RemoteDeviceHidden(const std::string& deviceId) const {
+    return !deviceId.empty() && ReadBool(preferences_, "panel_remote_device_hidden:" + deviceId, false);
+}
+
 std::optional<RemoteDevicePreference> PanelConfigStore::LoadRemoteDevicePreference(const std::string& deviceId) const {
     try {
         const std::string value{Read(preferences_, "panel_remote_device:" + deviceId)};
@@ -223,6 +232,27 @@ std::optional<RemoteDevicePreference> PanelConfigStore::LoadRemoteDevicePreferen
     } catch (...) {
         return std::nullopt;
     }
+}
+
+std::vector<RemoteDeviceHistory> PanelConfigStore::LoadRemoteDeviceHistory() const {
+    std::vector<RemoteDeviceHistory> result{};
+    preferences_->Visit([&result](const std::string& key, const std::string& value) {
+        if (!key.starts_with("panel_remote_device_history:"))
+            return;
+        try {
+            const auto root = nlohmann::json::parse(value);
+            RemoteDeviceHistory item{.deviceId = root.value("device_id", std::string{}),
+                                     .name = root.value("name", std::string{}),
+                                     .host = root.value("host", std::string{}),
+                                     .port = root.value("port", 0),
+                                     .lastConnectedAt = root.value("last_connected_at", std::int64_t{})};
+            if (!item.deviceId.empty())
+                result.push_back(std::move(item));
+        } catch (...) {
+        }
+    });
+    std::ranges::sort(result, std::greater{}, &RemoteDeviceHistory::lastConnectedAt);
+    return result;
 }
 
 CloudApplicationPreference PanelConfigStore::LoadCloudApplicationPreference(const std::string& applicationId) const {
@@ -249,6 +279,13 @@ bool PanelConfigStore::SaveIdentity(const PanelIdentity& identity) {
     const std::scoped_lock lock{mutex_};
     return preferences_->Put("device_id", identity.deviceId) && preferences_->Put("device_name", identity.deviceName) &&
            preferences_->Put("device_random_pwd", identity.randomPassword) && preferences_->Put("device_safety_pwd", identity.securityPasswordHash);
+}
+
+bool PanelConfigStore::SaveCustomDeviceName(const std::string& deviceName) {
+    if (deviceName.empty())
+        return false;
+    const std::scoped_lock lock{mutex_};
+    return preferences_->Put("device_name", deviceName) && preferences_->Put("device_name_custom", "true");
 }
 
 bool PanelConfigStore::SaveGeneral(const ui::GeneralSettings& settings) {
@@ -309,6 +346,32 @@ bool PanelConfigStore::DeleteRemoteDevicePreference(const std::string& deviceId)
     return !deviceId.empty() && preferences_->Remove("panel_remote_device:" + deviceId);
 }
 
+bool PanelConfigStore::SaveRemoteDeviceHistory(const RemoteDeviceHistory& device) {
+    if (device.deviceId.empty())
+        return false;
+    const nlohmann::json root{{"device_id", device.deviceId},
+                              {"name", device.name},
+                              {"host", device.host},
+                              {"port", device.port},
+                              {"last_connected_at", device.lastConnectedAt}};
+    return preferences_->Put("panel_remote_device_history:" + device.deviceId, root.dump());
+}
+
+bool PanelConfigStore::DeleteRemoteDeviceHistory(const std::string& deviceId) {
+    return !deviceId.empty() && preferences_->Remove("panel_remote_device_history:" + deviceId);
+}
+
+bool PanelConfigStore::HideRemoteDevice(const std::string& deviceId) {
+    return !deviceId.empty() && preferences_->Put("panel_remote_device_hidden:" + deviceId, "true");
+}
+
+bool PanelConfigStore::UnhideRemoteDevice(const std::string& deviceId) {
+    if (deviceId.empty())
+        return false;
+    static_cast<void>(preferences_->Remove("panel_remote_device_hidden:" + deviceId));
+    return true;
+}
+
 bool PanelConfigStore::SaveCloudApplicationPreference(const std::string& applicationId, const CloudApplicationPreference& preference) {
     if (applicationId.empty())
         return false;
@@ -317,13 +380,14 @@ bool PanelConfigStore::SaveCloudApplicationPreference(const std::string& applica
 }
 
 void PanelConfigStore::Clear() {
-    for (const std::string key : {"device_id", "device_name", "device_random_pwd", "device_safety_pwd", "console_server_host", "console_server_port",
-                                  "relay_server_host", "relay_server_port", "console_access_info", "node_access_host"}) {
+    for (const std::string key : {"device_id", "device_name", "device_name_custom", "device_random_pwd", "device_safety_pwd", "console_server_host",
+                                  "console_server_port", "relay_server_host", "relay_server_port", "console_access_info", "node_access_host"}) {
         static_cast<void>(preferences_->Remove(key));
     }
     std::vector<std::string> preferenceKeys{};
     preferences_->Visit([&preferenceKeys](const std::string& key, const std::string&) {
-        if (key.starts_with("panel_remote_device:") || key.starts_with("panel_cloud_application:"))
+        if (key.starts_with("panel_remote_device:") || key.starts_with("panel_remote_device_history:") ||
+            key.starts_with("panel_remote_device_hidden:") || key.starts_with("panel_cloud_application:"))
             preferenceKeys.push_back(key);
     });
     for (const auto& key : preferenceKeys)

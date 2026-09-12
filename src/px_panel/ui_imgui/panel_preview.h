@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cloud_applications_page.h"
+#include "device_list_page.h"
 #include "panel_navigation.h"
 #include "notification_center.h"
 #include "remote_control_page.h"
@@ -52,6 +53,7 @@ class PanelPreview final {
     SettingsPage settings_;
     ServerStatusPage serverStatus_;
     RemoteControlPage remoteControl_;
+    DeviceListPage deviceList_;
     CloudApplicationsPage cloudApplications_;
     SecurityRecordsPage securityRecords_;
 };

@@ -21,7 +21,7 @@ export function buildWebClientUrl(
   port: string | number,
   input: { deviceId: string; password?: string; pwdMd5?: string },
 ): string {
-  return `http://${ip}:${port}/web_client/?c=${encodeConnectToken(input)}`
+  return `http://${ip}:${port}/web/?c=${encodeConnectToken(input)}`
 }
 
 /** game-hook 实例入口：device_id + instance_id + listen_port */
@@ -34,5 +34,5 @@ export function buildGameHookClientUrl(
     deviceId: input.deviceId,
     instanceId: input.instanceId,
   })
-  return `http://${ip}:${port}/web_client/?${q.toString()}`
+  return `http://${ip}:${port}/web/?${q.toString()}`
 }

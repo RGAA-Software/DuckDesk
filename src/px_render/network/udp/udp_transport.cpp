@@ -38,9 +38,9 @@ void TrackVideoSend(media::VideoPacketTiming& timing, const media::Packet& packe
         return;
     const auto now_us = media::MediaSteadyMicros();
     if (const auto gap = timing.Observe(*identity, now_us)) {
-        LOGW("UDP timing send_gap: steady_us={}, gap_us={}, stream={}, previous={}/{}/{}, current={}/{}/{}, sequence={}",
-             now_us, gap->current_us - gap->previous_us, identity->stream, gap->previous.frame, gap->previous.block, gap->previous.shard,
-             identity->frame, identity->block, identity->shard, identity->sequence);
+        LOGW("UDP timing send_gap: steady_us={}, gap_us={}, stream={}, previous={}/{}/{}, current={}/{}/{}, sequence={}", now_us,
+             gap->current_us - gap->previous_us, identity->stream, gap->previous.frame, gap->previous.block, gap->previous.shard, identity->frame,
+             identity->block, identity->shard, identity->sequence);
     }
 }
 } // namespace
@@ -168,9 +168,9 @@ bool UdpTransport::Start(const RenderModuleConfiguration& configuration) {
     if (!pace_timer_) {
         pace_timer_.reset(CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS));
     }
-    LOGI("UDP media budget: port={}, fec={}%, mtu={}, total_bps={}, video_bps={}, video_wire_bps={}, audio_reserve_bps={}, timer={}",
+    LOGI("UDP media budget: port={}, fec={}%, mtu={}, total_bps={}, video_bps={}, video_wire_bps={}, audio_reserve_bps={}, pacing_bps={}, timer={}",
          udp_listen_port_, fec_percent, udp_mtu_, send_budget_.total_bps, send_budget_.video_bps, send_budget_.video_wire_bps,
-         send_budget_.audio_reserve_bps, pace_timer_ ? "ok" : "none");
+         send_budget_.audio_reserve_bps, media::VideoPacketPacing::kWireBitsPerSecond, pace_timer_ ? "ok" : "none");
     if (!runtime->Start(udp_listen_port_)) {
         ReleasePacingResources();
         RenderModule::Stop();
@@ -1121,10 +1121,10 @@ void UdpTransport::SubmitEncodedVideo(const std::string& mon_name, const Encoded
     const auto packet_size = static_cast<std::size_t>(udp_mtu_);
     // Reserve worst-case IPv6/UDP headers as well as the complete Pixels media datagram and parity.
     const auto wire_packet_size = packet_size + 48;
-    const auto packets_per_ms = std::max<std::size_t>(1, send_budget_.video_wire_bps / 8 / 1000 / wire_packet_size);
+    const auto packets_per_ms = media::VideoPacketPacing::PacketsPerMillisecond(wire_packet_size);
     const auto batch_size = std::min(packets_per_ms, 65536 / packet_size);
     const auto frame_start = std::max(ratecontrol_next_frame_start_, std::chrono::steady_clock::now());
-    const auto packet_interval = send_budget_.VideoDuration(wire_packet_size);
+    const auto packet_interval = media::VideoPacketPacing::Duration(wire_packet_size);
     auto batch_due = frame_start;
     std::size_t submitted{};
     for (std::size_t offset{}; offset < packetized->packets.size(); offset += batch_size) {

@@ -17,6 +17,7 @@ struct RemoteDeviceCard final {
     std::string host{};
     int port{0};
     std::string password{};
+    std::int64_t lastConnectedAt{};
     bool audio{false};
     bool clipboard{false};
     bool viewOnly{false};
@@ -46,6 +47,7 @@ class RemoteControlPort {
     virtual RemoteControlState Snapshot() const = 0;
     virtual void Refresh() = 0;
     virtual void SetPasswordVisible(bool visible) = 0;
+    virtual void UpdateLocalDeviceName(std::string deviceName) = 0;
     [[nodiscard]] virtual bool RequiresPassword(const std::string& target) const = 0;
     virtual void Connect(std::string target, std::string password, bool viewOnly = false) = 0;
     virtual void StartStream(const std::string& streamId, bool viewOnly) = 0;

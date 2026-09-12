@@ -11,7 +11,7 @@ import path from 'node:path'
 const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe'
 const PAGE_URL =
   process.env.WEB_URL ||
-  `http://127.0.0.1:${process.env.RENDER_PORT || '32000'}/web_client/?deviceId=${encodeURIComponent(process.env.DEVICE_ID || 'debug1')}`
+  `http://127.0.0.1:${process.env.RENDER_PORT || '32000'}/web/?deviceId=${encodeURIComponent(process.env.DEVICE_ID || 'debug1')}`
 const CDP_PORT = Number(process.env.CDP_PORT || 9225)
 const SAMPLE_SECONDS = Number(process.env.SAMPLE_SECONDS || 15)
 const MODE = process.env.AUDIO_MODE || 'unknown'

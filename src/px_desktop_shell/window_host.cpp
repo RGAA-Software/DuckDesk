@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace px::desktop {
@@ -16,7 +17,8 @@ namespace {
 constexpr float kTitleBarHeight{48.0F};
 constexpr int kResizeBorder{7};
 constexpr int kCaptionButtonWidth{46};
-constexpr int kCaptionButtonCount{3};
+constexpr std::string_view kCaptionButtonCountProperty{"Pixels.Window.CaptionButtonCount"};
+constexpr std::string_view kResizableProperty{"Pixels.Window.Resizable"};
 
 float InitialDisplayScale() {
     const SDL_DisplayID display{SDL_GetPrimaryDisplay()};
@@ -44,37 +46,40 @@ SDL_HitTestResult SDLCALL HitTest(SDL_Window* window, const SDL_Point* area, voi
 
     const float displayScale{SDL_GetWindowDisplayScale(window)};
     const auto scale = [displayScale](const int value) { return static_cast<int>(static_cast<float>(value) * displayScale); };
-    const int resizeBorder{scale(kResizeBorder)};
-    const bool left{area->x < resizeBorder};
-    const bool right{area->x >= width - resizeBorder};
-    const bool top{area->y < resizeBorder};
-    const bool bottom{area->y >= height - resizeBorder};
-    if (top && left) {
-        return SDL_HITTEST_RESIZE_TOPLEFT;
-    }
-    if (top && right) {
-        return SDL_HITTEST_RESIZE_TOPRIGHT;
-    }
-    if (bottom && left) {
-        return SDL_HITTEST_RESIZE_BOTTOMLEFT;
-    }
-    if (bottom && right) {
-        return SDL_HITTEST_RESIZE_BOTTOMRIGHT;
-    }
-    if (top) {
-        return SDL_HITTEST_RESIZE_TOP;
-    }
-    if (bottom) {
-        return SDL_HITTEST_RESIZE_BOTTOM;
-    }
-    if (left) {
-        return SDL_HITTEST_RESIZE_LEFT;
-    }
-    if (right) {
-        return SDL_HITTEST_RESIZE_RIGHT;
+    if (SDL_GetBooleanProperty(SDL_GetWindowProperties(window), kResizableProperty.data(), true)) {
+        const int resizeBorder{scale(kResizeBorder)};
+        const bool left{area->x < resizeBorder};
+        const bool right{area->x >= width - resizeBorder};
+        const bool top{area->y < resizeBorder};
+        const bool bottom{area->y >= height - resizeBorder};
+        if (top && left) {
+            return SDL_HITTEST_RESIZE_TOPLEFT;
+        }
+        if (top && right) {
+            return SDL_HITTEST_RESIZE_TOPRIGHT;
+        }
+        if (bottom && left) {
+            return SDL_HITTEST_RESIZE_BOTTOMLEFT;
+        }
+        if (bottom && right) {
+            return SDL_HITTEST_RESIZE_BOTTOMRIGHT;
+        }
+        if (top) {
+            return SDL_HITTEST_RESIZE_TOP;
+        }
+        if (bottom) {
+            return SDL_HITTEST_RESIZE_BOTTOM;
+        }
+        if (left) {
+            return SDL_HITTEST_RESIZE_LEFT;
+        }
+        if (right) {
+            return SDL_HITTEST_RESIZE_RIGHT;
+        }
     }
 
-    const int captionButtonsStart{width - scale(kCaptionButtonWidth) * kCaptionButtonCount};
+    const int captionButtonCount{static_cast<int>(SDL_GetNumberProperty(SDL_GetWindowProperties(window), kCaptionButtonCountProperty.data(), 3))};
+    const int captionButtonsStart{width - scale(kCaptionButtonWidth) * captionButtonCount};
     if (area->y < scale(static_cast<int>(kTitleBarHeight)) && area->x < captionButtonsStart) {
         return SDL_HITTEST_DRAGGABLE;
     }
@@ -104,7 +109,7 @@ struct WindowHost::Impl final {
 };
 
 std::expected<WindowHost, std::string> WindowHost::Create(const std::string& title, const int width, const int height, const bool initiallyVisible,
-                                                          const bool requestVulkanSurface) {
+                                                          const bool requestVulkanSurface, const WindowChromeConfig& chrome) {
     auto impl = std::make_unique<Impl>();
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         return std::unexpected{LastSdlError("SDL_Init")};
@@ -119,7 +124,8 @@ std::expected<WindowHost, std::string> WindowHost::Create(const std::string& tit
     }
     const int scaledWidth{ScaledWindowDimension(width, initialScale, usableBounds.w)};
     const int scaledHeight{ScaledWindowDimension(height, initialScale, usableBounds.h)};
-    constexpr SDL_WindowFlags commonFlags{SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_BORDERLESS | SDL_WINDOW_HIDDEN};
+    constexpr SDL_WindowFlags baseFlags{SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_BORDERLESS | SDL_WINDOW_HIDDEN};
+    const SDL_WindowFlags commonFlags{chrome.resizable ? baseFlags | SDL_WINDOW_RESIZABLE : baseFlags};
     const SDL_WindowFlags requestedFlags{requestVulkanSurface ? commonFlags | SDL_WINDOW_VULKAN : commonFlags};
     impl->window.reset(SDL_CreateWindow(title.c_str(), scaledWidth, scaledHeight, requestedFlags));
     impl->vulkanSurfaceAvailable = requestVulkanSurface && impl->window;
@@ -130,11 +136,14 @@ std::expected<WindowHost, std::string> WindowHost::Create(const std::string& tit
     if (!impl->window) {
         return std::unexpected{LastSdlError("SDL_CreateWindow")};
     }
+    const Sint64 captionButtonCount{1 + (chrome.showMinimizeButton ? 1 : 0) + (chrome.showMaximizeButton ? 1 : 0)};
+    SDL_SetNumberProperty(SDL_GetWindowProperties(impl->window.get()), kCaptionButtonCountProperty.data(), captionButtonCount);
+    SDL_SetBooleanProperty(SDL_GetWindowProperties(impl->window.get()), kResizableProperty.data(), chrome.resizable);
     SDL_SetWindowMinimumSize(impl->window.get(), 900, 600);
     if (!SDL_SetWindowHitTest(impl->window.get(), HitTest, nullptr)) {
         return std::unexpected{LastSdlError("SDL_SetWindowHitTest")};
     }
-    auto titleBarResult = WindowsTitleBarBehavior::Create(*impl->window);
+    auto titleBarResult = WindowsTitleBarBehavior::Create(*impl->window, chrome.allowTitleBarMaximize, chrome.useRoundedWindow, chrome.resizable);
     if (!titleBarResult) {
         return std::unexpected{titleBarResult.error()};
     }

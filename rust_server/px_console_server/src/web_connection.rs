@@ -98,7 +98,7 @@ pub async fn user_web_device_connection(
     let stream_id = format!("web-{}", Uuid::new_v4().simple());
     let (relay_host, relay_port) = relay_endpoint().await;
     let descriptor = WebConnectionDescriptor {
-        launch_url: format!("http://{}:{}/web_client/", host_for_url(&host), port),
+        launch_url: format!("http://{}:{}/web/", host_for_url(&host), port),
         device_id: device_id.clone(),
         instance_id: String::new(),
         stream_id,
@@ -154,7 +154,7 @@ async fn instance_descriptor(
     let stream_id = format!("web-{}", Uuid::new_v4().simple());
     let (relay_host, relay_port) = relay_endpoint().await;
     let descriptor = WebConnectionDescriptor {
-        launch_url: format!("http://{}:{}/web_client/", host_for_url(&host), instance.listen_port),
+        launch_url: format!("http://{}:{}/web/", host_for_url(&host), instance.listen_port),
         device_id: instance.device_id.clone(),
         instance_id: instance.instance_id.clone(),
         stream_id,

@@ -4,21 +4,61 @@
 #include "panel_connection_links.h"
 
 #include "console_panel.pb.h"
-#include "network/ct_auth_token.h"
 #include "px_common/base64.h"
 #include "px_common/ip_util.h"
 #include "px_common/log.h"
+#include "px_common/md5.h"
+#include "px_common/time_util.h"
+#include "px_common/uuid.h"
 
 #include <asio2/websocket/wss_client.hpp>
 
+#include <openssl/hmac.h>
+#include <openssl/sha.h>
+
+#include <array>
 #include <chrono>
 #include <format>
+#include <iomanip>
+#include <span>
+#include <sstream>
 #include <string_view>
 #include <utility>
 #include <vector>
 
 namespace px::panel::product {
 namespace {
+
+struct ConnectionToken final {
+    std::string token{};
+    std::int64_t timestamp{};
+    std::string nonce{};
+};
+
+std::string BytesToHex(const std::span<const unsigned char> bytes) {
+    std::ostringstream output{};
+    output << std::hex << std::setfill('0');
+    for (const auto value : bytes) {
+        output << std::setw(2) << static_cast<unsigned int>(value);
+    }
+    return output.str();
+}
+
+ConnectionToken GenerateConnectionToken(const std::string& appKey) {
+    constexpr std::string_view salt{"bfa900206bed4db59156ae5fead1d249"};
+    const std::string secretInput{appKey + std::string{salt}};
+    std::array<unsigned char, SHA256_DIGEST_LENGTH> shaHash{};
+    SHA256(reinterpret_cast<const unsigned char*>(secretInput.data()), secretInput.size(), shaHash.data());
+    const std::string appSecret{MD5::Hex(BytesToHex(shaHash))};
+    const std::int64_t timestamp{static_cast<std::int64_t>(TimeUtil::GetCurrentTimestamp())};
+    const std::string nonce{GetUUID()};
+    const std::string input{std::format("{}|{}|{}", appKey, timestamp, nonce)};
+    std::array<unsigned char, EVP_MAX_MD_SIZE> hmac{};
+    unsigned int hmacSize{};
+    HMAC(EVP_sha256(), appSecret.data(), static_cast<int>(appSecret.size()), reinterpret_cast<const unsigned char*>(input.data()), input.size(),
+         hmac.data(), &hmacSize);
+    return {.token = BytesToHex(std::span{hmac}.first(hmacSize)), .timestamp = timestamp, .nonce = nonce};
+}
 
 bool IsUsableLanAddress(const std::string& address) {
     return !address.empty() && !address.starts_with("127.") && !address.starts_with("169.254.");
@@ -96,8 +136,23 @@ void PanelNodePresence::Run(const std::stop_token stopToken) {
     while (!stopToken.stop_requested()) {
         const auto endpoint = config_->Console();
         const auto identity = config_->Identity();
+        bool identityChanged{};
+        {
+            const std::scoped_lock lock{clientMutex_};
+            identityChanged = !connectedDeviceId_.empty() && connectedDeviceId_ != identity.deviceId;
+        }
+        if (identityChanged) {
+            client->stop();
+            online_ = false;
+            connecting_ = false;
+            useLegacyPath_ = false;
+            const std::scoped_lock lock{clientMutex_};
+            connectedDeviceId_.clear();
+        }
         if (endpoint && endpoint->IsValid() && !identity.deviceId.empty() && !connecting_.exchange(true)) {
-            if (!client->is_started() && !client->async_start(endpoint->host, endpoint->port)) {
+            if (client->is_started()) {
+                connecting_ = false;
+            } else if (!client->async_start(endpoint->host, endpoint->port)) {
                 connecting_ = false;
             }
         }
@@ -132,8 +187,8 @@ void PanelNodePresence::ConfigureClient(const std::shared_ptr<asio2::wss_client>
         current->set_no_delay(true);
         const auto token = GenerateConnectionToken(endpoint->appKey);
         const std::string_view route{self->useLegacyPath_ ? "/cms/panel" : "/console/panel"};
-        current->set_upgrade_target(std::format("{}?appkey={}&token={}&ts={}&nonce={}&device_id={}&user_id=", route, endpoint->appKey,
-                                                token.token, token.ts, token.nonce, identity.deviceId));
+        current->set_upgrade_target(std::format("{}?appkey={}&token={}&ts={}&nonce={}&device_id={}&user_id=", route, endpoint->appKey, token.token,
+                                                token.timestamp, token.nonce, identity.deviceId));
     });
     client->bind_connect([weakSelf] {
         if (const auto self = weakSelf.lock(); self && asio2::get_last_error()) {
@@ -153,12 +208,18 @@ void PanelNodePresence::ConfigureClient(const std::shared_ptr<asio2::wss_client>
             return;
         }
         self->online_ = true;
+        {
+            const std::scoped_lock lock{self->clientMutex_};
+            self->connectedDeviceId_ = self->config_->Identity().deviceId;
+        }
         self->SendHello();
     });
     client->bind_disconnect([weakSelf] {
         if (const auto self = weakSelf.lock()) {
             self->online_ = false;
             self->connecting_ = false;
+            const std::scoped_lock lock{self->clientMutex_};
+            self->connectedDeviceId_.clear();
         }
     });
     client->bind_recv([weakSelf](const std::string_view) {

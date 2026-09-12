@@ -1,6 +1,7 @@
 add_library(px_ui STATIC
     localization.cpp
     px_ui_theme.cpp
+    vector_icon.cpp
 )
 
 target_include_directories(px_ui PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")

@@ -1,10 +1,12 @@
 #include "panel_navigation.h"
 
 #include "px_ui/layout_metrics.h"
+#include "px_ui/vector_icon.h"
 
 #include <imgui.h>
 
 #include <array>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -14,21 +16,17 @@ namespace {
 struct NavigationItem final {
     PanelPage page{};
     px::ui::TextId text{};
+    px::ui::VectorIcon icon{};
 };
 
 constexpr std::array kNavigationItems{
-    NavigationItem{PanelPage::RemoteControl, px::ui::TextId::RemoteControl},
-    NavigationItem{PanelPage::CloudApplications, px::ui::TextId::CloudApplications},
-    NavigationItem{PanelPage::ServerStatus, px::ui::TextId::ServerStatus},
-    NavigationItem{PanelPage::Security, px::ui::TextId::Security},
-    NavigationItem{PanelPage::Settings, px::ui::TextId::Settings},
+    NavigationItem{PanelPage::RemoteControl, px::ui::TextId::RemoteControl, px::ui::VectorIcon::Monitor},
+    NavigationItem{PanelPage::DeviceList, px::ui::TextId::DeviceList, px::ui::VectorIcon::List},
+    NavigationItem{PanelPage::CloudApplications, px::ui::TextId::CloudApplications, px::ui::VectorIcon::Cloud},
+    NavigationItem{PanelPage::ServerStatus, px::ui::TextId::ServerStatus, px::ui::VectorIcon::Activity},
+    NavigationItem{PanelPage::Security, px::ui::TextId::Security, px::ui::VectorIcon::Shield},
+    NavigationItem{PanelPage::Settings, px::ui::TextId::Settings, px::ui::VectorIcon::Settings},
 };
-
-void DrawDisabledText(const std::string_view text) {
-    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-    ImGui::TextUnformatted(text.data(), text.data() + text.size());
-    ImGui::PopStyleColor();
-}
 
 } // namespace
 
@@ -38,9 +36,6 @@ NavigationAction PanelNavigation::Draw(const px::ui::Localizer& localizer) {
     NavigationAction action{.selectedPage = selectedPage_};
     constexpr ImGuiWindowFlags navigationFlags{ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse};
     ImGui::BeginChild("Navigation", ImVec2{px::ui::Scale(224.0F), 0.0F}, ImGuiChildFlags_Borders, navigationFlags);
-    ImGui::TextColored(ImVec4{0.35F, 0.68F, 1.00F, 1.00F}, "PIXELS");
-    DrawDisabledText(localizer.Text(px::ui::TextId::RenderNodeConsole));
-    ImGui::Spacing();
     account_.Draw(localizer);
     ImGui::Spacing();
     ImGui::Separator();
@@ -55,7 +50,8 @@ NavigationAction PanelNavigation::Draw(const px::ui::Localizer& localizer) {
         ImGui::PushStyleColor(ImGuiCol_Button, buttonColor);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, hoverColor);
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, activeColor);
-        if (ImGui::Button(localizer.Text(item.text).data(), buttonSize)) {
+        const std::string id{"navigation-" + std::to_string(static_cast<int>(item.page))};
+        if (px::ui::IconButton(item.icon, localizer.Text(item.text), id, buttonSize)) {
             selectedPage_ = item.page;
         }
         ImGui::PopStyleColor(3);
@@ -63,7 +59,7 @@ NavigationAction PanelNavigation::Draw(const px::ui::Localizer& localizer) {
 
     ImGui::SetCursorPosY(ImGui::GetWindowHeight() - px::ui::Scale(58.0F));
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{0.72F, 0.12F, 0.18F, 1.00F});
-    action.exitRequested = ImGui::Button(localizer.Text(px::ui::TextId::ExitPrograms).data(), buttonSize);
+    action.exitRequested = px::ui::IconButton(px::ui::VectorIcon::LogOut, localizer.Text(px::ui::TextId::ExitPrograms), "exit-programs", buttonSize);
     ImGui::PopStyleColor();
     ImGui::EndChild();
     action.selectedPage = selectedPage_;

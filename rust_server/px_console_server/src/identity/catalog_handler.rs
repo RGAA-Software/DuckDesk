@@ -3,7 +3,7 @@ use crate::app_schedule::manager::AppAccessMode;
 use crate::console_api_error::ConsoleApiError;
 use crate::event::audit;
 use crate::identity::manager::IdentityManager;
-use crate::{gConsolePanelConnMgr, gDeviceManager};
+use crate::{gConsolePanelConnMgr, gConsoleServiceConnMgr, gDeviceManager};
 use axum::extract::Path;
 use axum::Json;
 use px_base::{ok_resp, RespMessage};
@@ -50,9 +50,14 @@ pub async fn list_device_catalog(
         .await?;
     let mut items = Vec::with_capacity(devices.len());
     for device in devices {
-        let online = gConsolePanelConnMgr
+        let panel_online = gConsolePanelConnMgr
             .is_panel_online(device.device_id.clone())
             .await?;
+        let online = panel_online
+            && gConsoleServiceConnMgr
+                .node_endpoint(device.device_id.clone())
+                .await
+                .is_some();
         items.push(DeviceCatalogItem {
             device_id: device.device_id,
             name: device.device_name,

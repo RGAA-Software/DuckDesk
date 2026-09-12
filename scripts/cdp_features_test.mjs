@@ -12,7 +12,7 @@ import path from 'node:path'
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
 const PAGE_URL =
-  'http://127.0.0.1:20371/web_client/?deviceId=600378210&streamId=feat1&pwd_md5=698d51a19d8a121ce581499d7b701668'
+  'http://127.0.0.1:20371/web/?deviceId=600378210&streamId=feat1&pwd_md5=698d51a19d8a121ce581499d7b701668'
 const CDP_PORT = 9223
 
 // ---------- px.Message 解码(复用 web 端 proto)----------

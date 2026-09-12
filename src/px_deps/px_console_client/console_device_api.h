@@ -101,6 +101,7 @@ namespace px_console
                          const std::string& appkey,
                          const std::string& device_id,
                          const std::string& device_name,
+                         const std::string& random_password_md5,
                          const std::shared_ptr<std::atomic_bool>& cancellation = nullptr);
 
         // update device name

@@ -4,7 +4,7 @@ import vue from '@vitejs/plugin-vue'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue()],
-  // 部署在 render 端的 /web_client/ 路径下,使用相对 base 保证资源可加载
+  // 部署在 render 端的 /web/ 路径下,使用相对 base 保证资源可加载
   base: './',
   build: {
     outDir: 'dist',

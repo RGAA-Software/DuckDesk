@@ -51,8 +51,8 @@ static std::string kApiVerifySecurityPassword = "/verify/security/password";
 static std::string kApiGetRenderConfiguration = "/get/render/configuration";
 static std::string kApiPanelStreamMessage = "/panel/stream/message";
 static std::string kApiAllocLocalRtc = "/alloc/local/rtc";
-static std::string kUrlWebClient = "/web_client";
-static std::string kUrlWebClientWildcard = "/web_client/*";
+static std::string kUrlWebClient = "/web";
+static std::string kUrlWebClientWildcard = "/web/*";
 
 // /ipc carries raw captured frames up and user keyboard/mouse events down.
 // It must only ever talk to the injected dll on the same machine.
@@ -1505,7 +1505,7 @@ void WsServer::AddWebClientRouter() {
 
     // serve a file under the web client dir; fallback to index.html for SPA routes
     auto fn_serve = [web_client_dir](http::web_request& req, http::web_response& rep) {
-        // url_path: "/web_client" or "/web_client/xxx"
+        // url_path: "/web" or "/web/xxx"
         std::string url_path(req.path());
         std::string rel;
         if (url_path.size() > kUrlWebClient.size()) {
@@ -1528,7 +1528,7 @@ void WsServer::AddWebClientRouter() {
     };
 
     auto weak_self = weak_from_this();
-    // "/web_client" and "/web_client/" (trailing slashes are stripped by the router)
+    // "/web" and "/web/" (trailing slashes are stripped by the router)
     server_->bind<http::verb::get>(
         kUrlWebClient,
         [weak_self, fn_serve](std::shared_ptr<asio2::http_session>& session_ptr, http::web_request& req, http::web_response& rep) mutable {
@@ -1539,7 +1539,7 @@ void WsServer::AddWebClientRouter() {
             fn_serve(req, rep);
         },
         aop_log{});
-    // "/web_client/xxx"
+    // "/web/xxx"
     server_->bind<http::verb::get>(
         kUrlWebClientWildcard,
         [weak_self, fn_serve](std::shared_ptr<asio2::http_session>& session_ptr, http::web_request& req, http::web_response& rep) mutable {
@@ -1551,7 +1551,7 @@ void WsServer::AddWebClientRouter() {
         },
         aop_log{});
     LOGI("event=module.start component=net_ws operation=serve_web_client "
-         "outcome=success route=/web_client");
+         "outcome=success route=/web");
 }
 
 void WsServer::NotifyMediaClientConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id) {

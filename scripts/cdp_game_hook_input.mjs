@@ -11,7 +11,7 @@ const CHROME = process.env.CHROME_PATH
 const PORT = process.env.RENDER_PORT || '32000'
 const DEVICE_ID = process.env.DEVICE_ID || 'debug1'
 const PAGE_URL = process.env.WEB_URL
-  || `http://127.0.0.1:${PORT}/web_client/?deviceId=${encodeURIComponent(DEVICE_ID)}`
+  || `http://127.0.0.1:${PORT}/web/?deviceId=${encodeURIComponent(DEVICE_ID)}`
 const CDP_PORT = Number(process.env.CDP_PORT || 9334)
 const REQUIRE_AUDIO = process.env.REQUIRE_AUDIO === '1'
 const WAIT_CONNECT_MS = 40000

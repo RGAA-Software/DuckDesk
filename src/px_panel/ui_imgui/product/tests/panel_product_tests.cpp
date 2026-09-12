@@ -2,6 +2,7 @@
 #include "panel_connection_input.h"
 #include "panel_connection_links.h"
 #include "panel_config_store.h"
+#include "panel_device_name.h"
 #include "panel_worker.h"
 
 #include "px_common/base64.h"
@@ -18,6 +19,18 @@
 #include <future>
 
 namespace px::panel::product {
+
+TEST(PanelDeviceName, UsesPrivateIpv4LastSegmentWithMcPrefix) {
+    EXPECT_EQ(BuildDefaultDeviceName({"203.0.113.8", "192.168.31.6"}), "MC-6");
+    EXPECT_EQ(BuildDefaultDeviceName({"10.0.0.90"}), "MC-90");
+}
+
+TEST(PanelDeviceName, RecognizesOnlyNamesOwnedByTheAutomaticNamingPolicy) {
+    EXPECT_TRUE(IsManagedDeviceName("D-90"));
+    EXPECT_TRUE(IsManagedDeviceName("MC-6"));
+    EXPECT_TRUE(IsManagedDeviceName("Pixels Node90"));
+    EXPECT_FALSE(IsManagedDeviceName("Office Render"));
+}
 namespace {
 
 class TemporaryDirectory final {
@@ -132,6 +145,21 @@ TEST(PanelConfigStoreTest, PersistsAndClearsConnectionPreferences) {
     EXPECT_TRUE(loadedRemote->viewOnly);
     EXPECT_TRUE(loadedRemote->forceTcp);
 
+    ASSERT_TRUE(
+        config->SaveRemoteDeviceHistory({.deviceId = "device-1", .name = "Office node", .host = "192.168.1.8", .port = 4601, .lastConnectedAt = 42}));
+    const auto history = config->LoadRemoteDeviceHistory();
+    ASSERT_EQ(history.size(), 1);
+    EXPECT_EQ(history.front().deviceId, "device-1");
+    EXPECT_EQ(history.front().host, "192.168.1.8");
+    ASSERT_TRUE(config->HideRemoteDevice("device-1"));
+    EXPECT_TRUE(config->RemoteDeviceHidden("device-1"));
+    ASSERT_TRUE(config->UnhideRemoteDevice("device-1"));
+    EXPECT_FALSE(config->RemoteDeviceHidden("device-1"));
+    ASSERT_TRUE(config->HideRemoteDevice("device-1"));
+    ASSERT_TRUE(config->SaveCustomDeviceName("Studio node"));
+    EXPECT_TRUE(config->DeviceNameIsCustom());
+    EXPECT_EQ(config->Identity().deviceName, "Studio node");
+
     ASSERT_TRUE(config->SaveCloudApplicationPreference("application-1", {.forceRelay = true}));
     const auto loadedApplication = config->LoadCloudApplicationPreference("application-1");
     EXPECT_FALSE(loadedApplication.forceTcp);
@@ -139,6 +167,9 @@ TEST(PanelConfigStoreTest, PersistsAndClearsConnectionPreferences) {
 
     config->Clear();
     EXPECT_FALSE(config->LoadRemoteDevicePreference("device-1"));
+    EXPECT_TRUE(config->LoadRemoteDeviceHistory().empty());
+    EXPECT_FALSE(config->RemoteDeviceHidden("device-1"));
+    EXPECT_FALSE(config->DeviceNameIsCustom());
     EXPECT_FALSE(config->LoadCloudApplicationPreference("application-1").forceRelay);
 }
 
@@ -162,7 +193,7 @@ TEST(PanelConnectionLinksTest, PreservesCompleteDesktopAndWebConnectionPayloads)
     EXPECT_EQ(desktopPayload.at("rlpt"), endpoint.relayPort);
     EXPECT_EQ(desktopPayload.at("rlak"), endpoint.appKey);
 
-    const std::string webPrefix{"http://39.71.45.66:4601/web_client/?c="};
+    const std::string webPrefix{"http://39.71.45.66:4601/web/?c="};
     ASSERT_TRUE(links.web.starts_with(webPrefix));
     std::string webToken{links.web.substr(webPrefix.size())};
     for (auto& character : webToken) {
@@ -184,12 +215,15 @@ TEST(PanelConnectionLinksTest, UsesFirstLocalAddressWhenNoPublicAddressIsConfigu
     const PanelIdentity identity{.deviceId = "101", .deviceName = "Pixels", .randomPassword = "temporary"};
     const auto links = BuildPanelConnectionLinks(identity, NodePorts{}, std::nullopt, {}, {"192.168.1.8", "10.0.0.2"});
 
-    EXPECT_TRUE(links.web.starts_with("http://192.168.1.8:4601/web_client/?c="));
+    EXPECT_TRUE(links.web.starts_with("http://192.168.1.8:4601/web/?c="));
     EXPECT_EQ(links.web.find("127.0.0.1"), std::string::npos);
     const auto desktopPayload = nlohmann::json::parse(Base64::Base64Decode(links.desktop.substr(7)));
     ASSERT_EQ(desktopPayload.at("ips").size(), 2);
     EXPECT_EQ(desktopPayload.at("ips").at(0).at("ip"), "192.168.1.8");
     EXPECT_EQ(desktopPayload.at("ips").at(1).at("ip"), "10.0.0.2");
+    EXPECT_EQ(ResolveNodeAccessHost({}, {"192.168.1.8", "10.0.0.2"}), "192.168.1.8");
+    EXPECT_EQ(ResolveNodeAccessHost("render.example.com", {"192.168.1.8"}), "render.example.com");
+    EXPECT_TRUE(ResolveNodeAccessHost({}, {"127.0.0.1"}).empty());
 }
 
 TEST(PanelConnectionInputTest, DistinguishesDeviceLinkAndDirectEndpointInputs) {

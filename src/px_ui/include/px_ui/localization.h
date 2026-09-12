@@ -205,6 +205,12 @@ enum class TextId : std::uint8_t {
     VoiceCallCountdown,
     VoiceCallAccept,
     VoiceCallReject,
+    DeviceList,
+    SearchDevices,
+    AllDevices,
+    DeviceDetails,
+    NoDeviceSelected,
+    RemoveDevicePrompt,
     Count,
 };
 

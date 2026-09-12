@@ -38,7 +38,7 @@ foreach ($window in $windows) {
             # Not every UI Automation element exposes ValuePattern.
         }
         foreach ($candidate in $candidates) {
-            if ($candidate -match "^https?://[^ ]+/web_client/\?c=") {
+            if ($candidate -match "^https?://[^ ]+/web/\?c=") {
                 $webUrl = $candidate
                 break
             }

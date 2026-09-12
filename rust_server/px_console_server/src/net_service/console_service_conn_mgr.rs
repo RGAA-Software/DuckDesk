@@ -86,7 +86,9 @@ impl ConsoleServiceConnManager {
         let connection = self.get_conn(device_id.clone()).await.ok()?;
         let endpoint = {
             let guard = connection.lock().await;
-            if px_base::get_current_timestamp().saturating_sub(guard.last_update_timestamp) > 30_000
+            if !guard.render_alive
+                || px_base::get_current_timestamp().saturating_sub(guard.last_update_timestamp)
+                    > 30_000
             {
                 return None;
             }
@@ -212,6 +214,9 @@ mod tests {
             manager.node_endpoint("node-a".into()).await,
             Some(("new.example.com".into(), 4601))
         );
+        replacement.lock().await.render_alive = false;
+        assert_eq!(manager.node_endpoint("node-a".into()).await, None);
+        replacement.lock().await.render_alive = true;
         replacement.lock().await.last_update_timestamp = px_base::get_current_timestamp() - 31_000;
         assert_eq!(manager.node_endpoint("node-a".into()).await, None);
         manager.remove_conn("node-b".into(), &second).await;

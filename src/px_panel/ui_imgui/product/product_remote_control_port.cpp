@@ -1,9 +1,9 @@
 #include "panel_connection_input.h"
 #include "panel_connection_links.h"
 #include "panel_credential_vault.h"
+#include "panel_device_registration.h"
 #include "panel_product_runtime.h"
 
-#include "px_common/ip_util.h"
 #include "px_common/md5.h"
 #include "px_common/uuid.h"
 #include "px_console_client/console_device.h"
@@ -16,8 +16,12 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <chrono>
+#include <condition_variable>
 #include <mutex>
+#include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 namespace px::panel::product {
@@ -25,23 +29,47 @@ namespace {
 
 class ProductRemoteControlPort final : public ui::RemoteControlPort, public std::enable_shared_from_this<ProductRemoteControlPort> {
   public:
+    struct RefreshLoopState final {
+        std::mutex mutex{};
+        std::condition_variable_any wakeup{};
+    };
+
     explicit ProductRemoteControlPort(std::shared_ptr<PanelProductRuntime> runtime)
         : runtime_{std::move(runtime)}, credentialVault_{PanelCredentialVault::Create()} {}
+    ~ProductRemoteControlPort() override {
+        refreshThread_.request_stop();
+        refreshLoopState_->wakeup.notify_all();
+        if (refreshThread_.joinable())
+            refreshThread_.join();
+    }
     void Initialize() {
         showPassword_.store(runtime_->Config()->ShowTemporaryPassword(), std::memory_order_release);
+        const auto runtime = runtime_;
+        static_cast<void>(runtime_->Worker()->Post([runtime] { static_cast<void>(EnsurePanelDeviceRegistration(runtime)); }));
         RefreshDevices();
+        const std::weak_ptr<ProductRemoteControlPort> weakSelf{shared_from_this()};
+        const auto loopState = refreshLoopState_;
+        refreshThread_ = std::jthread{[weakSelf, loopState](const std::stop_token stopToken) {
+            while (!stopToken.stop_requested()) {
+                {
+                    std::unique_lock lock{loopState->mutex};
+                    loopState->wakeup.wait_for(lock, stopToken, std::chrono::seconds{2}, [] { return false; });
+                }
+                if (stopToken.stop_requested())
+                    return;
+                const auto self = weakSelf.lock();
+                if (!self)
+                    return;
+                self->RefreshDevices();
+            }
+        }};
     }
 
     ui::RemoteControlState Snapshot() const override {
         const auto identity = runtime_->Config()->Identity();
         const auto endpoint = runtime_->Config()->Console();
         const auto ports = runtime_->Config()->Ports();
-        std::vector<std::string> localAddresses{};
-        for (const auto& adapter : IPUtil::ScanIPs()) {
-            if (!adapter.ip_addr_.empty()) {
-                localAddresses.push_back(adapter.ip_addr_);
-            }
-        }
+        const auto localAddresses = CollectPanelLocalAddresses();
         const auto links = BuildPanelConnectionLinks(identity, ports, endpoint, runtime_->Config()->NodePublicAddress(), localAddresses);
         ui::RemoteControlState result{.deviceId = identity.deviceId,
                                       .temporaryPassword = identity.randomPassword,
@@ -60,6 +88,38 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
     void SetPasswordVisible(const bool visible) override {
         showPassword_ = visible;
         static_cast<void>(runtime_->Config()->SaveShowTemporaryPassword(visible));
+    }
+    void UpdateLocalDeviceName(std::string deviceName) override {
+        const auto first = deviceName.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos) {
+            runtime_->Notify(true, "Device name", "Enter a non-empty device name.");
+            return;
+        }
+        const auto last = deviceName.find_last_not_of(" \t\r\n");
+        deviceName = deviceName.substr(first, last - first + 1);
+        const auto runtime = runtime_;
+        static_cast<void>(runtime_->Worker()->Post([runtime, deviceName = std::move(deviceName)] {
+            const auto endpoint = runtime->Config()->Console();
+            const auto identity = runtime->Config()->Identity();
+            if (!endpoint || identity.deviceId.empty()) {
+                runtime->Notify(true, "Device name", "The management service is not configured. The device name was not changed.");
+                return;
+            }
+            const auto updated = px_console::ConsoleDeviceApi::UpdateDeviceName(endpoint->host, endpoint->port, endpoint->appKey, identity.deviceId,
+                                                                                deviceName, MD5::Hex(identity.randomPassword));
+            if (!updated || !updated.value()) {
+                runtime->Notify(true, "Device name", "The management service rejected the new device name. Nothing was changed locally.");
+                return;
+            }
+            if (!runtime->Config()->SaveCustomDeviceName(deviceName)) {
+                static_cast<void>(px_console::ConsoleDeviceApi::UpdateDeviceName(endpoint->host, endpoint->port, endpoint->appKey, identity.deviceId,
+                                                                                 identity.deviceName, MD5::Hex(identity.randomPassword)));
+                runtime->Notify(true, "Device name", "The local device name could not be saved; the management change was rolled back.");
+                return;
+            }
+            static_cast<void>(runtime->Service()->RestartRender());
+            runtime->Notify(false, "Device name", "Device name updated locally and on the management service.");
+        }));
     }
     void Refresh() override {
         RefreshDevices();
@@ -186,7 +246,9 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
                 deviceId = found->deviceId;
             std::erase_if(devices_, [&streamId](const ui::RemoteDeviceCard& value) { return value.streamId == streamId; });
         }
+        static_cast<void>(runtime_->Config()->HideRemoteDevice(deviceId));
         static_cast<void>(runtime_->Config()->DeleteRemoteDevicePreference(deviceId));
+        static_cast<void>(runtime_->Config()->DeleteRemoteDeviceHistory(deviceId));
     }
 
     void SaveDevice(ui::RemoteDeviceCard device) override {
@@ -205,6 +267,12 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
             runtime_->Notify(true, "Pixels", "Unable to save device settings");
             return;
         }
+        const auto history = runtime_->Config()->LoadRemoteDeviceHistory();
+        if (const auto saved = std::ranges::find(history, device.deviceId, &RemoteDeviceHistory::deviceId); saved != history.end()) {
+            auto renamed = *saved;
+            renamed.name = device.name;
+            static_cast<void>(runtime_->Config()->SaveRemoteDeviceHistory(renamed));
+        }
         const std::scoped_lock lock{mutex_};
         if (const auto found = std::ranges::find(devices_, device.streamId, &ui::RemoteDeviceCard::streamId); found != devices_.end())
             *found = std::move(device);
@@ -212,10 +280,10 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
 
     void CopyText(const std::string& text) override {
         if (text.empty() || !SDL_SetClipboardText(text.c_str())) {
-            runtime_->Notify(true, "Pixels", "Unable to copy the complete link");
+            runtime_->Notify(true, "Pixels", "Unable to copy this value");
             return;
         }
-        runtime_->Notify(false, "Pixels", "Complete link copied");
+        runtime_->Notify(false, "Pixels", "Copied to clipboard");
     }
     void OpenUrl(const std::string& url) override {
         if (url.empty() || !SDL_OpenURL(url.c_str())) {
@@ -302,17 +370,27 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
                 if (credentialKey != "device:" + remoteDeviceId) {
                     static_cast<void>(credentialVault->Write(credentialKey, target.password));
                 }
-                const std::string cardId{"direct-" + remoteDeviceId + "-" + host + ":" + std::to_string(target.port)};
+                const auto connectedAt =
+                    std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+                static_cast<void>(runtime->Config()->UnhideRemoteDevice(remoteDeviceId));
+                static_cast<void>(runtime->Config()->SaveRemoteDeviceHistory(
+                    {.deviceId = remoteDeviceId, .name = displayName, .host = host, .port = target.port, .lastConnectedAt = connectedAt}));
+                const std::scoped_lock lock{self->mutex_};
+                std::string cardId{"direct-" + remoteDeviceId + "-" + host + ":" + std::to_string(target.port)};
+                if (const auto consoleCard = std::ranges::find(self->devices_, remoteDeviceId, &ui::RemoteDeviceCard::deviceId);
+                    consoleCard != self->devices_.end() && consoleCard->streamId.starts_with("console-device-")) {
+                    cardId = consoleCard->streamId;
+                }
                 const ui::RemoteDeviceCard card{.streamId = cardId,
                                                 .name = displayName,
                                                 .deviceId = remoteDeviceId,
                                                 .online = true,
                                                 .host = host,
                                                 .port = target.port,
+                                                .lastConnectedAt = connectedAt,
                                                 .audio = true,
                                                 .clipboard = true,
                                                 .viewOnly = viewOnly};
-                const std::scoped_lock lock{self->mutex_};
                 if (const auto existing = std::ranges::find(self->devices_, cardId, &ui::RemoteDeviceCard::streamId);
                     existing != self->devices_.end()) {
                     *existing = card;
@@ -348,9 +426,18 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
             if (!self)
                 return;
             self->managerOnline_.store(managerOnline, std::memory_order_release);
+            std::vector<ui::RemoteDeviceCard> previous{};
+            {
+                const std::scoped_lock lock{self->mutex_};
+                previous = self->devices_;
+            }
             std::vector<ui::RemoteDeviceCard> cards{};
+            std::unordered_set<std::string> consoleDeviceIds{};
+            const auto history = runtime->Config()->LoadRemoteDeviceHistory();
             for (const auto& binding : devices) {
-                if (!binding || !binding->device_)
+                if (!binding || !binding->device_ || binding->device_id_.empty() || !consoleDeviceIds.insert(binding->device_id_).second)
+                    continue;
+                if (runtime->Config()->RemoteDeviceHidden(binding->device_id_))
                     continue;
                 ui::RemoteDeviceCard card{.streamId = "console-device-" + binding->device_id_,
                                           .name = binding->device_->device_name_,
@@ -358,6 +445,12 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
                                           .online = binding->device_->active_,
                                           .audio = true,
                                           .clipboard = true};
+                if (const auto connected = std::ranges::find(history, binding->device_id_, &RemoteDeviceHistory::deviceId);
+                    connected != history.end()) {
+                    card.lastConnectedAt = connected->lastConnectedAt;
+                    card.host = connected->host;
+                    card.port = connected->port;
+                }
                 const auto parsedLink = ParseConnectionInput(binding->device_->desktop_link_, runtime->Config()->Ports().desktop);
                 if (parsedLink && !parsedLink->hosts.empty()) {
                     card.host = parsedLink->hosts.front();
@@ -376,26 +469,48 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
                     card.forceGdiCapture = saved->forceGdiCapture;
                     card.disableVulkan = saved->disableVulkan;
                 }
-                {
-                    const std::scoped_lock lock{self->mutex_};
-                    if (const auto saved = std::ranges::find(self->devices_, card.streamId, &ui::RemoteDeviceCard::streamId);
-                        saved != self->devices_.end()) {
-                        const bool online{card.online};
-                        const std::string authoritativeName{card.name};
-                        card = *saved;
-                        card.online = online;
-                        if (card.name.empty())
-                            card.name = authoritativeName;
-                    }
-                }
                 cards.push_back(std::move(card));
             }
-            const std::scoped_lock lock{self->mutex_};
-            for (const auto& existing : self->devices_) {
-                if (!existing.host.empty()) {
-                    cards.push_back(existing);
-                }
+            std::unordered_set<std::string> retainedDirectDeviceIds{};
+            for (const auto& historyItem : history) {
+                if (consoleDeviceIds.contains(historyItem.deviceId) || runtime->Config()->RemoteDeviceHidden(historyItem.deviceId))
+                    continue;
+                const auto saved = runtime->Config()->LoadRemoteDevicePreference(historyItem.deviceId).value_or(RemoteDevicePreference{});
+                cards.push_back({.streamId = "direct-" + historyItem.deviceId + "-" + historyItem.host + ":" + std::to_string(historyItem.port),
+                                 .name = saved.name.empty() ? historyItem.name : saved.name,
+                                 .deviceId = historyItem.deviceId,
+                                 .online = false,
+                                 .host = historyItem.host,
+                                 .port = historyItem.port,
+                                 .lastConnectedAt = historyItem.lastConnectedAt,
+                                 .audio = saved.audio,
+                                 .clipboard = saved.clipboard,
+                                 .viewOnly = saved.viewOnly,
+                                 .splitWindows = saved.splitWindows,
+                                 .forceSoftware = saved.forceSoftware,
+                                 .forceTcp = saved.forceTcp,
+                                 .forceRelay = saved.forceRelay,
+                                 .waitForDebugger = saved.waitForDebugger,
+                                 .forceGdiCapture = saved.forceGdiCapture,
+                                 .disableVulkan = saved.disableVulkan});
+                retainedDirectDeviceIds.insert(historyItem.deviceId);
             }
+            for (const auto& existing : previous) {
+                if (!existing.streamId.starts_with("direct-") || existing.host.empty() || consoleDeviceIds.contains(existing.deviceId) ||
+                    runtime->Config()->RemoteDeviceHidden(existing.deviceId) ||
+                    (!existing.deviceId.empty() && !retainedDirectDeviceIds.insert(existing.deviceId).second)) {
+                    continue;
+                }
+                cards.push_back(existing);
+            }
+            std::ranges::sort(cards, [](const ui::RemoteDeviceCard& left, const ui::RemoteDeviceCard& right) {
+                if (left.lastConnectedAt != right.lastConnectedAt)
+                    return left.lastConnectedAt > right.lastConnectedAt;
+                if (left.online != right.online)
+                    return left.online;
+                return left.name < right.name;
+            });
+            const std::scoped_lock lock{self->mutex_};
             self->devices_ = std::move(cards);
         }));
     }
@@ -407,6 +522,8 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
     std::unordered_map<std::string, std::string> activeSessions_{};
     std::atomic_bool showPassword_{};
     std::atomic_bool managerOnline_{};
+    std::shared_ptr<RefreshLoopState> refreshLoopState_{std::make_shared<RefreshLoopState>()};
+    std::jthread refreshThread_{};
 };
 
 } // namespace

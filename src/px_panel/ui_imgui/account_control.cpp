@@ -1,5 +1,8 @@
 #include "account_control.h"
 
+#include "px_ui/vector_icon.h"
+#include "px_ui/layout_metrics.h"
+
 #include <imgui.h>
 
 #include <utility>
@@ -10,27 +13,39 @@ AccountControl::AccountControl(std::shared_ptr<AccountPort> port) : port_{std::m
 
 void AccountControl::Draw(const px::ui::Localizer& localizer) {
     const auto account = port_->Snapshot();
-    ImGui::TextDisabled("%s", localizer.Text(px::ui::TextId::Account).data());
-    ImGui::TextUnformatted(account.loggedIn ? account.username.c_str() : localizer.Text(px::ui::TextId::Guest).data());
+    const float avatarSize{px::ui::Scale(52.0F)};
+    ImGui::SetCursorPosX((ImGui::GetWindowWidth() - avatarSize) * 0.5F);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, avatarSize * 0.5F);
+    const bool avatarClicked{px::ui::IconOnlyButton(px::ui::VectorIcon::User, "account-avatar",
+                                                    account.loggedIn ? account.username : localizer.Text(px::ui::TextId::Login),
+                                                    {avatarSize, avatarSize})};
+    ImGui::PopStyleVar();
+    const std::string accountName{account.loggedIn ? account.username : std::string{localizer.Text(px::ui::TextId::Guest)}};
+    ImGui::SetCursorPosX((ImGui::GetWindowWidth() - ImGui::CalcTextSize(accountName.c_str()).x) * 0.5F);
+    ImGui::TextUnformatted(accountName.c_str());
+    const bool nameClicked{ImGui::IsItemClicked()};
     if (account.operation == AccountOperationState::Working) {
-        ImGui::TextDisabled("%s", localizer.Text(px::ui::TextId::Working).data());
+        const auto working = localizer.Text(px::ui::TextId::Working);
+        ImGui::SetCursorPosX((ImGui::GetWindowWidth() - ImGui::CalcTextSize(working.data(), working.data() + working.size()).x) * 0.5F);
+        ImGui::TextDisabled("%.*s", static_cast<int>(working.size()), working.data());
     } else if (account.operation == AccountOperationState::Failed) {
-        ImGui::TextColored(ImVec4{0.90F, 0.22F, 0.28F, 1.0F}, "%s", localizer.Text(px::ui::TextId::AccountOperationFailed).data());
+        ImGui::TextColored(ImVec4{0.90F, 0.22F, 0.28F, 1.0F}, "!");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", localizer.Text(px::ui::TextId::AccountOperationFailed).data());
     }
-    if (account.loggedIn) {
-        if (ImGui::SmallButton(localizer.Text(px::ui::TextId::Logout).data())) {
-            port_->Logout();
-        }
-    } else if (ImGui::SmallButton(localizer.Text(px::ui::TextId::Login).data())) {
-        registerMode_ = false;
-        dialogRequested_ = true;
-    }
-    if (!account.loggedIn) {
-        ImGui::SameLine();
-        if (ImGui::SmallButton(localizer.Text(px::ui::TextId::Register).data())) {
-            registerMode_ = true;
+    if (avatarClicked || nameClicked) {
+        if (account.loggedIn) {
+            ImGui::OpenPopup("AccountMenu");
+        } else {
+            registerMode_ = false;
             dialogRequested_ = true;
         }
+    }
+    if (ImGui::BeginPopup("AccountMenu")) {
+        if (ImGui::MenuItem(localizer.Text(px::ui::TextId::Logout).data())) {
+            port_->Logout();
+        }
+        ImGui::EndPopup();
     }
     DrawDialog(localizer);
 }
@@ -41,6 +56,7 @@ void AccountControl::DrawDialog(const px::ui::Localizer& localizer) {
         dialogRequested_ = false;
         invalidInput_ = false;
     }
+    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, {0.5F, 0.5F});
     if (!ImGui::BeginPopupModal("AccountDialog", {}, ImGuiWindowFlags_AlwaysAutoResize)) {
         return;
     }
@@ -68,6 +84,12 @@ void AccountControl::DrawDialog(const px::ui::Localizer& localizer) {
             confirmation_.fill({});
             ImGui::CloseCurrentPopup();
         }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button(localizer.Text(registerMode_ ? px::ui::TextId::Login : px::ui::TextId::Register).data())) {
+        registerMode_ = !registerMode_;
+        password_.fill({});
+        confirmation_.fill({});
     }
     ImGui::SameLine();
     if (ImGui::Button(localizer.Text(px::ui::TextId::Cancel).data())) {

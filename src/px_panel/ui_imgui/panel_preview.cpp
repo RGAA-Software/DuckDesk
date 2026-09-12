@@ -20,12 +20,10 @@ void DrawDisabledText(const std::string_view text) {
 } // namespace
 
 PanelPreview::PanelPreview(PanelPreviewServices services)
-    : settingsPort_{services.settings}, notifications_{std::move(services.notifications)},
-      voiceCallConsent_{std::move(services.voiceCallConsent)}, navigation_{std::move(services.account)},
-      settings_{std::move(services.networkSettings), services.settings},
-      serverStatus_{std::move(services.serverStatus)},
-      remoteControl_{std::move(services.remoteControl)}, cloudApplications_{std::move(services.cloudApplications)},
-      securityRecords_{std::move(services.securityRecords)} {
+    : settingsPort_{services.settings}, notifications_{std::move(services.notifications)}, voiceCallConsent_{std::move(services.voiceCallConsent)},
+      navigation_{std::move(services.account)}, settings_{std::move(services.networkSettings), services.settings},
+      serverStatus_{std::move(services.serverStatus)}, remoteControl_{services.remoteControl}, deviceList_{std::move(services.remoteControl)},
+      cloudApplications_{std::move(services.cloudApplications)}, securityRecords_{std::move(services.securityRecords)} {
     const auto appearance = settingsPort_->Snapshot();
     localizer_.SetLanguage(appearance.language);
     theme_ = appearance.theme;
@@ -80,12 +78,15 @@ PanelPreviewAction PanelPreview::Draw() {
         }
         action.exitRequested = navigationAction.exitRequested;
         notifications_->Draw();
-        if (voiceCallConsent_) voiceCallConsent_->Draw(localizer_);
+        if (voiceCallConsent_)
+            voiceCallConsent_->Draw(localizer_);
         return action;
     }
     ImGui::BeginChild("PageContent", ImVec2{0.0F, 0.0F}, ImGuiChildFlags_Borders);
     if (navigationAction.selectedPage == PanelPage::RemoteControl) {
         remoteControl_.Draw(localizer_);
+    } else if (navigationAction.selectedPage == PanelPage::DeviceList) {
+        deviceList_.Draw(localizer_);
     } else if (navigationAction.selectedPage == PanelPage::CloudApplications) {
         cloudApplications_.Draw(localizer_);
     } else if (navigationAction.selectedPage == PanelPage::ServerStatus) {
@@ -95,7 +96,8 @@ PanelPreviewAction PanelPreview::Draw() {
     }
     ImGui::EndChild();
     notifications_->Draw();
-    if (voiceCallConsent_) voiceCallConsent_->Draw(localizer_);
+    if (voiceCallConsent_)
+        voiceCallConsent_->Draw(localizer_);
     PanelPreviewAction action{.exitRequested = navigationAction.exitRequested};
     if (initialThemePending_) {
         action.selectedTheme = theme_;
