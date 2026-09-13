@@ -89,6 +89,7 @@ struct ClientRemoteEntry final {
     std::string name{};
     std::string path{};
     std::uint64_t size{};
+    std::uint64_t modifiedTime{};
     bool directory{};
 };
 
@@ -98,6 +99,11 @@ struct ClientOverwriteRequest final {
     std::string path{};
     bool upload{};
     bool identical{};
+};
+
+struct ClientFileOperationResult final {
+    bool success{};
+    std::string error{};
 };
 
 class ClientSession final : public std::enable_shared_from_this<ClientSession> {
@@ -134,6 +140,10 @@ class ClientSession final : public std::enable_shared_from_this<ClientSession> {
     std::int32_t StartDownload(const std::string& remotePath, const std::string& localDirectory);
     bool CancelTransfer(std::int32_t jobId);
     bool ConfirmOverwrite(bool overwrite, bool applyToAll);
+    bool CreateRemoteDirectory(const std::string& path);
+    bool RemoveRemoteEntry(const std::string& path, bool directory);
+    bool RenameRemoteEntry(const std::string& path, const std::string& newName);
+    [[nodiscard]] std::optional<ClientFileOperationResult> TakeRemoteFileOperationResult();
     bool StartRecording();
     bool StopRecording();
     bool StartVoiceCall();
@@ -179,6 +189,7 @@ class ClientSession final : public std::enable_shared_from_this<ClientSession> {
     std::vector<ClientRemoteEntry> remoteEntries_{};
     std::string remotePath_{};
     std::optional<ClientOverwriteRequest> overwrite_{};
+    std::optional<ClientFileOperationResult> remoteFileOperationResult_{};
     std::optional<std::string> remoteClipboardText_{};
     std::string recordingId_{};
     std::string voiceStatus_{};

@@ -164,14 +164,21 @@ bool ClientSession::Initialize() {
             });
             engine->SetResponseCallback([weakSelf](const px::FileResponse& response) {
                 const auto self = weakSelf.lock();
-                if (!self || !response.has_dir())
+                if (!self)
                     return;
+                if (!response.has_dir()) {
+                    const std::scoped_lock lock{self->mutex_};
+                    self->remoteFileOperationResult_ = {.success = response.has_done(),
+                                                        .error = response.has_error() ? response.error().error() : std::string{}};
+                    return;
+                }
                 std::vector<ClientRemoteEntry> entries{};
                 entries.reserve(static_cast<std::size_t>(response.dir().entries_size()));
                 for (const auto& entry : response.dir().entries()) {
                     entries.push_back({.name = entry.name(),
                                        .path = entry.abs_path().empty() ? (response.dir().path() + "/" + entry.name()) : entry.abs_path(),
                                        .size = entry.size(),
+                                       .modifiedTime = entry.modified_time(),
                                        .directory = entry.entry_type() == px::FileType::Dir || entry.entry_type() == px::FileType::DirLink ||
                                                     entry.entry_type() == px::FileType::DirDrive});
                 }
@@ -212,7 +219,12 @@ bool ClientSession::Initialize() {
 
     listener_->Listen<px::SdkMsgNetworkConnected>([weakSelf](const auto&) {
         if (const auto self = weakSelf.lock()) {
-            self->SetState(ClientConnectionState::Connecting, "Transport connected; waiting for remote desktop");
+            if (self->config_.fileTransferOnly) {
+                self->SetState(ClientConnectionState::Connected, "File transfer connected");
+                static_cast<void>(self->ListRemoteDirectory({}));
+            } else {
+                self->SetState(ClientConnectionState::Connecting, "Transport connected; waiting for remote desktop");
+            }
         }
     });
     listener_->Listen<px::SdkMsgNetworkDisConnected>([weakSelf](const auto&) {

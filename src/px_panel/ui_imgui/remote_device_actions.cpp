@@ -26,6 +26,7 @@ void RemoteDeviceActions::Start(const RemoteDeviceCard& device, const bool viewO
         pendingTarget_ = target;
         pendingPassword_.clear();
         pendingViewOnly_ = viewOnly;
+        pendingFileTransfer_ = false;
         openPasswordDialog_ = true;
         return;
     }
@@ -38,7 +39,17 @@ void RemoteDeviceActions::Edit(const RemoteDeviceCard& device) {
 }
 
 void RemoteDeviceActions::FileTransfer(const RemoteDeviceCard& device) {
-    port_->StartFileTransfer(device.streamId);
+    const std::string target{device.deviceId.empty() ? device.host : device.deviceId};
+    if (port_->RequiresPassword(target)) {
+        pendingTarget_ = target;
+        pendingStreamId_ = device.streamId;
+        pendingPassword_.clear();
+        pendingViewOnly_ = true;
+        pendingFileTransfer_ = true;
+        openPasswordDialog_ = true;
+        return;
+    }
+    port_->StartFileTransfer(device.streamId, {});
 }
 
 void RemoteDeviceActions::Command(const RemoteDeviceCard& device, const RemoteDeviceCommand command) {
@@ -86,15 +97,25 @@ void RemoteDeviceActions::DrawPasswordDialog(const px::ui::Localizer& localizer)
     if (px::ui::ActionButton({"remote-device-cancel"}, localizer.Text(px::ui::TextId::Cancel),
                              {.variant = px::ui::ButtonVariant::Outline, .width = passwordButtonWidth})) {
         pendingTarget_.clear();
+        pendingStreamId_.clear();
         pendingPassword_.clear();
         pendingViewOnly_ = false;
+        pendingFileTransfer_ = false;
         ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
-    if (px::ui::ActionButton({"remote-device-connect"}, localizer.Text(px::ui::TextId::Connect),
-                             {.icon = px::ui::VectorIcon::Connect, .width = passwordButtonWidth, .disabled = pendingPassword_.empty()})) {
-        port_->Connect(std::move(pendingTarget_), std::move(pendingPassword_), pendingViewOnly_);
+    if (px::ui::ActionButton({"remote-device-connect"}, localizer.Text(pendingFileTransfer_ ? px::ui::TextId::FileTransfer : px::ui::TextId::Connect),
+                             {.icon = pendingFileTransfer_ ? px::ui::VectorIcon::FileTransfer : px::ui::VectorIcon::Connect,
+                              .width = passwordButtonWidth,
+                              .disabled = pendingPassword_.empty()})) {
+        if (pendingFileTransfer_)
+            port_->StartFileTransfer(pendingStreamId_, std::move(pendingPassword_));
+        else
+            port_->Connect(std::move(pendingTarget_), std::move(pendingPassword_), pendingViewOnly_);
+        pendingTarget_.clear();
+        pendingStreamId_.clear();
         pendingViewOnly_ = false;
+        pendingFileTransfer_ = false;
         ImGui::CloseCurrentPopup();
     }
 }

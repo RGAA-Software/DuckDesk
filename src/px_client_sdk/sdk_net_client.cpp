@@ -257,9 +257,9 @@ void NetClient::Start() {
     if (exited_ || started_.exchange(true))
         return;
     if (params_.route_ == SdkConnectionRoute::kWebSocketRelay &&
-        (params_.session_mode_ != SdkSessionMode::kNative || params_.file_transfer_only_ ||
-         params_.media_transport_ != SdkMediaTransport::kWebSocket || params_.relay_host_.empty() || params_.relay_port_ <= 0 ||
-         params_.relay_device_id_.empty() || params_.relay_remote_device_id_.empty() || params_.appkey_.empty())) {
+        (params_.session_mode_ != SdkSessionMode::kNative || params_.media_transport_ != SdkMediaTransport::kWebSocket ||
+         params_.relay_host_.empty() || params_.relay_port_ <= 0 || params_.relay_device_id_.empty() || params_.relay_remote_device_id_.empty() ||
+         params_.appkey_.empty())) {
         LOGE("Relay connection parameters are incomplete or incompatible with this session.");
         return;
     }
@@ -289,6 +289,8 @@ void NetClient::Start() {
         ReplaceMediaConnection(params_.route_ == SdkConnectionRoute::kWebSocketRelay
                                    ? std::static_pointer_cast<Connection>(std::make_shared<RelayConnection>(params_, msg_notifier_))
                                    : MakeDirectWebSocketMediaConnection());
+    } else if (params_.route_ == SdkConnectionRoute::kWebSocketRelay) {
+        ft_conn_ = std::make_shared<RelayConnection>(params_, msg_notifier_);
     } else {
         const auto ft_path = MakeAuthenticatedWebSocketPath(params_.ft_path_);
         if (params_.ssl_) {

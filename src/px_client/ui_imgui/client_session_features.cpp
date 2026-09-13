@@ -62,19 +62,19 @@ std::optional<ClientOverwriteRequest> ClientSession::PendingOverwrite() const {
 
 bool ClientSession::ListRemoteDirectory(const std::string& path) {
     const auto fileTransfer = FileTransfer();
-    return fileTransfer && !path.empty() && path.size() <= 4096U &&
+    return fileTransfer && path.size() <= 4096U &&
            fileTransfer->Post("pixels-client-ft-list", [path](const auto& engine) { engine->ReadDir(path, false); });
 }
 
 std::int32_t ClientSession::StartUpload(const std::string& localPath, const std::string& remoteDirectory) {
     const auto fileTransfer = FileTransfer();
-    if (!fileTransfer || localPath.empty() || remoteDirectory.empty())
+    if (!fileTransfer || localPath.empty())
         return 0;
     const std::string fileName{std::filesystem::path{localPath}.filename().string()};
     if (fileName.empty())
         return 0;
     std::string remoteTarget{remoteDirectory};
-    if (!remoteTarget.ends_with('/') && !remoteTarget.ends_with('\\'))
+    if (!remoteTarget.empty() && !remoteTarget.ends_with('/') && !remoteTarget.ends_with('\\'))
         remoteTarget.push_back('/');
     remoteTarget += fileName;
     const auto result = std::make_shared<std::atomic_int32_t>();
@@ -126,6 +126,39 @@ bool ClientSession::ConfirmOverwrite(const bool overwrite, const bool applyToAll
             engine->SetOverwriteStrategy(request.jobId, overwrite);
         engine->ConfirmFile(request.jobId, request.fileNumber, overwrite);
     });
+}
+
+bool ClientSession::CreateRemoteDirectory(const std::string& path) {
+    const auto fileTransfer = FileTransfer();
+    return fileTransfer && !path.empty() && path.size() <= 4096U &&
+           fileTransfer->Post("pixels-client-ft-create-directory",
+                              [path](const auto& engine) { engine->CreateDir(px::ft::FtEngine::NextJobId(), path); });
+}
+
+bool ClientSession::RemoveRemoteEntry(const std::string& path, const bool directory) {
+    const auto fileTransfer = FileTransfer();
+    return fileTransfer && !path.empty() && path.size() <= 4096U &&
+           fileTransfer->Post("pixels-client-ft-remove-entry", [path, directory](const auto& engine) {
+               const std::int32_t id{px::ft::FtEngine::NextJobId()};
+               if (directory)
+                   engine->RemoveDir(id, path, true);
+               else
+                   engine->RemoveFile(id, path);
+           });
+}
+
+bool ClientSession::RenameRemoteEntry(const std::string& path, const std::string& newName) {
+    const auto fileTransfer = FileTransfer();
+    return fileTransfer && !path.empty() && path.size() <= 4096U && !newName.empty() && newName.size() <= 255U &&
+           fileTransfer->Post("pixels-client-ft-rename-entry",
+                              [path, newName](const auto& engine) { engine->RenameFile(px::ft::FtEngine::NextJobId(), path, newName); });
+}
+
+std::optional<ClientFileOperationResult> ClientSession::TakeRemoteFileOperationResult() {
+    const std::scoped_lock lock{mutex_};
+    auto result = std::move(remoteFileOperationResult_);
+    remoteFileOperationResult_.reset();
+    return result;
 }
 
 bool ClientSession::StartRecording() {

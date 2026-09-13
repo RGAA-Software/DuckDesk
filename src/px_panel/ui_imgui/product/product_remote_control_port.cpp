@@ -32,6 +32,12 @@
 namespace px::panel::product {
 namespace {
 
+enum class DirectSessionMode : std::uint8_t {
+    Control,
+    ViewOnly,
+    FileTransfer,
+};
+
 std::string_view DeviceCommandEvent(const ui::RemoteDeviceCommand command) {
     switch (command) {
     case ui::RemoteDeviceCommand::Lock:
@@ -216,7 +222,7 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
             if (direct.kind == ConnectionInputKind::DirectEndpoint) {
                 direct.password = std::move(password);
             }
-            StartDirect(std::move(direct), viewOnly);
+            StartDirect(std::move(direct), viewOnly ? DirectSessionMode::ViewOnly : DirectSessionMode::Control);
             return;
         }
         if (!runtime_->Console()->Account().loggedIn) {
@@ -243,7 +249,7 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
             if (existing != devices_.end())
                 direct.displayName = existing->name;
         }
-        StartDirect(std::move(direct), viewOnly);
+        StartDirect(std::move(direct), viewOnly ? DirectSessionMode::ViewOnly : DirectSessionMode::Control);
     }
 
     void StartStream(const std::string& streamId, const bool viewOnly) override {
@@ -260,7 +266,7 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
                              .hosts = {direct->host},
                              .port = direct->port,
                              .password = {}},
-                            viewOnly);
+                            viewOnly ? DirectSessionMode::ViewOnly : DirectSessionMode::Control);
                 return;
             }
         }
@@ -270,25 +276,42 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
         }
         runtime_->Notify(true, "Connection failed", "This device has no usable native address. Refresh the device list after it comes online.");
     }
-    void StartFileTransfer(const std::string& streamId) override {
-        std::string sessionId{};
+    void StartFileTransfer(const std::string& streamId, std::string password) override {
+        ui::RemoteDeviceCard target{};
         {
             const std::scoped_lock lock{mutex_};
-            if (const auto found = activeSessions_.find(streamId); found != activeSessions_.end())
-                sessionId = found->second;
-        }
-        if (!sessionId.empty() && runtime_->LocalServer()->OpenFileTransfer(sessionId))
-            return;
-        {
-            const std::scoped_lock lock{mutex_};
-            const auto direct = std::ranges::find(devices_, streamId, &ui::RemoteDeviceCard::streamId);
-            if (direct != devices_.end() && !direct->host.empty()) {
-                runtime_->Notify(true, "File transfer", "Start the direct control session before opening file transfer");
+            const auto found = std::ranges::find(devices_, streamId, &ui::RemoteDeviceCard::streamId);
+            if (found == devices_.end()) {
+                runtime_->Notify(true, "File transfer", "The selected device is no longer in the device list. Refresh and retry.");
                 return;
             }
+            target = *found;
         }
-        if (sessionId.empty())
-            runtime_->Notify(true, "File transfer", "Start a control session before opening file transfer");
+
+        ParsedConnectionInput direct{.kind = ConnectionInputKind::DirectEndpoint,
+                                     .deviceId = target.deviceId,
+                                     .displayName = target.name,
+                                     .hosts = target.host.empty() ? std::vector<std::string>{} : std::vector<std::string>{target.host},
+                                     .port = target.port,
+                                     .password = std::move(password)};
+        if (direct.hosts.empty() && !target.deviceId.empty()) {
+            const auto connection = runtime_->Console()->QueryNativeDeviceConnection(target.deviceId);
+            if (!connection) {
+                runtime_->Notify(true, "File transfer",
+                                 "Console could not resolve a native address for this device. Confirm that it is online, then refresh and retry.");
+                return;
+            }
+            direct.hosts = {connection->host};
+            direct.port = connection->port;
+            direct.relayHost = connection->relay_host;
+            direct.relayPort = connection->relay_port;
+            direct.relayDeviceId = connection->signal_device_id;
+        }
+        if (direct.hosts.empty() || direct.port <= 0) {
+            runtime_->Notify(true, "File transfer", "This device has no usable native address. Refresh the device list and retry.");
+            return;
+        }
+        StartDirect(std::move(direct), DirectSessionMode::FileTransfer);
     }
 
     void StopStream(const std::string& streamId) override {
@@ -421,7 +444,9 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
         return target.hosts.empty() ? std::string{} : "endpoint:" + target.hosts.front() + ":" + std::to_string(target.port);
     }
 
-    void StartDirect(ParsedConnectionInput target, const bool viewOnly = false) {
+    void StartDirect(ParsedConnectionInput target, const DirectSessionMode mode = DirectSessionMode::Control) {
+        const bool fileTransfer{mode == DirectSessionMode::FileTransfer};
+        const bool viewOnly{mode != DirectSessionMode::Control};
         const std::string credentialKey{CredentialKey(target)};
         if (target.password.empty()) {
             target.password = credentialVault_->Read(credentialKey).value_or(std::string{});
@@ -433,7 +458,8 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
         const auto runtime = runtime_;
         const auto credentialVault = credentialVault_;
         const std::weak_ptr<ProductRemoteControlPort> weakSelf{shared_from_this()};
-        static_cast<void>(runtime_->Worker()->Post([runtime, credentialVault, weakSelf, target = std::move(target), credentialKey, viewOnly] {
+        static_cast<void>(runtime_->Worker()->Post([runtime, credentialVault, weakSelf, target = std::move(target), credentialKey, viewOnly,
+                                                    fileTransfer] {
             const std::string nonce{GetUUID()};
             const std::string passwordHash{MD5::Hex(target.password)};
             bool renderEndpointReached{};
@@ -453,7 +479,7 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
                 }
                 const std::string remoteDeviceId{target.deviceId.empty() ? configuration.value().device_id_ : target.deviceId};
                 const std::string displayName{target.displayName.empty() ? host : target.displayName};
-                const std::string sessionId{"direct-" + GetUUID()};
+                const std::string sessionId{(fileTransfer ? "file-" : "direct-") + GetUUID()};
                 const auto preference = runtime->Config()->LoadRemoteDevicePreference(remoteDeviceId).value_or(RemoteDevicePreference{});
                 const auto console = runtime->Config()->Console();
                 const bool launched = runtime->Launcher()->Launch(
@@ -472,8 +498,9 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
                      .viewOnly = viewOnly,
                      .forceTcp = preference.forceTcp,
                      .forceRelay = preference.forceRelay,
-                     .audio = preference.audio,
-                     .clipboard = preference.clipboard,
+                     .fileTransfer = fileTransfer,
+                     .audio = fileTransfer ? false : preference.audio,
+                     .clipboard = fileTransfer ? false : preference.clipboard,
                      .splitWindows = preference.splitWindows,
                      .forceSoftware = preference.forceSoftware,
                      .waitForDebugger = preference.waitForDebugger,
@@ -519,7 +546,8 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
                 } else {
                     self->devices_.push_back(card);
                 }
-                self->activeSessions_[cardId] = sessionId;
+                if (!fileTransfer)
+                    self->activeSessions_[cardId] = sessionId;
                 return;
             }
             if (weakSelf.lock()) {

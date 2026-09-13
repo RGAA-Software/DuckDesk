@@ -32,8 +32,10 @@ class RemoteDeviceActions final {
     std::shared_ptr<RemoteControlPort> port_{};
     std::string idScope_{};
     std::string pendingTarget_{};
+    std::string pendingStreamId_{};
     std::string pendingPassword_{};
     bool pendingViewOnly_{};
+    bool pendingFileTransfer_{};
     bool openPasswordDialog_{};
     bool openEditor_{};
     bool openCommandConfirmation_{};

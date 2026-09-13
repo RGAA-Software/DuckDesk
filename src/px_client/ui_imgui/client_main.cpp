@@ -1,4 +1,5 @@
 #include "client_launch_config.h"
+#include "client_file_transfer_window.h"
 #include "client_session.h"
 #include "client_startup_dialog.h"
 #include "client_window.h"
@@ -75,9 +76,15 @@ int main() {
             english ? "OK" : "确定", true));
         return 4;
     }
-    px::client::imgui::ClientWindow window{std::ref(shell), session, english, darkTheme, config->enhancedVisualEffects};
     session->Start();
-    const int result = shell.Run([&window] { window.Draw(); }, [&window](const px::desktop::DesktopInputEvent& event) { window.HandleInput(event); });
+    int result{};
+    if (config->fileTransferOnly) {
+        px::client::imgui::ClientFileTransferWindow window{std::ref(shell), session, config->streamName, english};
+        result = shell.Run([&window] { window.Draw(); }, [](const px::desktop::DesktopInputEvent&) {});
+    } else {
+        px::client::imgui::ClientWindow window{std::ref(shell), session, english, darkTheme, config->enhancedVisualEffects};
+        result = shell.Run([&window] { window.Draw(); }, [&window](const px::desktop::DesktopInputEvent& event) { window.HandleInput(event); });
+    }
     session->Stop();
     return result;
 }

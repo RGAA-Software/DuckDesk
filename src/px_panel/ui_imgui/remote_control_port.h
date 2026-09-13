@@ -56,7 +56,7 @@ class RemoteControlPort {
     virtual void Connect(std::string target, std::string password, bool viewOnly = false) = 0;
     virtual void StartStream(const std::string& streamId, bool viewOnly) = 0;
     virtual void StopStream(const std::string& streamId) = 0;
-    virtual void StartFileTransfer(const std::string& streamId) = 0;
+    virtual void StartFileTransfer(const std::string& streamId, std::string password) = 0;
     virtual void SendDeviceCommand(const std::string& streamId, RemoteDeviceCommand command) = 0;
     virtual void DeleteDevice(const std::string& streamId) = 0;
     virtual void SaveDevice(RemoteDeviceCard device) = 0;
