@@ -188,3 +188,5 @@ Panel 设备操作
 - node90 实机验证：开始前无 `px_client` 进程；从 Panel 的设备右键菜单启动后创建独立 `px_client`，文件通道连接成功并返回远端目录，无远控窗口或媒体首帧依赖。
 - node90 实机上传、下载和远端删除闭环通过。测试文件为 60 B，下载文件 SHA-256 与源文件均为 `97B36B56331D1E6AABADC9B9979260629B1B6CD5B22078D1E9ED8CFE518EFADB`；远端测试文件随后已删除。
 - 最终 Client 聚焦构建已同步到 `build_official/dist`，构建树和发布目录的 `px_client.exe` SHA-256 均为 `8B8A9CC8EEF372F9AC73AE32CBB5DD81D6B932E765120ECC176121E487C71A0F`。
+- 共享文件引擎变更已重新链接到 Render；构建树、`build_official/dist` 和 node90 的 `px_render.exe` SHA-256 均为 `BA5F021FDA93EA935ABDEEC30502BFB37B2008D2AB1C6424056CC9592958A8C3`。原子发布后服务恢复 Running，文件传输重新连接成功。
+- node90 更新后又完成非空目录专项验证：上传含测试文件的 `source` 目录，刷新后可见，执行递归删除并再次刷新后目录消失；远端未留下测试文件或测试目录。
