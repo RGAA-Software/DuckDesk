@@ -26,6 +26,7 @@ pub struct ConsoleUserDeviceAdapter {
 pub struct ConsoleUserDeviceSummary {
     pub device_id: String,
     pub name: String,
+    pub platform: String,
     pub online: bool,
     pub capabilities: Vec<String>,
     pub last_seen_at: i64,
@@ -42,6 +43,7 @@ impl ConsoleUserDeviceSummary {
         Self {
             device_id: device.device_id,
             name: device.device_name,
+            platform: device.platform,
             online,
             capabilities: ["view", "input", "clipboard", "file", "audio"]
                 .into_iter()
@@ -75,6 +77,7 @@ mod tests {
         let summary = ConsoleUserDeviceSummary::from(ConsoleDevice {
             device_id: "dev-1".to_string(),
             device_name: "desk".to_string(),
+            platform: "windows".to_string(),
             desktop_link: "link://secret".to_string(),
             random_pwd_md5: "random-secret".to_string(),
             safety_pwd_md5: "safety-secret".to_string(),
@@ -84,6 +87,7 @@ mod tests {
         assert!(!json.contains("desktop_link"));
         assert!(!json.contains("random-secret"));
         assert!(!json.contains("safety-secret"));
+        assert_eq!(summary.platform, "windows");
         assert_eq!(
             summary.capabilities,
             ["view", "input", "clipboard", "file", "audio"]

@@ -59,6 +59,7 @@ enum class TextId : std::uint8_t {
     SimplifiedChinese,
     DarkTheme,
     LightTheme,
+    EnhancedVisualEffects,
     ThisDevice,
     DeviceId,
     TemporaryPassword,
@@ -211,6 +212,12 @@ enum class TextId : std::uint8_t {
     DeviceDetails,
     NoDeviceSelected,
     RemoveDevicePrompt,
+    ConnectToRemoteDevice,
+    RecentDevices,
+    ConnectionCredentials,
+    ShareAndWebAccess,
+    DeviceCount,
+    QrCode,
     Count,
 };
 

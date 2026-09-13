@@ -18,7 +18,8 @@ class PreviewRemoteControlPort final : public RemoteControlPort {
             .webClientAddress = "http://192.168.1.10:4601/web/",
             .showTemporaryPassword = passwordVisible_,
             .managerOnline = true,
-            .devices = {{.streamId = "preview-90", .name = "Pixels node90", .deviceId = "90", .online = true}},
+            .devices =
+                {{.streamId = "preview-90", .name = "Pixels node90", .deviceId = "90", .platform = px::ui::DevicePlatform::Windows, .online = true}},
         };
     }
 

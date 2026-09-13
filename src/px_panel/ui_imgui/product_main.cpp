@@ -119,16 +119,18 @@ int main(int argc, char* argv[]) { // NOLINT(gammaray-raw-pointer-boundary): pro
                     activeShell->RequestShowAndRaise();
                 }
             }
-            const auto action = panel.Draw();
+            const auto activeShell = weakShell.lock();
+            if (!activeShell)
+                return;
+            const auto action = panel.Draw(activeShell->PlatformIcons());
             if (action.selectedTheme.has_value()) {
-                if (const auto activeShell = weakShell.lock()) {
-                    activeShell->SetTheme(*action.selectedTheme);
-                }
+                activeShell->SetTheme(*action.selectedTheme);
+            }
+            if (action.enhancedVisualEffects.has_value()) {
+                activeShell->SetEnhancedVisualEffects(*action.enhancedVisualEffects);
             }
             if (action.exitRequested) {
-                if (const auto activeShell = weakShell.lock()) {
-                    activeShell->RequestExit();
-                }
+                activeShell->RequestExit();
             }
         });
     }

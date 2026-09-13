@@ -5,8 +5,7 @@
 namespace px::client::imgui {
 namespace {
 
-template <typename T>
-T Value(const nlohmann::json& object, const std::string_view name, T fallback = {}) {
+template <typename T> T Value(const nlohmann::json& object, const std::string_view name, T fallback = {}) {
     const auto found = object.find(name);
     return found == object.end() || found->is_null() ? std::move(fallback) : found->get<T>();
 }
@@ -46,6 +45,8 @@ std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(const std::string_vi
                                   .disableVulkan = Value<bool>(values, "disable_vulkan_render"),
                                   .waitForDebugger = Value<bool>(values, "wait_debug"),
                                   .language = Value<std::string>(values, "language", "zh-CN"),
+                                  .lightTheme = Value<std::string>(values, "theme", "dark") == "light",
+                                  .enhancedVisualEffects = Value<bool>(values, "enhanced_visual_effects", true),
                                   .decoder = Value<std::string>(values, "decoder", "Auto"),
                                   .recordingPath = Value<std::string>(values, "recording_path")};
         if (const auto rdp = values.find("rdp"); rdp != values.end() && rdp->is_object()) {

@@ -17,12 +17,13 @@ struct ClientSessionSnapshot;
 struct ClientToolbarAction final {
     bool toggleLanguage{};
     bool toggleTheme{};
+    bool toggleEnhancedVisualEffects{};
     bool toggleFullscreen{};
 };
 
 class ClientToolbar final {
   public:
-    explicit ClientToolbar(std::shared_ptr<ClientFileTransferPanel> fileTransfer);
+    ClientToolbar(std::shared_ptr<ClientFileTransferPanel> fileTransfer, bool enhancedVisualEffects);
     [[nodiscard]] ClientToolbarAction Draw(const std::shared_ptr<ClientSession>& session, bool english, bool darkTheme);
     [[nodiscard]] bool CapturesPointer(float x, float y) const noexcept;
     [[nodiscard]] bool HandlePointerEvent(const px::desktop::DesktopInputEvent& event);
@@ -60,6 +61,7 @@ class ClientToolbar final {
     bool audioEnabled_{true};
     bool microphoneMuted_{};
     bool speakerMuted_{};
+    bool enhancedVisualEffects_{true};
     std::string screenshotStatus_{};
     int frameRate_{60};
     int resolutionWidth_{};

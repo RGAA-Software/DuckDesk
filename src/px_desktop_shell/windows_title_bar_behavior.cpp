@@ -1,5 +1,7 @@
 #include "windows_title_bar_behavior.h"
 
+#include "title_bar.h"
+
 #include <windows.h>
 #include <commctrl.h>
 #include <dwmapi.h>
@@ -13,9 +15,7 @@
 namespace px::desktop {
 namespace {
 
-constexpr int kTitleBarHeight{48};
 constexpr int kResizeBorder{7};
-constexpr int kCaptionButtonWidth{46};
 constexpr int kCaptionButtonCount{3};
 constexpr int kMinimumWindowWidth{900};
 constexpr int kMinimumWindowHeight{600};
@@ -34,10 +34,10 @@ bool IsMaximizeButton(const HWND window, const LPARAM position) {
     }
     const UINT dpi{GetDpiForWindow(window)};
     const auto scale = [dpi](const int value) { return MulDiv(value, static_cast<int>(dpi), USER_DEFAULT_SCREEN_DPI); };
-    const int buttonWidth{scale(kCaptionButtonWidth)};
+    const int buttonWidth{scale(kCaptionButtonLogicalWidth)};
     const int buttonStart{clientBounds.right - buttonWidth * (kCaptionButtonCount - 1)};
     const int buttonEnd{clientBounds.right - buttonWidth};
-    return point.y >= scale(kResizeBorder) && point.y < scale(kTitleBarHeight) && point.x >= buttonStart && point.x < buttonEnd;
+    return point.y >= scale(kResizeBorder) && point.y < scale(kTitleBarLogicalHeight) && point.x >= buttonStart && point.x < buttonEnd;
 }
 
 LRESULT CALLBACK TitleBarSubclass(const HWND window, const UINT message, const WPARAM wParam, const LPARAM lParam, const UINT_PTR,

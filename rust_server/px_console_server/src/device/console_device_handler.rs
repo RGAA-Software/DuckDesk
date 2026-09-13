@@ -80,6 +80,7 @@ pub async fn handle_create_new_device(
                 ),
                 (String::from("gen_random_pwd"), new_random_pwd.clone()),
                 (String::from("device_name"), device_name.clone()),
+                (String::from("platform"), platform.clone()),
             ]);
             let update_result = gDeviceManager
                 .update_device(match_device.device_id.clone(), update_info)
@@ -88,6 +89,7 @@ pub async fn handle_create_new_device(
                 match_device.gen_random_pwd = new_random_pwd.clone();
                 match_device.random_pwd_md5 = px_base::md5_hex(&new_random_pwd);
                 match_device.device_name = device_name;
+                match_device.platform = platform.clone();
                 break Some(match_device);
             } else {
                 break None;
@@ -113,6 +115,7 @@ pub async fn handle_create_new_device(
                 let device = ConsoleDevice {
                     device_id: new_device_info.device_id,
                     device_name: device_name.clone(),
+                    platform: platform.clone(),
                     seed: new_device_info.seed,
                     created_timestamp: px_base::get_current_timestamp(),
                     last_update_timestamp: px_base::get_current_timestamp(),

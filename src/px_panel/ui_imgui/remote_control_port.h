@@ -1,5 +1,7 @@
 #pragma once
 
+#include "px_ui/device_platform.h"
+
 #include <memory>
 #include <cstdint>
 #include <string>
@@ -13,6 +15,7 @@ struct RemoteDeviceCard final {
     std::string streamId{};
     std::string name{};
     std::string deviceId{};
+    px::ui::DevicePlatform platform{px::ui::DevicePlatform::Unknown};
     bool online{false};
     std::string host{};
     int port{0};

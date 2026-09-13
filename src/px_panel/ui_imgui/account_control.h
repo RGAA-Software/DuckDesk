@@ -3,8 +3,8 @@
 #include "account_port.h"
 #include "px_ui/localization.h"
 
-#include <array>
 #include <memory>
+#include <string>
 
 namespace px::panel::ui {
 
@@ -17,9 +17,9 @@ class AccountControl final {
     void DrawDialog(const px::ui::Localizer& localizer);
 
     std::shared_ptr<AccountPort> port_{};
-    std::array<char, 128> username_{};
-    std::array<char, 128> password_{};
-    std::array<char, 128> confirmation_{};
+    std::string username_{};
+    std::string password_{};
+    std::string confirmation_{};
     bool dialogRequested_{false};
     bool registerMode_{false};
     bool invalidInput_{false};

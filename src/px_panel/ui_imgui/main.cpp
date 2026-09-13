@@ -6,8 +6,8 @@
 
 int main() {
     auto shellResult = px::desktop::DesktopShell::Create({.title = "Pixels Panel UI Preview",
-                                                          .width = 1180,
-                                                          .height = 760,
+                                                          .width = 960,
+                                                          .height = 640,
                                                           .showMinimizeButton = true,
                                                           .showMaximizeButton = false,
                                                           .allowTitleBarMaximize = false,
@@ -20,9 +20,12 @@ int main() {
     auto shell = std::move(shellResult.value());
     px::panel::ui::PanelPreview panel{};
     return shell.Run([&panel, &shell] {
-        const auto action = panel.Draw();
+        const auto action = panel.Draw(shell.PlatformIcons());
         if (action.selectedTheme.has_value()) {
             shell.SetTheme(*action.selectedTheme);
+        }
+        if (action.enhancedVisualEffects.has_value()) {
+            shell.SetEnhancedVisualEffects(*action.enhancedVisualEffects);
         }
         if (action.exitRequested) {
             shell.RequestExit();

@@ -4,6 +4,9 @@
 #include "client_text.h"
 #include "client_toolbar.h"
 #include "px_common/log.h"
+#include "px_ui/components/button.h"
+#include "px_ui/components/feedback.h"
+#include "px_ui/components/overlay.h"
 
 #include <SDL3/SDL.h>
 #include <imgui.h>
@@ -35,9 +38,10 @@ ClientText FailureText(const ClientConnectionFailure failure) noexcept {
 
 } // namespace
 
-ClientWindow::ClientWindow(std::reference_wrapper<px::desktop::DesktopShell> shell, std::shared_ptr<ClientSession> session, const bool english)
+ClientWindow::ClientWindow(std::reference_wrapper<px::desktop::DesktopShell> shell, std::shared_ptr<ClientSession> session, const bool english,
+                           const bool darkTheme, const bool enhancedVisualEffects)
     : shell_{shell}, session_{std::move(session)}, fileTransfer_{std::make_shared<ClientFileTransferPanel>()},
-      toolbar_{std::make_unique<ClientToolbar>(fileTransfer_)}, english_{english} {}
+      toolbar_{std::make_unique<ClientToolbar>(fileTransfer_, enhancedVisualEffects)}, english_{english}, darkTheme_{darkTheme} {}
 
 ClientWindow::~ClientWindow() = default;
 
@@ -74,6 +78,8 @@ void ClientWindow::Draw() {
         darkTheme_ = !darkTheme_;
         static_cast<void>(shell_.get().SetTheme(darkTheme_ ? px::ui::Theme::Dark : px::ui::Theme::Light));
     }
+    if (toolbarAction.toggleEnhancedVisualEffects)
+        static_cast<void>(shell_.get().SetEnhancedVisualEffects(!px::ui::EnhancedVisualEffectsEnabled()));
     if (toolbarAction.toggleFullscreen)
         static_cast<void>(shell_.get().ToggleFullscreen());
     fileTransfer_->Draw(session_, english_);
@@ -84,10 +90,9 @@ void ClientWindow::Draw() {
             ImGui::OpenPopup(popupTitle.c_str());
             terminalErrorPopupOpened_ = true;
         }
-        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Always, {0.5F, 0.5F});
-        ImGui::SetNextWindowSize({540.0F, 0.0F}, ImGuiCond_Always);
-        constexpr ImGuiWindowFlags flags{ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings};
-        if (ImGui::BeginPopupModal(popupTitle.c_str(), nullptr, flags)) {
+        const px::ui::ModalScope modal{
+            {popupTitle}, 540.0F, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings};
+        if (modal.Open()) {
             ImGui::TextWrapped("%s", text(FailureText(snapshot.failure)));
             if (snapshot.failure == ClientConnectionFailure::None && !snapshot.status.empty()) {
                 ImGui::TextWrapped("%s", snapshot.status.c_str());
@@ -95,17 +100,16 @@ void ClientWindow::Draw() {
             ImGui::Spacing();
             constexpr float buttonWidth{150.0F};
             ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - buttonWidth) * 0.5F);
-            if (ImGui::Button(text(ClientText::Ok), {buttonWidth, 0.0F}))
+            if (px::ui::ActionButton({"client-error-ok"}, text(ClientText::Ok), {.width = buttonWidth}))
                 shell_.get().RequestExit();
-            ImGui::EndPopup();
         }
         return;
     }
 
     if (snapshot.state == ClientConnectionState::MediaUnavailable) {
-        ImGui::TextColored({0.95F, 0.65F, 0.20F, 1.0F}, "%s", text(ClientText::MediaUnavailableDetail));
+        px::ui::InlineAlert(text(ClientText::MediaUnavailable), text(ClientText::MediaUnavailableDetail), px::ui::FeedbackVariant::Warning);
     } else if (snapshot.state == ClientConnectionState::Disconnected) {
-        ImGui::TextColored({0.95F, 0.65F, 0.20F, 1.0F}, "%s", text(ClientText::DisconnectedDetail));
+        px::ui::InlineAlert(text(ClientText::Disconnected), text(ClientText::DisconnectedDetail), px::ui::FeedbackVariant::Warning);
     }
 
     const ImVec2 available{ImGui::GetContentRegionAvail()};

@@ -99,6 +99,7 @@ class PanelConfigStore final {
     bool SaveSecurityPasswordHash(const std::string& hash);
     bool SaveLanguage(::px::ui::Language language);
     bool SaveTheme(::px::ui::Theme theme);
+    bool SaveEnhancedVisualEffects(bool enabled);
     bool SaveShowTemporaryPassword(bool visible);
     bool SaveRemoteDevicePreference(const std::string& deviceId, const RemoteDevicePreference& preference);
     bool DeleteRemoteDevicePreference(const std::string& deviceId);

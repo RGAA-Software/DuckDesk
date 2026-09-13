@@ -40,12 +40,20 @@ add_executable(px_client WIN32 ui_imgui/client_main.cpp ${CMAKE_CURRENT_BINARY_D
 target_link_libraries(px_client PRIVATE px_client_imgui_runtime)
 target_link_options(px_client PRIVATE "/ENTRY:mainCRTStartup")
 set_target_properties(px_client PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}")
+gammaray_stage_platform_icons(px_client)
 
 add_custom_command(TARGET px_client POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:px_client>/resources/fonts"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:px_client>/resources/icons"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/src/px_ui/resources/fonts/Roboto-Regular.ttf"
         "$<TARGET_FILE_DIR:px_client>/resources/fonts/Roboto-Regular.ttf"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/src/px_deps/px_imgui/misc/fonts/Roboto-Medium.ttf"
+        "$<TARGET_FILE_DIR:px_client>/resources/fonts/Roboto-Medium.ttf"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/web/px_web_client/src/assets/px_icon.png"
+        "$<TARGET_FILE_DIR:px_client>/resources/icons/px_icon.png"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/libplacebo/lib/libplacebo-349.dll"
         "$<TARGET_FILE_DIR:px_client>/libplacebo-349.dll"

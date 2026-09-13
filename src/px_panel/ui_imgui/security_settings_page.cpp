@@ -1,9 +1,13 @@
 #include "security_settings_page.h"
 
+#include "px_ui/components/button.h"
+#include "px_ui/components/form.h"
+#include "px_ui/components/overlay.h"
+#include "px_ui/components/surface.h"
+#include "px_ui/layout_metrics.h"
+
 #include <imgui.h>
 
-#include <algorithm>
-#include <cstring>
 #include <utility>
 
 namespace px::panel::ui {
@@ -14,81 +18,81 @@ void SecuritySettingsPage::Draw(const px::ui::Localizer& localizer) {
     if (!loaded_) {
         const auto state = port_->Snapshot();
         disconnectAutoLock_ = state.disconnectAutoLock;
-        const auto length = std::min(state.logDestination.size(), logDestination_.size() - 1);
-        std::memcpy(logDestination_.data(), state.logDestination.data(), length);
-        logDestination_[length] = '\0';
+        logDestination_ = state.logDestination;
         loaded_ = true;
     }
-    ImGui::TextUnformatted(localizer.Text(px::ui::TextId::SecuritySettings).data());
-    ImGui::Separator();
-    if (ImGui::Checkbox(localizer.Text(px::ui::TextId::DisconnectAutoLock).data(), &disconnectAutoLock_)) {
+    px::ui::SectionTitle(localizer.Text(px::ui::TextId::SecuritySettings));
+    px::ui::HorizontalSeparator();
+    if (px::ui::ToggleSwitch({"security-auto-lock"}, localizer.Text(px::ui::TextId::DisconnectAutoLock), disconnectAutoLock_)) {
         port_->SetDisconnectAutoLock(disconnectAutoLock_);
     }
-    ImGui::InputText(localizer.Text(px::ui::TextId::LongTermPassword).data(), password_.data(), password_.size(), ImGuiInputTextFlags_Password);
-    ImGui::InputText(localizer.Text(px::ui::TextId::ConfirmPassword).data(), confirmation_.data(), confirmation_.size(),
-                     ImGuiInputTextFlags_Password);
-    if (ImGui::Button(localizer.Text(px::ui::TextId::SetPassword).data())) {
-        passwordRejected_ = !port_->SetSecurityPassword(password_.data(), confirmation_.data());
+    const float fieldWidth{px::ui::Scale(420.0F)};
+    px::ui::FieldLabel(localizer.Text(px::ui::TextId::LongTermPassword));
+    static_cast<void>(px::ui::TextField({"security-password"}, password_, {}, {.width = fieldWidth, .invalid = passwordRejected_},
+                                        ImGuiInputTextFlags_Password));
+    px::ui::FieldLabel(localizer.Text(px::ui::TextId::ConfirmPassword));
+    static_cast<void>(px::ui::TextField({"security-confirmation"}, confirmation_, {}, {.width = fieldWidth, .invalid = passwordRejected_},
+                                        ImGuiInputTextFlags_Password));
+    if (px::ui::ActionButton({"security-set-password"}, localizer.Text(px::ui::TextId::SetPassword))) {
+        passwordRejected_ = !port_->SetSecurityPassword(password_, confirmation_);
         if (!passwordRejected_) {
-            password_.fill({});
-            confirmation_.fill({});
+            password_.clear();
+            confirmation_.clear();
         }
     }
     if (passwordRejected_) {
         ImGui::SameLine();
-        ImGui::TextColored(ImVec4{0.9F, 0.28F, 0.25F, 1.0F}, "%s", localizer.Text(px::ui::TextId::PasswordInvalid).data());
+        px::ui::FieldError(localizer.Text(px::ui::TextId::PasswordInvalid));
     }
     const auto passwordState = port_->Snapshot().passwordUpdate;
     if (passwordState == PasswordUpdateState::Updating) {
-        ImGui::TextDisabled("%s", localizer.Text(px::ui::TextId::UpdatingPassword).data());
+        px::ui::StatusBadge(localizer.Text(px::ui::TextId::UpdatingPassword), px::ui::BadgeVariant::Secondary);
     } else if (passwordState == PasswordUpdateState::Updated) {
-        ImGui::TextColored(ImVec4{0.18F, 0.78F, 0.36F, 1.0F}, "%s", localizer.Text(px::ui::TextId::PasswordUpdated).data());
+        px::ui::StatusBadge(localizer.Text(px::ui::TextId::PasswordUpdated), px::ui::BadgeVariant::Success);
     } else if (passwordState == PasswordUpdateState::RemoteFailed) {
-        ImGui::TextColored(ImVec4{0.9F, 0.58F, 0.12F, 1.0F}, "%s", localizer.Text(px::ui::TextId::PasswordRemoteFailed).data());
+        px::ui::StatusBadge(localizer.Text(px::ui::TextId::PasswordRemoteFailed), px::ui::BadgeVariant::Warning);
     }
     ImGui::Spacing();
-    ImGui::TextUnformatted(localizer.Text(px::ui::TextId::MaintenanceTools).data());
-    ImGui::Separator();
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{0.72F, 0.12F, 0.18F, 1.00F});
-    if (ImGui::Button(localizer.Text(px::ui::TextId::ClearData).data())) {
+    px::ui::SectionTitle(localizer.Text(px::ui::TextId::MaintenanceTools));
+    px::ui::HorizontalSeparator();
+    if (px::ui::ActionButton({"security-clear-data"}, localizer.Text(px::ui::TextId::ClearData),
+                             {.variant = px::ui::ButtonVariant::Destructive})) {
         confirmClear_ = true;
     }
-    ImGui::PopStyleColor();
-    ImGui::SetNextItemWidth(-1.0F);
-    ImGui::InputText(localizer.Text(px::ui::TextId::LogDestination).data(), logDestination_.data(), logDestination_.size());
+    px::ui::FieldLabel(localizer.Text(px::ui::TextId::LogDestination));
+    static_cast<void>(px::ui::TextField({"log-destination"}, logDestination_));
     const auto logState = port_->Snapshot().logCollection;
-    if (logState == LogCollectionState::Collecting) {
-        ImGui::BeginDisabled();
-    }
-    if (ImGui::Button(localizer.Text(px::ui::TextId::CollectLogs).data())) {
-        port_->CollectLogs(logDestination_.data());
+    if (px::ui::ActionButton({"collect-logs"}, localizer.Text(px::ui::TextId::CollectLogs),
+                             {.busy = logState == LogCollectionState::Collecting})) {
+        port_->CollectLogs(logDestination_);
     }
     if (logState == LogCollectionState::Collecting) {
-        ImGui::EndDisabled();
         ImGui::SameLine();
-        ImGui::TextDisabled("%s", localizer.Text(px::ui::TextId::Collecting).data());
+        px::ui::MutedText(localizer.Text(px::ui::TextId::Collecting));
     } else if (logState == LogCollectionState::Completed) {
         ImGui::SameLine();
-        ImGui::TextColored(ImVec4{0.18F, 0.78F, 0.36F, 1.0F}, "%s", localizer.Text(px::ui::TextId::LogCollectionCompleted).data());
+        px::ui::StatusBadge(localizer.Text(px::ui::TextId::LogCollectionCompleted), px::ui::BadgeVariant::Success);
     } else if (logState == LogCollectionState::Failed) {
         ImGui::SameLine();
-        ImGui::TextColored(ImVec4{0.9F, 0.28F, 0.25F, 1.0F}, "%s", localizer.Text(px::ui::TextId::LogCollectionFailed).data());
+        px::ui::StatusBadge(localizer.Text(px::ui::TextId::LogCollectionFailed), px::ui::BadgeVariant::Destructive);
     }
     if (confirmClear_) {
-        ImGui::OpenPopup("ConfirmClearPanelData");
+        px::ui::OpenModal({"ConfirmClearPanelData"});
         confirmClear_ = false;
     }
-    if (ImGui::BeginPopupModal("ConfirmClearPanelData", {}, ImGuiWindowFlags_AlwaysAutoResize)) {
+    px::ui::ModalScope dialog{{"ConfirmClearPanelData"}, 440.0F};
+    if (dialog.Open()) {
+        px::ui::SectionTitle(localizer.Text(px::ui::TextId::ClearData));
         ImGui::TextUnformatted(localizer.Text(px::ui::TextId::ClearDataPrompt).data());
-        if (ImGui::Button(localizer.Text(px::ui::TextId::Clear).data())) {
+        if (px::ui::ActionButton({"clear-panel-data"}, localizer.Text(px::ui::TextId::Clear), {.variant = px::ui::ButtonVariant::Destructive})) {
             port_->ClearData();
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button(localizer.Text(px::ui::TextId::Cancel).data())) {
+        if (px::ui::ActionButton({"clear-panel-data-cancel"}, localizer.Text(px::ui::TextId::Cancel),
+                                 {.variant = px::ui::ButtonVariant::Outline})) {
             ImGui::CloseCurrentPopup();
         }
-        ImGui::EndPopup();
     }
 }
 

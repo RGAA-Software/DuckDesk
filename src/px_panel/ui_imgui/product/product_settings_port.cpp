@@ -110,6 +110,9 @@ class ProductSettingsPort final : public ui::SettingsPort, public std::enable_sh
     void SetTheme(const ::px::ui::Theme theme) override {
         static_cast<void>(runtime_->Config()->SaveTheme(theme));
     }
+    void SetEnhancedVisualEffects(const bool enabled) override {
+        static_cast<void>(runtime_->Config()->SaveEnhancedVisualEffects(enabled));
+    }
     void CollectLogs(const std::string& destinationDirectory) override {
         if (destinationDirectory.empty()) {
             const std::scoped_lock lock{mutex_};

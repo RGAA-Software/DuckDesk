@@ -1,7 +1,9 @@
 #include "panel_navigation.h"
+#include "panel_layout.h"
 
+#include "px_ui/components/navigation.h"
 #include "px_ui/layout_metrics.h"
-#include "px_ui/vector_icon.h"
+#include "px_ui/theme_tokens.h"
 
 #include <imgui.h>
 
@@ -35,32 +37,30 @@ PanelNavigation::PanelNavigation(std::shared_ptr<AccountPort> accountPort) : acc
 NavigationAction PanelNavigation::Draw(const px::ui::Localizer& localizer) {
     NavigationAction action{.selectedPage = selectedPage_};
     constexpr ImGuiWindowFlags navigationFlags{ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse};
-    ImGui::BeginChild("Navigation", ImVec2{px::ui::Scale(224.0F), 0.0F}, ImGuiChildFlags_Borders, navigationFlags);
+    ImGui::BeginChild("Navigation", ImVec2{layout::NavigationWidth(), 0.0F}, ImGuiChildFlags_None, navigationFlags);
     account_.Draw(localizer);
     ImGui::Spacing();
-    ImGui::Separator();
+    const float accountDividerWidth{px::ui::Scale(100.0F)};
+    const ImVec2 dividerCursor{ImGui::GetCursorScreenPos()};
+    const float accountDividerLeft{dividerCursor.x + (ImGui::GetContentRegionAvail().x - accountDividerWidth) * 0.5F};
+    ImGui::GetWindowDrawList()->AddLine({accountDividerLeft, dividerCursor.y}, {accountDividerLeft + accountDividerWidth, dividerCursor.y},
+                                        ImGui::GetColorU32(px::ui::CurrentThemeTokens().border));
+    ImGui::Dummy({0.0F, px::ui::Scale(1.0F)});
     ImGui::Spacing();
 
-    const ImVec2 buttonSize{-1.0F, px::ui::Scale(42.0F)};
+    const float buttonWidth{px::ui::Scale(150.0F)};
+    const float buttonHeight{px::ui::Scale(35.0F)};
+    const float iconInset{px::ui::Scale(30.0F)};
+    const auto centerButton = [buttonWidth] { ImGui::SetCursorPosX((ImGui::GetWindowWidth() - buttonWidth) * 0.5F); };
     for (const auto& item : kNavigationItems) {
+        centerButton();
         const bool wasSelected{item.page == selectedPage_};
-        const ImVec4 buttonColor{wasSelected ? ImVec4{0.12F, 0.36F, 0.82F, 1.00F} : ImGui::GetStyleColorVec4(ImGuiCol_FrameBg)};
-        const ImVec4 hoverColor{wasSelected ? ImVec4{0.16F, 0.43F, 0.94F, 1.00F} : ImGui::GetStyleColorVec4(ImGuiCol_FrameBgHovered)};
-        const ImVec4 activeColor{wasSelected ? ImVec4{0.10F, 0.30F, 0.72F, 1.00F} : ImGui::GetStyleColorVec4(ImGuiCol_FrameBgActive)};
-        ImGui::PushStyleColor(ImGuiCol_Button, buttonColor);
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, hoverColor);
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, activeColor);
         const std::string id{"navigation-" + std::to_string(static_cast<int>(item.page))};
-        if (px::ui::IconButton(item.icon, localizer.Text(item.text), id, buttonSize)) {
+        if (px::ui::NavigationItem({id}, item.icon, localizer.Text(item.text), wasSelected, buttonWidth, px::ui::WidgetSize::Sm, buttonHeight,
+                                   iconInset)) {
             selectedPage_ = item.page;
         }
-        ImGui::PopStyleColor(3);
     }
-
-    ImGui::SetCursorPosY(ImGui::GetWindowHeight() - px::ui::Scale(58.0F));
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{0.72F, 0.12F, 0.18F, 1.00F});
-    action.exitRequested = px::ui::IconButton(px::ui::VectorIcon::LogOut, localizer.Text(px::ui::TextId::ExitPrograms), "exit-programs", buttonSize);
-    ImGui::PopStyleColor();
     ImGui::EndChild();
     action.selectedPage = selectedPage_;
     return action;

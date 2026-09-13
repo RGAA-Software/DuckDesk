@@ -197,6 +197,7 @@ ui::SettingsSnapshot PanelConfigStore::Settings() const {
     result.version = PROJECT_VERSION;
     result.language = Read(preferences_, "panel_ui_language", "zh-CN") == "en" ? ::px::ui::Language::English : ::px::ui::Language::SimplifiedChinese;
     result.theme = Read(preferences_, "panel_ui_theme", "dark") == "light" ? ::px::ui::Theme::Light : ::px::ui::Theme::Dark;
+    result.enhancedVisualEffects = ReadBool(preferences_, "panel_ui_enhanced_effects", true);
     return result;
 }
 
@@ -320,6 +321,9 @@ bool PanelConfigStore::SaveLanguage(const ::px::ui::Language language) {
 }
 bool PanelConfigStore::SaveTheme(const ::px::ui::Theme theme) {
     return preferences_->Put("panel_ui_theme", theme == ::px::ui::Theme::Light ? "light" : "dark");
+}
+bool PanelConfigStore::SaveEnhancedVisualEffects(const bool enabled) {
+    return preferences_->Put("panel_ui_enhanced_effects", enabled ? "true" : "false");
 }
 bool PanelConfigStore::SaveShowTemporaryPassword(const bool visible) {
     return preferences_->Put("display_random_pwd", visible ? "true" : "false");

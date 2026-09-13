@@ -52,6 +52,10 @@ class PreviewSettingsPort final : public SettingsPort {
         const std::scoped_lock lock{mutex_};
         state_.theme = theme;
     }
+    void SetEnhancedVisualEffects(const bool enabled) override {
+        const std::scoped_lock lock{mutex_};
+        state_.enhancedVisualEffects = enabled;
+    }
     void CollectLogs(const std::string& destinationDirectory) override {
         const std::scoped_lock lock{mutex_};
         state_.logDestination = destinationDirectory;

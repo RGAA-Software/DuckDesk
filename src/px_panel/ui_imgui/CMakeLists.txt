@@ -2,6 +2,7 @@ add_library(px_panel_imgui_views STATIC
     account_control.cpp
     about_settings_page.cpp
     cloud_applications_page.cpp
+    connection_qr_dialog.cpp
     controller_settings_page.cpp
     device_list_page.cpp
     general_settings_page.cpp
@@ -18,7 +19,7 @@ add_library(px_panel_imgui_views STATIC
     security_records_page.cpp
 )
 
-target_link_libraries(px_panel_imgui_views PUBLIC px_desktop_shell px_ui px_imgui SDL3::SDL3-static)
+target_link_libraries(px_panel_imgui_views PUBLIC px_desktop_shell px_ui px_imgui SDL3::SDL3-static PRIVATE px_common)
 
 add_executable(px_panel_imgui_preview
     main.cpp
@@ -83,15 +84,23 @@ target_link_libraries(px_panel PRIVATE
     OpenSSL::Crypto
     Advapi32.lib
 )
+gammaray_stage_platform_icons(px_panel)
 
 set_target_properties(px_panel PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}")
 
 add_custom_command(TARGET px_panel POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:px_panel>/resources/fonts"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:px_panel>/resources/icons"
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:px_panel>/resources/licenses"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/src/px_ui/resources/fonts/Roboto-Regular.ttf"
         "$<TARGET_FILE_DIR:px_panel>/resources/fonts/Roboto-Regular.ttf"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/src/px_deps/px_imgui/misc/fonts/Roboto-Medium.ttf"
+        "$<TARGET_FILE_DIR:px_panel>/resources/fonts/Roboto-Medium.ttf"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/web/px_web_client/src/assets/px_icon.png"
+        "$<TARGET_FILE_DIR:px_panel>/resources/icons/px_icon.png"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/src/px_ui/resources/icons/LICENSE.lucide"
         "$<TARGET_FILE_DIR:px_panel>/resources/licenses/Lucide.txt"
@@ -100,12 +109,46 @@ add_custom_command(TARGET px_panel POST_BUILD
         "$<TARGET_FILE_DIR:px_panel>/libplacebo-349.dll"
 )
 target_link_options(px_panel_imgui_preview PRIVATE "/ENTRY:mainCRTStartup")
+gammaray_stage_platform_icons(px_panel_imgui_preview)
+
+add_executable(px_ui_component_gallery
+    component_gallery.cpp
+    component_gallery_main.cpp
+)
+target_link_libraries(px_ui_component_gallery PRIVATE px_desktop_shell px_ui px_imgui SDL3::SDL3-static)
+set_target_properties(px_ui_component_gallery PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}"
+    WIN32_EXECUTABLE TRUE
+)
+target_link_options(px_ui_component_gallery PRIVATE "/ENTRY:mainCRTStartup")
+gammaray_stage_platform_icons(px_ui_component_gallery)
 
 add_custom_command(TARGET px_panel_imgui_preview POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:px_panel_imgui_preview>/resources/fonts"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:px_panel_imgui_preview>/resources/icons"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/src/px_ui/resources/fonts/Roboto-Regular.ttf"
         "$<TARGET_FILE_DIR:px_panel_imgui_preview>/resources/fonts/Roboto-Regular.ttf"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/src/px_deps/px_imgui/misc/fonts/Roboto-Medium.ttf"
+        "$<TARGET_FILE_DIR:px_panel_imgui_preview>/resources/fonts/Roboto-Medium.ttf"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/web/px_web_client/src/assets/px_icon.png"
+        "$<TARGET_FILE_DIR:px_panel_imgui_preview>/resources/icons/px_icon.png"
+)
+
+add_custom_command(TARGET px_ui_component_gallery POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:px_ui_component_gallery>/resources/fonts"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:px_ui_component_gallery>/resources/icons"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/src/px_ui/resources/fonts/Roboto-Regular.ttf"
+        "$<TARGET_FILE_DIR:px_ui_component_gallery>/resources/fonts/Roboto-Regular.ttf"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/src/px_deps/px_imgui/misc/fonts/Roboto-Medium.ttf"
+        "$<TARGET_FILE_DIR:px_ui_component_gallery>/resources/fonts/Roboto-Medium.ttf"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/web/px_web_client/src/assets/px_icon.png"
+        "$<TARGET_FILE_DIR:px_ui_component_gallery>/resources/icons/px_icon.png"
 )
 
 if(BUILD_TESTING AND TARGET GTest::gtest)

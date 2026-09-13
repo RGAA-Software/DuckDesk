@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <memory>
 #include <string>
 
@@ -17,8 +16,8 @@ class ClientFileTransferPanel final {
 
   private:
     bool open_{};
-    std::array<char, 4096> localPath_{};
-    std::array<char, 4096> remotePath_{};
+    std::string localPath_{};
+    std::string remotePath_{};
     std::string selectedRemote_{};
     bool applyOverwriteToAll_{};
     float windowX_{};

@@ -4,6 +4,7 @@
 
 #include "px_ui/localization.h"
 
+#include <cstddef>
 #include <memory>
 #include <string>
 
@@ -15,6 +16,8 @@ class CloudApplicationsPage final {
     void Draw(const px::ui::Localizer& localizer);
 
   private:
+    void DrawApplicationCard(const CloudApplicationCard& application, const px::ui::Localizer& localizer, std::size_t index, float width);
+    void DrawContextMenu(const CloudApplicationCard& application, const px::ui::Localizer& localizer);
     void DrawPasswordDialog(const px::ui::Localizer& localizer);
 
     std::shared_ptr<CloudApplicationsPort> port_{};

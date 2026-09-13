@@ -1,5 +1,9 @@
 #include "remote_device_actions.h"
 
+#include "px_ui/components/button.h"
+#include "px_ui/components/form.h"
+#include "px_ui/components/overlay.h"
+#include "px_ui/components/surface.h"
 #include "px_ui/layout_metrics.h"
 
 #include <imgui.h>
@@ -43,117 +47,114 @@ void RemoteDeviceActions::Remove(const RemoteDeviceCard& device) {
 }
 
 void RemoteDeviceActions::DrawContextMenu(const RemoteDeviceCard& device, const px::ui::Localizer& localizer) {
-    if (ImGui::MenuItem(localizer.Text(px::ui::TextId::StartControl).data()))
+    if (px::ui::MenuAction({"device-start"}, localizer.Text(px::ui::TextId::StartControl)))
         Start(device, false);
-    if (ImGui::MenuItem(localizer.Text(px::ui::TextId::ViewOnly).data()))
+    if (px::ui::MenuAction({"device-view"}, localizer.Text(px::ui::TextId::ViewOnly)))
         Start(device, true);
     ImGui::Separator();
-    if (ImGui::MenuItem(localizer.Text(px::ui::TextId::EditDevice).data()))
+    if (px::ui::MenuAction({"device-edit"}, localizer.Text(px::ui::TextId::EditDevice)))
         Edit(device);
-    if (ImGui::MenuItem(localizer.Text(px::ui::TextId::FileTransfer).data()))
+    if (px::ui::MenuAction({"device-files"}, localizer.Text(px::ui::TextId::FileTransfer)))
         FileTransfer(device);
     ImGui::Separator();
-    if (ImGui::MenuItem(localizer.Text(px::ui::TextId::Delete).data()))
+    if (px::ui::MenuAction({"device-delete"}, localizer.Text(px::ui::TextId::Delete)))
         Remove(device);
 }
 
 void RemoteDeviceActions::DrawPasswordDialog(const px::ui::Localizer& localizer) {
     const std::string popupId{PopupId("RemoteDevicePassword")};
     if (openPasswordDialog_) {
-        ImGui::OpenPopup(popupId.c_str());
+        px::ui::OpenModal({popupId});
         openPasswordDialog_ = false;
     }
-    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, {0.5F, 0.5F});
-    if (!ImGui::BeginPopupModal(popupId.c_str(), {}, ImGuiWindowFlags_AlwaysAutoResize))
+    px::ui::ModalScope dialog{{popupId}, 420.0F};
+    if (!dialog.Open())
         return;
-    ImGui::TextUnformatted(localizer.Text(px::ui::TextId::Password).data());
-    ImGui::SetNextItemWidth(px::ui::Scale(360.0F));
-    ImGui::InputText("##remote-device-password", &pendingPassword_, ImGuiInputTextFlags_Password);
-    if (ImGui::Button(localizer.Text(px::ui::TextId::Connect).data()) && !pendingPassword_.empty()) {
+    px::ui::SectionTitle(localizer.Text(px::ui::TextId::Password));
+    px::ui::FieldLabel(localizer.Text(px::ui::TextId::Password));
+    static_cast<void>(px::ui::TextField({"remote-device-password"}, pendingPassword_, {}, {}, ImGuiInputTextFlags_Password));
+    if (px::ui::ActionButton({"remote-device-connect"}, localizer.Text(px::ui::TextId::Connect), {.icon = px::ui::VectorIcon::Connect}) &&
+        !pendingPassword_.empty()) {
         port_->Connect(std::move(pendingTarget_), std::move(pendingPassword_), pendingViewOnly_);
         pendingViewOnly_ = false;
         ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
-    if (ImGui::Button(localizer.Text(px::ui::TextId::Cancel).data())) {
+    if (px::ui::ActionButton({"remote-device-cancel"}, localizer.Text(px::ui::TextId::Cancel), {.variant = px::ui::ButtonVariant::Outline})) {
         pendingTarget_.clear();
         pendingPassword_.clear();
         pendingViewOnly_ = false;
         ImGui::CloseCurrentPopup();
     }
-    ImGui::EndPopup();
 }
 
 void RemoteDeviceActions::DrawEditor(const px::ui::Localizer& localizer) {
     const std::string popupId{PopupId("RemoteDeviceEditor")};
     if (openEditor_) {
-        ImGui::OpenPopup(popupId.c_str());
+        px::ui::OpenModal({popupId});
         openEditor_ = false;
     }
-    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, {0.5F, 0.5F});
-    if (!ImGui::BeginPopupModal(popupId.c_str(), {}, ImGuiWindowFlags_AlwaysAutoResize))
+    px::ui::ModalScope dialog{{popupId}, 520.0F};
+    if (!dialog.Open())
         return;
     if (!editingDevice_) {
         ImGui::CloseCurrentPopup();
-        ImGui::EndPopup();
         return;
     }
     auto& device = *editingDevice_;
-    ImGui::InputText(localizer.Text(px::ui::TextId::DeviceName).data(), &device.name);
-    ImGui::SeparatorText(localizer.Text(px::ui::TextId::DeviceSettings).data());
-    ImGui::Checkbox(localizer.Text(px::ui::TextId::CaptureAudio).data(), &device.audio);
-    ImGui::Checkbox(localizer.Text(px::ui::TextId::EnableClipboard).data(), &device.clipboard);
-    ImGui::Checkbox(localizer.Text(px::ui::TextId::ViewOnly).data(), &device.viewOnly);
-    ImGui::Checkbox(localizer.Text(px::ui::TextId::SplitWindows).data(), &device.splitWindows);
-    ImGui::Checkbox(localizer.Text(px::ui::TextId::ForceSoftware).data(), &device.forceSoftware);
-    if (ImGui::Checkbox(localizer.Text(px::ui::TextId::ForceTcp).data(), &device.forceTcp) && device.forceTcp)
+    px::ui::SectionTitle(localizer.Text(px::ui::TextId::DeviceSettings));
+    px::ui::FieldLabel(localizer.Text(px::ui::TextId::DeviceName));
+    static_cast<void>(px::ui::TextField({"remote-device-name"}, device.name));
+    px::ui::HorizontalSeparator();
+    static_cast<void>(px::ui::CheckboxField({"device-audio"}, localizer.Text(px::ui::TextId::CaptureAudio), device.audio));
+    static_cast<void>(px::ui::CheckboxField({"device-clipboard"}, localizer.Text(px::ui::TextId::EnableClipboard), device.clipboard));
+    static_cast<void>(px::ui::CheckboxField({"device-view-only"}, localizer.Text(px::ui::TextId::ViewOnly), device.viewOnly));
+    static_cast<void>(px::ui::CheckboxField({"device-split"}, localizer.Text(px::ui::TextId::SplitWindows), device.splitWindows));
+    static_cast<void>(px::ui::CheckboxField({"device-software"}, localizer.Text(px::ui::TextId::ForceSoftware), device.forceSoftware));
+    if (px::ui::CheckboxField({"device-tcp"}, localizer.Text(px::ui::TextId::ForceTcp), device.forceTcp) && device.forceTcp)
         device.forceRelay = false;
-    if (ImGui::Checkbox(localizer.Text(px::ui::TextId::ForceRelay).data(), &device.forceRelay) && device.forceRelay)
+    if (px::ui::CheckboxField({"device-relay"}, localizer.Text(px::ui::TextId::ForceRelay), device.forceRelay) && device.forceRelay)
         device.forceTcp = false;
-    ImGui::Checkbox(localizer.Text(px::ui::TextId::WaitForDebugger).data(), &device.waitForDebugger);
-    ImGui::Checkbox(localizer.Text(px::ui::TextId::ForceGdiCapture).data(), &device.forceGdiCapture);
-    ImGui::Checkbox(localizer.Text(px::ui::TextId::DisableVulkan).data(), &device.disableVulkan);
+    static_cast<void>(px::ui::CheckboxField({"device-debugger"}, localizer.Text(px::ui::TextId::WaitForDebugger), device.waitForDebugger));
+    static_cast<void>(px::ui::CheckboxField({"device-gdi"}, localizer.Text(px::ui::TextId::ForceGdiCapture), device.forceGdiCapture));
+    static_cast<void>(px::ui::CheckboxField({"device-vulkan"}, localizer.Text(px::ui::TextId::DisableVulkan), device.disableVulkan));
     const bool valid{!device.name.empty()};
     if (!valid)
-        ImGui::TextColored(ImVec4{0.90F, 0.22F, 0.28F, 1.0F}, "%s", localizer.Text(px::ui::TextId::InvalidDeviceSettings).data());
-    if (!valid)
-        ImGui::BeginDisabled();
-    if (ImGui::Button(localizer.Text(px::ui::TextId::Save).data())) {
+        px::ui::FieldError(localizer.Text(px::ui::TextId::InvalidDeviceSettings));
+    if (px::ui::ActionButton({"device-save"}, localizer.Text(px::ui::TextId::Save), {.disabled = !valid})) {
         port_->SaveDevice(std::move(device));
         editingDevice_.reset();
         ImGui::CloseCurrentPopup();
     }
-    if (!valid)
-        ImGui::EndDisabled();
     ImGui::SameLine();
-    if (ImGui::Button(localizer.Text(px::ui::TextId::Cancel).data())) {
+    if (px::ui::ActionButton({"device-edit-cancel"}, localizer.Text(px::ui::TextId::Cancel), {.variant = px::ui::ButtonVariant::Outline})) {
         editingDevice_.reset();
         ImGui::CloseCurrentPopup();
     }
-    ImGui::EndPopup();
 }
 
 void RemoteDeviceActions::DrawRemoveConfirmation(const px::ui::Localizer& localizer) {
     const std::string popupId{PopupId("RemoveRemoteDevice")};
     if (openRemoveConfirmation_) {
-        ImGui::OpenPopup(popupId.c_str());
+        px::ui::OpenModal({popupId});
         openRemoveConfirmation_ = false;
     }
-    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, {0.5F, 0.5F});
-    if (!ImGui::BeginPopupModal(popupId.c_str(), {}, ImGuiWindowFlags_AlwaysAutoResize))
+    px::ui::ModalScope dialog{{popupId}, 420.0F};
+    if (!dialog.Open())
         return;
-    ImGui::TextUnformatted(localizer.Text(px::ui::TextId::RemoveDevicePrompt).data());
-    if (ImGui::Button(localizer.Text(px::ui::TextId::Delete).data()) && removingDevice_) {
+    px::ui::SectionTitle(localizer.Text(px::ui::TextId::Delete));
+    ImGui::TextWrapped("%s", localizer.Text(px::ui::TextId::RemoveDevicePrompt).data());
+    if (px::ui::ActionButton({"device-remove"}, localizer.Text(px::ui::TextId::Delete), {.variant = px::ui::ButtonVariant::Destructive}) &&
+        removingDevice_) {
         port_->DeleteDevice(removingDevice_->streamId);
         removingDevice_.reset();
         ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
-    if (ImGui::Button(localizer.Text(px::ui::TextId::Cancel).data())) {
+    if (px::ui::ActionButton({"device-remove-cancel"}, localizer.Text(px::ui::TextId::Cancel), {.variant = px::ui::ButtonVariant::Outline})) {
         removingDevice_.reset();
         ImGui::CloseCurrentPopup();
     }
-    ImGui::EndPopup();
 }
 
 void RemoteDeviceActions::DrawDialogs(const px::ui::Localizer& localizer) {

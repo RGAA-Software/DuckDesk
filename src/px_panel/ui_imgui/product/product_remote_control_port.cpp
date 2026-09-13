@@ -442,6 +442,7 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
                 ui::RemoteDeviceCard card{.streamId = "console-device-" + binding->device_id_,
                                           .name = binding->device_->device_name_,
                                           .deviceId = binding->device_id_,
+                                          .platform = px::ui::ParseDevicePlatform(binding->device_->platform_),
                                           .online = binding->device_->active_,
                                           .audio = true,
                                           .clipboard = true};

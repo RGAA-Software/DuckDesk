@@ -148,6 +148,32 @@ function Publish-LanguageResources {
     }
 }
 
+function Publish-DesktopBrandLogo {
+    param([Parameter(Mandatory = $true)][string]$ProcessName)
+    Publish-VerifiedFile `
+        -Source (Join-Path $buildRoot "src\px_deps\resources\icons\px_icon.png") `
+        -Destination (Join-Path $distRoot "resources\icons\px_icon.png") `
+        -ProcessName $ProcessName
+    Publish-VerifiedFile `
+        -Source (Join-Path $buildRoot "src\px_deps\resources\fonts\Roboto-Medium.ttf") `
+        -Destination (Join-Path $distRoot "resources\fonts\Roboto-Medium.ttf") `
+        -ProcessName $ProcessName
+}
+
+function Publish-DesktopPlatformIcons {
+    param([Parameter(Mandatory = $true)][string]$ProcessName)
+    foreach ($name in @('windows.png', 'macos.png', 'android.png', 'ios.png')) {
+        Publish-VerifiedFile `
+            -Source (Join-Path $buildRoot ('src\px_deps\resources\icons\platform\' + $name)) `
+            -Destination (Join-Path $distRoot ('resources\icons\platform\' + $name)) `
+            -ProcessName $ProcessName
+    }
+    Publish-VerifiedFile `
+        -Source (Join-Path $buildRoot 'src\px_deps\resources\licenses\Tabler.txt') `
+        -Destination (Join-Path $distRoot 'resources\licenses\Tabler.txt') `
+        -ProcessName $ProcessName
+}
+
 function Remove-RetiredQtArtifacts {
     $distFullPath = [IO.Path]::GetFullPath($distRoot).TrimEnd([char]'\')
     foreach ($file in Get-ChildItem -LiteralPath $distRoot -File -ErrorAction SilentlyContinue) {
@@ -335,6 +361,8 @@ switch ($Component) {
             -not (Get-ChildItem -LiteralPath $retiredClientPluginDirectory -Force)) {
             Remove-Item -LiteralPath $retiredClientPluginDirectory
         }
+        Publish-DesktopBrandLogo -ProcessName "px_client"
+        Publish-DesktopPlatformIcons -ProcessName "px_client"
         Publish-LanguageResources
     }
     "panel" {
@@ -358,6 +386,8 @@ switch ($Component) {
             -Source (Join-Path $buildRoot "src\px_deps\resources\licenses\Lucide.txt") `
             -Destination (Join-Path $distRoot "resources\licenses\Lucide.txt") `
             -ProcessName "px_panel"
+        Publish-DesktopBrandLogo -ProcessName "px_panel"
+        Publish-DesktopPlatformIcons -ProcessName "px_panel"
         Publish-LanguageResources
     }
     "render_network_library" {

@@ -1,5 +1,6 @@
 #include "window_host.h"
 
+#include "title_bar.h"
 #include "windows_title_bar_behavior.h"
 
 #include <SDL3/SDL.h>
@@ -14,9 +15,7 @@
 namespace px::desktop {
 namespace {
 
-constexpr float kTitleBarHeight{48.0F};
 constexpr int kResizeBorder{7};
-constexpr int kCaptionButtonWidth{46};
 constexpr std::string_view kCaptionButtonCountProperty{"Pixels.Window.CaptionButtonCount"};
 constexpr std::string_view kResizableProperty{"Pixels.Window.Resizable"};
 
@@ -79,8 +78,8 @@ SDL_HitTestResult SDLCALL HitTest(SDL_Window* window, const SDL_Point* area, voi
     }
 
     const int captionButtonCount{static_cast<int>(SDL_GetNumberProperty(SDL_GetWindowProperties(window), kCaptionButtonCountProperty.data(), 3))};
-    const int captionButtonsStart{width - scale(kCaptionButtonWidth) * captionButtonCount};
-    if (area->y < scale(static_cast<int>(kTitleBarHeight)) && area->x < captionButtonsStart) {
+    const int captionButtonsStart{width - scale(kCaptionButtonLogicalWidth) * captionButtonCount};
+    if (area->y < scale(kTitleBarLogicalHeight) && area->x < captionButtonsStart) {
         return SDL_HITTEST_DRAGGABLE;
     }
     return SDL_HITTEST_NORMAL;
@@ -109,7 +108,8 @@ struct WindowHost::Impl final {
 };
 
 std::expected<WindowHost, std::string> WindowHost::Create(const std::string& title, const int width, const int height, const bool initiallyVisible,
-                                                          const bool requestVulkanSurface, const WindowChromeConfig& chrome) {
+                                                          const bool requestVulkanSurface, const int minimumWidth, const int minimumHeight,
+                                                          const WindowChromeConfig& chrome) {
     auto impl = std::make_unique<Impl>();
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         return std::unexpected{LastSdlError("SDL_Init")};
@@ -139,7 +139,7 @@ std::expected<WindowHost, std::string> WindowHost::Create(const std::string& tit
     const Sint64 captionButtonCount{1 + (chrome.showMinimizeButton ? 1 : 0) + (chrome.showMaximizeButton ? 1 : 0)};
     SDL_SetNumberProperty(SDL_GetWindowProperties(impl->window.get()), kCaptionButtonCountProperty.data(), captionButtonCount);
     SDL_SetBooleanProperty(SDL_GetWindowProperties(impl->window.get()), kResizableProperty.data(), chrome.resizable);
-    SDL_SetWindowMinimumSize(impl->window.get(), 900, 600);
+    SDL_SetWindowMinimumSize(impl->window.get(), std::max(1, minimumWidth), std::max(1, minimumHeight));
     if (!SDL_SetWindowHitTest(impl->window.get(), HitTest, nullptr)) {
         return std::unexpected{LastSdlError("SDL_SetWindowHitTest")};
     }

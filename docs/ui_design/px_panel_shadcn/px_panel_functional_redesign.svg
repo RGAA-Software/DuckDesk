@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960">
+  <defs>
+    <style>
+      text{font-family:"Microsoft YaHei UI","Segoe UI",sans-serif}.fg{fill:#fafafa}.muted{fill:#a1a1aa}.blue{fill:#3b82f6}.h1{font-size:25px;font-weight:650}.h2{font-size:17px;font-weight:600}.body{font-size:14px}.small{font-size:12px}.label{font-size:13px;fill:#a1a1aa}.icon{fill:none;stroke:#d4d4d8;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.border{stroke:#27272a;stroke-width:1}
+    </style>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="180%"><feDropShadow dx="0" dy="7" stdDeviation="13" flood-color="#000" flood-opacity=".28"/></filter>
+  </defs>
+
+  <!-- Outer native window remains square in content; OS owns actual Win10/Win11 corners. -->
+  <rect width="1440" height="960" fill="#09090b"/>
+  <rect x=".5" y=".5" width="1439" height="959" fill="none" stroke="#27272a"/>
+  <rect width="1440" height="56" fill="#0c0c0f"/>
+  <line x1="22" y1="55.5" x2="1418" y2="55.5" stroke="#27272a"/>
+  <text x="28" y="36" class="fg h2">Pixels</text>
+  <path d="M1353 28h15m28-7 14 14m0-14-14 14" class="icon"/>
+
+  <!-- Compact navigation -->
+  <rect x="0" y="56" width="238" height="904" fill="#0c0c0f"/>
+  <line x1="237.5" y1="56" x2="237.5" y2="960" stroke="#27272a"/>
+  <circle cx="48" cy="102" r="24" fill="#2563eb"/>
+  <circle cx="48" cy="96" r="6" fill="none" stroke="#fff" stroke-width="1.5"/><path d="M36 116c2-9 22-9 24 0" fill="none" stroke="#fff" stroke-width="1.5"/>
+  <text x="82" y="108" class="fg h2">GG</text>
+  <g class="body fg">
+    <rect x="18" y="146" width="202" height="42" rx="6" fill="#172554"/><rect x="18" y="146" width="3" height="42" rx="1.5" fill="#3b82f6"/>
+    <text x="60" y="172" fill="#93c5fd">远程控制</text>
+    <text x="60" y="224">设备列表</text><text x="60" y="276">云应用</text><text x="60" y="328">服务状态</text><text x="60" y="380">安全</text><text x="60" y="432">设置</text>
+  </g>
+  <g class="icon"><rect x="30" y="158" width="19" height="13" rx="2"/><path d="M39.5 171v5m-7 0h14"/><path d="M30 210h19m-19 7h19m-19 7h19"/><path d="M29 273h21c7 0 7-10 0-10-2-10-16-9-17 0-8 0-8 10-4 10z"/><path d="M29 326h8l4-10 7 20 6-10h7"/><path d="M40 363l13 5v9c0 9-13 15-13 15s-13-6-13-15v-9z"/><circle cx="40" cy="427" r="12"/><circle cx="40" cy="427" r="4"/></g>
+  <rect x="18" y="890" width="202" height="42" rx="6" fill="#2a1015" stroke="#7f1d1d"/>
+  <text x="119" y="916" class="body" fill="#fca5a5" text-anchor="middle">退出程序</text>
+
+  <!-- Header -->
+  <text x="278" y="102" class="fg h1">远程控制</text>
+  <rect x="412" y="76" width="122" height="31" rx="15.5" fill="#052e16" stroke="#166534"/><circle cx="431" cy="91.5" r="4" fill="#22c55e"/><text x="444" y="97" class="small" fill="#86efac">管理服务在线</text>
+
+  <!-- Primary connection workflow -->
+  <rect x="278" y="130" width="1122" height="126" rx="10" fill="#101014" class="border"/>
+  <text x="302" y="164" class="fg h2">连接到远程设备</text>
+  <text x="302" y="187" class="muted small">输入设备 ID、桌面链接或地址</text>
+  <rect x="302" y="202" width="756" height="40" rx="6" fill="#09090b" stroke="#3f3f46"/>
+  <circle cx="323" cy="222" r="7" fill="none" stroke="#71717a" stroke-width="1.6"/><path d="m328 227 5 5" stroke="#71717a" stroke-width="1.6"/>
+  <text x="345" y="227" class="muted body">设备 ID、link:// 或 IP[:端口]</text>
+  <rect x="1070" y="202" width="112" height="40" rx="6" fill="#2563eb"/><text x="1126" y="227" class="fg body" text-anchor="middle">连接</text>
+  <rect x="1194" y="202" width="112" height="40" rx="6" fill="transparent" stroke="#3f3f46"/><text x="1250" y="227" class="fg body" text-anchor="middle">刷新</text>
+
+  <!-- Recent devices -->
+  <text x="278" y="301" class="fg h2">最近的设备</text><text x="1398" y="301" class="muted small" text-anchor="end">共 2 台</text>
+  <line x1="392" y1="296" x2="1370" y2="296" stroke="#27272a"/>
+  <g>
+    <rect x="278" y="320" width="352" height="118" rx="10" fill="#101014" class="border"/>
+    <circle cx="302" cy="345" r="5" fill="#22c55e"/><text x="600" y="350" class="muted h2" text-anchor="middle">···</text>
+    <rect x="302" y="363" width="48" height="48" rx="9" fill="#172554"/><rect x="316" y="376" width="20" height="14" rx="2" fill="none" stroke="#93c5fd"/><path d="M326 390v5m-8 0h16" stroke="#93c5fd"/>
+    <text x="370" y="383" class="fg h2">908 998 909</text><text x="370" y="407" class="muted body">MC-60</text>
+  </g>
+  <g>
+    <rect x="646" y="320" width="352" height="118" rx="10" fill="#101014" class="border"/>
+    <circle cx="670" cy="345" r="5" fill="#22c55e"/><text x="968" y="350" class="muted h2" text-anchor="middle">···</text>
+    <rect x="670" y="363" width="48" height="48" rx="9" fill="#172554"/><rect x="684" y="376" width="20" height="14" rx="2" fill="none" stroke="#93c5fd"/><path d="M694 390v5m-8 0h16" stroke="#93c5fd"/>
+    <text x="738" y="383" class="fg h2">035 179 718</text><text x="738" y="407" class="muted body">MC-90</text>
+  </g>
+
+  <!-- This device, lower-priority reference/share section -->
+  <text x="278" y="486" class="fg h2">本机设备</text><line x1="370" y1="481" x2="1398" y2="481" stroke="#27272a"/>
+  <rect x="278" y="505" width="520" height="354" rx="10" fill="#101014" class="border"/>
+  <text x="302" y="540" class="fg h2">连接凭据</text><text x="302" y="563" class="muted small">用于从其他设备连接到本机</text>
+  <line x1="302" y1="582" x2="774" y2="582" stroke="#27272a"/>
+  <text x="302" y="621" class="label">设备 ID</text><text x="452" y="621" class="fg body">908998909</text>
+  <rect x="738" y="596" width="36" height="36" rx="6" fill="transparent" stroke="#3f3f46"/><text x="756" y="619" class="fg body" text-anchor="middle">⧉</text>
+  <line x1="302" y1="642" x2="774" y2="642" stroke="#27272a"/>
+  <text x="302" y="681" class="label">设备名称</text><text x="452" y="681" class="fg body">MC-60</text>
+  <rect x="738" y="656" width="36" height="36" rx="6" fill="transparent" stroke="#3f3f46"/><text x="756" y="679" class="fg body" text-anchor="middle">✎</text>
+  <line x1="302" y1="702" x2="774" y2="702" stroke="#27272a"/>
+  <text x="302" y="741" class="label">临时密码</text><text x="452" y="741" class="fg body">wIUAE23n</text>
+  <rect x="690" y="716" width="36" height="36" rx="6" fill="transparent" stroke="#3f3f46"/><text x="708" y="739" class="fg body" text-anchor="middle">⧉</text>
+  <rect x="738" y="716" width="36" height="36" rx="6" fill="transparent" stroke="#3f3f46"/><text x="756" y="739" class="fg body" text-anchor="middle">◉</text>
+
+  <rect x="814" y="505" width="586" height="354" rx="10" fill="#101014" class="border"/>
+  <text x="838" y="540" class="fg h2">分享与网页访问</text><text x="838" y="563" class="muted small">显示可省略，复制和打开始终使用完整地址</text>
+  <line x1="838" y1="582" x2="1376" y2="582" stroke="#27272a"/>
+  <text x="838" y="616" class="label">桌面连接链接</text>
+  <rect x="838" y="632" width="538" height="46" rx="6" fill="#09090b" stroke="#27272a"/>
+  <text x="854" y="661" class="fg body">link://eyJkaWQiOiI5MDg5OTg5MDki...</text>
+  <rect x="1302" y="637" width="62" height="36" rx="6" fill="transparent" stroke="#3f3f46"/><text x="1333" y="660" class="fg body" text-anchor="middle">复制</text>
+  <text x="838" y="718" class="label">网页客户端地址</text>
+  <rect x="838" y="734" width="538" height="46" rx="6" fill="#09090b" stroke="#27272a"/>
+  <text x="854" y="763" class="fg body">http://192.168.31.6:4601/web/?c=...</text>
+  <rect x="1228" y="739" width="62" height="36" rx="6" fill="transparent" stroke="#3f3f46"/><text x="1259" y="762" class="fg body" text-anchor="middle">复制</text>
+  <rect x="1302" y="739" width="62" height="36" rx="6" fill="#2563eb"/><text x="1333" y="762" class="fg body" text-anchor="middle">打开</text>
+
+  <text x="278" y="910" class="muted small">960 × 640 logical px 设计基准 · 此图以 1.5× 展示 · 外层窗口圆角由 Windows 系统决定</text>
+</svg>

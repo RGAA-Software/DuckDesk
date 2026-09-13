@@ -11,6 +11,7 @@
 #include "voice_call_consent_overlay.h"
 #include "px_ui/localization.h"
 #include "px_ui/px_ui_theme.h"
+#include "px_desktop_shell/platform_icon_atlas.h"
 
 #include <optional>
 
@@ -18,6 +19,7 @@ namespace px::panel::ui {
 
 struct PanelPreviewAction final {
     std::optional<px::ui::Theme> selectedTheme{};
+    std::optional<bool> enhancedVisualEffects{};
     bool exitRequested{false};
 };
 
@@ -38,7 +40,7 @@ class PanelPreview final {
     PanelPreview();
     explicit PanelPreview(PanelPreviewServices services);
 
-    PanelPreviewAction Draw();
+    PanelPreviewAction Draw(const px::desktop::PlatformIconAtlas& platformIcons);
 
   private:
     PanelPreviewAction DrawSettingsPage();
@@ -46,6 +48,8 @@ class PanelPreview final {
     px::ui::Localizer localizer_{};
     px::ui::Theme theme_{px::ui::Theme::Dark};
     bool initialThemePending_{true};
+    bool enhancedVisualEffects_{true};
+    bool initialEffectsPending_{true};
     std::shared_ptr<SettingsPort> settingsPort_{};
     std::shared_ptr<NotificationCenter> notifications_{};
     std::shared_ptr<VoiceCallConsentOverlay> voiceCallConsent_{};

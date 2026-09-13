@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1080" viewBox="0 0 1600 1080">
+  <defs>
+    <style>
+      text{font-family:"Microsoft YaHei UI","Segoe UI",sans-serif}.fg{fill:#fafafa}.muted{fill:#a1a1aa}.h1{font-size:17px;font-weight:650}.h2{font-size:13px;font-weight:600}.body{font-size:11px}.tiny{font-size:9px}.line{stroke:#27272a;stroke-width:1}.card{fill:#101014;stroke:#27272a;stroke-width:1}.input{fill:#09090b;stroke:#3f3f46;stroke-width:1}.primary{fill:#2563eb}.outline{fill:transparent;stroke:#3f3f46;stroke-width:1}.success{fill:#22c55e}.danger{fill:#ef4444}
+    </style>
+  </defs>
+  <rect width="1600" height="1080" fill="#050506"/>
+  <text x="32" y="35" class="fg h1">Pixels px_panel · 功能重排后的页面布局</text>
+
+  <!-- DEVICE LIST -->
+  <g transform="translate(30,60)">
+    <rect width="750" height="470" fill="#09090b" stroke="#27272a"/>
+    <rect width="750" height="30" fill="#0c0c0f"/><text x="14" y="20" class="fg body">Pixels</text><path d="M710 15h9m14-5 10 10m0-10-10 10" stroke="#d4d4d8" fill="none"/>
+    <rect y="30" width="122" height="440" fill="#0c0c0f"/><line x1="122" y1="30" x2="122" y2="470" class="line"/>
+    <circle cx="24" cy="57" r="13" fill="#2563eb"/><text x="44" y="61" class="fg body">GG</text>
+    <rect x="8" y="102" width="106" height="28" rx="4" fill="#172554"/><rect x="8" y="102" width="2" height="28" fill="#3b82f6"/><text x="26" y="120" fill="#93c5fd" class="tiny">设备列表</text>
+    <text x="26" y="88" class="muted tiny">远程控制</text><text x="26" y="150" class="muted tiny">云应用</text><text x="26" y="176" class="muted tiny">服务状态</text><text x="26" y="202" class="muted tiny">安全</text><text x="26" y="228" class="muted tiny">设置</text>
+    <text x="144" y="61" class="fg h1">设备列表</text>
+    <rect x="144" y="76" width="420" height="31" rx="5" class="input"/><text x="160" y="96" class="muted body">搜索设备名称或设备 ID</text>
+    <rect x="574" y="76" width="70" height="31" rx="5" class="outline"/><text x="609" y="96" class="fg body" text-anchor="middle">刷新</text>
+    <rect x="144" y="126" width="218" height="316" rx="8" class="card"/><text x="160" y="151" class="fg h2">所有设备（2）</text><line x1="160" y1="163" x2="346" y2="163" class="line"/>
+    <rect x="154" y="176" width="198" height="58" rx="5" fill="#172554"/><circle cx="168" cy="193" r="4" class="success"/><text x="182" y="197" class="fg body">MC-60</text><text x="182" y="216" class="muted tiny">908998909</text>
+    <circle cx="168" cy="252" r="4" class="success"/><text x="182" y="256" class="fg body">MC-90</text><text x="182" y="275" class="muted tiny">035179718</text>
+    <rect x="376" y="126" width="350" height="316" rx="8" class="card"/><text x="394" y="151" class="fg h2">设备详情</text><line x1="394" y1="163" x2="708" y2="163" class="line"/>
+    <text x="394" y="190" class="fg h1">MC-60</text>
+    <g class="body"><text x="394" y="218" class="muted">设备 ID</text><text x="500" y="218" class="fg">908998909</text><text x="394" y="243" class="muted">设备名称</text><text x="500" y="243" class="fg">MC-60</text><text x="394" y="268" class="muted">主机</text><text x="500" y="268" class="fg">192.168.31.6</text><text x="394" y="293" class="muted">端口</text><text x="500" y="293" class="fg">4601</text><text x="394" y="318" class="muted">状态</text><text x="500" y="318" fill="#86efac">在线</text></g>
+    <rect x="394" y="342" width="88" height="29" rx="5" class="primary"/><text x="438" y="361" class="fg tiny" text-anchor="middle">开始控制</text><rect x="490" y="342" width="72" height="29" rx="5" class="outline"/><text x="526" y="361" class="fg tiny" text-anchor="middle">仅观看</text>
+    <rect x="394" y="381" width="76" height="29" rx="5" class="outline"/><text x="432" y="400" class="fg tiny" text-anchor="middle">文件传输</text><text x="489" y="400" class="fg tiny">复制</text><text x="536" y="400" class="fg tiny">编辑设备</text><text x="675" y="400" fill="#f87171" class="tiny">删除</text>
+  </g>
+
+  <!-- CLOUD APPS -->
+  <g transform="translate(820,60)">
+    <rect width="750" height="470" fill="#09090b" stroke="#27272a"/><rect width="750" height="30" fill="#0c0c0f"/><text x="14" y="20" class="fg body">Pixels</text>
+    <rect y="30" width="122" height="440" fill="#0c0c0f"/><line x1="122" y1="30" x2="122" y2="470" class="line"/><circle cx="24" cy="57" r="13" fill="#2563eb"/><text x="44" y="61" class="fg body">GG</text>
+    <rect x="8" y="132" width="106" height="28" rx="4" fill="#172554"/><rect x="8" y="132" width="2" height="28" fill="#3b82f6"/><text x="26" y="150" fill="#93c5fd" class="tiny">云应用</text><text x="26" y="88" class="muted tiny">远程控制</text><text x="26" y="118" class="muted tiny">设备列表</text><text x="26" y="180" class="muted tiny">服务状态</text><text x="26" y="206" class="muted tiny">安全</text><text x="26" y="232" class="muted tiny">设置</text>
+    <text x="144" y="61" class="fg h1">云应用</text><rect x="656" y="43" width="70" height="30" rx="5" class="outline"/><text x="691" y="62" class="fg body" text-anchor="middle">刷新</text>
+    <g>
+      <rect x="144" y="91" width="184" height="132" rx="8" class="card"/><circle cx="164" cy="111" r="4" fill="#71717a"/><text x="303" y="115" class="muted h2">···</text><text x="162" y="149" class="fg h2">Pixels node90 game</text><text x="162" y="168" class="fg h2">2dAdventure</text><rect x="162" y="187" width="48" height="19" rx="9" fill="#27272a"/><text x="186" y="200" class="muted tiny" text-anchor="middle">已停止</text>
+      <rect x="342" y="91" width="184" height="132" rx="8" class="card"/><circle cx="362" cy="111" r="4" fill="#71717a"/><text x="501" y="115" class="muted h2">···</text><text x="360" y="149" class="fg h2">Pixels node90 game</text><text x="360" y="168" class="fg h2">心脏-医学动态...</text><rect x="360" y="187" width="48" height="19" rx="9" fill="#27272a"/><text x="384" y="200" class="muted tiny" text-anchor="middle">已停止</text>
+      <rect x="540" y="91" width="184" height="132" rx="8" class="card"/><circle cx="560" cy="111" r="4" fill="#71717a"/><text x="699" y="115" class="muted h2">···</text><text x="558" y="149" class="fg h2">Pixels node90 port</text><text x="558" y="168" class="fg h2">acceptance</text><rect x="558" y="187" width="48" height="19" rx="9" fill="#27272a"/><text x="582" y="200" class="muted tiny" text-anchor="middle">已停止</text>
+      <rect x="144" y="237" width="184" height="132" rx="8" class="card"/><circle cx="164" cy="257" r="4" fill="#71717a"/><text x="303" y="261" class="muted h2">···</text><text x="162" y="303" class="fg h2">RDP</text><rect x="162" y="331" width="48" height="19" rx="9" fill="#27272a"/><text x="186" y="344" class="muted tiny" text-anchor="middle">已停止</text>
+    </g>
+    <text x="144" y="410" class="muted tiny">双击启动 · 右键：启动应用 / 仅观看 / 停止应用 / 强制 TCP / 强制 Relay</text>
+  </g>
+
+  <!-- SERVICE STATUS -->
+  <g transform="translate(30,570)">
+    <rect width="750" height="470" fill="#09090b" stroke="#27272a"/><rect width="750" height="30" fill="#0c0c0f"/><text x="14" y="20" class="fg body">Pixels</text>
+    <rect y="30" width="122" height="440" fill="#0c0c0f"/><line x1="122" y1="30" x2="122" y2="470" class="line"/><circle cx="24" cy="57" r="13" fill="#2563eb"/><text x="44" y="61" class="fg body">GG</text>
+    <rect x="8" y="158" width="106" height="28" rx="4" fill="#172554"/><rect x="8" y="158" width="2" height="28" fill="#3b82f6"/><text x="26" y="176" fill="#93c5fd" class="tiny">服务状态</text><text x="26" y="88" class="muted tiny">远程控制</text><text x="26" y="118" class="muted tiny">设备列表</text><text x="26" y="146" class="muted tiny">云应用</text><text x="26" y="206" class="muted tiny">安全</text><text x="26" y="232" class="muted tiny">设置</text>
+    <text x="144" y="61" class="fg h1">服务状态</text>
+    <g><rect x="144" y="86" width="180" height="112" rx="8" class="card"/><text x="160" y="112" class="muted body">控制器驱动</text><circle cx="160" cy="149" r="5" class="success"/><text x="174" y="153" fill="#86efac" class="h2">正常</text>
+    <rect x="338" y="86" width="180" height="112" rx="8" class="card"/><text x="354" y="112" class="muted body">渲染服务</text><circle cx="354" cy="149" r="5" class="success"/><text x="368" y="153" fill="#86efac" class="h2">正常</text><rect x="435" y="135" width="65" height="28" rx="5" class="outline"/><text x="468" y="153" class="fg tiny" text-anchor="middle">重启</text>
+    <rect x="532" y="86" width="194" height="112" rx="8" class="card"/><text x="548" y="112" class="muted body">节点服务</text><circle cx="548" cy="149" r="5" class="success"/><text x="562" y="153" fill="#86efac" class="h2">正常</text></g>
+    <rect x="144" y="214" width="582" height="55" rx="8" class="card"/><text x="162" y="238" class="muted body">已连接客户端</text><text x="694" y="248" class="fg h1" text-anchor="end">0</text>
+    <rect x="144" y="285" width="582" height="147" rx="8" class="card"/><text x="162" y="313" class="fg h2">网络地址</text><line x1="162" y1="325" x2="708" y2="325" class="line"/><text x="162" y="351" class="muted body">网络接口</text><text x="355" y="351" class="fg body">192.168.31.6（有线）</text><text x="162" y="381" class="muted body">Panel 监听端口</text><text x="355" y="381" class="fg body">4999</text><text x="162" y="411" class="muted body">桌面连接端口</text><text x="355" y="411" class="fg body">4601</text>
+  </g>
+
+  <!-- SETTINGS -->
+  <g transform="translate(820,570)">
+    <rect width="750" height="470" fill="#09090b" stroke="#27272a"/><rect width="750" height="30" fill="#0c0c0f"/><text x="14" y="20" class="fg body">Pixels</text>
+    <rect y="30" width="122" height="440" fill="#0c0c0f"/><line x1="122" y1="30" x2="122" y2="470" class="line"/><circle cx="24" cy="57" r="13" fill="#2563eb"/><text x="44" y="61" class="fg body">GG</text>
+    <rect x="8" y="210" width="106" height="28" rx="4" fill="#172554"/><rect x="8" y="210" width="2" height="28" fill="#3b82f6"/><text x="26" y="228" fill="#93c5fd" class="tiny">设置</text><text x="26" y="88" class="muted tiny">远程控制</text><text x="26" y="118" class="muted tiny">设备列表</text><text x="26" y="146" class="muted tiny">云应用</text><text x="26" y="174" class="muted tiny">服务状态</text><text x="26" y="202" class="muted tiny">安全</text>
+    <text x="144" y="61" class="fg h1">设置</text>
+    <rect x="496" y="43" width="71" height="27" rx="5" class="primary"/><text x="532" y="60" class="fg tiny" text-anchor="middle">简体中文</text><rect x="567" y="43" width="54" height="27" rx="5" class="outline"/><text x="594" y="60" class="fg tiny" text-anchor="middle">English</text><rect x="635" y="43" width="45" height="27" rx="5" class="primary"/><text x="658" y="60" class="fg tiny" text-anchor="middle">深色</text><rect x="680" y="43" width="45" height="27" rx="5" class="outline"/><text x="703" y="60" class="fg tiny" text-anchor="middle">浅色</text>
+    <rect x="144" y="86" width="118" height="346" rx="8" class="card"/><rect x="154" y="100" width="98" height="28" rx="4" fill="#172554"/><text x="168" y="119" fill="#93c5fd" class="body">常规</text><text x="168" y="151" class="fg body">网络</text><text x="168" y="183" class="fg body">安全</text><text x="168" y="215" class="fg body">控制器</text><text x="168" y="247" class="fg body">关于</text>
+    <rect x="276" y="86" width="450" height="346" rx="8" class="card"/><text x="294" y="113" class="fg h2">编码设置</text><line x1="294" y1="126" x2="708" y2="126" class="line"/>
+    <text x="294" y="153" class="muted body">码率</text><rect x="430" y="137" width="126" height="30" rx="5" class="input"/><text x="444" y="157" class="fg body">10</text><text x="570" y="157" class="fg body">Mbps</text>
+    <text x="294" y="193" class="muted body">帧率</text><rect x="430" y="177" width="168" height="30" rx="5" class="input"/><text x="444" y="197" class="fg body">60</text><text x="580" y="197" class="muted body">⌄</text>
+    <text x="294" y="233" class="muted body">视频编码</text><rect x="430" y="217" width="168" height="30" rx="5" class="input"/><text x="444" y="237" class="fg body">H.264</text><text x="580" y="237" class="muted body">⌄</text>
+    <text x="294" y="273" class="muted body">调整分辨率</text><rect x="430" y="260" width="35" height="20" rx="10" fill="#27272a"/><circle cx="441" cy="270" r="7" fill="#a1a1aa"/>
+    <text x="294" y="313" class="muted body">分辨率</text><rect x="430" y="297" width="100" height="30" rx="5" class="input"/><text x="444" y="317" class="muted body">1280</text><text x="540" y="317" class="muted body">×</text><rect x="554" y="297" width="100" height="30" rx="5" class="input"/><text x="568" y="317" class="muted body">720</text>
+    <rect x="294" y="344" width="16" height="16" rx="3" class="primary"/><path d="m298 352 3 3 6-7" stroke="#fff" stroke-width="1.5" fill="none"/><text x="320" y="356" class="fg body">采集音频</text>
+    <text x="294" y="390" class="muted body">高级视觉效果</text><rect x="430" y="377" width="35" height="20" rx="10" class="primary"/><circle cx="454" cy="387" r="7" fill="#fff"/>
+    <rect x="634" y="384" width="74" height="30" rx="5" class="primary"/><text x="671" y="404" class="fg body" text-anchor="middle">保存</text>
+  </g>
+</svg>

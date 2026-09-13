@@ -35,6 +35,8 @@ struct ClientLaunchConfig final {
     bool disableVulkan{};
     bool waitForDebugger{};
     std::string language{"zh-CN"};
+    bool lightTheme{};
+    bool enhancedVisualEffects{true};
     std::string decoder{"Auto"};
     std::string recordingPath{};
     bool rdp{};

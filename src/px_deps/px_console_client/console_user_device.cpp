@@ -41,6 +41,7 @@ namespace px_console
                 ud->device_ = std::make_shared<ConsoleDevice>();
                 ud->device_->device_id_ = ud->device_id_;
                 ud->device_->device_name_ = obj.value("name", "");
+                ud->device_->platform_ = obj.value("platform", "");
                 ud->device_->active_ = obj.value("online", false);
                 ud->device_->last_update_timestamp_ = obj.value("last_seen_at", 0LL);
             }

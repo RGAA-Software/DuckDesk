@@ -62,7 +62,15 @@ constexpr Catalog kEnglish{"Controls",
                            "Connection rejected",
                            "Disconnected; retrying...",
                            "Video and audio are temporarily unavailable. Control and file transfer remain connected; Pixels is retrying media.",
-                           "The connection was interrupted. Pixels is retrying; check the network if it does not recover."};
+                           "The connection was interrupted. Pixels is retrying; check the network if it does not recover.",
+                           "Display",
+                           "Control",
+                           "Tools",
+                           "Settings",
+                           "Enhanced visual effects",
+                           "Monitor",
+                           "Frame rate",
+                           "Mouse, keyboard, wheel, text input and clipboard follow the remote session."};
 
 constexpr Catalog kChinese{"控制栏",
                            "分辨率",
@@ -118,7 +126,15 @@ constexpr Catalog kChinese{"控制栏",
                            "连接被拒绝",
                            "连接已断开，正在重试…",
                            "音视频暂时不可用，控制与文件传输仍保持连接；Pixels 正在重试媒体通道。",
-                           "连接已中断，Pixels 正在重试；如果长时间未恢复，请检查网络。"};
+                           "连接已中断，Pixels 正在重试；如果长时间未恢复，请检查网络。",
+                           "显示",
+                           "控制",
+                           "工具",
+                           "设置",
+                           "增强视觉效果",
+                           "显示器",
+                           "帧率",
+                           "鼠标、键盘、滚轮、文本输入和剪贴板随远程会话工作。"};
 static_assert(kEnglish.size() == kChinese.size());
 } // namespace
 

@@ -1,6 +1,9 @@
 #include "client_startup_dialog.h"
 
 #include "px_desktop_shell/desktop_shell.h"
+#include "px_ui/components/button.h"
+#include "px_ui/components/overlay.h"
+#include "px_ui/theme_tokens.h"
 
 #include <imgui.h>
 
@@ -9,9 +12,20 @@
 namespace px::client::imgui {
 
 StartupDialogAction ShowStartupDialog(const std::string_view message, const std::string_view button, const bool error) {
-    auto shellResult = px::desktop::DesktopShell::Create(
-        {.title = "Pixels Client", .width = 720, .height = 300, .initiallyVisible = true, .minimizeToTray = false});
-    if (!shellResult) return StartupDialogAction::Exit;
+    auto shellResult = px::desktop::DesktopShell::Create({.title = "Pixels Client",
+                                                          .width = 720,
+                                                          .height = 300,
+                                                          .minimumWidth = 640,
+                                                          .minimumHeight = 280,
+                                                          .initiallyVisible = true,
+                                                          .minimizeToTray = false,
+                                                          .showMinimizeButton = false,
+                                                          .showMaximizeButton = false,
+                                                          .allowTitleBarMaximize = false,
+                                                          .useRoundedWindow = true,
+                                                          .resizable = false});
+    if (!shellResult)
+        return StartupDialogAction::Exit;
     auto shell = std::move(shellResult.value());
     bool opened{};
     bool accepted{};
@@ -22,21 +36,22 @@ StartupDialogAction ShowStartupDialog(const std::string_view message, const std:
             ImGui::OpenPopup("Pixels##startup-dialog");
             opened = true;
         }
-        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Always, {0.5F, 0.5F});
-        ImGui::SetNextWindowSize({620.0F, 0.0F}, ImGuiCond_Always);
         constexpr ImGuiWindowFlags flags{ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings};
-        if (!ImGui::BeginPopupModal("Pixels##startup-dialog", nullptr, flags)) return;
-        if (error) ImGui::PushStyleColor(ImGuiCol_Text, {0.95F, 0.30F, 0.30F, 1.0F});
+        const px::ui::ModalScope modal{{"Pixels##startup-dialog"}, 620.0F, flags};
+        if (!modal.Open())
+            return;
+        if (error)
+            ImGui::PushStyleColor(ImGuiCol_Text, px::ui::CurrentThemeTokens().destructive);
         ImGui::TextWrapped("%s", messageText.c_str());
-        if (error) ImGui::PopStyleColor();
+        if (error)
+            ImGui::PopStyleColor();
         ImGui::Spacing();
         constexpr float buttonWidth{160.0F};
         ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - buttonWidth) * 0.5F);
-        if (ImGui::Button(buttonText.c_str(), {buttonWidth, 0.0F})) {
+        if (px::ui::ActionButton({"startup-dialog-action"}, buttonText, {.width = buttonWidth})) {
             accepted = true;
             shell.RequestExit();
         }
-        ImGui::EndPopup();
     }));
     return accepted ? StartupDialogAction::Continue : StartupDialogAction::Exit;
 }

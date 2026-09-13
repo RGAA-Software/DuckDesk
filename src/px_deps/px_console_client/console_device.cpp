@@ -30,6 +30,7 @@ namespace px_console
             auto device = std::make_shared<ConsoleDevice>();
             device->device_id_ = obj[kDeviceId].get<std::string>();
             device->device_name_ = obj[kDeviceName].get<std::string>();
+            device->platform_ = obj.value(kDevicePlatform, "");
             device->logged_in_user_id_ = obj[kDeviceLoggedInUser].get<std::string>();
             device->seed_ = obj[kDeviceSeed].get<std::string>();
             device->random_pwd_md5_ = obj[kDeviceRandomPwd].get<std::string>();
@@ -54,6 +55,7 @@ namespace px_console
         oss << std::left;
         oss << std::setw(22) << "device_id:"           << device_id_ << "\n";
         oss << std::setw(22) << "device_name:"         << device_name_ << "\n";
+        oss << std::setw(22) << "platform:"            << platform_ << "\n";
         oss << std::setw(22) << "logged_in_user_id:"   << logged_in_user_id_ << "\n";
         oss << std::setw(22) << "seed:"                << seed_ << "\n";
         oss << std::setw(22) << "created_timestamp:"   << created_timestamp_ << "\n";

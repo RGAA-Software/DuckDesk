@@ -97,13 +97,12 @@ bool PanelClientLauncher::Launch(const NativeLaunchRequest& request) {
         return false;
     }
     return request.connectionKind == NativeConnectionKind::Rdp ? LaunchRdp(request, request.directHost, request.directPort)
-                                                                : LaunchNative(request, request.directHost, request.directPort);
+                                                               : LaunchNative(request, request.directHost, request.directPort);
 }
 
 namespace {
 
-nlohmann::json BuildNativeEnvelope(const NativeLaunchRequest& request, const std::string& host, const int port,
-                                   const PanelConfigStore& config) {
+nlohmann::json BuildNativeEnvelope(const NativeLaunchRequest& request, const std::string& host, const int port, const PanelConfigStore& config) {
     const auto endpoint = config.Console();
     const auto identity = config.Identity();
     const auto settings = config.Settings();
@@ -121,6 +120,8 @@ nlohmann::json BuildNativeEnvelope(const NativeLaunchRequest& request, const std
             {"remote_device_id", request.remoteDeviceId},
             {"remote_password_hash", request.remotePasswordHash},
             {"language", settings.language == ::px::ui::Language::English ? "en-US" : "zh-CN"},
+            {"theme", settings.theme == ::px::ui::Theme::Light ? "light" : "dark"},
+            {"enhanced_visual_effects", settings.enhancedVisualEffects},
             {"decoder", request.forceSoftware ? "Software" : decoderNames[static_cast<std::size_t>(settings.controller.preferredDecoder)]},
             {"recording_path", settings.controller.recordingPath},
             {"only_viewing", request.viewOnly},
@@ -170,7 +171,8 @@ bool PanelClientLauncher::LaunchNative(const NativeLaunchRequest& request, const
     DWORD written{};
     const bool sent =
         WriteFile(parentInput.Get(), envelope.data(), static_cast<DWORD>(envelope.size()), &written, nullptr) != FALSE && written == envelope.size();
-    if (!envelope.empty()) SecureZeroMemory(envelope.data(), envelope.size());
+    if (!envelope.empty())
+        SecureZeroMemory(envelope.data(), envelope.size());
     parentInput.Reset();
     if (!sent) {
         TerminateProcess(processInfo.hProcess, 1);
@@ -191,6 +193,7 @@ bool PanelClientLauncher::LaunchRdp(const NativeLaunchRequest& request, const st
     const auto executable = config_->ExecutableDirectory() / "px_client.exe";
     if (!std::filesystem::exists(executable))
         return false;
+    const auto settings = config_->Settings();
     nlohmann::json launch{{"schema", 1},
                           {"host", host},
                           {"port", port},
@@ -200,6 +203,9 @@ bool PanelClientLauncher::LaunchRdp(const NativeLaunchRequest& request, const st
                           {"device_id", config_->Identity().deviceId},
                           {"remote_device_id", request.remoteDeviceId},
                           {"remote_password_hash", request.remotePasswordHash},
+                          {"language", settings.language == ::px::ui::Language::English ? "en-US" : "zh-CN"},
+                          {"theme", settings.theme == ::px::ui::Theme::Light ? "light" : "dark"},
+                          {"enhanced_visual_effects", settings.enhancedVisualEffects},
                           {"audio", true},
                           {"clipboard", true},
                           {"rdp", nlohmann::json::parse(request.rdpConfiguration->View())}};
@@ -229,7 +235,8 @@ bool PanelClientLauncher::LaunchRdp(const NativeLaunchRequest& request, const st
     DWORD written{};
     const bool sent =
         WriteFile(parentInput.Get(), envelope.data(), static_cast<DWORD>(envelope.size()), &written, nullptr) != FALSE && written == envelope.size();
-    if (!envelope.empty()) SecureZeroMemory(envelope.data(), envelope.size());
+    if (!envelope.empty())
+        SecureZeroMemory(envelope.data(), envelope.size());
     parentInput.Reset();
     if (!sent)
         TerminateProcess(processInfo.hProcess, 1);

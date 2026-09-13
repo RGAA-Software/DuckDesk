@@ -19,7 +19,8 @@ struct WindowChromeConfig final {
 class WindowHost final {
   public:
     static std::expected<WindowHost, std::string> Create(const std::string& title, int width, int height, bool initiallyVisible,
-                                                         bool requestVulkanSurface, const WindowChromeConfig& chrome);
+                                                         bool requestVulkanSurface, int minimumWidth, int minimumHeight,
+                                                         const WindowChromeConfig& chrome);
 
     WindowHost(WindowHost&&) noexcept;
     WindowHost& operator=(WindowHost&&) noexcept;

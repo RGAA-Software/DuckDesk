@@ -156,6 +156,16 @@ void DrawVectorIcon(const VectorIcon icon, const ImVec2 topLeft, const float siz
         canvas.Line(4.0F, 4.0F, 4.0F, 16.0F);
         canvas.Line(4.0F, 16.0F, 8.0F, 16.0F);
         break;
+    case VectorIcon::QrCode:
+        canvas.Rect(3.0F, 3.0F, 9.0F, 9.0F, 1.0F);
+        canvas.Rect(15.0F, 3.0F, 21.0F, 9.0F, 1.0F);
+        canvas.Rect(3.0F, 15.0F, 9.0F, 21.0F, 1.0F);
+        canvas.Line(15.0F, 15.0F, 15.0F, 18.0F);
+        canvas.Line(15.0F, 18.0F, 18.0F, 18.0F);
+        canvas.Line(18.0F, 15.0F, 21.0F, 15.0F);
+        canvas.Line(21.0F, 15.0F, 21.0F, 21.0F);
+        canvas.Line(15.0F, 21.0F, 18.0F, 21.0F);
+        break;
     case VectorIcon::ExternalLink:
         canvas.Line(14.0F, 4.0F, 20.0F, 4.0F);
         canvas.Line(20.0F, 4.0F, 20.0F, 10.0F);

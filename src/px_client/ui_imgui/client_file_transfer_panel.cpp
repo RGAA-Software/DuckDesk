@@ -2,11 +2,16 @@
 
 #include "client_session.h"
 #include "client_text.h"
+#include "px_ui/components/button.h"
+#include "px_ui/components/data_view.h"
+#include "px_ui/components/form.h"
+#include "px_ui/components/overlay.h"
+#include "px_ui/components/surface.h"
+#include "px_ui/theme_tokens.h"
 
 #include <imgui.h>
 
 #include <algorithm>
-#include <cstdio>
 
 namespace px::client::imgui {
 
@@ -50,79 +55,120 @@ void ClientFileTransferPanel::Draw(const std::shared_ptr<ClientSession>& session
     capturesKeyboard_ =
         ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && (ImGui::GetIO().WantCaptureKeyboard || ImGui::GetIO().WantTextInput);
 
-    ImGui::InputText(text(ClientText::RemotePath), remotePath_.data(), remotePath_.size());
-    ImGui::SameLine();
-    if (ImGui::Button(text(ClientText::Open)))
-        static_cast<void>(session->ListRemoteDirectory(remotePath_.data()));
-    ImGui::InputText(text(ClientText::LocalPath), localPath_.data(), localPath_.size());
-    if (ImGui::Button(text(ClientText::UploadLocalPath))) {
-        static_cast<void>(session->StartUpload(localPath_.data(), remotePath_.data()));
-    }
-    ImGui::SameLine();
-    if (ImGui::Button(text(ClientText::DownloadSelection))) {
-        static_cast<void>(session->StartDownload(selectedRemote_, localPath_.data()));
-    }
+    px::ui::PageTitle(text(ClientText::FileTransfer));
+    ImGui::Spacing();
+    {
+        px::ui::CardScope paths{{"client-transfer-paths"}, {0.0F, 142.0F}};
+        if (paths.Visible() && ImGui::BeginTable("client-transfer-path-table", 3, ImGuiTableFlags_SizingStretchProp)) {
+            ImGui::TableSetupColumn("label", ImGuiTableColumnFlags_WidthFixed, 110.0F);
+            ImGui::TableSetupColumn("path", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("action", ImGuiTableColumnFlags_WidthFixed, 180.0F);
 
-    ImGui::SeparatorText(text(ClientText::RemoteFiles));
-    if (ImGui::BeginTable("remote-files", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_ScrollY, {0.0F, 300.0F})) {
-        ImGui::TableSetupColumn(text(ClientText::Name));
-        ImGui::TableSetupColumn(text(ClientText::Type), ImGuiTableColumnFlags_WidthFixed, 100.0F);
-        ImGui::TableSetupColumn(text(ClientText::Size), ImGuiTableColumnFlags_WidthFixed, 150.0F);
-        ImGui::TableHeadersRow();
-        for (const auto& entry : session->RemoteEntries()) {
-            ImGui::TableNextRow();
+            ImGui::TableNextRow(ImGuiTableRowFlags_None, 48.0F);
             ImGui::TableNextColumn();
-            const bool selected = selectedRemote_ == entry.path;
-            if (ImGui::Selectable(entry.name.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns)) {
-                selectedRemote_ = entry.path;
-                if (entry.directory && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-                    std::snprintf(remotePath_.data(), remotePath_.size(), "%s", entry.path.c_str());
-                    static_cast<void>(session->ListRemoteDirectory(entry.path));
-                }
+            ImGui::AlignTextToFramePadding();
+            px::ui::MutedText(text(ClientText::RemotePath));
+            ImGui::TableNextColumn();
+            static_cast<void>(px::ui::TextField({"remote-path"}, remotePath_));
+            ImGui::TableNextColumn();
+            if (px::ui::ActionButton({"open-remote-path"}, text(ClientText::Open),
+                                     {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::Sm, .width = -1.0F})) {
+                static_cast<void>(session->ListRemoteDirectory(remotePath_));
             }
+
+            ImGui::TableNextRow(ImGuiTableRowFlags_None, 48.0F);
             ImGui::TableNextColumn();
-            ImGui::TextUnformatted(text(entry.directory ? ClientText::Folder : ClientText::File));
+            ImGui::AlignTextToFramePadding();
+            px::ui::MutedText(text(ClientText::LocalPath));
             ImGui::TableNextColumn();
-            ImGui::Text("%llu", static_cast<unsigned long long>(entry.size));
+            static_cast<void>(px::ui::TextField({"local-path"}, localPath_));
+            ImGui::TableNextColumn();
+            if (px::ui::ActionButton({"upload-local-path"}, text(ClientText::UploadLocalPath),
+                                     {.size = px::ui::WidgetSize::Sm, .icon = px::ui::VectorIcon::FileTransfer, .width = -1.0F})) {
+                static_cast<void>(session->StartUpload(localPath_, remotePath_));
+            }
+            ImGui::EndTable();
         }
-        ImGui::EndTable();
     }
 
-    ImGui::SeparatorText(text(ClientText::Transfers));
+    ImGui::Spacing();
+    {
+        px::ui::CardScope files{{"client-remote-files"}, {0.0F, 338.0F}};
+        if (files.Visible()) {
+            px::ui::SectionTitle(text(ClientText::RemoteFiles));
+            px::ui::HorizontalSeparator();
+            if (ImGui::BeginTable("remote-files", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_ScrollY,
+                                  {0.0F, 242.0F})) {
+                ImGui::TableSetupColumn(text(ClientText::Name));
+                ImGui::TableSetupColumn(text(ClientText::Type), ImGuiTableColumnFlags_WidthFixed, 100.0F);
+                ImGui::TableSetupColumn(text(ClientText::Size), ImGuiTableColumnFlags_WidthFixed, 150.0F);
+                ImGui::TableHeadersRow();
+                for (const auto& entry : session->RemoteEntries()) {
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    const bool selected = selectedRemote_ == entry.path;
+                    if (px::ui::SelectableRow({entry.path}, entry.name, selected, ImGuiSelectableFlags_SpanAllColumns)) {
+                        selectedRemote_ = entry.path;
+                        if (entry.directory && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+                            remotePath_ = entry.path;
+                            static_cast<void>(session->ListRemoteDirectory(entry.path));
+                        }
+                    }
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted(text(entry.directory ? ClientText::Folder : ClientText::File));
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%llu", static_cast<unsigned long long>(entry.size));
+                }
+                ImGui::EndTable();
+            }
+            ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - 180.0F);
+            if (px::ui::ActionButton({"download-selection"}, text(ClientText::DownloadSelection),
+                                     {.variant = px::ui::ButtonVariant::Outline,
+                                      .size = px::ui::WidgetSize::Sm,
+                                      .icon = px::ui::VectorIcon::FileTransfer,
+                                      .width = 180.0F,
+                                      .disabled = selectedRemote_.empty()})) {
+                static_cast<void>(session->StartDownload(selectedRemote_, localPath_));
+            }
+        }
+    }
+
+    ImGui::Spacing();
+    px::ui::SectionTitle(text(ClientText::Transfers));
     for (const auto& job : session->TransferJobs()) {
         ImGui::PushID(job.id);
         const float progress = job.totalBytes == 0 ? 0.0F : std::clamp(static_cast<float>(job.completedBytes) / job.totalBytes, 0.0F, 1.0F);
         ImGui::Text("#%d %s", job.id, text(job.download ? ClientText::Download : ClientText::Upload));
         ImGui::SameLine();
-        ImGui::ProgressBar(progress, {300.0F, 0.0F});
+        px::ui::Progress(progress, 300.0F);
         ImGui::SameLine();
         ImGui::Text("%.1f KB/s", job.bytesPerSecond / 1024.0);
         if (!job.done) {
             ImGui::SameLine();
-            if (ImGui::SmallButton(text(ClientText::Cancel)))
+            if (px::ui::ActionButton({"cancel-transfer"}, text(ClientText::Cancel),
+                                     {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Xs}))
                 static_cast<void>(session->CancelTransfer(job.id));
         }
         if (!job.error.empty())
-            ImGui::TextDisabled("%s", job.error.c_str());
+            px::ui::FieldError(job.error);
         ImGui::PopID();
     }
 
     if (const auto overwrite = session->PendingOverwrite()) {
-        ImGui::OpenPopup("file-overwrite");
-        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, {0.5F, 0.5F});
-        if (ImGui::BeginPopupModal("file-overwrite", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        px::ui::OpenModal({"file-overwrite"});
+        const px::ui::ModalScope modal{{"file-overwrite"}, 520.0F};
+        if (modal.Open()) {
             ImGui::TextWrapped("%s\n%s", text(ClientText::DestinationExists), overwrite->path.c_str());
-            ImGui::Checkbox(text(ClientText::ApplyToAll), &applyOverwriteToAll_);
-            if (ImGui::Button(text(ClientText::Overwrite), {130.0F, 0.0F})) {
+            static_cast<void>(px::ui::CheckboxField({"overwrite-apply-all"}, text(ClientText::ApplyToAll), applyOverwriteToAll_));
+            if (px::ui::ActionButton({"overwrite-confirm"}, text(ClientText::Overwrite), {.width = 130.0F})) {
                 static_cast<void>(session->ConfirmOverwrite(true, applyOverwriteToAll_));
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (ImGui::Button(text(ClientText::Skip), {130.0F, 0.0F})) {
+            if (px::ui::ActionButton({"overwrite-skip"}, text(ClientText::Skip), {.variant = px::ui::ButtonVariant::Secondary, .width = 130.0F})) {
                 static_cast<void>(session->ConfirmOverwrite(false, applyOverwriteToAll_));
                 ImGui::CloseCurrentPopup();
             }
-            ImGui::EndPopup();
         }
     }
     ImGui::End();

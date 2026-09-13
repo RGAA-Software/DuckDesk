@@ -4,6 +4,13 @@
 #include "client_session.h"
 #include "client_text.h"
 #include "px_desktop_shell/desktop_shell.h"
+#include "px_ui/components/button.h"
+#include "px_ui/components/data_view.h"
+#include "px_ui/components/form.h"
+#include "px_ui/components/navigation.h"
+#include "px_ui/components/surface.h"
+#include "px_ui/style_scope.h"
+#include "px_ui/theme_tokens.h"
 
 #include "px_common/log.h"
 
@@ -14,6 +21,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace px::client::imgui {
 namespace {
@@ -45,7 +53,8 @@ float ClampMenuY(const ImGuiViewport& viewport, const float desired, const float
 
 } // namespace
 
-ClientToolbar::ClientToolbar(std::shared_ptr<ClientFileTransferPanel> fileTransfer) : fileTransfer_{std::move(fileTransfer)} {}
+ClientToolbar::ClientToolbar(std::shared_ptr<ClientFileTransferPanel> fileTransfer, const bool enhancedVisualEffects)
+    : fileTransfer_{std::move(fileTransfer)}, enhancedVisualEffects_{enhancedVisualEffects} {}
 
 bool ClientToolbar::Bounds::Contains(const float pointX, const float pointY) const noexcept {
     return width > 0.0F && height > 0.0F && pointX >= x && pointY >= y && pointX < x + width && pointY < y + height;
@@ -151,14 +160,17 @@ bool ClientToolbar::DrawLauncher() {
     const float radius{diameter * 0.5F};
     // The controller must remain above the root video window even after the root receives focus.
     // Pointer routing is handled from SDL events, so a focusable ImGui overlay window is neither needed nor desirable here.
-    auto& drawList = *ImGui::GetForegroundDrawList();
-    drawList.AddCircleFilled(center, radius + 10.0F, ImGui::GetColorU32(ImVec4{0.0F, 0.0F, 0.0F, 0.05F}), 48);
-    drawList.AddCircleFilled(center, radius + 7.0F, ImGui::GetColorU32(ImVec4{0.0F, 0.0F, 0.0F, 0.08F}), 48);
-    drawList.AddCircleFilled(center, radius + 4.0F, ImGui::GetColorU32(ImVec4{0.0F, 0.0F, 0.0F, 0.12F}), 48);
-    const ImU32 color{ImGui::GetColorU32(launcherPointerDown_ ? ImVec4{0.08F, 0.30F, 0.72F, 1.00F} : ImVec4{0.10F, 0.38F, 0.86F, 0.98F})};
+    ImDrawList& drawList{*ImGui::GetForegroundDrawList()};
+    const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
+    if (px::ui::EnhancedVisualEffectsEnabled()) {
+        drawList.AddCircleFilled(center, radius + 10.0F, ImGui::GetColorU32(ImVec4{0.0F, 0.0F, 0.0F, 0.05F}), 48);
+        drawList.AddCircleFilled(center, radius + 7.0F, ImGui::GetColorU32(ImVec4{0.0F, 0.0F, 0.0F, 0.08F}), 48);
+        drawList.AddCircleFilled(center, radius + 4.0F, ImGui::GetColorU32(ImVec4{0.0F, 0.0F, 0.0F, 0.12F}), 48);
+    }
+    const ImU32 color{ImGui::GetColorU32(launcherPointerDown_ ? tokens.ring : tokens.primary)};
     drawList.AddCircleFilled(center, radius, color, 48);
     const ImVec2 textSize{ImGui::CalcTextSize("P")};
-    drawList.AddText({center.x - textSize.x * 0.5F, center.y - textSize.y * 0.5F}, ImGui::GetColorU32(ImVec4{1.0F, 1.0F, 1.0F, 1.0F}), "P");
+    drawList.AddText({center.x - textSize.x * 0.5F, center.y - textSize.y * 0.5F}, ImGui::GetColorU32(tokens.primaryForeground), "P");
     if (hovered)
         ImGui::SetTooltip("Pixels");
     return hovered || launcherPointerDown_;
@@ -176,24 +188,34 @@ bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const 
     const float y{ClampMenuY(viewport, launcherBounds_.y + launcherBounds_.height * 0.5F - menuHeight * 0.5F, menuHeight)};
     ImGui::SetNextWindowPos({navigationX, y}, ImGuiCond_Always);
     ImGui::SetNextWindowSize({menuWidth, 0.0F}, ImGuiCond_Always);
-    ImGui::SetNextWindowBgAlpha(0.96F);
+    const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
+    ImGui::SetNextWindowBgAlpha(px::ui::EnhancedVisualEffectsEnabled() ? 0.94F : 1.0F);
     if (navigationNeedsFocus_) {
         ImGui::SetNextWindowFocus();
         navigationNeedsFocus_ = false;
     }
+    const px::ui::ScopedStyleColor background{ImGuiCol_WindowBg, tokens.popover};
+    const px::ui::ScopedStyleColor border{ImGuiCol_Border, tokens.border};
+    const px::ui::ScopedStyleVar rounding{ImGuiStyleVar_WindowRounding, px::ui::MetricsFor(ImGui::GetStyle().FontScaleDpi).popupRadius};
     ImGui::Begin("##pixels-controller-navigation", {}, kOverlayFlags);
     ImGui::TextUnformatted("Pixels");
     ImGui::SameLine();
-    ImGui::TextDisabled("%s", text(StatusText(snapshot.state)));
-    ImGui::Separator();
+    px::ui::StatusBadge(text(StatusText(snapshot.state)),
+                        snapshot.state == ClientConnectionState::Connected ? px::ui::BadgeVariant::Success : px::ui::BadgeVariant::Secondary);
+    px::ui::HorizontalSeparator();
 
     auto& selectedSection = section_;
     auto& sectionExpanded = sectionExpanded_;
     auto& sectionNeedsFocus = sectionNeedsFocus_;
     const auto navigationItem = [&selectedSection, &sectionExpanded, &sectionNeedsFocus](const std::string_view label, const Section section,
                                                                                          const bool enabled = true) {
+        const px::ui::VectorIcon icon{section == Section::Display   ? px::ui::VectorIcon::Monitor
+                                      : section == Section::Control ? px::ui::VectorIcon::Connect
+                                      : section == Section::Tools   ? px::ui::VectorIcon::FileTransfer
+                                      : section == Section::Voice   ? px::ui::VectorIcon::User
+                                                                    : px::ui::VectorIcon::Settings};
         ImGui::BeginDisabled(!enabled);
-        const bool selected{ImGui::Selectable(label.data(), selectedSection == section)};
+        const bool selected{px::ui::NavigationItem({label}, icon, label, selectedSection == section, -1.0F)};
         if (enabled && (selected || ImGui::IsItemHovered())) {
             if (!sectionExpanded || selectedSection != section)
                 sectionNeedsFocus = true;
@@ -202,14 +224,15 @@ bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const 
         }
         ImGui::EndDisabled();
     };
-    navigationItem(english ? "Display  >" : "显示  >", Section::Display);
-    navigationItem(english ? "Control  >" : "控制  >", Section::Control);
-    navigationItem(english ? "Tools  >" : "工具  >", Section::Tools);
-    navigationItem(english ? "Voice  >" : "语音  >", Section::Voice, snapshot.voiceAvailable);
-    navigationItem(english ? "Settings  >" : "设置  >", Section::Settings);
+    navigationItem(text(ClientText::Display), Section::Display);
+    navigationItem(text(ClientText::Control), Section::Control);
+    navigationItem(text(ClientText::Tools), Section::Tools);
+    navigationItem(text(ClientText::Voice), Section::Voice, snapshot.voiceAvailable);
+    navigationItem(text(ClientText::Settings), Section::Settings);
 
-    ImGui::Separator();
-    ImGui::TextDisabled("FPS %d  %d ms", snapshot.framesPerSecond, snapshot.latencyMilliseconds);
+    px::ui::HorizontalSeparator();
+    const std::string statistics{"FPS " + std::to_string(snapshot.framesPerSecond) + "  " + std::to_string(snapshot.latencyMilliseconds) + " ms"};
+    px::ui::MutedText(statistics);
     const ImVec2 windowPosition{ImGui::GetWindowPos()};
     const ImVec2 windowSize{ImGui::GetWindowSize()};
     navigationBounds_ = {.x = windowPosition.x, .y = windowPosition.y, .width = windowSize.x, .height = windowSize.y};
@@ -234,109 +257,129 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
     const float y{ClampMenuY(viewport, launcherBounds_.y + launcherBounds_.height * 0.5F - menuHeight * 0.5F, menuHeight)};
     ImGui::SetNextWindowPos({sectionX, y}, ImGuiCond_Always);
     ImGui::SetNextWindowSize({sectionWidth, 0.0F}, ImGuiCond_Always);
-    ImGui::SetNextWindowBgAlpha(0.96F);
+    const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
+    ImGui::SetNextWindowBgAlpha(px::ui::EnhancedVisualEffectsEnabled() ? 0.94F : 1.0F);
     if (sectionNeedsFocus_) {
         ImGui::SetNextWindowFocus();
         sectionNeedsFocus_ = false;
     }
+    const px::ui::ScopedStyleColor background{ImGuiCol_WindowBg, tokens.popover};
+    const px::ui::ScopedStyleColor border{ImGuiCol_Border, tokens.border};
+    const px::ui::ScopedStyleVar rounding{ImGuiStyleVar_WindowRounding, px::ui::MetricsFor(ImGui::GetStyle().FontScaleDpi).popupRadius};
     ImGui::Begin("##pixels-controller-section", {}, kOverlayFlags);
 
     if (section_ == Section::Display) {
-        ImGui::TextUnformatted(english ? "Display" : "显示");
-        ImGui::Separator();
+        px::ui::SectionTitle(text(ClientText::Display));
         if (!snapshot.monitorName.empty()) {
-            ImGui::SetNextItemWidth(-1.0F);
-            if (ImGui::BeginCombo("##monitor", snapshot.monitorName.c_str())) {
-                for (const auto& monitor : snapshot.monitors) {
-                    if (ImGui::Selectable(monitor.c_str(), monitor == snapshot.monitorName))
-                        static_cast<void>(session->SwitchMonitor(monitor));
-                }
-                ImGui::EndCombo();
+            px::ui::FieldLabel(text(ClientText::Monitor));
+            std::vector<px::ui::SelectOption> options{};
+            options.reserve(snapshot.monitors.size());
+            int selected{};
+            for (std::size_t index{}; index < snapshot.monitors.size(); ++index) {
+                options.push_back({static_cast<int>(index), snapshot.monitors[index]});
+                if (snapshot.monitors[index] == snapshot.monitorName)
+                    selected = static_cast<int>(index);
             }
+            if (px::ui::SelectField({"client-monitor"}, selected, options) && selected >= 0 &&
+                static_cast<std::size_t>(selected) < snapshot.monitors.size())
+                static_cast<void>(session->SwitchMonitor(snapshot.monitors[static_cast<std::size_t>(selected)]));
         }
         if (!snapshot.resolutions.empty()) {
-            const auto label = std::to_string(resolutionWidth_) + "x" + std::to_string(resolutionHeight_);
-            ImGui::SetNextItemWidth(-1.0F);
-            if (ImGui::BeginCombo("##resolution", resolutionWidth_ > 0 ? label.c_str() : text(ClientText::Resolution))) {
-                for (const auto& resolution : snapshot.resolutions) {
-                    const auto value = std::to_string(resolution.width) + "x" + std::to_string(resolution.height);
-                    if (ImGui::Selectable(value.c_str(), resolution.width == resolutionWidth_ && resolution.height == resolutionHeight_)) {
-                        resolutionWidth_ = resolution.width;
-                        resolutionHeight_ = resolution.height;
-                        static_cast<void>(session->ChangeResolution(resolution.width, resolution.height));
-                    }
-                }
-                ImGui::EndCombo();
+            px::ui::FieldLabel(text(ClientText::Resolution));
+            std::vector<std::string> labels{};
+            std::vector<px::ui::SelectOption> options{};
+            labels.reserve(snapshot.resolutions.size());
+            options.reserve(snapshot.resolutions.size());
+            int selected{};
+            for (std::size_t index{}; index < snapshot.resolutions.size(); ++index) {
+                const auto& resolution = snapshot.resolutions[index];
+                labels.push_back(std::to_string(resolution.width) + "x" + std::to_string(resolution.height));
+                options.push_back({static_cast<int>(index), labels.back()});
+                if (resolution.width == resolutionWidth_ && resolution.height == resolutionHeight_)
+                    selected = static_cast<int>(index);
+            }
+            if (px::ui::SelectField({"client-resolution"}, selected, options) && selected >= 0 &&
+                static_cast<std::size_t>(selected) < snapshot.resolutions.size()) {
+                const auto& resolution = snapshot.resolutions[static_cast<std::size_t>(selected)];
+                resolutionWidth_ = resolution.width;
+                resolutionHeight_ = resolution.height;
+                static_cast<void>(session->ChangeResolution(resolution.width, resolution.height));
             }
         }
-        if (ImGui::SliderInt("FPS", &frameRate_, 15, 120))
+        px::ui::FieldLabel(text(ClientText::FrameRate));
+        if (px::ui::SliderIntField({"client-frame-rate"}, frameRate_, 15, 120))
             static_cast<void>(session->SetFrameRate(frameRate_));
-        if (ImGui::Checkbox(text(ClientText::Audio), &audioEnabled_))
+        if (px::ui::ToggleSwitch({"client-audio"}, text(ClientText::Audio), audioEnabled_))
             static_cast<void>(session->SetAudioEnabled(audioEnabled_));
-        if (ImGui::Button(text(ClientText::Fullscreen), {-1.0F, 0.0F}))
+        if (px::ui::ActionButton({"client-fullscreen"}, text(ClientText::Fullscreen), {.variant = px::ui::ButtonVariant::Secondary, .width = -1.0F}))
             action.toggleFullscreen = true;
         if (snapshot.virtualDisplayAvailable) {
-            ImGui::Separator();
-            ImGui::TextDisabled("%s %u/%u", text(ClientText::VirtualDisplays), snapshot.virtualDisplayCount, snapshot.virtualDisplayMaximum);
-            ImGui::BeginDisabled(snapshot.virtualDisplayBusy || snapshot.virtualDisplayCount >= snapshot.virtualDisplayMaximum);
-            if (ImGui::Button("+##virtual-display", {fontSize * 3.0F, 0.0F}))
+            px::ui::HorizontalSeparator();
+            const std::string displayCount{std::string{text(ClientText::VirtualDisplays)} + " " + std::to_string(snapshot.virtualDisplayCount) + "/" +
+                                           std::to_string(snapshot.virtualDisplayMaximum)};
+            px::ui::MutedText(displayCount);
+            if (px::ui::ActionButton({"virtual-display-add"}, "+",
+                                     {.variant = px::ui::ButtonVariant::Outline,
+                                      .width = fontSize * 3.0F,
+                                      .disabled = snapshot.virtualDisplayBusy || snapshot.virtualDisplayCount >= snapshot.virtualDisplayMaximum}))
                 static_cast<void>(session->CreateVirtualDisplay());
-            ImGui::EndDisabled();
             ImGui::SameLine();
-            ImGui::BeginDisabled(snapshot.virtualDisplayBusy || snapshot.virtualDisplayCount == 0U);
-            if (ImGui::Button("-##virtual-display", {fontSize * 3.0F, 0.0F}))
+            if (px::ui::ActionButton({"virtual-display-remove"}, "-",
+                                     {.variant = px::ui::ButtonVariant::Outline,
+                                      .width = fontSize * 3.0F,
+                                      .disabled = snapshot.virtualDisplayBusy || snapshot.virtualDisplayCount == 0U}))
                 static_cast<void>(session->RemoveVirtualDisplay());
-            ImGui::EndDisabled();
         }
     } else if (section_ == Section::Control) {
-        ImGui::TextUnformatted(english ? "Control" : "控制");
-        ImGui::Separator();
-        if (ImGui::Button(text(ClientText::SecureAttention), {-1.0F, 0.0F}))
+        px::ui::SectionTitle(text(ClientText::Control));
+        if (px::ui::ActionButton({"client-secure-attention"}, text(ClientText::SecureAttention), {.width = -1.0F}))
             static_cast<void>(session->SendSecureAttention());
-        ImGui::TextWrapped("%s", english ? "Mouse, keyboard, wheel, text input and clipboard follow the remote session."
-                                         : "鼠标、键盘、滚轮、文本输入和剪贴板随远程会话工作。");
+        px::ui::FieldDescription(text(ClientText::ControlDescription));
     } else if (section_ == Section::Tools) {
-        ImGui::TextUnformatted(english ? "Tools" : "工具");
-        ImGui::Separator();
-        ImGui::BeginDisabled(!snapshot.fileTransferAvailable);
-        if (ImGui::Button(text(ClientText::Files), {-1.0F, 0.0F}))
+        px::ui::SectionTitle(text(ClientText::Tools));
+        if (px::ui::ActionButton({"client-files"}, text(ClientText::Files),
+                                 {.variant = px::ui::ButtonVariant::Secondary, .width = -1.0F, .disabled = !snapshot.fileTransferAvailable}))
             fileTransfer_->Open();
-        ImGui::EndDisabled();
-        if (ImGui::Button(text(ClientText::Screenshot), {-1.0F, 0.0F}))
+        if (px::ui::ActionButton({"client-screenshot"}, text(ClientText::Screenshot), {.variant = px::ui::ButtonVariant::Secondary, .width = -1.0F}))
             screenshotStatus_ = session->SaveScreenshot().value_or(text(ClientText::ScreenshotFailed));
         if (snapshot.recording) {
-            if (ImGui::Button(text(ClientText::StopRecording), {-1.0F, 0.0F}))
+            if (px::ui::ActionButton({"client-record-stop"}, text(ClientText::StopRecording),
+                                     {.variant = px::ui::ButtonVariant::Destructive, .width = -1.0F}))
                 static_cast<void>(session->StopRecording());
-        } else if (ImGui::Button(text(ClientText::Record), {-1.0F, 0.0F})) {
+        } else if (px::ui::ActionButton({"client-record"}, text(ClientText::Record), {.variant = px::ui::ButtonVariant::Secondary, .width = -1.0F})) {
             static_cast<void>(session->StartRecording());
         }
-        ImGui::Checkbox(text(ClientText::Statistics), &showStatistics_);
+        static_cast<void>(px::ui::ToggleSwitch({"client-statistics"}, text(ClientText::Statistics), showStatistics_));
         if (showStatistics_) {
-            ImGui::TextWrapped("FPS %d | %d ms | %d Kbps | %s", snapshot.framesPerSecond, snapshot.latencyMilliseconds, snapshot.bitrateKbps,
-                               snapshot.decoder.c_str());
+            const std::string statistics{"FPS " + std::to_string(snapshot.framesPerSecond) + " | " + std::to_string(snapshot.latencyMilliseconds) +
+                                         " ms | " + std::to_string(snapshot.bitrateKbps) + " Kbps | " + snapshot.decoder};
+            px::ui::FieldDescription(statistics);
         }
         if (!screenshotStatus_.empty())
-            ImGui::TextWrapped("%s", screenshotStatus_.c_str());
+            px::ui::FieldDescription(screenshotStatus_);
     } else if (section_ == Section::Voice) {
-        ImGui::TextUnformatted(english ? "Voice" : "语音");
-        ImGui::Separator();
+        px::ui::SectionTitle(text(ClientText::Voice));
         if (snapshot.voiceStatus == "Connected" || snapshot.voiceStatus == "Calling") {
-            if (ImGui::Button(text(ClientText::HangUp), {-1.0F, 0.0F}))
+            if (px::ui::ActionButton({"client-voice-stop"}, text(ClientText::HangUp),
+                                     {.variant = px::ui::ButtonVariant::Destructive, .width = -1.0F}))
                 static_cast<void>(session->StopVoiceCall());
-        } else if (ImGui::Button(text(ClientText::Voice), {-1.0F, 0.0F})) {
+        } else if (px::ui::ActionButton({"client-voice-start"}, text(ClientText::Voice), {.width = -1.0F})) {
             static_cast<void>(session->StartVoiceCall());
         }
-        if (ImGui::Checkbox(text(ClientText::MuteMicrophone), &microphoneMuted_))
+        if (px::ui::ToggleSwitch({"client-microphone"}, text(ClientText::MuteMicrophone), microphoneMuted_))
             static_cast<void>(session->SetVoiceMicrophoneMuted(microphoneMuted_));
-        if (ImGui::Checkbox(text(ClientText::MuteSpeaker), &speakerMuted_))
+        if (px::ui::ToggleSwitch({"client-speaker"}, text(ClientText::MuteSpeaker), speakerMuted_))
             static_cast<void>(session->SetVoiceSpeakerMuted(speakerMuted_));
     } else {
-        ImGui::TextUnformatted(english ? "Settings" : "设置");
-        ImGui::Separator();
-        if (ImGui::Button(english ? "简体中文" : "English", {-1.0F, 0.0F}))
+        px::ui::SectionTitle(text(ClientText::Settings));
+        if (px::ui::ActionButton({"client-language"}, english ? "简体中文" : "English",
+                                 {.variant = px::ui::ButtonVariant::Secondary, .width = -1.0F}))
             action.toggleLanguage = true;
-        if (ImGui::Button(text(darkTheme ? ClientText::Light : ClientText::Dark), {-1.0F, 0.0F}))
+        if (px::ui::ActionButton({"client-theme"}, text(darkTheme ? ClientText::Light : ClientText::Dark),
+                                 {.variant = px::ui::ButtonVariant::Secondary, .width = -1.0F}))
             action.toggleTheme = true;
+        if (px::ui::ToggleSwitch({"client-effects"}, text(ClientText::EnhancedVisualEffects), enhancedVisualEffects_))
+            action.toggleEnhancedVisualEffects = true;
     }
 
     const ImVec2 windowPosition{ImGui::GetWindowPos()};

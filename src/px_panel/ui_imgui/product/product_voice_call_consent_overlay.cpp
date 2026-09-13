@@ -1,5 +1,8 @@
 #include "panel_product_runtime.h"
 
+#include "px_ui/components/button.h"
+#include "px_ui/components/overlay.h"
+#include "px_ui/components/surface.h"
 #include "px_ui/layout_metrics.h"
 
 #include <imgui.h>
@@ -44,27 +47,27 @@ class ProductVoiceCallConsentOverlay final : public ui::VoiceCallConsentOverlay 
             return;
         }
         if (!ImGui::IsPopupOpen(popupId.data()))
-            ImGui::OpenPopup(popupId.data());
-        ImGui::SetNextWindowSize(ImVec2{px::ui::Scale(480.0F), 0.0F}, ImGuiCond_Appearing);
-        if (!ImGui::BeginPopupModal(popupId.data(), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+            px::ui::OpenModal({popupId});
+        px::ui::ModalScope dialog{{popupId}, 480.0F};
+        if (!dialog.Open())
             return;
-        ImGui::TextUnformatted(localizer.Text(px::ui::TextId::VoiceCallIncoming).data());
-        ImGui::Separator();
+        px::ui::SectionTitle(localizer.Text(px::ui::TextId::VoiceCallIncoming));
+        px::ui::HorizontalSeparator();
         ImGui::TextWrapped("%s", localizer.Text(px::ui::TextId::VoiceCallRequest).data());
         ImGui::TextWrapped("%s", pending->visitorDeviceId.c_str());
         ImGui::TextWrapped("%s", localizer.Text(px::ui::TextId::VoiceCallWarning).data());
         const auto remaining = std::max<std::uint64_t>(1, (pending->expiresAtUnixMs - now + 999) / 1000);
         ImGui::Text("%s %llu", localizer.Text(px::ui::TextId::VoiceCallCountdown).data(), remaining);
-        if (ImGui::Button(localizer.Text(px::ui::TextId::VoiceCallReject).data(), ImVec2{px::ui::Scale(110.0F), 0.0F})) {
+        if (px::ui::ActionButton({"voice-reject"}, localizer.Text(px::ui::TextId::VoiceCallReject),
+                                 {.variant = px::ui::ButtonVariant::Destructive, .width = px::ui::Scale(110.0F)})) {
             runtime_->LocalServer()->ResolveVoiceCall(*pending, false, "rejected");
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button(localizer.Text(px::ui::TextId::VoiceCallAccept).data(), ImVec2{px::ui::Scale(110.0F), 0.0F})) {
+        if (px::ui::ActionButton({"voice-accept"}, localizer.Text(px::ui::TextId::VoiceCallAccept), {.width = px::ui::Scale(110.0F)})) {
             runtime_->LocalServer()->ResolveVoiceCall(*pending, true, {});
             ImGui::CloseCurrentPopup();
         }
-        ImGui::EndPopup();
     }
 
   private:

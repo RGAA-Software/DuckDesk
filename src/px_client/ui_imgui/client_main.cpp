@@ -64,6 +64,9 @@ int main() {
         return 3;
     }
     auto shell = std::move(shellResult.value());
+    const bool darkTheme{!config->lightTheme};
+    static_cast<void>(shell.SetTheme(darkTheme ? px::ui::Theme::Dark : px::ui::Theme::Light));
+    static_cast<void>(shell.SetEnhancedVisualEffects(config->enhancedVisualEffects));
     auto session = px::client::imgui::ClientSession::Create(*config, shell.VideoResources(config->decoder));
     if (!session) {
         static_cast<void>(px::client::imgui::ShowStartupDialog(
@@ -72,7 +75,7 @@ int main() {
             english ? "OK" : "确定", true));
         return 4;
     }
-    px::client::imgui::ClientWindow window{std::ref(shell), session, english};
+    px::client::imgui::ClientWindow window{std::ref(shell), session, english, darkTheme, config->enhancedVisualEffects};
     session->Start();
     const int result = shell.Run([&window] { window.Draw(); }, [&window](const px::desktop::DesktopInputEvent& event) { window.HandleInput(event); });
     session->Stop();

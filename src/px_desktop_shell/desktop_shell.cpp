@@ -60,6 +60,7 @@ struct DesktopShell::Impl final {
     std::optional<ImGuiSession> imgui{};
     bool running{true};
     px::ui::Theme theme{px::ui::Theme::Dark};
+    bool enhancedVisualEffects{true};
     SdlTray tray{};
     bool minimizeToTray{false};
     bool continuousTextInput{false};
@@ -73,7 +74,8 @@ std::expected<DesktopShell, std::string> DesktopShell::Create(const WindowConfig
                                     .allowTitleBarMaximize = config.allowTitleBarMaximize,
                                     .useRoundedWindow = config.useRoundedWindow,
                                     .resizable = config.resizable};
-    auto windowResult = WindowHost::Create(config.title, config.width, config.height, config.initiallyVisible, config.preferVulkanVideo, chrome);
+    auto windowResult = WindowHost::Create(config.title, config.width, config.height, config.initiallyVisible, config.preferVulkanVideo,
+                                           config.minimumWidth, config.minimumHeight, chrome);
     if (!windowResult) {
         return std::unexpected{windowResult.error()};
     }
@@ -146,7 +148,7 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
                     return 2;
                 }
                 if (event.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED &&
-                    !impl_->imgui->ApplyAppearance(impl_->theme, impl_->window.DisplayScale())) {
+                    !impl_->imgui->ApplyAppearance(impl_->theme, impl_->window.DisplayScale(), impl_->enhancedVisualEffects)) {
                     return 3;
                 }
             } while (SDL_PollEvent(&event));
@@ -163,8 +165,10 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
         ImGui::SetNextWindowSize(viewport.Size);
         constexpr ImGuiWindowFlags rootFlags{ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings};
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0F);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{});
         ImGui::Begin("PixelsRoot", nullptr, rootFlags);
-        if (!DrawTitleBar(impl_->window, impl_->chrome)) {
+        ImGui::PopStyleVar();
+        if (!DrawTitleBar(impl_->window, impl_->chrome, impl_->imgui->Logo())) {
             if (impl_->minimizeToTray) {
                 impl_->window.Hide();
             } else {
@@ -199,9 +203,18 @@ std::shared_ptr<WindowsVideoResources> DesktopShell::VideoResources(const std::s
     return impl_->renderer.VideoResources(decoderPreference);
 }
 
+const PlatformIconAtlas& DesktopShell::PlatformIcons() const noexcept {
+    return impl_->imgui->PlatformIcons();
+}
+
 bool DesktopShell::SetTheme(const px::ui::Theme theme) {
     impl_->theme = theme;
-    return impl_->imgui->ApplyAppearance(theme, impl_->window.DisplayScale());
+    return impl_->imgui->ApplyAppearance(theme, impl_->window.DisplayScale(), impl_->enhancedVisualEffects);
+}
+
+bool DesktopShell::SetEnhancedVisualEffects(const bool enabled) {
+    impl_->enhancedVisualEffects = enabled;
+    return impl_->imgui->ApplyAppearance(impl_->theme, impl_->window.DisplayScale(), enabled);
 }
 
 bool DesktopShell::ToggleFullscreen() {

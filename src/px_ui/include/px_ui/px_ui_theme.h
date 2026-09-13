@@ -7,7 +7,8 @@ enum class Theme {
     Light,
 };
 
-void ApplyPixelsTheme(Theme theme = Theme::Dark, float scale = 1.0F);
+void ApplyPixelsTheme(Theme theme = Theme::Dark, float scale = 1.0F, bool enhancedVisualEffects = true);
 void ApplyPixelsColors(Theme theme);
+[[nodiscard]] bool EnhancedVisualEffectsEnabled() noexcept;
 
 } // namespace px::ui

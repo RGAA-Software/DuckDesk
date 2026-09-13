@@ -59,6 +59,7 @@ constexpr Catalog kEnglish{
     "简体中文",
     "Dark",
     "Light",
+    "Enhanced visual effects",
     "This device",
     "Device ID",
     "Temporary password",
@@ -211,6 +212,12 @@ constexpr Catalog kEnglish{
     "Device details",
     "Select a device to view its details.",
     "Remove this device from recent devices and the device list?",
+    "Connect to a remote device",
+    "Recent devices",
+    "Connection credentials",
+    "Share and web access",
+    "Total",
+    "QR code",
 };
 
 constexpr Catalog kSimplifiedChinese{
@@ -262,6 +269,7 @@ constexpr Catalog kSimplifiedChinese{
     "简体中文",
     "深色",
     "浅色",
+    "增强视觉效果",
     "本机设备",
     "设备 ID",
     "临时密码",
@@ -414,6 +422,12 @@ constexpr Catalog kSimplifiedChinese{
     "设备详情",
     "请选择一个设备查看详情。",
     "确定从最近设备和设备列表中移除此设备吗？",
+    "连接到远程设备",
+    "最近的设备",
+    "连接凭据",
+    "分享与网页访问",
+    "共",
+    "二维码",
 };
 
 static_assert(kEnglish.size() == kTextCount);

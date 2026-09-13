@@ -1,5 +1,13 @@
 #include "security_records_page.h"
 
+#include "px_ui/components/button.h"
+#include "px_ui/components/data_view.h"
+#include "px_ui/components/form.h"
+#include "px_ui/components/navigation.h"
+#include "px_ui/components/overlay.h"
+#include "px_ui/components/surface.h"
+#include "px_ui/layout_metrics.h"
+
 #include <SDL3/SDL.h>
 #include <imgui.h>
 
@@ -11,29 +19,39 @@ namespace px::panel::ui {
 SecurityRecordsPage::SecurityRecordsPage(std::shared_ptr<SecurityRecordsPort> port) : port_{std::move(port)} {}
 
 void SecurityRecordsPage::Draw(const px::ui::Localizer& localizer) {
-    if (ImGui::Selectable(localizer.Text(px::ui::TextId::VisitHistory).data(), selected_ == SecurityRecordKind::Visit, 0, ImVec2{160.0F, 0.0F})) {
+    px::ui::PageTitle(localizer.Text(px::ui::TextId::Security));
+    ImGui::Spacing();
+    if (px::ui::TabItem({"security-visits"}, localizer.Text(px::ui::TextId::VisitHistory), selected_ == SecurityRecordKind::Visit,
+                        px::ui::Scale(84.0F))) {
         selected_ = SecurityRecordKind::Visit;
     }
     ImGui::SameLine();
-    if (ImGui::Selectable(localizer.Text(px::ui::TextId::FileTransferHistory).data(), selected_ == SecurityRecordKind::FileTransfer, 0,
-                          ImVec2{180.0F, 0.0F})) {
+    if (px::ui::TabItem({"security-files"}, localizer.Text(px::ui::TextId::FileTransferHistory), selected_ == SecurityRecordKind::FileTransfer,
+                        px::ui::Scale(100.0F))) {
         selected_ = SecurityRecordKind::FileTransfer;
     }
-    ImGui::SameLine();
-    if (ImGui::Button(localizer.Text(px::ui::TextId::ClearAll).data())) {
+    ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - px::ui::Scale(88.0F));
+    if (px::ui::ActionButton({"security-clear-all"}, localizer.Text(px::ui::TextId::ClearAll),
+                             {.variant = px::ui::ButtonVariant::Destructive, .size = px::ui::WidgetSize::Sm, .width = px::ui::Scale(88.0F)})) {
         deleteAll_ = true;
         pendingDeleteId_ = 0;
         openDeleteDialog_ = true;
     }
-    ImGui::Separator();
-    DrawRecords(localizer);
+    px::ui::HorizontalSeparator();
+    ImGui::Spacing();
+    {
+        px::ui::CardScope records{{"SecurityRecordsCard"}, {0.0F, ImGui::GetContentRegionAvail().y}};
+        if (records.Visible()) {
+            DrawRecords(localizer);
+        }
+    }
     DrawDeleteDialog(localizer);
 }
 
 void SecurityRecordsPage::DrawRecords(const px::ui::Localizer& localizer) {
     const auto records = port_->Snapshot(selected_);
     if (records.empty()) {
-        ImGui::TextDisabled("%s", localizer.Text(px::ui::TextId::NoSecurityRecords).data());
+        px::ui::EmptyState(px::ui::VectorIcon::Shield, localizer.Text(px::ui::TextId::NoSecurityRecords), {});
         return;
     }
     const bool visits{selected_ == SecurityRecordKind::Visit};
@@ -74,15 +92,18 @@ void SecurityRecordsPage::DrawRecords(const px::ui::Localizer& localizer) {
             ImGui::TextUnformatted(record.fileName.c_str());
         }
         ImGui::TableNextColumn();
-        if (ImGui::SmallButton(localizer.Text(px::ui::TextId::Copy).data())) {
+        if (px::ui::IconAction({"record-copy"}, px::ui::VectorIcon::Copy, localizer.Text(px::ui::TextId::Copy),
+                               {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::IconXs})) {
             SDL_SetClipboardText(record.plainText.c_str());
         }
         ImGui::SameLine();
-        if (ImGui::SmallButton(localizer.Text(px::ui::TextId::CopyJson).data())) {
+        if (px::ui::ActionButton({"record-copy-json"}, localizer.Text(px::ui::TextId::CopyJson),
+                                 {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Xs})) {
             SDL_SetClipboardText(record.json.c_str());
         }
         ImGui::SameLine();
-        if (ImGui::SmallButton(localizer.Text(px::ui::TextId::Delete).data())) {
+        if (px::ui::IconAction({"record-delete"}, px::ui::VectorIcon::Trash, localizer.Text(px::ui::TextId::Delete),
+                               {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::IconXs})) {
             deleteAll_ = false;
             pendingDeleteId_ = record.id;
             openDeleteDialog_ = true;
@@ -94,31 +115,32 @@ void SecurityRecordsPage::DrawRecords(const px::ui::Localizer& localizer) {
 
 void SecurityRecordsPage::DrawDeleteDialog(const px::ui::Localizer& localizer) {
     if (openDeleteDialog_) {
-        password_.fill({});
+        password_.clear();
         passwordRejected_ = false;
-        ImGui::OpenPopup("DeleteSecurityRecords");
+        px::ui::OpenModal({"DeleteSecurityRecords"});
         openDeleteDialog_ = false;
     }
-    if (!ImGui::BeginPopupModal("DeleteSecurityRecords", {}, ImGuiWindowFlags_AlwaysAutoResize)) {
+    px::ui::ModalScope dialog{{"DeleteSecurityRecords"}, 440.0F};
+    if (!dialog.Open()) {
         return;
     }
-    ImGui::TextUnformatted(localizer.Text(px::ui::TextId::EnterLongTermPassword).data());
-    ImGui::InputText("##RecordPassword", password_.data(), password_.size(), ImGuiInputTextFlags_Password);
+    px::ui::SectionTitle(localizer.Text(px::ui::TextId::Delete));
+    px::ui::FieldLabel(localizer.Text(px::ui::TextId::EnterLongTermPassword));
+    static_cast<void>(px::ui::TextField({"record-password"}, password_, {}, {.invalid = passwordRejected_}, ImGuiInputTextFlags_Password));
     if (passwordRejected_) {
-        ImGui::TextColored(ImVec4{0.9F, 0.28F, 0.25F, 1.0F}, "%s", localizer.Text(px::ui::TextId::PasswordInvalid).data());
+        px::ui::FieldError(localizer.Text(px::ui::TextId::PasswordInvalid));
     }
-    if (ImGui::Button(localizer.Text(px::ui::TextId::Delete).data())) {
-        passwordRejected_ = deleteAll_ ? !port_->DeleteAll(selected_, password_.data())
-                                       : !port_->Delete(selected_, pendingDeleteId_, password_.data());
+    if (px::ui::ActionButton({"record-delete-confirm"}, localizer.Text(px::ui::TextId::Delete),
+                             {.variant = px::ui::ButtonVariant::Destructive, .disabled = password_.empty()})) {
+        passwordRejected_ = deleteAll_ ? !port_->DeleteAll(selected_, password_) : !port_->Delete(selected_, pendingDeleteId_, password_);
         if (!passwordRejected_) {
             ImGui::CloseCurrentPopup();
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button(localizer.Text(px::ui::TextId::Cancel).data())) {
+    if (px::ui::ActionButton({"record-delete-cancel"}, localizer.Text(px::ui::TextId::Cancel), {.variant = px::ui::ButtonVariant::Outline})) {
         ImGui::CloseCurrentPopup();
     }
-    ImGui::EndPopup();
 }
 
 } // namespace px::panel::ui

@@ -4,8 +4,8 @@
 
 #include "px_ui/localization.h"
 
-#include <array>
 #include <memory>
+#include <string>
 
 namespace px::panel::ui {
 
@@ -16,9 +16,9 @@ class SecuritySettingsPage final {
 
   private:
     std::shared_ptr<SettingsPort> port_{};
-    std::array<char, 256> password_{};
-    std::array<char, 256> confirmation_{};
-    std::array<char, 1024> logDestination_{};
+    std::string password_{};
+    std::string confirmation_{};
+    std::string logDestination_{};
     bool disconnectAutoLock_{false};
     bool loaded_{false};
     bool passwordRejected_{false};

@@ -23,6 +23,7 @@ enum class VectorIcon {
     Eye,
     EyeOff,
     Copy,
+    QrCode,
     ExternalLink,
     Refresh,
     Connect,

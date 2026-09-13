@@ -4,8 +4,8 @@
 
 #include "px_ui/localization.h"
 
-#include <array>
 #include <memory>
+#include <string>
 
 namespace px::panel::ui {
 
@@ -19,7 +19,7 @@ class ControllerSettingsPage final {
 
     std::shared_ptr<SettingsPort> port_{};
     ControllerSettings draft_{};
-    std::array<char, 1024> recordingPath_{};
+    std::string recordingPath_{};
     bool loaded_{false};
 };
 

@@ -4,8 +4,8 @@
 
 #include "px_ui/localization.h"
 
-#include <array>
 #include <memory>
+#include <string>
 
 namespace px::panel::ui {
 
@@ -20,7 +20,7 @@ class SecurityRecordsPage final {
 
     std::shared_ptr<SecurityRecordsPort> port_{};
     SecurityRecordKind selected_{SecurityRecordKind::Visit};
-    std::array<char, 256> password_{};
+    std::string password_{};
     int pendingDeleteId_{};
     bool deleteAll_{false};
     bool openDeleteDialog_{false};

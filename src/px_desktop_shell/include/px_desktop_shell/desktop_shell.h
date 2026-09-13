@@ -16,6 +16,8 @@ struct WindowsVideoResources;
 
 namespace px::desktop {
 
+class PlatformIconAtlas;
+
 struct DesktopInputEvent final {
     std::uint32_t type{};
     std::int32_t key{};
@@ -32,6 +34,8 @@ struct WindowConfig {
     std::string title{"Pixels"};
     int width{1180};
     int height{760};
+    int minimumWidth{900};
+    int minimumHeight{600};
     bool initiallyVisible{true};
     bool minimizeToTray{false};
     bool continuousTextInput{false};
@@ -63,7 +67,9 @@ class DesktopShell final {
     bool UpdateVideoFrame(const std::shared_ptr<RawImage>& image);
     [[nodiscard]] std::uint64_t VideoTextureId() const noexcept;
     [[nodiscard]] std::shared_ptr<WindowsVideoResources> VideoResources(const std::string& decoderPreference);
+    [[nodiscard]] const PlatformIconAtlas& PlatformIcons() const noexcept;
     bool SetTheme(px::ui::Theme theme);
+    bool SetEnhancedVisualEffects(bool enabled);
     bool ToggleFullscreen();
     void RequestExit() noexcept;
     void RequestShowAndRaise() noexcept;

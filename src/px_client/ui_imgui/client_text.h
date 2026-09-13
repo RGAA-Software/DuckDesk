@@ -61,6 +61,14 @@ enum class ClientText : std::uint8_t {
     Disconnected,
     MediaUnavailableDetail,
     DisconnectedDetail,
+    Display,
+    Control,
+    Tools,
+    Settings,
+    EnhancedVisualEffects,
+    Monitor,
+    FrameRate,
+    ControlDescription,
     Count,
 };
 

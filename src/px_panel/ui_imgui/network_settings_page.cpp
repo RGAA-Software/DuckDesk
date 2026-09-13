@@ -1,5 +1,8 @@
 #include "network_settings_page.h"
 
+#include "px_ui/components/button.h"
+#include "px_ui/components/form.h"
+#include "px_ui/components/surface.h"
 #include "px_ui/layout_metrics.h"
 
 #include <imgui.h>
@@ -55,57 +58,58 @@ std::string DisplayRange(const PortRange range) {
 
 NetworkPageAction NetworkSettingsPage::Draw(const px::ui::Localizer& localizer) {
     const auto text = [&localizer](const px::ui::TextId id) { return localizer.Text(id); };
-    DrawText(text(px::ui::TextId::SettingsNetwork));
-    DrawDisabledText(text(px::ui::TextId::ConnectionAddresses));
-    ImGui::Spacing();
-    ImGui::Separator();
+    px::ui::SectionTitle(text(px::ui::TextId::SettingsNetwork));
+    px::ui::FieldDescription(text(px::ui::TextId::ConnectionAddresses));
+    px::ui::HorizontalSeparator();
     ImGui::Spacing();
 
-    DrawText(text(px::ui::TextId::Authorization));
-    ImGui::SetNextItemWidth(-1.0F);
-    ImGui::InputTextMultiline("##authorization", &draft_.authorizationInfo, ImVec2{-1.0F, px::ui::Scale(92.0F)});
+    px::ui::FieldLabel(text(px::ui::TextId::Authorization));
+    static_cast<void>(px::ui::TextArea({"authorization"}, draft_.authorizationInfo, {-1.0F, px::ui::Scale(92.0F)}));
     if (ImGui::IsItemDeactivatedAfterEdit()) {
         return NetworkPageAction::AuthorizationChanged;
     }
 
     ImGui::Spacing();
-    DrawText(text(px::ui::TextId::ResolvedControlEndpoints));
-    ImGui::BeginChild("ResolvedEndpoints", ImVec2{0.0F, px::ui::Scale(108.0F)}, ImGuiChildFlags_Borders);
-    if (BeginEndpointTable("ResolvedEndpointTable")) {
-        DrawEndpoint(text(px::ui::TextId::Supervisor), DisplayPort(draft_.consolePort), text(px::ui::TextId::NodeManagement));
-        DrawEndpoint(text(px::ui::TextId::Relay), DisplayPort(draft_.relayPort), text(px::ui::TextId::ReliableRoutedConnection));
-        ImGui::EndTable();
+    px::ui::SectionTitle(text(px::ui::TextId::ResolvedControlEndpoints));
+    {
+        px::ui::CardScope resolved{{"ResolvedEndpoints"}, {0.0F, px::ui::Scale(108.0F)}};
+        if (resolved.Visible() && BeginEndpointTable("ResolvedEndpointTable")) {
+            DrawEndpoint(text(px::ui::TextId::Supervisor), DisplayPort(draft_.consolePort), text(px::ui::TextId::NodeManagement));
+            DrawEndpoint(text(px::ui::TextId::Relay), DisplayPort(draft_.relayPort), text(px::ui::TextId::ReliableRoutedConnection));
+            ImGui::EndTable();
+        }
     }
-    ImGui::EndChild();
 
     ImGui::Spacing();
-    DrawText(text(px::ui::TextId::NodePublicAddress));
-    DrawDisabledText(text(px::ui::TextId::OptionalPublicAddress));
-    ImGui::SetNextItemWidth(-1.0F);
-    ImGui::InputTextWithHint("##publicAddress", text(px::ui::TextId::PublicAddressHint).data(), &draft_.nodePublicAddress);
+    px::ui::FieldLabel(text(px::ui::TextId::NodePublicAddress));
+    px::ui::FieldDescription(text(px::ui::TextId::OptionalPublicAddress));
+    static_cast<void>(px::ui::TextField({"public-address"}, draft_.nodePublicAddress, text(px::ui::TextId::PublicAddressHint)));
 
     ImGui::Spacing();
-    DrawText(text(px::ui::TextId::NodeListeningPorts));
-    ImGui::BeginChild("NodePorts", ImVec2{0.0F, px::ui::Scale(172.0F)}, ImGuiChildFlags_Borders);
-    if (BeginEndpointTable("NodePortTable")) {
-        DrawEndpoint(text(px::ui::TextId::ServiceManagementPort), std::to_string(draft_.serviceManagementPort),
-                     text(px::ui::TextId::ServiceManagementPurpose));
-        DrawEndpoint(text(px::ui::TextId::DesktopConnectionPort), std::to_string(draft_.desktopConnectionPort),
-                     text(px::ui::TextId::DesktopConnectionPurpose));
-        DrawEndpoint(text(px::ui::TextId::ApplicationPortPool), DisplayRange(draft_.applicationPorts), text(px::ui::TextId::ApplicationPortPurpose));
-        DrawEndpoint(text(px::ui::TextId::RtcMediaPool), DisplayRange(draft_.rtcPorts), text(px::ui::TextId::RtcPortPurpose));
-        DrawEndpoint(text(px::ui::TextId::PanelListeningPort), std::to_string(draft_.panelListeningPort),
-                     text(px::ui::TextId::PanelListeningPurpose));
-        ImGui::EndTable();
+    px::ui::SectionTitle(text(px::ui::TextId::NodeListeningPorts));
+    {
+        px::ui::CardScope ports{{"NodePorts"}, {0.0F, px::ui::Scale(172.0F)}};
+        if (ports.Visible() && BeginEndpointTable("NodePortTable")) {
+            DrawEndpoint(text(px::ui::TextId::ServiceManagementPort), std::to_string(draft_.serviceManagementPort),
+                         text(px::ui::TextId::ServiceManagementPurpose));
+            DrawEndpoint(text(px::ui::TextId::DesktopConnectionPort), std::to_string(draft_.desktopConnectionPort),
+                         text(px::ui::TextId::DesktopConnectionPurpose));
+            DrawEndpoint(text(px::ui::TextId::ApplicationPortPool), DisplayRange(draft_.applicationPorts),
+                         text(px::ui::TextId::ApplicationPortPurpose));
+            DrawEndpoint(text(px::ui::TextId::RtcMediaPool), DisplayRange(draft_.rtcPorts), text(px::ui::TextId::RtcPortPurpose));
+            DrawEndpoint(text(px::ui::TextId::PanelListeningPort), std::to_string(draft_.panelListeningPort),
+                         text(px::ui::TextId::PanelListeningPurpose));
+            ImGui::EndTable();
+        }
     }
-    ImGui::EndChild();
 
     ImGui::Spacing();
-    if (ImGui::Button(text(px::ui::TextId::Save).data(), px::ui::Scale(ImVec2{150.0F, 40.0F}))) {
+    if (px::ui::ActionButton({"network-save"}, text(px::ui::TextId::Save), {.width = px::ui::Scale(150.0F)})) {
         return NetworkPageAction::SaveRequested;
     }
     ImGui::SameLine();
-    if (ImGui::Button(text(px::ui::TextId::Verify).data(), px::ui::Scale(ImVec2{150.0F, 40.0F}))) {
+    if (px::ui::ActionButton({"network-verify"}, text(px::ui::TextId::Verify),
+                             {.variant = px::ui::ButtonVariant::Outline, .width = px::ui::Scale(150.0F)})) {
         return NetworkPageAction::VerifyRequested;
     }
     ImGui::SameLine();

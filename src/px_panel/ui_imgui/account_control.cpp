@@ -1,7 +1,11 @@
 #include "account_control.h"
 
-#include "px_ui/vector_icon.h"
+#include "px_ui/components/button.h"
+#include "px_ui/components/form.h"
+#include "px_ui/components/overlay.h"
+#include "px_ui/components/surface.h"
 #include "px_ui/layout_metrics.h"
+#include "px_ui/theme_tokens.h"
 
 #include <imgui.h>
 
@@ -13,13 +17,15 @@ AccountControl::AccountControl(std::shared_ptr<AccountPort> port) : port_{std::m
 
 void AccountControl::Draw(const px::ui::Localizer& localizer) {
     const auto account = port_->Snapshot();
-    const float avatarSize{px::ui::Scale(52.0F)};
+    const float avatarSize{px::ui::Scale(48.0F)};
     ImGui::SetCursorPosX((ImGui::GetWindowWidth() - avatarSize) * 0.5F);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, avatarSize * 0.5F);
-    const bool avatarClicked{px::ui::IconOnlyButton(px::ui::VectorIcon::User, "account-avatar",
-                                                    account.loggedIn ? account.username : localizer.Text(px::ui::TextId::Login),
-                                                    {avatarSize, avatarSize})};
-    ImGui::PopStyleVar();
+    const bool avatarClicked{px::ui::IconAction({"account-avatar"}, px::ui::VectorIcon::User,
+                                                account.loggedIn ? account.username : localizer.Text(px::ui::TextId::Login),
+                                                {.variant = px::ui::ButtonVariant::Primary,
+                                                 .size = px::ui::WidgetSize::IconSm,
+                                                 .width = avatarSize,
+                                                 .height = avatarSize,
+                                                 .circular = true})};
     const std::string accountName{account.loggedIn ? account.username : std::string{localizer.Text(px::ui::TextId::Guest)}};
     ImGui::SetCursorPosX((ImGui::GetWindowWidth() - ImGui::CalcTextSize(accountName.c_str()).x) * 0.5F);
     ImGui::TextUnformatted(accountName.c_str());
@@ -27,77 +33,79 @@ void AccountControl::Draw(const px::ui::Localizer& localizer) {
     if (account.operation == AccountOperationState::Working) {
         const auto working = localizer.Text(px::ui::TextId::Working);
         ImGui::SetCursorPosX((ImGui::GetWindowWidth() - ImGui::CalcTextSize(working.data(), working.data() + working.size()).x) * 0.5F);
-        ImGui::TextDisabled("%.*s", static_cast<int>(working.size()), working.data());
+        px::ui::MutedText(working);
     } else if (account.operation == AccountOperationState::Failed) {
-        ImGui::TextColored(ImVec4{0.90F, 0.22F, 0.28F, 1.0F}, "!");
-        if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("%s", localizer.Text(px::ui::TextId::AccountOperationFailed).data());
+        ImGui::SetCursorPosX((ImGui::GetWindowWidth() - ImGui::CalcTextSize("!").x) * 0.5F);
+        px::ui::StatusBadge("!", px::ui::BadgeVariant::Destructive);
+        px::ui::Tooltip(localizer.Text(px::ui::TextId::AccountOperationFailed));
     }
     if (avatarClicked || nameClicked) {
         if (account.loggedIn) {
-            ImGui::OpenPopup("AccountMenu");
+            px::ui::OpenPopup({"AccountMenu"});
         } else {
             registerMode_ = false;
             dialogRequested_ = true;
         }
     }
-    if (ImGui::BeginPopup("AccountMenu")) {
-        if (ImGui::MenuItem(localizer.Text(px::ui::TextId::Logout).data())) {
-            port_->Logout();
+    {
+        px::ui::PopupScope menu{{"AccountMenu"}};
+        if (menu.Open()) {
+            if (px::ui::MenuAction({"account-logout"}, localizer.Text(px::ui::TextId::Logout))) {
+                port_->Logout();
+            }
         }
-        ImGui::EndPopup();
     }
     DrawDialog(localizer);
 }
 
 void AccountControl::DrawDialog(const px::ui::Localizer& localizer) {
     if (dialogRequested_) {
-        ImGui::OpenPopup("AccountDialog");
+        px::ui::OpenModal({"AccountDialog"});
         dialogRequested_ = false;
         invalidInput_ = false;
     }
-    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, {0.5F, 0.5F});
-    if (!ImGui::BeginPopupModal("AccountDialog", {}, ImGuiWindowFlags_AlwaysAutoResize)) {
+    px::ui::ModalScope dialog{{"AccountDialog"}, 440.0F};
+    if (!dialog.Open()) {
         return;
     }
-    ImGui::TextUnformatted(localizer.Text(registerMode_ ? px::ui::TextId::Register : px::ui::TextId::Login).data());
-    ImGui::InputText(localizer.Text(px::ui::TextId::Username).data(), username_.data(), username_.size());
-    ImGui::InputText(localizer.Text(px::ui::TextId::Password).data(), password_.data(), password_.size(), ImGuiInputTextFlags_Password);
+    px::ui::SectionTitle(localizer.Text(registerMode_ ? px::ui::TextId::Register : px::ui::TextId::Login));
+    px::ui::FieldLabel(localizer.Text(px::ui::TextId::Username));
+    static_cast<void>(px::ui::TextField({"account-username"}, username_));
+    px::ui::FieldLabel(localizer.Text(px::ui::TextId::Password));
+    static_cast<void>(px::ui::TextField({"account-password"}, password_, {}, {}, ImGuiInputTextFlags_Password));
     if (registerMode_) {
-        ImGui::InputText(localizer.Text(px::ui::TextId::ConfirmPassword).data(), confirmation_.data(), confirmation_.size(),
-                         ImGuiInputTextFlags_Password);
+        px::ui::FieldLabel(localizer.Text(px::ui::TextId::ConfirmPassword));
+        static_cast<void>(px::ui::TextField({"account-confirm-password"}, confirmation_, {}, {}, ImGuiInputTextFlags_Password));
     }
     if (invalidInput_) {
-        ImGui::TextColored(ImVec4{0.90F, 0.22F, 0.28F, 1.0F}, "%s", localizer.Text(px::ui::TextId::AccountInputInvalid).data());
+        px::ui::FieldError(localizer.Text(px::ui::TextId::AccountInputInvalid));
     }
-    if (ImGui::Button(localizer.Text(px::ui::TextId::Confirm).data())) {
-        const std::string username{username_.data()};
-        const std::string password{password_.data()};
-        invalidInput_ = username.empty() || password.empty() || (registerMode_ && password != confirmation_.data());
+    if (px::ui::ActionButton({"account-confirm"}, localizer.Text(px::ui::TextId::Confirm))) {
+        invalidInput_ = username_.empty() || password_.empty() || (registerMode_ && password_ != confirmation_);
         if (!invalidInput_) {
             if (registerMode_) {
-                port_->Register(username, password);
+                port_->Register(username_, password_);
             } else {
-                port_->Login(username, password);
+                port_->Login(username_, password_);
             }
-            password_.fill({});
-            confirmation_.fill({});
+            password_.clear();
+            confirmation_.clear();
             ImGui::CloseCurrentPopup();
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button(localizer.Text(registerMode_ ? px::ui::TextId::Login : px::ui::TextId::Register).data())) {
+    if (px::ui::ActionButton({"account-mode"}, localizer.Text(registerMode_ ? px::ui::TextId::Login : px::ui::TextId::Register),
+                             {.variant = px::ui::ButtonVariant::Ghost})) {
         registerMode_ = !registerMode_;
-        password_.fill({});
-        confirmation_.fill({});
+        password_.clear();
+        confirmation_.clear();
     }
     ImGui::SameLine();
-    if (ImGui::Button(localizer.Text(px::ui::TextId::Cancel).data())) {
-        password_.fill({});
-        confirmation_.fill({});
+    if (px::ui::ActionButton({"account-cancel"}, localizer.Text(px::ui::TextId::Cancel), {.variant = px::ui::ButtonVariant::Outline})) {
+        password_.clear();
+        confirmation_.clear();
         ImGui::CloseCurrentPopup();
     }
-    ImGui::EndPopup();
 }
 
 } // namespace px::panel::ui

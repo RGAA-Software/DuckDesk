@@ -1,4 +1,10 @@
 #include "settings_page.h"
+#include "panel_layout.h"
+
+#include "px_ui/components/button.h"
+#include "px_ui/components/navigation.h"
+#include "px_ui/components/surface.h"
+#include "px_ui/layout_metrics.h"
 
 #include <imgui.h>
 
@@ -16,37 +22,49 @@ void SettingsPage::Draw(const px::ui::Localizer& localizer) {
         px::ui::TextId label{};
     };
     constexpr std::array sections{
-        Section{SettingsSection::General, px::ui::TextId::General}, Section{SettingsSection::Network, px::ui::TextId::Network},
+        Section{SettingsSection::General, px::ui::TextId::General},   Section{SettingsSection::Network, px::ui::TextId::Network},
         Section{SettingsSection::Security, px::ui::TextId::Security}, Section{SettingsSection::Controller, px::ui::TextId::Controller},
         Section{SettingsSection::About, px::ui::TextId::About},
     };
-    ImGui::BeginChild("SettingsSections", ImVec2{160.0F, 0.0F}, ImGuiChildFlags_Borders);
-    for (const auto& section : sections) {
-        if (ImGui::Selectable(localizer.Text(section.label).data(), section.id == selected_)) {
-            selected_ = section.id;
+    const float cardHeight{ImGui::GetContentRegionAvail().y};
+    {
+        px::ui::CardScope sectionsCard{
+            {"SettingsSectionsCard"}, {px::ui::Scale(118.0F), cardHeight}, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse};
+        if (sectionsCard.Visible()) {
+            for (const auto& section : sections) {
+                const std::string id{"settings-section-" + std::to_string(static_cast<int>(section.id))};
+                if (px::ui::ActionButton({id}, localizer.Text(section.label),
+                                         {.variant = section.id == selected_ ? px::ui::ButtonVariant::Accent : px::ui::ButtonVariant::Ghost,
+                                          .size = px::ui::WidgetSize::Xs,
+                                          .width = ImGui::GetContentRegionAvail().x})) {
+                    selected_ = section.id;
+                }
+            }
         }
     }
-    ImGui::EndChild();
-    ImGui::SameLine();
-    ImGui::BeginChild("SettingsContent", ImVec2{0.0F, 0.0F}, ImGuiChildFlags_Borders, ImGuiWindowFlags_AlwaysVerticalScrollbar);
-    switch (selected_) {
-    case SettingsSection::General:
-        general_.Draw(localizer);
-        break;
-    case SettingsSection::Network:
-        network_.Draw(localizer);
-        break;
-    case SettingsSection::Security:
-        security_.Draw(localizer);
-        break;
-    case SettingsSection::Controller:
-        controller_.Draw(localizer);
-        break;
-    case SettingsSection::About:
-        about_.Draw(localizer);
-        break;
+    ImGui::SameLine(0.0F, layout::CardGap());
+    {
+        px::ui::CardScope contentCard{{"SettingsContentCard"}, {0.0F, cardHeight}};
+        if (contentCard.Visible()) {
+            switch (selected_) {
+            case SettingsSection::General:
+                general_.Draw(localizer);
+                break;
+            case SettingsSection::Network:
+                network_.Draw(localizer);
+                break;
+            case SettingsSection::Security:
+                security_.Draw(localizer);
+                break;
+            case SettingsSection::Controller:
+                controller_.Draw(localizer);
+                break;
+            case SettingsSection::About:
+                about_.Draw(localizer);
+                break;
+            }
+        }
     }
-    ImGui::EndChild();
 }
 
 } // namespace px::panel::ui

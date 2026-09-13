@@ -16,6 +16,10 @@ pub struct ConsoleDevice {
     #[serde(default)]
     pub device_name: String,
 
+    // operating system family reported by the device
+    #[serde(default)]
+    pub platform: String,
+
     // bind to which user
     // logged-in user on the device
     #[serde(default)]

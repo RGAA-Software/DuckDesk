@@ -1,5 +1,8 @@
 #include "network_settings_presenter.h"
 
+#include "px_ui/components/button.h"
+#include "px_ui/components/overlay.h"
+#include "px_ui/components/surface.h"
 #include "px_ui/layout_metrics.h"
 
 #include <imgui.h>
@@ -57,20 +60,22 @@ void NetworkSettingsPresenter::Synchronize() {
 
 void NetworkSettingsPresenter::DrawRestartConfirmation(const px::ui::Localizer& localizer) {
     if (lastOperation_ == NetworkOperation::SavedNeedsRestart) {
-        ImGui::OpenPopup("RestartConfirmation");
+        px::ui::OpenModal({"RestartConfirmation"});
     }
-    if (ImGui::BeginPopupModal("RestartConfirmation", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    px::ui::ModalScope dialog{{"RestartConfirmation"}, 440.0F};
+    if (dialog.Open()) {
+        px::ui::SectionTitle(localizer.Text(px::ui::TextId::Restart));
         ImGui::TextUnformatted(localizer.Text(px::ui::TextId::RestartRenderPrompt).data());
-        if (ImGui::Button(localizer.Text(px::ui::TextId::RestartNow).data(), px::ui::Scale(ImVec2{140.0F, 36.0F}))) {
+        if (px::ui::ActionButton({"network-restart-now"}, localizer.Text(px::ui::TextId::RestartNow), {.width = px::ui::Scale(140.0F)})) {
             port_->RestartRender();
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button(localizer.Text(px::ui::TextId::Later).data(), px::ui::Scale(ImVec2{140.0F, 36.0F}))) {
+        if (px::ui::ActionButton({"network-restart-later"}, localizer.Text(px::ui::TextId::Later),
+                                 {.variant = px::ui::ButtonVariant::Outline, .width = px::ui::Scale(140.0F)})) {
             port_->Acknowledge();
             ImGui::CloseCurrentPopup();
         }
-        ImGui::EndPopup();
     }
 }
 
