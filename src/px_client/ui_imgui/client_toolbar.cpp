@@ -1,6 +1,5 @@
 #include "client_toolbar.h"
 
-#include "client_file_transfer_panel.h"
 #include "client_session.h"
 #include "client_text.h"
 #include "px_desktop_shell/brand_logo.h"
@@ -55,8 +54,7 @@ float ClampMenuY(const ImGuiViewport& viewport, const float desired, const float
 
 } // namespace
 
-ClientToolbar::ClientToolbar(std::shared_ptr<ClientFileTransferPanel> fileTransfer, const bool enhancedVisualEffects)
-    : fileTransfer_{std::move(fileTransfer)}, enhancedVisualEffects_{enhancedVisualEffects} {}
+ClientToolbar::ClientToolbar(const bool enhancedVisualEffects) : enhancedVisualEffects_{enhancedVisualEffects} {}
 
 bool ClientToolbar::Bounds::Contains(const float pointX, const float pointY) const noexcept {
     return width > 0.0F && height > 0.0F && pointX >= x && pointY >= y && pointX < x + width && pointY < y + height;
@@ -373,14 +371,6 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
     } else if (section_ == Section::Tools) {
         px::ui::SectionTitle(text(ClientText::Tools));
         px::ui::HorizontalSeparator();
-        if (px::ui::ActionButton({"client-files"}, text(ClientText::Files),
-                                 {.variant = px::ui::ButtonVariant::Secondary,
-                                  .icon = px::ui::VectorIcon::FileTransfer,
-                                  .width = -1.0F,
-                                  .contentAlignment = px::ui::ButtonContentAlignment::Leading,
-                                  .contentInset = metrics.spacingMd,
-                                  .disabled = !snapshot.fileTransferAvailable}))
-            fileTransfer_->Open();
         if (px::ui::ActionButton({"client-screenshot"}, text(ClientText::Screenshot),
                                  {.variant = px::ui::ButtonVariant::Secondary,
                                   .icon = px::ui::VectorIcon::Camera,

@@ -60,10 +60,10 @@ std::optional<ClientOverwriteRequest> ClientSession::PendingOverwrite() const {
     return overwrite_;
 }
 
-bool ClientSession::ListRemoteDirectory(const std::string& path) {
+bool ClientSession::ListRemoteDirectory(const std::string& path, const bool includeHidden) {
     const auto fileTransfer = FileTransfer();
     return fileTransfer && path.size() <= 4096U &&
-           fileTransfer->Post("pixels-client-ft-list", [path](const auto& engine) { engine->ReadDir(path, false); });
+           fileTransfer->Post("pixels-client-ft-list", [path, includeHidden](const auto& engine) { engine->ReadDir(path, includeHidden); });
 }
 
 std::int32_t ClientSession::StartUpload(const std::string& localPath, const std::string& remoteDirectory) {
@@ -73,6 +73,9 @@ std::int32_t ClientSession::StartUpload(const std::string& localPath, const std:
     const std::string fileName{std::filesystem::path{localPath}.filename().string()};
     if (fileName.empty())
         return 0;
+    std::error_code sizeError{};
+    const bool regularFile{std::filesystem::is_regular_file(std::filesystem::path{localPath}, sizeError)};
+    const std::uint64_t expectedBytes{regularFile ? std::filesystem::file_size(std::filesystem::path{localPath}, sizeError) : 0U};
     std::string remoteTarget{remoteDirectory};
     if (!remoteTarget.empty() && !remoteTarget.ends_with('/') && !remoteTarget.ends_with('\\'))
         remoteTarget.push_back('/');
@@ -84,7 +87,32 @@ std::int32_t ClientSession::StartUpload(const std::string& localPath, const std:
             result->store(engine->SendFiles(localPath, false, remoteTarget, 0, false, streamId));
         },
         std::chrono::seconds{2});
-    return completed ? result->load() : 0;
+    const std::int32_t id{completed ? result->load() : 0};
+    if (id > 0) {
+        const std::scoped_lock lock{mutex_};
+        const auto found = std::ranges::find(transferJobs_, id, &ClientTransferJob::id);
+        const ClientTransferJob request{.id = id,
+                                        .totalBytes = sizeError ? 0U : expectedBytes,
+                                        .fileCount = regularFile ? 1 : 0,
+                                        .name = fileName,
+                                        .sourcePath = localPath,
+                                        .destinationDirectory = remoteDirectory,
+                                        .download = false};
+        if (found == transferJobs_.end())
+            transferJobs_.push_back(request);
+        else {
+            found->name = request.name;
+            found->sourcePath = request.sourcePath;
+            found->destinationDirectory = request.destinationDirectory;
+            if (found->totalBytes == 0U)
+                found->totalBytes = request.totalBytes;
+            if (found->fileCount == 0)
+                found->fileCount = request.fileCount;
+            if (found->done && found->totalBytes > 0U)
+                found->completedBytes = found->totalBytes;
+        }
+    }
+    return id;
 }
 
 std::int32_t ClientSession::StartDownload(const std::string& remotePath, const std::string& localDirectory) {
@@ -95,6 +123,16 @@ std::int32_t ClientSession::StartDownload(const std::string& remotePath, const s
     const std::string fileName{separator == std::string::npos ? remotePath : remotePath.substr(separator + 1)};
     if (fileName.empty())
         return 0;
+    std::uint64_t expectedBytes{};
+    bool regularFile{};
+    {
+        const std::scoped_lock lock{mutex_};
+        const auto source = std::ranges::find(remoteEntries_, remotePath, &ClientRemoteEntry::path);
+        if (source != remoteEntries_.end()) {
+            expectedBytes = source->size;
+            regularFile = !source->directory;
+        }
+    }
     const std::string localTarget{(std::filesystem::path{localDirectory} / std::filesystem::path{fileName}).string()};
     const auto result = std::make_shared<std::atomic_int32_t>();
     const bool completed = fileTransfer->PostAndWait(
@@ -103,12 +141,85 @@ std::int32_t ClientSession::StartDownload(const std::string& remotePath, const s
             result->store(engine->ReceiveFiles(remotePath, false, localTarget, 0, false, streamId));
         },
         std::chrono::seconds{2});
-    return completed ? result->load() : 0;
+    const std::int32_t id{completed ? result->load() : 0};
+    if (id > 0) {
+        const std::scoped_lock lock{mutex_};
+        const auto found = std::ranges::find(transferJobs_, id, &ClientTransferJob::id);
+        const ClientTransferJob request{.id = id,
+                                        .totalBytes = expectedBytes,
+                                        .fileCount = regularFile ? 1 : 0,
+                                        .name = fileName,
+                                        .sourcePath = remotePath,
+                                        .destinationDirectory = localDirectory,
+                                        .download = true};
+        if (found == transferJobs_.end())
+            transferJobs_.push_back(request);
+        else {
+            found->name = request.name;
+            found->sourcePath = request.sourcePath;
+            found->destinationDirectory = request.destinationDirectory;
+            if (found->totalBytes == 0U)
+                found->totalBytes = request.totalBytes;
+            if (found->fileCount == 0)
+                found->fileCount = request.fileCount;
+            if (found->done && found->totalBytes > 0U)
+                found->completedBytes = found->totalBytes;
+        }
+    }
+    return id;
 }
 
 bool ClientSession::CancelTransfer(const std::int32_t jobId) {
     const auto fileTransfer = FileTransfer();
     return fileTransfer && jobId > 0 && fileTransfer->Post("pixels-client-ft-cancel", [jobId](const auto& engine) { engine->CancelJob(jobId); });
+}
+
+bool ClientSession::ResumeTransfer(const std::int32_t jobId) {
+    ClientTransferJob job{};
+    {
+        const std::scoped_lock lock{mutex_};
+        const auto found = std::ranges::find(transferJobs_, jobId, &ClientTransferJob::id);
+        if (found == transferJobs_.end() || found->sourcePath.empty() || found->destinationDirectory.empty() || found->error.empty())
+            return false;
+        job = *found;
+    }
+    const auto fileTransfer = FileTransfer();
+    if (!fileTransfer)
+        return false;
+    std::string target{};
+    if (job.download) {
+        const auto separator = job.sourcePath.find_last_of("/\\");
+        const std::string name{separator == std::string::npos ? job.sourcePath : job.sourcePath.substr(separator + 1U)};
+        target = (std::filesystem::path{job.destinationDirectory} / std::filesystem::u8path(name)).string();
+    } else {
+        target = job.destinationDirectory;
+        if (!target.empty() && !target.ends_with('/') && !target.ends_with('\\'))
+            target.push_back('/');
+        target += std::filesystem::path{job.sourcePath}.filename().string();
+    }
+    const auto result = std::make_shared<std::atomic_int32_t>();
+    const bool completed = fileTransfer->PostAndWait(
+        "pixels-client-ft-resume",
+        [job, target = std::move(target), streamId = config_.streamId, result](const auto& engine) {
+            result->store(job.download ? engine->ReceiveFiles(job.sourcePath, false, target, 0, true, streamId)
+                                       : engine->SendFiles(job.sourcePath, false, target, 0, true, streamId));
+        },
+        std::chrono::seconds{2});
+    if (!completed || result->load() <= 0)
+        return false;
+    const std::scoped_lock lock{mutex_};
+    transferJobs_.erase(std::ranges::find(transferJobs_, jobId, &ClientTransferJob::id));
+    job.id = result->load();
+    job.done = false;
+    job.error.clear();
+    job.completedBytes = 0U;
+    transferJobs_.push_back(std::move(job));
+    return true;
+}
+
+void ClientSession::RemoveCompletedTransfers() {
+    const std::scoped_lock lock{mutex_};
+    std::erase_if(transferJobs_, [](const ClientTransferJob& job) { return job.done || !job.error.empty(); });
 }
 
 bool ClientSession::ConfirmOverwrite(const bool overwrite, const bool applyToAll) {
@@ -145,6 +256,25 @@ bool ClientSession::RemoveRemoteEntry(const std::string& path, const bool direct
                else
                    engine->RemoveFile(id, path);
            });
+}
+
+bool ClientSession::RemoveRemoteEntries(const std::vector<ClientRemoteEntry>& entries) {
+    const auto fileTransfer = FileTransfer();
+    if (!fileTransfer || entries.empty())
+        return false;
+    for (const auto& entry : entries) {
+        if (entry.path.empty() || entry.path.size() > 4096U)
+            return false;
+    }
+    return fileTransfer->Post("pixels-client-ft-remove-entries", [entries](const auto& engine) {
+        for (const auto& entry : entries) {
+            const std::int32_t id{px::ft::FtEngine::NextJobId()};
+            if (entry.directory)
+                engine->RemoveDir(id, entry.path, true);
+            else
+                engine->RemoveFile(id, entry.path);
+        }
+    });
 }
 
 bool ClientSession::RenameRemoteEntry(const std::string& path, const std::string& newName) {

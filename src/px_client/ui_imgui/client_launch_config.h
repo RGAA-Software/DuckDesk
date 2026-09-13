@@ -17,6 +17,7 @@ struct ClientLaunchConfig final {
     std::string streamName{};
     std::string localDeviceId{};
     std::string remoteDeviceId{};
+    std::string remotePlatform{};
     std::string remotePasswordHash{};
     std::string nonce{};
     std::string instanceId{};

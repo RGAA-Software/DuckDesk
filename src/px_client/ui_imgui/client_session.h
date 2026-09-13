@@ -80,6 +80,11 @@ struct ClientTransferJob final {
     std::uint64_t totalBytes{};
     std::uint64_t completedBytes{};
     double bytesPerSecond{};
+    std::int32_t fileNumber{};
+    std::int32_t fileCount{};
+    std::string name{};
+    std::string sourcePath{};
+    std::string destinationDirectory{};
     bool download{};
     bool done{};
     std::string error{};
@@ -91,6 +96,7 @@ struct ClientRemoteEntry final {
     std::uint64_t size{};
     std::uint64_t modifiedTime{};
     bool directory{};
+    bool hidden{};
 };
 
 struct ClientOverwriteRequest final {
@@ -135,13 +141,16 @@ class ClientSession final : public std::enable_shared_from_this<ClientSession> {
     [[nodiscard]] std::vector<ClientRemoteEntry> RemoteEntries() const;
     [[nodiscard]] std::string RemotePath() const;
     [[nodiscard]] std::optional<ClientOverwriteRequest> PendingOverwrite() const;
-    bool ListRemoteDirectory(const std::string& path);
+    bool ListRemoteDirectory(const std::string& path, bool includeHidden = false);
     std::int32_t StartUpload(const std::string& localPath, const std::string& remoteDirectory);
     std::int32_t StartDownload(const std::string& remotePath, const std::string& localDirectory);
     bool CancelTransfer(std::int32_t jobId);
+    bool ResumeTransfer(std::int32_t jobId);
+    void RemoveCompletedTransfers();
     bool ConfirmOverwrite(bool overwrite, bool applyToAll);
     bool CreateRemoteDirectory(const std::string& path);
     bool RemoveRemoteEntry(const std::string& path, bool directory);
+    bool RemoveRemoteEntries(const std::vector<ClientRemoteEntry>& entries);
     bool RenameRemoteEntry(const std::string& path, const std::string& newName);
     [[nodiscard]] std::optional<ClientFileOperationResult> TakeRemoteFileOperationResult();
     bool StartRecording();

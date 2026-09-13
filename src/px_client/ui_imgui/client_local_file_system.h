@@ -13,6 +13,7 @@ struct ClientLocalEntry final {
     std::uint64_t size{};
     std::uint64_t modifiedTime{};
     bool directory{};
+    bool hidden{};
 };
 
 class ClientLocalFileSystem final {
@@ -25,9 +26,11 @@ class ClientLocalFileSystem final {
     bool Navigate(const std::string& path);
     bool NavigateUp();
     bool NavigateBack();
+    bool NavigateHome();
     bool Refresh();
     bool CreateDirectory(const std::string& name);
     bool Remove(const std::string& path);
+    bool Remove(const std::vector<std::string>& paths);
     bool Rename(const std::string& path, const std::string& newName);
 
   private:

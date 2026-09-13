@@ -12,7 +12,6 @@
 
 namespace px::client::imgui {
 
-class ClientFileTransferPanel;
 class ClientToolbar;
 
 class ClientWindow final {
@@ -30,7 +29,6 @@ class ClientWindow final {
 
     std::reference_wrapper<px::desktop::DesktopShell> shell_;
     std::shared_ptr<ClientSession> session_{};
-    std::shared_ptr<ClientFileTransferPanel> fileTransfer_{};
     std::unique_ptr<ClientToolbar> toolbar_{};
     std::shared_ptr<ClientVideoFrame> uploadedFrame_{};
     float videoLeft_{};

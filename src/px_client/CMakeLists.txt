@@ -13,6 +13,7 @@ add_library(px_client_imgui_runtime STATIC
     ui_imgui/client_audio_output.cpp
     ui_imgui/client_file_transfer_panel.cpp
     ui_imgui/client_file_transfer_window.cpp
+    ui_imgui/client_file_browser_model.cpp
     ui_imgui/client_input_mapper.cpp
     ui_imgui/client_launch_config.cpp
     ui_imgui/client_local_file_system.cpp
@@ -77,6 +78,11 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
     target_include_directories(test_client_local_file_system PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
     target_link_libraries(test_client_local_file_system PRIVATE GTest::gtest GTest::gtest_main)
     add_test(NAME client_local_file_system COMMAND test_client_local_file_system)
+
+    add_executable(test_client_file_browser_model tests/test_client_file_browser_model.cpp ui_imgui/client_file_browser_model.cpp)
+    target_include_directories(test_client_file_browser_model PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
+    target_link_libraries(test_client_file_browser_model PRIVATE GTest::gtest GTest::gtest_main)
+    add_test(NAME client_file_browser_model COMMAND test_client_file_browser_model)
 endif()
 
 if(PX_PROTECTION_ENABLED)

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "px_ui/device_platform.h"
+
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -17,6 +19,7 @@ struct ParsedConnectionInput final {
     ConnectionInputKind kind{ConnectionInputKind::DeviceId};
     std::string deviceId{};
     std::string displayName{};
+    px::ui::DevicePlatform platform{px::ui::DevicePlatform::Unknown};
     std::vector<std::string> hosts{};
     int port{};
     std::string password{};

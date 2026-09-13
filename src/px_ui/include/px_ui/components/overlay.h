@@ -58,6 +58,21 @@ class ContextMenuScope final {
     bool open_{false};
 };
 
+class PopupMenuScope final {
+  public:
+    explicit PopupMenuScope(WidgetId id);
+    PopupMenuScope(const PopupMenuScope&) = delete;
+    PopupMenuScope& operator=(const PopupMenuScope&) = delete;
+    PopupMenuScope(PopupMenuScope&&) = delete;
+    PopupMenuScope& operator=(PopupMenuScope&&) = delete;
+    ~PopupMenuScope();
+    [[nodiscard]] bool Open() const noexcept;
+
+  private:
+    std::string id_{};
+    bool open_{false};
+};
+
 enum class MenuItemVariant { Default, Destructive };
 
 struct MenuActionOptions final {

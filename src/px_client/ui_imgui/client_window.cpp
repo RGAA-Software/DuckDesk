@@ -1,5 +1,4 @@
 #include "client_window.h"
-#include "client_file_transfer_panel.h"
 #include "client_input_mapper.h"
 #include "client_text.h"
 #include "client_toolbar.h"
@@ -72,8 +71,8 @@ ImGuiMouseCursor RemoteMouseCursor(const std::uint32_t type) noexcept {
 
 ClientWindow::ClientWindow(std::reference_wrapper<px::desktop::DesktopShell> shell, std::shared_ptr<ClientSession> session, const bool english,
                            const bool darkTheme, const bool enhancedVisualEffects)
-    : shell_{shell}, session_{std::move(session)}, fileTransfer_{std::make_shared<ClientFileTransferPanel>()},
-      toolbar_{std::make_unique<ClientToolbar>(fileTransfer_, enhancedVisualEffects)}, english_{english}, darkTheme_{darkTheme} {}
+    : shell_{shell}, session_{std::move(session)}, toolbar_{std::make_unique<ClientToolbar>(enhancedVisualEffects)}, english_{english},
+      darkTheme_{darkTheme} {}
 
 ClientWindow::~ClientWindow() = default;
 
@@ -114,7 +113,6 @@ void ClientWindow::Draw() {
         static_cast<void>(shell_.get().SetEnhancedVisualEffects(!px::ui::EnhancedVisualEffectsEnabled()));
     if (toolbarAction.toggleFullscreen)
         static_cast<void>(shell_.get().ToggleFullscreen());
-    fileTransfer_->Draw(session_, english_);
 
     if (terminalErrorShown_) {
         const std::string popupTitle{std::string{text(ClientText::ConnectionFailed)} + "###client-rejected"};
@@ -192,12 +190,12 @@ void ClientWindow::HandleInput(const px::desktop::DesktopInputEvent& event) {
     const bool mouseEvent{event.type == SDL_EVENT_MOUSE_MOTION || event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
                           event.type == SDL_EVENT_MOUSE_BUTTON_UP || event.type == SDL_EVENT_MOUSE_WHEEL};
     const bool toolbarCaptured{mouseEvent && toolbar_->HandlePointerEvent(event)};
-    const bool overLocalUi{toolbarCaptured || fileTransfer_->CapturesPointer(pointerX, pointerY) || popupOpen};
+    const bool overLocalUi{toolbarCaptured || popupOpen};
     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && overLocalUi && event.mouseButton < localPointerButtons_.size())
         localPointerButtons_[event.mouseButton] = true;
     const bool localPointerGesture{std::ranges::any_of(localPointerButtons_, std::identity{})};
     const bool mouseCaptured{overLocalUi || localPointerGesture};
-    const bool keyboardCaptured{fileTransfer_->CapturesKeyboard() || popupOpen};
+    const bool keyboardCaptured{popupOpen};
     if (!mouseCaptured && event.type == SDL_EVENT_MOUSE_MOTION && InVideo(event.x, event.y)) {
         lastMouseXRatio_ = (event.x - videoLeft_) / videoWidth_;
         lastMouseYRatio_ = (event.y - videoTop_) / videoHeight_;

@@ -275,6 +275,56 @@ void DrawVectorIcon(ImDrawList& draw, const VectorIcon icon, const ImVec2 topLef
         canvas.Circle(10.0F, 10.0F, 6.0F);
         canvas.Line(14.5F, 14.5F, 21.0F, 21.0F);
         break;
+    case VectorIcon::Folder:
+        canvas.Line(3.0F, 7.0F, 9.0F, 7.0F);
+        canvas.Line(9.0F, 7.0F, 11.0F, 10.0F);
+        canvas.Line(11.0F, 10.0F, 21.0F, 10.0F);
+        canvas.Line(3.0F, 7.0F, 3.0F, 20.0F);
+        canvas.Line(3.0F, 20.0F, 21.0F, 20.0F);
+        canvas.Line(21.0F, 20.0F, 21.0F, 10.0F);
+        break;
+    case VectorIcon::File:
+        canvas.Line(6.0F, 3.0F, 15.0F, 3.0F);
+        canvas.Line(15.0F, 3.0F, 20.0F, 8.0F);
+        canvas.Line(20.0F, 8.0F, 20.0F, 21.0F);
+        canvas.Line(20.0F, 21.0F, 6.0F, 21.0F);
+        canvas.Line(6.0F, 21.0F, 6.0F, 3.0F);
+        canvas.Line(15.0F, 3.0F, 15.0F, 8.0F);
+        canvas.Line(15.0F, 8.0F, 20.0F, 8.0F);
+        break;
+    case VectorIcon::Home:
+        canvas.Line(3.0F, 11.0F, 12.0F, 3.0F);
+        canvas.Line(12.0F, 3.0F, 21.0F, 11.0F);
+        canvas.Line(5.0F, 10.0F, 5.0F, 21.0F);
+        canvas.Line(5.0F, 21.0F, 19.0F, 21.0F);
+        canvas.Line(19.0F, 21.0F, 19.0F, 10.0F);
+        break;
+    case VectorIcon::ArrowLeft:
+        canvas.Line(20.0F, 12.0F, 4.0F, 12.0F);
+        canvas.Line(4.0F, 12.0F, 10.0F, 6.0F);
+        canvas.Line(4.0F, 12.0F, 10.0F, 18.0F);
+        break;
+    case VectorIcon::ArrowUp:
+        canvas.Line(12.0F, 20.0F, 12.0F, 4.0F);
+        canvas.Line(12.0F, 4.0F, 6.0F, 10.0F);
+        canvas.Line(12.0F, 4.0F, 18.0F, 10.0F);
+        break;
+    case VectorIcon::Upload:
+        canvas.Line(12.0F, 16.0F, 12.0F, 3.0F);
+        canvas.Line(12.0F, 3.0F, 7.0F, 8.0F);
+        canvas.Line(12.0F, 3.0F, 17.0F, 8.0F);
+        canvas.Line(4.0F, 16.0F, 4.0F, 21.0F);
+        canvas.Line(4.0F, 21.0F, 20.0F, 21.0F);
+        canvas.Line(20.0F, 21.0F, 20.0F, 16.0F);
+        break;
+    case VectorIcon::Download:
+        canvas.Line(12.0F, 3.0F, 12.0F, 16.0F);
+        canvas.Line(12.0F, 16.0F, 7.0F, 11.0F);
+        canvas.Line(12.0F, 16.0F, 17.0F, 11.0F);
+        canvas.Line(4.0F, 16.0F, 4.0F, 21.0F);
+        canvas.Line(4.0F, 21.0F, 20.0F, 21.0F);
+        canvas.Line(20.0F, 21.0F, 20.0F, 16.0F);
+        break;
     case VectorIcon::FileTransfer:
         canvas.Rect(3.0F, 5.0F, 21.0F, 19.0F, 2.0F);
         canvas.Line(7.0F, 10.0F, 17.0F, 10.0F);

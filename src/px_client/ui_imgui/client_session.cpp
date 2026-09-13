@@ -140,19 +140,44 @@ bool ClientSession::Initialize() {
         [weakSelf](const std::shared_ptr<px::ft::FtEngine>& engine) {
             engine->SetProgressCallback([weakSelf](const px::ft::TransferJobStatus& status) {
                 if (const auto self = weakSelf.lock()) {
-                    const ClientTransferJob converted{.id = status.id,
-                                                      .totalBytes = status.total_size,
-                                                      .completedBytes = status.finished_size,
-                                                      .bytesPerSecond = status.speed,
-                                                      .download = status.is_remote,
-                                                      .done = status.done,
-                                                      .error = status.error};
                     const std::scoped_lock lock{self->mutex_};
                     const auto found = std::ranges::find(self->transferJobs_, status.id, &ClientTransferJob::id);
-                    if (found == self->transferJobs_.end())
-                        self->transferJobs_.push_back(converted);
-                    else
-                        found[0] = converted;
+                    if (found == self->transferJobs_.end()) {
+                        self->transferJobs_.push_back({.id = status.id,
+                                                       .totalBytes = status.total_size,
+                                                       .completedBytes = status.finished_size,
+                                                       .bytesPerSecond = status.speed,
+                                                       .fileNumber = status.file_num,
+                                                       .fileCount = status.file_count,
+                                                       .download = status.is_remote,
+                                                       .done = status.done,
+                                                       .error = status.error});
+                    } else {
+                        found->totalBytes = status.total_size;
+                        found->completedBytes = status.finished_size;
+                        found->bytesPerSecond = status.speed;
+                        found->fileNumber = status.file_num;
+                        found->fileCount = status.file_count;
+                        found->download = status.is_remote;
+                        found->done = status.done;
+                        found->error = status.error;
+                    }
+                }
+            });
+            engine->SetJobDoneCallback([weakSelf](const std::int32_t jobId, const std::int32_t fileNumber, const std::string& error) {
+                if (const auto self = weakSelf.lock()) {
+                    const std::scoped_lock lock{self->mutex_};
+                    const auto found = std::ranges::find(self->transferJobs_, jobId, &ClientTransferJob::id);
+                    if (found != self->transferJobs_.end()) {
+                        found->fileNumber = fileNumber;
+                        found->done = error.empty();
+                        found->error = error;
+                        found->bytesPerSecond = 0.0;
+                        if (found->done && found->totalBytes > 0U)
+                            found->completedBytes = found->totalBytes;
+                    } else {
+                        self->transferJobs_.push_back({.id = jobId, .fileNumber = fileNumber, .done = error.empty(), .error = error});
+                    }
                 }
             });
             engine->SetOverwriteConfirmCallback([weakSelf](const std::int32_t jobId, const std::int32_t fileNumber, const std::string& path,
@@ -172,6 +197,10 @@ bool ClientSession::Initialize() {
                                                         .error = response.has_error() ? response.error().error() : std::string{}};
                     return;
                 }
+                // Directory replies generated for transfer jobs carry that job's non-zero id.
+                // They initialize the writer and must not replace the browser's current path/list.
+                if (response.dir().id() != 0)
+                    return;
                 std::vector<ClientRemoteEntry> entries{};
                 entries.reserve(static_cast<std::size_t>(response.dir().entries_size()));
                 for (const auto& entry : response.dir().entries()) {
@@ -180,7 +209,8 @@ bool ClientSession::Initialize() {
                                        .size = entry.size(),
                                        .modifiedTime = entry.modified_time(),
                                        .directory = entry.entry_type() == px::FileType::Dir || entry.entry_type() == px::FileType::DirLink ||
-                                                    entry.entry_type() == px::FileType::DirDrive});
+                                                    entry.entry_type() == px::FileType::DirDrive,
+                                       .hidden = entry.is_hidden()});
                 }
                 const std::scoped_lock lock{self->mutex_};
                 self->remotePath_ = response.dir().path();
@@ -189,33 +219,36 @@ bool ClientSession::Initialize() {
         });
     fileTransferAvailable_ = fileTransfer_ && fileTransfer_->Start();
 
-    px::VoiceCallDependencies voiceDependencies{.send_control =
-                                                    [weakSelf](std::shared_ptr<px::Message> message) {
-                                                        const auto self = weakSelf.lock();
-                                                        return self && self->sdk_ && self->sdk_->PostReliableControlMessage(px::ProtoAsData(message));
-                                                    },
-                                                .send_audio =
-                                                    [weakSelf](std::shared_ptr<px::Message> message) {
-                                                        const auto self = weakSelf.lock();
-                                                        return self && self->sdk_ && self->sdk_->PostVoiceAudioMessage(message);
-                                                    },
-                                                .create_audio = [] { return std::make_shared<px::VoiceAudioEndpointPort>(); },
-                                                .post_task =
-                                                    [weakSelf](std::function<void()> task) {
-                                                        const auto self = weakSelf.lock();
-                                                        if (!self || !self->sdk_ || !task)
-                                                            return false;
-                                                        self->sdk_->PostMiscTask(std::move(task));
-                                                        return true;
-                                                    },
-                                                .status_changed =
-                                                    [weakSelf](const px::VoiceCallStatus& status) {
-                                                        if (const auto self = weakSelf.lock()) {
-                                                            const std::scoped_lock lock{self->mutex_};
-                                                            self->voiceStatus_ = VoiceStatusText(status);
-                                                        }
-                                                    }};
-    voiceCall_ = px::VoiceCallController::Create({clientSignalId, config_.streamId}, std::move(voiceDependencies));
+    if (!config_.fileTransferOnly) {
+        px::VoiceCallDependencies voiceDependencies{.send_control =
+                                                        [weakSelf](std::shared_ptr<px::Message> message) {
+                                                            const auto self = weakSelf.lock();
+                                                            return self && self->sdk_ &&
+                                                                   self->sdk_->PostReliableControlMessage(px::ProtoAsData(message));
+                                                        },
+                                                    .send_audio =
+                                                        [weakSelf](std::shared_ptr<px::Message> message) {
+                                                            const auto self = weakSelf.lock();
+                                                            return self && self->sdk_ && self->sdk_->PostVoiceAudioMessage(message);
+                                                        },
+                                                    .create_audio = [] { return std::make_shared<px::VoiceAudioEndpointPort>(); },
+                                                    .post_task =
+                                                        [weakSelf](std::function<void()> task) {
+                                                            const auto self = weakSelf.lock();
+                                                            if (!self || !self->sdk_ || !task)
+                                                                return false;
+                                                            self->sdk_->PostMiscTask(std::move(task));
+                                                            return true;
+                                                        },
+                                                    .status_changed =
+                                                        [weakSelf](const px::VoiceCallStatus& status) {
+                                                            if (const auto self = weakSelf.lock()) {
+                                                                const std::scoped_lock lock{self->mutex_};
+                                                                self->voiceStatus_ = VoiceStatusText(status);
+                                                            }
+                                                        }};
+        voiceCall_ = px::VoiceCallController::Create({clientSignalId, config_.streamId}, std::move(voiceDependencies));
+    }
 
     listener_->Listen<px::SdkMsgNetworkConnected>([weakSelf](const auto&) {
         if (const auto self = weakSelf.lock()) {

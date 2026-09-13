@@ -11,7 +11,6 @@ struct DesktopInputEvent;
 
 namespace px::client::imgui {
 
-class ClientFileTransferPanel;
 class ClientSession;
 struct ClientSessionSnapshot;
 
@@ -24,7 +23,7 @@ struct ClientToolbarAction final {
 
 class ClientToolbar final {
   public:
-    ClientToolbar(std::shared_ptr<ClientFileTransferPanel> fileTransfer, bool enhancedVisualEffects);
+    explicit ClientToolbar(bool enhancedVisualEffects);
     [[nodiscard]] ClientToolbarAction Draw(const std::shared_ptr<ClientSession>& session, const px::desktop::BrandLogo& logo, bool english,
                                            bool darkTheme);
     [[nodiscard]] bool CapturesPointer(float x, float y) const noexcept;
@@ -47,7 +46,6 @@ class ClientToolbar final {
         [[nodiscard]] bool Contains(float pointX, float pointY) const noexcept;
     };
 
-    std::shared_ptr<ClientFileTransferPanel> fileTransfer_{};
     Bounds launcherBounds_{};
     Bounds navigationBounds_{};
     Bounds sectionBounds_{};

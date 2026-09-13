@@ -291,6 +291,7 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
         ParsedConnectionInput direct{.kind = ConnectionInputKind::DirectEndpoint,
                                      .deviceId = target.deviceId,
                                      .displayName = target.name,
+                                     .platform = target.platform,
                                      .hosts = target.host.empty() ? std::vector<std::string>{} : std::vector<std::string>{target.host},
                                      .port = target.port,
                                      .password = std::move(password)};
@@ -487,6 +488,7 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
                          target.kind == ConnectionInputKind::SharedLink ? NativeConnectionKind::SharedLinkDirect : NativeConnectionKind::IpDirect,
                      .displayName = displayName,
                      .remoteDeviceId = remoteDeviceId,
+                     .remotePlatform = target.platform,
                      .nonce = nonce,
                      .directHost = host,
                      .directPort = target.port,

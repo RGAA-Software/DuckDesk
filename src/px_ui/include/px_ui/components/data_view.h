@@ -12,5 +12,7 @@ void LoadingSpinner(WidgetId id, float radius = 8.0F);
 void Progress(float fraction, float width = 0.0F);
 [[nodiscard]] bool SelectableRow(WidgetId id, std::string_view label, bool selected, ImGuiSelectableFlags flags = ImGuiSelectableFlags_None,
                                  ImVec2 size = {});
+[[nodiscard]] bool SelectableIconRow(WidgetId id, VectorIcon icon, std::string_view label, bool selected,
+                                     ImGuiSelectableFlags flags = ImGuiSelectableFlags_None, ImVec2 size = {});
 
 } // namespace px::ui

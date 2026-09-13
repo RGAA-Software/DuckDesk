@@ -78,6 +78,7 @@ struct DesktopShell::Impl final {
     bool minimizeToTray{false};
     bool continuousTextInput{false};
     bool continuousRendering{false};
+    bool cancelCloseRequest{};
     WindowChromeConfig chrome{};
 };
 
@@ -144,15 +145,22 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
                     } else if (event.type == SDL_EVENT_MOUSE_WHEEL) {
                         translated.wheelX = event.wheel.x;
                         translated.wheelY = event.wheel.y;
+                    } else if (event.type == SDL_EVENT_DROP_FILE && event.drop.data) { // NOLINT(gammaray-raw-pointer-boundary): SDL event ABI
+                        translated.text = event.drop.data;
                     }
                     input(translated);
                 }
                 if (event.type == kShowWindowEvent) {
                     impl_->window.ShowAndRaise();
                 } else if (event.type == kExitApplicationEvent || event.type == SDL_EVENT_QUIT) {
-                    impl_->running = false;
+                    if (impl_->cancelCloseRequest)
+                        impl_->cancelCloseRequest = false;
+                    else
+                        impl_->running = false;
                 } else if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
-                    if (impl_->minimizeToTray) {
+                    if (impl_->cancelCloseRequest) {
+                        impl_->cancelCloseRequest = false;
+                    } else if (impl_->minimizeToTray) {
                         impl_->window.Hide();
                     } else {
                         impl_->running = false;
@@ -184,11 +192,9 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
         ImGui::Begin("PixelsRoot", nullptr, rootFlags);
         ImGui::PopStyleVar();
         if (!DrawTitleBar(impl_->window, impl_->chrome, impl_->imgui->Logo())) {
-            if (impl_->minimizeToTray) {
-                impl_->window.Hide();
-            } else {
-                impl_->running = false;
-            }
+            SDL_Event closeEvent{};
+            closeEvent.type = SDL_EVENT_WINDOW_CLOSE_REQUESTED;
+            static_cast<void>(SDL_PushEvent(&closeEvent));
         }
         render();
         ImGui::End();
@@ -242,6 +248,10 @@ bool DesktopShell::ToggleFullscreen() {
 
 void DesktopShell::RequestExit() noexcept {
     impl_->running = false;
+}
+
+void DesktopShell::CancelCloseRequest() noexcept {
+    impl_->cancelCloseRequest = true;
 }
 
 void DesktopShell::RequestShowAndRaise() noexcept {

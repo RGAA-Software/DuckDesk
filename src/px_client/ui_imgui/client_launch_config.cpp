@@ -27,6 +27,7 @@ std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(const std::string_vi
                                   .streamName = Value<std::string>(values, "stream_name"),
                                   .localDeviceId = Value<std::string>(values, "device_id"),
                                   .remoteDeviceId = Value<std::string>(values, "remote_device_id"),
+                                  .remotePlatform = Value<std::string>(values, "remote_platform"),
                                   .remotePasswordHash = Value<std::string>(values, "remote_password_hash"),
                                   .nonce = Value<std::string>(values, "connection_nonce"),
                                   .instanceId = Value<std::string>(values, "connection_instance_id"),

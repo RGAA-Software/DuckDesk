@@ -67,8 +67,7 @@ void Progress(const float fraction, const float width) {
     ImDrawList& draw{*ImGui::GetWindowDrawList()};
     draw.AddRectFilled(minimum, {minimum.x + size.x, minimum.y + size.y}, ImGui::GetColorU32(tokens.secondary), size.y * 0.5F);
     const float clamped{std::clamp(fraction, 0.0F, 1.0F)};
-    draw.AddRectFilled(minimum, {minimum.x + size.x * clamped, minimum.y + size.y}, ImGui::GetColorU32(tokens.primary),
-                       size.y * 0.5F);
+    draw.AddRectFilled(minimum, {minimum.x + size.x * clamped, minimum.y + size.y}, ImGui::GetColorU32(tokens.primary), size.y * 0.5F);
 }
 
 bool SelectableRow(const WidgetId id, const std::string_view label, const bool selected, const ImGuiSelectableFlags flags, const ImVec2 size) {
@@ -84,6 +83,29 @@ bool SelectableRow(const WidgetId id, const std::string_view label, const bool s
         ImGui::Selectable(visible.c_str(), selected, flags, size.x == 0.0F && size.y == 0.0F ? ImVec2{0.0F, metrics.controlDefault} : size)};
     ImGui::PopStyleVar();
     ImGui::PopStyleColor(3);
+    return pressed;
+}
+
+bool SelectableIconRow(const WidgetId id, const VectorIcon icon, const std::string_view label, const bool selected, const ImGuiSelectableFlags flags,
+                       const ImVec2 size) {
+    const ThemeTokens tokens{CurrentThemeTokens()};
+    const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
+    const ScopedId scopedId{id.value};
+    ImGui::PushStyleColor(ImGuiCol_Header, tokens.accent);
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, tokens.muted);
+    ImGui::PushStyleColor(ImGuiCol_HeaderActive, tokens.accent);
+    const ImVec2 resolvedSize{size.x == 0.0F && size.y == 0.0F ? ImVec2{0.0F, metrics.controlDefault} : size};
+    const bool pressed{ImGui::Selectable("##icon-row", selected, flags, resolvedSize)};
+    ImGui::PopStyleColor(3);
+    const ImVec2 minimum{ImGui::GetItemRectMin()};
+    const ImVec2 maximum{ImGui::GetItemRectMax()};
+    const float iconSize{metrics.iconDefault};
+    DrawVectorIcon(icon, {minimum.x + metrics.spacingSm, minimum.y + (maximum.y - minimum.y - iconSize) * 0.5F}, iconSize,
+                   ImGui::GetColorU32(icon == VectorIcon::Folder ? tokens.primary : tokens.mutedForeground));
+    const std::string visible{label};
+    const ImVec2 textSize{ImGui::CalcTextSize(visible.c_str())};
+    ImGui::GetWindowDrawList()->AddText({minimum.x + metrics.spacingSm * 2.0F + iconSize, minimum.y + (maximum.y - minimum.y - textSize.y) * 0.5F},
+                                        ImGui::GetColorU32(tokens.foreground), visible.c_str());
     return pressed;
 }
 

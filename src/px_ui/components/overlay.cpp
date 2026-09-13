@@ -124,6 +124,30 @@ bool ContextMenuScope::Open() const noexcept {
     return open_;
 }
 
+PopupMenuScope::PopupMenuScope(const WidgetId id) : id_{id.value} {
+    const ThemeTokens tokens{CurrentThemeTokens()};
+    const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
+    ImVec4 background{tokens.popover};
+    background.w = EnhancedVisualEffectsEnabled() ? 0.94F : 1.0F;
+    ImGui::PushStyleColor(ImGuiCol_PopupBg, background);
+    ImGui::PushStyleColor(ImGuiCol_Border, tokens.border);
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, metrics.popupRadius);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{metrics.spacingSm, metrics.spacingSm});
+    ImGui::SetNextWindowSizeConstraints({220.0F * metrics.scale, 0.0F}, {420.0F * metrics.scale, 520.0F * metrics.scale});
+    open_ = ImGui::BeginPopup(id_.c_str());
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(2);
+}
+
+PopupMenuScope::~PopupMenuScope() {
+    if (open_)
+        ImGui::EndPopup();
+}
+
+bool PopupMenuScope::Open() const noexcept {
+    return open_;
+}
+
 bool DialogHeader(const WidgetId closeId, const std::string_view title, const std::string_view description, const DialogHeaderOptions& options) {
     const ThemeTokens tokens{CurrentThemeTokens()};
     const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};

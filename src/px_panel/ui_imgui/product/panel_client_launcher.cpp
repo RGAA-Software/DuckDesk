@@ -14,6 +14,22 @@
 namespace px::panel::product {
 namespace {
 
+std::string_view PlatformName(const px::ui::DevicePlatform platform) noexcept {
+    switch (platform) {
+    case px::ui::DevicePlatform::Windows:
+        return "windows";
+    case px::ui::DevicePlatform::MacOS:
+        return "macos";
+    case px::ui::DevicePlatform::Android:
+        return "android";
+    case px::ui::DevicePlatform::IOS:
+        return "ios";
+    case px::ui::DevicePlatform::Unknown:
+        return "unknown";
+    }
+    return "unknown";
+}
+
 class WinHandle final {
   public:
     WinHandle() = default;
@@ -118,6 +134,7 @@ nlohmann::json BuildNativeEnvelope(const NativeLaunchRequest& request, const std
             {"connection_nonce", request.nonce},
             {"device_id", identity.deviceId},
             {"remote_device_id", request.remoteDeviceId},
+            {"remote_platform", PlatformName(request.remotePlatform)},
             {"remote_password_hash", request.remotePasswordHash},
             {"language", settings.language == ::px::ui::Language::English ? "en-US" : "zh-CN"},
             {"theme", settings.theme == ::px::ui::Theme::Light ? "light" : "dark"},

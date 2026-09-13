@@ -79,5 +79,16 @@ TEST(ClientLocalFileSystemTest, RejectsTraversalNamesAndItemsOutsideCurrentDirec
     EXPECT_TRUE(std::filesystem::exists(temporary.Path() / "sample.txt"));
 }
 
+TEST(ClientLocalFileSystemTest, RemovesMultipleSelectedItems) {
+    TemporaryDirectory temporary{};
+    std::filesystem::create_directory(temporary.Path() / "second");
+    ClientLocalFileSystem files{};
+    ASSERT_TRUE(files.Navigate(temporary.Path().string()));
+    ASSERT_TRUE(files.Remove({(temporary.Path() / "folder").string(), (temporary.Path() / "second").string()}));
+    EXPECT_FALSE(std::filesystem::exists(temporary.Path() / "folder"));
+    EXPECT_FALSE(std::filesystem::exists(temporary.Path() / "second"));
+    EXPECT_TRUE(std::filesystem::exists(temporary.Path() / "sample.txt"));
+}
+
 } // namespace
 } // namespace px::client::imgui

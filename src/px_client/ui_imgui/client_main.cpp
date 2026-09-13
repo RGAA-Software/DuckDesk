@@ -5,6 +5,7 @@
 #include "client_window.h"
 
 #include "px_desktop_shell/desktop_shell.h"
+#include "px_ui/device_platform.h"
 #include "px_common/log.h"
 
 #include <Windows.h>
@@ -48,14 +49,14 @@ int main() {
             return 0;
         }
     }
-    auto shellResult =
-        px::desktop::DesktopShell::Create({.title = config->streamName.empty() ? "Pixels Client" : "Pixels - " + config->streamName,
-                                           .width = 1440,
-                                           .height = 900,
-                                           .initiallyVisible = false,
-                                           .continuousTextInput = true,
-                                           .continuousRendering = true,
-                                           .preferVulkanVideo = !config->rdp && !config->disableVulkan && config->decoder != "Software"});
+    auto shellResult = px::desktop::DesktopShell::Create(
+        {.title = config->streamName.empty() ? "Pixels Client" : "Pixels - " + config->streamName,
+         .width = 1440,
+         .height = 900,
+         .initiallyVisible = false,
+         .continuousTextInput = true,
+         .continuousRendering = true,
+         .preferVulkanVideo = !config->fileTransferOnly && !config->rdp && !config->disableVulkan && config->decoder != "Software"});
     const bool english = config->language == "en-US";
     if (!shellResult) {
         static_cast<void>(px::client::imgui::ShowStartupDialog(
@@ -79,8 +80,9 @@ int main() {
     session->Start();
     int result{};
     if (config->fileTransferOnly) {
-        px::client::imgui::ClientFileTransferWindow window{std::ref(shell), session, config->streamName, english};
-        result = shell.Run([&window] { window.Draw(); }, [](const px::desktop::DesktopInputEvent&) {});
+        px::client::imgui::ClientFileTransferWindow window{std::ref(shell), session, config->streamName,
+                                                           px::ui::ParseDevicePlatform(config->remotePlatform), english};
+        result = shell.Run([&window] { window.Draw(); }, [&window](const px::desktop::DesktopInputEvent& event) { window.HandleInput(event); });
     } else {
         px::client::imgui::ClientWindow window{std::ref(shell), session, english, darkTheme, config->enhancedVisualEffects};
         result = shell.Run([&window] { window.Draw(); }, [&window](const px::desktop::DesktopInputEvent& event) { window.HandleInput(event); });

@@ -3,6 +3,7 @@
 #include "panel_config_store.h"
 
 #include "px_common/secret_buffer.h"
+#include "px_ui/device_platform.h"
 
 #include <cstdint>
 #include <memory>
@@ -22,6 +23,7 @@ struct NativeLaunchRequest final {
     NativeConnectionKind connectionKind{NativeConnectionKind::IpDirect};
     std::string displayName{};
     std::string remoteDeviceId{};
+    px::ui::DevicePlatform remotePlatform{px::ui::DevicePlatform::Unknown};
     std::string instanceId{};
     std::string nonce{};
     std::string directHost{};

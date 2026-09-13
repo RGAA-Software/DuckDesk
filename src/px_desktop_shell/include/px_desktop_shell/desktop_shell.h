@@ -75,6 +75,7 @@ class DesktopShell final {
     bool SetEnhancedVisualEffects(bool enabled);
     bool ToggleFullscreen();
     void RequestExit() noexcept;
+    void CancelCloseRequest() noexcept;
     void RequestShowAndRaise() noexcept;
 
   private:
