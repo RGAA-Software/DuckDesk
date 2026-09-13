@@ -21,6 +21,11 @@ target_link_libraries(px_desktop_shell PUBLIC px_ui px_imgui SDL3::SDL3-static p
     d3dcompiler.lib dxgi.lib "${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/libplacebo/lib/libplacebo.lib")
 
 function(gammaray_stage_platform_icons target)
+    set(platform_icon_sources "${CMAKE_SOURCE_DIR}/src/px_ui/resources/icons/platform/LICENSE.tabler")
+    foreach(platform_icon windows macos android ios)
+        list(APPEND platform_icon_sources "${CMAKE_SOURCE_DIR}/src/px_ui/resources/icons/platform/${platform_icon}.png")
+    endforeach()
+    set_property(TARGET ${target} APPEND PROPERTY LINK_DEPENDS "${platform_icon_sources}")
     add_custom_command(TARGET ${target} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/resources/icons/platform"
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/resources/licenses"
