@@ -270,7 +270,7 @@ pub async fn start_user_app(
         .await
         .map_err(|error| {
             tracing::warn!("user app start rejected: {}", error);
-            ConsoleApiError::VersionConflict
+            ConsoleApiError::ApplicationOperationFailed(error)
         })?;
     audit::record(
         "user",
@@ -346,7 +346,7 @@ pub async fn stop_user_instance(
     let stopped = gAppScheduleManager
         .stop_instance(&instance.instance_id)
         .await
-        .map_err(|_| ConsoleApiError::VersionConflict)?;
+        .map_err(ConsoleApiError::ApplicationOperationFailed)?;
     audit::record(
         "user",
         &subject.uid,
@@ -511,7 +511,7 @@ pub async fn start_public_app(
             &request.client_nonce,
         )
         .await
-        .map_err(|_| ConsoleApiError::VersionConflict)?;
+        .map_err(ConsoleApiError::ApplicationOperationFailed)?;
     audit::record(
         "guest",
         &subject.guest_id,
@@ -558,7 +558,7 @@ pub async fn stop_guest_instance(
     let stopped = gAppScheduleManager
         .stop_instance(&instance.instance_id)
         .await
-        .map_err(|_| ConsoleApiError::VersionConflict)?;
+        .map_err(ConsoleApiError::ApplicationOperationFailed)?;
     audit::record(
         "guest",
         &subject.guest_id,

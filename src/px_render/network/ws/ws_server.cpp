@@ -147,7 +147,9 @@ static PxAwaitable<PxResult<WsPasswordAdmission>> AuthenticateWsPasswordAsync(st
             MakePxAsyncError(PxAsyncErrorCode::kServiceRejected, "ws_password_auth", "device password was rejected", false,
                              "SESSION_PASSWORD_REJECTED"));
     }
-    const std::string logicalSessionId{"password:" + MD5::Hex(stream_it->second + "|" + nonce_it->second + "|" + remote_address)};
+    // RDP runtime authorization sends this identifier through Console's strict
+    // binding validator, whose portable identifier alphabet is [A-Za-z0-9_-].
+    const std::string logicalSessionId{"password-" + MD5::Hex(stream_it->second + "|" + nonce_it->second + "|" + remote_address)};
     co_return PxResult<WsPasswordAdmission>::Success(WsPasswordAdmission{
         .permissions_ = {"view", "input", "clipboard", "file", "audio", "rdp"},
         .logical_session_id_ = logicalSessionId,

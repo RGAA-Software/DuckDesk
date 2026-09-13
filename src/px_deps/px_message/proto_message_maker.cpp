@@ -66,7 +66,7 @@ namespace px
     }
 
     std::shared_ptr<Data> ProtoMessageMaker::MakeKeyEvent(const uint32_t virtual_key_code, const bool down, const std::string& device_id,
-                                                         const std::string& stream_id) {
+                                                         const std::string& stream_id, const uint32_t scan_code) {
         if (virtual_key_code == 0 || virtual_key_code > 0xFF) return {};
         px::Message message;
         message.set_type(px::MessageType::kKeyEvent);
@@ -77,6 +77,7 @@ namespace px
         key_event.set_down(down);
         key_event.set_status_check(px::KeyEvent::kDontCareLockKey);
         key_event.set_timestamp(TimeUtil::GetCurrentTimestamp());
+        key_event.set_scan_code(scan_code);
         return ProtoAsData(&message);
     }
 

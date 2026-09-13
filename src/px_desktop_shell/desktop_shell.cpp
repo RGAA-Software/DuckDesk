@@ -13,6 +13,8 @@
 
 #include <memory>
 #include <optional>
+#include <filesystem>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -30,6 +32,14 @@ struct SdlTrayDeleter final {
 
 using SdlTray = std::unique_ptr<SDL_Tray, SdlTrayDeleter>;
 
+struct SdlSurfaceDeleter final {
+    void operator()(SDL_Surface* surface) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): SDL owned handle boundary
+        SDL_DestroySurface(surface);
+    }
+};
+
+using SdlSurface = std::unique_ptr<SDL_Surface, SdlSurfaceDeleter>;
+
 void SDLCALL OnTrayEntry(void*, SDL_TrayEntry* entry) { // NOLINT(gammaray-raw-pointer-boundary): SDL callback ABI
     const std::string_view label{SDL_GetTrayEntryLabel(entry)};
     SDL_Event event{};
@@ -38,7 +48,10 @@ void SDLCALL OnTrayEntry(void*, SDL_TrayEntry* entry) { // NOLINT(gammaray-raw-p
 }
 
 SdlTray CreateTray() {
-    SdlTray tray{SDL_CreateTray(nullptr, "Pixels")};
+    const std::string basePath{SDL_GetBasePath() == nullptr ? "" : SDL_GetBasePath()};
+    const std::filesystem::path iconPath{std::filesystem::path{basePath} / "resources" / "icons" / "brand" / "px_icon.png"};
+    SdlSurface icon{SDL_LoadPNG(iconPath.string().c_str())};
+    SdlTray tray{SDL_CreateTray(icon.get(), "Pixels")};
     if (!tray || !SDL_CreateTrayMenu(tray.get())) {
         return {};
     }
@@ -118,6 +131,7 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
                     if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) {
                         translated.key = event.key.key;
                         translated.scanCode = event.key.scancode;
+                        translated.platformScanCode = event.key.raw;
                     } else if (event.type == SDL_EVENT_TEXT_INPUT || event.type == SDL_EVENT_TEXT_EDITING) {
                         translated.text = event.text.text;
                     } else if (event.type == SDL_EVENT_MOUSE_MOTION) {

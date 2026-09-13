@@ -7,6 +7,7 @@
 #include "px_ui/components/button.h"
 #include "px_ui/components/feedback.h"
 #include "px_ui/components/overlay.h"
+#include "px_message.pb.h"
 
 #include <SDL3/SDL.h>
 #include <imgui.h>
@@ -33,6 +34,37 @@ ClientText FailureText(const ClientConnectionFailure failure) noexcept {
     case ClientConnectionFailure::None:
     default:
         return ClientText::ConnectionRejected;
+    }
+}
+
+ImGuiMouseCursor RemoteMouseCursor(const std::uint32_t type) noexcept {
+    switch (type) {
+    case px::CursorInfoSync::kIdcIBeam:
+        return ImGuiMouseCursor_TextInput;
+    case px::CursorInfoSync::kIdcWait:
+        return ImGuiMouseCursor_Wait;
+    case px::CursorInfoSync::kIdcCross:
+    case px::CursorInfoSync::kIdcSize:
+    case px::CursorInfoSync::kIdcSizeAll:
+        return ImGuiMouseCursor_ResizeAll;
+    case px::CursorInfoSync::kIdcSizeNWSE:
+        return ImGuiMouseCursor_ResizeNWSE;
+    case px::CursorInfoSync::kIdcSizeNESW:
+        return ImGuiMouseCursor_ResizeNESW;
+    case px::CursorInfoSync::kIdcSizeWE:
+        return ImGuiMouseCursor_ResizeEW;
+    case px::CursorInfoSync::kIdcSizeNS:
+        return ImGuiMouseCursor_ResizeNS;
+    case px::CursorInfoSync::kIdcHand:
+    case px::CursorInfoSync::kIdcPin:
+        return ImGuiMouseCursor_Hand;
+    case px::CursorInfoSync::kIdcArrow:
+    case px::CursorInfoSync::kIdcUpArrow:
+    case px::CursorInfoSync::kIdcIcon:
+    case px::CursorInfoSync::kIdcHelp:
+    case px::CursorInfoSync::kIdcPerson:
+    default:
+        return ImGuiMouseCursor_Arrow;
     }
 }
 
@@ -137,6 +169,9 @@ void ClientWindow::Draw() {
     videoHeight_ = height;
     ImGui::SetCursorScreenPos({videoLeft_, videoTop_});
     ImGui::Image(ImTextureRef{static_cast<ImTextureID>(shell_.get().VideoTextureId())}, {width, height});
+    const auto& mouse = ImGui::GetIO().MousePos;
+    if (InVideo(mouse.x, mouse.y) && snapshot.remoteCursor.received)
+        ImGui::SetMouseCursor(snapshot.remoteCursor.visible ? RemoteMouseCursor(snapshot.remoteCursor.type) : ImGuiMouseCursor_None);
 }
 
 void ClientWindow::HandleInput(const px::desktop::DesktopInputEvent& event) {
@@ -189,14 +224,14 @@ void ClientWindow::HandleInput(const px::desktop::DesktopInputEvent& event) {
         const bool sent{session_->SendMouseWheel(event.wheelX, event.wheelY)};
         LOGI("Client input route: wheel horizontal={:.1f} vertical={:.1f} sent={}", event.wheelX, event.wheelY, sent);
     } else if (!keyboardCaptured && (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP)) {
-        if (const auto key = WindowsVirtualKey(event.key); key != 0U) {
+        if (const auto key = WindowsKeyFromSdl(event.key, event.scanCode, event.platformScanCode); key) {
             const bool down{event.type == SDL_EVENT_KEY_DOWN};
             if (down)
-                pressedKeys_.insert(key);
+                pressedKeys_.insert_or_assign(key.scanCode, key);
             else
-                pressedKeys_.erase(key);
-            const bool sent{session_->SendKey(key, down)};
-            LOGI("Client input route: key={} down={} sent={}", key, down, sent);
+                pressedKeys_.erase(key.scanCode);
+            const bool sent{session_->SendKey(key.virtualKey, key.scanCode, down)};
+            LOGI("Client input route: vk=0x{:x} scan=0x{:x} down={} sent={}", key.virtualKey, key.scanCode, down, sent);
         }
     } else if (!keyboardCaptured && event.type == SDL_EVENT_TEXT_INPUT && !event.text.empty()) {
         if (textCompositionActive_ || ContainsNonAscii(event.text)) {
@@ -213,8 +248,8 @@ void ClientWindow::HandleInput(const px::desktop::DesktopInputEvent& event) {
 }
 
 void ClientWindow::ReleasePressedInput() {
-    for (const auto key : pressedKeys_)
-        static_cast<void>(session_->SendKey(key, false));
+    for (const auto& [scanCode, key] : pressedKeys_)
+        static_cast<void>(session_->SendKey(key.virtualKey, scanCode, false));
     pressedKeys_.clear();
     for (std::size_t button = 1; button < pressedMouseButtons_.size(); ++button) {
         if (pressedMouseButtons_[button])

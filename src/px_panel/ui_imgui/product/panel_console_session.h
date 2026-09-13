@@ -24,6 +24,9 @@ class PanelConsoleSession final {
     [[nodiscard]] ui::AccountSnapshot Account() const;
     bool Login(const std::string& username, const std::string& password);
     bool Register(const std::string& username, const std::string& password);
+    bool UpdateProfile(const std::string& username);
+    bool UpdatePassword(const std::string& currentPassword, const std::string& newPassword);
+    bool UpdateAvatar(const std::string& imagePath);
     bool Logout();
     void SetAccountOperation(ui::AccountOperationState operation);
 
@@ -32,8 +35,8 @@ class PanelConsoleSession final {
     [[nodiscard]] std::vector<px_console::ConsoleUserApplication> QueryApplications();
     [[nodiscard]] px::Result<px_console::ConsoleUserAppInstance, px_console::ConsoleApiError> StartApplication(const std::string& appId,
                                                                                                                const std::string& nonce);
-    [[nodiscard]] std::optional<px_console::ConsoleNativeApplicationConnection> QueryNativeApplicationConnection(const std::string& instanceId,
-                                                                                                                  bool viewOnly);
+    [[nodiscard]] px::Result<px_console::ConsoleNativeApplicationConnection, px_console::ConsoleApiError>
+    QueryNativeApplicationConnection(const std::string& instanceId, bool viewOnly);
     bool StopApplication(const std::string& instanceId);
 
   private:
@@ -47,6 +50,7 @@ class PanelConsoleSession final {
     mutable std::mutex mutex_{};
     std::string userId_{};
     std::string username_{};
+    std::string avatarPath_{};
     std::string guestToken_{};
     ui::AccountOperationState accountOperation_{ui::AccountOperationState::Idle};
 };

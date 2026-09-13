@@ -31,6 +31,7 @@ class PreviewRemoteControlPort final : public RemoteControlPort {
             deviceName_ = std::move(deviceName);
     }
     void Refresh() override {}
+    void RefreshTemporaryPassword() override {}
     bool RequiresPassword(const std::string&) const override {
         return false;
     }

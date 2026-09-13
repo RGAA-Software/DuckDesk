@@ -169,6 +169,32 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
     void Refresh() override {
         RefreshDevices();
     }
+    void RefreshTemporaryPassword() override {
+        const auto runtime = runtime_;
+        static_cast<void>(runtime_->Worker()->Post([runtime] {
+            const auto endpoint = runtime->Config()->Console();
+            auto identity = runtime->Config()->Identity();
+            if (!endpoint || identity.deviceId.empty()) {
+                runtime->Notify(true, "Password", "The management service is not configured. The temporary password was not changed.");
+                return;
+            }
+            const auto updated = px_console::ConsoleDeviceApi::UpdateRandomPwd(endpoint->host, endpoint->port, endpoint->appKey, identity.deviceId);
+            if (!updated || !updated.value() || updated.value()->gen_random_pwd_.empty()) {
+                runtime->Notify(true, "Password", "The management service could not refresh the temporary password.");
+                return;
+            }
+            identity.randomPassword = updated.value()->gen_random_pwd_;
+            if (!runtime->Config()->SaveIdentity(identity)) {
+                runtime->Notify(true, "Password", "The new temporary password could not be saved locally.");
+                return;
+            }
+            if (!runtime->Service()->RestartRender()) {
+                runtime->Notify(true, "Password", "The password was updated, but the Render service could not be restarted.");
+                return;
+            }
+            runtime->Notify(false, "Password", "Temporary password refreshed.");
+        }));
+    }
 
     bool RequiresPassword(const std::string& target) const override {
         const auto parsed = ParseConnectionInput(target, runtime_->Config()->Ports().desktop);

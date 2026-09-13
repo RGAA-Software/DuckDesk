@@ -93,7 +93,7 @@ void RemoteControlPage::DrawIdentity(const RemoteControlState& state, const px::
         if (identity.Visible() && ImGui::BeginTable("ThisDeviceTable", 3, ImGuiTableFlags_SizingStretchProp)) {
             ImGui::TableSetupColumn("label", ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(88.0F));
             ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("actions", ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(58.0F));
+            ImGui::TableSetupColumn("actions", ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(92.0F));
             const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
             ImGui::PushStyleColor(ImGuiCol_Text, tokens.primary);
             IdentityLabel(localizer.Text(px::ui::TextId::DeviceId), FormatDeviceId(state.deviceId), true);
@@ -112,6 +112,11 @@ void RemoteControlPage::DrawIdentity(const RemoteControlState& state, const px::
                                    localizer.Text(state.showTemporaryPassword ? px::ui::TextId::Hide : px::ui::TextId::Show),
                                    {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::IconXs})) {
                 port_->SetPasswordVisible(!state.showTemporaryPassword);
+            }
+            ImGui::SameLine();
+            if (px::ui::IconAction({"refresh-temporary-password"}, px::ui::VectorIcon::Refresh, localizer.Text(px::ui::TextId::Refresh),
+                                   {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::IconXs})) {
+                port_->RefreshTemporaryPassword();
             }
             IdentityLabel(localizer.Text(px::ui::TextId::DeviceName), state.deviceName);
             if (px::ui::IconAction({"edit-local-device-name"}, px::ui::VectorIcon::Pencil, localizer.Text(px::ui::TextId::EditDevice),

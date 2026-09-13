@@ -388,8 +388,9 @@ namespace px
         auto now = TimeUtil::GetCurrentTimestamp();
         auto last_frame = last_video_frame_ms_.load();
 
-        // Also retry when an IDR request or the resulting key frame was lost.
-        if (last_frame != 0 && now - last_frame < kNoFrameTimeoutMs) {
+        // Retry the initial key frame quickly; after playback starts, tolerate a longer transient gap.
+        const auto timeout = last_frame == 0 ? kInitialFrameTimeoutMs : kNoFrameTimeoutMs;
+        if (last_frame != 0 && now - last_frame < timeout) {
             return;
         }
         // 1s 节流,防止关键帧风暴
@@ -399,7 +400,7 @@ namespace px
         }
         last_idr_request_ms_ = now;
         LOGW("Udp direct no complete video frame for >{}ms, request IDR. last_frame={}, now={}",
-             kNoFrameTimeoutMs, last_frame, now);
+             timeout, last_frame, now);
         this->RequestIdrKeepalive("");
     }
 

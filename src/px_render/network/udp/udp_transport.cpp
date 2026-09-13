@@ -835,54 +835,55 @@ bool UdpRuntimeState::SendMediaBatch(std::vector<media::Packet> packets, bool au
         const auto runtime = weak_runtime.lock();
         bool succeeded = runtime && !runtime->stopping_ && !cancelled->load() && runtime->server_->is_started();
         if (succeeded) {
-            // Socket operations and close run on the adapter IO thread. This is the upstream per-datagram fallback,
-            // not an async enqueue measured as a send. At most one bounded video batch is outstanding.
             try {
                 runtime->sessions_.ApplyAll([&](const std::string&, const std::shared_ptr<UdpSession>& session) {
                     if (!session->bound_ || !session->sess_)
                         return;
-                    if (!audio && packets.size() > 1 && !cancelled->load() && !runtime->stopping_) {
-                        asio::error_code error{};
-                        runtime->server_->acceptor().non_blocking(true, error);
-                        if (error) {
-                            succeeded = false;
-                            return;
-                        }
-                        const auto batch = TryWindowsUdpBatch(runtime->server_->acceptor(), session->sess_->hash_key(), packets);
-                        if (batch == UdpBatchResult::kSent) {
-                            runtime->stat_sent_shards_ += packets.size();
-                            runtime->stat_batch_packets_ += packets.size();
-                            for (const auto& packet : packets)
-                                TrackVideoSend(runtime->send_timing_, packet);
-                            return;
-                        }
-                        if (batch == UdpBatchResult::kIncomplete) {
-                            ++runtime->stat_send_short_writes_;
-                            succeeded = false;
-                            return;
-                        }
-                        ++runtime->stat_batch_fallbacks_;
+                    asio::error_code error{};
+                    runtime->server_->acceptor().non_blocking(true, error);
+                    if (error) {
+                        succeeded = false;
+                        return;
                     }
-                    for (const auto& packet : packets) {
-                        if (cancelled->load() || runtime->stopping_) {
-                            succeeded = false;
-                            break;
+                    std::size_t offset{};
+                    while (offset < packets.size() && succeeded) {
+                        const auto firstSize = packets[offset].size();
+                        const auto maximumBatch = firstSize == 0 ? std::size_t{1} : std::max<std::size_t>(1, 65'536 / firstSize);
+                        const auto count = std::min(maximumBatch, packets.size() - offset);
+                        const std::span<const media::Packet> batch{packets.data() + offset, count};
+                        if (!audio && count > 1 && !cancelled->load() && !runtime->stopping_) {
+                            const auto result = TryWindowsUdpBatch(runtime->server_->acceptor(), session->sess_->hash_key(), batch);
+                            if (result == UdpBatchResult::kSent) {
+                                runtime->stat_sent_shards_ += count;
+                                runtime->stat_batch_packets_ += count;
+                                for (const auto& packet : batch)
+                                    TrackVideoSend(runtime->send_timing_, packet);
+                                offset += count;
+                                continue;
+                            }
+                            if (result == UdpBatchResult::kIncomplete) {
+                                ++runtime->stat_send_short_writes_;
+                                succeeded = false;
+                                break;
+                            }
+                            ++runtime->stat_batch_fallbacks_;
                         }
-                        asio::error_code error{};
-                        runtime->server_->acceptor().non_blocking(true, error);
-                        if (error) {
-                            succeeded = false;
-                            break;
+                        for (const auto& packet : batch) {
+                            if (cancelled->load() || runtime->stopping_) {
+                                succeeded = false;
+                                break;
+                            }
+                            const auto bytes = runtime->server_->acceptor().send_to(asio::buffer(packet), session->sess_->hash_key(), 0, error);
+                            if (error || bytes != packet.size()) {
+                                ++runtime->stat_send_short_writes_;
+                                succeeded = false;
+                                break;
+                            }
+                            ++runtime->stat_sent_shards_;
+                            if (!audio)
+                                TrackVideoSend(runtime->send_timing_, packet);
                         }
-                        const auto bytes = runtime->server_->acceptor().send_to(asio::buffer(packet), session->sess_->hash_key(), 0, error);
-                        if (error || bytes != packet.size()) {
-                            ++runtime->stat_send_short_writes_;
-                            succeeded = false;
-                            break;
-                        }
-                        ++runtime->stat_sent_shards_;
-                        if (!audio)
-                            TrackVideoSend(runtime->send_timing_, packet);
+                        offset += count;
                     }
                 });
             } catch (const std::exception& error) {
@@ -1085,15 +1086,15 @@ bool UdpTransport::PaceSleep(const std::chrono::steady_clock::duration& duration
 }
 
 // data: encode video frame, h264/h265/...
-void UdpTransport::SubmitEncodedVideo(const std::string& mon_name, const EncodedVideoType& video_type, const std::shared_ptr<Data>& data,
+bool UdpTransport::SubmitEncodedVideo(const std::string& mon_name, const EncodedVideoType& video_type, const std::shared_ptr<Data>& data,
                                       uint64_t frame_index, int frame_width, int frame_height, bool key, EncodedReferenceState reference_state) {
     const std::lock_guard lock(video_send_mutex_);
     const auto runtime = runtime_.load();
     if (!runtime || !IsWorking() || !data || data->Size() <= 0 || !runtime->HasBoundSession() || frame_width <= 0 || frame_width > 65535 ||
         frame_height <= 0 || frame_height > 65535)
-        return;
+        return false;
     if (video_type != EncodedVideoType::kH264 && video_type != EncodedVideoType::kH265)
-        return;
+        return false;
     media::VideoFrame frame{};
     frame.codec = video_type == EncodedVideoType::kH265 ? media::VideoCodec::kH265 : media::VideoCodec::kH264;
     frame.kind = key ? media::VideoFrameKind::kIdr : media::VideoFrameKind::kPredicted;
@@ -1115,46 +1116,32 @@ void UdpTransport::SubmitEncodedVideo(const std::string& mon_name, const Encoded
     auto packetized = media::PacketizeVideoFrame(frame, parameters);
     if (!packetized) {
         LOGW("UDP media v2 frame rejected: index={}, bytes={}, mtu={}", frame_index, data->Size(), udp_mtu_);
-        return;
+        return false;
     }
     video_sequences_[frame.stream] = packetized->next_sequence;
     const auto packet_size = static_cast<std::size_t>(udp_mtu_);
     // Reserve worst-case IPv6/UDP headers as well as the complete Pixels media datagram and parity.
     const auto wire_packet_size = packet_size + 48;
-    const auto packets_per_ms = media::VideoPacketPacing::PacketsPerMillisecond(wire_packet_size);
-    const auto batch_size = std::min(packets_per_ms, 65536 / packet_size);
     const auto frame_start = std::max(ratecontrol_next_frame_start_, std::chrono::steady_clock::now());
-    const auto packet_interval = media::VideoPacketPacing::Duration(wire_packet_size);
-    auto batch_due = frame_start;
-    std::size_t submitted{};
-    for (std::size_t offset{}; offset < packetized->packets.size(); offset += batch_size) {
-        if (!IsWorking() || IsStoppingOrDestroyed())
-            break;
-        const auto now = std::chrono::steady_clock::now();
-        if (now < batch_due && !PaceSleep(batch_due - now))
-            break;
-        const auto batch_started = std::chrono::steady_clock::now();
-        const auto count = std::min(batch_size, packetized->packets.size() - offset);
-        std::vector<media::Packet> batch{};
-        batch.reserve(count);
-        for (std::size_t index{}; index < count; ++index)
-            batch.push_back(std::move(packetized->packets[offset + index]));
-        if (!runtime->SendMediaBatch(std::move(batch)))
-            break;
-        submitted += count;
-        const auto batch_duration = packet_interval * count;
-        batch_due = media::NextBatchDeadline(batch_due, batch_started, batch_duration);
-    }
-    ratecontrol_next_frame_start_ = batch_due;
-    if (submitted < packetized->packets.size() && !IsStoppingOrDestroyed()) {
+    const auto now = std::chrono::steady_clock::now();
+    if (now < frame_start && !PaceSleep(frame_start - now))
+        return false;
+    const auto frameStarted = std::chrono::steady_clock::now();
+    const auto packetCount = packetized->packets.size();
+    const bool delivered = runtime->SendMediaBatch(std::move(packetized->packets));
+    const auto frameWireBytes = wire_packet_size * packetCount;
+    const auto frameDuration = media::VideoPacketPacing::Duration(frameWireBytes);
+    ratecontrol_next_frame_start_ = media::NextBatchDeadline(frame_start, frameStarted, frameDuration);
+    if (!delivered && !IsStoppingOrDestroyed()) {
         auto recovery = std::make_shared<KeyFrameRequestEvent>();
         recovery->monitor_name_ = mon_name;
         EmitEvent(recovery);
-        LOGW("UDP incomplete send: frame={}, sent={}, total={}; request IDR", frame_index, submitted, packetized->packets.size());
+        LOGW("UDP incomplete send: frame={}, packets={}; request IDR", frame_index, packetCount);
     }
-    const auto submitted_bytes = submitted * packet_size;
-    if (submitted)
-        ReportDataSent(static_cast<std::int64_t>(submitted_bytes));
+    const auto submittedBytes = packetCount * packet_size;
+    if (delivered)
+        ReportDataSent(static_cast<std::int64_t>(submittedBytes));
+    return delivered;
 }
 
 int UdpTransport::ConnectedClientCount() const {

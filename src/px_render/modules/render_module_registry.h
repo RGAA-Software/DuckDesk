@@ -99,7 +99,7 @@ class RenderModuleRegistry : public std::enable_shared_from_this<RenderModuleReg
     void BroadcastFileTransferMessage(const std::string& stream_id, const std::shared_ptr<Data>& message, bool run_through);
     void BroadcastRawAudio(const std::shared_ptr<Data>& data, int samples, int channels, int bits);
     void PublishEncodedVideoMetadata(const std::string& monitor_name, const std::shared_ptr<EncodedVideoFrameEvent>& event);
-    void PublishNativeEncodedVideo(const std::string& monitor_name, const std::shared_ptr<EncodedVideoFrameEvent>& event);
+    [[nodiscard]] bool PublishNativeEncodedVideo(const std::string& monitor_name, const std::shared_ptr<EncodedVideoFrameEvent>& event);
     [[nodiscard]] bool HasNativeMediaClient() const;
     void DispatchNetworkAppEvent(const std::shared_ptr<AppBaseEvent>& event);
     void ApplyLogicalSessionCapabilities(const PxLogicalSessionCapabilityUpdate& update);

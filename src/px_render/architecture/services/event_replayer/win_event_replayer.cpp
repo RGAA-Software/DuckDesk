@@ -14,12 +14,6 @@
 namespace px
 {
     namespace {
-        const uint32_t kExtendedKeys[] = {
-            VK_DELETE, VK_LEFT, VK_UP, VK_RIGHT, VK_DOWN, VK_NUMLOCK,
-            VK_RCONTROL, VK_RMENU, VK_RETURN, VK_DIVIDE, VK_LWIN,
-            VK_RWIN, VK_HOME, VK_PRIOR, VK_NEXT, VK_END, VK_INSERT,
-        };
-
         bool IsPureMouseMove(int buttons) {
             return buttons == 0 || buttons == ButtonFlag::kMouseMove;
         }
@@ -172,37 +166,28 @@ namespace px
         current_key_status_[vk_code] = down;
         if (!IsKeyPermitted(vk_code)) {
             LOGW("[InputReplay] key blocked by policy, vk=0x{:x} down={}", vk_code, down);
-            current_key_status_[vk_code] =!down;
+            current_key_status_[vk_code] = !down;
             return;
         }
 
-        if (vk_code == VK_CONTROL || vk_code == VK_RCONTROL || vk_code == VK_LCONTROL) {
-            control_pressed_ = down;
-        }
-        if (vk_code == VK_MENU || vk_code == VK_RMENU || vk_code == VK_LMENU) {
-            menu_pressed_ = down;
-        }
+        control_pressed_ = current_key_status_[VK_CONTROL] || current_key_status_[VK_LCONTROL] || current_key_status_[VK_RCONTROL];
+        menu_pressed_ = current_key_status_[VK_MENU] || current_key_status_[VK_LMENU] || current_key_status_[VK_RMENU];
         if (vk_code == VK_DELETE) {
             delete_pressed_ = down;
         }
-        if (vk_code == VK_SHIFT || vk_code == VK_RSHIFT || vk_code == VK_LSHIFT) {
-            shift_pressed_ = down;
-        }
-        if (vk_code == VK_LWIN || vk_code == VK_RWIN) {
-            win_pressed_ = down;
-        }
+        shift_pressed_ = current_key_status_[VK_SHIFT] || current_key_status_[VK_LSHIFT] || current_key_status_[VK_RSHIFT];
+        win_pressed_ = current_key_status_[VK_LWIN] || current_key_status_[VK_RWIN];
 
         if(control_pressed_ && menu_pressed_ && delete_pressed_ && !shift_pressed_ && !win_pressed_) {
             LOGW("[InputReplay] swallow Ctrl+Alt+Delete combo, vk=0x{:x} down={}", vk_code, down);
             return;
         }
-        UINT vsc = MapVirtualKey(vk_code, MAPVK_VK_TO_VSC);
-        bool extend = false;
-        for (size_t j = 0; j < sizeof(kExtendedKeys) / sizeof(UINT32); j++) {
-            if (kExtendedKeys[j] == vk_code) {
-                extend = true;
-                break;
-            }
+        const UINT packedScanCode = event.scan_code() != 0U ? event.scan_code() : MapVirtualKeyW(vk_code, MAPVK_VK_TO_VSC_EX);
+        const auto vsc = static_cast<uint16_t>(packedScanCode & 0xFFU);
+        const bool extend = (packedScanCode & 0xFF00U) == 0xE000U;
+        if (vsc == 0U) {
+            LOGE("[InputReplay] no scan code for vk=0x{:x}", vk_code);
+            return;
         }
         LOGI("[InputReplay] key vk=0x{:x} down={} scancode=0x{:x} extend={} numLock={} capsLock={} check={}",
              vk_code, down, vsc, extend, event.num_lock_status(), event.caps_lock_status(),

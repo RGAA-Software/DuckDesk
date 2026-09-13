@@ -165,7 +165,8 @@ TEST(UdpTransportShutdown, AuthorizedPacedVideoCancelsWithoutWaitingForTheWholeF
         auto entered_future = entered->get_future();
         std::jthread sender([transport, data, entered]() {
             entered->set_value();
-            transport->SubmitEncodedVideo("test", EncodedVideoType::kH264, data, 1, 1280, 720, true, EncodedReferenceState::kDependent);
+            static_cast<void>(
+                transport->SubmitEncodedVideo("test", EncodedVideoType::kH264, data, 1, 1280, 720, true, EncodedReferenceState::kDependent));
         });
         entered_future.wait();
         std::this_thread::sleep_for(20ms);

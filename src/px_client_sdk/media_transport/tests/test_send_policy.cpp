@@ -104,17 +104,20 @@ TEST(VideoBacklog, CountAndByteBackpressureRequireANewIdr) {
     Backlog queue{};
     const auto now = Backlog::Clock::now();
     for (std::size_t index{}; index < Backlog::kMaxFrames; ++index)
-        ASSERT_TRUE(queue.Push({"a", std::make_shared<int>(1), 100, true, now}));
+        ASSERT_TRUE(queue.Push({"a", std::make_shared<int>(1), 100, false, now}));
     EXPECT_FALSE(queue.Push({"a", {}, 100, false, now}));
-    for (std::size_t index{}; index < Backlog::kMaxFrames; ++index) {
-        const auto delivery = queue.Pop(now);
-        ASSERT_TRUE(delivery);
-        EXPECT_TRUE(delivery->discard); // An old queued IDR predates the lost encoded frame.
-    }
     EXPECT_EQ(queue.Bytes(), 0);
-    ASSERT_TRUE(queue.Push({"a", {}, 100, false, now}));
-    EXPECT_TRUE(queue.Pop(now)->discard);
+    EXPECT_TRUE(queue.Push({"a", {}, 100, false, now})); // Silently discard dependent frames while waiting for recovery.
+    EXPECT_FALSE(queue.Pop(now));
     ASSERT_TRUE(queue.Push({"a", {}, 100, true, now}));
+    const auto recovery = queue.Pop(now);
+    ASSERT_TRUE(recovery);
+    EXPECT_TRUE(recovery->recovery);
+    EXPECT_FALSE(recovery->discard);
+    EXPECT_TRUE(queue.Push({"a", {}, 100, false, now})); // Do not build a queue behind a large in-flight IDR.
+    EXPECT_FALSE(queue.Pop(now));
+    EXPECT_FALSE(queue.Complete(*recovery, true));
+    ASSERT_TRUE(queue.Push({"a", {}, 100, false, now}));
     EXPECT_FALSE(queue.Pop(now)->discard);
     EXPECT_FALSE(queue.Push({"a", {}, Backlog::kMaxBytes + 1, false, now}));
     EXPECT_EQ(queue.Bytes(), 0);
@@ -126,9 +129,33 @@ TEST(VideoBacklog, ExpiryCannotLeakDependentFramesButAnotherStreamIsUnaffected) 
     ASSERT_TRUE(queue.Push({"b", {}, 100, true, now}));
     ASSERT_TRUE(queue.Push({"a", {}, 100, false, now}));
     ASSERT_TRUE(queue.Push({"a", {}, 100, true, now}));
-    EXPECT_TRUE(queue.Pop(now)->discard);
+    const auto expired = queue.Pop(now);
+    ASSERT_TRUE(expired);
+    EXPECT_TRUE(expired->discard);
+    EXPECT_TRUE(expired->request_idr);
     EXPECT_FALSE(queue.Pop(now)->discard);
     EXPECT_TRUE(queue.Pop(now)->discard);
+    EXPECT_TRUE(queue.Pop(now)->discard); // The queued IDR predates detection of the expired frame.
+    ASSERT_TRUE(queue.Push({"a", {}, 100, true, now}));
+    const auto recovery = queue.Pop(now);
+    ASSERT_TRUE(recovery);
+    EXPECT_TRUE(recovery->recovery);
+    EXPECT_FALSE(queue.Complete(*recovery, true));
+}
+
+TEST(VideoBacklog, FailedRecoveryRequestsOneReplacementIdr) {
+    Backlog queue{};
+    const auto now = Backlog::Clock::now();
+    for (std::size_t index{}; index < Backlog::kMaxFrames; ++index)
+        ASSERT_TRUE(queue.Push({"a", {}, 100, false, now}));
+    EXPECT_FALSE(queue.Push({"a", {}, 100, false, now}));
+    ASSERT_TRUE(queue.Push({"a", {}, 100, true, now}));
+    const auto recovery = queue.Pop(now);
+    ASSERT_TRUE(recovery);
+    EXPECT_TRUE(queue.Complete(*recovery, false));
+    EXPECT_TRUE(queue.Push({"a", {}, 100, false, now}));
+    EXPECT_FALSE(queue.Pop(now));
+    ASSERT_TRUE(queue.Push({"a", {}, 100, true, now}));
     EXPECT_FALSE(queue.Pop(now)->discard);
 }
 TEST(VideoBacklog, ShutdownReleasesQueuedOwnershipAndRejectsFurtherWork) {

@@ -49,6 +49,7 @@ class RemoteControlPort {
     virtual ~RemoteControlPort() = default;
     virtual RemoteControlState Snapshot() const = 0;
     virtual void Refresh() = 0;
+    virtual void RefreshTemporaryPassword() = 0;
     virtual void SetPasswordVisible(bool visible) = 0;
     virtual void UpdateLocalDeviceName(std::string deviceName) = 0;
     [[nodiscard]] virtual bool RequiresPassword(const std::string& target) const = 0;

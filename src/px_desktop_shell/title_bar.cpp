@@ -57,7 +57,7 @@ bool DrawTitleBar(WindowHost& window, const WindowChromeConfig& chrome, const Br
     const float logoTop{origin.y + (titleBarHeight - logoSize) * 0.5F};
     const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
     logo.Draw({logoLeft, logoTop}, logoSize);
-    const std::string title{"Pixels(" PROJECT_VERSION ")"};
+    const std::string title{"Pixels(V" PROJECT_VERSION ")"};
     const ImVec2 titleSize{ImGui::CalcTextSize(title.c_str())};
     ImGui::GetWindowDrawList()->AddText({logoLeft + logoSize + px::ui::Scale(8.0F), origin.y + (titleBarHeight - titleSize.y) * 0.5F},
                                         ImGui::GetColorU32(tokens.foreground), title.c_str());

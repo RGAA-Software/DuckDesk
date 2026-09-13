@@ -131,6 +131,9 @@ pub enum ConsoleApiError {
 
     #[error("quota exceeded")]
     QuotaExceeded,
+
+    #[error("{0}")]
+    ApplicationOperationFailed(String),
 }
 
 // ConsoleApiError -> Response
@@ -183,6 +186,7 @@ impl ConsoleApiError {
             ConsoleApiError::QuotaExceeded => "QUOTA_EXCEEDED",
             ConsoleApiError::DeviceOffline => "DEVICE_OFFLINE",
             ConsoleApiError::RequestTimeout => "SCHEDULER_UNAVAILABLE",
+            ConsoleApiError::ApplicationOperationFailed(_) => "APPLICATION_OPERATION_FAILED",
             _ => "REQUEST_FAILED",
         }
     }
@@ -228,6 +232,7 @@ impl ConsoleApiError {
             ConsoleApiError::ResourceNotFound => 636,
             ConsoleApiError::RateLimited => 638,
             ConsoleApiError::QuotaExceeded => 639,
+            ConsoleApiError::ApplicationOperationFailed(_) => 640,
         }
     }
 
@@ -241,6 +246,7 @@ impl ConsoleApiError {
                 StatusCode::FORBIDDEN
             }
             ConsoleApiError::VersionConflict => StatusCode::CONFLICT,
+            ConsoleApiError::ApplicationOperationFailed(_) => StatusCode::CONFLICT,
             ConsoleApiError::GroupNotFound | ConsoleApiError::ResourceNotFound => {
                 StatusCode::NOT_FOUND
             }
@@ -289,6 +295,10 @@ mod tests {
         assert_eq!(ConsoleApiError::MaxStreamsReached.business_code(), 624);
         assert_eq!(ConsoleApiError::InvalidParams.business_code(), 600);
         assert_eq!(ConsoleApiError::DatabaseError.business_code(), 601);
+        assert_eq!(
+            ConsoleApiError::ApplicationOperationFailed("node unavailable".into()).business_code(),
+            640
+        );
     }
 
     #[test]
@@ -305,6 +315,15 @@ mod tests {
             ConsoleApiError::MaxStreamsReached.status_code(),
             StatusCode::FORBIDDEN
         );
+    }
+
+    #[test]
+    fn application_operation_error_preserves_the_real_reason() {
+        let error =
+            ConsoleApiError::ApplicationOperationFailed("no online application node".into());
+        assert_eq!(error.to_string(), "no online application node");
+        assert_eq!(error.error_name(), "APPLICATION_OPERATION_FAILED");
+        assert_eq!(error.status_code(), StatusCode::CONFLICT);
     }
 
     #[test]

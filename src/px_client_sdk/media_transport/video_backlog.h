@@ -27,6 +27,8 @@ template <class Payload> class VideoBacklog final {
     struct Delivery final {
         Frame frame{};
         bool discard{};
+        bool recovery{};
+        bool request_idr{};
     };
     static constexpr std::size_t kMaxFrames = 4;
     static constexpr std::size_t kMaxBytes = 4 * 1024 * 1024;
@@ -41,13 +43,25 @@ template <class Payload> class VideoBacklog final {
             return false;
         }
         auto& state = streams_[frame.stream];
+        if (state.needs_idr) {
+            if (!frame.idr || state.idr_queued || state.recovering) {
+                ++dropped_;
+                return true;
+            }
+            EraseStreamFrames(frame.stream);
+        }
         if (frames_.size() >= kMaxFrames || frame.bytes > kMaxBytes - bytes_) {
-            ++state.generation;
-            state.needs_idr = true;
+            if (!state.needs_idr) {
+                ++state.generation;
+                state.needs_idr = true;
+                EraseStreamFrames(frame.stream);
+            }
             ++dropped_;
             return false;
         }
         frame.generation = state.generation;
+        if (state.needs_idr && frame.idr)
+            state.idr_queued = true;
         bytes_ += frame.bytes;
         frames_.push_back(std::move(frame));
         return true;
@@ -61,15 +75,46 @@ template <class Payload> class VideoBacklog final {
         bytes_ -= frame.bytes;
         auto& state = streams_[frame.stream];
         const bool expired = now - frame.queued > kMaxAge;
-        // A queued old IDR cannot acknowledge a loss that occurred after it was encoded.
-        if (!expired && frame.idr && frame.generation == state.generation)
-            state.needs_idr = false;
-        const bool discard = expired || state.needs_idr;
+        const bool current = frame.generation == state.generation;
+        const bool recovery = !expired && current && state.needs_idr && frame.idr;
+        if (recovery) {
+            state.idr_queued = false;
+            state.recovering = true;
+        }
+        const bool requestIdr = expired && !state.needs_idr;
+        const bool discard = expired || (state.needs_idr && !recovery);
         if (discard) {
-            state.needs_idr = true;
+            if (!state.needs_idr) {
+                ++state.generation;
+                state.needs_idr = true;
+            }
+            if (frame.idr)
+                state.idr_queued = false;
             ++dropped_;
         }
-        return Delivery{std::move(frame), discard};
+        return Delivery{std::move(frame), discard, recovery, requestIdr};
+    }
+    [[nodiscard]] bool Complete(const Delivery& delivery, const bool delivered) {
+        std::lock_guard lock(mutex_);
+        const auto found = streams_.find(delivery.frame.stream);
+        if (closed_ || found == streams_.end())
+            return false;
+        auto& state = found->second;
+        if (!delivered) {
+            if (!state.needs_idr) {
+                ++state.generation;
+                state.needs_idr = true;
+            }
+            state.idr_queued = false;
+            state.recovering = false;
+            EraseStreamFrames(delivery.frame.stream);
+            return true;
+        }
+        if (delivery.recovery && delivery.frame.generation == state.generation) {
+            state.needs_idr = false;
+            state.recovering = false;
+        }
+        return false;
     }
     void Close() {
         std::lock_guard lock(mutex_);
@@ -91,7 +136,20 @@ template <class Payload> class VideoBacklog final {
     struct Stream final {
         std::uint64_t generation{};
         bool needs_idr{};
+        bool idr_queued{};
+        bool recovering{};
     };
+    void EraseStreamFrames(const std::string& stream) {
+        for (auto frame = frames_.begin(); frame != frames_.end();) {
+            if (frame->stream == stream) {
+                bytes_ -= frame->bytes;
+                frame = frames_.erase(frame);
+                ++dropped_;
+            } else {
+                ++frame;
+            }
+        }
+    }
     mutable std::mutex mutex_{};
     std::deque<Frame> frames_{};
     std::map<std::string, Stream> streams_{};

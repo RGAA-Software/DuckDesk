@@ -46,6 +46,12 @@ struct ClientResolution final {
     int height{};
 };
 
+struct ClientRemoteCursor final {
+    bool received{};
+    bool visible{true};
+    std::uint32_t type{};
+};
+
 struct ClientSessionSnapshot final {
     ClientConnectionState state{ClientConnectionState::Connecting};
     ClientConnectionFailure failure{ClientConnectionFailure::None};
@@ -66,6 +72,7 @@ struct ClientSessionSnapshot final {
     std::uint32_t virtualDisplayMaximum{};
     bool virtualDisplayBusy{};
     std::string voiceStatus{};
+    ClientRemoteCursor remoteCursor{};
 };
 
 struct ClientTransferJob final {
@@ -106,7 +113,7 @@ class ClientSession final : public std::enable_shared_from_this<ClientSession> {
     bool SendMouseMove(float xRatio, float yRatio);
     bool SendMouseButton(std::uint8_t button, bool down, float xRatio, float yRatio);
     bool SendMouseWheel(float horizontal, float vertical);
-    bool SendKey(std::uint32_t virtualKey, bool down);
+    bool SendKey(std::uint32_t virtualKey, std::uint32_t scanCode, bool down);
     bool SendText(const std::string& text);
     bool SendClipboardText(const std::string& text);
     [[nodiscard]] std::optional<std::string> TakeRemoteClipboardText();
@@ -188,6 +195,7 @@ class ClientSession final : public std::enable_shared_from_this<ClientSession> {
     bool virtualDisplayAvailable_{};
     std::uint32_t virtualDisplayCount_{};
     std::uint32_t virtualDisplayMaximum_{};
+    ClientRemoteCursor remoteCursor_{};
     float cursorX_{0.5F};
     float cursorY_{0.5F};
     std::atomic_bool started_{};

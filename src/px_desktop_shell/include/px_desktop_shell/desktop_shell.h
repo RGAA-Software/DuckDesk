@@ -23,6 +23,7 @@ struct DesktopInputEvent final {
     std::uint32_t type{};
     std::int32_t key{};
     std::int32_t scanCode{};
+    std::uint16_t platformScanCode{};
     std::uint8_t mouseButton{};
     float x{};
     float y{};

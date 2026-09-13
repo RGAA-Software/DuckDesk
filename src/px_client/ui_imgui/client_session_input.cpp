@@ -152,22 +152,22 @@ bool ClientSession::SendMouseWheel(const float horizontal, const float vertical)
     return sent;
 }
 
-bool ClientSession::SendKey(const std::uint32_t virtualKey, const bool down) {
+bool ClientSession::SendKey(const std::uint32_t virtualKey, const std::uint32_t scanCode, const bool down) {
     if (config_.rdp) {
         std::shared_ptr<px::rdp::RdpSession> session{};
         {
             const std::scoped_lock lock{mutex_};
             session = rdpSession_;
         }
-        const auto scanCode = MapVirtualKeyW(virtualKey, MAPVK_VK_TO_VSC_EX);
-        if (!session || scanCode == 0U) return false;
-        session->Key(scanCode, down);
+        const auto resolvedScanCode = scanCode != 0U ? scanCode : MapVirtualKeyW(virtualKey, MAPVK_VK_TO_VSC_EX);
+        if (!session || resolvedScanCode == 0U) return false;
+        session->Key(resolvedScanCode, down);
         return true;
     }
     return !config_.viewOnly && virtualKey > 0 && virtualKey <= 0xFF &&
            SendMedia(px::ProtoMessageMaker::MakeKeyEvent(virtualKey, down,
                                                           "client_" + config_.localDeviceId + "_" + px::MD5::Hex(config_.remoteDeviceId),
-                                                          config_.streamId));
+                                                          config_.streamId, scanCode));
 }
 
 bool ClientSession::SendText(const std::string& text) {
@@ -249,4 +249,3 @@ bool ClientSession::SendSecureAttention() {
                                     "client_" + config_.localDeviceId + "_" + px::MD5::Hex(config_.remoteDeviceId), config_.streamId));
 }
 } // namespace px::client::imgui
-

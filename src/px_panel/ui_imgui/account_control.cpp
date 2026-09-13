@@ -1,4 +1,5 @@
 #include "account_control.h"
+#include "account_avatar_picker.h"
 
 #include "px_ui/components/button.h"
 #include "px_ui/components/form.h"
@@ -46,6 +47,11 @@ void AccountControl::Draw(const px::ui::Localizer& localizer) {
     {
         px::ui::PopupScope menu{{"AccountMenu"}};
         if (menu.Open()) {
+            if (px::ui::MenuAction({"account-profile"}, localizer.Text(px::ui::TextId::PersonalCenter),
+                                   {.icon = px::ui::VectorIcon::User})) {
+                profileDialogRequested_ = true;
+                profileInitialized_ = false;
+            }
             if (px::ui::MenuAction({"account-logout"}, localizer.Text(px::ui::TextId::Logout),
                                    {.icon = px::ui::VectorIcon::LogOut, .variant = px::ui::MenuItemVariant::Destructive})) {
                 port_->Logout();
@@ -53,6 +59,73 @@ void AccountControl::Draw(const px::ui::Localizer& localizer) {
         }
     }
     DrawDialog(localizer);
+    DrawProfileDialog(localizer, account);
+}
+
+void AccountControl::DrawProfileDialog(const px::ui::Localizer& localizer, const AccountSnapshot& account) {
+    if (profileDialogRequested_) {
+        px::ui::OpenModal({"PersonalCenterDialog"});
+        profileDialogRequested_ = false;
+        invalidProfileName_ = false;
+        invalidProfilePassword_ = false;
+    }
+    px::ui::ModalScope dialog{{"PersonalCenterDialog"}, 520.0F};
+    if (!dialog.Open()) {
+        profileInitialized_ = false;
+        return;
+    }
+    if (!profileInitialized_) {
+        profileName_ = account.username;
+        currentPassword_.clear();
+        newPassword_.clear();
+        newPasswordConfirmation_.clear();
+        profileInitialized_ = true;
+    }
+    static_cast<void>(px::ui::DialogHeader({"close-personal-center"}, localizer.Text(px::ui::TextId::PersonalCenter), {},
+                                           {.icon = px::ui::VectorIcon::User}));
+    const bool working{account.operation == AccountOperationState::Working};
+
+    px::ui::SectionTitle(localizer.Text(px::ui::TextId::ChangeAvatar));
+    if (px::ui::ActionButton({"select-account-avatar"}, localizer.Text(px::ui::TextId::SelectAvatar),
+                             {.variant = px::ui::ButtonVariant::Outline,
+                              .icon = px::ui::VectorIcon::Camera,
+                              .disabled = working})) {
+        if (const auto image = PickAvatarImage())
+            port_->UpdateAvatar(*image);
+    }
+    ImGui::Spacing();
+
+    px::ui::SectionTitle(localizer.Text(px::ui::TextId::UpdateName));
+    px::ui::FieldLabel(localizer.Text(px::ui::TextId::Username));
+    static_cast<void>(px::ui::TextField({"profile-name"}, profileName_, {}, {.disabled = working, .invalid = invalidProfileName_}));
+    if (invalidProfileName_)
+        px::ui::FieldError(localizer.Text(px::ui::TextId::ProfileInputInvalid));
+    if (px::ui::ActionButton({"update-profile-name"}, localizer.Text(px::ui::TextId::UpdateName), {.disabled = working})) {
+        invalidProfileName_ = profileName_.empty();
+        if (!invalidProfileName_)
+            port_->UpdateProfile(profileName_);
+    }
+    ImGui::Spacing();
+
+    px::ui::SectionTitle(localizer.Text(px::ui::TextId::UpdatePassword));
+    px::ui::FieldLabel(localizer.Text(px::ui::TextId::CurrentPassword));
+    static_cast<void>(px::ui::PasswordField({"profile-current-password"}, currentPassword_, {}, {.disabled = working}));
+    px::ui::FieldLabel(localizer.Text(px::ui::TextId::NewPassword));
+    static_cast<void>(px::ui::PasswordField({"profile-new-password"}, newPassword_, {}, {.disabled = working}));
+    px::ui::FieldLabel(localizer.Text(px::ui::TextId::ConfirmNewPassword));
+    static_cast<void>(px::ui::PasswordField({"profile-confirm-password"}, newPasswordConfirmation_, {},
+                                            {.disabled = working, .invalid = invalidProfilePassword_}));
+    if (invalidProfilePassword_)
+        px::ui::FieldError(localizer.Text(px::ui::TextId::PasswordConfirmationInvalid));
+    if (px::ui::ActionButton({"update-profile-password"}, localizer.Text(px::ui::TextId::UpdatePassword), {.disabled = working})) {
+        invalidProfilePassword_ = currentPassword_.empty() || newPassword_.empty() || newPassword_ != newPasswordConfirmation_;
+        if (!invalidProfilePassword_) {
+            port_->UpdatePassword(currentPassword_, newPassword_);
+            currentPassword_.clear();
+            newPassword_.clear();
+            newPasswordConfirmation_.clear();
+        }
+    }
 }
 
 void AccountControl::DrawDialog(const px::ui::Localizer& localizer) {

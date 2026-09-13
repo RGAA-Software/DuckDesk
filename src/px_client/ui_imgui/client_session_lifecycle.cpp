@@ -116,7 +116,8 @@ ClientSessionSnapshot ClientSession::Snapshot() const {
             .virtualDisplayCount = virtualDisplayCount_,
             .virtualDisplayMaximum = virtualDisplayMaximum_,
             .virtualDisplayBusy = !virtualDisplayRequestId_.empty(),
-            .voiceStatus = voiceStatus_};
+            .voiceStatus = voiceStatus_,
+            .remoteCursor = remoteCursor_};
 }
 
 bool ClientSession::SendMedia(const std::shared_ptr<px::Data>& data) const {

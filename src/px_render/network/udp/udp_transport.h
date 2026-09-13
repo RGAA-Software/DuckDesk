@@ -91,8 +91,8 @@ class UdpTransport final : public RenderModule {
     bool HasFileTransferCapacity() const noexcept;
 
     // data: encode video frame, h264/h265/...(编码线程回调,逐帧分包直发)
-    void SubmitEncodedVideo(const std::string& mon_name, const EncodedVideoType& video_type, const std::shared_ptr<Data>& data, uint64_t frame_index,
-                            int frame_width, int frame_height, bool key, EncodedReferenceState reference_state);
+    [[nodiscard]] bool SubmitEncodedVideo(const std::string& mon_name, const EncodedVideoType& video_type, const std::shared_ptr<Data>& data,
+                                          uint64_t frame_index, int frame_width, int frame_height, bool key, EncodedReferenceState reference_state);
 
   private:
     // mon_name -> 单调递增 slot(u8),插件生命周期内保持稳定

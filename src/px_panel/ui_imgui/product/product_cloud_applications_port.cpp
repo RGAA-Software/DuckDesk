@@ -103,6 +103,18 @@ class ProductCloudApplicationsPort final : public ui::CloudApplicationsPort, pub
                 const std::string nonce{GetUUID()};
                 std::string instanceId{existingInstance};
                 std::string instanceState{existingInstance.empty() ? std::string{} : card.instanceState};
+                if (!instanceId.empty()) {
+                    const auto applications = runtime->Console()->QueryApplications();
+                    const auto current = std::ranges::find(applications, card.streamId, &px_console::ConsoleUserApplication::app_id);
+                    if (current != applications.end() && current->running_instance &&
+                        (current->running_instance->state == "starting" || current->running_instance->state == "running")) {
+                        instanceId = current->running_instance->instance_id;
+                        instanceState = current->running_instance->state;
+                    } else {
+                        instanceId.clear();
+                        instanceState.clear();
+                    }
+                }
                 if (instanceId.empty()) {
                     const auto instance = runtime->Console()->StartApplication(card.streamId, nonce);
                     if (!instance) {
@@ -139,14 +151,19 @@ class ProductCloudApplicationsPort final : public ui::CloudApplicationsPort, pub
                     return;
                 }
                 auto connection = runtime->Console()->QueryNativeApplicationConnection(instanceId, viewOnly);
+                for (int attempt{}; !connection && attempt < 40; ++attempt) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds{500});
+                    connection = runtime->Console()->QueryNativeApplicationConnection(instanceId, viewOnly);
+                }
                 if (!connection) {
                     self->SetInstanceState(card.streamId, "running");
+                    const std::string serverMessage{px_console::ConsoleApiLastErrorMessage()};
                     runtime->Notify(true, "Application failed",
-                                    "The application is running, but Console did not return its native connection address. Refresh and retry.");
+                                    serverMessage.empty() ? px_console::ConsoleApiErrorAsString(connection.error()) : serverMessage);
                     return;
                 }
                 PendingLaunch launch{.card = card,
-                                     .connection = std::move(*connection),
+                                     .connection = std::move(connection.value()),
                                      .instanceId = instanceId,
                                      .nonce = nonce,
                                      .sessionId = "app-" + GetUUID(),

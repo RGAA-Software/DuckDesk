@@ -11,7 +11,6 @@ namespace px::ui {
 bool AvatarButton(const WidgetId id, const std::string_view tooltip, const float size, const bool emphasized) {
     const ScopedId scopedId{id.value};
     const ThemeTokens tokens{CurrentThemeTokens()};
-    const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
     const bool pressed{ImGui::InvisibleButton("##avatar", {size, size})};
     const ImVec2 minimum{ImGui::GetItemRectMin()};
     const ImVec2 maximum{ImGui::GetItemRectMax()};
@@ -23,11 +22,6 @@ bool AvatarButton(const WidgetId id, const std::string_view tooltip, const float
     const float iconSize{size * 0.52F};
     DrawVectorIcon(VectorIcon::User, {center.x - iconSize * 0.5F, center.y - iconSize * 0.5F}, iconSize,
                    ImGui::GetColorU32(emphasized ? tokens.primaryForeground : tokens.secondaryForeground));
-    if (ImGui::IsItemFocused()) {
-        const float inset{metrics.borderWidth * 2.0F};
-        draw.AddCircle(center, size * 0.5F + inset, ImGui::GetColorU32({tokens.ring.x, tokens.ring.y, tokens.ring.z, 0.55F}), 48,
-                       metrics.borderWidth * 2.0F);
-    }
     Tooltip(tooltip);
     return pressed;
 }

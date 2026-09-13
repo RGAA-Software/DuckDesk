@@ -1,4 +1,5 @@
 add_library(px_panel_imgui_views STATIC
+    account_avatar_picker.cpp
     account_control.cpp
     about_settings_page.cpp
     cloud_applications_page.cpp
@@ -19,7 +20,7 @@ add_library(px_panel_imgui_views STATIC
     security_records_page.cpp
 )
 
-target_link_libraries(px_panel_imgui_views PUBLIC px_desktop_shell px_ui px_imgui SDL3::SDL3-static PRIVATE px_common)
+target_link_libraries(px_panel_imgui_views PUBLIC px_desktop_shell px_ui px_imgui SDL3::SDL3-static PRIVATE px_common Comdlg32.lib)
 
 add_executable(px_panel_imgui_preview
     main.cpp

@@ -22,6 +22,8 @@
 namespace px::panel::ui {
 namespace {
 
+constexpr ImGuiWindowFlags detailCardFlags{ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse};
+
 std::string Lowercase(std::string value) {
     std::ranges::transform(value, value.begin(), [](const unsigned char character) { return static_cast<char>(std::tolower(character)); });
     return value;
@@ -144,7 +146,7 @@ void DeviceListPage::Draw(const px::ui::Localizer& localizer, const px::desktop:
 
     ImGui::SameLine(0.0F, columnGap);
     {
-        px::ui::CardScope detail{{"DeviceDetail"}, {availableWidth - listWidth - columnGap, contentHeight}};
+        px::ui::CardScope detail{{"DeviceDetail"}, {availableWidth - listWidth - columnGap, contentHeight}, detailCardFlags};
         if (detail.Visible()) {
             const std::string selectedDeviceId{selectedDeviceId_};
             const auto selected = std::ranges::find_if(
@@ -212,9 +214,10 @@ void DeviceListPage::Draw(const px::ui::Localizer& localizer, const px::desktop:
                 const float bottomInset{px::ui::Scale(15.0F)};
                 const float commandGap{ImGui::GetStyle().ItemSpacing.x};
                 const float contentMinimumX{ImGui::GetWindowContentRegionMin().x};
+                const float contentMaximumY{ImGui::GetWindowContentRegionMax().y};
                 const float contentWidth{ImGui::GetWindowContentRegionMax().x - contentMinimumX};
                 const float commandWidth{(contentWidth - commandGap * 2.0F) / 3.0F};
-                ImGui::SetCursorPos({contentMinimumX, ImGui::GetWindowSize().y - bottomInset - commandHeight});
+                ImGui::SetCursorPos({contentMinimumX, contentMaximumY - bottomInset - commandHeight});
                 if (px::ui::ActionButton({"device-list-lock"}, localizer.Text(px::ui::TextId::LockDevice),
                                          {.variant = px::ui::ButtonVariant::Outline,
                                           .icon = px::ui::VectorIcon::Shield,

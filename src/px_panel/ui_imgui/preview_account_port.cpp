@@ -12,6 +12,9 @@ class PreviewAccountPort final : public AccountPort {
         snapshot_ = {.loggedIn = true, .username = std::move(username), .operation = AccountOperationState::Succeeded};
     }
     void Register(std::string username, std::string password) override { Login(std::move(username), std::move(password)); }
+    void UpdateProfile(std::string username) override { snapshot_.username = std::move(username); }
+    void UpdatePassword(std::string, std::string) override { snapshot_.operation = AccountOperationState::Succeeded; }
+    void UpdateAvatar(std::string imagePath) override { snapshot_.avatarPath = std::move(imagePath); }
     void Logout() override { snapshot_ = {}; }
 
   private:

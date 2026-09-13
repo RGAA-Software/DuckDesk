@@ -211,7 +211,7 @@ impl ConsoleServiceConn {
                     }
                 }
                 Err(error) => {
-                    tracing::warn!(request_id = %request_id, "RDP runtime authorization rejected");
+                    tracing::warn!(request_id = %request_id, error = ?error, "RDP runtime authorization rejected");
                     ConsoleServiceValidateRdpSessionResult {
                         request_id,
                         ok: false,

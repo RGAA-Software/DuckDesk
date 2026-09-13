@@ -323,6 +323,14 @@ bool ClientSession::Initialize() {
             self->monitorName_ = info.mon_name_;
         }
     });
+    sdk_->SetOnCursorInfoCallback([weakSelf](const std::shared_ptr<px::Message>& message) {
+        const auto self = weakSelf.lock();
+        if (!self || !message || !message->has_cursor_info_sync() || self->stopped_.load())
+            return;
+        const auto& cursor = message->cursor_info_sync();
+        const std::scoped_lock lock{self->mutex_};
+        self->remoteCursor_ = {.received = true, .visible = cursor.visible(), .type = static_cast<std::uint32_t>(cursor.type())};
+    });
     sdk_->SetOnAudioFrameDecodedCallback([weakSelf](const std::shared_ptr<px::Data>& data, const int samples, const int channels, const int bits) {
         if (const auto self = weakSelf.lock(); self && !self->stopped_.load()) {
             bool enabled{};

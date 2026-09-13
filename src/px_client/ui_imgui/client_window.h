@@ -1,5 +1,6 @@
 #pragma once
 
+#include "client_input_mapper.h"
 #include "client_session.h"
 #include "px_desktop_shell/desktop_shell.h"
 
@@ -7,7 +8,7 @@
 #include <chrono>
 #include <array>
 #include <memory>
-#include <unordered_set>
+#include <unordered_map>
 
 namespace px::client::imgui {
 
@@ -38,7 +39,7 @@ class ClientWindow final {
     float videoHeight_{};
     float lastMouseXRatio_{0.5F};
     float lastMouseYRatio_{0.5F};
-    std::unordered_set<std::uint32_t> pressedKeys_{};
+    std::unordered_map<std::uint32_t, WindowsKey> pressedKeys_{};
     std::array<bool, 4> pressedMouseButtons_{};
     std::array<bool, 4> localPointerButtons_{};
     bool english_{};

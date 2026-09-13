@@ -37,12 +37,12 @@ namespace px
         std::vector<CaptureMonitorInfo> monitors_;
         VirtualDesktopBoundRectangleInfo virtual_desktop_bound_rectangle_info_;
 
-        bool current_key_status_[256] = {false, };
-        bool control_pressed_ = false;
-        bool menu_pressed_ = false;
-        bool delete_pressed_ = false;
-        bool shift_pressed_ = false;
-        bool win_pressed_ = false;
+        bool current_key_status_[256]{};
+        bool control_pressed_{};
+        bool menu_pressed_{};
+        bool delete_pressed_{};
+        bool shift_pressed_{};
+        bool win_pressed_{};
         // 跟踪远端已按下的鼠标键,用于拖动过程中打相对移动日志
         bool left_held_ = false;
         bool middle_held_ = false;

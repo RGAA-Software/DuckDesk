@@ -15,6 +15,7 @@ class AccountControl final {
 
   private:
     void DrawDialog(const px::ui::Localizer& localizer);
+    void DrawProfileDialog(const px::ui::Localizer& localizer, const AccountSnapshot& account);
 
     std::shared_ptr<AccountPort> port_{};
     std::string username_{};
@@ -23,6 +24,14 @@ class AccountControl final {
     bool dialogRequested_{false};
     bool registerMode_{false};
     bool invalidInput_{false};
+    bool profileDialogRequested_{false};
+    bool profileInitialized_{false};
+    bool invalidProfileName_{false};
+    bool invalidProfilePassword_{false};
+    std::string profileName_{};
+    std::string currentPassword_{};
+    std::string newPassword_{};
+    std::string newPasswordConfirmation_{};
 };
 
 } // namespace px::panel::ui

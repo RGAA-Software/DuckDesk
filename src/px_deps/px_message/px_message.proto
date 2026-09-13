@@ -379,6 +379,8 @@ message KeyEvent {
   int32  caps_lock_status = 4;
   LockKeyStatusCheck status_check = 5;
   int64 timestamp = 6;
+  // Windows Set 1 scan code. E0/E1 prefixes are stored in the high byte.
+  uint32 scan_code = 7;
 }
 
 message MouseEvent {

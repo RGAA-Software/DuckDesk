@@ -221,6 +221,16 @@ enum class TextId : std::uint8_t {
     ShareAndWebAccess,
     DeviceCount,
     QrCode,
+    PersonalCenter,
+    ChangeAvatar,
+    SelectAvatar,
+    UpdateName,
+    CurrentPassword,
+    NewPassword,
+    ConfirmNewPassword,
+    UpdatePassword,
+    ProfileInputInvalid,
+    PasswordConfirmationInvalid,
     Count,
 };
 

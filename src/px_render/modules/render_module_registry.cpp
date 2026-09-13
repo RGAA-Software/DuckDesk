@@ -690,16 +690,17 @@ bool RenderModuleRegistry::HasNativeMediaClient() const {
     return udp_transport_ && udp_transport_->ConnectedClientCount() > 0;
 }
 
-void RenderModuleRegistry::PublishNativeEncodedVideo(const std::string& monitor_name, const std::shared_ptr<EncodedVideoFrameEvent>& event) {
+bool RenderModuleRegistry::PublishNativeEncodedVideo(const std::string& monitor_name, const std::shared_ptr<EncodedVideoFrameEvent>& event) {
     std::shared_ptr<UdpTransport> udp{};
     {
         std::shared_lock lock(modules_mtx_);
         udp = udp_transport_;
     }
     if (udp && event && event->data_) {
-        udp->SubmitEncodedVideo(monitor_name, event->type_, event->data_, event->frame_index_, static_cast<int>(event->frame_width_),
-                                static_cast<int>(event->frame_height_), event->key_frame_, event->reference_state_);
+        return udp->SubmitEncodedVideo(monitor_name, event->type_, event->data_, event->frame_index_, static_cast<int>(event->frame_width_),
+                                       static_cast<int>(event->frame_height_), event->key_frame_, event->reference_state_);
     }
+    return false;
 }
 
 void RenderModuleRegistry::PublishEncodedVideoMetadata(const std::string& monitor_name, const std::shared_ptr<EncodedVideoFrameEvent>& event) {

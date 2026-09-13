@@ -221,6 +221,16 @@ constexpr Catalog kEnglish{
     "Share and web access",
     "Total",
     "QR code",
+    "Personal center",
+    "Change avatar",
+    "Select image",
+    "Update name",
+    "Current password",
+    "New password",
+    "Confirm new password",
+    "Update password",
+    "Enter a non-empty name.",
+    "Enter the current password and matching non-empty new passwords.",
 };
 
 constexpr Catalog kSimplifiedChinese{
@@ -434,6 +444,16 @@ constexpr Catalog kSimplifiedChinese{
     "分享与网页访问",
     "共",
     "二维码",
+    "个人中心",
+    "更换头像",
+    "选择图片",
+    "修改名称",
+    "当前密码",
+    "新密码",
+    "确认新密码",
+    "修改密码",
+    "请输入非空名称。",
+    "请输入当前密码，并确保两次新密码一致且非空。",
 };
 
 static_assert(kEnglish.size() == kTextCount);

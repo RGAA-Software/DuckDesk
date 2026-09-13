@@ -174,12 +174,15 @@ namespace px
     void EncodedVideoFanout::DrainVideo() {
         while (const auto delivery = video_backlog_.Pop(std::chrono::steady_clock::now())) {
             if (delivery->discard) {
-                module_registry_->InsertIdr(delivery->frame.stream);
+                if (delivery->request_idr)
+                    module_registry_->InsertIdr(delivery->frame.stream);
                 LOGW("Video backlog rejected dependent/expired frame: stream={}, dropped={}, pending_bytes={}", delivery->frame.stream,
                      video_backlog_.Dropped(), video_backlog_.Bytes());
                 continue;
             }
-            module_registry_->PublishNativeEncodedVideo(delivery->frame.stream, delivery->frame.payload);
+            const bool delivered = module_registry_->PublishNativeEncodedVideo(delivery->frame.stream, delivery->frame.payload);
+            if (video_backlog_.Complete(*delivery, delivered))
+                module_registry_->InsertIdr(delivery->frame.stream);
         }
     }
 }

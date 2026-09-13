@@ -14,6 +14,21 @@ pub struct RdpSessionAuthorization {
 
 pub async fn validate(device_id: &str, instance_id: &str, logical_session_id: &str) -> Result<RdpSessionAuthorization, ConsoleApiError> {
     if !valid_binding(device_id, instance_id, logical_session_id) {
+        let (device_valid, device_invalid_byte) = binding_shape(device_id);
+        let (instance_valid, instance_invalid_byte) = binding_shape(instance_id);
+        let (logical_valid, logical_invalid_byte) = binding_shape(logical_session_id);
+        tracing::warn!(
+            device_valid,
+            device_len = device_id.len(),
+            device_invalid_byte,
+            instance_valid,
+            instance_len = instance_id.len(),
+            instance_invalid_byte,
+            logical_valid,
+            logical_len = logical_session_id.len(),
+            logical_invalid_byte,
+            "RDP runtime binding shape rejected"
+        );
         return Err(ConsoleApiError::InvalidParams);
     }
     let instance = gAppScheduleManager
@@ -66,11 +81,15 @@ pub async fn validate(device_id: &str, instance_id: &str, logical_session_id: &s
 }
 
 fn valid_binding(device: &str, instance: &str, logical: &str) -> bool {
-    [device, instance, logical].iter().all(|value| {
-        !value.is_empty()
-            && value.len() <= 128
-            && value.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-    })
+    [device, instance, logical].iter().all(|value| binding_shape(value).0)
+}
+
+fn binding_shape(value: &str) -> (bool, u8) {
+    let invalid_byte = value
+        .bytes()
+        .find(|byte| !byte.is_ascii_alphanumeric() && !matches!(byte, b'-' | b'_' | b':'))
+        .unwrap_or_default();
+    (!value.is_empty() && value.len() <= 128 && invalid_byte == 0, invalid_byte)
 }
 
 #[cfg(test)]
@@ -80,6 +99,7 @@ mod tests {
     #[test]
     fn runtime_check_requires_bounded_exact_binding() {
         assert!(valid_binding("001190520", "inst-123", "logical-123"));
+        assert!(valid_binding("001190520", "inst-123", "password:0123456789abcdef"));
         assert!(!valid_binding("", "inst", "logical"));
         assert!(!valid_binding("node", "inst", ""));
         assert!(!valid_binding("node", "inst", "logical/other"));

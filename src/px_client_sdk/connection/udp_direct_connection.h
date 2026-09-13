@@ -144,6 +144,7 @@ namespace px
         // 恢复帧再丢也会被下一次判丢触发重发。0 = 关闭节流。
         static constexpr int64_t kRfiThrottleMs = 0;
         static constexpr int64_t kNoFrameTimeoutMs = 2000;
+        static constexpr int64_t kInitialFrameTimeoutMs = 1000;
 
         // 音频判丢日志节流计数(仅 udp io 线程访问):正常交付时清零
         int audio_lost_log_count_ = 0;
