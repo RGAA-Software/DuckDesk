@@ -3,6 +3,7 @@
 #include "px_ui/components/button.h"
 #include "px_ui/components/data_view.h"
 #include "px_ui/components/form.h"
+#include "px_ui/components/identity.h"
 #include "px_ui/components/navigation.h"
 #include "px_ui/components/overlay.h"
 #include "px_ui/components/surface.h"
@@ -71,14 +72,15 @@ ComponentGalleryAction ComponentGallery::Draw() {
         }
         px::ui::ModalScope modal{{"Component dialog"}, 420.0F};
         if (modal.Open()) {
-            px::ui::SectionTitle("Confirm action");
-            px::ui::FieldDescription("This demonstrates a centered, focus-safe dialog.");
-            ImGui::Spacing();
-            if (px::ui::ActionButton({"gallery-cancel"}, "Cancel", {.variant = px::ui::ButtonVariant::Outline})) {
+            static_cast<void>(px::ui::DialogHeader({"gallery-dialog-close"}, "Confirm action", "This demonstrates a centered, focus-safe dialog.",
+                                                   {.icon = px::ui::VectorIcon::Info}));
+            const float buttonWidth{px::ui::Scale(96.0F)};
+            px::ui::DialogFooter(buttonWidth * 2.0F + ImGui::GetStyle().ItemSpacing.x);
+            if (px::ui::ActionButton({"gallery-cancel"}, "Cancel", {.variant = px::ui::ButtonVariant::Outline, .width = buttonWidth})) {
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (px::ui::ActionButton({"gallery-confirm"}, "Confirm")) {
+            if (px::ui::ActionButton({"gallery-confirm"}, "Confirm", {.width = buttonWidth})) {
                 ImGui::CloseCurrentPopup();
             }
         }
@@ -89,6 +91,7 @@ ComponentGalleryAction ComponentGallery::Draw() {
         px::ui::SectionTitle("Form controls");
         px::ui::FieldLabel("Text field");
         static_cast<void>(px::ui::TextField({"gallery-text"}, text_, "Type a value"));
+        static_cast<void>(px::ui::TextField({"gallery-search"}, text_, "Search", {.leadingIcon = px::ui::VectorIcon::Search}));
         px::ui::FieldLabel("Invalid field");
         static_cast<void>(px::ui::TextField({"gallery-invalid"}, invalidText_, "Required", {.invalid = true}));
         px::ui::FieldError("This field is required.");
@@ -99,6 +102,7 @@ ComponentGalleryAction ComponentGallery::Draw() {
         static_cast<void>(px::ui::SelectField({"gallery-select"}, selection_, options, px::ui::Scale(170.0F)));
         static_cast<void>(px::ui::CheckboxField({"gallery-check"}, "Checkbox", checked_));
         static_cast<void>(px::ui::ToggleSwitch({"gallery-switch"}, "Switch", switched_));
+        static_cast<void>(px::ui::AvatarButton({"gallery-avatar"}, "Account", px::ui::Scale(36.0F)));
     }
     {
         px::ui::CardScope card{{"gallery-navigation"}, {columnWidth, px::ui::Scale(210.0F)}};
@@ -110,6 +114,17 @@ ComponentGalleryAction ComponentGallery::Draw() {
         ImGui::SameLine();
         static_cast<void>(px::ui::TabItem({"gallery-tab-b"}, "Inactive tab", false));
         static_cast<void>(px::ui::SelectableRow({"gallery-row"}, "Selectable row", false));
+        if (px::ui::ActionButton({"gallery-menu"}, "Open menu", {.variant = px::ui::ButtonVariant::Outline})) {
+            px::ui::OpenPopup({"gallery-menu-popup"});
+        }
+        px::ui::PopupScope menu{{"gallery-menu-popup"}};
+        if (menu.Open()) {
+            static_cast<void>(px::ui::MenuAction({"gallery-menu-view"}, "View", {.icon = px::ui::VectorIcon::Eye}));
+            static_cast<void>(px::ui::MenuAction({"gallery-menu-edit"}, "Edit", {.icon = px::ui::VectorIcon::Pencil}));
+            px::ui::MenuSeparator();
+            static_cast<void>(px::ui::MenuAction({"gallery-menu-delete"}, "Delete",
+                                                 {.icon = px::ui::VectorIcon::Trash, .variant = px::ui::MenuItemVariant::Destructive}));
+        }
         px::ui::KeyValueRow("Device", "MC-60", px::ui::Scale(120.0F));
         px::ui::Progress(0.65F);
     }

@@ -44,9 +44,18 @@ int main() {
         return 3;
     }
     px::ui::ApplyPixelsTheme(px::ui::Theme::Dark, 1.5F, false);
-    if (px::ui::EnhancedVisualEffectsEnabled()) {
+    const ImVec4 standardDim{ImGui::GetStyle().Colors[ImGuiCol_ModalWindowDimBg]};
+    if (px::ui::EnhancedVisualEffectsEnabled() || !Equal(standardDim.x, 0.0F) || !Equal(standardDim.y, 0.0F) || !Equal(standardDim.z, 0.0F) ||
+        !Equal(standardDim.w, 0.56F)) {
         ImGui::DestroyContext();
         return 6;
+    }
+    px::ui::ApplyPixelsTheme(px::ui::Theme::Light, 1.5F, true);
+    const ImVec4 enhancedDim{ImGui::GetStyle().Colors[ImGuiCol_ModalWindowDimBg]};
+    if (!px::ui::EnhancedVisualEffectsEnabled() || !Equal(enhancedDim.x, 0.0F) || !Equal(enhancedDim.y, 0.0F) || !Equal(enhancedDim.z, 0.0F) ||
+        !Equal(enhancedDim.w, 0.64F) || !Equal(ImGui::GetStyle().Colors[ImGuiCol_NavCursor].w, 0.0F)) {
+        ImGui::DestroyContext();
+        return 8;
     }
     px::ui::ToastHost host{};
     host.Push({.title = "One"});

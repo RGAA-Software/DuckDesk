@@ -1,5 +1,7 @@
 #include "px_ui/vector_icon.h"
 
+#include "px_ui/components/overlay.h"
+
 #include <algorithm>
 #include <array>
 #include <string>
@@ -74,16 +76,14 @@ bool DrawButton(const VectorIcon icon, const std::string_view text, const std::s
                                             color, visible.c_str());
     }
     if (!tooltip.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
-        const std::string textValue{tooltip};
-        ImGui::SetTooltip("%s", textValue.c_str());
+        ShowTooltip(tooltip);
     }
     return pressed;
 }
 
 } // namespace
 
-void DrawVectorIcon(const VectorIcon icon, const ImVec2 topLeft, const float size, const ImU32 color, const float thickness) {
-    auto& draw = *ImGui::GetWindowDrawList();
+void DrawVectorIcon(ImDrawList& draw, const VectorIcon icon, const ImVec2 topLeft, const float size, const ImU32 color, const float thickness) {
     const IconCanvas canvas{.draw = draw, .origin = topLeft, .scale = size / 24.0F, .color = color, .thickness = thickness};
     switch (icon) {
     case VectorIcon::Minimize:
@@ -105,6 +105,35 @@ void DrawVectorIcon(const VectorIcon icon, const ImVec2 topLeft, const float siz
         canvas.Rect(3.0F, 4.0F, 21.0F, 17.0F, 1.5F);
         canvas.Line(8.0F, 21.0F, 16.0F, 21.0F);
         canvas.Line(12.0F, 17.0F, 12.0F, 21.0F);
+        break;
+    case VectorIcon::Gamepad:
+        canvas.Bezier(6.7F, 5.0F, 4.5F, 5.0F, 3.0F, 6.3F, 2.7F, 8.6F);
+        canvas.Bezier(2.7F, 8.6F, 2.5F, 10.2F, 2.0F, 14.6F, 2.0F, 16.0F);
+        canvas.Bezier(2.0F, 16.0F, 2.0F, 18.0F, 3.0F, 19.0F, 5.0F, 19.0F);
+        canvas.Bezier(5.0F, 19.0F, 6.0F, 19.0F, 7.0F, 17.0F, 8.4F, 16.6F);
+        canvas.Bezier(8.4F, 16.6F, 8.8F, 16.2F, 9.3F, 16.0F, 9.8F, 16.0F);
+        canvas.Line(9.8F, 16.0F, 14.2F, 16.0F);
+        canvas.Bezier(14.2F, 16.0F, 14.7F, 16.0F, 15.2F, 16.2F, 15.6F, 16.6F);
+        canvas.Bezier(15.6F, 16.6F, 17.0F, 17.0F, 18.0F, 19.0F, 19.0F, 19.0F);
+        canvas.Bezier(19.0F, 19.0F, 21.0F, 19.0F, 22.0F, 18.0F, 22.0F, 16.0F);
+        canvas.Bezier(22.0F, 16.0F, 22.0F, 14.6F, 21.5F, 10.2F, 21.3F, 8.6F);
+        canvas.Bezier(21.3F, 8.6F, 21.0F, 6.3F, 19.5F, 5.0F, 17.3F, 5.0F);
+        canvas.Line(17.3F, 5.0F, 6.7F, 5.0F);
+        canvas.Line(6.0F, 11.0F, 10.0F, 11.0F);
+        canvas.Line(8.0F, 9.0F, 8.0F, 13.0F);
+        canvas.Circle(15.0F, 12.0F, 0.5F);
+        canvas.Circle(18.0F, 10.0F, 0.5F);
+        break;
+    case VectorIcon::Globe:
+        canvas.Circle(12.0F, 12.0F, 10.0F);
+        canvas.Bezier(12.0F, 2.0F, 7.0F, 7.5F, 7.0F, 16.5F, 12.0F, 22.0F);
+        canvas.Bezier(12.0F, 2.0F, 17.0F, 7.5F, 17.0F, 16.5F, 12.0F, 22.0F);
+        canvas.Line(2.0F, 12.0F, 22.0F, 12.0F);
+        break;
+    case VectorIcon::Panels:
+        canvas.Rect(3.0F, 3.0F, 21.0F, 21.0F, 2.0F);
+        canvas.Line(3.0F, 9.0F, 21.0F, 9.0F);
+        canvas.Line(9.0F, 9.0F, 9.0F, 21.0F);
         break;
     case VectorIcon::Cloud:
         canvas.Bezier(6.0F, 18.0F, 2.0F, 18.0F, 2.0F, 11.0F, 7.0F, 11.0F);
@@ -157,14 +186,22 @@ void DrawVectorIcon(const VectorIcon icon, const ImVec2 topLeft, const float siz
         canvas.Line(4.0F, 16.0F, 8.0F, 16.0F);
         break;
     case VectorIcon::QrCode:
-        canvas.Rect(3.0F, 3.0F, 9.0F, 9.0F, 1.0F);
-        canvas.Rect(15.0F, 3.0F, 21.0F, 9.0F, 1.0F);
-        canvas.Rect(3.0F, 15.0F, 9.0F, 21.0F, 1.0F);
-        canvas.Line(15.0F, 15.0F, 15.0F, 18.0F);
-        canvas.Line(15.0F, 18.0F, 18.0F, 18.0F);
-        canvas.Line(18.0F, 15.0F, 21.0F, 15.0F);
-        canvas.Line(21.0F, 15.0F, 21.0F, 21.0F);
-        canvas.Line(15.0F, 21.0F, 18.0F, 21.0F);
+        canvas.Rect(3.0F, 3.0F, 8.0F, 8.0F, 1.0F);
+        canvas.Rect(16.0F, 3.0F, 21.0F, 8.0F, 1.0F);
+        canvas.Rect(3.0F, 16.0F, 8.0F, 21.0F, 1.0F);
+        canvas.Line(21.0F, 16.0F, 18.0F, 16.0F);
+        canvas.Bezier(18.0F, 16.0F, 16.9F, 16.0F, 16.0F, 16.9F, 16.0F, 18.0F);
+        canvas.Line(16.0F, 18.0F, 16.0F, 21.0F);
+        canvas.Circle(21.0F, 21.0F, 0.45F);
+        canvas.Line(12.0F, 7.0F, 12.0F, 10.0F);
+        canvas.Bezier(12.0F, 10.0F, 12.0F, 11.1F, 11.1F, 12.0F, 10.0F, 12.0F);
+        canvas.Line(10.0F, 12.0F, 7.0F, 12.0F);
+        canvas.Circle(3.0F, 12.0F, 0.45F);
+        canvas.Circle(12.0F, 3.0F, 0.45F);
+        canvas.Circle(12.0F, 16.0F, 0.45F);
+        canvas.Line(16.0F, 12.0F, 17.0F, 12.0F);
+        canvas.Circle(21.0F, 12.0F, 0.45F);
+        canvas.Line(12.0F, 21.0F, 12.0F, 20.0F);
         break;
     case VectorIcon::ExternalLink:
         canvas.Line(14.0F, 4.0F, 20.0F, 4.0F);
@@ -184,6 +221,17 @@ void DrawVectorIcon(const VectorIcon icon, const ImVec2 topLeft, const float siz
         draw.PathStroke(color, ImDrawFlags_None, thickness);
         canvas.Line(6.0F, 20.0F, 4.0F, 15.0F);
         canvas.Line(4.0F, 15.0F, 9.0F, 16.0F);
+        break;
+    case VectorIcon::Restart:
+        draw.PathArcTo(canvas.Point(12.0F, 12.0F), 8.0F * canvas.scale, -1.25F, 4.2F, 24);
+        draw.PathStroke(color, ImDrawFlags_None, thickness);
+        canvas.Line(15.0F, 3.0F, 19.5F, 4.5F);
+        canvas.Line(19.5F, 4.5F, 18.0F, 9.0F);
+        break;
+    case VectorIcon::Power:
+        canvas.Line(12.0F, 2.5F, 12.0F, 12.0F);
+        draw.PathArcTo(canvas.Point(12.0F, 12.0F), 8.0F * canvas.scale, -0.75F, 3.89F, 24);
+        draw.PathStroke(color, ImDrawFlags_None, thickness);
         break;
     case VectorIcon::Connect:
         canvas.Circle(6.0F, 12.0F, 3.0F);
@@ -245,7 +293,112 @@ void DrawVectorIcon(const VectorIcon icon, const ImVec2 topLeft, const float siz
         canvas.Line(10.0F, 11.0F, 10.0F, 17.0F);
         canvas.Line(14.0F, 11.0F, 14.0F, 17.0F);
         break;
+    case VectorIcon::Check:
+        canvas.Line(4.0F, 12.0F, 9.0F, 17.0F);
+        canvas.Line(9.0F, 17.0F, 20.0F, 6.0F);
+        break;
+    case VectorIcon::ChevronRight:
+        canvas.Line(9.0F, 5.0F, 16.0F, 12.0F);
+        canvas.Line(16.0F, 12.0F, 9.0F, 19.0F);
+        break;
+    case VectorIcon::Plus:
+        canvas.Line(12.0F, 5.0F, 12.0F, 19.0F);
+        canvas.Line(5.0F, 12.0F, 19.0F, 12.0F);
+        break;
+    case VectorIcon::Minus:
+        canvas.Line(5.0F, 12.0F, 19.0F, 12.0F);
+        break;
+    case VectorIcon::Camera:
+        canvas.Rect(3.0F, 7.0F, 21.0F, 19.0F, 2.0F);
+        canvas.Line(8.0F, 7.0F, 10.0F, 4.0F);
+        canvas.Line(10.0F, 4.0F, 14.0F, 4.0F);
+        canvas.Line(14.0F, 4.0F, 16.0F, 7.0F);
+        canvas.Circle(12.0F, 13.0F, 3.0F);
+        break;
+    case VectorIcon::Video:
+        canvas.Rect(3.0F, 6.0F, 16.0F, 18.0F, 2.0F);
+        canvas.Line(16.0F, 10.0F, 21.0F, 7.0F);
+        canvas.Line(21.0F, 7.0F, 21.0F, 17.0F);
+        canvas.Line(21.0F, 17.0F, 16.0F, 14.0F);
+        break;
+    case VectorIcon::Phone:
+    case VectorIcon::PhoneOff:
+        canvas.Bezier(6.0F, 3.0F, 8.0F, 8.0F, 11.0F, 13.0F, 16.0F, 17.0F);
+        canvas.Line(6.0F, 3.0F, 3.0F, 6.0F);
+        canvas.Line(3.0F, 6.0F, 7.0F, 13.0F);
+        canvas.Line(7.0F, 13.0F, 11.0F, 12.0F);
+        canvas.Line(11.0F, 12.0F, 17.0F, 21.0F);
+        canvas.Line(17.0F, 21.0F, 21.0F, 18.0F);
+        if (icon == VectorIcon::PhoneOff) {
+            canvas.Line(3.0F, 3.0F, 21.0F, 21.0F);
+        }
+        break;
+    case VectorIcon::Microphone:
+    case VectorIcon::MicrophoneOff:
+        canvas.Rect(9.0F, 3.0F, 15.0F, 14.0F, 3.0F);
+        canvas.Bezier(5.0F, 11.0F, 5.0F, 20.0F, 19.0F, 20.0F, 19.0F, 11.0F);
+        canvas.Line(12.0F, 20.0F, 12.0F, 23.0F);
+        canvas.Line(8.0F, 23.0F, 16.0F, 23.0F);
+        if (icon == VectorIcon::MicrophoneOff) {
+            canvas.Line(3.0F, 3.0F, 21.0F, 21.0F);
+        }
+        break;
+    case VectorIcon::Volume:
+    case VectorIcon::VolumeOff:
+        canvas.Line(4.0F, 9.0F, 8.0F, 9.0F);
+        canvas.Line(8.0F, 9.0F, 13.0F, 5.0F);
+        canvas.Line(13.0F, 5.0F, 13.0F, 19.0F);
+        canvas.Line(13.0F, 19.0F, 8.0F, 15.0F);
+        canvas.Line(8.0F, 15.0F, 4.0F, 15.0F);
+        canvas.Line(4.0F, 15.0F, 4.0F, 9.0F);
+        if (icon == VectorIcon::Volume) {
+            draw.PathArcTo(canvas.Point(14.0F, 12.0F), 5.0F * canvas.scale, -1.05F, 1.05F, 10);
+            draw.PathStroke(color, ImDrawFlags_None, thickness);
+        } else {
+            canvas.Line(16.0F, 9.0F, 21.0F, 14.0F);
+            canvas.Line(21.0F, 9.0F, 16.0F, 14.0F);
+        }
+        break;
+    case VectorIcon::Languages:
+        canvas.Line(4.0F, 5.0F, 14.0F, 5.0F);
+        canvas.Line(9.0F, 3.0F, 9.0F, 5.0F);
+        canvas.Bezier(6.0F, 7.0F, 7.0F, 12.0F, 12.0F, 15.0F, 15.0F, 16.0F);
+        canvas.Bezier(13.0F, 7.0F, 12.0F, 12.0F, 7.0F, 15.0F, 4.0F, 16.0F);
+        canvas.Line(15.0F, 10.0F, 21.0F, 21.0F);
+        canvas.Line(18.0F, 15.0F, 14.0F, 21.0F);
+        canvas.Line(16.0F, 18.0F, 20.0F, 18.0F);
+        break;
+    case VectorIcon::Palette:
+        canvas.Bezier(12.0F, 3.0F, 2.0F, 3.0F, 2.0F, 12.0F, 2.0F, 16.0F);
+        canvas.Bezier(2.0F, 16.0F, 2.0F, 21.0F, 8.0F, 21.0F, 9.0F, 17.0F);
+        canvas.Bezier(9.0F, 17.0F, 10.0F, 14.0F, 14.0F, 16.0F, 17.0F, 16.0F);
+        canvas.Bezier(17.0F, 16.0F, 24.0F, 16.0F, 23.0F, 3.0F, 12.0F, 3.0F);
+        canvas.Circle(7.0F, 9.0F, 1.0F);
+        canvas.Circle(12.0F, 7.0F, 1.0F);
+        canvas.Circle(17.0F, 9.0F, 1.0F);
+        break;
+    case VectorIcon::CircleCheck:
+        canvas.Circle(12.0F, 12.0F, 9.0F);
+        canvas.Line(7.0F, 12.0F, 11.0F, 16.0F);
+        canvas.Line(11.0F, 16.0F, 18.0F, 8.0F);
+        break;
+    case VectorIcon::Info:
+        canvas.Circle(12.0F, 12.0F, 9.0F);
+        canvas.Line(12.0F, 11.0F, 12.0F, 17.0F);
+        canvas.Circle(12.0F, 7.0F, 0.7F);
+        break;
+    case VectorIcon::TriangleAlert:
+        canvas.Line(12.0F, 3.0F, 22.0F, 20.0F);
+        canvas.Line(22.0F, 20.0F, 2.0F, 20.0F);
+        canvas.Line(2.0F, 20.0F, 12.0F, 3.0F);
+        canvas.Line(12.0F, 9.0F, 12.0F, 14.0F);
+        canvas.Circle(12.0F, 17.0F, 0.7F);
+        break;
     }
+}
+
+void DrawVectorIcon(const VectorIcon icon, const ImVec2 topLeft, const float size, const ImU32 color, const float thickness) {
+    DrawVectorIcon(*ImGui::GetWindowDrawList(), icon, topLeft, size, color, thickness);
 }
 
 bool IconButton(const VectorIcon icon, const std::string_view text, const std::string_view id, const ImVec2 size) {

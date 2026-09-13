@@ -147,9 +147,10 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
                 if (event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED && !impl_->renderer.Resize(event.window.data1, event.window.data2)) {
                     return 2;
                 }
-                if (event.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED &&
-                    !impl_->imgui->ApplyAppearance(impl_->theme, impl_->window.DisplayScale(), impl_->enhancedVisualEffects)) {
-                    return 3;
+                if (event.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED) {
+                    if (!impl_->imgui->ApplyAppearance(impl_->theme, impl_->window.DisplayScale(), impl_->enhancedVisualEffects)) {
+                        return 3;
+                    }
                 }
             } while (SDL_PollEvent(&event));
         }
@@ -205,6 +206,10 @@ std::shared_ptr<WindowsVideoResources> DesktopShell::VideoResources(const std::s
 
 const PlatformIconAtlas& DesktopShell::PlatformIcons() const noexcept {
     return impl_->imgui->PlatformIcons();
+}
+
+const BrandLogo& DesktopShell::Logo() const noexcept {
+    return impl_->imgui->Logo();
 }
 
 bool DesktopShell::SetTheme(const px::ui::Theme theme) {

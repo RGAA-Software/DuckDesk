@@ -15,6 +15,9 @@ enum class VectorIcon {
     Restore,
     Close,
     Monitor,
+    Gamepad,
+    Globe,
+    Panels,
     Cloud,
     Activity,
     Shield,
@@ -26,6 +29,8 @@ enum class VectorIcon {
     QrCode,
     ExternalLink,
     Refresh,
+    Restart,
+    Power,
     Connect,
     Play,
     Stop,
@@ -36,9 +41,27 @@ enum class VectorIcon {
     Search,
     FileTransfer,
     Trash,
+    Check,
+    ChevronRight,
+    Plus,
+    Minus,
+    Camera,
+    Video,
+    Phone,
+    PhoneOff,
+    Microphone,
+    MicrophoneOff,
+    Volume,
+    VolumeOff,
+    Languages,
+    Palette,
+    CircleCheck,
+    Info,
+    TriangleAlert,
 };
 
 void DrawVectorIcon(VectorIcon icon, ImVec2 topLeft, float size, ImU32 color, float thickness = 1.8F);
+void DrawVectorIcon(ImDrawList& draw, VectorIcon icon, ImVec2 topLeft, float size, ImU32 color, float thickness = 1.8F);
 
 bool IconButton(VectorIcon icon, std::string_view text, std::string_view id, ImVec2 size = {});
 bool IconOnlyButton(VectorIcon icon, std::string_view id, std::string_view tooltip, ImVec2 size = {});

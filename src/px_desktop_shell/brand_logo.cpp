@@ -1,61 +1,45 @@
 #include "brand_logo.h"
 
-#include "data.h"
-#include "image.h"
+#include "atlas_image_loader.h"
 
 #include <SDL3/SDL.h>
 #include <imgui.h>
 
-#include <cstring>
+#include <array>
 #include <filesystem>
-#include <fstream>
-#include <iterator>
-#include <span>
 #include <string>
-#include <vector>
+#include <string_view>
+#include <utility>
 
 namespace px::desktop {
 
 std::expected<BrandLogo, std::string> BrandLogo::Load() {
     const std::string basePathText{SDL_GetBasePath() == nullptr ? "" : SDL_GetBasePath()};
-    const std::filesystem::path logoPath{std::filesystem::path{basePathText} / "resources" / "icons" / "px_icon.png"};
-    std::ifstream stream{logoPath, std::ios::binary};
-    if (!stream) {
-        return std::unexpected{"Pixels PNG logo is missing: " + logoPath.string()};
+    const std::filesystem::path directory{std::filesystem::path{basePathText} / "resources" / "icons" / "brand"};
+    constexpr std::array<std::string_view, 3> names{"px_icon.png", "px_icon-150.png", "px_icon-200.png"};
+    std::array<ImFontAtlasRectId, 3> rectIds{};
+    for (std::size_t index{}; index < names.size(); ++index) {
+        auto result = LoadRgbaAtlasImage(directory / names[index]);
+        if (!result)
+            return std::unexpected{std::move(result.error())};
+        rectIds[index] = result.value();
     }
-    const std::vector<char> compressed{std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
-    const auto image = px::Image::MakeByCompressedImage(px::Data::Copy(std::span<const char>{compressed}));
-    if (!image || !image->GetData() || image->GetWidth() <= 0 || image->GetHeight() <= 0 || image->GetChannels() != 4) {
-        return std::unexpected{"Pixels PNG logo could not be decoded as RGBA"};
-    }
-
-    ImFontAtlas& atlas{*ImGui::GetIO().Fonts};
-    atlas.TexDesiredFormat = ImTextureFormat_RGBA32;
-    atlas.TexPixelsUseColors = true;
-    ImFontAtlasRect rect{};
-    const ImFontAtlasRectId rectId{atlas.AddCustomRect(image->GetWidth(), image->GetHeight(), &rect)};
-    if (rectId == ImFontAtlasRectId_Invalid || atlas.TexRef._TexData == nullptr || atlas.TexRef._TexData->BytesPerPixel != 4) {
-        return std::unexpected{"Dear ImGui could not allocate the Pixels logo atlas region"};
-    }
-
-    ImTextureData& texture{*atlas.TexRef._TexData}; // NOLINT(gammaray-raw-pointer-boundary): Dear ImGui atlas ABI boundary.
-    const auto pixels = image->GetData()->Bytes();
-    const std::size_t sourcePitch{static_cast<std::size_t>(image->GetWidth()) * 4U};
-    for (int row{}; row < image->GetHeight(); ++row) {
-        std::memcpy(texture.GetPixelsAt(rect.x, rect.y + row), pixels.data() + static_cast<std::size_t>(row) * sourcePitch, sourcePitch);
-    }
-    return BrandLogo{rectId};
+    return BrandLogo{rectIds};
 }
 
-BrandLogo::BrandLogo(const ImFontAtlasRectId atlasRectId) noexcept : atlasRectId_{atlasRectId} {}
+BrandLogo::BrandLogo(std::array<ImFontAtlasRectId, 3> atlasRectIds) noexcept : atlasRectIds_{atlasRectIds} {}
 
 void BrandLogo::Draw(const ImVec2 topLeft, const float size) const {
+    Draw(*ImGui::GetWindowDrawList(), topLeft, size);
+}
+
+void BrandLogo::Draw(ImDrawList& draw, const ImVec2 topLeft, const float size) const {
     ImFontAtlas& atlas{*ImGui::GetIO().Fonts};
     ImFontAtlasRect rect{};
-    if (!atlas.GetCustomRect(atlasRectId_, &rect)) {
+    if (!atlas.GetCustomRect(atlasRectIds_[AtlasDensityIndex(ImGui::GetStyle().FontScaleDpi)], &rect)) {
         return;
     }
-    ImGui::GetWindowDrawList()->AddImage(atlas.TexRef, topLeft, {topLeft.x + size, topLeft.y + size}, rect.uv0, rect.uv1);
+    draw.AddImage(atlas.TexRef, topLeft, {topLeft.x + size, topLeft.y + size}, rect.uv0, rect.uv1);
 }
 
 } // namespace px::desktop

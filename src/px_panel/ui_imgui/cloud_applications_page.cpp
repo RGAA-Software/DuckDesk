@@ -12,7 +12,6 @@
 #include <misc/cpp/imgui_stdlib.h>
 
 #include <algorithm>
-#include <array>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -42,22 +41,27 @@ std::size_t FittingEnd(const std::string_view value, const std::size_t begin, co
     return fitting;
 }
 
-std::array<std::string, 2> TwoLineLabel(const std::string& value, const float width) {
+std::string SingleLineLabel(const std::string& value, const float width) {
     const std::string_view view{value};
-    std::size_t firstEnd{FittingEnd(view, 0, width)};
-    if (firstEnd == view.size())
-        return {value, {}};
-    if (const std::size_t space{view.substr(0, firstEnd).find_last_of(' ')}; space != std::string_view::npos && space > 0)
-        firstEnd = space;
-    std::size_t secondBegin{firstEnd};
-    while (secondBegin < view.size() && view[secondBegin] == ' ')
-        ++secondBegin;
     constexpr std::string_view ellipsis{"..."};
-    const std::size_t fullSecondEnd{FittingEnd(view, secondBegin, width)};
-    if (fullSecondEnd == view.size())
-        return {std::string{view.substr(0, firstEnd)}, std::string{view.substr(secondBegin)}};
-    const std::size_t secondEnd{FittingEnd(view, secondBegin, width, ellipsis)};
-    return {std::string{view.substr(0, firstEnd)}, std::string{view.substr(secondBegin, secondEnd - secondBegin)} + std::string{ellipsis}};
+    if (ImGui::CalcTextSize(value.c_str()).x <= width)
+        return value;
+    const std::size_t end{FittingEnd(view, 0, width, ellipsis)};
+    return std::string{view.substr(0, end)} + std::string{ellipsis};
+}
+
+px::ui::VectorIcon ApplicationIcon(const CloudApplicationKind kind) noexcept {
+    switch (kind) {
+    case CloudApplicationKind::Remote:
+        return px::ui::VectorIcon::Monitor;
+    case CloudApplicationKind::Game:
+        return px::ui::VectorIcon::Gamepad;
+    case CloudApplicationKind::WebView:
+        return px::ui::VectorIcon::Globe;
+    case CloudApplicationKind::Rdp:
+        return px::ui::VectorIcon::Panels;
+    }
+    return px::ui::VectorIcon::Monitor;
 }
 
 } // namespace
@@ -72,12 +76,12 @@ void CloudApplicationsPage::Draw(const px::ui::Localizer& localizer) {
     }
     DrawPasswordDialog(localizer);
     px::ui::PageTitle(localizer.Text(px::ui::TextId::CloudApplications));
-    ImGui::SameLine();
-    if (px::ui::ActionButton({"cloud-refresh"}, localizer.Text(px::ui::TextId::Refresh),
-                             {.variant = px::ui::ButtonVariant::Outline, .icon = px::ui::VectorIcon::Refresh})) {
+    ImGui::SameLine(0.0F, px::ui::Scale(14.0F));
+    if (px::ui::ActionButton(
+            {"cloud-refresh"}, localizer.Text(px::ui::TextId::Refresh),
+            {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::Xs, .icon = px::ui::VectorIcon::Refresh, .circular = true})) {
         port_->Refresh();
     }
-    px::ui::HorizontalSeparator();
     const auto applications = port_->Snapshot();
     if (applications.empty()) {
         px::ui::EmptyState(px::ui::VectorIcon::Cloud, localizer.Text(px::ui::TextId::NoCloudApplications), {});
@@ -97,7 +101,7 @@ void CloudApplicationsPage::Draw(const px::ui::Localizer& localizer) {
 
 void CloudApplicationsPage::DrawApplicationCard(const CloudApplicationCard& application, const px::ui::Localizer& localizer, const std::size_t index,
                                                 const float width) {
-    const ImVec2 cardSize{width, px::ui::Scale(88.0F)};
+    const ImVec2 cardSize{width, px::ui::Scale(60.0F)};
     const ImVec2 minimum{ImGui::GetCursorScreenPos()};
     const ImVec2 maximum{minimum.x + cardSize.x, minimum.y + cardSize.y};
     const std::string id{"cloud-application-" + std::to_string(index) + "-" + application.streamId};
@@ -110,29 +114,28 @@ void CloudApplicationsPage::DrawApplicationCard(const CloudApplicationCard& appl
     const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
     draw.AddRectFilled(minimum, maximum, ImGui::GetColorU32(hovered ? tokens.accent : tokens.card), px::ui::Scale(9.0F));
     draw.AddRect(minimum, maximum, ImGui::GetColorU32(hovered ? tokens.ring : tokens.border), px::ui::Scale(9.0F));
-    px::ui::DrawVectorIcon(px::ui::VectorIcon::Cloud, {minimum.x + px::ui::Scale(14.0F), minimum.y + px::ui::Scale(14.0F)}, px::ui::Scale(22.0F),
-                           ImGui::GetColorU32(tokens.primary));
+    const ImVec2 iconMinimum{minimum.x + px::ui::Scale(14.0F), minimum.y + px::ui::Scale(14.0F)};
+    const float iconTileSize{px::ui::Scale(36.0F)};
+    draw.AddRectFilled(iconMinimum, {iconMinimum.x + iconTileSize, iconMinimum.y + iconTileSize}, ImGui::GetColorU32(tokens.secondary),
+                       px::ui::Scale(8.0F));
+    px::ui::DrawVectorIcon(ApplicationIcon(application.kind), {iconMinimum.x + px::ui::Scale(8.0F), iconMinimum.y + px::ui::Scale(8.0F)},
+                           px::ui::Scale(20.0F), ImGui::GetColorU32(tokens.primary));
     const ImU32 statusColor{ImGui::GetColorU32(running ? tokens.success : busy ? tokens.warning : tokens.mutedForeground)};
-    draw.AddCircleFilled({minimum.x + px::ui::Scale(14.0F), minimum.y + px::ui::Scale(12.0F)}, px::ui::Scale(3.0F), statusColor);
-    draw.AddText({maximum.x - px::ui::Scale(30.0F), minimum.y + px::ui::Scale(7.0F)}, ImGui::GetColorU32(tokens.mutedForeground), "...");
-    const float textRight{maximum.x - px::ui::Scale(14.0F)};
-    const auto lines{TwoLineLabel(application.name, textRight - minimum.x - px::ui::Scale(28.0F))};
-    draw.PushClipRect(minimum, {textRight, maximum.y}, true);
-    draw.AddText({minimum.x + px::ui::Scale(14.0F), minimum.y + px::ui::Scale(28.0F)}, ImGui::GetColorU32(ImGuiCol_Text), lines[0].c_str());
-    if (!lines[1].empty()) {
-        draw.AddText({minimum.x + px::ui::Scale(14.0F), minimum.y + px::ui::Scale(45.0F)}, ImGui::GetColorU32(ImGuiCol_Text), lines[1].c_str());
-    }
+    draw.AddCircleFilled({maximum.x - px::ui::Scale(14.0F), minimum.y + px::ui::Scale(14.0F)}, px::ui::Scale(3.0F), statusColor);
+    const float textLeft{iconMinimum.x + iconTileSize + px::ui::Scale(12.0F)};
+    const float textRight{maximum.x - px::ui::Scale(26.0F)};
+    const auto label{SingleLineLabel(application.name, textRight - textLeft)};
+    draw.PushClipRect({textLeft, minimum.y}, {textRight, maximum.y}, true);
+    draw.AddText({textLeft, minimum.y + px::ui::Scale(8.0F)}, ImGui::GetColorU32(ImGuiCol_Text), label.c_str());
     draw.PopClipRect();
     const std::string state{localizer.Text(running ? px::ui::TextId::Running : px::ui::TextId::Stopped)};
     const ImVec2 stateSize{ImGui::CalcTextSize(state.c_str())};
-    const ImVec2 badgeMin{minimum.x + px::ui::Scale(14.0F), maximum.y - px::ui::Scale(25.0F)};
+    const ImVec2 badgeMin{textLeft, maximum.y - px::ui::Scale(25.0F)};
     const ImVec2 badgeMax{badgeMin.x + stateSize.x + px::ui::Scale(14.0F), badgeMin.y + stateSize.y + px::ui::Scale(4.0F)};
     draw.AddRectFilled(badgeMin, badgeMax, ImGui::GetColorU32(tokens.secondary), (badgeMax.y - badgeMin.y) * 0.5F);
     draw.AddText({badgeMin.x + px::ui::Scale(7.0F), badgeMin.y + px::ui::Scale(2.0F)}, statusColor, state.c_str());
     if (hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !busy)
         port_->Start(application.streamId, false);
-    if (hovered)
-        ImGui::SetTooltip("%s", application.name.c_str());
     {
         px::ui::ContextMenuScope menu{{"ApplicationActions"}};
         if (menu.Open()) {
@@ -145,16 +148,20 @@ void CloudApplicationsPage::DrawApplicationCard(const CloudApplicationCard& appl
 void CloudApplicationsPage::DrawContextMenu(const CloudApplicationCard& application, const px::ui::Localizer& localizer) {
     const bool running{application.instanceState == "running"};
     const bool busy{application.instanceState == "starting" || application.instanceState == "stopping"};
-    if (px::ui::MenuAction({"application-start"}, localizer.Text(px::ui::TextId::StartApplication), !busy))
+    if (px::ui::MenuAction({"application-start"}, localizer.Text(px::ui::TextId::StartApplication),
+                           {.icon = px::ui::VectorIcon::Play, .enabled = !busy}))
         port_->Start(application.streamId, false);
-    if (px::ui::MenuAction({"application-view"}, localizer.Text(px::ui::TextId::ViewOnly), !busy))
+    if (px::ui::MenuAction({"application-view"}, localizer.Text(px::ui::TextId::ViewOnly), {.icon = px::ui::VectorIcon::Eye, .enabled = !busy}))
         port_->Start(application.streamId, true);
-    if (px::ui::MenuAction({"application-stop"}, localizer.Text(px::ui::TextId::StopApplication), running || busy))
+    if (px::ui::MenuAction({"application-stop"}, localizer.Text(px::ui::TextId::StopApplication),
+                           {.icon = px::ui::VectorIcon::Stop, .variant = px::ui::MenuItemVariant::Destructive, .enabled = running || busy}))
         port_->Stop(application.streamId);
-    ImGui::Separator();
-    if (px::ui::MenuAction({"application-force-tcp"}, localizer.Text(px::ui::TextId::ForceTcp), !application.rdpMode, application.forceTcp))
+    px::ui::MenuSeparator();
+    if (px::ui::MenuAction({"application-force-tcp"}, localizer.Text(px::ui::TextId::ForceTcp),
+                           {.icon = px::ui::VectorIcon::Connect, .enabled = !application.rdpMode, .selected = application.forceTcp}))
         port_->SetForceTcp(application.streamId, !application.forceTcp);
-    if (px::ui::MenuAction({"application-force-relay"}, localizer.Text(px::ui::TextId::ForceRelay), !application.rdpMode, application.forceRelay))
+    if (px::ui::MenuAction({"application-force-relay"}, localizer.Text(px::ui::TextId::ForceRelay),
+                           {.icon = px::ui::VectorIcon::Cloud, .enabled = !application.rdpMode, .selected = application.forceRelay}))
         port_->SetForceRelay(application.streamId, !application.forceRelay);
 }
 
@@ -166,18 +173,23 @@ void CloudApplicationsPage::DrawPasswordDialog(const px::ui::Localizer& localize
     px::ui::ModalScope dialog{{"CloudApplicationPassword"}, 420.0F};
     if (!dialog.Open())
         return;
-    px::ui::SectionTitle(localizer.Text(px::ui::TextId::Password));
-    static_cast<void>(px::ui::TextField({"cloud-password"}, password_, {}, {}, ImGuiInputTextFlags_Password));
-    if (px::ui::ActionButton({"cloud-connect"}, localizer.Text(px::ui::TextId::Connect),
-                             {.icon = px::ui::VectorIcon::Connect, .disabled = password_.empty()})) {
-        port_->SubmitPassword(passwordStreamId_, std::move(password_));
+    static_cast<void>(px::ui::DialogHeader({"close-cloud-password"}, localizer.Text(px::ui::TextId::Password), {},
+                                           {.icon = px::ui::VectorIcon::Shield, .closeable = false}));
+    px::ui::FieldLabel(localizer.Text(px::ui::TextId::Password));
+    static_cast<void>(px::ui::PasswordField({"cloud-password"}, password_));
+    const float buttonWidth{px::ui::Scale(96.0F)};
+    px::ui::DialogFooter(buttonWidth * 2.0F + ImGui::GetStyle().ItemSpacing.x);
+    if (px::ui::ActionButton({"cloud-cancel"}, localizer.Text(px::ui::TextId::Cancel),
+                             {.variant = px::ui::ButtonVariant::Outline, .width = buttonWidth})) {
+        port_->CancelPassword(passwordStreamId_);
         passwordStreamId_.clear();
         password_.clear();
         ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
-    if (px::ui::ActionButton({"cloud-cancel"}, localizer.Text(px::ui::TextId::Cancel), {.variant = px::ui::ButtonVariant::Outline})) {
-        port_->CancelPassword(passwordStreamId_);
+    if (px::ui::ActionButton({"cloud-connect"}, localizer.Text(px::ui::TextId::Connect),
+                             {.icon = px::ui::VectorIcon::Connect, .width = buttonWidth, .disabled = password_.empty()})) {
+        port_->SubmitPassword(passwordStreamId_, std::move(password_));
         passwordStreamId_.clear();
         password_.clear();
         ImGui::CloseCurrentPopup();

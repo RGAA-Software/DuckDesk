@@ -1,7 +1,5 @@
 #include "settings_page.h"
-#include "panel_layout.h"
 
-#include "px_ui/components/button.h"
 #include "px_ui/components/navigation.h"
 #include "px_ui/components/surface.h"
 #include "px_ui/layout_metrics.h"
@@ -16,7 +14,7 @@ namespace px::panel::ui {
 SettingsPage::SettingsPage(std::shared_ptr<NetworkSettingsPort> networkPort, std::shared_ptr<SettingsPort> settingsPort)
     : general_{settingsPort}, network_{std::move(networkPort)}, security_{settingsPort}, controller_{settingsPort}, about_{std::move(settingsPort)} {}
 
-void SettingsPage::Draw(const px::ui::Localizer& localizer) {
+std::optional<px::ui::Theme> SettingsPage::Draw(px::ui::Localizer& localizer, px::ui::Theme& theme) {
     struct Section final {
         SettingsSection id{};
         px::ui::TextId label{};
@@ -26,29 +24,23 @@ void SettingsPage::Draw(const px::ui::Localizer& localizer) {
         Section{SettingsSection::Security, px::ui::TextId::Security}, Section{SettingsSection::Controller, px::ui::TextId::Controller},
         Section{SettingsSection::About, px::ui::TextId::About},
     };
-    const float cardHeight{ImGui::GetContentRegionAvail().y};
-    {
-        px::ui::CardScope sectionsCard{
-            {"SettingsSectionsCard"}, {px::ui::Scale(118.0F), cardHeight}, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse};
-        if (sectionsCard.Visible()) {
-            for (const auto& section : sections) {
-                const std::string id{"settings-section-" + std::to_string(static_cast<int>(section.id))};
-                if (px::ui::ActionButton({id}, localizer.Text(section.label),
-                                         {.variant = section.id == selected_ ? px::ui::ButtonVariant::Accent : px::ui::ButtonVariant::Ghost,
-                                          .size = px::ui::WidgetSize::Xs,
-                                          .width = ImGui::GetContentRegionAvail().x})) {
-                    selected_ = section.id;
-                }
-            }
+    const float tabWidth{px::ui::Scale(96.0F)};
+    for (std::size_t index{}; index < sections.size(); ++index) {
+        if (index != 0)
+            ImGui::SameLine();
+        const auto& section = sections[index];
+        const std::string id{"settings-section-" + std::to_string(static_cast<int>(section.id))};
+        if (px::ui::TabItem({id}, localizer.Text(section.label), section.id == selected_, tabWidth)) {
+            selected_ = section.id;
         }
     }
-    ImGui::SameLine(0.0F, layout::CardGap());
+    std::optional<px::ui::Theme> selectedTheme{};
     {
-        px::ui::CardScope contentCard{{"SettingsContentCard"}, {0.0F, cardHeight}};
+        px::ui::CardScope contentCard{{"SettingsContentCard"}, {0.0F, ImGui::GetContentRegionAvail().y}};
         if (contentCard.Visible()) {
             switch (selected_) {
             case SettingsSection::General:
-                general_.Draw(localizer);
+                selectedTheme = general_.Draw(localizer, theme);
                 break;
             case SettingsSection::Network:
                 network_.Draw(localizer);
@@ -65,6 +57,7 @@ void SettingsPage::Draw(const px::ui::Localizer& localizer) {
             }
         }
     }
+    return selectedTheme;
 }
 
 } // namespace px::panel::ui

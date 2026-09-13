@@ -3,6 +3,7 @@ add_library(px_ui STATIC
     components/data_view.cpp
     components/feedback.cpp
     components/form.cpp
+    components/identity.cpp
     components/navigation.cpp
     components/overlay.cpp
     components/surface.cpp

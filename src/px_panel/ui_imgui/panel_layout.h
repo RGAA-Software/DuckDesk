@@ -12,8 +12,8 @@ inline float NavigationGap() noexcept {
     return px::ui::Scale(27.0F);
 }
 
-inline float PageHeaderGap() noexcept {
-    return px::ui::Scale(12.0F);
+inline float PageBottomInset() noexcept {
+    return px::ui::Scale(15.0F);
 }
 
 inline float SectionGap() noexcept {
@@ -25,7 +25,7 @@ inline float CardGap() noexcept {
 }
 
 inline float CompactCardHeight() noexcept {
-    return px::ui::Scale(78.0F);
+    return px::ui::Scale(60.0F);
 }
 
 } // namespace px::panel::ui::layout

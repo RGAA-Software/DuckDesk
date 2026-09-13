@@ -2,6 +2,7 @@
 
 #include "px_ui/components/button.h"
 #include "px_ui/components/form.h"
+#include "px_ui/components/navigation.h"
 #include "px_ui/components/overlay.h"
 #include "px_ui/components/surface.h"
 #include "px_ui/layout_metrics.h"
@@ -41,10 +42,64 @@ void GeneralSettingsPage::Reload() {
     loaded_ = true;
 }
 
-void GeneralSettingsPage::Draw(const px::ui::Localizer& localizer) {
+std::optional<px::ui::Theme> GeneralSettingsPage::Draw(px::ui::Localizer& localizer, px::ui::Theme& theme) {
     if (!loaded_) {
         Reload();
     }
+    std::optional<px::ui::Theme> selectedTheme{};
+    px::ui::SectionTitle(localizer.Text(px::ui::TextId::General));
+    if (ImGui::BeginTable("GeneralAppearanceForm", 2, ImGuiTableFlags_SizingFixedFit)) {
+        ImGui::TableSetupColumn("label", ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(120.0F));
+        ImGui::TableSetupColumn("control", ImGuiTableColumnFlags_WidthStretch);
+
+        ImGui::TableNextRow(ImGuiTableRowFlags_None, px::ui::Scale(40.0F));
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        px::ui::MutedText(localizer.Text(px::ui::TextId::Language));
+        ImGui::TableNextColumn();
+        if (px::ui::SegmentedItem({"language-zh-cn"}, localizer.Text(px::ui::TextId::SimplifiedChinese),
+                                  localizer.CurrentLanguage() == px::ui::Language::SimplifiedChinese, 0.0F, px::ui::WidgetSize::Xs)) {
+            localizer.SetLanguage(px::ui::Language::SimplifiedChinese);
+            port_->SetLanguage(px::ui::Language::SimplifiedChinese);
+        }
+        ImGui::SameLine();
+        if (px::ui::SegmentedItem({"language-en"}, localizer.Text(px::ui::TextId::English), localizer.CurrentLanguage() == px::ui::Language::English,
+                                  0.0F, px::ui::WidgetSize::Xs)) {
+            localizer.SetLanguage(px::ui::Language::English);
+            port_->SetLanguage(px::ui::Language::English);
+        }
+
+        ImGui::TableNextRow(ImGuiTableRowFlags_None, px::ui::Scale(40.0F));
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        px::ui::MutedText(localizer.Text(px::ui::TextId::Theme));
+        ImGui::TableNextColumn();
+        if (px::ui::SegmentedItem({"theme-dark"}, localizer.Text(px::ui::TextId::DarkTheme), theme == px::ui::Theme::Dark, 0.0F,
+                                  px::ui::WidgetSize::Xs)) {
+            theme = px::ui::Theme::Dark;
+            selectedTheme = theme;
+            port_->SetTheme(theme);
+        }
+        ImGui::SameLine();
+        if (px::ui::SegmentedItem({"theme-light"}, localizer.Text(px::ui::TextId::LightTheme), theme == px::ui::Theme::Light, 0.0F,
+                                  px::ui::WidgetSize::Xs)) {
+            theme = px::ui::Theme::Light;
+            selectedTheme = theme;
+            port_->SetTheme(theme);
+        }
+
+        ImGui::TableNextRow(ImGuiTableRowFlags_None, px::ui::Scale(40.0F));
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        px::ui::MutedText(localizer.Text(px::ui::TextId::EnhancedVisualEffects));
+        ImGui::TableNextColumn();
+        bool enhancedVisualEffects{port_->Snapshot().enhancedVisualEffects};
+        if (px::ui::ToggleSwitch({"general-effects"}, {}, enhancedVisualEffects)) {
+            port_->SetEnhancedVisualEffects(enhancedVisualEffects);
+        }
+        ImGui::EndTable();
+    }
+    ImGui::Spacing();
     px::ui::SectionTitle(localizer.Text(px::ui::TextId::EncoderSettings));
     px::ui::HorizontalSeparator();
     const float fieldWidth{px::ui::Scale(190.0F)};
@@ -109,15 +164,6 @@ void GeneralSettingsPage::Draw(const px::ui::Localizer& localizer) {
         ImGui::TableNextColumn();
         static_cast<void>(px::ui::CheckboxField({"general-audio"}, "##capture-audio", draft_.captureAudio));
 
-        ImGui::TableNextRow(ImGuiTableRowFlags_None, px::ui::Scale(40.0F));
-        ImGui::TableNextColumn();
-        ImGui::AlignTextToFramePadding();
-        px::ui::MutedText(localizer.Text(px::ui::TextId::EnhancedVisualEffects));
-        ImGui::TableNextColumn();
-        bool enhancedVisualEffects{port_->Snapshot().enhancedVisualEffects};
-        if (px::ui::ToggleSwitch({"general-effects"}, {}, enhancedVisualEffects)) {
-            port_->SetEnhancedVisualEffects(enhancedVisualEffects);
-        }
         ImGui::EndTable();
     }
     ImGui::Dummy({0.0F, px::ui::Scale(4.0F)});
@@ -136,17 +182,22 @@ void GeneralSettingsPage::Draw(const px::ui::Localizer& localizer) {
     }
     px::ui::ModalScope dialog{{"RestartRenderAfterGeneralSave"}, 440.0F};
     if (dialog.Open()) {
-        px::ui::SectionTitle(localizer.Text(px::ui::TextId::Restart));
-        ImGui::TextUnformatted(localizer.Text(px::ui::TextId::RestartRenderPrompt).data());
-        if (px::ui::ActionButton({"restart-render-now"}, localizer.Text(px::ui::TextId::RestartNow))) {
-            port_->RestartRender();
+        static_cast<void>(px::ui::DialogHeader({"general-restart-close"}, localizer.Text(px::ui::TextId::Restart),
+                                               localizer.Text(px::ui::TextId::RestartRenderPrompt),
+                                               {.icon = px::ui::VectorIcon::Refresh, .closeable = false}));
+        const float buttonWidth{px::ui::Scale(120.0F)};
+        px::ui::DialogFooter(buttonWidth * 2.0F + ImGui::GetStyle().ItemSpacing.x);
+        if (px::ui::ActionButton({"restart-render-later"}, localizer.Text(px::ui::TextId::Later),
+                                 {.variant = px::ui::ButtonVariant::Outline, .width = buttonWidth})) {
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (px::ui::ActionButton({"restart-render-later"}, localizer.Text(px::ui::TextId::Later), {.variant = px::ui::ButtonVariant::Outline})) {
+        if (px::ui::ActionButton({"restart-render-now"}, localizer.Text(px::ui::TextId::RestartNow), {.width = buttonWidth})) {
+            port_->RestartRender();
             ImGui::CloseCurrentPopup();
         }
     }
+    return selectedTheme;
 }
 
 } // namespace px::panel::ui

@@ -17,9 +17,9 @@ class PlatformIconAtlas final {
     void Draw(px::ui::DevicePlatform platform, ImVec2 topLeft, float size, ImU32 tintColor) const;
 
   private:
-    explicit PlatformIconAtlas(std::array<ImFontAtlasRectId, 4> atlasRectIds) noexcept;
+    explicit PlatformIconAtlas(std::array<ImFontAtlasRectId, 12> atlasRectIds) noexcept;
 
-    std::array<ImFontAtlasRectId, 4> atlasRectIds_{};
+    std::array<ImFontAtlasRectId, 12> atlasRectIds_{};
 };
 
 } // namespace px::desktop

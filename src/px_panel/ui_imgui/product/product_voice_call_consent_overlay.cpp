@@ -51,20 +51,23 @@ class ProductVoiceCallConsentOverlay final : public ui::VoiceCallConsentOverlay 
         px::ui::ModalScope dialog{{popupId}, 480.0F};
         if (!dialog.Open())
             return;
-        px::ui::SectionTitle(localizer.Text(px::ui::TextId::VoiceCallIncoming));
-        px::ui::HorizontalSeparator();
-        ImGui::TextWrapped("%s", localizer.Text(px::ui::TextId::VoiceCallRequest).data());
+        static_cast<void>(px::ui::DialogHeader({"voice-call-close"}, localizer.Text(px::ui::TextId::VoiceCallIncoming),
+                                               localizer.Text(px::ui::TextId::VoiceCallRequest),
+                                               {.icon = px::ui::VectorIcon::Phone, .closeable = false}));
         ImGui::TextWrapped("%s", pending->visitorDeviceId.c_str());
         ImGui::TextWrapped("%s", localizer.Text(px::ui::TextId::VoiceCallWarning).data());
         const auto remaining = std::max<std::uint64_t>(1, (pending->expiresAtUnixMs - now + 999) / 1000);
         ImGui::Text("%s %llu", localizer.Text(px::ui::TextId::VoiceCallCountdown).data(), remaining);
+        const float buttonWidth{px::ui::Scale(110.0F)};
+        px::ui::DialogFooter(buttonWidth * 2.0F + ImGui::GetStyle().ItemSpacing.x);
         if (px::ui::ActionButton({"voice-reject"}, localizer.Text(px::ui::TextId::VoiceCallReject),
-                                 {.variant = px::ui::ButtonVariant::Destructive, .width = px::ui::Scale(110.0F)})) {
+                                 {.variant = px::ui::ButtonVariant::Destructive, .icon = px::ui::VectorIcon::PhoneOff, .width = buttonWidth})) {
             runtime_->LocalServer()->ResolveVoiceCall(*pending, false, "rejected");
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (px::ui::ActionButton({"voice-accept"}, localizer.Text(px::ui::TextId::VoiceCallAccept), {.width = px::ui::Scale(110.0F)})) {
+        if (px::ui::ActionButton({"voice-accept"}, localizer.Text(px::ui::TextId::VoiceCallAccept),
+                                 {.icon = px::ui::VectorIcon::Phone, .width = buttonWidth})) {
             runtime_->LocalServer()->ResolveVoiceCall(*pending, true, {});
             ImGui::CloseCurrentPopup();
         }

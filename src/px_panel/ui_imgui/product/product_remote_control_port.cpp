@@ -4,14 +4,18 @@
 #include "panel_device_registration.h"
 #include "panel_product_runtime.h"
 
+#include "px_common/http_client.h"
 #include "px_common/md5.h"
 #include "px_common/uuid.h"
 #include "px_console_client/console_device.h"
 #include "px_console_client/console_device_api.h"
 #include "px_console_client/console_user_device.h"
+#include "px_relay_client/relay_api.h"
 #include "render_api.h"
 
 #include <SDL3/SDL.h>
+
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <atomic>
@@ -19,6 +23,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
+#include <string_view>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
@@ -26,6 +31,46 @@
 
 namespace px::panel::product {
 namespace {
+
+std::string_view DeviceCommandEvent(const ui::RemoteDeviceCommand command) {
+    switch (command) {
+    case ui::RemoteDeviceCommand::Lock:
+        return "lock_screen";
+    case ui::RemoteDeviceCommand::Restart:
+        return "restart_device";
+    case ui::RemoteDeviceCommand::Shutdown:
+        return "shutdown_device";
+    }
+    return {};
+}
+
+std::string_view DeviceCommandName(const ui::RemoteDeviceCommand command) {
+    switch (command) {
+    case ui::RemoteDeviceCommand::Lock:
+        return "Lock screen";
+    case ui::RemoteDeviceCommand::Restart:
+        return "Restart";
+    case ui::RemoteDeviceCommand::Shutdown:
+        return "Shutdown";
+    }
+    return "Device command";
+}
+
+bool SendDirectDeviceCommand(const std::string& host, const int port, const std::string& payload) {
+    if (host.empty() || port <= 0 || port > 65535)
+        return false;
+    const auto client = HttpClient::Make(host, port, "/panel/stream/message", 3000);
+    if (!client)
+        return false;
+    const auto response = client->Post({}, payload, "application/json");
+    if (response.status != 200 || response.body.empty())
+        return false;
+    try {
+        return nlohmann::json::parse(response.body).value("code", 0) == 200;
+    } catch (...) {
+        return false;
+    }
+}
 
 class ProductRemoteControlPort final : public ui::RemoteControlPort, public std::enable_shared_from_this<ProductRemoteControlPort> {
   public:
@@ -233,8 +278,59 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
             static_cast<void>(runtime_->Launcher()->Stop(sessionId));
     }
 
-    void SendDeviceCommand(const std::string&, const ui::RemoteDeviceCommand) override {
-        runtime_->Notify(true, "Pixels", "Device commands require an active control session");
+    void SendDeviceCommand(const std::string& streamId, const ui::RemoteDeviceCommand command) override {
+        ui::RemoteDeviceCard target{};
+        {
+            const std::scoped_lock lock{mutex_};
+            const auto found = std::ranges::find(devices_, streamId, &ui::RemoteDeviceCard::streamId);
+            if (found == devices_.end()) {
+                runtime_->Notify(true, "Device command", "The selected device is no longer in the device list. Refresh and retry.");
+                return;
+            }
+            target = *found;
+        }
+        if (!target.online) {
+            runtime_->Notify(true, std::string{DeviceCommandName(command)}, "The selected device is offline. Refresh its status and retry.");
+            return;
+        }
+
+        const auto runtime = runtime_;
+        const bool queued = runtime_->Worker()->Post([runtime, target = std::move(target), command] {
+            const auto endpoint = runtime->Config()->Console();
+            const auto identity = runtime->Config()->Identity();
+            auto host = target.host;
+            int port{target.port};
+            std::string relayHost{endpoint ? endpoint->host : std::string{}};
+            int relayPort{endpoint ? endpoint->relayPort : 0};
+            std::string relayDeviceId{target.deviceId.empty() ? std::string{} : "server_" + target.deviceId};
+            if (!target.deviceId.empty()) {
+                if (const auto connection = runtime->Console()->QueryNativeDeviceConnection(target.deviceId)) {
+                    if (!connection->host.empty())
+                        host = connection->host;
+                    if (connection->port > 0)
+                        port = connection->port;
+                    if (!connection->relay_host.empty())
+                        relayHost = connection->relay_host;
+                    if (connection->relay_port > 0)
+                        relayPort = connection->relay_port;
+                    if (!connection->signal_device_id.empty())
+                        relayDeviceId = connection->signal_device_id;
+                }
+            }
+
+            const std::string payload{nlohmann::json{{"event", DeviceCommandEvent(command)}, {"from_device", identity.deviceId}}.dump()};
+            bool delivered{SendDirectDeviceCommand(host, port, payload)};
+            if (!delivered && endpoint && !relayHost.empty() && relayPort > 0 && !relayDeviceId.empty()) {
+                const auto result =
+                    px_relay::RelayApi::NotifyEvent(relayHost, relayPort, identity.deviceId, relayDeviceId, payload, endpoint->appKey);
+                delivered = result && result.value() == px_relay::kRelayOk;
+            }
+            runtime->Notify(!delivered, std::string{DeviceCommandName(command)},
+                            delivered ? "The command was sent to the device."
+                                      : "The command could not reach the device through either its direct or relay connection.");
+        });
+        if (!queued)
+            runtime_->Notify(true, std::string{DeviceCommandName(command)}, "The command could not be queued. Please retry.");
     }
 
     void DeleteDevice(const std::string& streamId) override {

@@ -5,8 +5,9 @@
 #include <string>
 
 namespace px::desktop {
+class BrandLogo;
 struct DesktopInputEvent;
-}
+} // namespace px::desktop
 
 namespace px::client::imgui {
 
@@ -24,15 +25,16 @@ struct ClientToolbarAction final {
 class ClientToolbar final {
   public:
     ClientToolbar(std::shared_ptr<ClientFileTransferPanel> fileTransfer, bool enhancedVisualEffects);
-    [[nodiscard]] ClientToolbarAction Draw(const std::shared_ptr<ClientSession>& session, bool english, bool darkTheme);
+    [[nodiscard]] ClientToolbarAction Draw(const std::shared_ptr<ClientSession>& session, const px::desktop::BrandLogo& logo, bool english,
+                                           bool darkTheme);
     [[nodiscard]] bool CapturesPointer(float x, float y) const noexcept;
     [[nodiscard]] bool HandlePointerEvent(const px::desktop::DesktopInputEvent& event);
 
   private:
     enum class Section : std::uint8_t { Display, Control, Tools, Voice, Settings };
 
-    [[nodiscard]] bool DrawLauncher();
-    [[nodiscard]] bool DrawNavigation(const ClientSessionSnapshot& snapshot, bool english);
+    [[nodiscard]] bool DrawLauncher(const px::desktop::BrandLogo& logo);
+    [[nodiscard]] bool DrawNavigation(const ClientSessionSnapshot& snapshot, const px::desktop::BrandLogo& logo, bool english);
     [[nodiscard]] bool DrawSection(const std::shared_ptr<ClientSession>& session, const ClientSessionSnapshot& snapshot, bool english, bool darkTheme,
                                    ClientToolbarAction& action);
 

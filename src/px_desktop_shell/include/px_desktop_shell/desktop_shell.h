@@ -17,6 +17,7 @@ struct WindowsVideoResources;
 namespace px::desktop {
 
 class PlatformIconAtlas;
+class BrandLogo;
 
 struct DesktopInputEvent final {
     std::uint32_t type{};
@@ -68,6 +69,7 @@ class DesktopShell final {
     [[nodiscard]] std::uint64_t VideoTextureId() const noexcept;
     [[nodiscard]] std::shared_ptr<WindowsVideoResources> VideoResources(const std::string& decoderPreference);
     [[nodiscard]] const PlatformIconAtlas& PlatformIcons() const noexcept;
+    [[nodiscard]] const BrandLogo& Logo() const noexcept;
     bool SetTheme(px::ui::Theme theme);
     bool SetEnhancedVisualEffects(bool enabled);
     bool ToggleFullscreen();

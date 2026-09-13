@@ -76,6 +76,7 @@ target_link_libraries(px_panel PRIVATE
     px_panel_imgui_views
     px_common
     px_console_client
+    px_relay_client
     px_cp_message
     px_server_message
     px_rp_message
@@ -84,7 +85,7 @@ target_link_libraries(px_panel PRIVATE
     OpenSSL::Crypto
     Advapi32.lib
 )
-gammaray_stage_platform_icons(px_panel)
+gammaray_stage_desktop_images(px_panel)
 
 set_target_properties(px_panel PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}")
 
@@ -109,7 +110,7 @@ add_custom_command(TARGET px_panel POST_BUILD
         "$<TARGET_FILE_DIR:px_panel>/libplacebo-349.dll"
 )
 target_link_options(px_panel_imgui_preview PRIVATE "/ENTRY:mainCRTStartup")
-gammaray_stage_platform_icons(px_panel_imgui_preview)
+gammaray_stage_desktop_images(px_panel_imgui_preview)
 
 add_executable(px_ui_component_gallery
     component_gallery.cpp
@@ -121,7 +122,7 @@ set_target_properties(px_ui_component_gallery PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 target_link_options(px_ui_component_gallery PRIVATE "/ENTRY:mainCRTStartup")
-gammaray_stage_platform_icons(px_ui_component_gallery)
+gammaray_stage_desktop_images(px_ui_component_gallery)
 
 add_custom_command(TARGET px_panel_imgui_preview POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:px_panel_imgui_preview>/resources/fonts"

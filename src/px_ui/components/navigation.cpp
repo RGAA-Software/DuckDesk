@@ -11,7 +11,7 @@
 namespace px::ui {
 
 bool NavigationItem(const WidgetId id, const VectorIcon icon, const std::string_view label, const bool selected, const float width,
-                    const WidgetSize size, const float height, const float leadingIconInset) {
+                    const WidgetSize size, const float height, const float leadingIconInset, const bool showSelectionIndicator) {
     const ThemeTokens tokens{CurrentThemeTokens()};
     const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
     const ImVec2 minimum{ImGui::GetCursorScreenPos()};
@@ -23,7 +23,7 @@ bool NavigationItem(const WidgetId id, const VectorIcon icon, const std::string_
                           .contentAlignment = leadingIconInset > 0.0F ? ButtonContentAlignment::Leading : ButtonContentAlignment::Center,
                           .contentInset = leadingIconInset};
     const bool pressed{ActionButton(id, label, options)};
-    if (selected) {
+    if (selected && showSelectionIndicator) {
         ImDrawList& draw{*ImGui::GetWindowDrawList()};
         draw.AddRectFilled({minimum.x, minimum.y + metrics.spacingXs},
                            {minimum.x + std::max(metrics.borderWidth * 2.0F, 2.0F), minimum.y + ImGui::GetItemRectSize().y - metrics.spacingXs},

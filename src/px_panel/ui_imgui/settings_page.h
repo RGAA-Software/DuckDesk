@@ -7,9 +7,11 @@
 #include "security_settings_page.h"
 
 #include "px_ui/localization.h"
+#include "px_ui/px_ui_theme.h"
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 
 namespace px::panel::ui {
 
@@ -18,7 +20,7 @@ enum class SettingsSection : std::uint8_t { General, Network, Security, Controll
 class SettingsPage final {
   public:
     SettingsPage(std::shared_ptr<NetworkSettingsPort> networkPort, std::shared_ptr<SettingsPort> settingsPort);
-    void Draw(const px::ui::Localizer& localizer);
+    [[nodiscard]] std::optional<px::ui::Theme> Draw(px::ui::Localizer& localizer, px::ui::Theme& theme);
 
   private:
     SettingsSection selected_{SettingsSection::General};

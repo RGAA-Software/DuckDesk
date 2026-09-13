@@ -40,12 +40,11 @@ void NotificationCenter::Draw() {
         px::ui::OpenModal({popupId});
         px::ui::ModalScope modal{{popupId}, 460.0F, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings};
         if (modal.Open()) {
-            px::ui::SectionTitle(error->title);
-            ImGui::Spacing();
-            ImGui::TextWrapped("%s", error->message.c_str());
-            ImGui::Spacing();
+            static_cast<void>(
+                px::ui::DialogHeader({"notification-error-close"}, error->title, error->message,
+                                     {.icon = px::ui::VectorIcon::TriangleAlert, .tone = px::ui::BadgeVariant::Destructive, .closeable = false}));
             const float buttonWidth{px::ui::Scale(100.0F)};
-            ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - buttonWidth) * 0.5F + ImGui::GetCursorPosX());
+            px::ui::DialogFooter(buttonWidth);
             if (px::ui::ActionButton({"notification-error-ok"}, "OK", {.width = buttonWidth})) {
                 if (error->action) {
                     error->action();
@@ -69,16 +68,26 @@ void NotificationCenter::Draw() {
     ImGui::PushStyleColor(ImGuiCol_WindowBg, tokens.popover);
     ImGui::PushStyleColor(ImGuiCol_Border, tokens.border);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, px::ui::Scale(10.0F));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{px::ui::Scale(14.0F), px::ui::Scale(12.0F)});
     if (ImGui::Begin("Notifications", {}, flags)) {
         for (auto item = active_.begin(); item != active_.end();) {
             if (item->level == NotificationLevel::Error) {
                 ++item;
                 continue;
             }
-            ImGui::TextColored(tokens.primary, "%s", item->title.c_str());
-            ImGui::TextWrapped("%s", item->message.c_str());
-            const std::string dismissId{"OK##notification-" + std::to_string(item->id)};
-            if (px::ui::ActionButton({dismissId}, "OK", {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Sm})) {
+            const ImVec2 start{ImGui::GetCursorScreenPos()};
+            px::ui::DrawVectorIcon(px::ui::VectorIcon::CircleCheck, start, px::ui::Scale(18.0F), ImGui::GetColorU32(tokens.success));
+            ImGui::SetCursorScreenPos({start.x + px::ui::Scale(28.0F), start.y});
+            px::ui::StrongText(item->title);
+            const std::string dismissId{"dismiss##notification-" + std::to_string(item->id)};
+            ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - px::ui::Scale(24.0F));
+            const bool dismissed{px::ui::IconAction({dismissId}, px::ui::VectorIcon::Close, {},
+                                                    {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::IconXs, .circular = true})};
+            ImGui::SetCursorScreenPos({start.x + px::ui::Scale(28.0F), ImGui::GetItemRectMax().y + px::ui::Scale(2.0F)});
+            ImGui::PushTextWrapPos(ImGui::GetWindowContentRegionMax().x - px::ui::Scale(8.0F));
+            px::ui::MutedText(item->message);
+            ImGui::PopTextWrapPos();
+            if (dismissed) {
                 if (item->action) {
                     item->action();
                 }
@@ -87,12 +96,12 @@ void NotificationCenter::Draw() {
                 ++item;
             }
             if (item != active_.end()) {
-                ImGui::Separator();
+                px::ui::MenuSeparator();
             }
         }
     }
     ImGui::End();
-    ImGui::PopStyleVar();
+    ImGui::PopStyleVar(2);
     ImGui::PopStyleColor(2);
 }
 

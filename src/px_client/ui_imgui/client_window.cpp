@@ -71,7 +71,7 @@ void ClientWindow::Draw() {
         if (uploaded)
             uploadedFrame_ = snapshot.frame;
     }
-    const auto toolbarAction = toolbar_->Draw(session_, english_, darkTheme_);
+    const auto toolbarAction = toolbar_->Draw(session_, shell_.get().Logo(), english_, darkTheme_);
     if (toolbarAction.toggleLanguage)
         english_ = !english_;
     if (toolbarAction.toggleTheme) {
@@ -93,13 +93,14 @@ void ClientWindow::Draw() {
         const px::ui::ModalScope modal{
             {popupTitle}, 540.0F, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings};
         if (modal.Open()) {
-            ImGui::TextWrapped("%s", text(FailureText(snapshot.failure)));
+            static_cast<void>(
+                px::ui::DialogHeader({"client-error-close"}, text(ClientText::ConnectionFailed), text(FailureText(snapshot.failure)),
+                                     {.icon = px::ui::VectorIcon::TriangleAlert, .tone = px::ui::BadgeVariant::Destructive, .closeable = false}));
             if (snapshot.failure == ClientConnectionFailure::None && !snapshot.status.empty()) {
                 ImGui::TextWrapped("%s", snapshot.status.c_str());
             }
-            ImGui::Spacing();
             constexpr float buttonWidth{150.0F};
-            ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - buttonWidth) * 0.5F);
+            px::ui::DialogFooter(buttonWidth);
             if (px::ui::ActionButton({"client-error-ok"}, text(ClientText::Ok), {.width = buttonWidth}))
                 shell_.get().RequestExit();
         }

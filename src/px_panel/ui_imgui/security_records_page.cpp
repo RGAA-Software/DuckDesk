@@ -20,7 +20,6 @@ SecurityRecordsPage::SecurityRecordsPage(std::shared_ptr<SecurityRecordsPort> po
 
 void SecurityRecordsPage::Draw(const px::ui::Localizer& localizer) {
     px::ui::PageTitle(localizer.Text(px::ui::TextId::Security));
-    ImGui::Spacing();
     if (px::ui::TabItem({"security-visits"}, localizer.Text(px::ui::TextId::VisitHistory), selected_ == SecurityRecordKind::Visit,
                         px::ui::Scale(84.0F))) {
         selected_ = SecurityRecordKind::Visit;
@@ -124,22 +123,26 @@ void SecurityRecordsPage::DrawDeleteDialog(const px::ui::Localizer& localizer) {
     if (!dialog.Open()) {
         return;
     }
-    px::ui::SectionTitle(localizer.Text(px::ui::TextId::Delete));
-    px::ui::FieldLabel(localizer.Text(px::ui::TextId::EnterLongTermPassword));
-    static_cast<void>(px::ui::TextField({"record-password"}, password_, {}, {.invalid = passwordRejected_}, ImGuiInputTextFlags_Password));
+    static_cast<void>(px::ui::DialogHeader({"record-delete-close"}, localizer.Text(px::ui::TextId::Delete),
+                                           localizer.Text(px::ui::TextId::EnterLongTermPassword),
+                                           {.icon = px::ui::VectorIcon::Trash, .tone = px::ui::BadgeVariant::Destructive, .closeable = false}));
+    static_cast<void>(px::ui::PasswordField({"record-password"}, password_, {}, {.invalid = passwordRejected_}));
     if (passwordRejected_) {
         px::ui::FieldError(localizer.Text(px::ui::TextId::PasswordInvalid));
     }
+    const float buttonWidth{px::ui::Scale(104.0F)};
+    px::ui::DialogFooter(buttonWidth * 2.0F + ImGui::GetStyle().ItemSpacing.x);
+    if (px::ui::ActionButton({"record-delete-cancel"}, localizer.Text(px::ui::TextId::Cancel),
+                             {.variant = px::ui::ButtonVariant::Outline, .width = buttonWidth})) {
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
     if (px::ui::ActionButton({"record-delete-confirm"}, localizer.Text(px::ui::TextId::Delete),
-                             {.variant = px::ui::ButtonVariant::Destructive, .disabled = password_.empty()})) {
+                             {.variant = px::ui::ButtonVariant::Destructive, .width = buttonWidth, .disabled = password_.empty()})) {
         passwordRejected_ = deleteAll_ ? !port_->DeleteAll(selected_, password_) : !port_->Delete(selected_, pendingDeleteId_, password_);
         if (!passwordRejected_) {
             ImGui::CloseCurrentPopup();
         }
-    }
-    ImGui::SameLine();
-    if (px::ui::ActionButton({"record-delete-cancel"}, localizer.Text(px::ui::TextId::Cancel), {.variant = px::ui::ButtonVariant::Outline})) {
-        ImGui::CloseCurrentPopup();
     }
 }
 

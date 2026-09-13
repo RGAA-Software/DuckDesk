@@ -158,11 +158,25 @@ function Publish-DesktopBrandLogo {
         -Source (Join-Path $buildRoot "src\px_deps\resources\fonts\Roboto-Medium.ttf") `
         -Destination (Join-Path $distRoot "resources\fonts\Roboto-Medium.ttf") `
         -ProcessName $ProcessName
+    foreach ($name in @('px_icon.png', 'px_icon-150.png', 'px_icon-200.png')) {
+        Publish-VerifiedFile `
+            -Source (Join-Path $buildRoot ('src\px_deps\resources\icons\brand\' + $name)) `
+            -Destination (Join-Path $distRoot ('resources\icons\brand\' + $name)) `
+            -ProcessName $ProcessName
+    }
+    Publish-VerifiedFile `
+        -Source (Join-Path $buildRoot 'src\px_deps\resources\licenses\FreeType.txt') `
+        -Destination (Join-Path $distRoot 'resources\licenses\FreeType.txt') `
+        -ProcessName $ProcessName
 }
 
 function Publish-DesktopPlatformIcons {
     param([Parameter(Mandatory = $true)][string]$ProcessName)
-    foreach ($name in @('windows.png', 'macos.png', 'android.png', 'ios.png')) {
+    foreach ($name in @(
+        'windows.png', 'windows-150.png', 'windows-200.png',
+        'macos.png', 'macos-150.png', 'macos-200.png',
+        'android.png', 'android-150.png', 'android-200.png',
+        'ios.png', 'ios-150.png', 'ios-200.png')) {
         Publish-VerifiedFile `
             -Source (Join-Path $buildRoot ('src\px_deps\resources\icons\platform\' + $name)) `
             -Destination (Join-Path $distRoot ('resources\icons\platform\' + $name)) `

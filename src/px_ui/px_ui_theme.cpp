@@ -31,7 +31,7 @@ void ApplyPixelsColors(const Theme theme) {
     style.Colors[ImGuiCol_Tab] = tokens.background;
     style.Colors[ImGuiCol_TabHovered] = tokens.muted;
     style.Colors[ImGuiCol_TabSelected] = tokens.accent;
-    style.Colors[ImGuiCol_NavCursor] = tokens.ring;
+    style.Colors[ImGuiCol_NavCursor] = ImVec4{};
 }
 
 void ApplyPixelsTheme(const Theme theme, const float scale, const bool enhancedVisualEffects) {
@@ -55,7 +55,7 @@ void ApplyPixelsTheme(const Theme theme, const float scale, const bool enhancedV
     style.FontScaleDpi = scale;
     ApplyPixelsColors(theme);
     style.Colors[ImGuiCol_PopupBg].w = enhancedVisualEffects ? 0.94F : 1.0F;
-    style.Colors[ImGuiCol_ModalWindowDimBg].w = enhancedVisualEffects ? 0.52F : 0.46F;
+    style.Colors[ImGuiCol_ModalWindowDimBg] = ImVec4{0.0F, 0.0F, 0.0F, enhancedVisualEffects ? 0.64F : 0.56F};
     style.AntiAliasedLines = true;
     style.AntiAliasedFill = true;
 }

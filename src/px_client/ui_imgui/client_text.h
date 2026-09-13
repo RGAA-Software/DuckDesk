@@ -9,6 +9,8 @@ enum class ClientText : std::uint8_t {
     Controls,
     Resolution,
     VirtualDisplays,
+    AddVirtualDisplay,
+    RemoveVirtualDisplay,
     Files,
     SecureAttention,
     Audio,

@@ -28,11 +28,9 @@ void SecuritySettingsPage::Draw(const px::ui::Localizer& localizer) {
     }
     const float fieldWidth{px::ui::Scale(420.0F)};
     px::ui::FieldLabel(localizer.Text(px::ui::TextId::LongTermPassword));
-    static_cast<void>(px::ui::TextField({"security-password"}, password_, {}, {.width = fieldWidth, .invalid = passwordRejected_},
-                                        ImGuiInputTextFlags_Password));
+    static_cast<void>(px::ui::PasswordField({"security-password"}, password_, {}, {.width = fieldWidth, .invalid = passwordRejected_}));
     px::ui::FieldLabel(localizer.Text(px::ui::TextId::ConfirmPassword));
-    static_cast<void>(px::ui::TextField({"security-confirmation"}, confirmation_, {}, {.width = fieldWidth, .invalid = passwordRejected_},
-                                        ImGuiInputTextFlags_Password));
+    static_cast<void>(px::ui::PasswordField({"security-confirmation"}, confirmation_, {}, {.width = fieldWidth, .invalid = passwordRejected_}));
     if (px::ui::ActionButton({"security-set-password"}, localizer.Text(px::ui::TextId::SetPassword))) {
         passwordRejected_ = !port_->SetSecurityPassword(password_, confirmation_);
         if (!passwordRejected_) {
@@ -55,15 +53,13 @@ void SecuritySettingsPage::Draw(const px::ui::Localizer& localizer) {
     ImGui::Spacing();
     px::ui::SectionTitle(localizer.Text(px::ui::TextId::MaintenanceTools));
     px::ui::HorizontalSeparator();
-    if (px::ui::ActionButton({"security-clear-data"}, localizer.Text(px::ui::TextId::ClearData),
-                             {.variant = px::ui::ButtonVariant::Destructive})) {
+    if (px::ui::ActionButton({"security-clear-data"}, localizer.Text(px::ui::TextId::ClearData), {.variant = px::ui::ButtonVariant::Destructive})) {
         confirmClear_ = true;
     }
     px::ui::FieldLabel(localizer.Text(px::ui::TextId::LogDestination));
     static_cast<void>(px::ui::TextField({"log-destination"}, logDestination_));
     const auto logState = port_->Snapshot().logCollection;
-    if (px::ui::ActionButton({"collect-logs"}, localizer.Text(px::ui::TextId::CollectLogs),
-                             {.busy = logState == LogCollectionState::Collecting})) {
+    if (px::ui::ActionButton({"collect-logs"}, localizer.Text(px::ui::TextId::CollectLogs), {.busy = logState == LogCollectionState::Collecting})) {
         port_->CollectLogs(logDestination_);
     }
     if (logState == LogCollectionState::Collecting) {
@@ -82,15 +78,19 @@ void SecuritySettingsPage::Draw(const px::ui::Localizer& localizer) {
     }
     px::ui::ModalScope dialog{{"ConfirmClearPanelData"}, 440.0F};
     if (dialog.Open()) {
-        px::ui::SectionTitle(localizer.Text(px::ui::TextId::ClearData));
-        ImGui::TextUnformatted(localizer.Text(px::ui::TextId::ClearDataPrompt).data());
-        if (px::ui::ActionButton({"clear-panel-data"}, localizer.Text(px::ui::TextId::Clear), {.variant = px::ui::ButtonVariant::Destructive})) {
-            port_->ClearData();
+        static_cast<void>(px::ui::DialogHeader(
+            {"clear-panel-data-close"}, localizer.Text(px::ui::TextId::ClearData), localizer.Text(px::ui::TextId::ClearDataPrompt),
+            {.icon = px::ui::VectorIcon::TriangleAlert, .tone = px::ui::BadgeVariant::Destructive, .closeable = false}));
+        const float buttonWidth{px::ui::Scale(104.0F)};
+        px::ui::DialogFooter(buttonWidth * 2.0F + ImGui::GetStyle().ItemSpacing.x);
+        if (px::ui::ActionButton({"clear-panel-data-cancel"}, localizer.Text(px::ui::TextId::Cancel),
+                                 {.variant = px::ui::ButtonVariant::Outline, .width = buttonWidth})) {
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (px::ui::ActionButton({"clear-panel-data-cancel"}, localizer.Text(px::ui::TextId::Cancel),
-                                 {.variant = px::ui::ButtonVariant::Outline})) {
+        if (px::ui::ActionButton({"clear-panel-data"}, localizer.Text(px::ui::TextId::Clear),
+                                 {.variant = px::ui::ButtonVariant::Destructive, .width = buttonWidth})) {
+            port_->ClearData();
             ImGui::CloseCurrentPopup();
         }
     }

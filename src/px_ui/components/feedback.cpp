@@ -1,6 +1,7 @@
 #include "px_ui/components/feedback.h"
 
 #include "px_ui/components/button.h"
+#include "px_ui/components/surface.h"
 #include "px_ui/theme_tokens.h"
 
 #include <imgui.h>
@@ -8,6 +9,7 @@
 #include <algorithm>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace px::ui {
 namespace {
@@ -23,6 +25,19 @@ ImVec4 AccentFor(const FeedbackVariant variant, const ThemeTokens& tokens) noexc
     case FeedbackVariant::Info:
     default:
         return tokens.primary;
+    }
+}
+
+VectorIcon IconFor(const FeedbackVariant variant) noexcept {
+    switch (variant) {
+    case FeedbackVariant::Success:
+        return VectorIcon::CircleCheck;
+    case FeedbackVariant::Warning:
+    case FeedbackVariant::Error:
+        return VectorIcon::TriangleAlert;
+    case FeedbackVariant::Info:
+    default:
+        return VectorIcon::Info;
     }
 }
 
@@ -48,25 +63,35 @@ void ToastHost::Draw() {
     const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
     const ImGuiViewport& viewport{*ImGui::GetMainViewport()};
     float bottom{viewport.WorkPos.y + viewport.WorkSize.y - metrics.spacingLg};
+    std::vector<std::uint64_t> dismissed{};
     for (auto iterator{entries_.rbegin()}; iterator != entries_.rend(); ++iterator) {
         Entry& entry{*iterator};
         const float height{entry.message.description.empty() ? metrics.controlLg + metrics.spacingMd : metrics.controlLg + metrics.spacingXl};
-        const float width{320.0F * metrics.scale};
+        const float width{360.0F * metrics.scale};
         bottom -= height;
         ImGui::SetNextWindowPos({viewport.WorkPos.x + viewport.WorkSize.x - width - metrics.spacingLg, bottom});
         ImGui::SetNextWindowSize({width, height});
-        ImGui::PushStyleColor(ImGuiCol_WindowBg, tokens.popover);
+        ImVec4 background{tokens.popover};
+        background.w = EnhancedVisualEffectsEnabled() ? 0.96F : 1.0F;
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, background);
         ImGui::PushStyleColor(ImGuiCol_Border, tokens.border);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, metrics.popupRadius);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{metrics.spacingLg, metrics.spacingMd});
         const std::string windowId{"##px-toast-" + std::to_string(entry.id)};
-        if (ImGui::Begin(windowId.c_str(), {}, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove |
-                                                   ImGuiWindowFlags_NoNavFocus)) {
+        if (ImGui::Begin(windowId.c_str(), {},
+                         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoNavFocus)) {
             const ImVec4 accent{AccentFor(entry.message.variant, tokens)};
-            ImGui::PushStyleColor(ImGuiCol_Text, accent);
-            ImGui::TextUnformatted(entry.message.title.c_str());
-            ImGui::PopStyleColor();
+            const ImVec2 start{ImGui::GetCursorScreenPos()};
+            DrawVectorIcon(IconFor(entry.message.variant), start, metrics.iconDefault, ImGui::GetColorU32(accent));
+            ImGui::SetCursorScreenPos({start.x + metrics.iconDefault + metrics.spacingSm, start.y});
+            StrongText(entry.message.title);
+            ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - metrics.controlXs);
+            const std::string closeId{"toast-close-" + std::to_string(entry.id)};
+            if (IconAction({closeId}, VectorIcon::Close, {}, {.variant = ButtonVariant::Ghost, .size = WidgetSize::IconXs, .circular = true})) {
+                dismissed.push_back(entry.id);
+            }
             if (!entry.message.description.empty()) {
+                ImGui::SetCursorPosX(ImGui::GetCursorPosX() + metrics.iconDefault + metrics.spacingSm);
                 ImGui::PushStyleColor(ImGuiCol_Text, tokens.mutedForeground);
                 ImGui::TextWrapped("%s", entry.message.description.c_str());
                 ImGui::PopStyleColor();
@@ -77,6 +102,7 @@ void ToastHost::Draw() {
         ImGui::PopStyleColor(2);
         bottom -= metrics.spacingSm;
     }
+    std::erase_if(entries_, [&dismissed](const Entry& entry) { return std::ranges::find(dismissed, entry.id) != dismissed.end(); });
 }
 
 void ToastHost::Clear() noexcept {
@@ -101,13 +127,15 @@ void InlineAlert(const std::string_view title, const std::string_view descriptio
     ImDrawList& draw{*ImGui::GetWindowDrawList()};
     const ImVec4 background{accent.x, accent.y, accent.z, 0.10F};
     draw.AddRectFilled(minimum, {minimum.x + width, minimum.y + height}, ImGui::GetColorU32(background), metrics.controlRadius);
-    draw.AddRect(minimum, {minimum.x + width, minimum.y + height}, ImGui::GetColorU32({accent.x, accent.y, accent.z, 0.35F}),
-                 metrics.controlRadius);
+    draw.AddRect(minimum, {minimum.x + width, minimum.y + height}, ImGui::GetColorU32({accent.x, accent.y, accent.z, 0.35F}), metrics.controlRadius);
+    const float iconSize{metrics.iconDefault};
+    const float textLeft{minimum.x + metrics.spacingLg + iconSize + metrics.spacingSm};
+    DrawVectorIcon(IconFor(variant), {minimum.x + metrics.spacingLg, minimum.y + metrics.spacingMd}, iconSize, ImGui::GetColorU32(accent));
     const std::string visibleTitle{title};
     const std::string visibleDescription{description};
-    draw.AddText({minimum.x + metrics.spacingLg, minimum.y + metrics.spacingMd}, ImGui::GetColorU32(accent), visibleTitle.c_str());
-    draw.AddText({minimum.x + metrics.spacingLg, minimum.y + metrics.spacingMd + titleSize.y + metrics.spacingXs},
-                 ImGui::GetColorU32(tokens.mutedForeground), visibleDescription.c_str());
+    draw.AddText({textLeft, minimum.y + metrics.spacingMd}, ImGui::GetColorU32(accent), visibleTitle.c_str());
+    draw.AddText({textLeft, minimum.y + metrics.spacingMd + titleSize.y + metrics.spacingXs}, ImGui::GetColorU32(tokens.mutedForeground),
+                 visibleDescription.c_str());
 }
 
 } // namespace px::ui

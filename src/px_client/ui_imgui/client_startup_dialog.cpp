@@ -40,14 +40,12 @@ StartupDialogAction ShowStartupDialog(const std::string_view message, const std:
         const px::ui::ModalScope modal{{"Pixels##startup-dialog"}, 620.0F, flags};
         if (!modal.Open())
             return;
-        if (error)
-            ImGui::PushStyleColor(ImGuiCol_Text, px::ui::CurrentThemeTokens().destructive);
-        ImGui::TextWrapped("%s", messageText.c_str());
-        if (error)
-            ImGui::PopStyleColor();
-        ImGui::Spacing();
+        static_cast<void>(px::ui::DialogHeader({"startup-dialog-close"}, "Pixels", messageText,
+                                               {.icon = error ? px::ui::VectorIcon::TriangleAlert : px::ui::VectorIcon::Info,
+                                                .tone = error ? px::ui::BadgeVariant::Destructive : px::ui::BadgeVariant::Default,
+                                                .closeable = false}));
         constexpr float buttonWidth{160.0F};
-        ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - buttonWidth) * 0.5F);
+        px::ui::DialogFooter(buttonWidth);
         if (px::ui::ActionButton({"startup-dialog-action"}, buttonText, {.width = buttonWidth})) {
             accepted = true;
             shell.RequestExit();

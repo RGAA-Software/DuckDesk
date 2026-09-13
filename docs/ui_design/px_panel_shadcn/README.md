@@ -1,6 +1,6 @@
 # px_panel shadcn/ui 视觉重设计
 
-状态：视觉对齐返工中，上一版组件接入未通过设计验收
+状态：共享组件与 Panel/Client 接入已完成本轮返工，等待实机视觉验收
 
 2026-09-13 复检结论：上一版完成了组件封装和功能接线，但侧栏宽度、DPI 字体、卡片比例、页面栅格与设计稿存在明显偏差，不能记为完成。
 当前以 960 × 640 logical px / 150% DPI 实拍为硬基准逐页返工；只有设计对齐、功能回归和发布哈希三项都通过后才恢复“完成”状态。
@@ -41,10 +41,13 @@
 3. 控件紧凑：默认控件高 34 logical px，小控件 28 logical px，图标按钮按同档高度取正方形；DPI 只在运行时应用一次。
 4. 圆角克制：输入框和按钮 6 px，内部卡片 10 px，浮层 10 px。外层窗口不使用这些值。
 5. 状态完整：每个可交互组件必须具有 normal、hover、active、focus、disabled 和 invalid 状态。
-6. 图标统一：操作图标使用项目选定的 Lucide SVG 几何，保持 1.75 px 视觉线宽和 16/18/20 px 三档尺寸；标题栏品牌标识必须使用项目已有的
-   `web/px_web_client/src/assets/px_icon.png`，不得重新绘制近似 Logo 或使用字符模拟品牌图标。最近设备卡片使用固定版本
+6. 图标统一：操作图标使用项目选定的 Lucide SVG 几何，保持 1.75 px 视觉线宽和 16/18/20 px 三档尺寸；标题栏和 Client 悬浮球的品牌标识
+   必须使用从 `src/px_panel/icon.ico` 原生帧提取的 32/48/64 px PNG，不得重新绘制近似 Logo 或使用字符模拟品牌图标。最近设备卡片使用固定版本
    `@tabler/icons-png@3.34.1` 的 Windows、Apple、Android、App Store PNG，按主题前景色着色；来源与 MIT 许可证随运行时发布到
    `resources/licenses/Tabler.txt`。
+7. 1080p 清晰度：正文基础字号为 16 logical px；Roboto Regular、Roboto Medium 和两套字体合并的微软雅黑字形统一由 FreeType 原生 hinting
+   光栅化。标题 Logo 与平台 PNG 提供 100%/150%/200% 三档资源并按当前显示缩放选择，避免从单张大图做过度缩小采样。FreeType 许可证随
+   运行时发布到 `resources/licenses/FreeType.txt`。
 
 ## 4. 语义令牌
 
@@ -57,15 +60,17 @@
 | `muted_foreground` | `#71717A` | `#A1A1AA` | 辅助文字 |
 | `border` | `#E4E4E7` | `#27272A` | 常规边框 |
 | `input` | `#D4D4D8` | `#3F3F46` | 输入控件边框 |
-| `primary` | `#2563EB` | `#3B82F6` | Pixels 主操作/选中 |
+| `primary` | `#007F49` | `#009A59` | Pixels 主操作/选中，取自产品图标主体绿；浅色主题加深以保证白字对比度 |
 | `primary_foreground` | `#FFFFFF` | `#FFFFFF` | 主按钮文字 |
-| `accent` | `#EFF6FF` | `#172554` | hover/选中弱背景 |
+| `accent` | `#ECFDF5` | `#052E22` | hover/选中弱背景 |
 | `success` | `#16A34A` | `#22C55E` | 在线/正常 |
 | `warning` | `#D97706` | `#F59E0B` | 重试/降级 |
 | `destructive` | `#DC2626` | `#EF4444` | 删除/错误 |
-| `ring` | `#3B82F6` | `#60A5FA` | 键盘焦点环 |
+| `ring` | `#009A59` | `#8CEEC0` | 键盘焦点环；深色高光取自产品图标薄荷绿 |
 
 透明度只能由主题系统生成，页面不得硬编码 alpha。文本对比度按 WCAG AA 验证。
+
+产品 Logo 直接从 `src/px_panel/icon.ico` 的原生 32、48、64 像素帧提取，分别用于 100%、150%、200% DPI；不得从低分辨率帧放大。
 
 ## 5. shadcn 到 Dear ImGui 的组件映射
 
@@ -113,8 +118,7 @@
 
 ### 设备列表
 
-- 搜索和刷新构成页头下的唯一工具栏，不放进列表 Card。
-- 主体采用 38%/62% master-detail：左侧设备列表负责查找与选择，右侧详情负责阅读和操作。
+- 主体采用约 39%/61% 的双列 master-detail：左列 Card 内依次放置设备数量、刷新、搜索和设备列表；右列详情只负责阅读与操作。
 - 列表项只展示在线状态、设备名和 9 位码/IP；选中后右侧展示名称、ID、主机、端口、状态。
 - 操作分成两行：第一行开始控制（primary）、仅观看（outline）；第二行文件传输、复制、编辑设备（ghost/outline）。删除位于详情右下角的 destructive 区域，与常规动作拉开距离。
 - 删除后首页最近设备和设备列表使用同一数据源同步更新。
@@ -217,4 +221,13 @@ src/px_panel/ui_imgui/
 
 实现使用 `src/px_ui` 的语义主题、RAII 样式范围以及按钮、表单、导航、数据、浮层和反馈组件。Panel 与 Client 页面不再直接创建可由组件表达的原始 ImGui 按钮、输入、复选、下拉、滑杆、进度条、菜单项或模态框。Panel 持久化的语言、深浅主题与普通/高级视觉效果通过启动信封同步给 Native/RDP Client；缺失新字段的旧启动数据继续使用兼容默认值。
 
-高级模式当前提供半透明内部浮层和双层柔和阴影；普通模式使用不透明表面。真正的背景采样模糊仍按能力降级规则关闭，未把 D3D11 专属实现塞入跨平台 `px_ui`，也未改变外层 Windows 10/11 系统轮廓。
+高级模式当前提供半透明内部浮层和悬浮控制器柔和阴影；普通模式使用不透明表面。真正的背景采样模糊仍按能力降级规则关闭，未把 D3D11 专属实现塞入跨平台 `px_ui`，也未改变外层 Windows 10/11 系统轮廓。
+
+### 2026-09-13 组件复检结果
+
+- Button：primary、secondary、accent、outline、ghost、destructive、link、图标、忙碌、禁用与 focus ring 已统一。
+- Form：Text、Search、Password、TextArea、带加减按钮的 Number、Slider、Checkbox、Switch、Select 已统一；密码显示按钮和选中标记不再由页面拼装。
+- Overlay：所有现存 Panel/Client Modal 均使用无原生 ImGui 标题条的 Dialog Header/Content/Footer；Context Menu 使用自绘图标项、危险项、禁用项和分隔线。
+- Feedback：Inline Alert、右下角 Toast、错误 Dialog、Tooltip 均使用语义状态图标和主题令牌。
+- Identity/Navigation/Data：Avatar、Badge、侧栏项、Tabs、Selectable Row、空状态、Spinner、Progress 已进入共享组件层。
+- Client：悬浮球使用产品 Logo；一级菜单和显示、控制、工具、语音、设置二级菜单的可见文字与动作图标已经补齐。

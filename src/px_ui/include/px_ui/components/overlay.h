@@ -4,6 +4,7 @@
 
 #include <imgui.h>
 
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -57,7 +58,28 @@ class ContextMenuScope final {
     bool open_{false};
 };
 
+enum class MenuItemVariant { Default, Destructive };
+
+struct MenuActionOptions final {
+    std::optional<VectorIcon> icon{};
+    std::string_view shortcut{};
+    MenuItemVariant variant{MenuItemVariant::Default};
+    bool enabled{true};
+    bool selected{false};
+};
+
+struct DialogHeaderOptions final {
+    std::optional<VectorIcon> icon{};
+    BadgeVariant tone{BadgeVariant::Secondary};
+    bool closeable{true};
+};
+
+[[nodiscard]] bool DialogHeader(WidgetId closeId, std::string_view title, std::string_view description = {}, const DialogHeaderOptions& options = {});
+void DialogFooter(float actionsWidth = 0.0F);
+void ShowTooltip(std::string_view text);
 void Tooltip(std::string_view text);
+void MenuSeparator();
+[[nodiscard]] bool MenuAction(WidgetId id, std::string_view label, const MenuActionOptions& options);
 [[nodiscard]] bool MenuAction(WidgetId id, std::string_view label, bool enabled = true, bool selected = false);
 
 } // namespace px::ui

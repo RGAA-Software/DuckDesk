@@ -8,12 +8,23 @@
 
 #include <chrono>
 #include <mutex>
+#include <string_view>
 #include <thread>
 #include <unordered_map>
 #include <utility>
 
 namespace px::panel::product {
 namespace {
+
+ui::CloudApplicationKind ResolveApplicationKind(const std::string_view appType) noexcept {
+    if (appType == "game-hook" || appType == "game")
+        return ui::CloudApplicationKind::Game;
+    if (appType == "webview")
+        return ui::CloudApplicationKind::WebView;
+    if (appType == "rdp")
+        return ui::CloudApplicationKind::Rdp;
+    return ui::CloudApplicationKind::Remote;
+}
 
 class ProductCloudApplicationsPort final : public ui::CloudApplicationsPort, public std::enable_shared_from_this<ProductCloudApplicationsPort> {
   public:
@@ -51,7 +62,8 @@ class ProductCloudApplicationsPort final : public ui::CloudApplicationsPort, pub
                 cards.push_back({.streamId = application.app_id,
                                  .name = application.name,
                                  .instanceState = application.running_instance ? application.running_instance->state : "stopped",
-                                 .rdpMode = application.access_mode == "rdp",
+                                 .kind = ResolveApplicationKind(application.app_type),
+                                 .rdpMode = application.app_type == "rdp",
                                  .forceTcp = forceTcp,
                                  .forceRelay = forceRelay});
                 if (application.running_instance)

@@ -3,15 +3,17 @@
 #include "settings_port.h"
 
 #include "px_ui/localization.h"
+#include "px_ui/px_ui_theme.h"
 
 #include <memory>
+#include <optional>
 
 namespace px::panel::ui {
 
 class GeneralSettingsPage final {
   public:
     explicit GeneralSettingsPage(std::shared_ptr<SettingsPort> port);
-    void Draw(const px::ui::Localizer& localizer);
+    [[nodiscard]] std::optional<px::ui::Theme> Draw(px::ui::Localizer& localizer, px::ui::Theme& theme);
 
   private:
     void Reload();

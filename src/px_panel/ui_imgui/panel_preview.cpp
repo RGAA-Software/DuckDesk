@@ -1,26 +1,14 @@
 #include "panel_preview.h"
 #include "panel_layout.h"
 
-#include "px_ui/components/navigation.h"
 #include "px_ui/components/surface.h"
 #include "px_ui/layout_metrics.h"
 
 #include <imgui.h>
 
-#include <algorithm>
-#include <string_view>
 #include <utility>
 
 namespace px::panel::ui {
-namespace {
-
-void DrawDisabledText(const std::string_view text) {
-    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-    ImGui::TextUnformatted(text.data(), text.data() + text.size());
-    ImGui::PopStyleColor();
-}
-
-} // namespace
 
 PanelPreview::PanelPreview(PanelPreviewServices services)
     : settingsPort_{services.settings}, notifications_{std::move(services.notifications)}, voiceCallConsent_{std::move(services.voiceCallConsent)},
@@ -35,39 +23,9 @@ PanelPreview::PanelPreview(PanelPreviewServices services)
 
 PanelPreviewAction PanelPreview::DrawSettingsPage() {
     PanelPreviewAction action{};
-    const auto text = [&localizer = localizer_](const px::ui::TextId id) { return localizer.Text(id); };
-    ImGui::BeginChild("SettingsPage", ImVec2{-px::ui::Scale(10.0F), 0.0F}, ImGuiChildFlags_None);
-    px::ui::PageTitle(text(px::ui::TextId::Settings));
-    const auto buttonWidth = [&text](const px::ui::TextId id) { return ImGui::CalcTextSize(text(id).data()).x + px::ui::Scale(16.0F); };
-    const float toolbarWidth{buttonWidth(px::ui::TextId::SimplifiedChinese) + buttonWidth(px::ui::TextId::English) +
-                             buttonWidth(px::ui::TextId::DarkTheme) + buttonWidth(px::ui::TextId::LightTheme) +
-                             ImGui::GetStyle().ItemSpacing.x * 3.0F};
-    ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - toolbarWidth));
-    if (px::ui::SegmentedItem({"language-zh-cn"}, text(px::ui::TextId::SimplifiedChinese),
-                              localizer_.CurrentLanguage() == px::ui::Language::SimplifiedChinese, 0.0F, px::ui::WidgetSize::Xs)) {
-        localizer_.SetLanguage(px::ui::Language::SimplifiedChinese);
-        settingsPort_->SetLanguage(px::ui::Language::SimplifiedChinese);
-    }
-    ImGui::SameLine();
-    if (px::ui::SegmentedItem({"language-en"}, text(px::ui::TextId::English), localizer_.CurrentLanguage() == px::ui::Language::English, 0.0F,
-                              px::ui::WidgetSize::Xs)) {
-        localizer_.SetLanguage(px::ui::Language::English);
-        settingsPort_->SetLanguage(px::ui::Language::English);
-    }
-    ImGui::SameLine();
-    if (px::ui::SegmentedItem({"theme-dark"}, text(px::ui::TextId::DarkTheme), theme_ == px::ui::Theme::Dark, 0.0F, px::ui::WidgetSize::Xs)) {
-        theme_ = px::ui::Theme::Dark;
-        action.selectedTheme = theme_;
-        settingsPort_->SetTheme(theme_);
-    }
-    ImGui::SameLine();
-    if (px::ui::SegmentedItem({"theme-light"}, text(px::ui::TextId::LightTheme), theme_ == px::ui::Theme::Light, 0.0F, px::ui::WidgetSize::Xs)) {
-        theme_ = px::ui::Theme::Light;
-        action.selectedTheme = theme_;
-        settingsPort_->SetTheme(theme_);
-    }
-    ImGui::Dummy({0.0F, layout::PageHeaderGap()});
-    settings_.Draw(localizer_);
+    ImGui::BeginChild("SettingsPage", ImVec2{-px::ui::Scale(10.0F), -layout::PageBottomInset()}, ImGuiChildFlags_None);
+    px::ui::PageTitle(localizer_.Text(px::ui::TextId::Settings));
+    action.selectedTheme = settings_.Draw(localizer_, theme_);
     const bool currentEffects{settingsPort_->Snapshot().enhancedVisualEffects};
     if (currentEffects != enhancedVisualEffects_) {
         enhancedVisualEffects_ = currentEffects;
@@ -96,11 +54,14 @@ PanelPreviewAction PanelPreview::Draw(const px::desktop::PlatformIconAtlas& plat
             voiceCallConsent_->Draw(localizer_);
         return action;
     }
-    ImGui::BeginChild("PageContent", ImVec2{-px::ui::Scale(10.0F), 0.0F}, ImGuiChildFlags_None);
+    const ImGuiWindowFlags pageFlags{navigationAction.selectedPage == PanelPage::RemoteControl
+                                         ? ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse
+                                         : ImGuiWindowFlags_None};
+    ImGui::BeginChild("PageContent", ImVec2{-px::ui::Scale(10.0F), -layout::PageBottomInset()}, ImGuiChildFlags_None, pageFlags);
     if (navigationAction.selectedPage == PanelPage::RemoteControl) {
         remoteControl_.Draw(localizer_, platformIcons);
     } else if (navigationAction.selectedPage == PanelPage::DeviceList) {
-        deviceList_.Draw(localizer_);
+        deviceList_.Draw(localizer_, platformIcons);
     } else if (navigationAction.selectedPage == PanelPage::CloudApplications) {
         cloudApplications_.Draw(localizer_);
     } else if (navigationAction.selectedPage == PanelPage::ServerStatus) {

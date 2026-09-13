@@ -158,15 +158,19 @@ void ClientFileTransferPanel::Draw(const std::shared_ptr<ClientSession>& session
         px::ui::OpenModal({"file-overwrite"});
         const px::ui::ModalScope modal{{"file-overwrite"}, 520.0F};
         if (modal.Open()) {
-            ImGui::TextWrapped("%s\n%s", text(ClientText::DestinationExists), overwrite->path.c_str());
+            static_cast<void>(
+                px::ui::DialogHeader({"file-overwrite-close"}, text(ClientText::DestinationExists), overwrite->path,
+                                     {.icon = px::ui::VectorIcon::TriangleAlert, .tone = px::ui::BadgeVariant::Warning, .closeable = false}));
             static_cast<void>(px::ui::CheckboxField({"overwrite-apply-all"}, text(ClientText::ApplyToAll), applyOverwriteToAll_));
-            if (px::ui::ActionButton({"overwrite-confirm"}, text(ClientText::Overwrite), {.width = 130.0F})) {
-                static_cast<void>(session->ConfirmOverwrite(true, applyOverwriteToAll_));
+            constexpr float buttonWidth{130.0F};
+            px::ui::DialogFooter(buttonWidth * 2.0F + ImGui::GetStyle().ItemSpacing.x);
+            if (px::ui::ActionButton({"overwrite-skip"}, text(ClientText::Skip), {.variant = px::ui::ButtonVariant::Outline, .width = buttonWidth})) {
+                static_cast<void>(session->ConfirmOverwrite(false, applyOverwriteToAll_));
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (px::ui::ActionButton({"overwrite-skip"}, text(ClientText::Skip), {.variant = px::ui::ButtonVariant::Secondary, .width = 130.0F})) {
-                static_cast<void>(session->ConfirmOverwrite(false, applyOverwriteToAll_));
+            if (px::ui::ActionButton({"overwrite-confirm"}, text(ClientText::Overwrite), {.width = buttonWidth})) {
+                static_cast<void>(session->ConfirmOverwrite(true, applyOverwriteToAll_));
                 ImGui::CloseCurrentPopup();
             }
         }

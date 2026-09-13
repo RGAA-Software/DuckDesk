@@ -3,6 +3,14 @@
 
 #include <imgui.h>
 
+namespace {
+
+bool UsesGreenBrandColor(const ImVec4 color) noexcept {
+    return color.y > color.x && color.y > color.z;
+}
+
+} // namespace
+
 int main() {
     if (!px::ui::CatalogsAreComplete()) {
         return 1;
@@ -12,9 +20,18 @@ int main() {
     if (localizer.Text(px::ui::TextId::Settings).empty()) {
         return 2;
     }
+    if (localizer.Text(px::ui::TextId::DesktopLink) != "桌面链接") {
+        return 7;
+    }
+    if (localizer.Text(px::ui::TextId::CloudApplications) != "云端应用") {
+        return 8;
+    }
     localizer.SetLanguage(px::ui::Language::English);
     if (localizer.Text(px::ui::TextId::Settings) != "Settings") {
         return 3;
+    }
+    if (localizer.Text(px::ui::TextId::CloudApplications) != "Cloud Apps") {
+        return 9;
     }
 
     ImGui::CreateContext();
@@ -28,9 +45,13 @@ int main() {
     }
     px::ui::ApplyPixelsColors(px::ui::Theme::Light);
     const ImVec4 lightBackground{ImGui::GetStyle().Colors[ImGuiCol_WindowBg]};
+    const ImVec4 lightPrimary{ImGui::GetStyle().Colors[ImGuiCol_Button]};
     ImGui::DestroyContext();
     if (darkBackground.x == lightBackground.x && darkBackground.y == lightBackground.y && darkBackground.z == lightBackground.z) {
         return 5;
+    }
+    if (!UsesGreenBrandColor(lightPrimary)) {
+        return 6;
     }
     return 0;
 }

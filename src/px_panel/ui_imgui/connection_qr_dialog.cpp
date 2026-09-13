@@ -15,9 +15,23 @@
 #include <utility>
 
 namespace px::panel::ui {
+namespace {
 
-void ConnectionQrDialog::Open(std::string value) {
+px::ui::TextId ContextText(const ConnectionQrKind kind) noexcept {
+    switch (kind) {
+    case ConnectionQrKind::DesktopLink:
+        return px::ui::TextId::DesktopLink;
+    case ConnectionQrKind::WebClientAddress:
+        return px::ui::TextId::WebClientAddress;
+    }
+    return px::ui::TextId::DesktopLink;
+}
+
+} // namespace
+
+void ConnectionQrDialog::Open(std::string value, const ConnectionQrKind kind) {
     value_ = std::move(value);
+    kind_ = kind;
     pixels_.clear();
     moduleCount_ = 0;
     if (!value_.empty()) {
@@ -43,7 +57,8 @@ void ConnectionQrDialog::Draw(const px::ui::Localizer& localizer) {
         return;
     }
 
-    px::ui::SectionTitle(localizer.Text(px::ui::TextId::QrCode));
+    const std::string title{std::string{localizer.Text(px::ui::TextId::QrCode)} + " (" + std::string{localizer.Text(ContextText(kind_))} + ")"};
+    static_cast<void>(px::ui::DialogHeader({"close-connection-qr-header"}, title, {}, {.icon = px::ui::VectorIcon::QrCode, .closeable = false}));
     const std::size_t moduleCount{static_cast<std::size_t>(moduleCount_)};
     const std::size_t expectedPixels{std::multiplies<std::size_t>{}(std::multiplies<std::size_t>{}(moduleCount, moduleCount), 4U)};
     if (moduleCount_ > 0 && pixels_.size() == expectedPixels) {
@@ -73,8 +88,9 @@ void ConnectionQrDialog::Draw(const px::ui::Localizer& localizer) {
     } else {
         px::ui::MutedText(localizer.Text(px::ui::TextId::OperationFailed));
     }
-    ImGui::Spacing();
-    if (px::ui::ActionButton({"close-connection-qr"}, localizer.Text(px::ui::TextId::Confirm))) {
+    const float buttonWidth{px::ui::Scale(96.0F)};
+    px::ui::DialogFooter(buttonWidth);
+    if (px::ui::ActionButton({"close-connection-qr"}, localizer.Text(px::ui::TextId::Confirm), {.width = buttonWidth})) {
         ImGui::CloseCurrentPopup();
     }
 }

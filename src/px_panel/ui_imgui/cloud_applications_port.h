@@ -7,10 +7,13 @@
 
 namespace px::panel::ui {
 
+enum class CloudApplicationKind { Remote, Game, WebView, Rdp };
+
 struct CloudApplicationCard final {
     std::string streamId{};
     std::string name{};
     std::string instanceState{};
+    CloudApplicationKind kind{CloudApplicationKind::Remote};
     bool rdpMode{false};
     bool forceTcp{false};
     bool forceRelay{false};

@@ -64,16 +64,19 @@ void NetworkSettingsPresenter::DrawRestartConfirmation(const px::ui::Localizer& 
     }
     px::ui::ModalScope dialog{{"RestartConfirmation"}, 440.0F};
     if (dialog.Open()) {
-        px::ui::SectionTitle(localizer.Text(px::ui::TextId::Restart));
-        ImGui::TextUnformatted(localizer.Text(px::ui::TextId::RestartRenderPrompt).data());
-        if (px::ui::ActionButton({"network-restart-now"}, localizer.Text(px::ui::TextId::RestartNow), {.width = px::ui::Scale(140.0F)})) {
-            port_->RestartRender();
+        static_cast<void>(px::ui::DialogHeader({"network-restart-close"}, localizer.Text(px::ui::TextId::Restart),
+                                               localizer.Text(px::ui::TextId::RestartRenderPrompt),
+                                               {.icon = px::ui::VectorIcon::Refresh, .closeable = false}));
+        const float buttonWidth{px::ui::Scale(140.0F)};
+        px::ui::DialogFooter(buttonWidth * 2.0F + ImGui::GetStyle().ItemSpacing.x);
+        if (px::ui::ActionButton({"network-restart-later"}, localizer.Text(px::ui::TextId::Later),
+                                 {.variant = px::ui::ButtonVariant::Outline, .width = buttonWidth})) {
+            port_->Acknowledge();
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (px::ui::ActionButton({"network-restart-later"}, localizer.Text(px::ui::TextId::Later),
-                                 {.variant = px::ui::ButtonVariant::Outline, .width = px::ui::Scale(140.0F)})) {
-            port_->Acknowledge();
+        if (px::ui::ActionButton({"network-restart-now"}, localizer.Text(px::ui::TextId::RestartNow), {.width = buttonWidth})) {
+            port_->RestartRender();
             ImGui::CloseCurrentPopup();
         }
     }

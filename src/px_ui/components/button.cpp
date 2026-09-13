@@ -1,11 +1,13 @@
 #include "px_ui/components/button.h"
 
+#include "px_ui/components/overlay.h"
 #include "px_ui/style_scope.h"
 #include "px_ui/theme_tokens.h"
 
 #include <imgui.h>
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 
 namespace px::ui {
@@ -114,8 +116,16 @@ bool ActionButton(const WidgetId id, const std::string_view label, const ButtonO
     ImDrawList& draw{*ImGui::GetWindowDrawList()};
     const ImU32 color{ImGui::GetColorU32(palette.text)};
     if (options.busy) {
-        const ImVec2 busySize{ImGui::CalcTextSize("...")};
-        draw.AddText({minimum.x + (size.x - busySize.x) * 0.5F, minimum.y + (size.y - busySize.y) * 0.5F}, color, "...");
+        const float radius{metrics.iconSm * 0.42F};
+        const ImVec2 center{minimum.x + size.x * 0.5F, minimum.y + size.y * 0.5F};
+        constexpr int segments{20};
+        const float start{static_cast<float>(std::fmod(ImGui::GetTime() * 5.0, 6.283185307179586))};
+        draw.PathClear();
+        for (int index{}; index < segments; ++index) {
+            const float angle{start + static_cast<float>(index) / static_cast<float>(segments - 1) * 4.8F};
+            draw.PathLineTo({center.x + std::cos(angle) * radius, center.y + std::sin(angle) * radius});
+        }
+        draw.PathStroke(color, ImDrawFlags_None, std::max(1.5F, metrics.borderWidth * 1.5F));
         return false;
     }
 
@@ -129,6 +139,10 @@ bool ActionButton(const WidgetId id, const std::string_view label, const ButtonO
         const std::string visible{label};
         draw.AddText({left, minimum.y + (maximum.y - minimum.y - textSize.y) * 0.5F}, color, visible.c_str());
     }
+    if (options.variant == ButtonVariant::Link && ImGui::IsItemHovered()) {
+        const float underlineY{minimum.y + (maximum.y - minimum.y + textSize.y) * 0.5F + metrics.borderWidth};
+        draw.AddLine({left, underlineY}, {left + textSize.x, underlineY}, color, metrics.borderWidth);
+    }
     return pressed;
 }
 
@@ -139,9 +153,8 @@ bool IconAction(const WidgetId id, const VectorIcon icon, const std::string_view
         resolved.size = WidgetSize::Icon;
     }
     const bool pressed{ActionButton(id, {}, resolved)};
-    if (!tooltip.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
-        const std::string visible{tooltip};
-        ImGui::SetTooltip("%s", visible.c_str());
+    if (!tooltip.empty()) {
+        Tooltip(tooltip);
     }
     return pressed;
 }

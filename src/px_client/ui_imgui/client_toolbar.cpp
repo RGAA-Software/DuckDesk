@@ -3,11 +3,13 @@
 #include "client_file_transfer_panel.h"
 #include "client_session.h"
 #include "client_text.h"
+#include "px_desktop_shell/brand_logo.h"
 #include "px_desktop_shell/desktop_shell.h"
 #include "px_ui/components/button.h"
 #include "px_ui/components/data_view.h"
 #include "px_ui/components/form.h"
 #include "px_ui/components/navigation.h"
+#include "px_ui/components/overlay.h"
 #include "px_ui/components/surface.h"
 #include "px_ui/style_scope.h"
 #include "px_ui/theme_tokens.h"
@@ -117,12 +119,13 @@ bool ClientToolbar::HandlePointerEvent(const px::desktop::DesktopInputEvent& eve
     return launcherPointerDown_ || CapturesPointer(event.x, event.y);
 }
 
-ClientToolbarAction ClientToolbar::Draw(const std::shared_ptr<ClientSession>& session, const bool english, const bool darkTheme) {
+ClientToolbarAction ClientToolbar::Draw(const std::shared_ptr<ClientSession>& session, const px::desktop::BrandLogo& logo, const bool english,
+                                        const bool darkTheme) {
     ClientToolbarAction action{};
-    bool hovered{DrawLauncher()};
+    bool hovered{DrawLauncher(logo)};
     if (expanded_) {
         const auto snapshot = session->Snapshot();
-        hovered = DrawNavigation(snapshot, english) || hovered;
+        hovered = DrawNavigation(snapshot, logo, english) || hovered;
         if (sectionExpanded_) {
             hovered = DrawSection(session, snapshot, english, darkTheme, action) || hovered;
         } else {
@@ -135,7 +138,7 @@ ClientToolbarAction ClientToolbar::Draw(const std::shared_ptr<ClientSession>& se
     return action;
 }
 
-bool ClientToolbar::DrawLauncher() {
+bool ClientToolbar::DrawLauncher(const px::desktop::BrandLogo& logo) {
     const auto& viewport = *ImGui::GetMainViewport();
     const float fontSize{ImGui::GetFontSize()};
     const float diameter{fontSize * 2.8F};
@@ -167,22 +170,25 @@ bool ClientToolbar::DrawLauncher() {
         drawList.AddCircleFilled(center, radius + 7.0F, ImGui::GetColorU32(ImVec4{0.0F, 0.0F, 0.0F, 0.08F}), 48);
         drawList.AddCircleFilled(center, radius + 4.0F, ImGui::GetColorU32(ImVec4{0.0F, 0.0F, 0.0F, 0.12F}), 48);
     }
-    const ImU32 color{ImGui::GetColorU32(launcherPointerDown_ ? tokens.ring : tokens.primary)};
-    drawList.AddCircleFilled(center, radius, color, 48);
-    const ImVec2 textSize{ImGui::CalcTextSize("P")};
-    drawList.AddText({center.x - textSize.x * 0.5F, center.y - textSize.y * 0.5F}, ImGui::GetColorU32(tokens.primaryForeground), "P");
-    if (hovered)
-        ImGui::SetTooltip("Pixels");
+    const ImVec4 surface{launcherPointerDown_ ? tokens.accent : tokens.popover};
+    drawList.AddCircleFilled(center, radius, ImGui::GetColorU32(surface), 48);
+    drawList.AddCircle(center, radius, ImGui::GetColorU32(hovered || launcherPointerDown_ ? tokens.ring : tokens.border), 48,
+                       std::max(1.0F, ImGui::GetStyle().FontScaleDpi));
+    const float logoSize{diameter * 0.62F};
+    logo.Draw(drawList, {center.x - logoSize * 0.5F, center.y - logoSize * 0.5F}, logoSize);
+    if (hovered) {
+        px::ui::ShowTooltip("Pixels");
+    }
     return hovered || launcherPointerDown_;
 }
 
-bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const bool english) {
+bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const px::desktop::BrandLogo& logo, const bool english) {
     const auto text = [english](const ClientText id) { return ClientTextValue(id, english).data(); };
     const auto& viewport = *ImGui::GetMainViewport();
-    const float fontSize{ImGui::GetFontSize()};
-    const float menuWidth{fontSize * 13.0F};
-    const float menuHeight{fontSize * 18.0F};
-    const float spacing{fontSize * 0.6F};
+    const px::ui::UiMetrics metrics{px::ui::MetricsFor(ImGui::GetStyle().FontScaleDpi)};
+    const float menuWidth{220.0F * metrics.scale};
+    const float menuHeight{326.0F * metrics.scale};
+    const float spacing{metrics.spacingMd};
     const bool openLeft{launcherBounds_.x + launcherBounds_.width * 0.5F > viewport.WorkPos.x + viewport.WorkSize.x * 0.5F};
     const float navigationX{openLeft ? launcherBounds_.x - menuWidth - spacing : launcherBounds_.x + launcherBounds_.width + spacing};
     const float y{ClampMenuY(viewport, launcherBounds_.y + launcherBounds_.height * 0.5F - menuHeight * 0.5F, menuHeight)};
@@ -196,9 +202,15 @@ bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const 
     }
     const px::ui::ScopedStyleColor background{ImGuiCol_WindowBg, tokens.popover};
     const px::ui::ScopedStyleColor border{ImGuiCol_Border, tokens.border};
-    const px::ui::ScopedStyleVar rounding{ImGuiStyleVar_WindowRounding, px::ui::MetricsFor(ImGui::GetStyle().FontScaleDpi).popupRadius};
+    const px::ui::ScopedStyleVar rounding{ImGuiStyleVar_WindowRounding, metrics.popupRadius};
+    const px::ui::ScopedStyleVar padding{ImGuiStyleVar_WindowPadding, ImVec2{metrics.spacingMd, metrics.spacingMd}};
+    const px::ui::ScopedStyleVar spacingStyle{ImGuiStyleVar_ItemSpacing, ImVec2{metrics.spacingSm, metrics.spacingSm}};
     ImGui::Begin("##pixels-controller-navigation", {}, kOverlayFlags);
-    ImGui::TextUnformatted("Pixels");
+    const ImVec2 headerStart{ImGui::GetCursorScreenPos()};
+    logo.Draw({headerStart.x, headerStart.y}, metrics.iconLg);
+    ImGui::Dummy({metrics.iconLg, metrics.iconLg});
+    ImGui::SameLine();
+    px::ui::StrongText("Pixels");
     ImGui::SameLine();
     px::ui::StatusBadge(text(StatusText(snapshot.state)),
                         snapshot.state == ClientConnectionState::Connected ? px::ui::BadgeVariant::Success : px::ui::BadgeVariant::Secondary);
@@ -207,15 +219,16 @@ bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const 
     auto& selectedSection = section_;
     auto& sectionExpanded = sectionExpanded_;
     auto& sectionNeedsFocus = sectionNeedsFocus_;
-    const auto navigationItem = [&selectedSection, &sectionExpanded, &sectionNeedsFocus](const std::string_view label, const Section section,
-                                                                                         const bool enabled = true) {
+    const auto navigationItem = [&selectedSection, &sectionExpanded, &sectionNeedsFocus, &metrics](const std::string_view label,
+                                                                                                   const Section section, const bool enabled = true) {
         const px::ui::VectorIcon icon{section == Section::Display   ? px::ui::VectorIcon::Monitor
                                       : section == Section::Control ? px::ui::VectorIcon::Connect
                                       : section == Section::Tools   ? px::ui::VectorIcon::FileTransfer
-                                      : section == Section::Voice   ? px::ui::VectorIcon::User
+                                      : section == Section::Voice   ? px::ui::VectorIcon::Phone
                                                                     : px::ui::VectorIcon::Settings};
         ImGui::BeginDisabled(!enabled);
-        const bool selected{px::ui::NavigationItem({label}, icon, label, selectedSection == section, -1.0F)};
+        const bool selected{px::ui::NavigationItem({label}, icon, label, selectedSection == section, -1.0F, px::ui::WidgetSize::Sm,
+                                                   metrics.controlDefault, metrics.spacingMd)};
         if (enabled && (selected || ImGui::IsItemHovered())) {
             if (!sectionExpanded || selectedSection != section)
                 sectionNeedsFocus = true;
@@ -232,6 +245,10 @@ bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const 
 
     px::ui::HorizontalSeparator();
     const std::string statistics{"FPS " + std::to_string(snapshot.framesPerSecond) + "  " + std::to_string(snapshot.latencyMilliseconds) + " ms"};
+    const ImVec2 statisticsStart{ImGui::GetCursorScreenPos()};
+    px::ui::DrawVectorIcon(px::ui::VectorIcon::Activity, statisticsStart, metrics.iconDefault, ImGui::GetColorU32(tokens.mutedForeground));
+    ImGui::Dummy({metrics.iconDefault, metrics.iconDefault});
+    ImGui::SameLine();
     px::ui::MutedText(statistics);
     const ImVec2 windowPosition{ImGui::GetWindowPos()};
     const ImVec2 windowSize{ImGui::GetWindowSize()};
@@ -245,14 +262,14 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
                                 const bool darkTheme, ClientToolbarAction& action) {
     const auto text = [english](const ClientText id) { return ClientTextValue(id, english).data(); };
     const auto& viewport = *ImGui::GetMainViewport();
-    const float fontSize{ImGui::GetFontSize()};
-    const float navigationWidth{fontSize * 13.0F};
-    const float sectionWidth{fontSize * 18.0F};
-    const float menuHeight{fontSize * 18.0F};
-    const float spacing{fontSize * 0.4F};
+    const px::ui::UiMetrics metrics{px::ui::MetricsFor(ImGui::GetStyle().FontScaleDpi)};
+    const float navigationWidth{220.0F * metrics.scale};
+    const float sectionWidth{310.0F * metrics.scale};
+    const float menuHeight{430.0F * metrics.scale};
+    const float spacing{metrics.spacingSm};
     const bool openLeft{launcherBounds_.x + launcherBounds_.width * 0.5F > viewport.WorkPos.x + viewport.WorkSize.x * 0.5F};
-    const float navigationX{openLeft ? launcherBounds_.x - navigationWidth - fontSize * 0.6F
-                                     : launcherBounds_.x + launcherBounds_.width + fontSize * 0.6F};
+    const float navigationX{openLeft ? launcherBounds_.x - navigationWidth - metrics.spacingMd
+                                     : launcherBounds_.x + launcherBounds_.width + metrics.spacingMd};
     const float sectionX{openLeft ? navigationX - sectionWidth - spacing : navigationX + navigationWidth + spacing};
     const float y{ClampMenuY(viewport, launcherBounds_.y + launcherBounds_.height * 0.5F - menuHeight * 0.5F, menuHeight)};
     ImGui::SetNextWindowPos({sectionX, y}, ImGuiCond_Always);
@@ -265,11 +282,14 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
     }
     const px::ui::ScopedStyleColor background{ImGuiCol_WindowBg, tokens.popover};
     const px::ui::ScopedStyleColor border{ImGuiCol_Border, tokens.border};
-    const px::ui::ScopedStyleVar rounding{ImGuiStyleVar_WindowRounding, px::ui::MetricsFor(ImGui::GetStyle().FontScaleDpi).popupRadius};
+    const px::ui::ScopedStyleVar rounding{ImGuiStyleVar_WindowRounding, metrics.popupRadius};
+    const px::ui::ScopedStyleVar padding{ImGuiStyleVar_WindowPadding, ImVec2{metrics.spacingLg, metrics.spacingLg}};
+    const px::ui::ScopedStyleVar spacingStyle{ImGuiStyleVar_ItemSpacing, ImVec2{metrics.spacingSm, metrics.spacingSm}};
     ImGui::Begin("##pixels-controller-section", {}, kOverlayFlags);
 
     if (section_ == Section::Display) {
         px::ui::SectionTitle(text(ClientText::Display));
+        px::ui::HorizontalSeparator();
         if (!snapshot.monitorName.empty()) {
             px::ui::FieldLabel(text(ClientText::Monitor));
             std::vector<px::ui::SelectOption> options{};
@@ -309,47 +329,83 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
         px::ui::FieldLabel(text(ClientText::FrameRate));
         if (px::ui::SliderIntField({"client-frame-rate"}, frameRate_, 15, 120))
             static_cast<void>(session->SetFrameRate(frameRate_));
-        if (px::ui::ToggleSwitch({"client-audio"}, text(ClientText::Audio), audioEnabled_))
+        if (px::ui::ToggleSwitch({"client-audio"}, text(ClientText::Audio), audioEnabled_, false,
+                                 audioEnabled_ ? px::ui::VectorIcon::Volume : px::ui::VectorIcon::VolumeOff))
             static_cast<void>(session->SetAudioEnabled(audioEnabled_));
-        if (px::ui::ActionButton({"client-fullscreen"}, text(ClientText::Fullscreen), {.variant = px::ui::ButtonVariant::Secondary, .width = -1.0F}))
+        if (px::ui::ActionButton({"client-fullscreen"}, text(ClientText::Fullscreen),
+                                 {.variant = px::ui::ButtonVariant::Secondary,
+                                  .icon = px::ui::VectorIcon::Maximize,
+                                  .width = -1.0F,
+                                  .contentAlignment = px::ui::ButtonContentAlignment::Leading,
+                                  .contentInset = metrics.spacingMd}))
             action.toggleFullscreen = true;
         if (snapshot.virtualDisplayAvailable) {
             px::ui::HorizontalSeparator();
             const std::string displayCount{std::string{text(ClientText::VirtualDisplays)} + " " + std::to_string(snapshot.virtualDisplayCount) + "/" +
                                            std::to_string(snapshot.virtualDisplayMaximum)};
             px::ui::MutedText(displayCount);
-            if (px::ui::ActionButton({"virtual-display-add"}, "+",
+            if (px::ui::ActionButton({"virtual-display-add"}, text(ClientText::AddVirtualDisplay),
                                      {.variant = px::ui::ButtonVariant::Outline,
-                                      .width = fontSize * 3.0F,
+                                      .size = px::ui::WidgetSize::Sm,
+                                      .icon = px::ui::VectorIcon::Plus,
+                                      .width = (sectionWidth - metrics.spacingLg * 2.0F - metrics.spacingSm) * 0.5F,
                                       .disabled = snapshot.virtualDisplayBusy || snapshot.virtualDisplayCount >= snapshot.virtualDisplayMaximum}))
                 static_cast<void>(session->CreateVirtualDisplay());
             ImGui::SameLine();
-            if (px::ui::ActionButton({"virtual-display-remove"}, "-",
+            if (px::ui::ActionButton({"virtual-display-remove"}, text(ClientText::RemoveVirtualDisplay),
                                      {.variant = px::ui::ButtonVariant::Outline,
-                                      .width = fontSize * 3.0F,
+                                      .size = px::ui::WidgetSize::Sm,
+                                      .icon = px::ui::VectorIcon::Minus,
+                                      .width = (sectionWidth - metrics.spacingLg * 2.0F - metrics.spacingSm) * 0.5F,
                                       .disabled = snapshot.virtualDisplayBusy || snapshot.virtualDisplayCount == 0U}))
                 static_cast<void>(session->RemoveVirtualDisplay());
         }
     } else if (section_ == Section::Control) {
         px::ui::SectionTitle(text(ClientText::Control));
-        if (px::ui::ActionButton({"client-secure-attention"}, text(ClientText::SecureAttention), {.width = -1.0F}))
+        px::ui::HorizontalSeparator();
+        if (px::ui::ActionButton({"client-secure-attention"}, text(ClientText::SecureAttention),
+                                 {.icon = px::ui::VectorIcon::Shield,
+                                  .width = -1.0F,
+                                  .contentAlignment = px::ui::ButtonContentAlignment::Leading,
+                                  .contentInset = metrics.spacingMd}))
             static_cast<void>(session->SendSecureAttention());
         px::ui::FieldDescription(text(ClientText::ControlDescription));
     } else if (section_ == Section::Tools) {
         px::ui::SectionTitle(text(ClientText::Tools));
+        px::ui::HorizontalSeparator();
         if (px::ui::ActionButton({"client-files"}, text(ClientText::Files),
-                                 {.variant = px::ui::ButtonVariant::Secondary, .width = -1.0F, .disabled = !snapshot.fileTransferAvailable}))
+                                 {.variant = px::ui::ButtonVariant::Secondary,
+                                  .icon = px::ui::VectorIcon::FileTransfer,
+                                  .width = -1.0F,
+                                  .contentAlignment = px::ui::ButtonContentAlignment::Leading,
+                                  .contentInset = metrics.spacingMd,
+                                  .disabled = !snapshot.fileTransferAvailable}))
             fileTransfer_->Open();
-        if (px::ui::ActionButton({"client-screenshot"}, text(ClientText::Screenshot), {.variant = px::ui::ButtonVariant::Secondary, .width = -1.0F}))
+        if (px::ui::ActionButton({"client-screenshot"}, text(ClientText::Screenshot),
+                                 {.variant = px::ui::ButtonVariant::Secondary,
+                                  .icon = px::ui::VectorIcon::Camera,
+                                  .width = -1.0F,
+                                  .contentAlignment = px::ui::ButtonContentAlignment::Leading,
+                                  .contentInset = metrics.spacingMd}))
             screenshotStatus_ = session->SaveScreenshot().value_or(text(ClientText::ScreenshotFailed));
         if (snapshot.recording) {
             if (px::ui::ActionButton({"client-record-stop"}, text(ClientText::StopRecording),
-                                     {.variant = px::ui::ButtonVariant::Destructive, .width = -1.0F}))
+                                     {.variant = px::ui::ButtonVariant::Destructive,
+                                      .icon = px::ui::VectorIcon::Stop,
+                                      .width = -1.0F,
+                                      .contentAlignment = px::ui::ButtonContentAlignment::Leading,
+                                      .contentInset = metrics.spacingMd}))
                 static_cast<void>(session->StopRecording());
-        } else if (px::ui::ActionButton({"client-record"}, text(ClientText::Record), {.variant = px::ui::ButtonVariant::Secondary, .width = -1.0F})) {
+        } else if (px::ui::ActionButton({"client-record"}, text(ClientText::Record),
+                                        {.variant = px::ui::ButtonVariant::Secondary,
+                                         .icon = px::ui::VectorIcon::Video,
+                                         .width = -1.0F,
+                                         .contentAlignment = px::ui::ButtonContentAlignment::Leading,
+                                         .contentInset = metrics.spacingMd})) {
             static_cast<void>(session->StartRecording());
         }
-        static_cast<void>(px::ui::ToggleSwitch({"client-statistics"}, text(ClientText::Statistics), showStatistics_));
+        static_cast<void>(
+            px::ui::ToggleSwitch({"client-statistics"}, text(ClientText::Statistics), showStatistics_, false, px::ui::VectorIcon::Activity));
         if (showStatistics_) {
             const std::string statistics{"FPS " + std::to_string(snapshot.framesPerSecond) + " | " + std::to_string(snapshot.latencyMilliseconds) +
                                          " ms | " + std::to_string(snapshot.bitrateKbps) + " Kbps | " + snapshot.decoder};
@@ -359,26 +415,47 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
             px::ui::FieldDescription(screenshotStatus_);
     } else if (section_ == Section::Voice) {
         px::ui::SectionTitle(text(ClientText::Voice));
+        px::ui::HorizontalSeparator();
         if (snapshot.voiceStatus == "Connected" || snapshot.voiceStatus == "Calling") {
             if (px::ui::ActionButton({"client-voice-stop"}, text(ClientText::HangUp),
-                                     {.variant = px::ui::ButtonVariant::Destructive, .width = -1.0F}))
+                                     {.variant = px::ui::ButtonVariant::Destructive,
+                                      .icon = px::ui::VectorIcon::PhoneOff,
+                                      .width = -1.0F,
+                                      .contentAlignment = px::ui::ButtonContentAlignment::Leading,
+                                      .contentInset = metrics.spacingMd}))
                 static_cast<void>(session->StopVoiceCall());
-        } else if (px::ui::ActionButton({"client-voice-start"}, text(ClientText::Voice), {.width = -1.0F})) {
+        } else if (px::ui::ActionButton({"client-voice-start"}, text(ClientText::Voice),
+                                        {.icon = px::ui::VectorIcon::Phone,
+                                         .width = -1.0F,
+                                         .contentAlignment = px::ui::ButtonContentAlignment::Leading,
+                                         .contentInset = metrics.spacingMd})) {
             static_cast<void>(session->StartVoiceCall());
         }
-        if (px::ui::ToggleSwitch({"client-microphone"}, text(ClientText::MuteMicrophone), microphoneMuted_))
+        if (px::ui::ToggleSwitch({"client-microphone"}, text(ClientText::MuteMicrophone), microphoneMuted_, false,
+                                 microphoneMuted_ ? px::ui::VectorIcon::MicrophoneOff : px::ui::VectorIcon::Microphone))
             static_cast<void>(session->SetVoiceMicrophoneMuted(microphoneMuted_));
-        if (px::ui::ToggleSwitch({"client-speaker"}, text(ClientText::MuteSpeaker), speakerMuted_))
+        if (px::ui::ToggleSwitch({"client-speaker"}, text(ClientText::MuteSpeaker), speakerMuted_, false,
+                                 speakerMuted_ ? px::ui::VectorIcon::VolumeOff : px::ui::VectorIcon::Volume))
             static_cast<void>(session->SetVoiceSpeakerMuted(speakerMuted_));
     } else {
         px::ui::SectionTitle(text(ClientText::Settings));
+        px::ui::HorizontalSeparator();
         if (px::ui::ActionButton({"client-language"}, english ? "简体中文" : "English",
-                                 {.variant = px::ui::ButtonVariant::Secondary, .width = -1.0F}))
+                                 {.variant = px::ui::ButtonVariant::Secondary,
+                                  .icon = px::ui::VectorIcon::Languages,
+                                  .width = -1.0F,
+                                  .contentAlignment = px::ui::ButtonContentAlignment::Leading,
+                                  .contentInset = metrics.spacingMd}))
             action.toggleLanguage = true;
         if (px::ui::ActionButton({"client-theme"}, text(darkTheme ? ClientText::Light : ClientText::Dark),
-                                 {.variant = px::ui::ButtonVariant::Secondary, .width = -1.0F}))
+                                 {.variant = px::ui::ButtonVariant::Secondary,
+                                  .icon = px::ui::VectorIcon::Palette,
+                                  .width = -1.0F,
+                                  .contentAlignment = px::ui::ButtonContentAlignment::Leading,
+                                  .contentInset = metrics.spacingMd}))
             action.toggleTheme = true;
-        if (px::ui::ToggleSwitch({"client-effects"}, text(ClientText::EnhancedVisualEffects), enhancedVisualEffects_))
+        if (px::ui::ToggleSwitch({"client-effects"}, text(ClientText::EnhancedVisualEffects), enhancedVisualEffects_, false,
+                                 px::ui::VectorIcon::Settings))
             action.toggleEnhancedVisualEffects = true;
     }
 

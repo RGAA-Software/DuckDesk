@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <expected>
 #include <string>
 
@@ -12,11 +13,12 @@ class BrandLogo final {
     static std::expected<BrandLogo, std::string> Load();
 
     void Draw(ImVec2 topLeft, float size) const;
+    void Draw(ImDrawList& draw, ImVec2 topLeft, float size) const;
 
   private:
-    explicit BrandLogo(ImFontAtlasRectId atlasRectId) noexcept;
+    explicit BrandLogo(std::array<ImFontAtlasRectId, 3> atlasRectIds) noexcept;
 
-    ImFontAtlasRectId atlasRectId_{ImFontAtlasRectId_Invalid};
+    std::array<ImFontAtlasRectId, 3> atlasRectIds_{};
 };
 
 } // namespace px::desktop

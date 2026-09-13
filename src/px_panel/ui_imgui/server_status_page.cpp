@@ -33,8 +33,6 @@ void ServerStatusPage::DrawStatusRow(const px::ui::Localizer& localizer, const p
 void ServerStatusPage::Draw(const px::ui::Localizer& localizer) {
     const auto state = port_->Snapshot();
     px::ui::PageTitle(localizer.Text(px::ui::TextId::ServerStatus));
-    px::ui::HorizontalSeparator();
-    ImGui::Spacing();
     DrawStatusRow(localizer, px::ui::TextId::ControllerDriver, state.controllerDriverReady, !state.controllerDriverReady, px::ui::TextId::Install,
                   [port = port_] { port->InstallControllerDriver(); });
     ImGui::SameLine();

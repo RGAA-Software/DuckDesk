@@ -33,6 +33,7 @@ struct ButtonOptions final {
 
 struct FieldOptions final {
     float width{0.0F};
+    std::optional<VectorIcon> leadingIcon{};
     bool disabled{false};
     bool invalid{false};
     bool readOnly{false};

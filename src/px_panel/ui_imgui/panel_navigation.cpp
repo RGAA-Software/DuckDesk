@@ -50,14 +50,14 @@ NavigationAction PanelNavigation::Draw(const px::ui::Localizer& localizer) {
 
     const float buttonWidth{px::ui::Scale(150.0F)};
     const float buttonHeight{px::ui::Scale(35.0F)};
-    const float iconInset{px::ui::Scale(30.0F)};
+    const float iconInset{px::ui::Scale(15.0F)};
     const auto centerButton = [buttonWidth] { ImGui::SetCursorPosX((ImGui::GetWindowWidth() - buttonWidth) * 0.5F); };
     for (const auto& item : kNavigationItems) {
         centerButton();
         const bool wasSelected{item.page == selectedPage_};
         const std::string id{"navigation-" + std::to_string(static_cast<int>(item.page))};
         if (px::ui::NavigationItem({id}, item.icon, localizer.Text(item.text), wasSelected, buttonWidth, px::ui::WidgetSize::Sm, buttonHeight,
-                                   iconInset)) {
+                                   iconInset, false)) {
             selectedPage_ = item.page;
         }
     }
