@@ -351,6 +351,10 @@ void DrawVectorIcon(ImDrawList& draw, const VectorIcon icon, const ImVec2 topLef
         canvas.Line(4.0F, 12.0F, 9.0F, 17.0F);
         canvas.Line(9.0F, 17.0F, 20.0F, 6.0F);
         break;
+    case VectorIcon::ChevronLeft:
+        canvas.Line(15.0F, 5.0F, 8.0F, 12.0F);
+        canvas.Line(8.0F, 12.0F, 15.0F, 19.0F);
+        break;
     case VectorIcon::ChevronRight:
         canvas.Line(9.0F, 5.0F, 16.0F, 12.0F);
         canvas.Line(16.0F, 12.0F, 9.0F, 19.0F);

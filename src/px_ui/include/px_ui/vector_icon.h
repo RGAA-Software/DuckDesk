@@ -49,6 +49,7 @@ enum class VectorIcon {
     FileTransfer,
     Trash,
     Check,
+    ChevronLeft,
     ChevronRight,
     Plus,
     Minus,

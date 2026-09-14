@@ -15,8 +15,8 @@ namespace px::client::imgui {
 
 class ClientFileTransferWindow final {
   public:
-    ClientFileTransferWindow(std::reference_wrapper<px::desktop::DesktopShell> shell, std::shared_ptr<ClientSession> session, std::string remoteName,
-                             px::ui::DevicePlatform remotePlatform, bool english);
+    ClientFileTransferWindow(std::reference_wrapper<px::desktop::DesktopShell> shell, std::shared_ptr<ClientSession> session,
+                             const ClientLaunchConfig& config, bool english);
     void Draw();
     void HandleInput(const px::desktop::DesktopInputEvent& event);
 
@@ -39,7 +39,9 @@ class ClientFileTransferWindow final {
     std::reference_wrapper<px::desktop::DesktopShell> shell_;
     std::shared_ptr<ClientSession> session_{};
     ClientLocalFileSystem localFiles_{};
+    std::string localIdentity_{};
     std::string remoteName_{};
+    std::string remoteIdentity_{};
     px::ui::DevicePlatform remotePlatform_{px::ui::DevicePlatform::Unknown};
     std::string localPath_{};
     std::string remotePath_{};

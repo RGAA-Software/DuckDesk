@@ -1,5 +1,7 @@
 #include "panel_client_launcher.h"
 
+#include "panel_connection_links.h"
+
 #include "px_common/log.h"
 
 #include <Windows.h>
@@ -122,10 +124,12 @@ nlohmann::json BuildNativeEnvelope(const NativeLaunchRequest& request, const std
     const auto endpoint = config.Console();
     const auto identity = config.Identity();
     const auto settings = config.Settings();
+    const std::string localHost{ResolveNodeAccessHost(config.NodePublicAddress(), CollectPanelLocalAddresses())};
     const std::array decoderNames{"Auto", "Hardware", "Software"};
     return {{"schema", 1},
             {"mode", request.fileTransfer ? "file-transfer" : "desktop"},
             {"host", host},
+            {"local_host", localHost},
             {"port", port},
             {"appkey", endpoint ? endpoint->appKey : std::string{}},
             {"stream_id", request.directStreamId},

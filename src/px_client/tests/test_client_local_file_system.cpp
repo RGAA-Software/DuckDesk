@@ -54,6 +54,9 @@ TEST(ClientLocalFileSystemTest, ExposesComputerDrivesAndCommonLocations) {
     EXPECT_EQ(files.Locations().front().kind, ClientFileLocationKind::Computer);
     EXPECT_EQ(files.Path(), "/");
     EXPECT_TRUE(files.NavigateComputer());
+    ASSERT_EQ(files.Entries().size() + 1U, files.Locations().size());
+    for (std::size_t index{}; index < files.Entries().size(); ++index)
+        EXPECT_EQ(files.Entries()[index].path, files.Locations()[index + 1U].path);
 #ifdef _WIN32
     EXPECT_TRUE(std::ranges::any_of(files.Locations(), [](const ClientFileLocation& location) {
         return location.kind == ClientFileLocationKind::Drive && location.path.size() == 3U && location.path[1] == ':';

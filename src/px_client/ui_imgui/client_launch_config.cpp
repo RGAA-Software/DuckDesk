@@ -22,6 +22,7 @@ std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(const std::string_vi
             return std::nullopt;
         }
         ClientLaunchConfig result{.host = Value<std::string>(values, "host"),
+                                  .localHost = Value<std::string>(values, "local_host"),
                                   .port = Value<int>(values, "port"),
                                   .streamId = Value<std::string>(values, "stream_id"),
                                   .streamName = Value<std::string>(values, "stream_name"),

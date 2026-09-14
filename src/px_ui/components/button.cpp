@@ -131,13 +131,19 @@ bool ActionButton(const WidgetId id, const std::string_view label, const ButtonO
 
     float left{options.contentAlignment == ButtonContentAlignment::Leading ? minimum.x + options.contentInset
                                                                            : minimum.x + (size.x - contentWidth) * 0.5F};
-    if (options.icon.has_value()) {
+    if (options.icon.has_value() && !options.iconTrailing) {
         DrawVectorIcon(*options.icon, {left, minimum.y + (maximum.y - minimum.y - iconSize) * 0.5F}, iconSize, color);
         left += iconOnly ? 0.0F : iconSize + metrics.spacingSm;
     }
     if (!iconOnly) {
         const std::string visible{label};
         draw.AddText({left, minimum.y + (maximum.y - minimum.y - textSize.y) * 0.5F}, color, visible.c_str());
+        if (options.icon.has_value() && options.iconTrailing) {
+            DrawVectorIcon(*options.icon, {left + textSize.x + metrics.spacingSm, minimum.y + (maximum.y - minimum.y - iconSize) * 0.5F}, iconSize,
+                           color);
+        }
+    } else if (options.icon.has_value() && options.iconTrailing) {
+        DrawVectorIcon(*options.icon, {left, minimum.y + (maximum.y - minimum.y - iconSize) * 0.5F}, iconSize, color);
     }
     if (options.variant == ButtonVariant::Link && ImGui::IsItemHovered()) {
         const float underlineY{minimum.y + (maximum.y - minimum.y + textSize.y) * 0.5F + metrics.borderWidth};

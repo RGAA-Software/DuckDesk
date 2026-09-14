@@ -6,6 +6,7 @@
 #include "px_ui/components/form.h"
 #include "px_ui/components/overlay.h"
 #include "px_ui/components/surface.h"
+#include "px_ui/layout_metrics.h"
 #include "px_ui/theme_tokens.h"
 #include "px_desktop_shell/platform_icon_atlas.h"
 
@@ -14,6 +15,7 @@
 #include <SDL3/SDL.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <ctime>
 #include <format>
@@ -68,6 +70,32 @@ std::string RemoteJoin(const std::string& directory, const std::string& name) {
 
 bool ValidEntryName(const std::string& name) {
     return !name.empty() && name != "." && name != ".." && name.find_first_of("/\\:*?\"<>|") == std::string::npos;
+}
+
+std::string DeviceAddress(const std::string_view deviceId, const std::string_view host) {
+    const bool isDeviceCode{!deviceId.empty() &&
+                            std::ranges::all_of(deviceId, [](const char character) { return character >= '0' && character <= '9'; })};
+    if (!isDeviceCode)
+        return std::string{host};
+    if (deviceId.size() == 9U)
+        return std::string{deviceId.substr(0, 3U)} + " " + std::string{deviceId.substr(3U, 3U)} + " " + std::string{deviceId.substr(6U, 3U)};
+    return std::string{deviceId};
+}
+
+void CenterTableCellText(const float rowHeight) {
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + std::max(0.0F, (rowHeight - ImGui::GetTextLineHeight()) * 0.5F));
+}
+
+void DrawFileTableHeaders(const std::array<std::string_view, 3>& labels, const float rowHeight) {
+    ImGui::TableNextRow(ImGuiTableRowFlags_Headers, rowHeight);
+    for (std::size_t column{}; column < labels.size(); ++column) {
+        if (!ImGui::TableSetColumnIndex(static_cast<int>(column)))
+            continue;
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + px::ui::Scale(10.0F));
+        ImGui::PushID(static_cast<int>(column));
+        ImGui::TableHeader(labels[column].data()); // NOLINT(gammaray-raw-pointer-boundary): Dear ImGui transient text ABI
+        ImGui::PopID();
+    }
 }
 
 ClientText LocationText(const ClientFileLocationKind kind) {
@@ -268,7 +296,7 @@ std::optional<std::string> DrawFilePathBar(const std::string_view id, const std:
 }
 
 void DrawComputerIdentity(const px::desktop::PlatformIconAtlas& icons, const px::ui::DevicePlatform platform, const std::string_view title,
-                          const std::string_view subtitle) {
+                          const std::string_view subtitle, const std::string_view detail = {}) {
     const auto tokens = px::ui::CurrentThemeTokens();
     const ImVec2 topLeft{ImGui::GetCursorScreenPos()};
     constexpr float tileSize{50.0F};
@@ -280,18 +308,25 @@ void DrawComputerIdentity(const px::desktop::PlatformIconAtlas& icons, const px:
         icons.Draw(platform, {topLeft.x + 9.0F, topLeft.y + 9.0F}, 32.0F, IM_COL32_WHITE);
     ImGui::SameLine();
     ImGui::BeginGroup();
-    ImGui::Dummy({0.0F, 5.0F});
-    px::ui::SectionTitle(title);
-    ImGui::TextDisabled("%.*s", static_cast<int>(subtitle.size()), subtitle.data());
+    const float lineCount{detail.empty() ? 2.0F : 3.0F};
+    const float textHeight{ImGui::GetTextLineHeight() * lineCount};
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + std::max(0.0F, (tileSize - textHeight) * 0.5F));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {ImGui::GetStyle().ItemSpacing.x, 0.0F});
+    px::ui::StrongText(title);
+    px::ui::MutedText(subtitle);
+    if (!detail.empty())
+        px::ui::MutedText(detail);
+    ImGui::PopStyleVar();
     ImGui::EndGroup();
 }
 
 } // namespace
 
 ClientFileTransferWindow::ClientFileTransferWindow(std::reference_wrapper<px::desktop::DesktopShell> shell, std::shared_ptr<ClientSession> session,
-                                                   std::string remoteName, const px::ui::DevicePlatform remotePlatform, const bool english)
-    : shell_{shell}, session_{std::move(session)}, remoteName_{std::move(remoteName)}, remotePlatform_{remotePlatform},
-      localPath_{localFiles_.Path()}, english_{english} {}
+                                                   const ClientLaunchConfig& config, const bool english)
+    : shell_{shell}, session_{std::move(session)}, localIdentity_{DeviceAddress(config.localDeviceId, config.localHost)},
+      remoteName_{config.streamName}, remoteIdentity_{DeviceAddress(config.remoteDeviceId, config.host)},
+      remotePlatform_{px::ui::ParseDevicePlatform(config.remotePlatform)}, localPath_{localFiles_.Path()}, english_{english} {}
 
 std::vector<ClientFileListItem> ClientFileTransferWindow::VisibleLocalItems() const {
     std::vector<ClientFileListItem> items{};
@@ -299,7 +334,8 @@ std::vector<ClientFileListItem> ClientFileTransferWindow::VisibleLocalItems() co
         if (showHiddenLocal_ || !entry.hidden)
             items.push_back({entry.path, entry.name, entry.size, entry.modifiedTime, entry.directory});
     }
-    localSort_.Apply(items);
+    if (localFiles_.Path() != "/")
+        localSort_.Apply(items);
     return items;
 }
 
@@ -309,7 +345,8 @@ std::vector<ClientFileListItem> ClientFileTransferWindow::VisibleRemoteItems() c
         if (showHiddenRemote_ || !entry.hidden)
             items.push_back({entry.path, entry.name, entry.size, entry.modifiedTime, entry.directory});
     }
-    remoteSort_.Apply(items);
+    if (remotePath_ != "/")
+        remoteSort_.Apply(items);
     return items;
 }
 
@@ -385,19 +422,37 @@ void ClientFileTransferWindow::Draw() {
         }
     }
     const auto snapshot = session_->Snapshot();
-    const float queueWidth{std::clamp(ImGui::GetContentRegionAvail().x * 0.25F, 260.0F, 360.0F)};
-    if (ImGui::BeginTable("file-manager-columns", 3, ImGuiTableFlags_SizingStretchProp)) {
-        ImGui::TableSetupColumn("local", ImGuiTableColumnFlags_WidthStretch, 3.0F);
-        ImGui::TableSetupColumn("remote", ImGuiTableColumnFlags_WidthStretch, 3.0F);
-        ImGui::TableSetupColumn("queue", ImGuiTableColumnFlags_WidthFixed, queueWidth);
-        ImGui::TableNextColumn();
-        DrawLocalPane();
-        ImGui::TableNextColumn();
-        DrawRemotePane();
-        ImGui::TableNextColumn();
+    const float edgeSpacing{px::ui::Scale(10.0F)};
+    ImGui::SetCursorPos({ImGui::GetCursorPosX() + edgeSpacing, ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y + edgeSpacing});
+    const ImVec2 paddedAvailable{ImGui::GetContentRegionAvail()};
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{});
+    const bool contentVisible{ImGui::BeginChild("file-manager-content",
+                                                {std::max(1.0F, paddedAvailable.x - edgeSpacing), std::max(1.0F, paddedAvailable.y - edgeSpacing)},
+                                                ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)};
+    ImGui::PopStyleVar();
+    if (contentVisible) {
+        const ImVec2 contentAvailable{ImGui::GetContentRegionAvail()};
+        const float queueHeight{std::clamp(contentAvailable.y * 0.24F, px::ui::Scale(150.0F), px::ui::Scale(220.0F))};
+        const float filePaneHeight{std::max(1.0F, contentAvailable.y - queueHeight - edgeSpacing)};
+        const float filePaneWidth{std::max(1.0F, (contentAvailable.x - edgeSpacing) * 0.5F)};
+        const float filePaneTop{ImGui::GetCursorPosY()};
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{});
+        if (ImGui::BeginChild("local-file-pane-slot", {filePaneWidth, filePaneHeight}, ImGuiChildFlags_None,
+                              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
+            DrawLocalPane();
+        ImGui::EndChild();
+        ImGui::SameLine(0.0F, edgeSpacing);
+        if (ImGui::BeginChild("remote-file-pane-slot", {filePaneWidth, filePaneHeight}, ImGuiChildFlags_None,
+                              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
+            DrawRemotePane();
+        ImGui::EndChild();
+        ImGui::PopStyleVar();
+
+        ImGui::SetCursorPosY(filePaneTop + filePaneHeight + edgeSpacing);
         DrawTransferQueue();
-        ImGui::EndTable();
     }
+    ImGui::EndChild();
     DrawConnectionFailure(snapshot);
     DrawFileOperationDialog();
     DrawCloseConfirmation();
@@ -432,7 +487,7 @@ void ClientFileTransferWindow::DrawLocalPane() {
     px::ui::CardScope card{{"local-file-pane"}, {0.0F, height}};
     if (!card.Visible())
         return;
-    DrawComputerIdentity(shell_.get().PlatformIcons(), px::ui::DevicePlatform::Windows, text(ClientText::LocalComputer), "Windows");
+    DrawComputerIdentity(shell_.get().PlatformIcons(), px::ui::DevicePlatform::Windows, text(ClientText::LocalComputer), "Windows", localIdentity_);
     if (px::ui::IconAction({"local-back"}, px::ui::VectorIcon::ArrowLeft, text(ClientText::Back),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
         if (localFiles_.NavigateBack())
@@ -470,7 +525,10 @@ void ClientFileTransferWindow::DrawLocalPane() {
     constexpr float transferButtonWidth{96.0F};
     ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetContentRegionMax().x - transferButtonWidth));
     if (px::ui::ActionButton({"send-selected"}, text(ClientText::Send),
-                             {.icon = px::ui::VectorIcon::Upload, .width = transferButtonWidth, .disabled = localSelection_.Empty() || !connected})) {
+                             {.icon = px::ui::VectorIcon::ChevronRight,
+                              .iconTrailing = true,
+                              .width = transferButtonWidth,
+                              .disabled = localSelection_.Empty() || !connected})) {
         for (const auto& path : localSelection_.Paths())
             static_cast<void>(session_->StartUpload(path, remotePath_));
     }
@@ -478,8 +536,7 @@ void ClientFileTransferWindow::DrawLocalPane() {
         const px::ui::PopupMenuScope localMore{{"local-file-more"}};
         if (localMore.Open()) {
             if (px::ui::MenuAction({"local-show-hidden"}, text(ClientText::ShowHiddenFiles),
-                                   {.icon = showHiddenLocal_ ? px::ui::VectorIcon::EyeOff : px::ui::VectorIcon::Eye,
-                                    .selected = showHiddenLocal_}))
+                                   {.icon = showHiddenLocal_ ? px::ui::VectorIcon::EyeOff : px::ui::VectorIcon::Eye, .selected = showHiddenLocal_}))
                 showHiddenLocal_ = !showHiddenLocal_;
             if (px::ui::MenuAction({"local-select-all"}, text(ClientText::SelectAll), {.icon = px::ui::VectorIcon::Check}))
                 localSelection_.SelectAll(VisibleLocalItems());
@@ -490,30 +547,44 @@ void ClientFileTransferWindow::DrawLocalPane() {
     if (!localFiles_.Error().empty())
         px::ui::FieldError(localFiles_.Error());
 
-    if (ImGui::BeginTable("local-files", 3,
-                          ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Sortable,
-                          {0.0F, ImGui::GetContentRegionAvail().y})) {
-        ImGui::TableSetupColumn(text(ClientText::Name), ImGuiTableColumnFlags_DefaultSort);
+    const bool localComputerView{localFiles_.Path() == "/"};
+    const ImGuiTableFlags localTableFlags{ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_ScrollY |
+                                          (localComputerView ? ImGuiTableFlags_None : ImGuiTableFlags_Sortable)};
+    if (ImGui::BeginTable("local-files", 3, localTableFlags, {0.0F, ImGui::GetContentRegionAvail().y})) {
+        ImGui::TableSetupColumn(text(ClientText::Name), localComputerView ? ImGuiTableColumnFlags_None : ImGuiTableColumnFlags_DefaultSort);
         ImGui::TableSetupColumn(text(ClientText::Modified), ImGuiTableColumnFlags_WidthFixed, 132.0F);
         ImGui::TableSetupColumn(text(ClientText::Size), ImGuiTableColumnFlags_WidthFixed, 82.0F);
-        ImGui::TableHeadersRow();
-        ImGuiTableSortSpecs* sortSpecs = ImGui::TableGetSortSpecs(); // NOLINT(gammaray-raw-pointer-boundary): Dear ImGui borrowed ABI
-        if (sortSpecs && sortSpecs->SpecsCount > 0 && sortSpecs->SpecsDirty) {
-            const auto& specification = sortSpecs->Specs[0];
-            localSort_.column = specification.ColumnIndex == 1   ? ClientFileSortColumn::Modified
-                                : specification.ColumnIndex == 2 ? ClientFileSortColumn::Size
-                                                                 : ClientFileSortColumn::Name;
-            localSort_.ascending = specification.SortDirection != ImGuiSortDirection_Descending;
-            sortSpecs->SpecsDirty = false;
+        const float rowHeight{px::ui::Scale(35.0F)};
+        const float headerPaddingY{std::max(0.0F, (rowHeight - ImGui::GetTextLineHeight()) * 0.5F)};
+        ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {px::ui::Scale(10.0F), headerPaddingY});
+        DrawFileTableHeaders(
+            {std::string_view{text(ClientText::Name)}, std::string_view{text(ClientText::Modified)}, std::string_view{text(ClientText::Size)}},
+            rowHeight);
+        ImGui::PopStyleVar();
+        if (!localComputerView) {
+            ImGuiTableSortSpecs* sortSpecs = ImGui::TableGetSortSpecs(); // NOLINT(gammaray-raw-pointer-boundary): Dear ImGui borrowed ABI
+            if (sortSpecs && sortSpecs->SpecsCount > 0 && sortSpecs->SpecsDirty) {
+                const auto& specification = sortSpecs->Specs[0];
+                localSort_.column = specification.ColumnIndex == 1   ? ClientFileSortColumn::Modified
+                                    : specification.ColumnIndex == 2 ? ClientFileSortColumn::Size
+                                                                     : ClientFileSortColumn::Name;
+                localSort_.ascending = specification.SortDirection != ImGuiSortDirection_Descending;
+                sortSpecs->SpecsDirty = false;
+            }
         }
         const auto visibleItems = VisibleLocalItems();
+        ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {ImGui::GetStyle().CellPadding.x, 0.0F});
         for (std::size_t index{}; index < visibleItems.size(); ++index) {
             const auto& entry = visibleItems[index];
-            ImGui::TableNextRow(ImGuiTableRowFlags_None, 30.0F);
+            ImGui::TableNextRow(ImGuiTableRowFlags_None, rowHeight);
             ImGui::TableNextColumn();
             const bool selected{localSelection_.Contains(entry.path)};
-            if (px::ui::SelectableIconRow({entry.path}, entry.directory ? px::ui::VectorIcon::Folder : px::ui::VectorIcon::File, entry.name, selected,
-                                          ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick, {0.0F, 30.0F})) {
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {ImGui::GetStyle().ItemSpacing.x, 0.0F});
+            const bool rowPressed{
+                px::ui::SelectableIconRow({entry.path}, entry.directory ? px::ui::VectorIcon::Folder : px::ui::VectorIcon::File, entry.name, selected,
+                                          ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick, {0.0F, rowHeight})};
+            ImGui::PopStyleVar();
+            if (rowPressed) {
                 localSelection_.Select(index, entry.path, ImGui::GetIO().KeyCtrl, ImGui::GetIO().KeyShift, visibleItems);
                 if (entry.directory && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     if (localFiles_.Navigate(entry.path))
@@ -529,11 +600,15 @@ void ClientFileTransferWindow::DrawLocalPane() {
                 }
             }
             ImGui::TableNextColumn();
+            CenterTableCellText(rowHeight);
             ImGui::TextDisabled("%s", FormatModified(entry.modifiedTime).c_str());
             ImGui::TableNextColumn();
-            if (!entry.directory)
+            if (!entry.directory) {
+                CenterTableCellText(rowHeight);
                 ImGui::TextDisabled("%s", FormatSize(entry.size).c_str());
+            }
         }
+        ImGui::PopStyleVar();
         ImGui::EndTable();
     }
 }
@@ -544,7 +619,7 @@ void ClientFileTransferWindow::DrawRemotePane() {
     px::ui::CardScope card{{"remote-file-pane"}, {0.0F, height}};
     if (!card.Visible())
         return;
-    DrawComputerIdentity(shell_.get().PlatformIcons(), remotePlatform_, text(ClientText::RemoteComputer), remoteName_);
+    DrawComputerIdentity(shell_.get().PlatformIcons(), remotePlatform_, text(ClientText::RemoteComputer), remoteName_, remoteIdentity_);
     if (px::ui::IconAction({"remote-back"}, px::ui::VectorIcon::ArrowLeft, text(ClientText::Back),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}) &&
         !remoteHistory_.empty()) {
@@ -565,6 +640,17 @@ void ClientFileTransferWindow::DrawRemotePane() {
         NavigateRemote(remotePath_, false);
     if (!remotePathEditing_)
         remotePath_ = session_->RemotePath();
+    const bool connected{session_->Snapshot().state == ClientConnectionState::Connected};
+    constexpr float transferButtonWidth{96.0F};
+    if (px::ui::ActionButton(
+            {"receive-selected"}, text(ClientText::Receive),
+            {.icon = px::ui::VectorIcon::ChevronLeft, .width = transferButtonWidth, .disabled = remoteSelection_.Empty() || !connected})) {
+        for (const auto& path : remoteSelection_.Paths())
+            static_cast<void>(session_->StartDownload(path, localFiles_.Path()));
+    }
+    const px::ui::UiMetrics metrics{px::ui::MetricsFor(ImGui::GetStyle().FontScaleDpi)};
+    const float remoteToolsWidth{metrics.controlDefault * 4.0F + metrics.spacingSm * 3.0F};
+    ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetContentRegionMax().x - remoteToolsWidth));
     if (px::ui::IconAction({"remote-home"}, px::ui::VectorIcon::Home, text(ClientText::Home),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon})) {
         const auto locations = session_->RemoteLocations();
@@ -585,23 +671,12 @@ void ClientFileTransferWindow::DrawRemotePane() {
     if (px::ui::IconAction({"remote-more"}, px::ui::VectorIcon::More, text(ClientText::More),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
         ImGui::OpenPopup("remote-file-more");
-    const bool connected{session_->Snapshot().state == ClientConnectionState::Connected};
-    constexpr float transferButtonWidth{96.0F};
-    ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetContentRegionMax().x - transferButtonWidth));
-    if (px::ui::ActionButton({"receive-selected"}, text(ClientText::Receive),
-                             {.variant = px::ui::ButtonVariant::Outline,
-                              .icon = px::ui::VectorIcon::Download,
-                              .width = transferButtonWidth,
-                              .disabled = remoteSelection_.Empty() || !connected})) {
-        for (const auto& path : remoteSelection_.Paths())
-            static_cast<void>(session_->StartDownload(path, localFiles_.Path()));
-    }
     {
         const px::ui::PopupMenuScope remoteMore{{"remote-file-more"}};
         if (remoteMore.Open()) {
-            if (px::ui::MenuAction({"remote-show-hidden"}, text(ClientText::ShowHiddenFiles),
-                                   {.icon = showHiddenRemote_ ? px::ui::VectorIcon::EyeOff : px::ui::VectorIcon::Eye,
-                                    .selected = showHiddenRemote_})) {
+            if (px::ui::MenuAction(
+                    {"remote-show-hidden"}, text(ClientText::ShowHiddenFiles),
+                    {.icon = showHiddenRemote_ ? px::ui::VectorIcon::EyeOff : px::ui::VectorIcon::Eye, .selected = showHiddenRemote_})) {
                 showHiddenRemote_ = !showHiddenRemote_;
                 NavigateRemote(remotePath_, false);
             }
@@ -612,30 +687,44 @@ void ClientFileTransferWindow::DrawRemotePane() {
         }
     }
 
-    if (ImGui::BeginTable("remote-files-standalone", 3,
-                          ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Sortable,
-                          {0.0F, ImGui::GetContentRegionAvail().y})) {
-        ImGui::TableSetupColumn(text(ClientText::Name), ImGuiTableColumnFlags_DefaultSort);
+    const bool remoteComputerView{remotePath_ == "/"};
+    const ImGuiTableFlags remoteTableFlags{ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_ScrollY |
+                                           (remoteComputerView ? ImGuiTableFlags_None : ImGuiTableFlags_Sortable)};
+    if (ImGui::BeginTable("remote-files-standalone", 3, remoteTableFlags, {0.0F, ImGui::GetContentRegionAvail().y})) {
+        ImGui::TableSetupColumn(text(ClientText::Name), remoteComputerView ? ImGuiTableColumnFlags_None : ImGuiTableColumnFlags_DefaultSort);
         ImGui::TableSetupColumn(text(ClientText::Modified), ImGuiTableColumnFlags_WidthFixed, 132.0F);
         ImGui::TableSetupColumn(text(ClientText::Size), ImGuiTableColumnFlags_WidthFixed, 82.0F);
-        ImGui::TableHeadersRow();
-        ImGuiTableSortSpecs* sortSpecs = ImGui::TableGetSortSpecs(); // NOLINT(gammaray-raw-pointer-boundary): Dear ImGui borrowed ABI
-        if (sortSpecs && sortSpecs->SpecsCount > 0 && sortSpecs->SpecsDirty) {
-            const auto& specification = sortSpecs->Specs[0];
-            remoteSort_.column = specification.ColumnIndex == 1   ? ClientFileSortColumn::Modified
-                                 : specification.ColumnIndex == 2 ? ClientFileSortColumn::Size
-                                                                  : ClientFileSortColumn::Name;
-            remoteSort_.ascending = specification.SortDirection != ImGuiSortDirection_Descending;
-            sortSpecs->SpecsDirty = false;
+        const float rowHeight{px::ui::Scale(35.0F)};
+        const float headerPaddingY{std::max(0.0F, (rowHeight - ImGui::GetTextLineHeight()) * 0.5F)};
+        ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {px::ui::Scale(10.0F), headerPaddingY});
+        DrawFileTableHeaders(
+            {std::string_view{text(ClientText::Name)}, std::string_view{text(ClientText::Modified)}, std::string_view{text(ClientText::Size)}},
+            rowHeight);
+        ImGui::PopStyleVar();
+        if (!remoteComputerView) {
+            ImGuiTableSortSpecs* sortSpecs = ImGui::TableGetSortSpecs(); // NOLINT(gammaray-raw-pointer-boundary): Dear ImGui borrowed ABI
+            if (sortSpecs && sortSpecs->SpecsCount > 0 && sortSpecs->SpecsDirty) {
+                const auto& specification = sortSpecs->Specs[0];
+                remoteSort_.column = specification.ColumnIndex == 1   ? ClientFileSortColumn::Modified
+                                     : specification.ColumnIndex == 2 ? ClientFileSortColumn::Size
+                                                                      : ClientFileSortColumn::Name;
+                remoteSort_.ascending = specification.SortDirection != ImGuiSortDirection_Descending;
+                sortSpecs->SpecsDirty = false;
+            }
         }
         const auto visibleItems = VisibleRemoteItems();
+        ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {ImGui::GetStyle().CellPadding.x, 0.0F});
         for (std::size_t index{}; index < visibleItems.size(); ++index) {
             const auto& entry = visibleItems[index];
-            ImGui::TableNextRow(ImGuiTableRowFlags_None, 30.0F);
+            ImGui::TableNextRow(ImGuiTableRowFlags_None, rowHeight);
             ImGui::TableNextColumn();
             const bool selected{remoteSelection_.Contains(entry.path)};
-            if (px::ui::SelectableIconRow({entry.path}, entry.directory ? px::ui::VectorIcon::Folder : px::ui::VectorIcon::File, entry.name, selected,
-                                          ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick, {0.0F, 30.0F})) {
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {ImGui::GetStyle().ItemSpacing.x, 0.0F});
+            const bool rowPressed{
+                px::ui::SelectableIconRow({entry.path}, entry.directory ? px::ui::VectorIcon::Folder : px::ui::VectorIcon::File, entry.name, selected,
+                                          ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick, {0.0F, rowHeight})};
+            ImGui::PopStyleVar();
+            if (rowPressed) {
                 remoteSelection_.Select(index, entry.path, ImGui::GetIO().KeyCtrl, ImGui::GetIO().KeyShift, visibleItems);
                 if (entry.directory && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     NavigateRemote(entry.path, true);
@@ -650,11 +739,15 @@ void ClientFileTransferWindow::DrawRemotePane() {
                 }
             }
             ImGui::TableNextColumn();
+            CenterTableCellText(rowHeight);
             ImGui::TextDisabled("%s", FormatModified(entry.modifiedTime).c_str());
             ImGui::TableNextColumn();
-            if (!entry.directory)
+            if (!entry.directory) {
+                CenterTableCellText(rowHeight);
                 ImGui::TextDisabled("%s", FormatSize(entry.size).c_str());
+            }
         }
+        ImGui::PopStyleVar();
         ImGui::EndTable();
     }
 }

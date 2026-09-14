@@ -12,6 +12,7 @@ namespace px::client::imgui {
 
 struct ClientLaunchConfig final {
     std::string host{};
+    std::string localHost{};
     int port{};
     std::string streamId{};
     std::string streamName{};

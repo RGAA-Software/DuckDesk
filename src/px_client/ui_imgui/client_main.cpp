@@ -7,7 +7,6 @@
 #include "client_window.h"
 
 #include "px_desktop_shell/desktop_shell.h"
-#include "px_ui/device_platform.h"
 #include "px_common/log.h"
 
 #include <Windows.h>
@@ -106,8 +105,7 @@ int main() {
     session->Start();
     int result{};
     if (config->fileTransferOnly) {
-        px::client::imgui::ClientFileTransferWindow window{std::ref(shell), session, config->streamName,
-                                                           px::ui::ParseDevicePlatform(config->remotePlatform), english};
+        px::client::imgui::ClientFileTransferWindow window{std::ref(shell), session, *config, english};
         result = shell.Run([&window] { window.Draw(); }, [&window](const px::desktop::DesktopInputEvent& event) { window.HandleInput(event); });
     } else {
         px::client::imgui::ClientWindow window{std::ref(shell), session, english, darkTheme, config->enhancedVisualEffects};

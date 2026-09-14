@@ -39,7 +39,7 @@ TEST(ClientImguiLaunchConfigTest, ParsesAppearanceWithoutChangingConnectionRequi
 
 TEST(ClientImguiLaunchConfigTest, ParsesIndependentFileTransferLaunch) {
     const auto config = ParseClientLaunchEnvelope(R"({
-        "schema":1,"host":"127.0.0.1","port":4601,"stream_id":"file-1","stream_name":"MC-60","device_id":"100",
+        "schema":1,"host":"127.0.0.1","local_host":"192.168.31.6","port":4601,"stream_id":"file-1","stream_name":"MC-60","device_id":"100",
         "remote_device_id":"200","connection_nonce":"nonce","remote_password_hash":"password-hash","mode":"file-transfer",
         "only_viewing":true,"audio":false,"clipboard":false
     })");
@@ -49,6 +49,7 @@ TEST(ClientImguiLaunchConfigTest, ParsesIndependentFileTransferLaunch) {
     EXPECT_FALSE(config->audio);
     EXPECT_FALSE(config->clipboard);
     EXPECT_EQ(config->streamName, "MC-60");
+    EXPECT_EQ(config->localHost, "192.168.31.6");
 }
 
 TEST(ClientImguiLaunchConfigTest, RejectsLegacyCommandLineAndMissingPassword) {

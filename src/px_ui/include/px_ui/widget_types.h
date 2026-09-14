@@ -22,6 +22,7 @@ struct ButtonOptions final {
     ButtonVariant variant{ButtonVariant::Primary};
     WidgetSize size{WidgetSize::Default};
     std::optional<VectorIcon> icon{};
+    bool iconTrailing{false};
     float width{0.0F};
     float height{0.0F};
     ButtonContentAlignment contentAlignment{ButtonContentAlignment::Center};
