@@ -30,6 +30,10 @@ struct IconCanvas final {
         const float scaledRadius{radius * scale};
         draw.AddCircle(Point(x, y), scaledRadius, color, 0, thickness);
     }
+    void FilledCircle(const float x, const float y, const float radius) const {
+        const float scaledRadius{radius * scale};
+        draw.AddCircleFilled(Point(x, y), scaledRadius, color);
+    }
     void Bezier(const float x1, const float y1, const float x2, const float y2, const float x3, const float y3, const float x4,
                 const float y4) const {
         draw.AddBezierCubic(Point(x1, y1), Point(x2, y2), Point(x3, y3), Point(x4, y4), color, thickness);
@@ -247,9 +251,9 @@ void DrawVectorIcon(ImDrawList& draw, const VectorIcon icon, const ImVec2 topLef
         canvas.Rect(5.0F, 5.0F, 19.0F, 19.0F, 1.0F);
         break;
     case VectorIcon::More:
-        canvas.Circle(5.0F, 12.0F, 1.0F);
-        canvas.Circle(12.0F, 12.0F, 1.0F);
-        canvas.Circle(19.0F, 12.0F, 1.0F);
+        canvas.FilledCircle(5.0F, 12.0F, 1.5F);
+        canvas.FilledCircle(12.0F, 12.0F, 1.5F);
+        canvas.FilledCircle(19.0F, 12.0F, 1.5F);
         break;
     case VectorIcon::Pencil:
         canvas.Line(4.0F, 20.0F, 8.0F, 19.0F);

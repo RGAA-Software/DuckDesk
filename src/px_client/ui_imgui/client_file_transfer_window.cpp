@@ -474,14 +474,18 @@ void ClientFileTransferWindow::DrawLocalPane() {
         for (const auto& path : localSelection_.Paths())
             static_cast<void>(session_->StartUpload(path, remotePath_));
     }
-    const px::ui::PopupMenuScope localMore{{"local-file-more"}};
-    if (localMore.Open()) {
-        if (px::ui::MenuAction({"local-show-hidden"}, text(ClientText::ShowHiddenFiles), {.selected = showHiddenLocal_}))
-            showHiddenLocal_ = !showHiddenLocal_;
-        if (px::ui::MenuAction({"local-select-all"}, text(ClientText::SelectAll)))
-            localSelection_.SelectAll(VisibleLocalItems());
-        if (px::ui::MenuAction({"local-unselect-all"}, text(ClientText::UnselectAll)))
-            localSelection_.Clear();
+    {
+        const px::ui::PopupMenuScope localMore{{"local-file-more"}};
+        if (localMore.Open()) {
+            if (px::ui::MenuAction({"local-show-hidden"}, text(ClientText::ShowHiddenFiles),
+                                   {.icon = showHiddenLocal_ ? px::ui::VectorIcon::EyeOff : px::ui::VectorIcon::Eye,
+                                    .selected = showHiddenLocal_}))
+                showHiddenLocal_ = !showHiddenLocal_;
+            if (px::ui::MenuAction({"local-select-all"}, text(ClientText::SelectAll), {.icon = px::ui::VectorIcon::Check}))
+                localSelection_.SelectAll(VisibleLocalItems());
+            if (px::ui::MenuAction({"local-unselect-all"}, text(ClientText::UnselectAll), {.icon = px::ui::VectorIcon::Minus}))
+                localSelection_.Clear();
+        }
     }
     if (!localFiles_.Error().empty())
         px::ui::FieldError(localFiles_.Error());
@@ -515,12 +519,14 @@ void ClientFileTransferWindow::DrawLocalPane() {
                     if (localFiles_.Navigate(entry.path))
                         localSelection_.Clear();
             }
-            const std::string contextId{"local-entry-context##" + entry.path};
-            const px::ui::ContextMenuScope context{{contextId}};
-            if (context.Open()) {
-                localSelection_.SelectOnly(index, entry.path);
-                if (px::ui::MenuAction({"rename-local-entry"}, text(ClientText::Rename), {.icon = px::ui::VectorIcon::Pencil}))
-                    BeginOperation(FileOperation::RenameLocal, entry.name);
+            {
+                const std::string contextId{"local-entry-context##" + entry.path};
+                const px::ui::ContextMenuScope context{{contextId}};
+                if (context.Open()) {
+                    localSelection_.SelectOnly(index, entry.path);
+                    if (px::ui::MenuAction({"rename-local-entry"}, text(ClientText::Rename), {.icon = px::ui::VectorIcon::Pencil}))
+                        BeginOperation(FileOperation::RenameLocal, entry.name);
+                }
             }
             ImGui::TableNextColumn();
             ImGui::TextDisabled("%s", FormatModified(entry.modifiedTime).c_str());
@@ -590,16 +596,20 @@ void ClientFileTransferWindow::DrawRemotePane() {
         for (const auto& path : remoteSelection_.Paths())
             static_cast<void>(session_->StartDownload(path, localFiles_.Path()));
     }
-    const px::ui::PopupMenuScope remoteMore{{"remote-file-more"}};
-    if (remoteMore.Open()) {
-        if (px::ui::MenuAction({"remote-show-hidden"}, text(ClientText::ShowHiddenFiles), {.selected = showHiddenRemote_})) {
-            showHiddenRemote_ = !showHiddenRemote_;
-            NavigateRemote(remotePath_, false);
+    {
+        const px::ui::PopupMenuScope remoteMore{{"remote-file-more"}};
+        if (remoteMore.Open()) {
+            if (px::ui::MenuAction({"remote-show-hidden"}, text(ClientText::ShowHiddenFiles),
+                                   {.icon = showHiddenRemote_ ? px::ui::VectorIcon::EyeOff : px::ui::VectorIcon::Eye,
+                                    .selected = showHiddenRemote_})) {
+                showHiddenRemote_ = !showHiddenRemote_;
+                NavigateRemote(remotePath_, false);
+            }
+            if (px::ui::MenuAction({"remote-select-all"}, text(ClientText::SelectAll), {.icon = px::ui::VectorIcon::Check}))
+                remoteSelection_.SelectAll(VisibleRemoteItems());
+            if (px::ui::MenuAction({"remote-unselect-all"}, text(ClientText::UnselectAll), {.icon = px::ui::VectorIcon::Minus}))
+                remoteSelection_.Clear();
         }
-        if (px::ui::MenuAction({"remote-select-all"}, text(ClientText::SelectAll)))
-            remoteSelection_.SelectAll(VisibleRemoteItems());
-        if (px::ui::MenuAction({"remote-unselect-all"}, text(ClientText::UnselectAll)))
-            remoteSelection_.Clear();
     }
 
     if (ImGui::BeginTable("remote-files-standalone", 3,
@@ -630,12 +640,14 @@ void ClientFileTransferWindow::DrawRemotePane() {
                 if (entry.directory && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     NavigateRemote(entry.path, true);
             }
-            const std::string contextId{"remote-entry-context##" + entry.path};
-            const px::ui::ContextMenuScope context{{contextId}};
-            if (context.Open()) {
-                remoteSelection_.SelectOnly(index, entry.path);
-                if (px::ui::MenuAction({"rename-remote-entry"}, text(ClientText::Rename), {.icon = px::ui::VectorIcon::Pencil}))
-                    BeginOperation(FileOperation::RenameRemote, entry.name);
+            {
+                const std::string contextId{"remote-entry-context##" + entry.path};
+                const px::ui::ContextMenuScope context{{contextId}};
+                if (context.Open()) {
+                    remoteSelection_.SelectOnly(index, entry.path);
+                    if (px::ui::MenuAction({"rename-remote-entry"}, text(ClientText::Rename), {.icon = px::ui::VectorIcon::Pencil}))
+                        BeginOperation(FileOperation::RenameRemote, entry.name);
+                }
             }
             ImGui::TableNextColumn();
             ImGui::TextDisabled("%s", FormatModified(entry.modifiedTime).c_str());
