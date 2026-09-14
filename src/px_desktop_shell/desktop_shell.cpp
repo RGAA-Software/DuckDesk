@@ -4,13 +4,16 @@
 #include "imgui_session.h"
 #include "title_bar.h"
 #include "window_host.h"
+#include "windows_title_bar_behavior.h"
 
 #include "px_client_sdk/platform/windows/windows_video_resources.h"
 
 #include <SDL3/SDL.h>
+#include <Windows.h>
 #include <backends/imgui_impl_sdl3.h>
 #include <imgui.h>
 
+#include <array>
 #include <memory>
 #include <optional>
 #include <filesystem>
@@ -23,6 +26,17 @@ namespace {
 
 constexpr Uint32 kShowWindowEvent{SDL_EVENT_USER + 41};
 constexpr Uint32 kExitApplicationEvent{SDL_EVENT_USER + 42};
+
+BOOL CALLBACK RestoreCurrentProcessWindow(HWND window, LPARAM) { // NOLINT(gammaray-raw-pointer-boundary): Win32 enumeration callback ABI.
+    DWORD ownerProcessId{};
+    static_cast<void>(GetWindowThreadProcessId(window, &ownerProcessId));
+    std::array<wchar_t, 64> className{};
+    static_cast<void>(GetClassNameW(window, className.data(), static_cast<int>(className.size())));
+    if (ownerProcessId != GetCurrentProcessId() || GetWindow(window, GW_OWNER) != nullptr || std::wstring_view{className.data()} != L"SDL_app")
+        return TRUE;
+    static_cast<void>(PostMessageW(window, kShowAndRaiseWindowMessage, 0, 0));
+    return FALSE;
+}
 
 struct SdlTrayDeleter final {
     void operator()(SDL_Tray* tray) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): SDL owned handle boundary
@@ -181,6 +195,11 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
         if (!impl_->running) {
             break;
         }
+        if (impl_->window.IsMinimized()) {
+            firstFrame = false;
+            interactiveFrame = false;
+            continue;
+        }
 
         impl_->imgui->BeginFrame();
         if (impl_->continuousTextInput && !SDL_TextInputActive(&impl_->window.Native()))
@@ -204,7 +223,8 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
 
         interactiveFrame = impl_->imgui->NeedsInteractiveRefresh();
         ImGui::Render();
-        impl_->renderer.Render();
+        if (!impl_->window.IsMinimized())
+            impl_->renderer.Render();
         firstFrame = false;
     }
     return 0;
@@ -257,9 +277,11 @@ void DesktopShell::CancelCloseRequest() noexcept {
 }
 
 void DesktopShell::RequestShowAndRaise() noexcept {
-    SDL_Event event{};
-    event.type = kShowWindowEvent;
-    SDL_PushEvent(&event);
+    PostShowAndRaiseRequest();
+}
+
+void DesktopShell::PostShowAndRaiseRequest() noexcept {
+    static_cast<void>(EnumWindows(RestoreCurrentProcessWindow, 0));
 }
 
 } // namespace px::desktop

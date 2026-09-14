@@ -78,6 +78,7 @@ class DesktopShell final {
     void RequestExit() noexcept;
     void CancelCloseRequest() noexcept;
     void RequestShowAndRaise() noexcept;
+    static void PostShowAndRaiseRequest() noexcept;
 
   private:
     struct Impl;

@@ -34,6 +34,7 @@ class WindowHost final {
     void ToggleMaximize() const;
     bool ToggleFullscreen();
     bool IsMaximized() const;
+    bool IsMinimized() const;
     [[nodiscard]] bool VulkanSurfaceAvailable() const noexcept;
     float DisplayScale() const;
     void Hide() const;

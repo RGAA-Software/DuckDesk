@@ -10,12 +10,15 @@
 #include "px_desktop_shell/platform_icon_atlas.h"
 
 #include <imgui.h>
+#include <misc/cpp/imgui_stdlib.h>
 #include <SDL3/SDL.h>
 
 #include <algorithm>
 #include <chrono>
 #include <ctime>
 #include <format>
+#include <optional>
+#include <span>
 
 namespace px::client::imgui {
 namespace {
@@ -91,6 +94,179 @@ ClientText LocationText(const ClientFileLocationKind kind) {
     return ClientText::ThisComputer;
 }
 
+struct FilePathChoice final {
+    std::string label{};
+    std::string path{};
+};
+
+struct FilePathSegment final {
+    std::string label{};
+    std::string path{};
+};
+
+std::vector<FilePathSegment> BuildPathSegments(const std::string_view path, const std::string_view computerLabel) {
+    std::vector<FilePathSegment> result{{std::string{computerLabel}, "/"}};
+    if (path.empty() || path == "/")
+        return result;
+
+    const bool windowsPath{path.size() >= 2U && path[1] == ':'};
+    std::size_t cursor{};
+    std::string accumulated{};
+    if (windowsPath) {
+        accumulated = std::string{path.substr(0, 2U)} + "\\";
+        result.push_back({std::string{path.substr(0, 2U)}, accumulated});
+        cursor = 2U;
+    }
+    while (cursor < path.size() && (path[cursor] == '/' || path[cursor] == '\\'))
+        ++cursor;
+    while (cursor < path.size()) {
+        const auto separator = path.find_first_of("/\\", cursor);
+        const auto end = separator == std::string_view::npos ? path.size() : separator;
+        const std::string label{path.substr(cursor, end - cursor)};
+        if (!label.empty()) {
+            if (!windowsPath && accumulated.empty())
+                accumulated = "/";
+            if (!accumulated.empty() && !accumulated.ends_with('/') && !accumulated.ends_with('\\'))
+                accumulated += windowsPath ? "\\" : "/";
+            accumulated += label;
+            result.push_back({label, accumulated});
+        }
+        if (separator == std::string_view::npos)
+            break;
+        cursor = separator + 1U;
+        while (cursor < path.size() && (path[cursor] == '/' || path[cursor] == '\\'))
+            ++cursor;
+    }
+    return result;
+}
+
+std::optional<std::string> DrawFilePathBar(const std::string_view id, const std::string_view path, const std::string_view computerLabel,
+                                           const std::span<const FilePathChoice> locations, const float width, std::string& editablePath,
+                                           bool& editing, bool& requestFocus) {
+    const auto tokens = px::ui::CurrentThemeTokens();
+    constexpr float height{36.0F};
+    constexpr float edgePadding{5.0F};
+    constexpr float dropdownWidth{32.0F};
+    constexpr float separatorWidth{16.0F};
+    std::optional<std::string> navigation{};
+    const std::string scopeId{id};
+    ImGui::PushID(scopeId.c_str());
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 6.0F);
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 1.0F);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{});
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, tokens.input);
+    ImGui::PushStyleColor(ImGuiCol_Border, tokens.border);
+    const bool visible{
+        ImGui::BeginChild("path-bar", {width, height}, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)};
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(3);
+    if (visible) {
+        const float contentWidth{std::max(1.0F, width - dropdownWidth - edgePadding * 2.0F)};
+        if (editing) {
+            ImGui::SetCursorPos({edgePadding, 2.0F});
+            if (requestFocus) {
+                ImGui::SetKeyboardFocusHere();
+                requestFocus = false;
+            }
+            ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(0, 0, 0, 0));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0F);
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{7.0F, 7.0F});
+            ImGui::SetNextItemWidth(contentWidth);
+            if (ImGui::InputText("##editable-path", &editablePath, ImGuiInputTextFlags_EnterReturnsTrue)) {
+                navigation = editablePath;
+                editing = false;
+            }
+            if (ImGui::IsKeyPressed(ImGuiKey_Escape))
+                editing = false;
+            ImGui::PopStyleVar(2);
+            ImGui::PopStyleColor(3);
+        } else {
+            const auto segments = BuildPathSegments(path, computerLabel);
+            std::vector<float> segmentWidths{};
+            segmentWidths.reserve(segments.size());
+            float requiredWidth{};
+            for (std::size_t index{}; index < segments.size(); ++index) {
+                const float segmentWidth{std::clamp(ImGui::CalcTextSize(segments[index].label.c_str()).x + 16.0F, 30.0F, contentWidth)};
+                segmentWidths.push_back(segmentWidth);
+                requiredWidth += segmentWidth + (index == 0U ? 0.0F : separatorWidth);
+            }
+            std::size_t firstVisible{};
+            constexpr float ellipsisWidth{32.0F};
+            while (firstVisible + 1U < segments.size() && requiredWidth > contentWidth) {
+                requiredWidth -= segmentWidths[firstVisible] + separatorWidth;
+                ++firstVisible;
+            }
+            float cursorX{edgePadding};
+            if (firstVisible > 0U) {
+                ImGui::SetCursorPos({cursorX, 2.0F});
+                if (ImGui::InvisibleButton("breadcrumb-overflow", {ellipsisWidth, height - 4.0F}))
+                    ImGui::OpenPopup("path-locations");
+                if (ImGui::IsItemHovered())
+                    ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(tokens.accent),
+                                                              4.0F);
+                const ImVec2 textSize{ImGui::CalcTextSize("...")};
+                ImGui::GetWindowDrawList()->AddText({ImGui::GetItemRectMin().x + (ellipsisWidth - textSize.x) * 0.5F,
+                                                     ImGui::GetItemRectMin().y + (height - textSize.y) * 0.5F - 2.0F},
+                                                    ImGui::GetColorU32(tokens.mutedForeground), "...");
+                cursorX += ellipsisWidth;
+            }
+            for (std::size_t index{firstVisible}; index < segments.size(); ++index) {
+                if (cursorX > edgePadding) {
+                    px::ui::DrawVectorIcon(px::ui::VectorIcon::ChevronRight,
+                                           {ImGui::GetWindowPos().x + cursorX + 1.0F, ImGui::GetWindowPos().y + 11.0F}, 12.0F,
+                                           ImGui::GetColorU32(tokens.mutedForeground));
+                    cursorX += separatorWidth;
+                }
+                const float available{std::max(30.0F, contentWidth - cursorX + edgePadding)};
+                const float segmentWidth{std::min(segmentWidths[index], available)};
+                ImGui::SetCursorPos({cursorX, 2.0F});
+                const std::string segmentId{"breadcrumb-" + std::to_string(index)};
+                const bool pressed{ImGui::InvisibleButton(segmentId.c_str(), {segmentWidth, height - 4.0F})};
+                if (ImGui::IsItemHovered())
+                    ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(tokens.accent),
+                                                              4.0F);
+                ImGui::GetWindowDrawList()->PushClipRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), true);
+                ImGui::GetWindowDrawList()->AddText({ImGui::GetItemRectMin().x + 8.0F, ImGui::GetItemRectMin().y + 7.0F},
+                                                    ImGui::GetColorU32(index + 1U == segments.size() ? tokens.foreground : tokens.mutedForeground),
+                                                    segments[index].label.c_str());
+                ImGui::GetWindowDrawList()->PopClipRect();
+                if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+                    editablePath = std::string{path};
+                    editing = true;
+                    requestFocus = true;
+                } else if (pressed) {
+                    navigation = segments[index].path;
+                }
+                cursorX += segmentWidth;
+            }
+        }
+
+        ImGui::SetCursorPos({width - dropdownWidth, 2.0F});
+        if (ImGui::InvisibleButton("location-dropdown", {dropdownWidth - 2.0F, height - 4.0F}))
+            ImGui::OpenPopup("path-locations");
+        if (ImGui::IsItemHovered())
+            ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(tokens.accent), 4.0F);
+        const ImVec2 center{(ImGui::GetItemRectMin().x + ImGui::GetItemRectMax().x) * 0.5F,
+                            (ImGui::GetItemRectMin().y + ImGui::GetItemRectMax().y) * 0.5F + 1.0F};
+        ImGui::GetWindowDrawList()->AddTriangleFilled({center.x - 4.0F, center.y - 2.0F}, {center.x + 4.0F, center.y - 2.0F},
+                                                      {center.x, center.y + 3.0F}, ImGui::GetColorU32(tokens.mutedForeground));
+
+        const px::ui::PopupMenuScope popup{{"path-locations"}};
+        if (popup.Open()) {
+            for (std::size_t index{}; index < locations.size(); ++index) {
+                const std::string optionId{"path-location-" + std::to_string(index)};
+                if (px::ui::MenuAction({optionId}, locations[index].label, {.selected = locations[index].path == path}))
+                    navigation = locations[index].path;
+            }
+        }
+    }
+    ImGui::EndChild();
+    ImGui::PopID();
+    return navigation;
+}
+
 void DrawComputerIdentity(const px::desktop::PlatformIconAtlas& icons, const px::ui::DevicePlatform platform, const std::string_view title,
                           const std::string_view subtitle) {
     const auto tokens = px::ui::CurrentThemeTokens();
@@ -144,62 +320,35 @@ void ClientFileTransferWindow::NavigateRemote(std::string path, const bool addHi
     static_cast<void>(session_->ListRemoteDirectory(path, showHiddenRemote_));
 }
 
-void ClientFileTransferWindow::DrawLocalLocationPicker() {
+void ClientFileTransferWindow::DrawLocalLocationPicker(const float width) {
     const auto text = [english = english_](const ClientText id) { return ClientTextValue(id, english).data(); };
     const auto& locations = localFiles_.Locations();
-    std::vector<std::string> labels{};
-    std::vector<std::string> paths{};
-    labels.reserve(locations.size() + 1U);
-    paths.reserve(locations.size() + 1U);
-    int selected{-1};
+    std::vector<FilePathChoice> choices{};
+    choices.reserve(locations.size());
     for (const auto& location : locations) {
-        labels.push_back(location.kind == ClientFileLocationKind::Drive ? location.label : text(LocationText(location.kind)));
-        paths.push_back(location.path);
-        if (location.path == localFiles_.Path())
-            selected = static_cast<int>(paths.size() - 1U);
+        choices.push_back(
+            {.label = location.kind == ClientFileLocationKind::Drive ? location.label : text(LocationText(location.kind)), .path = location.path});
     }
-    if (selected < 0) {
-        labels.push_back(localFiles_.Path());
-        paths.push_back(localFiles_.Path());
-        selected = static_cast<int>(paths.size() - 1U);
-    }
-    std::vector<px::ui::SelectOption> options{};
-    options.reserve(labels.size());
-    for (std::size_t index{}; index < labels.size(); ++index)
-        options.push_back({static_cast<int>(index), labels[index]});
-    if (px::ui::SelectField({"local-location"}, selected, options) && selected >= 0 && static_cast<std::size_t>(selected) < paths.size()) {
-        if (localFiles_.Navigate(paths[static_cast<std::size_t>(selected)]))
+    if (const auto destination = DrawFilePathBar("local-location", localFiles_.Path(), text(ClientText::ThisComputer), choices, width, localPath_,
+                                                 localPathEditing_, localPathFocusRequested_)) {
+        if (localFiles_.Navigate(*destination))
             localSelection_.Clear();
     }
 }
 
-void ClientFileTransferWindow::DrawRemoteLocationPicker() {
+void ClientFileTransferWindow::DrawRemoteLocationPicker(const float width) {
     const auto text = [english = english_](const ClientText id) { return ClientTextValue(id, english).data(); };
     const auto locations = session_->RemoteLocations();
-    std::vector<std::string> labels{text(ClientText::ThisComputer)};
-    std::vector<std::string> paths{"/"};
-    labels.reserve(locations.size() + 2U);
-    paths.reserve(locations.size() + 2U);
-    int selected{remotePath_.empty() || remotePath_ == "/" ? 0 : -1};
+    std::vector<FilePathChoice> choices{{text(ClientText::ThisComputer), "/"}};
+    choices.reserve(locations.size() + 1U);
     for (const auto& location : locations) {
         if (!location.directory || location.path.empty())
             continue;
-        labels.push_back(location.name);
-        paths.push_back(location.path);
-        if (location.path == remotePath_)
-            selected = static_cast<int>(paths.size() - 1U);
+        choices.push_back({location.name, location.path});
     }
-    if (selected < 0) {
-        labels.push_back(remotePath_);
-        paths.push_back(remotePath_);
-        selected = static_cast<int>(paths.size() - 1U);
-    }
-    std::vector<px::ui::SelectOption> options{};
-    options.reserve(labels.size());
-    for (std::size_t index{}; index < labels.size(); ++index)
-        options.push_back({static_cast<int>(index), labels[index]});
-    if (px::ui::SelectField({"remote-location"}, selected, options) && selected >= 0 && static_cast<std::size_t>(selected) < paths.size())
-        NavigateRemote(paths[static_cast<std::size_t>(selected)], true);
+    if (const auto destination = DrawFilePathBar("remote-location", remotePath_, text(ClientText::ThisComputer), choices, width, remotePath_,
+                                                 remotePathEditing_, remotePathFocusRequested_))
+        NavigateRemote(*destination, true);
 }
 
 void ClientFileTransferWindow::HandleInput(const px::desktop::DesktopInputEvent& event) {
@@ -284,7 +433,6 @@ void ClientFileTransferWindow::DrawLocalPane() {
     if (!card.Visible())
         return;
     DrawComputerIdentity(shell_.get().PlatformIcons(), px::ui::DevicePlatform::Windows, text(ClientText::LocalComputer), "Windows");
-    DrawLocalLocationPicker();
     if (px::ui::IconAction({"local-back"}, px::ui::VectorIcon::ArrowLeft, text(ClientText::Back),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
         if (localFiles_.NavigateBack())
@@ -296,18 +444,11 @@ void ClientFileTransferWindow::DrawLocalPane() {
             localSelection_.Clear();
     ImGui::SameLine();
     const float localAddressWidth{std::max(120.0F, ImGui::GetContentRegionAvail().x - 46.0F)};
-    const bool localPathSubmitted{
-        px::ui::TextField({"local-address"}, localPath_, {}, {.width = localAddressWidth}, ImGuiInputTextFlags_EnterReturnsTrue)};
-    const bool localPathEditing{ImGui::IsItemActive()};
-    if (localPathSubmitted)
-        if (localFiles_.Navigate(localPath_))
-            localSelection_.Clear();
+    DrawLocalLocationPicker(localAddressWidth);
     ImGui::SameLine();
     if (px::ui::IconAction({"local-refresh"}, px::ui::VectorIcon::Refresh, text(ClientText::Refresh),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
         static_cast<void>(localFiles_.Refresh());
-    if (!localPathEditing)
-        localPath_ = localFiles_.Path();
     if (px::ui::IconAction({"local-home"}, px::ui::VectorIcon::Home, text(ClientText::Home),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon})) {
         if (localFiles_.NavigateHome())
@@ -398,7 +539,6 @@ void ClientFileTransferWindow::DrawRemotePane() {
     if (!card.Visible())
         return;
     DrawComputerIdentity(shell_.get().PlatformIcons(), remotePlatform_, text(ClientText::RemoteComputer), remoteName_);
-    DrawRemoteLocationPicker();
     if (px::ui::IconAction({"remote-back"}, px::ui::VectorIcon::ArrowLeft, text(ClientText::Back),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}) &&
         !remoteHistory_.empty()) {
@@ -412,16 +552,12 @@ void ClientFileTransferWindow::DrawRemotePane() {
         NavigateRemote(RemoteParent(remotePath_), true);
     ImGui::SameLine();
     const float remoteAddressWidth{std::max(120.0F, ImGui::GetContentRegionAvail().x - 46.0F)};
-    const bool remotePathSubmitted{
-        px::ui::TextField({"remote-address"}, remotePath_, {}, {.width = remoteAddressWidth}, ImGuiInputTextFlags_EnterReturnsTrue)};
-    const bool remotePathEditing{ImGui::IsItemActive()};
-    if (remotePathSubmitted)
-        NavigateRemote(remotePath_, true);
+    DrawRemoteLocationPicker(remoteAddressWidth);
     ImGui::SameLine();
     if (px::ui::IconAction({"remote-refresh"}, px::ui::VectorIcon::Refresh, text(ClientText::Refresh),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
         NavigateRemote(remotePath_, false);
-    if (!remotePathEditing)
+    if (!remotePathEditing_)
         remotePath_ = session_->RemotePath();
     if (px::ui::IconAction({"remote-home"}, px::ui::VectorIcon::Home, text(ClientText::Home),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon})) {

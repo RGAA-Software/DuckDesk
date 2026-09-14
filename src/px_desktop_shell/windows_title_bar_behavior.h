@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <expected>
 #include <memory>
 #include <string>
@@ -7,6 +8,8 @@
 struct SDL_Window;
 
 namespace px::desktop {
+
+inline constexpr std::uint32_t kShowAndRaiseWindowMessage{0x8050U};
 
 class WindowsTitleBarBehavior final {
   public:

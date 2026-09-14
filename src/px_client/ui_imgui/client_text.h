@@ -26,6 +26,7 @@ enum class ClientText : std::uint8_t {
     Hide,
     FileTransfer,
     FileTransferWindowTitle,
+    ClientInstanceUnavailable,
     RemotePath,
     Open,
     LocalPath,

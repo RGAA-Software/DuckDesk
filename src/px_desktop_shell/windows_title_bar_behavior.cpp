@@ -42,6 +42,12 @@ bool IsMaximizeButton(const HWND window, const LPARAM position) {
 
 LRESULT CALLBACK TitleBarSubclass(const HWND window, const UINT message, const WPARAM wParam, const LPARAM lParam, const UINT_PTR,
                                   const DWORD_PTR behaviorFlags) {
+    if (message == kShowAndRaiseWindowMessage) {
+        static_cast<void>(ShowWindow(window, SW_RESTORE));
+        static_cast<void>(BringWindowToTop(window));
+        static_cast<void>(SetForegroundWindow(window));
+        return 0;
+    }
     if (message == WM_GETMINMAXINFO) {
         const LRESULT result{DefSubclassProc(window, message, wParam, lParam)};
         auto& limits{*reinterpret_cast<MINMAXINFO*>(lParam)}; // NOLINT(gammaray-raw-pointer-boundary): Win32 message ABI.

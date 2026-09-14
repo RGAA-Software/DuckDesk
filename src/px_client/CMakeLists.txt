@@ -15,6 +15,7 @@ add_library(px_client_imgui_runtime STATIC
     ui_imgui/client_file_transfer_window.cpp
     ui_imgui/client_file_browser_model.cpp
     ui_imgui/client_input_mapper.cpp
+    ui_imgui/client_instance_guard.cpp
     ui_imgui/client_launch_config.cpp
     ui_imgui/client_local_file_system.cpp
     ui_imgui/client_session.cpp
@@ -73,6 +74,11 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
     target_include_directories(test_client_input_mapper PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
     target_link_libraries(test_client_input_mapper PRIVATE SDL3::SDL3-static GTest::gtest GTest::gtest_main)
     add_test(NAME client_input_mapper COMMAND test_client_input_mapper)
+
+    add_executable(test_client_instance_guard tests/test_client_instance_guard.cpp ui_imgui/client_instance_guard.cpp)
+    target_include_directories(test_client_instance_guard PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
+    target_link_libraries(test_client_instance_guard PRIVATE px_common GTest::gtest GTest::gtest_main)
+    add_test(NAME client_instance_guard COMMAND test_client_instance_guard)
 
     add_executable(test_client_local_file_system tests/test_client_local_file_system.cpp ui_imgui/client_local_file_system.cpp)
     target_include_directories(test_client_local_file_system PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)

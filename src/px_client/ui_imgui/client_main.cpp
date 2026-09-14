@@ -1,5 +1,6 @@
 #include "client_launch_config.h"
 #include "client_file_transfer_window.h"
+#include "client_instance_guard.h"
 #include "client_session.h"
 #include "client_startup_dialog.h"
 #include "client_text.h"
@@ -43,14 +44,27 @@ int main() {
             "Pixels Client received an invalid or incomplete launch request.\nPixels Client 收到了无效或不完整的启动请求。", "OK / 确定", true));
         return 2;
     }
+    const bool english = config->language == "en-US";
+    auto instanceAcquisition = px::client::imgui::ClientInstanceGuard::Acquire(
+        config->remoteDeviceId,
+        config->fileTransferOnly ? px::client::imgui::ClientInstanceMode::FileTransfer : px::client::imgui::ClientInstanceMode::Desktop);
+    if (instanceAcquisition.activatedExisting) {
+        LOGI("Activated existing Pixels client instance for remote device {}", config->remoteDeviceId);
+        return 0;
+    }
+    if (!instanceAcquisition.instance) {
+        LOGE("Client instance coordination failed with Windows error {}", instanceAcquisition.systemError);
+        static_cast<void>(px::client::imgui::ShowStartupDialog(
+            px::client::imgui::ClientTextValue(px::client::imgui::ClientText::ClientInstanceUnavailable, english), english ? "OK" : "确定", true));
+        return 5;
+    }
+    auto instanceGuard = std::move(*instanceAcquisition.instance);
     if (config->waitForDebugger) {
-        const bool english = config->language == "en-US";
         if (px::client::imgui::ShowStartupDialog(english ? "Attach the debugger, then continue." : "请附加调试器，然后继续。",
                                                  english ? "Continue" : "继续", false) == px::client::imgui::StartupDialogAction::Exit) {
             return 0;
         }
     }
-    const bool english = config->language == "en-US";
     const std::string windowTitle{config->fileTransferOnly
                                       ? px::client::imgui::ClientTextValue(px::client::imgui::ClientText::FileTransferWindowTitle, english)
                                   : config->streamName.empty() ? "Pixels Client"
@@ -72,6 +86,12 @@ int main() {
         return 3;
     }
     auto shell = std::move(shellResult.value());
+    if (!instanceGuard.StartActivationMonitor(px::desktop::DesktopShell::PostShowAndRaiseRequest)) {
+        LOGE("Client instance activation monitor could not start");
+        static_cast<void>(px::client::imgui::ShowStartupDialog(
+            px::client::imgui::ClientTextValue(px::client::imgui::ClientText::ClientInstanceUnavailable, english), english ? "OK" : "确定", true));
+        return 5;
+    }
     const bool darkTheme{!config->lightTheme};
     static_cast<void>(shell.SetTheme(darkTheme ? px::ui::Theme::Dark : px::ui::Theme::Light));
     static_cast<void>(shell.SetEnhancedVisualEffects(config->enhancedVisualEffects));

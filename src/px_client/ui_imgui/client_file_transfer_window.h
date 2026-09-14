@@ -29,8 +29,8 @@ class ClientFileTransferWindow final {
     void DrawConnectionFailure(const ClientSessionSnapshot& snapshot);
     void DrawFileOperationDialog();
     void DrawCloseConfirmation();
-    void DrawLocalLocationPicker();
-    void DrawRemoteLocationPicker();
+    void DrawLocalLocationPicker(float width);
+    void DrawRemoteLocationPicker(float width);
     void BeginOperation(FileOperation operation, std::string value = {});
     void NavigateRemote(std::string path, bool addHistory);
     [[nodiscard]] std::vector<ClientFileListItem> VisibleLocalItems() const;
@@ -58,6 +58,10 @@ class ClientFileTransferWindow final {
     bool applyOverwriteToAll_{};
     bool showHiddenLocal_{};
     bool showHiddenRemote_{};
+    bool localPathEditing_{};
+    bool remotePathEditing_{};
+    bool localPathFocusRequested_{};
+    bool remotePathFocusRequested_{};
     bool openCloseConfirmation_{};
     px::ui::ToastHost toasts_{};
 };

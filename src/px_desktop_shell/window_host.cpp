@@ -192,6 +192,10 @@ bool WindowHost::IsMaximized() const {
     return (SDL_GetWindowFlags(impl_->window.get()) & SDL_WINDOW_MAXIMIZED) != 0;
 }
 
+bool WindowHost::IsMinimized() const {
+    return (SDL_GetWindowFlags(impl_->window.get()) & SDL_WINDOW_MINIMIZED) != 0;
+}
+
 float WindowHost::DisplayScale() const {
     return SDL_GetWindowDisplayScale(impl_->window.get());
 }
