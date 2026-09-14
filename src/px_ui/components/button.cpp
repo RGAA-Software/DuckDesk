@@ -42,6 +42,9 @@ ButtonPalette PaletteFor(const ButtonVariant variant, const ThemeTokens& tokens)
         return {WithAlpha(tokens.background, 0.0F), tokens.accent, Mix(tokens.accent, tokens.foreground, 0.06F), tokens.foreground, tokens.input};
     case ButtonVariant::Ghost:
         return {WithAlpha(tokens.background, 0.0F), tokens.muted, tokens.accent, tokens.foreground, WithAlpha(tokens.border, 0.0F)};
+    case ButtonVariant::GhostDestructive:
+        return {WithAlpha(tokens.background, 0.0F), tokens.destructive, Mix(tokens.destructive, tokens.background, 0.18F),
+                tokens.destructiveForeground, WithAlpha(tokens.border, 0.0F)};
     case ButtonVariant::Destructive:
         return {tokens.destructive, Mix(tokens.destructive, tokens.foreground, 0.08F), Mix(tokens.destructive, tokens.background, 0.12F),
                 tokens.destructiveForeground, tokens.destructive};
@@ -100,21 +103,40 @@ bool ActionButton(const WidgetId id, const std::string_view label, const ButtonO
     const float contentWidth{iconOnly ? iconSize : textSize.x + (options.icon.has_value() ? iconSize + metrics.spacingSm : 0.0F)};
     const float automaticWidth{contentWidth + metrics.spacingMd * 2.0F};
     const ImVec2 size{options.width != 0.0F ? options.width : (iconOnly ? height : automaticWidth), height};
+    const bool exactCircle{options.circular && iconOnly && std::abs(size.x - size.y) < 0.01F};
+    const ImVec4 transparent{};
 
     const ScopedId scopedId{id.value};
     const ScopedDisabled disabled{options.disabled || options.busy};
     const ScopedStyleVar rounding{ImGuiStyleVar_FrameRounding, options.circular ? height * 0.5F : metrics.controlRadius};
-    const ScopedStyleColor normal{ImGuiCol_Button, palette.normal};
-    const ScopedStyleColor hovered{ImGuiCol_ButtonHovered, palette.hovered};
-    const ScopedStyleColor active{ImGuiCol_ButtonActive, palette.active};
+    const ScopedStyleVar frameBorder{ImGuiStyleVar_FrameBorderSize, exactCircle ? 0.0F : ImGui::GetStyle().FrameBorderSize};
+    const ScopedStyleColor normal{ImGuiCol_Button, exactCircle ? transparent : palette.normal};
+    const ScopedStyleColor hovered{ImGuiCol_ButtonHovered, exactCircle ? transparent : palette.hovered};
+    const ScopedStyleColor active{ImGuiCol_ButtonActive, exactCircle ? transparent : palette.active};
     const ScopedStyleColor textColor{ImGuiCol_Text, palette.text};
-    const ScopedStyleColor border{ImGuiCol_Border, palette.border};
+    const ScopedStyleColor border{ImGuiCol_Border, exactCircle ? transparent : palette.border};
     const bool pressed{ImGui::Button("##action", size)};
 
     const ImVec2 minimum{ImGui::GetItemRectMin()};
     const ImVec2 maximum{ImGui::GetItemRectMax()};
     ImDrawList& draw{*ImGui::GetWindowDrawList()};
-    const ImU32 color{ImGui::GetColorU32(palette.text)};
+    const bool destructiveGhost{options.variant == ButtonVariant::GhostDestructive};
+    const bool visualHover{destructiveGhost && ImGui::IsMouseHoveringRect(minimum, maximum, false)};
+    if (exactCircle) {
+        const ImVec4 background{ImGui::IsItemActive() ? palette.active : visualHover || ImGui::IsItemHovered() ? palette.hovered : palette.normal};
+        const ImVec2 center{minimum.x + size.x * 0.5F, minimum.y + size.y * 0.5F};
+        constexpr int circleSegments{48};
+        if (background.w > 0.0F)
+            draw.AddCircleFilled(center, height * 0.5F, ImGui::GetColorU32(background), circleSegments);
+        if (palette.border.w > 0.0F)
+            draw.AddCircle(center, height * 0.5F - metrics.borderWidth * 0.5F, ImGui::GetColorU32(palette.border), circleSegments,
+                           metrics.borderWidth);
+    } else if (visualHover) {
+        const ImVec4 background{ImGui::IsItemActive() ? palette.active : palette.hovered};
+        draw.AddRectFilled(minimum, maximum, ImGui::GetColorU32(background), metrics.controlRadius);
+    }
+    const ImVec4 contentColor{destructiveGhost && !visualHover ? tokens.destructive : palette.text};
+    const ImU32 color{ImGui::GetColorU32(contentColor)};
     if (options.busy) {
         const float radius{metrics.iconSm * 0.42F};
         const ImVec2 center{minimum.x + size.x * 0.5F, minimum.y + size.y * 0.5F};

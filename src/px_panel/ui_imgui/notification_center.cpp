@@ -81,8 +81,9 @@ void NotificationCenter::Draw() {
             px::ui::StrongText(item->title);
             const std::string dismissId{"dismiss##notification-" + std::to_string(item->id)};
             ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - px::ui::Scale(24.0F));
-            const bool dismissed{px::ui::IconAction({dismissId}, px::ui::VectorIcon::Close, {},
-                                                    {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::IconXs, .circular = true})};
+            const bool dismissed{
+                px::ui::IconAction({dismissId}, px::ui::VectorIcon::Close, {},
+                                   {.variant = px::ui::ButtonVariant::GhostDestructive, .size = px::ui::WidgetSize::IconXs, .circular = true})};
             ImGui::SetCursorScreenPos({start.x + px::ui::Scale(28.0F), ImGui::GetItemRectMax().y + px::ui::Scale(2.0F)});
             ImGui::PushTextWrapPos(ImGui::GetWindowContentRegionMax().x - px::ui::Scale(8.0F));
             px::ui::MutedText(item->message);

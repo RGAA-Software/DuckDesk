@@ -14,7 +14,7 @@ struct WidgetId final {
 };
 
 enum class WidgetSize { Xs, Sm, Default, Lg, IconXs, IconSm, Icon, IconLg };
-enum class ButtonVariant { Primary, Secondary, Accent, Outline, Ghost, Destructive, Link };
+enum class ButtonVariant { Primary, Secondary, Accent, Outline, Ghost, GhostDestructive, Destructive, Link };
 enum class ButtonContentAlignment { Center, Leading };
 enum class BadgeVariant { Default, Secondary, Outline, Success, Warning, Destructive };
 

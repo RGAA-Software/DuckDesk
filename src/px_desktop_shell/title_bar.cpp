@@ -28,7 +28,8 @@ bool CircularCaptionButton(const px::ui::VectorIcon icon, const std::string_view
     const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
     if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
         const ImVec4 background{destructive ? tokens.destructive : (ImGui::IsItemActive() ? tokens.accent : tokens.muted)};
-        ImGui::GetWindowDrawList()->AddCircleFilled(center, radius, ImGui::GetColorU32(background));
+        constexpr int circleSegments{48};
+        ImGui::GetWindowDrawList()->AddCircleFilled(center, radius, ImGui::GetColorU32(background), circleSegments);
     }
     const ImVec4 iconColor{destructive && ImGui::IsItemHovered() ? tokens.destructiveForeground : tokens.foreground};
     px::ui::DrawVectorIcon(icon, {center.x - iconSize * 0.5F, center.y - iconSize * 0.5F}, iconSize, ImGui::GetColorU32(iconColor));

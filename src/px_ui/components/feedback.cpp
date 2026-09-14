@@ -87,7 +87,8 @@ void ToastHost::Draw() {
             StrongText(entry.message.title);
             ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - metrics.controlXs);
             const std::string closeId{"toast-close-" + std::to_string(entry.id)};
-            if (IconAction({closeId}, VectorIcon::Close, {}, {.variant = ButtonVariant::Ghost, .size = WidgetSize::IconXs, .circular = true})) {
+            if (IconAction({closeId}, VectorIcon::Close, {},
+                           {.variant = ButtonVariant::GhostDestructive, .size = WidgetSize::IconXs, .circular = true})) {
                 dismissed.push_back(entry.id);
             }
             if (!entry.message.description.empty()) {
