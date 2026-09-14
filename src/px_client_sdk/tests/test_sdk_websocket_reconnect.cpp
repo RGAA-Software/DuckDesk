@@ -253,10 +253,11 @@ TEST(SdkWebSocketReconnect, RealAdmissionRejectionRetriesAndAcceptsTheRecoveredS
     notifier->Stop(MessageBusStopMode::kCancel);
 }
 
-TEST(SdkWebSocketReconnect, SessionRejectionIsRecoverable) {
-    for (const auto rejection : {WsControlRejection::kAuthorization, WsControlRejection::kOccupied, WsControlRejection::kSessionPolicy}) {
+TEST(SdkWebSocketReconnect, SessionRejectionReportsTerminalError) {
+    for (const auto rejection : {WsControlRejection::kAuthorization, WsControlRejection::kRemoteAccessDisabled, WsControlRejection::kOccupied,
+                                 WsControlRejection::kSessionPolicy}) {
         const auto error = MakeSdkWebSocketRejectionError(rejection);
-        EXPECT_TRUE(error.retryable);
+        EXPECT_FALSE(error.retryable);
         EXPECT_EQ(error.StableCode(), "SDK_WEBSOCKET_SESSION_REJECTED");
     }
 }

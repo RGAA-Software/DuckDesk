@@ -39,7 +39,7 @@ class ClientAudioOutput;
 
 enum class ClientConnectionState : std::uint8_t { Connecting, Connected, MediaUnavailable, Rejected, Disconnected };
 
-enum class ClientConnectionFailure : std::uint8_t { None, Authorization, Occupied, SessionPolicy, TakenOver, Transport };
+enum class ClientConnectionFailure : std::uint8_t { None, Authorization, RemoteAccessDisabled, Occupied, SessionPolicy, TakenOver, Transport };
 
 struct ClientResolution final {
     int width{};

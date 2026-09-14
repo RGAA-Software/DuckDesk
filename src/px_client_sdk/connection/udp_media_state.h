@@ -23,6 +23,11 @@ class UdpMediaState final {
         return phase_.compare_exchange_strong(expected, UdpMediaPhase::kActive);
     }
 
+    bool Recover() {
+        auto expected = UdpMediaPhase::kUnavailable;
+        return phase_.compare_exchange_strong(expected, UdpMediaPhase::kActive);
+    }
+
     [[nodiscard]] std::optional<UdpMediaFailure> MarkUnavailable() {
         auto current = phase_.load();
         while (current == UdpMediaPhase::kProbing || current == UdpMediaPhase::kActive) {

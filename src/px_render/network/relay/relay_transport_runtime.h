@@ -78,6 +78,7 @@ class RelayTransportRuntime final : public std::enable_shared_from_this<RelayTra
         std::string stream_id;
         std::string visitor_device_id;
         std::string connection_instance_id;
+        std::string logical_session_id;
         int64_t created_timestamp = 0;
         uint64_t last_recv_msg_index = 0;
         bool has_recv_msg_index = false;
@@ -123,6 +124,7 @@ class RelayTransportRuntime final : public std::enable_shared_from_this<RelayTra
     [[nodiscard]] std::vector<std::string> AuthorizedMediaRooms(const std::shared_ptr<Data>& message, const std::string& stream_id = {}) const;
     void CloseMediaRoute(const std::string& room_id);
     void CloseAllMediaRoutes();
+    void CloseAllFileTransferRoutes();
 
     mutable std::mutex lifecycle_mutex_;
     std::shared_ptr<MonitorControl> monitor_control_{};

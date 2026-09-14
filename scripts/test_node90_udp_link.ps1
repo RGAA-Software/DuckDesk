@@ -105,7 +105,9 @@ try {
         Set-Item WSMan:\localhost\Client\TrustedHosts -Value '39.71.45.66' -Force
         $machineText=Get-Content (Join-Path $repo '.env/test_machine.md') -Raw
         $secret=[regex]::Match($machineText,'(?m)^\s*-\s*密码\s*[:：]\s*(.+?)\s*$').Groups[1].Value
-        $session=New-PSSession -ComputerName 39.71.45.66 -Credential ([pscredential]::new('administrator',(ConvertTo-SecureString $secret -AsPlainText -Force)))
+        $machineName=[regex]::Match($machineText,'(?m)^\s*-\s*\u4e3b\u673a\u540d\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
+        $userName=if($machineName){"$machineName\Administrator"}else{'Administrator'}
+        $session=New-PSSession -ComputerName 39.71.45.66 -Credential ([pscredential]::new($userName,(ConvertTo-SecureString $secret -AsPlainText -Force)))
         Invoke-Command -Session $session -ArgumentList $source,$Port -ScriptBlock {
             param($code,$testPort)
             if(Get-NetUDPEndpoint -LocalPort $testPort -ErrorAction SilentlyContinue){throw "UDP $testPort is in use; refusing to disturb active Render"}

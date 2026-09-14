@@ -228,10 +228,12 @@ TEST(PxUdpProtocol, JoinMidFrameDeclaresLoss) {
 TEST(PxUdpProtocol, CtrlRoundtrip) {
     std::string s1, s2;
 
-    auto hello = PxUdpProtocol::BuildHello("dev-123", "stream-abc");
-    ASSERT_EQ(PxUdpProtocol::ParseCtrl(hello->Bytes(), s1, s2), PxUdpProtocol::kCtrlHello);
+    auto hello = PxUdpProtocol::BuildHello("dev-123", "stream-abc", PxUdpProtocol::kRemoteIpv6Mtu);
+    std::uint16_t datagram_size{};
+    ASSERT_TRUE(PxUdpProtocol::ParseHello(hello->Bytes(), s1, s2, datagram_size));
     EXPECT_EQ(s1, "dev-123");
     EXPECT_EQ(s2, "stream-abc");
+    EXPECT_EQ(datagram_size, PxUdpProtocol::kRemoteIpv6Mtu);
 
     auto hb = PxUdpProtocol::BuildHeartbeat("stream-abc");
     ASSERT_EQ(PxUdpProtocol::ParseCtrl(hb->Bytes(), s1, s2), PxUdpProtocol::kCtrlHeartbeat);
@@ -246,7 +248,9 @@ TEST(PxUdpProtocol, CtrlRoundtrip) {
     EXPECT_EQ(s1, "taken over");
 
     // truncated packet rejected
-    ASSERT_EQ(PxUdpProtocol::ParseCtrl(hello->Bytes().first(hello->Size() - 3), s1, s2), 0);
+    ASSERT_FALSE(PxUdpProtocol::ParseHello(hello->Bytes().first(hello->Size() - 3), s1, s2, datagram_size));
+    const auto legacy_hello = PxUdpProtocol::BuildCtrlString2(PxUdpProtocol::kCtrlHello, "dev-123", "stream-abc");
+    ASSERT_FALSE(PxUdpProtocol::ParseHello(legacy_hello->Bytes(), s1, s2, datagram_size));
 }
 
 // ---------------- FEC (Reed-Solomon, P2) ----------------

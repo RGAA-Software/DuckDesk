@@ -105,7 +105,7 @@ class UdpTransport final : public RenderModule {
     std::shared_ptr<PxAsyncRuntime> async_runtime_{};
     std::atomic<std::shared_ptr<UdpRuntimeState>> runtime_{};
     int udp_listen_port_{};
-    // 视频 shard MTU:LAN 默认 1400;公网/UDP 分片敏感场景可配 1024。
+    // Server-side ceiling. Client selects 1400 for LAN, 1040 for remote IPv4/VPN, and 1200 for unknown/remote IPv6 paths.
     int udp_mtu_{1400};
     // key = conn_id(remote addr:port):裸 UDP 下所有会话共享同一 socket,
     // native_handle 无法区分对端,必须用 endpoint 字符串做 key
@@ -123,6 +123,7 @@ class UdpTransport final : public RenderModule {
     // 音频包序号(PostProtoMessage 由 rd_app 单线程调用,无需原子);
     // 50pps 小包,不走帧内 pacing
     media::AudioPacketizer audio_packetizer_{};
+    std::uint16_t audio_datagram_size_{};
     std::mutex audio_send_mutex_{};
     std::mutex video_send_mutex_{};
     std::map<std::uint8_t, std::uint16_t> video_sequences_{};

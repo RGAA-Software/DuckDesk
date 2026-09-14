@@ -37,6 +37,39 @@ TEST(MediaStream, ProtectedVideoMetadataSurvivesLossOfFirstShard) {
         EXPECT_EQ(delivered->width, frame.width);
     }
 }
+TEST(MediaStream, TruncatedFirstDatagramDoesNotPinTheStreamShardSize) {
+    VideoFrame frame{};
+    frame.kind = VideoFrameKind::kIdr;
+    frame.width = 1920;
+    frame.height = 1080;
+    frame.frame_index = 507;
+    frame.encoded.assign(64000, 0x5A);
+    VideoPacketParameters parameters{};
+    parameters.datagram_size = 1400;
+    parameters.frame_index = 507;
+    const auto packets = PacketizeVideoFrame(frame, parameters);
+    ASSERT_TRUE(packets);
+    ASSERT_GT(packets->packets.size(), 2U);
+
+    auto truncated = packets->packets.front();
+    truncated.resize(1024);
+    const auto first = ParseMedia(truncated);
+    ASSERT_TRUE(first);
+    VideoStreamReceiver receiver{};
+    EXPECT_FALSE(receiver.Feed(*first, 1000000).frame);
+
+    std::optional<VideoFrame> delivered{};
+    for (std::size_t index = 1; index < packets->packets.size(); ++index) {
+        const auto datagram = ParseMedia(packets->packets[index]);
+        ASSERT_TRUE(datagram);
+        auto output = receiver.Feed(*datagram, 1000000 + index);
+        if (output.frame)
+            delivered = std::move(output.frame);
+    }
+    ASSERT_TRUE(delivered);
+    EXPECT_EQ(delivered->frame_index, frame.frame_index);
+    EXPECT_EQ(delivered->encoded, frame.encoded);
+}
 TEST(MediaStream, ReferenceChainRejectsGapUntilIdrAndResetClearsStreams) {
     VideoFrame frame{};
     frame.width = frame.height = 100;

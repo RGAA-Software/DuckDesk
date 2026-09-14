@@ -12,6 +12,7 @@
 #include "px_common/log.h"
 #include "px_common/md5.h"
 #include "px_common/time_util.h"
+#include "px_common/ws_control_signal.h"
 #include "px_relay_client/relay_connected_info.h"
 #include "px_relay_client/relay_room.h"
 #include "px_relay_client/relay_server_sdk.h"
@@ -167,10 +168,6 @@ void RelayTransportRuntime::Stop() {
     ReleaseConnections();
     CloseAllMediaRoutes();
     {
-        std::lock_guard lock(ft_route_mutex_);
-        ft_routes_.clear();
-    }
-    {
         std::lock_guard lock(sink_mutex_);
         event_callback_ = {};
         execution_context_.reset();
@@ -308,6 +305,7 @@ void RelayTransportRuntime::ReleaseConnections() {
         ft_sdk->Stop();
     }
     CloseAllMediaRoutes();
+    CloseAllFileTransferRoutes();
 }
 
 std::shared_ptr<RelayServerSdk> RelayTransportRuntime::MediaSdk() const {
@@ -425,10 +423,11 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
                 }
                 const auto& accepted_control = message->request_control();
                 if (result.code != LogicalSessionAdmissionCode::kAccepted) {
-                    active_server->RespondToControl(message, false,
-                                                    result.code == LogicalSessionAdmissionCode::kOccupied
-                                                        ? "remote controller is occupied; try again in a few seconds"
-                                                        : "Relay session admission denied");
+                    active_server->RespondToControl(
+                        message, false,
+                        result.code == LogicalSessionAdmissionCode::kRemoteAccessDisabled ? std::string{kWsRemoteAccessDisabledSignal}
+                        : result.code == LogicalSessionAdmissionCode::kOccupied ? "remote controller is occupied; try again in a few seconds"
+                                                                                : "Relay session admission denied");
                     return;
                 }
                 if (!owner->StoreMediaRoute(
@@ -592,6 +591,81 @@ void RelayTransportRuntime::ConnectFileTransfer(const RelayTransportRuntimeConfi
             self->ReportRelayAlive(id);
         }
     });
+    sdk->SetOnRequestControlCallback([weak_self, weak_sdk = std::weak_ptr<RelayServerSdk>{sdk},
+                                      generation](const std::shared_ptr<RelayMessage>& message) {
+        const auto self = weak_self.lock();
+        const auto server = weak_sdk.lock();
+        if (!self || !server || !self->IsCurrentFileTransferGeneration(generation) || !message || !message->has_request_control()) {
+            return;
+        }
+        const auto& request = message->request_control();
+        const auto visitor_device_id = ExtractClientId(request.device_id().starts_with("ft_") ? request.device_id().substr(3) : request.device_id());
+        const auto settings = self->ConfigSnapshot().settings;
+        if (request.stream_id().empty() || request.room_id().empty() || visitor_device_id.empty()) {
+            server->RespondToControl(message, false, "invalid Relay file-transfer request");
+            return;
+        }
+        if (!VerifyRelayDeviceCredential(settings, request.safety_pwd_md5())) {
+            server->RespondToControl(message, false, "device password was rejected");
+            return;
+        }
+        const auto logical_session_id = "relay-ft-session:" + request.room_id();
+        std::string binding_id;
+        {
+            std::lock_guard lock(self->ft_route_mutex_);
+            auto [route_it, inserted] = self->ft_routes_.try_emplace(request.room_id());
+            auto& route = route_it->second;
+            if (inserted || route.connection_instance_id.empty()) {
+                route.connection_instance_id = request.room_id() + "#" + std::to_string(++self->ft_route_generation_);
+            }
+            route.stream_id = request.stream_id();
+            route.visitor_device_id = visitor_device_id;
+            route.logical_session_id = logical_session_id;
+            binding_id = route.connection_instance_id;
+        }
+        const auto admission = std::make_shared<AdmitLogicalSessionEvent>();
+        admission->grant_ = LogicalSessionGrant{
+            .logical_session_id = logical_session_id,
+            .stream_id = request.stream_id(),
+            .subject_id = visitor_device_id,
+            .join_mode = "control",
+            .expires_at_ms = 0,
+            .allow_observer = false,
+            .allow_takeover = false,
+            .input_allowed = false,
+        };
+        admission->transport_ = LogicalSessionTransport::kFileTransfer;
+        admission->binding_id_ = binding_id;
+        RenderEventCallback lifecycle_dispatcher;
+        {
+            std::lock_guard lock(self->sink_mutex_);
+            lifecycle_dispatcher = self->event_callback_;
+        }
+        admission->callback_ = [weak_self, weak_sdk, generation, message, logical_session_id, binding_id,
+                                lifecycle_dispatcher](const LogicalSessionAdmission& result) {
+            const auto owner = weak_self.lock();
+            const auto active_server = weak_sdk.lock();
+            if (!owner || !active_server || !owner->IsCurrentFileTransferGeneration(generation)) {
+                if (result.code == LogicalSessionAdmissionCode::kAccepted) {
+                    DispatchCloseLogicalSessionBinding(lifecycle_dispatcher, logical_session_id, binding_id);
+                }
+                return;
+            }
+            if (result.code != LogicalSessionAdmissionCode::kAccepted) {
+                {
+                    std::lock_guard lock(owner->ft_route_mutex_);
+                    owner->ft_routes_.erase(message->request_control().room_id());
+                }
+                active_server->RespondToControl(message, false,
+                                                result.code == LogicalSessionAdmissionCode::kRemoteAccessDisabled
+                                                    ? std::string{kWsRemoteAccessDisabledSignal}
+                                                    : "Relay file-transfer session admission denied");
+                return;
+            }
+            active_server->RespondToControl(message, true, "ok");
+        };
+        self->Emit(admission);
+    });
     sdk->SetOnRelayProtoMessageCallback([weak_self, generation](const std::shared_ptr<RelayMessage>& message) {
         const auto self = weak_self.lock();
         if (!self || !self->IsCurrentFileTransferGeneration(generation)) {
@@ -648,6 +722,12 @@ void RelayTransportRuntime::ConnectFileTransfer(const RelayTransportRuntimeConfi
                 }
             }
             if (found) {
+                RenderEventCallback lifecycle_dispatcher;
+                {
+                    std::lock_guard lock(self->sink_mutex_);
+                    lifecycle_dispatcher = self->event_callback_;
+                }
+                DispatchCloseLogicalSessionBinding(lifecycle_dispatcher, route.logical_session_id, route.connection_instance_id);
                 self->NotifyClientDisconnected(route.connection_instance_id, route.stream_id, route.visitor_device_id, route.created_timestamp);
             }
         }
@@ -731,6 +811,27 @@ void RelayTransportRuntime::CloseAllMediaRoutes() {
     }
     for (const auto& room_id : room_ids) {
         CloseMediaRoute(room_id);
+    }
+}
+
+void RelayTransportRuntime::CloseAllFileTransferRoutes() {
+    std::vector<FtRelayRouteInfo> routes;
+    {
+        std::lock_guard lock(ft_route_mutex_);
+        routes.reserve(ft_routes_.size());
+        for (const auto& [room_id, route] : ft_routes_) {
+            static_cast<void>(room_id);
+            routes.push_back(route);
+        }
+        ft_routes_.clear();
+    }
+    for (const auto& route : routes) {
+        if (!route.logical_session_id.empty() && !route.connection_instance_id.empty()) {
+            const auto close = std::make_shared<CloseLogicalSessionBindingEvent>();
+            close->logical_session_id_ = route.logical_session_id;
+            close->binding_id_ = route.connection_instance_id;
+            Emit(close, true);
+        }
     }
 }
 

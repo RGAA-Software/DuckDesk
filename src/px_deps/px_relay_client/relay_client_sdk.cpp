@@ -54,6 +54,10 @@ void RelayClientSdk::SetOnRelayRoomDestroyedCallback(OnRelayRoomDestroyed&& cbk)
     cbk_room_destroyed_ = cbk;
 }
 
+void RelayClientSdk::SetOnRelayRequestControlResponseCallback(OnRelayRequestControlResponse&& cbk) {
+    cbk_request_control_response_ = std::move(cbk);
+}
+
 void RelayClientSdk::SetOnRelayErrorCallback(OnRelayError&& cbk) {
     cbk_relay_error_ = cbk;
 }
@@ -239,6 +243,9 @@ void RelayClientSdk::RequestControl() {
 // received from server
 void RelayClientSdk::OnRequestControlResp(const std::shared_ptr<RelayMessage>& msg) {
     LOGI("On request control resp!!");
+    if (cbk_request_control_response_) {
+        cbk_request_control_response_(msg);
+    }
 }
 
 // send from client

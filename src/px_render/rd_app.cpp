@@ -51,6 +51,7 @@
 #include "px_render/modules/render_module_registry.h"
 #include "px_render/modules/module_ids.h"
 #include "architecture/sources/monitor_capture_source.h"
+#include "architecture/sources/dda/dda_capture_source.h"
 #include "px_service_message.pb.h"
 #include "app/win/win_desktop_manager.h"
 #include "px_common/win32/d3d11_wrapper.h"
@@ -187,6 +188,8 @@ std::shared_ptr<RdApplication> RdApplication::Make(const AppParams& args) {
 
 RdApplication::RdApplication(const AppParams& args) : settings_(*RdSettings::Instance()) {
     logical_session_registry_ = std::make_shared<LogicalSessionRegistry>();
+    logical_session_registry_->SetIncomingAccessEnabled(
+        ResolveIncomingAccessEnabled(settings_.IncomingAccessProduct(), settings_.incoming_remote_access_enabled_));
 
     // debug
     // MessageBoxA(0, "", "debug", 0);
@@ -356,9 +359,9 @@ int RdApplication::Run() {
         });
     });
     input_replay_service_ = render::InputReplayService::Create();
-    joystick_service_ = render::JoystickService::Create(
-        {}, [weak_hub = std::weak_ptr<render::NetworkTransportHub>(network_transport_hub_)](
-                const std::string& transport_id, const std::string& stream_id, const std::shared_ptr<Data>& message) {
+    joystick_service_ =
+        render::JoystickService::Create({}, [weak_hub = std::weak_ptr<render::NetworkTransportHub>(network_transport_hub_)](
+                                                const std::string& transport_id, const std::string& stream_id, const std::shared_ptr<Data>& message) {
             const auto hub = weak_hub.lock();
             return hub && hub->SendControl(
                               render::TransportRoute{
@@ -877,7 +880,6 @@ void RdApplication::InitConnectionLifecycle() {
             },
             5000);
     });
-
 }
 
 void RdApplication::InitMessages() {
@@ -1449,11 +1451,12 @@ void RdApplication::StartWebView() {
                 self->PostNetMessage(NetMessageMaker::MakeCursorInfoSyncMsg(cursor.x_, cursor.y_, cursor.hotspot_x_, cursor.hotspot_y_, cursor.width_,
                                                                             cursor.height_, cursor.visible_, cursor.data_, cursor.type_));
             },
-        .on_clipboard_text = [weak_self](const std::string& text) {
-            if (const auto self = weak_self.lock(); self && !self->exit_app_) {
-                self->SendClipboardMessage(text);
-            }
-        },
+        .on_clipboard_text =
+            [weak_self](const std::string& text) {
+                if (const auto self = weak_self.lock(); self && !self->exit_app_) {
+                    self->SendClipboardMessage(text);
+                }
+            },
         .on_failed =
             [weak_self](const std::string& error) {
                 const auto self = weak_self.lock();
@@ -1461,16 +1464,16 @@ void RdApplication::StartWebView() {
                     return;
                 LOGE("WebView runtime failure: {}", error);
                 if (self->service_client_) {
-                    self->service_client_->NotifyAppInstanceReady(self->settings_.webview_instance_id_,
-                                                                  self->settings_.transmission_.listening_port_, false, error);
+                    self->service_client_->NotifyAppInstanceReady(self->settings_.webview_instance_id_, self->settings_.transmission_.listening_port_,
+                                                                  false, error);
                 }
             },
         .on_first_frame =
             [weak_self]() {
                 LOGI("WebView first off-screen frame is ready");
                 if (const auto self = weak_self.lock(); self && self->service_client_) {
-                    self->service_client_->NotifyAppInstanceReady(self->settings_.webview_instance_id_,
-                                                                  self->settings_.transmission_.listening_port_, true, "");
+                    self->service_client_->NotifyAppInstanceReady(self->settings_.webview_instance_id_, self->settings_.transmission_.listening_port_,
+                                                                  true, "");
                 }
                 if (const auto self = weak_self.lock();
                     self && self->webview_runtime_ && !self->HasConnectedPeer() && !self->settings_.webview_smoke_test_) {
@@ -1519,56 +1522,59 @@ ApplicationTextBackend RdApplication::CreateApplicationTextBackend() {
     const auto weak{weak_from_this()};
     return {
         .kind = settings_.IsWebViewMode() ? ApplicationTextCapabilities::CEF_COMMIT : ApplicationTextCapabilities::OWNED_HOOK_WINDOW,
-        .query = [weak](std::function<void(ApplicationTextBackendState)> completion) {
-            if (const auto self{weak.lock()}) {
-                self->PostGlobalTask([weak, completion = std::move(completion)] {
-                    const auto self{weak.lock()};
-                    if (self && !self->exit_app_ && self->webview_runtime_) {
-                        self->webview_runtime_->QueryTextTarget(completion);
-                    } else if (self && !self->exit_app_ && self->game_text_backend_) {
-                        self->game_text_backend_->Adapter().query(completion);
-                    } else {
-                        completion({});
-                    }
-                });
-            } else {
-                completion({});
-            }
-        },
-        .release_keys = [weak](std::function<void(bool)> completion) {
-            if (const auto self{weak.lock()}) {
-                self->PostGlobalTask([weak, completion = std::move(completion)] {
-                    const auto self{weak.lock()};
-                    if (self && !self->exit_app_ && self->webview_runtime_) {
-                        self->webview_runtime_->ReleaseTextInputKeys([completion] { completion(true); });
-                    } else if (self && !self->exit_app_ && self->game_text_backend_) {
-                        self->game_text_backend_->Adapter().release_keys(completion);
-                    } else {
-                        completion(false);
-                    }
-                });
-            } else {
-                completion(false);
-            }
-        },
-        .commit = [weak](std::string text, std::string generation, std::function<bool()> authorize,
-                         std::function<void(ApplicationTextOutcome)> completion) {
-            if (const auto self{weak.lock()}) {
-                self->PostGlobalTask([weak, text = std::move(text), generation = std::move(generation), authorize = std::move(authorize),
-                                      completion = std::move(completion)]() mutable {
-                    const auto self{weak.lock()};
-                    if (self && !self->exit_app_ && self->webview_runtime_) {
-                        self->webview_runtime_->CommitApplicationText(std::move(text), std::move(generation), std::move(authorize), completion);
-                    } else if (self && !self->exit_app_ && self->game_text_backend_) {
-                        self->game_text_backend_->Adapter().commit(std::move(text), std::move(generation), std::move(authorize), completion);
-                    } else {
-                        completion(TEXT_TARGET_UNAVAILABLE);
-                    }
-                });
-            } else {
-                completion(TEXT_TARGET_UNAVAILABLE);
-            }
-        },
+        .query =
+            [weak](std::function<void(ApplicationTextBackendState)> completion) {
+                if (const auto self{weak.lock()}) {
+                    self->PostGlobalTask([weak, completion = std::move(completion)] {
+                        const auto self{weak.lock()};
+                        if (self && !self->exit_app_ && self->webview_runtime_) {
+                            self->webview_runtime_->QueryTextTarget(completion);
+                        } else if (self && !self->exit_app_ && self->game_text_backend_) {
+                            self->game_text_backend_->Adapter().query(completion);
+                        } else {
+                            completion({});
+                        }
+                    });
+                } else {
+                    completion({});
+                }
+            },
+        .release_keys =
+            [weak](std::function<void(bool)> completion) {
+                if (const auto self{weak.lock()}) {
+                    self->PostGlobalTask([weak, completion = std::move(completion)] {
+                        const auto self{weak.lock()};
+                        if (self && !self->exit_app_ && self->webview_runtime_) {
+                            self->webview_runtime_->ReleaseTextInputKeys([completion] { completion(true); });
+                        } else if (self && !self->exit_app_ && self->game_text_backend_) {
+                            self->game_text_backend_->Adapter().release_keys(completion);
+                        } else {
+                            completion(false);
+                        }
+                    });
+                } else {
+                    completion(false);
+                }
+            },
+        .commit =
+            [weak](std::string text, std::string generation, std::function<bool()> authorize,
+                   std::function<void(ApplicationTextOutcome)> completion) {
+                if (const auto self{weak.lock()}) {
+                    self->PostGlobalTask([weak, text = std::move(text), generation = std::move(generation), authorize = std::move(authorize),
+                                          completion = std::move(completion)]() mutable {
+                        const auto self{weak.lock()};
+                        if (self && !self->exit_app_ && self->webview_runtime_) {
+                            self->webview_runtime_->CommitApplicationText(std::move(text), std::move(generation), std::move(authorize), completion);
+                        } else if (self && !self->exit_app_ && self->game_text_backend_) {
+                            self->game_text_backend_->Adapter().commit(std::move(text), std::move(generation), std::move(authorize), completion);
+                        } else {
+                            completion(TEXT_TARGET_UNAVAILABLE);
+                        }
+                    });
+                } else {
+                    completion(TEXT_TARGET_UNAVAILABLE);
+                }
+            },
     };
 }
 
@@ -2515,7 +2521,21 @@ void RdApplication::HandleForceGdiEvent(bool force_gdi) {
         if (self->capture_source_) {
             self->capture_source_->StartCapturing();
         }
+        if (!force_gdi) {
+            self->RequestStaticDesktopFrame();
+        }
     });
+}
+
+void RdApplication::RequestStaticDesktopFrame() {
+    if (settings_.IsWebViewMode() || settings_.IsGameHookMode()) {
+        return;
+    }
+    const auto dda = std::dynamic_pointer_cast<DdaCaptureSource>(dda_capture_source_);
+    if (!dda || !IsCurrentDdaCapture()) {
+        return;
+    }
+    dda->RequestStaticFrame();
 }
 
 void RdApplication::UpdateCapturingMonitorInfo() {

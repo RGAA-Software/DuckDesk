@@ -26,6 +26,7 @@ enum class LogicalSessionTransport {
 
 enum class LogicalSessionAdmissionCode {
     kAccepted,
+    kRemoteAccessDisabled,
     kOccupied,
     kObserversDisabled,
     kTakeoverDisabled,
@@ -92,6 +93,7 @@ public:
     LogicalSessionRegistry& operator=(const LogicalSessionRegistry&) = delete;
 
     void SetPolicy(bool allow_observer, bool allow_takeover);
+    void SetIncomingAccessEnabled(bool enabled);
     void UpdateInputCapabilityByStream(const std::string& stream_id, bool allowed);
 
     LogicalSessionAdmission Bind(const LogicalSessionGrant& grant,
@@ -180,6 +182,7 @@ private:
     mutable std::mutex mutex_;
     bool allow_observer_ = true;
     bool allow_takeover_ = true;
+    bool incoming_access_enabled_{true};
     int64_t controller_reconnect_grace_ms_ = 5000;
     std::unordered_map<std::string, Session> sessions_;
     std::string controller_session_id_;

@@ -27,6 +27,7 @@ constexpr auto kHandlerErrNoWebRtcLocalLibrary = 702;
 constexpr auto kHandlerErrCreateRtcLocalServerFailed = 703;
 constexpr auto kHandlerErrRtcLocalOccupied = 704;
 constexpr auto kHandlerErrSessionRejected = 705;
+constexpr auto kHandlerErrRemoteAccessDisabled = 706;
 constexpr auto kHandlerErrIpDirectAuthorizationRejected = 707;
 
 int64_t CurrentSystemMilliseconds() {
@@ -65,6 +66,8 @@ std::string HttpHandler::GetErrorMessage(int code) {
         return "Rtc local connection occupied";
     } else if (code == kHandlerErrSessionRejected) {
         return "Session rejected";
+    } else if (code == kHandlerErrRemoteAccessDisabled) {
+        return "Remote access is disabled on the remote device";
     } else if (code == kHandlerErrIpDirectAuthorizationRejected) {
         return "IP direct authorization rejected";
     }
@@ -313,8 +316,9 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(std::weak_ptr<HttpHandler> 
     }
     const auto admission = admitted.TakeValue();
     if (admission.code != LogicalSessionAdmissionCode::kAccepted) {
-        const auto code =
-            admission.code == LogicalSessionAdmissionCode::kOccupied ? kHandlerErrRtcLocalOccupied : kHandlerErrSessionRejected;
+        const auto code = admission.code == LogicalSessionAdmissionCode::kRemoteAccessDisabled
+                              ? kHandlerErrRemoteAccessDisabled
+                              : (admission.code == LogicalSessionAdmissionCode::kOccupied ? kHandlerErrRtcLocalOccupied : kHandlerErrSessionRejected);
         complete(make_reply(code, http::status::forbidden));
         co_return;
     }

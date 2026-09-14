@@ -22,6 +22,8 @@ ClientText FailureText(const ClientConnectionFailure failure) noexcept {
     switch (failure) {
     case ClientConnectionFailure::Authorization:
         return ClientText::AuthorizationRejected;
+    case ClientConnectionFailure::RemoteAccessDisabled:
+        return ClientText::RemoteAccessDisabled;
     case ClientConnectionFailure::Occupied:
         return ClientText::DeviceOccupied;
     case ClientConnectionFailure::SessionPolicy:
@@ -137,9 +139,40 @@ void ClientWindow::Draw() {
         return;
     }
 
-    if (snapshot.state == ClientConnectionState::MediaUnavailable) {
-        px::ui::InlineAlert(text(ClientText::MediaUnavailable), text(ClientText::MediaUnavailableDetail), px::ui::FeedbackVariant::Warning);
-    } else if (snapshot.state == ClientConnectionState::Disconnected) {
+    const bool mediaUnavailable{snapshot.state == ClientConnectionState::MediaUnavailable};
+    if (mediaUnavailable && !mediaWarningLatched_) {
+        mediaWarningLatched_ = true;
+        mediaWarningPopupOpened_ = false;
+        shell_.get().RequestShowAndRaise();
+    }
+    if (mediaWarningLatched_) {
+        const std::string popupTitle{std::string{text(ClientText::MediaUnavailable)} + "###client-media-unavailable"};
+        if (!mediaWarningPopupOpened_) {
+            ImGui::OpenPopup(popupTitle.c_str());
+            mediaWarningPopupOpened_ = true;
+        }
+        const px::ui::ModalScope modal{
+            {popupTitle}, 540.0F, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings};
+        if (modal.Open()) {
+            if (!mediaUnavailable) {
+                ImGui::CloseCurrentPopup();
+            } else {
+                static_cast<void>(
+                    px::ui::DialogHeader({"client-media-warning-close"}, text(ClientText::MediaUnavailable), text(ClientText::MediaUnavailableDetail),
+                                         {.icon = px::ui::VectorIcon::TriangleAlert, .tone = px::ui::BadgeVariant::Warning, .closeable = false}));
+                constexpr float buttonWidth{150.0F};
+                px::ui::DialogFooter(buttonWidth);
+                if (px::ui::ActionButton({"client-media-warning-ok"}, text(ClientText::Ok), {.width = buttonWidth}))
+                    ImGui::CloseCurrentPopup();
+            }
+        }
+    }
+    if (!mediaUnavailable) {
+        mediaWarningLatched_ = false;
+        mediaWarningPopupOpened_ = false;
+    }
+
+    if (snapshot.state == ClientConnectionState::Disconnected) {
         px::ui::InlineAlert(text(ClientText::Disconnected), text(ClientText::DisconnectedDetail), px::ui::FeedbackVariant::Warning);
     }
 

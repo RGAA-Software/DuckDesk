@@ -160,12 +160,14 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
         product/panel_connection_input.cpp
         product/panel_connection_links.cpp
         product/panel_device_name.cpp
+        product/panel_local_server.cpp
         product/panel_config_store.cpp
         product/panel_worker.cpp
     )
     target_include_directories(px_panel_product_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/product)
     target_link_libraries(px_panel_product_tests PRIVATE
         px_common
+        px_cp_message
         px_ui
         px_rp_message
         unofficial::sqlite3::sqlite3

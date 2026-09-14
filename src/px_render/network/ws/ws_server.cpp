@@ -1187,12 +1187,15 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(std::weak_ptr<WsServer> owner, st
                                      path == kUrlFileTransfer ? LogicalSessionTransport::kFileTransfer : LogicalSessionTransport::kWs, binding_id);
     if (!admission_result.HasValue() || admission_result.Value().code != LogicalSessionAdmissionCode::kAccepted) {
         const bool occupied = admission_result.HasValue() && admission_result.Value().code == LogicalSessionAdmissionCode::kOccupied;
+        const bool remote_access_disabled =
+            admission_result.HasValue() && admission_result.Value().code == LogicalSessionAdmissionCode::kRemoteAccessDisabled;
         const auto code = admission_result.HasValue() ? "SESSION_ADMISSION_DENIED" : admission_result.Error().StableCode();
         LOGW("event=session.admit component=net_ws code={} "
              "operation=bind_session outcome=rejected recoverable={} occupied={}",
              code, !admission_result.HasValue() && admission_result.Error().retryable, occupied);
         server->transport_performance_.ObserveDropped();
-        RejectWebSocketSession(session, occupied ? kWsSessionOccupiedSignal : kWsSessionRejectedSignal);
+        RejectWebSocketSession(session, remote_access_disabled ? kWsRemoteAccessDisabledSignal
+                                                               : (occupied ? kWsSessionOccupiedSignal : kWsSessionRejectedSignal));
         co_return;
     }
     auto admission = admission_result.TakeValue();

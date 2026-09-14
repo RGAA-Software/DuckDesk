@@ -47,8 +47,8 @@ namespace px
     // 50pps(20ms 一帧),客户端经 PxUdpAudioJitterBuffer 按序交付、缺口走 Opus PLC
     //
     // Ctrl packet (pkt_type=3): subtype(u8) + body
-    //   kCtrlHello(1):     association_len(u8)+association | stream_id_len(u8)+stream_id
-    //   kCtrlHeartbeat(2): association_len(u8)+association
+    //   kCtrlHello(1):     association_len(u8)+association | stream_id_len(u8)+stream_id | max_datagram_size(u16)
+    //   kCtrlHeartbeat(2): association_len(u8)+association (client request and authenticated Render echo)
     //   kCtrlIdrRequest(3):mon_name_len(u8)+mon_name   (empty = all monitors)
     //   kCtrlFrameStatus(4): frame_index(u32) | received(u16) | lost(u16)
     //   kCtrlKick(5):      reason_len(u8)+reason   (render -> client, e.g. taken over)
@@ -56,7 +56,7 @@ namespace px
     class PxUdpProtocol {
     public:
         static constexpr uint16_t kMagic = 0x4755; // 'GU'
-        static constexpr uint8_t kVersion = 1;
+        static constexpr uint8_t kVersion = 2;
 
         static constexpr uint8_t kPktVideo = 1;
         static constexpr uint8_t kPktAudio = 2;
@@ -83,7 +83,9 @@ namespace px
         static constexpr int kCommonHeaderSize = 4;
         static constexpr int kVideoHeaderSize = 20;
         static constexpr int kDefaultMtu = 1400;
-        static constexpr int kWanMtu = 1024;
+        static constexpr int kSafeMtu = 1200;
+        static constexpr int kRemoteIpv4Mtu = 1040;
+        static constexpr int kRemoteIpv6Mtu = 1200;
         static constexpr int kMaxMonNameLen = 64;
 
         // ---- little-endian read/write helpers ----
@@ -378,9 +380,24 @@ namespace px
             return buf;
         }
 
-        static std::shared_ptr<Data> BuildHello(const std::string& association_code,
-                                                const std::string& stream_id) {
-            return BuildCtrlString2(kCtrlHello, association_code, stream_id);
+        static std::shared_ptr<Data> BuildHello(const std::string& association_code, const std::string& stream_id,
+                                                uint16_t max_datagram_size) {
+            if (association_code.size() > 0xff || stream_id.size() > 0xff || max_datagram_size < 576 || max_datagram_size > 1500)
+                return nullptr;
+            const auto size = static_cast<std::size_t>(kCommonHeaderSize + 1 + 1 + association_code.size() + 1 + stream_id.size() + 2);
+            auto result = Data::Allocate(size);
+            auto packet = result->MutableBytes();
+            WriteCommon(packet, kPktCtrl);
+            packet[kCommonHeaderSize] = static_cast<char>(kCtrlHello);
+            auto offset = static_cast<std::size_t>(kCommonHeaderSize + 1);
+            packet[offset++] = static_cast<char>(association_code.size());
+            std::ranges::copy(association_code, packet.begin() + static_cast<std::ptrdiff_t>(offset));
+            offset += association_code.size();
+            packet[offset++] = static_cast<char>(stream_id.size());
+            std::ranges::copy(stream_id, packet.begin() + static_cast<std::ptrdiff_t>(offset));
+            offset += stream_id.size();
+            W16(packet, offset, max_datagram_size);
+            return result;
         }
         static std::shared_ptr<Data> BuildHeartbeat(const std::string& association_code) {
             return BuildCtrlString1(kCtrlHeartbeat, association_code);
@@ -429,6 +446,31 @@ namespace px
             return true;
         }
 
+        static bool ParseHello(std::span<const char> data, std::string& association_code, std::string& stream_id,
+                               uint16_t& max_datagram_size) {
+            if (ParseCommon(data) != kPktCtrl || data.size() < kCommonHeaderSize + 1 ||
+                static_cast<uint8_t>(data[kCommonHeaderSize]) != kCtrlHello)
+                return false;
+            auto offset = static_cast<std::size_t>(kCommonHeaderSize + 1);
+            const auto read_string = [&](std::string& output) {
+                if (offset >= data.size())
+                    return false;
+                const auto length = static_cast<std::uint8_t>(data[offset++]);
+                if (data.size() - offset < length)
+                    return false;
+                output.assign(data.begin() + static_cast<std::ptrdiff_t>(offset),
+                              data.begin() + static_cast<std::ptrdiff_t>(offset + length));
+                offset += length;
+                return true;
+            };
+            association_code.clear();
+            stream_id.clear();
+            if (!read_string(association_code) || !read_string(stream_id) || data.size() - offset != 2)
+                return false;
+            max_datagram_size = R16(data, offset);
+            return max_datagram_size >= 576 && max_datagram_size <= 1500;
+        }
+
         // parse ctrl packet body; returns subtype(>0) or 0.
         // strings are filled for Hello(device_id,stream_id) / Heartbeat(stream_id) /
         // IdrRequest(mon_name) / Kick(reason).
@@ -447,9 +489,6 @@ namespace px
             };
             s1.clear(); s2.clear();
             switch (subtype) {
-                case kCtrlHello:
-                    if (!read_str(s1) || !read_str(s2)) return 0;
-                    return subtype;
                 case kCtrlHeartbeat:
                 case kCtrlIdrRequest:
                 case kCtrlIdrKeepalive:

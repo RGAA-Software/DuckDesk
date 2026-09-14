@@ -29,6 +29,7 @@ namespace px
     using OnRelayRemoteDeviceOffline = std::function<void(std::shared_ptr<px_relay::RelayMessage> msg)>;
     using OnRelayNotification = std::function<void(std::shared_ptr<px_relay::RelayMessage> msg)>;
     using OnRelayRequestControl = std::function<void(std::shared_ptr<px_relay::RelayMessage> msg)>;
+    using OnRelayRequestControlResponse = std::function<void(std::shared_ptr<px_relay::RelayMessage> msg)>;
 
 }
 

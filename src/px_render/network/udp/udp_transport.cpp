@@ -63,7 +63,8 @@ class UdpRuntimeState final : public std::enable_shared_from_this<UdpRuntimeStat
                                                                std::chrono::steady_clock::time_point deadline);
     [[nodiscard]] bool IsQuiescent() const;
     void HandleCtrlPacket(const std::shared_ptr<UdpSession>& udp_session, std::span<const char> data);
-    void HandleHello(const std::shared_ptr<UdpSession>& udp_session, const std::string& association_code, const std::string& stream_id);
+    void HandleHello(const std::shared_ptr<UdpSession>& udp_session, const std::string& association_code, const std::string& stream_id,
+                     std::uint16_t requested_datagram_size);
     void HandleHeartbeat(const std::shared_ptr<UdpSession>& udp_session, const std::string& association_code);
     void HandleFrameStatus(uint32_t frame_index, uint16_t received, uint16_t lost);
     void AdjustFecWindow();
@@ -71,6 +72,7 @@ class UdpRuntimeState final : public std::enable_shared_from_this<UdpRuntimeStat
     std::atomic_uint64_t stat_batch_wait_max_us_{};
     std::atomic_uint64_t stat_batch_timeouts_{};
     bool HasBoundSession();
+    [[nodiscard]] std::uint16_t MediaDatagramSize(std::uint16_t server_limit) const;
     void SweepDeadSessions();
     void UpdateMediaAssociation(const UdpMediaAssociation& association);
     void HandleVoicePacket(const std::shared_ptr<UdpSession>& session, std::span<const char> bytes);
@@ -102,6 +104,7 @@ class UdpRuntimeState final : public std::enable_shared_from_this<UdpRuntimeStat
     std::atomic_uint64_t stat_send_short_writes_{0};
     std::atomic_bool media_send_pending_{false};
     std::atomic_bool audio_send_pending_{false};
+    std::atomic_uint16_t active_media_datagram_size_{PxUdpProtocol::kSafeMtu};
     std::atomic_uint64_t stat_batch_packets_{};
     std::atomic_uint64_t stat_batch_fallbacks_{};
     media::VideoPacketTiming send_timing_{}; // Only the socket executor observes successful physical send calls.
@@ -215,6 +218,7 @@ void UdpTransport::ReleasePacingResources() {
     video_sequences_.clear();
     video_frame_indices_.clear();
     audio_packetizer_.Reset();
+    audio_datagram_size_ = 0;
     ratecontrol_next_frame_start_ = {};
     if (timer_resolution_active_) {
         timeEndPeriod(1);
@@ -362,8 +366,13 @@ void UdpTransport::Broadcast(std::shared_ptr<Data> msg, bool run_through) {
     if (!payload || !runtime || !runtime->HasBoundSession())
         return;
     const std::lock_guard lock(audio_send_mutex_);
-    auto packets = audio_packetizer_.Push(std::span<const std::uint8_t>{reinterpret_cast<const std::uint8_t*>(payload->data()), payload->size()},
-                                          static_cast<std::uint16_t>(udp_mtu_));
+    const auto datagram_size = runtime->MediaDatagramSize(static_cast<std::uint16_t>(udp_mtu_));
+    if (audio_datagram_size_ != datagram_size) {
+        audio_packetizer_.Reset();
+        audio_datagram_size_ = datagram_size;
+    }
+    auto packets =
+        audio_packetizer_.Push(std::span<const std::uint8_t>{reinterpret_cast<const std::uint8_t*>(payload->data()), payload->size()}, datagram_size);
     static_cast<void>(runtime->SendMediaBatch(std::move(packets), true));
 }
 
@@ -736,11 +745,13 @@ void UdpRuntimeState::HandleCtrlPacket(const std::shared_ptr<UdpSession>& udp_se
         return;
     }
     std::string s1, s2;
+    std::uint16_t requested_datagram_size{};
+    if (PxUdpProtocol::ParseHello(data, s1, s2, requested_datagram_size)) {
+        HandleHello(udp_sess, s1, s2, requested_datagram_size);
+        return;
+    }
     auto subtype = PxUdpProtocol::ParseCtrl(data, s1, s2);
     switch (subtype) {
-    case PxUdpProtocol::kCtrlHello:
-        HandleHello(udp_sess, s1 /*association_code*/, s2 /*stream_id*/);
-        break;
     case PxUdpProtocol::kCtrlHeartbeat:
         HandleHeartbeat(udp_sess, s1 /*association_code*/);
         break;
@@ -820,6 +831,10 @@ bool UdpRuntimeState::HasBoundSession() {
         }
     });
     return has_bound;
+}
+
+std::uint16_t UdpRuntimeState::MediaDatagramSize(const std::uint16_t server_limit) const {
+    return std::min(active_media_datagram_size_.load(), std::clamp<std::uint16_t>(server_limit, 576, 1500));
 }
 
 bool UdpRuntimeState::SendMediaBatch(std::vector<media::Packet> packets, bool audio) {
@@ -911,7 +926,8 @@ bool UdpRuntimeState::SendMediaBatch(std::vector<media::Packet> packets, bool au
     return ready && result.get();
 }
 
-void UdpRuntimeState::HandleHello(const std::shared_ptr<UdpSession>& udp_sess, const std::string& association_code, const std::string& stream_id) {
+void UdpRuntimeState::HandleHello(const std::shared_ptr<UdpSession>& udp_sess, const std::string& association_code, const std::string& stream_id,
+                                  const std::uint16_t requested_datagram_size) {
     if (association_code.empty() || stream_id.empty()) {
         LOGW("udp media hello missing association or stream from {}", udp_sess->connection_id_);
         return;
@@ -919,6 +935,7 @@ void UdpRuntimeState::HandleHello(const std::shared_ptr<UdpSession>& udp_sess, c
     const auto now = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp());
     std::shared_ptr<UdpSession> replaced_endpoint;
     bool force_gdi = false;
+    bool already_bound = false;
     {
         std::scoped_lock lock(bind_mutex_);
         const auto association_it = media_associations_.find(association_code);
@@ -939,34 +956,44 @@ void UdpRuntimeState::HandleHello(const std::shared_ptr<UdpSession>& udp_sess, c
             return;
         }
         if (udp_sess->bound_ && udp_sess->association_code_ == association_code) {
+            active_media_datagram_size_ = requested_datagram_size;
             udp_sess->last_heartbeat_ms_ = now;
-            return;
-        }
-        if (!association_it->second.endpoint_id_.empty() && association_it->second.endpoint_id_ != udp_sess->connection_id_) {
-            const auto previous = sessions_.Remove(association_it->second.endpoint_id_);
-            if (previous.has_value()) {
-                replaced_endpoint = previous.value();
-                if (replaced_endpoint->bound_.exchange(false)) {
-                    --bound_count_;
+            already_bound = true;
+        } else {
+            if (!association_it->second.endpoint_id_.empty() && association_it->second.endpoint_id_ != udp_sess->connection_id_) {
+                const auto previous = sessions_.Remove(association_it->second.endpoint_id_);
+                if (previous.has_value()) {
+                    replaced_endpoint = previous.value();
+                    if (replaced_endpoint->bound_.exchange(false)) {
+                        --bound_count_;
+                    }
                 }
             }
+            association_it->second.endpoint_id_ = udp_sess->connection_id_;
+            active_media_association_code_ = association_code;
+            active_media_datagram_size_ = requested_datagram_size;
+            udp_sess->association_code_ = association_code;
+            udp_sess->stream_id_ = stream_id;
+            force_gdi = association_it->second.force_gdi_;
+            udp_sess->begin_timestamp_ = now;
+            udp_sess->last_heartbeat_ms_ = now;
+            if (!udp_sess->bound_.exchange(true)) {
+                ++bound_count_;
+            }
         }
-        association_it->second.endpoint_id_ = udp_sess->connection_id_;
-        active_media_association_code_ = association_code;
-        udp_sess->association_code_ = association_code;
-        udp_sess->stream_id_ = stream_id;
-        force_gdi = association_it->second.force_gdi_;
-        udp_sess->begin_timestamp_ = now;
-        udp_sess->last_heartbeat_ms_ = now;
-        if (!udp_sess->bound_.exchange(true)) {
-            ++bound_count_;
-        }
+    }
+    if (udp_sess->sess_) {
+        const auto heartbeat = PxUdpProtocol::BuildHeartbeat(association_code);
+        udp_sess->sess_->async_send(heartbeat->Bytes().data(), heartbeat->Size(), [heartbeat](std::size_t) {});
+    }
+    if (already_bound) {
+        return;
     }
     if (replaced_endpoint && replaced_endpoint->sess_) {
         const auto kick = PxUdpProtocol::BuildKick("media endpoint replaced");
         replaced_endpoint->sess_->async_send(kick->Bytes().data(), kick->Size(), [kick](std::size_t) {});
     }
-    LOGI("udp media endpoint associated: {} stream={}", udp_sess->connection_id_, stream_id);
+    LOGI("udp media endpoint associated: {} stream={} requested_datagram_size={}", udp_sess->connection_id_, stream_id, requested_datagram_size);
     // The capture wake caused by WS open can produce its only initial frame
     // before the UDP hello binds an endpoint. A static desktop would then
     // have no later frame to deliver. Re-run the same capture selection only
@@ -982,14 +1009,20 @@ void UdpRuntimeState::HandleHeartbeat(const std::shared_ptr<UdpSession>& udp_ses
     if (!udp_sess->bound_ || udp_sess->association_code_ != association_code) {
         return;
     }
-    const auto now = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp());
-    std::scoped_lock lock(bind_mutex_);
-    const auto association_it = media_associations_.find(association_code);
-    if (association_it == media_associations_.end() || association_it->second.endpoint_id_ != udp_sess->connection_id_ ||
-        active_media_association_code_ != association_code) {
-        return;
+    {
+        const auto now = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp());
+        std::scoped_lock lock(bind_mutex_);
+        const auto association_it = media_associations_.find(association_code);
+        if (association_it == media_associations_.end() || association_it->second.endpoint_id_ != udp_sess->connection_id_ ||
+            active_media_association_code_ != association_code) {
+            return;
+        }
+        udp_sess->last_heartbeat_ms_ = now;
     }
-    udp_sess->last_heartbeat_ms_ = now;
+    if (udp_sess->sess_) {
+        const auto heartbeat = PxUdpProtocol::BuildHeartbeat(association_code);
+        udp_sess->sess_->async_send(heartbeat->Bytes().data(), heartbeat->Size(), [heartbeat](std::size_t) {});
+    }
 }
 
 void UdpRuntimeState::SweepDeadSessions() {
@@ -1109,17 +1142,18 @@ bool UdpTransport::SubmitEncodedVideo(const std::string& mon_name, const Encoded
     media::VideoPacketParameters parameters{};
     parameters.sequence = video_sequences_[frame.stream];
     parameters.frame_index = ++video_frame_indices_[frame.stream];
-    parameters.datagram_size = static_cast<std::uint16_t>(udp_mtu_);
+    const auto datagram_size = runtime->MediaDatagramSize(static_cast<std::uint16_t>(udp_mtu_));
+    parameters.datagram_size = datagram_size;
     parameters.fec_percent = static_cast<std::uint8_t>(runtime->fec_percent_.load());
     parameters.timestamp_90khz = static_cast<std::uint32_t>(
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() * 9 / 100);
     auto packetized = media::PacketizeVideoFrame(frame, parameters);
     if (!packetized) {
-        LOGW("UDP media v2 frame rejected: index={}, bytes={}, mtu={}", frame_index, data->Size(), udp_mtu_);
+        LOGW("UDP media v2 frame rejected: index={}, bytes={}, mtu={}", frame_index, data->Size(), datagram_size);
         return false;
     }
     video_sequences_[frame.stream] = packetized->next_sequence;
-    const auto packet_size = static_cast<std::size_t>(udp_mtu_);
+    const auto packet_size = static_cast<std::size_t>(datagram_size);
     // Reserve worst-case IPv6/UDP headers as well as the complete Pixels media datagram and parity.
     const auto wire_packet_size = packet_size + 48;
     const auto frame_start = std::max(ratecontrol_next_frame_start_, std::chrono::steady_clock::now());

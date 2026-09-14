@@ -19,6 +19,10 @@
 90 是 Windows Server 2022 Datacenter x64，RTX 4090；连接检查时有活动的 Administrator 控制台会话。
 会话、显卡驱动和服务运行状态必须在每次实际测试前重新检查。
 
+90 的 WinRM 管理账号必须写成机器限定形式 `WIN-RASS8RC6V3H\Administrator`。公网 5985 可达而裸
+`administrator` 返回 `Access is denied` 只表示账号限定方式不正确，不能判断账号失效、密码错误或账户被锁定。
+部署脚本应先使用机器限定账号；只有该形式也失败后，才继续诊断凭据或远程管理策略。
+
 ## 连接关系
 
 ```text

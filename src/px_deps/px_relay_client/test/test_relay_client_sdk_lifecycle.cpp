@@ -156,5 +156,20 @@ TEST(RelayClientSdkLifecycle, MediaControlCarriesDevicePasswordHash) {
     EXPECT_EQ(sent.request_control().safety_pwd_md5(), "password-hash");
 }
 
+TEST(RelayClientSdkLifecycle, RequestControlResponseIsForwarded) {
+    const auto net_client = std::make_shared<FakeRelayNetClient>();
+    const auto sdk = std::make_shared<RelayClientSdk>(MakeSdkParam(), net_client);
+    std::shared_ptr<px_relay::RelayMessage> received;
+    sdk->SetOnRelayRequestControlResponseCallback(
+        [&received](const std::shared_ptr<px_relay::RelayMessage>& response) { received = response; });
+
+    const auto response = std::make_shared<px_relay::RelayMessage>();
+    response->mutable_request_control_resp()->set_under_control(false);
+    response->mutable_request_control_resp()->set_message("px-control:remote-access-disabled");
+    sdk->OnRequestControlResp(response);
+
+    EXPECT_EQ(received, response);
+}
+
 } // namespace
 } // namespace px

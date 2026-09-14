@@ -205,6 +205,10 @@ bool PanelConfigStore::ShowTemporaryPassword() const {
     return ReadBool(preferences_, "display_random_pwd", true);
 }
 
+bool PanelConfigStore::IncomingRemoteAccessEnabled() const {
+    return ReadBool(preferences_, "incoming_remote_access_enabled", true);
+}
+
 bool PanelConfigStore::DeviceNameIsCustom() const {
     return ReadBool(preferences_, "device_name_custom", false);
 }
@@ -328,6 +332,9 @@ bool PanelConfigStore::SaveEnhancedVisualEffects(const bool enabled) {
 bool PanelConfigStore::SaveShowTemporaryPassword(const bool visible) {
     return preferences_->Put("display_random_pwd", visible ? "true" : "false");
 }
+bool PanelConfigStore::SaveIncomingRemoteAccessEnabled(const bool enabled) {
+    return preferences_->Put("incoming_remote_access_enabled", enabled ? "true" : "false");
+}
 
 bool PanelConfigStore::SaveRemoteDevicePreference(const std::string& deviceId, const RemoteDevicePreference& preference) {
     if (deviceId.empty())
@@ -385,7 +392,8 @@ bool PanelConfigStore::SaveCloudApplicationPreference(const std::string& applica
 
 void PanelConfigStore::Clear() {
     for (const std::string key : {"device_id", "device_name", "device_name_custom", "device_random_pwd", "device_safety_pwd", "console_server_host",
-                                  "console_server_port", "relay_server_host", "relay_server_port", "console_access_info", "node_access_host"}) {
+                                  "console_server_port", "relay_server_host", "relay_server_port", "console_access_info", "node_access_host",
+                                  "incoming_remote_access_enabled"}) {
         static_cast<void>(preferences_->Remove(key));
     }
     std::vector<std::string> preferenceKeys{};

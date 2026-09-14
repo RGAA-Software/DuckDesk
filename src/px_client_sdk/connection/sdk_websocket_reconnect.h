@@ -23,6 +23,9 @@ inline PxAsyncError MakeSdkWebSocketRejectionError(const WsControlRejection reje
     case WsControlRejection::kAuthorization:
         message = "websocket authorization was rejected";
         break;
+    case WsControlRejection::kRemoteAccessDisabled:
+        message = "remote access is disabled on the remote device";
+        break;
     case WsControlRejection::kOccupied:
         message = "websocket session is occupied";
         break;

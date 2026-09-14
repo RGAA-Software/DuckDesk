@@ -3,9 +3,11 @@
 #include "px_common/data.h"
 #include "px_common/log.h"
 #include "px_common/message_notifier.h"
+#include "px_common/ws_control_signal.h"
 #include "px_relay_client/relay_client_sdk.h"
 #include "px_relay_client/relay_net_client.h"
 #include "relay_message.pb.h"
+#include "sdk_messages.h"
 
 #include <utility>
 
@@ -67,6 +69,15 @@ void RelayConnection::Start() {
     relay_sdk_->SetOnRelayRoomDestroyedCallback([weak_self](const std::shared_ptr<px_relay::RelayMessage>&) {
         if (const auto self = weak_self.lock())
             self->room_ready_.store(false, std::memory_order_release);
+    });
+    relay_sdk_->SetOnRelayRequestControlResponseCallback([weak_self](const std::shared_ptr<px_relay::RelayMessage>& message) {
+        const auto self = weak_self.lock();
+        if (!self || !message || !message->has_request_control_resp() || message->request_control_resp().under_control()) {
+            return;
+        }
+        if (message->request_control_resp().message() == kWsRemoteAccessDisabledSignal && self->msg_notifier_) {
+            self->msg_notifier_->SendAppMessage(SdkMsgWsConnectionRejected{.rejection_ = WsControlRejection::kRemoteAccessDisabled});
+        }
     });
     relay_sdk_->SetOnRelayErrorCallback([](const std::shared_ptr<px_relay::RelayMessage>& message) {
         const auto& error = message->relay_error();

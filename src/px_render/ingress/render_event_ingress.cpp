@@ -146,6 +146,7 @@ void RenderEventIngress::ProcessRenderEvent(const RenderEventEnvelope& envelope)
                 owner.network_ingress_->ProcessCapturingMonitorInfoEvent(event);
             } else if constexpr (std::is_same_v<Event, KeyFrameRequestEvent>) {
                 owner.module_registry_->InsertIdr(event->monitor_name_);
+                owner.app_->RequestStaticDesktopFrame();
             } else if constexpr (std::is_same_v<Event, ReferenceFrameInvalidationEvent>) {
                 if (!owner.module_registry_->InvalidateReferenceFrame(event->monitor_name_, event->invalid_frame_index_)) {
                     LOGW("RFI not accepted by any encoder, fallback to IDR immediately");
@@ -197,9 +198,8 @@ void RenderEventIngress::ProcessRenderEvent(const RenderEventEnvelope& envelope)
                 }
                 const auto now_ms =
                     std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-                const auto closed = event->preserve_reconnect_grace_
-                                        ? registry->CloseBinding(event->logical_session_id_, event->binding_id_, now_ms)
-                                        : registry->CloseFailedBindingById(event->binding_id_, now_ms);
+                const auto closed = event->preserve_reconnect_grace_ ? registry->CloseBinding(event->logical_session_id_, event->binding_id_, now_ms)
+                                                                     : registry->CloseFailedBindingById(event->binding_id_, now_ms);
                 if (closed.release_controller_input && owner.network_ingress_) {
                     owner.network_ingress_->ReleaseControllerInput(LogicalSessionInputLease{
                         .logical_session_id = closed.logical_session_id,
@@ -211,9 +211,8 @@ void RenderEventIngress::ProcessRenderEvent(const RenderEventEnvelope& envelope)
                 const auto registry{owner.app_->GetLogicalSessionRegistry()};
                 const bool input_allowed{std::ranges::find(event->update_.permissions_, "input") != event->update_.permissions_.end()};
                 const auto now_ms{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()};
-                const auto previous_input{registry && !input_allowed
-                                              ? registry->FindControllerInputLeaseByStream(event->update_.stream_id_, now_ms)
-                                              : std::optional<LogicalSessionInputLease>{}};
+                const auto previous_input{registry && !input_allowed ? registry->FindControllerInputLeaseByStream(event->update_.stream_id_, now_ms)
+                                                                     : std::optional<LogicalSessionInputLease>{}};
                 owner.module_registry_->ApplyLogicalSessionCapabilities(event->update_);
                 if (previous_input && owner.network_ingress_) {
                     owner.network_ingress_->ReleaseControllerInput(*previous_input);

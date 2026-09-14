@@ -79,6 +79,10 @@ bool ClientSession::InitializeRdp() {
         case px::WsControlRejection::kAuthorization:
             self->SetState(ClientConnectionState::Rejected, "The device password was rejected", ClientConnectionFailure::Authorization);
             break;
+        case px::WsControlRejection::kRemoteAccessDisabled:
+            self->SetState(ClientConnectionState::Rejected, "Remote access is disabled on the remote device",
+                           ClientConnectionFailure::RemoteAccessDisabled);
+            break;
         case px::WsControlRejection::kOccupied:
             self->SetState(ClientConnectionState::Rejected, "The device is in use or within the reconnect grace period",
                            ClientConnectionFailure::Occupied);

@@ -26,7 +26,9 @@ try {
     Set-Item WSMan:\localhost\Client\TrustedHosts -Value '39.71.45.66' -Force
     $machineText=Get-Content (Join-Path $repo '.env/test_machine.md') -Raw
     $secret=[regex]::Match($machineText,'(?m)^\s*-\s*密码\s*[:：]\s*(.+?)\s*$').Groups[1].Value
-    $credential=[pscredential]::new('administrator',(ConvertTo-SecureString $secret -AsPlainText -Force))
+    $machineName=[regex]::Match($machineText,'(?m)^\s*-\s*\u4e3b\u673a\u540d\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
+    $userName=if($machineName){"$machineName\Administrator"}else{'Administrator'}
+    $credential=[pscredential]::new($userName,(ConvertTo-SecureString $secret -AsPlainText -Force))
     $session=New-PSSession -ComputerName 39.71.45.66 -Credential $credential
     $source=Join-Path $dist 'px_render.exe'
     Copy-Item -LiteralPath $source -Destination 'D:/software/esprit_169811/udp-fec-validation/px_render-staged.exe' -ToSession $session -Force

@@ -1,4 +1,5 @@
 #include "nvenc_video_encoder.h"
+#include "annex_b_keyframe.h"
 #include <exception>
 #include "px_common/data.h"
 #include "px_common/image.h"
@@ -239,14 +240,24 @@ namespace px
         last_encoded_frame_index_ = frame_index;
 
         const bool recovery_confirmed = rfi_pending_ && out_packet.size() == 1;
-        if (out_packet.size() == 1)
-            reference_recovery_.Output(frame_index, is_key_frame);
+        if (out_packet.size() == 1) {
+            const auto codec = encoder_config_.codec_type == EVideoCodecType::kHEVC ? AnnexBVideoCodec::kH265 : AnnexBVideoCodec::kH264;
+            const auto detected_key_frame = DetectAnnexBRandomAccess(out_packet.front(), codec);
+            reference_recovery_.Output(frame_index, detected_key_frame.value_or(is_key_frame));
+        }
         if (!out_packet.empty())
             rfi_pending_ = false;
         CD3D11_TEXTURE2D_DESC desc{};
         tex2d->GetDesc(&desc);
 
         for (std::vector<uint8_t> &packet: out_packet) {
+            const auto codec = encoder_config_.codec_type == EVideoCodecType::kHEVC ? AnnexBVideoCodec::kH265 : AnnexBVideoCodec::kH264;
+            const auto detected_key_frame = DetectAnnexBRandomAccess(packet, codec);
+            const bool output_key_frame = detected_key_frame.value_or(is_key_frame);
+            if (detected_key_frame && output_key_frame != is_key_frame) {
+                LOGI("NVENC key-frame metadata corrected from bitstream: frame={}, requested={}, detected={}", frame_index, is_key_frame,
+                     output_key_frame);
+            }
             auto encoded_data = Data::Copy(std::span<const char>{reinterpret_cast<const char*>(packet.data()), packet.size()});
             auto event = std::make_shared<EncodedVideoFrameEvent>();
             event->type_ = encoder_config_.codec_type == EVideoCodecType::kHEVC
@@ -255,7 +266,7 @@ namespace px
             event->data_ = encoded_data;
             event->frame_width_ = desc.Width;
             event->frame_height_ = desc.Height;
-            event->key_frame_ = is_key_frame;
+            event->key_frame_ = output_key_frame;
             event->reference_state_ = recovery_confirmed ? EncodedReferenceState::kRecoveryConfirmed : EncodedReferenceState::kDependent;
             event->frame_index_ = frame_index;
             event->capture_frame_ = capture_frame;

@@ -128,6 +128,7 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
                                       .desktopLink = links.desktop,
                                       .webClientAddress = links.web,
                                       .showTemporaryPassword = showPassword_,
+                                      .incomingRemoteAccessEnabled = runtime_->Config()->IncomingRemoteAccessEnabled(),
                                       .managerOnline = managerOnline_.load(std::memory_order_acquire)};
         {
             const std::scoped_lock lock{mutex_};
@@ -139,6 +140,13 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
     void SetPasswordVisible(const bool visible) override {
         showPassword_ = visible;
         static_cast<void>(runtime_->Config()->SaveShowTemporaryPassword(visible));
+    }
+    void SetIncomingRemoteAccessEnabled(const bool enabled) override {
+        if (!runtime_->Config()->SaveIncomingRemoteAccessEnabled(enabled)) {
+            runtime_->Notify(true, "Remote access", "The remote access setting could not be saved.");
+            return;
+        }
+        runtime_->LocalServer()->RefreshPanelInfo();
     }
     void UpdateLocalDeviceName(std::string deviceName) override {
         const auto first = deviceName.find_first_not_of(" \t\r\n");

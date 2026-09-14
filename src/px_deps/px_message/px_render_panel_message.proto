@@ -128,6 +128,9 @@ message RpSyncPanelInfo {
   uint64 max_transmit_speed = 14;
   uint64 max_receive_speed = 15;
   int32 role = 16;
+  // This is expressed as "disabled" so an absent proto3 field remains false:
+  // mixed-version deployments continue to allow access until both sides support the policy.
+  bool remote_access_disabled = 17;
 }
 
 enum VideoType {

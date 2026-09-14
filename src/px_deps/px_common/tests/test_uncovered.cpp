@@ -430,6 +430,7 @@ TEST(TestUncovered, KeyHelperSmoke) {
 
 TEST(TestUncovered, WebSocketControlRejectionSignals) {
     EXPECT_EQ(ParseWsControlRejection(kWsAuthorizationRejectedSignal), WsControlRejection::kAuthorization);
+    EXPECT_EQ(ParseWsControlRejection(kWsRemoteAccessDisabledSignal), WsControlRejection::kRemoteAccessDisabled);
     EXPECT_EQ(ParseWsControlRejection(kWsSessionOccupiedSignal), WsControlRejection::kOccupied);
     EXPECT_EQ(ParseWsControlRejection(kWsSessionRejectedSignal), WsControlRejection::kSessionPolicy);
     EXPECT_EQ(ParseWsControlRejection("ordinary protobuf payload"), WsControlRejection::kNone);

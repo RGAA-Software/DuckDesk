@@ -21,7 +21,9 @@ try {
     if (-not $password) {
         throw 'Node deployment credential is missing'
     }
-    $credential = [pscredential]::new('administrator', (ConvertTo-SecureString $password -AsPlainText -Force))
+    $machineName = [regex]::Match($machineText, '(?m)^\s*-\s*\u4e3b\u673a\u540d\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
+    $userName = if ($machineName) { "$machineName\Administrator" } else { 'Administrator' }
+    $credential = [pscredential]::new($userName, (ConvertTo-SecureString $password -AsPlainText -Force))
     $session = New-PSSession -ComputerName $ComputerName -Credential $credential
     $staging = 'D:/software/esprit_169811/render/px_render.staged.exe'
     Copy-Item -LiteralPath $source -Destination $staging -ToSession $session -Force

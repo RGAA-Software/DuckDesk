@@ -14,6 +14,11 @@ void LogicalSessionRegistry::SetPolicy(const bool allow_observer, const bool all
     allow_takeover_ = allow_takeover;
 }
 
+void LogicalSessionRegistry::SetIncomingAccessEnabled(const bool enabled) {
+    std::scoped_lock lock(mutex_);
+    incoming_access_enabled_ = enabled;
+}
+
 bool LogicalSessionRegistry::HasControllerBinding(const Session& session) const {
     return std::any_of(session.bindings.begin(), session.bindings.end(),
                        [](const auto& item) { return item.second.transport != LogicalSessionTransport::kFileTransfer; });
@@ -117,6 +122,9 @@ LogicalSessionAdmission LogicalSessionRegistry::Bind(const LogicalSessionGrant& 
                                                      const std::string& binding_id, const bool takeover, const int64_t now_ms) {
     std::scoped_lock lock(mutex_);
     RemoveStaleSessionsLocked(now_ms);
+    if (!incoming_access_enabled_) {
+        return {.code = LogicalSessionAdmissionCode::kRemoteAccessDisabled};
+    }
     if (grant.logical_session_id.empty() || grant.stream_id.empty() || grant.subject_id.empty() || binding_id.empty() ||
         (grant.expires_at_ms > 0 && now_ms >= grant.expires_at_ms)) {
         return {.code = grant.expires_at_ms > 0 && now_ms >= grant.expires_at_ms ? LogicalSessionAdmissionCode::kExpired

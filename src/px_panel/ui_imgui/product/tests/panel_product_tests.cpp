@@ -3,6 +3,7 @@
 #include "panel_connection_links.h"
 #include "panel_config_store.h"
 #include "panel_device_name.h"
+#include "panel_local_server.h"
 #include "panel_worker.h"
 
 #include "px_common/base64.h"
@@ -11,12 +12,17 @@
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
+#include <asio2/websocket/ws_client.hpp>
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <filesystem>
 #include <format>
+#include <fstream>
 #include <future>
+#include <mutex>
+#include <vector>
 
 namespace px::panel::product {
 
@@ -126,6 +132,10 @@ TEST(PanelConfigStoreTest, PersistsAndClearsConnectionPreferences) {
     ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
     const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path());
 
+    EXPECT_TRUE(config->IncomingRemoteAccessEnabled());
+    ASSERT_TRUE(config->SaveIncomingRemoteAccessEnabled(false));
+    EXPECT_FALSE(config->IncomingRemoteAccessEnabled());
+
     const RemoteDevicePreference remote{.name = "Office node",
                                         .audio = false,
                                         .clipboard = true,
@@ -166,11 +176,77 @@ TEST(PanelConfigStoreTest, PersistsAndClearsConnectionPreferences) {
     EXPECT_TRUE(loadedApplication.forceRelay);
 
     config->Clear();
+    EXPECT_TRUE(config->IncomingRemoteAccessEnabled());
     EXPECT_FALSE(config->LoadRemoteDevicePreference("device-1"));
     EXPECT_TRUE(config->LoadRemoteDeviceHistory().empty());
     EXPECT_FALSE(config->RemoteDeviceHidden("device-1"));
     EXPECT_FALSE(config->DeviceNameIsCustom());
     EXPECT_FALSE(config->LoadCloudApplicationPreference("application-1").forceRelay);
+}
+
+TEST(PanelLocalServerTest, RuntimeDesktopAccessUpdatesAreDeliveredOnTheRendererSessionThread) {
+    TemporaryDirectory directory{};
+    constexpr int panelPort{29499};
+    {
+        std::ofstream serviceConfig{directory.Path() / "px_service.toml"};
+        ASSERT_TRUE(serviceConfig);
+        serviceConfig << "[network]\npanel_port = " << panelPort << '\n';
+    }
+    const auto preferences = std::make_shared<SharedPreference>();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
+    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+    const auto audit = PanelAuditStore::Create(directory.Path() / "audit");
+    ASSERT_TRUE(audit);
+    const auto server = PanelLocalServer::Create(config, audit);
+    ASSERT_TRUE(server);
+    ASSERT_TRUE(server->Snapshot().listening);
+
+    struct Probe final {
+        std::mutex mutex{};
+        std::condition_variable changed{};
+        std::vector<bool> disabledValues{};
+    };
+    const auto probe = std::make_shared<Probe>();
+    const auto client = std::make_shared<asio2::ws_client>();
+    client->bind_recv([probe](const std::string_view bytes) {
+        pxrp::RpMessage message{};
+        if (!message.ParseFromArray(bytes.data(), static_cast<int>(bytes.size())) || message.type() != pxrp::kSyncPanelInfo) {
+            return;
+        }
+        {
+            const std::scoped_lock lock{probe->mutex};
+            probe->disabledValues.push_back(message.sync_panel_info().remote_access_disabled());
+        }
+        probe->changed.notify_all();
+    });
+    ASSERT_TRUE(client->start("127.0.0.1", panelPort, "/panel/renderer?instance_id=test-desktop"));
+    const auto waitForCount = [probe](const std::size_t count) {
+        std::unique_lock lock{probe->mutex};
+        return probe->changed.wait_for(lock, std::chrono::seconds{3}, [probe, count] { return probe->disabledValues.size() >= count; });
+    };
+    ASSERT_TRUE(waitForCount(1));
+    {
+        const std::scoped_lock lock{probe->mutex};
+        EXPECT_FALSE(probe->disabledValues.at(0));
+    }
+
+    ASSERT_TRUE(config->SaveIncomingRemoteAccessEnabled(false));
+    server->RefreshPanelInfo();
+    ASSERT_TRUE(waitForCount(2));
+    {
+        const std::scoped_lock lock{probe->mutex};
+        EXPECT_TRUE(probe->disabledValues.at(1));
+    }
+
+    ASSERT_TRUE(config->SaveIncomingRemoteAccessEnabled(true));
+    server->RefreshPanelInfo();
+    ASSERT_TRUE(waitForCount(3));
+    {
+        const std::scoped_lock lock{probe->mutex};
+        EXPECT_FALSE(probe->disabledValues.at(2));
+    }
+    client->stop();
+    server->Stop();
 }
 
 TEST(PanelConnectionLinksTest, PreservesCompleteDesktopAndWebConnectionPayloads) {

@@ -40,6 +40,7 @@ namespace px
         void SetOnRelayServerDisConnectedCallback(OnRelayServerDisConnected&& cbk);
         void SetOnRelayRoomPreparedCallback(OnRelayRoomPrepared&& cbk);
         void SetOnRelayRoomDestroyedCallback(OnRelayRoomDestroyed&& cbk);
+        void SetOnRelayRequestControlResponseCallback(OnRelayRequestControlResponse&& cbk);
         void SetOnRelayProtoMessageCallback(std::function<void(const std::shared_ptr<px_relay::RelayMessage>&)>&& cbk);
         void SetOnRelayErrorCallback(OnRelayError&& cbk);
         void SetOnRelayRemoteDeviceOffline(OnRelayRemoteDeviceOffline&& cbk);
@@ -99,6 +100,7 @@ namespace px
         std::mutex relay_mtx_;
         OnRelayRoomPrepared cbk_room_prepared_;
         OnRelayRoomDestroyed cbk_room_destroyed_;
+        OnRelayRequestControlResponse cbk_request_control_response_;
         OnRelayError  cbk_relay_error_;
         OnRelayRemoteDeviceOffline cbk_remote_device_offline_;
     };

@@ -1,5 +1,10 @@
 find_package(GTest CONFIG REQUIRED)
 
+add_executable(test_annex_b_keyframe unit/test_annex_b_keyframe.cpp)
+target_include_directories(test_annex_b_keyframe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+target_link_libraries(test_annex_b_keyframe PRIVATE GTest::gtest GTest::gtest_main)
+add_test(NAME annex_b_keyframe COMMAND test_annex_b_keyframe)
+
 add_executable(test_frame_rate_policy unit/test_frame_rate_policy.cpp)
 target_include_directories(test_frame_rate_policy PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(test_frame_rate_policy PRIVATE GTest::gtest GTest::gtest_main)

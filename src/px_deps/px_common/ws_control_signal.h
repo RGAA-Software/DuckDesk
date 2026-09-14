@@ -11,6 +11,8 @@ inline constexpr std::string_view kWsSessionOccupiedSignal =
     "px-control:session-occupied";
 inline constexpr std::string_view kWsSessionRejectedSignal =
     "px-control:session-rejected";
+inline constexpr std::string_view kWsRemoteAccessDisabledSignal =
+    "px-control:remote-access-disabled";
 // Sent by an already authenticated UDP-direct client over its reliable
 // WebSocket control channel. Render stops filtering media on that same socket,
 // so UDP fallback uses the same authenticated logical connection.
@@ -20,6 +22,7 @@ inline constexpr std::string_view kWsUseWebSocketMediaSignal =
 enum class WsControlRejection {
     kNone,
     kAuthorization,
+    kRemoteAccessDisabled,
     kOccupied,
     kSessionPolicy,
 };
@@ -27,6 +30,9 @@ enum class WsControlRejection {
 inline WsControlRejection ParseWsControlRejection(const std::string_view value) {
     if (value == kWsAuthorizationRejectedSignal) {
         return WsControlRejection::kAuthorization;
+    }
+    if (value == kWsRemoteAccessDisabledSignal) {
+        return WsControlRejection::kRemoteAccessDisabled;
     }
     if (value == kWsSessionOccupiedSignal) {
         return WsControlRejection::kOccupied;

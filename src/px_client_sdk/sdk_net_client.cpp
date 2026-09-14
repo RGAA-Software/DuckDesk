@@ -226,6 +226,9 @@ void NetClient::OnUdpMediaReady() {
     if (udp_media_state_.MarkReady()) {
         udp_media_probe_deadline_ms_ = 0;
         LOGI("Udp direct first media received; keep UDP media transport.");
+    } else if (udp_media_state_.Recover()) {
+        LOGI("Udp direct media recovered; keep the reliable session and resume media delivery.");
+        msg_notifier_->SendAppMessage(SdkMsgUdpMediaAvailable{});
     }
 }
 
@@ -395,7 +398,7 @@ void NetClient::Start() {
             }
         });
         udp_connection->SetOnMediaReadyCallback([weak_self]() {
-            if (const auto self = weak_self.lock(); self && self->udp_media_state_.AcceptsMedia()) {
+            if (const auto self = weak_self.lock(); self && !self->exited_.load()) {
                 self->OnUdpMediaReady();
             }
         });

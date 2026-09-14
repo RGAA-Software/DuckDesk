@@ -88,8 +88,16 @@ void PanelLocalServer::RefreshPanelInfo() {
         const std::scoped_lock lock{mutex_};
         renderer = rendererSession_;
     }
-    if (renderer)
-        SendPanelInfo(renderer);
+    if (!renderer) {
+        LOGW("event=desktop_access_policy component=panel operation=publish outcome=deferred reason=renderer_not_connected");
+        return;
+    }
+    const std::weak_ptr<PanelLocalServer> weakSelf{shared_from_this()};
+    renderer->post_queued_event([weakSelf, renderer] {
+        if (const auto self = weakSelf.lock(); self && renderer->is_started()) {
+            self->SendPanelInfo(renderer);
+        }
+    });
 }
 
 bool PanelLocalServer::OpenFileTransfer(const std::string& streamId) {
@@ -258,6 +266,9 @@ void PanelLocalServer::SendPanelInfo(const std::shared_ptr<asio2::http_session>&
     info.set_audio_enabled(settings.general.captureAudio);
     info.set_appkey(endpoint ? endpoint->appKey : std::string{});
     info.set_role(1);
+    const bool incomingRemoteAccessEnabled{config_->IncomingRemoteAccessEnabled()};
+    info.set_remote_access_disabled(!incomingRemoteAccessEnabled);
+    LOGI("event=desktop_access_policy component=panel operation=publish enabled={} outcome=sent", incomingRemoteAccessEnabled);
     session->async_send(message.SerializeAsString());
 }
 

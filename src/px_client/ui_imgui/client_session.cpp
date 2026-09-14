@@ -276,7 +276,16 @@ bool ClientSession::Initialize() {
     });
     listener_->Listen<px::SdkMsgUdpMediaUnavailable>([weakSelf](const auto&) {
         if (const auto self = weakSelf.lock()) {
+            if (const auto voice = self->VoiceCall())
+                voice->SetTransportAvailable(false);
             self->SetState(ClientConnectionState::MediaUnavailable, "UDP audio/video is unavailable; control remains connected");
+        }
+    });
+    listener_->Listen<px::SdkMsgUdpMediaAvailable>([weakSelf](const auto&) {
+        if (const auto self = weakSelf.lock()) {
+            if (const auto voice = self->VoiceCall())
+                voice->SetTransportAvailable(true);
+            self->SetState(ClientConnectionState::Connected, "Connected");
         }
     });
     listener_->Listen<px::SdkMsgWsConnectionRejected>([weakSelf](const px::SdkMsgWsConnectionRejected& event) {
@@ -284,6 +293,10 @@ bool ClientSession::Initialize() {
             switch (event.rejection_) {
             case px::WsControlRejection::kAuthorization:
                 self->SetState(ClientConnectionState::Rejected, "The device password was rejected", ClientConnectionFailure::Authorization);
+                break;
+            case px::WsControlRejection::kRemoteAccessDisabled:
+                self->SetState(ClientConnectionState::Rejected, "Remote access is disabled on the remote device",
+                               ClientConnectionFailure::RemoteAccessDisabled);
                 break;
             case px::WsControlRejection::kOccupied:
                 self->SetState(ClientConnectionState::Rejected, "The device is in use. Please try again in a few seconds",

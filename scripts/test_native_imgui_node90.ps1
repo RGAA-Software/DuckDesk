@@ -57,7 +57,9 @@ $credentials = Get-Content -LiteralPath $credentialsPath -Raw | ConvertFrom-Json
 $license = Get-Content -LiteralPath $licensePath -Raw | ConvertFrom-Json
 $machineText = Get-Content -LiteralPath $machinePath -Raw
 $nodePassword = [regex]::Match($machineText, '(?m)^\s*-\s*密码\s*[:：]\s*(.+?)\s*$').Groups[1].Value
-$credential = [pscredential]::new('administrator', (ConvertTo-SecureString $nodePassword -AsPlainText -Force))
+$machineName = [regex]::Match($machineText, '(?m)^\s*-\s*\u4e3b\u673a\u540d\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
+$userName = if ($machineName) { "$machineName\Administrator" } else { 'Administrator' }
+$credential = [pscredential]::new($userName, (ConvertTo-SecureString $nodePassword -AsPlainText -Force))
 $previousTrustedHosts = (Get-Item WSMan:\localhost\Client\TrustedHosts).Value
 $session = $null
 $instance = $null
@@ -109,10 +111,13 @@ try {
     } finally {
         Pop-Location
     }
-    if ($dump -notmatch "'device_random_pwd'\s+@\s+\d+\s+:\s+val\s+=>\s+'([^'\r\n]+)'") {
+    $passwordEntries = @([regex]::Matches($dump, "'device_random_pwd'\s+@\s+(\d+)\s+:\s+val\s+=>\s+'([^'\r\n]+)'") | ForEach-Object {
+        [pscustomobject]@{ Sequence = [uint64]$_.Groups[1].Value; Value = $_.Groups[2].Value }
+    } | Sort-Object Sequence -Descending)
+    if ($passwordEntries.Count -eq 0) {
         throw 'The node temporary password was not found in the test preference snapshot.'
     }
-    $remotePassword = $Matches[1].Trim()
+    $remotePassword = $passwordEntries[0].Value.Trim()
     $algorithm = [Security.Cryptography.MD5]::Create()
     try {
         $passwordHash = ([BitConverter]::ToString($algorithm.ComputeHash([Text.Encoding]::UTF8.GetBytes($remotePassword)))).Replace('-', '').ToLowerInvariant()

@@ -84,6 +84,7 @@ class PanelConfigStore final {
     [[nodiscard]] NodePorts Ports() const;
     [[nodiscard]] ui::SettingsSnapshot Settings() const;
     [[nodiscard]] bool ShowTemporaryPassword() const;
+    [[nodiscard]] bool IncomingRemoteAccessEnabled() const;
     [[nodiscard]] bool DeviceNameIsCustom() const;
     [[nodiscard]] bool RemoteDeviceHidden(const std::string& deviceId) const;
     [[nodiscard]] std::optional<RemoteDevicePreference> LoadRemoteDevicePreference(const std::string& deviceId) const;
@@ -101,6 +102,7 @@ class PanelConfigStore final {
     bool SaveTheme(::px::ui::Theme theme);
     bool SaveEnhancedVisualEffects(bool enabled);
     bool SaveShowTemporaryPassword(bool visible);
+    bool SaveIncomingRemoteAccessEnabled(bool enabled);
     bool SaveRemoteDevicePreference(const std::string& deviceId, const RemoteDevicePreference& preference);
     bool DeleteRemoteDevicePreference(const std::string& deviceId);
     bool SaveRemoteDeviceHistory(const RemoteDeviceHistory& device);

@@ -7,6 +7,7 @@
 #include <asio2/websocket/ws_client.hpp>
 
 #include <chrono>
+#include <exception>
 #include <format>
 #include <utility>
 #include <vector>
@@ -95,8 +96,15 @@ void PanelServiceBridge::Run(const std::shared_ptr<State>& state, const std::sto
             }
             if (current) {
                 current->post_queued_event([weakState] {
-                    if (const auto ready = weakState.lock())
-                        SendRenderCommand(ready, false);
+                    if (const auto ready = weakState.lock()) {
+                        try {
+                            SendRenderCommand(ready, false);
+                        } catch (const std::exception& error) {
+                            LOGE("Panel service startup command failed: {}", error.what());
+                        } catch (...) {
+                            LOGE("Panel service startup command failed with an unknown exception");
+                        }
+                    }
                 });
             }
         });
@@ -202,6 +210,8 @@ void PanelServiceBridge::SendRenderCommand(const std::shared_ptr<State>& state, 
                                        std::format("--relay_server_host={}", endpoint ? endpoint->host : std::string{}),
                                        std::format("--relay_server_port={}", endpoint ? endpoint->relayPort : 0),
                                        "--can_be_operated=true",
+                                       state->config->IncomingRemoteAccessEnabled() ? "--incoming_remote_access_enabled=true"
+                                                                                    : "--incoming_remote_access_enabled=false",
                                        "--relay_enabled=true",
                                        std::format("--language={}", settings.language == ::px::ui::Language::English ? 1 : 0),
                                        "--logfile=true",

@@ -49,8 +49,13 @@ VideoStreamOutput VideoStreamReceiver::Feed(const MediaDatagram& datagram, std::
     auto [position, inserted] = streams_.try_emplace(datagram.stream, static_cast<std::uint16_t>(datagram.payload.size()));
     auto& stream = position->second;
     if (stream.packet_size != datagram.payload.size()) {
-        output.rejected = true;
-        return output;
+        // A truncated first UDP datagram must not pin this stream to the wrong FEC shard size forever. Before any complete frame has been
+        // delivered, a larger valid media datagram is authoritative and safely restarts only this stream's receive queue.
+        if (stream.last_delivered || datagram.payload.size() <= stream.packet_size) {
+            output.rejected = true;
+            return output;
+        }
+        stream = Stream{static_cast<std::uint16_t>(datagram.payload.size())};
     }
     auto queued = stream.queue.Feed(datagram.payload, now_us);
     output.statistics = stream.queue.Statistics();

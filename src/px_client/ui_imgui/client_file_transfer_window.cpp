@@ -21,6 +21,7 @@
 #include <format>
 #include <optional>
 #include <span>
+#include <string_view>
 
 namespace px::client::imgui {
 namespace {
@@ -87,6 +88,18 @@ void CenterTableCellText(const float rowHeight) {
 }
 
 void DrawFileTableHeaders(const std::array<std::string_view, 3>& labels, const float rowHeight) {
+    ImGui::TableNextRow(ImGuiTableRowFlags_Headers, rowHeight);
+    for (std::size_t column{}; column < labels.size(); ++column) {
+        if (!ImGui::TableSetColumnIndex(static_cast<int>(column)))
+            continue;
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + px::ui::Scale(10.0F));
+        ImGui::PushID(static_cast<int>(column));
+        ImGui::TableHeader(labels[column].data()); // NOLINT(gammaray-raw-pointer-boundary): Dear ImGui transient text ABI
+        ImGui::PopID();
+    }
+}
+
+void DrawTransferTableHeaders(const std::array<std::string_view, 8>& labels, const float rowHeight) {
     ImGui::TableNextRow(ImGuiTableRowFlags_Headers, rowHeight);
     for (std::size_t column{}; column < labels.size(); ++column) {
         if (!ImGui::TableSetColumnIndex(static_cast<int>(column)))
@@ -758,29 +771,102 @@ void ClientFileTransferWindow::DrawTransferQueue() {
     px::ui::CardScope card{{"file-transfer-queue"}, {0.0F, height}};
     if (!card.Visible())
         return;
-    px::ui::SectionTitle(text(ClientText::TransferQueue));
     const auto jobs = session_->TransferJobs();
-    if (std::ranges::any_of(jobs, [](const ClientTransferJob& job) { return job.done || !job.error.empty(); })) {
-        ImGui::SameLine();
-        if (px::ui::ActionButton({"clear-completed-jobs"}, text(ClientText::ClearCompleted),
-                                 {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Xs}))
-            session_->RemoveCompletedTransfers();
-    }
-    if (jobs.empty()) {
-        px::ui::EmptyState(px::ui::VectorIcon::FileTransfer, text(ClientText::NoTransfers), {});
+    const bool hasCompleted{std::ranges::any_of(jobs, [](const ClientTransferJob& job) { return job.done || !job.error.empty(); })};
+    const px::ui::UiMetrics metrics{px::ui::MetricsFor(ImGui::GetStyle().FontScaleDpi)};
+    const float titleTop{ImGui::GetCursorPosY()};
+    const float titleHeight{metrics.controlSm};
+    ImGui::SetCursorPosY(titleTop + std::max(0.0F, (titleHeight - ImGui::GetTextLineHeight() * 1.08F) * 0.5F));
+    px::ui::SectionTitle(text(ClientText::TransferQueue));
+    const float clearWidth{std::max(px::ui::Scale(108.0F), ImGui::CalcTextSize(text(ClientText::ClearCompleted)).x + metrics.spacingMd * 2.0F)};
+    ImGui::SetCursorPos({ImGui::GetContentRegionMax().x - clearWidth, titleTop + (titleHeight - metrics.controlXs) * 0.5F});
+    if (px::ui::ActionButton(
+            {"clear-completed-jobs"}, text(ClientText::ClearCompleted),
+            {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::Xs, .width = clearWidth, .disabled = !hasCompleted}))
+        session_->RemoveCompletedTransfers();
+    ImGui::SetCursorPosY(titleTop + titleHeight + metrics.spacingSm);
+
+    constexpr int columnCount{8};
+    const float rowHeight{px::ui::Scale(35.0F)};
+    const float tableHeight{jobs.empty() ? rowHeight * 2.0F : ImGui::GetContentRegionAvail().y};
+    if (!ImGui::BeginTable("transfer-queue-table", columnCount, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_ScrollY, {0.0F, tableHeight}))
         return;
+    ImGui::TableSetupColumn(text(ClientText::Name), ImGuiTableColumnFlags_WidthStretch, 1.4F);
+    ImGui::TableSetupColumn(text(ClientText::Type), ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(76.0F));
+    ImGui::TableSetupColumn(text(ClientText::Files), ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(68.0F));
+    ImGui::TableSetupColumn(text(ClientText::Progress), ImGuiTableColumnFlags_WidthStretch, 1.0F);
+    ImGui::TableSetupColumn(text(ClientText::Size), ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(190.0F));
+    ImGui::TableSetupColumn(text(ClientText::Speed), ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(90.0F));
+    ImGui::TableSetupColumn(text(ClientText::Status), ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(120.0F));
+    ImGui::TableSetupColumn(text(ClientText::Actions), ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(176.0F));
+    const float headerPaddingY{std::max(0.0F, (rowHeight - ImGui::GetTextLineHeight()) * 0.5F)};
+    ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {px::ui::Scale(10.0F), headerPaddingY});
+    DrawTransferTableHeaders({std::string_view{text(ClientText::Name)}, std::string_view{text(ClientText::Type)},
+                              std::string_view{text(ClientText::Files)}, std::string_view{text(ClientText::Progress)},
+                              std::string_view{text(ClientText::Size)}, std::string_view{text(ClientText::Speed)},
+                              std::string_view{text(ClientText::Status)}, std::string_view{text(ClientText::Actions)}},
+                             rowHeight);
+    ImGui::PopStyleVar();
+    ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {ImGui::GetStyle().CellPadding.x, 0.0F});
+    if (jobs.empty()) {
+        ImGui::TableNextRow(ImGuiTableRowFlags_None, rowHeight);
+        ImGui::TableNextColumn();
+        CenterTableCellText(rowHeight);
+        ImGui::TextDisabled("%s", text(ClientText::NoTransfers));
     }
     for (const auto& job : jobs) {
         ImGui::PushID(job.id);
-        ImGui::Text("%s", job.name.empty() ? std::format("#{}", job.id).c_str() : job.name.c_str());
+        ImGui::TableNextRow(ImGuiTableRowFlags_None, rowHeight);
+        ImGui::TableNextColumn();
+        const std::string jobName{job.name.empty() ? std::format("#{}", job.id) : job.name};
+        static_cast<void>(px::ui::SelectableRow({"transfer-job-row"}, jobName, false,
+                                                ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap, {0.0F, rowHeight}));
+        if (!job.error.empty() && ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", job.error.c_str());
+
+        ImGui::TableNextColumn();
+        CenterTableCellText(rowHeight);
         ImGui::TextDisabled("%s", text(job.download ? ClientText::Download : ClientText::Upload));
-        if (job.fileCount > 0)
+
+        ImGui::TableNextColumn();
+        if (job.fileCount > 0) {
+            CenterTableCellText(rowHeight);
             ImGui::TextDisabled("%d / %d", std::min(job.fileNumber + 1, job.fileCount), job.fileCount);
+        }
+
         const float progress{
             job.totalBytes == 0U ? 0.0F : std::clamp(static_cast<float>(job.completedBytes) / static_cast<float>(job.totalBytes), 0.0F, 1.0F)};
-        px::ui::Progress(progress, -1.0F);
-        ImGui::TextDisabled("%s / %s   %.1f KB/s", FormatSize(job.completedBytes).c_str(), FormatSize(job.totalBytes).c_str(),
-                            job.bytesPerSecond / 1024.0);
+        ImGui::TableNextColumn();
+        const float progressTop{ImGui::GetCursorPosY()};
+        const float percentWidth{px::ui::Scale(42.0F)};
+        ImGui::SetCursorPosY(progressTop + std::max(0.0F, (rowHeight - metrics.spacingSm) * 0.5F));
+        px::ui::Progress(progress, std::max(px::ui::Scale(24.0F), ImGui::GetContentRegionAvail().x - percentWidth));
+        ImGui::SameLine();
+        ImGui::SetCursorPosY(progressTop + std::max(0.0F, (rowHeight - ImGui::GetTextLineHeight()) * 0.5F));
+        ImGui::TextDisabled("%.0f%%", progress * 100.0F);
+
+        ImGui::TableNextColumn();
+        CenterTableCellText(rowHeight);
+        ImGui::TextDisabled("%s / %s", FormatSize(job.completedBytes).c_str(), FormatSize(job.totalBytes).c_str());
+
+        ImGui::TableNextColumn();
+        CenterTableCellText(rowHeight);
+        ImGui::TextDisabled("%.1f KB/s", job.bytesPerSecond / 1024.0);
+
+        ImGui::TableNextColumn();
+        if (!job.error.empty()) {
+            CenterTableCellText(rowHeight);
+            const auto tokens = px::ui::CurrentThemeTokens();
+            ImGui::PushStyleColor(ImGuiCol_Text, tokens.destructive);
+            ImGui::TextUnformatted(job.error.c_str());
+            ImGui::PopStyleColor();
+        } else if (job.done) {
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + std::max(0.0F, (rowHeight - ImGui::GetTextLineHeight() - metrics.spacingXs * 2.0F) * 0.5F));
+            px::ui::StatusBadge(text(ClientText::Completed), px::ui::BadgeVariant::Success);
+        }
+
+        ImGui::TableNextColumn();
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + std::max(0.0F, (rowHeight - metrics.controlXs) * 0.5F));
         if (!job.done && px::ui::ActionButton({"cancel-queue-job"}, text(ClientText::Cancel),
                                               {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Xs}))
             static_cast<void>(session_->CancelTransfer(job.id));
@@ -790,13 +876,10 @@ void ClientFileTransferWindow::DrawTransferQueue() {
                                      {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::Xs}))
                 static_cast<void>(session_->ResumeTransfer(job.id));
         }
-        if (job.done)
-            px::ui::StatusBadge(text(ClientText::Completed), px::ui::BadgeVariant::Success);
-        if (!job.error.empty())
-            px::ui::FieldError(job.error);
-        ImGui::Separator();
         ImGui::PopID();
     }
+    ImGui::PopStyleVar();
+    ImGui::EndTable();
 }
 
 void ClientFileTransferWindow::DrawConnectionFailure(const ClientSessionSnapshot& snapshot) {
@@ -812,8 +895,11 @@ void ClientFileTransferWindow::DrawConnectionFailure(const ClientSessionSnapshot
     if (!modal.Open())
         return;
     const auto text = [english = english_](const ClientText id) { return ClientTextValue(id, english).data(); };
+    const std::string_view description{snapshot.failure == ClientConnectionFailure::RemoteAccessDisabled
+                                           ? ClientTextValue(ClientText::RemoteAccessDisabled, english_)
+                                           : std::string_view{snapshot.status}};
     static_cast<void>(
-        px::ui::DialogHeader({"standalone-file-error-close"}, text(ClientText::ConnectionFailed), snapshot.status,
+        px::ui::DialogHeader({"standalone-file-error-close"}, text(ClientText::ConnectionFailed), description,
                              {.icon = px::ui::VectorIcon::TriangleAlert, .tone = px::ui::BadgeVariant::Destructive, .closeable = false}));
     px::ui::DialogFooter(150.0F);
     if (px::ui::ActionButton({"standalone-file-error-ok"}, text(ClientText::Ok), {.width = 150.0F}))

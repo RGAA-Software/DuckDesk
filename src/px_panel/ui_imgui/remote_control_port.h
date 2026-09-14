@@ -40,6 +40,7 @@ struct RemoteControlState final {
     std::string desktopLink{};
     std::string webClientAddress{};
     bool showTemporaryPassword{false};
+    bool incomingRemoteAccessEnabled{true};
     bool managerOnline{false};
     std::vector<RemoteDeviceCard> devices{};
 };
@@ -51,6 +52,7 @@ class RemoteControlPort {
     virtual void Refresh() = 0;
     virtual void RefreshTemporaryPassword() = 0;
     virtual void SetPasswordVisible(bool visible) = 0;
+    virtual void SetIncomingRemoteAccessEnabled(bool enabled) = 0;
     virtual void UpdateLocalDeviceName(std::string deviceName) = 0;
     [[nodiscard]] virtual bool RequiresPassword(const std::string& target) const = 0;
     virtual void Connect(std::string target, std::string password, bool viewOnly = false) = 0;

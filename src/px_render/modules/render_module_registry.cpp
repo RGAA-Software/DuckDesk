@@ -1083,6 +1083,12 @@ void RenderModuleRegistry::SyncModuleSettings(const RenderRuntimeSettings& info)
     if (exiting_) {
         return;
     }
+    if (const auto registry = app_ ? app_->GetLogicalSessionRegistry() : std::shared_ptr<LogicalSessionRegistry>{}) {
+        const bool effectiveEnabled{ResolveIncomingAccessEnabled(settings_.IncomingAccessProduct(), info.incoming_remote_access_enabled)};
+        registry->SetIncomingAccessEnabled(effectiveEnabled);
+        LOGI("event=incoming_access_policy component=render operation=apply product_kind={} requested_desktop_enabled={} effective_enabled={}",
+             static_cast<int>(settings_.IncomingAccessProduct()), info.incoming_remote_access_enabled, effectiveEnabled);
+    }
     VisitAllModules([&](const std::shared_ptr<RenderModule>& module) { module->UpdateSettings(info); });
     const auto webrtc_settings = MakeWebRtcSettings(info);
     VisitWebRtcLibraries([&webrtc_settings](const std::shared_ptr<WebRtcTransportHandle>& library) { library->UpdateSettings(webrtc_settings); });

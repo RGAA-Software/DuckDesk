@@ -218,6 +218,7 @@ enum class TextId : std::uint8_t {
     ConnectToRemoteDevice,
     RecentDevices,
     ConnectionCredentials,
+    AllowRemoteAccess,
     ShareAndWebAccess,
     DeviceCount,
     QrCode,

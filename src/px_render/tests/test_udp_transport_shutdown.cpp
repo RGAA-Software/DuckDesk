@@ -1,9 +1,13 @@
+#include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <future>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <asio2/external/asio.hpp>
 #include <gtest/gtest.h>
@@ -153,7 +157,7 @@ TEST(UdpTransportShutdown, AuthorizedPacedVideoCancelsWithoutWaitingForTheWholeF
                                               .expires_at_ms_ = static_cast<std::int64_t>(TimeUtil::GetCurrentTimestamp()) + 10000});
         asio::io_context io{};
         asio::ip::udp::socket socket(io, asio::ip::udp::v4());
-        const auto hello = PxUdpProtocol::BuildHello("paced-stop", "test");
+        const auto hello = PxUdpProtocol::BuildHello("paced-stop", "test", PxUdpProtocol::kSafeMtu);
         const asio::ip::udp::endpoint endpoint(asio::ip::make_address("127.0.0.1"), static_cast<unsigned short>(configuration.udp_listen_port));
         socket.send_to(asio::buffer(hello->Bytes()), endpoint);
         for (unsigned retry{}; retry < 100 && !transport->IsWorking(); ++retry)
@@ -186,6 +190,110 @@ TEST(UdpTransportShutdown, AuthorizedPacedVideoCancelsWithoutWaitingForTheWholeF
         runtime->RequestDrain();
         runtime->Join();
     }
+}
+
+TEST(UdpTransportShutdown, UsesTheClientNegotiatedCompleteDatagramSize) {
+    const auto runtime = PxAsyncRuntime::Create({.worker_threads = 1});
+    ASSERT_TRUE(runtime && runtime->Start());
+    const auto transport = std::make_shared<UdpTransport>(runtime);
+    RenderModuleConfiguration configuration{};
+    configuration.async_runtime = runtime;
+    configuration.udp_listen_port = 52000 + GetCurrentProcessId() % 1000;
+    configuration.udp_media_budget_bps = 20'000'000;
+    ASSERT_TRUE(transport->Start(configuration));
+    transport->UpdateUdpMediaAssociation({.association_code_ = "negotiated-size",
+                                          .logical_session_id_ = "negotiated-size",
+                                          .stream_id_ = "test",
+                                          .expires_at_ms_ = static_cast<std::int64_t>(TimeUtil::GetCurrentTimestamp()) + 10000});
+
+    asio::io_context io{};
+    asio::ip::udp::socket socket(io, asio::ip::udp::endpoint(asio::ip::udp::v4(), 0));
+    const asio::ip::udp::endpoint endpoint(asio::ip::make_address("127.0.0.1"), static_cast<unsigned short>(configuration.udp_listen_port));
+    const auto hello = PxUdpProtocol::BuildHello("negotiated-size", "test", PxUdpProtocol::kRemoteIpv4Mtu);
+    socket.send_to(asio::buffer(hello->Bytes()), endpoint);
+    for (unsigned retry{}; retry < 100 && !transport->IsWorking(); ++retry)
+        std::this_thread::sleep_for(5ms);
+    ASSERT_TRUE(transport->IsWorking());
+
+    const auto data = Data::Copy(std::span<const char>{std::string(50'000, 'v')});
+    ASSERT_TRUE(transport->SubmitEncodedVideo("test", EncodedVideoType::kH264, data, 1, 1280, 720, true, EncodedReferenceState::kDependent));
+    socket.non_blocking(true);
+    std::array<char, 1500> packet{};
+    std::size_t maximum_received{};
+    const auto deadline = std::chrono::steady_clock::now() + 1s;
+    while (std::chrono::steady_clock::now() < deadline) {
+        asio::error_code error{};
+        asio::ip::udp::endpoint sender{};
+        const auto received = socket.receive_from(asio::buffer(packet), sender, 0, error);
+        if (!error) {
+            maximum_received = std::max(maximum_received, received);
+            continue;
+        }
+        if (error != asio::error::would_block && error != asio::error::try_again)
+            FAIL() << error.message();
+        if (maximum_received != 0)
+            break;
+        std::this_thread::sleep_for(1ms);
+    }
+    EXPECT_EQ(maximum_received, static_cast<std::size_t>(PxUdpProtocol::kRemoteIpv4Mtu));
+
+    transport->Destroy();
+    runtime->RequestDrain();
+    runtime->Join();
+}
+
+TEST(UdpTransportShutdown, AuthenticatedHelloAndHeartbeatAreAcknowledged) {
+    const auto runtime = PxAsyncRuntime::Create({.worker_threads = 1});
+    ASSERT_TRUE(runtime && runtime->Start());
+    const auto transport = std::make_shared<UdpTransport>(runtime);
+    RenderModuleConfiguration configuration{};
+    configuration.async_runtime = runtime;
+    configuration.udp_listen_port = 53000 + GetCurrentProcessId() % 1000;
+    ASSERT_TRUE(transport->Start(configuration));
+    transport->UpdateUdpMediaAssociation({.association_code_ = "heartbeat-echo",
+                                          .logical_session_id_ = "heartbeat-echo",
+                                          .stream_id_ = "test",
+                                          .expires_at_ms_ = static_cast<std::int64_t>(TimeUtil::GetCurrentTimestamp()) + 10000});
+
+    asio::io_context io{};
+    asio::ip::udp::socket socket(io, asio::ip::udp::endpoint(asio::ip::udp::v4(), 0));
+    socket.non_blocking(true);
+    const asio::ip::udp::endpoint endpoint(asio::ip::make_address("127.0.0.1"), static_cast<unsigned short>(configuration.udp_listen_port));
+    const auto receive_control = [&socket]() -> std::optional<std::vector<char>> {
+        std::array<char, 1500> bytes{};
+        const auto deadline = std::chrono::steady_clock::now() + 1s;
+        while (std::chrono::steady_clock::now() < deadline) {
+            asio::error_code error{};
+            const auto received = socket.receive(asio::buffer(bytes), 0, error);
+            if (!error) {
+                return std::vector<char>{bytes.begin(), bytes.begin() + static_cast<std::ptrdiff_t>(received)};
+            }
+            if (error != asio::error::would_block && error != asio::error::try_again) {
+                return std::nullopt;
+            }
+            std::this_thread::sleep_for(1ms);
+        }
+        return std::nullopt;
+    };
+    const auto expect_heartbeat = [](const std::optional<std::vector<char>>& packet) {
+        ASSERT_TRUE(packet.has_value());
+        std::string association{};
+        std::string ignored{};
+        EXPECT_EQ(PxUdpProtocol::ParseCtrl(std::span<const char>{*packet}, association, ignored), PxUdpProtocol::kCtrlHeartbeat);
+        EXPECT_EQ(association, "heartbeat-echo");
+    };
+
+    const auto hello = PxUdpProtocol::BuildHello("heartbeat-echo", "test", PxUdpProtocol::kSafeMtu);
+    socket.send_to(asio::buffer(hello->Bytes()), endpoint);
+    expect_heartbeat(receive_control());
+
+    const auto heartbeat = PxUdpProtocol::BuildHeartbeat("heartbeat-echo");
+    socket.send_to(asio::buffer(heartbeat->Bytes()), endpoint);
+    expect_heartbeat(receive_control());
+
+    transport->Destroy();
+    runtime->RequestDrain();
+    runtime->Join();
 }
 
 } // namespace

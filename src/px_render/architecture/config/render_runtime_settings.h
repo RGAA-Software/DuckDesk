@@ -12,6 +12,7 @@ struct RenderRuntimeSettings final {
     std::string relay_host;
     std::string relay_port;
     bool can_be_operated{true};
+    bool incoming_remote_access_enabled{true};
     bool direct_allow_takeover{true};
     bool relay_enabled{true};
     int language{1};

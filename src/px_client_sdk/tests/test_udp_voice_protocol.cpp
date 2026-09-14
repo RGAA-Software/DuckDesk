@@ -85,7 +85,7 @@ TEST(UdpVoiceProtocol, EveryTruncationTrailingBytesAndMalformedLengthsAreRejecte
 
 TEST(UdpVoiceProtocol, OrdinarySystemAudioAndControlAreNotVoice) {
     const auto audio = PxUdpProtocol::BuildAudioPacket(1, 1, std::array<char, 1>{1});
-    const auto hello = PxUdpProtocol::BuildHello("association", "stream");
+    const auto hello = PxUdpProtocol::BuildHello("association", "stream", PxUdpProtocol::kSafeMtu);
     ASSERT_TRUE(audio);
     ASSERT_TRUE(hello);
     EXPECT_FALSE(UdpVoiceProtocol::Parse(audio->Bytes()));

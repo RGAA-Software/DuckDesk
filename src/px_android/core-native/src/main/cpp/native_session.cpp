@@ -645,6 +645,18 @@ bool NativeSession::Initialize() {
             self->callback_->MediaUnavailable(self->config_.session_id, event.reason == px::UdpMediaFailure::kInterrupted);
         }
     });
+    session_listener_->Listen<px::SdkMsgUdpMediaAvailable>([weak_self](const auto&) {
+        if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
+            std::shared_ptr<px::VoiceCallController> voice_call{};
+            {
+                std::lock_guard lock(self->lifecycle_mutex_);
+                voice_call = self->voice_call_;
+            }
+            if (voice_call) {
+                voice_call->SetTransportAvailable(true);
+            }
+        }
+    });
     session_listener_->Listen<px::SdkMsgWsConnectionRejected>([weak_self](const auto&) {
         if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
             self->callback_->Disconnected(self->config_.session_id, 1, false);

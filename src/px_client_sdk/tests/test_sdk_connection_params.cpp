@@ -1,9 +1,11 @@
 #include "sdk_connection_params.h"
+#include "connection/udp_datagram_policy.h"
 #include "sdk_net_client.h"
 #include "sdk_messages.h"
 #include "px_common/message_notifier.h"
 
 #include <asio2/websocket/ws_server.hpp>
+#include <asio/ip/address.hpp>
 #include <gtest/gtest.h>
 
 #include <atomic>
@@ -16,6 +18,20 @@
 #include <utility>
 
 namespace px {
+
+TEST(UdpDatagramPolicy, UsesMoonlightStyleCompletePayloadSizes) {
+    EXPECT_EQ(DatagramSizeForPath(UdpPathKind::kUnknown), 1200);
+    EXPECT_EQ(DatagramSizeForPath(UdpPathKind::kLan), 1400);
+    EXPECT_EQ(DatagramSizeForPath(UdpPathKind::kVpn), 1040);
+    EXPECT_EQ(DatagramSizeForPath(UdpPathKind::kRemoteIpv4), 1040);
+    EXPECT_EQ(DatagramSizeForPath(UdpPathKind::kRemoteIpv6), 1200);
+}
+
+TEST(UdpDatagramPolicy, TreatsLoopbackAsLan) {
+    const auto profile = SelectUdpDatagramProfile(asio::ip::make_address("127.0.0.1"));
+    EXPECT_EQ(profile.kind, UdpPathKind::kLan);
+    EXPECT_EQ(profile.datagram_size, kUdpLanDatagramSize);
+}
 namespace {
 
 using namespace std::chrono_literals;

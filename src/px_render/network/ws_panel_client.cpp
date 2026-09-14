@@ -471,6 +471,7 @@ void WsPanelClient::ParseNetMessage(const std::string& msg) {
             settings.relay_host_ = sub.relay_host();
             settings.relay_port_ = sub.relay_port();
             settings.can_be_operated_ = sub.can_be_operated();
+            settings.incoming_remote_access_enabled_ = !sub.remote_access_disabled();
             settings.relay_enabled_ = sub.relay_enabled();
             settings.language_ = sub.language();
             settings.file_transfer_enabled_ = sub.file_transfer_enabled();
@@ -480,6 +481,9 @@ void WsPanelClient::ParseNetMessage(const std::string& msg) {
             settings.max_receive_speed_ = sub.max_receive_speed();
             settings.role_ = sub.role();
 
+            LOGI("event=incoming_access_policy component=render_panel operation=receive product_kind={} desktop_enabled={}",
+                 static_cast<int>(settings.IncomingAccessProduct()), settings.incoming_remote_access_enabled_);
+
             module_registry_->SyncModuleSettings(RenderRuntimeSettings{
                 .device_id = settings.device_id_,
                 .device_random_password = settings.device_random_pwd_,
@@ -487,6 +491,7 @@ void WsPanelClient::ParseNetMessage(const std::string& msg) {
                 .relay_host = settings.relay_host_,
                 .relay_port = settings.relay_port_,
                 .can_be_operated = settings.can_be_operated_,
+                .incoming_remote_access_enabled = settings.incoming_remote_access_enabled_,
                 .direct_allow_takeover = settings.direct_allow_takeover_,
                 .relay_enabled = settings.relay_enabled_,
                 .language = settings.language_,

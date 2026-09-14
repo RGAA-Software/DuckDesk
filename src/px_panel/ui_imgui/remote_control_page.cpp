@@ -25,7 +25,7 @@ constexpr ImGuiWindowFlags fixedCardFlags{ImGuiWindowFlags_NoScrollbar | ImGuiWi
 constexpr float linkTextScale{15.0F / 16.0F};
 
 void IdentityLabel(const std::string_view label, const std::string& value, const bool strong = false) {
-    ImGui::TableNextRow(ImGuiTableRowFlags_None, px::ui::Scale(40.0F));
+    ImGui::TableNextRow(ImGuiTableRowFlags_None, px::ui::Scale(32.0F));
     ImGui::TableNextColumn();
     ImGui::TextDisabled("%.*s", static_cast<int>(label.size()), label.data());
     ImGui::TableNextColumn();
@@ -123,6 +123,16 @@ void RemoteControlPage::DrawIdentity(const RemoteControlState& state, const px::
                                    {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::IconXs})) {
                 localDeviceNameDraft_ = state.deviceName;
                 openLocalDeviceNameDialog_ = true;
+            }
+            ImGui::TableNextRow(ImGuiTableRowFlags_None, px::ui::Scale(32.0F));
+            ImGui::TableNextColumn();
+            ImGui::TextDisabled("%.*s", static_cast<int>(localizer.Text(px::ui::TextId::AllowRemoteAccess).size()),
+                                localizer.Text(px::ui::TextId::AllowRemoteAccess).data());
+            ImGui::TableNextColumn();
+            ImGui::TableNextColumn();
+            bool incomingRemoteAccessEnabled{state.incomingRemoteAccessEnabled};
+            if (px::ui::ToggleSwitch({"allow-remote-access"}, {}, incomingRemoteAccessEnabled)) {
+                port_->SetIncomingRemoteAccessEnabled(incomingRemoteAccessEnabled);
             }
             ImGui::EndTable();
         }

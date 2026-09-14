@@ -9,6 +9,7 @@
 #include <string>
 #include "px_steam_manager/steam_entities.h"
 #include "px_rdp/rdp_proxy_process.h"
+#include "architecture/config/incoming_access_policy.h"
 
 namespace px
 {
@@ -151,6 +152,18 @@ namespace px
             return application_mode_ == ApplicationMode::kWebView;
         }
         [[nodiscard]] bool IsRdpMode() const { return application_mode_ == ApplicationMode::kRdp; }
+        [[nodiscard]] IncomingAccessProductKind IncomingAccessProduct() const {
+            if (IsRdpMode()) {
+                return IncomingAccessProductKind::kRdp;
+            }
+            if (IsWebViewMode()) {
+                return IncomingAccessProductKind::kWebView;
+            }
+            if (IsGameHookMode()) {
+                return IncomingAccessProductKind::kGame;
+            }
+            return IncomingAccessProductKind::kDesktop;
+        }
         [[nodiscard]] InputTarget GetInputTarget() const {
             if (IsRdpMode()) {
                 return InputTarget::kRdpProtocol;
@@ -191,6 +204,8 @@ namespace px
         std::string relay_port_;
         // can be operated
         bool can_be_operated_ = true;
+        // Master admission policy for new inbound desktop and file-transfer sessions.
+        bool incoming_remote_access_enabled_ = true;
         // Policy for Direct RTC without a Console-issued session ticket.
         // Console connections continue to take this policy from their ticket.
         bool direct_allow_takeover_ = true;

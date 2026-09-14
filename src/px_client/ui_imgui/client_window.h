@@ -45,6 +45,8 @@ class ClientWindow final {
     bool windowVisible_{};
     bool terminalErrorShown_{};
     bool terminalErrorPopupOpened_{};
+    bool mediaWarningLatched_{};
+    bool mediaWarningPopupOpened_{};
     bool textCompositionActive_{};
     std::string clipboardText_{};
     std::chrono::steady_clock::time_point nextClipboardCheck_{};

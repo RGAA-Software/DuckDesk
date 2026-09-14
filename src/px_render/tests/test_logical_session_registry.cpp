@@ -3,9 +3,19 @@
 #include <algorithm>
 #include <memory>
 
+#include "architecture/config/incoming_access_policy.h"
 #include "session/logical_session_registry.h"
 
 namespace px {
+
+TEST(IncomingAccessPolicy, OnlyDesktopUsesThePanelRemoteAccessSwitch) {
+    EXPECT_FALSE(ResolveIncomingAccessEnabled(IncomingAccessProductKind::kDesktop, false));
+    EXPECT_TRUE(ResolveIncomingAccessEnabled(IncomingAccessProductKind::kDesktop, true));
+    EXPECT_TRUE(ResolveIncomingAccessEnabled(IncomingAccessProductKind::kGame, false));
+    EXPECT_TRUE(ResolveIncomingAccessEnabled(IncomingAccessProductKind::kWebView, false));
+    EXPECT_TRUE(ResolveIncomingAccessEnabled(IncomingAccessProductKind::kRdp, false));
+}
+
 namespace {
 
 LogicalSessionGrant ControlGrant(const std::string& id, const std::string& stream, const std::string& subject) {
@@ -181,6 +191,32 @@ TEST(LogicalSessionRegistry, StandaloneFileTransferDoesNotOccupyDesktopControlle
     EXPECT_TRUE(registry.FindControllerLeaseByBinding("file-one", 3).has_value());
     EXPECT_TRUE(registry.AuthorizeControllerInputBinding("ws-one", 3));
     EXPECT_EQ(registry.ActiveSessionCount(), 2U);
+}
+
+TEST(LogicalSessionRegistry, DisabledIncomingAccessRejectsNewDesktopObserverAndFileTransferBindings) {
+    LogicalSessionRegistry registry;
+    const auto existing = registry.Bind(ControlGrant("existing", "stream-existing", "alice"), LogicalSessionTransport::kWs, "ws-existing", false, 1);
+    ASSERT_EQ(existing.code, LogicalSessionAdmissionCode::kAccepted);
+
+    registry.SetIncomingAccessEnabled(false);
+    EXPECT_EQ(registry.Bind(ControlGrant("desktop", "stream-desktop", "bob"), LogicalSessionTransport::kWs, "ws-desktop", false, 2).code,
+              LogicalSessionAdmissionCode::kRemoteAccessDisabled);
+    auto observer = ControlGrant("observer", "stream-observer", "carol");
+    observer.join_mode = "observe";
+    EXPECT_EQ(registry.Bind(observer, LogicalSessionTransport::kRtcLocal, "rtc-observer", false, 3).code,
+              LogicalSessionAdmissionCode::kRemoteAccessDisabled);
+    EXPECT_EQ(registry.Bind(ControlGrant("files", "stream-files", "dave"), LogicalSessionTransport::kFileTransfer, "file-only", false, 4).code,
+              LogicalSessionAdmissionCode::kRemoteAccessDisabled);
+    EXPECT_EQ(
+        registry.Bind(ControlGrant("existing", "stream-existing", "alice"), LogicalSessionTransport::kFileTransfer, "file-existing", false, 5).code,
+        LogicalSessionAdmissionCode::kRemoteAccessDisabled);
+    EXPECT_TRUE(registry.AuthorizeControllerInput("existing", existing.lease_generation, 6));
+    EXPECT_EQ(registry.ActiveSessionCount(), 1U);
+
+    registry.SetIncomingAccessEnabled(true);
+    EXPECT_EQ(
+        registry.Bind(ControlGrant("existing", "stream-existing", "alice"), LogicalSessionTransport::kFileTransfer, "file-existing", false, 7).code,
+        LogicalSessionAdmissionCode::kAccepted);
 }
 
 TEST(LogicalSessionRegistry, FindsAnyActiveRoleByTransportBindingWithoutMutatingIt) {

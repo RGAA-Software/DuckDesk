@@ -29,6 +29,10 @@ TEST(UdpMediaState, EstablishedMediaLossIsNotAProbeFailure) {
     EXPECT_EQ(state.Current(), UdpMediaPhase::kActive);
     EXPECT_EQ(state.MarkUnavailable(), UdpMediaFailure::kInterrupted);
     EXPECT_FALSE(state.AcceptsMedia());
+    EXPECT_TRUE(state.Recover());
+    EXPECT_TRUE(state.AcceptsMedia());
+    EXPECT_EQ(state.Current(), UdpMediaPhase::kActive);
+    EXPECT_FALSE(state.Recover());
 }
 
 TEST(UdpMediaState, StopRejectsLateCallbacksAtEveryPartialStartPoint) {
@@ -45,6 +49,7 @@ TEST(UdpMediaState, StopRejectsLateCallbacksAtEveryPartialStartPoint) {
         EXPECT_FALSE(state.BeginProbe());
         EXPECT_FALSE(state.MarkReady());
         EXPECT_FALSE(state.MarkUnavailable());
+        EXPECT_FALSE(state.Recover());
         EXPECT_FALSE(state.AcceptsMedia());
     }
 }

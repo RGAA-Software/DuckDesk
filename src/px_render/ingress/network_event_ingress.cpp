@@ -631,9 +631,12 @@ void NetworkEventIngress::ProcessNetEvent(const std::shared_ptr<NetworkClientEve
                                                   LogicalSessionTransport::kRtcLocal, std::string("rtc-local:") + stream_id, sub.takeover(), now_ms);
             if (admission.code != LogicalSessionAdmissionCode::kAccepted) {
                 const bool occupied = admission.code == LogicalSessionAdmissionCode::kOccupied;
-                LOGW("Reject RTC offer: logical-session admission denied, occupied={}", occupied);
-                self->SendRtcSignalingError(stream_id, occupied ? "RTC_OCCUPIED" : "RTC_ACCESS_DENIED",
-                                            occupied ? "Remote controller is occupied" : "Remote session admission denied");
+                const bool remote_access_disabled = admission.code == LogicalSessionAdmissionCode::kRemoteAccessDisabled;
+                LOGW("Reject RTC offer: logical-session admission denied, occupied={}, remote_access_disabled={}", occupied, remote_access_disabled);
+                self->SendRtcSignalingError(
+                    stream_id, remote_access_disabled ? "RTC_REMOTE_ACCESS_DISABLED" : (occupied ? "RTC_OCCUPIED" : "RTC_ACCESS_DENIED"),
+                    remote_access_disabled ? "Remote access is disabled on the remote device"
+                                           : (occupied ? "Remote controller is occupied" : "Remote session admission denied"));
                 return;
             }
             if (admission.release_previous_controller_input) {

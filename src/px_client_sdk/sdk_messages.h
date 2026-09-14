@@ -58,6 +58,8 @@ struct SdkMsgUdpMediaUnavailable {
     UdpMediaFailure reason{UdpMediaFailure::kProbeTimeout};
 };
 
+struct SdkMsgUdpMediaAvailable {};
+
 class SdkMsgWsConnectionRejected {
   public:
     WsControlRejection rejection_ = WsControlRejection::kSessionPolicy;
