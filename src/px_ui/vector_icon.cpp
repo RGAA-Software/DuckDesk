@@ -336,6 +336,14 @@ void DrawVectorIcon(ImDrawList& draw, const VectorIcon icon, const ImVec2 topLef
         canvas.Line(17.0F, 10.0F, 14.0F, 13.0F);
         canvas.Line(17.0F, 15.0F, 7.0F, 15.0F);
         break;
+    case VectorIcon::Inbox:
+        canvas.Rect(3.0F, 4.0F, 21.0F, 20.0F, 2.0F);
+        canvas.Line(3.0F, 13.0F, 8.0F, 13.0F);
+        canvas.Line(8.0F, 13.0F, 10.0F, 16.0F);
+        canvas.Line(10.0F, 16.0F, 14.0F, 16.0F);
+        canvas.Line(14.0F, 16.0F, 16.0F, 13.0F);
+        canvas.Line(16.0F, 13.0F, 21.0F, 13.0F);
+        break;
     case VectorIcon::Trash:
         canvas.Line(4.0F, 7.0F, 20.0F, 7.0F);
         canvas.Line(9.0F, 7.0F, 9.0F, 4.0F);

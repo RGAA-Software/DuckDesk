@@ -47,6 +47,7 @@ enum class VectorIcon {
     Upload,
     Download,
     FileTransfer,
+    Inbox,
     Trash,
     Check,
     ChevronLeft,

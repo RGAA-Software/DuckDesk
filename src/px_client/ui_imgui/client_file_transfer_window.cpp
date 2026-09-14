@@ -185,7 +185,7 @@ std::optional<std::string> DrawFilePathBar(const std::string_view id, const std:
                                            const std::span<const FilePathChoice> locations, const float width, std::string& editablePath,
                                            bool& editing, bool& requestFocus) {
     const auto tokens = px::ui::CurrentThemeTokens();
-    constexpr float height{36.0F};
+    const float height{px::ui::Scale(35.0F)};
     constexpr float edgePadding{5.0F};
     constexpr float dropdownWidth{32.0F};
     constexpr float separatorWidth{16.0F};
@@ -247,9 +247,11 @@ std::optional<std::string> DrawFilePathBar(const std::string_view id, const std:
                 if (ImGui::IsItemHovered())
                     ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(tokens.accent),
                                                               4.0F);
+                const ImVec2 itemMinimum{ImGui::GetItemRectMin()};
+                const ImVec2 itemMaximum{ImGui::GetItemRectMax()};
                 const ImVec2 textSize{ImGui::CalcTextSize("...")};
-                ImGui::GetWindowDrawList()->AddText({ImGui::GetItemRectMin().x + (ellipsisWidth - textSize.x) * 0.5F,
-                                                     ImGui::GetItemRectMin().y + (height - textSize.y) * 0.5F - 2.0F},
+                ImGui::GetWindowDrawList()->AddText({itemMinimum.x + (itemMaximum.x - itemMinimum.x - textSize.x) * 0.5F,
+                                                     itemMinimum.y + (itemMaximum.y - itemMinimum.y - textSize.y) * 0.5F},
                                                     ImGui::GetColorU32(tokens.mutedForeground), "...");
                 cursorX += ellipsisWidth;
             }
@@ -268,8 +270,11 @@ std::optional<std::string> DrawFilePathBar(const std::string_view id, const std:
                 if (ImGui::IsItemHovered())
                     ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(tokens.accent),
                                                               4.0F);
-                ImGui::GetWindowDrawList()->PushClipRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), true);
-                ImGui::GetWindowDrawList()->AddText({ImGui::GetItemRectMin().x + 8.0F, ImGui::GetItemRectMin().y + 7.0F},
+                const ImVec2 itemMinimum{ImGui::GetItemRectMin()};
+                const ImVec2 itemMaximum{ImGui::GetItemRectMax()};
+                const ImVec2 textSize{ImGui::CalcTextSize(segments[index].label.c_str())};
+                ImGui::GetWindowDrawList()->PushClipRect(itemMinimum, itemMaximum, true);
+                ImGui::GetWindowDrawList()->AddText({itemMinimum.x + 8.0F, itemMinimum.y + (itemMaximum.y - itemMinimum.y - textSize.y) * 0.5F},
                                                     ImGui::GetColorU32(index + 1U == segments.size() ? tokens.foreground : tokens.mutedForeground),
                                                     segments[index].label.c_str());
                 ImGui::GetWindowDrawList()->PopClipRect();
@@ -412,11 +417,9 @@ void ClientFileTransferWindow::HandleInput(const px::desktop::DesktopInputEvent&
     }
     if (event.type != SDL_EVENT_QUIT && event.type != SDL_EVENT_WINDOW_CLOSE_REQUESTED)
         return;
-    const auto jobs = session_->TransferJobs();
-    if (std::ranges::any_of(jobs, [](const ClientTransferJob& job) { return !job.done && job.error.empty(); })) {
-        shell_.get().CancelCloseRequest();
-        openCloseConfirmation_ = true;
-    }
+    shell_.get().CancelCloseRequest();
+    shell_.get().RequestShowAndRaise();
+    openCloseConfirmation_ = true;
 }
 
 void ClientFileTransferWindow::Draw() {
@@ -497,25 +500,31 @@ void ClientFileTransferWindow::Draw() {
 void ClientFileTransferWindow::DrawLocalPane() {
     const auto text = [english = english_](const ClientText id) { return ClientTextValue(id, english).data(); };
     const float height{ImGui::GetContentRegionAvail().y};
+    const float navigationHeight{px::ui::Scale(35.0F)};
     px::ui::CardScope card{{"local-file-pane"}, {0.0F, height}};
     if (!card.Visible())
         return;
     DrawComputerIdentity(shell_.get().PlatformIcons(), px::ui::DevicePlatform::Windows, text(ClientText::LocalComputer), "Windows", localIdentity_);
+    const float navigationTop{ImGui::GetCursorPosY()};
     if (px::ui::IconAction({"local-back"}, px::ui::VectorIcon::ArrowLeft, text(ClientText::Back),
-                           {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
+                           {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon, .height = navigationHeight}))
         if (localFiles_.NavigateBack())
             localSelection_.Clear();
     ImGui::SameLine();
+    ImGui::SetCursorPosY(navigationTop);
     if (px::ui::IconAction({"local-up"}, px::ui::VectorIcon::ArrowUp, text(ClientText::Up),
-                           {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
+                           {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon, .height = navigationHeight}))
         if (localFiles_.NavigateUp())
             localSelection_.Clear();
     ImGui::SameLine();
-    const float localAddressWidth{std::max(120.0F, ImGui::GetContentRegionAvail().x - 46.0F)};
+    ImGui::SetCursorPosY(navigationTop);
+    const float localAddressWidth{
+        std::max(px::ui::Scale(120.0F), ImGui::GetContentRegionAvail().x - navigationHeight - ImGui::GetStyle().ItemSpacing.x)};
     DrawLocalLocationPicker(localAddressWidth);
     ImGui::SameLine();
+    ImGui::SetCursorPosY(navigationTop);
     if (px::ui::IconAction({"local-refresh"}, px::ui::VectorIcon::Refresh, text(ClientText::Refresh),
-                           {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
+                           {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon, .height = navigationHeight}))
         static_cast<void>(localFiles_.Refresh());
     if (px::ui::IconAction({"local-home"}, px::ui::VectorIcon::Home, text(ClientText::Home),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon})) {
@@ -629,27 +638,33 @@ void ClientFileTransferWindow::DrawLocalPane() {
 void ClientFileTransferWindow::DrawRemotePane() {
     const auto text = [english = english_](const ClientText id) { return ClientTextValue(id, english).data(); };
     const float height{ImGui::GetContentRegionAvail().y};
+    const float navigationHeight{px::ui::Scale(35.0F)};
     px::ui::CardScope card{{"remote-file-pane"}, {0.0F, height}};
     if (!card.Visible())
         return;
     DrawComputerIdentity(shell_.get().PlatformIcons(), remotePlatform_, text(ClientText::RemoteComputer), remoteName_, remoteIdentity_);
+    const float navigationTop{ImGui::GetCursorPosY()};
     if (px::ui::IconAction({"remote-back"}, px::ui::VectorIcon::ArrowLeft, text(ClientText::Back),
-                           {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}) &&
+                           {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon, .height = navigationHeight}) &&
         !remoteHistory_.empty()) {
         const std::string previous{remoteHistory_.back()};
         remoteHistory_.pop_back();
         NavigateRemote(previous, false);
     }
     ImGui::SameLine();
+    ImGui::SetCursorPosY(navigationTop);
     if (px::ui::IconAction({"remote-up"}, px::ui::VectorIcon::ArrowUp, text(ClientText::Up),
-                           {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
+                           {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon, .height = navigationHeight}))
         NavigateRemote(RemoteParent(remotePath_), true);
     ImGui::SameLine();
-    const float remoteAddressWidth{std::max(120.0F, ImGui::GetContentRegionAvail().x - 46.0F)};
+    ImGui::SetCursorPosY(navigationTop);
+    const float remoteAddressWidth{
+        std::max(px::ui::Scale(120.0F), ImGui::GetContentRegionAvail().x - navigationHeight - ImGui::GetStyle().ItemSpacing.x)};
     DrawRemoteLocationPicker(remoteAddressWidth);
     ImGui::SameLine();
+    ImGui::SetCursorPosY(navigationTop);
     if (px::ui::IconAction({"remote-refresh"}, px::ui::VectorIcon::Refresh, text(ClientText::Refresh),
-                           {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
+                           {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon, .height = navigationHeight}))
         NavigateRemote(remotePath_, false);
     if (!remotePathEditing_)
         remotePath_ = session_->RemotePath();
@@ -788,7 +803,9 @@ void ClientFileTransferWindow::DrawTransferQueue() {
 
     constexpr int columnCount{8};
     const float rowHeight{px::ui::Scale(35.0F)};
-    const float tableHeight{jobs.empty() ? rowHeight * 2.0F : ImGui::GetContentRegionAvail().y};
+    const ImVec2 tableMinimum{ImGui::GetCursorScreenPos()};
+    const float tableWidth{ImGui::GetContentRegionAvail().x};
+    const float tableHeight{ImGui::GetContentRegionAvail().y};
     if (!ImGui::BeginTable("transfer-queue-table", columnCount, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_ScrollY, {0.0F, tableHeight}))
         return;
     ImGui::TableSetupColumn(text(ClientText::Name), ImGuiTableColumnFlags_WidthStretch, 1.4F);
@@ -808,12 +825,6 @@ void ClientFileTransferWindow::DrawTransferQueue() {
                              rowHeight);
     ImGui::PopStyleVar();
     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {ImGui::GetStyle().CellPadding.x, 0.0F});
-    if (jobs.empty()) {
-        ImGui::TableNextRow(ImGuiTableRowFlags_None, rowHeight);
-        ImGui::TableNextColumn();
-        CenterTableCellText(rowHeight);
-        ImGui::TextDisabled("%s", text(ClientText::NoTransfers));
-    }
     for (const auto& job : jobs) {
         ImGui::PushID(job.id);
         ImGui::TableNextRow(ImGuiTableRowFlags_None, rowHeight);
@@ -879,6 +890,23 @@ void ClientFileTransferWindow::DrawTransferQueue() {
         ImGui::PopID();
     }
     ImGui::PopStyleVar();
+    if (jobs.empty()) {
+        const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
+        const ImVec2 emptyMinimum{tableMinimum.x, tableMinimum.y + rowHeight};
+        const ImVec2 emptyMaximum{tableMinimum.x + tableWidth, tableMinimum.y + tableHeight};
+        const float iconSize{metrics.iconLg * 1.35F};
+        const std::string_view emptyText{text(ClientText::NoTransfers)};
+        const ImVec2 textSize{ImGui::CalcTextSize(emptyText.data(), emptyText.data() + emptyText.size())};
+        const float contentHeight{iconSize + metrics.spacingSm + textSize.y};
+        const float contentTop{emptyMinimum.y + std::max(0.0F, (emptyMaximum.y - emptyMinimum.y - contentHeight) * 0.5F)};
+        ImDrawList& draw{*ImGui::GetWindowDrawList()};
+        draw.PushClipRect(emptyMinimum, emptyMaximum, false);
+        px::ui::DrawVectorIcon(draw, px::ui::VectorIcon::Inbox, {emptyMinimum.x + (emptyMaximum.x - emptyMinimum.x - iconSize) * 0.5F, contentTop},
+                               iconSize, ImGui::GetColorU32(tokens.mutedForeground));
+        draw.AddText({emptyMinimum.x + (emptyMaximum.x - emptyMinimum.x - textSize.x) * 0.5F, contentTop + iconSize + metrics.spacingSm},
+                     ImGui::GetColorU32(tokens.mutedForeground), emptyText.data(), emptyText.data() + emptyText.size());
+        draw.PopClipRect();
+    }
     ImGui::EndTable();
 }
 
@@ -1009,8 +1037,8 @@ void ClientFileTransferWindow::DrawCloseConfirmation() {
     if (!modal.Open())
         return;
     const auto text = [english = english_](const ClientText id) { return ClientTextValue(id, english).data(); };
-    static_cast<void>(px::ui::DialogHeader({"standalone-file-close-header"}, text(ClientText::CloseTransfersTitle),
-                                           text(ClientText::CloseTransfersDetail),
+    static_cast<void>(px::ui::DialogHeader({"standalone-file-close-header"}, text(ClientText::ExitFileTransfer),
+                                           text(ClientText::ExitFileTransferDetail),
                                            {.icon = px::ui::VectorIcon::TriangleAlert, .tone = px::ui::BadgeVariant::Warning, .closeable = false}));
     px::ui::DialogFooter(236.0F);
     if (px::ui::ActionButton({"standalone-file-keep-open"}, text(ClientText::Cancel), {.variant = px::ui::ButtonVariant::Outline, .width = 112.0F})) {
@@ -1018,7 +1046,8 @@ void ClientFileTransferWindow::DrawCloseConfirmation() {
         return;
     }
     ImGui::SameLine();
-    if (px::ui::ActionButton({"standalone-file-close"}, text(ClientText::Close), {.variant = px::ui::ButtonVariant::Destructive, .width = 112.0F}))
+    if (px::ui::ActionButton({"standalone-file-close"}, text(ClientText::ExitFileTransfer),
+                             {.variant = px::ui::ButtonVariant::Destructive, .width = 112.0F}))
         shell_.get().RequestExit();
 }
 

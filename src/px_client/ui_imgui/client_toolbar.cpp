@@ -221,7 +221,7 @@ bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const 
             action.requestExit = true;
             menuExpanded = false;
             sectionExpanded = false;
-        } else if (enabled && isSection && (pressed || itemHovered)) {
+        } else if (enabled && isSection && pressed) {
             if (!sectionExpanded || selectedSection != section)
                 sectionNeedsFocus = true;
             selectedSection = section;
