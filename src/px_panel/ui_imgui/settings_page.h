@@ -19,7 +19,8 @@ enum class SettingsSection : std::uint8_t { General, Network, Security, Controll
 
 class SettingsPage final {
   public:
-    SettingsPage(std::shared_ptr<NetworkSettingsPort> networkPort, std::shared_ptr<SettingsPort> settingsPort);
+    SettingsPage(std::shared_ptr<NetworkSettingsPort> networkPort, std::shared_ptr<SettingsPort> settingsPort,
+                 std::shared_ptr<ServerStatusPort> serverStatusPort, std::shared_ptr<SecurityRecordsPort> securityRecordsPort);
     [[nodiscard]] std::optional<px::ui::Theme> Draw(px::ui::Localizer& localizer, px::ui::Theme& theme);
 
   private:

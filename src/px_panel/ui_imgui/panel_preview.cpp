@@ -13,9 +13,9 @@ namespace px::panel::ui {
 PanelPreview::PanelPreview(PanelPreviewServices services)
     : settingsPort_{services.settings}, notifications_{std::move(services.notifications)}, voiceCallConsent_{std::move(services.voiceCallConsent)},
       remoteControlPort_{services.remoteControl}, connectionProgressDialog_{remoteControlPort_}, navigation_{std::move(services.account)},
-      settings_{std::move(services.networkSettings), services.settings}, serverStatus_{std::move(services.serverStatus)},
-      remoteControl_{services.remoteControl}, deviceList_{std::move(services.remoteControl)},
-      cloudApplications_{std::move(services.cloudApplications)}, securityRecords_{std::move(services.securityRecords)} {
+      settings_{std::move(services.networkSettings), services.settings, services.serverStatus, std::move(services.securityRecords)},
+      serverStatus_{std::move(services.serverStatus)}, remoteControl_{services.remoteControl}, deviceList_{std::move(services.remoteControl)},
+      cloudApplications_{std::move(services.cloudApplications)} {
     const auto appearance = settingsPort_->Snapshot();
     localizer_.SetLanguage(appearance.language);
     theme_ = appearance.theme;
@@ -68,8 +68,6 @@ PanelPreviewAction PanelPreview::Draw(const px::desktop::PlatformIconAtlas& plat
         cloudApplications_.Draw(localizer_);
     } else if (navigationAction.selectedPage == PanelPage::ServerStatus) {
         serverStatus_.Draw(localizer_);
-    } else if (navigationAction.selectedPage == PanelPage::Security) {
-        securityRecords_.Draw(localizer_);
     }
     ImGui::EndChild();
     notifications_->Draw();

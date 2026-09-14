@@ -2,6 +2,7 @@
 
 #include "panel_config_store.h"
 #include "panel_audit_store.h"
+#include "panel_system_information.h"
 
 #include <asio2/http/http_server.hpp>
 
@@ -40,6 +41,7 @@ class PanelLocalServer final : public std::enable_shared_from_this<PanelLocalSer
     PanelLocalServer& operator=(const PanelLocalServer&) = delete;
 
     [[nodiscard]] LocalServerSnapshot Snapshot() const;
+    [[nodiscard]] std::optional<PanelSystemInformation> SystemInformation() const;
     bool OpenFileTransfer(const std::string& streamId);
     [[nodiscard]] std::optional<VoiceCallRequest> PendingVoiceCall() const;
     void ResolveVoiceCall(const VoiceCallRequest& request, bool accepted, const std::string& reason);
@@ -59,6 +61,7 @@ class PanelLocalServer final : public std::enable_shared_from_this<PanelLocalSer
     std::unordered_map<std::string, std::shared_ptr<asio2::http_session>> clients_{};
     std::shared_ptr<asio2::http_session> rendererSession_{};
     std::optional<VoiceCallRequest> pendingVoiceCall_{};
+    std::optional<PanelSystemInformation> systemInformation_{};
     std::function<void()> restartHandler_{};
     std::atomic_bool stopping_{};
     std::atomic_int rendererConnections_{};

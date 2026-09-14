@@ -26,7 +26,6 @@ constexpr std::array kNavigationItems{
     NavigationItem{PanelPage::DeviceList, px::ui::TextId::DeviceList, px::ui::VectorIcon::List},
     NavigationItem{PanelPage::CloudApplications, px::ui::TextId::CloudApplications, px::ui::VectorIcon::Cloud},
     NavigationItem{PanelPage::ServerStatus, px::ui::TextId::ServerStatus, px::ui::VectorIcon::Activity},
-    NavigationItem{PanelPage::Security, px::ui::TextId::Security, px::ui::VectorIcon::Shield},
     NavigationItem{PanelPage::Settings, px::ui::TextId::Settings, px::ui::VectorIcon::Settings},
 };
 

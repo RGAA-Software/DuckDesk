@@ -13,8 +13,10 @@ class SecurityRecordsPage final {
   public:
     explicit SecurityRecordsPage(std::shared_ptr<SecurityRecordsPort> port);
     void Draw(const px::ui::Localizer& localizer);
+    void DrawEmbedded(const px::ui::Localizer& localizer);
 
   private:
+    void DrawContent(const px::ui::Localizer& localizer);
     void DrawRecords(const px::ui::Localizer& localizer);
     void DrawDeleteDialog(const px::ui::Localizer& localizer);
 

@@ -12,7 +12,8 @@
 
 namespace px::panel::ui {
 
-SecuritySettingsPage::SecuritySettingsPage(std::shared_ptr<SettingsPort> port) : port_{std::move(port)} {}
+SecuritySettingsPage::SecuritySettingsPage(std::shared_ptr<SettingsPort> port, std::shared_ptr<SecurityRecordsPort> securityRecordsPort)
+    : port_{std::move(port)}, records_{std::move(securityRecordsPort)} {}
 
 void SecuritySettingsPage::Draw(const px::ui::Localizer& localizer) {
     if (!loaded_) {
@@ -23,6 +24,11 @@ void SecuritySettingsPage::Draw(const px::ui::Localizer& localizer) {
     }
     px::ui::SectionTitle(localizer.Text(px::ui::TextId::SecuritySettings));
     px::ui::HorizontalSeparator();
+    if (px::ui::ActionButton({"security-access-records"}, localizer.Text(px::ui::TextId::VisitHistory),
+                             {.variant = px::ui::ButtonVariant::Outline})) {
+        openAccessRecords_ = true;
+    }
+    ImGui::Spacing();
     if (px::ui::ToggleSwitch({"security-auto-lock"}, localizer.Text(px::ui::TextId::DisconnectAutoLock), disconnectAutoLock_)) {
         port_->SetDisconnectAutoLock(disconnectAutoLock_);
     }
@@ -71,6 +77,20 @@ void SecuritySettingsPage::Draw(const px::ui::Localizer& localizer) {
     } else if (logState == LogCollectionState::Failed) {
         ImGui::SameLine();
         px::ui::StatusBadge(localizer.Text(px::ui::TextId::LogCollectionFailed), px::ui::BadgeVariant::Destructive);
+    }
+    if (openAccessRecords_) {
+        px::ui::OpenModal({"AccessRecordsDialog"});
+        openAccessRecords_ = false;
+    }
+    {
+        ImGui::SetNextWindowSize({px::ui::Scale(840.0F), px::ui::Scale(560.0F)}, ImGuiCond_Appearing);
+        px::ui::ModalScope recordsDialog{{"AccessRecordsDialog"}, 840.0F, ImGuiWindowFlags_None};
+        if (recordsDialog.Open()) {
+            static_cast<void>(px::ui::DialogHeader({"access-records-close"}, localizer.Text(px::ui::TextId::VisitHistory)));
+            ImGui::BeginChild("AccessRecordsContent", {0.0F, px::ui::Scale(440.0F)}, ImGuiChildFlags_None);
+            records_.DrawEmbedded(localizer);
+            ImGui::EndChild();
+        }
     }
     if (confirmClear_) {
         px::ui::OpenModal({"ConfirmClearPanelData"});

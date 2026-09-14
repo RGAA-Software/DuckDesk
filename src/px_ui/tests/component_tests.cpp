@@ -39,7 +39,8 @@ int main() {
     const ImVec2 padding{ImGui::GetStyle().WindowPadding};
     px::ui::ApplyPixelsTheme(px::ui::Theme::Dark, 1.5F);
     if (!Equal(padding.x, ImGui::GetStyle().WindowPadding.x) || !Equal(padding.y, ImGui::GetStyle().WindowPadding.y) ||
-        !Equal(ImGui::GetStyle().WindowRounding, 0.0F)) {
+        !Equal(ImGui::GetStyle().WindowRounding, 0.0F) || !Equal(ImGui::GetStyle().ScrollbarPadding, 7.0F) ||
+        !Equal(ImGui::GetStyle().ScrollbarSize, 24.0F) || !Equal(ImGui::GetStyle().Colors[ImGuiCol_ScrollbarBg].w, 0.0F)) {
         ImGui::DestroyContext();
         return 3;
     }

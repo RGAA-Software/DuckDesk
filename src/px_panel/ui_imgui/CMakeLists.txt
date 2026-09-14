@@ -59,6 +59,7 @@ add_executable(px_panel WIN32
     product/panel_node_presence.cpp
     product/panel_product_runtime.cpp
     product/panel_service_bridge.cpp
+    product/panel_system_information.cpp
     product/panel_worker.cpp
     product/product_account_port.cpp
     product/product_cloud_applications_port.cpp
@@ -164,6 +165,7 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
         product/panel_connection_links.cpp
         product/panel_device_name.cpp
         product/panel_local_server.cpp
+        product/panel_system_information.cpp
         product/panel_config_store.cpp
         product/panel_worker.cpp
     )

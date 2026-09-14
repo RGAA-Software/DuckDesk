@@ -8,15 +8,17 @@
 
 namespace px::ui {
 
-CardScope::CardScope(const WidgetId id, const ImVec2 size, const ImGuiWindowFlags flags) : id_{id.value} {
+CardScope::CardScope(const WidgetId id, const ImVec2 size, const ImGuiWindowFlags flags, const ImGuiChildFlags childFlags,
+                     const std::optional<ImVec2> padding)
+    : id_{id.value} {
     const ThemeTokens tokens{CurrentThemeTokens()};
     const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
     ImGui::PushStyleColor(ImGuiCol_ChildBg, tokens.card);
     ImGui::PushStyleColor(ImGuiCol_Border, tokens.border);
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, metrics.cardRadius);
     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, metrics.borderWidth);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{metrics.spacingLg, metrics.spacingLg});
-    visible_ = ImGui::BeginChild(id_.c_str(), size, ImGuiChildFlags_Borders, flags);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, padding.value_or(ImVec2{metrics.spacingLg, metrics.spacingLg}));
+    visible_ = ImGui::BeginChild(id_.c_str(), size, childFlags, flags);
     ImGui::PopStyleVar(3);
     ImGui::PopStyleColor(2);
 }

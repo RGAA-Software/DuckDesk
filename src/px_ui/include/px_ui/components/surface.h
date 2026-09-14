@@ -4,6 +4,7 @@
 
 #include <imgui.h>
 
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -11,7 +12,8 @@ namespace px::ui {
 
 class CardScope final {
   public:
-    explicit CardScope(WidgetId id, ImVec2 size = {}, ImGuiWindowFlags flags = ImGuiWindowFlags_None);
+    explicit CardScope(WidgetId id, ImVec2 size = {}, ImGuiWindowFlags flags = ImGuiWindowFlags_None,
+                       ImGuiChildFlags childFlags = ImGuiChildFlags_Borders, std::optional<ImVec2> padding = std::nullopt);
     CardScope(const CardScope&) = delete;
     CardScope& operator=(const CardScope&) = delete;
     CardScope(CardScope&&) = delete;

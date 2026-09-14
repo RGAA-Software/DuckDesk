@@ -20,13 +20,34 @@ class ProductServerStatusPort final : public ui::ServerStatusPort {
         const auto local = runtime_->LocalServer()->Snapshot();
         const auto ports = runtime_->Config()->Ports();
         const bool controllerDriverReady{std::filesystem::exists("C:/Windows/System32/drivers/ViGEmBus.sys")};
+        ui::MachineStatus machine{};
+        if (const auto information = runtime_->LocalServer()->SystemInformation()) {
+            machine.available = true;
+            machine.operatingSystem = information->operatingSystem;
+            machine.cpuName = information->cpuName;
+            machine.cpuUsagePercent = information->cpuUsagePercent;
+            machine.memoryUsedBytes = information->memoryUsedBytes;
+            machine.memoryTotalBytes = information->memoryTotalBytes;
+            machine.disks.reserve(information->disks.size());
+            for (const auto& disk : information->disks) {
+                machine.disks.push_back({.mountPoint = disk.mountPoint, .availableBytes = disk.availableBytes, .totalBytes = disk.totalBytes});
+            }
+            machine.gpus.reserve(information->gpus.size());
+            for (const auto& gpu : information->gpus) {
+                machine.gpus.push_back({.name = gpu.name,
+                                        .driverVersion = gpu.driverVersion,
+                                        .memoryUsedBytes = gpu.memoryUsedBytes,
+                                        .memoryTotalBytes = gpu.memoryTotalBytes,
+                                        .utilizationPercent = gpu.utilizationPercent});
+            }
+        }
         return {.controllerDriverReady = controllerDriverReady,
                 .renderReady = service.renderRunning || local.rendererConnected,
                 .serviceReady = service.connected,
+                .machine = std::move(machine),
                 .addresses = addresses_,
                 .panelPort = ports.panel,
-                .renderPort = ports.desktop,
-                .connectedClients = local.clientConnections};
+                .renderPort = ports.desktop};
     }
     void RestartRender() override {
         if (!runtime_->Service()->RestartRender())

@@ -27,6 +27,7 @@ void ApplyPixelsColors(const Theme theme) {
     style.Colors[ImGuiCol_HeaderActive] = tokens.accent;
     style.Colors[ImGuiCol_CheckMark] = tokens.primary;
     style.Colors[ImGuiCol_Separator] = tokens.border;
+    style.Colors[ImGuiCol_ScrollbarBg] = ImVec4{};
     style.Colors[ImGuiCol_ResizeGrip] = tokens.border;
     style.Colors[ImGuiCol_Tab] = tokens.background;
     style.Colors[ImGuiCol_TabHovered] = tokens.muted;
@@ -46,11 +47,12 @@ void ApplyPixelsTheme(const Theme theme, const float scale, const bool enhancedV
     style.FrameRounding = 6.0F;
     style.PopupRounding = 10.0F;
     style.ScrollbarRounding = 6.0F;
+    style.ScrollbarPadding = 5.0F;
     style.GrabRounding = 6.0F;
     style.FrameBorderSize = 1.0F;
     style.ChildBorderSize = 1.0F;
     style.PopupBorderSize = 1.0F;
-    style.ScrollbarSize = 10.0F;
+    style.ScrollbarSize = 16.0F;
     style.ScaleAllSizes(scale);
     style.FontScaleDpi = scale;
     ApplyPixelsColors(theme);

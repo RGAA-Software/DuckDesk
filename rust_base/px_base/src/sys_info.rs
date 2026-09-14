@@ -159,6 +159,9 @@ pub struct SysGpuInfo {
     pub brand: String,
 
     #[serde(default)]
+    pub driver_version: String,
+
+    #[serde(default)]
     pub fan_speed: u32,
 
     #[serde(default)]

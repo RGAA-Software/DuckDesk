@@ -48,6 +48,11 @@ LocalServerSnapshot PanelLocalServer::Snapshot() const {
             .clientConnections = clientConnections_.load(std::memory_order_acquire)};
 }
 
+std::optional<PanelSystemInformation> PanelLocalServer::SystemInformation() const {
+    const std::scoped_lock lock{mutex_};
+    return systemInformation_;
+}
+
 std::optional<VoiceCallRequest> PanelLocalServer::PendingVoiceCall() const {
     const std::scoped_lock lock{mutex_};
     return pendingVoiceCall_;
@@ -127,6 +132,7 @@ void PanelLocalServer::Stop() {
     clients_.clear();
     rendererSession_.reset();
     pendingVoiceCall_.reset();
+    systemInformation_.reset();
     restartHandler_ = {};
     rendererConnections_.store(0, std::memory_order_release);
     clientConnections_.store(0, std::memory_order_release);
@@ -189,6 +195,11 @@ void PanelLocalServer::AddRoute(const std::string& path) {
                                             }
                                             if (handler)
                                                 handler();
+                                        }
+                                    } else if (path == "/sys/info") {
+                                        if (auto systemInformation = ParsePanelSystemInformation(bytes)) {
+                                            const std::scoped_lock lock{self->mutex_};
+                                            self->systemInformation_ = std::move(systemInformation);
                                         }
                                     }
                                 })

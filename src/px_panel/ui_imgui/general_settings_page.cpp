@@ -35,7 +35,8 @@ px::ui::TextId ResultText(const GeneralSaveResult result) {
 
 } // namespace
 
-GeneralSettingsPage::GeneralSettingsPage(std::shared_ptr<SettingsPort> port) : port_{std::move(port)} {}
+GeneralSettingsPage::GeneralSettingsPage(std::shared_ptr<SettingsPort> port, std::shared_ptr<ServerStatusPort> serverStatusPort)
+    : port_{std::move(port)}, serverStatusPort_{std::move(serverStatusPort)} {}
 
 void GeneralSettingsPage::Reload() {
     draft_ = port_->Snapshot().general;
@@ -97,6 +98,29 @@ std::optional<px::ui::Theme> GeneralSettingsPage::Draw(px::ui::Localizer& locali
         if (px::ui::ToggleSwitch({"general-effects"}, {}, enhancedVisualEffects)) {
             port_->SetEnhancedVisualEffects(enhancedVisualEffects);
         }
+        ImGui::EndTable();
+    }
+    ImGui::Spacing();
+    const bool gamepadDriverReady{serverStatusPort_->Snapshot().controllerDriverReady};
+    if (ImGui::BeginTable("GeneralGamepadDriver", 2, ImGuiTableFlags_SizingFixedFit)) {
+        ImGui::TableSetupColumn("label", ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(120.0F));
+        ImGui::TableSetupColumn("status", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableNextRow(ImGuiTableRowFlags_None, px::ui::Scale(40.0F));
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        px::ui::MutedText(localizer.Text(px::ui::TextId::ControllerDriver));
+        ImGui::TableNextColumn();
+        ImGui::SetWindowFontScale(0.875F);
+        px::ui::StatusBadge(localizer.Text(gamepadDriverReady ? px::ui::TextId::Ready : px::ui::TextId::Unavailable),
+                            gamepadDriverReady ? px::ui::BadgeVariant::Success : px::ui::BadgeVariant::Destructive);
+        if (!gamepadDriverReady) {
+            ImGui::SameLine();
+            if (px::ui::ActionButton({"general-install-gamepad-driver"}, localizer.Text(px::ui::TextId::Install),
+                                     {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::Xs, .circular = true})) {
+                serverStatusPort_->InstallControllerDriver();
+            }
+        }
+        ImGui::SetWindowFontScale(1.0F);
         ImGui::EndTable();
     }
     ImGui::Spacing();

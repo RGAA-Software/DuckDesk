@@ -20,6 +20,14 @@ SecurityRecordsPage::SecurityRecordsPage(std::shared_ptr<SecurityRecordsPort> po
 
 void SecurityRecordsPage::Draw(const px::ui::Localizer& localizer) {
     px::ui::PageTitle(localizer.Text(px::ui::TextId::Security));
+    DrawContent(localizer);
+}
+
+void SecurityRecordsPage::DrawEmbedded(const px::ui::Localizer& localizer) {
+    DrawContent(localizer);
+}
+
+void SecurityRecordsPage::DrawContent(const px::ui::Localizer& localizer) {
     if (px::ui::TabItem({"security-visits"}, localizer.Text(px::ui::TextId::VisitHistory), selected_ == SecurityRecordKind::Visit,
                         px::ui::Scale(84.0F))) {
         selected_ = SecurityRecordKind::Visit;

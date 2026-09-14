@@ -4,6 +4,7 @@
 #include "panel_config_store.h"
 #include "panel_device_name.h"
 #include "panel_local_server.h"
+#include "panel_system_information.h"
 #include "panel_worker.h"
 #include "connection_progress_tracker.h"
 
@@ -23,6 +24,7 @@
 #include <fstream>
 #include <future>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 namespace px::panel::product {
@@ -37,6 +39,37 @@ TEST(PanelDeviceName, RecognizesOnlyNamesOwnedByTheAutomaticNamingPolicy) {
     EXPECT_TRUE(IsManagedDeviceName("MC-6"));
     EXPECT_TRUE(IsManagedDeviceName("Pixels Node90"));
     EXPECT_FALSE(IsManagedDeviceName("Office Render"));
+}
+
+TEST(PanelSystemInformationTest, ParsesPxOsInfoSnapshot) {
+    constexpr std::string_view payload{R"json({
+        "os":{"sys_os_long_version":"Microsoft Windows 11 Pro 10.0.26100"},
+        "cpu":{"usage":23.5,"brand":"  Example CPU  "},
+        "mem":{"used":8589934592,"total":17179869184},
+        "disks":[{"mount_on":"C:\\","available":1000,"total":4000}],
+        "gpus":[{"brand":"Example GPU 1","driver_version":"581.15","gpu_utilization":42,"mem_used":2000,"mem_total":8000},
+                {"brand":"Example GPU 2","driver_version":"32.0.21025.1024","gpu_utilization":82,"mem_used":3000,"mem_total":9000}]
+    })json"};
+    const auto result = ParsePanelSystemInformation(payload);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->operatingSystem, "Microsoft Windows 11 Pro 10.0.26100");
+    EXPECT_EQ(result->cpuName, "Example CPU");
+    EXPECT_FLOAT_EQ(result->cpuUsagePercent, 23.5F);
+    EXPECT_EQ(result->memoryUsedBytes, 8'589'934'592ULL);
+    ASSERT_EQ(result->disks.size(), 1U);
+    EXPECT_EQ(result->disks.front().mountPoint, "C:\\");
+    ASSERT_EQ(result->gpus.size(), 2U);
+    EXPECT_EQ(result->gpus.front().name, "Example GPU 1");
+    EXPECT_EQ(result->gpus.front().driverVersion, "581.15");
+    EXPECT_EQ(result->gpus.front().utilizationPercent, 42U);
+    EXPECT_EQ(result->gpus.back().name, "Example GPU 2");
+    EXPECT_EQ(result->gpus.back().driverVersion, "32.0.21025.1024");
+    EXPECT_EQ(result->gpus.back().utilizationPercent, 82U);
+}
+
+TEST(PanelSystemInformationTest, RejectsHandshakeAndMalformedPayloadWithoutThrowing) {
+    EXPECT_FALSE(ParsePanelSystemInformation("Hello, WebSocket!"));
+    EXPECT_FALSE(ParsePanelSystemInformation("[]"));
 }
 namespace {
 
@@ -303,6 +336,38 @@ TEST(PanelLocalServerTest, RuntimeDesktopAccessUpdatesAreDeliveredOnTheRendererS
         const std::scoped_lock lock{probe->mutex};
         EXPECT_FALSE(probe->disabledValues.at(2));
     }
+    client->stop();
+    server->Stop();
+}
+
+TEST(PanelLocalServerTest, ReceivesPxOsInfoSnapshotsOverTheLocalSystemInformationRoute) {
+    TemporaryDirectory directory{};
+    constexpr int panelPort{29500};
+    {
+        std::ofstream serviceConfig{directory.Path() / "px_service.toml"};
+        ASSERT_TRUE(serviceConfig);
+        serviceConfig << "[network]\npanel_port = " << panelPort << '\n';
+    }
+    const auto preferences = std::make_shared<SharedPreference>();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
+    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+    const auto audit = PanelAuditStore::Create(directory.Path() / "audit");
+    ASSERT_TRUE(audit);
+    const auto server = PanelLocalServer::Create(config, audit);
+    ASSERT_TRUE(server);
+
+    const auto client = std::make_shared<asio2::ws_client>();
+    ASSERT_TRUE(client->start("127.0.0.1", panelPort, "/sys/info"));
+    constexpr std::string_view payload{R"json({"cpu":{"usage":12.5,"brand":"Route CPU"},"mem":{"used":4,"total":8},"disks":[],"gpus":[]})json"};
+    client->async_send(payload);
+    bool received{};
+    for (int attempt{}; attempt < 100 && !received; ++attempt) {
+        const auto information = server->SystemInformation();
+        received = information.has_value() && information->cpuName == "Route CPU";
+        if (!received)
+            std::this_thread::sleep_for(std::chrono::milliseconds{20});
+    }
+    EXPECT_TRUE(received);
     client->stop();
     server->Stop();
 }

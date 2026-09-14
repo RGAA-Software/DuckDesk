@@ -1,4 +1,5 @@
 use adlx::helper::AdlxHelper;
+use adlx::{Gpu2, Interface};
 use anyhow::Result;
 use nvml_wrapper::enum_wrappers::device::TemperatureSensor;
 use nvml_wrapper::Nvml;
@@ -232,6 +233,7 @@ impl SysInfoManager {
         // GPU info
         let mut gpus = Vec::new();
         if let Some(ref nvml) = self.nvml {
+            let driver_version = nvml.sys_driver_version().unwrap_or_default();
             let device_count = nvml.device_count().unwrap_or(0);
             for i in 0..device_count {
                 let mut gpu_info = SysGpuInfo::default();
@@ -252,6 +254,7 @@ impl SysInfoManager {
                         let brand = brand.trim_matches('"').replace("\"", "");
                         gpu_info.brand = brand.to_string();
                     }
+                    gpu_info.driver_version = driver_version.clone();
 
                     // Fan speed
                     let fan_speed = device.fan_speed_rpm(0).unwrap_or(0);
@@ -335,6 +338,16 @@ impl SysInfoManager {
 
             let gpu_name = gpu.name().unwrap_or("<unknown>");
             let gpu_ram = gpu.total_vram().unwrap_or(0);
+            let driver_version = gpu
+                .cast::<Gpu2>()
+                .ok()
+                .map(|gpu| {
+                    gpu.amd_windows_driver_version()
+                        .or_else(|_| gpu.driver_version())
+                        .unwrap_or("")
+                        .to_string()
+                })
+                .unwrap_or_default();
 
             let gpu_metrics = performance_monitoring_services.current_gpu_metrics(&gpu)?;
             let supported_metrics = performance_monitoring_services.supported_gpu_metrics(&gpu)?;
@@ -376,6 +389,7 @@ impl SysInfoManager {
             let info = SysGpuInfo {
                 id: gpu_id,
                 brand: gpu_name.to_string(),
+                driver_version,
                 gpu_utilization: gpu_usage as u32,
                 mem_total_gb: gpu_ram as f32 * 1.0 / 1024.0,
                 mem_used_gb: gpu_used_ram as f32 * 1.0 / 1024.0,

@@ -9,7 +9,6 @@ enum class PanelPage : std::uint8_t {
     DeviceList,
     CloudApplications,
     ServerStatus,
-    Security,
     Settings,
 };
 

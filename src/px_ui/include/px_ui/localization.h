@@ -10,7 +10,7 @@ enum class Language : std::uint8_t {
     SimplifiedChinese,
 };
 
-enum class TextId : std::uint8_t {
+enum class TextId : std::uint16_t {
     RenderNodeConsole,
     RemoteControl,
     CloudApplications,
@@ -259,6 +259,22 @@ enum class TextId : std::uint8_t {
     EnableRemoteAccessDetail,
     DisableRemoteAccessTitle,
     DisableRemoteAccessDetail,
+    Processor,
+    Memory,
+    Storage,
+    GraphicsCard,
+    GraphicsDriver,
+    SoftwareEnvironment,
+    SystemVersion,
+    AudioService,
+    VisualCppRuntime,
+    DirectXRuntime,
+    WindowsAutoLogin,
+    NeverTurnOffDisplay,
+    SystemNeverSleeps,
+    HighPerformanceMode,
+    Unknown,
+    MachineInformationUnavailable,
     Count,
 };
 

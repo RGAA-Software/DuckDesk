@@ -7,7 +7,6 @@
 #include "notification_center.h"
 #include "remote_control_page.h"
 #include "server_status_page.h"
-#include "security_records_page.h"
 #include "settings_page.h"
 #include "voice_call_consent_overlay.h"
 #include "px_ui/localization.h"
@@ -62,7 +61,6 @@ class PanelPreview final {
     RemoteControlPage remoteControl_;
     DeviceListPage deviceList_;
     CloudApplicationsPage cloudApplications_;
-    SecurityRecordsPage securityRecords_;
 };
 
 } // namespace px::panel::ui

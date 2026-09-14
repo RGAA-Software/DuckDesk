@@ -11,8 +11,10 @@
 
 namespace px::panel::ui {
 
-SettingsPage::SettingsPage(std::shared_ptr<NetworkSettingsPort> networkPort, std::shared_ptr<SettingsPort> settingsPort)
-    : general_{settingsPort}, network_{std::move(networkPort)}, security_{settingsPort}, controller_{settingsPort}, about_{std::move(settingsPort)} {}
+SettingsPage::SettingsPage(std::shared_ptr<NetworkSettingsPort> networkPort, std::shared_ptr<SettingsPort> settingsPort,
+                           std::shared_ptr<ServerStatusPort> serverStatusPort, std::shared_ptr<SecurityRecordsPort> securityRecordsPort)
+    : general_{settingsPort, std::move(serverStatusPort)}, network_{std::move(networkPort)}, security_{settingsPort, std::move(securityRecordsPort)},
+      controller_{settingsPort}, about_{std::move(settingsPort)} {}
 
 std::optional<px::ui::Theme> SettingsPage::Draw(px::ui::Localizer& localizer, px::ui::Theme& theme) {
     struct Section final {

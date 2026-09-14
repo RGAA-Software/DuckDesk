@@ -15,7 +15,7 @@ class ServerStatusPage final {
     void Draw(const px::ui::Localizer& localizer);
 
   private:
-    void DrawStatusRow(const px::ui::Localizer& localizer, px::ui::TextId label, bool ready, bool canAct, px::ui::TextId action,
+    void DrawStatusRow(const px::ui::Localizer& localizer, float width, px::ui::TextId label, bool ready, bool canAct, px::ui::TextId action,
                        const std::function<void()>& onAction) const;
 
     std::shared_ptr<ServerStatusPort> port_{};
