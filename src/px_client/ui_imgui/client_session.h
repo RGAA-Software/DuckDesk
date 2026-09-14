@@ -139,6 +139,7 @@ class ClientSession final : public std::enable_shared_from_this<ClientSession> {
     [[nodiscard]] std::optional<std::string> SaveScreenshot() const;
     [[nodiscard]] std::vector<ClientTransferJob> TransferJobs() const;
     [[nodiscard]] std::vector<ClientRemoteEntry> RemoteEntries() const;
+    [[nodiscard]] std::vector<ClientRemoteEntry> RemoteLocations() const;
     [[nodiscard]] std::string RemotePath() const;
     [[nodiscard]] std::optional<ClientOverwriteRequest> PendingOverwrite() const;
     bool ListRemoteDirectory(const std::string& path, bool includeHidden = false);
@@ -196,6 +197,7 @@ class ClientSession final : public std::enable_shared_from_this<ClientSession> {
     int rdpHeight_{};
     std::vector<ClientTransferJob> transferJobs_{};
     std::vector<ClientRemoteEntry> remoteEntries_{};
+    std::vector<ClientRemoteEntry> remoteLocations_{};
     std::string remotePath_{};
     std::optional<ClientOverwriteRequest> overwrite_{};
     std::optional<ClientFileOperationResult> remoteFileOperationResult_{};

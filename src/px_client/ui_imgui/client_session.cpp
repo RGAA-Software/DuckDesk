@@ -204,8 +204,15 @@ bool ClientSession::Initialize() {
                 std::vector<ClientRemoteEntry> entries{};
                 entries.reserve(static_cast<std::size_t>(response.dir().entries_size()));
                 for (const auto& entry : response.dir().entries()) {
+                    std::string entryPath{entry.abs_path()};
+                    if (entryPath.empty()) {
+                        entryPath = response.dir().path();
+                        if (!entryPath.empty() && !entryPath.ends_with('/') && !entryPath.ends_with('\\'))
+                            entryPath.push_back('/');
+                        entryPath += entry.name();
+                    }
                     entries.push_back({.name = entry.name(),
-                                       .path = entry.abs_path().empty() ? (response.dir().path() + "/" + entry.name()) : entry.abs_path(),
+                                       .path = std::move(entryPath),
                                        .size = entry.size(),
                                        .modifiedTime = entry.modified_time(),
                                        .directory = entry.entry_type() == px::FileType::Dir || entry.entry_type() == px::FileType::DirLink ||
@@ -214,6 +221,8 @@ bool ClientSession::Initialize() {
                 }
                 const std::scoped_lock lock{self->mutex_};
                 self->remotePath_ = response.dir().path();
+                if (response.dir().path() == "/")
+                    self->remoteLocations_ = entries;
                 self->remoteEntries_ = std::move(entries);
             });
         });
@@ -254,7 +263,7 @@ bool ClientSession::Initialize() {
         if (const auto self = weakSelf.lock()) {
             if (self->config_.fileTransferOnly) {
                 self->SetState(ClientConnectionState::Connected, "File transfer connected");
-                static_cast<void>(self->ListRemoteDirectory({}));
+                static_cast<void>(self->ListRemoteDirectory("/"));
             } else {
                 self->SetState(ClientConnectionState::Connecting, "Transport connected; waiting for remote desktop");
             }

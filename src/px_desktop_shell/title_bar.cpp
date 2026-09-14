@@ -41,7 +41,7 @@ bool CircularCaptionButton(const px::ui::VectorIcon icon, const std::string_view
 
 } // namespace
 
-bool DrawTitleBar(WindowHost& window, const WindowChromeConfig& chrome, const BrandLogo& logo) {
+bool DrawTitleBar(WindowHost& window, const WindowChromeConfig& chrome, const BrandLogo& logo, const std::string_view titleOverride) {
     const float titleBarHeight{px::ui::Scale(static_cast<float>(kTitleBarLogicalHeight))};
     const float buttonWidth{px::ui::Scale(static_cast<float>(kCaptionButtonLogicalWidth))};
     const float buttonCount{1.0F + (chrome.showMinimizeButton ? 1.0F : 0.0F) + (chrome.showMaximizeButton ? 1.0F : 0.0F)};
@@ -57,7 +57,7 @@ bool DrawTitleBar(WindowHost& window, const WindowChromeConfig& chrome, const Br
     const float logoTop{origin.y + (titleBarHeight - logoSize) * 0.5F};
     const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
     logo.Draw({logoLeft, logoTop}, logoSize);
-    const std::string title{"Pixels(V" PROJECT_VERSION ")"};
+    const std::string title{titleOverride.empty() ? "Pixels(V" PROJECT_VERSION ")" : titleOverride};
     const ImVec2 titleSize{ImGui::CalcTextSize(title.c_str())};
     ImGui::GetWindowDrawList()->AddText({logoLeft + logoSize + px::ui::Scale(8.0F), origin.y + (titleBarHeight - titleSize.y) * 0.5F},
                                         ImGui::GetColorU32(tokens.foreground), title.c_str());

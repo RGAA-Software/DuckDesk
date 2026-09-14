@@ -2,6 +2,7 @@
 #include "client_file_transfer_window.h"
 #include "client_session.h"
 #include "client_startup_dialog.h"
+#include "client_text.h"
 #include "client_window.h"
 
 #include "px_desktop_shell/desktop_shell.h"
@@ -49,15 +50,20 @@ int main() {
             return 0;
         }
     }
+    const bool english = config->language == "en-US";
+    const std::string windowTitle{config->fileTransferOnly
+                                      ? px::client::imgui::ClientTextValue(px::client::imgui::ClientText::FileTransferWindowTitle, english)
+                                  : config->streamName.empty() ? "Pixels Client"
+                                                               : "Pixels - " + config->streamName};
     auto shellResult = px::desktop::DesktopShell::Create(
-        {.title = config->streamName.empty() ? "Pixels Client" : "Pixels - " + config->streamName,
+        {.title = windowTitle,
+         .titleBarTitle = config->fileTransferOnly ? windowTitle : std::string{},
          .width = 1440,
          .height = 900,
          .initiallyVisible = false,
          .continuousTextInput = true,
          .continuousRendering = true,
          .preferVulkanVideo = !config->fileTransferOnly && !config->rdp && !config->disableVulkan && config->decoder != "Software"});
-    const bool english = config->language == "en-US";
     if (!shellResult) {
         static_cast<void>(px::client::imgui::ShowStartupDialog(
             english ? "Pixels Client could not create its window or graphics device. Update the graphics driver, then retry."

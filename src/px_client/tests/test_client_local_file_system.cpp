@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -45,6 +46,19 @@ TEST(ClientLocalFileSystemTest, NavigatesRefreshesAndReturnsToPreviousDirectory)
     EXPECT_EQ(std::filesystem::path{files.Path()}, temporary.Path());
     EXPECT_TRUE(files.Refresh());
     EXPECT_TRUE(files.Error().empty());
+}
+
+TEST(ClientLocalFileSystemTest, ExposesComputerDrivesAndCommonLocations) {
+    ClientLocalFileSystem files{};
+    ASSERT_FALSE(files.Locations().empty());
+    EXPECT_EQ(files.Locations().front().kind, ClientFileLocationKind::Computer);
+    EXPECT_EQ(files.Path(), "/");
+    EXPECT_TRUE(files.NavigateComputer());
+#ifdef _WIN32
+    EXPECT_TRUE(std::ranges::any_of(files.Locations(), [](const ClientFileLocation& location) {
+        return location.kind == ClientFileLocationKind::Drive && location.path.size() == 3U && location.path[1] == ':';
+    }));
+#endif
 }
 
 TEST(ClientLocalFileSystemTest, RejectsFilesAndPreservesCurrentDirectory) {

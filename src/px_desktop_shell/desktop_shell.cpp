@@ -63,10 +63,11 @@ SdlTray CreateTray() {
 } // namespace
 
 struct DesktopShell::Impl final {
-    Impl(WindowHost windowValue, DesktopRenderer rendererValue, WindowChromeConfig chromeValue, const bool minimizeToTrayValue,
-         const bool continuousTextInputValue, const bool continuousRenderingValue)
+    Impl(WindowHost windowValue, DesktopRenderer rendererValue, WindowChromeConfig chromeValue, std::string titleBarTitleValue,
+         const bool minimizeToTrayValue, const bool continuousTextInputValue, const bool continuousRenderingValue)
         : window{std::move(windowValue)}, renderer{std::move(rendererValue)}, minimizeToTray{minimizeToTrayValue},
-          continuousTextInput{continuousTextInputValue}, continuousRendering{continuousRenderingValue}, chrome{chromeValue} {}
+          continuousTextInput{continuousTextInputValue}, continuousRendering{continuousRenderingValue}, chrome{chromeValue},
+          titleBarTitle{std::move(titleBarTitleValue)} {}
 
     WindowHost window;
     DesktopRenderer renderer;
@@ -80,6 +81,7 @@ struct DesktopShell::Impl final {
     bool continuousRendering{false};
     bool cancelCloseRequest{};
     WindowChromeConfig chrome{};
+    std::string titleBarTitle{};
 };
 
 std::expected<DesktopShell, std::string> DesktopShell::Create(const WindowConfig& config) {
@@ -98,8 +100,8 @@ std::expected<DesktopShell, std::string> DesktopShell::Create(const WindowConfig
         return std::unexpected{rendererResult.error()};
     }
 
-    auto impl = std::make_unique<Impl>(std::move(windowResult.value()), std::move(rendererResult.value()), chrome, config.minimizeToTray,
-                                       config.continuousTextInput, config.continuousRendering);
+    auto impl = std::make_unique<Impl>(std::move(windowResult.value()), std::move(rendererResult.value()), chrome, config.titleBarTitle,
+                                       config.minimizeToTray, config.continuousTextInput, config.continuousRendering);
     if (config.minimizeToTray) {
         impl->tray = CreateTray();
     }
@@ -191,7 +193,7 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{});
         ImGui::Begin("PixelsRoot", nullptr, rootFlags);
         ImGui::PopStyleVar();
-        if (!DrawTitleBar(impl_->window, impl_->chrome, impl_->imgui->Logo())) {
+        if (!DrawTitleBar(impl_->window, impl_->chrome, impl_->imgui->Logo(), impl_->titleBarTitle)) {
             SDL_Event closeEvent{};
             closeEvent.type = SDL_EVENT_WINDOW_CLOSE_REQUESTED;
             static_cast<void>(SDL_PushEvent(&closeEvent));

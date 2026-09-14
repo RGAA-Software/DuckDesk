@@ -50,6 +50,11 @@ std::vector<ClientRemoteEntry> ClientSession::RemoteEntries() const {
     return remoteEntries_;
 }
 
+std::vector<ClientRemoteEntry> ClientSession::RemoteLocations() const {
+    const std::scoped_lock lock{mutex_};
+    return remoteLocations_;
+}
+
 std::string ClientSession::RemotePath() const {
     const std::scoped_lock lock{mutex_};
     return remotePath_;

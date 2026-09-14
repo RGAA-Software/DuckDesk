@@ -1,7 +1,7 @@
 #pragma once
 
-#include "client_local_file_system.h"
 #include "client_file_browser_model.h"
+#include "client_local_file_system.h"
 #include "client_session.h"
 #include "px_desktop_shell/desktop_shell.h"
 #include "px_ui/components/feedback.h"
@@ -29,6 +29,8 @@ class ClientFileTransferWindow final {
     void DrawConnectionFailure(const ClientSessionSnapshot& snapshot);
     void DrawFileOperationDialog();
     void DrawCloseConfirmation();
+    void DrawLocalLocationPicker();
+    void DrawRemoteLocationPicker();
     void BeginOperation(FileOperation operation, std::string value = {});
     void NavigateRemote(std::string path, bool addHistory);
     [[nodiscard]] std::vector<ClientFileListItem> VisibleLocalItems() const;
@@ -41,8 +43,6 @@ class ClientFileTransferWindow final {
     px::ui::DevicePlatform remotePlatform_{px::ui::DevicePlatform::Unknown};
     std::string localPath_{};
     std::string remotePath_{};
-    std::string localSearch_{};
-    std::string remoteSearch_{};
     ClientFileSelection localSelection_{};
     ClientFileSelection remoteSelection_{};
     ClientFileSort localSort_{};

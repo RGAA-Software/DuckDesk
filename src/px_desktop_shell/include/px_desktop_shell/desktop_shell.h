@@ -34,6 +34,7 @@ struct DesktopInputEvent final {
 
 struct WindowConfig {
     std::string title{"Pixels"};
+    std::string titleBarTitle{};
     int width{1180};
     int height{760};
     int minimumWidth{900};

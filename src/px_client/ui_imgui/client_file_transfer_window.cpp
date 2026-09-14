@@ -13,7 +13,6 @@
 #include <SDL3/SDL.h>
 
 #include <algorithm>
-#include <cctype>
 #include <chrono>
 #include <ctime>
 #include <format>
@@ -44,19 +43,11 @@ std::string FormatModified(const std::uint64_t seconds) {
     return std::format("{:04}-{:02}-{:02} {:02}:{:02}", local.tm_year + 1900, local.tm_mon + 1, local.tm_mday, local.tm_hour, local.tm_min);
 }
 
-bool MatchesSearch(const std::string& name, const std::string& search) {
-    if (search.empty())
-        return true;
-    std::string foldedName{name};
-    std::string foldedSearch{search};
-    std::ranges::transform(foldedName, foldedName.begin(), [](const unsigned char value) { return static_cast<char>(std::tolower(value)); });
-    std::ranges::transform(foldedSearch, foldedSearch.begin(), [](const unsigned char value) { return static_cast<char>(std::tolower(value)); });
-    return foldedName.contains(foldedSearch);
-}
-
 std::string RemoteParent(const std::string& path) {
     if (path.empty() || path == "/")
-        return {};
+        return "/";
+    if (path.size() == 3U && path[1] == ':' && (path[2] == '/' || path[2] == '\\'))
+        return "/";
     const auto last = path.find_last_not_of("/\\");
     if (last == std::string::npos)
         return {};
@@ -74,6 +65,30 @@ std::string RemoteJoin(const std::string& directory, const std::string& name) {
 
 bool ValidEntryName(const std::string& name) {
     return !name.empty() && name != "." && name != ".." && name.find_first_of("/\\:*?\"<>|") == std::string::npos;
+}
+
+ClientText LocationText(const ClientFileLocationKind kind) {
+    switch (kind) {
+    case ClientFileLocationKind::Computer:
+        return ClientText::ThisComputer;
+    case ClientFileLocationKind::Home:
+        return ClientText::UserProfile;
+    case ClientFileLocationKind::Desktop:
+        return ClientText::Desktop;
+    case ClientFileLocationKind::Downloads:
+        return ClientText::Downloads;
+    case ClientFileLocationKind::Documents:
+        return ClientText::Documents;
+    case ClientFileLocationKind::Pictures:
+        return ClientText::Pictures;
+    case ClientFileLocationKind::Music:
+        return ClientText::Music;
+    case ClientFileLocationKind::Videos:
+        return ClientText::Videos;
+    case ClientFileLocationKind::Drive:
+        return ClientText::ThisComputer;
+    }
+    return ClientText::ThisComputer;
 }
 
 void DrawComputerIdentity(const px::desktop::PlatformIconAtlas& icons, const px::ui::DevicePlatform platform, const std::string_view title,
@@ -105,7 +120,7 @@ ClientFileTransferWindow::ClientFileTransferWindow(std::reference_wrapper<px::de
 std::vector<ClientFileListItem> ClientFileTransferWindow::VisibleLocalItems() const {
     std::vector<ClientFileListItem> items{};
     for (const auto& entry : localFiles_.Entries()) {
-        if ((showHiddenLocal_ || !entry.hidden) && MatchesSearch(entry.name, localSearch_))
+        if (showHiddenLocal_ || !entry.hidden)
             items.push_back({entry.path, entry.name, entry.size, entry.modifiedTime, entry.directory});
     }
     localSort_.Apply(items);
@@ -115,7 +130,7 @@ std::vector<ClientFileListItem> ClientFileTransferWindow::VisibleLocalItems() co
 std::vector<ClientFileListItem> ClientFileTransferWindow::VisibleRemoteItems() const {
     std::vector<ClientFileListItem> items{};
     for (const auto& entry : session_->RemoteEntries()) {
-        if ((showHiddenRemote_ || !entry.hidden) && MatchesSearch(entry.name, remoteSearch_))
+        if (showHiddenRemote_ || !entry.hidden)
             items.push_back({entry.path, entry.name, entry.size, entry.modifiedTime, entry.directory});
     }
     remoteSort_.Apply(items);
@@ -127,6 +142,64 @@ void ClientFileTransferWindow::NavigateRemote(std::string path, const bool addHi
         remoteHistory_.push_back(remotePath_);
     remoteSelection_.Clear();
     static_cast<void>(session_->ListRemoteDirectory(path, showHiddenRemote_));
+}
+
+void ClientFileTransferWindow::DrawLocalLocationPicker() {
+    const auto text = [english = english_](const ClientText id) { return ClientTextValue(id, english).data(); };
+    const auto& locations = localFiles_.Locations();
+    std::vector<std::string> labels{};
+    std::vector<std::string> paths{};
+    labels.reserve(locations.size() + 1U);
+    paths.reserve(locations.size() + 1U);
+    int selected{-1};
+    for (const auto& location : locations) {
+        labels.push_back(location.kind == ClientFileLocationKind::Drive ? location.label : text(LocationText(location.kind)));
+        paths.push_back(location.path);
+        if (location.path == localFiles_.Path())
+            selected = static_cast<int>(paths.size() - 1U);
+    }
+    if (selected < 0) {
+        labels.push_back(localFiles_.Path());
+        paths.push_back(localFiles_.Path());
+        selected = static_cast<int>(paths.size() - 1U);
+    }
+    std::vector<px::ui::SelectOption> options{};
+    options.reserve(labels.size());
+    for (std::size_t index{}; index < labels.size(); ++index)
+        options.push_back({static_cast<int>(index), labels[index]});
+    if (px::ui::SelectField({"local-location"}, selected, options) && selected >= 0 && static_cast<std::size_t>(selected) < paths.size()) {
+        if (localFiles_.Navigate(paths[static_cast<std::size_t>(selected)]))
+            localSelection_.Clear();
+    }
+}
+
+void ClientFileTransferWindow::DrawRemoteLocationPicker() {
+    const auto text = [english = english_](const ClientText id) { return ClientTextValue(id, english).data(); };
+    const auto locations = session_->RemoteLocations();
+    std::vector<std::string> labels{text(ClientText::ThisComputer)};
+    std::vector<std::string> paths{"/"};
+    labels.reserve(locations.size() + 2U);
+    paths.reserve(locations.size() + 2U);
+    int selected{remotePath_.empty() || remotePath_ == "/" ? 0 : -1};
+    for (const auto& location : locations) {
+        if (!location.directory || location.path.empty())
+            continue;
+        labels.push_back(location.name);
+        paths.push_back(location.path);
+        if (location.path == remotePath_)
+            selected = static_cast<int>(paths.size() - 1U);
+    }
+    if (selected < 0) {
+        labels.push_back(remotePath_);
+        paths.push_back(remotePath_);
+        selected = static_cast<int>(paths.size() - 1U);
+    }
+    std::vector<px::ui::SelectOption> options{};
+    options.reserve(labels.size());
+    for (std::size_t index{}; index < labels.size(); ++index)
+        options.push_back({static_cast<int>(index), labels[index]});
+    if (px::ui::SelectField({"remote-location"}, selected, options) && selected >= 0 && static_cast<std::size_t>(selected) < paths.size())
+        NavigateRemote(paths[static_cast<std::size_t>(selected)], true);
 }
 
 void ClientFileTransferWindow::HandleInput(const px::desktop::DesktopInputEvent& event) {
@@ -163,30 +236,6 @@ void ClientFileTransferWindow::Draw() {
         }
     }
     const auto snapshot = session_->Snapshot();
-    {
-        px::ui::CardScope sessionTab{{"file-session-tab"}, {0.0F, 58.0F}};
-        if (sessionTab.Visible()) {
-            px::ui::DrawVectorIcon(px::ui::VectorIcon::FileTransfer, ImGui::GetCursorScreenPos(), 20.0F,
-                                   ImGui::GetColorU32(px::ui::CurrentThemeTokens().primary));
-            ImGui::Dummy({20.0F, 20.0F});
-            ImGui::SameLine();
-            ImGui::Text("%s", remoteName_.empty() ? text(ClientText::RemoteComputer) : remoteName_.c_str());
-            ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetContentRegionMax().x - 200.0F));
-            px::ui::StatusBadge(text(snapshot.state == ClientConnectionState::Connected ? ClientText::FileTransferConnected : ClientText::Connecting),
-                                snapshot.state == ClientConnectionState::Connected ? px::ui::BadgeVariant::Success : px::ui::BadgeVariant::Secondary);
-            ImGui::SameLine();
-            if (px::ui::IconAction({"close-file-session"}, px::ui::VectorIcon::Close, text(ClientText::Close),
-                                   {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon, .circular = true})) {
-                const auto jobs = session_->TransferJobs();
-                if (std::ranges::any_of(jobs, [](const ClientTransferJob& job) { return !job.done && job.error.empty(); }))
-                    openCloseConfirmation_ = true;
-                else
-                    shell_.get().RequestExit();
-            }
-        }
-    }
-    ImGui::Spacing();
-
     const float queueWidth{std::clamp(ImGui::GetContentRegionAvail().x * 0.25F, 260.0F, 360.0F)};
     if (ImGui::BeginTable("file-manager-columns", 3, ImGuiTableFlags_SizingStretchProp)) {
         ImGui::TableSetupColumn("local", ImGuiTableColumnFlags_WidthStretch, 3.0F);
@@ -235,6 +284,7 @@ void ClientFileTransferWindow::DrawLocalPane() {
     if (!card.Visible())
         return;
     DrawComputerIdentity(shell_.get().PlatformIcons(), px::ui::DevicePlatform::Windows, text(ClientText::LocalComputer), "Windows");
+    DrawLocalLocationPicker();
     if (px::ui::IconAction({"local-back"}, px::ui::VectorIcon::ArrowLeft, text(ClientText::Back),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
         if (localFiles_.NavigateBack())
@@ -246,15 +296,18 @@ void ClientFileTransferWindow::DrawLocalPane() {
             localSelection_.Clear();
     ImGui::SameLine();
     const float localAddressWidth{std::max(120.0F, ImGui::GetContentRegionAvail().x - 46.0F)};
-    if (px::ui::TextField({"local-address"}, localPath_, {}, {.width = localAddressWidth}, ImGuiInputTextFlags_EnterReturnsTrue))
+    const bool localPathSubmitted{
+        px::ui::TextField({"local-address"}, localPath_, {}, {.width = localAddressWidth}, ImGuiInputTextFlags_EnterReturnsTrue)};
+    const bool localPathEditing{ImGui::IsItemActive()};
+    if (localPathSubmitted)
         if (localFiles_.Navigate(localPath_))
             localSelection_.Clear();
     ImGui::SameLine();
     if (px::ui::IconAction({"local-refresh"}, px::ui::VectorIcon::Refresh, text(ClientText::Refresh),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
         static_cast<void>(localFiles_.Refresh());
-    localPath_ = localFiles_.Path();
-    static_cast<void>(px::ui::SearchField({"local-search"}, localSearch_, text(ClientText::Search)));
+    if (!localPathEditing)
+        localPath_ = localFiles_.Path();
     if (px::ui::IconAction({"local-home"}, px::ui::VectorIcon::Home, text(ClientText::Home),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon})) {
         if (localFiles_.NavigateHome())
@@ -272,6 +325,14 @@ void ClientFileTransferWindow::DrawLocalPane() {
     if (px::ui::IconAction({"local-more"}, px::ui::VectorIcon::More, text(ClientText::More),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
         ImGui::OpenPopup("local-file-more");
+    const bool connected{session_->Snapshot().state == ClientConnectionState::Connected};
+    constexpr float transferButtonWidth{96.0F};
+    ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetContentRegionMax().x - transferButtonWidth));
+    if (px::ui::ActionButton({"send-selected"}, text(ClientText::Send),
+                             {.icon = px::ui::VectorIcon::Upload, .width = transferButtonWidth, .disabled = localSelection_.Empty() || !connected})) {
+        for (const auto& path : localSelection_.Paths())
+            static_cast<void>(session_->StartUpload(path, remotePath_));
+    }
     const px::ui::PopupMenuScope localMore{{"local-file-more"}};
     if (localMore.Open()) {
         if (px::ui::MenuAction({"local-show-hidden"}, text(ClientText::ShowHiddenFiles), {.selected = showHiddenLocal_}))
@@ -284,10 +345,9 @@ void ClientFileTransferWindow::DrawLocalPane() {
     if (!localFiles_.Error().empty())
         px::ui::FieldError(localFiles_.Error());
 
-    const float actionHeight{48.0F};
     if (ImGui::BeginTable("local-files", 3,
                           ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Sortable,
-                          {0.0F, ImGui::GetContentRegionAvail().y - actionHeight})) {
+                          {0.0F, ImGui::GetContentRegionAvail().y})) {
         ImGui::TableSetupColumn(text(ClientText::Name), ImGuiTableColumnFlags_DefaultSort);
         ImGui::TableSetupColumn(text(ClientText::Modified), ImGuiTableColumnFlags_WidthFixed, 132.0F);
         ImGui::TableSetupColumn(text(ClientText::Size), ImGuiTableColumnFlags_WidthFixed, 82.0F);
@@ -308,7 +368,7 @@ void ClientFileTransferWindow::DrawLocalPane() {
             ImGui::TableNextColumn();
             const bool selected{localSelection_.Contains(entry.path)};
             if (px::ui::SelectableIconRow({entry.path}, entry.directory ? px::ui::VectorIcon::Folder : px::ui::VectorIcon::File, entry.name, selected,
-                                          ImGuiSelectableFlags_SpanAllColumns, {0.0F, 30.0F})) {
+                                          ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick, {0.0F, 30.0F})) {
                 localSelection_.Select(index, entry.path, ImGui::GetIO().KeyCtrl, ImGui::GetIO().KeyShift, visibleItems);
                 if (entry.directory && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     if (localFiles_.Navigate(entry.path))
@@ -329,12 +389,6 @@ void ClientFileTransferWindow::DrawLocalPane() {
         }
         ImGui::EndTable();
     }
-    const bool connected{session_->Snapshot().state == ClientConnectionState::Connected};
-    if (px::ui::ActionButton({"send-selected"}, text(ClientText::Send),
-                             {.icon = px::ui::VectorIcon::Upload, .width = -1.0F, .disabled = localSelection_.Empty() || !connected})) {
-        for (const auto& path : localSelection_.Paths())
-            static_cast<void>(session_->StartUpload(path, remotePath_));
-    }
 }
 
 void ClientFileTransferWindow::DrawRemotePane() {
@@ -344,6 +398,7 @@ void ClientFileTransferWindow::DrawRemotePane() {
     if (!card.Visible())
         return;
     DrawComputerIdentity(shell_.get().PlatformIcons(), remotePlatform_, text(ClientText::RemoteComputer), remoteName_);
+    DrawRemoteLocationPicker();
     if (px::ui::IconAction({"remote-back"}, px::ui::VectorIcon::ArrowLeft, text(ClientText::Back),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}) &&
         !remoteHistory_.empty()) {
@@ -357,17 +412,25 @@ void ClientFileTransferWindow::DrawRemotePane() {
         NavigateRemote(RemoteParent(remotePath_), true);
     ImGui::SameLine();
     const float remoteAddressWidth{std::max(120.0F, ImGui::GetContentRegionAvail().x - 46.0F)};
-    if (px::ui::TextField({"remote-address"}, remotePath_, {}, {.width = remoteAddressWidth}, ImGuiInputTextFlags_EnterReturnsTrue))
+    const bool remotePathSubmitted{
+        px::ui::TextField({"remote-address"}, remotePath_, {}, {.width = remoteAddressWidth}, ImGuiInputTextFlags_EnterReturnsTrue)};
+    const bool remotePathEditing{ImGui::IsItemActive()};
+    if (remotePathSubmitted)
         NavigateRemote(remotePath_, true);
     ImGui::SameLine();
     if (px::ui::IconAction({"remote-refresh"}, px::ui::VectorIcon::Refresh, text(ClientText::Refresh),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
         NavigateRemote(remotePath_, false);
-    remotePath_ = session_->RemotePath();
-    static_cast<void>(px::ui::SearchField({"remote-search"}, remoteSearch_, text(ClientText::Search)));
+    if (!remotePathEditing)
+        remotePath_ = session_->RemotePath();
     if (px::ui::IconAction({"remote-home"}, px::ui::VectorIcon::Home, text(ClientText::Home),
-                           {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
-        NavigateRemote({}, true);
+                           {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon})) {
+        const auto locations = session_->RemoteLocations();
+        const auto home = std::ranges::find_if(locations, [](const ClientRemoteEntry& location) {
+            return location.directory && !(location.path.size() == 3U && location.path[1] == ':');
+        });
+        NavigateRemote(home == locations.end() ? "/" : home->path, true);
+    }
     ImGui::SameLine();
     if (px::ui::IconAction({"remote-new-folder"}, px::ui::VectorIcon::Plus, text(ClientText::NewFolder),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
@@ -380,6 +443,17 @@ void ClientFileTransferWindow::DrawRemotePane() {
     if (px::ui::IconAction({"remote-more"}, px::ui::VectorIcon::More, text(ClientText::More),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
         ImGui::OpenPopup("remote-file-more");
+    const bool connected{session_->Snapshot().state == ClientConnectionState::Connected};
+    constexpr float transferButtonWidth{96.0F};
+    ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetContentRegionMax().x - transferButtonWidth));
+    if (px::ui::ActionButton({"receive-selected"}, text(ClientText::Receive),
+                             {.variant = px::ui::ButtonVariant::Outline,
+                              .icon = px::ui::VectorIcon::Download,
+                              .width = transferButtonWidth,
+                              .disabled = remoteSelection_.Empty() || !connected})) {
+        for (const auto& path : remoteSelection_.Paths())
+            static_cast<void>(session_->StartDownload(path, localFiles_.Path()));
+    }
     const px::ui::PopupMenuScope remoteMore{{"remote-file-more"}};
     if (remoteMore.Open()) {
         if (px::ui::MenuAction({"remote-show-hidden"}, text(ClientText::ShowHiddenFiles), {.selected = showHiddenRemote_})) {
@@ -392,10 +466,9 @@ void ClientFileTransferWindow::DrawRemotePane() {
             remoteSelection_.Clear();
     }
 
-    const float actionHeight{48.0F};
     if (ImGui::BeginTable("remote-files-standalone", 3,
                           ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Sortable,
-                          {0.0F, ImGui::GetContentRegionAvail().y - actionHeight})) {
+                          {0.0F, ImGui::GetContentRegionAvail().y})) {
         ImGui::TableSetupColumn(text(ClientText::Name), ImGuiTableColumnFlags_DefaultSort);
         ImGui::TableSetupColumn(text(ClientText::Modified), ImGuiTableColumnFlags_WidthFixed, 132.0F);
         ImGui::TableSetupColumn(text(ClientText::Size), ImGuiTableColumnFlags_WidthFixed, 82.0F);
@@ -416,7 +489,7 @@ void ClientFileTransferWindow::DrawRemotePane() {
             ImGui::TableNextColumn();
             const bool selected{remoteSelection_.Contains(entry.path)};
             if (px::ui::SelectableIconRow({entry.path}, entry.directory ? px::ui::VectorIcon::Folder : px::ui::VectorIcon::File, entry.name, selected,
-                                          ImGuiSelectableFlags_SpanAllColumns, {0.0F, 30.0F})) {
+                                          ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick, {0.0F, 30.0F})) {
                 remoteSelection_.Select(index, entry.path, ImGui::GetIO().KeyCtrl, ImGui::GetIO().KeyShift, visibleItems);
                 if (entry.directory && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     NavigateRemote(entry.path, true);
@@ -435,15 +508,6 @@ void ClientFileTransferWindow::DrawRemotePane() {
                 ImGui::TextDisabled("%s", FormatSize(entry.size).c_str());
         }
         ImGui::EndTable();
-    }
-    const bool connected{session_->Snapshot().state == ClientConnectionState::Connected};
-    if (px::ui::ActionButton({"receive-selected"}, text(ClientText::Receive),
-                             {.variant = px::ui::ButtonVariant::Outline,
-                              .icon = px::ui::VectorIcon::Download,
-                              .width = -1.0F,
-                              .disabled = remoteSelection_.Empty() || !connected})) {
-        for (const auto& path : remoteSelection_.Paths())
-            static_cast<void>(session_->StartDownload(path, localFiles_.Path()));
     }
 }
 
