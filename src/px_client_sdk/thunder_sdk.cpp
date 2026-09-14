@@ -143,6 +143,7 @@ void ThunderSdk::RefreshVideoOutput(const bool output_available, OnRenderSurface
     }
     thread->Clear();
     need_clear_video_tasks_.store(false, std::memory_order_release);
+    decoder_resync_requested_.store(true, std::memory_order_release);
     const auto weak_self = weak_from_this();
     thread->Post(SimpleThreadTask::Make(
         [weak_self, output_available, completion = std::move(completion), configure_output = std::move(configure_output)]() mutable {
@@ -190,8 +191,8 @@ void ThunderSdk::Start() {
             return;
         if (self->video_frame_thread_discarded_cbk_) {
             self->video_frame_thread_discarded_cbk_();
-            self->need_clear_video_tasks_ = true;
         }
+        self->need_clear_video_tasks_.store(true, std::memory_order_release);
         if (!task_tr) {
             return;
         }
@@ -218,6 +219,7 @@ void ThunderSdk::Start() {
 
     net_client_->SetOnDisconnectedCallback([weak_self]() {
         if (const auto self = weak_self.lock()) {
+            self->decoder_resync_requested_.store(true, std::memory_order_release);
             self->msg_notifier_->SendAppMessage(SdkMsgNetworkDisConnected{});
             self->ClearFirstFrameState();
         }
@@ -240,11 +242,37 @@ void ThunderSdk::Start() {
                 return;
             auto& video_decoders_ = self->video_decoders_;
             auto& last_received_video_timestamps_ = self->last_received_video_timestamps_;
-            auto& last_frame_indices_ = self->last_frame_indices_;
             auto& received_files_ = self->received_files_;
             auto sdk_params_ = self->sdk_params_;
             auto statistics_ = self->statistics_;
             const auto& monitor_name = frame.mon_name();
+            if (self->decoder_resync_requested_.exchange(false, std::memory_order_acq_rel)) {
+                for (const auto& [name, decoder] : video_decoders_) {
+                    static_cast<void>(name);
+                    decoder->Release();
+                }
+                video_decoders_.clear();
+                for (auto& [name, gate] : self->decoder_startup_gates_) {
+                    static_cast<void>(name);
+                    gate.RequireKeyFrame();
+                }
+                self->last_frame_indices_.clear();
+            }
+
+            const auto current_frame_index = static_cast<int64_t>(frame.frame_index());
+            const auto previous = self->last_frame_indices_.find(monitor_name);
+            const bool stream_discontinuity = previous != self->last_frame_indices_.end() && current_frame_index != previous->second + 1;
+            if (stream_discontinuity) {
+                LOGI("Video frame discontinuity, mon: [{}], index: {}, last: {}, extra: [{}]", monitor_name, current_frame_index,
+                     previous->second, frame.extra());
+                self->decoder_startup_gates_[monitor_name].RequireKeyFrame();
+                if (const auto decoder = video_decoders_.find(monitor_name); decoder != video_decoders_.end()) {
+                    decoder->second->Release();
+                    video_decoders_.erase(decoder);
+                }
+            }
+            self->last_frame_indices_[monitor_name] = current_frame_index;
+
             std::shared_ptr<VideoDecoder> video_decoder = nullptr;
             if (video_decoders_.contains(monitor_name)) {
                 video_decoder = video_decoders_[monitor_name];
@@ -253,24 +281,25 @@ void ThunderSdk::Start() {
                     video_decoder->Release();
                     video_decoders_.erase(monitor_name);
                     video_decoder = nullptr;
+                    self->decoder_startup_gates_[monitor_name].RequireKeyFrame();
                     LOGI("Rebuild video decoder, type: {}, {}x{}, image_format: {}", (int)frame.type(), frame.frame_width(), frame.frame_height(),
                          (int)frame.image_format());
                 }
             }
-            if (!video_decoder) {
-                const auto configured = StreamHelper::HasDecoderConfiguration(frame.type() == px::kNetHevc, frame.data());
-                const auto decision = self->decoder_startup_gates_[monitor_name].Observe(frame.key(), configured, std::chrono::steady_clock::now());
-                if (decision != DecoderStartupGate::Decision::kDecode) {
-                    if (decision == DecoderStartupGate::Decision::kRequestKeyFrame) {
-                        LOGI("Waiting for decoder startup key frame and complete parameter sets");
-                        self->RequestIFrame();
-                    }
-                    return;
+            const auto configured = frame.key() && StreamHelper::HasDecoderConfiguration(frame.type() == px::kNetHevc, frame.data());
+            const auto decision = self->decoder_startup_gates_[monitor_name].Observe(frame.key(), configured, std::chrono::steady_clock::now());
+            if (decision != DecoderStartupGate::Decision::kDecode) {
+                if (decision == DecoderStartupGate::Decision::kRequestKeyFrame) {
+                    LOGI("Waiting for decoder synchronization key frame and complete parameter sets");
+                    self->RequestIFrame();
                 }
+                return;
+            }
+            if (!video_decoder) {
                 if (!self->decoder_factory_->SupportsMultipleStreams()) {
                     for (const auto& [name, decoder] : video_decoders_) {
-                        static_cast<void>(name);
                         decoder->Release();
+                        self->decoder_startup_gates_[name].RequireKeyFrame();
                     }
                     video_decoders_.clear();
                 }
@@ -308,32 +337,14 @@ void ThunderSdk::Start() {
                                                .frame_height_ = frame.frame_height(),
                                                .update_time_ = TimeUtil::GetCurrentTimestamp()};
 
-            auto mon_name = frame.mon_name();
-            if (!last_frame_indices_.contains(mon_name)) {
-                last_frame_indices_.insert({mon_name, frame.frame_index()});
-            }
-            const auto previous_frame_index = last_frame_indices_[mon_name];
-            const auto current_frame_index = static_cast<int64_t>(frame.frame_index());
-            if (current_frame_index <= previous_frame_index) {
-                LOGI("Video frame stream reset, mon: [{}], index: {}, last: {}, extra: [{}]", mon_name, current_frame_index, previous_frame_index,
-                     frame.extra());
-            } else {
-                const auto frame_diff = current_frame_index - previous_frame_index;
-                if (frame_diff != 1) {
-                    LOGI("Video frame came, mon: [{}], index: {}, diff: {}, last: {}, extra: [{}]", mon_name, current_frame_index, frame_diff,
-                         previous_frame_index, frame.extra());
-                }
-            }
-            last_frame_indices_[mon_name] = current_frame_index;
-
             if (sdk_params_->debug_) {
-                if (!received_files_.contains(mon_name)) {
-                    auto display_name = mon_name.size() > 4 ? mon_name.substr(4) : mon_name;
+                if (!received_files_.contains(monitor_name)) {
+                    auto display_name = monitor_name.size() > 4 ? monitor_name.substr(4) : monitor_name;
                     auto file_path = StringUtil::ToUTF8(FolderUtil::GetProgramDataPath()) + "/px_data/client/recv_" + display_name + ".h264";
                     auto recv_video_file = File::OpenForWriteB(PathFromUTF8(file_path));
-                    received_files_[mon_name] = recv_video_file;
+                    received_files_[monitor_name] = recv_video_file;
                 }
-                received_files_[mon_name]->Append(frame.data());
+                received_files_[monitor_name]->Append(frame.data());
             }
             // [LAT-decode] 计时单帧解码耗时
             auto dec_beg = TimeUtil::GetCurrentTimePointUS();
@@ -356,6 +367,7 @@ void ThunderSdk::Start() {
                     LOGE("decode error: {}, will recreate the decoder", ret.error());
                     video_decoder->Release();
                     video_decoders_.erase(frame.mon_name());
+                    self->decoder_startup_gates_[frame.mon_name()].RequireKeyFrame();
                     LOGW("Video decoder for : {} is released.", frame.mon_name());
                     if (!hardware_was_enabled)
                         self->NotifyDecoderUnavailable();
@@ -591,6 +603,7 @@ void ThunderSdk::PostVideoTask(std::function<void()>&& task, int64_t frame_index
     video_task->frame_index_ = frame_index;
     video_task->monitor_name_ = monitor_name;
     if (need_clear_video_tasks_.exchange(false, std::memory_order_acq_rel)) {
+        decoder_resync_requested_.store(true, std::memory_order_release);
         RequestIFrame();
         video_thread_->Clear();
     }

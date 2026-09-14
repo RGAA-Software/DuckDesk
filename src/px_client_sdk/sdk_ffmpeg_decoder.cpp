@@ -488,20 +488,24 @@ namespace px
             return TRError(ret);
         }
 
-        bool has_received_frame = false;
         auto last_result = 0;
         std::shared_ptr<RawImage> decoded_image = nullptr;
         while (true) {
             ret = avcodec_receive_frame(decoder_context_.get(), av_frame_.get());
-            if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-                last_result = has_received_frame ? 0 : ret;
+            if (ret == AVERROR(EAGAIN)) {
+                // No output yet is a normal decoder state, not a corrupt frame.
+                last_result = 0;
                 break;
-            } else if (ret != 0) {
+            }
+            if (ret == AVERROR_EOF) {
+                last_result = ret;
+                break;
+            }
+            if (ret != 0) {
                 LOGE("avcodec_receive_frame error: {}", ret);
                 last_result = ret;
                 break;
             }
-            has_received_frame = true;
             auto width = av_frame_->width;
             auto height = av_frame_->height;
 

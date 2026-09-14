@@ -13,6 +13,7 @@
 #include "px_common/file_transfer_send_result.h"
 #include "diagnostics/rate_limited_log.h"
 #include "px_rdp/rdp_tcp_bridge.h"
+#include "ws_realtime_media_queue.h"
 //#include "network/wss_router.h"
 
 namespace px
@@ -39,6 +40,9 @@ namespace px
         void OnPing(std::shared_ptr<asio2::http_session> &sess_ptr) override;
         void OnPong(std::shared_ptr<asio2::http_session> &sess_ptr) override;
         void PostBinaryMessage(std::shared_ptr<Data> data) override;
+        // Returns false only for disposable audio/video that was not admitted
+        // to the bounded real-time queue. Non-media is always sent reliably.
+        [[nodiscard]] bool TryPostRealtimeMediaMessage(const std::shared_ptr<Data>& data);
         void PostReliableBinaryMessage(std::shared_ptr<Data> data, std::function<void(bool)> completion);
         // Called only by WsServer after password authentication and exclusive admission, on the session executor.
         [[nodiscard]] bool StartRdp(asio::any_io_executor executor, std::uint16_t proxy_port, std::function<void()> release,
@@ -56,6 +60,7 @@ namespace px
         std::shared_ptr<rdp::RdpTcpBridge> rdp_bridge_{};
         std::function<void()> rdp_release_{};
         std::atomic_bool rdp_mode_{false};
+        WsRealtimeMediaQueueBudget realtime_media_budget_{};
         [[nodiscard]] std::shared_ptr<FileTransferWritableSignal>
         AcquireWritableSignal();
         void NotifyWritable();

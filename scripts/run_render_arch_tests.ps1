@@ -87,6 +87,7 @@ $unitTargets = @(
     "test_captured_media_pipeline",
     "test_network_transport_hub",
     "test_ws_callback_workflow",
+    "test_ws_realtime_media_queue",
     "test_frame_resizer_processor",
     "test_frame_carrier_processor",
     "test_opus_encoder_processor",

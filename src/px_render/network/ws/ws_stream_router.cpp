@@ -172,6 +172,47 @@ void WsStreamRouter::PostBinaryMessage(std::shared_ptr<Data> data) {
     });
 }
 
+bool WsStreamRouter::TryPostRealtimeMediaMessage(const std::shared_ptr<Data>& data) {
+    if (!data) {
+        return true;
+    }
+    if (ClassifyWsRealtimeMedia(data) == WsRealtimeMediaKind::None) {
+        // This is the safety boundary: callers cannot accidentally make a
+        // control-plane or file-transfer message disposable.
+        PostBinaryMessage(data);
+        return true;
+    }
+    if (rdp_mode_.load() || !session_ || !session_->is_started()) {
+        return false;
+    }
+
+    const auto pending_media = realtime_media_budget_.PendingMessages();
+    if (GetQueuingMsgCount() > static_cast<int64_t>(pending_media) ||
+        !realtime_media_budget_.TryReserve(static_cast<std::size_t>(data->Size()))) {
+        return false;
+    }
+
+    session_->ws_stream().binary(true);
+    ++queuing_message_count_;
+    const auto bytes = static_cast<std::size_t>(data->Size());
+    const auto weak_self = weak_from_this();
+    session_->async_send(data->Bytes().data(), data->Size(), [weak_self, data, bytes](const size_t byte_sent) {
+        const auto self = weak_self.lock();
+        if (!self) {
+            return;
+        }
+        self->realtime_media_budget_.Release(bytes);
+        const auto remaining = --self->queuing_message_count_;
+        if (remaining <= kFileTransferQueueLowWatermark) {
+            self->NotifyWritable();
+        }
+        if (const auto transport = self->ws_data_ ? self->ws_data_->transport_.lock() : nullptr) {
+            transport->ReportDataSent(byte_sent);
+        }
+    });
+    return true;
+}
+
 bool WsStreamRouter::StartRdp(asio::any_io_executor executor, const std::uint16_t proxy_port, std::function<void()> release,
                               std::function<void()> closed) {
     if (proxy_port == 0 || rdp_mode_.exchange(true) || !session_) {

@@ -158,6 +158,7 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     std::atomic_bool has_video_frame_msg_ = false;
 
     std::atomic_bool need_clear_video_tasks_{false};
+    std::atomic_bool decoder_resync_requested_{false};
     std::atomic_bool decoder_failure_notified_{false};
 
     std::map<std::string, int64_t> last_frame_indices_;

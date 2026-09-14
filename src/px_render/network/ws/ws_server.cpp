@@ -28,6 +28,7 @@
 #include "px_common/folder_util.h"
 #include "network/ws_media_router.h"
 #include "ws_stream_router.h"
+#include "ws_realtime_media_queue.h"
 #include "ws_filetransfer_router.h"
 #include "ws_user_proxy_router.h"
 #include "px_render/architecture/events/render_event.h"
@@ -561,6 +562,7 @@ void WsServer::PostNetMessage(std::shared_ptr<Data> msg) {
         return;
     }
     const bool is_media_frame = IsMediaFrameMessage(msg);
+    const bool is_realtime_media = ClassifyWsRealtimeMedia(msg) != WsRealtimeMediaKind::None;
     const bool is_clipboard_message = IsClipboardProtocolMessage(msg);
     stream_routers_.ApplyAll([=](const uint64_t& socket_fd, const std::shared_ptr<WsStreamRouter>& router) {
         static_cast<void>(socket_fd);
@@ -579,7 +581,13 @@ void WsServer::PostNetMessage(std::shared_ptr<Data> msg) {
         if (is_media_frame && router->udp_media_.load()) {
             return;
         }
-        router->PostBinaryMessage(msg);
+        if (is_realtime_media && !router->TryPostRealtimeMediaMessage(msg)) {
+            transport_performance_.ObserveDropped();
+            return;
+        }
+        if (!is_realtime_media) {
+            router->PostBinaryMessage(msg);
+        }
         transport_performance_.ObserveOutbound(msg->Size());
     });
 }
@@ -679,6 +687,7 @@ bool WsServer::PostIpcBinaryMessageForPid(std::uint32_t pid, std::shared_ptr<Dat
 bool WsServer::PostTargetStreamMessage(const std::string& stream_id, std::shared_ptr<Data> msg) {
     bool found_target_stream = false;
     const bool is_media_frame = IsMediaFrameMessage(msg);
+    const bool is_realtime_media = ClassifyWsRealtimeMedia(msg) != WsRealtimeMediaKind::None;
     const bool is_clipboard_message = IsClipboardProtocolMessage(msg);
     const bool is_voice_audio_frame = ExtractProtocolMessageType(msg) == px::wire::kVoiceAudioFrame;
     stream_routers_.ApplyAll([=, &found_target_stream](const uint64_t& socket_fd, const std::shared_ptr<WsStreamRouter>& router) {
@@ -700,7 +709,13 @@ bool WsServer::PostTargetStreamMessage(const std::string& stream_id, std::shared
             if (is_media_frame && router->udp_media_.load()) {
                 return;
             }
-            router->PostBinaryMessage(msg);
+            if (is_realtime_media && !router->TryPostRealtimeMediaMessage(msg)) {
+                transport_performance_.ObserveDropped();
+                return;
+            }
+            if (!is_realtime_media) {
+                router->PostBinaryMessage(msg);
+            }
             transport_performance_.ObserveOutbound(msg ? msg->Size() : 0);
         }
     });

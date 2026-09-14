@@ -7,6 +7,7 @@ set(TRANSPORT_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/ws_transport.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ws_server.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ws_stream_router.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/ws_realtime_media_queue.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ws_filetransfer_router.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ws_user_proxy_router.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/http_handler.cpp

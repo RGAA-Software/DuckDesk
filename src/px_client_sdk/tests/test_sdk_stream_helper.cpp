@@ -65,6 +65,8 @@ TEST(SdkStreamHelperTest, StartupDropsRecoveryFramesAndThrottlesKeyRequests) {
     EXPECT_EQ(gate.Observe(false, true, start + std::chrono::milliseconds{500}), Decision::kWait);
     EXPECT_EQ(gate.Observe(false, false, start + std::chrono::seconds{1}), Decision::kRequestKeyFrame);
     EXPECT_EQ(gate.Observe(true, true, start + std::chrono::milliseconds{1001}), Decision::kDecode);
+    EXPECT_TRUE(gate.IsSynchronized());
+    EXPECT_EQ(gate.Observe(false, false, start + std::chrono::milliseconds{1002}), Decision::kDecode);
 }
 
 TEST(SdkStreamHelperTest, RecreatedDecoderRequiresANewKeyAndMonitorsAreIndependent) {
@@ -72,12 +74,15 @@ TEST(SdkStreamHelperTest, RecreatedDecoderRequiresANewKeyAndMonitorsAreIndepende
     const auto start = std::chrono::steady_clock::time_point{};
     DecoderStartupGate first{};
     DecoderStartupGate second{};
-    for (int iteration{0}; iteration < 64; ++iteration) {
-        EXPECT_EQ(first.Observe(false, false, start), Decision::kRequestKeyFrame);
-        EXPECT_EQ(first.Observe(true, true, start), Decision::kDecode);
-    }
+    EXPECT_EQ(first.Observe(true, true, start), Decision::kDecode);
+    EXPECT_EQ(first.Observe(false, false, start), Decision::kDecode);
+    first.RequireKeyFrame();
+    EXPECT_FALSE(first.IsSynchronized());
     EXPECT_EQ(first.Observe(false, false, start), Decision::kRequestKeyFrame);
+    EXPECT_EQ(first.Observe(false, false, start + std::chrono::milliseconds{1}), Decision::kWait);
     EXPECT_EQ(second.Observe(false, false, start), Decision::kRequestKeyFrame);
+    EXPECT_EQ(first.Observe(true, true, start + std::chrono::milliseconds{2}), Decision::kDecode);
+    EXPECT_FALSE(second.IsSynchronized());
 }
 
 } // namespace
