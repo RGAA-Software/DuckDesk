@@ -121,6 +121,8 @@ enum class ClientText : std::uint8_t {
     RemoteOperationQueueFailed,
     DroppedUploadStarted,
     FilesSelected,
+    ExitControl,
+    ExitControlDetail,
     Count,
 };
 

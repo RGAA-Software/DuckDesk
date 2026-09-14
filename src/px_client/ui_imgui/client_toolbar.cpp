@@ -30,22 +30,6 @@ namespace {
 constexpr ImGuiWindowFlags kOverlayFlags{ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
                                          ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing};
 
-ClientText StatusText(const ClientConnectionState state) noexcept {
-    switch (state) {
-    case ClientConnectionState::Connecting:
-        return ClientText::Connecting;
-    case ClientConnectionState::Connected:
-        return ClientText::Connected;
-    case ClientConnectionState::MediaUnavailable:
-        return ClientText::MediaUnavailable;
-    case ClientConnectionState::Rejected:
-        return ClientText::Rejected;
-    case ClientConnectionState::Disconnected:
-        return ClientText::Disconnected;
-    }
-    return ClientText::Disconnected;
-}
-
 float ClampMenuY(const ImGuiViewport& viewport, const float desired, const float estimatedHeight) noexcept {
     const float minimum{viewport.WorkPos.y + ImGui::GetFontSize()};
     const float maximum{viewport.WorkPos.y + viewport.WorkSize.y - estimatedHeight - ImGui::GetFontSize()};
@@ -123,7 +107,7 @@ ClientToolbarAction ClientToolbar::Draw(const std::shared_ptr<ClientSession>& se
     bool hovered{DrawLauncher(logo)};
     if (expanded_) {
         const auto snapshot = session->Snapshot();
-        hovered = DrawNavigation(snapshot, logo, english) || hovered;
+        hovered = DrawNavigation(snapshot, logo, english, action) || hovered;
         if (sectionExpanded_) {
             hovered = DrawSection(session, snapshot, english, darkTheme, action) || hovered;
         } else {
@@ -180,12 +164,13 @@ bool ClientToolbar::DrawLauncher(const px::desktop::BrandLogo& logo) {
     return hovered || launcherPointerDown_;
 }
 
-bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const px::desktop::BrandLogo& logo, const bool english) {
+bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const px::desktop::BrandLogo& logo, const bool english,
+                                   ClientToolbarAction& action) {
     const auto text = [english](const ClientText id) { return ClientTextValue(id, english).data(); };
     const auto& viewport = *ImGui::GetMainViewport();
     const px::ui::UiMetrics metrics{px::ui::MetricsFor(ImGui::GetStyle().FontScaleDpi)};
     const float menuWidth{220.0F * metrics.scale};
-    const float menuHeight{326.0F * metrics.scale};
+    const float menuHeight{282.0F * metrics.scale};
     const float spacing{metrics.spacingMd};
     const bool openLeft{launcherBounds_.x + launcherBounds_.width * 0.5F > viewport.WorkPos.x + viewport.WorkSize.x * 0.5F};
     const float navigationX{openLeft ? launcherBounds_.x - menuWidth - spacing : launcherBounds_.x + launcherBounds_.width + spacing};
@@ -204,30 +189,39 @@ bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const 
     const px::ui::ScopedStyleVar padding{ImGuiStyleVar_WindowPadding, ImVec2{metrics.spacingMd, metrics.spacingMd}};
     const px::ui::ScopedStyleVar spacingStyle{ImGuiStyleVar_ItemSpacing, ImVec2{metrics.spacingSm, metrics.spacingSm}};
     ImGui::Begin("##pixels-controller-navigation", {}, kOverlayFlags);
-    const ImVec2 headerStart{ImGui::GetCursorScreenPos()};
-    logo.Draw({headerStart.x, headerStart.y}, metrics.iconLg);
-    ImGui::Dummy({metrics.iconLg, metrics.iconLg});
-    ImGui::SameLine();
-    px::ui::StrongText("Pixels");
-    ImGui::SameLine();
-    px::ui::StatusBadge(text(StatusText(snapshot.state)),
-                        snapshot.state == ClientConnectionState::Connected ? px::ui::BadgeVariant::Success : px::ui::BadgeVariant::Secondary);
-    px::ui::HorizontalSeparator();
+    static_cast<void>(logo);
 
     auto& selectedSection = section_;
     auto& sectionExpanded = sectionExpanded_;
     auto& sectionNeedsFocus = sectionNeedsFocus_;
-    const auto navigationItem = [&selectedSection, &sectionExpanded, &sectionNeedsFocus, &metrics](const std::string_view label,
-                                                                                                   const Section section, const bool enabled = true) {
-        const px::ui::VectorIcon icon{section == Section::Display   ? px::ui::VectorIcon::Monitor
-                                      : section == Section::Control ? px::ui::VectorIcon::Connect
-                                      : section == Section::Tools   ? px::ui::VectorIcon::FileTransfer
-                                      : section == Section::Voice   ? px::ui::VectorIcon::Phone
-                                                                    : px::ui::VectorIcon::Settings};
+    auto& menuExpanded = expanded_;
+    const auto navigationItem = [&selectedSection, &sectionExpanded, &sectionNeedsFocus, &menuExpanded, &metrics,
+                                 &action](const std::string_view label, const Section section, const bool enabled = true) {
+        const px::ui::VectorIcon icon{section == Section::Display    ? px::ui::VectorIcon::Monitor
+                                      : section == Section::Control  ? px::ui::VectorIcon::Connect
+                                      : section == Section::Tools    ? px::ui::VectorIcon::FileTransfer
+                                      : section == Section::Voice    ? px::ui::VectorIcon::Phone
+                                      : section == Section::Settings ? px::ui::VectorIcon::Settings
+                                                                     : px::ui::VectorIcon::LogOut};
         ImGui::BeginDisabled(!enabled);
-        const bool selected{px::ui::NavigationItem({label}, icon, label, selectedSection == section, -1.0F, px::ui::WidgetSize::Sm,
-                                                   metrics.controlDefault, metrics.spacingMd)};
-        if (enabled && (selected || ImGui::IsItemHovered())) {
+        const bool isSection{section != Section::Exit};
+        const bool pressed{px::ui::NavigationItem({label}, icon, label, isSection && selectedSection == section, -1.0F, px::ui::WidgetSize::Sm,
+                                                  metrics.controlDefault, metrics.spacingMd, false)};
+        const ImVec2 itemMinimum{ImGui::GetItemRectMin()};
+        const ImVec2 itemMaximum{ImGui::GetItemRectMax()};
+        const px::ui::ThemeTokens itemTokens{px::ui::CurrentThemeTokens()};
+        const bool itemHovered{ImGui::IsItemHovered()};
+        const ImVec4 arrowColor{isSection && selectedSection == section ? itemTokens.accentForeground
+                                                                        : (itemHovered ? itemTokens.foreground : itemTokens.mutedForeground)};
+        px::ui::DrawVectorIcon(
+            px::ui::VectorIcon::ChevronRight,
+            {itemMaximum.x - metrics.spacingMd - metrics.iconDefault, itemMinimum.y + (itemMaximum.y - itemMinimum.y - metrics.iconDefault) * 0.5F},
+            metrics.iconDefault, ImGui::GetColorU32(arrowColor));
+        if (enabled && section == Section::Exit && pressed) {
+            action.requestExit = true;
+            menuExpanded = false;
+            sectionExpanded = false;
+        } else if (enabled && isSection && (pressed || itemHovered)) {
             if (!sectionExpanded || selectedSection != section)
                 sectionNeedsFocus = true;
             selectedSection = section;
@@ -240,14 +234,8 @@ bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const 
     navigationItem(text(ClientText::Tools), Section::Tools);
     navigationItem(text(ClientText::Voice), Section::Voice, snapshot.voiceAvailable);
     navigationItem(text(ClientText::Settings), Section::Settings);
+    navigationItem(text(ClientText::ExitControl), Section::Exit);
 
-    px::ui::HorizontalSeparator();
-    const std::string statistics{"FPS " + std::to_string(snapshot.framesPerSecond) + "  " + std::to_string(snapshot.latencyMilliseconds) + " ms"};
-    const ImVec2 statisticsStart{ImGui::GetCursorScreenPos()};
-    px::ui::DrawVectorIcon(px::ui::VectorIcon::Activity, statisticsStart, metrics.iconDefault, ImGui::GetColorU32(tokens.mutedForeground));
-    ImGui::Dummy({metrics.iconDefault, metrics.iconDefault});
-    ImGui::SameLine();
-    px::ui::MutedText(statistics);
     const ImVec2 windowPosition{ImGui::GetWindowPos()};
     const ImVec2 windowSize{ImGui::GetWindowSize()};
     navigationBounds_ = {.x = windowPosition.x, .y = windowPosition.y, .width = windowSize.x, .height = windowSize.y};

@@ -20,6 +20,10 @@ std::expected<ImGuiSession, std::string> ImGuiSession::Create(WindowHost& window
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    // Dear ImGui enables duplicate-ID diagnostics by default. Those diagnostics draw transient pure-red rectangles and error tooltips,
+    // which are useful during focused UI debugging but must never leak into the product interface.
+    io.ConfigDebugHighlightIdConflicts = false;
+    io.ConfigDebugHighlightIdConflictsShowItemPicker = false;
     io.IniFilename = nullptr;
     if (!ConfigureFonts()) {
         ImGui::DestroyContext();

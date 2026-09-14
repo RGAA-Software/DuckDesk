@@ -3,6 +3,7 @@ add_library(px_panel_imgui_views STATIC
     account_control.cpp
     about_settings_page.cpp
     cloud_applications_page.cpp
+    connection_progress_dialog.cpp
     connection_qr_dialog.cpp
     controller_settings_page.cpp
     device_list_page.cpp
@@ -43,6 +44,7 @@ set_target_properties(px_panel_imgui_preview PROPERTIES
 add_executable(px_panel WIN32
     product_main.cpp
     product/panel_client_launcher.cpp
+    product/connection_progress_tracker.cpp
     product/panel_connection_input.cpp
     product/panel_connection_links.cpp
     product/panel_device_name.cpp
@@ -157,6 +159,7 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
     add_executable(px_panel_product_tests
         product/tests/panel_product_tests.cpp
         product/panel_audit_store.cpp
+        product/connection_progress_tracker.cpp
         product/panel_connection_input.cpp
         product/panel_connection_links.cpp
         product/panel_device_name.cpp

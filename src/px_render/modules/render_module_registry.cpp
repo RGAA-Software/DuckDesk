@@ -130,10 +130,28 @@ void RenderModuleRegistry::StartModules() {
              module_name);
         return true;
     };
+    const std::weak_ptr<LogicalSessionRegistry> weak_sessions = app_ ? app_->GetLogicalSessionRegistry() : std::shared_ptr<LogicalSessionRegistry>{};
+    const auto configure_controller_availability = [weak_sessions](const std::shared_ptr<WsTransport>& transport) {
+        if (!transport) {
+            return;
+        }
+        transport->ConfigureControllerAvailabilityQuery([weak_sessions](const std::int64_t now_ms) {
+            const auto sessions = weak_sessions.lock();
+            if (!sessions) {
+                return WsTransport::ControllerAvailability{};
+            }
+            const auto availability = sessions->ControllerAvailability(now_ms);
+            return WsTransport::ControllerAvailability{.known = true,
+                                                       .available = availability.available,
+                                                       .reconnect_grace = availability.reconnect_grace,
+                                                       .retry_after_ms = availability.retry_after_ms};
+        });
+    };
     if (settings_.IsRdpMode()) {
         const auto transport = std::make_shared<WsTransport>(context_->GetAsyncRuntime());
         if (register_builtin(transport, "net_ws")) {
             ws_transport_ = transport;
+            configure_controller_availability(transport);
         }
         return; // No capture, encoders, native media, RTC, relay or host IPC in this composition.
     }
@@ -165,6 +183,7 @@ void RenderModuleRegistry::StartModules() {
     const auto ws_transport = std::make_shared<WsTransport>(context_->GetAsyncRuntime());
     if (register_builtin(ws_transport, "net_ws")) {
         ws_transport_ = ws_transport;
+        configure_controller_availability(ws_transport);
     }
     const auto udp_transport = std::make_shared<UdpTransport>(context_->GetAsyncRuntime());
     if (register_builtin(udp_transport, "net_udp")) {

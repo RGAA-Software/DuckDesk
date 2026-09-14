@@ -4,12 +4,52 @@
 
 #include <memory>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
 namespace px::panel::ui {
 
 enum class RemoteDeviceCommand : std::uint8_t { Lock, Restart, Shutdown };
+
+enum class ConnectionIntent : std::uint8_t { Control, ViewOnly, FileTransfer };
+enum class ConnectionProgressStatus : std::uint8_t { Running, Succeeded, Failed };
+enum class ConnectionStepKind : std::uint8_t { ValidateTarget, ResolveDevice, ReachEndpoint, CheckPermission, VerifyPassword, LaunchClient };
+enum class ConnectionStepState : std::uint8_t { Pending, Running, Succeeded, Failed };
+enum class ConnectionFailureReason : std::uint8_t {
+    None,
+    InvalidTarget,
+    ConsoleLoginRequired,
+    DeviceResolutionFailed,
+    NoUsableAddress,
+    DeviceUnreachable,
+    RemotePreflightUnavailable,
+    RemoteAccessDisabled,
+    FileTransferDisabled,
+    RemoteSessionOccupied,
+    RemoteReconnectGrace,
+    PasswordRequired,
+    PasswordRejected,
+    PasswordVerificationUnavailable,
+    ClientLaunchFailed,
+    WorkerUnavailable,
+};
+
+struct ConnectionProgressStep final {
+    ConnectionStepKind kind{ConnectionStepKind::ValidateTarget};
+    ConnectionStepState state{ConnectionStepState::Pending};
+    std::string detail{};
+};
+
+struct ConnectionProgress final {
+    std::uint64_t generation{0};
+    ConnectionIntent intent{ConnectionIntent::Control};
+    ConnectionProgressStatus status{ConnectionProgressStatus::Running};
+    std::string target{};
+    std::vector<ConnectionProgressStep> steps{};
+    ConnectionFailureReason failure{ConnectionFailureReason::None};
+    std::string diagnostic{};
+};
 
 struct RemoteDeviceCard final {
     std::string streamId{};
@@ -49,6 +89,7 @@ class RemoteControlPort {
   public:
     virtual ~RemoteControlPort() = default;
     virtual RemoteControlState Snapshot() const = 0;
+    [[nodiscard]] virtual std::optional<ConnectionProgress> ConnectionProgressSnapshot() const = 0;
     virtual void Refresh() = 0;
     virtual void RefreshTemporaryPassword() = 0;
     virtual void SetPasswordVisible(bool visible) = 0;

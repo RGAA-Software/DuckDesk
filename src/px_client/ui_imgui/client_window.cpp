@@ -115,6 +115,10 @@ void ClientWindow::Draw() {
         static_cast<void>(shell_.get().SetEnhancedVisualEffects(!px::ui::EnhancedVisualEffectsEnabled()));
     if (toolbarAction.toggleFullscreen)
         static_cast<void>(shell_.get().ToggleFullscreen());
+    if (toolbarAction.requestExit)
+        openExitConfirmation_ = true;
+
+    DrawExitConfirmation();
 
     if (terminalErrorShown_) {
         const std::string popupTitle{std::string{text(ClientText::ConnectionFailed)} + "###client-rejected"};
@@ -205,7 +209,38 @@ void ClientWindow::Draw() {
         ImGui::SetMouseCursor(snapshot.remoteCursor.visible ? RemoteMouseCursor(snapshot.remoteCursor.type) : ImGuiMouseCursor_None);
 }
 
+void ClientWindow::DrawExitConfirmation() {
+    const auto text = [english = english_](const ClientText id) { return ClientTextValue(id, english).data(); };
+    if (openExitConfirmation_) {
+        px::ui::OpenModal({"client-exit-confirmation"});
+        openExitConfirmation_ = false;
+    }
+    px::ui::ModalScope dialog{{"client-exit-confirmation"}, 460.0F};
+    if (!dialog.Open()) {
+        return;
+    }
+    static_cast<void>(px::ui::DialogHeader({"client-exit-confirmation-header"}, text(ClientText::ExitControl), text(ClientText::ExitControlDetail),
+                                           {.icon = px::ui::VectorIcon::TriangleAlert, .tone = px::ui::BadgeVariant::Warning, .closeable = false}));
+    constexpr float buttonWidth{112.0F};
+    px::ui::DialogFooter(buttonWidth * 2.0F + ImGui::GetStyle().ItemSpacing.x);
+    if (px::ui::ActionButton({"client-exit-cancel"}, text(ClientText::Cancel), {.variant = px::ui::ButtonVariant::Outline, .width = buttonWidth})) {
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (px::ui::ActionButton({"client-exit-confirm"}, text(ClientText::ExitControl),
+                             {.variant = px::ui::ButtonVariant::Destructive, .width = buttonWidth})) {
+        ReleasePressedInput();
+        shell_.get().RequestExit();
+    }
+}
+
 void ClientWindow::HandleInput(const px::desktop::DesktopInputEvent& event) {
+    if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+        shell_.get().CancelCloseRequest();
+        shell_.get().RequestShowAndRaise();
+        openExitConfirmation_ = true;
+        return;
+    }
     if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
         ReleasePressedInput();
         localPointerButtons_.fill(false);

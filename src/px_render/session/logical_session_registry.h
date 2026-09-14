@@ -81,13 +81,18 @@ struct LogicalSessionSnapshot {
     std::vector<LogicalSessionTransport> transports;
 };
 
+struct LogicalControllerAvailability final {
+    bool available{true};
+    bool reconnect_grace{};
+    int64_t retry_after_ms{};
+};
+
 /// Thread-safe ownership boundary for the desktop remote-control product.
 /// Physical network bindings are transient; role and controller lease state
 /// are owned here and are never inferred from a plugin connection count.
 class LogicalSessionRegistry final {
-public:
-    explicit LogicalSessionRegistry(bool allow_observer = true, bool allow_takeover = true,
-                                    int64_t controller_reconnect_grace_ms = 5000);
+  public:
+    explicit LogicalSessionRegistry(bool allow_observer = true, bool allow_takeover = true, int64_t controller_reconnect_grace_ms = 5000);
 
     LogicalSessionRegistry(const LogicalSessionRegistry&) = delete;
     LogicalSessionRegistry& operator=(const LogicalSessionRegistry&) = delete;
@@ -96,54 +101,40 @@ public:
     void SetIncomingAccessEnabled(bool enabled);
     void UpdateInputCapabilityByStream(const std::string& stream_id, bool allowed);
 
-    LogicalSessionAdmission Bind(const LogicalSessionGrant& grant,
-                                 LogicalSessionTransport transport,
-                                 const std::string& binding_id,
-                                 bool takeover,
+    LogicalSessionAdmission Bind(const LogicalSessionGrant& grant, LogicalSessionTransport transport, const std::string& binding_id, bool takeover,
                                  int64_t now_ms);
 
-    LogicalSessionBindingClosed CloseBinding(const std::string& logical_session_id,
-                                             const std::string& binding_id,
-                                             int64_t now_ms);
-    LogicalSessionBindingClosed CloseBindingById(const std::string& binding_id,
-                                                 int64_t now_ms);
+    LogicalSessionBindingClosed CloseBinding(const std::string& logical_session_id, const std::string& binding_id, int64_t now_ms);
+    LogicalSessionBindingClosed CloseBindingById(const std::string& binding_id, int64_t now_ms);
     // A reservation that never established its media channel is not a
     // reconnect. Release its controller seat immediately instead of applying
     // the connected-session grace window.
-    LogicalSessionBindingClosed CloseFailedBindingById(const std::string& binding_id,
-                                                       int64_t now_ms);
+    LogicalSessionBindingClosed CloseFailedBindingById(const std::string& binding_id, int64_t now_ms);
 
-    bool AuthorizeControllerInput(const std::string& logical_session_id,
-                                  uint64_t lease_generation,
-                                  int64_t now_ms) const;
-    bool AuthorizeControllerInputBinding(const std::string& binding_id,
-                                         int64_t now_ms) const;
-    bool AuthorizeControllerInputStream(const std::string& stream_id,
-                                        int64_t now_ms) const;
-    std::optional<LogicalSessionInputLease> FindControllerInputLeaseByBinding(
-        const std::string& binding_id, int64_t now_ms) const;
+    bool AuthorizeControllerInput(const std::string& logical_session_id, uint64_t lease_generation, int64_t now_ms) const;
+    bool AuthorizeControllerInputBinding(const std::string& binding_id, int64_t now_ms) const;
+    bool AuthorizeControllerInputStream(const std::string& stream_id, int64_t now_ms) const;
+    std::optional<LogicalSessionInputLease> FindControllerInputLeaseByBinding(const std::string& binding_id, int64_t now_ms) const;
     // Auxiliary channels do not create a binding or extend occupancy. Their
     // authenticated grant must match an existing physical controller binding.
-    std::optional<LogicalSessionInputLease> AuthorizeAuxiliaryInputGrant(const LogicalSessionGrant& grant,
-                                                                       const std::string& parent_binding_id, int64_t now_ms) const;
+    std::optional<LogicalSessionInputLease> AuthorizeAuxiliaryInputGrant(const LogicalSessionGrant& grant, const std::string& parent_binding_id,
+                                                                         int64_t now_ms) const;
     bool IsCurrentInputBinding(const LogicalSessionInputLease& lease, int64_t now_ms) const;
     // File-transfer bindings may establish a Controller logical session, but
     // they can never authorize OS input. This lookup is only for Controller-
     // scoped auxiliary capabilities such as file transfer.
-    std::optional<LogicalSessionInputLease> FindControllerLeaseByBinding(
-        const std::string& binding_id, int64_t now_ms) const;
-    std::optional<LogicalSessionInputLease> FindControllerInputLeaseByStream(
-        const std::string& stream_id, int64_t now_ms) const;
-    std::optional<std::string> FindLogicalSessionIdByBinding(
-        const std::string& binding_id, int64_t now_ms) const;
+    std::optional<LogicalSessionInputLease> FindControllerLeaseByBinding(const std::string& binding_id, int64_t now_ms) const;
+    std::optional<LogicalSessionInputLease> FindControllerInputLeaseByStream(const std::string& stream_id, int64_t now_ms) const;
+    std::optional<std::string> FindLogicalSessionIdByBinding(const std::string& binding_id, int64_t now_ms) const;
 
     std::optional<LogicalSessionRole> FindRole(const std::string& logical_session_id) const;
     std::optional<std::string> FindStreamId(const std::string& logical_session_id) const;
+    [[nodiscard]] LogicalControllerAvailability ControllerAvailability(int64_t now_ms);
     std::vector<LogicalSessionSnapshot> SnapshotActive(int64_t now_ms) const;
     size_t ActiveSessionCount() const;
     size_t ObserverCount() const;
 
-private:
+  private:
     struct Binding {
         LogicalSessionTransport transport = LogicalSessionTransport::kWs;
         std::string binding_id;
@@ -168,16 +159,11 @@ private:
 
     bool HasControllerBinding(const Session& session) const;
     bool HasInputBinding(const Session& session) const;
-    LogicalSessionBindingClosed CloseBindingLocked(
-        std::unordered_map<std::string, Session>::iterator session_it,
-        const std::string& binding_id, int64_t now_ms,
-        bool preserve_reconnect_grace);
+    LogicalSessionBindingClosed CloseBindingLocked(std::unordered_map<std::string, Session>::iterator session_it, const std::string& binding_id,
+                                                   int64_t now_ms, bool preserve_reconnect_grace);
     void RemoveStaleSessionsLocked(int64_t now_ms);
-    LogicalSessionAdmission AdoptControllerLocked(const LogicalSessionGrant& grant,
-                                                  LogicalSessionTransport transport,
-                                                  const std::string& binding_id,
-                                                  bool takeover,
-                                                  int64_t now_ms);
+    LogicalSessionAdmission AdoptControllerLocked(const LogicalSessionGrant& grant, LogicalSessionTransport transport, const std::string& binding_id,
+                                                  bool takeover, int64_t now_ms);
 
     mutable std::mutex mutex_;
     bool allow_observer_ = true;

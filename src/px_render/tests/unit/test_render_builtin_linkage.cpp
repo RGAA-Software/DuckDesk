@@ -25,14 +25,9 @@ namespace {
 
 TEST(RenderBuiltinLinkageTest, ProductionModulesHaveStaticConstructorsAndIds) {
     const std::vector<std::shared_ptr<RenderModule>> modules{
-        std::make_shared<DdaCaptureSource>(),
-        std::make_shared<GdiCaptureSource>(),
-        std::make_shared<FfmpegVideoEncoder>(),
-        std::make_shared<AmfVideoEncoder>(),
-        std::make_shared<NvencEncoderModule>(),
-        std::make_shared<WsTransport>(),
-        std::make_shared<UdpTransport>(),
-        std::make_shared<RelayTransport>(),
+        std::make_shared<DdaCaptureSource>(), std::make_shared<GdiCaptureSource>(),   std::make_shared<FfmpegVideoEncoder>(),
+        std::make_shared<AmfVideoEncoder>(),  std::make_shared<NvencEncoderModule>(), std::make_shared<WsTransport>(),
+        std::make_shared<UdpTransport>(),     std::make_shared<RelayTransport>(),
     };
     for (const auto& module : modules) {
         ASSERT_TRUE(module);
@@ -51,12 +46,10 @@ TEST(RenderBuiltinLinkageTest, ProductionModulesHaveStaticConstructorsAndIds) {
 }
 
 TEST(RenderBuiltinLinkageTest, VideoEncoderMetadataContractIsStronglyTyped) {
-    using CpuResult = decltype(std::declval<VideoEncoderModule&>().Encode(
-        std::declval<const std::shared_ptr<Image>&>(),
-        std::uint64_t{}, std::declval<const CaptureVideoFrame&>()));
-    using TextureResult = decltype(std::declval<VideoEncoderModule&>().Encode(
-        std::declval<const Microsoft::WRL::ComPtr<ID3D11Texture2D>&>(),
-        std::uint64_t{}, std::declval<const CaptureVideoFrame&>()));
+    using CpuResult = decltype(std::declval<VideoEncoderModule&>().Encode(std::declval<const std::shared_ptr<Image>&>(), std::uint64_t{},
+                                                                          std::declval<const CaptureVideoFrame&>()));
+    using TextureResult = decltype(std::declval<VideoEncoderModule&>().Encode(std::declval<const Microsoft::WRL::ComPtr<ID3D11Texture2D>&>(),
+                                                                              std::uint64_t{}, std::declval<const CaptureVideoFrame&>()));
     static_assert(std::is_same_v<CpuResult, VideoEncoderError>);
     static_assert(std::is_same_v<TextureResult, VideoEncoderError>);
 }
@@ -78,6 +71,7 @@ struct NetworkServiceProbe final {
     int file_transfer_broadcasts = 0;
     int rtc_allocations = 0;
     int udp_updates = 0;
+    int availability_queries = 0;
 };
 
 TEST(RenderBuiltinLinkageTest, WsUsesExplicitNetworkCapabilitiesWithWeakLifetime) {
@@ -96,8 +90,7 @@ TEST(RenderBuiltinLinkageTest, WsUsesExplicitNetworkCapabilitiesWithWeakLifetime
                 ++state->file_transfer_broadcasts;
             }
         },
-        [weak_probe](const std::shared_ptr<PxLocalRtcRequestInfo>&,
-                     WsTransport::LocalRtcCompletion completion) {
+        [weak_probe](const std::shared_ptr<PxLocalRtcRequestInfo>&, WsTransport::LocalRtcCompletion completion) {
             if (const auto state = weak_probe.lock()) {
                 ++state->rtc_allocations;
                 completion(std::make_shared<PxLocalRtcReplyInfo>());
@@ -112,6 +105,13 @@ TEST(RenderBuiltinLinkageTest, WsUsesExplicitNetworkCapabilitiesWithWeakLifetime
             }
             return false;
         });
+    ws->ConfigureControllerAvailabilityQuery([weak_probe](std::int64_t) {
+        if (const auto state = weak_probe.lock()) {
+            ++state->availability_queries;
+            return WsTransport::ControllerAvailability{.known = true, .available = false, .reconnect_grace = true, .retry_after_ms = 321};
+        }
+        return WsTransport::ControllerAvailability{};
+    });
 
     const auto payload = Data::From("capability-payload");
     const auto rtc_request = std::make_shared<PxLocalRtcRequestInfo>();
@@ -122,26 +122,29 @@ TEST(RenderBuiltinLinkageTest, WsUsesExplicitNetworkCapabilitiesWithWeakLifetime
         ws->BroadcastFileTransferMessage("stream", payload, true);
         EXPECT_EQ(ws->AllocateLocalRtcInstance(
                       rtc_request,
-                      [rtc_reply_received](
-                          const std::shared_ptr<PxLocalRtcReplyInfo>& reply) {
-                          *rtc_reply_received = static_cast<bool>(reply);
-                      }),
+                      [rtc_reply_received](const std::shared_ptr<PxLocalRtcReplyInfo>& reply) { *rtc_reply_received = static_cast<bool>(reply); }),
                   PxLocalRtcAllocResult::kOk);
         EXPECT_TRUE(ws->UpdateUdpAssociation(UdpMediaAssociation{}));
+        const auto availability = ws->QueryControllerAvailability(round);
+        EXPECT_TRUE(availability.known);
+        EXPECT_FALSE(availability.available);
+        EXPECT_TRUE(availability.reconnect_grace);
+        EXPECT_EQ(availability.retry_after_ms, 321);
     }
     EXPECT_EQ(probe->network_broadcasts, 100);
     EXPECT_EQ(probe->file_transfer_broadcasts, 100);
     EXPECT_EQ(probe->rtc_allocations, 100);
     EXPECT_EQ(probe->udp_updates, 100);
+    EXPECT_EQ(probe->availability_queries, 100);
     EXPECT_TRUE(*rtc_reply_received);
     EXPECT_TRUE(ws->HasLocalRtcService());
 
     probe.reset();
     ws->BroadcastNetworkMessage(payload, false);
     ws->BroadcastFileTransferMessage("stream", payload, true);
-    EXPECT_EQ(ws->AllocateLocalRtcInstance(rtc_request, {}),
-              PxLocalRtcAllocResult::kFailed);
+    EXPECT_EQ(ws->AllocateLocalRtcInstance(rtc_request, {}), PxLocalRtcAllocResult::kFailed);
     EXPECT_FALSE(ws->UpdateUdpAssociation(UdpMediaAssociation{}));
+    EXPECT_FALSE(ws->QueryControllerAvailability(0).known);
 }
 
 struct IpcMediaIngressProbe final {
@@ -179,5 +182,5 @@ TEST(RenderBuiltinLinkageTest, WsIpcMediaUsesTypedWeakIngress) {
     ws->SubmitIpcAudioFrame(audio);
 }
 
-}  // namespace
-}  // namespace px
+} // namespace
+} // namespace px

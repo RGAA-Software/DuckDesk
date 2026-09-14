@@ -8,6 +8,7 @@
 #include "px_desktop_shell/platform_icon_atlas.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace px::panel::ui {
@@ -19,6 +20,7 @@ class RemoteControlPage final {
 
   private:
     void DrawIdentity(const RemoteControlState& state, const px::ui::Localizer& localizer);
+    void DrawRemoteAccessConfirmation(const px::ui::Localizer& localizer);
     void DrawConnections(const RemoteControlState& state, const px::ui::Localizer& localizer, const px::desktop::PlatformIconAtlas& platformIcons);
     void DrawDirectPasswordDialog(const px::ui::Localizer& localizer);
     void DrawDeviceCard(const RemoteDeviceCard& device, const px::ui::Localizer& localizer, const px::desktop::PlatformIconAtlas& platformIcons,
@@ -34,6 +36,7 @@ class RemoteControlPage final {
     bool openDirectPasswordDialog_{};
     bool directViewOnly_{};
     bool openLocalDeviceNameDialog_{};
+    std::optional<bool> pendingIncomingRemoteAccess_{};
 };
 
 } // namespace px::panel::ui

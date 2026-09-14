@@ -5,6 +5,7 @@
 #include "panel_device_name.h"
 #include "panel_local_server.h"
 #include "panel_worker.h"
+#include "connection_progress_tracker.h"
 
 #include "px_common/base64.h"
 #include "px_common/shared_preference.h"
@@ -124,6 +125,63 @@ TEST(PanelWorkerTest, StopIsIdempotentAndRejectsNewWork) {
     worker->Stop();
     worker->Stop();
     EXPECT_FALSE(worker->Post([] {}));
+}
+
+TEST(ConnectionProgressTrackerTest, TracksOrderedPreflightAndCompletion) {
+    ConnectionProgressTracker tracker{};
+    const auto generation = tracker.Begin(ui::ConnectionIntent::Control, "908998909");
+    ASSERT_TRUE(generation);
+    tracker.SucceedStep(*generation, ui::ConnectionStepKind::ValidateTarget);
+    tracker.BeginStep(*generation, ui::ConnectionStepKind::ResolveDevice);
+    tracker.SucceedStep(*generation, ui::ConnectionStepKind::ResolveDevice, "192.168.31.6:4601");
+    tracker.BeginStep(*generation, ui::ConnectionStepKind::ReachEndpoint);
+    tracker.SucceedStep(*generation, ui::ConnectionStepKind::ReachEndpoint, "192.168.31.6:4601");
+    tracker.BeginStep(*generation, ui::ConnectionStepKind::CheckPermission);
+    tracker.SucceedStep(*generation, ui::ConnectionStepKind::CheckPermission);
+    tracker.BeginStep(*generation, ui::ConnectionStepKind::VerifyPassword);
+    tracker.SucceedStep(*generation, ui::ConnectionStepKind::VerifyPassword);
+    tracker.BeginStep(*generation, ui::ConnectionStepKind::LaunchClient);
+    tracker.Complete(*generation, "Pixels Client started.");
+
+    const auto progress = tracker.Snapshot();
+    ASSERT_TRUE(progress);
+    EXPECT_EQ(progress->status, ui::ConnectionProgressStatus::Succeeded);
+    EXPECT_EQ(progress->steps.size(), 6);
+    EXPECT_TRUE(std::ranges::all_of(progress->steps,
+                                    [](const ui::ConnectionProgressStep& step) { return step.state == ui::ConnectionStepState::Succeeded; }));
+}
+
+TEST(ConnectionProgressTrackerTest, RejectsParallelRunAndIgnoresStaleUpdates) {
+    ConnectionProgressTracker tracker{};
+    const auto first = tracker.Begin(ui::ConnectionIntent::FileTransfer, "90");
+    ASSERT_TRUE(first);
+    EXPECT_FALSE(tracker.Begin(ui::ConnectionIntent::Control, "91"));
+    tracker.Fail(*first, ui::ConnectionStepKind::CheckPermission, ui::ConnectionFailureReason::RemoteAccessDisabled, "Remote access is disabled.");
+    const auto second = tracker.Begin(ui::ConnectionIntent::Control, "91");
+    ASSERT_TRUE(second);
+    tracker.Complete(*first, "stale");
+
+    const auto progress = tracker.Snapshot();
+    ASSERT_TRUE(progress);
+    EXPECT_EQ(progress->generation, *second);
+    EXPECT_EQ(progress->status, ui::ConnectionProgressStatus::Running);
+    EXPECT_EQ(progress->steps.front().state, ui::ConnectionStepState::Running);
+}
+
+TEST(ConnectionProgressTrackerTest, KeepsOnlyTheCurrentStepRunningWhenAnEndpointRetryMovesBackward) {
+    ConnectionProgressTracker tracker{};
+    const auto generation = tracker.Begin(ui::ConnectionIntent::Control, "90");
+    ASSERT_TRUE(generation);
+    tracker.SucceedStep(*generation, ui::ConnectionStepKind::ValidateTarget);
+    tracker.BeginStep(*generation, ui::ConnectionStepKind::VerifyPassword);
+    tracker.BeginStep(*generation, ui::ConnectionStepKind::CheckPermission);
+    tracker.Fail(*generation, ui::ConnectionStepKind::CheckPermission, ui::ConnectionFailureReason::RemoteAccessDisabled, "disabled");
+
+    const auto progress = tracker.Snapshot();
+    ASSERT_TRUE(progress);
+    EXPECT_EQ(progress->status, ui::ConnectionProgressStatus::Failed);
+    EXPECT_EQ(progress->steps.at(3).state, ui::ConnectionStepState::Failed);
+    EXPECT_EQ(progress->steps.at(4).state, ui::ConnectionStepState::Pending);
 }
 
 TEST(PanelConfigStoreTest, PersistsAndClearsConnectionPreferences) {

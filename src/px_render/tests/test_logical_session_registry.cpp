@@ -145,9 +145,19 @@ TEST(LogicalSessionRegistry, FailedRtcReservationReleasesControllerSeatWithoutRe
 
 TEST(LogicalSessionRegistry, ControllerReconnectGraceKeepsOneLogicalSnapshot) {
     LogicalSessionRegistry registry;
+    EXPECT_TRUE(registry.ControllerAvailability(0).available);
     ASSERT_EQ(registry.Bind(ControlGrant("one", "stream-one", "alice"), LogicalSessionTransport::kWs, "ws-one", false, 1).code,
               LogicalSessionAdmissionCode::kAccepted);
+    const auto connected = registry.ControllerAvailability(2);
+    EXPECT_FALSE(connected.available);
+    EXPECT_FALSE(connected.reconnect_grace);
+    EXPECT_EQ(connected.retry_after_ms, 0);
     ASSERT_TRUE(registry.CloseBinding("one", "ws-one", 10).release_controller_input);
+
+    const auto grace = registry.ControllerAvailability(11);
+    EXPECT_FALSE(grace.available);
+    EXPECT_TRUE(grace.reconnect_grace);
+    EXPECT_EQ(grace.retry_after_ms, 5'000);
 
     const auto reconnecting = registry.SnapshotActive(11);
     ASSERT_EQ(reconnecting.size(), 1U);
@@ -155,6 +165,7 @@ TEST(LogicalSessionRegistry, ControllerReconnectGraceKeepsOneLogicalSnapshot) {
     EXPECT_TRUE(reconnecting.front().transports.empty());
 
     EXPECT_TRUE(registry.SnapshotActive(5'011).empty());
+    EXPECT_TRUE(registry.ControllerAvailability(5'011).available);
 }
 
 TEST(LogicalSessionRegistry, FileTransferBindingNeverExtendsControllerInputLease) {
@@ -168,6 +179,22 @@ TEST(LogicalSessionRegistry, FileTransferBindingNeverExtendsControllerInputLease
     EXPECT_TRUE(registry.AuthorizeControllerInput("one", controller.lease_generation, 4));
     EXPECT_TRUE(registry.CloseBindingById("ws-one", 5).release_controller_input);
     EXPECT_FALSE(registry.AuthorizeControllerInput("one", controller.lease_generation, 6));
+}
+
+TEST(LogicalSessionRegistry, ControllerGraceExpiresWhileIndependentFileTransferRemainsBound) {
+    LogicalSessionRegistry registry;
+    ASSERT_EQ(registry.Bind(ControlGrant("one", "stream-one", "alice"), LogicalSessionTransport::kWs, "ws-one", false, 1).code,
+              LogicalSessionAdmissionCode::kAccepted);
+    ASSERT_EQ(registry.Bind(ControlGrant("one", "stream-one", "alice"), LogicalSessionTransport::kFileTransfer, "file-one", false, 2).code,
+              LogicalSessionAdmissionCode::kAccepted);
+    EXPECT_TRUE(registry.CloseBindingById("ws-one", 10).release_controller_input);
+    EXPECT_TRUE(registry.ControllerAvailability(11).reconnect_grace);
+
+    EXPECT_TRUE(registry.ControllerAvailability(5'011).available);
+    EXPECT_EQ(registry.ActiveSessionCount(), 1U);
+    EXPECT_TRUE(registry.FindControllerLeaseByBinding("file-one", 5'011).has_value());
+    EXPECT_EQ(registry.Bind(ControlGrant("two", "stream-two", "bob"), LogicalSessionTransport::kWs, "ws-two", false, 5'012).code,
+              LogicalSessionAdmissionCode::kAccepted);
 }
 
 TEST(LogicalSessionRegistry, FileTransferCanCreateControllerSessionWithoutInputBinding) {

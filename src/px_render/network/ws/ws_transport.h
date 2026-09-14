@@ -24,6 +24,13 @@ class WsServer;
 
 class WsTransport final : public RenderModule {
   public:
+    struct ControllerAvailability final {
+        bool known{};
+        bool available{};
+        bool reconnect_grace{};
+        std::int64_t retry_after_ms{};
+    };
+
     explicit WsTransport(std::shared_ptr<PxAsyncRuntime> async_runtime = {});
     std::string Id() const override;
     std::string Name() const override;
@@ -70,6 +77,7 @@ class WsTransport final : public RenderModule {
     using LocalRtcCompletion = std::function<void(const std::shared_ptr<PxLocalRtcReplyInfo>&)>;
     using LocalRtcAllocator = std::function<PxLocalRtcAllocResult(const std::shared_ptr<PxLocalRtcRequestInfo>&, LocalRtcCompletion)>;
     using UdpAssociationUpdater = std::function<bool(const UdpMediaAssociation&)>;
+    using ControllerAvailabilityQuery = std::function<ControllerAvailability(std::int64_t)>;
     using IpcVideoFrameSink = std::function<void(const CaptureVideoFrame&)>;
     using IpcAudioFrameSink = std::function<void(const CaptureAudioFrame&)>;
 
@@ -81,6 +89,8 @@ class WsTransport final : public RenderModule {
                                                                  LocalRtcCompletion completion) const;
     [[nodiscard]] bool HasLocalRtcService() const;
     [[nodiscard]] bool UpdateUdpAssociation(const UdpMediaAssociation& association) const;
+    void ConfigureControllerAvailabilityQuery(ControllerAvailabilityQuery query);
+    [[nodiscard]] ControllerAvailability QueryControllerAvailability(std::int64_t now_ms) const;
     void ConfigureIpcMediaIngress(IpcVideoFrameSink video_sink, IpcAudioFrameSink audio_sink);
     void SubmitIpcVideoFrame(const CaptureVideoFrame& frame) const;
     void SubmitIpcAudioFrame(const CaptureAudioFrame& frame) const;
@@ -104,6 +114,7 @@ class WsTransport final : public RenderModule {
     FileTransferBroadcaster file_transfer_broadcaster_;
     LocalRtcAllocator local_rtc_allocator_;
     UdpAssociationUpdater udp_association_updater_;
+    ControllerAvailabilityQuery controller_availability_query_;
     mutable std::mutex ipc_media_ingress_mutex_;
     IpcVideoFrameSink ipc_video_frame_sink_;
     IpcAudioFrameSink ipc_audio_frame_sink_;

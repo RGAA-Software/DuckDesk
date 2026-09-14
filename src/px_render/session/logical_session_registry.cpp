@@ -44,14 +44,19 @@ void LogicalSessionRegistry::UpdateInputCapabilityByStream(const std::string& st
 
 void LogicalSessionRegistry::RemoveStaleSessionsLocked(const int64_t now_ms) {
     for (auto it = sessions_.begin(); it != sessions_.end();) {
-        const bool stale_controller = it->second.role == LogicalSessionRole::kController && it->second.bindings.empty() &&
+        const bool stale_controller = it->second.role == LogicalSessionRole::kController && !HasControllerBinding(it->second) &&
                                       it->second.controller_disconnected_at_ms > 0 &&
                                       now_ms - it->second.controller_disconnected_at_ms > controller_reconnect_grace_ms_;
         if (stale_controller) {
             if (controller_session_id_ == it->first) {
                 controller_session_id_.clear();
             }
-            it = sessions_.erase(it);
+            if (it->second.bindings.empty()) {
+                it = sessions_.erase(it);
+            } else {
+                it->second.controller_disconnected_at_ms = 0;
+                ++it;
+            }
         } else {
             ++it;
         }
@@ -397,6 +402,29 @@ std::optional<std::string> LogicalSessionRegistry::FindStreamId(const std::strin
         return std::nullopt;
     }
     return found->second.stream_id;
+}
+
+LogicalControllerAvailability LogicalSessionRegistry::ControllerAvailability(const int64_t now_ms) {
+    std::scoped_lock lock(mutex_);
+    RemoveStaleSessionsLocked(now_ms);
+    if (controller_session_id_.empty()) {
+        return {};
+    }
+    const auto found = sessions_.find(controller_session_id_);
+    if (found == sessions_.end()) {
+        controller_session_id_.clear();
+        return {};
+    }
+    const auto& session = found->second;
+    if (HasControllerBinding(session)) {
+        return {.available = false};
+    }
+    if (session.controller_disconnected_at_ms > 0) {
+        const int64_t elapsed{std::max<int64_t>(0, now_ms - session.controller_disconnected_at_ms)};
+        const int64_t remaining{std::max<int64_t>(1, controller_reconnect_grace_ms_ - elapsed + 1)};
+        return {.available = false, .reconnect_grace = true, .retry_after_ms = remaining};
+    }
+    return {.available = false};
 }
 
 std::vector<LogicalSessionSnapshot> LogicalSessionRegistry::SnapshotActive(const int64_t now_ms) const {

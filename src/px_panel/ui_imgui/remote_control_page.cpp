@@ -132,7 +132,8 @@ void RemoteControlPage::DrawIdentity(const RemoteControlState& state, const px::
             ImGui::TableNextColumn();
             bool incomingRemoteAccessEnabled{state.incomingRemoteAccessEnabled};
             if (px::ui::ToggleSwitch({"allow-remote-access"}, {}, incomingRemoteAccessEnabled)) {
-                port_->SetIncomingRemoteAccessEnabled(incomingRemoteAccessEnabled);
+                pendingIncomingRemoteAccess_ = incomingRemoteAccessEnabled;
+                px::ui::OpenModal({"ConfirmRemoteAccessChange"});
             }
             ImGui::EndTable();
         }
@@ -209,6 +210,35 @@ void RemoteControlPage::DrawIdentity(const RemoteControlState& state, const px::
                 ImGui::CloseCurrentPopup();
             }
         }
+    }
+    DrawRemoteAccessConfirmation(localizer);
+}
+
+void RemoteControlPage::DrawRemoteAccessConfirmation(const px::ui::Localizer& localizer) {
+    px::ui::ModalScope dialog{{"ConfirmRemoteAccessChange"}, 440.0F};
+    if (!dialog.Open()) {
+        return;
+    }
+    const bool enabling{pendingIncomingRemoteAccess_.value_or(false)};
+    static_cast<void>(
+        px::ui::DialogHeader({"remote-access-confirmation-header"},
+                             localizer.Text(enabling ? px::ui::TextId::EnableRemoteAccessTitle : px::ui::TextId::DisableRemoteAccessTitle),
+                             localizer.Text(enabling ? px::ui::TextId::EnableRemoteAccessDetail : px::ui::TextId::DisableRemoteAccessDetail),
+                             {.icon = px::ui::VectorIcon::TriangleAlert, .tone = px::ui::BadgeVariant::Warning, .closeable = false}));
+    const float buttonWidth{px::ui::Scale(112.0F)};
+    px::ui::DialogFooter(buttonWidth * 2.0F + ImGui::GetStyle().ItemSpacing.x);
+    if (px::ui::ActionButton({"remote-access-change-cancel"}, localizer.Text(px::ui::TextId::Cancel),
+                             {.variant = px::ui::ButtonVariant::Outline, .width = buttonWidth})) {
+        pendingIncomingRemoteAccess_.reset();
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (px::ui::ActionButton({"remote-access-change-confirm"}, localizer.Text(px::ui::TextId::Confirm), {.width = buttonWidth})) {
+        if (pendingIncomingRemoteAccess_) {
+            port_->SetIncomingRemoteAccessEnabled(*pendingIncomingRemoteAccess_);
+        }
+        pendingIncomingRemoteAccess_.reset();
+        ImGui::CloseCurrentPopup();
     }
 }
 

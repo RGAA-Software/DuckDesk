@@ -107,6 +107,13 @@ void HttpHandler::HandleGetRenderConfiguration(http::web_request& req, http::web
     obj["device_id"] = settings.device_id;
     obj["relay_host"] = settings.relay_host;
     obj["relay_port"] = std::atoi(settings.relay_port.c_str());
+    obj["incoming_remote_access_enabled"] = settings.incoming_remote_access_enabled;
+    obj["file_transfer_enabled"] = settings.file_transfer_enabled;
+    const auto controller = transport->QueryControllerAvailability(CurrentSystemMilliseconds());
+    obj["controller_availability_known"] = controller.known;
+    obj["controller_available"] = controller.available;
+    obj["controller_reconnect_grace"] = controller.reconnect_grace;
+    obj["controller_retry_after_ms"] = controller.retry_after_ms;
     // Web 端鼠标回放需要当前采集显示器名(event_replayer 按它定位坐标系)
     obj["monitor_name"] = transport->CapturingMonitorName();
     // 供 Web 客户端展示,便于确认被控端是否为旧版本
@@ -254,8 +261,8 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(std::weak_ptr<HttpHandler> 
         co_return;
     }
     const auto requested_stream_id = self->GetParam(params, "stream_id").value_or(std::string{});
-    const auto stream_id = requested_stream_id.empty() ? std::string("password:") + MD5::Hex(remote_address + "|" + client_nonce)
-                                                       : requested_stream_id;
+    const auto stream_id =
+        requested_stream_id.empty() ? std::string("password:") + MD5::Hex(remote_address + "|" + client_nonce) : requested_stream_id;
     RtcPasswordAdmission authentication{
         .permissions_ = {"view", "input", "clipboard", "file", "audio"},
         .logical_session_id_ = std::string("password:") + MD5::Hex(device_id + "|" + stream_id + "|" + client_nonce),

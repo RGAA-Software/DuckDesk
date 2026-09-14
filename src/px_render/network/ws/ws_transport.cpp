@@ -317,6 +317,20 @@ bool WsTransport::UpdateUdpAssociation(const UdpMediaAssociation& association) c
     return updater(association);
 }
 
+void WsTransport::ConfigureControllerAvailabilityQuery(ControllerAvailabilityQuery query) {
+    std::scoped_lock lock(network_services_mutex_);
+    controller_availability_query_ = std::move(query);
+}
+
+WsTransport::ControllerAvailability WsTransport::QueryControllerAvailability(const std::int64_t now_ms) const {
+    ControllerAvailabilityQuery query;
+    {
+        std::scoped_lock lock(network_services_mutex_);
+        query = controller_availability_query_;
+    }
+    return query ? query(now_ms) : ControllerAvailability{};
+}
+
 void WsTransport::ConfigureIpcMediaIngress(IpcVideoFrameSink video_sink, IpcAudioFrameSink audio_sink) {
     std::scoped_lock lock(ipc_media_ingress_mutex_);
     ipc_video_frame_sink_ = std::move(video_sink);

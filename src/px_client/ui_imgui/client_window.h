@@ -26,6 +26,7 @@ class ClientWindow final {
     [[nodiscard]] bool InVideo(float x, float y) const noexcept;
     void ReleasePressedInput();
     void SynchronizeClipboard();
+    void DrawExitConfirmation();
 
     std::reference_wrapper<px::desktop::DesktopShell> shell_;
     std::shared_ptr<ClientSession> session_{};
@@ -47,6 +48,7 @@ class ClientWindow final {
     bool terminalErrorPopupOpened_{};
     bool mediaWarningLatched_{};
     bool mediaWarningPopupOpened_{};
+    bool openExitConfirmation_{};
     bool textCompositionActive_{};
     std::string clipboardText_{};
     std::chrono::steady_clock::time_point nextClipboardCheck_{};

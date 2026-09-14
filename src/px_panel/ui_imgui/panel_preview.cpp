@@ -12,8 +12,9 @@ namespace px::panel::ui {
 
 PanelPreview::PanelPreview(PanelPreviewServices services)
     : settingsPort_{services.settings}, notifications_{std::move(services.notifications)}, voiceCallConsent_{std::move(services.voiceCallConsent)},
-      navigation_{std::move(services.account)}, settings_{std::move(services.networkSettings), services.settings},
-      serverStatus_{std::move(services.serverStatus)}, remoteControl_{services.remoteControl}, deviceList_{std::move(services.remoteControl)},
+      remoteControlPort_{services.remoteControl}, connectionProgressDialog_{remoteControlPort_}, navigation_{std::move(services.account)},
+      settings_{std::move(services.networkSettings), services.settings}, serverStatus_{std::move(services.serverStatus)},
+      remoteControl_{services.remoteControl}, deviceList_{std::move(services.remoteControl)},
       cloudApplications_{std::move(services.cloudApplications)}, securityRecords_{std::move(services.securityRecords)} {
     const auto appearance = settingsPort_->Snapshot();
     localizer_.SetLanguage(appearance.language);
@@ -52,6 +53,7 @@ PanelPreviewAction PanelPreview::Draw(const px::desktop::PlatformIconAtlas& plat
         notifications_->Draw();
         if (voiceCallConsent_)
             voiceCallConsent_->Draw(localizer_);
+        connectionProgressDialog_.Draw(localizer_);
         return action;
     }
     const ImGuiWindowFlags pageFlags{navigationAction.selectedPage == PanelPage::RemoteControl
@@ -73,6 +75,7 @@ PanelPreviewAction PanelPreview::Draw(const px::desktop::PlatformIconAtlas& plat
     notifications_->Draw();
     if (voiceCallConsent_)
         voiceCallConsent_->Draw(localizer_);
+    connectionProgressDialog_.Draw(localizer_);
     PanelPreviewAction action{.exitRequested = navigationAction.exitRequested};
     if (initialThemePending_) {
         action.selectedTheme = theme_;

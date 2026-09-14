@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cloud_applications_page.h"
+#include "connection_progress_dialog.h"
 #include "device_list_page.h"
 #include "panel_navigation.h"
 #include "notification_center.h"
@@ -53,6 +54,8 @@ class PanelPreview final {
     std::shared_ptr<SettingsPort> settingsPort_{};
     std::shared_ptr<NotificationCenter> notifications_{};
     std::shared_ptr<VoiceCallConsentOverlay> voiceCallConsent_{};
+    std::shared_ptr<RemoteControlPort> remoteControlPort_{};
+    ConnectionProgressDialog connectionProgressDialog_;
     PanelNavigation navigation_;
     SettingsPage settings_;
     ServerStatusPage serverStatus_;

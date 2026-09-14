@@ -122,7 +122,9 @@ constexpr Catalog kEnglish{"Controls",
                            "Close",
                            "The remote operation could not be queued.",
                            "Upload started",
-                           "items selected"};
+                           "items selected",
+                           "Exit control",
+                           "The current remote-control session will be disconnected. Continue?"};
 
 constexpr Catalog kChinese{"控制栏",
                            "分辨率",
@@ -238,7 +240,9 @@ constexpr Catalog kChinese{"控制栏",
                            "关闭",
                            "无法提交远端文件操作。",
                            "已开始上传",
-                           "项已选择"};
+                           "项已选择",
+                           "退出控制",
+                           "当前远程控制会话将断开，是否继续？"};
 static_assert(kEnglish.size() == kChinese.size());
 } // namespace
 

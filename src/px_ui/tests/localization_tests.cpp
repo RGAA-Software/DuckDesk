@@ -26,12 +26,31 @@ int main() {
     if (localizer.Text(px::ui::TextId::CloudApplications) != "云端应用") {
         return 8;
     }
+    if (localizer.Text(px::ui::TextId::ConnectionRemotePreflightUnavailable) != "远程设备不支持连接前置探测，请更新远程设备上的 Pixels。") {
+        return 10;
+    }
+    if (localizer.Text(px::ui::TextId::ConnectionRemoteReconnectGrace) != "远程桌面已被占用，请稍后重试。") {
+        return 11;
+    }
+    if (localizer.Text(px::ui::TextId::ConnectionRemoteSessionOccupied) != "远程桌面已被占用，请稍后重试。") {
+        return 14;
+    }
     localizer.SetLanguage(px::ui::Language::English);
     if (localizer.Text(px::ui::TextId::Settings) != "Settings") {
         return 3;
     }
     if (localizer.Text(px::ui::TextId::CloudApplications) != "Cloud Apps") {
         return 9;
+    }
+    if (localizer.Text(px::ui::TextId::ConnectionRemotePreflightUnavailable) !=
+        "The remote device does not support connection preflight. Update Pixels on the remote device.") {
+        return 12;
+    }
+    if (localizer.Text(px::ui::TextId::ConnectionRemoteReconnectGrace) != "The remote desktop is occupied. Please try again shortly.") {
+        return 13;
+    }
+    if (localizer.Text(px::ui::TextId::ConnectionRemoteSessionOccupied) != "The remote desktop is occupied. Please try again shortly.") {
+        return 15;
     }
 
     ImGui::CreateContext();

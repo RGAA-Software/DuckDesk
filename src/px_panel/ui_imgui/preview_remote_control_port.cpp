@@ -24,6 +24,10 @@ class PreviewRemoteControlPort final : public RemoteControlPort {
         };
     }
 
+    std::optional<ConnectionProgress> ConnectionProgressSnapshot() const override {
+        return std::nullopt;
+    }
+
     void SetPasswordVisible(const bool visible) override {
         passwordVisible_ = visible;
     }

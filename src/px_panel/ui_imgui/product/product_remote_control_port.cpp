@@ -1,6 +1,7 @@
 #include "panel_connection_input.h"
 #include "panel_connection_links.h"
 #include "panel_credential_vault.h"
+#include "connection_progress_tracker.h"
 #include "panel_device_registration.h"
 #include "panel_product_runtime.h"
 
@@ -37,6 +38,18 @@ enum class DirectSessionMode : std::uint8_t {
     ViewOnly,
     FileTransfer,
 };
+
+ui::ConnectionIntent ConnectionIntentFor(const DirectSessionMode mode) {
+    switch (mode) {
+    case DirectSessionMode::ViewOnly:
+        return ui::ConnectionIntent::ViewOnly;
+    case DirectSessionMode::FileTransfer:
+        return ui::ConnectionIntent::FileTransfer;
+    case DirectSessionMode::Control:
+    default:
+        return ui::ConnectionIntent::Control;
+    }
+}
 
 std::string_view DeviceCommandEvent(const ui::RemoteDeviceCommand command) {
     switch (command) {
@@ -137,6 +150,10 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
         return result;
     }
 
+    std::optional<ui::ConnectionProgress> ConnectionProgressSnapshot() const override {
+        return connectionProgress_.Snapshot();
+    }
+
     void SetPasswordVisible(const bool visible) override {
         showPassword_ = visible;
         static_cast<void>(runtime_->Config()->SaveShowTemporaryPassword(visible));
@@ -219,108 +236,61 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
     }
 
     void Connect(std::string target, std::string password, const bool viewOnly) override {
-        const auto parsed = ParseConnectionInput(std::move(target), runtime_->Config()->Ports().desktop);
-        if (!parsed) {
-            runtime_->Notify(true, "Connection failed",
-                             "The connection target is incomplete or malformed. Enter a device ID, a complete link:// address, or IP[:port].");
-            return;
-        }
-        if (parsed->kind != ConnectionInputKind::DeviceId) {
-            auto direct = *parsed;
-            if (direct.kind == ConnectionInputKind::DirectEndpoint) {
-                direct.password = std::move(password);
-            }
-            StartDirect(std::move(direct), viewOnly ? DirectSessionMode::ViewOnly : DirectSessionMode::Control);
-            return;
-        }
-        if (!runtime_->Console()->Account().loggedIn) {
-            runtime_->Notify(true, "Connection failed",
-                             "Device ID lookup requires a Console account. Sign in first, or connect with a complete link:// address or IP[:port].");
-            return;
-        }
-        ParsedConnectionInput direct{.kind = ConnectionInputKind::DirectEndpoint, .deviceId = parsed->deviceId, .password = std::move(password)};
-        const auto connection = runtime_->Console()->QueryNativeDeviceConnection(parsed->deviceId);
-        if (!connection) {
-            runtime_->Notify(
-                true, "Connection failed",
-                "Console could not resolve a native address for this device. Confirm that the device is online, then refresh and retry.");
-            return;
-        }
-        direct.hosts = {connection->host};
-        direct.port = connection->port;
-        direct.relayHost = connection->relay_host;
-        direct.relayPort = connection->relay_port;
-        direct.relayDeviceId = connection->signal_device_id;
-        {
-            const std::scoped_lock lock{mutex_};
-            const auto existing = std::ranges::find(devices_, parsed->deviceId, &ui::RemoteDeviceCard::deviceId);
-            if (existing != devices_.end())
-                direct.displayName = existing->name;
-        }
-        StartDirect(std::move(direct), viewOnly ? DirectSessionMode::ViewOnly : DirectSessionMode::Control);
+        QueueConnectionInput(std::move(target), std::move(password), viewOnly ? DirectSessionMode::ViewOnly : DirectSessionMode::Control);
     }
 
     void StartStream(const std::string& streamId, const bool viewOnly) override {
-        std::string deviceId{};
+        std::optional<ui::RemoteDeviceCard> target{};
         {
             const std::scoped_lock lock{mutex_};
-            const auto direct = std::ranges::find(devices_, streamId, &ui::RemoteDeviceCard::streamId);
-            if (direct != devices_.end() && direct->host.empty()) {
-                deviceId = direct->deviceId;
-            } else if (direct != devices_.end()) {
-                StartDirect({.kind = ConnectionInputKind::DirectEndpoint,
-                             .deviceId = direct->deviceId,
-                             .displayName = direct->name,
-                             .hosts = {direct->host},
-                             .port = direct->port,
-                             .password = {}},
-                            viewOnly ? DirectSessionMode::ViewOnly : DirectSessionMode::Control);
-                return;
-            }
+            if (const auto found = std::ranges::find(devices_, streamId, &ui::RemoteDeviceCard::streamId); found != devices_.end())
+                target = *found;
         }
-        if (!deviceId.empty()) {
-            Connect(std::move(deviceId), {}, viewOnly);
+        const auto mode{viewOnly ? DirectSessionMode::ViewOnly : DirectSessionMode::Control};
+        if (!target) {
+            ReportImmediateFailure(streamId, mode, ui::ConnectionFailureReason::DeviceResolutionFailed,
+                                   "The selected device is no longer in the device list. Refresh the list and retry.");
             return;
         }
-        runtime_->Notify(true, "Connection failed", "This device has no usable native address. Refresh the device list after it comes online.");
+        if (target->host.empty()) {
+            QueueConnectionInput(target->deviceId, {}, mode);
+            return;
+        }
+        QueueResolvedConnection({.kind = ConnectionInputKind::DirectEndpoint,
+                                 .deviceId = target->deviceId,
+                                 .displayName = target->name,
+                                 .platform = target->platform,
+                                 .hosts = {target->host},
+                                 .port = target->port},
+                                mode);
     }
     void StartFileTransfer(const std::string& streamId, std::string password) override {
-        ui::RemoteDeviceCard target{};
+        std::optional<ui::RemoteDeviceCard> target{};
         {
             const std::scoped_lock lock{mutex_};
             const auto found = std::ranges::find(devices_, streamId, &ui::RemoteDeviceCard::streamId);
             if (found == devices_.end()) {
-                runtime_->Notify(true, "File transfer", "The selected device is no longer in the device list. Refresh and retry.");
-                return;
+                ReportImmediateFailure(streamId, DirectSessionMode::FileTransfer, ui::ConnectionFailureReason::DeviceResolutionFailed,
+                                       "The selected device is no longer in the device list. Refresh the list and retry.");
+            } else {
+                target = *found;
             }
-            target = *found;
         }
+        if (!target)
+            return;
 
         ParsedConnectionInput direct{.kind = ConnectionInputKind::DirectEndpoint,
-                                     .deviceId = target.deviceId,
-                                     .displayName = target.name,
-                                     .platform = target.platform,
-                                     .hosts = target.host.empty() ? std::vector<std::string>{} : std::vector<std::string>{target.host},
-                                     .port = target.port,
+                                     .deviceId = target->deviceId,
+                                     .displayName = target->name,
+                                     .platform = target->platform,
+                                     .hosts = target->host.empty() ? std::vector<std::string>{} : std::vector<std::string>{target->host},
+                                     .port = target->port,
                                      .password = std::move(password)};
-        if (direct.hosts.empty() && !target.deviceId.empty()) {
-            const auto connection = runtime_->Console()->QueryNativeDeviceConnection(target.deviceId);
-            if (!connection) {
-                runtime_->Notify(true, "File transfer",
-                                 "Console could not resolve a native address for this device. Confirm that it is online, then refresh and retry.");
-                return;
-            }
-            direct.hosts = {connection->host};
-            direct.port = connection->port;
-            direct.relayHost = connection->relay_host;
-            direct.relayPort = connection->relay_port;
-            direct.relayDeviceId = connection->signal_device_id;
-        }
-        if (direct.hosts.empty() || direct.port <= 0) {
-            runtime_->Notify(true, "File transfer", "This device has no usable native address. Refresh the device list and retry.");
+        if (direct.hosts.empty()) {
+            QueueConnectionInput(target->deviceId, std::move(direct.password), DirectSessionMode::FileTransfer);
             return;
         }
-        StartDirect(std::move(direct), DirectSessionMode::FileTransfer);
+        QueueResolvedConnection(std::move(direct), DirectSessionMode::FileTransfer);
     }
 
     void StopStream(const std::string& streamId) override {
@@ -453,122 +423,273 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
         return target.hosts.empty() ? std::string{} : "endpoint:" + target.hosts.front() + ":" + std::to_string(target.port);
     }
 
-    void StartDirect(ParsedConnectionInput target, const DirectSessionMode mode = DirectSessionMode::Control) {
+    void ReportImmediateFailure(const std::string& target, const DirectSessionMode mode, const ui::ConnectionFailureReason reason,
+                                std::string diagnostic) {
+        const auto generation = connectionProgress_.Begin(ConnectionIntentFor(mode), target);
+        if (!generation)
+            return;
+        connectionProgress_.Fail(*generation, ui::ConnectionStepKind::ValidateTarget, reason, std::move(diagnostic));
+    }
+
+    void QueueConnectionInput(std::string target, std::string password, const DirectSessionMode mode) {
+        const auto generation = connectionProgress_.Begin(ConnectionIntentFor(mode), target);
+        if (!generation)
+            return;
+        const std::weak_ptr<ProductRemoteControlPort> weakSelf{shared_from_this()};
+        const bool queued =
+            runtime_->Worker()->Post([weakSelf, generation = *generation, target = std::move(target), password = std::move(password), mode] mutable {
+                if (const auto self = weakSelf.lock())
+                    self->RunConnectionInput(generation, std::move(target), std::move(password), mode);
+            });
+        if (!queued) {
+            connectionProgress_.Fail(*generation, ui::ConnectionStepKind::ValidateTarget, ui::ConnectionFailureReason::WorkerUnavailable,
+                                     "The Panel background worker is stopping and could not queue the connection preflight.");
+        }
+    }
+
+    void QueueResolvedConnection(ParsedConnectionInput target, const DirectSessionMode mode) {
+        const std::string label{
+            !target.deviceId.empty()
+                ? target.deviceId
+                : (!target.displayName.empty() ? target.displayName : (target.hosts.empty() ? std::string{} : target.hosts.front()))};
+        const auto generation = connectionProgress_.Begin(ConnectionIntentFor(mode), label);
+        if (!generation)
+            return;
+        const std::weak_ptr<ProductRemoteControlPort> weakSelf{shared_from_this()};
+        const bool queued = runtime_->Worker()->Post([weakSelf, generation = *generation, target = std::move(target), mode] mutable {
+            if (const auto self = weakSelf.lock()) {
+                self->connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::ValidateTarget);
+                self->connectionProgress_.BeginStep(generation, ui::ConnectionStepKind::ResolveDevice);
+                if (target.hosts.empty() || target.port <= 0 || target.port > 65535) {
+                    self->connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice, ui::ConnectionFailureReason::NoUsableAddress,
+                                                   "The selected device has no usable host and desktop service port.");
+                    return;
+                }
+                self->connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::ResolveDevice,
+                                                      target.hosts.front() + ":" + std::to_string(target.port));
+                self->RunDirect(generation, std::move(target), mode);
+            }
+        });
+        if (!queued) {
+            connectionProgress_.Fail(*generation, ui::ConnectionStepKind::ValidateTarget, ui::ConnectionFailureReason::WorkerUnavailable,
+                                     "The Panel background worker is stopping and could not queue the connection preflight.");
+        }
+    }
+
+    void RunConnectionInput(const std::uint64_t generation, std::string targetText, std::string password, const DirectSessionMode mode) {
+        auto parsed = ParseConnectionInput(std::move(targetText), runtime_->Config()->Ports().desktop);
+        if (!parsed) {
+            connectionProgress_.Fail(generation, ui::ConnectionStepKind::ValidateTarget, ui::ConnectionFailureReason::InvalidTarget,
+                                     "Enter a device ID, a complete link:// address, or IP[:port].");
+            return;
+        }
+        connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::ValidateTarget);
+        connectionProgress_.BeginStep(generation, ui::ConnectionStepKind::ResolveDevice);
+        if (parsed->kind == ConnectionInputKind::DirectEndpoint) {
+            parsed->password = std::move(password);
+        }
+        if (parsed->kind == ConnectionInputKind::DeviceId) {
+            if (!runtime_->Console()->Account().loggedIn) {
+                connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice, ui::ConnectionFailureReason::ConsoleLoginRequired,
+                                         "Device ID lookup requires a signed-in Console account. A complete link:// address or IP[:port] can be used "
+                                         "without lookup.");
+                return;
+            }
+            const auto connection = runtime_->Console()->QueryNativeDeviceConnection(parsed->deviceId);
+            if (!connection) {
+                connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice, ui::ConnectionFailureReason::DeviceResolutionFailed,
+                                         "Console did not return a native address. The device may be offline or its presence may be stale.");
+                return;
+            }
+            parsed->kind = ConnectionInputKind::DirectEndpoint;
+            parsed->password = std::move(password);
+            parsed->hosts = {connection->host};
+            parsed->port = connection->port;
+            parsed->relayHost = connection->relay_host;
+            parsed->relayPort = connection->relay_port;
+            parsed->relayDeviceId = connection->signal_device_id;
+            {
+                const std::scoped_lock lock{mutex_};
+                if (const auto existing = std::ranges::find(devices_, parsed->deviceId, &ui::RemoteDeviceCard::deviceId);
+                    existing != devices_.end()) {
+                    parsed->displayName = existing->name;
+                    parsed->platform = existing->platform;
+                }
+            }
+        }
+        if (parsed->hosts.empty() || parsed->port <= 0 || parsed->port > 65535) {
+            connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice, ui::ConnectionFailureReason::NoUsableAddress,
+                                     "No valid remote host and desktop service port were resolved for this connection.");
+            return;
+        }
+        connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::ResolveDevice,
+                                        parsed->hosts.front() + ":" + std::to_string(parsed->port));
+        RunDirect(generation, std::move(*parsed), mode);
+    }
+
+    void RunDirect(const std::uint64_t generation, ParsedConnectionInput target, const DirectSessionMode mode) {
         const bool fileTransfer{mode == DirectSessionMode::FileTransfer};
         const bool viewOnly{mode != DirectSessionMode::Control};
         const std::string credentialKey{CredentialKey(target)};
-        if (target.password.empty()) {
-            target.password = credentialVault_->Read(credentialKey).value_or(std::string{});
-        }
-        if (target.password.empty()) {
-            runtime_->Notify(true, "Connection failed", "Enter the current password shown on the remote device before connecting.");
+        if (target.hosts.empty() || target.port <= 0 || target.port > 65535) {
+            connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice, ui::ConnectionFailureReason::NoUsableAddress,
+                                     "No valid remote host and desktop service port were resolved for this connection.");
             return;
         }
-        const auto runtime = runtime_;
-        const auto credentialVault = credentialVault_;
-        const std::weak_ptr<ProductRemoteControlPort> weakSelf{shared_from_this()};
-        static_cast<void>(runtime_->Worker()->Post([runtime, credentialVault, weakSelf, target = std::move(target), credentialKey, viewOnly,
-                                                    fileTransfer] {
-            const std::string nonce{GetUUID()};
-            const std::string passwordHash{MD5::Hex(target.password)};
-            bool renderEndpointReached{};
-            for (const auto& host : target.hosts) {
-                const auto configuration = RenderApi::GetRenderConfiguration(host, target.port);
-                if (!configuration)
-                    continue;
-                renderEndpointReached = true;
-                const auto verified = RenderApi::VerifySecurityPassword(host, target.port, passwordHash);
-                if (!verified)
-                    continue;
-                if (!verified.value()) {
-                    credentialVault->Delete(credentialKey);
-                    runtime->Notify(true, "Connection failed",
-                                    "The device rejected this password. Enter the current password shown on the remote device and retry.");
-                    return;
-                }
-                const std::string remoteDeviceId{target.deviceId.empty() ? configuration.value().device_id_ : target.deviceId};
-                const std::string displayName{target.displayName.empty() ? host : target.displayName};
-                const std::string sessionId{(fileTransfer ? "file-" : "direct-") + GetUUID()};
-                const auto preference = runtime->Config()->LoadRemoteDevicePreference(remoteDeviceId).value_or(RemoteDevicePreference{});
-                const auto console = runtime->Config()->Console();
-                const bool launched = runtime->Launcher()->Launch(
-                    {.connectionKind =
-                         target.kind == ConnectionInputKind::SharedLink ? NativeConnectionKind::SharedLinkDirect : NativeConnectionKind::IpDirect,
-                     .displayName = displayName,
-                     .remoteDeviceId = remoteDeviceId,
-                     .remotePlatform = target.platform,
-                     .nonce = nonce,
-                     .directHost = host,
-                     .directPort = target.port,
-                     .directStreamId = sessionId,
-                     .remotePasswordHash = passwordHash,
-                     .relayHost = target.relayHost.empty() && console ? console->host : target.relayHost,
-                     .relayPort = target.relayPort <= 0 && console ? console->relayPort : target.relayPort,
-                     .relayRemoteDeviceId = target.relayDeviceId.empty() ? "server_" + remoteDeviceId : target.relayDeviceId,
-                     .viewOnly = viewOnly,
-                     .forceTcp = preference.forceTcp,
-                     .forceRelay = preference.forceRelay,
-                     .fileTransfer = fileTransfer,
-                     .audio = fileTransfer ? false : preference.audio,
-                     .clipboard = fileTransfer ? false : preference.clipboard,
-                     .splitWindows = preference.splitWindows,
-                     .forceSoftware = preference.forceSoftware,
-                     .waitForDebugger = preference.waitForDebugger,
-                     .forceGdiCapture = preference.forceGdiCapture,
-                     .disableVulkan = preference.disableVulkan});
-                const auto self = weakSelf.lock();
-                if (!self)
-                    return;
-                if (!launched) {
-                    runtime->Notify(true, "Connection failed",
-                                    "Password verification succeeded, but px_client could not start. Confirm that px_client.exe is installed beside "
-                                    "px_panel.exe.");
-                    return;
-                }
-                static_cast<void>(credentialVault->Write("device:" + remoteDeviceId, target.password));
-                if (credentialKey != "device:" + remoteDeviceId) {
-                    static_cast<void>(credentialVault->Write(credentialKey, target.password));
-                }
-                const auto connectedAt =
-                    std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-                static_cast<void>(runtime->Config()->UnhideRemoteDevice(remoteDeviceId));
-                static_cast<void>(runtime->Config()->SaveRemoteDeviceHistory(
-                    {.deviceId = remoteDeviceId, .name = displayName, .host = host, .port = target.port, .lastConnectedAt = connectedAt}));
-                const std::scoped_lock lock{self->mutex_};
-                std::string cardId{"direct-" + remoteDeviceId + "-" + host + ":" + std::to_string(target.port)};
-                if (const auto consoleCard = std::ranges::find(self->devices_, remoteDeviceId, &ui::RemoteDeviceCard::deviceId);
-                    consoleCard != self->devices_.end() && consoleCard->streamId.starts_with("console-device-")) {
-                    cardId = consoleCard->streamId;
-                }
-                const ui::RemoteDeviceCard card{.streamId = cardId,
-                                                .name = displayName,
-                                                .deviceId = remoteDeviceId,
-                                                .online = true,
-                                                .host = host,
-                                                .port = target.port,
-                                                .lastConnectedAt = connectedAt,
-                                                .audio = true,
-                                                .clipboard = true,
-                                                .viewOnly = viewOnly};
-                if (const auto existing = std::ranges::find(self->devices_, cardId, &ui::RemoteDeviceCard::streamId);
-                    existing != self->devices_.end()) {
-                    *existing = card;
-                } else {
-                    self->devices_.push_back(card);
-                }
-                if (!fileTransfer)
-                    self->activeSessions_[cardId] = sessionId;
+        connectionProgress_.BeginStep(generation, ui::ConnectionStepKind::ReachEndpoint);
+        std::string endpointFailures{};
+        bool renderEndpointReached{};
+        bool passwordVerificationUnavailable{};
+        const std::string nonce{GetUUID()};
+        for (const auto& host : target.hosts) {
+            const std::string endpoint{host + ":" + std::to_string(target.port)};
+            const auto configuration = RenderApi::GetRenderConfiguration(host, target.port);
+            if (!configuration) {
+                if (!endpointFailures.empty())
+                    endpointFailures += "; ";
+                endpointFailures += endpoint + " returned HTTP/status " + std::to_string(configuration.error());
+                continue;
+            }
+            if (!target.deviceId.empty() && !configuration->device_id_.empty() && configuration->device_id_ != target.deviceId) {
+                if (!endpointFailures.empty())
+                    endpointFailures += "; ";
+                endpointFailures += endpoint + " belongs to device " + configuration->device_id_ + ", expected " + target.deviceId;
+                continue;
+            }
+            renderEndpointReached = true;
+            connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::ReachEndpoint, endpoint);
+            connectionProgress_.BeginStep(generation, ui::ConnectionStepKind::CheckPermission);
+            if (!configuration->access_policy_known_ || (!fileTransfer && !configuration->controller_availability_known_)) {
+                connectionProgress_.Fail(
+                    generation, ui::ConnectionStepKind::CheckPermission, ui::ConnectionFailureReason::RemotePreflightUnavailable,
+                    "The remote Render does not expose the required access-policy and controller-seat state. No client process was started.");
                 return;
             }
-            if (weakSelf.lock()) {
-                runtime->Notify(
-                    true, "Connection failed",
-                    renderEndpointReached
-                        ? "The device responded, but password verification was unavailable on every advertised address. Check the Render service "
-                          "and control port."
-                        : "The device could not be reached at any advertised native address. Check its online status, address, port, and firewall.");
+            if (!configuration->incoming_remote_access_enabled_) {
+                connectionProgress_.Fail(generation, ui::ConnectionStepKind::CheckPermission, ui::ConnectionFailureReason::RemoteAccessDisabled,
+                                         "The remote device reported that incoming desktop control is disabled. No client process was started.");
+                return;
             }
-        }));
+            if (fileTransfer && !configuration->file_transfer_enabled_) {
+                connectionProgress_.Fail(generation, ui::ConnectionStepKind::CheckPermission, ui::ConnectionFailureReason::FileTransferDisabled,
+                                         "The remote device reported that file transfer is disabled. No file-transfer process was started.");
+                return;
+            }
+            if (!fileTransfer && !configuration->controller_available_) {
+                const std::string diagnostic{configuration->controller_reconnect_grace_
+                                                 ? "The previous controller is within its reconnect grace period. Retry after " +
+                                                       std::to_string(configuration->controller_retry_after_ms_) +
+                                                       " ms. No client process was started."
+                                                 : "Another controller currently owns the remote desktop. No client process was started."};
+                connectionProgress_.Fail(generation, ui::ConnectionStepKind::CheckPermission,
+                                         configuration->controller_reconnect_grace_ ? ui::ConnectionFailureReason::RemoteReconnectGrace
+                                                                                    : ui::ConnectionFailureReason::RemoteSessionOccupied,
+                                         diagnostic);
+                return;
+            }
+            connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::CheckPermission);
+            connectionProgress_.BeginStep(generation, ui::ConnectionStepKind::VerifyPassword);
+            if (target.password.empty())
+                target.password = credentialVault_->Read(credentialKey).value_or(std::string{});
+            if (target.password.empty()) {
+                connectionProgress_.Fail(generation, ui::ConnectionStepKind::VerifyPassword, ui::ConnectionFailureReason::PasswordRequired,
+                                         "No saved credential is available. Enter the current password shown on the remote device and retry.");
+                return;
+            }
+            const std::string passwordHash{MD5::Hex(target.password)};
+            const auto verified = RenderApi::VerifySecurityPassword(host, target.port, passwordHash);
+            if (!verified) {
+                passwordVerificationUnavailable = true;
+                if (!endpointFailures.empty())
+                    endpointFailures += "; ";
+                endpointFailures += endpoint + " password verification returned HTTP/status " + std::to_string(verified.error());
+                continue;
+            }
+            if (!verified.value()) {
+                credentialVault_->Delete(credentialKey);
+                connectionProgress_.Fail(generation, ui::ConnectionStepKind::VerifyPassword, ui::ConnectionFailureReason::PasswordRejected,
+                                         "The remote device rejected the supplied password. Its temporary password may have changed.");
+                return;
+            }
+            connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::VerifyPassword);
+            connectionProgress_.BeginStep(generation, ui::ConnectionStepKind::LaunchClient);
+            const std::string remoteDeviceId{target.deviceId.empty() ? configuration->device_id_ : target.deviceId};
+            const std::string displayName{target.displayName.empty() ? host : target.displayName};
+            const std::string sessionId{(fileTransfer ? "file-" : "direct-") + GetUUID()};
+            const auto preference = runtime_->Config()->LoadRemoteDevicePreference(remoteDeviceId).value_or(RemoteDevicePreference{});
+            const auto console = runtime_->Config()->Console();
+            const bool launched = runtime_->Launcher()->Launch(
+                {.connectionKind =
+                     target.kind == ConnectionInputKind::SharedLink ? NativeConnectionKind::SharedLinkDirect : NativeConnectionKind::IpDirect,
+                 .displayName = displayName,
+                 .remoteDeviceId = remoteDeviceId,
+                 .remotePlatform = target.platform,
+                 .nonce = nonce,
+                 .directHost = host,
+                 .directPort = target.port,
+                 .directStreamId = sessionId,
+                 .remotePasswordHash = passwordHash,
+                 .relayHost = target.relayHost.empty() && console ? console->host : target.relayHost,
+                 .relayPort = target.relayPort <= 0 && console ? console->relayPort : target.relayPort,
+                 .relayRemoteDeviceId = target.relayDeviceId.empty() ? "server_" + remoteDeviceId : target.relayDeviceId,
+                 .viewOnly = viewOnly,
+                 .forceTcp = preference.forceTcp,
+                 .forceRelay = preference.forceRelay,
+                 .fileTransfer = fileTransfer,
+                 .audio = fileTransfer ? false : preference.audio,
+                 .clipboard = fileTransfer ? false : preference.clipboard,
+                 .splitWindows = preference.splitWindows,
+                 .forceSoftware = preference.forceSoftware,
+                 .waitForDebugger = preference.waitForDebugger,
+                 .forceGdiCapture = preference.forceGdiCapture,
+                 .disableVulkan = preference.disableVulkan});
+            if (!launched) {
+                connectionProgress_.Fail(generation, ui::ConnectionStepKind::LaunchClient, ui::ConnectionFailureReason::ClientLaunchFailed,
+                                         "All preflight checks passed, but px_client could not start. Confirm that px_client.exe is installed beside "
+                                         "px_panel.exe and is not blocked by Windows.");
+                return;
+            }
+            connectionProgress_.Complete(generation, fileTransfer ? "Pixels File Transfer started." : "Pixels Client started.");
+            static_cast<void>(credentialVault_->Write("device:" + remoteDeviceId, target.password));
+            if (credentialKey != "device:" + remoteDeviceId)
+                static_cast<void>(credentialVault_->Write(credentialKey, target.password));
+            const auto connectedAt = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+            static_cast<void>(runtime_->Config()->UnhideRemoteDevice(remoteDeviceId));
+            static_cast<void>(runtime_->Config()->SaveRemoteDeviceHistory(
+                {.deviceId = remoteDeviceId, .name = displayName, .host = host, .port = target.port, .lastConnectedAt = connectedAt}));
+            const std::scoped_lock lock{mutex_};
+            std::string cardId{"direct-" + remoteDeviceId + "-" + host + ":" + std::to_string(target.port)};
+            if (const auto consoleCard = std::ranges::find(devices_, remoteDeviceId, &ui::RemoteDeviceCard::deviceId);
+                consoleCard != devices_.end() && consoleCard->streamId.starts_with("console-device-")) {
+                cardId = consoleCard->streamId;
+            }
+            const ui::RemoteDeviceCard card{.streamId = cardId,
+                                            .name = displayName,
+                                            .deviceId = remoteDeviceId,
+                                            .online = true,
+                                            .host = host,
+                                            .port = target.port,
+                                            .lastConnectedAt = connectedAt,
+                                            .audio = true,
+                                            .clipboard = true,
+                                            .viewOnly = viewOnly};
+            if (const auto existing = std::ranges::find(devices_, cardId, &ui::RemoteDeviceCard::streamId); existing != devices_.end()) {
+                *existing = card;
+            } else {
+                devices_.push_back(card);
+            }
+            if (!fileTransfer)
+                activeSessions_[cardId] = sessionId;
+            return;
+        }
+        if (renderEndpointReached && passwordVerificationUnavailable) {
+            connectionProgress_.Fail(generation, ui::ConnectionStepKind::VerifyPassword, ui::ConnectionFailureReason::PasswordVerificationUnavailable,
+                                     std::move(endpointFailures));
+            return;
+        }
+        connectionProgress_.Fail(generation, ui::ConnectionStepKind::ReachEndpoint, ui::ConnectionFailureReason::DeviceUnreachable,
+                                 endpointFailures.empty() ? "No advertised remote address responded to the Render configuration request."
+                                                          : std::move(endpointFailures));
     }
 
     void RefreshDevices() {
@@ -681,6 +802,7 @@ class ProductRemoteControlPort final : public ui::RemoteControlPort, public std:
     mutable std::mutex mutex_{};
     std::vector<ui::RemoteDeviceCard> devices_{};
     std::unordered_map<std::string, std::string> activeSessions_{};
+    ConnectionProgressTracker connectionProgress_{};
     std::atomic_bool showPassword_{};
     std::atomic_bool managerOnline_{};
     std::shared_ptr<RefreshLoopState> refreshLoopState_{std::make_shared<RefreshLoopState>()};

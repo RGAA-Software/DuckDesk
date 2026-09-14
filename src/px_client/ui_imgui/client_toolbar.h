@@ -19,6 +19,7 @@ struct ClientToolbarAction final {
     bool toggleTheme{};
     bool toggleEnhancedVisualEffects{};
     bool toggleFullscreen{};
+    bool requestExit{};
 };
 
 class ClientToolbar final {
@@ -30,10 +31,11 @@ class ClientToolbar final {
     [[nodiscard]] bool HandlePointerEvent(const px::desktop::DesktopInputEvent& event);
 
   private:
-    enum class Section : std::uint8_t { Display, Control, Tools, Voice, Settings };
+    enum class Section : std::uint8_t { Display, Control, Tools, Voice, Settings, Exit };
 
     [[nodiscard]] bool DrawLauncher(const px::desktop::BrandLogo& logo);
-    [[nodiscard]] bool DrawNavigation(const ClientSessionSnapshot& snapshot, const px::desktop::BrandLogo& logo, bool english);
+    [[nodiscard]] bool DrawNavigation(const ClientSessionSnapshot& snapshot, const px::desktop::BrandLogo& logo, bool english,
+                                      ClientToolbarAction& action);
     [[nodiscard]] bool DrawSection(const std::shared_ptr<ClientSession>& session, const ClientSessionSnapshot& snapshot, bool english, bool darkTheme,
                                    ClientToolbarAction& action);
 
