@@ -1,4 +1,4 @@
-#requires -Version 7.0
+#requires -Version 5.1
 
 [CmdletBinding()]
 param()
@@ -15,8 +15,8 @@ if (-not (Test-Path -LiteralPath $source)) {
     throw "Panel artifact is missing: $source"
 }
 
-$machineText = Get-Content -LiteralPath $machineFile -Raw
-$password = [regex]::Match($machineText, '(?m)^\s*-\s*密码\s*[:：]\s*(.+?)\s*$').Groups[1].Value
+$machineText = Get-Content -LiteralPath $machineFile -Raw -Encoding UTF8
+$password = [regex]::Match($machineText, '(?m)^\s*-\s*\u5bc6\u7801\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
 if (-not $password) {
     throw 'Public test host password is missing from the test-machine document.'
 }

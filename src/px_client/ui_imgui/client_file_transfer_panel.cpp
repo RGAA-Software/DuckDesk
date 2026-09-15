@@ -1,5 +1,6 @@
 #include "client_file_transfer_panel.h"
 
+#include "client_file_transfer_format.h"
 #include "client_session.h"
 #include "client_text.h"
 #include "px_ui/components/button.h"
@@ -142,7 +143,8 @@ void ClientFileTransferPanel::Draw(const std::shared_ptr<ClientSession>& session
         ImGui::SameLine();
         px::ui::Progress(progress, 300.0F);
         ImGui::SameLine();
-        ImGui::Text("%.1f KB/s", job.bytesPerSecond / 1024.0);
+        const std::string speed{FormatTransferSpeed(job.bytesPerSecond)};
+        ImGui::TextUnformatted(speed.c_str());
         if (!job.done) {
             ImGui::SameLine();
             if (px::ui::ActionButton({"cancel-transfer"}, text(ClientText::Cancel),

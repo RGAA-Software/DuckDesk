@@ -200,7 +200,6 @@ def version_targets() -> list[tuple[str, Path, str]]:
     return [
         ("C++ (TC_APP_VERSION)", VERSION_CMAKE, "cmake"),
         ("NSIS main installer", ROOT / "setup" / "proj_version.nsh", "nsis"),
-        ("NSIS panel package", ROOT / "src" / "px_panel" / "package" / "proj_version.nsh", "nsis"),
         ("Rust client workspace", ROOT / "rust_client" / "Cargo.toml", "cargo_workspace"),
         ("Rust base workspace", ROOT / "rust_base" / "Cargo.toml", "cargo_workspace"),
         ("Rust base protocol", ROOT / "rust_base" / "protocol" / "Cargo.toml", "cargo_package"),
@@ -244,7 +243,6 @@ def show_versions() -> None:
     for label, path in (
         ("C++ (TC_APP_VERSION_CODE)", VERSION_CMAKE),
         ("NSIS main installer", ROOT / "setup" / "proj_version.nsh"),
-        ("NSIS panel package", ROOT / "src" / "px_panel" / "package" / "proj_version.nsh"),
     ):
         if not path.is_file():
             print(f"  [missing] {label}: {path}")
@@ -317,11 +315,6 @@ def apply_version(version: str, version_code: int | None = None) -> None:
     update_tc_app_version_code(VERSION_CMAKE, code)
     update_nsis_product_version(ROOT / "setup" / "proj_version.nsh", version)
     update_nsis_product_version_code(ROOT / "setup" / "proj_version.nsh", code)
-    update_nsis_product_version(ROOT / "src" / "px_panel" / "package" / "proj_version.nsh", version)
-    update_nsis_product_version_code(
-        ROOT / "src" / "px_panel" / "package" / "proj_version.nsh",
-        code,
-    )
 
     update_cargo_workspace_version(ROOT / "rust_client" / "Cargo.toml", version)
     update_cargo_workspace_version(ROOT / "rust_base" / "Cargo.toml", version)
@@ -339,7 +332,7 @@ def apply_version(version: str, version_code: int | None = None) -> None:
     print("Next steps:")
     print("  1. Rebuild: .\\scripts_build/build_official.bat")
     print("  2. Rebuild servers if needed: .\\scripts_build/build_px_console_server.bat / scripts_build/build_px_auth_server.bat / scripts_build/build_px_desk_server.bat")
-    print("  3. Repackage installers under setup/ and src/px_panel/package/")
+    print("  3. Repackage installers under setup/")
 
 
 def self_test() -> None:

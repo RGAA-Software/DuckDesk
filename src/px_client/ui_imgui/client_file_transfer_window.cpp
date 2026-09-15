@@ -1,5 +1,6 @@
 #include "client_file_transfer_window.h"
 
+#include "client_file_transfer_format.h"
 #include "client_text.h"
 #include "px_ui/components/button.h"
 #include "px_ui/components/data_view.h"
@@ -862,7 +863,8 @@ void ClientFileTransferWindow::DrawTransferQueue() {
 
         ImGui::TableNextColumn();
         CenterTableCellText(rowHeight);
-        ImGui::TextDisabled("%.1f KB/s", job.bytesPerSecond / 1024.0);
+        const std::string speed{FormatTransferSpeed(job.bytesPerSecond)};
+        ImGui::TextDisabled("%s", speed.c_str());
 
         ImGui::TableNextColumn();
         if (!job.error.empty()) {

@@ -55,7 +55,7 @@ struct NativeVoiceWire final {
         }
     }
 
-    bool Start(bool start_client = true) {
+    bool Start(bool start_client = true, int requested_port = 0) {
         if (!runtime || !runtime->Start()) {
             return false;
         }
@@ -78,7 +78,7 @@ struct NativeVoiceWire final {
         });
         RenderModuleConfiguration configuration{};
         configuration.async_runtime = runtime;
-        port = 45000 + static_cast<int>(GetCurrentProcessId() % 10000);
+        port = requested_port > 0 ? requested_port : 45000 + static_cast<int>(GetCurrentProcessId() % 10000);
         configuration.udp_listen_port = port;
         if (!render->Start(configuration)) {
             return false;
@@ -130,7 +130,6 @@ struct ReliableVoicePeer final {
 
 TEST(NativeUdpVoice, SdkRoutesVoiceToUdpWhileFilesAndCallControlRemainOnWebSocket) {
     NativeVoiceWire session{};
-    ASSERT_TRUE(session.Start(false));
     ReliableVoicePeer reliable{};
     const auto weak_probe = std::weak_ptr(session.probe);
     reliable.server->bind_accept([](const std::shared_ptr<asio2::ws_session>& peer) { peer->ws_stream().binary(true); });
@@ -160,11 +159,11 @@ TEST(NativeUdpVoice, SdkRoutesVoiceToUdpWhileFilesAndCallControlRemainOnWebSocke
         probe->condition.notify_all();
     });
     ASSERT_TRUE(reliable.server->start("127.0.0.1", 0));
+    ASSERT_TRUE(session.Start(false, reliable.server->listen_port()));
     SdkConnectionParams params{
         .enable_video_ = true,
         .ip_ = "127.0.0.1",
         .port_ = reliable.server->listen_port(),
-        .udp_port_ = session.port,
         .media_path_ = "/media?udp_media=1",
         .device_id_ = "client",
         .stream_id_ = "stream",

@@ -55,7 +55,8 @@ def main() -> None:
     machine_text = MACHINE_FILE.read_text(encoding="utf-8")
     host = machine_value(machine_text, "地址")
     port = int(machine_value(machine_text, "SSH 端口").split("，", 1)[0])
-    username = machine_value(machine_text, "用户名")
+    machine_name = machine_value(machine_text, "主机名")
+    username = f"{machine_name}\\Administrator"
     password = machine_value(machine_text, "密码")
     expected_exe_hash = sha256(SOURCE_EXE)
     expected_config_hash = sha256(SOURCE_CONFIG)

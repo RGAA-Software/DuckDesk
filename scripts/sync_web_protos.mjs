@@ -22,6 +22,10 @@ const targets = [
   },
 ]
 
+for (const { dir } of targets) {
+  fs.mkdirSync(path.join(repo, dir), { recursive: true })
+}
+
 // The standard browser RTC transport uses the Console application Relay for
 // SDP/ICE signaling. Relay messages have a different canonical source.
 fs.copyFileSync(
@@ -37,7 +41,6 @@ console.log('synced web/px_web_client/proto/relay_message.proto')
 
 for (const { dir, files } of targets) {
   const out = path.join(repo, dir)
-  fs.mkdirSync(out, { recursive: true })
   for (const f of files) {
     fs.copyFileSync(path.join(src, f), path.join(out, f))
     console.log(`synced ${dir}/${f}`)

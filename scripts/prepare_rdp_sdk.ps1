@@ -59,7 +59,7 @@ if (-not (Test-Path -LiteralPath $patchedSource)) {
     if ($LASTEXITCODE -ne 0) { throw 'FreeRDP patch application failed' }
 }
 if ((& git -C $patchedSource rev-parse HEAD) -ne $revision -or $LASTEXITCODE -ne 0) { throw 'Patched FreeRDP base changed' }
-$actualPatch = (& git -C $patchedSource diff --binary --no-ext-diff --no-color HEAD --) -join "`n"
+$actualPatch = (& git -C $patchedSource diff --abbrev=7 --binary --no-ext-diff --no-color HEAD --) -join "`n"
 if ($LASTEXITCODE -ne 0 -or $actualPatch.TrimEnd() -cne ([IO.File]::ReadAllText($patch).Replace("`r`n", "`n").TrimEnd())) {
     throw 'Isolated FreeRDP build copy differs from the reviewed patch'
 }

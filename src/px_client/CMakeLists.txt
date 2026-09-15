@@ -11,6 +11,7 @@ include(rdp/rdp_freerdp_sdk.cmake)
 
 add_library(px_client_imgui_runtime STATIC
     ui_imgui/client_audio_output.cpp
+    ui_imgui/client_file_transfer_format.cpp
     ui_imgui/client_file_transfer_panel.cpp
     ui_imgui/client_file_transfer_window.cpp
     ui_imgui/client_file_browser_model.cpp
@@ -89,6 +90,11 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
     target_include_directories(test_client_file_browser_model PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
     target_link_libraries(test_client_file_browser_model PRIVATE GTest::gtest GTest::gtest_main)
     add_test(NAME client_file_browser_model COMMAND test_client_file_browser_model)
+
+    add_executable(test_client_file_transfer_format tests/test_client_file_transfer_format.cpp ui_imgui/client_file_transfer_format.cpp)
+    target_include_directories(test_client_file_transfer_format PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
+    target_link_libraries(test_client_file_transfer_format PRIVATE GTest::gtest GTest::gtest_main)
+    add_test(NAME client_file_transfer_format COMMAND test_client_file_transfer_format)
 endif()
 
 if(PX_PROTECTION_ENABLED)

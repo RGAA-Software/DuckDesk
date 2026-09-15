@@ -92,7 +92,8 @@ if not "%VisualStudioVersion:~0,2%"=="18" (
     set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
     set "VS_INSTALL_DIR="
     if exist "!VSWHERE!" (
-        for /f "usebackq tokens=*" %%i in (`"!VSWHERE!" -version "[18.0,19.0)" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VS_INSTALL_DIR=%%i"
+        for %%V in ("!VSWHERE!") do set "VSWHERE_CMD=%%~sV"
+        for /f "usebackq tokens=*" %%i in (`!VSWHERE_CMD! -version "[18.0,19.0)" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VS_INSTALL_DIR=%%i"
     )
     if "!VS_INSTALL_DIR!"=="" (
         if exist "%ProgramFiles%\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat" set "VS_INSTALL_DIR=%ProgramFiles%\Microsoft Visual Studio\18\Community"

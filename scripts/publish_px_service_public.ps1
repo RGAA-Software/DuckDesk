@@ -1,4 +1,4 @@
-#requires -Version 7.0
+#requires -Version 5.1
 $ErrorActionPreference = 'Stop'
 $repository = Split-Path $PSScriptRoot -Parent
 $source = Join-Path $repository 'rust_client/target/release/px_service.exe'
@@ -9,8 +9,8 @@ $oldTrustedHosts = (Get-Item WSMan:\localhost\Client\TrustedHosts).Value
 $session = $null
 try {
     Set-Item WSMan:\localhost\Client\TrustedHosts -Value '39.71.45.66' -Force
-    $machineText = Get-Content (Join-Path $repository '.env/test_machine.md') -Raw
-    $password = [regex]::Match($machineText, '(?m)^\s*-\s*密码\s*[:：]\s*(.+?)\s*$').Groups[1].Value
+    $machineText = Get-Content (Join-Path $repository '.env/test_machine.md') -Raw -Encoding UTF8
+    $password = [regex]::Match($machineText, '(?m)^\s*-\s*\u5bc6\u7801\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
     $machineName = [regex]::Match($machineText, '(?m)^\s*-\s*\u4e3b\u673a\u540d\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
     $userName = if ($machineName) { "$machineName\Administrator" } else { 'Administrator' }
     $credential = [pscredential]::new($userName, (ConvertTo-SecureString $password -AsPlainText -Force))
