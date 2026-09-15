@@ -12,7 +12,7 @@ extern "C" bool px_graphics_ready(void) {
 }
 
 // The OBS C backend owns its shared texture. Retain COM lifetime immediately; no borrowed value crosses the IPC queue.
-extern "C" bool px_publish_shared_frame(ID3D11Texture2D* texture) { // NOLINT(gammaray-raw-pointer-boundary) OBS C ABI.
+extern "C" bool px_publish_shared_frame(ID3D11Texture2D* texture) { // NOLINT(pixels-raw-pointer-boundary) OBS C ABI.
     const CComPtr<ID3D11Texture2D> retained{texture};
     if (!retained) {
         return false;
@@ -30,7 +30,7 @@ extern "C" bool px_publish_shared_frame(ID3D11Texture2D* texture) { // NOLINT(ga
     const CComQIPtr<IDXGIResource> resource{retained};
     CComPtr<IDXGIAdapter> adapter{};
     DXGI_ADAPTER_DESC adapter_desc{};
-    HANDLE shared_handle{}; // NOLINT(gammaray-raw-pointer-boundary) Borrowed DXGI handle; lifetime belongs to retained texture.
+    HANDLE shared_handle{}; // NOLINT(pixels-raw-pointer-boundary) Borrowed DXGI handle; lifetime belongs to retained texture.
     if (!dxgi_device || !resource || FAILED(dxgi_device->GetAdapter(&adapter)) || FAILED(adapter->GetDesc(&adapter_desc)) ||
         FAILED(resource->GetSharedHandle(&shared_handle)) || !shared_handle) {
         return false;

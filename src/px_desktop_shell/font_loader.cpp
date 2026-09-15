@@ -14,7 +14,7 @@ bool ConfigureFonts() {
     const std::filesystem::path latinFont{basePath / "resources" / "fonts" / "Roboto-Regular.ttf"};
     const std::filesystem::path mediumFont{basePath / "resources" / "fonts" / "Roboto-Medium.ttf"};
     ImGuiIO& io = ImGui::GetIO();
-    io.Fonts->SetFontLoader(ImGuiFreeType::GetFontLoader()); // NOLINT(gammaray-raw-pointer-boundary): Dear ImGui loader ABI boundary.
+    io.Fonts->SetFontLoader(ImGuiFreeType::GetFontLoader()); // NOLINT(pixels-raw-pointer-boundary): Dear ImGui loader ABI boundary.
     // ImGui 1.92 dynamically rasterizes this logical size at the current framebuffer density.
     // Sixteen pixels keeps body text readable at 1080p without enlarging the surrounding controls.
     constexpr float pixelSize{16.0F};

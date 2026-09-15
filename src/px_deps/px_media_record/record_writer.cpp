@@ -75,13 +75,13 @@ struct Nal final {
 };
 
 struct AvPacketDeleter final {
-    void operator()(AVPacket* packet) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(AVPacket* packet) const noexcept { // NOLINT(pixels-raw-pointer-boundary)
         av_packet_free(&packet);
     }
 };
 
 struct AvFormatContextDeleter final {
-    void operator()(AVFormatContext* context) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(AVFormatContext* context) const noexcept { // NOLINT(pixels-raw-pointer-boundary)
         if (!context) {
             return;
         }
@@ -492,7 +492,7 @@ struct RecordWriter::Impl {
     bool OpenFile() {
         auto path = MakeFilePath();
         current_path_ = path;
-        AVFormatContext* format_context{}; // NOLINT(gammaray-raw-pointer-boundary)
+        AVFormatContext* format_context{}; // NOLINT(pixels-raw-pointer-boundary)
         int r = avformat_alloc_output_context2(&format_context, nullptr, "mp4", path.c_str());
         fmt_.reset(format_context);
         if (r < 0 || !fmt_) {
@@ -501,7 +501,7 @@ struct RecordWriter::Impl {
             return false;
         }
 
-        const auto video_stream_boundary = avformat_new_stream(fmt_.get(), nullptr); // NOLINT(gammaray-raw-pointer-boundary)
+        const auto video_stream_boundary = avformat_new_stream(fmt_.get(), nullptr); // NOLINT(pixels-raw-pointer-boundary)
         if (!video_stream_boundary) {
             Fail("recording_stream_alloc_failed");
             CloseFile();
@@ -516,7 +516,7 @@ struct RecordWriter::Impl {
         video_parameters.width = width_;
         video_parameters.height = height_;
 
-        const auto audio_stream_boundary = avformat_new_stream(fmt_.get(), nullptr); // NOLINT(gammaray-raw-pointer-boundary)
+        const auto audio_stream_boundary = avformat_new_stream(fmt_.get(), nullptr); // NOLINT(pixels-raw-pointer-boundary)
         if (!audio_stream_boundary) {
             Fail("recording_stream_alloc_failed");
             CloseFile();

@@ -1,5 +1,5 @@
-#ifndef GAMMARAYPREMIUM_AUTO_START_H
-#define GAMMARAYPREMIUM_AUTO_START_H
+#ifndef PIXELSPREMIUM_AUTO_START_H
+#define PIXELSPREMIUM_AUTO_START_H
 
 #ifdef WIN32
 
@@ -39,4 +39,4 @@ private:
 }  // namespace px
 
 #endif  // WIN32
-#endif  // GAMMARAYPREMIUM_AUTO_START_H
+#endif  // PIXELSPREMIUM_AUTO_START_H

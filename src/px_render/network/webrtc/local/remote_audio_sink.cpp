@@ -20,7 +20,7 @@ void RemoteAudioSink::SetAuthorized(const std::string& call_id, bool authorized)
     authorized_ = authorized && !call_id.empty();
 }
 
-void RemoteAudioSink::OnData(const void* audio_data, // NOLINT(gammaray-raw-pointer-boundary): libwebrtc AudioTrackSinkInterface ABI
+void RemoteAudioSink::OnData(const void* audio_data, // NOLINT(pixels-raw-pointer-boundary): libwebrtc AudioTrackSinkInterface ABI
                              int bits_per_sample, int sample_rate, size_t number_of_channels, size_t number_of_frames) {
     if (!audio_data || bits_per_sample != 16 || sample_rate != 48'000 || number_of_channels == 0) {
         return;
@@ -38,7 +38,7 @@ void RemoteAudioSink::OnData(const void* audio_data, // NOLINT(gammaray-raw-poin
         rx_frames_ += number_of_frames;
         total_frames = rx_frames_;
         const auto pcm = std::span(static_cast<const std::int16_t*>(audio_data),
-                                   number_of_frames * number_of_channels); // NOLINT(gammaray-raw-pointer-boundary): libwebrtc audio callback buffer
+                                   number_of_frames * number_of_channels); // NOLINT(pixels-raw-pointer-boundary): libwebrtc audio callback buffer
         pcm_callback_(call_id_, pcm, sample_rate, static_cast<int>(number_of_channels));
         if (last_log_ms_ == 0)
             last_log_ms_ = now_ms;

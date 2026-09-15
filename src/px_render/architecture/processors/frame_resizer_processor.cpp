@@ -36,7 +36,7 @@ BuiltinModuleRegistration FrameResizerProcessor::MakeRegistration() {
         .descriptor = BuiltinModuleDescriptor{
             .id = std::string(kFrameResizerModuleId),
             .name = "Frame Resizer",
-            .author = "GammaRay",
+            .author = "Pixels",
             .description = "Built-in D3D11 pre-encode resize processor",
             .version_name = "2.0.0",
             .version_code = 200,

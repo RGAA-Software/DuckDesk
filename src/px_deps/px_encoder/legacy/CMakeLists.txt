@@ -28,7 +28,7 @@ set(NV_SRCS
 )
 
 # Keep the read-only AMD SDK support layer on its compatible language level;
-# GammaRay-owned encoder code remains on the project C++23 standard.
+# Pixels-owned encoder code remains on the project C++23 standard.
 add_library(amf_legacy_sdk STATIC ${EXT_SRCS})
 set_target_properties(amf_legacy_sdk PROPERTIES
     CXX_STANDARD 17

@@ -1,0 +1,86 @@
+.idea/*
+.vs/*
+out/*
+cmake-build-release/*
+cmake-build-relwithdebinfo/*
+src/px_web_client/node_modules/*
+src/px_web_client/.idea/*
+src/px_web_client/.vscode/*
+src/px_web_client/dist/*
+web/px_console/node_modules/*
+web/px_console/.idea/*
+web/px_console/.vscode/*
+web/px_console/dist/*
+web/px_console/.output/*
+web/px_console/coverage/*
+web/px_console/test-results/*
+web/px_console/playwright-report/*
+web/px_desk/node_modules/*
+web/px_desk/.idea/*
+web/px_desk/.vscode/*
+web/px_desk/dist/*
+web/px_desk/.output/*
+web/px_desk/coverage/*
+web/px_desk/test-results/*
+web/px_desk/playwright-report/*
+web/px_auth/node_modules/*
+web/px_auth/.idea/*
+web/px_auth/.vscode/*
+web/px_auth/dist/*
+web/px_auth/.output/*
+web/px_auth/coverage/*
+web/px_auth/test-results/*
+web/px_auth/playwright-report/*
+build_official/*
+build_opensource/*
+build_probe/*
+/build_sdk_*/
+output/*
+test-results/render-architecture/*
+setup/app/*
+setup/GammaRay_pdb_*/
+rust_client/px_sysinfo/build/*
+__pycache__/
+certs/
+vc_redist.x64_cpy.exe
+src/px_panel/src/tests/test_access_decrypt.exe
+src/px_panel/src/tests/test_access_decrypt.obj
+
+# cross-build tooling (zig / cargo-zigbuild / shims)
+.tooling/
+
+# local server credentials (never commit)
+/.env/
+rust_server/px_auth_server/tencent_server.txt
+rust_server/px_desk_server/tencent_server.txt
+rust_server/px_desk_server/desk_settings.toml
+rust_server/px_desk_server/admin_password.txt
+_make_setup.log
+
+# Windows reserved device name artifact (can't be indexed by git)
+nul
+
+# Message protos are generated at build time from src/px_deps/px_message
+# (single source of truth); the web clients' copies are synced, never committed.
+src/px_web_client/proto/*.proto
+web/px_web_client/proto/*.proto
+
+
+# rustdesk upstream reference clone (read-only reference for the ft rewrite)
+rustdesk/
+
+# local test scripts/logs/screenshots and remote-admin credentials (never commit)
+# NOTE: anchored to repo root only — nested tests/ dirs (e.g. px_deps/*/tests) stay tracked
+/tests/*
+!/tests/webview_e2e/
+!/tests/webview_e2e/index.html
+
+# RDP probe credentials, generated keys, private logs, and local harnesses
+/.cache/
+/build_workspace_demo/
+
+# Private, generated real-client media validation captures, logs and screenshots.
+/test-results/
+
+# Generated Python bytecode.
+__pycache__/

@@ -33,7 +33,7 @@ class RemoteAudioSink : public webrtc::AudioTrackSinkInterface {
     }
 
     // webrtc::AudioTrackSinkInterface
-    void OnData(const void* audio_data, // NOLINT(gammaray-raw-pointer-boundary): libwebrtc AudioTrackSinkInterface ABI
+    void OnData(const void* audio_data, // NOLINT(pixels-raw-pointer-boundary): libwebrtc AudioTrackSinkInterface ABI
                 int bits_per_sample, int sample_rate, size_t number_of_channels, size_t number_of_frames) override;
 
   private:

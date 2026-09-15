@@ -47,7 +47,7 @@ class DisplayChannel final {
 
   private:
     // FreeRDP synchronous callback ABI, called only on the protocol thread.
-    static UINT Capabilities(DispClientContext* channel, UINT32 n, UINT32 a, UINT32 b) noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+    static UINT Capabilities(DispClientContext* channel, UINT32 n, UINT32 a, UINT32 b) noexcept { // NOLINT(pixels-raw-pointer-boundary)
         if (!channel || n == 0 || a == 0 || b == 0) {
             return ERROR_INVALID_DATA;
         }

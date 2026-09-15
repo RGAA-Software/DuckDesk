@@ -11,6 +11,6 @@
 namespace px {
 
 // The process handle is borrowed for the duration of this synchronous Win32 boundary call.
-[[nodiscard]] std::optional<std::wstring> ReadProcessCommandLine(HANDLE process); // NOLINT(gammaray-raw-pointer-boundary): borrowed HANDLE.
+[[nodiscard]] std::optional<std::wstring> ReadProcessCommandLine(HANDLE process); // NOLINT(pixels-raw-pointer-boundary): borrowed HANDLE.
 
 } // namespace px

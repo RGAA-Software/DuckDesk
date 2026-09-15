@@ -2,8 +2,8 @@
 // Created by RGAA on 2024-04-21.
 //
 
-#ifndef GAMMARAYPC_STATISTICS_H
-#define GAMMARAYPC_STATISTICS_H
+#ifndef PIXELSPC_STATISTICS_H
+#define PIXELSPC_STATISTICS_H
 
 #include <map>
 #include <vector>
@@ -126,4 +126,4 @@ namespace px
 
 }
 
-#endif //GAMMARAYPC_STATISTICS_H
+#endif //PIXELSPC_STATISTICS_H

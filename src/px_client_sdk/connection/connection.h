@@ -2,8 +2,8 @@
 // Created by RGAA on 8/12/2024.
 //
 
-#ifndef GAMMARAYPC_CONNECTION_H
-#define GAMMARAYPC_CONNECTION_H
+#ifndef PIXELSPC_CONNECTION_H
+#define PIXELSPC_CONNECTION_H
 
 #include <string>
 #include <functional>
@@ -73,4 +73,4 @@ namespace px
 
 }
 
-#endif //GAMMARAYPC_CONNECTION_H
+#endif //PIXELSPC_CONNECTION_H

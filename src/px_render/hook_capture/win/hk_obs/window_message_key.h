@@ -8,7 +8,7 @@ namespace px {
 // A value-only envelope, not a pointer to queued storage. RegisterWindowMessage
 // supplies a collision-free process message identity and needs no unregister.
 [[nodiscard]] inline UINT QueuedKeyboardMessage() {
-    static const UINT message{RegisterWindowMessageW(L"GammaRay.OwnedGame.KeyboardState.v1")};
+    static const UINT message{RegisterWindowMessageW(L"Pixels.OwnedGame.KeyboardState.v1")};
     return message;
 }
 

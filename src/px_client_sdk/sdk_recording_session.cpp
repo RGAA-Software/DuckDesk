@@ -15,7 +15,7 @@
 namespace px {
 namespace {
 std::span<const std::uint8_t> EncodedBytes(const std::string& bytes) {
-    // NOLINT(gammaray-raw-pointer-boundary): synchronous view of an owning protobuf string.
+    // NOLINT(pixels-raw-pointer-boundary): synchronous view of an owning protobuf string.
     return {reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size()};
 }
 

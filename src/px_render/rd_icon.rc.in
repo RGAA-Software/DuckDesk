@@ -16,12 +16,12 @@ BEGIN
         BLOCK "040004b0"
         BEGIN
             VALUE "CompanyName", "RGAA"
-            VALUE "FileDescription", "GammaRay Renderer"
+            VALUE "FileDescription", "Pixels Renderer"
             VALUE "FileVersion", "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@"
             VALUE "InternalName", "px_render.exe"
             VALUE "LegalCopyright", "Copyright (c) 2022-2025 RGAA <https://github.com/rgaa-software>"
             VALUE "OriginalFilename", "px_render.exe"
-            VALUE "ProductName", "GammaRayRender"
+            VALUE "ProductName", "Pixels"
             VALUE "ProductVersion", "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@"
         END
     END
@@ -36,5 +36,3 @@ END
 
 // ICON
 //IDI_ICON1 ICON DISCARDABLE "icon.ico"
-
-

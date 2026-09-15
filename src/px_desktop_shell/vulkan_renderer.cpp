@@ -40,7 +40,7 @@ constexpr std::array kOptionalDeviceExtensions{VK_KHR_PUSH_DESCRIPTOR_EXTENSION_
                                                VK_KHR_VIDEO_DECODE_H264_EXTENSION_NAME, VK_KHR_VIDEO_DECODE_H265_EXTENSION_NAME};
 
 void PlaceboLog(void*, const enum pl_log_level level,
-                const char* message) { // NOLINT(gammaray-raw-pointer-boundary): synchronous libplacebo logging callback ABI
+                const char* message) { // NOLINT(pixels-raw-pointer-boundary): synchronous libplacebo logging callback ABI
     if (!message)
         return;
     if (level <= PL_LOG_ERR)
@@ -67,11 +67,11 @@ bool HasEnabledExtension(const pl_vulkan vulkan, const std::string_view required
 }
 
 bool FfmpegSupportsVulkan(const AVCodecID codecId) {
-    const AVCodec* decoder = avcodec_find_decoder(codecId); // NOLINT(gammaray-raw-pointer-boundary): borrowed FFmpeg codec descriptor
+    const AVCodec* decoder = avcodec_find_decoder(codecId); // NOLINT(pixels-raw-pointer-boundary): borrowed FFmpeg codec descriptor
     if (!decoder)
         return false;
     for (int index{};; ++index) {
-        const AVCodecHWConfig* config = avcodec_get_hw_config(decoder, index); // NOLINT(gammaray-raw-pointer-boundary): borrowed FFmpeg descriptor
+        const AVCodecHWConfig* config = avcodec_get_hw_config(decoder, index); // NOLINT(pixels-raw-pointer-boundary): borrowed FFmpeg descriptor
         if (!config)
             return false;
         if (config->device_type == AV_HWDEVICE_TYPE_VULKAN && config->pix_fmt == AV_PIX_FMT_VULKAN)
@@ -185,14 +185,14 @@ struct VulkanRenderer::Impl final {
             pl_log_destroy(&log);
     }
 
-    static void LockDecoderQueue(AVHWDeviceContext* context, // NOLINT(gammaray-raw-pointer-boundary): retained FFmpeg callback ABI
+    static void LockDecoderQueue(AVHWDeviceContext* context, // NOLINT(pixels-raw-pointer-boundary): retained FFmpeg callback ABI
                                  const std::uint32_t family, const std::uint32_t index) {
         const auto self = static_cast<Impl*>(context->user_opaque); // NOLINT: FFmpeg retains callback context for device lifetime
         if (self && self->vulkan)
             self->vulkan->lock_queue(self->vulkan, family, index);
     }
 
-    static void UnlockDecoderQueue(AVHWDeviceContext* context, // NOLINT(gammaray-raw-pointer-boundary): retained FFmpeg callback ABI
+    static void UnlockDecoderQueue(AVHWDeviceContext* context, // NOLINT(pixels-raw-pointer-boundary): retained FFmpeg callback ABI
                                    const std::uint32_t family, const std::uint32_t index) {
         const auto self = static_cast<Impl*>(context->user_opaque); // NOLINT: FFmpeg retains callback context for device lifetime
         if (self && self->vulkan)

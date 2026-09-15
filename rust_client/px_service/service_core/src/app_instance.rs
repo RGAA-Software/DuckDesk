@@ -913,13 +913,9 @@ mod tests {
         req.install_root.clear();
         req.game_exe_rel.clear();
         req.rdp_node_id = "rdp-node".into();
-        req.rdp_account = Some(crate::rdp_account::RdpAccountSpec {
-            workspace_id: "workspace".into(),
-            account_name: "grdp_testaccount".into(),
-            password: zeroize::Zeroizing::new("aA1!01234567890123456789012345678901".into()),
-            credential_version: 1,
-            expected_sid: None,
-        });
+        req.rdp_account = Some(crate::rdp_account::RdpAccountSpec { workspace_id: "workspace".into(),
+            account_name: "prdp_testaccount".into(), password: zeroize::Zeroizing::new("aA1!01234567890123456789012345678901".into()),
+            credential_version: 1, expected_sid: None });
         req
     }
 

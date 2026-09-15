@@ -9,7 +9,7 @@
 namespace px {
 namespace {
 struct EnvironmentCloser final {
-    void operator()(void* value) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): UserEnv ABI; unique owner.
+    void operator()(void* value) const noexcept { // NOLINT(pixels-raw-pointer-boundary): UserEnv ABI; unique owner.
         if (value) {
             DestroyEnvironmentBlock(value);
         }
@@ -17,7 +17,7 @@ struct EnvironmentCloser final {
 };
 using Environment = std::unique_ptr<void, EnvironmentCloser>;
 struct CurrentEnvironmentCloser final {
-    void operator()(wchar_t* value) const noexcept { // NOLINT(gammaray-raw-pointer-boundary) Win32 environment allocation ABI.
+    void operator()(wchar_t* value) const noexcept { // NOLINT(pixels-raw-pointer-boundary) Win32 environment allocation ABI.
         if (value) {
             FreeEnvironmentStringsW(value);
         }
@@ -61,10 +61,10 @@ std::shared_ptr<OwnedGameProcess> OwnedGameProcess::LaunchSuspended(const std::f
     Environment environment{};
     if (console_user) {
         const auto session = WTSGetActiveConsoleSessionId();
-        HANDLE raw_token{}; // NOLINT(gammaray-raw-pointer-boundary): WTSQueryUserToken out parameter immediately wrapped.
+        HANDLE raw_token{}; // NOLINT(pixels-raw-pointer-boundary): WTSQueryUserToken out parameter immediately wrapped.
         if (session != 0xFFFFFFFF && WTSQueryUserToken(session, &raw_token)) {
             token.reset(raw_token);
-            void* raw_environment{}; // NOLINT(gammaray-raw-pointer-boundary): CreateEnvironmentBlock out parameter immediately wrapped.
+            void* raw_environment{}; // NOLINT(pixels-raw-pointer-boundary): CreateEnvironmentBlock out parameter immediately wrapped.
             if (!CreateEnvironmentBlock(&raw_environment, token.get(), FALSE)) {
                 return {};
             }
@@ -80,7 +80,7 @@ std::shared_ptr<OwnedGameProcess> OwnedGameProcess::LaunchSuspended(const std::f
     if (token_policy == GameTokenPolicy::kStandardUser) {
         const bool current_user_token = !token;
         if (!token) {
-            HANDLE source_token{}; // NOLINT(gammaray-raw-pointer-boundary) Win32 token output immediately owned.
+            HANDLE source_token{}; // NOLINT(pixels-raw-pointer-boundary) Win32 token output immediately owned.
             if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_DEFAULT, &source_token)) {
                 return {};
             }
@@ -92,7 +92,7 @@ std::shared_ptr<OwnedGameProcess> OwnedGameProcess::LaunchSuspended(const std::f
             return {};
         }
         if (elevation.TokenIsElevated) {
-            HANDLE restricted_token{}; // NOLINT(gammaray-raw-pointer-boundary) Win32 restricted token output immediately owned.
+            HANDLE restricted_token{}; // NOLINT(pixels-raw-pointer-boundary) Win32 restricted token output immediately owned.
             if (!CreateRestrictedToken(token.get(), LUA_TOKEN, 0, nullptr, 0, nullptr, 0, nullptr, &restricted_token)) {
                 return {};
             }

@@ -39,7 +39,7 @@
   取消、收敛和卸载屏障解决。
 - 不修改 `GetInstance`、加载器句柄、插件实例身份和既有销毁 ABI；不改造
   `src/px_deps/px_webrtc_client` 内部的 libwebrtc borrowed-pointer/Observer 模型。
-- 所有新增或本次触及的 GammaRay C++ 代码执行
+- 所有新增或本次触及的 Pixels C++ 代码执行
   `docs/cpp_smart_pointer_standard.md`：无裸指针、无异步裸 `this` 捕获。
 
 本文件是文件传输异步发送与项目 await 语义的后续权威方案。原
@@ -420,7 +420,7 @@ UDP Direct 的视频/输入可走 UDP，文件继续使用同会话的可靠 WS/
 #### RTC/Direct RTC
 
 - 不改 libwebrtc adapter 结构；
-- GammaRay 包装层监听 `buffered_amount` 和低水位通知；
+- Pixels 包装层监听 `buffered_amount` 和低水位通知；
 - DataChannel `Send()` 接受后才完成为 `kAccepted`；
 - close/error 恢复所有等待 coroutine；
 - callback 只用 weak owner，并 post 回 FT session strand。
@@ -803,7 +803,7 @@ RTC 回包只允许交给完全匹配的 server 实例。旧实例即使仍在 m
   1/4 低水位后恢复；Session stop、Transport close 或 error 会取消挂起 timer，迟到的
   Transport completion 只持有 weak timer，不会访问已经销毁的 Session。
 - Render WS/WSS 和 Relay 使用 asio2/Relay WS 的真实发送完成回调触发低水位；标准 RTC
-  和 Direct RTC 在 GammaRay DataChannel 包装层的 `OnBufferedAmountChange` 中检查
+  和 Direct RTC 在 Pixels DataChannel 包装层的 `OnBufferedAmountChange` 中检查
   `buffered_amount`，不修改 libwebrtc observer ABI 和其既有裸指针合同。
 - Windows Client 的 WS/WSS 与 Relay 同样由真实发送完成触发。Client RTC/Direct RTC
   遵守“不改 `px_webrtc_client` 结构”的约束，暂由既有 16 ms RTC 驱动读取包装层水位并
@@ -1175,7 +1175,7 @@ callback 只发一个消息，Panel 回传配置后同步返回 `true`，真正�
   `PxAsyncScope`，连接 Stop 会先取消操作并等待协程退出，不为每条连接再创建一套 Asio
   线程；
 - libwebrtc adapter、Observer 和插件实例 ABI 均未改造，既有 WebRTC 裸指针边界保持原样；
-  本批新增的 GammaRay C++ 没有裸指针和 `[this]` 捕获。
+  本批新增的 Pixels C++ 没有裸指针和 `[this]` 捕获。
 
 专项验收结果：
 

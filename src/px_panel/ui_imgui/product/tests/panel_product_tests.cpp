@@ -3,9 +3,11 @@
 #include "panel_connection_links.h"
 #include "panel_config_store.h"
 #include "panel_device_name.h"
+#include "environment_diagnostics.h"
 #include "panel_local_server.h"
 #include "panel_system_information.h"
 #include "panel_worker.h"
+#include "windows_environment_probe.h"
 #include "connection_progress_tracker.h"
 
 #include "px_common/base64.h"
@@ -16,6 +18,7 @@
 #include <nlohmann/json.hpp>
 #include <asio2/websocket/ws_client.hpp>
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -158,6 +161,86 @@ TEST(PanelWorkerTest, StopIsIdempotentAndRejectsNewWork) {
     worker->Stop();
     worker->Stop();
     EXPECT_FALSE(worker->Post([] {}));
+}
+
+TEST(EnvironmentDiagnosticsTest, RefreshesOnThePanelWorkerAndPublishesACompleteGeneration) {
+    const auto worker = PanelWorker::Create();
+    ASSERT_TRUE(worker);
+    const auto calls = std::make_shared<std::atomic_uint32_t>();
+    const auto diagnostics = EnvironmentDiagnostics::Create(worker, [calls] {
+        ++*calls;
+        return std::vector<ui::EnvironmentCheckStatus>{
+            {.id = ui::EnvironmentCheckId::Audio, .state = ui::EnvironmentCheckState::Ready, .technicalDetail = "test endpoint"}};
+    });
+    ASSERT_TRUE(diagnostics);
+
+    const auto waitForGeneration = [&diagnostics](const std::uint64_t generation) {
+        for (int attempt{}; attempt < 100; ++attempt) {
+            const auto snapshot = diagnostics->Snapshot();
+            if (!snapshot.refreshing && snapshot.generation >= generation)
+                return snapshot;
+            std::this_thread::sleep_for(std::chrono::milliseconds{10});
+        }
+        return diagnostics->Snapshot();
+    };
+    const auto first = waitForGeneration(1);
+    ASSERT_FALSE(first.refreshing);
+    ASSERT_EQ(first.checks.size(), 1U);
+    EXPECT_EQ(first.checks.front().technicalDetail, "test endpoint");
+
+    ASSERT_TRUE(diagnostics->Refresh());
+    const auto second = waitForGeneration(2);
+    EXPECT_FALSE(second.refreshing);
+    EXPECT_EQ(second.generation, 2U);
+    EXPECT_EQ(calls->load(), 2U);
+    worker->Stop();
+}
+
+TEST(EnvironmentDiagnosticsTest, DestructionWithAProbeInFlightIsSafe) {
+    struct ProbeGate final {
+        std::mutex mutex{};
+        std::condition_variable started{};
+        std::condition_variable released{};
+        bool didStart{};
+        bool mayFinish{};
+    };
+    const auto worker = PanelWorker::Create();
+    ASSERT_TRUE(worker);
+    const auto gate = std::make_shared<ProbeGate>();
+    auto diagnostics = EnvironmentDiagnostics::Create(worker, [gate] {
+        std::unique_lock lock{gate->mutex};
+        gate->didStart = true;
+        gate->started.notify_all();
+        gate->released.wait(lock, [gate] { return gate->mayFinish; });
+        return InitialEnvironmentChecks();
+    });
+    ASSERT_TRUE(diagnostics);
+    {
+        std::unique_lock lock{gate->mutex};
+        ASSERT_TRUE(gate->started.wait_for(lock, std::chrono::seconds{2}, [gate] { return gate->didStart; }));
+    }
+    EXPECT_FALSE(diagnostics->Refresh());
+    diagnostics.reset();
+    {
+        const std::scoped_lock lock{gate->mutex};
+        gate->mayFinish = true;
+    }
+    gate->released.notify_all();
+    worker->Stop();
+}
+
+TEST(EnvironmentDiagnosticsTest, WindowsProbeReturnsEverySupportedCheckExactlyOnce) {
+    const auto checks = ProbeWindowsEnvironment();
+    ASSERT_EQ(checks.size(), 8U);
+    std::array<bool, 8> seen{};
+    for (const auto& check : checks) {
+        const auto index = static_cast<std::size_t>(check.id);
+        ASSERT_LT(index, seen.size());
+        EXPECT_FALSE(seen.at(index));
+        seen.at(index) = true;
+        EXPECT_NE(check.state, ui::EnvironmentCheckState::Checking);
+    }
+    EXPECT_TRUE(std::ranges::all_of(seen, std::identity{}));
 }
 
 TEST(ConnectionProgressTrackerTest, TracksOrderedPreflightAndCompletion) {

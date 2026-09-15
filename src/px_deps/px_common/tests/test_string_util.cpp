@@ -96,7 +96,7 @@ TEST(StringUtilTest, ToWStringToUTF8RoundTrip) {
 }
 
 TEST(StringUtilTest, UnicodeToWStringToUTF8RoundTrip) {
-    const std::string original = "GammaRay 中文 \xF0\x9F\x9A\x80";
+    const std::string original = "Pixels 中文 \xF0\x9F\x9A\x80";
     const auto wstr = StringUtil::ToWString(original);
     ASSERT_FALSE(wstr.empty());
     EXPECT_EQ(StringUtil::ToUTF8(wstr), original);

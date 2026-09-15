@@ -1,0 +1,15 @@
+Archive batch: gammaray_legacy_retirement_20260915
+Date: 2026-09-15
+Base revision: 43b4b2abe (HEAD at archive time); files carry uncommitted Pixels-rename working-tree changes
+Local modification status: archived from the live working tree, preserving uncommitted contents
+
+Retirement reason:
+Product decision (2026-09-15): pre-Pixels legacy identifiers are removed outright instead of
+being kept for read-only/cleanup upgrade compatibility. Covered items: GammaRayService install/uninstall
+cleanup, "GammaRay RDP" account-marker fallback, "GammaRay/RdpWorkspace" secret schema 1 decryption,
+GammaRayPremium PxSysMonitor config fallback, gammaray-console-theme localStorage fallback,
+gammaray-rdp-sdk.json manifest fallback, and the grdp_ RDP account prefix (unified to prdp_).
+The NOLINT label gammaray-raw-pointer-boundary and GAMMARAYPC_/GAMMARAYPREMIUM_/GAMMARAYSERVER_
+header guards are mechanically renamed in place (no logic change), so those files are not archived here.
+
+These copies are reference-only and are excluded from builds, tests, packaging and runtime loading.

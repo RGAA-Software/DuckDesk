@@ -15,7 +15,7 @@ namespace px
 
         // Get primary monitor info using Win32 API
         POINT pt{};
-        HMONITOR hPrimary = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);  // NOLINT(gammaray-raw-pointer-boundary): borrowed monitor handle.
+        HMONITOR hPrimary = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);  // NOLINT(pixels-raw-pointer-boundary): borrowed monitor handle.
         MONITORINFO primaryMi = { sizeof(MONITORINFO) };
         RECT primaryRect = {};
         if (hPrimary && GetMonitorInfoW(hPrimary, &primaryMi)) {

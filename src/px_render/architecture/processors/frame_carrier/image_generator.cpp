@@ -79,7 +79,7 @@ std::shared_ptr<Image> ImageGenerator::CreateGrayscaleWithText(int w, int h, int
     auto img_data = image->GetData();
     auto destination = img_data->MutableBytes();
     const auto source = std::span{
-        static_cast<const std::uint8_t*>(bits),  // NOLINT(gammaray-raw-pointer-boundary): CreateDIBSection pixel view.
+        static_cast<const std::uint8_t*>(bits),  // NOLINT(pixels-raw-pointer-boundary): CreateDIBSection pixel view.
         static_cast<std::size_t>(w) * static_cast<std::size_t>(h) * 4U};
 
     for (int y = 0; y < h; y++) {

@@ -15,7 +15,7 @@ function Add-StimulusForms {
         $screenIndex = $script:forms.Count
         $screen = $screens[$screenIndex]
         $form = New-Object System.Windows.Forms.Form
-        $form.Text = "GammaRay capture stimulus - screen $screenIndex"
+        $form.Text = "Pixels capture stimulus - screen $screenIndex"
         $form.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
         $form.Location = New-Object System.Drawing.Point(($screen.Bounds.Left + 80), ($screen.Bounds.Top + 80))
         $form.Size = New-Object System.Drawing.Size(420, 160)
@@ -27,7 +27,7 @@ function Add-StimulusForms {
         $label.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
         $label.Font = New-Object System.Drawing.Font('Segoe UI', 18, [System.Drawing.FontStyle]::Bold)
         $label.ForeColor = [System.Drawing.Color]::White
-        $label.Text = "GammaRay E2E screen $screenIndex"
+        $label.Text = "Pixels E2E screen $screenIndex"
         $form.Controls.Add($label)
         $form.Show()
 
@@ -60,7 +60,7 @@ $timer.Add_Tick({
         }
         $script:forms[$i].BackColor = $color
         $script:labels[$i].BackColor = $color
-        $script:labels[$i].Text = "GammaRay E2E screen $i`n$([DateTime]::Now.ToString('HH:mm:ss.fff'))"
+        $script:labels[$i].Text = "Pixels E2E screen $i`n$([DateTime]::Now.ToString('HH:mm:ss.fff'))"
     }
     if (([DateTime]::UtcNow - $script:started).TotalSeconds -ge $LifetimeSeconds) {
         $timer.Stop()

@@ -19,10 +19,10 @@ if ([string]::IsNullOrWhiteSpace($RenderDir)) {
 }
 $renderExe = Join-Path $renderDir "px_render.exe"
 $pageRoot = Join-Path $repoRoot "tests\webview_e2e"
-$outputRoot = Join-Path ([System.IO.Path]::GetTempPath()) "GammaRayPremium\webview-smoke"
+$outputRoot = Join-Path ([System.IO.Path]::GetTempPath()) "Pixels\webview-smoke"
 $eventsFile = Join-Path $outputRoot "events.jsonl"
 $instanceId = "smoke-$([Guid]::NewGuid().ToString('N'))"
-$profilePath = Join-Path ([System.IO.Path]::GetTempPath()) "GammaRayPremium\cef\$instanceId"
+$profilePath = Join-Path ([System.IO.Path]::GetTempPath()) "Pixels\cef\$instanceId"
 $logFile = Join-Path $env:PUBLIC "Pixels\px_logs\pixels_render_$RenderPort.log"
 $server = $null
 $render = $null

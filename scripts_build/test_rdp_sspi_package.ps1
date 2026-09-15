@@ -1,7 +1,8 @@
 $ErrorActionPreference='Stop'
 $env:WINPR_NATIVE_SSPI='0'
 $env:OPENSSL_MODULES='C:/source/vcpkg/installed/x64-windows/bin'
-$env:PATH="D:/source/GoCloud/GammaRayPremium/.cache/rdp_proxy_probe/winpr/libwinpr/Release;$env:PATH"
+$repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$env:PATH="$(Join-Path $repoRoot '.cache/rdp_proxy_probe/winpr/libwinpr/Release');$env:PATH"
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;

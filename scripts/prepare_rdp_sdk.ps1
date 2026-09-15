@@ -106,6 +106,6 @@ Get-ChildItem -LiteralPath (Join-Path $SdkDirectory 'bin') -File -Filter '*.dll'
 $manifest = [ordered]@{ schema = 1; freerdp_revision = $revision; freerdp_patch_sha256 = $patchHash;
     h264_decoder = 'media-foundation'; vcpkg_revision = $vcpkgRevision; dependency_manifest_sha256 = $dependencyHash;
     proxy_exe_sha256 = (Get-SdkHash (Join-Path $SdkDirectory 'bin/freerdp-proxy.exe')); runtime_sha256 = $runtime }
-[IO.File]::WriteAllText((Join-Path $SdkDirectory 'gammaray-rdp-sdk.json'), ($manifest | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $SdkDirectory 'pixels-rdp-sdk.json'), ($manifest | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
 & (Join-Path $PSScriptRoot 'verify_rdp_sdk.ps1') -SdkDirectory $SdkDirectory
 Write-Host "Pinned SDK installed: $SdkDirectory"

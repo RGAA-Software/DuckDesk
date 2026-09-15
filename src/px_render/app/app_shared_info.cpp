@@ -11,7 +11,7 @@
 namespace px {
 namespace {
 struct LocalMemoryCloser final {
-    void operator()(void* value) const noexcept { // NOLINT(gammaray-raw-pointer-boundary) LocalAlloc output ownership.
+    void operator()(void* value) const noexcept { // NOLINT(pixels-raw-pointer-boundary) LocalAlloc output ownership.
         if (value) {
             LocalFree(value);
         }
@@ -30,7 +30,7 @@ std::optional<std::wstring> UserSid(const UniqueWinHandle& token) {
     if (!GetTokenInformation(token.get(), TokenUser, information.data(), length, &length)) {
         return {};
     }
-    LPWSTR result{}; // NOLINT(gammaray-raw-pointer-boundary) SID string API output immediately wrapped.
+    LPWSTR result{}; // NOLINT(pixels-raw-pointer-boundary) SID string API output immediately wrapped.
     if (!ConvertSidToStringSidW(reinterpret_cast<const TOKEN_USER*>(information.data())->User.Sid, &result)) {
         return {};
     }
@@ -53,12 +53,12 @@ bool AppSharedInfo::WriteBootConfig(const UniqueWinHandle& admitted_process, con
     if (!admitted_process || data.size() > std::numeric_limits<DWORD>::max()) {
         return false;
     }
-    HANDLE game_result{}; // NOLINT(gammaray-raw-pointer-boundary) Win32 token output immediately wrapped.
+    HANDLE game_result{}; // NOLINT(pixels-raw-pointer-boundary) Win32 token output immediately wrapped.
     if (!OpenProcessToken(admitted_process.get(), TOKEN_QUERY, &game_result)) {
         return false;
     }
     const UniqueWinHandle game_token{game_result};
-    HANDLE writer_result{}; // NOLINT(gammaray-raw-pointer-boundary) Win32 token output immediately wrapped.
+    HANDLE writer_result{}; // NOLINT(pixels-raw-pointer-boundary) Win32 token output immediately wrapped.
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &writer_result)) {
         return false;
     }
@@ -69,7 +69,7 @@ bool AppSharedInfo::WriteBootConfig(const UniqueWinHandle& admitted_process, con
         return false;
     }
     const auto sddl = std::format(L"D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FA;;;{})(A;;GR;;;{})", *writer_sid, *game_sid);
-    PSECURITY_DESCRIPTOR descriptor_result{}; // NOLINT(gammaray-raw-pointer-boundary) SDDL output immediately wrapped.
+    PSECURITY_DESCRIPTOR descriptor_result{}; // NOLINT(pixels-raw-pointer-boundary) SDDL output immediately wrapped.
     if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.c_str(), SDDL_REVISION_1, &descriptor_result, nullptr)) {
         return false;
     }

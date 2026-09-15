@@ -9,7 +9,7 @@
 namespace px {
 
 struct WinHandleCloser final {
-    void operator()(void* handle) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): opaque Win32 HANDLE boundary.
+    void operator()(void* handle) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): opaque Win32 HANDLE boundary.
         if (handle && handle != INVALID_HANDLE_VALUE) CloseHandle(handle);
     }
 };
@@ -17,7 +17,7 @@ struct WinHandleCloser final {
 using UniqueWinHandle = std::unique_ptr<void, WinHandleCloser>;
 
 struct WinIconCloser final {
-    void operator()(std::remove_pointer_t<HICON>* icon) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): HICON ABI.
+    void operator()(std::remove_pointer_t<HICON>* icon) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): HICON ABI.
         if (icon != nullptr) {
             DestroyIcon(icon);
         }
@@ -27,7 +27,7 @@ struct WinIconCloser final {
 using UniqueWinIcon = std::unique_ptr<std::remove_pointer_t<HICON>, WinIconCloser>;
 
 struct WinHookCloser final {
-    void operator()(std::remove_pointer_t<HHOOK>* hook) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): owned Win32 hook ABI.
+    void operator()(std::remove_pointer_t<HHOOK>* hook) const noexcept { // NOLINT(pixels-raw-pointer-boundary): owned Win32 hook ABI.
         if (hook) { UnhookWindowsHookEx(hook); }
     }
 };

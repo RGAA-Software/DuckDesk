@@ -478,7 +478,7 @@ void VoiceCallRuntime::ProcessAudioFrame(const std::shared_ptr<Message>& message
     if (endpoint && !frame.opus().empty()) {
         endpoint->ReceiveOpus(frame.sequence(), frame.capture_time_ms(),
                               std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(frame.opus().data()),
-                                                       frame.opus().size())); // NOLINT(gammaray-raw-pointer-boundary): protobuf byte-view boundary
+                                                       frame.opus().size())); // NOLINT(pixels-raw-pointer-boundary): protobuf byte-view boundary
     }
 }
 
@@ -493,7 +493,7 @@ void VoiceCallRuntime::SendResponse(const std::string& device_id, const std::str
     response.set_request_id(request_id);
     response.set_accepted(accepted);
     response.set_reason(reason);
-    SendStreamMessage(stream_id, ProtoAsData(&message)); // NOLINT(gammaray-raw-pointer-boundary): synchronous protobuf conversion
+    SendStreamMessage(stream_id, ProtoAsData(&message)); // NOLINT(pixels-raw-pointer-boundary): synchronous protobuf conversion
 }
 
 void VoiceCallRuntime::SendConfig(const std::string& device_id, const std::string& stream_id, const std::string& call_id) {
@@ -509,7 +509,7 @@ void VoiceCallRuntime::SendConfig(const std::string& device_id, const std::strin
     config.set_bitrate_bps(VoiceAudioEndpoint::kBitrateBps);
     config.set_fec(true);
     config.set_dtx(false);
-    SendStreamMessage(stream_id, ProtoAsData(&message)); // NOLINT(gammaray-raw-pointer-boundary): synchronous protobuf conversion
+    SendStreamMessage(stream_id, ProtoAsData(&message)); // NOLINT(pixels-raw-pointer-boundary): synchronous protobuf conversion
 }
 
 void VoiceCallRuntime::QueueAudioFrame(const std::string& stream_id, const std::string& call_id, uint32_t sequence, uint64_t capture_time_ms,
@@ -544,7 +544,7 @@ void VoiceCallRuntime::DispatchAudioFrame(const std::string& device_id, const st
     frame.set_sequence(packet.sequence);
     frame.set_capture_time_ms(packet.capture_time_ms);
     frame.set_opus(packet.opus.data(), packet.opus.size());
-    SendStreamMessage(stream_id, ProtoAsData(&message)); // NOLINT(gammaray-raw-pointer-boundary): synchronous protobuf conversion
+    SendStreamMessage(stream_id, ProtoAsData(&message)); // NOLINT(pixels-raw-pointer-boundary): synchronous protobuf conversion
 }
 
 void VoiceCallRuntime::SendStreamMessage(const std::string& stream_id, const std::shared_ptr<Data>& data) {
@@ -672,7 +672,7 @@ void VoiceCallRuntime::EndCall(const std::string& call_id, bool notify_remote, c
         request.set_call_id(call_id);
         request.set_request_id(request_id);
         request.set_connect(false);
-        SendStreamMessage(stream_id, ProtoAsData(&message)); // NOLINT(gammaray-raw-pointer-boundary): synchronous protobuf conversion
+        SendStreamMessage(stream_id, ProtoAsData(&message)); // NOLINT(pixels-raw-pointer-boundary): synchronous protobuf conversion
     }
 }
 

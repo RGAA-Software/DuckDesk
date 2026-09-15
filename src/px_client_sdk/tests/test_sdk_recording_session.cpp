@@ -203,7 +203,7 @@ std::shared_ptr<Message> Keyframe() {
     video.set_frame_height(64);
     video.set_key(true);
     video.set_mon_index(2);                     // A single selected remote monitor need not be mon0.
-    video.set_data(bytes.data(), bytes.size()); // NOLINT(gammaray-raw-pointer-boundary): synchronous protobuf copy.
+    video.set_data(bytes.data(), bytes.size()); // NOLINT(pixels-raw-pointer-boundary): synchronous protobuf copy.
     return message;
 }
 

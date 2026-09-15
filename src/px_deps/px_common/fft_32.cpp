@@ -14,13 +14,13 @@ namespace px {
 namespace {
 
 struct FftBufferCloser final {
-    void operator()(fftw_complex* buffer) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): FFTW allocation ABI.
+    void operator()(fftw_complex* buffer) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): FFTW allocation ABI.
         fftw_free(buffer);
     }
 };
 
 struct FftPlanCloser final {
-    void operator()(std::remove_pointer_t<fftw_plan>* plan) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): FFTW plan ABI.
+    void operator()(std::remove_pointer_t<fftw_plan>* plan) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): FFTW plan ABI.
         if (plan != nullptr) {
             fftw_destroy_plan(plan);
         }

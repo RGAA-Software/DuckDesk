@@ -2,8 +2,8 @@
 // Created by RGAA on 10/08/2025.
 //
 
-#ifndef GAMMARAYPREMIUM_RTC_LOCAL_ENCODED_FRAME_H
-#define GAMMARAYPREMIUM_RTC_LOCAL_ENCODED_FRAME_H
+#ifndef PIXELSPREMIUM_RTC_LOCAL_ENCODED_FRAME_H
+#define PIXELSPREMIUM_RTC_LOCAL_ENCODED_FRAME_H
 
 #include <string>
 #include <memory>
@@ -31,4 +31,4 @@ class RtcLocalEncodedVideoFrame {
 
 } // namespace px
 
-#endif // GAMMARAYPREMIUM_RTC_LOCAL_ENCODED_FRAME_H
+#endif // PIXELSPREMIUM_RTC_LOCAL_ENCODED_FRAME_H

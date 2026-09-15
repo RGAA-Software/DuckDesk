@@ -204,7 +204,7 @@ std::wstring MakeProfilePath(const std::string& instance_id) {
     }
     wchar_t temp[MAX_PATH]{};
     GetTempPathW(MAX_PATH, temp);
-    return (std::filesystem::path(temp) / "GammaRayPremium" / "cef" / safe).wstring();
+    return (std::filesystem::path(temp) / "Pixels" / "cef" / safe).wstring();
 }
 
 class WebViewCefApp final : public CefApp, public CefBrowserProcessHandler {

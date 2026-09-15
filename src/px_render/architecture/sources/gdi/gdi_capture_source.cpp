@@ -258,7 +258,7 @@ namespace px
     }
 
     static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData) {
-        auto& source = *reinterpret_cast<GdiCaptureSource*>(dwData); // NOLINT(gammaray-raw-pointer-boundary): synchronous Win32 enumeration callback
+        auto& source = *reinterpret_cast<GdiCaptureSource*>(dwData); // NOLINT(pixels-raw-pointer-boundary): synchronous Win32 enumeration callback
         MONITORINFOEX monitorInfo;
         monitorInfo.cbSize = sizeof(MONITORINFOEX);
         GetMonitorInfo(hMonitor, &monitorInfo);

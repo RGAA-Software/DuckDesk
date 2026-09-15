@@ -31,14 +31,9 @@ pub struct RdpAccountIdentity {
 
 impl RdpAccountSpec {
     pub fn validate(&self) -> Result<(), String> {
-        if self.workspace_id.is_empty()
-            || self.workspace_id.len() > 128
-            || !self
-                .workspace_id
-                .bytes()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_'))
-            || !self.account_name.starts_with("grdp_")
-            || self.account_name.len() > 20
+        if self.workspace_id.is_empty() || self.workspace_id.len() > 128
+            || !self.workspace_id.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_'))
+            || !self.account_name.starts_with("prdp_") || self.account_name.len() > 20
             || self.account_name.len() < 8
             || !self
                 .account_name
@@ -58,12 +53,7 @@ impl RdpAccountSpec {
         Ok(())
     }
 
-    fn marker(&self) -> String {
-        format!(
-            "GammaRay RDP:{}:{}",
-            self.workspace_id, self.credential_version
-        )
-    }
+    fn marker(&self) -> String { format!("Pixels RDP:{}:{}", self.workspace_id, self.credential_version) }
 }
 
 #[cfg(windows)]
@@ -241,11 +231,9 @@ mod platform {
             }
         } else if status == 0 && !existing.0.is_null() {
             let info = unsafe { &*existing.0.cast::<USER_INFO_1>() };
-            let marker = unsafe { info.usri1_comment.to_string() }
-                .map_err(|_| "RDP account marker invalid".to_string())?;
-            let prefix = format!("GammaRay RDP:{}:", spec.workspace_id);
-            applied_version = marker
-                .strip_prefix(&prefix)
+            let marker = unsafe { info.usri1_comment.to_string() }.map_err(|_| "RDP account marker invalid".to_string())?;
+            let pixels_prefix = format!("Pixels RDP:{}:", spec.workspace_id);
+            applied_version = marker.strip_prefix(&pixels_prefix)
                 .and_then(|version| version.parse::<u32>().ok())
                 .filter(|version| *version > 0 && *version <= spec.credential_version)
                 .ok_or_else(|| {
@@ -345,26 +333,13 @@ pub use platform::ensure as ensure_standard_account;
 mod tests {
     use super::*;
     fn sample() -> RdpAccountSpec {
-        RdpAccountSpec {
-            workspace_id: "workspace-1".into(),
-            account_name: "grdp_testaccount".into(),
-            password: Zeroizing::new("aA1!01234567890123456789012345678901".into()),
-            credential_version: 1,
-            expected_sid: None,
-        }
+        RdpAccountSpec { workspace_id: "workspace-1".into(), account_name: "prdp_testaccount".into(),
+            password: Zeroizing::new("aA1!01234567890123456789012345678901".into()), credential_version: 1, expected_sid: None }
     }
     #[test]
     fn never_accepts_administrator_or_unmanaged_names() {
-        for name in [
-            "Administrator",
-            "usbtest2",
-            "grdp_a/b",
-            "grdp_",
-            "grdp_name;command",
-        ] {
-            let mut spec = sample();
-            spec.account_name = name.into();
-            assert!(spec.validate().is_err());
+        for name in ["Administrator", "usbtest2", "grdp_a/b", "grdp_", "grdp_name;command", "grdp_testaccount"] {
+            let mut spec = sample(); spec.account_name = name.into(); assert!(spec.validate().is_err());
         }
     }
     #[test]

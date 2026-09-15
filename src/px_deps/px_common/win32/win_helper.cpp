@@ -34,7 +34,7 @@ namespace px
 {
     namespace {
         struct ModuleCloser final {
-            void operator()(std::remove_pointer_t<HMODULE>* module) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): HMODULE ABI.
+            void operator()(std::remove_pointer_t<HMODULE>* module) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): HMODULE ABI.
                 if (module != nullptr) {
                     FreeLibrary(module);
                 }
@@ -43,7 +43,7 @@ namespace px
         using UniqueModule = std::unique_ptr<std::remove_pointer_t<HMODULE>, ModuleCloser>;
 
         struct DesktopCloser final {
-            void operator()(std::remove_pointer_t<HDESK>* desktop) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): HDESK ABI.
+            void operator()(std::remove_pointer_t<HDESK>* desktop) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): HDESK ABI.
                 if (desktop != nullptr) {
                     CloseDesktop(desktop);
                 }
@@ -52,7 +52,7 @@ namespace px
         using UniqueDesktop = std::unique_ptr<std::remove_pointer_t<HDESK>, DesktopCloser>;
 
         struct WtsMemoryCloser final {
-            void operator()(TCHAR* memory) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): WTS allocation ABI.
+            void operator()(TCHAR* memory) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): WTS allocation ABI.
                 WTSFreeMemory(memory);
             }
         };
@@ -298,7 +298,7 @@ namespace px
     }
 
     bool WinHelper::DontCareDPI() {
-        using SetProcessDpiAwarenessFunc = BOOL(__stdcall*)(DPI_AWARENESS_CONTEXT);  // NOLINT(gammaray-raw-pointer-boundary): Win32 ABI.
+        using SetProcessDpiAwarenessFunc = BOOL(__stdcall*)(DPI_AWARENESS_CONTEXT);  // NOLINT(pixels-raw-pointer-boundary): Win32 ABI.
         const UniqueModule user32{LoadLibraryW(L"User32.dll")};
         if (!user32) {
             return false;
@@ -310,7 +310,7 @@ namespace px
 
 
     bool WinHelper::InputDesktopSelected() {
-        const HDESK current = GetThreadDesktop(GetCurrentThreadId());  // NOLINT(gammaray-raw-pointer-boundary): borrowed thread desktop.
+        const HDESK current = GetThreadDesktop(GetCurrentThreadId());  // NOLINT(pixels-raw-pointer-boundary): borrowed thread desktop.
         const UniqueDesktop input{OpenInputDesktop(0, FALSE,
             DESKTOP_CREATEMENU | DESKTOP_CREATEWINDOW |
             DESKTOP_ENUMERATE | DESKTOP_HOOKCONTROL |
@@ -380,7 +380,7 @@ namespace px
 
     bool WinHelper::IsSessionLocked() {
         const DWORD sessionId = WTSGetActiveConsoleSessionId();
-        LPTSTR buffer_raw{};  // NOLINT(gammaray-raw-pointer-boundary): WTS out parameter, immediately RAII-wrapped.
+        LPTSTR buffer_raw{};  // NOLINT(pixels-raw-pointer-boundary): WTS out parameter, immediately RAII-wrapped.
         DWORD bytesReturned{};
         if (WTSQuerySessionInformation(
             WTS_CURRENT_SERVER_HANDLE,

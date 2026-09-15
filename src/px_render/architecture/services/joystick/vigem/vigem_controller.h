@@ -40,10 +40,10 @@ namespace px
 
     private:
         struct ClientDeleter final {
-            void operator()(std::remove_pointer_t<PVIGEM_CLIENT>* client) const noexcept; // NOLINT(gammaray-raw-pointer-boundary): ViGEm C handle boundary
+            void operator()(std::remove_pointer_t<PVIGEM_CLIENT>* client) const noexcept; // NOLINT(pixels-raw-pointer-boundary): ViGEm C handle boundary
         };
         struct TargetDeleter final {
-            void operator()(std::remove_pointer_t<PVIGEM_TARGET>* target) const noexcept; // NOLINT(gammaray-raw-pointer-boundary): ViGEm C handle boundary
+            void operator()(std::remove_pointer_t<PVIGEM_TARGET>* target) const noexcept; // NOLINT(pixels-raw-pointer-boundary): ViGEm C handle boundary
         };
         using ClientHandle = std::unique_ptr<
             std::remove_pointer_t<PVIGEM_CLIENT>, ClientDeleter>;

@@ -711,7 +711,7 @@ onBeforeUnmount(() => {
     @pointermove="onBallPointerMove"
     @pointerup="onBallPointerUp"
   >
-    <img class="ball-logo" :src="logoUrl" alt="GammaRay" draggable="false" />
+    <img class="ball-logo" :src="logoUrl" alt="Pixels" draggable="false" />
   </div>
 
   <!-- 主面板 -->

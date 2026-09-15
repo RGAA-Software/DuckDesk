@@ -23,10 +23,10 @@ class RtcSharedVideoEncoder : public webrtc::VideoEncoder {
   public:
     explicit RtcSharedVideoEncoder(const std::shared_ptr<RtcServer>& server);
     ~RtcSharedVideoEncoder() override;
-    int32_t InitEncode(const webrtc::VideoCodec* codec_settings, // NOLINT(gammaray-raw-pointer-boundary): libwebrtc VideoEncoder ABI
+    int32_t InitEncode(const webrtc::VideoCodec* codec_settings, // NOLINT(pixels-raw-pointer-boundary): libwebrtc VideoEncoder ABI
                        const webrtc::VideoEncoder::Settings& settings) override;
     int32_t Release() override;
-    int32_t RegisterEncodeCompleteCallback(webrtc::EncodedImageCallback* callback) override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ABI
+    int32_t RegisterEncodeCompleteCallback(webrtc::EncodedImageCallback* callback) override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ABI
         if (callback) {
             encoded_image_callback_.emplace(*callback);
         } else {
@@ -36,7 +36,7 @@ class RtcSharedVideoEncoder : public webrtc::VideoEncoder {
     }
     void SetRates(const RateControlParameters& parameters) override;
     int32_t Encode(const webrtc::VideoFrame& frame,
-                   const std::vector<webrtc::VideoFrameType>* frame_types) override; // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ABI
+                   const std::vector<webrtc::VideoFrameType>* frame_types) override; // NOLINT(pixels-raw-pointer-boundary): libwebrtc ABI
     webrtc::VideoEncoder::EncoderInfo GetEncoderInfo() const override;
     void OnPacketLossRateUpdate(float packet_loss_rate) override;
 

@@ -1,4 +1,4 @@
-# GammaRay/GoDesk 架构总览
+# Pixels 架构总览
 
 > 2026-09-11 桌面 UI 迁移决策：共享 SDL3 + Dear ImGui UI 基础，Windows 首版使用 D3D11 后端；先完成 Panel，再迁移 Client。
 > UI 迁移保持现有业务逻辑、配置和协议，包括恢复的 WebSocket 媒体直连、WebSocket Relay、force_tcp/force_relay 和现有 RDP 入口。
@@ -134,7 +134,7 @@ WS + UDP 模式中，WS 在会话准入后记录短期的首次 UDP 媒体端点
 - game-hook 采集/注入总纲：`game_hook_capture_plan.md`（含 §10 UE boot/view、§11 事件重放与焦点保持）
 - 音频采集（PID loopback / 进程内 hook）：`game_hook_audio_capture.md`
 - Console 调度状态与测试：`console_app_schedule_plan.md`、`console_app_schedule_state.md`
-- 构建/部署：`../build_doc.md`、`gammaray/How_to_*.md`
+- 构建/部署：`../build_doc.md`、`pixels/How_to_*.md`
 - WebRTC/Coturn 配置、构建与验收：`webrtc_coturn_implementation_plan.md`
 - 多用户会话、控制租约与无 Console 直连产品契约：`logical_session_product_definition.md`
 - Pixels Android 最终产品、架构、删除范围和交付门禁：`android_pixels_product_plan.md`

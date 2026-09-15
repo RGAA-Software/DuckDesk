@@ -69,7 +69,7 @@ PxAwaitable<void> ExerciseAsyncFile(std::shared_ptr<PxAsyncRuntime> runtime, std
         co_return;
     }
     const auto file = opened.TakeValue();
-    const auto first = BytesFromString("GammaRay-");
+    const auto first = BytesFromString("Pixels-");
     const auto second = BytesFromString("中文-\xF0\x9F\x9A\x80");
     const auto large_offset = (2ULL * 1024ULL * 1024ULL * 1024ULL) + 7ULL;
 
@@ -91,7 +91,7 @@ PxAwaitable<void> ExerciseAsyncFile(std::shared_ptr<PxAsyncRuntime> runtime, std
 
     const auto combined = co_await PxAsyncFile::ReadAtAsync(file, 0, first->size() + second->size(), deadline);
     const auto past_end = co_await PxAsyncFile::ReadAtAsync(file, large_offset, 1, deadline);
-    if (!combined || !past_end || StringFromBytes(*combined.Value()) != "GammaRay-中文-\xF0\x9F\x9A\x80" || !past_end.Value()->empty()) {
+    if (!combined || !past_end || StringFromBytes(*combined.Value()) != "Pixels-中文-\xF0\x9F\x9A\x80" || !past_end.Value()->empty()) {
         completion->set_value(
             PxResult<void>::Failure(MakePxAsyncError(PxAsyncErrorCode::kIoError, "test.read", "async read returned unexpected data")));
         co_return;
@@ -115,7 +115,7 @@ PxAwaitable<void> ExerciseAsyncFile(std::shared_ptr<PxAsyncRuntime> runtime, std
 }
 
 TEST(AsyncFileTest, SupportsUnicodePathsRandomAccessAndIdempotentClose) {
-    TemporaryFilePath temporary("gammaray-异步文件-\xF0\x9F\x9A\x80.bin");
+    TemporaryFilePath temporary("pixels-异步文件-\xF0\x9F\x9A\x80.bin");
     ASSERT_FALSE(temporary.Get().empty());
     const auto runtime = PxAsyncRuntime::Create({.worker_threads = 2, .blocking_threads = 2, .max_pending_blocking_tasks = 16});
     ASSERT_TRUE(runtime->Start());
@@ -142,7 +142,7 @@ PxAwaitable<void> ExerciseExpiredDeadline(std::shared_ptr<PxAsyncRuntime> runtim
 }
 
 TEST(AsyncFileTest, RejectsExpiredOpenDeadline) {
-    TemporaryFilePath temporary("gammaray-expired-file.bin");
+    TemporaryFilePath temporary("pixels-expired-file.bin");
     const auto runtime = PxAsyncRuntime::Create({.worker_threads = 1, .blocking_threads = 1, .max_pending_blocking_tasks = 4});
     ASSERT_TRUE(runtime->Start());
     const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kControl);

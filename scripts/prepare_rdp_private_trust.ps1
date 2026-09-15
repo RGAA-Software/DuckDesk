@@ -28,14 +28,14 @@ $rdpKey = [Security.Cryptography.RSA]::Create(3072)
 $rdpCaKey = [Security.Cryptography.RSA]::Create(3072)
 try {
     $now = [DateTimeOffset]::UtcNow
-    $caRequest = [Security.Cryptography.X509Certificates.CertificateRequest]::new("CN=GammaRay $Role Private Deployment CA",
+    $caRequest = [Security.Cryptography.X509Certificates.CertificateRequest]::new("CN=Pixels $Role Private Deployment CA",
         $rdpCaKey, [Security.Cryptography.HashAlgorithmName]::SHA256, [Security.Cryptography.RSASignaturePadding]::Pkcs1)
     $caRequest.CertificateExtensions.Add([Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]::new($true, $true, 0, $true))
     $caRequest.CertificateExtensions.Add([Security.Cryptography.X509Certificates.X509KeyUsageExtension]::new(
         [Security.Cryptography.X509Certificates.X509KeyUsageFlags]::KeyCertSign -bor
         [Security.Cryptography.X509Certificates.X509KeyUsageFlags]::CrlSign, $true))
     $ca = $caRequest.CreateSelfSigned($now.AddMinutes(-5), $now.AddYears(5))
-    $request = [Security.Cryptography.X509Certificates.CertificateRequest]::new("CN=GammaRay $Role",
+    $request = [Security.Cryptography.X509Certificates.CertificateRequest]::new("CN=Pixels $Role",
         $rdpKey, [Security.Cryptography.HashAlgorithmName]::SHA256, [Security.Cryptography.RSASignaturePadding]::Pkcs1)
     $request.CertificateExtensions.Add([Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]::new($false, $false, 0, $true))
     $request.CertificateExtensions.Add([Security.Cryptography.X509Certificates.X509KeyUsageExtension]::new(

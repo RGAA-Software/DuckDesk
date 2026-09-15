@@ -24,7 +24,7 @@ class CredentialHandle final {
     }
 
   private:
-    PCREDENTIALW value_{}; // NOLINT(gammaray-raw-pointer-boundary): owned WinCred allocation wrapped immediately
+    PCREDENTIALW value_{}; // NOLINT(pixels-raw-pointer-boundary): owned WinCred allocation wrapped immediately
 };
 
 std::wstring Utf8ToWide(const std::string& value) {
@@ -49,7 +49,7 @@ std::shared_ptr<PanelCredentialVault> PanelCredentialVault::Create() {
 
 std::optional<std::string> PanelCredentialVault::Read(const std::string& target) const {
     const auto credentialTarget = CredentialTarget(target);
-    PCREDENTIALW credential{}; // NOLINT(gammaray-raw-pointer-boundary): WinCred output parameter, wrapped on the next statement
+    PCREDENTIALW credential{}; // NOLINT(pixels-raw-pointer-boundary): WinCred output parameter, wrapped on the next statement
     if (credentialTarget.empty() || !CredReadW(credentialTarget.c_str(), CRED_TYPE_GENERIC, 0, &credential)) {
         return std::nullopt;
     }

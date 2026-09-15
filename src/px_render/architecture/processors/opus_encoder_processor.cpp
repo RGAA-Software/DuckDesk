@@ -49,7 +49,7 @@ BuiltinModuleRegistration OpusEncoderProcessor::MakeRegistration() {
         .descriptor = BuiltinModuleDescriptor{
             .id = std::string(kOpusEncoderModuleId),
             .name = "Opus Encoder",
-            .author = "GammaRay",
+            .author = "Pixels",
             .description = "Built-in PCM to Opus processor",
             .version_name = "2.0.0",
             .version_code = 200,

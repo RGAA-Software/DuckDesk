@@ -38,7 +38,7 @@ build_probe/*
 output/*
 test-results/render-architecture/*
 setup/app/*
-setup/GammaRay_pdb_*/
+setup/Pixels_pdb_*/
 rust_client/px_sysinfo/build/*
 __pycache__/
 certs/

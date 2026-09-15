@@ -13,14 +13,14 @@ namespace pixels::android {
 namespace {
 
 struct AudioStreamBuilderReleaser final {
-    void operator()(AAudioStreamBuilder* builder) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(AAudioStreamBuilder* builder) const noexcept { // NOLINT(pixels-raw-pointer-boundary)
         if (builder != nullptr)
             AAudioStreamBuilder_delete(builder);
     }
 };
 
 struct AudioStreamReleaser final {
-    void operator()(AAudioStream* stream) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(AAudioStream* stream) const noexcept { // NOLINT(pixels-raw-pointer-boundary)
         if (stream != nullptr)
             AAudioStream_close(stream);
     }
@@ -30,7 +30,7 @@ using AudioStreamBuilderHandle = std::unique_ptr<AAudioStreamBuilder, AudioStrea
 using AudioStreamHandle = std::unique_ptr<AAudioStream, AudioStreamReleaser>;
 
 AudioStreamBuilderHandle CreateBuilder() {
-    AAudioStreamBuilder* builder{}; // NOLINT(gammaray-raw-pointer-boundary)
+    AAudioStreamBuilder* builder{}; // NOLINT(pixels-raw-pointer-boundary)
     if (AAudio_createStreamBuilder(&builder) != AAUDIO_OK)
         return {};
     return AudioStreamBuilderHandle{builder};
@@ -49,7 +49,7 @@ AudioStreamHandle OpenStream(const std::int32_t sample_rate, const std::int32_t 
     AAudioStreamBuilder_setUsage(builder.get(), AAUDIO_USAGE_GAME);
     AAudioStreamBuilder_setContentType(builder.get(), AAUDIO_CONTENT_TYPE_MOVIE);
 
-    AAudioStream* stream{}; // NOLINT(gammaray-raw-pointer-boundary)
+    AAudioStream* stream{}; // NOLINT(pixels-raw-pointer-boundary)
     if (AAudioStreamBuilder_openStream(builder.get(), &stream) != AAUDIO_OK)
         return {};
     AudioStreamHandle result{stream};

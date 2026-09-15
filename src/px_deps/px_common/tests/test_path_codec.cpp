@@ -14,10 +14,10 @@ TEST(PathCodecTest, RoundTripsPortableUtf8Paths) {
         "",
         "plain/path.txt",
         "space dir/file name.txt",
-        "GammaRay/中文/文件.txt",
-        "GammaRay/日本語/映像.dat",
-        "GammaRay/emoji-\xF0\x9F\x9A\x80/file.bin",
-        "GammaRay/e\xCC\x81/combined.txt",
+        "Pixels/中文/文件.txt",
+        "Pixels/日本語/映像.dat",
+        "Pixels/emoji-\xF0\x9F\x9A\x80/file.bin",
+        "Pixels/e\xCC\x81/combined.txt",
     };
 
     for (const auto& value : paths) {

@@ -48,7 +48,7 @@ void SectionTitle(const std::string_view title) {
 void StrongText(const std::string_view text) {
     const bool hasMediumFont{ImGui::GetIO().Fonts->Fonts.Size > 1};
     if (hasMediumFont) {
-        ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[1], 0.0F); // NOLINT(gammaray-raw-pointer-boundary): Dear ImGui font registry ABI.
+        ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[1], 0.0F); // NOLINT(pixels-raw-pointer-boundary): Dear ImGui font registry ABI.
     }
     ImGui::TextUnformatted(text.data(), text.data() + text.size());
     if (hasMediumFont) {

@@ -18,7 +18,7 @@ namespace px {
 namespace {
 
 struct AudioStreamBuilderReleaser final {
-    void operator()(AAudioStreamBuilder* builder) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): AAudio ownership boundary.
+    void operator()(AAudioStreamBuilder* builder) const noexcept { // NOLINT(pixels-raw-pointer-boundary): AAudio ownership boundary.
         if (builder != nullptr) {
             AAudioStreamBuilder_delete(builder);
         }
@@ -26,7 +26,7 @@ struct AudioStreamBuilderReleaser final {
 };
 
 struct AudioStreamReleaser final {
-    void operator()(AAudioStream* stream) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): AAudio ownership boundary.
+    void operator()(AAudioStream* stream) const noexcept { // NOLINT(pixels-raw-pointer-boundary): AAudio ownership boundary.
         if (stream != nullptr) {
             AAudioStream_close(stream);
         }
@@ -37,7 +37,7 @@ using AudioStreamBuilderHandle = std::unique_ptr<AAudioStreamBuilder, AudioStrea
 using AudioStreamHandle = std::shared_ptr<AAudioStream>;
 
 AudioStreamBuilderHandle CreateBuilder() {
-    AAudioStreamBuilder* builder{}; // NOLINT(gammaray-raw-pointer-boundary): transient AAudio out parameter immediately wrapped in RAII.
+    AAudioStreamBuilder* builder{}; // NOLINT(pixels-raw-pointer-boundary): transient AAudio out parameter immediately wrapped in RAII.
     if (AAudio_createStreamBuilder(&builder) != AAUDIO_OK) {
         return {};
     }
@@ -61,7 +61,7 @@ AudioStreamHandle OpenStream(const VoiceAudioBackendConfig& config, const aaudio
         AAudioStreamBuilder_setUsage(builder.get(), AAUDIO_USAGE_VOICE_COMMUNICATION);
         AAudioStreamBuilder_setContentType(builder.get(), AAUDIO_CONTENT_TYPE_SPEECH);
     }
-    AAudioStream* stream{}; // NOLINT(gammaray-raw-pointer-boundary): transient AAudio out parameter immediately wrapped in RAII.
+    AAudioStream* stream{}; // NOLINT(pixels-raw-pointer-boundary): transient AAudio out parameter immediately wrapped in RAII.
     if (AAudioStreamBuilder_openStream(builder.get(), &stream) != AAUDIO_OK) {
         return {};
     }

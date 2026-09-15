@@ -76,7 +76,7 @@ FlowNodeDescriptor MakeTestObserverDescriptor(std::string id) {
     return FlowNodeDescriptor{
         .id = std::move(id),
         .name = "Test Observer",
-        .author = "GammaRay",
+        .author = "Pixels",
         .description = "Flow-node registry test observer",
         .version_name = "1.0.0",
         .version_code = 1,
@@ -116,7 +116,7 @@ BuiltinModuleRegistration MakeTestModule(std::string id, std::vector<std::string
             BuiltinModuleDescriptor{
                 .id = std::move(id),
                 .name = "Test Module " + module_id,
-                .author = "GammaRay",
+                .author = "Pixels",
                 .description = "Render architecture lifecycle test module",
                 .version_name = "1.0.0",
                 .version_code = 1,
@@ -739,7 +739,7 @@ TEST(RenderArchitectureCompositionRoot, StopRequestedFromStartCallbackIsSafe) {
             BuiltinModuleDescriptor{
                 .id = "callback_stop",
                 .name = "Callback Stop",
-                .author = "GammaRay",
+                .author = "Pixels",
                 .description = "Stops the composition from its start callback",
                 .version_name = "1.0.0",
                 .version_code = 1,
@@ -829,7 +829,7 @@ TEST(RenderArchitectureFrameDebugger, EncodedFramesDrainToOwnedFile) {
     const auto runtime = PxAsyncRuntime::Create();
     ASSERT_TRUE(runtime->Start());
     const auto unique_suffix = std::chrono::steady_clock::now().time_since_epoch().count();
-    const auto output_directory = std::filesystem::temp_directory_path() / std::format("gammaray_frame_debugger_test_{}", unique_suffix);
+    const auto output_directory = std::filesystem::temp_directory_path() / std::format("pixels_frame_debugger_test_{}", unique_suffix);
     auto observer = FrameDebuggerObserver::Create(runtime, FrameDebuggerOptions{
                                                                .queue_capacity = 8,
                                                                .save_encoded_video = true,

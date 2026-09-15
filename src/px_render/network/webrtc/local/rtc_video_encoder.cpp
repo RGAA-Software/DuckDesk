@@ -26,7 +26,7 @@ int RtcSharedVideoEncoder::GetVideoEncoderMinBitrate() {
 }
 
 int32_t
-RtcSharedVideoEncoder::InitEncode(const webrtc::VideoCodec* codec_settings, // NOLINT(gammaray-raw-pointer-boundary): libwebrtc VideoEncoder ABI
+RtcSharedVideoEncoder::InitEncode(const webrtc::VideoCodec* codec_settings, // NOLINT(pixels-raw-pointer-boundary): libwebrtc VideoEncoder ABI
                                   const webrtc::VideoEncoder::Settings& settings) {
     LOGI("InitEncode start bitrate {} kbps", codec_settings->startBitrate);
     return WEBRTC_VIDEO_CODEC_OK;
@@ -74,7 +74,7 @@ void RtcSharedVideoEncoder::SetRates(const RateControlParameters& parameters) {
 
 int32_t RtcSharedVideoEncoder::Encode(
     const webrtc::VideoFrame& frame,
-    const std::vector<webrtc::VideoFrameType>* frame_types) { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc VideoEncoder ABI
+    const std::vector<webrtc::VideoFrameType>* frame_types) { // NOLINT(pixels-raw-pointer-boundary): libwebrtc VideoEncoder ABI
     if (!encoded_image_callback_) {
         RTC_LOG(LS_WARNING) << "RegisterEncodeCompleteCallback() not called";
         return WEBRTC_VIDEO_CODEC_UNINITIALIZED;

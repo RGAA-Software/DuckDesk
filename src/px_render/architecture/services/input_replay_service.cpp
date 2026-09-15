@@ -38,7 +38,7 @@ BuiltinModuleRegistration InputReplayService::MakeRegistration() {
         .descriptor = BuiltinModuleDescriptor{
             .id = std::string(kInputReplayModuleId),
             .name = "Input Replay",
-            .author = "GammaRay",
+            .author = "Pixels",
             .description = "Built-in lease-gated Windows input service",
             .version_name = "2.0.0",
             .version_code = 200,

@@ -94,7 +94,7 @@ void DrawFileTableHeaders(const std::array<std::string_view, 3>& labels, const f
             continue;
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + px::ui::Scale(10.0F));
         ImGui::PushID(static_cast<int>(column));
-        ImGui::TableHeader(labels[column].data()); // NOLINT(gammaray-raw-pointer-boundary): Dear ImGui transient text ABI
+        ImGui::TableHeader(labels[column].data()); // NOLINT(pixels-raw-pointer-boundary): Dear ImGui transient text ABI
         ImGui::PopID();
     }
 }
@@ -106,7 +106,7 @@ void DrawTransferTableHeaders(const std::array<std::string_view, 8>& labels, con
             continue;
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + px::ui::Scale(10.0F));
         ImGui::PushID(static_cast<int>(column));
-        ImGui::TableHeader(labels[column].data()); // NOLINT(gammaray-raw-pointer-boundary): Dear ImGui transient text ABI
+        ImGui::TableHeader(labels[column].data()); // NOLINT(pixels-raw-pointer-boundary): Dear ImGui transient text ABI
         ImGui::PopID();
     }
 }
@@ -584,7 +584,7 @@ void ClientFileTransferWindow::DrawLocalPane() {
             rowHeight);
         ImGui::PopStyleVar();
         if (!localComputerView) {
-            ImGuiTableSortSpecs* sortSpecs = ImGui::TableGetSortSpecs(); // NOLINT(gammaray-raw-pointer-boundary): Dear ImGui borrowed ABI
+            ImGuiTableSortSpecs* sortSpecs = ImGui::TableGetSortSpecs(); // NOLINT(pixels-raw-pointer-boundary): Dear ImGui borrowed ABI
             if (sortSpecs && sortSpecs->SpecsCount > 0 && sortSpecs->SpecsDirty) {
                 const auto& specification = sortSpecs->Specs[0];
                 localSort_.column = specification.ColumnIndex == 1   ? ClientFileSortColumn::Modified
@@ -730,7 +730,7 @@ void ClientFileTransferWindow::DrawRemotePane() {
             rowHeight);
         ImGui::PopStyleVar();
         if (!remoteComputerView) {
-            ImGuiTableSortSpecs* sortSpecs = ImGui::TableGetSortSpecs(); // NOLINT(gammaray-raw-pointer-boundary): Dear ImGui borrowed ABI
+            ImGuiTableSortSpecs* sortSpecs = ImGui::TableGetSortSpecs(); // NOLINT(pixels-raw-pointer-boundary): Dear ImGui borrowed ABI
             if (sortSpecs && sortSpecs->SpecsCount > 0 && sortSpecs->SpecsDirty) {
                 const auto& specification = sortSpecs->Specs[0];
                 remoteSort_.column = specification.ColumnIndex == 1   ? ClientFileSortColumn::Modified

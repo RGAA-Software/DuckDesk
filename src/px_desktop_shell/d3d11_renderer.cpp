@@ -184,7 +184,7 @@ bool D3d11Renderer::UpdateVideoTexture(const int width, const int height, const 
         return false;
     }
     const std::size_t sourceStride{static_cast<std::size_t>(width) * 4U};
-    const auto destination = static_cast<std::uint8_t*>(mapped.pData); // NOLINT(gammaray-raw-pointer-boundary): transient mapped D3D memory
+    const auto destination = static_cast<std::uint8_t*>(mapped.pData); // NOLINT(pixels-raw-pointer-boundary): transient mapped D3D memory
     for (int row{}; row < height; ++row) {
         std::memcpy(destination + static_cast<std::size_t>(row) * mapped.RowPitch, bgra.data() + static_cast<std::size_t>(row) * sourceStride,
                     sourceStride);

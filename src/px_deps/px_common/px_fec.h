@@ -20,7 +20,7 @@ namespace px {
 namespace detail {
 
 struct ReedSolomonCloser final {
-    void operator()(reed_solomon* codec) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): reed-solomon C ABI.
+    void operator()(reed_solomon* codec) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): reed-solomon C ABI.
         reed_solomon_release(codec);
     }
 };
@@ -66,7 +66,7 @@ using UniqueReedSolomon = std::unique_ptr<reed_solomon, ReedSolomonCloser>;
             }
             const int result = reed_solomon_encode(
                 codec.get(),
-                reinterpret_cast<unsigned char**>(shard_addresses.data()),  // NOLINT(gammaray-raw-pointer-boundary): C ABI pointer table.
+                reinterpret_cast<unsigned char**>(shard_addresses.data()),  // NOLINT(pixels-raw-pointer-boundary): C ABI pointer table.
                 data_shards + parity_count, static_cast<int>(block_size));
             if (result != 0) {
                 return {};
@@ -120,7 +120,7 @@ using UniqueReedSolomon = std::unique_ptr<reed_solomon, ReedSolomonCloser>;
             }
             const int error = reed_solomon_reconstruct(
                 codec.get(),
-                reinterpret_cast<unsigned char**>(shard_addresses.data()),  // NOLINT(gammaray-raw-pointer-boundary): C ABI pointer table.
+                reinterpret_cast<unsigned char**>(shard_addresses.data()),  // NOLINT(pixels-raw-pointer-boundary): C ABI pointer table.
                 marks.data(), total, static_cast<int>(block_size));
             if (error != 0) {
                 return false;

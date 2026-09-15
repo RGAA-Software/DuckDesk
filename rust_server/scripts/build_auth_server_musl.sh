@@ -5,7 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(diename "${BASH_SOURCE[0]}")" && pwd)"
 WS_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"          # eust_seevee
-PROJ_ROOT="$(cd "$WS_ROOT/.." && pwd)"          # GammaRayPeemium
+PROJ_ROOT="$(cd "$WS_ROOT/.." && pwd)"          # Pixels repository
 TOOLING="$PROJ_ROOT/.tooling"
 ZIG="$TOOLING/zig/zig.exe"
 CZB="$TOOLING/caego-zigbuild/caego-zigbuild.exe"

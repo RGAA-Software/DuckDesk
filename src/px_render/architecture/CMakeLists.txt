@@ -121,6 +121,13 @@ if(TESTS_ENABLED)
     set_tests_properties(render_voice_call_runtime PROPERTIES
         LABELS "render-lifecycle;render-integration")
     if(WIN32)
+        # Production uses WASAPI on Windows. This integration test also uses
+        # SDL's dummy audio driver so it can exercise media lifecycle without
+        # requiring interactive audio hardware.
+        target_sources(test_voice_call_runtime PRIVATE
+            ${CMAKE_SOURCE_DIR}/src/px_deps/px_voice_call/voice_audio_backend_sdl.cpp)
+        target_link_libraries(test_voice_call_runtime PRIVATE
+            $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>)
         add_custom_command(TARGET test_voice_call_runtime POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_FILE:px_voice_apm>

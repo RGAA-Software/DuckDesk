@@ -21,7 +21,7 @@ thread_local std::shared_ptr<px::media::test::OracleResults> active_results{};
 thread_local std::uint64_t oracle_now_us{1000000};
 std::mutex oracle_mutex{}; // Serializes the unchanged upstream process globals in this test executable only.
 struct BufferCloser final {
-    void operator()(void* buffer) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): upstream malloc/free ownership boundary.
+    void operator()(void* buffer) const noexcept { // NOLINT(pixels-raw-pointer-boundary): upstream malloc/free ownership boundary.
         std::free(buffer);
     }
 };
@@ -29,7 +29,7 @@ using BufferOwner = std::unique_ptr<void, BufferCloser>;
 } // namespace
 
 extern "C" {
-void connectionSendFrameFecStatus(PSS_FRAME_FEC_STATUS status) { // NOLINT(gammaray-raw-pointer-boundary): borrowed upstream callback ABI.
+void connectionSendFrameFecStatus(PSS_FRAME_FEC_STATUS status) { // NOLINT(pixels-raw-pointer-boundary): borrowed upstream callback ABI.
     static_cast<void>(status);
     if (active_results)
         ++active_results->fec_reports;
@@ -44,7 +44,7 @@ void connectionSawFrame(unsigned int frame) {
 uint64_t PltGetMicroseconds(void) {
     return oracle_now_us;
 }
-void queueRtpPacket(PRTPV_QUEUE_ENTRY entry) { // NOLINT(gammaray-raw-pointer-boundary): upstream transfers malloc packet ownership to callback.
+void queueRtpPacket(PRTPV_QUEUE_ENTRY entry) { // NOLINT(pixels-raw-pointer-boundary): upstream transfers malloc packet ownership to callback.
     const BufferOwner owner{entry->packet};
     if (active_results) {
         const auto bytes = std::span<const std::uint8_t>{static_cast<const std::uint8_t*>(owner.get()), static_cast<std::size_t>(entry->length)};
@@ -113,7 +113,7 @@ bool DecodeWithUpstreamAudioMatrix(std::vector<Packet>& shards, std::span<const 
         }
     };
     const AudioState audio{};
-    std::array<std::uint8_t*, 6> addresses{}; // NOLINT(gammaray-raw-pointer-boundary): borrowed synchronous upstream C ABI table.
+    std::array<std::uint8_t*, 6> addresses{}; // NOLINT(pixels-raw-pointer-boundary): borrowed synchronous upstream C ABI table.
     for (std::size_t index{}; index < shards.size(); ++index) {
         if (shards[index].size() != shards.front().size())
             return false;
@@ -159,7 +159,7 @@ void UpstreamVideoOracle::Feed(const Packet& packet) {
     const auto result = RtpvAddPacket(&state_->queue, &rtp, static_cast<int>(packet.size()),
                                       reinterpret_cast<PRTPV_QUEUE_ENTRY>(static_cast<std::uint8_t*>(storage.get()) + entry_offset));
     if (result == RTPF_RET_QUEUED) {
-        static_cast<void>(storage.release()); // NOLINT(gammaray-raw-pointer-boundary): successful upstream enqueue owns malloc storage.
+        static_cast<void>(storage.release()); // NOLINT(pixels-raw-pointer-boundary): successful upstream enqueue owns malloc storage.
     }
 }
 OracleResults UpstreamVideoOracle::Results() const {

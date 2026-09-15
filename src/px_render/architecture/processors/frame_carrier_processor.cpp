@@ -63,7 +63,7 @@ BuiltinModuleRegistration FrameCarrierProcessor::MakeRegistration() {
         .descriptor = BuiltinModuleDescriptor{
             .id = std::string(kFrameCarrierModuleId),
             .name = "Frame Carrier",
-            .author = "GammaRay",
+            .author = "Pixels",
             .description = "Built-in shared-texture and pixel-format processor",
             .version_name = "2.0.0",
             .version_code = 200,

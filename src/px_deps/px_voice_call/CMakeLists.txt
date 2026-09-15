@@ -65,7 +65,12 @@ if(BUILD_TESTING AND TARGET GTest::gtest AND TARGET px_rp_message)
     target_link_libraries(test_voice_call PRIVATE
         px_voice_call px_rp_message GTest::gtest GTest::gtest_main)
     if(WIN32)
-        target_link_libraries(test_voice_call PRIVATE Psapi)
+        # The Windows product uses WASAPI, while the voice-call integration
+        # tests also exercise the SDL dummy backend for deterministic audio.
+        target_sources(test_voice_call PRIVATE voice_audio_backend_sdl.cpp)
+        target_link_libraries(test_voice_call PRIVATE
+            $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
+            Psapi)
     endif()
     add_test(NAME voice_call_core COMMAND test_voice_call)
     set_tests_properties(voice_call_core PROPERTIES

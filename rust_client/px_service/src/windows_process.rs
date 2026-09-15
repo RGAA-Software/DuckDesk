@@ -575,9 +575,7 @@ mod tests {
 
     #[test]
     fn exit_observer_child_fixture() {
-        if std::env::var_os("GAMMARAY_EXIT_OBSERVER_FIXTURE").is_none() {
-            return;
-        }
+        if std::env::var_os("PIXELS_EXIT_OBSERVER_FIXTURE").is_none() { return; }
         use std::io::Read;
         let mut signal = [0_u8; 1];
         let _ = std::io::stdin().read(&mut signal);
@@ -591,12 +589,8 @@ mod tests {
         use std::os::windows::process::CommandExt;
         let command = std::env::current_exe().unwrap();
         let mut child = std::process::Command::new(&command)
-            .args([
-                "--exact",
-                "windows_process::tests::exit_observer_child_fixture",
-                "--nocapture",
-            ])
-            .env("GAMMARAY_EXIT_OBSERVER_FIXTURE", "1")
+            .args(["--exact", "windows_process::tests::exit_observer_child_fixture", "--nocapture"])
+            .env("PIXELS_EXIT_OBSERVER_FIXTURE", "1")
             .creation_flags(windows::Win32::System::Threading::CREATE_NO_WINDOW.0)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::null())

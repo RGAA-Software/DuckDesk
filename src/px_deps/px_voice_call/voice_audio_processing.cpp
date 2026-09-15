@@ -69,7 +69,7 @@ public:
         }
         const webrtc::StreamConfig stream(kSampleRate, 1);
         const int result = apm_->ProcessStream(
-            samples.data(), stream, stream, samples.data()); // NOLINT(gammaray-raw-pointer-boundary): synchronous libwebrtc buffer ABI
+            samples.data(), stream, stream, samples.data()); // NOLINT(pixels-raw-pointer-boundary): synchronous libwebrtc buffer ABI
         if (result != webrtc::AudioProcessing::kNoError) {
             capture_failures_.fetch_add(1, std::memory_order_relaxed);
             return false;
@@ -91,7 +91,7 @@ public:
         const webrtc::StreamConfig stream(kSampleRate, 1);
         std::array<int16_t, kFrameSamples> processed{};
         const int result = apm_->ProcessReverseStream(
-            samples.data(), stream, stream, processed.data()); // NOLINT(gammaray-raw-pointer-boundary): synchronous libwebrtc buffer ABI
+            samples.data(), stream, stream, processed.data()); // NOLINT(pixels-raw-pointer-boundary): synchronous libwebrtc buffer ABI
         if (result != webrtc::AudioProcessing::kNoError) {
             render_failures_.fetch_add(1, std::memory_order_relaxed);
             return false;

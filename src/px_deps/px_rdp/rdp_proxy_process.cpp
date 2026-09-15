@@ -30,7 +30,7 @@ bool Pin(std::string_view value) {
 
 struct LocalBlobCloser final {
     std::size_t size{};
-    void operator()(unsigned char* bytes) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): LocalFree allocation ABI.
+    void operator()(unsigned char* bytes) const noexcept { // NOLINT(pixels-raw-pointer-boundary): LocalFree allocation ABI.
         if (bytes) {
             SecureZeroMemory(bytes, size);
             LocalFree(bytes);
@@ -74,7 +74,7 @@ std::unique_ptr<PrivateBytes> Unseal(const std::filesystem::path& path, const st
     }
     DATA_BLOB input{static_cast<DWORD>(encrypted.size()), encrypted.data()};
     DATA_BLOB entropy{static_cast<DWORD>(binding.size()), reinterpret_cast<BYTE*>(const_cast<char*>(binding.data()))};
-    DATA_BLOB output{}; // NOLINT(gammaray-raw-pointer-boundary): synchronous DPAPI out value, wrapped immediately below.
+    DATA_BLOB output{}; // NOLINT(pixels-raw-pointer-boundary): synchronous DPAPI out value, wrapped immediately below.
     if (!CryptUnprotectData(&input, nullptr, &entropy, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &output)) {
         return {};
     }
@@ -104,7 +104,7 @@ bool WritePrivateConfiguration(const std::filesystem::path& path, std::span<cons
 }
 
 struct EnvironmentCloser final {
-    void operator()(wchar_t* value) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): Win32 environment allocation ABI.
+    void operator()(wchar_t* value) const noexcept { // NOLINT(pixels-raw-pointer-boundary): Win32 environment allocation ABI.
         if (value) {
             FreeEnvironmentStringsW(value);
         }
@@ -124,15 +124,15 @@ std::vector<wchar_t> ProxyEnvironment(const RdpProxyLaunch& launch) {
         auto upper = std::wstring(entry);
         std::ranges::transform(upper, upper.begin(), [](wchar_t value) { return value >= L'a' && value <= L'z' ? value - (L'a' - L'A') : value; });
         if (!upper.starts_with(L"WINPR_NATIVE_SSPI=") && !upper.starts_with(L"OPENSSL_MODULES=") &&
-            !upper.starts_with(L"GAMMARAY_RDP_TARGET_CERT_SHA256=") && !upper.starts_with(L"GAMMARAY_RDP_AUDIT_PATH=")) {
+            !upper.starts_with(L"PIXELS_RDP_TARGET_CERT_SHA256=") && !upper.starts_with(L"PIXELS_RDP_AUDIT_PATH=")) {
             entries.emplace_back(entry);
         }
     }
     entries.emplace_back(L"WINPR_NATIVE_SSPI=1");
     entries.emplace_back(L"OPENSSL_MODULES=" + launch.proxy_directory.wstring());
-    entries.emplace_back(L"GAMMARAY_RDP_TARGET_CERT_SHA256=" +
+    entries.emplace_back(L"PIXELS_RDP_TARGET_CERT_SHA256=" +
                          std::wstring(launch.target_certificate_sha256.begin(), launch.target_certificate_sha256.end()));
-    entries.emplace_back(L"GAMMARAY_RDP_AUDIT_PATH=" + (launch.private_root / (launch.workspace_id + ".audit.log")).wstring());
+    entries.emplace_back(L"PIXELS_RDP_AUDIT_PATH=" + (launch.private_root / (launch.workspace_id + ".audit.log")).wstring());
     std::ranges::sort(entries);
     std::vector<wchar_t> environment{};
     for (const auto& entry : entries) {
@@ -174,7 +174,7 @@ std::string RdpProxyLaunch::Entropy() const {
         !Pin(target_certificate_sha256) || !Pin(proxy_certificate_sha256)) {
         return {};
     }
-    return std::format("GammaRay.RdpBootstrap.v1|{}|{}|{}|{}|{}|{}|{}", workspace_id, instance_id, node_id, device_id, proxy_port,
+    return std::format("Pixels.RdpBootstrap.v1|{}|{}|{}|{}|{}|{}|{}", workspace_id, instance_id, node_id, device_id, proxy_port,
                        target_certificate_sha256, proxy_certificate_sha256);
 }
 
@@ -194,7 +194,7 @@ std::unique_ptr<RdpProxyProcess> RdpProxyProcess::Start(const RdpProxyLaunch& la
     }
     const auto executable = launch.proxy_directory / "freerdp-proxy.exe";
     if (!std::filesystem::is_regular_file(executable) ||
-        !std::filesystem::is_regular_file(launch.proxy_directory / "proxy" / "proxy-gammaray-policy-plugin.dll")) {
+        !std::filesystem::is_regular_file(launch.proxy_directory / "proxy" / "proxy-pixels-policy-plugin.dll")) {
         return {};
     }
     auto lease = RdpWorkspaceLease::Acquire(launch.private_root, launch.workspace_id);
@@ -235,7 +235,7 @@ std::unique_ptr<RdpProxyProcess> RdpProxyProcess::Start(const RdpProxyLaunch& la
     auto command = L"\"" + executable.wstring() + L"\" \"" + configuration.wstring() + L"\"";
     STARTUPINFOW startup{};
     startup.cb = sizeof(startup);
-    PROCESS_INFORMATION output{}; // NOLINT(gammaray-raw-pointer-boundary): Win32 synchronous out handles, immediately RAII-wrapped.
+    PROCESS_INFORMATION output{}; // NOLINT(pixels-raw-pointer-boundary): Win32 synchronous out handles, immediately RAII-wrapped.
     if (environment.empty() ||
         !CreateProcessW(executable.c_str(), command.data(), nullptr, nullptr, FALSE, CREATE_SUSPENDED | CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT,
                         environment.data(), launch.proxy_directory.c_str(), &startup, &output)) {

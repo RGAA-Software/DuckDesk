@@ -18,15 +18,15 @@ namespace {
 constexpr int kMaximumRecords{100};
 
 struct StatementDeleter final {
-    void operator()(sqlite3_stmt* statement) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): SQLite ownership adapter
+    void operator()(sqlite3_stmt* statement) const noexcept { // NOLINT(pixels-raw-pointer-boundary): SQLite ownership adapter
         if (statement)
             sqlite3_finalize(statement);
     }
 };
 using Statement = std::unique_ptr<sqlite3_stmt, StatementDeleter>;
 
-Statement Prepare(sqlite3* database, const char* sql) { // NOLINT(gammaray-raw-pointer-boundary): transient SQLite ABI boundary
-    sqlite3_stmt* statement{};                          // NOLINT(gammaray-raw-pointer-boundary): SQLite output parameter, immediately wrapped
+Statement Prepare(sqlite3* database, const char* sql) { // NOLINT(pixels-raw-pointer-boundary): transient SQLite ABI boundary
+    sqlite3_stmt* statement{};                          // NOLINT(pixels-raw-pointer-boundary): SQLite output parameter, immediately wrapped
     if (sqlite3_prepare_v2(database, sql, -1, &statement, nullptr) != SQLITE_OK)
         return {};
     return Statement{statement};
@@ -37,7 +37,7 @@ std::string ColumnText(const Statement& statement, const int column) {
     return value ? reinterpret_cast<const char*>(value) : std::string{};
 }
 
-bool Execute(sqlite3* database, const char* sql) { // NOLINT(gammaray-raw-pointer-boundary): transient SQLite ABI boundary
+bool Execute(sqlite3* database, const char* sql) { // NOLINT(pixels-raw-pointer-boundary): transient SQLite ABI boundary
     return sqlite3_exec(database, sql, nullptr, nullptr, nullptr) == SQLITE_OK;
 }
 
@@ -47,7 +47,7 @@ std::string FileName(const std::string& value) {
 
 } // namespace
 
-void PanelAuditStore::DatabaseDeleter::operator()(sqlite3* database) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+void PanelAuditStore::DatabaseDeleter::operator()(sqlite3* database) const noexcept { // NOLINT(pixels-raw-pointer-boundary)
     if (database)
         sqlite3_close(database);
 }
@@ -62,7 +62,7 @@ std::shared_ptr<PanelAuditStore> PanelAuditStore::Create(const std::filesystem::
 }
 
 PanelAuditStore::PanelAuditStore(const std::filesystem::path& databasePath) {
-    sqlite3* opened{}; // NOLINT(gammaray-raw-pointer-boundary): SQLite output parameter, immediately wrapped
+    sqlite3* opened{}; // NOLINT(pixels-raw-pointer-boundary): SQLite output parameter, immediately wrapped
     if (sqlite3_open_v2(databasePath.string().c_str(), &opened, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr) !=
         SQLITE_OK) {
         if (opened)

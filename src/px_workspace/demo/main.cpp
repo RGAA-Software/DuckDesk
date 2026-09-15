@@ -48,8 +48,8 @@ class DemoWindow final : public DuiLib::CWindowWnd, public DuiLib::INotifyUI {
             DestroyWindow(GetHWND());
         }
     }
-    LPCTSTR GetWindowClassName() const override { // NOLINT(gammaray-raw-pointer-boundary) DuiLib ABI, static literal only.
-        return L"GammaRayWorkspaceUiDemo";
+    LPCTSTR GetWindowClassName() const override { // NOLINT(pixels-raw-pointer-boundary) DuiLib ABI, static literal only.
+        return L"PixelsWorkspaceUiDemo";
     }
     void OnFinalMessage(HWND) override {
         PostQuitMessage(0);
@@ -152,7 +152,7 @@ class DemoWindow final : public DuiLib::CWindowWnd, public DuiLib::INotifyUI {
 };
 } // namespace
 
-int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command, int) { // NOLINT(gammaray-raw-pointer-boundary) Windows entry ABI.
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command, int) { // NOLINT(pixels-raw-pointer-boundary) Windows entry ABI.
     std::array<wchar_t, 32768> executable{};
     const DWORD length{GetModuleFileNameW(nullptr, executable.data(), static_cast<DWORD>(executable.size()))};
     if (length == 0 || length >= executable.size()) {
@@ -183,7 +183,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command, int) { // NOLI
     for (int iteration{}; iteration < (self_test ? 8 : 1); ++iteration) {
         const auto window{std::make_unique<DemoWindow>(self_test, layout, override_dpi)};
         const int dpi{static_cast<int>(override_dpi == 0 ? GetDpiForSystem() : override_dpi)};
-        window->Create(nullptr, L"GammaRay Workspace · DuiLib Demo", WS_OVERLAPPEDWINDOW, 0, 60, 60, MulDiv(860, dpi, 96), MulDiv(470, dpi, 96));
+        window->Create(nullptr, L"Pixels Workspace · DuiLib Demo", WS_OVERLAPPEDWINDOW, 0, 60, 60, MulDiv(860, dpi, 96), MulDiv(470, dpi, 96));
         if (!window->Ready()) {
             return 4;
         }

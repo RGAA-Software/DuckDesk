@@ -2,8 +2,8 @@
 // Created by RGAA on 14/09/2025.
 //
 
-#ifndef GAMMARAYPREMIUM_MEMORY_STAT_H
-#define GAMMARAYPREMIUM_MEMORY_STAT_H
+#ifndef PIXELSPREMIUM_MEMORY_STAT_H
+#define PIXELSPREMIUM_MEMORY_STAT_H
 
 #include <vector>
 #include "concurrent_hashmap.h"
@@ -56,4 +56,4 @@ namespace px
 
 }
 
-#endif //GAMMARAYPREMIUM_MEMORY_STAT_H
+#endif //PIXELSPREMIUM_MEMORY_STAT_H

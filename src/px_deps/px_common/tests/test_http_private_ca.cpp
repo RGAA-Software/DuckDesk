@@ -11,7 +11,7 @@ namespace {
 std::string TestCa(bool invalid = false) {
     std::array<char, 32768> path{};
     const auto size =
-        GetEnvironmentVariableA(invalid ? "GAMMARAY_RDP_TEST_INVALID_CA" : "GAMMARAY_RDP_TEST_CA", path.data(), static_cast<DWORD>(path.size()));
+        GetEnvironmentVariableA(invalid ? "PIXELS_RDP_TEST_INVALID_CA" : "PIXELS_RDP_TEST_CA", path.data(), static_cast<DWORD>(path.size()));
     return size > 0 && size < path.size() ? std::string{path.data(), size} : std::string{};
 }
 
@@ -37,7 +37,7 @@ void CheckMethods(const std::string& host, const std::string& ca, bool accepted)
 TEST(HttpPrivateCa, PrivateRootWithoutCrlStillValidatesAllRequestMethods) {
     const auto ca = TestCa();
     if (ca.empty()) {
-        GTEST_SKIP() << "Set GAMMARAY_RDP_TEST_CA and start the local acceptance Console";
+        GTEST_SKIP() << "Set PIXELS_RDP_TEST_CA and start the local acceptance Console";
     }
     CheckMethods("localhost", ca, true);
 }
@@ -45,7 +45,7 @@ TEST(HttpPrivateCa, PrivateRootWithoutCrlStillValidatesAllRequestMethods) {
 TEST(HttpPrivateCa, WrongRootDoesNotFallBackToSystemTrust) {
     const auto ca = TestCa(true);
     if (ca.empty()) {
-        GTEST_SKIP() << "Set GAMMARAY_RDP_TEST_INVALID_CA to a different valid CA certificate";
+        GTEST_SKIP() << "Set PIXELS_RDP_TEST_INVALID_CA to a different valid CA certificate";
     }
     CheckMethods("localhost", ca, false);
 }
@@ -53,7 +53,7 @@ TEST(HttpPrivateCa, WrongRootDoesNotFallBackToSystemTrust) {
 TEST(HttpPrivateCa, WrongHostnameIsRejectedEvenWithCorrectRoot) {
     const auto ca = TestCa();
     if (ca.empty()) {
-        GTEST_SKIP() << "Set GAMMARAY_RDP_TEST_CA; the test certificate must not contain 127.0.0.2";
+        GTEST_SKIP() << "Set PIXELS_RDP_TEST_CA; the test certificate must not contain 127.0.0.2";
     }
     CheckMethods("127.0.0.2", ca, false);
 }

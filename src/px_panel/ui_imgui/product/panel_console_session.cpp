@@ -258,7 +258,7 @@ std::wstring PanelConsoleSession::CredentialTarget() const {
 }
 
 std::string PanelConsoleSession::ReadAccessToken() const {
-    PCREDENTIALW credential{}; // NOLINT(gammaray-raw-pointer-boundary): WinCred output parameter, immediately freed
+    PCREDENTIALW credential{}; // NOLINT(pixels-raw-pointer-boundary): WinCred output parameter, immediately freed
     const auto target = CredentialTarget();
     if (!CredReadW(target.c_str(), CRED_TYPE_GENERIC, 0, &credential))
         return {};

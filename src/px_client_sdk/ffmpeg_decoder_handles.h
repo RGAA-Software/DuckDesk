@@ -8,12 +8,12 @@ extern "C" {
 
 namespace px {
 struct DecoderContextDeleter final {
-    void operator()(AVCodecContext* context) const noexcept { // NOLINT(gammaray-raw-pointer-boundary) FFmpeg destruction boundary.
+    void operator()(AVCodecContext* context) const noexcept { // NOLINT(pixels-raw-pointer-boundary) FFmpeg destruction boundary.
         avcodec_free_context(&context);
     }
 };
 struct DecoderPacketDeleter final {
-    void operator()(AVPacket* packet) const noexcept { // NOLINT(gammaray-raw-pointer-boundary) FFmpeg destruction boundary.
+    void operator()(AVPacket* packet) const noexcept { // NOLINT(pixels-raw-pointer-boundary) FFmpeg destruction boundary.
         av_packet_free(&packet);
     }
 };

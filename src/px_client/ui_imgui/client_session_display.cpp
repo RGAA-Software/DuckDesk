@@ -149,7 +149,7 @@ std::optional<std::string> ClientSession::SaveScreenshot() const {
     const auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     const auto path = directory / std::format("Pixels-{}.bmp", timestamp);
     struct SurfaceDeleter final {
-        void operator()(SDL_Surface* surface) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): SDL-owned surface ABI.
+        void operator()(SDL_Surface* surface) const noexcept { // NOLINT(pixels-raw-pointer-boundary): SDL-owned surface ABI.
             SDL_DestroySurface(surface);
         }
     };

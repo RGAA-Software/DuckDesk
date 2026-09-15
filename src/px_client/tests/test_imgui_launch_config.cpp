@@ -62,13 +62,13 @@ TEST(ClientImguiLaunchConfigTest, ParsesProtectedRdpLaunch) {
         "schema":1,"host":"127.0.0.1","port":5403,"stream_id":"rdp-1","device_id":"client-1",
         "remote_device_id":"render-1","connection_nonce":"nonce","connection_instance_id":"instance-1",
         "remote_password_hash":"render-password-hash",
-        "rdp":{"schema":1,"account_name":"grdp_user1","domain":"PIXELS",
+        "rdp":{"schema":1,"account_name":"prdp_user1","domain":"PIXELS",
         "proxy_certificate_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                "password":"a-secure-workspace-password-with-32-bytes"}
     })");
     ASSERT_TRUE(config);
     EXPECT_TRUE(config->rdp);
-    EXPECT_EQ(config->rdpAccount, "grdp_user1");
+    EXPECT_EQ(config->rdpAccount, "prdp_user1");
     ASSERT_TRUE(config->rdpPassword);
     EXPECT_EQ(config->rdpPassword->View(), "a-secure-workspace-password-with-32-bytes");
 }

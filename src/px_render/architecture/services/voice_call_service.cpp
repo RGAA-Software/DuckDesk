@@ -73,7 +73,7 @@ BuiltinModuleRegistration VoiceCallService::MakeRegistration() {
         .descriptor = BuiltinModuleDescriptor{
             .id = std::string(kVoiceCallModuleId),
             .name = "Voice Call",
-            .author = "GammaRay",
+            .author = "Pixels",
             .description = "Built-in authenticated voice-call service",
             .version_name = "2.0.0",
             .version_code = 200,

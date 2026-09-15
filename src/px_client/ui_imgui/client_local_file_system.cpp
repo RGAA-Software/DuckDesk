@@ -103,7 +103,7 @@ bool ClientLocalFileSystem::NavigateHome() {
     const DWORD size{GetEnvironmentVariableW(L"USERPROFILE", value.data(), static_cast<DWORD>(value.size()))};
     return size > 0U && size < value.size() && Load(std::filesystem::path{value.data()}, true);
 #else
-    return Load(std::filesystem::path{std::getenv("HOME")}, true); // NOLINT(gammaray-raw-pointer-boundary): CRT boundary
+    return Load(std::filesystem::path{std::getenv("HOME")}, true); // NOLINT(pixels-raw-pointer-boundary): CRT boundary
 #endif
 }
 
@@ -257,7 +257,7 @@ void ClientLocalFileSystem::RebuildLocations() {
     append(ClientFileLocationKind::Music, profile / "Music");
     append(ClientFileLocationKind::Videos, profile / "Videos");
 #else
-    if (const char* profile = std::getenv("HOME")) {               // NOLINT(gammaray-raw-pointer-boundary): CRT boundary
+    if (const char* profile = std::getenv("HOME")) {               // NOLINT(pixels-raw-pointer-boundary): CRT boundary
         locations_.push_back({.kind = ClientFileLocationKind::Home, .label = "Home", .path = profile});
     }
 #endif

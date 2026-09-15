@@ -26,7 +26,7 @@ bool IsHex(unsigned char value) {
 } // namespace
 
 bool IsWorkspacePeer(std::string_view expected_user, std::string_view expected_domain, std::string_view user, std::string_view domain) {
-    return expected_user.starts_with("grdp_") && expected_user.size() >= 8 && expected_user.size() <= 20 && !expected_domain.empty() &&
+    return expected_user.starts_with("prdp_") && expected_user.size() >= 8 && expected_user.size() <= 20 && !expected_domain.empty() &&
            expected_domain.size() <= 255 && EqualAscii(expected_user, user) && EqualAscii(expected_domain, domain);
 }
 
@@ -94,7 +94,7 @@ bool IsAudioDeviceHandshake(DeviceChannelDirection direction, std::span<const un
 #ifdef _WIN32
 namespace {
 struct CertificateCloser final {
-    void operator()(const CERT_CONTEXT* certificate) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): WinCrypt RAII deleter ABI.
+    void operator()(const CERT_CONTEXT* certificate) const noexcept { // NOLINT(pixels-raw-pointer-boundary): WinCrypt RAII deleter ABI.
         if (certificate) {
             CertFreeCertificateContext(certificate);
         }

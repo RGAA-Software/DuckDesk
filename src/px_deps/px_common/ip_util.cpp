@@ -44,14 +44,14 @@ namespace px
         }
 
         std::vector<uint8_t> buffer(bufLen);
-        auto* adapter = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(buffer.data());  // NOLINT(gammaray-raw-pointer-boundary)
+        auto* adapter = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(buffer.data());  // NOLINT(pixels-raw-pointer-boundary)
         ret = GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_INCLUDE_PREFIX, nullptr, adapter, &bufLen);
         if (ret != ERROR_SUCCESS) {
             LOGE("GetAdaptersAddresses failed: {}", ret);
             return;
         }
 
-        for (auto* curr = adapter; curr != nullptr; curr = curr->Next) {  // NOLINT(gammaray-raw-pointer-boundary)
+        for (auto* curr = adapter; curr != nullptr; curr = curr->Next) {  // NOLINT(pixels-raw-pointer-boundary)
             const std::wstring_view friendly_name = curr->FriendlyName == nullptr ? std::wstring_view{} : curr->FriendlyName;
             if (NeedIgnoreNetwork(friendly_name)) {
                 continue;
@@ -71,7 +71,7 @@ namespace px
                 mac_address += std::format("{:02X}", static_cast<int>(curr->PhysicalAddress[i]));
             }
 
-            for (auto* unicast = curr->FirstUnicastAddress; unicast != nullptr;  // NOLINT(gammaray-raw-pointer-boundary)
+            for (auto* unicast = curr->FirstUnicastAddress; unicast != nullptr;  // NOLINT(pixels-raw-pointer-boundary)
                  unicast = unicast->Next) {
                 if (unicast->Address.lpSockaddr == nullptr) {
                     continue;
@@ -81,7 +81,7 @@ namespace px
                 }
 
                 char ip_str[INET_ADDRSTRLEN] = {0};
-                auto* sin = reinterpret_cast<sockaddr_in*>(unicast->Address.lpSockaddr);  // NOLINT(gammaray-raw-pointer-boundary)
+                auto* sin = reinterpret_cast<sockaddr_in*>(unicast->Address.lpSockaddr);  // NOLINT(pixels-raw-pointer-boundary)
                 inet_ntop(AF_INET, &sin->sin_addr, ip_str, INET_ADDRSTRLEN);
 
                 std::string adapter_name = curr->AdapterName ? curr->AdapterName : "";

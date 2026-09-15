@@ -129,7 +129,7 @@ TEST(GameOwnedProcess, StandardUserPolicyDoesNotLaunchAnElevatedGame) {
     ASSERT_TRUE(owner);
     const auto process = owner->Acquire(owner->RootPid(), kFixture, false);
     ASSERT_TRUE(process);
-    HANDLE result{}; // NOLINT(gammaray-raw-pointer-boundary) Win32 token output immediately wrapped.
+    HANDLE result{}; // NOLINT(pixels-raw-pointer-boundary) Win32 token output immediately wrapped.
     ASSERT_TRUE(OpenProcessToken(process->get(), TOKEN_QUERY, &result));
     const px::UniqueWinHandle token{result};
     TOKEN_ELEVATION elevation{};

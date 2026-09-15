@@ -15,7 +15,7 @@ namespace px {
 namespace {
 
 struct RegistryKeyCloser final {
-    void operator()(HKEY key) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): HKEY is an opaque Win32 handle.
+    void operator()(HKEY key) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): HKEY is an opaque Win32 handle.
         RegCloseKey(key);
     }
 };
@@ -39,7 +39,7 @@ bool SetAutoStartInternal(HKEY root_key, std::wstring_view sub_key, const std::f
         return false;
     }
 
-    HKEY opened_key{};  // NOLINT(gammaray-raw-pointer-boundary): RegCreateKeyExW transfers the key through HKEY*.
+    HKEY opened_key{};  // NOLINT(pixels-raw-pointer-boundary): RegCreateKeyExW transfers the key through HKEY*.
     const auto sub_key_text = std::wstring{sub_key};
     const auto open_result = RegCreateKeyExW(root_key, sub_key_text.c_str(), 0, nullptr, REG_OPTION_NON_VOLATILE, KEY_READ | KEY_WRITE, nullptr,
                                              &opened_key, nullptr);

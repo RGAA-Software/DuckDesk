@@ -25,7 +25,7 @@ namespace px
 
     namespace {
         struct ModuleCloser final {
-            void operator()(std::remove_pointer_t<HMODULE>* module) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): HMODULE ABI.
+            void operator()(std::remove_pointer_t<HMODULE>* module) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): HMODULE ABI.
                 if (module != nullptr) {
                     FreeLibrary(module);
                 }
@@ -35,7 +35,7 @@ namespace px
         using UniqueModule = std::unique_ptr<std::remove_pointer_t<HMODULE>, ModuleCloser>;
 
         struct EnvironmentBlockCloser final {
-            void operator()(void* environment) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): UserEnv ABI.
+            void operator()(void* environment) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): UserEnv ABI.
                 if (environment != nullptr) {
                     DestroyEnvironmentBlock(environment);
                 }
@@ -83,7 +83,7 @@ namespace px
     }
 
     bool SetDpiAwarenessContext(DPI_AWARENESS_CONTEXT context) {
-        using SetProcessDpiAwarenessFunc = BOOL(__stdcall*)(DPI_AWARENESS_CONTEXT);  // NOLINT(gammaray-raw-pointer-boundary): Win32 ABI.
+        using SetProcessDpiAwarenessFunc = BOOL(__stdcall*)(DPI_AWARENESS_CONTEXT);  // NOLINT(pixels-raw-pointer-boundary): Win32 ABI.
         const UniqueModule user32{LoadLibraryW(L"User32.dll")};
         if (!user32) {
             return false;
@@ -138,8 +138,8 @@ namespace px
         std::vector<std::string> output;
 
         SECURITY_ATTRIBUTES sa = { sizeof(sa), nullptr, TRUE };
-        HANDLE read_pipe_raw{};  // NOLINT(gammaray-raw-pointer-boundary): CreatePipe out parameter, immediately RAII-wrapped.
-        HANDLE write_pipe_raw{};  // NOLINT(gammaray-raw-pointer-boundary): CreatePipe out parameter, immediately RAII-wrapped.
+        HANDLE read_pipe_raw{};  // NOLINT(pixels-raw-pointer-boundary): CreatePipe out parameter, immediately RAII-wrapped.
+        HANDLE write_pipe_raw{};  // NOLINT(pixels-raw-pointer-boundary): CreatePipe out parameter, immediately RAII-wrapped.
         if (!CreatePipe(&read_pipe_raw, &write_pipe_raw, &sa, 0)) {
             LOGE("CreatePipe failed: {}", GetLastError());
             return output;
@@ -240,12 +240,12 @@ namespace px
         if (!process) {
             return {};
         }
-        HANDLE token_raw{};  // NOLINT(gammaray-raw-pointer-boundary): OpenProcessToken out parameter, immediately RAII-wrapped.
+        HANDLE token_raw{};  // NOLINT(pixels-raw-pointer-boundary): OpenProcessToken out parameter, immediately RAII-wrapped.
         if (!OpenProcessToken(process.get(), TOKEN_ALL_ACCESS, &token_raw)) {
             return {};
         }
         const UniqueWinHandle token{token_raw};
-        HANDLE duplicate_raw{};  // NOLINT(gammaray-raw-pointer-boundary): DuplicateTokenEx out parameter, immediately RAII-wrapped.
+        HANDLE duplicate_raw{};  // NOLINT(pixels-raw-pointer-boundary): DuplicateTokenEx out parameter, immediately RAII-wrapped.
         if (!DuplicateTokenEx(token.get(), MAXIMUM_ALLOWED, nullptr, SecurityIdentification, TokenPrimary, &duplicate_raw)) {
             return {};
         }
@@ -271,7 +271,7 @@ namespace px
             LOGI("IsUserAnAdmin，create process with token.");
 
             constexpr DWORD create_flag = CREATE_NO_WINDOW | ABOVE_NORMAL_PRIORITY_CLASS | CREATE_UNICODE_ENVIRONMENT;
-            void* environment_raw{};  // NOLINT(gammaray-raw-pointer-boundary): CreateEnvironmentBlock out parameter, immediately RAII-wrapped.
+            void* environment_raw{};  // NOLINT(pixels-raw-pointer-boundary): CreateEnvironmentBlock out parameter, immediately RAII-wrapped.
             if (!CreateEnvironmentBlock(&environment_raw, user_token.get(), TRUE)) {
                 LOGE("CreateEnvironmentBlock failed: {}", GetLastError());
                 return false;
@@ -313,14 +313,14 @@ namespace px
     }
 
     bool ProcessUtil::StartProcessInSameUser(const std::wstring& cmdline, const std::wstring& work_dir, bool wait) {
-        HANDLE token_raw{};  // NOLINT(gammaray-raw-pointer-boundary): OpenProcessToken out parameter, immediately RAII-wrapped.
+        HANDLE token_raw{};  // NOLINT(pixels-raw-pointer-boundary): OpenProcessToken out parameter, immediately RAII-wrapped.
         if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &token_raw)) {
             LOGE("StartProcessInSameUser OpenProcessToken failed.");
             return false;
         }
         const UniqueWinHandle token{token_raw};
 
-        HANDLE duplicate_raw{};  // NOLINT(gammaray-raw-pointer-boundary): DuplicateTokenEx out parameter, immediately RAII-wrapped.
+        HANDLE duplicate_raw{};  // NOLINT(pixels-raw-pointer-boundary): DuplicateTokenEx out parameter, immediately RAII-wrapped.
         if (!DuplicateTokenEx(token.get(), TOKEN_ALL_ACCESS, nullptr, SecurityIdentification, TokenPrimary, &duplicate_raw)) {
             LOGE("DuplicateTokenEx failed.");
             return false;
@@ -345,7 +345,7 @@ namespace px
         si.wShowWindow = SW_SHOW;
         si.dwFlags = STARTF_USESHOWWINDOW;
 
-        void* environment_raw{};  // NOLINT(gammaray-raw-pointer-boundary): CreateEnvironmentBlock out parameter, immediately RAII-wrapped.
+        void* environment_raw{};  // NOLINT(pixels-raw-pointer-boundary): CreateEnvironmentBlock out parameter, immediately RAII-wrapped.
         if (!CreateEnvironmentBlock(&environment_raw, duplicate_token.get(), FALSE)) {
             LOGE("CreateEnvironmentBlock failed: {}", GetLastError());
             return false;
@@ -382,19 +382,19 @@ namespace px
             LOGE("StartProcessAsCurrentUser, WTSGetActiveConsoleSessionId failed");
             return 0;
         }
-        HANDLE user_token_raw{};  // NOLINT(gammaray-raw-pointer-boundary): WTSQueryUserToken out parameter, immediately RAII-wrapped.
+        HANDLE user_token_raw{};  // NOLINT(pixels-raw-pointer-boundary): WTSQueryUserToken out parameter, immediately RAII-wrapped.
         if (!WTSQueryUserToken(session_id, &user_token_raw)) {
             LOGE("StartProcessAsCurrentUser, WTSQueryUserToken failed: {}", GetLastError());
             return 0;
         }
         const UniqueWinHandle user_token{user_token_raw};
-        HANDLE token_duplicate_raw{};  // NOLINT(gammaray-raw-pointer-boundary): DuplicateTokenEx out parameter, immediately RAII-wrapped.
+        HANDLE token_duplicate_raw{};  // NOLINT(pixels-raw-pointer-boundary): DuplicateTokenEx out parameter, immediately RAII-wrapped.
         if (!DuplicateTokenEx(user_token.get(), TOKEN_ALL_ACCESS, nullptr, SecurityImpersonation, TokenPrimary, &token_duplicate_raw)) {
             LOGE("StartProcessAsCurrentUser, DuplicateTokenEx failed: {}", GetLastError());
             return 0;
         }
         const UniqueWinHandle duplicate_token{token_duplicate_raw};
-        void* environment_raw{};  // NOLINT(gammaray-raw-pointer-boundary): CreateEnvironmentBlock out parameter, immediately RAII-wrapped.
+        void* environment_raw{};  // NOLINT(pixels-raw-pointer-boundary): CreateEnvironmentBlock out parameter, immediately RAII-wrapped.
         if (!CreateEnvironmentBlock(&environment_raw, duplicate_token.get(), FALSE)) {
             LOGE("StartProcessAsCurrentUser, CreateEnvironmentBlock failed: {}", GetLastError());
             return 0;
@@ -431,21 +431,21 @@ namespace px
             return false;
         }
 
-        HANDLE user_token_raw{};  // NOLINT(gammaray-raw-pointer-boundary): WTSQueryUserToken out parameter, immediately RAII-wrapped.
+        HANDLE user_token_raw{};  // NOLINT(pixels-raw-pointer-boundary): WTSQueryUserToken out parameter, immediately RAII-wrapped.
         if (!WTSQueryUserToken(session_id, &user_token_raw)) {
             LOGE("StartProcessInCurrentUser, WTSQueryUserToken failed: {}", GetLastError());
             return false;
         }
         const UniqueWinHandle user_token{user_token_raw};
 
-        HANDLE duplicate_raw{};  // NOLINT(gammaray-raw-pointer-boundary): DuplicateTokenEx out parameter, immediately RAII-wrapped.
+        HANDLE duplicate_raw{};  // NOLINT(pixels-raw-pointer-boundary): DuplicateTokenEx out parameter, immediately RAII-wrapped.
         if (!DuplicateTokenEx(user_token.get(), TOKEN_ALL_ACCESS, nullptr, SecurityImpersonation, TokenPrimary, &duplicate_raw)) {
             LOGE("StartProcessInCurrentUser, DuplicateTokenEx failed: {}", GetLastError());
             return false;
         }
         const UniqueWinHandle duplicate_token{duplicate_raw};
 
-        void* environment_raw{};  // NOLINT(gammaray-raw-pointer-boundary): CreateEnvironmentBlock out parameter, immediately RAII-wrapped.
+        void* environment_raw{};  // NOLINT(pixels-raw-pointer-boundary): CreateEnvironmentBlock out parameter, immediately RAII-wrapped.
         if (!CreateEnvironmentBlock(&environment_raw, duplicate_token.get(), FALSE)) {
             LOGE("StartProcessInCurrentUser, CreateEnvironmentBlock failed: {}", GetLastError());
             return false;

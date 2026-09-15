@@ -63,11 +63,11 @@ std::int32_t MouseButtonFlag(const std::int32_t button, const bool down) {
 }
 
 void WithEnvironment(const std::uintptr_t vm_handle, const std::function<void(JNIEnv&)>& action) {
-    auto* vm = reinterpret_cast<JavaVM*>(vm_handle); // NOLINT(gammaray-raw-pointer-boundary)
+    auto* vm = reinterpret_cast<JavaVM*>(vm_handle); // NOLINT(pixels-raw-pointer-boundary)
     if (vm == nullptr) {
         return;
     }
-    JNIEnv* environment = nullptr; // NOLINT(gammaray-raw-pointer-boundary)
+    JNIEnv* environment = nullptr; // NOLINT(pixels-raw-pointer-boundary)
     bool detach_when_done{};
     const auto environment_result = vm->GetEnv(reinterpret_cast<void**>(&environment), JNI_VERSION_1_6);
     if (environment_result == JNI_EDETACHED) {
@@ -117,7 +117,7 @@ std::uintptr_t MakeByteArray(JNIEnv& environment, const std::string& value) {
         return result_handle;
     }
     environment.SetByteArrayRegion(reinterpret_cast<jbyteArray>(result_handle), 0, static_cast<jsize>(value.size()),
-                                   reinterpret_cast<const jbyte*>(value.data())); // NOLINT(gammaray-raw-pointer-boundary)
+                                   reinterpret_cast<const jbyte*>(value.data())); // NOLINT(pixels-raw-pointer-boundary)
     return environment.ExceptionCheck() ? 0U : result_handle;
 }
 
@@ -127,7 +127,7 @@ std::uintptr_t MakeLongArray(JNIEnv& environment, const std::vector<std::int64_t
         return result_handle;
     }
     environment.SetLongArrayRegion(reinterpret_cast<jlongArray>(result_handle), 0, static_cast<jsize>(values.size()),
-                                   reinterpret_cast<const jlong*>(values.data())); // NOLINT(gammaray-raw-pointer-boundary)
+                                   reinterpret_cast<const jlong*>(values.data())); // NOLINT(pixels-raw-pointer-boundary)
     return environment.ExceptionCheck() ? 0U : result_handle;
 }
 
@@ -137,7 +137,7 @@ std::uintptr_t MakeIntArray(JNIEnv& environment, const std::vector<std::int32_t>
         return result_handle;
     }
     environment.SetIntArrayRegion(reinterpret_cast<jintArray>(result_handle), 0, static_cast<jsize>(values.size()),
-                                  reinterpret_cast<const jint*>(values.data())); // NOLINT(gammaray-raw-pointer-boundary)
+                                  reinterpret_cast<const jint*>(values.data())); // NOLINT(pixels-raw-pointer-boundary)
     return environment.ExceptionCheck() ? 0U : result_handle;
 }
 
@@ -163,7 +163,7 @@ std::uintptr_t MakeByteArrayArray(JNIEnv& environment, const std::vector<std::st
 } // namespace
 
 std::shared_ptr<JavaSessionCallback> JavaSessionCallback::Create(JNIEnv& environment, const jobject listener) {
-    JavaVM* vm = nullptr; // NOLINT(gammaray-raw-pointer-boundary)
+    JavaVM* vm = nullptr; // NOLINT(pixels-raw-pointer-boundary)
     if (environment.GetJavaVM(&vm) != JNI_OK) {
         return {};
     }
@@ -299,7 +299,7 @@ void JavaSessionCallback::ClipboardText(const std::string& session_id, const std
         const auto text_handle = reinterpret_cast<std::uintptr_t>(environment.NewByteArray(static_cast<jsize>(text.size())));
         if (method != nullptr && session_id_handle != 0U && text_handle != 0U) {
             environment.SetByteArrayRegion(reinterpret_cast<jbyteArray>(text_handle), 0, static_cast<jsize>(text.size()),
-                                           reinterpret_cast<const jbyte*>(text.data())); // NOLINT(gammaray-raw-pointer-boundary)
+                                           reinterpret_cast<const jbyte*>(text.data())); // NOLINT(pixels-raw-pointer-boundary)
             if (!environment.ExceptionCheck()) {
                 environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), reinterpret_cast<jbyteArray>(text_handle));
             }
@@ -555,7 +555,7 @@ void JavaSessionCallback::Disconnected(const std::string& session_id, const std:
     });
 }
 
-void NativeWindowReleaser::operator()(ANativeWindow* window) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+void NativeWindowReleaser::operator()(ANativeWindow* window) const noexcept { // NOLINT(pixels-raw-pointer-boundary)
     if (window != nullptr) {
         ANativeWindow_release(window);
     }

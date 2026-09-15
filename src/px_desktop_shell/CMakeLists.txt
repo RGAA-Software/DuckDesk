@@ -21,7 +21,7 @@ target_include_directories(px_desktop_shell PRIVATE "${CMAKE_SOURCE_DIR}/src/px_
 target_link_libraries(px_desktop_shell PUBLIC px_ui px_imgui SDL3::SDL3-static px_common pixels::sdk Vulkan::Vulkan comctl32.lib dwmapi.lib d3d11.lib
     d3dcompiler.lib dxgi.lib "${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/libplacebo/lib/libplacebo.lib")
 
-function(gammaray_stage_desktop_images target)
+function(pixels_stage_desktop_images target)
     set(platform_icon_names
         windows.png windows-150.png windows-200.png
         macos.png macos-150.png macos-200.png

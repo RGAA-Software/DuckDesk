@@ -40,7 +40,7 @@ bool SharedPreference::Init(std::filesystem::path directory, std::string_view na
     }
 
     LOGI("event=common.shared_preference.open path={}", utf8_path.Value());
-    leveldb::DB* opened_db = nullptr; // NOLINT(gammaray-raw-pointer-boundary) LevelDB transfers ownership through DB**.
+    leveldb::DB* opened_db = nullptr; // NOLINT(pixels-raw-pointer-boundary) LevelDB transfers ownership through DB**.
     auto status = leveldb::DB::Open(options, utf8_path.Value(), &opened_db);
     if (!status.ok()) {
         read_only_ = true;

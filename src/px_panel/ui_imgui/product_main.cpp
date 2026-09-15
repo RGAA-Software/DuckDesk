@@ -28,7 +28,7 @@ struct CommandLineOptions final {
     std::string skinName{};
 };
 
-CommandLineOptions ParseCommandLine(const int argc, char* argv[]) { // NOLINT(gammaray-raw-pointer-boundary): process-entry ABI
+CommandLineOptions ParseCommandLine(const int argc, char* argv[]) { // NOLINT(pixels-raw-pointer-boundary): process-entry ABI
     CommandLineOptions options{};
     for (int index{1}; index < argc; ++index) {
         const std::string_view argument{argv[index]};
@@ -57,7 +57,7 @@ bool PrepareRuntimeDirectories(const std::filesystem::path& basePath) {
 
 } // namespace
 
-int main(int argc, char* argv[]) { // NOLINT(gammaray-raw-pointer-boundary): process-entry ABI
+int main(int argc, char* argv[]) { // NOLINT(pixels-raw-pointer-boundary): process-entry ABI
     px::Hardware::AcquirePermissionForRestartDevice();
     px::ProcessUtil::SetProcessInHighLevel();
     const auto options = ParseCommandLine(argc, argv);

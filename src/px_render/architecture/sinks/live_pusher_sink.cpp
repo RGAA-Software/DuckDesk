@@ -74,7 +74,7 @@ BuiltinModuleRegistration LivePusherSink::MakeRegistration() {
             BuiltinModuleDescriptor{
                 .id = std::string(kLivePusherModuleId),
                 .name = "Live Pusher",
-                .author = "GammaRay",
+                .author = "Pixels",
                 .description = "Built-in bounded RTMP media sink",
                 .version_name = "1.0.0",
                 .version_code = 100,

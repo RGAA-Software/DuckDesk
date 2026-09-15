@@ -18,7 +18,7 @@ def gen_package_name(build_dir: str) -> str:
     version = extract_project_version(version_file)
     if not version:
         raise RuntimeError(f"Cannot extract PROJECT_VERSION from {version_file}")
-    target_name = "GammaRay_" + version
+    target_name = "Pixels_" + version
     return target_name
 
 
@@ -27,5 +27,5 @@ def gen_package_pdb_name(build_dir: str) -> str:
     version = extract_project_version(version_file)
     if not version:
         raise RuntimeError(f"Cannot extract PROJECT_VERSION from {version_file}")
-    target_name = "GammaRay_pdb_" + version
+    target_name = "Pixels_pdb_" + version
     return target_name

@@ -33,7 +33,7 @@ namespace px::clipboard
         class ClipboardScope {
         public:
             explicit ClipboardScope(
-                HWND owner = nullptr) {  // NOLINT(gammaray-raw-pointer-boundary): synchronous Win32 clipboard owner boundary.
+                HWND owner = nullptr) {  // NOLINT(pixels-raw-pointer-boundary): synchronous Win32 clipboard owner boundary.
                 opened_ = OpenClipboard(owner);
             }
             ~ClipboardScope() {
@@ -47,7 +47,7 @@ namespace px::clipboard
         };
 
         struct GlobalMemoryCloser final {
-            void operator()(std::remove_pointer_t<HGLOBAL>* memory) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): HGLOBAL ABI.
+            void operator()(std::remove_pointer_t<HGLOBAL>* memory) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): HGLOBAL ABI.
                 if (memory != nullptr) {
                     GlobalFree(memory);
                 }
@@ -57,11 +57,11 @@ namespace px::clipboard
         using UniqueGlobalMemory = std::unique_ptr<std::remove_pointer_t<HGLOBAL>, GlobalMemoryCloser>;
 
         std::string ReadUnicodeText(
-            HANDLE data) {  // NOLINT(gammaray-raw-pointer-boundary): borrowed clipboard HANDLE used synchronously.
+            HANDLE data) {  // NOLINT(pixels-raw-pointer-boundary): borrowed clipboard HANDLE used synchronously.
             if (!data) {
                 return "";
             }
-            const auto* text = static_cast<const wchar_t*>(GlobalLock(data));  // NOLINT(gammaray-raw-pointer-boundary): locked memory view.
+            const auto* text = static_cast<const wchar_t*>(GlobalLock(data));  // NOLINT(pixels-raw-pointer-boundary): locked memory view.
             if (!text) {
                 return "";
             }
@@ -73,7 +73,7 @@ namespace px::clipboard
         }
 
         void ReadFileList(
-            HDROP drop,  // NOLINT(gammaray-raw-pointer-boundary): borrowed clipboard drop handle used synchronously.
+            HDROP drop,  // NOLINT(pixels-raw-pointer-boundary): borrowed clipboard drop handle used synchronously.
             std::vector<std::string>& paths) {
             if (!drop) {
                 return;
@@ -108,11 +108,11 @@ namespace px::clipboard
                 continue;
             }
 
-            if (const HANDLE text_data = GetClipboardData(CF_UNICODETEXT)) {  // NOLINT(gammaray-raw-pointer-boundary): borrowed OS handle.
+            if (const HANDLE text_data = GetClipboardData(CF_UNICODETEXT)) {  // NOLINT(pixels-raw-pointer-boundary): borrowed OS handle.
                 out.text_ = ReadUnicodeText(text_data);
             }
 
-            if (const HANDLE drop_data = GetClipboardData(CF_HDROP)) {  // NOLINT(gammaray-raw-pointer-boundary): borrowed OS handle.
+            if (const HANDLE drop_data = GetClipboardData(CF_HDROP)) {  // NOLINT(pixels-raw-pointer-boundary): borrowed OS handle.
                 std::vector<std::string> paths;
                 ReadFileList(static_cast<HDROP>(drop_data), paths);
                 if (auto entries = BuildFileEntriesFromPaths(paths)) {
@@ -143,7 +143,7 @@ namespace px::clipboard
             }
 
             {
-                void* locked = GlobalLock(memory.get());  // NOLINT(gammaray-raw-pointer-boundary): locked memory view used synchronously.
+                void* locked = GlobalLock(memory.get());  // NOLINT(pixels-raw-pointer-boundary): locked memory view used synchronously.
                 if (!locked) {
                     return false;
                 }
@@ -166,7 +166,7 @@ namespace px::clipboard
                 Sleep(5);
                 continue;
             }
-            static_cast<void>(memory.release());  // NOLINT(gammaray-raw-pointer-boundary): ownership transferred to the OS clipboard.
+            static_cast<void>(memory.release());  // NOLINT(pixels-raw-pointer-boundary): ownership transferred to the OS clipboard.
             return true;
         }
         return false;

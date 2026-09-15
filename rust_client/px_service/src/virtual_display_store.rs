@@ -22,12 +22,12 @@ pub struct PersistedVirtualDisplayState {
     pub initialized: bool,
     pub desired_count: u32,
     pub owned_slots: Vec<OwnedVirtualDisplay>,
-    /// Number of Parsec VDD displays that existed before GammaRay added its first
-    /// display. Those displays are never removed by GammaRay.
+    /// Number of Parsec VDD displays that existed before Pixels added its first
+    /// display. Those displays are never removed by Pixels.
     pub foreign_baseline: u32,
     pub topology_generation: u64,
     pub last_known_total: u32,
-    /// Cleared if the Parsec VDD count changes outside GammaRay. Parsec VDD removal
+    /// Cleared if the Parsec VDD count changes outside Pixels. Parsec VDD removal
     /// is LIFO, so deleting while this is false could remove another product's
     /// display.
     pub removal_safe: bool,

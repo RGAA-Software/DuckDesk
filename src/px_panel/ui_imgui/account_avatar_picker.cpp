@@ -28,7 +28,7 @@ std::string WideToUtf8(const std::wstring_view value) {
 
 std::optional<std::string> PickAvatarImage() {
     std::array<wchar_t, 32'768> path{};
-    OPENFILENAMEW request{}; // NOLINT(gammaray-raw-pointer-boundary): Win32 common-dialog ABI structure.
+    OPENFILENAMEW request{}; // NOLINT(pixels-raw-pointer-boundary): Win32 common-dialog ABI structure.
     request.lStructSize = sizeof(request);
     request.lpstrFilter = L"Images (*.png;*.jpg;*.jpeg;*.webp)\0*.png;*.jpg;*.jpeg;*.webp\0All files (*.*)\0*.*\0";
     request.lpstrFile = path.data();

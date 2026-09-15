@@ -8,7 +8,7 @@ extern "C" {
 
 namespace px {
 struct AvBufferDeleter final {
-    void operator()(AVBufferRef* buffer) const noexcept { // NOLINT(gammaray-raw-pointer-boundary) FFmpeg deallocation boundary.
+    void operator()(AVBufferRef* buffer) const noexcept { // NOLINT(pixels-raw-pointer-boundary) FFmpeg deallocation boundary.
         av_buffer_unref(&buffer);
     }
 };

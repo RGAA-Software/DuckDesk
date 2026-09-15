@@ -28,10 +28,23 @@ class PreviewServerStatusPort final : public ServerStatusPort {
             .audioSamples = 48000,
             .audioChannels = 2,
             .audioBits = 16,
+            .environment =
+                {.checks = {{.id = EnvironmentCheckId::Audio, .state = EnvironmentCheckState::Ready, .technicalDetail = "WASAPI"},
+                            {.id = EnvironmentCheckId::VisualCppRuntime, .state = EnvironmentCheckState::Ready, .technicalDetail = "MSVC v14 x64"},
+                            {.id = EnvironmentCheckId::LegacyDirectXRuntime,
+                             .state = EnvironmentCheckState::Ready,
+                             .technicalDetail = "XInput 1.3 (xinput1_3.dll)"},
+                            {.id = EnvironmentCheckId::WindowsAutoLogin, .state = EnvironmentCheckState::NotConfigured},
+                            {.id = EnvironmentCheckId::DisplayTimeout, .state = EnvironmentCheckState::Recommendation, .acTimeoutSeconds = 900U},
+                            {.id = EnvironmentCheckId::SleepTimeout, .state = EnvironmentCheckState::Ready, .acTimeoutSeconds = 0U},
+                            {.id = EnvironmentCheckId::HighPerformanceMode, .state = EnvironmentCheckState::Recommendation},
+                            {.id = EnvironmentCheckId::PendingRestart, .state = EnvironmentCheckState::Ready}}},
         };
     }
     void RestartRender() override {}
     void InstallControllerDriver() override {}
+    void RefreshEnvironment() override {}
+    void PerformEnvironmentAction(EnvironmentAction) override {}
 };
 
 } // namespace

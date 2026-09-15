@@ -31,7 +31,7 @@ namespace px
         }
 
         std::uintptr_t TargetKey(
-            PVIGEM_TARGET target) { // NOLINT(gammaray-raw-pointer-boundary): transient ViGEm callback handle
+            PVIGEM_TARGET target) { // NOLINT(pixels-raw-pointer-boundary): transient ViGEm callback handle
             return reinterpret_cast<std::uintptr_t>(target);
         }
 
@@ -53,7 +53,7 @@ namespace px
             UCHAR large_motor,
             UCHAR small_motor,
             UCHAR,
-            LPVOID) { // NOLINT(gammaray-raw-pointer-boundary): ViGEm callback ABI
+            LPVOID) { // NOLINT(pixels-raw-pointer-boundary): ViGEm callback ABI
             std::shared_ptr<const RumbleCallbackContext> context;
             {
                 std::lock_guard lock(CallbackRegistryMutex());
@@ -70,14 +70,14 @@ namespace px
 
 
     void VigemController::ClientDeleter::operator()(
-        std::remove_pointer_t<PVIGEM_CLIENT>* client) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): ViGEm C handle boundary
+        std::remove_pointer_t<PVIGEM_CLIENT>* client) const noexcept { // NOLINT(pixels-raw-pointer-boundary): ViGEm C handle boundary
         if (client) {
             vigem_free(client);
         }
     }
 
     void VigemController::TargetDeleter::operator()(
-        std::remove_pointer_t<PVIGEM_TARGET>* target) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): ViGEm C handle boundary
+        std::remove_pointer_t<PVIGEM_TARGET>* target) const noexcept { // NOLINT(pixels-raw-pointer-boundary): ViGEm C handle boundary
         if (target) {
             vigem_target_free(target);
         }

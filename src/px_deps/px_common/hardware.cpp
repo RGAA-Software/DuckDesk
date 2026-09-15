@@ -49,7 +49,7 @@ private:
 };
 
 struct WinHandleCloser final {
-    void operator()(void* handle) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): HANDLE is an opaque Win32 handle.
+    void operator()(void* handle) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): HANDLE is an opaque Win32 handle.
         if (handle) CloseHandle(handle);
     }
 };
@@ -248,9 +248,9 @@ void Hardware::DetectMac() {
     ULONG buffer_size{0};
     if (GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_INCLUDE_PREFIX, nullptr, nullptr, &buffer_size) != ERROR_BUFFER_OVERFLOW) return;
     std::vector<std::byte> buffer(buffer_size);
-    auto adapter = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(buffer.data());  // NOLINT(gammaray-raw-pointer-boundary): Win32 linked-list ABI.
+    auto adapter = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(buffer.data());  // NOLINT(pixels-raw-pointer-boundary): Win32 linked-list ABI.
     if (GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_INCLUDE_PREFIX, nullptr, adapter, &buffer_size) != ERROR_SUCCESS) return;
-    for (auto current = adapter; current != nullptr; current = current->Next) {  // NOLINT(gammaray-raw-pointer-boundary): borrowed Win32 list nodes.
+    for (auto current = adapter; current != nullptr; current = current->Next) {  // NOLINT(pixels-raw-pointer-boundary): borrowed Win32 list nodes.
         if (current->OperStatus != IfOperStatusUp || current->IfType == IF_TYPE_SOFTWARE_LOOPBACK || current->PhysicalAddressLength == 0) continue;
         std::string mac{};
         for (DWORD index = 0; index < current->PhysicalAddressLength; ++index) {
@@ -273,7 +273,7 @@ void Hardware::LockScreen() {
 }
 
 bool Hardware::AcquirePermissionForRestartDevice() {
-    HANDLE token{};  // NOLINT(gammaray-raw-pointer-boundary): OpenProcessToken transfers a HANDLE through HANDLE*.
+    HANDLE token{};  // NOLINT(pixels-raw-pointer-boundary): OpenProcessToken transfers a HANDLE through HANDLE*.
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token)) return false;
     const UniqueWinHandle owned_token{token};
     TOKEN_PRIVILEGES privileges{};

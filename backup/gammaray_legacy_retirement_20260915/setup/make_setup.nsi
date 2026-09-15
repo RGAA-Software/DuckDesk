@@ -1,0 +1,244 @@
+;--------------------------------
+; Modern UI
+Unicode true
+
+!include "MUI2.nsh"
+!include "x64.nsh"
+!include "nsProcess.nsh"
+!include "proj_version.nsh"
+!include "parsec_vdd_setup.nsh"
+
+RequestExecutionLevel admin
+
+;--------------------------------
+; App Info
+!define PRODUCT_NAME "Pixels"
+!define APPNAME "px_panel"
+!define COMPANY "Pixels"
+!define INSTALL_DIR "C:\Program Files\PixelsRender"
+
+!ifndef OUTPUT_DIR
+    !define OUTPUT_DIR "."
+!endif
+
+OutFile "${OUTPUT_DIR}\${PRODUCT_NAME}_${PRODUCT_VERSION}_Setup.exe"
+
+InstallDir "${INSTALL_DIR}"
+
+Name "${PRODUCT_NAME}"
+
+;--------------------------------
+!define MUI_ICON "image\logo.ico"
+!define MUI_UNICON "image\uninstall.ico"
+
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_BITMAP "image\header.bmp"
+!define MUI_WELCOMEFINISHPAGE_BITMAP "image\welcome.bmp"
+
+!define MUI_ABORTWARNING
+
+;--------------------------------
+; Pages
+!insertmacro MUI_PAGE_WELCOME
+!insertmacro MUI_PAGE_DIRECTORY
+!insertmacro MUI_PAGE_INSTFILES
+!insertmacro MUI_PAGE_FINISH
+
+!insertmacro MUI_UNPAGE_CONFIRM
+!insertmacro MUI_UNPAGE_INSTFILES
+!insertmacro MUI_UNPAGE_FINISH
+
+!insertmacro MUI_LANGUAGE "English"
+
+;--------------------------------
+; Sections
+Section "Install required files" SecMain
+
+    SetOutPath "$INSTDIR"
+
+    ; Clean stale plugins/skins from previous installs.
+    ; Old DLLs no longer shipped (e.g. net_udp.dll) are ABI-incompatible
+    ; and crash the render process when the plugin loader scans this directory.
+    RMDir /r "$INSTDIR\px_plugins"
+    RMDir /r "$INSTDIR\px_plugins_client"
+    RMDir /r "$INSTDIR\px_skins"
+    RMDir /r "$INSTDIR\px_client"
+    RMDir /r "$INSTDIR\deps"
+
+    ; 1. Extract app.7z
+    File "${OUTPUT_DIR}\app\app.7z"
+    Nsis7z::ExtractWithCallback "$INSTDIR\app.7z" $R9
+    Delete "$INSTDIR\app.7z"
+
+    ; 2. Install the Microsoft-signed Parsec virtual display driver.
+    Call InstallParsecVddDriver
+    Pop $R0
+    StrCmp $R0 "0" parsec_vdd_install_ok
+        IfSilent +2
+            MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "Failed to install the Parsec virtual display driver. Setup cannot continue."
+        SetErrorLevel 1603
+        Abort "Parsec virtual display driver installation failed"
+parsec_vdd_install_ok:
+
+    ; Remove the legacy product USBMMIDD device/package only after Parsec VDD
+    ; is healthy. It is an upgrade cleanup path, never a runtime fallback.
+    Call CleanupLegacyUsbMmIddDriver
+    Pop $R0
+    StrCmp $R0 "0" legacy_usbmmidd_cleanup_ok
+        IfSilent +2
+            MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "Failed to remove the legacy USBMMIDD driver. Setup cannot continue."
+        SetErrorLevel 1603
+        Abort "Legacy USBMMIDD cleanup failed"
+legacy_usbmmidd_cleanup_ok:
+
+    ; 3. Install ViGEm joystick driver silently
+    ExecWait '"$INSTDIR\px_joystick.exe" /S'
+
+    ; 4. Register or update the Windows service only after all runtime files
+    ; have been published. The service manager also starts the service.
+    Call InstallAndStartService
+
+    ; 5. Create shortcuts
+    CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\${APPNAME}.exe"
+    CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\${APPNAME}.exe"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
+
+    ; 6. Write uninstall registry info
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "DisplayName" "${PRODUCT_NAME}"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "InstallLocation" "$INSTDIR"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "Publisher" "${COMPANY}"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "DisplayVersion" "${PRODUCT_VERSION}"
+
+    ; Set the app to run as administrator
+    WriteRegStr HKCU "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" "$INSTDIR\${APPNAME}.exe" "RUNASADMIN"
+
+    ; Write the uninstaller
+    WriteUninstaller "$INSTDIR\Uninstall.exe"
+
+    Call LaunchLink
+SectionEnd
+
+;--------------------------------
+; Uninstaller
+Section "Uninstall"
+    ; Remove Parsec VDD only when this product installed/owns the device.
+    Call un.UninstallParsecVddDriver
+    Pop $R0
+    StrCmp $R0 "0" parsec_vdd_uninstall_ok
+        IfSilent +2
+            MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "Failed to remove the Parsec virtual display driver. Uninstall cannot continue."
+        SetErrorLevel 1603
+        Abort "Parsec virtual display driver removal failed"
+parsec_vdd_uninstall_ok:
+
+    ; Delete files
+    ; The driver function used $INSTDIR as its working directory. Move away
+    ; first so Windows can remove the now-empty installation root as well.
+    SetOutPath "$TEMP"
+    RMDir /r "$INSTDIR"
+
+    ; Delete the auto-start panel scheduled task (default behavior)
+    nsExec::ExecToLog 'schtasks /Delete /TN px_panel_start /F'
+
+    ; Delete shortcuts
+    Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
+    Delete "$SMPROGRAMS\${PRODUCT_NAME}\*.lnk"
+    RMDir "$SMPROGRAMS\${PRODUCT_NAME}"
+
+    ; Delete registry entries
+    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}"
+    DeleteRegKey HKLM "Software\Pixels\VirtualDisplay"
+    DeleteRegValue HKCU "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" "$INSTDIR\${APPNAME}.exe"
+
+SectionEnd
+
+;--------------------------------
+Function .onInit
+    ; Check whether the app is already running
+    ${nsProcess::FindProcess} "${APPNAME}.exe" $R0
+    ${If} $R0 == 0
+        IfSilent +2
+            MessageBox MB_OK|MB_TOPMOST "Please close the running program and reinstall"
+    ${EndIf}
+
+    ; A background service or render process may still be active even when the
+    ; panel is not. Stop it before replacing files, but keep the px_service
+    ; registration so a covering install can update it in place.
+    Call StopServiceForUpgrade
+    Call KillProcesses
+FunctionEnd
+
+Function un.onInit
+    Call un.StopAndDeleteService
+    Call un.KillProcesses
+FunctionEnd
+
+Function LaunchLink
+    ExecShell "" "$INSTDIR\${APPNAME}.exe"
+FunctionEnd
+
+Function StopServiceForUpgrade
+    ; net stop waits for the service process to release files. A missing service
+    ; is valid during a clean installation.
+    nsExec::ExecToLog 'net stop "px_service"'
+    ; The retired pre-Pixels service is removed only for upgrade compatibility.
+    nsExec::ExecToLog 'net stop "GammaRayService"'
+    nsExec::ExecToLog 'sc delete "GammaRayService"'
+FunctionEnd
+
+Function InstallAndStartService
+    IfFileExists "$INSTDIR\px_service.exe" service_binary_present 0
+        MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "px_service.exe is missing. Setup cannot continue."
+        SetErrorLevel 1603
+        Abort "px_service.exe is missing"
+service_binary_present:
+    IfFileExists "$INSTDIR\px_service_manager.exe" service_manager_present 0
+        MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "px_service_manager.exe is missing. Setup cannot continue."
+        SetErrorLevel 1603
+        Abort "px_service_manager.exe is missing"
+service_manager_present:
+    DetailPrint "Registering and starting px_service..."
+    nsExec::ExecToStack '"$INSTDIR\px_service_manager.exe" install --service-bin "$INSTDIR\px_service.exe"'
+    Pop $R0
+    Pop $R1
+    DetailPrint "$R1"
+    StrCmp $R0 "0" service_install_ok
+        MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "Failed to register or start px_service. Setup cannot continue."
+        SetErrorLevel 1603
+        Abort "px_service installation failed: $R1"
+service_install_ok:
+FunctionEnd
+
+Function un.StopAndDeleteService
+    nsExec::ExecToLog 'net stop "px_service"'
+    nsExec::ExecToLog 'sc delete "px_service"'
+    nsExec::ExecToLog 'net stop "GammaRayService"'
+    nsExec::ExecToLog 'sc delete "GammaRayService"'
+FunctionEnd
+
+
+Function KillProcesses
+    ; Order: kill the guardian (UserProxy) first, then the guard processes;
+    ; SysInfo needs only one kill
+    nsExec::ExecToLog 'taskkill /F /T /IM px_function.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_client.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_render.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_panel.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_osinfo.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_display.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_service.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_service_manager.exe'
+FunctionEnd
+
+Function un.KillProcesses
+    nsExec::ExecToLog 'taskkill /F /T /IM px_function.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_client.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_render.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_panel.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_osinfo.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_display.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_service.exe'
+    nsExec::ExecToLog 'taskkill /F /T /IM px_service_manager.exe'
+FunctionEnd

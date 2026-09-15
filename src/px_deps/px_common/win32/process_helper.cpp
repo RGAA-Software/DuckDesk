@@ -233,7 +233,7 @@ WindowInfos ProcessHelper::GetWindowInfoByPid(DWORD pid, int filter_window_size)
 
     EnumWindows(
         [](HWND hwnd, LPARAM lParam) {
-            auto* infos = reinterpret_cast<WindowInfos*>(lParam); // NOLINT(gammaray-raw-pointer-boundary): synchronous EnumWindows context.
+            auto* infos = reinterpret_cast<WindowInfos*>(lParam); // NOLINT(pixels-raw-pointer-boundary): synchronous EnumWindows context.
 
             DWORD find_pid{};
             const auto thread_id = GetWindowThreadProcessId(hwnd, &find_pid);
@@ -288,7 +288,7 @@ WindowInfos ProcessHelper::GetWindowInfoByPid(DWORD pid, int filter_window_size)
     return infos;
 }
 
-bool ProcessHelper::GetWindowPositionByHwnd(HWND hwnd, // NOLINT(gammaray-raw-pointer-boundary): borrowed window handle used synchronously.
+bool ProcessHelper::GetWindowPositionByHwnd(HWND hwnd, // NOLINT(pixels-raw-pointer-boundary): borrowed window handle used synchronously.
                                             RECT& rect) {
     if (!GetClientRect(hwnd, &rect)) {
         LOGE("GetClientRect failed: {}", GetLastError());

@@ -69,7 +69,7 @@ namespace px
     static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData) {
         // Synchronous Win32 enumeration callback boundary; IsThisMonitorExist
         // retains the shared owner for the complete call.
-        auto& capture = *reinterpret_cast<DesktopCaptureSource*>(dwData); // NOLINT(gammaray-raw-pointer-boundary)
+        auto& capture = *reinterpret_cast<DesktopCaptureSource*>(dwData); // NOLINT(pixels-raw-pointer-boundary)
         MONITORINFOEX monitorInfo;
         monitorInfo.cbSize = sizeof(MONITORINFOEX);
         GetMonitorInfoW(hMonitor, &monitorInfo);
@@ -81,7 +81,7 @@ namespace px
     bool DesktopCaptureSource::IsThisMonitorExist() {
         EnumDisplayMonitors(
             nullptr, nullptr, MonitorEnumProc,
-            reinterpret_cast<LPARAM>(this)); // NOLINT(gammaray-raw-pointer-boundary): synchronous Win32 callback boundary
+            reinterpret_cast<LPARAM>(this)); // NOLINT(pixels-raw-pointer-boundary): synchronous Win32 callback boundary
         for (const auto& n : monitors_name_) {
             const auto u8_name = StringUtil::ToUTF8(n);
             if (u8_name == my_monitor_info_.name_) {

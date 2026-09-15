@@ -2,8 +2,8 @@
 // Created by RGAA on 31/10/2025.
 //
 
-#ifndef GAMMARAYPREMIUM_CONSOLE_USER_API_H
-#define GAMMARAYPREMIUM_CONSOLE_USER_API_H
+#ifndef PIXELSPREMIUM_CONSOLE_USER_API_H
+#define PIXELSPREMIUM_CONSOLE_USER_API_H
 
 #include <map>
 #include <string>
@@ -70,4 +70,4 @@ namespace px_console
 
 }
 
-#endif //GAMMARAYPREMIUM_CONSOLE_USER_API_H
+#endif //PIXELSPREMIUM_CONSOLE_USER_API_H

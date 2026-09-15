@@ -50,7 +50,7 @@ LRESULT CALLBACK TitleBarSubclass(const HWND window, const UINT message, const W
     }
     if (message == WM_GETMINMAXINFO) {
         const LRESULT result{DefSubclassProc(window, message, wParam, lParam)};
-        auto& limits{*reinterpret_cast<MINMAXINFO*>(lParam)}; // NOLINT(gammaray-raw-pointer-boundary): Win32 message ABI.
+        auto& limits{*reinterpret_cast<MINMAXINFO*>(lParam)}; // NOLINT(pixels-raw-pointer-boundary): Win32 message ABI.
         const UINT dpi{GetDpiForWindow(window)};
         limits.ptMinTrackSize.x = MulDiv(kMinimumWindowWidth, static_cast<int>(dpi), USER_DEFAULT_SCREEN_DPI);
         limits.ptMinTrackSize.y = MulDiv(kMinimumWindowHeight, static_cast<int>(dpi), USER_DEFAULT_SCREEN_DPI);
@@ -62,7 +62,7 @@ LRESULT CALLBACK TitleBarSubclass(const HWND window, const UINT message, const W
         return DefWindowProcW(window, message, wParam, lParam);
     }
     if (message == WM_DPICHANGED) {
-        const RECT suggestedBounds{*reinterpret_cast<const RECT*>(lParam)}; // NOLINT(gammaray-raw-pointer-boundary): Win32 message ABI.
+        const RECT suggestedBounds{*reinterpret_cast<const RECT*>(lParam)}; // NOLINT(pixels-raw-pointer-boundary): Win32 message ABI.
         // SDL must observe the DPI transition so its display association and mouse-coordinate
         // state remain synchronized. It intentionally keeps the old physical client size, so
         // apply the platform's logical-size-preserving rectangle after SDL has returned.

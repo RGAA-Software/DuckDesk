@@ -16,7 +16,7 @@ namespace px {
 namespace {
 
 struct PdhQueryCloser final {
-    void operator()(void* query) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): opaque PDH query boundary.
+    void operator()(void* query) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): opaque PDH query boundary.
         if (query != nullptr) {
             PdhCloseQuery(query);
         }
@@ -30,18 +30,18 @@ using UniquePdhQuery = std::unique_ptr<void, PdhQueryCloser>;
 
 double CpuFrequency::GetCurrentCpuSpeed() {
 #ifdef WIN32
-    HQUERY query_raw{};  // NOLINT(gammaray-raw-pointer-boundary): initialized by PdhOpenQuery and immediately RAII-wrapped.
+    HQUERY query_raw{};  // NOLINT(pixels-raw-pointer-boundary): initialized by PdhOpenQuery and immediately RAII-wrapped.
     if (PdhOpenQuery(nullptr, 0, &query_raw) != ERROR_SUCCESS) {
         return -1.0;
     }
     UniquePdhQuery query{query_raw};
 
-    HCOUNTER performance_counter{};  // NOLINT(gammaray-raw-pointer-boundary): counter lifetime is owned by the query.
+    HCOUNTER performance_counter{};  // NOLINT(pixels-raw-pointer-boundary): counter lifetime is owned by the query.
     if (PdhAddCounterW(query.get(), L"\\Processor Information(_Total)\\% Processor Performance", 0, &performance_counter) != ERROR_SUCCESS) {
         return -1.0;
     }
 
-    HCOUNTER frequency_counter{};  // NOLINT(gammaray-raw-pointer-boundary): counter lifetime is owned by the query.
+    HCOUNTER frequency_counter{};  // NOLINT(pixels-raw-pointer-boundary): counter lifetime is owned by the query.
     if (PdhAddCounterW(query.get(), L"\\Processor Information(_Total)\\Processor Frequency", 0, &frequency_counter) != ERROR_SUCCESS) {
         return -1.0;
     }

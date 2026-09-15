@@ -65,11 +65,11 @@ namespace px
 
     private:
         struct DcDeleter final {
-            void operator()(std::remove_pointer_t<HDC>* dc) const noexcept; // NOLINT(gammaray-raw-pointer-boundary): typed Win32 HDC RAII boundary
+            void operator()(std::remove_pointer_t<HDC>* dc) const noexcept; // NOLINT(pixels-raw-pointer-boundary): typed Win32 HDC RAII boundary
         };
         struct BitmapDeleter final {
             void operator()(
-                std::remove_pointer_t<HBITMAP>* bitmap) const noexcept; // NOLINT(gammaray-raw-pointer-boundary): typed Win32 HBITMAP RAII boundary
+                std::remove_pointer_t<HBITMAP>* bitmap) const noexcept; // NOLINT(pixels-raw-pointer-boundary): typed Win32 HBITMAP RAII boundary
         };
         using UniqueDc =
             std::unique_ptr<std::remove_pointer_t<HDC>, DcDeleter>;

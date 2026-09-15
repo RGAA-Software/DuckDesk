@@ -19,7 +19,7 @@ namespace {
 // identities, credentials, configuration bodies or upstream packet dumps.
 void Audit(std::string_view event) noexcept {
     std::array<wchar_t, 32768> path{};
-    const auto length = GetEnvironmentVariableW(L"GAMMARAY_RDP_AUDIT_PATH", path.data(), static_cast<DWORD>(path.size()));
+    const auto length = GetEnvironmentVariableW(L"PIXELS_RDP_AUDIT_PATH", path.data(), static_cast<DWORD>(path.size()));
     if (length == 0 || length >= path.size()) {
         return;
     }
@@ -53,8 +53,8 @@ bool ValidConfiguration(const proxyData& data) {
            !config.AudioInput && !config.CameraRedirection && !config.VideoRedirection && !config.RemoteApp;
 }
 
-// NOLINTBEGIN(gammaray-raw-pointer-boundary): transient upstream callback ABI only; immediately access references/spans, never retain.
-BOOL PeerLogon(proxyPlugin*, proxyData* data, void* event) { // NOLINT(gammaray-raw-pointer-boundary): borrowed FreeRDP ABI.
+// NOLINTBEGIN(pixels-raw-pointer-boundary): transient upstream callback ABI only; immediately access references/spans, never retain.
+BOOL PeerLogon(proxyPlugin*, proxyData* data, void* event) { // NOLINT(pixels-raw-pointer-boundary): borrowed FreeRDP ABI.
     try {
         if (!data || !event || !ValidConfiguration(*data)) {
             Audit("peer.reject.configuration\n");
@@ -93,15 +93,15 @@ BOOL PeerLogon(proxyPlugin*, proxyData* data, void* event) { // NOLINT(gammaray-
     }
 }
 
-int VerifyBackendCertificate(freerdp* instance, const BYTE* bytes, size_t length, // NOLINT(gammaray-raw-pointer-boundary): borrowed FreeRDP ABI.
-                             const char* hostname, UINT16 port, DWORD flags) {    // NOLINT(gammaray-raw-pointer-boundary): borrowed FreeRDP ABI.
+int VerifyBackendCertificate(freerdp* instance, const BYTE* bytes, size_t length, // NOLINT(pixels-raw-pointer-boundary): borrowed FreeRDP ABI.
+                             const char* hostname, UINT16 port, DWORD flags) {    // NOLINT(pixels-raw-pointer-boundary): borrowed FreeRDP ABI.
     try {
         if (!instance || !bytes || !hostname || std::string_view{hostname} != "127.0.0.1" || port != 3389 || flags != 0 || length == 0 ||
             length > 64 * 1024) {
             return FALSE;
         }
         std::array<char, 65> pin{};
-        if (GetEnvironmentVariableA("GAMMARAY_RDP_TARGET_CERT_SHA256", pin.data(), static_cast<DWORD>(pin.size())) != 64) {
+        if (GetEnvironmentVariableA("PIXELS_RDP_TARGET_CERT_SHA256", pin.data(), static_cast<DWORD>(pin.size())) != 64) {
             return FALSE;
         }
         const bool accepted = px::rdp::VerifyPinnedCertificate({bytes, length}, {pin.data(), 64});
@@ -112,7 +112,7 @@ int VerifyBackendCertificate(freerdp* instance, const BYTE* bytes, size_t length
     }
 }
 
-BOOL PrepareBackend(proxyPlugin*, proxyData* data, void*) { // NOLINT(gammaray-raw-pointer-boundary): borrowed FreeRDP ABI.
+BOOL PrepareBackend(proxyPlugin*, proxyData* data, void*) { // NOLINT(pixels-raw-pointer-boundary): borrowed FreeRDP ABI.
     try {
         if (!data || !ValidConfiguration(*data) || !data->pc || !data->pc->instance) {
             Audit("target.reject\n");
@@ -128,7 +128,7 @@ BOOL PrepareBackend(proxyPlugin*, proxyData* data, void*) { // NOLINT(gammaray-r
     }
 }
 
-BOOL CheckTarget(proxyPlugin*, proxyData* data, void*) { // NOLINT(gammaray-raw-pointer-boundary): borrowed FreeRDP ABI.
+BOOL CheckTarget(proxyPlugin*, proxyData* data, void*) { // NOLINT(pixels-raw-pointer-boundary): borrowed FreeRDP ABI.
     try {
         const bool accepted = data && ValidConfiguration(*data);
         Audit(accepted ? "target.accept\n" : "target.reject\n");
@@ -142,7 +142,7 @@ BOOL RefuseRedirect(proxyPlugin*, proxyData*, void*) {
     return FALSE;
 }
 
-BOOL StaticChannel(proxyPlugin*, proxyData*, void* event) { // NOLINT(gammaray-raw-pointer-boundary): borrowed FreeRDP ABI.
+BOOL StaticChannel(proxyPlugin*, proxyData*, void* event) { // NOLINT(pixels-raw-pointer-boundary): borrowed FreeRDP ABI.
     if (!event) {
         return FALSE;
     }
@@ -150,7 +150,7 @@ BOOL StaticChannel(proxyPlugin*, proxyData*, void* event) { // NOLINT(gammaray-r
     return channel.channel_name && px::rdp::IsAllowedStaticChannel(channel.channel_name) ? TRUE : FALSE;
 }
 
-BOOL DynamicChannel(proxyPlugin*, proxyData*, void* event) { // NOLINT(gammaray-raw-pointer-boundary): borrowed FreeRDP ABI.
+BOOL DynamicChannel(proxyPlugin*, proxyData*, void* event) { // NOLINT(pixels-raw-pointer-boundary): borrowed FreeRDP ABI.
     if (!event) {
         return FALSE;
     }
@@ -171,24 +171,24 @@ BOOL ChannelData(const proxyChannelDataEventInfo& channel, px::rdp::DeviceChanne
     return accepted ? TRUE : FALSE;
 }
 
-BOOL BackendData(proxyPlugin*, proxyData*, void* event) { // NOLINT(gammaray-raw-pointer-boundary): borrowed FreeRDP ABI.
+BOOL BackendData(proxyPlugin*, proxyData*, void* event) { // NOLINT(pixels-raw-pointer-boundary): borrowed FreeRDP ABI.
     return event ? ChannelData(*static_cast<const proxyChannelDataEventInfo*>(event), px::rdp::DeviceChannelDirection::kServerToClient) : FALSE;
 }
 
-BOOL FrontendData(proxyPlugin*, proxyData*, void* event) { // NOLINT(gammaray-raw-pointer-boundary): borrowed FreeRDP ABI.
+BOOL FrontendData(proxyPlugin*, proxyData*, void* event) { // NOLINT(pixels-raw-pointer-boundary): borrowed FreeRDP ABI.
     return event ? ChannelData(*static_cast<const proxyChannelDataEventInfo*>(event), px::rdp::DeviceChannelDirection::kClientToServer) : FALSE;
 }
 
 } // namespace
 
 extern "C" __declspec(dllexport) BOOL
-proxy_module_entry_point(proxyPluginsManager* manager, void*) { // NOLINT(gammaray-raw-pointer-boundary): synchronous FreeRDP registration ABI.
+proxy_module_entry_point(proxyPluginsManager* manager, void*) { // NOLINT(pixels-raw-pointer-boundary): synchronous FreeRDP registration ABI.
     if (!manager || !manager->RegisterPlugin) {
         return FALSE;
     }
     proxyPlugin plugin{};
-    plugin.name = "gammaray-policy";
-    plugin.description = "GammaRay fixed-workspace admission, pinned RDS certificate and channel policy";
+    plugin.name = "pixels-policy";
+    plugin.description = "Pixels fixed-workspace admission, pinned RDS certificate and channel policy";
     plugin.ServerPeerLogon = PeerLogon;
     plugin.ClientPreConnect = PrepareBackend;
     plugin.ServerFetchTargetAddr = CheckTarget;
@@ -202,4 +202,4 @@ proxy_module_entry_point(proxyPluginsManager* manager, void*) { // NOLINT(gammar
     // RegisterPlugin copies this ABI value. No custom ownership or unload hook is necessary.
     return manager->RegisterPlugin(manager, &plugin);
 }
-// NOLINTEND(gammaray-raw-pointer-boundary)
+// NOLINTEND(pixels-raw-pointer-boundary)

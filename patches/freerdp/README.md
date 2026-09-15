@@ -13,7 +13,7 @@
 官方 3.31.0 的 MF 解码器在 `MF_E_TRANSFORM_STREAM_CHANGE` 后只重配输出类型、缓冲区，
 没有再次取出待处理输出，却返回“已产出帧”；`NEED_MORE_INPUT` 同样返回成功帧。
 首批 AVC444 数据因而进入 0×0 表面的矩形校验。使用官方 Windows 客户端直接连接 90
-也能复现，不是 GammaRay WebSocket 分包或 Qt 显示层独有的问题。
+也能复现，不是 Pixels WebSocket 分包或 Qt 显示层独有的问题。
 
 补丁在格式改变后重试 **ProcessOutput**，不重复 **ProcessInput**；最多四次格式重配。
 暂未产出画面返回 pending，公共转换路径不读取空表面。补齐 AddBuffer 错误处理、
@@ -39,7 +39,7 @@ scripts_build\build_cpp_render.bat
 `prepare_rdp_sdk.ps1` 将补丁应用到 `.cache/rdp_source_<补丁摘要前12位>`，每次构建验证
 基线、完整 diff 和意外文件；不自动重置有改动的源码。修改补丁后使用新的独立构建目录，
 避免复用绑定旧源码目录的 CMake cache。本次构建目录为 `.cache/rdp_proxy_patched_3_31`。
-`gammaray-rdp-sdk.json` 记录基线、补丁摘要、解码器和运行库 SHA-256；Client CMake 与
+`pixels-rdp-sdk.json` 记录基线、补丁摘要、解码器和运行库 SHA-256；Client CMake 与
 90 部署入口均检查它。节点部署还要求代理构建树与 SDK 中 FreeRDP/WinPR DLL 完全一致。
 
 升级先复现并回归连接、动态图像、resize、音频、剪贴板、重复连接和错误路径；

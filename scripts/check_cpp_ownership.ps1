@@ -145,7 +145,7 @@ try {
             # are data, not C++ declarations or new/delete expressions.
             $codeOnly = $added -replace '"(?:\\.|[^"\\])*"', '""'
             $isReviewedRawPointerBoundary =
-                $added -match 'NOLINT\(gammaray-raw-pointer-boundary\)'
+                $added -match 'NOLINT\(pixels-raw-pointer-boundary\)'
             if ($codeOnly -match '\[[^\]]*\bthis\b[^\]]*\]' -or
                 $codeOnly -match '\bnew\s+[A-Za-z_:]' -or
                 $codeOnly -match '\bdelete\s+[A-Za-z_]') {

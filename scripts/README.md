@@ -1,8 +1,8 @@
 # Scripts
 
-This directory contains helper scripts for building, packaging, and diagnosing the GammaRayPremium project.
+This directory contains helper scripts for building, packaging, and diagnosing Pixels.
 
-## `list_gammaray_render.ps1` / `list_gammaray_render.bat`
+## `list_pixels_render.ps1` / `list_pixels_render.bat`
 
 List all running `px_render.exe` processes with their full command-line arguments.
 
@@ -10,16 +10,16 @@ List all running `px_render.exe` processes with their full command-line argument
 
 ```powershell
 # Default: list px_render.exe
-.\list_gammaray_render.ps1
+.\list_pixels_render.ps1
 
 # List a different process
-.\list_gammaray_render.ps1 -Name "px_panel.exe"
-.\list_gammaray_render.ps1 -Name "px_client.exe"
+.\list_pixels_render.ps1 -Name "px_panel.exe"
+.\list_pixels_render.ps1 -Name "px_client.exe"
 ```
 
 ### Batch (double-click)
 
-Run `list_gammaray_render.bat` directly. It defaults to `px_render.exe` and keeps the window open with `pause`.
+Run `list_pixels_render.bat` directly. It defaults to `px_render.exe` and keeps the window open with `pause`.
 
 ### Output
 
@@ -29,9 +29,9 @@ Found 1 px_render.exe process(es):
 PID              : 30644
 Name             : px_render.exe
 Parent PID       : 18960
-Executable Path  : D:\source\GoCloud\GammaRayPremium\build_official\dist\px_render.exe
+Executable Path  : <repo>\build_official\dist\px_render.exe
 Start Time       : 2026-06-12 15:38:24
-Command Line     : D:/source/GoCloud/GammaRayPremium/build_official/dist/px_render.exe
+Command Line     : <repo>/build_official/dist/px_render.exe
                    --app_mode=desktop
                    --panel_server_host=127.0.0.1
                    --panel_server_port=4999

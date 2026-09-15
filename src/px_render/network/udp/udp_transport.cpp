@@ -45,7 +45,7 @@ void TrackVideoSend(media::VideoPacketTiming& timing, const media::Packet& packe
 }
 } // namespace
 
-void UdpWinHandleCloser::operator()(void* handle) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): Win32 HANDLE boundary
+void UdpWinHandleCloser::operator()(void* handle) const noexcept { // NOLINT(pixels-raw-pointer-boundary): Win32 HANDLE boundary
     if (handle) {
         CloseHandle(handle);
     }

@@ -35,7 +35,7 @@ class UdpRuntimeState;
 enum class EncodedReferenceState : std::uint8_t;
 
 struct UdpWinHandleCloser final {
-    void operator()(void* handle) const noexcept; // NOLINT(gammaray-raw-pointer-boundary): Win32 HANDLE boundary
+    void operator()(void* handle) const noexcept; // NOLINT(pixels-raw-pointer-boundary): Win32 HANDLE boundary
 };
 
 using UdpWinHandle = std::unique_ptr<void, UdpWinHandleCloser>;

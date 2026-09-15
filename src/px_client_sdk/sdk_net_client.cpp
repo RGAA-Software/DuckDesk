@@ -169,7 +169,7 @@ void NetClient::StartManagedUdpMediaConnection(const std::shared_ptr<Connection>
                 if (callback) {
                     callback(std::move(data));
                 }
-                return; // RDP owns its framing; do not generate one GammaRay ACK per chunk.
+                return; // RDP owns its framing; do not generate one Pixels ACK per chunk.
             }
             static_cast<void>(self->ParseMessage(std::move(data)));
             return; // No native UDP or host file/clipboard channel in RDP mode.

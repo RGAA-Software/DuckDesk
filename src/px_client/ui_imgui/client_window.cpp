@@ -326,7 +326,7 @@ void ClientWindow::ReleasePressedInput() {
 
 namespace {
 struct SdlTextDeleter final {
-    void operator()(char* value) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): SDL-owned text ABI.
+    void operator()(char* value) const noexcept { // NOLINT(pixels-raw-pointer-boundary): SDL-owned text ABI.
         SDL_free(value);
     }
 };

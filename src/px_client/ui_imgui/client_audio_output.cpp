@@ -10,7 +10,7 @@ namespace px::client::imgui {
 
 struct ClientAudioOutput::Impl final {
     struct AudioStreamDeleter final {
-        void operator()(SDL_AudioStream* stream) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): SDL-owned stream deleter ABI.
+        void operator()(SDL_AudioStream* stream) const noexcept { // NOLINT(pixels-raw-pointer-boundary): SDL-owned stream deleter ABI.
             if (stream != nullptr) {
                 SDL_DestroyAudioStream(stream);
             }

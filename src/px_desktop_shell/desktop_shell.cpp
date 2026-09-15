@@ -27,7 +27,7 @@ namespace {
 constexpr Uint32 kShowWindowEvent{SDL_EVENT_USER + 41};
 constexpr Uint32 kExitApplicationEvent{SDL_EVENT_USER + 42};
 
-BOOL CALLBACK RestoreCurrentProcessWindow(HWND window, LPARAM) { // NOLINT(gammaray-raw-pointer-boundary): Win32 enumeration callback ABI.
+BOOL CALLBACK RestoreCurrentProcessWindow(HWND window, LPARAM) { // NOLINT(pixels-raw-pointer-boundary): Win32 enumeration callback ABI.
     DWORD ownerProcessId{};
     static_cast<void>(GetWindowThreadProcessId(window, &ownerProcessId));
     std::array<wchar_t, 64> className{};
@@ -39,7 +39,7 @@ BOOL CALLBACK RestoreCurrentProcessWindow(HWND window, LPARAM) { // NOLINT(gamma
 }
 
 struct SdlTrayDeleter final {
-    void operator()(SDL_Tray* tray) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): SDL owned handle boundary
+    void operator()(SDL_Tray* tray) const noexcept { // NOLINT(pixels-raw-pointer-boundary): SDL owned handle boundary
         SDL_DestroyTray(tray);
     }
 };
@@ -47,14 +47,14 @@ struct SdlTrayDeleter final {
 using SdlTray = std::unique_ptr<SDL_Tray, SdlTrayDeleter>;
 
 struct SdlSurfaceDeleter final {
-    void operator()(SDL_Surface* surface) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): SDL owned handle boundary
+    void operator()(SDL_Surface* surface) const noexcept { // NOLINT(pixels-raw-pointer-boundary): SDL owned handle boundary
         SDL_DestroySurface(surface);
     }
 };
 
 using SdlSurface = std::unique_ptr<SDL_Surface, SdlSurfaceDeleter>;
 
-void SDLCALL OnTrayEntry(void*, SDL_TrayEntry* entry) { // NOLINT(gammaray-raw-pointer-boundary): SDL callback ABI
+void SDLCALL OnTrayEntry(void*, SDL_TrayEntry* entry) { // NOLINT(pixels-raw-pointer-boundary): SDL callback ABI
     const std::string_view label{SDL_GetTrayEntryLabel(entry)};
     SDL_Event event{};
     event.type = label == "Exit Pixels" ? kExitApplicationEvent : kShowWindowEvent;
@@ -161,7 +161,7 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
                     } else if (event.type == SDL_EVENT_MOUSE_WHEEL) {
                         translated.wheelX = event.wheel.x;
                         translated.wheelY = event.wheel.y;
-                    } else if (event.type == SDL_EVENT_DROP_FILE && event.drop.data) { // NOLINT(gammaray-raw-pointer-boundary): SDL event ABI
+                    } else if (event.type == SDL_EVENT_DROP_FILE && event.drop.data) { // NOLINT(pixels-raw-pointer-boundary): SDL event ABI
                         translated.text = event.drop.data;
                     }
                     input(translated);

@@ -75,7 +75,7 @@ StreamBinding Binding() {
 class LeaseDirectory final {
   public:
     LeaseDirectory()
-        : path_(std::filesystem::temp_directory_path() / ("gammaray-rdp-lease-" + std::to_string(GetCurrentProcessId()) + "-" +
+        : path_(std::filesystem::temp_directory_path() / ("pixels-rdp-lease-" + std::to_string(GetCurrentProcessId()) + "-" +
                                                           std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()))) {
         if (!OpenPrivateRdpDirectory(path_, true)) {
             throw std::runtime_error("lease test directory creation failed");
@@ -143,11 +143,11 @@ TEST(RdpStreamPacket, OpenAssignsValidBindingButCannotBeInjectedIntoActiveByteSt
 }
 
 TEST(RdpProxyPolicy, OnlyExactManagedLocalIdentityIsAdmitted) {
-    EXPECT_TRUE(IsWorkspacePeer("grdp_account", "NODE", "GRDP_ACCOUNT", "node"));
-    EXPECT_FALSE(IsWorkspacePeer("grdp_account", "NODE", "Administrator", "NODE"));
-    EXPECT_FALSE(IsWorkspacePeer("grdp_account", "NODE", "grdp_other", "NODE"));
-    EXPECT_FALSE(IsWorkspacePeer("grdp_account", "NODE", "grdp_account", "DOMAIN"));
-    EXPECT_FALSE(IsWorkspacePeer("grdp_account", "NODE", "grdp_account", ""));
+    EXPECT_TRUE(IsWorkspacePeer("prdp_account", "NODE", "PRDP_ACCOUNT", "node"));
+    EXPECT_FALSE(IsWorkspacePeer("prdp_account", "NODE", "Administrator", "NODE"));
+    EXPECT_FALSE(IsWorkspacePeer("prdp_account", "NODE", "prdp_other", "NODE"));
+    EXPECT_FALSE(IsWorkspacePeer("prdp_account", "NODE", "prdp_account", "DOMAIN"));
+    EXPECT_FALSE(IsWorkspacePeer("prdp_account", "NODE", "prdp_account", ""));
     EXPECT_FALSE(IsWorkspacePeer("Administrator", "NODE", "Administrator", "NODE"));
 }
 

@@ -2,7 +2,7 @@
 <Window>
   <Font id="0" name="Microsoft YaHei UI" size="16" default="true" />
   <VerticalLayout bkcolor="#FFF1F5FA" inset="24,24,24,18" childpadding="16">
-    <Label text="GammaRay · 应用工作区" height="38" textcolor="#FF16243A" />
+    <Label text="Pixels · 应用工作区" height="38" textcolor="#FF16243A" />
     <Label text="DuiLib 最小 UI 验证 / 不接管系统桌面" height="28" textcolor="#FF61718A" />
     <VerticalLayout bkcolor="#FFFFFFFF" inset="24,24,24,24" childpadding="12">
       <Label name="status" text="准备就绪：点击底部按钮切换演示内容" height="36" textcolor="#FF24466B" />

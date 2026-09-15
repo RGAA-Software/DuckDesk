@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(GammaRayPremium LANGUAGES CXX C)
+project(Pixels LANGUAGES CXX C)
 
 include(CTest)
 
@@ -84,7 +84,6 @@ include_directories(${CMAKE_BINARY_DIR}/src/px_deps/px_message)
 include_directories(${CMAKE_BINARY_DIR}/src/px_deps/px_server_protocol)
 
 ## Server
-include_directories(${CMAKE_SOURCE_DIR}/src/GammaRayServer)
 
 link_directories(${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}/lib)
 

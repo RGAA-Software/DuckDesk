@@ -107,6 +107,7 @@ impl ServiceManager {
                 StartServiceW(service, None)
                     .map_err(|err| format!("StartServiceW failed: {err}"))?;
             }
+            wait_for_running(service, Duration::from_secs(30))?;
 
             let mut restart_action = SC_ACTION {
                 Type: SC_ACTION_RESTART,
@@ -316,6 +317,26 @@ unsafe fn wait_for_stop(service: SC_HANDLE, timeout: Duration) -> Result<(), Str
             return Err("waiting for service stop timed out".to_string());
         }
         thread::sleep(Duration::from_millis(500));
+    }
+}
+
+unsafe fn wait_for_running(service: SC_HANDLE, timeout: Duration) -> Result<(), String> {
+    let start = Instant::now();
+    loop {
+        let status = query_status_raw(service)?;
+        if status.dwCurrentState == SERVICE_RUNNING {
+            return Ok(());
+        }
+        if status.dwCurrentState == SERVICE_STOPPED {
+            return Err(format!(
+                "service stopped during startup: win32_exit_code={}, service_exit_code={}",
+                status.dwWin32ExitCode, status.dwServiceSpecificExitCode
+            ));
+        }
+        if start.elapsed() > timeout {
+            return Err("waiting for service startup timed out".to_string());
+        }
+        thread::sleep(Duration::from_millis(250));
     }
 }
 

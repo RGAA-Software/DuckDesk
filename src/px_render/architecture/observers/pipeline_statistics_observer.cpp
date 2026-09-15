@@ -49,7 +49,7 @@ BuiltinModuleRegistration PipelineStatisticsObserver::MakeRegistration() {
         .descriptor = BuiltinModuleDescriptor{
             .id = std::string(kPipelineStatisticsModuleId),
             .name = "Pipeline Statistics",
-            .author = "GammaRay",
+            .author = "Pixels",
             .description = "Typed media and session telemetry observer",
             .version_name = "1.0.0",
             .version_code = 100,

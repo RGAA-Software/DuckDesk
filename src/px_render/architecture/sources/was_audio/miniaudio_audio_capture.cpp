@@ -11,7 +11,7 @@ namespace px
 {
 
 	std::string MiniAudioCapture::ResultText(ma_result result) {
-		const char* description = ma_result_description(result); // NOLINT(gammaray-raw-pointer-boundary): borrowed miniaudio result text
+		const char* description = ma_result_description(result); // NOLINT(pixels-raw-pointer-boundary): borrowed miniaudio result text
 		return description ? std::string(description) : std::string("unknown");
 	}
 
@@ -151,7 +151,7 @@ namespace px
 			return MA_INVALID_OPERATION;
 		}
 		callback_bridge->accepting = true;
-		device_config.pUserData = callback_bridge.get(); // NOLINT(gammaray-raw-pointer-boundary): miniaudio retains userdata only until device uninit
+		device_config.pUserData = callback_bridge.get(); // NOLINT(pixels-raw-pointer-boundary): miniaudio retains userdata only until device uninit
 		// nullptr => current OS default render endpoint (or process-loopback virtual device).
 		device_config.capture.pDeviceID = nullptr;
 		if (loopback_process_id_ != 0) {
@@ -312,7 +312,7 @@ namespace px
 			return;
 		}
 		auto& bridge = *static_cast<CallbackBridge*>(
-			notification->pDevice->pUserData); // NOLINT(gammaray-raw-pointer-boundary): miniaudio userdata boundary
+			notification->pDevice->pUserData); // NOLINT(pixels-raw-pointer-boundary): miniaudio userdata boundary
 		const auto self = bridge.accepting ? bridge.owner.lock() : nullptr;
 		if (!self) {
 			return;
@@ -350,14 +350,14 @@ namespace px
 			return;
 		}
 		auto& bridge = *static_cast<CallbackBridge*>(
-			device->pUserData); // NOLINT(gammaray-raw-pointer-boundary): miniaudio userdata boundary
+			device->pUserData); // NOLINT(pixels-raw-pointer-boundary): miniaudio userdata boundary
 		const auto self = bridge.accepting ? bridge.owner.lock() : nullptr;
 		if (!self || !self->running_) {
 			return;
 		}
 		self->EmitPcm(
 			std::span<const int16_t>(
-				static_cast<const int16_t*>(input), // NOLINT(gammaray-raw-pointer-boundary): miniaudio PCM buffer boundary
+				static_cast<const int16_t*>(input), // NOLINT(pixels-raw-pointer-boundary): miniaudio PCM buffer boundary
 				static_cast<size_t>(frame_count) * kChannels),
 			frame_count);
 	}

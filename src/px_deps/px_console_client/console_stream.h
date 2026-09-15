@@ -2,8 +2,8 @@
 // Created by RGAA on 1/11/2025.
 //
 
-#ifndef GAMMARAYPREMIUM_CONSOLE_STREAM_H
-#define GAMMARAYPREMIUM_CONSOLE_STREAM_H
+#ifndef PIXELSPREMIUM_CONSOLE_STREAM_H
+#define PIXELSPREMIUM_CONSOLE_STREAM_H
 
 #include <string>
 #include "px_common/secret_buffer.h"
@@ -159,4 +159,4 @@ namespace px_console
 
 }
 
-#endif //GAMMARAYPREMIUM_CONSOLE_STREAM_H
+#endif //PIXELSPREMIUM_CONSOLE_STREAM_H

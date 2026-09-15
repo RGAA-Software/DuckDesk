@@ -36,7 +36,7 @@ class PanelAuditStore final {
 
   private:
     struct DatabaseDeleter final {
-        void operator()(sqlite3* database) const noexcept; // NOLINT(gammaray-raw-pointer-boundary): SQLite ownership adapter
+        void operator()(sqlite3* database) const noexcept; // NOLINT(pixels-raw-pointer-boundary): SQLite ownership adapter
     };
 
     std::unique_ptr<sqlite3, DatabaseDeleter> database_{};

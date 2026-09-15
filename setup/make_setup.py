@@ -100,6 +100,16 @@ def run_nsis(nsis_dir, nsi_script_path, working_dir, output_dir):
     print("NSIS build completed.")
 
 
+def validate_service_install_inputs(target_dir: str) -> None:
+    required = ["px_service.exe", "px_service_manager.exe"]
+    missing = [name for name in required if not os.path.isfile(os.path.join(target_dir, name))]
+    if missing:
+        raise RuntimeError(
+            "Installer cannot register px_service because required runtime files are missing: "
+            + ", ".join(missing)
+        )
+
+
 def main():
     parser = argparse.ArgumentParser(description="Package dist into installer")
     parser.add_argument("--build-dir", required=True, help="CMake binary dir containing dist/")
@@ -117,6 +127,7 @@ def main():
     target_dir = os.path.join(build_dir, "dist")
     if not os.path.isdir(target_dir):
         raise RuntimeError(f"dist folder not found: {target_dir}")
+    validate_service_install_inputs(target_dir)
 
     # 输出目录：output/<build_name>/<version>/
     output_dir = compute_output_dir(build_dir, current_dir)

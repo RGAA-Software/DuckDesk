@@ -1,6 +1,6 @@
 # Pixels Android Client
 
-`src/px_android` 正在原地重建为正式的 Pixels Android 客户端。旧 GammaRay Android 应用不再维护，也不承担数据、API、UI、包名或安装升级兼容。
+`src/px_android` 正在原地重建为正式的 Pixels Android 客户端。旧 Android 应用不再维护，也不承担数据、API、UI、包名或安装升级兼容。
 
 完整且具有约束力的产品、架构、删除范围、里程碑和验收标准见：
 

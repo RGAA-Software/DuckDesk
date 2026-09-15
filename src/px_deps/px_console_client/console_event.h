@@ -2,8 +2,8 @@
 // Created by RGAA on 23/01/2026.
 //
 
-#ifndef GAMMARAYPREMIUM_CONSOLE_EVENT_H
-#define GAMMARAYPREMIUM_CONSOLE_EVENT_H
+#ifndef PIXELSPREMIUM_CONSOLE_EVENT_H
+#define PIXELSPREMIUM_CONSOLE_EVENT_H
 
 #include <string>
 #include <unordered_map>
@@ -84,4 +84,4 @@ namespace px
 
 }
 
-#endif //GAMMARAYPREMIUM_CONSOLE_EVENT_H
+#endif //PIXELSPREMIUM_CONSOLE_EVENT_H

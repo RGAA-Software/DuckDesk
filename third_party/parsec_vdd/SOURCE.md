@@ -8,7 +8,7 @@
 - Vendored path: `source/`
 - License: `source/LICENSE`
 
-The controller source is pinned to the upstream commit above. GammaRay's
+The controller source is pinned to the upstream commit above. Pixels'
 maintained product fork adds a headless `-worker` mode, changes heartbeat to
 50 ms, uses a product-specific single-instance identity, retains the upstream
 eight-display capacity, allows five seconds for Windows topology removal, and

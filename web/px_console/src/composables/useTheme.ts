@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { theme } from 'ant-design-vue'
 
-const THEME_KEY = 'gammaray-console-theme' // 'light' | 'dark'
+const THEME_KEY = 'pixels-console-theme' // 'light' | 'dark'
 
 // 模块级状态：全局共享同一个 isDark
 const isDark = ref(false)

@@ -80,7 +80,7 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
 
     // create answer sdp callback
     create_answer_callback_->SetOnCreateSdpSuccessCallback(
-        [weak_server](webrtc::SessionDescriptionInterface* desc) { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc SDP callback ABI
+        [weak_server](webrtc::SessionDescriptionInterface* desc) { // NOLINT(pixels-raw-pointer-boundary): libwebrtc SDP callback ABI
             const auto server = weak_server.lock();
             if (!server) {
                 return;
@@ -310,7 +310,7 @@ bool RtcServer::SetRemoteOffer(const std::string& offer_sdp) {
         return false;
     }
     peer_conn_->SetRemoteDescription(set_remote_offer_sdp_callback_.get(),
-                                     session_description.release()); // NOLINT(gammaray-raw-pointer-boundary): ownership passes to libwebrtc
+                                     session_description.release()); // NOLINT(pixels-raw-pointer-boundary): ownership passes to libwebrtc
     return true;
 }
 

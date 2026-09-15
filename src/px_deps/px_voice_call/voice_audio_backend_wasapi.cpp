@@ -74,7 +74,7 @@ public:
         device_config.dataCallback = &WasapiVoiceAudioBackend::DataCallback;
         device_config.notificationCallback =
             &WasapiVoiceAudioBackend::NotificationCallback;
-        device_config.pUserData = callback_state.get(); // NOLINT(gammaray-raw-pointer-boundary): miniaudio retains userdata only until ma_device_uninit
+        device_config.pUserData = callback_state.get(); // NOLINT(pixels-raw-pointer-boundary): miniaudio retains userdata only until ma_device_uninit
 
         ma_device_id capture_id{};
         ma_device_id playout_id{};
@@ -144,8 +144,8 @@ public:
             SetError(error, ResultError("ma_context_init(WASAPI enumeration)", result));
             return false;
         }
-        ma_device_info* playback = nullptr; // NOLINT(gammaray-raw-pointer-boundary): miniaudio enumeration output
-        ma_device_info* capture = nullptr; // NOLINT(gammaray-raw-pointer-boundary): miniaudio enumeration output
+        ma_device_info* playback = nullptr; // NOLINT(pixels-raw-pointer-boundary): miniaudio enumeration output
+        ma_device_info* capture = nullptr; // NOLINT(pixels-raw-pointer-boundary): miniaudio enumeration output
         ma_uint32 playback_count = 0;
         ma_uint32 capture_count = 0;
         result = ma_context_get_devices(
@@ -288,7 +288,7 @@ private:
         return true;
     }
 
-    // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): miniaudio data callback ABI
+    // NOLINTNEXTLINE(pixels-raw-pointer-boundary): miniaudio data callback ABI
     static void DataCallback(
         ma_device* device, void* output, const void* input,
         ma_uint32 frame_count) {
@@ -296,10 +296,10 @@ private:
             return;
         }
         auto& state = *static_cast<CallbackState*>(
-            device->pUserData); // NOLINT(gammaray-raw-pointer-boundary): miniaudio callback userdata boundary
+            device->pUserData); // NOLINT(pixels-raw-pointer-boundary): miniaudio callback userdata boundary
         const auto output_samples = output
             ? std::span<int16_t>(
-                  static_cast<int16_t*>(output), frame_count) // NOLINT(gammaray-raw-pointer-boundary): miniaudio buffer boundary
+                  static_cast<int16_t*>(output), frame_count) // NOLINT(pixels-raw-pointer-boundary): miniaudio buffer boundary
             : std::span<int16_t>{};
         if (!output_samples.empty()) {
             std::fill(output_samples.begin(), output_samples.end(), 0);
@@ -323,7 +323,7 @@ private:
         }
     }
 
-    // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): miniaudio notification callback ABI
+    // NOLINTNEXTLINE(pixels-raw-pointer-boundary): miniaudio notification callback ABI
     static void NotificationCallback(const ma_device_notification* notification) {
         if (!notification || !notification->pDevice) {
             return;
@@ -332,7 +332,7 @@ private:
             return;
         }
         auto& state = *static_cast<CallbackState*>(
-            notification->pDevice->pUserData); // NOLINT(gammaray-raw-pointer-boundary): miniaudio callback userdata boundary
+            notification->pDevice->pUserData); // NOLINT(pixels-raw-pointer-boundary): miniaudio callback userdata boundary
         EventCallback event_callback;
         {
             std::scoped_lock lock(state.mutex);

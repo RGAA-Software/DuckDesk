@@ -20,51 +20,51 @@ extern "C" {
 #include "libavutil/samplefmt.h"
 #include "libswresample/swresample.h"
 
-int ff_isom_write_hvcc(AVIOContext* output, const uint8_t* data, int size,  // NOLINT(gammaray-raw-pointer-boundary)
-                       int complete, void* log_context);  // NOLINT(gammaray-raw-pointer-boundary)
+int ff_isom_write_hvcc(AVIOContext* output, const uint8_t* data, int size,  // NOLINT(pixels-raw-pointer-boundary)
+                       int complete, void* log_context);  // NOLINT(pixels-raw-pointer-boundary)
 }
 
 namespace px::render {
 namespace {
 
 struct FormatContextDeleter final {
-    void operator()(AVFormatContext* context) const {  // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(AVFormatContext* context) const {  // NOLINT(pixels-raw-pointer-boundary)
         avformat_free_context(context);
     }
 };
 
 struct CodecContextDeleter final {
-    void operator()(AVCodecContext* context) const {  // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(AVCodecContext* context) const {  // NOLINT(pixels-raw-pointer-boundary)
         avcodec_free_context(&context);
     }
 };
 
 struct AudioFifoDeleter final {
-    void operator()(AVAudioFifo* fifo) const {  // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(AVAudioFifo* fifo) const {  // NOLINT(pixels-raw-pointer-boundary)
         av_audio_fifo_free(fifo);
     }
 };
 
 struct ResamplerDeleter final {
-    void operator()(SwrContext* context) const {  // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(SwrContext* context) const {  // NOLINT(pixels-raw-pointer-boundary)
         swr_free(&context);
     }
 };
 
 struct PacketDeleter final {
-    void operator()(AVPacket* packet) const {  // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(AVPacket* packet) const {  // NOLINT(pixels-raw-pointer-boundary)
         av_packet_free(&packet);
     }
 };
 
 struct FrameDeleter final {
-    void operator()(AVFrame* frame) const {  // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(AVFrame* frame) const {  // NOLINT(pixels-raw-pointer-boundary)
         av_frame_free(&frame);
     }
 };
 
 struct AvBufferDeleter final {
-    void operator()(uint8_t* buffer) const {  // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(uint8_t* buffer) const {  // NOLINT(pixels-raw-pointer-boundary)
         av_free(buffer);
     }
 };
@@ -93,7 +93,7 @@ private:
     std::chrono::steady_clock::time_point previous_;
 };
 
-int InterruptExpired(void*) {  // NOLINT(gammaray-raw-pointer-boundary)
+int InterruptExpired(void*) {  // NOLINT(pixels-raw-pointer-boundary)
     return io_deadline != std::chrono::steady_clock::time_point{} &&
            std::chrono::steady_clock::now() >= io_deadline;
 }
@@ -234,13 +234,13 @@ bool SetHevcExtradata(
         return false;
     }
 
-    AVIOContext* dynamic_context = nullptr;  // NOLINT(gammaray-raw-pointer-boundary)
+    AVIOContext* dynamic_context = nullptr;  // NOLINT(pixels-raw-pointer-boundary)
     if (avio_open_dyn_buf(&dynamic_context) < 0 || !dynamic_context) {
         return false;
     }
     const auto write_result = ff_isom_write_hvcc(
         dynamic_context, annexb.data(), static_cast<int>(annexb.size()), 1, nullptr);
-    uint8_t* output_buffer = nullptr;  // NOLINT(gammaray-raw-pointer-boundary)
+    uint8_t* output_buffer = nullptr;  // NOLINT(pixels-raw-pointer-boundary)
     const auto output_size = avio_close_dyn_buf(dynamic_context, &output_buffer);
     AvBufferHandle hvcc(output_buffer);
     if (write_result < 0 || !hvcc || output_size <= 0) {
@@ -408,7 +408,7 @@ public:
             av_frame_get_buffer(converted.get(), 0) < 0) {
             return;
         }
-        const uint8_t* input_planes[] = {  // NOLINT(gammaray-raw-pointer-boundary)
+        const uint8_t* input_planes[] = {  // NOLINT(pixels-raw-pointer-boundary)
             frame->payload->data()};
         const int output_samples = swr_convert(
             resampler_.get(), converted->data, output_capacity,
@@ -489,7 +489,7 @@ private:
                  sample_rate, channels, bits);
             return false;
         }
-        const AVCodec* encoder =  // NOLINT(gammaray-raw-pointer-boundary)
+        const AVCodec* encoder =  // NOLINT(pixels-raw-pointer-boundary)
             avcodec_find_encoder(AV_CODEC_ID_AAC);
         if (!encoder) {
             return false;
@@ -509,7 +509,7 @@ private:
         }
 
         ChannelLayoutScope input_layout(channels);
-        SwrContext* allocated_resampler = nullptr;  // NOLINT(gammaray-raw-pointer-boundary)
+        SwrContext* allocated_resampler = nullptr;  // NOLINT(pixels-raw-pointer-boundary)
         if (swr_alloc_set_opts2(
                 &allocated_resampler, &aac_->ch_layout,
                 aac_->sample_fmt, aac_->sample_rate,
@@ -543,7 +543,7 @@ private:
             return false;
         }
         header_written_ = false;
-        AVFormatContext* allocated_format = nullptr;  // NOLINT(gammaray-raw-pointer-boundary)
+        AVFormatContext* allocated_format = nullptr;  // NOLINT(pixels-raw-pointer-boundary)
         if (avformat_alloc_output_context2(
                 &allocated_format, nullptr, "flv",
                 config_.publish_url.c_str()) < 0 || !allocated_format) {

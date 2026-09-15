@@ -2,8 +2,8 @@
 // Created by RGAA on 26/02/2025.
 //
 
-#ifndef GAMMARAYSERVER_BASE_HANDLER_H
-#define GAMMARAYSERVER_BASE_HANDLER_H
+#ifndef PIXELSSERVER_BASE_HANDLER_H
+#define PIXELSSERVER_BASE_HANDLER_H
 
 #include <string>
 #include <unordered_map>
@@ -41,4 +41,4 @@ namespace px
 
 }
 
-#endif //GAMMARAYSERVER_BASE_HANDLER_H
+#endif //PIXELSSERVER_BASE_HANDLER_H

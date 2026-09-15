@@ -7,7 +7,7 @@
 
 namespace px {
 
-std::optional<std::wstring> ReadProcessCommandLine(HANDLE process) { // NOLINT(gammaray-raw-pointer-boundary): borrowed Win32 handle.
+std::optional<std::wstring> ReadProcessCommandLine(HANDLE process) { // NOLINT(pixels-raw-pointer-boundary): borrowed Win32 handle.
     if (process == nullptr || process == INVALID_HANDLE_VALUE) {
         return std::nullopt;
     }

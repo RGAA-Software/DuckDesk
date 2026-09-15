@@ -133,7 +133,7 @@ namespace px
         const auto state = state_;
         capture_thread_ = std::thread([state]() {
             state->capturer->Start(
-                state.get()); // NOLINT(gammaray-raw-pointer-boundary): DesktopCapturer callback ABI; state is retained by worker
+                state.get()); // NOLINT(pixels-raw-pointer-boundary): DesktopCapturer callback ABI; state is retained by worker
             while (state->running) {
                 auto beg = TimeUtil::GetCurrentTimestamp();
                 state->capturer->CaptureFrame();

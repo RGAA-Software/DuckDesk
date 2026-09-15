@@ -12,7 +12,7 @@ use std::path::Path;
 use uuid::Uuid;
 use zeroize::Zeroizing;
 
-const SECRET_SCHEMA: u32 = 1;
+const SECRET_SCHEMA: u32 = 2;
 const MAX_IDENTIFIER: usize = 128;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -108,13 +108,14 @@ impl RdpWorkspaceVault {
             || !identifier(&record.node_id)
             || !identifier(&record.device_id)
             || !identifier(&record.account_name)
-            || !record.account_name.starts_with("grdp_")
+            || !record.account_name.starts_with("prdp_")
             || record.account_name.len() > 20
         {
             return Err("RDP workspace metadata invalid".to_string());
         }
+        let namespace = "Pixels/RdpWorkspace";
         serde_json::to_vec(&(
-            "GammaRay/RdpWorkspace",
+            namespace,
             record.secret_schema,
             &record.workspace_id,
             &record.app_id,
@@ -148,7 +149,7 @@ impl RdpWorkspaceVault {
             app_id: app_id.to_owned(),
             node_id: node_id.to_owned(),
             device_id: device_id.to_owned(),
-            account_name: format!("grdp_{}", &Uuid::new_v4().simple().to_string()[..15]),
+            account_name: format!("prdp_{}", &Uuid::new_v4().simple().to_string()[..15]),
             credential_version: 1,
             secret_schema: SECRET_SCHEMA,
             nonce_b64: URL_SAFE_NO_PAD.encode(nonce),
@@ -284,6 +285,25 @@ mod tests {
     }
 
     #[test]
+    fn legacy_schema_credentials_are_rejected() {
+        let vault = vault();
+        let nonce = [3u8; 12];
+        let mut record = RdpWorkspaceRecord {
+            workspace_id: "legacy-workspace".into(),
+            app_id: "app-1".into(),
+            node_id: "node-1".into(),
+            device_id: "device-1".into(),
+            account_name: "grdp_legacyacct".into(),
+            credential_version: 1,
+            secret_schema: 1,
+            nonce_b64: URL_SAFE_NO_PAD.encode(nonce),
+            ciphertext_b64: String::new(),
+        };
+        record.ciphertext_b64 = URL_SAFE_NO_PAD.encode([0u8; 48]);
+        assert!(vault.open(record).is_err());
+    }
+
+    #[test]
     fn wrong_key_and_modified_bindings_are_rejected() {
         let vault = vault();
         let record = vault.create("app-1", "node-1", "device-1").unwrap();
@@ -297,7 +317,7 @@ mod tests {
                 0 => changed.app_id = "app-2".into(),
                 1 => changed.node_id = "node-2".into(),
                 2 => changed.device_id = "device-2".into(),
-                3 => changed.account_name = "grdp_another".into(),
+                3 => changed.account_name = "prdp_another".into(),
                 4 => changed.credential_version += 1,
                 _ => changed.workspace_id = Uuid::new_v4().to_string(),
             }
@@ -339,9 +359,8 @@ mod tests {
             }
         }
         for size in [0usize, 31, 32, 33, 65536] {
-            let key = TestKey(
-                std::env::temp_dir().join(format!("gammaray-vault-test-{}", Uuid::new_v4())),
-            );
+            let key =
+                TestKey(std::env::temp_dir().join(format!("pixels-vault-test-{}", Uuid::new_v4())));
             assert!(RdpWorkspaceVault::load(&key.0).is_err());
             assert!(!key.0.exists());
             let mut options = std::fs::OpenOptions::new();

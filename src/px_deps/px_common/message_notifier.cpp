@@ -93,7 +93,7 @@ namespace px
                   ? std::move(options.runtime)
                   : PxAsyncRuntime::Create({.worker_threads = options.worker_threads})) {
             static_assert(ASIO_VERSION == PX_ASIO_VERSION,
-                          "GammaRay and asio2 must use the configured standalone Asio version");
+                          "Pixels and asio2 must use the configured standalone Asio version");
             runtime_->Start();
         }
 

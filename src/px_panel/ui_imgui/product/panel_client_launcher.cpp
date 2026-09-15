@@ -167,8 +167,8 @@ bool PanelClientLauncher::LaunchNative(const NativeLaunchRequest& request, const
         return false;
     std::string envelope{BuildNativeEnvelope(request, host, port, *config_).dump()};
     SECURITY_ATTRIBUTES security{.nLength = sizeof(SECURITY_ATTRIBUTES), .lpSecurityDescriptor = nullptr, .bInheritHandle = TRUE};
-    HANDLE readPipe{};  // NOLINT(gammaray-raw-pointer-boundary): CreatePipe boundary, immediately wrapped
-    HANDLE writePipe{}; // NOLINT(gammaray-raw-pointer-boundary): CreatePipe boundary, immediately wrapped
+    HANDLE readPipe{};  // NOLINT(pixels-raw-pointer-boundary): CreatePipe boundary, immediately wrapped
+    HANDLE writePipe{}; // NOLINT(pixels-raw-pointer-boundary): CreatePipe boundary, immediately wrapped
     if (!CreatePipe(&readPipe, &writePipe, &security, 0))
         return false;
     WinHandle childInput{readPipe};
@@ -232,8 +232,8 @@ bool PanelClientLauncher::LaunchRdp(const NativeLaunchRequest& request, const st
                           {"rdp", nlohmann::json::parse(request.rdpConfiguration->View())}};
     std::string envelope{launch.dump()};
     SECURITY_ATTRIBUTES security{.nLength = sizeof(SECURITY_ATTRIBUTES), .lpSecurityDescriptor = nullptr, .bInheritHandle = TRUE};
-    HANDLE readPipe{};  // NOLINT(gammaray-raw-pointer-boundary): CreatePipe boundary, immediately wrapped
-    HANDLE writePipe{}; // NOLINT(gammaray-raw-pointer-boundary): CreatePipe boundary, immediately wrapped
+    HANDLE readPipe{};  // NOLINT(pixels-raw-pointer-boundary): CreatePipe boundary, immediately wrapped
+    HANDLE writePipe{}; // NOLINT(pixels-raw-pointer-boundary): CreatePipe boundary, immediately wrapped
     if (!CreatePipe(&readPipe, &writePipe, &security, 0))
         return false;
     WinHandle childInput{readPipe};

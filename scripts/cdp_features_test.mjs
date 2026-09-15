@@ -3,7 +3,7 @@
 //   2. 剪贴板文本同步(web<->render 系统剪贴板,经 px_user_proxy)
 //   3. 触屏手势(Input.dispatchTouchEvent 注入,解码 px.Message 验证 + 物理光标)
 // 用法: node scripts/cdp_features_test.mjs
-// 依赖: 无(Node 22 内置 fetch/WebSocket),Chrome + GammaRay 套件已在运行
+// 依赖: 无(Node 22 内置 fetch/WebSocket),Chrome + Pixels 套件已在运行
 import { spawn, execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import fs from 'node:fs'

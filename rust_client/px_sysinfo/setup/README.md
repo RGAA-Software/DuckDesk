@@ -11,7 +11,7 @@ Output location:
 
 Installer behavior:
 
-- installs to `%ProgramFiles%\GammaRayPremium\PxSysMonitorSuite`
+- installs to `%ProgramFiles%\Pixels\PxSysMonitorSuite`
 - creates Start Menu shortcuts
 - registers both executables in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
 - launches `px_sys_monitor.exe` automatically when installation completes

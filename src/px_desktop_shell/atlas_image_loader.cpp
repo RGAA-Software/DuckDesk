@@ -29,7 +29,7 @@ std::expected<ImFontAtlasRectId, std::string> LoadRgbaAtlasImage(const std::file
     if (rectId == ImFontAtlasRectId_Invalid || atlas.TexRef._TexData == nullptr || atlas.TexRef._TexData->BytesPerPixel != 4)
         return std::unexpected{"Dear ImGui could not allocate an image atlas region: " + path.string()};
 
-    ImTextureData& texture{*atlas.TexRef._TexData}; // NOLINT(gammaray-raw-pointer-boundary): Dear ImGui atlas ABI boundary.
+    ImTextureData& texture{*atlas.TexRef._TexData}; // NOLINT(pixels-raw-pointer-boundary): Dear ImGui atlas ABI boundary.
     const auto pixels = image->GetData()->Bytes();
     const std::size_t sourcePitch{static_cast<std::size_t>(image->GetWidth()) * 4U};
     for (int row{}; row < image->GetHeight(); ++row)

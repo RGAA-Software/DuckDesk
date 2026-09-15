@@ -6,7 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WS_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"              # rust_server
-PROJ_ROOT="$(cd "$WS_ROOT/.." && pwd)"              # GammaRayPremium
+PROJ_ROOT="$(cd "$WS_ROOT/.." && pwd)"              # Pixels repository
 SERVER="ubuntu@43.134.55.209"
 CRED_FILE="$WS_ROOT/px_desk_server/tencent_server.txt"
 BIN="$WS_ROOT/target/x86_64-unknown-linux-musl/release/px_desk"

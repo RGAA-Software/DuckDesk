@@ -7,15 +7,15 @@
 
 namespace px {
 namespace {
-constexpr std::wstring_view kWindowProperty{L"GammaRay.TextInput.TargetGeneration.v1"};
+constexpr std::wstring_view kWindowProperty{L"Pixels.TextInput.TargetGeneration.v1"};
 struct ImmContextDeleter final {
     std::reference_wrapper<const TextWindowRegistration> window;
-    void operator()(HIMC context) const noexcept { // NOLINT(gammaray-raw-pointer-boundary) Paired ImmGetContext/ImmReleaseContext ABI.
+    void operator()(HIMC context) const noexcept { // NOLINT(pixels-raw-pointer-boundary) Paired ImmGetContext/ImmReleaseContext ABI.
         ImmReleaseContext(window.get().get(), context);
     }
 };
 
-bool IsOwnWindow(HWND window) { // NOLINT(gammaray-raw-pointer-boundary) Transient Win32 HWND query; never retained here.
+bool IsOwnWindow(HWND window) { // NOLINT(pixels-raw-pointer-boundary) Transient Win32 HWND query; never retained here.
     DWORD process_id{};
     return window && IsWindow(window) && GetWindowThreadProcessId(window, &process_id) != 0 && process_id == GetCurrentProcessId();
 }
@@ -42,7 +42,7 @@ std::optional<std::wstring> DecodeText(std::string_view text) {
 }
 } // namespace
 
-void TextWindowRegistrationDeleter::operator()(HWND window) const noexcept { // NOLINT(gammaray-raw-pointer-boundary) Win32 RAII cleanup.
+void TextWindowRegistrationDeleter::operator()(HWND window) const noexcept { // NOLINT(pixels-raw-pointer-boundary) Win32 RAII cleanup.
     if (window) {
         RemovePropW(window, kWindowProperty.data());
     }

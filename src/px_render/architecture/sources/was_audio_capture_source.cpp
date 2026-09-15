@@ -47,7 +47,7 @@ BuiltinModuleRegistration WasAudioCaptureSource::MakeRegistration() {
         .descriptor = BuiltinModuleDescriptor{
             .id = std::string(kWasAudioCaptureModuleId),
             .name = "WAS Audio Capture",
-            .author = "GammaRay",
+            .author = "Pixels",
             .description = "Built-in WASAPI default-device and process-loopback source",
             .version_name = "2.0.0",
             .version_code = 200,

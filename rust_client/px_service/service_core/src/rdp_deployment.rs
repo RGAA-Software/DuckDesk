@@ -32,15 +32,8 @@ impl RdpDeployment {
         let deployment: Self =
             serde_json::from_slice(&bytes).map_err(|_| "RDP deployment invalid".to_string())?;
         deployment.validate()?;
-        for name in [
-            "freerdp-proxy.exe",
-            "proxy.crt",
-            "proxy.key",
-            "proxy/proxy-gammaray-policy-plugin.dll",
-        ] {
-            if !directory.join(name).is_file() {
-                return Err("RDP required runtime/security component is missing".into());
-            }
+        for name in ["freerdp-proxy.exe", "proxy.crt", "proxy.key", "proxy/proxy-pixels-policy-plugin.dll"] {
+            if !directory.join(name).is_file() { return Err("RDP required runtime/security component is missing".into()); }
         }
         Ok(deployment)
     }
@@ -97,7 +90,7 @@ impl RdpDeployment {
             "Passthrough=drdynvc,cliprdr,rdpsnd,rdpdr,Microsoft::Windows::RDS::Graphics,Microsoft::Windows::RDS::DisplayControl,AUDIO_PLAYBACK_DVC,AUDIO_PLAYBACK_LOSSY_DVC\n",
             "[Input]\nKeyboard=true\nMouse=true\nMultitouch=false\n[Security]\nServerTlsSecurity=true\nServerNlaSecurity=true\n",
             "ServerRdpSecurity=false\nClientTlsSecurity=true\nClientNlaSecurity=true\nClientRdpSecurity=false\nClientAllowFallbackToTls=false\n",
-            "[Plugins]\nModules=gammaray-policy\nRequired=gammaray-policy\n[Certificates]\nCertificateFile={}\nPrivateKeyFile={}\n"
+            "[Plugins]\nModules=pixels-policy\nRequired=pixels-policy\n[Certificates]\nCertificateFile={}\nPrivateKeyFile={}\n"
         ), port, account.account_name, self.target_domain, account.password.as_str(), cert, key)))
     }
 }
@@ -168,30 +161,15 @@ mod tests {
         }
     }
     fn account() -> RdpAccountSpec {
-        RdpAccountSpec {
-            workspace_id: "workspace".into(),
-            account_name: "grdp_testaccount".into(),
-            password: Zeroizing::new("aA1!01234567890123456789012345678901".into()),
-            credential_version: 1,
-            expected_sid: None,
-        }
+        RdpAccountSpec { workspace_id: "workspace".into(), account_name: "prdp_testaccount".into(),
+            password: Zeroizing::new("aA1!01234567890123456789012345678901".into()), credential_version: 1, expected_sid: None }
     }
     #[test]
     fn configuration_requires_policy_fixed_target_and_nla_without_host_devices() {
-        let config = deployment()
-            .configuration(&std::env::temp_dir(), &account(), 13389)
-            .unwrap();
-        for required in [
-            "Required=gammaray-policy",
-            "FixedTarget=true",
-            "ClientAllowFallbackToTls=false",
-            "DeviceRedirection=true",
-            "Host=127.0.0.1",
-            "ServerNlaSecurity=true",
-            "ClientNlaSecurity=true",
-            "AudioInput=false\nAudioOutput=true",
-            ",AUDIO_PLAYBACK_DVC,AUDIO_PLAYBACK_LOSSY_DVC\n",
-        ] {
+        let config = deployment().configuration(&std::env::temp_dir(), &account(), 13389).unwrap();
+        for required in ["Required=pixels-policy", "FixedTarget=true", "ClientAllowFallbackToTls=false", "DeviceRedirection=true",
+            "Host=127.0.0.1", "ServerNlaSecurity=true", "ClientNlaSecurity=true", "AudioInput=false\nAudioOutput=true",
+            ",AUDIO_PLAYBACK_DVC,AUDIO_PLAYBACK_LOSSY_DVC\n"] {
             assert!(config.contains(required));
         }
     }
@@ -208,12 +186,8 @@ mod tests {
     }
     #[test]
     fn dropping_staged_launch_removes_only_its_own_temporary_files() {
-        let nonce = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let root =
-            std::env::temp_dir().join(format!("gammaray-rdp-stage-{}-{nonce}", std::process::id()));
+        let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let root = std::env::temp_dir().join(format!("pixels-rdp-stage-{}-{nonce}", std::process::id()));
         std::fs::create_dir(&root).unwrap();
         let path = root.join("instance.bootstrap");
         let private_path = path.with_extension("proxy.ini");

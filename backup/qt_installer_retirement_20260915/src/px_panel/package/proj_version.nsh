@@ -1,0 +1,3 @@
+!define PRODUCT_VERSION "3.3.66"
+!define PRODUCT_VERSION_CODE 30366
+!define TARGET_TYPE "Official"

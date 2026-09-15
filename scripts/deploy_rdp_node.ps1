@@ -15,7 +15,8 @@ $ErrorActionPreference = 'Stop'
 # logs on/off a Windows desktop, changes RDS policy or kills a workspace app tree.
 $rdpInstall = [IO.Path]::GetFullPath($InstallDirectory)
 if ($rdpInstall -ne 'C:\Program Files\PixelsRender') { throw 'This deployment entry point requires the documented product installation' }
-$sdkManifest = Get-Content -LiteralPath (Join-Path $SdkDirectory 'gammaray-rdp-sdk.json') -Raw | ConvertFrom-Json
+$sdkManifestPath = Join-Path $SdkDirectory 'pixels-rdp-sdk.json'
+$sdkManifest = Get-Content -LiteralPath $sdkManifestPath -Raw | ConvertFrom-Json
 $reviewedPatch = Join-Path $PSScriptRoot '../patches/freerdp/0001-mf-output-state.patch'
 if ($sdkManifest.schema -ne 1 -or $sdkManifest.freerdp_revision -ne 'aa8650b300aa4cabd85d9c72b431301509b9043f' -or
     $sdkManifest.h264_decoder -ne 'media-foundation' -or
@@ -60,7 +61,7 @@ $rdpFiles = [ordered]@{
     'rdp\freerdp-proxy.exe' = $proxyExe
     'rdp\freerdp-server-proxy3.dll' = $proxyDll
     'rdp\freerdp-server3.dll' = $serverDll
-    'rdp\proxy\proxy-gammaray-policy-plugin.dll' = $PolicyDll
+    'rdp\proxy\proxy-pixels-policy-plugin.dll' = $PolicyDll
     'rdp\proxy.crt' = (Join-Path $ProxyTrustDirectory 'proxy.crt')
     'rdp\proxy.key' = (Join-Path $ProxyTrustDirectory 'proxy.key')
     'rdp\console-ca.der' = $ConsoleCaDer
@@ -69,7 +70,7 @@ foreach ($name in @('freerdp-client3.dll', 'freerdp3.dll', 'winpr3.dll', 'libusb
     'libcrypto-3-x64.dll', 'zlib1.dll', 'cjson.dll', 'legacy.dll', 'openh264-6.dll')) {
     $rdpFiles["rdp\$name"] = Join-Path $SdkDirectory "bin/$name"
 }
-$rdpFiles['rdp\sdk.json'] = Join-Path $SdkDirectory 'gammaray-rdp-sdk.json'
+$rdpFiles['rdp\sdk.json'] = $sdkManifestPath
 foreach ($name in @('FreeRDP-LICENSE', 'openssl-LICENSE', 'libusb-LICENSE', 'zlib-LICENSE', 'cjson-LICENSE', 'openh264-LICENSE')) {
     $rdpFiles["rdp\licenses\$name"] = Join-Path $SdkDirectory "licenses/$name"
 }

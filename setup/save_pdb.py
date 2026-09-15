@@ -39,7 +39,7 @@ def main():
     output_dir = compute_output_dir(build_dir, current_dir)
 
     # 目标文件夹
-    target_name = "GammaRay_pdb_" + extract_project_version(
+    target_name = "Pixels_pdb_" + extract_project_version(
         os.path.join(build_dir, "src", "px_base", "version_config.h")
     )
     target_dir = os.path.join(output_dir, target_name)

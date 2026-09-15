@@ -12,7 +12,7 @@ Native 使用 UDP/FEC 视频、UDP 系统音频及 WS/WSS 控制/文件，不提
 cmake_minimum_required(VERSION 3.26)
 project(MyPixelsHost LANGUAGES C CXX)
 # 工具链必须在 project() 之前通过命令行或 preset 设置。
-add_subdirectory("D:/GoCloud/GammaRayPremium/src/px_client_sdk" pixels_sdk)
+add_subdirectory("<pixels-repository>/src/px_client_sdk" pixels_sdk)
 add_executable(my_host main.cpp)
 target_link_libraries(my_host PRIVATE pixels::sdk)
 ```

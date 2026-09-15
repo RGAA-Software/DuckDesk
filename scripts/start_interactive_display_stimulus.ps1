@@ -1,6 +1,6 @@
 param(
     [string]$StimulusScript = "C:\Windows\Temp\display_capture_stimulus.ps1",
-    [string]$TaskName = "GammaRay_Display_Capture_Stimulus",
+    [string]$TaskName = "Pixels_Display_Capture_Stimulus",
     [int]$LifetimeSeconds = 300,
 
     # Optional compatibility parameters allow reuse of a pre-authorized SYSTEM

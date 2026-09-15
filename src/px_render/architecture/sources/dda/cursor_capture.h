@@ -19,7 +19,7 @@ namespace px
     private:
         static bool CaptureCursorIcon(
             CaptureCursorBitmap& data,
-            HICON icon); // NOLINT(gammaray-raw-pointer-boundary): borrowed Win32 cursor handle
+            HICON icon); // NOLINT(pixels-raw-pointer-boundary): borrowed Win32 cursor handle
 
     private:
         std::weak_ptr<DdaCaptureSource> owner_;

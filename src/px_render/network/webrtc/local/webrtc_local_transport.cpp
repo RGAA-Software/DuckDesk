@@ -386,7 +386,7 @@ static bool IsMediaFrameMessage(const std::shared_ptr<Data>& msg) {
         return false;
     }
     const auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(msg->MutableBytes().data()),
-                                                msg->Size()); // NOLINT(gammaray-raw-pointer-boundary): Data view is wrapped immediately
+                                                msg->Size()); // NOLINT(pixels-raw-pointer-boundary): Data view is wrapped immediately
     const size_t n = msg->Size();
     size_t i = 0;
     auto read_varint = [&](uint64_t& out) -> bool {

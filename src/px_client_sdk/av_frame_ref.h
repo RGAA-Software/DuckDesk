@@ -9,7 +9,7 @@ extern "C" {
 namespace px {
 
 struct AvFrameDeleter final {
-    void operator()(AVFrame* frame) const noexcept { // NOLINT(gammaray-raw-pointer-boundary) FFmpeg deallocation boundary; never retained.
+    void operator()(AVFrame* frame) const noexcept { // NOLINT(pixels-raw-pointer-boundary) FFmpeg deallocation boundary; never retained.
         av_frame_free(&frame);
     }
 };

@@ -1,6 +1,6 @@
 @echo off
 setlocal
-rem Focused GammaRay-owned policy build. Does not modify or rebuild upstream FreeRDP.
+rem Focused Pixels-owned policy build. Does not modify or rebuild upstream FreeRDP.
 set "RDP_POLICY_ROOT=%~dp0.."
 set "RDP_POLICY_SDK=%RDP_POLICY_ROOT%\.cache\rdp_sdk"
 if not "%~1"=="" set "RDP_POLICY_SDK=%~1"

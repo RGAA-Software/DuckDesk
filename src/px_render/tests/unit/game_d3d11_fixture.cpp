@@ -9,7 +9,7 @@
 
 namespace {
 struct WindowCloser final {
-    void operator()(HWND window) const noexcept { // NOLINT(gammaray-raw-pointer-boundary) Owned Win32 window ABI.
+    void operator()(HWND window) const noexcept { // NOLINT(pixels-raw-pointer-boundary) Owned Win32 window ABI.
         if (window) {
             DestroyWindow(window);
         }

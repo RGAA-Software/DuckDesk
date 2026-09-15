@@ -49,12 +49,12 @@ class PullAudioDeviceModule : public webrtc::AudioDeviceModule {
         StopPlayout();
     }
 
-    int32_t ActiveAudioLayer(AudioLayer* layer) const override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t ActiveAudioLayer(AudioLayer* layer) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         if (layer)
             *layer = kDummyAudio;
         return 0;
     }
-    int32_t RegisterAudioCallback(webrtc::AudioTransport* callback) override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t RegisterAudioCallback(webrtc::AudioTransport* callback) override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         std::scoped_lock lock(playout_->callback_mutex);
         if (callback) {
             playout_->callback = std::ref(*callback);
@@ -108,7 +108,7 @@ class PullAudioDeviceModule : public webrtc::AudioDeviceModule {
     int32_t SetRecordingDevice(WindowsDeviceType) override {
         return -1;
     }
-    int32_t PlayoutIsAvailable(bool* available) override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t PlayoutIsAvailable(bool* available) override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         if (available)
             *available = true;
         return 0;
@@ -120,7 +120,7 @@ class PullAudioDeviceModule : public webrtc::AudioDeviceModule {
     bool PlayoutIsInitialized() const override {
         return playout_initialized_;
     }
-    int32_t RecordingIsAvailable(bool* available) override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t RecordingIsAvailable(bool* available) override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         if (available)
             *available = false;
         return 0;
@@ -191,73 +191,73 @@ class PullAudioDeviceModule : public webrtc::AudioDeviceModule {
     bool MicrophoneIsInitialized() const override {
         return false;
     }
-    int32_t SpeakerVolumeIsAvailable(bool* available) override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t SpeakerVolumeIsAvailable(bool* available) override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         return available ? Unavailable(*available) : 0;
     }
     int32_t SetSpeakerVolume(uint32_t) override {
         return -1;
     }
-    int32_t SpeakerVolume(uint32_t* volume) const override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t SpeakerVolume(uint32_t* volume) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         return volume ? Zero(*volume) : 0;
     }
-    int32_t MaxSpeakerVolume(uint32_t* volume) const override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t MaxSpeakerVolume(uint32_t* volume) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         return volume ? Zero(*volume) : 0;
     }
-    int32_t MinSpeakerVolume(uint32_t* volume) const override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t MinSpeakerVolume(uint32_t* volume) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         return volume ? Zero(*volume) : 0;
     }
-    int32_t MicrophoneVolumeIsAvailable(bool* available) override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t MicrophoneVolumeIsAvailable(bool* available) override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         return available ? Unavailable(*available) : 0;
     }
     int32_t SetMicrophoneVolume(uint32_t) override {
         return -1;
     }
-    int32_t MicrophoneVolume(uint32_t* volume) const override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t MicrophoneVolume(uint32_t* volume) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         return volume ? Zero(*volume) : 0;
     }
-    int32_t MaxMicrophoneVolume(uint32_t* volume) const override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t MaxMicrophoneVolume(uint32_t* volume) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         return volume ? Zero(*volume) : 0;
     }
-    int32_t MinMicrophoneVolume(uint32_t* volume) const override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t MinMicrophoneVolume(uint32_t* volume) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         return volume ? Zero(*volume) : 0;
     }
-    int32_t SpeakerMuteIsAvailable(bool* available) override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t SpeakerMuteIsAvailable(bool* available) override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         return available ? Unavailable(*available) : 0;
     }
     int32_t SetSpeakerMute(bool) override {
         return -1;
     }
-    int32_t SpeakerMute(bool* enabled) const override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t SpeakerMute(bool* enabled) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         return enabled ? False(*enabled) : 0;
     }
-    int32_t MicrophoneMuteIsAvailable(bool* available) override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t MicrophoneMuteIsAvailable(bool* available) override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         return available ? Unavailable(*available) : 0;
     }
     int32_t SetMicrophoneMute(bool) override {
         return -1;
     }
-    int32_t MicrophoneMute(bool* enabled) const override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t MicrophoneMute(bool* enabled) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         return enabled ? False(*enabled) : 0;
     }
-    int32_t StereoPlayoutIsAvailable(bool* available) const override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t StereoPlayoutIsAvailable(bool* available) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         return available ? Unavailable(*available) : 0;
     }
     int32_t SetStereoPlayout(bool) override {
         return -1;
     }
-    int32_t StereoPlayout(bool* enabled) const override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t StereoPlayout(bool* enabled) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         return enabled ? False(*enabled) : 0;
     }
-    int32_t StereoRecordingIsAvailable(bool* available) const override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t StereoRecordingIsAvailable(bool* available) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         return available ? Unavailable(*available) : 0;
     }
     int32_t SetStereoRecording(bool) override {
         return -1;
     }
-    int32_t StereoRecording(bool* enabled) const override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t StereoRecording(bool* enabled) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         return enabled ? False(*enabled) : 0;
     }
-    int32_t PlayoutDelay(uint16_t* delay_ms) const override { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t PlayoutDelay(uint16_t* delay_ms) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         if (delay_ms)
             *delay_ms = 10;
         return 0;
@@ -591,7 +591,7 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
 
     // create answer sdp callback
     create_answer_callback_->SetOnCreateSdpSuccessCallback(
-        [weak_server](webrtc::SessionDescriptionInterface* desc) { // NOLINT(gammaray-raw-pointer-boundary): libwebrtc SDP callback ABI
+        [weak_server](webrtc::SessionDescriptionInterface* desc) { // NOLINT(pixels-raw-pointer-boundary): libwebrtc SDP callback ABI
             if (const auto server = weak_server.lock()) {
                 server->peer_conn_->SetLocalDescription(server->set_local_answer_sdp_callback_.get(), desc);
             }
@@ -1049,7 +1049,7 @@ bool RtcServer::SetRemoteOffer(const std::string& offer_sdp) {
         return false;
     }
     peer_conn_->SetRemoteDescription(set_remote_offer_sdp_callback_.get(),
-                                     session_description.release()); // NOLINT(gammaray-raw-pointer-boundary): ownership passes to libwebrtc
+                                     session_description.release()); // NOLINT(pixels-raw-pointer-boundary): ownership passes to libwebrtc
     return true;
 }
 

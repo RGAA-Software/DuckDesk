@@ -198,9 +198,9 @@ def main():
     # 2. Supplementary executables / DLLs from native build dirs
     # ------------------------------------------------------------------
     supplements = [
-        ("src/px_client/px_client.exe", "px_client.exe"),
+        ("src/px_deps/px_client.exe", "px_client.exe"),
         # SDL2/gflags/fftw3 are now statically linked via x64-windows-static-release
-        ("libplacebo-349.dll", "libplacebo-349.dll"),
+        ("src/px_deps/libplacebo-349.dll", "libplacebo-349.dll"),
         ("src/px_render/px_render.exe", "px_render.exe"),
         ("src/px_deps/px_voice_call/px_voice_apm.dll", "px_voice_apm.dll"),
     ]

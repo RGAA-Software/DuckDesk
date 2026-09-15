@@ -3,7 +3,7 @@
 
 Each service (px_auth_server / px_console_server / px_desk_server / px_stat_server /
 px_updater / builder) owns the `version` field in its own Cargo.toml and bumps
-it separately — the same logic as the GammaRay-side set_app_version.py:
+it separately — the same logic as the Pixels-side set_app_version.py:
 patch += 1 on every bump; when patch would reach 100, minor += 1 and patch
 resets to 0 (e.g. 1.0.99 -> 1.1.0).
 

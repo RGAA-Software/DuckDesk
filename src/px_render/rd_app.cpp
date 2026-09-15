@@ -430,7 +430,7 @@ int RdApplication::Run() {
                 cancel.set_request_id(notice.request_id);
                 cancel.set_reason(notice.reason);
             }
-            // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): synchronous protobuf conversion.
+            // NOLINTNEXTLINE(pixels-raw-pointer-boundary): synchronous protobuf conversion.
             return application->PostPanelMessage(RpProtoAsData(&message));
         },
         [weak_hub = std::weak_ptr<render::NetworkTransportHub>(network_transport_hub_)](const render::TransportRoute& route,
@@ -2026,9 +2026,9 @@ void RdApplication::SendConfigurationBack() {
 
     px::Message m;
     m.set_type(px::kServerConfiguration);
-    auto config = m.mutable_config(); // NOLINT(gammaray-raw-pointer-boundary): transient protobuf view
+    auto config = m.mutable_config(); // NOLINT(pixels-raw-pointer-boundary): transient protobuf view
     // screen info
-    auto monitors_info = config->mutable_monitors_info(); // NOLINT(gammaray-raw-pointer-boundary): transient protobuf view
+    auto monitors_info = config->mutable_monitors_info(); // NOLINT(pixels-raw-pointer-boundary): transient protobuf view
     LOGI("Will send configuration back, monitor size: {}", monitors.size());
     for (int i = 0; i < monitors.size(); i++) {
         auto monitor = monitors[i];
@@ -2127,7 +2127,7 @@ void RdApplication::ResetMonitorResolution(const std::string& name, int w, int h
 
     px::Message m;
     m.set_type(px::kChangeMonitorResolutionResult);
-    auto r = m.mutable_change_monitor_resolution_result(); // NOLINT(gammaray-raw-pointer-boundary): transient protobuf view
+    auto r = m.mutable_change_monitor_resolution_result(); // NOLINT(pixels-raw-pointer-boundary): transient protobuf view
     r->set_monitor_name(name);
     r->set_result(ok);
     auto buffer = ProtoAsData(&m);

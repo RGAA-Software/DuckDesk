@@ -106,7 +106,7 @@ BuiltinModuleRegistration JoystickService::MakeRegistration() {
         .descriptor = BuiltinModuleDescriptor{
             .id = std::string(kJoystickModuleId),
             .name = "Joystick",
-            .author = "GammaRay",
+            .author = "Pixels",
             .description = "Built-in per-stream ViGEm controller service",
             .version_name = "2.0.0",
             .version_code = 200,
@@ -297,7 +297,7 @@ void JoystickService::HandleRumble(
         rumble.set_weak_motor(weak_motor);
         sent = sender(
             transport_id, stream_id,
-            ProtoAsData(&message)); // NOLINT(gammaray-raw-pointer-boundary): synchronous protobuf conversion
+            ProtoAsData(&message)); // NOLINT(pixels-raw-pointer-boundary): synchronous protobuf conversion
     }
     if (!sent) {
         std::lock_guard lock(mutex_);

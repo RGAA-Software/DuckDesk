@@ -104,7 +104,7 @@ class JavaSessionCallback final {
 };
 
 struct NativeWindowReleaser final {
-    void operator()(ANativeWindow* window) const noexcept; // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(ANativeWindow* window) const noexcept; // NOLINT(pixels-raw-pointer-boundary)
 };
 
 class NativeSession final : public std::enable_shared_from_this<NativeSession> {

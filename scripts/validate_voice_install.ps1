@@ -1,7 +1,7 @@
 param(
     [string]$InstallDirectory = "C:\Program Files\PixelsRender",
     [string]$ExpectedVersion = "",
-    [string]$OutputPath = "C:\Windows\Temp\GammaRayVoiceInstallValidation.json",
+    [string]$OutputPath = "C:\Windows\Temp\PixelsVoiceInstallValidation.json",
     [ValidateRange(0, 300)]
     [int]$WaitSeconds = 90
 )

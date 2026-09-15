@@ -22,14 +22,14 @@ namespace px
 {
 
     void GdiCapture::DcDeleter::operator()(
-        std::remove_pointer_t<HDC>* dc) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): typed Win32 HDC RAII boundary
+        std::remove_pointer_t<HDC>* dc) const noexcept { // NOLINT(pixels-raw-pointer-boundary): typed Win32 HDC RAII boundary
         if (dc) {
             DeleteDC(dc);
         }
     }
 
     void GdiCapture::BitmapDeleter::operator()(
-        std::remove_pointer_t<HBITMAP>* bitmap) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): typed Win32 HBITMAP RAII boundary
+        std::remove_pointer_t<HBITMAP>* bitmap) const noexcept { // NOLINT(pixels-raw-pointer-boundary): typed Win32 HBITMAP RAII boundary
         if (bitmap) {
             DeleteObject(bitmap);
         }
@@ -44,10 +44,10 @@ namespace px
         int bottom = 0;
     };
 
-    // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): synchronous Win32 enumeration ABI
+    // NOLINTNEXTLINE(pixels-raw-pointer-boundary): synchronous Win32 enumeration ABI
     static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData) {
         auto& geometry = *reinterpret_cast<MonitorGeometry*>(
-            dwData); // NOLINT(gammaray-raw-pointer-boundary): synchronous LPARAM boundary
+            dwData); // NOLINT(pixels-raw-pointer-boundary): synchronous LPARAM boundary
         MONITORINFOEX monitorInfo;
         monitorInfo.cbSize = sizeof(MONITORINFOEX);
         GetMonitorInfoW(hMonitor, &monitorInfo);
@@ -262,7 +262,7 @@ namespace px
             memory_dc_.get(), bit_map_.get(), 0, (UINT)bmp.bmHeight,
             data_ptr->MutableBytes().data(),
             reinterpret_cast<BITMAPINFO*>(
-                std::addressof(bi)), // NOLINT(gammaray-raw-pointer-boundary): Win32 BITMAPINFO ABI boundary
+                std::addressof(bi)), // NOLINT(pixels-raw-pointer-boundary): Win32 BITMAPINFO ABI boundary
             DIB_RGB_COLORS);
         if (ret == 0) {
             LOGW("GetDIBits failed.");

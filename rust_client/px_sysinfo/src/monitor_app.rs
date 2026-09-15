@@ -45,26 +45,26 @@ impl Default for MonitorConnectionConfig {
     }
 }
 
-fn monitor_connection_config_path() -> PathBuf {
+fn monitor_connection_config_path(product_directory: &str) -> PathBuf {
     let mut base = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
-    base.push("GammaRayPremium");
+    base.push(product_directory);
     base.push("PxSysMonitor");
     base.push("connection.json");
     base
 }
 
 fn load_monitor_connection_config() -> MonitorConnectionConfig {
-    let path = monitor_connection_config_path();
-    fs::read_to_string(path)
+    let path = monitor_connection_config_path("Pixels");
+    fs::read_to_string(&path)
         .ok()
         .and_then(|content| serde_json::from_str::<MonitorConnectionConfig>(&content).ok())
         .unwrap_or_default()
 }
 
 fn save_monitor_connection_config(config: &MonitorConnectionConfig) {
-    let path = monitor_connection_config_path();
+    let path = monitor_connection_config_path("Pixels");
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
     }

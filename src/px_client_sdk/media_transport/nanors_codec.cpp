@@ -10,7 +10,7 @@
 namespace px::media {
 namespace {
 struct CodecCloser final {
-    void operator()(reed_solomon* codec) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): synchronous nanors C ABI deleter.
+    void operator()(reed_solomon* codec) const noexcept { // NOLINT(pixels-raw-pointer-boundary): synchronous nanors C ABI deleter.
         reed_solomon_release(codec);
     }
 };
@@ -44,7 +44,7 @@ bool NanorsCodec::Encode(std::vector<Packet>& shards, std::size_t data_count, Fe
     if (!codec)
         return false;
     // Required borrowed C ABI pointer table; it never survives this synchronous call.
-    std::array<uint8_t*, DATA_SHARDS_MAX> addresses{}; // NOLINT(gammaray-raw-pointer-boundary): nanors C ABI shard table.
+    std::array<uint8_t*, DATA_SHARDS_MAX> addresses{}; // NOLINT(pixels-raw-pointer-boundary): nanors C ABI shard table.
     for (std::size_t index{}; index < shards.size(); ++index)
         addresses[index] = shards[index].data();
     return reed_solomon_encode(codec.get(), addresses.data(), static_cast<int>(shards.size()), static_cast<int>(shards.front().size())) == 0;
@@ -60,7 +60,7 @@ bool NanorsCodec::Decode(std::vector<Packet>& shards, std::span<const std::uint8
     if (!codec)
         return false;
     std::vector<std::uint8_t> marks(missing.begin(), missing.end());
-    std::array<uint8_t*, DATA_SHARDS_MAX> addresses{}; // NOLINT(gammaray-raw-pointer-boundary): synchronous nanors C ABI shard table.
+    std::array<uint8_t*, DATA_SHARDS_MAX> addresses{}; // NOLINT(pixels-raw-pointer-boundary): synchronous nanors C ABI shard table.
     for (std::size_t index{}; index < shards.size(); ++index)
         addresses[index] = shards[index].data();
     return reed_solomon_decode(codec.get(), addresses.data(), marks.data(), static_cast<int>(shards.size()),

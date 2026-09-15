@@ -23,7 +23,7 @@ namespace {
 using Microsoft::WRL::ComPtr;
 
 struct CoTaskMemoryCloser final {
-    void operator()(wchar_t* value) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): CoTaskMemFree ABI.
+    void operator()(wchar_t* value) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): CoTaskMemFree ABI.
         CoTaskMemFree(value);
     }
 };
@@ -89,7 +89,7 @@ std::vector<AudioDevice> AudioDeviceHelper::DetectAudioDevices() {
             continue;
         }
 
-        LPWSTR device_id_raw{};  // NOLINT(gammaray-raw-pointer-boundary): IMMDevice out parameter, immediately RAII-wrapped.
+        LPWSTR device_id_raw{};  // NOLINT(pixels-raw-pointer-boundary): IMMDevice out parameter, immediately RAII-wrapped.
         if (FAILED(device->GetId(&device_id_raw))) {
             continue;
         }
@@ -116,7 +116,7 @@ std::vector<AudioDevice> AudioDeviceHelper::DetectAudioDevices() {
     ComPtr<IMMDevice> default_device;
     result = enumerator->GetDefaultAudioEndpoint(eRender, eConsole, default_device.GetAddressOf());
     if (SUCCEEDED(result)) {
-        LPWSTR default_id_raw{};  // NOLINT(gammaray-raw-pointer-boundary): IMMDevice out parameter, immediately RAII-wrapped.
+        LPWSTR default_id_raw{};  // NOLINT(pixels-raw-pointer-boundary): IMMDevice out parameter, immediately RAII-wrapped.
         if (SUCCEEDED(default_device->GetId(&default_id_raw))) {
             const UniqueCoTaskString default_id{default_id_raw};
             const auto default_id_utf8 = StringUtil::ToUTF8(default_id.get());

@@ -36,7 +36,7 @@
   delete, rename, replace, stub out, or exclude them as dead code; changes in
   this area must preserve the class and capture path and modify the existing
   implementation in place.
-- **Hard gate for all new code:** New GammaRay-owned or project-maintained C++ code must not declare, store, return, pass, or capture raw
+- **Hard gate for all new code:** New Pixels-owned or project-maintained C++ code must not declare, store, return, pass, or capture raw
   pointers. This includes local variables, members, container elements, function parameters/results, callback parameters, and `this`
   captures. Use smart pointers or typed RAII handles from the first ownership boundary; a temporary local raw pointer is not an acceptable
   workaround.
@@ -67,7 +67,7 @@
   into `px_client`; do not preserve or reintroduce `GetInstance`, runtime DLL loading,
   generic plug-in event routing, or independent Client plug-in packaging for these
   three features. This decision does not apply to Render plug-ins or any other ABI.
-- Apply these rules only to GammaRay-owned code and dependencies explicitly maintained by this project (including the vendored asio2
+- Apply these rules only to Pixels-owned code and dependencies explicitly maintained by this project (including the vendored asio2
   integration). Other third-party source trees are read-only: do not mechanically reformat, modernize, or change their ownership model.
 - Code review and tests must cover destruction with queued callbacks, unregister during dispatch, shutdown from a callback, and repeated
   start/stop so that smart-pointer use is verified behaviorally rather than only syntactically.
@@ -76,7 +76,7 @@
 
 # Project-wide C++ initialization, design, and formatting rules
 
-- Every GammaRay-owned C++ object, data member, scalar, enum, atomic, handle, and local variable must be deterministically initialized before
+- Every Pixels-owned C++ object, data member, scalar, enum, atomic, handle, and local variable must be deterministically initialized before
   first use. Prefer in-class member initializers and value initialization (`{}`); constructors must establish a complete valid state and
   must not expose or schedule work against a partially initialized object.
 - A fallible or asynchronous initialization sequence must use a factory or explicit `Create`/`StartAsync` result. Destruction must remain safe
@@ -158,7 +158,7 @@ explicitly requests changes to them. Their availability does not expand the curr
   and FreeRDP/60-FPS references remain in `docs/enterprise_windows_session_isolation_plan.md` as historical research.
   Neither document is evidence of an implemented or benchmarked capability. Public FreeRDP callbacks are the first integration candidate;
   modifying its internals remains conditional on concrete limitations, and reference checkouts remain read-only.
-- Superseding RDP decisions (2026-09-08): preserve native RDP encoding; GammaRay provides provisioning, authorization, proxy transport
+- Superseding RDP decisions (2026-09-08): preserve native RDP encoding; Pixels provides provisioning, authorization, proxy transport
   and session management, with RDP decoding/composition/display in the Client. Do not decode and re-encode video in Render.
   The user permits reuse of the project-owned Qt demo; reuse must still meet project C++ standards, and does not authorize unrelated edits.
 - Clarified RDP lifecycle (2026-09-08): Render, proxy processes and RDP connections may stop when access ends. Preserve Windows accounts,

@@ -8,7 +8,8 @@ function Get-VerifiedFileHash([string]$Path) {
     finally { $algorithm.Dispose(); $stream.Dispose() }
 }
 $sdk = (Resolve-Path -LiteralPath $SdkDirectory).Path
-$manifest = Get-Content -LiteralPath (Join-Path $sdk 'gammaray-rdp-sdk.json') -Raw | ConvertFrom-Json
+$manifestPath = Join-Path $sdk 'pixels-rdp-sdk.json'
+$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 $dependencies = Join-Path $PSScriptRoot '../third_party/freerdp/vcpkg.json'
 $baseline = (Get-Content -LiteralPath $dependencies -Raw | ConvertFrom-Json).'builtin-baseline'
 if ($manifest.schema -ne 1 -or $manifest.freerdp_revision -ne 'aa8650b300aa4cabd85d9c72b431301509b9043f' -or

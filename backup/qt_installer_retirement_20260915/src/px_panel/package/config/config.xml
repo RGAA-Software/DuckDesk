@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Installer>
+    <Name>Pixels</Name>
+    <Version>1.2.0</Version>
+    <Title>Pixels</Title>
+    <Publisher>RGAA</Publisher>
+    <!-- Directory name is used in component.xml -->
+    <StartMenuDir>Pixels</StartMenuDir>
+    <TargetDir>@ApplicationsDir@/Pixels</TargetDir>
+</Installer>

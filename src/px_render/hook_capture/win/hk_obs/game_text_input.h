@@ -10,7 +10,7 @@ namespace px {
 // The owner is a window-property registration, not the HWND's lifetime. Windows removes
 // properties on window destruction, which makes a reused numeric HWND fail validation.
 struct TextWindowRegistrationDeleter final {
-    void operator()(HWND window) const noexcept; // NOLINT(gammaray-raw-pointer-boundary) Win32 property registration cleanup boundary.
+    void operator()(HWND window) const noexcept; // NOLINT(pixels-raw-pointer-boundary) Win32 property registration cleanup boundary.
 };
 using TextWindowRegistration = std::unique_ptr<HWND__, TextWindowRegistrationDeleter>;
 

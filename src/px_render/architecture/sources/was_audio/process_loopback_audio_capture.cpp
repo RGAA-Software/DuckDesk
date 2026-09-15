@@ -64,7 +64,7 @@ bool IsFatalCaptureError(HRESULT hr) {
 }
 
 struct WinHandleCloser final {
-    void operator()(void* handle) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): Win32 HANDLE boundary
+    void operator()(void* handle) const noexcept { // NOLINT(pixels-raw-pointer-boundary): Win32 HANDLE boundary
         if (handle) {
             CloseHandle(handle);
         }
@@ -90,7 +90,7 @@ public:
         return activate_done_ && sample_ready_;
     }
 
-    // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): COM completion ABI
+    // NOLINTNEXTLINE(pixels-raw-pointer-boundary): COM completion ABI
     HRESULT STDMETHODCALLTYPE ActivateCompleted(
         IActivateAudioInterfaceAsyncOperation* op) override {
         if (cancelled_.load()) {
@@ -141,7 +141,7 @@ public:
 
         // With AUTOCONVERTPCM, GetBuffer delivers frames already converted to the
         // requested client format above; log the engine mix format for diagnosis.
-        WAVEFORMATEX* mix_value = nullptr; // NOLINT(gammaray-raw-pointer-boundary): COM allocated output boundary
+        WAVEFORMATEX* mix_value = nullptr; // NOLINT(pixels-raw-pointer-boundary): COM allocated output boundary
         hr = client_->GetMixFormat(&mix_value);
         const std::unique_ptr<WAVEFORMATEX, decltype(&CoTaskMemFree)> mix(
             mix_value, &CoTaskMemFree);

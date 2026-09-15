@@ -334,12 +334,12 @@ switch ($Component) {
         Move-RetiredClientRtcRuntime
         foreach ($name in @('freerdp-client3.dll', 'freerdp3.dll', 'winpr3.dll', 'libusb-1.0.dll',
                             'libssl-3-x64.dll', 'libcrypto-3-x64.dll', 'zlib1.dll', 'cjson.dll', 'legacy.dll', 'openh264-6.dll')) {
-            Publish-VerifiedFile -Source (Join-Path $buildRoot ('src\px_client\' + $name)) `
+            Publish-VerifiedFile -Source (Join-Path $buildRoot ('src\px_deps\' + $name)) `
                 -Destination (Join-Path $distRoot $name) -ProcessName 'px_client'
         }
         # The build may stage GPU compiler and loader runtimes during a clean build.
         foreach ($name in @('d3dcompiler_47.dll', 'dxcompiler.dll', 'dxil.dll', 'vulkan-1.dll')) {
-            $source = Join-Path $buildRoot ('src\px_client\' + $name)
+            $source = Join-Path $buildRoot ('src\px_deps\' + $name)
             if (Test-Path -LiteralPath $source -PathType Leaf) {
                 Publish-VerifiedFile -Source $source -Destination (Join-Path $distRoot $name) -ProcessName 'px_client'
             }
@@ -350,7 +350,7 @@ switch ($Component) {
             -ProcessName 'px_client'
         foreach ($relative in @('rdp\sdk.json', 'rdp\licenses\FreeRDP-LICENSE', 'rdp\licenses\openssl-LICENSE',
             'rdp\licenses\libusb-LICENSE', 'rdp\licenses\zlib-LICENSE', 'rdp\licenses\cjson-LICENSE', 'rdp\licenses\openh264-LICENSE')) {
-            Publish-VerifiedFile -Source (Join-Path $buildRoot ('src\px_client\' + $relative)) `
+            Publish-VerifiedFile -Source (Join-Path $buildRoot ('src\px_deps\' + $relative)) `
                 -Destination (Join-Path $distRoot $relative) -ProcessName 'px_client'
         }
         # Voice processing is a shared runtime dependency of Client and Render.

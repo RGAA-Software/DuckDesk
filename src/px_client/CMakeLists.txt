@@ -37,14 +37,14 @@ add_library(px_client_imgui_runtime STATIC
 target_include_directories(px_client_imgui_runtime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
 target_link_libraries(px_client_imgui_runtime PUBLIC
     px_desktop_shell px_ui px_common px_message px_ft_engine px_voice_call px_rdp_stream pixels::sdk SDL3::SDL3-static yuv
-    nlohmann_json::nlohmann_json gammaray_rdp_sdk
+    nlohmann_json::nlohmann_json pixels_rdp_sdk
 )
 
 add_executable(px_client WIN32 ui_imgui/client_main.cpp ${CMAKE_CURRENT_BINARY_DIR}/icon.rc)
 target_link_libraries(px_client PRIVATE px_client_imgui_runtime)
 target_link_options(px_client PRIVATE "/ENTRY:mainCRTStartup")
 set_target_properties(px_client PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}")
-gammaray_stage_desktop_images(px_client)
+pixels_stage_desktop_images(px_client)
 
 add_custom_command(TARGET px_client POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:px_client>/resources/fonts"
@@ -62,7 +62,7 @@ add_custom_command(TARGET px_client POST_BUILD
         "${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/libplacebo/lib/libplacebo-349.dll"
         "$<TARGET_FILE_DIR:px_client>/libplacebo-349.dll"
 )
-gammaray_stage_rdp_client(px_client)
+pixels_stage_rdp_client(px_client)
 
 if(BUILD_TESTING AND TARGET GTest::gtest)
     add_executable(test_client_imgui_launch_config tests/test_imgui_launch_config.cpp ui_imgui/client_launch_config.cpp)

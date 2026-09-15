@@ -42,14 +42,14 @@
 namespace px {
 namespace {
 struct WinHandleCloser final {
-    void operator()(void* handle) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): opaque Win32 HANDLE boundary.
+    void operator()(void* handle) const noexcept { // NOLINT(pixels-raw-pointer-boundary): opaque Win32 HANDLE boundary.
         if (handle && handle != INVALID_HANDLE_VALUE)
             CloseHandle(handle);
     }
 };
 
 struct ModuleCloser final {
-    void operator()(std::remove_pointer_t<HMODULE>* module) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): HMODULE ABI.
+    void operator()(std::remove_pointer_t<HMODULE>* module) const noexcept { // NOLINT(pixels-raw-pointer-boundary): HMODULE ABI.
         if (module)
             FreeLibrary(module);
     }
@@ -59,9 +59,9 @@ using UniqueWinHandle = std::unique_ptr<void, WinHandleCloser>;
 using UniqueModule = std::unique_ptr<std::remove_pointer_t<HMODULE>, ModuleCloser>;
 } // namespace
 
-using FuncMiniDumpWriteDump = decltype(&MiniDumpWriteDump); // NOLINT(gammaray-raw-pointer-boundary): dynamic Win32 procedure ABI.
+using FuncMiniDumpWriteDump = decltype(&MiniDumpWriteDump); // NOLINT(pixels-raw-pointer-boundary): dynamic Win32 procedure ABI.
 
-LONG __stdcall UnhandledExceptionFilter(PEXCEPTION_POINTERS exception_info) { // NOLINT(gammaray-raw-pointer-boundary): Win32 callback ABI.
+LONG __stdcall UnhandledExceptionFilter(PEXCEPTION_POINTERS exception_info) { // NOLINT(pixels-raw-pointer-boundary): Win32 callback ABI.
     const auto current_process = GetCurrentProcess();
     std::array<wchar_t, 32768> executable_name{};
     if (GetModuleFileNameExW(current_process, nullptr, executable_name.data(), static_cast<DWORD>(executable_name.size())) == 0) {
@@ -84,7 +84,7 @@ LONG __stdcall UnhandledExceptionFilter(PEXCEPTION_POINTERS exception_info) { //
         const UniqueModule module{LoadLibraryW(L"dbghelp.dll")};
         if (module) {
             const auto dump_write = reinterpret_cast<FuncMiniDumpWriteDump>(
-                GetProcAddress(module.get(), "MiniDumpWriteDump")); // NOLINT(gammaray-raw-pointer-boundary): dynamic Win32 procedure ABI.
+                GetProcAddress(module.get(), "MiniDumpWriteDump")); // NOLINT(pixels-raw-pointer-boundary): dynamic Win32 procedure ABI.
             if (dump_write) {
                 static_cast<void>(dump_write(current_process, GetCurrentProcessId(), dump_file.get(), MiniDumpWithFullMemory,
                                              std::addressof(exception_parameters), nullptr, nullptr));
@@ -105,14 +105,14 @@ void CaptureDump() {
 
 namespace px {
 
-static bool DumpCallback(const wchar_t* dump_path,   // NOLINT(gammaray-raw-pointer-boundary): Breakpad callback ABI.
-                         const wchar_t* minidump_id, // NOLINT(gammaray-raw-pointer-boundary): Breakpad callback ABI.
-                         void* context,              // NOLINT(gammaray-raw-pointer-boundary): Breakpad callback ABI.
-                         EXCEPTION_POINTERS*,        // NOLINT(gammaray-raw-pointer-boundary): Breakpad callback ABI.
-                         MDRawAssertionInfo*,        // NOLINT(gammaray-raw-pointer-boundary): Breakpad callback ABI.
+static bool DumpCallback(const wchar_t* dump_path,   // NOLINT(pixels-raw-pointer-boundary): Breakpad callback ABI.
+                         const wchar_t* minidump_id, // NOLINT(pixels-raw-pointer-boundary): Breakpad callback ABI.
+                         void* context,              // NOLINT(pixels-raw-pointer-boundary): Breakpad callback ABI.
+                         EXCEPTION_POINTERS*,        // NOLINT(pixels-raw-pointer-boundary): Breakpad callback ABI.
+                         MDRawAssertionInfo*,        // NOLINT(pixels-raw-pointer-boundary): Breakpad callback ABI.
                          bool succeeded) {
     LOGE("event=crash.detected component=breakpad outcome=failed");
-    const auto& breakpad_context = *static_cast<const BreakpadContext*>(context); // NOLINT(gammaray-raw-pointer-boundary): callback ABI.
+    const auto& breakpad_context = *static_cast<const BreakpadContext*>(context); // NOLINT(pixels-raw-pointer-boundary): callback ABI.
     if (succeeded) {
         auto exe_name = StringUtil::ToWString(breakpad_context.app_name_);
         auto exe_version = StringUtil::ToWString(breakpad_context.version_);
@@ -133,7 +133,7 @@ class BreakpadRegistration::State final {
         FolderUtil::CreateDir(dump_path);
         handler = std::make_unique<google_breakpad::ExceptionHandler>(
             dump_path, nullptr, DumpCallback,
-            const_cast<BreakpadContext*>(context.get()), // NOLINT(gammaray-raw-pointer-boundary): Breakpad context ABI.
+            const_cast<BreakpadContext*>(context.get()), // NOLINT(pixels-raw-pointer-boundary): Breakpad context ABI.
             google_breakpad::ExceptionHandler::HANDLER_ALL);
     }
 

@@ -70,7 +70,7 @@ std::mutex& ClipboardTestMutex() {
 }
 
 struct GlobalMemoryDeleter final {
-    void operator()(std::remove_pointer_t<HGLOBAL>* memory) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): Win32 HGLOBAL ABI.
+    void operator()(std::remove_pointer_t<HGLOBAL>* memory) const noexcept { // NOLINT(pixels-raw-pointer-boundary): Win32 HGLOBAL ABI.
         if (memory != nullptr) {
             GlobalFree(memory);
         }
@@ -80,7 +80,7 @@ struct GlobalMemoryDeleter final {
 struct GlobalUnlockDeleter final {
     HGLOBAL memory_{};
 
-    void operator()(void*) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): transient GlobalLock address.
+    void operator()(void*) const noexcept { // NOLINT(pixels-raw-pointer-boundary): transient GlobalLock address.
         if (memory_ != nullptr) {
             GlobalUnlock(memory_);
         }
@@ -167,7 +167,7 @@ bool SetClipboardFileDrop(const std::vector<std::wstring>& files) {
         if (!lock) {
             return false;
         }
-        auto payload = std::span<std::byte>{static_cast<std::byte*>(lock.get()), bytes}; // NOLINT(gammaray-raw-pointer-boundary)
+        auto payload = std::span<std::byte>{static_cast<std::byte*>(lock.get()), bytes}; // NOLINT(pixels-raw-pointer-boundary)
         DROPFILES drop{};
         drop.pFiles = sizeof(DROPFILES);
         drop.fWide = TRUE;
@@ -188,7 +188,7 @@ bool SetClipboardFileDrop(const std::vector<std::wstring>& files) {
     EmptyClipboard();
     const HANDLE data = SetClipboardData(CF_HDROP, memory.get());
     if (data != nullptr) {
-        static_cast<void>(memory.release()); // NOLINT(gammaray-raw-pointer-boundary): ownership transferred to the OS clipboard.
+        static_cast<void>(memory.release()); // NOLINT(pixels-raw-pointer-boundary): ownership transferred to the OS clipboard.
     }
     CloseClipboard();
     return data != nullptr;

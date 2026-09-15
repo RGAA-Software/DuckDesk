@@ -70,7 +70,7 @@ namespace px
     };
 
     [[nodiscard]] std::optional<BitmapBytes> ReadBitmap(
-        HBITMAP bitmap_handle) { // NOLINT(gammaray-raw-pointer-boundary): borrowed Win32 handle
+        HBITMAP bitmap_handle) { // NOLINT(pixels-raw-pointer-boundary): borrowed Win32 handle
         BitmapBytes result;
         if (GetObject(bitmap_handle, sizeof(result.description), &result.description) == 0) {
             return std::nullopt;

@@ -123,7 +123,7 @@ namespace px::render
             .descriptor = BuiltinModuleDescriptor{
                 .id = std::string(kFileTransferModuleId),
                 .name = "File Transfer",
-                .author = "GammaRay",
+                .author = "Pixels",
                 .description = "Built-in routed asynchronous file-transfer service",
                 .version_name = "2.0.0",
                 .version_code = 200,

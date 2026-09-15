@@ -49,7 +49,7 @@ TEST(GameWindowMessageKey, NormalizesOnlySidedModifiersForWindowMessages) {
 }
 
 struct TestWindowDeleter final {
-    void operator()(HWND window) const noexcept { // NOLINT(gammaray-raw-pointer-boundary) Owns only this test's Win32 window.
+    void operator()(HWND window) const noexcept { // NOLINT(pixels-raw-pointer-boundary) Owns only this test's Win32 window.
         if (window) {
             DestroyWindow(window);
         }
@@ -60,7 +60,7 @@ using TestWindow = std::unique_ptr<HWND__, TestWindowDeleter>;
 class GameTextInputTest : public testing::Test {
   protected:
     void SetUp() override {
-        root_.reset(CreateWindowExW(0, L"STATIC", L"GammaRay isolated text fixture", WS_POPUP, 0, 0, 320, 200, nullptr, nullptr,
+        root_.reset(CreateWindowExW(0, L"STATIC", L"Pixels isolated text fixture", WS_POPUP, 0, 0, 320, 200, nullptr, nullptr,
                                     GetModuleHandleW(nullptr), nullptr));
         ASSERT_TRUE(root_);
         edit_.reset(CreateWindowExW(0, L"EDIT", L"", WS_CHILD | ES_MULTILINE | ES_WANTRETURN, 0, 0, 320, 200, root_.get(), nullptr,
@@ -141,7 +141,7 @@ TEST_F(GameTextInputTest, RejectsDestroyedTargetWithoutWindowDiscovery) {
 TEST_F(GameTextInputTest, TargetGenerationChangesWhenWindowRegistrationIsLost) {
     const auto first = backend_.Execute(query_);
     ASSERT_EQ(first.status, CaptureTextStatus::kReady);
-    RemovePropW(edit_.get(), L"GammaRay.TextInput.TargetGeneration.v1");
+    RemovePropW(edit_.get(), L"Pixels.TextInput.TargetGeneration.v1");
     auto submit = query_;
     submit.operation = CaptureTextOperation::kSubmit;
     submit.expected_generation = first.generation;

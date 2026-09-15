@@ -30,15 +30,15 @@ namespace {
 constexpr std::size_t kRegistryKeyBufferSize = 256;
 
 struct RegistryKeyCloser final {
-    void operator()(HKEY key) const noexcept {  // NOLINT(gammaray-raw-pointer-boundary): HKEY is an opaque Win32 handle.
+    void operator()(HKEY key) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): HKEY is an opaque Win32 handle.
         ::RegCloseKey(key);
     }
 };
 
 using RegistryKey = std::unique_ptr<std::remove_pointer_t<HKEY>, RegistryKeyCloser>;
 
-RegistryKey OpenRegistryKey(HKEY root_key, std::wstring_view sub_key) {  // NOLINT(gammaray-raw-pointer-boundary): Win32 registry API boundary.
-    HKEY opened_key{};  // NOLINT(gammaray-raw-pointer-boundary): RegOpenKeyExW transfers the key through HKEY*.
+RegistryKey OpenRegistryKey(HKEY root_key, std::wstring_view sub_key) {  // NOLINT(pixels-raw-pointer-boundary): Win32 registry API boundary.
+    HKEY opened_key{};  // NOLINT(pixels-raw-pointer-boundary): RegOpenKeyExW transfers the key through HKEY*.
     if (::RegOpenKeyExW(root_key, sub_key.data(), 0, KEY_READ, &opened_key) != ERROR_SUCCESS) {
         return {};
     }

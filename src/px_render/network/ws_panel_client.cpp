@@ -420,7 +420,7 @@ void WsPanelClient::SendModulesInfoInternal() {
             info.set_version_name(module.descriptor.version_name);
             info.set_version_code(static_cast<int32_t>(module.descriptor.version_code));
             info.set_enabled(module.enabled);
-            // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): protobuf owns
+            // NOLINTNEXTLINE(pixels-raw-pointer-boundary): protobuf owns
             // the repeated-message element returned by this transient API.
             *plugins_info.Add() = std::move(info);
         }

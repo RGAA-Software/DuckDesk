@@ -5,10 +5,10 @@ Unicode true
 RequestExecutionLevel admin
 
 !define PRODUCT_NAME "PxSysMonitor Suite"
-!define COMPANY_NAME "GammaRayPremium"
+!define COMPANY_NAME "Pixels"
 !define MONITOR_EXE "px_sys_monitor.exe"
 !define HOST_EXE "px_sys_monitor_host.exe"
-!define INSTALL_SUBDIR "GammaRayPremium\PxSysMonitorSuite"
+!define INSTALL_SUBDIR "Pixels\PxSysMonitorSuite"
 
 !ifndef OUTPUT_DIR
     !define OUTPUT_DIR "."

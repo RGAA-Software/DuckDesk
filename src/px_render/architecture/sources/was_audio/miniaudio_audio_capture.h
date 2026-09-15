@@ -50,9 +50,9 @@ namespace px
 		};
 
 		void InitializeCallbackBridge();
-		// NOLINTNEXTLINE(gammaray-raw-pointer-boundary): miniaudio callback ABI
+		// NOLINTNEXTLINE(pixels-raw-pointer-boundary): miniaudio callback ABI
 		static void DataCallback(ma_device* device, void* output, const void* input, ma_uint32 frame_count);
-		// NOLINTNEXTLINE(gammaray-raw-pointer-boundary): miniaudio callback ABI
+		// NOLINTNEXTLINE(pixels-raw-pointer-boundary): miniaudio callback ABI
 		static void NotificationCallback(const ma_device_notification* notification);
 
 		int OpenAndStartUnlocked();

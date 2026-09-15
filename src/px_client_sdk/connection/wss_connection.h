@@ -2,8 +2,8 @@
 // Created by RGAA on 8/12/2024.
 //
 
-#ifndef GAMMARAYPC_WSS_CONNECTION_H
-#define GAMMARAYPC_WSS_CONNECTION_H
+#ifndef PIXELSPC_WSS_CONNECTION_H
+#define PIXELSPC_WSS_CONNECTION_H
 
 #include "connection.h"
 
@@ -61,4 +61,4 @@ namespace px
 
 }
 
-#endif //GAMMARAYPC_WS_CONNECTION_H
+#endif //PIXELSPC_WS_CONNECTION_H

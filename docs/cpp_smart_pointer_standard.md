@@ -1,14 +1,14 @@
-# GammaRay Modern C++ Ownership, Initialization, and Lifetime Standard
+# Pixels Modern C++ Ownership, Initialization, and Lifetime Standard
 
 ## Applicability
 
-This standard applies to the entire native GammaRay repository: Windows client,
+This standard applies to the entire native Pixels repository: Windows client,
 Panel, Render, services, SDK, RTC, plugins, shared libraries, tests and future
 native modules. It is not limited to the Asio dispatcher implementation.
 
 ## Mandatory ownership model
 
-- **Hard gate for new code:** newly added GammaRay-owned or maintained C++ code
+- **Hard gate for new code:** newly added Pixels-owned or maintained C++ code
   must not declare, store, pass, return or capture a raw pointer. This includes
   local variables, data members, container elements, function parameters/results
   and callback parameters; using a local raw pointer temporarily is not a
@@ -163,7 +163,7 @@ assumptions must be documented beside the adapter.
 When a new declaration or an existing plug-in loader allocation is unavoidable
 because an external ABI requires its established pointer representation, keep
 it in the smallest adapter and append
-`NOLINT(gammaray-raw-pointer-boundary)` with the ABI and lifetime reason on that
+`NOLINT(pixels-raw-pointer-boundary)` with the ABI and lifetime reason on that
 line. This marker is not permitted for ordinary project APIs, local variables,
 stored state or asynchronous callbacks and requires code review. It must not be
 used to create a new project-owned ownership model; the loader case only
@@ -176,7 +176,7 @@ redesign the WebRTC object model. Keep that adapter's native lifetime contract;
 apply this standard to project-owned objects and queued work around the adapter.
 
 Other third-party source trees are read-only and retain their upstream
-ownership conventions. The standard applies to GammaRay-owned modules and to
+ownership conventions. The standard applies to Pixels-owned modules and to
 dependencies explicitly maintained by this project, including the vendored
 asio2 integration. Adding another maintained dependency to this scope requires
 an explicit repository decision; it must not be inferred from its location.
@@ -189,7 +189,7 @@ ownership models. They must never be layered on the same object:
 ```cpp
 // Correct: Qt owns deletion; QPointer is only a guarded observer.
 QPointer<QWidget> tooltip =
-    new QWidget(parent); // NOLINT(gammaray-raw-pointer-boundary) Qt parent owns it.
+    new QWidget(parent); // NOLINT(pixels-raw-pointer-boundary) Qt parent owns it.
 
 // Correct: no Qt parent; unique_ptr is the sole owner.
 auto detached = std::make_unique<QWidget>();
@@ -267,7 +267,7 @@ raw-pointer declarations in locals/members/parameters/results, asynchronous
 `this` captures, manual `new`/`delete`, unreviewed smart-pointer `release()` and
 project-authored lines over 150 columns. `scripts/check_cpp_ownership.ps1 -Staged`
 applies the same gate to the staged patch. A required transient C/OS/Qt/third-party
-boundary must carry `NOLINT(gammaray-raw-pointer-boundary)` on the declaration line
+boundary must carry `NOLINT(pixels-raw-pointer-boundary)` on the declaration line
 and state its lifetime reason in adjacent code or review. `-ReportAll` inventories historical debt for incremental
 migration; it is expected to fail until that debt reaches zero. Unmaintained
 third-party code and `src/px_deps/px_webrtc_client` are intentionally excluded;

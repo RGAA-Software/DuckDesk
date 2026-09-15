@@ -80,7 +80,7 @@ namespace px
         static uint32_t GetCurrentProcessId();
         static WindowInfos GetWindowInfoByPid(DWORD pid, int filter_window_size = 256);
         static bool GetWindowPositionByHwnd(
-            HWND hwnd,  // NOLINT(gammaray-raw-pointer-boundary): borrowed window handle used synchronously.
+            HWND hwnd,  // NOLINT(pixels-raw-pointer-boundary): borrowed window handle used synchronously.
             RECT& rect);
         static UniqueWinIcon QueryExeIcon(const std::wstring& exe_path);
         static UniqueWinIcon GetFolderIcon();

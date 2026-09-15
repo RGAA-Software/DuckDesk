@@ -16,7 +16,7 @@ use crate::windows_process::ProcessManager;
 // Keep the product limit aligned with the eight render/RTC display slots.
 // Displays are still created on demand; this is a capacity limit, not a
 // preallocation count.
-pub const GAMMARAY_VIRTUAL_DISPLAY_LIMIT: usize = 8;
+pub const PIXELS_VIRTUAL_DISPLAY_LIMIT: usize = 8;
 pub const DEFAULT_WIDTH: u32 = 1920;
 pub const DEFAULT_HEIGHT: u32 = 1080;
 pub const DEFAULT_REFRESH_HZ: u32 = 60;
@@ -161,13 +161,13 @@ impl VirtualDisplayManager {
         let mut state = self.lock_state()?;
         let before = self.reconcile_locked(&mut state)?;
         self.ensure_mutation_safe(&state)?;
-        if state.persisted.owned_slots.len() >= GAMMARAY_VIRTUAL_DISPLAY_LIMIT {
+        if state.persisted.owned_slots.len() >= PIXELS_VIRTUAL_DISPLAY_LIMIT {
             return Err(VirtualDisplayError::new(
                 "VIRTUAL_DISPLAY_LIMIT_REACHED",
                 format!(
-                    "GammaRay already owns {} virtual displays (limit {})",
+                    "Pixels already owns {} virtual displays (limit {})",
                     state.persisted.owned_slots.len(),
-                    GAMMARAY_VIRTUAL_DISPLAY_LIMIT
+                    PIXELS_VIRTUAL_DISPLAY_LIMIT
                 ),
             ));
         }
@@ -179,7 +179,7 @@ impl VirtualDisplayManager {
                 // The interactive worker can lose its response after the
                 // driver already accepted the add IOCTL. Adopt that single,
                 // mode-matching topology addition so ownership does not remain
-                // at zero while a GammaRay-created monitor is live.
+                // at zero while a Pixels-created monitor is live.
                 let observed = self.backend.enumerate_monitors().map_err(|query_err| {
                     self.record_fault(
                         &mut state,
@@ -247,7 +247,7 @@ impl VirtualDisplayManager {
         let removed = state.persisted.owned_slots.last().cloned().ok_or_else(|| {
             VirtualDisplayError::new(
                 "NO_OWNED_VIRTUAL_DISPLAY",
-                "GammaRay has no owned virtual display to remove",
+                "Pixels has no owned virtual display to remove",
             )
         })?;
         let expected =
@@ -351,7 +351,7 @@ impl VirtualDisplayManager {
 
         let expected = state.persisted.foreign_baseline + state.persisted.owned_slots.len() as u32;
         if state.persisted.owned_slots.is_empty() {
-            // With no GammaRay-owned display, every observed monitor is foreign
+            // With no Pixels-owned display, every observed monitor is foreign
             // and rebasing is always safe.
             state.persisted.foreign_baseline = actual;
             state.persisted.last_known_total = actual;
@@ -392,7 +392,7 @@ impl VirtualDisplayManager {
             state.persisted.removal_safe = false;
             state.persisted.last_known_total = actual;
             state.persisted.last_error = Some(format!(
-                "Parsec VDD topology changed outside GammaRay: expected {expected}, observed {actual}"
+                "Parsec VDD topology changed outside Pixels: expected {expected}, observed {actual}"
             ));
         }
         state.phase = if state.persisted.removal_safe {
@@ -610,7 +610,7 @@ mod tests {
             first.logical_display_id.as_deref(),
             Some("parsec-vdd-slot-1")
         );
-        for slot in 2..=GAMMARAY_VIRTUAL_DISPLAY_LIMIT {
+        for slot in 2..=PIXELS_VIRTUAL_DISPLAY_LIMIT {
             let created = manager
                 .create(DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_REFRESH_HZ)
                 .unwrap();

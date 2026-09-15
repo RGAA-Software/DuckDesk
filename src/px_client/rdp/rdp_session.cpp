@@ -67,7 +67,7 @@ template <typename Function> BOOL Guard(Function function) noexcept {
 }
 
 struct ContextCloser final {
-    void operator()(rdpContext* context) const noexcept { // NOLINT(gammaray-raw-pointer-boundary): owned FreeRDP allocation deleter ABI.
+    void operator()(rdpContext* context) const noexcept { // NOLINT(pixels-raw-pointer-boundary): owned FreeRDP allocation deleter ABI.
         if (context) {
             if (context->gdi) {
                 gdi_free(context->instance);
@@ -119,7 +119,7 @@ bool SessionSecret::IsValid() const noexcept {
     return bytes.size() >= 32 && bytes.size() <= 256 && std::ranges::none_of(bytes, [](char byte) { return byte == '\0'; });
 }
 bool SessionConfiguration::IsValid() const noexcept {
-    return loopbackPort != 0 && SafeName(account) && account.starts_with("grdp_") && account.size() >= 8 && account.size() <= 20 &&
+    return loopbackPort != 0 && SafeName(account) && account.starts_with("prdp_") && account.size() >= 8 && account.size() <= 20 &&
            SafeName(domain) && domain.size() <= 15 && password && password->IsValid() && ValidSize(desktop) &&
            proxyCertificateSha256.size() == 64 && std::ranges::all_of(proxyCertificateSha256, [](unsigned char byte) {
                return (byte >= '0' && byte <= '9') || (byte >= 'a' && byte <= 'f') || (byte >= 'A' && byte <= 'F');
@@ -193,11 +193,11 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
     static void GlobalUninit() {}
     static int ClientStart(rdpContext*) {
         return 0;
-    } // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
+    } // NOLINT(pixels-raw-pointer-boundary): FreeRDP ABI.
     static int ClientStop(rdpContext*) {
         return 0;
-    } // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
-    static BOOL ClientNew(freerdp* instance, rdpContext* borrowed) { // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
+    } // NOLINT(pixels-raw-pointer-boundary): FreeRDP ABI.
+    static BOOL ClientNew(freerdp* instance, rdpContext* borrowed) { // NOLINT(pixels-raw-pointer-boundary): FreeRDP ABI.
         std::construct_at(&Extended(*borrowed).owner);
         instance->PreConnect = PreConnect;
         instance->PostConnect = PostConnect;
@@ -206,12 +206,12 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
         instance->Redirect = RefuseRedirect;
         return TRUE;
     }
-    static void ClientFree(freerdp*, rdpContext* borrowed) { // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
+    static void ClientFree(freerdp*, rdpContext* borrowed) { // NOLINT(pixels-raw-pointer-boundary): FreeRDP ABI.
         std::destroy_at(&Extended(*borrowed).owner);
     }
     static BOOL RefuseAuthenticationPrompt( // FreeRDP authentication ABI; all arguments are borrowed only during this call.
-        freerdp* instance, char** username, char** password, char** domain, rdp_auth_reason reason) { // NOLINT(gammaray-raw-pointer-boundary)
-        // NOLINT(gammaray-raw-pointer-boundary): FreeRDP authentication ABI; validate preinstalled values without replacing any allocation.
+        freerdp* instance, char** username, char** password, char** domain, rdp_auth_reason reason) { // NOLINT(pixels-raw-pointer-boundary)
+        // NOLINT(pixels-raw-pointer-boundary): FreeRDP authentication ABI; validate preinstalled values without replacing any allocation.
         const auto self = Owner(*instance->context);
         if (!self || self->stopping.load() || reason != AUTH_NLA || !username || !*username || !password || !*password || !domain || !*domain) {
             return FALSE;
@@ -223,10 +223,10 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
     }
     static BOOL RefuseRedirect(freerdp*) {
         return FALSE;
-    } // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
+    } // NOLINT(pixels-raw-pointer-boundary): FreeRDP ABI.
     static int VerifyCertificate( // FreeRDP certificate ABI; no argument is retained.
-        freerdp* instance, const BYTE* bytes, size_t length, const char* host, UINT16 port, DWORD flags) { // NOLINT(gammaray-raw-pointer-boundary)
-        // NOLINT(gammaray-raw-pointer-boundary): synchronous certificate callback ABI; no borrowed argument is retained.
+        freerdp* instance, const BYTE* bytes, size_t length, const char* host, UINT16 port, DWORD flags) { // NOLINT(pixels-raw-pointer-boundary)
+        // NOLINT(pixels-raw-pointer-boundary): synchronous certificate callback ABI; no borrowed argument is retained.
         if (!host || !bytes) {
             return 0;
         }
@@ -239,7 +239,7 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
                    VerifyPinnedCertificate(pem, self->configuration.proxyCertificateSha256);
         });
     }
-    static BOOL PreConnect(freerdp* instance) { // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
+    static BOOL PreConnect(freerdp* instance) { // NOLINT(pixels-raw-pointer-boundary): FreeRDP ABI.
         auto& current = *instance;
         return Guard([&current] {
             const auto self = Owner(*current.context);
@@ -299,7 +299,7 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
             return ok;
         });
     }
-    static BOOL PostConnect(freerdp* instance) { // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
+    static BOOL PostConnect(freerdp* instance) { // NOLINT(pixels-raw-pointer-boundary): FreeRDP ABI.
         auto& current = *instance;
         return Guard([&current] {
             const auto self = Owner(*current.context);
@@ -318,7 +318,7 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
             return true;
         });
     }
-    static void ChannelConnected(void* borrowed, const ChannelConnectedEventArgs* event) { // NOLINT(gammaray-raw-pointer-boundary): ABI.
+    static void ChannelConnected(void* borrowed, const ChannelConnectedEventArgs* event) { // NOLINT(pixels-raw-pointer-boundary): ABI.
         if (!event || !event->name) {
             return;
         }
@@ -359,7 +359,7 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
             }
         }
     }
-    static void ChannelDisconnected(void* borrowed, const ChannelDisconnectedEventArgs* event) { // NOLINT(gammaray-raw-pointer-boundary): ABI.
+    static void ChannelDisconnected(void* borrowed, const ChannelDisconnectedEventArgs* event) { // NOLINT(pixels-raw-pointer-boundary): ABI.
         if (const auto self = Owner(*static_cast<rdpContext*>(borrowed)); self && event && event->name) {
             if (std::string_view{event->name} == DISP_DVC_CHANNEL_NAME) {
                 self->display.Attach({});
@@ -380,31 +380,31 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
                    ? CHANNEL_RC_OK
                    : ERROR_INVALID_DATA;
     }
-    static UINT ClipboardReady(CliprdrClientContext* channel, const CLIPRDR_MONITOR_READY*) { // NOLINT(gammaray-raw-pointer-boundary): ABI.
+    static UINT ClipboardReady(CliprdrClientContext* channel, const CLIPRDR_MONITOR_READY*) { // NOLINT(pixels-raw-pointer-boundary): ABI.
         return WithClipboard(*channel, [](TextClipboardChannel& clipboard) { return clipboard.Ready(); });
     }
-    static UINT ClipboardCapabilities(CliprdrClientContext* channel, const CLIPRDR_CAPABILITIES* value) { // NOLINT(gammaray-raw-pointer-boundary)
+    static UINT ClipboardCapabilities(CliprdrClientContext* channel, const CLIPRDR_CAPABILITIES* value) { // NOLINT(pixels-raw-pointer-boundary)
         const auto& capabilities = *value;
         return WithClipboard(*channel, [&capabilities](TextClipboardChannel& clipboard) { return clipboard.Capabilities(capabilities); });
     }
-    static UINT ClipboardFormats(CliprdrClientContext* channel, const CLIPRDR_FORMAT_LIST* value) { // NOLINT(gammaray-raw-pointer-boundary): ABI.
+    static UINT ClipboardFormats(CliprdrClientContext* channel, const CLIPRDR_FORMAT_LIST* value) { // NOLINT(pixels-raw-pointer-boundary): ABI.
         const auto& formats = *value;
         return WithClipboard(*channel, [&formats](TextClipboardChannel& clipboard) { return clipboard.Formats(formats); });
     }
-    static UINT ClipboardFormatsResponse(CliprdrClientContext*, const CLIPRDR_FORMAT_LIST_RESPONSE*) { // NOLINT(gammaray-raw-pointer-boundary): ABI.
+    static UINT ClipboardFormatsResponse(CliprdrClientContext*, const CLIPRDR_FORMAT_LIST_RESPONSE*) { // NOLINT(pixels-raw-pointer-boundary): ABI.
         return CHANNEL_RC_OK;
     }
-    static UINT ClipboardDataRequest( // NOLINT(gammaray-raw-pointer-boundary): FreeRDP callback ABI.
-        CliprdrClientContext* channel, const CLIPRDR_FORMAT_DATA_REQUEST* value) { // NOLINT(gammaray-raw-pointer-boundary): callback ABI.
+    static UINT ClipboardDataRequest( // NOLINT(pixels-raw-pointer-boundary): FreeRDP callback ABI.
+        CliprdrClientContext* channel, const CLIPRDR_FORMAT_DATA_REQUEST* value) { // NOLINT(pixels-raw-pointer-boundary): callback ABI.
         const auto& request = *value;
         return WithClipboard(*channel, [&request](TextClipboardChannel& clipboard) { return clipboard.DataRequest(request); });
     }
-    static UINT ClipboardDataResponse( // NOLINT(gammaray-raw-pointer-boundary): FreeRDP callback ABI.
-        CliprdrClientContext* channel, const CLIPRDR_FORMAT_DATA_RESPONSE* value) { // NOLINT(gammaray-raw-pointer-boundary): callback ABI.
+    static UINT ClipboardDataResponse( // NOLINT(pixels-raw-pointer-boundary): FreeRDP callback ABI.
+        CliprdrClientContext* channel, const CLIPRDR_FORMAT_DATA_RESPONSE* value) { // NOLINT(pixels-raw-pointer-boundary): callback ABI.
         const auto& response = *value;
         return WithClipboard(*channel, [&response](TextClipboardChannel& clipboard) { return clipboard.DataResponse(response); });
     }
-    static BOOL BeginPaint(rdpContext* borrowed) { // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
+    static BOOL BeginPaint(rdpContext* borrowed) { // NOLINT(pixels-raw-pointer-boundary): FreeRDP ABI.
         if (!borrowed->gdi || !borrowed->gdi->primary || !borrowed->gdi->primary->hdc || !borrowed->gdi->primary->hdc->hwnd) {
             return FALSE;
         }
@@ -416,7 +416,7 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
         window.ninvalid = 0;
         return TRUE;
     }
-    static BOOL EndPaint(rdpContext* borrowed) { // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
+    static BOOL EndPaint(rdpContext* borrowed) { // NOLINT(pixels-raw-pointer-boundary): FreeRDP ABI.
         auto& current = *borrowed;
         return Guard([&current] {
             const auto self = Owner(current);
@@ -476,7 +476,7 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
         callbacks.frame(std::move(frame));
         return true;
     }
-    static BOOL DesktopResize(rdpContext* borrowed) { // NOLINT(gammaray-raw-pointer-boundary): FreeRDP ABI.
+    static BOOL DesktopResize(rdpContext* borrowed) { // NOLINT(pixels-raw-pointer-boundary): FreeRDP ABI.
         auto& current = *borrowed;
         return Guard([&current] {
             const auto self = Owner(current);

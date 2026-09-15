@@ -45,6 +45,7 @@ add_executable(px_panel WIN32
     product_main.cpp
     product/panel_client_launcher.cpp
     product/connection_progress_tracker.cpp
+    product/environment_diagnostics.cpp
     product/panel_connection_input.cpp
     product/panel_connection_links.cpp
     product/panel_device_name.cpp
@@ -69,6 +70,7 @@ add_executable(px_panel WIN32
     product/product_server_status_port.cpp
     product/product_settings_port.cpp
     product/product_voice_call_consent_overlay.cpp
+    product/windows_environment_probe.cpp
     ${CMAKE_BINARY_DIR}/src/px_base/icon.rc
 )
 
@@ -88,8 +90,10 @@ target_link_libraries(px_panel PRIVATE
     unofficial::sqlite3::sqlite3
     OpenSSL::Crypto
     Advapi32.lib
+    Ole32.lib
+    PowrProf.lib
 )
-gammaray_stage_desktop_images(px_panel)
+pixels_stage_desktop_images(px_panel)
 
 set_target_properties(px_panel PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}")
 
@@ -114,7 +118,7 @@ add_custom_command(TARGET px_panel POST_BUILD
         "$<TARGET_FILE_DIR:px_panel>/libplacebo-349.dll"
 )
 target_link_options(px_panel_imgui_preview PRIVATE "/ENTRY:mainCRTStartup")
-gammaray_stage_desktop_images(px_panel_imgui_preview)
+pixels_stage_desktop_images(px_panel_imgui_preview)
 
 add_executable(px_ui_component_gallery
     component_gallery.cpp
@@ -126,7 +130,7 @@ set_target_properties(px_ui_component_gallery PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 target_link_options(px_ui_component_gallery PRIVATE "/ENTRY:mainCRTStartup")
-gammaray_stage_desktop_images(px_ui_component_gallery)
+pixels_stage_desktop_images(px_ui_component_gallery)
 
 add_custom_command(TARGET px_panel_imgui_preview POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:px_panel_imgui_preview>/resources/fonts"
@@ -159,6 +163,7 @@ add_custom_command(TARGET px_ui_component_gallery POST_BUILD
 if(BUILD_TESTING AND TARGET GTest::gtest)
     add_executable(px_panel_product_tests
         product/tests/panel_product_tests.cpp
+        product/environment_diagnostics.cpp
         product/panel_audit_store.cpp
         product/connection_progress_tracker.cpp
         product/panel_connection_input.cpp
@@ -168,6 +173,7 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
         product/panel_system_information.cpp
         product/panel_config_store.cpp
         product/panel_worker.cpp
+        product/windows_environment_probe.cpp
     )
     target_include_directories(px_panel_product_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/product)
     target_link_libraries(px_panel_product_tests PRIVATE
@@ -179,6 +185,9 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
         OpenSSL::Crypto
         GTest::gtest
         GTest::gtest_main
+        Advapi32.lib
+        Ole32.lib
+        PowrProf.lib
     )
     add_test(NAME px_panel_product_tests COMMAND px_panel_product_tests)
 endif()

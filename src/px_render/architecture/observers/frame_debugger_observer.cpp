@@ -79,7 +79,7 @@ BuiltinModuleRegistration FrameDebuggerObserver::MakeRegistration() {
             BuiltinModuleDescriptor{
                 .id = std::string(kFrameDebuggerModuleId),
                 .name = "Frame Debugger",
-                .author = "GammaRay",
+                .author = "Pixels",
                 .description = "Bounded frame diagnostics observer",
                 .version_name = "2.0.0",
                 .version_code = 2,

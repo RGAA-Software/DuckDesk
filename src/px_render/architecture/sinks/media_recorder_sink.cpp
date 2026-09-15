@@ -117,7 +117,7 @@ BuiltinModuleRegistration MediaRecorderSink::MakeRegistration() {
             BuiltinModuleDescriptor{
                 .id = std::string(kMediaRecorderModuleId),
                 .name = "Media Recorder(Server)",
-                .author = "GammaRay",
+                .author = "Pixels",
                 .description = "Built-in bounded encoded-media recording sink",
                 .version_name = "2.0.0",
                 .version_code = 200,

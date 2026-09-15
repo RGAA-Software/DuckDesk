@@ -8,7 +8,7 @@ https://github.com/FreeRDP/FreeRDP.git 的 Git 子模块；父仓库 gitlink 固
 ## 新开发机器
 
 前提：Git、CMake、Visual Studio 2022 C++ 工具链及 Windows SDK，能够访问 GitHub 和依赖下载源。
-这是 Windows x64 SDK；不代表整个 GammaRay 的 Qt、CEF 等开发依赖也已经自动配置。
+这是 Windows x64 SDK；不代表整个 Pixels 的 Qt、CEF 等开发依赖也已经自动配置。
 
 ```bat
 git submodule update --init -- third_party/freerdp/source

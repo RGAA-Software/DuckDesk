@@ -17,7 +17,7 @@ SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Show or update the unified GammaRay product version.",
+        description="Show or update the unified Pixels product version.",
     )
     parser.add_argument(
         "version",
@@ -194,7 +194,7 @@ def extract_cargo_package_version(path: Path) -> str | None:
 
 
 def version_targets() -> list[tuple[str, Path, str]]:
-    # 版本管理边界：GammaRay 相关的 exe（C++ 客户端、rust_client、rust_base）
+    # 版本管理边界：Pixels 相关的 exe（C++ 客户端、rust_client、rust_base）
     # 统一由本脚本随 build_official 递增；rust_server 下的每个服务独立管理
     # 自己的版本（见 rust_server/set_server_version.py）。
     return [

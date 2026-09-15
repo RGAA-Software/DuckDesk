@@ -2,8 +2,8 @@
 // Created by RGAA on 12/08/2026.
 //
 
-#ifndef GAMMARAYPC_UDP_DIRECT_CONNECTION_H
-#define GAMMARAYPC_UDP_DIRECT_CONNECTION_H
+#ifndef PIXELSPC_UDP_DIRECT_CONNECTION_H
+#define PIXELSPC_UDP_DIRECT_CONNECTION_H
 
 #include "connection.h"
 #include <memory>
@@ -153,4 +153,4 @@ class UdpDirectConnection : public Connection, public std::enable_shared_from_th
 
 } // namespace px
 
-#endif // GAMMARAYPC_UDP_DIRECT_CONNECTION_H
+#endif // PIXELSPC_UDP_DIRECT_CONNECTION_H

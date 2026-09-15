@@ -77,7 +77,7 @@ struct FileInfo {
 };
 
 struct InputFormatDeleter final {
-    void operator()(AVFormatContext* format) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(AVFormatContext* format) const noexcept { // NOLINT(pixels-raw-pointer-boundary)
         avformat_close_input(&format);
     }
 };
@@ -90,7 +90,7 @@ struct InspectedFile final {
 };
 
 std::optional<InspectedFile> OpenAndInspect(const fs::path& path) {
-    AVFormatContext* format_boundary = nullptr; // NOLINT(gammaray-raw-pointer-boundary)
+    AVFormatContext* format_boundary = nullptr; // NOLINT(pixels-raw-pointer-boundary)
     if (avformat_open_input(&format_boundary, path.string().c_str(), nullptr, nullptr) < 0) {
         return std::nullopt;
     }
@@ -188,7 +188,7 @@ bool DecodesFromStart(AVFormatContext& format, int video_index, int min_frames) 
 }
 
 struct TestPacketDeleter final {
-    void operator()(AVPacket* packet) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(AVPacket* packet) const noexcept { // NOLINT(pixels-raw-pointer-boundary)
         av_packet_free(&packet);
     }
 };

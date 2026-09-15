@@ -43,7 +43,7 @@ public:
         desired.format = AUDIO_S16SYS;
         desired.channels = static_cast<Uint8>(config.channels);
         desired.samples = static_cast<Uint16>(config.frames_per_callback);
-        desired.userdata = callback_state.get(); // NOLINT(gammaray-raw-pointer-boundary): SDL retains userdata only until both devices close
+        desired.userdata = callback_state.get(); // NOLINT(pixels-raw-pointer-boundary): SDL retains userdata only until both devices close
         capture_device_name_ = config.capture_device_id;
         playout_device_name_ = config.playout_device_id;
         if (config.capture_enabled) {
@@ -117,13 +117,13 @@ public:
             return false;
         }
         for (int i = 0; i < capture_count; ++i) {
-            // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): borrowed SDL device-name ABI
+            // NOLINTNEXTLINE(pixels-raw-pointer-boundary): borrowed SDL device-name ABI
             if (const char* name = SDL_GetAudioDeviceName(i, SDL_TRUE); name && *name) {
                 inventory.capture_devices.push_back({.id = name, .name = name});
             }
         }
         for (int i = 0; i < playout_count; ++i) {
-            // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): borrowed SDL device-name ABI
+            // NOLINTNEXTLINE(pixels-raw-pointer-boundary): borrowed SDL device-name ABI
             if (const char* name = SDL_GetAudioDeviceName(i, SDL_FALSE); name && *name) {
                 inventory.playout_devices.push_back({.id = name, .name = name});
             }
@@ -154,12 +154,12 @@ private:
         error = std::move(value);
     }
 
-    // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): SDL audio callback ABI
+    // NOLINTNEXTLINE(pixels-raw-pointer-boundary): SDL audio callback ABI
     static void CaptureCallback(void* userdata, Uint8* stream, int length) {
         if (!userdata || length <= 0) {
             return;
         }
-        auto& state = *static_cast<CallbackState*>(userdata); // NOLINT(gammaray-raw-pointer-boundary): SDL callback userdata boundary
+        auto& state = *static_cast<CallbackState*>(userdata); // NOLINT(pixels-raw-pointer-boundary): SDL callback userdata boundary
         IVoiceAudioBackend::CaptureCallback callback;
         {
             std::scoped_lock lock(state.mutex);
@@ -174,12 +174,12 @@ private:
                 static_cast<size_t>(length) / sizeof(int16_t)));
     }
 
-    // NOLINTNEXTLINE(gammaray-raw-pointer-boundary): SDL audio callback ABI
+    // NOLINTNEXTLINE(pixels-raw-pointer-boundary): SDL audio callback ABI
     static void PlaybackCallback(void* userdata, Uint8* stream, int length) {
         if (!userdata || length <= 0) {
             return;
         }
-        auto& state = *static_cast<CallbackState*>(userdata); // NOLINT(gammaray-raw-pointer-boundary): SDL callback userdata boundary
+        auto& state = *static_cast<CallbackState*>(userdata); // NOLINT(pixels-raw-pointer-boundary): SDL callback userdata boundary
         const auto samples = static_cast<size_t>(length) / sizeof(int16_t);
         std::memset(stream, 0, static_cast<size_t>(length));
         PlayoutCallback callback;

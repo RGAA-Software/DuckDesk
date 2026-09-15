@@ -27,25 +27,25 @@ namespace px {
 namespace {
 
 struct CodecContextRelease final {
-    void operator()(AVCodecContext* context) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(AVCodecContext* context) const noexcept { // NOLINT(pixels-raw-pointer-boundary)
         if (context != nullptr) avcodec_free_context(&context);
     }
 };
 
 struct PacketRelease final {
-    void operator()(AVPacket* packet) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(AVPacket* packet) const noexcept { // NOLINT(pixels-raw-pointer-boundary)
         if (packet != nullptr) av_packet_free(&packet);
     }
 };
 
 struct FrameRelease final {
-    void operator()(AVFrame* frame) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(AVFrame* frame) const noexcept { // NOLINT(pixels-raw-pointer-boundary)
         if (frame != nullptr) av_frame_free(&frame);
     }
 };
 
 struct ScaleContextRelease final {
-    void operator()(SwsContext* context) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(SwsContext* context) const noexcept { // NOLINT(pixels-raw-pointer-boundary)
         if (context != nullptr) sws_freeContext(context);
     }
 };
@@ -62,14 +62,14 @@ public:
     LockedNativeWindow& operator=(const LockedNativeWindow&) = delete;
 
     [[nodiscard]] bool Lock() {
-        locked_ = ANativeWindow_lock(window_.get(), &buffer_, nullptr) == 0; // NOLINT(gammaray-raw-pointer-boundary)
+        locked_ = ANativeWindow_lock(window_.get(), &buffer_, nullptr) == 0; // NOLINT(pixels-raw-pointer-boundary)
         return locked_;
     }
 
     [[nodiscard]] std::span<std::byte> Pixels() const {
         if (!locked_ || buffer_.bits == nullptr || buffer_.stride <= 0 || buffer_.height <= 0) return {};
         const auto byte_count = static_cast<std::size_t>(buffer_.stride) * static_cast<std::size_t>(buffer_.height) * 4U;
-        return {reinterpret_cast<std::byte*>(buffer_.bits), byte_count}; // NOLINT(gammaray-raw-pointer-boundary)
+        return {reinterpret_cast<std::byte*>(buffer_.bits), byte_count}; // NOLINT(pixels-raw-pointer-boundary)
     }
 
     [[nodiscard]] int StrideBytes() const { return buffer_.stride * 4; }
@@ -87,13 +87,13 @@ public:
     [[nodiscard]] bool Initialize(const AVCodecID codec_id, std::shared_ptr<ANativeWindow> window) {
         const auto codec_handle = reinterpret_cast<std::uintptr_t>(avcodec_find_decoder(codec_id));
         if (codec_handle == 0U) return false;
-        codec_context_.reset(avcodec_alloc_context3(reinterpret_cast<const AVCodec*>(codec_handle))); // NOLINT(gammaray-raw-pointer-boundary)
+        codec_context_.reset(avcodec_alloc_context3(reinterpret_cast<const AVCodec*>(codec_handle))); // NOLINT(pixels-raw-pointer-boundary)
         if (!codec_context_) return false;
         codec_context_->thread_count = std::clamp(static_cast<int>(std::thread::hardware_concurrency()), 1, 8);
         codec_context_->thread_type = FF_THREAD_SLICE;
         codec_context_->flags |= AV_CODEC_FLAG_LOW_DELAY;
         if (avcodec_open2(codec_context_.get(),
-                          reinterpret_cast<const AVCodec*>(codec_handle), // NOLINT(gammaray-raw-pointer-boundary)
+                          reinterpret_cast<const AVCodec*>(codec_handle), // NOLINT(pixels-raw-pointer-boundary)
                           nullptr) < 0) {
             return false;
         }
@@ -139,7 +139,7 @@ private:
         if (!locked->Lock()) return false;
         auto pixels = locked->Pixels();
         if (pixels.empty()) return false;
-        std::array<std::uint8_t*, 4> destinations{ // NOLINT(gammaray-raw-pointer-boundary)
+        std::array<std::uint8_t*, 4> destinations{ // NOLINT(pixels-raw-pointer-boundary)
             reinterpret_cast<std::uint8_t*>(pixels.data()), nullptr, nullptr, nullptr};
         const std::array<int, 4> strides{locked->StrideBytes(), 0, 0, 0};
         return sws_scale(scaler_.get(), frame_->data, frame_->linesize, 0, frame_->height, destinations.data(), strides.data()) == frame_->height;

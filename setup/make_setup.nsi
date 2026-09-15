@@ -80,7 +80,7 @@ Section "Install required files" SecMain
         Abort "Parsec virtual display driver installation failed"
 parsec_vdd_install_ok:
 
-    ; Remove the legacy GammaRay USBMMIDD device/package only after Parsec VDD
+    ; Remove the legacy product USBMMIDD device/package only after Parsec VDD
     ; is healthy. It is an upgrade cleanup path, never a runtime fallback.
     Call CleanupLegacyUsbMmIddDriver
     Pop $R0
@@ -94,13 +94,17 @@ legacy_usbmmidd_cleanup_ok:
     ; 3. Install ViGEm joystick driver silently
     ExecWait '"$INSTDIR\px_joystick.exe" /S'
 
-    ; 4. Create shortcuts
+    ; 4. Register or update the Windows service only after all runtime files
+    ; have been published. The service manager also starts the service.
+    Call InstallAndStartService
+
+    ; 5. Create shortcuts
     CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\${APPNAME}.exe"
     CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\${APPNAME}.exe"
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
 
-    ; 5. Write uninstall registry info
+    ; 6. Write uninstall registry info
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "DisplayName" "${PRODUCT_NAME}"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "InstallLocation" "$INSTDIR"
@@ -160,18 +164,13 @@ Function .onInit
     ${EndIf}
 
     ; A background service or render process may still be active even when the
-    ; panel is not. Always stop the complete product before replacing DLLs.
-    Call StopAndDeleteService
-    Call KillProcesses
-
-    Call StopAndDeleteService
+    ; panel is not. Stop it before replacing files, but keep the px_service
+    ; registration so a covering install can update it in place.
+    Call StopServiceForUpgrade
     Call KillProcesses
 FunctionEnd
 
 Function un.onInit
-    Call un.StopAndDeleteService
-    Call un.KillProcesses
-
     Call un.StopAndDeleteService
     Call un.KillProcesses
 FunctionEnd
@@ -180,12 +179,33 @@ Function LaunchLink
     ExecShell "" "$INSTDIR\${APPNAME}.exe"
 FunctionEnd
 
-Function StopAndDeleteService
-    ; net stop synchronization: first ensure the service is stopped and removed,
-    ; cutting off the restart source
-    ; (it restarts render/UserProxy every 3s; UserProxy restarts panel/SysInfo every 5s)
+Function StopServiceForUpgrade
+    ; net stop waits for the service process to release files. A missing service
+    ; is valid during a clean installation.
     nsExec::ExecToLog 'net stop "px_service"'
-    nsExec::ExecToLog 'sc delete "px_service"'
+FunctionEnd
+
+Function InstallAndStartService
+    IfFileExists "$INSTDIR\px_service.exe" service_binary_present 0
+        MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "px_service.exe is missing. Setup cannot continue."
+        SetErrorLevel 1603
+        Abort "px_service.exe is missing"
+service_binary_present:
+    IfFileExists "$INSTDIR\px_service_manager.exe" service_manager_present 0
+        MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "px_service_manager.exe is missing. Setup cannot continue."
+        SetErrorLevel 1603
+        Abort "px_service_manager.exe is missing"
+service_manager_present:
+    DetailPrint "Registering and starting px_service..."
+    nsExec::ExecToStack '"$INSTDIR\px_service_manager.exe" install --service-bin "$INSTDIR\px_service.exe"'
+    Pop $R0
+    Pop $R1
+    DetailPrint "$R1"
+    StrCmp $R0 "0" service_install_ok
+        MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "Failed to register or start px_service. Setup cannot continue."
+        SetErrorLevel 1603
+        Abort "px_service installation failed: $R1"
+service_install_ok:
 FunctionEnd
 
 Function un.StopAndDeleteService

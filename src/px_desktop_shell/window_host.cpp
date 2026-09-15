@@ -31,14 +31,14 @@ int ScaledWindowDimension(const int logicalSize, const float scale, const int av
 }
 
 struct SdlWindowDeleter final {
-    void operator()(SDL_Window* window) const noexcept { // NOLINT(gammaray-raw-pointer-boundary)
+    void operator()(SDL_Window* window) const noexcept { // NOLINT(pixels-raw-pointer-boundary)
         SDL_DestroyWindow(window);
     }
 };
 
 using SdlWindow = std::unique_ptr<SDL_Window, SdlWindowDeleter>;
 
-SDL_HitTestResult SDLCALL HitTest(SDL_Window* window, const SDL_Point* area, void*) { // NOLINT(gammaray-raw-pointer-boundary)
+SDL_HitTestResult SDLCALL HitTest(SDL_Window* window, const SDL_Point* area, void*) { // NOLINT(pixels-raw-pointer-boundary)
     int width{};
     int height{};
     SDL_GetWindowSize(window, &width, &height);
