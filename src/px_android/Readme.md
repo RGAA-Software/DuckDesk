@@ -6,6 +6,7 @@
 
 - [Pixels Android 客户端最终产品规划](../../docs/android_pixels_product_plan.md)
 - [Pixels Android UI/UX 设计规范](../../docs/android_pixels_ui_design.md)
+- [Android 云应用模块实施计划](../../docs/android_cloud_apps_implementation_plan_20260914.md)
 - [原生客户端 SDK 与 WebRTC 产品边界](../../docs/native_client_sdk_transport_decision.md)
 
 ## 已确认的方向
@@ -15,7 +16,7 @@
 - 只发布 `arm64-v8a`，最低系统基线为 Android 12 / API 31；不保留低版本兼容分支。
 - 使用 Kotlin、Compose、显式会话状态机和类型化 JNI。
 - 复用项目协议、SDK 和媒体核心，删除旧 Fragment、GreenDAO、事件总线、JSON JNI、音乐频谱和 Steam 专属 UI。
-- 最终产品包含音视频串流、完整输入、多显示器、远程应用、文件传输、剪贴板、录制、语音和完整传输能力。
+- 最终产品包含音视频串流、完整输入、多显示器、独立云应用、文件传输、剪贴板、录制、语音和完整传输能力。
 - 不保留兼容层、迁移代码、旧入口或新版/旧版并行包。
 - Windows、Android、iOS、macOS 原生客户端仅使用 UDP+FEC 媒体与 WebSocket 控制/文件这一种直连组合；iOS/macOS 平台适配列为后续工作；取消原生 RTC、Relay、旧 UDP/KCP 和 WS 视频回退。
 - WebRTC 仅用于 Web 客户端；原生公网 P2P/Relay 留待后续 RustDesk 方案，本轮不实现。
@@ -24,7 +25,7 @@
 
 2026-09-07 已完成 SDK 抽离、UDP 媒体回退退役及 Android 固定原生接入：账号与局域网连接统一使用 UDP+FEC 媒体和 WebSocket 控制/文件。RTC AAR、信令、专属录制/语音/文件 JNI 已归档退役。Debug 编译及 34 项单元测试通过；无手机，尚未真机复验。共享 SDK 的旧通道代码清理和平台分层仍待实施，详见 [第三检查点](../../docs/android_native_only_checkpoint_20260907.md)。
 
-M0–M2 已完成。当前应用已包含 Pixels 品牌与最终包名、设备发现和扫码、Quick Connect、Console 账号与设备、远程应用、短期连接票据、前台会话服务、MediaCodec Surface 视频及 FFmpeg 软件解码回退、AAudio、完整桌面输入、虚拟/实体手柄、远端已有显示器发现与切换、按设备保存并应用的帧率/音频/输入模式/解码策略偏好、双向文本及 URI 图片/文件剪贴板、基于 SAF 的双向文件传输和任务中心、直接复用编码码流并发布到 MediaStore 的本地录制，以及经 Windows 用户同意的双向 Opus 语音通话。Android 不创建或删除 Windows 虚拟显示器。
+M0–M2 已完成。当前应用已包含 Pixels 品牌与最终包名、设备发现和扫码、Quick Connect、Console 账号与设备、前台会话服务、MediaCodec Surface 视频及 FFmpeg 软件解码回退、AAudio、完整桌面输入、虚拟/实体手柄、远端已有显示器发现与切换、按设备保存并应用的帧率/音频/输入模式/解码策略偏好、双向文本及 URI 图片/文件剪贴板、基于 SAF 的双向文件传输和任务中心、直接复用编码码流并发布到 MediaStore 的本地录制，以及经 Windows 用户同意的双向 Opus 语音通话。旧的设备内应用页和旧会话模型不是已交付的云应用，将直接替换为独立“云应用” Tab，不做数据或入口兼容。Android 不创建或删除 Windows 虚拟显示器。
 
 语音通话使用 AAudio 通信流，支持麦克风/远端声音静音、听筒/耳机与扬声器切换，并在 Android 路由改变时重建音频流而不中断会话。URI 剪贴板把 Android 内容安全物化到私有缓存，通过既有虚拟文件协议按需分块传输，远端文件则通过非导出的 `FileProvider` 写回系统剪贴板。手柄双电机振动回传已完成真机闭环；此前的标准 WebRTC 实现已按产品决定归档退役，相关旧测试不代表当前包的功能验收。M5–M6 的完整网络与发布矩阵尚未完成，未完成能力不会以占位实现伪装为可用。
 

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 const CHROME = process.env.CHROME_PATH
   || 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-const PORT = process.env.RENDER_PORT || '32000'
+const PORT = process.env.RENDER_PORT || '4613'
 const DEVICE_ID = process.env.DEVICE_ID || 'debug1'
 const PAGE_URL =
   `http://127.0.0.1:${PORT}/web/?deviceId=${encodeURIComponent(DEVICE_ID)}`

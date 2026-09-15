@@ -5,7 +5,7 @@ rem ============================================================================
 rem test_webrtc_local.bat
 rem
 rem Launch px_client.exe in "WebRTC Local" mode against a render on
-rem the LAN (default: this machine, 127.0.0.1:20371), bypassing the panel.
+rem the LAN (default: this machine, 127.0.0.1:4601), bypassing the panel.
 rem
 rem Usage:
 rem   scripts\test_webrtc_local.bat [remote_device_id] [random_pwd] [host] [port]
@@ -14,7 +14,7 @@ rem   remote_device_id  device id of the render (default: 600378210, this PC)
 rem   random_pwd        the render's random password in PLAIN text (from the
 rem                     Console device list / panel). Leave empty when the render
 rem                     has neither a safety password nor a random password.
-rem   host / port       render address (default: 127.0.0.1 / 20371)
+rem   host / port       render address (default: 127.0.0.1 / 4601)
 rem
 rem What to verify:
 rem   1. The client window shows the remote desktop, mouse/keyboard work.
@@ -48,7 +48,7 @@ set "HOST=%~3"
 if "%HOST%"=="" set "HOST=127.0.0.1"
 
 set "PORT=%~4"
-if "%PORT%"=="" set "PORT=20371"
+if "%PORT%"=="" set "PORT=4601"
 
 rem --- base64-encode the plain password for --remote_device_rp ----------------
 set "RP_B64="
@@ -76,7 +76,7 @@ echo ============================================
     --port=%PORT% ^
     --appkey=test_appkey ^
     --console_host=127.0.0.1 ^
-    --console_port=30500 ^
+    --console_port=4600 ^
     --audio=1 ^
     --clipboard=1 ^
     --stream_id=%STREAM_ID% ^

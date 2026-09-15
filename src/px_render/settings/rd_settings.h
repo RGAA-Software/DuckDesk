@@ -72,7 +72,7 @@ namespace px
 
     // Transmission
     struct Transmission {
-        int listening_port_ = 20371;
+        int listening_port_ = 4601;
     };
 
     // RdApplication
@@ -192,7 +192,7 @@ namespace px
         std::string panel_server_host_ = "127.0.0.1";
         int panel_server_port_ = 0;
         std::string service_server_host_ = "127.0.0.1";
-        int service_server_port_ = 20375;
+        int service_server_port_ = 4603;
         int rtc_port_start_{60430};
         int rtc_port_end_{60490};
         std::string rtc_advertised_ipv4_;

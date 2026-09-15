@@ -12,7 +12,11 @@ pub struct RdpSessionAuthorization {
     pub logical_session_id: String,
 }
 
-pub async fn validate(device_id: &str, instance_id: &str, logical_session_id: &str) -> Result<RdpSessionAuthorization, ConsoleApiError> {
+pub async fn validate(
+    device_id: &str,
+    instance_id: &str,
+    logical_session_id: &str,
+) -> Result<RdpSessionAuthorization, ConsoleApiError> {
     if !valid_binding(device_id, instance_id, logical_session_id) {
         let (device_valid, device_invalid_byte) = binding_shape(device_id);
         let (instance_valid, instance_invalid_byte) = binding_shape(instance_id);
@@ -36,7 +40,10 @@ pub async fn validate(device_id: &str, instance_id: &str, logical_session_id: &s
         .await
         .filter(|instance| instance.device_id == device_id && !instance.owner_session_id.is_empty())
         .ok_or(ConsoleApiError::ResourceNotFound)?;
-    let app = gAppScheduleManager.get_application(&instance.app_id).await.ok_or(ConsoleApiError::ResourceNotFound)?;
+    let app = gAppScheduleManager
+        .get_application(&instance.app_id)
+        .await
+        .ok_or(ConsoleApiError::ResourceNotFound)?;
     if app.app_type != ApplicationType::Rdp {
         return Err(ConsoleApiError::ResourceNotFound);
     }
@@ -65,7 +72,10 @@ pub async fn validate(device_id: &str, instance_id: &str, logical_session_id: &s
             return Err(ConsoleApiError::AuthenticationRequired);
         }
     } else if instance.owner_type == "guest" {
-        if gUserSessionManager.is_guest_blocked(Some(&instance.owner_id), &session.ip_hash).await? {
+        if gUserSessionManager
+            .is_guest_blocked(Some(&instance.owner_id), &session.ip_hash)
+            .await?
+        {
             return Err(ConsoleApiError::AuthenticationRequired);
         }
     } else {
@@ -81,7 +91,9 @@ pub async fn validate(device_id: &str, instance_id: &str, logical_session_id: &s
 }
 
 fn valid_binding(device: &str, instance: &str, logical: &str) -> bool {
-    [device, instance, logical].iter().all(|value| binding_shape(value).0)
+    [device, instance, logical]
+        .iter()
+        .all(|value| binding_shape(value).0)
 }
 
 fn binding_shape(value: &str) -> (bool, u8) {
@@ -89,7 +101,10 @@ fn binding_shape(value: &str) -> (bool, u8) {
         .bytes()
         .find(|byte| !byte.is_ascii_alphanumeric() && !matches!(byte, b'-' | b'_' | b':'))
         .unwrap_or_default();
-    (!value.is_empty() && value.len() <= 128 && invalid_byte == 0, invalid_byte)
+    (
+        !value.is_empty() && value.len() <= 128 && invalid_byte == 0,
+        invalid_byte,
+    )
 }
 
 #[cfg(test)]
@@ -99,7 +114,11 @@ mod tests {
     #[test]
     fn runtime_check_requires_bounded_exact_binding() {
         assert!(valid_binding("001190520", "inst-123", "logical-123"));
-        assert!(valid_binding("001190520", "inst-123", "password:0123456789abcdef"));
+        assert!(valid_binding(
+            "001190520",
+            "inst-123",
+            "password:0123456789abcdef"
+        ));
         assert!(!valid_binding("", "inst", "logical"));
         assert!(!valid_binding("node", "inst", ""));
         assert!(!valid_binding("node", "inst", "logical/other"));

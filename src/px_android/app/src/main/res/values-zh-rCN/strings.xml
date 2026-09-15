@@ -3,6 +3,7 @@
     <string name="diagnostics_failed">无法生成诊断报告。</string>
     <string name="app_name">Pixels</string>
     <string name="navigation_devices">设备</string>
+    <string name="navigation_cloud_apps">云应用</string>
     <string name="navigation_transfers">传输</string>
     <string name="navigation_settings">设置</string>
     <string name="device_saved">设备验证成功并已保存。</string>

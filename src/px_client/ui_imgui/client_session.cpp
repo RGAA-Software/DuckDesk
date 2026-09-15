@@ -88,7 +88,6 @@ bool ClientSession::Initialize() {
     params->file_transfer_only_ = config_.fileTransferOnly;
     params->ip_ = config_.host;
     params->port_ = config_.port;
-    params->udp_port_ = config_.port;
     params->client_type_ = px::ClientType::kWindows;
     params->bare_device_id_ = config_.localDeviceId;
     params->bare_remote_device_id_ = config_.remoteDeviceId;

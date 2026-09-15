@@ -289,7 +289,7 @@ class RemoteSessionWorkflowTest {
                 displayName = "Office PC",
                 platformName = "Windows",
                 availability = DeviceAvailability.Online,
-                endpoint = DeviceEndpoint("192.168.1.8"),
+                endpoint = DeviceEndpoint("192.168.1.8", 4999, 4601),
             ),
             credential = "credential",
         ),

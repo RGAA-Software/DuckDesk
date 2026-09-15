@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-const BASE = process.env.CONSOLE_URL || 'https://10.0.0.16:30500'
+const BASE = process.env.CONSOLE_URL || 'https://10.0.0.16:4600'
 const APPKEY = '49727717a74720a863f007dcdb13324e'
 const CDP_PORT = 9495
 const sleep = (ms) => new Promise(r => setTimeout(r, ms))

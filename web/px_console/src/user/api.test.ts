@@ -4,7 +4,7 @@ import { prepareLaunchUrl } from './api'
 describe('prepareLaunchUrl', () => {
   it('encodes the Render password and routing metadata without a bearer capability', () => {
     const value = prepareLaunchUrl({
-      launch_url: 'http://device.local:32004/web/',
+      launch_url: 'http://device.local:4617/web/',
       device_id: 'D-1',
       instance_id: '',
       stream_id: 'web-session-1',
@@ -41,7 +41,7 @@ describe('prepareLaunchUrl', () => {
       ],
     }
     const value = prepareLaunchUrl({
-      launch_url: 'https://render.example.test:32004/web/',
+      launch_url: 'https://render.example.test:4617/web/',
       device_id: 'D-1',
       instance_id: 'instance-1',
       stream_id: 'web-session-1',

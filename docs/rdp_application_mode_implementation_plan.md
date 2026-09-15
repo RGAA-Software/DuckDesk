@@ -16,8 +16,8 @@
 - 唯一客户端退出后，Render 沿用既有断连宽限/超时退出语义；宽限内重连取消退出，不要求常驻连接。
 - Render 退出可以关闭 RDP 和代理；普通停止绝不注销 Windows 会话、删除账号/profile 或结束会话内应用。
 - 下次访问按需启动 Render，核对身份并重新连接原有 Windows 会话；会话已不存在时如实反馈。
-- 首版完整闭环面向 Windows GammaRay Client、本机 Console/客户端、`10.0.0.90` Windows Server 远端。
-  使用原有 90，RDP 只使用非 Administrator 测试账号；不接管管理员桌面。环境变化前后均记录状态，不擅自重启或注销会话。
+- 首版完整闭环面向 Windows GammaRay Client、Console/客户端和 Console 当前配置的公网 Windows Server 节点。
+  RDP 只使用专用的非 Administrator 测试账号；不接管管理员桌面。环境变化前后均记录状态，不擅自重启或注销会话。
 - 首版包括连接/认证、单连接准入、图形/光标/键鼠、resize、系统音频、文本/富格式/文件剪贴板与恢复。
   文件管理窗口、麦克风、打印机/智能卡等按后续阶段逐项接通，不能以“RDP 支持”冒充产品已支持。
 - Web Console 的调度 UI 属于首版；Web 浏览器远程画面、Android/iOS/macOS RDP 客户端另行适配，

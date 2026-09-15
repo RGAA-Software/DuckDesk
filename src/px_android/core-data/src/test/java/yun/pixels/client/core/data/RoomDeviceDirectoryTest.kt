@@ -57,7 +57,7 @@ class RoomDeviceDirectoryTest {
             displayName = "Office PC",
             platformName = "Windows",
             availability = DeviceAvailability.Online,
-            endpoint = DeviceEndpoint("192.168.1.20"),
+            endpoint = DeviceEndpoint("192.168.1.20", 4999, 4601),
             lastSeenEpochMillis = 1234,
         ),
         oneTimePassword = password,

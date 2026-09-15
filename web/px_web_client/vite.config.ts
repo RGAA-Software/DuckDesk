@@ -15,11 +15,11 @@ export default defineConfig({
     // 开发时把信令请求代理到本地 render 端
     proxy: {
       '/alloc': {
-        target: 'http://127.0.0.1:20371',
+        target: 'http://127.0.0.1:4601',
         changeOrigin: true,
       },
       '/get': {
-        target: 'http://127.0.0.1:20371',
+        target: 'http://127.0.0.1:4601',
         changeOrigin: true,
       },
     },

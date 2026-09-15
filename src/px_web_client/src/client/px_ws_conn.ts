@@ -18,7 +18,7 @@ export class PxWsConn extends PxConn {
 
     start() {
         const url = "ws://" + this.grConnParams.host + ":" + this.grConnParams.port + '/media?only_audio=0&remote_device_id=2222&stream_id=1122&visitor_device_id=1122';
-        //const url = "ws://10.0.0.16:20371/media?only_audio=0&remote_device_id=2222&stream_id=1122&visitor_device_id=1122";
+        //const url = "ws://10.0.0.16:4601/media?only_audio=0&remote_device_id=2222&stream_id=1122&visitor_device_id=1122";
         console.log(url);
         this.websocket = new WebSocket(url);
 

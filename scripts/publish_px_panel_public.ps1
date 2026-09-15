@@ -18,7 +18,7 @@ if (-not (Test-Path -LiteralPath $source)) {
 $machineText = Get-Content -LiteralPath $machineFile -Raw
 $password = [regex]::Match($machineText, '(?m)^\s*-\s*密码\s*[:：]\s*(.+?)\s*$').Groups[1].Value
 if (-not $password) {
-    throw 'Node90 password is missing from the test-machine document.'
+    throw 'Public test host password is missing from the test-machine document.'
 }
 
 $expectedHash = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash

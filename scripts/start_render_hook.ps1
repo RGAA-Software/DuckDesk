@@ -6,7 +6,7 @@
 $ErrorActionPreference = 'Stop'
 
 # ===== launch parameters =====
-$Port = 32000
+$Port = 4613
 $DeviceId = 'debug1'
 $AppMode = 'game-hook'
 $GamePath = 'D:\1_test_games\CarGame  汽车\CarGame\Binaries\Win64\VehicleGame-Win64-Shipping.exe'

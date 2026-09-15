@@ -17,7 +17,7 @@ try {
     $started=$true
     Write-Output "DROP_CAPTURE output=$output"
     # A nonce-bound diagnostic sender, no game/client/FEC and no network setting changes.
-    & (Join-Path $PSScriptRoot 'test_node90_udp_link.ps1') -StageSeconds 5 -DatagramSize $DatagramSize
+    & (Join-Path $PSScriptRoot 'test_public_udp_link.ps1') -StageSeconds 5 -DatagramSize $DatagramSize
 } finally {
     try {
         if($started){

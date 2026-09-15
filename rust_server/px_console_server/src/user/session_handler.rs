@@ -3,6 +3,7 @@ use crate::console_context::ConsoleContext;
 use crate::event::audit;
 use crate::identity::manager::IdentityManager;
 use crate::user::console_user::ConsoleUserView;
+use crate::user::session::SessionClientType;
 use crate::user::session::{AuthenticatedGuest, AuthenticatedUser};
 use crate::{gAuthManager, gUserManager, gUserSessionManager};
 use axum::extract::Multipart;
@@ -60,7 +61,7 @@ fn avatar_bytes_match_extension(extension: &str, bytes: &[u8]) -> bool {
 pub struct UserLoginRequest {
     pub username: String,
     pub password: String,
-    pub client_type: String,
+    pub client_type: SessionClientType,
 }
 
 #[derive(Debug, Serialize, Default)]
@@ -92,7 +93,7 @@ async fn profile_for(
 pub struct GuestSessionRequest {
     pub client_nonce: String,
     #[serde(default)]
-    pub client_type: Option<String>,
+    pub client_type: Option<SessionClientType>,
 }
 
 #[derive(Debug, Serialize, Default)]
@@ -203,15 +204,13 @@ pub async fn guest_session(
         Some(value) => privacy_hash(value).await,
         None => String::new(),
     };
-    let is_panel = request.client_type.as_deref() == Some("panel");
-    if request
-        .client_type
-        .as_deref()
-        .is_some_and(|value| value != "panel")
-    {
-        return Err(ConsoleApiError::InvalidParams);
-    }
-    if !is_panel && !crate::user::session_router::same_origin(&headers) {
+    let (session_client_type, issues_bearer) = match request.client_type {
+        Some(SessionClientType::Panel) => (SessionClientType::GuestPanel, true),
+        Some(SessionClientType::Android) => (SessionClientType::GuestAndroid, true),
+        None => (SessionClientType::GuestWeb, false),
+        _ => return Err(ConsoleApiError::InvalidParams),
+    };
+    if !issues_bearer && !crate::user::session_router::same_origin(&headers) {
         return Err(ConsoleApiError::Forbidden);
     }
     let issued = gUserSessionManager
@@ -219,7 +218,7 @@ pub async fn guest_session(
             format!("guest-{}", uuid::Uuid::new_v4().simple()),
             ip_hash,
             user_agent_hash,
-            if is_panel { "guest_panel" } else { "guest_web" }.to_string(),
+            session_client_type.as_str().to_string(),
         )
         .await?;
     let max_age =
@@ -227,10 +226,10 @@ pub async fn guest_session(
     let mut response = Json(ok_resp(GuestSessionResponse {
         csrf_token: issued.csrf_token,
         expires_at: issued.session.absolute_expires_at,
-        access_token: is_panel.then(|| issued.session_token.clone()),
+        access_token: issues_bearer.then(|| issued.session_token.clone()),
     }))
     .into_response();
-    if !is_panel {
+    if !issues_bearer {
         response.headers_mut().insert(
             header::SET_COOKIE,
             HeaderValue::from_str(&format!(
@@ -262,7 +261,10 @@ pub async fn login(
     {
         return Err(ConsoleApiError::Forbidden);
     }
-    if !matches!(request.client_type.as_str(), "panel" | "user_web") {
+    if !matches!(
+        request.client_type,
+        SessionClientType::Panel | SessionClientType::Android | SessionClientType::UserWeb
+    ) {
         return Err(ConsoleApiError::InvalidParams);
     }
     let ip_hash = privacy_hash(&addr.ip().to_string()).await;
@@ -310,9 +312,12 @@ pub async fn login(
         .await;
         return Err(ConsoleApiError::InvalidCredentials);
     }
-    if request.client_type == "panel" {
+    if matches!(
+        request.client_type,
+        SessionClientType::Panel | SessionClientType::Android
+    ) {
         let issued = gUserSessionManager
-            .issue_panel(user.uid.clone(), user.auth_version)
+            .issue_user_bearer(user.uid.clone(), user.auth_version, request.client_type)
             .await?;
         audit::record(
             "user",
@@ -321,7 +326,7 @@ pub async fn login(
             "success",
             "session",
             &issued.session.sid,
-            "panel",
+            request.client_type.as_str(),
         )
         .await;
         return Ok(Json(ok_resp(UserLoginResponse {
@@ -390,7 +395,10 @@ pub async fn logout(
         .map(str::trim)
         .unwrap_or("");
     if !bearer.is_empty() {
-        let subject = gUserSessionManager.authenticate(bearer).await.ok();
+        let subject = gUserSessionManager
+            .authenticate_user_bearer(bearer)
+            .await
+            .ok();
         gUserSessionManager.revoke_token(bearer).await?;
         if let Some(subject) = subject {
             audit::record(
@@ -400,7 +408,7 @@ pub async fn logout(
                 "success",
                 "session",
                 &subject.sid,
-                "panel",
+                &subject.client_type,
             )
             .await;
         }
@@ -668,9 +676,14 @@ pub async fn change_password(
         "self_service",
     )
     .await;
-    if subject.client_type == "panel" {
+    if matches!(subject.client_type.as_str(), "panel" | "android") {
+        let client_type = if subject.client_type == "android" {
+            SessionClientType::Android
+        } else {
+            SessionClientType::Panel
+        };
         let issued = gUserSessionManager
-            .issue_panel(updated.uid.clone(), updated.auth_version)
+            .issue_user_bearer(updated.uid.clone(), updated.auth_version, client_type)
             .await?;
         return Ok(Json(ok_resp(UserLoginResponse {
             profile: profile_for(updated).await?,

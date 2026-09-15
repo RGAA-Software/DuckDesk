@@ -6,6 +6,7 @@
         </trust-anchors>
     </base-config>
     <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">39.71.45.66</domain>
         <domain includeSubdomains="false">localhost</domain>
         <trust-anchors>
             <certificates src="@raw/local_console_test_ca" />

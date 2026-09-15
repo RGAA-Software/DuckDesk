@@ -1,7 +1,8 @@
 param(
-    [string]$TargetHost = '10.0.0.90',
+    [Parameter(Mandatory = $true)]
+    [string]$TargetHost,
     [ValidateRange(1, 65535)]
-    [int]$TargetPort = 20371,
+    [int]$TargetPort = 4601,
     [string]$DeviceId = '001190520'
 )
 

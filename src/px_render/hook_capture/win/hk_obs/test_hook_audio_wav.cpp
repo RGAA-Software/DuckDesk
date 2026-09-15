@@ -217,7 +217,7 @@ int wmain(int argc, wchar_t** argv) {
         return 2;
     }
 
-    if (!WriteBootForceAudioHook(g.pid, 32000)) {
+    if (!WriteBootForceAudioHook(g.pid, 4613)) {
         TerminateProcess(g.process, 1);
         CloseHandle(g.thread);
         CloseHandle(g.process);
@@ -267,7 +267,7 @@ int wmain(int argc, wchar_t** argv) {
 
     if (!std::filesystem::exists(wav)) {
         std::cerr << "FAIL: hook wav not created. Check "
-                  << (dist / "px_gh_32000.log").string() << "\n";
+                  << (dist / "px_gh_4613.log").string() << "\n";
         return 5;
     }
 

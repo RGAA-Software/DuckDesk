@@ -1,6 +1,8 @@
 use crate::app_schedule::gAppScheduleManager;
 use crate::console_api_error::ConsoleApiError;
-use crate::identity::access_policy::{guest_can_access_app, subject_owns_running_instance, user_can_access_app};
+use crate::identity::access_policy::{
+    guest_can_access_app, subject_owns_running_instance, user_can_access_app,
+};
 use crate::rtc::model::RtcSessionIceConfig;
 use crate::user::session::{AuthenticatedGuest, AuthenticatedUser};
 use crate::{gConsoleSettings, gDeviceManager, gRtcConfigManager};
@@ -40,7 +42,10 @@ fn default_join_mode() -> String {
 }
 
 fn validate_request(request: &WebConnectionRequest) -> Result<(), ConsoleApiError> {
-    if request.client_nonce.is_empty() || request.client_nonce.len() > 128 || !matches!(request.join_mode.as_str(), "control" | "observe") {
+    if request.client_nonce.is_empty()
+        || request.client_nonce.len() > 128
+        || !matches!(request.join_mode.as_str(), "control" | "observe")
+    {
         return Err(ConsoleApiError::InvalidParams);
     }
     Ok(())
@@ -50,7 +55,12 @@ fn permissions(join_mode: &str, include_file: bool) -> Vec<String> {
     if join_mode == "observe" {
         return vec!["view".to_string(), "audio".to_string()];
     }
-    let mut result = vec!["view".to_string(), "input".to_string(), "clipboard".to_string(), "audio".to_string()];
+    let mut result = vec![
+        "view".to_string(),
+        "input".to_string(),
+        "clipboard".to_string(),
+        "audio".to_string(),
+    ];
     if include_file {
         result.push("file".to_string());
     }
@@ -65,10 +75,13 @@ fn host_for_url(host: &str) -> String {
 }
 
 async fn rtc_config(subject: &str) -> Result<RtcSessionIceConfig, ConsoleApiError> {
-    gRtcConfigManager.issue_session_config(subject).await.map_err(|error| {
-        tracing::error!(%error, "issue RTC configuration failed");
-        ConsoleApiError::InternalError
-    })
+    gRtcConfigManager
+        .issue_session_config(subject)
+        .await
+        .map_err(|error| {
+            tracing::error!(%error, "issue RTC configuration failed");
+            ConsoleApiError::InternalError
+        })
 }
 
 async fn relay_endpoint() -> (String, u16) {
@@ -76,8 +89,14 @@ async fn relay_endpoint() -> (String, u16) {
     (settings.server_w3c_ip.clone(), settings.relay_port)
 }
 
-fn device_password_hash(device: &crate::device::console_device::ConsoleDevice) -> Result<String, ConsoleApiError> {
-    let password_hash = if device.safety_pwd_md5.is_empty() { &device.random_pwd_md5 } else { &device.safety_pwd_md5 };
+fn device_password_hash(
+    device: &crate::device::console_device::ConsoleDevice,
+) -> Result<String, ConsoleApiError> {
+    let password_hash = if device.safety_pwd_md5.is_empty() {
+        &device.random_pwd_md5
+    } else {
+        &device.safety_pwd_md5
+    };
     if password_hash.is_empty() {
         return Err(ConsoleApiError::InvalidParams);
     }
@@ -90,11 +109,19 @@ pub async fn user_web_device_connection(
     Json(request): Json<WebConnectionRequest>,
 ) -> Result<Response, ConsoleApiError> {
     validate_request(&request)?;
-    let device = gDeviceManager.query_device_by_id(device_id.clone()).await.map_err(|_| ConsoleApiError::ResourceNotFound)?;
+    let device = gDeviceManager
+        .query_device_by_id(device_id.clone())
+        .await
+        .map_err(|_| ConsoleApiError::ResourceNotFound)?;
     if !device.active || (request.join_mode == "observe" && !device.allow_observer) {
         return Err(ConsoleApiError::DeviceOffline);
     }
-    let (host, port) = device.get_current_render_endpoints().await.into_iter().next().ok_or(ConsoleApiError::DeviceOffline)?;
+    let (host, port) = device
+        .get_current_render_endpoints()
+        .await
+        .into_iter()
+        .next()
+        .ok_or(ConsoleApiError::DeviceOffline)?;
     let stream_id = format!("web-{}", Uuid::new_v4().simple());
     let (relay_host, relay_port) = relay_endpoint().await;
     let descriptor = WebConnectionDescriptor {
@@ -109,7 +136,11 @@ pub async fn user_web_device_connection(
         relay_port,
         signal_device_id: format!("server_{device_id}"),
     };
-    Ok(([(CACHE_CONTROL, "no-store, private")], Json(ok_resp(descriptor))).into_response())
+    Ok((
+        [(CACHE_CONTROL, "no-store, private")],
+        Json(ok_resp(descriptor)),
+    )
+        .into_response())
 }
 
 async fn instance_descriptor(
@@ -125,7 +156,10 @@ async fn instance_descriptor(
         .await
         .filter(|instance| subject_owns_running_instance(instance, subject_type, subject_id))
         .ok_or(ConsoleApiError::ResourceNotFound)?;
-    let app = gAppScheduleManager.get_application(&instance.app_id).await.ok_or(ConsoleApiError::ResourceNotFound)?;
+    let app = gAppScheduleManager
+        .get_application(&instance.app_id)
+        .await
+        .ok_or(ConsoleApiError::ResourceNotFound)?;
     if subject_type == "guest" {
         if !guest_can_access_app(&app.access_mode) {
             return Err(ConsoleApiError::ResourceNotFound);
@@ -143,7 +177,10 @@ async fn instance_descriptor(
     if request.join_mode == "observe" && !app.allow_observer {
         return Err(ConsoleApiError::ResourceNotFound);
     }
-    let device = gDeviceManager.query_device_by_id(instance.device_id.clone()).await.map_err(|_| ConsoleApiError::ResourceNotFound)?;
+    let device = gDeviceManager
+        .query_device_by_id(instance.device_id.clone())
+        .await
+        .map_err(|_| ConsoleApiError::ResourceNotFound)?;
     let host = device
         .get_current_render_endpoints()
         .await
@@ -154,7 +191,11 @@ async fn instance_descriptor(
     let stream_id = format!("web-{}", Uuid::new_v4().simple());
     let (relay_host, relay_port) = relay_endpoint().await;
     let descriptor = WebConnectionDescriptor {
-        launch_url: format!("http://{}:{}/web/", host_for_url(&host), instance.listen_port),
+        launch_url: format!(
+            "http://{}:{}/web/",
+            host_for_url(&host),
+            instance.listen_port
+        ),
         device_id: instance.device_id.clone(),
         instance_id: instance.instance_id.clone(),
         stream_id,
@@ -163,9 +204,16 @@ async fn instance_descriptor(
         rtc_ice_config: rtc_config(session_id).await?,
         relay_host,
         relay_port,
-        signal_device_id: format!("server_{}__instance__{}", instance.device_id, instance.instance_id),
+        signal_device_id: format!(
+            "server_{}__instance__{}",
+            instance.device_id, instance.instance_id
+        ),
     };
-    Ok(([(CACHE_CONTROL, "no-store, private")], Json(ok_resp(descriptor))).into_response())
+    Ok((
+        [(CACHE_CONTROL, "no-store, private")],
+        Json(ok_resp(descriptor)),
+    )
+        .into_response())
 }
 
 pub async fn user_web_instance_connection(
@@ -181,7 +229,14 @@ pub async fn guest_web_instance_connection(
     Extension(subject): Extension<AuthenticatedGuest>,
     Json(request): Json<WebConnectionRequest>,
 ) -> Result<Response, ConsoleApiError> {
-    instance_descriptor(&instance_id, "guest", &subject.guest_id, &subject.sid, request).await
+    instance_descriptor(
+        &instance_id,
+        "guest",
+        &subject.guest_id,
+        &subject.sid,
+        request,
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -193,7 +248,12 @@ mod tests {
         let value = serde_json::to_value(WebConnectionDescriptor::default()).unwrap();
         let object = value.as_object().unwrap();
         assert!(object.contains_key("password_hash"));
-        for forbidden in ["ticket", "renewal_token", "expires_at", "logical_session_id"] {
+        for forbidden in [
+            "ticket",
+            "renewal_token",
+            "expires_at",
+            "logical_session_id",
+        ] {
             assert!(!object.contains_key(forbidden));
         }
     }

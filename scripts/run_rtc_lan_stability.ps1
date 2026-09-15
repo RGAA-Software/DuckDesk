@@ -11,8 +11,9 @@ param(
     [long]$FtE2eBytes = 0,
     [ValidateRange(0, 1073741824)]
     [long]$FtCancelE2eBytes = 0,
-    [string]$ConsoleBase = 'https://127.0.0.1:30500',
-    [string]$TargetHost = '10.0.0.90',
+    [string]$ConsoleBase = 'https://127.0.0.1:4600',
+    [Parameter(Mandatory = $true)]
+    [string]$TargetHost,
     [string]$DeviceId = '001190520',
     [string]$MongoExe = 'D:\software\mongodb_3.6\mongodb\bin\mongo.exe'
 )

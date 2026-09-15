@@ -151,7 +151,9 @@ impl RelayServer {
         };
         tracing::info!("ws handshake from {}, agent: {}", addr, user_agent);
         for (k, v) in query.iter() {
-            let sensitive = matches!(k.as_str(), "appkey" | "client_nonce") || k.contains("pwd") || k.contains("password");
+            let sensitive = matches!(k.as_str(), "appkey" | "client_nonce")
+                || k.contains("pwd")
+                || k.contains("password");
             tracing::info!(
                 "ws query param {}:{}",
                 k,
@@ -159,7 +161,9 @@ impl RelayServer {
             );
         }
         let params = query.0.clone();
-        if params.get("rtc_signal").is_some_and(|value| value == "1") && !is_password_rtc_signal(&params) {
+        if params.get("rtc_signal").is_some_and(|value| value == "1")
+            && !is_password_rtc_signal(&params)
+        {
             return crate::console_api_error::ConsoleApiError::InvalidParams.into_response();
         }
         ws.on_upgrade(move |socket| {

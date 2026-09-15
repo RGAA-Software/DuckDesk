@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex, OnceLock};
 
-use service_core::config::ServiceConfig;
+use service_core::config::{ServiceConfig, DEFAULT_LISTEN_PORT};
 use service_core::windows_util::{default_service_data_root, default_service_log_root};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
@@ -126,7 +126,7 @@ unsafe extern "system" fn service_main(_argc: u32, _argv: *mut windows::core::PW
 
     let config = BOOTSTRAP_CONFIG.get().cloned().unwrap_or_else(|| {
         ServiceConfig::new(
-            20375,
+            DEFAULT_LISTEN_PORT,
             default_service_data_root(),
             default_service_log_root(),
         )

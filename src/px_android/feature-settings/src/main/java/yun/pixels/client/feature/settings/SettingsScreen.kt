@@ -53,6 +53,8 @@ fun SettingsScreen(
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            Text(stringResource(R.string.console_title), style = MaterialTheme.typography.titleLarge)
+            ConsoleEndpointForm(state, onAction)
             Text(stringResource(R.string.account_title), style = MaterialTheme.typography.titleLarge)
             when {
                 state.isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
@@ -105,12 +107,29 @@ fun SettingsScreen(
             },
         )
     }
+    if (state.confirmEndpointChange) {
+        AlertDialog(
+            onDismissRequest = { onAction(SettingsAction.CancelEndpointChange) },
+            title = { Text(stringResource(R.string.change_console_title)) },
+            text = { Text(stringResource(R.string.change_console_body)) },
+            dismissButton = {
+                TextButton(onClick = { onAction(SettingsAction.CancelEndpointChange) }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { onAction(SettingsAction.ConfirmEndpointChange) }) {
+                    Text(stringResource(R.string.change_console_confirm))
+                }
+            },
+        )
+    }
 }
 
 private enum class InformationDialog { Privacy, OpenSource }
 
 @Composable
-private fun LoginForm(state: SettingsUiState, onAction: (SettingsAction) -> Unit) {
+private fun ConsoleEndpointForm(state: SettingsUiState, onAction: (SettingsAction) -> Unit) {
     OutlinedTextField(
         value = state.consoleEndpoint,
         onValueChange = { onAction(SettingsAction.ConsoleEndpointChanged(it)) },
@@ -120,6 +139,17 @@ private fun LoginForm(state: SettingsUiState, onAction: (SettingsAction) -> Unit
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
     )
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(onClick = { onAction(SettingsAction.TestEndpoint) }, enabled = !state.endpointTesting) {
+            if (state.endpointTesting) CircularProgressIndicator() else Text(stringResource(R.string.test_connection))
+        }
+        Button(onClick = { onAction(SettingsAction.SaveEndpoint) }) { Text(stringResource(R.string.save_endpoint)) }
+    }
+    if (state.endpointTested) Text(stringResource(R.string.connection_succeeded), color = MaterialTheme.colorScheme.primary)
+}
+
+@Composable
+private fun LoginForm(state: SettingsUiState, onAction: (SettingsAction) -> Unit) {
     OutlinedTextField(
         value = state.username,
         onValueChange = { onAction(SettingsAction.UsernameChanged(it)) },
@@ -127,6 +157,20 @@ private fun LoginForm(state: SettingsUiState, onAction: (SettingsAction) -> Unit
         label = { Text(stringResource(R.string.username)) },
         singleLine = true,
     )
+    if (state.registrationMode) {
+        OutlinedTextField(
+            value = state.confirmPassword,
+            onValueChange = { onAction(SettingsAction.ConfirmPasswordChanged(it)) },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.confirm_password)) },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        )
+        if (state.confirmPassword.isNotEmpty() && state.password != state.confirmPassword) {
+            Text(stringResource(R.string.error_password_mismatch), color = MaterialTheme.colorScheme.error)
+        }
+    }
     OutlinedTextField(
         value = state.password,
         onValueChange = { onAction(SettingsAction.PasswordChanged(it)) },
@@ -144,11 +188,15 @@ private fun LoginForm(state: SettingsUiState, onAction: (SettingsAction) -> Unit
         )
     }
     Button(
-        onClick = { onAction(SettingsAction.Login) },
+        onClick = { onAction(if (state.registrationMode) SettingsAction.Register else SettingsAction.Login) },
         modifier = Modifier.fillMaxWidth(),
-        enabled = state.consoleEndpoint.isNotBlank() && state.username.isNotBlank() && state.password.isNotBlank(),
+        enabled = state.consoleEndpoint.isNotBlank() && state.username.isNotBlank() && state.password.isNotBlank() &&
+            (!state.registrationMode || state.password == state.confirmPassword),
     ) {
-        Text(stringResource(R.string.sign_in))
+        Text(stringResource(if (state.registrationMode) R.string.create_account else R.string.sign_in))
+    }
+    TextButton(onClick = { onAction(SettingsAction.ToggleRegistration) }, modifier = Modifier.fillMaxWidth()) {
+        Text(stringResource(if (state.registrationMode) R.string.have_account else R.string.need_account))
     }
 }
 
@@ -178,4 +226,9 @@ private fun AccountFailure.labelResource(): Int = when (this) {
     AccountFailure.NetworkUnavailable -> R.string.error_network_unavailable
     AccountFailure.InvalidResponse -> R.string.error_invalid_response
     AccountFailure.ServerError -> R.string.error_server
+    AccountFailure.UsernameConflict -> R.string.error_username_conflict
+    AccountFailure.QuotaExceeded -> R.string.error_quota_exceeded
+    AccountFailure.InstanceBusy -> R.string.error_instance_busy
+    AccountFailure.UnsupportedApplication -> R.string.error_unsupported_application
+    AccountFailure.AccountCreatedLoginFailed -> R.string.error_account_created_login_failed
 }

@@ -5,8 +5,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import yun.pixels.client.core.data.EncryptedAccountSessionStore
+import yun.pixels.client.core.data.AndroidConsoleSessionStore
 import yun.pixels.client.core.data.AndroidLanDeviceDiscovery
+import yun.pixels.client.core.data.DataStoreConsoleEndpointStore
 import yun.pixels.client.core.data.DataStoreInstallationIdentity
 import yun.pixels.client.core.data.DataStoreRemoteSessionPreferencesRepository
 import yun.pixels.client.core.data.PanelDeviceResolver
@@ -16,9 +17,9 @@ import yun.pixels.client.core.domain.account.ApplicationRepository
 import yun.pixels.client.core.domain.device.DeviceDirectory
 import yun.pixels.client.core.domain.device.DeviceDiscovery
 import yun.pixels.client.core.domain.device.DeviceResolver
-import yun.pixels.client.core.network.ConsoleAccountRepository
 import yun.pixels.client.core.network.ConsoleApiClient
 import yun.pixels.client.core.network.ConsoleApplicationRepository
+import yun.pixels.client.core.network.ConsoleSessionCoordinator
 
 class PixelsApplication : Application() {
     lateinit var graph: PixelsAppGraph
@@ -39,9 +40,11 @@ class PixelsAppGraph(application: Application) {
     val deviceDiscovery: DeviceDiscovery = AndroidLanDeviceDiscovery(application)
     val installationIdentity = DataStoreInstallationIdentity.create(application, applicationScope)
     val remoteSessionPreferences = DataStoreRemoteSessionPreferencesRepository.create(application, applicationScope)
-    val accountRepository: AccountRepository = ConsoleAccountRepository(
+    val consoleSessionRepository = ConsoleSessionCoordinator(
         api = consoleApi,
-        sessionStore = EncryptedAccountSessionStore.create(application, applicationScope),
+        endpointStore = DataStoreConsoleEndpointStore.create(application, applicationScope),
+        sessionStore = AndroidConsoleSessionStore.create(application, applicationScope),
     ).also { repository -> applicationScope.launch { repository.restore() } }
-    val applicationRepository: ApplicationRepository = ConsoleApplicationRepository(consoleApi, accountRepository)
+    val accountRepository: AccountRepository = consoleSessionRepository
+    val applicationRepository: ApplicationRepository = ConsoleApplicationRepository(consoleApi, consoleSessionRepository)
 }

@@ -10,7 +10,7 @@ param(
 
     [switch]$SkipCapacityGate,
 
-    [string]$ServiceUri = "ws://127.0.0.1:20375/service/message?from=panel",
+    [string]$ServiceUri = "ws://127.0.0.1:4603/service/message?from=panel",
 
     [string]$OutputPath = "C:\Windows\Temp\PixelsAcceptance\parsec_vdd_service_acceptance.json"
 )

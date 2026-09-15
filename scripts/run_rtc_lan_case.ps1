@@ -15,8 +15,9 @@ param(
     [int]$ConnectTimeoutSeconds = 30,
     [ValidateRange(0, 100)]
     [double]$MaxLossRatePercent = 0,
-    [string]$ConsoleBase = 'https://127.0.0.1:30500',
-    [string]$TargetHost = '10.0.0.90',
+    [string]$ConsoleBase = 'https://127.0.0.1:4600',
+    [Parameter(Mandatory = $true)]
+    [string]$TargetHost,
     [string]$DeviceId = '001190520',
     [string]$InstanceId = '',
     [ValidateSet('cdp_webrtc_diag.mjs', 'cdp_virtual_display_e2e.mjs', 'cdp_game_hook_input.mjs')]

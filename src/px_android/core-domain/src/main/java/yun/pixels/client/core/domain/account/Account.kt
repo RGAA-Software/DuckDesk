@@ -4,6 +4,12 @@ import kotlinx.coroutines.flow.StateFlow
 
 data class ConsoleEndpoint(val baseUrl: String)
 
+data class GuestSession(
+    val endpoint: ConsoleEndpoint,
+    val accessToken: String,
+    val expiresAtEpochMillis: Long,
+)
+
 data class AccountProfile(
     val userId: String,
     val username: String,
@@ -35,6 +41,7 @@ data class AccountConnection(
     val relayHost: String,
     val relayPort: Int,
     val signalDeviceId: String,
+    val appType: RemoteApplicationType? = null,
 )
 
 enum class AccountFailure {
@@ -48,6 +55,11 @@ enum class AccountFailure {
     NetworkUnavailable,
     InvalidResponse,
     ServerError,
+    UsernameConflict,
+    QuotaExceeded,
+    InstanceBusy,
+    UnsupportedApplication,
+    AccountCreatedLoginFailed,
 }
 
 sealed interface AccountResult<out T> {
@@ -72,6 +84,14 @@ interface AccountSessionStore {
     suspend fun clear()
 }
 
+interface ConsoleEndpointStore {
+    suspend fun load(): ConsoleEndpoint?
+
+    suspend fun save(endpoint: ConsoleEndpoint)
+
+    suspend fun clear()
+}
+
 interface AccountRepository {
     val state: StateFlow<AccountState>
 
@@ -84,4 +104,14 @@ interface AccountRepository {
     suspend fun devices(): AccountResult<List<AccountDevice>>
 
     suspend fun resolveConnection(deviceId: String): AccountResult<AccountConnection>
+}
+
+interface ConsoleSessionRepository : AccountRepository {
+    val endpoint: StateFlow<ConsoleEndpoint?>
+
+    suspend fun saveEndpoint(endpoint: String): AccountResult<ConsoleEndpoint>
+
+    suspend fun testEndpoint(endpoint: String): AccountResult<ConsoleEndpoint>
+
+    suspend fun register(username: String, password: String): AccountResult<AccountSession>
 }

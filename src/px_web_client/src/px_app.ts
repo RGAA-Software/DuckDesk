@@ -81,7 +81,7 @@ export class PxApp {
             //host: "10.0.0.16",
             // host: "10.0.0.112",
             host: hostParam,
-            port: window.location.port ? Number(window.location.port) : 20371,
+            port: window.location.port ? Number(window.location.port) : 4601,
             safetyPwdMd5,
             clientNonce,
             deviceId,

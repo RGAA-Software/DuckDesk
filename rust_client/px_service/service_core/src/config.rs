@@ -4,7 +4,7 @@ pub const DEFAULT_SERVICE_NAME: &str = "px_service";
 pub const DEFAULT_SERVICE_DISPLAY_NAME: &str = "px_service";
 pub const DEFAULT_SERVICE_DESCRIPTION: &str = "px service";
 pub const DEFAULT_SERVICE_PATH: &str = "/service/message";
-pub const DEFAULT_LISTEN_PORT: u16 = 20375;
+pub const DEFAULT_LISTEN_PORT: u16 = crate::node_config::DEFAULT_SERVICE_PORT;
 pub const DEFAULT_LISTEN_HOST: &str = "127.0.0.1";
 pub const DEFAULT_CLIENT_HOST: &str = "127.0.0.1";
 pub const SERVICE_DATA_FILE: &str = "pixels_service.json";
@@ -58,7 +58,11 @@ mod tests {
 
     #[test]
     fn storage_file_uses_data_root() {
-        let config = ServiceConfig::new(20375, PathBuf::from("data"), PathBuf::from("logs"));
+        let config = ServiceConfig::new(
+            DEFAULT_LISTEN_PORT,
+            PathBuf::from("data"),
+            PathBuf::from("logs"),
+        );
         assert_eq!(
             config.storage_file(),
             PathBuf::from("data").join(SERVICE_DATA_FILE)

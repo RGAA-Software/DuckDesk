@@ -3,8 +3,8 @@ use crate::identity::resource_handler::{
     list_guest_instances, list_public_apps, start_public_app, stop_guest_instance,
 };
 use crate::native_connection::guest_native_connection;
-use crate::web_connection::guest_web_instance_connection;
 use crate::user::session_router::{require_guest, require_guest_write};
+use crate::web_connection::guest_web_instance_connection;
 use axum::routing::{get, post};
 use axum::{middleware, Router};
 use std::sync::Arc;

@@ -274,9 +274,6 @@ private fun AccountDeviceCard(device: AccountDevice, onAction: (DeviceHomeAction
                         Icon(imageVector = Icons.Outlined.Computer, contentDescription = null)
                         Text(text = stringResource(R.string.connect))
                     }
-                    FilledTonalButton(onClick = { onAction(DeviceHomeAction.OpenApplications) }) {
-                        Icon(imageVector = Icons.Outlined.Apps, contentDescription = stringResource(R.string.applications))
-                    }
                 }
             } else {
                 Icon(imageVector = Icons.Outlined.CloudOff, contentDescription = null)
@@ -496,9 +493,6 @@ private fun DeviceCard(
                     FilledTonalButton(onClick = { onAction(DeviceHomeAction.OpenFiles(device)) }) {
                         Icon(imageVector = Icons.Outlined.Folder, contentDescription = stringResource(R.string.files))
                     }
-                    FilledTonalButton(onClick = { onAction(DeviceHomeAction.OpenApplications) }) {
-                        Icon(imageVector = Icons.Outlined.Apps, contentDescription = stringResource(R.string.applications))
-                    }
                 }
             }
         }
@@ -542,6 +536,12 @@ private fun AccountFailure.labelResource(): Int = when (this) {
     AccountFailure.NetworkUnavailable -> R.string.account_error_network
     AccountFailure.InvalidResponse -> R.string.account_error_invalid_response
     AccountFailure.ServerError -> R.string.account_error_server
+    AccountFailure.UsernameConflict,
+    AccountFailure.QuotaExceeded,
+    AccountFailure.InstanceBusy,
+    AccountFailure.UnsupportedApplication,
+    AccountFailure.AccountCreatedLoginFailed,
+    -> R.string.account_error_server
 }
 
 @Composable
@@ -594,7 +594,7 @@ private fun DeviceHomePreview() {
                         displayName = "Office PC",
                         platformName = "Windows 11",
                         availability = DeviceAvailability.Online,
-                        endpoint = yun.pixels.client.core.domain.device.DeviceEndpoint("192.168.1.18"),
+                        endpoint = yun.pixels.client.core.domain.device.DeviceEndpoint("192.168.1.18", 4999, 4601),
                         latencyMillis = 12,
                     ),
                 ),

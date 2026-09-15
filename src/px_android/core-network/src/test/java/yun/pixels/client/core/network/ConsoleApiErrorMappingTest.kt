@@ -16,4 +16,11 @@ class ConsoleApiErrorMappingTest {
         assertEquals(AccountFailure.DeviceOffline, accountFailure(503, """{"error":"DEVICE_OFFLINE"}"""))
         assertEquals(AccountFailure.ServerError, accountFailure(503, """{"error":"REQUEST_FAILED"}"""))
     }
+
+    @Test
+    fun stableBusinessCodesPreserveRegistrationAndQuotaFailures() {
+        assertEquals(AccountFailure.UsernameConflict, accountFailure(409, """{"code":608,"error":"REQUEST_FAILED"}"""))
+        assertEquals(AccountFailure.RateLimited, accountFailure(429, """{"code":638,"error":"RATE_LIMITED"}"""))
+        assertEquals(AccountFailure.QuotaExceeded, accountFailure(429, """{"code":639,"error":"QUOTA_EXCEEDED"}"""))
+    }
 }

@@ -16,8 +16,8 @@ $ErrorActionPreference = 'Stop'
 $repository = Split-Path $PSScriptRoot -Parent
 $consoleBase = 'https://39.71.45.66:4600'
 $clientPath = Join-Path $repository 'build_official/dist/px_client.exe'
-$credentialsPath = Join-Path $repository '.env/node90_test_user.json'
-$licensePath = Join-Path $repository '.env/node90_license.json'
+$credentialsPath = Join-Path $repository '.env/public_test_user.json'
+$licensePath = Join-Path $repository '.env/public_license.json'
 $machinePath = Join-Path $repository '.env/test_machine.md'
 
 function Invoke-ConsoleApi([string]$Path, [object]$Body, [string]$Token = '') {
@@ -67,7 +67,7 @@ $client = $null
 $token = ''
 $clientLogPath = Join-Path (Split-Path $clientPath -Parent) 'px_logs/px_client.log'
 $clientLogOffset = if (Test-Path -LiteralPath $clientLogPath) { (Get-Item -LiteralPath $clientLogPath).Length } else { 0L }
-$preferenceSnapshot = Join-Path $env:TEMP "pixels-node90-preferences-$PID-$([guid]::NewGuid().ToString('N'))"
+$preferenceSnapshot = Join-Path $env:TEMP "pixels-public-preferences-$PID-$([guid]::NewGuid().ToString('N'))"
 try {
     $login = Invoke-ConsoleApi '/api/v1/session/user/login' @{
         username = $credentials.username
@@ -78,7 +78,7 @@ try {
     $nonce = [guid]::NewGuid().ToString('N')
     $instance = Invoke-ConsoleApi "/api/v1/user/apps/$AppId/start" @{ client_nonce = $nonce } $token
     if ($instance.state -ne 'running') {
-        throw "Node90 instance did not enter running state: $($instance.state)"
+        throw "Public instance did not enter running state: $($instance.state)"
     }
     $descriptor = Invoke-ConsoleApi "/api/v1/user/instances/$($instance.instance_id)/native-connection" @{
         view_only = $false
@@ -155,7 +155,7 @@ try {
     } else {
         $launch.mode = 'desktop'
         $launch.appkey = [string]$license.appkey
-        $launch.stream_name = 'Node90 ImGui acceptance'
+        $launch.stream_name = 'Public ImGui acceptance'
         $launch.language = 'zh-CN'
         $launch.decoder = 'Auto'
         $launch.only_viewing = $false

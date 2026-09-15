@@ -4,8 +4,11 @@ use axum::extract::ws::{Message, WebSocket};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use prost::Message as ProstMessage;
-use protocol::console_service::{ConsoleServiceCreateWallSession, ConsoleServiceHeartBeat, ConsoleServiceHello, ConsoleServiceMessage,
-                                ConsoleServiceMessageType, ConsoleServiceValidateRdpSessionResult, RtcIceConfigChanged};
+use protocol::console_service::{
+    ConsoleServiceCreateWallSession, ConsoleServiceHeartBeat, ConsoleServiceHello,
+    ConsoleServiceMessage, ConsoleServiceMessageType, ConsoleServiceValidateRdpSessionResult,
+    RtcIceConfigChanged,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -195,7 +198,12 @@ impl ConsoleServiceConn {
                 return true;
             };
             let request_id = request.request_id.clone();
-            let result = crate::rdp_session_authorization::validate(&self.device_id, &request.instance_id, &request.logical_session_id).await;
+            let result = crate::rdp_session_authorization::validate(
+                &self.device_id,
+                &request.instance_id,
+                &request.logical_session_id,
+            )
+            .await;
             let response = match result {
                 Ok(authorization) => {
                     tracing::debug!("RDP runtime authorization confirmed");
@@ -216,7 +224,9 @@ impl ConsoleServiceConn {
                         request_id,
                         ok: false,
                         code: match error {
-                            crate::console_api_error::ConsoleApiError::InvalidParams => "INVALID_ARGUMENT",
+                            crate::console_api_error::ConsoleApiError::InvalidParams => {
+                                "INVALID_ARGUMENT"
+                            }
                             _ => "RDP_SESSION_REJECTED",
                         }
                         .to_string(),
@@ -306,7 +316,10 @@ impl ConsoleServiceConn {
             .await
     }
 
-    async fn send_rdp_validation_result(&mut self, response: ConsoleServiceValidateRdpSessionResult) -> bool {
+    async fn send_rdp_validation_result(
+        &mut self,
+        response: ConsoleServiceValidateRdpSessionResult,
+    ) -> bool {
         let mut message = ConsoleServiceMessage::default();
         message.set_msg_type(ConsoleServiceMessageType::KConsoleServiceValidateRdpSessionResult);
         message.device_id = self.device_id.clone();

@@ -137,6 +137,7 @@ dependencies {
     implementation project(':core-network')
     implementation project(':core-native')
     implementation project(':feature-devices')
+    implementation project(':feature-cloud-apps')
     implementation project(':feature-remote')
     implementation project(':feature-transfer')
     implementation project(':feature-settings')

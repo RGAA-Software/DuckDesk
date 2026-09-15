@@ -3,8 +3,8 @@
 mod app;
 mod console_client;
 mod node_auth_store;
-mod rdp_authorization;
 mod parsec_vdd;
+mod rdp_authorization;
 mod service_host;
 mod service_windows;
 mod user_proxy;
@@ -36,9 +36,6 @@ enum VirtualDisplaySessionWorkerOperation {
 struct Cli {
     #[arg(long)]
     port: Option<u16>,
-
-    #[arg(index = 1)]
-    legacy_port: Option<u16>,
 
     #[arg(long, default_value_t = false)]
     console: bool,
@@ -103,8 +100,7 @@ async fn main() {
         }
         return;
     }
-    let port = cli.port.or(cli.legacy_port);
-    if let Err(err) = app::run(port, cli.console).await {
+    if let Err(err) = app::run(cli.port, cli.console).await {
         eprintln!("px_service failed: {err}");
         std::process::exit(1);
     }
@@ -115,25 +111,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn cli_accepts_legacy_positional_port() {
-        let cli = Cli::try_parse_from(["px_service.exe", "20375"]).unwrap();
-        assert_eq!(cli.port, None);
-        assert_eq!(cli.legacy_port, Some(20375));
-        assert!(!cli.console);
-        assert_eq!(cli.virtual_display, None);
+    fn cli_rejects_positional_port() {
+        assert!(Cli::try_parse_from(["px_service.exe", "4603"]).is_err());
     }
 
     #[test]
     fn cli_accepts_named_port() {
-        let cli = Cli::try_parse_from(["px_service.exe", "--port", "20375"]).unwrap();
-        assert_eq!(cli.port, Some(20375));
-        assert_eq!(cli.legacy_port, None);
+        let cli = Cli::try_parse_from(["px_service.exe", "--port", "4603"]).unwrap();
+        assert_eq!(cli.port, Some(4603));
     }
 
     #[test]
     fn cli_named_port_can_be_combined_with_console() {
-        let cli = Cli::try_parse_from(["px_service.exe", "--port", "20375", "--console"]).unwrap();
-        assert_eq!(cli.port, Some(20375));
+        let cli = Cli::try_parse_from(["px_service.exe", "--port", "4603", "--console"]).unwrap();
+        assert_eq!(cli.port, Some(4603));
         assert!(cli.console);
     }
 

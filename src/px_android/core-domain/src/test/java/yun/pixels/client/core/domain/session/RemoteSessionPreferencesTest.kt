@@ -43,6 +43,6 @@ class RemoteSessionPreferencesTest {
         displayName = "Desktop",
         platformName = "Windows",
         availability = DeviceAvailability.Online,
-        endpoint = DeviceEndpoint("192.168.1.2"),
+        endpoint = DeviceEndpoint("192.168.1.2", 4999, 4601),
     )
 }

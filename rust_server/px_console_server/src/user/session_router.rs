@@ -7,7 +7,6 @@ use crate::identity::resource_handler::{
 };
 use crate::identity::user_handler::logout_all;
 use crate::native_connection::{user_native_connection, user_native_device_connection};
-use crate::web_connection::{user_web_device_connection, user_web_instance_connection};
 use crate::user::session_handler::{
     admin_cookie_values, admin_login, admin_logout, admin_me, change_password, cookie_value,
     guest_session, login, logout, me, refresh_user_csrf, register_user, update_avatar,
@@ -16,6 +15,7 @@ use crate::user::session_handler::{
 use crate::user_device::console_user_device_handler::{
     handle_query_my_devices, handle_query_my_devices_page,
 };
+use crate::web_connection::{user_web_device_connection, user_web_instance_connection};
 use axum::body::Body;
 use axum::extract::DefaultBodyLimit;
 use axum::http::{header, Request};
@@ -35,7 +35,7 @@ pub async fn require_user(mut request: Request<Body>, next: Next) -> Response {
         .map(str::trim)
         .filter(|value| !value.is_empty());
     let authenticated = if let Some(token) = bearer {
-        gUserSessionManager.authenticate(token).await
+        gUserSessionManager.authenticate_user_bearer(token).await
     } else if let Some(token) = cookie_value(request.headers(), USER_SESSION_COOKIE) {
         gUserSessionManager.authenticate_user_web(&token).await
     } else {
@@ -59,7 +59,7 @@ pub async fn require_active_user(mut request: Request<Body>, next: Next) -> Resp
         .map(str::trim)
         .filter(|value| !value.is_empty());
     let authenticated = if let Some(token) = bearer {
-        gUserSessionManager.authenticate(token).await
+        gUserSessionManager.authenticate_user_bearer(token).await
     } else if let Some(token) = cookie_value(request.headers(), USER_SESSION_COOKIE) {
         gUserSessionManager.authenticate_user_web(&token).await
     } else {
@@ -83,7 +83,7 @@ pub async fn require_user_write(mut request: Request<Body>, next: Next) -> Respo
         .map(str::trim)
         .filter(|value| !value.is_empty());
     let subject = if let Some(token) = bearer {
-        match gUserSessionManager.authenticate(token).await {
+        match gUserSessionManager.authenticate_user_bearer(token).await {
             Ok(subject) => subject,
             Err(error) => return error.into_response(),
         }
@@ -119,7 +119,7 @@ pub async fn require_active_user_write(mut request: Request<Body>, next: Next) -
         .map(str::trim)
         .filter(|value| !value.is_empty());
     let subject = if let Some(token) = bearer {
-        match gUserSessionManager.authenticate(token).await {
+        match gUserSessionManager.authenticate_user_bearer(token).await {
             Ok(subject) => subject,
             Err(error) => return error.into_response(),
         }
@@ -273,7 +273,7 @@ pub async fn require_guest(mut request: Request<Body>, next: Next) -> Response {
         .map(str::trim)
         .filter(|value| !value.is_empty());
     let authenticated = if let Some(token) = bearer {
-        gUserSessionManager.authenticate_guest_panel(token).await
+        gUserSessionManager.authenticate_guest_bearer(token).await
     } else if let Some(token) = cookie_value(request.headers(), GUEST_SESSION_COOKIE) {
         gUserSessionManager.authenticate_guest(&token).await
     } else {
@@ -297,7 +297,7 @@ pub async fn require_guest_write(mut request: Request<Body>, next: Next) -> Resp
         .map(str::trim)
         .filter(|value| !value.is_empty());
     let subject = if let Some(token) = bearer {
-        match gUserSessionManager.authenticate_guest_panel(token).await {
+        match gUserSessionManager.authenticate_guest_bearer(token).await {
             Ok(subject) => subject,
             Err(error) => return error.into_response(),
         }
@@ -422,7 +422,8 @@ pub fn make_user_self_router(
         )
         .route(
             "/instances/{instance_id}/web-connection",
-            post(user_web_instance_connection).layer(middleware::from_fn(require_active_user_write)),
+            post(user_web_instance_connection)
+                .layer(middleware::from_fn(require_active_user_write)),
         )
         .route(
             "/instances/{instance_id}/native-connection",
@@ -443,13 +444,10 @@ mod tests {
     #[test]
     fn origin_must_match_forwarded_or_direct_host() {
         let mut headers = HeaderMap::new();
-        headers.insert(
-            header::HOST,
-            HeaderValue::from_static("console.local:30500"),
-        );
+        headers.insert(header::HOST, HeaderValue::from_static("console.local:4600"));
         headers.insert(
             header::ORIGIN,
-            HeaderValue::from_static("https://console.local:30500"),
+            HeaderValue::from_static("https://console.local:4600"),
         );
         assert!(same_origin(&headers));
         headers.insert(
@@ -464,7 +462,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(
             header::ORIGIN,
-            HeaderValue::from_static("https://console.local:30500"),
+            HeaderValue::from_static("https://console.local:4600"),
         );
         headers.insert("sec-fetch-site", HeaderValue::from_static("same-origin"));
         assert!(same_origin(&headers));

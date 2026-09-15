@@ -206,7 +206,7 @@ void NetClient::StartUdpDirectMedia() {
     }
     udp_media_probe_deadline_ms_ = TimeUtil::GetCurrentTimestamp() + kUdpMediaProbeTimeoutMs;
     LOGI("Authenticated WS control ready; start associated UDP media.");
-    udp_connection->Start(params_.ip_, params_.udp_port_, params_.stream_id_, udp_media_association_);
+    udp_connection->Start(params_.ip_, params_.port_, params_.stream_id_, udp_media_association_);
 }
 
 void NetClient::StartFileTransferConnection() {

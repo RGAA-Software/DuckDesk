@@ -7,8 +7,10 @@ mod generated {
 }
 
 pub use generated::{
-    MsgAppInstanceReady, MsgAuthInfo, MsgHeartBeat, MsgHeartBeatResp, MsgReqCtrlAltDelete, MsgRestartServer, MsgStartServer, MsgStopServer,
-    MsgVirtualDisplayRequest, MsgVirtualDisplayResult, RenderStatus, ServiceMessage, ServiceMessageType, VirtualDisplayOperation,
+    MsgAppInstanceReady, MsgAuthInfo, MsgHeartBeat, MsgHeartBeatResp, MsgReqCtrlAltDelete,
+    MsgRestartServer, MsgStartServer, MsgStopServer, MsgVirtualDisplayRequest,
+    MsgVirtualDisplayResult, RenderStatus, ServiceMessage, ServiceMessageType,
+    VirtualDisplayOperation,
 };
 
 // prost only derives PartialEq; all MsgAuthInfo fields are scalar so Eq is sound

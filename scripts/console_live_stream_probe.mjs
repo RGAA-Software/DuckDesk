@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto'
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
-const consoleBase = process.env.CONSOLE_URL || process.env.CMS_URL || 'https://127.0.0.1:30500'
+const consoleBase = process.env.CONSOLE_URL || process.env.CMS_URL || 'https://127.0.0.1:4600'
 const mediaBase = process.env.MEDIA_URL || 'http://127.0.0.1:12888'
 const deviceId = process.env.CONSOLE_DEVICE_ID || process.env.CMS_DEVICE_ID || '074723054'
 const appId = process.env.CONSOLE_APP_ID || process.env.CMS_APP_ID || 'app-9-01126a41'

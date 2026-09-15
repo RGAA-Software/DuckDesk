@@ -189,7 +189,7 @@ int main() {
     const auto host = Environment("RDP_PROBE_HOST", "127.0.0.1");
     const auto state = std::make_shared<ProbeState>();
     state->binding = {.connection_id = Environment("RDP_PROBE_BINDING"), .generation = 1};
-    if ((role != "server" && role != "client") || (host != "127.0.0.1" && host != "10.0.0.90") || !state->binding.IsValid() ||
+    if ((role != "server" && role != "client") || host.empty() || !state->binding.IsValid() ||
         state->binding.connection_id.size() < 16) {
         std::cerr << "Set RDP_PROBE_ROLE=server/client, RDP_PROBE_HOST, and a shared random RDP_PROBE_BINDING (16..128 bytes)." << std::endl;
         return 2;

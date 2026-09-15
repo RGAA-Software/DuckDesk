@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
+import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
@@ -15,9 +16,8 @@ import yun.pixels.client.core.domain.account.AccountProfile
 import yun.pixels.client.core.domain.account.AccountSession
 import yun.pixels.client.core.domain.account.AccountSessionStore
 import yun.pixels.client.core.domain.account.ConsoleEndpoint
-import java.io.IOException
 
-class EncryptedAccountSessionStore private constructor(
+class AndroidConsoleSessionStore private constructor(
     private val dataStore: DataStore<Preferences>,
     private val cipher: AndroidKeystoreTextCipher,
 ) : AccountSessionStore {
@@ -30,8 +30,7 @@ class EncryptedAccountSessionStore private constructor(
     }
 
     override suspend fun save(session: AccountSession) {
-        val encrypted = cipher.encrypt(encode(session))
-        dataStore.edit { preferences -> preferences[sessionKey] = encrypted }
+        dataStore.edit { preferences -> preferences[sessionKey] = cipher.encrypt(encode(session)) }
     }
 
     override suspend fun clear() {
@@ -39,15 +38,15 @@ class EncryptedAccountSessionStore private constructor(
     }
 
     companion object {
-        private val sessionKey = stringPreferencesKey("account_session_v1")
+        private val sessionKey = stringPreferencesKey("android_user_session_v1")
 
-        fun create(context: Context, scope: CoroutineScope): EncryptedAccountSessionStore {
+        fun create(context: Context, scope: CoroutineScope): AndroidConsoleSessionStore {
             val applicationContext = context.applicationContext
             val store = androidx.datastore.preferences.core.PreferenceDataStoreFactory.create(
                 scope = scope,
-                produceFile = { applicationContext.preferencesDataStoreFile("pixels_account") },
+                produceFile = { applicationContext.preferencesDataStoreFile("pixels_android_console_session") },
             )
-            return EncryptedAccountSessionStore(store, AndroidKeystoreTextCipher("pixels_account_session_v1"))
+            return AndroidConsoleSessionStore(store, AndroidKeystoreTextCipher("pixels_android_console_session_v1"))
         }
 
         private fun encode(session: AccountSession): String = JSONObject()
@@ -77,5 +76,4 @@ class EncryptedAccountSessionStore private constructor(
             )
         }.getOrNull()
     }
-
 }

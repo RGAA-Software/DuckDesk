@@ -13,7 +13,7 @@ $ErrorActionPreference = 'Stop'
 $repository = Split-Path $PSScriptRoot -Parent
 $clientPath = Join-Path $repository 'build_official/dist/px_client.exe'
 $buildClientPath = Join-Path $repository 'build_official/src/px_deps/px_client.exe'
-$licensePath = Join-Path $repository '.env/node90_license.json'
+$licensePath = Join-Path $repository '.env/public_license.json'
 $machinePath = Join-Path $repository '.env/test_machine.md'
 $levelDbTool = 'C:/source/vcpkg/buildtrees/leveldb/x64-windows-rel/leveldbutil.exe'
 $clientLogPath = Join-Path (Split-Path $clientPath -Parent) 'px_logs/px_client.log'
@@ -32,12 +32,12 @@ $machineText = Get-Content -LiteralPath $machinePath -Raw
 $nodePassword = [regex]::Match($machineText, '(?m)^\s*-\s*密码\s*[:：]\s*(.+?)\s*$').Groups[1].Value
 $machineName = [regex]::Match($machineText, '(?m)^\s*-\s*主机名\s*[:：]\s*(.+?)\s*$').Groups[1].Value
 if (-not $nodePassword -or -not $machineName) {
-    throw 'Node90 machine-qualified deployment credential is incomplete.'
+    throw 'Public test host machine-qualified deployment credential is incomplete.'
 }
 $credential = [pscredential]::new("$machineName\Administrator", (ConvertTo-SecureString $nodePassword -AsPlainText -Force))
 $license = Get-Content -LiteralPath $licensePath -Raw | ConvertFrom-Json
 $previousTrustedHosts = (Get-Item WSMan:\localhost\Client\TrustedHosts).Value
-$preferenceSnapshot = Join-Path $env:TEMP "pixels-node90-desktop-$PID-$([guid]::NewGuid().ToString('N'))"
+$preferenceSnapshot = Join-Path $env:TEMP "pixels-public-desktop-$PID-$([guid]::NewGuid().ToString('N'))"
 $clientLogOffset = if (Test-Path -LiteralPath $clientLogPath) { (Get-Item -LiteralPath $clientLogPath).Length } else { 0L }
 $session = $null
 $client = $null
@@ -69,7 +69,7 @@ try {
             Select-Object -ExpandProperty FullName
     })
     if ($remotePreferences.Count -eq 0) {
-        throw 'No node90 preference database was found.'
+        throw 'No public test host preference database was found.'
     }
     [void](New-Item -ItemType Directory -Path $preferenceSnapshot -Force)
     foreach ($remotePreference in $remotePreferences) {
@@ -120,7 +120,7 @@ try {
         remote_password_hash = $passwordHash
         mode = 'desktop'
         appkey = [string]$license.appkey
-        stream_name = 'Node90 desktop UDP acceptance'
+        stream_name = 'Public desktop UDP acceptance'
         language = 'zh-CN'
         decoder = 'Auto'
         audio = $true

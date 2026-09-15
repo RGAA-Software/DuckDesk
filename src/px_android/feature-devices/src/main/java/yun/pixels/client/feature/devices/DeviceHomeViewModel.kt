@@ -105,7 +105,6 @@ class DeviceHomeViewModel(
             is DeviceHomeAction.StartAccountRemoteDesktop -> openAccountRemoteDesktop(action.device)
             is DeviceHomeAction.OpenFiles -> Unit
             is DeviceHomeAction.EditSessionPreferences -> Unit
-            DeviceHomeAction.OpenApplications -> Unit
         }
     }
 
@@ -137,7 +136,7 @@ class DeviceHomeViewModel(
                         id = RemoteSessionId(UUID.randomUUID().toString()),
                         target = RemoteSessionTarget.Account(
                             displayName = device.displayName,
-                            fallbackRemoteDeviceId = device.deviceId,
+                            remoteDeviceId = device.deviceId,
                             connection = result.value,
                             clientNonce = clientNonce,
                         ),

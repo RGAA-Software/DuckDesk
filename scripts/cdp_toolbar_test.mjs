@@ -7,9 +7,9 @@ import os from 'node:os'
 import path from 'node:path'
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-const RENDER_LOG = 'C:/Users/Public/Pixels/px_logs/pixels_render_20371.log'
+const RENDER_LOG = 'C:/Users/Public/Pixels/px_logs/pixels_render_4601.log'
 const PAGE_URL =
-  'http://127.0.0.1:20371/web/?deviceId=600378210&streamId=toolbar1&pwd_md5=698d51a19d8a121ce581499d7b701668'
+  'http://127.0.0.1:4601/web/?deviceId=600378210&streamId=toolbar1&pwd_md5=698d51a19d8a121ce581499d7b701668'
 const CDP_PORT = 9222
 
 const results = []

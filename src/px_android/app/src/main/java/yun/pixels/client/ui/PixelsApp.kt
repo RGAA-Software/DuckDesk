@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Devices
+import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material3.Icon
@@ -62,8 +63,8 @@ import yun.pixels.client.feature.devices.DeviceHomeNotice
 import yun.pixels.client.feature.devices.DeviceHomeScreen
 import yun.pixels.client.feature.devices.DeviceHomeViewModel
 import yun.pixels.client.feature.devices.DeviceSessionPreferencesDialog
-import yun.pixels.client.feature.devices.ApplicationLibraryScreen
-import yun.pixels.client.feature.devices.ApplicationLibraryViewModel
+import yun.pixels.client.feature.cloudapps.CloudAppsScreen
+import yun.pixels.client.feature.cloudapps.CloudAppsViewModel
 import yun.pixels.client.feature.settings.SettingsScreen
 import yun.pixels.client.feature.settings.SettingsViewModel
 import yun.pixels.client.core.domain.session.RemoteSessionRequest
@@ -86,13 +87,14 @@ private enum class TopLevelDestination(
     val icon: ImageVector,
 ) {
     Devices(R.string.navigation_devices, Icons.Outlined.Devices),
+    CloudApps(R.string.navigation_cloud_apps, Icons.Outlined.Cloud),
     Transfers(R.string.navigation_transfers, Icons.Outlined.SwapVert),
     Settings(R.string.navigation_settings, Icons.Outlined.Settings),
 }
 
 private enum class AppDestination(val topLevel: TopLevelDestination?) {
     Devices(TopLevelDestination.Devices),
-    Applications(TopLevelDestination.Devices),
+    CloudApps(TopLevelDestination.CloudApps),
     Transfers(TopLevelDestination.Transfers),
     Settings(TopLevelDestination.Settings),
     Remote(null),
@@ -117,7 +119,9 @@ fun PixelsApp(graph: PixelsAppGraph) {
     var remoteRequest by remember { mutableStateOf<RemoteSessionRequest?>(null) }
     var openTransfersWhenConnected by remember { mutableStateOf(false) }
     var pendingDeviceRemoteDestination by remember { mutableStateOf<AppDestination?>(null) }
-    var acceptsApplicationRemoteRequest by remember { mutableStateOf(false) }
+    var acceptsCloudAppRemoteRequest by remember { mutableStateOf(false) }
+    var remoteReturnDestination by remember { mutableStateOf(AppDestination.Devices) }
+    var settingsReturnDestination by remember { mutableStateOf(AppDestination.Devices) }
     var leavingRemoteSession by remember { mutableStateOf(false) }
     var remoteRequestAwaitingLocalNetwork by remember { mutableStateOf<RemoteSessionRequest?>(null) }
     var activeSessionDeviceKey by remember { mutableStateOf<String?>(null) }
@@ -161,12 +165,12 @@ fun PixelsApp(graph: PixelsAppGraph) {
         ),
     )
     val deviceHomeState by deviceHomeViewModel.uiState.collectAsStateWithLifecycle()
-    val applicationLibraryViewModel: ApplicationLibraryViewModel = viewModel(
-        factory = ApplicationLibraryViewModel.factory(graph.applicationRepository),
+    val cloudAppsViewModel: CloudAppsViewModel = viewModel(
+        factory = CloudAppsViewModel.factory(graph.applicationRepository, graph.consoleSessionRepository),
     )
-    val applicationLibraryState by applicationLibraryViewModel.state.collectAsStateWithLifecycle()
+    val cloudAppsState by cloudAppsViewModel.state.collectAsStateWithLifecycle()
     val settingsViewModel: SettingsViewModel = viewModel(
-        factory = SettingsViewModel.factory(graph.accountRepository),
+        factory = SettingsViewModel.factory(graph.consoleSessionRepository),
     )
     val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
     val currentTopLevelDestination = appDestination.topLevel
@@ -235,6 +239,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
         deviceHomeViewModel.remoteRequests.collect { request ->
             val destination = pendingDeviceRemoteDestination
             if (appDestination == AppDestination.Devices && destination != null) {
+                remoteReturnDestination = AppDestination.Devices
                 val deviceKey = request.target.preferenceKey
                 val preferences = runCatching { graph.remoteSessionPreferences.load(deviceKey) }.getOrDefault(RemoteSessionPreferences())
                 if (appDestination == AppDestination.Devices && pendingDeviceRemoteDestination == destination) {
@@ -247,14 +252,15 @@ fun PixelsApp(graph: PixelsAppGraph) {
             }
         }
     }
-    LaunchedEffect(applicationLibraryViewModel) {
-        applicationLibraryViewModel.remoteRequests.collect { request ->
-            val acceptsRequest = acceptsApplicationRemoteRequest
-            if (appDestination == AppDestination.Applications && acceptsRequest) {
+    LaunchedEffect(cloudAppsViewModel) {
+        cloudAppsViewModel.remoteRequests.collect { request ->
+            val acceptsRequest = acceptsCloudAppRemoteRequest
+            if (appDestination == AppDestination.CloudApps && acceptsRequest) {
                 val deviceKey = request.target.preferenceKey
                 val preferences = runCatching { graph.remoteSessionPreferences.load(deviceKey) }.getOrDefault(RemoteSessionPreferences())
-                if (appDestination == AppDestination.Applications && acceptsApplicationRemoteRequest) {
-                    acceptsApplicationRemoteRequest = false
+                if (appDestination == AppDestination.CloudApps && acceptsCloudAppRemoteRequest) {
+                    acceptsCloudAppRemoteRequest = false
+                    remoteReturnDestination = AppDestination.CloudApps
                     openTransfersWhenConnected = false
                     activeSessionDeviceKey = deviceKey
                     activeSessionPreferences = preferences
@@ -266,7 +272,8 @@ fun PixelsApp(graph: PixelsAppGraph) {
     LaunchedEffect(remoteBinder, remoteRequest) {
         val binder = remoteBinder ?: return@LaunchedEffect
         val request = remoteRequest ?: return@LaunchedEffect
-        val requiresLocalNetwork = request.target is RemoteSessionTarget.Direct || request.target is RemoteSessionTarget.Account
+        val requiresLocalNetwork = request.target is RemoteSessionTarget.Direct || request.target is RemoteSessionTarget.Account ||
+            request.target is RemoteSessionTarget.CloudApplication
         if (Build.VERSION.SDK_INT >= 37 && requiresLocalNetwork && ContextCompat.checkSelfPermission(
                 context,
                 Manifest.permission.ACCESS_LOCAL_NETWORK,
@@ -296,7 +303,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     appDestination = AppDestination.Remote
                 }
                 snapshot.status is RemoteSessionStatus.Idle && sessionSurface -> {
-                    appDestination = AppDestination.Devices
+                    appDestination = remoteReturnDestination
                 }
                 snapshot.status is RemoteSessionStatus.Idle -> leavingRemoteSession = false
             }
@@ -323,7 +330,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                             selected = currentTopLevelDestination == destination,
                             onClick = {
                                 pendingDeviceRemoteDestination = null
-                                acceptsApplicationRemoteRequest = false
+                                acceptsCloudAppRemoteRequest = false
                                 remoteRequest = null
                                 appDestination = destination.appDestination
                             },
@@ -391,6 +398,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                             DeviceHomeAction.OpenAccountSettings -> {
                                 pendingDeviceRemoteDestination = null
                                 remoteRequest = null
+                                settingsReturnDestination = AppDestination.Devices
                                 appDestination = AppDestination.Settings
                             }
                             is DeviceHomeAction.OpenDevice -> {
@@ -423,40 +431,30 @@ fun PixelsApp(graph: PixelsAppGraph) {
                                     }
                                 }
                             }
-                            DeviceHomeAction.OpenApplications -> {
-                                pendingDeviceRemoteDestination = null
-                                remoteRequest = null
-                                applicationLibraryViewModel.refresh()
-                                appDestination = AppDestination.Applications
-                            }
                             else -> deviceHomeViewModel.onAction(action)
                         }
                     },
                 )
 
-                AppDestination.Applications -> {
-                    BackHandler {
-                        acceptsApplicationRemoteRequest = false
-                        remoteRequest = null
-                        appDestination = AppDestination.Devices
-                    }
-                    ApplicationLibraryScreen(
-                        state = applicationLibraryState,
-                        onBack = {
-                            acceptsApplicationRemoteRequest = false
-                            remoteRequest = null
-                            appDestination = AppDestination.Devices
+                AppDestination.CloudApps -> {
+                    BackHandler { appDestination = AppDestination.Devices }
+                    LaunchedEffect(Unit) { cloudAppsViewModel.refresh() }
+                    CloudAppsScreen(
+                        state = cloudAppsState,
+                        onOpenSettings = {
+                            settingsReturnDestination = AppDestination.CloudApps
+                            appDestination = AppDestination.Settings
                         },
-                        onRefresh = applicationLibraryViewModel::refresh,
-                        onStart = { appId ->
-                            acceptsApplicationRemoteRequest = true
-                            applicationLibraryViewModel.start(appId)
+                        onRefresh = cloudAppsViewModel::refresh,
+                        onStart = { application ->
+                            acceptsCloudAppRemoteRequest = true
+                            cloudAppsViewModel.start(application)
                         },
-                        onConnect = { instanceId ->
-                            acceptsApplicationRemoteRequest = true
-                            applicationLibraryViewModel.connect(instanceId)
+                        onConnect = { application ->
+                            acceptsCloudAppRemoteRequest = true
+                            cloudAppsViewModel.connect(application)
                         },
-                        onStop = applicationLibraryViewModel::stop,
+                        onStop = cloudAppsViewModel::stop,
                     )
                 }
 
@@ -480,7 +478,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                 }
 
                 AppDestination.Settings -> {
-                    BackHandler { appDestination = AppDestination.Devices }
+                    BackHandler { appDestination = settingsReturnDestination }
                     SettingsScreen(
                         state = settingsState,
                         appVersion = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
@@ -566,7 +564,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                         onEndSession = {
                             leavingRemoteSession = true
                             remoteBinder?.stopSession()
-                            appDestination = AppDestination.Devices
+                            appDestination = remoteReturnDestination
                             activeSessionDeviceKey = null
                             activeSessionPreferences = null
                         },
@@ -657,6 +655,7 @@ private fun TransferRoute(
 private val TopLevelDestination.appDestination: AppDestination
     get() = when (this) {
         TopLevelDestination.Devices -> AppDestination.Devices
+        TopLevelDestination.CloudApps -> AppDestination.CloudApps
         TopLevelDestination.Transfers -> AppDestination.Transfers
         TopLevelDestination.Settings -> AppDestination.Settings
     }

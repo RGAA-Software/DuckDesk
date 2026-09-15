@@ -2,6 +2,15 @@
 use serde::Deserialize;
 use std::path::Path;
 
+pub const DEFAULT_SERVICE_PORT: u16 = 4603;
+pub const DEFAULT_DESKTOP_PORT: u16 = 4601;
+pub const DEFAULT_PANEL_PORT: u16 = 4999;
+pub const DEFAULT_DISCOVERY_PORT: u16 = 4604;
+pub const DEFAULT_APPLICATION_PORT_START: u16 = 4613;
+pub const DEFAULT_APPLICATION_PORT_END: u16 = 4998;
+pub const DEFAULT_RTC_PORT_START: u16 = 5000;
+pub const DEFAULT_RTC_PORT_END: u16 = 5031;
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct NodeConfig {
@@ -34,10 +43,10 @@ impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             listen_host: "127.0.0.1".into(),
-            listen_port: 4603,
-            desktop_port: 4601,
-            panel_port: 4999,
-            discovery_port: 4604,
+            listen_port: DEFAULT_SERVICE_PORT,
+            desktop_port: DEFAULT_DESKTOP_PORT,
+            panel_port: DEFAULT_PANEL_PORT,
+            discovery_port: DEFAULT_DISCOVERY_PORT,
             discovery_enabled: false,
         }
     }
@@ -49,12 +58,12 @@ impl Default for NodeConfig {
             access_host: String::new(),
             network: NetworkConfig::default(),
             applications: PortRange {
-                port_start: 4613,
-                port_end: 4998,
+                port_start: DEFAULT_APPLICATION_PORT_START,
+                port_end: DEFAULT_APPLICATION_PORT_END,
             },
             rtc: PortRange {
-                port_start: 5000,
-                port_end: 5031,
+                port_start: DEFAULT_RTC_PORT_START,
+                port_end: DEFAULT_RTC_PORT_END,
             },
         }
     }

@@ -473,7 +473,7 @@ mod tests {
     async fn websocket_service_keeps_runtime() {
         let runtime = Arc::new(Mutex::new(ServiceRuntime::new(
             ServiceConfig::new(
-                20375,
+                4603,
                 default_service_data_root(),
                 default_service_log_root(),
             ),
@@ -481,7 +481,7 @@ mod tests {
             Arc::new(WindowsActions::new()),
         )));
         let service = WebsocketService::new(runtime);
-        assert_eq!(service.runtime.lock().await.config.listen_port, 20375);
+        assert_eq!(service.runtime.lock().await.config.listen_port, 4603);
     }
 
     #[tokio::test]

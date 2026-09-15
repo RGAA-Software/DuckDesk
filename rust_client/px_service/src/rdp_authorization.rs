@@ -180,7 +180,7 @@ mod tests {
                 app_mode: "rdp".to_string(),
                 rdp_workspace_id: "workspace-one".to_string(),
                 rdp_node_id: String::new(),
-                listen_port: 32014,
+                listen_port: 4627,
                 pid: Some(1234),
                 state: AppInstanceState::Running,
                 error: String::new(),

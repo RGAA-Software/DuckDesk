@@ -15,7 +15,8 @@ import protobuf from 'protobufjs'
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
 const CDP_PORT = 9226
-const TARGET_BASE = process.env.FT_TARGET_BASE || 'http://10.0.0.90:20371'
+const TARGET_BASE = process.env.FT_TARGET_BASE
+if (!TARGET_BASE) throw new Error('FT_TARGET_BASE must be set to the current Render descriptor endpoint')
 const PWD_MD5 = process.env.FT_PWD_MD5 || ''
 const REMOTE_DIR = process.env.FT_DIR || 'C:/ft_test_data'
 const BLOCK = 120 * 1024 // 对齐 file_transfer.ts FT_BLOCK_SIZE

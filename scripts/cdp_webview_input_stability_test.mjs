@@ -10,7 +10,7 @@ import path from 'node:path'
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-const consoleBase = process.env.PX_CONSOLE_TEST_BASE_URL || process.env.PX_CMS_TEST_BASE_URL || 'https://127.0.0.1:30500'
+const consoleBase = process.env.PX_CONSOLE_TEST_BASE_URL || process.env.PX_CMS_TEST_BASE_URL || 'https://127.0.0.1:4600'
 const APP_NAME = process.env.PX_WEBVIEW_TEST_APP || 'baidu'
 const OBSERVE_MS = Number(process.env.PX_WEBVIEW_TEST_OBSERVE_MS || 120_000)
 const INPUT_PHASE = process.env.PX_WEBVIEW_TEST_INPUT_PHASE || 'full'

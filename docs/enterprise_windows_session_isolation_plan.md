@@ -211,7 +211,7 @@ RDP 客户端选型先验证无交互启动、Session 0/辅助进程部署方式
   [微软 RDS 支持配置](https://learn.microsoft.com/en-us/windows-server/remote/remote-desktop-services/rds-supported-config)。
 - RDS CAL 是部署要求的一部分，本机回环 RDP 加自有串流协议不能据此假定豁免；部署时核对组织适用授权。
   参考：[RDS CAL](https://learn.microsoft.com/en-us/windows-server/remote/remote-desktop-services/rds-client-access-license)。
-- 需要一台可创建两个测试用户的 Server 环境。已有 10.0.0.90 的机器角色和系统能力先只读核实；
+- 需要一台可创建两个测试用户的公网 Windows Server 环境。使用前先只读核实机器角色和系统能力；
   实际安装 RDS、改策略或创建用户前明确列出具体变更，不因设计需求直接改变当前远控测试环境。
 - 首期账号生命周期、重连保留时长、并发上限和默认数据能力属于待定产品参数，不能把本文建议值视为已实现能力。
 

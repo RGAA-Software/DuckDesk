@@ -15,8 +15,8 @@ export default defineConfig({
     proxy: {
       // 代理所有以/api开头的请求
       '/api': {
-        // target: 'http://192.168.31.5:20371', // 你的服务器地址
-        target: 'http://10.0.0.16:20371', // 你的服务器地址
+        // target: 'http://192.168.31.5:4601', // 你的服务器地址
+        target: 'http://10.0.0.16:4601', // 你的服务器地址
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '') // 可选，重写路径
       }

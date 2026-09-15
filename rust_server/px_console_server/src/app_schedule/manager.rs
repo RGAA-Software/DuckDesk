@@ -2448,7 +2448,7 @@ mod tests {
             name: None,
             device_id: "offline-dev".into(),
             install_root: Some(r"D:\app".into()),
-            listen_port: Some(32000),
+            listen_port: Some(4613),
         })
         .await
         .unwrap();
@@ -2479,7 +2479,7 @@ mod tests {
             encoder_format: "h264".into(),
             webrtc_enabled: true,
             websocket_enabled: true,
-            listen_port: 32000,
+            listen_port: 4613,
             ..Default::default()
         };
         let placement = AppPlacement {
@@ -2512,14 +2512,14 @@ mod tests {
                 instance_id: "inst-1".into(),
                 ok: true,
                 error: String::new(),
-                listen_port: 32055,
+                listen_port: 4668,
                 pid: 4242,
             },
         )
         .await;
         let running = mgr.list_instances().await;
         assert_eq!(running[0].state, InstanceState::Running);
-        assert_eq!(running[0].listen_port, 32055);
+        assert_eq!(running[0].listen_port, 4668);
         assert!(running[0].web_client_hint.contains("instanceId=inst-1"));
         assert!(
             !mgr.inner.lock().await.request_index.contains_key("req-1"),
@@ -2554,7 +2554,7 @@ mod tests {
                 encoder_format: "h264".into(),
                 webrtc_enabled: true,
                 websocket_enabled: true,
-                listen_port: 32001,
+                listen_port: 4614,
                 ..Default::default()
             },
             AppPlacement {
@@ -2613,7 +2613,7 @@ mod tests {
                 encoder_format: "h264".into(),
                 webrtc_enabled: true,
                 websocket_enabled: true,
-                listen_port: 32000,
+                listen_port: 4613,
                 ..Default::default()
             },
             AppPlacement {
@@ -2630,7 +2630,7 @@ mod tests {
                 placement_id: "p".into(),
                 node_id: String::new(),
                 state: InstanceState::Stopping,
-                listen_port: 32000,
+                listen_port: 4613,
                 pid: 1,
                 error: String::new(),
                 web_client_hint: String::new(),
@@ -2670,7 +2670,7 @@ mod tests {
                 encoder_format: "h264".into(),
                 webrtc_enabled: true,
                 websocket_enabled: true,
-                listen_port: 32000,
+                listen_port: 4613,
                 ..Default::default()
             },
             AppPlacement {
@@ -2687,7 +2687,7 @@ mod tests {
                 placement_id: "p".into(),
                 node_id: String::new(),
                 state: InstanceState::Running,
-                listen_port: 32000,
+                listen_port: 4613,
                 pid: 99,
                 error: String::new(),
                 web_client_hint: String::new(),
@@ -2726,7 +2726,7 @@ mod tests {
                 encoder_format: "h264".into(),
                 webrtc_enabled: true,
                 websocket_enabled: true,
-                listen_port: 32000,
+                listen_port: 4613,
                 ..Default::default()
             },
             AppPlacement {
@@ -2743,7 +2743,7 @@ mod tests {
                 placement_id: "p".into(),
                 node_id: String::new(),
                 state: InstanceState::Running,
-                listen_port: 32000,
+                listen_port: 4613,
                 pid: 99,
                 error: String::new(),
                 web_client_hint: String::new(),
@@ -2928,7 +2928,7 @@ mod tests {
             name: None,
             device_id: "m1".into(),
             install_root: None,
-            listen_port: Some(32000),
+            listen_port: Some(4613),
         })
         .await
         .unwrap();
@@ -2940,7 +2940,7 @@ mod tests {
                 name: None,
                 device_id: "m1".into(),
                 install_root: None,
-                listen_port: Some(32000),
+                listen_port: Some(4613),
             })
             .await
             .unwrap_err();
@@ -2953,11 +2953,11 @@ mod tests {
                 name: None,
                 device_id: "m2".into(),
                 install_root: None,
-                listen_port: Some(32000),
+                listen_port: Some(4613),
             })
             .await
             .unwrap();
-        assert_eq!(n3.listen_port, 32000);
+        assert_eq!(n3.listen_port, 4613);
 
         mgr.delete_app(&app.app_id).await.unwrap();
         assert!(mgr.list_app_rows().await.is_empty());
@@ -2983,10 +2983,8 @@ mod tests {
         assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 0);
         {
             let mut g = mgr.inner.lock().await;
-            g.nodes
-                .insert("n1".into(), node_with_port("a", "m1", 32000));
-            g.nodes
-                .insert("n2".into(), node_with_port("a", "m1", 32001));
+            g.nodes.insert("n1".into(), node_with_port("a", "m1", 4613));
+            g.nodes.insert("n2".into(), node_with_port("a", "m1", 4614));
         }
         assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 0);
         // 另一台机器不受影响
@@ -2994,26 +2992,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn explicit_ports_are_not_limited_to_legacy_pool() {
+    async fn explicit_ports_are_not_limited_to_node_default_pool() {
         let mgr = AppScheduleManager::new();
         {
             let mut g = mgr.inner.lock().await;
-            g.nodes
-                .insert("n1".into(), node_with_port("a", "m1", 32999));
+            g.nodes.insert("n1".into(), node_with_port("a", "m1", 4998));
         }
         assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 0);
         {
             let mut g = mgr.inner.lock().await;
-            g.nodes
-                .insert("n2".into(), node_with_port("a", "m1", 32000));
+            g.nodes.insert("n2".into(), node_with_port("a", "m1", 4613));
         }
         let g = mgr.inner.lock().await;
-        for port in [0, 4613, 40000, 65535] {
+        for port in [0, 4615, 40000, 65535] {
             assert!(
                 AppScheduleManager::ensure_node_port_available_locked(&g, "m1", port, None).is_ok()
             );
         }
-        for port in [-1, 65536, 32999] {
+        for port in [-1, 65536, 4613, 4998] {
             assert!(
                 AppScheduleManager::ensure_node_port_available_locked(&g, "m1", port, None)
                     .is_err()
@@ -3022,11 +3018,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn legacy_pool_full_does_not_prevent_node_allocation() {
+    async fn node_default_pool_full_does_not_prevent_node_allocation() {
         let mgr = AppScheduleManager::new();
         {
             let mut g = mgr.inner.lock().await;
-            for port in 32000..=32999 {
+            for port in 4613..=4998 {
                 let n = node_with_port("a", "m1", port);
                 g.nodes.insert(n.node_id.clone(), n);
             }
@@ -3047,7 +3043,7 @@ mod tests {
                 encoder_format: "h264".into(),
                 webrtc_enabled: true,
                 websocket_enabled: true,
-                listen_port: 32000,
+                listen_port: 4613,
                 ..Default::default()
             },
             AppPlacement {
@@ -3064,7 +3060,7 @@ mod tests {
                 placement_id: "p".into(),
                 node_id: String::new(),
                 state,
-                listen_port: 32000,
+                listen_port: 4613,
                 pid: 0,
                 error: String::new(),
                 web_client_hint: String::new(),
@@ -3094,13 +3090,13 @@ mod tests {
         mgr.inject_for_test(app, plc, inst).await;
         mgr.reconcile_from_service_hb(
             "d".into(),
-            r#"[{"instance_id":"i","state":"running","pid":777,"listen_port":32010}]"#,
+            r#"[{"instance_id":"i","state":"running","pid":777,"listen_port":4623}]"#,
         )
         .await;
         let i = &mgr.list_instances().await[0];
         assert_eq!(i.state, InstanceState::Running);
         assert_eq!(i.pid, 777);
-        assert_eq!(i.listen_port, 32010);
+        assert_eq!(i.listen_port, 4623);
         assert!(i.error.is_empty());
 
         // Failed instances are revived too.
@@ -3120,20 +3116,20 @@ mod tests {
         mgr.inject_for_test(app, placement, inst).await;
         mgr.reconcile_from_service_hb(
             "d".into(),
-            r#"[{"instance_id":"i","state":"starting","pid":7,"listen_port":32003}]"#,
+            r#"[{"instance_id":"i","state":"starting","pid":7,"listen_port":4616}]"#,
         )
         .await;
         let starting = &mgr.list_instances().await[0];
         assert_eq!(starting.state, InstanceState::Starting);
         assert_eq!(starting.pid, 7);
-        assert_eq!(starting.listen_port, 32003);
+        assert_eq!(starting.listen_port, 4616);
 
         let mgr = AppScheduleManager::new();
         let (app, placement, inst) = fixture(InstanceState::Failed);
         mgr.inject_for_test(app, placement, inst).await;
         mgr.reconcile_from_service_hb(
             "d".into(),
-            r#"[{"instance_id":"i","state":"stopping","pid":8,"listen_port":32004}]"#,
+            r#"[{"instance_id":"i","state":"stopping","pid":8,"listen_port":4617}]"#,
         )
         .await;
         assert_eq!(mgr.list_instances().await[0].state, InstanceState::Stopping);
@@ -3152,7 +3148,7 @@ mod tests {
                 instance_id: "i".into(),
                 ok: true,
                 error: String::new(),
-                listen_port: 32055,
+                listen_port: 4668,
                 pid: 4242,
             },
         )
@@ -3172,7 +3168,7 @@ mod tests {
                 instance_id: "i".into(),
                 ok: true,
                 error: String::new(),
-                listen_port: 32055,
+                listen_port: 4668,
                 pid: 4242,
             },
         )
@@ -3213,7 +3209,7 @@ mod tests {
         // disconnect suspicion because the process is accounted for.
         mgr.reconcile_from_service_hb(
             "d".into(),
-            r#"[{"instance_id":"i","state":"starting","pid":41,"listen_port":32001}]"#,
+            r#"[{"instance_id":"i","state":"starting","pid":41,"listen_port":4614}]"#,
         )
         .await;
         assert_eq!(mgr.list_instances().await[0].state, InstanceState::Starting);
@@ -3223,13 +3219,13 @@ mod tests {
         // able to finish the transition without waiting for the old receipt.
         mgr.reconcile_from_service_hb(
             "d".into(),
-            r#"[{"instance_id":"i","state":"running","pid":42,"listen_port":32002}]"#,
+            r#"[{"instance_id":"i","state":"running","pid":42,"listen_port":4615}]"#,
         )
         .await;
         let restored = &mgr.list_instances().await[0];
         assert_eq!(restored.state, InstanceState::Running);
         assert_eq!(restored.pid, 42);
-        assert_eq!(restored.listen_port, 32002);
+        assert_eq!(restored.listen_port, 4615);
         assert!(restored.started_at_ms > 0);
         assert!(restored.error.is_empty());
         assert!(restored.web_client_hint.contains("instanceId=i"));
@@ -3895,7 +3891,7 @@ mod tests {
                 encoder_format: "h264".into(),
                 webrtc_enabled: true,
                 websocket_enabled: true,
-                listen_port: 32055,
+                listen_port: 4668,
                 ..Default::default()
             },
             AppPlacement {
@@ -3915,7 +3911,7 @@ mod tests {
         let n = &migrated[0];
         assert_eq!(n.device_id, "d");
         assert_eq!(n.install_root, r"D:\x");
-        assert_eq!(n.listen_port, 32055);
+        assert_eq!(n.listen_port, 4668);
         assert_eq!(n.name, "节点1");
         // 幂等:再跑一次不重复建
         let again = {
@@ -3935,7 +3931,7 @@ mod tests {
         for url in [
             "http://localhost:8080/test",
             "http://127.0.0.1:8080/test",
-            "http://192.168.31.6:30500/test",
+            "http://192.168.31.6:4600/test",
             "http://console.local/test",
         ] {
             assert!(
@@ -3987,7 +3983,7 @@ mod tests {
                 name: Some("Web 节点".into()),
                 device_id: "device-web".into(),
                 install_root: None,
-                listen_port: Some(32990),
+                listen_port: Some(4831),
             })
             .await
             .unwrap();
@@ -4025,7 +4021,7 @@ mod tests {
                 name: Some("Workspace".into()),
                 device_id: "device-rdp-1".into(),
                 install_root: None,
-                listen_port: Some(32991),
+                listen_port: Some(4832),
             })
             .await
             .unwrap();
@@ -4037,7 +4033,7 @@ mod tests {
                 name: Some("Move".into()),
                 device_id: "device-rdp-2".into(),
                 install_root: None,
-                listen_port: Some(32991),
+                listen_port: Some(4832),
             })
             .await
             .is_err());
@@ -4048,7 +4044,7 @@ mod tests {
                 name: Some("Renamed".into()),
                 device_id: "device-rdp-1".into(),
                 install_root: None,
-                listen_port: Some(32991),
+                listen_port: Some(4832),
             })
             .await
             .unwrap();

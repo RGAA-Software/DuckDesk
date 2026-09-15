@@ -12,8 +12,11 @@ import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.account.AccountSession
 import yun.pixels.client.core.domain.account.AccountConnection
 import yun.pixels.client.core.domain.account.ConsoleEndpoint
+import yun.pixels.client.core.domain.account.GuestSession
 import yun.pixels.client.core.domain.account.RemoteApplication
+import yun.pixels.client.core.domain.account.RemoteApplicationAccess
 import yun.pixels.client.core.domain.account.RemoteApplicationInstance
+import yun.pixels.client.core.domain.account.RemoteApplicationType
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
@@ -21,6 +24,12 @@ import java.nio.charset.StandardCharsets
 import javax.net.ssl.HttpsURLConnection
 
 interface ConsoleAccountApi {
+    suspend fun testEndpoint(endpointInput: String): AccountResult<ConsoleEndpoint>
+
+    suspend fun guestSession(endpoint: ConsoleEndpoint, clientNonce: String): AccountResult<GuestSession>
+
+    suspend fun register(endpoint: ConsoleEndpoint, guestToken: String, username: String, password: String): AccountResult<AccountProfile>
+
     suspend fun login(endpointInput: String, username: String, password: String): AccountResult<AccountSession>
 
     suspend fun logout(session: AccountSession): AccountResult<Unit>
@@ -33,13 +42,43 @@ interface ConsoleAccountApi {
 class ConsoleApiClient(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ConsoleAccountApi, ConsoleApplicationApi {
+    override suspend fun testEndpoint(endpointInput: String): AccountResult<ConsoleEndpoint> = withContext(ioDispatcher) {
+        val endpoint = normalizeEndpoint(endpointInput)
+            ?: return@withContext AccountResult.Failure(AccountFailure.InvalidEndpoint)
+        request(endpoint, "/api/v1/public/apps", "GET")?.toAccountResult { data ->
+            if (data is JSONArray) AccountResult.Success(endpoint) else AccountResult.Failure(AccountFailure.InvalidResponse)
+        } ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
+    }
+
+    override suspend fun guestSession(endpoint: ConsoleEndpoint, clientNonce: String): AccountResult<GuestSession> = withContext(ioDispatcher) {
+        val body = JSONObject().put("client_nonce", clientNonce).put("client_type", "android")
+        request(endpoint, "/api/v1/session/guest", "POST", body = body)?.toAccountResult { data ->
+            val payload = data as JSONObject
+            val token = payload.optString("access_token").takeIf(String::isNotBlank)
+                ?: return@toAccountResult AccountResult.Failure(AccountFailure.InvalidResponse)
+            AccountResult.Success(GuestSession(endpoint, token, payload.getLong("expires_at")))
+        } ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
+    }
+
+    override suspend fun register(
+        endpoint: ConsoleEndpoint,
+        guestToken: String,
+        username: String,
+        password: String,
+    ): AccountResult<AccountProfile> = withContext(ioDispatcher) {
+        val body = JSONObject().put("username", username.trim()).put("password", password)
+        request(endpoint, "/api/v1/user/register", "POST", guestToken, body)?.toAccountResult { data ->
+            AccountResult.Success(parseProfile(data as JSONObject))
+        } ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
+    }
+
     override suspend fun login(endpointInput: String, username: String, password: String): AccountResult<AccountSession> = withContext(ioDispatcher) {
         val endpoint = normalizeEndpoint(endpointInput)
             ?: return@withContext AccountResult.Failure(AccountFailure.InvalidEndpoint)
         val body = JSONObject()
             .put("username", username.trim())
             .put("password", password)
-            .put("client_type", "panel")
+            .put("client_type", "android")
         request(endpoint, "/api/v1/session/user/login", "POST", body = body)?.toAccountResult { response ->
             parseLogin(endpoint, response as JSONObject)
         } ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
@@ -74,6 +113,53 @@ class ConsoleApiClient(
         request(session.endpoint, "/api/v1/user/apps", "GET", session.accessToken)?.toAccountResult { data ->
             AccountResult.Success(parseApplications(data as JSONArray))
         } ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
+    }
+
+    override suspend fun publicApplications(endpoint: ConsoleEndpoint): AccountResult<List<RemoteApplication>> = withContext(ioDispatcher) {
+        request(endpoint, "/api/v1/public/apps", "GET")?.toAccountResult { data ->
+            AccountResult.Success(parseApplications(data as JSONArray))
+        } ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
+    }
+
+    override suspend fun guestInstances(session: GuestSession): AccountResult<List<RemoteApplicationInstance>> = withContext(ioDispatcher) {
+        request(session.endpoint, "/api/v1/public/instances", "GET", session.accessToken)?.toAccountResult { data ->
+            val rows = data as JSONArray
+            AccountResult.Success(buildList {
+                repeat(rows.length()) { index -> add(parseApplicationInstance(rows.getJSONObject(index))) }
+            })
+        } ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
+    }
+
+    override suspend fun startGuestApplication(
+        session: GuestSession,
+        appId: String,
+        clientNonce: String,
+    ): AccountResult<RemoteApplicationInstance> = withContext(ioDispatcher) {
+        val body = JSONObject().put("client_nonce", clientNonce)
+        request(session.endpoint, "/api/v1/public/apps/${encodePathSegment(appId)}/start", "POST", session.accessToken, body)
+            ?.toAccountResult { data -> AccountResult.Success(parseApplicationInstance(data as JSONObject)) }
+            ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
+    }
+
+    override suspend fun stopGuestApplication(session: GuestSession, instanceId: String): AccountResult<Unit> = withContext(ioDispatcher) {
+        val body = JSONObject().put("reason", "stopped from Pixels Android")
+        request(session.endpoint, "/api/v1/public/instances/${encodePathSegment(instanceId)}/stop", "POST", session.accessToken, body)
+            ?.toAccountResult { AccountResult.Success(Unit) }
+            ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
+    }
+
+    override suspend fun resolveGuestApplicationConnection(
+        session: GuestSession,
+        instanceId: String,
+    ): AccountResult<AccountConnection> = withContext(ioDispatcher) {
+        request(
+            session.endpoint,
+            "/api/v1/public/instances/${encodePathSegment(instanceId)}/native-connection",
+            "POST",
+            session.accessToken,
+            JSONObject().put("view_only", false).put("client_capability", "android-native-v1"),
+        )?.toAccountResult { data -> parseAccountConnection(data as JSONObject) }
+            ?: AccountResult.Failure(AccountFailure.NetworkUnavailable)
     }
 
     override suspend fun startApplication(
@@ -179,15 +265,25 @@ private inline fun <T> HttpResponse.toAccountResult(parse: (Any) -> AccountResul
 }
 
 internal fun accountFailure(status: Int, body: String): AccountFailure {
-    val error = runCatching { JSONObject(body).optString("error") }.getOrDefault("")
+    val envelope = runCatching { JSONObject(body) }.getOrNull()
+    val error = envelope?.optString("error").orEmpty()
+    val businessCode = envelope?.optInt("code")
     return when (error) {
         "AUTH_INVALID_CREDENTIALS" -> AccountFailure.InvalidCredentials
         "AUTH_REQUIRED" -> AccountFailure.AuthenticationRequired
         "SUBJECT_FORBIDDEN" -> AccountFailure.Forbidden
-        "RATE_LIMITED", "QUOTA_EXCEEDED" -> AccountFailure.RateLimited
+        "RATE_LIMITED" -> AccountFailure.RateLimited
+        "QUOTA_EXCEEDED" -> AccountFailure.QuotaExceeded
+        "USERNAME_CONFLICT", "USER_ALREADY_EXISTS" -> AccountFailure.UsernameConflict
+        "APPLICATION_INSTANCE_BUSY", "INSTANCE_BUSY" -> AccountFailure.InstanceBusy
         "DEVICE_OFFLINE" -> AccountFailure.DeviceOffline
         "RESOURCE_NOT_FOUND" -> AccountFailure.NotFound
-        else -> status.toAccountFailure()
+        else -> when (businessCode) {
+            608 -> AccountFailure.UsernameConflict
+            638 -> AccountFailure.RateLimited
+            639 -> AccountFailure.QuotaExceeded
+            else -> status.toAccountFailure()
+        }
     }
 }
 
@@ -201,15 +297,9 @@ private fun Int.toAccountFailure(): AccountFailure = when (this) {
 }
 
 private fun parseLogin(endpoint: ConsoleEndpoint, data: JSONObject): AccountResult<AccountSession> {
-    val profileJson = data.getJSONObject("profile")
     val accessToken = data.getString("access_token").takeIf(String::isNotBlank)
         ?: return AccountResult.Failure(AccountFailure.InvalidResponse)
-    val profile = AccountProfile(
-        userId = profileJson.getString("uid"),
-        username = profileJson.getString("username"),
-        avatarPath = profileJson.optString("avatar_path").takeIf(String::isNotBlank),
-        mustChangePassword = profileJson.optBoolean("must_change_password", false),
-    )
+    val profile = parseProfile(data.getJSONObject("profile"))
     return AccountResult.Success(
         AccountSession(
             endpoint = endpoint,
@@ -246,14 +336,29 @@ private fun parseApplications(data: JSONArray): List<RemoteApplication> = buildL
                 appId = item.getString("app_id"),
                 name = item.optString("name").ifBlank { item.getString("app_id") },
                 coverUrl = item.optString("cover_url"),
+                type = item.optString("app_type").toApplicationType(),
+                access = when (item.optString("access_mode").lowercase()) {
+                    "public" -> RemoteApplicationAccess.Public
+                    "acl" -> RemoteApplicationAccess.Acl
+                    else -> RemoteApplicationAccess.Unknown
+                },
+                version = item.optLong("version"),
                 runningInstance = running?.let(::parseApplicationInstance),
             ),
         )
     }
 }
 
+private fun parseProfile(data: JSONObject): AccountProfile = AccountProfile(
+    userId = data.getString("uid"),
+    username = data.getString("username"),
+    avatarPath = data.optString("avatar_path").takeIf(String::isNotBlank),
+    mustChangePassword = data.optBoolean("must_change_password", false),
+)
+
 private fun parseApplicationInstance(data: JSONObject): RemoteApplicationInstance = RemoteApplicationInstance(
     instanceId = data.getString("instance_id"),
+    appId = data.optString("app_id"),
     state = when (data.optString("state").lowercase()) {
         "starting" -> RemoteApplicationInstance.State.Starting
         "running" -> RemoteApplicationInstance.State.Running
@@ -274,9 +379,17 @@ internal fun parseAccountConnection(data: JSONObject): AccountResult<AccountConn
         relayHost = data.optString("relay_host"),
         relayPort = data.optInt("relay_port"),
         signalDeviceId = data.optString("signal_device_id"),
+        appType = data.optString("app_type").takeIf(String::isNotBlank)?.toApplicationType(),
     )
     if (parsed.host.isBlank() || parsed.port !in 1..65535 || parsed.deviceId.isBlank() || parsed.passwordHash.isBlank()) {
         return AccountResult.Failure(AccountFailure.InvalidResponse)
     }
     return AccountResult.Success(parsed)
+}
+
+private fun String.toApplicationType(): RemoteApplicationType = when (lowercase()) {
+    "game-hook", "game_hook" -> RemoteApplicationType.GameHook
+    "webview" -> RemoteApplicationType.WebView
+    "rdp" -> RemoteApplicationType.Rdp
+    else -> RemoteApplicationType.Unknown
 }

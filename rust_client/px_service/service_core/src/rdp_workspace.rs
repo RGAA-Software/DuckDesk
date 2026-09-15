@@ -18,16 +18,31 @@ pub struct WorkspaceIdentity {
 }
 
 pub fn valid_identifier(value: &str) -> bool {
-    !value.is_empty() && value.len() <= 128
-        && value.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_'))
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_'))
 }
 
 impl WorkspaceIdentity {
-    fn check_binding(&self, spec: &RdpAccountSpec, app_id: &str, node_id: &str, device_id: &str) -> Result<(), String> {
-        if self.schema != 1 || self.workspace_id != spec.workspace_id || self.app_id != app_id
-            || self.node_id != node_id || self.device_id != device_id || self.account.account_name != spec.account_name
-            || self.account.credential_version == 0 || self.account.credential_version > spec.credential_version
-            || !self.account.sid.starts_with("S-1-5-21-") {
+    fn check_binding(
+        &self,
+        spec: &RdpAccountSpec,
+        app_id: &str,
+        node_id: &str,
+        device_id: &str,
+    ) -> Result<(), String> {
+        if self.schema != 1
+            || self.workspace_id != spec.workspace_id
+            || self.app_id != app_id
+            || self.node_id != node_id
+            || self.device_id != device_id
+            || self.account.account_name != spec.account_name
+            || self.account.credential_version == 0
+            || self.account.credential_version > spec.credential_version
+            || !self.account.sid.starts_with("S-1-5-21-")
+        {
             return Err("RDP persisted workspace identity/version mismatch".into());
         }
         Ok(())
@@ -45,53 +60,104 @@ impl WorkspaceStore {
     #[cfg(windows)]
     pub fn open(root: &Path) -> Result<Self, String> {
         platform::ensure_private_directory(root)?;
-        Ok(Self { root: root.to_path_buf() })
+        Ok(Self {
+            root: root.to_path_buf(),
+        })
     }
 
-    pub fn root(&self) -> &Path { &self.root }
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
 
     #[cfg(windows)]
-    pub fn provision(&self, spec: &RdpAccountSpec, app_id: &str, node_id: &str, device_id: &str) -> Result<WorkspaceIdentity, String> {
-        self.provision_with(spec, app_id, node_id, device_id, crate::rdp_account::ensure_standard_account)
+    pub fn provision(
+        &self,
+        spec: &RdpAccountSpec,
+        app_id: &str,
+        node_id: &str,
+        device_id: &str,
+    ) -> Result<WorkspaceIdentity, String> {
+        self.provision_with(
+            spec,
+            app_id,
+            node_id,
+            device_id,
+            crate::rdp_account::ensure_standard_account,
+        )
     }
 
-    fn provision_with<F>(&self, spec: &RdpAccountSpec, app_id: &str, node_id: &str, device_id: &str, provision: F) -> Result<WorkspaceIdentity, String>
-    where F: FnOnce(&RdpAccountSpec) -> Result<RdpAccountIdentity, String> {
+    fn provision_with<F>(
+        &self,
+        spec: &RdpAccountSpec,
+        app_id: &str,
+        node_id: &str,
+        device_id: &str,
+        provision: F,
+    ) -> Result<WorkspaceIdentity, String>
+    where
+        F: FnOnce(&RdpAccountSpec) -> Result<RdpAccountIdentity, String>,
+    {
         spec.validate()?;
-        if ![app_id, node_id, device_id].into_iter().all(valid_identifier) {
+        if ![app_id, node_id, device_id]
+            .into_iter()
+            .all(valid_identifier)
+        {
             return Err("RDP workspace binding invalid".into());
         }
         // Serialize account maintenance across Service processes. Render has a
         // separate runtime lease: neither lock is a persisted PID heuristic.
         let mut options = OpenOptions::new();
         options.read(true).write(true).create(true).truncate(false);
-        #[cfg(windows)] {
+        #[cfg(windows)]
+        {
             use std::os::windows::fs::OpenOptionsExt;
             options.share_mode(0).custom_flags(0x00200000); // FILE_FLAG_OPEN_REPARSE_POINT
         }
-        let lock = options.open(self.root.join(format!("{}.account.lock", spec.workspace_id)))
+        let lock = options
+            .open(
+                self.root
+                    .join(format!("{}.account.lock", spec.workspace_id)),
+            )
             .map_err(|_| "RDP workspace account is busy or its lock is inaccessible".to_string())?;
         reject_links(&lock)?;
-        let identity_path = self.root.join(format!("{}.identity.json", spec.workspace_id));
+        let identity_path = self
+            .root
+            .join(format!("{}.identity.json", spec.workspace_id));
         let previous = read_identity(&identity_path)?;
         let mut checked_spec = spec.clone();
         if let Some(previous) = previous.as_ref() {
             previous.check_binding(spec, app_id, node_id, device_id)?;
-            if spec.expected_sid.as_ref().is_some_and(|sid| *sid != previous.account.sid) {
+            if spec
+                .expected_sid
+                .as_ref()
+                .is_some_and(|sid| *sid != previous.account.sid)
+            {
                 return Err("RDP requested SID conflicts with persisted workspace".into());
             }
             checked_spec.expected_sid = Some(previous.account.sid.clone());
         }
         let account = provision(&checked_spec)?;
-        if account.account_name != spec.account_name || account.credential_version != spec.credential_version
+        if account.account_name != spec.account_name
+            || account.credential_version != spec.credential_version
             || !account.sid.starts_with("S-1-5-21-")
-            || checked_spec.expected_sid.as_ref().is_some_and(|sid| *sid != account.sid) {
+            || checked_spec
+                .expected_sid
+                .as_ref()
+                .is_some_and(|sid| *sid != account.sid)
+        {
             return Err("RDP account adapter returned a different identity".into());
         }
-        let identity = WorkspaceIdentity { schema: 1, workspace_id: spec.workspace_id.clone(), app_id: app_id.into(),
-            node_id: node_id.into(), device_id: device_id.into(), account };
+        let identity = WorkspaceIdentity {
+            schema: 1,
+            workspace_id: spec.workspace_id.clone(),
+            app_id: app_id.into(),
+            node_id: node_id.into(),
+            device_id: device_id.into(),
+            account,
+        };
         if previous.as_ref() != Some(&identity) {
-            let bytes = serde_json::to_vec(&identity).map_err(|_| "RDP identity serialization failed".to_string())?;
+            let bytes = serde_json::to_vec(&identity)
+                .map_err(|_| "RDP identity serialization failed".to_string())?;
             atomic_replace(&identity_path, &bytes)?;
         }
         drop(lock);
@@ -100,19 +166,27 @@ impl WorkspaceStore {
 }
 
 fn reject_links(file: &File) -> Result<(), String> {
-    let metadata = file.metadata().map_err(|_| "RDP workspace file metadata unavailable".to_string())?;
-    #[cfg(windows)] {
+    let metadata = file
+        .metadata()
+        .map_err(|_| "RDP workspace file metadata unavailable".to_string())?;
+    #[cfg(windows)]
+    {
         use std::os::windows::fs::MetadataExt;
-        if metadata.file_attributes() & 0x400 != 0 { return Err("RDP workspace reparse point refused".into()); }
+        if metadata.file_attributes() & 0x400 != 0 {
+            return Err("RDP workspace reparse point refused".into());
+        }
     }
-    if !metadata.is_file() { return Err("RDP workspace entry is not a regular file".into()); }
+    if !metadata.is_file() {
+        return Err("RDP workspace entry is not a regular file".into());
+    }
     Ok(())
 }
 
 fn read_identity(path: &Path) -> Result<Option<WorkspaceIdentity>, String> {
     let mut options = OpenOptions::new();
     options.read(true);
-    #[cfg(windows)] {
+    #[cfg(windows)]
+    {
         use std::os::windows::fs::OpenOptionsExt;
         options.custom_flags(0x00200000);
     }
@@ -123,23 +197,46 @@ fn read_identity(path: &Path) -> Result<Option<WorkspaceIdentity>, String> {
     };
     reject_links(&file)?;
     let mut bytes = Vec::new();
-    file.take(16 * 1024 + 1).read_to_end(&mut bytes).map_err(|_| "RDP identity read failed".to_string())?;
-    if bytes.len() > 16 * 1024 { return Err("RDP identity exceeds limit".into()); }
-    serde_json::from_slice(&bytes).map(Some).map_err(|_| "RDP persisted identity damaged; refusing account replacement".into())
+    file.take(16 * 1024 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| "RDP identity read failed".to_string())?;
+    if bytes.len() > 16 * 1024 {
+        return Err("RDP identity exceeds limit".into());
+    }
+    serde_json::from_slice(&bytes)
+        .map(Some)
+        .map_err(|_| "RDP persisted identity damaged; refusing account replacement".into())
 }
 
 fn atomic_replace(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|_| "RDP clock invalid".to_string())?.as_nanos();
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| "RDP clock invalid".to_string())?
+        .as_nanos();
     let temporary = path.with_extension(format!("{}.{}.pending", std::process::id(), nonce));
-    let mut file = OpenOptions::new().write(true).create_new(true).open(&temporary)
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary)
         .map_err(|_| "RDP identity staging failed".to_string())?;
-    let result = file.write_all(bytes).and_then(|_| file.sync_all()).map_err(|_| "RDP identity flush failed".to_string());
+    let result = file
+        .write_all(bytes)
+        .and_then(|_| file.sync_all())
+        .map_err(|_| "RDP identity flush failed".to_string());
     drop(file);
     let result = result.and_then(|_| {
-        #[cfg(windows)] { platform::replace_file(&temporary, path) }
-        #[cfg(not(windows))] { std::fs::rename(&temporary, path).map_err(|_| "RDP identity replace failed".into()) }
+        #[cfg(windows)]
+        {
+            platform::replace_file(&temporary, path)
+        }
+        #[cfg(not(windows))]
+        {
+            std::fs::rename(&temporary, path).map_err(|_| "RDP identity replace failed".into())
+        }
     });
-    if result.is_err() { let _ = std::fs::remove_file(&temporary); }
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temporary);
+    }
     result
 }
 
@@ -158,24 +255,54 @@ pub struct RdpBootstrapBinding {
 
 impl RdpBootstrapBinding {
     pub fn entropy(&self) -> Result<Vec<u8>, String> {
-        if ![self.workspace_id.as_str(), self.instance_id.as_str(), self.node_id.as_str(), self.device_id.as_str()]
-            .into_iter().all(valid_identifier) || self.proxy_port == 0
-            || ![self.target_certificate_sha256.as_str(), self.proxy_certificate_sha256.as_str()]
-                .into_iter().all(|pin| pin.len() == 64 && pin.bytes().all(|byte| byte.is_ascii_hexdigit())) {
+        if ![
+            self.workspace_id.as_str(),
+            self.instance_id.as_str(),
+            self.node_id.as_str(),
+            self.device_id.as_str(),
+        ]
+        .into_iter()
+        .all(valid_identifier)
+            || self.proxy_port == 0
+            || ![
+                self.target_certificate_sha256.as_str(),
+                self.proxy_certificate_sha256.as_str(),
+            ]
+            .into_iter()
+            .all(|pin| pin.len() == 64 && pin.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        {
             return Err("RDP bootstrap identity invalid".into());
         }
-        Ok(format!("GammaRay.RdpBootstrap.v1|{}|{}|{}|{}|{}|{}|{}", self.workspace_id, self.instance_id,
-            self.node_id, self.device_id, self.proxy_port, self.target_certificate_sha256, self.proxy_certificate_sha256).into_bytes())
+        Ok(format!(
+            "GammaRay.RdpBootstrap.v1|{}|{}|{}|{}|{}|{}|{}",
+            self.workspace_id,
+            self.instance_id,
+            self.node_id,
+            self.device_id,
+            self.proxy_port,
+            self.target_certificate_sha256,
+            self.proxy_certificate_sha256
+        )
+        .into_bytes())
     }
 }
 
 impl WorkspaceStore {
     #[cfg(windows)]
-    pub fn stage_bootstrap(&self, binding: &RdpBootstrapBinding, private_config: &[u8]) -> Result<PathBuf, String> {
-        if private_config.is_empty() || private_config.len() > 64 * 1024 { return Err("RDP proxy configuration exceeds limit".into()); }
+    pub fn stage_bootstrap(
+        &self,
+        binding: &RdpBootstrapBinding,
+        private_config: &[u8],
+    ) -> Result<PathBuf, String> {
+        if private_config.is_empty() || private_config.len() > 64 * 1024 {
+            return Err("RDP proxy configuration exceeds limit".into());
+        }
         let sealed = platform::seal(private_config, &binding.entropy()?)?;
         let path = self.root.join(format!("{}.bootstrap", binding.instance_id));
-        let mut file = OpenOptions::new().write(true).create_new(true).open(&path)
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
             .map_err(|_| "RDP bootstrap already exists or is inaccessible".to_string())?;
         let result = file.write_all(&sealed).and_then(|_| file.sync_all());
         drop(file);
@@ -192,20 +319,31 @@ mod platform {
     use super::*;
     use std::os::windows::ffi::OsStrExt;
     use windows::core::{PCWSTR, PWSTR};
-    use windows::Win32::Foundation::{HLOCAL, LocalFree};
-    use windows::Win32::Security::{DACL_SECURITY_INFORMATION, GetFileSecurityW, GetSecurityDescriptorControl,
-        PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES, SE_DACL_PROTECTED};
-    use windows::Win32::Security::Authorization::{ConvertSecurityDescriptorToStringSecurityDescriptorW,
-        ConvertStringSecurityDescriptorToSecurityDescriptorW};
-    use windows::Win32::Storage::FileSystem::{CreateDirectoryW, MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH};
-    use windows::Win32::Security::Cryptography::{CryptProtectData, CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN};
+    use windows::Win32::Foundation::{LocalFree, HLOCAL};
+    use windows::Win32::Security::Authorization::{
+        ConvertSecurityDescriptorToStringSecurityDescriptorW,
+        ConvertStringSecurityDescriptorToSecurityDescriptorW,
+    };
+    use windows::Win32::Security::Cryptography::{
+        CryptProtectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
+    };
+    use windows::Win32::Security::{
+        GetFileSecurityW, GetSecurityDescriptorControl, DACL_SECURITY_INFORMATION,
+        PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES, SE_DACL_PROTECTED,
+    };
+    use windows::Win32::Storage::FileSystem::{
+        CreateDirectoryW, MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+    };
 
     struct ProtectedBlob(CRYPT_INTEGER_BLOB);
     impl Drop for ProtectedBlob {
         fn drop(&mut self) {
             if !self.0.pbData.is_null() {
                 unsafe {
-                    zeroize::Zeroize::zeroize(std::slice::from_raw_parts_mut(self.0.pbData, self.0.cbData as usize));
+                    zeroize::Zeroize::zeroize(std::slice::from_raw_parts_mut(
+                        self.0.pbData,
+                        self.0.cbData as usize,
+                    ));
                     LocalFree(Some(HLOCAL(self.0.pbData.cast())));
                 }
             }
@@ -213,41 +351,89 @@ mod platform {
     }
 
     pub fn seal(bytes: &[u8], entropy: &[u8]) -> Result<Vec<u8>, String> {
-        let input = CRYPT_INTEGER_BLOB { cbData: bytes.len() as u32, pbData: bytes.as_ptr().cast_mut() };
-        let entropy = CRYPT_INTEGER_BLOB { cbData: entropy.len() as u32, pbData: entropy.as_ptr().cast_mut() };
+        let input = CRYPT_INTEGER_BLOB {
+            cbData: bytes.len() as u32,
+            pbData: bytes.as_ptr().cast_mut(),
+        };
+        let entropy = CRYPT_INTEGER_BLOB {
+            cbData: entropy.len() as u32,
+            pbData: entropy.as_ptr().cast_mut(),
+        };
         let mut output = ProtectedBlob(CRYPT_INTEGER_BLOB::default());
         // Deliberately no CRYPTPROTECT_LOCAL_MACHINE: other local users must not decrypt this payload.
-        unsafe { CryptProtectData(&input, PCWSTR::null(), Some(&entropy), None, None, CRYPTPROTECT_UI_FORBIDDEN, &mut output.0) }
-            .map_err(|_| "RDP Service-token DPAPI encryption failed".to_string())?;
-        if output.0.pbData.is_null() || output.0.cbData == 0 { return Err("RDP DPAPI returned no ciphertext".into()); }
-        Ok(unsafe { std::slice::from_raw_parts(output.0.pbData, output.0.cbData as usize) }.to_vec())
+        unsafe {
+            CryptProtectData(
+                &input,
+                PCWSTR::null(),
+                Some(&entropy),
+                None,
+                None,
+                CRYPTPROTECT_UI_FORBIDDEN,
+                &mut output.0,
+            )
+        }
+        .map_err(|_| "RDP Service-token DPAPI encryption failed".to_string())?;
+        if output.0.pbData.is_null() || output.0.cbData == 0 {
+            return Err("RDP DPAPI returned no ciphertext".into());
+        }
+        Ok(
+            unsafe { std::slice::from_raw_parts(output.0.pbData, output.0.cbData as usize) }
+                .to_vec(),
+        )
     }
 
     struct Descriptor(PSECURITY_DESCRIPTOR);
     impl Drop for Descriptor {
-        fn drop(&mut self) { if !self.0.0.is_null() { unsafe { LocalFree(Some(HLOCAL(self.0.0))); } } }
+        fn drop(&mut self) {
+            if !self.0 .0.is_null() {
+                unsafe {
+                    LocalFree(Some(HLOCAL(self.0 .0)));
+                }
+            }
+        }
     }
 
     struct LocalWideString(PWSTR);
     impl Drop for LocalWideString {
         fn drop(&mut self) {
-            if !self.0.is_null() { unsafe { LocalFree(Some(HLOCAL(self.0.as_ptr().cast()))); } }
+            if !self.0.is_null() {
+                unsafe {
+                    LocalFree(Some(HLOCAL(self.0.as_ptr().cast())));
+                }
+            }
         }
     }
 
     fn canonical_dacl(descriptor: PSECURITY_DESCRIPTOR) -> Result<String, String> {
         let mut text = LocalWideString(PWSTR::null());
-        unsafe { ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor, 1, DACL_SECURITY_INFORMATION, &mut text.0, None) }
-            .map_err(|_| "RDP private directory ACL invalid".to_string())?;
-        let text = unsafe { text.0.to_string() }.map_err(|_| "RDP private directory ACL encoding invalid".to_string())?;
-        let ace_offset = text.find('(').ok_or_else(|| "RDP private directory has no restrictive ACL".to_string())?;
-        if !text.starts_with("D:") { return Err("RDP private directory ACL invalid".into()); }
+        unsafe {
+            ConvertSecurityDescriptorToStringSecurityDescriptorW(
+                descriptor,
+                1,
+                DACL_SECURITY_INFORMATION,
+                &mut text.0,
+                None,
+            )
+        }
+        .map_err(|_| "RDP private directory ACL invalid".to_string())?;
+        let text = unsafe { text.0.to_string() }
+            .map_err(|_| "RDP private directory ACL encoding invalid".to_string())?;
+        let ace_offset = text
+            .find('(')
+            .ok_or_else(|| "RDP private directory has no restrictive ACL".to_string())?;
+        if !text.starts_with("D:") {
+            return Err("RDP private directory ACL invalid".into());
+        }
         // DACL control flags are checked through GetSecurityDescriptorControl. Compare every ACE while
         // ignoring only their separate P/AI bookkeeping representation in the SDDL prefix.
         let ace_text = &text[ace_offset..];
         let mut aces: Vec<&str> = ace_text.split_inclusive(')').collect();
-        if aces.is_empty() || aces.iter().map(|ace| ace.len()).sum::<usize>() != ace_text.len()
-            || aces.iter().any(|ace| !ace.starts_with('(') || !ace.ends_with(')')) {
+        if aces.is_empty()
+            || aces.iter().map(|ace| ace.len()).sum::<usize>() != ace_text.len()
+            || aces
+                .iter()
+                .any(|ace| !ace.starts_with('(') || !ace.ends_with(')'))
+        {
             return Err("RDP private directory ACL invalid".into());
         }
         // Windows is free to canonicalize equal allow ACEs into a different order.
@@ -265,34 +451,72 @@ mod platform {
 
     fn file_security_descriptor(name: &[u16]) -> Result<Vec<u8>, String> {
         let mut required = 0u32;
-        let _ = unsafe { GetFileSecurityW(PCWSTR(name.as_ptr()), DACL_SECURITY_INFORMATION.0, None, 0, &mut required) };
-        if required == 0 { return Err("RDP private directory ACL unavailable".into()); }
+        let _ = unsafe {
+            GetFileSecurityW(
+                PCWSTR(name.as_ptr()),
+                DACL_SECURITY_INFORMATION.0,
+                None,
+                0,
+                &mut required,
+            )
+        };
+        if required == 0 {
+            return Err("RDP private directory ACL unavailable".into());
+        }
         let mut descriptor = vec![0u8; required as usize];
         let pointer = PSECURITY_DESCRIPTOR(descriptor.as_mut_ptr().cast());
         let loaded = unsafe {
-            GetFileSecurityW(PCWSTR(name.as_ptr()), DACL_SECURITY_INFORMATION.0, Some(pointer), required, &mut required)
+            GetFileSecurityW(
+                PCWSTR(name.as_ptr()),
+                DACL_SECURITY_INFORMATION.0,
+                Some(pointer),
+                required,
+                &mut required,
+            )
         };
-        if !loaded.as_bool() { return Err("RDP private directory ACL unavailable".into()); }
+        if !loaded.as_bool() {
+            return Err("RDP private directory ACL unavailable".into());
+        }
         Ok(descriptor)
     }
 
-    fn wide_path(path: &Path) -> Vec<u16> { path.as_os_str().encode_wide().chain(Some(0)).collect() }
+    fn wide_path(path: &Path) -> Vec<u16> {
+        path.as_os_str().encode_wide().chain(Some(0)).collect()
+    }
 
     pub fn ensure_private_directory(path: &Path) -> Result<(), String> {
-        if !path.is_absolute() { return Err("RDP private directory must be absolute".into()); }
-        let sddl: Vec<u16> = "D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)".encode_utf16().chain(Some(0)).collect();
+        if !path.is_absolute() {
+            return Err("RDP private directory must be absolute".into());
+        }
+        let sddl: Vec<u16> = "D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
+            .encode_utf16()
+            .chain(Some(0))
+            .collect();
         let mut expected = Descriptor(PSECURITY_DESCRIPTOR::default());
-        unsafe { ConvertStringSecurityDescriptorToSecurityDescriptorW(PCWSTR(sddl.as_ptr()), 1, &mut expected.0, None) }
-            .map_err(|_| "RDP private directory security descriptor failed".to_string())?;
+        unsafe {
+            ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                PCWSTR(sddl.as_ptr()),
+                1,
+                &mut expected.0,
+                None,
+            )
+        }
+        .map_err(|_| "RDP private directory security descriptor failed".to_string())?;
         let name = wide_path(path);
-        let security = SECURITY_ATTRIBUTES { nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
-            lpSecurityDescriptor: expected.0.0, bInheritHandle: false.into() };
+        let security = SECURITY_ATTRIBUTES {
+            nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
+            lpSecurityDescriptor: expected.0 .0,
+            bInheritHandle: false.into(),
+        };
         if !path.exists() {
-            unsafe { CreateDirectoryW(PCWSTR(name.as_ptr()), Some(&security)) }
-                .map_err(|_| "RDP private directory creation failed (installer-controlled parent required)".to_string())?;
+            unsafe { CreateDirectoryW(PCWSTR(name.as_ptr()), Some(&security)) }.map_err(|_| {
+                "RDP private directory creation failed (installer-controlled parent required)"
+                    .to_string()
+            })?;
         }
         use std::os::windows::fs::MetadataExt;
-        let metadata = std::fs::symlink_metadata(path).map_err(|_| "RDP private directory unavailable".to_string())?;
+        let metadata = std::fs::symlink_metadata(path)
+            .map_err(|_| "RDP private directory unavailable".to_string())?;
         if !metadata.is_dir() || metadata.file_attributes() & 0x400 != 0 {
             return Err("RDP private directory reparse point refused".into());
         }
@@ -302,7 +526,12 @@ mod platform {
         let actual_dacl = canonical_dacl(actual_pointer)?;
         let expected_dacl = canonical_dacl(expected.0)?;
         if !protected || actual_dacl != expected_dacl {
-            tracing::warn!(protected, actual_dacl, expected_dacl, "RDP private directory ACL rejected");
+            tracing::warn!(
+                protected,
+                actual_dacl,
+                expected_dacl,
+                "RDP private directory ACL rejected"
+            );
             return Err("RDP private directory ACL changed; access refused".into());
         }
         Ok(())
@@ -311,8 +540,14 @@ mod platform {
     pub fn replace_file(source: &Path, target: &Path) -> Result<(), String> {
         let source = wide_path(source);
         let target = wide_path(target);
-        unsafe { MoveFileExW(PCWSTR(source.as_ptr()), PCWSTR(target.as_ptr()), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) }
-            .map_err(|_| "RDP identity atomic replace failed".to_string())
+        unsafe {
+            MoveFileExW(
+                PCWSTR(source.as_ptr()),
+                PCWSTR(target.as_ptr()),
+                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+            )
+        }
+        .map_err(|_| "RDP identity atomic replace failed".to_string())
     }
 }
 
@@ -324,95 +559,197 @@ mod tests {
     struct TestStore(WorkspaceStore);
     impl TestStore {
         fn new() -> Self {
-            let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
-            let root = std::env::temp_dir().join(format!("gammaray-rdp-store-{}-{nonce}", std::process::id()));
+            let nonce = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let root = std::env::temp_dir()
+                .join(format!("gammaray-rdp-store-{}-{nonce}", std::process::id()));
             std::fs::create_dir(&root).unwrap();
             Self(WorkspaceStore { root })
         }
     }
-    impl Drop for TestStore { fn drop(&mut self) { let _ = std::fs::remove_dir_all(&self.0.root); } }
+    impl Drop for TestStore {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0.root);
+        }
+    }
     fn sample() -> RdpAccountSpec {
-        RdpAccountSpec { workspace_id: "workspace-1".into(), account_name: "grdp_testaccount".into(),
-            password: Zeroizing::new("aA1!01234567890123456789012345678901".into()), credential_version: 1, expected_sid: None }
+        RdpAccountSpec {
+            workspace_id: "workspace-1".into(),
+            account_name: "grdp_testaccount".into(),
+            password: Zeroizing::new("aA1!01234567890123456789012345678901".into()),
+            credential_version: 1,
+            expected_sid: None,
+        }
     }
     fn identity(spec: &RdpAccountSpec) -> Result<RdpAccountIdentity, String> {
-        Ok(RdpAccountIdentity { account_name: spec.account_name.clone(), sid: "S-1-5-21-1-2-3-1001".into(), credential_version: spec.credential_version })
+        Ok(RdpAccountIdentity {
+            account_name: spec.account_name.clone(),
+            sid: "S-1-5-21-1-2-3-1001".into(),
+            credential_version: spec.credential_version,
+        })
     }
     #[test]
     fn restart_keeps_sid_and_never_persists_password() {
         let store = TestStore::new();
         let spec = sample();
-        let first = store.0.provision_with(&spec, "app", "node", "device", identity).unwrap();
-        let restarted = WorkspaceStore { root: store.0.root.clone() };
-        let second = restarted.provision_with(&spec, "app", "node", "device", |checked| {
-            assert_eq!(checked.expected_sid.as_deref(), Some("S-1-5-21-1-2-3-1001")); identity(checked)
-        }).unwrap();
+        let first = store
+            .0
+            .provision_with(&spec, "app", "node", "device", identity)
+            .unwrap();
+        let restarted = WorkspaceStore {
+            root: store.0.root.clone(),
+        };
+        let second = restarted
+            .provision_with(&spec, "app", "node", "device", |checked| {
+                assert_eq!(checked.expected_sid.as_deref(), Some("S-1-5-21-1-2-3-1001"));
+                identity(checked)
+            })
+            .unwrap();
         assert_eq!(first, second);
-        let bytes = std::fs::read_to_string(store.0.root.join("workspace-1.identity.json")).unwrap();
+        let bytes =
+            std::fs::read_to_string(store.0.root.join("workspace-1.identity.json")).unwrap();
         assert!(!bytes.contains(spec.password.as_str()));
     }
     #[test]
     fn rebinding_or_rollback_fails_before_windows_adapter() {
         let store = TestStore::new();
-        let mut spec = sample(); spec.credential_version = 2;
-        store.0.provision_with(&spec, "app", "node", "device", identity).unwrap();
-        for (app, node, device) in [("other", "node", "device"), ("app", "other", "device"), ("app", "node", "other")] {
-            assert!(store.0.provision_with(&spec, app, node, device, |_| panic!("must not touch Windows")).is_err());
+        let mut spec = sample();
+        spec.credential_version = 2;
+        store
+            .0
+            .provision_with(&spec, "app", "node", "device", identity)
+            .unwrap();
+        for (app, node, device) in [
+            ("other", "node", "device"),
+            ("app", "other", "device"),
+            ("app", "node", "other"),
+        ] {
+            assert!(store
+                .0
+                .provision_with(&spec, app, node, device, |_| panic!(
+                    "must not touch Windows"
+                ))
+                .is_err());
         }
         spec.credential_version = 1;
-        assert!(store.0.provision_with(&spec, "app", "node", "device", |_| panic!("must not touch Windows")).is_err());
+        assert!(store
+            .0
+            .provision_with(&spec, "app", "node", "device", |_| panic!(
+                "must not touch Windows"
+            ))
+            .is_err());
     }
     #[test]
     fn damaged_record_is_not_recreated_and_adapter_failure_keeps_identity() {
-        let store = TestStore::new(); let spec = sample();
-        store.0.provision_with(&spec, "app", "node", "device", identity).unwrap();
+        let store = TestStore::new();
+        let spec = sample();
+        store
+            .0
+            .provision_with(&spec, "app", "node", "device", identity)
+            .unwrap();
         let path = store.0.root.join("workspace-1.identity.json");
         let original = std::fs::read(&path).unwrap();
-        assert!(store.0.provision_with(&spec, "app", "node", "device", |_| Err("simulated Windows failure".into())).is_err());
+        assert!(store
+            .0
+            .provision_with(&spec, "app", "node", "device", |_| Err(
+                "simulated Windows failure".into()
+            ))
+            .is_err());
         assert_eq!(std::fs::read(&path).unwrap(), original);
         std::fs::write(&path, b"damaged").unwrap();
-        assert!(store.0.provision_with(&spec, "app", "node", "device", |_| panic!("must not touch Windows")).is_err());
+        assert!(store
+            .0
+            .provision_with(&spec, "app", "node", "device", |_| panic!(
+                "must not touch Windows"
+            ))
+            .is_err());
     }
     #[test]
     fn adapter_cannot_silently_replace_a_persisted_sid() {
-        let store = TestStore::new(); let spec = sample();
-        store.0.provision_with(&spec, "app", "node", "device", identity).unwrap();
-        assert!(store.0.provision_with(&spec, "app", "node", "device", |checked| {
-            let mut account = identity(checked)?; account.sid = "S-1-5-21-1-2-3-2002".into(); Ok(account)
-        }).is_err());
+        let store = TestStore::new();
+        let spec = sample();
+        store
+            .0
+            .provision_with(&spec, "app", "node", "device", identity)
+            .unwrap();
+        assert!(store
+            .0
+            .provision_with(&spec, "app", "node", "device", |checked| {
+                let mut account = identity(checked)?;
+                account.sid = "S-1-5-21-1-2-3-2002".into();
+                Ok(account)
+            })
+            .is_err());
     }
     #[cfg(windows)]
     #[test]
     fn concurrent_service_cannot_modify_same_workspace() {
         use std::os::windows::fs::OpenOptionsExt;
-        let store = TestStore::new(); let spec = sample();
-        let lock = OpenOptions::new().read(true).write(true).create(true).truncate(false).share_mode(0)
-            .open(store.0.root.join("workspace-1.account.lock")).unwrap();
-        assert!(store.0.provision_with(&spec, "app", "node", "device", |_| panic!("must not touch Windows")).is_err());
+        let store = TestStore::new();
+        let spec = sample();
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .share_mode(0)
+            .open(store.0.root.join("workspace-1.account.lock"))
+            .unwrap();
+        assert!(store
+            .0
+            .provision_with(&spec, "app", "node", "device", |_| panic!(
+                "must not touch Windows"
+            ))
+            .is_err());
         drop(lock);
-        assert!(store.0.provision_with(&spec, "app", "node", "device", identity).is_ok());
+        assert!(store
+            .0
+            .provision_with(&spec, "app", "node", "device", identity)
+            .is_ok());
     }
 
     #[test]
     fn bootstrap_entropy_binds_runtime_node_and_both_certificates() {
-        let mut binding = RdpBootstrapBinding { workspace_id: "workspace".into(), instance_id: "instance".into(), node_id: "node".into(),
-            device_id: "device".into(), proxy_port: 13389, target_certificate_sha256: "a".repeat(64), proxy_certificate_sha256: "b".repeat(64) };
+        let mut binding = RdpBootstrapBinding {
+            workspace_id: "workspace".into(),
+            instance_id: "instance".into(),
+            node_id: "node".into(),
+            device_id: "device".into(),
+            proxy_port: 13389,
+            target_certificate_sha256: "a".repeat(64),
+            proxy_certificate_sha256: "b".repeat(64),
+        };
         let original = binding.entropy().unwrap();
-        binding.instance_id = "new-instance".into(); assert_ne!(binding.entropy().unwrap(), original);
-        binding.node_id = "../../node".into(); assert!(binding.entropy().is_err());
-        binding.node_id = "node".into(); binding.target_certificate_sha256 = "g".repeat(64); assert!(binding.entropy().is_err());
+        binding.instance_id = "new-instance".into();
+        assert_ne!(binding.entropy().unwrap(), original);
+        binding.node_id = "../../node".into();
+        assert!(binding.entropy().is_err());
+        binding.node_id = "node".into();
+        binding.target_certificate_sha256 = "g".repeat(64);
+        assert!(binding.entropy().is_err());
     }
 
     #[cfg(windows)]
     #[test]
     fn bootstrap_file_contains_ciphertext_not_private_configuration() {
         let store = TestStore::new();
-        let binding = RdpBootstrapBinding { workspace_id: "workspace".into(), instance_id: "instance".into(), node_id: "node".into(),
-            device_id: "device".into(), proxy_port: 13389, target_certificate_sha256: "a".repeat(64), proxy_certificate_sha256: "b".repeat(64) };
+        let binding = RdpBootstrapBinding {
+            workspace_id: "workspace".into(),
+            instance_id: "instance".into(),
+            node_id: "node".into(),
+            device_id: "device".into(),
+            proxy_port: 13389,
+            target_certificate_sha256: "a".repeat(64),
+            proxy_certificate_sha256: "b".repeat(64),
+        };
         let secret = b"Password=private-bootstrap-test-password";
         let path = store.0.stage_bootstrap(&binding, secret).unwrap();
         let ciphertext = std::fs::read(&path).unwrap();
-        assert!(!ciphertext.windows(secret.len()).any(|window| window == secret));
+        assert!(!ciphertext
+            .windows(secret.len())
+            .any(|window| window == secret));
         assert!(store.0.stage_bootstrap(&binding, secret).is_err()); // Never overwrite a live runtime's bootstrap.
     }
 }

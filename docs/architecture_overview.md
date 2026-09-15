@@ -53,7 +53,7 @@ macOS 客户端已纳入产品规划：复用同一 SDK，后续补齐桌面 UI�
 | px_panel | `src/px_panel` | 被控端管理 UI。当前为 Qt，先迁移到 SDL3+Dear ImGui；保留现有授权、Service/Render 管理和 Client 启动逻辑 |
 | px_client | `src/px_client` | Windows 观看与控制端。Panel 完成后迁移 UI；保留 UDP/FEC、WS 媒体直连、WS Relay、强制连接设置和现有 RDP 等功能 |
 | Pixels Android Client | `src/px_android` | Android 观看与控制端。当前按最终产品原地重建，不保留旧 Android 兼容层；M1 已接通类型化设备目录、Panel 信息验证、DataStore 和 Keystore，目标覆盖完整会话、音视频、输入、多显示器、远程应用、文件、剪贴板、录制、语音和全传输能力 |
-| px_service | `rust_client/px_service` | 被控机常驻服务。拉起/看管 render、执行 Console 调度（启停游戏实例）、本机控制面 WS `:20375` |
+| px_service | `rust_client/px_service` | 被控机常驻服务。拉起/看管 render、执行 Console 调度（启停游戏实例）、本机控制面 WS 默认 `:4603` |
 | px_osinfo | `rust_client/px_sysinfo` | 系统信息采集上报 |
 | UserProxy | `rust_client/px_user_proxy` | 用户会话代理（剪贴板等），service 看管 |
 | px_console_server | `rust_server/px_console_server` | 中心调度：机器列表、应用/实例管理、授权缓存下发，托管 `web/px_console` 管理前端 |
@@ -67,16 +67,16 @@ macOS 客户端已纳入产品规划：复用同一 SDK，后续补齐桌面 UI�
                         中心侧
    px_auth_server :30400 (HTTPS, 签发/吊销授权)
         ↑ Console 每小时拉自己的授权 (HMAC appkey 签名)
-   px_console_server :30500 (HTTPS/WSS) + 托管 web/px_console 管理前端
+   px_console_server :4600 (HTTPS/WSS) + 托管 web/px_console 管理前端
         ├─ 应用 Relay：标准 RTC 的 SDP / Trickle ICE 信令
-        └─ px_turn :20128 TCP/UDP；relay UDP :20200-20500
+        └─ Web RTC 配套 TURN :4602 TCP/UDP；Console 托管转发媒体池 :5301-5428
         ↑ WSS /console/service  ←—— px_service (每台被控机一条长连接,
         │                          3s 心跳带全量 app 实例状态, 断线固定 2s 重连)
         ↑ HTTPS /api/v1/app/control/* ←—— Console 管理 Web (游戏/实例启停)
         ↑ WSS /console/panel ←—— 被控端 panel
 
    被控机器内部 (本机明文 WS):
-   px_service 监听 127.0.0.1:20375
+   px_service 默认监听 127.0.0.1:4603
         ↑ /service/message ←—— 每一个 render (desktop + 每个 game-hook) 1s 心跳
         ↑ ←—— panel (推授权 AuthInfo、拉起桌面 render 的 StartServer)
 
@@ -84,12 +84,12 @@ macOS 客户端已纳入产品规划：复用同一 SDK，后续补齐桌面 UI�
    Web 观看端 → 可直达时 net_rtc_local；不可直达时 net_rtc + ICE(host/srflx/turn relay)
    原生观看端（目标）→ UDP+FEC 媒体 + WebSocket 控制/文件 → 可直达 render
    注入的游戏 DLL → WS /ipc (仅 127.0.0.1) 推采集帧 → render
-   桌面 render :20371；game render :32000-32999 (service 端口池)
+   桌面 render 默认 :4601；应用 render 由 Service 从 4613-4998 动态分配
 ```
 
 ### 方向性要点
 
-- **控制面上 render 是 client**：反连本机 service（`:20375`）和 panel（`/panel/renderer`），利于 NAT/防火墙场景。注意 game render 没有 panel 通道（启动参数不带 `--panel_server_port`）——**panel 只管理那台唯一的桌面 render**。
+- **控制面上 render 是 client**：反连本机 service（默认 `:4603`）和 panel（`/panel/renderer`），利于 NAT/防火墙场景。注意 game render 没有 panel 通道（启动参数不带 `--panel_server_port`）——**panel 只管理那台唯一的桌面 render**。
 - **数据面上 render 是 server**：`0.0.0.0:{port}` 同一端口承载 WS（`/media`）、HTTP（`/web_client`、信令 `/alloc/local/rtc`）、`/ipc`（仅 loopback）。
 - **WS 与 WebRTC 可同时连接**，无代码级并发上限（每连接一个 router/server 进 map），仅有每连接发送队列的丢帧保护。
 
@@ -127,7 +127,7 @@ WS + UDP 模式中，WS 在会话准入后记录短期的首次 UDP 媒体端点
 1. **授权链对 panel 的硬依赖**：service 连 Console 的地址/凭据由 panel 经本机 WS 推来——panel 不运行机器就永远离线。目标模型下应改为「安装包写入凭据，service 直连 Console」，panel 降级为可选入口。
 2. **数据面零鉴权**：`/media` 只校验 stream_id 非空、`/alloc/local/rtc` 裸开——同网段知道 IP:port 就能拉流。应由 Console 签发带时效的观看 token，render 校验。
 3. **标准 RTC 的异网生产门禁尚未完成**：Console 托管 Coturn，`net_rtc` 支持动态 ICE、配置热更新/ICE restart、Direct 失败后标准 RTC 回退和候选统计。本机与90号机已经通过强制 TURN UDP、受控 TURN TCP 回退、自动 Direct、全功能和重连验收；仍需两台不同公网/NAT 的真实 relay、对称 NAT、并发 allocation 和端口耗尽门禁。详见 `webrtc_rtc_acceptance_report_20260824.md`。
-4. **本机控制面 :20375 无鉴权**：本机任意进程可推 AuthInfo/StartServer 让 service 拉进程，本地提权面。
+4. **本机控制面默认 :4603 无鉴权**：本机任意进程可推 AuthInfo/StartServer 让 service 拉进程，本地提权面。
 
 ## 8. 专题文档索引
 

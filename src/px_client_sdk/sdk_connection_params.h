@@ -21,7 +21,6 @@ struct SdkConnectionParams final {
     bool file_transfer_only_{false};
     std::string ip_{};
     int port_{0};
-    int udp_port_{20371};
     std::string media_path_{};
     std::string ft_path_{};
     std::string device_id_{};

@@ -199,8 +199,8 @@ mod tests {
             "pixels_service.log"
         );
         assert_eq!(
-            normalize_log_filename("pixels_render_20371.log"),
-            "pixels_render_20371.log"
+            normalize_log_filename("pixels_render_4601.log"),
+            "pixels_render_4601.log"
         );
     }
 
@@ -211,8 +211,8 @@ mod tests {
             "pixels_service.1.log"
         );
         assert_eq!(
-            rotated_log_filename("pixels_render_20371.log", 4),
-            "pixels_render_20371.4.log"
+            rotated_log_filename("pixels_render_4601.log", 4),
+            "pixels_render_4601.4.log"
         );
     }
 }

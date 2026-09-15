@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-const BASE_URL = process.env.PX_CONSOLE_TEST_BASE_URL || process.env.PX_CMS_TEST_BASE_URL || 'https://127.0.0.1:30500'
+const BASE_URL = process.env.PX_CONSOLE_TEST_BASE_URL || process.env.PX_CMS_TEST_BASE_URL || 'https://127.0.0.1:4600'
 const SESSION_TOKEN = process.env.PX_CONSOLE_TEST_SESSION || process.env.PX_CMS_TEST_SESSION || ''
 const CDP_PORT = 9225
 const SCREENSHOT = path.resolve('output/event-page-regression.png')

@@ -14,8 +14,8 @@ class PreviewSecurityRecordsPort final : public SecurityRecordsPort {
                      .endedAt = "2026-09-11 10:05",
                      .duration = "00:05:00",
                      .visitor = "109022351",
-                     .target = "node90",
-                     .plainText = "Desktop 109022351 -> node90",
+                     .target = "public-node",
+                     .plainText = "Desktop 109022351 -> public-node",
                      .json = R"({"type":"Desktop"})"}};
         }
         return {{.id = 2,
@@ -23,7 +23,7 @@ class PreviewSecurityRecordsPort final : public SecurityRecordsPort {
                  .startedAt = "2026-09-11 10:02",
                  .endedAt = "2026-09-11 10:02",
                  .visitor = "109022351",
-                 .target = "node90",
+                 .target = "public-node",
                  .direction = "upload",
                  .fileName = "sample.zip",
                  .plainText = "sample.zip",

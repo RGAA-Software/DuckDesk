@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn report_round_trip_and_destinations() {
-        for host in ["render.example.com", "10.0.0.90", "[2001:db8::90]", ""] {
+        for host in ["render.example.com", "192.0.2.44", "[2001:db8::44]", ""] {
             let report = NodeEndpoints {
                 access_host: host.into(),
                 ..sample()

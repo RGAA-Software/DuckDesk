@@ -4,7 +4,6 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.espresso.Espresso.pressBack
@@ -12,6 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import yun.pixels.client.feature.devices.R as DevicesR
+import yun.pixels.client.feature.cloudapps.R as CloudAppsR
 import yun.pixels.client.feature.settings.R as SettingsR
 import yun.pixels.client.feature.transfer.R as TransferR
 
@@ -27,8 +27,13 @@ class PixelsNavigationTest {
         val transfersContent = activity.getString(TransferR.string.transfer_requires_session)
         val settingsTab = activity.getString(R.string.navigation_settings)
         val settingsContent = activity.getString(SettingsR.string.account_title)
+        val cloudAppsTab = activity.getString(R.string.navigation_cloud_apps)
+        val cloudAppsContent = activity.getString(CloudAppsR.string.cloud_apps_title)
 
         composeRule.onNodeWithText(devicesContent).fetchSemanticsNode()
+        composeRule.onNodeWithText(cloudAppsTab).performClick()
+        composeRule.onNodeWithText(cloudAppsContent).fetchSemanticsNode()
+        composeRule.onNodeWithText(cloudAppsTab).assertIsSelected()
         composeRule.onNodeWithText(settingsTab).performClick()
         composeRule.onNodeWithText(settingsContent).fetchSemanticsNode()
         composeRule.onNodeWithText(settingsTab).assertIsSelected()
@@ -50,39 +55,39 @@ class PixelsNavigationTest {
     }
 
     @Test
-    fun switchingAwayFromAChildPageReturnsToTheSelectedTabRoot() {
+    fun cloudAppsIsAnIndependentTopLevelTab() {
         val activity = composeRule.activity
         val devicesTab = activity.getString(R.string.navigation_devices)
         val devicesContent = activity.getString(DevicesR.string.quick_connect)
-        val applications = activity.getString(DevicesR.string.applications)
-        val applicationsTitle = activity.getString(DevicesR.string.applications_title)
+        val cloudApps = activity.getString(R.string.navigation_cloud_apps)
+        val cloudAppsTitle = activity.getString(CloudAppsR.string.cloud_apps_title)
         val settingsTab = activity.getString(R.string.navigation_settings)
         val settingsContent = activity.getString(SettingsR.string.account_title)
 
-        composeRule.onNodeWithContentDescription(applications).performClick()
-        composeRule.onNodeWithText(applicationsTitle).fetchSemanticsNode()
+        composeRule.onNodeWithText(cloudApps).performClick()
+        composeRule.onNodeWithText(cloudAppsTitle).fetchSemanticsNode()
 
         composeRule.onNodeWithText(settingsTab).performClick()
         composeRule.onNodeWithText(settingsContent).fetchSemanticsNode()
 
         composeRule.onNodeWithText(devicesTab).performClick()
         composeRule.onNodeWithText(devicesContent).fetchSemanticsNode()
-        composeRule.onAllNodesWithText(applicationsTitle).assertCountEquals(0)
+        composeRule.onAllNodesWithText(cloudAppsTitle).assertCountEquals(0)
     }
 
     @Test
-    fun childPageBackReturnsToItsTabRoot() {
+    fun backFromCloudAppsReturnsToDevices() {
         val activity = composeRule.activity
         val devicesContent = activity.getString(DevicesR.string.quick_connect)
-        val applications = activity.getString(DevicesR.string.applications)
-        val applicationsTitle = activity.getString(DevicesR.string.applications_title)
+        val cloudApps = activity.getString(R.string.navigation_cloud_apps)
+        val cloudAppsTitle = activity.getString(CloudAppsR.string.cloud_apps_title)
 
-        composeRule.onNodeWithContentDescription(applications).performClick()
-        composeRule.onNodeWithText(applicationsTitle).fetchSemanticsNode()
+        composeRule.onNodeWithText(cloudApps).performClick()
+        composeRule.onNodeWithText(cloudAppsTitle).fetchSemanticsNode()
         pressBack()
 
         composeRule.onNodeWithText(devicesContent).fetchSemanticsNode()
-        composeRule.onAllNodesWithText(applicationsTitle).assertCountEquals(0)
+        composeRule.onAllNodesWithText(cloudAppsTitle).assertCountEquals(0)
     }
 
     @Test

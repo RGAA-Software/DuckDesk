@@ -1,9 +1,22 @@
 <resources>
     <string name="settings_title">Settings</string>
     <string name="account_title">Pixels account</string>
+    <string name="console_title">PX Console</string>
     <string name="console_endpoint">Console address</string>
     <string name="username">Username</string>
     <string name="password">Password</string>
+    <string name="confirm_password">Confirm password</string>
+    <string name="test_connection">Test</string>
+    <string name="save_endpoint">Save address</string>
+    <string name="connection_succeeded">Console connection succeeded.</string>
+    <string name="change_console_title">Change PX Console?</string>
+    <string name="change_console_body">Changing the Console address signs out the current account and clears its saved session on this device.</string>
+    <string name="change_console_confirm">Change and sign out</string>
+    <string name="cancel">Cancel</string>
+    <string name="create_account">Create account</string>
+    <string name="need_account">No account? Register</string>
+    <string name="have_account">Already have an account? Sign in</string>
+    <string name="error_password_mismatch">Passwords do not match.</string>
     <string name="sign_in">Sign in</string>
     <string name="sign_out">Sign out</string>
     <string name="password_change_required">Change this account password before starting a remote session.</string>
@@ -26,4 +39,9 @@
     <string name="error_network_unavailable">The Console could not be reached.</string>
     <string name="error_invalid_response">The Console returned an invalid response.</string>
     <string name="error_server">The Console reported an internal error.</string>
+    <string name="error_username_conflict">This username is already registered.</string>
+    <string name="error_quota_exceeded">Your application quota has been reached.</string>
+    <string name="error_instance_busy">This application is already in use.</string>
+    <string name="error_unsupported_application">This application type is not supported on Android yet.</string>
+    <string name="error_account_created_login_failed">The account was created, but automatic sign-in failed. Sign in manually.</string>
 </resources>

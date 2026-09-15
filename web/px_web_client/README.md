@@ -14,7 +14,7 @@
 ## 信令契约
 
 ```
-POST /alloc/local/rtc   (与页面同源,render 端 20371 端口)
+POST /alloc/local/rtc   (与页面同源,render 端 4601 端口)
 请求: {"offer_sdp": "...", "device_id": "...", "stream_id": "...", "password": "..."}
 响应: {"answer_sdp": "..."}
 ```
@@ -26,7 +26,7 @@ npm install
 npm run dev
 ```
 
-开发服务器端口 5174,已配置把 `/alloc` 代理到 `http://127.0.0.1:20371`(本地 render 端),如需修改见 `vite.config.ts`。
+开发服务器端口 5174,已配置把 `/alloc` 代理到 `http://127.0.0.1:4601`(本地 render 端),如需修改见 `vite.config.ts`。
 
 ## 构建
 

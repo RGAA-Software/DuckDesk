@@ -104,6 +104,7 @@ class NativeRemoteSessionTransport internal constructor(
                 DirectSessionAuthorizationResult.Unavailable -> return RemoteTransportStartResult.Rejected(RemoteSessionFailure.NetworkUnavailable)
             }
             is RemoteSessionTarget.Account -> null
+            is RemoteSessionTarget.CloudApplication -> null
         }
         val config = request.toNativeConfig(installationIdentity.value(), directAuthorization)
             ?: return RemoteTransportStartResult.Rejected(RemoteSessionFailure.InvalidRequest)
@@ -613,10 +614,17 @@ internal fun RemoteSessionRequest.toNativeConfig(
             )
         }
         is RemoteSessionTarget.Account -> sessionTarget.connection.toNativeEndpoint(sessionTarget.clientNonce)
+        is RemoteSessionTarget.CloudApplication -> sessionTarget.connection.toNativeEndpoint(sessionTarget.clientNonce)
     }
     if (endpoint.remoteDeviceId.isBlank() || endpoint.streamId.isBlank() || clientDeviceId.isBlank()) return null
-    val accountTarget = target as? RemoteSessionTarget.Account
-    if (accountTarget != null && (accountTarget.connection.passwordHash.isBlank() || accountTarget.clientNonce.isBlank())) return null
+    val authenticatedConnection = when (val sessionTarget = target) {
+        is RemoteSessionTarget.Account -> sessionTarget.connection to sessionTarget.clientNonce
+        is RemoteSessionTarget.CloudApplication -> sessionTarget.connection to sessionTarget.clientNonce
+        is RemoteSessionTarget.Direct -> null
+    }
+    if (authenticatedConnection != null &&
+        (authenticatedConnection.first.passwordHash.isBlank() || authenticatedConnection.second.isBlank())
+    ) return null
     return NativeSessionConfig(
         sessionId = id.value,
         host = endpoint.host,
@@ -627,7 +635,7 @@ internal fun RemoteSessionRequest.toNativeConfig(
         streamId = endpoint.streamId,
         clientDeviceId = clientDeviceId,
         remotePasswordHash = endpoint.remotePasswordHash,
-        connectionNonce = accountTarget?.clientNonce ?: directAuthorization?.clientNonce.orEmpty(),
+        connectionNonce = authenticatedConnection?.second ?: directAuthorization?.clientNonce.orEmpty(),
         connectionInstanceId = endpoint.instanceId,
         enableVideo = enableVideo,
         enableAudio = enableAudio,

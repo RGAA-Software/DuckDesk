@@ -80,9 +80,13 @@ pub fn run_virtual_display_session_worker(
 }
 
 pub async fn run(port: Option<u16>, console_mode: bool) -> Result<(), String> {
-    let config_path = std::env::current_exe().map_err(|err| err.to_string())?.with_file_name("px_service.toml");
+    let config_path = std::env::current_exe()
+        .map_err(|err| err.to_string())?
+        .with_file_name("px_service.toml");
     let mut node = service_core::node_config::NodeConfig::load(&config_path)?;
-    if let Some(port) = port { node.network.listen_port = port; }
+    if let Some(port) = port {
+        node.network.listen_port = port;
+    }
     node.validate()?;
     let actual_port = node.network.listen_port;
     let data_root = default_service_data_root();

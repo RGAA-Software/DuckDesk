@@ -7,8 +7,11 @@ if /i "%~1"=="console" (
 ) else if /i "%~1"=="service" (
     set "RUST_WORKSPACE=rust_client"
     set "RUST_PACKAGE=px_service"
+) else if /i "%~1"=="user-proxy" (
+    set "RUST_WORKSPACE=rust_client"
+    set "RUST_PACKAGE=px_user_proxy"
 ) else (
-    echo Usage: build_rust_target.bat console^|service
+    echo Usage: build_rust_target.bat console^|service^|user-proxy
     exit /b 2
 )
 set "RUST_REPO=%~dp0.."

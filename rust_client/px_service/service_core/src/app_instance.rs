@@ -19,8 +19,8 @@ pub const DEFAULT_ENCODER_FPS: i32 = 60;
 pub const DEFAULT_ENCODER_BITRATE: i32 = 20;
 pub const DEFAULT_ENCODER_FORMAT: &str = "h264";
 /// Port pool when Console sends listen_port=0.
-pub const DEFAULT_PORT_RANGE_START: u16 = 32000;
-pub const DEFAULT_PORT_RANGE_END: u16 = 32999;
+pub const DEFAULT_PORT_RANGE_START: u16 = crate::node_config::DEFAULT_APPLICATION_PORT_START;
+pub const DEFAULT_PORT_RANGE_END: u16 = crate::node_config::DEFAULT_APPLICATION_PORT_END;
 /// How long finished (stopped/failed) records are kept before prune removes them.
 pub const FINISHED_RECORD_TTL: Duration = Duration::from_secs(600);
 
@@ -340,7 +340,7 @@ pub fn extract_listen_port(args: &[String]) -> Option<u16> {
 }
 
 /// True if the cmdline carries an exact `--network_listen_port={port}` token.
-/// Token-boundary safe: port 3200 must not match 32000 (substring pitfall).
+/// Token-boundary safe: port 3200 must not match 4613 (substring pitfall).
 pub fn cmdline_has_listen_port(cmdline: &str, port: u16) -> bool {
     let args: Vec<String> = cmdline.split_whitespace().map(|s| s.to_string()).collect();
     extract_listen_port(&args) == Some(port)
@@ -379,38 +379,72 @@ pub fn is_rdp_launch(spec: &RenderLaunchSpec) -> bool {
 }
 
 pub fn rdp_process_matches(record: &AppInstanceRecord, process: &ProcessSnapshot) -> bool {
-    if !is_rdp_launch(&record.launch) || process.kind() != crate::process::ProcessKind::RdpRender
-        || !process.is_app_instance_render_process() || !process.exe_path_eq(&record.launch.app_path)
-        || !cmdline_has_listen_port(&process.cmdline, record.listen_port) {
+    if !is_rdp_launch(&record.launch)
+        || process.kind() != crate::process::ProcessKind::RdpRender
+        || !process.is_app_instance_render_process()
+        || !process.exe_path_eq(&record.launch.app_path)
+        || !cmdline_has_listen_port(&process.cmdline, record.listen_port)
+    {
         return false;
     }
-    [format!("--rdp_instance_id={}", record.instance_id), format!("--rdp_workspace_id={}", record.rdp_workspace_id),
-        format!("--rdp_node_id={}", record.rdp_node_id)].iter()
-        .all(|expected| process.cmdline.split_whitespace().any(|argument| argument == expected))
+    [
+        format!("--rdp_instance_id={}", record.instance_id),
+        format!("--rdp_workspace_id={}", record.rdp_workspace_id),
+        format!("--rdp_node_id={}", record.rdp_node_id),
+    ]
+    .iter()
+    .all(|expected| {
+        process
+            .cmdline
+            .split_whitespace()
+            .any(|argument| argument == expected)
+    })
 }
 
-pub fn build_rdp_launch_spec(work_dir: &str, req: &StartAppRequest, listen_port: u16) -> Result<RenderLaunchSpec, String> {
-    let account = req.rdp_account.as_ref().ok_or("RDP account provisioning missing")?;
+pub fn build_rdp_launch_spec(
+    work_dir: &str,
+    req: &StartAppRequest,
+    listen_port: u16,
+) -> Result<RenderLaunchSpec, String> {
+    let account = req
+        .rdp_account
+        .as_ref()
+        .ok_or("RDP account provisioning missing")?;
     account.validate()?;
-    for identity in [&req.instance_id, &req.app_id, &req.rdp_node_id, &req.device_id] {
-        if identity.is_empty() || identity.len() > 128
-            || !identity.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_')) {
+    for identity in [
+        &req.instance_id,
+        &req.app_id,
+        &req.rdp_node_id,
+        &req.device_id,
+    ] {
+        if identity.is_empty()
+            || identity.len() > 128
+            || !identity
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_'))
+        {
             return Err("RDP launch identity invalid".into());
         }
     }
     Ok(RenderLaunchSpec {
         work_dir: work_dir.to_owned(),
-        app_path: PathBuf::from(work_dir).join(RENDER_EXE_NAME).to_string_lossy().to_string(),
+        app_path: PathBuf::from(work_dir)
+            .join(RENDER_EXE_NAME)
+            .to_string_lossy()
+            .to_string(),
         args: vec![
-            "--logfile".into(), "--app_mode=rdp".into(),
+            "--logfile".into(),
+            "--app_mode=rdp".into(),
             format!("--rdp_instance_id={}", req.instance_id),
             format!("--rdp_workspace_id={}", account.workspace_id),
             format!("--rdp_node_id={}", req.rdp_node_id),
             format!("--rdp_device_id={}", req.device_id),
             format!("--device_id={}", req.device_id),
             format!("--network_listen_port={listen_port}"),
-            "--capture_video=false".into(), "--capture_audio=false".into(),
-            "--webrtc_enabled=false".into(), "--websocket_enabled=true".into(),
+            "--capture_video=false".into(),
+            "--capture_audio=false".into(),
+            "--webrtc_enabled=false".into(),
+            "--websocket_enabled=true".into(),
         ],
     })
 }
@@ -456,7 +490,11 @@ impl AppInstanceRegistry {
             .filter(|r| r.is_active() || r.exit_detail.is_some())
             .map(|r| AppInstanceSummary {
                 request_id: r.request_id.clone(),
-                stop_reason: r.exit_detail.as_ref().map(|detail| detail.reason.clone()).unwrap_or_default(),
+                stop_reason: r
+                    .exit_detail
+                    .as_ref()
+                    .map(|detail| detail.reason.clone())
+                    .unwrap_or_default(),
                 exit_code: r.exit_detail.as_ref().and_then(|detail| detail.exit_code),
                 instance_id: r.instance_id.clone(),
                 app_id: r.app_id.clone(),
@@ -479,7 +517,7 @@ impl AppInstanceRegistry {
     }
 
     /// Allocate listen_port: use preferred if >0 (error if out of range, taken,
-    /// or occupied on the OS); else last_used+1 (default start 32000), wrapping
+    /// or occupied on the OS); else last_used+1 (default start 4613), wrapping
     /// within the pool for free slots.
     pub fn allocate_port(&self, preferred: i32) -> Result<u16, String> {
         if preferred > 0 {
@@ -560,10 +598,17 @@ impl AppInstanceRegistry {
         }
         let app_mode = normalized_app_mode(&req.app_mode)?;
         if app_mode == APP_MODE_RDP {
-            let account = req.rdp_account.as_ref().ok_or("RDP account provisioning missing")?;
+            let account = req
+                .rdp_account
+                .as_ref()
+                .ok_or("RDP account provisioning missing")?;
             account.validate()?;
-            if self.instances.values().any(|record| record.is_active() && record.app_mode == APP_MODE_RDP &&
-                (record.rdp_workspace_id == account.workspace_id || (record.app_id == req.app_id && record.rdp_node_id == req.rdp_node_id))) {
+            if self.instances.values().any(|record| {
+                record.is_active()
+                    && record.app_mode == APP_MODE_RDP
+                    && (record.rdp_workspace_id == account.workspace_id
+                        || (record.app_id == req.app_id && record.rdp_node_id == req.rdp_node_id))
+            }) {
                 return Err("RDP workspace busy".into());
             }
         } else if req.rdp_account.is_some() || !req.rdp_node_id.is_empty() {
@@ -592,7 +637,11 @@ impl AppInstanceRegistry {
             install_root: req.install_root.clone(),
             game_exe_rel: req.game_exe_rel.clone(),
             app_mode: app_mode.to_string(),
-            rdp_workspace_id: req.rdp_account.as_ref().map(|account| account.workspace_id.clone()).unwrap_or_default(),
+            rdp_workspace_id: req
+                .rdp_account
+                .as_ref()
+                .map(|account| account.workspace_id.clone())
+                .unwrap_or_default(),
             rdp_node_id: req.rdp_node_id.clone(),
             listen_port: port,
             pid: None,
@@ -661,7 +710,11 @@ impl AppInstanceRegistry {
         Ok(self.instances.get(instance_id).unwrap())
     }
 
-    pub fn mark_observed_exit(&mut self, instance_id: &str, code: Option<u32>) -> Result<(), String> {
+    pub fn mark_observed_exit(
+        &mut self,
+        instance_id: &str,
+        code: Option<u32>,
+    ) -> Result<(), String> {
         let (reason, failed) = match code {
             Some(EXIT_NO_CLIENTS) => ("no_clients", false),
             Some(EXIT_STARTUP_IDLE) => ("startup_idle", false),
@@ -670,11 +723,24 @@ impl AppInstanceRegistry {
             None => ("process_lost", false),
         };
         self.mark_stopped(instance_id)?;
-        let rec = self.instances.get_mut(instance_id).ok_or("instance disappeared")?;
-        rec.exit_detail = Some(AppExitDetail { reason: reason.into(), exit_code: code });
-        rec.error = if failed { format!("RENDER_EXIT_{:08X}", code.unwrap_or_default()) }
-            else if code.is_none() { "PROCESS_LOST".into() } else { String::new() };
-        if failed { rec.state = AppInstanceState::Failed; }
+        let rec = self
+            .instances
+            .get_mut(instance_id)
+            .ok_or("instance disappeared")?;
+        rec.exit_detail = Some(AppExitDetail {
+            reason: reason.into(),
+            exit_code: code,
+        });
+        rec.error = if failed {
+            format!("RENDER_EXIT_{:08X}", code.unwrap_or_default())
+        } else if code.is_none() {
+            "PROCESS_LOST".into()
+        } else {
+            String::new()
+        };
+        if failed {
+            rec.state = AppInstanceState::Failed;
+        }
         Ok(())
     }
 
@@ -730,7 +796,9 @@ impl AppInstanceRegistry {
         match self.instances.get(instance_id) {
             Some(rec) => {
                 rec.pid == Some(pid)
-                    && (is_game_hook_launch(&rec.launch) || is_webview_launch(&rec.launch) || is_rdp_launch(&rec.launch))
+                    && (is_game_hook_launch(&rec.launch)
+                        || is_webview_launch(&rec.launch)
+                        || is_rdp_launch(&rec.launch))
             }
             None => false,
         }
@@ -807,14 +875,24 @@ mod tests {
         assert!(contract.contains("kNoClients = 0x47520001"));
         assert!(contract.contains("kStartupIdle = 0x47520002"));
         for (code, state, reason) in [
-            (Some(EXIT_NO_CLIENTS), AppInstanceState::Stopped, "no_clients"),
-            (Some(EXIT_STARTUP_IDLE), AppInstanceState::Stopped, "startup_idle"),
+            (
+                Some(EXIT_NO_CLIENTS),
+                AppInstanceState::Stopped,
+                "no_clients",
+            ),
+            (
+                Some(EXIT_STARTUP_IDLE),
+                AppInstanceState::Stopped,
+                "startup_idle",
+            ),
             (Some(0), AppInstanceState::Stopped, "clean_exit"),
             (Some(0xc000_0005), AppInstanceState::Failed, "abnormal_exit"),
             (None, AppInstanceState::Stopped, "process_lost"),
         ] {
             let mut registry = AppInstanceRegistry::new();
-            registry.begin_start(r"D:\Pixels", sample_req("observed", 0)).unwrap();
+            registry
+                .begin_start(r"D:\Pixels", sample_req("observed", 0))
+                .unwrap();
             registry.mark_running("observed", 1234).unwrap();
             registry.mark_observed_exit("observed", code).unwrap();
             let record = registry.get("observed").unwrap();
@@ -823,7 +901,9 @@ mod tests {
             assert_eq!(record.exit_detail.as_ref().unwrap().reason, reason);
             assert_eq!(registry.summaries()[0].exit_code, code);
             assert!(!registry.summaries()[0].request_id.is_empty());
-            if matches!(code, Some(EXIT_NO_CLIENTS | EXIT_STARTUP_IDLE | 0)) { assert!(record.error.is_empty()); }
+            if matches!(code, Some(EXIT_NO_CLIENTS | EXIT_STARTUP_IDLE | 0)) {
+                assert!(record.error.is_empty());
+            }
         }
     }
 
@@ -833,18 +913,25 @@ mod tests {
         req.install_root.clear();
         req.game_exe_rel.clear();
         req.rdp_node_id = "rdp-node".into();
-        req.rdp_account = Some(crate::rdp_account::RdpAccountSpec { workspace_id: "workspace".into(),
-            account_name: "grdp_testaccount".into(), password: zeroize::Zeroizing::new("aA1!01234567890123456789012345678901".into()),
-            credential_version: 1, expected_sid: None });
+        req.rdp_account = Some(crate::rdp_account::RdpAccountSpec {
+            workspace_id: "workspace".into(),
+            account_name: "grdp_testaccount".into(),
+            password: zeroize::Zeroizing::new("aA1!01234567890123456789012345678901".into()),
+            credential_version: 1,
+            expected_sid: None,
+        });
         req
     }
 
     #[test]
     fn rdp_launch_contains_binding_but_never_credentials_capture_or_live_push() {
         let req = rdp_req("rdp-1", 0);
-        let spec = build_rdp_launch_spec(r"D:\Pixels", &req, 32012).unwrap();
+        let spec = build_rdp_launch_spec(r"D:\Pixels", &req, 4625).unwrap();
         assert!(is_rdp_launch(&spec));
-        assert!(spec.args.iter().any(|arg| arg == "--rdp_device_id=device-a"));
+        assert!(spec
+            .args
+            .iter()
+            .any(|arg| arg == "--rdp_device_id=device-a"));
         assert!(spec.args.iter().any(|arg| arg == "--capture_video=false"));
         assert!(spec.args.iter().any(|arg| arg == "--capture_audio=false"));
         let args = spec.args.join(" ");
@@ -856,18 +943,30 @@ mod tests {
     #[test]
     fn rdp_workspace_is_exclusive_and_process_identity_is_not_just_a_pid_or_port() {
         let mut registry = AppInstanceRegistry::new();
-        let record = registry.begin_start(r"D:\Pixels", rdp_req("rdp-1", 0)).unwrap().clone();
-        assert!(registry.begin_start(r"D:\Pixels", rdp_req("rdp-2", 0)).is_err());
-        let process = ProcessSnapshot::new(100, &record.launch.app_path, record.launch.args.join(" "));
+        let record = registry
+            .begin_start(r"D:\Pixels", rdp_req("rdp-1", 0))
+            .unwrap()
+            .clone();
+        assert!(registry
+            .begin_start(r"D:\Pixels", rdp_req("rdp-2", 0))
+            .is_err());
+        let process =
+            ProcessSnapshot::new(100, &record.launch.app_path, record.launch.args.join(" "));
         assert!(rdp_process_matches(&record, &process));
-        for (from, to) in [("--rdp_instance_id=rdp-1", "--rdp_instance_id=rdp-other"),
-            ("--rdp_workspace_id=workspace", "--rdp_workspace_id=other"), ("--app_mode=rdp", "--app_mode=desktop")] {
-            let mut changed = process.clone(); changed.cmdline = changed.cmdline.replace(from, to);
+        for (from, to) in [
+            ("--rdp_instance_id=rdp-1", "--rdp_instance_id=rdp-other"),
+            ("--rdp_workspace_id=workspace", "--rdp_workspace_id=other"),
+            ("--app_mode=rdp", "--app_mode=desktop"),
+        ] {
+            let mut changed = process.clone();
+            changed.cmdline = changed.cmdline.replace(from, to);
             assert!(!rdp_process_matches(&record, &changed));
         }
         registry.begin_stop("rdp-1").unwrap();
         registry.mark_stopped("rdp-1").unwrap();
-        assert!(registry.begin_start(r"D:\Pixels", rdp_req("rdp-2", 0)).is_ok());
+        assert!(registry
+            .begin_start(r"D:\Pixels", rdp_req("rdp-2", 0))
+            .is_ok());
     }
 
     #[test]
@@ -879,12 +978,12 @@ mod tests {
 
     #[test]
     fn launch_spec_is_game_hook_with_b64_path_and_port() {
-        let req = sample_req("i1", 32010);
+        let req = sample_req("i1", 4623);
         let game = resolve_game_path(&req.install_root, &req.game_exe_rel).unwrap();
-        let spec = build_game_hook_launch_spec(r"D:\Pixels", &req, 32010, &game, None);
+        let spec = build_game_hook_launch_spec(r"D:\Pixels", &req, 4623, &game, None);
         assert!(is_game_hook_launch(&spec));
         assert!(spec.app_path.ends_with(RENDER_EXE_NAME));
-        assert_eq!(extract_listen_port(&spec.args), Some(32010));
+        assert_eq!(extract_listen_port(&spec.args), Some(4623));
         let b64_arg = spec
             .args
             .iter()
@@ -895,8 +994,14 @@ mod tests {
         assert!(decoded.contains("VehicleGame"));
         assert!(spec.args.iter().any(|a| a == "--capture_video_type=inner"));
         assert!(spec.args.iter().any(|a| a == "--device_id=device-a"));
-        assert!(spec.args.iter().any(|a| a == "--relay_device_id=device-a__instance__i1"));
-        assert!(spec.args.iter().any(|a| a == "--relay_server_host=console.test"));
+        assert!(spec
+            .args
+            .iter()
+            .any(|a| a == "--relay_device_id=device-a__instance__i1"));
+        assert!(spec
+            .args
+            .iter()
+            .any(|a| a == "--relay_server_host=console.test"));
         assert!(spec.args.iter().any(|a| a == "--relay_server_port=30502"));
         assert!(spec.args.iter().any(|a| a == "--relay_enabled=true"));
         assert!(spec
@@ -907,13 +1012,13 @@ mod tests {
 
     #[test]
     fn launch_spec_carries_view_path_and_game_args() {
-        let req = sample_req("i1", 32010);
+        let req = sample_req("i1", 4623);
         let game = resolve_game_path(&req.install_root, &req.game_exe_rel).unwrap();
         let view = UeViewInfo {
             view_path: game.clone(),
             base_args: None,
         };
-        let spec = build_game_hook_launch_spec(r"D:\Pixels", &req, 32010, &game, Some(&view));
+        let spec = build_game_hook_launch_spec(r"D:\Pixels", &req, 4623, &game, Some(&view));
         // view path is passed base64-encoded like the boot path.
         let view_arg = spec
             .args
@@ -931,7 +1036,7 @@ mod tests {
             .iter()
             .any(|a| a.starts_with("--app_game_arguments")));
         // Without a view, no view arg is emitted.
-        let spec_no_view = build_game_hook_launch_spec(r"D:\Pixels", &req, 32010, &game, None);
+        let spec_no_view = build_game_hook_launch_spec(r"D:\Pixels", &req, 4623, &game, None);
         assert!(!spec_no_view
             .args
             .iter()
@@ -940,7 +1045,7 @@ mod tests {
 
     #[test]
     fn webview_launch_uses_base64url_without_exposing_plain_url() {
-        let mut req = sample_req("web-1", 32012);
+        let mut req = sample_req("web-1", 4625);
         let url = "https://example.com/dashboard?token=secret#view";
         req.app_mode = APP_MODE_WEBVIEW.to_string();
         req.webview_url_b64 = URL_SAFE_NO_PAD.encode(url.as_bytes());
@@ -948,9 +1053,9 @@ mod tests {
         req.game_exe_rel.clear();
         req.game_arguments.clear();
 
-        let spec = build_webview_launch_spec(r"D:\Pixels", &req, 32012).unwrap();
+        let spec = build_webview_launch_spec(r"D:\Pixels", &req, 4625).unwrap();
         assert!(is_webview_launch(&spec));
-        assert_eq!(extract_listen_port(&spec.args), Some(32012));
+        assert_eq!(extract_listen_port(&spec.args), Some(4625));
         assert!(spec
             .args
             .iter()
@@ -998,7 +1103,7 @@ mod tests {
         // sample_req 的 exe 不存在，resolve_ue_bootstrap 返回 None：
         // 验证 begin_start 在非 UE 路径下参数原样传递、无 view 路径。
         let mut reg = AppInstanceRegistry::new();
-        let req = sample_req("ue", 32800);
+        let req = sample_req("ue", 4641);
         let rec = reg.begin_start(r"D:\Pixels", req).unwrap();
         assert!(rec.launch.args.iter().any(|a| a == "--app_game_args=-dx11"));
         assert!(rec.view_game_path.is_none());
@@ -1006,20 +1111,20 @@ mod tests {
 
     #[test]
     fn registry_allocates_ports_and_blocks_duplicates() {
-        let mut reg = AppInstanceRegistry::new().with_port_range(32000, 32002);
+        let mut reg = AppInstanceRegistry::new().with_port_range(4613, 4615);
         let r1 = reg
             .begin_start(r"D:\Pixels", sample_req("a", 0))
             .unwrap()
             .clone();
-        assert_eq!(r1.listen_port, 32000);
+        assert_eq!(r1.listen_port, 4613);
         let r2 = reg
             .begin_start(r"D:\Pixels", sample_req("b", 0))
             .unwrap()
             .clone();
-        assert_eq!(r2.listen_port, 32001);
+        assert_eq!(r2.listen_port, 4614);
         // preferred conflict
         let err = reg
-            .begin_start(r"D:\Pixels", sample_req("c", 32000))
+            .begin_start(r"D:\Pixels", sample_req("c", 4613))
             .unwrap_err();
         assert!(err.contains("already in use"));
         // same instance while running
@@ -1033,9 +1138,9 @@ mod tests {
     #[test]
     fn registry_multi_instance_same_app_different_ports() {
         let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\Pixels", sample_req("i1", 32100))
+        reg.begin_start(r"D:\Pixels", sample_req("i1", 4713))
             .unwrap();
-        reg.begin_start(r"D:\Pixels", sample_req("i2", 32101))
+        reg.begin_start(r"D:\Pixels", sample_req("i2", 4714))
             .unwrap();
         reg.mark_running("i1", 10).unwrap();
         reg.mark_running("i2", 11).unwrap();
@@ -1043,33 +1148,33 @@ mod tests {
         assert_eq!(sums.len(), 2);
         assert!(sums.iter().all(|s| s.app_id == "app-car"));
         assert!(reg.instances_json().contains("i1"));
-        assert!(reg.instances_json().contains("32101"));
+        assert!(reg.instances_json().contains("4714"));
     }
 
     #[test]
     fn stop_releases_port_for_reuse() {
-        let mut reg = AppInstanceRegistry::new().with_port_range(32200, 32200);
+        let mut reg = AppInstanceRegistry::new().with_port_range(4813, 4813);
         reg.begin_start(r"D:\Pixels", sample_req("x", 0)).unwrap();
         reg.mark_running("x", 99).unwrap();
         reg.begin_stop("x").unwrap();
         reg.mark_stopped("x").unwrap();
         let again = reg.begin_start(r"D:\Pixels", sample_req("y", 0)).unwrap();
-        assert_eq!(again.listen_port, 32200);
+        assert_eq!(again.listen_port, 4813);
     }
 
     #[test]
     fn failed_start_releases_port() {
-        let mut reg = AppInstanceRegistry::new().with_port_range(32300, 32300);
+        let mut reg = AppInstanceRegistry::new().with_port_range(4913, 4913);
         reg.begin_start(r"D:\Pixels", sample_req("f", 0)).unwrap();
         reg.mark_failed("f", "spawn failed").unwrap();
         let again = reg.begin_start(r"D:\Pixels", sample_req("g", 0)).unwrap();
-        assert_eq!(again.listen_port, 32300);
+        assert_eq!(again.listen_port, 4913);
     }
 
     #[test]
     fn should_not_treat_desktop_as_game_hook_kill_target() {
         let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\Pixels", sample_req("g1", 32400))
+        reg.begin_start(r"D:\Pixels", sample_req("g1", 4627))
             .unwrap();
         reg.mark_running("g1", 42).unwrap();
         assert!(reg.should_kill_pid_for_instance("g1", 42));
@@ -1079,16 +1184,16 @@ mod tests {
 
     #[test]
     fn web_client_url_includes_device_and_instance() {
-        let url = build_web_client_url("10.0.0.2", 32000, "dev-1", "inst-9");
+        let url = build_web_client_url("10.0.0.2", 4613, "dev-1", "inst-9");
         assert_eq!(
             url,
-            "http://10.0.0.2:32000/web_client/?deviceId=dev-1&instanceId=inst-9"
+            "http://10.0.0.2:4613/web_client/?deviceId=dev-1&instanceId=inst-9"
         );
     }
 
     #[test]
     fn port_pool_exhaustion() {
-        let mut reg = AppInstanceRegistry::new().with_port_range(32500, 32500);
+        let mut reg = AppInstanceRegistry::new().with_port_range(4727, 4727);
         reg.begin_start(r"D:\Pixels", sample_req("only", 0))
             .unwrap();
         let err = reg
@@ -1120,33 +1225,33 @@ mod tests {
     #[test]
     fn preferred_port_out_of_range_rejected() {
         let mut reg = AppInstanceRegistry::new();
-        for port in [80, 31999, 33000, 70000] {
+        for port in [80, 4612, 4999, 70000] {
             let err = reg
                 .begin_start(r"D:\Pixels", sample_req("x", port))
                 .unwrap_err();
             assert!(err.contains("out of range") || err.contains("out of u16 range"));
         }
-        reg.begin_start(r"D:\Pixels", sample_req("ok", 32600))
+        reg.begin_start(r"D:\Pixels", sample_req("ok", 4827))
             .unwrap();
     }
 
     #[test]
     fn listen_port_token_boundary() {
-        // Substring pitfall: port 3200 must not match "--network_listen_port=32000".
+        // Substring pitfall: port 461 must not match "--network_listen_port=4613".
         assert!(!cmdline_has_listen_port(
-            "px_render.exe --app_mode=game-hook --network_listen_port=32000",
-            3200
+            "px_render.exe --app_mode=game-hook --network_listen_port=4613",
+            461
         ));
         assert!(cmdline_has_listen_port(
-            "px_render.exe --app_mode=game-hook --network_listen_port=32000 --capture_video=true",
-            32000
+            "px_render.exe --app_mode=game-hook --network_listen_port=4613 --capture_video=true",
+            4613
         ));
         // Token at end of cmdline also matches.
         assert!(cmdline_has_listen_port(
-            "px_render.exe --network_listen_port=32001",
-            32001
+            "px_render.exe --network_listen_port=4614",
+            4614
         ));
-        assert!(!cmdline_has_listen_port("px_render.exe", 32000));
+        assert!(!cmdline_has_listen_port("px_render.exe", 4613));
     }
 
     #[test]
@@ -1157,40 +1262,40 @@ mod tests {
             ProcessSnapshot::new(
                 100,
                 "D:/Pixels/px_render.exe",
-                "--app_mode=game-hook --network_listen_port=32000",
+                "--app_mode=game-hook --network_listen_port=4613",
             ),
             ProcessSnapshot::new(
                 101,
                 "D:/Pixels/px_render.exe",
-                "--app_mode=game-hook --network_listen_port=32005",
+                "--app_mode=game-hook --network_listen_port=4618",
             ),
             ProcessSnapshot::new(102, r"D:\apps\CarGame\Binaries\Win64\game.exe", ""),
             ProcessSnapshot::new(103, "C:/Windows/notepad.exe", ""),
         ];
         // Own render with matching port.
-        assert!(pid_belongs_to_instance(&processes, 32000, game_path, 100));
+        assert!(pid_belongs_to_instance(&processes, 4613, game_path, 100));
         // Render of another instance (different port).
-        assert!(!pid_belongs_to_instance(&processes, 32000, game_path, 101));
+        assert!(!pid_belongs_to_instance(&processes, 4613, game_path, 101));
         // Own game exe (path match, case/separator-insensitive).
-        assert!(pid_belongs_to_instance(&processes, 32000, game_path, 102));
+        assert!(pid_belongs_to_instance(&processes, 4613, game_path, 102));
         // Pid reuse: an innocent process now owns the recorded pid.
-        assert!(!pid_belongs_to_instance(&processes, 32000, game_path, 103));
+        assert!(!pid_belongs_to_instance(&processes, 4613, game_path, 103));
         // Pid no longer exists at all.
-        assert!(!pid_belongs_to_instance(&processes, 32000, game_path, 999));
+        assert!(!pid_belongs_to_instance(&processes, 4613, game_path, 999));
     }
 
     #[test]
     fn summaries_only_report_active_states() {
         let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\Pixels", sample_req("s1", 32700))
+        reg.begin_start(r"D:\Pixels", sample_req("s1", 4927))
             .unwrap();
         reg.mark_running("s1", 10).unwrap();
         reg.begin_stop("s1").unwrap();
         reg.mark_stopped("s1").unwrap();
-        reg.begin_start(r"D:\Pixels", sample_req("f1", 32701))
+        reg.begin_start(r"D:\Pixels", sample_req("f1", 4928))
             .unwrap();
         reg.mark_failed("f1", "boom").unwrap();
-        reg.begin_start(r"D:\Pixels", sample_req("r1", 32702))
+        reg.begin_start(r"D:\Pixels", sample_req("r1", 4929))
             .unwrap();
         let sums = reg.summaries();
         assert_eq!(sums.len(), 1);
@@ -1201,14 +1306,14 @@ mod tests {
     #[test]
     fn prune_finished_removes_aged_records() {
         let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\Pixels", sample_req("old", 32710))
+        reg.begin_start(r"D:\Pixels", sample_req("old", 4937))
             .unwrap();
         reg.mark_failed("old", "boom").unwrap();
-        reg.begin_start(r"D:\Pixels", sample_req("new", 32711))
+        reg.begin_start(r"D:\Pixels", sample_req("new", 4938))
             .unwrap();
         reg.begin_stop("new").unwrap();
         reg.mark_stopped("new").unwrap();
-        reg.begin_start(r"D:\Pixels", sample_req("act", 32712))
+        reg.begin_start(r"D:\Pixels", sample_req("act", 4939))
             .unwrap();
         // Age the "old" record beyond the TTL; "new" stays fresh.
         reg.instances.get_mut("old").unwrap().finished_at =
@@ -1222,14 +1327,14 @@ mod tests {
     #[test]
     fn finished_record_rejects_stale_state_transitions() {
         let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\Pixels", sample_req("g", 32720))
+        reg.begin_start(r"D:\Pixels", sample_req("g", 4947))
             .unwrap();
         reg.begin_stop("g").unwrap();
         reg.mark_stopped("g").unwrap();
         // A start task that was still waiting must not resurrect the record.
         assert!(reg.mark_running("g", 55).is_err());
         // A stale stop task must not clobber a re-started record.
-        reg.begin_start(r"D:\Pixels", sample_req("g", 32721))
+        reg.begin_start(r"D:\Pixels", sample_req("g", 4948))
             .unwrap();
         assert!(reg.mark_stopped("g").is_err());
         assert_eq!(reg.get("g").unwrap().state, AppInstanceState::Starting);

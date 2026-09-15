@@ -12,7 +12,7 @@ set "DIST=%REPO_ROOT%\build_official\dist"
 set "SRC_TOML=%REPO_ROOT%\src\px_render\settings.toml"
 
 rem ===== launch parameters =====
-set "PORT=32000"
+set "PORT=4613"
 set "DEVICE_ID=debug1"
 set "APP_MODE=game-hook"
 set "CAPTURE_VIDEO=true"

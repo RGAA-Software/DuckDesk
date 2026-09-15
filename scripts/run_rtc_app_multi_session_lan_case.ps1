@@ -5,8 +5,9 @@ param(
     [string]$ConnectionMode = 'rtc_direct',
     [ValidateSet('any', 'host', 'relay')]
     [string]$ExpectedCandidate = 'host',
-    [string]$ConsoleBase = 'https://127.0.0.1:30500',
-    [string]$TargetHost = '10.0.0.90',
+    [string]$ConsoleBase = 'https://127.0.0.1:4600',
+    [Parameter(Mandatory = $true)]
+    [string]$TargetHost,
     [string]$DeviceId = '001190520',
     [ValidateRange(20, 180)]
     [int]$ControllerSampleSeconds = 30,

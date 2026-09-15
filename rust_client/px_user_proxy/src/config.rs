@@ -9,7 +9,7 @@ pub const USER_PROXY_LOG_DIR: &str = "px_logs";
 pub const USER_PROXY_LOG_FILE: &str = "pixels_user_proxy.log";
 pub const USER_PROXY_LOCK_NAME: &str = "PxFunction.Singleton";
 pub const DEFAULT_RENDER_HOST: &str = "127.0.0.1";
-pub const DEFAULT_RENDER_PORT: u16 = 20371;
+pub const DEFAULT_RENDER_PORT: u16 = 4601;
 pub const DEFAULT_WS_PATH: &str = "/user-proxy";
 pub const RECONNECT_SECS: u64 = 2;
 pub const PANEL_EXE_NAME: &str = "px_panel.exe";
@@ -30,7 +30,7 @@ pub const SYSINFO_RESPAWN_COOLDOWN: Duration = Duration::from_secs(30);
 pub struct CliArgs {
     #[arg(long, default_value = DEFAULT_RENDER_HOST)]
     pub render_host: String,
-    #[arg(long, default_value_t = DEFAULT_RENDER_PORT)]
+    #[arg(long)]
     pub render_port: u16,
     #[arg(long, default_value = DEFAULT_WS_PATH)]
     pub path: String,
@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn default_render_port() {
-        assert_eq!(UserProxyConfig::default().render_port, 20371);
+        assert_eq!(UserProxyConfig::default().render_port, DEFAULT_RENDER_PORT);
     }
 
     #[test]
@@ -152,7 +152,7 @@ mod tests {
     #[test]
     fn render_ws_url_build() {
         let cfg = UserProxyConfig::default();
-        assert_eq!(cfg.render_ws_url(), "ws://127.0.0.1:20371/user-proxy");
+        assert_eq!(cfg.render_ws_url(), "ws://127.0.0.1:4601/user-proxy");
     }
 
     #[test]
@@ -161,7 +161,7 @@ mod tests {
             render_host: "10.0.0.5".to_string(),
             ..UserProxyConfig::default()
         };
-        assert_eq!(cfg.render_ws_url(), "ws://10.0.0.5:20371/user-proxy");
+        assert_eq!(cfg.render_ws_url(), "ws://10.0.0.5:4601/user-proxy");
     }
 
     #[test]
@@ -170,10 +170,11 @@ mod tests {
     }
 
     #[test]
-    fn cli_parse_defaults() {
-        let args = CliArgs::parse_from(["px_function"]);
+    fn cli_requires_render_port() {
+        assert!(CliArgs::try_parse_from(["px_function"]).is_err());
+        let args = CliArgs::parse_from(["px_function", "--render-port", "4601"]);
         assert_eq!(args.render_host, DEFAULT_RENDER_HOST);
-        assert_eq!(args.render_port, DEFAULT_RENDER_PORT);
+        assert_eq!(args.render_port, 4601);
         assert_eq!(args.path, DEFAULT_WS_PATH);
         assert_eq!(args.reconnect_secs, RECONNECT_SECS);
     }

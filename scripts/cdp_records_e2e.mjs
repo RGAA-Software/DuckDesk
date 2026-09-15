@@ -6,7 +6,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 
 const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-const BASE = process.env.CONSOLE_URL || process.env.CMS_URL || 'https://10.0.0.16:30500'
+const BASE = process.env.CONSOLE_URL || process.env.CMS_URL || 'https://10.0.0.16:4600'
 const DEVICE = process.env.DEVICE_ID || '001190520'
 const USERNAME = process.env.PX_CONSOLE_TEST_USERNAME || 'ConsoleAdmin'
 const PASSWORD = process.env.PX_CONSOLE_TEST_PASSWORD || process.env.PX_CMS_TEST_PASSWORD || ''

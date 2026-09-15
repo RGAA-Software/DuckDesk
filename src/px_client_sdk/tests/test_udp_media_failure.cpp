@@ -95,7 +95,7 @@ struct Session final {
                 ++state->udp_packets;
             }
         });
-        if (!server->start("127.0.0.1", 0) || !blackhole->start("127.0.0.1", 0))
+        if (!server->start("127.0.0.1", 0) || !blackhole->start("127.0.0.1", server->listen_port()))
             return false;
         const SdkConnectionParams params{
             .media_transport_ = transport,
@@ -104,7 +104,6 @@ struct Session final {
             .file_transfer_only_ = file_only,
             .ip_ = "127.0.0.1",
             .port_ = server->listen_port(),
-            .udp_port_ = blackhole->listen_port(),
             .media_path_ = "/media?udp_media=1&test=1&udp_media_association=cached",
             .ft_path_ = "/file/transfer",
             .device_id_ = "client_test",

@@ -31,13 +31,13 @@ namespace px::panel::product {
 
 TEST(PanelDeviceName, UsesPrivateIpv4LastSegmentWithMcPrefix) {
     EXPECT_EQ(BuildDefaultDeviceName({"203.0.113.8", "192.168.31.6"}), "MC-6");
-    EXPECT_EQ(BuildDefaultDeviceName({"10.0.0.90"}), "MC-90");
+    EXPECT_EQ(BuildDefaultDeviceName({"192.0.2.44"}), "MC-44");
 }
 
 TEST(PanelDeviceName, RecognizesOnlyNamesOwnedByTheAutomaticNamingPolicy) {
-    EXPECT_TRUE(IsManagedDeviceName("D-90"));
+    EXPECT_TRUE(IsManagedDeviceName("D-44"));
     EXPECT_TRUE(IsManagedDeviceName("MC-6"));
-    EXPECT_TRUE(IsManagedDeviceName("Pixels Node90"));
+    EXPECT_TRUE(IsManagedDeviceName("Pixels Node44"));
     EXPECT_FALSE(IsManagedDeviceName("Office Render"));
 }
 
@@ -373,7 +373,7 @@ TEST(PanelLocalServerTest, ReceivesPxOsInfoSnapshotsOverTheLocalSystemInformatio
 }
 
 TEST(PanelConnectionLinksTest, PreservesCompleteDesktopAndWebConnectionPayloads) {
-    const PanelIdentity identity{.deviceId = "109022351", .deviceName = "Pixels Node90", .randomPassword = "temporary"};
+    const PanelIdentity identity{.deviceId = "109022351", .deviceName = "Pixels Public Node", .randomPassword = "temporary"};
     const NodePorts ports{};
     const ConsoleEndpoint endpoint{.host = "39.71.45.66", .port = 4600, .relayPort = 4605, .appKey = "app-key"};
 
@@ -431,7 +431,7 @@ TEST(PanelConnectionInputTest, DistinguishesDeviceLinkAndDirectEndpointInputs) {
     EXPECT_EQ(device->kind, ConnectionInputKind::DeviceId);
     EXPECT_EQ(device->deviceId, "109022351");
 
-    const PanelIdentity identity{.deviceId = "109022351", .deviceName = "Pixels Node90", .randomPassword = "temporary"};
+    const PanelIdentity identity{.deviceId = "109022351", .deviceName = "Pixels Public Node", .randomPassword = "temporary"};
     const ConsoleEndpoint relay{.host = "39.71.45.66", .port = 4600, .relayPort = 4605, .appKey = "app-key"};
     const auto links = BuildPanelConnectionLinks(identity, NodePorts{}, relay, "39.71.45.66", {});
     const auto shared = ParseConnectionInput(links.desktop, 4601);

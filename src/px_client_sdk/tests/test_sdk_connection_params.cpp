@@ -111,7 +111,6 @@ TEST(SdkConnectionParams, DefaultsDoNotEnableMediaOrContainAuthorization) {
     EXPECT_FALSE(params.enable_video_);
     EXPECT_FALSE(params.file_transfer_only_);
     EXPECT_EQ(params.port_, 0);
-    EXPECT_EQ(params.udp_port_, 20371);
     EXPECT_TRUE(params.connection_nonce_.empty());
     EXPECT_TRUE(params.connection_instance_id_.empty());
     EXPECT_TRUE(params.relay_host_.empty());

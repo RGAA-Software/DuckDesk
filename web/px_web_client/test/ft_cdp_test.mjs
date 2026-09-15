@@ -1,9 +1,9 @@
 // 无头 Chrome CDP 冒烟:验证 web_client 新文件传输(rustdesk 协议,阶段 4)
 // 流程: 连接 -> 版本门控 -> 列目录 -> 上传小文件 -> 下载回校验 sha256 -> 删除远端文件
 // 用法:
-//   node test/ft_cdp_test.mjs                       # 默认对 10.0.0.90 冒烟
-//   环境变量覆盖:
-//     FT_TARGET_BASE  被控 render 基址(默认 http://10.0.0.90:20371)
+//   FT_TARGET_BASE=http://render-host:port node test/ft_cdp_test.mjs
+//   环境变量:
+//     FT_TARGET_BASE  当前连接描述返回的被控 Render 基址（必填）
 //     FT_DEVICE_ID    目标 deviceId(默认 001190520,/get/render/configuration 可查)
 //     FT_PWD_MD5      安全密码 md5(未设密码可留空)
 //     FT_DIR          远端测试目录(默认 C:/Users/Public)
@@ -18,7 +18,8 @@ import path from 'node:path'
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
 const CDP_PORT = 9225
-const TARGET_BASE = process.env.FT_TARGET_BASE || 'http://10.0.0.90:20371'
+const TARGET_BASE = process.env.FT_TARGET_BASE
+if (!TARGET_BASE) throw new Error('FT_TARGET_BASE must be set to the current Render descriptor endpoint')
 const DEVICE_ID = process.env.FT_DEVICE_ID || '001190520'
 const PWD_MD5 = process.env.FT_PWD_MD5 || ''
 const STREAM_ID = process.env.FT_STREAM_ID || `ft${Date.now() % 100000}`

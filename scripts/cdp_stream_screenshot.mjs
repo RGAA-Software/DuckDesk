@@ -1,5 +1,5 @@
 // Headless screenshot of a remote web_client stream (for visual diagnosis).
-// Usage: WEB_URL="http://10.0.0.70:32001/web/?deviceId=990405157&instanceId=inst-17-3e2a5ddf" OUT=shot.png node scripts/cdp_stream_screenshot.mjs
+// Usage: WEB_URL="http://10.0.0.70:4614/web/?deviceId=990405157&instanceId=inst-17-3e2a5ddf" OUT=shot.png node scripts/cdp_stream_screenshot.mjs
 import { spawn } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'

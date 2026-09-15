@@ -226,7 +226,7 @@ class DeviceHomeViewModelTest {
             displayName = "Studio",
             platformName = "Windows",
             availability = DeviceAvailability.Online,
-            endpoint = DeviceEndpoint("192.168.1.8"),
+            endpoint = DeviceEndpoint("192.168.1.8", 4999, 4601),
         ),
         oneTimePassword = "123456",
     )

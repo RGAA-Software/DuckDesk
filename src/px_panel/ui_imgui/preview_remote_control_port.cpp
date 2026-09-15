@@ -20,7 +20,11 @@ class PreviewRemoteControlPort final : public RemoteControlPort {
             .incomingRemoteAccessEnabled = incomingRemoteAccessEnabled_,
             .managerOnline = true,
             .devices =
-                {{.streamId = "preview-90", .name = "Pixels node90", .deviceId = "90", .platform = px::ui::DevicePlatform::Windows, .online = true}},
+                {{.streamId = "preview-public",
+                  .name = "Pixels public node",
+                  .deviceId = "public-1",
+                  .platform = px::ui::DevicePlatform::Windows,
+                  .online = true}},
         };
     }
 

@@ -3,7 +3,7 @@ param(
     [string]$BuildDir = "build_official",
     [string]$RenderDir = "",
     [int]$PagePort = 43177,
-    [int]$RenderPort = 32994,
+    [int]$RenderPort = 4835,
     [int]$TimeoutSeconds = 30,
     [switch]$CpuFallback,
     [switch]$ExpectLoadFailure,

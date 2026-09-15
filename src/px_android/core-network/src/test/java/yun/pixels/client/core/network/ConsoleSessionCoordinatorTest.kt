@@ -13,12 +13,14 @@ import yun.pixels.client.core.domain.account.AccountSessionStore
 import yun.pixels.client.core.domain.account.AccountState
 import yun.pixels.client.core.domain.account.AccountConnection
 import yun.pixels.client.core.domain.account.ConsoleEndpoint
+import yun.pixels.client.core.domain.account.ConsoleEndpointStore
+import yun.pixels.client.core.domain.account.GuestSession
 
-class ConsoleAccountRepositoryTest {
+class ConsoleSessionCoordinatorTest {
     @Test
     fun restoreClearsExpiredSession() = runTest {
         val store = FakeSessionStore(session(expiresAt = 99))
-        val repository = ConsoleAccountRepository(FakeApi(), store, now = { 100 })
+        val repository = ConsoleSessionCoordinator(FakeApi(), FakeEndpointStore(), store, now = { 100 })
 
         repository.restore()
 
@@ -30,7 +32,7 @@ class ConsoleAccountRepositoryTest {
     fun loginPersistsSessionAndPublishesSignedInState() = runTest {
         val expected = session(expiresAt = 200)
         val store = FakeSessionStore()
-        val repository = ConsoleAccountRepository(FakeApi(loginResult = AccountResult.Success(expected)), store, now = { 100 })
+        val repository = ConsoleSessionCoordinator(FakeApi(loginResult = AccountResult.Success(expected)), FakeEndpointStore(), store, now = { 100 })
 
         val result = repository.login("https://console.example", "alice", "password")
 
@@ -43,7 +45,7 @@ class ConsoleAccountRepositoryTest {
     fun authenticationFailureClearsStoredSession() = runTest {
         val store = FakeSessionStore(session(expiresAt = 200))
         val api = FakeApi(devicesResult = AccountResult.Failure(AccountFailure.AuthenticationRequired))
-        val repository = ConsoleAccountRepository(api, store, now = { 100 })
+        val repository = ConsoleSessionCoordinator(api, FakeEndpointStore(), store, now = { 100 })
         repository.restore()
 
         val result = repository.devices()
@@ -70,7 +72,7 @@ class ConsoleAccountRepositoryTest {
             loginResult = AccountResult.Success(signedIn),
             connectionResult = AccountResult.Success(connection),
         )
-        val repository = ConsoleAccountRepository(api, FakeSessionStore(), now = { 100 })
+        val repository = ConsoleSessionCoordinator(api, FakeEndpointStore(), FakeSessionStore(), now = { 100 })
         repository.login("https://console.example", "alice", "password")
 
         assertEquals(AccountResult.Success(connection), repository.resolveConnection("device"))
@@ -114,6 +116,14 @@ private class FakeApi(
     private val devicesResult: AccountResult<List<AccountDevice>> = AccountResult.Success(emptyList()),
     private val connectionResult: AccountResult<AccountConnection> = AccountResult.Failure(AccountFailure.AuthenticationRequired),
 ) : ConsoleAccountApi {
+    override suspend fun testEndpoint(endpointInput: String) = AccountResult.Success(ConsoleEndpoint(endpointInput))
+
+    override suspend fun guestSession(endpoint: ConsoleEndpoint, clientNonce: String) =
+        AccountResult.Success(GuestSession(endpoint, "guest", Long.MAX_VALUE))
+
+    override suspend fun register(endpoint: ConsoleEndpoint, guestToken: String, username: String, password: String) =
+        AccountResult.Success(AccountProfile("new", username, null, false))
+
     override suspend fun login(endpointInput: String, username: String, password: String) = loginResult
 
     override suspend fun logout(session: AccountSession): AccountResult<Unit> = AccountResult.Success(Unit)
@@ -121,4 +131,10 @@ private class FakeApi(
     override suspend fun devices(session: AccountSession) = devicesResult
 
     override suspend fun resolveConnection(session: AccountSession, deviceId: String): AccountResult<AccountConnection> = connectionResult
+}
+
+private class FakeEndpointStore(private var endpoint: ConsoleEndpoint? = ConsoleEndpoint("https://console.example")) : ConsoleEndpointStore {
+    override suspend fun load() = endpoint
+    override suspend fun save(endpoint: ConsoleEndpoint) { this.endpoint = endpoint }
+    override suspend fun clear() { endpoint = null }
 }

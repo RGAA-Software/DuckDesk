@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 
-const base = process.env.CONSOLE_URL || process.env.CMS_URL || 'https://127.0.0.1:30500'
+const base = process.env.CONSOLE_URL || process.env.CMS_URL || 'https://127.0.0.1:4600'
 const appName = process.env.CONSOLE_APP_NAME || process.env.CMS_APP_NAME || '1122'
 const stopFirst = (process.env.CONSOLE_STOP_FIRST || process.env.CMS_STOP_FIRST) === '1'
 const cdpPort = Number(process.env.CDP_PORT || 9499)

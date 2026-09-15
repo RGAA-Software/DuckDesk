@@ -28,7 +28,7 @@ mod tests {
             console_srv_config: ConsoleServerConfig {
                 srv_name: "Srv.01".to_string(),
                 srv_w3c_ip: "127.0.0.1".to_string(),
-                srv_console_port: 30500,
+                srv_console_port: 4600,
                 srv_udp_broadcast_port: 30501,
                 srv_relay_port: 30502,
                 srv_appkey: "ff785bd3031bc6cf920a782e50f43dcb".to_string(),
@@ -42,7 +42,7 @@ mod tests {
             "missing console_srv_config: {json}"
         );
         assert!(
-            json.contains("\"srv_console_port\":30500"),
+            json.contains("\"srv_console_port\":4600"),
             "missing srv_console_port: {json}"
         );
         assert!(!json.contains("spvr"), "old spvr keys leaked: {json}");
@@ -54,7 +54,7 @@ mod tests {
             console_srv_config: ConsoleServerConfig {
                 srv_name: "Srv.01".to_string(),
                 srv_w3c_ip: "127.0.0.1".to_string(),
-                srv_console_port: 30500,
+                srv_console_port: 4600,
                 srv_udp_broadcast_port: 30501,
                 srv_relay_port: 30502,
                 srv_appkey: "ff785bd3031bc6cf920a782e50f43dcb".to_string(),
@@ -79,7 +79,7 @@ mod tests {
             "console_srv_config": {
                 "srv_name": "Srv.01",
                 "srv_w3c_ip": "127.0.0.1",
-                "srv_console_port": 30500,
+                "srv_console_port": 4600,
                 "srv_udp_broadcast_port": 30501,
                 "srv_relay_port": 30502,
                 "srv_appkey": "ff785bd3031bc6cf920a782e50f43dcb"
@@ -94,7 +94,7 @@ mod tests {
         let canonical = ConsoleServerConfig {
             srv_name: "Srv.01".to_string(),
             srv_w3c_ip: "127.0.0.1".to_string(),
-            srv_console_port: 30500,
+            srv_console_port: 4600,
             srv_udp_broadcast_port: 30501,
             srv_relay_port: 30502,
             srv_appkey: "appkey".to_string(),
@@ -105,7 +105,7 @@ mod tests {
             console_srv_config: canonical,
         };
         let value = serde_json::to_value(info).expect("serialize");
-        assert_eq!(value["console_srv_config"]["srv_console_port"], 30500);
-        assert_eq!(value["cms_srv_config"]["srv_cms_port"], 30500);
+        assert_eq!(value["console_srv_config"]["srv_console_port"], 4600);
+        assert_eq!(value["cms_srv_config"]["srv_cms_port"], 4600);
     }
 }

@@ -1,6 +1,6 @@
 // Headless verify: game-hook render → web_client auto-connect → dispatch mouse/keyboard
 // events via CDP → host 端 DLL 应收到并合成 RawInput（检查 px_gh_<port>.log）。
-// Usage: RENDER_PORT=32101 DEVICE_ID=e2e-machine-1 node scripts/cdp_game_hook_input.mjs
+// Usage: RENDER_PORT=4714 DEVICE_ID=e2e-machine-1 node scripts/cdp_game_hook_input.mjs
 import { spawn } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 const CHROME = process.env.CHROME_PATH
   || 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-const PORT = process.env.RENDER_PORT || '32000'
+const PORT = process.env.RENDER_PORT || '4613'
 const DEVICE_ID = process.env.DEVICE_ID || 'debug1'
 const PAGE_URL = process.env.WEB_URL
   || `http://127.0.0.1:${PORT}/web/?deviceId=${encodeURIComponent(DEVICE_ID)}`

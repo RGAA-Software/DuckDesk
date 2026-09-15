@@ -43,7 +43,7 @@ DEFINE_string(capture_video_type, "inner", "inner/global");
 // network
 DEFINE_bool(webrtc_enabled, true, "");
 DEFINE_bool(websocket_enabled, true, "");
-DEFINE_int32(network_listen_port, 20371, "");
+DEFINE_int32(network_listen_port, 4601, "");
 DEFINE_int32(rtc_port_start, 60430, "RTC media range start");
 DEFINE_int32(rtc_port_end, 60490, "RTC media range end");
 DEFINE_string(rtc_advertised_ipv4, "", "Render public IPv4 advertised to Web RTC peers");
@@ -75,7 +75,7 @@ DEFINE_string(relay_server_port, "", "relay port");
 DEFINE_string(panel_server_host, "127.0.0.1", "");
 DEFINE_int32(panel_server_port, 0, "");
 DEFINE_string(service_server_host, "127.0.0.1", "");
-DEFINE_int32(service_server_port, 20375, "");
+DEFINE_int32(service_server_port, 4603, "");
 DEFINE_string(service_ipc_token, "", "ephemeral px_service IPC credential");
 // can be operated by mouse / keyboard
 DEFINE_bool(can_be_operated, true, "");

@@ -1,15 +1,15 @@
 @echo off
 rem Console-mode px_service start/stop helper for manual testing.
 rem Usage:
-rem   scripts\service_test_ctl.bat start [port]   (default port 20375)
+rem   scripts\service_test_ctl.bat start [port]   (default port 4603)
 rem   scripts\service_test_ctl.bat stop
 rem   scripts\service_test_ctl.bat status
 rem Console link needs auth injection first, see docs/console_app_schedule_state.md 7.1:
-rem   node scripts\inject_service_auth.mjs --device-id e2e-machine-1 --appkey ... --console-host 127.0.0.1 --console-port 30500
+rem   node scripts\inject_service_auth.mjs --device-id e2e-machine-1 --appkey ... --console-host 127.0.0.1 --console-port 4600
 setlocal
 set "ACTION=%~1"
 set "PORT=%~2"
-if "%PORT%"=="" set "PORT=20375"
+if "%PORT%"=="" set "PORT=4603"
 set "DIST=%~dp0..\build_official\dist"
 set "EXE=%DIST%\px_service.exe"
 

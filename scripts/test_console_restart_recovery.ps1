@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$ConsoleUrl = 'https://127.0.0.1:30500',
+    [string]$ConsoleUrl = 'https://127.0.0.1:4600',
     [string]$ConsoleExe = '',
     [switch]$AllowRestart
 )

@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 
-const base = process.env.CONSOLE_URL || process.env.CMS_URL || 'https://127.0.0.1:30500'
+const base = process.env.CONSOLE_URL || process.env.CMS_URL || 'https://127.0.0.1:4600'
 const cdpPort = Number(process.env.CDP_PORT || 9511)
 const observeMs = Number(process.env.CONSOLE_PLAYBACK_OBSERVE_MS || process.env.CMS_PLAYBACK_OBSERVE_MS || 7000)
 const pauseAfterMs = Number(process.env.CONSOLE_PLAYBACK_PAUSE_AFTER_MS || process.env.CMS_PLAYBACK_PAUSE_AFTER_MS || 0)

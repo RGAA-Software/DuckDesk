@@ -18,10 +18,10 @@ use tracing::{error, info, warn};
 
 use protocol::console_service::{
     ConsoleServiceCreateWallSession, ConsoleServiceCreateWallSessionResult,
-    ConsoleServiceHeartBeat, ConsoleServiceHello, ConsoleServiceMessage, ConsoleServiceMessageType, ConsoleServiceValidateRdpSession,
-    ConsoleServiceValidateRdpSessionResult,
+    ConsoleServiceHeartBeat, ConsoleServiceHello, ConsoleServiceMessage, ConsoleServiceMessageType,
     ConsoleServiceStartAppInstance, ConsoleServiceStartAppInstanceResult,
     ConsoleServiceStopAppInstance, ConsoleServiceStopAppInstanceResult,
+    ConsoleServiceValidateRdpSession, ConsoleServiceValidateRdpSessionResult,
 };
 use px_auth_mgr::app_secret_util::calculate_app_secret;
 use px_auth_mgr::auth_token::{generate_connection_token, ConnectionToken};
@@ -139,7 +139,8 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
         if let Some(payload) = hello.hello.as_mut() {
             if trusted_console {
                 if let Some(deployment) = rdp_install_dir()
-                    .and_then(|dir| service_core::rdp_deployment::RdpDeployment::load(&dir).ok()) {
+                    .and_then(|dir| service_core::rdp_deployment::RdpDeployment::load(&dir).ok())
+                {
                     payload.rdp_available = true;
                     payload.rdp_domain = deployment.target_domain;
                     payload.rdp_proxy_certificate_sha256 = deployment.proxy_certificate_sha256;
@@ -215,8 +216,10 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
 
         // receive loop: handle Start/Stop app commands from Console
         let mut should_stop = false;
-        let mut pending_validations: HashMap<String, tokio::sync::oneshot::Sender<RdpValidationResult>> =
-            HashMap::new();
+        let mut pending_validations: HashMap<
+            String,
+            tokio::sync::oneshot::Sender<RdpValidationResult>,
+        > = HashMap::new();
         let jitter = auth_info
             .device_id
             .bytes()
@@ -225,7 +228,8 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
         let poll_seconds = RTC_CONFIG_POLL_SECS + jitter - 15;
         let mut rtc_config_interval = tokio::time::interval(Duration::from_secs(poll_seconds));
         rtc_config_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-        let mut auth_change_interval = tokio::time::interval(Duration::from_secs(AUTH_INFO_POLL_SECS));
+        let mut auth_change_interval =
+            tokio::time::interval(Duration::from_secs(AUTH_INFO_POLL_SECS));
         auth_change_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         // Initial pull was already scheduled above.
         rtc_config_interval.tick().await;
@@ -344,7 +348,9 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
     }
 }
 
-fn node_endpoints(node: &service_core::node_config::NodeConfig) -> protocol::console_service::NodeEndpoints {
+fn node_endpoints(
+    node: &service_core::node_config::NodeConfig,
+) -> protocol::console_service::NodeEndpoints {
     protocol::console_service::NodeEndpoints {
         schema_version: 1,
         access_host: node.access_host.clone(),
@@ -627,12 +633,17 @@ pub fn parse_console_inbound(bytes: &[u8]) -> Result<Option<ConsoleInboundComman
             let s = msg.start_app_instance.ok_or("missing start_app_instance")?;
             let (rdp_node_id, rdp_account) = match s.rdp_workspace {
                 Some(workspace) => {
-                    if s.app_mode != service_core::app_instance::APP_MODE_RDP || workspace.node_id.is_empty() {
+                    if s.app_mode != service_core::app_instance::APP_MODE_RDP
+                        || workspace.node_id.is_empty()
+                    {
                         return Err("RDP workspace supplied for an incompatible application".into());
                     }
                     let account = service_core::rdp_account::RdpAccountSpec {
-                        workspace_id: workspace.workspace_id, account_name: workspace.account_name,
-                        password: workspace.password.into(), credential_version: workspace.credential_version, expected_sid: None,
+                        workspace_id: workspace.workspace_id,
+                        account_name: workspace.account_name,
+                        password: workspace.password.into(),
+                        credential_version: workspace.credential_version,
+                        expected_sid: None,
                     };
                     account.validate()?;
                     (workspace.node_id, Some(account))
@@ -881,9 +892,14 @@ pub fn encode_start_app_command(device_id: &str, req: &StartAppRequest) -> Vec<u
             push_rtmp_url: req.push_rtmp_url.clone(),
             app_mode: req.app_mode.clone(),
             webview_url_b64: req.webview_url_b64.clone(),
-            rdp_workspace: req.rdp_account.as_ref().map(|account| protocol::console_service::RdpWorkspaceProvision {
-                workspace_id: account.workspace_id.clone(), node_id: req.rdp_node_id.clone(), account_name: account.account_name.clone(),
-                password: account.password.to_string(), credential_version: account.credential_version,
+            rdp_workspace: req.rdp_account.as_ref().map(|account| {
+                protocol::console_service::RdpWorkspaceProvision {
+                    workspace_id: account.workspace_id.clone(),
+                    node_id: req.rdp_node_id.clone(),
+                    account_name: account.account_name.clone(),
+                    password: account.password.to_string(),
+                    credential_version: account.credential_version,
+                }
             }),
             device_id: req.device_id.clone(),
             relay_device_id: req.relay_device_id.clone(),
@@ -1103,7 +1119,10 @@ impl ServerCertVerifier for NoCertVerifier {
 }
 
 fn rdp_install_dir() -> Option<std::path::PathBuf> {
-    std::env::current_exe().ok()?.parent().map(|path| path.join("rdp"))
+    std::env::current_exe()
+        .ok()?
+        .parent()
+        .map(|path| path.join("rdp"))
 }
 
 fn rdp_console_connector() -> Result<(Connector, bool), String> {
@@ -1112,7 +1131,9 @@ fn rdp_console_connector() -> Result<(Connector, bool), String> {
     };
     let certificate = match std::fs::read(path) {
         Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok((tls_connector(), false)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok((tls_connector(), false))
+        }
         Err(_) => return Err("RDP Console trust anchor unreadable; refusing TLS downgrade".into()),
     };
     if certificate.is_empty() || certificate.len() > 65536 {
@@ -1120,8 +1141,12 @@ fn rdp_console_connector() -> Result<(Connector, bool), String> {
     }
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let mut roots = rustls::RootCertStore::empty();
-    roots.add(CertificateDer::from(certificate)).map_err(|_| "RDP Console trust anchor invalid".to_string())?;
-    let config = rustls::ClientConfig::builder().with_root_certificates(roots).with_no_client_auth();
+    roots
+        .add(CertificateDer::from(certificate))
+        .map_err(|_| "RDP Console trust anchor invalid".to_string())?;
+    let config = rustls::ClientConfig::builder()
+        .with_root_certificates(roots)
+        .with_no_client_auth();
     Ok((Connector::Rustls(Arc::new(config)), true))
 }
 
@@ -1237,8 +1262,14 @@ mod tests {
 
     #[test]
     fn heartbeat_message_carries_index_and_liveness() {
-        let message =
-            heartbeat_message(7, "dev-1", true, "{\"a\":1}", "[{\"instance_id\":\"i1\"}]", "[]");
+        let message = heartbeat_message(
+            7,
+            "dev-1",
+            true,
+            "{\"a\":1}",
+            "[{\"instance_id\":\"i1\"}]",
+            "[]",
+        );
         assert_eq!(
             message.msg_type,
             ConsoleServiceMessageType::KConsoleServiceHeartBeat
@@ -1276,7 +1307,7 @@ mod tests {
             install_root: r"D:\apps\Car".into(),
             game_exe_rel: r"Binaries\game.exe".into(),
             game_arguments: "-dx11".into(),
-            listen_port: 32000,
+            listen_port: 4613,
             encoder_fps: 60,
             encoder_bitrate: 20,
             encoder_format: "h264".into(),
@@ -1295,7 +1326,7 @@ mod tests {
             ConsoleInboundCommand::StartApp(got) => {
                 assert_eq!(got.instance_id, "inst-1");
                 assert_eq!(got.install_root, r"D:\apps\Car");
-                assert_eq!(got.listen_port, 32000);
+                assert_eq!(got.listen_port, 4613);
             }
             other => panic!("unexpected {other:?}"),
         }
@@ -1315,14 +1346,14 @@ mod tests {
 
     #[test]
     fn start_result_message_encodes_ok_and_error() {
-        let ok = start_app_result_message("dev-1", "r", "i", true, "", 32001, 99);
+        let ok = start_app_result_message("dev-1", "r", "i", true, "", 4614, 99);
         assert_eq!(
             ok.msg_type,
             ConsoleServiceMessageType::KConsoleServiceStartAppInstanceResult
         );
         let body = ok.start_app_instance_result.unwrap();
         assert!(body.ok);
-        assert_eq!(body.listen_port, 32001);
+        assert_eq!(body.listen_port, 4614);
         assert_eq!(body.pid, 99);
 
         let fail = start_app_result_message("dev-1", "r", "i", false, "boom", 0, 0);
@@ -1338,7 +1369,7 @@ mod tests {
                 request_id: "wall-req-1".into(),
                 session_id: "wall-session-1".into(),
                 device_id: "dev-1".into(),
-                render_port: 20371,
+                render_port: 4601,
                 safety_pwd_md5: "secret-md5".into(),
                 offer_sdp: "v=0\r\nthis-is-a-test-offer".into(),
             }),
@@ -1352,7 +1383,7 @@ mod tests {
             ConsoleInboundCommand::CreateWallSession(got) => {
                 assert_eq!(got.request_id, "wall-req-1");
                 assert_eq!(got.session_id, "wall-session-1");
-                assert_eq!(got.render_port, 20371);
+                assert_eq!(got.render_port, 4601);
                 assert_eq!(got.safety_pwd_md5, "secret-md5");
             }
             other => panic!("unexpected {other:?}"),

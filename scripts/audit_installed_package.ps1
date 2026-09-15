@@ -28,7 +28,7 @@ $processes = foreach ($name in $processNames) {
     }
 }
 
-$ports = foreach ($port in @(4999, 20371, 20375)) {
+$ports = foreach ($port in @(4999, 4601, 4603)) {
     $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue)
     [ordered]@{
         port = $port

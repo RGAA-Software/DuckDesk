@@ -14,6 +14,15 @@
 
 # Project-wide modern C++ ownership and asynchronous safety
 
+- Network port decision (2026-09-14): port 20371 is fully retired and must not appear as a runtime default, fallback, probe target,
+  test endpoint or deployment assumption. Consume the authoritative endpoint reported through current node configuration and Console
+  connection descriptors. Current package defaults use desktop Render 4601 and dynamically allocate application Render ports from
+  4613–4998; each actual Render port carries TCP/WS and UDP on the same port number. Do not restore compatibility fallback to 20371.
+- Android Cloud Apps decision (2026-09-14): implement the independent “云应用” / “Cloud Apps” top-level tab directly on the current
+  Console identity and endpoint model. Delete the old device-nested Application Library flow; do not retain a compatibility page,
+  forwarding facade, dual navigation, legacy DataStore import or old endpoint fallback. Android identifies itself to Console as
+  `client_type=android`; it must not impersonate `panel`. Use a distinct cloud-application session target rather than a device/account
+  target with fallback identifiers.
 - Game Hook product decision (2026-09-09): only hook Apps launched by this product. Admission is an AND condition:
   membership in this launch's private Windows Job AND a matching normalized full executable path. A matching basename,
   matching full path alone, or an independently restarted process never authorizes adoption, injection or cleanup.
@@ -170,4 +179,4 @@ explicitly requests changes to them. Their availability does not expand the curr
 - RDP implementation entry point: `docs/rdp_application_mode_implementation_plan.md`. Validate the existing FreeRDP proxy and an opaque
   tunnel baseline before freezing authentication/transport boundaries. Do not silently expose production Windows credentials to clients.
   A dedicated reliable RDP protocol carrier is a proposed mode-specific extension, not restoration of Native WS video fallback,
-  RTC, KCP, Relay or public P2P. Windows Client/Console and node 10.0.0.90 are the first validation scope; other RDP clients are not yet supported.
+  RTC, KCP, Relay or public P2P. Windows Client/Console and the configured public Windows node are the first validation scope; other RDP clients are not yet supported.

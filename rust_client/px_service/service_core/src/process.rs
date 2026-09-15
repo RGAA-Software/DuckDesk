@@ -58,7 +58,11 @@ impl ProcessSnapshot {
             RenderMode::GameHook
         } else if self.cmdline.contains("--app_mode=webview") {
             RenderMode::Webview
-        } else if self.cmdline.split_whitespace().any(|arg| arg == "--app_mode=rdp") {
+        } else if self
+            .cmdline
+            .split_whitespace()
+            .any(|arg| arg == "--app_mode=rdp")
+        {
             RenderMode::Rdp
         } else if self.cmdline.contains("--app_mode=inner") {
             // Legacy alias; prefer game-hook for Console-scheduled apps.
@@ -177,7 +181,7 @@ mod tests {
         let process = ProcessSnapshot::new(
             1,
             "D:/px_render.exe",
-            "--app_mode=game-hook --network_listen_port=32000",
+            "--app_mode=game-hook --network_listen_port=4613",
         );
         assert_eq!(process.render_mode(), RenderMode::GameHook);
         assert_eq!(process.kind(), ProcessKind::GameHookRender);
@@ -193,12 +197,12 @@ mod tests {
         let root = ProcessSnapshot::new(
             10,
             "D:/px_render.exe",
-            "--app_mode=webview --network_listen_port=32002",
+            "--app_mode=webview --network_listen_port=4615",
         );
         let renderer = ProcessSnapshot::new(
             11,
             "D:/px_render.exe",
-            "--type=renderer --app_mode=webview --network_listen_port=32002",
+            "--type=renderer --app_mode=webview --network_listen_port=4615",
         )
         .with_parent(10);
         assert_eq!(root.kind(), ProcessKind::WebviewRender);
@@ -216,7 +220,7 @@ mod tests {
 
     #[test]
     fn detect_user_proxy_process() {
-        let process = ProcessSnapshot::new(1, "D:/px_function.exe", "--render-port=20371");
+        let process = ProcessSnapshot::new(1, "D:/px_function.exe", "--render-port=4601");
         assert!(process.is_user_proxy_process());
         assert!(process.is_managed_clipboard_process());
     }

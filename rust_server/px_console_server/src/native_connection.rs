@@ -167,7 +167,9 @@ async fn build_descriptor(
         .into_response())
 }
 
-fn device_password_hash(device: &crate::device::console_device::ConsoleDevice) -> Result<String, ConsoleApiError> {
+fn device_password_hash(
+    device: &crate::device::console_device::ConsoleDevice,
+) -> Result<String, ConsoleApiError> {
     let value = if device.safety_pwd_md5.is_empty() {
         &device.random_pwd_md5
     } else {

@@ -31,6 +31,7 @@
 #include "px_common/message_notifier.h"
 #include "px_common/thread.h"
 #include "px_common/time_util.h"
+#include "px_common/url_helper.h"
 #include "px_client_sdk/sdk_recording_session.h"
 #include "px_message/proto_message_maker.h"
 #include "px_message/proto_converter.h"
@@ -595,7 +596,6 @@ bool NativeSession::Initialize() {
     params->file_transfer_only_ = false;
     params->ip_ = config_.host;
     params->port_ = config_.port;
-    params->udp_port_ = 20371;
     params->client_type_ = px::ClientType::kAndroid;
     params->bare_device_id_ = config_.client_device_id;
     params->bare_remote_device_id_ = config_.remote_device_id;
@@ -609,10 +609,16 @@ bool NativeSession::Initialize() {
     params->device_name_ = "Pixels Android";
     params->display_name_ = "Pixels Android";
     params->display_remote_name_ = config_.remote_device_id;
-    params->media_path_ = std::format("/media?only_audio=0&remote_device_id={}&stream_id={}&visitor_device_id={}", config_.remote_device_id,
-                                      config_.stream_id, config_.client_device_id);
-    params->ft_path_ = std::format("/file/transfer?remote_device_id={}&stream_id={}&visitor_device_id={}", config_.remote_device_id,
-                                   config_.stream_id, config_.client_device_id);
+    params->media_path_ =
+        std::format("/media?only_audio=0&remote_device_id={}&stream_id={}&visitor_device_id={}&safety_pwd_md5={}",
+                    px::UrlHelper::EncodeQueryComponent(config_.remote_device_id), px::UrlHelper::EncodeQueryComponent(config_.stream_id),
+                    px::UrlHelper::EncodeQueryComponent(config_.client_device_id),
+                    px::UrlHelper::EncodeQueryComponent(config_.remote_password_hash));
+    params->ft_path_ =
+        std::format("/file/transfer?remote_device_id={}&stream_id={}&visitor_device_id={}&safety_pwd_md5={}",
+                    px::UrlHelper::EncodeQueryComponent(config_.remote_device_id), px::UrlHelper::EncodeQueryComponent(config_.stream_id),
+                    px::UrlHelper::EncodeQueryComponent(config_.client_device_id),
+                    px::UrlHelper::EncodeQueryComponent(config_.remote_password_hash));
     params->connection_nonce_ = config_.connection_nonce;
     params->connection_instance_id_ = config_.connection_instance_id;
     params->remote_password_hash_ = config_.remote_password_hash;

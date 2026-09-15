@@ -108,7 +108,6 @@ bool ThunderSdk::Init(const std::shared_ptr<ThunderSdkParams>& params, std::shar
             .file_transfer_only_ = params->file_transfer_only_,
             .ip_ = params->ip_,
             .port_ = params->port_,
-            .udp_port_ = params->udp_port_,
             .media_path_ = params->media_path_,
             .ft_path_ = params->ft_path_,
             .device_id_ = params->device_id_,

@@ -36,7 +36,7 @@ Command Line     : D:/source/GoCloud/GammaRayPremium/build_official/dist/px_rend
                    --panel_server_host=127.0.0.1
                    --panel_server_port=4999
                    --service_server_host=127.0.0.1
-                   --service_server_port=20375
+                   --service_server_port=4603
                    ...
 --------------------------------------------------------------------------------
 ```
@@ -89,7 +89,7 @@ The Console pulls its authorization from the auth server at runtime
 `docs/px_console_auth_pull.md`); no local license file is shipped.
 
 Run `output\px_console\px_console.exe --running-mode=server` and open
-`https://localhost:30500` (health check: `https://localhost:30500/ping`).
+`https://localhost:4600` (health check: `https://localhost:4600/ping`).
 
 ### `package_px_desk_server.bat`
 

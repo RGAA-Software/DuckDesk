@@ -7,14 +7,14 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 import tailwindcss from '@tailwindcss/vite'
 
 // 本地调试：把 /api、/console(WebSocket)、/uploads、/ping 代理到运行中的 px_console_server。
-// 默认 https://127.0.0.1:30500（HTTPS + 自签名证书，secure:false 忽略证书校验）。
+// 默认 https://127.0.0.1:4600（HTTPS + 自签名证书，secure:false 忽略证书校验）。
 // 端口不同时：CONSOLE_PROXY_TARGET=https://127.0.0.1:30501 npm run dev
 // CMS_PROXY_TARGET is accepted for one upgrade cycle so existing developer
 // environments keep working after the product rename.
 const CONSOLE_PROXY_TARGET =
   process.env.CONSOLE_PROXY_TARGET ||
   process.env.CMS_PROXY_TARGET ||
-  'https://127.0.0.1:30500'
+  'https://127.0.0.1:4600'
 
 // https://vite.dev/config/
 export default defineConfig({

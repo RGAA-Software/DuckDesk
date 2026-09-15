@@ -4,7 +4,7 @@ import net from 'node:net'
 import crypto from 'node:crypto'
 
 const HOST = process.argv[2] || '10.0.0.70'
-const PORT = Number(process.argv[3] || 20375)
+const PORT = Number(process.argv[3] || 4603)
 const WORK_DIR = process.env.RENDER_WORK_DIR || 'C:/Program Files/PixelsRender'
 const APP_PATH = process.env.RENDER_APP_PATH || `${WORK_DIR}/px_render.exe`
 const RENDER_ARGS = process.env.RENDER_ARGS_JSON

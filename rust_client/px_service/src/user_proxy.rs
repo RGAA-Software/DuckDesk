@@ -1,21 +1,24 @@
 use service_core::config::USER_PROXY_EXE_NAME;
 
-pub const DEFAULT_RENDER_PORT: u16 = 20371;
-
-pub fn extract_render_port(args: &[String]) -> u16 {
+pub fn extract_render_port(args: &[String]) -> Result<u16, String> {
     let mut iter = args.iter().peekable();
     while let Some(arg) = iter.next() {
         let flag = arg.trim_start_matches('-');
         if let Some(value) = flag.strip_prefix("network_listen_port=") {
-            return value.parse().unwrap_or(DEFAULT_RENDER_PORT);
+            return value
+                .parse()
+                .map_err(|_| "invalid --network_listen_port value".to_string());
         }
         if flag == "network_listen_port" {
-            if let Some(value) = iter.peek() {
-                return value.parse().unwrap_or(DEFAULT_RENDER_PORT);
-            }
+            let value = iter
+                .peek()
+                .ok_or_else(|| "missing --network_listen_port value".to_string())?;
+            return value
+                .parse()
+                .map_err(|_| "invalid --network_listen_port value".to_string());
         }
     }
-    DEFAULT_RENDER_PORT
+    Err("missing --network_listen_port".to_string())
 }
 
 pub fn user_proxy_path(work_dir: &str) -> String {
@@ -43,21 +46,19 @@ mod tests {
     fn extract_render_port_from_args() {
         assert_eq!(
             extract_render_port(&["--network_listen_port=20400".to_string()]),
-            20400
+            Ok(20400)
         );
         assert_eq!(
             extract_render_port(&["--network_listen_port".to_string(), "20401".to_string()]),
-            20401
+            Ok(20401)
         );
         assert_eq!(
             extract_render_port(&["-network_listen_port=20402".to_string()]),
-            20402
+            Ok(20402)
         );
-        assert_eq!(extract_render_port(&[]), DEFAULT_RENDER_PORT);
-        assert_eq!(
-            extract_render_port(&["--network_listen_port=bad".to_string()]),
-            DEFAULT_RENDER_PORT
-        );
+        assert!(extract_render_port(&[]).is_err());
+        assert!(extract_render_port(&["--network_listen_port=bad".to_string()]).is_err());
+        assert!(extract_render_port(&["--network_listen_port".to_string()]).is_err());
     }
 
     #[test]

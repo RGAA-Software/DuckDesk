@@ -3,8 +3,8 @@
  * so console_client_loop can connect to Console.
  *
  * Usage:
- *   node scripts/inject_service_auth.mjs --host 127.0.0.1 --port 20375 \
- *     --device-id debug-svc-1 --appkey XXX --console-host 127.0.0.1 --console-port 30500
+ *   node scripts/inject_service_auth.mjs --host 127.0.0.1 --port 4603 \
+ *     --device-id debug-svc-1 --appkey XXX --console-host 127.0.0.1 --console-port 4600
  */
 import net from 'node:net'
 import crypto from 'node:crypto'
@@ -12,11 +12,11 @@ import crypto from 'node:crypto'
 function parseArgs(argv) {
   const out = {
     host: '127.0.0.1',
-    port: 20375,
+    port: 4603,
     deviceId: 'debug-svc-1',
     appkey: '',
     consoleHost: '127.0.0.1',
-    consolePort: 30500,
+    consolePort: 4600,
     consoleSsl: true,
   }
   for (let i = 2; i < argv.length; i++) {

@@ -120,7 +120,7 @@ Client 构建树与 dist 的 SHA-256 相同；Render 构建树、dist、90 三�
 
 ### 不经过游戏 / 编码 / FEC 的 UDP 测试
 
-脚本 `scripts/test_node90_udp_link.ps1` 使用空闲的 UDP 4613，仅匹配随机握手令牌后发送测试数据。
+脚本 `scripts/test_public_udp_link.ps1` 使用空闲的 UDP 4613，仅匹配随机握手令牌后发送测试数据。
 不占用活动 Render 端口，不新增防火墙规则；四档各 10 秒，编码与真实客户端测试不同时运行。
 目标速率含以太网、IPv4、UDP 头部预算，不含物理层前导码与帧间隙，不能当作运营商线路的严格标定。
 

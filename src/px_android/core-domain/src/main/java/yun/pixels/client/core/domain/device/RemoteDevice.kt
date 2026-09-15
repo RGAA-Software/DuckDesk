@@ -15,8 +15,8 @@ enum class DeviceAvailability {
 
 data class DeviceEndpoint(
     val host: String,
-    val panelPort: Int = DEFAULT_PANEL_PORT,
-    val renderPort: Int = DEFAULT_RENDER_PORT,
+    val panelPort: Int,
+    val renderPort: Int,
 ) {
     init {
         require(host.isNotBlank()) { "Device endpoint host must not be blank" }
@@ -26,7 +26,6 @@ data class DeviceEndpoint(
 
     companion object {
         const val DEFAULT_PANEL_PORT = 4999
-        const val DEFAULT_RENDER_PORT = 20371
     }
 }
 

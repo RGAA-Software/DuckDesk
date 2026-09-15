@@ -452,7 +452,7 @@ Panel 第一阶段完成后才进入 Client 的 C0 基线。Hardware 页面继�
 - `scripts_build/build_cpp_client.bat` 通过；3 项 Native/RDP 无票据启动信封测试通过。`build_official/src/px_deps/px_client.exe` 与
   `build_official/dist/px_client.exe` 的当前 SHA-256 均为 `BB7FBFF4D5D5558AA4858CA196D0C954E782617C657B88724AAFDA70E62910BE`；
   Vulkan loader、libplacebo、FreeRDP、语音、字体和语言运行资源逐项哈希一致。
-- `scripts/test_native_imgui_node90.ps1` 曾使用正式 dist Client、当前 Console 和 90 Render，分别完成 UDP/FEC 与强制 WebSocket 真实首帧
+- `scripts/test_native_imgui_public.ps1` 曾使用正式 dist Client、当前 Console 和公网 Render，分别完成 UDP/FEC 与强制 WebSocket 真实首帧
   验收；这些结果覆盖连接和无 Qt 基线，不替代 2026-09-12 新视频显示链路的真流复验。新链路已在本机分别验证 Vulkan、D3D11 后端
   成功初始化且标准错误为空，真实系统点击悬浮按钮后日志为 `menu_open=true`；本次 90 复验在启动 Client 前被节点 WinRM 拒绝访问，待更新
   当前节点运维凭据后补做真首帧和流畅度验收。无启动信封与错误密码两种失败路径的 ImGui 对话框此前已分别验证可见且 Qt 模块数为 0。

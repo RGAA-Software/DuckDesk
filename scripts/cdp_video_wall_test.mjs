@@ -1,12 +1,12 @@
 // CDP 无头 Chrome 验证 px_console 设备监控页面
 // 用法: node scripts/cdp_video_wall_test.mjs
-// 前提: px_console_server 已在 https://127.0.0.1:30500 运行(部署了最新 dist)
+// 前提: px_console_server 已在 https://127.0.0.1:4600 运行(部署了最新 dist)
 import { spawn } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-const BASE_URL = process.env.PX_CONSOLE_TEST_BASE_URL || process.env.PX_CMS_TEST_BASE_URL || 'https://127.0.0.1:30500'
+const BASE_URL = process.env.PX_CONSOLE_TEST_BASE_URL || process.env.PX_CMS_TEST_BASE_URL || 'https://127.0.0.1:4600'
 const CDP_PORT = 9223
 const USERNAME = 'ConsoleAdmin'
 const PASSWORD = process.env.PX_CONSOLE_TEST_PASSWORD || process.env.PX_CMS_TEST_PASSWORD || 'eb#6naIq'

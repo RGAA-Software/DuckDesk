@@ -7,7 +7,7 @@ import path from 'node:path'
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
 const URL = process.env.PX_POPUP_TEST_URL ||
-  'http://127.0.0.1:32997/web/?deviceId=popup-test&password=popup-pass'
+  'http://127.0.0.1:4838/web/?deviceId=popup-test&password=popup-pass'
 const OUTPUT = process.env.PX_POPUP_TEST_SCREENSHOT ||
   path.join(os.tmpdir(), 'px-webview-popup-surface.png')
 const CLOSED_OUTPUT = OUTPUT.replace(/(\.[^.]+)?$/, '-closed$1')

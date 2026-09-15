@@ -478,15 +478,15 @@ mod tests {
 
     #[test]
     fn normalize_service_bin_quotes_exe_with_args() {
-        let value = normalize_service_bin_command_line("C:/Program Files/px/px_service.exe 20375");
-        assert_eq!(value, "\"C:/Program Files/px/px_service.exe\" 20375");
+        let value = normalize_service_bin_command_line("C:/Program Files/px/px_service.exe 4603");
+        assert_eq!(value, "\"C:/Program Files/px/px_service.exe\" 4603");
     }
 
     #[test]
     fn normalize_service_bin_keeps_quoted_value() {
         let value =
-            normalize_service_bin_command_line("\"C:/Program Files/px/px_service.exe\" 20375");
-        assert_eq!(value, "\"C:/Program Files/px/px_service.exe\" 20375");
+            normalize_service_bin_command_line("\"C:/Program Files/px/px_service.exe\" 4603");
+        assert_eq!(value, "\"C:/Program Files/px/px_service.exe\" 4603");
     }
 
     #[test]
@@ -497,13 +497,13 @@ mod tests {
 
     #[test]
     fn parse_service_binary_path_extracts_quoted_exe() {
-        let value = parse_service_binary_path("\"D:/px/px_service.exe\" 20375");
+        let value = parse_service_binary_path("\"D:/px/px_service.exe\" 4603");
         assert_eq!(value, "D:/px/px_service.exe");
     }
 
     #[test]
     fn parse_service_binary_path_extracts_unquoted_exe() {
-        let value = parse_service_binary_path("D:/px/px_service.exe 20375");
+        let value = parse_service_binary_path("D:/px/px_service.exe 4603");
         assert_eq!(value, "D:/px/px_service.exe");
     }
 

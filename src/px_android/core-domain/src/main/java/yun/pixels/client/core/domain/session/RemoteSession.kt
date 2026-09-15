@@ -29,7 +29,15 @@ sealed interface RemoteSessionTarget {
 
     data class Account(
         override val displayName: String,
-        val fallbackRemoteDeviceId: String,
+        val remoteDeviceId: String,
+        val connection: AccountConnection,
+        val clientNonce: String,
+    ) : RemoteSessionTarget
+
+    data class CloudApplication(
+        override val displayName: String,
+        val appId: String,
+        val instanceId: String,
         val connection: AccountConnection,
         val clientNonce: String,
     ) : RemoteSessionTarget
@@ -70,7 +78,8 @@ interface RemoteSessionPreferencesRepository {
 val RemoteSessionTarget.preferenceKey: String
     get() = when (this) {
         is RemoteSessionTarget.Direct -> "direct:${device.id.value}"
-        is RemoteSessionTarget.Account -> "account:${fallbackRemoteDeviceId.ifBlank { connection.deviceId }.ifBlank { displayName }}"
+        is RemoteSessionTarget.Account -> "account:$remoteDeviceId"
+        is RemoteSessionTarget.CloudApplication -> "cloud-app:$appId"
     }
 
 data class RemoteSessionCapabilities(

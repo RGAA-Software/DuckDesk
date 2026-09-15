@@ -68,6 +68,5 @@ sealed interface DeviceHomeAction {
     data class StartRemoteDesktop(val device: RemoteDevice) : DeviceHomeAction
     data class OpenFiles(val device: RemoteDevice) : DeviceHomeAction
     data class EditSessionPreferences(val deviceKey: String, val displayName: String) : DeviceHomeAction
-    data object OpenApplications : DeviceHomeAction
     data class RemoveDevice(val device: RemoteDevice) : DeviceHomeAction
 }

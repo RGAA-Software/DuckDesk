@@ -12,12 +12,11 @@ class ConnectionInputParserTest {
 
         assertEquals("192.168.50.12", target?.endpoints?.single()?.host)
         assertEquals(4999, target?.endpoints?.single()?.panelPort)
-        assertEquals(20371, target?.endpoints?.single()?.renderPort)
     }
 
     @Test
     fun parsesLinkPayloadWithoutPersistingLegacyShapeInUi() {
-        val json = """{"did":"desktop-1","dn":"Studio","rpwd":"418233","iidx":0,"ips":[{"ip":"192.168.1.8"}],"ppt":20369,"rdpt":20371}"""
+        val json = """{"did":"desktop-1","dn":"Studio","rpwd":"418233","iidx":0,"ips":[{"ip":"192.168.1.8"}],"ppt":20369,"rdpt":4601}"""
         val encoded = Base64.getEncoder().encodeToString(json.toByteArray())
 
         val target = ConnectionInputParser.parse("link://$encoded")

@@ -25,7 +25,6 @@ mod interact;
 mod live;
 mod media_sidecar;
 mod native_connection;
-mod web_connection;
 mod net_client;
 mod net_cm;
 mod net_panel;
@@ -41,6 +40,7 @@ mod update;
 mod user;
 mod user_device;
 mod wall;
+mod web_connection;
 
 use crate::auth::console_auth_license_keys::init_license_verifier;
 use crate::auth::console_auth_manager::AuthManager;

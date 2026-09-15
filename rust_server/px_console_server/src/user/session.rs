@@ -11,6 +11,32 @@ use std::sync::Arc;
 const HOUR_MS: i64 = 60 * 60 * 1000;
 const DAY_MS: i64 = 24 * HOUR_MS;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionClientType {
+    Panel,
+    Android,
+    UserWeb,
+    AdminWeb,
+    GuestPanel,
+    GuestAndroid,
+    GuestWeb,
+}
+
+impl SessionClientType {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Panel => "panel",
+            Self::Android => "android",
+            Self::UserWeb => "user_web",
+            Self::AdminWeb => "admin_web",
+            Self::GuestPanel => "guest_panel",
+            Self::GuestAndroid => "guest_android",
+            Self::GuestWeb => "guest_web",
+        }
+    }
+}
+
 fn positive_duration(value: i64, unit_ms: i64) -> i64 {
     value.clamp(1, 3650).saturating_mul(unit_ms)
 }
@@ -255,11 +281,18 @@ impl ConsoleUserSessionManager {
         Ok(session)
     }
 
-    pub async fn issue_panel(
+    pub async fn issue_user_bearer(
         &self,
         uid: String,
         auth_version: i64,
+        client_type: SessionClientType,
     ) -> Result<IssuedUserSession, ConsoleApiError> {
+        if !matches!(
+            client_type,
+            SessionClientType::Panel | SessionClientType::Android
+        ) {
+            return Err(ConsoleApiError::InvalidParams);
+        }
         let now = px_base::get_current_timestamp();
         let access_token = Self::new_token()?;
         let policy = crate::gConsoleSettings.lock().await.user.clone();
@@ -272,7 +305,7 @@ impl ConsoleUserSessionManager {
             subject_type: "user".to_string(),
             subject_id: uid,
             auth_version,
-            client_type: "panel".to_string(),
+            client_type: client_type.as_str().to_string(),
             created_at: now,
             last_used_at: now,
             expires_at,
@@ -453,7 +486,10 @@ impl ConsoleUserSessionManager {
         })
     }
 
-    pub async fn authenticate(&self, token: &str) -> Result<AuthenticatedUser, ConsoleApiError> {
+    pub async fn authenticate_user_bearer(
+        &self,
+        token: &str,
+    ) -> Result<AuthenticatedUser, ConsoleApiError> {
         if token.len() < 32 {
             return Err(ConsoleApiError::AuthenticationRequired);
         }
@@ -466,7 +502,7 @@ impl ConsoleUserSessionManager {
             .find_one(doc! {
                 "token_hash": token_hash,
                 "subject_type": "user",
-                "client_type": "panel",
+                "client_type": { "$in": [SessionClientType::Panel.as_str(), SessionClientType::Android.as_str()] },
                 "revoked_at": BSON_NULL,
                 "expires_at": { "$gt": now },
                 "absolute_expires_at": { "$gt": now },
@@ -640,20 +676,28 @@ impl ConsoleUserSessionManager {
         &self,
         token: &str,
     ) -> Result<AuthenticatedGuest, ConsoleApiError> {
-        self.authenticate_guest_client(token, "guest_web").await
+        self.authenticate_guest_clients(token, &[SessionClientType::GuestWeb])
+            .await
     }
 
-    pub async fn authenticate_guest_panel(
+    pub async fn authenticate_guest_bearer(
         &self,
         token: &str,
     ) -> Result<AuthenticatedGuest, ConsoleApiError> {
-        self.authenticate_guest_client(token, "guest_panel").await
+        self.authenticate_guest_clients(
+            token,
+            &[
+                SessionClientType::GuestPanel,
+                SessionClientType::GuestAndroid,
+            ],
+        )
+        .await
     }
 
-    async fn authenticate_guest_client(
+    async fn authenticate_guest_clients(
         &self,
         token: &str,
-        client_type: &str,
+        client_types: &[SessionClientType],
     ) -> Result<AuthenticatedGuest, ConsoleApiError> {
         if token.len() < 32 {
             return Err(ConsoleApiError::AuthenticationRequired);
@@ -668,7 +712,7 @@ impl ConsoleUserSessionManager {
             .find_one(doc! {
                 "token_hash": Self::hash_token(token),
                 "subject_type": "guest",
-                "client_type": client_type,
+                "client_type": { "$in": client_types.iter().map(|value| value.as_str()).collect::<Vec<_>>() },
                 "revoked_at": BSON_NULL,
                 "expires_at": { "$gt": now },
                 "absolute_expires_at": { "$gt": now },
@@ -812,5 +856,20 @@ mod tests {
         assert_ne!(first, second);
         assert!(first.len() >= 40);
         assert_ne!(first, ConsoleUserSessionManager::hash_token(&first));
+    }
+
+    #[test]
+    fn android_session_types_are_distinct_from_panel_types() {
+        assert_eq!(SessionClientType::Android.as_str(), "android");
+        assert_eq!(SessionClientType::GuestAndroid.as_str(), "guest_android");
+        assert_ne!(SessionClientType::Android, SessionClientType::Panel);
+        assert_ne!(
+            SessionClientType::GuestAndroid,
+            SessionClientType::GuestPanel
+        );
+        assert_eq!(
+            serde_json::from_str::<SessionClientType>("\"android\"").unwrap(),
+            SessionClientType::Android
+        );
     }
 }

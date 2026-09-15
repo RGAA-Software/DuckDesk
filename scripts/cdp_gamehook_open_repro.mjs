@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-const consoleBase = process.env.CONSOLE_URL || process.env.CMS_URL || 'https://127.0.0.1:30500'
+const consoleBase = process.env.CONSOLE_URL || process.env.CMS_URL || 'https://127.0.0.1:4600'
 const nodeId = process.env.CONSOLE_NODE_ID || process.env.CMS_NODE_ID || 'node-10-64be35f1'
 const cdpPort = Number(process.env.CDP_PORT || 9500)
 const keepClientMs = Number(process.env.CONSOLE_KEEP_CLIENT_MS || process.env.CMS_KEEP_CLIENT_MS || 0)

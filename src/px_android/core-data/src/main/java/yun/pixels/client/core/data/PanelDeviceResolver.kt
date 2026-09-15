@@ -61,7 +61,7 @@ class PanelDeviceResolver(
         )
     }
 
-    private fun fetchDevice(endpoint: DeviceEndpoint): FetchResult {
+    private fun fetchDevice(endpoint: PanelEndpoint): FetchResult {
         val connection = runCatching {
             URI("http", null, endpoint.host, endpoint.panelPort, SIMPLE_INFO_PATH, null, null)
                 .toURL()
@@ -86,7 +86,7 @@ class PanelDeviceResolver(
         }
     }
 
-    private fun parseResponse(response: String, sourceEndpoint: DeviceEndpoint): FetchResult = runCatching {
+    private fun parseResponse(response: String, sourceEndpoint: PanelEndpoint): FetchResult = runCatching {
         val envelope = JSONObject(response)
         if (envelope.getInt("code") != 200) return FetchResult.InvalidResponse
         val payload = envelope.getJSONObject("data")
@@ -128,10 +128,20 @@ class PanelDeviceResolver(
 }
 
 internal data class ConnectionTarget(
-    val endpoints: List<DeviceEndpoint>,
+    val endpoints: List<PanelEndpoint>,
     val expectedDeviceId: String? = null,
     val oneTimePassword: String? = null,
 )
+
+internal data class PanelEndpoint(
+    val host: String,
+    val panelPort: Int,
+) {
+    init {
+        require(host.isNotBlank()) { "Panel endpoint host must not be blank" }
+        require(panelPort in 1..65535) { "Panel port is outside the valid range" }
+    }
+}
 
 internal object ConnectionInputParser {
     fun parse(input: String): ConnectionTarget? {
@@ -151,7 +161,7 @@ internal object ConnectionInputParser {
         if (uri.path?.let { it.isNotEmpty() && it != "/" } == true) return null
         val host = uri.host?.trim()?.takeIf(String::isNotEmpty) ?: return null
         val panelPort = if (uri.port == -1) DeviceEndpoint.DEFAULT_PANEL_PORT else uri.port
-        ConnectionTarget(listOf(DeviceEndpoint(host, panelPort, DeviceEndpoint.DEFAULT_RENDER_PORT)))
+        ConnectionTarget(listOf(PanelEndpoint(host, panelPort)))
     }.getOrNull()
 
     private fun parseLink(encodedPayload: String): ConnectionTarget? = runCatching {
@@ -160,11 +170,12 @@ internal object ConnectionInputParser {
         val deviceId = payload.getString("did").trim().takeIf(String::isNotEmpty) ?: return null
         val panelPort = payload.getInt("ppt")
         val renderPort = payload.getInt("rdpt")
+        if (renderPort !in 1..65535) return null
         val hosts = payload.getJSONArray("ips")
         val endpoints = buildList {
             repeat(hosts.length()) { index ->
                 val host = hosts.getJSONObject(index).getString("ip").trim()
-                if (host.isNotEmpty()) add(DeviceEndpoint(host, panelPort, renderPort))
+                if (host.isNotEmpty()) add(PanelEndpoint(host, panelPort))
             }
         }.distinct()
         if (endpoints.isEmpty()) return null

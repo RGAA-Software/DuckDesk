@@ -5,6 +5,8 @@
 > 安全底线：appkey 只作为部署级内部凭据，不能代表终端用户或 Console 管理者。
 > 数据策略：项目尚处测试阶段，不迁移、不兼容旧身份与 ACL 数据；升级时清空相关测试数据并按新模型初始化。
 > 2026-09-12 最终鉴权决定：远程连接不再使用一次性连接票据、续期能力或兑换流程。Console 负责账号 ACL、应用调度和端点/RTC 配置下发；Client 在启动连接前取得设备密码，Render 对 Native、Web Direct 和 Web Standard 均直接校验设备密码摘要。本文后续旧票据章节仅作为历史设计记录，不得作为实现依据。
+> 2026-09-14 Android 决定：Android 使用 `client_type=android` 的独立 guest/user Bearer，不借用 Panel 身份；独立“云应用” Tab 的实施以
+> [Android 云应用模块实施计划](android_cloud_apps_implementation_plan_20260914.md) 为准，不实现旧页面、旧 session 或旧 endpoint 兼容。
 
 ## 0. 目标与非目标
 
@@ -138,7 +140,7 @@ pub struct ConsoleSession {
     pub subject_type: String,       // guest | user | admin
     pub subject_id: String,         // guest_id | uid | license auth_id
     pub auth_version: i64,
-    pub client_type: String,        // panel | user_web | admin_web
+    pub client_type: String,        // panel | android | user_web | admin_web
     pub created_at: i64,
     pub last_used_at: i64,
     pub expires_at: i64,            // 滑动过期
@@ -160,6 +162,8 @@ pub struct ConsoleSession {
 |---|---|---|
 | Panel | `Authorization: Bearer <user_token>` | Windows Credential Manager/DPAPI；禁止 SQLite 明文 |
 | 未登录 Panel | `Authorization: Bearer <guest_token>` | 仅保存在进程内存，过期后自动重建；只能访问 public 应用 |
+| Android | `Authorization: Bearer <user_token>` | Android Keystore 加密存储；`client_type=android` |
+| 未登录 Android | `Authorization: Bearer <guest_token>` | 仅保存在进程内存；独立 Android guest 身份 |
 | 浏览器用户门户 | `__Host-px_user_session` Cookie | Secure、HttpOnly、SameSite=Lax、Path=/ |
 | 浏览器管理后台 | `__Host-px_admin_session` Cookie | 与用户 Cookie 名称和校验中间件完全分离 |
 
@@ -345,7 +349,7 @@ Panel/浏览器
 5. 应用卡片标识公开/专属及运行状态，只提供启动/进入/仅观看/停止，不展示节点、设备或端口；新实例的 HTTP 202 与幂等复用的 HTTP 200 都按成功处理。应用卡片不写入远程设备 SQLite。
 6. 应用连接可复用成熟的 px_client 启动、全屏和控制链路，但只能复用连接控制器，不能复用远程设备页面容器或把应用伪装成设备。
 7. Panel 只保存 user token 到 Windows 安全存储，不保存明文密码。
-8. 设备和应用连接都从 Console 申请 ticket；静态密码只在手工连接调试入口使用。
+8. 设备和应用连接都从 Console 取得稳定 Native 连接描述和设备密码摘要；不申请、续期或兑换连接 ticket。
 
 ### 8.2 Console 管理后台
 
@@ -385,6 +389,13 @@ web/px_console/src/
 - `AdminLayout` 才建立管理员 WebSocket；`/user/**` 不读取 appkey，不建立管理员 WS。
 - 路由守卫只负责体验，后端中间件是唯一授权事实。
 - 用户设备/应用进入现有顶层 `/web_client/`，不使用 iframe，以保留全屏、键鼠锁定、剪贴板和文件传输。
+
+### 8.4 Android 客户端
+
+- 设置页独立保存 PX Console HTTPS endpoint，并提供连接测试、注册、登录和退出。
+- 未登录使用仅驻内存的 Android guest Bearer 访问 public 应用；登录后使用 Android user Bearer 访问 public + ACL 应用。
+- “云应用”与“设备”是独立一级资源域，不保留设备内旧应用页、转发入口、旧 session 导入或端点回退。
+- 应用连接只使用 Console 返回的 Native 连接描述；Android 首版允许 game-hook/webview，对 RDP 和未知类型在启动前显式拒绝。
 
 ## 9. 匿名启动的限流与配额
 
@@ -602,13 +613,13 @@ P0–P1 必须先于用户组 UI。P3 完成前，ACL 只能限制“谁能发�
 
 ```text
 POST /api/v1/session/guest
-request:  { client_nonce, client_type? }             # Panel 显式传 panel
-response: { csrf_token, expires_at, access_token? }  # 仅 Panel 返回临时 guest Bearer；Web 使用 Cookie
+request:  { client_nonce, client_type? }             # Panel 传 panel；Android 传 android
+response: { csrf_token, expires_at, access_token? }  # Panel/Android 返回临时 guest Bearer；Web 使用 Cookie
 
 POST /api/v1/session/user/login
 request:  { username, password, client_type }
 response: { profile, csrf_token, expires_at, absolute_expires_at,
-            access_token? }                          # 仅 client_type=panel 返回 access_token
+            access_token? }                          # client_type=panel/android 返回 access_token
 
 POST /api/v1/session/user/logout
 request:  {}
@@ -624,7 +635,8 @@ response: { profile, csrf_token, expires_at, absolute_expires_at }
 ```
 
 - 浏览器从 `X-CSRF-Token` 响应头或登录响应体取得 CSRF token，后续写请求使用同名请求头；服务端保存其 hash 并与 session 绑定。
-- Panel 登录只接受 `client_type=panel`，在响应体取得 Bearer token；浏览器登录不在响应体返回 token。未登录 Panel 可取得独立 `guest_panel` Bearer，该 token 不写磁盘且不能调用用户或管理接口。
+- Panel 使用 `client_type=panel`，Android 使用 `client_type=android`，二者在响应体取得各自 Bearer token；Android 不借用 Panel 身份。
+  浏览器登录不在响应体返回 token。未登录 Panel 与 Android 分别取得与真实 client type 绑定的 guest Bearer；guest token 不写磁盘且不能调用用户或管理接口。
 - 登录失败统一返回 401/`AUTH_INVALID_CREDENTIALS`；禁用用户也不泄露具体原因。限流返回 429 和 `Retry-After`。
 - Set-Cookie 和清除 Cookie 必须在服务端完成；logout 即使 session 已过期也返回幂等成功。
 

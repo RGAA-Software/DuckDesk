@@ -150,14 +150,11 @@ mod tests {
     fn render_endpoints_accept_only_literal_ips_and_valid_ports() {
         let device = device_with_link(
             r#"[{"ip":"192.168.1.9"},{"ip":"host.invalid"},{"ip":"::1"}]"#,
-            32004,
+            4617,
         );
         assert_eq!(
             device.get_render_endpoints(),
-            vec![
-                ("192.168.1.9".to_string(), 32004),
-                ("::1".to_string(), 32004)
-            ]
+            vec![("192.168.1.9".to_string(), 4617), ("::1".to_string(), 4617)]
         );
         assert!(device_with_link(r#"[{"ip":"127.0.0.1"}]"#, 70000)
             .get_render_endpoints()
