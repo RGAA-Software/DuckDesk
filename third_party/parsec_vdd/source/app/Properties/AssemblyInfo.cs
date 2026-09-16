@@ -10,9 +10,9 @@ using System.Windows;
 [assembly: AssemblyTitle(ParsecDisplay.Program.AppName)]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
+[assembly: AssemblyCompany("Pixels")]
 [assembly: AssemblyProduct(ParsecDisplay.Program.AppName)]
-[assembly: AssemblyCopyright("Copyright (c) 2024")]
+[assembly: AssemblyCopyright("Pixels")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

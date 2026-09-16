@@ -11,6 +11,9 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <Authors>Pixels</Authors>
+    <Company>Pixels</Company>
+    <Copyright>Pixels</Copyright>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -25,7 +28,6 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <ApplicationIcon>Resources\icon.ico</ApplicationIcon>
     <ApplicationManifest>Properties\app.manifest</ApplicationManifest>
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>

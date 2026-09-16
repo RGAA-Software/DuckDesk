@@ -13,7 +13,8 @@ maintained product fork adds a headless `-worker` mode, changes heartbeat to
 50 ms, uses a product-specific single-instance identity, retains the upstream
 eight-display capacity, allows five seconds for Windows topology removal, and
 overrides the MSBuild `AssemblyName` property at build time to produce
-`px_display.exe`.
+`px_display.exe`. The product build omits the upstream executable icon and
+stamps its author, company and copyright metadata as `Pixels`.
 
 ## Driver package
 
